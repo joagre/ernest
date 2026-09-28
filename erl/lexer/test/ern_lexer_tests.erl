@@ -268,8 +268,8 @@ token_spans_test() ->
 
 %% report Appendix B, guide §1
 hello_program_test() ->
-    Src = "export fn main() -> Unit with Never = Io.println(\"hello, world\")",
-    ?assertEqual([export, fn, {ident, main}, '(', ')', '->', {typename, 'Unit'}, with,
+    Src = "export fn main() : Unit with Never = Io.println(\"hello, world\")",
+    ?assertEqual([export, fn, {ident, main}, '(', ')', ':', {typename, 'Unit'}, with,
                   {typename, 'Never'}, '=', {typename, 'Io'}, '.', {ident, println}, '(',
                   {string, <<"hello, world">>}, ')'],
                  toks(Src)).

@@ -133,7 +133,7 @@ hangup() ->
     Dir = "build/hangup",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/waits.ern",
-                         "export fn main() -> Unit with Never = {\n"
+                         "export fn main() : Unit with Never = {\n"
                          "    Io.println(\"running\");\n"
                          "    receive { after 60000 -> Io.println(\"late\") }\n"
                          "}\n"),
@@ -154,7 +154,7 @@ interrupt() ->
     Dir = "build/interrupt",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/waits.ern",
-                         "export fn main() -> Unit with Never =\n"
+                         "export fn main() : Unit with Never =\n"
                          "    receive { after 60000 -> Io.println(\"late\") }\n"),
     {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
     Port = open_port({spawn_executable, "../bin/ern"},
@@ -373,7 +373,7 @@ release() ->
 
 %% A program that runs another through the runtime's helper (Appendix E.23).
 runs_echo() ->
-    "export fn main() -> Unit with Never = match Os.run(Os.Command(\n"
+    "export fn main() : Unit with Never = match Os.run(Os.Command(\n"
     "    program = \"echo\", arguments = [\"hi\"], input = <<>>), 5000) {\n"
     "    Right(Os.Finished(stdout = out)) -> Io.print(Optional.withDefault(\n"
     "        String.fromUtf8(out), \"\"))\n"
@@ -457,14 +457,14 @@ os() ->
     Src = "build/os/src",
     ok = filelib:ensure_path(Src),
     ok = file:write_file(Src ++ "/args.ern",
-                         "export fn main() -> Unit with Never = {\n"
+                         "export fn main() : Unit with Never = {\n"
                          "    Io.println(Io.show(Os.arguments));\n"
                          "    Os.exit(List.size(Os.arguments))\n"
                          "}\n"),
     ok = file:write_file(Src ++ "/env.ern",
-                         "fn get(name : String) -> Optional(String) =\n"
+                         "fn get(name : String) : Optional(String) =\n"
                          "    Map.get(Os.environment, name)\n"
-                         "export fn main() -> Unit with Never =\n"
+                         "export fn main() : Unit with Never =\n"
                          "    Io.println(Io.show(#(get(\"ERN_OK\"), get(\"ERN_BAD\"))))\n"),
     {0, _} = sh("../bin/ern build --source-root build/os/src --build-root build/os build/os/src"),
     lists:foreach(
@@ -495,7 +495,7 @@ working_directory() ->
     Dir = "build/cwd",
     ok = filelib:ensure_path(Dir ++ "/src"),
     ok = file:write_file(Dir ++ "/src/here.ern",
-                         "export fn main() -> Unit with Never = {\n"
+                         "export fn main() : Unit with Never = {\n"
                          "    Io.println(Path.toString(Os.workingDirectory));\n"
                          "    match Fs.read(Path(\"notes.txt\"), 1000) {\n"
                          "        Right(bytes) -> Io.println(Io.show(String.fromUtf8(bytes)))\n"
@@ -538,10 +538,10 @@ stream_gone() ->
     Dir = "build/gone",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/chatty.ern",
-                         "fn loop(n : Int) -> Unit with Never =\n"
+                         "fn loop(n : Int) : Unit with Never =\n"
                          "    if n == 0 then Io.printlnError(\"finished\")\n"
                          "    else { Io.println(\"line\"); loop(n - 1) }\n"
-                         "export fn main() -> Unit with Never = loop(100000000)\n"),
+                         "export fn main() : Unit with Never = loop(100000000)\n"),
     {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/chatty.ern"),
     {0, Out} = sh("sh -c '{ ../bin/ern run " ++ Dir ++ "/chatty.erc 2> " ++ Dir
                   ++ "/err; echo $? > " ++ Dir ++ "/status; } | head -1'"),
@@ -563,11 +563,11 @@ paced_output() ->
     Dir = "build/paced",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/flood.ern",
-                         "fn loop(n : Int) -> Unit with Never =\n"
+                         "fn loop(n : Int) : Unit with Never =\n"
                          "    if n == 0 then Unit\n"
                          "    else { Io.println(\"a line of output a slow reader takes late\");\n"
                          "        loop(n - 1) }\n"
-                         "export fn main() -> Unit with Never = loop(2000000)\n"),
+                         "export fn main() : Unit with Never = loop(2000000)\n"),
     {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/flood.ern"),
     Reader = "{ sleep 4; head -c 1 > /dev/null; }",
     {0, Out} = sh("sh -c '../bin/ern run " ++ Dir ++ "/flood.erc | " ++ Reader ++ " & "
@@ -598,8 +598,8 @@ foreign_module() ->
     Probe(Dir ++ "/prog", 1),
     Probe(Dir ++ "/work", 2),
     ok = file:write_file(Dir ++ "/prog/which.ern",
-                         "foreign fn n() -> Int = \"ern_probe:n/0\"\n"
-                         "export fn main() -> Unit with Never = Io.println(Int.toString(n()))\n"),
+                         "foreign fn n() : Int = \"ern_probe:n/0\"\n"
+                         "export fn main() : Unit with Never = Io.println(Int.toString(n()))\n"),
     {0, _} = sh(Ern ++ " build --source-root " ++ Dir ++ "/prog " ++ Dir ++ "/prog/which.ern"),
     ?assertEqual({0, <<"1\n">>}, sh(Ern ++ " run ../prog/which.erc", [{cd, Dir ++ "/work"}])).
 
@@ -637,7 +637,7 @@ fault_line_escaped() ->
     Dir = "build/escaped",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/forged.ern",
-                         "export fn main() -> Unit with Never =\n"
+                         "export fn main() : Unit with Never =\n"
                          "    fault(\"a\\u{1b}[31m\\nX.main faulted: forged\")\n"),
     {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/forged.ern"),
     Err = Dir ++ "/err",
@@ -658,7 +658,7 @@ stamped() ->
     Dir = "build/stamped",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/faulty.ern",
-                         "export fn main() -> Unit with Never = {\n"
+                         "export fn main() : Unit with Never = {\n"
                          "    let z = List.size([]);\n"
                          "    let _ = 1 / z;\n"
                          "    Unit\n"
@@ -691,7 +691,7 @@ signal_end() ->
     Dir = "build/signal_end",
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(Dir ++ "/waits.ern",
-                         "export fn main() -> Unit with Never = {\n"
+                         "export fn main() : Unit with Never = {\n"
                          "    Io.println(\"running\");\n"
                          "    receive { after 60000 -> Io.println(\"late\") }\n"
                          "}\n"),
@@ -721,7 +721,7 @@ job_signal_end() ->
     ok = del(Dir),
     ok = filelib:ensure_path(Dir ++ "/tree"),
     [ok = file:write_file(Dir ++ "/tree/m" ++ integer_to_list(N) ++ ".ern",
-                          "export fn f(n : Int) -> Int = n + " ++ integer_to_list(N) ++ "\n")
+                          "export fn f(n : Int) : Int = n + " ++ integer_to_list(N) ++ "\n")
      || N <- lists:seq(1, 100)],
     Python = "import subprocess, signal, os, time\n"
              "out = '" ++ Dir ++ "/out'\n"

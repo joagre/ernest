@@ -66,7 +66,7 @@ check_examples(Ns, Src, Docs) ->
              "\n}\n">> || {N, Body, _} <- WithResult],
     Q = lists:join(".", [atom_to_list(A) || A <- Ns]),
     Mains = [iolist_to_binary(["export fn docMain", integer_to_list(N),
-                               "() -> Unit with Never = {\n    let _ = Io.debug(", Q,
+                               "() : Unit with Never = {\n    let _ = Io.debug(", Q,
                                ".docExample", integer_to_list(N), "());\n    Unit\n}\n"])
              || {N, _, _} <- WithResult],
     Text = iolist_to_binary([Src, "\n", Fns, Mains]),

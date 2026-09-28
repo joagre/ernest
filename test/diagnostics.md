@@ -7,276 +7,276 @@ Errors the lexer, the parser and the checker give, each with one small program t
 ### A character outside the language (§2.1)
 
 ```ernest-rejected
-export fn main() -> Unit with Never = Io.println(§)
+export fn main() : Unit with Never = Io.println(§)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:50: illegal character '§'
-1 | export fn main() -> Unit with Never = Io.println(§)
-  |                                                  ^
+example.ern:1:49: illegal character '§'
+1 | export fn main() : Unit with Never = Io.println(§)
+  |                                                 ^
 ```
 
 ### A name longer than 255 characters (§2.3)
 
 ```ernest-rejected
-export fn main() -> Unit with Never = { let aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa = 1; Unit }
+export fn main() : Unit with Never = { let aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa = 1; Unit }
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:45: a name is at most 255 characters long
-1 | export fn main() -> Unit with Never = { let aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa = 1; Unit }
-  |                                             ^
+example.ern:1:44: a name is at most 255 characters long
+1 | export fn main() : Unit with Never = { let aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa = 1; Unit }
+  |                                            ^
 ```
 
 ### An underscore that does not stand between two digits (§2.5)
 
 ```ernest-rejected
-export fn size() -> Int = 1_
+export fn size() : Int = 1_
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:28: _ must stand between two digits
-1 | export fn size() -> Int = 1_
-  |                            ^
+example.ern:1:27: _ must stand between two digits
+1 | export fn size() : Int = 1_
+  |                           ^
 ```
 
 ### An underscore after a base prefix (§2.5)
 
 ```ernest-rejected
-export fn mask() -> Int = 0x_FF
+export fn mask() : Int = 0x_FF
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:29: _ must stand between two digits
-1 | export fn mask() -> Int = 0x_FF
-  |                             ^
+example.ern:1:28: _ must stand between two digits
+1 | export fn mask() : Int = 0x_FF
+  |                            ^
 ```
 
 ### A letter directly after a number (§2.5)
 
 ```ernest-rejected
-export fn width() -> Int = 12px
+export fn width() : Int = 12px
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:30: p cannot follow a number directly
-1 | export fn width() -> Int = 12px
-  |                              ^
+example.ern:1:29: p cannot follow a number directly
+1 | export fn width() : Int = 12px
+  |                             ^
 ```
 
 ### A base prefix with no digit (§2.5)
 
 ```ernest-rejected
-export fn mask() -> Int = 0x
+export fn mask() : Int = 0x
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:27: 0x needs a hexadecimal digit
-1 | export fn mask() -> Int = 0x
-  |                           ^
+example.ern:1:26: 0x needs a hexadecimal digit
+1 | export fn mask() : Int = 0x
+  |                          ^
 ```
 
 ### A digit outside the base (§2.5)
 
 ```ernest-rejected
-export fn flags() -> Int = 0b102
+export fn flags() : Int = 0b102
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:32: 2 is not a binary digit
-1 | export fn flags() -> Int = 0b102
-  |                                ^
+example.ern:1:31: 2 is not a binary digit
+1 | export fn flags() : Int = 0b102
+  |                               ^
 ```
 
 ### An uppercase base prefix (§2.5)
 
 ```ernest-rejected
-export fn mask() -> Int = 0XFF
+export fn mask() : Int = 0XFF
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:27: a base prefix is lowercase: 0x
-1 | export fn mask() -> Int = 0XFF
-  |                           ^
+example.ern:1:26: a base prefix is lowercase: 0x
+1 | export fn mask() : Int = 0XFF
+  |                          ^
 ```
 
 ### A float beyond the largest finite Float (§2.5)
 
 ```ernest-rejected
-export fn huge() -> Float = 1.0e400
+export fn huge() : Float = 1.0e400
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:29: the float literal is beyond the largest finite Float
-1 | export fn huge() -> Float = 1.0e400
-  |                             ^
+example.ern:1:28: the float literal is beyond the largest finite Float
+1 | export fn huge() : Float = 1.0e400
+  |                            ^
 ```
 
 ### A raw string that never closes (§2.5)
 
 ```ernest-rejected
-export fn pattern() -> String = `\d+
+export fn pattern() : String = `\d+
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:33: unterminated raw string
-1 | export fn pattern() -> String = `\d+
-  |                                 ^
+example.ern:1:32: unterminated raw string
+1 | export fn pattern() : String = `\d+
+  |                                ^
 ```
 
 ### A line break inside a string (§2.5)
 
 ```ernest-rejected
-export fn greeting() -> String = "hello
+export fn greeting() : String = "hello
 world"
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:40: newline in string literal; use \n
-1 | export fn greeting() -> String = "hello
-  |                                        ^
+example.ern:1:39: newline in string literal; use \n
+1 | export fn greeting() : String = "hello
+  |                                       ^
 ```
 
 ### An empty character literal (§2.5)
 
 ```ernest-rejected
-export fn blank() -> Char = ''
+export fn blank() : Char = ''
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:29: empty char literal
-1 | export fn blank() -> Char = ''
-  |                             ^
+example.ern:1:28: empty char literal
+1 | export fn blank() : Char = ''
+  |                            ^
 ```
 
 ### A line break inside a character literal (§2.5)
 
 ```ernest-rejected
-export fn newline() -> Char = '
+export fn newline() : Char = '
 '
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:31: newline in char literal; use '\n'
-1 | export fn newline() -> Char = '
-  |                               ^
+example.ern:1:30: newline in char literal; use '\n'
+1 | export fn newline() : Char = '
+  |                              ^
 ```
 
 ### A character literal of two characters (§2.5)
 
 ```ernest-rejected
-export fn letter() -> Char = 'ab'
+export fn letter() : Char = 'ab'
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:30: unterminated char literal
-1 | export fn letter() -> Char = 'ab'
-  |                              ^
+example.ern:1:29: unterminated char literal
+1 | export fn letter() : Char = 'ab'
+  |                             ^
 ```
 
 ### A Unicode escape with no digit (§2.5)
 
 ```ernest-rejected
-export fn nothing() -> String = "\u{}"
+export fn nothing() : String = "\u{}"
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:34: \u{ needs one to six hex digits
-1 | export fn nothing() -> String = "\u{}"
-  |                                  ^
+example.ern:1:33: \u{ needs one to six hex digits
+1 | export fn nothing() : String = "\u{}"
+  |                                 ^
 ```
 
 ### A Unicode escape of a surrogate (§2.5)
 
 ```ernest-rejected
-export fn half() -> String = "\u{D800}"
+export fn half() : String = "\u{D800}"
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:31: \u{D800} is not a Unicode scalar value
-1 | export fn half() -> String = "\u{D800}"
-  |                               ^
+example.ern:1:30: \u{D800} is not a Unicode scalar value
+1 | export fn half() : String = "\u{D800}"
+  |                              ^
 ```
 
 ### A Unicode escape that does not close (§2.5)
 
 ```ernest-rejected
-export fn open() -> String = "\u{41"
+export fn open() : String = "\u{41"
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:31: \u{ needs one to six hex digits followed by }
-1 | export fn open() -> String = "\u{41"
-  |                               ^
+example.ern:1:30: \u{ needs one to six hex digits followed by }
+1 | export fn open() : String = "\u{41"
+  |                              ^
 ```
 
 ### An escape the language does not have (§2.5)
 
 ```ernest-rejected
-export fn bell() -> String = "\a"
+export fn bell() : String = "\a"
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:31: unknown escape \a
-1 | export fn bell() -> String = "\a"
-  |                               ^
+example.ern:1:30: unknown escape \a
+1 | export fn bell() : String = "\a"
+  |                              ^
 ```
 
 ### A line break after a backslash (§2.5)
 
 ```ernest-rejected
-export fn cut() -> String = "\
+export fn cut() : String = "\
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:30: a line break cannot follow `\`; use \n
-1 | export fn cut() -> String = "\
-  |                              ^
+example.ern:1:29: a line break cannot follow `\`; use \n
+1 | export fn cut() : String = "\
+  |                             ^
 ```
 
 ### A block comment that never closes (§2.2)
 
 ```ernest-rejected
-export fn one() -> Int = 1 /* the rest is a comment
+export fn one() : Int = 1 /* the rest is a comment
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:28: unterminated block comment
-1 | export fn one() -> Int = 1 /* the rest is a comment
-  |                            ^
+example.ern:1:27: unterminated block comment
+1 | export fn one() : Int = 1 /* the rest is a comment
+  |                           ^
 ```
 
 ### A doc comment after code (§2.2)
 
 ```ernest-rejected
-export fn one() -> Int = 1 /// the one
+export fn one() : Int = 1 /// the one
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:28: a doc comment `///` stands on a line of its own; a note after code is written `//`
-1 | export fn one() -> Int = 1 /// the one
-  |                            ^
+example.ern:1:27: a doc comment `///` stands on a line of its own; a note after code is written `//`
+1 | export fn one() : Int = 1 /// the one
+  |                           ^
 ```
 
 ## The parser (report §4, §5, Appendix A)
@@ -308,33 +308,47 @@ example.ern:3:1: expected a declaration (type, abstract, fn, let, foreign) inste
   | ^
 ```
 
+### A result annotated with `->` (§4.5)
+
+```ernest-rejected
+fn double(n : Int) -> Int = n * 2
+```
+
+```console
+$ ern build example.ern
+example.ern:1:20: a function's result is annotated with `:`, not `->`
+1 | fn double(n : Int) -> Int = n * 2
+  |                    ^^
+  | = help: write `: T` after the parameters, as a parameter's type is written
+```
+
 ### A function written in two clauses (§4.4)
 
 ```ernest-rejected
-fn size(xs : List(Int)) -> Int = 0
+fn size(xs : List(Int)) : Int = 0
 
-fn size(xs : List(Int)) -> Int = List.size(xs)
+fn size(xs : List(Int)) : Int = List.size(xs)
 ```
 
 ```console
 $ ern build example.ern
 example.ern:3:1: a function has one clause
 2 | 
-3 | fn size(xs : List(Int)) -> Int = List.size(xs)
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3 | fn size(xs : List(Int)) : Int = List.size(xs)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   | = help: write one clause whose body is a `match`
 ```
 
 ### `abstract` before something other than a type (§3.8)
 
 ```ernest-rejected
-abstract fn hidden() -> Int = 1
+abstract fn hidden() : Int = 1
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:10: expected `type` after `abstract`
-1 | abstract fn hidden() -> Int = 1
+1 | abstract fn hidden() : Int = 1
   |          ^^
 ```
 
@@ -372,14 +386,14 @@ example.ern:3:9: expected a member name or operator after `.` instead of integer
 ```ernest-rejected
 type Coin = Coin(Int)
 
-fn Coin() -> Int = 1
+fn Coin() : Int = 1
 ```
 
 ```console
 $ ern build example.ern
 example.ern:3:4: expected a name; a type member is written `Coin.name`
 2 | 
-3 | fn Coin() -> Int = 1
+3 | fn Coin() : Int = 1
   |    ^^^^
 ```
 
@@ -426,14 +440,14 @@ example.ern:1:18: a foreign function declares its return type
 ### A foreign function whose implementation is not a string (§8.4)
 
 ```ernest-rejected
-foreign fn now() -> Int = erlang
+foreign fn now() : Int = erlang
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:27: expected the implementation name as a string instead of identifier `erlang`
-1 | foreign fn now() -> Int = erlang
-  |                           ^^^^^^
+example.ern:1:26: expected the implementation name as a string instead of identifier `erlang`
+1 | foreign fn now() : Int = erlang
+  |                          ^^^^^^
 ```
 
 ### `foreign` before something other than `type` or `fn` (§8.4)
@@ -452,92 +466,92 @@ example.ern:1:9: expected `type` or `fn` after `foreign` instead of `let`
 ### Empty parentheses where a type stands (§3.2)
 
 ```ernest-rejected
-fn f() -> () = 1
+fn f() : () = 1
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:11: expected a type inside the parentheses, or `->` after them
-1 | fn f() -> () = 1
-  |           ^
+example.ern:1:10: expected a type inside the parentheses, or `->` after them
+1 | fn f() : () = 1
+  |          ^
 ```
 
 ### Parenthesized types that are no function type (§3.2)
 
 ```ernest-rejected
-fn f(pair : (Int, Int)) -> Int = 1
+fn f(pair : (Int, Int)) : Int = 1
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:23: expected `->` after a parameter list instead of `)`
-1 | fn f(pair : (Int, Int)) -> Int = 1
+1 | fn f(pair : (Int, Int)) : Int = 1
   |                       ^
 ```
 
 ### A qualified type that ends in a lowercase name (§3.2)
 
 ```ernest-rejected
-fn f(xs : List.a) -> Int = 1
+fn f(xs : List.a) : Int = 1
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:11: expected a type name; a qualified type ends in an uppercase name
-1 | fn f(xs : List.a) -> Int = 1
+1 | fn f(xs : List.a) : Int = 1
   |           ^^^^
 ```
 
 ### Something that is no type where a type stands (§3.2)
 
 ```ernest-rejected
-fn f(x : 1) -> Int = 1
+fn f(x : 1) : Int = 1
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:10: expected a type instead of integer 1
-1 | fn f(x : 1) -> Int = 1
+1 | fn f(x : 1) : Int = 1
   |          ^
 ```
 
 ### A qualified name that ends in no name (§2.3)
 
 ```ernest-rejected
-fn f() -> Int = List.1
+fn f() : Int = List.1
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:22: expected a name after `.` instead of integer 1
-1 | fn f() -> Int = List.1
-  |                      ^
+example.ern:1:21: expected a name after `.` instead of integer 1
+1 | fn f() : Int = List.1
+  |                     ^
 ```
 
 ### Two expressions with nothing between them (§5)
 
 ```ernest-rejected
-fn f() -> Int = 1 2
+fn f() : Int = 1 2
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:19: unexpected integer 2 after an expression
-1 | fn f() -> Int = 1 2
-  |                   ^
+example.ern:1:18: unexpected integer 2 after an expression
+1 | fn f() : Int = 1 2
+  |                  ^
   | = help: a call is written f(x), and statements are separated by `;`
 ```
 
 ### An `if` without its `else` (§5.2)
 
 ```ernest-rejected
-fn f(b : Bool) -> Int = if b then 1
+fn f(b : Bool) : Int = if b then 1
 ```
 
 ```console
 $ ern build example.ern
 example.ern:2:1: `if` needs an `else`
-1 | fn f(b : Bool) -> Int = if b then 1
+1 | fn f(b : Bool) : Int = if b then 1
 2 | 
   | ^
   | = help: every `if` is an expression; give the other branch a value
@@ -546,74 +560,74 @@ example.ern:2:1: `if` needs an `else`
 ### `_` where an expression stands (§5.10)
 
 ```ernest-rejected
-fn f() -> Int = _
+fn f() : Int = _
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:17: `_` is a pattern, not an expression
-1 | fn f() -> Int = _
-  |                 ^
+example.ern:1:16: `_` is a pattern, not an expression
+1 | fn f() : Int = _
+  |                ^
 ```
 
 ### A reserved word as an operand (§5)
 
 ```ernest-rejected
-fn f(b : Bool) -> Int = 1 + if b then 1 else 2
+fn f(b : Bool) : Int = 1 + if b then 1 else 2
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:29: `if` is not an operand
-1 | fn f(b : Bool) -> Int = 1 + if b then 1 else 2
-  |                             ^^
+example.ern:1:28: `if` is not an operand
+1 | fn f(b : Bool) : Int = 1 + if b then 1 else 2
+  |                            ^^
   | = help: parenthesize it
 ```
 
 ### Something that is no expression where one stands (§5)
 
 ```ernest-rejected
-fn f() -> Int = )
+fn f() : Int = )
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:17: expected an expression instead of `)`
-1 | fn f() -> Int = )
-  |                 ^
+example.ern:1:16: expected an expression instead of `)`
+1 | fn f() : Int = )
+  |                ^
 ```
 
 ### Empty parentheses after a nullary constructor (§3.3)
 
 ```ernest-rejected
-fn f() -> Optional(Int) = None()
+fn f() : Optional(Int) = None()
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:32: a constructor's fields are listed inside the parentheses
-1 | fn f() -> Optional(Int) = None()
-  |                                ^
+example.ern:1:31: a constructor's fields are listed inside the parentheses
+1 | fn f() : Optional(Int) = None()
+  |                               ^
   | = help: a nullary constructor takes none: write it without parentheses
 ```
 
 ### An empty block (§5.4)
 
 ```ernest-rejected
-fn f() -> Int = {}
+fn f() : Int = {}
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:18: a block needs at least one expression
-1 | fn f() -> Int = {}
-  |                  ^
+example.ern:1:17: a block needs at least one expression
+1 | fn f() : Int = {}
+  |                 ^
 ```
 
 ### A block that ends with `;` (§5.4)
 
 ```ernest-rejected
-fn f() -> Int = {
+fn f() : Int = {
     1;
 }
 ```
@@ -630,7 +644,7 @@ example.ern:3:1: a block ends with an expression
 ### A block that ends with a `let` (§5.4)
 
 ```ernest-rejected
-fn f() -> Int = {
+fn f() : Int = {
     let x = 1
 }
 ```
@@ -647,15 +661,15 @@ example.ern:3:1: a block ends with an expression, not a `let`
 ### A block that ends with a local function (§5.4)
 
 ```ernest-rejected
-fn f() -> Int = {
-    fn g() -> Int = 1
+fn f() : Int = {
+    fn g() : Int = 1
 }
 ```
 
 ```console
 $ ern build example.ern
 example.ern:3:1: a block ends with an expression, not a `fn`
-2 |     fn g() -> Int = 1
+2 |     fn g() : Int = 1
 3 | }
   | ^
   | = help: add the expression the block is worth after it
@@ -664,7 +678,7 @@ example.ern:3:1: a block ends with an expression, not a `fn`
 ### A statement followed by neither `;` nor `}` (§5.4)
 
 ```ernest-rejected
-fn f() -> Int = {
+fn f() : Int = {
     let x = 1;
     x )
 }
@@ -681,7 +695,7 @@ example.ern:3:7: expected `;` or `}` instead of `)`
 ### A `let` without `=` or `<-` (§5.4)
 
 ```ernest-rejected
-fn f() -> Int = {
+fn f() : Int = {
     let x 1;
     x
 }
@@ -690,7 +704,7 @@ fn f() -> Int = {
 ```console
 $ ern build example.ern
 example.ern:2:11: expected `=` or `<-` instead of integer 1
-1 | fn f() -> Int = {
+1 | fn f() : Int = {
 2 |     let x 1;
   |           ^
 ```
@@ -698,7 +712,7 @@ example.ern:2:11: expected `=` or `<-` instead of integer 1
 ### `as` without a name (§5.10)
 
 ```ernest-rejected
-fn f(x : Int) -> Int =
+fn f(x : Int) : Int =
     match x {
         1 as 2 -> 1
       | _ -> 0
@@ -716,7 +730,7 @@ example.ern:3:14: expected a name after `as` instead of integer 2
 ### A negative pattern that is no number (§5.10)
 
 ```ernest-rejected
-fn f(x : Int) -> Int =
+fn f(x : Int) : Int =
     match x {
         -a -> 1
       | _ -> 0
@@ -734,7 +748,7 @@ example.ern:3:10: expected a number after `-` in a pattern instead of identifier
 ### A function's name where a pattern's constructor stands (§5.10)
 
 ```ernest-rejected
-fn f(xs : List(Int)) -> Int =
+fn f(xs : List(Int)) : Int =
     match xs {
         List.map -> 1
       | _ -> 0
@@ -752,7 +766,7 @@ example.ern:3:9: expected a constructor; a pattern cannot name a function or val
 ### Something that is no pattern where one stands (§5.10)
 
 ```ernest-rejected
-fn f(x : Int) -> Int =
+fn f(x : Int) : Int =
     match x {
         ) -> 1
     }
@@ -769,7 +783,7 @@ example.ern:3:9: expected a pattern instead of `)`
 ### A constructor pattern the input ends inside (§5.10)
 
 ```ernest-rejected
-fn f(x : Optional(Int)) -> Int =
+fn f(x : Optional(Int)) : Int =
     match x {
         Some(
 ```
@@ -785,40 +799,40 @@ example.ern:4:1: expected a pattern instead of end of input
 ### `unit` without an integer (§5.11)
 
 ```ernest-rejected
-fn f(b : Bytes) -> Bytes = <<b:unit(a)>>
+fn f(b : Bytes) : Bytes = <<b:unit(a)>>
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:32: `unit` takes an integer in parentheses
-1 | fn f(b : Bytes) -> Bytes = <<b:unit(a)>>
-  |                                ^^^^
+example.ern:1:31: `unit` takes an integer in parentheses
+1 | fn f(b : Bytes) : Bytes = <<b:unit(a)>>
+  |                               ^^^^
 ```
 
 ### A bitstring specifier the language does not have (§5.11)
 
 ```ernest-rejected
-fn f(b : Bytes) -> Bytes = <<b:wide>>
+fn f(b : Bytes) : Bytes = <<b:wide>>
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:32: unknown bitstring specifier `wide`
-1 | fn f(b : Bytes) -> Bytes = <<b:wide>>
-  |                                ^^^^
+example.ern:1:31: unknown bitstring specifier `wide`
+1 | fn f(b : Bytes) : Bytes = <<b:wide>>
+  |                               ^^^^
 ```
 
 ### Something that is no bitstring specifier (§5.11)
 
 ```ernest-rejected
-fn f(b : Bytes) -> Bytes = <<b:1>>
+fn f(b : Bytes) : Bytes = <<b:1>>
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:32: expected a bitstring specifier instead of integer 1
-1 | fn f(b : Bytes) -> Bytes = <<b:1>>
-  |                                ^
+example.ern:1:31: expected a bitstring specifier instead of integer 1
+1 | fn f(b : Bytes) : Bytes = <<b:1>>
+  |                               ^
 ```
 
 ### A missing parenthesis (§4.4)
@@ -837,14 +851,14 @@ example.ern:1:14: expected `)` instead of `->`
 ### `<-` where a comparison with a negative number was meant (§2.6)
 
 ```ernest-rejected
-fn f(a : Int) -> Bool = if a<-1 then true else false
+fn f(a : Int) : Bool = if a<-1 then true else false
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:29: expected `then` instead of `<-`
-1 | fn f(a : Int) -> Bool = if a<-1 then true else false
-  |                             ^^
+example.ern:1:28: expected `then` instead of `<-`
+1 | fn f(a : Int) : Bool = if a<-1 then true else false
+  |                            ^^
   | = help: `<-` is one token; write `a < -1` to compare with a negative number
 ```
 
@@ -866,52 +880,52 @@ example.ern:1:6: expected a type name instead of identifier `point`
 ### A type given the wrong number of arguments (§3.9)
 
 ```ernest-rejected
-fn f(x : Optional(Int, Int)) -> Int = 0
+fn f(x : Optional(Int, Int)) : Int = 0
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:10: Optional takes 1 type argument, not 2
-1 | fn f(x : Optional(Int, Int)) -> Int = 0
+1 | fn f(x : Optional(Int, Int)) : Int = 0
   |          ^^^^^^^^^^^^^^^^^^
 ```
 
 ### A type nothing declares (§3)
 
 ```ernest-rejected
-fn f(x : Colour) -> Int = 0
+fn f(x : Colour) : Int = 0
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:10: unknown type Colour
-1 | fn f(x : Colour) -> Int = 0
+1 | fn f(x : Colour) : Int = 0
   |          ^^^^^^
 ```
 
 ### A qualified type nothing declares (§4.2)
 
 ```ernest-rejected
-fn f(x : Shapes.Colour) -> Int = 0
+fn f(x : Shapes.Colour) : Int = 0
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:10: unknown type Shapes.Colour
-1 | fn f(x : Shapes.Colour) -> Int = 0
+1 | fn f(x : Shapes.Colour) : Int = 0
   |          ^^^^^^^^^^^^^
 ```
 
 ### `Prelude.` before a type the prelude lacks (§4.2)
 
 ```ernest-rejected
-fn f(x : Prelude.Colour) -> Int = 0
+fn f(x : Prelude.Colour) : Int = 0
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:10: the prelude declares no type Colour
-1 | fn f(x : Prelude.Colour) -> Int = 0
+1 | fn f(x : Prelude.Colour) : Int = 0
   |          ^^^^^^^^^^^^^^
 ```
 
@@ -1003,14 +1017,14 @@ example.ern:3:1: value n is declared twice
 ### A member of a type the module does not declare (§4.2)
 
 ```ernest-rejected
-fn Colour.name() -> String = "red"
+fn Colour.name() : String = "red"
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:1: Colour is not a type declared in this module
-1 | fn Colour.name() -> String = "red"
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1 | fn Colour.name() : String = "red"
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### An operator declared with `let` (§4.8)
@@ -1034,15 +1048,15 @@ example.ern:3:1: an operator is declared with `fn`, not `let`
 ```ernest-rejected
 type Money = Money(Int)
 
-fn Money.+(a : Money, b : Int) -> Money = a
+fn Money.+(a : Money, b : Int) : Money = a
 ```
 
 ```console
 $ ern build example.ern
 example.ern:3:1: Money.+ must have the type (Money, Money) -> Money, not (Money, Int) -> Money
 2 | 
-3 | fn Money.+(a : Money, b : Int) -> Money = a
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3 | fn Money.+(a : Money, b : Int) : Money = a
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   | = help: a member named by an operator takes two values of its type and is pure
 ```
 
@@ -1065,69 +1079,69 @@ example.ern:1:1: the type of box is not determined (List(a)), and a top-level `l
 ### A foreign implementation of the wrong arity (§8.4)
 
 ```ernest-rejected
-foreign fn size(t : Foreign) -> Int =
+foreign fn size(t : Foreign) : Int =
     "erlang:tuple_size/2"
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:1: the implementation names arity 2, and size has 1 parameter
-1 | foreign fn size(t : Foreign) -> Int =
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1 | foreign fn size(t : Foreign) : Int =
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A foreign implementation that is no `module:function/arity` (§8.4)
 
 ```ernest-rejected
-foreign fn size(t : Foreign) -> Int =
+foreign fn size(t : Foreign) : Int =
     "tuple_size"
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:1: the implementation of size is named module:function/arity, as "ets:new/2"
-1 | foreign fn size(t : Foreign) -> Int =
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1 | foreign fn size(t : Foreign) : Int =
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A refutable parameter pattern (§4.5)
 
 ```ernest-rejected
-fn f(Some(x)) -> Int = x
+fn f(Some(x)) : Int = x
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:6: a parameter pattern must be irrefutable
-1 | fn f(Some(x)) -> Int = x
+1 | fn f(Some(x)) : Int = x
   |      ^^^^^^^
 ```
 
 ### A parameter pattern that does not fit its annotation (§4.5)
 
 ```ernest-rejected
-fn f(#(a, b) : Int) -> Int = a
+fn f(#(a, b) : Int) : Int = a
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:6: the parameter pattern does not fit its annotation: expected Int, found #(a, b)
-1 | fn f(#(a, b) : Int) -> Int = a
+1 | fn f(#(a, b) : Int) : Int = a
   |      ^^^^^^^^^^^^^
 ```
 
 ### A body that does not have the declared return type (§4.5)
 
 ```ernest-rejected
-fn f() -> Int = "one"
+fn f() : Int = "one"
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:17: the body does not have the declared return type: expected Int, found String
-1 | fn f() -> Int = "one"
-  |           --- declared to return Int here
-  |                 ^^^^^
+example.ern:1:16: the body does not have the declared return type: expected Int, found String
+1 | fn f() : Int = "one"
+  |          --- declared to return Int here
+  |                ^^^^^
 ```
 
 ### A value that does not have the declared type (§4.6)
@@ -1149,46 +1163,46 @@ example.ern:1:15: the value does not have the declared type: expected Int, found
 ### A name nothing binds (§4.2)
 
 ```ernest-rejected
-fn f() -> Int = count
+fn f() : Int = count
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:17: unknown name count
-1 | fn f() -> Int = count
-  |                 ^^^^^
+example.ern:1:16: unknown name count
+1 | fn f() : Int = count
+  |                ^^^^^
 ```
 
 ### A qualified name nothing declares (§4.2)
 
 ```ernest-rejected
-fn f() -> Int = List.count([1])
+fn f() : Int = List.count([1])
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:17: unknown name List.count
-1 | fn f() -> Int = List.count([1])
-  |                 ^^^^^^^^^^
+example.ern:1:16: unknown name List.count
+1 | fn f() : Int = List.count([1])
+  |                ^^^^^^^^^^
 ```
 
 ### `Prelude.` before more than one name (§4.2)
 
 ```ernest-rejected
-fn f() -> List(Int) = Prelude.List.reverse([1])
+fn f() : List(Int) = Prelude.List.reverse([1])
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:23: Prelude.List.reverse: Prelude takes one name the prelude declares, as `Prelude.Some`
-1 | fn f() -> List(Int) = Prelude.List.reverse([1])
-  |                       ^^^^^^^^^^^^^^^^^^^^
+example.ern:1:22: Prelude.List.reverse: Prelude takes one name the prelude declares, as `Prelude.Some`
+1 | fn f() : List(Int) = Prelude.List.reverse([1])
+  |                      ^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A constructor nothing declares (§4.2)
 
 ```ernest-rejected
-fn f() -> Int = {
+fn f() : Int = {
     let c = Red;
     1
 }
@@ -1197,7 +1211,7 @@ fn f() -> Int = {
 ```console
 $ ern build example.ern
 example.ern:2:13: unknown constructor Red
-1 | fn f() -> Int = {
+1 | fn f() : Int = {
 2 |     let c = Red;
   |             ^^^
 ```
@@ -1205,7 +1219,7 @@ example.ern:2:13: unknown constructor Red
 ### `Prelude.` before a constructor the prelude lacks (§4.2)
 
 ```ernest-rejected
-fn f() -> Int = {
+fn f() : Int = {
     let c = Prelude.Red;
     1
 }
@@ -1214,7 +1228,7 @@ fn f() -> Int = {
 ```console
 $ ern build example.ern
 example.ern:2:13: the prelude declares no constructor Red
-1 | fn f() -> Int = {
+1 | fn f() : Int = {
 2 |     let c = Prelude.Red;
   |             ^^^^^^^^^^^
 ```
@@ -1222,7 +1236,7 @@ example.ern:2:13: the prelude declares no constructor Red
 ### A qualified constructor nothing declares (§4.2)
 
 ```ernest-rejected
-fn f() -> Int = {
+fn f() : Int = {
     let c = Colours.Red;
     1
 }
@@ -1231,7 +1245,7 @@ fn f() -> Int = {
 ```console
 $ ern build example.ern
 example.ern:2:13: unknown constructor Colours.Red
-1 | fn f() -> Int = {
+1 | fn f() : Int = {
 2 |     let c = Colours.Red;
   |             ^^^^^^^^^^^
 ```
@@ -1239,14 +1253,14 @@ example.ern:2:13: unknown constructor Colours.Red
 ### Another module's abstract constructor (§4.4)
 
 ```ernest-rejected
-fn f() -> Random.Seed = Random.Seed(1)
+fn f() : Random.Seed = Random.Seed(1)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:25: Random.Seed is the constructor of an abstract type and is not visible outside its module
-1 | fn f() -> Random.Seed = Random.Seed(1)
-  |                         ^^^^^^^^^^^^^^
+example.ern:1:24: Random.Seed is the constructor of an abstract type and is not visible outside its module
+1 | fn f() : Random.Seed = Random.Seed(1)
+  |                        ^^^^^^^^^^^^^^
 ```
 
 ### An abstract constructor of an earlier input (§4.4, §11.2)
@@ -1281,15 +1295,15 @@ example.ern:1:1: Box is an abstract type the module keeps private, which hides i
 ```ernest-rejected
 type Box = Box(Int)
 
-export fn f() -> Box = Box(1)
+export fn f() : Box = Box(1)
 ```
 
 ```console
 $ ern build example.ern
 example.ern:3:8: f is exported and its type names Box, which this module keeps private
 2 | 
-3 | export fn f() -> Box = Box(1)
-  |        ^^^^^^^^^^^^^^^^^^^^^^
+3 | export fn f() : Box = Box(1)
+  |        ^^^^^^^^^^^^^^^^^^^^^
   | = help: export Box, or declare it `abstract type` so that its constructors stay private (§4.4)
 ```
 
@@ -1298,27 +1312,27 @@ example.ern:3:8: f is exported and its type names Box, which this module keeps p
 ### A field of a type that has none (§3.5)
 
 ```ernest-rejected
-fn f(n : Int) -> Int = n.size
+fn f(n : Int) : Int = n.size
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:24: Int has no field size
-1 | fn f(n : Int) -> Int = n.size
-  |                        ^^^^^^
+example.ern:1:23: Int has no field size
+1 | fn f(n : Int) : Int = n.size
+  |                       ^^^^^^
 ```
 
 ### A field of a tuple (§3.5)
 
 ```ernest-rejected
-fn f(t : #(Int, Int)) -> Int = t.size
+fn f(t : #(Int, Int)) : Int = t.size
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:32: #(Int, Int) has no field size
-1 | fn f(t : #(Int, Int)) -> Int = t.size
-  |                                ^^^^^^
+example.ern:1:31: #(Int, Int) has no field size
+1 | fn f(t : #(Int, Int)) : Int = t.size
+  |                               ^^^^^^
 ```
 
 ### A field the type lacks (§3.5)
@@ -1326,15 +1340,15 @@ example.ern:1:32: #(Int, Int) has no field size
 ```ernest-rejected
 type Point = Point(x : Int)
 
-fn f(p : Point) -> Int = p.y
+fn f(p : Point) : Int = p.y
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:26: Point has no field y
+example.ern:3:25: Point has no field y
 2 | 
-3 | fn f(p : Point) -> Int = p.y
-  |                          ^^^
+3 | fn f(p : Point) : Int = p.y
+  |                         ^^^
 ```
 
 ### A field one constructor lacks (§3.5)
@@ -1342,15 +1356,15 @@ example.ern:3:26: Point has no field y
 ```ernest-rejected
 type Shape = Circle(r : Int) | Dot
 
-fn f(s : Shape) -> Int = s.r
+fn f(s : Shape) : Int = s.r
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:26: Shape has no field r in every constructor: Dot has none
+example.ern:3:25: Shape has no field r in every constructor: Dot has none
 2 | 
-3 | fn f(s : Shape) -> Int = s.r
-  |                          ^^^
+3 | fn f(s : Shape) : Int = s.r
+  |                         ^^^
 ```
 
 ### A field of two types (§3.5)
@@ -1358,28 +1372,28 @@ example.ern:3:26: Shape has no field r in every constructor: Dot has none
 ```ernest-rejected
 type Shape = Circle(r : Int) | Square(r : Float)
 
-fn f(s : Shape) -> Int = s.r
+fn f(s : Shape) : Int = s.r
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:26: the field r in every constructor: expected Int, found Float
+example.ern:3:25: the field r in every constructor: expected Int, found Float
 2 | 
-3 | fn f(s : Shape) -> Int = s.r
-  |                          ^^^
+3 | fn f(s : Shape) : Int = s.r
+  |                         ^^^
 ```
 
 ### A field of another module's abstract type (§4.4)
 
 ```ernest-rejected
-fn f(s : Random.Seed) -> Int = s.value
+fn f(s : Random.Seed) : Int = s.value
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:32: Random.Seed is abstract, and its fields are its module's alone
-1 | fn f(s : Random.Seed) -> Int = s.value
-  |                                ^^^^^^^
+example.ern:1:31: Random.Seed is abstract, and its fields are its module's alone
+1 | fn f(s : Random.Seed) : Int = s.value
+  |                               ^^^^^^^
 ```
 
 ### A field of a value whose type is not determined (§4.8)
@@ -1400,7 +1414,7 @@ example.ern:1:11: the type whose field x is read is not determined; annotate it
 ```ernest-rejected
 type Point = Point(x : Int)
 
-fn f(p) -> String = {
+fn f(p) : String = {
     let s : String = p.x;
     let q : Point = p;
     s
@@ -1410,7 +1424,7 @@ fn f(p) -> String = {
 ```console
 $ ern build example.ern
 example.ern:4:22: the field x: expected String, found Int
-3 | fn f(p) -> String = {
+3 | fn f(p) : String = {
 4 |     let s : String = p.x;
   |                      ^^^
 ```
@@ -1418,27 +1432,27 @@ example.ern:4:22: the field x: expected String, found Int
 ### Fields given to a constructor that has none (§5.6)
 
 ```ernest-rejected
-fn f() -> Unit = Unit(1)
+fn f() : Unit = Unit(1)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:18: Unit takes no fields
-1 | fn f() -> Unit = Unit(1)
-  |                  ^^^^^^^
+example.ern:1:17: Unit takes no fields
+1 | fn f() : Unit = Unit(1)
+  |                 ^^^^^^^
 ```
 
 ### Named fields given to a positional constructor (§5.6)
 
 ```ernest-rejected
-fn f() -> Optional(Int) = Some(value = 1)
+fn f() : Optional(Int) = Some(value = 1)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:27: Some has one positional field, not named fields
-1 | fn f() -> Optional(Int) = Some(value = 1)
-  |                           ^^^^^^^^^^^^^^^
+example.ern:1:26: Some has one positional field, not named fields
+1 | fn f() : Optional(Int) = Some(value = 1)
+  |                          ^^^^^^^^^^^^^^^
 ```
 
 ### A positional field given to a constructor of named fields (§5.6)
@@ -1446,15 +1460,15 @@ example.ern:1:27: Some has one positional field, not named fields
 ```ernest-rejected
 type Point = Point(x : Int)
 
-fn f() -> Point = Point(1)
+fn f() : Point = Point(1)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:19: Point has named fields; write Point(field = value, ...)
+example.ern:3:18: Point has named fields; write Point(field = value, ...)
 2 | 
-3 | fn f() -> Point = Point(1)
-  |                   ^^^^^^^^
+3 | fn f() : Point = Point(1)
+  |                  ^^^^^^^^
 ```
 
 ### A field given twice (§5.6)
@@ -1462,15 +1476,15 @@ example.ern:3:19: Point has named fields; write Point(field = value, ...)
 ```ernest-rejected
 type Point = Point(x : Int)
 
-fn f() -> Point = Point(x = 1, x = 2)
+fn f() : Point = Point(x = 1, x = 2)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:19: a field is given twice
+example.ern:3:18: a field is given twice
 2 | 
-3 | fn f() -> Point = Point(x = 1, x = 2)
-  |                   ^^^^^^^^^^^^^^^^^^^
+3 | fn f() : Point = Point(x = 1, x = 2)
+  |                  ^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A field the constructor lacks (§5.6)
@@ -1478,15 +1492,15 @@ example.ern:3:19: a field is given twice
 ```ernest-rejected
 type Point = Point(x : Int)
 
-fn f() -> Point = Point(x = 1, y = 2)
+fn f() : Point = Point(x = 1, y = 2)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:19: Point has no field y
+example.ern:3:18: Point has no field y
 2 | 
-3 | fn f() -> Point = Point(x = 1, y = 2)
-  |                   ^^^^^^^^^^^^^^^^^^^
+3 | fn f() : Point = Point(x = 1, y = 2)
+  |                  ^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A field left out (§5.6)
@@ -1494,15 +1508,15 @@ example.ern:3:19: Point has no field y
 ```ernest-rejected
 type Point = Point(x : Int, y : Int)
 
-fn f() -> Point = Point(x = 1)
+fn f() : Point = Point(x = 1)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:19: missing field y
+example.ern:3:18: missing field y
 2 | 
-3 | fn f() -> Point = Point(x = 1)
-  |                   ^^^^^^^^^^^^
+3 | fn f() : Point = Point(x = 1)
+  |                  ^^^^^^^^^^^^
 ```
 
 ### A field of the wrong type (§5.6)
@@ -1510,15 +1524,15 @@ example.ern:3:19: missing field y
 ```ernest-rejected
 type Point = Point(x : Int)
 
-fn f() -> Point = Point(x = "one")
+fn f() : Point = Point(x = "one")
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:25: field x: expected Int, found String
+example.ern:3:24: field x: expected Int, found String
 2 | 
-3 | fn f() -> Point = Point(x = "one")
-  |                         ^^^^^^^^^
+3 | fn f() : Point = Point(x = "one")
+  |                        ^^^^^^^^^
 ```
 
 ### `..` from a value of another type (§5.6)
@@ -1526,15 +1540,15 @@ example.ern:3:25: field x: expected Int, found String
 ```ernest-rejected
 type Point = Point(x : Int, y : Int)
 
-fn f() -> Point = Point(..5, x = 1)
+fn f() : Point = Point(..5, x = 1)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:19: the base of `..` must have the constructor's type: expected Point, found Int
+example.ern:3:18: the base of `..` must have the constructor's type: expected Point, found Int
 2 | 
-3 | fn f() -> Point = Point(..5, x = 1)
-  |                   ^^^^^^^^^^^^^^^^^
+3 | fn f() : Point = Point(..5, x = 1)
+  |                  ^^^^^^^^^^^^^^^^^
 ```
 
 ### `..` on a type of two constructors (§5.6)
@@ -1542,15 +1556,15 @@ example.ern:3:19: the base of `..` must have the constructor's type: expected Po
 ```ernest-rejected
 type Shape = Circle(r : Int, x : Int) | Dot
 
-fn f(s : Shape) -> Shape = Circle(..s, r = 1)
+fn f(s : Shape) : Shape = Circle(..s, r = 1)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:28: `..` is allowed only on a type with one constructor, and Shape has 2
+example.ern:3:27: `..` is allowed only on a type with one constructor, and Shape has 2
 2 | 
-3 | fn f(s : Shape) -> Shape = Circle(..s, r = 1)
-  |                            ^^^^^^^^^^^^^^^^^^
+3 | fn f(s : Shape) : Shape = Circle(..s, r = 1)
+  |                           ^^^^^^^^^^^^^^^^^^
   | = help: give every field of Circle
 ```
 
@@ -1572,7 +1586,7 @@ example.ern:1:14: the operand type of `+` is not determined; annotate it
 ### An operator whose result is used at another type (§4.8)
 
 ```ernest-rejected
-fn f(a, b) -> Int = {
+fn f(a, b) : Int = {
     let s : String = a + b;
     let n : Int = a;
     n
@@ -1582,7 +1596,7 @@ fn f(a, b) -> Int = {
 ```console
 $ ern build example.ern
 example.ern:2:22: the result of `+`: expected String, found Int
-1 | fn f(a, b) -> Int = {
+1 | fn f(a, b) : Int = {
 2 |     let s : String = a + b;
   |                      ^^^^^
   | = help: the types differ at String and Int
@@ -1591,28 +1605,28 @@ example.ern:2:22: the result of `+`: expected String, found Int
 ### An operator the type does not define (§4.8)
 
 ```ernest-rejected
-fn f(a : Bool, b : Bool) -> Bool = a + b
+fn f(a : Bool, b : Bool) : Bool = a + b
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:36: `+` is not defined on Bool
-1 | fn f(a : Bool, b : Bool) -> Bool = a + b
-  |                                    ^^^^^
+example.ern:1:35: `+` is not defined on Bool
+1 | fn f(a : Bool, b : Bool) : Bool = a + b
+  |                                   ^^^^^
 ```
 
 ### Operands of two types (§4.8)
 
 ```ernest-rejected
-fn f() -> Int = 1 + "two"
+fn f() : Int = 1 + "two"
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:21: both operands of `+` must have the same type: expected Int, found String
-1 | fn f() -> Int = 1 + "two"
-  |                 - the left operand has type Int
-  |                     ^^^^^
+example.ern:1:20: both operands of `+` must have the same type: expected Int, found String
+1 | fn f() : Int = 1 + "two"
+  |                - the left operand has type Int
+  |                    ^^^^^
 ```
 
 ### An operator member used at a type it was not declared for (§4.8)
@@ -1620,17 +1634,17 @@ example.ern:1:21: both operands of `+` must have the same type: expected Int, fo
 ```ernest-rejected
 type Vec(a) = Vec(List(a))
 
-fn Vec.+(a : Vec(Int), b : Vec(Int)) -> Vec(Int) = a
+fn Vec.+(a : Vec(Int), b : Vec(Int)) : Vec(Int) = a
 
-fn f(v : Vec(String)) -> Vec(String) = v + v
+fn f(v : Vec(String)) : Vec(String) = v + v
 ```
 
 ```console
 $ ern build example.ern
-example.ern:5:40: Vec.+ does not fit two operands of Vec(String): expected (Vec(String), Vec(String)) -> a, found (Vec(Int), Vec(Int)) -> Vec(Int)
+example.ern:5:39: Vec.+ does not fit two operands of Vec(String): expected (Vec(String), Vec(String)) -> a, found (Vec(Int), Vec(Int)) -> Vec(Int)
 4 | 
-5 | fn f(v : Vec(String)) -> Vec(String) = v + v
-  |                                        ^^^^^
+5 | fn f(v : Vec(String)) : Vec(String) = v + v
+  |                                       ^^^^^
   | = help: the types differ at String and Int
 ```
 
@@ -1639,82 +1653,82 @@ example.ern:5:40: Vec.+ does not fit two operands of Vec(String): expected (Vec(
 ```ernest-rejected
 type Money = Money(Int)
 
-fn Money.compare(a : Money, b : Money) -> Int = if a < b then 1 else 2
+fn Money.compare(a : Money, b : Money) : Int = if a < b then 1 else 2
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:52: Money.compare must return an Ordering: expected Ordering, found Int
+example.ern:3:51: Money.compare must return an Ordering: expected Ordering, found Int
 2 | 
-3 | fn Money.compare(a : Money, b : Money) -> Int = if a < b then 1 else 2
-  |                                                    ^^^^^
+3 | fn Money.compare(a : Money, b : Money) : Int = if a < b then 1 else 2
+  |                                                   ^^^^^
 ```
 
 ### `&&` on a value that is no Bool (§4.8)
 
 ```ernest-rejected
-fn f(b : Bool) -> Bool = 1 && b
+fn f(b : Bool) : Bool = 1 && b
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:26: the left operand of `&&`: expected Bool, found Int
-1 | fn f(b : Bool) -> Bool = 1 && b
-  |                          ^
+example.ern:1:25: the left operand of `&&`: expected Bool, found Int
+1 | fn f(b : Bool) : Bool = 1 && b
+  |                         ^
 ```
 
 ### `||` on a value that is no Bool (§4.8)
 
 ```ernest-rejected
-fn f(b : Bool) -> Bool = b || 1
+fn f(b : Bool) : Bool = b || 1
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:31: the right operand of `||`: expected Bool, found Int
-1 | fn f(b : Bool) -> Bool = b || 1
-  |                               ^
+example.ern:1:30: the right operand of `||`: expected Bool, found Int
+1 | fn f(b : Bool) : Bool = b || 1
+  |                              ^
 ```
 
 ### `!` on a value that is no Bool (§4.8)
 
 ```ernest-rejected
-fn f() -> Bool = !1
+fn f() : Bool = !1
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:18: the operand of `!`: expected Bool, found Int
-1 | fn f() -> Bool = !1
-  |                  ^^
+example.ern:1:17: the operand of `!`: expected Bool, found Int
+1 | fn f() : Bool = !1
+  |                 ^^
 ```
 
 ### `::` onto a list of another type (§3.3)
 
 ```ernest-rejected
-fn f() -> List(Int) = 1 :: ["two"]
+fn f() : List(Int) = 1 :: ["two"]
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:28: the right operand of `::` must be a list of the left operand's type: expected List(Int), found List(String)
-1 | fn f() -> List(Int) = 1 :: ["two"]
-  |                       - the left operand has type Int
-  |                            ^^^^^^^
+example.ern:1:27: the right operand of `::` must be a list of the left operand's type: expected List(Int), found List(String)
+1 | fn f() : List(Int) = 1 :: ["two"]
+  |                      - the left operand has type Int
+  |                           ^^^^^^^
   | = help: the types differ at Int and String
 ```
 
 ### `==` on functions (§3.10)
 
 ```ernest-rejected
-fn f(g : () -> Int) -> Bool = g == g
+fn f(g : () -> Int) : Bool = g == g
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:31: `==` is not defined on () -> Int: it contains a function or an address
-1 | fn f(g : () -> Int) -> Bool = g == g
-  |                               ^^^^^^
+example.ern:1:30: `==` is not defined on () -> Int: it contains a function or an address
+1 | fn f(g : () -> Int) : Bool = g == g
+  |                              ^^^^^^
 ```
 
 ### `==` reached through a function's type variable (§3.10)
@@ -1722,15 +1736,15 @@ example.ern:1:31: `==` is not defined on () -> Int: it contains a function or an
 ```ernest-rejected
 fn same(a, b) = a == b
 
-fn f() -> Bool = same(fn() = 1, fn() = 1)
+fn f() : Bool = same(fn() = 1, fn() = 1)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:18: () -> Int does not support equality (it contains a function or an address), but it is compared here
+example.ern:3:17: () -> Int does not support equality (it contains a function or an address), but it is compared here
 2 | 
-3 | fn f() -> Bool = same(fn() = 1, fn() = 1)
-  |                  ^^^^
+3 | fn f() : Bool = same(fn() = 1, fn() = 1)
+  |                 ^^^^
 ```
 
 ## Expressions (report §5)
@@ -1738,48 +1752,48 @@ example.ern:3:18: () -> Int does not support equality (it contains a function or
 ### A call with the wrong number of arguments (§5.2)
 
 ```ernest-rejected
-fn g(a : Int) -> Int = a
+fn g(a : Int) : Int = a
 
-fn f() -> Int = g(1, 2)
+fn f() : Int = g(1, 2)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:17: g takes 1 argument, not 2
+example.ern:3:16: g takes 1 argument, not 2
 2 | 
-3 | fn f() -> Int = g(1, 2)
-  |                 ^^^^^^^
+3 | fn f() : Int = g(1, 2)
+  |                ^^^^^^^
   | = help: a call supplies all the arguments
 ```
 
 ### An argument of the wrong type (§5.2)
 
 ```ernest-rejected
-fn g(a : Int) -> Int = a
+fn g(a : Int) : Int = a
 
-fn f() -> Int = g("one")
+fn f() : Int = g("one")
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:19: the argument does not fit g: expected Int, found String
+example.ern:3:18: the argument does not fit g: expected Int, found String
 2 | 
-3 | fn f() -> Int = g("one")
-  |                 - g : (Int) -> Int
-  |                   ^^^^^
+3 | fn f() : Int = g("one")
+  |                - g : (Int) -> Int
+  |                  ^^^^^
 ```
 
 ### A call of a value that is no function (§5.2)
 
 ```ernest-rejected
-fn f(n : Int) -> Int = n(1)
+fn f(n : Int) : Int = n(1)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:24: n is not a function; it has type Int
-1 | fn f(n : Int) -> Int = n(1)
-  |                        ^^^^
+example.ern:1:23: n is not a function; it has type Int
+1 | fn f(n : Int) : Int = n(1)
+  |                       ^^^^
 ```
 
 ### A function applied to itself (§5.2)
@@ -1798,28 +1812,28 @@ example.ern:1:11: not a function: a type that would contain itself (a against (a
 ### A lambda body that does not have the declared type (§5.3)
 
 ```ernest-rejected
-fn f() -> () -> Int = fn() -> Int = "one"
+fn f() : () -> Int = fn() : Int = "one"
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:37: the lambda body does not have the declared type: expected Int, found String
-1 | fn f() -> () -> Int = fn() -> Int = "one"
-  |                               --- declared to return Int here
-  |                                     ^^^^^
+example.ern:1:35: the lambda body does not have the declared type: expected Int, found String
+1 | fn f() : () -> Int = fn() : Int = "one"
+  |                             --- declared to return Int here
+  |                                   ^^^^^
 ```
 
 ### A condition that is no Bool (§5.8)
 
 ```ernest-rejected
-fn f() -> Int = if 1 then 2 else 3
+fn f() : Int = if 1 then 2 else 3
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:20: the condition of `if`: expected Bool, found Int
-1 | fn f() -> Int = if 1 then 2 else 3
-  |                    ^
+example.ern:1:19: the condition of `if`: expected Bool, found Int
+1 | fn f() : Int = if 1 then 2 else 3
+  |                   ^
 ```
 
 ### Branches of two types (§5.8)
@@ -1853,7 +1867,7 @@ example.ern:1:14: list elements must have one type: expected Int, found String
 ### A statement whose value is dropped (§5.4)
 
 ```ernest-rejected
-fn f() -> Int = {
+fn f() : Int = {
     1;
     2
 }
@@ -1862,7 +1876,7 @@ fn f() -> Int = {
 ```console
 $ ern build example.ern
 example.ern:2:5: this statement's value is discarded: expected Unit, found Int
-1 | fn f() -> Int = {
+1 | fn f() : Int = {
 2 |     1;
   |     ^
   | = help: `let _ = ...` discards it on purpose
@@ -1871,10 +1885,10 @@ example.ern:2:5: this statement's value is discarded: expected Unit, found Int
 ### A local function declared twice (§5.4)
 
 ```ernest-rejected
-fn f() -> Int = {
-    fn g() -> Int = 1;
+fn f() : Int = {
+    fn g() : Int = 1;
     let n = 1;
-    fn g() -> Int = 2;
+    fn g() : Int = 2;
     g()
 }
 ```
@@ -1883,15 +1897,15 @@ fn f() -> Int = {
 $ ern build example.ern
 example.ern:4:5: local function g is declared twice in the block
 3 |     let n = 1;
-4 |     fn g() -> Int = 2;
-  |     ^^^^^^^^^^^^^^^^^
+4 |     fn g() : Int = 2;
+  |     ^^^^^^^^^^^^^^^^
 ```
 
 ### A type-member name on a local function (§5.4)
 
 ```ernest-rejected
-fn f() -> Int = {
-    fn Int.twice(n : Int) -> Int = n;
+fn f() : Int = {
+    fn Int.twice(n : Int) : Int = n;
     1
 }
 ```
@@ -1899,15 +1913,15 @@ fn f() -> Int = {
 ```console
 $ ern build example.ern
 example.ern:2:5: a type-member name, `fn Int.name`, is a top-level form; a local function has a plain name
-1 | fn f() -> Int = {
-2 |     fn Int.twice(n : Int) -> Int = n;
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1 | fn f() : Int = {
+2 |     fn Int.twice(n : Int) : Int = n;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A `let` whose type is not determined (§4.6)
 
 ```ernest-rejected
-fn f() -> Int = {
+fn f() : Int = {
     let xs = [];
     1
 }
@@ -1916,7 +1930,7 @@ fn f() -> Int = {
 ```console
 $ ern build example.ern
 example.ern:2:5: the type of xs is not determined (List(a)); use it, or annotate it
-1 | fn f() -> Int = {
+1 | fn f() : Int = {
 2 |     let xs = [];
   |     ^^^^^^^^^^^
 ```
@@ -1956,27 +1970,27 @@ example.ern:1:1: the initializer of f depends on itself
 ### A type variable of an annotation used as a type (§3.9)
 
 ```ernest-rejected
-fn id(x : a) -> a = 1
+fn id(x : a) : a = 1
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:1: type variable a in the annotation is used as Int
-1 | fn id(x : a) -> a = 1
-  | ^^^^^^^^^^^^^^^^^^^^^
+1 | fn id(x : a) : a = 1
+  | ^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### Two type variables of an annotation used as one (§3.9)
 
 ```ernest-rejected
-fn f(x : a, y : b) -> a = y
+fn f(x : a, y : b) : a = y
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:1: two type variables in the annotation are used as one type
-1 | fn f(x : a, y : b) -> a = y
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1 | fn f(x : a, y : b) : a = y
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A reply passed where a function discards its argument (§3.9, §6.6)
@@ -1984,15 +1998,15 @@ example.ern:1:1: two type variables in the annotation are used as one type
 ```ernest-rejected
 fn drop(x) = Unit
 
-fn f(r : Reply(Int)) -> Unit with m = drop(r)
+fn f(r : Reply(Int)) : Unit with m = drop(r)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:39: a reply-carrying value, Reply(Int), passed where the function duplicates or discards its argument
+example.ern:3:38: a reply-carrying value, Reply(Int), passed where the function duplicates or discards its argument
 2 | 
-3 | fn f(r : Reply(Int)) -> Unit with m = drop(r)
-  |                                       ^^^^
+3 | fn f(r : Reply(Int)) : Unit with m = drop(r)
+  |                                      ^^^^
 ```
 
 ## Names in a block (report §5.4)
@@ -2000,9 +2014,9 @@ example.ern:3:39: a reply-carrying value, Reply(Int), passed where the function 
 ### A local function with a variable's name (§5.4)
 
 ```ernest-rejected
-fn f() -> Int = {
+fn f() : Int = {
     let g = 1;
-    fn g() -> Int = 2;
+    fn g() : Int = 2;
     g()
 }
 ```
@@ -2010,21 +2024,21 @@ fn f() -> Int = {
 ```console
 $ ern build example.ern
 example.ern:3:5: local function g has the name of a variable in scope where it is declared
-1 | fn f() -> Int = {
+1 | fn f() : Int = {
 2 |     let g = 1;
   |         - g is bound here
-3 |     fn g() -> Int = 2;
-  |     ^^^^^^^^^^^^^^^^^
+3 |     fn g() : Int = 2;
+  |     ^^^^^^^^^^^^^^^^
   | = help: rename the function or the variable
 ```
 
 ### A local function used before the `let` it reads (§5.4)
 
 ```ernest-rejected
-fn f() -> Int = {
+fn f() : Int = {
     let y = g();
     let x = 1;
-    fn g() -> Int = x;
+    fn g() : Int = x;
     y
 }
 ```
@@ -2032,7 +2046,7 @@ fn f() -> Int = {
 ```console
 $ ern build example.ern
 example.ern:2:13: local function g is used before `let x`, which it references
-1 | fn f() -> Int = {
+1 | fn f() : Int = {
 2 |     let y = g();
   |             ^
 ```
@@ -2059,7 +2073,7 @@ example.ern:2:5: `<-` needs to know whether the value is an Either or an Optiona
 ### `<-` on a value that is no sum type (§5.5)
 
 ```ernest-rejected
-fn f() -> Optional(Int) = {
+fn f() : Optional(Int) = {
     let x <- 1;
     Some(x)
 }
@@ -2068,7 +2082,7 @@ fn f() -> Optional(Int) = {
 ```console
 $ ern build example.ern
 example.ern:2:5: `<-` needs an Either or an Optional, not Int
-1 | fn f() -> Optional(Int) = {
+1 | fn f() : Optional(Int) = {
 2 |     let x <- 1;
   |     ^^^^^^^^^^
 ```
@@ -2076,7 +2090,7 @@ example.ern:2:5: `<-` needs an Either or an Optional, not Int
 ### A `<-` pattern that does not fit the value inside (§5.5)
 
 ```ernest-rejected
-fn f(o : Optional(Int)) -> Optional(Int) = {
+fn f(o : Optional(Int)) : Optional(Int) = {
     let #(a, b) <- o;
     Some(a)
 }
@@ -2085,7 +2099,7 @@ fn f(o : Optional(Int)) -> Optional(Int) = {
 ```console
 $ ern build example.ern
 example.ern:2:5: the pattern does not fit the value inside the sum type: expected #(Int, a), found Int
-1 | fn f(o : Optional(Int)) -> Optional(Int) = {
+1 | fn f(o : Optional(Int)) : Optional(Int) = {
 2 |     let #(a, b) <- o;
   |     ^^^^^^^^^^^^^^^^
 ```
@@ -2093,7 +2107,7 @@ example.ern:2:5: the pattern does not fit the value inside the sum type: expecte
 ### A block after `<-` of another sum type (§5.5)
 
 ```ernest-rejected
-fn f(o : Optional(Int)) -> Either(String, Int) = {
+fn f(o : Optional(Int)) : Either(String, Int) = {
     let x <- o;
     Right(x)
 }
@@ -2102,7 +2116,7 @@ fn f(o : Optional(Int)) -> Either(String, Int) = {
 ```console
 $ ern build example.ern
 example.ern:2:5: after `let p <- e` the block must have the same sum type as e: expected Optional(a), found Either(String, Int)
-1 | fn f(o : Optional(Int)) -> Either(String, Int) = {
+1 | fn f(o : Optional(Int)) : Either(String, Int) = {
 2 |     let x <- o;
   |     ^^^^^^^^^^
 ```
@@ -2144,7 +2158,7 @@ example.ern:2:5: `<-` on an Either: a type that would contain itself (Either(a, 
 ### A refutable `let` pattern (§4.6)
 
 ```ernest-rejected
-fn f(o : Optional(Int)) -> Int = {
+fn f(o : Optional(Int)) : Int = {
     let Some(x) = o;
     x
 }
@@ -2153,7 +2167,7 @@ fn f(o : Optional(Int)) -> Int = {
 ```console
 $ ern build example.ern
 example.ern:2:5: a `let` pattern must be irrefutable
-1 | fn f(o : Optional(Int)) -> Int = {
+1 | fn f(o : Optional(Int)) : Int = {
 2 |     let Some(x) = o;
   |     ^^^^^^^^^^^^^^^
   | = help: use `match` for a pattern that can fail
@@ -2162,7 +2176,7 @@ example.ern:2:5: a `let` pattern must be irrefutable
 ### A `let` pattern that does not fit the value (§4.6)
 
 ```ernest-rejected
-fn f() -> Int = {
+fn f() : Int = {
     let #(a, b) = 1;
     a
 }
@@ -2171,7 +2185,7 @@ fn f() -> Int = {
 ```console
 $ ern build example.ern
 example.ern:2:9: the pattern does not fit the value: expected #(a, b), found Int
-1 | fn f() -> Int = {
+1 | fn f() : Int = {
 2 |     let #(a, b) = 1;
   |         ^^^^^^^
   |                   - the value has type Int
@@ -2182,7 +2196,7 @@ example.ern:2:9: the pattern does not fit the value: expected #(a, b), found Int
 ### A pattern that does not fit the value matched (§5.9)
 
 ```ernest-rejected
-fn f(n : Int) -> Int =
+fn f(n : Int) : Int =
     match n {
         "one" -> 1
       | _ -> 0
@@ -2192,7 +2206,7 @@ fn f(n : Int) -> Int =
 ```console
 $ ern build example.ern
 example.ern:3:9: the pattern does not fit the value: expected Int, found String
-1 | fn f(n : Int) -> Int =
+1 | fn f(n : Int) : Int =
 2 |     match n {
   |           - the value matched has type Int
 3 |         "one" -> 1
@@ -2222,7 +2236,7 @@ example.ern:4:14: the clauses must have one type: expected String, found Int
 ### A guard that is no Bool (§5.9)
 
 ```ernest-rejected
-fn f(n : Int) -> Int =
+fn f(n : Int) : Int =
     match n {
         x when x -> 1
       | _ -> 0
@@ -2240,7 +2254,7 @@ example.ern:3:16: a guard is a Bool: expected Bool, found Int
 ### Fields matched on a constructor that has none (§5.10)
 
 ```ernest-rejected
-fn f(o : Optional(Int)) -> Int =
+fn f(o : Optional(Int)) : Int =
     match o {
         None(x) -> x
       | _ -> 0
@@ -2258,7 +2272,7 @@ example.ern:3:9: None takes no fields
 ### A positional constructor matched without its field (§5.10)
 
 ```ernest-rejected
-fn f(o : Optional(Int)) -> Int =
+fn f(o : Optional(Int)) : Int =
     match o {
         Some -> 1
       | _ -> 0
@@ -2278,7 +2292,7 @@ example.ern:3:9: Some has one positional field; write Some(p)
 ```ernest-rejected
 type Point = Point(x : Int)
 
-fn f(p : Point) -> Int =
+fn f(p : Point) : Int =
     match p {
         Point(x = a, x = b) -> a
     }
@@ -2297,7 +2311,7 @@ example.ern:5:9: a field is matched twice
 ```ernest-rejected
 type Point = Point(x : Int)
 
-fn f(p : Point) -> Int =
+fn f(p : Point) : Int =
     match p {
         Point(z = a) -> a
     }
@@ -2316,7 +2330,7 @@ example.ern:5:15: Point has no field z
 ```ernest-rejected
 type Point = Point(x : Int)
 
-fn f(p : Point) -> Int =
+fn f(p : Point) : Int =
     match p {
         Point(a) -> a
     }
@@ -2333,7 +2347,7 @@ example.ern:5:9: Point has named fields; write Point(field = p, ...)
 ### A variable twice in one pattern (§5.10)
 
 ```ernest-rejected
-fn f(p : #(Int, Int)) -> Int =
+fn f(p : #(Int, Int)) : Int =
     match p {
         #(x, x) -> x
     }
@@ -2350,7 +2364,7 @@ example.ern:3:9: variable x appears twice in the pattern
 ### A list pattern of two types (§5.10)
 
 ```ernest-rejected
-fn f(xs : List(Int)) -> Int =
+fn f(xs : List(Int)) : Int =
     match xs {
         [1, "two"] -> 1
       | _ -> 0
@@ -2368,7 +2382,7 @@ example.ern:3:9: list elements must have one type: expected Int, found String
 ### A `::` pattern whose tail is no list of the head's type (§5.10)
 
 ```ernest-rejected
-fn f(xs : List(Int)) -> Int =
+fn f(xs : List(Int)) : Int =
     match xs {
         x :: 1 -> x
       | _ -> 0
@@ -2386,7 +2400,7 @@ example.ern:3:11: the tail of `::` must be a list of the head's type: expected L
 ### Alternatives of two types (§5.10)
 
 ```ernest-rejected
-fn f(n : Int) -> Int =
+fn f(n : Int) : Int =
     match n {
         1 or "one" -> 1
       | _ -> 0
@@ -2404,7 +2418,7 @@ example.ern:3:14: the alternatives of a clause match one type: expected Int, fou
 ### Alternatives that bind a variable at two types (§5.10)
 
 ```ernest-rejected
-fn f(e : Either(Int, String)) -> Int =
+fn f(e : Either(Int, String)) : Int =
     match e {
         Left(x) or Right(x) -> 1
     }
@@ -2422,7 +2436,7 @@ example.ern:3:20: the alternatives bind `x` at one type: expected Int, found Str
 ### Alternatives that bind different variables (§5.10)
 
 ```ernest-rejected
-fn f(e : Either(Int, Int)) -> Int =
+fn f(e : Either(Int, Int)) : Int =
     match e {
         Left(x) or Right(y) -> 1
     }
@@ -2439,7 +2453,7 @@ example.ern:3:20: the alternatives of a clause bind different variables: `x` is 
 ### A `match` that misses a constructor (§5.10)
 
 ```ernest-rejected
-fn get(o : Optional(Int)) -> Int =
+fn get(o : Optional(Int)) : Int =
     match o {
         Some(x) -> x
     }
@@ -2448,7 +2462,7 @@ fn get(o : Optional(Int)) -> Int =
 ```console
 $ ern build example.ern
 example.ern:2:5: match on Optional(Int) is not exhaustive; missing None
-1 | fn get(o : Optional(Int)) -> Int =
+1 | fn get(o : Optional(Int)) : Int =
 2 |     match o {
   |     ^^^^^^^^^
 ```
@@ -2456,7 +2470,7 @@ example.ern:2:5: match on Optional(Int) is not exhaustive; missing None
 ### A clause that can never match (§5.10)
 
 ```ernest-rejected
-fn get(o : Optional(Int)) -> Int =
+fn get(o : Optional(Int)) : Int =
     match o {
         _ -> 0
       | None -> 1
@@ -2479,111 +2493,111 @@ example.ern:4:9: this clause can never match
 ### A sign on a segment that is no integer (§5.11)
 
 ```ernest-rejected
-fn f(b : Bytes) -> Bytes = <<b:bytes-signed>>
+fn f(b : Bytes) : Bytes = <<b:bytes-signed>>
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:30: `signed` applies to an `int` segment only, not a `bytes` one
-1 | fn f(b : Bytes) -> Bytes = <<b:bytes-signed>>
-  |                              ^^^^^^^^^^^^^^
+example.ern:1:29: `signed` applies to an `int` segment only, not a `bytes` one
+1 | fn f(b : Bytes) : Bytes = <<b:bytes-signed>>
+  |                             ^^^^^^^^^^^^^^
 ```
 
 ### A byte order on a `bytes` segment (§5.11)
 
 ```ernest-rejected
-fn f(b : Bytes) -> Bytes = <<b:bytes-big>>
+fn f(b : Bytes) : Bytes = <<b:bytes-big>>
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:30: `big` applies to an `int`, `float`, `utf16` or `utf32` segment, not a `bytes` one
-1 | fn f(b : Bytes) -> Bytes = <<b:bytes-big>>
-  |                              ^^^^^^^^^^^
+example.ern:1:29: `big` applies to an `int`, `float`, `utf16` or `utf32` segment, not a `bytes` one
+1 | fn f(b : Bytes) : Bytes = <<b:bytes-big>>
+  |                             ^^^^^^^^^^^
 ```
 
 ### A size on a UTF segment (§5.11)
 
 ```ernest-rejected
-fn f(c : Char) -> Bytes = <<c:utf8-size(8)>>
+fn f(c : Char) : Bytes = <<c:utf8-size(8)>>
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:29: a utf segment has no size or unit
-1 | fn f(c : Char) -> Bytes = <<c:utf8-size(8)>>
-  |                             ^^^^^^^^^^^^^^
+example.ern:1:28: a utf segment has no size or unit
+1 | fn f(c : Char) : Bytes = <<c:utf8-size(8)>>
+  |                            ^^^^^^^^^^^^^^
 ```
 
 ### A unit beyond 256 (§5.11)
 
 ```ernest-rejected
-fn f(n : Int) -> Bytes = <<n:size(1)-unit(300)>>
+fn f(n : Int) : Bytes = <<n:size(1)-unit(300)>>
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:28: unit is 1 to 256 on this runtime
-1 | fn f(n : Int) -> Bytes = <<n:size(1)-unit(300)>>
-  |                            ^^^^^^^^^^^^^^^^^^^
+example.ern:1:27: unit is 1 to 256 on this runtime
+1 | fn f(n : Int) : Bytes = <<n:size(1)-unit(300)>>
+  |                           ^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A float of a size the runtime lacks (§5.11)
 
 ```ernest-rejected
-fn f(x : Float) -> Bytes = <<x:float-size(8)>>
+fn f(x : Float) : Bytes = <<x:float-size(8)>>
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:30: a float segment is 16, 32, or 64 bits
-1 | fn f(x : Float) -> Bytes = <<x:float-size(8)>>
-  |                              ^^^^^^^^^^^^^^^
+example.ern:1:29: a float segment is 16, 32, or 64 bits
+1 | fn f(x : Float) : Bytes = <<x:float-size(8)>>
+  |                             ^^^^^^^^^^^^^^^
 ```
 
 ### A `bytes` segment that is not whole bytes (§5.11)
 
 ```ernest-rejected
-fn f(b : Bytes) -> Bytes = <<b:bytes-size(1)-unit(3)>>
+fn f(b : Bytes) : Bytes = <<b:bytes-size(1)-unit(3)>>
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:30: a `bytes` segment is a whole number of bytes, not 3 bits
-1 | fn f(b : Bytes) -> Bytes = <<b:bytes-size(1)-unit(3)>>
-  |                              ^^^^^^^^^^^^^^^^^^^^^^^
+example.ern:1:29: a `bytes` segment is a whole number of bytes, not 3 bits
+1 | fn f(b : Bytes) : Bytes = <<b:bytes-size(1)-unit(3)>>
+  |                             ^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### Two byte orders on one segment (§5.11)
 
 ```ernest-rejected
-fn f(n : Int) -> Bytes = <<n:size(16)-big-little>>
+fn f(n : Int) : Bytes = <<n:size(16)-big-little>>
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:28: conflicting bitstring specifiers `big` and `little`
-1 | fn f(n : Int) -> Bytes = <<n:size(16)-big-little>>
-  |                            ^^^^^^^^^^^^^^^^^^^^^
+example.ern:1:27: conflicting bitstring specifiers `big` and `little`
+1 | fn f(n : Int) : Bytes = <<n:size(16)-big-little>>
+  |                           ^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A bitstring that is no whole number of bytes (§5.11)
 
 ```ernest-rejected
-fn f() -> Bytes = <<1:size(3)>>
+fn f() : Bytes = <<1:size(3)>>
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:19: the bitstring is 3 bits, not a multiple of 8
-1 | fn f() -> Bytes = <<1:size(3)>>
-  |                   ^^^^^^^^^^^^^
+example.ern:1:18: the bitstring is 3 bits, not a multiple of 8
+1 | fn f() : Bytes = <<1:size(3)>>
+  |                  ^^^^^^^^^^^^^
 ```
 
 ### A bitstring pattern that is no whole number of bytes (§5.11)
 
 ```ernest-rejected
-fn f(b : Bytes) -> Int =
+fn f(b : Bytes) : Int =
     match b {
         <<x:size(3)>> -> x
       | _ -> 0
@@ -2601,7 +2615,7 @@ example.ern:3:9: the pattern is 3 bits, not a multiple of 8
 ### A segment pattern that is no variable or literal (§5.11)
 
 ```ernest-rejected
-fn f(b : Bytes) -> Int =
+fn f(b : Bytes) : Int =
     match b {
         <<[x]:size(8)>> -> x
       | _ -> 0
@@ -2619,7 +2633,7 @@ example.ern:3:11: a segment pattern is a variable, `_`, or a literal
 ### A size that is no Int (§5.11)
 
 ```ernest-rejected
-fn f(b : Bytes) -> Int =
+fn f(b : Bytes) : Int =
     match b {
         <<x:size("eight")>> -> x
       | _ -> 0
@@ -2637,7 +2651,7 @@ example.ern:3:18: the size of a segment: expected Int, found String
 ### A size in a pattern that the match cannot compute (§5.11)
 
 ```ernest-rejected
-fn f(n : Int, b : Bytes) -> Int =
+fn f(n : Int, b : Bytes) : Int =
     match b {
         <<x:size(n / 2), _:bytes>> -> x
       | _ -> 0
@@ -2655,7 +2669,7 @@ example.ern:3:18: a size in a pattern is a variable, an Int literal, or `+`, `-`
 ### A `bytes` segment without a size before another segment (§5.11)
 
 ```ernest-rejected
-fn f(b : Bytes) -> Int =
+fn f(b : Bytes) : Int =
     match b {
         <<rest:bytes, x:size(8)>> -> x
       | _ -> 0
@@ -2675,42 +2689,42 @@ example.ern:3:11: a `bytes` segment without a size takes the rest, so it is the 
 ### A call that needs another mailbox (§6.1)
 
 ```ernest-rejected
-fn g() -> Unit with String = Unit
+fn g() : Unit with String = Unit
 
-fn f() -> Unit with Int = g()
+fn f() : Unit with Int = g()
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:27: g needs mailbox String, and the mailbox here is Int
+example.ern:3:26: g needs mailbox String, and the mailbox here is Int
 2 | 
-3 | fn f() -> Unit with Int = g()
-  |                     --- f is declared `with Int` here
-  |                           ^^^
+3 | fn f() : Unit with Int = g()
+  |                    --- f is declared `with Int` here
+  |                          ^^^
 ```
 
 ### A call that needs a process, from a pure function (§6.1)
 
 ```ernest-rejected
-fn g() -> Unit with String = Unit
+fn g() : Unit with String = Unit
 
-fn f() -> Unit = g()
+fn f() : Unit = g()
 ```
 
 ```console
 $ ern build example.ern
-example.ern:3:18: g needs a process, and f is pure
+example.ern:3:17: g needs a process, and f is pure
 2 | 
-3 | fn f() -> Unit = g()
-  |           ---- `-> Unit` with no `with` declares f pure
-  |                  ^^^
+3 | fn f() : Unit = g()
+  |          ---- `: Unit` with no `with` declares f pure
+  |                 ^^^
   | = help: give f a mailbox type with `with`
 ```
 
 ### `receive` in a pure function (§6.3)
 
 ```ernest-rejected
-fn f() -> Int =
+fn f() : Int =
     receive {
         after 1 -> 1
     }
@@ -2719,8 +2733,8 @@ fn f() -> Int =
 ```console
 $ ern build example.ern
 example.ern:2:5: `receive` needs a process, and f is pure
-1 | fn f() -> Int =
-  |           --- `-> Int` with no `with` declares f pure
+1 | fn f() : Int =
+  |          --- `: Int` with no `with` declares f pure
 2 |     receive {
   |     ^^^^^^^^^
   | = help: give f a mailbox type with `with`
@@ -2729,7 +2743,7 @@ example.ern:2:5: `receive` needs a process, and f is pure
 ### `receive` in a function of mailbox Never (§6.8)
 
 ```ernest-rejected
-fn f() -> Int with Never =
+fn f() : Int with Never =
     receive {
         n -> n
     }
@@ -2738,7 +2752,7 @@ fn f() -> Int with Never =
 ```console
 $ ern build example.ern
 example.ern:2:5: a function with mailbox Never cannot receive
-1 | fn f() -> Int with Never =
+1 | fn f() : Int with Never =
 2 |     receive {
   |     ^^^^^^^^^
   | = help: only an `after` clause is allowed; give the function another mailbox type with `with`
@@ -2765,7 +2779,7 @@ example.ern:2:5: a top-level initializer runs with mailbox Never and cannot rece
 ### An `after` time that is no Int (§6.3)
 
 ```ernest-rejected
-fn f() -> Int with Int =
+fn f() : Int with Int =
     receive {
         after "soon" -> 1
     }
@@ -2804,9 +2818,9 @@ example.ern:4:21: the `after` body must have the clauses' type: expected Int, fo
 ```ernest-rejected
 type Money = Money(Int)
 
-fn Money.compare(a : Money, b : Money) -> Ordering = Equal
+fn Money.compare(a : Money, b : Money) : Ordering = Equal
 
-fn f(limit : Money) -> Int with Money =
+fn f(limit : Money) : Int with Money =
     receive {
         m when m < limit -> 1
     }
@@ -2823,7 +2837,7 @@ example.ern:7:16: a `receive` guard orders only Int, Float, String, and Char, no
 ### A `receive` guard that calls a function (§6.3)
 
 ```ernest-rejected
-fn f() -> Int with Bool =
+fn f() : Int with Bool =
     receive {
         b when Bool.not(b) -> 1
     }
@@ -2841,7 +2855,7 @@ example.ern:3:16: a `receive` guard combines `true`, `false`, Bool variables, an
 ### A `receive` guard that compares a sum (§6.3)
 
 ```ernest-rejected
-fn f() -> Int with Int =
+fn f() : Int with Int =
     receive {
         n when n + 1 > 2 -> 1
     }
@@ -2861,7 +2875,7 @@ example.ern:3:16: a comparison in a `receive` guard compares variables, literals
 ```ernest-rejected
 let limit = 3
 
-fn f() -> Int with Int =
+fn f() : Int with Int =
     receive {
         n when n > limit -> 1
     }
@@ -2881,7 +2895,7 @@ example.ern:5:20: limit is bound at top level, and a `receive` guard reads only 
 ### A reply discarded with `_` (§6.6)
 
 ```ernest-rejected
-fn drop(r : Reply(Int)) -> Unit with m = {
+fn drop(r : Reply(Int)) : Unit with m = {
     let _ = r;
     Unit
 }
@@ -2890,7 +2904,7 @@ fn drop(r : Reply(Int)) -> Unit with m = {
 ```console
 $ ern build example.ern
 example.ern:2:9: `_` would discard a reply-carrying value
-1 | fn drop(r : Reply(Int)) -> Unit with m = {
+1 | fn drop(r : Reply(Int)) : Unit with m = {
 2 |     let _ = r;
   |         ^
 ```
@@ -2898,7 +2912,7 @@ example.ern:2:9: `_` would discard a reply-carrying value
 ### A reply duplicated with `as` (§6.6)
 
 ```ernest-rejected
-fn twice(r : Reply(Int)) -> Unit with m =
+fn twice(r : Reply(Int)) : Unit with m =
     match r {
         x as y -> answer(x, 1)
     }
@@ -2917,7 +2931,7 @@ example.ern:3:9: `as` on a reply-carrying value would duplicate it
 ```ernest-rejected
 type Req = Get(Reply(Int))
 
-fn serve(q : Req) -> Unit with m =
+fn serve(q : Req) : Unit with m =
     match q {
         Get(_) -> Unit
     }
@@ -2936,7 +2950,7 @@ example.ern:5:9: the field of Get carries a reply and cannot be `_`
 ```ernest-rejected
 type Req = Get(reply : Reply(Int), n : Int)
 
-fn serve(q : Req) -> Unit with m =
+fn serve(q : Req) : Unit with m =
     match q {
         Get(n = n) -> Unit
     }
@@ -2953,20 +2967,20 @@ example.ern:5:9: field reply of Get carries a reply and must be bound
 ### A reply in a list (§6.6)
 
 ```ernest-rejected
-fn keep(r : Reply(Int)) -> List(Reply(Int)) = [r]
+fn keep(r : Reply(Int)) : List(Reply(Int)) = [r]
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:47: a reply-carrying value cannot be an element of List
-1 | fn keep(r : Reply(Int)) -> List(Reply(Int)) = [r]
-  |                                               ^^^
+example.ern:1:46: a reply-carrying value cannot be an element of List
+1 | fn keep(r : Reply(Int)) : List(Reply(Int)) = [r]
+  |                                              ^^^
 ```
 
 ### A lambda that captures a reply, bound and passed on (§6.6)
 
 ```ernest-rejected
-fn later(r : Reply(Int)) -> Unit with m = {
+fn later(r : Reply(Int)) : Unit with m = {
     let f = fn() = answer(r, 1);
     let g = f;
     g()
@@ -2984,14 +2998,14 @@ example.ern:3:13: the lambda f captures a reply-carrying value and may only be c
 ### A reply captured by a lambda that is passed to a function (§6.6)
 
 ```ernest-rejected
-fn each(r : Reply(Int)) -> Unit with m =
+fn each(r : Reply(Int)) : Unit with m =
     List.foreach([1], fn(x) = answer(r, x))
 ```
 
 ```console
 $ ern build example.ern
 example.ern:2:23: the reply-carrying value r is captured by a lambda that is not called, bound by `let`, or passed directly to spawn or spawnMonitored
-1 | fn each(r : Reply(Int)) -> Unit with m =
+1 | fn each(r : Reply(Int)) : Unit with m =
 2 |     List.foreach([1], fn(x) = answer(r, x))
   |                       ^^^^^^^^^^^^^^^^^^^^
 ```
@@ -2999,8 +3013,8 @@ example.ern:2:23: the reply-carrying value r is captured by a lambda that is not
 ### A reply captured by a local function (§6.6)
 
 ```ernest-rejected
-fn later(r : Reply(Int)) -> Unit with m = {
-    fn g() -> Unit with m = answer(r, 1);
+fn later(r : Reply(Int)) : Unit with m = {
+    fn g() : Unit with m = answer(r, 1);
     g()
 }
 ```
@@ -3008,15 +3022,15 @@ fn later(r : Reply(Int)) -> Unit with m = {
 ```console
 $ ern build example.ern
 example.ern:2:5: the reply-carrying value r is captured by a local function
-1 | fn later(r : Reply(Int)) -> Unit with m = {
-2 |     fn g() -> Unit with m = answer(r, 1);
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+1 | fn later(r : Reply(Int)) : Unit with m = {
+2 |     fn g() : Unit with m = answer(r, 1);
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A reply answered twice (§6.6)
 
 ```ernest-rejected
-fn twice(r : Reply(Int)) -> Unit with m = {
+fn twice(r : Reply(Int)) : Unit with m = {
     answer(r, 1);
     answer(r, 2)
 }
@@ -3033,25 +3047,25 @@ example.ern:3:12: the reply-carrying value r is consumed twice
 ### A reply answered on one path only (§6.6)
 
 ```ernest-rejected
-fn maybe(r : Reply(Int), b : Bool) -> Unit with m = if b then answer(r, 1) else Unit
+fn maybe(r : Reply(Int), b : Bool) : Unit with m = if b then answer(r, 1) else Unit
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:53: the reply-carrying value r is consumed on one path but not on another
-1 | fn maybe(r : Reply(Int), b : Bool) -> Unit with m = if b then answer(r, 1) else Unit
-  |                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+example.ern:1:52: the reply-carrying value r is consumed on one path but not on another
+1 | fn maybe(r : Reply(Int), b : Bool) : Unit with m = if b then answer(r, 1) else Unit
+  |                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A reply never answered (§6.6)
 
 ```ernest-rejected
-fn never(r : Reply(Int)) -> Unit with m = Unit
+fn never(r : Reply(Int)) : Unit with m = Unit
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:43: the reply-carrying value r is never consumed
-1 | fn never(r : Reply(Int)) -> Unit with m = Unit
-  |                                           ^^^^
+example.ern:1:42: the reply-carrying value r is never consumed
+1 | fn never(r : Reply(Int)) : Unit with m = Unit
+  |                                          ^^^^
 ```

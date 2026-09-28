@@ -24,7 +24,7 @@ export let file : Optional(Path) =
 
 // The inputs of the sessions before this one, newest first. A file that
 // holds more than the last thousand is trimmed to them as it is read.
-export fn read() -> Either(Io.Error, List(String)) with m =
+export fn read() : Either(Io.Error, List(String)) with m =
     match file {
         None -> Right([])
       | Some(path) -> match Fs.read(path, wait) {
@@ -40,7 +40,7 @@ export fn read() -> Either(Io.Error, List(String)) with m =
 
 // Newest first is the order the editor walks; the file is oldest first,
 // as a person reading it expects.
-fn trimmed(path : Path, inputs : List(String)) -> Either(Io.Error, List(String)) with m = {
+fn trimmed(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) with m = {
     let extra = List.size(inputs) - kept;
     if extra <= 0 then
         Right(List.reverse(inputs))
@@ -50,16 +50,16 @@ fn trimmed(path : Path, inputs : List(String)) -> Either(Io.Error, List(String))
     }
 }
 
-fn inputs(bytes : Bytes) -> List(String) = {
+fn inputs(bytes : Bytes) : List(String) = {
     let lines = String.lines(Optional.withDefault(String.fromUtf8(bytes), ""));
     List.map(List.filter(lines, fn(line) = !String.isEmpty(line)), decode)
 }
 
-fn text(inputs : List(String)) -> String =
+fn text(inputs : List(String)) : String =
     String.join(List.map(inputs, fn(input) = encode(input) <> "\n"), "")
 
 // One input, appended as the shell takes it.
-export fn add(input : String) -> Either(Io.Error, Unit) with m =
+export fn add(input : String) : Either(Io.Error, Unit) with m =
     match file {
         None -> Right(Unit)
       | Some(path) -> match made(path) {
@@ -71,7 +71,7 @@ export fn add(input : String) -> Either(Io.Error, Unit) with m =
 // Report §11.2: the directory made where it is not there, as before a
 // first session, and its owner's alone, so that no one else reads what was
 // typed, before the file is written or trimmed.
-fn made(path : Path) -> Either(Io.Error, Unit) with m =
+fn made(path : Path) : Either(Io.Error, Unit) with m =
     match Path.parent(path) {
         None -> Right(Unit)
       | Some(dir) -> {
@@ -85,15 +85,15 @@ fn made(path : Path) -> Either(Io.Error, Unit) with m =
 // it is written `\n` and a backslash `\\`.
 //
 
-fn encode(input : String) -> String =
+fn encode(input : String) : String =
     String.replace(String.replace(input, "\\", "\\\\"), "\n", "\\n")
 
 // Left to right, since `\\n` is a backslash and an `n` and not a
 // newline; two passes of `String.replace` would read it as one.
-fn decode(line : String) -> String =
+fn decode(line : String) : String =
     undo(line, "")
 
-fn undo(rest : String, done : String) -> String =
+fn undo(rest : String, done : String) : String =
     if String.isEmpty(rest) then
         done
     else {
@@ -107,7 +107,7 @@ fn undo(rest : String, done : String) -> String =
             undo(from(rest, 1), done <> head)
     }
 
-fn from(s : String, n : Int) -> String =
+fn from(s : String, n : Int) : String =
     String.slice(s, n, String.size(s) - n)
 
 //
@@ -135,7 +135,7 @@ let both =
 
 let empty = Test(name = "an empty input reads back empty", run = fn() = same(""))
 
-fn same(input : String) -> TestResult =
+fn same(input : String) : TestResult =
     if decode(encode(input)) == input then
         Passed
     else

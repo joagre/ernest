@@ -52,14 +52,14 @@ let fresh =
 
 // A session's first line, after the inputs of the sessions before it,
 // newest first.
-export fn start(history : List(String)) -> State =
+export fn start(history : List(String)) : State =
     State(..fresh, history = history)
 
 // The state to type the next line in: the line just taken joins the
 // history, which keeps the last inputs as the file does (report §11.2),
 // and what was killed outlives the line it was killed from, as Readline's
 // does.
-export fn next(state : State) -> State =
+export fn next(state : State) : State =
     State(..fresh,
           kill = state.kill,
           history = if keeps(state) then
@@ -69,30 +69,30 @@ export fn next(state : State) -> State =
 
 // Report §11.2: a blank input and one equal to the input before it are
 // not kept, in the history or in the file.
-export fn keeps(state : State) -> Bool =
+export fn keeps(state : State) : Bool =
     !String.isEmpty(String.trim(state.text)) && List.get(state.history, 0) != Some(state.text)
 
 // Report §11.2: another line of the same input, which `M-Enter` asks
 // for and `Enter` does where the parser cannot finish what is typed.
-export fn newline(state : State) -> State =
+export fn newline(state : State) : State =
     insert(state, "\n")
 
 // The line and the cursor a completion left, which the reader puts
 // back; the editor knows no names and does no completing of its own. The
 // cursor is kept inside the line, whatever it is given.
-export fn typed(state : State, text : String, at : Int) -> State =
+export fn typed(state : State, text : String, at : Int) : State =
     State(..state, text = text, at = Int.max(0, Int.min(String.size(text), at)))
 
 // The line being edited and the cursor in it, a search aside.
-export fn text(state : State) -> String =
+export fn text(state : State) : String =
     state.text
 
-export fn at(state : State) -> Int =
+export fn at(state : State) : Int =
     state.at
 
 // Whether the keys so far have begun a sequence the next key ends
 // (report §8.2).
-export fn midSequence(state : State) -> Bool =
+export fn midSequence(state : State) : Bool =
     match state {
         State(pending = Plain) -> false
       | _ -> true
@@ -101,28 +101,28 @@ export fn midSequence(state : State) -> Bool =
 // What the reader shows on the line and where the cursor stands in it:
 // the line itself, or, while a search runs, Readline's search prompt
 // with the match after it.
-export fn shown(state : State) -> String =
+export fn shown(state : State) : String =
     match state {
         State(search = None, text = text) -> text
       | State(search = Some(s), text = text) -> asked(s, text) <> text
     }
 
-export fn cursor(state : State) -> Int =
+export fn cursor(state : State) : Int =
     match state {
         State(search = None, at = at) -> at
       | State(search = Some(s), text = text, at = at) -> String.size(asked(s, text)) + at
     }
 
-fn asked(s : Search, text : String) -> String =
+fn asked(s : Search, text : String) : String =
     "(" <> missing(s.query, text) <> direction(s.forward) <> ")`" <> s.query <> "': "
 
-fn missing(query : String, text : String) -> String =
+fn missing(query : String, text : String) : String =
     if String.isEmpty(query) || String.indexOf(text, query) != None then "" else "failed "
 
-fn direction(forward : Bool) -> String =
+fn direction(forward : Bool) : String =
     if forward then "i-search" else "reverse-i-search"
 
-export fn edit(state : State, event : Terminal.Event) -> Edit =
+export fn edit(state : State, event : Terminal.Event) : Edit =
     match state {
         State(search = Some(s)) -> searching(State(..state, pending = Plain), s, event)
       | State(pending = Meta) -> meta(State(..state, pending = Plain), event)
@@ -133,13 +133,13 @@ export fn edit(state : State, event : Terminal.Event) -> Edit =
 // Report §11.2: `Shift-Tab`, which the terminal sends as `Escape [ Z`,
 // shows what the name at the cursor is. Any other sequence is the
 // `Escape` key and the characters after it, as §8.2 delivers it.
-fn bracket(state : State, event : Terminal.Event) -> Edit =
+fn bracket(state : State, event : Terminal.Event) : Edit =
     match event {
         Terminal.Key('Z') -> Documenting(state)
       | other -> plain(state, other)
     }
 
-fn plain(state : State, event : Terminal.Event) -> Edit =
+fn plain(state : State, event : Terminal.Event) : Edit =
     match event {
         Terminal.Enter -> Submit(state)
       | Terminal.Interrupt -> Cancel
@@ -156,7 +156,7 @@ fn plain(state : State, event : Terminal.Event) -> Edit =
     }
 
 // A character typed, which is Readline's control key where it is one.
-fn character(state : State, c : Char) -> Edit = {
+fn character(state : State, c : Char) : Edit = {
     let State(text = text, at = at, kill = kill) = state;
     match c {
         '\u{1}' -> Typing(State(..state, at = 0)) // C-a
@@ -182,7 +182,7 @@ fn character(state : State, c : Char) -> Edit = {
 }
 
 // `Escape` and then the key: Readline's Meta bindings.
-fn meta(state : State, event : Terminal.Event) -> Edit = {
+fn meta(state : State, event : Terminal.Event) : Edit = {
     let State(text = text, at = at) = state;
     match event {
         // report §11.2: another line, though the parser could run what
@@ -210,10 +210,10 @@ fn meta(state : State, event : Terminal.Event) -> Edit = {
 // typed, which is kept while the walk is away from it.
 //
 
-fn walk(state : State, step : Int) -> State =
+fn walk(state : State, step : Int) : State =
     walkTo(state, state.back + step)
 
-fn walkTo(state : State, to : Int) -> State =
+fn walkTo(state : State, to : Int) : State =
     if to < 0 || to > List.size(state.history) then
         state
     else {
@@ -223,7 +223,7 @@ fn walkTo(state : State, to : Int) -> State =
     }
 
 // The nth input back, 1 being the one before this line.
-fn entry(history : List(String), n : Int) -> String =
+fn entry(history : List(String), n : Int) : String =
     Optional.withDefault(List.get(history, n - 1), "")
 
 //
@@ -234,7 +234,7 @@ fn entry(history : List(String), n : Int) -> String =
 // says so in its prompt.
 //
 
-fn search(state : State, forward : Bool) -> State =
+fn search(state : State, forward : Bool) : State =
     State(..state,
           search = Some(Search(query = "",
                                back = state.back,
@@ -242,7 +242,7 @@ fn search(state : State, forward : Bool) -> State =
                                before = state.text,
                                forward = forward)))
 
-fn searching(state : State, s : Search, event : Terminal.Event) -> Edit =
+fn searching(state : State, s : Search, event : Terminal.Event) : Edit =
     match event {
         Terminal.Enter -> Submit(stop(state))
       | Terminal.Interrupt -> Cancel
@@ -257,7 +257,7 @@ fn searching(state : State, s : Search, event : Terminal.Event) -> Edit =
 
 // The next match in the direction, the search standing where it was when
 // there is none.
-fn seek(state : State, s : Search, step : Int) -> State =
+fn seek(state : State, s : Search, step : Int) : State =
     match find(state.history, s.query, s.back + step, step) {
         Some(n) -> matched(state, s, n)
       | None -> State(..state, search = Some(s))
@@ -265,7 +265,7 @@ fn seek(state : State, s : Search, step : Int) -> State =
 
 // A character typed: the search narrows and looks again from where it
 // stands, since the match it has may match the longer query too.
-fn narrow(state : State, s : Search, c : Char) -> State = {
+fn narrow(state : State, s : Search, c : Char) : State = {
     let Search(query = query, back = back) = s;
     let narrower = Search(..s, query = query <> Char.toString(c));
     let from = if back == 0 then back + step(s) else back;
@@ -278,7 +278,7 @@ fn narrow(state : State, s : Search, c : Char) -> State = {
 // Backspace: the query loses its last character and the search begins
 // again from where it started, so that a shorter query may match a
 // nearer input.
-fn shorten(state : State, s : Search) -> State = {
+fn shorten(state : State, s : Search) : State = {
     let Search(query = query, from = from, before = before) = s;
     let shorter = String.slice(query, 0, Int.max(0, String.size(query) - 1));
     let narrower = Search(..s, query = shorter, back = from);
@@ -295,14 +295,14 @@ fn shorten(state : State, s : Search) -> State = {
 }
 
 // `C-g`: the line the search began from comes back.
-fn abandon(state : State, s : Search) -> State =
+fn abandon(state : State, s : Search) : State =
     State(..state, text = s.before, at = String.size(s.before), back = s.from, search = None)
 
 // The search ends and the input it found stays.
-fn stop(state : State) -> State =
+fn stop(state : State) : State =
     State(..state, search = None)
 
-fn matched(state : State, s : Search, n : Int) -> State = {
+fn matched(state : State, s : Search, n : Int) : State = {
     let text = entry(state.history, n);
     State(..state,
           text = text,
@@ -311,10 +311,10 @@ fn matched(state : State, s : Search, n : Int) -> State = {
           search = Some(Search(..s, back = n)))
 }
 
-fn matchAt(text : String, query : String) -> Int =
+fn matchAt(text : String, query : String) : Int =
     Optional.withDefault(String.indexOf(text, query), String.size(text))
 
-fn find(history : List(String), query : String, from : Int, step : Int) -> Optional(Int) =
+fn find(history : List(String), query : String, from : Int, step : Int) : Optional(Int) =
     if from < 1 || from > List.size(history) then
         None
     else if String.indexOf(entry(history, from), query) != None then
@@ -322,7 +322,7 @@ fn find(history : List(String), query : String, from : Int, step : Int) -> Optio
     else
         find(history, query, from + step, step)
 
-fn step(s : Search) -> Int =
+fn step(s : Search) : Int =
     if s.forward then -1 else 1
 
 //
@@ -331,21 +331,21 @@ fn step(s : Search) -> Int =
 //
 
 // Text put in at the cursor, which is left after it.
-export fn insert(state : State, what : String) -> State = {
+export fn insert(state : State, what : String) : State = {
     let State(text = text, at = at) = state;
     State(..state,
           text = String.slice(text, 0, at) <> what <> from(text, at),
           at = at + String.size(what))
 }
 
-fn back(state : State) -> State =
+fn back(state : State) : State =
     match state {
         State(at = 0) -> state
       | State(text = text, at = at) ->
             State(..state, text = String.slice(text, 0, at - 1) <> from(text, at), at = at - 1)
     }
 
-fn deleteAt(state : State, at : Int) -> State = {
+fn deleteAt(state : State, at : Int) : State = {
     let State(text = text) = state;
     if at >= String.size(text) then
         state
@@ -354,7 +354,7 @@ fn deleteAt(state : State, at : Int) -> State = {
 }
 
 // Kill back to `to`, keeping what was killed for `C-y`.
-fn killTo(state : State, to : Int) -> State = {
+fn killTo(state : State, to : Int) : State = {
     let State(text = text, at = at) = state;
     State(..state,
           text = String.slice(text, 0, to) <> from(text, at),
@@ -363,29 +363,29 @@ fn killTo(state : State, to : Int) -> State = {
 }
 
 // Kill forward to `to`.
-fn killFrom(state : State, to : Int) -> State = {
+fn killFrom(state : State, to : Int) : State = {
     let State(text = text, at = at) = state;
     State(..state,
           text = String.slice(text, 0, at) <> from(text, to),
           kill = String.slice(text, at, to - at))
 }
 
-fn from(text : String, at : Int) -> String =
+fn from(text : String, at : Int) : String =
     String.slice(text, at, String.size(text) - at)
 
 // report §11.2: the start of the word before the cursor, over what is not
 // in a word and then over the word itself; `inWord` says what a word is,
 // a run of letters and digits for the Meta keys and anything but a space
 // for C-w, as in Readline.
-fn wordLeft(text : String, at : Int, inWord : (String, Int) -> Bool) -> Int =
+fn wordLeft(text : String, at : Int, inWord : (String, Int) -> Bool) : Int =
     over(text, over(text, at, -1, fn(t, i) = !inWord(t, i)), -1, inWord)
 
 // The end of the word after the cursor.
-fn wordRight(text : String, at : Int, inWord : (String, Int) -> Bool) -> Int =
+fn wordRight(text : String, at : Int, inWord : (String, Int) -> Bool) : Int =
     over(text, over(text, at, 1, fn(t, i) = !inWord(t, i)), 1, inWord)
 
 // From `at`, a step at a time, while the character stepped over satisfies `p`.
-fn over(text : String, at : Int, step : Int, p : (String, Int) -> Bool) -> Int =
+fn over(text : String, at : Int, step : Int, p : (String, Int) -> Bool) : Int =
     if beyond(text, at, step) then
         at
     else if p(text, at + Int.min(step, 0)) then
@@ -395,15 +395,15 @@ fn over(text : String, at : Int, step : Int, p : (String, Int) -> Bool) -> Int =
 
 // The character a step away is off the line, so the walk over the word
 // stops there.
-fn beyond(text : String, at : Int, step : Int) -> Bool =
+fn beyond(text : String, at : Int, step : Int) : Bool =
     at + Int.min(step, 0) < 0 || at + Int.max(step, 0) > String.size(text)
 
-fn unspaced(text : String, i : Int) -> Bool =
+fn unspaced(text : String, i : Int) : Bool =
     String.slice(text, i, 1) != " "
 
 // A grapheme is judged by its first code point, which is what Char's
 // predicates see.
-fn alphanumeric(text : String, i : Int) -> Bool =
+fn alphanumeric(text : String, i : Int) : Bool =
     match String.toList(String.slice(text, i, 1)) {
         c :: _ -> Char.isAlpha(c) || Char.isDigit(c)
       | [] -> false
@@ -674,11 +674,11 @@ let notKept =
                  Failed("the history kept what it should not"))
 
 // Every event of a text typed a character at a time.
-fn keys(text : String) -> List(Terminal.Event) =
+fn keys(text : String) : List(Terminal.Event) =
     List.map(String.toList(text), fn(c) = Terminal.Key(c))
 
 // A control key as the terminal sends it: `C-a` is 1 (§8.2).
-fn ctrl(c : Char) -> Terminal.Event =
+fn ctrl(c : Char) : Terminal.Event =
     match Char.fromInt(Char.toInt(c) - 96) {
         Some(k) -> Terminal.Key(k)
       | None -> Terminal.Key(c)
@@ -686,16 +686,16 @@ fn ctrl(c : Char) -> Terminal.Event =
 
 // The events in order, from a fresh line; an event after the line ended
 // changes nothing, so the first ending is what a test reads.
-fn play(events : List(Terminal.Event)) -> Edit =
+fn play(events : List(Terminal.Event)) : Edit =
     plays(fresh, events)
 
-fn plays(from : State, events : List(Terminal.Event)) -> Edit =
+fn plays(from : State, events : List(Terminal.Event)) : Edit =
     List.foldLeft(events, Typing(from), fn(edited, event) = match edited {
         Typing(state) -> edit(state, event)
       | ended -> ended
     })
 
-fn reads(edited : Edit, text : String, at : Int) -> TestResult =
+fn reads(edited : Edit, text : String, at : Int) : TestResult =
     match edited {
         Typing(State(text = typed, at = cursor)) -> if typed == text && cursor == at then
             Passed
@@ -706,13 +706,13 @@ fn reads(edited : Edit, text : String, at : Int) -> TestResult =
 
 // What the reader would show, which is the line or the search's prompt
 // and what it found.
-fn shows(edited : Edit) -> String =
+fn shows(edited : Edit) : String =
     match edited {
         Typing(state) -> shown(state)
       | other -> said(other)
     }
 
-fn said(edited : Edit) -> String =
+fn said(edited : Edit) : String =
     match edited {
         Typing(State(text = text)) -> "typing \"" <> text <> "\""
       | Completing(_) -> "completing"

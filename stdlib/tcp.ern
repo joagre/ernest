@@ -88,14 +88,14 @@ type Msg =
 // bound at each start.
 let reference : Address(Msg) = system(Erl.atom("tcp"))
 
-foreign fn system(name : Foreign) -> Address(Msg) with m =
+foreign fn system(name : Foreign) : Address(Msg) with m =
     "ern_rt:sys/1"
 
 /// A listener on the port of the host's interface that the name or the
 /// address names: `"127.0.0.1"` is the loopback alone, `"0.0.0.0"` every
 /// interface of IPv4, and `"::"` every interface of IPv6. Port 0 asks the
 /// system for a free one, which `Tcp.port` tells.
-export fn listen(host : String, port : Int) -> Either(Io.Error, Address(ListenerMsg)) with m =
+export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerMsg)) with m =
     Address.callForever(reference, fn(r) = Listen(host = host, port = port, reply = r))
 
 /// The port the listener listens on.
@@ -111,7 +111,7 @@ export fn listen(host : String, port : Int) -> Either(Io.Error, Address(Listener
 /// }
 /// // => Right(true)
 /// ```
-export fn port(listener : Address(ListenerMsg)) -> Either(Io.Error, Int) with m =
+export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) with m =
     Address.callForever(listener, fn(r) = Port(reply = r))
 
 /// The next connection to the listener, or `Left(Io.Timeout)` when none
@@ -129,20 +129,18 @@ export fn port(listener : Address(ListenerMsg)) -> Either(Io.Error, Int) with m 
 /// }
 /// ```
 export fn accept(listener : Address(ListenerMsg),
-                 ms : Int) -> Either(Io.Error, Address(SockMsg)) with m =
+                 ms : Int) : Either(Io.Error, Address(SockMsg)) with m =
     Address.callForever(listener, fn(r) = Accept(ms = ms, reply = r))
 
 /// A connection to that host and port, or `Left(Io.Timeout)` when it is not
 /// made in time; one made later is closed.
-export fn connect(host : String,
-                  port : Int,
-                  ms : Int) -> Either(Io.Error, Address(SockMsg)) with m =
+export fn connect(host : String, port : Int, ms : Int) : Either(Io.Error, Address(SockMsg)) with m =
     Address.callForever(reference, fn(r) = Connect(host = host, port = port, ms = ms, reply = r))
 
 /// What has arrived, at least one byte, or `Left(Io.Closed)` once the
 /// connection has closed and what came before is read, or
 /// `Left(Io.Timeout)` when nothing comes in time, having taken nothing.
-export fn read(socket : Address(SockMsg), ms : Int) -> Either(Io.Error, Bytes) with m =
+export fn read(socket : Address(SockMsg), ms : Int) : Either(Io.Error, Bytes) with m =
     Address.callForever(socket, fn(r) = Recv(ms = ms, reply = r))
 
 /// Writes the bytes to the socket, and returns once the socket has taken
@@ -153,16 +151,16 @@ export fn read(socket : Address(SockMsg), ms : Int) -> Either(Io.Error, Bytes) w
 ///
 /// A write to a socket that has been closed faults as
 /// `Address.callForever` does on an ended process.
-export fn write(socket : Address(SockMsg), bytes : Bytes) -> Unit with m =
+export fn write(socket : Address(SockMsg), bytes : Bytes) : Unit with m =
     Address.callForever(socket, fn(r) = Send(bytes = bytes, reply = r))
 
 /// Closes the socket, which ends its process.
-export fn close(socket : Address(SockMsg)) -> Unit with m =
+export fn close(socket : Address(SockMsg)) : Unit with m =
     send(socket, Close)
 
 /// Stops the listener, which ends its process; an accept waiting on it
 /// answers `Left(Io.Closed)`.
-export fn closeListener(listener : Address(ListenerMsg)) -> Unit with m =
+export fn closeListener(listener : Address(ListenerMsg)) : Unit with m =
     send(listener, CloseListener)
 
 /// The connection's far end, in TCP's sense, not a peer of report §8.3, or
@@ -182,7 +180,7 @@ export fn closeListener(listener : Address(ListenerMsg)) -> Unit with m =
 /// }
 /// // => Right(true)
 /// ```
-export fn peer(socket : Address(SockMsg)) -> Either(Io.Error, Endpoint) with m =
+export fn peer(socket : Address(SockMsg)) : Either(Io.Error, Endpoint) with m =
     Address.callForever(socket, fn(r) = FarEnd(reply = r))
 
 /// The connection's near end, or `Left(Io.Closed)` once the connection has
@@ -202,5 +200,5 @@ export fn peer(socket : Address(SockMsg)) -> Either(Io.Error, Endpoint) with m =
 /// }
 /// // => Right("127.0.0.1")
 /// ```
-export fn local(socket : Address(SockMsg)) -> Either(Io.Error, Endpoint) with m =
+export fn local(socket : Address(SockMsg)) : Either(Io.Error, Endpoint) with m =
     Address.callForever(socket, fn(r) = NearEnd(reply = r))

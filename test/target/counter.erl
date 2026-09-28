@@ -33,7 +33,7 @@
 
 -export([main/0, '$fun'/2]).
 
-%% export fn main() -> Unit with m = {
+%% export fn main() : Unit with m = {
 %%     let c = spawn(Local, fn() = counter(0));
 %%     send(c, Inc(5));
 %%     send(c, Inc(3));
@@ -54,7 +54,7 @@ main() ->
             'ern@io':println(<<"counter is not answering">>)
     end.
 
-%% fn counter(n : Int) -> Unit with CounterMsg = receive {
+%% fn counter(n : Int) : Unit with CounterMsg = receive {
 %%     Inc(k) -> counter(n + k)
 %%   | Get(reply = r) -> { answer(r, n); counter(n) }
 %%   | Upgrade(migrate = m, next = k) -> k(m(n))

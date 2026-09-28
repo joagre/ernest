@@ -74,7 +74,7 @@ export type FaultReport = FaultReport(process : Process,
 /// Process.fromAddress(self()) == Process.fromAddress(via(fn(x) = x, self()))
 /// // => true
 /// ```
-export foreign fn fromAddress(address : Address(m)) -> Process =
+export foreign fn fromAddress(address : Address(m)) : Process =
     "ern_rt:process_of/1"
 
 /// A snapshot of the process, or `None` once it has ended, and for a
@@ -86,7 +86,7 @@ export foreign fn fromAddress(address : Address(m)) -> Process =
 /// Optional.isSome(Process.info(Process.fromAddress(self())))
 /// // => true
 /// ```
-export foreign fn info(process : Process) -> Optional(Info) with m =
+export foreign fn info(process : Process) : Optional(Info) with m =
     "ern_rt:info/1"
 
 /// The processes the runtime started that have not ended, the system
@@ -98,7 +98,7 @@ export foreign fn info(process : Process) -> Optional(Info) with m =
 /// List.isEmpty(Process.live())
 /// // => false
 /// ```
-export foreign fn live() -> List(Process) with m =
+export foreign fn live() : List(Process) with m =
     "ern_rt:processes/0"
 
 /// Every fault of every process the runtime started, from now on, wrapped,
@@ -113,8 +113,8 @@ export foreign fn live() -> List(Process) with m =
 /// ```ernest
 /// Process.faults(fn(report) = report)
 /// ```
-export fn faults(wrap : (FaultReport) -> m) -> Unit with m =
+export fn faults(wrap : (FaultReport) -> m) : Unit with m =
     subscribe(via(wrap, self()))
 
-foreign fn subscribe(to : Address(FaultReport)) -> Unit with m =
+foreign fn subscribe(to : Address(FaultReport)) : Unit with m =
     "ern_rt:faults/1"

@@ -1,6 +1,6 @@
 # Ernest: Language Report
 
-Revision of 28 September 2026. Rationale, rejected alternatives, and open questions are in [`decisions.md`](docs/decisions.md).
+Revision of 29 September 2026. Rationale, rejected alternatives, and open questions are in [`decisions.md`](docs/decisions.md).
 
 **Contents**
 <!-- contents -->
@@ -198,7 +198,7 @@ A Unicode scalar value is a code point other than a surrogate, U+0000 through U+
 
 `with M` after the result is the mailbox type: the function uses the process it runs in, whose mailbox has type `M`, §6.1. A function type without `with M` is pure.
 
-`with` binds to the nearest arrow. `(A) -> (B) -> C with M` is a pure function returning a function with mailbox `M`. `(A) -> ((B) -> C) with M` is a function with mailbox `M` returning a pure one. The same holds in a return annotation: `fn f() -> (A) -> B with M` returns a function with mailbox `M`; `fn f() -> ((A) -> B) with M` has mailbox `M` itself.
+`with` binds to the nearest arrow. `(A) -> (B) -> C with M` is a pure function returning a function with mailbox `M`. `(A) -> ((B) -> C) with M` is a function with mailbox `M` returning a pure one. In a result annotation, a `with` after a function type is that type's: `fn f() : (A) -> B with M` returns a function with mailbox `M`; `fn f() : ((A) -> B) with M` has mailbox `M` itself.
 
 ### 3.5 Sum types
 
@@ -232,15 +232,15 @@ A foreign value is bound to the node that made it: transporting a value that tra
 
 Types are inferred according to Hindley-Milner. A `fn` definition and a top-level `let` are generalized over their free type variables; a `let` in a block is not, nor is a top-level `let` whose initializer calls a process-only function (§4.6). Type variables in a `fn` signature scope over the whole definition, including the annotations of lambdas, of block `let`s, and of local `fn`s within it. A variable named only in a lambda's annotation is the lambda's own and is not rigid. A variable named only in a block `let`'s annotation is that binding's own and is not rigid. A local `fn`'s signature shares the enclosing signature's variables, and a variable named only in it is the local function's own, rigid and generalized with it as a top-level function's is. Recursive and mutually recursive types are allowed; polymorphic recursion is not, even where the whole signature is written: a recursive call is at the definition's own type. Every type variable in a constructor's fields is a parameter of the type.
 
-**Effect polymorphism.** The mailbox effect of a function type may be a type variable, generalized with the others: `fn apply(f, x) = f(x)` has type `((a) -> b with e, a) -> b with e`. At a call site an effect variable binds to a mailbox type or to pure: `apply(fn(x) = send(a, x), 5)` binds `e` to the mailbox of `send`, `apply(fn(x) = x + 1, 5)` binds `e` to pure. Pure is the absence of `with`; it is not a type. A mailbox type bound this way becomes the caller's. A pure function stands wherever a function of the same type with a mailbox type is expected, and a function with a mailbox type never stands where a pure one is expected. So an expression whose type is a function type without `with` takes a fresh effect variable in its place, which the context binds: with `fn done(n : Int) -> Unit = Unit`, `Upgrade(migrate = double, next = done)` binds it to `CounterMsg` (§6.10). Only the expression's own function type takes one. A function type inside it or inside another type, a parameter's, a result's, or a field's, keeps its effect until an expression has it as its own type, as a call or a selection does.
+**Effect polymorphism.** The mailbox effect of a function type may be a type variable, generalized with the others: `fn apply(f, x) = f(x)` has type `((a) -> b with e, a) -> b with e`. At a call site an effect variable binds to a mailbox type or to pure: `apply(fn(x) = send(a, x), 5)` binds `e` to the mailbox of `send`, `apply(fn(x) = x + 1, 5)` binds `e` to pure. Pure is the absence of `with`; it is not a type. A mailbox type bound this way becomes the caller's. A pure function stands wherever a function of the same type with a mailbox type is expected, and a function with a mailbox type never stands where a pure one is expected. So an expression whose type is a function type without `with` takes a fresh effect variable in its place, which the context binds: with `fn done(n : Int) : Unit = Unit`, `Upgrade(migrate = double, next = done)` binds it to `CounterMsg` (§6.10). Only the expression's own function type takes one. A function type inside it or inside another type, a parameter's, a result's, or a field's, keeps its effect until an expression has it as its own type, as a call or a selection does.
 
 An effect position is the type after `with`. A value position is an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. A type argument of a built-in or foreign type is a value position. A variable that occurs only in effect positions ranges over the mailbox types and pure. A variable that also occurs in a value position ranges over types alone: `m` in `self : () -> Address(m) with m` is never pure. Inference asks for an annotation in three places: an operator whose operand type nothing in the definition fixes (§4.8), a binding that is not generalized whose type keeps a variable nothing resolves (§4.6), and a `<-` whose sum type is still open (§5.5).
 
-The functions of §9.4 and §9.5 whose own effect is a mailbox type, which are all of them but `via` and `restarting`, and a `foreign fn` whose effect is its own, are *process-only*: their effect variable is treated as if it occurred in a value position, and pure code cannot call them. A `foreign fn`'s effect is its own unless its effect variable is also the effect of one of its parameters' function types, in which case the effect is that callback's and the function is effect-polymorphic: `foreign fn each(m : Map(k, v), f : (k, v) -> Unit with e) -> Unit with e` is pure when `f` is.
+The functions of §9.4 and §9.5 whose own effect is a mailbox type, which are all of them but `via` and `restarting`, and a `foreign fn` whose effect is its own, are *process-only*: their effect variable is treated as if it occurred in a value position, and pure code cannot call them. A `foreign fn`'s effect is its own unless its effect variable is also the effect of one of its parameters' function types, in which case the effect is that callback's and the function is effect-polymorphic: `foreign fn each(m : Map(k, v), f : (k, v) -> Unit with e) : Unit with e` is pure when `f` is.
 
-A function has one mailbox effect or none. A function may take a pure callback beside an effectful one: in `fn callBoth(p : (Int) -> Int, e : (Int) -> Unit with n) -> Unit with n`, `p` is pure, `e` has effect `n`, and the function inherits `n`. Two callbacks whose effects are both variables unify to one effect. Two callbacks with different concrete effects are a type error.
+A function has one mailbox effect or none. A function may take a pure callback beside an effectful one: in `fn callBoth(p : (Int) -> Int, e : (Int) -> Unit with n) : Unit with n`, `p` is pure, `e` has effect `n`, and the function inherits `n`. Two callbacks whose effects are both variables unify to one effect. Two callbacks with different concrete effects are a type error.
 
-**Inferred restrictions.** An annotation gives a function's shape: arity, argument types, result, mailbox effect. Three restrictions are inferred from the body and never written. The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is inherited by a function whose body calls a process-only function: `fn wrap(a, v) = send(a, v)` cannot be called from pure code. Not-reply-carrying (§6.6) falls on a type variable of a parameter's type when the body, read with that variable as a reply-carrying type, would break §6.6: use such a value twice or not at all, through a `let` or a pattern as much as by the parameter's name, or put it where §6.6 forbids one. So `fn dup(x) = #(x, x)`, `fn discard(x) = Unit`, `fn keep(x) = { let y = x; Unit }`, and `fn forget(b : Box(a)) -> Unit = Unit` cannot take a reply, and `fn id(x) = x` can. It does not fall on a variable that is also an element of `List`, `Map`, `Set`, `Optional`, or `Either` in a parameter type or the result type, directly or through tuples and those types: `Optional.withDefault : (Optional(a), a) -> a` is not restricted. Each is part of the type scheme and travels with the function value through bindings, branches, and compiled interfaces. Each is checked at instantiation, not at definition. The compiler shows them (§11.5).
+**Inferred restrictions.** An annotation gives a function's shape: arity, argument types, result, mailbox effect. Three restrictions are inferred from the body and never written. The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is inherited by a function whose body calls a process-only function: `fn wrap(a, v) = send(a, v)` cannot be called from pure code. Not-reply-carrying (§6.6) falls on a type variable of a parameter's type when the body, read with that variable as a reply-carrying type, would break §6.6: use such a value twice or not at all, through a `let` or a pattern as much as by the parameter's name, or put it where §6.6 forbids one. So `fn dup(x) = #(x, x)`, `fn discard(x) = Unit`, `fn keep(x) = { let y = x; Unit }`, and `fn forget(b : Box(a)) : Unit = Unit` cannot take a reply, and `fn id(x) = x` can. It does not fall on a variable that is also an element of `List`, `Map`, `Set`, `Optional`, or `Either` in a parameter type or the result type, directly or through tuples and those types: `Optional.withDefault : (Optional(a), a) -> a` is not restricted. Each is part of the type scheme and travels with the function value through bindings, branches, and compiled interfaces. Each is checked at instantiation, not at definition. The compiler shows them (§11.5).
 
 ### 3.10 Equality and ordering
 
@@ -268,7 +268,7 @@ Field       = ident ":" Type .
 AbstractDecl  = "abstract" TypeDecl .
 FnDecl      = "fn" DeclName "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 Param       = Pattern [ ":" Type ] .
-Return      = "->" Type [ "with" Type ] .
+Return      = ":" Type [ "with" Type ] .
 LetDecl     = "let" DeclName [ ":" Type ] "=" Expr .
 Binding     = "let" Pattern [ ":" Type ] ( "=" | "<-" ) Expr .
 DeclName    = ident | typename "." ( ident | userop ) .
@@ -290,7 +290,7 @@ A *module* is one source file, ending in `.ern`: the unit of compilation and of 
 // net/http.ern
 export type Request = Request(method : String, path : String)
 
-export fn parse(s : String) -> Optional(Request) =
+export fn parse(s : String) : Optional(Request) =
     ...
 
 // private to net/http.ern
@@ -333,9 +333,9 @@ External callers see `Main.Stack`, `Main.Stack.push`, and `Main.size`; `Stack(..
 
 ### 4.5 Functions
 
-`fn` declares a function of fixed arity. Annotations may be omitted where they can be inferred. The return annotation is omitted, or is `-> T` for a pure function, or `-> T with M` for process code. A pure annotation on a function that calls process code is a type error. A pure annotation makes pure the effect of every parameter the body calls: `fn apply(f, x) -> Int = f(x)` has type `((a) -> Int, a) -> Int`.
+`fn` declares a function of fixed arity. Annotations may be omitted where they can be inferred. The result annotation is omitted, or is `: T` for a pure function, or `: T with M` for process code, as a parameter's annotation is `: T`. A pure annotation on a function that calls process code is a type error. A pure annotation makes pure the effect of every parameter the body calls: `fn apply(f, x) : Int = f(x)` has type `((a) -> Int, a) -> Int`.
 
-A function has one clause. Patterns in parameters are irrefutable, §5.10: `fn seenCount(Snapshot(seen = entries) : Snapshot) -> Int = Map.size(entries)`.
+A function has one clause. Patterns in parameters are irrefutable, §5.10: `fn seenCount(Snapshot(seen = entries) : Snapshot) : Int = Map.size(entries)`.
 
 `fn` may appear at top level and as a statement in a block; it sees its own name, and `fn` declarations in the same block or at top level may refer to each other. A type-member name, `fn T.f`, is a top-level form; in a block it is an error.
 
@@ -343,7 +343,7 @@ A function has one clause. Patterns in parameters are irrefutable, §5.10: `fn s
 
 In a block, `let p = e` binds the irrefutable pattern `p` to the value of `e`; `let p <- e` is described in §5.5. A binding is monomorphic and does not see its own name. A later binding of the same name shadows the earlier one from the next statement on; the right-hand side of the later binding sees the earlier one.
 
-A block binding's type may hold unresolved type variables; `[]`, `None`, `Map.empty`, and a call that returns a polymorphic value introduce them. Such a variable is resolved in one of three ways: a later use of the binding in the block pins it, `let m = Map.empty; Map.put(m, "a", 1)` pins `m` at `Map(String, Int)`; it reaches the block's result and is generalized by the enclosing `fn` or top-level `let`, `fn namedEmpty() = { let xs = []; xs }` has type `() -> List(a)`; or an annotation on the binding fixes it. A variable resolved in none of these ways is a type error at the binding. A use pins a variable only where it fixes the variable's type: in `{ let xs = []; List.size(xs) }` the element type stays open, and the binding is a type error. A spawned function whose mailbox type nothing fixes is annotated: `let a = spawn(Local, fn() -> Unit with Never = ping(p, 3))`. `let _ = e` binds no variable, so no variable in the type of `e` needs resolving: `let _ = spawn(Local, fn() = worker())` is legal with the mailbox type unresolved. A type parameter of an enclosing scope counts as resolved.
+A block binding's type may hold unresolved type variables; `[]`, `None`, `Map.empty`, and a call that returns a polymorphic value introduce them. Such a variable is resolved in one of three ways: a later use of the binding in the block pins it, `let m = Map.empty; Map.put(m, "a", 1)` pins `m` at `Map(String, Int)`; it reaches the block's result and is generalized by the enclosing `fn` or top-level `let`, `fn namedEmpty() = { let xs = []; xs }` has type `() -> List(a)`; or an annotation on the binding fixes it. A variable resolved in none of these ways is a type error at the binding. A use pins a variable only where it fixes the variable's type: in `{ let xs = []; List.size(xs) }` the element type stays open, and the binding is a type error. A spawned function whose mailbox type nothing fixes is annotated: `let a = spawn(Local, fn() : Unit with Never = ping(p, 3))`. `let _ = e` binds no variable, so no variable in the type of `e` needs resolving: `let _ = spawn(Local, fn() = worker())` is legal with the mailbox type unresolved. A type parameter of an enclosing scope counts as resolved.
 
 At top level, `let` binds a `DeclName`: an `ident`, optionally prefixed with a type of the same module (§4.2). The left side is a name, not a pattern; `<-` is a block form only. The initializer is a body of mailbox type `Never` (§6.8): it may spawn, send, and call, and it may not receive. The binding generalizes its free type variables: `let Stack.empty : Stack(a) = Stack([])`. A binding whose initializer calls a process-only function (§3.9) is not generalized, and a type variable left in its type is a type error at the binding. The runtime evaluates top-level bindings in dependency order, in the entry process, before `main` runs (§8.5).
 
@@ -351,11 +351,11 @@ At top level, `let` binds a `DeclName`: an `ident`, optionally prefixed with a t
 
 `foreign type T` declares a type implemented outside the language. A parameter written with `=`, `k=` in `foreign type Table(k=, v)`, puts the equality constraint of §3.10 on its argument wherever the type is written.
 
-`foreign fn f(params) -> T = "impl"` declares a function whose body is the implementation named by the string, in the runtime's language; parameters and the result are annotated. A foreign function with a mailbox type may do anything. One without a mailbox type promises purity: the same result for the same arguments, and no effect on anything. The implementation promises the declared types: a value of another shape, or an exception, is a fault, §7. Foreign code sees values in the runtime's representation, §8.4. Both declarations take `export` (§4.2).
+`foreign fn f(params) : T = "impl"` declares a function whose body is the implementation named by the string, in the runtime's language; parameters and the result are annotated. A foreign function with a mailbox type may do anything. One without a mailbox type promises purity: the same result for the same arguments, and no effect on anything. The implementation promises the declared types: a value of another shape, or an exception, is a fault, §7. Foreign code sees values in the runtime's representation, §8.4. Both declarations take `export` (§4.2).
 
 ### 4.8 Operators
 
-The arithmetic operators `+`, `-`, `*`, `/`, `%` and `<>` resolve against the operand type. In `a + b`, `+` is `Int.+` when `a : Int` and `Distance.+` when `a : Distance`. A user type declares its operators in its own module: `export fn Distance.+(Distance(a), Distance(b)) -> Distance = Distance(a + b)`. The standard library module of a built-in type declares that type's operators the same way, with the type's name as the prefix: `fn Float.+` in `float.ern` declares `Float.+` (§9.6). In that module the prefix is allowed on an operator only; its other functions are declared unprefixed, `fn abs`. Both operands have one type, which either may determine, and there is no numeric type to generalize over: `fn f(a, b : Int) = a + b` uses `Int.+`. The operand type is determined when its type constructor is known: `xs <> []` is `List.<>`. An operator's result does not determine its operands. An operator is resolved once its definition is inferred, and before the definition is generalized. Its definition is the enclosing `fn` declaration, top-level or local, or the enclosing top-level `let`; a lambda belongs to the definition it stands in. An operand type still undetermined then is a type error. A field selection (§3.5) is resolved in the same way, against its operand's type. A member named by an operator has the type `(T, T) -> R` for its type `T`, `T.compare` the type `(T, T) -> Ordering`, and `T.negate` the type `(T) -> R`; each is pure. For a type with parameters, `T` is the type applied to any arguments, the same in each place: `(Vec(a), Vec(a)) -> Vec(a)`. A member of another shape is an error at its declaration.
+The arithmetic operators `+`, `-`, `*`, `/`, `%` and `<>` resolve against the operand type. In `a + b`, `+` is `Int.+` when `a : Int` and `Distance.+` when `a : Distance`. A user type declares its operators in its own module: `export fn Distance.+(Distance(a), Distance(b)) : Distance = Distance(a + b)`. The standard library module of a built-in type declares that type's operators the same way, with the type's name as the prefix: `fn Float.+` in `float.ern` declares `Float.+` (§9.6). In that module the prefix is allowed on an operator only; its other functions are declared unprefixed, `fn abs`. Both operands have one type, which either may determine, and there is no numeric type to generalize over: `fn f(a, b : Int) = a + b` uses `Int.+`. The operand type is determined when its type constructor is known: `xs <> []` is `List.<>`. An operator's result does not determine its operands. An operator is resolved once its definition is inferred, and before the definition is generalized. Its definition is the enclosing `fn` declaration, top-level or local, or the enclosing top-level `let`; a lambda belongs to the definition it stands in. An operand type still undetermined then is a type error. A field selection (§3.5) is resolved in the same way, against its operand's type. A member named by an operator has the type `(T, T) -> R` for its type `T`, `T.compare` the type `(T, T) -> Ordering`, and `T.negate` the type `(T) -> R`; each is pure. For a type with parameters, `T` is the type applied to any arguments, the same in each place: `(Vec(a), Vec(a)) -> Vec(a)`. A member of another shape is an error at its declaration.
 
 `!` is negation on `Bool`, the prefix operator beside the logical operators `&&` and `||`, and `Bool.not` (E.7) is the same operation as a function, as `Int.negate` is of prefix `-`. `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, and `||` cannot be defined per type: equality is structural and ordering goes through `compare` (§3.10); `&&` and `||` short-circuit on `Bool`. An operator is declared with `fn`; `let T.op` is an error. `::` is cons (§3.3); `|>` is a syntactic form (§5.7).
 
@@ -479,10 +479,10 @@ A segment without specifiers is `int` of size 8. A segment is `big` and `unsigne
 A bitstring's total bit count, in construction and in a pattern, is a multiple of 8. A `bytes` segment has a byte-multiple size, whatever its unit: `x:size(3)-bytes-unit(1)` is an error. A violation of these rules the compiler can see is a compile-time error; one that depends on a dynamic size faults at construction (§7.4) or fails to match. A value that does not fit its width faults at construction, a literal included. A segment pattern is a variable, `_`, or a literal of the segment's type. `size(Expr)` in a pattern is a variable, an `Int` literal, or `+`, `-`, or `*` applied to these. The variable is bound by an earlier segment of the same bitstring, or is in scope where the pattern stands and is not bound at top level: a parameter, a block `let`, a pattern variable of an enclosing clause, or a lambda's capture. A variable bound elsewhere in the same pattern is not in scope in its sizes. Any other segment pattern or size expression is a type error. A negative or out-of-range size fails the match. Construction evaluates the segments left to right. A `bytes` value fits a sized segment only when it is exactly that long. A negative size fits no value. A `float` value is rounded to a 16- or 32-bit width to nearest, ties to even, and a value too small for the width becomes `0.0`; one whose magnitude exceeds the width's largest finite value does not fit. `<<>>` is the empty `Bytes`.
 
 ```ernest
-fn frame(len : Int, body : Bytes) -> Bytes =
+fn frame(len : Int, body : Bytes) : Bytes =
     <<len:size(16)-big, body:bytes>>
 
-fn parseFrame(bytes : Bytes) -> Optional(#(Int, Bytes, Bytes)) =
+fn parseFrame(bytes : Bytes) : Optional(#(Int, Bytes, Bytes)) =
     match bytes {
         <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some(#(len, body, rest))
       | _ -> None
@@ -522,7 +522,7 @@ type Where = Local | Peer(String)
 
 `self()` is the process's own address. `send(a, v)` places `v` in the mailbox of `a` and returns at once; sending to a dead process has no effect.
 
-`spawn(w, f)` starts a process that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. The effect `n` of `f` appears in `Address(n)` and so is a mailbox type (§3.9). A pure `f` fits, as a pure function fits wherever one with a mailbox type is expected, and `n` is then what the context makes it. A process that never receives is spawned with `fn() -> Unit with Never = ...`. A node is one running runtime; a peer is another node it knows by name, §8.3. `w` places the process: `Local` on the running node, `Peer(name)` on that peer. An unknown or unreachable peer is a fault. The captures of `f` are copied to the peer.
+`spawn(w, f)` starts a process that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. The effect `n` of `f` appears in `Address(n)` and so is a mailbox type (§3.9). A pure `f` fits, as a pure function fits wherever one with a mailbox type is expected, and `n` is then what the context makes it. A process that never receives is spawned with `fn() : Unit with Never = ...`. A node is one running runtime; a peer is another node it knows by name, §8.3. `w` places the process: `Local` on the running node, `Peer(name)` on that peer. An unknown or unreachable peer is a fault. The captures of `f` are copied to the peer.
 
 `spawnMonitored(w, f, wrap)` starts the process as `spawn(w, f)` does, and the caller monitors it from its start (§6.9): `wrap(d)` is placed in the caller's mailbox when it ends, with its reason, however soon that is.
 
@@ -576,13 +576,13 @@ A value is bound by a parameter, a `let`, a pattern variable, a `receive` variab
 ```ernest-rejected
 type Request = Get(reply : Reply(Int)) | Stop
 
-fn serve(request : Request) -> Unit with m =
+fn serve(request : Request) : Unit with m =
     match request {
         Get(reply = r) -> answer(r, 42) // accepted: r is answered on its one path
       | Stop -> Unit // Stop carries no reply
     }
 
-fn twice(dst : Address(Request), request : Request) -> Unit with m = {
+fn twice(dst : Address(Request), request : Request) : Unit with m = {
     send(dst, request);
     send(dst, request) // rejected: request is consumed twice
 }
@@ -621,7 +621,7 @@ type CounterMsg =
     Inc(Int) | Get(reply : Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
-fn counter(n : Int) -> Unit with CounterMsg =
+fn counter(n : Int) : Unit with CounterMsg =
     receive {
         Inc(k) -> counter(n + k)
       | Get(reply = r) -> {
@@ -670,7 +670,7 @@ These faults come from no operation of the list above. A failure in the runtime,
 
 ### 8.1 `main`
 
-The entry point is a `fn () -> Unit with m`. The process that runs it is the *entry process*. `m` is the message type when the entry receives. It is `Never` when the annotation says so. Otherwise it is polymorphic, and the runtime instantiates it to `Never`. A pure `fn () -> Unit` is an entry point too, and its process's mailbox type is `Never`. A result type that is a type variable, as a function that never returns has, is taken as `Unit`, as a mailbox type that is a variable is taken as `Never`. A top-level `let`, and a function of another shape, is not an entry point, and `ern run` refuses it. `ern run module.erc` runs the `export fn main` of that module; `ern run --main Qualified.name module.erc` runs another exported function of that shape. `main` is a convention, not a reserved name.
+The entry point is a function of type `() -> Unit with m`. The process that runs it is the *entry process*. `m` is the message type when the entry receives. It is `Never` when the annotation says so. Otherwise it is polymorphic, and the runtime instantiates it to `Never`. A pure function of type `() -> Unit` is an entry point too, and its process's mailbox type is `Never`. A result type that is a type variable, as a function that never returns has, is taken as `Unit`, as a mailbox type that is a variable is taken as `Never`. A top-level `let`, and a function of another shape, is not an entry point, and `ern run` refuses it. `ern run module.erc` runs the `export fn main` of that module; `ern run --main Qualified.name module.erc` runs another exported function of that shape. `main` is a convention, not a reserved name.
 
 ### 8.2 System references
 
@@ -942,7 +942,7 @@ An error is reported as `file:line:column: message`, then the source. The file i
 
 A type mismatch is reported at the innermost expression whose type is fixed: the last expression of a body or block, a branch or clause after the first, an argument, an operand, an element, or a pattern. The message shows both whole types. The label marks the span that fixed the expectation: an annotation, a callee's type, the first branch, clause, or element, the left operand, or the value matched. The help line names the part in which the types differ. An effect error names the primitive called and the function, `let`, or guard that is pure, and labels the annotation that made it so. An operator whose operand type is not determined (§4.8) is reported with the request to annotate it. A statement whose type is not `Unit` (§5.4) is reported whole, with the help line `let _ =`. A `<-` where the parser expects a delimiter has a help line that names `a < -1` (§2.6). A selector its operand's type lacks is reported at the selector, naming a constructor without the field. An error whose span holds a use of a name the module's own declaration hides from the prelude (§4.2) labels that use with the prelude's qualified name: `Local` here is this module's constructor, and the prelude's is `Prelude.Local`.
 
-A printed type elides an effect variable bound to pure (§3.9). An effect variable that occurs once in a printed type, and is not process-only, is printed as pure, since the context may bind it to pure: `fn k() -> Int with m = 5` prints as `() -> Int`. The compiler shows the three inferred restrictions of §3.9. In a printed type a variable with the equality constraint is `a=` and one that is not reply-carrying `a!`: `equal : (a=, a=) -> Bool`, `discard : (a!) -> Unit`. A process-only effect variable prints unchanged, and its restriction is stated by the message that rejects a pure instantiation. A type name is printed as the module would write it (§4.2). The module's own types and the prelude's are printed unqualified. Other modules' types are printed qualified. A local type that shadows a prelude name is printed qualified. A type variable is printed under its annotation's name; an unnamed one is `a`, `b`, ... for a value variable and `e`, `e1`, ... for an effect variable, avoiding the names in use. An error at a rejected call site names the parameter and the origin of its restriction; `ern doc` prints restrictions the same way.
+A printed type elides an effect variable bound to pure (§3.9). An effect variable that occurs once in a printed type, and is not process-only, is printed as pure, since the context may bind it to pure: `fn k() : Int with m = 5` prints as `() -> Int`. The compiler shows the three inferred restrictions of §3.9. In a printed type a variable with the equality constraint is `a=` and one that is not reply-carrying `a!`: `equal : (a=, a=) -> Bool`, `discard : (a!) -> Unit`. A process-only effect variable prints unchanged, and its restriction is stated by the message that rejects a pure instantiation. A type name is printed as the module would write it (§4.2). The module's own types and the prelude's are printed unqualified. Other modules' types are printed qualified. A local type that shadows a prelude name is printed qualified. A type variable is printed under its annotation's name; an unnamed one is `a`, `b`, ... for a value variable and `e`, `e1`, ... for an effect variable, avoiding the names in use. An error at a rejected call site names the parameter and the origin of its restriction; `ern doc` prints restrictions the same way.
 
 ### 11.6 `ern format`
 
@@ -968,7 +968,7 @@ AbstractDecl  = "abstract" TypeDecl .
 
 FnDecl      = "fn" DeclName "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 Param       = Pattern [ ":" Type ] .
-Return      = "->" Type [ "with" Type ] .
+Return      = ":" Type [ "with" Type ] .
 LetDecl     = "let" DeclName [ ":" Type ] "=" Expr .
 Binding     = "let" Pattern [ ":" Type ] ( "=" | "<-" ) Expr .
 DeclName    = ident | typename "." ( ident | userop ) .
@@ -1032,7 +1032,7 @@ type CounterMsg =
     Inc(Int) | Get(reply : Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
-export fn main() -> Unit with m = {
+export fn main() : Unit with m = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -1042,7 +1042,7 @@ export fn main() -> Unit with m = {
     }
 }
 
-fn counter(n : Int) -> Unit with CounterMsg =
+fn counter(n : Int) : Unit with CounterMsg =
     receive {
         Inc(k) -> counter(n + k)
       | Get(reply = r) -> {
@@ -1058,7 +1058,7 @@ type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
 type MainMsg = PongDone(Down)
 
-export fn main() -> Unit with MainMsg = {
+export fn main() : Unit with MainMsg = {
     let pongAddr = spawnMonitored(Local, fn() = pong(), PongDone);
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
     receive {
@@ -1066,7 +1066,7 @@ export fn main() -> Unit with MainMsg = {
     }
 }
 
-fn ping(pongAddr : Address(PongMsg), n : Int) -> Unit with m =
+fn ping(pongAddr : Address(PongMsg), n : Int) : Unit with m =
     if n == 0 then
         send(pongAddr, Stop)
     else {
@@ -1080,7 +1080,7 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> Unit with m =
         }
     }
 
-fn pong() -> Unit with PongMsg =
+fn pong() : Unit with PongMsg =
     receive {
         Ping(n = n, reply = r) -> {
             Io.println("pong " <> Int.toString(n));
@@ -1094,7 +1094,7 @@ fn pong() -> Unit with PongMsg =
 ```ernest
 type WorkerMsg = DoWork(f : (String) -> Bytes, arg : String)
 
-fn submitter(worker : Address(WorkerMsg)) -> Unit with Never = {
+fn submitter(worker : Address(WorkerMsg)) : Unit with Never = {
     send(worker, DoWork(f = String.toUtf8, arg = "hello"));
     send(worker, DoWork(f = String.toUtf8, arg = "world"))
 }
@@ -1140,76 +1140,76 @@ export foreign type Table(k=, v)
 
 /// A fresh empty table. The table is owned by the current
 /// process and is destroyed when that process dies.
-export fn new() -> Table(k, v) with m =
+export fn new() : Table(k, v) with m =
     rawNew(Erl.atom("ernest"), [Erl.atom("set"), Erl.atom("public")])
 
-foreign fn rawNew(name : Foreign, opts : List(Foreign)) -> Table(k, v) with m =
+foreign fn rawNew(name : Foreign, opts : List(Foreign)) : Table(k, v) with m =
     "ets:new/2"
 
 /// Insert or replace the entry for key.
-export fn put(t : Table(k, v), key : k, value : v) -> Unit with m = {
+export fn put(t : Table(k, v), key : k, value : v) : Unit with m = {
     let _ = rawInsert(t, #(key, value));
     Unit
 }
 
-foreign fn rawInsert(t : Table(k, v), row : #(k, v)) -> Bool with m =
+foreign fn rawInsert(t : Table(k, v), row : #(k, v)) : Bool with m =
     "ets:insert/2"
 
 /// The value for key, or None if absent.
-export fn get(t : Table(k, v), key : k) -> Optional(v) with m =
+export fn get(t : Table(k, v), key : k) : Optional(v) with m =
     match rawLookup(t, key) {
         [#(_, v)] -> Some(v)
       | _ -> None
     }
 
-foreign fn rawLookup(t : Table(k, v), key : k) -> List(#(k, v)) with m =
+foreign fn rawLookup(t : Table(k, v), key : k) : List(#(k, v)) with m =
     "ets:lookup/2"
 
 /// Remove key. A key not present is not an error.
-export fn remove(t : Table(k, v), key : k) -> Unit with m = {
+export fn remove(t : Table(k, v), key : k) : Unit with m = {
     let _ = rawDelete(t, key);
     Unit
 }
 
-foreign fn rawDelete(t : Table(k, v), key : k) -> Bool with m =
+foreign fn rawDelete(t : Table(k, v), key : k) : Bool with m =
     "ets:delete/2"
 
 /// The number of entries in the table.
-export fn size(t : Table(k, v)) -> Int with m =
+export fn size(t : Table(k, v)) : Int with m =
     rawInfo(t, Erl.atom("size"))
 
-foreign fn rawInfo(t : Table(k, v), item : Foreign) -> Int with m =
+foreign fn rawInfo(t : Table(k, v), item : Foreign) : Int with m =
     "ets:info/2"
 
 /// Close the table, deleting it. All subsequent operations on it fault.
-export fn close(t : Table(k, v)) -> Unit with m = {
+export fn close(t : Table(k, v)) : Unit with m = {
     let _ = rawClose(t);
     Unit
 }
 
-foreign fn rawClose(t : Table(k, v)) -> Bool with m =
+foreign fn rawClose(t : Table(k, v)) : Bool with m =
     "ets:delete/1"
 
 /// Remove all entries, leaving the table empty.
-export fn clear(t : Table(k, v)) -> Unit with m = {
+export fn clear(t : Table(k, v)) : Unit with m = {
     let _ = rawClear(t);
     Unit
 }
 
-foreign fn rawClear(t : Table(k, v)) -> Bool with m =
+foreign fn rawClear(t : Table(k, v)) : Bool with m =
     "ets:delete_all_objects/1"
 
 /// True if key is present in t.
-export foreign fn contains(t : Table(k, v), key : k) -> Bool with m =
+export foreign fn contains(t : Table(k, v), key : k) : Bool with m =
     "ets:member/2"
 
 /// All key-value pairs currently in the table, in unspecified order.
-export foreign fn toList(t : Table(k, v)) -> List(#(k, v)) with m =
+export foreign fn toList(t : Table(k, v)) : List(#(k, v)) with m =
     "ets:tab2list/1"
 ```
 
 ```ernest
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     let t = Ets.new();
     Ets.put(t, "a", 1);
     Ets.put(t, "b", 2);

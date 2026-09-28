@@ -33,12 +33,12 @@
 /// Path.toString(Path.join(Path("/etc"), Path("/var")))
 /// // => "/var"
 /// ```
-export fn join(p : Path, under : Path) -> Path =
+export fn join(p : Path, under : Path) : Path =
     if isAbsolute(under) then under else Path(written(split(p) <> split(under)))
 
 // Segments as a path's text: after a root the next directly, else each
 // after a separator.
-fn written(segments : List(String)) -> String =
+fn written(segments : List(String)) : String =
     match segments {
         [] -> ""
       | first :: rest -> if String.endsWith(first, separator()) then
@@ -55,7 +55,7 @@ fn written(segments : List(String)) -> String =
 /// Path.split(Path("/etc/hosts"))
 /// // => ["/", "etc", "hosts"]
 /// ```
-export fn split(p : Path) -> List(String) = {
+export fn split(p : Path) : List(String) = {
     let text = toString(p);
     let named = fn(t) = List.filter(String.split(t, separator()), fn(s) = !String.isEmpty(s));
     match String.indexOf(text, separator()) {
@@ -67,7 +67,7 @@ export fn split(p : Path) -> List(String) = {
     }
 }
 
-foreign fn separator() -> String =
+foreign fn separator() : String =
     "ern_path:separator/0"
 
 /// The path without its last segment, or `None` for a bare name and for the
@@ -84,14 +84,14 @@ foreign fn separator() -> String =
 /// #(Path.parent(Path("a/b/")), Path.parent(Path("./x")), Path.parent(Path("/")))
 /// // => #(Some(Path("a")), Some(Path(".")), None)
 /// ```
-export fn parent(p : Path) -> Optional(Path) =
+export fn parent(p : Path) : Optional(Path) =
     match List.dropLast(split(p)) {
         [] -> None
       | first :: rest -> Some(List.foldLeft(rest, Path(first), fn(up, s) = join(up, Path(s))))
     }
 
 /// The last segment.
-export fn name(p : Path) -> String =
+export fn name(p : Path) : String =
     match split(p) {
         [_] when isAbsolute(p) -> ""
       | segments -> Optional.withDefault(List.last(segments), "")
@@ -99,7 +99,7 @@ export fn name(p : Path) -> String =
 
 /// What follows the last `.` of the name, without the dot, or `None` when
 /// the name has none.
-export fn extension(p : Path) -> Optional(String) = {
+export fn extension(p : Path) : Optional(String) = {
     let n = name(p);
     match String.lastIndexOf(n, ".") {
         Some(at) -> Some(String.slice(n, at + 1, String.size(n)))
@@ -117,7 +117,7 @@ export fn extension(p : Path) -> Optional(String) = {
 ///   Path.toString(Path.withExtension(Path("a/b.txt"), "")))
 /// // => #("a/b.md", "a/b")
 /// ```
-export fn withExtension(p : Path, ext : String) -> Path = {
+export fn withExtension(p : Path, ext : String) : Path = {
     let text = written(split(p));
     let stem = match extension(p) {
         Some(old) -> String.slice(text, 0, String.size(text) - String.size(old) - 1)
@@ -134,11 +134,11 @@ export fn withExtension(p : Path, ext : String) -> Path = {
 /// #(Path.isAbsolute(Path("/etc")), Path.isAbsolute(Path("etc")))
 /// // => #(true, false)
 /// ```
-export foreign fn isAbsolute(p : Path) -> Bool =
+export foreign fn isAbsolute(p : Path) : Bool =
     "ern_path:is_absolute/1"
 
 /// The path as text, as it was written.
-export fn toString(p : Path) -> String =
+export fn toString(p : Path) : String =
     match p {
         Path(text) -> text
     }

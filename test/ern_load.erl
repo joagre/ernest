@@ -54,7 +54,7 @@ run(Name) ->
 %% output, a process spawned, and the commands that read the session and
 %% the documentation, each round ending in a mark.
 inputs() ->
-    ["foreign fn mark(round : Int) -> Unit with m = \"ern_load:mark/1\"\n",
+    ["foreign fn mark(round : Int) : Unit with m = \"ern_load:mark/1\"\n",
      [[[[[I, "\n"] || I <- round_inputs(integer_to_list(K))] || K <- lists:seq(1, 12)],
        ":type f\n:bindings\n:doc List.map\n:faults\n",
        "mark(", integer_to_list(R), ")\n"]
@@ -63,12 +63,12 @@ inputs() ->
 round_inputs(K) ->
     ["1 + " ++ K,
      "let x = [" ++ K ++ ", " ++ K ++ " + 1]",
-     "fn f(n : Int) -> Int = n * " ++ K,
+     "fn f(n : Int) : Int = n * " ++ K,
      "List.map(x, f)",
      "type Shape = Circle(Int) | Square(Int)",
      "Circle(" ++ K ++ ")",
      "Io.println(\"line " ++ K ++ "\")",
-     "let _ = spawn(Local, fn() -> Unit with Never = Io.println(\"spawned\"))"].
+     "let _ = spawn(Local, fn() : Unit with Never = Io.println(\"spawned\"))"].
 
 %% Called by a load after each round, through a `foreign fn`. What the
 %% round set ending, a killed process or a delivery of its `Down`, is given

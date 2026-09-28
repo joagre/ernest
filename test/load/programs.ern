@@ -4,17 +4,17 @@
 // (test/ern_load.erl).
 //
 
-foreign fn mark(round : Int) -> Unit with m =
+foreign fn mark(round : Int) : Unit with m =
     "ern_load:mark/1"
 
 let rounds = 14
 
 let batch = 20
 
-export fn main() -> Unit with Never =
+export fn main() : Unit with Never =
     round(1)
 
-fn round(n : Int) -> Unit with Never =
+fn round(n : Int) : Unit with Never =
     if n > rounds then
         Unit
     else {
@@ -23,7 +23,7 @@ fn round(n : Int) -> Unit with Never =
         round(n + 1)
     }
 
-fn work(left : Int) -> Unit with Never =
+fn work(left : Int) : Unit with Never =
     if left == 0 then
         Unit
     else {
@@ -31,7 +31,7 @@ fn work(left : Int) -> Unit with Never =
         work(left - 1)
     }
 
-fn once() -> Unit with Never = {
+fn once() : Unit with Never = {
     let _ = Os.run(Os.Command(program = "cat", arguments = [], input = String.toUtf8("hi")), 5000);
     let _ = Os.run(Os.Command(program = "no-such-program-ern", arguments = [], input = <<>>), 5000);
     match Os.start(Os.Command(program = "sleep", arguments = ["10"], input = <<>>), 5000) {

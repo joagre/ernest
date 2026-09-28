@@ -4,12 +4,12 @@
 // §8.2).
 //
 
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     Io.println(Optional.withDefault(Io.readLine(), "none"));
     rest(0)
 }
 
-fn rest(n : Int) -> Unit with Never =
+fn rest(n : Int) : Unit with Never =
     match Io.read() {
         None -> Io.println("bytes " <> Int.toString(n))
       | Some(b) -> {

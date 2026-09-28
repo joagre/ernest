@@ -59,7 +59,7 @@ type Msg =
 // bound at each start.
 let reference : Address(Msg) = system(Erl.atom("terminal"))
 
-foreign fn system(name : Foreign) -> Address(Msg) with m =
+foreign fn system(name : Foreign) : Address(Msg) with m =
     "ern_rt:sys/1"
 
 /// Every key pressed and every resize from now on, wrapped, in the
@@ -71,7 +71,7 @@ foreign fn system(name : Foreign) -> Address(Msg) with m =
 /// come wrapped the new way from then on. The terminal applies each
 /// subscriber's wrap itself, in order, so a wrap that does not finish
 /// delays that subscriber's keys and no other's.
-export fn subscribe(wrap : (Event) -> m) -> Either(Io.Error, Unit) with m = {
+export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) with m = {
     let to = via(wrap, self());
     Address.callForever(reference, fn(r) = Subscribe(to = to, reply = r))
 }
@@ -88,7 +88,7 @@ export fn subscribe(wrap : (Event) -> m) -> Either(Io.Error, Unit) with m = {
 ///   | Some(Size(rows = rows)) -> rows
 /// }
 /// ```
-export fn size() -> Optional(Size) with m =
+export fn size() : Optional(Size) with m =
     Address.callForever(reference, fn(r) = Measure(reply = r))
 
 //
@@ -126,7 +126,7 @@ export type Style = Bold | Dim | Italic | Underline | Foreground(Colour)
 /// Terminal.styled("fault", Terminal.Foreground(Terminal.Red))
 /// // => "\u{1B}[31mfault\u{1B}[39m"
 /// ```
-export fn styled(text : String, style : Style) -> String = {
+export fn styled(text : String, style : Style) : String = {
     let #(on, off) = match style {
         Bold -> #("1", "22")
       | Dim -> #("2", "22")
@@ -137,7 +137,7 @@ export fn styled(text : String, style : Style) -> String = {
     sequence(on <> "m") <> text <> sequence(off <> "m")
 }
 
-fn colourCode(colour : Colour) -> Int =
+fn colourCode(colour : Colour) : Int =
     match colour {
         Black -> 0
       | Red -> 1
@@ -157,7 +157,7 @@ fn colourCode(colour : Colour) -> Int =
 /// Terminal.up(2)
 /// // => "\u{1B}[2A"
 /// ```
-export fn up(n : Int) -> String =
+export fn up(n : Int) : String =
     move(n, "A")
 
 /// The cursor down that many rows; `""` for a number below 1.
@@ -168,7 +168,7 @@ export fn up(n : Int) -> String =
 /// Terminal.down(0)
 /// // => ""
 /// ```
-export fn down(n : Int) -> String =
+export fn down(n : Int) : String =
     move(n, "B")
 
 /// The cursor left that many columns; `""` for a number below 1.
@@ -179,7 +179,7 @@ export fn down(n : Int) -> String =
 /// Terminal.left(3)
 /// // => "\u{1B}[3D"
 /// ```
-export fn left(n : Int) -> String =
+export fn left(n : Int) : String =
     move(n, "D")
 
 /// The cursor right that many columns; `""` for a number below 1.
@@ -190,10 +190,10 @@ export fn left(n : Int) -> String =
 /// Terminal.right(1)
 /// // => "\u{1B}[1C"
 /// ```
-export fn right(n : Int) -> String =
+export fn right(n : Int) : String =
     move(n, "C")
 
-fn move(n : Int, direction : String) -> String =
+fn move(n : Int, direction : String) : String =
     if n < 1 then "" else sequence(Int.toString(n) <> direction)
 
 /// Erases from the cursor to the end of the screen.
@@ -215,7 +215,7 @@ export let clearBelow = sequence("J")
 export let clearScreen = sequence("2J") <> sequence("H")
 
 // ECMA-48's control sequence introducer and what follows it.
-fn sequence(body : String) -> String =
+fn sequence(body : String) : String =
     "\u{1b}[" <> body
 
 /// The columns the text takes at a terminal, counted by grapheme: two for
@@ -231,10 +231,10 @@ fn sequence(body : String) -> String =
 /// #(Terminal.columns("a中"), Terminal.columns(Terminal.styled("ab", Terminal.Bold)))
 /// // => #(3, 2)
 /// ```
-export fn columns(text : String) -> Int =
+export fn columns(text : String) : Int =
     counted(String.graphemes(text), 0)
 
-fn counted(graphemes : List(String), n : Int) -> Int =
+fn counted(graphemes : List(String), n : Int) : Int =
     match graphemes {
         [] -> n
       | "\u{1b}" :: "[" :: rest -> counted(afterSequence(rest), n)
@@ -244,7 +244,7 @@ fn counted(graphemes : List(String), n : Int) -> Int =
 
 // A control sequence's parameters and intermediates, to its final byte,
 // 0x40 to 0x7E.
-fn afterSequence(graphemes : List(String)) -> List(String) =
+fn afterSequence(graphemes : List(String)) : List(String) =
     match graphemes {
         [] -> []
       | g :: rest -> match String.toList(g) {
@@ -254,7 +254,7 @@ fn afterSequence(graphemes : List(String)) -> List(String) =
     }
 
 // A grapheme by its first code point that counts.
-fn width(grapheme : String) -> Int = {
+fn width(grapheme : String) : Int = {
     let codes = List.map(String.toList(grapheme), Char.toInt);
     match List.find(codes, fn(c) = widthOf(c, widths) != Some(Zero)) {
         None -> 0
@@ -274,7 +274,7 @@ type Ranges = Empty | Branch(lo : Int, hi : Int, width : Width, below : Ranges, 
 
 let widths = tree(widthTable)
 
-fn tree(entries : List(#(Int, Int, Width))) -> Ranges = {
+fn tree(entries : List(#(Int, Int, Width))) : Ranges = {
     let half = List.size(entries) / 2;
     match List.drop(entries, half) {
         [] -> Empty
@@ -287,7 +287,7 @@ fn tree(entries : List(#(Int, Int, Width))) -> Ranges = {
     }
 }
 
-fn widthOf(code : Int, ranges : Ranges) -> Optional(Width) =
+fn widthOf(code : Int, ranges : Ranges) : Optional(Width) =
     match ranges {
         Empty -> None
       | Branch(lo = lo, hi = hi, width = w, below = below, above = above) -> if code < lo then

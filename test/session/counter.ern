@@ -7,10 +7,10 @@
 
 export type Msg = Add(Int) | Get(reply : Reply(Int))
 
-export fn start() -> Address(Msg) with m =
+export fn start() : Address(Msg) with m =
     spawn(Local, fn() = loop(0))
 
-fn loop(n : Int) -> Unit with Msg = {
+fn loop(n : Int) : Unit with Msg = {
     let n2 = receive {
         Add(k) -> n + k
       | Get(reply = r) -> {
@@ -23,7 +23,7 @@ fn loop(n : Int) -> Unit with Msg = {
 
 /// Prints and then faults, a moment after it is spawned, so that a session
 /// sees both the output and the report while a later input is running.
-export fn boom() -> Unit with Unit = {
+export fn boom() : Unit with Unit = {
     Clock.alarm(100, fn(_) = Unit);
     receive {
         _ -> Unit
@@ -35,7 +35,7 @@ export fn boom() -> Unit with Unit = {
 
 /// Waits and then faults. It prints nothing: the shell's first prompt and
 /// a program's first write are a race no test should depend on.
-export fn main() -> Unit with Unit = {
+export fn main() : Unit with Unit = {
     Clock.alarm(150, fn(_) = Unit);
     receive {
         _ -> Unit

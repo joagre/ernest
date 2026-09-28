@@ -13,8 +13,8 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
-**MVP 2.96 is next**: a result annotation written with `:`, and then the guide teaching a
-process's addresses. Every earlier milestone is done, the last MVP 2.95 on 2026-09-28; MVP 2.9,
+**MVP 2.96 is under way**: its first part, the result annotation written with `:`, is done
+(2026-09-29); the second, the guide teaching a process's addresses, is next. Every earlier milestone is done, the last MVP 2.95 on 2026-09-28; MVP 2.9,
 MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under
 "Done". The first release is MVP 2.99's.
 
@@ -35,7 +35,7 @@ MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its para
 | MVP 2.8 | the formatter | done 2026-09-28, out of order |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 2.95 | manual pages, an installation, the review | done 2026-09-28 |
-| MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | |
+| **MVP 2.96** | **a result annotation written with `:`, and a process's addresses taught** | **under way: the first part done 2026-09-29** |
 | MVP 2.97 | one contract, several representations: an ordered set | waits on language feedback 64 |
 | MVP 2.98 | what the first review left | |
 | MVP 2.99 | running as a service, and the first release | |
@@ -56,17 +56,14 @@ a type member: `fn show(x : Optional(Int)) : String = …`. A function type keep
 `(A) -> B with e`, and so do the clauses of `match` and `receive` and `after`. It follows MVP
 2.95.
 
-1. **The report.** Appendix A's `Return` becomes `":" Type [ "with" Type ]`; §3.4's `with` in a
-   result annotation, §4.5's `-> T` and `-> T with M`, and §8.1's entry point are restated.
-2. **The parser and the formatter.** The parser reads both spellings while the sources change,
-   and the formatter writes `:`. `make format` then rewrites every Ernest source and every
-   Ernest block of the report and the guide (`style.md`).
-3. **What the formatter does not reach**: the Ernest held in Erlang tests, `style.md`'s
-   example, the README's, the guide's prose on `:` and `=`, `ern doc`'s signatures and
-   `module_doc_template.md`, the diagnostics that quote a head (`` `-> Unit` with no `with`
-   declares main pure ``), and the Emacs mode.
-4. **One spelling.** `->` after a head's `)` is a parse error whose help names `:`, as §11
-   refuses a job spelled as an earlier version spelled it.
+1. **Done 2026-09-29.** Appendix A's `Return` is `":" Type [ "with" Type ]`, and §3.4, §4.5 and
+   §8.1 say so. Every head of every source, document, test and Emacs test was respelled in
+   one move, by a script that finds a head's parameters by their brackets, so that a
+   function type among them keeps its arrow; the parser then refuses `->` after a head's `)`
+   with a help that names `:`, and the diagnostics' catalogue was written again from what
+   `ern build` prints. The checker's "`: T` with no `with` declares f pure" quotes the new
+   spelling, and `Shift-Tab`'s signature, which names the parameters as a head does, writes
+   its result after `:` (the log's *A Result Is Annotated With `:`*).
 
 **The second part**, decided 2026-09-28 (the log's *A Process's Addresses, Taught in Order*): the
 guide teaches that a mailbox has one type and a process many addresses, each of its own type,

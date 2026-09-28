@@ -424,7 +424,13 @@ format_call(#scheme{type = T} = Scheme, Params, Marked, St) ->
                          pure -> [];
                          _ -> [" with ", element(1, fmt(E, St1, Names2))]
                      end,
-            Tail = [") -> ", Rs, Effect],
+            %% parameters as declared are a head's, whose result is written
+            %% after `:`; a function's type alone keeps its arrow (§4.5)
+            Arrow = case lists:any(fun(Name) -> Name =/= '_' end, Params) of
+                        true -> ") : ";
+                        false -> ") -> "
+                    end,
+            Tail = [Arrow, Rs, Effect],
             case Marked < length(Named) of
                 true ->
                     {Left, [This | Right]} = lists:split(Marked, Named),

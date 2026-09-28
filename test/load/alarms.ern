@@ -6,17 +6,17 @@
 
 type Msg = Tick(Int)
 
-foreign fn mark(round : Int) -> Unit with m =
+foreign fn mark(round : Int) : Unit with m =
     "ern_load:mark/1"
 
 let rounds = 14
 
 let batch = 500
 
-export fn main() -> Unit with Msg =
+export fn main() : Unit with Msg =
     round(1)
 
-fn round(n : Int) -> Unit with Msg =
+fn round(n : Int) : Unit with Msg =
     if n > rounds then
         Unit
     else {
@@ -25,7 +25,7 @@ fn round(n : Int) -> Unit with Msg =
         round(n + 1)
     }
 
-fn work(left : Int) -> Unit with Msg =
+fn work(left : Int) : Unit with Msg =
     if left == 0 then
         Unit
     else {
@@ -33,7 +33,7 @@ fn work(left : Int) -> Unit with Msg =
         work(left - 1)
     }
 
-fn once() -> Unit with Msg = {
+fn once() : Unit with Msg = {
     Clock.alarm(1, Tick);
     receive {
         Tick(_) -> Unit

@@ -42,14 +42,14 @@ type ReplMsg = Result(run : Int, value : Either(EvalError, Value)) | Died(run : 
 // Program
 //
 
-export fn main() -> Unit with ReplMsg =
+export fn main() : Unit with ReplMsg =
     repl(Map.empty, 0)
 
 //
 // Processes
 //
 
-fn repl(env : Map(String, Value), run : Int) -> Unit with ReplMsg =
+fn repl(env : Map(String, Value), run : Int) : Unit with ReplMsg =
     match Io.readLine() {
         None -> Unit // end of input
       | Some(text) -> match tokenize(text) {
@@ -81,11 +81,11 @@ fn repl(env : Map(String, Value), run : Int) -> Unit with ReplMsg =
 
 // try as a process: evaluate in a child, wait at most two seconds,
 // kill the child if it does not answer.
-fn try(env : Map(String, Value), e : Expr, run : Int) -> Either(TryError, Value) with ReplMsg = {
+fn try(env : Map(String, Value), e : Expr, run : Int) : Either(TryError, Value) with ReplMsg = {
     let me = self(); // not self() inside the lambda: that is the child's
     let child =
         spawnMonitored(Local,
-                       fn() -> Unit with Never = send(me, Result(run = run, value = eval(env, e))),
+                       fn() : Unit with Never = send(me, Result(run = run, value = eval(env, e))),
                        fn(d) = Died(run = run, down = d));
     await(child, run)
 }
@@ -96,7 +96,7 @@ fn try(env : Map(String, Value), e : Expr, run : Int) -> Either(TryError, Value)
 // E.21) exists only after the spawn its wrap is made for, so the run
 // number in the message is what tells this child's news from an earlier
 // child's.
-fn await(child : Address(Never), run : Int) -> Either(TryError, Value) with ReplMsg =
+fn await(child : Address(Never), run : Int) : Either(TryError, Value) with ReplMsg =
     receive {
         Result(run = r, value = v) when r == run -> Either.mapLeft(v, Eval)
       | Died(run = r) when r == run -> Left(Crashed) // a fault in the child
@@ -107,7 +107,7 @@ fn await(child : Address(Never), run : Int) -> Either(TryError, Value) with Repl
         }
     }
 
-fn show(r : Either(TryError, Value)) -> Unit with ReplMsg =
+fn show(r : Either(TryError, Value)) : Unit with ReplMsg =
     Io.println(match r {
         Right(N(n)) -> Int.toString(n)
       | Right(Closure) -> "<fun>"
@@ -116,13 +116,13 @@ fn show(r : Either(TryError, Value)) -> Unit with ReplMsg =
       | Left(Timeout) -> "aborted after 2 s"
     })
 
-fn ParseError.toString(e : ParseError) -> String =
+fn ParseError.toString(e : ParseError) : String =
     match e {
         Unexpected(t) -> "unexpected " <> Token.toString(t)
       | Eof -> "unexpected end of input"
     }
 
-fn Token.toString(t : Token) -> String =
+fn Token.toString(t : Token) : String =
     match t {
         Num(n) -> Int.toString(n)
       | Ident(x) -> x
@@ -135,7 +135,7 @@ fn Token.toString(t : Token) -> String =
       | Arrow -> "->"
     }
 
-fn EvalError.toString(e : EvalError) -> String =
+fn EvalError.toString(e : EvalError) : String =
     match e {
         Unbound(x) -> "unbound " <> x
       | DivZero -> "division by zero"
@@ -147,10 +147,10 @@ fn EvalError.toString(e : EvalError) -> String =
 // Pure code: lexer
 //
 
-fn tokenize(t : String) -> Either(LexError, List(Token)) =
+fn tokenize(t : String) : Either(LexError, List(Token)) =
     lex(String.toList(t), 0, [])
 
-fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Token)) =
+fn lex(cs : List(Char), i : Int, acc : List(Token)) : Either(LexError, List(Token)) =
     match cs {
         [] -> Right(List.reverse(acc))
       | ' ' :: r -> lex(r, i + 1, acc)
@@ -189,7 +189,7 @@ fn lex(cs : List(Char), i : Int, acc : List(Token)) -> Either(LexError, List(Tok
 // app := atom atom*
 // atom := num | ident | '(' expr ')'
 
-fn parse(ts : List(Token)) -> Either(ParseError, Expr) = {
+fn parse(ts : List(Token)) : Either(ParseError, Expr) = {
     let #(e, rest) <- expr(ts);
     match rest {
         [] -> Right(e)
@@ -197,7 +197,7 @@ fn parse(ts : List(Token)) -> Either(ParseError, Expr) = {
     }
 }
 
-fn expr(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
+fn expr(ts : List(Token)) : Either(ParseError, #(Expr, List(Token))) =
     match ts {
         KwLet :: Ident(x) :: Eq :: r -> {
             let #(v, r2) <- expr(r);
@@ -210,12 +210,12 @@ fn expr(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
       | _ -> sum(ts)
     }
 
-fn sum(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) = {
+fn sum(ts : List(Token)) : Either(ParseError, #(Expr, List(Token))) = {
     let #(l, r) <- prod(ts);
     sumRest(l, r)
 }
 
-fn sumRest(l : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
+fn sumRest(l : Expr, ts : List(Token)) : Either(ParseError, #(Expr, List(Token))) =
     match ts {
         Op(c) :: r when c == '+' || c == '-' -> {
             let #(x, r2) <- prod(r);
@@ -224,12 +224,12 @@ fn sumRest(l : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token)
       | _ -> Right(#(l, ts))
     }
 
-fn prod(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) = {
+fn prod(ts : List(Token)) : Either(ParseError, #(Expr, List(Token))) = {
     let #(l, r) <- app(ts);
     prodRest(l, r)
 }
 
-fn prodRest(l : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
+fn prodRest(l : Expr, ts : List(Token)) : Either(ParseError, #(Expr, List(Token))) =
     match ts {
         Op(c) :: r when c == '*' || c == '/' -> {
             let #(x, r2) <- app(r);
@@ -238,18 +238,18 @@ fn prodRest(l : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token
       | _ -> Right(#(l, ts))
     }
 
-fn app(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) = {
+fn app(ts : List(Token)) : Either(ParseError, #(Expr, List(Token))) = {
     let #(f, r) <- atom(ts);
     appRest(f, r)
 }
 
-fn appRest(f : Expr, ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
+fn appRest(f : Expr, ts : List(Token)) : Either(ParseError, #(Expr, List(Token))) =
     match atom(ts) {
         Left(_) -> Right(#(f, ts)) // no atom: the application is over
       | Right(#(a, r)) -> appRest(App(f = f, arg = a), r)
     }
 
-fn atom(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
+fn atom(ts : List(Token)) : Either(ParseError, #(Expr, List(Token))) =
     match ts {
         Num(n) :: r -> Right(#(Lit(n), r))
       | Ident(x) :: r -> Right(#(Var(x), r))
@@ -269,7 +269,7 @@ fn atom(ts : List(Token)) -> Either(ParseError, #(Expr, List(Token))) =
 // Pure code: evaluator
 //
 
-fn eval(env : Map(String, Value), e : Expr) -> Either(EvalError, Value) =
+fn eval(env : Map(String, Value), e : Expr) : Either(EvalError, Value) =
     match e {
         Lit(n) -> Right(N(n))
       | Var(x) -> match Map.get(env, x) {
@@ -293,7 +293,7 @@ fn eval(env : Map(String, Value), e : Expr) -> Either(EvalError, Value) =
         }
     }
 
-fn arith(op : Char, a : Value, b : Value) -> Either(EvalError, Value) =
+fn arith(op : Char, a : Value, b : Value) : Either(EvalError, Value) =
     match #(a, b) {
         #(N(x), N(y)) -> match op {
             '+' -> Right(N(x + y))

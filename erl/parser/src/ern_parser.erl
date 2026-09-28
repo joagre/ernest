@@ -292,7 +292,13 @@ param(Ts) ->
             w({#param{pos = node_pos(P), pattern = P}, R})
     end.
 
-opt_return([{'->', _} | R]) ->
+%% Report §4.5, Appendix A's Return: a result annotation is written `: T`,
+%% as a parameter's is; `->` after the parameters is an earlier version's
+%% spelling, refused with the one that replaces it (§11).
+opt_return([{'->', Pos} | _]) ->
+    fail(Pos, "a function's result is annotated with `:`, not `->`",
+         "write `: T` after the parameters, as a parameter's type is written");
+opt_return([{':', _} | R]) ->
     {T, R1} = type(R),
     case R1 of
         [{with, _} | R2] ->

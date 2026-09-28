@@ -43,7 +43,7 @@ type SessionId = SessionId(String)
 // Program
 //
 
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     let sessions = spawn(Local, fn() = sessionStore());
     match Tcp.listen("127.0.0.1", 8080) {
         Right(listener) -> acceptor(sessions, 0, listener)
@@ -56,12 +56,12 @@ export fn main() -> Unit with Never = {
 //
 
 // The session store: the visits of each session, forgotten every ten minutes.
-fn sessionStore() -> Unit with SessionMsg = {
+fn sessionStore() : Unit with SessionMsg = {
     Clock.alarm(600000, fn(_) = Forget);
     store(Map.empty)
 }
 
-fn store(counts : Map(SessionId, Int)) -> Unit with SessionMsg =
+fn store(counts : Map(SessionId, Int)) : Unit with SessionMsg =
     receive {
         Visit(id = id, reply = r) -> {
             let n = Optional.withDefault(Map.get(counts, id), 0) + 1;
@@ -74,7 +74,7 @@ fn store(counts : Map(SessionId, Int)) -> Unit with SessionMsg =
 // The acceptor: one handler process per connection.
 fn acceptor(sessions : Address(SessionMsg),
             seq : Int,
-            listener : Address(Tcp.ListenerMsg)) -> Unit with Never =
+            listener : Address(Tcp.ListenerMsg)) : Unit with Never =
     match Tcp.accept(listener, 60000) {
         Right(sock) -> {
             let _ = spawn(Local, fn() = handler(sessions, seq, sock));
@@ -85,7 +85,7 @@ fn acceptor(sessions : Address(SessionMsg),
     }
 
 // One process per connection: reads a request, writes a response, closes.
-fn handler(sessions : Address(SessionMsg), seq : Int, sock : Address(Tcp.SockMsg)) -> Unit with m =
+fn handler(sessions : Address(SessionMsg), seq : Int, sock : Address(Tcp.SockMsg)) : Unit with m =
     match Tcp.read(sock, 5000) {
         Right(bytes) -> match parse(bytes) {
             Left(_) -> {
@@ -115,7 +115,7 @@ fn handler(sessions : Address(SessionMsg), seq : Int, sock : Address(Tcp.SockMsg
 // Pure code: HTTP parsing and rendering
 //
 
-fn parse(b : Bytes) -> Either(ParseError, Request) = {
+fn parse(b : Bytes) : Either(ParseError, Request) = {
     let t <- Either.fromOptional(String.fromUtf8(b), BadEncoding);
     let lines = String.lines(t);
     let #(method, path) <- requestLine(lines);
@@ -124,7 +124,7 @@ fn parse(b : Bytes) -> Either(ParseError, Request) = {
 }
 
 // "GET /path HTTP/1.1"; the version is not used.
-fn requestLine(lines : List(String)) -> Either(ParseError, #(String, String)) =
+fn requestLine(lines : List(String)) : Either(ParseError, #(String, String)) =
     match lines {
         line :: _ -> match String.split(String.trim(line), " ") {
             method :: path :: _ -> Right(#(method, path))
@@ -135,14 +135,14 @@ fn requestLine(lines : List(String)) -> Either(ParseError, #(String, String)) =
 
 // The lines after the request line, up to the empty one. A name is lowercased,
 // since a header name is case-insensitive; a value keeps any colons in it.
-fn headerLines(lines : List(String)) -> Either(ParseError, List(#(String, String))) =
+fn headerLines(lines : List(String)) : Either(ParseError, List(#(String, String))) =
     match lines {
         _ :: rest -> headerPairs(rest, [])
       | [] -> Right([])
     }
 
 fn headerPairs(lines : List(String),
-               acc : List(#(String, String))) -> Either(ParseError, List(#(String, String))) =
+               acc : List(#(String, String))) : Either(ParseError, List(#(String, String))) =
     match lines {
         [] -> Right(List.reverse(acc))
       | line :: rest -> if String.trim(line) == "" then
@@ -156,7 +156,7 @@ fn headerPairs(lines : List(String),
         }
     }
 
-fn render(response : Response) -> Bytes = {
+fn render(response : Response) : Bytes = {
     let body = String.toUtf8(response.body);
     let start = "HTTP/1.1 " <> StatusCode.render(response.status);
     let length = "content-length: " <> Int.toString(Bytes.size(body));
@@ -164,11 +164,11 @@ fn render(response : Response) -> Bytes = {
     String.toUtf8(String.join(start :: length :: rest, "\r\n") <> "\r\n\r\n") <> body
 }
 
-fn cookie(request : Request, name : String) -> Optional(String) =
+fn cookie(request : Request, name : String) : Optional(String) =
     Optional.andThen(List.find(request.headers, fn(#(n, _)) = n == "cookie"),
                      fn(#(_, v)) = cookieValue(String.split(v, ";"), name))
 
-fn cookieValue(parts : List(String), name : String) -> Optional(String) =
+fn cookieValue(parts : List(String), name : String) : Optional(String) =
     match parts {
         [] -> None
       | part :: rest -> match String.split(String.trim(part), "=") {
@@ -177,11 +177,11 @@ fn cookieValue(parts : List(String), name : String) -> Optional(String) =
         }
     }
 
-fn withCookie(response : Response, name : String, value : String) -> Response =
+fn withCookie(response : Response, name : String, value : String) : Response =
     Response(..response,
              headers = #("set-cookie", name <> "=" <> value <> "; path=/") :: response.headers)
 
-fn errorText(e : Io.Error) -> String =
+fn errorText(e : Io.Error) : String =
     match e {
         Io.NotFound -> "no such file"
       | Io.Denied -> "permission denied"

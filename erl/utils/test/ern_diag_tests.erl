@@ -4,7 +4,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("utils/include/ern_diag.hrl").
 
--define(SRC, "fn g() -> Int =\n    f(\"x\")\nfn f(n : Int) -> Int = n\n").
+-define(SRC, "fn g() : Int =\n    f(\"x\")\nfn f(n : Int) : Int = n\n").
 
 %% report §11.5: the source shows a control character as its picture, one
 %% column, so the caret stays under it. A regression test: the line was
@@ -28,7 +28,7 @@ format_test() ->
               labels = [{{1, 11, {1, 14}}, "declared to return Int here"}],
               help = "give f an Int"},
     ?assertEqual("main.ern:2:7: expected Int, found String\n"
-                 "1 | fn g() -> Int =\n"
+                 "1 | fn g() : Int =\n"
                  "  |           --- declared to return Int here\n"
                  "2 |     f(\"x\")\n"
                  "  |       ^^^\n"

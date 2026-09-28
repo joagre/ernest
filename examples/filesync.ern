@@ -32,7 +32,7 @@ type SyncMsg =
 // Program
 //
 
-export fn main() -> Unit with SyncMsg = {
+export fn main() : Unit with SyncMsg = {
     let me = self();
     let b = spawn(Local, fn() = start(Path("b")));
     send(b, Link(me));
@@ -45,7 +45,7 @@ export fn main() -> Unit with SyncMsg = {
 //
 
 // Waiting phase: receive the peer's address, then the loop.
-fn start(dir : Path) -> Unit with SyncMsg =
+fn start(dir : Path) : Unit with SyncMsg =
     receive {
         Link(peer) -> {
             send(self(), Tick);
@@ -54,11 +54,11 @@ fn start(dir : Path) -> Unit with SyncMsg =
     }
 
 // The sync process: one per directory.
-fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) -> Unit with SyncMsg =
+fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : Unit with SyncMsg =
     receive {
         Tick -> {
             let me = self();
-            let _ = spawn(Local, fn() -> Unit with Never = send(me, Listed(Fs.list(dir, 10000))));
+            let _ = spawn(Local, fn() : Unit with Never = send(me, Listed(Fs.list(dir, 10000))));
             listing(dir, peer, seen)
         }
       | Put(path = p, mtime = m, bytes = bytes, ack = ack) ->
@@ -68,7 +68,7 @@ fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) -> Unit wi
     }
 
 // Between the listing's start and Listed: accept Put, but not Tick.
-fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) -> Unit with SyncMsg = {
+fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : Unit with SyncMsg = {
     let tick = fn() = Clock.alarm(5000, fn(_) = Tick);
     receive {
         Listed(Right(entries)) -> {
@@ -98,7 +98,7 @@ fn store(dir : Path,
          p : Path,
          m : Int,
          bytes : Bytes,
-         ack : Reply(Ack)) -> Map(Path, Int) with SyncMsg =
+         ack : Reply(Ack)) : Map(Path, Int) with SyncMsg =
     if !isName(p) then {
         // shown as a value, so that no character of it reaches the terminal
         // as a control
@@ -122,27 +122,27 @@ fn store(dir : Path,
 
 // A name in a directory: one segment, not `.` or `..`, and not a root
 // (report E.17).
-fn isName(p : Path) -> Bool =
+fn isName(p : Path) : Bool =
     match Path.split(p) {
         [name] -> !Path.isAbsolute(p) && name != "." && name != ".."
       | _ -> false
     }
 
 // One process per write: waits for fs and answers the peer.
-fn writer(p : Path, bytes : Bytes, ack : Reply(Ack), okAck : Ack) -> Unit with n =
+fn writer(p : Path, bytes : Bytes, ack : Reply(Ack), okAck : Ack) : Unit with n =
     match Fs.write(p, bytes, 10000) {
         Right(Unit) -> answer(ack, okAck)
       | Left(e) -> answer(ack, Failed(e))
     }
 
 // One process per changed file: reads and sends to the peer.
-fn pusher(peer : Address(SyncMsg), Change(path = p, mtime = m) : Change) -> Unit with n =
+fn pusher(peer : Address(SyncMsg), Change(path = p, mtime = m) : Change) : Unit with n =
     match Fs.read(p, 10000) {
         Right(bytes) -> push(peer, Path(Path.name(p)), m, bytes)
       | Left(e) -> Io.println("cannot read " <> Path.toString(p) <> ": " <> errorText(e))
     }
 
-fn push(peer : Address(SyncMsg), p : Path, m : Int, bytes : Bytes) -> Unit with n =
+fn push(peer : Address(SyncMsg), p : Path, m : Int, bytes : Bytes) : Unit with n =
     match Address.call(peer, fn(r) = Put(path = p, mtime = m, bytes = bytes, ack = r), 30000) {
         Some(Stored) -> Unit
       | Some(Conflict) -> Io.println("conflict: " <> Path.toString(p))
@@ -155,22 +155,22 @@ fn push(peer : Address(SyncMsg), p : Path, m : Int, bytes : Bytes) -> Unit with 
 //
 
 // What has changed since the last snapshot?
-fn diff(old : Map(Path, Int), entries : List(Fs.Entry)) -> List(Change) =
+fn diff(old : Map(Path, Int), entries : List(Fs.Entry)) : List(Change) =
     List.filterMap(entries, fn(e) = changed(old, e))
 
-fn changed(old : Map(Path, Int), Fs.Entry(path = p, mtime = m) : Fs.Entry) -> Optional(Change) =
+fn changed(old : Map(Path, Int), Fs.Entry(path = p, mtime = m) : Fs.Entry) : Optional(Change) =
     match Map.get(old, p) {
         None -> Some(Change(path = p, mtime = m))
       | Some(m0) -> if m > m0 then Some(Change(path = p, mtime = m)) else None
     }
 
-fn snapshot(entries : List(Fs.Entry)) -> Map(Path, Int) =
+fn snapshot(entries : List(Fs.Entry)) : Map(Path, Int) =
     List.foldLeft(entries, Map.empty, fn(acc, entry) = Map.put(acc, entry.path, entry.mtime))
 
-fn conflictPath(p : Path) -> Path =
+fn conflictPath(p : Path) : Path =
     Path(Path.toString(p) <> ".conflict")
 
-fn errorText(e : Io.Error) -> String =
+fn errorText(e : Io.Error) : String =
     match e {
         Io.NotFound -> "no such file"
       | Io.Denied -> "permission denied"

@@ -70,13 +70,13 @@ writes_at_once_test_() ->
 
 writes_at_once() ->
     Dir = tmp(),
-    File = write(Dir, "twice.ern", "export fn f() -> Int = 1\n"),
+    File = write(Dir, "twice.ern", "export fn f() : Int = 1\n"),
     Args = ["build", "--source-root", Dir, File],
     Self = self(),
     Build = fun() -> Self ! {built, ern_cli:ern(Args)} end,
     lists:foreach(fun(N) ->
                       %% a changed source, so that every build writes
-                      write(Dir, "twice.ern", "export fn f() -> Int = " ++ integer_to_list(N)
+                      write(Dir, "twice.ern", "export fn f() : Int = " ++ integer_to_list(N)
                                               ++ "\n"),
                       [spawn(Build) || _ <- lists:seq(1, 8)],
                       ?assertEqual(lists:duplicate(8, 0),
@@ -200,16 +200,16 @@ example(Base) ->
     "../../../examples/" ++ Base.
 
 hello() ->
-    "export fn main() -> Unit with Never = Io.println(\"hello, world\")\n".
+    "export fn main() : Unit with Never = Io.println(\"hello, world\")\n".
 
 %% The two-module program of the guide, as sources.
 pair(Dir) ->
     write(Dir, "src/net/http.ern",
           "export type Request = Request(method : String, path : String)\n"
-          "export fn parse(s : String) -> Optional(Request) =\n"
+          "export fn parse(s : String) : Optional(Request) =\n"
           "    if s == \"GET /\" then Some(Request(method = \"GET\", path = \"/\")) else None\n"),
     write(Dir, "src/main.ern",
-          "export fn main() -> Unit with Never = match Net.Http.parse(\"GET /\") {\n"
+          "export fn main() : Unit with Never = match Net.Http.parse(\"GET /\") {\n"
           "    Some(Net.Http.Request(method = m, path = p)) -> Io.println(m <> \" \" <> p)\n"
           "  | None -> Io.println(\"bad request\")\n"
           "}\n"),
@@ -317,11 +317,11 @@ default_root_test() ->
 %% under it with the span marked
 parse_error_test() ->
     Dir = tmp(),
-    File = write(Dir, "a.ern", "export fn f() -> Int = \n"),
+    File = write(Dir, "a.ern", "export fn f() : Int = \n"),
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir])),
     Out = iolist_to_binary(?capturedOutput),
     ?assertEqual(<<(list_to_binary(File))/binary, ":2:1: expected an expression instead of"
-                   " end of input\n1 | export fn f() -> Int = \n2 | \n  | ^\n\n">>,
+                   " end of input\n1 | export fn f() : Int = \n2 | \n  | ^\n\n">>,
                  Out).
 
 %% report Appendix D, §11.1, §11.2, §4.7: the foreign library Appendix D
@@ -350,8 +350,8 @@ foreign_beam_on_load_path_test() ->
     ok = filelib:ensure_path(Dir ++ "/beams"),
     {ok, ern_cli_helper} = compile:file(Erl, [{outdir, Dir ++ "/beams"}]),
     write(Dir, "src/main.ern",
-          "foreign fn twice(n : Int) -> Int = \"ern_cli_helper:twice/1\"\n"
-          "export fn main() -> Unit with Never = Io.println(Int.toString(twice(21)))\n"),
+          "foreign fn twice(n : Int) : Int = \"ern_cli_helper:twice/1\"\n"
+          "export fn main() : Unit with Never = Io.println(Int.toString(twice(21)))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", "--load-path", Dir ++ "/beams", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"42\n">>, iolist_to_binary(?capturedOutput)).
@@ -388,12 +388,12 @@ operators_across_modules_test() ->
     Dir = tmp(),
     write(Dir, "src/geo/vec.ern",
           "export type Vec = Vec(Int)\n"
-          "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b)\n"
-          "export fn Vec.*(Vec(a), Vec(b)) -> Float = Int.toFloat(a * b)\n"
-          "export fn Vec.compare(Vec(a), Vec(b)) -> Ordering = Int.compare(a, b)\n"
-          "export fn show(Vec(n)) -> String = Int.toString(n)\n"),
+          "export fn Vec.+(Vec(a), Vec(b)) : Vec = Vec(a + b)\n"
+          "export fn Vec.*(Vec(a), Vec(b)) : Float = Int.toFloat(a * b)\n"
+          "export fn Vec.compare(Vec(a), Vec(b)) : Ordering = Int.compare(a, b)\n"
+          "export fn show(Vec(n)) : String = Int.toString(n)\n"),
     write(Dir, "src/main.ern",
-          "export fn main() -> Unit with Never = {\n"
+          "export fn main() : Unit with Never = {\n"
           "    let a = Geo.Vec.Vec(1);\n"
           "    let b = Geo.Vec.Vec(2);\n"
           "    Io.println(Geo.Vec.show(a + b));\n"
@@ -416,10 +416,10 @@ type_member_across_modules_test() ->
     write(Dir, "src/lib/stack.ern",
           "export abstract type Stack(a) = Stack(List(a))\n"
           "export let Stack.empty : Stack(a) = Stack([])\n"
-          "export fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) = Stack(x :: xs)\n"
-          "export fn Stack.size(Stack(xs) : Stack(a)) -> Int = List.size(xs)\n"),
+          "export fn Stack.push(x : a, Stack(xs) : Stack(a)) : Stack(a) = Stack(x :: xs)\n"
+          "export fn Stack.size(Stack(xs) : Stack(a)) : Int = List.size(xs)\n"),
     write(Dir, "src/main.ern",
-          "export fn main() -> Unit with Never = {\n"
+          "export fn main() : Unit with Never = {\n"
           "    let s = Lib.Stack.Stack.push(1, Lib.Stack.Stack.empty);\n"
           "    Io.println(Int.toString(Lib.Stack.Stack.size(s)));\n"
           "    let _ = Io.debug(#(s, 2));\n"
@@ -433,13 +433,13 @@ type_member_across_modules_test() ->
 %% report §4.2: a module may not take a prelude namespace
 prelude_namespace_test() ->
     Dir = tmp(),
-    write(Dir, "src/io.ern", "export fn println(s : String) -> Unit with m = Unit\n"),
+    write(Dir, "src/io.ern", "export fn println(s : String) : Unit with m = Unit\n"),
     write(Dir, "src/main.ern", hello()),
     ?assertEqual(1, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertNot(filelib:is_regular(Dir ++ "/build/main.erc")),
     %% nor the name of the prelude itself, which `Prelude.X` reaches
     Dir2 = tmp(),
-    write(Dir2, "src/prelude.ern", "export fn f() -> Int = 1\n"),
+    write(Dir2, "src/prelude.ern", "export fn f() : Int = 1\n"),
     ?assertEqual(1, build_err(["--build-root", Dir2 ++ "/build", Dir2 ++ "/src"])),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
                                       <<"takes the prelude namespace Prelude">>)).
@@ -452,7 +452,7 @@ taken_namespace_names_owner_test() ->
     lists:foreach(
       fun(File) ->
               Dir = tmp(),
-              write(Dir, "src/" ++ File, "export fn f() -> Int = 1\n"),
+              write(Dir, "src/" ++ File, "export fn f() : Int = 1\n"),
               ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"]))
       end, ["down.ern", "io.ern"]),
     Out = iolist_to_binary(?capturedOutput),
@@ -462,7 +462,7 @@ taken_namespace_names_owner_test() ->
     ?assertEqual(nomatch, binary:match(Out, <<"prelude namespace Io">>)),
     %% report §9.7: the prelude binds no system reference, so `Sys` is free
     Dir = tmp(),
-    write(Dir, "src/sys.ern", "export fn f() -> Int = 1\n"),
+    write(Dir, "src/sys.ern", "export fn f() : Int = 1\n"),
     ?assertEqual(0, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])).
 
 %% report §4.2: `Prelude.send` is the prelude's `send` at run time too, past
@@ -470,8 +470,8 @@ taken_namespace_names_owner_test() ->
 prelude_value_runs_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern",
-          "fn send(n : Int) -> Int = n\n"
-          "export fn main() -> Unit with String = {\n"
+          "fn send(n : Int) : Int = n\n"
+          "export fn main() : Unit with String = {\n"
           "    let say = Prelude.send;\n"
           "    let me = self();\n"
           "    Prelude.send(me, Int.toString(send(1)));\n"
@@ -488,7 +488,7 @@ prelude_value_runs_test() ->
 namespace_clash_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern", "type Stack = Stack(Int)\n" ++ hello()),
-    write(Dir, "src/main/stack.ern", "export fn push(n : Int) -> Int = n\n"),
+    write(Dir, "src/main/stack.ern", "export fn push(n : Int) : Int = n\n"),
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertMatch({match, _},
                  re:run(iolist_to_binary(?capturedOutput),
@@ -506,10 +506,10 @@ nested_module_test() ->
     Dir = tmp(),
     write(Dir, "src/main/stack.ern",
           "export type Item = Item(Int)\n"
-          "export fn push(i : Item) -> Int = match i { Item(n) -> n + 1 }\n"),
+          "export fn push(i : Item) : Int = match i { Item(n) -> n + 1 }\n"),
     write(Dir, "src/main.ern",
-          "fn count(i : Main.Stack.Item) -> Int = Main.Stack.push(i)\n"
-          "export fn main() -> Unit with m =\n"
+          "fn count(i : Main.Stack.Item) : Int = Main.Stack.push(i)\n"
+          "export fn main() : Unit with m =\n"
           "    Io.println(Int.toString(count(Main.Stack.Item(1))))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
@@ -520,7 +520,7 @@ nested_module_test() ->
 deadlock_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern",
-          "type Msg = Ping\nexport fn main() -> Unit with Msg = receive { Ping -> Unit }\n"),
+          "type Msg = Ping\nexport fn main() : Unit with Msg = receive { Ping -> Unit }\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_err(["run", Dir ++ "/build/main.erc"])),
     ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
@@ -532,7 +532,7 @@ abstract_constructor_outside_test() ->
     write(Dir, "src/main.ern",
           "export abstract type Stack(a) = Stack(List(a))\n"
           "export let Stack.empty = Stack([])\n" ++ hello()),
-    write(Dir, "src/other.ern", "export fn f() -> Main.Stack(Int) = Main.Stack([])\n"),
+    write(Dir, "src/other.ern", "export fn f() : Main.Stack(Int) = Main.Stack([])\n"),
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertMatch({match, _},
                  re:run(iolist_to_binary(?capturedOutput),
@@ -551,10 +551,10 @@ case_distinct_names_test() ->
           "export type STACK = STACK(Int)\n"
           "export type Stack2 = A\n"
           "export type STACK2 = B\n"
-          "export fn STACK.get(s : STACK) -> Int = match s { STACK(n) -> n }\n"
-          "export fn main() -> Unit with m = Io.println(Int.toString(\n"
+          "export fn STACK.get(s : STACK) : Int = match s { STACK(n) -> n }\n"
+          "export fn main() : Unit with m = Io.println(Int.toString(\n"
           "    STACK.get(STACK(3)) * 100 + Main.STACK.get(STACK(4)) * 10 + Main.Stack.one()))\n"),
-    write(Dir, "src/main/stack.ern", "export fn one() -> Int = 1\n"),
+    write(Dir, "src/main/stack.ern", "export fn one() : Int = 1\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"341\n">>, iolist_to_binary(?capturedOutput)).
@@ -566,8 +566,8 @@ abstract_field_outside_test() ->
     write(Dir, "src/main.ern",
           "export abstract type Box = Box(n : Int)\n"
           "export let Box.one = Box(n = 1)\n"
-          "export fn inside(b : Box) -> Int = b.n\n" ++ hello()),
-    write(Dir, "src/other.ern", "export fn g() -> Int = Main.Box.one.n\n"),
+          "export fn inside(b : Box) : Int = b.n\n" ++ hello()),
+    write(Dir, "src/other.ern", "export fn g() : Int = Main.Box.one.n\n"),
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertMatch({match, _},
                  re:run(iolist_to_binary(?capturedOutput),
@@ -576,8 +576,8 @@ abstract_field_outside_test() ->
 %% report §4.2: a module that names itself qualified is not a module cycle
 self_qualified_module_test() ->
     Dir = tmp(),
-    write(Dir, "src/main.ern", "export fn g() -> Int = 1\nexport fn f() -> Int = Main.g()\n"
-                               "export fn main() -> Unit with Never ="
+    write(Dir, "src/main.ern", "export fn g() : Int = 1\nexport fn f() : Int = Main.g()\n"
+                               "export fn main() : Unit with Never ="
                                " Io.println(Int.toString(f()))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])).
 
@@ -587,7 +587,7 @@ stdlib_root_test() ->
     Dir = tmp(),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", "../../../stdlib"])),
     ?assert(filelib:is_regular(Dir ++ "/build/bool.erc")),
-    write(Dir, "src/bool.ern", "export fn not(b : Bool) -> Bool = b\n"),
+    write(Dir, "src/bool.ern", "export fn not(b : Bool) : Bool = b\n"),
     ?assertEqual(1, ern_cli:ern(["build", "--build-root", Dir ++ "/b2", Dir ++ "/src"])).
 
 %% report §4.2, §11.1: a file under the standard library's source root is
@@ -608,7 +608,7 @@ stdlib_file_takes_its_root_test() ->
 test_runner_unicode_test() ->
     Dir = tmp(),
     write(Dir, "src/checks.ern",
-          <<"let dash = Test(name = \"dash\", run = fn() -> TestResult with Never =\n"
+          <<"let dash = Test(name = \"dash\", run = fn() : TestResult with Never =\n"
             "    Failed(\"a — b\"))\n"/utf8>>),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/checks.erc"])),
@@ -621,12 +621,12 @@ test_runner_unicode_test() ->
 test_runner_test() ->
     Dir = tmp(),
     write(Dir, "src/checks.ern",
-          "fn add(a : Int, b : Int) -> Int = a + b\n"
-          "let addsTwo = Test(name = \"adds two\", run = fn() -> TestResult with Never =\n"
+          "fn add(a : Int, b : Int) : Int = a + b\n"
+          "let addsTwo = Test(name = \"adds two\", run = fn() : TestResult with Never =\n"
           "    if add(1, 1) == 2 then Passed else Failed(\"not two\"))\n"
-          "export let wrong = Test(name = \"wrong\", run = fn() -> TestResult with Never =\n"
+          "export let wrong = Test(name = \"wrong\", run = fn() : TestResult with Never =\n"
           "    Failed(\"expected 3\"))\n"
-          "let divides = Test(name = \"divides\", run = fn() -> TestResult with Never =\n"
+          "let divides = Test(name = \"divides\", run = fn() : TestResult with Never =\n"
           "    if 1 / (add(1, 1) - 2) == 0 then Passed else Passed)\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/checks.erc"])),
@@ -635,7 +635,7 @@ test_runner_test() ->
     ?assertMatch({match, _}, re:run(Out, "wrong: failed: expected 3\n")),
     ?assertMatch({match, _}, re:run(Out, "divides: faulted: division by zero\n")),
     write(Dir, "src2/ok.ern",
-          "let fine = Test(name = \"fine\", run = fn() -> TestResult with Never = Passed)\n"),
+          "let fine = Test(name = \"fine\", run = fn() : TestResult with Never = Passed)\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build2", Dir ++ "/src2"])),
     ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build2/ok.erc"])).
 
@@ -651,16 +651,16 @@ test_runner_streams() ->
     Dir = tmp(),
     write(Dir, "src/checks.ern",
           "type Msg = Go | Ask(reply : Reply(Int))\n"
-          "fn waiter() -> Unit with Msg = receive { Go -> Unit }\n"
-          "let first = Test(name = \"first\", run = fn() -> TestResult with Never = {\n"
+          "fn waiter() : Unit with Msg = receive { Go -> Unit }\n"
+          "let first = Test(name = \"first\", run = fn() : TestResult with Never = {\n"
           "    Io.println(\"inside first\");\n"
           "    Passed\n"
           "})\n"
-          "let stuck = Test(name = \"stuck\", run = fn() -> TestResult with Never = {\n"
+          "let stuck = Test(name = \"stuck\", run = fn() : TestResult with Never = {\n"
           "    let w = spawn(Local, waiter);\n"
           "    if Address.callForever(w, fn(r) = Ask(reply = r)) == 0 then Passed else Passed\n"
           "})\n"
-          "let last = Test(name = \"last\", run = fn() -> TestResult with Never = Passed)\n"),
+          "let last = Test(name = \"last\", run = fn() : TestResult with Never = Passed)\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_err(["test", Dir ++ "/build/checks.erc"])),
     ?assertEqual(<<"inside first\nfirst: passed\nstuck: faulted: deadlock\nlast: passed\n">>,
@@ -674,10 +674,10 @@ test_runner_streams() ->
 test_runner_os_test() ->
     Dir = tmp(),
     write(Dir, "src/checks.ern",
-          "let none = Test(name = \"none\", run = fn() -> TestResult with Never =\n"
+          "let none = Test(name = \"none\", run = fn() : TestResult with Never =\n"
           "    if Os.arguments == [] then Passed else Failed(\"arguments\"))\n"
-          "let exits = Test(name = \"exits\", run = fn() -> TestResult with Never = Os.exit(2))\n"
-          "let later = Test(name = \"later\", run = fn() -> TestResult with Never = Passed)\n"),
+          "let exits = Test(name = \"exits\", run = fn() : TestResult with Never = Os.exit(2))\n"
+          "let later = Test(name = \"later\", run = fn() : TestResult with Never = Passed)\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_err(["test", Dir ++ "/build/checks.erc"])),
     ?assertEqual(<<"none: passed\nexits: faulted: exited with status 2\nlater: passed\n">>,
@@ -692,7 +692,7 @@ test_runner_os_test() ->
 run_arguments_test() ->
     Dir = tmp(),
     write(Dir, "src/args.ern",
-          "export fn main() -> Unit with Never = {\n"
+          "export fn main() : Unit with Never = {\n"
           "    Io.println(Io.show(Os.arguments));\n"
           "    Os.exit(List.size(Os.arguments))\n"
           "}\n"),
@@ -708,14 +708,14 @@ run_arguments_test() ->
 %% module written in Ernest
 stdlib_namespace_test() ->
     Dir = tmp(),
-    write(Dir, "src/erl.ern", "export fn atom(s : String) -> String = s\n"),
+    write(Dir, "src/erl.ern", "export fn atom(s : String) : String = s\n"),
     ?assertEqual(1, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])).
 
 %% report §4.1, §11.1: a module cycle is an error naming the modules
 module_cycle_test() ->
     Dir = tmp(),
-    write(Dir, "a.ern", "export fn f() -> Int = B.g()\n"),
-    write(Dir, "b.ern", "export fn g() -> Int = A.f()\n"),
+    write(Dir, "a.ern", "export fn f() : Int = B.g()\n"),
+    write(Dir, "b.ern", "export fn g() : Int = A.f()\n"),
     ?assertEqual(1, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir])).
 
 %% report §4.1, §11.1: a module cycle refused leaves nothing behind in the
@@ -724,8 +724,8 @@ module_cycle_test() ->
 %% which a shell that compiles on `:load` would keep for the session
 module_cycle_leaves_no_table_test() ->
     Dir = tmp(),
-    write(Dir, "a.ern", "export fn f() -> Int = B.g()\n"),
-    write(Dir, "b.ern", "export fn g() -> Int = A.f()\n"),
+    write(Dir, "a.ern", "export fn f() : Int = B.g()\n"),
+    write(Dir, "b.ern", "export fn g() : Int = A.f()\n"),
     Args = ["--build-root", Dir ++ "/build", Dir],
     ?assertEqual(1, build_err(Args)),
     Tables = length(ets:all()),
@@ -747,7 +747,7 @@ recompile_rule_test() ->
     %% a body change in the dependency: it is rebuilt, its dependent is not
     write(Dir, "src/net/http.ern",
           "export type Request = Request(method : String, path : String)\n"
-          "export fn parse(s : String) -> Optional(Request) =\n"
+          "export fn parse(s : String) : Optional(Request) =\n"
           "    if s == \"GET /\" then Some(Request(method = \"GET\", path = \"/\"))\n"
           "    else None\n"),
     ?assertEqual(0, ern_cli:ern(["build" | Args])),
@@ -757,9 +757,9 @@ recompile_rule_test() ->
     %% an interface change in the dependency: the dependent is rebuilt
     write(Dir, "src/net/http.ern",
           "export type Request = Request(method : String, path : String)\n"
-          "export fn parse(s : String) -> Optional(Request) =\n"
+          "export fn parse(s : String) : Optional(Request) =\n"
           "    if s == \"GET /\" then Some(Request(method = \"GET\", path = \"/\")) else None\n"
-          "export fn version() -> Int = 2\n"),
+          "export fn version() : Int = 2\n"),
     ?assertEqual(0, ern_cli:ern(["build" | Args])),
     ?assertNotEqual({ok, Main1}, file:read_file(Dir ++ "/build/main.erc")),
     {ok, Main3} = file:read_file(Dir ++ "/build/main.erc"),
@@ -831,8 +831,8 @@ sweep_test() ->
 sweep_keeps_what_no_build_wrote_test() ->
     Dir = tmp(),
     Build = Dir ++ "/build",
-    write(Dir, "lib/util.ern", "export fn f() -> Int = 1\n"),
-    write(Dir, "src/main.ern", "export fn main() -> Unit with Never =\n"
+    write(Dir, "lib/util.ern", "export fn f() : Int = 1\n"),
+    write(Dir, "src/main.ern", "export fn main() : Unit with Never =\n"
                                "    Io.println(Int.toString(Util.f()))\n"),
     write(Dir, "build/old.erc", "not a module\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Build, Dir ++ "/lib"])),
@@ -867,7 +867,7 @@ sweep_follows_no_link_test() ->
 %% with one of another namespace
 sources_follow_no_link_test() ->
     Dir = tmp(),
-    write(Dir, "src/util.ern", "export fn f() -> Int = 1\n"),
+    write(Dir, "src/util.ern", "export fn f() : Int = 1\n"),
     ok = file:make_symlink("..", Dir ++ "/src/loop"),
     ?assertEqual(0, ern_cli:ern(["build", Dir ++ "/src"])),
     {ok, Beam} = file:read_file(Dir ++ "/src/util.erc"),
@@ -920,7 +920,7 @@ emit_erl_test() ->
 %% source was written as a list of characters, which fails beyond 255.
 emit_erl_unicode_test() ->
     Dir = tmp(),
-    File = write(Dir, "dots.ern", "export fn dot() -> String = \"\\u{2022}\"\n"),
+    File = write(Dir, "dots.ern", "export fn dot() : String = \"\\u{2022}\"\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--emit-erl", "--source-root", Dir, File])),
     {ok, Src} = file:read_file(filename:join(Dir, "dots.erl")),
     ?assertMatch({_, _}, binary:match(Src, <<"\x{2022}"/utf8>>)).
@@ -928,23 +928,23 @@ emit_erl_unicode_test() ->
 %% report §11.1, §11.5: an error is file:line:column: text, status 1
 compile_error_test() ->
     Dir = tmp(),
-    File = write(Dir, "bad.ern", "export fn main() -> Unit with Never = Io.println(1)\n"),
+    File = write(Dir, "bad.ern", "export fn main() : Unit with Never = Io.println(1)\n"),
     ?assertEqual(1, build_err(["--source-root", Dir, File])),
-    ?assertEqual(<<(list_to_binary(File))/binary, ":1:50: the argument does not fit Io.println:"
+    ?assertEqual(<<(list_to_binary(File))/binary, ":1:49: the argument does not fit Io.println:"
                    " expected String, found Int\n"
-                   "1 | export fn main() -> Unit with Never = Io.println(1)\n"
-                   "  |                                       ---------- Io.println : (String) ->"
+                   "1 | export fn main() : Unit with Never = Io.println(1)\n"
+                   "  |                                      ---------- Io.println : (String) ->"
                    " Unit with e\n"
-                   "  |                                                  ^\n\n">>,
+                   "  |                                                 ^\n\n">>,
                  iolist_to_binary(?capturedOutput)),
     ?assertNot(filelib:is_regular(filename:join(Dir, "bad.erc"))).
 
 %% report §11.5: --short-errors is the first line alone
 errors_short_test() ->
     Dir = tmp(),
-    File = write(Dir, "bad.ern", "export fn main() -> Unit with Never = Io.println(1)\n"),
+    File = write(Dir, "bad.ern", "export fn main() : Unit with Never = Io.println(1)\n"),
     ?assertEqual(1, build_err(["--short-errors", "--source-root", Dir, File])),
-    ?assertEqual(<<(list_to_binary(File))/binary, ":1:50: the argument does not fit Io.println:"
+    ?assertEqual(<<(list_to_binary(File))/binary, ":1:49: the argument does not fit Io.println:"
                    " expected String, found Int\n">>,
                  iolist_to_binary(?capturedOutput)).
 
@@ -962,12 +962,12 @@ error_on_unicode_line_test() ->
 %% directory when the file lies under it
 error_names_file_from_cwd_test() ->
     Dir = tmp(),
-    write(Dir, "bad.ern", "export fn main() -> Unit with Never = Io.println(1)\n"),
+    write(Dir, "bad.ern", "export fn main() : Unit with Never = Io.println(1)\n"),
     {ok, Cwd} = file:get_cwd(),
     ok = file:set_cwd(Dir),
     try
         ?assertEqual(1, build_err(["--short-errors", "bad.ern"])),
-        ?assertMatch(<<"bad.ern:1:50: ", _/binary>>, iolist_to_binary(?capturedOutput))
+        ?assertMatch(<<"bad.ern:1:49: ", _/binary>>, iolist_to_binary(?capturedOutput))
     after
         file:set_cwd(Cwd)
     end.
@@ -977,7 +977,7 @@ error_names_file_from_cwd_test() ->
 fault_test() ->
     Dir = tmp(),
     File = write(Dir, "boom.ern",
-                 "export fn main() -> Unit with Never = {\n"
+                 "export fn main() : Unit with Never = {\n"
                  "    let z = List.size([]);\n"
                  "    Io.println(Int.toString(1 / z))\n"
                  "}\n"),
@@ -994,9 +994,9 @@ worker_faults_test() ->
     Dir = tmp(),
     File = write(Dir, "workers.ern",
                  "type Msg = Died(Down)\n"
-                 "export fn main() -> Unit with Msg = {\n"
+                 "export fn main() : Unit with Msg = {\n"
                  "    let limit = RestartLimit(restarts = 1, within = 60000);\n"
-                 "    let _ = spawnMonitored(Local, restarting(limit, fn() -> Unit with Never =\n"
+                 "    let _ = spawnMonitored(Local, restarting(limit, fn() : Unit with Never =\n"
                  "        Io.println(Int.toString(1 / List.size([])))), Died);\n"
                  "    receive { Died(_) -> Io.println(\"done\") }\n"
                  "}\n"),
@@ -1017,8 +1017,8 @@ worker_faults_test() ->
 fault_stack_test() ->
     Dir = tmp(),
     File = write(Dir, "raise.ern",
-                 "foreign fn pick(i : Int, t : Int) -> Int = \"erlang:element/2\"\n"
-                 "export fn main() -> Unit with Never = Io.println(Int.toString(pick(5, 3)))\n"),
+                 "foreign fn pick(i : Int, t : Int) : Int = \"erlang:element/2\"\n"
+                 "export fn main() : Unit with Never = Io.println(Int.toString(pick(5, 3)))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     ?assertEqual(1, ern_err(["run", filename:join(Dir, "raise.erc")])),
     [First, Second | _] = binary:split(iolist_to_binary(?capturedOutput), <<"\n">>, [global]),
@@ -1036,11 +1036,11 @@ doc_test() ->
                  "export abstract type Box(a) = Box(List(a))\n"
                  "export let Box.empty : Box(a) = Box([])\n"
                  "/// Put x in the box.\n"
-                 "export fn Box.put(x : a, Box(xs) : Box(a)) -> Box(a) = Box(x :: xs)\n"
+                 "export fn Box.put(x : a, Box(xs) : Box(a)) : Box(a) = Box(x :: xs)\n"
                  "export fn same(a, b) = a == b\n"
                  "/// Documented but private.\n"
-                 "fn twice(n : Int) -> Int = 2 * n\n"
-                 "fn hidden(n : Int) -> Int = n\n"),
+                 "fn twice(n : Int) : Int = 2 * n\n"
+                 "fn hidden(n : Int) : Int = n\n"),
     ?assertEqual(0, ern_cli:ern(["doc", "--source-root", Dir, File])),
     Out = iolist_to_binary(?capturedOutput),
     Expect = fun(Text) -> ?assertMatch({_, _}, binary:match(Out, Text)) end,
@@ -1057,7 +1057,7 @@ doc_test() ->
     ?assertEqual(nomatch, binary:match(Out, <<"hidden">>)),
     %% a type error is reported as for a compilation
     ?assertEqual(1, ern_cli:ern(["doc", "--source-root", Dir,
-                                  write(Dir, "bad.ern", "export fn f() -> Int = \"s\"\n")])).
+                                  write(Dir, "bad.ern", "export fn f() : Int = \"s\"\n")])).
 
 %% report §11.1, §11.4: the documentation comes from the compiled module,
 %% so `ern doc` on a .erc writes what it writes on its source, and asking a
@@ -1068,7 +1068,7 @@ doc_from_compiled_test() ->
                 "/// A shape.\n"
                 "export type Shape = Dot | At(x : Int, y : Int)\n"
                 "/// Twice n.\n"
-                "export fn twice(n : Int) -> Int = 2 * n\n"),
+                "export fn twice(n : Int) : Int = 2 * n\n"),
     Out = filename:join(Dir, "build"),
     ?assertEqual(0, ern_cli:ern(["doc", "--source-root", Dir, "--build-root", Out, Src])),
     FromSource = iolist_to_binary(?capturedOutput),
@@ -1097,7 +1097,7 @@ doc_man_test() ->
                  "export type Shape = Dot | At(x : Int, y : Int)\n"
                  "\n"
                  "/// Twice n.\n"
-                 "export fn twice(n : Int) -> Int = 2 * n\n"),
+                 "export fn twice(n : Int) : Int = 2 * n\n"),
     ?assertEqual(0, ern_cli:ern(["doc", "--man", "--source-root", Dir, File])),
     Lines = binary:split(iolist_to_binary(?capturedOutput), <<"\n">>, [global, trim]),
     ?assertMatch([<<".\\\" Generated by ern ", _/binary>>,
@@ -1115,7 +1115,7 @@ doc_man_test() ->
     ?assert(lists:member({<<".SS">>, <<"Shapes.Shape">>}, Pairs)),
     ?assert(lists:member({<<".SS">>, <<"Shapes.twice">>}, Pairs)),
     %% a module whose doc block has no paragraph has its page's title there
-    Bare = write(Dir, "bare.ern", "export fn one() -> Int = 1\n"),
+    Bare = write(Dir, "bare.ern", "export fn one() : Int = 1\n"),
     ?assertEqual(0, ern_cli:ern(["doc", "--man", "--source-root", Dir, Bare])),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
                                       <<".SH NAME\nErnest.Bare \\- Ernest module Bare\n">>)).
@@ -1141,7 +1141,7 @@ docs_chunk_test() ->
                 "/// since 0.2.0\n"
                 "export type Shape = Dot | At(x : Int, y : Int)\n"
                 "/// Twice n.\n"
-                "export fn twice(n : Int) -> Int = 2 * n\n"),
+                "export fn twice(n : Int) : Int = 2 * n\n"),
     Out = filename:join(Dir, "build"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, "--build-root", Out, Src])),
     {ok, Beam} = file:read_file(filename:join(Out, "shapes.erc")),
@@ -1309,8 +1309,8 @@ load_path_test() ->
 main_option_test() ->
     Dir = pair(tmp()),
     write(Dir, "src/tools.ern",
-          "export fn check() -> Unit with Never = Io.println(\"checked\")\n"
-          "export fn twice(n : Int) -> Int = 2 * n\n"),
+          "export fn check() : Unit with Never = Io.println(\"checked\")\n"
+          "export fn twice(n : Int) : Int = 2 * n\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", "--main", "Tools.check", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"checked\n">>, iolist_to_binary(?capturedOutput)),
@@ -1328,16 +1328,16 @@ entry_point_shape_test() ->
                   ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
                   ern_err(["run" | Args] ++ [filename:join(Dir, "main.erc")])
           end,
-    ?assertEqual(1, Run("export fn main() -> Int = 3\n", [])),
-    ?assertEqual(1, Run("export let main = fn() -> Unit with Never = Io.println(\"x\")\n",
+    ?assertEqual(1, Run("export fn main() : Int = 3\n", [])),
+    ?assertEqual(1, Run("export let main = fn() : Unit with Never = Io.println(\"x\")\n",
                         [])),
-    ?assertEqual(1, Run("export fn main() -> Unit = Unit\n"
-                        "export fn other() -> Int = 3\n", ["--main", "Main.other"])),
-    ?assertEqual(1, Run("fn main() -> Unit = Unit\n", [])),
-    ?assertEqual(0, Run("export fn main() -> Unit = Unit\n", [])),
-    ?assertEqual(0, Run("export fn main() -> Unit with m = Io.println(\"m\")\n", [])),
-    ?assertEqual(0, Run("export fn main() -> Unit = Unit\n"
-                        "export fn other() -> Unit with Never = Io.println(\"o\")\n",
+    ?assertEqual(1, Run("export fn main() : Unit = Unit\n"
+                        "export fn other() : Int = 3\n", ["--main", "Main.other"])),
+    ?assertEqual(1, Run("fn main() : Unit = Unit\n", [])),
+    ?assertEqual(0, Run("export fn main() : Unit = Unit\n", [])),
+    ?assertEqual(0, Run("export fn main() : Unit with m = Io.println(\"m\")\n", [])),
+    ?assertEqual(0, Run("export fn main() : Unit = Unit\n"
+                        "export fn other() : Unit with Never = Io.println(\"o\")\n",
                         ["--main", "Main.other"])),
     Out = iolist_to_binary(?capturedOutput),
     Refusals = [<<"Main.main is not an entry point: its type is () -> Int">>,
@@ -1359,7 +1359,7 @@ init_order_test() ->
           "export let base = 40\nlet said = Io.println(\"values\")\n"),
     write(Dir, "src/main.ern",
           "let total = Lib.Values.base + 2\n"
-          "export fn main() -> Unit with Never = Io.println(Int.toString(total))\n"),
+          "export fn main() : Unit with Never = Io.println(Int.toString(total))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"values\n42\n">>, iolist_to_binary(?capturedOutput)).
@@ -1379,7 +1379,7 @@ init_only_dependencies_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_err(["run", Dir ++ "/build/main.erc"])),
     write(Dir, "src/main.ern",
-          "export fn main() -> Unit with Never = Io.println(Int.toString(Lib.Boom.zero))\n"),
+          "export fn main() : Unit with Never = Io.println(Int.toString(Lib.Boom.zero))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_err(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"hello, world\nMain.main faulted: division by zero\n">>,
@@ -1389,7 +1389,7 @@ init_only_dependencies_test() ->
 fault_status_test() ->
     Dir = tmp(),
     File = write(Dir, "boom.ern",
-                 "export fn main() -> Unit with Never = {\n"
+                 "export fn main() : Unit with Never = {\n"
                  "    let z = List.size([]);\n"
                  "    Io.println(Int.toString(1 / z))\n"
                  "}\n"),
@@ -1402,9 +1402,9 @@ fault_status_test() ->
 killed_entry_test() ->
     Dir = tmp(),
     File = write(Dir, "main.ern",
-                 "export fn main() -> Unit with Never = {\n"
+                 "export fn main() : Unit with Never = {\n"
                  "    let me = self();\n"
-                 "    let _ = spawn(Local, fn() -> Unit with Never = kill(me));\n"
+                 "    let _ = spawn(Local, fn() : Unit with Never = kill(me));\n"
                  "    receive { after 5000 -> Io.println(\"not killed\") }\n"
                  "}\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),

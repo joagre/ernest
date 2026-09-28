@@ -4,18 +4,18 @@
 // then closed, and a read times out on one, then a mark (test/ern_load.erl).
 //
 
-foreign fn mark(round : Int) -> Unit with m =
+foreign fn mark(round : Int) : Unit with m =
     "ern_load:mark/1"
 
 let rounds = 14
 
 let batch = 200
 
-export fn main() -> Unit with Never =
+export fn main() : Unit with Never =
     match Tcp.listen("127.0.0.1", 0) {
         Right(listener) -> match Tcp.port(listener) {
             Right(port) -> {
-                let _ = spawn(Local, fn() -> Unit with Never = serve(listener));
+                let _ = spawn(Local, fn() : Unit with Never = serve(listener));
                 round(port, 1)
             }
           | Left(e) -> Io.println(Io.show(e))
@@ -23,10 +23,10 @@ export fn main() -> Unit with Never =
       | Left(e) -> Io.println(Io.show(e))
     }
 
-fn serve(listener : Address(Tcp.ListenerMsg)) -> Unit with Never = {
+fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never = {
     match Tcp.accept(listener, 60000) {
         Right(peer) -> {
-            let _ = spawn(Local, fn() -> Unit with Never = echo(peer));
+            let _ = spawn(Local, fn() : Unit with Never = echo(peer));
             Unit
         }
       | Left(_) -> Unit
@@ -34,7 +34,7 @@ fn serve(listener : Address(Tcp.ListenerMsg)) -> Unit with Never = {
     serve(listener)
 }
 
-fn echo(peer : Address(Tcp.SockMsg)) -> Unit with Never = {
+fn echo(peer : Address(Tcp.SockMsg)) : Unit with Never = {
     match Tcp.read(peer, 1000) {
         Right(bytes) -> Tcp.write(peer, bytes)
       | Left(_) -> Unit
@@ -42,7 +42,7 @@ fn echo(peer : Address(Tcp.SockMsg)) -> Unit with Never = {
     Tcp.close(peer)
 }
 
-fn round(port : Int, n : Int) -> Unit with Never =
+fn round(port : Int, n : Int) : Unit with Never =
     if n > rounds then
         Unit
     else {
@@ -51,7 +51,7 @@ fn round(port : Int, n : Int) -> Unit with Never =
         round(port, n + 1)
     }
 
-fn work(port : Int, left : Int) -> Unit with Never =
+fn work(port : Int, left : Int) : Unit with Never =
     if left == 0 then
         Unit
     else {
@@ -59,7 +59,7 @@ fn work(port : Int, left : Int) -> Unit with Never =
         work(port, left - 1)
     }
 
-fn once(port : Int) -> Unit with Never =
+fn once(port : Int) : Unit with Never =
     match Tcp.connect("127.0.0.1", port, 1000) {
         Right(client) -> {
             let _ = Tcp.read(client, 0);

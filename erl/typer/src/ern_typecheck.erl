@@ -1281,7 +1281,7 @@ ann_origin(Ann, AnnT, Env) ->
 
 effect_origin(_Name, undefined, undefined, _RetT, _EffT, _St) -> undefined;
 effect_origin(Name, Ret, undefined, RetT, _EffT, St) ->
-    {Name, node_span(Ret), "`-> " ++ ern_types:format(RetT, St) ++ "` with no `with` declares "
+    {Name, node_span(Ret), "`: " ++ ern_types:format(RetT, St) ++ "` with no `with` declares "
                            ++ Name ++ " pure", "give " ++ Name ++ " a mailbox type with `with`"};
 effect_origin(Name, _Ret, Effect, _RetT, EffT, St) ->
     {Name, node_span(Effect), Name ++ " is declared `with " ++ ern_types:format(EffT, St)
@@ -1650,7 +1650,7 @@ member_scheme(Q, Member, #env{ns = Ns, local_values = LV} = Env) ->
     end.
 
 %% Annotation variables scope over the definition and must stay distinct
-%% and unbound: `fn id(x : a) -> a = 1` is an error.
+%% and unbound: `fn id(x : a) : a = 1` is an error.
 rigid_annotation_vars(Pos, Rigid, #env{st = St}) ->
     Resolved = [{Name, ern_types:resolve(V, St)} || {Name, V} <- Rigid],
     lists:foreach(fun({_Name, {tvar, _}}) ->

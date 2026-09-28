@@ -30,7 +30,7 @@
 /// since 0.1.0
 
 /// The elements of the first list, then those of the second.
-export fn List.<>(xs : List(a), ys : List(a)) -> List(a) =
+export fn List.<>(xs : List(a), ys : List(a)) : List(a) =
     xs <> ys
 
 /// The number of elements.
@@ -41,17 +41,17 @@ export fn List.<>(xs : List(a), ys : List(a)) -> List(a) =
 /// #(List.size([1, 2, 3]), List.isEmpty([]))
 /// // => #(3, true)
 /// ```
-export fn size(xs : List(a)) -> Int =
+export fn size(xs : List(a)) : Int =
     sizeFrom(xs, 0)
 
-fn sizeFrom(xs : List(a), n : Int) -> Int =
+fn sizeFrom(xs : List(a), n : Int) : Int =
     match xs {
         [] -> n
       | _ :: rest -> sizeFrom(rest, n + 1)
     }
 
 /// `true` for the empty list.
-export fn isEmpty(xs : List(a)) -> Bool =
+export fn isEmpty(xs : List(a)) : Bool =
     match xs {
         [] -> true
       | _ -> false
@@ -65,7 +65,7 @@ export fn isEmpty(xs : List(a)) -> Bool =
 /// #(List.contains([1, 2], 2), List.contains([1, 2], 3))
 /// // => #(true, false)
 /// ```
-export fn contains(xs : List(a), x : a) -> Bool =
+export fn contains(xs : List(a), x : a) : Bool =
     match xs {
         [] -> false
       | y :: rest -> if y == x then true else contains(rest, x)
@@ -79,7 +79,7 @@ export fn contains(xs : List(a), x : a) -> Bool =
 /// #(List.get(["a", "b"], 1), List.get(["a", "b"], 2))
 /// // => #(Some("b"), None)
 /// ```
-export fn get(xs : List(a), i : Int) -> Optional(a) =
+export fn get(xs : List(a), i : Int) : Optional(a) =
     if i < 0 then
         None
     else match xs {
@@ -96,14 +96,14 @@ export fn get(xs : List(a), i : Int) -> Optional(a) =
 /// List.remove([1, 2, 1], 1)
 /// // => [2, 1]
 /// ```
-export fn remove(xs : List(a), x : a) -> List(a) =
+export fn remove(xs : List(a), x : a) : List(a) =
     match xs {
         [] -> []
       | y :: rest -> if y == x then rest else y :: remove(rest, x)
     }
 
 /// The function applied to each element, in order.
-export fn map(xs : List(a), f : (a) -> b with e) -> List(b) with e =
+export fn map(xs : List(a), f : (a) -> b with e) : List(b) with e =
     match xs {
         [] -> []
       | y :: rest -> f(y) :: map(rest, f)
@@ -117,7 +117,7 @@ export fn map(xs : List(a), f : (a) -> b with e) -> List(b) with e =
 /// List.filter([1, 2, 3, 4], fn(n) = n > 2)
 /// // => [3, 4]
 /// ```
-export fn filter(xs : List(a), p : (a) -> Bool with e) -> List(a) with e =
+export fn filter(xs : List(a), p : (a) -> Bool with e) : List(a) with e =
     match xs {
         [] -> []
       | y :: rest -> if p(y) then y :: filter(rest, p) else filter(rest, p)
@@ -132,7 +132,7 @@ export fn filter(xs : List(a), p : (a) -> Bool with e) -> List(a) with e =
 /// List.filterMap(["1", "x", "3"], String.toInt)
 /// // => [1, 3]
 /// ```
-export fn filterMap(xs : List(a), f : (a) -> Optional(b) with e) -> List(b) with e =
+export fn filterMap(xs : List(a), f : (a) -> Optional(b) with e) : List(b) with e =
     match xs {
         [] -> []
       | y :: rest -> match f(y) {
@@ -143,7 +143,7 @@ export fn filterMap(xs : List(a), f : (a) -> Optional(b) with e) -> List(b) with
 
 /// The accumulator after the function has seen each element from the left,
 /// the accumulator first.
-export fn foldLeft(xs : List(a), acc : b, f : (b, a) -> b with e) -> b with e =
+export fn foldLeft(xs : List(a), acc : b, f : (b, a) -> b with e) : b with e =
     match xs {
         [] -> acc
       | y :: rest -> foldLeft(rest, f(acc, y), f)
@@ -158,7 +158,7 @@ export fn foldLeft(xs : List(a), acc : b, f : (b, a) -> b with e) -> b with e =
 /// List.foldRight(["a", "b"], "", fn(s, acc) = s <> acc)
 /// // => "ab"
 /// ```
-export fn foldRight(xs : List(a), acc : b, f : (a, b) -> b with e) -> b with e =
+export fn foldRight(xs : List(a), acc : b, f : (a, b) -> b with e) : b with e =
     match xs {
         [] -> acc
       | y :: rest -> f(y, foldRight(rest, acc, f))
@@ -172,7 +172,7 @@ export fn foldRight(xs : List(a), acc : b, f : (a, b) -> b with e) -> b with e =
 /// List.foreach([1, 2], fn(n) = Io.println(Int.toString(n)))
 /// // => Unit
 /// ```
-export fn foreach(xs : List(a), f : (a) -> Unit with e) -> Unit with e =
+export fn foreach(xs : List(a), f : (a) -> Unit with e) : Unit with e =
     match xs {
         [] -> Unit
       | y :: rest -> {
@@ -190,7 +190,7 @@ export fn foreach(xs : List(a), f : (a) -> Unit with e) -> Unit with e =
 /// #(List.any([1, 2], fn(n) = n > 1), List.all([1, 2], fn(n) = n > 1))
 /// // => #(true, false)
 /// ```
-export fn any(xs : List(a), p : (a) -> Bool with e) -> Bool with e =
+export fn any(xs : List(a), p : (a) -> Bool with e) : Bool with e =
     match xs {
         [] -> false
       | y :: rest -> if p(y) then true else any(rest, p)
@@ -198,7 +198,7 @@ export fn any(xs : List(a), p : (a) -> Bool with e) -> Bool with e =
 
 /// `true` when the predicate holds for every element, and for the empty
 /// list; it is not called after the first that fails.
-export fn all(xs : List(a), p : (a) -> Bool with e) -> Bool with e =
+export fn all(xs : List(a), p : (a) -> Bool with e) : Bool with e =
     match xs {
         [] -> true
       | y :: rest -> if p(y) then all(rest, p) else false
@@ -212,7 +212,7 @@ export fn all(xs : List(a), p : (a) -> Bool with e) -> Bool with e =
 /// List.find([1, 2, 3], fn(n) = n > 1)
 /// // => Some(2)
 /// ```
-export fn find(xs : List(a), p : (a) -> Bool with e) -> Optional(a) with e =
+export fn find(xs : List(a), p : (a) -> Bool with e) : Optional(a) with e =
     match xs {
         [] -> None
       | y :: rest -> if p(y) then Some(y) else find(rest, p)
@@ -226,7 +226,7 @@ export fn find(xs : List(a), p : (a) -> Bool with e) -> Optional(a) with e =
 /// #(List.last([1, 2]), List.last([]))
 /// // => #(Some(2), None)
 /// ```
-export fn last(xs : List(a)) -> Optional(a) =
+export fn last(xs : List(a)) : Optional(a) =
     match xs {
         [] -> None
       | [y] -> Some(y)
@@ -242,7 +242,7 @@ export fn last(xs : List(a)) -> Optional(a) =
 /// #(List.take([1, 2, 3], 2), List.drop([1, 2, 3], 2))
 /// // => #([1, 2], [3])
 /// ```
-export fn take(xs : List(a), n : Int) -> List(a) =
+export fn take(xs : List(a), n : Int) : List(a) =
     if n <= 0 then
         []
     else match xs {
@@ -251,7 +251,7 @@ export fn take(xs : List(a), n : Int) -> List(a) =
     }
 
 /// All but the first `n` elements; `n` below 0 drops none.
-export fn drop(xs : List(a), n : Int) -> List(a) =
+export fn drop(xs : List(a), n : Int) : List(a) =
     if n <= 0 then
         xs
     else match xs {
@@ -267,7 +267,7 @@ export fn drop(xs : List(a), n : Int) -> List(a) =
 /// List.dropLast([1, 2, 3])
 /// // => [1, 2]
 /// ```
-export fn dropLast(xs : List(a)) -> List(a) =
+export fn dropLast(xs : List(a)) : List(a) =
     match xs {
         [] -> []
       | [_] -> []
@@ -282,7 +282,7 @@ export fn dropLast(xs : List(a)) -> List(a) =
 /// List.span([1, 2, 3, 1], fn(n) = n < 3)
 /// // => #([1, 2], [3, 1])
 /// ```
-export fn span(xs : List(a), p : (a) -> Bool with e) -> #(List(a), List(a)) with e =
+export fn span(xs : List(a), p : (a) -> Bool with e) : #(List(a), List(a)) with e =
     match xs {
         [] -> #([], [])
       | y :: rest -> if p(y) then {
@@ -301,7 +301,7 @@ export fn span(xs : List(a), p : (a) -> Bool with e) -> #(List(a), List(a)) with
 /// List.partition([1, 2, 3, 4], fn(n) = n % 2 == 0)
 /// // => #([2, 4], [1, 3])
 /// ```
-export fn partition(xs : List(a), p : (a) -> Bool with e) -> #(List(a), List(a)) with e =
+export fn partition(xs : List(a), p : (a) -> Bool with e) : #(List(a), List(a)) with e =
     match xs {
         [] -> #([], [])
       | y :: rest -> {
@@ -318,7 +318,7 @@ export fn partition(xs : List(a), p : (a) -> Bool with e) -> #(List(a), List(a))
 /// List.unique([2, 1, 2, 3])
 /// // => [2, 1, 3]
 /// ```
-export fn unique(xs : List(a)) -> List(a) =
+export fn unique(xs : List(a)) : List(a) =
     match xs {
         [] -> []
       | y :: rest -> y :: unique(filter(rest, fn(z) = z != y))
@@ -332,10 +332,10 @@ export fn unique(xs : List(a)) -> List(a) =
 /// List.indexed(["a", "b"])
 /// // => [#(0, "a"), #(1, "b")]
 /// ```
-export fn indexed(xs : List(a)) -> List(#(Int, a)) =
+export fn indexed(xs : List(a)) : List(#(Int, a)) =
     indexedFrom(xs, 0)
 
-fn indexedFrom(xs : List(a), i : Int) -> List(#(Int, a)) =
+fn indexedFrom(xs : List(a), i : Int) : List(#(Int, a)) =
     match xs {
         [] -> []
       | y :: rest -> #(i, y) :: indexedFrom(rest, i + 1)
@@ -349,7 +349,7 @@ fn indexedFrom(xs : List(a), i : Int) -> List(#(Int, a)) =
 /// List.repeat("ha", 2)
 /// // => ["ha", "ha"]
 /// ```
-export fn repeat(x : a, n : Int) -> List(a) =
+export fn repeat(x : a, n : Int) : List(a) =
     if n <= 0 then [] else x :: repeat(x, n - 1)
 
 /// The elements in the opposite order.
@@ -360,7 +360,7 @@ export fn repeat(x : a, n : Int) -> List(a) =
 /// List.reverse([1, 2, 3])
 /// // => [3, 2, 1]
 /// ```
-export fn reverse(xs : List(a)) -> List(a) =
+export fn reverse(xs : List(a)) : List(a) =
     foldLeft(xs, [], fn(acc, y) = y :: acc)
 
 /// The elements in the order `compare` gives, stable: two elements it calls
@@ -372,7 +372,7 @@ export fn reverse(xs : List(a)) -> List(a) =
 /// List.sort([3, 1, 2], Int.compare)
 /// // => [1, 2, 3]
 /// ```
-export fn sort(xs : List(a), compare : (a, a) -> Ordering with e) -> List(a) with e =
+export fn sort(xs : List(a), compare : (a, a) -> Ordering with e) : List(a) with e =
     match xs {
         [] -> xs
       | [_] -> xs
@@ -385,12 +385,12 @@ export fn sort(xs : List(a), compare : (a, a) -> Ordering with e) -> List(a) wit
 // A merge sort: the halves are sorted and then merged, and a merge that
 // takes the left element when the two compare `Equal` is what makes the
 // sort stable.
-fn halves(xs : List(a)) -> #(List(a), List(a)) = {
+fn halves(xs : List(a)) : #(List(a), List(a)) = {
     let half = size(xs) / 2;
     #(take(xs, half), drop(xs, half))
 }
 
-fn merge(left : List(a), right : List(a), compare : (a, a) -> Ordering with e) -> List(a) with e =
+fn merge(left : List(a), right : List(a), compare : (a, a) -> Ordering with e) : List(a) with e =
     match #(left, right) {
         #([], _) -> right
       | #(_, []) -> left
@@ -409,7 +409,7 @@ fn merge(left : List(a), right : List(a), compare : (a, a) -> Ordering with e) -
 /// List.zip([1, 2, 3], ["a", "b"])
 /// // => [#(1, "a"), #(2, "b")]
 /// ```
-export fn zip(xs : List(a), ys : List(b)) -> List(#(a, b)) =
+export fn zip(xs : List(a), ys : List(b)) : List(#(a, b)) =
     match #(xs, ys) {
         #(x :: xrest, y :: yrest) -> #(x, y) :: zip(xrest, yrest)
       | _ -> []
@@ -423,7 +423,7 @@ export fn zip(xs : List(a), ys : List(b)) -> List(#(a, b)) =
 /// List.unzip([#(1, "a"), #(2, "b")])
 /// // => #([1, 2], ["a", "b"])
 /// ```
-export fn unzip(pairs : List(#(a, b))) -> #(List(a), List(b)) =
+export fn unzip(pairs : List(#(a, b))) : #(List(a), List(b)) =
     match pairs {
         [] -> #([], [])
       | #(x, y) :: rest -> {
@@ -440,7 +440,7 @@ export fn unzip(pairs : List(#(a, b))) -> #(List(a), List(b)) =
 /// List.flatMap([1, 2], fn(n) = [n, n * 10])
 /// // => [1, 10, 2, 20]
 /// ```
-export fn flatMap(xs : List(a), f : (a) -> List(b) with e) -> List(b) with e =
+export fn flatMap(xs : List(a), f : (a) -> List(b) with e) : List(b) with e =
     match xs {
         [] -> []
       | y :: rest -> f(y) <> flatMap(rest, f)
@@ -455,7 +455,7 @@ export fn flatMap(xs : List(a), f : (a) -> List(b) with e) -> List(b) with e =
 /// #(List.range(1, 4), List.range(2, 1))
 /// // => #([1, 2, 3, 4], [])
 /// ```
-export fn range(from : Int, to : Int) -> List(Int) =
+export fn range(from : Int, to : Int) : List(Int) =
     if from > to then [] else from :: range(from + 1, to)
 
 /// The mapped elements, or the first `Left` the function gives, which ends
@@ -467,7 +467,7 @@ export fn range(from : Int, to : Int) -> List(Int) =
 /// List.tryMap(["1", "x"], fn(s) = Either.fromOptional(String.toInt(s), s))
 /// // => Left("x")
 /// ```
-export fn tryMap(xs : List(a), f : (a) -> Either(e, b) with x) -> Either(e, List(b)) with x =
+export fn tryMap(xs : List(a), f : (a) -> Either(e, b) with x) : Either(e, List(b)) with x =
     match xs {
         [] -> Right([])
       | y :: rest -> {
@@ -486,7 +486,7 @@ export fn tryMap(xs : List(a), f : (a) -> Either(e, b) with x) -> Either(e, List
 /// List.tryFold([1, 2], 0, fn(acc, n) = if n > 1 then Left("big") else Right(acc + n))
 /// // => Left("big")
 /// ```
-export fn tryFold(xs : List(a), acc : b, f : (b, a) -> Either(e, b) with x) -> Either(e, b) with x =
+export fn tryFold(xs : List(a), acc : b, f : (b, a) -> Either(e, b) with x) : Either(e, b) with x =
     match xs {
         [] -> Right(acc)
       | y :: rest -> {

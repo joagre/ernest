@@ -12,7 +12,7 @@ A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is i
 ```ernest
 type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
 
-fn counter(n : Int) -> Unit with CounterMsg =
+fn counter(n : Int) : Unit with CounterMsg =
     receive {
         Inc(k) -> counter(n + k)
       | Get(reply = r) -> {
@@ -21,7 +21,7 @@ fn counter(n : Int) -> Unit with CounterMsg =
         }
     }
 
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));

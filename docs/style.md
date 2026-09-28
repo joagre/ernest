@@ -51,7 +51,7 @@ For every Ernest source in the repository and every Ernest block of the report a
 
 Illustrative code in the layout:
 
-    fn start(keys : Optional(Keys)) -> Unit = {
+    fn start(keys : Optional(Keys)) : Unit = {
         let reader = spawn(Local, fn() = match keys {
             Some(k) -> readLoop(k)
           | None -> plainLoop()
@@ -62,7 +62,7 @@ Illustrative code in the layout:
     fn respond(request : Request,
                session : SessionId,
                cookies : List(Cookie),
-               body : String) -> Bytes with Msg =
+               body : String) : Bytes with Msg =
         Response(status = StatusCode.ok, headers = [], body = body)
             |> withCookie("sid", SessionId.text(session))
             |> render

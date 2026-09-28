@@ -3,7 +3,7 @@
 // for ern_integration_tests (report §8.2).
 //
 
-export fn main() -> Unit with Never =
+export fn main() : Unit with Never =
     match Io.readLine() {
         None -> Io.println("end")
       | Some(line) -> {

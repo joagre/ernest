@@ -4,7 +4,7 @@
 // (test/ern_load.erl).
 //
 
-foreign fn mark(round : Int) -> Unit with m =
+foreign fn mark(round : Int) : Unit with m =
     "ern_load:mark/1"
 
 let rounds = 14
@@ -13,12 +13,12 @@ let batch = 100
 
 let dir = Path("build/load/files")
 
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     let _ = Fs.makeDir(dir, 1000);
     round(1)
 }
 
-fn round(n : Int) -> Unit with Never =
+fn round(n : Int) : Unit with Never =
     if n > rounds then
         Unit
     else {
@@ -27,7 +27,7 @@ fn round(n : Int) -> Unit with Never =
         round(n + 1)
     }
 
-fn work(left : Int) -> Unit with Never =
+fn work(left : Int) : Unit with Never =
     if left == 0 then
         Unit
     else {
@@ -35,7 +35,7 @@ fn work(left : Int) -> Unit with Never =
         work(left - 1)
     }
 
-fn once() -> Unit with Never = {
+fn once() : Unit with Never = {
     let a = Path.join(dir, Path("a"));
     let b = Path.join(dir, Path("b"));
     let _ = Fs.write(a, String.toUtf8("hello"), 1000);

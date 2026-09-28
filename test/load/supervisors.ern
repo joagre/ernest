@@ -6,7 +6,7 @@
 
 type WorkMsg = Ask(reply : Reply(Int)) | Crash
 
-foreign fn mark(round : Int) -> Unit with m =
+foreign fn mark(round : Int) : Unit with m =
     "ern_load:mark/1"
 
 let rounds = 14
@@ -25,7 +25,7 @@ let first : Address(WorkMsg) = spawn(Local, Supervisor.child(all, working))
 
 let second : Address(WorkMsg) = spawn(Local, Supervisor.child(all, working))
 
-fn working() -> Unit with WorkMsg =
+fn working() : Unit with WorkMsg =
     receive {
         Ask(reply = r) -> {
             answer(r, 1);
@@ -34,10 +34,10 @@ fn working() -> Unit with WorkMsg =
       | Crash -> fault("on purpose")
     }
 
-export fn main() -> Unit with Never =
+export fn main() : Unit with Never =
     round(1)
 
-fn round(n : Int) -> Unit with Never =
+fn round(n : Int) : Unit with Never =
     if n > rounds then
         Unit
     else {
@@ -46,7 +46,7 @@ fn round(n : Int) -> Unit with Never =
         round(n + 1)
     }
 
-fn work(left : Int) -> Unit with Never =
+fn work(left : Int) : Unit with Never =
     if left == 0 then
         Unit
     else {
@@ -54,20 +54,20 @@ fn work(left : Int) -> Unit with Never =
         work(left - 1)
     }
 
-fn once() -> Unit with Never = {
+fn once() : Unit with Never = {
     crash(alone);
     crash(second);
-    let _ = spawn(Local, Supervisor.child(single, fn() -> Unit with Never = Unit));
+    let _ = spawn(Local, Supervisor.child(single, fn() : Unit with Never = Unit));
     Unit
 }
 
 // A crash, and a call that waits until the child answers again.
-fn crash(child : Address(WorkMsg)) -> Unit with Never = {
+fn crash(child : Address(WorkMsg)) : Unit with Never = {
     send(child, Crash);
     answered(child)
 }
 
-fn answered(child : Address(WorkMsg)) -> Unit with Never =
+fn answered(child : Address(WorkMsg)) : Unit with Never =
     match Address.call(child, fn(r) = Ask(reply = r), 1000) {
         Some(_) -> Unit
       | None -> answered(child)

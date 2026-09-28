@@ -16,9 +16,9 @@
 /// since 0.1.0
 
 /// The other truth value, which prefix `!` also gives (report §4.8).
-export fn not(b : Bool) -> Bool =
+export fn not(b : Bool) : Bool =
     if b then false else true
 
 /// `"true"` or `"false"`.
-export fn toString(b : Bool) -> String =
+export fn toString(b : Bool) : String =
     if b then "true" else "false"

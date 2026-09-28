@@ -128,7 +128,7 @@ builtin_types() ->
       ### Examples
 
       ```ernest
-      spawn(Local, fn() -> Unit with Never = Io.println("hello"))
+      spawn(Local, fn() : Unit with Never = Io.println("hello"))
       ```
       """/utf8>>},
      {'Foreign', 0,
@@ -243,7 +243,7 @@ declared_types() ->
     ///
     /// ```ernest
     /// {
-    ///     let worker = spawn(Local, fn() -> Unit with Never = Unit);
+    ///     let worker = spawn(Local, fn() : Unit with Never = Unit);
     ///     monitor(worker, fn(d : Down) = d);
     ///     receive { Down(reason = r, site = _) -> r }
     /// }
@@ -268,7 +268,7 @@ declared_types() ->
     /// ### Examples
     ///
     /// ```ernest
-    /// spawn(Local, fn() -> Unit with Never = Unit)
+    /// spawn(Local, fn() : Unit with Never = Unit)
     /// ```
     type Where = Local | Peer(String)
     /// How often `restarting` restarts: at most `restarts` times within
@@ -297,7 +297,7 @@ declared_types() ->
     /// ### Examples
     ///
     /// ```ernest
-    /// Test(name = "adds", run = fn() -> TestResult with Never =
+    /// Test(name = "adds", run = fn() : TestResult with Never =
     ///     if 1 + 1 == 2 then Passed else Failed("1 + 1 is not 2"))
     /// ```
     type Test = Test(name : String, run : () -> TestResult with Never)
@@ -333,7 +333,7 @@ values() ->
       ```ernest
       {
           let me = self();
-          let _ = spawn(Local, fn() -> Unit with Never = send(me, "ready"));
+          let _ = spawn(Local, fn() : Unit with Never = send(me, "ready"));
           receive { s -> s }
       }
       ```
@@ -381,7 +381,7 @@ values() ->
       ### Examples
 
       ```ernest
-      spawnMonitored(Local, fn() -> Unit with Never = Unit, fn(d : Down) = d)
+      spawnMonitored(Local, fn() : Unit with Never = Unit, fn(d : Down) = d)
       ```
       """/utf8>>},
      %% §9.5 process functions
@@ -457,7 +457,7 @@ values() ->
 
       ```ernest
       spawn(Local, restarting(RestartLimit(restarts = 3, within = 5000),
-          fn() -> Unit with Never = Unit))
+          fn() : Unit with Never = Unit))
       ```
       """/utf8>>},
      {[monitor], "(Address(a), (Down) -> m) -> Unit with m",
@@ -521,7 +521,7 @@ values() ->
       ### Examples
 
       ```ernest
-      fn(xs : List(Int)) -> Int = match xs { x :: _ -> x | [] -> fault("never empty here") }
+      fn(xs : List(Int)) : Int = match xs { x :: _ -> x | [] -> fault("never empty here") }
       ```
       """/utf8>>}
 ].

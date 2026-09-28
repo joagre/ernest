@@ -32,26 +32,26 @@ keeps_what_was_written_test() ->
 %% docs/style.md: a function's head ends at `=` and its body begins on the
 %% next line, one step in; a block's brace ends the head's line
 head_test() ->
-    ?assertEqual([<<"fn f(x : Int) -> Int =">>,
+    ?assertEqual([<<"fn f(x : Int) : Int =">>,
                   <<"    x + 1">>,
                   <<>>,
                   <<"fn g() = {">>,
                   <<"    let y = 1;">>,
                   <<"    y">>,
                   <<"}">>],
-                 laid(["fn f(x : Int) -> Int = x + 1", "fn g() = { let y = 1; y }"])).
+                 laid(["fn f(x : Int) : Int = x + 1", "fn g() = { let y = 1; y }"])).
 
 %% docs/style.md: a bracket that does not fit holds one item a line, each
 %% under the first, and closes on the last; one that fits stays on its line
 bracket_test() ->
     Head = "fn run(state : State, screen : Address(ScreenMsg), from : String, line : Int, "
-           "input : String, printing : Bool) -> State with ShellMsg = go(state)",
+           "input : String, printing : Bool) : State with ShellMsg = go(state)",
     ?assertEqual([<<"fn run(state : State,">>,
                   <<"       screen : Address(ScreenMsg),">>,
                   <<"       from : String,">>,
                   <<"       line : Int,">>,
                   <<"       input : String,">>,
-                  <<"       printing : Bool) -> State with ShellMsg =">>,
+                  <<"       printing : Bool) : State with ShellMsg =">>,
                   <<"    go(state)">>],
                  laid([Head])),
     fixed(["let point = Point(x = 1, y = 2)"]).
@@ -241,7 +241,7 @@ doc_examples_test() ->
                   <<"/// }">>,
                   <<"/// // => true">>,
                   <<"/// ```">>,
-                  <<"export fn f(n : Int) -> Int =">>,
+                  <<"export fn f(n : Int) : Int =">>,
                   <<"    n + 1">>],
                  laid(["/// Adds one.",
                        "///",
@@ -249,7 +249,7 @@ doc_examples_test() ->
                        "/// match f(1) { 2 -> true | _ -> false }",
                        "/// // => true",
                        "/// ```",
-                       "export fn f(n : Int) -> Int = n + 1"])).
+                       "export fn f(n : Int) : Int = n + 1"])).
 
 %% report §11.6: a module that does not parse is not laid out
 not_parsed_test() ->
@@ -277,7 +277,7 @@ doc_trailing_spaces_test() ->
 %% where the comment follows an opening bracket too. A regression test: it
 %% was dropped (findings C25)
 blank_after_comment_test() ->
-    fixed(["fn f(x : Int) -> Int = {", "    // one", "", "    let y = x;", "    y", "}"]).
+    fixed(["fn f(x : Int) : Int = {", "    // one", "", "    let y = x;", "    y", "}"]).
 
 %% report §11.6: comments directly under a declaration, with a blank line
 %% after them, stay beside it, and the blank line between two declarations

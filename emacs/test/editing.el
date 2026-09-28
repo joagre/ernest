@@ -70,7 +70,7 @@
 ;; a raw string's line in column zero is not a declaration, though it
 ;; opens with `fn'
 (with-temp-buffer
-  (insert "let usage = `ern file.erc\nfn fake() = 1\n`\n\nfn real(x : Int) -> Int =\n"
+  (insert "let usage = `ern file.erc\nfn fake() = 1\n`\n\nfn real(x : Int) : Int =\n"
           "    x\n")
   (ernest-mode)
   (goto-char (point-max))

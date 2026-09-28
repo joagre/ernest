@@ -27,11 +27,11 @@ type Msg =
 // bound at each start.
 let reference : Address(Msg) = system(Erl.atom("clock"))
 
-foreign fn system(name : Foreign) -> Address(Msg) with m =
+foreign fn system(name : Foreign) : Address(Msg) with m =
     "ern_rt:sys/1"
 
 /// The time now.
-export fn now() -> Int with m =
+export fn now() : Int with m =
     Address.callForever(reference, fn(r) = Now(reply = r))
 
 /// After that many milliseconds, `wrap(t)` arrives in the caller's mailbox,
@@ -43,7 +43,7 @@ export fn now() -> Int with m =
 /// ```ernest
 /// Clock.alarm(10, fn(_) = Unit)
 /// ```
-export fn alarm(ms : Int, wrap : (Int) -> m) -> Unit with m = {
+export fn alarm(ms : Int, wrap : (Int) -> m) : Unit with m = {
     let to = via(wrap, self());
     Address.callForever(reference, fn(r) = After(ms = ms, to = to, reply = r))
 }
@@ -56,7 +56,7 @@ export fn alarm(ms : Int, wrap : (Int) -> m) -> Unit with m = {
 /// ```ernest
 /// Clock.alarmAt(Clock.now() + 10, fn(_) = Unit)
 /// ```
-export fn alarmAt(at : Int, wrap : (Int) -> m) -> Unit with m = {
+export fn alarmAt(at : Int, wrap : (Int) -> m) : Unit with m = {
     let to = via(wrap, self());
     Address.callForever(reference, fn(r) = At(at = at, to = to, reply = r))
 }

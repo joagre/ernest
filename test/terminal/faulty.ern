@@ -3,7 +3,7 @@
 // terminal has no time (report §11.2).
 //
 
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     let z = List.size([]);
     let _ = 1 / z;
     Unit

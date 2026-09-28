@@ -7,7 +7,7 @@
 // to standard output.
 //
 
-export fn main() -> Unit with Never =
+export fn main() : Unit with Never =
     match Os.arguments {
         [report, version, pages] -> match manual(report, version, pages) {
             Right(lines) -> Io.print(String.join(lines, "\n") <> "\n")
@@ -19,7 +19,7 @@ export fn main() -> Unit with Never =
 // The page's lines, or why there are none.
 fn manual(report : String,
           version : String,
-          pages : String) -> Either(String, List(String)) with m = {
+          pages : String) : Either(String, List(String)) with m = {
     let bytes <-
         Either.mapLeft(Fs.read(Path(report), 10000),
                        fn(e) = "cannot read " <> report <> ": " <> Io.show(e));
@@ -35,7 +35,7 @@ fn manual(report : String,
               :: Markdown.roff(page(version), List.map(section, raised) <> seeAlso(names)))
 }
 
-fn page(version : String) -> Markdown.Manual =
+fn page(version : String) : Markdown.Manual =
     Markdown.Manual(name = "ern",
                     section = "1",
                     summary = [Markdown.Text("the Ernest toolchain")],
@@ -43,7 +43,7 @@ fn page(version : String) -> Markdown.Manual =
                     title = "Ernest Manual")
 
 // The blocks of §11 after its heading, up to the next chapter's.
-fn toolchain(blocks : List(Markdown.Block)) -> Optional(List(Markdown.Block)) =
+fn toolchain(blocks : List(Markdown.Block)) : Optional(List(Markdown.Block)) =
     match List.span(blocks,
                     fn(b) =
                         b != Markdown.Heading(level = 2, text = [Markdown.Text("11. Toolchain")])) {
@@ -54,14 +54,14 @@ fn toolchain(blocks : List(Markdown.Block)) -> Optional(List(Markdown.Block)) =
       | _ -> None
     }
 
-fn beginsChapter(b : Markdown.Block) -> Bool =
+fn beginsChapter(b : Markdown.Block) : Bool =
     match b {
         Markdown.Heading(level = level) -> level <= 2
       | _ -> false
     }
 
 // §11's sections are the page's subsections, a level above their own.
-fn raised(b : Markdown.Block) -> Markdown.Block =
+fn raised(b : Markdown.Block) : Markdown.Block =
     match b {
         Markdown.Heading(level = level, text = text) ->
             Markdown.Heading(level = level - 1, text = text)
@@ -70,7 +70,7 @@ fn raised(b : Markdown.Block) -> Markdown.Block =
 
 // The pages the directory holds, the prelude's first, then the pages
 // `apropos` finds and the report the page's section numbers cite.
-fn seeAlso(files : List(String)) -> List(Markdown.Block) = {
+fn seeAlso(files : List(String)) : List(Markdown.Block) = {
     let names =
         List.filterMap(files,
                        fn(f) = if String.endsWith(f, ".3ern") then
@@ -87,7 +87,7 @@ fn seeAlso(files : List(String)) -> List(Markdown.Block) = {
     Markdown.parse("# SEE ALSO\n\n" <> String.join(pages, ", ") <> rest)
 }
 
-fn quit(message : String) -> Unit with m = {
+fn quit(message : String) : Unit with m = {
     Io.printlnError("manual: " <> message);
     Os.exit(1)
 }

@@ -204,6 +204,24 @@ block_test() ->
                    " fn helper(y) = y; helper(x) }")),
     ?assertMatch(#e_block{stmts = [#e_lambda{}, #e_var{}]}, e("{ fn(x) = x; y }")).
 
+%% report §4.5, Appendix A's Return: a result annotation is written `: T`
+%% in a declaration, a foreign one and a lambda, and `->` after the
+%% parameters is refused with the spelling that replaces it (§11); a
+%% function type keeps its arrow, and a `with` after one is the type's
+result_annotation_test() ->
+    ?assertMatch([#fn_decl{ret = #t_con{name = 'Int'}}], ds("fn f(x : Int) : Int = x")),
+    ?assertMatch([#foreign_fn_decl{ret = #t_con{name = 'Int'}}],
+                 ds("foreign fn g() : Int = \"m:g/0\"")),
+    ?assertMatch(#e_lambda{ret = #t_con{name = 'Int'}}, e("fn(x) : Int = x")),
+    Said = "a function's result is annotated with `:`, not `->`",
+    ?assertEqual(Said, err("fn f(x : Int) -> Int = x")),
+    ?assertEqual(Said, err("foreign fn g() -> Int = \"m:g/0\"")),
+    ?assertEqual(Said, err_expr("fn(x) -> Int = x")),
+    ?assertMatch([#fn_decl{ret = #t_fn{effect = #t_con{name = 'M'}}, effect = undefined}],
+                 ds("fn f() : (Int) -> Int with M = g")),
+    ?assertMatch([#fn_decl{ret = #t_fn{effect = undefined}, effect = #t_con{name = 'M'}}],
+                 ds("fn f() : ((Int) -> Int) with M = g")).
+
 %% report §5.3
 lambda_test() ->
     ?assertMatch(#e_lambda{params = [#param{pattern = #p_var{name = x}, type = undefined}],
@@ -212,7 +230,7 @@ lambda_test() ->
                  e("fn(x) = x + 1")),
     ?assertMatch(#e_lambda{params = [], ret = #t_con{name = 'Unit'},
                            effect = #t_con{name = 'Never'}, body = #e_con{name = 'Unit'}},
-                 e("fn() -> Unit with Never = Unit")),
+                 e("fn() : Unit with Never = Unit")),
     %% the body extends to the enclosing delimiter
     ?assertMatch(#e_call{args = [#e_var{}, #e_lambda{body = #e_binop{op = '+'}}]},
                  e("List.map(xs, fn(x) = x + 1)")),
@@ -428,22 +446,22 @@ fn_decl_test() ->
     ?assertMatch(#fn_decl{export = true, owner = undefined, name = main, params = [],
                           ret = #t_con{name = 'Unit'}, effect = #t_con{name = 'Never'},
                           body = #e_call{}, doc = undefined},
-                 d("export fn main() -> Unit with Never = Io.println(\"hi\")")),
+                 d("export fn main() : Unit with Never = Io.println(\"hi\")")),
     ?assertMatch(#fn_decl{name = double, params = [#param{pattern = #p_var{name = n},
                                                           type = #t_con{name = 'Int'}}],
                           ret = #t_con{name = 'Int'}, effect = undefined},
-                 d("fn double(n : Int) -> Int = n * 2")),
+                 d("fn double(n : Int) : Int = n * 2")),
     ?assertMatch(#fn_decl{name = twice, params = [#param{type = undefined}], ret = undefined},
                  d("fn twice(n) = n + n")),
     ?assertMatch(#fn_decl{owner = 'Stack', name = push,
                           params = [#param{pattern = #p_var{}},
                                     #param{pattern = #p_con{name = 'Stack'},
                                            type = #t_con{name = 'Stack'}}]},
-                 d("fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) = Stack(x :: xs)")),
+                 d("fn Stack.push(x : a, Stack(xs) : Stack(a)) : Stack(a) = Stack(x :: xs)")),
     ?assertMatch(#fn_decl{owner = 'Distance', name = '+'},
-                 d("fn Distance.+(Distance(a), Distance(b)) -> Distance = Distance(a + b)")),
+                 d("fn Distance.+(Distance(a), Distance(b)) : Distance = Distance(a + b)")),
     ?assertMatch(#fn_decl{params = [#param{pattern = #p_con{name = 'Snapshot'}}]},
-                 d("fn seenCount(Snapshot(seen = entries) : Snapshot) -> Int ="
+                 d("fn seenCount(Snapshot(seen = entries) : Snapshot) : Int ="
                    " Map.size(entries)")).
 
 %% report §4.6
@@ -472,10 +490,10 @@ foreign_decl_test() ->
                                                    type = #t_var{name = k}}],
                                   ret = #t_con{name = 'Bool'}, effect = #t_var{name = m},
                                   impl = <<"ets:member/2">>},
-                 d("export foreign fn member(t : Table(k, v), key : k) -> Bool with m"
+                 d("export foreign fn member(t : Table(k, v), key : k) : Bool with m"
                    " = \"ets:member/2\"")),
     ?assertMatch(#foreign_fn_decl{name = atom, effect = undefined},
-                 d("foreign fn atom(name : String) -> Foreign = \"erlang:binary_to_atom/1\"")).
+                 d("foreign fn atom(name : String) : Foreign = \"erlang:binary_to_atom/1\"")).
 
 %% report §2.2
 doc_comments_test() ->
@@ -512,7 +530,7 @@ doc_after_tuple_type_test() ->
                  ds("type T = A(#(Int, Int)) | B
 
 "
-                    "fn g(x : Int) -> Int =
+                    "fn g(x : Int) : Int =
     /// not a doc
     x
 ")),
@@ -521,7 +539,7 @@ doc_after_tuple_type_test() ->
 type T = A
 
 "
-                    "fn g(x : Int) -> Int =
+                    "fn g(x : Int) : Int =
     /// not a doc
     x
 ")).
@@ -530,9 +548,9 @@ type T = A
 several_declarations_test() ->
     ?assertMatch([#type_decl{}, #fn_decl{name = main}, #fn_decl{name = counter}],
                  ds("type CounterMsg = Inc(Int) | Get(reply : Reply(Int))\n"
-                    "export fn main() -> Unit with m = { let c = spawn(Local, fn() = counter(0));"
+                    "export fn main() : Unit with m = { let c = spawn(Local, fn() = counter(0));"
                     " send(c, Inc(5)) }\n"
-                    "fn counter(n : Int) -> Unit with CounterMsg = receive {\n"
+                    "fn counter(n : Int) : Unit with CounterMsg = receive {\n"
                     "    Inc(k) -> counter(n + k)\n"
                     "  | Get(reply = r) -> { answer(r, n); counter(n) }\n}")).
 

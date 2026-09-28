@@ -94,7 +94,7 @@ export let commands =
 
 // Report §11.2: a command line, the action its name selects and the
 // argument after it, or the refusal that says why it selects none.
-export fn parse(line : String) -> Either(String, #(Action, String)) = {
+export fn parse(line : String) : Either(String, #(Action, String)) = {
     let #(word, arg) = split(line);
     match pick(String.slice(word, 1, String.size(word) - 1)) {
         Unknown -> Left("no command " <> word <> "; :help lists them")
@@ -113,7 +113,7 @@ type Picked = Picked(Command) | Unknown | Ambiguous(List(String))
 
 // Report §11.2: a name selects its command, and so does a prefix of it that
 // begins no other command's name.
-fn pick(name : String) -> Picked = {
+fn pick(name : String) : Picked = {
     let begun = List.filter(commands, fn(c) = String.startsWith(c.name, name));
     match List.filter(begun, fn(c) = c.name == name) {
         [whole] -> Picked(whole)
@@ -128,11 +128,11 @@ fn pick(name : String) -> Picked = {
 }
 
 // `:bindings or :browse`, and `:a, :b or :c` for three.
-fn alternatives(names : List(String)) -> String =
+fn alternatives(names : List(String)) : String =
     words(List.map(names, fn(name) = ":" <> name))
 
 // `a or b`, and `a, b or c` for three.
-fn words(ws : List(String)) -> String =
+fn words(ws : List(String)) : String =
     match List.last(ws) {
         None -> ""
       | Some(last) -> if List.size(ws) == 1 then
@@ -143,19 +143,19 @@ fn words(ws : List(String)) -> String =
 
 // A command line: its first word, the command with its `:`, and what
 // follows it, trimmed.
-fn split(line : String) -> #(String, String) = {
+fn split(line : String) : #(String, String) = {
     let end = wordEnd(line);
     #(String.slice(line, 0, end), String.trim(String.slice(line, end, String.size(line) - end)))
 }
 
 // Report §11.2: a command's own word is everything up to the first space,
 // which is where its argument begins.
-export fn wordEnd(line : String) -> Int =
+export fn wordEnd(line : String) : Int =
     Optional.withDefault(String.indexOf(line, " "), String.size(line))
 
 // Report §11.2: what completes after a command's word, where it takes
 // anything after it.
-export fn completes(word : String) -> Optional(Completes) =
+export fn completes(word : String) : Optional(Completes) =
     match pick(String.slice(word, 1, String.size(word) - 1)) {
         Picked(Command(takes = Needs(completes = k))) -> Some(k)
       | Picked(Command(takes = Allows(k))) -> Some(k)
@@ -164,12 +164,12 @@ export fn completes(word : String) -> Optional(Completes) =
 
 // Report §11.2: the help, a line for each command. Completion lists a
 // command by the same line.
-export fn help() -> List(String) =
+export fn help() : List(String) =
     ["Commands, which a prefix of the name selects where it begins no other:"]
         <> List.map(commands, fn(c) = "  " <> line(c))
         <> ["The value of the last expression is `it`."]
 
-export fn line(c : Command) -> String = {
+export fn line(c : Command) : String = {
     let head = if String.isEmpty(c.placeholder) then c.name else c.name <> " " <> c.placeholder;
     String.padEnd(":" <> head, column, ' ') <> c.about
 }
@@ -194,7 +194,7 @@ export type Setting = Depth(Int) | Length(Int) | OutputRows(Int) | Timing(Bool)
 
 // Report §11.2: what `:set`'s argument sets, or the refusal that says why
 // it sets nothing.
-export fn setting(arg : String) -> Either(String, Setting) =
+export fn setting(arg : String) : Either(String, Setting) =
     match split(arg) {
         #("depth", rest) -> count("depth", rest, Depth)
       | #("length", rest) -> count("length", rest, Length)
@@ -205,7 +205,7 @@ export fn setting(arg : String) -> Either(String, Setting) =
       | _ -> Left(":set takes " <> words(List.map(settings, fn(#(name, _)) = name)))
     }
 
-fn count(what : String, text : String, made : (Int) -> Setting) -> Either(String, Setting) =
+fn count(what : String, text : String, made : (Int) -> Setting) : Either(String, Setting) =
     match String.toInt(text) {
         Some(n) -> if n < 0 then Left(":set " <> what <> " takes 0 or more") else Right(made(n))
       | None -> Left(":set " <> what <> " takes a number")

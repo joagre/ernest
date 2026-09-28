@@ -8,7 +8,7 @@
 // order (§11.1).
 //
 
-export fn main() -> Unit with Never =
+export fn main() : Unit with Never =
     match Net.Http.parse("GET /") {
         Some(Net.Http.Request(method = method, path = path)) -> Io.println(method <> " " <> path)
       | None -> Io.println("bad request")

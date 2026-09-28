@@ -7,23 +7,23 @@
 //
 
 // A fault, or the first line of a diagnostic: what needs the eye.
-export fn fault(on : Bool, text : String) -> String =
+export fn fault(on : Bool, text : String) : String =
     paint(on, Terminal.Foreground(Terminal.Red), text)
 
 // A diagnostic, its first line coloured as a fault, the source under it
 // plain.
-export fn diagnostic(on : Bool, text : String) -> String =
+export fn diagnostic(on : Bool, text : String) : String =
     match String.split(text, "\n") {
         [] -> text
       | first :: rest -> String.join(fault(on, first) :: rest, "\n")
     }
 
 // The type after a printed value, dimmed so that the value stands out.
-export fn quiet(on : Bool, text : String) -> String =
+export fn quiet(on : Bool, text : String) : String =
     paint(on, Terminal.Dim, text)
 
 // A name in a listing or a brief, `name : type`, the name bold.
-export fn named(on : Bool, text : String) -> String =
+export fn named(on : Bool, text : String) : String =
     match String.indexOf(text, " : ") {
         None -> text
       | Some(at) ->
@@ -35,13 +35,13 @@ export fn named(on : Bool, text : String) -> String =
 // its theme chooses, so that it reads on a dark screen and a light one.
 // Report §11.2: without colour it is between asterisks, since the mark
 // carries meaning where the other colours only help the eye.
-export fn emphasis(on : Bool, text : String) -> String =
+export fn emphasis(on : Bool, text : String) : String =
     if on || String.isEmpty(text) then
         paint(on, Terminal.Foreground(Terminal.Cyan), text)
     else
         "*" <> text <> "*"
 
-fn paint(on : Bool, style : Terminal.Style, text : String) -> String =
+fn paint(on : Bool, style : Terminal.Style, text : String) : String =
     if !on || String.isEmpty(text) then text else Terminal.styled(text, style)
 
 //

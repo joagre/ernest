@@ -39,7 +39,7 @@ basic_inference_test() ->
     ?assertEqual("((a) -> b with e, a) -> b with e",
                  type_of("export fn apply(f, x) = f(x)", apply)),
     ?assertEqual("(Int) -> Int",
-                 type_of("export fn fact(n : Int) -> Int = if n == 0 then 1 else n * fact(n - 1)",
+                 type_of("export fn fact(n : Int) : Int = if n == 0 then 1 else n * fact(n - 1)",
                          fact)),
     ?assertEqual("((a) -> b with e, a, a) -> #(b, b) with e",
                  type_of("export fn map2(f, x, y) = #(f(x), f(y))", map2)),
@@ -57,7 +57,7 @@ constraints_are_inferred_and_printed_test() ->
 %% report §3.9, §6.6
 container_elements_are_not_marked_not_reply_carrying_test() ->
     ?assertEqual("(Optional(a), a) -> a",
-                 type_of("export fn orElse(o : Optional(a), d : a) -> a =\n"
+                 type_of("export fn orElse(o : Optional(a), d : a) : a =\n"
                          "    match o { Some(x) -> x | None -> d }", orElse)),
     ?assertEqual("(a, List(#(a, b))) -> List(#(a, b))",
                  type_of("export fn keep(x : a, ys : List(#(a, b))) = ys", keep)),
@@ -67,14 +67,14 @@ container_elements_are_not_marked_not_reply_carrying_test() ->
 %% report §3.9: a foreign fn whose effect is its own is process-only; one
 %% whose effect is a parameter's callback's is effect-polymorphic
 foreign_effect_test() ->
-    Own = "foreign fn tick(n : Int) -> Int with m = \"erlang:abs/1\"\n"
-          "export fn pure() -> Int = tick(1)\n",
+    Own = "foreign fn tick(n : Int) : Int with m = \"erlang:abs/1\"\n"
+          "export fn pure() : Int = tick(1)\n",
     {error, [#diag{message = Msg} | _]} = ern_typecheck:check_string(['M'], Own),
     ?assertEqual("tick needs a process, and pure is pure", Msg),
-    Callback = "foreign fn each(xs : List(a), f : (a) -> Unit with e) -> Unit with e ="
+    Callback = "foreign fn each(xs : List(a), f : (a) -> Unit with e) : Unit with e ="
                " \"lists:foreach/2\"\n"
-               "export fn pure(xs : List(Int)) -> Unit = each(xs, fn(x) = Unit)\n"
-               "export fn inProcess(xs : List(Int)) -> Unit with m ="
+               "export fn pure(xs : List(Int)) : Unit = each(xs, fn(x) = Unit)\n"
+               "export fn inProcess(xs : List(Int)) : Unit with m ="
                " each(xs, fn(x) = Io.println(Int.toString(x)))\n",
     ?assertMatch({ok, _, _, _}, ern_typecheck:check_string(['M'], Callback)).
 
@@ -87,9 +87,9 @@ foreign_effect_test() ->
 %% was process-only, and a pure caller was refused.
 effect_only_type_argument_test() ->
     H = "export type H(e) = H(f : (Int) -> Unit with e)\n"
-        "export fn run(h : H(e), x : Int) -> Unit with e = h.f(x)\n",
-    ?assertEqual(ok, ok(H ++ "fn usePure() -> Unit = run(H(f = fn(x) = Unit), 1)\n"
-                        "fn useBox(a : Address(Int)) -> Unit with Int ="
+        "export fn run(h : H(e), x : Int) : Unit with e = h.f(x)\n",
+    ?assertEqual(ok, ok(H ++ "fn usePure() : Unit = run(H(f = fn(x) = Unit), 1)\n"
+                        "fn useBox(a : Address(Int)) : Unit with Int ="
                         " run(H(f = fn(x) = send(a, x)), 1)\n")),
     %% and prints as an effect variable does, in the module's own state
     {ok, _, #iface{values = Vs}, Env} =
@@ -99,13 +99,13 @@ effect_only_type_argument_test() ->
                  ern_types:format_scheme(maps:get(['M', run], Vs),
                                          ern_typecheck:type_state(Env))),
     ?assertEqual(ok, ok(H ++ "type K(e) = K(h : H(e)) | L(k : K(e))\n"
-                        "fn go(k : K(e)) -> Unit with e ="
+                        "fn go(k : K(e)) : Unit with e ="
                         " match k { K(h = h) -> run(h, 1) | L(k = k2) -> go(k2) }\n"
-                        "fn usePure() -> Unit = go(L(k = K(h = H(f = fn(x) = Unit))))\n")),
+                        "fn usePure() : Unit = go(L(k = K(h = H(f = fn(x) = Unit))))\n")),
     ?assertEqual("run needs a process, and usePure is pure",
                  err("type V(e) = V(f : (Int) -> Unit with e, v : e)\n"
-                     "fn run(h : V(e), x : Int) -> Unit with e = h.f(x)\n"
-                     "fn usePure() -> Unit = run(V(f = fn(x) = Unit, v = 1), 1)\n")).
+                     "fn run(h : V(e), x : Int) : Unit with e = h.f(x)\n"
+                     "fn usePure() : Unit = run(V(f = fn(x) = Unit, v = 1), 1)\n")).
 
 %% report §3.9: a pure function stands where one with a mailbox type is
 %% expected, whether it is named, declared, annotated, a parameter, a
@@ -116,12 +116,12 @@ effect_only_type_argument_test() ->
 pure_stands_for_a_mailbox_test() ->
     Types = "type Msg = Add(Int) | Up(next : (Int) -> Unit with Msg)\n"
             "type Hook = Hook(run : (Int) -> Unit)\n"
-            "fn done(n : Int) -> Unit = Unit\n"
+            "fn done(n : Int) : Unit = Unit\n"
             "fn quiet(n) = Unit\n"
-            "fn later() -> (Int) -> Unit = done\n"
+            "fn later() : (Int) -> Unit = done\n"
             "fn both(f, g) = { f(1); g(2) }\n",
     Main = fun(Body) ->
-               Types ++ "fn main() -> Unit with Msg = { let a = self(); " ++ Body ++ "; Unit }\n"
+               Types ++ "fn main() : Unit with Msg = { let a = self(); " ++ Body ++ "; Unit }\n"
            end,
     ?assertEqual(ok, ok(Main("let _ = Up(next = done)"))),
     ?assertEqual(ok, ok(Main("let _ = Up(next = quiet)"))),
@@ -130,7 +130,7 @@ pure_stands_for_a_mailbox_test() ->
     ?assertEqual(ok, ok(Main("both(done, fn(x) = send(a, Add(x)))"))),
     ?assertEqual(ok, ok(Main("both(fn(x) = send(a, Add(x)), done)"))),
     ?assertEqual(ok, ok(Main("let _ = spawn(Local, fn() = done(1))"))),
-    ?assertEqual(ok, ok(Types ++ "fn wrap(f : (Int) -> Unit) -> Msg = Up(next = f)\n")),
+    ?assertEqual(ok, ok(Types ++ "fn wrap(f : (Int) -> Unit) : Msg = Up(next = f)\n")),
     %% a field selected before its record's type is known, and called in a
     %% process; a regression test: the selection, resolved after the call,
     %% was not opened, and the pure field was refused
@@ -139,7 +139,7 @@ pure_stands_for_a_mailbox_test() ->
     ?assertEqual("field run: a function that runs in a process where a pure one is needed",
                  err(Main("let _ = Hook(run = fn(x) = send(a, Add(x)))"))),
     %% and a pure function still prints as pure
-    ?assertEqual("(Int) -> Unit", type_of("export fn done(n : Int) -> Unit = Unit", done)).
+    ?assertEqual("(Int) -> Unit", type_of("export fn done(n : Int) : Unit = Unit", done)).
 
 %% report §5.9, §6.3: a clause or an alternative that can match nothing
 %% the clauses before it leave is an error, in `match` and in `receive`; a
@@ -148,27 +148,27 @@ pure_stands_for_a_mailbox_test() ->
 %% Found by the cold read (its 2.13): every redundant clause was accepted
 redundant_clause_test() ->
     Never = "this clause can never match",
-    ?assertEqual(Never, err("fn f(x : Optional(Int)) -> Int ="
+    ?assertEqual(Never, err("fn f(x : Optional(Int)) : Int ="
                             " match x { Some(n) -> n | None -> 0 | Some(1) -> 1 }")),
-    ?assertEqual(Never, err("fn f(x : Int) -> Int = match x { n -> n | 0 -> 1 }")),
-    ?assertEqual(Never, err("fn f() -> Int with Int = receive { n -> n | 5 -> 1 }")),
-    ?assertEqual(Never, err("fn f(b : Bool) -> Int = match b { true -> 1 | false -> 2 | _ -> 3 }")),
+    ?assertEqual(Never, err("fn f(x : Int) : Int = match x { n -> n | 0 -> 1 }")),
+    ?assertEqual(Never, err("fn f() : Int with Int = receive { n -> n | 5 -> 1 }")),
+    ?assertEqual(Never, err("fn f(b : Bool) : Int = match b { true -> 1 | false -> 2 | _ -> 3 }")),
     ?assertEqual("this alternative can never match",
-                 err("fn f(x : Optional(Int)) -> Int ="
+                 err("fn f(x : Optional(Int)) : Int ="
                      " match x { Some(_) or Some(1) -> 1 | None -> 0 }")),
     %% a guarded clause may fail, so what follows it is reached
-    ?assertEqual(ok, ok("fn f(x : Int) -> Int = match x { n when n > 0 -> n | 0 -> 1 | _ -> 2 }")),
+    ?assertEqual(ok, ok("fn f(x : Int) : Int = match x { n when n > 0 -> n | 0 -> 1 | _ -> 2 }")),
     %% a guarded clause is itself redundant when unguarded ones cover it
-    ?assertEqual(Never, err("fn f(x : Int) -> Int = match x { _ -> 1 | n when n > 0 -> n }")),
+    ?assertEqual(Never, err("fn f(x : Int) : Int = match x { _ -> 1 | n when n > 0 -> n }")),
     %% two bitstring clauses may differ by what their sizes decide
-    ?assertEqual(ok, ok("fn f(b : Bytes) -> Int ="
+    ?assertEqual(ok, ok("fn f(b : Bytes) : Int ="
                         " match b { <<x>> -> x | <<x, _>> -> x | _ -> 0 }")),
-    {error, [D1 | _]} = check("fn f(x : Int) -> Int = match x { n -> n | 0 -> 1 }"),
-    ?assertEqual([{{1, 34, {1, 35}}, "this pattern matches every value it would"}],
+    {error, [D1 | _]} = check("fn f(x : Int) : Int = match x { n -> n | 0 -> 1 }"),
+    ?assertEqual([{{1, 33, {1, 34}}, "this pattern matches every value it would"}],
                  D1#diag.labels),
     {error, [D2 | _]} =
-        check("fn f(b : Bool) -> Int = match b { true -> 1 | false -> 2 | _ -> 3 }"),
-    ?assertEqual([{{1, 47, {1, 52}},
+        check("fn f(b : Bool) : Int = match b { true -> 1 | false -> 2 | _ -> 3 }"),
+    ?assertEqual([{{1, 46, {1, 51}},
                    "with those before it, this one matches every value it would"}],
                  D2#diag.labels).
 
@@ -178,14 +178,14 @@ redundant_clause_test() ->
 %% accepted, and the host compared the keys
 foreign_type_equality_test() ->
     T = "export foreign type T(k=, v)\n"
-        "foreign fn mk() -> T(k, v) = \"m:mk/0\"\n"
-        "foreign fn put(t : T(k, v), key : k, value : v) -> T(k, v) = \"m:put/3\"\n",
+        "foreign fn mk() : T(k, v) = \"m:mk/0\"\n"
+        "foreign fn put(t : T(k, v), key : k, value : v) : T(k, v) = \"m:put/3\"\n",
     ?assertEqual(ok, ok(T ++ "fn f() = put(mk(), 1, 2)\n")),
     ?assertEqual("(Int) -> Int does not support equality (it contains a function or an"
                  " address), but it is compared here",
-                 err(T ++ "fn f() = put(mk(), fn(x : Int) -> Int = x, 2)\n")),
+                 err(T ++ "fn f() = put(mk(), fn(x : Int) : Int = x, 2)\n")),
     %% a parameter without `=` asks nothing
-    ?assertEqual(ok, ok(T ++ "fn f() = put(mk(), 1, fn(x : Int) -> Int = x)\n")),
+    ?assertEqual(ok, ok(T ++ "fn f() = put(mk(), 1, fn(x : Int) : Int = x)\n")),
     %% the constraint shows in a type that names the parameter
     ?assertEqual("(a=, b) -> M.T(a=, b)",
                  type_of(T ++ "export fn g(key, value) = put(mk(), key, value)\n", g)).
@@ -237,9 +237,9 @@ operator_operand_sources_test() ->
 %% against the operand type; the result is the operator's, and an
 %% ordering is a Bool; a type without the member has no operator
 user_type_operators_test() ->
-    Vec = "export type Vec = Vec(Int)\nexport fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b)\n"
-          "export fn Vec.*(Vec(a), Vec(b)) -> Float = Int.toFloat(a * b)\n"
-          "export fn Vec.compare(Vec(a), Vec(b)) -> Ordering = Int.compare(a, b)\n",
+    Vec = "export type Vec = Vec(Int)\nexport fn Vec.+(Vec(a), Vec(b)) : Vec = Vec(a + b)\n"
+          "export fn Vec.*(Vec(a), Vec(b)) : Float = Int.toFloat(a * b)\n"
+          "export fn Vec.compare(Vec(a), Vec(b)) : Ordering = Int.compare(a, b)\n",
     ?assertEqual("(M.Vec, M.Vec) -> M.Vec", type_of(Vec ++ "export fn f(a : Vec, b) = a + b", f)),
     ?assertEqual("(M.Vec, M.Vec) -> Float",
                  type_of(Vec ++ "export fn f(a : Vec, b) = (a * b) + 1.0", f)),
@@ -255,11 +255,11 @@ user_type_operators_test() ->
     ?assertEqual("`-` is not defined on Vec", err(Vec ++ "fn f(a : Vec) = -a")),
     %% report §5.1: prefix - is negate in the operand type's namespace
     ?assertEqual("(M.Vec) -> M.Vec",
-                 type_of(Vec ++ "export fn Vec.negate(Vec(a)) -> Vec = Vec(-a)\n"
+                 type_of(Vec ++ "export fn Vec.negate(Vec(a)) : Vec = Vec(-a)\n"
                          "export fn f(a : Vec) = -a", f)),
     %% report §8.5: a let is not on a cycle through an operator it does not use
     ?assertEqual(ok, ok("export type Vec = Vec(Int)\nlet scale = 2 + 1\n"
-                        "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a + b * scale)\n")).
+                        "export fn Vec.+(Vec(a), Vec(b)) : Vec = Vec(a + b * scale)\n")).
 
 %% report §4.8: a member named by an operator has the type (T, T) -> R for
 %% its type T, T.compare the type (T, T) -> Ordering, and T.negate the type
@@ -270,28 +270,28 @@ user_type_operators_test() ->
 operator_member_shape_test() ->
     Vec = "export type Vec = Vec(Int)\n",
     ?assertEqual("Vec.negate must have the type (Vec) -> Vec, not (Vec, Vec) -> Vec",
-                 err(Vec ++ "export fn Vec.negate(Vec(a), Vec(b)) -> Vec = Vec(-a)\n")),
+                 err(Vec ++ "export fn Vec.negate(Vec(a), Vec(b)) : Vec = Vec(-a)\n")),
     ?assertEqual("Vec.compare must have the type (Vec, Vec) -> Ordering, not (Vec, Vec) -> Int",
-                 err(Vec ++ "export fn Vec.compare(Vec(a), Vec(b)) -> Int = a - b\n")),
+                 err(Vec ++ "export fn Vec.compare(Vec(a), Vec(b)) : Int = a - b\n")),
     ?assertEqual("Vec.+ must have the type (Vec, Vec) -> Vec, not (Vec, Int) -> Vec",
-                 err(Vec ++ "export fn Vec.+(Vec(a), b : Int) -> Vec = Vec(a + b)\n")),
+                 err(Vec ++ "export fn Vec.+(Vec(a), b : Int) : Vec = Vec(a + b)\n")),
     ?assertEqual("Vec.* must have the type (Vec, Vec) -> Int, not (Int, Vec) -> Int",
-                 err(Vec ++ "export fn Vec.*(a : Int, Vec(b)) -> Int = a * b\n")),
+                 err(Vec ++ "export fn Vec.*(a : Int, Vec(b)) : Int = a * b\n")),
     ?assertEqual("Vec.- must have the type (Vec, Vec) -> Vec, not (Vec, Vec) -> Vec with Never",
-                 err(Vec ++ "export fn Vec.-(Vec(a), Vec(b)) -> Vec with Never = Vec(a - b)\n")),
+                 err(Vec ++ "export fn Vec.-(Vec(a), Vec(b)) : Vec with Never = Vec(a - b)\n")),
     ?assertEqual("Vec.<> must have the type (Vec, Vec) -> Vec, not (Vec, Vec) -> Vec with m",
-                 err(Vec ++ "export fn Vec.<>(Vec(a), Vec(b)) -> Vec with m ="
+                 err(Vec ++ "export fn Vec.<>(Vec(a), Vec(b)) : Vec with m ="
                      " { let _ = receive { n -> n }; Vec(a + b) }\n")),
     {error, [#diag{help = Help} | _]} =
-        check(Vec ++ "export fn Vec.compare(Vec(a), Vec(b)) -> Int = a - b\n"),
+        check(Vec ++ "export fn Vec.compare(Vec(a), Vec(b)) : Int = a - b\n"),
     ?assertEqual("compare takes two values of its type, returns an Ordering, and is pure", Help),
     %% the type's arguments are any, one in both parameters
     Box = "export type Box(a) = Box(List(a))\n",
     ?assertEqual(ok, ok(Box ++ "export fn Box.<>(Box(a), Box(b)) = Box(a <> b)\n")),
-    ?assertEqual(ok, ok(Box ++ "export fn Box.*(x : Box(Int), y : Box(Int)) -> Int = 1\n")),
+    ?assertEqual(ok, ok(Box ++ "export fn Box.*(x : Box(Int), y : Box(Int)) : Int = 1\n")),
     ?assertEqual("Box.<> must have the type (Box(a), Box(a)) -> Box(a),"
                  " not (Box(a), Box(b)) -> Box(a)",
-                 err(Box ++ "export fn Box.<>(x : Box(a), y : Box(b)) -> Box(a) = x\n")),
+                 err(Box ++ "export fn Box.<>(x : Box(a), y : Box(b)) : Box(a) = x\n")),
     %% an inferred signature is read as it is inferred
     ?assertEqual(ok, ok(Vec ++ "export fn Vec.negate(Vec(a)) = Vec(-a)\n")).
 
@@ -306,13 +306,13 @@ builtin_member_shape_test() ->
                         {error, [#diag{message = M} | _]} -> M
                     end
             end,
-    ?assertEqual(ok, Check("export fn compare(a : Int, b : Int) -> Ordering = Equal\n")),
+    ?assertEqual(ok, Check("export fn compare(a : Int, b : Int) : Ordering = Equal\n")),
     ?assertEqual("Int.compare must have the type (Int, Int) -> Ordering, not (Int, Int) -> Int",
-                 Check("export fn compare(a : Int, b : Int) -> Int = 0\n")),
+                 Check("export fn compare(a : Int, b : Int) : Int = 0\n")),
     ?assertEqual("Int.negate must have the type (Int) -> Int, not (Int, Int) -> Int",
-                 Check("export fn negate(a : Int, b : Int) -> Int = a\n")),
+                 Check("export fn negate(a : Int, b : Int) : Int = a\n")),
     ?assertEqual("Int.+ must have the type (Int, Int) -> Int, not (Int, Float) -> Int",
-                 Check("export fn Int.+(a : Int, b : Float) -> Int = a\n")).
+                 Check("export fn Int.+(a : Int, b : Float) : Int = a\n")).
 
 %% report §4.8, §3.9: an operator's member is checked when first demanded,
 %% so a helper both the member and another definition use keeps its
@@ -324,16 +324,16 @@ operator_member_on_demand_test() ->
     ?assertEqual("(M.Vec, M.Vec) -> #(String, Int)",
                  type_of(Vec ++ "export fn f(a : Vec, b) = { let _ = a + b; pair(\"s\", 2) }\n"
                          "fn pair(x, n : Int) = #(x, n + 1)\n"
-                         "export fn Vec.+(Vec(a), Vec(b)) -> Vec = {"
+                         "export fn Vec.+(Vec(a), Vec(b)) : Vec = {"
                          " let #(v, _) = pair(Vec(a + b), 1); v }\n", f)),
     %% norm uses Vec.+, and Vec.+ uses norm
     ?assertEqual("(M.Vec) -> M.Vec",
                  type_of(Vec ++ "export fn norm(v : Vec) = v + Vec(1)\n"
-                         "export fn Vec.+(Vec(a), Vec(b)) -> Vec ="
+                         "export fn Vec.+(Vec(a), Vec(b)) : Vec ="
                          " if a == 0 then norm(Vec(b)) else Vec(a + b)\n", norm)),
     %% one error, in the member; its user keeps its own type
     Errs = errs(Vec ++ "export fn f(a : Vec, b) = a + b\n"
-                "export fn Vec.+(Vec(a), Vec(b)) -> Vec = Vec(a <> b)\n"),
+                "export fn Vec.+(Vec(a), Vec(b)) : Vec = Vec(a <> b)\n"),
     ?assertEqual(["`<>` is not defined on Int"], Errs).
 
 
@@ -342,21 +342,21 @@ operator_member_on_demand_test() ->
 %% qualified name; an error elsewhere has no such label. Feedback item 59
 hidden_prelude_name_test() ->
     Text = "type Msg = Local(reply : Reply(Int)) | Stop\n"
-           "export fn main() -> Unit with Never = {\n"
-           "    let _ = spawn(Local, fn() -> Unit with Never = Unit);\n"
+           "export fn main() : Unit with Never = {\n"
+           "    let _ = spawn(Local, fn() : Unit with Never = Unit);\n"
            "    Unit\n"
            "}\n",
     {error, [#diag{labels = Labels}]} = ern_typecheck:check_string(['M'], Text),
     ?assertEqual(["`Local` here is this module's constructor; the prelude's is `Prelude.Local`"],
                  [L || {_, L} <- Labels]),
     {error, [#diag{labels = Others}]} =
-        ern_typecheck:check_string(['M'], "type Msg = Local(Int)\nfn f() -> Int = \"x\"\n"),
+        ern_typecheck:check_string(['M'], "type Msg = Local(Int)\nfn f() : Int = \"x\"\n"),
     ?assertEqual([], [L || {_, L} <- Others, string:find(L, "Prelude.") =/= nomatch]).
 
 %% report §3.10, Appendix E.21: a process has equality and no ordering, and
 %% a comparison of addresses is refused with the process behind each named
 process_identity_test() ->
-    ok("fn same(a : Address(Int), b : Address(Int)) -> Bool =\n"
+    ok("fn same(a : Address(Int), b : Address(Int)) : Bool =\n"
        "    Process.fromAddress(a) == Process.fromAddress(b)"),
     ?assertEqual("`==` is not defined on Address(Int): it contains a function or an address;"
                  " compare the processes behind addresses, `Process.fromAddress(a)`",
@@ -383,9 +383,9 @@ equality_test() ->
 %% ordering. A regression test: the checker conformed before it was
 %% written. It does not cover a prelude type's namespace.
 module_level_compare_gives_no_ordering_test() ->
-    D = "type D = D(Int)\nfn compare(D(a), D(b)) -> Ordering = Int.compare(a, b)\n",
+    D = "type D = D(Int)\nfn compare(D(a), D(b)) : Ordering = Int.compare(a, b)\n",
     ?assertEqual("`<` is not defined on D", err(D ++ "fn f(x : D, y : D) = x < y")),
-    ?assertEqual(ok, ok(D ++ "fn f(x : D, y : D) -> Ordering = compare(x, y)")).
+    ?assertEqual(ok, ok(D ++ "fn f(x : D, y : D) : Ordering = compare(x, y)")).
 
 %% report §3.10: a Map over a key without equality is refused at its first
 %% operation, and the error names the key, not a comparison; a Set's element
@@ -403,10 +403,10 @@ map_key_equality_test() ->
                  "; compare the processes behind addresses, `Process.fromAddress(a)`",
                  err("fn f(a : Address(Int)) = Set.put(Set.empty, a)")),
     ?assertEqual(ok, ok("type Box = Box(m : Map((Int) -> Int, Int))\n"
-                        "fn f(m : Map((Int) -> Int, Int)) -> Int = 1\n"
-                        "fn g(b : Box) -> Box = b")),
+                        "fn f(m : Map((Int) -> Int, Int)) : Int = 1\n"
+                        "fn g(b : Box) : Box = b")),
     ?assertEqual("(Map(#(k=, Int), v)) -> Map(#(k=, Int), v)",
-                 type_of("export fn f(m : Map(#(k, Int), v)) -> Map(#(k, Int), v) = m", f)),
+                 type_of("export fn f(m : Map(#(k, Int), v)) : Map(#(k, Int), v) = m", f)),
     ?assertEqual("Address(Int) does not support equality (it contains a function or an"
                  " address), and a Map's key needs it"
                  "; compare the processes behind addresses, `Process.fromAddress(a)`",
@@ -422,9 +422,9 @@ map_key_equality_test() ->
 effects_test() ->
     ?assertEqual("() -> Unit with e", type_of("export fn main() = Io.println(\"x\")", main)),
     ?assertEqual("() -> Unit with Never",
-                 type_of("export fn main() -> Unit with Never = Io.println(\"x\")", main)),
+                 type_of("export fn main() : Unit with Never = Io.println(\"x\")", main)),
     ?assertEqual("Io.println needs a process, and main is pure",
-                 err("fn main() -> Unit = Io.println(\"x\")")),
+                 err("fn main() : Unit = Io.println(\"x\")")),
     ?assertEqual("() -> Address(a) with a", type_of("export fn me() = self()", me)),
     ?assertEqual("(Address(a), a) -> Unit with e",
                  type_of("export fn wrap(a, v) = send(a, v)", wrap)),
@@ -433,46 +433,46 @@ effects_test() ->
                  type_of("export fn inc(xs) = List.map(xs, fn(x) = x + 1)", inc)),
     ?assertEqual("(List(String)) -> Unit with e",
                  type_of("export fn say(xs) = List.foreach(xs, fn(x) = Io.println(x))", say)),
-    ?assertEqual(ok, ok("type A = A\ntype B = B\nfn ga() -> Unit with A = Unit\n"
-                        "fn gb() -> Unit with B = Unit\nfn ha() -> Unit with A = ga()")),
-    ?assertMatch({error, [_]}, ok("type A = A\ntype B = B\nfn ga() -> Unit with A = Unit\n"
-                                  "fn gb() -> Unit with B = Unit\n"
+    ?assertEqual(ok, ok("type A = A\ntype B = B\nfn ga() : Unit with A = Unit\n"
+                        "fn gb() : Unit with B = Unit\nfn ha() : Unit with A = ga()")),
+    ?assertMatch({error, [_]}, ok("type A = A\ntype B = B\nfn ga() : Unit with A = Unit\n"
+                                  "fn gb() : Unit with B = Unit\n"
                                   "fn both() = { ga(); gb() }")).
 
 %% report §6.1, §6.3, §6.8, §7.2: a missing reply is `after` in receive; a
 %% receive makes its function process-only, one with only `after` too
 receive_and_mailboxes_test() ->
     Counter = "type CounterMsg = Inc(Int) | Get(reply : Reply(Int))\n"
-              "export fn counter(n : Int) -> Unit with CounterMsg = receive {\n"
+              "export fn counter(n : Int) : Unit with CounterMsg = receive {\n"
               "    Inc(k) -> counter(n + k)\n"
               "  | Get(reply = r) -> { answer(r, n); counter(n) }\n}",
     ?assertEqual("(Int) -> Unit with M.CounterMsg", type_of(Counter, counter)),
     ?assertEqual("`receive` needs a process, and f is pure",
-                 err("fn f() -> Unit = receive { after 1 -> Unit }")),
-    ?assertEqual(ok, ok("fn f() -> Unit with Never = receive { after 1 -> Unit }")),
+                 err("fn f() : Unit = receive { after 1 -> Unit }")),
+    ?assertEqual(ok, ok("fn f() : Unit with Never = receive { after 1 -> Unit }")),
     %% an after-only receive, inferred, is process-only (a regression case,
     %% added after the checker conformed)
     ?assertEqual("(Int) -> Unit with e",
                  type_of("export fn sleep(ms : Int) = receive { after ms -> Unit }", sleep)),
     ?assertEqual("sleep needs a process, and p is pure",
                  err("fn sleep(ms : Int) = receive { after ms -> Unit }\n"
-                     "fn p() -> Unit = sleep(1)")),
+                     "fn p() : Unit = sleep(1)")),
     ?assertEqual("a function with mailbox Never cannot receive",
-                 err("fn f() -> Unit with Never = receive { Unit -> Unit }")),
+                 err("fn f() : Unit with Never = receive { Unit -> Unit }")),
     ?assertEqual("(a!) -> Unit with e",
                  type_of("export fn tick(n) = { let m = receive { k -> k }; Unit }", tick)).
 
 %% report §6.2, §4.6
 spawn_test() ->
-    ?assertEqual(ok, ok("fn work() -> Unit with Never = Unit\n"
-                        "fn main() -> Unit with Never = { let _ = spawn(Local, fn() = work());"
+    ?assertEqual(ok, ok("fn work() : Unit with Never = Unit\n"
+                        "fn main() : Unit with Never = { let _ = spawn(Local, fn() = work());"
                         " Unit }")),
     %% a callback written pure is spawned as any pure function is (report §3.9)
-    ?assertEqual(ok, ok("fn main() -> Unit with Never = {"
-                        " let _ = spawn(Local, fn() -> Unit = Unit); Unit }")),
+    ?assertEqual(ok, ok("fn main() : Unit with Never = {"
+                        " let _ = spawn(Local, fn() : Unit = Unit); Unit }")),
     ?assertEqual("the type of a is not determined (Address(a)); use it, or annotate it",
                  err("fn work() = Unit\n"
-                     "fn main() -> Unit with Never = { let a = spawn(Local, fn() = work());"
+                     "fn main() : Unit with Never = { let a = spawn(Local, fn() = work());"
                      " Unit }")).
 
 %% report §4.5, §3.9, §11.5: a pure result annotation on an effect-polymorphic
@@ -486,20 +486,20 @@ spawn_test() ->
 effect_mismatch_direction_test() ->
     ?assertEqual("the argument does not fit apply: a function that runs in a process where a"
                  " pure one is needed",
-                 err("fn apply(f, x) -> Int = f(x)\n"
-                     "fn g(a : Address(Int)) -> Int with m ="
+                 err("fn apply(f, x) : Int = f(x)\n"
+                     "fn g(a : Address(Int)) : Int with m ="
                      " apply(fn(y) = { send(a, y); y }, 1)")),
     ?assertEqual("the value does not have the declared type: a function that runs in a process"
                  " where a pure one is needed",
-                 err("fn g() -> Int with Never = {"
+                 err("fn g() : Int with Never = {"
                      " let k : (Int) -> Int = fn(y) = { Io.println(\"x\"); y }; k(1) }")),
     %% h hands k a process function, and k's parameter must be pure
     ?assertEqual("the argument does not fit h: a function that runs in a process where a"
                  " pure one is needed",
-                 err("fn h(k : ((Int) -> Int with m) -> Int) -> Int with m ="
+                 err("fn h(k : ((Int) -> Int with m) -> Int) : Int with m ="
                      " { let _ = self(); k(fn(x) = x) }\n"
-                     "fn g() -> Int with Never = h(fn(f : (Int) -> Int) -> Int = f(1))")),
-    ?assertEqual(ok, ok("fn apply(f, x) -> Int = f(x)\nfn g() -> Int = apply(fn(y) = y + 1, 1)")).
+                     "fn g() : Int with Never = h(fn(f : (Int) -> Int) : Int = f(1))")),
+    ?assertEqual(ok, ok("fn apply(f, x) : Int = f(x)\nfn g() : Int = apply(fn(y) = y + 1, 1)")).
 
 %% report §5.9
 guards_are_pure_test() ->
@@ -507,7 +507,7 @@ guards_are_pure_test() ->
     ?assertMatch("a guard is a Bool: " ++ _,
                  err("fn f(n : Int) = match n { k when k -> 1 | _ -> 0 }")),
     ?assertEqual("Io.println needs a process, and a guard is pure",
-                 err("fn f(n : Int) -> Int with Never = match n {"
+                 err("fn f(n : Int) : Int with Never = match n {"
                      " k when Io.println(\"x\") == Unit -> 1 | _ -> 0 }")).
 
 %%
@@ -558,7 +558,7 @@ local_fn_names_are_plain_test() ->
 %% has type Unit, so an Either an error would ride on is not dropped unseen;
 %% `let _ =` discards on purpose, and a statement of any Unit type passes
 statement_is_unit_test() ->
-    Check = "fn check(n : Int) -> Either(String, Int) =\n"
+    Check = "fn check(n : Int) : Either(String, Int) =\n"
             "    if n > 0 then Right(n) else Left(\"neg\")\n",
     ?assertEqual("this statement's value is discarded: expected Unit,"
                  " found Either(String, Int)",
@@ -566,9 +566,9 @@ statement_is_unit_test() ->
     {error, [#diag{help = Help} | _]} = check(Check ++ "fn f() = { check(-1); 1 }"),
     ?assertEqual("`let _ = ...` discards it on purpose", Help),
     ?assertEqual(ok, ok(Check ++ "fn f() = { let _ = check(-1); 1 }")),
-    ?assertEqual(ok, ok("fn f(a : Address(Int)) -> Int with m = { send(a, 1); 2 }")),
+    ?assertEqual(ok, ok("fn f(a : Address(Int)) : Int with m = { send(a, 1); 2 }")),
     %% a statement whose type is still open is settled at Unit
-    ?assertEqual(ok, ok("fn f() -> Int = { fault(\"later\"); 1 }")).
+    ?assertEqual(ok, ok("fn f() : Int = { fault(\"later\"); 1 }")).
 
 %% report §5.4
 local_fn_forward_reference_test() ->
@@ -604,16 +604,16 @@ local_fn_used_before_let_test() ->
 
 %% report §5.5
 bind_arrow_test() ->
-    Opt = "export fn parseAndAdd(a : String, b : String) -> Optional(Int) = {\n"
+    Opt = "export fn parseAndAdd(a : String, b : String) : Optional(Int) = {\n"
           "    let x <- String.toInt(a);\n    let y <- String.toInt(b);\n    Some(x + y)\n}",
     ?assertEqual("(String, String) -> Optional(Int)", type_of(Opt, parseAndAdd)),
-    Either = "export fn positiveInt(text : String) -> Either(String, Int) = {\n"
+    Either = "export fn positiveInt(text : String) : Either(String, Int) = {\n"
              "    let n <- Either.fromOptional(String.toInt(text), \"not an integer\");\n"
              "    if n > 0 then Right(n) else Left(\"not positive\")\n}",
     ?assertEqual("(String) -> Either(String, Int)", type_of(Either, positiveInt)),
     %% inferred from the block's type when e is not yet known
     ?assertEqual("(a) -> Either(String, Int)",
-                 type_of("export fn f(n) -> Either(String, Int) = { let x <- g(n); Right(x + 1) }\n"
+                 type_of("export fn f(n) : Either(String, Int) = { let x <- g(n); Right(x + 1) }\n"
                          "fn g(n) = f(n)", f)),
     ?assertMatch("after `let p <- e` the block must have the same sum type as e: " ++ _,
                  err("fn f(a : String) = { let x <- String.toInt(a); Right(x) }")),
@@ -627,9 +627,9 @@ bind_arrow_open_sum_and_pattern_test() ->
     ?assertEqual("`<-` needs to know whether the value is an Either or an Optional; annotate it",
                  err("fn g(x) = { let a <- x; x }")),
     ?assertEqual("a `let` pattern must be irrefutable",
-                 err("fn f(x : Optional(Optional(Int))) -> Optional(Int) ="
+                 err("fn f(x : Optional(Optional(Int))) : Optional(Int) ="
                      " { let Some(y) <- x; y }")),
-    ?assertEqual(ok, ok("fn f(x : Optional(#(Int, Int))) -> Optional(Int) ="
+    ?assertEqual(ok, ok("fn f(x : Optional(#(Int, Int))) : Optional(Int) ="
                         " { let #(a, b) <- x; Some(a + b) }")).
 
 %%
@@ -673,34 +673,34 @@ declared_once_test() ->
 %% enclosing block, and a top-level function, are no variables.
 local_fn_takes_no_variables_name_test() ->
     Scope = "local function g has the name of a variable in scope where it is declared",
-    ?assertEqual(Scope, err("fn f(g : Int) -> Int = { fn g() -> Int = 1; g() }")),
-    ?assertEqual(Scope, err("fn f() -> Int = { let g = 1; fn g() -> Int = 2; g() }")),
-    ?assertEqual(Scope, err("fn f(x : Int) -> Int = match x { g -> { fn g() -> Int = 2; g() } }")),
-    ?assertEqual(Scope, err("fn f(p : #(Int, Int)) -> Int = {"
-                            " let #(a, g) = p; fn g() -> Int = a; g() }")),
-    ?assertEqual(Scope, err("fn f() -> Int ="
-                            " { let h = fn(g : Int) -> Int = { fn g() -> Int = 2; g() }; h(1) }")),
-    ?assertEqual(Scope, err("let k = fn(g : Int) -> Int = { fn g() -> Int = 2; g() }")),
-    ?assertEqual(Scope, err("fn f(g : Int) -> Int = { fn h() -> Int = { fn g() -> Int = 1; g() };"
+    ?assertEqual(Scope, err("fn f(g : Int) : Int = { fn g() : Int = 1; g() }")),
+    ?assertEqual(Scope, err("fn f() : Int = { let g = 1; fn g() : Int = 2; g() }")),
+    ?assertEqual(Scope, err("fn f(x : Int) : Int = match x { g -> { fn g() : Int = 2; g() } }")),
+    ?assertEqual(Scope, err("fn f(p : #(Int, Int)) : Int = {"
+                            " let #(a, g) = p; fn g() : Int = a; g() }")),
+    ?assertEqual(Scope, err("fn f() : Int ="
+                            " { let h = fn(g : Int) : Int = { fn g() : Int = 2; g() }; h(1) }")),
+    ?assertEqual(Scope, err("let k = fn(g : Int) : Int = { fn g() : Int = 2; g() }")),
+    ?assertEqual(Scope, err("fn f(g : Int) : Int = { fn h() : Int = { fn g() : Int = 1; g() };"
                             " h() }")),
     ?assertEqual("local function g has the name of a `let` of its block",
-                 err("fn f() -> Int = { fn g() -> Int = 2; let g = 1; g }")),
-    D = diag("fn f(g : Int) -> Int = { fn g() -> Int = 1; g() }"),
+                 err("fn f() : Int = { fn g() : Int = 2; let g = 1; g }")),
+    D = diag("fn f(g : Int) : Int = { fn g() : Int = 1; g() }"),
     ?assertEqual([{{1, 6, {1, 7}}, "g is bound here"}], D#diag.labels),
     ?assertEqual("rename the function or the variable", D#diag.help),
-    ?assertEqual(ok, ok("fn g() -> Int = 1\nfn f() -> Int = { fn g() -> Int = 2; g() }")),
-    ?assertEqual(ok, ok("fn f() -> Int ="
-                        " { let x = { let g = 1; g }; fn g() -> Int = 2; g() + x }")),
-    ?assertEqual(ok, ok("fn f(x : Int) -> Int = { fn g(g : Int) -> Int = g; g(x) }")).
+    ?assertEqual(ok, ok("fn g() : Int = 1\nfn f() : Int = { fn g() : Int = 2; g() }")),
+    ?assertEqual(ok, ok("fn f() : Int ="
+                        " { let x = { let g = 1; g }; fn g() : Int = 2; g() + x }")),
+    ?assertEqual(ok, ok("fn f(x : Int) : Int = { fn g(g : Int) : Int = g; g(x) }")).
 
 %% report §3.9
 annotations_are_rigid_test() ->
-    ?assertEqual("type variable a in the annotation is used as Int", err("fn f(x : a) -> a = 1")),
+    ?assertEqual("type variable a in the annotation is used as Int", err("fn f(x : a) : a = 1")),
     ?assertEqual("two type variables in the annotation are used as one type",
-                 err("fn f(x : a, y : b) -> a = y")),
-    ?assertEqual("(a) -> a", type_of("export fn id(x : a) -> a = x", id)),
+                 err("fn f(x : a, y : b) : a = y")),
+    ?assertEqual("(a) -> a", type_of("export fn id(x : a) : a = x", id)),
     ?assertMatch("the body does not have the declared return type: " ++ _,
-                 err("fn f(x : Int) -> String = x")).
+                 err("fn f(x : Int) : String = x")).
 
 %% report §3.9: a local fn's signature shares the enclosing signature's
 %% variables, rigid there; a variable named only in it is the local fn's
@@ -708,19 +708,19 @@ annotations_are_rigid_test() ->
 %% `inner(1)` was accepted where the enclosing `a` is not Int.
 local_fn_signature_shares_variables_test() ->
     ?assertEqual("(a) -> a",
-                 type_of("export fn outer(x : a) -> a = { fn inner(y : a) -> a = y; inner(x) }",
+                 type_of("export fn outer(x : a) : a = { fn inner(y : a) : a = y; inner(x) }",
                          outer)),
     ?assertEqual("type variable a in the annotation is used as Int",
-                 err("fn outer(x : a) -> a = { fn inner(y : a) -> a = y; inner(1) }")),
+                 err("fn outer(x : a) : a = { fn inner(y : a) : a = y; inner(1) }")),
     ?assertEqual("type variable a in the annotation is used as Int",
-                 err("fn outer(x : a) -> Int = { fn inner(y : a) -> a = y; inner(1) }")),
+                 err("fn outer(x : a) : Int = { fn inner(y : a) : a = y; inner(1) }")),
     ?assertEqual("(a) -> a",
-                 type_of("export fn outer(x : a) -> a ="
-                         " { fn id(y : b) -> b = y; let _ = id(1); id(x) }", outer)),
+                 type_of("export fn outer(x : a) : a ="
+                         " { fn id(y : b) : b = y; let _ = id(1); id(x) }", outer)),
     ?assertEqual("two type variables in the annotation are used as one type",
-                 err("fn outer(x : a) -> a = { fn g(y : b) -> b = x; x }")),
+                 err("fn outer(x : a) : a = { fn g(y : b) : b = x; x }")),
     ?assertEqual("type variable b in the annotation is used as Int",
-                 err("fn outer(x : a) -> a = { fn g(y : b) -> b = 1; x }")).
+                 err("fn outer(x : a) : a = { fn g(y : b) : b = 1; x }")).
 
 %% report §3.9: polymorphic recursion is refused, even under a full
 %% signature. A regression test: the checker conformed before it was
@@ -729,7 +729,7 @@ polymorphic_recursion_is_refused_test() ->
     ?assertEqual("recursive use does not match the definition: a type that would contain"
                  " itself ((Nested(List(a))) -> Int against (Nested(a)) -> Int)",
                  err("type Nested(a) = Flat(a) | Nest(Nested(List(a)))\n"
-                     "fn depth(n : Nested(a)) -> Int ="
+                     "fn depth(n : Nested(a)) : Int ="
                      " match n { Flat(_) -> 0 | Nest(m) -> 1 + depth(m) }")).
 
 %% report §3.9: a signature's type variables reach a block `let`'s annotation,
@@ -740,26 +740,26 @@ polymorphic_recursion_is_refused_test() ->
 %% definition of its own.
 block_let_annotation_variables_test() ->
     ?assertEqual("type variable a in the annotation is used as Int",
-                 err("fn f(x : a) -> Int = { let y : a = 1; y }")),
+                 err("fn f(x : a) : Int = { let y : a = 1; y }")),
     ?assertEqual("type variable a in the annotation is used as Int",
-                 err("fn f(x : Optional(a), n : Int) -> Optional(Int) ="
+                 err("fn f(x : Optional(a), n : Int) : Optional(Int) ="
                      " { let y : a <- Some(n); Some(y) }")),
-    ?assertEqual("(a) -> a", type_of("export fn f(x : a) -> a = { let y : a = x; y }", f)),
-    ?assertEqual(ok, ok("fn f(x : Int) -> Int = { let y : a = x; y }")),
-    ?assertEqual(ok, ok("fn f(x : Int) -> Int = { let y : a = x; let z : a = \"s\"; y }")),
+    ?assertEqual("(a) -> a", type_of("export fn f(x : a) : a = { let y : a = x; y }", f)),
+    ?assertEqual(ok, ok("fn f(x : Int) : Int = { let y : a = x; y }")),
+    ?assertEqual(ok, ok("fn f(x : Int) : Int = { let y : a = x; let z : a = \"s\"; y }")),
     %% the lambda's own b, not rigid, is the one the inner `let` names
-    ?assertEqual(ok, ok("fn f(x : Int) -> Int ="
-                        " { let g = fn(y : b) -> b = { let z : b = y; z }; g(x) }")),
+    ?assertEqual(ok, ok("fn f(x : Int) : Int ="
+                        " { let g = fn(y : b) : b = { let z : b = y; z }; g(x) }")),
     ?assertEqual("the argument does not fit g: expected String, found Int",
-                 err("fn f(x : Int) -> Int ="
-                     " { let g = fn(y : b) -> b = { let z : b = \"s\"; z }; g(x) }")).
+                 err("fn f(x : Int) : Int ="
+                     " { let g = fn(y : b) : b = { let z : b = \"s\"; z }; g(x) }")).
 
 %% report §3.4
 with_binds_to_the_nearest_arrow_test() ->
     ?assertEqual("(Int) -> ((Int) -> Int with Never)",
-                 type_of("export fn f(a : Int) -> (Int) -> Int with Never = fn(b) = a + b", f)),
+                 type_of("export fn f(a : Int) : (Int) -> Int with Never = fn(b) = a + b", f)),
     ?assertEqual("(Int) -> (Int) -> Int with Never",
-                 type_of("export fn f(a : Int) -> ((Int) -> Int) with Never = fn(b) = a + b",
+                 type_of("export fn f(a : Int) : ((Int) -> Int) with Never = fn(b) = a + b",
                          f)).
 
 %% report §5.9: the alternatives of a clause bind the same variables at the
@@ -786,7 +786,7 @@ or_pattern_test() ->
 %% report §4.8: an operator is declared with `fn`
 let_operator_test() ->
     ?assertEqual("an operator is declared with `fn`, not `let`",
-                 err("type Vec = Vec(Int)\nlet Vec.+ = fn(a : Vec, b : Vec) -> Vec = a")),
+                 err("type Vec = Vec(Int)\nlet Vec.+ = fn(a : Vec, b : Vec) : Vec = a")),
     ?assertEqual(ok, ok("type Vec = Vec(Int)\nlet Vec.zero = Vec(0)")).
 
 %% report §8.5
@@ -794,13 +794,13 @@ let_cycle_test() ->
     ?assertEqual("the initializer of a depends on itself, through b",
                  err("let a : Int = b\nlet b : Int = a")),
     ?assertEqual("the initializer of a depends on itself, through f",
-                 err("let a : Int = f()\nfn f() -> Int = a")),
+                 err("let a : Int = f()\nfn f() : Int = a")),
     ?assertEqual("the initializer of a depends on itself", err("let a : Int = a")),
     ?assertEqual(ok, ok("let a : Int = b + 1\nlet b : Int = 1")),
     %% through an operator's member (report §4.8)
     ?assertEqual("the initializer of x depends on itself, through Vec.+, y",
                  err("export type Vec = Vec(Int)\nlet x = Vec(1) + Vec(2)\nlet y = x\n"
-                     "export fn Vec.+(Vec(a), Vec(b)) -> Vec ="
+                     "export fn Vec.+(Vec(a), Vec(b)) : Vec ="
                      " { let Vec(c) = y; Vec(a + b + c) }")),
     %% two independent cycles are two errors
     ?assertEqual(["the initializer of a depends on itself",
@@ -812,10 +812,10 @@ let_cycle_test() ->
 %% regression test: the checker conformed before it was written.
 let_cycle_through_a_named_function_test() ->
     ?assertEqual("the initializer of handlers depends on itself, through f",
-                 err("let handlers = [f]\nfn f() -> Int = List.size(handlers)\n")),
+                 err("let handlers = [f]\nfn f() : Int = List.size(handlers)\n")),
     ?assert(lists:member("the initializer of a depends on itself", errs("let a = fn() = a\n"))),
     ?assertEqual(["the initializer of a depends on itself"],
-                 errs("let a : () -> Int = fn() -> Int = a()\n")).
+                 errs("let a : () -> Int = fn() : Int = a()\n")).
 
 %% report §4.6
 toplevel_let_test() ->
@@ -828,7 +828,7 @@ toplevel_let_test() ->
     ?assertEqual("Unit", type_of("export let x = Io.println(\"a\")", x)),
     ?assertEqual("Address(Int)",
                  type_of("export let s : Address(Int) =\n"
-                         "    spawn(Local, fn() -> Unit with Int = receive { n -> Unit })", s)),
+                         "    spawn(Local, fn() : Unit with Int = receive { n -> Unit })", s)),
     ?assertEqual("a top-level initializer runs with mailbox Never and cannot receive",
                  err("let x = receive { n -> n }")),
     %% report §3.9, §4.6: one whose initializer calls a process-only function
@@ -852,7 +852,7 @@ reply_through_bindings_test() ->
                  type_of("export fn dup(x) = { let y = x; #(y, y) }", dup)),
     ?assertEqual("(a!) -> Unit", type_of("export fn drop(x) = { let y = x; Unit }", drop)),
     ?assertEqual("(M.Box(a!)) -> Unit",
-                 type_of(Req ++ "export fn forget(b : Box(a)) -> Unit = Unit", forget)),
+                 type_of(Req ++ "export fn forget(b : Box(a)) : Unit = Unit", forget)),
     ?assertEqual("(a) -> a", type_of("export fn keep(x) = { let y = x; y }", keep)),
     ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
                  " discards its argument",
@@ -879,25 +879,25 @@ reply_carrying_by_the_fields_test() ->
                       ern_types:format_scheme(maps:get(['M', Name], Vs),
                                               ern_typecheck:type_state(Env))
               end,
-    ?assertEqual("(H(e)) -> Unit", Printed("export fn drop(h : H(e)) -> Unit = Unit\n", drop)),
+    ?assertEqual("(H(e)) -> Unit", Printed("export fn drop(h : H(e)) : Unit = Unit\n", drop)),
     ?assertEqual("(WH(e)) -> Unit",
-                 Printed("export fn drop(h : WH(e)) -> Unit = Unit\n", drop)),
+                 Printed("export fn drop(h : WH(e)) : Unit = Unit\n", drop)),
     ?assertEqual("(Lst(a)) -> Unit",
-                 Printed("export fn drop(b : Lst(a)) -> Unit = Unit\n", drop)),
+                 Printed("export fn drop(b : Lst(a)) : Unit = Unit\n", drop)),
     ?assertEqual("(Box(a!)) -> Unit",
-                 Printed("export fn drop(b : Box(a)) -> Unit = Unit\n", drop)),
+                 Printed("export fn drop(b : Box(a)) : Unit = Unit\n", drop)),
     ?assertEqual("(Wrap(a!)) -> Unit",
-                 Printed("export fn drop(b : Wrap(a)) -> Unit = Unit\n", drop)),
+                 Printed("export fn drop(b : Wrap(a)) : Unit = Unit\n", drop)),
     ?assertEqual("(Pair(a!)) -> Unit",
-                 Printed("export fn drop(b : Pair(a)) -> Unit = Unit\n", drop)),
+                 Printed("export fn drop(b : Pair(a)) : Unit = Unit\n", drop)),
     %% an H over a mailbox of requests is no reply, and may be dropped
     Req = "type Req = Get(reply : Reply(Int))\n",
-    ?assertEqual(ok, ok(Types ++ Req ++ "fn drop(h : H(e)) -> Unit = Unit\n"
-                        "fn f(h : H(Req)) -> Unit = { drop(h); drop(h) }\n")),
+    ?assertEqual(ok, ok(Types ++ Req ++ "fn drop(h : H(e)) : Unit = Unit\n"
+                        "fn f(h : H(Req)) : Unit = { drop(h); drop(h) }\n")),
     ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
                  " discards its argument",
-                 err(Types ++ "fn drop(b : Box(a)) -> Unit = Unit\n"
-                     "fn f(r : Reply(Int)) -> Unit = drop(Box(r))\n")).
+                 err(Types ++ "fn drop(b : Box(a)) : Unit = Unit\n"
+                     "fn f(r : Reply(Int)) : Unit = drop(Box(r))\n")).
 
 %% report §3.5, §4.8, §11.5: a field is selected where every constructor has
 %% it, of one type; a type found later in the definition serves, one never
@@ -908,7 +908,7 @@ field_selection_test() ->
     ?assertEqual("(M.Shape) -> Int", type_of(Shape ++ "export fn f(s : Shape) = s.at.x", f)),
     ?assertEqual("(M.Point) -> Int",
                  type_of(Shape ++ "export fn g(p) = { let n = p.x; n + norm(p) }\n"
-                         "fn norm(p : Point) -> Int = p.y", g)),
+                         "fn norm(p : Point) : Int = p.y", g)),
     ?assertEqual("Shape has no field radius in every constructor: Dot has none",
                  err(Shape ++ "fn f(s : Shape) = s.radius")),
     ?assertEqual("Point has no field z", err(Shape ++ "fn f(p : Point) = p.z")),
@@ -937,13 +937,13 @@ constructors_test() ->
 %% the value was the other constructor.
 update_needs_one_constructor_test() ->
     T = "type T = A(x : Int, y : Int) | B(x : Int, y : Int)\n",
-    D = diag(T ++ "fn f(t : T) -> T = A(..t, x = 1)\n"),
+    D = diag(T ++ "fn f(t : T) : T = A(..t, x = 1)\n"),
     ?assertEqual("`..` is allowed only on a type with one constructor, and T has 2",
                  D#diag.message),
     ?assertEqual("give every field of A", D#diag.help),
-    ?assertEqual(ok, ok(T ++ "fn f(t : T) -> T = A(x = 1, y = t.y)\n")),
+    ?assertEqual(ok, ok(T ++ "fn f(t : T) : T = A(x = 1, y = t.y)\n")),
     ?assertEqual(ok, ok("type P(a) = P(x : a, y : Int)\n"
-                        "fn f(p : P(String)) -> P(String) = P(..p, y = 2)\n")).
+                        "fn f(p : P(String)) : P(String) = P(..p, y = 2)\n")).
 
 %% report §5.2
 calls_test() ->
@@ -989,13 +989,13 @@ exhaustiveness_test() ->
 %% report §6.6
 reply_test() ->
     Msg = "type Req = Get(reply : Reply(Int)) | Stop\n",
-    ?assertEqual(ok, ok(Msg ++ "fn serve(n : Int) -> Unit with Req = receive {\n"
+    ?assertEqual(ok, ok(Msg ++ "fn serve(n : Int) : Unit with Req = receive {\n"
                         "    Get(reply = r) -> { answer(r, n); serve(n) }\n  | Stop -> Unit }")),
     ?assertEqual("the reply-carrying value r is never consumed",
-                 err(Msg ++ "fn serve(n : Int) -> Unit with Req = receive {\n"
+                 err(Msg ++ "fn serve(n : Int) : Unit with Req = receive {\n"
                      "    Get(reply = r) -> serve(n)\n  | Stop -> Unit }")),
     ?assertEqual("the reply-carrying value r is consumed twice",
-                 err(Msg ++ "fn serve(n : Int) -> Unit with Req = receive {\n"
+                 err(Msg ++ "fn serve(n : Int) : Unit with Req = receive {\n"
                      "    Get(reply = r) -> { answer(r, n); answer(r, n) }\n  | Stop -> Unit }")),
     ?assertEqual("the reply-carrying value request is consumed twice",
                  err(Msg ++ "fn twice(dst : Address(Req), request : Req) ="
@@ -1017,8 +1017,8 @@ reply_test() ->
     ?assertEqual("the reply-carrying value r is captured by a lambda that is not called, bound by"
                  " `let`, or passed directly to spawn or spawnMonitored",
                  err(Msg ++ "fn f(r : Reply(Int)) = List.map([1], fn(x) = answer(r, x))")),
-    ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never ="
-                        " { let _ = spawn(Local, fn() -> Unit with Never = answer(r, 1)); Unit }")),
+    ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) : Unit with Never ="
+                        " { let _ = spawn(Local, fn() : Unit with Never = answer(r, 1)); Unit }")),
     ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
                  " discards its argument",
                  err(Msg ++ "fn dup(x) = #(x, x)\nfn f(r : Reply(Int)) = dup(r)")),
@@ -1035,11 +1035,11 @@ reply_test() ->
 %% not cover a local fn that captures a lambda that captured the reply.
 reply_through_functions_test() ->
     ?assertEqual("the reply-carrying value r is captured by a local function",
-                 err("fn f(r : Reply(Int)) -> Unit with Never = { fn go() = answer(r, 1); go() }")),
+                 err("fn f(r : Reply(Int)) : Unit with Never = { fn go() = answer(r, 1); go() }")),
     Pass = "fn pass(r : Reply(Int)) = r\n",
-    ?assertEqual(ok, ok(Pass ++ "fn f(r : Reply(Int)) -> Unit with Never = answer(pass(r), 1)")),
+    ?assertEqual(ok, ok(Pass ++ "fn f(r : Reply(Int)) : Unit with Never = answer(pass(r), 1)")),
     ?assertEqual("the reply-carrying value x is never consumed",
-                 err(Pass ++ "fn g(r : Reply(Int)) -> Unit with Never ="
+                 err(Pass ++ "fn g(r : Reply(Int)) : Unit with Never ="
                      " { let x = pass(r); Unit }")).
 
 %% report §6.6, §3.9, §4.4, §4.7
@@ -1065,21 +1065,21 @@ warts_audit_test() ->
     %% report §8.4: the implementation is module:function/arity, the arity
     %% the parameter count
     ?assertEqual("the implementation names arity 2, and tick has 0 parameters",
-                 err("foreign fn tick() -> Unit with m = \"m:tick/2\"")),
+                 err("foreign fn tick() : Unit with m = \"m:tick/2\"")),
     ?assertEqual("the implementation of tick is named module:function/arity, as \"ets:new/2\"",
-                 err("foreign fn tick() -> Unit with m = \"tick\"")),
+                 err("foreign fn tick() : Unit with m = \"tick\"")),
     %% foreign fn with an effect is process-only
     ?assertEqual("tick needs a process, and f is pure",
-                 err("foreign fn tick() -> Unit with m = \"m:tick/0\"\nfn f() -> Unit = tick()")),
-    ?assertEqual(ok, ok("foreign fn tick() -> Unit with m = \"m:tick/0\"\n"
-                        "fn f() -> Unit with Never = tick()")),
+                 err("foreign fn tick() : Unit with m = \"m:tick/0\"\nfn f() : Unit = tick()")),
+    ?assertEqual(ok, ok("foreign fn tick() : Unit with m = \"m:tick/0\"\n"
+                        "fn f() : Unit with Never = tick()")),
     %% lambda annotation variables: the definition's are in scope and rigid,
     %% a new one belongs to the lambda and is not rigid
-    ?assertEqual("(a) -> a", type_of("export fn f(x : a) -> a = (fn(y : a) -> a = y)(x)", f)),
+    ?assertEqual("(a) -> a", type_of("export fn f(x : a) : a = (fn(y : a) : a = y)(x)", f)),
     ?assertEqual("type variable a in the annotation is used as Int",
-                 err("fn f(x : a) -> a = { let g = fn(y : a) -> a = 1; g(x) }")),
-    ?assertEqual("(Int) -> Int", type_of("export fn f(x : Int) = (fn(y : b) -> b = 1)(x)", f)),
-    ?assertEqual("(Int) -> Int", type_of("export fn f(x : Int) = (fn(y : b) -> b = y)(x)", f)).
+                 err("fn f(x : a) : a = { let g = fn(y : a) : a = 1; g(x) }")),
+    ?assertEqual("(Int) -> Int", type_of("export fn f(x : Int) = (fn(y : b) : b = 1)(x)", f)),
+    ?assertEqual("(Int) -> Int", type_of("export fn f(x : Int) = (fn(y : b) : b = y)(x)", f)).
 
 %% report §8.4: a foreign fn's implementation is named module:function/arity,
 %% and the arity is its parameter count; either mistake is a compile error.
@@ -1087,12 +1087,12 @@ warts_audit_test() ->
 %% not cover a module or function missing at run time.
 foreign_implementation_name_test() ->
     Named = "the implementation of tick is named module:function/arity, as \"ets:new/2\"",
-    ?assertEqual(Named, err("foreign fn tick(n : Int) -> Int = \"erlang:abs\"")),
-    ?assertEqual(Named, err("foreign fn tick(n : Int) -> Int = \"abs/1\"")),
-    ?assertEqual(Named, err("foreign fn tick(n : Int) -> Int = \"erlang:abs/x\"")),
+    ?assertEqual(Named, err("foreign fn tick(n : Int) : Int = \"erlang:abs\"")),
+    ?assertEqual(Named, err("foreign fn tick(n : Int) : Int = \"abs/1\"")),
+    ?assertEqual(Named, err("foreign fn tick(n : Int) : Int = \"erlang:abs/x\"")),
     ?assertEqual("the implementation names arity 2, and tick has 1 parameter",
-                 err("foreign fn tick(n : Int) -> Int = \"erlang:abs/2\"")),
-    ?assertEqual(ok, ok("foreign fn tick(n : Int) -> Int = \"erlang:abs/1\"")).
+                 err("foreign fn tick(n : Int) : Int = \"erlang:abs/2\"")),
+    ?assertEqual(ok, ok("foreign fn tick(n : Int) : Int = \"erlang:abs/1\"")).
 
 %% report §3.1
 base_types_test() ->
@@ -1118,7 +1118,7 @@ abstract_types_as_types_test() ->
 %% report §3.8
 foreign_types_test() ->
     Table = "export foreign type Table(k, v)\n"
-            "foreign fn rawNew(name : String) -> Table(k, v) with m = \"ets:new/1\"\n",
+            "foreign fn rawNew(name : String) : Table(k, v) with m = \"ets:new/1\"\n",
     ?assertEqual("(M.Table(Int, String)) -> M.Table(Int, String)",
                  type_of(Table ++ "export fn id(t : Table(Int, String)) = t", id)),
     ?assertEqual("() -> M.Table(a, b) with e",
@@ -1139,9 +1139,9 @@ foreign_types_test() ->
 %% review found stated and untested
 never_is_ordinary_test() ->
     ?assertEqual("the body does not have the declared return type: expected Int, found Never",
-                 err("fn f(x : Never) -> Int = x")),
-    ?assertEqual(ok, ok("fn f(x : Never) -> Never = x")),
-    ?assertEqual(ok, ok("fn f() -> Int = fault(\"no\")")).
+                 err("fn f(x : Never) : Int = x")),
+    ?assertEqual(ok, ok("fn f(x : Never) : Never = x")),
+    ?assertEqual(ok, ok("fn f() : Int = fault(\"no\")")).
 
 %% report §3.7, §9.1, §9.2, §9.3: every built-in and declared type is usable
 %% as a type, and every declared type's constructors cover it
@@ -1149,7 +1149,7 @@ prelude_types_test() ->
     ?assertEqual(ok, ok("fn f(a : Address(Int), n : Never, x : Foreign, l : List(Int),"
                         " m : Map(String, Int), s : Set(Char)) = Unit")),
     %% a Reply parameter must be consumed (§6.6), so it gets its own line
-    ?assertEqual(ok, ok("fn f(r : Reply(Int)) -> Unit with Never = answer(r, 1)")),
+    ?assertEqual(ok, ok("fn f(r : Reply(Int)) : Unit with Never = answer(r, 1)")),
     ?assertEqual(ok, ok("fn f(x : Unit) = match x { Unit -> 1 }")),
     ?assertEqual(ok, ok("fn f(x : Optional(Int)) = match x { None -> 0 | Some(v) -> v }")),
     ?assertEqual(ok, ok("fn f(x : Either(String, Int)) = match x { Left(_) -> 0"
@@ -1172,7 +1172,7 @@ prelude_values_test() ->
                   end, ern_prelude:values()),
     %% the process primitives are process-only, the stdlib combinators are not
     ?assertEqual("send needs a process, and f is pure",
-                 err("fn f(a : Address(Int)) -> Unit = send(a, 1)")),
+                 err("fn f(a : Address(Int)) : Unit = send(a, 1)")),
     ?assertEqual("(List(Int)) -> List(Int)",
                  type_of("export fn f(xs) = List.map(xs, fn(x : Int) = x)", f)),
     %% report §9.7: the prelude binds no system reference
@@ -1209,13 +1209,13 @@ abstract_type_test() ->
 %% the path's own. Feedback item 60
 fault_path_test() ->
     Msg = "type M = Add(amount : Int, reply : Reply(Int)) | Stop\n",
-    ?assertEqual(ok, ok(Msg ++ "fn serve() -> Unit with M = receive {\n"
+    ?assertEqual(ok, ok(Msg ++ "fn serve() : Unit with M = receive {\n"
                               "    Add(amount = n, reply = r) ->\n"
                               "        if n < 0 then fault(\"negative\")\n"
                               "        else { answer(r, n); serve() }\n"
                               "  | Stop -> Unit\n"
                               "}\n")),
-    ?assertEqual(ok, ok(Msg ++ "fn serve() -> Unit with M = receive {\n"
+    ?assertEqual(ok, ok(Msg ++ "fn serve() : Unit with M = receive {\n"
                               "    Add(amount = n, reply = r) -> match n {\n"
                               "        0 -> fault(\"zero\")\n"
                               "      | _ -> answer(r, n)\n"
@@ -1223,22 +1223,22 @@ fault_path_test() ->
                               "  | Stop -> Unit\n"
                               "}\n")),
     ?assertEqual("the reply-carrying value r is consumed on one path but not on another",
-                 err(Msg ++ "fn serve() -> Unit with M = receive {\n"
+                 err(Msg ++ "fn serve() : Unit with M = receive {\n"
                             "    Add(amount = n, reply = r) ->\n"
                             "        if n < 0 then serve() else answer(r, n)\n"
                             "  | Stop -> Unit\n"
                             "}\n")),
     ?assertEqual("the reply-carrying value r is consumed on one path but not on another",
-                 err(Msg ++ "fn reject(m : String) -> Unit = fault(m)\n"
-                            "fn serve() -> Unit with M = receive {\n"
+                 err(Msg ++ "fn reject(m : String) : Unit = fault(m)\n"
+                            "fn serve() : Unit with M = receive {\n"
                             "    Add(amount = n, reply = r) ->\n"
                             "        if n < 0 then reject(\"negative\") else answer(r, n)\n"
                             "  | Stop -> Unit\n"
                             "}\n")),
     ?assertEqual("the reply-carrying value r is never consumed",
-                 err(Msg ++ "fn serve() -> Unit with M = receive {\n"
+                 err(Msg ++ "fn serve() : Unit with M = receive {\n"
                             "    Add(amount = n, reply = r) -> {\n"
-                            "        let later = fn() -> Unit = fault(\"later\");\n"
+                            "        let later = fn() : Unit = fault(\"later\");\n"
                             "        later()\n"
                             "    }\n"
                             "  | Stop -> Unit\n"
@@ -1247,10 +1247,10 @@ fault_path_test() ->
 reply_lambda_restarting_test() ->
     ?assertEqual("the reply-carrying value r is captured by a lambda that is not called, bound by"
                  " `let`, or passed directly to spawn or spawnMonitored",
-                 err("fn worker(r : Reply(Int)) -> Unit with m = answer(r, 1)\n"
-                     "fn f(r : Reply(Int)) -> Unit with Never = {\n"
+                 err("fn worker(r : Reply(Int)) : Unit with m = answer(r, 1)\n"
+                     "fn f(r : Reply(Int)) : Unit with Never = {\n"
                      "    let limit = RestartLimit(restarts = 1, within = 1);\n"
-                     "    let g = restarting(limit, fn() -> Unit with Never = worker(r));\n"
+                     "    let g = restarting(limit, fn() : Unit with Never = worker(r));\n"
                      "    let _ = spawn(Local, g);\n"
                      "    Unit\n"
                      "}\n")).
@@ -1260,28 +1260,28 @@ reply_lambda_restarting_test() ->
 %% bindable by let, and legal nowhere else
 reply_lambda_test() ->
     Msg = "type Req = Get(reply : Reply(Int)) | Stop\n"
-          "fn worker(r : Reply(Int)) -> Unit with Never = answer(r, 1)\n",
-    ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
+          "fn worker(r : Reply(Int)) : Unit with Never = answer(r, 1)\n",
+    ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                         "    let g = fn() = worker(r);\n    let _ = spawn(Local, g);\n    Unit }")),
-    ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
+    ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                         "    let g = fn() = worker(r);\n    g() }")),
-    ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = (fn() = worker(r))()")),
+    ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) : Unit with Never = (fn() = worker(r))()")),
     ?assertEqual("the reply-carrying value g is consumed twice",
-                 err(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
+                 err(Msg ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                      "    let g = fn() = worker(r);\n    let _ = spawn(Local, g);\n    g() }")),
     ?assertEqual("the reply-carrying value g is never consumed",
-                 err(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
+                 err(Msg ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                      "    let g = fn() = worker(r);\n    Unit }")),
     ?assertEqual("the reply-carrying value g is captured by a lambda that is not called, bound by"
                  " `let`, or passed directly to spawn or spawnMonitored",
-                 err(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
+                 err(Msg ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                      "    let g = fn() = worker(r);\n    List.foreach([1], fn(_) = g()) }")),
     ?assertEqual("the lambda g captures a reply-carrying value and may only be called or passed"
                  " directly to spawn or spawnMonitored",
-                 err(Msg ++ "fn f(r : Reply(Int)) -> Unit with Never = {\n"
+                 err(Msg ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                      "    let g = fn() = worker(r);\n    let h = g;\n    h() }")),
     ?assertEqual("the reply-carrying value g is consumed on one path but not on another",
-                 err(Msg ++ "fn f(r : Reply(Int), b : Bool) -> Unit with Never = {\n"
+                 err(Msg ++ "fn f(r : Reply(Int), b : Bool) : Unit with Never = {\n"
                      "    let g = fn() = worker(r);\n    if b then g() else Unit }")).
 
 %% report §4.2: a module may name its own declarations by their qualified
@@ -1318,33 +1318,33 @@ ownership_test() ->
 %% report §4.8: the standard library module of a built-in type declares that
 %% type's operators as a user type's module does; no other module may
 builtin_type_operators_test() ->
-    Float = "export foreign fn Float.+(a : Float, b : Float) -> Float = \"ern_float:add/2\"\n",
+    Float = "export foreign fn Float.+(a : Float, b : Float) : Float = \"ern_float:add/2\"\n",
     {ok, _, Iface, _} = ern_typecheck:check_string(['Float'], Float),
     ?assertEqual([['Float', '+']], maps:keys(Iface#iface.values)),
     ?assertEqual("Float is not a type declared in this module",
-                 err("export fn Float.+(a : Float, b : Float) -> Float = a")),
+                 err("export fn Float.+(a : Float, b : Float) : Float = a")),
     ?assertMatch({error, _},
                  ern_typecheck:check_string(['Float'],
-                                            "export fn Float.abs(x : Float) -> Float = x")).
+                                            "export fn Float.abs(x : Float) : Float = x")).
 
 %% report §4.1, §4.2: a module's interface holds its exports under its
 %% namespace, and another module reaches them by the qualified name
 interface_test() ->
     Http = "export type Request = Request(method : String, path : String)\n"
-           "export fn parse(s : String) -> Optional(Request) =\n"
+           "export fn parse(s : String) : Optional(Request) =\n"
            "    if s == \"GET /\" then Some(Request(method = \"GET\", path = \"/\")) else None\n"
            "fn private() = 1",
     {ok, _, Iface, _} = ern_typecheck:check_string(['Net', 'Http'], Http),
     ?assertMatch(#iface{namespace = ['Net', 'Http']}, Iface),
     ?assertEqual([['Net', 'Http', parse]], maps:keys(Iface#iface.values)),
     ?assertEqual([['Net', 'Http', 'Request']], maps:keys(Iface#iface.types)),
-    Main = "export fn main() -> Unit with Never = match Net.Http.parse(\"GET /\") {\n"
+    Main = "export fn main() : Unit with Never = match Net.Http.parse(\"GET /\") {\n"
            "    Some(Net.Http.Request(method = method, path = path)) ->"
            " Io.println(method <> \" \" <> path)\n"
            "  | None -> Io.println(\"bad request\")\n}",
     {ok, Main1} = ern_parser:parse_string(Main),
     ?assertMatch({ok, _, _, _}, ern_typecheck:check(['Main'], Main1, [Iface])),
-    ?assertMatch({error, [#diag{span = {1, 45, _}, message = "unknown name Net.Http.parse"}]},
+    ?assertMatch({error, [#diag{span = {1, 44, _}, message = "unknown name Net.Http.parse"}]},
                  ern_typecheck:check(['Main'], Main1, [])),
     Private = "fn f() = Net.Http.private()",
     {ok, P1} = ern_parser:parse_string(Private),
@@ -1372,11 +1372,11 @@ typed_ast_test() ->
 %% abstract type, whose values cross and whose constructors do not, is not
 exported_types_test() ->
     ?assertEqual("start is exported and its type names Msg, which this module keeps private",
-                 err("type Msg = Ping\nexport fn start() -> Address(Msg) with m ="
+                 err("type Msg = Ping\nexport fn start() : Address(Msg) with m ="
                      " spawn(Local, fn() = Unit)")),
     ?assertEqual("Holder is exported and its type names Hidden, which this module keeps private",
                  err("type Hidden = Hidden(Int)\nexport type Holder = Holder(Hidden)")),
-    ?assertEqual(ok, ok("export type Msg = Ping\nexport fn start() -> Address(Msg) with m ="
+    ?assertEqual(ok, ok("export type Msg = Ping\nexport fn start() : Address(Msg) with m ="
                         " spawn(Local, fn() = Unit)")),
     %% an abstract type is how a value crosses without its constructors, and
     %% its fields may name a private type, since they do not cross
@@ -1384,7 +1384,7 @@ exported_types_test() ->
     ?assertEqual(ok, ok("type Hidden = Hidden(Int)\nexport abstract type Box = B(Hidden)\n"
                         "export fn Box.of(n) = B(Hidden(n))")),
     %% the effect names no value: an entry point's mailbox type may be private
-    ?assertEqual(ok, ok("type Msg = Ping\nexport fn main() -> Unit with Msg ="
+    ?assertEqual(ok, ok("type Msg = Ping\nexport fn main() : Unit with Msg ="
                         " receive { Ping -> Unit }")).
 
 %% report §4.2
@@ -1412,16 +1412,16 @@ examples_test_() ->
 %% an earlier binding of the same name exists
 local_fn_shadowed_binding_test() ->
     ?assertMatch({error, [#diag{message = "local function f is used before `let x`" ++ _}]},
-                 check("fn m() -> Int = { let x = 1; let y = f(); let x = 2;"
-                       " fn f() -> Int = x; y }\n")),
+                 check("fn m() : Int = { let x = 1; let y = f(); let x = 2;"
+                       " fn f() : Int = x; y }\n")),
     ?assertMatch({error, [#diag{message = "local function f is used before `let x`" ++ _}]},
-                 check("fn m() -> Int = { let x = 1; let y = f(); fn f() -> Int = g();"
-                       " let x = 2; fn g() -> Int = x; y }\n")),
+                 check("fn m() : Int = { let x = 1; let y = f(); fn f() : Int = g();"
+                       " let x = 2; fn g() : Int = x; y }\n")),
     ?assertMatch({ok, _, _, _},
-                 check("fn m() -> Int = { let x = 1; fn f() -> Int = x; let x = 2; f() + x }\n")),
+                 check("fn m() : Int = { let x = 1; fn f() : Int = x; let x = 2; f() + x }\n")),
     %% a parameter or inner binding of the same name is not a reference
     ?assertMatch({ok, _, _, _},
-                 check("fn m() -> Int = { let y = f(3); let x = 2; fn f(x : Int) -> Int = x;"
+                 check("fn m() : Int = { let y = f(3); let x = 2; fn f(x : Int) : Int = x;"
                        " y + x }\n")).
 
 %% report §5.4, §3.4: a local fn's annotation shapes its type before any
@@ -1429,8 +1429,8 @@ local_fn_shadowed_binding_test() ->
 %% body
 local_fn_annotation_before_use_test() ->
     ?assertMatch({ok, _, _, _},
-                 check("fn m() -> Int with Never = { let b = 5; let early = k();"
-                       " fn k() -> Int = b + 1; early }\n")).
+                 check("fn m() : Int with Never = { let b = 5; let early = k();"
+                       " fn k() : Int = b + 1; early }\n")).
 
 %% report §4.2: `Prelude.X` is the prelude's X past a module's own X, as a
 %% constructor, a pattern, a type, and a value; a match on the prelude's
@@ -1439,7 +1439,7 @@ local_fn_annotation_before_use_test() ->
 prelude_namespace_test() ->
     Shadow = "type Last = Peer | Tabbed\n"
              "type RestartLimit = RestartLimit(name : String)\n"
-             "fn send(n : Int) -> Int = n\n",
+             "fn send(n : Int) : Int = n\n",
     ?assertEqual("(Where) -> String",
                  type_of(Shadow ++ "export fn describe(e : Prelude.Where) = match e {"
                          " Prelude.Peer(t) -> t | _ -> \"here\" }", describe)),
@@ -1448,13 +1448,13 @@ prelude_namespace_test() ->
                          " match e { Prelude.RestartLimit(restarts = n) -> n }", size)),
     ?assertEqual("() -> Where",
                  type_of(Shadow ++ "export fn other() = Prelude.Peer(\"x\")", other)),
-    ?assertEqual(ok, ok(Shadow ++ "fn f(a : Address(String)) -> Unit with m ="
+    ?assertEqual(ok, ok(Shadow ++ "fn f(a : Address(String)) : Unit with m ="
                         " Prelude.send(a, \"x\")")),
     %% the module's own names are untouched
-    ?assertEqual(ok, ok(Shadow ++ "fn g() -> Int = send(1)\nfn h() -> Last = Peer")),
+    ?assertEqual(ok, ok(Shadow ++ "fn g() : Int = send(1)\nfn h() : Last = Peer")),
     ?assertEqual("Prelude.Io.println: Prelude takes one name the prelude declares,"
                  " as `Prelude.Some`",
-                 err("fn f() -> Unit with m = Prelude.Io.println(\"x\")")),
+                 err("fn f() : Unit with m = Prelude.Io.println(\"x\")")),
     ?assertEqual("the prelude declares no constructor Nope", err("fn f() = Prelude.Nope")),
     ?assertEqual("Prelude names the prelude, and a type may not take it",
                  err("type Prelude = P")).
@@ -1466,17 +1466,17 @@ type_names_in_messages_test() ->
     ?assertMatch({error, [#diag{message =
                                   "the argument does not fit f: expected Shape,"
                                   " found Optional(Shape)"}]},
-                 check("type Shape = Dot\nfn f(s : Shape) -> Int = 1\n"
-                       "fn g() -> Int = f(Some(Dot))\n")),
+                 check("type Shape = Dot\nfn f(s : Shape) : Int = 1\n"
+                       "fn g() : Int = f(Some(Dot))\n")),
     ?assertMatch({error, [#diag{message =
                                   "the argument does not fit f: expected M.Optional,"
                                   " found Optional(Int)"}]},
-                 check("type Optional = Nothing\nfn f(o : Optional) -> Int = 1\n"
-                       "fn g() -> Int = f(List.get([1], 0))\n")),
+                 check("type Optional = Nothing\nfn f(o : Optional) : Int = 1\n"
+                       "fn g() : Int = f(List.get([1], 0))\n")),
     {ok, Http} = file:read_file("../../../examples/modules/net/http.ern"),
     {ok, _, Iface, _} = ern_typecheck:check_string(['Net', 'Http'], Http),
-    {ok, Decls} = ern_parser:parse_string("fn f(r : Net.Http.Request) -> Int = 1\n"
-                                          "fn g() -> Int = f(1)\n"),
+    {ok, Decls} = ern_parser:parse_string("fn f(r : Net.Http.Request) : Int = 1\n"
+                                          "fn g() : Int = f(1)\n"),
     ?assertMatch({error, [#diag{message =
                                   "the argument does not fit f: expected Net.Http.Request,"
                                   " found Int"}]},
@@ -1487,15 +1487,15 @@ type_names_in_messages_test() ->
 %% of a value does not inherit the names of its declaration
 variable_names_test() ->
     ?assertEqual("(Map(k=, v), k=) -> Optional(v)",
-                 type_of("export fn get(m : Map(k, v), key : k) -> Optional(v) = Map.get(m, key)",
+                 type_of("export fn get(m : Map(k, v), key : k) : Optional(v) = Map.get(m, key)",
                          get)),
     ?assertEqual("(a=, a=) -> Bool",
-                 type_of("export fn eq(x : a, y : a) -> Bool with m = x == y", eq)),
+                 type_of("export fn eq(x : a, y : a) : Bool with m = x == y", eq)),
     ?assertEqual("() -> Map(a=, b)", type_of("export fn empty() = Map.empty", empty)),
     ?assertEqual("(b, (b) -> a with e) -> a with e",
                  type_of("export fn ap(x : b, f) = f(x)", ap)),
     ?assertEqual("((a) -> a with e, a) -> a with e",
-                 type_of("export fn twice(f : (a) -> a with e, x : a) -> a with e = f(f(x))",
+                 type_of("export fn twice(f : (a) -> a with e, x : a) : a with e = f(f(x))",
                          twice)).
 
 %% report §5.7: the piped value must fit the target's first argument
@@ -1508,14 +1508,14 @@ pipe_type_test() ->
 %% report §6.8: a `with Never` root is called only where the mailbox is
 %% Never; a polymorphic helper is called from either
 never_root_test() ->
-    Root = "fn root() -> Unit with Never = Io.println(\"x\")\n",
+    Root = "fn root() : Unit with Never = Io.println(\"x\")\n",
     ?assertEqual("root needs mailbox Never, and the mailbox here is Msg",
-                 err("type Msg = Go\n" ++ Root ++ "fn p() -> Unit with Msg = root()")),
-    ?assertEqual(ok, ok(Root ++ "fn q() -> Unit with Never = root()")),
+                 err("type Msg = Go\n" ++ Root ++ "fn p() : Unit with Msg = root()")),
+    ?assertEqual(ok, ok(Root ++ "fn q() : Unit with Never = root()")),
     ?assertEqual("() -> Unit with Never", type_of(Root ++ "export fn r() = root()", r)),
-    ?assertEqual(ok, ok("type Msg = Go\nfn helper() -> Unit with m = Io.println(\"x\")\n"
-                        "fn p() -> Unit with Msg = helper()\n"
-                        "fn q() -> Unit with Never = helper()")).
+    ?assertEqual(ok, ok("type Msg = Go\nfn helper() : Unit with m = Io.println(\"x\")\n"
+                        "fn p() : Unit with Msg = helper()\n"
+                        "fn q() : Unit with Never = helper()")).
 
 %%
 %% Error placement (report §11.5)
@@ -1531,14 +1531,14 @@ diag(Text) ->
 %% declaration that fixed the expectation
 leaf_placement_test() ->
     %% the else branch of an `if` in a declared body: the span is the literal
-    D1 = diag("fn f(b : Bool) -> Int =\n    if b then 1 else \"x\"\n"),
+    D1 = diag("fn f(b : Bool) : Int =\n    if b then 1 else \"x\"\n"),
     ?assertEqual("the body does not have the declared return type: expected Int, found String",
                  D1#diag.message),
     ?assertEqual({2, 22, {2, 25}}, D1#diag.span),
-    ?assertEqual([{{1, 19, {1, 22}}, "declared to return Int here"}], D1#diag.labels),
+    ?assertEqual([{{1, 18, {1, 21}}, "declared to return Int here"}], D1#diag.labels),
     %% the last statement of a block
-    D2 = diag("fn f() -> Int = { let x = 1; \"x\" }\n"),
-    ?assertEqual({1, 30, {1, 33}}, D2#diag.span),
+    D2 = diag("fn f() : Int = { let x = 1; \"x\" }\n"),
+    ?assertEqual({1, 29, {1, 32}}, D2#diag.span),
     %% a match clause: the second clause against the first
     D3 = diag("fn f(n : Int) = match n { 0 -> 1 | _ -> \"x\" }\n"),
     ?assertEqual("the clauses must have one type: expected Int, found String", D3#diag.message),
@@ -1586,25 +1586,25 @@ differing_part_test() ->
 %% report §11.5, §3.4: an effect error names the callee and what is pure,
 %% labels the annotation that made it pure, and says what to do
 effect_placement_test() ->
-    D1 = diag("fn main() -> Unit = Io.println(\"x\")\n"),
+    D1 = diag("fn main() : Unit = Io.println(\"x\")\n"),
     ?assertEqual("Io.println needs a process, and main is pure", D1#diag.message),
-    ?assertEqual({1, 21, {1, 36}}, D1#diag.span),
-    ?assertEqual([{{1, 14, {1, 18}}, "`-> Unit` with no `with` declares main pure"}],
+    ?assertEqual({1, 20, {1, 35}}, D1#diag.span),
+    ?assertEqual([{{1, 13, {1, 17}}, "`: Unit` with no `with` declares main pure"}],
                  D1#diag.labels),
     ?assertEqual("give main a mailbox type with `with`", D1#diag.help),
-    D3 = diag("fn f(n : Int) -> Int with Never = match n {"
+    D3 = diag("fn f(n : Int) : Int with Never = match n {"
               " k when Io.println(\"x\") == Unit -> 1 | _ -> 0 }\n"),
-    ?assertEqual([{{1, 52, {1, 75}}, "a guard is pure (report §5.9)"}], D3#diag.labels),
+    ?assertEqual([{{1, 51, {1, 74}}, "a guard is pure (report §5.9)"}], D3#diag.labels),
     ?assertEqual("compute the value before the match", D3#diag.help),
-    D4 = diag("fn f() -> Unit = receive { after 1 -> Unit }\n"),
+    D4 = diag("fn f() : Unit = receive { after 1 -> Unit }\n"),
     ?assertEqual("`receive` needs a process, and f is pure", D4#diag.message),
     ?assertEqual("give f a mailbox type with `with`", D4#diag.help),
-    D5 = diag("type Msg = Go\nfn root() -> Unit with Never = Io.println(\"x\")\n"
-              "fn p() -> Unit with Msg = root()\n"),
-    ?assertEqual([{{3, 21, {3, 24}}, "p is declared `with Msg` here"}], D5#diag.labels),
+    D5 = diag("type Msg = Go\nfn root() : Unit with Never = Io.println(\"x\")\n"
+              "fn p() : Unit with Msg = root()\n"),
+    ?assertEqual([{{3, 20, {3, 23}}, "p is declared `with Msg` here"}], D5#diag.labels),
     ?assertEqual(undefined, D5#diag.help),
     %% a lambda's own annotation is the origin inside it
-    D6 = diag("fn f() -> Unit with Never = { let g = fn() -> Unit = Io.println(\"x\"); g() }\n"),
+    D6 = diag("fn f() : Unit with Never = { let g = fn() : Unit = Io.println(\"x\"); g() }\n"),
     ?assertEqual("Io.println needs a process, and the lambda is pure", D6#diag.message),
     ?assertEqual("give the lambda a mailbox type with `with`", D6#diag.help).
 
@@ -1614,11 +1614,11 @@ effect_placement_test() ->
 %% covered: the other scopes that set the origin, a guard and a size
 %% expression, which effect_placement_test and the bitstring tests reach.
 effect_origin_is_restored_after_a_nested_definition_test() ->
-    D1 = diag("fn f() -> Unit = { fn g() -> Int = 1; receive { after 1 -> Unit } }\n"),
+    D1 = diag("fn f() : Unit = { fn g() : Int = 1; receive { after 1 -> Unit } }\n"),
     ?assertEqual("`receive` needs a process, and f is pure", D1#diag.message),
-    ?assertEqual([{{1, 11, {1, 15}}, "`-> Unit` with no `with` declares f pure"}],
+    ?assertEqual([{{1, 10, {1, 14}}, "`: Unit` with no `with` declares f pure"}],
                  D1#diag.labels),
-    D2 = diag("fn f() -> Unit = { let g = fn(x : Int) -> Int = x; Io.println(\"x\") }\n"),
+    D2 = diag("fn f() : Unit = { let g = fn(x : Int) : Int = x; Io.println(\"x\") }\n"),
     ?assertEqual("Io.println needs a process, and f is pure", D2#diag.message),
     ?assertEqual("give f a mailbox type with `with`", D2#diag.help).
 
@@ -1627,11 +1627,11 @@ effect_origin_is_restored_after_a_nested_definition_test() ->
 %% A regression test: the label named `main is declared with Never`, or
 %% `run` pure, where neither annotation had fixed the lambda's mailbox.
 effect_origin_of_an_unannotated_lambda_test() ->
-    Decls = "fn g() -> Unit with String = Unit\nfn h() -> Unit with Int = Unit\n",
-    D1 = diag(Decls ++ "fn main() -> Unit with Never = { let k = fn() = { g(); h() }; Unit }\n"),
+    Decls = "fn g() : Unit with String = Unit\nfn h() : Unit with Int = Unit\n",
+    D1 = diag(Decls ++ "fn main() : Unit with Never = { let k = fn() = { g(); h() }; Unit }\n"),
     ?assertEqual("h needs mailbox Int, and the mailbox here is String", D1#diag.message),
     ?assertEqual([], D1#diag.labels),
-    D2 = diag(Decls ++ "fn run() -> Int = { let k = fn() = { g(); h() }; 1 }\n"),
+    D2 = diag(Decls ++ "fn run() : Int = { let k = fn() = { g(); h() }; 1 }\n"),
     ?assertEqual([], D2#diag.labels).
 
 %% report §6.6, §4.2: only the prelude's spawn consumes a capturing lambda
@@ -1639,8 +1639,8 @@ effect_origin_of_an_unannotated_lambda_test() ->
 %% other function. A regression test: the reply check knew spawn by its
 %% unqualified name, and a module's own spawn was taken for the prelude's.
 own_spawn_is_no_spawn_test() ->
-    D = diag("fn spawn(a : Int, f : () -> Unit with m) -> Unit with m = Unit\n"
-             "fn handle(r : Reply(Int)) -> Unit with m = {\n"
+    D = diag("fn spawn(a : Int, f : () -> Unit with m) : Unit with m = Unit\n"
+             "fn handle(r : Reply(Int)) : Unit with m = {\n"
              "    let f = fn() = answer(r, 1);\n"
              "    spawn(1, f)\n}\n"),
     ?assertEqual("the lambda f captures a reply-carrying value and may only be called or"
@@ -1653,13 +1653,13 @@ own_spawn_is_no_spawn_test() ->
 %% refuses at its declaration (operator_member_shape_test). Not covered:
 %% `negate`, which takes the same path.
 deferred_operator_calls_a_pure_member_test() ->
-    V = "type V = V(Int)\nfn V.+(V(a), V(b)) -> V = V(a + b)\n",
-    ?assertEqual(ok, ok(V ++ "fn f(x, y) -> V with Never = { let z = x + y; let V(_) = x; z }\n")),
-    ?assertEqual(ok, ok(V ++ "fn f() -> V with Never = {\n"
+    V = "type V = V(Int)\nfn V.+(V(a), V(b)) : V = V(a + b)\n",
+    ?assertEqual(ok, ok(V ++ "fn f(x, y) : V with Never = { let z = x + y; let V(_) = x; z }\n")),
+    ?assertEqual(ok, ok(V ++ "fn f() : V with Never = {\n"
                         "    fn g(x, y) = { let z = x + y; let V(_) = x; z };\n"
                         "    g(V(1), V(2))\n"
                         "}\n")),
-    ?assertEqual(ok, ok(V ++ "fn f(x, y) -> V = { let z = x + y; let V(_) = x; z }\n")).
+    ?assertEqual(ok, ok(V ++ "fn f(x, y) : V = { let z = x + y; let V(_) = x; z }\n")).
 
 %% report §3.10, §4.8: a regression test. An operator resolved at the end
 %% of its definition keeps its member's equality constraint, as one
@@ -1667,11 +1667,11 @@ deferred_operator_calls_a_pure_member_test() ->
 %% the same list carries.
 deferred_operator_keeps_its_members_equality_test() ->
     B = "type Box(a) = Box(a)\n"
-        "fn Box.+(Box(x), Box(y)) -> Box(a) = if x == y then Box(x) else Box(y)\n",
+        "fn Box.+(Box(x), Box(y)) : Box(a) = if x == y then Box(x) else Box(y)\n",
     Msg = "(Int) -> Int does not support equality (it contains a function or an address),"
           " but it is compared here",
-    ?assertEqual(Msg, err(B ++ "fn f(p : Box((Int) -> Int), q) -> Box((Int) -> Int) = p + q\n")),
-    ?assertEqual(Msg, err(B ++ "fn f(p, q) -> Box((Int) -> Int) = {\n"
+    ?assertEqual(Msg, err(B ++ "fn f(p : Box((Int) -> Int), q) : Box((Int) -> Int) = p + q\n")),
+    ?assertEqual(Msg, err(B ++ "fn f(p, q) : Box((Int) -> Int) = {\n"
                           "    let z = p + q;\n"
                           "    let _ : Box((Int) -> Int) = p;\n"
                           "    z\n"
@@ -1686,7 +1686,7 @@ deferred_operator_keeps_its_members_equality_test() ->
 %% conflict; a constant bit count is a multiple of 8
 bitstring_construction_test() ->
     ?assertEqual("(Int, Bytes) -> Bytes",
-                 type_of("export fn frame(len : Int, body : Bytes) -> Bytes ="
+                 type_of("export fn frame(len : Int, body : Bytes) : Bytes ="
                          " <<len:size(16)-big, body:bytes>>", frame)),
     ?assertEqual("(Float, Char, Bytes) -> Bytes",
                  type_of("export fn f(x, c, b) = <<x:float, c:utf8, b:size(2)-bytes, 1:size(4),"
@@ -1728,10 +1728,10 @@ bitstring_specifier_kinds_test() ->
                  " `bytes` one", err("fn f(x : Bytes) = <<x:bytes-little>>")),
     ?assertEqual("`big` applies to an `int`, `float`, `utf16` or `utf32` segment, not a"
                  " `bytes` one",
-                 err("fn f(b : Bytes) -> Int = match b { <<n, _:bytes-big>> -> n | _ -> 0 }")),
+                 err("fn f(b : Bytes) : Int = match b { <<n, _:bytes-big>> -> n | _ -> 0 }")),
     ?assertEqual(ok, ok("fn f(x : Int, y : Float, c : Char) = <<x:signed-little, x:unsigned,"
                         " y:float-little, c:utf16-little, c:utf32-big, c:utf8>>")),
-    ?assertEqual(ok, ok("fn f(b : Bytes) -> Int = match b {"
+    ?assertEqual(ok, ok("fn f(b : Bytes) : Int = match b {"
                         " <<n:size(16)-signed-little, _:bytes>> -> n | _ -> 0 }")),
     ?assertMatch({ok, #{kind := int, size := {const, 8}, endian := big, sign := unsigned}},
                  ern_bitspec:spec([])).
@@ -1750,7 +1750,7 @@ bitstring_pattern_test() ->
     ?assertEqual("the size of a segment: expected Int, found Bytes",
                  err("fn f(b : Bytes) = match b { <<n:bytes, x:size(n)>> -> x | _ -> 0 }")),
     ?assertEqual("Io.println needs a process, and a size expression is pure",
-                 err("fn f(b : Bytes) -> Int with Never = match b {"
+                 err("fn f(b : Bytes) : Int with Never = match b {"
                      " <<x:size({ Io.println(\"a\"); 8 })>> -> x | _ -> 0 }")),
     ?assertEqual("a segment pattern is a variable, `_`, or a literal",
                  err("fn f(b : Bytes) = match b { <<Some(x)>> -> x | _ -> 0 }")),
@@ -1767,15 +1767,15 @@ bitstring_pattern_test() ->
 %% a match guard is any Bool expression
 receive_guard_test() ->
     Msg = "type Msg = N(Int) | Stop\n",
-    ?assertEqual(ok, ok(Msg ++ "fn big(k : Int) -> Bool = k > 100\n"
-                        "fn loop(limit : Int, go : Bool) -> Unit with Msg = receive {"
+    ?assertEqual(ok, ok(Msg ++ "fn big(k : Int) : Bool = k > 100\n"
+                        "fn loop(limit : Int, go : Bool) : Unit with Msg = receive {"
                         " N(k) when (k > limit || k == -1) && go && k != 7 -> loop(limit, go)"
                         " | Stop -> Unit | N(_) -> Unit }")),
-    ?assertEqual(ok, ok(Msg ++ "fn big(k : Int) -> Bool = k > 100\n"
-                        "fn f(m : Msg) -> Unit ="
+    ?assertEqual(ok, ok(Msg ++ "fn big(k : Int) : Bool = k > 100\n"
+                        "fn f(m : Msg) : Unit ="
                         " match m { N(k) when big(k) -> Unit | _ -> Unit }")),
-    D = diag(Msg ++ "fn big(k : Int) -> Bool = k > 100\n"
-             "fn loop() -> Unit with Msg = receive { N(k) when big(k) -> Unit | _ -> Unit }"),
+    D = diag(Msg ++ "fn big(k : Int) : Bool = k > 100\n"
+             "fn loop() : Unit with Msg = receive { N(k) when big(k) -> Unit | _ -> Unit }"),
     ?assertEqual("a `receive` guard combines `true`, `false`, Bool variables, and comparisons"
                  " with `!`, `&&`, and `||`, and calls nothing", D#diag.message),
     ?assertEqual("receive the message and `match` it", D#diag.help).
@@ -1786,7 +1786,7 @@ receive_guard_test() ->
 %% variables and literals
 receive_guard_forms_test() ->
     Head = "type Msg = N(Int) | F(Float) | O(Ordering)\n"
-           "fn loop(flag : Bool) -> Unit with Msg = receive { ",
+           "fn loop(flag : Bool) : Unit with Msg = receive { ",
     Tail = " -> Unit | _ -> Unit }",
     Accepted = ["N(_) when true", "N(_) when false", "N(_) when flag", "N(_) when !flag",
                 "N(k) when !(k > 1)", "N(k) when !(!(k == 1)) && !flag || !false",
@@ -1799,7 +1799,7 @@ receive_guard_forms_test() ->
 %% at top level is not the function's
 receive_guard_refused_test() ->
     Head = "type Msg = N(Int)\nlet limit = 5\nlet ready = true\n"
-           "fn loop(flag : Bool, go : Bool, m : Int) -> Unit with Msg = receive { ",
+           "fn loop(flag : Bool, go : Bool, m : Int) : Unit with Msg = receive { ",
     Tail = " -> Unit | _ -> Unit }",
     Operand = "a comparison in a `receive` guard compares variables, literals, and nullary"
               " constructors",
@@ -1824,9 +1824,9 @@ receive_guard_refused_test() ->
 receive_guard_ordering_test() ->
     ?assertEqual("a `receive` guard orders only Int, Float, String, and Char, not Vec",
                  err("export type Vec = Vec(Int)\n"
-                     "export fn Vec.compare(Vec(a), Vec(b)) -> Ordering = Int.compare(a, b)\n"
+                     "export fn Vec.compare(Vec(a), Vec(b)) : Ordering = Int.compare(a, b)\n"
                      "type M = Go(Vec)\n"
-                     "fn loop() -> Unit with M = receive { Go(v) when v < Vec(0) -> Unit"
+                     "fn loop() : Unit with M = receive { Go(v) when v < Vec(0) -> Unit"
                      " | _ -> Unit }")).
 
 %% report §5.11: a size in a pattern is a variable, a literal, or +, -, *
@@ -1847,15 +1847,15 @@ bitstring_size_shape_test() ->
 %% in scope. A regression test: the checker conformed before it was
 %% written. It does not cover a receive clause's pattern.
 bitstring_size_variables_test() ->
-    ?assertEqual(ok, ok("fn f(n : Int, b : Bytes) -> Int ="
+    ?assertEqual(ok, ok("fn f(n : Int, b : Bytes) : Int ="
                         " { let k = n; match b { <<x:size(k)>> -> x | _ -> 0 } }")),
-    ?assertEqual(ok, ok("fn f(n : Int) -> (Bytes) -> Int ="
+    ?assertEqual(ok, ok("fn f(n : Int) : (Bytes) -> Int ="
                         " fn(b) = match b { <<x:size(n)>> -> x | _ -> 0 }")),
     ?assertEqual("a size in a pattern is a variable, an Int literal, or `+`, `-`, `*` of them",
-                 err("let k = 8\nfn f(b : Bytes) -> Int ="
+                 err("let k = 8\nfn f(b : Bytes) : Int ="
                      " match b { <<x:size(k)>> -> x | _ -> 0 }")),
     ?assertEqual("unknown name k",
-                 err("fn f(p : #(Int, Bytes)) -> Int ="
+                 err("fn f(p : #(Int, Bytes)) : Int ="
                      " match p { #(k, <<x:size(k)-bytes>>) -> k | _ -> 0 }")).
 
 %% report §5.9, §5.11: a bitstring nested in a constructor covers nothing,
@@ -1864,9 +1864,9 @@ bitstring_size_variables_test() ->
 %% not cover a bitstring inside a tuple.
 nested_bitstring_coverage_test() ->
     ?assertEqual("match on Optional(Bytes) is not exhaustive; missing Some(_)",
-                 err("fn f(x : Optional(Bytes)) -> Int ="
+                 err("fn f(x : Optional(Bytes)) : Int ="
                      " match x { Some(<<n>>) -> n | None -> 0 }")),
-    ?assertEqual(ok, ok("fn f(x : Optional(Bytes)) -> Int ="
+    ?assertEqual(ok, ok("fn f(x : Optional(Bytes)) : Int ="
                         " match x { Some(<<n>>) -> n | None -> 0 | Some(_) -> 1 }")).
 
 %% report §5.11: a specifier's name is an ordinary identifier outside a
@@ -1876,10 +1876,10 @@ nested_bitstring_coverage_test() ->
 %% ern_parser_tests.
 specifier_names_are_identifiers_test() ->
     ?assertEqual("(Int, Int) -> Bytes",
-                 type_of("export fn build(size : Int, int : Int) -> Bytes ="
+                 type_of("export fn build(size : Int, int : Int) : Bytes ="
                          " <<size:size(int)-big>>", build)),
     ?assertEqual("(Bytes) -> Int",
-                 type_of("export fn parse(b : Bytes) -> Int = match b {"
+                 type_of("export fn parse(b : Bytes) : Int = match b {"
                          " <<size:size(16), little:bytes>> -> size | _ -> 0 }", parse)).
 
 %% report §8.5, §4.2: a name bound inside a body — a pattern's variable,
@@ -1889,12 +1889,12 @@ specifier_names_are_identifiers_test() ->
 shadowed_name_is_no_reference_test() ->
     ?assertMatch({ok, _, _, _},
                  check("let one = pick([1])\n"
-                       "fn pick(xs : List(Int)) -> Int ="
+                       "fn pick(xs : List(Int)) : Int ="
                        " match xs { [one] -> one | _ -> 0 }\n")),
     ?assertMatch({ok, _, _, _},
                  check("let twice = apply(fn(n) = n * 2)\n"
-                       "fn apply(f : (Int) -> Int) -> Int = f(21)\n"
-                       "fn other() -> Int = { let twice = 2; twice }\n")),
+                       "fn apply(f : (Int) -> Int) : Int = f(21)\n"
+                       "fn other() : Int = { let twice = 2; twice }\n")),
     %% a real cycle is still a cycle
     ?assertEqual("the initializer of a depends on itself, through b",
-                 err("let a = b()\nfn b() -> Int = a\n")).
+                 err("let a = b()\nfn b() : Int = a\n")).

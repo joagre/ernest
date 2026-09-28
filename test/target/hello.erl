@@ -4,7 +4,7 @@
 %% claims a bare name on the BEAM (plan 2.4); the file is compiled from
 %% forms, never with erlc, so its name is free.
 %%
-%%   export fn main() -> Unit with Never = Io.println("hello, world")
+%%   export fn main() : Unit with Never = Io.println("hello, world")
 %%
 %% The compiler also adds the module's interface as the BEAM chunk "ErnI".
 

@@ -84,7 +84,7 @@ type Msg = Start(command : Command,
 // bound at each start.
 let reference : Address(Msg) = system(Erl.atom("os"))
 
-foreign fn system(name : Foreign) -> Address(Msg) with m =
+foreign fn system(name : Foreign) : Address(Msg) with m =
     "ern_rt:sys/1"
 
 /// The words after the module on `ern run`'s command line, whatever they
@@ -101,7 +101,7 @@ foreign fn system(name : Foreign) -> Address(Msg) with m =
 /// ```
 export let arguments : List(String) = commandLine()
 
-foreign fn commandLine() -> List(String) with m =
+foreign fn commandLine() : List(String) with m =
     "ern_rt:arguments/0"
 
 /// The program's environment, bound when the program starts. A variable
@@ -115,7 +115,7 @@ foreign fn commandLine() -> List(String) with m =
 /// ```
 export let environment : Map(String, String) = hostEnvironment()
 
-foreign fn hostEnvironment() -> Map(String, String) with m =
+foreign fn hostEnvironment() : Map(String, String) with m =
     "ern_os:environment/0"
 
 /// The absolute path of the directory the program was started in, bound
@@ -130,7 +130,7 @@ foreign fn hostEnvironment() -> Map(String, String) with m =
 /// ```
 export let workingDirectory : Path = Path(hostDirectory())
 
-foreign fn hostDirectory() -> String with m =
+foreign fn hostDirectory() : String with m =
     "ern_os:working_directory/0"
 
 /// Ends the program with that exit status, as the end of its entry process
@@ -154,7 +154,7 @@ foreign fn hostDirectory() -> String with m =
 ///   | files -> files
 /// }
 /// ```
-export foreign fn exit(status : Int) -> a with m =
+export foreign fn exit(status : Int) : a with m =
     "ern_rt:exit_program/1"
 
 /// Starts the program and answers its address. The program reads `input`,
@@ -184,7 +184,7 @@ export foreign fn exit(status : Int) -> a with m =
 /// }
 /// // => Right(Stdout(<<104, 105>>))
 /// ```
-export fn start(command : Command, ms : Int) -> Either(Io.Error, Address(ProgramMsg)) with m = {
+export fn start(command : Command, ms : Int) : Either(Io.Error, Address(ProgramMsg)) with m = {
     let owner = Process.fromAddress(self());
     Address.callForever(reference,
                         fn(r) = Start(command = command, ms = ms, owner = owner, reply = r))
@@ -218,7 +218,7 @@ export fn start(command : Command, ms : Int) -> Either(Io.Error, Address(Program
 /// }
 /// // => Right(#(Stderr(<<110, 111, 10>>), Exited(1)))
 /// ```
-export fn read(program : Address(ProgramMsg)) -> Either(Io.Error, Output) with m =
+export fn read(program : Address(ProgramMsg)) : Either(Io.Error, Output) with m =
     Address.callForever(program, fn(r) = Read(reply = r))
 
 /// Gives the bytes to the program as its input, after what it was given
@@ -244,7 +244,7 @@ export fn read(program : Address(ProgramMsg)) -> Either(Io.Error, Output) with m
 /// }
 /// // => Right(Stdout(<<104, 105>>))
 /// ```
-export fn write(program : Address(ProgramMsg), bytes : Bytes) -> Unit with m =
+export fn write(program : Address(ProgramMsg), bytes : Bytes) : Unit with m =
     Address.callForever(program, fn(r) = Write(bytes = bytes, reply = r))
 
 /// Ends the program's input once what it was given before is written.
@@ -262,7 +262,7 @@ export fn write(program : Address(ProgramMsg), bytes : Bytes) -> Unit with m =
 /// }
 /// // => Right("2")
 /// ```
-export fn closeInput(program : Address(ProgramMsg)) -> Unit with m =
+export fn closeInput(program : Address(ProgramMsg)) : Unit with m =
     send(program, CloseInput)
 
 /// Runs the program to its end: starts it, ends its input after `input`,
@@ -284,7 +284,7 @@ export fn closeInput(program : Address(ProgramMsg)) -> Unit with m =
 ///            fn(f) = String.fromUtf8(f.stdout))
 /// // => Right(Some("hi"))
 /// ```
-export fn run(command : Command, ms : Int) -> Either(Io.Error, Finished) with m = {
+export fn run(command : Command, ms : Int) : Either(Io.Error, Finished) with m = {
     let program <- start(command, ms);
     closeInput(program);
     collect(program, [], [])
@@ -294,7 +294,7 @@ export fn run(command : Command, ms : Int) -> Either(Io.Error, Finished) with m 
 // stream kept newest first.
 fn collect(program : Address(ProgramMsg),
            out : List(Bytes),
-           err : List(Bytes)) -> Either(Io.Error, Finished) with m = {
+           err : List(Bytes)) : Either(Io.Error, Finished) with m = {
     let output <- read(program);
     match output {
         Stdout(bytes) -> collect(program, bytes :: out, err)
@@ -304,5 +304,5 @@ fn collect(program : Address(ProgramMsg),
     }
 }
 
-fn joined(pieces : List(Bytes)) -> Bytes =
+fn joined(pieces : List(Bytes)) : Bytes =
     List.foldLeft(List.reverse(pieces), <<>>, fn(all, piece) = all <> piece)

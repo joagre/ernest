@@ -68,15 +68,15 @@ type Msg =
 // bound at each start.
 let reference : Address(Msg) = system(Erl.atom("fs"))
 
-foreign fn system(name : Foreign) -> Address(Msg) with m =
+foreign fn system(name : Foreign) : Address(Msg) with m =
     "ern_rt:sys/1"
 
 /// The file's octets.
-export fn read(path : Path, ms : Int) -> Either(Io.Error, Bytes) with m =
+export fn read(path : Path, ms : Int) : Either(Io.Error, Bytes) with m =
     answered(Address.call(reference, fn(r) = ReadFile(path = path, reply = r), ms))
 
 /// Writes the octets, creating the file or replacing what it held.
-export fn write(path : Path, bytes : Bytes, ms : Int) -> Either(Io.Error, Unit) with m =
+export fn write(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = WriteFile(path = path, bytes = bytes, reply = r), ms))
 
 /// Writes the octets after what the file holds, creating it when it is not
@@ -92,7 +92,7 @@ export fn write(path : Path, bytes : Bytes, ms : Int) -> Either(Io.Error, Unit) 
 /// }
 /// // => Right(Some("ab"))
 /// ```
-export fn append(path : Path, bytes : Bytes, ms : Int) -> Either(Io.Error, Unit) with m =
+export fn append(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = AppendFile(path = path, bytes = bytes, reply = r), ms))
 
 /// The entries of the directory, in unspecified order, each path the
@@ -118,7 +118,7 @@ export fn append(path : Path, bytes : Bytes, ms : Int) -> Either(Io.Error, Unit)
 /// }
 /// // => Right([Link])
 /// ```
-export fn list(path : Path, ms : Int) -> Either(Io.Error, List(Entry)) with m =
+export fn list(path : Path, ms : Int) : Either(Io.Error, List(Entry)) with m =
     answered(Address.call(reference, fn(r) = ListDir(path = path, reply = r), ms))
 
 /// What the path leads to, its links followed: its size, its modification
@@ -133,12 +133,12 @@ export fn list(path : Path, ms : Int) -> Either(Io.Error, List(Entry)) with m =
 /// }
 /// // => Right(3)
 /// ```
-export fn stat(path : Path, ms : Int) -> Either(Io.Error, Entry) with m =
+export fn stat(path : Path, ms : Int) : Either(Io.Error, Entry) with m =
     answered(Address.call(reference, fn(r) = Stat(path = path, reply = r), ms))
 
 /// Makes the directory and any parent it needs; a directory already there
 /// is not an error.
-export fn makeDir(path : Path, ms : Int) -> Either(Io.Error, Unit) with m =
+export fn makeDir(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = MakeDir(path = path, reply = r), ms))
 
 /// Makes a file or a directory its owner's alone: no one else may read,
@@ -155,7 +155,7 @@ export fn makeDir(path : Path, ms : Int) -> Either(Io.Error, Unit) with m =
 /// }
 /// // => Right(Unit)
 /// ```
-export fn makePrivate(path : Path, ms : Int) -> Either(Io.Error, Unit) with m =
+export fn makePrivate(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = MakePrivate(path = path, reply = r), ms))
 
 /// Removes a file, a link, or an empty directory; a link is removed, not
@@ -171,7 +171,7 @@ export fn makePrivate(path : Path, ms : Int) -> Either(Io.Error, Unit) with m =
 /// }
 /// // => Left(NotFound)
 /// ```
-export fn remove(path : Path, ms : Int) -> Either(Io.Error, Unit) with m =
+export fn remove(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = Remove(path = path, reply = r), ms))
 
 /// Renames the first path to the second.
@@ -186,7 +186,7 @@ export fn remove(path : Path, ms : Int) -> Either(Io.Error, Unit) with m =
 /// }
 /// // => Right(Some("x"))
 /// ```
-export fn rename(from : Path, to : Path, ms : Int) -> Either(Io.Error, Unit) with m =
+export fn rename(from : Path, to : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = Rename(from = from, to = to, reply = r), ms))
 
 /// Copies the file at the first path to the second, replacing what is
@@ -202,7 +202,7 @@ export fn rename(from : Path, to : Path, ms : Int) -> Either(Io.Error, Unit) wit
 /// }
 /// // => Right(Some("y"))
 /// ```
-export fn copy(from : Path, to : Path, ms : Int) -> Either(Io.Error, Unit) with m =
+export fn copy(from : Path, to : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = Copy(from = from, to = to, reply = r), ms))
 
 /// Makes a symbolic link at the second path that leads to the first, which
@@ -219,7 +219,7 @@ export fn copy(from : Path, to : Path, ms : Int) -> Either(Io.Error, Unit) with 
 /// }
 /// // => Right(Some("t"))
 /// ```
-export fn makeLink(target : Path, path : Path, ms : Int) -> Either(Io.Error, Unit) with m =
+export fn makeLink(target : Path, path : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = MakeLink(target = target, path = path, reply = r), ms))
 
 /// The path a symbolic link holds, as it was written. A path that names
@@ -235,8 +235,8 @@ export fn makeLink(target : Path, path : Path, ms : Int) -> Either(Io.Error, Uni
 /// }
 /// // => Right(Path("somewhere"))
 /// ```
-export fn readLink(path : Path, ms : Int) -> Either(Io.Error, Path) with m =
+export fn readLink(path : Path, ms : Int) : Either(Io.Error, Path) with m =
     answered(Address.call(reference, fn(r) = ReadLink(path = path, reply = r), ms))
 
-fn answered(answer : Optional(Either(Io.Error, a))) -> Either(Io.Error, a) =
+fn answered(answer : Optional(Either(Io.Error, a))) : Either(Io.Error, a) =
     Optional.withDefault(answer, Left(Io.Timeout))

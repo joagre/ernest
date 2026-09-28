@@ -34,7 +34,7 @@
 /// Optional.isSome(Some(1))
 /// // => true
 /// ```
-export fn isSome(o : Optional(a)) -> Bool =
+export fn isSome(o : Optional(a)) : Bool =
     match o {
         Some(_) -> true
       | None -> false
@@ -48,14 +48,14 @@ export fn isSome(o : Optional(a)) -> Bool =
 /// Optional.isNone(Some(1))
 /// // => false
 /// ```
-export fn isNone(o : Optional(a)) -> Bool =
+export fn isNone(o : Optional(a)) : Bool =
     match o {
         Some(_) -> false
       | None -> true
     }
 
 /// The value in `Some`, or the default for `None`.
-export fn withDefault(o : Optional(a), default : a) -> a =
+export fn withDefault(o : Optional(a), default : a) : a =
     match o {
         Some(x) -> x
       | None -> default
@@ -69,7 +69,7 @@ export fn withDefault(o : Optional(a), default : a) -> a =
 /// Optional.orElse(None, Some(2))
 /// // => Some(2)
 /// ```
-export fn orElse(o : Optional(a), other : Optional(a)) -> Optional(a) =
+export fn orElse(o : Optional(a), other : Optional(a)) : Optional(a) =
     match o {
         Some(_) -> o
       | None -> other
@@ -77,7 +77,7 @@ export fn orElse(o : Optional(a), other : Optional(a)) -> Optional(a) =
 
 /// `Some` of the function applied to the value, or `None`; the function is
 /// not called on `None`.
-export fn map(o : Optional(a), f : (a) -> b with e) -> Optional(b) with e =
+export fn map(o : Optional(a), f : (a) -> b with e) : Optional(b) with e =
     match o {
         Some(x) -> Some(f(x))
       | None -> None
@@ -85,7 +85,7 @@ export fn map(o : Optional(a), f : (a) -> b with e) -> Optional(b) with e =
 
 /// The function's result for `Some`, or `None` without calling it: one step
 /// of a chain in which any step may find nothing.
-export fn andThen(o : Optional(a), f : (a) -> Optional(b) with e) -> Optional(b) with e =
+export fn andThen(o : Optional(a), f : (a) -> Optional(b) with e) : Optional(b) with e =
     match o {
         Some(x) -> f(x)
       | None -> None

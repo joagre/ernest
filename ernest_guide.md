@@ -32,7 +32,7 @@ The rules let the compiler find, before the program runs, the mistakes concurren
 ```ernest-rejected
 type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
 
-fn counter(n : Int) -> Unit with CounterMsg =
+fn counter(n : Int) : Unit with CounterMsg =
     receive {
         Inc(k) -> counter(n + k)
       | Get(reply = r) -> {
@@ -41,7 +41,7 @@ fn counter(n : Int) -> Unit with CounterMsg =
         }
     }
 
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     let c = spawn(Local, fn() = counter(0));
     send(c, "increment")
 }
@@ -63,7 +63,7 @@ Every error in a program has this form: the position as `file:line:column`, the 
 ```ernest-rejected
 type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
 
-fn counter(n : Int) -> Unit with CounterMsg =
+fn counter(n : Int) : Unit with CounterMsg =
     receive {
         Inc(k) -> counter(n + k)
       | Get(reply = r) -> counter(n)
@@ -78,10 +78,10 @@ forgot.ern:6:9: the reply-carrying value r is never consumed
   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
-**Work through a process, in a function that says it does none.** Standard output is a process, so printing is sending it a message. `area` is declared pure, `-> Int` with nothing after it, and the compiler holds it to that. A function that sends or receives says so with `with`, as the help line says.
+**Work through a process, in a function that says it does none.** Standard output is a process, so printing is sending it a message. `area` is declared pure, `: Int` with nothing after it, and the compiler holds it to that. A function that sends or receives says so with `with`, as the help line says.
 
 ```ernest-rejected
-fn area(w : Int, h : Int) -> Int = {
+fn area(w : Int, h : Int) : Int = {
     Io.println("computing an area");
     w * h
 }
@@ -90,8 +90,8 @@ fn area(w : Int, h : Int) -> Int = {
 ```console
 $ ern build area.ern
 area.ern:2:5: Io.println needs a process, and area is pure
-1 | fn area(w : Int, h : Int) -> Int = {
-  |                              --- `-> Int` with no `with` declares area pure
+1 | fn area(w : Int, h : Int) : Int = {
+  |                             --- `: Int` with no `with` declares area pure
 2 |     Io.println("computing an area");
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   | = help: give area a mailbox type with `with`
@@ -100,7 +100,7 @@ area.ern:2:5: Io.println needs a process, and area is pure
 **A failure dropped.** `Fs.write` returns `Either(Io.Error, Unit)`: the file was written, or the reason it was not. Its last argument, `1000`, is how many milliseconds it may take. A statement in a block must be `Unit`, so the failure cannot pass unseen. `let _ = ...` discards it where that is meant.
 
 ```ernest-rejected
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     Fs.write(Path("notes.txt"), String.toUtf8("buy milk"), 1000);
     Io.println("saved")
 }
@@ -109,7 +109,7 @@ export fn main() -> Unit with Never = {
 ```console
 $ ern build notes.ern
 notes.ern:2:5: this statement's value is discarded: expected Unit, found Either(Io.Error, Unit)
-1 | export fn main() -> Unit with Never = {
+1 | export fn main() : Unit with Never = {
 2 |     Fs.write(Path("notes.txt"), String.toUtf8("buy milk"), 1000);
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   | = help: `let _ = ...` discards it on purpose
@@ -129,7 +129,7 @@ Sections 1 to 8 are eight stages: run a program, compute with values, pass behav
 A program is a module that exports a function `main`. Put this line in `hello.ern`:
 
 ```ernest
-export fn main() -> Unit with Never =
+export fn main() : Unit with Never =
     Io.println("hello, world")
 ```
 
@@ -147,7 +147,7 @@ hello, world
 
 `fn` begins a function definition, and `export` makes it visible outside the module. `ern` runs the function `main` of the module it loads; `--main` names another (§7.1).
 
-`-> Unit` is the result type. `Unit` is a type with one value, also written `Unit`, the result of a function whose work is its effect.
+`: Unit` is the result type, written after the parameters as a parameter's type is written after its name. `Unit` is a type with one value, also written `Unit`, the result of a function whose work is its effect.
 
 `with Never` names the mailbox. A function that sends or receives runs in a process, whose mailbox takes one type of message, and its type says which with `with`. `main` runs in the process the program starts it in, the *entry process*. `Never` is the type with no values, so a process whose mailbox is `Never` receives nothing, which suits a `main` that only sends.
 
@@ -170,7 +170,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 xs : List(Int)
 > List.sort(xs, Int.compare)
 [1, 2, 3] : List(Int)
-> fn square(n : Int) -> Int = n * n
+> fn square(n : Int) : Int = n * n
 square : (Int) -> Int
 > List.map(xs, square)
 [9, 1, 4] : List(Int)
@@ -191,7 +191,7 @@ At a terminal the shell edits the line with Readline's Emacs keys, and keeps a h
 A program's first input is its command line. An entry point takes no arguments: the words after the module on `ern run`'s line are `Os.arguments`, a list of strings.
 
 ```ernest
-export fn main() -> Unit with Never =
+export fn main() : Unit with Never =
     match Os.arguments {
         [] -> {
             Io.printlnError("usage: greet name...");
@@ -214,7 +214,7 @@ hello, Grace
 `Io.readLine()` waits for a line of standard input and answers `Some(line)`, or `None` at its end. A program that reads its input to the end loops:
 
 ```ernest
-export fn main() -> Unit with Never =
+export fn main() : Unit with Never =
     match Io.readLine() {
         Some(line) -> {
             Io.println(String.toUpper(line));
@@ -244,7 +244,7 @@ export fn main() =
 and (b) with `-> Unit`:
 
 ```ernest-rejected
-export fn main() -> Unit =
+export fn main() : Unit =
     Io.println("hello, world")
 ```
 
@@ -319,7 +319,7 @@ A type declaration names its cases. `Direction` has four *constructors*, and `ma
 ```ernest
 type Direction = North | South | East | West
 
-fn opposite(d : Direction) -> Direction =
+fn opposite(d : Direction) : Direction =
     match d {
         North -> South
       | South -> North
@@ -404,10 +404,10 @@ Ordering is separate: `a < b` asks the type's `compare`, which answers `Less`, `
 ```ernest
 type Money = Money(Int)
 
-fn Money.compare(Money(a) : Money, Money(b) : Money) -> Ordering =
+fn Money.compare(Money(a) : Money, Money(b) : Money) : Ordering =
     Int.compare(a, b)
 
-export fn main() -> Unit with Never =
+export fn main() : Unit with Never =
     Io.println(if Money(3) < Money(5) then "cheaper" else "not cheaper")
 ```
 
@@ -458,13 +458,13 @@ type Direction = North | South | East | West
 
 type Move = Forward(Int) | Back(Int) | Stay
 
-fn axis(d : Direction) -> String =
+fn axis(d : Direction) : String =
     match d {
         North or South -> "vertical"
       | East or West -> "horizontal"
     }
 
-fn step(m : Move) -> Int =
+fn step(m : Move) : Int =
     match m {
         Forward(n) or Back(n) when n > 0 -> n
       | _ -> 0
@@ -486,7 +486,7 @@ A guard is a pure `Bool` expression. A guard that is `false` passes to the next 
 An Optional chain:
 
 ```ernest
-fn parseAndAdd(a : String, b : String) -> Optional(Int) = {
+fn parseAndAdd(a : String, b : String) : Optional(Int) = {
     let x <- String.toInt(a);
     let y <- String.toInt(b);
     Some(x + y)
@@ -498,7 +498,7 @@ If `String.toInt(a)` returns `None`, the whole block evaluates to `None`; the re
 An Either chain uses `Left(e)` to short-circuit and `Right(v)` to bind and continue:
 
 ```ernest
-fn positiveInt(text : String) -> Either(String, Int) = {
+fn positiveInt(text : String) : Either(String, Int) = {
     let n <- Either.fromOptional(String.toInt(text), "not an integer");
     if n > 0 then Right(n) else Left("not positive")
 }
@@ -582,10 +582,10 @@ Functions are values. This section is about writing them and passing them around
 ### 3.1 Definitions and arity
 
 ```ernest
-fn double(n : Int) -> Int =
+fn double(n : Int) : Int =
     n * 2
 
-fn hypotenuseSquared(a : Int, b : Int) -> Int =
+fn hypotenuseSquared(a : Int, b : Int) : Int =
     a * a + b * b
 ```
 
@@ -662,19 +662,19 @@ The counter becomes functions in a file of its own. A file is a module named aft
 
 ```ernest
 // words.ern
-export fn words(text : String) -> List(String) =
+export fn words(text : String) : List(String) =
     String.split(String.toLower(text), " ") |> List.filter(fn(w) = w != "")
 
-export fn count(text : String) -> Map(String, Int) =
+export fn count(text : String) : Map(String, Int) =
     words(text) |> List.foldLeft(Map.empty, fn(counts, w) = add(counts, w, 1))
 
-export fn add(counts : Map(String, Int), word : String, n : Int) -> Map(String, Int) =
+export fn add(counts : Map(String, Int), word : String, n : Int) : Map(String, Int) =
     Map.update(counts, word, fn(old) = Optional.withDefault(old, 0) + n)
 
-export fn top(counts : Map(String, Int), n : Int) -> List(#(String, Int)) =
+export fn top(counts : Map(String, Int), n : Int) : List(#(String, Int)) =
     Map.toList(counts) |> List.sort(byCount) |> List.take(n)
 
-fn byCount(#(w1, c1) : #(String, Int), #(w2, c2) : #(String, Int)) -> Ordering =
+fn byCount(#(w1, c1) : #(String, Int), #(w2, c2) : #(String, Int)) : Ordering =
     if c1 != c2 then Int.compare(c2, c1) else String.compare(w1, w2)
 ```
 
@@ -710,7 +710,7 @@ A process holds state, receives messages, and answers requests. This section bui
 ```ernest
 type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
 
-fn counter(n : Int) -> Unit with CounterMsg =
+fn counter(n : Int) : Unit with CounterMsg =
     receive {
         Inc(k) -> counter(n + k)
       | Get(reply = r) -> {
@@ -724,17 +724,17 @@ fn counter(n : Int) -> Unit with CounterMsg =
 
 `let c = spawn(Local, fn() = counter(0))` starts a process that runs the lambda, and `c` is its address, an `Address(CounterMsg)`. `Local` says the process runs on this node, the runtime the program runs in; `Peer(name)` is another node (§8). `send(c, Inc(5))` puts `Inc(5)` in the mailbox of the process at `c` and returns at once, without waiting for it to be received. `self()` is the address of the process that calls it, so a parent that gives a child its own address takes it first: `let me = self(); spawn(Local, fn() = child(me))`.
 
-`spawn`'s callback has type `() -> Unit with n`, and the `n` is also the mailbox of the `Address(n)` it returns. A pure function fits wherever one with a mailbox type is expected, so a pure callback is spawned too, and its mailbox is whatever the address is used as. When nothing says, the type of the address is not determined, and a kept address must have one. A process that never receives is spawned with the mailbox `Never`, written on its lambda, `fn() -> Unit with Never = ...`, since no `receive` in it settles the type; an address dropped with `let _ =`, as ping-pong's is in §5.1, needs none:
+`spawn`'s callback has type `() -> Unit with n`, and the `n` is also the mailbox of the `Address(n)` it returns. A pure function fits wherever one with a mailbox type is expected, so a pure callback is spawned too, and its mailbox is whatever the address is used as. When nothing says, the type of the address is not determined, and a kept address must have one. A process that never receives is spawned with the mailbox `Never`, written on its lambda, `fn() : Unit with Never = ...`, since no `receive` in it settles the type; an address dropped with `let _ =`, as ping-pong's is in §5.1, needs none:
 
 ```console
 $ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type spawn
 spawn : (Where, () -> Unit with n) -> Address(n) with m
-> spawn(Local, fn() -> Unit = Unit)
+> spawn(Local, fn() : Unit = Unit)
 <address 84> : Address(a)
 `it` is unchanged: this input did not determine the type of its value
-> spawn(Local, fn() -> Unit with Never = Unit)
+> spawn(Local, fn() : Unit with Never = Unit)
 <address 87> : Address(Never)
 ```
 
@@ -753,7 +753,7 @@ Sending a request twice consumes its reply twice:
 ```ernest-rejected
 type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
 
-fn twice(dst : Address(CounterMsg), msg : CounterMsg) -> Unit with m = {
+fn twice(dst : Address(CounterMsg), msg : CounterMsg) : Unit with m = {
     send(dst, msg);
     send(dst, msg)
 }
@@ -774,7 +774,7 @@ resend.ern:5:15: the reply-carrying value msg is consumed twice
 ```ernest
 type Inbox = Data(Int) | Wake
 
-fn waitForData() -> Optional(Int) with Inbox =
+fn waitForData() : Optional(Int) with Inbox =
     receive {
         Data(n) -> Some(n)
       | after 1000 -> None
@@ -811,7 +811,7 @@ type MainMsg = Took(Int)
 
 // Items no one has asked for yet, and the callers waiting for an item, each
 // a process that holds its caller's reply.
-fn queue(items : List(Int), waiters : List(Address(WaiterMsg))) -> Unit with QueueMsg =
+fn queue(items : List(Int), waiters : List(Address(WaiterMsg))) : Unit with QueueMsg =
     receive {
         Put(x) -> match waiters {
             w :: rest -> {
@@ -826,7 +826,7 @@ fn queue(items : List(Int), waiters : List(Address(WaiterMsg))) -> Unit with Que
                 queue(rest, waiters)
             }
           | [] -> {
-                let w = spawn(Local, fn() -> Unit with WaiterMsg = receive {
+                let w = spawn(Local, fn() : Unit with WaiterMsg = receive {
                     Item(x) -> answer(r, x)
                 });
                 queue([], waiters <> [w])
@@ -834,12 +834,12 @@ fn queue(items : List(Int), waiters : List(Address(WaiterMsg))) -> Unit with Que
         }
     }
 
-export fn main() -> Unit with MainMsg = {
+export fn main() : Unit with MainMsg = {
     let q = spawn(Local, fn() = queue([], []));
     let me = self();
     let _ =
         spawn(Local,
-              fn() -> Unit with Never =
+              fn() : Unit with Never =
                   send(me, Took(Address.callForever(q, fn(r) = Take(reply = r)))));
     send(q, Put(7));
     receive {
@@ -867,7 +867,7 @@ type ProducerMsg = Credit(Int)
 fn produce(to : Address(ConsumerMsg),
            next : Int,
            last : Int,
-           credit : Int) -> Unit with ProducerMsg =
+           credit : Int) : Unit with ProducerMsg =
     if next > last then
         send(to, Last)
     else if credit == 0 then receive {
@@ -878,7 +878,7 @@ fn produce(to : Address(ConsumerMsg),
     }
 
 // Takes the items, granting ten more each time it has taken ten.
-fn consume(from : Address(ProducerMsg), taken : Int, sum : Int) -> Unit with ConsumerMsg =
+fn consume(from : Address(ProducerMsg), taken : Int, sum : Int) : Unit with ConsumerMsg =
     receive {
         Item(n) -> {
             if (taken + 1) % 10 == 0 then send(from, Credit(10)) else Unit;
@@ -887,9 +887,9 @@ fn consume(from : Address(ProducerMsg), taken : Int, sum : Int) -> Unit with Con
       | Last -> Io.println("sum " <> Int.toString(sum))
     }
 
-export fn main() -> Unit with ConsumerMsg = {
+export fn main() : Unit with ConsumerMsg = {
     let me = self();
-    let producer = spawn(Local, fn() -> Unit with ProducerMsg = produce(me, 1, 100, 0));
+    let producer = spawn(Local, fn() : Unit with ProducerMsg = produce(me, 1, 100, 0));
     send(producer, Credit(10));
     consume(producer, 0, 0)
 }
@@ -909,7 +909,7 @@ The counter of §4.1 with a `main` that uses it, in `counter.ern`:
 ```ernest
 type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
 
-fn counter(n : Int) -> Unit with CounterMsg =
+fn counter(n : Int) : Unit with CounterMsg =
     receive {
         Inc(k) -> counter(n + k)
       | Get(reply = r) -> {
@@ -918,7 +918,7 @@ fn counter(n : Int) -> Unit with CounterMsg =
         }
     }
 
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -951,7 +951,7 @@ type CounterMsg =
     Inc(Int) | Get(reply : Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
-fn counter(n : Int) -> Unit with CounterMsg =
+fn counter(n : Int) : Unit with CounterMsg =
     receive {
         Inc(k) -> counter(n + k)
       | Get(reply = r) -> {
@@ -968,7 +968,7 @@ A replacement loop that doubles each increment:
 
 ```ernest
 // counter.ern
-fn doublingCounter(n : Int) -> Unit with CounterMsg =
+fn doublingCounter(n : Int) : Unit with CounterMsg =
     receive {
         Inc(k) -> doublingCounter(n + 2 * k)
       | Get(reply = r) -> {
@@ -983,7 +983,7 @@ And a `main` that upgrades after the first `Get`:
 
 ```ernest
 // counter.ern
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     let c = spawn(Local, fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
@@ -1017,7 +1017,7 @@ A tally is a process that holds the counts and adds to them. `words.ern` continu
 // words.ern, continued
 export type TallyMsg = Add(Map(String, Int)) | Top(n : Int, reply : Reply(List(#(String, Int))))
 
-export fn tally(counts : Map(String, Int)) -> Unit with TallyMsg =
+export fn tally(counts : Map(String, Int)) : Unit with TallyMsg =
     receive {
         Add(more) -> tally(Map.foldLeft(more, counts, add))
       | Top(n = n, reply = r) -> {
@@ -1058,7 +1058,7 @@ type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 
 type MainMsg = PongDone(Down)
 
-export fn main() -> Unit with MainMsg = {
+export fn main() : Unit with MainMsg = {
     let pongAddr = spawnMonitored(Local, fn() = pong(), PongDone);
     let _ = spawn(Local, fn() = ping(pongAddr, 3));
     receive {
@@ -1066,7 +1066,7 @@ export fn main() -> Unit with MainMsg = {
     }
 }
 
-fn ping(pongAddr : Address(PongMsg), n : Int) -> Unit with m =
+fn ping(pongAddr : Address(PongMsg), n : Int) : Unit with m =
     if n == 0 then
         send(pongAddr, Stop)
     else {
@@ -1080,7 +1080,7 @@ fn ping(pongAddr : Address(PongMsg), n : Int) -> Unit with m =
         }
     }
 
-fn pong() -> Unit with PongMsg =
+fn pong() : Unit with PongMsg =
     receive {
         Ping(n = n, reply = r) -> {
             Io.println("pong " <> Int.toString(n));
@@ -1121,32 +1121,32 @@ type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 ```ernest
 type MainMsg = Result(run : Int, value : Int) | Died(run : Int, down : Down)
 
-fn work(n : Int) -> Int =
+fn work(n : Int) : Int =
     n * n
 
-fn runWorker(run : Int) -> Optional(Int) with MainMsg = {
+fn runWorker(run : Int) : Optional(Int) with MainMsg = {
     let me = self();
     let _ =
         spawnMonitored(Local,
-                       fn() -> Unit with Never = send(me, Result(run = run, value = work(run))),
+                       fn() : Unit with Never = send(me, Result(run = run, value = work(run))),
                        fn(d) = Died(run = run, down = d));
     waitFor(run)
 }
 
-fn waitFor(run : Int) -> Optional(Int) with MainMsg =
+fn waitFor(run : Int) : Optional(Int) with MainMsg =
     receive {
         Result(run = r, value = v) when r == run -> Some(v)
       | Died(run = r, down = _) when r == run -> None
       | Died(run = _, down = _) -> waitFor(run)
     }
 
-fn report(run : Int) -> Unit with MainMsg =
+fn report(run : Int) : Unit with MainMsg =
     match runWorker(run) {
         Some(v) -> Io.println("run " <> Int.toString(run) <> ": " <> Int.toString(v))
       | None -> Io.println("run " <> Int.toString(run) <> ": the worker died")
     }
 
-export fn main() -> Unit with MainMsg = {
+export fn main() : Unit with MainMsg = {
     report(1);
     report(2)
 }
@@ -1201,15 +1201,15 @@ type GameMsg = Tick(Int) | Input(Char)
 
 type World = World(score : Int)
 
-fn step(w : World) -> World =
+fn step(w : World) : World =
     World(score = w.score + 1)
 
-fn game(state : World) -> Unit with GameMsg = {
+fn game(state : World) : Unit with GameMsg = {
     Clock.alarm(100, Tick);
     waitForTick(state)
 }
 
-fn waitForTick(state : World) -> Unit with GameMsg =
+fn waitForTick(state : World) : Unit with GameMsg =
     receive {
         Tick(_) -> game(step(state))
       | Input(_) -> waitForTick(state)
@@ -1226,7 +1226,7 @@ Several texts are counted at once, by a worker each, and the tally totals them. 
 // words.ern, continued
 type MainMsg = Counted(Map(String, Int)) | Died(Down)
 
-export fn main() -> Unit with MainMsg = {
+export fn main() : Unit with MainMsg = {
     let totals = spawn(Local, fn() = tally(Map.empty));
     countAll(totals, ["the cat and the hat", "the bat and the ball", "a cat"]);
     match Address.call(totals, fn(r) = Top(n = 3, reply = r), 1000) {
@@ -1235,17 +1235,17 @@ export fn main() -> Unit with MainMsg = {
     }
 }
 
-fn countAll(totals : Address(TallyMsg), texts : List(String)) -> Unit with MainMsg = {
+fn countAll(totals : Address(TallyMsg), texts : List(String)) : Unit with MainMsg = {
     let me = self();
     List.foreach(texts, fn(text) = {
         let _ =
-            spawnMonitored(Local, fn() -> Unit with Never = send(me, Counted(count(text))), Died);
+            spawnMonitored(Local, fn() : Unit with Never = send(me, Counted(count(text))), Died);
         Unit
     });
     collect(totals, List.size(texts))
 }
 
-fn collect(totals : Address(TallyMsg), left : Int) -> Unit with MainMsg =
+fn collect(totals : Address(TallyMsg), left : Int) : Unit with MainMsg =
     if left == 0 then
         Unit
     else receive {
@@ -1286,25 +1286,25 @@ A failure the caller can act on is returned: `Optional` when absence is the whol
 ```ernest
 type Config = Config(port : Int, workers : Int)
 
-fn field(text : String, name : String) -> Either(String, Int) = {
+fn field(text : String, name : String) : Either(String, Int) = {
     let n <- Either.fromOptional(String.toInt(text), name <> " is not a number");
     if n > 0 then Right(n) else Left(name <> " must be positive")
 }
 
-fn parse(port : String, workers : String) -> Either(String, Config) = {
+fn parse(port : String, workers : String) : Either(String, Config) = {
     let p <- field(port, "port");
     let w <- field(workers, "workers");
     Right(Config(port = p, workers = w))
 }
 
-fn show(c : Either(String, Config)) -> String =
+fn show(c : Either(String, Config)) : String =
     match c {
         Right(Config(port = p, workers = w)) ->
             "port " <> Int.toString(p) <> ", " <> Int.toString(w) <> " workers"
       | Left(reason) -> "no config: " <> reason
     }
 
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     Io.println(show(parse("8080", "4")));
     Io.println(show(parse("8080", "four")))
 }
@@ -1325,7 +1325,7 @@ Between processes a failure is part of the protocol. A request whose work can fa
 ```ernest
 type ParserMsg = Parse(text : String, reply : Reply(Either(String, Int)))
 
-fn parser() -> Unit with ParserMsg =
+fn parser() : Unit with ParserMsg =
     receive {
         Parse(text = t, reply = r) -> {
             answer(r, Either.fromOptional(String.toInt(t), t <> " is not a number"));
@@ -1333,14 +1333,14 @@ fn parser() -> Unit with ParserMsg =
         }
     }
 
-fn ask(p : Address(ParserMsg), text : String) -> String with m =
+fn ask(p : Address(ParserMsg), text : String) : String with m =
     match Address.call(p, fn(r) = Parse(text = text, reply = r), 1000) {
         Some(Right(n)) -> "parsed " <> Int.toString(n)
       | Some(Left(reason)) -> "refused: " <> reason
       | None -> "no answer in time"
     }
 
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     let p = spawn(Local, fn() = parser());
     Io.println(ask(p, "42"));
     Io.println(ask(p, "forty-two"))
@@ -1362,13 +1362,13 @@ A fault is what the program did not expect: a division by zero, a `Float` result
 ```ernest
 type MainMsg = WorkerDied(Down)
 
-fn average(total : Int, count : Int) -> Int =
+fn average(total : Int, count : Int) : Int =
     total / count
 
-fn worker(count : Int) -> Unit with Never =
+fn worker(count : Int) : Unit with Never =
     Io.println(Int.toString(average(100, count)))
 
-export fn main() -> Unit with MainMsg = {
+export fn main() : Unit with MainMsg = {
     let _ = spawnMonitored(Local, fn() = worker(0), WorkerDied);
     receive {
         WorkerDied(Down(reason = Fault(cause), site = site)) ->
@@ -1395,13 +1395,13 @@ A worker need not guard against what it did not expect. It faults, and the proce
 ```ernest
 type SupMsg = Result(Int) | Ended(Down)
 
-fn supervise(jobs : List(Int)) -> Unit with SupMsg =
+fn supervise(jobs : List(Int)) : Unit with SupMsg =
     match jobs {
         [] -> Io.println("all jobs done")
       | job :: rest -> {
             let me = self();
             let _ =
-                spawnMonitored(Local, fn() -> Unit with Never = send(me, Result(100 / job)), Ended);
+                spawnMonitored(Local, fn() : Unit with Never = send(me, Result(100 / job)), Ended);
             Io.println(Int.toString(job) <> ": " <> outcome());
             supervise(rest)
         }
@@ -1410,7 +1410,7 @@ fn supervise(jobs : List(Int)) -> Unit with SupMsg =
 // The worker's answer, or the fault that ended it. A worker that returned
 // has sent its answer, so after its end the answer is taken too, whichever
 // arrived first, and neither is left for the next worker.
-fn outcome() -> String with SupMsg =
+fn outcome() : String with SupMsg =
     receive {
         Ended(Down(reason = Fault(cause), site = _)) -> "failed, " <> cause
       | Ended(_) -> receive {
@@ -1418,7 +1418,7 @@ fn outcome() -> String with SupMsg =
         }
     }
 
-export fn main() -> Unit with SupMsg =
+export fn main() : Unit with SupMsg =
     supervise([4, 0, 5])
 ```
 
@@ -1447,11 +1447,11 @@ export let counter : Address(CounterMsg) = start()
 
 // A counter, restarted in place after a fault. A test calls it for a
 // counter of its own.
-export fn start() -> Address(CounterMsg) with m =
+export fn start() : Address(CounterMsg) with m =
     spawn(Local, restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
 
 // The counter's loop, which faults on a negative amount.
-fn count(total : Int) -> Unit with CounterMsg =
+fn count(total : Int) : Unit with CounterMsg =
     receive {
         Add(amount = n, reply = r) -> if n < 0 then
             fault("a negative amount")
@@ -1461,7 +1461,7 @@ fn count(total : Int) -> Unit with CounterMsg =
         }
     }
 
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     let add = fn(n) = Address.call(counter, fn(r) = Add(amount = n, reply = r), 1000);
     Io.println(Io.show(add(2)));
     Io.println(Io.show(add(-1)));
@@ -1500,7 +1500,7 @@ let visits : Address(CounterMsg) = spawn(Local, Supervisor.child(group, fn() = c
 
 let sales : Address(CounterMsg) = spawn(Local, Supervisor.child(group, fn() = count(0)))
 
-fn count(total : Int) -> Unit with CounterMsg =
+fn count(total : Int) : Unit with CounterMsg =
     receive {
         Add(amount = n, reply = r) -> if n < 0 then
             fault("a negative amount")
@@ -1510,10 +1510,10 @@ fn count(total : Int) -> Unit with CounterMsg =
         }
     }
 
-fn add(c : Address(CounterMsg), n : Int) -> Optional(Int) with m =
+fn add(c : Address(CounterMsg), n : Int) : Optional(Int) with m =
     Address.call(c, fn(r) = Add(amount = n, reply = r), 1000)
 
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     Io.println(Io.show(add(visits, 2)) <> " " <> Io.show(add(sales, 5)));
     Io.println(Io.show(add(visits, -1)));
     receive {
@@ -1542,7 +1542,7 @@ When a supervisor dies, given up, killed, or of a defect of its own, its childre
 ### 6.7 Prediction exercise
 
 ```ernest
-fn first(xs : List(Int)) -> Int =
+fn first(xs : List(Int)) : Int =
     match xs {
         x :: _ -> x
       | [] -> fault("first of an empty list")
@@ -1563,13 +1563,13 @@ Two modules:
 // net/http.ern  (namespace Net.Http)
 export type Request = Request(method : String, path : String)
 
-export fn parse(s : String) -> Optional(Request) =
+export fn parse(s : String) : Optional(Request) =
     if s == "GET /" then Some(Request(method = "GET", path = "/")) else None
 ```
 
 ```ernest
 // main.ern  (namespace Main)
-export fn main() -> Unit with Never =
+export fn main() : Unit with Never =
     match Net.Http.parse("GET /") {
         Some(Net.Http.Request(method = method, path = path)) -> Io.println(method <> " " <> path)
       | None -> Io.println("bad request")
@@ -1608,12 +1608,12 @@ Directory mode compiles the modules in the order their dependencies need, and a 
 **Testing a module.** A test is a top-level `let` of the prelude type `Test`, a name and a function returning `Passed` or `Failed(text)`:
 
 ```ernest
-fn add(a : Int, b : Int) -> Int =
+fn add(a : Int, b : Int) : Int =
     a + b
 
 let addsTwo =
     Test(name = "adds two",
-         run = fn() -> TestResult with Never = if add(1, 1) == 2 then Passed else Failed("not two"))
+         run = fn() : TestResult with Never = if add(1, 1) == 2 then Passed else Failed("not two"))
 ```
 
 ```console
@@ -1642,16 +1642,16 @@ export abstract type Stack(a) = Stack(List(a))
 
 export let Stack.empty : Stack(a) = Stack([])
 
-export fn Stack.push(x : a, Stack(xs) : Stack(a)) -> Stack(a) =
+export fn Stack.push(x : a, Stack(xs) : Stack(a)) : Stack(a) =
     Stack(x :: xs)
 
-export fn Stack.pop(Stack(xs) : Stack(a)) -> Optional(#(a, Stack(a))) =
+export fn Stack.pop(Stack(xs) : Stack(a)) : Optional(#(a, Stack(a))) =
     match xs {
         [] -> None
       | x :: rest -> Some(#(x, Stack(rest)))
     }
 
-export fn Stack.size(Stack(xs) : Stack(a)) -> Int =
+export fn Stack.size(Stack(xs) : Stack(a)) : Int =
     List.size(xs)
 ```
 
@@ -1684,10 +1684,10 @@ Code is often written once for a kind of thing that has several representations:
 /// A shape, whatever it is made of.
 type Shape = Shape(name : String, area : () -> Float)
 
-fn circle(radius : Float) -> Shape =
+fn circle(radius : Float) : Shape =
     Shape(name = "circle", area = fn() = 3.14159 * radius * radius)
 
-fn square(side : Float) -> Shape =
+fn square(side : Float) : Shape =
     Shape(name = "square", area = fn() = side * side)
 
 export fn main() =
@@ -1721,7 +1721,7 @@ Each representation depends on the contract and exports an `operations()` that f
 ```ernest
 // sets/hashed.ern  (namespace Sets.Hashed)
 /// The built-in `Set`, as a `Sets.Operations`.
-export fn operations() -> Sets.Operations(Set(a), a) =
+export fn operations() : Sets.Operations(Set(a), a) =
     Sets.Operations(empty = Set.empty, add = Set.put, has = Set.contains, union = Set.union)
 ```
 
@@ -1730,13 +1730,13 @@ export fn operations() -> Sets.Operations(Set(a), a) =
 /// A list kept in the order of a `compare`, as a `Sets.Operations`.
 export abstract type Sorted(a) = Sorted(List(a))
 
-export fn operations(compare : (a, a) -> Ordering) -> Sets.Operations(Sorted(a), a) =
+export fn operations(compare : (a, a) -> Ordering) : Sets.Operations(Sorted(a), a) =
     Sets.Operations(empty = Sorted([]),
                     add = fn(Sorted(xs), x) = Sorted(merge(xs, [x], compare)),
                     has = fn(Sorted(xs), x) = List.any(xs, fn(y) = compare(x, y) == Equal),
                     union = fn(Sorted(xs), Sorted(ys)) = Sorted(merge(xs, ys, compare)))
 
-fn merge(xs : List(a), ys : List(a), compare : (a, a) -> Ordering) -> List(a) =
+fn merge(xs : List(a), ys : List(a), compare : (a, a) -> Ordering) : List(a) =
     match #(xs, ys) {
         #([], _) -> ys
       | #(_, []) -> xs
@@ -1748,7 +1748,7 @@ fn merge(xs : List(a), ys : List(a), compare : (a, a) -> Ordering) -> List(a) =
     }
 
 /// The elements in ascending order, which no other set here gives.
-export fn toList(Sorted(xs) : Sorted(a)) -> List(a) =
+export fn toList(Sorted(xs) : Sorted(a)) : List(a) =
     xs
 ```
 
@@ -1756,7 +1756,7 @@ Code written once takes the record, and the caller chooses the representation at
 
 ```ernest
 // main.ern  (namespace Main)
-fn dedupe(operations : Sets.Operations(s, a), xs : List(a)) -> List(a) = {
+fn dedupe(operations : Sets.Operations(s, a), xs : List(a)) : List(a) = {
     let #(_, kept) = List.foldLeft(xs, #(operations.empty, []), fn(acc, x) = {
         let #(seen, out) = acc;
         if operations.has(seen, x) then acc else #(operations.add(seen, x), x :: out)
@@ -1764,7 +1764,7 @@ fn dedupe(operations : Sets.Operations(s, a), xs : List(a)) -> List(a) = {
     List.reverse(kept)
 }
 
-fn fromList(operations : Sets.Operations(s, a), xs : List(a)) -> s =
+fn fromList(operations : Sets.Operations(s, a), xs : List(a)) : s =
     List.foldLeft(xs, operations.empty, operations.add)
 
 export fn main() = {
@@ -1814,12 +1814,12 @@ The program names the peer; the runtime chooses no node for it (report §6.7):
 // square.ern
 type Result = Result(Int)
 
-fn heavy(a : Int, b : Int) -> Int =
+fn heavy(a : Int, b : Int) : Int =
     a * a + b * b
 
-export fn main() -> Unit with Result = {
+export fn main() : Unit with Result = {
     let me = self();
-    let _ = spawn(Peer("foo"), fn() -> Unit with Never = send(me, Result(heavy(3, 4))));
+    let _ = spawn(Peer("foo"), fn() : Unit with Never = send(me, Result(heavy(3, 4))));
     receive {
         Result(n) -> Io.println("foo computed " <> Int.toString(n))
     }
@@ -1846,7 +1846,7 @@ A peer that is lost stays lost: its processes are dead to this node, monitors re
 // ets.ern
 export foreign type Table(k=, v)
 
-export foreign fn contains(t : Table(k, v), key : k) -> Bool with m =
+export foreign fn contains(t : Table(k, v), key : k) : Bool with m =
     "ets:member/2"
 ```
 
@@ -1865,12 +1865,12 @@ A foreign value belongs to the node that made it, and sending one to another nod
 An `Ets.Table` of §8.3 is such a value, a table of the node's runtime: `Ets.new()` makes one, `Ets.put` stores an entry, and `Ets.get` looks one up, a function §8.5 builds. The closure below captures one, so shipping it to the peer `alice` faults with that cause; on one node, today, the spawn faults with `peer unreachable` first:
 
 ```ernest
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     let t = Ets.new();
     Ets.put(t, "answer", 42);
     let _ =
         spawn(Peer("alice"),
-              fn() -> Unit with Never =
+              fn() : Unit with Never =
                   Io.println(Int.toString(Optional.withDefault(Ets.get(t, "answer"), 0))));
     Unit
 }
@@ -1886,13 +1886,13 @@ A shim is a private `foreign fn` over an Erlang function and an exported Ernest 
 // ets.ern
 export foreign type Table(k=, v)
 
-export fn get(t : Table(k, v), key : k) -> Optional(v) with m =
+export fn get(t : Table(k, v), key : k) : Optional(v) with m =
     match rawLookup(t, key) {
         [#(_, v)] -> Some(v)
       | _ -> None
     }
 
-foreign fn rawLookup(t : Table(k, v), key : k) -> List(#(k, v)) with m =
+foreign fn rawLookup(t : Table(k, v), key : k) : List(#(k, v)) with m =
     "ets:lookup/2"
 ```
 
@@ -1920,10 +1920,10 @@ The Ernest `foreign fn` binds to that helper, and the term it returns is already
 
 ```ernest
 // store.ern (namespace Store)
-export foreign fn lookup(key : String) -> Either(String, Int) with m =
+export foreign fn lookup(key : String) : Either(String, Int) with m =
     "store_helper:lookup/1"
 
-export fn main() -> Unit with Never =
+export fn main() : Unit with Never =
     match lookup("answer") {
         Right(n) -> Io.println("found " <> Int.toString(n))
       | Left(reason) -> Io.println(reason)
@@ -1948,10 +1948,10 @@ A helper converts whatever its Erlang function returns to the declared type; Ern
 Building and parsing binary formats:
 
 ```ernest
-fn frame(len : Int, body : Bytes) -> Bytes =
+fn frame(len : Int, body : Bytes) : Bytes =
     <<len:size(16)-big, body:bytes>>
 
-fn parseFrame(bytes : Bytes) -> Optional(#(Int, Bytes, Bytes)) =
+fn parseFrame(bytes : Bytes) : Optional(#(Int, Bytes, Bytes)) =
     match bytes {
         <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some(#(len, body, rest))
       | _ -> None
@@ -2095,7 +2095,7 @@ A function's number of arguments is part of its type, and `fn(x, y)` shows it wh
 
 ## 13. Answers to the exercises
 
-**§1.4.** (a) compiles: inference gives `main` a mailbox effect from the call of `Io.println`. (b) does not compile: `-> Unit` with no `with` declares `main` pure, and a pure function cannot call `Io.println`, which sends. It is the mistake of `area` in §0. The `with Never` of hello-world says that `main` runs in a process whose mailbox will never receive. Omitting an annotation is not the same as declaring purity.
+**§1.4.** (a) compiles: inference gives `main` a mailbox effect from the call of `Io.println`. (b) does not compile: `: Unit` with no `with` declares `main` pure, and a pure function cannot call `Io.println`, which sends. It is the mistake of `area` in §0. The `with Never` of hello-world says that `main` runs in a process whose mailbox will never receive. Omitting an annotation is not the same as declaring purity.
 
 **§2.11.** No. Ernest has no assignment. `q` is a separate `Person` value; `p` is still `Person(name = "Alice", age = 30)`.
 

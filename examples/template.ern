@@ -75,18 +75,18 @@ export abstract type Stack = Stack(List(Shape))
 export let Stack.empty = Stack([])
 
 /// The stack with the shape on top.
-export fn Stack.push(s : Shape, Stack(ss) : Stack) -> Stack =
+export fn Stack.push(s : Shape, Stack(ss) : Stack) : Stack =
     Stack(s :: ss)
 
 /// The top shape and the rest, `None` when the stack is empty.
-export fn Stack.pop(Stack(ss) : Stack) -> Optional(#(Shape, Stack)) =
+export fn Stack.pop(Stack(ss) : Stack) : Optional(#(Shape, Stack)) =
     match ss {
         [] -> None
       | s :: rest -> Some(#(s, Stack(rest)))
     }
 
 /// The circle of the radius around the centre.
-export fn circle(centre : Point, radius : Int) -> Shape =
+export fn circle(centre : Point, radius : Int) : Shape =
     Circle(centre = centre, radius = radius)
 
 /// The area of the shape: zero for a point, three times the radius squared
@@ -95,7 +95,7 @@ export fn circle(centre : Point, radius : Int) -> Shape =
 /// ### See also
 ///
 /// `circle`, which builds the shape whose area is not zero.
-export fn area(s : Shape) -> Int =
+export fn area(s : Shape) : Int =
     match s {
         Dot(_) -> 0
       | Circle(radius = r) -> 3 * r * r
@@ -114,7 +114,7 @@ export fn area(s : Shape) -> Int =
 /// Template.checked(9)
 /// // => 4
 /// ```
-export fn checked(diameter : Int) -> Int =
+export fn checked(diameter : Int) : Int =
     if diameter < 0 then fault("negative diameter") else half(diameter)
 
 /// Half of a whole number, toward zero, which `checked` takes of a
@@ -127,5 +127,5 @@ export fn checked(diameter : Int) -> Int =
 /// half(7)
 /// // => 3
 /// ```
-fn half(n : Int) -> Int =
+fn half(n : Int) : Int =
     n / 2

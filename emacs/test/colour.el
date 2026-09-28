@@ -21,7 +21,7 @@ type Shape = Dot | Circle(radius : Int)
 
 // It isn't a string, and neither is what follows it.
 //// A ruler, which is no doc comment.
-export fn merge(left : List(a), right : List(a)) -> List(a) =
+export fn merge(left : List(a), right : List(a), less : (a, a) -> Bool) : List(a) =
     let tag = 'a';
     let name = \"circle\";
     let flag = true; /// refused after code, and no doc comment
@@ -30,7 +30,7 @@ export fn merge(left : List(a), right : List(a)) -> List(a) =
     let raw = `C:\\`;
     merge(left, right)
 
-export fn Int.<>(a : Int, b : Int) -> Int = a
+export fn Int.<>(a : Int, b : Int) : Int = a
 "
   "A buffer holding one of everything the keywords claim to paint.")
 

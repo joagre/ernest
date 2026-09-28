@@ -29,7 +29,7 @@
 ///
 /// Faults with `Fault("float arithmetic error")` when the result is not
 /// finite (report §3.1).
-export fn Float.+(a : Float, b : Float) -> Float =
+export fn Float.+(a : Float, b : Float) : Float =
     a + b
 
 /// The difference, rounded to the nearest `Float`.
@@ -38,7 +38,7 @@ export fn Float.+(a : Float, b : Float) -> Float =
 ///
 /// Faults with `Fault("float arithmetic error")` when the result is not
 /// finite (report §3.1).
-export fn Float.-(a : Float, b : Float) -> Float =
+export fn Float.-(a : Float, b : Float) : Float =
     a - b
 
 /// The product, rounded to the nearest `Float`.
@@ -47,7 +47,7 @@ export fn Float.-(a : Float, b : Float) -> Float =
 ///
 /// Faults with `Fault("float arithmetic error")` when the result is not
 /// finite (report §3.1).
-export fn Float.*(a : Float, b : Float) -> Float =
+export fn Float.*(a : Float, b : Float) : Float =
     a * b
 
 /// The quotient, rounded to the nearest `Float`.
@@ -56,7 +56,7 @@ export fn Float.*(a : Float, b : Float) -> Float =
 ///
 /// Faults with `Fault("float arithmetic error")` when the result is not
 /// finite (report §3.1), which a divisor of `0.0` makes it.
-export fn Float./(a : Float, b : Float) -> Float =
+export fn Float./(a : Float, b : Float) : Float =
     a / b
 
 /// `-x`, which prefix `-` calls.
@@ -67,7 +67,7 @@ export fn Float./(a : Float, b : Float) -> Float =
 /// Float.negate(1.5)
 /// // => -1.5
 /// ```
-export fn negate(x : Float) -> Float =
+export fn negate(x : Float) : Float =
     -x
 
 /// The numeric order, which `<` and the other comparisons use.
@@ -78,11 +78,11 @@ export fn negate(x : Float) -> Float =
 /// Float.compare(2.0, 1.0)
 /// // => Greater
 /// ```
-export fn compare(a : Float, b : Float) -> Ordering =
+export fn compare(a : Float, b : Float) : Ordering =
     if a < b then Less else if a > b then Greater else Equal
 
 /// The magnitude.
-export fn abs(x : Float) -> Float =
+export fn abs(x : Float) : Float =
     if x < 0.0 then -x else x
 
 /// The smaller.
@@ -93,11 +93,11 @@ export fn abs(x : Float) -> Float =
 /// #(Float.min(1.0, 2.0), Float.max(1.0, 2.0))
 /// // => #(1.0, 2.0)
 /// ```
-export fn min(a : Float, b : Float) -> Float =
+export fn min(a : Float, b : Float) : Float =
     if a < b then a else b
 
 /// The larger.
-export fn max(a : Float, b : Float) -> Float =
+export fn max(a : Float, b : Float) : Float =
     if a > b then a else b
 
 /// The shortest digits that read back as the same value, always with a
@@ -111,11 +111,11 @@ export fn max(a : Float, b : Float) -> Float =
 /// #(Float.toString(1.0e15), Float.toString(1.0e16), Float.toString(0.00001))
 /// // => #("1000000000000000.0", "1.0e16", "1.0e-5")
 /// ```
-export foreign fn toString(x : Float) -> String =
+export foreign fn toString(x : Float) : String =
     "ern_float:to_string/1"
 
 /// The nearest `Int`, ties to even.
-export fn round(x : Float) -> Int = {
+export fn round(x : Float) : Int = {
     let f = floor(x);
     let d = x - Int.toFloat(f);
     if d < 0.5 then f else if d > 0.5 then f + 1 else if f % 2 == 0 then f else f + 1
@@ -129,15 +129,15 @@ export fn round(x : Float) -> Int = {
 /// #(Float.truncate(-2.7), Float.floor(-2.7))
 /// // => #(-2, -3)
 /// ```
-export foreign fn truncate(x : Float) -> Int =
+export foreign fn truncate(x : Float) : Int =
     "erlang:trunc/1"
 
 /// The greatest `Int` not above `x`.
-export foreign fn floor(x : Float) -> Int =
+export foreign fn floor(x : Float) : Int =
     "erlang:floor/1"
 
 /// The least `Int` not below `x`.
-export foreign fn ceil(x : Float) -> Int =
+export foreign fn ceil(x : Float) : Int =
     "erlang:ceil/1"
 
 /// The square root, or `None` below zero.
@@ -148,10 +148,10 @@ export foreign fn ceil(x : Float) -> Int =
 /// #(Float.sqrt(9.0), Float.sqrt(-1.0))
 /// // => #(Some(3.0), None)
 /// ```
-export fn sqrt(x : Float) -> Optional(Float) =
+export fn sqrt(x : Float) : Optional(Float) =
     if x < 0.0 then None else Some(squareRoot(x))
 
-foreign fn squareRoot(x : Float) -> Float =
+foreign fn squareRoot(x : Float) : Float =
     "math:sqrt/1"
 
 /// `base` raised to `exponent`, or `None` where no real number is: a
@@ -168,7 +168,7 @@ foreign fn squareRoot(x : Float) -> Float =
 /// #(Float.pow(2.0, 10.0), Float.pow(-8.0, 0.5), Float.pow(0.0, -1.0))
 /// // => #(Some(1024.0), None, None)
 /// ```
-export fn pow(base : Float, exponent : Float) -> Optional(Float) =
+export fn pow(base : Float, exponent : Float) : Optional(Float) =
     if base < 0.0 && Int.toFloat(truncate(exponent)) != exponent then
         None
     else if base == 0.0 && exponent < 0.0 then
@@ -176,7 +176,7 @@ export fn pow(base : Float, exponent : Float) -> Optional(Float) =
     else
         Some(power(base, exponent))
 
-foreign fn power(base : Float, exponent : Float) -> Float =
+foreign fn power(base : Float, exponent : Float) : Float =
     "ern_float:pow/2"
 
 /// `e` raised to `x`.
@@ -192,7 +192,7 @@ foreign fn power(base : Float, exponent : Float) -> Float =
 /// Float.exp(0.0)
 /// // => 1.0
 /// ```
-export foreign fn exp(x : Float) -> Float =
+export foreign fn exp(x : Float) : Float =
     "ern_float:exp/1"
 
 /// The natural logarithm, or `None` at zero and below.
@@ -203,10 +203,10 @@ export foreign fn exp(x : Float) -> Float =
 /// #(Float.log(1.0), Float.log(0.0))
 /// // => #(Some(0.0), None)
 /// ```
-export fn log(x : Float) -> Optional(Float) =
+export fn log(x : Float) : Optional(Float) =
     if x <= 0.0 then None else Some(naturalLog(x))
 
-foreign fn naturalLog(x : Float) -> Float =
+foreign fn naturalLog(x : Float) : Float =
     "math:log/1"
 
 /// The sine of an angle in radians, as the other trigonometric functions
@@ -218,15 +218,15 @@ foreign fn naturalLog(x : Float) -> Float =
 /// #(Float.sin(0.0), Float.cos(0.0), Float.tan(0.0))
 /// // => #(0.0, 1.0, 0.0)
 /// ```
-export foreign fn sin(x : Float) -> Float =
+export foreign fn sin(x : Float) : Float =
     "math:sin/1"
 
 /// The cosine.
-export foreign fn cos(x : Float) -> Float =
+export foreign fn cos(x : Float) : Float =
     "math:cos/1"
 
 /// The tangent.
-export foreign fn tan(x : Float) -> Float =
+export foreign fn tan(x : Float) : Float =
     "math:tan/1"
 
 /// The angle whose sine is `x`, or `None` outside -1.0 to 1.0.
@@ -237,17 +237,17 @@ export foreign fn tan(x : Float) -> Float =
 /// #(Float.asin(0.0), Float.acos(2.0))
 /// // => #(Some(0.0), None)
 /// ```
-export fn asin(x : Float) -> Optional(Float) =
+export fn asin(x : Float) : Optional(Float) =
     if x < -1.0 || x > 1.0 then None else Some(arcSin(x))
 
-foreign fn arcSin(x : Float) -> Float =
+foreign fn arcSin(x : Float) : Float =
     "math:asin/1"
 
 /// The angle whose cosine is `x`, or `None` outside -1.0 to 1.0.
-export fn acos(x : Float) -> Optional(Float) =
+export fn acos(x : Float) : Optional(Float) =
     if x < -1.0 || x > 1.0 then None else Some(arcCos(x))
 
-foreign fn arcCos(x : Float) -> Float =
+foreign fn arcCos(x : Float) : Float =
     "math:acos/1"
 
 /// The angle whose tangent is `x`.
@@ -258,7 +258,7 @@ foreign fn arcCos(x : Float) -> Float =
 /// Float.atan(0.0)
 /// // => 0.0
 /// ```
-export foreign fn atan(x : Float) -> Float =
+export foreign fn atan(x : Float) : Float =
     "math:atan/1"
 
 /// The angle of the point `#(x, y)`, the `y` given first, which keeps the
@@ -270,5 +270,5 @@ export foreign fn atan(x : Float) -> Float =
 /// Float.atan2(0.0, 1.0)
 /// // => 0.0
 /// ```
-export foreign fn atan2(y : Float, x : Float) -> Float =
+export foreign fn atan2(y : Float, x : Float) : Float =
     "math:atan2/2"

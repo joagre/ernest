@@ -3,7 +3,7 @@
 // read answers what has arrived, at least one byte (report §8.2).
 //
 
-export fn main() -> Unit with Never =
+export fn main() : Unit with Never =
     match Io.read() {
         None -> Io.println("end")
       | Some(b) -> {

@@ -24,11 +24,11 @@
 
 /// The value as the runtime holds it, which a `foreign fn` may take where
 /// it declares `Foreign`.
-export foreign fn from(value : a) -> Foreign =
+export foreign fn from(value : a) : Foreign =
     "ern_foreign:from/1"
 
 /// The `Int` it is, or `None`.
-export foreign fn toInt(value : Foreign) -> Optional(Int) =
+export foreign fn toInt(value : Foreign) : Optional(Int) =
     "ern_foreign:to_int/1"
 
 /// The `Float` it is, or `None`.
@@ -39,7 +39,7 @@ export foreign fn toInt(value : Foreign) -> Optional(Int) =
 /// Foreign.toFloat(Foreign.from(1.5))
 /// // => Some(1.5)
 /// ```
-export foreign fn toFloat(value : Foreign) -> Optional(Float) =
+export foreign fn toFloat(value : Foreign) : Optional(Float) =
     "ern_foreign:to_float/1"
 
 /// The `String` it is, or `None`; a binary that is not UTF-8 is `None`.
@@ -50,7 +50,7 @@ export foreign fn toFloat(value : Foreign) -> Optional(Float) =
 /// Foreign.toString(Foreign.from("hi"))
 /// // => Some("hi")
 /// ```
-export foreign fn toString(value : Foreign) -> Optional(String) =
+export foreign fn toString(value : Foreign) : Optional(String) =
     "ern_foreign:to_string/1"
 
 /// The `Bool` it is, or `None`.
@@ -61,9 +61,9 @@ export foreign fn toString(value : Foreign) -> Optional(String) =
 /// #(Foreign.toBool(Foreign.from(true)), Foreign.toBool(Erl.atom("ready")))
 /// // => #(Some(true), None)
 /// ```
-export foreign fn toBool(value : Foreign) -> Optional(Bool) =
+export foreign fn toBool(value : Foreign) : Optional(Bool) =
     "ern_foreign:to_bool/1"
 
 /// The list it is, its elements still foreign, or `None`.
-export foreign fn toList(value : Foreign) -> Optional(List(Foreign)) =
+export foreign fn toList(value : Foreign) : Optional(List(Foreign)) =
     "ern_foreign:to_list/1"

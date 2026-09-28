@@ -13,7 +13,7 @@ type Snapshot = Snapshot(dir : String, seen : Int)
 
 type Shape = Circle(Int) | Square(Int) | Dot
 
-export fn main() -> Unit with Never = {
+export fn main() : Unit with Never = {
     Io.println(sign(-1));
     Io.println(sign(0));
     Io.println(sign(7));
@@ -24,34 +24,34 @@ export fn main() -> Unit with Never = {
     Io.println(Int.toString(side(Square(4))))
 }
 
-fn sign(n : Int) -> String =
+fn sign(n : Int) : String =
     match n {
         -1 -> "minus one"
       | 0 -> "zero"
       | _ -> "other"
     }
 
-fn describe(o : Optional(Snapshot)) -> String =
+fn describe(o : Optional(Snapshot)) : String =
     match o {
         Some(Snapshot(dir = d) as snap) -> d <> " " <> Int.toString(seen(snap))
       | None -> "nothing"
     }
 
-fn seen(Snapshot(seen = n) : Snapshot) -> Int =
+fn seen(Snapshot(seen = n) : Snapshot) : Int =
     n
 
-fn negate(n : Int) -> Int =
+fn negate(n : Int) : Int =
     -n
 
 // A clause with alternatives binds the same variables in each.
-fn side(s : Shape) -> Int =
+fn side(s : Shape) : Int =
     match s {
         Circle(n) or Square(n) -> n
       | Dot -> 0
     }
 
 // `as` binds loosest: `x :: rest as all` names the whole list.
-fn whole(xs : List(Int)) -> List(Int) =
+fn whole(xs : List(Int)) : List(Int) =
     match xs {
         x :: rest as all -> all
       | [] -> []

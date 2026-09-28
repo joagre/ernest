@@ -315,9 +315,14 @@ params(Ps, X) ->
 param(#param{pattern = P, type = undefined}, X) -> pat(P, X);
 param(#param{pattern = P, type = T}, X) -> [pat(P, X), sp(), tok(':'), sp(), ty(T, X)].
 
-ret(undefined, _, _) -> [];
-ret(R, undefined, X) -> [sp(), tok('->'), sp(), ty(R, X)];
-ret(R, F, X) -> [sp(), tok('->'), sp(), ty(R, X), sp(), tok(with), sp(), ty(F, X)].
+%% A head's result annotation is written `: T`, and a function type's
+%% result after `->` (report §3.4, §4.5).
+ret(R, F, X) ->
+    ret(':', R, F, X).
+
+ret(_, undefined, _, _) -> [];
+ret(Sym, R, undefined, X) -> [sp(), tok(Sym), sp(), ty(R, X)];
+ret(Sym, R, F, X) -> [sp(), tok(Sym), sp(), ty(R, X), sp(), tok(with), sp(), ty(F, X)].
 
 ann(undefined, _) -> [];
 ann(T, X) -> [sp(), tok(':'), sp(), ty(T, X)].
@@ -367,7 +372,7 @@ ty_(#t_con{path = P, args = As}, X) ->
 ty_(#t_var{}, _) -> tok();
 ty_(#t_tuple{elems = Es}, X) -> bracket(tok('#('), [ty(E, X) || E <- Es], ')');
 ty_(#t_fn{params = Ps, ret = R, effect = F}, X) ->
-    [bracket(tok('('), [ty(P, X) || P <- Ps], ')'), ret(R, F, X)].
+    [bracket(tok('('), [ty(P, X) || P <- Ps], ')'), ret('->', R, F, X)].
 
 path(P) -> [[tok(), tok('.')] || _ <- P].
 
