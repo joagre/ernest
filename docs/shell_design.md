@@ -133,14 +133,14 @@ The session reads the file in `main` and hands the inputs to the reader in `Star
 
 ## Completion and documentation
 
-The reader's `completing` decides from the line what may stand at the cursor:
+`Shell.Complete.completion` decides from the line what may stand at the cursor, and the reader's `completing` asks it wherever `Tab` does not indent:
 
 - in a command's name, the table's names (`commandWord`), without asking the parser, since a command is not the language's;
 - after a command, what `Shell.Command.completes` says the command takes (`argument`);
 - with only spaces before the cursor on its row, nothing: `Tab` inserts four spaces;
 - anywhere else, what `context` answers: the parser is given the text before the word, and says what it wanted where it stopped, a `Shell.Complete.Where`.
 
-The names come from the front end. `names()` is every name in reach, read from the compiled interfaces and the session, each with its kind and the line a listing shows, and `Shell.Complete.withNamespaces` adds the namespaces they are in. For the text before a `.`, `fields` checks it as an input in `$Fields`, which does not enter the session, so a chain of selections is the checker's and a name the unfinished input binds is not in scope; it answers the fields the text's type selects, from `ern_typecheck:fields/2` over §3.5's rule. With nothing typed, `offered` leaves out the prelude's constructors, keeping those the session declares (`sessionTexts`). For `:load`, `sourceModules` lists the one directory of the source root the typed segments name, so a large root is never walked, and names each entry with `segment`, the compiler's path-shape rule (§11.1).
+The names come from the front end, which `Shell.Complete` asks, as `Shell.History` reads its file. `names()` is every name in reach, read from the compiled interfaces and the session, each with its kind and the line a listing shows, and `Shell.Complete.withNamespaces` adds the namespaces they are in. For the text before a `.`, `fields` checks it as an input in `$Fields`, which does not enter the session, so a chain of selections is the checker's and a name the unfinished input binds is not in scope; it answers the fields the text's type selects, from `ern_typecheck:fields/2` over §3.5's rule. With nothing typed, `offered` leaves out the prelude's constructors, keeping those the session declares (`sessionTexts`). For `:load`, `sourceModules` lists the one directory of the source root the typed segments name, so a large root is never walked, and names each entry with `segment`, the compiler's path-shape rule (§11.1).
 
 `Shell.Complete.complete` is pure. It filters the names by the `Where`, matches the typed word by prefix and by abbreviation, segment by segment, and answers a `Completion`: the word to stand in place of the one typed, and the candidates. The word replaces rather than extends, since an abbreviation is no prefix of what it reaches; `applied` puts it in the line. The reader's `offering` lists the candidates on a second `Tab`, on a `Tab` that changes nothing, and for a lone candidate, as the rows under the line in `Typing`; the next key's `Typing` carries none.
 

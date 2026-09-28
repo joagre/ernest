@@ -43,35 +43,6 @@ foreign fn output(path : String) -> Either(String, String) with m =
 foreign fn needsMore(input : String) -> Bool =
     "ern_shell:needs_more/1"
 
-// Report §11.2: every name completion may reach, as the session stands.
-// Reading the compiled interfaces is the host's; the matching is
-// `Shell.Complete`'s.
-foreign fn names() -> List(Shell.Complete.Name) with m =
-    "ern_shell:names/0"
-
-// Report §11.2: the names the session declares, which `:forget` takes,
-// and the source root `:load` compiles from; the session is the front
-// end's to hold.
-foreign fn sessionNames() -> List(Shell.Complete.Name) with m =
-    "ern_shell:session_names/0"
-
-foreign fn sourceRoot() -> String with m =
-    "ern_shell:source_root/0"
-
-// Report §11.2: every name the session declares, as it is written.
-foreign fn sessionTexts() -> List(String) with m =
-    "ern_shell:session_texts/0"
-
-// Report §11.2: what may stand at the cursor, which the parser knows,
-// since it says what it wanted where it stopped.
-foreign fn context(before : String) -> Shell.Complete.Where with m =
-    "ern_shell:context/1"
-
-// Report §11.2, §3.5: the fields the value before the last `.` selects,
-// named as typed and listed with their types.
-foreign fn fields(typed : String) -> List(Shell.Complete.Name) with m =
-    "ern_shell:fields/1"
-
 // Report §11.2: the page for a name, which `Shift-Tab` shows a first
 // sentence of and then the whole of.
 foreign fn documentation(name : String) -> Optional(String) with m =
@@ -130,11 +101,6 @@ foreign fn browse(env : Env, name : String) -> Either(String, List(String)) with
 
 foreign fn doc(env : Env, name : String) -> Either(String, String) with m =
     "ern_shell:doc/2"
-
-// Report §11.1, §4.2: the namespace segment a path component names, asked
-// of the compiler, which owns the rule.
-foreign fn segment(name : String) -> Optional(String) =
-    "ern_shell:segment/1"
 
 // The toolchain's version, which the host was built with.
 foreign fn version() -> String =
@@ -929,26 +895,14 @@ fn completing(session : Address(ShellMsg),
               state : Shell.Editor.State) -> Unit with ReaderMsg = {
     let line = Shell.Editor.text(state);
     let at = Shell.Editor.at(state);
-    let typed = Shell.Complete.word(String.slice(line, 0, at));
-    if String.startsWith(line, ":") && at <= Shell.Command.wordEnd(line) then {
-        // report §11.2: a command is the shell's own word, not the
-        // language's, so the parser is not asked about it
-        let word = String.slice(line, 0, Shell.Command.wordEnd(line));
-        offering(session, screen, reading, commandWord(word, line), word, state)
-    } else if String.startsWith(line, ":") then
-        offering(session, screen, reading, argument(line, at, typed), typed, state)
-    else if String.isEmpty(String.trim(rowBefore(line, at))) then
+    if !String.startsWith(line, ":") && String.isEmpty(String.trim(rowBefore(line, at))) then
         // report §11.2: only spaces before the cursor on its row, so `Tab`
         // indents. Four spaces and no tab: the style guide's rule, and
         // a tab in the line is invisible where spaces are what they
         // look like (§0, principle 3)
         showing(session, screen, reading, Shell.Editor.insert(state, indent))
     else {
-        // the parser is asked about the text before the word being
-        // completed: with the word there it has been read already, and
-        // what may stand at the cursor is what may stand in its place
-        let where = context(String.slice(line, 0, at - String.size(typed)));
-        let completion = Shell.Complete.complete(typed, offered(typed), where);
+        let #(completion, typed) = Shell.Complete.completion(line, at);
         offering(session, screen, reading, completion, typed, state)
     }
 }
@@ -968,162 +922,11 @@ fn offering(session : Address(ShellMsg),
     let #(text, next) = Shell.Complete.applied(line, Shell.Editor.at(state), typed, completion);
     let shown = Shell.Editor.typed(state, text, next);
     let said = hint(screen, reading, shown);
-    let listed = reading.last == Tabbed || text == line || lone(completion);
+    let listed = reading.last == Tabbed || text == line || Shell.Complete.lone(completion);
     let rows = if listed then listing(completion, reading.colour) else [];
     send(screen, under(shown, rows));
     readLoop(session, screen, Reading(..reading, editing = shown, hinted = said, last = Tabbed))
 }
-
-// Report §11.2: the names a word completes against, every one once
-// something is typed, with the fields a value before a `.` selects; with
-// nothing typed, the starting points: what the
-// session declares, the modules in scope, and the prelude's names that no
-// module qualifies, its constructors aside, which are mostly the messages
-// of system processes and complete from a letter.
-fn offered(typed : String) -> List(Shell.Complete.Name) with m = {
-    let all = Shell.Complete.withNamespaces(names());
-    if !String.isEmpty(typed) then
-        all <> fields(typed)
-    else {
-        // nothing typed reaches the names of one segment, so what is left
-        // to leave out is the prelude's constructors
-        let own = sessionTexts();
-        List.filter(all, fn(name) = match name {
-            Shell.Complete.Name(text = text, kind = Shell.Complete.Constructor) ->
-                List.contains(own, text)
-          | _ -> true
-        })
-    }
-}
-
-fn lone(completion : Shell.Complete.Completion) -> Bool =
-    match completion {
-        Shell.Complete.Completion(candidates = [_]) -> true
-      | _ -> false
-    }
-
-// Report §11.2: a lone candidate is completed as far as it goes, so one
-// that takes a value after it, a command with an argument or a setting,
-// is followed by a space, where the line has none after it already.
-fn withSpace(completion : Shell.Complete.Completion, takes : Bool) -> Shell.Complete.Completion =
-    match completion {
-        Shell.Complete.Completion(word = whole, candidates = [_]) -> if takes then
-            Shell.Complete.Completion(..completion, word = whole <> " ")
-        else
-            completion
-      | _ -> completion
-    }
-
-fn commandWord(word : String, line : String) -> Shell.Complete.Completion = {
-    let completion = Shell.Complete.complete(word, commandNames(), Shell.Complete.Anything);
-    withSpace(completion,
-              Shell.Command.wordEnd(line) == String.size(line)
-                  && Shell.Command.completes(completion.word) != None)
-}
-
-// Report §11.2: after a command, what completes is what the command
-// takes, and after another command nothing. An expression's names are
-// the parser's to choose, as at the start of a line; anything else is
-// one word, the argument's first.
-fn argument(line : String, at : Int, typed : String) -> Shell.Complete.Completion with m = {
-    let end = Shell.Command.wordEnd(line);
-    let start = at - String.size(typed);
-    let before = String.slice(line, end, start - end);
-    match Shell.Command.completes(String.slice(line, 0, end)) {
-        Some(Shell.Command.Expressions) ->
-            Shell.Complete.complete(typed, offered(typed), context(before))
-      // every setting takes a value after it, and `timing`'s is a word
-      | Some(Shell.Command.SettingWords) -> match String.trim(before) {
-            "" ->
-                withSpace(Shell.Complete.complete(typed,
-                                                  argumentNames(Shell.Command.SettingWords, typed),
-                                                  Shell.Complete.Anything),
-                          at == String.size(line))
-          | "timing" -> {
-                let words =
-                    List.map(["on", "off"],
-                             fn(word) =
-                                 Shell.Complete.Name(text = word,
-                                                     kind = Shell.Complete.Value,
-                                                     shown = word));
-                Shell.Complete.complete(typed, words, Shell.Complete.Anything)
-            }
-          | _ -> Shell.Complete.nothing
-        }
-      | Some(kind) -> if String.isEmpty(String.trim(before)) then
-            Shell.Complete.complete(typed, argumentNames(kind, typed), Shell.Complete.Anything)
-        else
-            Shell.Complete.nothing
-      | None -> Shell.Complete.nothing
-    }
-}
-
-fn argumentNames(kind : Shell.Command.Completes,
-                 typed : String) -> List(Shell.Complete.Name) with m =
-    match kind {
-        // a module completes as it is written, without the dot a name inside
-        // it would need, and is listed by its name alone, since every
-        // candidate here is a module; the namespaces they are in, `Http` for
-        // `Http.Parser`, complete with their dots
-        Shell.Command.Modules ->
-            Shell.Complete.withNamespaces(List.filterMap(names(), fn(name) = match name {
-                Shell.Complete.Name(text = text, kind = Shell.Complete.Module) ->
-                    Some(Shell.Complete.Name(text = text,
-                                             kind = Shell.Complete.Value,
-                                             shown = text))
-              | _ -> None
-            }))
-      | Shell.Command.SourceModules -> sourceModules(typed)
-      | Shell.Command.Expressions -> offered(typed)
-      | Shell.Command.Names -> offered(typed)
-      | Shell.Command.SessionNames -> sessionNames()
-      | Shell.Command.SettingWords ->
-            List.map(Shell.Command.settings,
-                     fn(#(word, value)) =
-                         Shell.Complete.Name(text = word,
-                                             kind = Shell.Complete.Value,
-                                             shown = word <> " " <> value))
-      | Shell.Command.Paths -> []
-    }
-
-// Report §11.2: the modules `:load` may compile, read from the source
-// root a directory at a time: the one the typed word's finished segments
-// name, so that a large root is never walked whole. A directory is a
-// namespace and a `.ern` file a module, each named by §11.1's path shape.
-fn sourceModules(typed : String) -> List(Shell.Complete.Name) with m = {
-    let finished = List.dropLast(String.split(typed, "."));
-    let dir =
-        List.foldLeft(finished,
-                      Path(sourceRoot()),
-                      fn(path, segment) = Path.join(path, Path(String.toLower(segment))));
-    let prefix = String.join(List.map(finished, fn(segment) = segment <> "."), "");
-    match Fs.list(dir, fileWait) {
-        Left(_) -> []
-      | Right(entries) -> List.filterMap(entries, fn(entry) = sourceModule(prefix, entry))
-    }
-}
-
-fn sourceModule(prefix : String, entry : Fs.Entry) -> Optional(Shell.Complete.Name) =
-    match entry {
-        Fs.Entry(path = path, kind = Fs.Directory) ->
-            Optional.map(segment(Path.name(path)), fn(s) = {
-                let text = prefix <> s;
-                Shell.Complete.Name(text = text, kind = Shell.Complete.Module, shown = text <> ".")
-            })
-      | Fs.Entry(path = path) -> if Path.extension(path) != Some("ern") then
-            None
-        else Optional.map(segment(Path.name(Path.withExtension(path, ""))), fn(s) = {
-            let text = prefix <> s;
-            Shell.Complete.Name(text = text, kind = Shell.Complete.Value, shown = text)
-        })
-    }
-
-fn commandNames() -> List(Shell.Complete.Name) =
-    List.map(Shell.Command.commands,
-             fn(c) =
-                 Shell.Complete.Name(text = ":" <> c.name,
-                                     kind = Shell.Complete.Value,
-                                     shown = Shell.Command.line(c)))
 
 // Report §11.2: what `Tab` puts in where it indents.
 let indent = "    "

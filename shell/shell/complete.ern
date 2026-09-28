@@ -2,10 +2,11 @@
 // Completion (report §11.2), designed in docs/shell_design.md: what
 // `Tab` puts in the line, and what a second `Tab` lists.
 //
-// A pure function from what is typed and the names in scope. The names
-// come from the compiled interfaces, which only the front end can read,
-// and the matching and the ranking are here, which is where the rule in
-// CLAUDE.md puts them.
+// The matching and the ranking are pure functions from what is typed and
+// the names in scope, which is where the rule in CLAUDE.md puts them.
+// `completion` gathers the names: from the compiled interfaces and the
+// session, which only the front end can read, and from the source root,
+// through `Fs`.
 //
 
 export type Kind = Value | Type | Constructor | Module
@@ -29,6 +30,199 @@ export type Name = Name(text : String, kind : Kind, shown : String)
 export type Completion = Completion(word : String, candidates : List(Name))
 
 export let nothing = Completion(word = "", candidates = [])
+
+// Report §11.2: what `Tab` completes the word before the cursor to, and
+// that word. A command is the shell's own word, not the language's, so
+// the parser is not asked about it; after a command, what completes is
+// what the command takes; anywhere else, what `context` says may stand
+// at the cursor, the parser being given the text before the word: with
+// the word there it has been read already, and what may stand at the
+// cursor is what may stand in its place.
+export fn completion(line : String, at : Int) -> #(Completion, String) with m = {
+    let typed = word(String.slice(line, 0, at));
+    if String.startsWith(line, ":") && at <= Shell.Command.wordEnd(line) then {
+        let command = String.slice(line, 0, Shell.Command.wordEnd(line));
+        #(commandWord(command, line), command)
+    } else if String.startsWith(line, ":") then
+        #(argument(line, at, typed), typed)
+    else {
+        let where = context(String.slice(line, 0, at - String.size(typed)));
+        #(complete(typed, offered(typed), where), typed)
+    }
+}
+
+// Report §11.2: the names a word completes against, every one once
+// something is typed, with the fields a value before a `.` selects; with
+// nothing typed, the starting points: what the
+// session declares, the modules in scope, and the prelude's names that no
+// module qualifies, its constructors aside, which are mostly the messages
+// of system processes and complete from a letter.
+fn offered(typed : String) -> List(Name) with m = {
+    let all = withNamespaces(names());
+    if !String.isEmpty(typed) then
+        all <> fields(typed)
+    else {
+        // nothing typed reaches the names of one segment, so what is left
+        // to leave out is the prelude's constructors
+        let own = sessionTexts();
+        List.filter(all, fn(name) = match name {
+            Name(text = text, kind = Constructor) -> List.contains(own, text)
+          | _ -> true
+        })
+    }
+}
+
+export fn lone(completion : Completion) -> Bool =
+    match completion {
+        Completion(candidates = [_]) -> true
+      | _ -> false
+    }
+
+// Report §11.2: a lone candidate is completed as far as it goes, so one
+// that takes a value after it, a command with an argument or a setting,
+// is followed by a space, where the line has none after it already.
+fn withSpace(completion : Completion, takes : Bool) -> Completion =
+    match completion {
+        Completion(word = whole, candidates = [_]) -> if takes then
+            Completion(..completion, word = whole <> " ")
+        else
+            completion
+      | _ -> completion
+    }
+
+fn commandWord(word : String, line : String) -> Completion = {
+    let completion = complete(word, commandNames(), Anything);
+    withSpace(completion,
+              Shell.Command.wordEnd(line) == String.size(line)
+                  && Shell.Command.completes(completion.word) != None)
+}
+
+// Report §11.2: after a command, what completes is what the command
+// takes, and after another command nothing. An expression's names are
+// the parser's to choose, as at the start of a line; anything else is
+// one word, the argument's first.
+fn argument(line : String, at : Int, typed : String) -> Completion with m = {
+    let end = Shell.Command.wordEnd(line);
+    let start = at - String.size(typed);
+    let before = String.slice(line, end, start - end);
+    match Shell.Command.completes(String.slice(line, 0, end)) {
+        Some(Shell.Command.Expressions) -> complete(typed, offered(typed), context(before))
+      // every setting takes a value after it, and `timing`'s is a word
+      | Some(Shell.Command.SettingWords) -> match String.trim(before) {
+            "" ->
+                withSpace(complete(typed,
+                                   argumentNames(Shell.Command.SettingWords, typed),
+                                   Anything),
+                          at == String.size(line))
+          | "timing" -> {
+                let words =
+                    List.map(["on", "off"],
+                             fn(word) = Name(text = word, kind = Value, shown = word));
+                complete(typed, words, Anything)
+            }
+          | _ -> nothing
+        }
+      | Some(kind) -> if String.isEmpty(String.trim(before)) then
+            complete(typed, argumentNames(kind, typed), Anything)
+        else
+            nothing
+      | None -> nothing
+    }
+}
+
+fn argumentNames(kind : Shell.Command.Completes, typed : String) -> List(Name) with m =
+    match kind {
+        // a module completes as it is written, without the dot a name inside
+        // it would need, and is listed by its name alone, since every
+        // candidate here is a module; the namespaces they are in, `Http` for
+        // `Http.Parser`, complete with their dots
+        Shell.Command.Modules -> withNamespaces(List.filterMap(names(), fn(name) = match name {
+            Name(text = text, kind = Module) -> Some(Name(text = text, kind = Value, shown = text))
+          | _ -> None
+        }))
+      | Shell.Command.SourceModules -> sourceModules(typed)
+      | Shell.Command.Expressions -> offered(typed)
+      | Shell.Command.Names -> offered(typed)
+      | Shell.Command.SessionNames -> sessionNames()
+      | Shell.Command.SettingWords ->
+            List.map(Shell.Command.settings,
+                     fn(#(word, value)) =
+                         Name(text = word, kind = Value, shown = word <> " " <> value))
+      | Shell.Command.Paths -> []
+    }
+
+// Report §11.2: the modules `:load` may compile, read from the source
+// root a directory at a time: the one the typed word's finished segments
+// name, so that a large root is never walked whole. A directory is a
+// namespace and a `.ern` file a module, each named by §11.1's path shape.
+fn sourceModules(typed : String) -> List(Name) with m = {
+    let finished = List.dropLast(String.split(typed, "."));
+    let dir =
+        List.foldLeft(finished,
+                      Path(sourceRoot()),
+                      fn(path, segment) = Path.join(path, Path(String.toLower(segment))));
+    let prefix = String.join(List.map(finished, fn(segment) = segment <> "."), "");
+    match Fs.list(dir, listWait) {
+        Left(_) -> []
+      | Right(entries) -> List.filterMap(entries, fn(entry) = sourceModule(prefix, entry))
+    }
+}
+
+fn sourceModule(prefix : String, entry : Fs.Entry) -> Optional(Name) =
+    match entry {
+        Fs.Entry(path = path, kind = Fs.Directory) ->
+            Optional.map(segment(Path.name(path)), fn(s) = {
+                let text = prefix <> s;
+                Name(text = text, kind = Module, shown = text <> ".")
+            })
+      | Fs.Entry(path = path) -> if Path.extension(path) != Some("ern") then
+            None
+        else Optional.map(segment(Path.name(Path.withExtension(path, ""))), fn(s) = {
+            let text = prefix <> s;
+            Name(text = text, kind = Value, shown = text)
+        })
+    }
+
+fn commandNames() -> List(Name) =
+    List.map(Shell.Command.commands,
+             fn(c) = Name(text = ":" <> c.name, kind = Value, shown = Shell.Command.line(c)))
+
+// How long `:load`'s listing of a directory of the source root may take.
+let listWait = 5000
+
+// Report §11.2: every name completion may reach, as the session stands.
+// Reading the compiled interfaces is the host's; the matching is
+// `Shell.Complete`'s.
+foreign fn names() -> List(Name) with m =
+    "ern_shell:names/0"
+
+// Report §11.2: the names the session declares, which `:forget` takes,
+// and the source root `:load` compiles from; the session is the front
+// end's to hold.
+foreign fn sessionNames() -> List(Name) with m =
+    "ern_shell:session_names/0"
+
+foreign fn sourceRoot() -> String with m =
+    "ern_shell:source_root/0"
+
+// Report §11.2: every name the session declares, as it is written.
+foreign fn sessionTexts() -> List(String) with m =
+    "ern_shell:session_texts/0"
+
+// Report §11.2: what may stand at the cursor, which the parser knows,
+// since it says what it wanted where it stopped.
+foreign fn context(before : String) -> Where with m =
+    "ern_shell:context/1"
+
+// Report §11.2, §3.5: the fields the value before the last `.` selects,
+// named as typed and listed with their types.
+foreign fn fields(typed : String) -> List(Name) with m =
+    "ern_shell:fields/1"
+
+// Report §11.1, §4.2: the namespace segment a path component names, asked
+// of the compiler, which owns the rule.
+foreign fn segment(name : String) -> Optional(String) =
+    "ern_shell:segment/1"
 
 // Report §11.2: the word before the cursor completes against the names
 // in scope, segment by segment, so `Li` gives `List.` and `List.ma`

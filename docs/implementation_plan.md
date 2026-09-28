@@ -13,12 +13,10 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
-**MVP 2.95, which readies the first release, is under way.** The manual pages, the
-installation, the release archive, the review, the time of `make test` and the readers' first
-fixes are done (2026-09-28). Three entries of the language feedback follow (item 5). The
-release itself is MVP 2.99's. Every earlier milestone is done, the last MVP 2.7 on 2026-09-28;
-MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph
-under "Done".
+**MVP 2.96 is next**: a result annotation written with `:`, and then the guide teaching a
+process's addresses. Every earlier milestone is done, the last MVP 2.95 on 2026-09-28; MVP 2.9,
+MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under
+"Done". The first release is MVP 2.99's.
 
 ---
 
@@ -36,7 +34,7 @@ under "Done".
 | MVP 2.7 | a program started from a command line, and the appendix of libraries | done 2026-09-28 |
 | MVP 2.8 | the formatter | done 2026-09-28, out of order |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
-| **MVP 2.95** | **manual pages, an installation, the review** | **under way: manual pages, installation, archive, review, the time of `make test` and the readers' first fixes done 2026-09-28; three feedback entries next** |
+| MVP 2.95 | manual pages, an installation, the review | done 2026-09-28 |
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | |
 | MVP 2.97 | one contract, several representations: an ordered set | waits on language feedback 64 |
 | MVP 2.98 | what the first review left | |
@@ -45,116 +43,6 @@ under "Done".
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 | MVP 3.9 | the review before 1.0: soundness argued and generated against | |
-
----
-
-## MVP 2.95 (manual pages, an installation, and the review)
-
-What the first release needs before it is made: its manual pages, its installation and archive,
-and a review with its fixes. The release itself is MVP 2.99's, decided 2026-09-28 (the log's
-*The First Release Follows MVP 2.99*). It follows MVP 2.7.
-
-1. **Manual pages, done 2026-09-28.** `ern doc --man` writes a module's page as a manual page
-   in roff, `Ernest.List(3ern)`, `Ernest.Prelude(3ern)` for the prelude and
-   `Ernest.Net.Http(3ern)` for a user's module, rendered by `libs/markdown`'s `roff`. `ern(1)`
-   is §11 of the report, rendered by `tools/manual.ern`, its SEE ALSO naming the standard
-   library's pages. `make man` writes them all (report §11, §11.4, Appendix G.2; the log's
-   *Manual Pages Named `Ernest.List`*, *`ern(1)` Is §11* and *What Building the Manual Pages
-   Found*).
-2. **An installation, done 2026-09-28.** `make install` installs Ernest under `PREFIX`,
-   `/usr/local` by default, each path after `DESTDIR`, and `make uninstall` removes exactly
-   what it installed; neither changes anything where it cannot write. `bin/ern` is a POSIX sh
-   launcher, in the repository and the installation alike: it follows its links to its tree,
-   refuses a working directory whose name is not UTF-8 before the host starts, and starts the
-   host. The tree is the repository's layout under `lib/ernest`. The design note is
-   [`install.md`](install.md); the log's *`bin/ern` Is a Launcher*, *The Layout Under the
-   Prefix* and *What Building the Installation Found* argue it.
-3. **A release archive, done 2026-09-28.** `make release` writes
-   `build/release/ern-0.1.0.tar.gz`: the tree `make install` stages, with the helper as its C
-   source, `install.sh`, and a `Makefile` and a `README.md` of its own, from which a user
-   installs Ernest without building it. Decided 2026-09-28: one archive for every system, whose
-   `make` compiles the helper where it is installed; and the installed tree, from the checkout
-   and the archive alike, carries no host debug information, stripped keeping `ErnI` and
-   `Docs` (the log's *One Archive, Compiled Where It Is Installed*).
-4. **The review, done 2026-09-28**, heavier than a first release needs: a machine for every
-   check, built in eleven steps, and twelve readers. What they found that was real is fixed or
-   planned below (the log's entries from *What Dialyzer Found* to *A Signal Ends a Job*). The
-   machines that found little are gone, and the review is [`review.md`](review.md)'s one page
-   (the log's *A Lean Review*). No Mac verification for the first release: the README and the
-   archive's README say Linux, with macOS expected to work and not yet verified (the log's *No
-   Mac for the First Release*). What a first release leaves out is MVP 3.9's.
-   1. **The lean-down, done 2026-09-28.** `make calls`, `make untested`, `make unused`,
-      `make garbled`, `make stress` and `make fresh` are gone with their tools, and so are the
-      catalogue's completeness scanner, the Makefiles' coverage plumbing and the coherence
-      note. CLAUDE.md asks for `make test` before a commit and for readers at a release.
-      `make dialyzer`, `make sanitize`, `make load`, the report's checked examples, the
-      grammar's FIRST sets, the licences test and the catalogue of diagnostics stay.
-   2. **The readers' first fixes, done 2026-09-28**, decided that day: the defects that lose data,
-      expose a user, or break a program, each with a regression test. They are the `tag` lines
-      of [`findings.md`](findings.md), which holds every finding of the review with its
-      decision:
-      - the directory build's sweep, which deleted what no build of its own wrote (§11.1),
-        done 2026-09-28 (the log's *The Sweep Removes What a Build Wrote*);
-      - `ern shell` running `./.ernest/startup` from the working directory, done 2026-09-28
-        (the log's *A Directory Runs Nothing of Its Own*), and the working directory on the
-        host's code path ahead of the load path (§11.2), done 2026-09-28;
-      - `Fs` over a FIFO blocking every file operation of the node, done 2026-09-28 (the
-        log's *`Fs` Reads Regular Files*), and `Fs.list` failing for a whole directory over
-        one dangling link (E.17), done 2026-09-28;
-      - `Tcp.listen` and `Tcp.connect` hanging on a bad port or host, `Tcp.listen` binding
-        every interface, and a socket's write holding up its reads (E.18), done 2026-09-28:
-        `Tcp.listen` takes the host as `Tcp.connect` does (the log's *`Tcp.listen` Names Its
-        Interface*);
-      - the shell's history readable by others, done 2026-09-28 with `Fs.makePrivate` (the
-        log's *`Fs.makePrivate`*); `ern config`'s
-        race on the key, done 2026-09-28; and control characters of a fault or a doc block
-        reaching the terminal (§11.2, §11.3), done 2026-09-28;
-      - a program's end leaving processes a late spawn made (§8.6), done 2026-09-28;
-        `:reload` initializing in the wrong order, and a failed `:load` leaving its processes
-        (§11.2), done 2026-09-28; a foreign function value inside a recursive type (§8.4),
-        done 2026-09-28;
-      - a closed pipe crashing every job but `ern run`, the internal errors on an empty
-        directory, a name that is not UTF-8 and a corrupt `.erc`, and `ern format` of a file
-        that cannot be written (§11), done 2026-09-28 (the log's *A Job Refuses What It Cannot
-        Do*);
-      - `Supervisor`'s restart limit, which a child passes before the supervisor counts it
-        (E.22), done 2026-09-28, and `String`'s searches, which match inside a grapheme (E.5), done 2026-09-28;
-      - `emacs_mode.md`'s Emacs 29 or later, where only Emacs 31.1 runs the mode's tests
-        here, done 2026-09-28;
-      - an intermittent failure found 2026-09-28, a refused example of the guide's
-        diagnostics with nothing captured, done 2026-09-28: EUnit's `?capturedOutput` asks
-        whether the test's group leader is EUnit's by the function it is running, which
-        under load it sampled while that process ran another module's code, and answered
-        `""`; a probe caught it once in eight runs of `make test`. The two test modules that
-        read captured output ask the group leader directly;
-      - ten defects a first user meets, moved here from the `cheap` lines on 2026-09-28, since
-        this step's rule takes them, done 2026-09-28: every job's crash on a command-line word that is not UTF-8
-        (C13), the shell's completion on a field of two types (C15), `ern_os` on a closed port
-        (C9), `ern format`'s losses of text, its crash and its rewrite of a `.txt` (C11, C16,
-        C17, C24 to C26, T11), `stty sane` losing the user's settings (C20), a lost paste end
-        (C31), the live region's line that nothing reclaims (E3), a faulting `mk` under
-        `restarting` (C7), and `examples/filesync.ern` trusting a peer's path (S7) (the log's
-        *What MVP 2.95 Takes From the Rest*). The formatter's crash on a `///` after code (C17)
-        is gone with the rule that such a `///` is an error (§2.2), decided 2026-09-28
-        (the log's *A `///` After Code Is an Error*).
-   3. **The time of `make test`, done 2026-09-28**, taken before step 2's other fixes: 280
-      seconds to 112, the suite in two phases of jobs side by side, as many at once as the
-      host has cores, and bound by its CPU. The compiler's hash now covers the six modules
-      that shape a `.erc` it had left out (§11.1), two jobs writing one file each write it
-      whole (§11), and a test that slept where the runtime could not see it naps. The
-      measurement and the arguments are the log's *The Time of `make test`*.
-   4. **The rest**, what the readers found and step 2 leaves, is MVP 2.98's, decided
-      2026-09-28.
-5. **Three entries of the language feedback**, moved here on 2026-09-28 (the log's *What MVP
-   2.95 Takes From the Rest*):
-   - 62, a long namespace written at every use: the log's *Names Stay Qualified, Without Import
-     or Alias* stands, and its remedy is built. The code of `shell.ern` that works on
-     completions moves into `Shell.Complete`, where its names are written bare.
-   - 63, a list with a separator between its elements: refused by E.0 rule 4, since it is
-     `List.flatMap(xs, fn(x) = [sep, x]) |> List.drop(1)`, a pipe of two; done 2026-09-28.
-   - 65, `Fs` cannot see a symbolic link: the kind of an entry, `File`, `Directory`, `Link` or
-     `Other`, in place of `isDir`; `list` describing an entry as it is, not followed; and
-     `makeLink` and `readLink` beside it (E.17; the log's *What `Fs` Holds*); done 2026-09-28.
 
 ---
 
@@ -250,7 +138,7 @@ second is rewritten around a contract `SetOps(s, a)` holding the operations of t
 
 ## MVP 2.98 (what the first review left), about two weeks
 
-What the review of MVP 2.95 found and its item 4 did not fix, decided 2026-09-28 and moved from MVP 3.0 the same day, since none of it needs a peer (the log's
+What the review of MVP 2.95 found and did not fix there, decided 2026-09-28 and moved from MVP 3.0 the same day, since none of it needs a peer (the log's
 *MVP 3.0 Is Distributed Code and the Node Protocol*). It follows MVP 2.97.
 
 1. **[`findings.md`](findings.md)'s `cheap` lines**, a batch a document.
@@ -261,7 +149,7 @@ What the review of MVP 2.95 found and its item 4 did not fix, decided 2026-09-28
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
    `create`, a new file or none; `removeAll`; `setModified`; and, decided with the user, a file
    read and written in parts, which a file too large to hold whole needs. An entry's kind and
-   its links are MVP 2.95's, item 5.
+   its links were built in MVP 2.95.
 4. **Three changes that take work from `make test`**: the shell's tests waiting for the prompt
    or a program's output, not a fixed time; `ern_cli`'s build in a module of its own, so that
    the compiler's hash leaves out its other jobs and a change to them recompiles nothing; and
@@ -291,6 +179,11 @@ follows MVP 2.98.
    - a termination or hangup that comes while the host starts, which the host drops (*Standing
      gaps* below): whether a launcher passes a signal on to the host until the host has taken
      it, at the price of a second process between a service manager and the program.
+   - the host's port helper, `erl_child_setup`, which once in some twenty runs of `make test`
+     wrote `failed with error` as an interrupt ended the host, where §8.6 has the interrupt
+     end the program printing nothing (`interrupt_test_`, found 2026-09-28, not yet
+     diagnosed). Its shape: read the helper's source for what it reports, meet it under load,
+     and end the host so that its helper is not caught mid-write.
 2. **The first release**, placed here on 2026-09-28 (the log's *The First Release Follows MVP
    2.99*): Ernest for programs on one node, for other programmers to install and use, decided
    2026-09-27 (the log's *The First Release Is for Others*); peers are the next release's.
@@ -657,3 +550,24 @@ waits for its stream (the log's *Back Pressure, Again*). The list of what Ernest
 four (the log's *What Ernest Adds Stays at Four*). The guide was read in order by a reader new
 to it, and what it used before teaching is now taught first or points ahead (the log's *The
 Guide Read in Order*). `Fs.watch` stays out (the log's *Later*).
+
+### MVP 2.95 — manual pages, an installation, and the review (done 2026-09-28)
+
+`ern doc --man` writes a module's manual page, `Ernest.List(3ern)`, and `ern(1)` is §11
+(report §11, §11.4, Appendix G.2; the log's *Manual Pages Named `Ernest.List`*, *`ern(1)` Is
+§11* and *What Building the Manual Pages Found*). `make install` installs Ernest under
+`PREFIX`, and `make release` writes one archive for every system, compiled where it is
+installed ([`install.md`](install.md); the log's *`bin/ern` Is a Launcher*, *The Layout Under
+the Prefix* and *One Archive, Compiled Where It Is Installed*). The review ran a machine for
+every check and twelve readers, and is now [`review.md`](review.md)'s one page (the log's *A
+Lean Review*); `make test` went from 280 seconds to under a minute (the log's *The Time of
+`make test`*). The readers' findings that lose data, expose a user or break a program were
+fixed, each with a regression test, and the rest are MVP 2.98's ([`findings.md`](findings.md);
+the log's entries from *The Sweep Removes What a Build Wrote* to *An Unfinished Line Leaves
+the Region a Row at a Time*). Three entries of the language feedback were decided: names stay
+qualified and the shell's completion moved into `Shell.Complete`, `List.intersperse` is
+refused, and `Fs` sees a symbolic link (the log's *What MVP 2.95 Takes From the Rest* and
+*What `Fs` Holds*). An intermittent failure of the guide's diagnostics was EUnit's capture,
+not the toolchain's. It is verified on Linux alone (the log's *No Mac for the First
+Release*), and the release itself is MVP 2.99's (the log's *The First Release Follows MVP
+2.99*).

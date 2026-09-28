@@ -60,7 +60,7 @@ In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault repor
 | `Shell` | [`shell.ern`](shell.ern) | The processes and the front end's declarations: all that sends, receives, or reaches the host, but the history file. |
 | `Shell.Command` | [`shell/command.ern`](shell/command.ern) | The table of commands, and the parsing of a command line and of `:set`'s argument. |
 | `Shell.Editor` | [`shell/editor.ern`](shell/editor.ern) | The line editor: Readline's Emacs keys, the walk through the history, and the incremental search. |
-| `Shell.Complete` | [`shell/complete.ern`](shell/complete.ern) | Completion: matching a word against names, and what the candidates share. |
+| `Shell.Complete` | [`shell/complete.ern`](shell/complete.ern) | Completion: what may stand at the cursor, the names that may, gathered from the session and the source root, and matching a word against them. |
 | `Shell.Region` | [`shell/region.ern`](shell/region.ern) | The live region at the foot of the terminal, and the bytes each event writes. |
 | `Shell.History` | [`shell/history.ern`](shell/history.ern) | The history file, over `Os` and `Fs`. |
 | `Shell.Style` | [`shell/style.ern`](shell/style.ern) | The colours. Each function is given whether colour is on. |
@@ -68,7 +68,7 @@ In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault repor
 
 `Shell` uses all the others. Of the others, only `Shell.Editor` uses another: it reads the history's length, `Shell.History.kept`.
 
-Every module but `Shell` and `Shell.History` is pure. `Shell.Editor.State` and `Shell.Region.Region` are abstract (§4.4), so the shell reads them through their modules' functions, such as `Shell.Editor.text`. Each pure module is tested by its `Test` values (§9.3). `make test-shell` runs them with the tests of the session and the terminal (the design note's *Testing*).
+Every module but `Shell`, `Shell.History` and `Shell.Complete` is pure, and `Shell.Complete`'s matching is. `Shell.Editor.State` and `Shell.Region.Region` are abstract (§4.4), so the shell reads them through their modules' functions, such as `Shell.Editor.text`. Each pure module is tested by its `Test` values (§9.3). `make test-shell` runs them with the tests of the session and the terminal (the design note's *Testing*).
 
 ## The front end
 

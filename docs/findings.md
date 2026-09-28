@@ -1,6 +1,6 @@
 # Findings of the first review
 
-Every finding of the twelve readers of 2026-09-28, one line each, by area, with its decision: **2.95**, fixed in the plan's MVP 2.95, item 4, step 2; **cheap**, fixed in MVP 2.98, a batch a document; **2.96**, planned in MVP 2.96's second part; **2.98**, planned in MVP 2.98; **done**; or **dropped**, with the reason. The readers: the report's principles (P), the cold reader (K), the register (G), the guide (U), the newcomer (N), the documents (D), the code (C), the Ernest code (E), the tools (T), the diagnostics (X), security (S), the shell's README (H). This file goes when every line is done or in the plan.
+Every finding of the twelve readers of 2026-09-28, one line each, by area, with its decision: **2.95**, fixed in MVP 2.95; **cheap**, fixed in MVP 2.98, a batch a document; **2.96**, planned in MVP 2.96's second part; **2.98**, planned in MVP 2.98; **done**; or **dropped**, with the reason. The readers: the report's principles (P), the cold reader (K), the register (G), the guide (U), the newcomer (N), the documents (D), the code (C), the Ernest code (E), the tools (T), the diagnostics (X), security (S), the shell's README (H). This file goes when every line is done or in the plan.
 
 ## MVP 2.95
 
