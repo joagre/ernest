@@ -684,10 +684,9 @@ constructor_expr(Pos, Path, Name, [{'(', _} | R]) ->
             %% argument would stand, and positional or named is not
             %% decided yet: what may stand here is a value or a field's
             %% name, and only the constructor's type tells which
-            inside_con(Path, Name, none, fun() ->
-                wanted({field_or_value, Path, Name}, P,
-                       "expected an expression instead of end of input")
-            end);
+            D = diag(P, "expected an expression instead of end of input", undefined),
+            throw({parse_error, D#diag{expected = {field_or_value, Path, Name},
+                                       within = {Path, Name, none}}});
         _ ->
             {E, R1} = inside_con(Path, Name, 0, fun() -> expr(R) end),
             w({#e_con{pos = Pos, path = Path, name = Name, args = {positional, E}},
@@ -958,6 +957,7 @@ describe({doc, _, _}) -> "doc comment";
 describe({eof, _}) -> "end of input";
 describe({Sym, _}) -> "`" ++ atom_to_list(Sym) ++ "`".
 
+-spec fail(ern_diag:pos(), iodata()) -> no_return().
 fail(Pos, Message) ->
     fail(Pos, Message, undefined).
 
@@ -965,8 +965,9 @@ fail(Pos, Message) ->
 %% completion, which asks what may stand at the cursor. Only the
 %% categories completion acts on are marked; every other failure leaves
 %% the field alone.
+-spec wanted(term(), ern_diag:pos(), iodata()) -> no_return().
 wanted(What, Pos, Message) ->
-    tagging(What, fun() -> fail(Pos, Message) end).
+    throw({parse_error, (diag(Pos, Message, undefined))#diag{expected = What}}).
 
 %% What a failure inside this call wanted, where the caller knows it and
 %% the failing code does not: a field name belongs to its constructor.
@@ -977,6 +978,9 @@ tagging(What, Parse) ->
     end.
 
 %% Report §11.5: the message states the rule, the help line the fix.
+-spec fail(ern_diag:pos(), iodata(), string() | undefined) -> no_return().
 fail(Pos, Message, Help) ->
-    throw({parse_error, #diag{span = ern_diag:span(Pos), message = lists:flatten(Message),
-                              help = Help}}).
+    throw({parse_error, diag(Pos, Message, Help)}).
+
+diag(Pos, Message, Help) ->
+    #diag{span = ern_diag:span(Pos), message = lists:flatten(Message), help = Help}.

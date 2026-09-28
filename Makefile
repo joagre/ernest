@@ -207,6 +207,7 @@ clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
 	@rm -rf build/stdlib build/shell build/libs build/tools build/man build/release \
+	  build/dialyzer build/dialyzer.plt \
 	  examples/*.erc \
 	  examples/**/*.erc $(EXEC)
 
@@ -216,6 +217,24 @@ golden: all
 	@$(MAKE) -s -C erl/emitter/src ../ebin/ern_emitter_tests.beam
 	@cd erl/emitter/src && erl -noshell -pa ../../*/ebin -pa $(abspath build/stdlib) \
 	  -eval 'ern_emitter_tests:write_golden(), halt().'
+
+# Dialyzer over the toolchain's Erlang, its tests aside, and over the Erlang
+# the compiler writes for the standard library, the shell and the
+# libraries, a library's .erc copied under its module's name, since
+# Dialyzer reads only a .beam (docs/coherence.md C13). The table of the
+# host's applications the toolchain calls is built once, into
+# build/dialyzer.plt, and Dialyzer checks it against the host at each run.
+DIALYZER_APPS = erts kernel stdlib compiler syntax_tools crypto public_key asn1
+dialyzer: all
+	@test -f build/dialyzer.plt || \
+	  dialyzer --build_plt --output_plt build/dialyzer.plt --apps $(DIALYZER_APPS)
+	@rm -rf build/dialyzer && mkdir -p build/dialyzer
+	@for d in build/libs/*; do (cd $$d && find . -name '*.erc') | while read -r f; do \
+	  m=$${f#./}; cp $$d/$$m build/dialyzer/ern@$$(echo $${m%.erc} | tr / @).beam; done; done
+	@dialyzer --plt build/dialyzer.plt $(filter-out %_tests.beam,$(wildcard erl/*/ebin/*.beam)) \
+	  $(wildcard build/stdlib/ern@*.beam) \
+	  $(filter-out build/shell/ern@markdown.beam,$(wildcard build/shell/ern@*.beam)) \
+	  build/dialyzer/*.beam
 
 # Every `§x.y`, `Appendix X`, and `E.n` in a live document names a heading of the
 # report, and the guide's own bare `§x.y` a heading of the guide; a test in test/.
@@ -260,4 +279,5 @@ clean-emacs:
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
-        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall release unicode
+        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall release unicode \
+        dialyzer

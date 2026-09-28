@@ -408,24 +408,25 @@ parse_module(#mod{file = File} = M, Root, LoadPath) ->
 %% Report §4.2: a module namespace may not coincide with a type namespace
 %% of its parent module. Checked from both files, so either finds it.
 namespace_clash(#mod{ns = Ns, rel = Rel, decls = Decls}, Root) ->
-    Clash = fun(ChildRel, T, ParentRel, Q) ->
-                fail(ChildRel ++ " and type " ++ atom_to_list(T) ++ " in " ++ ParentRel
-                     ++ " share the namespace " ++ qname(Q) ++ " (report §4.2)")
-            end,
     case Ns of
         [_, _ | _] ->
             Parent = lists:droplast(Ns),
             ParentRel = module_path(Parent) ++ ".ern",
             lists:member(lists:last(Ns), source_types(filename:join(Root, ParentRel)))
-                andalso Clash(Rel, lists:last(Ns), ParentRel, Ns);
+                andalso clash(Rel, lists:last(Ns), ParentRel, Ns);
         _ ->
             ok
     end,
     lists:foreach(fun(T) ->
                       ChildRel = module_path(Ns ++ [T]) ++ ".ern",
                       filelib:is_regular(filename:join(Root, ChildRel))
-                          andalso Clash(ChildRel, T, Rel, Ns ++ [T])
+                          andalso clash(ChildRel, T, Rel, Ns ++ [T])
                   end, local_types(Decls)).
+
+-spec clash(string(), atom(), string(), [atom()]) -> no_return().
+clash(ChildRel, T, ParentRel, Q) ->
+    fail(ChildRel ++ " and type " ++ atom_to_list(T) ++ " in " ++ ParentRel
+         ++ " share the namespace " ++ qname(Q) ++ " (report §4.2)").
 
 %% The types a parsed source declares; none when it is absent or does not parse.
 source_types(File) ->

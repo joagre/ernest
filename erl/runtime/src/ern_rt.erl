@@ -190,6 +190,7 @@ call_forever(Addr, Mk) ->
 %% Report §6.6, §7.4: a callForever whose callee ended faults the caller with
 %% the callee's cause, or says how it ended; with the program the caller
 %% ends too.
+-spec ended(term()) -> no_return().
 ended({'Fault', Cause}) -> fault(Cause);
 ended('Killed') -> fault(<<"callee was killed">>);
 ended('Returned') -> fault(<<"callee returned without answering">>);

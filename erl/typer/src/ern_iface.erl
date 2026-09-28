@@ -14,8 +14,9 @@
 -define(CHUNK, <<"ErnI">>).
 -define(FORMAT, 2).
 
--type chunk() :: #{iface := #iface{}, source_hash := binary(), deps := [{[atom()], binary()}],
-                   compiler => binary(), stdlib => binary() | none}.
+-type chunk() :: #{format := pos_integer(), iface := #iface{}, source_hash := binary(),
+                   deps := [{[atom()], binary()}], compiler => binary(),
+                   stdlib => binary() | none, source => binary()}.
 
 -spec chunk_name() -> binary().
 chunk_name() ->

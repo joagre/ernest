@@ -1630,6 +1630,7 @@ user_operator(Pos, Op, LT, Q, Env0) ->
             end
     end.
 
+-spec not_defined(ern_diag:pos(), atom(), term(), env()) -> no_return().
 not_defined(Pos, Op, T, Env) ->
     fail(Pos, "`" ++ op_text(Op) ++ "` is not defined on " ++ ern_types:format(T, Env#env.st)).
 
@@ -2008,6 +2009,7 @@ use_effect(Pos, Name, Eff, #env{st = St, effect = Have, effect_origin = Origin} 
 
 %% Report §6.8, §4.6: a receive with a pattern clause where the mailbox is
 %% Never, in a function or in a top-level initializer.
+-spec never_receives(ern_diag:pos(), term()) -> no_return().
 never_receives(Pos, {"a top-level `let`", _, _, Help}) ->
     fail(Pos, "a top-level initializer runs with mailbox Never and cannot receive", [], Help);
 never_receives(Pos, _) ->
@@ -2359,6 +2361,7 @@ alternatives_agree(#p_or{alts = [First | Rest]}, Env) ->
 alternatives_agree(_, Env) ->
     Env.
 
+-spec alternatives_differ(ern_diag:pos(), [atom()], [atom()]) -> no_return().
 alternatives_differ(Pos, Names, NamesA) ->
     Text = case Names -- NamesA of
                [N | _] -> "`" ++ atom_to_list(N) ++ "` is bound by the first alternative"
@@ -2655,6 +2658,7 @@ lookup_value(Pos, Path, Name, #env{ns = Ns, local_values = LV} = Env) ->
 
 %% Report §4.2: `Prelude.` takes one name the prelude declares; what is
 %% below a namespace of its own is reached by that namespace.
+-spec prelude_one(ern_diag:pos(), [atom()], atom()) -> no_return().
 prelude_one(Pos, Path, Name) ->
     fail(Pos, format_qname(Path ++ [Name]) ++ ": Prelude takes one name the prelude declares,"
               " as `Prelude.Some`").

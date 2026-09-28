@@ -84,6 +84,8 @@ make install      install under PREFIX, /usr/local by default, each path after D
                   where one is given (docs/install.md)
 make uninstall    remove the installation under the same PREFIX and DESTDIR
 make release      write the release archive, build/release/ern-VERSION.tar.gz
+make dialyzer     Dialyzer over the toolchain and the Erlang the compiler writes for
+                  stdlib/, shell/ and libs/; its first run builds build/dialyzer.plt
 make sections     list the report sections no test cites
 make xref         check that every section citation and document path in the documents resolves
 make coverage     every section with how many tests cite it and its length, thinnest first
