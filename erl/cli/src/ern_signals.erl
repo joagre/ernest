@@ -11,14 +11,14 @@
 
 %% Handle the two signals here from now on (report §11): the launcher does
 %% before its work, since the host's own handler would stop the node only
-%% once that work had returned, and a run does again, for a launcher that a
-%% tool measures without its start (tools/ern_cover.erl). A termination the
-%% host's handler took as the host started has asked the host to stop,
-%% which it would do only then, so `ern` ends by it here, before the
-%% handler, which the stopping host may have ended, is asked; a hangup then
-%% the host ignored. One that came before the host could take a signal at
-%% all the host itself drops. The host's interrupt cannot be handled; it
-%% ends the node at once (report §8.6).
+%% once that work had returned, and a run does again, which changes nothing
+%% where the handler is in place. A termination the host's handler took as
+%% the host started has asked the host to stop, which it would do only
+%% then, so `ern` ends by it here, before the handler, which the stopping
+%% host may have ended, is asked; a hangup then the host ignored. One that
+%% came before the host could take a signal at all the host itself drops.
+%% The host's interrupt cannot be handled; it ends the node at once
+%% (report §8.6).
 -spec install() -> ok.
 install() ->
     case init:get_status() of

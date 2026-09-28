@@ -27,7 +27,6 @@
 %% the work and record what it ran before the host ends.
 -spec start() -> no_return().
 start() ->
-    ok = ern_signals:install(),
     finish(launched(init:get_plain_arguments())).
 
 %% The command line carried out, and the status it ends with. A run
@@ -37,6 +36,8 @@ start() ->
 %% status 70, and is never left as a crash dump in the working directory.
 -spec launched([word()]) -> 0..255.
 launched(Args) ->
+    %% the host's signals are ern's before any of its work (ern_signals)
+    ok = ern_signals:install(),
     try
         persistent_term:put({?MODULE, streams}, fds),
         ern(Args, standard_error)

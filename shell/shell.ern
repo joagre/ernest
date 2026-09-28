@@ -192,9 +192,10 @@ type ScreenMsg =
   | Typing(text : String, at : Int, rows : List(String)) | Entered | Taken | Resize | Clear
   | Height(Int) | Flush(reply : Reply(Unit))
 
-// What the reader is told: a key, and, once it holds the keyboard, the
-// screen it draws on, the inputs of the sessions before this one, and
-// whether the shell colours.
+// What the reader is told: a key, which the terminal sends it once it has
+// subscribed (`Terminal.subscribe(K)`), and, once it holds the keyboard,
+// `main`'s `Start` with the screen it draws on, the inputs of the sessions
+// before this one, and whether the shell colours.
 type ReaderMsg =
     K(Terminal.Event) | Start(screen : Address(ScreenMsg), earlier : List(String), colour : Bool)
 

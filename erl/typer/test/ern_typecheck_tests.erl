@@ -1133,6 +1133,16 @@ foreign_types_test() ->
     %% held, passed, and sent
     ?assertEqual(ok, ok(Table ++ "fn send1(a : Address(Table(Int, Int)), t) = send(a, t)")).
 
+%% report §3.7: Never is an ordinary type, which unifies with itself alone,
+%% and a function that may stand at any type has a variable as its result,
+%% as fault has. A regression test, written after the code, which the
+%% review found stated and untested (docs/coherence.md C1)
+never_is_ordinary_test() ->
+    ?assertEqual("the body does not have the declared return type: expected Int, found Never",
+                 err("fn f(x : Never) -> Int = x")),
+    ?assertEqual(ok, ok("fn f(x : Never) -> Never = x")),
+    ?assertEqual(ok, ok("fn f() -> Int = fault(\"no\")")).
+
 %% report §3.7, §9.1, §9.2, §9.3: every built-in and declared type is usable
 %% as a type, and every declared type's constructors cover it
 prelude_types_test() ->

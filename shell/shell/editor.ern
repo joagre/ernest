@@ -78,9 +78,10 @@ export fn newline(state : State) -> State =
     insert(state, "\n")
 
 // The line and the cursor a completion left, which the reader puts
-// back; the editor knows no names and does no completing of its own.
+// back; the editor knows no names and does no completing of its own. The
+// cursor is kept inside the line, whatever it is given.
 export fn typed(state : State, text : String, at : Int) -> State =
-    State(..state, text = text, at = at)
+    State(..state, text = text, at = Int.max(0, Int.min(String.size(text), at)))
 
 // The line being edited and the cursor in it, a search aside.
 export fn text(state : State) -> String =

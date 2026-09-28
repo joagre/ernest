@@ -111,8 +111,8 @@ unreached() ->
      {{ern_cli, finish, 1}, "the launcher's end, run in every launch after the count is written"},
      {{ern_signals, ended, 0}, "run by the launcher's end after the count is written"},
      {{ern_signals, die, 2},
-      "run by the launcher's end after the count is written, and by a signal in the moment "
-      "before a run begins or after it ends, which no test can place"},
+      "run by the launcher's end after the count is written, and by a signal that ends a "
+      "job, which ends the host before it writes its count"},
      {{ern_signals, handle_call, 2}, "a callback gen_event requires, which nothing calls"},
      {{ern_tty_signal, handle_call, 2}, "a callback gen_event requires, which nothing calls"},
      {{ern_io, show, 1},
