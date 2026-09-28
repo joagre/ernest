@@ -14,11 +14,11 @@ milestone, the standing gaps, and what is done.
 ## Where we are
 
 **MVP 2.95, which readies the first release, is under way.** The manual pages, the
-installation, the release archive, the review and the time of `make test` are done (2026-09-28),
-and so are the readers' first fixes, all but the defects moved there that day (item 4,
-step 2). Three entries of the language feedback
-follow (item 5). The release itself is MVP 2.99's. Every earlier milestone is done, the last
-MVP 2.7 on 2026-09-28; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under "Done".
+installation, the release archive, the review, the time of `make test` and the readers' first
+fixes are done (2026-09-28). Three entries of the language feedback follow (item 5). The
+release itself is MVP 2.99's. Every earlier milestone is done, the last MVP 2.7 on 2026-09-28;
+MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph
+under "Done".
 
 ---
 
@@ -36,7 +36,7 @@ MVP 2.7 on 2026-09-28; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken
 | MVP 2.7 | a program started from a command line, and the appendix of libraries | done 2026-09-28 |
 | MVP 2.8 | the formatter | done 2026-09-28, out of order |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
-| **MVP 2.95** | **manual pages, an installation, the review** | **under way: manual pages, installation, archive, review and the time of `make test` done 2026-09-28; ten of the readers' fixes and three feedback entries next** |
+| **MVP 2.95** | **manual pages, an installation, the review** | **under way: manual pages, installation, archive, review, the time of `make test` and the readers' first fixes done 2026-09-28; three feedback entries next** |
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | |
 | MVP 2.97 | one contract, several representations: an ordered set | waits on language feedback 64 |
 | MVP 2.98 | what the first review left | |
@@ -89,7 +89,7 @@ and a review with its fixes. The release itself is MVP 2.99's, decided 2026-09-2
       note. CLAUDE.md asks for `make test` before a commit and for readers at a release.
       `make dialyzer`, `make sanitize`, `make load`, the report's checked examples, the
       grammar's FIRST sets, the licences test and the catalogue of diagnostics stay.
-   2. **The readers' first fixes**, decided 2026-09-28: the defects that lose data,
+   2. **The readers' first fixes, done 2026-09-28**, decided that day: the defects that lose data,
       expose a user, or break a program, each with a regression test. They are the `tag` lines
       of [`findings.md`](findings.md), which holds every finding of the review with its
       decision:
@@ -128,7 +128,7 @@ and a review with its fixes. The release itself is MVP 2.99's, decided 2026-09-2
         `""`; a probe caught it once in eight runs of `make test`. The two test modules that
         read captured output ask the group leader directly;
       - ten defects a first user meets, moved here from the `cheap` lines on 2026-09-28, since
-        this step's rule takes them: every job's crash on a command-line word that is not UTF-8
+        this step's rule takes them, done 2026-09-28: every job's crash on a command-line word that is not UTF-8
         (C13), the shell's completion on a field of two types (C15), `ern_os` on a closed port
         (C9), `ern format`'s losses of text, its crash and its rewrite of a `.txt` (C11, C16,
         C17, C24 to C26, T11), `stty sane` losing the user's settings (C20), a lost paste end
