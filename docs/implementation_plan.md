@@ -37,6 +37,7 @@ out of order. Each has its paragraph under "Done".
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | **MVP 2.95** | **the first release: manual pages, an installation, the review** | **under way: manual pages, installation, archive and review done 2026-09-28; the readers' fixes next** |
 | MVP 2.96 | a result annotation written with `:` | |
+| MVP 2.97 | one contract, several representations: an ordered set | waits on language feedback 64 |
 | MVP 3.0 | peers | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -142,6 +143,35 @@ a type member: `fn show(x : Optional(Int)) : String = …`. A function type keep
    declares main pure ``), and the Emacs mode.
 4. **One spelling.** `->` after a head's `)` is a parse error whose help names `:`, as §11
    refuses a job spelled as an earlier version spelled it.
+
+---
+
+## MVP 2.97 (one contract, several representations: an ordered set), about two days
+
+Decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*): the guide's §7.3 is
+rewritten to test whether a record of functions does what an interface does in Java and a type
+class in Haskell. Its first form, a value that carries its operations (`Shape`), goes. Its
+second is rewritten around a contract `SetOps(s, a)` holding the operations of the built-in
+`Set` (Appendix E), which `Set` fills in, and so does a module `OrderedSet`, a set kept in a
+`compare`'s order that exports functions of its own beyond the contract, such as `min` and
+`max`. It follows MVP 2.96.
+
+1. **The contract waits on a decision**, discussed with the user first (language feedback
+   64): whether a field may be polymorphic in a variable its type does not take, as
+   `foldLeft`'s accumulator and `any`'s effect are. Without it the contract cannot hold nine
+   of `Set`'s twenty functions, and the section does not go around that.
+2. **What the section verifies**, each stated in it or in the log: code written once against
+   the contract (a Java parameter of an interface type, a Haskell constraint); a
+   representation's own functions beside the contract (a class's further methods); a contract
+   that extends another, an `OrderedSetOps` holding a `SetOps` (`SortedSet extends Set`, a
+   superclass); defaults built from a smaller record (a default method); the representation
+   chosen at the call, never found by its type (instance resolution, which principle 3 leaves
+   out); two ordered sets of different `compare`s meeting in `union` (Haskell's coherence;
+   Java's `TreeSet`, which keeps its comparator); and values of different representations in
+   one list, which the first form gave. What Ernest cannot express goes to
+   [`language_feedback.md`](language_feedback.md) and is decided with the user before the
+   section goes around it.
+3. **The section's examples** compile and run under the guide's checks.
 
 ---
 
