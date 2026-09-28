@@ -13,8 +13,8 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
-**MVP 2.97 is next**, and waits on a decision with the user, language feedback 64: whether a
-record's field may be polymorphic in a variable its type does not take. Every earlier milestone
+**MVP 2.98 is under way**, taken before MVP 2.97, which rests on a decision with the user:
+how a contract is written, which [`contract.md`](contract.md) weighs (2026-09-29). Every earlier milestone
 is done, the last MVP 2.96 on 2026-09-29; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were
 taken out of order. Each has its paragraph under "Done". The first release is MVP 2.99's.
 
@@ -36,8 +36,8 @@ taken out of order. Each has its paragraph under "Done". The first release is MV
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 2.95 | manual pages, an installation, the review | done 2026-09-28 |
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
-| MVP 2.97 | one contract, several representations: an ordered set | waits on language feedback 64 |
-| MVP 2.98 | what the first review left | |
+| MVP 2.97 | one contract, several representations: an ordered set | rests on the contract's decision (`contract.md`) |
+| **MVP 2.98** | **what the first review left** | **under way, before MVP 2.97** |
 | MVP 2.99 | running as a service, and the first release | |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
@@ -84,7 +84,9 @@ second is rewritten around a contract `SetOps(s, a)` holding the operations of t
 ## MVP 2.98 (what the first review left), about two weeks
 
 What the review of MVP 2.95 found and did not fix there, decided 2026-09-28 and moved from MVP 3.0 the same day, since none of it needs a peer (the log's
-*MVP 3.0 Is Distributed Code and the Node Protocol*). It follows MVP 2.97.
+*MVP 3.0 Is Distributed Code and the Node Protocol*). It is taken before MVP 2.97, which rests on
+the contract's decision (2026-09-29), in this order: 4, 5, 3, 1, 2, the design questions of 2
+discussed with the user one at a time as they are met.
 
 1. **[`findings.md`](findings.md)'s `cheap` lines**, a batch a document.
 2. **Its `2.98` lines**: the report's contradictions and silent cases, among them `Io.show`'s
