@@ -95,8 +95,9 @@ It follows MVP 2.7 and comes before MVP 3.0.
       - `ern shell` running `./.ernest/startup` from the working directory, done 2026-09-28
         (the log's *A Directory Runs Nothing of Its Own*), and the working directory on the
         host's code path ahead of the load path (§11.2), done 2026-09-28;
-      - `Fs` over a FIFO blocking every file operation of the node, and `Fs.list` failing for
-        a whole directory over one dangling link (E.17);
+      - `Fs` over a FIFO blocking every file operation of the node, done 2026-09-28 (the
+        log's *`Fs` Reads Regular Files*), and `Fs.list` failing for a whole directory over
+        one dangling link (E.17);
       - `Tcp.listen` and `Tcp.connect` hanging on a bad port or host, `Tcp.listen` binding
         every interface, and a socket's write holding up its reads (E.18);
       - the shell's history readable by others, `ern config`'s race on the key, and control

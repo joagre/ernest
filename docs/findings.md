@@ -7,7 +7,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — the directory build's sweep deletes `.erc` files and directories no build of its own wrote, a library's module it had just compiled against, the user's empty directories and `src/.git` (§11.1) (T1): fixed 2026-09-28, with the stale `.erc` refused when read and the link cycle the fix found; the log's *The Sweep Removes What a Build Wrote*
 - done — `ern shell` runs `./.ernest/startup` from the working directory: a cloned tree runs host commands; from `$HOME` each line runs twice (§11.2) (S1, E10a): fixed 2026-09-28, the node's `startup` run only where `--config-dir` names it; the log's *A Directory Runs Nothing of Its Own*
 - done — the working directory is on the host's code path ahead of the load path: a `.beam` there wins over the program's for a `foreign fn` (§11.2) (S2): fixed 2026-09-28, the directory taken off the host's code path where the load path is set
-- tag — `Fs.read`/`write`/`append` of a FIFO blocks every file operation of the node, for good (E.17) (S3)
+- done — `Fs.read`/`write`/`append` of a FIFO blocks every file operation of the node, for good (E.17) (S3): fixed 2026-09-28, the work around the host's file server and the four functions on regular files only; the log's *`Fs` Reads Regular Files*
 - tag — `Tcp.listen`/`connect` hang for ever on a bad port or host, and deadlock detection is then off (E.18) (S4, C1)
 - tag — `Tcp.listen` binds every interface, with no way to bind loopback (E.18) (S5)
 - tag — a socket's write blocks its reads and their time limits (E.18) (C3)

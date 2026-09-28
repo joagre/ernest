@@ -1,8 +1,9 @@
 %% Report §8.2, Appendix E.17: the process behind Fs's reference. It answers
 %% each of Fs's messages with Either(Io.Error, a), doing the work in a process of its own so
-%% that one slow file does not hold up the rest. A Path is {'Path', Bin}
-%% and an Entry's fields are in canonical order (report §3.5): isDir,
-%% mtime, path, size.
+%% that one slow file does not hold up the rest. The work that opens a file
+%% goes around the host's file server, which does one request at a time:
+%% raw, as the host calls it. A Path is {'Path', Bin} and an Entry's fields
+%% are in canonical order (report §3.5): isDir, mtime, path, size.
 -module(ern_fs).
 
 -export([loop/0]).
@@ -30,11 +31,16 @@ guarded(Msg) ->
     end.
 
 handle({'ReadFile', Path, Reply}) ->
-    answer(Reply, file:read_file(text(Path)));
+    Name = text(Path),
+    answer(Reply, regular(Name, fun() -> file:read_file(Name, [raw]) end));
 handle({'WriteFile', Bytes, Path, Reply}) ->
-    answer(Reply, unit(file:write_file(text(Path), Bytes)));
+    Name = text(Path),
+    answer(Reply, regular_or_none(Name, fun() -> unit(file:write_file(Name, Bytes, [raw])) end));
 handle({'AppendFile', Bytes, Path, Reply}) ->
-    answer(Reply, unit(file:write_file(text(Path), Bytes, [append])));
+    Name = text(Path),
+    answer(Reply, regular_or_none(Name, fun() ->
+                                            unit(file:write_file(Name, Bytes, [raw, append]))
+                                        end));
 handle({'ListDir', Path, Reply}) ->
     Dir = text(Path),
     answer(Reply, case file:list_dir_all(Dir) of
@@ -54,10 +60,32 @@ handle({'Remove', Path, Reply}) ->
 handle({'Rename', From, Reply, To}) ->
     answer(Reply, unit(file:rename(text(From), text(To))));
 handle({'Copy', From, Reply, To}) ->
-    answer(Reply, case file:copy(text(From), text(To)) of
-                      {ok, _} -> {ok, 'Unit'};
-                      Error -> Error
-                  end).
+    {Source, Target} = {text(From), text(To)},
+    answer(Reply, regular(Source, fun() ->
+                                      regular_or_none(Target, fun() -> copy(Source, Target) end)
+                                  end)).
+
+copy(Source, Target) ->
+    case file:copy({Source, [raw]}, {Target, [raw]}) of
+        {ok, _} -> {ok, 'Unit'};
+        Error -> Error
+    end.
+
+%% Report Appendix E.17: read, write, append and copy work on regular
+%% files, since a named pipe waits for a writer that may never come and a
+%% device may never end; a path that names nothing may be written.
+regular(Name, Then) ->
+    case file:read_file_info(Name, [raw]) of
+        {ok, #file_info{type = regular}} -> Then();
+        {ok, _} -> {error, not_regular};
+        Error -> Error
+    end.
+
+regular_or_none(Name, Then) ->
+    case file:read_file_info(Name, [raw]) of
+        {error, enoent} -> Then();
+        _ -> regular(Name, Then)
+    end.
 
 %% Every answer is Right(v) or Left(Io.Error).
 answer(Reply, {ok, Value}) ->
@@ -96,7 +124,7 @@ entries(Dir, Names) ->
 
 %% report Appendix E.17: Fs.Entry(isDir, mtime, path, size), mtime in milliseconds
 entry(Name) ->
-    case file:read_file_info(Name, [{time, posix}]) of
+    case file:read_file_info(Name, [raw, {time, posix}]) of
         {ok, #file_info{type = Type, mtime = Mtime, size = Size}} ->
             {ok, {'Entry', Type =:= directory, Mtime * 1000, {'Path', Name}, Size}};
         Error ->
@@ -109,4 +137,5 @@ io_error(enoent) -> 'NotFound';
 io_error(eacces) -> 'Denied';
 io_error(eperm) -> 'Denied';
 io_error(econnrefused) -> 'Refused';
+io_error(not_regular) -> {'Other', <<"not a regular file">>};
 io_error(Reason) -> {'Other', unicode:characters_to_binary(io_lib:format("~p", [Reason]))}.

@@ -477,6 +477,34 @@ fs_test() ->
     ?assertEqual({'Left', 'NotFound'}, Gone),
     file:del_dir_r(Dir).
 
+%% report Appendix E.17: read, write, append and copy work on regular files,
+%% and refuse a named pipe and a directory at once. A regression test: a
+%% named pipe's read waited for a writer in the host's file server, which
+%% then answered no other request of the node's, the read of a plain file
+%% after it among them
+fs_named_pipe_test() ->
+    Me = self(),
+    Dir = filename:join("/tmp", "ern_fifo_" ++ os:getpid() ++ "_"
+                                ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    "" = os:cmd("mkfifo " ++ filename:join(Dir, "pipe")),
+    ok = file:write_file(filename:join(Dir, "plain"), <<"hi">>),
+    P = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+    F = 'ern@fs',
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Me ! {fs, F:read(P("pipe"), 1000)},
+                           Me ! {fs, F:write(P("pipe"), <<"x">>, 1000)},
+                           Me ! {fs, F:append(P("pipe"), <<"x">>, 1000)},
+                           Me ! {fs, F:copy(P("pipe"), P("copy"), 1000)},
+                           Me ! {fs, F:copy(P("plain"), P("pipe"), 1000)},
+                           Me ! {fs, F:read(P("."), 1000)},
+                           Me ! {fs, F:read(P("plain"), 1000)}
+                       end, <<"fs_named_pipe_test">>, #{})),
+    Refused = {'Left', {'Other', <<"not a regular file">>}},
+    ?assertEqual(lists:duplicate(6, Refused) ++ [{'Right', <<"hi">>}], collect(fs, [])),
+    file:del_dir_r(Dir).
+
 %% report Appendix E.18, §8.2: a listener and a socket are processes, a
 %% write arrives at the peer's read, and a closed socket answers Left(Closed)
 tcp_test() ->
