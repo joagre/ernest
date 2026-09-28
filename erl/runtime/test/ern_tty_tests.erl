@@ -210,3 +210,13 @@ paste_test() ->
                           end, [], "\e[200~hi"),
     ?assertEqual("\e[200~hi", Pending),
     ?assertEqual({[{'Pasted', <<"hi">>}], []}, ern_tty:decode(Pending ++ "\e[201~")).
+
+%% report §8.2: a paste whose end does not come ends when no more of it
+%% arrives, what came of it being the paste, and an end that comes after it
+%% is nothing, a piece of it waiting as the whole of it would. A regression
+%% test: the paste waited for its end for good, and took in every key after
+%% it (findings C31)
+unended_paste_test() ->
+    ?assertEqual([{'Pasted', <<"hi">>}], ern_tty:flush("\e[200~hi")),
+    ?assertEqual({[{'Key', $x}], []}, ern_tty:decode("\e[201~x")),
+    ?assertEqual({[], "\e[201"}, ern_tty:decode("\e[201")).

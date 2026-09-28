@@ -108,12 +108,10 @@ loop(Subscribers, Reader, Pending, Size) ->
             end
     after Pause ->
         %% report §8.2: a paste may take longer to arrive than an escape
-        %% sequence, and what has come of it is not keys
-        Left = case pasting(Pending) of
-                   true -> Pending;
-                   false -> deliver(flush(Pending), Subscribers), []
-               end,
-        loop(Subscribers, Reader, Left, Size)
+        %% sequence, and one whose end has not come ends when no more of it
+        %% arrives, what came of it being the paste
+        deliver(flush(Pending), Subscribers),
+        loop(Subscribers, Reader, [], Size)
     end.
 
 pasting(?PASTE_BEGIN ++ _) -> true;
@@ -122,7 +120,8 @@ pasting(_) -> false.
 %% An escape alone may still grow into an arrow, and `\e[2` into the start
 %% of a paste; `flush/1` is what ends the waiting when nothing follows.
 growing(Chars) ->
-    lists:prefix(Chars, "\e[") orelse lists:prefix(Chars, ?PASTE_BEGIN).
+    lists:prefix(Chars, "\e[") orelse lists:prefix(Chars, ?PASTE_BEGIN)
+        orelse lists:prefix(Chars, ?PASTE_END).
 
 %% An escape waits only as long as a sequence may still follow it, and a
 %% paste as long as the rest of it may take to arrive.
@@ -398,6 +397,13 @@ decode(Chars) ->
 %% the Escape key, and a sequence that never grew into an arrow is the
 %% Escape key and the characters after it.
 -spec flush([char()]) -> [term()].
+flush(?PASTE_BEGIN ++ Rest) ->
+    %% report §8.2: a paste whose end did not come
+    {Text, Keys} = case pasted(Rest, []) of
+                       {ok, T, After} -> {T, element(1, decode(After))};
+                       {more, T} -> {T, []}
+                   end,
+    [{'Pasted', Text} | Keys];
 flush([$\e | Rest]) ->
     {Keys, _} = decode(Rest),
     ['Escape' | Keys];
@@ -412,8 +418,11 @@ decode([], Acc) ->
 decode(?PASTE_BEGIN ++ Rest, Acc) ->
     case pasted(Rest, []) of
         {ok, Text, After} -> decode(After, [{'Pasted', Text} | Acc]);
-        more -> {lists:reverse(Acc), ?PASTE_BEGIN ++ Rest}
+        {more, _} -> {lists:reverse(Acc), ?PASTE_BEGIN ++ Rest}
     end;
+%% report §8.2: the end of a paste that had already ended is nothing
+decode(?PASTE_END ++ Rest, Acc) ->
+    decode(Rest, Acc);
 decode([$\e, $[, $A | Rest], Acc) -> decode(Rest, ['ArrowUp' | Acc]);
 decode([$\e, $[, $B | Rest], Acc) -> decode(Rest, ['ArrowDown' | Acc]);
 decode([$\e, $[, $C | Rest], Acc) -> decode(Rest, ['ArrowRight' | Acc]);
@@ -438,4 +447,4 @@ pasted(?PASTE_END ++ Rest, Text) ->
 pasted([$\r, $\n | Rest], Text) -> pasted(Rest, [$\n | Text]);
 pasted([$\r | Rest], Text) -> pasted(Rest, [$\n | Text]);
 pasted([C | Rest], Text) -> pasted(Rest, [C | Text]);
-pasted([], _Text) -> more.
+pasted([], Text) -> {more, unicode:characters_to_binary(lists:reverse(Text))}.

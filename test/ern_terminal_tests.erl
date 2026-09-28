@@ -47,6 +47,28 @@ keys() ->
     %% an arrow is not split: no Escape arrived before the one that was sent
     ?assertEqual(1, count(Screen, <<"escape">>)).
 
+%% report §8.2: a paste whose end the terminal does not send ends when no
+%% more of it arrives, and the keys after it are keys; an end that comes
+%% later is nothing. A regression test: the paste took in every key after
+%% it (findings C31)
+unended_paste_test_() ->
+    {timeout, 60, fun unended_paste/0}.
+
+unended_paste() ->
+    ok = compile("terminal/probe.ern", "terminal"),
+    {0, Screen} = pty("../bin/ern run build/terminal/probe.erc",
+                      [{expect, "ready"},
+                       {send, "1b5b3230307e6869"},    % a paste's start, and `hi`
+                       {expect, "pasted hi"},
+                       {send, "78"},                  % x
+                       {expect, "char x"},
+                       {send, "1b5b3230317e"},        % the paste's end, too late
+                       {sleep, 300},
+                       {send, "1b"}],
+                      15),
+    ?assertEqual([<<"ready 24x80">>, <<"pasted hi">>, <<"char x">>, <<"escape">>],
+                 lines(Screen)).
+
 %% report §8.2, Appendix E.16: where standard input is not a terminal a
 %% subscription is refused, and the program goes on to say so
 not_a_terminal_test_() ->
