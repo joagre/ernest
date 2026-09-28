@@ -61,10 +61,8 @@ fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) -> Unit wi
             let _ = spawn(Local, fn() -> Unit with Never = send(me, Listed(Fs.list(dir, 10000))));
             listing(dir, peer, seen)
         }
-      | Put(path = p, mtime = m, bytes = bytes, ack = ack) -> {
-            store(dir, seen, p, m, bytes, ack);
-            syncer(dir, peer, Map.put(seen, Path.join(dir, p), m))
-        }
+      | Put(path = p, mtime = m, bytes = bytes, ack = ack) ->
+            syncer(dir, peer, store(dir, seen, p, m, bytes, ack))
       | Listed(_) -> syncer(dir, peer, seen) // late listing, ignore
       | Link(_) -> syncer(dir, peer, seen) // already connected
     }
@@ -86,33 +84,49 @@ fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) -> Unit w
             tick();
             syncer(dir, peer, seen)
         }
-      | Put(path = p, mtime = m, bytes = bytes, ack = ack) -> {
-            store(dir, seen, p, m, bytes, ack);
-            listing(dir, peer, Map.put(seen, Path.join(dir, p), m))
-        }
+      | Put(path = p, mtime = m, bytes = bytes, ack = ack) ->
+            listing(dir, peer, store(dir, seen, p, m, bytes, ack))
     }
 }
 
-// Store a file from the peer. Newer local file: conflict.
+// Store a file from the peer, and what is known of the directory after
+// it. Newer local file: conflict. A path that is not a name in this
+// directory is refused: the peer is another program, and its paths are
+// not this one's to follow.
 fn store(dir : Path,
          seen : Map(Path, Int),
          p : Path,
          m : Int,
          bytes : Bytes,
-         ack : Reply(Ack)) -> Unit with SyncMsg = {
-    // p is the peer's bare name (report E.17); here it is under this directory
-    let here = Path.join(dir, p);
-    match Map.get(seen, here) {
-        Some(mine) when mine > m -> {
-            let _ = spawn(Local, fn() = writer(conflictPath(here), bytes, ack, Conflict));
-            Unit
-        }
-      | _ -> {
-            let _ = spawn(Local, fn() = writer(here, bytes, ack, Stored));
-            Unit
-        }
+         ack : Reply(Ack)) -> Map(Path, Int) with SyncMsg =
+    if !isName(p) then {
+        // shown as a value, so that no character of it reaches the terminal
+        // as a control
+        Io.println("refused a path from the peer: " <> Io.show(p));
+        answer(ack, Failed(Io.Denied));
+        seen
+    } else {
+        let here = Path.join(dir, p);
+        match Map.get(seen, here) {
+            Some(mine) when mine > m -> {
+                let _ = spawn(Local, fn() = writer(conflictPath(here), bytes, ack, Conflict));
+                Unit
+            }
+          | _ -> {
+                let _ = spawn(Local, fn() = writer(here, bytes, ack, Stored));
+                Unit
+            }
+        };
+        Map.put(seen, here, m)
     }
-}
+
+// A name in a directory: one segment, not `.` or `..`, and not a root
+// (report E.17).
+fn isName(p : Path) -> Bool =
+    match Path.split(p) {
+        [name] -> !Path.isAbsolute(p) && name != "." && name != ".."
+      | _ -> false
+    }
 
 // One process per write: waits for fs and answers the peer.
 fn writer(p : Path, bytes : Bytes, ack : Reply(Ack), okAck : Ack) -> Unit with n =
@@ -166,3 +180,18 @@ fn errorText(e : Io.Error) -> String =
       | Io.NotATerminal -> "not a terminal"
       | Io.Other(text) -> text
     }
+
+//
+// Tests, run by `ern test`
+//
+
+let namesOnly =
+    Test(name = "a peer's path is stored only where it names a file here", run = fn() = {
+        let names =
+            List.map(["notes.txt", "../x", "/etc/x", "a/b", ".", "..", ""],
+                     fn(text) = isName(Path(text)));
+        if names == [true, false, false, false, false, false, false] then
+            Passed
+        else
+            Prelude.Failed(Io.show(names))
+    })

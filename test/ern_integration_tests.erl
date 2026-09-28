@@ -62,6 +62,11 @@ filesync_test_() ->
 
 filesync() ->
     {0, _} = sh(?BUILD ++ "../examples/filesync.ern"),
+    %% its own tests: a peer's path is stored only where it names a file in
+    %% the directory, a regression test for findings S7, where a peer's
+    %% `../x` was written outside it
+    ?assertEqual({0, <<"a peer's path is stored only where it names a file here: passed\n">>},
+                 sh("../bin/ern test build/filesync.erc")),
     Dir = "build/filesync",
     ok = reset(Dir),
     ok = file:write_file(Dir ++ "/a/greeting.txt", <<"hello from a\n">>),

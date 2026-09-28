@@ -35,7 +35,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — `stty sane` loses the user's settings (C20): fixed 2026-09-28, the settings kept with `stty -g` before the raw mode and given back at the end (§8.6)
 - done — a lost paste end swallows every later key (C31): fixed 2026-09-28, a paste whose end does not come ended when no more of it arrives, and a late end nothing (§8.2)
 - done — the shell's live region keeps an unfinished line whole: quadratic, never reclaimed (E3): fixed 2026-09-28, each row it fills at the window's width goes to the tail, the region holding one row of it at most; the log's *An Unfinished Line Leaves the Region a Row at a Time*
-- 2.95 — filesync trusts a peer's path (S7)
+- done — filesync trusts a peer's path (S7): fixed 2026-09-28, a path stored only where it names a file in the directory, any other refused with `Denied` and shown as a value
 
 ## The report
 
