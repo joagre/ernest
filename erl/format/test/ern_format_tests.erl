@@ -264,3 +264,36 @@ markdown_test() ->
     ?assertEqual(<<"Text.\n\n```ernest\nfn f() = {\n    a;\n    b\n}\n```\n\n```ernest\n1 +\n"
                    "```\n\n```ernest-rejected\nlet x = match y {\n    A -> 1\n}\n```\n">>,
                  ern_format:markdown(In)).
+
+%% report §11.6: a doc block is kept as written, the spaces that end a line
+%% among them, and so is a raw string in one of its examples. A regression
+%% test: both lost their trailing spaces (findings C11, C16)
+doc_trailing_spaces_test() ->
+    fixed(["/// A line  ", "/// broken.", "export let x : Int = 1"]),
+    fixed(["/// A value.", "///", "/// ```ernest", "/// let s = `a   ", "/// b`", "/// ```",
+           "export let x : Int = 1"]).
+
+%% report §11.6: a blank line after a comment on a line of its own is kept,
+%% where the comment follows an opening bracket too. A regression test: it
+%% was dropped (findings C25)
+blank_after_comment_test() ->
+    fixed(["fn f(x : Int) -> Int = {", "    // one", "", "    let y = x;", "    y", "}"]).
+
+%% report §11.6: comments directly under a declaration, with a blank line
+%% after them, stay beside it, and the blank line between two declarations
+%% comes after them; one directly above a declaration is its. A regression
+%% test: the blank line went before them (findings C24)
+comment_under_declaration_test() ->
+    fixed(["type T = A | B", "// after the type", "", "export let x : Int = 1"]),
+    fixed(["export let y : Int = 2", "// one", "// two", "", "// before x",
+           "export let x : Int = 1"]),
+    ?assertEqual([<<"export let y : Int = 2">>, <<>>, <<"// before x">>,
+                  <<"export let x : Int = 1">>],
+                 laid(["export let y : Int = 2", "// before x", "export let x : Int = 1"])).
+
+%% report §11.6: an Ernest block of a CommonMark text that does not parse
+%% is left as it is, the indentation of its lines too. A regression test:
+%% an indented one was re-indented (findings C26)
+markdown_unparsed_indented_test() ->
+    In = <<"- an item\n\n   ```ernest\n   let  = (\n  x\n   ```\n">>,
+    ?assertEqual(In, ern_format:markdown(In)).

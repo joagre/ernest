@@ -55,9 +55,10 @@ suffix_test() ->
                  ern_pretty:render({group, [<<"[">>, {align, [<<"1,">>, {suffix, <<" // one">>},
                                                               line, <<"2">>]}, <<"]">>]})).
 
-%% report §11.6: a blank line where a line break falls, none mid-line,
-%% and no spaces at a line's end
+%% report §11.6: a blank line where a line break falls, none mid-line; no
+%% space the layout wrote at a line's end, and a text's own spaces kept
 blank_test() ->
     ?assertEqual(<<"a\n\nb\n">>, ern_pretty:render([<<"a">>, hardline, blank, <<"b">>])),
     ?assertEqual(<<"a b\n">>, ern_pretty:render([<<"a ">>, blank, <<"b">>])),
-    ?assertEqual(<<"a\nb\n">>, ern_pretty:render([<<"a  ">>, hardline, <<"b">>])).
+    ?assertEqual(<<"a\nb\n">>, ern_pretty:render([<<"a">>, <<" ">>, <<" ">>, hardline, <<"b">>])),
+    ?assertEqual(<<"a  \nb\n">>, ern_pretty:render([<<"a  ">>, hardline, <<"b">>])).

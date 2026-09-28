@@ -67,9 +67,13 @@ fences([Line | Rest]) ->
             Indent = byte_size(Line) - byte_size(Trimmed),
             case lists:splitwith(fun(L) -> string:trim(L) =/= <<"```">> end, Rest) of
                 {Body, [Close | After]} ->
-                    Laid = fence([dedent(L, Indent) || L <- Body]),
+                    Dedented = [dedent(L, Indent) || L <- Body],
                     Pad = binary:copy(<<" ">>, Indent),
-                    [Line] ++ [indent(Pad, L) || L <- Laid] ++ [Close | fences(After)];
+                    Laid = case fence(Dedented) of
+                               Dedented -> Body;
+                               New -> [indent(Pad, L) || L <- New]
+                           end,
+                    [Line] ++ Laid ++ [Close | fences(After)];
                 {_, []} -> [Line | Rest]
             end
     end.
@@ -143,7 +147,8 @@ trivium({comment, {L, C, {EL, _}, _}, Text}, _Source) ->
     Kind = case Text of <<"/*", _/binary>> -> block; _ -> line end,
     {Kind, L, C, EL, Text};
 trivium({doc, {L, C, {L1, _}, _}, _}, Source) ->
-    Lines = [unicode:characters_to_binary(string:trim(element(N, Source)))
+    %% a doc block is kept as written, but for where its lines begin
+    Lines = [unicode:characters_to_binary(string:trim(element(N, Source), leading))
              || N <- lists:seq(L, L1 - 1)],
     {doc, L, C, L1 - 1, doc_lines(Lines)}.
 
@@ -677,14 +682,31 @@ lead(#cur{trivia = [{Kind, L, Col, EL, Text} | Rest]} = C, X) ->
     {NL, NC, _, _} = element(2, element(C#cur.i, X#ctx.toks)),
     case {L, Col} < {NL, NC} of
         true ->
-            Blank = blank_before(C, L, none),
-            C1 = C#cur{trivia = Rest, last = EL, force = false},
+            %% comments directly under a declaration, with a blank line after
+            %% them, are the declaration's, and the blank line between two
+            %% declarations comes after them
+            Stays = C#cur.force andalso ends_before_gap(C#cur.last, C#cur.trivia, {NL, NC}, true),
+            Blank = case Stays of
+                        true -> [];
+                        false -> blank_before(C, L, none)
+                    end,
+            C1 = C#cur{trivia = Rest, last = EL, prev = Kind, force = Stays},
             {More, C2} = lead(C1, X),
             {[hardline, Blank, trivium_doc(Kind, Text), hardline, More], C2};
         false -> {[], C}
     end;
 lead(C, _X) ->
     {[], C}.
+
+%% Whether the comments before Next begin on the line after Last, each on
+%% the line after the one before, and a blank line follows them.
+ends_before_gap(Last, [{_, L, Col, EL, _} | Rest], Next, First) when {L, Col} < Next ->
+    case L - Last =< 1 of
+        true -> ends_before_gap(EL, Rest, Next, false);
+        false -> not First
+    end;
+ends_before_gap(Last, _, {NL, _}, First) ->
+    not First andalso NL - Last >= 2.
 
 %% Comments that begin on the line a token ended on, before the next
 %% token: a line comment ends the line, a block comment need not.

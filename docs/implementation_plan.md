@@ -133,7 +133,9 @@ and a review with its fixes. The release itself is MVP 2.99's, decided 2026-09-2
         C17, C24 to C26, T11), `stty sane` losing the user's settings (C20), a lost paste end
         (C31), the live region's line that nothing reclaims (E3), a faulting `mk` under
         `restarting` (C7), and `examples/filesync.ern` trusting a peer's path (S7) (the log's
-        *What MVP 2.95 Takes From the Rest*).
+        *What MVP 2.95 Takes From the Rest*). The formatter's crash on a `///` after code (C17)
+        waits on a decision with the user in this step, what such a `///` is (language
+        feedback 67).
    3. **The time of `make test`, done 2026-09-28**, taken before step 2's other fixes: 280
       seconds to 112, the suite in two phases of jobs side by side, as many at once as the
       host has cores, and bound by its CPU. The compiler's hash now covers the six modules
@@ -291,8 +293,9 @@ follows MVP 2.98.
 2. **The first release**, placed here on 2026-09-28 (the log's *The First Release Follows MVP
    2.99*): Ernest for programs on one node, for other programmers to install and use, decided
    2026-09-27 (the log's *The First Release Is for Others*); peers are the next release's.
-   [`review.md`](review.md) runs on the code as it is then, and the release is tagged with its
-   notes, the archive published beside it, where the README then says to download it.
+   [`review.md`](review.md) runs on the code as it is then; `VERSION` is set to the release's
+   version before the tag; and the release is tagged with its notes, the archive published
+   beside it, where the README then says to download it.
 
 ---
 

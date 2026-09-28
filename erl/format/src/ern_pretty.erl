@@ -49,8 +49,8 @@
 -record(p, {col = 0, pending = none, line = [], lines = [], started = false,
             suffix = [], trial = false, marked = false}).
 
-%% The text a doc lays out, each line without trailing spaces, ending in a
-%% line feed.
+%% The text a doc lays out, each line without the spaces the layout wrote
+%% at its end, ending in a line feed.
 -spec render(doc()) -> unicode:unicode_binary().
 render(Doc) ->
     P = go([{0, break, Doc}], #p{}),
@@ -168,9 +168,18 @@ newline(I, P) ->
 blank(#p{pending = {Indent, _}} = P) -> P#p{pending = {Indent, true}};
 blank(P) -> P.
 
+%% The spaces the layout wrote at a line's end are dropped; a text keeps
+%% the spaces it was written with, as a doc line does (report §11.6).
 finish_line(#p{line = Line, suffix = Suffix}) ->
-    Text = unicode:characters_to_binary([lists:reverse(Line), lists:reverse(Suffix)]),
-    string:trim(Text, trailing, " ").
+    unicode:characters_to_binary([lists:reverse(laid_spaces(Line)), lists:reverse(Suffix)]).
+
+laid_spaces([Text | Rest] = Line) ->
+    case is_space(Text) of
+        true -> laid_spaces(Rest);
+        false -> Line
+    end;
+laid_spaces([]) ->
+    [].
 
 is_space(Text) ->
     string:trim(Text, both, " ") =:= <<>>.

@@ -25,10 +25,11 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — `Supervisor`'s restart limit: a child restarts itself before the supervisor counts it, about 200 times under a limit of 2; `within = 0` still gives up (E.22, §6.9) (E2, P15, K10): fixed 2026-09-28, the fault counted before the child runs again, and a time of 0 no limit; the log's *A Supervisor Counts a Fault Before the Child Runs Again*
 - done — `emacs_mode.md` says Emacs 29 or later, and only Emacs 31.1 runs the mode's tests here: say what is tested, or run them on 29 (the documents' rewrite): 2026-09-28, the note says what is tested and what is expected
 - done — `String`'s searches match inside a grapheme: `split` and `replace` lose text (E.5) (E1): fixed 2026-09-28, a match only between the string's grapheme boundaries; `lines` ends a line at CR LF; the log's *A Search Begins Where a Grapheme Does*
-- 2.95 — `ern format` rewrites a `.txt` and paths `ern build` refuses (T11)
+- done — `ern format` rewrites a `.txt` and paths `ern build` refuses (T11): fixed 2026-09-28, a file named alone a module when its name is, those under a directory found as the build finds them (§11.6)
 - done — a command-line word that is not UTF-8 crashes every job (C13): fixed 2026-09-28, refused before the job begins and named as §11.1 names a file (§11)
 - done — the shell's `.` completion crashes on a field of two types (C15): fixed 2026-09-28, the checker's question asked at a position it never shows, as its other questions are
-- 2.95 — `ern format`: a raw string loses spaces in a doc example; trailing spaces of a doc line dropped; a trailing doc comment crashes; a `type` with a trailing comment; a blank line after a comment; a fence that does not parse re-indented (C11, C16, C17, C24..C26)
+- done — `ern format`: a raw string loses spaces in a doc example; trailing spaces of a doc line dropped; a `type` with a trailing comment; a blank line after a comment; a fence that does not parse re-indented (C11, C16, C24..C26): fixed 2026-09-28, a text's own spaces kept, a blank line after a comment kept, comments under a declaration kept beside it, an unparsed fence left as written (§11.6); C24 as a comment under a type moved away from it, the shape the line's words allow
+- 2.95 — `ern format` stops with an internal error on a `///` after code (C17): waits on language feedback 67, what such a `///` is
 - 2.95 — a faulting `mk` of a call under `restarting` leaves the row, monitor and alias (C7)
 - done — `ern_os` crashes on a closed port for a queued read or write (C9): fixed 2026-09-28, a frame for a port the helper's end has closed dropped, the exit status it sent first ending the run (E.23)
 - 2.95 — `stty sane` loses the user's settings (C20)

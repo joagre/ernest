@@ -900,14 +900,26 @@ format(Opts, Paths, Err) ->
     lists:foreach(fun(P) ->
                       filelib:is_file(P) orelse fail("no such file or directory " ++ P)
                   end, Paths),
-    Files = lists:append([case filelib:is_dir(P) of
-                              true -> sources(P);
-                              false -> [P]
-                          end || P <- Paths]),
+    Files = lists:append([modules_named(P) || P <- Paths]),
     Results = [format_file(Opts, F, Err) || F <- Files],
     case lists:all(fun(R) -> R =:= ok end, Results) of
         true -> 0;
         false -> 1
+    end.
+
+%% Report §11.6: the modules a path names. Those under a directory are
+%% found as `ern build` finds them (§11.1), the directory their root; a
+%% file named alone has no root, and is a module when its name ends in
+%% `.ern` and is otherwise one word.
+modules_named(Path) ->
+    case filelib:is_dir(Path) of
+        true ->
+            Root = source_root([], Path, Path),
+            [F || F <- sources(Path), is_record(module_of(absolute(F), Root), mod)];
+        false ->
+            filename:extension(Path) =:= ".ern" orelse fail(Path ++ " does not end in .ern"),
+            shape(filename:basename(Path, ".ern")),
+            [Path]
     end.
 
 format_result(Opts, Out, Same) ->

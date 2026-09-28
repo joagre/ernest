@@ -138,6 +138,27 @@ word_not_utf8_test() ->
                                                               ?capturedOutput), Line))
                   end, ["build", "doc", "format", "run", "test", "shell", "config"]).
 
+%% report §11.6: a file named alone is a module when its name ends in
+%% `.ern` and is otherwise one word, and those under a directory are found
+%% as `ern build` finds them (§11.1); a file that is none is refused and
+%% left as it is. A regression test: `ern format` laid out any file named
+%% (findings T11)
+format_finds_modules_as_build_test() ->
+    Dir = tmp(),
+    Text = "fn f(x) = x+1\n",
+    Notes = write(Dir, "notes.txt", Text),
+    Upper = write(Dir, "Bad.ern", Text),
+    Under = write(Dir, "src/Sub/ok.ern", Text),
+    Refused = fun(Args, Said) ->
+                      ?assertEqual(1, ern_err(["format" | Args])),
+                      ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(
+                                                          ?capturedOutput), Said))
+              end,
+    Refused([Notes], <<"notes.txt does not end in .ern">>),
+    Refused([Upper], <<"path component `Bad` must be lowercase">>),
+    Refused([Dir ++ "/src"], <<"path component `Sub` must be lowercase">>),
+    [?assertEqual({ok, list_to_binary(Text)}, file:read_file(F)) || F <- [Notes, Upper, Under]].
+
 %% report §11: a file its owner may not write is refused, and nothing is
 %% left beside it; so is one in a directory that cannot be written. A
 %% regression test: `ern format` of a read-only file failed with status 70
