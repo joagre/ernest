@@ -1,6 +1,6 @@
 # Contracts
 
-The ways code written once can use several representations of one thing, a set kept hashed and a set kept in order, laid side by side so that MVP 2.97 can choose. This note holds the alternatives until then; the choice goes to the report and the decisions log, and the note goes. The example marked `ernest` is today's Ernest and was compiled when the note was written (2026-09-29); those marked `sketch` are in syntax Ernest does not have.
+The ways code written once can use several representations of one thing, a set kept hashed and a set kept in order, laid side by side so that MVP 2.97 can choose. The last, E, is the recommendation. This note holds the alternatives until then; the choice goes to the report and the decisions log, and the note goes. The example marked `ernest` is today's Ernest and was compiled when the note was written (2026-09-29); those marked `sketch` are in syntax Ernest does not have.
 
 ## What the user should see
 
@@ -174,6 +174,66 @@ The field `foldLeft` names a variable, `b`, that the record type does not take: 
 5. **No contract for another's type.** Only a type's own module can declare its member, so a user cannot make `List` meet `Set.Ops`, only wrap it. C's rule, the impl beside its trait or its type, allows it, but a member belongs to its type's namespace (§4.2), and D's framing forbids it.
 6. **An argument no one wrote.** The member is passed unseen. Principle 3 is argued only by `<`, which does the same today, and a strict reader may take that as a precedent rather than a reason.
 
+## E. Recommended: contracts met where a type is declared
+
+D, settled, all things considered. Go and Roc chose its central rule and live with it: a type's operations are declared in its own module, and nowhere else. Java's lesson is that a contract feels simple when it is said where the type is declared and its polymorphic operations are written, not inferred.
+
+1. **A contract is a record type the library names**, as `Set.Ops`. A field may name variables and effect variables of its own, declared in the field's type and never inferred. The record is checked where it is built and instantiated where a field is selected, as OCaml's polymorphic fields are, so a field's polymorphism is checked, never inferred (language feedback 64).
+2. **A type meets a contract in its own module, by a member**, `let OrderedSet.ops : Set.Ops(OrderedSet(a), a) = …`, which says so in its annotation where a reader looks. A member's type may carry constraints on the type's parameters, as `Set.ops` carries `a=` today and `OrderedSet.ops` needs its elements' order.
+3. **A contract's field, called through the contract, is the member of its type**: `Set.Ops.put(s, x)` resolves against the type of `s`, as `<` resolves `T.compare`, and `Set.Ops.empty` against the type expected, an annotation deciding where nothing else does. Where nothing decides, the error names the contract and asks for the type: ``fromList gives any type that meets `Set.Ops`; say which, as `: Set(Int)` ``.
+4. **The constraint is inferred and printed, never written**, as `a=` is. `:type fromList` shows it, which is where principle 3 finds it.
+5. **`compare` is the first contract.** `<` on a type variable infers that its type has `compare`, as `==` infers `a=`, so `OrderedSet(a)` orders its elements by their type's `compare`, and an order of one's own is a type of one's own, `Descending(Int)` with its `compare`.
+6. **`==` stays as it is.** It is structural, and every type without a function or an address has it, the derived case, as Roc derives equality; no type declares it.
+7. **Values of several representations in one list stay the guide's first form**, records of closures. A value packed with its type's member, Java's `Set<E> s`, is a later addition, not part of this.
+
+```sketch
+// set.ern: the contract, and Set meeting it
+export type Ops(s, a) =
+    Ops(empty : s,
+        put : (s, a) -> s,
+        contains : (s, a) -> Bool,
+        union : (s, s) -> s,
+        foldLeft : (s, b, (b, a) -> b with e) -> b with e)     // b and e are the field's own
+
+export let Set.ops : Set.Ops(Set(a), a) =
+    Set.Ops(empty = Set.empty, put = Set.put, contains = Set.contains, union = Set.union,
+            foldLeft = Set.foldLeft)
+
+// orderedset.ern: its items, in the order of their type's compare
+export abstract type OrderedSet(a) = OrderedSet(List(a))
+export let OrderedSet.ops : Set.Ops(OrderedSet(a), a) = Set.Ops(empty = OrderedSet([]), put = put, ...)
+export fn put(s : OrderedSet(a), x : a) : OrderedSet(a) = ...     // x < y, a's compare
+export fn min(s : OrderedSet(a)) : Optional(a) = ...
+
+// the user
+fn fromList(xs : List(a)) : s = List.foldLeft(xs, Set.Ops.empty, Set.Ops.put)
+fn size(set : s) : Int = Set.Ops.foldLeft(set, 0, fn(n, _) = n + 1)
+
+let small : OrderedSet(Int) = fromList([3, 1, 3])
+OrderedSet.min(small)           // Some(1)
+small == fromList([1, 3])       // true: an OrderedSet(Int) is data
+```
+
+**For:**
+- The five measures. The user of `Set` and `OrderedSet` writes each as today and `fromList(xs)` once, threads nothing, holds data that has `==` and crosses nodes, and cannot mix two orders, which are two types.
+- Coherence by construction: a type's members are its module's (§4.2), so there is one per type, and no orphan rule is needed.
+- No new keyword and no new kind of declaration: a contract is a type and a member is a `let`. Nothing is written on a function's type, `with M` staying the only mark (§0).
+- No variable stands for a type constructor, since a contract is over a whole type.
+- It grows from what the report has: the inferred `a=`, type members, and `<` resolving `T.compare`. `compare` joins as its first contract, and the operators can follow.
+- Polymorphic fields are declared, so inference only checks them, the property that makes Java's generic methods and OCaml's polymorphic fields easy.
+- Go and Roc are precedents at scale for its rule, and Roc for leaving `==` derived.
+
+**Against:**
+- The core is type classes' core: constraints inferred on type variables, and a dictionary passed where no one wrote it. It is less surface, not less machinery, and a strict reader will call it restricted type classes, rightly.
+- The argument no one wrote rests on `<` as its precedent (principle 3), and its reason is that the type shows it.
+- An operation that takes no value of its type is chosen by the expected type, so a user sometimes annotates (measure 5).
+- No contract for another's type: the built-in `List` cannot be made a `Set.Ops`, only wrapped.
+- A field's own variable carries no inferred restriction, so an operation that needs `==` on it does not fit a field.
+- Java's interface values, a set of either representation in one variable, wait for a later addition.
+- MVP 3.1's hashes must count the members a definition resolves, which its text does not name.
+
+**What it asks of the implementation**, in order: polymorphic fields, declared, with their effects; ordering inferred as a constraint beside `a=`; constraints of named contracts, inferred, printed and carried in compiled interfaces; resolution by argument and by expected type, with its error; the dictionary passed by the emitter; then `Set.Ops`, `OrderedSet` in the standard library, and the guide's §7.3 rewritten over them.
+
 ## Side by side
 
 | | written once | `union` | `foldLeft` | `OrderedSet` extends `Set` | two orders refused | nothing threaded | `OrderedSet(Int)` is data | new in the language |
@@ -182,6 +242,7 @@ The field `foldLeft` names a variable, `b`, that the record type does not take: 
 | B. type classes | yes | yes | yes | superclass | yes | yes | yes | classes, instances, constraints |
 | C. traits | yes | yes | yes | supertrait | yes | yes | yes | traits, associated types, bounds |
 | D. type members | yes | yes | if the field holds | by holding | yes | yes | yes | inferred contract constraints, the field |
+| E. recommended | yes | yes | yes, declared | by holding | yes, as two types | yes | yes | inferred contract constraints, declared polymorphic fields, ordering inferred |
 
 ## To think hard about
 
