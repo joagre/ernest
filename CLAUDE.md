@@ -30,6 +30,7 @@ The rules are in the order of work: what is authoritative and who owns each fact
 - **`docs/development.md` owns the layout and the commands**, under "The layout of the repository" and "Building". `make` builds; `make test` tests.
 - **The style guide owns the naming of the code**, one rule for every Erlang module and every module compiled from Ernest. It is imported at the end of this file.
 - **Third-party code is listed in `THIRD_PARTY_LICENSES`.** A borrowed file keeps its upstream header.
+- **The work is done in the main checkout, on `main`.** No worktree and no branch of a session's own: the user reads and edits this one checkout, and work done elsewhere is not there until it is merged.
 
 ## Before code
 
