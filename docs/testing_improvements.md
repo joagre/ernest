@@ -1,6 +1,6 @@
 # Testing improvements
 
-Where the time of `make test` goes, and what would shorten it. The checks themselves, and when each runs, are [`coherence.md`](coherence.md)'s; this file is only about how long they take. It holds each proposal until a plan item decides it: done, planned with a date, or weighed and left alone. A decided proposal leaves the file, and a proposal keeps the number it was written under.
+Where the time of `make test` goes, and what would shorten it; what the tests check is theirs, and this file is only about how long they take. It holds each proposal until a plan item decides it: done, planned with a date, or weighed and left alone. A decided proposal leaves the file, and a proposal keeps the number it was written under.
 
 ## Where the time goes
 

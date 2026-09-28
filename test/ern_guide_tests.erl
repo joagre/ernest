@@ -1,6 +1,6 @@
 %% The guide's examples, checked as the standard library's are (plan, MVP
-%% 2.61 step 1), and the report's by the same marks (docs/coherence.md
-%% C17). A block marked `ernest` is a complete module and compiles;
+%% 2.61 step 1), and the report's by the same marks. A block marked
+%% `ernest` is a complete module and compiles;
 %% one whose first line names a file, `// net/http.ern`, is placed there, and
 %% such blocks under one heading compile together as a source tree; blocks
 %% that name the same file are its parts, in order, and one headed
@@ -40,7 +40,7 @@ guide_has_checked_examples_test() ->
     ?assert(length(Modules) >= 15),
     ?assert(length(Rejected) >= 5).
 
-%% report Appendix B, docs/coherence.md C17: the report marks its examples,
+%% report Appendix B: the report marks its examples,
 %% its programs and a rejected one among them
 report_has_checked_examples_test() ->
     {Modules, Rejected} = lists:partition(fun({K, _}) -> K =/= rejected end, units(?REPORT)),
@@ -97,13 +97,13 @@ uncommented(Line) ->
 guide_examples_test_() ->
     examples(?GUIDE, "guide").
 
-%% report §6.6, Appendix B, Appendix D, docs/coherence.md C17: every module
+%% report §6.6, Appendix B, Appendix D: every module
 %% the report shows compiles, and the example it shows rejected is refused
 %% on the line it marks
 report_examples_test_() ->
     examples(?REPORT, "report").
 
-%% report §11.5, docs/coherence.md C21: each error the catalogue shows is
+%% report §11.5: each error the catalogue shows is
 %% the compiler's, printed as the catalogue prints it; the catalogue's
 %% errors are its point, a parse error and an unknown name among them
 diagnostics_test_() ->
@@ -379,7 +379,7 @@ error_line(Out) ->
 
 %% make diagnostics: every program of the catalogue compiled again, and
 %% the console after it written with what `ern build` prints for it, after
-%% a change to a message that is meant (docs/coherence.md C21)
+%% a change to a message that is meant
 -spec write_diagnostics() -> ok.
 write_diagnostics() ->
     {ok, Text} = file:read_file(?DIAGNOSTICS),

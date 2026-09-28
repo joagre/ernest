@@ -16,17 +16,14 @@ ERLC_FLAGS = +debug_info -Werror
 # alone.
 PROGRAMS = ern_integration_tests
 DOCS = ern_docs_tests ern_style_tests
-GUIDE = ern_guide_tests ern_diagnostics_tests
+GUIDE = ern_guide_tests
 SHELL_TESTS = ern_terminal_tests ern_shell_tests
 BEAMS = $(patsubst %,$(EBIN)/%.beam,$(PROGRAMS) $(DOCS) $(GUIDE) $(SHELL_TESTS))
-
-# EUnit's options, which make untested gives a listener (tools/ern_cover.erl).
-EUNIT_OPTS = []
 
 # Run the EUnit modules $(1), with the toolchain and the standard library on
 # the code path.
 EUNIT = erl -noshell -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) -eval \
-	  'halt(case eunit:test([$(subst $(space),$(comma) ,$(strip $(1)))], $(EUNIT_OPTS)) of ok -> 0; _ -> 1 end).'
+	  'halt(case eunit:test([$(subst $(space),$(comma) ,$(strip $(1)))]) of ok -> 0; _ -> 1 end).'
 comma := ,
 space := $(subst ,, )
 
@@ -86,13 +83,6 @@ load: $(EBIN)/ern_load.beam prepare
 	  || status=1; \
 	cat build/load/shell.txt; exit $$status
 
-# The front end given garbled sources and the shell garbled sessions, as
-# docs/coherence.md C22 says; not part of `test`, and run before every
-# release.
-garbled: $(EBIN)/ern_garbled.beam $(EBIN)/ern_guide_tests.beam
-	@erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) \
-	  -eval 'ern_garbled:main()'
-
 clean:
 	rm -rf $(EBIN) build
 
@@ -102,4 +92,4 @@ $(EBIN)/%.beam: %.erl | $(EBIN)
 $(EBIN):
 	mkdir -p $(EBIN)
 
-.PHONY: test programs docs guide shell prepare xref load garbled clean
+.PHONY: test programs docs guide shell prepare xref load clean

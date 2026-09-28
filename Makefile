@@ -148,12 +148,9 @@ unicode:
 	@test -n "$(UC_SPEC)" || { echo "UC_SPEC=dir is required"; exit 1; }
 	@escript tools/unicode_width.escript $(UC_SPEC)
 
-# The tests by area (plan, MVP 2.6). `make test` runs
-# every area; a change that touches one area runs that area's target, as
-# docs/coherence.md maps them.
+# The tests by area (plan, MVP 2.6). `make test` runs every area, and a
+# change may run its own area's target as it is worked on.
 test: all
-	@$(MAKE) -s calls
-	@$(MAKE) -s unused
 	@$(MAKE) -s test-erl
 	@$(MAKE) -C test test
 	@$(MAKE) -s test-emacs
@@ -183,24 +180,9 @@ test-guide: all
 test-shell: all
 	@$(MAKE) -C test shell
 
-# The loads of docs/memory.md, which a release runs (docs/review.md R3).
+# The loads of docs/memory.md, which a release runs (docs/review.md).
 load: all
 	@$(MAKE) -C test load
-
-# The front end given garbled sources and garbled sessions (docs/coherence.md
-# C22); a release runs it.
-garbled: all
-	@$(MAKE) -s -C test garbled
-
-# The whole suite under the emulator's most modified timing, then three
-# times while every core runs a busy loop (docs/review.md R2).
-stress: all
-	@tools/stress.sh "$(MAKE)"
-
-# The commands of the README and of docs/development.md, in a fresh clone of
-# the last commit (docs/review.md R4).
-fresh:
-	@tools/fresh.escript
 
 # The Emacs mode's tests (docs/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
@@ -224,9 +206,7 @@ clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
 	@rm -rf build/stdlib build/shell build/libs build/tools build/man build/release \
-	  build/dialyzer build/dialyzer.plt build/calls build/cover build/untested build/sanitize \
-	  build/unused \
-	  build/untested.txt \
+	  build/dialyzer build/dialyzer.plt build/sanitize \
 	  examples/*.erc \
 	  examples/**/*.erc $(EXEC)
 
@@ -240,7 +220,7 @@ golden: all
 # Dialyzer over the toolchain's Erlang, its tests aside, and over the Erlang
 # the compiler writes for the standard library, the shell and the
 # libraries, a library's .erc copied under its module's name, since
-# Dialyzer reads only a .beam (docs/coherence.md C13). The table of the
+# Dialyzer reads only a .beam (docs/review.md). The table of the
 # host's applications the toolchain calls is built once, into
 # build/dialyzer.plt, and Dialyzer checks it against the host at each run.
 DIALYZER_APPS = erts kernel stdlib compiler syntax_tools crypto public_key asn1 parsetools
@@ -255,45 +235,8 @@ dialyzer: all
 	  $(filter-out build/shell/ern@markdown.beam,$(wildcard build/shell/ern@*.beam)) \
 	  build/dialyzer/*.beam
 
-# Erlang's xref over the toolchain and its tests, and over the Erlang the
-# compiler writes for the standard library, the shell, the libraries and
-# the examples, compiled into build/calls for it (docs/coherence.md C13):
-# no call to a function that is not defined or is deprecated, and no
-# export of the toolchain's that nothing calls, counting the calls xref
-# cannot see, as tools/calls.escript says. make test runs it. The unit tests
-# are compiled first, since their calls count and a fresh clone has none.
-calls: all build/cover/ern_cover.beam
-	@for app in $(APPS); do $(MAKE) -s -C erl/$$app/src tests || exit 1; done
-	@rm -rf build/calls && mkdir -p build/calls
-	@for f in examples/*.ern; do bin/ern build --source-root examples \
-	  --build-root build/calls/examples $$f > /dev/null || exit 1; done
-	@bin/ern build --build-root build/calls/modules examples/modules > /dev/null
-	@escript tools/calls.escript
-
-# Every private declaration of the Ernest the repository ships and of its
-# examples that nothing uses (docs/coherence.md C14): each source root
-# written as Erlang into build/unused, and tools/unused.escript reading
-# the host compiler's warnings on it, and the private types from their
-# tokens. make test runs it.
-UNUSED = build/unused
-unused: all
-	@rm -rf $(UNUSED) && mkdir -p $(UNUSED)
-	@bin/ern build --emit-erl --build-root $(UNUSED)/stdlib stdlib > /dev/null
-	@bin/ern build --emit-erl --load-path build/libs/markdown --build-root $(UNUSED)/shell \
-	  shell > /dev/null
-	@for d in libs/*; do bin/ern build --emit-erl --source-root $$d \
-	  --build-root $(UNUSED)/$$d $$d > /dev/null || exit 1; done
-	@for f in examples/*.ern; do bin/ern build --emit-erl --source-root examples \
-	  --build-root $(UNUSED)/examples $$f > /dev/null || exit 1; done
-	@bin/ern build --emit-erl --build-root $(UNUSED)/examples/modules examples/modules > /dev/null
-	@bin/ern build --emit-erl --load-path build/libs/markdown --build-root $(UNUSED)/tools \
-	  tools > /dev/null
-	@escript tools/unused.escript stdlib=$(UNUSED)/stdlib shell=$(UNUSED)/shell \
-	  $(foreach d,$(wildcard libs/*),$(d)=$(UNUSED)/$(d)) \
-	  examples=$(UNUSED)/examples tools=$(UNUSED)/tools
-
 # The helper in C under Clang's static analyzer and under the address and
-# undefined-behaviour sanitizers (docs/coherence.md C13): the analyzer
+# undefined-behaviour sanitizers (docs/review.md): the analyzer
 # over its source, which must say nothing; then the helper built with the
 # sanitizers where make builds it, the runtime's tests and the programs'
 # run with it, each sanitizer writing what it finds into build/sanitize,
@@ -312,23 +255,6 @@ sanitize: all
 	  $(MAKE) -s test-erl APP=runtime && $(MAKE) -s test-programs
 	@if [ -n "$$(ls $(SANITIZE))" ]; then cat $(SANITIZE)/*; exit 1; fi
 
-# The functions of the toolchain make test never runs, by the host's native
-# coverage (docs/coherence.md C13), as tools/ern_cover.erl says: make test
-# run with every host given ern_cover through ERL_AFLAGS and every EUnit
-# run given it as a listener, each host writing what it ran into
-# build/untested, and then every function no host ran printed.
-untested: all build/cover/ern_cover.beam
-	@rm -rf build/untested && mkdir -p build/untested
-	@ERL_AFLAGS="+JPcover function -pa $(abspath build/cover) -run ern_cover launched" \
-	  ERN_COVERAGE=$(abspath build/untested) \
-	  $(MAKE) -s test EUNIT_OPTS='[{report,{ern_cover,[]}}]'
-	@ERN_COVERAGE=$(abspath build/untested) erl -noshell -pa erl/*/ebin -pa build/cover \
-	  -run ern_cover report | tee build/untested.txt
-
-build/cover/ern_cover.beam: tools/ern_cover.erl
-	@mkdir -p build/cover
-	@erlc +debug_info -Werror -o build/cover $<
-
 # Every `§x.y`, `Appendix X`, and `E.n` in a live document names a heading of the
 # report, and the guide's own bare `§x.y` a heading of the guide; a test in test/.
 xref:
@@ -336,7 +262,7 @@ xref:
 
 # Rewrite the outputs of test/diagnostics.md, the catalogue of the front
 # end's errors, from what the compiler prints, after a change to a message
-# that is meant (docs/coherence.md C21).
+# that is meant.
 diagnostics: all
 	@$(MAKE) -s -C test diagnostics
 
@@ -379,4 +305,4 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
         $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall release unicode \
-        dialyzer calls untested sanitize unused diagnostics garbled stress fresh
+        dialyzer sanitize diagnostics

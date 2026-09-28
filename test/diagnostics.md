@@ -1,6 +1,6 @@
 # The diagnostics
 
-Every error the lexer, the parser and the checker give, each with one small program that gives it and what `ern build` prints for it, laid out as report §11.5 says; an error only the shell gives is shown in a session. It is the catalogue of `docs/coherence.md`'s C21, which the diagnostics reader reads. `test/ern_guide_tests.erl` holds each output to the compiler's, and `test/ern_diagnostics_tests.erl` holds the catalogue to the front end's code: every error that code can give has its program here, but for three no document can hold, bytes that are not UTF-8 and a source that ends inside a string or an escape, which the lexer's tests give. `make diagnostics` writes the outputs anew from the compiler, after a change to a message that is meant.
+Errors the lexer, the parser and the checker give, each with one small program that gives it and what `ern build` prints for it, laid out as report §11.5 says; an error only the shell gives is shown in a session. `test/ern_guide_tests.erl` holds each output to the compiler's, and `make diagnostics` writes the outputs anew from the compiler, after a change to a message that is meant.
 
 ## The lexer (report §2)
 

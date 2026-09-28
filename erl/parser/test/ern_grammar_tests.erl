@@ -1,4 +1,4 @@
-%% Report Appendix A read by a program (docs/coherence.md C18): every
+%% Report Appendix A read by a program: every
 %% nonterminal it uses is defined and every one it defines is used, and
 %% every choice the grammar makes is decided by the next token, its FIRST
 %% set apart from its alternatives' and from what may follow it, or by the

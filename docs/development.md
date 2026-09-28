@@ -9,9 +9,8 @@ The report, [`ernest_report.md`](../ernest_report.md), is the one normative docu
 - **[`implementation_plan.md`](implementation_plan.md)**: where the project stands, what is done, and what comes next.
 - **[`decisions.md`](decisions.md)**: dated design decisions and their rationale, what was tried and rejected. Not normative.
 - **[`architecture.md`](architecture.md)**: how the toolchain is built, from the lexer to the runtime, and what each test runs.
-- **[`coherence.md`](coherence.md)**: the checks that the project agrees with itself, and when each runs.
 - **[`memory.md`](memory.md)**: how the project checks that nothing grows with the work done.
-- **[`review.md`](review.md)**: what a release adds to those checks.
+- **[`review.md`](review.md)**: what a release runs to be ready.
 - **[`testing_improvements.md`](testing_improvements.md)**: where the time of `make test` goes, and what would shorten it, until the plan decides it.
 - **[`style.md`](style.md)**: the style of the Erlang, the C and the Ernest.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
@@ -50,14 +49,12 @@ build/             build products, not in git: build/stdlib/, build/shell/, and
                    build/release/ from make release
 libs/              the first-party libraries, each a source root a program adds
                    with --load-path: ets, markdown
-tools/             the programs of the build: calls.escript, run by make calls,
-                   ern_cover.erl, by make untested, and unused.escript, by make unused;
-                   unicode_width.escript writes Terminal.columns' table, run by
-                   make unicode; manual.ern writes ern(1) from the report's §11,
-                   run by make; install.sh stages, installs and archives, run by
-                   make install, make uninstall and make release, with
-                   strip.escript; and release/ holds the archive's own Makefile
-                   and README.md
+tools/             the programs of the build: unicode_width.escript writes
+                   Terminal.columns' table, run by make unicode; manual.ern
+                   writes ern(1) from the report's §11, run by make; install.sh
+                   stages, installs and archives, run by make install, make
+                   uninstall and make release, with strip.escript; and release/
+                   holds the archive's own Makefile and README.md
 ```
 
 A module's path follows report §11.1. A file that is not a module is named with underscores, but for the Emacs mode's, which follow Emacs's convention.
@@ -69,7 +66,8 @@ Beside what the README's *Installing* needs, `make test` needs python3, for the 
 ```
 make              compile every application into its ebin/, then stdlib/, libs/, shell/,
                   and write the manual pages
-make test         build, then make calls, make unused and every area below
+make test         build, then every area below; run before the commit that closes a
+                  plan item
 make test-erl     the unit tests of every application under erl/, side by side;
                   APP=typer for one
 make test-programs  the example programs, compiled and run
@@ -78,13 +76,6 @@ make test-guide   the guide's examples, the report's, and the catalogue of diagn
 make test-shell   the shell's sessions and the terminal
 make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
 make load         the loads of docs/memory.md, which a release runs; not part of make test
-make garbled      every example and module of stdlib/ garbled at each token, given to
-                  ern build, and the shell's sessions garbled, given to the shell; a
-                  release runs it, and it is not part of make test
-make stress       make test under the emulator's most modified timing, +T 9, then once
-                  while every core runs a busy loop (docs/review.md R2)
-make fresh        the commands of the README and of this document, in a fresh clone of
-                  the last commit, build/fresh/ernest (docs/review.md R4)
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
 make man          the manual pages alone, which make writes: each module's beside it,
@@ -96,14 +87,8 @@ make uninstall    remove the installation under the same PREFIX and DESTDIR
 make release      write the release archive, build/release/ern-VERSION.tar.gz
 make dialyzer     Dialyzer over the toolchain and the Erlang the compiler writes for
                   stdlib/, shell/ and libs/; its first run builds build/dialyzer.plt
-make calls        xref over the same and the examples: no undefined or deprecated call,
-                  and no export of the toolchain's that nothing calls
-make untested     make test under the host's coverage, then every function of the
-                  toolchain it never ran, also in build/untested.txt
 make sanitize     the helper in C under Clang's analyzer, and the runtime's and the
                   programs' tests with it built under the sanitizers
-make unused       every private declaration of the Ernest shipped and the examples that
-                  nothing uses
 make sections     list the report sections no test cites
 make xref         check that every section citation and document path in the documents resolves
 make coverage     every section with how many tests cite it and its length, thinnest first

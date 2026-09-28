@@ -9,15 +9,16 @@
 
 -export([install/0, status/1, ended/0, die/2, init/1, handle_event/2, handle_call/2]).
 
-%% Handle the two signals here from now on (report §11): the launcher does
+%% Handle the two signals here from now on (report §11). The launcher does
 %% before its work, since the host's own handler would stop the node only
-%% once that work had returned, and a run does again, which changes nothing
-%% where the handler is in place. A termination the host's handler took as
-%% the host started has asked the host to stop, which it would do only
-%% then, so `ern` ends by it here, before the handler, which the stopping
-%% host may have ended, is asked; a hangup then the host ignored. One that
-%% came before the host could take a signal at all the host itself drops.
-%% The host's interrupt cannot be handled; it ends the node at once
+%% once that work had returned; a run does again, which changes nothing
+%% where the handler is in place and matters where a test runs the job. A
+%% termination the host's handler took as the host started has asked the
+%% host to stop, which it would do only then, so `ern` ends by it here,
+%% before the handler, which the stopping host may have ended, is asked; a
+%% hangup then the host ignored. One that came before the host could take
+%% a signal at all the host itself drops. The host's interrupt cannot be
+%% handled; it ends the node at once
 %% (report §8.6).
 -spec install() -> ok.
 install() ->

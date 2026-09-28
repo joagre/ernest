@@ -24,7 +24,7 @@ citations_resolve_test() ->
     Live = ["ernest_report.md", "README.md", "docs/development.md", "CLAUDE.md",
             "docs/implementation_plan.md",
             "docs/architecture.md", "docs/shell_design.md", "docs/module_doc_template.md",
-            "docs/coherence.md", "docs/review.md", "docs/style.md", "docs/emacs_mode.md",
+            "docs/review.md", "docs/style.md", "docs/emacs_mode.md",
             "docs/node_protocol.md", "docs/code_distribution.md", "docs/install.md",
             "shell/README.md"]
         ++ examples() ++ stdlib() ++ shell() ++ tools(),
@@ -138,7 +138,7 @@ paths(Bin) ->
 exists(Rel) ->
     filelib:is_file(filename:join(?ROOT, Rel)).
 
-%% THIRD_PARTY_LICENSES, docs/coherence.md C20: every tracked file that
+%% THIRD_PARTY_LICENSES: every tracked file that
 %% carries an upstream author's copyright, and every file that holds a
 %% table a tool generated, is an entry's path; and every entry names a
 %% file that is there, and its licence
@@ -161,7 +161,7 @@ path(Entry) ->
                           [multiline, {capture, all_but_first, list}]),
     P.
 
-%% report §7.4, docs/coherence.md C3: a cause of a fault quoted in sections
+%% report §7.4: a cause of a fault quoted in sections
 %% 0 to 11 outside §7.4 is one §7.4 lists, since §7.4 holds the causes
 %% (§7.3); a library function's own section holds its faults (Appendix E.0
 %% shape rule 4). In §7.4's texts `...`, `m:f/n` and a placeholder of one

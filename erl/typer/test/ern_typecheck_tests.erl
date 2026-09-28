@@ -1136,7 +1136,7 @@ foreign_types_test() ->
 %% report §3.7: Never is an ordinary type, which unifies with itself alone,
 %% and a function that may stand at any type has a variable as its result,
 %% as fault has. A regression test, written after the code, which the
-%% review found stated and untested (docs/coherence.md C1)
+%% review found stated and untested
 never_is_ordinary_test() ->
     ?assertEqual("the body does not have the declared return type: expected Int, found Never",
                  err("fn f(x : Never) -> Int = x")),

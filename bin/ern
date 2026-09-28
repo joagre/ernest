@@ -32,6 +32,6 @@ if ! command -v erl >/dev/null 2>&1; then
     exit 1
 fi
 
-exec erl +B -boot no_dot_erlang -noshell -noinput -progname ern \
+exec erl +B -boot no_dot_erlang -noshell -noinput \
     -pa "$tree"/erl/*/ebin "$tree/build/stdlib" "$tree/build/shell" \
     -run ern_cli start -extra "$@"

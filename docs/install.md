@@ -33,9 +33,8 @@ Every module in the tree is stripped of the host's debug information, by `tools/
 
 - `+B`, so that the host's interrupt ends it rather than opening its break menu (report §8.6);
 - `-boot no_dot_erlang`, so that a user's `~/.erlang` is not read;
-- `-progname ern`, the host's name for the program it runs, which `make untested`'s `tools/ern_cover.erl` reads to know an `ern` it measures;
 - `-noshell -noinput`, in that order, since the host takes the last of the two, so that it reads no input and standard input is the runtime's alone (report §8.2);
-- `-run ern_cli start -extra` and the command line, which `ern_cli:start/0` carries out with `ern_cli:launched/1` and ends with `ern_cli:finish/1`, and a failure of the toolchain itself ends with status 70 rather than a crash dump in the working directory (report §11).
+- `-run ern_cli start -extra` and the command line, which `ern_cli:start/0` carries out, and a failure of the toolchain itself ends with status 70 rather than a crash dump in the working directory (report §11).
 
 It needs `erl` of Erlang/OTP 29, `sh`, `readlink`, and `iconv`, which Linux and macOS have. It checks no version of the host.
 
