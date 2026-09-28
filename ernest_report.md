@@ -286,7 +286,7 @@ A *module* is one source file, ending in `.ern`: the unit of compilation and of 
 
 **Taken namespaces.** A module namespace may not coincide with a namespace of the prelude or the standard library. The prelude's namespaces are `Prelude` and the name of every type §9 lists: `down.ern` at the source root is an error, and so is `io.ern`, a namespace of the standard library. The standard library's own source root, shipped with the toolchain, is the exception: its files provide those namespaces. A file under it is compiled with it as the source root (§11.1); another source root is an error.
 
-```ernest
+```ernest-fragment
 // net/http.ern
 export type Request = Request(method : String, path : String)
 
@@ -438,7 +438,7 @@ A nullary constructor is a value. A single-positional constructor is a function 
 
 `x |> e` applies `e`, a function value or a call, with `x` inserted as the first argument: `x |> f` is `f(x)`, `x |> f(a, b)` is `f(x, a, b)`.
 
-```ernest
+```ernest-fragment
 let words = input |> String.trim |> String.toLower |> String.toList
 ```
 
@@ -544,7 +544,7 @@ Messages from one process to another are received in sending order. Between diff
 
 Addresses have no equality (§3.10). The process behind an address is `Process.fromAddress(a)`, a value with equality that nothing can be sent to (Appendix E.21). There is no registry. A process reaches another through an address it holds or received, or through a top-level binding that holds one, which is a *service*:
 
-```ernest
+```ernest-fragment
 export let log : Address(LogMsg) =
     spawn(Local, restarting(RestartLimit(restarts = 3, within = 5000), logger))
 ```
@@ -573,7 +573,7 @@ answer              : (Reply(a), a) -> Unit with m
 
 A value is bound by a parameter, a `let`, a pattern variable, a `receive` variable, a lambda's capture, or the result of a call, and each binding is an *obligation*. The check is per function and crosses no call boundary. It is static: every path makes the consumption, and whether execution reaches it is not checked, since non-termination, a fault, or an indefinite wait may prevent it. A path on which the prelude's `fault` is called consumes every obligation still open on it, since the fault ends the process and every call waiting on it (§7.2). A function that calls `fault` for its caller does not: the check crosses no call boundary.
 
-```ernest
+```ernest-rejected
 type Request = Get(reply : Reply(Int)) | Stop
 
 fn serve(request : Request) -> Unit with m =
@@ -774,7 +774,7 @@ A parameter written with `=` requires equality of its argument, as a foreign typ
 
 ### 9.3 Declared types
 
-```ernest
+```ernest-prelude
 type Unit = Unit // the one-value type; carries no information
 
 type Optional(a) = None | Some(a)

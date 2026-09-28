@@ -1,5 +1,6 @@
 %% The guide's examples, checked as the standard library's are (plan, MVP
-%% 2.61 step 1). A block marked `ernest` is a complete module and compiles;
+%% 2.61 step 1), and the report's by the same marks (docs/coherence.md
+%% C17). A block marked `ernest` is a complete module and compiles;
 %% one whose first line names a file, `// net/http.ern`, is placed there, and
 %% such blocks under one heading compile together as a source tree; blocks
 %% that name the same file are its parts, in order, and one headed
@@ -14,37 +15,56 @@
 %% gives the program those lines on standard input. A block marked `ernest-rejected`
 %% fails to compile, and for a reason of its own: not a parse error and not
 %% an unknown name. When a console follows it, its `$ ern build` line names the
-%% file and the error is compared whole. A console whose command is
+%% file and the error is compared whole; where a line of the block holds a
+%% comment `// rejected`, the error is on that line. A console whose command is
 %% `$ ern shell` is a session: its `> ` lines are the inputs, and the rest
 %% is what the shell prints; `$ ern shell words.erc` after a module is a
 %% session with that module loaded. A block marked `ernest-prelude` holds
 %% the prelude's own declarations, each one of `ern_prelude`'s as written.
-%% Any other block is a fragment, which nothing checks.
+%% A block marked `ernest-fragment`, and any other, is a fragment, which
+%% nothing checks.
 -module(ern_guide_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 
 -define(GUIDE, "../ernest_guide.md").
+-define(REPORT, "../ernest_report.md").
 
 %% ernest_guide.md, plan MVP 2.61: the guide marks enough of its examples
 %% for the check to hold something
 guide_has_checked_examples_test() ->
-    {Modules, Rejected} = lists:partition(fun({K, _}) -> K =/= rejected end, units()),
+    {Modules, Rejected} = lists:partition(fun({K, _}) -> K =/= rejected end, units(?GUIDE)),
     ?assert(length(Modules) >= 15),
     ?assert(length(Rejected) >= 5).
+
+%% report Appendix B, docs/coherence.md C17: the report marks its examples,
+%% its programs and a rejected one among them
+report_has_checked_examples_test() ->
+    {Modules, Rejected} = lists:partition(fun({K, _}) -> K =/= rejected end, units(?REPORT)),
+    ?assert(length(Modules) >= 8),
+    ?assert(length(Rejected) >= 1).
 
 %% report §9.3, ernest_guide.md: a declaration the guide quotes from the
 %% prelude is the prelude's, word for word once spaces are ignored
 guide_prelude_declarations_test() ->
-    {ok, Text} = file:read_file(?GUIDE),
+    prelude_declarations(?GUIDE).
+
+%% report §9.3: the declarations §9.3 shows are the prelude's own
+report_prelude_declarations_test() ->
+    prelude_declarations(?REPORT).
+
+prelude_declarations(Document) ->
+    {ok, Text} = file:read_file(Document),
     Lines = binary:split(Text, <<"\n">>, [global]),
     Quoted = [normalize(D)
               || {_, <<"ernest-prelude">>, _, Code} <- blocks(lists:zip(lists:seq(1, length(Lines)),
                                                                         Lines), none, []),
-                 D <- declarations(Code)],
+                 D <- declarations([uncommented(L) || L <- Code])],
     Prelude = [normalize(D) || D <- declarations(
-                                      binary:split(list_to_binary(ern_prelude:declared_types()),
-                                                   <<"\n">>, [global]))],
+                                      [uncommented(L)
+                                       || L <- binary:split(
+                                                 list_to_binary(ern_prelude:declared_types()),
+                                                 <<"\n">>, [global])])],
     ?assert(length(Quoted) >= 3),
     ?assertEqual([], Quoted -- Prelude).
 
@@ -57,6 +77,10 @@ declarations([_ | Ls]) -> declarations(Ls).
 
 normalize(D) -> re:replace(string:trim(D), "\\s+", " ", [global, {return, binary}]).
 
+%% A line without its comment, which is no part of a declaration.
+uncommented(Line) ->
+    hd(binary:split(Line, <<"//">>)).
+
 %% ernest_guide.md: every complete example compiles, and every example with
 %% its output shown prints that output
 %%
@@ -66,7 +90,17 @@ normalize(D) -> re:replace(string:trim(D), "\\s+", " ", [global, {return, binary
 %% this node, one after another, since two of them may share a module's
 %% name (plan, MVP 2.6).
 guide_examples_test_() ->
-    Named = [{label(N, U), U} || {N, U} <- lists:zip(lists:seq(1, length(units())), units())],
+    examples(?GUIDE, "guide").
+
+%% report §6.6, Appendix B, Appendix D, docs/coherence.md C17: every module
+%% the report shows compiles, and the example it shows rejected is refused
+%% on the line it marks
+report_examples_test_() ->
+    examples(?REPORT, "report").
+
+examples(Document, Kind) ->
+    Units = units(Document),
+    Named = [{label(Kind, N, U), U} || {N, U} <- lists:zip(lists:seq(1, length(Units)), Units)],
     {Apart, Here} = lists:partition(fun({_, U}) -> own_node(U) end, Named),
     [{inparallel, [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Apart]}
      | [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Here]].
@@ -75,8 +109,8 @@ own_node({modules, #{run := {Flags, _, _, Inputs, _}}}) -> Flags =:= "shell " or
 own_node({modules, _}) -> false;
 own_node(_) -> true.
 
-label(N, {_, #{line := Line}}) -> "guide example " ++ integer_to_list(N) ++ " at line "
-                                  ++ integer_to_list(Line).
+label(Kind, N, {_, #{line := Line}}) ->
+    Kind ++ " example " ++ integer_to_list(N) ++ " at line " ++ integer_to_list(Line).
 
 check({modules, #{files := Files, run := Run}}) ->
     Dir = tmp(),
@@ -124,6 +158,13 @@ check({rejected, #{files := [{F, Code}], shown := Shown}}) ->
     %% rejected for its own reason, not for a slip in the example
     ?assertEqual(nomatch, re:run(Out, "^[^:\\s]+:[0-9]+:[0-9]+: (expected |unknown name)",
                                  [multiline])),
+    %% on the line the block marks, where it marks one
+    Marked = [N || {N, L} <- lists:zip(lists:seq(1, length(lines(Code))), lines(Code)),
+                   binary:match(L, <<"// rejected">>) =/= nomatch],
+    case Marked of
+        [] -> ok;
+        [Line | _] -> ?assertEqual({ok, Line}, error_line(Out))
+    end,
     case Shown of
         none -> ok;
         Expected -> ?assertEqual(trim(Expected), trim(Out))
@@ -158,8 +199,8 @@ session_end(Out) ->
 %% The checked units of the guide, in order: {modules, Unit} for one module
 %% or a heading's source tree, {rejected, Unit} for an example that must
 %% not compile.
-units() ->
-    {ok, Text} = file:read_file(?GUIDE),
+units(Document) ->
+    {ok, Text} = file:read_file(Document),
     Lines = binary:split(Text, <<"\n">>, [global]),
     Blocks = blocks(lists:zip(lists:seq(1, length(Lines)), Lines), none, []),
     group(Blocks, #{}).
@@ -311,6 +352,13 @@ trim(Text) ->
 
 join(Lines) ->
     iolist_to_binary([[L, <<"\n">>] || L <- Lines]).
+
+%% The line of the first error a compilation reports.
+error_line(Out) ->
+    case re:run(Out, "^[^:\\s]+:([0-9]+):", [{capture, all_but_first, list}]) of
+        {match, [L]} -> {ok, list_to_integer(L)};
+        nomatch -> none
+    end.
 
 %% A fresh directory: the counter restarts with each run, so one left by an
 %% earlier run is removed first.

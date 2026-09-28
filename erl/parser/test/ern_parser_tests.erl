@@ -716,7 +716,7 @@ grammar_fragments_test() ->
     Rules = fun(T) ->
                 maps:from_list(
                   [{N, re:replace(R, "\\s+", " ", [global, unicode, {return, list}])}
-                   || ["", B] <- All(T, "```(\\w*)\n([\\s\\S]*?)```", []),
+                   || ["", B] <- All(T, "```([\\w-]*)\n([\\s\\S]*?)```", []),
                       [R, N] <- All(B, "^((\\w+)\\s*=[\\s\\S]*?\\s\\.)$", [multiline])])
             end,
     InAppendix = Rules(Appendix),

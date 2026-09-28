@@ -73,7 +73,7 @@ make test-erl     the unit tests of every application under erl/, side by side;
                   APP=typer for one
 make test-programs  the example programs, compiled and run
 make test-docs    the citations and the style
-make test-guide   the guide's examples
+make test-guide   the guide's examples, and the report's
 make test-shell   the shell's sessions and the terminal
 make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
 make load         the loads of docs/memory.md, which a release runs; not part of make test
