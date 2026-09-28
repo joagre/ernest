@@ -24,7 +24,7 @@
 %%   {suffix, T}      T at the end of the line, which then ends
 -module(ern_pretty).
 
--export([render/1, width/0]).
+-export([render/1]).
 
 -export_type([doc/0]).
 
@@ -48,10 +48,6 @@
 %% choice's trial, whether its mark was reached.
 -record(p, {col = 0, pending = none, line = [], lines = [], started = false,
             suffix = [], trial = false, marked = false}).
-
--spec width() -> pos_integer().
-width() ->
-    ?WIDTH.
 
 %% The text a doc lays out, each line without trailing spaces, ending in a
 %% line feed.

@@ -30,7 +30,7 @@
          forget_opened/1, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
          undefined_function/3, undefined_lambda/3, fault/1, fault/2,
          trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
-         binding/1, run_main/2, run_main/3, signal/1, deadlock_target/1, restarting/2,
+         binding/1, run_main/3, signal/1, deadlock_target/1, restarting/2,
          restart_now/0, ask_restart/1, start_cause/0,
          init_stdlib/0, init_modules/1, read_input/1, input_not_utf8/0, reason/1, arguments/0,
          exit_program/1]).
@@ -1106,10 +1106,6 @@ arm(Deadline, To) ->
 %% host's locale.
 -type outcome() :: ok | killed | {fault, binary()} | {fault, binary(), binary()}
                  | {exit, 0..255} | {gone, stdout | stderr} | {signal, sigterm | sighup}.
-
--spec run_main(fun(() -> term()), binary()) -> outcome().
-run_main(Main, Site) ->
-    run_main(Main, Site, #{}).
 
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
 run_main(Main, Site, Opts) ->

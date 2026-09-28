@@ -152,6 +152,7 @@ unicode:
 # every area; a change that touches one area runs that area's target, as
 # docs/coherence.md maps them.
 test: all
+	@$(MAKE) -s calls
 	@$(MAKE) -s test-erl
 	@$(MAKE) -C test test
 	@$(MAKE) -s test-emacs
@@ -207,7 +208,7 @@ clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
 	@rm -rf build/stdlib build/shell build/libs build/tools build/man build/release \
-	  build/dialyzer build/dialyzer.plt \
+	  build/dialyzer build/dialyzer.plt build/calls \
 	  examples/*.erc \
 	  examples/**/*.erc $(EXEC)
 
@@ -235,6 +236,19 @@ dialyzer: all
 	  $(wildcard build/stdlib/ern@*.beam) \
 	  $(filter-out build/shell/ern@markdown.beam,$(wildcard build/shell/ern@*.beam)) \
 	  build/dialyzer/*.beam
+
+# Erlang's xref over the toolchain and its tests, and over the Erlang the
+# compiler writes for the standard library, the shell, the libraries and
+# the examples, compiled into build/calls for it (docs/coherence.md C13):
+# no call to a function that is not defined or is deprecated, and no
+# export of the toolchain's that nothing calls, counting the calls xref
+# cannot see, as tools/calls.escript says. make test runs it.
+calls: all
+	@rm -rf build/calls && mkdir -p build/calls
+	@for f in examples/*.ern; do bin/ern build --source-root examples \
+	  --build-root build/calls/examples $$f > /dev/null || exit 1; done
+	@bin/ern build --build-root build/calls/modules examples/modules > /dev/null
+	@escript tools/calls.escript
 
 # Every `§x.y`, `Appendix X`, and `E.n` in a live document names a heading of the
 # report, and the guide's own bare `§x.y` a heading of the guide; a test in test/.
@@ -280,4 +294,4 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
         $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall release unicode \
-        dialyzer
+        dialyzer calls

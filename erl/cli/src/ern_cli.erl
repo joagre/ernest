@@ -4,8 +4,7 @@
 %% tests can call it. The entry point returns the exit status.
 -module(ern_cli).
 
--export([start/0, main/1, ern/1, ern/2, namespace/1, segment/1, module_path/1,
-         compile_source/3]).
+-export([start/0, ern/1, ern/2, segment/1, module_path/1, compile_source/3]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").

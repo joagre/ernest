@@ -15,7 +15,7 @@
 
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/1, set_type_state/2,
          prelude_names/0,
-         prelude_con/1, prelude_cons/0, prelude_env/0, lookup_type/2, is_member_path/3,
+         prelude_con/1, prelude_cons/0, prelude_env/0, lookup_type/2,
          member_qname/3, is_reply_carrying/2, assume_reply_carrying/2, foreign_impl/1,
          declared_scheme/3, let_order/1, lookup_con/4,
          con_info/2, is_value/2, resolve_type/2, node_type/1, fields/2]).

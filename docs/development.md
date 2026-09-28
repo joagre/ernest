@@ -49,12 +49,13 @@ build/             build products, not in git: build/stdlib/, build/shell/, and
                    build/release/ from make release
 libs/              the first-party libraries, each a source root a program adds
                    with --load-path: ets, markdown
-tools/             the programs of the build: unicode_width.escript writes
-                   Terminal.columns' table, run by make unicode, manual.ern
-                   writes ern(1) from the report's §11, run by make, install.sh
-                   stages, installs and archives, run by make install, make
-                   uninstall and make release, with strip.escript, and release/
-                   holds the archive's own Makefile and README.md
+tools/             the programs of the build: calls.escript, run by make calls;
+                   unicode_width.escript writes Terminal.columns' table, run by
+                   make unicode; manual.ern writes ern(1) from the report's §11,
+                   run by make; install.sh stages, installs and archives, run by
+                   make install, make uninstall and make release, with
+                   strip.escript; and release/ holds the archive's own Makefile
+                   and README.md
 ```
 
 A module's path follows report §11.1. A file that is not a module is named with underscores, but for the Emacs mode's, which follow Emacs's convention.
@@ -66,7 +67,7 @@ Beside what the README's *Trying it* needs, `make test` needs python3, for the p
 ```
 make              compile every application into its ebin/, then stdlib/, libs/, shell/,
                   and write the manual pages
-make test         build, then run every area below
+make test         build, then make calls and every area below
 make test-erl     the unit tests of every application under erl/, side by side;
                   APP=typer for one
 make test-programs  the example programs, compiled and run
@@ -86,6 +87,8 @@ make uninstall    remove the installation under the same PREFIX and DESTDIR
 make release      write the release archive, build/release/ern-VERSION.tar.gz
 make dialyzer     Dialyzer over the toolchain and the Erlang the compiler writes for
                   stdlib/, shell/ and libs/; its first run builds build/dialyzer.plt
+make calls        xref over the same and the examples: no undefined or deprecated call,
+                  and no export of the toolchain's that nothing calls
 make sections     list the report sections no test cites
 make xref         check that every section citation and document path in the documents resolves
 make coverage     every section with how many tests cite it and its length, thinnest first
