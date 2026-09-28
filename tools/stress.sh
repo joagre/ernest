@@ -5,8 +5,9 @@
 # run's output is kept in build/stress/, and the status is 1 where any run
 # failed. The first argument is the make to run the suite with.
 #
-# Every time limit of the suite's EUnit runs is twenty times its own, since
-# a limit is set for a quiet machine and these runs are slower on purpose:
+# Every time limit of the suite, its EUnit runs' and its pseudo-terminal's
+# (test/ern_pty.py), is twenty times its own, since a limit is set for a
+# quiet machine and these runs are slower on purpose:
 # under +T 9 a test of a thousand rounds of monitors took 49 seconds of its
 # five, and under the busy loops tests that only compute ran past theirs. A
 # race still fails on what it gets wrong, and a wait that never ends still
@@ -14,6 +15,8 @@
 
 make=$1
 scaled='EUNIT_OPTS=[{scale_timeouts, 20}]'
+ERN_TIME_SCALE=20
+export ERN_TIME_SCALE
 out=build/stress
 rm -rf "$out"
 mkdir -p "$out"

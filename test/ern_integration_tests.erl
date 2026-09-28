@@ -71,8 +71,12 @@ filesync() ->
     Older = calendar:gregorian_seconds_to_datetime(
               calendar:datetime_to_gregorian_seconds(calendar:local_time()) - 7200),
     ok = file:change_time(Dir ++ "/a/notes.txt", Older),
-    {Status, Out} = run_for(Dir, "../../../bin/ern run ../../build/filesync.erc", "sleep 4",
-                            "TERM"),
+    %% stopped once both directories are as the checks below read them,
+    %% since how long a pass takes is the host's
+    Synced = "grep -q \"conflict: notes.txt\" run.out && [ -f b/greeting.txt ]"
+             " && [ -f a/other.txt ] && [ -f b/notes.txt.conflict ]"
+             " && grep -q \"new note\" a/notes.txt",
+    {Status, Out} = run_for(Dir, "../../../bin/ern run ../../build/filesync.erc", Synced, "TERM"),
     %% report §8.6, §11.2: the signal ends the program as returning from main
     %% does, so what was written is there and the runtime says nothing of its
     %% own, and the status is 128 plus the signal's number
@@ -96,14 +100,18 @@ del(Dir) ->
         {error, enoent} -> ok
     end.
 
-%% A program that runs until it is stopped: started in Dir, stopped with the
-%% signal named once the shell command Wait has ended. Its status and its output are returned,
-%% standard error with standard output, and not the shell's own report of
-%% a job a signal ended.
-run_for(Dir, Cmd, Wait, Signal) ->
+%% A program that runs until it is stopped: started in Dir, and stopped with
+%% the signal named once the shell condition Until holds, or after thirty
+%% seconds. Its status and its output are returned, standard error with
+%% standard output, and not the shell's own report of a job a signal ended.
+run_for(Dir, Cmd, Until, Signal) ->
     %% sh -c, since open_port runs the command with exec and `cd` is a builtin
-    {_, Status} = sh("sh -c 'cd " ++ Dir ++ " && { " ++ Cmd ++ " > run.out 2>&1 & p=$!; "
-                     ++ Wait ++ "; kill -" ++ Signal
+    %% an earlier run's output goes first, since the command empties the
+    %% file only once it has started, and Until may read it before then
+    {_, Status} = sh("sh -c 'cd " ++ Dir ++ " && { rm -f run.out; " ++ Cmd
+                     ++ " > run.out 2>&1 & p=$!; "
+                     "i=0; until " ++ Until ++ " || [ $i -ge 300 ]; do sleep 0.1; i=$((i + 1)); "
+                     "done; kill -" ++ Signal
                      ++ " $p 2>/dev/null; wait $p; echo status $?; }' 2>/dev/null"),
     <<"status ", S/binary>> = string:trim(Status),
     {ok, Out} = file:read_file(filename:join(Dir, "run.out")),
@@ -126,8 +134,8 @@ hangup() ->
                          "}\n"),
     {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
     ?assertEqual({129, [<<"running">>]},
-                 run_for(Dir, "../../../bin/ern run waits.erc",
-                         "until grep -q running run.out; do sleep 0.1; done", "HUP")).
+                 run_for(Dir, "../../../bin/ern run waits.erc", "grep -q running run.out",
+                         "HUP")).
 
 %% report §8.6, §11.2: the host's interrupt ends a program at once, printing
 %% nothing, with status 128 plus the signal's number. The run is started

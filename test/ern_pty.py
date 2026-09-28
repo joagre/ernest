@@ -24,7 +24,9 @@ line and a line beginning with # are skipped.
 A step that waits for text is what keeps a test from racing a program
 that is slower under load than it was when the test was written; sleep is
 for the moments no text marks, such as letting a game run for a tick.
-Two lines are printed:
+The deadline is --timeout times ERN_TIME_SCALE, 1 where it is not set,
+which the runs of `make stress` raise, since they are slower on purpose
+(docs/review.md R2).  Two lines are printed:
 
     status <exit code> | timeout
     data <what the program wrote, base64>
@@ -255,7 +257,8 @@ def main():
         with open(args.steps, "r", encoding="utf-8") as handle:
             steps = [step_spec(line.rstrip("\n")) for line in handle
                      if line.strip() and not line.startswith("#")]
-    status, screen = run(" ".join(command), steps, args.timeout, args.size)
+    scale = float(os.environ.get("ERN_TIME_SCALE", "1"))
+    status, screen = run(" ".join(command), steps, args.timeout * scale, args.size)
     print("status %s" % status)
     if args.screen:
         rows, _, columns = args.size.partition("x")
