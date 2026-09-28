@@ -102,7 +102,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - cheap — how to show an `Io.Error` to a user (N7)
 - done — README: an example, compiled by `readme_examples_test_`; the unbuilt bullet cut, in the guide's list as well; a clone line; "§14 says what each shows" says the larger ones; Gleam and Unison stay, since the sentence that names them says what each gives (N9)
 - cheap — `ern format` re-joins a split type; `Clock.now` untaught; `ern shell prog.erc` and `Os.arguments` (N10)
-- 3.0 — the language: sockets pull-only, mandatory timeouts, `Bytes` without search or split, slow standard library calls, no bounded mailbox (N-L1..L6)
+- 3.0 — the language: sockets pull-only, mandatory timeouts, slow standard library calls, no bounded mailbox (N-L1..L6)
 
 ## Diagnostics (§11.5)
 
@@ -173,6 +173,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - cheap — the editor's cursor counts Chars, the text graphemes (E6)
 - cheap — filesync never settles, recording the peer's mtime (E7)
 - cheap — Markdown: inline HTML at a line's start becomes a Raw block; a lazy line after a quoted heading; tabs in code expanded (E8, E21, E22)
+- 3.0 — `Bytes` has no search or split (N-L), and gains the functions of Erlang's `binary` that `String` has, named as `String`'s are: `contains`, `indexOf`, `startsWith` and `endsWith` from `match`, `split`, `replace`, `join`, `repeat` from `copy/2`, and `toHex` and `fromHex` from `encode_hex` and `decode_hex`. Not taken: `at`, `part`, `bin_to_list` and `list_to_bin`, which are `get`, `slice`, `toList` and `fromList`; `first` and `last`, which `get` is; `encode_unsigned` and `decode_unsigned`, which are bitstrings' (§5.11); `longest_common_prefix` and `longest_common_suffix`, words `String` has not; and `compile_pattern`, `copy/1` and `referenced_byte_size`, which are the host's representation
 - cheap — `List.partition` calls its predicate from the last element (E11)
 - cheap — `Path.withExtension` and `extension` on dot-files and the root (E12)
 - cheap — `Fs.Entry.mtime` is whole seconds (E13)
