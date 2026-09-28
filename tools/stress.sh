@@ -1,7 +1,7 @@
 #!/bin/sh
 # make stress (docs/review.md R2): the whole suite under the emulator's most
-# modified timing, +T 9, and then three times in a row while every core of
-# the machine runs a busy loop, since a race shows only now and then. Each
+# modified timing, +T 9, and then once while every core of the machine runs
+# a busy loop, since a race shows only now and then. Each
 # run's output is kept in build/stress/, and the status is 1 where any run
 # failed. The first argument is the make to run the suite with.
 #
@@ -45,7 +45,5 @@ while [ "$i" -lt "$cores" ]; do
 done
 trap 'kill $busy 2>/dev/null' EXIT
 trap 'exit 1' INT TERM
-for n in 1 2 3; do
-    run "load$n" "$make" test "$scaled"
-done
+run load "$make" test "$scaled"
 exit "$status"

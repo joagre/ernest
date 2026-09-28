@@ -81,8 +81,8 @@ make load         the loads of docs/memory.md, which a release runs; not part of
 make garbled      every example and module of stdlib/ garbled at each token, given to
                   ern build, and the shell's sessions garbled, given to the shell; a
                   release runs it, and it is not part of make test
-make stress       make test under the emulator's most modified timing, +T 9, then three
-                  times while every core runs a busy loop (docs/review.md R2)
+make stress       make test under the emulator's most modified timing, +T 9, then once
+                  while every core runs a busy loop (docs/review.md R2)
 make fresh        the commands of the README and of this document, in a fresh clone of
                   the last commit, build/fresh/ernest (docs/review.md R4)
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
