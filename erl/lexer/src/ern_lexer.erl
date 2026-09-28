@@ -351,6 +351,8 @@ escape([$u, ${ | R], L, C) ->
             end;
         _ -> error_at(L, C, "\\u{ needs one to six hex digits followed by }")
     end;
+escape([Ch | _], L, C) when Ch =:= $\n; Ch =:= $\r ->
+    error_at(L, C, "a line break cannot follow `\\`; use \\n");
 escape([Ch | _], L, C) ->
     error_at(L, C, io_lib:format("unknown escape \\~ts", [[Ch]]));
 escape([], L, C) ->

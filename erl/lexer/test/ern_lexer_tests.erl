@@ -205,11 +205,23 @@ position_after_multiline_things_test() ->
 bom_is_stripped_test() ->
     ?assertEqual([{ident, a}], toks([16#FEFF | "a"])).
 
+%% report §2.1: a source is UTF-8, and bytes that are not are refused. A
+%% regression test: the catalogue of diagnostics, which cannot hold such
+%% bytes, found no test that gave the error
+not_utf8_test() ->
+    ?assertEqual({1, 1, "input is not valid UTF-8"}, err(<<"fn f() = ", 16#FF>>)).
+
 %% report §2.5
 errors_test() ->
     ?assertEqual({1, 1, "unterminated string literal"}, err("\"abc")),
+    %% an input that ends just after a backslash; a regression test, as the
+    %% one above
+    ?assertEqual({1, 2, "unterminated escape"}, err("\"\\")),
     ?assertEqual({1, 5, "newline in string literal; use \\n"}, err("\"abc\ndef\"")),
     ?assertEqual({1, 2, "unknown escape \\q"}, err("\"\\q\"")),
+    %% a line break after a backslash is named, not printed into the message; a
+    %% regression test, the catalogue of diagnostics having found it printed
+    ?assertEqual({1, 2, "a line break cannot follow `\\`; use \\n"}, err("\"\\\nx\"")),
     ?assertEqual({1, 2, "\\u{D800} is not a Unicode scalar value"}, err("\"\\u{D800}\"")),
     ?assertEqual({1, 2, "\\u{110000} is not a Unicode scalar value"}, err("\"\\u{110000}\"")),
     ?assertEqual({1, 2, "\\u{ needs one to six hex digits followed by }"},

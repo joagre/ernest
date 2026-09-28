@@ -13,13 +13,13 @@ The documents that cite or describe a change are found by searching the reposito
 | anything | `make test`, once per plan item, before the commit that closes it | C1 for the report sections the item changed; C2 and C3, whose tests `make test` runs |
 | a report section | `make test-docs`, and `make test-guide` for its examples | C4, C6 and C8 for the section; C9 when the guide teaches it; C11 for every document that cites or describes it; C17, whose test `make test-guide` runs; C18, whose test `make test-erl APP=parser` runs, for Appendix A |
 | §0 or Appendix E.0 | `make test-docs` | C4 over the whole report, and C14 over the code E.0 governs |
-| §11.5 | `make test-docs` | C21 once built |
+| §11.5 | `make test-guide` | C21 |
 | the guide | `make test-guide`, `make test-docs` | C9 for the sections changed; C10 with one newcomer for a section added |
 | the README | `make test-docs` | C11 for it; C10 with one newcomer, who reads it and stops |
 | `shell/README.md` | `make test-docs` | C11 for it; C10 with one shell reader for a section added |
 | another document | `make test-docs`, or `make xref` for citations and paths alone | C11 for it |
 | a rule document: CLAUDE.md, `docs/style.md`, this document, `review.md` | `make test-docs`, and `make test` for `docs/style.md` | C11 for every document that applies it, and for `docs/style.md` C13 and C14 over the code it governs |
-| the Erlang of an application under `erl/`, its tests included | `make test-erl APP=<app>` and `make test-programs`; `make test` for the checker, the emitter or the runtime; `make load` for the runtime or the shell's front end, as [`memory.md`](memory.md) says | C13 for the application; C11 for every document that describes it; C19 for a change a user of `ern` or the shell meets; C21 for a change to a diagnostic, once built; C15 for a change to `ern_page`, which renders a module's page |
+| the Erlang of an application under `erl/`, its tests included | `make test-erl APP=<app>` and `make test-programs`; `make test` for the checker, the emitter or the runtime; `make load` for the runtime or the shell's front end, as [`memory.md`](memory.md) says | C13 for the application; C11 for every document that describes it; C19 for a change a user of `ern` or the shell meets; C21 for a change to a diagnostic; C15 for a change to `ern_page`, which renders a module's page |
 | the helper in C, `erl/runtime/c_src/` | `make`, then `make test-erl APP=runtime` and `make test-programs` | C13 over the helper |
 | `stdlib/` | `make test-erl APP=runtime`, `make test-programs` | C14 for the module; C15 for its page; C11 for every document that describes it |
 | `shell/` | `make test-shell` | C14 for the shell; C19; C11 for `shell/README.md` and `docs/shell_design.md` |
@@ -53,7 +53,7 @@ The documents that cite or describe a change are found by searching the reposito
 | C18 | Appendix A and the parser | `erl/parser/test/ern_grammar_tests.erl`, which `make test` runs | every non-terminal defined and used, and the FIRST sets of every alternative disjoint or the lookahead named in the prose; programs generated from the grammar are MVP 3.9's |
 | C19 | the toolchain and the shell as a user meets them, and the principles | the tool reader | its findings decided |
 | C20 | borrowed code and `THIRD_PARTY_LICENSES` | `test/ern_docs_tests.erl`'s `third_party_test`, that every file with an upstream header, and every table built from another's data, is listed with its licence, which `make test-docs` runs | green |
-| C21 | the lexer's, the parser's and the checker's messages, and §11.5 | a catalogue of one small program for every error they give, which MVP 2.95 builds; the diagnostics reader | every error has its program, and the reader's findings decided |
+| C21 | the lexer's, the parser's and the checker's messages, and §11.5 | `test/diagnostics.md`, one small program for every error they give, which `make test-guide` holds to the compiler's output and to the errors the front end's code can give; the diagnostics reader | every error has its program, and the reader's findings decided |
 | C22 | the front end and input it was not written for | `make garbled`, which MVP 2.95 builds: every example and module of the standard library with its tokens garbled, one deleted, one doubled, two swapped, given to `ern build`, and the lines of the shell's sessions so garbled given to the shell | every one answered with a diagnostic, never a failure of the toolchain |
 
 C5, C7 and C12 were retired on 2026-09-27: C5's question is C4's brief, C7's are C6's, and C12's, whether a citation of a renumbered section still names what its sentence means, is C11's where the guide renumbers, since the report never does. A row's number is never given again.

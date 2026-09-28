@@ -1117,7 +1117,7 @@ let_cycle(#let_decl{pos = Pos, name = Name} = D, G, Errs, Seen) ->
 %% Unify a placeholder with what the annotations say, before any body. A
 %% local fn's annotations name the enclosing definition's variables where
 %% they share a name (report §3.9).
-signature_shape(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect}, V, Env) ->
+signature_shape(#fn_decl{params = Params, ret = Ret, effect = Effect}, V, Env) ->
     {PTs, {AnnVars, St1}} = lists:mapfoldl(fun(#param{type = undefined}, {AV, St}) ->
                                                    {T, St0} = ern_types:fresh(St),
                                                    {T, {AV, St0}};
@@ -1128,16 +1128,16 @@ signature_shape(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect}
                                            end, {Env#env.ann_vars, Env#env.st}, Params),
     {RetT, EffT, _, St2} = return_annotation(Ret, Effect, AnnVars, Env#env{st = St1}),
     FnT = {tfn, PTs, EffT, RetT},
-    unify_at(Pos, V, FnT, Env#env{st = mark_process_only(FnT, St2)}, "signature");
-signature_shape(#let_decl{pos = Pos, ann = Ann}, V, Env) when Ann =/= undefined ->
+    bound(V, FnT, Env#env{st = mark_process_only(FnT, St2)});
+signature_shape(#let_decl{ann = Ann}, V, Env) when Ann =/= undefined ->
     {T, _, St} = ann(Ann, #{}, Env),
-    unify_at(Pos, V, T, Env#env{st = St}, "signature");
+    bound(V, T, Env#env{st = St});
 signature_shape(#foreign_fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect}, V,
                 Env) ->
     Syntax = #t_fn{pos = Pos, params = [T || #param{type = T} <- Params], ret = Ret,
                    effect = Effect},
     {T, _, St} = ann(Syntax, #{}, Env),
-    unify_at(Pos, V, T, Env#env{st = foreign_effect(T, St)}, "foreign signature");
+    bound(V, T, Env#env{st = foreign_effect(T, St)});
 signature_shape(_, _, Env) ->
     Env.
 
@@ -1186,8 +1186,7 @@ check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) 
                 end,
     {D#let_decl{body = TypedBody}, post(Pos, [], TypedBody, BodyT, Env3),
      (restore_scope(Env3, Env))#env{effectful_lets = Effectful}};
-check_value(#foreign_fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect,
-                             impl = Impl} = D, Placeholder, Env) ->
+check_value(#foreign_fn_decl{pos = Pos, params = Params, impl = Impl} = D, _Placeholder, Env) ->
     %% report §8.4: the implementation is module:function/arity
     case foreign_impl(Impl) of
         {ok, {_, _, A}} when A =:= length(Params) -> ok;
@@ -1198,11 +1197,8 @@ check_value(#foreign_fn_decl{pos = Pos, params = Params, ret = Ret, effect = Eff
             fail(Pos, "the implementation of " ++ decl_name(D)
                       ++ " is named module:function/arity, as \"ets:new/2\"")
     end,
-    Syntax = #t_fn{pos = Pos, params = [T || #param{type = T} <- Params], ret = Ret,
-                   effect = Effect},
-    {T, _, St} = ann(Syntax, #{}, Env),
-    Env1 = unify_at(Pos, Placeholder, T, Env#env{st = foreign_effect(T, St)}, "foreign signature"),
-    {D, none, Env1}.
+    %% its type is its signature's, which signature_shape gave it
+    {D, none, Env}.
 
 %% What the checks after inference need of a definition: its scope as it
 %% ends, since a deferred operator calls its member under the definition's
@@ -1557,8 +1553,8 @@ field_type(Pos, F, T, Cs, Env) ->
                                 ++ " in every constructor: " ++ atom_to_list(C) ++ " has none");
                   I ->
                       {{tfn, FTs, pure, RT}, St1} = ern_types:instantiate(Scheme, E#env.st),
-                      E1 = unify_at(Pos, T, RT, E#env{st = St1}, "the value whose field "
-                                                                  ++ atom_to_list(F) ++ " is read"),
+                      %% RT is T's constructor applied to fresh variables
+                      E1 = bound(T, RT, E#env{st = St1}),
                       FT = lists:nth(I, FTs),
                       E2 = case FT0 of
                                undefined -> E1;
@@ -1906,7 +1902,7 @@ check_expr(#e_receive{pos = Pos, clauses = Clauses, 'after' = After} = E, Expect
                         {[#clause{body = First} | _], undefined} ->
                             sibling(Context, Origin, "the `after` body must have the clauses'"
                                     " type", First, "the first clause", Expected, En1);
-                        _ -> {default(Context, "the `after` body"), Origin}
+                        _ -> {Context, Origin}
                     end,
                 {TypedBody, _, En3} = check_expr(Body, Expected, Context1, Origin1, En1),
                 {A#after_clause{timeout = TypedTimeout, body = TypedBody}, En3}
@@ -1915,11 +1911,14 @@ check_expr(#e_receive{pos = Pos, clauses = Clauses, 'after' = After} = E, Expect
 check_expr(#e_block{pos = Pos, stmts = Stmts} = E, Expected, Context, Origin, Env) ->
     {TypedStmts, T, Env1} = infer_block(Stmts, Pos, {Expected, Context, Origin}, Env),
     {E#e_block{stmts = TypedStmts, type = T}, T, Env1#env{vars = Env#env.vars}};
+check_expr(E, Expected, undefined, _Origin, Env) ->
+    %% the first branch where nothing fixed the type: the expectation is a
+    %% fresh variable, which the branch fixes
+    {Typed, T, Env1} = infer(E, Env),
+    {Typed, T, bound(Expected, T, Env1)};
 check_expr(E, Expected, Context, Origin, Env) ->
     {Typed, T, Env1} = infer(E, Env),
-    Env2 = unify_at(node_span(E), Expected, T, Env1, default(Context, "this expression"),
-                    Origin),
-    {Typed, T, Env2}.
+    {Typed, T, unify_at(node_span(E), Expected, T, Env1, Context, Origin)}.
 
 %% Report §6.3: a receive guard is a guard expression, since it selects a
 %% message without removing it: `true`, `false`, a Bool operand, or a
@@ -2142,8 +2141,7 @@ mailbox_type(Pos, Env) ->
                      labels(Env#env.effect_origin), help(Env#env.effect_origin));
         {tvar, _} = V ->
             {M, St} = ern_types:fresh(Env#env.st, [process_only]),
-            Env1 = unify_at(Pos, V, M, Env#env{st = St}, "receive"),
-            {M, Env1};
+            {M, bound(V, M, Env#env{st = St})};
         T ->
             {T, Env}
     end.
@@ -2253,17 +2251,13 @@ release(Env, #{waiting := Waiting, placeholders := Ps, checked := Checked} = Loc
                        end, Env, Ready),
     {Env1, Local#{waiting => Waiting -- Ready}}.
 
+%% A block ends with an expression, which the parser ensures (report §5.4).
 infer_stmts([Last], _Pos, Expect, Env, _Fns, Acc) ->
-    case Last of
-        #binding{} -> fail(element(2, Last), "a block ends with an expression");
-        #fn_decl{} -> fail(element(2, Last), "a block ends with an expression");
-        _ ->
-            {Typed, T, Env1} = case Expect of
-                                   undefined -> infer(Last, Env);
-                                   {Ex, Ctx, Or} -> check_expr(Last, Ex, Ctx, Or, Env)
-                               end,
-            {lists:reverse([Typed | Acc]), T, Env1}
-    end;
+    {Typed, T, Env1} = case Expect of
+                           undefined -> infer(Last, Env);
+                           {Ex, Ctx, Or} -> check_expr(Last, Ex, Ctx, Or, Env)
+                       end,
+    {lists:reverse([Typed | Acc]), T, Env1};
 infer_stmts([#fn_decl{pos = FPos, owner = Owner} | _], _Pos, _Expect, _Env, _Fns, _Acc)
   when Owner =/= undefined ->
     fail(FPos, "a type-member name, `fn " ++ atom_to_list(Owner) ++ ".name`, is a top-level"
@@ -2304,7 +2298,8 @@ infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '<-', expr = X} =
     %% Which sum type is decided at the end of the definition (solve_deferred).
     {TypedX, XT, Env1} = infer(X, Env),
     {TypedP, PT, Bindings, Env2} = check_pattern(P, Env1),
-    irrefutable(P, Env2) orelse fail(BPos, "a `let` pattern must be irrefutable; use match"),
+    irrefutable(P, Env2) orelse fail(BPos, "a `let` pattern must be irrefutable", [],
+                                     "use `match` for a pattern that can fail"),
     Env3 = case Ann of
                undefined -> Env2;
                _ ->
@@ -2902,6 +2897,13 @@ node_type(Node) ->
 
 unify_at(Pos, Expected, Actual, Env, Context) ->
     unify_at(Pos, Expected, Actual, Env, Context, undefined).
+
+%% A unification that cannot fail, of a fresh variable or of a type with
+%% its own constructor applied to fresh variables: a failure would be the
+%% checker's defect and no program's error, so it has no words.
+bound(Expected, Actual, #env{st = St} = Env) ->
+    {ok, St1} = ern_types:unify(Expected, Actual, St),
+    Env#env{st = St1}.
 
 %% Report §11.5: a mismatch is reported at Pos, the leaf, with Origin, the
 %% span that fixed the expectation, as its label.

@@ -317,6 +317,12 @@ build/cover/ern_cover.beam: tools/ern_cover.erl
 xref:
 	@$(MAKE) -s -C test xref
 
+# Rewrite the outputs of test/diagnostics.md, the catalogue of the front
+# end's errors, from what the compiler prints, after a change to a message
+# that is meant (docs/coherence.md C21).
+diagnostics: all
+	@$(MAKE) -s -C test diagnostics
+
 # Rewrite the contents lists of the report and the guide from their headings;
 # a test in test/ fails while one differs.
 contents:
@@ -356,4 +362,4 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
         $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall release unicode \
-        dialyzer calls untested sanitize unused
+        dialyzer calls untested sanitize unused diagnostics

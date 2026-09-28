@@ -626,7 +626,7 @@ bind_arrow_test() ->
 bind_arrow_open_sum_and_pattern_test() ->
     ?assertEqual("`<-` needs to know whether the value is an Either or an Optional; annotate it",
                  err("fn g(x) = { let a <- x; x }")),
-    ?assertEqual("a `let` pattern must be irrefutable; use match",
+    ?assertEqual("a `let` pattern must be irrefutable",
                  err("fn f(x : Optional(Optional(Int))) -> Optional(Int) ="
                      " { let Some(y) <- x; y }")),
     ?assertEqual(ok, ok("fn f(x : Optional(#(Int, Int))) -> Optional(Int) ="

@@ -16,7 +16,7 @@ ERLC_FLAGS = +debug_info -Werror
 # alone.
 PROGRAMS = ern_integration_tests
 DOCS = ern_docs_tests ern_style_tests
-GUIDE = ern_guide_tests
+GUIDE = ern_guide_tests ern_diagnostics_tests
 SHELL_TESTS = ern_terminal_tests ern_shell_tests
 BEAMS = $(patsubst %,$(EBIN)/%.beam,$(PROGRAMS) $(DOCS) $(GUIDE) $(SHELL_TESTS))
 
@@ -57,6 +57,10 @@ prepare:
 xref: $(EBIN)/ern_docs_tests.beam
 	erl -noshell -pa $(EBIN) -eval \
 	  'halt(case eunit:test(ern_docs_tests, []) of ok -> 0; _ -> 1 end).'
+
+diagnostics: $(EBIN)/ern_guide_tests.beam
+	erl -noshell -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) -eval \
+	  'ern_guide_tests:write_diagnostics(), halt().'
 
 contents: $(EBIN)/ern_docs_tests.beam
 	erl -noshell -pa $(EBIN) -eval 'ern_docs_tests:write_contents(), halt().'

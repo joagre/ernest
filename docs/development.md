@@ -35,9 +35,10 @@ erl/               the toolchain, as Erlang applications: lexer, parser,
                    each has src/, include/, ebin/, test/; the runtime also
                    c_src/, ern_exec's C source, and priv/, where make builds it
 test/              what spans applications: the hand-written target modules,
-                   the integration tests, the guide's examples, the shell's
-                   sessions, the pseudo-terminal harness, the loads' harness,
-                   expected/, golden/, input/, load/, session/, stdin/, terminal/
+                   the integration tests, the guide's examples, the catalogue
+                   of diagnostics, the shell's sessions, the pseudo-terminal
+                   harness, the loads' harness, expected/, golden/, input/,
+                   load/, session/, stdin/, terminal/
 bin/               ern, the launcher, a POSIX sh script
 stdlib/            the standard library as Ernest source
 shell/             the shell as Ernest source; its README.md guides a reader
@@ -73,7 +74,7 @@ make test-erl     the unit tests of every application under erl/, side by side;
                   APP=typer for one
 make test-programs  the example programs, compiled and run
 make test-docs    the citations and the style
-make test-guide   the guide's examples, and the report's
+make test-guide   the guide's examples, the report's, and the catalogue of diagnostics
 make test-shell   the shell's sessions and the terminal
 make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
 make load         the loads of docs/memory.md, which a release runs; not part of make test
@@ -100,6 +101,8 @@ make sections     list the report sections no test cites
 make xref         check that every section citation and document path in the documents resolves
 make coverage     every section with how many tests cite it and its length, thinnest first
 make golden       rewrite test/golden/, the Erlang the compiler emits per example
+make diagnostics  rewrite the outputs of test/diagnostics.md, the front end's errors,
+                  from what ern build prints
 make contents     rewrite the contents lists of the report and the guide from their headings
 make format       lay out every Ernest module, and the Ernest blocks of the report and the
                   guide, as ern format does (report §11.6)

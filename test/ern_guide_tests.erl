@@ -27,7 +27,10 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-export([units/1, write_diagnostics/0]).
+
 -define(GUIDE, "../ernest_guide.md").
+-define(DIAGNOSTICS, "diagnostics.md").
 -define(REPORT, "../ernest_report.md").
 
 %% ernest_guide.md, plan MVP 2.61: the guide marks enough of its examples
@@ -98,12 +101,22 @@ guide_examples_test_() ->
 report_examples_test_() ->
     examples(?REPORT, "report").
 
+%% report §11.5, docs/coherence.md C21: each error the catalogue shows is
+%% the compiler's, printed as the catalogue prints it; the catalogue's
+%% errors are its point, a parse error and an unknown name among them
+diagnostics_test_() ->
+    examples(?DIAGNOSTICS, "diagnostics").
+
 examples(Document, Kind) ->
-    Units = units(Document),
+    Units = [catalogued(Kind, U) || U <- units(Document)],
     Named = [{label(Kind, N, U), U} || {N, U} <- lists:zip(lists:seq(1, length(Units)), Units)],
     {Apart, Here} = lists:partition(fun({_, U}) -> own_node(U) end, Named),
     [{inparallel, [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Apart]}
      | [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Here]].
+
+%% The catalogue's errors may be the parser's or an unknown name's.
+catalogued("diagnostics", {rejected, U}) -> {rejected, U#{any_reason => true}};
+catalogued(_, Unit) -> Unit.
 
 own_node({modules, #{run := {Flags, _, _, Inputs, _}}}) -> Flags =:= "shell " orelse Inputs =/= [];
 own_node({modules, _}) -> false;
@@ -150,14 +163,15 @@ check({modules, #{files := Files, run := Run}}) ->
             {ok, Errors} = file:read_file(ErrFile),
             same_streams(Expected, session_end(Printed), Errors)
     end;
-check({rejected, #{files := [{F, Code}], shown := Shown}}) ->
+check({rejected, #{files := [{F, Code}], shown := Shown} = Unit}) ->
     Dir = tmp(),
     ok = write(filename:join(Dir, F), Code),
     {Status, Out} = sh("cd " ++ Dir ++ " && " ++ filename:absname("../bin/ern") ++ " build " ++ F),
     ?assertMatch({1, _}, {Status, Out}),
     %% rejected for its own reason, not for a slip in the example
-    ?assertEqual(nomatch, re:run(Out, "^[^:\\s]+:[0-9]+:[0-9]+: (expected |unknown name)",
-                                 [multiline])),
+    maps:get(any_reason, Unit, false) orelse
+        ?assertEqual(nomatch, re:run(Out, "^[^:\\s]+:[0-9]+:[0-9]+: (expected |unknown name)",
+                                     [multiline])),
     %% on the line the block marks, where it marks one
     Marked = [N || {N, L} <- lists:zip(lists:seq(1, length(lines(Code))), lines(Code)),
                    binary:match(L, <<"// rejected">>) =/= nomatch],
@@ -359,6 +373,40 @@ error_line(Out) ->
         {match, [L]} -> {ok, list_to_integer(L)};
         nomatch -> none
     end.
+
+%% make diagnostics: every program of the catalogue compiled again, and
+%% the console after it written with what `ern build` prints for it, after
+%% a change to a message that is meant (docs/coherence.md C21)
+-spec write_diagnostics() -> ok.
+write_diagnostics() ->
+    {ok, Text} = file:read_file(?DIAGNOSTICS),
+    Lines = binary:split(Text, <<"\n">>, [global]),
+    ok = file:write_file(?DIAGNOSTICS, lists:join(<<"\n">>, rewrite(Lines))).
+
+rewrite([<<"```ernest-rejected">> = Open | Rest]) ->
+    {Code, [Close | After]} = lists:splitwith(fun(L) -> not fence(L) end, Rest),
+    Console = [<<"```console">>, <<"$ ern build example.ern">>
+               | lines(string:trim(printed(join(Code)), trailing))] ++ [<<"```">>],
+    [Open | Code] ++ [Close | consoled(After, Console)];
+rewrite([L | Rest]) ->
+    [L | rewrite(Rest)];
+rewrite([]) ->
+    [].
+
+%% The program's console, in place of the one after it or where none is.
+consoled([<<>>, <<"```console">> | Rest], Console) ->
+    {_, [_ | After]} = lists:splitwith(fun(L) -> not fence(L) end, Rest),
+    [<<>> | Console] ++ rewrite(After);
+consoled(After, Console) ->
+    [<<>> | Console] ++ rewrite(After).
+
+%% What `ern build` prints for a program, in a directory of its own.
+printed(Code) ->
+    Dir = tmp(),
+    ok = write(filename:join(Dir, "example.ern"), Code),
+    {_, Out} = sh("cd " ++ Dir ++ " && " ++ filename:absname("../bin/ern")
+                  ++ " build example.ern"),
+    Out.
 
 %% A fresh directory: the counter restarts with each run, so one left by an
 %% earlier run is removed first.
