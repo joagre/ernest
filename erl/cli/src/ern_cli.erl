@@ -1082,15 +1082,30 @@ ifaces(Loaded) ->
 
 %% Report §11.2: where the startup files are, the person's first and then
 %% the node's; the shell reads them and finds out whether they are there.
-%% The node's is in the configuration directory of §11.3, which
-%% `--config-dir` names.
+%% The node's is in the configuration directory of §11.3, and is run only
+%% where `--config-dir` names that directory, never for the default, which
+%% is wherever the shell was started. A file both paths name is run once.
 startups(Opts) ->
-    Config = proplists:get_value(config_dir, Opts, ".ernest"),
     Home = case os:getenv("HOME") of
                false -> [];
                Dir -> [filename:join([Dir, ".ernest", "startup"])]
            end,
-    Home ++ [filename:join(Config, "startup")].
+    Node = case proplists:get_value(config_dir, Opts) of
+               undefined -> [];
+               Config -> [filename:join(Config, "startup")]
+           end,
+    case {Home, Node} of
+        {[H], [N]} -> [H | [N || not same_file(H, N)]];
+        _ -> Home ++ Node
+    end.
+
+%% Two paths to one file: both there, on one device, with one inode.
+same_file(A, B) ->
+    case {file:read_file_info(A), file:read_file_info(B)} of
+        {{ok, #file_info{major_device = D, inode = I}},
+         {ok, #file_info{major_device = D, inode = I}}} -> true;
+        _ -> false
+    end.
 
 %% Report §11.2: a module compiled from its source for the shell, as
 %% `ern build` would compile it but in memory, since `:load` and `:reload`

@@ -113,6 +113,38 @@ startup() ->
     %% what a startup input answered was not printed
     ?assertEqual(nomatch, binary:match(Out, <<"1 : Int">>)).
 
+%% report §11.2: without `--config-dir` the working directory's
+%% `.ernest/startup` is not run, and a file both paths name runs once. A
+%% regression test: a cloned tree's startup ran as the shell started in it,
+%% and started in `$HOME` the person's file ran twice; it does not cover two
+%% paths that reach one file through a link
+startup_of_the_working_directory_test_() ->
+    {timeout, 60, fun startup_of_the_working_directory/0}.
+
+startup_of_the_working_directory() ->
+    Ern = filename:absname("../bin/ern"),
+    Tree = fresh_home(),
+    ok = filelib:ensure_path(filename:join(Tree, ".ernest")),
+    ok = file:write_file(filename:join([Tree, ".ernest", "startup"]),
+                         "let planted = \"ran\"\n"),
+    In = filename:join(Tree, "session.in"),
+    ok = file:write_file(In, "planted\n"),
+    {0, Planted} = sh("cd " ++ Tree ++ " && HOME=" ++ fresh_home() ++ " " ++ Ern
+                      ++ " shell < " ++ In),
+    ?assertEqual(nomatch, binary:match(Planted, <<"\"ran\" : String">>)),
+    %% started in `$HOME`, and with `$HOME/.ernest` named, the person's file
+    %% runs once: its failing line is reported once
+    Home = fresh_home(),
+    ok = filelib:ensure_path(filename:join(Home, ".ernest")),
+    ok = file:write_file(filename:join([Home, ".ernest", "startup"]), "1 +\n"),
+    Empty = filename:join(Home, "session.in"),
+    ok = file:write_file(Empty, ""),
+    lists:foreach(fun(Option) ->
+                      {0, Out} = sh("cd " ++ Home ++ " && HOME=" ++ Home ++ " " ++ Ern
+                                    ++ " shell" ++ Option ++ " < " ++ Empty),
+                      ?assertEqual(1, count(Out, <<"startup:1:4: expected an expression">>))
+                  end, ["", " --config-dir " ++ filename:join(Home, ".ernest")]).
+
 %% report §11.2: on a terminal the shell commits its transcript to the
 %% terminal and paints only the live region, the tail of what programs
 %% write and the line being typed under it. What a program writes is

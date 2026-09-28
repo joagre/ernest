@@ -162,7 +162,7 @@ A spawn site in an input's module is written as §11.2 *Faults* says: the emitte
 
 ## Startup files
 
-`startupFiles()` answers the two paths, the person's `$HOME/.ernest/startup` and then the configuration directory's `startup`, which the runner computes. Whether each is there, and what it holds, the shell reads itself with `Fs`: a file that is not there is no error, one that cannot be read is said, and each line that is not blank is an input, carrying its file and its line. A `:` line goes to `perform`, as a typed command does; any other goes to `quietly`, which is `run` with printing off and the file and the line passed to `check`, so a diagnostic names them.
+`startupFiles()` answers the paths, the person's `$HOME/.ernest/startup` and then, where `--config-dir` names it, the configuration directory's `startup`, which the runner computes (§11.2). Whether each is there, and what it holds, the shell reads itself with `Fs`: a file that is not there is no error, one that cannot be read is said, and each line that is not blank is an input, carrying its file and its line. A `:` line goes to `perform`, as a typed command does; any other goes to `quietly`, which is `run` with printing off and the file and the line passed to `check`, so a diagnostic names them.
 
 ## Testing
 

@@ -91,8 +91,9 @@ It follows MVP 2.7 and comes before MVP 3.0.
       decision:
       - the directory build's sweep, which deleted what no build of its own wrote (§11.1),
         done 2026-09-28 (the log's *The Sweep Removes What a Build Wrote*);
-      - `ern shell` running `./.ernest/startup` from the working directory, and the working
-        directory on the host's code path ahead of the load path (§11.2);
+      - `ern shell` running `./.ernest/startup` from the working directory, done 2026-09-28
+        (the log's *A Directory Runs Nothing of Its Own*), and the working directory on the
+        host's code path ahead of the load path (§11.2);
       - `Fs` over a FIFO blocking every file operation of the node, and `Fs.list` failing for
         a whole directory over one dangling link (E.17);
       - `Tcp.listen` and `Tcp.connect` hanging on a bad port or host, `Tcp.listen` binding
@@ -184,6 +185,11 @@ from MVP 3.1 on 2026-09-20.
   `Down` gains `Unreachable` for a lost peer whose process may live on (the note's question 6,
   §9.3, §6.9), and whether §6.4 states that what arrives is an unbroken prefix of what was sent,
   a sender told nothing of a drop, as the note's section 8 promises.
+- **Where a node's configuration is read**, decided before `ernest.conf` is: its default,
+  `./.ernest`, is the directory a program starts in, whose `ernest.conf` would name the peers
+  and keys the node trusts, as its `startup` ran inputs until MVP 2.95 (§11.2, §11.3; the log's
+  *A Directory Runs Nothing of Its Own*). Recommended: the default goes, and a node reads a
+  configuration directory only where `--config-dir` names it.
 - **`Peer.find(name, fn() = M.service)`**: a peer's service is found by reading its binding on
   the peer, decided in MVP 2.65's step 5 (the log's *A Peer's Service Is Found Through Its
   Binding* and *`Peer.find` Stands*). Built here with §8.7's two sentences on a node's own

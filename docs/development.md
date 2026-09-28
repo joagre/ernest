@@ -143,6 +143,6 @@ The toolchain is the report on one node. Everything the report describes type-ch
 
 | Construct | Until | What you see today |
 |---|---|---|
-| `spawn(Peer(...))`, `spawnMonitored(Peer(...))`, peers, `ernest.conf` (§6.2, §8.3) | MVP 3.0 | the spawn faults with `peer unreachable`; `ernest.conf` is not read, and of the configuration directory only the shell's `startup` is |
+| `spawn(Peer(...))`, `spawnMonitored(Peer(...))`, peers, `ernest.conf` (§6.2, §8.3) | MVP 3.0 | the spawn faults with `peer unreachable`; `ernest.conf` is not read, and of the configuration directory only the shell's `startup` is, where `--config-dir` names it |
 
 Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and `mvp_refusals_listed_test` in `erl/cli/test/ern_cli_tests.erl` fails when such a text is missing from this table. Runtime behaviour that stands in for a later milestone, the peer fault, is listed by hand. `make sections` prints only what the plan's *Standing gaps* names.
