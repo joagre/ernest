@@ -51,6 +51,17 @@ handle({'Stat', Path, Reply}) ->
     answer(Reply, entry(text(Path)));
 handle({'MakeDir', Path, Reply}) ->
     answer(Reply, unit(filelib:ensure_path(text(Path))));
+%% Report Appendix E.17: its owner's alone, the group's and others' bits of
+%% its mode cleared and the owner's kept, as `chmod go-rwx` does.
+handle({'MakePrivate', Path, Reply}) ->
+    Name = text(Path),
+    answer(Reply, case file:read_file_info(Name, [raw]) of
+                      {ok, #file_info{mode = Mode}} ->
+                          unit(file:write_file_info(Name, #file_info{mode = Mode band bnot 8#077},
+                                                    [raw]));
+                      Error ->
+                          Error
+                  end);
 handle({'Remove', Path, Reply}) ->
     Name = text(Path),
     answer(Reply, unit(case filelib:is_dir(Name) of

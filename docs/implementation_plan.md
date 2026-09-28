@@ -102,8 +102,8 @@ It follows MVP 2.7 and comes before MVP 3.0.
         every interface, and a socket's write holding up its reads (E.18), done 2026-09-28:
         `Tcp.listen` takes the host as `Tcp.connect` does (the log's *`Tcp.listen` Names Its
         Interface*);
-      - the shell's history readable by others, which waits on a decision, how `Fs` makes a
-        file its owner's alone (language feedback 66, discussed with the user); `ern config`'s
+      - the shell's history readable by others, done 2026-09-28 with `Fs.makePrivate` (the
+        log's *`Fs.makePrivate`*); `ern config`'s
         race on the key, done 2026-09-28; and control characters of a fault or a doc block
         reaching the terminal (§11.2, §11.3), done 2026-09-28;
       - a program's end leaving processes a late spawn made (§8.6), done 2026-09-28;

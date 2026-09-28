@@ -524,6 +524,31 @@ fs_named_pipe_test() ->
     ?assertEqual(lists:duplicate(6, Refused) ++ [{'Right', <<"hi">>}], collect(fs, [])),
     file:del_dir_r(Dir).
 
+%% report Appendix E.17: `makePrivate` makes a file and a directory their
+%% owner's alone, clearing the group's and others' bits and keeping the
+%% owner's, and a path that names nothing is NotFound. Written with the code
+fs_make_private_test() ->
+    Me = self(),
+    Dir = filename:join("/tmp", "ern_private_" ++ os:getpid() ++ "_"
+                                   ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    File = filename:join(Dir, "notes"),
+    ok = file:write_file(File, <<"x">>),
+    ok = file:change_mode(Dir, 8#755),
+    ok = file:change_mode(File, 8#664),
+    P = fun(Name) -> {'Path', unicode:characters_to_binary(Name)} end,
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Me ! {fs, 'ern@fs':makePrivate(P(File), 1000)},
+                           Me ! {fs, 'ern@fs':makePrivate(P(Dir), 1000)},
+                           Me ! {fs, 'ern@fs':makePrivate(P(Dir ++ "/none"), 1000)}
+                       end, <<"fs_make_private_test">>, #{})),
+    ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Left', 'NotFound'}], collect(fs, [])),
+    {ok, FileInfo} = file:read_file_info(File),
+    {ok, DirInfo} = file:read_file_info(Dir),
+    ?assertEqual({8#600, 8#700}, {element(8, FileInfo) band 8#777, element(8, DirInfo) band 8#777}),
+    file:del_dir_r(Dir).
+
 %% report Appendix E.17: `list` follows a link, and describes a link to
 %% nothing as the link itself. A regression test: a link to nothing failed
 %% the list of the whole directory with NotFound

@@ -159,6 +159,26 @@ fault_line_escaped() ->
     ?assertMatch({_, _}, binary:match(Out, <<"input:1 faulted: a\\u{1B}b\\nforged">>)),
     ?assertEqual(nomatch, binary:match(Out, <<27>>)).
 
+%% report §11.2, Appendix E.17: the history's directory is its owner's
+%% alone, made so before the history is written, and one an earlier
+%% version left open to others is closed before the history is read. A
+%% regression test: the directory and the file took the host's default
+%% mode, and others could read what was typed
+history_is_private_test_() ->
+    {timeout, 60, fun history_is_private/0}.
+
+history_is_private() ->
+    Home = fresh_home(),
+    Dir = filename:join(Home, ".ernest"),
+    _ = pty("HOME=" ++ Home ++ " ../bin/ern shell",
+            [{expect, "> "}, {send, hex("1 + 1\r")}, {expect, "2 : Int"}, {send, "04"}], 20),
+    {ok, Made} = file:read_file_info(Dir),
+    ?assertEqual(0, element(8, Made) band 8#077),
+    ok = file:change_mode(Dir, 8#755),
+    _ = pty("HOME=" ++ Home ++ " ../bin/ern shell", [{expect, "> "}, {send, "04"}], 20),
+    {ok, Read} = file:read_file_info(Dir),
+    ?assertEqual(0, element(8, Read) band 8#077).
+
 %% report §11.2: on a terminal the shell commits its transcript to the
 %% terminal and paints only the live region, the tail of what programs
 %% write and the line being typed under it. What a program writes is

@@ -31,7 +31,10 @@ export fn read() -> Either(Io.Error, List(String)) with m =
             // no file yet: a first session has no history and makes none
             Left(Io.NotFound) -> Right([])
           | Left(why) -> Left(why)
-          | Right(bytes) -> trimmed(path, inputs(bytes))
+          | Right(bytes) -> {
+                let _ <- made(path);
+                trimmed(path, inputs(bytes))
+            }
         }
     }
 
@@ -55,8 +58,7 @@ fn inputs(bytes : Bytes) -> List(String) = {
 fn text(inputs : List(String)) -> String =
     String.join(List.map(inputs, fn(input) = encode(input) <> "\n"), "")
 
-// One input, appended as the shell takes it. The directory is made when
-// it is not there, as it is not before a first session.
+// One input, appended as the shell takes it.
 export fn add(input : String) -> Either(Io.Error, Unit) with m =
     match file {
         None -> Right(Unit)
@@ -66,10 +68,16 @@ export fn add(input : String) -> Either(Io.Error, Unit) with m =
         }
     }
 
+// Report §11.2: the directory made where it is not there, as before a
+// first session, and its owner's alone, so that no one else reads what was
+// typed, before the file is written or trimmed.
 fn made(path : Path) -> Either(Io.Error, Unit) with m =
     match Path.parent(path) {
         None -> Right(Unit)
-      | Some(dir) -> Fs.makeDir(dir, wait)
+      | Some(dir) -> {
+            let _ <- Fs.makeDir(dir, wait);
+            Fs.makePrivate(dir, wait)
+        }
     }
 
 //
