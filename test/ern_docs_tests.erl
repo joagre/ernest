@@ -161,6 +161,39 @@ path(Entry) ->
                           [multiline, {capture, all_but_first, list}]),
     P.
 
+%% report §7.4, docs/coherence.md C3: a cause of a fault quoted in sections
+%% 0 to 11 outside §7.4 is one §7.4 lists, since §7.4 holds the causes
+%% (§7.3); a library function's own section holds its faults (Appendix E.0
+%% shape rule 4). In §7.4's texts `...`, `m:f/n` and a placeholder of one
+%% letter stand for any text.
+fault_causes_test() ->
+    Report = read("ernest_report.md"),
+    [Before, Rest] = binary:split(Report, <<"### 7.4 Causes of faults">>),
+    [Own, After] = binary:split(Rest, <<"\n## 8. Programs">>),
+    [Body, _] = binary:split(After, <<"\n## Appendix A">>),
+    Templates = [template(C) || C <- causes(Own)],
+    ?assert(length(Templates) > 20),
+    ?assertEqual([], [C || C <- causes(Before) ++ causes(Body),
+                           not lists:any(fun(T) -> re:run(C, T) =/= nomatch end, Templates)]).
+
+causes(Bin) ->
+    case re:run(Bin, "Fault\\(\"([^\"]*)\"\\)", [global, {capture, all_but_first, binary}]) of
+        {match, Found} -> [C || [C] <- Found];
+        nomatch -> []
+    end.
+
+%% A cause as a pattern: its text, with `...`, `m:f/n` and a word of one
+%% letter matching any text.
+template(Cause) ->
+    Words = [case W of
+                 <<"...">> -> <<".*">>;
+                 <<"m:f/n">> -> <<".+">>;
+                 <<_>> when W =/= <<"a">> -> <<".+">>;
+                 _ -> re:replace(W, "[.^$*+?()\\[\\]{}|\\\\]", "\\\\&",
+                                 [global, {return, binary}])
+             end || W <- binary:split(Cause, <<" ">>, [global])],
+    iolist_to_binary(["^", lists:join(" ", Words), "$"]).
+
 %% A copyright in the first lines, an upstream author's header.
 borrowed(Text) ->
     Head = binary:part(Text, 0, min(byte_size(Text), 2000)),
