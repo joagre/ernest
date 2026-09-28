@@ -194,7 +194,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — tightened on 2026-09-28: CLAUDE.md, the plan, `architecture.md`, `shell_design.md`, the two distribution notes brought to the report, `style.md`, `install.md`, `memory.md`, `development.md`, `emacs_mode.md`, `language_feedback.md`, `testing_improvements.md`, with the documents reader's findings on each (D5..D31, D-B), marked done on their writers' word; what they argued is the log's *What the Design Notes Argued* and *Erlang's Standard Library, Module by Module*
 - done — code comments that cited the old plan's numbered sections (`plan 2.1`, `plan 2.4`) or `review.md`'s numbered steps cite the report, or nothing; `ern_rt`'s header said a late monitor reports the cause, where §6.9 says `Unknown`
 - cheap — `make sections` and `make xref` never check Appendix G; the documents' tests read too few files (D1, D4)
-- cheap — `shell/README.md`: `Process` is no system module; the reader bullet does not parse; the greeting, the first prompt, line mode (D26, D-B8)
+- done — `shell/README.md`: `Process` is no system module; the reader bullet does not parse; the greeting, the first prompt, line mode (D26, D-B8); the page cut from 2,297 words to 1,325, what `shell_design.md` owns pointed at
 - cheap — the report's line 3 sends open questions to the log (D)
 - cheap — `ern_cli_tests`' `--help` loop leaves out `format`; `editor.ern` cites §9.3 for E.16 (D)
 - done — the shell reader's findings (H1..H18), the register reader's (G1..G28, G30, G31, G33..G39)
@@ -202,3 +202,5 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - cheap — `memory.md` keeps "about a minute and a half" for `make load`, not measured since the loads changed (the documents' rewrite)
 - cheap — the log's *Erlang's Standard Library, Module by Module* has a column "Waiting, and when", roadmap the plan owns (the documents' rewrite)
 - 3.0 — `Clock.monotonic` and `Udp` stand in the plan's "Not in any MVP" as waiting for "a later MVP", with no milestone and no verdict (CLAUDE.md, *No decision is left pending*): each is judged on E.0 and placed (the documents' rewrite)
+- cheap — `shell_design.md`'s *Ordering* says the session drains the screen before each prompt, and `main` writes the first at a terminal without a drain: the note says so, or `main` calls `prompt` (the shell README's rewrite)
+- cheap — `shell_design.md`'s *Processes* and `shell.ern`'s header say "without a terminal" where line mode is input that is not a terminal or output with no size; the note's *Start and end* leaves out the greeting (the shell README's rewrite)

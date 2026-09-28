@@ -1,107 +1,87 @@
 # Reading the shell
 
-The Ernest shell is an Ernest program. It runs as three processes, is split into seven modules, and has a front end in Erlang for what only the compiler knows. This page is a guide for an Ernest programmer who wants to read it. What the shell does is report §11.2; how it is built, [`docs/shell_design.md`](../docs/shell_design.md). This page says where things are and how they fit together.
+The Ernest shell is an Ernest program: `Shell` in [`shell.ern`](shell.ern), six modules under [`shell/`](shell/), and a front end in Erlang for what only the compiler knows. This page guides an Ernest programmer through its code. What the shell does is report §11.2, cited here by the names of its paragraphs. How it is built is the design note, [`docs/shell_design.md`](../docs/shell_design.md), cited by the names of its sections.
 
 ## Where to start
 
-Start at `main` in [`shell.ern`](shell.ern). The file reads top to bottom:
+Start at `main` in `shell.ern`. The file reads top to bottom, in six parts:
 
-1. **The front end**: the `foreign type`s and `foreign fn`s the shell reaches in the host.
-2. **The session**: the types of all three processes, then `main`, then the session's own functions: running an input, the startup files, and the loop that waits for input.
+1. **The front end**: the foreign types and functions through which the shell reaches the host.
+2. **The session**: the types of all three processes, `main`, and the session's own functions.
 3. **Commands**: what a `:` line does.
 4. **The screen**: the one process that writes to the terminal.
-5. **The reader**: the keys, the line editor, completion, and documentation.
-6. **Line mode**: where standard output has no size or the reader's subscription is refused, the session reads lines itself.
+5. **The reader**: the keys, completion, and documentation.
+6. **Line mode**: `lineLoop`, where the shell reads lines rather than keys (§11.2 *Editing*).
 
-Then read the modules under [`shell/`](shell/) in any order. A file's path under the source root `shell/` is its module's name: `shell/command.ern`, which is `shell/shell/command.ern` in the repository, is `Shell.Command`. Every module but `Shell` and `Shell.History` is pure, and each but `Shell` has its tests at the foot of its file.
+Then read the modules in any order. A file's path under the source root `shell/` gives its module's name: `shell/command.ern` there, `shell/shell/command.ern` in the repository, is `Shell.Command`. Each module but `Shell` has its tests at the foot of its file.
 
-## Three processes
+## The processes
 
-- **The session** holds the `State`: the front end's environment, the settings of `:set`, whether to colour, its own processes, and the last hundred faults, which `:faults` lists. It takes one input at a time. It checks the input, runs it in a process of its own, and waits in `await` for the run to end. Its mailbox is `ShellMsg`.
-- **The reader** owns the keys. It holds a `Reading`, which is mostly the line being edited. Each key goes through `Shell.Editor.edit`, but a change of the terminal's size, which the reader passes to the screen as `Resize`, and the `Edit` it answers says what to do: show the line, send the input, cancel it, clear the screen, complete, document, or leave. Its mailbox is `ReaderMsg`, the terminal's events wrapped in `K`.
-- **The screen** is the only process that writes to the terminal. The session, the reader, and running programs all send it text. It keeps a `Shell.Region.Region` and writes the bytes the region gives back. Its mailbox is `ScreenMsg`. Without a terminal it runs `plainLoop` instead, which writes text as it comes.
+The comments on the three mailbox types, `ShellMsg`, `ReaderMsg` and `ScreenMsg`, say who sends each message.
 
-The three message types, `ShellMsg`, `ScreenMsg` and `ReaderMsg`, stand at the top of the session's part of `shell.ern`; their comments say what each message means and who sends it.
+- **The session** is `main`, then `keyLoop`, or `lineLoop` in line mode. It holds the `State` and takes one input at a time. It runs an Ernest input in a new process and waits for the run in `await`.
+- **The reader** is `reader`, then `readLoop`. It passes a change of the terminal's size to the screen as `Resize`. Every other event from the terminal goes through `Shell.Editor.edit`, whose `Edit` says what to do: show the line, submit it, cancel it, clear the screen, complete, document, or leave.
+- **The screen** is `screenLoop`, the only process that writes to the terminal. For each message it writes the bytes its `Shell.Region.Region` gives back. In line mode it runs `plainLoop` instead, which writes text as it comes.
 
-The same short names recur across modules. `Typing`, `Clear` and `Leave` are both `Shell.Editor.Edit` constructors and `Shell`'s own, and `State` is a type in `Shell` and in `Shell.Editor`. A name qualified with its module is that module's. An unqualified name is the file's own, or else the prelude's: `Down`, `Path`, and `Test` are the prelude's. A system module's types are written with its name, `Terminal.Event`, `Terminal.Size`, `Io.Error`, and `Fs.Entry`.
+What each process holds, and how the session orders and queues its work, is the design note's *Processes*.
 
-### Start and end
+`Typing`, `Clear` and `Leave` are constructors of `Shell.Editor.Edit` and of types in `Shell`, and `State` is a type of both modules. In `shell.ern`, `Shell.Editor.Typing` is the editor's answer and a bare `Typing` is the screen's message.
 
-`main` does the following, in order:
+## Start and end
 
-1. Where standard output has a size, it spawns the reader. The reader records itself as the terminal's holder (`holdTerminal`), so that an input asking for the keys faults rather than taking them, and subscribes to the terminal. It sends `Ready`, or `NoKeys` where standard input is not a terminal, and the session then reads lines.
-2. It spawns the screen: a region at a terminal, plain text in line mode. In line mode the session holds the terminal itself.
-3. It sends what programs write to the screen as `Wrote` (`setScreen`).
-4. It keeps its own processes, the session, the screen and the reader, in its `State` by their `Process`, so that their faults are not news and `:processes` leaves them out. It subscribes to every fault with `Process.faults(Reported)`.
-5. It starts the file's entry point, if the shell was started with one (`program`).
-6. At a terminal, it reads the history, sends the reader `Start` with the screen and the history, and monitors the reader.
-7. It runs the startup files and writes the first `> ` itself, as `prompt` writes the later ones.
+`main` runs in the order the design note's *Start and end* gives.
 
-`finish` ends the session. It takes the region away with `Height(0)` and an empty `Typing`, leaves the cursor on a fresh line, and drains the screen.
+- The reader records itself as the terminal's holder (`holdTerminal`) before it subscribes to the keys. In line mode `main` records the session instead.
+- Once the sinks are bound to the screen (`setScreen`), `main` says the greeting, which names the version, `:help` and `:quit`. It does so in either mode.
+- At a terminal, `main` writes the first `> ` itself, after the startup files. `prompt` writes each later one, after draining the screen. In line mode `lineLoop` writes every prompt through `prompt`, the first among them.
 
-### One input, end to end
+`finish` ends the session, in either mode.
 
-1. A key reaches the reader as `K(event)`, and `Shell.Editor.edit` answers `Submit(state)`.
-2. `continues` asks the parser whether the input needs another line. It does not, so the reader appends the input to the history (`remember`). It sends `Entered` to the screen, which commits the line to the transcript, and `Typed(text)` to the session. Then it starts the next line with `Shell.Editor.next`.
-3. The session's `keyLoop` receives `Typed`. It sends `Taken` to the screen and calls `taking`, which skips a blank line and calls `submit`. `submit` sends a `:` line to `perform` and anything else to `evaluate`.
-4. A command: `Shell.Command.parse` gives the action and its argument, or the text of a refusal. `obey` carries out the action.
-5. Ernest: `evaluate` calls `run`, as `quietly` does for a startup file's input. `run` checks the input through the front end (`check`) and starts it with `spawnInput`. `await` then waits for `Done(Ok(...))` or `Done(Faulted(...))`, and prints the value and its type with `say`. A fault report about the input's own process is its answer too, since only a signal ends that process with a fault, and then no `Done` comes.
-6. `say` sends `Said(text)` to the screen. The screen passes it to `Shell.Region.said` and writes the bytes it gets back.
-7. `prompt` drains the screen with a `Flush` call before it writes the next `> `. A program's text reaches the screen from the program's own processes, not through the session, so without the drain the prompt could come before it.
+## One input, end to end
 
-While an input runs, the reader goes on reading keys. `await` receives only `Done`, `Interrupted` and `Reported`. So an input typed meanwhile, or `Eof`, stays in the mailbox and is taken after the run. `C-c` does not wait in the mailbox: the editor answers `Cancel`, and the reader sends `Entered` to the screen and `Interrupted` to the session. `await` kills the input's process and says `Killed`. The run's own `Done` may still arrive after that, and `keyLoop` drops it.
+At a terminal:
+
+1. A key reaches the reader as `K(event)`, and `Shell.Editor.edit` answers `Submit`.
+2. `continues` asks the parser (`needsMore`) whether the input takes another line. It does not, so the reader appends the input to the history (`remember`), sends the screen `Entered` and the session `Typed(text)`, and starts the next line.
+3. `keyLoop` receives `Typed`, sends the screen `Taken`, and calls `taking`. `taking` passes a line that is not blank to `submit`, which sends a `:` line to `perform` and any other to `evaluate`.
+4. A command: `Shell.Command.parse` answers the action and its argument, or a refusal. `obey` carries out the action.
+5. Ernest: `evaluate` calls `run`, which checks the input (`check`) and starts it (`spawnInput`). `await` waits for the run's `Done` and says what it came to. A fault report of the input's own process is its answer too: such a fault is one a signal brought, and no `Done` follows it.
+6. `say` sends the screen `Said`, and the screen writes the bytes `Shell.Region.said` gives back.
+7. `prompt` drains the screen with a `Flush` call and writes the next `> ` (the design note's *Ordering*).
+
+An input typed while another runs waits in the session's mailbox, and `C-c` kills the run (the design note's *Queueing*).
+
+In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault reports that waited (`pending`), writes the prompt, reads a line with `Io.readLine`, and passes it to `submit` (the design note's *Line mode*).
 
 ## The modules
 
 | Module | File | What it is |
 |---|---|---|
-| `Shell` | [`shell.ern`](shell.ern) | The three processes and the front end's declarations. Everything that sends, receives, or reaches the host is here, except the history file. |
-| `Shell.Command` | [`shell/command.ern`](shell/command.ern) | The table of commands, in one place: what each does, what it takes, what completes after it, and its help line. It also parses a command line and a `:set` argument. |
-| `Shell.Editor` | [`shell/editor.ern`](shell/editor.ern) | The line editor. It takes a `State` and a `Terminal.Event` and gives an `Edit`. It implements Readline's Emacs keys, the walk through the history, and the incremental search. |
-| `Shell.Complete` | [`shell/complete.ern`](shell/complete.ern) | Completion: it matches a word against names, by prefix and by the starts of their words, and finds what the candidates share. |
-| `Shell.Region` | [`shell/region.ern`](shell/region.ern) | The live region at the foot of the terminal. Each event takes the region and gives the region after it and the bytes to write. |
-| `Shell.History` | [`shell/history.ern`](shell/history.ern) | The history file, over `Os` and `Fs`: finding it under `HOME`, reading it, trimming it, appending to it, and the escaping that keeps each input on one line. |
-| `Shell.Style` | [`shell/style.ern`](shell/style.ern) | The colours. Each function takes whether colour is on. Without colour the text is unchanged, except that a marked parameter is put between asterisks. |
-| `Markdown` | [`libs/markdown`](../libs/markdown/markdown.ern) | A library, not part of the shell. It renders documentation for `:doc` and `Shift-Tab`. |
+| `Shell` | [`shell.ern`](shell.ern) | The processes and the front end's declarations: all that sends, receives, or reaches the host, but the history file. |
+| `Shell.Command` | [`shell/command.ern`](shell/command.ern) | The table of commands, and the parsing of a command line and of `:set`'s argument. |
+| `Shell.Editor` | [`shell/editor.ern`](shell/editor.ern) | The line editor: Readline's Emacs keys, the walk through the history, and the incremental search. |
+| `Shell.Complete` | [`shell/complete.ern`](shell/complete.ern) | Completion: matching a word against names, and what the candidates share. |
+| `Shell.Region` | [`shell/region.ern`](shell/region.ern) | The live region at the foot of the terminal, and the bytes each event writes. |
+| `Shell.History` | [`shell/history.ern`](shell/history.ern) | The history file, over `Os` and `Fs`. |
+| `Shell.Style` | [`shell/style.ern`](shell/style.ern) | The colours. Each function is given whether colour is on. |
+| `Markdown` | [`libs/markdown`](../libs/markdown/markdown.ern) | A library, not part of the shell, which renders documentation. |
 
-`Shell` uses all the others. The others use only the standard library, and none of them uses another but `Shell.Editor`, which takes the history's length, `Shell.History.kept`; so `Shell` is the hub.
+`Shell` uses all the others. Of the others, only `Shell.Editor` uses another: it reads the history's length, `Shell.History.kept`.
 
-## The pure core
-
-Every part follows the same design: the decisions are pure functions, and the processes only carry messages and write bytes.
-
-- `Shell.Editor.edit` does not draw. It returns an `Edit` that says what the reader should do.
-- `Shell.Region` does not write. Each event function returns `#(Region, String)`, the next region and the escape sequences to write, and the screen process writes them.
-- `Shell.Command.parse` says nothing itself. It returns `Either(String, #(Action, String))`, the refusal's text on the left, and the session says it.
-- `Shell.Complete.complete` does not know where names come from. The reader passes in the names, and a `Where` that says what may stand at the cursor. For a command's name and a word it takes, the reader gives `Anything`; for an expression, on an ordinary line or after `:type`, it asks the parser (`context`).
-
-Two of the types are abstract (§4.4): `Shell.Editor.State` and `Shell.Region.Region`. The shell holds them and hands them back, and only their own modules take them apart, so the editor alone keeps the cursor inside the line and the region alone keeps the tail within its rows.
-
-So each of these modules is tested by its `Test` values (§9.3). They are top-level `let`s of type `Test`, found by their type, wherever they stand. `ern test` runs them, and `make test-shell` runs them for every module. The pure tests cannot reach the wiring between the processes. `test/ern_shell_tests.erl` covers that by running the shell under a pseudo-terminal (`test/ern_pty.py`).
+Every module but `Shell` and `Shell.History` is pure. `Shell.Editor.State` and `Shell.Region.Region` are abstract (§4.4), so the shell reads them through their modules' functions, such as `Shell.Editor.text`. Each pure module is tested by its `Test` values (§9.3). `make test-shell` runs them with the tests of the session and the terminal (the design note's *Testing*).
 
 ## The front end
 
-The shell reaches the host through the system modules, `Terminal`, `Fs`, `Io`, `Os`, `Clock` and `Process`, as any program does, and beyond them through `foreign fn`s (§4.7). All of these are at the top of `shell.ern`, and all but `holdTerminal`, which the runtime (`ern_rt`) answers, are answered by `erl/cli/src/ern_shell.erl`; each declaration's string names its Erlang function, which may be named otherwise, `spawnInput` being `ern_shell:run/3`. The rule for what may be `foreign` is that it is only what the host alone can do. Most of it is the compiler's work: checking an input against the session, compiling and running it, reading the compiled interfaces for completion and the fields a value's type selects, and finding a name's documentation. The rest is the session's wiring to the host: `write`, `setScreen`, `output`, `startupFiles`, `version` and `holdTerminal`. The screen writes through the foreign `write` rather than `Io.print`, since `setScreen` rebinds what programs print to the screen, and the screen's own bytes must not come back to it. The matching, the ranking, the rendering, the history file, and the parsing of commands are Ernest.
+The shell reaches the host as any program does: through the system modules `Terminal`, `Io`, `Fs`, `Os` and `Clock` (§8.2), and through the standard library's `Process` (E.21). Beyond them it declares `foreign fn`s (§4.7). Each declaration's string names the Erlang function that answers it, whose name may differ: `spawnInput` is `ern_shell:run/3`. [`erl/cli/src/ern_shell.erl`](../erl/cli/src/ern_shell.erl) answers every one but `holdTerminal`, which the runtime answers. The design note's *The foreign interface* groups them by what they are for.
 
-The session's state lives in two places:
-
-- `Env` is the environment an input is checked against. The shell holds it in its `State` and passes it to `check`, `spawnInput`, `load`, `reload`, `forget`, `bindings`, `browse` and `doc`.
-- The front end keeps its own copy of the session, for the reader. The reader completes and documents while an input runs, when the session cannot answer. `names`, `sessionNames`, `sessionTexts`, `documentation`, `fields`, `context`, `signature` and `sourceRoot` read that copy. None of them takes an `Env`. What runs and what faulted the shell reads through `Process`, as any program does.
-
-`Env`, `Checked` and `Value` are foreign types (§3.8). The shell passes them back to the front end and never looks inside them. A `foreign fn` without `with m`, such as `typeText` or `show`, is pure: it only computes from its arguments.
+`Env`, `Checked` and `Value` are foreign types (§3.8), handles the shell never looks inside. The session keeps the `Env` in its `State` and passes it to `check`, `spawnInput`, and each command's function that needs it. The reader's questions, such as `names` and `documentation`, take no `Env`. They read the front end's own copy of the session, which the design note's *The front end's copy* explains.
 
 ## Idioms to notice
 
-- **A loop is a function that receives and calls itself** with the next state, as in `screenLoop(next)` and `keyLoop(state2, screen)`. `receive` is an expression, so the screen writes `let #(next, bytes) = receive { ... }`.
-- **Records.** The state is a record, read with a pattern that names only the fields it needs: `let State(text = text, at = at, kill = kill) = state;` in the editor. A record is updated with `..`: `State(..state, env = env2)`.
-- **`with ShellMsg`** in a signature says that the function acts through a process whose mailbox is `ShellMsg`: it receives there, or calls something that does. `with m` says that it uses its process, to send or to call the host, and runs in a process with any mailbox. A signature with neither is pure. See §6.1.
-- **`spawn(Local, fn() = ...)`** starts a process on this node. The loop it calls fixes its mailbox type.
-- **`Address(Never)`** is the address of a process that receives nothing, such as the input's process. No value has type `Never`, so nothing can be sent to it, but it can be killed and monitored (§6.8).
-- **`Process.faults(Reported)`** puts every fault in the session's mailbox as `Reported(report)`, `Reported` being the function that wraps it (Appendix E.21, §6.5). `monitor(reader, ReaderDied)` wraps the reader's `Down` the same way.
-- **`Process.fromAddress(a)`** is the process behind an address. It has equality where an address has none, so the session keeps its own processes in a `Set(Process)` and tells an input's fault by comparing processes.
-- **`Address.call` with a `Reply`** is request-reply (§6.6). The caller passes a function that builds the message around the reply. `drain` uses it to wait until the screen has written everything sent before.
-- **`<>`** joins strings and lists alike, and `#(a, b)` is a tuple.
-- **Top-down layout**: types first, then `main`, and each function's helpers right after it ([`docs/style.md`](../docs/style.md)).
+- **`Address(Never)`** is the address of a process that receives nothing, such as an input's. Nothing can be sent to it, but it can be killed (§6.8).
+- **A constructor as a function.** `Process.faults(Reported)` delivers each fault report as `Reported(report)` (E.21), and `monitor(reader, ReaderDied)` delivers the reader's end as `ReaderDied(down)`. `via(Wrote, screen)` is the screen's address seen through `Wrote`, so what the sinks send arrives as `Wrote(text)` (§6.5).
+- **`Process.fromAddress(a)`** is the process behind an address. It has equality where an address has none. So the session keeps its own processes, whose faults are not reported (§11.2 *Faults*), in a `Set(Process)`, and knows an input's fault by comparing processes.
+- **`Address.call` with a `Reply`** is request-reply (§6.6). `drain` calls the screen with `Flush` and waits up to five seconds for its answer.
 
 ## Building and trying it
 
