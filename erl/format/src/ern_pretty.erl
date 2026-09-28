@@ -20,7 +20,8 @@
 %%                    only where the item after it does not fit
 %%   {choice, K, A, B}  A when its first line fits and, for hug and
 %%                    branch, ends in a brace, or, for body, reaches its
-%%                    mark or ends in a brace or `then`; else B
+%%                    mark or ends in a brace or `then`, or, for
+%%                    alternative, reaches its mark or ends in `(`; else B
 %%   {suffix, T}      T at the end of the line, which then ends
 -module(ern_pretty).
 
@@ -36,7 +37,7 @@
              | {group, doc()}
              | {bracket, doc()}
              | {fill, [doc()]}
-             | {choice, hug | branch | body, doc(), doc()}
+             | {choice, hug | branch | body | alternative, doc(), doc()}
              | {suffix, unicode:unicode_binary()}.
 
 -define(WIDTH, 100).
@@ -247,7 +248,10 @@ accept(Kind, Stack, P) ->
         case Kind of
             _ when Kind =:= hug; Kind =:= branch -> ends_with(Written, <<"{">>);
             body -> End#p.marked orelse ends_with(Written, <<"{">>)
-                        orelse ends_with(Written, <<" then">>)
+                        orelse ends_with(Written, <<" then">>);
+            %% a type's one alternative stays after its `=` where it fits
+            %% whole, or where a doc block breaks its bracket after `(`
+            alternative -> End#p.marked orelse ends_with(Written, <<"(">>)
         end.
 
 ends_with(Text, End) ->

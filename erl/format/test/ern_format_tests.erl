@@ -179,6 +179,20 @@ types_test() ->
            "    Text(String)",
            "  /// A break.",
            "  | Break"]),
+    %% a type of one alternative that does not fit breaks after its `=` too,
+    %% before a bracket of its own parameters or of its fields; a
+    %% regression test: it broke inside its parameters (MVP 2.98)
+    ?assertEqual([<<"type SetOps(s, a) =">>,
+                  <<"    SetOps(empty : s, put : (s, a) -> s, contains : (s, a) -> Bool,"
+                    " union : (s, s) -> s)">>],
+                 laid(["type SetOps(s, a) = SetOps(empty : s, put : (s, a) -> s,"
+                       " contains : (s, a) -> Bool, union : (s, s) -> s)"])),
+    fixed(["type Msg =",
+           "    Start(command : Command,",
+           "          ms : Int,",
+           "          owner : Process,",
+           "          reply : Reply(Either(Io.Error, Address(ProgramMessage))))"]),
+    fixed(["type P = P(x : Int, y : Int)"]),
     %% a doc block before the first field puts the fields a step in
     fixed(["type Point = Point(",
            "    /// Across.",

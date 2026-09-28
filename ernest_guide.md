@@ -1788,11 +1788,8 @@ square 4.0
 ```ernest
 // sets.ern  (namespace Sets)
 /// What a set is to code written once for every representation.
-export type Operations(s,
-                       a) = Operations(empty : s,
-                                       add : (s, a) -> s,
-                                       has : (s, a) -> Bool,
-                                       union : (s, s) -> s)
+export type Operations(s, a) =
+    Operations(empty : s, add : (s, a) -> s, has : (s, a) -> Bool, union : (s, s) -> s)
 ```
 
 Each representation depends on the contract and exports an `operations()` that fills it in. What a representation needs goes in through `operations`, here the ordered set's `compare`; `operations` is a function in both, though the hashed set takes nothing, so that the two read alike:

@@ -338,8 +338,10 @@ type_decl(Ps, Cs, X) ->
 %% past the line break after the `=` and fill the lines, each further line
 %% led by its bar (docs/style.md).
 alternatives([C], X) ->
-    %% a doc block puts the one alternative on a line of its own, a step in
-    {if_lead, {nest, 4, [sp(), con(C, X)]}, [sp(), con(C, X)]};
+    %% a doc block puts the one alternative on a line of its own, a step in;
+    %% one that does not fit breaks after the `=`, as several do, before a
+    %% bracket of the type's own parameters or of its fields
+    {if_lead, {nest, 4, [sp(), con(C, X)]}, {alternative, con(C, X)}};
 alternatives([C | Cs], X) ->
     Bar = {nest, -2, [line, tok('|'), sp()]},
     {group, {nest, 4, [line, {fill, [con(C, X) | lists:append([[Bar, con(D, X)] || D <- Cs])]}]}}.
@@ -596,6 +598,9 @@ resolve({bracket, Open, Items, Close, Hug}, X, C) ->
 resolve({body, T}, X, C) ->
     {D, C1} = resolve(T, X, C),
     {{choice, body, [sp(), D, mark], {nest, 4, [hardline, D]}}, C1};
+resolve({alternative, T}, X, C) ->
+    {D, C1} = resolve(T, X, C),
+    {{choice, alternative, [sp(), D, mark], {nest, 4, [hardline, D]}}, C1};
 resolve({hug_then, T}, X, C) ->
     {D, C1} = resolve(T, X, C),
     {{choice, branch, [sp(), D, sp()], [{nest, 4, [line, D]}, line]}, C1};

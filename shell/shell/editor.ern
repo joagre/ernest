@@ -15,14 +15,15 @@
 // were typing when they began to walk, and the search when one is
 // running. Abstract (report §4.4): the editor alone keeps the cursor
 // inside the line and a search's place inside the history.
-export abstract type State = State(text : String,
-                                   at : Int,
-                                   kill : String,
-                                   pending : Pending,
-                                   history : List(String),
-                                   back : Int,
-                                   saved : String,
-                                   search : Optional(Search))
+export abstract type State =
+    State(text : String,
+          at : Int,
+          kill : String,
+          pending : Pending,
+          history : List(String),
+          back : Int,
+          saved : String,
+          search : Optional(Search))
 
 // Report §8.2: a sequence the terminal sends that §9.3 does not name
 // arrives as `Escape` and the characters after it, so the editor reads

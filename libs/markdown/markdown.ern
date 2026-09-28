@@ -110,11 +110,8 @@ export type Style =
 ///                 title = "Ernest Manual").section
 /// // => "1"
 /// ```
-export type Manual = Manual(name : String,
-                            section : String,
-                            summary : List(Inline),
-                            source : String,
-                            title : String)
+export type Manual =
+    Manual(name : String, section : String, summary : List(Inline), source : String, title : String)
 
 //
 // Reading the blocks

@@ -59,11 +59,8 @@ export type Activity = Running | Receiving | Calling
 ///                     trace = "").cause
 /// // => "division by zero"
 /// ```
-export type FaultReport = FaultReport(process : Process,
-                                      site : String,
-                                      cause : String,
-                                      restarted : Bool,
-                                      trace : String)
+export type FaultReport =
+    FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String)
 
 /// The process behind the address, through every `via`. Addresses have no
 /// equality; the processes behind them have (report §3.10).

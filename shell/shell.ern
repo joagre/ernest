@@ -134,11 +134,12 @@ type ShellMsg =
 // what it says, read once at the start, the shell's own processes, whose
 // faults are not news, and the last hundred faults reported, newest first
 // (report §11.2).
-type State = State(env : Env,
-                   settings : Settings,
-                   colour : Bool,
-                   own : Set(Process),
-                   faults : List(Process.FaultReport))
+type State =
+    State(env : Env,
+          settings : Settings,
+          colour : Bool,
+          own : Set(Process),
+          faults : List(Process.FaultReport))
 
 type Settings = Settings(depth : Int, length : Int, timing : Bool, output : Int)
 
@@ -169,11 +170,8 @@ type ReaderMsg =
 // the history file still takes what is typed, whether this session has
 // said how a multi-line input is run, what the key before did, and whether
 // the shell colours (report §11.2).
-type Reading = Reading(editing : Shell.Editor.State,
-                       keeping : Bool,
-                       hinted : Bool,
-                       last : Last,
-                       colour : Bool)
+type Reading =
+    Reading(editing : Shell.Editor.State, keeping : Bool, hinted : Bool, last : Last, colour : Bool)
 
 // What the key before this one did, since `Tab` twice lists and
 // `Shift-Tab` twice shows the whole page (report §11.2).

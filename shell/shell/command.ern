@@ -22,11 +22,8 @@ export type Takes = Nothing | Needs(what : String, completes : Completes) | Allo
 
 // A command: its name, what it does and takes, the word its help line
 // shows for what it takes, and the rest of that line.
-export type Command = Command(name : String,
-                              action : Action,
-                              takes : Takes,
-                              placeholder : String,
-                              about : String)
+export type Command =
+    Command(name : String, action : Action, takes : Takes, placeholder : String, about : String)
 
 // Report §11.2: the commands, in the alphabetical order the help lists them.
 export let commands =

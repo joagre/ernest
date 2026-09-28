@@ -24,15 +24,16 @@
 // input, the row the cursor was left on, how many rows the tail may take,
 // and the terminal's size. Abstract (report §4.4): the region alone keeps
 // the tail within its rows and the cursor within what is typed.
-export abstract type Region = Region(tail : List(String),
-                                     writing : String,
-                                     prompt : String,
-                                     typed : String,
-                                     at : Int,
-                                     offered : List(String),
-                                     resting : Int,
-                                     output : Int,
-                                     size : Terminal.Size)
+export abstract type Region =
+    Region(tail : List(String),
+           writing : String,
+           prompt : String,
+           typed : String,
+           at : Int,
+           offered : List(String),
+           resting : Int,
+           output : Int,
+           size : Terminal.Size)
 
 // Report §11.2: the tail's rows to begin with, which `:set output n`
 // changes and `0` takes away.

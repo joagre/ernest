@@ -75,10 +75,11 @@ export abstract type ProgramMsg =
 
 // What Os's system process takes: a program to start, with the process
 // whose death kills it.
-type Msg = Start(command : Command,
-                 ms : Int,
-                 owner : Process,
-                 reply : Reply(Either(Io.Error, Address(ProgramMsg))))
+type Msg =
+    Start(command : Command,
+          ms : Int,
+          owner : Process,
+          reply : Reply(Either(Io.Error, Address(ProgramMsg))))
 
 // Report §8.2: the system reference, the runtime's address of Os's process,
 // bound at each start.

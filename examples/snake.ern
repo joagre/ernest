@@ -28,12 +28,13 @@ type Pos = Pos(x : Int, y : Int)
 
 type Player = Player(id : Int, body : List(Pos), dir : Dir, score : Int, alive : Bool)
 
-type World = World(w : Int,
-                   h : Int,
-                   players : Map(Int, Player),
-                   apples : List(Pos),
-                   seed : Random.Seed,
-                   tick : Int)
+type World =
+    World(w : Int,
+          h : Int,
+          players : Map(Int, Player),
+          apples : List(Pos),
+          seed : Random.Seed,
+          tick : Int)
 
 type Input = Turn(id : Int, dir : Dir) | Leave(Int)
 
