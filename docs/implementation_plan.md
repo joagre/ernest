@@ -576,7 +576,7 @@ A release is the language reviewed whole, documented where a reader looks, and i
    9. The catalogue of one small program for every error of the lexer, the parser and the checker (C21), done 2026-09-28: `test/diagnostics.md`, 197 programs, each with what `ern build` prints, or the shell for an error only a session gives; `make test-guide` holds each output to the compiler's, and every error the front end's code can give to a program of the catalogue. It found six unifications that could not fail given a mismatch's words, two checks the parser makes first, one error in two wordings, and a message a line break broke (the log's *What the Catalogue Found*).
    10. `make garbled` (C22), done 2026-09-28: every example and module of the standard library garbled at each token, deleted, doubled or swapped with the next, 86,157 sources given to `ern build`, and 2,865 garbled inputs of the shell's sessions given to the shell; every one answered, none with a failure of the toolchain. What it found was in itself: a standard library that builds only in its source root, garblings refused for a missing module, a harness that filled the memory, and a session ended early by a garbling no one saw (the log's *What make garbled Found*).
    11. The review's own tools, done 2026-09-28: `make stress` runs `make test` under `+T 9` and then once while every core runs a busy loop, its time limits twenty times their own (R2), once and not the three times R2 first asked for, decided 2026-09-28, since three took three quarters of an hour, and `make fresh` runs the commands of the README and of `docs/development.md`, read from them, in a clone of the last commit (R4). Their first runs found `make calls` and `make dialyzer` passing only on what earlier runs had left in the checkout, the guide test starting two hundred hosts at once, and six tests that timed what they checked (the log's *What the Review's Tools Found*).
-      Decided here, and fixed in step 12, before the tag: a termination that comes before `ern run` handles signals, which under load can be seconds after its start, waits for the program's end, since the host's own handler asks it to stop and the host waits for the launcher's work (report §11.2). The fix installs `ern`'s handler before that work. A first attempt that did so lost the terminations of the host's first 150 ms, which the handler as it stands answers, so the loss is diagnosed first (the log's *What the Review's Tools Found*).
+      Fixed in step 12, 2026-09-28: `ern`'s own handler is installed as the launcher begins, so the host's termination or hangup ends every job at once, by the signal, and a run as §11.2 says, and every file a job writes is written whole (report §11). A build given one had stopped where it was and ended with status 0, the host printing its own report (the log's *A Signal Ends a Job*).
    12. The review: the coherence rows a reader runs, `review.md`'s machines and readers, R5 and R6 on Linux, as decided above, and the ledger.
 
 5. **The release**, tagged once the review is done, with its notes (`review.md`, *Done*), and the archive published beside it, where the README then says to download it.
@@ -796,6 +796,10 @@ connectors: those are libraries for others to write on Appendix D's pattern.
   MVP 3.0 and 3.1 material and unimplemented; anything else that appears there is a gap.
 - **A label at the first use of the variable whose type a mismatch names** was planned for
   §3.4's placement work and not built (2026-09-18).
+- **A termination or hangup that comes while the host starts, before any of `ern` runs,**
+  is dropped by the host, which takes the signal before it has anyone to give it to; on this
+  machine the first 0.2 seconds (report §11). A launcher that passes a signal on to the host
+  until the host has taken it would close it, and is decided at MVP 3.0 (2026-09-28).
 
 ---
 

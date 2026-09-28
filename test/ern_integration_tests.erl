@@ -600,9 +600,9 @@ stamped() ->
 %% A regression test, written after the code: it exited with 128 plus the
 %% signal's number, which a shell reads the same and a service manager as a
 %% failure. Each signal is sent once the program has said it runs, since a
-%% signal that comes before `ern run` handles them waits for the program's
-%% end, which the plan's MVP 2.95 decides; sent two seconds after the start,
-%% it came before under load (docs/review.md R2).
+%% signal that comes as the host itself starts is dropped (plan, Standing
+%% gaps); sent two seconds after the start, it came then under load
+%% (docs/review.md R2).
 signal_end_test_() ->
     {timeout, 60, fun signal_end/0}.
 
@@ -624,6 +624,36 @@ signal_end() ->
              "    print(p.wait(timeout=30))\n",
     ok = file:write_file(Dir ++ "/signals.py", Python),
     ?assertEqual({0, <<"-15\n-1\n">>}, sh("python3 " ++ Dir ++ "/signals.py")).
+
+%% report §11: the host's termination ends a job that runs no program at
+%% once, by the signal, and the host prints nothing of its own. A
+%% regression test: a build given it stopped where it was, printed the
+%% host's report, and ended with status 0 as if it had built everything.
+%% The tree is large enough that the signal comes while it builds, once
+%% its first module is written. It does not cover a signal that comes as
+%% the host itself starts, which the host drops (plan, Standing gaps)
+job_signal_end_test_() ->
+    {timeout, 60, fun job_signal_end/0}.
+
+job_signal_end() ->
+    Dir = "build/job_signal_end",
+    ok = del(Dir),
+    ok = filelib:ensure_path(Dir ++ "/tree"),
+    [ok = file:write_file(Dir ++ "/tree/m" ++ integer_to_list(N) ++ ".ern",
+                          "export fn f(n : Int) -> Int = n + " ++ integer_to_list(N) ++ "\n")
+     || N <- lists:seq(1, 100)],
+    Python = "import subprocess, signal, os, time\n"
+             "out = '" ++ Dir ++ "/out'\n"
+             "p = subprocess.Popen(['../bin/ern', 'build', '--build-root', out,"
+             " '" ++ Dir ++ "/tree'], stderr=subprocess.PIPE)\n"
+             "while not (os.path.isdir(out) and any(f.endswith('.erc')"
+             " for f in os.listdir(out))):\n"
+             "    time.sleep(0.01)\n"
+             "p.send_signal(signal.SIGTERM)\n"
+             "_, err = p.communicate(timeout=30)\n"
+             "print(p.returncode, err.decode())\n",
+    ok = file:write_file(Dir ++ "/job.py", Python),
+    ?assertEqual({0, <<"-15 \n">>}, sh("python3 " ++ Dir ++ "/job.py")).
 
 %% report §4.2, §11.1: the two-module pair in directory mode
 modules_test() ->

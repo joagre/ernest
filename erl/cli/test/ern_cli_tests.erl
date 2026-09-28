@@ -35,6 +35,25 @@ format_test() ->
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"broken.ern:1:">>)),
     ?assertEqual(1, ern_err(["format"])).
 
+%% report §11: a file a job writes is written whole, beside its place and
+%% renamed into it, which keeps what the file was: a module reached by a
+%% link is laid out where the link leads and the link stays, a module keeps
+%% its mode, and nothing is left beside it. A regression test, written
+%% after the code; a job ended between the write and the rename, which
+%% leaves the file beside it that no job reads, is not covered
+format_writes_whole_test() ->
+    Dir = tmp(),
+    Target = write(Dir, "target.ern", "fn f(x) = x+1\n"),
+    ok = file:change_mode(Target, 8#640),
+    Link = filename:join(Dir, "link.ern"),
+    ok = file:make_symlink("target.ern", Link),
+    ?assertEqual(0, ern_err(["format", Link])),
+    ?assertEqual({ok, "target.ern"}, file:read_link(Link)),
+    ?assertEqual({ok, <<"fn f(x) =\n    x + 1\n">>}, file:read_file(Target)),
+    {ok, Info} = file:read_file_info(Target),
+    ?assertEqual(8#640, element(8, Info) band 8#777),
+    ?assertEqual(["link.ern", "target.ern"], lists:sort(element(2, file:list_dir(Dir)))).
+
 %% A tool run with the captured output as its error device, so a test
 %% reads what the user sees on stderr.
 build_err(Args) -> ern_cli:ern(["build" | Args], group_leader()).
