@@ -110,9 +110,10 @@ It follows MVP 2.7 and comes before MVP 3.0.
         `:reload` initializing in the wrong order, and a failed `:load` leaving its processes
         (§11.2), done 2026-09-28; a foreign function value inside a recursive type (§8.4),
         done 2026-09-28;
-      - a closed pipe crashing every job but `ern run`, done 2026-09-28; the internal errors
-        on an empty directory, a name that is not UTF-8 and a corrupt `.erc`, and `ern format`
-        of a file that cannot be written (§11);
+      - a closed pipe crashing every job but `ern run`, the internal errors on an empty
+        directory, a name that is not UTF-8 and a corrupt `.erc`, and `ern format` of a file
+        that cannot be written (§11), done 2026-09-28 (the log's *A Job Refuses What It Cannot
+        Do*);
       - `Supervisor`'s restart limit, which a child passes before the supervisor counts it
         (E.22), and `String`'s searches, which match inside a grapheme (E.5);
       - `emacs_mode.md`'s Emacs 29 or later, where only Emacs 31.1 runs the mode's tests

@@ -20,8 +20,8 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — a failed `:load` or `:reload` leaves its processes and unpurged code (§11.2) (C5): fixed 2026-09-28, the module withdrawn with the processes that run it
 - done — a foreign function value inside a recursive type faults at its call with `badkey` (§8.4) (C6): fixed 2026-09-28, the wrapper given its result's descriptor closed over the recursive types around it
 - done — a closed pipe crashes every job but `ern run`, leaving `erl_crash.dump` (§11) (T5): fixed 2026-09-28, every job's text through ports of its own, which end it with 141
-- tag — status 70 on an empty directory, a name that is not UTF-8, a corrupt `.erc` to `ern doc`, and 1100 tests in a module (§11) (T6)
-- tag — `write_whole` on a read-only file exits 70 and leaves a temporary file that blocks later runs (§11) (C12)
+- done — status 70 on an empty directory, a name that is not UTF-8, a corrupt `.erc` to `ern doc`, and 1100 tests in a module (§11) (T6): fixed 2026-09-28, each refused with status 1 or built; the log's *A Job Refuses What It Cannot Do*
+- done — `write_whole` on a read-only file exits 70 and leaves a temporary file that blocks later runs (§11) (C12): fixed 2026-09-28, a file its owner may not write refused, nothing left beside it
 - tag — `Supervisor`'s restart limit: a child restarts itself before the supervisor counts it, about 200 times under a limit of 2; `within = 0` still gives up (E.22, §6.9) (E2, P15, K10)
 - tag — `emacs_mode.md` says Emacs 29 or later, and only Emacs 31.1 runs the mode's tests here: say what is tested, or run them on 29 (the documents' rewrite)
 - tag — `String`'s searches match inside a grapheme: `split` and `replace` lose text (E.5) (E1)
@@ -132,7 +132,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - cheap — `ern doc src` leaves a stale page and writes `.erc` files (T17)
 - cheap — the history's failure reported twice, the second garbling the transcript (T18, E9)
 - 3.0 — the shell cannot show the prelude (T19)
-- cheap — a corrupt `.erc` gets the host's message (T20)
+- done — a corrupt `.erc` gets the host's message (T20): fixed 2026-09-28 with T6
 - cheap — clarity: configuration options that do nothing yet, the startup file run silently, a silent directory build, a silent `ern test`, `:set timing`, every spawn site `input:1`, qualified type names, "tail" against "live region", `killed` against `Killed`, line mode and the formatter's layout, `--source-root` hint, the lowercase path's file, `ern(1)`'s synopses, the shell's exit status, `ern config`'s JSON, `:type let`, `:doc it`, an elided excerpt (T21..T34)
 - cheap — a command-line word that is not UTF-8 crashes every job (C13)
 - cheap — the toolchain's output depends on the locale, against §11.6 (C14)

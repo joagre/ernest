@@ -94,12 +94,24 @@ close_listener_test() ->
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Listener} = listen(0),
-               ern_rt:spawn('Local', fun() -> Me ! {accepted, accept(Listener, 5000)} end,
-                            <<"acceptor">>),
-               sleep(100),
+               Pid = ern_rt:process_of(Listener),
+               Main = self(),
+               %% the accept is at the listener before the close is sent, since
+               %% it is sent before `sent`; a spawned accept and a pause before
+               %% the close raced it, and the close could come first
+               _ = erlang:spawn(fun() ->
+                                    Alias = erlang:alias(),
+                                    Pid ! {'Accept', 5000, Alias},
+                                    Main ! sent,
+                                    Me ! {accepted, receive {Alias, V} -> V
+                                                    after 5000 -> timeout end}
+                                end),
+               %% foreign calls, which the deadlock detector counts
+               ern_rt:in_foreign(fun() -> receive sent -> ok end end),
+               Down = erlang:monitor(process, Pid),
                ern_rt:send(Listener, 'CloseListener'),
-               sleep(200),
-               Me ! {alive, erlang:is_process_alive(ern_rt:process_of(Listener))}
+               ern_rt:in_foreign(fun() -> receive {'DOWN', Down, _, _, _} -> ok end end),
+               Me ! {alive, erlang:is_process_alive(Pid)}
            end, <<"main">>, quiet()),
     ?assertEqual({'Left', 'Closed'}, wait(accepted)),
     ?assertEqual(false, wait(alive)).

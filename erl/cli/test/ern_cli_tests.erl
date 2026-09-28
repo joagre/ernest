@@ -77,6 +77,69 @@ writes_at_once() ->
                   end, lists:seq(1, 5)),
     ?assertEqual(["twice.erc", "twice.ern"], lists:sort(element(2, file:list_dir(Dir)))).
 
+%% report §11: `ern test` runs a module of more tests than the host holds
+%% values live at once. A regression test: the list of a module's tests was
+%% one expression, which the host refused past about a thousand, and
+%% `ern build` failed with status 70
+many_tests_test_() ->
+    {timeout, 60, fun many_tests/0}.
+
+many_tests() ->
+    Dir = tmp(),
+    File = write(Dir, "many.ern",
+                 [["let t", integer_to_list(I), " : Test = Test(name = \"t", integer_to_list(I),
+                   "\", run = fn() = Passed)\n"] || I <- lists:seq(1, 1100)]),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    ?assertEqual(0, ern_cli:ern(["test", filename:join(Dir, "many.erc")])).
+
+%% report §11: a `.erc` that is no compiled module is refused by `ern doc`,
+%% `ern run` and `ern test` alike, by its name. A regression test: `ern doc`
+%% failed with status 70, and a run's refusal quoted the file's bytes
+not_a_compiled_module_test() ->
+    Dir = tmp(),
+    Erc = write(Dir, "junk.erc", "garbage\n"),
+    lists:foreach(fun(Job) ->
+                      ?assertEqual(1, ern_err([Job, Erc])),
+                      Said = unicode:characters_to_binary(?capturedOutput),
+                      ?assertMatch({_, _},
+                                   binary:match(Said, <<"junk.erc is not a compiled module">>))
+                  end, ["doc", "run", "test"]).
+
+%% report §11.1: a name that is not UTF-8, of a `.ern` or of a directory
+%% that holds one, is an error; one of another file is passed over. A
+%% regression test: the host left such a name out with a warning of its own
+%% on standard output
+name_not_utf8_test() ->
+    Dir = tmp(),
+    write(Dir, "src/ok.ern", "export let x : Int = 1\n"),
+    ok = file:write_file(filename:join(Dir, <<"src/notes", 16#FF, ".txt">>), <<>>),
+    ?assertEqual(0, build_err([Dir ++ "/src"])),
+    ok = file:write_file(filename:join(Dir, <<"src/n", 16#FF, "me.ern">>), <<>>),
+    ?assertEqual(1, build_err([Dir ++ "/src"])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"a name that is not UTF-8: ">>)),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"src/n\\xFFme.ern">>)).
+
+%% report §11: a file its owner may not write is refused, and nothing is
+%% left beside it; so is one in a directory that cannot be written. A
+%% regression test: `ern format` of a read-only file failed with status 70
+%% and left its temporary file
+read_only_refused_test() ->
+    Dir = tmp(),
+    File = write(Dir, "ro.ern", "fn f(x) = x+1\n"),
+    ok = file:change_mode(File, 8#444),
+    ?assertEqual(1, ern_err(["format", File])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"ro.ern: permission denied">>)),
+    ?assertEqual({ok, ["ro.ern"]}, file:list_dir(Dir)),
+    Closed = filename:join(Dir, "closed"),
+    Inside = write(Closed, "c.ern", "fn f(x) = x+1\n"),
+    ok = file:change_mode(Closed, 8#555),
+    ?assertEqual(1, ern_err(["format", Inside])),
+    ?assertEqual({ok, ["c.ern"]}, file:list_dir(Closed)),
+    ok = file:change_mode(Closed, 8#755).
+
 %% A tool run with the captured output as its error device, so a test
 %% reads what the user sees on stderr.
 build_err(Args) -> ern_cli:ern(["build" | Args], group_leader()).

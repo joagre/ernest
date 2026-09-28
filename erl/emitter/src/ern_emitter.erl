@@ -116,9 +116,19 @@ tests_fun(Lets) ->
     case Names of
         [] -> [];
         _ ->
-            Calls = [erl_syntax:application(erl_syntax:atom(F), []) || F <- Names],
+            %% the list is built a test at a time, from the last, so that no
+            %% more than the list so far is live at a call: a list of every
+            %% call at once passes the host's limit of live values
+            {Matches, List} =
+                lists:foldl(fun(F, {Acc, Tail}) ->
+                                    V = erl_syntax:variable(
+                                          list_to_atom("T" ++ integer_to_list(length(Acc)))),
+                                    Head = erl_syntax:application(erl_syntax:atom(F), []),
+                                    {[erl_syntax:match_expr(V, erl_syntax:cons(Head, Tail)) | Acc],
+                                     V}
+                            end, {[], erl_syntax:nil()}, lists:reverse(Names)),
             [erl_syntax:function(erl_syntax:atom('$tests'),
-                                 [erl_syntax:clause([], none, [erl_syntax:list(Calls)])])]
+                                 [erl_syntax:clause([], none, lists:reverse(Matches) ++ [List])])]
     end.
 
 %% Report §11.2, §6.10: '$fun'/2 answers an exported function of this

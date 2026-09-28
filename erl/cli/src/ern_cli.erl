@@ -281,17 +281,38 @@ shown(File) ->
 
 %% Report §11.1: every `.ern` under a directory, passing over each file and
 %% directory whose name begins with a dot, which is no module, and each
-%% symbolic link to a directory.
+%% symbolic link to a directory. The host gives a name that is not UTF-8 as
+%% its bytes, and one of a `.ern` or of a directory that holds one is an
+%% error.
 sources(Dir) ->
-    {ok, Names} = file:list_dir(Dir),
-    lists:append([begin
-                      Path = filename:join(Dir, Name),
-                      case {filelib:is_dir(Path), is_link(Path)} of
-                          {true, false} -> sources(Path);
-                          {true, true} -> [];
-                          {false, _} -> [Path || filename:extension(Name) =:= ".ern"]
-                      end
-                  end || Name <- lists:sort(Names), hd(Name) =/= $.]).
+    {ok, Names} = file:list_dir_all(Dir),
+    lists:append([source(Dir, Name) || Name <- lists:sort(Names), not dot_name(Name)]).
+
+source(Dir, Name) when is_binary(Name) ->
+    Path = filename:join(Dir, Name),
+    Module = filename:extension(Name) =:= <<".ern">>
+        orelse (filelib:is_dir(Path) andalso not is_link(Path) andalso sources(Path) =/= []),
+    Module andalso fail("a name that is not UTF-8: "
+                        ++ filename:join(unicode:characters_to_list(Dir), bytes_text(Name))),
+    [];
+source(Dir, Name) ->
+    Path = filename:join(Dir, Name),
+    case {filelib:is_dir(Path), is_link(Path)} of
+        {true, false} -> sources(Path);
+        {true, true} -> [];
+        {false, _} -> [Path || filename:extension(Name) =:= ".ern"]
+    end.
+
+dot_name(<<$., _/binary>>) -> true;
+dot_name([$. | _]) -> true;
+dot_name(_) -> false.
+
+%% A name the host could not decode, each byte past ASCII as `\xHH`.
+bytes_text(Name) ->
+    lists:append([case B < 16#80 of
+                      true -> [B];
+                      false -> lists:flatten(io_lib:format("\\x~2.16.0B", [B]))
+                  end || <<B>> <= Name]).
 
 is_link(Path) ->
     case file:read_link_info(Path) of
@@ -744,8 +765,11 @@ doc(_Opts, _Rest, _Err) ->
 beam_of(Opts, Path) ->
     case filename:extension(Path) of
         ".erc" ->
-            {ok, Bin} = file:read_file(Path),
-            Bin;
+            Bin = compiled(Path),
+            case ern_docs:read(Bin) of
+                {ok, _} -> Bin;
+                {error, Why} -> fail(Path ++ ": " ++ Why)
+            end;
         _ ->
             Root = source_root(Opts, Path, "."),
             OutDir = out_dir(Opts, Root),
@@ -1062,13 +1086,25 @@ journal() ->
         _ -> false
     end.
 
+%% Report §11: a compiled module's bytes, or the refusal of a file that is
+%% none, named as the user named it and not by what it holds.
+compiled(File) ->
+    Bin = case file:read_file(File) of
+              {ok, B} -> B;
+              {error, Reason} -> fail(File ++ ": " ++ file:format_error(Reason))
+          end,
+    case beam_lib:info(Bin) of
+        {error, beam_lib, _} -> fail(File ++ " is not a compiled module");
+        _ -> Bin
+    end.
+
 %% The module of a `.erc`, its load path, and every module loaded for it:
 %% the file's own dependencies first (report §11.2, §4.2).
 program(File, Opts) ->
     filelib:is_regular(File) orelse fail("no such file " ++ File),
     filename:extension(File) =:= ".erc" orelse fail(File ++ " does not end in .erc"),
     Abs = absolute(File),
-    {ok, Bin} = file:read_file(Abs),
+    Bin = compiled(File),
     Ns = case ern_iface:read(Bin) of
              {ok, #{iface := #iface{namespace = N}}} -> N;
              {error, Why} -> fail(File ++ ": " ++ Why)
@@ -1447,23 +1483,33 @@ write_whole(File, Data) ->
 
 write_whole(File, Data, Mode) ->
     Target = followed(File, 0),
+    %% report §11: a file its owner may not write is refused, not replaced
+    case file:read_file_info(Target) of
+        {ok, #file_info{access = Access}} when Access =:= read; Access =:= none ->
+            fail(File ++ ": " ++ file:format_error(eacces));
+        _ ->
+            ok
+    end,
     %% a name of this writer's own, so that two jobs writing one file at
     %% once each write theirs whole and the last rename wins (report §11)
     Own = os:getpid() ++ "." ++ integer_to_list(erlang:unique_integer([positive])),
     New = filename:join(filename:dirname(Target),
                         "." ++ filename:basename(Target) ++ "." ++ Own ++ ".new"),
-    ok = file:write_file(New, <<>>),
     Kept = case {Mode, file:read_file_info(Target)} of
                {undefined, {ok, #file_info{mode = M}}} -> M band 8#7777;
                {undefined, _} -> undefined;
                {M, _} -> M
            end,
-    case Kept of
-        undefined -> ok;
-        _ -> ok = file:change_mode(New, Kept)
-    end,
-    ok = file:write_file(New, Data),
-    file:rename(New, Target).
+    Steps = [fun() -> file:write_file(New, <<>>) end]
+        ++ [fun() -> file:change_mode(New, Kept) end || Kept =/= undefined]
+        ++ [fun() -> file:write_file(New, Data) end, fun() -> file:rename(New, Target) end],
+    case lists:foldl(fun(Step, ok) -> Step(); (_, Failed) -> Failed end, ok, Steps) of
+        ok ->
+            ok;
+        {error, Reason} ->
+            _ = file:delete(New),
+            fail(File ++ ": " ++ file:format_error(Reason))
+    end.
 
 %% The file a path names, its links followed, as the host follows them, up
 %% to a depth past which the host would refuse the path.
