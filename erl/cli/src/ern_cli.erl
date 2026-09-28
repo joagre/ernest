@@ -1361,9 +1361,17 @@ load(Ns, Roots, Loaded) ->
 
 %% Report §11.3, Appendix C: the configuration directory itself, with a
 %% configuration of no peers and this node's key pair; the network address
-%% is a placeholder to edit.
+%% is a placeholder to edit. The directory is made here or not at all, so
+%% that one another made first, as this runs, is refused, and it is its
+%% owner's alone before a file is written in it, so that no one else can
+%% open a file there, the key's while it is being written among them.
 create_config_dir(Conf) ->
-    not filelib:is_file(Conf) orelse fail(Conf ++ " exists"),
+    ok = filelib:ensure_dir(Conf),
+    case file:make_dir(Conf) of
+        ok -> ok = file:change_mode(Conf, 8#700);
+        {error, eexist} -> fail(Conf ++ " exists");
+        {error, Reason} -> fail(Conf ++ ": " ++ file:format_error(Reason))
+    end,
     Key = public_key:generate_key({namedCurve, ed25519}),
     Private = public_key:pem_encode([public_key:pem_entry_encode('PrivateKeyInfo', Key)]),
     %% the key names its curve, {namedCurve, Oid}, as its parameters
@@ -1374,7 +1382,6 @@ create_config_dir(Conf) ->
     Json = json:encode(#{<<"network-address">> => <<"127.0.0.1:8654">>,
                          <<"public-key">> => Public,
                          <<"peers">> => []}),
-    ok = filelib:ensure_path(Conf),
     ok = write_whole(filename:join(Conf, "ernest.conf"), [Json, "\n"]),
     %% the key is its owner's alone before it is written
     ok = write_whole(filename:join(Conf, "private-key.pem"), Private, 8#600),

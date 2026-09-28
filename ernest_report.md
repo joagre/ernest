@@ -928,7 +928,7 @@ The toolchain is one command, `ern`, whose first word is its job: `ern build`, `
 
 ### 11.3 Configuration setup
 
-`ern config [--config-dir dir]` creates the configuration directory `dir`, `./.ernest` by default, with `ernest.conf` and this node's private key, readable only by its owner, and does nothing else; it fails if `dir` exists. `ernest.conf` holds this node's network address and public key and the list of peers, each with a name, a network address, and a public key; Appendix C shows one. The names are what `Peer(name)` refers to.
+`ern config [--config-dir dir]` creates the configuration directory `dir`, `./.ernest` by default, which only its owner can open, with `ernest.conf` and this node's private key, readable only by its owner, and does nothing else; it fails if `dir` exists, empty or not. `ernest.conf` holds this node's network address and public key and the list of peers, each with a name, a network address, and a public key; Appendix C shows one. The names are what `Peer(name)` refers to.
 
 ### 11.4 Documentation extraction
 

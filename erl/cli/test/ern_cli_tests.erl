@@ -1337,3 +1337,20 @@ create_config_dir_test() ->
     {ok, Pem} = file:read_file(Dir ++ "/private-key.pem"),
     ?assertMatch([{'PrivateKeyInfo', _, not_encrypted}], public_key:pem_decode(Pem)),
     ?assertEqual(1, ern_cli:ern(["config", "--config-dir", Dir])).
+
+%% report §11.3: the configuration directory is its owner's alone, and one
+%% that exists is refused, whoever made it and however empty. A regression
+%% test: the directory took the host's default mode, so another could open
+%% the key's temporary file before it was its owner's, and one made after
+%% the check for it was used; the race itself is not covered
+config_dir_is_its_owners_test() ->
+    Dir = tmp() ++ "/.ernest",
+    ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
+    {ok, Info} = file:read_file_info(Dir),
+    ?assertEqual(8#700, element(8, Info) band 8#777),
+    Made = tmp() ++ "/made",
+    ok = file:make_dir(Made),
+    ?assertEqual(1, ern_err(["config", "--config-dir", Made])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"made exists">>)),
+    ?assertEqual({ok, []}, file:list_dir(Made)).
