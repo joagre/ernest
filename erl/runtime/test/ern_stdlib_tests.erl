@@ -439,7 +439,8 @@ collect(Tag, Acc) ->
 %% Right or Left(Io.Error), and Left(Timeout) when the wait runs out
 fs_test() ->
     Me = self(),
-    Dir = filename:join("/tmp", "ern_fs_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    Dir = filename:join("/tmp", "ern_fs_" ++ os:getpid() ++ "_"
+                              ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = filelib:ensure_path(Dir),
     P = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
     F = 'ern@fs',

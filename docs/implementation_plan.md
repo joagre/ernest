@@ -14,10 +14,10 @@ milestone, the standing gaps, and what is done.
 ## Where we are
 
 **MVP 2.95, the first release, is under way.** The manual pages, the installation, the release
-archive and the review are done (2026-09-28); the next are the readers' fixes before the tag,
-item 4's step 2, then the time of `make test`, step 3, then the tag. Every earlier milestone is
-done, the last MVP 2.7 on 2026-09-28; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken
-out of order. Each has its paragraph under "Done".
+archive, the review and the time of `make test` are done (2026-09-28); the next are the
+readers' fixes before the tag, item 4's step 2, two of which are done, then the tag. Every
+earlier milestone is done, the last MVP 2.7 on 2026-09-28; MVP 2.9, MVP 2.61, `libs/markdown`
+and MVP 2.8 were taken out of order. Each has its paragraph under "Done".
 
 ---
 
@@ -35,7 +35,7 @@ out of order. Each has its paragraph under "Done".
 | MVP 2.7 | a program started from a command line, and the appendix of libraries | done 2026-09-28 |
 | MVP 2.8 | the formatter | done 2026-09-28, out of order |
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
-| **MVP 2.95** | **the first release: manual pages, an installation, the review** | **under way: manual pages, installation, archive and review done 2026-09-28; the readers' fixes next** |
+| **MVP 2.95** | **the first release: manual pages, an installation, the review** | **under way: manual pages, installation, archive, review and the time of `make test` done 2026-09-28; the readers' fixes next** |
 | MVP 2.96 | a result annotation written with `:` | |
 | MVP 2.97 | one contract, several representations: an ordered set | waits on language feedback 64 |
 | MVP 3.0 | peers | |
@@ -111,16 +111,22 @@ It follows MVP 2.7 and comes before MVP 3.0.
         (E.22), and `String`'s searches, which match inside a grapheme (E.5);
       - `emacs_mode.md`'s Emacs 29 or later, where only Emacs 31.1 runs the mode's tests
         here.
-   3. **The time of `make test`**: the proposals of
-      [`testing_improvements.md`](testing_improvements.md), and the catalogue of diagnostics
-      run in one node. First the defect proposal 7 names, found 2026-09-28: the compiler's
-      hash leaves out six modules that shape a `.erc`, so a change to one leaves every
-      module current, against §11.1.
+   3. **The time of `make test`, done 2026-09-28**, taken before step 2's other fixes: 280
+      seconds to 112, the suite in two phases of jobs side by side, as many at once as the
+      host has cores, and bound by its CPU. The compiler's hash now covers the six modules
+      that shape a `.erc` it had left out (§11.1), two jobs writing one file each write it
+      whole (§11), and a test that slept where the runtime could not see it naps. The
+      measurement and the arguments are the log's *The Time of `make test`*.
    4. **Planned after the release**, in MVP 3.0's first step, decided 2026-09-28: the rest of what
       the readers found, `findings.md`'s `cheap` lines, a batch a document, and its `3.0` lines, the
       report's contradictions and silent cases, the diagnostics' positions and labels (§11.5),
       `Io.show`'s dependence on the type at the call and where `via`'s function runs, the guide's
-      gaps (`Tcp` untaught), and the documents the code has left behind.
+      gaps (`Tcp` untaught), the documents the code has left behind, and three changes that
+      take work from `make test`: the shell's tests waiting for the prompt or a program's
+      output, not a fixed time; `ern_cli`'s build in a module of its own, so that the
+      compiler's hash leaves out its other jobs and a change to them recompiles nothing; and
+      the programs area's builds in the test's node, where a launch of `ern` costs 0.6 seconds
+      a build and the node 0.08.
 5. **The release**, tagged once the review is done, with its notes (`review.md`, *Done*), and
    the archive published beside it, where the README then says to download it.
 

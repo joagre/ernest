@@ -99,12 +99,12 @@ process_info_test() ->
                                                   ern_rt:call_forever(Server, fun(R) -> R end)
                                               end, <<"M.caller:3">>),
                ern_rt:send(Quiet, first),
-               timer:sleep(50),
+               nap(),
                Me ! {infos, [ern_rt:info(ern_rt:process_of(A)) || A <- [Quiet, Caller]]},
                Me ! {live, lists:sort(ern_rt:processes())
                                =:= lists:sort([self(), Quiet, Server, Caller])},
                ern_rt:kill(Quiet),
-               timer:sleep(50),
+               nap(),
                Me ! {gone, ern_rt:info(Quiet)},
                ern_rt:kill(Caller),
                ern_rt:kill(Server)
@@ -133,7 +133,7 @@ fault_reports_test() ->
                Me ! {reports, lists:sort([{Site, Cause, Restarted}
                                           || {'FaultReport', Cause, _, Restarted, Site, <<>>}
                                                  <- Reports])},
-               timer:sleep(100),
+               nap(100),
                Me ! {first, receive {first, _} -> true after 0 -> false end}
            end, <<"M.main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
     ?assertEqual([{<<"M.twice:4">>, <<"division by zero">>, false},
@@ -758,8 +758,11 @@ ask_restart_test() ->
 
 %% A pause that the check for a deadlock counts as a timed wait (§8.6).
 nap() ->
+    nap(50).
+
+nap(Ms) ->
     ern_rt:timed(),
-    timer:sleep(50),
+    timer:sleep(Ms),
     ern_rt:untimed().
 
 %% Report Appendix E.15: an alarm as `Clock.alarm` sets one, After(ms,

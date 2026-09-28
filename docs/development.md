@@ -11,7 +11,6 @@ The report, [`ernest_report.md`](../ernest_report.md), is the one normative docu
 - **[`architecture.md`](architecture.md)**: how the toolchain is built, from the lexer to the runtime, and what each test runs.
 - **[`memory.md`](memory.md)**: how the project checks that nothing grows with the work done.
 - **[`review.md`](review.md)**: what a release runs to be ready.
-- **[`testing_improvements.md`](testing_improvements.md)**: where the time of `make test` goes, and what would shorten it, until the plan decides it.
 - **[`style.md`](style.md)**: the style of the Erlang and of the Ernest.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.

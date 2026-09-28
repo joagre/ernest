@@ -2090,7 +2090,8 @@ os_run(Program, Arguments, Input, Ms) ->
 %% earlier run left under the same name is removed first.
 scratch() ->
     Dir = filename:join(os:getenv("TMPDIR", "/tmp"),
-                        "ern_os_" ++ integer_to_list(erlang:unique_integer([positive]))),
+                        "ern_os_" ++ os:getpid() ++ "_"
+                        ++ integer_to_list(erlang:unique_integer([positive]))),
     file:del_dir_r(Dir),
     ok = filelib:ensure_path(Dir),
     Dir.

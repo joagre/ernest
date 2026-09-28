@@ -4935,7 +4935,7 @@ Planning it found the first question. A field cannot be polymorphic in a variabl
 
 ## The Time of `make test`, 2026-09-28
 
-`make test` took 280 seconds, its areas one after another; now it takes 125. What each change bought is in `testing_improvements.md`; why each is shaped as it is, here.
+`make test` took 280 seconds, its areas one after another; now it takes 112, a first phase of 51 seconds and a second of 61, on a laptop's four cores of two threads each. Alone, the shell's area takes 45 seconds where it took 95, the programs' 28 where they took 70, with `paced_output` 4.5 where it took 27, the guide's 14 where it took 50, and `typing.el` 15 where it took 36. The list of proposals that was measured, `docs/testing_improvements.md`, went with this entry, each proposal done or planned.
 
 **The built trees are kept.** The Makefiles deleted the standard library's, the libraries', the shell's and the tests' built trees whenever any beam was newer, on the ground that a changed compiler leaves the build records valid. §11.1 recompiles a module built by another build of `ern`, so the deletions only hid a defect: the compiler's hash left out six modules that it calls, and a change to one of them left every `.erc` current. The list is complete, a test holds it closed under its modules' calls, and every run now tests the rule. A test's beam shapes no build and no longer makes a tree stale.
 
@@ -4946,6 +4946,12 @@ Planning it found the first question. A field cannot be polymorphic in a variabl
 **A refused program is built in the test's node.** A launch of `ern` costs 0.3 seconds before it does anything, and the catalogue launched one for each of its programs so that an error would be named from the program's directory; the build in the node takes `--source-root` and the directory is taken out of what it prints, which gives the same text. A refused build loads nothing, so they run side by side.
 
 **Two writers of one file each write their own.** A file was written beside its place under one name, so two builds of one module at once, which the programs' tests now make, took each other's file and one ended with status 70. Each writer's name now carries the host's process and a number of the node's, and §11 says that two jobs writing one file leave it as one of them wrote it.
+
+**`typing.el` runs in parts, not near the cut.** The proposal was to check at each cut only the lines near it. The mode's indentation looks below a line, to the next line of code and to whether a bracket holds further items, so a line far above a cut can move at a later cut, and a check near the cut would check less than the test claims. A file costs the square of its length, so the corpus runs in four parts, sorted by size and dealt out, each part every cut it had.
+
+**The emitter's and the runtime's tests run in three hosts.** They run programs through a runtime whose state is the node's, so they cannot run side by side in one node; each third of them runs in a host of its own, which the applications' one Makefile takes as `PARTS` and `PART`. The split found a test that had passed by its place in the order: it slept in a program's `main` with a wait the runtime cannot see, and the runtime rightly found every process idle once the load of `timer`, which the tests before it had done, no longer took the time. It naps, as the file's other tests do, in a wait the runtime counts.
+
+**The suite is bound by its CPU.** The host has four cores of two threads each, the first phase's jobs take 180 seconds of CPU alone and near 300 side by side, and the phase takes 51 seconds. Turning off the busy waiting of the host's schedulers, the usual help for many nodes on one machine, saved a tenth of the CPU and 2 seconds, and is not taken: it is a flag on every host the tests start, for 2 seconds. What would shorten the suite further takes work away, and is planned with MVP 3.0's first step.
 
 ## Erlang's Standard Library, Module by Module
 

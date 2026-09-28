@@ -21,11 +21,23 @@ all: $(BEAM)
 $(BEAM) $(TEST_BEAM): ../../../VERSION
 
 # The standard library, and the shell's tree, which holds libs/markdown's
-# module for `ern doc --man` (report §11.4).
+# module for `ern doc --man` (report §11.4). With PARTS=n and PART=i, every
+# nth test of the application from the ith, so that make test can run one
+# application's tests in several hosts at once.
+PARTS = 1
+PART = 0
+TESTS = Ms = [list_to_atom(filename:basename(F, ".beam")) \
+	      || F <- lists:sort(filelib:wildcard("$(EBIN)/*_tests.beam"))], \
+	Ts = [case lists:suffix("_test_", atom_to_list(F)) of \
+	          true -> {generator, M, F}; false -> {M, F} end \
+	      || M <- Ms, {F, 0} <- M:module_info(exports), \
+	         lists:suffix("_test", atom_to_list(F)) \
+	         orelse lists:suffix("_test_", atom_to_list(F))], \
+	Mine = [T || {I, T} <- lists:enumerate(0, Ts), I rem $(PARTS) =:= $(PART)], \
+	halt(case eunit:test(Mine, []) of ok -> 0; _ -> 1 end).
 test: $(BEAM) $(TEST_BEAM)
 	erl -noshell -pa $(EBIN) -pa $(abspath ../../../build/stdlib) \
-	  -pa $(abspath ../../../build/shell) -eval \
-	  'halt(case eunit:test({dir, "$(EBIN)"}, []) of ok -> 0; _ -> 1 end).'
+	  -pa $(abspath ../../../build/shell) -eval '$(TESTS)'
 
 clean:
 	rm -f $(EBIN)/*.beam $(EBIN)/*.Pbeam

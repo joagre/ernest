@@ -153,7 +153,7 @@ unicode:
 JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 test: all
 	@$(MAKE) -s -C test beams
-	@$(MAKE) -s -j$(JOBS) -O $(EMACS_JOBS) $(APP_TESTS) test-guide test-docs
+	@$(MAKE) -s -j$(JOBS) -O test-guide $(EMACS_JOBS) $(APP_JOBS) test-docs
 	@$(MAKE) -s -j$(JOBS) -O test-shell test-programs
 
 # The unit tests of the applications under erl/, side by side, or of one
@@ -169,6 +169,16 @@ endif
 
 $(APP_TESTS): test-app-%:
 	@$(MAKE) -s -C erl/$*/src test
+
+# The emitter's and the runtime's tests run programs and wait on them, so
+# make test runs each in three hosts at once, every third test in each.
+SPLIT_APPS = emitter runtime
+APP_PARTS = $(foreach a,$(SPLIT_APPS),$(addprefix test-app-$(a)-,0 1 2))
+APP_JOBS = $(APP_PARTS) $(filter-out $(SPLIT_APPS:%=test-app-%),$(APP_TESTS))
+
+$(APP_PARTS): test-app-%:
+	@$(MAKE) -s -C erl/$(firstword $(subst -, ,$*))/src test PARTS=3 \
+	  PART=$(lastword $(subst -, ,$*))
 
 # The areas under test/: the example programs, the documents and the style,
 # the guide's examples, and the shell with the terminal.
@@ -191,19 +201,25 @@ load: all
 # `ern format`, so the toolchain is built first. EMACS names the Emacs to
 # run them under: `make test-emacs EMACS=/opt/emacs-29/bin/emacs`.
 EMACS ?= emacs
-EMACS_TESTS = typing flatten reindent format lint colour editing broken
-EMACS_JOBS = $(if $(shell command -v $(EMACS) 2>/dev/null), \
-	$(EMACS_TESTS:%=emacs-test-%),test-emacs)
+EMACS_TESTS = flatten reindent format lint colour editing broken
+# typing.el costs the square of a file's length, so it runs in four parts,
+# the largest files in different parts, the longest jobs first.
+TYPING_PARTS = $(addprefix emacs-test-typing-,0 1 2 3)
+EMACS_ALL = $(TYPING_PARTS) $(EMACS_TESTS:%=emacs-test-%)
+EMACS_JOBS = $(if $(shell command -v $(EMACS) 2>/dev/null),$(EMACS_ALL),test-emacs)
 test-emacs: all
 	@if ! command -v $(EMACS) >/dev/null 2>&1; then \
 	  if [ "$(origin EMACS)" = file ]; then \
 	    echo "  Emacs not installed; the mode's tests were skipped."; exit 0; fi; \
 	  echo "  $(EMACS): no such Emacs"; exit 1; fi
-	@$(MAKE) -s -j $(EMACS_TESTS:%=emacs-test-%)
+	@$(MAKE) -s -j $(EMACS_ALL)
 
 # One Emacs test, each in an Emacs of its own, so they run side by side.
 $(EMACS_TESTS:%=emacs-test-%): emacs-test-%:
 	@cd emacs && $(EMACS) -Q -batch -l test/$*.el $(EMACS_CORPUS)
+
+$(TYPING_PARTS): emacs-test-typing-%:
+	@cd emacs && PARTS=4 PART=$* $(EMACS) -Q -batch -l test/typing.el $(EMACS_CORPUS)
 
 clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
@@ -307,5 +323,5 @@ clean-emacs:
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
-        $(APP_TESTS) $(EMACS_TESTS:%=emacs-test-%) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall release unicode \
+        $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall release unicode \
         dialyzer sanitize diagnostics

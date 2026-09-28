@@ -8,6 +8,11 @@
 ;; from `emacs/':
 ;;
 ;;     emacs -Q -batch -l test/typing.el ../stdlib/*.ern
+;;
+;; A file costs the square of its length, so the Makefile runs the corpus
+;; in parts side by side: with PARTS=4 and PART=0 to 3, each part takes
+;; every fourth file, the largest first, so that the largest files fall in
+;; different parts.
 
 ;;; Code:
 
@@ -18,8 +23,19 @@
 (defvar ernest-typing-step (string-to-number (or (getenv "STEP") "25"))
   "How many lines lie between one cut and the next.")
 
+(defun ernest-typing-part (files)
+  "The FILES of this part, as PART and PARTS name it, every file without them."
+  (let ((part (string-to-number (or (getenv "PART") "0")))
+        (parts (string-to-number (or (getenv "PARTS") "1")))
+        (largest (sort (copy-sequence files)
+                       (lambda (a b) (> (file-attribute-size (file-attributes a))
+                                        (file-attribute-size (file-attributes b)))))))
+    (cl-loop for file in largest
+             for i from 0
+             when (= (mod i parts) part) collect file)))
+
 (let ((cuts 0) (moved 0) (worst nil))
-  (dolist (file command-line-args-left)
+  (dolist (file (ernest-typing-part command-line-args-left))
     (let* ((whole (with-temp-buffer
                     (insert-file-contents file)
                     (split-string (buffer-string) "\n")))
