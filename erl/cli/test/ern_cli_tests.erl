@@ -651,6 +651,22 @@ recompile_rule_test() ->
     ?assertEqual(0, ern_cli:ern(["build" | Args])),
     ?assertEqual({ok, Main3}, file:read_file(Dir ++ "/build/main.erc")).
 
+%% report §11.1: a module is recompiled when the code of the compiler that
+%% built it changed, so the modules hashed are every module of the toolchain
+%% that the compiling modules call. A regression test: six were left out,
+%% and a change to one of them, `ern_docs` among them, left every .erc
+%% current; `ern_cli` is hashed and its calls are not followed, since its
+%% other jobs call the runtime and the shell
+compiler_modules_closed_test() ->
+    Modules = ern_cli:compiler_modules(),
+    Called = lists:usort([C || M <- Modules -- [ern_cli], C <- calls(M)]),
+    ?assertEqual([], Called -- Modules).
+
+%% The modules of the toolchain that M calls, from its imports.
+calls(M) ->
+    {ok, {_, [{imports, Imports}]}} = beam_lib:chunks(code:which(M), [imports]),
+    lists:usort([C || {C, _, _} <- Imports, lists:prefix("ern_", atom_to_list(C))]).
+
 %% A compiled module with its interface chunk changed by F.
 forge(Beam, F) ->
     {ok, _, Chunks} = beam_lib:all_chunks(Beam),

@@ -43,39 +43,33 @@ man: build/man/.built
 
 # The standard library written in Ernest: stdlib/ compiled by ern build into
 # build/stdlib under its Erlang module name, where the tools put it on the
-# code path and the checker reads its interface (plan, MVP 2.5).
-# A changed compiler with an unchanged VERSION leaves the build records
-# valid (report §11.1), so the tree is rebuilt whenever a compiler beam is
-# newer than the last standard library build.
+# code path and the checker reads its interface (plan, MVP 2.5). ern build
+# recompiles what a changed compiler changes (report §11.1). The copies
+# under the Erlang names are written afresh, so that a module the sweep
+# removed leaves none.
 build/stdlib/.built: $(TOOL) $(call sources,stdlib)
-	@if [ -n "$$(find erl -name '*.beam' -newer $@ 2>/dev/null)" ] \
-	   || [ ! -f $@ ]; then rm -rf build/stdlib; fi
 	@bin/ern build --build-root build/stdlib stdlib
+	@rm -f build/stdlib/ern@*.beam
 	@for f in build/stdlib/*.erc; do \
 	  cp $$f build/stdlib/ern@$$(basename $$f .erc).beam; done
 	@touch $@
 
 # The libraries (plan, MVP 3.2): each libs/<name>/ is a source root of its
 # own, compiled into build/libs/<name>, which a program adds with
-# --load-path. Rebuilt when a compiler beam is newer, as the standard
-# library is.
+# --load-path.
 build/libs/.built: build/stdlib/.built $(TOOL) $(call sources,libs)
 	@for d in libs/*/; do n=$$(basename $$d); \
-	  if [ -n "$$(find erl -name '*.beam' -newer build/libs/$$n/.built 2>/dev/null)" ] \
-	     || [ ! -f build/libs/$$n/.built ]; then rm -rf build/libs/$$n; fi; \
-	  bin/ern build --source-root $$d --build-root build/libs/$$n $$d || exit 1; \
-	  touch build/libs/$$n/.built; done
+	  bin/ern build --source-root $$d --build-root build/libs/$$n $$d || exit 1; done
 	@touch $@
 
 # The shell, written in Ernest (report §11.2, plan MVP 2.6): shell/ compiled
 # by ern build into build/shell, where `ern shell` finds it on the code path.
 # It renders documentation with libs/markdown, which it is compiled against
-# and which ships beside it. Rebuilt when a compiler beam is newer, as the
-# standard library is.
+# and which ships beside it. The copies are written afresh, as the standard
+# library's are.
 build/shell/.built: build/stdlib/.built build/libs/.built $(TOOL) $(call sources,shell)
-	@if [ -n "$$(find erl -name '*.beam' -newer $@ 2>/dev/null)" ] \
-	   || [ ! -f $@ ]; then rm -rf build/shell; fi
 	@bin/ern build --load-path build/libs/markdown --build-root build/shell shell
+	@rm -f build/shell/ern@*.beam
 	@find build/shell -name '*.erc' | while read f; do \
 	  m=$${f#build/shell/}; \
 	  cp $$f build/shell/ern@$$(echo $${m%.erc} | tr / @).beam; done
@@ -132,11 +126,8 @@ release: all
 	@sh tools/install.sh release build/release $$(cat VERSION)
 
 # The programs of the build written in Ernest, tools/*.ern, compiled into
-# build/tools against libs/markdown. Rebuilt when a compiler beam is newer,
-# as the standard library is.
+# build/tools against libs/markdown.
 build/tools/.built: build/libs/.built $(TOOL) $(call sources,tools)
-	@if [ -n "$$(find erl -name '*.beam' -newer $@ 2>/dev/null)" ] \
-	   || [ ! -f $@ ]; then rm -rf build/tools; fi
 	@bin/ern build --load-path build/libs/markdown --build-root build/tools tools
 	@touch $@
 
@@ -148,12 +139,14 @@ unicode:
 	@test -n "$(UC_SPEC)" || { echo "UC_SPEC=dir is required"; exit 1; }
 	@escript tools/unicode_width.escript $(UC_SPEC)
 
-# The tests by area (plan, MVP 2.6). `make test` runs every area, and a
-# change may run its own area's target as it is worked on.
+# The tests by area (plan, MVP 2.6). `make test` runs every area side by
+# side, each area's output together as it ends, and a change may run its
+# own area's target as it is worked on.
 test: all
-	@$(MAKE) -s test-erl
-	@$(MAKE) -C test test
-	@$(MAKE) -s test-emacs
+	@$(MAKE) -s -j -O test-erl test-areas test-emacs
+
+test-areas: all
+	@$(MAKE) -s -j -O -C test test
 
 # The unit tests of the applications under erl/, side by side, or of one
 # with APP=typer.

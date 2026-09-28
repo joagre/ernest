@@ -4,7 +4,7 @@
 %% tests can call it. The entry point returns the exit status.
 -module(ern_cli).
 
--export([start/0, ern/1, ern/2, segment/1, module_path/1,
+-export([start/0, ern/1, ern/2, segment/1, module_path/1, compiler_modules/0,
          compile_source/3]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -646,12 +646,18 @@ current(Erc, SourceHash, SourcePath, DepHashes, Std) ->
         _ -> false
     end.
 
+%% Report §11.1: the modules whose code shapes a .erc: those that compile,
+%% and every module of the toolchain they call, which a test holds them to.
+-spec compiler_modules() -> [module()].
+compiler_modules() ->
+    [ern_ast, ern_bitspec, ern_descriptor, ern_diag, ern_docs, ern_emitter, ern_exhaust,
+     ern_iface, ern_lexer, ern_parser, ern_prelude, ern_reply, ern_scope, ern_typecheck,
+     ern_types, ern_cli].
+
 %% Report §11.1: the build of ern, its version and a hash of the modules
 %% that compile, so that a compiler changed under one version is another.
 compiler_build() ->
-    Mods = [ern_lexer, ern_diag, ern_parser, ern_types, ern_typecheck, ern_reply, ern_exhaust,
-            ern_prelude, ern_emitter, ern_cli],
-    Hash = erlang:md5(term_to_binary([M:module_info(md5) || M <- Mods])),
+    Hash = erlang:md5(term_to_binary([M:module_info(md5) || M <- compiler_modules()])),
     <<(list_to_binary(?VERSION))/binary, $+, (binary:encode_hex(Hash, lowercase))/binary>>.
 
 read_erc(Erc) ->

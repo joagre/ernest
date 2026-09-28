@@ -11,9 +11,9 @@
 EBIN = ebin
 ERLC_FLAGS = +debug_info -Werror
 
-# The suites by area (plan, MVP 2.6): `test` runs them
-# all, and each area has a target of its own for a change that touches it
-# alone.
+# The suites by area (plan, MVP 2.6): `test` runs them all, side by side
+# under `make -j`, and each area has a target of its own for a change that
+# touches it alone.
 PROGRAMS = ern_integration_tests
 DOCS = ern_docs_tests ern_style_tests
 GUIDE = ern_guide_tests
@@ -27,8 +27,7 @@ EUNIT = erl -noshell -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN
 comma := ,
 space := $(subst ,, )
 
-test: $(BEAMS) prepare
-	$(call EUNIT,$(PROGRAMS) $(DOCS) $(GUIDE) $(SHELL_TESTS))
+test: programs docs guide shell
 
 programs: $(BEAMS) prepare
 	$(call EUNIT,$(PROGRAMS))
@@ -42,14 +41,10 @@ guide: $(BEAMS) prepare
 shell: $(BEAMS) prepare
 	$(call EUNIT,$(SHELL_TESTS))
 
-# A changed compiler with an unchanged VERSION leaves the build records
-# valid (report §11.1), so the programs compiled here are thrown away
-# whenever a toolchain beam is newer than the last run, as the standard
-# library's build does.
+# The programs compiled here stay between runs: ern build recompiles what a
+# changed compiler changes (report §11.1).
 prepare:
-	@if [ -n "$$(find ../erl -name '*.beam' -newer build/.built 2>/dev/null)" ] \
-	   || [ ! -f build/.built ]; then rm -rf build; fi
-	@mkdir -p build && touch build/.built
+	@mkdir -p build
 
 xref: $(EBIN)/ern_docs_tests.beam
 	erl -noshell -pa $(EBIN) -eval \

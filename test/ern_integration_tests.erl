@@ -33,11 +33,11 @@ program(Name) ->
 -define(COMPILES, ["filesync", "repl", "snake", "echo", "webserver"]).
 
 compiles_test_() ->
-    {inparallel, [{Name, fun() ->
-                {0, _} = sh(?BUILD ++ "../examples/"
-                            ++ Name ++ ".ern"),
-                ?assert(filelib:is_regular("build/" ++ Name ++ ".erc"))
-            end} || Name <- ?COMPILES]}.
+    {inparallel, [{Name, {timeout, 60, fun() -> compiles(Name) end}} || Name <- ?COMPILES]}.
+
+compiles(Name) ->
+    {0, _} = sh(?BUILD ++ "../examples/" ++ Name ++ ".ern"),
+    ?assert(filelib:is_regular("build/" ++ Name ++ ".erc")).
 
 %% Paper program 4 (plan, MVP 2.5): the REPL reads stdin and ends at
 %% end of input, so its run is bounded by its input. The last two lines are
@@ -545,7 +545,9 @@ stream_gone() ->
 %% the reader's pace, so what it has written and the reader has not taken
 %% is not held in the node. A regression test, written after the code: two
 %% million lines to a pipe read late held about 650 MB, where the node
-%% itself takes under 100.
+%% itself takes under 100. The reader closes the pipe after its first byte,
+%% which ends the program once its memory has been sampled, rather than
+%% taking the two million lines.
 paced_output_test_() ->
     {timeout, 60, fun paced_output/0}.
 
@@ -559,7 +561,8 @@ paced_output() ->
                          "        loop(n - 1) }\n"
                          "export fn main() -> Unit with Never = loop(2000000)\n"),
     {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " " ++ Dir ++ "/flood.ern"),
-    {0, Out} = sh("sh -c '../bin/ern run " ++ Dir ++ "/flood.erc | { sleep 4; cat > /dev/null; } & "
+    Reader = "{ sleep 4; head -c 1 > /dev/null; }",
+    {0, Out} = sh("sh -c '../bin/ern run " ++ Dir ++ "/flood.erc | " ++ Reader ++ " & "
                   "sleep 3; ps -eo rss,comm,args | grep \"beam.smp.*[f]lood.erc\" | head -1; "
                   "wait'"),
     [Rss | _] = string:lexemes(binary_to_list(Out), " \n"),

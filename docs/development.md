@@ -67,7 +67,7 @@ Beyond what the README's *Installing* needs, `make test` needs python3, which op
 ```
 make              build the helper, compile every application into its ebin/, then
                   stdlib/, libs/, shell/ and tools/, and write the manual pages
-make test         build, then every area below
+make test         build, then every area below, side by side
 make test-erl     the unit tests of every application under erl/, side by side;
                   APP=typer for one
 make test-programs  the integration tests: the programs compiled and run as a user
