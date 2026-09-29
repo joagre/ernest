@@ -1,4 +1,4 @@
-%% The formatter: each rule of docs/style.md's layout on a small module,
+%% The formatter: each rule of report §11.6's layout on a small module,
 %% what report §11.6 says it keeps, and a module that does not parse.
 %% Regression tests, written with the formatter after the repository had
 %% been laid out by it; test/ern_style_tests.erl's formatted_test_ holds
@@ -39,7 +39,7 @@ keeps_what_was_written_test() ->
                   <<"    x |> f() |> `raw`">>],
                  laid(["fn f(x)=(x+0x1F_FF)|>g", "fn h(x) = x |> f() |> `raw`"])).
 
-%% docs/style.md: a function's head ends at `=` and its body begins on the
+%% report §11.6: a function's head ends at `=` and its body begins on the
 %% next line, one step in; a block's brace ends the head's line
 head_test() ->
     ?assertEqual([<<"fn f(x : Int) : Int =">>,
@@ -51,7 +51,7 @@ head_test() ->
                   <<"}">>],
                  laid(["fn f(x : Int) : Int = x + 1", "fn g() = { let y = 1; y }"])).
 
-%% docs/style.md: a bracket that does not fit holds one item a line, each
+%% report §11.6: a bracket that does not fit holds one item a line, each
 %% under the first, and closes on the last; one that fits stays on its line
 bracket_test() ->
     Head = "fn run(state : State, screen : Address(ScreenMsg), from : String, line : Int, "
@@ -66,7 +66,7 @@ bracket_test() ->
                  laid([Head])),
     fixed(["let point = Point(x = 1, y = 2)"]).
 
-%% docs/style.md: a last item that opens a brace keeps the items on the
+%% report §11.6: a last item that opens a brace keeps the items on the
 %% bracket's line, its contents a step in from that line
 hug_test() ->
     ?assertEqual([<<"let s = spawn(Local, fn() = {">>,
@@ -75,7 +75,7 @@ hug_test() ->
                   <<"})">>],
                  laid(["let s = spawn(Local, fn() = { tick(); s })"])).
 
-%% docs/style.md: a match, a receive and a block run over lines however
+%% report §11.6: a match, a receive and a block run over lines however
 %% short, an arm a line, a further one led by its bar
 brace_test() ->
     ?assertEqual([<<"fn f(x) =">>,
@@ -85,7 +85,7 @@ brace_test() ->
                   <<"    }">>],
                  laid(["fn f(x) = match x { Some(y) -> y | None -> 0 }"])).
 
-%% docs/style.md: an `if` stays on one line when it fits, and otherwise
+%% report §11.6: an `if` stays on one line when it fits, and otherwise
 %% breaks at every `then` and `else`, `else if` on one line; a block
 %% branch stays beside its `then`, and `else` follows its brace
 if_test() ->
@@ -107,7 +107,7 @@ if_test() ->
                   <<"        c()">>],
                  laid(["fn g(x) = if x then { a(); b() } else c()"])).
 
-%% docs/style.md: an arm's body stays on its line when it fits, or when its
+%% report §11.6: an arm's body stays on its line when it fits, or when its
 %% first line ends in a brace or `then`, and otherwise begins the next line
 arm_test() ->
     ?assertEqual([<<"fn f(x) =">>,
@@ -127,7 +127,7 @@ arm_test() ->
                        " one line with its else\" else \"no\"",
                        "}"])).
 
-%% docs/style.md: a lambda has no rule of its own; its body is an arm's
+%% report §11.6: a lambda has no rule of its own; its body is an arm's
 lambda_test() ->
     fixed(["let f = List.map(xs, fn(x) = x + 1)"]),
     ?assertEqual([<<"let names =">>,
@@ -140,7 +140,7 @@ lambda_test() ->
                        " Shell.Complete.Name(text = \":\" <> c.name, kind = Shell.Complete.Value,"
                        " shown = Shell.Command.line(c)))"])).
 
-%% docs/style.md: a `let`'s value is a body, as an arm's and a lambda's
+%% report §11.6: a `let`'s value is a body, as an arm's and a lambda's
 %% are: on the `let`'s line when it fits whole or its first line ends in a
 %% brace or `then`, and otherwise on the next line, a step in
 let_test() ->
@@ -163,7 +163,7 @@ let_test() ->
                  laid(["fn f(x) = { let y <- Either.map(Fs.read(Path(\"a file name of thir"
                        "ty-seven character\"), 5000), String.fromUtf8); y }"])).
 
-%% docs/style.md: a line an operator opens carries its expression on, a step
+%% report §11.6: a line an operator opens carries its expression on, a step
 %% in; an operator binding tighter carries on the operand above, a step more
 operators_test() ->
     ?assertEqual([<<"let ok =">>,
@@ -175,7 +175,7 @@ operators_test() ->
                        " \":set takes depth, length, output or timing, and not a thing more"
                        " than these four ones\""])).
 
-%% docs/style.md: a type whose alternatives run past the line breaks after
+%% report §11.6: a type whose alternatives run past the line breaks after
 %% its `=` and holds one alternative a line, a doc block before a later one
 %% at its bar
 types_test() ->

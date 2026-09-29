@@ -2664,6 +2664,29 @@ tail_calls_constant_stack_test() ->
     Result = receive {counted, N} -> N; {'DOWN', Ref, process, _, Why} -> {died, Why} end,
     ?assertEqual(10000000, Result).
 
+%% report §10: the right operand of `&&` and `||`, and the call a pipe
+%% makes, are in tail position where their expression is, and take constant
+%% stack space as the test above measures it. A regression test, written
+%% after the report stated it: the emitter gave these the host's own tail
+%% calls from the start
+tail_calls_through_operators_test() ->
+    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'],
+        "export fn all(n : Int) : Bool =\n"
+        "    n == 0 || (n > 0 && all(n - 1))\n"
+        "export fn down(n : Int) : Int =\n"
+        "    if n == 0 then 0 else n - 1 |> down\n"),
+    {ok, Mod, Bin} = ern_emitter:compile(['M'], Typed, Iface, Env),
+    {module, Mod} = code:load_binary(Mod, "test", Bin),
+    Me = self(),
+    Run = fun(F) ->
+                  {_, Ref} = spawn_opt(fun() -> Me ! {ran, F()} end,
+                                       [monitor, {max_heap_size, #{size => 100000, kill => true,
+                                                                    error_logger => false}}]),
+                  receive {ran, V} -> V; {'DOWN', Ref, process, _, Why} -> {died, Why} end
+          end,
+    ?assertEqual(true, Run(fun() -> Mod:all(10000000) end)),
+    ?assertEqual(0, Run(fun() -> Mod:down(10000000) end)).
+
 %% report §10: processes are scheduled preemptively, so one that computes
 %% for ever does not keep another from running; and Int has arbitrary
 %% precision

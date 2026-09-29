@@ -1112,6 +1112,19 @@ expressions_leave_no_code() ->
                             || L <- binary:split(Out, <<"\n">>, [global])]],
     ?assert(After - Before < 2000).
 
+%% report §11.2, §4.4: an `abstract type` at the prompt keeps its
+%% constructors to the input that declares it, each input being a module
+%% of its own. A regression test, written after the report said so
+abstract_at_the_prompt_test_() ->
+    {timeout, 60, fun abstract_at_the_prompt/0}.
+
+abstract_at_the_prompt() ->
+    In = filename:join("/tmp", "ern_abstract_" ++ os:getpid() ++ ".in"),
+    ok = file:write_file(In, ["abstract type T = T(Int)\n", "T(1)\n"]),
+    {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"T is the constructor of an abstract type and is not"
+                                             " visible outside the input that declared it">>)).
+
 %% report §6.9, §11.2: an input typed again, with a lambda and a spawn,
 %% leaves no code behind, though its spawn site names it by its count. A
 %% regression test, written after the code: the site's `input N` was

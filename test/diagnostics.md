@@ -1186,17 +1186,17 @@ example.ern:1:16: unknown name List.count
   |                ^^^^^^^^^^
 ```
 
-### `Prelude.` before more than one name (§4.2)
+### `Prelude.` before a name deeper than a prelude namespace's (§4.2)
 
 ```ernest-rejected
-fn f() : List(Int) = Prelude.List.reverse([1])
+fn f() : Unit with m = Prelude.Io.println("x")
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:22: Prelude.List.reverse: Prelude takes one name the prelude declares, as `Prelude.Some`
-1 | fn f() : List(Int) = Prelude.List.reverse([1])
-  |                      ^^^^^^^^^^^^^^^^^^^^
+example.ern:1:24: Prelude.Io.println: Prelude takes one name the prelude declares, as `Prelude.Some`, or a prelude namespace's, as `Prelude.List.size`
+1 | fn f() : Unit with m = Prelude.Io.println("x")
+  |                        ^^^^^^^^^^^^^^^^^^
 ```
 
 ### A constructor nothing declares (§4.2)

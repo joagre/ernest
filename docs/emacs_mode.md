@@ -8,7 +8,7 @@ Derived from `prog-mode`, not from CC Mode.
 
 - A syntax table for `//` and `/* */` comments, `///` doc comments with a face of their own, `////` being an ordinary comment, strings, and backtick raw strings that may span lines, and a `syntax-propertize-function` for char literals.
 - Font lock from report §2: reserved words, uppercase-initial names as types and constructors, the name a declaration introduces, qualified names, operators, and the numeric literals of §2.5.
-- Indentation to the layout `ern format` writes (report §11.6), which [`style.md`](style.md) owns.
+- Indentation to the layout `ern format` writes (report §11.6).
 - `imenu`, `beginning-of-defun`, `end-of-defun` and `add-log-current-defun-function`.
 - An entry of `compilation-error-regexp-alist` for `file:line:col: message`, which takes a file name with a space in it.
 - `auto-mode-alist` for `.ern`.
@@ -43,7 +43,7 @@ Eight tests under `emacs/test/`, which `make test-emacs` runs, or `make test-ema
 | `reindent.el` | every `.ern` source in the repository, which `ern format` has laid out, reindents unchanged |
 | `flatten.el` | the same sources, every line moved to column zero, reindent to what they were, so no line's place depends on the indentation it has |
 | `typing.el` | the same sources, cut every 25 lines (`STEP` sets it), keep every line above the cut |
-| `broken.el` over `broken/` | each half-typed buffer, written to [`style.md`](style.md) by hand, keeps its indentation, and a fresh line at its end takes the column a person expects |
+| `broken.el` over `broken/` | each half-typed buffer, written to report §11.6's layout by hand, keeps its indentation, and a fresh line at its end takes the column a person expects |
 | `colour.el` | one check for each kind of face, and what must not be painted |
 | `editing.el` | `imenu`, declaration movement, the diagnostic regexp |
 | `format.el` | a buffer is laid out with point on its token; `shell.ern`, every line moved to column zero, comes back as it was, point and mark in place; a buffer that does not parse is left as typed and its diagnostic names it; a formatter's text that differs beyond white space is refused; the header's line lays out a buffer as it is saved, and a buffer that does not parse, or an `ern` that is not there, is saved as typed, and `*ern format*` says why |

@@ -176,8 +176,9 @@ export fn slice(s : String, from : Int, count : Int) : String =
 foreign fn part(s : String, from : Int, count : Int) : String =
     "ern_string:slice/3"
 
-/// The `Char` in front until the string is at least that many graphemes
-/// long.
+/// The `Char` in front, as many times as the string is graphemes short of
+/// that length. A `Char` that begins no grapheme, a combining mark, joins
+/// the one beside it, and the string stays short.
 ///
 /// ### Examples
 ///
@@ -185,11 +186,16 @@ foreign fn part(s : String, from : Int, count : Int) : String =
 /// #(String.padStart("7", 3, '0'), String.padEnd("7", 3, '.'))
 /// // => #("007", "7..")
 /// ```
+///
+/// ```ernest
+/// String.size(String.padStart("ab", 4, '\u{301}'))
+/// // => 3
+/// ```
 export fn padStart(s : String, length : Int, c : Char) : String =
     padding(s, length, c) <> s
 
-/// The `Char` at the end until the string is at least that many graphemes
-/// long.
+/// The `Char` at the end, as many times as the string is graphemes short
+/// of that length, as `padStart` adds it in front.
 export fn padEnd(s : String, length : Int, c : Char) : String =
     s <> padding(s, length, c)
 

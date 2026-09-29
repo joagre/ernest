@@ -1,5 +1,5 @@
 %% The layout ern_format builds, and the printer that lays it out in 100
-%% columns (report §11.6, docs/style.md). It is Wadler's prettier printer,
+%% columns (report §11.6). It is Wadler's prettier printer,
 %% evaluated strictly as Lindig's is, with what the style guide needs
 %% beside it: alignment to a column, a choice between two layouts made on
 %% the first line of the first, and a trailing comment that ends its line.

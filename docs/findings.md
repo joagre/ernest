@@ -59,11 +59,11 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - 2.98 — `C` and `C()` both match any value of a named constructor; `Some()` and `None()` are grammatical (P21, K19)
 - 2.98 — `unit(N)` is a second way to scale a size (P22)
 - 2.98 — `fn Int.+(a, b) = a + b` "is not a recursive call"; `negate` and `compare` are not covered (P23, K27, E-B11)
-- 2.98 — §3.9 misses field selection among the places inference asks for an annotation (K5)
-- 2.98 — what `T` annotates in `let p : T <- e` (K6)
-- 2.98 — a first segment's lookup where a module declares a prelude type's name; `Prelude.T.member` (K7)
-- 2.98 — §4.8's `fn Float.+` against §4.2's export rule (K8)
-- 2.98 — "faults the binding `Os.workingDirectory`" against §8.5 (K9)
+- done — §3.9 misses field selection among the places inference asks for an annotation (K5): fixed 2026-09-29, four places
+- done — what `T` annotates in `let p : T <- e` (K6): fixed 2026-09-29, `p`'s type, and where the asked-for annotation goes
+- done — a first segment's lookup where a module declares a prelude type's name; `Prelude.T.member` (K7): fixed 2026-09-29, the lookup stated and `Prelude.List.size` admitted
+- done — §4.8's `fn Float.+` against §4.2's export rule (K8): fixed 2026-09-29, §4.2 names §4.8's exception
+- done — "faults the binding `Os.workingDirectory`" against §8.5 (K9): fixed 2026-09-29, the standard library is initialized whole, as the runtime does, so the fault ends every program before `main`
 - done — E.0 rule 4 against `Optional.isNone` and `Either.isRight` (K11): fixed 2026-09-29, rule 4 keeps the two negations as a pair and says why principle 2 allows it
 - done — shape rule 2's `contains` "one grapheme long or longer" against E.5's empty substring (K12): fixed 2026-09-29, rule 2's `contains` on text finds a substring of any length, the empty one included
 - done — E.6 and E.8 name no primitives, as E.0 rule 1 asks (K13): fixed 2026-09-29, each names its primitives
@@ -71,22 +71,22 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — Appendix D and G.1's `Ets.new` against shape rule 2's `empty` (K15): fixed 2026-09-29, shape rule 2: `empty` is a value, and what belongs to a process and ends is made by `new`
 - done — G.2's `parse` reads images that `Inline` cannot hold (K16): fixed 2026-09-29, G.2 says an image is read as a `Link`
 - done — §7.4's first list: `Int.toFloat` is E.8's, and a partial operation that faults breaks shape rule 4 (K17): fixed 2026-09-29, §7.4 speaks of every partial operation, and shape rule 4 names `Int.toFloat` as its exception; whether `Float.exp` and `pow` fault is K25's
-- 2.98 — §5.11 leaves conflicting, duplicate and size-less specifiers, and negative literals, open (K18, K-B7: `<<-1>>` is a fault the compiler could see)
-- 2.98 — §8.5's order between dependent modules whose bindings do not depend on each other (K20)
-- 2.98 — §8.4's ABI for `Map` and `Set` (K21)
-- 2.98 — §11.6 defers the layout to `docs/style.md` (K22)
+- done — §5.11 leaves conflicting, duplicate and size-less specifiers, and negative literals, open (K18, K-B7: `<<-1>>` is a fault the compiler could see): fixed 2026-09-29, as the compiler does; `<<-1>>` stays a fault, as §5.11 says of a literal
+- done — §8.5's order between dependent modules whose bindings do not depend on each other (K20): fixed 2026-09-29, a module after those it depends on
+- done — §8.4's ABI for `Map` and `Set` (K21): fixed 2026-09-29, the exact terms
+- done — §11.6 defers the layout to `docs/style.md` (K22): fixed 2026-09-29, the layout moved into §11.6
 - done — §11.5 does not say how columns count (K23): fixed 2026-09-29, lines and columns from 1, a column a code point
-- 2.98 — `String.padStart` with a Char that does not start a grapheme (K24, E14)
-- 2.98 — `Float.exp` and `pow` out of range: fault or `None` (K25)
+- done — `String.padStart` with a Char that does not start a grapheme (K24, E14): fixed 2026-09-29, stated as the code does it
+- done — `Float.exp` and `pow` out of range: fault or `None` (K25): fixed 2026-09-29, a fault, named beside `Int.toFloat` in shape rule 4
 - done — §6.5's remote adapted address has no cause in §7.4 (K26): fixed 2026-09-29, `Fault("function cannot cross nodes")`, as a function's
-- 2.98 — smaller silences: `true` and `false` covering `Bool`; pipe right-hand forms; one type of a selector over a parameterized type; tail position of `&&`, `||`, a pipe; a `spawnMonitored` site; `abstract type` at the prompt; `Os.exit(300)` in the shell (K28)
+- done — smaller silences: `true` and `false` covering `Bool`; pipe right-hand forms; one type of a selector over a parameterized type; tail position of `&&`, `||`, a pipe; a `spawnMonitored` site; `abstract type` at the prompt; `Os.exit(300)` in the shell (K28): fixed 2026-09-29, each a sentence; `Os.exit(300)` was settled already
 - done — wrong references: §6.6's "(§7.2)"; glossary's arity §4.5, node §8.3; missing glossary terms (K29, P-B11): fixed 2026-09-29, §7.4 and §3.4 cited, *node* and *peer* defined in §8.3, and eleven terms added
 - done — names used before they are defined, and `Distance`, `Vec`, `Player` never declared (K30): fixed 2026-09-29, `node` pointed to §8.3 at its first use, and the three types declared where they are used; the other names the reader listed cite their section already
 - done — clarity: §6.6's "may appear nowhere else", §6.3's operand sentence, §7.4's shell clause, E.2's `get`, §5.11's `<<-1>>`, App. B's prose, Appendix E's missing `a=`/`a!`, §8.4's `fn` placeholder, §8.7's list of ways to an address, §5.3's `{`, §6.10's statement, §7.3's example (K-B1..B14): fixed 2026-09-29; B6 is P17's, B7 is K18's, and B11's sentence had gone
 - done — clarity: §2.1 whitespace against §2.2's doc blocks, §2.6's `!`, §5.5's irrefutable `<-` pattern, §6.6's second answer, `a=`/`a!` not writable, one signature two behaviours (P-B1..B10): fixed 2026-09-29; B2 with K-B3, and B7's sentence had gone
 - done — §11.2's `--config-dir` explained last; the `Os.arguments` rule in the `ern test` paragraph (G29, G32): fixed 2026-09-29, `--config-dir` in the first paragraph and its default in §11.3; the rule with the shell
 - done — rationale left in sections under 600 words: §4.4, §5.9, §6.5, §6.9, §11.5, E.16, E.21, E.22 (G, outside the brief): fixed 2026-09-29, the clauses cut, or stated as rules where they were rules
-- 2.98 — `Io.read` from another process under the shell is unstated (G)
+- done — `Io.read` from another process under the shell is unstated (G): fixed 2026-09-29, a read of bytes faults as a line's does
 - 2.98 — rules that buy little, to weigh: `true`/`false` reserved, prefix `!`, `abstract` with `export` only, the 255-character limit, `Path` in the prelude (P-C)
 - done — §11.2 is silent on the defaults: the depth 10 and the length 100 a value prints to, the live region's five rows, the start's greeting, and that `:output path` appends (shell_design.md's rewrite): fixed 2026-09-29
 - done — §11.2 says a session whose input is not a terminal keeps no history; the code keeps none whenever input or output is not one (shell_design.md's rewrite): fixed 2026-09-29, *line mode* named and the rule said of it

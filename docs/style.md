@@ -27,7 +27,7 @@ The runtime's helper, `erl/runtime/c_src/ern_exec.c`, is C99, compiles with `-pe
 
 ## Ernest style guide
 
-For every Ernest source in the repository and every Ernest block of the report and the guide. `ern format` writes the second list's layout, `make test` holds all of them to it, and `make format` restores it. What else the formatter keeps and changes is report §11.6's. The Emacs mode indents as the formatter does ([`emacs_mode.md`](emacs_mode.md)).
+For every Ernest source in the repository and every Ernest block of the report and the guide. The first list below is the writer's; the layout `ern format` writes, and what else it keeps and changes, is report §11.6's. `make test` holds every source to it, and `make format` restores it. The Emacs mode indents as the formatter does ([`emacs_mode.md`](emacs_mode.md)).
 
 ### What the writer decides
 
@@ -39,17 +39,7 @@ For every Ernest source in the repository and every Ernest block of the report a
 
 ### The layout `ern format` writes
 
-- **A line stands a step in from the line on which the innermost construct open around it began**: a bracket, a brace, an expression an operator carries on, or a body after a `=`, `->`, `then` or `else` that ends a line. A line that opens with a closing bracket or brace, or with `else`, stands at its construct's line. An item standing after its bracket counts as beginning a line there. A further arm, and a further line of a type's alternatives, opens with its bar two columns to the left, so that what follows the bar stands at the step. Only a bracket's items are aligned; nothing is lined up under an `->`, an `=` or a trailing comment.
-- **A line that opens with a binary operator carries on the expression above it.** A further line of the same expression stands at the same step. A line whose operator binds more tightly carries on the operand begun on the line above, and stands a step further in.
-- **A block, a `match` and a `receive` run over lines however short**, a statement or an arm a line. What follows the closing brace, an `else`, a `then`, a `;`, a `)` or an operator, follows it on its line.
-- **A bracket stays on one line when the whole line fits, and otherwise holds one item a line.** A bracket is the parenthesis, square bracket or `<<` around a call's arguments, a function's parameters, a constructor's fields, declared or built, or the items of a tuple, a list or a bitstring. The first item stays on the bracket's line, each further item stands under it, and the closing bracket ends the last item's line. The outermost bracket breaks first, and of two on one line the first. A bracket of one item does not break. A comment or a doc block before the first item puts that item on a line of its own, and the items a step in.
-- **A last item that opens a brace keeps the items on the bracket's line** where that line fits up to the brace, as a lambda whose body is a `match` does. The brace and the bracket close together.
-- **An `if` stays on one line when it fits, and otherwise breaks at every `then` and `else`.** A branch whose first line ends in a brace or a `then` stays beside its `then` or `else` when that fits: `then {`, `} else {`, `else match x {`, and `else if` are each written on one line.
-- **The body after an arm's `->`, a lambda's `=`, or a `let`'s `=` or `<-` stays on its line when it fits**, whole or up to a brace or a `then` that ends its first line. Otherwise it begins the next line. A lambda and a `let` have no other rule of their own.
-- **A function's body begins on the line after its head's `=`, however short.** A body that is a block opens its brace at the end of the head's line. A `foreign fn`'s implementation string stands where a body does.
-- **A type whose alternatives do not fit breaks after its `=`**, and holds one alternative a line, as a `match` holds one arm a line.
-
-Illustrative code in the layout:
+Report §11.6 states it. Illustrative code in that layout:
 
     fn start(keys : Optional(Keys)) : Unit = {
         let reader = spawn(Local, fn() = match keys {

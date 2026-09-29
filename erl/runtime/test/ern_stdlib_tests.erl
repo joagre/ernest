@@ -68,6 +68,17 @@ list_test() ->
     ?assertEqual([2, 3, 4], L:range(2, 4)),
     ?assertEqual([], L:range(3, 2)).
 
+%% report §8.4: foreign code receives a Map as a map from each key's term to
+%% its value's term, and a Set as {set, S}, S a version 2 set, which is a map
+%% from each element to []. A regression test, written after the report
+%% gave the terms
+map_set_terms_test() ->
+    ern_rt:init_stdlib(),
+    M = 'ern@map',
+    S = 'ern@set',
+    ?assertEqual(#{a => 1}, M:put(M:empty(), a, 1)),
+    ?assertEqual({set, #{a => []}}, S:put(S:empty(), a)).
+
 %% report Appendix E.3, §3.10
 map_test() ->
     %% report §8.5: Map.empty is a top-level let, evaluated at program start

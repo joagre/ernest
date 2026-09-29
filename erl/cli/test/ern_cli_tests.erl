@@ -1461,6 +1461,21 @@ init_order_test() ->
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"values\n42\n">>, iolist_to_binary(?capturedOutput)).
 
+%% report §8.5: a module's bindings are evaluated after those of every
+%% module it depends on, though none of its bindings depends on theirs. A
+%% regression test, written after the report said what the runtime did
+init_after_dependencies_test() ->
+    Dir = tmp(),
+    write(Dir, "src/lib/words.ern",
+          "let said = Io.println(\"words\")\n"
+          "export fn shout(s : String) : String = String.toUpper(s)\n"),
+    write(Dir, "src/main.ern",
+          "let said = Io.println(\"main\")\n"
+          "export fn main() : Unit with Never = Io.println(Lib.Words.shout(\"hi\"))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"words\nmain\nHI\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §8.5, §11.2: a module on the source root that the program does
 %% not depend on is not loaded, so its faulting top-level `let` does not
 %% stop main; a module it depends on is initialized whole, so a faulting

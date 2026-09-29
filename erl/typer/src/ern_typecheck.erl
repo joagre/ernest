@@ -2668,6 +2668,10 @@ lookup_value(Pos, ['Prelude'], Name, #env{globals = Gs} = Env) ->
         #{[Name] := Scheme} -> {Scheme, {prelude, [Name]}, Env};
         _ -> fail(Pos, "the prelude declares no " ++ atom_to_list(Name))
     end;
+lookup_value(Pos, ['Prelude', T], Name, #env{types = Ts} = Env) when is_map_key([T], Ts) ->
+    %% report §4.2: `Prelude.T.name` is the prelude namespace T's name, past
+    %% a member of the same name that a type T of the module's own declares
+    lookup_global(Pos, [T], Name, Env);
 lookup_value(Pos, ['Prelude' | _] = Path, Name, _Env) ->
     prelude_one(Pos, Path, Name);
 lookup_value(Pos, [Owner] = Path, Name, #env{local_values = LV} = Env) ->
@@ -2702,12 +2706,13 @@ lookup_value(Pos, Path, Name, #env{ns = Ns, local_values = LV} = Env) ->
             end
     end.
 
-%% Report §4.2: `Prelude.` takes one name the prelude declares; what is
-%% below a namespace of its own is reached by that namespace.
+%% Report §4.2: `Prelude.` takes one name the prelude declares, or a
+%% prelude namespace and one of its names; what is deeper is reached by
+%% its namespace.
 -spec prelude_one(ern_diag:pos(), [atom()], atom()) -> no_return().
 prelude_one(Pos, Path, Name) ->
     fail(Pos, format_qname(Path ++ [Name]) ++ ": Prelude takes one name the prelude declares,"
-              " as `Prelude.Some`").
+              " as `Prelude.Some`, or a prelude namespace's, as `Prelude.List.size`").
 
 own_member(Owner, Name, #env{local_values = LV} = Env) ->
     case LV of

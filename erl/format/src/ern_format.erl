@@ -1,9 +1,8 @@
-%% The formatter, report §11.6: a module in the one layout of
-%% docs/style.md, where only line breaks and the spaces between tokens
-%% change. Every token is written as it was written, cut from the source
-%% by its span, so a literal's spelling, a parenthesis and the form a
-%% `|>` took stay as they are; every comment stays beside the token it
-%% was beside.
+%% The formatter, report §11.6: a module in its one layout, where only
+%% line breaks and the spaces between tokens change. Every token is
+%% written as it was written, cut from the source by its span, so a
+%% literal's spelling, a parenthesis and the form a `|>` took stay as they
+%% are; every comment stays beside the token it was beside.
 %%
 %% Two passes. The first walks the parse tree and builds a template of
 %% the layout, one function per production of Appendix A, naming each
@@ -248,7 +247,7 @@ paren(N, X) ->
 
 %% How a node's first line may end: a block's brace; a brace, for what
 %% runs over lines inside braces and may stay on the line before them
-%% (docs/style.md); or neither.
+%% (report §11.6); or neither.
 kind(N, X) ->
     case paren(N, X) of
         true -> other;
@@ -338,7 +337,7 @@ type_decl(Ps, Cs, X) ->
 
 %% A type of one alternative keeps it on its line; alternatives that run
 %% past the line break after the `=` and stand one a line, each further
-%% line led by its bar, as a `match`'s arms do (docs/style.md).
+%% line led by its bar, as a `match`'s arms do (report §11.6).
 alternatives([C], X) ->
     %% a doc block puts the one alternative on a line of its own, a step in;
     %% one that does not fit breaks after the `=`, as several do, before a
@@ -491,7 +490,7 @@ right_chain(N, _) ->
 
 %% An `if` on one line, or broken at every `then` and `else`, an `else
 %% if` continuing the ladder; a block, or a branch whose first line ends
-%% in a brace, stays beside its `then` or `else` (docs/style.md).
+%% in a brace, stays beside its `then` or `else` (report §11.6).
 ladder(#e_if{condition = C, then_branch = T, else_branch = E}, X) ->
     Then = case kind(T, X) of
                block -> [sp(), ex(T, X), sp()];
@@ -638,7 +637,7 @@ opens(Last, X, #cur{i = I} = C, Acc) ->
 %% A bracket on one line when it fits, else its first item on the
 %% bracket's line and each further one on a line of its own under it; a
 %% last item that opens a brace may keep the items on the bracket's line
-%% (docs/style.md).
+%% (report §11.6).
 items(Open, [], Close, _Hug, X, C) ->
     {OpenD, C1} = resolve(Open, X, C),
     {Lead, C2} = lead(C1, X),

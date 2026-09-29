@@ -74,7 +74,7 @@ export_faults(File) ->
 block_of_one_test() ->
     ?assertEqual([], [{F, N} || {F, Toks} <- ernest_tokens(), N <- blocks_of_one(Toks)]).
 
-%% report §11.6, docs/style.md: every module is in the layout `ern format`
+%% report §11.6: every module is in the layout `ern format`
 %% writes, the examples of its doc blocks with it, and so is every Ernest
 %% block of the guide and the report that parses; `make format` lays out
 %% what is not. Written with the formatter, as the style guide's hand-made

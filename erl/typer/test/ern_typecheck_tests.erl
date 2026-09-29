@@ -1074,6 +1074,56 @@ reply_test() ->
     ?assertEqual(ok, ok(Msg ++ "fn ask(a : Address(Req)) = Address.call(a, fn(r) = Get(reply = r),"
                         " 1000)")).
 
+%% report §4.2: a dotted name's first segment is the module's own type
+%% where that type has a member of the name, and otherwise the namespace
+%% of that name; `Prelude.T.name` reaches a prelude namespace's name past
+%% the module's own member. A regression test, written with the rule: the
+%% prelude's `List.size` was out of reach there
+first_segment_test() ->
+    Own = "type List = Nil | Cons(Int)\nfn List.size(l : List) : String = \"mine\"\n",
+    ?assertEqual(ok, ok(Own ++ "fn f() : String = List.size(Nil)")),
+    ?assertEqual(ok, ok(Own ++ "fn f() : Int = Prelude.List.size([1])")),
+    ?assertEqual(ok, ok(Own ++ "fn f() : Prelude.List(Int) = List.reverse([1])")),
+    ?assertEqual("the argument does not fit List.size: expected M.List, found List(Int)",
+                 err(Own ++ "fn f() : Int = List.size([1])")).
+
+%% report §5.5: in `let p : T <- e`, `T` is the type of `p`, the value
+%% inside. A regression test, written after the report said so
+let_arrow_annotation_test() ->
+    ?assertEqual(ok, ok("fn f(o : Optional(Int)) : Optional(Int) ="
+                        " { let x : Int <- o; Some(x + 1) }")),
+    ?assertEqual("the pattern does not fit the value inside the sum type: expected Int,"
+                 " found Optional(Int)",
+                 err("fn f(o : Optional(Int)) : Optional(Int) ="
+                     " { let x : Optional(Int) <- o; Some(1) }")).
+
+%% report §5.11: a segment names each kind of specifier once, and a
+%% negative literal is a segment pattern. A regression test, written after
+%% the report said what the compiler did
+bitstring_specifiers_test() ->
+    ?assertEqual("conflicting bitstring specifiers `big` and `little`",
+                 err("fn f(x : Int) : Bytes = <<x:big-little>>")),
+    ?assertEqual("conflicting bitstring specifiers `size(8)` and `size(16)`",
+                 err("fn f(x : Int) : Bytes = <<x:size(8)-size(16)>>")),
+    ?assertEqual("conflicting bitstring specifiers `big` and `big`",
+                 err("fn f(x : Int) : Bytes = <<x:big-big>>")),
+    ?assertEqual(ok, ok("fn f(b : Bytes) : Bool = match b { <<-1:signed>> -> true | _ -> false }")).
+
+%% report §5.9, §5.7, §3.5: `true` and `false` cover `Bool`; a pipe's
+%% right-hand side is any operand, a selected function among them, and one
+%% that is no function is a type error; a selector over a type with
+%% parameters has one type once the arguments stand for them. A regression
+%% test, written after the report said what the checker did
+smaller_silences_test() ->
+    ?assertEqual(ok, ok("fn f(b : Bool) : Int = match b { true -> 1 | false -> 0 }")),
+    ?assertEqual(ok, ok("type S = S(f : (Int) -> Int)\nfn g(s : S) : Int = 1 |> s.f")),
+    ?assertEqual("the callee is not a function; it has type List((Int) -> Int)",
+                 err("fn g(f : (Int) -> Int) = 1 |> [f]")),
+    P = "type P(a) = A(x : a) | B(x : Int)\n",
+    ?assertEqual(ok, ok(P ++ "fn g(p : P(Int)) : Int = p.x")),
+    ?assertEqual("the field x in every constructor: expected String, found Int",
+                 err(P ++ "fn g(p : P(String)) = p.x")).
+
 %% report §6.6, §3.9: no container holds a reply, however deep in a type
 %% it stands, through tuples and containers, since a variable that is a
 %% container's element there takes no no-reply restriction; one elsewhere
@@ -1516,7 +1566,7 @@ prelude_namespace_test() ->
     %% the module's own names are untouched
     ?assertEqual(ok, ok(Shadow ++ "fn g() : Int = send(1)\nfn h() : Last = Peer")),
     ?assertEqual("Prelude.Io.println: Prelude takes one name the prelude declares,"
-                 " as `Prelude.Some`",
+                 " as `Prelude.Some`, or a prelude namespace's, as `Prelude.List.size`",
                  err("fn f() : Unit with m = Prelude.Io.println(\"x\")")),
     ?assertEqual("the prelude declares no constructor Nope", err("fn f() = Prelude.Nope")),
     ?assertEqual("Prelude names the prelude, and a type may not take it",

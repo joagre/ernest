@@ -58,7 +58,7 @@ discussed with the user one at a time as they are met.
    log's entries from *The Report's Cheap Lines* to *The Documents' Cheap Lines*). Measuring
    the loads for it found the shell's code growing with every input, T26's sites compiled into
    each input's module, fixed the same day.
-2. **Its `2.98` lines**: the report's contradictions and silent cases, among them `Io.show`'s
+2. **Its `2.98` lines**: the report's contradictions and silent cases, the silent cases done 2026-09-29 (the log's *The Report's Silences*), among them `Io.show`'s
    dependence on the type at the call; a type that breaks laid one alternative a line, as a
    `match` is, decided with the user and done 2026-09-29 (N10; the log's *A Type That Breaks
    Holds One Alternative a Line*); three decisions of the shell's, decided with the user and
