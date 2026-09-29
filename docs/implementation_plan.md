@@ -127,7 +127,7 @@ follows MVP 2.98.
    T31, 2026-09-29); and the release is tagged with its notes, the archive published beside it,
    where the README then says to download it.
 
-## MVP 2.99b (operations records: `Set`'s record and an ordered set), about eight days
+## MVP 2.99b (operations records: `Set`'s record and an ordered set), about nine days
 
 How code written once works over several representations of one thing, decided here, after the
 first release (the log's *The Contract's Decision After the First Release*), over what
@@ -153,6 +153,13 @@ decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*), is rewritt
    moved here 2026-09-29): §7.2 declares them `fn Stack.push` and §7.3 `toList` of a module,
    and the decision settles how a type's operations are declared, so the guide states one
    rule with it.
+6. **A file's words joined by `_` name one namespace segment** (decided 2026-09-29, the log's
+   *A Namespace From Words Joined by `_`*): `ordered_set.ern` provides `OrderedSet`, each word
+   capitalized and the `_` dropped, a directory's name too, `net/http_client.ern` providing
+   `Net.HttpClient`. §4.2's and §11.1's path shape gain it, a word being lowercase letters and
+   digits and a `_` standing only between two words; `ern build`, `:load`, completion, `ern
+   doc` and the manual pages' names follow, the shell finding `ordered_set.ern` for
+   `OrderedSet`.
 
 ---
 

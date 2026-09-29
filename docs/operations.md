@@ -43,7 +43,7 @@ One restriction is lifted, and the standard library follows a convention. No syn
 6. **A representation meets the record by a function its module exports**, `operations()`, and names its own functions as `Set` does: `OrderedSet.union(a, b)` calls `Set.Operations.union` with its record. Any module may build a record, for a type of its own or another's.
 7. **An ordered set orders its elements by their type's `compare`.** Another order is another type, `Descending(Int)` with its own `compare`, as Haskell's `Down` is.
 8. **`==` stays structural.** Values of several representations in one list are records whose functions close over their values, which Ernest has today.
-9. **The standard library gains `OrderedSet`** as the second representation of `Set.Operations`. `Map` gains a record when it gains a second representation, since a record one type meets abstracts over nothing.
+9. **The standard library gains `OrderedSet`**, in `ordered_set.ern`, as the second representation of `Set.Operations`. Ernest names a namespace from its file, and a file whose words are joined by `_` is to name one namespace, as Elixir's `ordered_set.ex` holds `OrderedSet`. `Map` gains a record when it gains a second representation, since a record one type meets abstracts over nothing.
 
 ```sketch
 // set.ern: the record, Set's, and the functions written once
@@ -75,7 +75,7 @@ export fn Operations.map(set : s,
 export fn union(a : Set(e), b : Set(e)) : Set(e) =
     Operations.union(a, b, operations())
 
-// orderedset.ern: an ordered set is its elements, in their type's order
+// ordered_set.ern: an ordered set is its elements, in their type's order
 export abstract type OrderedSet(e) = OrderedSet(List(e))
 
 export let empty : OrderedSet(e) = OrderedSet([])
@@ -158,7 +158,6 @@ Type classes contain the proposal: the ordering restriction is one class with it
 
 ## Open questions
 
-- **The ordered set's name.** A file `orderedset.ern` provides the namespace `Orderedset` (§4.2), not `OrderedSet`; `set/ordered.ern`, `Set.Ordered`, is the other place.
 - **Its representation.** `==` is structural, so a set must have one shape for each set of elements. A sorted list has, but `put` and `contains` take linear time. A balanced tree whose shape follows the order of insertion has not. A treap whose priorities are a hash of the element has one shape and logarithmic time, and needs a hash the standard library does not have.
 - **Which of two elements it keeps** when `compare` finds them equal and `==` tells them apart.
 - **Whether `Set`'s record holds `foldLeft`** beside `toList`, which the functions written once would otherwise build on.
