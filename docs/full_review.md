@@ -1,0 +1,49 @@
+# The full review
+
+Twelve readers, each over the whole of its area: the report, the guide, every other document, and every `.erl` and `.ern` file. It is expensive and runs seldom. What every release runs is [`review.md`](review.md)'s. The first full review ran on 2026-09-28, and MVP 2.98 worked through its findings.
+
+## When it runs
+
+- Before a milestone that others will build on. The plan names it; the next is MVP 3.0.
+- When a release's readers or the user find a defect in what had not changed since the last full review.
+- When the user asks.
+
+It does not run while the findings of the last one are open.
+
+## How it runs
+
+- Each reader is a session of its own. It is given its brief and the files it reads, and nothing that argues for them: not the log, the plan, or another reader's list.
+- A reader edits nothing in the repository. It tries a program in a scratch directory of its own, with `bin/ern`.
+- The readers read one commit, which the findings name, and run side by side.
+- An area too large for one reader is read in parts, each by a reader of its own with the same brief.
+- Each reader hands in a numbered list, most serious first. A finding gives its place, a file and line or a section; a short quote; what is wrong; a program or a command that shows it, where there is one; and a one-line fix. Defects stand apart from matters of clarity. Where a reader writes Ernest, the places the language made the work harder stand apart from both.
+
+## The readers
+
+A reader's letter names its findings: C12 is the code reader's twelfth.
+
+- **P, the principles.** Reads `ernest_report.md`. "Read §0, then the whole report against its five principles alone: every second way to do one job (principle 2); anything a program does that its text does not show (3); grammar that needs backtracking, or lookahead that is unbounded or that the prose does not name (4); and every concept, primitive and reserved word, counted against the last full review's counts (5). For each finding, write the smallest program that shows it, and say what a reader who knows the rest of Ernest would have predicted (1). Then, for each rule, say what it buys a program and what the language would lose without it, and report every rule whose answer is little and every rule that exists only for another." It gives the counts, each with how it counted; the log's entry for the last full review holds that review's.
+- **K, the cold reader.** Reads `ernest_report.md` and nothing else. "You know Erlang, Haskell or ML, Rust and Go, but not Ernest. Report two sections that disagree, prose against Appendix A, a signature against its prose, and a rule another makes unreachable; every place one who builds a conforming toolchain must guess, and every case the rules leave silent; and every example that would not compile under the rules as written, every name used before it is defined, and every reference that points at the wrong section."
+- **G, the register.** Reads `ernest_report.md` and CLAUDE.md's *Writing*. "Read every section of the report over 600 words for sentences that argue rather than state, and for restating, against CLAUDE.md's *Writing*." It lists the sections it read, each with its count of words.
+- **U, the guide.** Reads `ernest_guide.md`, the report and `stdlib/`, and runs `bin/ern`. "Read the guide against the report and the code it describes. Report every statement that is false or stale, every fact restated outside its owner or owned by no document (CLAUDE.md's *Who owns each fact*), and every job it teaches two ways."
+- **N, the newcomer.** Reads `README.md`, then `ernest_guide.md` alone, and uses `bin/ern`. "You know another language and not Ernest. Read the README, then the guide alone, doing its exercises as it says, then write a program with only what it taught you. Report what on the README put you off or told you too little to go on, every place you were lost, every message you did not understand, and everything you wanted and could not find; and, apart, every place the language itself, not the guide, made your program harder to write than you expected." The program is one no earlier newcomer wrote, and the log's entry for each full review names it. The newcomer hands in the program's source and whether it ran.
+- **D, the documents.** Reads every document but the report, the guide and the log: `README.md`, `CLAUDE.md`, `shell/README.md` and `docs/`. "Read each document against the report and the code it describes. Report every statement that is false or stale, and every fact restated outside its owner or owned by no document (CLAUDE.md's *Who owns each fact*). List every list that lives in two places, with the test that holds it equal, or none."
+- **C, the toolchain's code.** Reads `erl/` and the Erlang of `test/`, in five parts: the front end (the lexer, the parser, the formatter and the utilities), the checker, the emitter, the runtime with its helper in C, and the command line with `test/`. "Read the part whole, the sources and their tests, against `docs/style.md` and the report sections its comments cite. Report defects, missing specs, comments that no longer hold, and code that could be shorter and clearer."
+- **E, the Ernest code.** Reads `stdlib/`, `shell/`, `libs/`, `examples/` and `tools/` in three parts, `stdlib/`, `shell/` and the rest, with the page `ern doc` writes of each module. "Read the part whole against the report sections it implements, Appendix E.0 and the principles, and read each module's page as a programmer would. Report defects, code that could be shorter and clearer, what a reader who knows the rest of Ernest would not predict, and what a page leaves a programmer unable to use; and, apart, every place the language made the code harder than it should be: a workaround that should not be needed, a second way, something invisible, a function the standard library lacks."
+- **T, the tools.** Has read the guide, and uses `bin/ern`'s jobs, options and messages and the shell's commands, with `ern(1)` and the report's §0. "Report every job done two ways (principle 2), everything the toolchain does that its user does not see (3), and every behaviour a user who knows the rest would not predict (1)." A finding gives the command, what it did and what was expected.
+- **X, the diagnostics.** Reads `test/diagnostics.md` and the report, and not the toolchain's code. "For each program of the catalogue, read the message it gives against §11.5, and say whether, having made that mistake, you would know the fix." It says how many entries it judged clear.
+- **S, security.** Reads the runtime, its helper, `ern config`, the shell and the standard library, against the report's §8.4, §11.2, §11.3, E.17, E.18 and E.23. "Read the foreign boundary's checks, the configuration directory and its key, a path from the network, a socket's input, a program's arguments and environment, the host programs `Os` starts and what they write back, and the shell's history file. Report each place where untrusted input reaches something it should not, with an input that shows it." Real exposures stand apart from hardening.
+- **H, the shell's guide.** Knows Ernest and not the shell's code. Reads `shell/README.md` alone, then `shell/`. "Find in the shell's code what the README says is there. Report every place you were lost or it led you wrong."
+
+## The findings
+
+- The lists become one document, `findings.md` beside this one: a line per finding, by area, each naming its reader's letter and number.
+- A line carries its decision: `cheap`, fixed in the milestone that works through the list, a batch a document; a milestone's number, planned there; `done`; or `dropped`, with the reason.
+- Each reader's whole list is kept below the lines, since a line is too short to fix from.
+- The plan gives the list a milestone. A design question in it is discussed with the user, one at a time.
+- The document goes when every line is done or dropped, or stands in the plan as an item of its own.
+- The log gains an entry for the review: its date and commit, the principles reader's counts, the newcomer's program, and how many findings took each decision.
+
+## Its cost
+
+Eighteen readers, counting the code's parts, for most of a day; then a milestone of about two weeks, as MVP 2.98 was.

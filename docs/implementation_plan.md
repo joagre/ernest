@@ -193,6 +193,10 @@ them that carry values (§3.11). Code is shipped only between nodes running the 
 from MVP 3.1 on 2026-09-20. It holds distributed code and the node protocol alone, decided
 2026-09-28 (the log's *MVP 3.0 Is Distributed Code and the Node Protocol*).
 
+A full review ([`full_review.md`](full_review.md)) runs before it, since others build on
+it, and what the review finds is worked through before its work begins (2026-09-29, the
+log's *A Full Review Now and Then*).
+
 - **The distribution notes' rewrite, read with the user before any of it is built.** Brought to
   the report on 2026-09-28, the two notes also gained design no one has weighed: a `spawned`
   and a `kill` frame, `demonitor` kept to the runtime, the spawn site in the spawn frame, the
