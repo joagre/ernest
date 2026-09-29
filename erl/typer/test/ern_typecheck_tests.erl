@@ -183,7 +183,7 @@ foreign_type_equality_test() ->
         "foreign fn put(t : T(k, v), key : k, value : v) : T(k, v) = \"m:put/3\"\n",
     ?assertEqual(ok, ok(T ++ "fn f() = put(mk(), 1, 2)\n")),
     ?assertEqual("(Int) -> Int does not support equality (it contains a function or an"
-                 " address), but it is compared here",
+                 " address), which mk requires: mk : () -> T(k=, v)",
                  err(T ++ "fn f() = put(mk(), fn(x : Int) : Int = x, 2)\n")),
     %% a parameter without `=` asks nothing
     ?assertEqual(ok, ok(T ++ "fn f() = put(mk(), 1, fn(x : Int) : Int = x)\n")),
@@ -391,8 +391,8 @@ equality_test() ->
     ?assertEqual("`==` is not defined on (Int) -> Int: it contains a function or an address",
                  err("fn f(g : (Int) -> Int) = g == g")),
     ?assertEqual("Address(Int) does not support equality (it contains a function or an"
-                 " address), but it is compared here; compare the processes behind"
-                 " addresses, `Process.fromAddress(a)`",
+                 " address), which equal requires: equal : (a=, a=) -> Bool; compare the"
+                 " processes behind addresses, `Process.fromAddress(a)`",
                  err("fn same(a : Address(Int), b) = equal(a, b)\nfn equal(a, b) = a == b")),
     ?assertEqual("Address(Int) does not support equality (it contains a function or an"
                  " address), and a Map's key needs it"
@@ -439,7 +439,7 @@ foreign_has_no_equality_test() ->
                  " does not inspect",
                  err("fn f(g : (Int) -> Int) = Foreign.from(g) == Foreign.from(g)")),
     ?assertEqual("List(Foreign) does not support equality (it contains a `Foreign` value, which"
-                 " Ernest does not inspect), but it is compared here",
+                 " Ernest does not inspect), which eq requires: eq : (a=, a=) -> Bool",
                  err("fn eq(a, b) = a == b\nfn f() = eq([Foreign.from(1)], [Foreign.from(2)])")),
     ?assertEqual(ok, ok("fn f() = Foreign.toInt(Foreign.from(1)) == Some(1)")).
 
@@ -451,7 +451,7 @@ foreign_has_no_equality_test() ->
 equality_through_a_binding_test() ->
     Eq = "fn eq(a, b) = a == b\nexport fn g(x) = eq([x], [x])\n",
     ?assertEqual("(Int) -> Int does not support equality (it contains a function or an"
-                 " address), but it is compared here",
+                 " address), which g requires: g : (a=!) -> Bool",
                  err(Eq ++ "fn h() = g(fn(y : Int) = y)")),
     ?assertEqual(ok, ok(Eq ++ "fn h() = g(1)")),
     ?assertEqual("(a=!) -> Bool", type_of(Eq, g)).
@@ -935,8 +935,8 @@ reply_through_bindings_test() ->
     ?assertEqual("(M.Box(a!)) -> Unit",
                  type_of(Req ++ "export fn forget(b : Box(a)) : Unit = Unit", forget)),
     ?assertEqual("(a) -> a", type_of("export fn keep(x) = { let y = x; y }", keep)),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
-                 " discards its argument",
+    ?assertEqual("a reply-carrying value, Reply(Int), passed where dup duplicates or discards"
+                 " its argument: dup : (a!) -> #(a!, a!)",
                  err(Req ++ "fn dup(x) = { let y = x; #(y, y) }\n"
                      "fn f(r : Reply(Int)) = {\n"
                      "    let #(a, b) = dup(r); answer(a, 1); answer(b, 2) }")).
@@ -975,8 +975,8 @@ reply_carrying_by_the_fields_test() ->
     Req = "type Req = Get(reply : Reply(Int))\n",
     ?assertEqual(ok, ok(Types ++ Req ++ "fn drop(h : H(e)) : Unit = Unit\n"
                         "fn f(h : H(Req)) : Unit = { drop(h); drop(h) }\n")),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
-                 " discards its argument",
+    ?assertEqual("a reply-carrying value, Reply(Int), passed where drop duplicates or discards"
+                 " its argument: drop : (Box(a!)) -> Unit",
                  err(Types ++ "fn drop(b : Box(a)) : Unit = Unit\n"
                      "fn f(r : Reply(Int)) : Unit = drop(Box(r))\n")).
 
@@ -1100,8 +1100,8 @@ reply_test() ->
                  err(Msg ++ "fn f(r : Reply(Int)) = List.map([1], fn(x) = answer(r, x))")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) : Unit with Never ="
                         " { let _ = spawn(Local, fn() : Unit with Never = answer(r, 1)); Unit }")),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
-                 " discards its argument",
+    ?assertEqual("a reply-carrying value, Reply(Int), passed where dup duplicates or discards"
+                 " its argument: dup : (a!) -> #(a!, a!)",
                  err(Msg ++ "fn dup(x) = #(x, x)\nfn f(r : Reply(Int)) = dup(r)")),
     ?assertEqual(ok, ok(Msg ++ "fn id(x) = x\nfn f(r : Reply(Int)) = answer(id(r), 1)")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) = { let r2 = r; answer(r2, 1) }")),
@@ -1173,8 +1173,8 @@ smaller_silences_test() ->
 %% not held. A regression test: `Foreign.from(r)` dropped a reply
 foreign_no_reply_test() ->
     Msg = "type Msg = Get(reply : Reply(Int))\n",
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
-                 " discards its argument",
+    ?assertEqual("a reply-carrying value, Reply(Int), passed where Foreign.from duplicates or"
+                 " discards its argument: Foreign.from : (a!) -> Foreign",
                  err(Msg ++ "fn f(r : Reply(Int)) = { let _ = Foreign.from(r); Unit }")),
     ?assertEqual("(a!) -> M.Held(a!)",
                  type_of("export type Held(a) = Held(a)\n"
@@ -1196,8 +1196,8 @@ reply_in_a_nested_container_test() ->
                      "fn f(r : Reply(Int)) = { let _ = pair(r); Unit }")),
     %% a list inside an `Optional`: the variable is no container's element
     %% through a sum type, and takes the no-reply restriction instead
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
-                 " discards its argument",
+    ?assertEqual("a reply-carrying value, Reply(Int), passed where some duplicates or discards"
+                 " its argument: some : (a!) -> Optional(List(a!))",
                  err("fn some(x) = Some([x])\n"
                      "fn f(r : Reply(Int)) = { let _ = some(r); Unit }")),
     ?assertEqual(ok, ok("fn pair(x) = #([x], 1)\nfn f(n : Int) = pair(n)")),
@@ -1240,8 +1240,8 @@ warts_audit_test() ->
                  err(Msg ++ "fn f(_ : Reply(Int)) = Unit")),
     %% the flag reaches variables inside a tuple parameter
     ?assertEqual("(#(a, b!)) -> a", type_of("export fn fst(#(x, y)) = x", fst)),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
-                 " discards its argument",
+    ?assertEqual("a reply-carrying value, Reply(Int), passed where fst duplicates or discards"
+                 " its argument: fst : (#(a, b!)) -> a",
                  err(Msg ++ "fn fst(#(x, y)) = x\nfn f(r : Reply(Int)) = fst(#(1, r))")),
     %% duplicate field in a pattern
     ?assertEqual("field reply is matched twice",

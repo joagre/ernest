@@ -1755,7 +1755,7 @@ fn f() : Bool = same(fn() = 1, fn() = 1)
 
 ```console
 $ ern build example.ern
-example.ern:3:17: () -> Int does not support equality (it contains a function or an address), but it is compared here
+example.ern:3:17: () -> Int does not support equality (it contains a function or an address), which same requires: same : (a=, a=) -> Bool
 2 | 
 3 | fn f() : Bool = same(fn() = 1, fn() = 1)
   |                 ^^^^
@@ -2020,7 +2020,7 @@ fn f(r : Reply(Int)) : Unit with m = drop(r)
 
 ```console
 $ ern build example.ern
-example.ern:3:38: a reply-carrying value, Reply(Int), passed where the function duplicates or discards its argument
+example.ern:3:38: a reply-carrying value, Reply(Int), passed where drop duplicates or discards its argument: drop : (a!) -> Unit
 2 | 
 3 | fn f(r : Reply(Int)) : Unit with m = drop(r)
   |                                      ^^^^

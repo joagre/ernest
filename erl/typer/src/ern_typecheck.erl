@@ -1492,33 +1492,51 @@ bind_arrow(Pos, {PSpan, XSpan}, Wrap, Er, A, PT, RestT, Env) ->
 %% variable bound to a reply-carrying type, an equality-constrained one
 %% bound to a type containing a function or an address.
 no_reply_instantiations(#env{pending = Pending} = Env) ->
-    lists:foreach(fun({no_reply, Id, Pos}) ->
+    %% report §11.5: at a rejected call site the error names the function
+    %% and shows the restriction its type carries
+    lists:foreach(fun({no_reply, Id, Pos, Who}) ->
                           T = ern_types:zonk({tvar, Id}, Env#env.st),
                           case is_reply_carrying(T, Env) of
                               true -> fail(Pos, "a reply-carrying value, "
                                                 ++ ern_types:format(T, Env#env.st)
-                                                ++ ", passed where the function duplicates"
-                                                " or discards its argument");
+                                                ++ ", passed where " ++ who(Who, "the function")
+                                                ++ " duplicates or discards its argument"
+                                                ++ signature_of(Who));
                               false -> ok
                           end;
-                     ({eq, Id, Pos, Need}) ->
+                     ({eq, Id, Pos, Need, Who}) ->
                           T = ern_types:zonk({tvar, Id}, Env#env.st),
                           case lacks_equality(T, Env) of
                               false -> ok;
                               Lack -> fail(Pos, ern_types:format(T, Env#env.st)
                                                 ++ " does not support equality (" ++ Lack
-                                                ++ "), " ++ Need ++ identity_hint(T))
+                                                ++ "), " ++ need_text(Need, Who)
+                                                ++ identity_hint(T))
                           end
                   end, Pending).
+
+who(undefined, Default) -> Default;
+who({Name, _}, _) -> Name.
+
+signature_of(undefined) -> "";
+signature_of({Name, Type}) -> ": " ++ Name ++ " : " ++ Type.
+
+need_text(compared, undefined) -> "but it is compared here";
+need_text(compared, Who) -> "which " ++ who(Who, "") ++ " requires" ++ signature_of(Who);
+need_text(Need, _) -> Need.
 
 %% The restrictions an instance of a scheme carries, checked when its
 %% definition ends: each no-reply variable, and each equality-constrained
 %% one with what needs the equality: a Map's key or a Set's element it
 %% stands in, or else a comparison (report §3.10).
 instance_pending(T, Pos, St) ->
+    instance_pending(T, Pos, St, undefined).
+
+%% Who: the name the instance was taken of, and its printed type.
+instance_pending(T, Pos, St, Who) ->
     [case Flag of
-         no_reply -> {no_reply, Id, Pos};
-         eq -> {eq, Id, Pos, equality_need(Id, T, St)}
+         no_reply -> {no_reply, Id, Pos, Who};
+         eq -> {eq, Id, Pos, equality_need(Id, T, St), Who}
      end || Id <- ern_types:free_vars(T, St), Flag <- ern_types:flags(Id, St),
             Flag =:= no_reply orelse Flag =:= eq].
 
@@ -1526,7 +1544,7 @@ equality_need(Id, T, St) ->
     case container_of(Id, T, St) of
         map -> "and a Map's key needs it";
         set -> "and a Set's element needs it";
-        none -> "but it is compared here"
+        none -> compared
     end.
 
 container_of(Id, T, St) ->
@@ -1842,7 +1860,11 @@ infer(#e_var{pos = Pos, path = Path, name = Name} = E, Env0) ->
     {Scheme, Ref, Env} = lookup_value(Pos, Path, Name, Env0),
     {T0, St0} = ern_types:instantiate(Scheme, Env#env.st),
     {T, St} = open_effect(T0, St0),
-    Pending = instance_pending(T, Pos, St),
+    Who = case Scheme of
+              #scheme{vars = []} -> undefined;
+              _ -> {format_qname(Path ++ [Name]), ern_types:format_scheme(Scheme, St)}
+          end,
+    Pending = instance_pending(T, Pos, St, Who),
     %% report §4.2: what the name resolved to is recorded, so that the
     %% emitter reads the decision rather than making it again
     {E#e_var{type = T, ref = Ref}, T, Env#env{st = St, pending = Pending ++ Env#env.pending}};
