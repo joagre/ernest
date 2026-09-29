@@ -1,6 +1,6 @@
 # Operations records
 
-Ernest, a functional language on the BEAM, has one set in its standard library, `Set`, a hash set. I want a second one that keeps its elements in order, and generic code, a `fromList` or a `size`, should work on both. Java would reach for an interface, Haskell for a type class and ML for a functor. Ernest has no type classes, and this note is an attempt to do without them. It proposes *operations records*: records of a type's operations that the caller passes explicitly. In other words, dictionary passing, written by the program instead of by the compiler.
+Ernest has one set in its standard library, `Set`, a hash set. I want a second one that keeps its elements in order, and generic code, a `fromList` or a `size`, should work on both. Java would reach for an interface, Haskell for a type class and ML for a functor. Ernest has no type classes, and this note is an attempt to do without them. It proposes *operations records*: records of a type's operations that the caller passes explicitly. In other words, dictionary passing, written by the program instead of by the compiler.
 
 What I would most like from you is where this breaks. Is there a program that type classes can express and this cannot? Is the ordering restriction sound as I describe it? And have you seen the open question at the end answered? The § numbers cite Ernest's report, and the code assumes the proposal.
 
