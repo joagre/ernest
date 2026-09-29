@@ -36,8 +36,16 @@ foreign(M, F, Args, ArgDescs, Desc, Text) ->
         end,
     value(Desc, V, Text).
 
-%% The value, or the fault Text (report §7.4).
+%% The value, or the fault Text (report §7.4). A descriptor that is a word
+%% describes a value with no function in it and nothing to make zero but a
+%% float itself, so it is checked alone.
 -spec value(term(), term(), binary()) -> term().
+value(Desc, V, Text) when is_atom(Desc) ->
+    case chk(Desc, V, #{}) of
+        true when Desc =:= float -> V + 0.0;
+        true -> V;
+        false -> ern_rt:fault(Text)
+    end;
 value(Desc, V, Text) ->
     case chk(Desc, V, #{}) of
         true -> armed(Desc, zeroed(Desc, V));
