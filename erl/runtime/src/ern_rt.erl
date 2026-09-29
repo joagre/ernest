@@ -36,8 +36,8 @@
          undefined_function/3, undefined_lambda/3, fault/1, fault/2, trace/1, sys/1,
          hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1, input_not_utf8/0,
          read_input/1, run_main/3, arguments/0, exit_program/1, deadlock_target/1, signal/1,
-         binding/1, restarting/2, restart_now/0, ask_restart/1, start_cause/0, init_stdlib/0,
-         init_modules/1, ordered/1]).
+         initializing/1, site/0, binding/1, restarting/2, restart_now/0, ask_restart/1,
+         start_cause/0, init_stdlib/0, init_modules/1, ordered/1]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -1154,13 +1154,16 @@ arm(Deadline, To) ->
 %%
 
 -type outcome() :: ok | killed | {fault, binary()} | {fault, binary(), binary()}
+                 | {initializer_fault, binary(), binary()}
                  | {exit, 0..255} | {gone, stdout | stderr} | {signal, sigterm | sighup}.
 
 %% Runs Main as the entry process. It returns ok, killed if the entry
 %% process was killed, {fault, Message} if it faulted, a deadlock among the
 %% faults (report §8.6: the entry process faults with `Fault("deadlock")`),
 %% and {fault, Message, Trace} where the fault was a failure of the runtime
-%% or a foreign function's raise, the host's stack beneath it; {exit,
+%% or a foreign function's raise, the host's stack beneath it;
+%% {initializer_fault, Site, Message} if a top-level binding faulted before
+%% Main ran, Site naming the binding (report §8.5); {exit,
 %% Status} if a process called Os.exit, {gone, Stream} if standard output
 %% or standard error could no longer be written, or {signal, Signal} if the
 %% host's termination or hangup ended the program. Every local process is
@@ -1224,28 +1227,39 @@ run_main(Main, Site, Opts) ->
         %% report §6.9: the launcher's wait is made with the spawn, so the
         %% entry process's cause, and the host's stack beside a failure of
         %% the runtime (§11.2), reach it however soon the process ends
-        MainPid = spawn_awaited(fun() -> run_inits(Stdlib), Init(), Main() end, Site,
+        %% report §8.5, §11.2: an initializer's fault is reported under its
+        %% binding, and main's under main's site again once they have run
+        MainPid = spawn_awaited(fun() ->
+                                        run_inits(Stdlib),
+                                        Init(),
+                                        initializing(Site),
+                                        Main()
+                                end, Site,
                                 [{erlang:self(), {raw, {main_down, Run}}}]),
-        await_main(MainPid, Run)
+        case await_main(MainPid, Run) of
+            {{fault, Msg}, At} when At =/= Site -> {initializer_fault, At, Msg};
+            {Outcome, _} -> Outcome
+        end
     after
         end_program(Run, Reaper, System),
         persistent_term:erase({?MODULE, reporter}),
         restore_encodings(Encodings)
     end.
 
-%% The entry process's end. Report §8.6, §8.2: a deadlock, and a fault the
-%% runtime finds in a system process's work, fault the entry process, whose
-%% end then comes as any process's does, reported as every fault is (§11.2).
+%% The entry process's end, and its site then. Report §8.6, §8.2: a
+%% deadlock, and a fault the runtime finds in a system process's work, fault
+%% the entry process, whose end then comes as any process's does, reported
+%% as every fault is (§11.2).
 await_main(MainPid, Run) ->
     receive
-        {{main_down, Run}, _, Raw} ->
-            case {reason(Raw), Raw} of
-                {'Returned', _} -> ok;
-                {'Killed', _} -> killed;
-                {{'Fault', Msg}, {ern, fault, _, Trace}} -> {fault, Msg, Trace};
-                {{'Fault', Msg}, _} -> {fault, Msg};
-                {Other, _} -> {fault, format("~p", [Other])}
-            end;
+        {{main_down, Run}, At, Raw} ->
+            {case {reason(Raw), Raw} of
+                 {'Returned', _} -> ok;
+                 {'Killed', _} -> killed;
+                 {{'Fault', Msg}, {ern, fault, _, Trace}} -> {fault, Msg, Trace};
+                 {{'Fault', Msg}, _} -> {fault, Msg};
+                 {Other, _} -> {fault, format("~p", [Other])}
+             end, At};
         {deadlock, Run} ->
             exit(MainPid, {ern, fault, <<"deadlock">>}),
             await_main(MainPid, Run);
@@ -1253,11 +1267,11 @@ await_main(MainPid, Run) ->
             exit(MainPid, {ern, fault, Text}),
             await_main(MainPid, Run);
         {exit, Run, Status} ->
-            {exit, Status};
+            {{exit, Status}, none};
         {gone, Run, Stream} ->
-            {gone, Stream};
+            {{gone, Stream}, none};
         {signal, Run, Signal} ->
-            {signal, Signal}
+            {{signal, Signal}, none}
     end.
 
 %% Report Appendix E.23: the words after the module on `ern run`'s command
@@ -1335,6 +1349,25 @@ signal(Signal) ->
             end;
         none ->
             none
+    end.
+
+%% Report §8.5, §11.2: the binding the calling process evaluates now, whose
+%% site a fault while it does is reported under, as a spawn's is; a process
+%% the runtime did not start has no site to change.
+-spec initializing(binary()) -> 'Unit'.
+initializing(Site) ->
+    try ets:update_element(?PROCESSES, erlang:self(), {2, Site}) of
+        _ -> ?UNIT
+    catch
+        error:badarg -> ?UNIT
+    end.
+
+%% The calling process's site, empty for one the runtime did not start.
+-spec site() -> binary().
+site() ->
+    case ets_lookup(?PROCESSES, erlang:self()) of
+        [{_, Site, _, _}] -> Site;
+        _ -> <<>>
     end.
 
 %% Report §8.5, §11.2: a top-level binding's value, which '$init'/0 put.

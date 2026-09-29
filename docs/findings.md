@@ -10,7 +10,6 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 
 ## The toolchain
 
-- 2.98 — a faulting top-level binding: three behaviours and the wrong name (T14)
 - 2.98 — the shell cannot show the prelude (T19)
 - 2.98 — a large paste is scanned again as it grows, a cost of `ern_tty`'s (shell_design.md's rewrite)
 

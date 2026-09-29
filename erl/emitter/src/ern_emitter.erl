@@ -260,18 +260,22 @@ decl(_, Cx) ->
 key(#cx{mod = Mod}, Name) ->
     erl_syntax:tuple([erl_syntax:atom(Mod), erl_syntax:atom(Name)]).
 
-%% '$init'/0 evaluates the top-level lets once, in dependency order.
+%% '$init'/0 evaluates the top-level lets once, in dependency order, each
+%% named as the process's site while it runs, so that its fault is reported
+%% under it (report §8.5, §11.2).
 init_fun([], Cx) ->
     {[], Cx};
 init_fun(Lets, Cx) ->
     {Stores, Cx1} = lists:mapfoldl(
-                      fun(#let_decl{owner = O, name = N, body = Body}, C) ->
-                              {BodyForm, C1} = expr(Body, C#cx{fname = fname(O, N), vars = #{},
-                                                               locals = #{}}),
-                              {call_remote(persistent_term, put, [key(C, fname(O, N)), BodyForm]),
-                               C1}
+                      fun(#let_decl{pos = Pos, owner = O, name = N, body = Body}, C) ->
+                              C0 = C#cx{fname = fname(O, N), vars = #{}, locals = #{}},
+                              Named = call_remote(ern_rt, initializing, [site(Pos, C0)]),
+                              {BodyForm, C1} = expr(Body, C0),
+                              Store = call_remote(persistent_term, put,
+                                                  [key(C, fname(O, N)), BodyForm]),
+                              {[Named, Store], C1}
                       end, Cx, let_order(Lets, Cx)),
-    Clause = erl_syntax:clause([], none, Stores ++ [erl_syntax:atom(ok)]),
+    Clause = erl_syntax:clause([], none, lists:append(Stores) ++ [erl_syntax:atom(ok)]),
     {[erl_syntax:function(erl_syntax:atom('$init'), [Clause])], Cx1}.
 
 %% Report §8.5: the lets in the order the checker found, a let after

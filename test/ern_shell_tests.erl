@@ -166,6 +166,21 @@ reload_sources_named() ->
     ?assertMatch({_, _}, binary:match(Load, <<"bad.ern:2:5: the body">>)),
     ?assertEqual(nomatch, binary:match(Load, list_to_binary(Dir))).
 
+%% report §8.5, §11.2: a file whose top-level binding faults does not start
+%% the shell, and the binding is named with its line. A regression test:
+%% the shell printed a bare `fault:` (findings.md's T14)
+faulting_binding_named_test_() ->
+    {timeout, 60, fun faulting_binding_named/0}.
+
+faulting_binding_named() ->
+    Dir = fresh_home(),
+    ok = file:write_file(filename:join(Dir, "init.ern"),
+                         "fn zero() : Int = List.size([])\n\nlet bad : Int = 1 / zero()\n"),
+    Ern = filename:absname("../bin/ern"),
+    {0, _} = sh("cd " ++ Dir ++ " && " ++ Ern ++ " build init.ern"),
+    {1, Out} = sh("cd " ++ Dir ++ " && " ++ Ern ++ " shell init.erc < /dev/null"),
+    ?assertMatch({_, _}, binary:match(Out, <<"Init.bad:3 faulted: division by zero">>)).
+
 %% report §11.2: `:load` compiles from its source a module the loaded one
 %% uses that the session has not loaded, and compiles it against the
 %% session's modules; `:reload` compiles again, with a changed module, each
@@ -1596,7 +1611,7 @@ fault_subscriber() ->
     %% the process is spawned by the fourth input
     ?assertEqual(2, count(Out, <<"input 4:1 faulted, restarted: division by zero">>)),
     ?assertEqual(2, count(Out, <<"input 4:1 faulted: division by zero">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"Bad: a top-level binding faulted">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"Bad.boom:2 faulted">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"Shell.load">>)).
 
 %% report §11.2, §8.2: the shell shows each byte a program writes that is
@@ -1898,13 +1913,13 @@ load_evaluates_bindings() ->
                               "Counter.late\n"]),
     {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"> 10 : Int\n> 1 : Int">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"Bad: a top-level binding faulted: division by zero;"
+    ?assertMatch({_, _}, binary:match(Out, <<"Bad.boom:2 faulted: division by zero;"
                                              " nothing was loaded">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"unknown name Bad.zero">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> 20 : Int\n> 2 : Int">>)),
     %% the bindings before the one that faults take the new version's values
-    ?assertMatch({_, _}, binary:match(Out, <<"Counter: a top-level binding faulted: division by"
-                                             " zero; it and the bindings after it keep">>)),
+    ?assertMatch({match, _}, re:run(Out, "Counter.late:[0-9]+ faulted: division by zero; it and"
+                                         " the bindings after it keep")),
     ?assertMatch({_, _}, binary:match(Out, <<"> 30 : Int">>)),
     %% one the previous version did not have has no value
     ?assertMatch({_, _}, binary:match(Out, <<"the binding has no value, since one before it"

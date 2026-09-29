@@ -110,6 +110,7 @@ report(Moment_17) ->
                      (ern@string:join(Entries_22, <<"; ">>))/binary, "]">>).
 
 '$init'() ->
+    ern_rt:initializing(<<"Services.services:22">>),
     persistent_term:put({ern@services, services},
                         ern_rt:spawn('Local',
                                      ern@supervisor:group('RestForOne',
@@ -117,6 +118,7 @@ report(Moment_17) ->
                                                            3,
                                                            10000}),
                                      <<"Services.services:23">>)),
+    ern_rt:initializing(<<"Services.store:26">>),
     persistent_term:put({ern@services, store},
                         ern_rt:spawn('Local',
                                      ern@supervisor:child(services(),
@@ -124,12 +126,14 @@ report(Moment_17) ->
                                                                   storing(ern@map:empty())
                                                           end),
                                      <<"Services.store:26">>)),
+    ern_rt:initializing(<<"Services.ids:38">>),
     persistent_term:put({ern@services, ids},
                         ern_rt:spawn('Local',
                                      ern@supervisor:child(services(),
                                                           fun () -> counting(1)
                                                           end),
                                      <<"Services.ids:38">>)),
+    ern_rt:initializing(<<"Services.audit:48">>),
     persistent_term:put({ern@services, audit},
                         ern_rt:spawn('Local',
                                      ern@supervisor:child(services(),

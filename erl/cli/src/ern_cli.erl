@@ -801,6 +801,10 @@ outcome(_Err, _Fault) -> 1.
 %% itself, as a subscriber, so its own end, which no subscriber of its own
 %% is left to see, is said here.
 shell_outcome(Err, {fault, Msg}) -> io:format(Err, "fault: ~ts~n", [Msg]), 1;
+%% report §8.5, §11.2: a binding that faulted before the shell began
+shell_outcome(Err, {initializer_fault, Site, Msg}) ->
+    io:format(Err, "~ts faulted: ~ts~n", [Site, ern_show:controls(Msg, line)]),
+    1;
 shell_outcome(Err, {fault, Msg, Trace}) -> io:format(Err, "fault: ~ts~n~ts", [Msg, Trace]), 1;
 shell_outcome(Err, Other) -> outcome(Err, Other).
 

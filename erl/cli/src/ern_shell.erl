@@ -1337,9 +1337,9 @@ with_needed(Env, Modules, Line) ->
             case initialize(in_order(All)) of
                 ok ->
                     {'Right', {remember(Env1), Line}};
-                {fault, Ns, Cause} ->
+                {fault, Site, Cause} ->
                     lists:foreach(fun({N, _, _}) -> withdraw(ern_emitter:module_atom(N)) end, All),
-                    {'Left', <<(binding_fault(Ns, Cause))/binary, "; nothing was loaded\n">>}
+                    {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was loaded\n">>}
             end;
         {error, Text} ->
             {'Left', Text}
@@ -1378,7 +1378,9 @@ initialize([{Ns, _, _} | Rest]) ->
 
 %% A binding's fault is :load's to report, so the process catches it and
 %% ends without one, and no subscriber of Process.faults hears of it twice;
-%% a kill, which nothing catches, is seen by the monitor.
+%% a kill, which nothing catches, is seen by the monitor. The fault is
+%% named by the binding's site, which '$init' gave the process (report
+%% §8.5, §11.2), and a kill by the module.
 initialize(Ns, Mod, Rest) ->
     Me = self(),
     Ref = make_ref(),
@@ -1386,9 +1388,9 @@ initialize(Ns, Mod, Rest) ->
                Result = try Mod:'$init'() of
                             _ -> ok
                         catch
-                            throw:{ern, fault, Msg} -> {fault, Msg};
-                            throw:{ern, fault, Msg, _} -> {fault, Msg};
-                            Class:Reason -> {fault, fault_text(Class, Reason)}
+                            throw:{ern, fault, Msg} -> {fault, ern_rt:site(), Msg};
+                            throw:{ern, fault, Msg, _} -> {fault, ern_rt:site(), Msg};
+                            Class:Reason -> {fault, ern_rt:site(), fault_text(Class, Reason)}
                         end,
                Me ! {Ref, Result}
            end,
@@ -1400,24 +1402,24 @@ initialize(Ns, Mod, Rest) ->
             receive {Ref, {'Down', _, _}} -> ok end,
             case Result of
                 ok -> initialize(Rest);
-                {fault, Cause} -> {fault, Ns, Cause}
+                {fault, _, _} = Fault -> Fault
             end;
         {Ref, {'Down', Reason, _}} ->
-            {fault, Ns, case Reason of
-                            {'Fault', Cause} -> Cause;
-                            Other -> atom_to_binary(Other)
-                        end}
+            {fault, unicode:characters_to_binary(qname_text(Ns)),
+             case Reason of
+                 {'Fault', Cause} -> Cause;
+                 Other -> atom_to_binary(Other)
+             end}
     end.
 
 %% Report §11.2: a reloaded module's binding that faulted, which with the
 %% bindings after it keeps what the previous version gave them.
-kept_values(Ns, Cause) ->
-    <<(binding_fault(Ns, Cause))/binary, "; it and the bindings after it keep the values of the"
+kept_values(Site, Cause) ->
+    <<(binding_fault(Site, Cause))/binary, "; it and the bindings after it keep the values of the"
       " previous version">>.
 
-binding_fault(Ns, Cause) ->
-    <<(unicode:characters_to_binary(qname_text(Ns)))/binary, ": a top-level binding faulted: ",
-      (ern_show:controls(Cause, line))/binary>>.
+binding_fault(Site, Cause) ->
+    <<Site/binary, " faulted: ", (ern_show:controls(Cause, line))/binary>>.
 
 
 %% Report §11.2: what the modules use that the session has not loaded,
@@ -1485,14 +1487,14 @@ reload(#env{modules = Modules} = Env) ->
                             {Env1, Lines} = lists:foldl(fun reload_one/2, {Env0, []}, Compiled),
                             Faulted = case initialize(in_order(Compiled)) of
                                           ok -> [];
-                                          {fault, Ns, Cause} -> [kept_values(Ns, Cause)]
+                                          {fault, Site, Cause} -> [kept_values(Site, Cause)]
                                       end,
                             {'Right', {remember(Env1),
                                        lists:reverse(Lines) ++ Faulted ++ Sourceless}};
-                        {fault, Ns, Cause} ->
+                        {fault, Site, Cause} ->
                             lists:foreach(fun({N, _, _}) -> withdraw(ern_emitter:module_atom(N))
                                           end, Needed),
-                            {'Left', <<(binding_fault(Ns, Cause))/binary,
+                            {'Left', <<(binding_fault(Site, Cause))/binary,
                                        "; nothing was reloaded\n">>}
                     end;
                 {error, Text} ->

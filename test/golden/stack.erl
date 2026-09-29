@@ -29,6 +29,7 @@ main() ->
     end.
 
 '$init'() ->
+    ern_rt:initializing(<<"Stack.Stack.empty:22">>),
     persistent_term:put({ern@stack, 'Stack.empty'},
                         {'Stack', []}),
     ok.

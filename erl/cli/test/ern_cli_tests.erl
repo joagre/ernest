@@ -1427,6 +1427,26 @@ every_failure_reported_test() ->
     ?assert(filelib:is_regular(Dir ++ "/src/fine.erc")),
     ?assertNot(filelib:is_regular(Dir ++ "/src/d.erc")).
 
+%% report §8.5, §11.2: a top-level binding that faults is reported under
+%% its name and line by `ern run` and `ern test`, where `main`'s site and
+%% the test runner's internal name stood. A regression test (findings.md's
+%% T14); the shell's start is ern_shell_tests' faulting_binding_named
+faulting_binding_named_test() ->
+    Dir = tmp(),
+    File = write(Dir, "init.ern", "fn zero() : Int = List.size([])\n\n"
+                                  "let bad : Int = 1 / zero()\n\n"
+                                  "export fn main() : Unit with Never ="
+                                  " Io.println(Int.toString(bad))\n\n"
+                                  "let t : Test = Test(name = \"one\", run = fn() = Passed)\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    Erc = filename:join(Dir, "init.erc"),
+    ?assertEqual(1, ern_err(["run", Erc])),
+    ?assertEqual(1, ern_err(["test", Erc])),
+    Out = iolist_to_binary(?capturedOutput),
+    ?assertEqual(2, length(binary:matches(Out, <<"Init.bad:3 faulted: division by zero">>))),
+    ?assertEqual(nomatch, binary:match(Out, <<"Init.main">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"$tests">>)).
+
 %% report §11: an option is given once, a `-path` one excepted, with its
 %% value as the next word, and never an empty one. A regression test: a
 %% repeat took its first value, and `--name=value` and an empty value were
@@ -1606,7 +1626,7 @@ init_only_dependencies_test() ->
           "export fn main() : Unit with Never = Io.println(Int.toString(Lib.Boom.zero))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_err(["run", Dir ++ "/build/main.erc"])),
-    ?assertEqual(<<"hello, world\nMain.main faulted: division by zero\n">>,
+    ?assertEqual(<<"hello, world\nLib.Boom.boom:2 faulted: division by zero\n">>,
                  iolist_to_binary(?capturedOutput)).
 
 %% report §7.3, §8.6, §11.2: a faulting main is status 1
