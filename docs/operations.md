@@ -122,7 +122,7 @@ Cons:
 - Generic code cannot name its variable's `compare`; it sorts with `List.sort` and a lambda built from `<`.
 - `Set.Operations.map` takes a second record where Haskell's `Set.map` takes an `Ord` constraint.
 
-Cost, in working days: the ordering restriction about 3, in the checker and the emitter's hidden argument; `set.ern` over its record and `OrderedSet` with tests and docs about 3; the report and the guide about 2. About 8 in all.
+Cost: in the checker, the ordering restriction and its check at instantiation; in the emitter, the hidden `compare` argument; `set.ern` rewritten over its record; `OrderedSet` with its tests and documentation; and the report and the guide. The parser and the grammar do not change.
 
 ## Why not type classes
 
@@ -135,7 +135,7 @@ Cost:
 - Two mechanisms: classes beside records, methods beside module functions.
 - `class`, `instance`, method signatures, associated types and instance conditions enter the grammar.
 - Instances, associated types, conditions, superclasses, defaults, coherence, orphans and ambiguity each add rules to the report, errors for users, and checks across modules.
-- About six weeks of work against about eight days: two days for the lexer, parser, formatter and editor mode, three weeks for the types and the checker, one for dictionary passing, and days for the tools and the documentation.
+- Work in every part of the toolchain: the lexer, parser, formatter and editor mode; in the checker, resolution, conditions, associated types and coherence across modules; in the emitter, dictionary passing; and the tools and the documentation.
 
 Type classes contain the proposal: the ordering restriction is one class with fixed instances, and a dictionary is an operations record found by type. What they add, declared instances and resolution by type, saves the record at call sites, at the cost of a second mechanism and a larger type system.
 
