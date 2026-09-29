@@ -1,19 +1,6 @@
 # Operations records
 
-Ernest is a functional language on the BEAM: pure functions with Hindley–Milner inference, and processes with typed mailboxes. Its standard library has one set, `Set`, a hash set. A program that needs its elements in order needs a sorted set too, and code written once, a `fromList` or a `size`, should work on both. Java would use an interface, Haskell a type class, ML a functor. This note proposes *operations records*, records of a type's operations that the caller passes explicitly (dictionary passing, written by the program), and argues against type classes. § numbers cite Ernest's report. Code marked `ernest` compiles today; code marked `sketch` assumes the proposal.
-
-## The obvious design fails
-
-The direct way today gives each set its order:
-
-```ernest
-export abstract type OrderedSet(a) = OrderedSet(compare : (a, a) -> Ordering, items : List(a))
-
-export fn empty(compare : (a, a) -> Ordering) : OrderedSet(a) =
-    OrderedSet(compare = compare, items = [])
-```
-
-`<` on a type variable is refused (§4.8): Ernest orders a value by its type's `compare`, resolved where the type is known. So the set holds a function: it has no `==`, cannot key a `Map`, and cannot be sent to another node (§3.10, §3.11). `empty` needs an argument `Set.empty` does not, and two sets with different orders can be passed to one `union`.
+Ernest is a functional language on the BEAM: pure functions with Hindley–Milner inference, and processes with typed mailboxes. Its standard library has one set, `Set`, a hash set. A program that needs its elements in order needs a sorted set too, and code written once, a `fromList` or a `size`, should work on both. Java would use an interface, Haskell a type class, ML a functor. This note proposes *operations records*, records of a type's operations that the caller passes explicitly (dictionary passing, written by the program), and argues against type classes. § numbers cite Ernest's report. The code assumes the proposal.
 
 ## Why sets
 
@@ -41,7 +28,7 @@ One restriction is lifted and the standard library adopts a convention. No synta
 8. **`==` stays structural.** A list of sets of different representations holds records whose functions close over their sets, as today.
 9. **`OrderedSet` joins the standard library** in `ordered_set.ern`: a file name of words joined by `_` will name one namespace, as in Elixir. `Map` gets a record only when it gets a second representation.
 
-```sketch
+```ernest
 // set.ern: the record, Set's, and the functions written once
 export type Operations(s, e) =
     Operations(empty : s,
@@ -109,7 +96,7 @@ Types print as `OrderedSet.put : (OrderedSet(a<), a<) -> OrderedSet(a<)`, beside
 ## Typing and semantics
 
 - **The ordering restriction is a one-method type class, built in and closed**: Haskell's `Ord` with each type's instance fixed to its `T.compare`. It is inferred as the equality restriction is, a flag on a variable propagated by unification and checked at instantiation, so inference stays decidable. It is elaborated as `Ord` is: a definition takes a `compare` for each ordered variable it generalizes, each call passes the instantiating type's, and a comparison on the variable calls it. It is the only argument Ernest passes that no one writes. Rule 2 is a conditional instance, `instance Ord a => Ord (Pair a)`, its condition inferred. Rule 3 is Haskell's monomorphism restriction, for the same reason.
-- **The order belongs to the type, not the record.** A record could carry `compare` and need no restriction, but then two calls could give one set two orders. Fixing the order by the element type gives requirement 4 by construction.
+- **The order belongs to the type, not the value or the record.** A set could carry its comparator, as Java's `TreeSet` does, and need no restriction, since `<` on a type variable is refused today (§4.8). But the set would hold a function, so it would have no `==`, could not key a `Map` and could not be sent as a message (§3.10, §3.11), and two sets in different orders could meet in `union`. A record carrying `compare` has the second fault: two calls could give one set two orders. Fixing the order by the element type gives requirements 3 and 4 by construction.
 - **Coherence by construction.** A type's `compare` is a member declared in the type's module (§4.2), so a type has one order in a program, and no instance can overlap another or be an orphan. This holds within one version of a program: a set sent to a node whose `T.compare` differs is misordered there.
 - **Records are ordinary records**, their fields polymorphic only in the record's parameters, so inference stays Hindley–Milner and code written once is ordinary polymorphic functions. A record holding an operation polymorphic beyond its parameters, a fold with its own accumulator type, would need rank-2 fields like OCaml's polymorphic record fields; the primitives need none.
 - **An ordered set holds no function.** Structural `==` is set equality, given a canonical representation, and the value can be sent as a message. A generic function closes over the `compare`s it receives, which travel with its code (§3.11).
