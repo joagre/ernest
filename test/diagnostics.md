@@ -183,7 +183,7 @@ export fn letter() : Char = 'ab'
 
 ```console
 $ ern build example.ern
-example.ern:1:29: unterminated char literal
+example.ern:1:29: a char literal holds one code point; a string is written between double quotes
 1 | export fn letter() : Char = 'ab'
   |                             ^
 ```
@@ -2098,10 +2098,11 @@ fn f(o : Optional(Int)) : Optional(Int) = {
 
 ```console
 $ ern build example.ern
-example.ern:2:5: the pattern does not fit the value inside the sum type: expected #(Int, a), found Int
+example.ern:2:9: the pattern does not fit the value inside the sum type: expected Int, found #(Int, a)
 1 | fn f(o : Optional(Int)) : Optional(Int) = {
 2 |     let #(a, b) <- o;
-  |     ^^^^^^^^^^^^^^^^
+  |         ^^^^^^^
+  |                    - the value inside has type Int
 ```
 
 ### A block after `<-` of another sum type (§5.5)
@@ -2184,7 +2185,7 @@ fn f() : Int = {
 
 ```console
 $ ern build example.ern
-example.ern:2:9: the pattern does not fit the value: expected #(a, b), found Int
+example.ern:2:9: the pattern does not fit the value: expected Int, found #(a, b)
 1 | fn f() : Int = {
 2 |     let #(a, b) = 1;
   |         ^^^^^^^

@@ -1332,7 +1332,7 @@ solve_deferred(#env{deferred = Deferred} = Env) ->
         true -> solve_deferred(Env1#env{deferred = Left});
         false ->
             case hd(Left) of
-                {bind_arrow, Pos, _, _, _} ->
+                {bind_arrow, Pos, _, _, _, _} ->
                     fail(Pos, "`<-` needs to know whether the value is an Either or an"
                               " Optional; annotate it");
                 {operator, Pos, Op, _, _} ->
@@ -1363,27 +1363,31 @@ solve_one({operator, Pos, Op, LT, Res}, Env) ->
             {solved, unify_at(Pos, Res, T, Env1#env{st = St},
                               "the result of `" ++ op_text(Op) ++ "`")}
     end;
-solve_one({bind_arrow, Pos, XT, PT, RestT}, Env) ->
+solve_one({bind_arrow, Pos, Spans, XT, PT, RestT}, Env) ->
     St = Env#env.st,
     case {ern_types:resolve(XT, St), ern_types:resolve(RestT, St)} of
         {{tcon, ['Either'], [Er, A]}, _} ->
-            {solved, bind_arrow(Pos, either, Er, A, PT, RestT, Env)};
+            {solved, bind_arrow(Pos, Spans, either, Er, A, PT, RestT, Env)};
         {{tcon, ['Optional'], [A]}, _} ->
-            {solved, bind_arrow(Pos, optional, none, A, PT, RestT, Env)};
+            {solved, bind_arrow(Pos, Spans, optional, none, A, PT, RestT, Env)};
         {{tvar, _}, {tcon, ['Either'], [Er, _]}} ->
             Env1 = unify_at(Pos, {tcon, ['Either'], [Er, PT]}, XT, Env, "`<-` on an Either"),
-            {solved, bind_arrow(Pos, either, Er, PT, PT, RestT, Env1)};
+            {solved, bind_arrow(Pos, Spans, either, Er, PT, PT, RestT, Env1)};
         {{tvar, _}, {tcon, ['Optional'], [_]}} ->
             Env1 = unify_at(Pos, {tcon, ['Optional'], [PT]}, XT, Env, "`<-` on an Optional"),
-            {solved, bind_arrow(Pos, optional, none, PT, PT, RestT, Env1)};
+            {solved, bind_arrow(Pos, Spans, optional, none, PT, PT, RestT, Env1)};
         {{tvar, _}, _} ->
             unsolved;
         {Other, _} ->
             fail(Pos, "`<-` needs an Either or an Optional, not " ++ ern_types:format(Other, St))
     end.
 
-bind_arrow(Pos, Wrap, Er, A, PT, RestT, Env) ->
-    Env1 = unify_at(Pos, PT, A, Env, "the pattern does not fit the value inside the sum type"),
+%% Report §11.5: the pattern is reported where it stands, against the value
+%% inside, whose type the value's span labels.
+bind_arrow(Pos, {PSpan, XSpan}, Wrap, Er, A, PT, RestT, Env) ->
+    Label = "the value inside has type " ++ ern_types:format(A, Env#env.st),
+    Env1 = unify_at(PSpan, A, PT, Env, "the pattern does not fit the value inside the sum type",
+                    {XSpan, Label}),
     {RestVal, St} = ern_types:fresh(Env1#env.st),
     Expected = case Wrap of
                    either -> {tcon, ['Either'], [Er, RestVal]};
@@ -2289,7 +2293,7 @@ infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '=', expr = X} = 
     {TypedP, PT, Bindings, Env2} = check_pattern(P, Env1),
     irrefutable(P, Env2) orelse fail(BPos, "a `let` pattern must be irrefutable", [],
                                      "use `match` for a pattern that can fail"),
-    Env3 = unify_at(node_span(P), PT, XT, Env2, "the pattern does not fit the value",
+    Env3 = unify_at(node_span(P), XT, PT, Env2, "the pattern does not fit the value",
                     {node_span(X), "the value has type " ++ ern_types:format(XT, Env2#env.st)}),
     Env5 = bind_vars(Bindings, Env3),
     infer_stmts(Rest, Pos, Expect, Env5, Fns, [B#binding{pattern = TypedP, expr = TypedX} | Acc]);
@@ -2310,7 +2314,8 @@ infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '<-', expr = X} =
            end,
     Env4 = bind_vars(Bindings, Env3),
     {TypedRest, RestT, Env5} = infer_stmts(Rest, Pos, Expect, Env4, Fns, []),
-    Env6 = Env5#env{deferred = [{bind_arrow, BPos, XT, PT, RestT} | Env5#env.deferred]},
+    Spans = {node_span(P), node_span(X)},
+    Env6 = Env5#env{deferred = [{bind_arrow, BPos, Spans, XT, PT, RestT} | Env5#env.deferred]},
     {lists:reverse(Acc) ++ [B#binding{pattern = TypedP, expr = TypedX} | TypedRest], RestT, Env6};
 infer_stmts([X | Rest], Pos, Expect, Env, Fns, Acc) ->
     {TypedX, T, Env1} = infer(X, Env),

@@ -117,8 +117,8 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 
 ## Diagnostics (§11.5)
 
-- cheap — `'ab'` reported as an unterminated char literal (X6)
-- cheap — a `let` and a `<-` pattern mismatch print expected and found reversed (X4)
+- done — `'ab'` reported as an unterminated char literal (X6): fixed 2026-09-29, a literal closed later on its line named as one of more than one code point
+- done — a `let` and a `<-` pattern mismatch print expected and found reversed (X4): fixed 2026-09-29, the value's type expected, and the `<-` error at its pattern with the value labelled
 - 2.98 — a rejected call site does not name the parameter and its restriction (`==` through a variable, a reply to `drop`) (X1, X2)
 - 2.98 — a recursive use at another type is reported over the declaration, reversed, unlabelled (X3)
 - 2.98 — positions and labels: `compare`'s shape, a field of two types, a foreign implementation, a field named twice, annotation variables, the type mismatches without their label, the second span of a duplicate, selector errors at the selector, a block ending in `;`, receive in Never, short spans, "on this runtime" (X5, X7..X17)

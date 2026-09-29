@@ -359,7 +359,20 @@ char_body([], L, C) ->
     error_at(L, C, "unterminated char literal").
 
 close_char(Ch, [$' | R], _L, _C0, C1) -> {Ch, R, C1 + 1};
-close_char(_Ch, _R, L, C0, _C1) -> error_at(L, C0, "unterminated char literal").
+close_char(_Ch, R, L, C0, _C1) ->
+    case closed_on_line(R) of
+        true -> error_at(L, C0, "a char literal holds one code point; a string is written "
+                                "between double quotes");
+        false -> error_at(L, C0, "unterminated char literal")
+    end.
+
+%% Whether a quote closes a char literal later on its line, past more than
+%% one code point.
+closed_on_line([$' | _]) -> true;
+closed_on_line([$\\, Ch | R]) when Ch =/= $\n, Ch =/= $\r -> closed_on_line(R);
+closed_on_line([Ch | _]) when Ch =:= $\n; Ch =:= $\r -> false;
+closed_on_line([_ | R]) -> closed_on_line(R);
+closed_on_line([]) -> false.
 
 %% After the backslash. Returns {CodePoint, Rest, CharsConsumedAfterBackslash}.
 escape([$' | R], _L, _C) -> {$', R, 1};

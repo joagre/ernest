@@ -251,8 +251,13 @@ errors_test() ->
                  err("\"\\u{1234567}\"")),
     ?assertEqual({1, 2, "\\u{ needs one to six hex digits"}, err("\"\\u{}\"")),
     ?assertEqual({1, 1, "empty char literal"}, err("''")),
-    ?assertEqual({1, 1, "unterminated char literal"}, err("'ab'")),
+    %% a literal of two code points is closed, and named as what it is; a
+    %% regression test, the catalogue of diagnostics having found it called
+    %% unterminated (findings.md's X6)
+    ?assertEqual({1, 1, "a char literal holds one code point; a string is written between"
+                        " double quotes"}, err("'ab'")),
     ?assertEqual({1, 1, "unterminated char literal"}, err("'a")),
+    ?assertEqual({1, 1, "unterminated char literal"}, err("'ab\n'")),
     ?assertEqual({2, 3, "illegal character '@'"}, err("a\n  @")),
     ?assertEqual({1, 1, "illegal character 'é'"}, err(<<"é"/utf8>>)).
 

@@ -1572,7 +1572,24 @@ leaf_placement_test() ->
     D9 = diag("fn f(n : Int) = match n { Some(x) -> x }\n"),
     ?assertEqual("the pattern does not fit the value: expected Int, found Optional(a)",
                  D9#diag.message),
-    ?assertEqual([{{1, 23, {1, 24}}, "the value matched has type Int"}], D9#diag.labels).
+    ?assertEqual([{{1, 23, {1, 24}}, "the value matched has type Int"}], D9#diag.labels),
+    %% a `let` pattern against its value, the value's type expected; a
+    %% regression test, the two having been printed the other way round
+    %% (findings.md's X4)
+    D10 = diag("fn f() : Int = {\n    let #(a, b) = 1;\n    a\n}\n"),
+    ?assertEqual("the pattern does not fit the value: expected Int, found #(a, b)",
+                 D10#diag.message),
+    ?assertEqual({2, 9, {2, 16}}, D10#diag.span),
+    ?assertEqual([{{2, 19, {2, 20}}, "the value has type Int"}], D10#diag.labels),
+    %% a `<-` pattern against the value inside, at the pattern and labelled
+    %% at the value; a regression test for X4 too, the error having stood at
+    %% the `let`, unlabelled and turned round
+    D11 = diag("fn f(o : Optional(Int)) : Optional(Int) = {\n    let #(a, b) <- o;\n"
+               "    Some(a)\n}\n"),
+    ?assertEqual("the pattern does not fit the value inside the sum type: expected Int,"
+                 " found #(Int, a)", D11#diag.message),
+    ?assertEqual({2, 9, {2, 16}}, D11#diag.span),
+    ?assertEqual([{{2, 20, {2, 21}}, "the value inside has type Int"}], D11#diag.labels).
 
 %% report §11.5: the message shows the whole types; when they differ
 %% inside, the help line names the differing part
