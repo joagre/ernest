@@ -23,7 +23,7 @@ One restriction is lifted and the standard library adopts a convention. No synta
 3. **No top-level `let` is generalized over an ordered variable**, so it is still computed once, before `main` (§8.5). A value that depends on an order is a function.
 4. **A record holds the type's primitives**, the few operations that touch its representation. `Set.Operations(s, e)` holds `Set`'s six: `empty`, `size`, `contains`, `put`, `remove`, `toList`. None is polymorphic beyond `s` and `e`.
 5. **Code written once is a function of the record**, declared as a member of the record type and taking the record last: `Set.Operations.union(a, b, ops)`. `map` and `filterMap` take two records, the source's and the result's.
-6. **A representation exports `operations()` and its own functions**, each a call of the generic one with its record: `Set.union(a, b)` and `OrderedSet.union(a, b)`. Any module can build a record, for its own type or another's.
+6. **A representation exports a function per record it meets, named for the record, and its own functions**, each a call of the generic one with its record: `OrderedSet.setOperations()`, and `Set.union(a, b)` beside `OrderedSet.union(a, b)`. A type may meet several records, as a class implements several interfaces, and a record may hold another as a field, as an interface extends another: `Ordered.Operations(s, e)` holds `set : Set.Operations(s, e)` beside `min` and `max`. Any module can build a record, for its own type or another's.
 7. **An ordered set uses its element type's `compare`.** Another order is another type, `Descending(Int)` with its own `compare`, like Haskell's `Down`.
 8. **Mixed representations in one list** are records whose functions close over their sets, as today.
 9. **`OrderedSet` joins the standard library** in `ordered_set.ern`: a file name of words joined by `_` will name one namespace, as in Elixir. `Map` gets a record only when it gets a second representation.
@@ -38,7 +38,7 @@ export type Operations(s, e) =
                remove : (s, e) -> s,
                toList : (s) -> List(e))
 
-export fn operations() : Operations(Set(e), e) =
+export fn setOperations() : Operations(Set(e), e) =
     Operations(empty = empty,
                size = size,
                contains = contains,
@@ -56,7 +56,7 @@ export fn Operations.map(set : s,
     List.foldLeft(from.toList(set), to.empty, fn(acc, x) = to.put(acc, f(x)))
 
 export fn union(a : Set(e), b : Set(e)) : Set(e) =
-    Operations.union(a, b, operations())
+    Operations.union(a, b, setOperations())
 
 // ordered_set.ern: an ordered set is its elements, in their type's order
 export abstract type OrderedSet(e) = OrderedSet(List(e))
@@ -75,20 +75,23 @@ fn inserted(xs : List(e), x : e) : List(e) =
 export fn min(OrderedSet(xs) : OrderedSet(e)) : Optional(e) =
     List.get(xs, 0)
 
-export fn operations() : Set.Operations(OrderedSet(e), e) =
+export fn setOperations() : Set.Operations(OrderedSet(e), e) =
     Set.Operations(empty = empty, put = put, ...)
 
+export fn orderedOperations() : Ordered.Operations(OrderedSet(e), e) =
+    Ordered.Operations(set = setOperations(), min = min, max = max)
+
 export fn union(a : OrderedSet(e), b : OrderedSet(e)) : OrderedSet(e) =
-    Set.Operations.union(a, b, operations())
+    Set.Operations.union(a, b, setOperations())
 
 // the user
 fn fromList(xs : List(e), operations : Set.Operations(s, e)) : s =
     List.foldLeft(xs, operations.empty, operations.put)
 
-let small = fromList([3, 1, 3], OrderedSet.operations())
+let small = fromList([3, 1, 3], OrderedSet.setOperations())
 OrderedSet.min(small)                                 // Some(1)
 OrderedSet.size(small)                                // 2
-small == fromList([1, 3], OrderedSet.operations())    // true: an ordered set is data
+small == fromList([1, 3], OrderedSet.setOperations()) // true: an ordered set is data
 ```
 
 Types print as `OrderedSet.put : (OrderedSet(a<), a<) -> OrderedSet(a<)`, beside today's `Set.put : (Set(a=), a=) -> Set(a=)`.
