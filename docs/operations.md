@@ -1,8 +1,8 @@
 # Operations records
 
-Ernest has one set in its standard library, `Set`, a hash set. I want a second one that keeps its elements in order, and generic code, a `fromList` or a `size`, should work on both. Java would reach for an interface, Haskell for a type class and ML for a functor. Ernest has no type classes, and this note is an attempt to do without them. It proposes *operations records*: records of a type's operations that the caller passes explicitly. In other words, dictionary passing, written by the program instead of by the compiler.
+Ernest has one set in its standard library, `Set`, a hash set. I want a second one that keeps its elements in order, and generic code, a `fromList` or a `size`, should work on both. Java would reach for an interface, Haskell for a type class and ML for a functor. Ernest has no type classes, and this note is an attempt to do without them. It proposes *operations records*: records of a type's operations that the caller passes explicitly. In other words, dictionary passing (Wadler and Blott 1989), written by the program instead of by the compiler.
 
-What I would most like from you is where this breaks. Is there a program that type classes can express and this cannot? Is the ordering restriction sound as I describe it? And have you seen the open question at the end answered? The § numbers cite Ernest's report, and the code assumes the proposal.
+What I would most like from you is where this breaks. Is there a program that type classes can express and this cannot? Is the ordering restriction sound as I describe it? And have you seen the question at the end answered? I am least sure of the judgment against type classes and their implicit relatives, near the end. The § numbers cite Ernest's report, and the code assumes the proposal.
 
 ## Why sets
 
@@ -20,7 +20,7 @@ Sets are the known hard case for type classes. Haskell's `Data.Set` is `Foldable
 
 One restriction is lifted, and the standard library adopts a convention. The syntax does not change.
 
-1. `==` on a type variable already gives it an *equality restriction*, inferred and printed `a=`, as Standard ML's equality types do (§3.10). The proposal treats `<`, `<=`, `>` and `>=` the same way: on a type variable they give it an *ordering restriction*, printed `a<`. At each instantiation the type must have a `compare`, or be a variable, which then inherits the restriction. Anything else is a type error, and so is an ordered variable left ambiguous.
+1. `==` on a type variable already gives it an *equality restriction*, inferred and printed `a=`, as Standard ML's equality types do (§3.10). The proposal treats `<`, `<=`, `>` and `>=` the same way: on a type variable they give it an *ordering restriction*, printed `a<`: the predicate `Ord a` of qualified types, with one instance per type. At each instantiation the type must have a `compare`, or be a variable, which then inherits the restriction. Anything else is a type error, and so is an ordered variable left ambiguous.
 2. A parameterized type's `T.compare` may compare its parameters, and then carries their restriction: `Pair(Int)` is ordered and `Pair(Bool)` is not. Tuples and lists have no module in which to declare a `compare`, so they are ordered element by element whenever their elements are: `#(1, "b") < #(2, "a")`, `[1, 2] < [1, 3]` and `[] < [0]`. `Optional` and `Either` declare theirs in the prelude, with `None` before `Some` and `Left` before `Right`.
 3. No top-level `let` is generalized over an ordered variable, so that each is still computed once, before `main` runs (§8.5). A value that depends on an order must be a function.
 4. A record holds only the type's primitives, the few operations that touch its representation. `Set.Operations(s, e)` holds `Set`'s six: `empty`, `size`, `contains`, `put`, `remove` and `toList`. None of them is polymorphic beyond `s` and `e`.
@@ -112,19 +112,42 @@ Types print as `OrderedSet.put : (OrderedSet(a<), a<) -> OrderedSet(a<)`, beside
 
 ## Typing and semantics
 
-The ordering restriction is a type class with one method, built in and closed: Haskell's `Ord`, with each type's instance fixed to its `T.compare`. It is inferred the way the equality restriction already is, as a flag on a variable that unification propagates and instantiation checks, so inference stays decidable. It is also elaborated the way `Ord` is. A definition takes a hidden `compare` for each ordered variable it generalizes, each call passes the instantiating type's, and a comparison on the variable calls it. Rule 2 is a conditional instance, `instance Ord a => Ord (Pair a)`, with the condition inferred, and tuples and lists get Haskell's derived instances. Rule 3 is Haskell's monomorphism restriction, there for the same reason.
+The ordering restriction is a type class with one method, built in and closed: Haskell's `Ord`, with each type's instance fixed to its `T.compare`. It is inferred the way the equality restriction already is, as a flag on a variable that unification propagates and instantiation checks, so I expect inference to stay decidable. It would also be elaborated the way `Ord` is. A definition takes a hidden `compare` for each ordered variable it generalizes, each call passes the instantiating type's, and a comparison on the variable calls it. Rule 2 is a conditional instance, `instance Ord a => Ord (Pair a)`, with the condition inferred, and tuples and lists get Haskell's derived instances. Rule 3 is Haskell's monomorphism restriction, there for the same reason.
+
+In rules, as a sketch I have not yet checked against the checker, with `Ord τ` the predicate:
+
+```text
+Γ ⊢ e₁ : τ    Γ ⊢ e₂ : τ    Ord τ
+─────────────────────────────────    and likewise <=, >, >=
+Γ ⊢ e₁ < e₂ : Bool
+
+Ord Int    Ord Float    Ord String    Ord Char
+Ord T(σ₁, …, σₙ)       if T.compare : ∀ā. P ⇒ (T(ā), T(ā)) -> Ordering and P[ā := σ̄]
+Ord #(τ₁, …, τₙ)       if Ord τ₁, …, Ord τₙ
+Ord List(τ)            if Ord τ
+Ord Optional(τ)        if Ord τ
+Ord Either(τ, σ)       if Ord τ and Ord σ
+
+generalize    Γ ⊢ e : τ under predicates P gives ∀ā. P ⇒ τ, P on ā only,
+              but not over an ordered variable at a top-level let (rule 3)
+instantiate   ∀ā. P ⇒ τ at [ā := σ̄] requires P[σ̄] to reduce by the instances to
+              predicates on variables, which the caller carries; any other is an error,
+              and so is a predicate on a variable neither generalized nor fixed
+elaborate     ∀a. Ord a ⇒ τ takes a hidden compare_a : (a, a) -> Ordering;
+              e₁ < e₂ is compare_a(e₁, e₂) == Less at a, T.compare(e₁, e₂) == Less at T
+```
 
 The order belongs to the type, not to the value or the record. A set could carry its comparator, as Java's `TreeSet` does, but then it would hold a function. It would have no `==`, could not key a `Map` and could not be sent as a message (§3.10, §3.11), and two sets in different orders could meet in `union`. A record carrying `compare` would have the second problem. Fixing the order by the element type gives requirements 3 and 4 with no further rule.
 
-Coherence follows in the same way. A type's `compare` is declared in the type's own module (§4.2), so a type has one order in a program, and no instance can overlap another or be an orphan. That holds within one version of a program: a set sent to a node whose `T.compare` differs arrives misordered.
+Coherence should follow in the same way. A type's `compare` is declared in the type's own module (§4.2), so a type has one order in a program, and no instance can overlap another or be an orphan. That holds within one version of a program: a set sent to a node whose `T.compare` differs arrives misordered.
 
-Records stay ordinary records, so inference stays Hindley–Milner. A record holding an operation that is polymorphic beyond its parameters, such as a fold with its own accumulator type, would need rank-2 fields, like OCaml's polymorphic record fields. The primitives need none. That is why `foldLeft` is not in the record: it is written once over `toList`, as `Set.Operations.foldLeft(set, acc, f, ops)`, at the cost of the list `toList` builds.
+Records stay ordinary records, and add nothing to inference. A record holding an operation that is polymorphic beyond its parameters, such as a fold with its own accumulator type, would need rank-2 fields, like OCaml's polymorphic record fields. The primitives need none. That is why `foldLeft` is not in the record: it is written once over `toList`, as `Set.Operations.foldLeft(set, acc, f, ops)`, at the cost of the list `toList` builds.
 
 Finally, `compare` is assumed to be a total order that says `Equal` only where `==` holds. Nothing checks this, just as Haskell does not check `Ord`'s laws. Where a `compare` breaks it, `put` keeps the element already in the set.
 
 ## What it buys and what it costs
 
-The proposal meets the five requirements with one mechanism, the record, which serves both generic code and lists that mix representations, and the standard library uses it too. Each call names the record it uses, so nothing is chosen out of the reader's sight. There is no new syntax, declaration or reserved word, and one error that exists today, `<` on a type variable, goes away. Any module can build a record for any type, `List` included, and since nothing is resolved by type, there are no orphan rules. Type classes could still come later, built on the hidden `compare` argument and on records.
+As far as I can tell, the proposal meets the five requirements with one mechanism, the record, which serves both generic code and lists that mix representations, and the standard library uses it too. Each call names the record it uses, so nothing is chosen out of the reader's sight. There is no new syntax, declaration or reserved word, and one error that exists today, `<` on a type variable, goes away. Any module can build a record for any type, `List` included, and since nothing is resolved by type, there are no orphan rules. Type classes could still come later, built on the hidden `compare` argument and on records.
 
 Most of the price is paid at call sites. A function that only passes a set on must take the record too, where type classes would pass nothing. A record parameter needs an annotation, because selecting a field needs the record's type (§3.5). Each operation has two names, `OrderedSet.union(a, b)` and `Set.Operations.union(a, b, ops)`, and `Set.Operations.map` takes a second record where Haskell's `Set.map` takes an `Ord` constraint. Generic code cannot name its variable's `compare`, so it sorts with `List.sort` and a lambda built from `<`.
 
@@ -138,10 +161,16 @@ To hold a set's operations, a class must range over the whole set type, with the
 
 What that buys is no record at call sites: `size(small)`, and `fromList([3, 1, 3])` with an annotation choosing the representation, and no annotation on generic code.
 
-What it costs is larger. The code a method runs is chosen by an inferred type, and each constraint is a dictionary nobody wrote; `empty` alone needs an annotation to mean anything. There would be two mechanisms, classes beside records and methods beside module functions. `class`, `instance`, method signatures, associated types and instance conditions would enter the grammar. Resolution, conditions, associated types, superclasses, defaults, coherence, orphans and ambiguity would each add rules to the report, errors for users and work in every part of the toolchain.
+What it costs seems to me larger. The code a method runs is chosen by an inferred type, and each constraint is a dictionary nobody wrote; `empty` alone needs an annotation to mean anything. There would be two mechanisms, classes beside records and methods beside module functions. `class`, `instance`, method signatures, associated types and instance conditions would enter the grammar. Resolution, conditions, associated types, superclasses, defaults, coherence, orphans and ambiguity would each add rules to the report, errors for users and work in every part of the toolchain.
 
-Type classes contain the proposal. The ordering restriction is one class with fixed instances, and a dictionary is an operations record found by type. What type classes add is declared instances and resolution by type. That saves the record at call sites, at the price of a second mechanism and a larger type system.
+Type classes contain the proposal. The ordering restriction is one class with fixed instances, and a dictionary is an operations record found by type. What type classes add is declared instances and resolution by type. That saves the record at call sites, at the price of a second mechanism and a larger type system. Whether the price is worth paying is the judgment I am least sure of.
 
-## The open question
+## Related work
 
-One question is still open: the ordered set's representation. Structural `==` needs one shape per set. `Set` has one, since it is the runtime's map, whose `==` compares contents. For `OrderedSet`, a sorted list has one shape, but `put` and `contains` are linear. A balanced tree's shape depends on the order of insertion. A treap with hash-derived priorities has one shape and logarithmic operations, but needs a hash, which the standard library lacks. My leaning is the sorted list first, as in the sketch, because it is simple and correct, and a treap only if a measurement shows that the linear cost matters. The hash it needs would then be a decision of its own.
+Type classes are elaborated to dictionary passing (Wadler and Blott 1989). The proposal writes the dictionaries in the program instead, and keeps one hidden, the `compare` of an ordered variable. That restriction is a single predicate of qualified types (Jones 1994), with each type's instance fixed in its own module. It extends Standard ML's equality types to order, and those have their critics; I would like to know whether you count them a mistake.
+
+Between explicit records and type classes lie modular type classes (Dreyer, Harper, Chakravarty and Keller 2007) and OCaml's modular implicits (White, Bour and Yallop 2014). There the dictionaries are ML modules, and the compiler passes one implicitly when it is in scope. That would remove the proposal's main cost, the record at call sites. I lean against it, because an argument found by type is code the reader does not see at the call, though the hidden `compare` is already one such argument, a closed and single case. I have not ruled it out, and it is where I would most value your view. Scala's implicits show the same idea from the object-oriented side: a type class is an interface whose instance is passed implicitly (Oliveira, Moors and Odersky 2010).
+
+## An open question
+
+A question still open: the ordered set's representation. Structural `==` needs one shape per set. `Set` has one, since it is the runtime's map, whose `==` compares contents. For `OrderedSet`, a sorted list has one shape, but `put` and `contains` are linear. A balanced tree's shape depends on the order of insertion. A treap with hash-derived priorities has one shape and logarithmic operations, but needs a hash, which the standard library lacks. My leaning is the sorted list first, as in the sketch, because it is simple and correct, and a treap only if a measurement shows that the linear cost matters. The hash it needs would then be a decision of its own.
