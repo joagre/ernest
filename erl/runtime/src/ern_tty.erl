@@ -3,7 +3,7 @@
 %% terminal, claiming nothing, and otherwise by remembering the address;
 %% it sends every key pressed to each subscriber as a Terminal.Event,
 %% through a courier of the subscriber's own that applies its wrap, answers
-%% Size with the terminal's size, and sends Resized when that size changes.
+%% Measure with the terminal's size, and sends Resized when that size changes.
 %% The terminal is put in the mode the keys need when the first subscriber
 %% arrives, since keys and lines are the same terminal and a program does
 %% one or the other, and restore/0 puts it back when the program ends
@@ -21,12 +21,12 @@
 %% Decoding is decode/1 over the bytes read, and flush/1 for what is left
 %% when nothing follows; both are functions and are what the unit tests
 %% exercise. The reading itself is driven through a pseudo-terminal by
-%% test/ern_terminal_tests.erl, since 2026-09-20; loop/1 takes the input
+%% test/ern_terminal_tests.erl, since 2026-09-20; loop/2 takes the input
 %% as ern_rt's stdin does, the host's standard input but in a test, and
 %% whether keys can come, which a test's keys say they can.
 -module(ern_tty).
 
--export([loop/2, decode/1, flush/1, restore/0, is_terminal/1]).
+-export([loop/2, restore/0, is_terminal/1, decode/1, flush/1]).
 
 %% Report §8.2: how long a paste may take to arrive whole.
 -define(PASTE_PAUSE, 200).
@@ -153,8 +153,8 @@ courier(Address) ->
 %% Report §8.2: a process holds one subscription, the latest, keyed by the
 %% process behind its address and watched so that it ends with it. Report
 %% §8.6: the keys are a source while someone would receive them, counted
-%% here for every subscription after the first, which start_reader/1
-%% counts, and for a subscription that comes back after all had ended.
+%% once while any subscription holds: for the first by start_reader/1, and
+%% here for a subscription that comes back after all had ended.
 subscribe(Address, Subscribers, Before, After) ->
     Pid = ern_rt:process_of(Address),
     case lists:keyfind(Pid, 1, Subscribers) of
@@ -182,9 +182,9 @@ running({unstarted, _}) -> false;
 running(closed) -> false;
 running(_) -> true.
 
-%% Report Appendix E.16: Size(rows, columns), which the host answers only while its
-%% terminal is in charge, so before the first subscription there is none.
-%% It is the host's terminal's, `user`, whatever device the job writes to.
+%% Report Appendix E.16: Size(rows, columns), or None where standard output
+%% is not a terminal. It is the host's terminal's, `user`, whatever device
+%% the job writes to.
 size_now() ->
     case {io:rows(user), io:columns(user)} of
         {{ok, Rows}, {ok, Columns}} -> {'Size', Columns, Rows};
@@ -429,7 +429,7 @@ decode([$\e, $[, $C | Rest], Acc) -> decode(Rest, ['ArrowRight' | Acc]);
 decode([$\e, $[, $D | Rest], Acc) -> decode(Rest, ['ArrowLeft' | Acc]);
 decode([$\e | Rest] = Chars, Acc) ->
     %% what has arrived may still grow into a sequence the terminal is in
-    %% the middle of sending, and the reader reads a character at a time
+    %% the middle of sending, and a read may end anywhere in it
     case growing(Chars) of
         true -> {lists:reverse(Acc), Chars};
         false -> decode(Rest, ['Escape' | Acc])

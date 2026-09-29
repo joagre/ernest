@@ -15,8 +15,8 @@
 %% wrapped, both for printing (ern_show). A function's R describes its
 %% result, and Make wraps a function value, given R closed over the
 %% recursive types around it, so that each call's result is checked against
-%% R, faulting with Text (report §7.4); `Io.debug`'s
-%% descriptors carry no Make, since nothing is checked there.
+%% R, faulting with Text (report §7.4); the descriptors `Io.show` and
+%% `Io.debug` print by carry no Make, since nothing is checked there.
 -module(ern_boundary).
 
 -export([foreign/6, value/3]).

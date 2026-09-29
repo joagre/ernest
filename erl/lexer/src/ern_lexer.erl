@@ -6,7 +6,8 @@
 %% Tokens: {int | float | char | string | bool | ident | typename | doc,
 %% Pos, Value} and {Symbol, Pos} for reserved words, operators, and
 %% delimiters. A doc token holds a `///` block joined with "\n"; its last
-%% line is Line plus the number of "\n" in the text.
+%% line is Line plus the number of "\n" in the text. With `comments`, an
+%% ordinary comment is a token {comment, Pos, Text} too (tokenize/2).
 -module(ern_lexer).
 
 -export([tokenize/1, tokenize/2]).

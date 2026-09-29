@@ -144,27 +144,27 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - 2.98 — the shell cannot show the prelude (T19)
 - done — a corrupt `.erc` gets the host's message (T20): fixed 2026-09-28 with T6
 - done — clarity: configuration options that do nothing yet, the startup file run silently, a silent directory build, a silent `ern test`, `:set timing`, every spawn site `input:1`, qualified type names, "tail" against "live region", `killed` against `Killed`, line mode and the formatter's layout, `--source-root` hint, the lowercase path's file, `ern(1)`'s synopses, the shell's exit status, `ern config`'s JSON, `:type let`, `:doc it`, an elided excerpt (T21..T34): fixed 2026-09-29 or decided: `--config-dir`'s help says what each job reads (T21); `ern test` says `no tests` and refuses two tests of one name (T24); timing measured the run already (T25); `:browse` writes types as the session does (T27); "live region" in `:help` and `:output`, GHCi gone (T28); the file named in a path refusal and `--source-root` hinted (T30); the synopses completed, and `ern(1)`'s sections planned in MVP 2.99 (T31); `ern config` laid out as Appendix C (T33); `:type` refuses a declaration, `:doc it` answers, and a gap in an excerpt is `...` (T34). Kept, with the log's *The Toolchain's Clarity Lines*: the startup files run without a line (T22), a directory build is silent (T23), `killed` and `Killed` (T28). Decided with the user 2026-09-29, and done: a typed input named by its count (T26), line mode taking further lines as a terminal does (T29), the shell's exit status and streams stated (T32)
-- cheap — the toolchain's output depends on the locale, against §11.6 (C14)
-- cheap — `ern_cli`'s internal error has no newline (C34)
+- done — the toolchain's output depends on the locale, against §11.6 (C14): found fixed by MVP 2.95's ports, and a regression test added 2026-09-29
+- done — `ern_cli`'s internal error has no newline (C34): fixed 2026-09-29
 - 2.98 — a large paste is scanned again as it grows, a cost of `ern_tty`'s (shell_design.md's rewrite)
 
 ## The runtime
 
-- cheap — the helper acknowledges an input after its end ahead of queued ones (C8)
+- done — the helper acknowledges an input after its end ahead of queued ones (C8): fixed 2026-09-29, its 'a' waiting behind the ones before it
 - 2.98 — sockets, listeners and programs are missing from `Process.live`, `info` and faults (C10)
-- cheap — `Os.start` can answer `Timeout`, which E.23 does not list (C18)
-- cheap — the helper's pipe and fork failures give no host reason (C19)
-- cheap — the shell erases a held module's values (C21)
-- cheap — `Address.call`'s deadline taken after the delivery (C22)
-- cheap — stdin opens a port beside the tty after keys were granted (C23)
+- done — `Os.start` can answer `Timeout`, which E.23 does not list (C18): fixed 2026-09-29, E.23 and `start`'s page say it: a time that passes before the program has started
+- done — the helper's pipe and fork failures give no host reason (C19): fixed 2026-09-29, an 'f' frame with the host's reason, as a failed exec has
+- done — the shell erases a held module's values (C21): fixed 2026-09-29, a module's values let go once it is purged; found by reading, and not covered by a test
+- done — `Address.call`'s deadline taken after the delivery (C22): fixed 2026-09-29
+- done — stdin opens a port beside the tty after keys were granted (C23): fixed 2026-09-29, a refused claim served nothing
 - done — writers after a gone stream fault "returned without answering" (C27): fixed 2026-09-28, a sink whose stream has gone drops what it is given and answers, until the program has ended (§11); `stream_gone_test_` met it once in six runs
-- cheap — `flush_run` misses a `signal` message (C28)
-- cheap — a final line's `\r` at end of input (C29)
-- cheap — `variable/2` keeps a later value where the first is not UTF-8 (C30)
-- cheap — a span's end treated as inside (C32)
-- cheap — `note_text`'s wording against §11.5 (C33)
-- cheap — `spawnMonitored`'s wait not in `Watching` (C35)
-- cheap — the shell collects in the input's own process (C36)
+- done — `flush_run` misses a `signal` message (C28): fixed 2026-09-29
+- done — a final line's `\r` at end of input (C29): fixed 2026-09-29, and §8.2 says a last line keeps its carriage return
+- done — `variable/2` keeps a later value where the first is not UTF-8 (C30): fixed 2026-09-29, a name seen kept though its value is dropped; no test, the host giving no way to repeat a name in an environment
+- done — a span's end treated as inside (C32): fixed 2026-09-29; no test reaches the position the reader named
+- done — `note_text`'s wording against §11.5 (C33): fixed 2026-09-29, the code writing §11.5's words
+- done — `spawnMonitored`'s wait not in `Watching` (C35): fixed 2026-09-29, spawnMonitored's wait watched as monitor's is; not covered by a test
+- done — the shell collects in the input's own process (C36): fixed 2026-09-29, the session collecting in its own process once an input has answered; not covered by a test
 - 2.98 — hardening: unchecked casts through `Foreign`, `Erl.atom` on received text, `stty` from `PATH`, the host's flags from the environment, a relative `HOME`, unbounded reads, the key in the working tree, a dangling `--config-dir` (S-H)
 - 2.98 — the history decoder is quadratic (S11)
 
@@ -187,8 +187,8 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 
 ## The code
 
-- cheap — a test's uncounted sleep calls a deadlock 4 times in 40; `restart_limit_test` cannot tell its limits; two tests assert only `{error, _}`; a comment of `ern_tcp_tests`; a stale `Sys` clause (C37..C41)
-- cheap — `-spec`s missing in `ern_signals`; export lists out of order; stale comments in `ern_rt`, `ern_tty`, `ern_typecheck`, `ern_descriptor`, `ern_boundary`, `ern_shell`, `ern_cli`, `ern_lexer`; misplaced test comments (C42..C46)
+- done — a test's uncounted sleep calls a deadlock 4 times in 40; `restart_limit_test` cannot tell its limits; two tests assert only `{error, _}`; a comment of `ern_tcp_tests`; a stale `Sys` clause (C37..C41): fixed 2026-09-29; the uncounted sleep had been fixed in MVP 2.95
+- done — `-spec`s missing in `ern_signals`; export lists out of order; stale comments in `ern_rt`, `ern_tty`, `ern_typecheck`, `ern_descriptor`, `ern_boundary`, `ern_shell`, `ern_cli`, `ern_lexer`; misplaced test comments (C42..C46): fixed 2026-09-29, and `ern_style_tests` now holds the export lists' order and the `-spec`s
 - cheap — clarity: the formatter's dead filter and `IsClose`; the lexer's quadratic block comment; a block comment glues the next token; unreflowed comments; `ern_rt`'s repeated names and ad hoc catches; the helper's `runtime_open` and polling; `ern_tcp`'s repeated shape; function descriptors' two shapes; `trim_start`; `ern_typecheck`'s text match; the emitter's doubled form; `ern_cli`'s duplicates; `initialize/3`'s monitor; nits (C-B1..B19)
 
 ## The documents

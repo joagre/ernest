@@ -120,7 +120,6 @@ set_test() ->
     ?assertEqual({'Some', 2}, S:find(S1, fun(X) -> X > 1 end)),
     ?assertEqual('None', S:find(S1, fun(X) -> X > 2 end)).
 
-%% report Appendix E.5, §9.6
 %% report Appendix E.5, E.0 rule 1: the searches written over indexOf match
 %% whole graphemes, so a letter under a combining mark is not found alone;
 %% an empty part is at the start and the end; the trims strip White_Space
@@ -166,6 +165,7 @@ string_searches_begin_at_a_grapheme_test() ->
     ?assertEqual([<<"a">>, <<"b">>], S:lines(<<"a\r\nb\r\n">>)),
     ?assertEqual([<<"a">>, <<"b">>], S:lines(<<"a\nb">>)).
 
+%% report Appendix E.5, §9.6
 string_test() ->
     S = 'ern@string',
     ?assertEqual(2, S:size(<<"hé"/utf8>>)),
@@ -721,8 +721,6 @@ foreign_test() ->
     ?assertEqual({'Some', [1, x]}, F:toList([1, x])),
     ?assertEqual('None', F:toList(<<>>)).
 
-%% report Appendix E.13: the same seed gives the same sequence, every draw
-%% is within the bounds on either side of zero, and the seed moves
 %% report Appendix E.9: the shortest digits, plain from 0.0001 to below
 %% 1.0e16 and with an exponent beyond, its sign only when negative, each
 %% reading back as the same value. A regression test: 1.0e15 was written with
@@ -739,6 +737,8 @@ float_to_string_test() ->
     [?assertEqual({X, Text}, {X, F:toString(X)}) || {X, Text} <- Cases],
     [?assertEqual({'Some', X}, S:toFloat(F:toString(X))) || {X, _} <- Cases].
 
+%% report Appendix E.13: the same seed gives the same sequence, every draw
+%% is within the bounds on either side of zero, and the seed moves
 random_test() ->
     R = 'ern@random',
     Draw = fun Draw(_, _, 0) -> [];
@@ -835,6 +835,6 @@ path_test() ->
     ?assertEqual(false, P:isAbsolute({'Path', <<"a">>})),
     ?assertEqual(<<"a">>, P:toString({'Path', <<"a">>})).
 
-%% report §7.4
-todo_test() ->
+%% report §7.4: `fault(c)` faults with the cause
+fault_test() ->
     ?assertThrow({ern, fault, <<"x">>}, ern_rt:fault(<<"x">>)).

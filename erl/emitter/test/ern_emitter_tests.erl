@@ -684,13 +684,18 @@ restart_keeps_address_test() ->
 
 %% report §6.9: past the limit the next fault ends the process with its
 %% cause, which is its one death a monitor is told of; a restart is none,
-%% and a limit of no restarts ends it at the first fault
+%% and a limit of no restarts ends it at the first fault. Each start says
+%% so, so that a limit of one restart is told from a limit of none, which
+%% the test could not do before (findings.md's C38)
 restart_limit_test() ->
     Program = fun(Restarts) ->
         "type Msg = Crash\n"
         "type MainMsg = Died(Down)\n"
         "fn loop(n : Int) : Unit with Msg = receive { Crash -> fault(Int.toString(n)) }\n"
-        "fn count() : Unit with Msg = loop(1)\n"
+        "fn count() : Unit with Msg = {\n"
+        "    Io.println(\"start\");\n"
+        "    loop(1)\n"
+        "}\n"
         "export fn main() : Unit with MainMsg = {\n"
         "    let limit = RestartLimit(restarts = " ++ Restarts ++ ", within = 60000);\n"
         "    let s = spawnMonitored(Local, restarting(limit, count), Died);\n"
@@ -703,9 +708,9 @@ restart_limit_test() ->
         "    receive { Died(_) -> Io.println(\"twice\") | after 100 -> Unit }\n"
         "}\n"
     end,
-    ?assertEqual({ok, <<"ended 1\n">>}, run(Program("1"))),
-    ?assertEqual({ok, <<"ended 1\n">>}, run(Program("0"))),
-    ?assertEqual({ok, <<"ended 1\n">>}, run(Program("-2"))).
+    ?assertEqual({ok, <<"start\nstart\nended 1\n">>}, run(Program("1"))),
+    ?assertEqual({ok, <<"start\nended 1\n">>}, run(Program("0"))),
+    ?assertEqual({ok, <<"start\nended 1\n">>}, run(Program("-2"))).
 
 %% Appendix E.22, report §6.9: a child's fault is counted by its supervisor
 %% before the child runs again, so a limit of two restarts lets the child
@@ -1562,8 +1567,8 @@ fault_test() ->
 
 %% report §9.6: `todo` is no longer the prelude's, `fault` taking its place
 todo_is_unknown_test() ->
-    ?assertMatch({error, _}, ern_typecheck:check_string(['M'],
-                                                         "fn later() : Int = todo(\"x\")\n")).
+    ?assertMatch({error, [#diag{message = "unknown name todo"} | _]},
+                 ern_typecheck:check_string(['M'], "fn later() : Int = todo(\"x\")\n")).
 
 %% report §5.6, §8.4: named fields in canonical order, and update from a
 %% base value
@@ -1788,7 +1793,6 @@ prelude_target(Q, Text) ->
         [fault] -> {ern_rt, fault, 1};
         ['Address', call] -> {ern_rt, call, 3};
         ['Address', callForever] -> {ern_rt, call_forever, 2};
-        ['Sys', _] -> {ern_rt, sys, 1};
         [_, Op] when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/'; Op =:= '%'; Op =:= '<>';
                      Op =:= negate -> {erlang, is_atom, 1};
         [Ns, F] -> {ern_emitter:module_atom([Ns]), F, Arity}
@@ -2714,9 +2718,14 @@ system_reference_private_test() ->
                                                  "export fn main() : Unit with Never = "
                                                  ++ Main ++ "\n")
               end,
-    ?assertMatch({error, _}, Refused("send(Io.stdout, String.toUtf8(\"hi\"))")),
-    ?assertMatch({error, _}, Refused("send(Sys.stdout, \"hi\")")),
-    ?assertMatch({error, _}, Refused("{ let _ = Clock.Now; Unit }")).
+    %% each refused for the reason the test names, not another; a
+    %% regression test of the test, which took any error (findings.md's C39)
+    ?assertMatch({error, [#diag{message = "unknown name Io.stdout"} | _]},
+                 Refused("send(Io.stdout, String.toUtf8(\"hi\"))")),
+    ?assertMatch({error, [#diag{message = "unknown name Sys.stdout"} | _]},
+                 Refused("send(Sys.stdout, \"hi\")")),
+    ?assertMatch({error, [#diag{message = "unknown constructor Clock.Now"} | _]},
+                 Refused("{ let _ = Clock.Now; Unit }")).
 
 
 %% report §8.5: a compiled module declares the modules it depends on, as

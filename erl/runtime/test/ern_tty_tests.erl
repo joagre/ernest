@@ -1,5 +1,5 @@
-%% Report Appendix E.16: the keys of Appendix E.16, decoded from what a terminal
-%% sends. The reading itself needs a terminal; the decoding does not.
+%% Report Appendix E.16: the keys, decoded from what a terminal sends. The
+%% reading itself needs a terminal; the decoding does not.
 -module(ern_tty_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -95,8 +95,6 @@ dead_subscriber_test_() ->
 wait(Tag) ->
     receive {Tag, V} -> V after 2000 -> timeout end.
 
-%% Report §8.2: `Subscribe` carries a reply, answered once the terminal is
-%% in the mode the keys need.
 %% report §8.2: the keys are UTF-8 whatever the host's locale, a
 %% character cut across two reads is one key, and keys that are not UTF-8
 %% end the program with its entry process's fault
@@ -182,6 +180,8 @@ couriers_test() ->
 silent() ->
     receive after infinity -> eof end.
 
+%% Report §8.2: `Subscribe` carries a reply, answered once the terminal is
+%% in the mode the keys need.
 subscribe(Tty) ->
     Me = ern_rt:self(),
     ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Reply, Me} end, 5000).
@@ -203,7 +203,7 @@ paste_test() ->
     ?assertEqual({[{'Pasted', <<"a\nb">>}], []}, ern_tty:decode("\e[200~a\r\nb\e[201~")),
     %% what follows a paste is read as keys again
     ?assertEqual({[{'Pasted', <<"x">>}, 'Enter'], []}, ern_tty:decode("\e[200~x\e[201~\r")),
-    %% the reader reads a character at a time, so each piece waits
+    %% a read may end anywhere in a paste, so each piece waits
     Pending = lists:foldl(fun(C, Buffer) ->
                               {[], Left} = ern_tty:decode(Buffer ++ [C]),
                               Left

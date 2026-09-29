@@ -761,6 +761,22 @@ format_input() ->
     ?assertEqual({1, <<"-:1:7: expected a pattern instead of `=`\n">>},
                  sh("sh -c 'printf \"fn h( = 1\\n\" | ../bin/ern format --short-errors -'")).
 
+%% report §11.6, §11.5: what the toolchain writes is UTF-8 whatever the
+%% host's locale. A regression test: under the C locale a laid-out module
+%% and a diagnostic's source line came out as Latin-1 and escapes
+%% (findings.md's C14); the ports of MVP 2.95 had fixed it unseen
+locale_test_() ->
+    {timeout, 60, fun locale/0}.
+
+locale() ->
+    Source = <<"let s = \"caf", 16#C3, 16#A9, " ", 16#E2, 16#80, 16#A2, "\"\n">>,
+    File = "build/locale.ern",
+    ok = file:write_file(File, Source),
+    ?assertEqual({0, Source}, sh("sh -c 'LC_ALL=C LANG=C ../bin/ern format - < " ++ File ++ "'")),
+    ok = file:write_file(File, <<"let s : Int = \"caf", 16#C3, 16#A9, "\"\n">>),
+    {1, Out} = sh("sh -c 'LC_ALL=C LANG=C ../bin/ern build --source-root build " ++ File ++ "'"),
+    ?assertMatch({_, _}, binary:match(Out, <<"1 | let s : Int = \"caf", 16#C3, 16#A9, "\"">>)).
+
 expected(Name) ->
     {ok, Bin} = file:read_file("expected/" ++ Name ++ ".out"),
     lines(Bin).

@@ -28,10 +28,51 @@ helper_ends_under_a_write_and_a_read_test() ->
     ?assertEqual('Unit', wait(write)),
     ?assertMatch({'Left', {'Other', _}}, wait(read)).
 
+%% Appendix E.23: the helper answers each 'i' in order, one taken after the
+%% input's end among them, so that a write returns only once the program
+%% has taken the bytes before it. A regression test: an 'i' after 'e' was
+%% answered at once, ahead of one the program had not taken, which let its
+%% writer go (findings.md's C8)
+helper_answers_input_in_order_test() ->
+    Helper = filename:join([filename:dirname(code:which(ern_os)), "..", "priv", "ern_exec"]),
+    Port = open_port({spawn_executable, Helper},
+                     [{args, ["sleep", "2"]}, {packet, 4}, binary, exit_status]),
+    receive {Port, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
+    %% more than a pipe holds, which `sleep` never reads
+    true = port_command(Port, <<"i", (binary:copy(<<"x">>, 200000))/binary>>),
+    true = port_command(Port, <<"e">>),
+    true = port_command(Port, <<"i", "y">>),
+    ?assertEqual(none, receive {Port, {data, <<"a">>}} -> answered after 300 -> none end),
+    port_close(Port).
+
+%% Appendix E.23: a program the host cannot start, here for want of a file
+%% descriptor for its pipes, is answered with the host's reason. A
+%% regression test: the helper ended without a word, and `start` answered
+%% only that the helper failed (findings.md's C19)
+helper_gives_the_hosts_reason_test() ->
+    Helper = filename:join([filename:dirname(code:which(ern_os)), "..", "priv", "ern_exec"]),
+    Port = open_port({spawn, "sh -c \"ulimit -n 7; exec " ++ Helper ++ " true\""},
+                     [{packet, 4}, binary, exit_status]),
+    ?assertEqual(<<"fToo many open files">>,
+                 receive {Port, {data, D}} -> D after 5000 -> none end),
+    ?assertEqual(0, receive {Port, {exit_status, S}} -> S after 5000 -> none end).
+
+%% Appendix E.23: a time that passes before the program has started makes
+%% `start` answer `Left(Timeout)`. A regression test, written as the report
+%% came to say so (findings.md's C18)
+start_timeout_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(fun() -> Me ! {started, start(<<"sleep">>, [<<"1">>], 0)} end,
+                         <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({'Left', 'Timeout'}, wait(started)).
+
 start(Program, Arguments) ->
+    start(Program, Arguments, 5000).
+
+start(Program, Arguments, Ms) ->
     Self = self(),
     Command = {'Command', Arguments, <<>>, Program},
-    ern_rt:call_forever(ern_rt:sys(os), fun(R) -> {'Start', Command, 5000, Self, R} end).
+    ern_rt:call_forever(ern_rt:sys(os), fun(R) -> {'Start', Command, Ms, Self, R} end).
 
 %% The port closes once the host has seen the helper end.
 closed(Port) ->

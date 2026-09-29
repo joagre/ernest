@@ -347,7 +347,8 @@ hidden_prelude_name_test() ->
            "    Unit\n"
            "}\n",
     {error, [#diag{labels = Labels}]} = ern_typecheck:check_string(['M'], Text),
-    ?assertEqual(["`Local` here is this module's constructor; the prelude's is `Prelude.Local`"],
+    ?assertEqual(["`Local` here is this module's constructor, and the prelude's is"
+                  " `Prelude.Local`"],
                  [L || {_, L} <- Labels]),
     {error, [#diag{labels = Others}]} =
         ern_typecheck:check_string(['M'], "type Msg = Local(Int)\nfn f() : Int = \"x\"\n"),
@@ -1199,9 +1200,6 @@ abstract_type_test() ->
                  err("abstract type Stack(a) = Stack(List(a))")),
     ?assertEqual("Nope is not a type declared in this module", err("fn Nope.f() = 1")).
 
-%% report §6.6, §6.9: `restarting` may run its function more than once, so a
-%% lambda that captures a reply is refused there, by the rule that lets such
-%% a lambda stand only where it is called or spawned once
 %% report §6.6: a path on which the prelude's `fault` is called consumes
 %% every obligation open on it, in an `if` and in a `receive`; a returning
 %% path that does not answer is still refused, and so is a function that
@@ -1244,6 +1242,9 @@ fault_path_test() ->
                             "  | Stop -> Unit\n"
                             "}\n")).
 
+%% report §6.6, §6.9: `restarting` may run its function more than once, so a
+%% lambda that captures a reply is refused there, by the rule that lets such
+%% a lambda stand only where it is called or spawned once
 reply_lambda_restarting_test() ->
     ?assertEqual("the reply-carrying value r is captured by a lambda that is not called, bound by"
                  " `let`, or passed directly to spawn or spawnMonitored",

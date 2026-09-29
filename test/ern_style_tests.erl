@@ -42,6 +42,28 @@ no_tab_test() ->
     ?assertEqual([], [{F, N} || F <- Files, {N, Line} <- numbered(F),
                                 lists:member($\t, Line)]).
 
+%% docs/style.md: one `-export` list, in the order the functions appear,
+%% and a `-spec` on every exported function, in the toolchain's modules;
+%% the vendored getopt keeps its upstream form. Written after the rule,
+%% when six modules had fallen out of order and one had lost its specs
+%% (findings.md's C42, C43)
+exports_test() ->
+    Files = [F || F <- filelib:wildcard("erl/*/src/*.erl", ?ROOT),
+                  filename:basename(F) =/= "getopt.erl",
+                  not editor_artifact(filename:basename(F))],
+    ?assert(length(Files) > 20),
+    ?assertEqual([], [{F, Why} || F <- Files, Why <- export_faults(filename:join(?ROOT, F))]).
+
+export_faults(File) ->
+    {ok, Forms} = epp_dodger:quick_parse_file(File),
+    Lists = [Es || {attribute, _, export, Es} <- Forms],
+    Exports = lists:append(Lists),
+    Specs = [FA || {attribute, _, spec, {FA, _}} <- Forms],
+    Appear = [{N, A} || {function, _, N, A, _} <- Forms, lists:member({N, A}, Exports)],
+    [lists_of_exports || length(Lists) > 1]
+        ++ [out_of_order || Appear =/= [FA || FA <- Exports, lists:member(FA, Appear)]]
+        ++ [{no_spec, FA} || FA <- Exports, not lists:member(FA, Specs)].
+
 %% docs/style.md: a block holds more than one statement, in every module,
 %% every example in a module's doc blocks, and every Ernest block of the
 %% guide and the report. A brace after an expression or after `receive`

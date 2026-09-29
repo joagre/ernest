@@ -1,6 +1,6 @@
 # Style
 
-Four rules hold in every language of the repository. `test/ern_style_tests.erl` checks the second, the third, and the fourth's Erlang half.
+Four rules hold in every language of the repository. `test/ern_style_tests.erl` checks the second, the third, and the fourth's Erlang half, and of the Erlang style guide the export list's order and the `-spec`s.
 
 - A step of indentation is four spaces.
 - No file holds a tab, but a Makefile.

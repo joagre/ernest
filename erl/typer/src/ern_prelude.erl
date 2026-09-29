@@ -7,7 +7,7 @@
 %% compiled interfaces, stdlib_ifaces/0.
 -module(ern_prelude).
 
--export([builtin_types/0, equality_params/1, declared_types/0, process_only/0, values/0, docs/0,
+-export([equality_params/1, builtin_types/0, declared_types/0, process_only/0, values/0, docs/0,
          stdlib_ifaces/0]).
 
 -include_lib("typer/include/ern_types.hrl").

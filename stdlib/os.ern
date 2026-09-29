@@ -171,8 +171,9 @@ export foreign fn exit(status : Int) : a with m =
 /// ### Errors
 ///
 /// `Left(NotFound)` when the program is not found, `Left(Denied)` when it
-/// may not be run, and `Left(Other("an argument holds U+0000"))` for a name
-/// or an argument no program could be given.
+/// may not be run, `Left(Timeout)` when `ms` milliseconds pass before it
+/// has started, and `Left(Other("an argument holds U+0000"))` for a name or
+/// an argument no program could be given.
 ///
 /// ### Examples
 ///

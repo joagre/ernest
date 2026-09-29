@@ -14,11 +14,10 @@
 -module(ern_typecheck).
 
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/1, set_type_state/2,
-         prelude_names/0,
-         prelude_con/1, prelude_cons/0, prelude_env/0, lookup_type/2,
-         member_qname/3, is_reply_carrying/2, assume_reply_carrying/2, foreign_impl/1,
-         declared_scheme/3, let_order/1, lookup_con/4,
-         con_info/2, is_value/2, resolve_type/2, node_type/1, fields/2]).
+         prelude_names/0, prelude_con/1, prelude_cons/0, prelude_env/0, lookup_type/2,
+         member_qname/3, is_reply_carrying/2, assume_reply_carrying/2, let_order/1, foreign_impl/1,
+         fields/2, declared_scheme/3, lookup_con/4, con_info/2, is_value/2, resolve_type/2,
+         node_type/1]).
 
 -export_type([env/0, session/0]).
 
@@ -48,9 +47,10 @@
 %% groups: qname => the dependency group not yet checked that declares it,
 %% checked on first demand (a reference, or an operator resolving to it);
 %% typed: the groups checked so far; errs: their errors
-%% effect_origin: undefined | {what, span, label, help}: what is pure here
-%% ("f", "the lambda", "a top-level `let`", "a guard"), the span that
-%% made it so, and what to do; named by an effect error (report §11.5)
+%% effect_origin: undefined | {what, span, label, help}: what fixes the
+%% mailbox here, pure or not ("f", "the lambda", "a guard", or "a top-level
+%% `let`", whose mailbox is Never), the span that made it so, and what to
+%% do; named by an effect error (report §11.5)
 -opaque env() :: #env{}.
 
 -type error() :: ern_diag:diag().
@@ -169,10 +169,12 @@ hidden_note(D, _) ->
 note_text(Kind, N) ->
     Name = atom_to_list(N),
     "`" ++ Name ++ "` here is this module's " ++ atom_to_list(Kind)
-        ++ "; the prelude's is `Prelude." ++ Name ++ "`".
+        ++ ", and the prelude's is `Prelude." ++ Name ++ "`".
 
+%% Whether a position lies inside a span, whose end is past its last
+%% column (ern_diag).
 within({L, C, _}, {SL, SC, {EL, EC}}) ->
-    ({L, C} >= {SL, SC}) andalso ({L, C} =< {EL, EC});
+    ({L, C} >= {SL, SC}) andalso ({L, C} < {EL, EC});
 within(_, _) ->
     false.
 

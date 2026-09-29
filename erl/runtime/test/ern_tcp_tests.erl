@@ -29,7 +29,8 @@ read_after_timeout_test() ->
                Peer ! done
            end, <<"main">>, quiet()),
     gen_tcp:close(Listen),
-    %% the bytes that came after the timeout wait for the next read
+    %% each read after the one that timed out is answered with what arrives
+    %% while it waits
     ?assertEqual({'Right', <<"a">>}, wait(read)),
     ?assertEqual({'Right', <<"b">>}, wait(read)).
 

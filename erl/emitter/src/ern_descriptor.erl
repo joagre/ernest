@@ -1,7 +1,7 @@
 %% Report §8.4, Appendix E.1: the descriptor of a type, the runtime's
 %% reading of it: what the foreign boundary checks a value against, what a
-%% proxy exposes an address with, and what `Io.debug` and the shell print a
-%% value by, one printer (§11.2). A recursive type refers back to its mu.
+%% proxy exposes an address with, and what `Io.show`, `Io.debug` and the
+%% shell print a value by, one printer (§11.2). A recursive type refers back to its mu.
 -module(ern_descriptor).
 
 -export([describe/3]).

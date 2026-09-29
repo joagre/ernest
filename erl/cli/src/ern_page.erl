@@ -6,7 +6,7 @@
 %% which libs/markdown writes from the CommonMark (Appendix G.2).
 -module(ern_page).
 
--export([page/1, prelude_page/0, manual/1, prelude_manual/0, module_head/1, declaration/2,
+-export([page/1, prelude_page/0, module_head/1, manual/1, prelude_manual/0, declaration/2,
          session_declaration/3, prelude_declaration/1, since/1]).
 
 -include_lib("typer/include/ern_types.hrl").

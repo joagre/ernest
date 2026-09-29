@@ -13,27 +13,30 @@
 %% exit reason that Down reports as a Fault. All spawns go through the
 %% reaper process, which spawn_monitors each process; a monitor placed
 %% after the death reports Unknown (report §6.9), and every monitor is the
-%% reaper's. The reaper also detects
-%% Deadlock (report §8.6): every live process blocked in an untimed
-%% receive, no timed receive or clock alarm pending, no process inside
-%% foreign code. The process table holds a row {Pid, Site, State, Timers,
-%% Foreign} per process the runtime started, where Timers counts the timed
-%% receives the process is in and Foreign its foreign calls, and beside
-%% them the count of sources, the way the terminal is read, and the
-%% checking proxies of §8.4.
+%% reaper's. The reaper also detects deadlock (report §8.6): every live
+%% process blocked in an untimed receive or in a wait for a call's answer,
+%% no timed receive or clock alarm pending, no process inside foreign code,
+%% and no source held that can still deliver.
+%%
+%% Three tables hold the run's state. `ern_processes` has a row {Pid,
+%% Site, State, Timers, Foreign} per process the runtime started, where
+%% Timers counts the timed receives the process is in and Foreign its
+%% foreign calls, and beside them the way the terminal is read, `reading`,
+%% the process deadlock faults, `deadlock_target`, and a row per fault
+%% subscription, per restart a process may be asked, and per checking
+%% proxy of §8.4 and what it stands for. `ern_calls` holds the pending
+%% calls, and `ern_held` the sources and the processes the system modules
+%% opened, each described where it is defined.
 -module(ern_rt).
 
--export([send/2, process_of/1, spawn/3, spawn_monitored/4, self/0, via/2, call/3,
-         call_forever/2, answer/2, monitor/2, kill/1, live/0, processes/0, info/1, faults/1,
-         proxy_for/3,
-         proxy_forget/2, source_begin/0, source_begin/1, source_end/0, opened/1,
-         forget_opened/1, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
-         undefined_function/3, undefined_lambda/3, fault/1, fault/2,
-         trace/1, sys/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
-         binding/1, run_main/3, signal/1, deadlock_target/1, restarting/2,
-         restart_now/0, ask_restart/1, start_cause/0,
-         init_stdlib/0, init_modules/1, ordered/1, read_input/1, input_not_utf8/0, reason/1,
-         arguments/0, exit_program/1]).
+-export([send/2, process_of/1, spawn/3, spawn_monitored/4, self/0, via/2, call/3, call_forever/2,
+         answer/2, monitor/2, kill/1, reason/1, live/0, processes/0, info/1, faults/1, proxy_for/3,
+         proxy_forget/2, source_begin/0, source_begin/1, source_end/0, opened/1, forget_opened/1,
+         timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1, undefined_function/3,
+         undefined_lambda/3, fault/1, fault/2, trace/1, sys/1, hold_terminal/1, terminal_holder/0,
+         shell_holds/0, own_terminal/1, input_not_utf8/0, read_input/1, run_main/3, arguments/0,
+         exit_program/1, deadlock_target/1, signal/1, binding/1, restarting/2, restart_now/0,
+         ask_restart/1, start_cause/0, init_stdlib/0, init_modules/1, ordered/1]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -133,6 +136,9 @@ via(F, Target) ->
 
 -spec call(address(), fun((reply()) -> term()), integer()) -> 'None' | {'Some', term()}.
 call(Addr, Mk, Ms) ->
+    %% report §6.6: the clock starts at the call, before the request is
+    %% made and delivered
+    Deadline = deadline(Ms),
     line_guard(Addr),
     {Alias, Mon, Row} = pending(Addr),
     %% settled however the call ends, a fault of the message's function or
@@ -141,7 +147,7 @@ call(Addr, Mk, Ms) ->
     Answer = try
                  deliver(Addr, Mk(Alias)),
                  timed(),
-                 try await(Alias, Mon, deadline(Ms)) after untimed() end
+                 try await(Alias, Mon, Deadline) after untimed() end
              after
                  settled(Alias, Mon, Row)
              end,
@@ -293,8 +299,13 @@ reaper_loop(Waiters, Watching, Watched) ->
             ets:insert(?PROCESSES, {Pid, Site, alive, 0, 0}),
             Pid ! Ref,
             From ! {Ref, Pid},
+            %% a wait made with the spawn, spawnMonitored's, is watched as
+            %% monitor's is
+            Watching1 = lists:foldl(fun({To, _}, W) ->
+                                        maps:update_with(To, fun(L) -> [Pid | L] end, [Pid], W)
+                                    end, Watching, Awaits),
             reaper_loop(case Awaits of [] -> Waiters; _ -> Waiters#{Pid => Awaits} end,
-                        Watching, Watched);
+                        Watching1, Watched);
         {await, Pid, To, Wrap, Ref} ->
             Watched1 = case ets:lookup(?PROCESSES, Pid) of
                            [] when not is_map_key(Pid, Watched) ->
@@ -944,25 +955,40 @@ stdin_loop(Open) ->
 
 stdin_loop(Open, Buffer) ->
     receive
+        %% report §8.2: a claim the terminal refuses ends the program, and
+        %% nothing is read for it
         {'ReadLine', Reply} ->
-            own_terminal(lines),
-            source_begin(),
-            Rest = case line(Open, Buffer, 0) of
-                       {eof, Left} -> answer(Reply, 'None'), Left;
-                       {{line, Line}, Left} -> answer_line(Reply, Line), Left;
-                       {{error, Reason}, Left} -> unreadable(Reason), Left
-                   end,
-            source_end(),
-            stdin_loop(Open, Rest);
+            case own_terminal(lines) of
+                ok ->
+                    source_begin(),
+                    Rest = case line(Open, Buffer, 0) of
+                               {eof, Left} ->
+                                   answer(Reply, 'None'), Left;
+                               {{line, Line}, Left} ->
+                                   answer_line(Reply, without_return(Line)), Left;
+                               {{last, Line}, Left} ->
+                                   answer_line(Reply, Line), Left;
+                               {{error, Reason}, Left} ->
+                                   unreadable(Reason), Left
+                           end,
+                    source_end(),
+                    stdin_loop(Open, Rest);
+                taken ->
+                    stdin_loop(Open, Buffer)
+            end;
         {'Read', Reply} ->
-            own_terminal(lines),
-            source_begin(),
-            case Buffer of
-                <<>> -> bytes(Reply, read_input(Open));
-                _ -> answer(Reply, {'Some', Buffer})
-            end,
-            source_end(),
-            stdin_loop(Open, <<>>);
+            case own_terminal(lines) of
+                ok ->
+                    source_begin(),
+                    case Buffer of
+                        <<>> -> bytes(Reply, read_input(Open));
+                        _ -> answer(Reply, {'Some', Buffer})
+                    end,
+                    source_end(),
+                    stdin_loop(Open, <<>>);
+                taken ->
+                    stdin_loop(Open, Buffer)
+            end;
         {'EXIT', _, _} ->
             %% an input closed after its answer came
             stdin_loop(Open, Buffer)
@@ -970,7 +996,7 @@ stdin_loop(Open, Buffer) ->
 
 %% The next line and the bytes after it: the bytes before the first line
 %% feed at or after From, reading more while there is none. A last line
-%% without a line feed is a line.
+%% without a line feed is a line, `last`.
 line(Open, Buffer, From) ->
     case binary:match(Buffer, <<"\n">>, [{scope, {From, byte_size(Buffer) - From}}]) of
         {At, 1} ->
@@ -980,18 +1006,22 @@ line(Open, Buffer, From) ->
             case read_input(Open) of
                 {data, Bin} -> line(Open, <<Buffer/binary, Bin/binary>>, byte_size(Buffer));
                 eof when Buffer =:= <<>> -> {eof, <<>>};
-                eof -> {{line, Buffer}, <<>>};
+                eof -> {{last, Buffer}, <<>>};
                 {error, Reason} -> {{error, Reason}, Buffer}
             end
     end.
 
-%% Report §8.2, §7.4: a line without one carriage return before its line
-%% feed, or the fault of the process that asked, when it is not UTF-8.
-answer_line(Reply, Line) ->
-    Text = case Line of
-               <<Head:(byte_size(Line) - 1)/binary, $\r>> -> Head;
-               _ -> Line
-           end,
+%% Report §8.2: a line that a line feed ended, without one carriage return
+%% before the line feed; a last line keeps its own.
+without_return(Line) ->
+    case Line of
+        <<Head:(byte_size(Line) - 1)/binary, $\r>> -> Head;
+        _ -> Line
+    end.
+
+%% Report §8.2, §7.4: the line, or the fault of the process that asked,
+%% when it is not UTF-8.
+answer_line(Reply, Text) ->
     case unicode:characters_to_binary(Text, utf8, utf8) of
         Text -> answer(Reply, {'Some', Text});
         _ -> Reply ! {Reply, fault, not_utf8()}
@@ -1071,9 +1101,10 @@ fed_message({error, Reason}) -> {error, Reason};
 fed_message(Bin) when is_binary(Bin) -> {data, Bin};
 fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 
-%% Clock's message, report Appendix E.15: After(ms, to), At(at, to), Now(reply). Alarms are
-%% delivered through the clock itself, so each is counted as a source while
-%% it is pending (report §8.6).
+%% Clock's messages, report Appendix E.15: After(ms, reply, to), At(at,
+%% reply, to), and Now(reply). Alarms are delivered through the clock
+%% itself, so each is counted as a source while it is pending (report
+%% §8.6).
 clock_loop() ->
     receive
         %% an alarm is answered once it is counted, so that the caller
@@ -1303,8 +1334,9 @@ binding(Key) ->
 %% Report §6.9: a function that runs F, and on a fault runs it again in the
 %% same process, until the limit's restarts within its milliseconds have
 %% happened, when the next fault ends the process with its cause. Only a
-%% fault restarts: a kill and the program's end are exit signals, which no
-%% try catches, and F returning ends it as any process ends.
+%% fault restarts, or a restart asked for (restartable/0): a kill and the
+%% program's end are exit signals, which no try catches, and F returning
+%% ends it as any process ends.
 -spec restarting({'RestartLimit', integer(), integer()}, fun(() -> term())) -> fun(() -> term()).
 restarting({'RestartLimit', Restarts, Within}, F) ->
     fun() ->
@@ -1517,15 +1549,16 @@ stop(Pid) ->
     exit(Pid, kill),
     receive {'DOWN', Ref, process, Pid, _} -> ok end.
 
-%% What the reaper and the system processes may still send about this run
-%% after it ended.
+%% What the reaper, the system processes and a signal may still send about
+%% this run after it ended.
 flush_run(Run) ->
     receive
         {{main_down, Run}, _, _} -> flush_run(Run);
         {deadlock, Run} -> flush_run(Run);
         {fault, Run, _} -> flush_run(Run);
         {exit, Run, _} -> flush_run(Run);
-        {gone, Run, _} -> flush_run(Run)
+        {gone, Run, _} -> flush_run(Run);
+        {signal, Run, _} -> flush_run(Run)
     after 0 ->
         ok
     end.

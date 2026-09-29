@@ -1,7 +1,8 @@
 %% The toolchain of report §11: one command, ern, whose first word is its
 %% job, build and doc (§11.1, §11.4), format (§11.6), run, test and shell
-%% (§11.2), and config (§11.3). The launcher bin/ern is thin; everything is here so that the
-%% tests can call it. The entry point returns the exit status.
+%% (§11.2), and config (§11.3). The launcher bin/ern is thin; everything is
+%% here so that the tests can call it. `ern/1,2` returns the exit status,
+%% which the launcher's entry point ends the host with.
 -module(ern_cli).
 
 -export([start/0, ern/1, ern/2]).
@@ -44,11 +45,16 @@ start() ->
                  ern(Args, Err)
              catch
                  Class:Reason:Stack ->
-                     io:format(Err, "ern: internal error: ~ts",
-                               [erl_error:format_exception(Class, Reason, Stack)]),
+                     %% the host's text of the exception, which may end in a
+                     %% line break or not, ends the line
+                     Text = erl_error:format_exception(Class, Reason, Stack),
+                     io:format(Err, "ern: internal error: ~ts~n", [string:trim(Text, trailing)]),
                      70
              end,
-    ern_signals:ended() =:= none orelse ern_signals:die(ern_signals:ended(), Status),
+    case ern_signals:ended() of
+        none -> ok;
+        Signal -> ern_signals:die(Signal, Status)
+    end,
     ok = ern_out:finish(Err),
     halt(Status).
 

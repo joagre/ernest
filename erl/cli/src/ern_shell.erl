@@ -12,7 +12,7 @@
          session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
          documentation/1, fields/1, signature/1, load/2,
          reload/1, version/0, write/1, screen/1, to_screen/1,
-         output/1, unbound/1, declared/1]).
+         output/1, unbound/1, collect/1, declared/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -709,11 +709,13 @@ session_state(#env{session = S, ifaces = Ifaces}) ->
     ern_types:set_scope(St, [], maps:values(maps:get(types, S, #{})), []).
 
 %% Report §11.2: `:forget` removes a name the session declared, and `*`
-%% every one of them. A type is forgotten with its constructors; nothing is
-%% unloaded, since a value made before carries the type it was made with.
+%% every one of them. A type is forgotten with its constructors. A module
+%% the session then no longer reaches, by a name or by a value that holds
+%% its functions, collected/1 lets go; a value made before keeps the module
+%% of its type while it is reached.
 -spec forget(#env{}, binary()) -> {'Left', binary()} | {'Right', #env{}}.
 forget(Env, <<"*">>) ->
-    {'Right', remember(collected(Env#env{session = #{}}, none))};
+    {'Right', remember(collected(Env#env{session = #{}}))};
 forget(#env{session = S} = Env, Text) ->
     Values = maps:get(values, S, #{}),
     Types = maps:get(types, S, #{}),
@@ -728,7 +730,7 @@ forget(#env{session = S} = Env, Text) ->
             Env1 = Env#env{session = S#{values => maps:without([Name | Members], Values),
                                         types => maps:remove(Name, Types),
                                         cons => maps:without(Gone, Cons)}},
-            {'Right', remember(collected(Env1, none))};
+            {'Right', remember(collected(Env1))};
         _ ->
             {'Left', <<"the session declares no ", Text/binary>>}
     end.
@@ -880,13 +882,6 @@ prelude_or_none(Segments) ->
         none -> none
     end.
 
-%% Report §11.2: inside a call, `Shift-Tab` shows the callee's signature
-%% with its parameters as declared and the one at the cursor marked, which
-%% the shell does, in three parts: before, the parameter, after. The
-%% parser says which call the unfinished input stops inside; the callee is
-%% checked as an input of one name, without entering the session, and its
-%% declared type is printed with the parameter names its documentation
-%% carries.
 %% Report §11.2, §3.5: what a `.` after a value completes to. The text
 %% before the last `.` is checked as an input in a module of its own that
 %% does not enter the session, as `Shift-Tab`'s callee is, so a chain of
@@ -914,6 +909,13 @@ fields(Typed) ->
             []
     end.
 
+%% Report §11.2: inside a call, `Shift-Tab` shows the callee's signature
+%% with its parameters as declared and the one at the cursor marked, which
+%% the shell does, in three parts: before, the parameter, after. The
+%% parser says which call the unfinished input stops inside; the callee is
+%% checked as an input of one name, without entering the session, and its
+%% declared type is printed with the parameter names its documentation
+%% carries.
 -spec signature(binary()) -> 'None' | {'Some', {binary(), binary(), binary()}}.
 signature(Before) ->
     case within(Before) of
@@ -1721,16 +1723,16 @@ bind(Env, decls, Ns, _Value, _Type, _TEnv, Iface) ->
     set_uses(maps:put(Mod, {Ns, lists:usort(Needs ++ [M || M <- Held, session_module(M),
                                                            M =/= Mod])},
                       uses())),
-    collected(session(Env, Iface), Mod);
-bind(Env, it, Ns, Value, Type, TEnv, _Iface) ->
+    session(Env, Iface);
+bind(Env, it, _Ns, Value, Type, TEnv, _Iface) ->
     case open(Type, TEnv) of
         true -> Env;
-        false -> bound(Env, [{it, Value, Type}], TEnv, Ns)
+        false -> bound(Env, [{it, Value, Type}], TEnv)
     end;
-bind(Env, {names, Names}, Ns, Value, Type, TEnv, _Iface) ->
-    bound(Env, components(Names, Value, Type, TEnv), TEnv, Ns);
-bind(Env, Name, Ns, Value, Type, TEnv, _Iface) ->
-    bound(Env, [{Name, Value, Type}], TEnv, Ns).
+bind(Env, {names, Names}, _Ns, Value, Type, TEnv, _Iface) ->
+    bound(Env, components(Names, Value, Type, TEnv), TEnv);
+bind(Env, Name, _Ns, Value, Type, TEnv, _Iface) ->
+    bound(Env, [{Name, Value, Type}], TEnv).
 
 %% Each name a pattern bound, with its value and type: the whole of the
 %% input's value for one name, a component of its tuple for more.
@@ -1760,9 +1762,9 @@ open(Type, TEnv) ->
 %% The names an input binds, held by one module, a getter for each, which
 %% needs the session's modules whose functions the values hold and whose
 %% types their types name.
-bound(Env, [], _TEnv, _Input) ->
+bound(Env, [], _TEnv) ->
     Env;
-bound(#env{holders = N, free_holders = Free} = Env0, Bound, TEnv, Input) ->
+bound(#env{holders = N, free_holders = Free} = Env0, Bound, TEnv) ->
     {K, Env} = case Free of
                    [F | Rest] -> {F, Env0#env{free_holders = Rest}};
                    [] -> {N + 1, Env0#env{holders = N + 1}}
@@ -1780,20 +1782,29 @@ bound(#env{holders = N, free_holders = Free} = Env0, Bound, TEnv, Input) ->
     set_uses(maps:put(Mod, {Holder, lists:usort([M || M <- Held, session_module(M)]
                                                 ++ mentions(Iface, Holder))},
                       uses())),
-    collected(session(Env, Iface), ern_emitter:module_atom(Input)).
+    session(Env, Iface).
+
+%% Report §11.2: the session after an input has answered, what nothing
+%% reaches any more let go, in the session's own process.
+-spec collect(#env{}) -> #env{}.
+collect(Env) ->
+    remember(collected(Env)).
 
 %% Report §11.2: the session's modules are the holders of what inputs
 %% bound, the inputs that declared, and the inputs whose value holds one of
 %% their functions. One is kept while the session can reach it, and let go
 %% when it cannot: its values, its code, its interface, and its number,
 %% which a later holder or input takes (report §2.3). What reaches one is a
-%% name in the session's scope, the input running, a module whose old code
-%% a process is still inside, and, from any of them, what that module needs
-%% (uses/0). A module whose old code a process is inside is purged at a
-%% later collection, holders here and inputs here and at each input's end
-%% (forget/3).
+%% name in the session's scope, a module whose old code a process is still
+%% inside, and, from either, what that module needs (uses/0). A module whose
+%% old code a process is inside is purged at a later collection, holders
+%% here and inputs here and at each input's end (forget/3), and its values
+%% are let go once it is purged, since that process may still read them.
+%% The session collects in its own process, once an input has answered
+%% (collect/1), so that an input killed while it runs has let nothing go
+%% that the session still names.
 collected(#env{ifaces = Ifaces, session = S, beams = Beams, free_holders = Free,
-               draining = Draining} = Env, Current) ->
+               draining = Draining} = Env) ->
     Uses = uses(),
     Unpurged = persistent_term:get({?MODULE, unpurged}, []),
     Old = [ern_emitter:module_atom(Ns) || Ns <- Unpurged]
@@ -1801,19 +1812,17 @@ collected(#env{ifaces = Ifaces, session = S, beams = Beams, free_holders = Free,
     Named = [ern_emitter:module_atom([hd(Q)]) || Which <- [values, types, cons],
                                                  Q <- maps:values(maps:get(Which, S, #{})),
                                                  session_segment(hd(Q))],
-    Live = reached(Named ++ [M || M <- [Current | Old], M =/= none], Uses, #{}),
+    Live = reached(Named ++ Old, Uses, #{}),
     Dead = [Ns || M := {Ns, _} <- Uses, not is_map_key(M, Live)],
-    lists:foreach(fun(Ns) ->
-                      Mod = ern_emitter:module_atom(Ns),
-                      [persistent_term:erase(Key) || {Key, _} <- stored(Mod)],
-                      code:delete(Mod)
-                  end, Dead),
+    lists:foreach(fun(Ns) -> code:delete(ern_emitter:module_atom(Ns)) end, Dead),
     {DeadHolders, DeadInputs} = lists:partition(fun([Seg]) -> holder_number(Seg) =/= none end,
                                                 Dead),
     Purgeable = fun(Ns) -> code:soft_purge(ern_emitter:module_atom(Ns)) end,
     {Purged, Held} = lists:partition(fun(H) -> Purgeable([H]) end,
                                      Draining ++ [H || [H] <- DeadHolders]),
     {InputsPurged, InputsHeld} = lists:partition(Purgeable, Unpurged ++ DeadInputs),
+    [persistent_term:erase(Key) || Ns <- [[H] || H <- Purged] ++ InputsPurged,
+                                   {Key, _} <- stored(ern_emitter:module_atom(Ns))],
     InputsHeld =/= Unpurged andalso persistent_term:put({?MODULE, unpurged}, InputsHeld),
     InputsPurged =/= [] andalso
         set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) ++ InputsPurged),

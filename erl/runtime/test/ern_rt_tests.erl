@@ -86,6 +86,24 @@ stdin_stream_test() ->
     ?assertMatch({'Down', {'Fault', <<"the standard input is not UTF-8">>}, _}, wait(down)),
     ?assertEqual([{'Some', <<"next">>}, 'None', 'None'], wait(after_fault)).
 
+%% report §8.2: one carriage return before a line feed is dropped, and a
+%% last line without a line feed keeps its own. A regression test: the last
+%% line lost it too (findings.md's C29)
+stdin_last_line_test() ->
+    Tab = ets:new(chunks, [public]),
+    ets:insert(Tab, {queue, [<<"a\r\nb\r">>]}),
+    Next = fun() ->
+                   case ets:lookup(Tab, queue) of
+                       [{_, [C | Rest]}] -> ets:insert(Tab, {queue, Rest}), C;
+                       _ -> eof
+                   end
+           end,
+    Line = fun() -> ern_rt:call_forever(ern_rt:sys(stdin), fun(R) -> {'ReadLine', R} end) end,
+    Me = self(),
+    ?assertEqual(ok, ern_rt:run_main(fun() -> Me ! {got, [Line(), Line(), Line()]} end,
+                                     <<"main">>, #{stdout => fun(_) -> ok end, stdin => Next})),
+    ?assertEqual([{'Some', <<"a">>}, {'Some', <<"b\r">>}, 'None'], wait(got)).
+
 %% report Appendix E.21: a snapshot says what a live process is doing, a
 %% wait in a receive told from a wait for a call's answer, and nothing of
 %% one that has ended; the live processes are those the runtime started
@@ -305,6 +323,25 @@ call_timeout_test() ->
                end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(ok, Result),
     receive {result, R} -> ?assertEqual('None', R) after 1000 -> ?assert(false) end.
+
+%% report §6.6: the clock of a call starts at the call, so a request whose
+%% delivery takes longer than the call's time is answered None, though the
+%% callee answers soon after it. A regression test: the deadline was taken
+%% after the delivery, and the call waited its whole time again
+%% (findings.md's C22)
+call_clock_starts_at_the_call_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Callee = ern_rt:spawn('Local',
+                                     fun() ->
+                                         receive {ask, R} -> nap(50), ern_rt:answer(R, done) end
+                                     end, <<"callee">>),
+               %% the adapting function runs in the caller, and takes 200 ms
+               Slow = ern_rt:via(fun(M) -> nap(200), M end, Callee),
+               Me ! {result, ern_rt:call(Slow, fun(R) -> {ask, R} end, 100)}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    receive {result, R} -> ?assertEqual('None', R) after 2000 -> ?assert(false) end.
 
 %% report §8.6: every live process blocked in an untimed receive, with no
 %% timed receive, clock alarm, or foreign call pending, is a deadlock, the

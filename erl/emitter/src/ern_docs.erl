@@ -3,7 +3,7 @@
 %% read: how it is built from a checked module, and how it is read back.
 -module(ern_docs).
 
--export([chunk_name/0, build/4, read/1]).
+-export([chunk_name/0, read/1, build/4]).
 
 -include_lib("parser/include/ern_ast.hrl").
 

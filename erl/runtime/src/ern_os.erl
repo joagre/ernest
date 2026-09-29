@@ -230,20 +230,26 @@ environment() ->
            end,
     variables(Port, #{}).
 
+%% Report Appendix E.23: a name that occurs twice keeps its first value, and
+%% one whose first value is not UTF-8 is left out, a later value of it too;
+%% the names seen are kept, a value left out as `dropped`, until the end.
 variables(Port, Env) ->
     receive
         {Port, {data, <<"v", Variable/binary>>}} ->
             variables(Port, variable(binary:split(Variable, <<"=">>), Env));
         {Port, {data, <<"x", _/binary>>}} ->
-            receive {Port, {exit_status, _}} -> Env end;
+            receive
+                {Port, {exit_status, _}} -> maps:filter(fun(_, V) -> V =/= dropped end, Env)
+            end;
         {Port, {exit_status, _}} ->
             ern_rt:fault(<<"the runtime's helper ern_exec failed">>)
     end.
 
 variable([Name, Value], Env) ->
-    case is_map_key(Name, Env) orelse not (utf8(Name) andalso utf8(Value)) of
-        true -> Env;
-        false -> Env#{Name => Value}
+    case {is_map_key(Name, Env), utf8(Name) andalso utf8(Value)} of
+        {true, _} -> Env;
+        {false, true} -> Env#{Name => Value};
+        {false, false} -> Env#{Name => dropped}
     end;
 variable([_], Env) ->
     Env.

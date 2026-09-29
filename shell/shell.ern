@@ -83,6 +83,11 @@ foreign fn declared(c : Checked) : List(String) =
 foreign fn unbound(c : Checked) : Bool =
     "ern_shell:unbound/1"
 
+// The session after an input has answered, with what nothing reaches any
+// more let go (report §11.2).
+foreign fn collect(env : Env) : Env with m =
+    "ern_shell:collect/1"
+
 foreign fn spawnInput(env : Env, c : Checked, to : Address(Outcome)) : Address(Never) with m =
     "ern_shell:run/3"
 
@@ -446,7 +451,9 @@ fn await(state : State,
                 timed(screen, state.settings, started)
             } else
                 Unit;
-            State(..state, env = env2)
+            // report §11.2: what nothing reaches is let go here, in the
+            // session's process, once the input has answered
+            State(..state, env = collect(env2))
         }
       | Done(Faulted(text)) -> {
             say(screen, Shell.Style.fault(state.colour, placed(state, "fault: " <> text)));

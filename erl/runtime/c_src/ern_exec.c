@@ -98,6 +98,16 @@ static const char *error_name(int error)
     }
 }
 
+/* The program did not start: the host's reason, in an 'f' frame, which ends
+   the helper's work (report Appendix E.23: start answers the host's
+   reason). */
+static int not_started(int error)
+{
+    const char *name = error_name(error);
+    frame('f', (const unsigned char *)name, strlen(name));
+    return 0;
+}
+
 /* The input not yet written to the program, as a growing buffer. */
 static unsigned char *pending = NULL;
 static size_t pending_size = 0, pending_capacity = 0;
@@ -148,11 +158,12 @@ static void add_pending(const unsigned char *data, size_t size)
         size_t capacity = pending_capacity ? pending_capacity : CHUNK;
         while (capacity < pending_size + size)
             capacity *= 2;
-        pending = realloc(pending, capacity);
-        if (pending == NULL) {
+        unsigned char *grown = realloc(pending, capacity);
+        if (grown == NULL) {
             kill_program();
             _exit(1);
         }
+        pending = grown;
         pending_capacity = capacity;
     }
     memcpy(pending + pending_size, data, size);
@@ -172,12 +183,12 @@ int main(int argc, char **argv)
         return 0;
     }
     if (pipe(in) < 0 || pipe(out) < 0 || pipe(err) < 0 || pipe(failed) < 0)
-        return 1;
+        return not_started(errno);
     fcntl(failed[1], F_SETFD, FD_CLOEXEC);
 
     program = fork();
     if (program < 0)
-        return 1;
+        return not_started(errno);
     if (program == 0) {
         /* the program starts with the signals as a shell would give them:
            an ignored SIGPIPE and a blocked signal would survive the exec */
@@ -212,12 +223,10 @@ int main(int argc, char **argv)
         while (n < 0 && errno == EINTR);
         close(failed[0]);
         if (n == (ssize_t)sizeof error) {
-            const char *name = error_name(error);
             while (waitpid(program, NULL, 0) < 0 && errno == EINTR)
                 ;
             program = -1;
-            frame('f', (const unsigned char *)name, strlen(name));
-            return 0;
+            return not_started(error);
         }
     }
     frame('s', NULL, 0);
@@ -289,11 +298,15 @@ int main(int argc, char **argv)
                 }
                 if (head_got == sizeof head && body_got == body_size) {
                     /* input after its end, or after the program closed
-                       it, is dropped */
+                       it, is dropped; while the input before it still
+                       drains, its 'a' waits behind theirs, so that every
+                       'i' is answered in order */
                     if (body_size > 0 && body[0] == 'i') {
                         if (program_in >= 0 && !input_ended) {
                             add_pending(body + 1, body_size - 1);
                             accepted += body_size - 1;
+                            push_end(accepted);
+                        } else if (program_in >= 0) {
                             push_end(accepted);
                         } else {
                             frame('a', NULL, 0);
