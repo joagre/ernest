@@ -1371,8 +1371,10 @@ bind_param(#param{pos = Pos, pattern = P, type = Ann} = Param, {Env, AnnVars}) -
                            undefined -> {AnnVars, Env1};
                            _ ->
                                {AT, AV, St} = ann(Ann, AnnVars, Env1),
-                               {AV, unify_at(Pos, AT, PT, Env1#env{st = St},
-                                             "the parameter pattern does not fit its annotation")}
+                               EnA = Env1#env{st = St},
+                               {AV, unify_at(node_span(P), AT, PT, EnA,
+                                             "the parameter pattern does not fit its annotation",
+                                             ann_origin(Ann, AT, EnA))}
                        end,
     {{Param#param{pattern = TypedP}, PT}, {bind_vars(Bindings, Env2), AnnVars1}}.
 
@@ -1459,50 +1461,53 @@ solve_deferred(#env{deferred = Deferred} = Env) ->
         true -> solve_deferred(Env1#env{deferred = Left});
         false ->
             case hd(Left) of
-                {bind_arrow, Pos, _, _, _, _} ->
+                {bind_arrow, Pos, _, _, _, _, _} ->
                     fail(Pos, "`<-` needs to know whether the value is an Either or an"
                               " Optional; annotate it");
-                {operator, Pos, Op, _, _} ->
+                {operator, Pos, Op, _, _, _} ->
                     %% report §4.8: resolution precedes generalization
                     fail(Pos, "the operand type of `" ++ atom_to_list(Op)
                               ++ "` is not determined; annotate it");
-                {select, Pos, F, _, _} ->
+                {select, Pos, F, _, _, _} ->
                     fail(Pos, "the type whose field " ++ atom_to_list(F)
                               ++ " is read is not determined; annotate it")
             end
     end.
 
-solve_one({select, Pos, F, XT, Res}, Env) ->
+solve_one({select, Pos, F, XT, Res, Origin}, Env) ->
     case ern_types:resolve(XT, Env#env.st) of
         {tvar, _} -> unsolved;
         _ ->
             {T0, Env1} = resolve_select(Pos, F, XT, Env),
             %% opened as a selection resolved at once is (report §3.9)
             {T, St} = open_effect(T0, Env1#env.st),
-            {solved, unify_at(Pos, Res, T, Env1#env{st = St}, "the field " ++ atom_to_list(F))}
+            {solved, unify_at(Pos, Res, T, Env1#env{st = St}, "the field " ++ atom_to_list(F),
+                              Origin)}
     end;
-solve_one({operator, Pos, Op, LT, Res}, Env) ->
+solve_one({operator, Pos, Op, LT, Res, Origin}, Env) ->
     case ern_types:resolve(LT, Env#env.st) of
         {tvar, _} -> unsolved;
         _ ->
             {T0, Env1} = resolve_operator(Pos, Op, LT, Env),
             {T, St} = open_effect(T0, Env1#env.st),
             {solved, unify_at(Pos, Res, T, Env1#env{st = St},
-                              "the result of `" ++ op_text(Op) ++ "`")}
+                              "the result of `" ++ op_text(Op) ++ "`", Origin)}
     end;
-solve_one({bind_arrow, Pos, Spans, XT, PT, RestT}, Env) ->
+solve_one({bind_arrow, Pos, {_, XSpan} = Spans, XT, PT, RestT, Fixed}, Env) ->
     St = Env#env.st,
     case {ern_types:resolve(XT, St), ern_types:resolve(RestT, St)} of
         {{tcon, ['Either'], [Er, A]}, _} ->
-            {solved, bind_arrow(Pos, Spans, either, Er, A, PT, RestT, Env)};
+            {solved, bind_arrow(Spans, Fixed, either, Er, A, PT, XT, RestT, Env)};
         {{tcon, ['Optional'], [A]}, _} ->
-            {solved, bind_arrow(Pos, Spans, optional, none, A, PT, RestT, Env)};
+            {solved, bind_arrow(Spans, Fixed, optional, none, A, PT, XT, RestT, Env)};
         {{tvar, _}, {tcon, ['Either'], [Er, _]}} ->
-            Env1 = unify_at(Pos, {tcon, ['Either'], [Er, PT]}, XT, Env, "`<-` on an Either"),
-            {solved, bind_arrow(Pos, Spans, either, Er, PT, PT, RestT, Env1)};
+            Env1 = unify_at(XSpan, {tcon, ['Either'], [Er, PT]}, XT, Env, "`<-` on an Either",
+                            fixed_label(Fixed, RestT, St)),
+            {solved, bind_arrow(Spans, Fixed, either, Er, PT, PT, XT, RestT, Env1)};
         {{tvar, _}, {tcon, ['Optional'], [_]}} ->
-            Env1 = unify_at(Pos, {tcon, ['Optional'], [PT]}, XT, Env, "`<-` on an Optional"),
-            {solved, bind_arrow(Pos, Spans, optional, none, PT, PT, RestT, Env1)};
+            Env1 = unify_at(XSpan, {tcon, ['Optional'], [PT]}, XT, Env, "`<-` on an Optional",
+                            fixed_label(Fixed, RestT, St)),
+            {solved, bind_arrow(Spans, Fixed, optional, none, PT, PT, XT, RestT, Env1)};
         {{tvar, _}, _} ->
             unsolved;
         {Other, _} ->
@@ -1510,18 +1515,30 @@ solve_one({bind_arrow, Pos, Spans, XT, PT, RestT}, Env) ->
     end.
 
 %% Report §11.5: the pattern is reported where it stands, against the value
-%% inside, whose type the value's span labels.
-bind_arrow(Pos, {PSpan, XSpan}, Wrap, Er, A, PT, RestT, Env) ->
+%% inside, whose type the value's span labels. The value is reported against
+%% the block's sum type, labelled where that type was fixed.
+bind_arrow({PSpan, XSpan}, Fixed, Wrap, Er, A, PT, XT, RestT, Env) ->
     Label = "the value inside has type " ++ ern_types:format(A, Env#env.st),
     Env1 = unify_at(PSpan, A, PT, Env, "the pattern does not fit the value inside the sum type",
                     {XSpan, Label}),
     {RestVal, St} = ern_types:fresh(Env1#env.st),
-    Expected = case Wrap of
-                   either -> {tcon, ['Either'], [Er, RestVal]};
-                   optional -> {tcon, ['Optional'], [RestVal]}
-               end,
-    unify_at(Pos, Expected, RestT, Env1#env{st = St},
-             "after `let p <- e` the block must have the same sum type as e").
+    Rest = case Wrap of
+               either -> {tcon, ['Either'], [Er, RestVal]};
+               optional -> {tcon, ['Optional'], [RestVal]}
+           end,
+    case ern_types:unify(RestT, Rest, St) of
+        {ok, St1} ->
+            Env1#env{st = St1};
+        {error, _} ->
+            fail(XSpan, "the value of `<-` must have the block's sum type: expected "
+                        ++ ern_types:format(RestT, St) ++ ", found " ++ ern_types:format(XT, St),
+                 labels(fixed_label(Fixed, RestT, St)), undefined)
+    end.
+
+fixed_label({last, Span}, RestT, St) ->
+    {Span, "the block's value has type " ++ ern_types:format(RestT, St)};
+fixed_label(Origin, _, _) ->
+    Origin.
 
 %% Restrictions checked at instantiation (report §3.9, §3.10): a no-reply
 %% variable bound to a reply-carrying type, an equality-constrained one
@@ -1625,7 +1642,8 @@ operator_result(Pos, Op, LT, Env) ->
     case ern_types:resolve(LT, Env#env.st) of
         {tvar, _} ->
             {Res, St} = ern_types:fresh(Env#env.st),
-            {Res, Env#env{st = St, deferred = [{operator, Pos, Op, LT, Res} | Env#env.deferred]}};
+            {Res, Env#env{st = St,
+                          deferred = [{operator, Pos, Op, LT, Res, undefined} | Env#env.deferred]}};
         _ ->
             resolve_operator(Pos, Op, LT, Env)
     end.
@@ -1636,7 +1654,8 @@ select_result(Pos, F, XT, Env) ->
     case ern_types:resolve(XT, Env#env.st) of
         {tvar, _} ->
             {Res, St} = ern_types:fresh(Env#env.st),
-            {Res, Env#env{st = St, deferred = [{select, Pos, F, XT, Res} | Env#env.deferred]}};
+            {Res, Env#env{st = St,
+                          deferred = [{select, Pos, F, XT, Res, undefined} | Env#env.deferred]}};
         _ ->
             resolve_select(Pos, F, XT, Env)
     end.
@@ -1777,7 +1796,8 @@ user_operator(Pos, Op, LT, Q, Env0) ->
                 end,
             Env1 = unify_at(Pos, {tfn, Operands, Eff, Res}, FT,
                             Env#env{st = St3, pending = Pending ++ Env#env.pending},
-                            Context ++ ern_types:format(LT, St3)),
+                            Context ++ ern_types:format(LT, St3),
+                            member_declared(Q, Member, Name, FT, Env#env{st = St3})),
             Env2 = use_effect(Pos, Name, Eff, Env1),
             case Member of
                 compare ->
@@ -1788,6 +1808,23 @@ user_operator(Pos, Op, LT, Q, Env0) ->
                     {Res, Env2}
             end
     end.
+
+%% Report §11.5: a member this module declares is labelled at its
+%% declaration with its type; another module's is not in the source shown.
+member_declared(Q, Member, Name, FT, #env{ns = Ns, typed = Typed, st = St}) ->
+    Own = own_type_path(Q, Ns),
+    case [D || D <- Typed, Own, decl_key(D) =:= {lists:last(Q), Member}] of
+        [D | _] -> {head_span(D), Name ++ " : " ++ ern_types:format(FT, St)};
+        [] -> undefined
+    end.
+
+%% A declaration's head, through its return annotation where it has one.
+head_span(#fn_decl{pos = Pos, ret = Ret}) when Ret =/= undefined ->
+    {L, C, _} = ern_diag:span(Pos),
+    {_, _, End} = ern_diag:span(node_span(Ret)),
+    {L, C, End};
+head_span(D) ->
+    element(2, D).
 
 -spec not_defined(ern_diag:pos(), atom(), term(), env()) -> no_return().
 not_defined(Pos, Op, T, Env) ->
@@ -1822,9 +1859,11 @@ rigid_annotation_vars(Pos, Rigid, #env{st = St}) ->
                                     ++ " in the annotation is used as "
                                     ++ ern_types:format(T, St))
                   end, Resolved),
-    Ids = [Id || {_, {tvar, Id}} <- Resolved],
-    length(lists:usort(Ids)) =:= length(Ids) orelse
-        fail(Pos, "two type variables in the annotation are used as one type").
+    case [{A, B} || {A, {tvar, I}} <- Resolved, {B, {tvar, J}} <- Resolved, A < B, I =:= J] of
+        [] -> ok;
+        [{A, B} | _] -> fail(Pos, "type variables " ++ atom_to_list(A) ++ " and "
+                                  ++ atom_to_list(B) ++ " in the annotation are used as one type")
+    end.
 
 %% Report §4.6: a block binding whose type is still undetermined, that is,
 %% has a free variable that does not reach the definition's own type.
@@ -2034,7 +2073,7 @@ infer(#e_lambda{pos = LPos, params = Params, ret = Ret, effect = Effect, body = 
                    " generalized", [],
              "write the type, or leave the annotation out"),
     Env2 = Env1#env{st = mark_process_only(T, St), effect = EffT, ann_vars = AnnVars1,
-                    generalizing = false,
+                    generalizing = false, rigid = New ++ Env1#env.rigid,
                     %% report §11.5: the label names the annotation that fixed the
                     %% mailbox, and an unannotated lambda's is its own, not the
                     %% enclosing definition's
@@ -2049,7 +2088,7 @@ infer(#e_lambda{pos = LPos, params = Params, ret = Ret, effect = Effect, body = 
     {E#e_lambda{params = TypedParams, body = TypedBody, type = T}, OT,
      Env4#env{st = St4, vars = Env#env.vars, effect = Env#env.effect, ann_vars = Env#env.ann_vars,
               effect_origin = Env#env.effect_origin, effectful = Env#env.effectful,
-              generalizing = false}};
+              generalizing = false, rigid = Env#env.rigid}};
 infer(E, Env) when is_record(E, e_if); is_record(E, e_match); is_record(E, e_receive) ->
     {T, St} = ern_types:fresh(Env#env.st),
     check_expr(E, T, undefined, undefined, Env#env{st = St}).
@@ -2111,7 +2150,20 @@ check_expr(E, Expected, undefined, _Origin, Env) ->
     {Typed, T, bound(Expected, T, Env1)};
 check_expr(E, Expected, Context, Origin, Env) ->
     {Typed, T, Env1} = infer(E, Env),
-    {Typed, T, unify_at(node_span(E), Expected, T, Env1, Context, Origin)}.
+    {Typed, T, unify_at(node_span(E), Expected, T, expecting(T, Origin, Env1), Context, Origin)}.
+
+%% Report §11.5: a selection or an operator deferred until its operand's
+%% type is known keeps the span that fixed its expected type, the label of
+%% its mismatch when it is resolved.
+expecting(_T, undefined, Env) ->
+    Env;
+expecting(T, Origin, #env{deferred = Deferred} = Env) ->
+    Env#env{deferred = [case D of
+                            {Kind, Pos, X, XT, Res, undefined} when Res =:= T ->
+                                {Kind, Pos, X, XT, Res, Origin};
+                            _ ->
+                                D
+                        end || D <- Deferred]}.
 
 %% Report §6.3: a receive guard is a guard expression, since it selects a
 %% message without removing it: `true`, `false`, a Bool operand, or a
@@ -2272,17 +2324,28 @@ infer_named(#e_con{pos = Pos, name = Name} = E, Names, FTs, RT, Base, Sets, Env)
                                 {undefined, Env};
                             _ ->
                                 {TB, BT, En} = infer(Base, Env),
-                                {TB, unify_at(Pos, RT, BT, En, "the base of `..` must have"
-                                                              " the constructor's type")}
+                                {TB, unify_at(node_span(Base), RT, BT, En,
+                                              "the base of `..` must have the constructor's type",
+                                              {con_name_span(E), "a constructor of "
+                                                   ++ ern_types:format(RT, En#env.st)})}
                         end,
     {TypedSets, Env2} =
-        lists:mapfoldl(fun(#field_set{pos = SPos, name = N, expr = X} = S, En) ->
+        lists:mapfoldl(fun(#field_set{name = N, expr = X} = S, En) ->
                            FT = lists:nth(index_of(N, Names), FTs),
                            {TX, XT, En1} = infer(X, En),
+                           Declares = atom_to_list(Name) ++ " declares " ++ atom_to_list(N)
+                                      ++ " : " ++ ern_types:format(FT, En1#env.st),
                            {S#field_set{expr = TX},
-                            unify_at(SPos, FT, XT, En1, "field " ++ atom_to_list(N))}
+                            unify_at(node_span(X), FT, XT, En1, "field " ++ atom_to_list(N),
+                                     {con_name_span(E), Declares})}
                        end, Env1, Sets),
     {E#e_con{args = {named, TypedBase, TypedSets}, type = RT}, RT, Env2}.
+
+%% The span of a construction's written constructor, `Point` or
+%% `Shape.Circle`, which labels what fixed a field's type.
+con_name_span(#e_con{pos = Pos, path = Path, name = Name}) ->
+    {L, C, _} = ern_diag:span(Pos),
+    {L, C, {L, C + length(format_qname(Path ++ [Name]))}}.
 
 %% Report §5.6: `..` takes the unlisted fields from a value that has them,
 %% so its type has one constructor.
@@ -2577,11 +2640,11 @@ infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '=', expr = X} = 
                                ++ " in the annotation means every type, and a `let` in a block"
                                " is generalized only over a lambda", [],
                          "write the type, or leave the annotation out"),
-                En = EnvG#env{st = St, ann_vars = AnnVars},
+                En = EnvG#env{st = St, ann_vars = AnnVars, rigid = New ++ EnvG#env.rigid},
                 {TX, TT, EnX} = check_expr(X, AT, "the value does not have the declared type",
                                            ann_origin(Ann, AT, En), En),
                 rigid_annotation_vars(BPos, New, EnX),
-                {TX, TT, EnX#env{ann_vars = EnvG#env.ann_vars}}
+                {TX, TT, EnX#env{ann_vars = EnvG#env.ann_vars, rigid = EnvG#env.rigid}}
         end,
     {TypedP, PT, Bindings, Env2} = check_pattern(P, Env1),
     irrefutable(P, Env2) orelse fail(BPos, "a `let` pattern must be irrefutable", [],
@@ -2617,7 +2680,14 @@ infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '<-', expr = X} =
     Env4 = bind_vars(Bindings, Env3),
     {TypedRest, RestT, Env5} = infer_stmts(Rest, Pos, Expect, Env4, Fns, []),
     Spans = {node_span(P), node_span(X)},
-    Env6 = Env5#env{deferred = [{bind_arrow, BPos, Spans, XT, PT, RestT} | Env5#env.deferred]},
+    %% report §11.5: what fixed the block's type, the annotation that did,
+    %% or else the block's last expression
+    Fixed = case Expect of
+                {_, _, {_, _} = Origin} -> Origin;
+                _ -> {last, node_span(lists:last(Rest))}
+            end,
+    Env6 = Env5#env{deferred = [{bind_arrow, BPos, Spans, XT, PT, RestT, Fixed}
+                                | Env5#env.deferred]},
     {lists:reverse(Acc) ++ [B#binding{pattern = TypedP, expr = TypedX} | TypedRest], RestT, Env6};
 infer_stmts([X | Rest], Pos, Expect, Env, Fns, Acc) ->
     {TypedX, T, Env1} = infer(X, Env),
@@ -2626,10 +2696,19 @@ infer_stmts([X | Rest], Pos, Expect, Env, Fns, Acc) ->
 
 %% Report §5.4: an expression that is not a block's last statement has type
 %% Unit, so no value is dropped unseen; §11.5 reports it whole.
-statement_unit(X, T, #env{st = St} = Env) ->
-    case ern_types:unify(?UNIT, T, St) of
+statement_unit(X, T, #env{st = St, rigid = Rigid} = Env) ->
+    %% a rigid annotation variable (§3.9) is no Unit either
+    Unified = case ern_types:unify(?UNIT, T, St) of
+                  {ok, StU} ->
+                      case rigid_kept(Rigid, StU) orelse not rigid_kept(Rigid, St) of
+                          true -> {ok, StU};
+                          false -> rigid
+                      end;
+                  Error -> Error
+              end,
+    case Unified of
         {ok, St1} -> Env#env{st = St1};
-        {error, _} ->
+        _ ->
             fail(node_span(X), "this statement's value is discarded: expected Unit, found "
                                ++ ern_types:format(T, St), [],
                  "`let _ = ...` discards it on purpose")
@@ -2662,13 +2741,22 @@ alternatives_agree(#p_or{alts = [First | Rest]}, Env) ->
     lists:foldl(fun(A, En) ->
                     lists:foldl(fun({N, TN}, E) ->
                                     {N, TF} = lists:keyfind(N, 1, Bindings),
-                                    unify_at(node_span(A), TF, TN, E,
+                                    Label = atom_to_list(N) ++ " is bound here at "
+                                            ++ ern_types:format(TF, E#env.st),
+                                    unify_at(binds_at(N, A), TF, TN, E,
                                              "the alternatives bind `" ++ atom_to_list(N)
-                                             ++ "` at one type", undefined)
+                                             ++ "` at one type", {binds_at(N, First), Label})
                                 end, En, ern_ast:pattern_bindings(A))
                 end, Env, Rest);
 alternatives_agree(_, Env) ->
     Env.
+
+%% Where a pattern binds the variable N.
+binds_at(N, P) ->
+    ern_ast:walk(fun(#p_var{pos = Pos, name = M}, undefined) when M =:= N -> Pos;
+                    (#p_as{pos = Pos, name = M}, undefined) when M =:= N -> Pos;
+                    (_, At) -> At
+                 end, P, undefined).
 
 -spec alternatives_differ(ern_diag:pos(), [atom()], [atom()]) -> no_return().
 alternatives_differ(Pos, Names, NamesA) ->
@@ -2738,22 +2826,33 @@ pat(#p_tuple{elems = Es} = P, Env) ->
     {TypedEs, Ts, Bs} = lists:unzip3(Typed),
     T = {ttuple, Ts},
     {P#p_tuple{elems = TypedEs, type = T}, T, lists:append(Bs), Env1};
-pat(#p_list{pos = Pos, elems = Es} = P, Env) ->
+pat(#p_list{elems = Es} = P, Env) ->
     {ElemT, St} = ern_types:fresh(Env#env.st),
-    {Typed, Env1} = lists:mapfoldl(fun(E, En) ->
-                                       {TE, T, B, En1} = pat(E, En),
-                                       En2 = unify_at(Pos, ElemT, T, En1,
-                                                      "list elements must have one type"),
-                                       {{TE, B}, En2}
-                                   end, Env#env{st = St}, Es),
+    {Typed, {Env1, _}} =
+        lists:mapfoldl(fun(E, {En, Origin}) ->
+                           {TE, T, B, En1} = pat(E, En),
+                           En2 = case Origin of
+                                     undefined -> bound(ElemT, T, En1);
+                                     _ -> unify_at(node_span(E), ElemT, T, En1,
+                                                   "list elements must have one type", Origin)
+                                 end,
+                           Origin1 = case Origin of
+                                         undefined -> {node_span(E), "the first element has type "
+                                                       ++ ern_types:format(ElemT, En2#env.st)};
+                                         _ -> Origin
+                                     end,
+                           {{TE, B}, {En2, Origin1}}
+                       end, {Env#env{st = St}, undefined}, Es),
     {TypedEs, Bs} = lists:unzip(Typed),
     T = {tcon, ['List'], [ElemT]},
     {P#p_list{elems = TypedEs, type = T}, T, lists:append(Bs), Env1};
-pat(#p_cons{pos = Pos, head = H, tail = Tl} = P, Env) ->
+pat(#p_cons{head = H, tail = Tl} = P, Env) ->
     {TypedH, HT, HBs, Env1} = pat(H, Env),
     {TypedTl, TlT, TlBs, Env2} = pat(Tl, Env1),
     T = {tcon, ['List'], [HT]},
-    Env3 = unify_at(Pos, T, TlT, Env2, "the tail of `::` must be a list of the head's type"),
+    Env3 = unify_at(node_span(Tl), T, TlT, Env2,
+                    "the tail of `::` must be a list of the head's type",
+                    {node_span(H), "the head has type " ++ ern_types:format(HT, Env2#env.st)}),
     {P#p_cons{head = TypedH, tail = TypedTl, type = T}, T, HBs ++ TlBs, Env3};
 pat(#p_as{pattern = Sub, name = N} = P, Env) ->
     {TypedSub, T, Bs, Env1} = pat(Sub, Env),
@@ -2767,7 +2866,9 @@ pat(#p_or{alts = [First | Rest]} = P, Env) ->
           fun(A, En) ->
                   {TA, TT, BA, En1} = check_pattern(A, En),
                   En2 = unify_at(node_span(A), T, TT, En1,
-                                 "the alternatives of a clause match one type", undefined),
+                                 "the alternatives of a clause match one type",
+                                 {node_span(First), "the first alternative has type "
+                                                    ++ ern_types:format(T, En1#env.st)}),
                   NamesA = lists:sort([N || {N, _} <- BA]),
                   NamesA =:= Names orelse alternatives_differ(element(2, A), Names, NamesA),
                   {TA, En2}
@@ -3223,23 +3324,39 @@ bound(Expected, Actual, #env{st = St} = Env) ->
     Env#env{st = St1}.
 
 %% Report §11.5: a mismatch is reported at Pos, the leaf, with Origin, the
-%% span that fixed the expectation, as its label.
-unify_at(Pos, Expected, Actual, #env{st = St} = Env, Context, Origin) ->
+%% span that fixed the expectation, as its label. An annotation variable is
+%% rigid (§3.9), so a unification that binds one to a type, or two to one
+%% another, is the mismatch.
+unify_at(Pos, Expected, Actual, #env{st = St, rigid = Rigid} = Env, Context, Origin) ->
     case ern_types:unify(Expected, Actual, St) of
         {ok, St1} ->
+            rigid_kept(Rigid, St1) orelse not rigid_kept(Rigid, St) orelse
+                fail(Pos, unify_message(Context, {mismatch, Expected, Actual}, Expected, Actual,
+                                        St),
+                     labels(Origin), undefined),
             Env#env{st = St1};
         {error, Reason} ->
             fail(Pos, unify_message(Context, Reason, Expected, Actual, St), labels(Origin),
                  differing_help(Reason, Expected, Actual, St))
     end.
 
+%% Whether the rigid variables are still distinct variables.
+rigid_kept(Rigid, St) ->
+    Resolved = [ern_types:resolve(V, St) || {_, V} <- Rigid],
+    Ids = [Id || {tvar, Id} <- Resolved],
+    length(Ids) =:= length(Resolved) andalso length(lists:usort(Ids)) =:= length(Ids).
+
 %% The message shows the whole types; when they differ inside, the help
 %% line names the differing part.
 differing_help({mismatch, _, _}, Expected, Actual, St) ->
+    Shown = {ern_types:format(Expected, St), ern_types:format(Actual, St)},
     case ern_types:mismatch_pair(Expected, Actual, St) of
-        {E, A} when E =:= Expected; A =:= Actual -> undefined;
-        {E, A} -> "the types differ at " ++ ern_types:format(E, St) ++ " and "
-                  ++ ern_types:format(A, St)
+        {E, A} ->
+            Part = {ern_types:format(E, St), ern_types:format(A, St)},
+            case Part of
+                {PE, PA} when PE =:= element(1, Shown); PA =:= element(2, Shown) -> undefined;
+                {PE, PA} -> "the types differ at " ++ PE ++ " and " ++ PA
+            end
     end;
 differing_help(_, _, _, _) -> undefined.
 

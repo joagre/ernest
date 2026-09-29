@@ -21,14 +21,6 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 - 2.98 — §4.4 does not cover a broadcast to a consumer that stalls (N4)
 - 2.98 — the language: sockets pull-only, mandatory timeouts, slow standard library calls, no bounded mailbox (N-L1..L6)
 
-## Diagnostics (§11.5)
-
-- 2.98 — a rejected call site does not name the parameter and its restriction (`==` through a variable, a reply to `drop`) (X1, X2)
-- 2.98 — a recursive use at another type is reported over the declaration, reversed, unlabelled (X3)
-- 2.98 — positions and labels: `compare`'s shape, a field of two types, a foreign implementation, a field named twice, annotation variables, the type mismatches without their label, the second span of a duplicate, selector errors at the selector, a block ending in `;`, receive in Never, short spans, "on this runtime" (X5, X7..X17)
-- 2.98 — clarity: tuples of `(...)`, occurs through branches, "not a function" for self-application, `()`, `None()`, refutable parameters, a reply in a local fn, a reply on one path, `if` without `else`, a lowercase type name (X-B1..B10)
-- 2.98 — uncovered: the `Prelude.Local` label, `a=`/`a!` at a call site, an effect error in a pure `let` or guard (X)
-
 ## The toolchain
 
 - 2.98 — `--build-root` does not find modules outside the source root, against §11.1 (T2)

@@ -94,13 +94,16 @@ block_order(Stmts) ->
                                    I <- [in_force(R, D, Lets)], I =/= none]}
                 || {D, #fn_decl{name = N, params = Params, body = B}} <- Indexed]),
     Needs = fun(N) -> needed_lets(N, Direct, [], []) end,
+    %% where each let instance is bound, for the error's label
+    At = maps:from_list([{{N, I}, Pos} || {I, #binding{pattern = P}} <- Indexed,
+                                          {N, Pos} <- pattern_vars(P)]),
     lists:foldl(fun({I, #binding{pattern = P, expr = X}}, Bound) ->
-                    check_uses(X, FnNames, Needs, Bound),
+                    check_uses(X, FnNames, Needs, Bound, At),
                     [{N, I} || N <- pattern_names(P)] ++ Bound;
                    ({_, #fn_decl{}}, Bound) ->
                     Bound;
                    ({_, X}, Bound) ->
-                    check_uses(X, FnNames, Needs, Bound),
+                    check_uses(X, FnNames, Needs, Bound, At),
                     Bound
                 end, [], Indexed).
 
@@ -124,16 +127,22 @@ needed_lets(N, Direct, Seen, Acc) ->
                         end, Acc1, Refs)
     end.
 
-check_uses(Expr, FnNames, Needs, Bound) ->
+check_uses(Expr, FnNames, Needs, Bound, At) ->
     ern_ast:walk(fun(#e_var{pos = Pos, path = [], name = N}, E) ->
                  case lists:member(N, FnNames) of
                      true ->
                          case Needs(N) -- Bound of
                              [] -> E;
-                             [{L, _} | _] -> fail(Pos, "local function " ++ atom_to_list(N)
-                                                       ++ " is used before `let "
-                                                       ++ atom_to_list(L)
-                                                       ++ "`, which it references")
+                             [{L, _} = Let | _] ->
+                                 Name = atom_to_list(L),
+                                 fail(Pos,
+                                      "local function " ++ atom_to_list(N)
+                                      ++ " is used before `let " ++ Name
+                                      ++ "`, which it references",
+                                      [{ern_diag:span(maps:get(Let, At)),
+                                        "`let " ++ Name ++ "` is evaluated here"}],
+                                      "use " ++ atom_to_list(N) ++ " after `let "
+                                      ++ Name ++ "`")
                          end;
                      false -> E
                  end;
@@ -149,9 +158,6 @@ free_refs(Body, Params, Names) ->
 pattern_names(P) -> [N || {N, _} <- ern_ast:pattern_bindings(P)].
 
 param_names(Params) -> lists:append([pattern_names(P) || #param{pattern = P} <- Params]).
-
-fail(Pos, Message) ->
-    throw({type_error, Pos, lists:flatten(Message)}).
 
 fail(Pos, Message, Labels, Help) ->
     throw({type_error, #diag{span = ern_diag:span(Pos), message = lists:flatten(Message),

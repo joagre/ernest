@@ -1140,7 +1140,8 @@ fn f(#(a, b) : Int) : Int = a
 $ ern build example.ern
 example.ern:1:6: the parameter pattern does not fit its annotation: expected Int, found #(a, b)
 1 | fn f(#(a, b) : Int) : Int = a
-  |      ^^^^^^^^^^^^^
+  |      ^^^^^^^
+  |                --- declared Int here
 ```
 
 ### A body that does not have the declared return type (§4.5)
@@ -1460,6 +1461,7 @@ $ ern build example.ern
 example.ern:4:24: the field x: expected String, found Int
 3 | fn f(p) : String = {
 4 |     let s : String = p.x;
+  |             ------ declared String here
   |                        ^
 ```
 
@@ -1564,10 +1566,11 @@ fn f() : Point = Point(x = "one")
 
 ```console
 $ ern build example.ern
-example.ern:3:24: field x: expected Int, found String
+example.ern:3:28: field x: expected Int, found String
 2 | 
 3 | fn f() : Point = Point(x = "one")
-  |                        ^^^^^^^^^
+  |                  ----- Point declares x : Int
+  |                            ^^^^^
 ```
 
 ### `..` from a value of another type (§5.6)
@@ -1580,10 +1583,11 @@ fn f() : Point = Point(..5, x = 1)
 
 ```console
 $ ern build example.ern
-example.ern:3:18: the base of `..` must have the constructor's type: expected Point, found Int
+example.ern:3:26: the base of `..` must have the constructor's type: expected Point, found Int
 2 | 
 3 | fn f() : Point = Point(..5, x = 1)
-  |                  ^^^^^^^^^^^^^^^^^
+  |                  ----- a constructor of Point
+  |                          ^
 ```
 
 ### `..` on a type of two constructors (§5.6)
@@ -1633,8 +1637,8 @@ $ ern build example.ern
 example.ern:2:22: the result of `+`: expected String, found Int
 1 | fn f(a, b) : Int = {
 2 |     let s : String = a + b;
+  |             ------ declared String here
   |                      ^^^^^
-  | = help: the types differ at String and Int
 ```
 
 ### An operator the type does not define (§4.8)
@@ -1677,7 +1681,10 @@ fn f(v : Vec(String)) : Vec(String) = v + v
 ```console
 $ ern build example.ern
 example.ern:5:39: Vec.+ does not fit two operands of Vec(String): expected (Vec(String), Vec(String)) -> a, found (Vec(Int), Vec(Int)) -> Vec(Int)
-4 | 
+2 | 
+3 | fn Vec.+(a : Vec(Int), b : Vec(Int)) : Vec(Int) = a
+  | ----------------------------------------------- Vec.+ : (Vec(Int), Vec(Int)) -> Vec(Int)
+...
 5 | fn f(v : Vec(String)) : Vec(String) = v + v
   |                                       ^^^^^
   | = help: the types differ at String and Int
@@ -2015,9 +2022,10 @@ fn id(x : a) : a = 1
 
 ```console
 $ ern build example.ern
-example.ern:1:1: type variable a in the annotation is used as Int
+example.ern:1:20: the body does not have the declared return type: expected a, found Int
 1 | fn id(x : a) : a = 1
-  | ^^^^^^^^^^^^^^^^^^^^
+  |                - declared to return a here
+  |                    ^
 ```
 
 ### Two type variables of an annotation used as one (§3.9)
@@ -2028,9 +2036,10 @@ fn f(x : a, y : b) : a = y
 
 ```console
 $ ern build example.ern
-example.ern:1:1: two type variables in the annotation are used as one type
+example.ern:1:26: the body does not have the declared return type: expected a, found b
 1 | fn f(x : a, y : b) : a = y
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |                      - declared to return a here
+  |                          ^
 ```
 
 ### A reply passed where a function discards its argument (§3.9, §6.6)
@@ -2089,6 +2098,9 @@ example.ern:2:13: local function g is used before `let x`, which it references
 1 | fn f() : Int = {
 2 |     let y = g();
   |             ^
+3 |     let x = 1;
+  |         - `let x` is evaluated here
+  | = help: use g after `let x`
 ```
 
 ## Binding with `<-` (report §5.5)
@@ -2156,10 +2168,11 @@ fn f(o : Optional(Int)) : Either(String, Int) = {
 
 ```console
 $ ern build example.ern
-example.ern:2:5: after `let p <- e` the block must have the same sum type as e: expected Optional(a), found Either(String, Int)
+example.ern:2:14: the value of `<-` must have the block's sum type: expected Either(String, Int), found Optional(Int)
 1 | fn f(o : Optional(Int)) : Either(String, Int) = {
+  |                           ------------------- declared to return Either(String, Int) here
 2 |     let x <- o;
-  |     ^^^^^^^^^^
+  |              ^
 ```
 
 ### `<-` on an Optional that would contain itself (§5.5)
@@ -2173,10 +2186,12 @@ fn f(o) = {
 
 ```console
 $ ern build example.ern
-example.ern:2:5: `<-` on an Optional: a type that would contain itself (Optional(a) against a)
+example.ern:2:14: `<-` on an Optional: a type that would contain itself (Optional(a) against a)
 1 | fn f(o) = {
 2 |     let y <- o;
-  |     ^^^^^^^^^^
+  |              ^
+3 |     if true then Some(o) else Some(y)
+  |     --------------------------------- the block's value has type Optional(a)
 ```
 
 ### `<-` on an Either that would contain itself (§5.5)
@@ -2190,10 +2205,12 @@ fn f(o) = {
 
 ```console
 $ ern build example.ern
-example.ern:2:5: `<-` on an Either: a type that would contain itself (Either(a, b) against a)
+example.ern:2:14: `<-` on an Either: a type that would contain itself (Either(a, b) against a)
 1 | fn f(o) = {
 2 |     let y <- o;
-  |     ^^^^^^^^^^
+  |              ^
+3 |     if true then Right(o) else Right(y)
+  |     ----------------------------------- the block's value has type Either(a, b)
 ```
 
 ### A refutable `let` pattern (§4.6)
@@ -2436,10 +2453,11 @@ fn f(xs : List(Int)) : Int =
 
 ```console
 $ ern build example.ern
-example.ern:3:9: list elements must have one type: expected Int, found String
+example.ern:3:13: list elements must have one type: expected Int, found String
 2 |     match xs {
 3 |         [1, "two"] -> 1
-  |         ^^^^^^^^^^
+  |          - the first element has type Int
+  |             ^^^^^
 ```
 
 ### A `::` pattern whose tail is no list of the head's type (§5.10)
@@ -2454,10 +2472,11 @@ fn f(xs : List(Int)) : Int =
 
 ```console
 $ ern build example.ern
-example.ern:3:11: the tail of `::` must be a list of the head's type: expected List(a), found Int
+example.ern:3:14: the tail of `::` must be a list of the head's type: expected List(a), found Int
 2 |     match xs {
 3 |         x :: 1 -> x
-  |           ^^^^
+  |         - the head has type a
+  |              ^
 ```
 
 ### Alternatives of two types (§5.10)
@@ -2475,6 +2494,7 @@ $ ern build example.ern
 example.ern:3:14: the alternatives of a clause match one type: expected Int, found String
 2 |     match n {
 3 |         1 or "one" -> 1
+  |         - the first alternative has type Int
   |              ^^^^^
 ```
 
@@ -2489,11 +2509,11 @@ fn f(e : Either(Int, String)) : Int =
 
 ```console
 $ ern build example.ern
-example.ern:3:20: the alternatives bind `x` at one type: expected Int, found String
+example.ern:3:26: the alternatives bind `x` at one type: expected Int, found String
 2 |     match e {
 3 |         Left(x) or Right(x) -> 1
-  |                    ^^^^^^^^
-  | = help: the types differ at Int and String
+  |              - x is bound here at Int
+  |                          ^
 ```
 
 ### Alternatives that bind different variables (§5.10)

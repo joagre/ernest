@@ -247,7 +247,7 @@ operator_operand_sources_test() ->
 lambda_let_generalized_test() ->
     ?assertEqual(ok, ok("fn f() = { let id = fn(x) = x; #(id(1), id(\"a\")) }")),
     ?assertEqual(ok, ok("fn f() = { let id = fn(x : a) : a = x; #(id(1), id(\"a\")) }")),
-    ?assertEqual("type variable a in the annotation is used as Int",
+    ?assertEqual("both operands of `+` must have the same type: expected a, found Int",
                  err("fn f() = { let g = fn(x : a) : a = x + 1; g(2) }")),
     ?assertEqual(ok, ok("export let id = fn(x : a) : a = x")),
     %% any other block binding stays monomorphic
@@ -693,7 +693,8 @@ bind_arrow_test() ->
     ?assertEqual("(a) -> Either(String, Int)",
                  type_of("export fn f(n) : Either(String, Int) = { let x <- g(n); Right(x + 1) }\n"
                          "fn g(n) = f(n)", f)),
-    ?assertMatch("after `let p <- e` the block must have the same sum type as e: " ++ _,
+    ?assertMatch("the value of `<-` must have the block's sum type: expected Either(a, Int),"
+                 " found Optional(Int)",
                  err("fn f(a : String) = { let x <- String.toInt(a); Right(x) }")),
     ?assertMatch("`<-` needs an Either or an Optional, not Int", err("fn f() = { let x <- 1; x }")).
 
@@ -773,8 +774,9 @@ local_fn_takes_no_variables_name_test() ->
 
 %% report §3.9
 annotations_are_rigid_test() ->
-    ?assertEqual("type variable a in the annotation is used as Int", err("fn f(x : a) : a = 1")),
-    ?assertEqual("two type variables in the annotation are used as one type",
+    ?assertEqual("the body does not have the declared return type: expected a, found Int",
+                 err("fn f(x : a) : a = 1")),
+    ?assertEqual("the body does not have the declared return type: expected a, found b",
                  err("fn f(x : a, y : b) : a = y")),
     ?assertEqual("(a) -> a", type_of("export fn id(x : a) : a = x", id)),
     ?assertMatch("the body does not have the declared return type: " ++ _,
@@ -788,16 +790,16 @@ local_fn_signature_shares_variables_test() ->
     ?assertEqual("(a) -> a",
                  type_of("export fn outer(x : a) : a = { fn inner(y : a) : a = y; inner(x) }",
                          outer)),
-    ?assertEqual("type variable a in the annotation is used as Int",
+    ?assertEqual("the argument does not fit inner: expected a, found Int",
                  err("fn outer(x : a) : a = { fn inner(y : a) : a = y; inner(1) }")),
-    ?assertEqual("type variable a in the annotation is used as Int",
+    ?assertEqual("the argument does not fit inner: expected a, found Int",
                  err("fn outer(x : a) : Int = { fn inner(y : a) : a = y; inner(1) }")),
     ?assertEqual("(a) -> a",
                  type_of("export fn outer(x : a) : a ="
                          " { fn id(y : b) : b = y; let _ = id(1); id(x) }", outer)),
-    ?assertEqual("two type variables in the annotation are used as one type",
+    ?assertEqual("the body does not have the declared return type: expected b, found a",
                  err("fn outer(x : a) : a = { fn g(y : b) : b = x; x }")),
-    ?assertEqual("type variable b in the annotation is used as Int",
+    ?assertEqual("the body does not have the declared return type: expected b, found Int",
                  err("fn outer(x : a) : a = { fn g(y : b) : b = 1; x }")).
 
 %% report §3.9: polymorphic recursion is refused, even under a full
@@ -819,9 +821,10 @@ polymorphic_recursion_is_refused_test() ->
 %% test; it does not cover a local `fn`'s own signature, which starts a
 %% definition of its own.
 block_let_annotation_variables_test() ->
-    ?assertEqual("type variable a in the annotation is used as Int",
+    ?assertEqual("the value does not have the declared type: expected a, found Int",
                  err("fn f(x : a) : Int = { let y : a = 1; y }")),
-    ?assertEqual("type variable a in the annotation is used as Int",
+    ?assertEqual("the body does not have the declared return type: expected Optional(Int),"
+                 " found Optional(a)",
                  err("fn f(x : Optional(a), n : Int) : Optional(Int) ="
                      " { let y : a <- Some(n); Some(y) }")),
     ?assertEqual("(a) -> a", type_of("export fn f(x : a) : a = { let y : a = x; y }", f)),
@@ -831,7 +834,7 @@ block_let_annotation_variables_test() ->
     %% the lambda's own b is rigid, and the one the inner `let` names
     ?assertEqual(ok, ok("fn f(x : Int) : Int ="
                         " { let g = fn(y : b) : b = { let z : b = y; z }; g(x) }")),
-    ?assertEqual("type variable b in the annotation is used as String",
+    ?assertEqual("the value does not have the declared type: expected b, found String",
                  err("fn f(x : Int) : Int ="
                      " { let g = fn(y : b) : b = { let z : b = \"s\"; z }; g(x) }")).
 
@@ -1265,7 +1268,7 @@ warts_audit_test() ->
     %% lambda that is generalized may name. A regression test for the new
     %% one: it belonged to the lambda and became Int
     ?assertEqual("(a) -> a", type_of("export fn f(x : a) : a = (fn(y : a) : a = y)(x)", f)),
-    ?assertEqual("type variable a in the annotation is used as Int",
+    ?assertEqual("the lambda body does not have the declared type: expected a, found Int",
                  err("fn f(x : a) : a = { let g = fn(y : a) : a = 1; g(x) }")),
     ?assertEqual("type variable b in the lambda's annotation means every type, and the lambda"
                  " is not generalized",
