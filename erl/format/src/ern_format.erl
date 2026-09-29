@@ -441,7 +441,6 @@ seg(#bit_seg{value = V, specs = Ss}, X, Value) ->
     [Value(V, X), tok(':'), lists:join(tok('-'), [spec(S, X) || S <- Ss])].
 
 spec({size, E}, X) -> [tok(), tok('('), ex(E, X), tok(')')];
-spec({unit, _}, _) -> [tok(), tok('('), tok(), tok(')')];
 spec(_, _) -> tok().
 
 %% `x |> f(a) |> g`: the first operand, then each callee with the

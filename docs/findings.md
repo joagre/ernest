@@ -4,7 +4,6 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 
 ## The report
 
-- 2.98 — `unit(N)` is a second way to scale a size (P22)
 - 2.98 — rules that buy little, to weigh: `true`/`false` reserved, prefix `!`, `abstract` with `export` only, the 255-character limit, `Path` in the prelude (P-C)
 
 ## The guide and the README

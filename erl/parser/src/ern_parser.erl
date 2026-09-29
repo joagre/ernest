@@ -901,10 +901,11 @@ bit_segment(Ts, Parse) ->
 bit_spec([{ident, _, size}, {'(', _} | R]) ->
     {E, R1} = expr(R),
     {{size, E}, expect(R1, ')')};
-bit_spec([{ident, _, unit}, {'(', _}, {int, _, N}, {')', _} | R]) ->
-    {{unit, N}, R};
 bit_spec([{ident, Pos, unit} | _]) ->
-    fail(Pos, "`unit` takes an integer in parentheses");
+    %% report §5.11: a size counts bits, and octets for `bytes`, so no
+    %% specifier scales it
+    fail(Pos, "there is no `unit` specifier",
+         "a size counts bits, and octets for `bytes`: write `size(n * 8)`");
 bit_spec([{ident, Pos, Name} | R]) ->
     case lists:member(Name, ?SPECS) of
         true -> {Name, R};

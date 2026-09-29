@@ -1371,8 +1371,8 @@ segment_value(#{kind := bytes} = Spec, VF, SizeF) ->
     call_remote(ern_bits, bytes, [VF, bits_form(Spec, SizeF)]);
 segment_value(_, VF, _) -> VF.
 
-%% A dynamic size with a unit that is not a multiple of 8 leaves the bit
-%% count open; the built value is then checked for alignment.
+%% A dynamic size counted in bits leaves the bit count open; the built
+%% value is then checked for alignment.
 open(#{size := {expr, _}, unit := U}) -> U rem 8 =/= 0;
 open(_) -> false.
 

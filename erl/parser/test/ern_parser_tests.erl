@@ -307,9 +307,14 @@ bitstring_expr_test() ->
                                               specs = [{size, #e_lit{value = 16}}, big]},
                                      #bit_seg{value = #e_var{name = body}, specs = [bytes]}]},
                  e("<<len:size(16)-big, body:bytes>>")),
-    ?assertMatch(#e_bits{segments = [#bit_seg{specs = [{unit, 8}, {size, #e_var{}}, little,
-                                                       signed]}]},
-                 e("<<x:unit(8)-size(n)-little-signed>>")).
+    ?assertMatch(#e_bits{segments = [#bit_seg{specs = [{size, #e_var{}}, little, signed]}]},
+                 e("<<x:size(n)-little-signed>>")).
+
+%% report §5.11: there is no `unit`; a size counts bits, and octets for
+%% `bytes`, and the error says to write it so. A regression test: `unit`
+%% was a second way to scale a size
+no_unit_specifier_test() ->
+    ?assertEqual("there is no `unit` specifier", err_expr("<<x:size(n)-unit(8)>>")).
 
 %% report §5.11: a specifier's name is an ordinary identifier outside a
 %% specifier list, so a segment's value, a size's expression and a pattern's
@@ -749,10 +754,10 @@ bitstrings_test() ->
     ?assertMatch(#e_bits{segments = []}, e("<<>>")),
     ?assertMatch(#e_bits{segments = [#bit_seg{value = #e_lit{value = 1}, specs = []},
                                      #bit_seg{value = #e_var{name = x},
-                                              specs = [{size, #e_binop{op = '+'}}, {unit, 8},
-                                                       big, signed]},
+                                              specs = [{size, #e_binop{op = '+'}}, big,
+                                                       signed]},
                                      #bit_seg{value = #e_var{name = b}, specs = [bytes]}]},
-                 e("<<1, x:size(n + 1)-unit(8)-big-signed, b:bytes>>")),
+                 e("<<1, x:size(n + 1)-big-signed, b:bytes>>")),
     ?assertMatch(#e_match{clauses = [#clause{pattern = #p_bits{segments =
                                                    [#bit_seg{value = #p_var{name = len},
                                                              specs = [{size, _}, big]},
@@ -764,7 +769,7 @@ bitstrings_test() ->
                  e("match b { <<len:size(16)-big, body:size(len)-bytes, _:utf8>> -> len"
                    " | _ -> 0 }")),
     ?assertEqual("unknown bitstring specifier `word`", err_expr("<<1:word>>")),
-    ?assertEqual("`unit` takes an integer in parentheses", err_expr("<<1:unit>>")).
+    ?assertEqual("there is no `unit` specifier", err_expr("<<1:unit>>")).
 
 %% report §11.2, §2.5: an input the parser cannot finish is marked, so
 %% that the shell takes another line for it. It ran out of tokens where

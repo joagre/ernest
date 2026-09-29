@@ -800,17 +800,18 @@ example.ern:4:1: expected a pattern instead of end of input
   | ^
 ```
 
-### `unit` without an integer (§5.11)
+### `unit`, which a size does not take (§5.11)
 
 ```ernest-rejected
-fn f(b : Bytes) : Bytes = <<b:unit(a)>>
+fn f(n : Int) : Bytes = <<n:size(2)-unit(8)>>
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:31: `unit` takes an integer in parentheses
-1 | fn f(b : Bytes) : Bytes = <<b:unit(a)>>
-  |                               ^^^^
+example.ern:1:37: there is no `unit` specifier
+1 | fn f(n : Int) : Bytes = <<n:size(2)-unit(8)>>
+  |                                     ^^^^
+  | = help: a size counts bits, and octets for `bytes`: write `size(n * 8)`
 ```
 
 ### A bitstring specifier the language does not have (§5.11)
@@ -2624,22 +2625,9 @@ fn f(c : Char) : Bytes = <<c:utf8-size(8)>>
 
 ```console
 $ ern build example.ern
-example.ern:1:28: a utf segment has no size or unit
+example.ern:1:28: a utf segment has no size
 1 | fn f(c : Char) : Bytes = <<c:utf8-size(8)>>
   |                            ^^^^^^^^^^^^^^
-```
-
-### A unit beyond 256 (§5.11)
-
-```ernest-rejected
-fn f(n : Int) : Bytes = <<n:size(1)-unit(300)>>
-```
-
-```console
-$ ern build example.ern
-example.ern:1:27: unit is 1 to 256
-1 | fn f(n : Int) : Bytes = <<n:size(1)-unit(300)>>
-  |                           ^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A float of a size the runtime lacks (§5.11)
@@ -2653,19 +2641,6 @@ $ ern build example.ern
 example.ern:1:29: a float segment is 16, 32, or 64 bits
 1 | fn f(x : Float) : Bytes = <<x:float-size(8)>>
   |                             ^^^^^^^^^^^^^^^
-```
-
-### A `bytes` segment that is not whole bytes (§5.11)
-
-```ernest-rejected
-fn f(b : Bytes) : Bytes = <<b:bytes-size(1)-unit(3)>>
-```
-
-```console
-$ ern build example.ern
-example.ern:1:29: a `bytes` segment is a whole number of bytes, not 3 bits
-1 | fn f(b : Bytes) : Bytes = <<b:bytes-size(1)-unit(3)>>
-  |                             ^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### Two byte orders on one segment (§5.11)

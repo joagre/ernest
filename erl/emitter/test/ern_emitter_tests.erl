@@ -1458,7 +1458,7 @@ bitstrings_test() ->
         "  | _ -> \"\"\n"
         "}\n"
         "fn tail(n : Int, b : Bytes) : String = match b {\n"
-        "    <<_:size(n)-bytes-unit(1), rest:bytes>> -> show(rest)\n"
+        "    <<_:size(n)-bytes, rest:bytes>> -> show(rest)\n"
         "  | _ -> \"no\"\n"
         "}\n"
         "export fn main() : Unit with Never = {\n"
@@ -1475,8 +1475,8 @@ bitstrings_test() ->
         " | _ -> Io.println(\"?\") };\n"
         "    Io.println(nibbles(<<31, 42>>));\n"
         "    Io.println(show(<<1.5:size(32)-float, -1:size(8)-signed, 258:size(16)-little>>));\n"
-        "    Io.println(tail(8, <<1, 2>>));\n"
-        "    Io.println(tail(4, <<1, 2>>));\n"
+        "    Io.println(tail(1, <<1, 2>>));\n"
+        "    Io.println(tail(3, <<1, 2>>));\n"
         "    Io.println(show(<<(String.toUtf8(\"hi\")):bytes, 3:size(4), 4:size(4)>>))\n"
         "}\n"),
     ?assertEqual(<<"0 1 65 66 \n1: 65 | 66 \nnone\né\n1:15 2:10 \n63 192 0 0 255 2 1 \n2 \nno\n"
@@ -1492,8 +1492,7 @@ bitstring_faults_test() ->
               {"<<(0 - 129):size(8)-signed>>", <<"segment overflow">>},
               {"<<1.0e300:size(32)-float>>", <<"segment overflow">>},
               {"<<(<<1, 2, 3>>):size(2)-bytes>>", <<"segment overflow">>},
-              {"<<7:size(three())>>", <<"bitstring not byte-aligned">>},
-              {"<<(<<1>>):size(three())-bytes-unit(1)>>", <<"bitstring not byte-aligned">>}],
+              {"<<7:size(three())>>", <<"bitstring not byte-aligned">>}],
     lists:foreach(fun({Bits, Cause}) ->
                       {R, _} = run(Three ++ Main ++ "{ let _ = " ++ Bits ++ "; Unit }\n"),
                       ?assertEqual({fault, Cause}, R)

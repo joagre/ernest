@@ -2033,9 +2033,8 @@ fn parseFrame(bytes : Bytes) : Optional(#(Int, Bytes, Bytes)) =
 
 Specifiers, joined with `-`:
 
-- **`size(N)`** — width in units.
-- **`unit(N)`** — bits per size unit; default 1.
-- **`bytes`** — segment is a nested byte-aligned `Bytes` value; unit is 8 bits.
+- **`size(N)`** — width in bits, or in octets for `bytes`.
+- **`bytes`** — segment is a nested byte-aligned `Bytes` value.
 - **`int`**, **`float`** — numeric (defaults: 8-bit `int`, 64-bit `float`).
 - **`utf8`**, **`utf16`**, **`utf32`** — text encoding.
 - **`big`**, **`little`** — endianness. A format states its byte order; data in the host's own order comes through foreign code, which converts it.

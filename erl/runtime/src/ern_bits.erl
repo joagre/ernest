@@ -18,10 +18,9 @@ float(V, 32) when is_float(V), V >= -3.4028234663852886e38, V =< 3.4028234663852
 float(V, 16) when is_float(V), V >= -65504.0, V =< 65504.0 -> V;
 float(_, _) -> overflow().
 
-%% A bytes segment of a given width holds a value of exactly that size, and
-%% the width is whole bytes, whatever its unit (report §5.11, §7.4).
+%% A bytes segment of a given width, a whole number of octets, holds a value
+%% of exactly that size (report §5.11).
 -spec bytes(binary(), integer()) -> binary().
-bytes(_, Bits) when Bits rem 8 =/= 0 -> ern_rt:fault(<<"bitstring not byte-aligned">>);
 bytes(V, Bits) when is_binary(V), bit_size(V) =:= Bits -> V;
 bytes(_, _) -> overflow().
 

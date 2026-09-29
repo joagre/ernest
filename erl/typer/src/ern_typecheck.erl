@@ -2979,8 +2979,8 @@ spec_of(Pos, Specs) ->
     end.
 
 %% Report §5.11: a bit count that is constant and not a multiple of 8 is
-%% an error. A segment with a dynamic size and a unit that is not a
-%% multiple of 8 leaves the count open; every other segment keeps it.
+%% an error. A segment with a dynamic size counted in bits, an `int` or a
+%% `float` one, leaves the count open; one in octets keeps it.
 alignment(Pos, Segs, What) ->
     {Bits, Open} = lists:foldl(fun(#bit_seg{specs = Specs}, {B, O}) ->
                                    {ok, #{size := Size, unit := Unit}} = ern_bitspec:spec(Specs),

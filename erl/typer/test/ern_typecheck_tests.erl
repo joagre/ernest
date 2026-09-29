@@ -1949,11 +1949,8 @@ bitstring_construction_test() ->
                  err("fn f() = <<1:int-float>>")),
     ?assertEqual("conflicting bitstring specifiers `big` and `little`",
                  err("fn f() = <<1:big-little>>")),
-    ?assertEqual("unit is 1 to 256", err("fn f() = <<1:unit(0)>>")),
-    ?assertEqual("a utf segment has no size or unit", err("fn f() = <<'a':utf8-size(8)>>")),
-    ?assertEqual("a float segment is 16, 32, or 64 bits", err("fn f() = <<1.0:size(8)-float>>")),
-    ?assertEqual("a `bytes` segment is a whole number of bytes, not 12 bits",
-                 err("fn f(b : Bytes) = <<b:size(12)-bytes-unit(1)>>")).
+    ?assertEqual("a utf segment has no size", err("fn f() = <<'a':utf8-size(8)>>")),
+    ?assertEqual("a float segment is 16, 32, or 64 bits", err("fn f() = <<1.0:size(8)-float>>")).
 
 %% report §5.11: `signed` and `unsigned` apply to an `int` segment only;
 %% `big` and `little` to an `int`, `float`, `utf16` or `utf32` segment
@@ -2074,7 +2071,7 @@ receive_guard_ordering_test() ->
 %% of them
 bitstring_size_shape_test() ->
     ?assertEqual(ok, ok("fn f(b : Bytes, n : Int) = match b {"
-                        " <<k, rest:size(k * 8 + n - 1)-bytes-unit(1)>> -> rest | _ -> b }")),
+                        " <<k, rest:size(k * 8 + n - 1)-bytes>> -> rest | _ -> b }")),
     ?assertEqual("a size in a pattern is a variable, a top-level `let`, an Int literal, or `+`,"
                  " `-`, `*` of them",
                  err("fn f(b : Bytes) = match b {"
