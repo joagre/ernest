@@ -31,7 +31,7 @@
 
 -export([send/2, process_of/1, spawn/3, spawn_monitored/4, self/0, via/2, call/3, call_forever/2,
          answer/2, refuse/2, monitor/2, kill/1, reason/1, live/0, processes/0, info/1, faults/1,
-         proxy_for/3, proxy_forget/2, source_begin/0, source_begin/1, source_end/0, opened/1,
+         proxy_for/3, proxy_forget/2, source_begin/0, source_begin/1, source_end/0, opened/2,
          forget_opened/1, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
          undefined_function/3, undefined_lambda/3, fault/1, fault/2, trace/1, sys/1,
          hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1, input_not_utf8/0,
@@ -315,6 +315,14 @@ reaper_loop(Waiters, Watching, Watched) ->
                                     end, Watching, Awaits),
             reaper_loop(case Awaits of [] -> Waiters; _ -> Waiters#{Pid => Awaits} end,
                         Watching1, Watched);
+        {adopt, Pid, Site, From, Ref} ->
+            %% report Appendix E.18, E.23: a listener, a socket or a running
+            %% program, which its system process starts, is a process of the
+            %% program's as one spawned is, watched here and listed
+            _ = erlang:monitor(process, Pid),
+            ets:insert(?PROCESSES, {Pid, Site, 0, 0}),
+            From ! {Ref, adopted},
+            reaper_loop(Waiters, Watching, Watched);
         {await, Pid, To, Wrap, Ref} ->
             Watched1 = case ets:lookup(?PROCESSES, Pid) of
                            [] when not is_map_key(Pid, Watched) ->
@@ -444,8 +452,8 @@ live() ->
     catch _:_ -> []
     end.
 
-%% Appendix E.21: Process.live, the live processes the runtime started, the
-%% system processes excepted, which it does not start as it starts these.
+%% Appendix E.21: Process.live, the live processes the runtime started or
+%% adopted, the system processes excepted, which are the runtime's.
 -spec processes() -> [pid()].
 processes() ->
     [Pid || {Pid, _} <- live()].
@@ -669,15 +677,25 @@ sources() ->
         1
     end.
 
-%% Report §8.6, Appendix E.18: a listener or a socket, which a system
-%% module's functions open, is checked as a system process is, a request
-%% in its mailbox being a message in flight. It is recorded by the process
-%% that starts it, before its address is given out, and forgotten with its
-%% sources when it ends, which the process it is linked to learns.
--spec opened(pid()) -> ok.
-opened(Pid) ->
+%% Report §8.6, Appendix E.18, E.23: a listener, a socket or a running
+%% program, which a system module's functions open, is checked as a system
+%% process is, a request in its mailbox being a message in flight. It is
+%% recorded by the process that starts it, before its address is given out,
+%% and forgotten with its sources when it ends, which the process it is
+%% linked to learns. Report Appendix E.21: it is a process of the program's
+%% too, listed by Process.live, known to Process.info and reported by
+%% Process.faults, under Site, the function that opened it.
+-spec opened(pid(), binary()) -> ok.
+opened(Pid, Site) ->
     try ets:insert(?HELD, {{opened, Pid}}) catch _:_ -> true end,
-    ok.
+    case persistent_term:get({?MODULE, reaper}, none) of
+        none ->
+            ok;
+        Reaper ->
+            Ref = make_ref(),
+            Reaper ! {adopt, Pid, Site, erlang:self(), Ref},
+            receive {Ref, adopted} -> ok end
+    end.
 
 -spec forget_opened(pid()) -> ok.
 forget_opened(Pid) ->

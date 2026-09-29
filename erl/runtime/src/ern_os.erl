@@ -28,7 +28,7 @@ serve(Os) ->
                                        link(Os),
                                        receive go -> start(Command, Ms, Owner, Reply) end
                                    end),
-            ern_rt:opened(Program),
+            ern_rt:opened(Program, <<"Os.start">>),
             ern_rt:source_begin(Program),
             Program ! go,
             serve(Os);

@@ -2671,6 +2671,38 @@ tcp_write_waits_test() ->
         "}\n"),
     ?assertEqual(<<"#(false, 4194304)\nFault(\"callee had ended\")\n">>, Out).
 
+%% Appendix E.18, E.21, E.23: a listener, a socket and a running program are
+%% processes of the program's: Process.live lists them, and Process.info
+%% gives the function that opened each as its site. A regression test: the
+%% runtime did not know them (findings.md's C10)
+opened_processes_are_live_test() ->
+    {ok, Out} = run([
+        "fn site(p : Process) : String with m = match Process.info(p) {\n"
+        "    Some(Process.Info(site = s, queued = _, activity = _)) -> s\n"
+        "  | None -> \"none\"\n"
+        "}\n"
+        "fn listed(p : Process) : Bool with m = List.any(Process.live(), fn(q) = q == p)\n"
+        "export fn main() : Unit with Never = match Tcp.listen(\"127.0.0.1\", 0) {\n"
+        "    Right(l) -> match Tcp.port(l) {\n"
+        "        Right(port) -> match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
+        "            Right(c) -> {\n"
+        "                let pl = Process.fromAddress(l);\n"
+        "                let pc = Process.fromAddress(c);\n"
+        "                Io.println(Io.show(#(site(pl), site(pc), listed(pl), listed(pc))));\n"
+        "                match Os.start(Os.Command(program = \"cat\", arguments = [],"
+        " input = <<>>), 5000) {\n"
+        "                    Right(p) -> Io.println(site(Process.fromAddress(p)))\n"
+        "                  | Left(e) -> Io.println(Io.show(e))\n"
+        "                }\n"
+        "            }\n"
+        "          | Left(e) -> Io.println(Io.show(e))\n"
+        "        }\n"
+        "      | Left(e) -> Io.println(Io.show(e))\n"
+        "    }\n"
+        "  | Left(e) -> Io.println(Io.show(e))\n"
+        "}\n"]),
+    ?assertEqual(<<"#(\"Tcp.listen\", \"Tcp.connect\", true, true)\nOs.start\n">>, Out).
+
 %% Appendix E.18: a write answers Right(Unit) once the socket has taken the
 %% bytes, and Left(Closed) once the connection has closed; the far end's
 %% close is learned here by a read, so that the answer does not depend on

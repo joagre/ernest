@@ -40,10 +40,11 @@ counted(Work) ->
     Worker ! go.
 
 %% A listener or a socket, linked to the TCP process and recorded as opened
-%% before its address is given out (report §8.6).
-opened(Tcp, Loop) ->
+%% before its address is given out (report §8.6), under the function that
+%% opened it (Appendix E.18).
+opened(Tcp, Loop, Site) ->
     Pid = erlang:spawn(fun() -> link(Tcp), receive go -> Loop() end end),
-    ern_rt:opened(Pid),
+    ern_rt:opened(Pid, Site),
     Pid ! go,
     Pid.
 
@@ -61,7 +62,8 @@ listen(Tcp, Host, Port, Reply) ->
                                 {ip, Address} | family(Address)],
                      case guarded(fun() -> gen_tcp:listen(Port, Options) end) of
                          {ok, Socket} ->
-                             Listener = opened(Tcp, fun() -> listener_loop(Tcp, Socket) end),
+                             Listener = opened(Tcp, fun() -> listener_loop(Tcp, Socket) end,
+                                               <<"Tcp.listen">>),
                              gen_tcp:controlling_process(Socket, Listener),
                              {'Right', Listener};
                          {error, Reason} ->
@@ -111,15 +113,15 @@ connect(Tcp, Host, Port, Deadline, Reply) ->
                       {refused, <<"port out of range">>}
               end
           end,
-    attempt(Tcp, Try, Deadline, Reply).
+    attempt(Tcp, Try, Deadline, Reply, <<"Tcp.connect">>).
 
 %% Report Appendix E.18: a connect or an accept, tried again after the
 %% host's timeout until the deadline has passed, and its answer given: the
 %% socket's process, Timeout, or why it failed.
-attempt(Tcp, Try, Deadline, Reply) ->
+attempt(Tcp, Try, Deadline, Reply, Site) ->
     Answer = case Try() of
                  {ok, Socket} ->
-                     {'Right', socket_process(Tcp, Socket)};
+                     {'Right', socket_process(Tcp, Socket, Site)};
                  {error, timeout} ->
                      case ern_rt:remaining(Deadline) of
                          0 -> {'Left', 'Timeout'};
@@ -132,7 +134,7 @@ attempt(Tcp, Try, Deadline, Reply) ->
              end,
     case Answer of
         again ->
-            attempt(Tcp, Try, Deadline, Reply);
+            attempt(Tcp, Try, Deadline, Reply, Site);
         _ ->
             ern_rt:answer(Reply, Answer),
             ern_rt:source_end()
@@ -160,14 +162,15 @@ listener_loop(Tcp, Socket) ->
 %% which is the only legal chain: only an owner may pass a socket on. An
 %% accept that times out has taken no connection.
 accept(Tcp, Socket, Deadline, Reply) ->
-    attempt(Tcp, fun() -> gen_tcp:accept(Socket, ern_rt:remaining(Deadline)) end, Deadline, Reply).
+    attempt(Tcp, fun() -> gen_tcp:accept(Socket, ern_rt:remaining(Deadline)) end, Deadline, Reply,
+            <<"Tcp.accept">>).
 
-socket_process(Tcp, Socket) ->
+socket_process(Tcp, Socket, Site) ->
     Owner = opened(Tcp, fun() ->
                             Self = erlang:self(),
                             Writer = erlang:spawn_link(fun() -> writer(Socket, Self) end),
                             socket_loop(Socket, Writer, [], <<>>, open)
-                        end),
+                        end, Site),
     gen_tcp:controlling_process(Socket, Owner),
     Owner.
 
