@@ -411,11 +411,14 @@ lookup_type_name(Pos, [], Name, #env{local_types = LT, types = Ts} = Env) ->
                     end
             end
     end;
-lookup_type_name(Pos, ['Prelude'], Name, #env{types = Ts}) ->
-    %% report §4.2: `Prelude.T` is the prelude's T, whatever the module declares
+lookup_type_name(Pos, ['Prelude'], Name, #env{types = Ts, local_types = LT} = Env) ->
+    %% report §4.2: `Prelude.T` is the prelude's T, where the module hides it
     case Ts of
-        #{[Name] := #tinfo{params = Ps}} -> {[Name], length(Ps)};
-        _ -> fail(Pos, "the prelude declares no type " ++ atom_to_list(Name))
+        #{[Name] := #tinfo{params = Ps}} ->
+            hidden(Pos, [Name], is_map_key(Name, LT) orelse session(types, Name, Env) =/= error),
+            {[Name], length(Ps)};
+        _ ->
+            fail(Pos, "the prelude declares no type " ++ atom_to_list(Name))
     end;
 lookup_type_name(Pos, ['Prelude' | _] = Path, Name, _Env) ->
     prelude_one(Pos, Path, Name);
@@ -3072,15 +3075,21 @@ lookup_value(Pos, [], Name, #env{vars = Vs, local_values = LV} = Env) ->
                     end
             end
     end;
-lookup_value(Pos, ['Prelude'], Name, #env{globals = Gs} = Env) ->
-    %% report §4.2: `Prelude.x` is the prelude's x, whatever the module declares
+lookup_value(Pos, ['Prelude'], Name, #env{globals = Gs, vars = Vs, local_values = LV} = Env) ->
+    %% report §4.2: `Prelude.x` is the prelude's x, where a binding or a
+    %% declaration of the module's hides it
     case Gs of
-        #{[Name] := Scheme} -> {Scheme, {prelude, [Name]}, Env};
-        _ -> fail(Pos, "the prelude declares no " ++ atom_to_list(Name))
+        #{[Name] := Scheme} ->
+            hidden(Pos, [Name], is_map_key(Name, Vs) orelse is_map_key(Name, LV)
+                                    orelse session(values, Name, Env) =/= error),
+            {Scheme, {prelude, [Name]}, Env};
+        _ ->
+            fail(Pos, "the prelude declares no " ++ atom_to_list(Name))
     end;
 lookup_value(Pos, ['Prelude', T], Name, #env{types = Ts} = Env) when is_map_key([T], Ts) ->
     %% report §4.2: `Prelude.T.name` is the prelude namespace T's name, past
     %% a member of the same name that a type T of the module's own declares
+    hidden(Pos, [T, Name], own_member(T, Name, Env) =/= error),
     lookup_global(Pos, [T], Name, Env);
 lookup_value(Pos, ['Prelude' | _] = Path, Name, _Env) ->
     prelude_one(Pos, Path, Name);
@@ -3120,6 +3129,18 @@ lookup_value(Pos, Path, Name, #env{ns = Ns, local_values = LV} = Env) ->
 %% prelude namespace and one of its names; what is deeper is reached by
 %% its namespace.
 -spec prelude_one(ern_diag:pos(), [atom()], atom()) -> no_return().
+%% Report §4.2: `Prelude.` is written where the module hides the prelude's
+%% name, and nowhere else, where the plain name is the one way to write it.
+hidden(_Pos, _Name, true) ->
+    ok;
+hidden(Pos, Name, false) ->
+    Plain = format_qname(Name),
+    Written = "Prelude." ++ Plain,
+    {L, C, _} = ern_diag:span(Pos),
+    fail({L, C, {L, C + length(Written)}},
+         Written ++ " is written only where the module hides the prelude's " ++ Plain, [],
+         "nothing here hides it; write " ++ Plain).
+
 prelude_one(Pos, Path, Name) ->
     fail(Pos, format_qname(Path ++ [Name]) ++ ": Prelude takes one name the prelude declares,"
               " as `Prelude.Some`, or a prelude namespace's, as `Prelude.List.size`").
@@ -3222,11 +3243,14 @@ lookup_con(Pos, [], Name, #env{local_cons = LC, cons = Cs} = Env) ->
                     end
             end
     end;
-lookup_con(Pos, ['Prelude'], Name, #env{cons = Cs}) ->
-    %% report §4.2: `Prelude.C` is the prelude's C, whatever the module declares
+lookup_con(Pos, ['Prelude'], Name, #env{cons = Cs, local_cons = LC} = Env) ->
+    %% report §4.2: `Prelude.C` is the prelude's C, where the module hides it
     case Cs of
-        #{[Name] := CI} -> CI;
-        _ -> fail(Pos, "the prelude declares no constructor " ++ atom_to_list(Name))
+        #{[Name] := CI} ->
+            hidden(Pos, [Name], is_map_key(Name, LC) orelse session(cons, Name, Env) =/= error),
+            CI;
+        _ ->
+            fail(Pos, "the prelude declares no constructor " ++ atom_to_list(Name))
     end;
 lookup_con(Pos, ['Prelude' | _] = Path, Name, _Env) ->
     prelude_one(Pos, Path, Name);

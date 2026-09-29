@@ -1251,6 +1251,20 @@ example.ern:4:19: the argument does not fit spawn: expected Where, found Place
   |                   ^^^^^
 ```
 
+### `Prelude.` where nothing hides the name (§4.2)
+
+```ernest-rejected
+fn f() : Optional(Int) = Prelude.Some(1)
+```
+
+```console
+$ ern build example.ern
+example.ern:1:26: Prelude.Some is written only where the module hides the prelude's Some
+1 | fn f() : Optional(Int) = Prelude.Some(1)
+  |                          ^^^^^^^^^^^^
+  | = help: nothing here hides it; write Some
+```
+
 ### `Prelude.` before a constructor the prelude lacks (§4.2)
 
 ```ernest-rejected

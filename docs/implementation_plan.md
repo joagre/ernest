@@ -74,8 +74,8 @@ discussed with the user one at a time as they are met.
    `Either(Io.Error, Unit)` (E.18, E.23), a pattern's size reading a top-level `let`, a
    variable its own pattern binds still refused (§5.11), and `Int.div` and `Int.rem`, renamed
    from `Int.mod`, moved from the prelude to the library (E.8), `Address.callForever` kept
-   beside `Address.call` (§6.6), and a prelude type without members taking no namespace
-   (§4.2); the diagnostics' positions and labels
+   beside `Address.call` (§6.6), a prelude type without members taking no namespace (§4.2),
+   and `Prelude.X` written only where the module hides `X` (§4.2); the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):

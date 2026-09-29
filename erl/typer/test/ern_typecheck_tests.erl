@@ -1636,7 +1636,7 @@ prelude_namespace_test() ->
              "type RestartLimit = RestartLimit(name : String)\n"
              "fn send(n : Int) : Int = n\n",
     ?assertEqual("(Where) -> String",
-                 type_of(Shadow ++ "export fn describe(e : Prelude.Where) = match e {"
+                 type_of(Shadow ++ "export fn describe(e : Where) = match e {"
                          " Prelude.Peer(t) -> t | _ -> \"here\" }", describe)),
     ?assertEqual("(RestartLimit) -> Int",
                  type_of(Shadow ++ "export fn size(e : Prelude.RestartLimit) ="
@@ -1653,6 +1653,23 @@ prelude_namespace_test() ->
     ?assertEqual("the prelude declares no constructor Nope", err("fn f() = Prelude.Nope")),
     ?assertEqual("Prelude names the prelude, and a type may not take it",
                  err("type Prelude = P")).
+
+%% report §4.2: `Prelude.X` is written only where the module hides the
+%% prelude's X, by a declaration or a binding; elsewhere `X` is the one way
+%% to write it. A regression test: `Prelude.Some` was accepted anywhere
+prelude_only_where_hidden_test() ->
+    Refused = fun(Name) ->
+                      "Prelude." ++ Name ++ " is written only where the module hides the"
+                          " prelude's " ++ Name
+              end,
+    ?assertEqual(Refused("Some"), err("fn f() : Optional(Int) = Prelude.Some(1)")),
+    ?assertEqual(Refused("Where"), err("fn f(w : Prelude.Where) : Int = 0")),
+    ?assertEqual(Refused("send"),
+                 err("fn f(a : Address(Int)) : Unit with m = Prelude.send(a, 1)")),
+    ?assertEqual(Refused("List.size"), err("fn f() : Int = Prelude.List.size([1])")),
+    %% a parameter hides a prelude value as a declaration does
+    ?assertEqual(ok, ok("fn f(send : Int, a : Address(Int)) : Unit with m ="
+                        " Prelude.send(a, send)")).
 
 %% report §11.5, §4.2: a type prints as the module writes it: its own and
 %% the prelude's types bare, another module's qualified, a local type
