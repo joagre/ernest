@@ -154,4 +154,4 @@ Type classes contain the proposal: the ordering restriction is one class with fi
 
 ## Open question
 
-- **Representation.** Structural `==` needs one shape per set. `Set` has one, being the runtime's map, whose `==` is by content. For `OrderedSet`, a sorted list has one, but `put` and `contains` are linear. A balanced tree's shape depends on the order of insertion. A treap with hash-derived priorities has one shape and logarithmic operations, but needs a hash the standard library lacks.
+- **Representation.** Structural `==` needs one shape per set. `Set` has one, being the runtime's map, whose `==` is by content. For `OrderedSet`, a sorted list has one, but `put` and `contains` are linear. A balanced tree's shape depends on the order of insertion. A treap with hash-derived priorities has one shape and logarithmic operations, but needs a hash the standard library lacks. Our leaning: the sorted list first, as the sketch has it, being simple and correct; a treap only when a measurement shows the linear cost matters, and the hash it needs then a decision of its own.
