@@ -646,9 +646,16 @@ fn obey(state : State,
                 diagnose(screen, colour, text);
                 Continue(state)
             }
-          | Right(#(env2, checked)) -> {
-                say(screen, arg <> " : " <> typeText(checked));
-                Continue(State(..state, env = env2))
+          | Right(#(env2, checked)) -> match declared(checked) {
+                [] -> {
+                    say(screen, arg <> " : " <> typeText(checked));
+                    Continue(State(..state, env = env2))
+                }
+              // report §11.2: `:type` takes an expression
+              | _ -> {
+                    refuse(state, screen, ":type takes an expression, and this is a declaration");
+                    Continue(state)
+                }
             }
         }
       | Shell.Command.Forget -> match forget(env, arg) {

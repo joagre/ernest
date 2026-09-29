@@ -8,7 +8,7 @@
 %% leaves them out and a change to them recompiles nothing.
 -module(ern_build).
 
--export([compile/3, report_errors/4, shown/1, sources/1, bytes_text/1, module_of/2, shape/1,
+-export([compile/3, report_errors/4, shown/1, sources/1, bytes_text/1, module_of/2, shape/2,
          segment/1, namespace/1, module_path/1, compile_order/2, compile_order/3,
          source_root/3, out_dir/2, is_stdlib_root/1, dep_iface/4, load_path/1,
          compiler_modules/0, sweep_pages/5, compile_source/3, absolute/1, relative/2, qname/1,
@@ -125,7 +125,8 @@ is_link(Path) ->
 -spec module_of(file:filename(), file:filename()) -> #mod{}.
 module_of(File, Root) ->
     Rel = relative(File, Root),
-    Rel =/= outside orelse fail(File ++ " is not under the source root " ++ Root),
+    Rel =/= outside orelse fail(File ++ " is not under the source root " ++ Root
+                                ++ "; --source-root names another"),
     %% report §4.2: a file of the standard library's own source root is
     %% compiled with that root only
     case is_stdlib_root(Root) orelse relative(File, stdlib_root()) =:= outside of
@@ -134,7 +135,7 @@ module_of(File, Root) ->
     end,
     filename:extension(Rel) =:= ".ern" orelse fail(Rel ++ " does not end in .ern"),
     Components = filename:split(filename:rootname(Rel)),
-    lists:foreach(fun shape/1, Components),
+    lists:foreach(fun(C) -> shape(Rel, C) end, Components),
     Ns = namespace(Components),
     %% report §4.2: a module namespace is never a namespace of the prelude
     %% or the standard library, except in the standard library's own source
@@ -157,18 +158,18 @@ module_of(File, Root) ->
     end,
     #mod{ns = Ns, file = File, rel = Rel}.
 
-%% Report §11.1: each component is one word, a lowercase letter, then
-%% lowercase letters and digits.
--spec shape(string()) -> ok.
-shape(Component) ->
+%% Report §11.1: each component of a file's path is one word, a lowercase
+%% letter, then lowercase letters and digits. The refusal names the file.
+-spec shape(file:filename(), string()) -> ok.
+shape(File, Component) ->
     case word(Component) of
         true -> ok;
         false ->
+            Named = File ++ ": path component `" ++ Component ++ "`",
             case re:run(Component, "[A-Z]") of
-                {match, _} -> fail("path component `" ++ Component ++ "` must be lowercase");
-                nomatch -> fail("path component `" ++ Component ++ "` must be one word: a"
-                                " lowercase letter, then lowercase letters and digits;"
-                                " a multi-word module is a directory")
+                {match, _} -> fail(Named ++ " must be lowercase");
+                nomatch -> fail(Named ++ " must be one word: a lowercase letter, then lowercase"
+                                " letters and digits; a multi-word module is a directory")
             end
     end.
 

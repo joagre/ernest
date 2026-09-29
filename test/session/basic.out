@@ -116,12 +116,12 @@ zero : () -> Int
 > Commands, which a prefix of the name selects where it begins no other:
   :bindings       what the session declares, with their types
   :browse Module  the exports of Module with their types
-  :doc Name       the documentation of Name, which GHCi calls :info
+  :doc Name       the documentation of Name
   :faults         the faults reported since the session began
   :forget name    forget a name the session declared, or * for all of them
   :help           this text
   :load Module    the module by its namespace, compiled from its source
-  :output path    send what programs write to path, or - back to the tail
+  :output path    append what programs write to path, or - back to the live region
   :processes      the live processes of the session, by spawn site
   :quit           leave, as C-d on an empty line does
   :reload         every loaded module whose source has changed
@@ -130,7 +130,7 @@ zero : () -> Int
 The value of the last expression is `it`.
 > output goes to /tmp/ern-output-test.log
 > > output goes to /tmp/ern-output-test.log
-> output goes to the tail
+> output goes to the live region
 > to the tail
 > cannot write to nosuchdir/x.log: no such file or directory
 > 

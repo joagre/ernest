@@ -740,20 +740,22 @@ constructors(Q, Cons, #env{ifaces = Ifaces}) ->
 %% Report §11.2, §4.2: the exports of a module in scope, its types and then
 %% its values, each with its type as §11.5 prints it.
 -spec browse(#env{}, binary()) -> {'Left', binary()} | {'Right', [binary()]}.
-browse(#env{ifaces = Ifaces}, Text) ->
+browse(Env, Text) ->
     case module_name(Text) of
-        {ok, Ns} -> browse(Text, Ns, Ifaces);
+        {ok, Ns} -> browse(Text, Ns, Env);
         {error, Why} -> {'Left', Why}
     end.
 
-browse(Text, Ns, Ifaces) ->
+%% Report §11.5: each name and each type as the session writes it, the
+%% names qualified and another module's types too.
+browse(Text, Ns, #env{ifaces = Ifaces, session = S}) ->
     case [I || #iface{namespace = N} = I <- Ifaces ++ ern_prelude:stdlib_ifaces(), N =:= Ns] of
         [] ->
             {'Left', <<"no module ", Text/binary, " is in scope">>};
         Found ->
             #iface{types = Ts, values = Vs} = Last = lists:last(Found),
             St0 = ern_typecheck:scope_state(Ifaces ++ [Last]),
-            St = ern_types:set_scope(St0, Ns, [], []),
+            St = ern_types:set_scope(St0, [], maps:values(maps:get(types, S, #{})), []),
             Types = [unicode:characters_to_binary([abstract_text(TI), "type ", qname_text(Q)])
                      || {Q, TI} <- lists:sort(maps:to_list(Ts))],
             Values = [unicode:characters_to_binary(
@@ -1672,7 +1674,7 @@ output(<<>>) ->
     {'Right', <<"output goes to ", (where_output())/binary>>};
 output(<<"-">>) ->
     close_output(),
-    {'Right', <<"output goes to the tail">>};
+    {'Right', <<"output goes to the live region">>};
 output(Path) ->
     Name = unicode:characters_to_list(Path),
     %% not `raw`: a raw device belongs to the process that opened it, and
@@ -1689,7 +1691,7 @@ output(Path) ->
 
 where_output() ->
     case persistent_term:get({?MODULE, output}, undefined) of
-        undefined -> <<"the tail">>;
+        undefined -> <<"the live region">>;
         {Path, _} -> Path
     end.
 

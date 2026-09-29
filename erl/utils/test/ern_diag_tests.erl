@@ -35,6 +35,22 @@ format_test() ->
                  "  | = help: give f an Int\n",
                  ern_diag:format("main.ern", ?SRC, D)).
 
+%% report §11.5: a line `...` stands for the lines an excerpt passes over.
+%% A regression test: the gutter went from line 1 to line 4 unmarked
+%% (findings.md's T34)
+format_gap_test() ->
+    D = #diag{span = {4, 5, {4, 8}}, message = "expected Int, found String",
+              labels = [{{1, 10, {1, 13}}, "declared Int here"}]},
+    ?assertEqual("main.ern:4:5: expected Int, found String\n"
+                 "1 | fn f() : Int = {\n"
+                 "  |          --- declared Int here\n"
+                 "...\n"
+                 "4 |     \"x\"\n"
+                 "  |     ^^^\n",
+                 lists:flatten(ern_diag:format("main.ern",
+                                               "fn f() : Int = {\n    let a = 1;\n    let b = 2;\n"
+                                               "    \"x\"\n}\n", D))).
+
 %% report §11.5: without labels or help, only the primary span; the gutter
 %% widens with the line number; a span past the line's end underlines to
 %% the end; a span with no width is one caret

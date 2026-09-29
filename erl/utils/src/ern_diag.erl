@@ -43,12 +43,15 @@ format(File, Source, #diag{span = Span, labels = Labels, help = Help} = D) ->
     lists:flatten([short(File, D), "\n", Body, HelpLine]).
 
 %% Each mark: the line before it when it is the first mark and the line
-%% exists, the source line unless it was just printed, then the underline.
+%% exists, a line `...` where lines are passed over since the last one
+%% shown (report §11.5), the source line unless it was just printed, then
+%% the underline.
 marks([], _, _, _) ->
     [];
 marks([{{L, C, End}, Char, Text} | Rest], Lines, Width, Printed) ->
     Context = case Printed =:= 0 andalso L > 1 of
                   true -> source_line(L - 1, Lines, Width);
+                  false when Printed > 0, L > Printed + 1 -> "...\n";
                   false -> []
               end,
     SourceLine = case L =:= Printed of

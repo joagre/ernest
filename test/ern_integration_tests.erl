@@ -400,7 +400,9 @@ libs() ->
     Runs = ["../bin/ern test " ++ M || M <- Modules],
     {Status, Out} = sh(lists:flatten(lists:join(" && ", Runs))),
     Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
-    ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch]),
+    %% a module without tests says so (report §11.2)
+    ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch,
+                           L =/= <<"no tests">>]),
     ?assertEqual(0, Status).
 
 %% report §8.2, §7.4, Appendix E.1: standard input is UTF-8 whatever the

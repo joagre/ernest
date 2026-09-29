@@ -97,7 +97,11 @@ discussed with the user one at a time as they are met.
 2. **Its `2.98` lines**: the report's contradictions and silent cases, among them `Io.show`'s
    dependence on the type at the call; a type that breaks laid one alternative a line, as a
    `match` is, decided with the user and done 2026-09-29 (N10; the log's *A Type That Breaks
-   Holds One Alternative a Line*); the diagnostics'
+   Holds One Alternative a Line*); three decisions of the shell's, the user's to make: the spawn
+   site of a typed input, `input:1` for every one (T26), whether line mode takes an input's
+   further lines where the parser cannot finish it, as a terminal does (T29), and the shell's
+   exit status and where a program's standard error goes in line mode, which §11.2 does not
+   state (T32); the diagnostics'
    positions and labels (§11.5); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
@@ -151,8 +155,10 @@ follows MVP 2.98.
    2.99*): Ernest for programs on one node, for other programmers to install and use, decided
    2026-09-27 (the log's *The First Release Is for Others*); peers are the next release's.
    [`review.md`](review.md) runs on the code as it is then; `VERSION` is set to the release's
-   version before the tag; and the release is tagged with its notes, the archive published
-   beside it, where the README then says to download it.
+   version before the tag; `ern(1)` is given the sections man-pages(7) names, SYNOPSIS,
+   OPTIONS and EXIT STATUS among them, where it is §11 rendered as it stands (`findings.md`'s
+   T31, 2026-09-29); and the release is tagged with its notes, the archive published beside it,
+   where the README then says to download it.
 
 ---
 

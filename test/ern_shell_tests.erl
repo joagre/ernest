@@ -54,7 +54,7 @@ program() ->
                      {send, hex("Address.call(c, fn(r) = Counter.Get(reply = r), 1000)\r")},
                      {expect, "Some(7) : Optional(Int)"},
                      {send, hex(":browse Counter\r")},
-                     {expect, "Counter.start : () -> Address(Msg) with m"},
+                     {expect, "Counter.start : () -> Address(Counter.Msg) with m"},
                      {send, hex("spawn(Local, fn() = Counter.boom())\r")},
                      {expect, "input:1 faulted: division by zero"},
                      {send, hex(":processes\r")},
@@ -280,7 +280,9 @@ editor() ->
     Runs = ["../bin/ern test --load-path ../build/libs/markdown " ++ M || M <- Modules],
     {Status, Out} = sh(lists:flatten(lists:join(" && ", Runs))),
     Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
-    ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch]),
+    %% a module without tests says so (report §11.2)
+    ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch,
+                           L =/= <<"no tests">>]),
     ?assert(length(Lines) >= 10),
     ?assertEqual(0, Status).
 
@@ -1942,7 +1944,8 @@ browse_effect_parameter_test() ->
     try
         Env = with_loaded(Dir, [<<"Hooks">>]),
         {'Right', Lines} = ern_shell:browse(Env, <<"Hooks">>),
-        ?assert(lists:member(<<"Hooks.drop : (H(e)) -> Unit">>, Lines), Lines)
+        %% report §11.5: the type as the session writes it
+        ?assert(lists:member(<<"Hooks.drop : (Hooks.H(e)) -> Unit">>, Lines), Lines)
     after
         forget_session()
     end.

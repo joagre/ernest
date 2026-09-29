@@ -162,9 +162,16 @@ format_finds_modules_as_build_test() ->
                                                           ?capturedOutput), Said))
               end,
     Refused([Notes], <<"notes.txt does not end in .ern">>),
-    Refused([Upper], <<"path component `Bad` must be lowercase">>),
-    Refused([Dir ++ "/src"], <<"path component `Sub` must be lowercase">>),
-    [?assertEqual({ok, list_to_binary(Text)}, file:read_file(F)) || F <- [Notes, Upper, Under]].
+    %% the refusal names the file; a regression test, it named only the
+    %% component (findings.md's T30)
+    Refused([Upper], <<"Bad.ern: path component `Bad` must be lowercase">>),
+    Refused([Dir ++ "/src"], <<"Sub/ok.ern: path component `Sub` must be lowercase">>),
+    [?assertEqual({ok, list_to_binary(Text)}, file:read_file(F)) || F <- [Notes, Upper, Under]],
+    %% a file outside the source root is refused with the option that names
+    %% another; a regression test for T30 too
+    ?assertEqual(1, ern_err(["build", "--source-root", Dir ++ "/src", Upper])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"; --source-root names another">>)).
 
 %% report §11: a file its owner may not write is refused, and nothing is
 %% left beside it; so is one in a directory that cannot be written. A
@@ -1331,6 +1338,27 @@ old_spellings_test() ->
     Out = iolist_to_binary(?capturedOutput),
     [?assertMatch({_, _}, binary:match(Out, Text)) || {_, Text} <- Refused].
 
+%% report §11.2: a module without tests says so, and one two of whose tests
+%% have one name is refused before any runs. A regression test: the first
+%% printed nothing, and the second two lines no reader could tell apart
+%% (findings.md's T24)
+test_names_test() ->
+    Dir = tmp(),
+    None = write(Dir, "none.ern", "export fn two() : Int =\n    2\n"),
+    Twice = write(Dir, "twice.ern",
+                  "let a =\n    Test(name = \"adds two\", run = fn() = Passed)\n\n"
+                  "let b =\n    Test(name = \"adds two\", run = fn() = Failed(\"no\"))\n"),
+    Build = fun(File) ->
+                ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+                filename:rootname(File) ++ ".erc"
+            end,
+    ?assertEqual(0, ern_cli:ern(["test", Build(None)])),
+    ?assertEqual(1, ern_err(["test", Build(Twice)])),
+    Out = iolist_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Out, <<"no tests\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"ern test: two tests are named \"adds two\"">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"failed">>)).
+
 %% report §11.2: `--main` without a file is refused, as it names a function
 %% of the file; a regression test, the option having been ignored
 %% (findings.md's T9)
@@ -1508,6 +1536,12 @@ create_config_dir_test() ->
     {ok, Conf} = file:read_file(Dir ++ "/ernest.conf"),
     #{<<"peers">> := [], <<"public-key">> := <<"-----BEGIN PUBLIC KEY-----", _/binary>>,
       <<"network-address">> := _} = json:decode(Conf),
+    %% laid out as Appendix C shows it, a key a line in its order; a
+    %% regression test, it was one line with its keys sorted (T33)
+    ?assertMatch([<<"{">>, <<"  \"network-address\": \"127.0.0.1:8654\",">>,
+                  <<"  \"public-key\": \"-----BEGIN PUBLIC KEY-----", _/binary>>,
+                  <<"  \"peers\": []">>, <<"}">>, <<>>],
+                 binary:split(Conf, <<"\n">>, [global])),
     {ok, Info} = file:read_file_info(Dir ++ "/private-key.pem"),
     ?assertEqual(8#600, element(8, Info) band 8#777),
     {ok, Pem} = file:read_file(Dir ++ "/private-key.pem"),

@@ -242,8 +242,8 @@ old_spelling(_) -> none.
 
 %% getopt's usage text on any device; getopt:usage/4 takes only an atom.
 job_usage(Spec, Name, Positional, Device) ->
-    io:format(Device, "~ts ~ts~n~n~ts~n",
-              [getopt:usage_cmd_line(Name, Spec), Positional, getopt:usage_options(Spec)]).
+    Line = string:trim([getopt:usage_cmd_line(Name, Spec), " ", Positional], trailing),
+    io:format(Device, "~ts~n~n~ts~n", [Line, getopt:usage_options(Spec)]).
 
 help_option() ->
     {help, undefined, "help", undefined, "print this text"}.
@@ -453,7 +453,7 @@ modules_named(Path) ->
         false ->
             filename:extension(Path) =:= ".ern"
                 orelse ern_build:fail(Path ++ " does not end in .ern"),
-            ern_build:shape(filename:basename(Path, ".ern")),
+            ern_build:shape(Path, filename:basename(Path, ".ern")),
             [Path]
     end.
 
@@ -501,8 +501,11 @@ read_input(Port, Acc) ->
 %% ern run, ern test, ern shell and ern config, report §11.2 and §11.3
 %%
 
-config_dir_option() ->
-    {config_dir, undefined, "config-dir", string, "the configuration directory; default ./.ernest"}.
+%% Report §11.2, §11.3: what each job reads of the configuration directory,
+%% `ernest.conf` from MVP 3.0 (docs/development.md).
+config_dir_option(What) ->
+    {config_dir, undefined, "config-dir", string,
+     "the configuration directory, default ./.ernest; " ++ What}.
 
 load_path_option() ->
     {load_path, undefined, "load-path", string, "a root of compiled modules; may be repeated"}.
@@ -511,19 +514,21 @@ main_option() ->
     {main, undefined, "main", string, "the entry point, a qualified exported function"}.
 
 run_options() ->
-    [config_dir_option(), load_path_option(), main_option(), help_option()].
+    [config_dir_option("its ernest.conf is read from MVP 3.0"), load_path_option(), main_option(),
+     help_option()].
 
 test_options() ->
-    [config_dir_option(), load_path_option(), help_option()].
+    [config_dir_option("its ernest.conf is read from MVP 3.0"), load_path_option(), help_option()].
 
 shell_options() ->
-    [config_dir_option(), load_path_option(),
+    [config_dir_option("its startup is run; its ernest.conf is read from MVP 3.0"),
+     load_path_option(),
      {source_root, undefined, "source-root", string,
       "where the shell finds a module's source; default the working directory"},
      main_option(), help_option()].
 
 config_options() ->
-    [config_dir_option(), help_option()].
+    [config_dir_option("the directory made"), help_option()].
 
 run(Opts, [File | Words], Err) ->
     Arguments = program_arguments(Words, 1),
@@ -679,7 +684,7 @@ program(File, Opts) ->
     ern_build:relative(Abs, Root) =:= ern_build:module_path(Ns) ++ ".erc" orelse
         ern_build:fail(File ++ " is not at the path of its namespace " ++ ern_build:qname(Ns)),
     Components = filename:split(filename:rootname(ern_build:module_path(Ns))),
-    lists:foreach(fun ern_build:shape/1, Components),
+    lists:foreach(fun(C) -> ern_build:shape(File, C) end, Components),
     Roots = [Root | ern_build:load_path(Opts)],
     host_path(Roots),
     {Ns, Roots, load(Ns, Roots, [])}.
@@ -776,8 +781,22 @@ run_tests(Ns, Loaded, Err) ->
                            true -> Mod:'$tests'();
                            false -> []
                        end,
-               Passed = [run_test(T) || T <- Tests],
-               Me ! {ern_tests, lists:all(fun(P) -> P end, Passed)}
+               Names = [Name || {'Test', Name, _} <- Tests],
+               %% report §11.2: a module without tests says so, and one two
+               %% of whose tests have one name is refused before any runs
+               case {Tests, Names -- lists:usort(Names)} of
+                   {[], _} ->
+                       ern_rt:send(ern_rt:sys(stdout), <<"no tests\n">>),
+                       Me ! {ern_tests, true};
+                   {_, [Twice | _]} ->
+                       ern_rt:send(ern_rt:sys(stderr),
+                                   <<"ern test: two tests are named \"",
+                                     (ern_show:controls(Twice, line))/binary, "\"\n">>),
+                       Me ! {ern_tests, false};
+                   {_, []} ->
+                       Passed = [run_test(T) || T <- Tests],
+                       Me ! {ern_tests, lists:all(fun(P) -> P end, Passed)}
+               end
            end,
     Site = unicode:characters_to_binary(ern_build:qname(Ns) ++ ".$tests"),
     %% report §11.2: a test's own fault is its line, and every other is
@@ -958,10 +977,14 @@ create_config_dir(Conf) ->
     Public = public_key:pem_encode(
                [public_key:pem_entry_encode('SubjectPublicKeyInfo',
                                             {{'ECPoint', PublicPoint}, Curve})]),
-    Json = json:encode(#{<<"network-address">> => <<"127.0.0.1:8654">>,
-                         <<"public-key">> => Public,
-                         <<"peers">> => []}),
-    ok = ern_build:write_whole(filename:join(Conf, "ernest.conf"), [Json, "\n"]),
+    %% laid out as Appendix C shows it, in its order, each value as JSON
+    %% writes it; a PEM's line breaks are escapes, as in any JSON string
+    Json = ["{\n",
+            "  \"network-address\": ", json:encode(<<"127.0.0.1:8654">>), ",\n",
+            "  \"public-key\": ", json:encode(Public), ",\n",
+            "  \"peers\": []\n",
+            "}\n"],
+    ok = ern_build:write_whole(filename:join(Conf, "ernest.conf"), Json),
     %% the key is its owner's alone before it is written
     ok = ern_build:write_whole(filename:join(Conf, "private-key.pem"), Private, 8#600),
     0.
