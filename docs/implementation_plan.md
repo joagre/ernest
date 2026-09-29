@@ -38,8 +38,9 @@ taken out of order. Each has its paragraph under "Done". The first release is MV
 | MVP 2.95 | manual pages, an installation, the review | done 2026-09-28 |
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | **MVP 2.98** | **what the first review left** | **under way** |
-| MVP 2.99 | running as a service, and the first release | |
+| MVP 2.99 | the first release | |
 | MVP 2.99b | operations records: `Set`'s record and an ordered set | the decision first (`operations.md`) |
+| MVP 2.99c | running as a service | |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -92,40 +93,21 @@ discussed with the user one at a time as they are met.
 
 ---
 
-## MVP 2.99 (running as a service, and the first release), about four days
+## MVP 2.99 (the first release), about a day
 
-A program on one node run for days under a service manager, and then the first release. It
-follows MVP 2.98.
+The first release, placed here on 2026-09-28 (the log's *The First Release Follows MVP 2.99*):
+Ernest for programs on one node, for other programmers to install and use, decided 2026-09-27
+(the log's *The First Release Is for Others*); peers are the next release's. It follows MVP
+2.98. Running as a service is MVP 2.99c's, after it (2026-09-29, the log's *Running as a Service
+After the First Release*).
 
-1. **Running as a service**, moved from MVP 2.7 on 2026-09-27 (the log's *Running as a
-   Service*) and from MVP 3.0 on 2026-09-28, since it needs no peer (the log's *MVP 3.0 Is
-   Distributed Code and the Node Protocol*):
-   - a systemd unit: start and stop, a stop asked for ending the program by its signal;
-     `Restart=on-failure` after a program ends with `Os.exit(1)`; and the journal showing fault
-     lines without a doubled time;
-   - a launchd plist on macOS, with the same checks;
-   - a soak of hours: `examples/webserver.ern` under steady requests, measured as
-     [`memory.md`](memory.md) says;
-   - standard error on a full or failing disk ending the run with status 141, as §8.2 says;
-   - `Clock.alarmAt` when the host's wall clock jumps: deadlines use the monotonic clock and a
-     time does not, and the report decides what an alarm at a time does when the clock moves
-     (Appendix E.15);
-   - a termination or hangup that comes while the host starts, which the host drops (*Standing
-     gaps* below): whether a launcher passes a signal on to the host until the host has taken
-     it, at the price of a second process between a service manager and the program.
-   - the host's port helper, `erl_child_setup`, which once in some twenty runs of `make test`
-     wrote `failed with error` as an interrupt ended the host, where §8.6 has the interrupt
-     end the program printing nothing (`interrupt_test_`, found 2026-09-28, not yet
-     diagnosed). Its shape: read the helper's source for what it reports, meet it under load,
-     and end the host so that its helper is not caught mid-write.
-2. **The first release**, placed here on 2026-09-28 (the log's *The First Release Follows MVP
-   2.99*): Ernest for programs on one node, for other programmers to install and use, decided
-   2026-09-27 (the log's *The First Release Is for Others*); peers are the next release's.
-   [`review.md`](review.md) runs on the code as it is then; `VERSION` is set to the release's
-   version before the tag; `ern(1)` is given the sections man-pages(7) names, SYNOPSIS,
-   OPTIONS and EXIT STATUS among them, where it is §11 rendered as it stands (`findings.md`'s
-   T31, 2026-09-29); and the release is tagged with its notes, the archive published beside it,
-   where the README then says to download it.
+[`review.md`](review.md) runs on the code as it is then; `VERSION` is set to the release's
+version before the tag; `ern(1)` is given the sections man-pages(7) names, SYNOPSIS, OPTIONS
+and EXIT STATUS among them, where it is §11 rendered as it stands (`findings.md`'s T31,
+2026-09-29); and the release is tagged with its notes, the archive published beside it, where
+the README then says to download it.
+
+---
 
 ## MVP 2.99b (operations records: `Set`'s record and an ordered set), about nine days
 
@@ -160,6 +142,33 @@ decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*), is rewritt
    digits and a `_` standing only between two words; `ern build`, `:load`, completion, `ern
    doc` and the manual pages' names follow, the shell finding `ordered_set.ern` for
    `OrderedSet`.
+
+---
+
+## MVP 2.99c (running as a service), about three days
+
+A program on one node run for days under a service manager, moved from MVP 2.99 on 2026-09-29
+so that the first release and the operations records come first. It had moved from MVP 2.7 on
+2026-09-27 (the log's *Running as a Service*) and from MVP 3.0 on 2026-09-28, since it needs no
+peer (the log's *MVP 3.0 Is Distributed Code and the Node Protocol*):
+- a systemd unit: start and stop, a stop asked for ending the program by its signal;
+  `Restart=on-failure` after a program ends with `Os.exit(1)`; and the journal showing fault
+  lines without a doubled time;
+- a launchd plist on macOS, with the same checks;
+- a soak of hours: `examples/webserver.ern` under steady requests, measured as
+  [`memory.md`](memory.md) says;
+- standard error on a full or failing disk ending the run with status 141, as §8.2 says;
+- `Clock.alarmAt` when the host's wall clock jumps: deadlines use the monotonic clock and a
+  time does not, and the report decides what an alarm at a time does when the clock moves
+  (Appendix E.15);
+- a termination or hangup that comes while the host starts, which the host drops (*Standing
+  gaps* below): whether a launcher passes a signal on to the host until the host has taken
+  it, at the price of a second process between a service manager and the program.
+- the host's port helper, `erl_child_setup`, which once in some twenty runs of `make test`
+  wrote `failed with error` as an interrupt ended the host, where §8.6 has the interrupt
+  end the program printing nothing (`interrupt_test_`, found 2026-09-28, not yet
+  diagnosed). Its shape: read the helper's source for what it reports, meet it under load,
+  and end the host so that its helper is not caught mid-write.
 
 ---
 
@@ -354,7 +363,7 @@ a shell attached to a running node (moved from `shell_design.md`, 2026-09-28).
 - **A termination or hangup that comes while the host starts**, before any of `ern` runs, is
   dropped by the host, on this machine in the first 0.2 seconds (report §11). A launcher that
   passes a signal on to the host until the host has taken it would close it, and is decided in
-  MVP 2.99 (2026-09-28).
+  MVP 2.99c (2026-09-29).
 
 ---
 

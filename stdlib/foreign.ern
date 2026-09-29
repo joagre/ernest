@@ -3,6 +3,8 @@
 /// result has no Ernest type; these functions ask what it is, each
 /// answering `None` when it is something else. `from` goes the other way,
 /// since an Ernest value is already a value of the runtime (report §8.4).
+/// A `Foreign` has no `==`, since the language does not inspect it (report
+/// §3.10).
 ///
 /// ## Examples
 ///

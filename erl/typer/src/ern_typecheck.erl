@@ -338,7 +338,7 @@ ann(#t_con{pos = Pos, path = Path, name = Name, args = Args}, VarMap, Env) ->
                _ -> []
            end,
     St1 = lists:foldl(fun(T, S) -> ern_types:add_flag(T, eq, S) end, St,
-                      [{tvar, Id} || K <- Keys, not has_fn_or_address(K, Env#env{st = St}),
+                      [{tvar, Id} || K <- Keys, lacks_equality(K, Env#env{st = St}) =:= false,
                                      Id <- ern_types:free_vars(K, St)]),
     {{tcon, QName, ArgTs}, VarMap1, St1};
 ann(#t_tuple{elems = Es}, VarMap, Env) ->
@@ -1442,12 +1442,11 @@ no_reply_instantiations(#env{pending = Pending} = Env) ->
                           end;
                      ({eq, Id, Pos, Need}) ->
                           T = ern_types:zonk({tvar, Id}, Env#env.st),
-                          case has_fn_or_address(T, Env) of
-                              true -> fail(Pos, ern_types:format(T, Env#env.st)
-                                                ++ " does not support equality (it contains"
-                                                " a function or an address), " ++ Need
-                                                ++ identity_hint(T));
-                              false -> ok
+                          case lacks_equality(T, Env) of
+                              false -> ok;
+                              Lack -> fail(Pos, ern_types:format(T, Env#env.st)
+                                                ++ " does not support equality (" ++ Lack
+                                                ++ "), " ++ Need ++ identity_hint(T))
                           end
                   end, Pending).
 
@@ -2137,17 +2136,18 @@ same_operands(Op, L, LT, R, RT, Env) ->
              {node_span(L), "the left operand has type " ++ ern_types:format(LT, Env#env.st)}).
 
 %% Report §3.10: == on a type variable records the constraint; on a
-%% concrete type containing a function or address it is an error now.
+%% concrete type without equality it is an error now.
 equality_constraint(Pos, T, Env) ->
     St = Env#env.st,
     Z = ern_types:zonk(T, St),
-    case has_fn_or_address(Z, Env) of
-        true -> fail(Pos, "`==` is not defined on " ++ ern_types:format(Z, St)
-                          ++ ": it contains a function or an address" ++ identity_hint(Z));
+    case lacks_equality(Z, Env) of
         false ->
             St1 = lists:foldl(fun(Id, S) -> ern_types:add_flag({tvar, Id}, eq, S) end,
                               St, ern_types:free_vars(Z, St)),
-            Env#env{st = St1}
+            Env#env{st = St1};
+        Lack ->
+            fail(Pos, "`==` is not defined on " ++ ern_types:format(Z, St) ++ ": " ++ Lack
+                      ++ identity_hint(Z))
     end.
 
 %% Report §3.10, Appendix E.21: where an address is what is compared, the
@@ -2163,37 +2163,49 @@ has_address({tcon, _, Args}) -> lists:any(fun has_address/1, Args);
 has_address({ttuple, Es}) -> lists:any(fun has_address/1, Es);
 has_address(_) -> false.
 
-%% Report §3.10: whether a value of the type may hold a function or an
-%% address: a function type, an address or a reply, what a built-in or
-%% foreign type holds, its arguments, or a declared type's fields with its
-%% arguments in place of its parameters. A declared type met again inside
-%% its own fields is not read again: what its fields hold of their own is
-%% being read already, and what its arguments bring is read in their place.
-%% A regression: a declared type's fields were not read, and `Box(f) ==
-%% Box(f)` compared two functions.
-has_fn_or_address(T, Env) ->
-    holds_fn(T, Env, []).
+%% Report §3.10: false where a value of the type has equality, and else
+%% what it may hold that has none: a function, an address or a reply, or a
+%% `Foreign` value. A built-in or foreign type holds its arguments, and a
+%% declared type its fields with its arguments in place of its parameters.
+%% A declared type met again inside its own fields is not read again: what
+%% its fields hold of their own is being read already, and what its
+%% arguments bring is read in their place. A regression: a declared type's
+%% fields were not read, and `Box(f) == Box(f)` compared two functions; and
+%% `Foreign.from(f) == Foreign.from(g)` compared two functions through
+%% `Foreign`.
+lacks_equality(T, Env) ->
+    lacks(T, Env, []).
 
-holds_fn(T, #env{st = St} = Env, Seen) ->
+lacks(T, #env{st = St} = Env, Seen) ->
     case ern_types:resolve(T, St) of
         {tfn, _, _, _} ->
-            true;
+            "it contains a function or an address";
         {tcon, ['Address'], _} ->
-            true;
+            "it contains a function or an address";
         {tcon, ['Reply'], _} ->
-            true;
+            "it contains a function or an address";
+        {tcon, ['Foreign'], []} ->
+            "it contains a `Foreign` value, which Ernest does not inspect";
         {tcon, Q, Args} ->
             case {lists:member(Q, Seen), declared_fields(Q, Args, Env)} of
                 {false, {ok, Fields}} ->
-                    lists:any(fun(F) -> holds_fn(F, Env, [Q | Seen]) end, Fields);
+                    first_lack(fun(F) -> lacks(F, Env, [Q | Seen]) end, Fields);
                 _ ->
-                    lists:any(fun(A) -> holds_fn(A, Env, Seen) end,
-                              ern_types:value_args(Q, Args, St))
+                    first_lack(fun(A) -> lacks(A, Env, Seen) end,
+                               ern_types:value_args(Q, Args, St))
             end;
         {ttuple, Es} ->
-            lists:any(fun(E) -> holds_fn(E, Env, Seen) end, Es);
+            first_lack(fun(E) -> lacks(E, Env, Seen) end, Es);
         _ ->
             false
+    end.
+
+first_lack(_, []) ->
+    false;
+first_lack(Lacks, [T | Ts]) ->
+    case Lacks(T) of
+        false -> first_lack(Lacks, Ts);
+        Lack -> Lack
     end.
 
 %% The field types of a declared type's constructors, its arguments in

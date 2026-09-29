@@ -1208,10 +1208,10 @@ foreign_proxy_is_one_test() ->
     ?assertEqual(<<"same\n">>, Out),
     persistent_term:erase({?MODULE, proxy_seen}).
 
-%% report §3.10, §3.8: a foreign value's equality is the host's, of the
-%% terms: a reference equals itself and not another, two values that are
-%% the same term are equal, and so are two Foreign values made from the
-%% same value. A regression test, written after the code; it does not
+%% report §3.10, §3.8: a foreign type's equality is the host's, of the
+%% terms: a reference equals itself and not another, and two values that
+%% are the same term are equal. `Foreign` has none, which the checker's
+%% tests hold. A regression test, written after the code; it does not
 %% cover a foreign value that holds a function
 foreign_equality_test() ->
     {ok, Out} = run(
@@ -1222,10 +1222,9 @@ foreign_equality_test() ->
         "    let a = makeRef();\n"
         "    let b = makeRef();\n"
         "    let _ = Io.debug(#(a == a, a == b, same(1) == same(-1), same(1) == same(2)));\n"
-        "    let _ = Io.debug(Foreign.from(1) == Foreign.from(1));\n"
         "    Unit\n"
         "}\n"),
-    ?assertEqual(<<"#(true, false, true, false)\ntrue\n">>, Out).
+    ?assertEqual(<<"#(true, false, true, false)\n">>, Out).
 
 %% report §8.4, §7.4: an address given to foreign code is a proxy that
 %% checks each message on delivery, a bad one faulting the target even
