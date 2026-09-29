@@ -1112,6 +1112,32 @@ expressions_leave_no_code() ->
                             || L <- binary:split(Out, <<"\n">>, [global])]],
     ?assert(After - Before < 2000).
 
+%% report §6.9, §11.2: an input typed again, with a lambda and a spawn,
+%% leaves no code behind, though its spawn site names it by its count. A
+%% regression test, written after the code: the site's `input N` was
+%% compiled into the input's module, so each count made a version of its
+%% own, and the host's entry for its lambda, which `make load` found. The
+%% first three hundred are the warm-up, in which an input whose module a
+%% spawned process still runs leaves the next one a number of its own, and
+%% the reading of the memory, typed again, takes a version for each number
+%% it lands on
+expressions_again_leave_no_code_test_() ->
+    {timeout, 120, fun expressions_again_leave_no_code/0}.
+
+expressions_again_leave_no_code() ->
+    In = filename:join("/tmp", "ern_again_" ++ os:getpid() ++ ".in"),
+    Code = "memory(Erl.atom(\"code\"))\n",
+    Spawn = "spawn(Local, fn() = Unit)\n",
+    ok = file:write_file(In, ["foreign fn memory(k : Foreign) : Int with m ="
+                              " \"erlang:memory/1\"\n",
+                              [[lists:duplicate(100, Spawn), Code] || _ <- lists:seq(1, 3)],
+                              lists:duplicate(200, Spawn), Code]),
+    {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
+    [_, _, Before, After] = [binary_to_integer(N) || {match, [N]} <-
+                           [re:run(L, "^> ([0-9]{7,}) : Int$", [{capture, all_but_first, binary}])
+                            || L <- binary:split(Out, <<"\n">>, [global])]],
+    ?assert(After - Before < 2000).
+
 %% report §11.2, §6.10: a declaration made again is let go only when
 %% nothing reaches it: a function declared after it still calls it, a
 %% binding holding its function or a value of its type keeps it, and a

@@ -21,13 +21,10 @@ citations_resolve_test() ->
     Guide = read("ernest_guide.md"),
     ReportHeads = headings(Report),
     GuideHeads = headings(Guide),
-    Live = ["ernest_report.md", "README.md", "docs/development.md", "CLAUDE.md",
-            "docs/implementation_plan.md",
-            "docs/architecture.md", "docs/shell_design.md", "docs/module_doc_template.md",
-            "docs/review.md", "docs/style.md", "docs/emacs_mode.md",
-            "docs/node_protocol.md", "docs/code_distribution.md", "docs/install.md",
-            "shell/README.md"]
-        ++ examples() ++ stdlib() ++ shell() ++ tools(),
+    %% docs/findings.md's lines cite each document as its reader did, the
+    %% guide's sections bare beside the report's, and the list goes with
+    %% MVP 2.98
+    Live = (documents() -- ["docs/findings.md"]) ++ examples() ++ stdlib() ++ shell() ++ tools(),
     Dangling =
         [{F, C} || F <- Live, C <- cites(read(F)), not resolves(C, report, ReportHeads, GuideHeads)]
         ++ [{"ernest_guide.md", C} || C <- cites(Guide),
@@ -112,22 +109,35 @@ adds(Bin) ->
     List.
 
 %% docs/style.md, docs/development.md "The layout of the repository": a document that says
-%% where things are names things that are there. The report and the guide
-%% name paths a program might have, `net/http.ern`, and the plan and the
-%% naming record name paths that are gone or not yet written, so the five
-%% checked here are the ones that describe the repository as it is.
+%% where things are names things that are there, from the repository's root
+%% or, as shell/README.md does, from its own directory. The report and the
+%% guide name paths a program might have, `net/http.ern`, and the plan
+%% paths not yet written, so every other document is checked.
 document_paths_test() ->
-    Where = ["README.md", "docs/development.md", "CLAUDE.md", "docs/architecture.md",
-             "docs/style.md"],
-    Missing = [{F, P} || F <- Where, P <- paths(read(F)),
-                         not exists(P)],
+    Missing = [{F, P} || F <- described(), P <- paths(read(F)),
+                         not exists(P), not exists(filename:join(filename:dirname(F), P))],
     ?assertEqual([], Missing).
+
+%% Every document the repository tracks, the guide aside, whose citations
+%% are its own sections, and the log, whose entries say what was. A
+%% regression: the lists were written out, and left out five documents
+%% and four directories (findings.md's D4)
+documents() ->
+    Tracked = string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files '*.md'"), "\n"),
+    Found = [F || F <- Tracked, not lists:member(F, ["ernest_guide.md", "docs/decisions.md"])],
+    ?assert(length(Found) > 15),
+    Found.
+
+%% The documents that describe the repository as it is.
+described() ->
+    documents() -- ["ernest_report.md", "docs/implementation_plan.md"].
 
 %% A backticked path under one of the repository's own directories. A
 %% metavariable is written `<name>`, as docs/style.md writes `ern_<thing>`,
 %% and a wildcard stands for a set, so neither names one file.
 paths(Bin) ->
-    Tops = ["erl/", "docs/", "test/", "bin/", "stdlib/", "examples/", "build/"],
+    Tops = ["erl/", "docs/", "test/", "bin/", "stdlib/", "examples/", "build/", "shell/",
+            "libs/", "tools/", "emacs/"],
     Quoted = [B || B <- binary:split(Bin, <<"`">>, [global])],
     [binary_to_list(P) || {I, P} <- lists:zip(lists:seq(1, length(Quoted)), Quoted),
                           I rem 2 =:= 0,
@@ -244,7 +254,7 @@ headings(Bin) ->
     lists:append([heading(L) || L <- Lines]).
 
 heading(L) ->
-    case re:run(L, "^#{1,3} (?:([0-9]+(?:\\.[0-9]+)?)\\.? |Appendix ([A-F])(?:\\.([0-9]+))?\\.)",
+    case re:run(L, "^#{1,3} (?:([0-9]+(?:\\.[0-9]+)?)\\.? |Appendix ([A-Z])(?:\\.([0-9]+))?\\.)",
                 [{capture, all_but_first, list}]) of
         {match, [N]} -> [N];
         {match, [[], A]} -> ["Appendix " ++ A];
@@ -260,7 +270,7 @@ cites(Bin) ->
               {match, Ms} -> [{kind(W), N} || [W, N] <- Ms];
               nomatch -> []
           end,
-    App = case re:run(Bin, "Appendix ([A-F])(?:\\.([0-9]+))?",
+    App = case re:run(Bin, "Appendix ([A-Z])(?:\\.([0-9]+))?",
                       [global, {capture, all_but_first, list}]) of
               {match, As} -> lists:append([case A of [X] -> [{report, "Appendix " ++ X}];
                                                      [X, E] -> [{report, X ++ "." ++ E}]

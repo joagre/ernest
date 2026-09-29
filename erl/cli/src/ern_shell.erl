@@ -12,7 +12,7 @@
          session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
          documentation/1, fields/1, signature/1, load/2,
          reload/1, version/0, write/1, screen/1, to_screen/1,
-         output/1, unbound/1, collect/1, declared/1]).
+         output/1, unbound/1, collect/1, input_site/2, declared/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -387,10 +387,10 @@ one_name(Typed) ->
 %% interruption kills.
 -spec run(#env{}, #checked{}, term()) -> term().
 run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
-                  binds = Binds, site = {Where, Offset} = Site}, To) ->
+                  binds = Binds, site = {Where, Offset}}, To) ->
     Desc = ern_descriptor:describe(T, TEnv, []),
     {ok, Mod, Beam} = ern_emitter:compile(Ns, Typed, Iface, TEnv,
-                                          #{source_hash => <<>>, deps => [], session => Site}),
+                                          #{source_hash => <<>>, deps => [], session => Offset}),
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), Beam),
     set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) -- [Ns]),
     %% report §11.2: the session's modules the input calls, and those whose
@@ -403,6 +403,7 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
     set_uses(maps:put(Mod, {Ns, lists:usort([M || {M, _, _} <- Imports, session_module(M),
                                                   M =/= Mod] ++ Named)},
                       uses())),
+    set_names(maps:put(Mod, Where, names_of_inputs())),
     %% report §11.2: an input that declares keeps its module for `:doc`;
     %% an expression's has no documentation, and is not kept
     Env1 = case Binds of
@@ -1890,7 +1891,22 @@ uses() ->
     persistent_term:get({?MODULE, uses}, #{}).
 
 set_uses(Uses) ->
-    uses() =/= Uses andalso persistent_term:put({?MODULE, uses}, Uses).
+    uses() =/= Uses andalso persistent_term:put({?MODULE, uses}, Uses),
+    set_names(maps:with(maps:keys(Uses), names_of_inputs())).
+
+%% Report §6.9, §11.2: the site of a spawn an input's expression makes, the
+%% input's name as its diagnostics give it, `input 3`, and the line. The
+%% name is kept beside the module's uses and goes with them, since the
+%% module's number is given to a later input once it is purged.
+-spec input_site(atom(), pos_integer()) -> binary().
+input_site(Mod, Line) ->
+    <<(maps:get(Mod, names_of_inputs()))/binary, ":", (integer_to_binary(Line))/binary>>.
+
+names_of_inputs() ->
+    persistent_term:get({?MODULE, input_names}, #{}).
+
+set_names(Names) ->
+    names_of_inputs() =/= Names andalso persistent_term:put({?MODULE, input_names}, Names).
 
 %% Report §11.2: the session is a scope of its own. The interface behind an
 %% input joins the ones the checker is given, and what it declares joins the

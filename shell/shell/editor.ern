@@ -23,10 +23,10 @@ export abstract type State =
           saved : String,
           search : Optional(Search))
 
-// Report §8.2: a sequence the terminal sends that §9.3 does not name
-// arrives as `Escape` and the characters after it, so the editor reads
-// one: `Escape` begins a Meta key, and `Escape [` begins the rest of a
-// sequence, of which `Escape [ Z` is `Shift-Tab`.
+// Report §8.2: a sequence the terminal sends that `Terminal.Event` does
+// not name (Appendix E.16) arrives as `Escape` and the characters after
+// it, so the editor reads one: `Escape` begins a Meta key, and `Escape [`
+// begins the rest of a sequence, of which `Escape [ Z` is `Shift-Tab`.
 type Pending = Plain | Meta | Bracket
 
 // An incremental search: what has been typed to search for, where in the
@@ -199,8 +199,8 @@ fn meta(state : State, event : Terminal.Event) : Edit = {
         // report §11.2: another line, though the parser could run what
         // is typed
         Terminal.Enter -> Typing(newline(state))
-      // report §8.2: `Escape [` begins a sequence §9.3 does not name,
-      // of which `Escape [ Z` is `Shift-Tab`
+      // report §8.2: `Escape [` begins a sequence `Terminal.Event` does
+      // not name (Appendix E.16), of which `Escape [ Z` is `Shift-Tab`
       | Terminal.Key('[') -> Typing(State(..state, pending = Bracket))
       | Terminal.Key('<') -> Typing(walkTo(state, List.size(state.history)))
       | Terminal.Key('>') -> Typing(walkTo(state, 0))

@@ -54,7 +54,7 @@ snake_without_terminal_test_() ->
 %% end of input, so its run is bounded by its input. The last two lines are
 %% the point of the program: an expression that does not terminate is killed
 %% after two seconds, and the next expression still works.
-%% report §6.9 (monitor), §8.2 (Io's stdin), §9.3 (Io.readLine)
+%% report §6.9 (monitor), §8.2 (Io's stdin), Appendix E.1 (Io.readLine)
 repl_test_() ->
     {timeout, 60, fun repl/0}.
 
@@ -409,8 +409,9 @@ debug_information(Dir) ->
               lists:keymember("Dbgi", 1, Chunks)
           end].
 
-%% report §9.3, plan MVP 3.2: every library's own tests, run by `ern test`
-%% over its compiled modules, as the shell's are
+%% report §9.3, Appendix G.2, plan MVP 3.2: every library's own tests, run
+%% by `ern test` over its compiled modules, as the shell's are: the
+%% Markdown library's read and lay out what G.2 says
 libs_test_() ->
     {timeout, 60, fun libs/0}.
 
@@ -424,6 +425,40 @@ libs() ->
     ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch,
                            L =/= <<"no tests">>]),
     ?assertEqual(0, Status).
+
+%% report Appendix G.1, §7.4: a table replaces a key's entry, a removal of
+%% a key that is not there does nothing, `clear` leaves the table, and an
+%% operation on a table that has ended faults as a foreign function that
+%% raises does. A regression test: the library had no test of its own, and
+%% its pages no Errors sections
+ets_test_() ->
+    {timeout, 60, fun ets/0}.
+
+ets() ->
+    Dir = "build/ets",
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(Dir ++ "/tables.ern",
+                         "export fn main() : Unit with Never = {\n"
+                         "    let t : Ets.Table(String, Int) = Ets.new();\n"
+                         "    Ets.put(t, \"a\", 1);\n"
+                         "    Ets.put(t, \"a\", 2);\n"
+                         "    Ets.remove(t, \"b\");\n"
+                         "    let _ = Io.debug(#(Ets.get(t, \"a\"), Ets.size(t),\n"
+                         "                       Ets.contains(t, \"b\")));\n"
+                         "    Ets.clear(t);\n"
+                         "    let _ = Io.debug(Ets.toList(t));\n"
+                         "    Ets.close(t);\n"
+                         "    Ets.put(t, \"a\", 3)\n"
+                         "}\n"),
+    0 = build("--source-root " ++ Dir ++ " --load-path ../build/libs/ets --build-root "
+              ++ Dir ++ " " ++ Dir ++ "/tables.ern"),
+    {1, Out} = sh("../bin/ern run --load-path ../build/libs/ets " ++ Dir ++ "/tables.erc"),
+    %% what the program prints and the fault's line come on two streams
+    Lines = unstamped(binary:split(Out, <<"\n">>, [global, trim])),
+    ?assert(lists:member(<<"#(Some(2), 1, false)">>, Lines)),
+    ?assert(lists:member(<<"[]">>, Lines)),
+    ?assert(lists:member(<<"Tables.main faulted: foreign function ets:insert/2 raised "
+                           "error:badarg">>, Lines)).
 
 %% report §8.2, §7.4, Appendix E.1: standard input is UTF-8 whatever the
 %% host's locale, a line without its line feed or the carriage return

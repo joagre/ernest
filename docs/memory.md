@@ -4,7 +4,7 @@ How the project checks that nothing grows with the work done: the loads that mea
 
 ## The loads
 
-`make load` runs each load in an Erlang node of its own and prints its samples and whether it stayed flat, which it also writes to `test/build/load/<load>.txt`. It takes about a minute and a half.
+`make load` runs each load in an Erlang node of its own and prints its samples and whether it stayed flat, which it also writes to `test/build/load/<load>.txt`. It takes about a hundred seconds (measured 2026-09-29).
 
 A load does the same work in each of fourteen rounds and calls `mark(round)`, a `foreign fn` of `test/ern_load.erl`, after each. The programs are under `test/load/`; the shell's session is written by that harness.
 
@@ -58,7 +58,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 - **Same and distinct.** The same input a hundred times, and a hundred inputs that each differ, `1 + 1` against `1 + n`, between two readings of `erlang:memory(code)`: a cost of the distinct ones alone is a cost per version of the code. The same test in plain Erlang, one module loaded, deleted and purged in a loop, tells the host's cost from the program's.
 - **With and without.** The fix stashed (`git stash -- file`), rebuilt, and the load run again beside the run with it: the difference is the fix's. A regression test is checked the same way, and fails without the fix.
 
-A growth found becomes a regression test in `make test` where one can show it in seconds: `declarations_let_go_test_`, `declarations_kept_while_reached_test_` and `expressions_leave_no_code_test_` in `test/ern_shell_tests.erl`, `monitors_let_go_test` in `erl/emitter/test/ern_emitter_tests.erl`, and the editor's `lastThousand` in `shell/shell/editor.ern`.
+A growth found becomes a regression test in `make test` where one can show it in seconds: `declarations_let_go_test_`, `declarations_kept_while_reached_test_`, `expressions_leave_no_code_test_` and `expressions_again_leave_no_code_test_` in `test/ern_shell_tests.erl`, `monitors_let_go_test` in `erl/emitter/test/ern_emitter_tests.erl`, and the editor's `lastThousand` in `shell/shell/editor.ern`.
 
 ## Adding a load
 

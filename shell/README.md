@@ -63,7 +63,7 @@ In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault repor
 | `Shell.Complete` | [`shell/complete.ern`](shell/complete.ern) | Completion: what may stand at the cursor, the names that may, gathered from the session and the source root, and matching a word against them. |
 | `Shell.Region` | [`shell/region.ern`](shell/region.ern) | The live region at the foot of the terminal, and the bytes each event writes. |
 | `Shell.History` | [`shell/history.ern`](shell/history.ern) | The history file, over `Os` and `Fs`. |
-| `Shell.Style` | [`shell/style.ern`](shell/style.ern) | The colours. Each function is given whether colour is on. |
+| `Shell.Style` | [`shell/style.ern`](shell/style.ern) | The colours. Each function is given `Markdown.Styled` or `Markdown.Plain`, as documentation is rendered. |
 | `Markdown` | [`libs/markdown`](../libs/markdown/markdown.ern) | A library, not part of the shell, which renders documentation. |
 
 `Shell` uses all the others. Of the others, only `Shell.Editor` uses another: it reads the history's length, `Shell.History.kept`.

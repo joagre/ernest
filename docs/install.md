@@ -40,7 +40,7 @@ It needs `sh`, `readlink` and `iconv`, and checks no version of the host.
 
 ## The release archive
 
-`make release` writes `build/release/ern-VERSION.tar.gz`: under `ern-VERSION/`, the staged tree without the compiled helper, and beside it the helper's source `ern_exec.c`, `install.sh`, and the `Makefile` and `README.md` of `tools/release`. The archive's `make` compiles the helper with `cc`, or the `CC` given; its `make install` and `make uninstall` take `PREFIX` and `DESTDIR` as the checkout's do.
+`make release` writes `build/release/ern-<version>.tar.gz`: under `ern-<version>/`, the staged tree without the compiled helper, and beside it the helper's source `ern_exec.c`, `install.sh`, and the `Makefile` and `README.md` of `tools/release`. The archive's `make` compiles the helper with `cc`, or the `CC` given; its `make install` and `make uninstall` take `PREFIX` and `DESTDIR` as the checkout's do.
 
 ## Removing it
 

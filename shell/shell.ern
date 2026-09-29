@@ -4,8 +4,8 @@
 /// and run in a process of its own; its value is printed with its type, or
 /// what it declared is. Three processes: the session holds the state, the
 /// reader owns the keys, and the screen is the only writer, which is what
-/// the sinks are bound to. When input is not a terminal the shell reads
-/// lines instead.
+/// the sinks are bound to. Where standard input is not a terminal, or
+/// standard output has no size, the shell reads lines instead.
 
 //
 // The front end
@@ -216,7 +216,8 @@ type Last = Ordinary | Tabbed | Documented
 let defaults = Settings(depth = 10, length = 100, timing = false, output = Shell.Region.tailRows)
 
 /// The shell: a session at a terminal, or one that reads lines where
-/// input is not a terminal (report §11.2).
+/// standard input is not a terminal or standard output has no size (report
+/// §11.2).
 export fn main() : Unit with ShellMsg = {
     let me = self();
     // report §11.2: at a terminal the keys are read and a region painted;
@@ -293,7 +294,7 @@ export fn main() : Unit with ShellMsg = {
             monitor(reader, ReaderDied);
             match startup(state, screen) {
                 Continue(state2) -> {
-                    send(screen, Said("> "));
+                    prompt(screen);
                     keyLoop(state2, screen)
                 }
               | Leave -> finish(screen, "")

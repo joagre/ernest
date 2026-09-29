@@ -14,7 +14,7 @@ The shell runs as three processes of its own, and each input in one more.
 
 - **The session** is the entry process (§8.1), `Shell.main`. It holds the `State`: the front end's `Env`, the settings `:set` changes, whether it colours, decided once at start (§11.2 *Colour*), its own processes by their `Process`, and the last hundred fault reports. It runs no user code. Its mailbox is `ShellMsg`.
 - **The reader** owns the keys, at a terminal. It records itself as the terminal's holder with `holdTerminal` before it subscribes, so that anything else that asks for the keys or a line faults, and the interrupt reaches the reader as a key (§11.2 *The shell*, §8.2 *Interrupt*). Each event goes through `Shell.Editor.edit`; the reader sends the screen the line to show and the session what was entered. It draws nothing, and it stays live while an input runs. Its mailbox is `ReaderMsg`.
-- **The screen** is the only process that writes to the terminal. It holds a `Shell.Region.Region` and writes the bytes the region answers, through the foreign `write` rather than `Io.print`, since the sinks are bound to the screen and its own bytes would come back to it. Without a terminal it runs `plainLoop`, which writes what it is sent as it comes. Its mailbox is `ScreenMsg`.
+- **The screen** is the only process that writes to the terminal. It holds a `Shell.Region.Region` and writes the bytes the region answers, through the foreign `write` rather than `Io.print`, since the sinks are bound to the screen and its own bytes would come back to it. In line mode it runs `plainLoop`, which writes what it is sent as it comes. Its mailbox is `ScreenMsg`.
 - **An input's process** is spawned by the front end (`spawnInput`), since its mailbox type, the input's own inferred effect, is known only once the input is checked. It catches its own fault and answers the session with `Done(Ok(env, value))` or `Done(Faulted(cause))`, so nothing monitors it. Its address is what the interrupt kills.
 
 **The screen's messages.** The shell's own text is `Said`, which takes the prompt with it, an input having finished, or `Noted`, which leaves the prompt, the input still being typed. A program's text is `Wrote`. `Typing` carries the line, the cursor, and the rows shown under the line, so every key says what stands there, and the line and its listing are painted in one write. The reader's `Entered` commits the line. The session's `Taken` says it has taken an input, which spends the prompt said after the previous answer when the input was typed ahead. `Flush` is a call, answered once everything sent before it is written.
@@ -30,10 +30,10 @@ The runner, `ern_cli`, loads the file and its dependencies and runs their initia
 `main` is ordered by what each step needs from the one before:
 
 1. Where `Terminal.size()` answers a size, it spawns the reader and waits for `Ready` or `NoKeys`. The reader answers once its subscription is granted, and so once the terminal no longer echoes (§8.2 *Keys*); what was typed at a prompt written earlier would be echoed and read as a line.
-2. It spawns the screen, and binds the sinks to it with `setScreen(via(Wrote, screen))`.
+2. It spawns the screen, binds the sinks to it with `setScreen(via(Wrote, screen))`, and says the greeting, the version and where the commands are.
 3. It subscribes to `Process.faults(Reported)`, and only then spawns the file's entry point (`program`), so that a fault in the entry point is reported.
 4. At a terminal it reads the history, sends the reader `Start` with the screen, the history, whether the history file takes what is typed, which it does not where it could not be read, and whether to colour, and monitors the reader: the reader's end is the session's.
-5. It runs the startup inputs, and writes the first `> `.
+5. It runs the startup inputs, and writes the first `> ` with `prompt`, which drains the screen first, as before every prompt.
 
 `finish` takes the region away with `Height(0)` and an empty `Typing`, leaves the cursor on a fresh line, and drains the screen. When `main` returns, every process the session spawned ends with `ProgramEnd` (§8.6).
 

@@ -1307,7 +1307,7 @@ options_test() ->
     ?assertEqual(0, ern_cli:ern(["--version"])),
     ?assertEqual(0, ern_cli:ern(["--help"])),
     [?assertEqual(0, ern_cli:ern([Job, "--help"]))
-     || Job <- ["build", "doc", "run", "test", "shell", "config"]].
+     || Job <- ["build", "doc", "format", "run", "test", "shell", "config"]].
 
 %% report §11: the first word is the job, and none is refused with the jobs
 %% named

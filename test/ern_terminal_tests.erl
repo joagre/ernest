@@ -9,7 +9,7 @@
 
 -define(CLEAR, <<"\e[2J\e[H">>).
 
-%% report §8.2, §9.3: every key pressed reaches the subscriber, a character
+%% report §8.2, Appendix E.16: every key pressed reaches the subscriber, a character
 %% as itself, an arrow whole rather than as Escape and two characters, and
 %% an Escape that stands alone as the key; nothing is echoed. The terminal
 %% answers its size, and a window that changes arrives as `Resized`. A
@@ -37,7 +37,7 @@ keys() ->
                        {send, "1b"}],       % Escape, alone
                       15),
     Lines = lines(Screen),
-    %% report §9.3: the size the program was given, its keys, and the new
+    %% report Appendix E.16: the size the program was given, its keys, and the new
     %% size when the window changed
     ?assertEqual([<<"ready 24x80">>, <<"char x">>, <<"up">>, <<"down">>,
                   <<"resized 30x100">>, <<"pasted a|b">>, <<"escape">>], Lines),
@@ -141,7 +141,7 @@ settings_kept() ->
     ?assertMatch({match, _}, re:run(Screen, "(^|[ \t])tostop([ \t;\r\n]|$)")),
     ?assertEqual(nomatch, re:run(Screen, "-tostop", [{capture, none}])).
 
-%% report §8.2, §9.3, and MVP 2.5's manual check: the game is
+%% report §8.2, Appendix E.16, and MVP 2.5's manual check: the game is
 %% played by the arrows, `Escape` leaves, and the board's rows each start at
 %% the left, which full raw mode would have broken
 snake_test_() ->

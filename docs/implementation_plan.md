@@ -90,8 +90,10 @@ What the review of MVP 2.95 found and did not fix there, decided 2026-09-28 and 
 the contract's decision (2026-09-29), in this order: 4, 5, 6, 3, 1, 2, the design questions of 2
 discussed with the user one at a time as they are met.
 
-1. **[`findings.md`](findings.md)'s `cheap` lines**, a batch a document. The report's, done
-   2026-09-29 (the log's *The Report's Cheap Lines*).
+1. **[`findings.md`](findings.md)'s `cheap` lines**, a batch a document, done 2026-09-29 (the
+   log's entries from *The Report's Cheap Lines* to *The Documents' Cheap Lines*). Measuring
+   the loads for it found the shell's code growing with every input, T26's sites compiled into
+   each input's module, fixed the same day.
 2. **Its `2.98` lines**: the report's contradictions and silent cases, among them `Io.show`'s
    dependence on the type at the call; a type that breaks laid one alternative a line, as a
    `match` is, decided with the user and done 2026-09-29 (N10; the log's *A Type That Breaks
