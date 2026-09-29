@@ -15,9 +15,9 @@ helper_ends_under_a_write_and_a_read_test() ->
                [Port] = [P || P <- element(2, process_info(Program, links)), is_port(P)],
                {os_pid, Helper} = erlang:port_info(Port, os_pid),
                erlang:suspend_process(Program),
-               Written = reply(),
+               Written = alias(),
                Program ! {'Write', <<"x">>, Written},
-               Read = reply(),
+               Read = alias(),
                Program ! {'Read', Read},
                _ = os:cmd("kill -9 " ++ integer_to_list(Helper)),
                closed(Port),
@@ -99,13 +99,13 @@ closed(Port) ->
         _ -> sleep(10), closed(Port)
     end.
 
-answer({Alias, _}) ->
+%% The answer the runtime's process gives, in Ernest's form (report §8.4).
+answer(Alias) ->
     ern_rt:timed(),
-    receive {Alias, V} -> ern_rt:untimed(), V after 5000 -> ern_rt:untimed(), timeout end.
-
-%% A Reply as the runtime makes one, answered to the caller (report §8.4).
-reply() ->
-    {alias(), self()}.
+    receive
+        {Alias, answered, V} -> ern_rt:untimed(), V
+    after 5000 -> ern_rt:untimed(), timeout
+    end.
 
 %% A wait the deadlock detector counts, as the compiler's timed receive is.
 sleep(Ms) ->

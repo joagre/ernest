@@ -1,16 +1,16 @@
 %% Report §4.7, §8.4, §7.4: the foreign boundary. A foreign function is
 %% called in place, in the code the compiler writes, inside a catch whose
 %% exception raised/6 turns into a fault; its return is checked against the
-%% declared type on first observation, and a reply when its Reply crossed
-%% into foreign code. What crosses into foreign code, a foreign function's
-%% argument or a message sent to a foreign address, is exposed: every
-%% Ernest address in it is replaced by a proxy that checks each message the
-%% foreign side sends against the address's mailbox type on delivery and
-%% forwards it, or ends the target with the fault, and every Reply in it
-%% marks its call, whose reply is then checked. An address that comes from
-%% foreign code and names no process of the program is held as foreign,
-%% {foreign, Pid, D, B}, D its messages' descriptor, so that what is sent
-%% to it is exposed. The compiler describes a type as a term this module
+%% declared type on first observation, as an answer foreign code gives is
+%% (ern_rt). What crosses into foreign code, a foreign function's argument
+%% or a message sent to a foreign address, is exposed: every Ernest address
+%% in it is replaced by a proxy that checks each message the foreign side
+%% sends against the address's mailbox type on delivery and forwards it, or
+%% ends the target with the fault. An address that comes from foreign code
+%% and names no process of the program is held as foreign, {foreign, Pid,
+%% D, B}, D its messages' descriptor, so that what is sent to it is
+%% exposed, and a Reply as {foreign_reply, Alias}, so that its answer is
+%% given in foreign code's form and checked. The compiler describes a type as a term this module
 %% interprets:
 %% any | int | float | bool | char | string | bytes | {pid, D, Text} | {reply, D, Text} | process
 %% | {'fun', Arity, R, Text, Make} | {'fun', Arity, R, Text} | never | {list, D}
@@ -27,7 +27,7 @@
 %% `Io.debug` print by carry no Make, since nothing is checked there.
 -module(ern_boundary).
 
--export([raised/6, expose/2, check/3, value/3, reply/2, expose/3]).
+-export([raised/6, expose/2, check/3, value/3, expose/3]).
 
 %% Report §7.4: an exception foreign function M:F/Arity raised, a fault of
 %% the calling process that names the implementation; an Ernest fault
@@ -76,23 +76,10 @@ value(Desc, V, Text) ->
         false -> ern_rt:fault(Text)
     end.
 
-%% Report §7.4, §8.4: the answer to a call, checked as its call's mark
-%% says: none where its Reply never crossed into foreign code, else the
-%% answer's descriptor, the fault's text and the mu bindings the descriptor
-%% was read inside.
--spec reply(none | {term(), binary(), map()}, term()) -> term().
-reply(none, V) ->
-    V;
-reply({D, Text, B}, V) ->
-    case chk(D, V, B) of
-        true -> armed(D, zeroed(D, V, B), B);
-        false -> ern_rt:fault(Text)
-    end.
-
 %% Report §7.4, §8.4: a checked value from foreign code as the program
 %% holds it: every function value in it wrapped so that its result is
 %% checked at each call, and every address in it that names no process of
-%% the program held as foreign.
+%% the program, and every Reply, held as foreign.
 armed(D, V, B) ->
     case lists:any(fun arms/1, [D | maps:values(B)]) of
         true -> arm(D, V, B);
@@ -101,12 +88,14 @@ armed(D, V, B) ->
 
 arms({'fun', _, _, _, _}) -> true;
 arms({pid, _, _}) -> true;
+arms({reply, _, _}) -> true;
 arms(T) when is_tuple(T) -> lists:any(fun arms/1, tuple_to_list(T));
 arms(L) when is_list(L) -> lists:any(fun arms/1, L);
 arms(_) -> false.
 
 arm({'fun', _, R, _, Make}, V, B) -> Make(V, closed(R, B));
 arm({pid, D, _}, V, B) when is_pid(V) -> ern_rt:held(V, D, B);
+arm({reply, _, _}, V, _) when is_reference(V) -> {foreign_reply, V};
 arm({list, D}, V, B) -> [arm(D, X, B) || X <- V];
 arm({tuple, Ds}, V, B) ->
     list_to_tuple([arm(D, X, B) || {D, X} <- lists:zip(Ds, tuple_to_list(V))]);
@@ -177,7 +166,8 @@ chk(bytes, V, _) -> is_binary(V);
 %% an answer checked because its Reply crossed may be Ernest's own, which
 %% holds an address in any of its forms
 chk({pid, _, _}, V, _) -> ern_rt:is_address(V);
-chk({reply, _, _}, {Alias, Caller}, _) -> is_reference(Alias) andalso is_pid(Caller);
+chk({reply, _, _}, V, _) when is_reference(V) -> true;
+chk({reply, _, _}, {foreign_reply, V}, _) -> is_reference(V);
 chk({reply, _, _}, _, _) -> false;
 chk(process, V, _) -> is_pid(V);
 chk({'fun', N, _, _, _}, V, _) -> is_function(V, N);
@@ -245,8 +235,8 @@ expose({pid, D, Text}, V, B) when is_pid(V) -> proxy(V, D, B, Text);
 expose({pid, D, Text}, {via, _, _} = V, B) -> proxy(V, D, B, Text);
 %% an address foreign code gave goes back to it as it came
 expose({pid, _, _}, {foreign, Pid, _, _}, _) -> Pid;
-%% report §8.4: the reply to a Reply that crosses is checked
-expose({reply, D, Text}, {_, _} = R, B) -> ern_rt:reply_crosses(R, {D, Text, B}), R;
+%% a Reply foreign code gave goes back to it as it came
+expose({reply, _, _}, {foreign_reply, Alias}, _) -> Alias;
 expose({list, D}, V, B) when is_list(V) -> [expose(D, X, B) || X <- V];
 expose({tuple, Ds}, V, B) when is_tuple(V), tuple_size(V) =:= length(Ds) ->
     list_to_tuple([expose(D, X, B) || {D, X} <- lists:zip(Ds, tuple_to_list(V))]);

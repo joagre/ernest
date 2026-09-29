@@ -1,7 +1,7 @@
 -module(ern_emitter_tests).
 
 -export([write_golden/0, pair/0, opt/1, funs/0, improper/1, remember/1, junk/1, good/1,
-         tell/1, junk_server/0, hello_junk/0, hello_good/0, relay_junk/1, relay_good/1,
+         tell/1, junk_server/0, hello_junk/0, hello_good/0, relay_junk/1, relay_good/1, same/1,
          reaper_words/0]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -1359,9 +1359,8 @@ foreign_address_message_test() ->
     ?assertEqual({fault, <<"message does not match Msg">>}, element(1, run(Source("hello_junk")))),
     ?assertEqual({ok, <<"1\n">>}, run(Source("hello_good"))).
 
-%% report §8.4: a Reply an Ernest process hands on to foreign code crosses,
-%% so the caller checks the reply foreign code gives; a reply that only
-%% Ernest code gave is not checked, and a good one is answered
+%% report §8.4: foreign code answers a Reply an Ernest process hands on to it
+%% in foreign code's form, which the caller checks; a good answer arrives
 reply_handed_on_test() ->
     Source = fun(Relay) ->
                  "type Ask = Ask(reply : Reply(Int))\n"
@@ -1375,6 +1374,22 @@ reply_handed_on_test() ->
              end,
     ?assertEqual({fault, <<"reply does not match Int">>}, element(1, run(Source("relay_junk")))),
     ?assertEqual({ok, <<"5\n">>}, run(Source("relay_good"))).
+
+%% report §8.4: a Reply foreign code gives back is held as foreign, so an
+%% answer an Ernest process gives it is checked, as foreign code's is: a
+%% Reply handed back with another type declared cannot carry an answer of
+%% that type to a caller that waits for its own
+reply_given_back_test() ->
+    {R, _} = run("type Ask = Ask(reply : Reply(Int))\n"
+                 "foreign fn same(r : Reply(Int)) : Reply(String) with m ="
+                 " \"ern_emitter_tests:same/1\"\n"
+                 "fn serve() : Unit with Ask =\n"
+                 "    receive { Ask(reply = r) -> answer(same(r), \"x\") }\n"
+                 "export fn main() : Unit with Never = {\n"
+                 "    let n = Address.callForever(spawn(Local, serve), fn(r) = Ask(reply = r));\n"
+                 "    Io.println(Int.toString(n))\n"
+                 "}\n"),
+    ?assertEqual({fault, <<"reply does not match Int">>}, R).
 
 %% report §8.4: the standard library is the runtime's own, so the return of
 %% one of its foreign functions and the reply to a call it makes are not
@@ -1411,7 +1426,7 @@ junk(Pid) -> Pid ! {'Go', <<"x">>}, 'Unit'.
 good(Pid) -> Pid ! {'Go', 1}, 'Unit'.
 tell(Pids) -> [P ! {'Go', 2} || P <- Pids], 'Unit'.
 junk_server() ->
-    spawn(fun() -> receive {'Ask', {Alias, _}} -> Alias ! {Alias, <<"x">>} end end).
+    spawn(fun() -> receive {'Ask', Alias} -> Alias ! {Alias, <<"x">>} end end).
 %% report §8.4: a foreign process that answers a Hello with a message to the
 %% address it holds, of another type or of the declared one
 hello_junk() ->
@@ -1419,8 +1434,10 @@ hello_junk() ->
 hello_good() ->
     spawn(fun() -> receive {'Hello', P} -> P ! {'Go', 1} end end).
 %% report §8.4: foreign code given a Reply answers it as the ABI says
-relay_junk({Alias, _}) -> Alias ! {Alias, <<"x">>}, 'Unit'.
-relay_good({Alias, _}) -> Alias ! {Alias, 5}, 'Unit'.
+relay_junk(Alias) -> Alias ! {Alias, <<"x">>}, 'Unit'.
+relay_good(Alias) -> Alias ! {Alias, 5}, 'Unit'.
+%% report §8.4: a Reply handed back as it was given, its type declared anew
+same(R) -> R.
 
 %% report §4.5: an Ernest function named like an auto-imported
 %% Erlang BIF, `size`, `max`, is called by its own name

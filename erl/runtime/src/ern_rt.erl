@@ -8,10 +8,12 @@
 %% An Address is a pid, or {via, F, Target} for an address seen through a
 %% function (report §6.5), which send/2 applies in the sender, or
 %% {foreign, Pid, D, B} for an address foreign code gave (report §8.4),
-%% whose messages cross into foreign code. A Reply(a) is {Alias, Caller},
-%% Alias the alias of the call's monitor of its callee, as gen_server's
-%% call makes one: it deactivates when the call is over, which drops a late
-%% answer (report §6.6, §8.4).
+%% whose messages cross into foreign code. A Reply(a) is the alias of the
+%% call's monitor of its callee, as gen_server's call makes one: it
+%% deactivates when the call is over, which drops a late answer (report
+%% §6.6). Ernest answers {Alias, answered, V} and foreign code {Alias, V},
+%% as §8.4 says, and only the second is checked; a Reply foreign code gave
+%% back is {foreign_reply, Alias}, answered in the second form.
 %% Every process body runs under run/1, which turns an exception into an
 %% exit reason that Down reports as a Fault. All spawns go through the
 %% reaper process, which spawn_monitors each process; a monitor placed
@@ -33,7 +35,7 @@
 -module(ern_rt).
 
 -export([send/2, process_of/1, held/3, is_address/1, spawn/3, spawn_monitored/4, self/0, via/2,
-         call/3, call_forever/2, answer/2, refuse/2, reply_crosses/2, monitor/2, kill/1,
+         call/3, call/4, call_forever/2, call_forever/3, answer/2, refuse/2, monitor/2, kill/1,
          reason/1, live/0, processes/0, info/1, faults/1, proxy_for/3, proxy_forget/2,
          source_begin/0, source_begin/1, source_end/0, opened/2, forget_opened/1, timed/0,
          untimed/0, deadline/1, remaining/1, in_foreign/1,
@@ -47,12 +49,10 @@
 
 -define(UNIT, 'Unit').
 -define(PROCESSES, ern_processes).
-%% report §6.6, §6.9, §8.4: each pending call, {Caller, Callee, Alias,
-%% Mark}, so that a callee that restarts ends the calls waiting on it, and
-%% Mark, none or what its reply is checked by once its Reply has crossed
-%% into foreign code; a process makes one call at a time, since a message's
-%% function and via's are pure, so its row is found and removed by its own
-%% pid
+%% report §6.6, §6.9: each pending call, {Caller, Callee, Alias}, so that a
+%% callee that restarts ends the calls waiting on it; a process makes one
+%% call at a time, since a message's function and via's are pure, so its
+%% row is found and removed by its own pid
 -define(CALLS, ern_calls).
 %% Appendix E.21: each subscription to faults, {Subscriber, To}, in a table
 %% of its own, so that a fault reads the subscriptions and not every
@@ -71,7 +71,10 @@
 %% Report §8.2: the system processes, by the names the runtime keeps them
 %% under.
 -type system() :: stdout | stderr | stdin | clock | fs | terminal | tcp | os.
--type reply() :: {reference(), pid()}.
+-type reply() :: reference() | {foreign_reply, reference()}.
+%% What a program's answer from foreign code is checked by: its descriptor
+%% and the fault's text, or none for the runtime's own calls.
+-type check() :: none | {term(), binary()}.
 
 %%
 %% Report §6.2, §9.4
@@ -173,8 +176,16 @@ via(F, Target) ->
 %% Report §6.6
 %%
 
+%% Report §6.6: the runtime's own call, whose answer is not checked (§8.4).
 -spec call(address(), fun((reply()) -> term()), integer()) -> 'None' | {'Some', term()}.
 call(Addr, Mk, Ms) ->
+    call(Addr, Mk, Ms, none).
+
+%% Report §6.6, §8.4: a program's call, whose answer from foreign code is
+%% checked by Check.
+-spec call(address(), fun((reply()) -> term()), integer(), check()) ->
+          'None' | {'Some', term()}.
+call(Addr, Mk, Ms, Check) ->
     %% report §6.6: the clock starts at the call, before the request is
     %% made and delivered
     Deadline = deadline(Ms),
@@ -184,27 +195,24 @@ call(Addr, Mk, Ms) ->
     %% of the callee among the ways, which a process restarted in place
     %% outlives (§6.9)
     Answer = try
-                 deliver(Addr, Mk({Alias, erlang:self()})),
+                 deliver(Addr, Mk(Alias)),
                  timed(),
-                 try await(Alias, Deadline) after untimed() end
-             catch
-                 Class:Why:Stack ->
-                     _ = settled(Alias),
-                     erlang:raise(Class, Why, Stack)
+                 try await(Alias, Deadline, Check) after untimed() end
+             after
+                 settled(Alias)
              end,
-    Mark = settled(Alias),
     case Answer of
         %% report §6.9: a restart asked for is taken at a call's wait
         '$ern_restart' -> restart_now();
-        {'Some', V} -> {'Some', ern_boundary:reply(Mark, V)};
-        'None' -> 'None'
+        _ -> Answer
     end.
 
 %% Report §6.6: the answer, or None after the deadline, or at once when the
 %% callee ends or restarts before it answers.
-await(Alias, Deadline) ->
+await(Alias, Deadline, Check) ->
     receive
-        {Alias, V} -> {'Some', V};
+        {Alias, answered, V} -> {'Some', V};
+        {Alias, V} -> {'Some', foreign_answer(Check, V)};
         {Alias, restarted, _} -> 'None';
         {Alias, fault, Cause} -> fault(Cause);
         {'DOWN', Alias, process, _, _} -> 'None';
@@ -212,19 +220,27 @@ await(Alias, Deadline) ->
     after remaining(Deadline) ->
         case remaining(Deadline) of
             0 -> 'None';
-            _ -> await(Alias, Deadline)
+            _ -> await(Alias, Deadline, Check)
         end
     end.
 
+%% Report §6.6: the runtime's own callForever (§8.4).
 -spec call_forever(address(), fun((reply()) -> term())) -> term().
 call_forever(Addr, Mk) ->
+    call_forever(Addr, Mk, none).
+
+%% Report §6.6, §8.4: a program's callForever, whose answer from foreign
+%% code is checked by Check.
+-spec call_forever(address(), fun((reply()) -> term()), check()) -> term().
+call_forever(Addr, Mk, Check) ->
     line_guard(Addr),
     Alias = pending(Addr),
-    %% settled however the call ends, as call/3's is
+    %% settled however the call ends, as call/4's is
     Answer = try
-                 deliver(Addr, Mk({Alias, erlang:self()})),
+                 deliver(Addr, Mk(Alias)),
                  receive
-                     {Alias, Value} -> {answered, Value};
+                     {Alias, answered, Value} -> {answered, Value};
+                     {Alias, Value} -> {answered, foreign_answer(Check, Value)};
                      {Alias, restarted, Restarted} -> {fault, Restarted};
                      %% report §8.2: a system process faults the caller it
                      %% answers
@@ -234,18 +250,20 @@ call_forever(Addr, Mk) ->
                      %% wait
                      '$ern_restart' -> restart
                  end
-             catch
-                 Class:Why:Stack ->
-                     _ = settled(Alias),
-                     erlang:raise(Class, Why, Stack)
+             after
+                 settled(Alias)
              end,
-    Mark = settled(Alias),
     case Answer of
-        {answered, V} -> ern_boundary:reply(Mark, V);
+        {answered, V} -> V;
         {fault, Cause} -> fault(Cause);
         {ended, How} -> ended(How);
         restart -> restart_now()
     end.
+
+%% Report §8.4: an answer foreign code gave, checked against the reply's
+%% type as a foreign function's return is.
+foreign_answer(none, V) -> V;
+foreign_answer({D, Text}, V) -> ern_boundary:value(D, V, Text).
 
 %% Report §6.6, §7.4: a callForever whose callee ended faults the caller with
 %% the callee's cause, or says how it ended; with the program the caller
@@ -266,48 +284,39 @@ ended('ProgramEnd') ->
 pending(Addr) ->
     Callee = process_of(Addr),
     Alias = erlang:monitor(process, Callee, [{alias, demonitor}]),
-    ets:insert(?CALLS, {erlang:self(), Callee, Alias, none}),
+    ets:insert(?CALLS, {erlang:self(), Callee, Alias}),
     Alias.
 
-%% The call is over: its row goes, and with it what the reply is checked
-%% by, which is answered; its monitor and with it the alias go; and an
-%% answer that came before them, after a restart's word, say, is not left
+%% The call is over: its row goes, its monitor and with it the alias go, and
+%% an answer that came before them, after a restart's word, say, is not left
 %% in the caller's mailbox.
 settled(Alias) ->
-    Mark = case ets:take(?CALLS, erlang:self()) of
-               [{_, _, _, M}] -> M;
-               [] -> none
-           end,
+    ets:delete(?CALLS, erlang:self()),
     erlang:demonitor(Alias, [flush]),
     receive
         {Alias, _} -> ok;
-        {Alias, restarted, _} -> ok;
-        {Alias, fault, _} -> ok
+        {Alias, _, _} -> ok
     after 0 ->
         ok
-    end,
-    Mark.
+    end.
 
+%% Report §6.6, §8.4: an answer in Ernest's form, or in foreign code's for a
+%% Reply foreign code gave back, which the caller checks.
 -spec answer(reply(), term()) -> 'Unit'.
-answer({Alias, _}, V) ->
+answer({foreign_reply, Alias}, V) ->
     Alias ! {Alias, V},
+    ?UNIT;
+answer(Alias, V) ->
+    Alias ! {Alias, answered, V},
     ?UNIT.
 
 %% Report §8.2, §7.4: a system process faults the caller it answers.
 -spec refuse(reply(), binary()) -> 'Unit'.
-refuse({Alias, _}, Cause) ->
+refuse({foreign_reply, Alias}, Cause) ->
+    refuse(Alias, Cause);
+refuse(Alias, Cause) ->
     Alias ! {Alias, fault, Cause},
     ?UNIT.
-
-%% Report §8.4: a Reply that crosses into foreign code marks its call, so
-%% that the reply is checked, while the caller's row is this call's.
--spec reply_crosses(reply(), term()) -> ok.
-reply_crosses({Alias, Caller}, Mark) ->
-    _ = try ets:select_replace(?CALLS, [{{Caller, '$1', Alias, '_'}, [],
-                                         [{{Caller, '$1', Alias, {const, Mark}}}]}])
-        catch _:_ -> 0
-        end,
-    ok.
 
 %%
 %% Report §6.9
@@ -649,7 +658,7 @@ counted() ->
 %% request still in transit is not seen at its receiver.
 calling_the_system() ->
     Held = system_pids() ++ opened(),
-    lists:any(fun({_, Callee, _, _}) -> lists:member(Callee, Held) end, ets_match(?CALLS, '_')).
+    lists:any(fun({_, Callee, _}) -> lists:member(Callee, Held) end, ets_match(?CALLS, '_')).
 
 quiet_system() ->
     element(2, erlang:process_info(erlang:self(), message_queue_len)) =:= 0
@@ -1568,10 +1577,10 @@ restarts(F, Restarts, Within, Times, Level) ->
 %% Report §6.6, §6.9: a restart ends every call waiting on the process, each
 %% caller told the cause, which a callForever faults with.
 restarted(Cause) ->
-    lists:foreach(fun({_, _, Alias, _} = Row) ->
+    lists:foreach(fun({_, _, Alias} = Row) ->
                       ets:delete_object(?CALLS, Row),
                       Alias ! {Alias, restarted, Cause}
-                  end, ets_match(?CALLS, {'_', erlang:self(), '_', '_'})).
+                  end, ets_match(?CALLS, {'_', erlang:self(), '_'})).
 
 %% Report §8.6: every local process ends with ProgramEnd, the sinks' output
 %% is flushed, the system processes and the reaper are stopped, and the

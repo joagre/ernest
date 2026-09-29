@@ -26,7 +26,7 @@ guarded(Msg) ->
         [] ->
             handle(Msg);
         _ ->
-            [Reply] = [R || {Alias, _} = R <- Fields, is_reference(Alias)],
+            [Reply] = [R || R <- Fields, is_reference(R)],
             ern_rt:answer(Reply, {'Left', {'Other', <<"a path holds U+0000">>}})
     end.
 

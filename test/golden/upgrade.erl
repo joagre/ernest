@@ -10,7 +10,8 @@ main() ->
     ern_rt:send(C_1, {'Inc', 3}),
     case ern_rt:call(C_1,
                      fun (R_2) -> {'Get', R_2} end,
-                     1000)
+                     1000,
+                     {int, <<"reply does not match Int">>})
         of
         {'Some', N_3} ->
             ern@io:println(<<"before upgrade: ",
@@ -24,7 +25,8 @@ main() ->
     ern_rt:send(C_1, {'Inc', 1}),
     case ern_rt:call(C_1,
                      fun (R_5) -> {'Get', R_5} end,
-                     1000)
+                     1000,
+                     {int, <<"reply does not match Int">>})
         of
         {'Some', N_6} ->
             ern@io:println(<<"after upgrade: ",

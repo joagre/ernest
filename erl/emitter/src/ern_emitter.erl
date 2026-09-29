@@ -673,12 +673,12 @@ prelude_call(Pos, [spawn], _, Args, _, Cx) ->
     {at(Pos, call_remote(ern_rt, spawn, Args ++ [site(Pos, Cx)])), Cx};
 prelude_call(Pos, [spawnMonitored], _, Args, _, Cx) ->
     {at(Pos, call_remote(ern_rt, spawn_monitored, Args ++ [site(Pos, Cx)])), Cx};
-%% report §8.4: a reply is checked by the runtime, where its Reply crossed
-%% into foreign code
-prelude_call(Pos, ['Address', call], _, Args, _, Cx) ->
-    {at(Pos, call_remote(ern_rt, call, Args)), Cx};
-prelude_call(Pos, ['Address', callForever], _, Args, _, Cx) ->
-    {at(Pos, call_remote(ern_rt, call_forever, Args)), Cx};
+prelude_call(Pos, ['Address', call], _, Args, #e_var{type = T}, Cx) ->
+    {Form, Cx1} = reply_call(call, Args, T, Cx),
+    {at(Pos, Form), Cx1};
+prelude_call(Pos, ['Address', callForever], _, Args, #e_var{type = T}, Cx) ->
+    {Form, Cx1} = reply_call(call_forever, Args, T, Cx),
+    {at(Pos, Form), Cx1};
 prelude_call(Pos, [restarting], _, Args, _, Cx) ->
     {at(Pos, call_remote(ern_rt, restarting, Args)), Cx};
 prelude_call(Pos, [fault], _, [Msg], _, Cx) ->
@@ -697,6 +697,25 @@ prelude_call(Pos, [Ns | Rest], _, Args, _, Cx) when Rest =/= [] ->
 prelude_call(Pos, QName, _, _, _, _) ->
     fail(Pos, "no emission for " ++ qname(QName)).
 
+%% Report §6.6, §8.4: `Address.call` or `Address.callForever`, of type T,
+%% and in a program what an answer from foreign code is checked by, the
+%% Reply's type, as a foreign function's return is; a call the standard
+%% library makes is the runtime's own, and checks nothing.
+reply_call(F, Args, _, #cx{standard = true} = Cx) ->
+    {call_remote(ern_rt, F, Args), Cx};
+reply_call(F, Args, T, Cx) ->
+    {tfn, [_, {tfn, [ReplyT], _, _} | _], _, _} = resolved(T, Cx),
+    {tcon, ['Reply'], [A]} = resolved(ReplyT, Cx),
+    {Check, Cx1} = case descriptor(A, Cx) of
+                       any ->
+                           {erl_syntax:atom(none), Cx};
+                       Desc ->
+                           {DescForm, C} = desc_ref(Desc, Cx),
+                           {erl_syntax:tuple([DescForm,
+                                              check_text("reply does not match ", A, Cx)]), C}
+                   end,
+    {call_remote(ern_rt, F, Args ++ [Check]), Cx1}.
+
 %% A prelude name taken as a value: prelude_value(...) -> {Form, Cx}.
 prelude_value(Pos, [spawn], _, Cx) ->
     %% a closure, since spawn takes the site as a third argument
@@ -710,7 +729,8 @@ prelude_value(Pos, [spawnMonitored], _, Cx) ->
 prelude_value(Pos, ['Address', Name], T, Cx) when Name =:= call; Name =:= callForever ->
     F = case Name of call -> call; callForever -> call_forever end,
     {Vars, Cx1} = fresh_vars(arity_of(T, Pos), "A", Cx),
-    {lambda(Vars, call_remote(ern_rt, F, [erl_syntax:variable(V) || V <- Vars])), Cx1};
+    {Body, Cx2} = reply_call(F, [erl_syntax:variable(V) || V <- Vars], T, Cx1),
+    {lambda(Vars, Body), Cx2};
 prelude_value(_, ['Int', Op], _, Cx) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
                                           Op =:= '%' ->
     {[A, B], Cx1} = fresh_vars(2, "A", Cx),
@@ -899,10 +919,12 @@ word_test(bool) -> is_boolean;
 word_test(bytes) -> is_binary;
 word_test(float) -> is_float.
 
-%% Whether a descriptor holds no function, no address and no float, as
-%% ern_boundary reads one: a checked value of it is the value itself.
+%% Whether a descriptor holds no function, no address, no Reply and no
+%% float, as ern_boundary reads one: a checked value of it is the value
+%% itself.
 plain(float) -> false;
 plain({pid, _, _}) -> false;
+plain({reply, _, _}) -> false;
 plain(T) when is_tuple(T), element(1, T) =:= 'fun' -> false;
 plain(T) when is_tuple(T) -> lists:all(fun plain/1, tuple_to_list(T));
 plain(L) when is_list(L) -> lists:all(fun plain/1, L);
@@ -910,9 +932,9 @@ plain(_) -> true.
 
 %% An argument of a foreign function as it is given (§8.4): one with an
 %% address inside, through the proxy that checks what foreign code sends
-%% it; one with a Reply inside, marking its call; a function, wrapped to
-%% check the arguments foreign code calls it with; any other, and every
-%% argument of the standard library's own, as it is.
+%% it, and a Reply foreign code gave back as it gave it; a function,
+%% wrapped to check the arguments foreign code calls it with; any other,
+%% and every argument of the standard library's own, as it is.
 exposed({_, Arg}, #cx{standard = true} = Cx) ->
     {Arg, Cx};
 exposed({{tfn, Ps, _, _}, Arg}, Cx) ->

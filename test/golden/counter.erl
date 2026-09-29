@@ -10,7 +10,8 @@ main() ->
     ern_rt:send(C_1, {'Inc', 3}),
     case ern_rt:call(C_1,
                      fun (R_2) -> {'Get', R_2} end,
-                     1000)
+                     1000,
+                     {int, <<"reply does not match Int">>})
         of
         {'Some', N_3} ->
             ern@io:println(<<"count is ",

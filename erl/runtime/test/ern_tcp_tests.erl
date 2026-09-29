@@ -102,9 +102,9 @@ close_listener_test() ->
                %% the close raced it, and the close could come first
                _ = erlang:spawn(fun() ->
                                     Alias = erlang:alias(),
-                                    Pid ! {'Accept', 5000, {Alias, self()}},
+                                    Pid ! {'Accept', 5000, Alias},
                                     Main ! sent,
-                                    Me ! {accepted, receive {Alias, V} -> V
+                                    Me ! {accepted, receive {Alias, answered, V} -> V
                                                     after 5000 -> timeout end}
                                 end),
                %% foreign calls, which the deadlock detector counts
