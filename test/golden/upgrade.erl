@@ -8,11 +8,9 @@ main() ->
                        <<"Upgrade.main:17">>),
     ern_rt:send(C_1, {'Inc', 5}),
     ern_rt:send(C_1, {'Inc', 3}),
-    case ern_boundary:check('$type_1'(),
-                            ern_rt:call(C_1,
-                                        fun (R_2) -> {'Get', R_2} end,
-                                        1000),
-                            <<"reply does not match Optional(Int)">>)
+    case ern_rt:call(C_1,
+                     fun (R_2) -> {'Get', R_2} end,
+                     1000)
         of
         {'Some', N_3} ->
             ern@io:println(<<"before upgrade: ",
@@ -24,11 +22,9 @@ main() ->
                  fun (N_4) -> N_4 end,
                  fun doublingCounter/1}),
     ern_rt:send(C_1, {'Inc', 1}),
-    case ern_boundary:check('$type_1'(),
-                            ern_rt:call(C_1,
-                                        fun (R_5) -> {'Get', R_5} end,
-                                        1000),
-                            <<"reply does not match Optional(Int)">>)
+    case ern_rt:call(C_1,
+                     fun (R_5) -> {'Get', R_5} end,
+                     1000)
         of
         {'Some', N_6} ->
             ern@io:println(<<"after upgrade: ",
@@ -57,5 +53,3 @@ doublingCounter(N_12) ->
     end.
 
 '$fun'(main, 0) -> fun main/0.
-
-'$type_1'() -> {con, [{'None', []}, {'Some', [int]}]}.

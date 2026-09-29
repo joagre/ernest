@@ -192,7 +192,9 @@ call_leaves_nothing_test() ->
            fun() ->
                Main = ern_rt:self(),
                Faulting = ern_rt:spawn('Local', fun() ->
-                                                   receive {ask, R} -> R ! {R, fault, <<"no">>} end,
+                                                   receive
+                                                       {ask, {A, _}} -> A ! {A, fault, <<"no">>}
+                                                   end,
                                                    receive never -> ok end
                                                end, <<"M.faulting:1">>),
                Worker = fun() ->

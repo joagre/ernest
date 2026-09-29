@@ -18,15 +18,14 @@
 %% The module atom is the module's path with @ for / and the prefix ern@,
 %% as Gleam names gleam@list, so Ernest never claims a bare name on the BEAM.
 %% Functions keep their local names; only exported ones are exported. Every
-%% Address is a pid, a Reply is an alias, and the process primitives go
-%% through ern_rt (plan 2.4). spawn gets a third argument naming the spawn
+%% Address is a pid, a Reply is an alias and its caller, and the process
+%% primitives go through ern_rt (plan 2.4). spawn gets a third argument naming the spawn
 %% site for Down (report §6.9). Int arithmetic is emitted inline; String.<>
 %% is binary concatenation; stdlib calls go to the namespace's module,
-%% 'ern@int' for Int. A reply a call observes is checked against the
-%% declared type through ern_boundary (report §8.4), the type described once
-%% per module by a '$type_N' function, and checked alone, since it holds no
-%% function and no float; a message from a foreign process is
-%% checked by the proxy that delivered it, so a receive checks nothing.
+%% 'ern@int' for Int. A reply is checked by the runtime where its Reply
+%% crossed into foreign code, and a message from a foreign process by the
+%% proxy that delivered it, so neither a call nor a receive checks anything
+%% here (report §8.4).
 %%
 %% The compiler also adds the module's interface as the BEAM chunk "ErnI".
 
@@ -47,8 +46,7 @@ main() ->
     C = ern_rt:spawn('Local', fun() -> counter(0) end, <<"Counter.main:17">>),
     ern_rt:send(C, {'Inc', 5}),
     ern_rt:send(C, {'Inc', 3}),
-    case ern_boundary:check('$type_1'(), ern_rt:call(C, fun(R) -> {'Get', R} end, 1000),
-                         <<"reply does not match Optional(Int)">>) of
+    case ern_rt:call(C, fun(R) -> {'Get', R} end, 1000) of
         {'Some', N} ->
             'ern@io':println(<<"count is ", ('ern@int':toString(N))/binary>>);
         'None' ->
@@ -79,5 +77,3 @@ counter(N) ->
 %% A function of this module taken as a value by another is a fun made here,
 %% which keeps this version when the module is loaded again (report §11.2).
 '$fun'(main, 0) -> fun main/0.
-
-'$type_1'() -> {con, [{'None', []}, {'Some', [int]}]}.

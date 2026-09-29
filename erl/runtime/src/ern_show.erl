@@ -51,7 +51,7 @@ by_type(string, V, _, _) -> string(V);
 by_type(bytes, V, _, L) -> bytes(V, L);
 by_type({pid, _, _}, V, _, _) -> address(V);
 by_type(process, V, _, _) -> ["<process ", number(V), ">"];
-by_type(ref, _, _, _) -> "<reply>";
+by_type({reply, _, _}, _, _, _) -> "<reply>";
 by_type({'fun', _, _, _, _}, _, _, _) -> "<function>";
 by_type({'fun', _, _, _}, _, _, _) -> "<function>";
 by_type({abstract, _}, _, _, _) -> "<abstract>";
@@ -102,7 +102,9 @@ represented(Bin, L) when is_binary(Bin) ->
         _ -> bytes(Bin, L)
     end;
 represented(P, _) when is_pid(P) -> address(P);
-represented(R, _) when is_reference(R) -> "<reply>";
+%% a Reply, and an address foreign code gave (ern_rt)
+represented({R, P}, _) when is_reference(R), is_pid(P) -> "<reply>";
+represented({foreign, P, _, _} = A, _) when is_pid(P) -> address(A);
 represented(F, _) when is_function(F) -> "<function>";
 represented(V, #lim{depth = 0}) when is_list(V); is_tuple(V); is_map(V) ->
     "...";

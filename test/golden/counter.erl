@@ -8,11 +8,9 @@ main() ->
                        <<"Counter.main:17">>),
     ern_rt:send(C_1, {'Inc', 5}),
     ern_rt:send(C_1, {'Inc', 3}),
-    case ern_boundary:check('$type_1'(),
-                            ern_rt:call(C_1,
-                                        fun (R_2) -> {'Get', R_2} end,
-                                        1000),
-                            <<"reply does not match Optional(Int)">>)
+    case ern_rt:call(C_1,
+                     fun (R_2) -> {'Get', R_2} end,
+                     1000)
         of
         {'Some', N_3} ->
             ern@io:println(<<"count is ",
@@ -31,5 +29,3 @@ counter(N_4) ->
     end.
 
 '$fun'(main, 0) -> fun main/0.
-
-'$type_1'() -> {con, [{'None', []}, {'Some', [int]}]}.

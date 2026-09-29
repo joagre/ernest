@@ -97,14 +97,22 @@ discussed with the user one at a time as they are met.
    its return checked as its type needs, the library's calls without a mailbox type not
    counted, a call's monitor the alias of its reply, and no table scanned at a process's end
    or at a fault, measured by `make bench` (N-L4; the log's *What Ernest Adds to a Host
-   Call*), done 2026-09-29, with three decisions for the user in this item, one at a time:
-   whether the standard library's own foreign functions are checked (§7.4, §8.4), whether a
-   reply between two Ernest processes is (§7.4), and whether `spawn`, `monitor` and a call's
-   row go through the reaper and a table as they do (§6.2, §6.6, §6.9, §8.6), and two defects
-   fixed in it by 2026-09-30: `String.trimEnd` reads the whole string as graphemes, 34 times
-   the host's trim over 100 KB, to be cut at the last code point that is not White_Space,
-   read back from the end, with the grapheme boundary settled around it; and the shell reads
-   every persistent term at each input it purges, to be read by the input's own keys; the
+   Call*), done 2026-09-29; the standard library's own returns and replies not checked,
+   decided with the user and done 2026-09-30 (§8.4; the log's *The Runtime's Own Is Not
+   Checked*); a reply checked only where its `Reply` crossed into foreign code, decided with
+   the user, and an address sent in a message to a foreign process crossing as a foreign
+   function's argument does, a defect, both done 2026-09-30 (§7.4, §8.4; the log's *A Value
+   Is Checked Where It Crosses*); `spawn`, `monitor` and a call's row kept in the reaper and
+   its table, decided with the user 2026-09-30, the reaper's work at a process's end cut
+   toward the 4.2 µs the same protocol costs in Erlang, by 2026-09-30 (§6.2, §6.6, §6.9,
+   §8.6); the decision for the user in this item of what order `RestForOne` reads (E.22),
+   since a child joins when it first runs, so children spawned in one order join in the
+   scheduler's, which `examples/services.ern` met, with the order of spawns recommended; and
+   two defects fixed in it by 2026-09-30: `String.trimEnd` reads
+   the whole string as graphemes, 34 times the host's trim over 100 KB, to be cut at the last
+   code point that is not White_Space, read back from the end, with the grapheme boundary
+   settled around it; and the shell reads every persistent term at each input it purges, to
+   be read by the input's own keys; the
    diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.

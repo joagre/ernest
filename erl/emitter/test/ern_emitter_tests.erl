@@ -1,7 +1,8 @@
 -module(ern_emitter_tests).
 
 -export([write_golden/0, pair/0, opt/1, funs/0, improper/1, remember/1, junk/1, good/1,
-         tell/1, junk_server/0, reaper_words/0]).
+         tell/1, junk_server/0, hello_junk/0, hello_good/0, relay_junk/1, relay_good/1,
+         reaper_words/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -25,13 +26,15 @@ run(Ns, Text) ->
 run_at_terminal(Text) ->
     run(['M'], Text, #{keys => fun() -> receive after infinity -> eof end end}).
 
+%% `standard => true` compiles the module as the standard library's own.
 run(Ns, Text, Opts) ->
     {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Text),
-    {ok, Mod, Bin} = ern_emitter:compile(Ns, Typed, Iface, Env),
+    Build = #{source_hash => <<>>, deps => [], standard => maps:get(standard, Opts, false)},
+    {ok, Mod, Bin} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
     {module, Mod} = code:load_binary(Mod, "test", Bin),
     Me = self(),
     Result = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
-                             Opts#{init => fun() -> init(Mod) end,
+                             (maps:remove(standard, Opts))#{init => fun() -> init(Mod) end,
                                    stdout => fun(B) -> Me ! {out, B} end,
                                    stdin => fun() -> eof end}),
     {Result, collect([])}.
@@ -1337,6 +1340,58 @@ foreign_messages_test() ->
                   "}\n"),
     ?assertEqual({fault, <<"reply does not match Int">>}, R2).
 
+%% report §8.4: an address sent in a message to a foreign address crosses
+%% into foreign code, so a bad message foreign code sends it back faults the
+%% receiver on delivery, and a good one arrives. A regression test: only a
+%% foreign function's arguments crossed, and the bad message was delivered
+%% unchecked, its binary bound where an Int was declared
+foreign_address_message_test() ->
+    Source = fun(Server) ->
+                 "type Msg = Go(Int)\n"
+                 "type Out = Hello(Address(Msg))\n"
+                 "foreign fn start() : Address(Out) with m = \"ern_emitter_tests:" ++ Server
+                 ++ "/0\"\n"
+                 "export fn main() : Unit with Msg = {\n"
+                 "    send(start(), Hello(self()));\n"
+                 "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
+                 "}\n"
+             end,
+    ?assertEqual({fault, <<"message does not match Msg">>}, element(1, run(Source("hello_junk")))),
+    ?assertEqual({ok, <<"1\n">>}, run(Source("hello_good"))).
+
+%% report §8.4: a Reply an Ernest process hands on to foreign code crosses,
+%% so the caller checks the reply foreign code gives; a reply that only
+%% Ernest code gave is not checked, and a good one is answered
+reply_handed_on_test() ->
+    Source = fun(Relay) ->
+                 "type Ask = Ask(reply : Reply(Int))\n"
+                 "foreign fn relay(r : Reply(Int)) : Unit with m = \"ern_emitter_tests:" ++ Relay
+                 ++ "/1\"\n"
+                 "fn serve() : Unit with Ask = receive { Ask(reply = r) -> relay(r) }\n"
+                 "export fn main() : Unit with Never = {\n"
+                 "    let n = Address.callForever(spawn(Local, serve), fn(r) = Ask(reply = r));\n"
+                 "    Io.println(Int.toString(n))\n"
+                 "}\n"
+             end,
+    ?assertEqual({fault, <<"reply does not match Int">>}, element(1, run(Source("relay_junk")))),
+    ?assertEqual({ok, <<"5\n">>}, run(Source("relay_good"))).
+
+%% report §8.4: the standard library is the runtime's own, so the return of
+%% one of its foreign functions and the reply to a call it makes are not
+%% checked; the same declarations in a program's module fault
+%% (foreign_faults_test, foreign_messages_test)
+standard_library_unchecked_test() ->
+    Text = "type Ask = Ask(reply : Reply(Int))\n"
+           "foreign fn bad() : Int = \"erlang:node/0\"\n"
+           "foreign fn server() : Address(Ask) with m = \"ern_emitter_tests:junk_server/0\"\n"
+           "export fn main() : Unit with Never = {\n"
+           "    let _ = bad();\n"
+           "    let _ = Address.callForever(server(), fn(r) = Ask(reply = r));\n"
+           "    Io.println(\"unchecked\")\n"
+           "}\n",
+    ?assertEqual({ok, <<"unchecked\n">>}, run(['M'], Text, #{standard => true})),
+    ?assertEqual({fault, <<"foreign return does not match Int">>}, element(1, run(Text))).
+
 %% The foreign side of the tests above.
 pair() -> {1, 2}.
 funs() -> [fun(X) -> X + 1 end, fun(_) -> not_an_int end].
@@ -1356,7 +1411,16 @@ junk(Pid) -> Pid ! {'Go', <<"x">>}, 'Unit'.
 good(Pid) -> Pid ! {'Go', 1}, 'Unit'.
 tell(Pids) -> [P ! {'Go', 2} || P <- Pids], 'Unit'.
 junk_server() ->
-    spawn(fun() -> receive {'Ask', Ref} -> Ref ! {Ref, <<"x">>} end end).
+    spawn(fun() -> receive {'Ask', {Alias, _}} -> Alias ! {Alias, <<"x">>} end end).
+%% report §8.4: a foreign process that answers a Hello with a message to the
+%% address it holds, of another type or of the declared one
+hello_junk() ->
+    spawn(fun() -> receive {'Hello', P} -> P ! {'Go', <<"x">>} end end).
+hello_good() ->
+    spawn(fun() -> receive {'Hello', P} -> P ! {'Go', 1} end end).
+%% report §8.4: foreign code given a Reply answers it as the ABI says
+relay_junk({Alias, _}) -> Alias ! {Alias, <<"x">>}, 'Unit'.
+relay_good({Alias, _}) -> Alias ! {Alias, 5}, 'Unit'.
 
 %% report §4.5: an Ernest function named like an auto-imported
 %% Erlang BIF, `size`, `max`, is called by its own name
@@ -1404,8 +1468,9 @@ qualified_max_test() ->
     ?assertEqual(<<"-1\nafter\n">>, Out).
 
 %% report §6.6, §8.4: `Address.call` and `Address.callForever` taken as
-%% values check the reply as the calls do. A regression test: as values
-%% they were the runtime's functions, and the reply went unchecked
+%% values answer as the calls do, and check a reply whose Reply crossed into
+%% foreign code as the calls do. A regression test: as values they once
+%% left the reply unchecked
 call_as_value_test() ->
     {ok, Out} = run(
         "type Msg = Get(reply : Reply(Int))\n"
@@ -1420,16 +1485,14 @@ call_as_value_test() ->
         "    Io.println(Int.toString(n + w(spawn(Local, serve), fn(r) = Get(reply = r))))\n"
         "}\n"),
     ?assertEqual(<<"14\n">>, Out),
-    {ok, Typed, _, Env} = ern_typecheck:check_string(
-        ['M'], <<"type Msg = Get(reply : Reply(Int))\n"
+    {R, _} = run("type Ask = Ask(reply : Reply(Int))\n"
+                 "foreign fn server() : Address(Ask) with m = \"ern_emitter_tests:junk_server/0\"\n"
                  "export fn main() : Unit with Never = {\n"
-                 "    let c : (Address(Msg), (Reply(Int)) -> Msg, Int) -> Optional(Int) with Never"
-                 " =\n"
-                 "        Address.call;\n"
-                 "    Unit\n"
-                 "}\n">>),
-    Src = unicode:characters_to_binary(ern_emitter:erl_source(['M'], Typed, Env)),
-    ?assertMatch({_, _}, binary:match(Src, <<"reply does not match Optional(Int)">>)).
+                 "    let w : (Address(Ask), (Reply(Int)) -> Ask) -> Int with Never =\n"
+                 "        Address.callForever;\n"
+                 "    Io.println(Int.toString(w(server(), fn(r) = Ask(reply = r))))\n"
+                 "}\n"),
+    ?assertEqual({fault, <<"reply does not match Int">>}, R).
 
 %% report §5.11, §6.3: a pattern's size names a top-level `let`, which the
 %% `match` or the `receive` reads before it begins. A regression test: the

@@ -43,7 +43,11 @@ desc({tcon, ['Address'], [M]}, Seen, Cx) ->
     %% the address's messages, for the proxy that exposes it (report §8.4)
     {D, Seen1} = desc(M, Seen, Cx),
     {{pid, D, text_binary("message does not match ", M, Cx)}, Seen1};
-desc({tcon, ['Reply'], _}, Seen, _) -> {ref, Seen};
+desc({tcon, ['Reply'], [A]}, Seen, Cx) ->
+    %% the answer's, which a reply that crosses into foreign code is
+    %% checked against (report §8.4)
+    {D, Seen1} = desc(A, Seen, Cx),
+    {{reply, D, text_binary("reply does not match ", A, Cx)}, Seen1};
 desc({tcon, ['Process'], []}, Seen, _) -> {process, Seen};
 desc({tcon, ['Foreign'], []}, Seen, _) -> {any, Seen};
 desc({tcon, ['Never'], []}, Seen, _) -> {never, Seen};

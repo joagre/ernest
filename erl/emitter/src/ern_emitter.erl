@@ -263,13 +263,17 @@ decl(#foreign_fn_decl{pos = Pos, owner = O, name = N, params = Params, impl = Im
                                                             erl_syntax:variable(Reason),
                                                             erl_syntax:variable(Stack))],
                                 none, [Raised]),
-    %% report §8.4: a type variable of the result that no parameter names
+    Try = erl_syntax:try_expr([Run], [Handler]),
+    %% report §8.4: the standard library's return is the runtime's own, and
+    %% not checked; a type variable of the result that no parameter names
     %% stands for no value the function could have been given, so it
     %% matches none, and the return faults where it holds one
     Unnamed = type_vars(Ret) -- lists:append([type_vars(P) || P <- ParamTs]),
-    {Body, Cx4} = check_form(as_never(Unnamed, Ret), Ret,
-                             erl_syntax:try_expr([Run], [Handler]),
-                             "foreign return does not match ", Cx3),
+    {Body, Cx4} = case Cx#cx.standard of
+                      true -> {Try, Cx3};
+                      false -> check_form(as_never(Unnamed, Ret), Ret, Try,
+                                          "foreign return does not match ", Cx3)
+                  end,
     Clause = at(Pos, erl_syntax:clause(Args, none, [Body])),
     {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx4};
 decl(_, Cx) ->
@@ -669,12 +673,12 @@ prelude_call(Pos, [spawn], _, Args, _, Cx) ->
     {at(Pos, call_remote(ern_rt, spawn, Args ++ [site(Pos, Cx)])), Cx};
 prelude_call(Pos, [spawnMonitored], _, Args, _, Cx) ->
     {at(Pos, call_remote(ern_rt, spawn_monitored, Args ++ [site(Pos, Cx)])), Cx};
-prelude_call(Pos, ['Address', call], _, Args, #e_var{type = T}, Cx) ->
-    {Form, Cx1} = checked_reply(call, Args, T, Cx),
-    {at(Pos, Form), Cx1};
-prelude_call(Pos, ['Address', callForever], _, Args, #e_var{type = T}, Cx) ->
-    {Form, Cx1} = checked_reply(call_forever, Args, T, Cx),
-    {at(Pos, Form), Cx1};
+%% report §8.4: a reply is checked by the runtime, where its Reply crossed
+%% into foreign code
+prelude_call(Pos, ['Address', call], _, Args, _, Cx) ->
+    {at(Pos, call_remote(ern_rt, call, Args)), Cx};
+prelude_call(Pos, ['Address', callForever], _, Args, _, Cx) ->
+    {at(Pos, call_remote(ern_rt, call_forever, Args)), Cx};
 prelude_call(Pos, [restarting], _, Args, _, Cx) ->
     {at(Pos, call_remote(ern_rt, restarting, Args)), Cx};
 prelude_call(Pos, [fault], _, [Msg], _, Cx) ->
@@ -693,12 +697,6 @@ prelude_call(Pos, [Ns | Rest], _, Args, _, Cx) when Rest =/= [] ->
 prelude_call(Pos, QName, _, _, _, _) ->
     fail(Pos, "no emission for " ++ qname(QName)).
 
-%% Report §8.4: the reply of `Address.call` or `Address.callForever`, whose
-%% type is T, is a message, checked on first observation.
-checked_reply(F, Args, T, Cx) ->
-    {tfn, _, _, Ret} = resolved(T, Cx),
-    checked(call_remote(ern_rt, F, Args), Ret, "reply does not match ", Cx).
-
 %% A prelude name taken as a value: prelude_value(...) -> {Form, Cx}.
 prelude_value(Pos, [spawn], _, Cx) ->
     %% a closure, since spawn takes the site as a third argument
@@ -712,8 +710,7 @@ prelude_value(Pos, [spawnMonitored], _, Cx) ->
 prelude_value(Pos, ['Address', Name], T, Cx) when Name =:= call; Name =:= callForever ->
     F = case Name of call -> call; callForever -> call_forever end,
     {Vars, Cx1} = fresh_vars(arity_of(T, Pos), "A", Cx),
-    {Body, Cx2} = checked_reply(F, [erl_syntax:variable(V) || V <- Vars], T, Cx1),
-    {lambda(Vars, Body), Cx2};
+    {lambda(Vars, call_remote(ern_rt, F, [erl_syntax:variable(V) || V <- Vars])), Cx1};
 prelude_value(_, ['Int', Op], _, Cx) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
                                           Op =:= '%' ->
     {[A, B], Cx1} = fresh_vars(2, "A", Cx),
@@ -862,9 +859,6 @@ resolved(T, #cx{env = Env}) ->
 %% ern_boundary interprets
 %%
 
-checked(Form, T, Prefix, Cx) ->
-    check_form(T, T, Form, Prefix, Cx).
-
 %% Form's value checked against T and the fault's text naming Named (report
 %% §7.4, §8.4). A word's check is written in place; a value that holds no
 %% function to arm and no float to make the language's is checked alone
@@ -905,23 +899,27 @@ word_test(bool) -> is_boolean;
 word_test(bytes) -> is_binary;
 word_test(float) -> is_float.
 
-%% Whether a descriptor holds no function and no float, as ern_boundary
-%% reads one: a checked value of it is the value itself.
+%% Whether a descriptor holds no function, no address and no float, as
+%% ern_boundary reads one: a checked value of it is the value itself.
 plain(float) -> false;
+plain({pid, _, _}) -> false;
 plain(T) when is_tuple(T), element(1, T) =:= 'fun' -> false;
 plain(T) when is_tuple(T) -> lists:all(fun plain/1, tuple_to_list(T));
 plain(L) when is_list(L) -> lists:all(fun plain/1, L);
 plain(_) -> true.
 
-%% An argument of a foreign function as it is given: one with an address
-%% inside, through the proxy that checks what foreign code sends it; a
-%% function, wrapped to check the arguments foreign code calls it with
-%% (§8.4); any other, as it is.
+%% An argument of a foreign function as it is given (§8.4): one with an
+%% address inside, through the proxy that checks what foreign code sends
+%% it; one with a Reply inside, marking its call; a function, wrapped to
+%% check the arguments foreign code calls it with; any other, and every
+%% argument of the standard library's own, as it is.
+exposed({_, Arg}, #cx{standard = true} = Cx) ->
+    {Arg, Cx};
 exposed({{tfn, Ps, _, _}, Arg}, Cx) ->
     {Ref, Cx1} = callback_ref(Ps, Cx),
     {call_remote(ern_boundary, expose, [Ref, Arg]), Cx1};
 exposed({T, Arg}, Cx) ->
-    case has_address(descriptor(T, Cx)) of
+    case crosses(descriptor(T, Cx)) of
         true ->
             {Ref, Cx1} = descriptor_ref(T, Cx),
             {call_remote(ern_boundary, expose, [Ref, Arg]), Cx1};
@@ -1019,10 +1017,13 @@ text_binary(Prefix, T, #cx{env = Env}) ->
 descriptor(T, #cx{env = Env, ns = Ns}) ->
     ern_descriptor:describe(T, Env, Ns).
 
-has_address({pid, _, _}) -> true;
-has_address(T) when is_tuple(T) -> lists:any(fun has_address/1, tuple_to_list(T));
-has_address(L) when is_list(L) -> lists:any(fun has_address/1, L);
-has_address(_) -> false.
+%% Whether a descriptor holds what crossing into foreign code changes: an
+%% address or a Reply.
+crosses({pid, _, _}) -> true;
+crosses({reply, _, _}) -> true;
+crosses(T) when is_tuple(T) -> lists:any(fun crosses/1, tuple_to_list(T));
+crosses(L) when is_list(L) -> lists:any(fun crosses/1, L);
+crosses(_) -> false.
 
 %%
 %% Constructors, report §8.4
