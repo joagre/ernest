@@ -1,6 +1,6 @@
 # Operations records
 
-Ernest is a functional language for concurrent programs on the BEAM: pure functions typed by Hindley–Milner inference, and processes with typed mailboxes. Its report states five principles (§0): least surprise, one way, nothing invisible, simple to parse, and small. This note proposes how code written once works over several representations of one thing, a set kept hashed and a set kept in order, and argues against type classes. Where Java would declare an interface and Haskell a type class, the proposal passes an *operations record*, a record of a type's operations, explicitly: dictionary passing written by the program. The note is the input to MVP 2.99b's decision; the decision goes to the report and the decisions log, and the note goes. The block marked `ernest` compiles today (2026-09-29); the one marked `sketch` is Ernest as the proposal would make it.
+Ernest is a functional language for concurrent programs on the BEAM: pure functions typed by Hindley–Milner inference, and processes with typed mailboxes. Its report, which the § numbers below cite, states five principles (§0): least surprise, one way, nothing invisible, simple to parse, and small. This note proposes how code written once works over several representations of one thing, a set kept hashed and a set kept in order, and argues against type classes. Where Java would declare an interface and Haskell a type class, the proposal passes an *operations record*, a record of a type's operations, explicitly: dictionary passing written by the program. The block marked `ernest` compiles with Ernest as it is; the one marked `sketch` is Ernest as the proposal would make it.
 
 ## The problem
 
@@ -113,7 +113,7 @@ small == fromList([1, 3], OrderedSet.operations())    // true: an ordered set is
 - **Coherence is by construction.** A type's order is its own member, declared in its module (§4.2), so each type has one order in the whole program: no instance can overlap another or stand apart from its type. Two sets of one element type are in one order wherever they were built, within one version of the program: a set sent to a node whose `T.compare` differs is not in that node's order, and the node's operations on it answer wrongly.
 - **An operations record is an ordinary record**, its fields polymorphic in its own parameters alone, since it holds the primitives: inference stays Hindley–Milner's, and the functions written once over it are ordinary polymorphic functions. A record that had to hold an operation polymorphic beyond its parameters, a fold with its own accumulator, would need rank-2 fields, as OCaml's polymorphic record fields are; this proposal needs none.
 - **An ordered set holds no function.** Its order is its element type's, so the value is data: structural `==` is set equality for a canonical representation, and the value crosses nodes as a message does. A generic function closes over the `compare`s it was given, and they travel with it as its code does (§3.11).
-- **`compare` is assumed a total order that finds two values `Equal` only when `==` does.** Nothing checks this, as Haskell does not check `Ord`'s laws; where it fails, which element a set keeps is the decision below.
+- **`compare` is assumed a total order that finds two values `Equal` only when `==` does.** Nothing checks this, as Haskell does not check `Ord`'s laws; where it fails, which element a set keeps is an open question below.
 
 ## For, against, and cost
 
@@ -152,10 +152,11 @@ What it would cost:
 
 Type classes contain the proposal: the ordering restriction is one class with its instances fixed, and a dictionary is an operations record found by type. What they add is declared instances and resolution by type, which save the record at a call. For that return the cost is a second mechanism, a larger report, and a larger type system.
 
-## What the decision also settles
+## Open questions
 
 - **The ordered set's name.** A file `orderedset.ern` provides the namespace `Orderedset` (§4.2), not `OrderedSet`; `set/ordered.ern`, `Set.Ordered`, is the other place.
 - **Its representation.** `==` is structural, so a set must have one shape for each set of elements. A sorted list has, but `put` and `contains` take linear time. A balanced tree whose shape follows the order of insertion has not. A treap whose priorities are a hash of the element has one shape and logarithmic time, and needs a hash the standard library does not have.
 - **Which of two elements it keeps** when `compare` finds them equal and `==` tells them apart.
 - **Whether `Set`'s record holds `foldLeft`** beside `toList`, which the functions written once would otherwise build on.
-- **When a type's operation is a member and when a module function** (the plan's MVP 2.99b item 5): a member is found by type only for an operator and `compare`, and the functions written once are members of the record's type.
+- **When a type's operation is a member and when a module function.** A member is found by type only for an operator and `compare`, and the functions written once are members of the record's type.
+- **Whether tuples, lists and `Optional` take a `compare`**, lexicographic, as rule 2 allows: an ordered set of pairs would then need no type of its own.
