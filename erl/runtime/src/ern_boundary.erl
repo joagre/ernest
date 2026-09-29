@@ -1,6 +1,7 @@
 %% Report §4.7, §8.4, §7.4: the foreign boundary. A foreign function is
-%% called inside a catch that turns an exception into a fault; its return
-%% and a reply are checked against the declared type on first observation;
+%% called in place, in the code the compiler writes, inside a catch whose
+%% exception raised/6 turns into a fault; its return and a reply are
+%% checked against the declared type on first observation;
 %% and every Ernest address among its arguments is replaced by a proxy
 %% that checks each message the foreign side sends against the address's
 %% mailbox type on delivery and forwards it, or ends the target with the
@@ -19,22 +20,38 @@
 %% `Io.debug` print by carry no Make, since nothing is checked there.
 -module(ern_boundary).
 
--export([foreign/6, value/3]).
+-export([raised/6, expose/2, check/3, value/3]).
 
--spec foreign(module(), atom(), [term()], [term()], term(), binary()) -> term().
-foreign(M, F, Args, ArgDescs, Desc, Text) ->
-    Exposed = [expose(D, A, #{}) || {D, A} <- lists:zip(ArgDescs, Args)],
-    V = try ern_rt:in_foreign(fun() -> apply(M, F, Exposed) end)
-        catch
-            throw:{ern, _, _} = Passing -> throw(Passing);
-            throw:{ern, _, _, _} = Passing -> throw(Passing);
-            Class:Reason:Stack ->
-                ern_rt:fault(unicode:characters_to_binary(
-                               io_lib:format("foreign function ~s:~s/~B raised ~p:~p",
-                                             [M, F, length(Args), Class, Reason])),
-                             ern_rt:trace(Stack))
-        end,
-    value(Desc, V, Text).
+%% Report §7.4: an exception foreign function M:F/Arity raised, a fault of
+%% the calling process that names the implementation; an Ernest fault
+%% raised inside foreign code, by a function it was given, passes through
+%% as itself.
+-spec raised(module(), atom(), arity(), error | exit | throw, term(), list()) -> no_return().
+raised(_, _, _, throw, {ern, _, _} = Passing, _) ->
+    throw(Passing);
+raised(_, _, _, throw, {ern, _, _, _} = Passing, _) ->
+    throw(Passing);
+raised(M, F, Arity, Class, Reason, Stack) ->
+    ern_rt:fault(unicode:characters_to_binary(
+                   io_lib:format("foreign function ~s:~s/~B raised ~p:~p",
+                                 [M, F, Arity, Class, Reason])),
+                 ern_rt:trace(Stack)).
+
+%% An argument given to foreign code (report §8.4): every address inside it
+%% replaced by the proxy that checks what foreign code sends it, and a
+%% function wrapped to check the arguments foreign code calls it with.
+-spec expose(term(), term()) -> term().
+expose(Desc, V) ->
+    expose(Desc, V, #{}).
+
+%% The value, or the fault Text (report §7.4), where the descriptor holds
+%% no function and no float, so that the checked value is the value itself.
+-spec check(term(), term(), binary()) -> term().
+check(Desc, V, Text) ->
+    case chk(Desc, V, #{}) of
+        true -> V;
+        false -> ern_rt:fault(Text)
+    end.
 
 %% The value, or the fault Text (report §7.4). A descriptor that is a word
 %% describes a value with no function in it and nothing to make zero but a
@@ -139,9 +156,13 @@ chk(process, V, _) -> is_pid(V);
 chk({'fun', N, _, _, _}, V, _) -> is_function(V, N);
 chk({'fun', N, _, _}, V, _) -> is_function(V, N);
 chk(never, _, _) -> false;
-chk({list, D}, V, B) -> is_list(V) andalso lists:all(fun(X) -> chk(D, X, B) end, V);
+chk({list, D}, V, B) -> is_list(V) andalso every(D, V, B);
 chk({tuple, Ds}, V, B) ->
     is_tuple(V) andalso tuple_size(V) =:= length(Ds) andalso all(Ds, tuple_to_list(V), B);
+%% a type variable a parameter names matches any value (report §8.4), so a
+%% map of such keys and values is checked alone, and a put costs what the
+%% host's does
+chk({map, any, any}, V, _) -> is_map(V);
 chk({map, K, D}, V, B) ->
     is_map(V) andalso maps:fold(fun(Key, Val, Ok) ->
                                     Ok andalso chk(K, Key, B) andalso chk(D, Val, B)
@@ -176,9 +197,15 @@ con_fields(Tag, Cs) ->
 all([], [], _) -> true;
 all([D | Ds], [V | Vs], B) -> chk(D, V, B) andalso all(Ds, Vs, B).
 
-%% An argument with every address inside it replaced by a proxy; none is
-%% a parameter type without an address, left as it is.
-expose(none, V, _) -> V;
+%% Every element of a list checked against D, the list proper (report §8.4:
+%% a List is a list); an improper one does not match. A list of values a
+%% parameter's type variable names is only walked.
+every(_, [], _) -> true;
+every(any, [_ | Xs], B) -> every(any, Xs, B);
+every(D, [X | Xs], B) -> chk(D, X, B) andalso every(D, Xs, B);
+every(_, _, _) -> false.
+
+%% An argument with every address inside it replaced by a proxy.
 %% report §8.4: a function given to foreign code checks the arguments it is
 %% called with
 expose({callback, Make}, V, _) when is_function(V) -> Make(V);

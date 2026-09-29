@@ -35,11 +35,12 @@ erl/               the toolchain, as Erlang applications: lexer, parser, format,
                    also c_src/, the helper ern_exec's C source, and priv/, where make
                    builds it
 test/              what spans applications: the integration, document, style, guide,
-                   shell and terminal tests, the harnesses of the loads and of the
-                   pseudo-terminal, and the catalogue of diagnostics; target/, the
-                   hand-written target modules; expected/ and golden/, what the MVP 1
-                   examples print and the Erlang they compile to; and input/, load/,
-                   session/, stdin/ and terminal/, the programs and inputs tests run
+                   shell and terminal tests, the harnesses of the loads, the benchmark
+                   and the pseudo-terminal, and the catalogue of diagnostics; target/,
+                   the hand-written target modules; expected/ and golden/, what the
+                   MVP 1 examples print and the Erlang they compile to; and bench/,
+                   input/, load/, session/, stdin/ and terminal/, the programs and
+                   inputs tests run
 bin/               ern, the launcher, a POSIX sh script
 stdlib/            the standard library as Ernest source
 shell/             the shell as Ernest source; its README.md guides a reader
@@ -77,6 +78,8 @@ make test-guide   the guide's examples, the report's, and the catalogue of diagn
 make test-shell   the shell's sessions and the terminal
 make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
 make load         the loads of docs/memory.md; not part of make test
+make bench        what each of a few operations costs in Ernest beside the same
+                  operation in Erlang, in nanoseconds; not part of make test
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
 make man          the manual pages alone, which make also writes: each module's beside

@@ -51,8 +51,8 @@ export fn isEmpty(b : Bytes) : Bool =
 /// // => #(Some(8), None)
 /// ```
 export fn get(b : Bytes, i : Int) : Optional(Int) =
-    match slice(b, i, 1) {
-        <<n>> when i >= 0 -> Some(n)
+    match b {
+        <<_:size(i)-bytes, n, _:bytes>> -> Some(n)
       | _ -> None
     }
 

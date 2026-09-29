@@ -195,6 +195,11 @@ test-shell: all
 load: all
 	@$(MAKE) -C test load
 
+# The benchmark: what an Ernest operation costs beside the same operation in
+# Erlang (test/ern_bench.erl).
+bench: all
+	@$(MAKE) -C test bench
+
 # The Emacs mode's tests (docs/emacs_mode.md). It is an editor and not
 # part of the toolchain, so a machine without Emacs skips them; they are
 # the only tests `make test` will run and not have built. `format` runs
@@ -322,6 +327,6 @@ clean-emacs:
 
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
-.PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load test-emacs \
+.PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load bench test-emacs \
         $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall release unicode \
         dialyzer sanitize diagnostics

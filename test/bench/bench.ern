@@ -1,0 +1,73 @@
+//
+// The benchmark of `make bench` (test/ern_bench.erl): each operation run in
+// a loop of its own three times, and the fastest run printed as the
+// operation's key, the loop's count and the milliseconds it took.
+// ern_bench runs the same operations as Erlang writes them and prints the
+// two side by side.
+//
+
+type Msg = Ping(Int)
+
+type ServerMsg = Get(reply : Reply(Int))
+
+type Point = Point(x : Int, y : Int)
+
+fn Point.+(a : Point, b : Point) : Point =
+    Point(x = a.x + b.x, y = a.y + b.y)
+
+export fn main() : Unit with Msg = {
+    let p = Point(x = 1, y = 2);
+    let m = Map.fromList([#(1, 2), #(3, 4)]);
+    let xs = List.range(1, 100);
+    let a = "ab";
+    let b = "cd";
+    let bytes = String.toUtf8("abcd");
+    let server = spawn(Local, serve);
+    measure("loop", 10000000, fn(i) = i);
+    measure("operator", 10000000, fn(i) = (Point(x = i, y = 1) + p).x);
+    measure("equal", 10000000, fn(i) = if Point(x = i, y = 2) == p then 1 else 0);
+    measure("map_get", 10000000, fn(i) = Optional.withDefault(Map.get(m, i % 4), 0));
+    measure("map_put", 5000000, fn(i) = Map.size(Map.put(m, i % 8, i)));
+    measure("list_map", 200000, fn(i) = match List.map(xs, fn(x) = x + i) {
+        y :: _ -> y
+      | [] -> 0
+    });
+    measure("list_size", 1000000, fn(i) = List.size(xs) + i);
+    measure("string_size", 5000000, fn(i) = String.size(a) + i);
+    measure("string_append", 5000000, fn(i) = String.size(a <> b) + i);
+    measure("bytes_size", 10000000, fn(i) = Bytes.size(bytes) + i);
+    measure("send", 5000000, fn(i) = {
+        send(self(), Ping(i));
+        receive {
+            Ping(k) -> k
+        }
+    });
+    measure("call", 1000000, fn(i) = Address.callForever(server, fn(r) = Get(reply = r)) + i);
+    measure("spawn", 200000, fn(i) = {
+        let _ = spawn(Local, fn() : Unit with Never = Unit);
+        i
+    })
+}
+
+// The fastest of three runs of n iterations, printed as `key n ms`.
+fn measure(key : String, n : Int, f : (Int) -> Int with m) : Unit with m = {
+    let took = Int.min(run(n, f), Int.min(run(n, f), run(n, f)));
+    Io.println(key <> " " <> Int.toString(n) <> " " <> Int.toString(took))
+}
+
+fn run(n : Int, f : (Int) -> Int with m) : Int with m = {
+    let start = Clock.now();
+    let _ = loop(n, f, 0);
+    Clock.now() - start
+}
+
+fn loop(n : Int, f : (Int) -> Int with m, acc : Int) : Int with m =
+    if n == 0 then acc else loop(n - 1, f, acc + f(n))
+
+fn serve() : Unit with ServerMsg =
+    receive {
+        Get(reply = r) -> {
+            answer(r, 1);
+            serve()
+        }
+    }

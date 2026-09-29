@@ -21,7 +21,7 @@ ping(PongAddr_3, N_4) ->
         false ->
             ern@io:println(<<"ping ",
                              (ern@int:toString(N_4))/binary>>),
-            case ern_boundary:value('$type_1'(),
+            case ern_boundary:check('$type_1'(),
                                     ern_rt:call(PongAddr_3,
                                                 fun (R_5) -> {'Ping', N_4, R_5}
                                                 end,

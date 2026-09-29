@@ -93,8 +93,19 @@ discussed with the user one at a time as they are met.
    from the environment (§11), with `Erl.atom` and the unbounded reads kept and the key's
    place decided in MVP 3.0 (the log's *The Security Reader's Decisions*), and sockets kept
    read by pulling, with a time on every wait, the guide's §8.7 teaching them (N1, N-L1, N-L2;
-   the log's *Sockets Are Read by Pulling*), done 2026-09-29; the diagnostics' positions and
-   labels
+   the log's *Sockets Are Read by Pulling*), done 2026-09-29; a foreign call written in place,
+   its return checked as its type needs, the library's calls without a mailbox type not
+   counted, a call's monitor the alias of its reply, and no table scanned at a process's end
+   or at a fault, measured by `make bench` (N-L4; the log's *What Ernest Adds to a Host
+   Call*), done 2026-09-29, with three decisions for the user in this item, one at a time:
+   whether the standard library's own foreign functions are checked (§7.4, §8.4), whether a
+   reply between two Ernest processes is (§7.4), and whether `spawn`, `monitor` and a call's
+   row go through the reaper and a table as they do (§6.2, §6.6, §6.9, §8.6), and two defects
+   fixed in it by 2026-09-30: `String.trimEnd` reads the whole string as graphemes, 34 times
+   the host's trim over 100 KB, to be cut at the last code point that is not White_Space,
+   read back from the end, with the grapheme boundary settled around it; and the shell reads
+   every persistent term at each input it purges, to be read by the input's own keys; the
+   diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):

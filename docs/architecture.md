@@ -72,10 +72,11 @@ A module's atom is [`style.md`](style.md)'s `ern@` name, and a type member keeps
 
 ## The runtime
 
-`ern_rt` is what compiled code calls for processes, and the launcher. It keeps three tables:
+`ern_rt` is what compiled code calls for processes, and the launcher. It keeps four tables:
 
-- `ern_processes`: `{Pid, Site, State, Timers, Foreign}` per process the runtime started, `Timers` and `Foreign` counting its timed receives and foreign calls; beside them, the proxies' `{proxy, Key}` and `{behind, Pid}` rows, the `{restart, Pid}` and `{faults, Pid}` rows, the deadlock target, and how the terminal is read.
-- `ern_calls`: `{Callee, Caller, Alias}` per pending call.
+- `ern_processes`: `{Pid, Site, Timers, Foreign}` per process the runtime started, `Timers` and `Foreign` counting its timed receives and foreign calls; beside them, the proxies' `{proxy, Key}` and `{behind, Pid}` rows, the `{restart, Pid}` rows, the deadlock target, and how the terminal is read.
+- `ern_calls`: `{Caller, Callee, Alias}` per pending call, keyed by the caller, which makes one call at a time; `Alias` is the alias of the caller's monitor of the callee, and the reply's.
+- `ern_faults`: `{Subscriber, To}` per subscription to faults.
 - `ern_held`: `{{source, Holder}, Count}` for each system process, listener, socket or running program holding a source, and `{{opened, Pid}}` for each process a system module opened.
 
 Its parts:
@@ -87,9 +88,9 @@ Its parts:
 - **The reaper** `spawn_monitor`s every process the runtime starts and holds the waits on it (§6.9), and those of a `monitor` on a process it did not start. Each `Down` is delivered by `wrapped/3`, in a counted process of its own. `spawnMonitored`, and the launcher's wait on the entry process, are made with the spawn.
 - **The one proxy** is the foreign boundary's, one per address and mailbox type, so that a compiled `receive` never sees a foreign message.
 - **A deadlock** (§8.6) is found by the reaper after 100 ms idle. Where nothing can still deliver, by `ern_held`'s `{source, Holder}` rows, the calls in `ern_calls` on a system or an opened process, the system processes' status and mail, and the counts in `ern_processes`, it takes two snapshots of every live process's status and reductions; equal snapshots, all `waiting`, with nothing able to deliver between them, make the launcher fault the entry process with `deadlock`. The check is off while the shell holds the terminal. A module loaded on its first call counts as a foreign call, since `ern_rt` is the `error_handler` of every process the runtime starts and loads inside `in_foreign/1`.
-- **Sources** (§8.6) are counted, not asked about: the clock counts an alarm until it fires, `stdin` a request until its answer, the terminal its subscriptions, and the reaper a monitor on a process the runtime did not start, until its `Down` is delivered. A call to a system process, a listener, a socket or a running program counts from its `ern_calls` row, written before the request is sent. A timed `receive` and `Address.call` count themselves in and out, and `ern_boundary:foreign/6` calls inside `in_foreign/1`.
+- **Sources** (§8.6) are counted, not asked about: the clock counts an alarm until it fires, `stdin` a request until its answer, the terminal its subscriptions, and the reaper a monitor on a process the runtime did not start, until its `Down` is delivered. A call to a system process, a listener, a socket or a running program counts from its `ern_calls` row, written before the request is sent. A timed `receive` and `Address.call` count themselves in and out, and a foreign call runs inside `in_foreign/1`, but for a standard library function without a mailbox type, which waits on no process. The compiler writes a foreign call in place, its exception turned into a fault by `ern_boundary:raised/6` and its return checked as its type needs: a word in place, a value with no function or float in it by `check/3`, any other by `value/3`.
 - **Standard input** is a port on descriptor 0, opened per request and closed at its answer; the terminal reads keys through it, in `stty`'s raw mode. For a run, `run_main` sets standard output and standard error to `latin1`, so that they take bytes (§8.2).
-- **Faults** are reported by the reaper (E.21), at a process's end with a fault and at a restart. `report/4` builds the `FaultReport`, gives it to the run's `faults` function, and delivers it to each `{faults, Pid}` subscriber in a counted process. `Process.info` reads `ern_processes`, the host's status and `ern_calls`.
+- **Faults** are reported by the reaper (E.21), at a process's end with a fault and at a restart. `report/4` builds the `FaultReport`, gives it to the run's `faults` function, and delivers it to each subscriber in `ern_faults` in a counted process. `Process.info` reads `ern_processes`, the host's status and `ern_calls`.
 - **`run/1`** wraps every process body, so that an exception is a fault: `badarith` is `Fault("division by zero")`, and a thrown `{ern, fault, Msg}` is `Fault(Msg)`.
 
 ### The launcher

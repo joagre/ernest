@@ -5,7 +5,7 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 ## The guide and the README
 
 - 2.98 — §4.4 does not cover a broadcast to a consumer that stalls (N4)
-- 2.98 — the language: slow standard library calls, no bounded mailbox, and the small things of N-L6 (N-L4..L6)
+- 2.98 — the language: no bounded mailbox, and the small things of N-L6 (N-L5, N-L6)
 
 ## The runtime
 

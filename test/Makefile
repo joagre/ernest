@@ -90,6 +90,15 @@ load: $(EBIN)/ern_load.beam prepare
 	  || status=1; \
 	cat build/load/shell.txt; exit $$status
 
+# The benchmark: bench/bench.ern built and run as a user runs a program,
+# and its times printed beside the same operations in Erlang by ern_bench;
+# not part of `test`, since it measures and asserts nothing.
+bench: $(EBIN)/ern_bench.beam prepare
+	@mkdir -p build/bench
+	@../bin/ern build --source-root bench --build-root build/bench bench/bench.ern
+	@../bin/ern run build/bench/bench.erc > build/bench/ernest.txt
+	@erl -noinput -pa $(EBIN) -eval 'ern_bench:main(["build/bench/ernest.txt"])'
+
 clean:
 	rm -rf $(EBIN) build
 
@@ -99,4 +108,4 @@ $(EBIN)/%.beam: %.erl | $(EBIN)
 $(EBIN):
 	mkdir -p $(EBIN)
 
-.PHONY: test programs docs guide shell prepare xref load clean
+.PHONY: test programs docs guide shell prepare xref load bench clean

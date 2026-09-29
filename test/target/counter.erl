@@ -24,7 +24,8 @@
 %% is binary concatenation; stdlib calls go to the namespace's module,
 %% 'ern@int' for Int. A reply a call observes is checked against the
 %% declared type through ern_boundary (report §8.4), the type described once
-%% per module by a '$type_N' function; a message from a foreign process is
+%% per module by a '$type_N' function, and checked alone, since it holds no
+%% function and no float; a message from a foreign process is
 %% checked by the proxy that delivered it, so a receive checks nothing.
 %%
 %% The compiler also adds the module's interface as the BEAM chunk "ErnI".
@@ -46,7 +47,7 @@ main() ->
     C = ern_rt:spawn('Local', fun() -> counter(0) end, <<"Counter.main:17">>),
     ern_rt:send(C, {'Inc', 5}),
     ern_rt:send(C, {'Inc', 3}),
-    case ern_boundary:value('$type_1'(), ern_rt:call(C, fun(R) -> {'Get', R} end, 1000),
+    case ern_boundary:check('$type_1'(), ern_rt:call(C, fun(R) -> {'Get', R} end, 1000),
                          <<"reply does not match Optional(Int)">>) of
         {'Some', N} ->
             'ern@io':println(<<"count is ", ('ern@int':toString(N))/binary>>);

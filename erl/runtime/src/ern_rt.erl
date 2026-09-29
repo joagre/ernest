@@ -7,8 +7,9 @@
 %%
 %% An Address is a pid, or {via, F, Target} for an address seen through a
 %% function (report §6.5), which send/2 applies in the sender. A Reply(a)
-%% is a process alias made with alias([reply]): it deactivates after the
-%% first answer, and unalias after a timeout drops late ones (report §6.6).
+%% is the alias of the call's monitor of its callee, as gen_server's call
+%% makes one: it deactivates when the call is over, which drops a late
+%% answer (report §6.6).
 %% Every process body runs under run/1, which turns an exception into an
 %% exit reason that Down reports as a Fault. All spawns go through the
 %% reaper process, which spawn_monitors each process; a monitor placed
@@ -43,9 +44,15 @@
 
 -define(UNIT, 'Unit').
 -define(PROCESSES, ern_processes).
-%% report §6.6, §6.9: each pending call, {Callee, Caller, Alias}, so that a
-%% callee that restarts ends the calls waiting on it
+%% report §6.6, §6.9: each pending call, {Caller, Callee, Alias}, so that a
+%% callee that restarts ends the calls waiting on it; a process makes one
+%% call at a time, since a message's function and via's are pure, so its
+%% row is found and removed by its own pid
 -define(CALLS, ern_calls).
+%% Appendix E.21: each subscription to faults, {Subscriber, To}, in a table
+%% of its own, so that a fault reads the subscriptions and not every
+%% process's row
+-define(FAULTS, ern_faults).
 %% report §8.6: what a system process, a listener, a socket or a running
 %% program holds that can still deliver, {{source, Holder}, Count}, and the
 %% processes the system modules opened, {{opened, Pid}}: few rows, so that
@@ -143,16 +150,16 @@ call(Addr, Mk, Ms) ->
     %% made and delivered
     Deadline = deadline(Ms),
     line_guard(Addr),
-    {Alias, Mon, Row} = pending(Addr),
+    Alias = pending(Addr),
     %% settled however the call ends, a fault of the message's function or
     %% of the callee among the ways, which a process restarted in place
     %% outlives (§6.9)
     Answer = try
                  deliver(Addr, Mk(Alias)),
                  timed(),
-                 try await(Alias, Mon, Deadline) after untimed() end
+                 try await(Alias, Deadline) after untimed() end
              after
-                 settled(Alias, Mon, Row)
+                 settled(Alias)
              end,
     case Answer of
         %% report §6.9: a restart asked for is taken at a call's wait
@@ -162,24 +169,24 @@ call(Addr, Mk, Ms) ->
 
 %% Report §6.6: the answer, or None after the deadline, or at once when the
 %% callee ends or restarts before it answers.
-await(Alias, Mon, Deadline) ->
+await(Alias, Deadline) ->
     receive
         {Alias, V} -> {'Some', V};
         {Alias, restarted, _} -> 'None';
         {Alias, fault, Cause} -> fault(Cause);
-        {'DOWN', Mon, process, _, _} -> 'None';
+        {'DOWN', Alias, process, _, _} -> 'None';
         '$ern_restart' -> '$ern_restart'
     after remaining(Deadline) ->
         case remaining(Deadline) of
             0 -> 'None';
-            _ -> await(Alias, Mon, Deadline)
+            _ -> await(Alias, Deadline)
         end
     end.
 
 -spec call_forever(address(), fun((reply()) -> term())) -> term().
 call_forever(Addr, Mk) ->
     line_guard(Addr),
-    {Alias, Mon, Row} = pending(Addr),
+    Alias = pending(Addr),
     %% settled however the call ends, as call/3's is
     Answer = try
                  deliver(Addr, Mk(Alias)),
@@ -189,13 +196,13 @@ call_forever(Addr, Mk) ->
                      %% report §8.2: a system process faults the caller it
                      %% answers
                      {Alias, fault, Faulted} -> {fault, Faulted};
-                     {'DOWN', Mon, process, _, Reason} -> {ended, reason(Reason)};
+                     {'DOWN', Alias, process, _, Reason} -> {ended, reason(Reason)};
                      %% report §6.9: a restart asked for is taken at a call's
                      %% wait
                      '$ern_restart' -> restart
                  end
              after
-                 settled(Alias, Mon, Row)
+                 settled(Alias)
              end,
     case Answer of
         {answered, V} -> V;
@@ -217,22 +224,21 @@ ended('ProgramEnd') ->
     exit(erlang:self(), {ern, program_end}),
     receive after infinity -> ok end.
 
-%% A call's reply alias, a monitor of the process behind the address, and
-%% the call noted against that process, so that its restart ends the call.
+%% A call's monitor of the process behind the address, whose alias is the
+%% reply's, and the call noted against that process, so that its restart
+%% ends the call.
 pending(Addr) ->
     Callee = process_of(Addr),
-    Alias = erlang:alias([reply]),
-    Mon = erlang:monitor(process, Callee),
-    Row = {Callee, erlang:self(), Alias},
-    ets:insert(?CALLS, Row),
-    {Alias, Mon, Row}.
+    Alias = erlang:monitor(process, Callee, [{alias, demonitor}]),
+    ets:insert(?CALLS, {erlang:self(), Callee, Alias}),
+    Alias.
 
-%% The call is over: its row goes, its monitor goes, and an answer that
-%% came late is not left in the caller's mailbox.
-settled(Alias, Mon, Row) ->
-    ets:delete_object(?CALLS, Row),
-    erlang:demonitor(Mon, [flush]),
-    erlang:unalias(Alias),
+%% The call is over: its row goes, its monitor and with it the alias go, and
+%% an answer that came before them, after a restart's word, say, is not left
+%% in the caller's mailbox.
+settled(Alias) ->
+    ets:delete(?CALLS, erlang:self()),
+    erlang:demonitor(Alias, [flush]),
     receive
         {Alias, _} -> ok;
         {Alias, restarted, _} -> ok;
@@ -348,10 +354,10 @@ reaper_loop(Waiters, Watching, Watched) ->
             case ets:lookup(?PROCESSES, Pid) of
                 [{_, Site, _, _}] ->
                     ets:delete(?PROCESSES, Pid),
-                    %% its pending calls, as the one called and as the caller;
-                    %% a caller learns of a callee's end by its own monitor
+                    %% its pending call, which a process killed while it
+                    %% waited leaves; a caller learns of a callee's end by
+                    %% its own monitor, and removes its own
                     ets:delete(?CALLS, Pid),
-                    ets:match_delete(?CALLS, {'_', Pid, '_'}),
                     died(Pid, Site, Reason),
                     Down = {'Down', reason(Reason), Site},
                     lists:foreach(fun({To, {raw, Tag}}) -> To ! {Tag, Site, Reason};
@@ -469,7 +475,7 @@ info(Pid) when node(Pid) =:= node() ->
         {[{_, Site, _, _}], [{status, Status}, {message_queue_len, Queued}]} ->
             Activity = case Status of
                            waiting ->
-                               case ets_match(?CALLS, {'_', Pid, '_'}) of
+                               case ets_lookup(?CALLS, Pid) of
                                    [] -> 'Receiving';
                                    _ -> 'Calling'
                                end;
@@ -494,7 +500,7 @@ ets_match(Table, Pattern) ->
 %% dies (the reaper's DOWN).
 -spec faults(address()) -> 'Unit'.
 faults(To) ->
-    try ets:insert(?PROCESSES, {{faults, process_of(To)}, To}) catch _:_ -> true end,
+    try ets:insert(?FAULTS, {process_of(To), To}) catch _:_ -> true end,
     ?UNIT.
 
 %% Report §11.2, Appendix E.21: a fault, which each subscriber is sent as a
@@ -515,7 +521,7 @@ report(Pid, Site, Fault, Restarted) ->
         undefined -> ok;
         Reporter -> Reporter(Report)
     end,
-    Subscribers = [To || {_, To} <- ets_match(?PROCESSES, {{faults, '_'}, '_'})],
+    Subscribers = [To || {_, To} <- ets_match(?FAULTS, '_')],
     lists:foreach(fun(To) -> counted_link(fun() -> deliver(To, Report) end) end, Subscribers).
 
 %% The live processes' rows, each its pid, its spawn site, and the counts
@@ -526,7 +532,7 @@ live_rows() ->
 %% Report §6.9, §11.2: a process that ended faulting is reported, and a
 %% subscription to faults it held ends with it.
 died(Pid, Site, Reason) ->
-    ets:delete(?PROCESSES, {faults, Pid}),
+    ets:delete(?FAULTS, Pid),
     ets:delete(?PROCESSES, {restart, Pid}),
     case reason(Reason) of
         {'Fault', _} -> report(Pid, Site, Reason, false);
@@ -585,7 +591,7 @@ counted() ->
 %% request still in transit is not seen at its receiver.
 calling_the_system() ->
     Held = system_pids() ++ opened(),
-    lists:any(fun({Callee, _, _}) -> lists:member(Callee, Held) end, ets_match(?CALLS, '_')).
+    lists:any(fun({_, Callee, _}) -> lists:member(Callee, Held) end, ets_match(?CALLS, '_')).
 
 quiet_system() ->
     element(2, erlang:process_info(erlang:self(), message_queue_len)) =:= 0
@@ -1204,7 +1210,8 @@ arm(Deadline, To) ->
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
 run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
-    ets:new(?CALLS, [named_table, public, bag]),
+    ets:new(?CALLS, [named_table, public, set]),
+    ets:new(?FAULTS, [named_table, public, set]),
     ets:new(?HELD, [named_table, public, set]),
     persistent_term:erase({?MODULE, holder}),
     %% report §11.2: `ern run` reports every fault, the runtime's own
@@ -1503,8 +1510,10 @@ restarts(F, Restarts, Within, Times, Level) ->
 %% Report §6.6, §6.9: a restart ends every call waiting on the process, each
 %% caller told the cause, which a callForever faults with.
 restarted(Cause) ->
-    lists:foreach(fun({_, _, Alias}) -> Alias ! {Alias, restarted, Cause} end,
-                  ets:take(?CALLS, erlang:self())).
+    lists:foreach(fun({_, _, Alias} = Row) ->
+                      ets:delete_object(?CALLS, Row),
+                      Alias ! {Alias, restarted, Cause}
+                  end, ets_match(?CALLS, {'_', erlang:self(), '_'})).
 
 %% Report §8.6: every local process ends with ProgramEnd, the sinks' output
 %% is flushed, the system processes and the reaper are stopped, and the
@@ -1540,6 +1549,7 @@ end_program(Run, Reaper, System) ->
     end,
     ets:delete(?PROCESSES),
     ets:delete(?CALLS),
+    ets:delete(?FAULTS),
     ets:delete(?HELD),
     %% a signal after the run has nothing to end (signal/1)
     persistent_term:erase({?MODULE, launcher}),

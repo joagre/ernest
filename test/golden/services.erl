@@ -66,48 +66,48 @@ main() ->
     report(<<"after the restart">>).
 
 put(Key_13, Value_14) ->
-    Id_16 = ern_boundary:value(int,
-                               ern_rt:call_forever(ids(),
-                                                   fun (R_15) ->
-                                                           {'NextId', R_15}
-                                                   end),
-                               <<"reply does not match Int">>),
+    Id_17 = case ern_rt:call_forever(ids(),
+                                     fun (R_15) -> {'NextId', R_15} end)
+                of
+                V_16 when is_integer(V_16) -> V_16;
+                _ -> ern_rt:fault(<<"reply does not match Int">>)
+            end,
     ern_rt:send(store(), {'Put', Key_13, Value_14}),
     ern_rt:send(audit(),
                 {'Record',
-                 <<(ern@int:toString(Id_16))/binary, ": put ",
+                 <<(ern@int:toString(Id_17))/binary, ": put ",
                    Key_13/binary>>}).
 
-report(Moment_17) ->
-    Apples_20 = case ern_boundary:value('$type_1'(),
+report(Moment_18) ->
+    Apples_21 = case ern_boundary:check('$type_1'(),
                                         ern_rt:call_forever(store(),
-                                                            fun (R_18) ->
+                                                            fun (R_19) ->
                                                                     {'Get',
                                                                      <<"apples">>,
-                                                                     R_18}
+                                                                     R_19}
                                                             end),
                                         <<"reply does not match Optional(Int)">>)
                     of
-                    {'Some', N_19} -> ern@int:toString(N_19);
+                    {'Some', N_20} -> ern@int:toString(N_20);
                     'None' -> <<"none">>
                 end,
-    Entries_22 = ern_boundary:value('$type_2'(),
+    Entries_23 = ern_boundary:check('$type_2'(),
                                     ern_rt:call_forever(audit(),
-                                                        fun (R_21) ->
+                                                        fun (R_22) ->
                                                                 {'Entries',
-                                                                 R_21}
+                                                                 R_22}
                                                         end),
                                     <<"reply does not match List(String)">>),
-    Id_24 = ern_boundary:value(int,
-                               ern_rt:call_forever(ids(),
-                                                   fun (R_23) ->
-                                                           {'NextId', R_23}
-                                                   end),
-                               <<"reply does not match Int">>),
-    ern@io:println(<<Moment_17/binary, ": apples ",
-                     Apples_20/binary, ", next id ",
-                     (ern@int:toString(Id_24))/binary, ", audit [",
-                     (ern@string:join(Entries_22, <<"; ">>))/binary, "]">>).
+    Id_26 = case ern_rt:call_forever(ids(),
+                                     fun (R_24) -> {'NextId', R_24} end)
+                of
+                V_25 when is_integer(V_25) -> V_25;
+                _ -> ern_rt:fault(<<"reply does not match Int">>)
+            end,
+    ern@io:println(<<Moment_18/binary, ": apples ",
+                     Apples_21/binary, ", next id ",
+                     (ern@int:toString(Id_26))/binary, ", audit [",
+                     (ern@string:join(Entries_23, <<"; ">>))/binary, "]">>).
 
 '$init'() ->
     ern_rt:initializing(<<"Services.services:22">>),

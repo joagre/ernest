@@ -1,7 +1,7 @@
 -module(ern_emitter_tests).
 
--export([write_golden/0, pair/0, opt/1, funs/0, remember/1, junk/1, good/1, tell/1,
-         junk_server/0, reaper_words/0]).
+-export([write_golden/0, pair/0, opt/1, funs/0, improper/1, remember/1, junk/1, good/1,
+         tell/1, junk_server/0, reaper_words/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -1202,6 +1202,20 @@ foreign_faults_test() ->
                   ++ Main ++ "each(fn(n : Int) : Unit with Never = fault(\"later\"), [1])\n"),
     ?assertEqual({fault, <<"later">>}, R5).
 
+%% report §7.4, §8.4: a List is a proper list, so an improper one a foreign
+%% function returns faults naming the declared type, whether its elements
+%% are checked or a parameter's type variable names them. A regression test:
+%% the check raised function_clause instead. It does not cover what a check
+%% costs, which make bench shows.
+foreign_improper_list_test() ->
+    Main = "export fn main() : Unit with Never = ",
+    {R1, _} = run("foreign fn improper(x : Int) : List(Int) = \"ern_emitter_tests:improper/1\"\n"
+                  ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
+    ?assertEqual({fault, <<"foreign return does not match List(Int)">>}, R1),
+    {R2, _} = run("foreign fn improper(x : a) : List(a) = \"ern_emitter_tests:improper/1\"\n"
+                  ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
+    ?assertEqual({fault, <<"foreign return does not match List(a)">>}, R2).
+
 %% report §7.4: a function value foreign code returns is checked when it is
 %% called, its result against its declared result type, in the caller, and
 %% one that keeps to it runs. A regression test: such a function's result
@@ -1328,6 +1342,7 @@ pair() -> {1, 2}.
 funs() -> [fun(X) -> X + 1 end, fun(_) -> not_an_int end].
 opt(0) -> {'Some', 3};
 opt(_) -> {'Some', <<"x">>}.
+improper(X) -> [X | X].
 %% report §8.4: remembers the first address it is given and says whether
 %% the next is the same one
 remember(Pid) ->

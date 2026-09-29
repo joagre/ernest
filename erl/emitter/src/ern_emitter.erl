@@ -9,8 +9,8 @@
 %% and `let p <- e` becomes a case (report §5.5).
 -module(ern_emitter).
 
--export([compile/4, compile/5, forms/3, erl_source/3, module_atom/1, function_atom/1,
-         function_name/2]).
+-export([compile/4, compile/5, forms/3, erl_source/3, erl_source/4, module_atom/1,
+         function_atom/1, function_name/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -27,7 +27,7 @@
 %% in its file, since its spawn sites are written as the session writes
 %% names; else false.
 -record(cx, {ns, mod, env, fname, vars = #{}, counter = 0, locals = #{}, lifted = [],
-             tops = #{}, descs = #{}, pat_guards = [], session = false}).
+             tops = #{}, descs = #{}, pat_guards = [], session = false, standard = false}).
 %% A local fn of a block (see Blocks).
 -record(local, {lifted, own, extra, refs, snap = pending}).
 
@@ -43,7 +43,8 @@ compile(Ns, Decls, Iface, Env) ->
 %% dependencies' interface hashes, go into the chunk beside the interface
 %% (report §11.1); `source` goes to the documentation; `session` marks an
 %% input of the shell, which is compiled and not written, and is not kept,
-%% with the line offset its spawn sites are written with.
+%% with the line offset its spawn sites are written with; `standard` marks a
+%% module of the standard library's own source root.
 %% The declarations are the checker's, so every rule a program can break has
 %% been checked: what the emitter cannot emit, or emits and the host does not
 %% compile, is a defect of the toolchain, raised as one, which `ern` reports
@@ -52,12 +53,11 @@ compile(Ns, Decls, Iface, Env) ->
               #{source_hash := binary(), source_path => binary(),
                 deps := [{[atom()], binary()}], compiler => binary(),
                 stdlib => binary() | none, source => binary(),
-                session => non_neg_integer()}) ->
+                session => non_neg_integer(), standard => boolean()}) ->
           {ok, atom(), binary()}.
 compile(Ns, Decls, Iface, Env, Build) ->
-    Forms = forms(Ns, Decls, Env, [D || {D, _} <- maps:get(deps, Build, [])],
-                  maps:get(session, Build, false)),
-    Meta = maps:without([source, session], Build),
+    Forms = forms(Ns, Decls, Env, Build),
+    Meta = maps:without([source, session, standard], Build),
     Chunk = ern_iface:encode(Meta, Iface),
     Docs = term_to_binary(ern_docs:build(Ns, Decls, Env, maps:get(source, Build, <<>>))),
     Chunks = [{ern_iface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs}],
@@ -69,17 +69,18 @@ compile(Ns, Decls, Iface, Env, Build) ->
 %% The abstract forms, for the golden tests and erl_prettypr.
 -spec forms([atom()], [tuple()], ern_typecheck:env()) -> [erl_parse:abstract_form()].
 forms(Ns, Decls, Env) ->
-    forms(Ns, Decls, Env, [], false).
+    forms(Ns, Decls, Env, #{}).
 
 %% Report §8.5: with the modules this one depends on, which it declares
 %% as `'$deps'/0` so that the runtime can evaluate top-level bindings in
 %% dependency order without reading a compiled file.
--spec forms([atom()], [tuple()], ern_typecheck:env(), [[atom()]],
-            false | non_neg_integer()) ->
-          [erl_parse:abstract_form()].
-forms(Ns, Decls, Env, Deps, Session) ->
+-spec forms([atom()], [tuple()], ern_typecheck:env(), map()) -> [erl_parse:abstract_form()].
+forms(Ns, Decls, Env, Build) ->
     Mod = module_atom(Ns),
-    Cx0 = #cx{ns = Ns, mod = Mod, env = Env, tops = top_names(Decls), session = Session},
+    Deps = [D || {D, _} <- maps:get(deps, Build, [])],
+    Cx0 = #cx{ns = Ns, mod = Mod, env = Env, tops = top_names(Decls),
+              session = maps:get(session, Build, false),
+              standard = maps:get(standard, Build, false)},
     {Funs, Cx1} = lists:mapfoldl(fun decl/2, Cx0, Decls),
     Lets = [D || #let_decl{} = D <- Decls],
     {Init, Cx2} = init_fun(Lets, Cx1),
@@ -170,7 +171,11 @@ deps_fun(Deps) ->
 %% The module as Erlang source, for --emit-erl (report §11.1).
 -spec erl_source([atom()], [tuple()], ern_typecheck:env()) -> unicode:chardata().
 erl_source(Ns, Decls, Env) ->
-    Forms = forms(Ns, Decls, Env),
+    erl_source(Ns, Decls, Env, #{}).
+
+-spec erl_source([atom()], [tuple()], ern_typecheck:env(), map()) -> unicode:chardata().
+erl_source(Ns, Decls, Env, Build) ->
+    Forms = forms(Ns, Decls, Env, Build),
     [erl_prettypr:format(erl_syntax:form_list(Forms)), "\n"].
 
 %% Report §4.2: the path with @ for / and the prefix ern@.
@@ -232,35 +237,41 @@ decl(#let_decl{pos = Pos, owner = O, name = N}, Cx) ->
     {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx};
 decl(#foreign_fn_decl{pos = Pos, owner = O, name = N, params = Params, impl = Impl,
                       type = Scheme}, Cx) ->
-    %% report §4.7, §8.4: the implementation, called through ern_boundary,
-    %% which turns an exception into a fault and checks the return
+    %% report §4.7, §8.4: the implementation called in place, an exception
+    %% it raises turned into a fault, and its return checked
     Name = fname(O, N),
     {ok, {M, F, _}} = ern_typecheck:foreign_impl(Impl),
     {Vars, Cx1} = fresh_vars(length(Params), "A", Cx#cx{fname = Name}),
-    {tfn, ParamTs, _, Ret} = Scheme#scheme.type,
+    {tfn, ParamTs, Effect, Ret} = Scheme#scheme.type,
     Args = [erl_syntax:variable(V) || V <- Vars],
+    {Exposed, Cx2} = lists:mapfoldl(fun exposed/2, Cx1, lists:zip(ParamTs, Args)),
+    Call = erl_syntax:application(erl_syntax:atom(M), erl_syntax:atom(F), Exposed),
+    %% report §8.6: a foreign call in progress can still deliver, so it is
+    %% counted while it runs; a standard library function without a mailbox
+    %% type waits on no process, and is not
+    Run = case Cx#cx.standard andalso Effect =:= pure of
+              true -> Call;
+              false -> call_remote(ern_rt, in_foreign,
+                                   [erl_syntax:fun_expr([erl_syntax:clause([], none, [Call])])])
+          end,
+    {[Class, Reason, Stack], Cx3} = fresh_vars(3, "E", Cx2),
+    Raised = call_remote(ern_boundary, raised,
+                         [erl_syntax:atom(M), erl_syntax:atom(F),
+                          erl_syntax:integer(length(Params)) | [erl_syntax:variable(V)
+                                                                 || V <- [Class, Reason, Stack]]]),
+    Handler = erl_syntax:clause([erl_syntax:class_qualifier(erl_syntax:variable(Class),
+                                                            erl_syntax:variable(Reason),
+                                                            erl_syntax:variable(Stack))],
+                                none, [Raised]),
     %% report §8.4: a type variable of the result that no parameter names
     %% stands for no value the function could have been given, so it
     %% matches none, and the return faults where it holds one
     Unnamed = type_vars(Ret) -- lists:append([type_vars(P) || P <- ParamTs]),
-    {DescForm, Cx2} = descriptor_ref(as_never(Unnamed, Ret), Cx1),
-    %% a parameter with an address inside gets its descriptor, so the
-    %% address is exposed through a proxy; a function, the checks of the
-    %% arguments foreign code calls it with (§8.4); any other is none
-    {ArgDescs, Cx3} = lists:mapfoldl(fun({tfn, Ps, _, _}, C) ->
-                                             callback_ref(Ps, C);
-                                        (PT, C) ->
-                                             case has_address(descriptor(PT, C)) of
-                                                 true -> descriptor_ref(PT, C);
-                                                 false -> {erl_syntax:atom(none), C}
-                                             end
-                                     end, Cx2, ParamTs),
-    Body = call_remote(ern_boundary, foreign,
-                       [erl_syntax:atom(M), erl_syntax:atom(F), erl_syntax:list(Args),
-                        erl_syntax:list(ArgDescs), DescForm,
-                        check_text("foreign return does not match ", Ret, Cx)]),
+    {Body, Cx4} = check_form(as_never(Unnamed, Ret), Ret,
+                             erl_syntax:try_expr([Run], [Handler]),
+                             "foreign return does not match ", Cx3),
     Clause = at(Pos, erl_syntax:clause(Args, none, [Body])),
-    {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx3};
+    {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx4};
 decl(_, Cx) ->
     {[], Cx}.
 
@@ -852,8 +863,71 @@ resolved(T, #cx{env = Env}) ->
 %%
 
 checked(Form, T, Prefix, Cx) ->
-    {DescForm, Cx1} = descriptor_ref(T, Cx),
-    {call_remote(ern_boundary, value, [DescForm, Form, check_text(Prefix, T, Cx)]), Cx1}.
+    check_form(T, T, Form, Prefix, Cx).
+
+%% Form's value checked against T and the fault's text naming Named (report
+%% §7.4, §8.4). A word's check is written in place; a value that holds no
+%% function to arm and no float to make the language's is checked alone
+%% (ern_boundary:check/3); a type variable a parameter names matches any
+%% value, and is not checked.
+check_form(T, Named, Form, Prefix, Cx) ->
+    Text = check_text(Prefix, Named, Cx),
+    case descriptor(T, Cx) of
+        any ->
+            {Form, Cx};
+        Word when Word =:= int; Word =:= bool; Word =:= bytes; Word =:= float ->
+            {[V], Cx1} = fresh_vars(1, "V", Cx),
+            Var = erl_syntax:variable(V),
+            Test = erl_syntax:application(erl_syntax:atom(word_test(Word)), [Var]),
+            %% report §3.1: X + 0.0 is 0.0 for either zero, and X otherwise
+            Value = case Word of
+                        float -> erl_syntax:infix_expr(Var, erl_syntax:operator('+'),
+                                                       erl_syntax:float(0.0));
+                        _ -> Var
+                    end,
+            Fault = call_remote(ern_rt, fault, [Text]),
+            {erl_syntax:case_expr(Form, [erl_syntax:clause([Var], Test, [Value]),
+                                         erl_syntax:clause([erl_syntax:underscore()], none,
+                                                           [Fault])]), Cx1};
+        Word when is_atom(Word) ->
+            {call_remote(ern_boundary, value, [erl_syntax:abstract(Word), Form, Text]), Cx};
+        Desc ->
+            {DescForm, Cx1} = desc_ref(Desc, Cx),
+            Check = case plain(Desc) of
+                        true -> check;
+                        false -> value
+                    end,
+            {call_remote(ern_boundary, Check, [DescForm, Form, Text]), Cx1}
+    end.
+
+word_test(int) -> is_integer;
+word_test(bool) -> is_boolean;
+word_test(bytes) -> is_binary;
+word_test(float) -> is_float.
+
+%% Whether a descriptor holds no function and no float, as ern_boundary
+%% reads one: a checked value of it is the value itself.
+plain(float) -> false;
+plain(T) when is_tuple(T), element(1, T) =:= 'fun' -> false;
+plain(T) when is_tuple(T) -> lists:all(fun plain/1, tuple_to_list(T));
+plain(L) when is_list(L) -> lists:all(fun plain/1, L);
+plain(_) -> true.
+
+%% An argument of a foreign function as it is given: one with an address
+%% inside, through the proxy that checks what foreign code sends it; a
+%% function, wrapped to check the arguments foreign code calls it with
+%% (§8.4); any other, as it is.
+exposed({{tfn, Ps, _, _}, Arg}, Cx) ->
+    {Ref, Cx1} = callback_ref(Ps, Cx),
+    {call_remote(ern_boundary, expose, [Ref, Arg]), Cx1};
+exposed({T, Arg}, Cx) ->
+    case has_address(descriptor(T, Cx)) of
+        true ->
+            {Ref, Cx1} = descriptor_ref(T, Cx),
+            {call_remote(ern_boundary, expose, [Ref, Arg]), Cx1};
+        false ->
+            {Arg, Cx}
+    end.
 
 %% The type variables a type holds.
 type_vars({tvar, _} = V) -> [V];

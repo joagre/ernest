@@ -206,7 +206,7 @@ call_leaves_nothing_test() ->
                                 2 ->
                                     [{_, _, Timers, _}] = ets:lookup(ern_processes, self()),
                                     {monitors, Monitors} = process_info(self(), monitors),
-                                    Me ! {left, {ets:match_object(ern_calls, {'_', self(), '_'}),
+                                    Me ! {left, {ets:lookup(ern_calls, self()),
                                                  Monitors, Timers}},
                                     ern_rt:send(Main, done)
                             end
@@ -749,8 +749,7 @@ proxy_names_its_process_test() ->
     ok = ern_rt:run_main(
            fun() ->
                Mine = ern_rt:self(),
-               Proxy = ern_boundary:foreign(erlang, hd, [[Mine]], [{list, Desc}], Desc,
-                                            <<"a String">>),
+               [Proxy] = ern_boundary:expose({list, Desc}, [Mine]),
                Me ! {proxy, {Proxy, ern_rt:process_of(Proxy), Mine}}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     {Proxy, Behind, Mine} = wait(proxy),

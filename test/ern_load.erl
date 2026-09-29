@@ -86,7 +86,8 @@ mark(Round) ->
                          atoms => erlang:system_info(atom_count),
                          processes => erlang:system_info(process_count),
                          ports => erlang:system_info(port_count),
-                         rows => rows(ern_processes) + rows(ern_calls) + rows(ern_held),
+                         rows => rows(ern_processes) + rows(ern_calls) + rows(ern_faults)
+                                 + rows(ern_held),
                          terms => maps:get(count, persistent_term:info())}}),
     'Unit'.
 
