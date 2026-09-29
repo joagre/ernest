@@ -10,7 +10,7 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 
 ## The runtime
 
-- 2.98 — hardening: unchecked casts through `Foreign`, `Erl.atom` on received text, `stty` from `PATH`, the host's flags from the environment, a relative `HOME`, unbounded reads, the key in the working tree, a dangling `--config-dir` (S-H)
+- 2.98 — hardening: unchecked casts through `Foreign`, `Erl.atom` on received text, the host's flags from the environment, unbounded reads, the key in the working tree (S-H)
 
 ## The standard library, the libraries, the examples
 

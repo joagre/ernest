@@ -750,10 +750,16 @@ ifaces(Loaded) ->
 %% The node's is in the configuration directory of §11.3, and is run only
 %% where `--config-dir` names that directory, never for the default, which
 %% is wherever the shell was started. A file both paths name is run once.
+%% A HOME that is no absolute path names no person's file, since it would
+%% name one under wherever the shell was started.
 startups(Opts) ->
     Home = case os:getenv("HOME") of
                false -> [];
-               Dir -> [filename:join([Dir, ".ernest", "startup"])]
+               Dir ->
+                   case filename:pathtype(Dir) of
+                       absolute -> [filename:join([Dir, ".ernest", "startup"])];
+                       _ -> []
+                   end
            end,
     Node = case proplists:get_value(config_dir, Opts) of
                undefined -> [];

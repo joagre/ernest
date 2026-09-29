@@ -166,6 +166,23 @@ reload_sources_named() ->
     ?assertMatch({_, _}, binary:match(Load, <<"bad.ern:2:5: the body">>)),
     ?assertEqual(nomatch, binary:match(Load, list_to_binary(Dir))).
 
+%% report §11.2: a HOME that is no absolute path names no startup file and
+%% no history, since each would be under wherever the shell was started. A
+%% regression test: `HOME=.` ran a startup file the working directory held
+%% (findings.md's S-H)
+relative_home_test_() ->
+    {timeout, 60, fun relative_home/0}.
+
+relative_home() ->
+    Dir = fresh_home(),
+    ok = filelib:ensure_path(filename:join(Dir, ".ernest")),
+    ok = file:write_file(filename:join(Dir, ".ernest/startup"), "Io.println(\"planted\")\n"),
+    Ern = filename:absname("../bin/ern"),
+    {0, Out} = sh("cd " ++ Dir ++ " && echo 1 | HOME=. " ++ Ern ++ " shell"),
+    ?assertEqual(nomatch, binary:match(Out, <<"planted">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)),
+    ?assertNot(filelib:is_regular(filename:join(Dir, ".ernest/history"))).
+
 %% report §11.2, §4.2: `:browse Prelude` lists the prelude's types and
 %% values, `:doc Prelude` shows its page, and `:doc Prelude.name` the
 %% prelude's name, one its type's module documents among them. A
@@ -2197,7 +2214,7 @@ no_home_test_() ->
 no_home() ->
     {ok, Version} = file:read_file("../VERSION"),
     Screen = pty("env -u HOME ../bin/ern shell",
-                 [{expect, "HOME is not set"},
+                 [{expect, "HOME is no absolute path"},
                   {send, hex("1 + 1\r")},
                   {expect, "2 : Int"},
                   {send, "04"}],

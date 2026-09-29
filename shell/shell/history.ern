@@ -15,10 +15,13 @@ export let kept = 1000
 let wait = 5000
 
 /// The file in the person's home directory, and none where the environment
-/// names no home.
+/// names no home or one that is no absolute path, which would put the
+/// history under whatever directory the shell starts in (report §11.2).
 export let file : Optional(Path) =
-    Optional.map(Map.get(Os.environment, "HOME"),
-                 fn(home) = Path.join(Path(home), Path(".ernest/history")))
+    Optional.andThen(Map.get(Os.environment, "HOME"), fn(home) = match Path(home) {
+        at when Path.isAbsolute(at) -> Some(Path.join(at, Path(".ernest/history")))
+      | _ -> None
+    })
 
 /// The inputs of the sessions before this one, newest first. A file that
 /// holds more than the last thousand is trimmed to them as it is read.

@@ -285,15 +285,22 @@ write(Text) ->
         false -> ok
     end.
 
+system_stty() ->
+    case [P || P <- ["/bin/stty", "/usr/bin/stty"], filelib:is_regular(P)] of
+        [P | _] -> P;
+        [] -> false
+    end.
+
 %% stty acts on its own standard input, and a port opened with nouse_stdio
 %% inherits the runtime's, which is the terminal. Nothing is done when the
 %% input is not one: keys read from a pipe need no mode, and a mode set
 %% there would be set on whatever terminal the runtime was started from.
 %% An stty that does not finish in time is closed, and what its port sent
 %% is not left in the mailbox, where report §8.6 would read it as a message
-%% still to be handled.
+%% still to be handled. It is the system's own stty, not the first that
+%% PATH names, which could be any program in any directory the PATH lists.
 stty(Args) ->
-    case terminal() andalso os:find_executable("stty") of
+    case terminal() andalso system_stty() of
         false ->
             ok;
         Stty ->

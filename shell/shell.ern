@@ -274,7 +274,7 @@ export fn main() : Unit with ShellMsg = {
             // history that cannot be read is said once, and not written
             let #(earlier, keeping) = match Shell.History.file {
                 None -> {
-                    say(screen, "the history is not kept, since HOME is not set");
+                    say(screen, "the history is not kept, since HOME is no absolute path");
                     #([], false)
                 }
               | Some(_) -> match Shell.History.read() {
