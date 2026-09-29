@@ -1229,6 +1229,27 @@ example.ern:2:13: unknown constructor Red
   |             ^^^
 ```
 
+### A shadowed prelude constructor where the prelude's is wanted (§4.2)
+
+```ernest-rejected
+type Place = Local | Remote
+
+fn start() : Unit with m = {
+    let _ = spawn(Local, fn() : Unit with Never = Unit);
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:4:19: the argument does not fit spawn: expected Where, found Place
+3 | fn start() : Unit with m = {
+4 |     let _ = spawn(Local, fn() : Unit with Never = Unit);
+  |             ----- spawn : (Where, () -> Unit with a) -> Address(a) with e
+  |                   ----- `Local` here is this module's constructor, and the prelude's is `Prelude.Local`
+  |                   ^^^^^
+```
+
 ### `Prelude.` before a constructor the prelude lacks (§4.2)
 
 ```ernest-rejected
@@ -2253,6 +2274,26 @@ example.ern:4:14: the clauses must have one type: expected String, found Int
   |              ^
 ```
 
+### A process's function called in a guard (§5.9)
+
+```ernest-rejected
+fn f(n : Int) : Int with m =
+    match n {
+        k when Io.println("k") == Unit -> k
+      | _ -> 0
+    }
+```
+
+```console
+$ ern build example.ern
+example.ern:3:16: Io.println needs a process, and a guard is pure
+2 |     match n {
+3 |         k when Io.println("k") == Unit -> k
+  |                ^^^^^^^^^^^^^^^
+  |                ----------------------- a guard is pure (report §5.9)
+  | = help: compute the value before the match
+```
+
 ### A guard that is no Bool (§5.9)
 
 ```ernest-rejected
@@ -3057,9 +3098,10 @@ fn maybe(r : Reply(Int), b : Bool) : Unit with m = if b then answer(r, 1) else U
 
 ```console
 $ ern build example.ern
-example.ern:1:52: the reply-carrying value r is consumed on one path but not on another
+example.ern:1:80: the reply-carrying value r is not consumed on this path
 1 | fn maybe(r : Reply(Int), b : Bool) : Unit with m = if b then answer(r, 1) else Unit
-  |                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |                                                                     - consumed here, on another path
+  |                                                                                ^^^^
 ```
 
 ### A reply never answered (§6.6)

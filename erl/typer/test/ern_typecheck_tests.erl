@@ -1092,7 +1092,7 @@ reply_test() ->
                      " | Stop -> Unit }")),
     ?assertEqual("a reply-carrying value cannot be an element of List",
                  err(Msg ++ "fn f(r : Req) = [r]")),
-    ?assertEqual("the reply-carrying value r is consumed on one path but not on another",
+    ?assertEqual("the reply-carrying value r is not consumed on this path",
                  err(Msg ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1) else Unit")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1)"
                         " else answer(r, 2)")),
@@ -1411,13 +1411,13 @@ fault_path_test() ->
                               "    }\n"
                               "  | Stop -> Unit\n"
                               "}\n")),
-    ?assertEqual("the reply-carrying value r is consumed on one path but not on another",
+    ?assertEqual("the reply-carrying value r is not consumed on this path",
                  err(Msg ++ "fn serve() : Unit with M = receive {\n"
                             "    Add(amount = n, reply = r) ->\n"
                             "        if n < 0 then serve() else answer(r, n)\n"
                             "  | Stop -> Unit\n"
                             "}\n")),
-    ?assertEqual("the reply-carrying value r is consumed on one path but not on another",
+    ?assertEqual("the reply-carrying value r is not consumed on this path",
                  err(Msg ++ "fn reject(m : String) : Unit = fault(m)\n"
                             "fn serve() : Unit with M = receive {\n"
                             "    Add(amount = n, reply = r) ->\n"
@@ -1472,7 +1472,7 @@ reply_lambda_test() ->
                  " directly to spawn or spawnMonitored",
                  err(Msg ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                      "    let g = fn() = worker(r);\n    let h = g;\n    h() }")),
-    ?assertEqual("the reply-carrying value g is consumed on one path but not on another",
+    ?assertEqual("the reply-carrying value g is not consumed on this path",
                  err(Msg ++ "fn f(r : Reply(Int), b : Bool) : Unit with Never = {\n"
                      "    let g = fn() = worker(r);\n    if b then g() else Unit }")).
 

@@ -263,16 +263,19 @@ uses(#fn_decl{pos = Pos, body = Body}, Linear, Env) ->
                                        ++ atom_to_list(N) ++ " to it as a parameter"}})
     end;
 uses(#e_if{pos = Pos, condition = C, then_branch = T, else_branch = E}, Linear, Env) ->
-    seq([uses(C, Linear, Env), branches(Pos, [uses(T, Linear, Env), uses(E, Linear, Env)])]);
+    seq([uses(C, Linear, Env), branches(Pos, [{element(2, T), uses(T, Linear, Env)},
+                                              {element(2, E), uses(E, Linear, Env)}])]);
 uses(#e_match{pos = Pos, scrutinee = S, clauses = Clauses}, Linear, Env) ->
-    seq([uses(S, Linear, Env), branches(Pos, [clause_uses(C, Linear, Env) || C <- Clauses])]);
+    seq([uses(S, Linear, Env), branches(Pos, [{element(2, B), clause_uses(C, Linear, Env)}
+                                              || #clause{body = B} = C <- Clauses])]);
 uses(#e_receive{pos = Pos, clauses = Clauses, 'after' = After}, Linear, Env) ->
     AfterUses = case After of
                     undefined -> [];
                     #after_clause{timeout = T, body = B} ->
-                        [seq([uses(T, Linear, Env), uses(B, Linear, Env)])]
+                        [{element(2, B), seq([uses(T, Linear, Env), uses(B, Linear, Env)])}]
                 end,
-    branches(Pos, [clause_uses(C, Linear, Env) || C <- Clauses] ++ AfterUses);
+    branches(Pos, [{element(2, B), clause_uses(C, Linear, Env)} || #clause{body = B} = C <- Clauses]
+                  ++ AfterUses);
 uses(#e_block{stmts = Stmts}, Linear, Env) ->
     block_uses(Stmts, Linear, Env, []);
 uses(Node, Linear, Env) when is_tuple(Node) ->
@@ -353,27 +356,35 @@ seq(Lists) ->
 
 %% Branches must consume the same names, but for a branch that faults.
 %% Where every branch faults, the whole faults.
+%% Branches: each path's span and its uses. A path that faults consumes
+%% every obligation (§6.6), and the others must agree; report §11.5: one
+%% that lacks a use is reported where it stands, the use on another path
+%% labelled.
 branches(Pos, Branches) ->
-    case [B || B <- Branches, not lists:keymember('$fault', 1, B)] of
+    case [B || {_, U} = B <- Branches, not lists:keymember('$fault', 1, U)] of
         [] when Branches =/= [] -> [{'$fault', Pos}];
-        Returning -> compared(Pos, Returning)
+        Returning -> compared(Returning)
     end.
 
-compared(_Pos, []) ->
+compared([]) ->
     [];
-compared(Pos, [First | Others]) ->
-    Names = lists:usort([N || {N, _} <- First]),
-    lists:foreach(fun(Other) ->
-                      case lists:usort([N || {N, _} <- Other]) of
-                          Names -> ok;
-                          Ns ->
-                              [N | _] = (Names -- Ns) ++ (Ns -- Names),
-                              throw({type_error, Pos, "the reply-carrying value "
-                                                      ++ atom_to_list(N)
-                                                      ++ " is consumed on one path but not"
-                                                      " on another"})
+compared([{_, First} | _] = Branches) ->
+    Names = lists:usort([N || {_, U} <- Branches, {N, _} <- U]),
+    lists:foreach(fun(N) ->
+                      case [S || {S, U} <- Branches, not lists:keymember(N, 1, U)] of
+                          [] ->
+                              ok;
+                          [Lacking | _] ->
+                              [Used | _] = [P || {_, U} <- Branches, {M, P} <- U, M =:= N],
+                              throw({type_error,
+                                     #diag{span = ern_diag:span(Lacking),
+                                           message = "the reply-carrying value "
+                                                     ++ atom_to_list(N)
+                                                     ++ " is not consumed on this path",
+                                           labels = [{ern_diag:span(Used),
+                                                      "consumed here, on another path"}]}})
                       end
-                  end, Others),
+                  end, Names),
     First.
 
 exactly_once(N, Uses, Pos) ->
