@@ -71,7 +71,7 @@ export type Finished = Finished(status : Int, stdout : Bytes, stderr : Bytes)
 /// ```
 export abstract type ProgramMsg =
     Read(reply : Reply(Either(Io.Error, Output)))
-  | Write(bytes : Bytes, reply : Reply(Unit))
+  | Write(bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
   | CloseInput
 
 // What Os's system process takes: a program to start, with the process
@@ -224,29 +224,31 @@ export fn read(program : Address(ProgramMsg)) : Either(Io.Error, Output) with m 
     Address.callForever(program, fn(r) = Read(reply = r))
 
 /// Gives the bytes to the program as its input, after what it was given
-/// before, and returns once the program has taken them, waiting while it is
-/// behind. A program that stops reading its input, as one whose output no
-/// one reads may, holds its writer; a program that both takes much input
-/// and writes much output is written to by one process and read by another.
-/// Bytes given after `Os.closeInput`, or once the program has closed its
-/// input, are dropped.
+/// before, and answers `Right(Unit)` once the program has taken them,
+/// waiting while it is behind. A program that stops reading its input, as
+/// one whose output no one reads may, holds its writer; a program that both
+/// takes much input and writes much output is written to by one process and
+/// read by another.
 ///
 /// ### Errors
 ///
-/// A write after the program's process has ended faults as
-/// `Address.callForever` does.
+/// Bytes given after `Os.closeInput`, or once the program has closed its
+/// input or has exited, are dropped, and the write answers `Left(Closed)`.
+/// It answers `Left(Other(text))` when the runtime loses the program for a
+/// reason of the host's. A write after the program's process has ended
+/// faults as `Address.callForever` does.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// {
 ///     let cat <- Os.start(Os.Command(program = "cat", arguments = [], input = <<>>), 5000);
-///     Os.write(cat, String.toUtf8("hi"));
+///     let _ <- Os.write(cat, String.toUtf8("hi"));
 ///     Os.read(cat)
 /// }
 /// // => Right(Stdout(<<104, 105>>))
 /// ```
-export fn write(program : Address(ProgramMsg), bytes : Bytes) : Unit with m =
+export fn write(program : Address(ProgramMsg), bytes : Bytes) : Either(Io.Error, Unit) with m =
     Address.callForever(program, fn(r) = Write(bytes = bytes, reply = r))
 
 /// Ends the program's input once what it was given before is written.

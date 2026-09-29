@@ -90,7 +90,8 @@ fn handler(sessions : Address(SessionMsg), seq : Int, sock : Address(Tcp.SockMsg
         Right(bytes) -> match parse(bytes) {
             Left(_) -> {
                 let bad = Response(status = StatusCode.badRequest, headers = [], body = "");
-                Tcp.write(sock, render(bad));
+                // the connection is closed whether the far end took it or not
+                let _ = Tcp.write(sock, render(bad));
                 Tcp.close(sock)
             }
           | Right(req) -> {
@@ -104,7 +105,7 @@ fn handler(sessions : Address(SessionMsg), seq : Int, sock : Address(Tcp.SockMsg
                     Response(status = StatusCode.ok, headers = [], body = body)
                         |> withCookie("sid", SessionId.text(id))
                         |> render;
-                Tcp.write(sock, bytes);
+                let _ = Tcp.write(sock, bytes);
                 Tcp.close(sock)
             }
         }

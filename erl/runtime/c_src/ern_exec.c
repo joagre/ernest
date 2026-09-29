@@ -16,9 +16,10 @@
  *   the helper ends.
  *
  *   From the program: 's' it started; 'f' and an error's name, it did not
- *   start; 'a' the program has taken the bytes of one 'i', or they were
- *   dropped, one for each 'i' in order, so that a writer waits while the
- *   program is behind; 'o' bytes of its output; 'r' bytes of its standard
+ *   start; 'a' the program has taken the bytes of one 'i', or 'd' they
+ *   were dropped, one of the two for each 'i' in order, so that a writer
+ *   waits while the program is behind and learns whether its bytes were
+ *   taken; 'o' bytes of its output; 'r' bytes of its standard
  *   error, each answering one 'n', so that a program no one asks waits on
  *   its output;
  *   'x' and a 4-byte big-endian status, once it has exited and both its
@@ -112,18 +113,23 @@ static int not_started(int error)
 static unsigned char *pending = NULL;
 static size_t pending_size = 0, pending_capacity = 0;
 
-/* The end of each 'i' not yet answered by an 'a', as a count of the input's
-   bytes from its start, oldest first; taken is how many the program has
-   taken, accepted how many were given. */
-static uint64_t *ends = NULL;
+/* The end of each 'i' not yet answered, as a count of the input's bytes
+   from its start, oldest first, and whether it was dropped, given after
+   the end of the input; taken is how many the program has taken, accepted
+   how many were given. */
+struct end {
+    uint64_t at;
+    int dropped;
+};
+static struct end *ends = NULL;
 static size_t ends_count = 0, ends_capacity = 0;
 static uint64_t accepted = 0, taken = 0;
 
-static void push_end(uint64_t end)
+static void push_end(uint64_t at, int dropped)
 {
     if (ends_count == ends_capacity) {
         size_t capacity = ends_capacity ? 2 * ends_capacity : 64;
-        uint64_t *grown = realloc(ends, capacity * sizeof *ends);
+        struct end *grown = realloc(ends, capacity * sizeof *ends);
         if (grown == NULL) {
             kill_program();
             _exit(1);
@@ -131,16 +137,19 @@ static void push_end(uint64_t end)
         ends = grown;
         ends_capacity = capacity;
     }
-    ends[ends_count++] = end;
+    ends[ends_count].at = at;
+    ends[ends_count].dropped = dropped;
+    ends_count++;
 }
 
-/* An 'a' for every 'i' whose bytes the program has taken, or, where its
-   input is gone, for every 'i' still waiting. */
-static void acknowledge(int dropped)
+/* An 'a' for every 'i' whose bytes the program has taken, a 'd' for every
+   'i' given after the end of its input once the input before it is taken,
+   and, where its input is gone, a 'd' for every other 'i' still waiting. */
+static void acknowledge(int gone)
 {
     size_t n = 0;
-    while (n < ends_count && (dropped || ends[n] <= taken)) {
-        frame('a', NULL, 0);
+    while (n < ends_count && (gone || ends[n].at <= taken)) {
+        frame(ends[n].at <= taken && !ends[n].dropped ? 'a' : 'd', NULL, 0);
         n++;
     }
     if (n > 0) {
@@ -305,11 +314,11 @@ int main(int argc, char **argv)
                         if (program_in >= 0 && !input_ended) {
                             add_pending(body + 1, body_size - 1);
                             accepted += body_size - 1;
-                            push_end(accepted);
+                            push_end(accepted, 0);
                         } else if (program_in >= 0) {
-                            push_end(accepted);
+                            push_end(accepted, 1);
                         } else {
-                            frame('a', NULL, 0);
+                            frame('d', NULL, 0);
                         }
                     }
                     else if (body_size > 0 && body[0] == 'e')

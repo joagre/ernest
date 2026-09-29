@@ -2,7 +2,7 @@
 /// A socket is a process: its address can be sent, monitored, killed, and
 /// adapted with `via` like any other. It lives until `Tcp.close`, and a
 /// read after that faults. Once its connection has closed from the far
-/// end, each read answers `Left(Closed)`.
+/// end, each read and each write answers `Left(Closed)`.
 /// A listener lives until `Tcp.closeListener`. A read, an accept, or a
 /// connect that times out has taken nothing, so bytes that arrive later
 /// wait for the next read. There are no socket options; framing is
@@ -20,16 +20,16 @@
 ///     let port <- Tcp.port(listener);
 ///     let _ = spawn(Local, fn() = match Tcp.accept(listener, 1000) {
 ///         Right(peer) -> {
-///             match Tcp.read(peer, 1000) {
+///             let _ = match Tcp.read(peer, 1000) {
 ///                 Right(bytes) -> Tcp.write(peer, bytes)
-///               | Left(_) -> Unit
+///               | Left(e) -> Left(e)
 ///             };
 ///             Tcp.close(peer)
 ///         }
 ///       | Left(_) -> Unit
 ///     });
 ///     let client <- Tcp.connect("127.0.0.1", port, 1000);
-///     Tcp.write(client, String.toUtf8("ping"));
+///     let _ <- Tcp.write(client, String.toUtf8("ping"));
 ///     let answer = Tcp.read(client, 1000);
 ///     Tcp.close(client);
 ///     Tcp.closeListener(listener);
@@ -71,7 +71,7 @@ export abstract type ListenerMsg =
 /// ```
 export abstract type SockMsg =
     Recv(ms : Int, reply : Reply(Either(Io.Error, Bytes)))
-  | Send(bytes : Bytes, reply : Reply(Unit))
+  | Send(bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
   | Close
   | FarEnd(reply : Reply(Either(Io.Error, Endpoint)))
   | NearEnd(reply : Reply(Either(Io.Error, Endpoint)))
@@ -165,15 +165,18 @@ export fn connect(host : String, port : Int, ms : Int) : Either(Io.Error, Addres
 export fn read(socket : Address(SockMsg), ms : Int) : Either(Io.Error, Bytes) with m =
     Address.callForever(socket, fn(r) = Recv(ms = ms, reply = r))
 
-/// Writes the bytes to the socket, and returns once the socket has taken
-/// them, waiting while the connection is behind. A connection that fails
-/// shows as `Left(Io.Closed)` from the next read.
+/// Writes the bytes to the socket, and answers `Right(Unit)` once the
+/// socket has taken them, waiting while the connection is behind. That the
+/// socket took them does not mean that the far end has them.
 ///
 /// ### Errors
 ///
-/// A write to a socket that has been closed faults as
-/// `Address.callForever` does on an ended process.
-export fn write(socket : Address(SockMsg), bytes : Bytes) : Unit with m =
+/// Answers `Left(Closed)` once the connection has closed, from either end
+/// or by a failure, and `Left(Other(text))`, the host's reason, when the
+/// host refuses the bytes for another. A write to a socket that has been
+/// closed with `Tcp.close` faults as `Address.callForever` does on an
+/// ended process.
+export fn write(socket : Address(SockMsg), bytes : Bytes) : Either(Io.Error, Unit) with m =
     Address.callForever(socket, fn(r) = Send(bytes = bytes, reply = r))
 
 /// Closes the socket, which ends its process.

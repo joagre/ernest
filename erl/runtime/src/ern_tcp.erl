@@ -175,12 +175,16 @@ socket_process(Tcp, Socket) ->
 %% they came, in a process of their own, so that a write the far end holds
 %% back holds up no read and no read's time limit. A write is counted as a
 %% source by the socket, which the writer tells when it has answered, and
-%% whether the connection had gone.
+%% whether the connection had gone. Report Appendix E.18: the answer says
+%% whether the socket took the bytes, and why not.
 writer(Socket, Owner) ->
     receive
         {'Send', Bytes, Reply} ->
             Sent = gen_tcp:send(Socket, Bytes),
-            ern_rt:answer(Reply, 'Unit'),
+            ern_rt:answer(Reply, case Sent of
+                                     ok -> {'Right', 'Unit'};
+                                     {error, Reason} -> {'Left', io_error(Reason)}
+                                 end),
             Owner ! {written, Sent},
             writer(Socket, Owner);
         stop ->
@@ -212,8 +216,9 @@ socket_loop(Socket, Writer, Waiting, Buffer, State) ->
         %% report Appendix E.18: answered once the socket has taken the
         %% bytes, by the writer, which gen_tcp holds while the connection is
         %% behind
+        %% report Appendix E.18: a write after the connection has closed
         {'Send', _, Reply} when State =:= closed ->
-            ern_rt:answer(Reply, 'Unit'),
+            ern_rt:answer(Reply, {'Left', 'Closed'}),
             socket_loop(Socket, Writer, Waiting, Buffer, State);
         {'Send', _, _} = Send ->
             ern_rt:source_begin(),

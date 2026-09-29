@@ -35,9 +35,9 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never = {
 }
 
 fn echo(peer : Address(Tcp.SockMsg)) : Unit with Never = {
-    match Tcp.read(peer, 1000) {
+    let _ = match Tcp.read(peer, 1000) {
         Right(bytes) -> Tcp.write(peer, bytes)
-      | Left(_) -> Unit
+      | Left(e) -> Left(e)
     };
     Tcp.close(peer)
 }
@@ -63,7 +63,7 @@ fn once(port : Int) : Unit with Never =
     match Tcp.connect("127.0.0.1", port, 1000) {
         Right(client) -> {
             let _ = Tcp.read(client, 0);
-            Tcp.write(client, String.toUtf8("ping"));
+            let _ = Tcp.write(client, String.toUtf8("ping"));
             let _ = Tcp.read(client, 1000);
             Tcp.close(client)
         }

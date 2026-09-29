@@ -2309,7 +2309,8 @@ os_start_output_waits_for_a_read_test() ->
     ?assertEqual(<<"#(false, true, true)\n">>, Out).
 
 %% Appendix E.23: the program reads `input`, then what write gives it,
-%% until closeInput; what is written after that is dropped
+%% until closeInput; what is written after that is dropped, and the write
+%% answers Left(Closed)
 os_start_write_then_close_test() ->
     {ok, Out} = run([
         "fn collect(p : Address(Os.ProgramMsg), got : Bytes) : Bytes with m = match Os.read(p) {\n"
@@ -2319,14 +2320,14 @@ os_start_write_then_close_test() ->
         "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"cat\",\n"
         "    arguments = [], input = String.toUtf8(\"a\")), 5000) {\n"
         "    Right(p) -> {\n"
-        "        Os.write(p, String.toUtf8(\"b\"));\n"
+        "        let taken = Os.write(p, String.toUtf8(\"b\"));\n"
         "        Os.closeInput(p);\n"
-        "        Os.write(p, String.toUtf8(\"c\"));\n"
-        "        Io.println(Io.show(String.fromUtf8(collect(p, <<>>))))\n"
+        "        let dropped = Os.write(p, String.toUtf8(\"c\"));\n"
+        "        Io.println(Io.show(#(taken, dropped, String.fromUtf8(collect(p, <<>>)))))\n"
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"]),
-    ?assertEqual(<<"Some(\"ab\")\n">>, Out).
+    ?assertEqual(<<"#(Right(Unit), Left(Closed), Some(\"ab\"))\n">>, Out).
 
 %% Appendix E.23, report §6.9: a running program is a process, which
 %% `monitor` watches and `kill` stops, the program and its process group
@@ -2563,8 +2564,9 @@ paced(Setup) ->
     run(["type Msg = Done | Ended(Down)\n",
          Setup,
          "fn chunk() : Bytes = String.toUtf8(String.repeat(\"x\", 65536))\n"
-         "fn writes(write : (Bytes) -> Unit with Never, n : Int) : Unit with Never =\n"
-         "    if n == 0 then Unit else { write(chunk()); writes(write, n - 1) }\n"
+         "fn writes(write : (Bytes) -> Either(Io.Error, Unit) with Never, n : Int)"
+         " : Unit with Never =\n"
+         "    if n == 0 then Unit else { let _ = write(chunk()); writes(write, n - 1) }\n"
          "fn done() : Bool with Msg =\n"
          "    receive { Done -> true | after 0 -> false }\n"]).
 
@@ -2590,8 +2592,11 @@ os_write_waits_test() ->
         "        let n = drain(p, 0);\n"
         "        receive { Done -> Unit };\n"
         "        Io.println(Io.show(#(early, n)));\n"
-        "        let _ = spawnMonitored(Local, fn() : Unit with Never = Os.write(p, <<1>>),\n"
-        "            Ended);\n"
+        "        let late = fn() : Unit with Never = {\n"
+        "            let _ = Os.write(p, <<1>>);\n"
+        "            Unit\n"
+        "        };\n"
+        "        let _ = spawnMonitored(Local, late, Ended);\n"
         "        receive { Ended(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
@@ -2627,8 +2632,11 @@ tcp_write_waits_test() ->
         "                    Tcp.close(s);\n"
         "                    receive { after 50 -> Unit };\n"
         "                    Io.println(Io.show(#(early, n)));\n"
-        "                    let _ = spawnMonitored(Local,\n"
-        "                        fn() : Unit with Never = Tcp.write(s, <<1>>), Ended);\n"
+        "                    let late = fn() : Unit with Never = {\n"
+        "                        let _ = Tcp.write(s, <<1>>);\n"
+        "                        Unit\n"
+        "                    };\n"
+        "                    let _ = spawnMonitored(Local, late, Ended);\n"
         "                    receive {\n"
         "                        Ended(Down(reason = r, site = _)) -> Io.println(Io.show(r))\n"
         "                    }\n"
@@ -2641,6 +2649,37 @@ tcp_write_waits_test() ->
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"),
     ?assertEqual(<<"#(false, 4194304)\nFault(\"callee had ended\")\n">>, Out).
+
+%% Appendix E.18: a write answers Right(Unit) once the socket has taken the
+%% bytes, and Left(Closed) once the connection has closed; the far end's
+%% close is learned here by a read, so that the answer does not depend on
+%% when the host reports it
+tcp_write_answers_closed_test() ->
+    {ok, Out} = run([
+        "export fn main() : Unit with Never = match Tcp.listen(\"127.0.0.1\", 0) {\n"
+        "    Right(l) -> match Tcp.port(l) {\n"
+        "        Right(port) -> {\n"
+        "            let _ = spawn(Local, fn() : Unit with Never = match Tcp.accept(l, 5000) {\n"
+        "                Right(s) -> {\n"
+        "                    let _ = Tcp.read(s, 5000);\n"
+        "                    Tcp.close(s)\n"
+        "                }\n"
+        "              | Left(_) -> Unit\n"
+        "            });\n"
+        "            match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
+        "                Right(c) -> {\n"
+        "                    let taken = Tcp.write(c, <<1>>);\n"
+        "                    let ended = Tcp.read(c, 5000);\n"
+        "                    Io.println(Io.show(#(taken, ended, Tcp.write(c, <<2>>))))\n"
+        "                }\n"
+        "              | Left(e) -> Io.println(Io.show(e))\n"
+        "            }\n"
+        "        }\n"
+        "      | Left(e) -> Io.println(Io.show(e))\n"
+        "    }\n"
+        "  | Left(e) -> Io.println(Io.show(e))\n"
+        "}\n"]),
+    ?assertEqual(<<"#(Right(Unit), Left(Closed), Left(Closed))\n">>, Out).
 
 %% report §8.2: a write to standard output returns once the stream has taken
 %% it, so a program writing to a slow stream goes at its pace

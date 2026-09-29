@@ -4,7 +4,6 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 
 ## The report
 
-- 2.98 — `Tcp.write` and `Os.write` fail silently (P13)
 - 2.98 — bitstring sizes cannot name a top-level constant or a variable bound to their left (P16)
 - 2.98 — `Int.div` and `Int.mod` are prelude variants of `/` and `%`, and `mod` is a remainder (P17, K-B6)
 - 2.98 — `Address.callForever` beside `Address.call` is a second way (P18)

@@ -22,7 +22,7 @@ export fn main() : Unit with Msg = {
               | Right(socket) -> {
                     let rounds = 2000;
                     let started = Clock.now();
-                    roundTrips(socket, rounds);
+                    let _ = roundTrips(socket, rounds);
                     let elapsed = Clock.now() - started;
                     Tcp.close(socket);
                     Tcp.closeListener(listener);
@@ -40,15 +40,14 @@ export fn main() : Unit with Msg = {
     }
 }
 
-fn roundTrips(socket : Address(Tcp.SockMsg), left : Int) : Unit with m =
+// The round trips stop at the first write or read that fails.
+fn roundTrips(socket : Address(Tcp.SockMsg), left : Int) : Either(Io.Error, Unit) with m =
     if left <= 0 then
-        Unit
+        Right(Unit)
     else {
-        Tcp.write(socket, String.toUtf8("ping"));
-        match Tcp.read(socket, 5000) {
-            Right(_) -> roundTrips(socket, left - 1)
-          | Left(_) -> Unit
-        }
+        let _ <- Tcp.write(socket, String.toUtf8("ping"));
+        let _ <- Tcp.read(socket, 5000);
+        roundTrips(socket, left - 1)
     }
 
 fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
@@ -58,12 +57,13 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
     }
 
 // A socket lives until it is closed, so the server closes the one whose
-// connection has ended (report Appendix E.18).
+// connection has ended, which a read or a write tells it (report Appendix
+// E.18).
 fn echo(socket : Address(Tcp.SockMsg)) : Unit with Never =
     match Tcp.read(socket, 5000) {
-        Right(bytes) -> {
-            Tcp.write(socket, bytes);
-            echo(socket)
+        Right(bytes) -> match Tcp.write(socket, bytes) {
+            Right(_) -> echo(socket)
+          | Left(_) -> Tcp.close(socket)
         }
       | Left(_) -> Tcp.close(socket)
     }

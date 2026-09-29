@@ -114,10 +114,10 @@ starting(#{port := Port, deadline := Deadline} = Run, Reply) ->
 %% which it can learn only while a read waits; so a read waits for every
 %% piece and for the status. The exit status is the last answer, and the process
 %% returns after it. Report Appendix E.23: a write is answered when the
-%% helper says the program has taken its bytes, one `a` for each input in
-%% order, the replies kept in the run's `writes`, so that a writer waits
-%% while the program is behind; what still waits when the program ends is
-%% answered then.
+%% helper says the program has taken its bytes, `a`, or dropped them, `d`,
+%% one for each input in order, the replies kept in the run's `writes`, so
+%% that a writer waits while the program is behind; what still waits when
+%% the program ends is answered then.
 running(#{port := Port} = Run, Waiting) ->
     receive
         {'Read', Reply} ->
@@ -126,9 +126,9 @@ running(#{port := Port} = Run, Waiting) ->
         {'Write', Bytes, Reply} ->
             command(Port, <<"i", Bytes/binary>>),
             running(Run#{writes := queue:in(Reply, maps:get(writes, Run))}, Waiting);
-        {Port, {data, <<"a">>}} ->
+        {Port, {data, <<Tag>>}} when Tag =:= $a; Tag =:= $d ->
             {{value, Written}, Rest} = queue:out(maps:get(writes, Run)),
-            Written =:= none orelse ern_rt:answer(Written, 'Unit'),
+            Written =:= none orelse ern_rt:answer(Written, written(Tag)),
             running(Run#{writes := Rest}, Waiting);
         'CloseInput' ->
             command(Port, <<"e">>),
@@ -136,7 +136,7 @@ running(#{port := Port} = Run, Waiting) ->
         {Port, {data, <<"x", Status:32>>}} ->
             {{value, Reply}, _} = queue:out(Waiting),
             stop(Run),
-            unwritten(Run),
+            unwritten(Run, {'Left', 'Closed'}),
             answered(Reply, {'Right', {'Exited', Status}});
         {Port, {data, <<Tag, Bytes/binary>>}} ->
             {{value, Reply}, Rest} = queue:out(Waiting),
@@ -145,14 +145,17 @@ running(#{port := Port} = Run, Waiting) ->
         {Port, {exit_status, _}} ->
             %% the helper ended with no status to send: it failed
             stop(Run),
-            unwritten(Run),
+            unwritten(Run, {'Left', helper_failed()}),
             over(Waiting, {'Left', helper_failed()});
         {'DOWN', _, process, _, _} ->
             killed(Run);
         {timeout, _} = Tick ->
             case timed_out(Run, Tick) of
                 {again, Run1} -> running(Run1, Waiting);
-                over -> stop(Run), unwritten(Run), over(Waiting, {'Left', 'Timeout'})
+                over ->
+                    stop(Run),
+                    unwritten(Run, {'Left', 'Closed'}),
+                    over(Waiting, {'Left', 'Timeout'})
             end
     end.
 
@@ -161,10 +164,16 @@ running(#{port := Port} = Run, Waiting) ->
 command(Port, Frame) ->
     try erlang:port_command(Port, Frame) catch error:badarg -> closed end.
 
+%% Report Appendix E.23: bytes the program took, and bytes dropped, given
+%% after the end of its input or after it closed it.
+written($a) -> {'Right', 'Unit'};
+written($d) -> {'Left', 'Closed'}.
+
 %% The writes still waiting when the program has ended: their bytes are
-%% dropped, as a write after the end of the input is.
-unwritten(#{writes := Writes}) ->
-    [ern_rt:answer(R, 'Unit') || R <- queue:to_list(Writes), R =/= none],
+%% dropped, and each is answered that its input is closed, or why the
+%% runtime lost the program.
+unwritten(#{writes := Writes}, Answer) ->
+    [ern_rt:answer(R, Answer) || R <- queue:to_list(Writes), R =/= none],
     ok.
 
 piece($o, Bytes) -> {'Stdout', Bytes};
@@ -172,7 +181,8 @@ piece($r, Bytes) -> {'Stderr', Bytes}.
 
 %% A program killed for its time, or whose helper failed: the first read,
 %% waiting or to come, is answered why, and the process returns; what is
-%% written to it meanwhile is dropped. The process that started it may
+%% written to it meanwhile is dropped, and answered as unwritable/1 says.
+%% The process that started it may
 %% still die first, which ends this one as it would have ended the program.
 over(Waiting, Answer) ->
     case queue:out(Waiting) of
@@ -186,10 +196,15 @@ over(Waiting, Answer) ->
 over(Answer) ->
     receive
         {'Read', Reply} -> ern_rt:answer(Reply, Answer);
-        {'Write', _, Written} -> ern_rt:answer(Written, 'Unit'), over(Answer);
+        {'Write', _, Written} -> ern_rt:answer(Written, unwritable(Answer)), over(Answer);
         'CloseInput' -> over(Answer);
         {'DOWN', _, process, _, _} -> exit({ern, killed})
     end.
+
+%% A write to a program killed for its time finds its input closed; one to
+%% a program the runtime lost is told why, as a read is.
+unwritable({'Left', 'Timeout'}) -> {'Left', 'Closed'};
+unwritable(Answer) -> Answer.
 
 %% The time limit, armed as the host's longest timer allows and armed again
 %% until it has passed (report §6.3).

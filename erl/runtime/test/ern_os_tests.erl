@@ -4,9 +4,9 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% Appendix E.23: a write and a read that wait while the helper ends are
-%% answered, the write as one after the program's end is and the read with
-%% why. A regression test: the process gave them to the port the helper's
-%% end had closed, and crashed with badarg (findings C9)
+%% answered with why the runtime lost the program. A regression test: the
+%% process gave them to the port the helper's end had closed, and crashed
+%% with badarg (findings C9)
 helper_ends_under_a_write_and_a_read_test() ->
     Me = self(),
     ok = ern_rt:run_main(
@@ -25,7 +25,7 @@ helper_ends_under_a_write_and_a_read_test() ->
                Me ! {write, answer(Written)},
                Me ! {read, answer(Read)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual('Unit', wait(write)),
+    ?assertMatch({'Left', {'Other', _}}, wait(write)),
     ?assertMatch({'Left', {'Other', _}}, wait(read)).
 
 %% Appendix E.23: the helper answers each 'i' in order, one taken after the
@@ -42,7 +42,25 @@ helper_answers_input_in_order_test() ->
     true = port_command(Port, <<"i", (binary:copy(<<"x">>, 200000))/binary>>),
     true = port_command(Port, <<"e">>),
     true = port_command(Port, <<"i", "y">>),
-    ?assertEqual(none, receive {Port, {data, <<"a">>}} -> answered after 300 -> none end),
+    ?assertEqual(none, receive
+                           {Port, {data, <<T>>}} when T =:= $a; T =:= $d -> answered
+                       after 300 -> none
+                       end),
+    port_close(Port).
+
+%% Appendix E.23: bytes given once the program has closed its input are
+%% dropped, and the helper says so with `d`, where it says `a` of bytes the
+%% program took. The program closes its input and is given time to, so
+%% that the bytes do not reach the pipe before it is closed
+helper_says_input_was_dropped_test() ->
+    Helper = filename:join([filename:dirname(code:which(ern_os)), "..", "priv", "ern_exec"]),
+    Port = open_port({spawn_executable, Helper},
+                     [{args, ["sh", "-c", "exec 0<&-; sleep 2"]}, {packet, 4}, binary,
+                      exit_status]),
+    receive {Port, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
+    receive after 300 -> ok end,
+    true = port_command(Port, <<"i", "x">>),
+    ?assertEqual(<<"d">>, receive {Port, {data, D}} -> D after 5000 -> none end),
     port_close(Port).
 
 %% Appendix E.23: a program the host cannot start, here for want of a file
