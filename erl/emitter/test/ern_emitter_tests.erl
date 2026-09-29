@@ -567,8 +567,8 @@ io_debug_escapes_test() ->
                     "}\n"),
     ?assertEqual(<<"\"a\\\"b\\\\c\\n\\t\\u{1}\\u{7F}é\"\n"/utf8>>, Out).
 
-%% report §8.2: keys and lines are the same terminal, so a program that
-%% does both ends with a fault naming the side that holds it
+%% report §8.2: keys and lines are the same terminal, so the process that
+%% claims it the other way faults, naming the side that holds it
 terminal_is_lines_or_keys_test() ->
     {R1, _} = run_at_terminal("type Msg = Pressed(Terminal.Event)\n"
                   "export fn main() : Unit with Msg = {\n"
@@ -577,6 +577,30 @@ terminal_is_lines_or_keys_test() ->
                   "    receive { Pressed(_) -> Unit }\n"
                   "}\n"),
     ?assertEqual({fault, <<"the terminal is already read as lines">>}, R1).
+
+%% report §8.2, §7.4: a claim of the terminal the other way faults the
+%% process that makes it, and the first claim stands: a worker that
+%% subscribes after main read a line faults, and main reads on. A
+%% regression test: the entry process faulted, whoever asked
+terminal_claim_faults_its_caller_test() ->
+    ?assertEqual({ok, <<"the terminal is already read as lines\nread on\n">>},
+                 run_at_terminal("type Msg = Pressed(Terminal.Event)\n"
+                                 "type MainMsg = Ended(Down)\n"
+                                 "fn watch() : Unit with Msg = {\n"
+                                 "    let _ = Terminal.subscribe(Pressed);\n"
+                                 "    Unit\n"
+                                 "}\n"
+                                 "export fn main() : Unit with MainMsg = {\n"
+                                 "    let _ = Io.readLine();\n"
+                                 "    let _ = spawnMonitored(Local, watch, Ended);\n"
+                                 "    receive {\n"
+                                 "        Ended(Down(reason = Fault(c), site = _)) ->\n"
+                                 "            Io.println(c)\n"
+                                 "      | Ended(_) -> Io.println(\"ended\")\n"
+                                 "    };\n"
+                                 "    let _ = Io.readLine();\n"
+                                 "    Io.println(\"read on\")\n"
+                                 "}\n")).
 
 %% report §8.6, §7.4: a program whose every process waits forever ends
 %% with the entry process's fault, `deadlock`; a timed receive is a source

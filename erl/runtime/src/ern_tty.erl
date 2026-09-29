@@ -76,12 +76,18 @@ loop(Subscribers, Reader, Pending, Size) ->
                     exit(ern_rt:process_of(Address), {ern, fault, ern_rt:shell_holds()}),
                     loop(Subscribers, Reader, Pending, Size);
                 false ->
-                    Reader1 = start_reader(Reader),
-                    %% report §8.2: the mode is set before the caller goes
-                    %% on, so that nothing it types then is echoed
-                    ern_rt:answer(Reply, {'Right', 'Unit'}),
-                    loop(subscribe(Address, Subscribers, Reader, Reader1), Reader1, Pending,
-                         size_now())
+                    case start_reader(Reader) of
+                        {ok, Reader1} ->
+                            %% report §8.2: the mode is set before the caller
+                            %% goes on, so that nothing it types then is echoed
+                            ern_rt:answer(Reply, {'Right', 'Unit'}),
+                            loop(subscribe(Address, Subscribers, Reader, Reader1), Reader1,
+                                 Pending, size_now());
+                        {taken, Cause} ->
+                            %% report §8.2: the terminal is read as lines
+                            ern_rt:refuse(Reply, Cause),
+                            loop(Subscribers, Reader, Pending, Size)
+                    end
             end;
         {'DOWN', _, process, Pid, _} ->
             %% report §8.2: a subscription ends when its process dies
@@ -195,7 +201,8 @@ optional(none) -> 'None';
 optional(Size) -> {'Some', Size}.
 
 %% The reader runs once a program has asked for keys, and not before: a
-%% program that reads lines never leaves the terminal's line mode.
+%% program that reads lines never leaves the terminal's line mode, and a
+%% subscription after a line was read is refused with the cause.
 start_reader({unstarted, Open}) ->
     Tty = self(),
     case ern_rt:own_terminal(keys) of
@@ -213,14 +220,13 @@ start_reader({unstarted, Open}) ->
             ok = gen_event:add_handler(erl_signal_server, ern_tty_signal, Tty),
             %% linked, so that the reader ends with the terminal's process
             %% at the program's end and takes no key meant for what follows
-            erlang:spawn_link(fun() -> read_loop(Tty, Open) end);
-        taken ->
-            %% the program is already ending with the fault (report §8.2)
-            {unstarted, Open}
+            {ok, erlang:spawn_link(fun() -> read_loop(Tty, Open) end)};
+        {taken, Cause} ->
+            {taken, Cause}
     end;
 start_reader(Reader) ->
     %% running, or `closed` at the end of input, which no reader reopens
-    Reader.
+    {ok, Reader}.
 
 %% Report §8.2: each key as it is pressed and no echo. The mode is set by
 %% stty on the terminal itself, since the runtime reads standard input

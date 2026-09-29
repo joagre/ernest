@@ -2,28 +2,22 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% report §8.2: the terminal is read as lines or as keys, and the second
-%% side to ask is told it is taken, whichever asks first
+%% report §8.2: the terminal is read as lines or as keys; a claim the same
+%% way stands, and one the other way is refused with the cause
 own_terminal_test() ->
-    Result = ern_rt:run_main(fun() ->
-                                 Me = ern_rt:self(),
-                                 Me ! {owned, ern_rt:own_terminal(keys)},
-                                 Me ! {owned, ern_rt:own_terminal(keys)},
-                                 Me ! {owned, ern_rt:own_terminal(lines)},
-                                 receive after 50 -> ok end
-                             end, <<"own_terminal_test">>, #{}),
-    ?assertEqual({fault, <<"the terminal is already read as keys">>}, Result).
+    ets:new(ern_processes, [named_table, public, set]),
+    Owned = [ern_rt:own_terminal(keys), ern_rt:own_terminal(keys), ern_rt:own_terminal(lines)],
+    ets:delete(ern_processes),
+    ?assertEqual([ok, ok, {taken, <<"the terminal is already read as keys">>}], Owned).
 
 %% report §8.2: readers of the terminal asking at once, some for lines and
 %% some for keys, are one reading and refusals. A regression test: the
 %% check and the claim were two steps, and both sides could pass the
-%% check. The launcher ends a run at the first refusal, so the claims are
-%% made here against the table a run would have. A race can be won by
-%% luck, so a pass confirms the order rather than proving it
+%% check. The claims are made here against the table a run would have. A
+%% race can be won by luck, so a pass confirms the order rather than
+%% proving it
 own_terminal_race_test() ->
     ets:new(ern_processes, [named_table, public, set]),
-    Run = make_ref(),
-    persistent_term:put({ern_rt, launcher}, {self(), Run}),
     Me = self(),
     Kinds = [case I rem 2 of 0 -> keys; 1 -> lines end || I <- lists:seq(1, 64)],
     Askers = [spawn(fun() ->
@@ -32,13 +26,10 @@ own_terminal_race_test() ->
                     end) || K <- Kinds],
     [A ! go || A <- Askers],
     Owned = [receive {owned, K, R} -> {K, R} after 1000 -> timeout end || _ <- Kinds],
-    Refused = [receive {fault, Run, Text} -> Text after 1000 -> timeout end
-               || {_, taken} <- Owned],
     ets:delete(ern_processes),
-    persistent_term:erase({ern_rt, launcher}),
-    ?assertEqual(1, length(lists:usort([K || {K, ok} <- Owned]))),
-    ?assertEqual(64, length([R || {_, R} <- Owned, R =:= ok orelse R =:= taken])),
-    ?assertEqual([], [T || T <- Refused, not is_binary(T)]).
+    [Winner] = lists:usort([K || {K, ok} <- Owned]),
+    Cause = <<"the terminal is already read as ", (atom_to_binary(Winner))/binary>>,
+    ?assertEqual([], [R || {_, R} <- Owned, R =/= ok, R =/= {taken, Cause}]).
 
 %% report §8.2, §7.3: a read of the standard input that fails is a failure
 %% of the runtime, which ends the program with a fault that names it, and an

@@ -30,13 +30,14 @@
 -module(ern_rt).
 
 -export([send/2, process_of/1, spawn/3, spawn_monitored/4, self/0, via/2, call/3, call_forever/2,
-         answer/2, monitor/2, kill/1, reason/1, live/0, processes/0, info/1, faults/1, proxy_for/3,
-         proxy_forget/2, source_begin/0, source_begin/1, source_end/0, opened/1, forget_opened/1,
-         timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1, undefined_function/3,
-         undefined_lambda/3, fault/1, fault/2, trace/1, sys/1, hold_terminal/1, terminal_holder/0,
-         shell_holds/0, own_terminal/1, input_not_utf8/0, read_input/1, run_main/3, arguments/0,
-         exit_program/1, deadlock_target/1, signal/1, binding/1, restarting/2, restart_now/0,
-         ask_restart/1, start_cause/0, init_stdlib/0, init_modules/1, ordered/1]).
+         answer/2, refuse/2, monitor/2, kill/1, reason/1, live/0, processes/0, info/1, faults/1,
+         proxy_for/3, proxy_forget/2, source_begin/0, source_begin/1, source_end/0, opened/1,
+         forget_opened/1, timed/0, untimed/0, deadline/1, remaining/1, in_foreign/1,
+         undefined_function/3, undefined_lambda/3, fault/1, fault/2, trace/1, sys/1,
+         hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1, input_not_utf8/0,
+         read_input/1, run_main/3, arguments/0, exit_program/1, deadlock_target/1, signal/1,
+         binding/1, restarting/2, restart_now/0, ask_restart/1, start_cause/0, init_stdlib/0,
+         init_modules/1, ordered/1]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -243,6 +244,12 @@ settled(Alias, Mon, Row) ->
 -spec answer(reply(), term()) -> 'Unit'.
 answer(Reply, V) ->
     Reply ! {Reply, V},
+    ?UNIT.
+
+%% Report §8.2, §7.4: a system process faults the caller it answers.
+-spec refuse(reply(), binary()) -> 'Unit'.
+refuse(Reply, Cause) ->
+    Reply ! {Reply, fault, Cause},
     ?UNIT.
 
 %%
@@ -914,9 +921,10 @@ line_guard(Addr) ->
     end.
 
 %% Report §8.2: which way the terminal is being read, keys or lines; a
-%% program does one or the other, and the second to ask ends it. The first
-%% to ask claims it in one step, so two that ask at once are one claim.
--spec own_terminal(lines | keys) -> ok | taken.
+%% program does one or the other, and the second to ask faults, with the
+%% cause returned here. The first to ask claims it in one step, so two that
+%% ask at once are one claim.
+-spec own_terminal(lines | keys) -> ok | {taken, binary()}.
 own_terminal(Kind) ->
     case ets:insert_new(?PROCESSES, {reading, Kind}) of
         true ->
@@ -926,8 +934,7 @@ own_terminal(Kind) ->
                 [{reading, Kind}] ->
                     ok;
                 [{reading, Other}] ->
-                    end_with_fault(format("the terminal is already read as ~s", [Other])),
-                    taken
+                    {taken, format("the terminal is already read as ~s", [Other])}
             end
     end.
 
@@ -951,8 +958,8 @@ stdin_loop(Open) ->
 
 stdin_loop(Open, Buffer) ->
     receive
-        %% report §8.2: a claim the terminal refuses ends the program, and
-        %% nothing is read for it
+        %% report §8.2: a claim the terminal refuses faults the process that
+        %% asked, and nothing is read for it
         {'ReadLine', Reply} ->
             case own_terminal(lines) of
                 ok ->
@@ -969,7 +976,8 @@ stdin_loop(Open, Buffer) ->
                            end,
                     source_end(),
                     stdin_loop(Open, Rest);
-                taken ->
+                {taken, Cause} ->
+                    refuse(Reply, Cause),
                     stdin_loop(Open, Buffer)
             end;
         {'Read', Reply} ->
@@ -982,7 +990,8 @@ stdin_loop(Open, Buffer) ->
                     end,
                     source_end(),
                     stdin_loop(Open, <<>>);
-                taken ->
+                {taken, Cause} ->
+                    refuse(Reply, Cause),
                     stdin_loop(Open, Buffer)
             end;
         {'EXIT', _, _} ->
@@ -1020,7 +1029,7 @@ without_return(Line) ->
 answer_line(Reply, Text) ->
     case unicode:characters_to_binary(Text, utf8, utf8) of
         Text -> answer(Reply, {'Some', Text});
-        _ -> Reply ! {Reply, fault, not_utf8()}
+        _ -> refuse(Reply, not_utf8())
     end.
 
 %% Report §8.2: what has arrived, at least one byte, or None at the end.

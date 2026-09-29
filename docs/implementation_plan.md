@@ -65,8 +65,13 @@ discussed with the user one at a time as they are met.
    Holds One Alternative a Line*); three decisions of the shell's, decided with the user and
    done 2026-09-29 (the log's *Three of the Shell's Choices*): a typed input named by its count,
    `input 3` (T26), line mode taking an input's further lines as a terminal does (T29), and the
-   shell's exit status and streams stated in §11.2 (T32); the diagnostics'
-   positions and labels (§11.5); the guide's gaps, `Tcp` untaught among them; and the documents
+   shell's exit status and streams stated in §11.2 (T32); the report's contradictions decided
+   with the user and done 2026-09-29, each argued in the log's entry of that name: a member
+   written `T.name` (§4.2), `Optional` and `Either` holding a reply (§6.6), a `receive` guard
+   reading a top-level `let` (§6.3), a lambda bound by `let` generalized (§4.6), the
+   supervisor's restart on request kept as it is (§6.9), and a claim of the terminal the other
+   way faulting the process that makes it (§8.2); the diagnostics' positions and labels
+   (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
    `create`, a new file or none; `removeAll`; `setModified`, done 2026-09-29, `readLink`
