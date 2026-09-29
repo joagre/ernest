@@ -52,7 +52,7 @@ taken out of order. Each has its paragraph under "Done". The first release is MV
 
 What the review of MVP 2.95 found and did not fix there, decided 2026-09-28 and moved from MVP
 3.0 the same day, since none of it needs a peer (the log's *MVP 3.0 Is Distributed Code and the
-Node Protocol*). It is taken in this order: 4, 5, 6, 3, 1, 2, the design questions of 2
+Node Protocol*). It is taken in this order: 4, 5, 6, 3, 1, 2, 7, the design questions of 2
 discussed with the user one at a time as they are met.
 
 1. **[`findings.md`](findings.md)'s `cheap` lines**, a batch a document, done 2026-09-29 (the
@@ -96,6 +96,16 @@ discussed with the user one at a time as they are met.
    with its arguments in place, and a variable with the equality restriction passes it to the
    variables of the type it is bound to. The same shape let a reply into a `List` nested in a
    tuple or an `Optional`, fixed with it (the log's *`==` on a Value That Holds a Function*).
+7. **A load sample that catches a process mid-work**, found 2026-09-29: about one run of
+   `make load` in ten fails a load that leaks nothing, the node's memory a few hundred
+   kilobytes higher in process heaps at one sample and back at the next, in `supervisors` and
+   `shell` alike. The same cause in the reaper's column, its heap a size larger where a
+   message came after the collection, was fixed the same day by collecting it again just
+   before it is read (`docs/memory.md`). The fix's shape: log each process's memory at each
+   sample until a swing is caught, and sample that process once it has settled, as the reaper
+   is. A statistic that leaves the swing out, the median of three, was tried and failed the
+   shell's load, whose last samples swing both ways. It is due before MVP 2.99's tag, whose
+   check runs the loads.
 
 ---
 

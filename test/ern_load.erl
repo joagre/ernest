@@ -91,11 +91,17 @@ mark(Round) ->
     'Unit'.
 
 %% The memory of the runtime's reaper, which holds every wait on a process
-%% (report §6.9), after its garbage is collected.
+%% (report §6.9), after its garbage is collected. It is collected again just
+%% before it is read: a message it took after the collection of every
+%% process leaves its heap a size larger at the sample, a step of the
+%% host's heap sizes that the next sample does not show.
 reaper_memory() ->
     case persistent_term:get({ern_rt, reaper}, none) of
-        none -> 0;
-        Pid -> element(2, erlang:process_info(Pid, memory))
+        none ->
+            0;
+        Pid ->
+            erlang:garbage_collect(Pid),
+            element(2, erlang:process_info(Pid, memory))
     end.
 
 rows(Table) ->

@@ -22,7 +22,7 @@ A load does the same work in each of fourteen rounds and calls `mark(round)`, a 
 
 - `memory`, the node's total, less the harness's own table;
 - `code`, the loaded code's;
-- `reaper`, the memory of the runtime's reaper, which holds every wait on a process;
+- `reaper`, the memory of the runtime's reaper, which holds every wait on a process, collected again just before it is read, since a message it takes after the first collection leaves its heap a size larger at that sample alone;
 - `atoms`, `procs` and `ports`, the node's counts;
 - `rows`, the rows of the runtime's tables `ern_processes`, `ern_calls` and `ern_held`;
 - `terms`, the persistent terms.
