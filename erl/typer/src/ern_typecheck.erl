@@ -30,7 +30,11 @@
               vars = #{}, effect = pure, st, pending = [], deferred = [],
               ann_vars = #{}, rigid = [], effect_origin = undefined,
               groups = #{}, typed = [], errs = [], reply_vars = [],
-              reply_params = #{}, let_order = [], effectful = false, effectful_lets = []}).
+              reply_params = #{}, let_order = [], effectful = false, effectful_lets = [],
+              generalizing = false}).
+%% generalizing: whether the lambda about to be inferred is a binding's
+%% whole value that is generalized, so that a type variable its annotation
+%% names first is rigid and quantified (report §3.9)
 %% effectful: whether the definition being checked has called a process-only
 %% function; effectful_lets: the top-level lets whose initializer has, which
 %% are not generalized (report §4.6)
@@ -1201,6 +1205,9 @@ check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) 
     %% which may spawn, send, and call, and may not receive
     Env0 = Env#env{st = St, effect = ?NEVER, effectful = false, pending = [],
                    deferred = [], ann_vars = AnnVars, rigid = maps:to_list(AnnVars),
+                   %% report §3.9: a lambda that is the whole initializer is
+                   %% generalized with it, and may name variables of its own
+                   generalizing = is_record(Body, e_lambda),
                    effect_origin = {top_let, Pos,
                                     "a top-level initializer runs as a body of mailbox type Never",
                                     "receive in a process the initializer spawns"}},
@@ -1701,8 +1708,17 @@ rigid_annotation_vars(Pos, Rigid, #env{st = St}) ->
 %% Report §4.6: a block binding whose type is still undetermined, that is,
 %% has a free variable that does not reach the definition's own type.
 undetermined_bindings(Node, FnT, #env{st = St} = Env) ->
-    Escaping = ern_types:free_vars(FnT, St),
-    ern_ast:walk(fun(#binding{pos = Pos, pattern = P}, E) ->
+    %% a `let` of a lambda to a name is generalized, so a variable in its
+    %% type is quantified, not open, in the binding and inside the lambda
+    Quantified = ern_ast:walk(fun(#binding{pattern = #p_var{}, expr = #e_lambda{type = T}}, Q) ->
+                                      ern_types:free_vars(T, St) ++ Q;
+                                 (_, Q) ->
+                                      Q
+                              end, Node, []),
+    Escaping = ern_types:free_vars(FnT, St) ++ Quantified,
+    ern_ast:walk(fun(#binding{pattern = #p_var{}, expr = #e_lambda{}}, E) ->
+                     E;
+                    (#binding{pos = Pos, pattern = P}, E) ->
                  lists:foreach(fun({Name, T}) ->
                                    case ern_types:free_vars(T, St) -- Escaping of
                                        [] -> ok;
@@ -1871,27 +1887,39 @@ infer(#e_binop{pos = Pos, op = Op, left = L, right = R} = E, Env) ->
     {T0, Env3} = binop_type(Pos, Op, L, LT, R, RT, Env2),
     {T, St} = open_effect(T0, Env3#env.st),
     {E#e_binop{left = TypedL, right = TypedR, type = T}, T, Env3#env{st = St}};
-infer(#e_lambda{params = Params, ret = Ret, effect = Effect, body = Body} = E,
+infer(#e_lambda{pos = LPos, params = Params, ret = Ret, effect = Effect, body = Body} = E,
       Env) ->
     {TypedParams, ParamTypes, Env1, AnnVars} = bind_params(Params, Env, Env#env.ann_vars),
     {RetT, EffT, AnnVars1, St} = return_annotation(Ret, Effect, AnnVars, Env1),
     T = {tfn, ParamTypes, EffT, RetT},
-    %% the definition's annotation variables are in scope and rigid; a
-    %% name new here is the lambda's own and not rigid (report §3.9)
+    %% report §3.9: the definition's annotation variables are in scope and
+    %% rigid; a name new here means every type, as it does in a `fn`, and
+    %% is rigid where the lambda is generalized; one that is not generalized
+    %% may name none. A regression: a new name was the lambda's own and not
+    %% rigid, so `fn(x : a) : a = x + 1` made `a` an Int
+    New = [{N, V} || N := V <- AnnVars1, not is_map_key(N, Env#env.ann_vars)],
+    New =:= [] orelse Env#env.generalizing orelse
+        fail(LPos, "type variable " ++ atom_to_list(element(1, hd(lists:sort(New))))
+                   ++ " in the lambda's annotation means every type, and the lambda is not"
+                   " generalized", [],
+             "write the type, or leave the annotation out"),
     Env2 = Env1#env{st = mark_process_only(T, St), effect = EffT, ann_vars = AnnVars1,
+                    generalizing = false,
                     %% report §11.5: the label names the annotation that fixed the
                     %% mailbox, and an unannotated lambda's is its own, not the
                     %% enclosing definition's
                     effect_origin = effect_origin("the lambda", Ret, Effect, RetT, EffT, St)},
     Context = ret_context(Ret, "the lambda body does not have the declared type"),
     {TypedBody, _BodyT, Env4} = check_expr(Body, RetT, Context, ret_origin(Ret, RetT, Env2), Env2),
+    rigid_annotation_vars(LPos, New, Env4),
     %% the body was checked as the annotation says; a lambda written pure
     %% stands where one with a mailbox type is expected, as any expression
     %% of a pure function type does (report §3.9)
     {OT, St4} = open_effect(T, Env4#env.st),
     {E#e_lambda{params = TypedParams, body = TypedBody, type = T}, OT,
      Env4#env{st = St4, vars = Env#env.vars, effect = Env#env.effect, ann_vars = Env#env.ann_vars,
-              effect_origin = Env#env.effect_origin, effectful = Env#env.effectful}};
+              effect_origin = Env#env.effect_origin, effectful = Env#env.effectful,
+              generalizing = false}};
 infer(E, Env) when is_record(E, e_if); is_record(E, e_match); is_record(E, e_receive) ->
     {T, St} = ern_types:fresh(Env#env.st),
     check_expr(E, T, undefined, undefined, Env#env{st = St}).
@@ -2377,23 +2405,48 @@ infer_stmts([#fn_decl{name = N} = D | Rest], Pos, Expect, Env, Local, Acc) ->
     infer_stmts(Rest, Pos, Expect, Env4, Local2, [TypedD | Acc]);
 infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '=', expr = X} = B | Rest],
             Pos, Expect, Env, Fns, Acc) ->
+    %% report §4.6: a `let` of a lambda to a name is generalized, as a local
+    %% `fn` is; any other block binding is not
+    Generalize = is_record(P, p_var) andalso is_record(X, e_lambda),
+    EnvG = case Generalize of
+               true -> Env#env{st = ern_types:enter(Env#env.st), generalizing = true};
+               false -> Env
+           end,
     {TypedX, XT, Env1} =
         case Ann of
-            undefined -> infer(X, Env);
+            undefined -> infer(X, EnvG);
             _ ->
-                %% the definition's annotation variables are in scope and
-                %% rigid; a name new here is the binding's own (report §3.9)
-                {AT, _, St} = ann(Ann, Env#env.ann_vars, Env),
-                En = Env#env{st = St},
-                check_expr(X, AT, "the value does not have the declared type",
-                           ann_origin(Ann, AT, En), En)
+                %% report §3.9: the definition's annotation variables are
+                %% in scope and rigid; a name new here means every type, and
+                %% only a generalized binding may name one
+                {AT, AnnVars, St} = ann(Ann, EnvG#env.ann_vars, EnvG),
+                New = [{N, V} || N := V <- AnnVars, not is_map_key(N, EnvG#env.ann_vars)],
+                New =:= [] orelse Generalize orelse
+                    fail(BPos, "type variable " ++ atom_to_list(element(1, hd(lists:sort(New))))
+                               ++ " in the annotation means every type, and a `let` in a block"
+                               " is generalized only over a lambda", [],
+                         "write the type, or leave the annotation out"),
+                En = EnvG#env{st = St, ann_vars = AnnVars},
+                {TX, TT, EnX} = check_expr(X, AT, "the value does not have the declared type",
+                                           ann_origin(Ann, AT, En), En),
+                rigid_annotation_vars(BPos, New, EnX),
+                {TX, TT, EnX#env{ann_vars = EnvG#env.ann_vars}}
         end,
     {TypedP, PT, Bindings, Env2} = check_pattern(P, Env1),
     irrefutable(P, Env2) orelse fail(BPos, "a `let` pattern must be irrefutable", [],
                                      "use `match` for a pattern that can fail"),
     Env3 = unify_at(node_span(P), XT, PT, Env2, "the pattern does not fit the value",
                     {node_span(X), "the value has type " ++ ern_types:format(XT, Env2#env.st)}),
-    Env5 = bind_vars(Bindings, Env3),
+    Env5 = case Generalize of
+               true ->
+                   St3 = ern_types:leave(Env3#env.st),
+                   {Scheme, St4} = ern_types:generalize(XT, St3),
+                   #p_var{name = Name} = P,
+                   Env3#env{st = St4, generalizing = false,
+                            vars = maps:put(Name, Scheme, Env3#env.vars)};
+               false ->
+                   bind_vars(Bindings, Env3)
+           end,
     infer_stmts(Rest, Pos, Expect, Env5, Fns, [B#binding{pattern = TypedP, expr = TypedX} | Acc]);
 infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '<-', expr = X} = B | Rest],
             Pos, Expect, Env, Fns, Acc) ->

@@ -231,10 +231,28 @@ operator_operand_sources_test() ->
     ?assertEqual("(List(a)) -> List(a)", type_of("export fn g(xs) = xs <> []", g)),
     ?assertEqual("the operand type of `+` is not determined; annotate it",
                  err("fn h(n : Int) = { fn dbl(x) = x + x; dbl(n) }")),
+    %% report §4.6: a `let` of a lambda is generalized as a local `fn` is,
+    %% so its operator's operand type is fixed in the lambda or annotated
+    ?assertEqual("the operand type of `+` is not determined; annotate it",
+                 err("fn h(n : Int) = { let dbl = fn(x) = x + x; dbl(n) }")),
     ?assertEqual("(Int) -> Int",
-                 type_of("export fn h(n : Int) = { let dbl = fn(x) = x + x; dbl(n) }", h)),
+                 type_of("export fn h(n : Int) = { let dbl = fn(x : Int) = x + x; dbl(n) }", h)),
     ?assertEqual("the operand type of `+` is not determined; annotate it",
                  err("fn h(a) = { let x = a + a; Int.abs(x) }")).
+
+%% report §4.6, §3.9: a `let` of a lambda to a name is generalized, as a
+%% local `fn` is, so it serves two types; a variable its annotation names
+%% first is rigid. A regression test, written with the rule: the binding
+%% was monomorphic
+lambda_let_generalized_test() ->
+    ?assertEqual(ok, ok("fn f() = { let id = fn(x) = x; #(id(1), id(\"a\")) }")),
+    ?assertEqual(ok, ok("fn f() = { let id = fn(x : a) : a = x; #(id(1), id(\"a\")) }")),
+    ?assertEqual("type variable a in the annotation is used as Int",
+                 err("fn f() = { let g = fn(x : a) : a = x + 1; g(2) }")),
+    ?assertEqual(ok, ok("export let id = fn(x : a) : a = x")),
+    %% any other block binding stays monomorphic
+    ?assertMatch("the argument does not fit f" ++ _,
+                 err("fn g() = { let f = List.reverse; #(f([1]), f([\"a\"])) }")).
 
 %% report §4.8, §3.10: a user type's own operator and its compare resolve
 %% against the operand type; the result is the operator's, and an
@@ -792,11 +810,12 @@ polymorphic_recursion_is_refused_test() ->
                      "fn depth(n : Nested(a)) : Int ="
                      " match n { Flat(_) -> 0 | Nest(m) -> 1 + depth(m) }")).
 
-%% report §3.9: a signature's type variables reach a block `let`'s annotation,
-%% `=` and `<-` alike, and stay rigid there; a variable named only in the
-%% block `let` is its own and flexible, each `let` its own; inside a lambda
-%% the lambda's variables reach it too. A regression test, written after
-%% the fix; it does not cover a local `fn`'s own signature, which starts a
+%% report §3.9, §4.6: a signature's type variables reach a block `let`'s
+%% annotation, `=` and `<-` alike, and stay rigid there; a variable named
+%% only in a block `let` means every type, which a binding that is not
+%% generalized cannot hold; a `let` of a lambda is generalized, and its
+%% lambda's variables are rigid and reach the lambda's body. A regression
+%% test; it does not cover a local `fn`'s own signature, which starts a
 %% definition of its own.
 block_let_annotation_variables_test() ->
     ?assertEqual("type variable a in the annotation is used as Int",
@@ -805,12 +824,13 @@ block_let_annotation_variables_test() ->
                  err("fn f(x : Optional(a), n : Int) : Optional(Int) ="
                      " { let y : a <- Some(n); Some(y) }")),
     ?assertEqual("(a) -> a", type_of("export fn f(x : a) : a = { let y : a = x; y }", f)),
-    ?assertEqual(ok, ok("fn f(x : Int) : Int = { let y : a = x; y }")),
-    ?assertEqual(ok, ok("fn f(x : Int) : Int = { let y : a = x; let z : a = \"s\"; y }")),
-    %% the lambda's own b, not rigid, is the one the inner `let` names
+    ?assertEqual("type variable a in the annotation means every type, and a `let` in a block"
+                 " is generalized only over a lambda",
+                 err("fn f(x : Int) : Int = { let y : a = x; y }")),
+    %% the lambda's own b is rigid, and the one the inner `let` names
     ?assertEqual(ok, ok("fn f(x : Int) : Int ="
                         " { let g = fn(y : b) : b = { let z : b = y; z }; g(x) }")),
-    ?assertEqual("the argument does not fit g: expected String, found Int",
+    ?assertEqual("type variable b in the annotation is used as String",
                  err("fn f(x : Int) : Int ="
                      " { let g = fn(y : b) : b = { let z : b = \"s\"; z }; g(x) }")).
 
@@ -1238,13 +1258,18 @@ warts_audit_test() ->
                  err("foreign fn tick() : Unit with m = \"m:tick/0\"\nfn f() : Unit = tick()")),
     ?assertEqual(ok, ok("foreign fn tick() : Unit with m = \"m:tick/0\"\n"
                         "fn f() : Unit with Never = tick()")),
-    %% lambda annotation variables: the definition's are in scope and rigid,
-    %% a new one belongs to the lambda and is not rigid
+    %% report §3.9: lambda annotation variables: the definition's are in
+    %% scope and rigid, and a new one means every type, which only a
+    %% lambda that is generalized may name. A regression test for the new
+    %% one: it belonged to the lambda and became Int
     ?assertEqual("(a) -> a", type_of("export fn f(x : a) : a = (fn(y : a) : a = y)(x)", f)),
     ?assertEqual("type variable a in the annotation is used as Int",
                  err("fn f(x : a) : a = { let g = fn(y : a) : a = 1; g(x) }")),
-    ?assertEqual("(Int) -> Int", type_of("export fn f(x : Int) = (fn(y : b) : b = 1)(x)", f)),
-    ?assertEqual("(Int) -> Int", type_of("export fn f(x : Int) = (fn(y : b) : b = y)(x)", f)).
+    ?assertEqual("type variable b in the lambda's annotation means every type, and the lambda"
+                 " is not generalized",
+                 err("fn f(x : Int) = (fn(y : b) : b = y)(x)")),
+    ?assertEqual("(Int) -> Int",
+                 type_of("export fn f(x : Int) = { let g = fn(y : b) : b = y; g(x) }", f)).
 
 %% report §8.4: a foreign fn's implementation is named module:function/arity,
 %% and the arity is its parameter count; either mistake is a compile error.
