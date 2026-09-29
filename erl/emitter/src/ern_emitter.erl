@@ -239,14 +239,21 @@ decl(#foreign_fn_decl{pos = Pos, owner = O, name = N, params = Params, impl = Im
     {Vars, Cx1} = fresh_vars(length(Params), "A", Cx#cx{fname = Name}),
     {tfn, ParamTs, _, Ret} = Scheme#scheme.type,
     Args = [erl_syntax:variable(V) || V <- Vars],
-    {DescForm, Cx2} = descriptor_ref(Ret, Cx1),
+    %% report §8.4: a type variable of the result that no parameter names
+    %% stands for no value the function could have been given, so it
+    %% matches none, and the return faults where it holds one
+    Unnamed = type_vars(Ret) -- lists:append([type_vars(P) || P <- ParamTs]),
+    {DescForm, Cx2} = descriptor_ref(as_never(Unnamed, Ret), Cx1),
     %% a parameter with an address inside gets its descriptor, so the
-    %% address is exposed through a proxy; any other is none
-    {ArgDescs, Cx3} = lists:mapfoldl(fun(PT, C) ->
-                                         case has_address(descriptor(PT, C)) of
-                                             true -> descriptor_ref(PT, C);
-                                             false -> {erl_syntax:atom(none), C}
-                                         end
+    %% address is exposed through a proxy; a function, the checks of the
+    %% arguments foreign code calls it with (§8.4); any other is none
+    {ArgDescs, Cx3} = lists:mapfoldl(fun({tfn, Ps, _, _}, C) ->
+                                             callback_ref(Ps, C);
+                                        (PT, C) ->
+                                             case has_address(descriptor(PT, C)) of
+                                                 true -> descriptor_ref(PT, C);
+                                                 false -> {erl_syntax:atom(none), C}
+                                             end
                                      end, Cx2, ParamTs),
     Body = call_remote(ern_boundary, foreign,
                        [erl_syntax:atom(M), erl_syntax:atom(F), erl_syntax:list(Args),
@@ -848,10 +855,37 @@ checked(Form, T, Prefix, Cx) ->
     {DescForm, Cx1} = descriptor_ref(T, Cx),
     {call_remote(ern_boundary, value, [DescForm, Form, check_text(Prefix, T, Cx)]), Cx1}.
 
+%% The type variables a type holds.
+type_vars({tvar, _} = V) -> [V];
+type_vars(T) when is_tuple(T) -> lists:append([type_vars(E) || E <- tuple_to_list(T)]);
+type_vars(L) when is_list(L) -> lists:append([type_vars(E) || E <- L]);
+type_vars(_) -> [].
+
+%% The type with each of the variables Vars as `Never`.
+as_never([], T) -> T;
+as_never(Vars, {tvar, _} = V) ->
+    case lists:member(V, Vars) of
+        true -> {tcon, ['Never'], []};
+        false -> V
+    end;
+as_never(Vars, T) when is_tuple(T) -> list_to_tuple([as_never(Vars, E) || E <- tuple_to_list(T)]);
+as_never(Vars, L) when is_list(L) -> [as_never(Vars, E) || E <- L];
+as_never(_, T) -> T.
+
+%% Report §8.4: the checks of a function an Ernest program gives a foreign
+%% function, each argument against its parameter's type when foreign code
+%% calls it.
+callback_ref(Ps, Cx) ->
+    desc_ref({callback, length(Ps), [descriptor(P, Cx) || P <- Ps],
+              [text_binary("foreign argument does not match ", P, Cx) || P <- Ps]}, Cx).
+
 %% A descriptor as a form: a literal when it is a word, else a call of a
 %% module function that returns it, one per distinct descriptor.
 descriptor_ref(T, Cx) ->
-    case descriptor(T, Cx) of
+    desc_ref(descriptor(T, Cx), Cx).
+
+desc_ref(Desc0, Cx) ->
+    case Desc0 of
         Desc when is_atom(Desc) ->
             {erl_syntax:abstract(Desc), Cx};
         Desc ->
@@ -872,6 +906,16 @@ descriptor_ref(T, Cx) ->
 %% each result (report §7.4), which only generated code can spell for every
 %% arity; ern_boundary applies it to a function value foreign code gives,
 %% and to the result's descriptor closed over the recursive types around it.
+desc_form({callback, N, Ds, Texts}) ->
+    F = erl_syntax:variable('F'),
+    Args = [erl_syntax:variable(list_to_atom("A" ++ integer_to_list(I)))
+            || I <- lists:seq(1, N)],
+    Checked = [call_remote(ern_boundary, value, [desc_form(D), A, erl_syntax:abstract(T)])
+               || {D, A, T} <- lists:zip3(Ds, Args, Texts)],
+    Wrapper = erl_syntax:fun_expr([erl_syntax:clause(Args, none,
+                                                      [erl_syntax:application(F, Checked)])]),
+    Maker = erl_syntax:fun_expr([erl_syntax:clause([F], none, [Wrapper])]),
+    erl_syntax:tuple([erl_syntax:atom(callback), Maker]);
 desc_form({'fun', N, R, Text}) ->
     F = erl_syntax:variable('F'),
     Result = erl_syntax:variable('R'),

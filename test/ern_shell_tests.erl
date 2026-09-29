@@ -166,6 +166,18 @@ reload_sources_named() ->
     ?assertMatch({_, _}, binary:match(Load, <<"bad.ern:2:5: the body">>)),
     ?assertEqual(nomatch, binary:match(Load, list_to_binary(Dir))).
 
+%% report §11: `ern` starts the host without the flags and the code path the
+%% environment would give it. A regression test: ERL_AFLAGS could run code
+%% with -eval before any job (findings.md's S-H)
+host_flags_cleared_test_() ->
+    {timeout, 60, fun host_flags_cleared/0}.
+
+host_flags_cleared() ->
+    {0, Out} = sh("ERL_AFLAGS=\"-eval io:format(leaked)\" ERL_FLAGS=\"-eval x\""
+                  " ../bin/ern --version"),
+    ?assertEqual(nomatch, binary:match(Out, <<"leaked">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"ern ">>)).
+
 %% report §11.2: a HOME that is no absolute path names no startup file and
 %% no history, since each would be under wherever the shell was started. A
 %% regression test: `HOME=.` ran a startup file the working directory held

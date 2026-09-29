@@ -87,8 +87,12 @@ discussed with the user one at a time as they are met.
    history decoded in one pass, a paste read once however many pieces it comes in, and C10,
    sockets, listeners and programs known as processes under the function that opened them
    (E.18, E.23), and `Bytes` gaining `String`'s text functions with `toHex` and `fromHex`
-   (E.20), and three of S-H, the system's own `stty` and a relative `HOME` naming no startup
-   file and no history (§11.2), done 2026-09-29; the diagnostics' positions and labels
+   (E.20), and S-H, the system's own `stty`, a relative `HOME` naming no startup file and no
+   history (§11.2), a foreign function's unnamed result variable matching no value and a
+   function given to foreign code checking its arguments (§8.4), and the host's flags cleared
+   from the environment (§11), with `Erl.atom` and the unbounded reads kept and the key's
+   place decided in MVP 3.0 (the log's *The Security Reader's Decisions*), done 2026-09-29; the
+   diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
@@ -266,7 +270,10 @@ log's *A Full Review Now and Then*).
   `./.ernest`, is the directory a program starts in, whose `ernest.conf` would name the peers
   and keys the node trusts, as its `startup` ran inputs until MVP 2.95 (§11.2, §11.3; the log's
   *A Directory Runs Nothing of Its Own*). Recommended: the default goes, and a node reads a
-  configuration directory only where `--config-dir` names it.
+  configuration directory only where `--config-dir` names it. With it goes where the node's
+  private key lives, which `ern config` writes there by default, into the working tree, where
+  a commit can take it (the security reader's S-H, 2026-09-29); nothing reads the key before
+  this milestone.
 - **`Peer.find(name, fn() = M.service)`**: a peer's service is found by reading its binding on
   the peer, decided in MVP 2.65's step 5 (the log's *A Peer's Service Is Found Through Its
   Binding* and *`Peer.find` Stands*). Built here with §8.7's two sentences on a node's own

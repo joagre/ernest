@@ -2671,6 +2671,25 @@ tcp_write_waits_test() ->
         "}\n"),
     ?assertEqual(<<"#(false, 4194304)\nFault(\"callee had ended\")\n">>, Out).
 
+%% report §8.4, §7.4: a type variable of a foreign function's result that no
+%% parameter names matches no value, so a return that holds one faults, and
+%% an empty list of it passes; a function given to foreign code has the
+%% arguments it is called with checked. A regression test: the first was an
+%% unchecked cast, and the second let any value in (findings.md's S-H)
+foreign_casts_and_callbacks_test() ->
+    Run = fun(Decl, Body) ->
+                  {R, _} = run(Decl ++ "export fn main() : Unit with Never = {\n"
+                               "    let _ = " ++ Body ++ ";\n    Unit\n}\n"),
+                  R
+          end,
+    ?assertEqual({fault, <<"foreign return does not match a">>},
+                 Run("foreign fn cast(n : Int) : a =\n    \"erlang:abs/1\"\n", "cast(1) + 1")),
+    ?assertEqual(ok, Run("foreign fn none(xs : List(Int)) : List(a) =\n    \"erlang:tl/1\"\n",
+                         "List.size(none([1]))")),
+    ?assertEqual({fault, <<"foreign argument does not match Int">>},
+                 Run("foreign fn each(f : (Int) -> Int, xs : List(String)) : List(Int) =\n"
+                     "    \"lists:map/2\"\n", "each(fn(n) = n + 1, [\"x\"])")).
+
 %% Appendix E.18, E.21, E.23: a listener, a socket and a running program are
 %% processes of the program's: Process.live lists them, and Process.info
 %% gives the function that opened each as its site. A regression test: the

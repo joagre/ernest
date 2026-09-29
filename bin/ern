@@ -9,7 +9,10 @@
 # input of its own (-noinput), so that standard input is the runtime's
 # alone (report §8.2), and -noinput comes after -noshell, since the host
 # takes the last of the two; its break handler is off (+B), so that the
-# interrupt ends it (report §8.6); and it reads no ~/.erlang.
+# interrupt ends it (report §8.6); and it reads no ~/.erlang. The host's
+# flags from the environment, ERL_AFLAGS, ERL_FLAGS and ERL_ZFLAGS, and its
+# code path from ERL_LIBS, are cleared, since they would change the host,
+# or run code with -eval, with nothing in the command saying so.
 
 self=$0
 while [ -L "$self" ]; do
@@ -30,6 +33,8 @@ if ! command -v erl >/dev/null 2>&1; then
     echo "ern: erl, of Erlang/OTP 29, is not on the path" >&2
     exit 1
 fi
+
+unset ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS ERL_LIBS
 
 exec erl +B -boot no_dot_erlang -noshell -noinput \
     -pa "$tree"/erl/*/ebin "$tree/build/stdlib" "$tree/build/shell" \

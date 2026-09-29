@@ -171,6 +171,9 @@ all([D | Ds], [V | Vs], B) -> chk(D, V, B) andalso all(Ds, Vs, B).
 %% An argument with every address inside it replaced by a proxy; none is
 %% a parameter type without an address, left as it is.
 expose(none, V, _) -> V;
+%% report §8.4: a function given to foreign code checks the arguments it is
+%% called with
+expose({callback, Make}, V, _) when is_function(V) -> Make(V);
 expose({pid, D, Text}, V, B) when is_pid(V) -> proxy(V, D, B, Text);
 %% report §6.5: an address seen through a function is an address too, and
 %% foreign code must reach it through the same checking proxy
