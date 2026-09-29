@@ -97,26 +97,20 @@ fn encode(input : String) : String =
     String.replace(String.replace(input, "\\", "\\\\"), "\n", "\\n")
 
 // Left to right, since `\\n` is a backslash and an `n` and not a
-// newline; two passes of `String.replace` would read it as one.
+// newline; two passes of `String.replace` would read it as one. One pass
+// over the characters, since a line may be a large paste. A regression:
+// slicing the rest at each character made the decoding quadratic
+// (findings.md's S11).
 fn decode(line : String) : String =
-    undo(line, "")
+    String.fromList(List.reverse(undo(String.toList(line), [])))
 
-fn undo(rest : String, done : String) : String =
-    if String.isEmpty(rest) then
-        done
-    else {
-        let head = String.slice(rest, 0, 1);
-        let next = String.slice(rest, 1, 1);
-        if head == "\\" && next == "n" then
-            undo(from(rest, 2), done <> "\n")
-        else if head == "\\" && next == "\\" then
-            undo(from(rest, 2), done <> "\\")
-        else
-            undo(from(rest, 1), done <> head)
+fn undo(rest : List(Char), done : List(Char)) : List(Char) =
+    match rest {
+        '\\' :: 'n' :: more -> undo(more, '\n' :: done)
+      | '\\' :: '\\' :: more -> undo(more, '\\' :: done)
+      | c :: more -> undo(more, c :: done)
+      | [] -> done
     }
-
-fn from(s : String, n : Int) : String =
-    String.slice(s, n, String.size(s) - n)
 
 //
 // The tests (report §9.3), run by `ern test`, which `make test` does.
