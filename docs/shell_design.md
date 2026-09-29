@@ -32,7 +32,7 @@ The runner, `ern_cli`, loads the file and its dependencies and runs their initia
 1. Where `Terminal.size()` answers a size, it spawns the reader and waits for `Ready` or `NoKeys`. The reader answers once its subscription is granted, and so once the terminal no longer echoes (§8.2 *Keys*); what was typed at a prompt written earlier would be echoed and read as a line.
 2. It spawns the screen, and binds the sinks to it with `setScreen(via(Wrote, screen))`.
 3. It subscribes to `Process.faults(Reported)`, and only then spawns the file's entry point (`program`), so that a fault in the entry point is reported.
-4. At a terminal it reads the history, sends the reader `Start` with the screen, the history and whether to colour, and monitors the reader: the reader's end is the session's.
+4. At a terminal it reads the history, sends the reader `Start` with the screen, the history, whether the history file takes what is typed, which it does not where it could not be read, and whether to colour, and monitors the reader: the reader's end is the session's.
 5. It runs the startup inputs, and writes the first `> `.
 
 `finish` takes the region away with `Height(0)` and an empty `Typing`, leaves the cursor on a fresh line, and drains the screen. When `main` returns, every process the session spawned ends with `ProgramEnd` (§8.6).
@@ -162,7 +162,7 @@ A spawn site in an input's module is written as §11.2 *Faults* says: the emitte
 
 ## Startup files
 
-`startupFiles()` answers the paths, the person's `$HOME/.ernest/startup` and then, where `--config-dir` names it, the configuration directory's `startup`, which the runner computes (§11.2). Whether each is there, and what it holds, the shell reads itself with `Fs`: a file that is not there is no error, one that cannot be read is said, and each line that is not blank is an input, carrying its file and its line. A `:` line goes to `perform`, as a typed command does; any other goes to `quietly`, which is `run` with printing off and the file and the line passed to `check`, so a diagnostic names them.
+`startupFiles()` answers the paths, the person's `$HOME/.ernest/startup` and then, where `--config-dir` names it, the configuration directory's `startup`, which the runner computes (§11.2), each named from the working directory. Whether each is there, and what it holds, the shell reads itself with `Fs`: a file that is not there is no error, one that cannot be read or is not UTF-8 is said, and each line that is not blank is an input, carrying its file and its line. While a startup input runs, the session's `State` holds its file and line in `from`, which `refuse` and a fault's report put before what they say. A `:` line goes to `perform`, as a typed command does; any other goes to `quietly`, which is `run` with printing off and the file and the line passed to `check`, so a diagnostic names them.
 
 ## Testing
 

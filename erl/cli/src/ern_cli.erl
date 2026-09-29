@@ -99,12 +99,27 @@ no_job("--test") -> "--test is now the job: ern test";
 no_job("--doc") -> "--doc is now the job: ern doc";
 no_job("--create-config-dir") ->
     "--create-config-dir is now the job ern config, whose --config-dir names the directory itself";
-no_job("-" ++ _ = Word) -> Word ++ " comes after the job: ern <job> " ++ Word;
+no_job("--help") -> "--help stands alone: ern --help, or ern <job> --help";
+no_job("--version") -> "--version stands alone: ern --version";
+no_job("-" ++ _ = Word) ->
+    Name = option_name(Word),
+    Taken = [Job || {Job, Spec, _, _} <- jobs(), {_, _, Long, _, _} <- Spec, "--" ++ Long =:= Name],
+    case Taken of
+        [] -> no_such_job(Word);
+        _ -> Name ++ " comes after the job: ern <job> " ++ Name
+    end;
 no_job(Word) ->
     case filename:extension(Word) of
         ".erc" -> "the job comes first: ern run " ++ Word;
-        _ -> "no job " ++ Word ++ "; the jobs are build, doc, format, run, test, shell and config"
+        _ -> no_such_job(Word)
     end.
+
+no_such_job(Word) ->
+    "no job " ++ Word ++ "; the jobs are build, doc, format, run, test, shell and config".
+
+%% An option's whole name, before any `=`.
+option_name(Word) ->
+    lists:takewhile(fun(Ch) -> Ch =/= $= end, Word).
 
 refuse(Msg, Err) ->
     io:format(Err, "ern: ~ts~n", [Msg]),
@@ -135,7 +150,7 @@ job(Job, Spec, Positional, Args, Fun, Err) ->
     try
         lists:foreach(fun(A) -> is_utf8(A) orelse ern_build:fail(not_utf8(A)) end, Own),
         lists:foreach(fun(A) ->
-                          case old_option(A) of
+                          case old_option(A, Spec) of
                               none -> ok;
                               Msg -> usage_fail(Msg)
                           end
@@ -198,18 +213,32 @@ takes_value(_Spec, _Short) ->
     false.
 
 %% Report §11: an option as the toolchain spelled it before its jobs,
-%% refused with the spelling that replaces it.
-old_option("--out-dir" ++ _) -> "--out-dir is now --build-root";
-old_option("--no-clean") ->
-    "--no-clean is gone; a separate output takes a separate --build-root";
-old_option("--errors" ++ _) -> "--errors short is now --short-errors";
-old_option("--emit" ++ Rest) when Rest =/= "-erl" -> "--emit erl is now --emit-erl";
-old_option("--create-config-dir" ++ _) ->
-    "--create-config-dir is now the job ern config, whose --config-dir names the directory itself";
-old_option("--shell") -> "--shell is now the job: ern shell";
-old_option("--test") -> "--test is now the job: ern test";
-old_option("--doc") -> "--doc is now the job: ern doc";
-old_option(_) -> none.
+%% matched by its whole name, refused with the spelling that replaces it
+%% where the job takes that spelling. Elsewhere it is an option the job
+%% does not take, refused as any other is.
+old_option(Word, Spec) ->
+    case old_spelling(option_name(Word)) of
+        {job, Msg} -> Msg;
+        {Key, Msg} ->
+            case lists:keymember(Key, 1, Spec) of
+                true -> Msg;
+                false -> none
+            end;
+        none -> none
+    end.
+
+old_spelling("--out-dir") -> {build_root, "--out-dir is now --build-root"};
+old_spelling("--no-clean") ->
+    {build_root, "--no-clean is gone; a separate output takes a separate --build-root"};
+old_spelling("--errors") -> {short_errors, "--errors short is now --short-errors"};
+old_spelling("--emit") -> {emit_erl, "--emit erl is now --emit-erl"};
+old_spelling("--create-config-dir") ->
+    {job, "--create-config-dir is now the job ern config, whose --config-dir names the"
+          " directory itself"};
+old_spelling("--shell") -> {job, "--shell is now the job: ern shell"};
+old_spelling("--test") -> {job, "--test is now the job: ern test"};
+old_spelling("--doc") -> {job, "--doc is now the job: ern doc"};
+old_spelling(_) -> none.
 
 %% getopt's usage text on any device; getopt:usage/4 takes only an atom.
 job_usage(Spec, Name, Positional, Device) ->
@@ -315,10 +344,19 @@ doc_dir(Opts, Path) ->
     Files = ern_build:sources(Path),
     Mods = ern_build:compile_order([ern_build:module_of(ern_build:absolute(F), Root)
                                     || F <- Files], Root),
+    Stdlib = ern_build:is_stdlib_root(Root),
+    %% report §11.4: the page of a module whose source is gone goes, as the
+    %% build's sweep takes its .erc
+    Kept = [Ns || #mod{ns = Ns} <- Mods] ++ [['Prelude'] || Stdlib],
     case lists:member(man, Opts) of
-        true -> man_dir(Mods, ern_build:is_stdlib_root(Root), OutDir);
-        false -> markdown_dir(Mods, ern_build:is_stdlib_root(Root), OutDir)
-    end.
+        true ->
+            man_dir(Mods, Stdlib, OutDir),
+            ern_build:sweep_pages(man, Path, Root, OutDir, Kept);
+        false ->
+            markdown_dir(Mods, Stdlib, OutDir),
+            ern_build:sweep_pages(markdown, Path, Root, OutDir, Kept)
+    end,
+    0.
 
 markdown_dir(Mods, Stdlib, OutDir) ->
     Entries = [begin
@@ -333,8 +371,7 @@ markdown_dir(Mods, Stdlib, OutDir) ->
                end || #mod{ns = Ns} <- lists:sort(Mods)],
     Prelude = prelude_page(Stdlib, OutDir),
     ok = ern_build:write_whole(filename:join(OutDir, "index.md"),
-                     unicode:characters_to_binary(["# Modules\n\n", Prelude, Entries])),
-    0.
+                     unicode:characters_to_binary(["# Modules\n\n", Prelude, Entries])).
 
 %% Report §11.4: each manual page beside its module's .erc, in a file named
 %% as `man` finds it, `Ernest.Net.Http.3ern`, and the prelude's at the top
@@ -345,14 +382,16 @@ man_dir(Mods, Stdlib, OutDir) ->
                           {ok, Beam} = file:read_file(Erc),
                           Out = filename:join(filename:dirname(Erc),
                                               "Ernest." ++ ern_build:qname(Ns) ++ ".3ern"),
-                          ok = ern_build:write_whole(Out, ern_page:manual(Beam))
+                          Page = unicode:characters_to_binary(ern_page:manual(Beam)),
+                          ok = ern_build:write_whole(Out, Page)
                   end, lists:sort(Mods)),
     case Stdlib of
-        true -> ok = ern_build:write_whole(filename:join(OutDir, "Ernest.Prelude.3ern"),
-                                 ern_page:prelude_manual());
+        true ->
+            %% a page is text, written as UTF-8
+            Page = unicode:characters_to_binary(ern_page:prelude_manual()),
+            ok = ern_build:write_whole(filename:join(OutDir, "Ernest.Prelude.3ern"), Page);
         false -> ok
-    end,
-    0.
+    end.
 
 %% Report §11.4: the standard library's own source root also gets the
 %% prelude's page, first in the index.
@@ -532,6 +571,8 @@ shell(Opts, Rest, Err) ->
     %% are, before those of the file it loads
     Init = case Rest of
                [] ->
+                   %% report §11.2: --main names a function of the file
+                   not lists:keymember(main, 1, Opts) orelse usage_fail(no_main_file()),
                    host_path(ern_build:load_path(Opts)),
                    ern_shell:loaded(#{roots => ern_build:load_path(Opts),
                                       source_root => ern_build:source_root(Opts, ".", "."),
@@ -556,6 +597,9 @@ shell(Opts, Rest, Err) ->
     shell_outcome(Err, ern_rt:run_main(fun() -> Mod:main() end, <<"Shell.main">>,
                                        #{stdout => Sink, stderr => Sink, init => Init,
                                          exit => fault})).
+
+no_main_file() ->
+    "--main names the function to spawn from the file the shell loads, and no file is given".
 
 %% Report §11.2: every fault on standard error as it happens, a line each,
 %% the spawn site and the cause, and beneath a failure of the runtime or a

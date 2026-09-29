@@ -130,17 +130,17 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - 2.98 — `--build-root` does not find modules outside the source root, against §11.1 (T2)
 - 2.98 — a stale dependent runs against a changed interface and faults (T3)
 - 2.98 — a single-file build takes its namespace from the working directory and rewrites a module as another (T4)
-- cheap — old spellings' refusals recommend options the job refuses; prefixes matched (T7)
+- done — old spellings' refusals recommend options the job refuses; prefixes matched (T7): fixed 2026-09-29, an old spelling matched by its whole name and named only to a job that takes its replacement; `--version` and `--help` stand alone
 - 2.98 — a repeated option takes the first; `--name=value` undocumented; empty values accepted (T8)
-- cheap — `ern shell --main` without a file is ignored (T9)
+- done — `ern shell --main` without a file is ignored (T9): fixed 2026-09-29, refused (§11.2)
 - 2.98 — the checker reports one error per function; a directory build stops at the first failing module (T10)
 - 2.98 — `:load` of a dependent cannot use a module already loaded (T12)
-- cheap — `:reload` says "no source has changed" when it found none (T13)
+- done — `:reload` says "no source has changed" when it found none (T13): fixed 2026-09-29, a loaded module the source root holds no source of named
 - 2.98 — a faulting top-level binding: three behaviours and the wrong name (T14)
-- cheap — a startup file's failures lack file and line; a startup file that is not UTF-8 is read as empty (T15, E10b..d)
-- cheap — the shell's diagnostics use absolute paths (T16)
-- cheap — `ern doc src` leaves a stale page and writes `.erc` files (T17)
-- cheap — the history's failure reported twice, the second garbling the transcript (T18, E9)
+- done — a startup file's failures lack file and line; a startup file that is not UTF-8 is read as empty (T15, E10b..d): fixed 2026-09-29, a refusal and a fault named by file and line, a file that is not UTF-8 said and not run (§11.2), and the file named from the working directory; E10a was fixed with S1
+- done — the shell's diagnostics use absolute paths (T16): fixed 2026-09-29, as §11.5 names a file
+- done — `ern doc src` leaves a stale page and writes `.erc` files (T17): fixed 2026-09-29, a page of a module whose source is gone removed, by the module its title names at its place, and the build stated (§11.4); the manual pages found written with a Latin-1 `§`, and written as UTF-8
+- done — the history's failure reported twice, the second garbling the transcript (T18, E9): fixed 2026-09-29, said once, and the history not written after
 - 2.98 — the shell cannot show the prelude (T19)
 - done — a corrupt `.erc` gets the host's message (T20): fixed 2026-09-28 with T6
 - cheap — clarity: configuration options that do nothing yet, the startup file run silently, a silent directory build, a silent `ern test`, `:set timing`, every spawn site `input:1`, qualified type names, "tail" against "live region", `killed` against `Killed`, line mode and the formatter's layout, `--source-root` hint, the lowercase path's file, `ern(1)`'s synopses, the shell's exit status, `ern config`'s JSON, `:type let`, `:doc it`, an elided excerpt (T21..T34)

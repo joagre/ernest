@@ -2,8 +2,8 @@
 %% reaches for a module's source, its interface, or a file written whole:
 %% finding the modules under a source root and giving each its namespace
 %% by the path shape, ordering them by their dependencies, compiling each
-%% to its `.erc` when it has changed, and removing what an earlier build
-%% wrote that no source now makes. Apart from ern_cli, whose other jobs do
+%% to its `.erc` when it has changed, and removing what an earlier build,
+%% or `ern doc`, wrote that no source now makes. Apart from ern_cli, whose other jobs do
 %% not shape a `.erc`, so that the compiler's hash (compiler_modules/0)
 %% leaves them out and a change to them recompiles nothing.
 -module(ern_build).
@@ -11,7 +11,7 @@
 -export([compile/3, report_errors/4, shown/1, sources/1, bytes_text/1, module_of/2, shape/1,
          segment/1, namespace/1, module_path/1, compile_order/2, compile_order/3,
          source_root/3, out_dir/2, is_stdlib_root/1, dep_iface/4, load_path/1,
-         compiler_modules/0, compile_source/3, absolute/1, relative/2, qname/1,
+         compiler_modules/0, sweep_pages/5, compile_source/3, absolute/1, relative/2, qname/1,
          write_whole/2, write_whole/3, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -510,7 +510,7 @@ sweep(Dir, Root, OutDir) ->
     lists:foreach(fun(Erc) ->
                       ok = file:delete(Erc),
                       remove_emptied(filename:dirname(Erc), Sub, OutDir)
-                  end, [Erc || Erc <- outputs(Sub), stale(Erc, OutDir, Root)]).
+                  end, [Erc || Erc <- outputs(Sub, ".erc"), stale(Erc, OutDir, Root)]).
 
 %% A .erc that does not read as this compiler's records nothing, and is kept.
 stale(Erc, OutDir, Root) ->
@@ -519,19 +519,66 @@ stale(Erc, OutDir, Root) ->
         {error, _} -> false
     end.
 
-%% Report §11.1: every .erc under a directory, passing over each name that
-%% begins with a dot, as sources/1 does, and each symbolic link.
-outputs(Dir) ->
+%% Report §11.1: every file of an extension under a directory, passing over
+%% each name that begins with a dot, as sources/1 does, and each symbolic
+%% link.
+outputs(Dir, Ext) ->
     case file:list_dir(Dir) of
         {ok, Names} ->
             lists:append([case file:read_link_info(Path) of
-                              {ok, #file_info{type = directory}} -> outputs(Path);
+                              {ok, #file_info{type = directory}} -> outputs(Path, Ext);
                               {ok, #file_info{type = regular}} ->
-                                  [Path || filename:extension(Name) =:= ".erc"];
+                                  [Path || filename:extension(Name) =:= Ext];
                               _ -> []
                           end || Name <- lists:sort(Names), hd(Name) =/= $.,
                                  Path <- [filename:join(Dir, Name)]]);
         {error, _} -> []
+    end.
+
+%% Report §11.4: remove every page `ern doc` wrote under the mirror of the
+%% documented subtree whose module is not among Kept, and each directory
+%% the removals leave empty. A page names its module in its title and
+%% stands at the module's place; a file that does not is no page of `ern
+%% doc`'s, and is kept.
+-spec sweep_pages(markdown | man, file:filename(), file:filename(), file:filename(),
+                  [[atom()]]) -> ok.
+sweep_pages(Kind, Dir, Root, OutDir, Kept) ->
+    Sub = absolute(filename:join(OutDir, relative(Dir, Root))),
+    Ext = case Kind of
+              markdown -> ".md";
+              man -> ".3ern"
+          end,
+    lists:foreach(fun(Page) ->
+                      ok = file:delete(Page),
+                      remove_emptied(filename:dirname(Page), Sub, OutDir)
+                  end, [Page || Page <- outputs(Sub, Ext),
+                                {ok, Ns} <- [page_of(Kind, Page, OutDir)],
+                                not lists:member(Ns, Kept)]).
+
+%% The module a page documents, by its title, where the page stands at that
+%% module's place.
+page_of(Kind, Page, OutDir) ->
+    {ok, Bin} = file:read_file(Page),
+    Title = case {Kind, binary:split(Bin, <<"\n">>, [global])} of
+                {markdown, [<<"# Ernest module ", Q/binary>> | _]} -> binary_to_list(Q);
+                {man, [_, <<".TH \"Ernest.", Rest/binary>> | _]} ->
+                    [Q | _] = binary:split(Rest, <<"\"">>),
+                    binary_to_list(Q);
+                _ -> none
+            end,
+    case Title of
+        none -> none;
+        _ ->
+            Ns = [list_to_atom(S) || S <- string:split(Title, ".", all)],
+            Place = case Kind of
+                        markdown -> module_path(Ns) ++ ".md";
+                        man -> filename:join(filename:dirname(module_path(Ns)),
+                                             "Ernest." ++ Title ++ ".3ern")
+                    end,
+            case relative(Page, OutDir) =:= Place of
+                true -> {ok, Ns};
+                false -> none
+            end
     end.
 
 %% A directory the sweep emptied, and each above it that it empties in turn,

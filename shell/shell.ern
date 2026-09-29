@@ -138,14 +138,16 @@ type ShellMsg =
 // What the session carries between inputs: the front end's environment, the
 // settings `:set` changes, which are ordinary values, whether it colours
 // what it says, read once at the start, the shell's own processes, whose
-// faults are not news, and the last hundred faults reported, newest first
-// (report §11.2).
+// faults are not news, the last hundred faults reported, newest first, and
+// the file and line of the startup input that runs, which its refusal and
+// its fault name (report §11.2).
 type State =
     State(env : Env,
           settings : Settings,
           colour : Bool,
           own : Set(Process),
-          faults : List(Process.FaultReport))
+          faults : List(Process.FaultReport),
+          from : Optional(#(String, Int)))
 
 type Settings = Settings(depth : Int, length : Int, timing : Bool, output : Int)
 
@@ -175,10 +177,11 @@ type ScreenMsg =
 // What the reader is told: a key, which the terminal sends it once it has
 // subscribed (`Terminal.subscribe(K)`), and, once it holds the keyboard,
 // `main`'s `Start` with the screen it draws on, the inputs of the sessions
-// before this one, and whether the shell colours.
+// before this one, whether the history file takes what is typed, which it
+// does not where it could not be read, and whether the shell colours.
 type ReaderMsg =
     K(Terminal.Event)
-  | Start(screen : Address(ScreenMsg), earlier : List(String), colour : Bool)
+  | Start(screen : Address(ScreenMsg), earlier : List(String), keeping : Bool, colour : Bool)
 
 // What the reader carries between keys: the line being edited, whether
 // the history file still takes what is typed, whether this session has
@@ -232,7 +235,13 @@ export fn main() : Unit with ShellMsg = {
       | None -> []
     };
     let own = Set.fromList([Process.fromAddress(me), Process.fromAddress(screen)] <> readers);
-    let state = State(env = start(), settings = defaults, colour = colour, own = own, faults = []);
+    let state =
+        State(env = start(),
+              settings = defaults,
+              colour = colour,
+              own = own,
+              faults = [],
+              from = None);
     // report §11.2: a process that faults is news at the prompt, whichever
     // it is, and the session hears of it as any subscriber does, from
     // before the program's entry point runs
@@ -241,21 +250,25 @@ export fn main() : Unit with ShellMsg = {
     let _ = program();
     match keys {
         Some(#(reader, _)) -> {
-            // report §11.2: the inputs of the sessions before this one
-            let earlier = match Shell.History.file {
+            // report §11.2: the inputs of the sessions before this one; a
+            // history that cannot be read is said once, and not written
+            let #(earlier, keeping) = match Shell.History.file {
                 None -> {
                     say(screen, "the history is not kept, since HOME is not set");
-                    []
+                    #([], false)
                 }
               | Some(_) -> match Shell.History.read() {
-                    Right(inputs) -> inputs
+                    Right(inputs) -> #(inputs, true)
                   | Left(why) -> {
-                        say(screen, "the history could not be read: " <> trouble(why));
-                        []
+                        say(screen,
+                            "the history is not kept, since it could not be read: "
+                                <> trouble(why));
+                        #([], false)
                     }
                 }
             };
-            send(reader, Start(screen = screen, earlier = earlier, colour = colour));
+            send(reader,
+                 Start(screen = screen, earlier = earlier, keeping = keeping, colour = colour));
             // report §11.2: an editor that cannot read keys is no shell,
             // so the reader's death is said and the session ends with it
             monitor(reader, ReaderDied);
@@ -327,16 +340,21 @@ fn fileInputs(screen : Address(ScreenMsg), file : String) : List(#(String, Int, 
             say(screen, file <> " could not be read: " <> trouble(why));
             []
         }
-      | Right(bytes) -> {
-            let text = Optional.withDefault(String.fromUtf8(bytes), "");
-            let numbered = List.indexed(String.lines(text));
-            List.filterMap(numbered,
-                           fn(#(i, line)) = if String.isEmpty(String.trim(line)) then
-                               None
-                           else
-                               Some(#(file, i + 1, line)))
+      | Right(bytes) -> match String.fromUtf8(bytes) {
+            Some(text) ->
+                List.filterMap(List.indexed(String.lines(text)),
+                               fn(#(i, line)) = startupInput(file, i, line))
+          | None -> {
+                say(screen, file <> " is not UTF-8, and is not run");
+                []
+            }
         }
     }
+
+// A line of a startup file as an input with its line number, or none where
+// the line is blank.
+fn startupInput(file : String, index : Int, line : String) : Optional(#(String, Int, String)) =
+    if String.isEmpty(String.trim(line)) then None else Some(#(file, index + 1, line))
 
 // How long to wait for the file system, which is a local file.
 let fileWait = 5000
@@ -360,13 +378,16 @@ fn fromFiles(state : State,
              inputs : List(#(String, Int, String))) : Next with ShellMsg =
     match inputs {
         [] -> Continue(state)
-      | #(from, line, input) :: rest -> if String.startsWith(input, ":") then
-            match perform(state, screen, input) {
-                Continue(state2) -> fromFiles(state2, screen, rest)
+      | #(from, line, input) :: rest -> {
+            let placed = State(..state, from = Some(#(from, line)));
+            if String.startsWith(input, ":") then match perform(placed, screen, input) {
+                Continue(state2) -> fromFiles(State(..state2, from = None), screen, rest)
               | Leave -> Leave
-            }
-        else
-            fromFiles(quietly(state, screen, from, line, input), screen, rest)
+            } else
+                fromFiles(State(..quietly(placed, screen, from, line, input), from = None),
+                          screen,
+                          rest)
+        }
     }
 
 // The reader stays live, so an interruption reaches the session while the
@@ -404,7 +425,7 @@ fn await(state : State,
             State(..state, env = env2)
         }
       | Done(Faulted(text)) -> {
-            say(screen, Shell.Style.fault(state.colour, "fault: " <> text));
+            say(screen, Shell.Style.fault(state.colour, placed(state, "fault: " <> text)));
             if printing then timed(screen, state.settings, started) else Unit;
             state
         }
@@ -417,7 +438,7 @@ fn await(state : State,
       // what it raises, so a report of its process is a fault a signal
       // brought, after which no `Done` comes
       | Reported(report) -> if report.process == Process.fromAddress(child) then {
-            say(screen, Shell.Style.fault(state.colour, "fault: " <> report.cause));
+            say(screen, Shell.Style.fault(state.colour, placed(state, "fault: " <> report.cause)));
             if printing then timed(screen, state.settings, started) else Unit;
             state
         } else
@@ -549,8 +570,16 @@ fn say(screen : Address(ScreenMsg), text : String) : Unit with m =
 
 // Report §11.2: what the shell refuses is red, as a diagnostic's first
 // line is, and what it answers is plain.
-fn refuse(screen : Address(ScreenMsg), colour : Bool, text : String) : Unit with m =
-    say(screen, Shell.Style.fault(colour, text))
+fn refuse(state : State, screen : Address(ScreenMsg), text : String) : Unit with m =
+    say(screen, Shell.Style.fault(state.colour, placed(state, text)))
+
+// Report §11.2: what a startup input refuses or faults with is named by its
+// file and line, as its diagnostic is.
+fn placed(state : State, text : String) : String =
+    match state.from {
+        Some(#(file, line)) -> file <> ":" <> Int.toString(line) <> ": " <> text
+      | None -> text
+    }
 
 // Report §11.2: the session's live processes by spawn site, the shell's own
 // left out.
@@ -585,7 +614,7 @@ fn submit(state : State, screen : Address(ScreenMsg), input : String) : Next wit
 fn perform(state : State, screen : Address(ScreenMsg), input : String) : Next with ShellMsg =
     match Shell.Command.parse(input) {
         Left(text) -> {
-            refuse(screen, state.colour, text);
+            refuse(state, screen, text);
             Continue(state)
         }
       | Right(#(action, arg)) -> obey(state, screen, action, arg)
@@ -624,14 +653,14 @@ fn obey(state : State,
         }
       | Shell.Command.Forget -> match forget(env, arg) {
             Left(text) -> {
-                refuse(screen, colour, text);
+                refuse(state, screen, text);
                 Continue(state)
             }
           | Right(env2) -> Continue(State(..state, env = env2))
         }
       | Shell.Command.Browse -> match browse(env, arg) {
             Left(text) -> {
-                refuse(screen, colour, text);
+                refuse(state, screen, text);
                 Continue(state)
             }
           | Right(lines) -> {
@@ -641,7 +670,7 @@ fn obey(state : State,
         }
       | Shell.Command.Doc -> match doc(env, arg) {
             Left(text) -> {
-                refuse(screen, colour, text);
+                refuse(state, screen, text);
                 Continue(state)
             }
           | Right(text) -> {
@@ -651,7 +680,7 @@ fn obey(state : State,
         }
       | Shell.Command.Output -> match output(arg) {
             Left(text) -> {
-                refuse(screen, colour, text);
+                refuse(state, screen, text);
                 Continue(state)
             }
           | Right(text) -> {
@@ -659,7 +688,7 @@ fn obey(state : State,
                 Continue(state)
             }
         }
-      | Shell.Command.Set -> Continue(State(..state, settings = set(screen, colour, settings, arg)))
+      | Shell.Command.Set -> Continue(State(..state, settings = set(state, screen, arg)))
       | Shell.Command.Processes -> match sessionProcesses(state.own) {
             [] -> {
                 say(screen, "no process of the session's is running");
@@ -707,16 +736,14 @@ fn obey(state : State,
 // Report §11.2: the depth and the length a value is printed to, the rows
 // the tail takes, and whether a result is followed by the time its run
 // took.
-fn set(screen : Address(ScreenMsg),
-       colour : Bool,
-       settings : Settings,
-       arg : String) : Settings with m =
+fn set(state : State, screen : Address(ScreenMsg), arg : String) : Settings with m = {
+    let settings = state.settings;
     if String.isEmpty(arg) then {
         printLines(screen, settingLines(settings));
         settings
     } else match Shell.Command.setting(arg) {
         Left(text) -> {
-            refuse(screen, colour, text);
+            refuse(state, screen, text);
             settings
         }
       | Right(Shell.Command.Depth(n)) -> Settings(..settings, depth = n)
@@ -727,6 +754,7 @@ fn set(screen : Address(ScreenMsg),
         }
       | Right(Shell.Command.Timing(on)) -> Settings(..settings, timing = on)
     }
+}
 
 fn settingLines(settings : Settings) : List(String) =
     ["depth " <> Int.toString(settings.depth),
@@ -834,11 +862,11 @@ fn reader(session : Address(ShellMsg)) : Unit with ReaderMsg = {
         Right(_) -> {
             send(session, Ready);
             receive {
-                Start(screen = screen, earlier = earlier, colour = colour) ->
+                Start(screen = screen, earlier = earlier, keeping = keeping, colour = colour) ->
                     readLoop(session,
                              screen,
                              Reading(editing = Shell.Editor.start(earlier),
-                                     keeping = true,
+                                     keeping = keeping,
                                      hinted = false,
                                      last = Ordinary,
                                      colour = colour))

@@ -1134,6 +1134,45 @@ doc_man_dir_test() ->
     {ok, Page} = file:read_file(filename:join(Out, "net/Ernest.Net.Http.3ern")),
     ?assertMatch({_, _}, binary:match(Page, <<".TH \"Ernest.Net.Http\" \"3ern\"">>)).
 
+%% report §11.4: a page `ern doc` wrote of a module whose source is gone is
+%% removed, as the build removes its .erc, and a file it did not write is
+%% kept. A regression test: the page stayed, out of the index
+%% (findings.md's T17)
+doc_sweeps_pages_test() ->
+    Dir = pair(tmp()),
+    Src = filename:join(Dir, "src"),
+    Out = filename:join(Dir, "build"),
+    Extra = write(Dir, "src/net/extra.ern", "export fn two() : Int =\n    2\n"),
+    Doc = fun(Args) -> ?assertEqual(0, ern_cli:ern(["doc" | Args] ++ ["--build-root", Out, Src]))
+          end,
+    Doc([]),
+    Doc(["--man"]),
+    Notes = write(Out, "net/notes.md", "# Ernest module Net.Gone\n"),
+    ?assert(filelib:is_regular(filename:join(Out, "net/extra.md"))),
+    ok = file:delete(Extra),
+    Doc([]),
+    Doc(["--man"]),
+    ?assertNot(filelib:is_regular(filename:join(Out, "net/extra.md"))),
+    ?assertNot(filelib:is_regular(filename:join(Out, "net/Ernest.Net.Extra.3ern"))),
+    ?assert(filelib:is_regular(filename:join(Out, "net/http.md"))),
+    ?assert(filelib:is_regular(filename:join(Out, "net/Ernest.Net.Http.3ern"))),
+    ?assert(filelib:is_regular(Notes)),
+    {ok, Index} = file:read_file(filename:join(Out, "index.md")),
+    ?assertEqual(nomatch, binary:match(Index, <<"Extra">>)).
+
+%% report §11.4: a manual page is UTF-8 text. A regression test: the
+%% prelude's wrote its `§` as one byte of Latin-1
+doc_man_utf8_test_() ->
+    {timeout, 120,
+     fun() ->
+             Out = filename:join(tmp(), "build"),
+             ?assertEqual(0, ern_cli:ern(["doc", "--man", "--build-root", Out, "../../../stdlib"])),
+             Pages = filelib:wildcard(filename:join(Out, "**/*.3ern")),
+             ?assert(lists:member(filename:join(Out, "Ernest.Prelude.3ern"), Pages)),
+             [?assertMatch({Page, true}, {Page, is_list(unicode:characters_to_list(Bin))})
+              || Page <- Pages, {ok, Bin} <- [file:read_file(Page)]]
+     end}.
+
 %% report §11.1: the compiled module carries its documentation as EEP 48's
 %% Docs chunk, so the host's own tools read an Ernest module
 docs_chunk_test() ->
@@ -1291,6 +1330,33 @@ old_spellings_test() ->
     lists:foreach(fun({Args, _}) -> ?assertEqual(1, ern_err(Args)) end, Refused),
     Out = iolist_to_binary(?capturedOutput),
     [?assertMatch({_, _}, binary:match(Out, Text)) || {_, Text} <- Refused].
+
+%% report §11.2: `--main` without a file is refused, as it names a function
+%% of the file; a regression test, the option having been ignored
+%% (findings.md's T9)
+shell_main_without_file_test() ->
+    ?assertEqual(1, ern_err(["shell", "--main", "Foo.bar"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"ern shell: --main names the function to spawn from"
+                                        " the file the shell loads, and no file is given">>)).
+
+%% report §11: an old spelling names its replacement only to a job that
+%% takes it, matched by its whole name; `--version` and `--help` stand
+%% alone. A regression test: every job recommended what it then refused,
+%% and `--emit-erl=x` was taken for `--emit` (findings.md's T7)
+old_spellings_per_job_test() ->
+    Refused = [{["run", "--out-dir", "x", "a.erc"], <<"ern run: invalid option: --out-dir">>},
+               {["run", "--errors", "short", "a.erc"], <<"ern run: invalid option: --errors">>},
+               {["run", "--emit", "erl", "a.erc"], <<"ern run: invalid option: --emit">>},
+               {["build", "--emit-erl=x", "a.ern"], <<"invalid option argument: --emit-erl=x">>},
+               {["--version", "--help"], <<"ern: --version stands alone: ern --version">>},
+               {["-v"], <<"ern: no job -v; the jobs are">>},
+               {["--load-path=d", "x.erc"],
+                <<"ern: --load-path comes after the job: ern <job> --load-path">>}],
+    lists:foreach(fun({Args, _}) -> ?assertEqual(1, ern_err(Args)) end, Refused),
+    Out = iolist_to_binary(?capturedOutput),
+    [?assertMatch({_, _}, binary:match(Out, Text)) || {_, Text} <- Refused],
+    ?assertEqual(nomatch, binary:match(Out, <<"is now">>)).
 
 %%
 %% ern, report §11.2 and §11.3

@@ -89,12 +89,13 @@ program() ->
     end.
 
 %% Report §11.2, §8.1: where the startup files are, the person's first
-%% and then the node's. The shell reads them itself, in Ernest: only
-%% where they are is the host's to say.
+%% and then the node's, each named from the working directory as §11.5
+%% names a file. The shell reads them itself, in Ernest: only where they
+%% are is the host's to say.
 -spec startup_files() -> [binary()].
 startup_files() ->
     What = persistent_term:get({?MODULE, loaded}, #{}),
-    [unicode:characters_to_binary(File) || File <- maps:get(startups, What, [])].
+    [unicode:characters_to_binary(ern_build:shown(File)) || File <- maps:get(startups, What, [])].
 
 %% Report §11.2: at a terminal the shell takes another line where the
 %% parser cannot finish the input. Both readings are tried, the expression
@@ -1216,7 +1217,8 @@ diagnostic({file, Path, First}, Input, Diags) ->
                  {error, _} -> Input
              end,
     unicode:characters_to_binary(
-      [ern_diag:format(binary_to_list(Path), Source, down(D, First - 1)) || D <- Diags]).
+      [ern_diag:format(ern_build:shown(binary_to_list(Path)), Source, down(D, First - 1))
+       || D <- Diags]).
 
 %% A diagnostic's positions, the line a number of lines further down.
 down(#diag{span = Span, labels = Labels} = D, K) ->
@@ -1415,14 +1417,16 @@ needed_one(Env, Ns, Acc) ->
 %% none is, so the session goes on with every module as it was.
 -spec reload(#env{}) -> {'Left', binary()} | {'Right', {#env{}, [binary()]}}.
 reload(#env{modules = Modules} = Env) ->
+    Sources = [{Ns, Loaded, source_of(Env, Ns)}
+               || {Ns, Loaded} <- lists:sort(maps:to_list(Modules))],
     Changed = [{Ns, File}
-               || {Ns, Loaded} <- lists:sort(maps:to_list(Modules)),
-                  {ok, File} <- [source_of(Env, Ns)],
+               || {Ns, Loaded, {ok, File}} <- Sources,
                   {ok, Hash} <- [source_hash(File)],
                   Hash =/= Loaded],
+    Sourceless = sourceless(Env, [Ns || {Ns, _, none} <- Sources]),
     case Changed of
         [] ->
-            {'Right', {Env, [<<"no source has changed">>]}};
+            {'Right', {Env, [<<"no source has changed">> | Sourceless]}};
         _ ->
             case compile_all(Env, Changed) of
                 {ok, Needed, Compiled} ->
@@ -1436,7 +1440,8 @@ reload(#env{modules = Modules} = Env) ->
                                           ok -> [];
                                           {fault, Ns, Cause} -> [kept_values(Ns, Cause)]
                                       end,
-                            {'Right', {remember(Env1), lists:reverse(Lines) ++ Faulted}};
+                            {'Right', {remember(Env1),
+                                       lists:reverse(Lines) ++ Faulted ++ Sourceless}};
                         {fault, Ns, Cause} ->
                             lists:foreach(fun({N, _, _}) -> withdraw(ern_emitter:module_atom(N))
                                           end, Needed),
@@ -1447,6 +1452,15 @@ reload(#env{modules = Modules} = Env) ->
                     {'Left', iolist_to_binary([Text, "nothing was reloaded\n"])}
             end
     end.
+
+%% Report §11.2: a loaded module whose source the source root does not
+%% hold is named, since `:reload` cannot compile it again.
+sourceless(_Env, []) ->
+    [];
+sourceless(#env{source_root = Root}, Names) ->
+    Text = lists:join(", ", [qname_text(Ns) || Ns <- Names]),
+    [unicode:characters_to_binary(["the source root ", ern_build:shown(Root),
+                                   " holds no source of ", Text])].
 
 %% The changed modules compiled, with what they use that the session has
 %% not loaded; or why they cannot all be loaded.
@@ -1551,8 +1565,9 @@ compile_source(#env{source_root = Root} = Env, File) ->
             {error, unicode:characters_to_binary([Text, "\n"])};
         {error, Failed, Diags} ->
             {ok, Source} = file:read_file(Failed),
+            %% report §11.5: the file named from the working directory
             {error, unicode:characters_to_binary(
-                      [ern_diag:format(Failed, Source, D) || D <- Diags])}
+                      [ern_diag:format(ern_build:shown(Failed), Source, D) || D <- Diags])}
     end.
 
 %% Report §11.2, §11.1: where a compiled module is found by its namespace,

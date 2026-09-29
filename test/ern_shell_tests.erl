@@ -113,6 +113,57 @@ startup() ->
     %% what a startup input answered was not printed
     ?assertEqual(nomatch, binary:match(Out, <<"1 : Int">>)).
 
+%% report §11.2: a startup input's refusal and fault are named by its file
+%% and line, as its diagnostic is, and a file that is not UTF-8 is said and
+%% not run. A regression test: each was printed bare, and the file was read
+%% as empty (findings.md's T15)
+startup_failures_named_test_() ->
+    {timeout, 60, fun startup_failures_named/0}.
+
+startup_failures_named() ->
+    Node = filename:join(fresh_home(), ".ernest"),
+    ok = filelib:ensure_path(Node),
+    Startup = filename:join(Node, "startup"),
+    ok = file:write_file(Startup, ":set depth x\n:bogus\n1 / 0\nlet k = 2\n"),
+    Empty = filename:join(Node, "session.in"),
+    ok = file:write_file(Empty, "k\n"),
+    Shell = "HOME=" ++ fresh_home() ++ " ../bin/ern shell --config-dir " ++ Node
+        ++ " < " ++ Empty,
+    {0, Out} = sh(Shell),
+    [?assertMatch({_, _}, binary:match(Out, list_to_binary(Startup ++ Line)))
+     || Line <- [":1: :set depth takes a number", ":2: no command :bogus",
+                 ":3: fault: division by zero"]],
+    ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
+    ok = file:write_file(Startup, <<255, 254, "\n">>),
+    {0, Bad} = sh(Shell),
+    ?assertMatch({_, _},
+                 binary:match(Bad, list_to_binary(Startup ++ " is not UTF-8, and is not run"))).
+
+%% report §11.2, §11.5: `:reload` names a loaded module whose source the
+%% source root does not hold, and a module's diagnostic names its file from
+%% the working directory. A regression test: `:reload` said only that no
+%% source had changed, and the file was named by its absolute path
+%% (findings.md's T13, T16)
+reload_sources_named_test_() ->
+    {timeout, 60, fun reload_sources_named/0}.
+
+reload_sources_named() ->
+    Dir = fresh_home(),
+    ok = file:write_file(filename:join(Dir, "main.ern"),
+                         "export fn main() : Unit with Never =\n    Io.println(\"hi\")\n"),
+    ok = file:write_file(filename:join(Dir, "bad.ern"), "export fn two() : Int =\n    \"x\"\n"),
+    Ern = filename:absname("../bin/ern"),
+    {0, _} = sh("cd " ++ Dir ++ " && " ++ Ern ++ " build --build-root build main.ern"),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, ":reload\n"),
+    {0, Out} = sh("cd " ++ Dir ++ "/build && " ++ Ern ++ " shell main.erc < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"no source has changed\nthe source root . holds no"
+                                             " source of Main">>)),
+    ok = file:write_file(In, ":load Bad\n"),
+    {0, Load} = sh("cd " ++ Dir ++ " && " ++ Ern ++ " shell build/main.erc < " ++ In),
+    ?assertMatch({_, _}, binary:match(Load, <<"bad.ern:2:5: the body">>)),
+    ?assertEqual(nomatch, binary:match(Load, list_to_binary(Dir))).
+
 %% report §11.2: without `--config-dir` the working directory's
 %% `.ernest/startup` is not run, and a file both paths name runs once. A
 %% regression test: a cloned tree's startup ran as the shell started in it,
@@ -330,6 +381,31 @@ history() ->
     %% a session that is not a terminal neither reads the file nor writes it
     {0, _} = sh("HOME=" ++ Home ++ " ../bin/ern shell < session/basic.in"),
     ?assertEqual([<<"11 + 11">>, <<"33 + 33">>, <<"11 + 11">>], history_lines(File)).
+
+%% report §11.2: a history file that cannot be read is reported once, and
+%% the session goes on without one. A regression test: a second report came
+%% at the first input, as the session tried to write it (findings.md's T18)
+history_unreadable_test_() ->
+    {timeout, 60, fun history_unreadable/0}.
+
+history_unreadable() ->
+    Home = fresh_home(),
+    File = filename:join([Home, ".ernest", "history"]),
+    ok = filelib:ensure_dir(File),
+    ok = file:write_file(File, "11 + 11\n"),
+    ok = file:change_mode(File, 8#000),
+    Screen = pty("HOME=" ++ Home ++ " ../bin/ern shell",
+                 [{expect, "> "},
+                  {send, hex("1 + 1\r")},
+                  {expect, "2 : Int"},
+                  {send, hex("2 + 2\r")},
+                  {expect, "4 : Int"},
+                  {send, "04"}],
+                 20),
+    ok = file:change_mode(File, 8#600),
+    ?assertEqual(1, count(Screen, <<"the history is not kept">>)),
+    ?assertMatch({_, _},
+                 binary:match(Screen, <<"since it could not be read: permission was denied">>)).
 
 history_lines(File) ->
     {ok, Text} = file:read_file(File),

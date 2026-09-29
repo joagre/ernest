@@ -13,7 +13,7 @@
 
 %% Report §11.4: the page of one compiled module, built from its
 %% documentation chunk and the namespace in its interface chunk (§11.1).
--spec page(binary() | file:filename()) -> iolist().
+-spec page(binary() | file:filename()) -> unicode:chardata().
 page(Beam) ->
     {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
     {ok, Docs} = ern_docs:read(Beam),
@@ -21,14 +21,14 @@ page(Beam) ->
 
 %% Report §9, §11.4: the prelude's page, from the documentation its table
 %% carries. A prelude name is written without a module's name before it.
--spec prelude_page() -> iolist().
+-spec prelude_page() -> unicode:chardata().
 prelude_page() ->
     render("Ernest prelude", "", ern_prelude:docs()).
 
 %% Report §11.2: a module's documentation as `:doc` shows it, the head of
 %% its page: the title, the version, and the module's doc block. What the
 %% module declares is `:browse`'s to list.
--spec module_head(binary() | file:filename()) -> iolist().
+-spec module_head(binary() | file:filename()) -> unicode:chardata().
 module_head(Beam) ->
     {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
     {ok, {docs_v1, _, ernest, _, ModDoc, _, _}} = ern_docs:read(Beam),
@@ -36,14 +36,14 @@ module_head(Beam) ->
 
 %% Report §11.4: the page of one compiled module as a manual page,
 %% `Ernest.Net.Http` in section 3ern.
--spec manual(binary() | file:filename()) -> iolist().
+-spec manual(binary() | file:filename()) -> unicode:chardata().
 manual(Beam) ->
     {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
     {ok, Docs} = ern_docs:read(Beam),
     roff("Ernest." ++ qname(Ns), ["Ernest module ", qname(Ns)], qname(Ns) ++ ".", Docs).
 
 %% Report §9, §11.4: the prelude's page as a manual page, `Ernest.Prelude`.
--spec prelude_manual() -> iolist().
+-spec prelude_manual() -> unicode:chardata().
 prelude_manual() ->
     roff("Ernest.Prelude", "Ernest prelude", "", ern_prelude:docs()).
 
@@ -142,7 +142,7 @@ since_line(V) -> ["*Since ", V, ".*\n\n"].
 %% Report §11.2: one declaration's documentation, as `:doc` prints it. The
 %% name is the unqualified one the entry carries, `map` or `Stack.push`, as
 %% it is written, so that no name is made of what a person typed.
--spec declaration(binary() | file:filename(), binary()) -> {ok, iolist()} | none.
+-spec declaration(binary() | file:filename(), binary()) -> {ok, unicode:chardata()} | none.
 declaration(Beam, Name) ->
     {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
     {ok, {docs_v1, _, ernest, _, _, _, Entries}} = ern_docs:read(Beam),
@@ -164,7 +164,7 @@ find(Name, Entries) ->
 %% not the session's; `entry` keeps the entry's own, which a type's is.
 %% A name with no entry, one a `let` at the prompt bound, is its name and
 %% type alone.
--spec session_declaration(binary() | none, binary(), [string()] | entry) -> iolist().
+-spec session_declaration(binary() | none, binary(), [string()] | entry) -> unicode:chardata().
 session_declaration(Beam, Name, Signature) ->
     Entries = case Beam of
                   none ->
@@ -186,7 +186,7 @@ lines(Signature) -> [unicode:characters_to_binary(L) || L <- Signature].
 
 %% Report §9, §11.2: one prelude name's documentation, `send`,
 %% `Address.call`, or `Optional`, as `:doc` prints it.
--spec prelude_declaration(binary()) -> {ok, iolist()} | none.
+-spec prelude_declaration(binary()) -> {ok, unicode:chardata()} | none.
 prelude_declaration(Name) ->
     {docs_v1, _, ernest, _, _, _, Entries} = ern_prelude:docs(),
     case find(Name, Entries) of
