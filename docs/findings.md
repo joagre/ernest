@@ -95,24 +95,24 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 
 ## The guide and the README
 
-- cheap — §7.1: `Prelude.Close` names nothing; use `Local` and `Prelude.Local` (U1)
-- cheap — §9.2: a signal's status 143, stale since `ern run` ends by the signal (U3)
-- cheap — §8.5: JSON, TLS, regular expressions and HTTP named as libraries that do not exist (U4)
-- cheap — §2.9: `Os` missing from the system modules (U5)
-- cheap — taught two ways: a dropped spawn's `with Never`; `main`'s signature; a type's operations as members or module functions (U6, U7, U8)
-- cheap — §4.4 omits `callee was restarted`; §9.5's stamp where standard error is a pipe; §14's `monitor` in repl; §8's configuration read; §8.2's code shipped; §1.1's `Io.debug`; §2.1's raw string (U9..U17, N8)
+- done — §7.1: `Prelude.Close` names nothing; use `Local` and `Prelude.Local` (U1): fixed 2026-09-29
+- done — §9.2: a signal's status 143, stale since `ern run` ends by the signal (U3): fixed 2026-09-29, `ern run` ends by the signal, which a shell reports as 128 plus its number
+- done — §8.5: JSON, TLS, regular expressions and HTTP named as libraries that do not exist (U4): fixed 2026-09-29, a format, a protocol and a pattern language a library's by E.0 rule 3, and Appendix G for the libraries there are
+- done — §2.9: `Os` missing from the system modules (U5): fixed 2026-09-29
+- done — taught two ways: a dropped spawn's `with Never`; `main`'s signature; a type's operations as members or module functions (U6, U7, U8): U6 and U7 fixed 2026-09-29, a dropped address's lambda without `with Never` and each `main` with it; U8, when an operation is a member and when a module function, moved to MVP 2.97, where the contract's decision settles how a type's operations are declared
+- done — §4.4 omits `callee was restarted`; §9.5's stamp where standard error is a pipe; §14's `monitor` in repl; §8's configuration read; §8.2's code shipped; §1.1's `Io.debug`; §2.1's raw string (U9..U17, N8): fixed 2026-09-29; the README's line had been fixed with N9
 - done — the guide's §8.2 on an adapted address that crosses to a peer, which step 5's answer decides (U9..U17, N8): 2026-09-29, the answer keeps §8.2 as it stands, and §5.5 points at it
-- cheap — citations: shape rule 6, §6.6's cause, §4.5 for order, Appendix G.1 (U18)
-- cheap — ownership: §14's test lists, the peer status, §6.5's layout, §10's protocol, §12's lambda answer (U19..U23)
-- cheap — clarity: §5.5's `Done`, §7.1's `main.erc`, §9.3 against §1.2, §1.2's Tab, §4.4's pacing, §8's comma splice (U24..U29)
+- done — citations: shape rule 6, §6.6's cause, §4.5 for order, Appendix G.1 (U18): fixed 2026-09-29
+- done — ownership: §14's test lists, the peer status, §6.5's layout, §10's protocol, §12's lambda answer (U19..U23): fixed 2026-09-29, each pointed at its owner; the lambda's answer argued in the log's *A Lambda Is Written `fn(x) = e`*
+- done — clarity: §5.5's `Done`, §7.1's `main.erc`, §9.3 against §1.2, §1.2's Tab, §4.4's pacing, §8's comma splice (U24..U29): fixed 2026-09-29; U24 had been, and U29's sentence went with U20
 - 2.98 — `Tcp` is never taught, though §9.5 shows a chat server's unit (N1)
 - done — §5.5 leads one to expect sockets in the mailbox; `Tcp.read` pulls; one socket in two processes (N2): fixed 2026-09-29, the guide's §5.5 saying what does not deliver and how a reader process delivers it
-- cheap — §8.6 recommends `Bytes.get` for scanning; a pattern is 120 times faster; no line splitter (N3)
+- done — §8.6 recommends `Bytes.get` for scanning; a pattern is 120 times faster; no line splitter (N3): fixed 2026-09-29, §8.6 scans with a pattern and shows a line splitter; `Bytes` has no `split` by E.0 rule 2, and splitting stays in the program
 - 2.98 — §4.4 does not cover a broadcast to a consumer that stalls (N4)
-- cheap — no way to wait without a limit is said; `accept` and `read` repeat on `Timeout` (N6)
-- cheap — how to show an `Io.Error` to a user (N7)
+- done — no way to wait without a limit is said; `accept` and `read` repeat on `Timeout` (N6): fixed 2026-09-29, §2.9
+- done — how to show an `Io.Error` to a user (N7): fixed 2026-09-29, §2.9: a `match` in the program's own words, as the shell's `trouble` does
 - done — README: an example, compiled by `readme_examples_test_`; the unbuilt bullet cut, in the guide's list as well; a clone line; "§14 says what each shows" says the larger ones; Gleam and Unison stay, since the sentence that names them says what each gives (N9)
-- cheap — `ern format` re-joins a split type; `Clock.now` untaught; `ern shell prog.erc` and `Os.arguments` (N10)
+- 2.98 — `ern format` re-joins a split type; `Clock.now` untaught; `ern shell prog.erc` and `Os.arguments` (N10): `Clock.now` and `Os.arguments` fixed 2026-09-29; whether a type that breaks takes one alternative a line, as a `match` does, rather than filling its lines, is a question for the user
 - 2.98 — the language: sockets pull-only, mandatory timeouts, slow standard library calls, no bounded mailbox (N-L1..L6)
 
 ## Diagnostics (§11.5)
