@@ -360,14 +360,11 @@ stdlib_root() ->
 prelude_namespaces() ->
     lists:usort(prelude_only_namespaces() ++ stdlib_namespaces()).
 
-%% The prelude's own: its types, the first segment of its qualified values,
-%% and `Prelude`, the name of the prelude itself.
+%% The prelude's own: `Prelude`, the name of the prelude itself, and each
+%% of its types that has members; a prelude type without members takes no
+%% namespace (report §4.2).
 prelude_only_namespaces() ->
-    {ok, Decls} = ern_parser:parse_string(ern_prelude:declared_types()),
-    lists:usort(['Prelude']
-                ++ [N || {N, _, _} <- ern_prelude:builtin_types()]
-                ++ [N || #type_decl{name = N} <- Decls]
-                ++ [hd(Q) || {Q, _, _} <- ern_prelude:values(), length(Q) > 1]).
+    lists:usort(['Prelude' | ern_prelude:member_types()]).
 
 %% The standard library's modules at the top of the hierarchy.
 stdlib_namespaces() ->

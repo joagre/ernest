@@ -219,11 +219,13 @@ decl_names(_) ->
 key_text({Owner, Name}) -> local_name(Owner, Name);
 key_text(Name) -> atom_to_list(Name).
 
-%% Report §4.8: in the standard library module of a built-in type, an
-%% operator declared as that type's, `fn Float.+` in float.ern, is the
-%% module's own `+`, as a self-qualified name is (§4.2).
+%% Report §4.8: in the standard library module of a built-in type with
+%% members, an operator declared as that type's, `fn Float.+` in float.ern,
+%% is the module's own `+`, as a self-qualified name is (§4.2). A prelude
+%% type without members takes no namespace, and a module named after one,
+%% `never.ern`, is a program's own.
 builtin_operators([T], Decls) ->
-    case lists:keymember(T, 1, ern_prelude:builtin_types()) of
+    case lists:member(T, ern_prelude:member_types()) of
         true -> [own_operator(T, D) || D <- Decls];
         false -> Decls
     end;
@@ -1072,7 +1074,7 @@ member_type(D, #env{ns = Ns} = Env) when is_record(D, fn_decl); is_record(D, for
     {Owner, Name} = decl_key(D),
     Member = lists:member(Name, [compare, negate | ?ARITH ++ ['<>']]),
     Builtin = case Ns of
-                  [B] -> lists:keymember(B, 1, ern_prelude:builtin_types());
+                  [B] -> lists:member(B, ern_prelude:member_types());
                   _ -> false
               end,
     case {Member, Owner} of

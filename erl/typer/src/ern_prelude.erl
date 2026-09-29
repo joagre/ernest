@@ -7,8 +7,8 @@
 %% compiled interfaces, stdlib_ifaces/0.
 -module(ern_prelude).
 
--export([equality_params/1, builtin_types/0, declared_types/0, process_only/0, values/0, docs/0,
-         stdlib_ifaces/0]).
+-export([equality_params/1, builtin_types/0, declared_types/0, process_only/0, values/0,
+         member_types/0, docs/0, stdlib_ifaces/0]).
 
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -522,6 +522,13 @@ values() ->
       fn(xs : List(Int)) : Int = match xs { x :: _ -> x | [] -> fault("never empty here") }
       ```
       """/utf8>>}].
+
+%% Report §4.2, §9.5, §9.6: the prelude's types that have members, each a
+%% namespace of the prelude beside `Prelude`; a prelude type without
+%% members takes none.
+-spec member_types() -> [atom()].
+member_types() ->
+    lists:usort([hd(Q) || {Q, _, _} <- values(), length(Q) > 1]).
 
 %% Report §9, §11.4: the prelude's documentation, as an EEP 48 chunk of the
 %% shape ern_docs:build/4 builds for a module, so that one renderer serves

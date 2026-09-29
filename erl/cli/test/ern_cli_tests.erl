@@ -452,18 +452,20 @@ prelude_namespace_test() ->
                                       <<"takes the prelude namespace Prelude">>)).
 
 %% report §4.2: the refusal names whose namespace a file at the source root
-%% takes: `Event` and `Sys` are the prelude's, `Io` the standard library's.
-%% A regression test, written after the code; it does not cover a namespace
-%% that both take, such as `Int`, which is named as the prelude's.
+%% takes: `Address`, a prelude type with members, is the prelude's, `Io` the
+%% standard library's. A regression test, written after the code; it does
+%% not cover a namespace that both take, such as `Int`, which is named as
+%% the prelude's.
 taken_namespace_names_owner_test() ->
     lists:foreach(
       fun(File) ->
               Dir = tmp(),
               write(Dir, "src/" ++ File, "export fn f() : Int = 1\n"),
               ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"]))
-      end, ["down.ern", "io.ern"]),
+      end, ["address.ern", "io.ern"]),
     Out = iolist_to_binary(?capturedOutput),
-    ?assertMatch({_, _}, binary:match(Out, <<"down.ern takes the prelude namespace Down">>)),
+    ?assertMatch({_, _},
+                 binary:match(Out, <<"address.ern takes the prelude namespace Address">>)),
     ?assertMatch({_, _},
                  binary:match(Out, <<"io.ern takes the standard library namespace Io">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"prelude namespace Io">>)),
@@ -471,6 +473,25 @@ taken_namespace_names_owner_test() ->
     Dir = tmp(),
     write(Dir, "src/sys.ern", "export fn f() : Int = 1\n"),
     ?assertEqual(0, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])).
+
+%% report §4.2: a prelude type without members takes no namespace, so a
+%% program's modules may be named after it: `Down.describe` is the module's
+%% function, and `Down(...)` still builds the prelude's type. `never.ern`'s
+%% `compare` is its own, not a member of the built-in type. A regression
+%% test: `down.ern`, `test.ern` and `never.ern` were refused
+prelude_type_without_members_is_no_namespace_test() ->
+    Dir = tmp(),
+    write(Dir, "src/down.ern", "export fn describe(d : Down) : String = d.site\n"),
+    write(Dir, "src/test.ern", "export let answer : Int = 42\n"),
+    write(Dir, "src/never.ern", "export fn compare(a : Int, b : Int) : Int = a - b\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit with Never = {\n"
+          "    Io.println(Down.describe(Down(reason = Killed, site = \"here\")));\n"
+          "    Io.println(Int.toString(Test.answer + Never.compare(3, 1)))\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"here\n44\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §4.2: `Prelude.send` is the prelude's `send` at run time too, past
 %% a function of the module's own by that name
