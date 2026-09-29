@@ -1960,10 +1960,10 @@ fn f(x) = if x then f(1) else 2
 
 ```console
 $ ern build example.ern
-example.ern:1:1: recursive use does not match the definition: expected (Int) -> Int, found (Bool) -> Int
+example.ern:1:23: the argument does not fit f: expected Bool, found Int
 1 | fn f(x) = if x then f(1) else 2
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: the types differ at Int and Bool
+  |                     - f : (Bool) -> a
+  |                       ^
 ```
 
 ### A recursive use at another type than the `let`'s (§4.6)
@@ -1974,14 +1974,15 @@ let f = fn(x) = if x then f(1) else 2
 
 ```console
 $ ern build example.ern
-example.ern:1:1: recursive use does not match the definition: expected (Int) -> Int, found (Bool) -> Int
+example.ern:1:1: recursive use does not match the definition: expected (Bool) -> Int, found (Int) -> Int
 1 | let f = fn(x) = if x then f(1) else 2
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: the types differ at Int and Bool
+  | = help: the types differ at Bool and Int
 
 example.ern:1:1: the initializer of f depends on itself
 1 | let f = fn(x) = if x then f(1) else 2
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: a recursive function is declared with `fn f(...) = ...`
 ```
 
 ### A type variable of an annotation used as a type (§3.9)

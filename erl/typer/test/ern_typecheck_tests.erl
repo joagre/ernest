@@ -804,8 +804,9 @@ local_fn_signature_shares_variables_test() ->
 %% signature. A regression test: the checker conformed before it was
 %% written. It does not cover a mutually recursive group.
 polymorphic_recursion_is_refused_test() ->
-    ?assertEqual("recursive use does not match the definition: a type that would contain"
-                 " itself ((Nested(List(a))) -> Int against (Nested(a)) -> Int)",
+    %% report §11.5: at the recursive call's argument, as any call is
+    ?assertEqual("the argument does not fit depth: a type that would contain itself"
+                 " (Nested(a) against Nested(List(a)))",
                  err("type Nested(a) = Flat(a) | Nest(Nested(List(a)))\n"
                      "fn depth(n : Nested(a)) : Int ="
                      " match n { Flat(_) -> 0 | Nest(m) -> 1 + depth(m) }")).

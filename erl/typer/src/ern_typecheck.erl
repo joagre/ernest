@@ -1148,7 +1148,7 @@ reference_graph(Decls, Env) ->
                   end, Decls),
     G.
 
-let_cycle(#let_decl{pos = Pos, name = Name} = D, G, Errs, Seen) ->
+let_cycle(#let_decl{pos = Pos, name = Name, body = Body} = D, G, Errs, Seen) ->
     Key = decl_key(D),
     case lists:member(Key, Seen) of
         true ->
@@ -1165,7 +1165,15 @@ let_cycle(#let_decl{pos = Pos, name = Name} = D, G, Errs, Seen) ->
                               end,
                     Msg = lists:flatten(["the initializer of ", atom_to_list(Name),
                                          " depends on itself", Through]),
-                    {[diag(Pos, Msg) | Errs], Cycle ++ Seen}
+                    %% report §11.5: a lambda that calls itself is a
+                    %% recursive function, which is a `fn`
+                    Help = case {Others, Body} of
+                               {[], #e_lambda{}} ->
+                                   "a recursive function is declared with `fn "
+                                   ++ atom_to_list(Name) ++ "(...) = ...`";
+                               _ -> undefined
+                           end,
+                    {[(diag(Pos, Msg))#diag{help = Help} | Errs], Cycle ++ Seen}
             end
     end.
 
@@ -1234,9 +1242,15 @@ check_value(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect, bod
     {TypedParams, ParamTypes, Env1, AnnVars} = bind_params(Params, Env, Env#env.ann_vars),
     {RetT, EffT, AnnVars1, St} = return_annotation(Ret, Effect, AnnVars, Env1),
     FnT = {tfn, ParamTypes, EffT, RetT},
-    Env2 = Env1#env{st = mark_process_only(FnT, St), effect = EffT, pending = [], deferred = [],
-                    ann_vars = AnnVars1, rigid = maps:to_list(AnnVars1),
-                    effect_origin = effect_origin(decl_name(D), Ret, Effect, RetT, EffT, St)},
+    %% report §4.5, §11.5: a recursive call is at the definition's own type,
+    %% so the name has it before the body is read, and a call at another
+    %% type is refused at its argument, as any call is
+    Env1b = unify_at(Pos, Placeholder, FnT, Env1#env{st = St},
+                     "recursive use does not match the definition"),
+    St1b = Env1b#env.st,
+    Env2 = Env1b#env{st = mark_process_only(FnT, St1b), effect = EffT, pending = [],
+                     deferred = [], ann_vars = AnnVars1, rigid = maps:to_list(AnnVars1),
+                     effect_origin = effect_origin(decl_name(D), Ret, Effect, RetT, EffT, St1b)},
     Context = ret_context(Ret, "the body does not have the declared return type"),
     {TypedBody, _BodyT, Env4} = check_expr(Body, RetT, Context, ret_origin(Ret, RetT, Env2), Env2),
     Env5 = unify_at(Pos, Placeholder, FnT, Env4, "recursive use does not match the definition"),
@@ -1264,7 +1278,7 @@ check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) 
             _ -> check_expr(Body, AnnT, "the value does not have the declared type",
                             ann_origin(Ann, AnnT, Env0), Env0)
         end,
-    Env3 = unify_at(Pos, Placeholder, BodyT, Env2, "recursive use does not match the definition"),
+    Env3 = unify_at(Pos, BodyT, Placeholder, Env2, "recursive use does not match the definition"),
     Effectful = case Env3#env.effectful of
                     true -> [decl_key(D) | Env#env.effectful_lets];
                     false -> Env#env.effectful_lets
