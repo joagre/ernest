@@ -2,7 +2,7 @@
 %% bound to a reply-carrying value is used exactly once on every path;
 %% a use is any occurrence, since the type checker already guarantees that
 %% every position such a value can occupy is a consuming one. Also: no
-%% reply-carrying elements in List, Map, Set, Optional, or Either; no `as`
+%% reply-carrying elements in List, Map, or Set; no `as`
 %% on a reply-carrying value; no wildcard or omitted reply-carrying field;
 %% a lambda that captures a linear variable is linear itself: consumed
 %% exactly once, by a call or as spawn's direct argument, bindable by let,
@@ -30,7 +30,7 @@
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
 
--define(CONTAINERS, [['List'], ['Map'], ['Set'], ['Optional'], ['Either']]).
+-define(CONTAINERS, [['List'], ['Map'], ['Set']]).
 
 -spec check([#param{}], tuple(), ern_types:type(), ern_typecheck:env()) ->
           ern_typecheck:env().

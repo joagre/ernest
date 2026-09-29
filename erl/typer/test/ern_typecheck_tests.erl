@@ -54,9 +54,10 @@ constraints_are_inferred_and_printed_test() ->
     ?assertEqual("(a!) -> Unit", type_of("export fn discard(x) = Unit", discard)),
     ?assertEqual("(a) -> a", type_of("export fn identity(x) = x", identity)).
 
-%% report §3.9, §6.6
+%% report §3.9, §6.6: a container's element takes no no-reply restriction,
+%% and an `Optional`'s does, `Optional` being a sum type like any other
 container_elements_are_not_marked_not_reply_carrying_test() ->
-    ?assertEqual("(Optional(a), a) -> a",
+    ?assertEqual("(Optional(a!), a!) -> a!",
                  type_of("export fn orElse(o : Optional(a), d : a) : a =\n"
                          "    match o { Some(x) -> x | None -> d }", orElse)),
     ?assertEqual("(a, List(#(a, b))) -> List(#(a, b))",
@@ -1173,11 +1174,24 @@ reply_in_a_nested_container_test() ->
     ?assertEqual("a reply-carrying value cannot be an element of List",
                  err("fn pair(x) = #([x], 1)\n"
                      "fn f(r : Reply(Int)) = { let _ = pair(r); Unit }")),
-    ?assertEqual("a reply-carrying value cannot be an element of List",
+    %% a list inside an `Optional`: the variable is no container's element
+    %% through a sum type, and takes the no-reply restriction instead
+    ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
+                 " discards its argument",
                  err("fn some(x) = Some([x])\n"
                      "fn f(r : Reply(Int)) = { let _ = some(r); Unit }")),
     ?assertEqual(ok, ok("fn pair(x) = #([x], 1)\nfn f(n : Int) = pair(n)")),
     ?assertEqual(ok, ok("fn f(r : Reply(Int)) = { let #(r2, _) = #(r, [1]); answer(r2, 1) }")).
+
+%% report §6.6, §3.9: `Optional` and `Either` are sum types like any other,
+%% and hold a reply as a user's own sum type does, used once. A regression
+%% test, written with the rule: `Some(r)` was refused
+reply_in_optional_test() ->
+    ?assertEqual(ok, ok("fn f(r : Reply(Int)) ="
+                        " match Some(r) { Some(q) -> answer(q, 1) | None -> Unit }")),
+    ?assertEqual("`_` would discard a reply-carrying value",
+                 err("fn f(r : Reply(Int)) = { let o = Some(r); let _ = o; Unit }")),
+    ?assertEqual(ok, ok("fn f(r : Reply(Int)) : Either(String, Reply(Int)) = Right(r)")).
 
 %% report §6.6: a local fn may not capture a reply-carrying value, since it
 %% may be called many times; a function whose inferred result is

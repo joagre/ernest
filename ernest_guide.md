@@ -397,7 +397,7 @@ Set.fromList([1, 2, 3]) : Set(Int)
 
 `Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
-Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, so a map keyed by addresses is a type error at its first operation; key it by `Process.fromAddress(a)` instead (§5.2). In a printed type, a variable that needs equality is marked `=`: `List.contains : (List(a=), a=) -> Bool`. An annotation does not write the mark; the compiler infers it from the body.
+Map keys and set elements need equality. `==` is defined on every type except one that contains a function, an address, or a `Foreign` value (§8.3), so a map keyed by addresses is a type error at its first operation; key it by `Process.fromAddress(a)` instead (§5.2). In a printed type, a variable that needs equality is marked `=`: `List.contains : (List(a=), a=) -> Bool`. An annotation does not write the mark; the compiler infers it from the body.
 
 Ordering is separate: `a < b` asks the type's `compare`, which answers `Less`, `Equal`, or `Greater`. `Int`, `Float`, `String`, and `Char` have one, and a type of your own gets one by declaring it in its module. A function named `Money.compare` is a member of the type `Money` (§7.2):
 
@@ -746,7 +746,7 @@ A `Reply` is an obligation: whoever holds one answers it exactly once, on every 
 
 The check is on paths, not on time. A path that calls `fault` need not answer, since the fault ends the process and every call waiting on it at once (§6.5). A path that faults inside a function it calls, or waits for ever, must still answer on paper: the compiler cannot see that it will not return, and the caller's deadline covers a wait (§4.4).
 
-Since each reply is counted, a reply-carrying value is never copied or dropped. It cannot be an element of a `List`, a `Map`, a `Set`, an `Optional`, or an `Either`, nor an operand of `==` or `!=`, and `_` cannot stand for one in a pattern. A server with many requests pending keeps each reply in a process of its own, as the queue of §4.4 does. In a printed type, a variable marked `!` is one that may not hold a reply, as in `dup : (a!) -> #(a!, a!)` for a function that copies its argument. Report §6.6 gives the whole discipline.
+Since each reply is counted, a reply-carrying value is never copied or dropped. It cannot be an element of a `List`, a `Map`, or a `Set`, nor an operand of `==` or `!=`, and `_` cannot stand for one in a pattern; an `Optional` or an `Either` may hold one, as any sum type may. A server with many requests pending keeps each reply in a process of its own, as the queue of §4.4 does. In a printed type, a variable marked `!` is one that may not hold a reply, as in `dup : (a!) -> #(a!, a!)` for a function that copies its argument. Report §6.6 gives the whole discipline.
 
 Sending a request twice consumes its reply twice:
 

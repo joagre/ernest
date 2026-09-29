@@ -77,12 +77,22 @@ helper() ->
     filename:join([filename:dirname(code:which(?MODULE)), "..", "priv", "ern_exec"]).
 
 %% Until the helper says whether the program started, the Start is
-%% answered by nothing else, and nothing else knows the process.
-starting(#{port := Port} = Run, Reply) ->
+%% answered by nothing else, and nothing else knows the process. Report
+%% Appendix E.23: a start learned after the time has passed is a time
+%% passed, whichever of the helper's word and the timer's arrived first, so
+%% a time of 0 always answers `Left(Timeout)`. A regression: a fast helper
+%% was answered `Right` before the timer's message came.
+starting(#{port := Port, deadline := Deadline} = Run, Reply) ->
     receive
         {Port, {data, <<"s">>}} ->
-            ern_rt:answer(Reply, {'Right', erlang:self()}),
-            running(Run, queue:new());
+            case ern_rt:remaining(Deadline) of
+                0 ->
+                    stop(Run),
+                    answered(Reply, {'Left', 'Timeout'});
+                _ ->
+                    ern_rt:answer(Reply, {'Right', erlang:self()}),
+                    running(Run, queue:new())
+            end;
         {Port, {data, <<"f", Name/binary>>}} ->
             stop(Run),
             answered(Reply, {'Left', not_started(Name)});
