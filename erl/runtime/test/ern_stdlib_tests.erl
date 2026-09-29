@@ -574,8 +574,8 @@ fs_list_dangling_link_test() ->
 
 %% report Appendix E.17: a link made to a path is read back as it was
 %% written; `stat` follows it and `list` does not; `remove` takes the link
-%% and leaves what it leads to; a link where something is, and a read of
-%% what is no link, are answered with their words. Written with the code
+%% and leaves what it leads to; a link where something is is answered in
+%% words, and a read of what is no link with None. Written with the code
 %% (language feedback 65); a link's target that is not UTF-8 is not
 %% covered, since a test cannot make one where the host's names are UTF-8
 fs_links_test() ->
@@ -598,18 +598,54 @@ fs_links_test() ->
                        end, <<"fs_links_test">>, #{})),
     [Made, Read, Stat, Listed, Again, NotLink, Removed, After] = collect(fs, []),
     ?assertEqual({'Right', 'Unit'}, Made),
-    ?assertEqual({'Right', {'Path', <<"shelf">>}}, Read),
+    ?assertEqual({'Right', {'Some', {'Path', <<"shelf">>}}}, Read),
     ?assertMatch({'Right', {'Entry', 'Directory', _, _, _}}, Stat),
     {'Right', Entries} = Listed,
     ?assertEqual([{<<"shelf">>, 'Directory'}, {<<"to_shelf">>, 'Link'}],
                  lists:sort([{filename:basename(Path), K}
                              || {'Entry', K, _, {'Path', Path}, _} <- Entries])),
     ?assertEqual({'Left', {'Other', <<"exists">>}}, Again),
-    ?assertEqual({'Left', {'Other', <<"not a symbolic link">>}}, NotLink),
+    ?assertEqual({'Right', 'None'}, NotLink),
     ?assertEqual({'Right', 'Unit'}, Removed),
     {'Right', Kept} = After,
     ?assertEqual([<<"shelf">>],
                  [filename:basename(Path) || {'Entry', _, _, {'Path', Path}, _} <- Kept]),
+    file:del_dir_r(Dir).
+
+%% report Appendix E.17: `create` makes a new file or none; `removeAll`
+%% removes a tree, a link in it removed and what it leads to kept;
+%% `setModified` sets the time a `stat` then reads, to the second. Written
+%% with the code (MVP 2.98); a write that fails after the file is made is
+%% not covered, since a test cannot make one fail there
+fs_create_remove_all_modified_test() ->
+    Me = self(),
+    Dir = filename:join("/tmp", "ern_fs3_" ++ os:getpid() ++ "_"
+                                 ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(filename:join([Dir, "tree", "branch"])),
+    ok = filelib:ensure_path(filename:join(Dir, "kept")),
+    ok = file:write_file(filename:join([Dir, "kept", "precious.txt"]), <<"keep">>),
+    ok = file:write_file(filename:join([Dir, "tree", "branch", "leaf.txt"]), <<"x">>),
+    ok = file:make_symlink(filename:join(Dir, "kept"), filename:join([Dir, "tree", "to_kept"])),
+    P = fun(Name) -> {'Path', list_to_binary(filename:join(Dir, Name))} end,
+    F = 'ern@fs',
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Me ! {fs, F:create(P("new.txt"), <<"a">>, 1000)},
+                           Me ! {fs, F:create(P("new.txt"), <<"b">>, 1000)},
+                           Me ! {fs, F:read(P("new.txt"), 1000)},
+                           Me ! {fs, F:removeAll(P("tree"), 1000)},
+                           Me ! {fs, F:setModified(P("new.txt"), 86400999, 1000)},
+                           Me ! {fs, F:stat(P("new.txt"), 1000)}
+                       end, <<"fs_create_remove_all_modified_test">>, #{})),
+    [Made, Taken, Kept, Removed, Set, Stat] = collect(fs, []),
+    ?assertEqual({'Right', 'Unit'}, Made),
+    ?assertEqual({'Left', {'Other', <<"exists">>}}, Taken),
+    ?assertEqual({'Right', <<"a">>}, Kept),
+    ?assertEqual({'Right', 'Unit'}, Removed),
+    ?assertNot(filelib:is_file(filename:join(Dir, "tree"))),
+    ?assertEqual({ok, <<"keep">>}, file:read_file(filename:join([Dir, "kept", "precious.txt"]))),
+    ?assertEqual({'Right', 'Unit'}, Set),
+    ?assertMatch({'Right', {'Entry', 'File', 86400000, _, 1}}, Stat),
     file:del_dir_r(Dir).
 
 %% report Appendix E.18, §8.2: a listener and a socket are processes, a

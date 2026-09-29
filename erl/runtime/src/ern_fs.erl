@@ -75,11 +75,40 @@ handle({'Rename', From, Reply, To}) ->
 %% written, which may name nothing.
 handle({'MakeLink', Path, Reply, Target}) ->
     answer(Reply, unit(file:make_symlink(text(Target), text(Path))));
+%% Report Appendix E.17: None for a path that names anything but a link.
 handle({'ReadLink', Path, Reply}) ->
     answer(Reply, case file:read_link_all(text(Path)) of
                       {ok, Target} -> utf8_target(name_bytes(Target));
-                      {error, einval} -> {error, not_link};
+                      {error, einval} -> {ok, 'None'};
                       Error -> Error
+                  end);
+%% Report Appendix E.17: a new file, claimed by its name at once, or none:
+%% one whose write fails is removed.
+handle({'Create', Bytes, Path, Reply}) ->
+    Name = text(Path),
+    answer(Reply, case file:open(Name, [write, exclusive, raw, binary]) of
+                      {ok, File} ->
+                          Written = file:write(File, Bytes),
+                          Closed = file:close(File),
+                          case {Written, Closed} of
+                              {ok, ok} -> {ok, 'Unit'};
+                              {ok, Error} -> gone(Name, Error);
+                              {Error, _} -> gone(Name, Error)
+                          end;
+                      Error ->
+                          Error
+                  end);
+%% Report Appendix E.17: the modification time, kept to the second, as the
+%% host sets it; the access time is left as it was.
+handle({'SetModified', Mtime, Path, Reply}) ->
+    Name = text(Path),
+    answer(Reply, case file:read_file_info(Name, [raw, {time, posix}]) of
+                      {ok, #file_info{atime = Atime}} ->
+                          Info = #file_info{atime = Atime,
+                                            mtime = floor_div(Mtime, 1000)},
+                          unit(file:write_file_info(Name, Info, [raw, {time, posix}]));
+                      Error ->
+                          Error
                   end);
 handle({'Copy', From, Reply, To}) ->
     {Source, Target} = {text(From), text(To)},
@@ -167,9 +196,18 @@ kind(_) -> 'Other'.
 %% Report Appendix E.17: a link's target is a Path, whose text is UTF-8.
 utf8_target(Bytes) ->
     case unicode:characters_to_binary(Bytes, utf8, utf8) of
-        Text when is_binary(Text) -> {ok, {'Path', Text}};
+        Text when is_binary(Text) -> {ok, {'Some', {'Path', Text}}};
         _ -> {error, target_not_utf8}
     end.
+
+%% A file created whose write failed is removed, so that none is left.
+gone(Name, Error) ->
+    _ = file:delete(Name, [raw]),
+    Error.
+
+%% Seconds from milliseconds, rounded down, a time before the epoch too.
+floor_div(A, B) when A >= 0 -> A div B;
+floor_div(A, B) -> -((-A + B - 1) div B).
 
 %% report Appendix E.1: Io.Error = NotFound | Denied | Refused | Closed | Timeout
 %% | Other(String)
@@ -179,6 +217,5 @@ io_error(eperm) -> 'Denied';
 io_error(econnrefused) -> 'Refused';
 io_error(not_regular) -> {'Other', <<"not a regular file">>};
 io_error(eexist) -> {'Other', <<"exists">>};
-io_error(not_link) -> {'Other', <<"not a symbolic link">>};
 io_error(target_not_utf8) -> {'Other', <<"the target is not UTF-8">>};
 io_error(Reason) -> {'Other', unicode:characters_to_binary(io_lib:format("~p", [Reason]))}.

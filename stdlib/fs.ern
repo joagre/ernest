@@ -62,7 +62,9 @@ type Msg =
   | Rename(from : Path, to : Path, reply : Reply(Either(Io.Error, Unit)))
   | Copy(from : Path, to : Path, reply : Reply(Either(Io.Error, Unit)))
   | MakeLink(target : Path, path : Path, reply : Reply(Either(Io.Error, Unit)))
-  | ReadLink(path : Path, reply : Reply(Either(Io.Error, Path)))
+  | ReadLink(path : Path, reply : Reply(Either(Io.Error, Optional(Path))))
+  | Create(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
+  | SetModified(path : Path, mtime : Int, reply : Reply(Either(Io.Error, Unit)))
 
 // Report §8.2: the system reference, the runtime's address of the file system,
 // bound at each start.
@@ -222,21 +224,99 @@ export fn copy(from : Path, to : Path, ms : Int) : Either(Io.Error, Unit) with m
 export fn makeLink(target : Path, path : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = MakeLink(target = target, path = path, reply = r), ms))
 
-/// The path a symbolic link holds, as it was written. A path that names
-/// something else is `Left(Other("not a symbolic link"))`, and a link whose
-/// target is not UTF-8 is `Left(Other("the target is not UTF-8"))`.
+/// The path a symbolic link holds, as it was written, or `None` where the
+/// path names something that is not a link. A link whose target is not
+/// UTF-8 is `Left(Other("the target is not UTF-8"))`.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// {
 ///     let _ = Fs.makeLink(Path("somewhere"), Path("sign"), 5000);
-///     Fs.readLink(Path("sign"), 5000)
+///     let _ = Fs.write(Path("plain.txt"), <<>>, 5000);
+///     #(Fs.readLink(Path("sign"), 5000), Fs.readLink(Path("plain.txt"), 5000))
 /// }
-/// // => Right(Path("somewhere"))
+/// // => #(Right(Some(Path("somewhere"))), Right(None))
 /// ```
-export fn readLink(path : Path, ms : Int) : Either(Io.Error, Path) with m =
+export fn readLink(path : Path, ms : Int) : Either(Io.Error, Optional(Path)) with m =
     answered(Address.call(reference, fn(r) = ReadLink(path = path, reply = r), ms))
+
+/// Writes a new file, or none where the path names something already,
+/// which is `Left(Other("exists"))`: the one way to claim a name, as a lock
+/// file or a temporary file needs.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let first = Fs.create(Path("claimed.txt"), String.toUtf8("mine"), 5000);
+///     let second = Fs.create(Path("claimed.txt"), String.toUtf8("yours"), 5000);
+///     #(first, second)
+/// }
+/// // => #(Right(Unit), Left(Other("exists")))
+/// ```
+export fn create(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m =
+    answered(Address.call(reference, fn(r) = Create(path = path, bytes = bytes, reply = r), ms))
+
+/// Removes a directory and everything under it, or a file or a link. A link
+/// is removed and not followed, so what it leads to is left. Each file
+/// operation it makes waits the milliseconds given.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let _ = Fs.makeDir(Path("tree/branch"), 5000);
+///     let _ = Fs.write(Path("tree/branch/leaf.txt"), <<>>, 5000);
+///     let _ = Fs.removeAll(Path("tree"), 5000);
+///     Either.isLeft(Fs.stat(Path("tree"), 5000))
+/// }
+/// // => true
+/// ```
+export fn removeAll(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
+    match readLink(path, ms) {
+        Right(Some(_)) -> remove(path, ms)
+      | Right(None) -> match stat(path, ms) {
+            Right(Entry(kind = Directory)) -> emptied(path, ms)
+          | Right(_) -> remove(path, ms)
+          | Left(e) -> Left(e)
+        }
+      | Left(e) -> Left(e)
+    }
+
+// A directory's entries removed, each as it is, and then the directory.
+fn emptied(dir : Path, ms : Int) : Either(Io.Error, Unit) with m =
+    match list(dir, ms) {
+        Right(entries) -> match List.tryFold(entries, Unit, fn(_, e) = removed(e, ms)) {
+            Right(_) -> remove(dir, ms)
+          | Left(e) -> Left(e)
+        }
+      | Left(e) -> Left(e)
+    }
+
+fn removed(entry : Entry, ms : Int) : Either(Io.Error, Unit) with m =
+    match entry {
+        Entry(path = p, kind = Directory) -> emptied(p, ms)
+      | Entry(path = p) -> remove(p, ms)
+    }
+
+/// Sets the modification time, in milliseconds since the epoch as
+/// `Clock.now` gives it, kept to the second as the file system keeps it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let _ = Fs.write(Path("dated.txt"), <<>>, 5000);
+///     let _ = Fs.setModified(Path("dated.txt"), 86400000, 5000);
+///     Either.map(Fs.stat(Path("dated.txt"), 5000), fn(e) = e.mtime)
+/// }
+/// // => Right(86400000)
+/// ```
+export fn setModified(path : Path, mtime : Int, ms : Int) : Either(Io.Error, Unit) with m =
+    answered(Address.call(reference,
+                          fn(r) = SetModified(path = path, mtime = mtime, reply = r),
+                          ms))
 
 fn answered(answer : Optional(Either(Io.Error, a))) : Either(Io.Error, a) =
     Optional.withDefault(answer, Left(Io.Timeout))
