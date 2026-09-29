@@ -1361,17 +1361,18 @@ initialize(Ns, Mod, Rest) ->
                         end,
                Me ! {Ref, Result}
            end,
-    Pid = ern_rt:process_of(ern_rt:spawn('Local', Init, <<"Shell.load">>)),
-    Monitor = erlang:monitor(process, Pid),
+    %% watched from its spawn, so that its end is known however soon it
+    %% comes (report §6.9)
+    _ = ern_rt:spawn_monitored('Local', Init, fun(Down) -> {Ref, Down} end, <<"Shell.load">>),
     receive
-        {Ref, Result} ->
-            erlang:demonitor(Monitor, [flush]),
+        {Ref, Result} when Result =:= ok; element(1, Result) =:= fault ->
+            receive {Ref, {'Down', _, _}} -> ok end,
             case Result of
                 ok -> initialize(Rest);
                 {fault, Cause} -> {fault, Ns, Cause}
             end;
-        {'DOWN', Monitor, process, Pid, Reason} ->
-            {fault, Ns, case ern_rt:reason(Reason) of
+        {Ref, {'Down', Reason, _}} ->
+            {fault, Ns, case Reason of
                             {'Fault', Cause} -> Cause;
                             Other -> atom_to_binary(Other)
                         end}

@@ -836,7 +836,8 @@ toplevel_let_test() ->
     %% is not generalized, so a variable left in its type is an error, where
     %% a pure one generalizes
     ?assertEqual("the type of s is not determined (Address(a)), and a top-level `let` whose"
-                 " initializer has an effect is not generalized; annotate it",
+                 " initializer calls a process-only function is not generalized;"
+                 " annotate it",
                  err("export let s = spawn(Local, fn() = Unit)")),
     ?assertEqual("List(a)", type_of("export let empty = List.reverse([])", empty)).
 

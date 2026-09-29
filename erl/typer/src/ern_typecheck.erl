@@ -48,9 +48,9 @@
 %% checked on first demand (a reference, or an operator resolving to it);
 %% typed: the groups checked so far; errs: their errors
 %% effect_origin: undefined | {what, span, label, help}: what fixes the
-%% mailbox here, pure or not ("f", "the lambda", "a guard", or "a top-level
-%% `let`", whose mailbox is Never), the span that made it so, and what to
-%% do; named by an effect error (report §11.5)
+%% mailbox here, pure or not ("f", "the lambda", "a guard", or top_let, a
+%% top-level `let`, whose mailbox is Never), the span that made it so, and
+%% what to do; named by an effect error (report §11.5)
 -opaque env() :: #env{}.
 
 -type error() :: ern_diag:diag().
@@ -127,7 +127,9 @@ hidden_notes(Decls, Errs) ->
         ++ [{value, N} || N <- Values, lists:member([N], PreludeValues)],
     case Hidden of
         [] -> Errs;
-        _ -> [hidden_note(D, hidden_uses(Decls, Hidden)) || D <- Errs]
+        _ ->
+            Uses = hidden_uses(Decls, Hidden),
+            [hidden_note(D, Uses) || D <- Errs]
     end.
 
 declared_types(Decls) ->
@@ -967,7 +969,8 @@ generalized(#let_decl{pos = Pos, name = Name} = D, V, #env{st = St} = Env) ->
                 [] -> {ern_types:mono(ern_types:zonk(V, St)), St};
                 _ -> fail(Pos, "the type of " ++ atom_to_list(Name) ++ " is not determined ("
                                ++ ern_types:format(V, St) ++ "), and a top-level `let` whose"
-                               " initializer has an effect is not generalized; annotate it")
+                               " initializer calls a process-only function is not generalized;"
+                               " annotate it")
             end
     end;
 generalized(_, V, #env{st = St}) ->
@@ -1172,7 +1175,7 @@ check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) 
     %% which may spawn, send, and call, and may not receive
     Env0 = Env#env{st = St, effect = ?NEVER, effectful = false, pending = [],
                    deferred = [], ann_vars = AnnVars, rigid = maps:to_list(AnnVars),
-                   effect_origin = {"a top-level `let`", Pos,
+                   effect_origin = {top_let, Pos,
                                     "a top-level initializer runs as a body of mailbox type Never",
                                     "receive in a process the initializer spawns"}},
     {TypedBody, BodyT, Env2} =
@@ -2016,7 +2019,7 @@ use_effect(Pos, Name, Eff, #env{st = St, effect = Have, effect_origin = Origin} 
 %% Report §6.8, §4.6: a receive with a pattern clause where the mailbox is
 %% Never, in a function or in a top-level initializer.
 -spec never_receives(ern_diag:pos(), term()) -> no_return().
-never_receives(Pos, {"a top-level `let`", _, _, Help}) ->
+never_receives(Pos, {top_let, _, _, Help}) ->
     fail(Pos, "a top-level initializer runs with mailbox Never and cannot receive", [], Help);
 never_receives(Pos, _) ->
     fail(Pos, "a function with mailbox Never cannot receive", [],
@@ -2030,6 +2033,7 @@ labels({Span, Label}) -> [{ern_diag:span(Span), Label}];
 labels({_What, Span, Label, _Help}) -> [{ern_diag:span(Span), Label}].
 
 what(undefined) -> "this function";
+what({top_let, _, _, _}) -> "a top-level `let`";
 what({What, _, _, _}) -> What.
 
 help(undefined) -> "give the function a mailbox type with `with`";

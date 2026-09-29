@@ -141,6 +141,8 @@ stdlib_types_test() ->
 %% section's signatures and types are the library's compiled interface,
 %% as Appendix E's are the standard library's
 libraries_test() ->
+    %% Appendix G is the report's last, so its section runs to the report's
+    %% end, a heading of Appendix H never being met
     Sections = libraries(section("## Appendix G.", "## Appendix H")),
     Dirs = [filename:basename(D) || D <- filelib:wildcard("../../../libs/*"), filelib:is_dir(D)],
     ?assertEqual(lists:sort(Dirs), lists:sort([Lib || {Lib, _, _} <- Sections])),

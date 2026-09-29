@@ -39,13 +39,18 @@ serve(Os) ->
 
 %% Command is `Command(program, arguments, input)`, its fields in their
 %% canonical order.
+%% Report Appendix E.23: the time runs from the start, armed before the
+%% helper is, so that a time that passes before the program has started is
+%% seen to.
 start({'Command', Arguments, Input, Program}, Ms, Owner, Reply) ->
+    Deadline = ern_rt:deadline(Ms),
+    Timer = arm(Deadline),
     case lists:any(fun(A) -> binary:match(A, <<0>>) =/= nomatch end, [Program | Arguments]) of
         true ->
             answered(Reply, {'Left', {'Other', <<"an argument holds U+0000">>}});
         false ->
             try open([Program | Arguments]) of
-                Port -> started(Port, Input, Ms, Owner, Reply)
+                Port -> started(Port, Input, {Deadline, Timer}, Owner, Reply)
             catch
                 error:_ -> answered(Reply, {'Left', helper_failed()})
             end
@@ -55,13 +60,12 @@ open(Args) ->
     erlang:open_port({spawn_executable, helper()},
                      [{args, Args}, {packet, 4}, binary, exit_status]).
 
-started(Port, Input, Ms, Owner, Reply) ->
+started(Port, Input, {Deadline, Timer}, Owner, Reply) ->
     command(Port, <<"i", Input/binary>>),
     Watch = erlang:monitor(process, Owner),
-    Deadline = ern_rt:deadline(Ms),
     %% the input given at the start is answered by the helper as a write is,
     %% with no one waiting for it
-    starting(#{port => Port, watch => Watch, deadline => Deadline, timer => arm(Deadline),
+    starting(#{port => Port, watch => Watch, deadline => Deadline, timer => Timer,
                writes => queue:in(none, queue:new())},
              Reply).
 
@@ -98,7 +102,7 @@ starting(#{port := Port} = Run, Reply) ->
 %% sends one piece of output for each read it was asked for, and the exit
 %% status once the program has exited and both its outputs have ended,
 %% which it can learn only while a read waits; so a read waits for every
-%% frame it sends. The exit status is the last answer, and the process
+%% piece and for the status. The exit status is the last answer, and the process
 %% returns after it. Report Appendix E.23: a write is answered when the
 %% helper says the program has taken its bytes, one `a` for each input in
 %% order, the replies kept in the run's `writes`, so that a writer waits

@@ -69,22 +69,19 @@ ern(Args) ->
 %% The status is 0 or 1, or a run's, which Os.exit or a signal may give
 %% (§11.2).
 -spec ern([word()], io:device()) -> 0..255.
-ern(Args, Err) ->
-    dispatch(Args, Err).
-
-dispatch(["--help"], _Err) ->
+ern(["--help"], _Err) ->
     usage(standard_io),
     0;
-dispatch(["--version"], _Err) ->
+ern(["--version"], _Err) ->
     io:format("ern ~s~n", [?VERSION]),
     0;
-dispatch([Word | Args], Err) ->
+ern([Word | Args], Err) ->
     case {is_utf8(Word), lists:keyfind(Word, 1, jobs())} of
         {false, _} -> refuse(not_utf8(Word), Err);
         {true, {Word, Spec, Positional, Fun}} -> job(Word, Spec, Positional, Args, Fun, Err);
         {true, false} -> refuse(no_job(Word), Err)
     end;
-dispatch([], Err) ->
+ern([], Err) ->
     refuse("a job is required", Err).
 
 %% The jobs of §11, each with its options, what follows them, and its
@@ -369,9 +366,7 @@ markdown_dir(Mods, Stdlib, OutDir) ->
                    Rel = ern_build:module_path(Ns) ++ ".md",
                    Out = filename:join(OutDir, Rel),
                    ok = filelib:ensure_dir(Out),
-                   Erc = filename:join(OutDir, ern_build:module_path(Ns) ++ ".erc"),
-                   {ok, Beam} = file:read_file(Erc),
-                   Page = unicode:characters_to_binary(ern_page:page(Beam)),
+                   Page = unicode:characters_to_binary(ern_page:page(built(OutDir, Ns))),
                    ok = ern_build:write_whole(Out, Page),
                    ["- [", ern_build:qname(Ns), "](", Rel, ")\n"]
                end || #mod{ns = Ns} <- lists:sort(Mods)],
@@ -384,11 +379,9 @@ markdown_dir(Mods, Stdlib, OutDir) ->
 %% of the standard library's own build root.
 man_dir(Mods, Stdlib, OutDir) ->
     lists:foreach(fun(#mod{ns = Ns}) ->
-                          Erc = filename:join(OutDir, ern_build:module_path(Ns) ++ ".erc"),
-                          {ok, Beam} = file:read_file(Erc),
-                          Out = filename:join(filename:dirname(Erc),
-                                              "Ernest." ++ ern_build:qname(Ns) ++ ".3ern"),
-                          Page = unicode:characters_to_binary(ern_page:manual(Beam)),
+                          Dir = filename:dirname(filename:join(OutDir, ern_build:module_path(Ns))),
+                          Out = filename:join(Dir, "Ernest." ++ ern_build:qname(Ns) ++ ".3ern"),
+                          Page = unicode:characters_to_binary(ern_page:manual(built(OutDir, Ns))),
                           ok = ern_build:write_whole(Out, Page)
                   end, lists:sort(Mods)),
     case Stdlib of
@@ -398,6 +391,11 @@ man_dir(Mods, Stdlib, OutDir) ->
             ok = ern_build:write_whole(filename:join(OutDir, "Ernest.Prelude.3ern"), Page);
         false -> ok
     end.
+
+%% A module's compiled form, which the build just wrote under OutDir.
+built(OutDir, Ns) ->
+    {ok, Beam} = file:read_file(filename:join(OutDir, ern_build:module_path(Ns) ++ ".erc")),
+    Beam.
 
 %% Report §11.4: the standard library's own source root also gets the
 %% prelude's page, first in the index.
@@ -848,7 +846,7 @@ run_test({'Test', Name, Run}) ->
               end,
     ok = ern_rt:deadlock_target(none),
     persistent_term:erase({?MODULE, test}),
-    ern_rt:sys(stdout) ! <<Name/binary, ": ", Outcome/binary, "\n">>,
+    ern_rt:send(ern_rt:sys(stdout), <<Name/binary, ": ", Outcome/binary, "\n">>),
     Outcome =:= <<"passed">>.
 
 %% A test that returned still sends its Down; it is taken so that it is not

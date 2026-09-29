@@ -239,7 +239,7 @@ int main(int argc, char **argv)
         size_t head_got = 0;
         unsigned char *body = NULL;
         size_t body_size = 0, body_got = 0;
-        int input_ended = 0, runtime_open = 1;
+        int input_ended = 0;
         size_t wanted = 0;
         int program_in = in[1], program_out = out[0], program_err = err[0];
         unsigned char buffer[CHUNK];
@@ -248,7 +248,7 @@ int main(int argc, char **argv)
             struct pollfd fds[4];
             int n = 0, i_runtime = -1, i_out = -1, i_err = -1, i_in = -1;
 
-            if (runtime_open) { fds[n].fd = 0; fds[n].events = POLLIN; i_runtime = n++; }
+            fds[n].fd = 0; fds[n].events = POLLIN; i_runtime = n++;
             /* the program's output is taken only while the runtime asks */
             if (program_out >= 0 && wanted > 0) {
                 fds[n].fd = program_out; fds[n].events = POLLIN; i_out = n++;
@@ -388,7 +388,7 @@ int main(int argc, char **argv)
                 frame('x', code, sizeof code);
                 return 0;
             }
-            if (runtime_open) {
+            {
                 struct pollfd runtime = { 0, POLLIN, 0 };
                 if (poll(&runtime, 1, 50) > 0) {
                     ssize_t got = read(0, buffer, sizeof buffer);

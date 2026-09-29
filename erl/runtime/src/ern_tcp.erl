@@ -100,13 +100,24 @@ guarded(Call) ->
 %% the host's longest timer is waited in slices, each a new attempt.
 connect(Tcp, Host, Port, Deadline, Reply) ->
     Options = [binary, {active, false}, {packet, raw}],
-    Attempt = fun() ->
-                  gen_tcp:connect(unicode:characters_to_list(Host), Port, Options,
-                                  ern_rt:remaining(Deadline))
-              end,
-    Answer = case in_range(Port) andalso guarded(Attempt) of
-                 false ->
-                     {'Left', {'Other', <<"port out of range">>}};
+    Try = fun() ->
+              case in_range(Port) of
+                  true ->
+                      guarded(fun() ->
+                                  gen_tcp:connect(unicode:characters_to_list(Host), Port,
+                                                  Options, ern_rt:remaining(Deadline))
+                              end);
+                  false ->
+                      {refused, <<"port out of range">>}
+              end
+          end,
+    attempt(Tcp, Try, Deadline, Reply).
+
+%% Report Appendix E.18: a connect or an accept, tried again after the
+%% host's timeout until the deadline has passed, and its answer given: the
+%% socket's process, Timeout, or why it failed.
+attempt(Tcp, Try, Deadline, Reply) ->
+    Answer = case Try() of
                  {ok, Socket} ->
                      {'Right', socket_process(Tcp, Socket)};
                  {error, timeout} ->
@@ -115,11 +126,13 @@ connect(Tcp, Host, Port, Deadline, Reply) ->
                          _ -> again
                      end;
                  {error, Reason} ->
-                     {'Left', io_error(Reason)}
+                     {'Left', io_error(Reason)};
+                 {refused, Why} ->
+                     {'Left', {'Other', Why}}
              end,
     case Answer of
         again ->
-            connect(Tcp, Host, Port, Deadline, Reply);
+            attempt(Tcp, Try, Deadline, Reply);
         _ ->
             ern_rt:answer(Reply, Answer),
             ern_rt:source_end()
@@ -147,24 +160,7 @@ listener_loop(Tcp, Socket) ->
 %% which is the only legal chain: only an owner may pass a socket on. An
 %% accept that times out has taken no connection.
 accept(Tcp, Socket, Deadline, Reply) ->
-    Answer = case gen_tcp:accept(Socket, ern_rt:remaining(Deadline)) of
-                 {ok, Connection} ->
-                     {'Right', socket_process(Tcp, Connection)};
-                 {error, timeout} ->
-                     case ern_rt:remaining(Deadline) of
-                         0 -> {'Left', 'Timeout'};
-                         _ -> again
-                     end;
-                 {error, Reason} ->
-                     {'Left', io_error(Reason)}
-             end,
-    case Answer of
-        again ->
-            accept(Tcp, Socket, Deadline, Reply);
-        _ ->
-            ern_rt:answer(Reply, Answer),
-            ern_rt:source_end()
-    end.
+    attempt(Tcp, fun() -> gen_tcp:accept(Socket, ern_rt:remaining(Deadline)) end, Deadline, Reply).
 
 socket_process(Tcp, Socket) ->
     Owner = opened(Tcp, fun() ->

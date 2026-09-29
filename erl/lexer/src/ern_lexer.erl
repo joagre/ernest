@@ -104,9 +104,8 @@ lex("///" ++ R, L, C, Prev, Acc, Keep) ->
     lex(Rest, L1, 1, {L1, 1}, [{doc, {L, C, {L1, 1}, Prev}, Text} | Acc], Keep);
 lex("//" ++ R, L, C, Prev, Acc, Keep) ->
     line_comment("//", R, L, C, Prev, Acc, Keep);
-lex("/*" ++ R = S, L, C, Prev, Acc, Keep) ->
-    {Rest, L1, C1} = block_comment(R, 1, L, C + 2, L, C),
-    Text = lists:sublist(S, length(S) - length(Rest)),
+lex("/*" ++ R, L, C, Prev, Acc, Keep) ->
+    {Text, Rest, L1, C1} = block_comment(R, 1, L, C + 2, L, C, "*/"),
     lex(Rest, L1, C1, Prev, comment(Keep, Text, {L, C, {L1, C1}, Prev}, Acc), Keep);
 lex([Ch | _] = S, L, C, Prev, Acc, Keep) when Ch >= $0, Ch =< $9 ->
     {Kind, V, Rest, C1} = number(S, L, C),
@@ -212,18 +211,20 @@ next_doc_line_start("////" ++ _) -> no;
 next_doc_line_start("///" ++ R) -> {yes, R};
 next_doc_line_start(_) -> no.
 
-block_comment([], _Depth, _L, _C, L0, C0) ->
+%% A block comment's text, from its `/*` to its `*/`, gathered reversed in
+%% Seen as it is read, and what follows it.
+block_comment([], _Depth, _L, _C, L0, C0, _Seen) ->
     unfinished_at(L0, C0, "unterminated block comment");
-block_comment("*/" ++ R, 1, L, C, _L0, _C0) ->
-    {R, L, C + 2};
-block_comment("*/" ++ R, Depth, L, C, L0, C0) ->
-    block_comment(R, Depth - 1, L, C + 2, L0, C0);
-block_comment("/*" ++ R, Depth, L, C, L0, C0) ->
-    block_comment(R, Depth + 1, L, C + 2, L0, C0);
-block_comment([$\n | R], Depth, L, _C, L0, C0) ->
-    block_comment(R, Depth, L + 1, 1, L0, C0);
-block_comment([_ | R], Depth, L, C, L0, C0) ->
-    block_comment(R, Depth, L, C + 1, L0, C0).
+block_comment("*/" ++ R, 1, L, C, _L0, _C0, Seen) ->
+    {lists:reverse("/*" ++ Seen), R, L, C + 2};
+block_comment("*/" ++ R, Depth, L, C, L0, C0, Seen) ->
+    block_comment(R, Depth - 1, L, C + 2, L0, C0, "/*" ++ Seen);
+block_comment("/*" ++ R, Depth, L, C, L0, C0, Seen) ->
+    block_comment(R, Depth + 1, L, C + 2, L0, C0, "*/" ++ Seen);
+block_comment([$\n | R], Depth, L, _C, L0, C0, Seen) ->
+    block_comment(R, Depth, L + 1, 1, L0, C0, [$\n | Seen]);
+block_comment([Ch | R], Depth, L, C, L0, C0, Seen) ->
+    block_comment(R, Depth, L, C + 1, L0, C0, [Ch | Seen]).
 
 %%
 %% Numbers, report §2.5: int = decimal | "0x" hexdigit {["_"] hexdigit} |

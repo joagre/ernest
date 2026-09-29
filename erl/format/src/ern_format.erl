@@ -39,11 +39,13 @@ format(Text) ->
                 {error, _} = E -> E;
                 {ok, Decls} ->
                     X = context(Code, Source),
-                    Template = module([D || D <- Decls, not is_record(D, module_doc)], X),
+                    Template = module(Decls, X),
                     {Doc, C} = resolve(Template, X, #cur{trivia = Trivia}),
                     {Tail, C1} = lead(C, X),
-                    tuple_size(X#ctx.toks) =:= C1#cur.i andalso C1#cur.trivia =:= []
-                        orelse error({not_all_written, C1#cur.i, C1#cur.trivia}),
+                    case {tuple_size(X#ctx.toks) =:= C1#cur.i, C1#cur.trivia} of
+                        {true, []} -> ok;
+                        _ -> error({not_all_written, C1#cur.i, C1#cur.trivia})
+                    end,
                     {ok, ern_pretty:render([Doc, Tail])}
             end
     end.
@@ -160,8 +162,8 @@ doc_lines([Line | Rest]) ->
     case string:prefix(doc_content(Line), <<"```ernest">>) of
         nomatch -> [Line | doc_lines(Rest)];
         _ ->
-            IsClose = fun(L) -> string:trim(doc_content(L)) =/= <<"```">> end,
-            case lists:splitwith(IsClose, Rest) of
+            Inside = fun(L) -> string:trim(doc_content(L)) =/= <<"```">> end,
+            case lists:splitwith(Inside, Rest) of
                 {Body, [Close | After]} ->
                     Content = [doc_content(B) || B <- Body],
                     Laid = case fence(Content) of
@@ -715,15 +717,23 @@ ends_before_gap(Last, _, {NL, _}, First) ->
     not First andalso NL - Last >= 2.
 
 %% Comments that begin on the line a token ended on, before the next
-%% token: a line comment ends the line, a block comment need not.
+%% token: a line comment ends the line, a block comment need not, and is
+%% kept apart by a space from a token after it on its line but a closing
+%% bracket or a separator.
 trailing(#cur{trivia = [{Kind, L, Col, EL, Text} | Rest]} = C, X, Line)
   when L =:= Line, Kind =/= doc ->
-    {NL, NC, _, _} = element(2, element(C#cur.i, X#ctx.toks)),
+    Next = element(C#cur.i, X#ctx.toks),
+    {NL, NC, _, _} = element(2, Next),
     case {L, Col} < {NL, NC} of
         true ->
-            D = case Kind of
-                    line -> {suffix, <<" ", Text/binary>>};
-                    block -> [sp(), Text]
+            Apart = NL =:= EL andalso not lists:member(element(1, Next),
+                                                       [')', ']', '}', '>>', ',', ';']),
+            %% the space after a block comment is one with a space the
+            %% layout puts there (ern_pretty)
+            D = case {Kind, Apart} of
+                    {line, _} -> {suffix, <<" ", Text/binary>>};
+                    {block, true} -> [sp(), Text, sp()];
+                    {block, false} -> [sp(), Text]
                 end,
             {More, C1} = trailing(C#cur{trivia = Rest, last = EL}, X, EL),
             {[D, More], C1};

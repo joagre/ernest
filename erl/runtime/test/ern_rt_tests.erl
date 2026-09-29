@@ -213,7 +213,7 @@ call_leaves_nothing_test() ->
                                     put(runs, 2),
                                     ern_rt:call(Faulting, fun(R) -> {ask, R} end, 1000);
                                 2 ->
-                                    [{_, _, _, Timers, _}] = ets:lookup(ern_processes, self()),
+                                    [{_, _, Timers, _}] = ets:lookup(ern_processes, self()),
                                     {monitors, Monitors} = process_info(self(), monitors),
                                     Me ! {left, {ets:match_object(ern_calls, {'_', self(), '_'}),
                                                  Monitors, Timers}},

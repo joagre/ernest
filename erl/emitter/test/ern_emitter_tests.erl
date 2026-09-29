@@ -2505,7 +2505,7 @@ work_makes_no_atoms_test_() ->
     end}.
 
 %%
-%% Report §8.2, Appendix E.18, E.23: a write returns once its stream has
+%% report §8.2, Appendix E.18, E.23: a write returns once its stream has
 %% taken the bytes, and waits while the stream is behind. Regression
 %% tests, written after the code: each write returned at once, and what the
 %% reader had not taken was held in the node.
@@ -2519,7 +2519,7 @@ paced(Setup) ->
          "fn chunk() : Bytes = String.toUtf8(String.repeat(\"x\", 65536))\n"
          "fn writes(write : (Bytes) -> Unit with Never, n : Int) : Unit with Never =\n"
          "    if n == 0 then Unit else { write(chunk()); writes(write, n - 1) }\n"
-         "fn done(me : Address(Msg)) : Bool with Msg =\n"
+         "fn done() : Bool with Msg =\n"
          "    receive { Done -> true | after 0 -> false }\n"]).
 
 %% Appendix E.23: a program that stops reading its input, since no one
@@ -2540,7 +2540,7 @@ os_write_waits_test() ->
         "            send(me, Done)\n"
         "        });\n"
         "        receive { after 500 -> Unit };\n"
-        "        let early = done(me);\n"
+        "        let early = done();\n"
         "        let n = drain(p, 0);\n"
         "        receive { Done -> Unit };\n"
         "        Io.println(Io.show(#(early, n)));\n"
@@ -2575,7 +2575,7 @@ tcp_write_waits_test() ->
         "            match Tcp.accept(l, 5000) {\n"
         "                Right(s) -> {\n"
         "                    receive { after 500 -> Unit };\n"
-        "                    let early = done(me);\n"
+        "                    let early = done();\n"
         "                    let n = drain(s, 0);\n"
         "                    receive { Done -> Unit };\n"
         "                    Tcp.close(s);\n"
@@ -2596,7 +2596,7 @@ tcp_write_waits_test() ->
         "}\n"),
     ?assertEqual(<<"#(false, 4194304)\nFault(\"callee had ended\")\n">>, Out).
 
-%% Report §8.2: a write to standard output returns once the stream has taken
+%% report §8.2: a write to standard output returns once the stream has taken
 %% it, so a program writing to a slow stream goes at its pace
 io_write_waits_test() ->
     Me = self(),

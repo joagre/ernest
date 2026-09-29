@@ -19,7 +19,7 @@
 %% and no source held that can still deliver.
 %%
 %% Three tables hold the run's state. `ern_processes` has a row {Pid,
-%% Site, State, Timers, Foreign} per process the runtime started, where
+%% Site, Timers, Foreign} per process the runtime started, where
 %% Timers counts the timed receives the process is in and Foreign its
 %% foreign calls, and beside them the way the terminal is read, `reading`,
 %% the process deadlock faults, `deadlock_target`, and a row per fault
@@ -54,6 +54,9 @@
 -define(SLICE, 16#FFFFFFFF).
 
 -type address() :: pid() | {via, fun((term()) -> term()), address()}.
+%% Report §8.2: the system processes, by the names the runtime keeps them
+%% under.
+-type system() :: stdout | stderr | stdin | clock | fs | terminal | tcp | os.
 -type reply() :: reference().
 
 %%
@@ -89,10 +92,9 @@ process_of({via, _, Target}) -> process_of(Target);
 process_of(Pid) -> behind(Pid).
 
 behind(Pid) ->
-    try ets:lookup(?PROCESSES, {behind, Pid}) of
+    case ets_lookup(?PROCESSES, {behind, Pid}) of
         [{_, Real}] -> Real;
         _ -> Pid
-    catch _:_ -> Pid
     end.
 
 %% Site names the spawning function for Down (report §6.9); the compiler
@@ -296,7 +298,7 @@ reaper_loop(Waiters, Watching, Watched) ->
             %% the process starts once its row is in the table, since a
             %% timed receive it enters first counts itself there (§8.6)
             {Pid, _MRef} = erlang:spawn_monitor(fun() -> receive Ref -> run(Fun) end end),
-            ets:insert(?PROCESSES, {Pid, Site, alive, 0, 0}),
+            ets:insert(?PROCESSES, {Pid, Site, 0, 0}),
             Pid ! Ref,
             From ! {Ref, Pid},
             %% a wait made with the spawn, spawnMonitored's, is watched as
@@ -329,7 +331,7 @@ reaper_loop(Waiters, Watching, Watched) ->
             ended_program(From, Ref);
         {'DOWN', _MRef, process, Pid, Reason} ->
             case ets:lookup(?PROCESSES, Pid) of
-                [{_, Site, alive, _, _}] ->
+                [{_, Site, _, _}] ->
                     ets:delete(?PROCESSES, Pid),
                     %% its pending calls, as the one called and as the caller;
                     %% a caller learns of a callee's end by its own monitor
@@ -449,7 +451,7 @@ processes() ->
 info(Pid) when node(Pid) =:= node() ->
     case {ets_lookup(?PROCESSES, Pid),
           erlang:process_info(Pid, [status, message_queue_len])} of
-        {[{_, Site, alive, _, _}], [{status, Status}, {message_queue_len, Queued}]} ->
+        {[{_, Site, _, _}], [{status, Status}, {message_queue_len, Queued}]} ->
             Activity = case Status of
                            waiting ->
                                case ets_match(?CALLS, {'_', Pid, '_'}) of
@@ -489,7 +491,7 @@ faults(To) ->
 %% as long as the run; a process that restarts sends it its fault.
 report(Pid, Site, Fault, Restarted) ->
     {Cause, Trace} = case Fault of
-                         {ern, fault, Msg, Stack} -> {Msg, Stack};
+                         {ern, fault, Msg, Text} -> {Msg, Text};
                          {ern, fault, Msg} -> {Msg, <<>>};
                          _ -> {element(2, reason(Fault)), <<>>}
                      end,
@@ -498,14 +500,13 @@ report(Pid, Site, Fault, Restarted) ->
         undefined -> ok;
         Reporter -> Reporter(Report)
     end,
-    Subscribers = try ets:match(?PROCESSES, {{faults, '_'}, '$1'}) catch _:_ -> [] end,
-    lists:foreach(fun([To]) -> counted_link(fun() -> deliver(To, Report) end) end,
-                  Subscribers).
+    Subscribers = [To || {_, To} <- ets_match(?PROCESSES, {{faults, '_'}, '_'})],
+    lists:foreach(fun(To) -> counted_link(fun() -> deliver(To, Report) end) end, Subscribers).
 
 %% The live processes' rows, each its pid, its spawn site, and the counts
 %% of its timed waits and of its foreign calls in progress.
 live_rows() ->
-    ets:select(?PROCESSES, [{{'$1', '$2', alive, '$3', '$4'}, [], [{{'$1', '$2', '$3', '$4'}}]}]).
+    ets:select(?PROCESSES, [{{'_', '_', '_', '_'}, [], ['$_']}]).
 
 %% Report §6.9, §11.2: a process that ended faulting is reported, and a
 %% subscription to faults it held ends with it.
@@ -559,7 +560,7 @@ nothing_delivers() ->
 %% Whether a process is in a timed receive or a foreign call, found at the
 %% first such row.
 counted() ->
-    ets:select(?PROCESSES, [{{'_', '_', alive, '$1', '$2'},
+    ets:select(?PROCESSES, [{{'_', '_', '$1', '$2'},
                              [{'orelse', {'>', '$1', 0}, {'>', '$2', 0}}], [true]}], 1)
         =/= '$end_of_table'.
 
@@ -568,22 +569,17 @@ counted() ->
 %% row is (pending/1): signals from two senders are not ordered, so a
 %% request still in transit is not seen at its receiver.
 calling_the_system() ->
-    Held = [Pid || Key <- [stdout, stderr, stdin, fs, terminal, tcp, os, clock],
-                   Pid <- [persistent_term:get({?MODULE, Key}, undefined)], Pid =/= undefined]
-        ++ opened(),
-    try lists:any(fun({Callee, _, _}) -> lists:member(Callee, Held) end, ets:tab2list(?CALLS))
-    catch _:_ -> false
-    end.
+    Held = system_pids() ++ opened(),
+    lists:any(fun({Callee, _, _}) -> lists:member(Callee, Held) end, ets_match(?CALLS, '_')).
 
 quiet_system() ->
     element(2, erlang:process_info(erlang:self(), message_queue_len)) =:= 0
-        andalso lists:all(fun(Key) ->
-                              case persistent_term:get({?MODULE, Key}, undefined) of
-                                  undefined -> true;
-                                  Pid -> quiet(Pid)
-                              end
-                          end, [stdout, stderr, stdin, fs, terminal, tcp, os, clock])
-        andalso lists:all(fun quiet/1, opened()).
+        andalso lists:all(fun quiet/1, system_pids() ++ opened()).
+
+%% Report §8.2: the run's system processes that have been started.
+system_pids() ->
+    [Pid || Name <- [stdout, stderr, stdin, clock, fs, terminal, tcp, os],
+            Pid <- [persistent_term:get({?MODULE, Name}, undefined)], Pid =/= undefined].
 
 %% A system process that has died can deliver nothing.
 quiet(Pid) ->
@@ -693,11 +689,11 @@ opened() ->
 %% so tail position holds; the compiler emits the calls (report §8.6).
 -spec timed() -> ok.
 timed() ->
-    count(4, 1).
+    count(3, 1).
 
 -spec untimed() -> ok.
 untimed() ->
-    count(4, -1).
+    count(3, -1).
 
 %% Report §6.3, §6.6, Appendix E.0 rule 8: a time has no upper bound, and a
 %% time below 0 is 0. The host waits at most ?SLICE at once, so a wait is
@@ -715,8 +711,8 @@ remaining(Deadline) ->
 %% Report §8.4, §8.6: a process inside foreign code is not waiting.
 -spec in_foreign(fun(() -> term())) -> term().
 in_foreign(Fun) ->
-    count(5, 1),
-    try Fun() after count(5, -1) end.
+    count(4, 1),
+    try Fun() after count(4, -1) end.
 
 %% Report §8.6: the host loads a module at the first call into it, and the
 %% caller waits on the code server meanwhile, which is the host's work and
@@ -798,7 +794,7 @@ place(Info) ->
 %% Report §8.2, §9.7: system references
 %%
 
--spec sys(stdout | stderr | stdin | clock | fs | terminal | tcp | os) -> address().
+-spec sys(system()) -> address().
 sys(Name) ->
     persistent_term:get({?MODULE, Name}).
 
@@ -1148,29 +1144,33 @@ arm(Deadline, To) ->
 %% Report §8.1, §8.6: the launcher
 %%
 
-%% Runs Main as the entry process and returns ok, killed if it was killed,
-%% {fault, Message} if it faulted, a deadlock among the faults (report §8.6:
-%% the entry process faults with `Fault("deadlock")`), {exit, Status} if a
-%% process called Os.exit, {gone, Stream} if standard output or standard
-%% error could no longer be written, or {signal, Signal} if the host's
-%% termination or hangup ended the program. Every local process is then ended with
-%% ProgramEnd and stdout is flushed, however the run ended. Opts: init => a
-%% function run in main's process before Main, after the system references
-%% are bound and the standard library's lets evaluated, for the program's
-%% own top-level lets (report §8.5); arguments => the program's arguments,
-%% Os.arguments, none by default; exit => fault, where Os.exit faults its
-%% caller rather than ending the program, as in the shell and under `ern
-%% test` (report §11.2); faults => fun((FaultReport) -> any()),
-%% given every fault as it happens (report §11.2); stdout, stderr =>
-%% fun((binary()) -> any()), or {fd, N} to write to the file descriptor
-%% through a port, which learns when the stream has gone (§8.2); stdin =>
-%% fun(() -> eof | {error, term()} | unicode:chardata()), called for each
-%% read, and keys => the same for the terminal's keys, for tests (fed/1).
-%% Report §8.2: the standard streams carry bytes for the run, whatever the
-%% host's locale.
 -type outcome() :: ok | killed | {fault, binary()} | {fault, binary(), binary()}
                  | {exit, 0..255} | {gone, stdout | stderr} | {signal, sigterm | sighup}.
 
+%% Runs Main as the entry process. It returns ok, killed if the entry
+%% process was killed, {fault, Message} if it faulted, a deadlock among the
+%% faults (report §8.6: the entry process faults with `Fault("deadlock")`),
+%% and {fault, Message, Trace} where the fault was a failure of the runtime
+%% or a foreign function's raise, the host's stack beneath it; {exit,
+%% Status} if a process called Os.exit, {gone, Stream} if standard output
+%% or standard error could no longer be written, or {signal, Signal} if the
+%% host's termination or hangup ended the program. Every local process is
+%% then ended with ProgramEnd, and standard output and standard error are
+%% flushed, however the run ended.
+%%
+%% Opts: init => a function run in main's process before Main, after the
+%% system references are bound and the standard library's lets evaluated,
+%% for the program's own top-level lets (report §8.5); arguments => the
+%% program's arguments, Os.arguments, none by default; exit => fault, where
+%% Os.exit faults its caller rather than ending the program, as in the
+%% shell and under `ern test` (report §11.2); faults => fun((FaultReport)
+%% -> any()), given every fault as it happens (report §11.2); stdout,
+%% stderr => fun((binary()) -> any()), or {fd, N} to write to the file
+%% descriptor through a port, which learns when the stream has gone (§8.2);
+%% stdin => fun(() -> eof | {error, term()} | unicode:chardata()), called
+%% for each read, and keys => the same for the terminal's keys, for tests
+%% (fed/1). Report §8.2: the standard streams carry bytes for the run,
+%% whatever the host's locale.
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
 run_main(Main, Site, Opts) ->
     ets:new(?PROCESSES, [named_table, public, set]),
@@ -1284,9 +1284,16 @@ input(Key, Opts) ->
 %% bytes a program sends, UTF-8 text among them, so the host's streams take
 %% bytes as they are for the run; what they took before is put back after.
 bytes_out() ->
-    [{Device, Encoding} || Device <- [standard_io, standard_error],
-                           Encoding <- [encoding(Device)], Encoding =/= none,
-                           ok =:= io:setopts(Device, [{encoding, latin1}])].
+    lists:foldr(fun(Device, Taken) ->
+                    case encoding(Device) of
+                        none -> Taken;
+                        Encoding ->
+                            case io:setopts(Device, [{encoding, latin1}]) of
+                                ok -> [{Device, Encoding} | Taken];
+                                _ -> Taken
+                            end
+                    end
+                end, [], [standard_io, standard_error]).
 
 encoding(Device) ->
     try proplists:get_value(encoding, io:getopts(Device), none)
@@ -1419,7 +1426,7 @@ restarts(F, Restarts, Within, Times, Level) ->
                     %% report §11.2: a fault after which the process
                     %% restarts is reported as one
                     Site = case ets_lookup(?PROCESSES, erlang:self()) of
-                               [{_, S, alive, _, _}] -> S;
+                               [{_, S, _, _}] -> S;
                                _ -> <<>>
                            end,
                     persistent_term:get({?MODULE, reaper}) ! {report, erlang:self(), Site, Fault},

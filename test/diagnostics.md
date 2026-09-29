@@ -1071,7 +1071,7 @@ let box = {
 
 ```console
 $ ern build example.ern
-example.ern:1:1: the type of box is not determined (List(a)), and a top-level `let` whose initializer has an effect is not generalized; annotate it
+example.ern:1:1: the type of box is not determined (List(a)), and a top-level `let` whose initializer calls a process-only function is not generalized; annotate it
 1 | let box = {
   | ^^^^^^^^^^^
 ```

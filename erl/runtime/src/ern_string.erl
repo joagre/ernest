@@ -100,7 +100,7 @@ trim_start(S) ->
     case string:next_grapheme(S) of
         [G | Rest] ->
             case ern_char:is_space(first(G)) of
-                true -> trim_start(unicode:characters_to_binary(Rest));
+                true -> trim_start(Rest);
                 false -> S
             end;
         [] ->

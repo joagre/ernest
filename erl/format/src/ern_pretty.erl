@@ -122,6 +122,11 @@ text(Text, _I, #p{started = false} = P) ->
         true -> P;
         false -> append(Text, P#p{started = true})
     end;
+%% A space the layout writes after one it wrote is one space: a block
+%% comment is kept apart from what follows it by a space of its own, which
+%% a space the layout puts there anyway joins.
+text(Text, _I, #p{line = [Last | _]} = P) when Text =:= <<" ">>, Last =:= <<" ">> ->
+    P;
 text(Text, _I, P) ->
     append(Text, P).
 
@@ -171,10 +176,10 @@ is_space(Text) ->
 %% columns: the group asked about flat, what follows it in the mode it has,
 %% so that a group after it, which may yet break, ends the line at its
 %% first break, as Prettier's printer has it; a bracket after it is taken
-%% flat, since the first of two brackets on a line breaks first. A hard line break inside a
-%% flat group cannot be; code after a trailing comment on the same line
-%% cannot be. A body or a branch choice after the group may begin the next
-%% line, so the line may end there.
+%% flat, since the first of two brackets on a line breaks first. A hard
+%% line break inside a flat group cannot be; code after a trailing comment
+%% on the same line cannot be. A body or a branch choice after the group
+%% may begin the next line, so the line may end there.
 fits(W, Stack) ->
     fits(W, Stack, false).
 
