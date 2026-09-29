@@ -1640,7 +1640,7 @@ Erl.atom : (String) -> Foreign // the Erlang atom of the text
 
 ### Appendix E.20. `bytes.ern` (namespace `Bytes`)
 
-A `Bytes` is not a container: operations on its octets go through `toList`, which gives each as an `Int` from 0 to 255. `Bytes.<>` is the prelude's, §9.6; this module provides it. `<<...>>` builds and matches a `Bytes` at the bit level (§5.11), so there is no constructor here. The primitives are `size` and `slice` (E.0 rule 1); the rest is written over them and with the bit syntax. The functions `String` has for text, a search, a split, a replacement and their like, are `Bytes`' too, for octets, under the same names. `toHex` and `fromHex` are one encoding, Bytes written as text, whose two directions stand in the module of what is encoded, as `String.toUtf8` and `String.fromUtf8` stand in `String`'s.
+A `Bytes` is not a container: operations on its octets go through `toList`, which gives each as an `Int` from 0 to 255. `Bytes.<>` is the prelude's, §9.6; this module provides it. `<<...>>` builds and matches a `Bytes` at the bit level (§5.11), so there is no constructor here. The primitive is `size` (E.0 rule 1); the rest is written over it and with the bit syntax, `slice` among them. The functions `String` has for text, a search, a split, a replacement and their like, are `Bytes`' too, for octets, under the same names. `toHex` and `fromHex` are one encoding, Bytes written as text, whose two directions stand in the module of what is encoded, as `String.toUtf8` and `String.fromUtf8` stand in `String`'s.
 
 ```
 Bytes.size : (Bytes) -> Int // octets

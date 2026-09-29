@@ -1,9 +1,9 @@
 /// Operations on `Bytes`, a sequence of octets (report §3.1). A `Bytes` is
 /// not a container: its octets are reached through `toList`, each an `Int`
 /// from 0 to 255, and `<<...>>` builds and matches one at the bit level
-/// (report §5.11), so there is no constructor here. The primitives are
-/// `size` and `slice`, the runtime's; the rest is written over them and
-/// with the bit syntax (report Appendix E.0 rule 1).
+/// (report §5.11), so there is no constructor here. The primitive is
+/// `size`, the runtime's; the rest is written over it and with the bit
+/// syntax (report Appendix E.0 rule 1).
 ///
 /// ## Examples
 ///
@@ -67,11 +67,12 @@ export fn get(b : Bytes, i : Int) : Optional(Int) =
 /// ```
 export fn slice(b : Bytes, from : Int, count : Int) : Bytes = {
     let start = Int.max(from, 0);
-    if count <= 0 || start >= size(b) then <<>> else part(b, start, Int.min(count, size(b) - start))
+    let n = Int.max(Int.min(count, size(b) - start), 0);
+    match b {
+        <<_:size(start)-bytes, part:size(n)-bytes, _:bytes>> -> part
+      | _ -> <<>>
+    }
 }
-
-foreign fn part(b : Bytes, from : Int, count : Int) : Bytes =
-    "binary:part/3"
 
 /// The octets, each from 0 to 255.
 export fn toList(b : Bytes) : List(Int) =

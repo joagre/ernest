@@ -13,7 +13,7 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 
 ## The standard library, the libraries, the examples
 
-- 2.98 — the language: a list of functions as a binding, `kill` and `monitor` on `Process`, "no limit" unnamed, `Io.debug` a shim, every program's `errorText`, no word of a restart's end, `Tcp.close` and `closeListener`, `Bytes.slice` a shim (E-C1..C8)
+- 2.98 — the language: a list of functions as a binding, `kill` and `monitor` on `Process`, "no limit" unnamed, `Io.debug` a shim, every program's `errorText`, no word of a restart's end, `Tcp.close` and `closeListener` (E-C1..C7)
 
 ## The documents
 
