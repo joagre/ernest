@@ -4,9 +4,9 @@ Ernest is a functional language for concurrent programs on Erlang's virtual mach
 
 Its standard library has one set, `Set`, kept in a hash. A program that needs its elements in order needs a second representation, a set kept sorted, and code written once, a `fromList` or a `size`, should serve both. Java would declare an interface, Haskell a type class, and ML a functor. This note proposes an *operations record*: a record of a type's operations that the caller passes, dictionary passing written by the program. It then argues against type classes. The block marked `ernest` compiles with Ernest as it is; the one marked `sketch` is Ernest as the proposal would make it.
 
-## Ernest today
+## The obvious design, and why not
 
-`==` is structural. Used on a type variable it gives the variable an *equality restriction* (a constraint, in the usual term), inferred and never written, as Standard ML's equality types do; a type holding a function or an address has no equality (§3.9, §3.10). Ordering is per type: `<` calls `T.compare` of its operand's type `T`, which the type's module declares. `<` on a type variable is refused, ``the operand type of `<` is not determined; annotate it`` (§4.8), so an ordered set must carry its order in every value:
+The direct way to write an ordered set in Ernest as it is gives each set its order:
 
 ```ernest
 export abstract type OrderedSet(a) = OrderedSet(compare : (a, a) -> Ordering, items : List(a))
@@ -15,7 +15,7 @@ export fn empty(compare : (a, a) -> Ordering) : OrderedSet(a) =
     OrderedSet(compare = compare, items = [])
 ```
 
-Such a value holds a function, so it has no `==`, keys no `Map`, and cannot be sent to another node (§3.11); `empty` takes an argument that `Set.empty` does not; and two sets built with two orders would meet in `union` and give a set in neither.
+It is written so because `<` on a type variable is refused (§4.8): Ernest orders a value by its type's `compare`, found where the type is known. Such a value holds a function, so it has no `==`, keys no `Map`, and cannot be sent to another node (§3.10, §3.11); `empty` takes an argument that `Set.empty` does not; and two sets built with two orders would meet in `union` and give a set in neither.
 
 ## Why sets are the test
 
@@ -35,7 +35,7 @@ A solution is judged by what a user of both sets sees:
 
 One restriction is lifted, and the standard library follows a convention. No syntax is added: Appendix A does not change.
 
-1. **An ordering restriction, as the equality one.** `<`, `<=`, `>` and `>=` on a type variable give it the ordering restriction, inferred and never written, printed `a<` as the equality restriction is printed `a=`. At each instantiation the variable's type must have `compare`, or be a variable, which takes the restriction; any other type is a type error at the call. A variable that nothing fixes and no definition generalizes is refused, as today.
+1. **An ordering restriction, as the equality one.** `==` is structural, and on a type variable it gives the variable an *equality restriction* (a constraint, in the usual term), inferred and never written, printed `a=`, as Standard ML's equality types are; a type that holds a function has no equality (§3.10). In the same way `<`, `<=`, `>` and `>=` on a type variable give it the ordering restriction, printed `a<`. At each instantiation the variable's type must have `compare`, or be a variable, which takes the restriction; any other type is a type error at the call. A variable that nothing fixes and no definition generalizes is refused, as today.
 2. **A `compare` over parameters.** A member `T.compare` of a type with parameters may compare them, and then carries their restriction: `Pair(Int)` is ordered and `Pair(Bool)` is not.
 3. **A top-level `let` is not generalized over an ordered variable**, so it is still computed once, before `main` (§8.5). A value that depends on an order is a function.
 4. **An operations record holds a type's primitives**, the few operations that reach its representation, which the standard library already lists for each module (Appendix E.0). `Set.Operations(s, e)` holds `Set`'s six: `empty`, `size`, `contains`, `put`, `remove`, and `toList`. None is polymorphic beyond the record's parameters.
