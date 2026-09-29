@@ -98,17 +98,18 @@ export fn name(p : Path) : String =
     }
 
 /// What follows the last `.` of the name, without the dot, or `None` when
-/// the name has none.
+/// the name has none. A `.` that begins the name begins no extension, so
+/// `.bashrc` has none.
 export fn extension(p : Path) : Optional(String) = {
     let n = name(p);
     match String.lastIndexOf(n, ".") {
-        Some(at) -> Some(String.slice(n, at + 1, String.size(n)))
-      | None -> None
+        Some(at) when at > 0 -> Some(String.slice(n, at + 1, String.size(n)))
+      | _ -> None
     }
 }
 
 /// The path with that extension in place of any it had; an empty string
-/// removes it.
+/// removes it. A path without a name, the root, is left as it is.
 ///
 /// ### Examples
 ///
@@ -117,7 +118,10 @@ export fn extension(p : Path) : Optional(String) = {
 ///   Path.toString(Path.withExtension(Path("a/b.txt"), "")))
 /// // => #("a/b.md", "a/b")
 /// ```
-export fn withExtension(p : Path, ext : String) : Path = {
+export fn withExtension(p : Path, ext : String) : Path =
+    if String.isEmpty(name(p)) then p else extended(p, ext)
+
+fn extended(p : Path, ext : String) : Path = {
     let text = written(split(p));
     let stem = match extension(p) {
         Some(old) -> String.slice(text, 0, String.size(text) - String.size(old) - 1)

@@ -35,6 +35,12 @@ list_test() ->
     ?assertEqual('Unit', L:foreach([1], fun(_) -> 'Unit' end)),
     ?assertEqual({[1, 2], [3, 1]}, L:span([1, 2, 3, 1], fun(X) -> X < 3 end)),
     ?assertEqual({[1, 2, 1], [3]}, L:partition([1, 2, 3, 1], fun(X) -> X < 3 end)),
+    %% the predicate meets the elements in order; a regression test, it met
+    %% them from the last (findings.md's E11)
+    Seen = fun(X) -> put(seen, [X | get(seen)]), X > 1 end,
+    put(seen, []),
+    _ = L:partition([1, 2, 3], Seen),
+    ?assertEqual([1, 2, 3], lists:reverse(get(seen))),
     ?assertEqual([2, 1, 3], L:unique([2, 1, 2, 3, 1])),
     ?assertEqual([{0, a}, {1, b}], L:indexed([a, b])),
     ?assertEqual([x, x], L:repeat(x, 2)),
@@ -788,10 +794,17 @@ path_edges_test() ->
     ?assertEqual([<<"/">>], P:split(T(<<"/">>))),
     ?assertEqual(<<>>, P:name(T(<<"/">>))),
     ?assertEqual({'Some', <<>>}, P:extension(T(<<"a.">>))),
-    ?assertEqual({'Some', <<"profile">>}, P:extension(T(<<".profile">>))),
     ?assertEqual('None', P:extension(T(<<"a.d/b">>))),
     ?assertEqual(T(<<"a/b">>), P:withExtension(T(<<"a/b.txt/">>), <<>>)),
-    ?assertEqual(T(<<"a.d/b.md">>), P:withExtension(T(<<"a.d/b">>), <<"md">>)).
+    ?assertEqual(T(<<"a.d/b.md">>), P:withExtension(T(<<"a.d/b">>), <<"md">>)),
+    %% a dot that begins a name begins no extension, and the root has no name
+    %% to extend; a regression test, `.bashrc`'s extension was `bashrc`, so
+    %% removing it left an empty path (findings.md's E12)
+    ?assertEqual('None', P:extension(T(<<".profile">>))),
+    ?assertEqual({'Some', <<"bak">>}, P:extension(T(<<".profile.bak">>))),
+    ?assertEqual(T(<<".bashrc">>), P:withExtension(T(<<".bashrc">>), <<>>)),
+    ?assertEqual(T(<<"dir/.bashrc.txt">>), P:withExtension(T(<<"dir/.bashrc">>), <<"txt">>)),
+    ?assertEqual(T(<<"/">>), P:withExtension(T(<<"/">>), <<"txt">>)).
 
 %% report Appendix E.16, E.5: columns counts by grapheme, by its first code
 %% point that counts: a combining mark adds none, alone it takes none; an

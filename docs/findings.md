@@ -170,18 +170,18 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 
 ## The standard library, the libraries, the examples
 
-- cheap — Markdown's styled rows leave a style open across the listing's cut (E5)
-- cheap — the editor's cursor counts Chars, the text graphemes (E6)
-- cheap — filesync never settles, recording the peer's mtime (E7)
-- cheap — Markdown: inline HTML at a line's start becomes a Raw block; a lazy line after a quoted heading; tabs in code expanded (E8, E21, E22)
+- done — Markdown's styled rows leave a style open across the listing's cut (E5): fixed 2026-09-29, each styled row standing alone, a look it leaves on turned off at its end and on again at the next
+- done — the editor's cursor counts Chars, the text graphemes (E6): fixed 2026-09-29, the cursor measured as the text before it stands
+- done — filesync never settles, recording the peer's mtime (E7): fixed 2026-09-29, a stored file given the peer's time with `Fs.setModified`
+- done — Markdown: inline HTML at a line's start becomes a Raw block; a lazy line after a quoted heading; tabs in code expanded (E8, E21, E22): fixed 2026-09-29, and G.2 states the HTML and tab rules
 - 2.98 — `Bytes` has no search or split (N-L), and gains the functions of Erlang's `binary` that `String` has, named as `String`'s are: `contains`, `indexOf`, `startsWith` and `endsWith` from `match`, `split`, `replace`, `join`, `repeat` from `copy/2`, and `toHex` and `fromHex` from `encode_hex` and `decode_hex`. Not taken: `at`, `part`, `bin_to_list` and `list_to_bin`, which are `get`, `slice`, `toList` and `fromList`; `first` and `last`, which `get` is; `encode_unsigned` and `decode_unsigned`, which are bitstrings' (§5.11); `longest_common_prefix` and `longest_common_suffix`, words `String` has not; and `compile_pattern`, `copy/1` and `referenced_byte_size`, which are the host's representation
-- cheap — `List.partition` calls its predicate from the last element (E11)
-- cheap — `Path.withExtension` and `extension` on dot-files and the root (E12)
-- cheap — `Fs.Entry.mtime` is whole seconds (E13)
-- cheap — `Terminal.size`'s page example does not compile outside the module; examples checked inside their module (E15)
-- cheap — the history trim is not written whole (E16)
-- cheap — the web server answers a bad request with 404 (E17)
-- cheap — services' stale line and sleep; echo's unwatched monitor; repl's recursion claim (E18..E20)
+- done — `List.partition` calls its predicate from the last element (E11): fixed 2026-09-29
+- done — `Path.withExtension` and `extension` on dot-files and the root (E12): fixed 2026-09-29, a dot that begins a name beginning no extension and the root left as it is (E.14)
+- done — `Fs.Entry.mtime` is whole seconds (E13): fixed 2026-09-29 by stating it: the host gives whole seconds (E.17)
+- done — `Terminal.size`'s page example does not compile outside the module; examples checked inside their module (E15): fixed 2026-09-29, and an exported declaration's example checked from outside its module
+- done — the history trim is not written whole (E16): fixed 2026-09-29, written beside and renamed; a history that is not UTF-8 reported as unreadable
+- done — the web server answers a bad request with 404 (E17): fixed 2026-09-29, with the banner and the empty id of the pages line
+- done — services' stale line and sleep; echo's unwatched monitor; repl's recursion claim (E18..E20): fixed 2026-09-29: services' line was right after the layout change, and its sleep waits on the language (nothing says a restart has finished); echo awaits its server; repl's claim dropped
 - cheap — pages: Tcp's close and Errors, Fs's rules, Os's Errors sections, Ets and others without Errors or Examples, String's primitives and `toFloat`, Map and Set orders, Either's citation, `Erl.atom`'s page, `Process.faults`, Supervisor's example, `compare` written with `<`, NO_COLOR, the shell's Bool styles, "tail", the shell's `//` pages, the template, the web server's banner, snake, `tools/manual.ern` (E-B1..B21)
 - 2.98 — the language: a list of functions as a binding, `kill` and `monitor` on `Process`, "no limit" unnamed, `Io.debug` a shim, every program's `errorText`, no word of a restart's end, `Tcp.close` and `closeListener`, `Bytes.slice` a shim (E-C1..C8)
 

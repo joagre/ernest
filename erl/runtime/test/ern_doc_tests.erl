@@ -32,13 +32,14 @@ doc_examples_test_() ->
 examples(Ns, File) ->
     {ok, Src} = file:read_file(File),
     {ok, Decls} = ern_parser:parse_string(Src),
-    check_examples(Ns, Src, docs(Decls, [])).
+    check_examples(Ns, Src, docs(Decls, outside, [])).
 
 %% report §9, Appendix E.0 rule 6: the prelude's page is documented as a
 %% module's is, so its examples type-check and those with `// => v` run,
 %% and every function it documents is called by one of them
 prelude_examples_test_() ->
-    {timeout, 60, fun() -> check_examples(['Docprelude'], <<>>, prelude_docs()) end}.
+    {timeout, 60,
+     fun() -> check_examples(['Docprelude'], <<>>, [{D, outside} || D <- prelude_docs()]) end}.
 
 prelude_called_test() ->
     Fences = iolist_to_binary([B || Doc <- prelude_docs(), B <- fences(Doc)]),
@@ -52,15 +53,31 @@ prelude_docs() ->
     {docs_v1, _, _, _, #{<<"en">> := Mod}, _, Entries} = ern_prelude:docs(),
     [Mod | [D || {_, _, _, #{<<"en">> := D}, _} <- Entries]].
 
+%% Appendix E.0 rule 6: each example type-checks where a programmer writes
+%% it, in a module of its own that uses the documented one, so that a name
+%% the module keeps private, or writes unqualified, is refused; the example
+%% of a declaration the module keeps private speaks to the module's own
+%% reader, and is checked inside it. A regression test: every example was
+%% checked inside the module, where `Terminal.size`'s `Size` passed
+%% (findings.md's E15)
 check_examples(Ns, Src, Docs) ->
-    Blocks = [split_result(B) || Doc <- Docs, B <- fences(Doc)],
+    Blocks = [{split_result(B), Where} || {Doc, Where} <- Docs, B <- fences(Doc)],
     ?assert(Blocks =/= []),
-    Numbered = lists:zip(lists:seq(1, length(Blocks)), Blocks),
-    lists:foreach(fun({N, {Body, _}}) ->
-                      Text = <<Src/binary, "\nfn docExample", (integer_to_binary(N))/binary,
-                               "() = fn() = {\n", Body/binary, "\n}\n">>,
-                      ?assertMatch({ok, _, _, _}, ern_typecheck:check_string(Ns, Text))
-                  end, Numbered),
+    Numbered = lists:zip(lists:seq(1, length(Blocks)), [B || {B, _} <- Blocks]),
+    {ok, _, Own, _} = ern_typecheck:check_string(Ns, Src),
+    lists:foreach(fun({{N, {Body, _}}, Where}) ->
+                      Example = <<"fn docExample", (integer_to_binary(N))/binary,
+                                  "() = fn() = {\n", Body/binary, "\n}\n">>,
+                      Checked = case Where of
+                                    outside ->
+                                        {ok, Decls} = ern_parser:parse_string(Example),
+                                        ern_typecheck:check(['Docexample'], Decls, [Own]);
+                                    inside ->
+                                        ern_typecheck:check_string(Ns, <<Src/binary, "\n",
+                                                                         Example/binary>>)
+                                end,
+                      ?assertMatch({{ok, _, _, _}, _}, {Checked, {Ns, N, Body}})
+                  end, lists:zip(Numbered, [W || {_, W} <- Blocks])),
     WithResult = [{N, Body, V} || {N, {Body, V}} <- Numbered, V =/= none],
     Fns = [<<"export fn docExample", (integer_to_binary(N))/binary, "() = {\n", Body/binary,
              "\n}\n">> || {N, Body, _} <- WithResult],
@@ -162,7 +179,7 @@ since(File) ->
     ModDocs = [T || #module_doc{text = T} <- Decls],
     ?assertMatch([_], ModDocs),
     ?assertNotEqual(none, since_of(hd(ModDocs))),
-    Stated = [S || B <- docs(Decls, []), S <- [since_of(B)], S =/= none],
+    Stated = [S || B <- docs(Decls), S <- [since_of(B)], S =/= none],
     ?assertEqual([], [S || S <- Stated, version(S) > Current]).
 
 since_of(Doc) ->
@@ -194,7 +211,7 @@ doc_coverage_test_() ->
 coverage(Ns, File) ->
     {ok, Src} = file:read_file(File),
     {ok, Decls} = ern_parser:parse_string(Src),
-    Examples = iolist_to_binary([B || Doc <- docs(Decls, []), B <- fences(Doc)]),
+    Examples = iolist_to_binary([B || Doc <- docs(Decls), B <- fences(Doc)]),
     Prefix = lists:join(".", [atom_to_list(A) || A <- Ns]),
     Fns = [owned_name(O, N) || #fn_decl{export = true, owner = O, name = N} <- Decls,
                                is_alpha(N)]
@@ -225,7 +242,7 @@ see_also(File) ->
         ++ [qualified(Q) || {Q, _, _} <- ern_prelude:values()]
         ++ [qualified(Q) || I <- ern_prelude:stdlib_ifaces(), Q <- maps:keys(I#iface.values)]
         ++ [qualified(Q) || I <- ern_prelude:stdlib_ifaces(), Q <- maps:keys(I#iface.types)],
-    Named = [N || Doc <- docs(Decls, []),
+    Named = [N || Doc <- docs(Decls),
                   {match, Secs} <- [re:run(Doc, "#+ See also\\n\\n(.*?)(?=\\n#|$)",
                                            [global, dotall, {capture, all_but_first, list}])],
                   [Sec] <- Secs,
@@ -253,18 +270,32 @@ exported_decl(_) -> false.
 
 doc_field(D) -> element(3, D).
 
-%% Every doc text in an AST: the third element of the records that carry one.
-docs(T, Acc) when is_tuple(T), tuple_size(T) >= 3 ->
+%% Every doc text in an AST.
+docs(T) ->
+    [D || {D, _} <- docs(T, outside, [])].
+
+%% Every doc text in an AST, the third element of the records that carry
+%% one, with where its examples are checked: outside the module, or inside
+%% it within a declaration the module keeps private, the fourth element of
+%% a top-level declaration saying whether it is exported.
+docs(T, Where, Acc) when is_tuple(T), tuple_size(T) >= 3 ->
+    Private = lists:member(element(1, T), [type_decl, abstract_decl, fn_decl, let_decl,
+                                           foreign_type_decl, foreign_fn_decl])
+        andalso element(4, T) =:= false,
+    Where1 = case Private of
+                 true -> inside;
+                 false -> Where
+             end,
     Acc1 = case lists:member(element(1, T), [module_doc, type_decl, abstract_decl, fn_decl,
                                               let_decl, foreign_type_decl, foreign_fn_decl,
                                               constructor, field, signature])
                     andalso is_binary(element(3, T)) of
-               true -> [element(3, T) | Acc];
+               true -> [{element(3, T), Where1} | Acc];
                false -> Acc
            end,
-    lists:foldl(fun docs/2, Acc1, tuple_to_list(T));
-docs(L, Acc) when is_list(L) -> lists:foldl(fun docs/2, Acc, L);
-docs(_, Acc) -> Acc.
+    lists:foldl(fun(E, A) -> docs(E, Where1, A) end, Acc1, tuple_to_list(T));
+docs(L, Where, Acc) when is_list(L) -> lists:foldl(fun(E, A) -> docs(E, Where, A) end, Acc, L);
+docs(_, _Where, Acc) -> Acc.
 
 fences(Doc) ->
     case re:run(Doc, "```ernest\\n(.*?)\\n```",

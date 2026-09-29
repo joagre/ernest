@@ -2,8 +2,9 @@
 // Paper program 4: REPL
 //
 // Written against the Ernest report, September 2026. A read-evaluate-print
-// loop for a small expression language with numbers, let, functions of one
-// argument, and recursion. The aim is to hit deep error handling in pure code
+// loop for a small expression language with numbers, let, and functions of
+// one argument, a function not seeing its own name, so that a `let` binds no
+// recursion. The aim is to hit deep error handling in pure code
 // (lexer, parser, evaluator) and try as a process (an expression that never
 // terminates must be abortable).
 //

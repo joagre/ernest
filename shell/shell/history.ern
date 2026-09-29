@@ -33,27 +33,37 @@ export fn read() : Either(Io.Error, List(String)) with m =
           | Left(why) -> Left(why)
           | Right(bytes) -> {
                 let _ <- made(path);
-                trimmed(path, inputs(bytes))
+                let read <- inputs(bytes);
+                trimmed(path, read)
             }
         }
     }
 
 // Newest first is the order the editor walks; the file is oldest first,
-// as a person reading it expects.
+// as a person reading it expects. The trimmed file is written beside the
+// history and renamed over it, so that it is written whole or not at all
+// (report §11).
 fn trimmed(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) with m = {
     let extra = List.size(inputs) - kept;
     if extra <= 0 then
         Right(List.reverse(inputs))
     else {
         let last = List.drop(inputs, extra);
-        Either.map(Fs.write(path, String.toUtf8(text(last)), wait), fn(_) = List.reverse(last))
+        let beside = Path.withExtension(path, "new");
+        let _ <- Fs.write(beside, String.toUtf8(text(last)), wait);
+        let _ <- Fs.rename(beside, path, wait);
+        Right(List.reverse(last))
     }
 }
 
-fn inputs(bytes : Bytes) : List(String) = {
-    let lines = String.lines(Optional.withDefault(String.fromUtf8(bytes), ""));
-    List.map(List.filter(lines, fn(line) = !String.isEmpty(line)), decode)
-}
+// A history that is not UTF-8 is not one the shell wrote, and is not read.
+fn inputs(bytes : Bytes) : Either(Io.Error, List(String)) =
+    match String.fromUtf8(bytes) {
+        Some(text) ->
+            Right(List.map(List.filter(String.lines(text), fn(line) = !String.isEmpty(line)),
+                           decode))
+      | None -> Left(Io.Other("the history is not UTF-8"))
+    }
 
 fn text(inputs : List(String)) : String =
     String.join(List.map(inputs, fn(input) = encode(input) <> "\n"), "")

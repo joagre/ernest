@@ -111,11 +111,11 @@ fn store(dir : Path,
         let here = Path.join(dir, p);
         match Map.get(seen, here) {
             Some(mine) when mine > m -> {
-                let _ = spawn(Local, fn() = writer(conflictPath(here), bytes, ack, Conflict));
+                let _ = spawn(Local, fn() = writer(conflictPath(here), bytes, m, ack, Conflict));
                 Unit
             }
           | _ -> {
-                let _ = spawn(Local, fn() = writer(here, bytes, ack, Stored));
+                let _ = spawn(Local, fn() = writer(here, bytes, m, ack, Stored));
                 Unit
             }
         };
@@ -130,9 +130,11 @@ fn isName(p : Path) : Bool =
       | _ -> false
     }
 
-// One process per write: waits for fs and answers the peer.
-fn writer(p : Path, bytes : Bytes, ack : Reply(Ack), okAck : Ack) : Unit with n =
-    match Fs.write(p, bytes, 10000) {
+// One process per write: waits for fs and answers the peer. The file takes
+// the peer's modification time, which the next listing then finds as it
+// was recorded, so that a file stored is not sent back.
+fn writer(p : Path, bytes : Bytes, mtime : Int, ack : Reply(Ack), okAck : Ack) : Unit with n =
+    match Either.andThen(Fs.write(p, bytes, 10000), fn(_) = Fs.setModified(p, mtime, 10000)) {
         Right(Unit) -> answer(ack, okAck)
       | Left(e) -> answer(ack, Failed(e))
     }

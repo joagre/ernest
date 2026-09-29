@@ -92,7 +92,16 @@ filesync() ->
     ?assertEqual({ok, <<"only in b\n">>}, file:read_file(Dir ++ "/a/other.txt")),
     %% b's copy is the newer one, so a takes it and b keeps its own beside the conflict
     ?assertEqual({ok, <<"new note\n">>}, file:read_file(Dir ++ "/a/notes.txt")),
-    ?assert(filelib:is_regular(Dir ++ "/b/notes.txt.conflict")).
+    ?assert(filelib:is_regular(Dir ++ "/b/notes.txt.conflict")),
+    %% a file stored takes its source's time, so that the next pass finds it
+    %% as it was recorded and does not send it back; a regression test, the
+    %% two sides rewrote each other every pass (findings.md's E7)
+    Mtime = fun(F) ->
+                {ok, #file_info{mtime = M}} = file:read_file_info(Dir ++ F, [{time, posix}]),
+                M
+            end,
+    ?assertEqual(Mtime("/a/greeting.txt"), Mtime("/b/greeting.txt")),
+    ?assertEqual(Mtime("/b/other.txt"), Mtime("/a/other.txt")).
 
 reset(Dir) ->
     ok = del(Dir),

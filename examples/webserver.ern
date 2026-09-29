@@ -89,8 +89,8 @@ fn handler(sessions : Address(SessionMsg), seq : Int, sock : Address(Tcp.SockMsg
     match Tcp.read(sock, 5000) {
         Right(bytes) -> match parse(bytes) {
             Left(_) -> {
-                let notFound = Response(status = StatusCode.notFound, headers = [], body = "");
-                Tcp.write(sock, render(notFound));
+                let bad = Response(status = StatusCode.badRequest, headers = [], body = "");
+                Tcp.write(sock, render(bad));
                 Tcp.close(sock)
             }
           | Right(req) -> {
@@ -193,21 +193,24 @@ fn errorText(e : Io.Error) : String =
     }
 
 //
-// Abstract-type definitions
+// The types' members
 //
 
 let StatusCode.ok = StatusCode(200)
 
-let StatusCode.notFound = StatusCode(404)
+let StatusCode.badRequest = StatusCode(400)
 
 fn StatusCode.render(StatusCode(n)) =
-    if n == 200 then "200 OK" else "404 Not Found"
+    if n == 200 then "200 OK" else "400 Bad Request"
 
 fn SessionId.fresh(n) =
     SessionId(Int.toString(n)) // good enough on paper
 
 fn SessionId.parse(t) =
-    if List.all(String.toList(t), Char.isAsciiDigit) then Some(SessionId(t)) else None
+    if !String.isEmpty(t) && List.all(String.toList(t), Char.isAsciiDigit) then
+        Some(SessionId(t))
+    else
+        None
 
 fn SessionId.text(SessionId(t)) =
     t

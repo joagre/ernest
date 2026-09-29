@@ -336,12 +336,14 @@ fn step(s : Search) : Int =
 // which is what makes the editor testable on its own.
 //
 
-// Text put in at the cursor, which is left after it.
+// Text put in at the cursor, which is left after it. The cursor counts
+// graphemes, as the text is indexed, and what is put in may join the
+// grapheme before it, a combining mark or a skin tone, so the cursor is
+// measured as the text before it now stands.
 export fn insert(state : State, what : String) : State = {
     let State(text = text, at = at) = state;
-    State(..state,
-          text = String.slice(text, 0, at) <> what <> from(text, at),
-          at = at + String.size(what))
+    let before = String.slice(text, 0, at) <> what;
+    State(..state, text = before <> from(text, at), at = String.size(before))
 }
 
 fn back(state : State) : State =
@@ -424,6 +426,13 @@ fn alphanumeric(text : String, i : Int) : Bool =
 let typing =
     Test(name = "typing inserts at the cursor",
          run = fn() = reads(play(keys("abc") <> [Terminal.ArrowLeft] <> keys("X")), "abXc", 3))
+
+// a regression test: the cursor moved by the Chars a key put in, so a
+// combining mark after a letter left it past the end (findings.md's E6)
+let combining =
+    Test(name = "a mark that joins the letter before it leaves the cursor after both",
+         run = fn() =
+             reads(play(keys("e") <> [Terminal.Key('\u{301}'), Terminal.Key('\u{7f}')]), "", 0))
 
 let ends =
     Test(name = "C-a and C-e go to the ends of the line",

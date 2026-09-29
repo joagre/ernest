@@ -305,8 +305,10 @@ export fn partition(xs : List(a), p : (a) -> Bool with e) : #(List(a), List(a)) 
     match xs {
         [] -> #([], [])
       | y :: rest -> {
+            // the predicate meets the elements in order, as filter's does
+            let holds = p(y);
             let #(yes, no) = partition(rest, p);
-            if p(y) then #(y :: yes, no) else #(yes, y :: no)
+            if holds then #(y :: yes, no) else #(yes, y :: no)
         }
     }
 

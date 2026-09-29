@@ -1,8 +1,8 @@
 //
 // An echo server and a client that measures it: the server accepts one
-// connection at a time and writes back what it reads, the client sends a
-// message and waits for it to come back, and the program prints how long a
-// round trip takes. It is the measurement the plan asks of Tcp (report
+// connection and writes back what it reads, the client sends a message and
+// waits for it to come back, and the program prints how long its round
+// trips take once the server has ended. It is the measurement the plan asks of Tcp (report
 // Appendix E.18), where each socket is a process.
 //
 // Compiles and runs since 2026-09-20; it is not an integration test, since
@@ -16,7 +16,7 @@ export fn main() : Unit with Msg = {
     match Tcp.listen("127.0.0.1", port) {
         Left(_) -> Io.printlnError("cannot listen")
       | Right(listener) -> {
-            let server = spawnMonitored(Local, fn() = serve(listener), Served);
+            let _ = spawnMonitored(Local, fn() = serve(listener), Served);
             match Tcp.connect("127.0.0.1", port, 1000) {
                 Left(_) -> Io.printlnError("cannot connect")
               | Right(socket) -> {
@@ -26,6 +26,10 @@ export fn main() : Unit with Msg = {
                     let elapsed = Clock.now() - started;
                     Tcp.close(socket);
                     Tcp.closeListener(listener);
+                    // the server ends once it reads the closed connection
+                    receive {
+                        Served(_) -> Unit
+                    };
                     Io.println(Int.toString(rounds)
                                    <> " round trips in "
                                    <> Int.toString(elapsed)

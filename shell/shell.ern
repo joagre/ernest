@@ -1162,7 +1162,8 @@ fn remember(screen : Address(ScreenMsg),
     else match Shell.History.add(line) {
         Right(_) -> true
       | Left(why) -> {
-            say(screen, "the history is not kept: " <> trouble(why));
+            // the reader's own note, which leaves the prompt where it is
+            send(screen, Noted("the history is not kept: " <> trouble(why)));
             false
         }
     }
