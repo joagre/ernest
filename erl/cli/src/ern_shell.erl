@@ -7,7 +7,7 @@
 %% input declares is the module's declarations.
 -module(ern_shell).
 
--export([loaded/1, start/0, program/0, startup_files/0, needs_more/1, check/4,
+-export([loaded/1, start/0, program/0, startup_files/0, needs_more/1, check/3,
          is_unit/1, type_text/1, run/3, show/3, bindings/1, context/1, names/0,
          session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
          documentation/1, fields/1, signature/1, load/2,
@@ -42,7 +42,7 @@
 %% beams: the namespace of an input that declared, to its compiled module,
 %% which `:doc` reads the documentation of (report §11.2, §11.4)
 %% A checked input: the module it became, its typed tree, its type.
--record(checked, {ns, typed, decls, iface, env, type, binds}).
+-record(checked, {ns, typed, decls, iface, env, type, binds, site}).
 %% binds: the name a `let` binds, `{names, Ns}` for the names a `let` with
 %% a pattern binds, `it` for an expression, or `decls`
 %% A value with the descriptor of its type, so it prints as E.1 prints it.
@@ -110,14 +110,15 @@ unfinished(_) -> false.
 
 %% Report §11.2: an input is checked before it is run; a failure is §11.5's
 %% text, as `ern build` shows it, under the name of where the input came from:
-%% `input` for one that was typed, the file's path for one from a startup
-%% file.
--spec check(#env{}, binary(), pos_integer(), binary()) ->
+%% `input 3` for the third thing entered at the prompt, the file's path for
+%% an input from a startup file. The shell's `Origin` says which:
+%% `Prompt(n)`, or `Startup(file, line)` in canonical order.
+-spec check(#env{}, {'Prompt', pos_integer()} | {'Startup', binary(), pos_integer()}, binary()) ->
           {'Left', binary()} | {'Right', {#env{}, #checked{}}}.
-check(#env{n = N} = Env, From, First, Input) ->
+check(#env{n = N} = Env, From, Input) ->
     Origin = case From of
-                 <<"input">> -> {typed, From};
-                 _ -> {file, From, First}
+                 {'Prompt', K} -> {typed, <<"input ", (integer_to_binary(K))/binary>>};
+                 {'Startup', File, First} -> {file, File, First}
              end,
     %% an input takes the number of one whose module was unloaded, whose
     %% name is an atom already, before a new one (report §2.3)
@@ -264,13 +265,18 @@ check_module(#env{ifaces = Ifaces, session = Session} = Env, Ns, From, Input, De
                 none ->
                     {'Right', {Env, #checked{ns = Ns, typed = Typed, decls = Decls,
                                              iface = Iface, env = TEnv, type = Type,
-                                             binds = Binds}}};
+                                             binds = Binds, site = site(From)}}};
                 {open, Diag} ->
                     {'Left', diagnostic(From, Input, [Diag])}
             end;
         {error, Diags} ->
             {'Left', diagnostic(From, Input, Diags)}
     end.
+
+%% Report §11.2: the name and the line offset a spawn site in the input is
+%% written with, as its diagnostics name and count it.
+site({typed, Name}) -> {Name, 0};
+site({file, File, First}) -> {File, First - 1}.
 
 %% Report §11.2: an input is compiled and run on its own, so what it
 %% binds must have a type by the time it runs; a later input cannot
@@ -381,10 +387,10 @@ one_name(Typed) ->
 %% interruption kills.
 -spec run(#env{}, #checked{}, term()) -> term().
 run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
-                  binds = Binds}, To) ->
+                  binds = Binds, site = {Where, Offset} = Site}, To) ->
     Desc = ern_descriptor:describe(T, TEnv, []),
     {ok, Mod, Beam} = ern_emitter:compile(Ns, Typed, Iface, TEnv,
-                                          #{source_hash => <<>>, deps => [], session => true}),
+                                          #{source_hash => <<>>, deps => [], session => Site}),
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), Beam),
     set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) -- [Ns]),
     %% report §11.2: the session's modules the input calls, and those whose
@@ -418,7 +424,7 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                 forget(Ns, Binds, Outcome),
                 ern_rt:send(To, Outcome)
             end,
-    ern_rt:spawn('Local', Input, <<"input:1">>).
+    ern_rt:spawn('Local', Input, <<Where/binary, ":", (integer_to_binary(1 + Offset))/binary>>).
 
 %% An input that declares nothing, an expression or a `let`, is done with
 %% its module once it has its answer, unless what it bound holds one of the

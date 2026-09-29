@@ -3,7 +3,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 > "hi!" : String
 > [1, 4, 9] : List(Int)
 > 7 : Int
-> input:1:5: both operands of `+` must have the same type: expected Int, found String
+> input 5:1:5: both operands of `+` must have the same type: expected Int, found String
 1 | 1 + "a"
   | - the left operand has type Int
   |     ^^^
@@ -34,14 +34,14 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 Stack.empty : Stack
 Stack.push : (Stack, Int) -> Stack
 > <abstract> : Stack
-> input:1:1: S is the constructor of an abstract type and is not visible outside the input that declared it
+> input 31:1:1: S is the constructor of an abstract type and is not visible outside the input that declared it
 1 | S([])
   | ^^^^^
-> input:1:12: a `let` at the prompt is an input of its own
+> input 32:1:12: a `let` at the prompt is an input of its own
 1 | fn f() = 1 let y = 2
   |            ^^^^^^^^^
   | = help: run this `let` on an input of its own, or make it a `let` inside a declaration's body
-> input:1:18: expected `)` instead of `,`
+> input 33:1:18: expected `)` instead of `,`
 1 | type Pair = P(Int, Int)
   |                  ^
 > type Shape
@@ -65,7 +65,7 @@ output 5
 timing off
 > > > [[..., ...], [...]] : List(List(List(Int)))
 > > > [1, 2, ...] : List(Int)
-> > > input:1:1: unknown name x
+> > > input 46:1:1: unknown name x
 1 | x
   | ^
 > the session declares no nosuchname

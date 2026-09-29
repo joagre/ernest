@@ -55,13 +55,12 @@ foreign fn signature(before : String) : Optional(#(String, String, String)) with
     "ern_shell:signature/1"
 
 // Report §11.2: an input checked against the session; a diagnostic names
-// the file it came from and the line it starts on there, `input` and 1 for
-// one typed.
+// where it came from, `input 3` for the third thing entered at the prompt,
+// and a startup file by its path and the line it starts on there.
 foreign fn check(env : Env,
-                 from : String,
-                 line : Int,
+                 origin : Origin,
                  input : String) : Either(String, #(Env, Checked)) with m =
-    "ern_shell:check/4"
+    "ern_shell:check/3"
 
 // The host's alone: where the startup files are, the person's first and
 // then the node's. Whether they are there, and what they hold, is read
@@ -140,14 +139,21 @@ type ShellMsg =
 // what it says, read once at the start, the shell's own processes, whose
 // faults are not news, the last hundred faults reported, newest first, and
 // the file and line of the startup input that runs, which its refusal and
-// its fault name (report §11.2).
+// its fault name, and how many things have been entered at the prompt
+// (report §11.2).
 type State =
     State(env : Env,
           settings : Settings,
           colour : Bool,
           own : Set(Process),
           faults : List(Process.FaultReport),
-          from : Optional(#(String, Int)))
+          from : Optional(#(String, Int)),
+          entered : Int)
+
+// Where an input came from, which its diagnostics and its spawn sites name:
+// the prompt, with the count of what was entered there, or a line of a
+// startup file (report §11.2).
+type Origin = Prompt(Int) | Startup(file : String, line : Int)
 
 type Settings = Settings(depth : Int, length : Int, timing : Bool, output : Int)
 
@@ -241,7 +247,8 @@ export fn main() : Unit with ShellMsg = {
               colour = colour,
               own = own,
               faults = [],
-              from = None);
+              from = None,
+              entered = 0);
     // report §11.2: a process that faults is news at the prompt, whichever
     // it is, and the session hears of it as any subscriber does, from
     // before the program's entry point runs
@@ -294,7 +301,7 @@ let colours = Optional.withDefault(Map.get(Os.environment, "NO_COLOR"), "") == "
 // One input, from either reader: checked, run in a process of its own, its
 // value printed with its type. An expression of type Unit prints nothing.
 fn evaluate(state : State, screen : Address(ScreenMsg), input : String) : State with ShellMsg =
-    run(state, screen, "input", 1, input, true)
+    run(state, screen, Prompt(state.entered), input, true)
 
 // Report §11.2: an input from a startup file is checked and run as a typed
 // one, and its value is not printed; what fails is reported with the file
@@ -304,15 +311,14 @@ fn quietly(state : State,
            from : String,
            line : Int,
            input : String) : State with ShellMsg =
-    run(state, screen, from, line, input, false)
+    run(state, screen, Startup(file = from, line = line), input, false)
 
 fn run(state : State,
        screen : Address(ScreenMsg),
-       from : String,
-       line : Int,
+       origin : Origin,
        input : String,
        printing : Bool) : State with ShellMsg =
-    match check(state.env, from, line, input) {
+    match check(state.env, origin, input) {
         Left(text) -> {
             diagnose(screen, state.colour, text);
             state
@@ -341,9 +347,7 @@ fn fileInputs(screen : Address(ScreenMsg), file : String) : List(#(String, Int, 
             []
         }
       | Right(bytes) -> match String.fromUtf8(bytes) {
-            Some(text) ->
-                List.filterMap(List.indexed(String.lines(text)),
-                               fn(#(i, line)) = startupInput(file, i, line))
+            Some(text) -> startupInputs(file, List.indexed(String.lines(text)))
           | None -> {
                 say(screen, file <> " is not UTF-8, and is not run");
                 []
@@ -351,10 +355,30 @@ fn fileInputs(screen : Address(ScreenMsg), file : String) : List(#(String, Int, 
         }
     }
 
-// A line of a startup file as an input with its line number, or none where
-// the line is blank.
-fn startupInput(file : String, index : Int, line : String) : Optional(#(String, Int, String)) =
-    if String.isEmpty(String.trim(line)) then None else Some(#(file, index + 1, line))
+// Report §11.2: the inputs of a startup file, each with the line it
+// begins on, taken as lines typed in line mode are: an input the parser
+// cannot finish takes the lines after it, up to a blank one.
+fn startupInputs(file : String, lines : List(#(Int, String))) : List(#(String, Int, String)) =
+    match lines {
+        [] -> []
+      | #(i, line) :: rest -> if String.isEmpty(String.trim(line)) then
+            startupInputs(file, rest)
+        else {
+            let #(input, left) = gathered(line, rest);
+            #(file, i + 1, input) :: startupInputs(file, left)
+        }
+    }
+
+// An input and the lines left after it, the input taking each further line
+// while the parser cannot finish it.
+fn gathered(input : String, lines : List(#(Int, String))) : #(String, List(#(Int, String))) =
+    match lines {
+        #(_, line) :: rest -> if continues(input) && !String.isEmpty(String.trim(line)) then
+            gathered(input <> "\n" <> line, rest)
+        else
+            #(input, lines)
+      | [] -> #(input, [])
+    }
 
 // How long to wait for the file system, which is a local file.
 let fileWait = 5000
@@ -605,11 +629,15 @@ fn printLines(screen : Address(ScreenMsg), lines : List(String)) : Unit with m =
 // action a command line selects.
 
 // An input is a command or Ernest.
-fn submit(state : State, screen : Address(ScreenMsg), input : String) : Next with ShellMsg =
+// Report §11.2: what is entered at the prompt is counted, an input or a
+// command, so that a typed input is named by its count.
+fn submit(state : State, screen : Address(ScreenMsg), input : String) : Next with ShellMsg = {
+    let counted = State(..state, entered = state.entered + 1);
     if String.startsWith(input, ":") then
-        perform(state, screen, input)
+        perform(counted, screen, input)
     else
-        Continue(evaluate(state, screen, input))
+        Continue(evaluate(counted, screen, input))
+}
 
 fn perform(state : State, screen : Address(ScreenMsg), input : String) : Next with ShellMsg =
     match Shell.Command.parse(input) {
@@ -641,7 +669,7 @@ fn obey(state : State,
                 Continue(state)
             }
         }
-      | Shell.Command.Type -> match check(env, "input", 1, arg) {
+      | Shell.Command.Type -> match check(env, Prompt(state.entered), arg) {
             Left(text) -> {
                 diagnose(screen, colour, text);
                 Continue(state)
@@ -1154,12 +1182,24 @@ fn lineLoop(state0 : State, screen : Address(ScreenMsg)) : Unit with ShellMsg = 
     match Io.readLine() {
         // the prompt's line is ended by `finish`, as a `:quit` ends it
         None -> finish(screen, "")
-      | Some(line) -> match String.trim(line) {
-            "" -> lineLoop(state, screen)
-          | input -> match submit(state, screen, input) {
-                Leave -> finish(screen, "")
-              | Continue(state2) -> lineLoop(state2, screen)
-            }
+      | Some(line) -> if String.isEmpty(String.trim(line)) then
+            lineLoop(state, screen)
+        else match submit(state, screen, String.trim(moreLines(screen, line))) {
+            Leave -> finish(screen, "")
+          | Continue(state2) -> lineLoop(state2, screen)
         }
     }
 }
+
+// Report §11.2: in line mode, as at a terminal, an input the parser cannot
+// finish takes the next line, under the prompt `... `, and a blank line or
+// the end of input runs what there is.
+fn moreLines(screen : Address(ScreenMsg), input : String) : String with m =
+    if continues(input) then {
+        send(screen, Said("... "));
+        match Io.readLine() {
+            None -> input
+          | Some(line) -> moreLines(screen, input <> "\n" <> line)
+        }
+    } else
+        input

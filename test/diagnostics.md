@@ -287,7 +287,7 @@ example.ern:1:27: a doc comment `///` stands on a line of its own; a note after 
 $ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > 1 )
-input:1:3: expected end of input instead of `)`
+input 1:1:3: expected end of input instead of `)`
 1 | 1 )
   |   ^
 ```
@@ -1271,7 +1271,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 > export abstract type Box = Box(Int)
 abstract type Box
 > Box(1)
-input:1:1: Box is the constructor of an abstract type and is not visible outside the input that declared it
+input 2:1:1: Box is the constructor of an abstract type and is not visible outside the input that declared it
 1 | Box(1)
   | ^^^^^^
 ```

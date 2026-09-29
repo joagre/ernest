@@ -97,11 +97,10 @@ discussed with the user one at a time as they are met.
 2. **Its `2.98` lines**: the report's contradictions and silent cases, among them `Io.show`'s
    dependence on the type at the call; a type that breaks laid one alternative a line, as a
    `match` is, decided with the user and done 2026-09-29 (N10; the log's *A Type That Breaks
-   Holds One Alternative a Line*); three decisions of the shell's, the user's to make: the spawn
-   site of a typed input, `input:1` for every one (T26), whether line mode takes an input's
-   further lines where the parser cannot finish it, as a terminal does (T29), and the shell's
-   exit status and where a program's standard error goes in line mode, which §11.2 does not
-   state (T32); the diagnostics'
+   Holds One Alternative a Line*); three decisions of the shell's, decided with the user and
+   done 2026-09-29 (the log's *Three of the Shell's Choices*): a typed input named by its count,
+   `input 3` (T26), line mode taking an input's further lines as a terminal does (T29), and the
+   shell's exit status and streams stated in §11.2 (T32); the diagnostics'
    positions and labels (§11.5); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):

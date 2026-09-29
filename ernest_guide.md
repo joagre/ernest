@@ -427,7 +427,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 x : Int
 y : Int
 > let #(Some(a), b) = #(Some(1), 2)
-input:1:1: a `let` pattern must be irrefutable
+input 2:1:1: a `let` pattern must be irrefutable
 1 | let #(Some(a), b) = #(Some(1), 2)
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   | = help: use `match` for a pattern that can fail

@@ -39,7 +39,7 @@ The runner, `ern_cli`, loads the file and its dependencies and runs their initia
 
 ### Line mode
 
-Where standard output has no size, or the reader's subscription is refused because standard input is not a terminal (`Left(NotATerminal)`, E.16), there is no reader. The session records itself as the terminal's holder and reads lines with `Io.readLine` in `lineLoop`, and the screen runs `plainLoop`. The session blocks in `Io.readLine`, so a fault report waits in its mailbox; `pending` says every waiting one before each prompt. Line mode reads and writes no history.
+Where standard output has no size, or the reader's subscription is refused because standard input is not a terminal (`Left(NotATerminal)`, E.16), there is no reader. The session records itself as the terminal's holder and reads lines with `Io.readLine` in `lineLoop`, and the screen runs `plainLoop`. `moreLines` takes the next line while `continues` says the parser cannot finish the input, the rule `Enter` follows at a terminal. The session blocks in `Io.readLine`, so a fault report waits in its mailbox; `pending` says every waiting one before each prompt. Line mode reads and writes no history.
 
 ## The front end
 
@@ -49,7 +49,7 @@ Where standard output has no size, or the reader's subscription is refused becau
 
 The front end's values reach the shell as handles of three foreign types, `Env`, `Checked` and `Value`, so the shell cannot pass one kind where another is expected. The shell never looks inside them, and types reach it as text.
 
-- **The environment.** `start` makes the first `Env`. `check` answers §11.5's text for an input that does not check, and otherwise the next `Env` with a `Checked`; its file and line name where the input came from, `input` and 1 for one typed. `spawnInput` runs a `Checked`, and its outcome carries the `Env` after the run. `load`, `reload` and `forget` answer the `Env` they made.
+- **The environment.** `start` makes the first `Env`. `check` answers §11.5's text for an input that does not check, and otherwise the next `Env` with a `Checked`; its `Origin` names where the input came from, `Prompt(n)` for the `n`th thing entered at the prompt, which the session's `State` counts in `entered`, and `Startup(file, line)` for a line of a startup file. `spawnInput` runs a `Checked`, and its outcome carries the `Env` after the run. `load`, `reload` and `forget` answer the `Env` they made.
 - **A result.** `typeText`, `isUnit`, `declared` and `unbound` read a `Checked`: the type printed, whether the value is printed at all, what a declaration prints, and whether `it` was left as it was. `show` prints a `Value` to a depth and a length.
 - **The commands** that reach past the shell: `bindings`, `browse`, `doc` and `output`.
 - **The questions the reader and `Shell.Complete` ask**: `names`, `sessionNames`, `sessionTexts`, `sourceRoot`, `context`, `needsMore`, `fields`, `documentation`, `signature` and `segment`. None takes an `Env`; those that read the session read the front end's copy.
@@ -158,11 +158,11 @@ The session learns of every fault as a subscriber of `Process.faults` (E.21), an
 
 An input's process catches its own fault and answers it as its outcome, so no report of it comes but for a fault a signal brought, and `await` takes that report as the input's answer. `:load`'s initializing processes catch theirs likewise. So an input's fault is reported once.
 
-A spawn site in an input's module is written as §11.2 *Faults* says: the emitter, told that it compiles an input (`session => true`), names a site in `'$input'` by `input` and one in a declared function by the function's name.
+A spawn site in an input's module is written as §11.2 *Faults* says: the emitter, told that it compiles an input and given the name and line offset its diagnostics use (`session => {<<"input 3">>, 0}`, or a startup file's path and the lines before the input), names a site in `'$input'` by that name and one in a declared function by the function's name, each line moved by the offset.
 
 ## Startup files
 
-`startupFiles()` answers the paths, the person's `$HOME/.ernest/startup` and then, where `--config-dir` names it, the configuration directory's `startup`, which the runner computes (§11.2), each named from the working directory. Whether each is there, and what it holds, the shell reads itself with `Fs`: a file that is not there is no error, one that cannot be read or is not UTF-8 is said, and each line that is not blank is an input, carrying its file and its line. While a startup input runs, the session's `State` holds its file and line in `from`, which `refuse` and a fault's report put before what they say. A `:` line goes to `perform`, as a typed command does; any other goes to `quietly`, which is `run` with printing off and the file and the line passed to `check`, so a diagnostic names them.
+`startupFiles()` answers the paths, the person's `$HOME/.ernest/startup` and then, where `--config-dir` names it, the configuration directory's `startup`, which the runner computes (§11.2), each named from the working directory. Whether each is there, and what it holds, the shell reads itself with `Fs`: a file that is not there is no error, one that cannot be read or is not UTF-8 is said, and `startupInputs` takes its inputs from its lines by line mode's rule, each carrying its file and the line it begins on. While a startup input runs, the session's `State` holds its file and line in `from`, which `refuse` and a fault's report put before what they say. A `:` line goes to `perform`, as a typed command does; any other goes to `quietly`, which is `run` with printing off and the file and the line passed to `check`, so a diagnostic names them.
 
 ## Testing
 

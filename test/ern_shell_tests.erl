@@ -56,12 +56,12 @@ program() ->
                      {send, hex(":browse Counter\r")},
                      {expect, "Counter.start : () -> Address(Counter.Msg) with m"},
                      {send, hex("spawn(Local, fn() = Counter.boom())\r")},
-                     {expect, "input:1 faulted: division by zero"},
+                     {expect, "input 5:1 faulted: division by zero"},
                      {send, hex(":processes\r")},
                      {expect, "Counter.start:11"},
                      {send, hex(":faults\r")},
                      {expect, "Counter.main faulted: division by zero"},
-                     {expect, "input:1 faulted: division by zero"},
+                     {expect, "input 5:1 faulted: division by zero"},
                      {send, "04"}],
                     30, "60x100"),
     %% what the program printed reached the screen
@@ -69,8 +69,9 @@ program() ->
     %% the program's entry point and a process spawned at the prompt, each
     %% reported once as it faults and once by `:faults`
     ?assertEqual(2, count(Screen, <<"Counter.main faulted: division by zero">>)),
-    %% (report §11.2: a site in an input's own expression is `input:1`)
-    ?assertEqual(2, count(Screen, <<"input:1 faulted: division by zero">>)),
+    %% (report §11.2: a site in an input's own expression is the input,
+    %% named by its count, `input 5:1`, the fifth thing entered)
+    ?assertEqual(2, count(Screen, <<"input 5:1 faulted: division by zero">>)),
     %% `:processes` leaves the shell's own out
     ?assertEqual(nomatch, binary:match(Screen, <<"Shell.main">>)).
 
@@ -94,9 +95,10 @@ startup() ->
     ok = file:write_file(filename:join([Home, ".ernest", "startup"]),
                          "let greeting = \"from the user file\"\nlet shared = 1\n"),
     %% the node's file binds the same name, holds a line that does not
-    %% parse, and a command, which runs as a typed one does
+    %% parse, which a blank line ends as it would at a terminal, and a
+    %% command, which runs as a typed one does
     ok = file:write_file(filename:join([Node, ".ernest", "startup"]),
-                         "let shared = 2\n1 +\n:set depth 1\n"),
+                         "let shared = 2\n1 +\n\n:set depth 1\n"),
     In = filename:join(Node, "session.in"),
     ok = file:write_file(In, "greeting\nshared\n[[1]]\n"),
     {0, Out} = sh("HOME=" ++ Home ++ " ../bin/ern shell --config-dir "
@@ -164,6 +166,53 @@ reload_sources_named() ->
     ?assertMatch({_, _}, binary:match(Load, <<"bad.ern:2:5: the body">>)),
     ?assertEqual(nomatch, binary:match(Load, list_to_binary(Dir))).
 
+%% report §11.2: in line mode, as at a terminal, an input the parser cannot
+%% finish takes the next line, and a blank line or the end of input runs
+%% what there is; a startup file's inputs are taken so too, each named by
+%% the line it begins on. A regression test: a line was an input, so code
+%% in `ern format`'s layout could not be piped in (findings.md's T29)
+line_mode_continues_test_() ->
+    {timeout, 60, fun line_mode_continues/0}.
+
+line_mode_continues() ->
+    Dir = fresh_home(),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, "fn f(x : Int) : Int =\n    x + 1\nf(2)\n1 +\n\ny\n1 +\n"),
+    Node = filename:join(Dir, "conf"),
+    ok = filelib:ensure_path(Node),
+    ok = file:write_file(filename:join(Node, "startup"),
+                         "fn g(x : Int) : Int =\n    x * 2\n\nlet y =\n    g(4)\n2 *\n"),
+    {0, Out} = sh("HOME=" ++ fresh_home() ++ " ../bin/ern shell --config-dir " ++ Node
+                  ++ " < " ++ In),
+    [?assertMatch({_, _}, binary:match(Out, Said))
+     || Said <- [<<"... f : (Int) -> Int">>, <<"3 : Int">>, <<"8 : Int">>,
+                 <<"input 3:1:4: expected an expression instead of end of input">>,
+                 <<"input 5:1:4: expected an expression instead of end of input">>,
+                 <<"startup:6:4: expected an expression instead of end of input">>]].
+
+%% report §11.2: in line mode the shell exits with status 0 when its input
+%% ends, whatever its inputs did, and what programs write to standard error
+%% goes to standard output with the rest; one that cannot start exits with
+%% status 1. A regression test, written as the report came to say so
+line_mode_status_and_streams_test_() ->
+    {timeout, 60, fun line_mode_status_and_streams/0}.
+
+line_mode_status_and_streams() ->
+    Dir = fresh_home(),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, "Io.printlnError(\"to standard error\")\n1 / 0\nnope\n"),
+    Shell = "HOME=" ++ fresh_home() ++ " ../bin/ern shell < " ++ In,
+    {0, Out} = sh(Shell ++ " 2>/dev/null"),
+    [?assertMatch({_, _}, binary:match(Out, Said))
+     || Said <- [<<"to standard error">>, <<"fault: division by zero">>,
+                 <<"unknown name nope">>]],
+    ok = file:write_file(filename:join(Dir, "init.ern"),
+                         "let bad : Int = 1 / 0\n\nexport fn main() : Unit with Never =\n"
+                         "    Io.println(\"hi\")\n"),
+    Ern = filename:absname("../bin/ern"),
+    {0, _} = sh("cd " ++ Dir ++ " && " ++ Ern ++ " build init.ern"),
+    ?assertMatch({1, _}, sh("cd " ++ Dir ++ " && " ++ Ern ++ " shell init.erc < " ++ In)).
+
 %% report §11.2: without `--config-dir` the working directory's
 %% `.ernest/startup` is not run, and a file both paths name runs once. A
 %% regression test: a cloned tree's startup ran as the shell started in it,
@@ -207,7 +256,7 @@ fault_line_escaped() ->
     In = filename:join(Dir, "session.in"),
     ok = file:write_file(In, "spawn(Local, fn() = fault(\"a\\u{1b}b\\nforged\"))\n:faults\n"),
     {0, Out} = sh("HOME=" ++ Dir ++ " ../bin/ern shell < " ++ In),
-    ?assertMatch({_, _}, binary:match(Out, <<"input:1 faulted: a\\u{1B}b\\nforged">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"input 1:1 faulted: a\\u{1B}b\\nforged">>)),
     ?assertEqual(nomatch, binary:match(Out, <<27>>)).
 
 %% report §11.2, Appendix E.17: the history's directory is its owner's
@@ -1468,8 +1517,9 @@ fault_subscriber() ->
                               ":load Bad\n"]),
     {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"> fault: division by zero\n> 2 : Int">>)),
-    ?assertEqual(2, count(Out, <<"input:1 faulted, restarted: division by zero">>)),
-    ?assertEqual(2, count(Out, <<"input:1 faulted: division by zero">>)),
+    %% the process is spawned by the fourth input
+    ?assertEqual(2, count(Out, <<"input 4:1 faulted, restarted: division by zero">>)),
+    ?assertEqual(2, count(Out, <<"input 4:1 faulted: division by zero">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"Bad: a top-level binding faulted">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"Shell.load">>)).
 
@@ -1572,7 +1622,7 @@ doc_every_name() ->
     ?assertMatch({_, _}, binary:match(Out, <<"\nErnest module List\n">>)).
 
 %% report §11.2, §6.9: a spawn site in the session is written as the
-%% session writes names, `input:1` in an input's own expression and
+%% session writes names, `input 5:1` in an input's own expression and
 %% `start:1` in a function an input declares, and the input's own wrapper
 %% shadows no name the session declares. A regression test for findings
 %% of the session of real use: `:processes` showed `Input2.main:1`, a name
@@ -1590,7 +1640,7 @@ session_names() ->
                               ":processes\n"]),
     {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"> 1 : Int\n">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"input:1\nstart:1\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"input 5:1\nstart:1\n">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"Input">>)).
 
 %% report §11.2, Appendix E.0 rule 6: `Shift-Tab`'s two answers from the
@@ -1666,7 +1716,7 @@ reload() ->
     ?assertMatch({_, _}, binary:match(Out, <<"Demo, compiled from demo.ern">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)),
     %% the first reload names what is still in the version it replaced
-    ?assertMatch({_, _}, binary:match(Out, <<"input:1, a process, g, a binding in the previous"
+    ?assertMatch({_, _}, binary:match(Out, <<"input 4:1, a process, g, a binding in the previous"
                                              " version; a further reload of it ends them">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
     %% a binding holding a function of the module keeps the version it was
@@ -1807,7 +1857,7 @@ load_loaded() ->
                               ":load Demo\n", ":load Demo\n", ":processes\n"]),
     {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
     ?assertEqual(2, count(Out, <<"Demo is loaded already; :reload compiles it again">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"input:1\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"input 2:1\n">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"no process of the session's is running">>)).
 
 %% report §8.5, §11.2: `:reload` evaluates the changed modules' bindings in

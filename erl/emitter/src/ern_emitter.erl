@@ -22,9 +22,10 @@
 %% {Owner, Name} => arity | value; descs: descriptor term => the name of
 %% the module function returning it; pat_guards: Erlang guard forms a
 %% pattern needs on its clause, a float segment's zero (report §3.1),
-%% taken by the clause that uses them; session: the module is an input of
-%% the shell's session (report §11.2), whose spawn sites are written as the
-%% session writes names.
+%% taken by the clause that uses them; session: where the module is an
+%% input of the shell's session (report §11.2), the name its diagnostics
+%% give it and the lines before its first in that file, since its spawn
+%% sites are written as the session writes names; else false.
 -record(cx, {ns, mod, env, fname, vars = #{}, counter = 0, locals = #{}, lifted = [],
              tops = #{}, descs = #{}, pat_guards = [], session = false}).
 %% A local fn of a block (see Blocks).
@@ -41,7 +42,8 @@ compile(Ns, Decls, Iface, Env) ->
 %% Build: the source's hash and its path from the build root, and the
 %% dependencies' interface hashes, go into the chunk beside the interface
 %% (report §11.1); `source` goes to the documentation; `session` marks an
-%% input of the shell, which is compiled and not written, and is not kept.
+%% input of the shell, which is compiled and not written, and is not kept,
+%% with the name and the line offset its spawn sites are written with.
 %% The declarations are the checker's, so every rule a program can break has
 %% been checked: what the emitter cannot emit, or emits and the host does not
 %% compile, is a defect of the toolchain, raised as one, which `ern` reports
@@ -49,7 +51,8 @@ compile(Ns, Decls, Iface, Env) ->
 -spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env(),
               #{source_hash := binary(), source_path => binary(),
                 deps := [{[atom()], binary()}], compiler => binary(),
-                stdlib => binary() | none, source => binary(), session => boolean()}) ->
+                stdlib => binary() | none, source => binary(),
+                session => {binary(), non_neg_integer()}}) ->
           {ok, atom(), binary()}.
 compile(Ns, Decls, Iface, Env, Build) ->
     Forms = forms(Ns, Decls, Env, [D || {D, _} <- maps:get(deps, Build, [])],
@@ -71,7 +74,8 @@ forms(Ns, Decls, Env) ->
 %% Report §8.5: with the modules this one depends on, which it declares
 %% as `'$deps'/0` so that the runtime can evaluate top-level bindings in
 %% dependency order without reading a compiled file.
--spec forms([atom()], [tuple()], ern_typecheck:env(), [[atom()]], boolean()) ->
+-spec forms([atom()], [tuple()], ern_typecheck:env(), [[atom()]],
+            false | {binary(), non_neg_integer()}) ->
           [erl_parse:abstract_form()].
 forms(Ns, Decls, Env, Deps, Session) ->
     Mod = module_atom(Ns),
@@ -662,15 +666,16 @@ lambda(Vars, Body) ->
 
 %% Report §6.9: the function that called `spawn`, qualified, and the line.
 %% Report §11.2: in the session, as the session writes names: a function an
-%% input declares by its own name, and the input's expression as `input`.
+%% input declares by its own name, and the input's expression as its
+%% diagnostics name it, `input 3`; the line as they count it.
 site(Pos, #cx{ns = Ns, fname = F, session = Session}) ->
-    Line = integer_to_list(element(1, Pos)),
+    Line = element(1, Pos),
     Where = case {Session, F} of
-                {true, '$input'} -> "input";
-                {true, _} -> qname([F]);
-                {false, _} -> qname(Ns ++ [F])
+                {{Input, Offset}, '$input'} -> [Input, ":", integer_to_list(Line + Offset)];
+                {{_, Offset}, _} -> [qname([F]), ":", integer_to_list(Line + Offset)];
+                {false, _} -> [qname(Ns ++ [F]), ":", integer_to_list(Line)]
             end,
-    string_binary(unicode:characters_to_binary(Where ++ ":" ++ Line)).
+    string_binary(unicode:characters_to_binary(Where)).
 
 %%
 %% Operators, report §4.8
