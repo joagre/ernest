@@ -1978,23 +1978,6 @@ example.ern:2:5: a type-member name, `fn Int.name`, is a top-level form; a local
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
-### A `let` whose type is not determined (§4.6)
-
-```ernest-rejected
-fn f() : Int = {
-    let xs = [];
-    1
-}
-```
-
-```console
-$ ern build example.ern
-example.ern:2:5: the type of xs is not determined (List(a)); use it, or annotate it
-1 | fn f() : Int = {
-2 |     let xs = [];
-  |     ^^^^^^^^^^^
-```
-
 ### A recursive call at another type than the definition's (§4.5)
 
 ```ernest-rejected

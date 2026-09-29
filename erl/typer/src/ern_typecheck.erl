@@ -1443,7 +1443,6 @@ post_checks({Pos, TypedParams, TypedBody, FnT, Effect, Origin, Rigid, Pending, D
                                    deferred = Deferred}),
     rigid_annotation_vars(Pos, Rigid, Env1),
     ern_scope:order(TypedBody),
-    undetermined_bindings(TypedBody, FnT, Env1),
     ern_exhaust:check(TypedBody, Env1),
     Env2 = ern_reply:check(TypedParams, TypedBody, FnT, Env1),
     no_reply_instantiations(Env2),
@@ -1869,34 +1868,6 @@ rigid_annotation_vars(Pos, Rigid, #env{st = St}) ->
         [{A, B} | _] -> fail(Pos, "type variables " ++ atom_to_list(A) ++ " and "
                                   ++ atom_to_list(B) ++ " in the annotation are used as one type")
     end.
-
-%% Report §4.6: a block binding whose type is still undetermined, that is,
-%% has a free variable that does not reach the definition's own type.
-undetermined_bindings(Node, FnT, #env{st = St} = Env) ->
-    %% a `let` of a lambda to a name is generalized, so a variable in its
-    %% type is quantified, not open, in the binding and inside the lambda
-    Quantified = ern_ast:walk(fun(#binding{pattern = #p_var{}, expr = #e_lambda{type = T}}, Q) ->
-                                      ern_types:free_vars(T, St) ++ Q;
-                                 (_, Q) ->
-                                      Q
-                              end, Node, []),
-    Escaping = ern_types:free_vars(FnT, St) ++ Quantified,
-    ern_ast:walk(fun(#binding{pattern = #p_var{}, expr = #e_lambda{}}, E) ->
-                     E;
-                    (#binding{pos = Pos, pattern = P}, E) ->
-                 lists:foreach(fun({Name, T}) ->
-                                   case ern_types:free_vars(T, St) -- Escaping of
-                                       [] -> ok;
-                                       _ -> fail(Pos, "the type of " ++ atom_to_list(Name)
-                                                      ++ " is not determined ("
-                                                      ++ ern_types:format(T, St)
-                                                      ++ "); use it, or annotate it")
-                                   end
-                               end, ern_ast:pattern_bindings(P)),
-                 E;
-            (_, E) -> E
-         end, Node, Env),
-    ok.
 
 %% Report §11.2: the type of a name as its declaration writes it, for the
 %% shell's input that is one name; the scheme keeps the declaration's

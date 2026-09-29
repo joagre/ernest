@@ -548,10 +548,10 @@ spawn_test() ->
     %% a callback written pure is spawned as any pure function is (report §3.9)
     ?assertEqual(ok, ok("fn main() : Unit with Never = {"
                         " let _ = spawn(Local, fn() : Unit = Unit); Unit }")),
-    ?assertEqual("the type of a is not determined (Address(a)); use it, or annotate it",
-                 err("fn work() = Unit\n"
-                     "fn main() : Unit with Never = { let a = spawn(Local, fn() = work());"
-                     " Unit }")).
+    %% an address nothing sends to keeps its mailbox type open (report §4.6)
+    ?assertEqual(ok, ok("fn work() = Unit\n"
+                        "fn main() : Unit with Never = { let a = spawn(Local, fn() = work());"
+                        " Unit }")).
 
 %% report §4.5, §3.9, §11.5: a pure result annotation on an effect-polymorphic
 %% function makes its callback pure, and the error names the side that is
@@ -606,13 +606,13 @@ patterns_test() ->
     ?assertEqual("Get has no field bogus",
                  err("type R = Get(reply : Int)\nfn f(r) = match r { Get(bogus = b) -> b }")).
 
-%% report §4.6, §5.4
+%% report §4.6, §5.4: a block binding's variable that nothing pins stays
+%% free; List.size does not pin the element type, and :: does. A
+%% regression test: such a binding was refused
 blocks_test() ->
-    ?assertEqual("the type of xs is not determined (List(a)); use it, or annotate it",
-                 err("fn f() = { let xs = []; 1 }")),
-    %% List.size does not pin the element type; :: does (report §4.6)
-    ?assertEqual("the type of xs is not determined (List(a)); use it, or annotate it",
-                 err("fn f() = { let xs = []; List.size(xs) + 1 }")),
+    ?assertEqual("() -> Int", type_of("export fn f() = { let xs = []; 1 }", f)),
+    ?assertEqual("() -> Int", type_of("export fn f() = { let xs = []; List.size(xs) + 1 }", f)),
+    ?assertEqual(ok, ok("fn f() = { let m = Map.empty; let o = None; Map.size(m) }")),
     ?assertEqual(ok, ok("fn f() = { let xs = []; List.size(1 :: xs) + 1 }")),
     ?assertEqual(ok, ok("fn f() = { let m : Map(String, Int) = Map.empty; m }")),
     ?assertEqual(ok, ok("fn f() = { let _ = []; 1 }")),
