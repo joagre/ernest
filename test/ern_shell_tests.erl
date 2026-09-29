@@ -166,6 +166,27 @@ reload_sources_named() ->
     ?assertMatch({_, _}, binary:match(Load, <<"bad.ern:2:5: the body">>)),
     ?assertEqual(nomatch, binary:match(Load, list_to_binary(Dir))).
 
+%% report §11.2, §4.2: `:browse Prelude` lists the prelude's types and
+%% values, `:doc Prelude` shows its page, and `:doc Prelude.name` the
+%% prelude's name, one its type's module documents among them. A
+%% regression test: no module Prelude was in scope (findings.md's T19)
+prelude_shown_test_() ->
+    {timeout, 60, fun prelude_shown/0}.
+
+prelude_shown() ->
+    Dir = fresh_home(),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, ":browse Prelude\n:doc Prelude\n:doc Prelude.spawn\n"
+                             ":doc Prelude.List.size\n"),
+    {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
+    [?assertMatch({_, _}, binary:match(Out, Text))
+     || Text <- [<<"type Where\n">>, <<"spawn : (Where, () -> Unit with n) -> Address(n) with m">>,
+                 <<"Ernest prelude">>, <<"Starts a process that runs">>,
+                 <<"List.size : (List(a)) -> Int">>]],
+    ?assertEqual(nomatch, binary:match(Out, <<"type Fs.Entry">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"no module Prelude">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"no documentation">>)).
+
 %% report §8.5, §11.2: a file whose top-level binding faults does not start
 %% the shell, and the binding is named with its line. A regression test:
 %% the shell printed a bare `fault:` (findings.md's T14)

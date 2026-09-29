@@ -14,10 +14,10 @@
 -module(ern_typecheck).
 
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/1, set_type_state/2,
-         prelude_names/0, prelude_con/1, prelude_cons/0, prelude_env/0, lookup_type/2,
-         member_qname/3, is_reply_carrying/2, assume_reply_carrying/2, let_order/1, foreign_impl/1,
-         fields/2, declared_scheme/3, lookup_con/4, con_info/2, is_value/2, resolve_type/2,
-         node_type/1]).
+         prelude_names/0, prelude_values/0, prelude_con/1, prelude_cons/0, prelude_env/0,
+         lookup_type/2, member_qname/3, is_reply_carrying/2, assume_reply_carrying/2, let_order/1,
+         foreign_impl/1, fields/2, declared_scheme/3, lookup_con/4, con_info/2, is_value/2,
+         resolve_type/2, node_type/1]).
 
 -export_type([env/0, session/0]).
 
@@ -279,6 +279,13 @@ set_type_state(St, Env) -> Env#env{st = St}.
 prelude_names() ->
     #env{types = Ts, cons = Cs} = prelude_env(),
     {maps:keys(Ts), maps:keys(Cs)}.
+
+%% Report §11.2: the values the prelude declares, each with its scheme, for
+%% the shell's `:browse Prelude`.
+-spec prelude_values() -> [{[atom()], #scheme{}}].
+prelude_values() ->
+    #env{globals = Gs} = prelude_env(),
+    [{Q, maps:get(Q, Gs)} || {Q, _, _} <- ern_prelude:values(), is_map_key(Q, Gs)].
 
 %% Report §11.2: a prelude constructor, whose type is the page that
 %% documents it and whose scheme a listing shows, for the shell.

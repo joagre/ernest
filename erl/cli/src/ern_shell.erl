@@ -752,9 +752,21 @@ constructors(Q, Cons, #env{ifaces = Ifaces}) ->
 -spec browse(#env{}, binary()) -> {'Left', binary()} | {'Right', [binary()]}.
 browse(Env, Text) ->
     case module_name(Text) of
+        {ok, ['Prelude']} -> {'Right', prelude_listing()};
         {ok, Ns} -> browse(Text, Ns, Env);
         {error, Why} -> {'Left', Why}
     end.
+
+%% Report §11.2, §9: the prelude's types and values, as `:browse` lists a
+%% module's, since `Prelude` names its namespace (§4.2).
+prelude_listing() ->
+    St = ern_typecheck:type_state(ern_typecheck:prelude_env()),
+    {Types, _} = ern_typecheck:prelude_names(),
+    %% the environment holds the standard library's types too, each under
+    %% its module's name; the prelude's own are unqualified
+    [unicode:characters_to_binary(["type ", qname_text(Q)]) || [_] = Q <- lists:sort(Types)]
+    ++ [unicode:characters_to_binary([qname_text(Q), " : ", ern_types:format_scheme(Sc, St)])
+        || {Q, Sc} <- lists:sort(ern_typecheck:prelude_values())].
 
 %% Report §11.5: each name and each type as the session writes it, the
 %% names qualified and another module's types too.
@@ -1059,6 +1071,13 @@ session_beam(#env{session = S, beams = Beams}, Path, Name) ->
 %% A name that is a type and a module too, `List`, shows the type's section
 %% and then the module's head; a namespace that is neither lists what it
 %% holds.
+doc_of(_Env, ['Prelude']) ->
+    %% report §11.2, §4.2: `Prelude` names the prelude, whose page it is
+    {ok, ern_page:prelude_page()};
+doc_of(Env, ['Prelude' | Segments]) ->
+    %% the prelude's name, past one the session declares; a member of a
+    %% built-in type is documented by its type's module (§9.6)
+    first([fun() -> prelude_doc(Segments) end, fun() -> module_doc(Env, Segments) end]);
 doc_of(Env, Segments) ->
     case first([fun() -> session_doc(Env, Segments) end,
                 fun() -> module_doc(Env, Segments) end,

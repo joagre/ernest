@@ -891,8 +891,8 @@ The toolchain is one command, `ern`, whose first word is its job: `ern build`, `
 **Commands.** A command begins with `:` and is not an Ernest function. A command that takes nothing refuses an argument. A command is selected by its name or by a prefix of its name that begins no other command's name; a prefix that begins more than one is refused with the names it begins. The commands, in the alphabetical order the shell's help lists them:
 
 - `:bindings` lists what the session declares, with their types.
-- `:browse Module` lists the exports of `Module` with their types.
-- `:doc Name` shows the documentation of `Name`.
+- `:browse Module` lists the exports of `Module` with their types; `:browse Prelude` lists the prelude's types and values (§9).
+- `:doc Name` shows the documentation of `Name`; `:doc Prelude` shows the prelude's page, and `:doc Prelude.name` the prelude's `name` past one the session declares.
 - `:faults` lists the faults reported since the session began, the last hundred of them.
 - `:forget name` forgets a name the session declared, and `:forget *` forgets all of them.
 - `:help` lists the commands, each with a line of help.
