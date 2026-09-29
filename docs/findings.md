@@ -4,7 +4,6 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 
 ## The report
 
-- 2.98 — `Address.callForever` beside `Address.call` is a second way (P18)
 - 2.98 — every prelude type takes a module namespace, `Test` and `Path` among them (P19)
 - 2.98 — an unresolved block variable is an error though nothing depends on it (P20)
 - 2.98 — `C` and `C()` both match any value of a named constructor; `Some()` and `None()` are grammatical (P21, K19)
