@@ -178,7 +178,7 @@ ParenType = "(" Type ")" .
 
 A Unicode scalar value is a code point other than a surrogate, U+0000 through U+10FFFF without U+D800 through U+DFFF. The prelude declares `Unit`, the one-value type, §9.3; its only value is `Unit`. The empty type is `Never`, §3.7. There are no type aliases.
 
-**Integer arithmetic.** Exact and unbounded. `/` truncates toward zero: `-7 / 3 = -2`. `%` satisfies `(a / b) * b + (a % b) == a`, so `-7 % 3 = -1`. `Int.div` and `Int.mod` (§9.6) use the same convention and return `Optional(Int)` in place of the zero-divisor fault: `Int.mod(-7, 3)` is `Some(-1)`.
+**Integer arithmetic.** Exact and unbounded. `/` truncates toward zero: `-7 / 3 = -2`. `%` satisfies `(a / b) * b + (a % b) == a`, so `-7 % 3 = -1`. `Int.div` and `Int.rem` (Appendix E.8) use the same convention and return `Optional(Int)` in place of the zero-divisor fault: `Int.rem(-7, 3)` is `Some(-1)`.
 
 **Float arithmetic.** IEEE 754 binary64, round to nearest, ties to even, restricted to the finite range. An operation whose result is not finite faults with cause `Fault("float arithmetic error")`: overflow, division of a non-zero numerator by zero, or `0.0 / 0.0`. Gradual underflow to a subnormal is not a fault. There is no `Infinity`, no `NaN`, and no negative zero: a zero is `0.0`, whether an operation or a negation gives it, or it enters the program from foreign code, from bytes, or from text. A float segment pattern `0.0` matches the bytes of either zero. A float segment pattern does not match the bytes of an infinity or a NaN. `Float.compare`, `Float.round`, `Float.truncate`, `Float.floor`, and `Float.ceil` are total.
 
@@ -655,7 +655,7 @@ A fault ends the process that meets it, with the reason `Fault(cause)` that `Dow
 
 Partial operations return `Optional` or `Either` (E.0 shape rule 4). The operations below fault instead, with the cause given, the calls across the foreign boundary and between nodes among them. A pure function can fault.
 
-- `/` and `%` on `Int` with a zero divisor: `Fault("division by zero")`. `Int.div` and `Int.mod`, §9.6, return `Optional` instead.
+- `/` and `%` on `Int` with a zero divisor: `Fault("division by zero")`. `Int.div` and `Int.rem`, Appendix E.8, return `Optional` instead.
 - `Float` arithmetic whose result the finite range cannot hold (§3.1): `Fault("float arithmetic error")`. `Int.toFloat` of an integer that rounds beyond the largest finite `Float`: `Fault("Int out of Float range")`.
 - Bitstring construction (§5.11). A value that does not fit its width: `Fault("segment overflow")`. A dynamic total bit count, or a dynamic size of a segment bound to `Bytes`, that is not a multiple of 8: `Fault("bitstring not byte-aligned")`.
 - `fault(c)`, which compiles at any type: `Fault(c)`.
@@ -833,7 +833,6 @@ Float.negate : (Float) -> Float
 String.<> : (String, String) -> String // §4.8: <> resolves per type
 List.<> : (List(a), List(a)) -> List(a)
 Bytes.<> : (Bytes, Bytes) -> Bytes
-Int.div, Int.mod : (Int, Int) -> Optional(Int) // §7.4: / and % fault on zero; these do not
 Int.compare : (Int, Int) -> Ordering // §3.10: ordering is per type
 Float.compare : (Float, Float) -> Ordering
 String.compare : (String, String) -> Ordering
@@ -1446,12 +1445,14 @@ Bool.toString : (Bool) -> String // "true" or "false"
 
 ### Appendix E.8. `int.ern` (namespace `Int`)
 
-`Int.div`, `Int.mod`, `Int.compare`, `Int.negate`, and the operators are the prelude's, §9.6; this module provides them (§9). The primitives are `bitAnd`, `bitOr`, `bitXor`, `bitNot`, `shiftLeft`, `shiftRight`, `toString`, `toFloat`, and the writing in a base that `toStringBase` makes once it has checked the base, which is private to the module (E.0 rule 1); the rest is Ernest over them.
+`Int.compare`, `Int.negate`, and the operators are the prelude's, §9.6; this module provides them (§9). The primitives are `bitAnd`, `bitOr`, `bitXor`, `bitNot`, `shiftLeft`, `shiftRight`, `toString`, `toFloat`, and the writing in a base that `toStringBase` makes once it has checked the base, which is private to the module (E.0 rule 1); the rest is Ernest over them.
 
 ```
 Int.abs : (Int) -> Int
 Int.min : (Int, Int) -> Int
 Int.max : (Int, Int) -> Int
+Int.div : (Int, Int) -> Optional(Int) // a / b, None where b is 0
+Int.rem : (Int, Int) -> Optional(Int) // a % b, with the sign of a, None where b is 0
 Int.bitAnd : (Int, Int) -> Int
 Int.bitOr : (Int, Int) -> Int
 Int.bitXor : (Int, Int) -> Int

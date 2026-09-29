@@ -329,7 +329,7 @@ int_test() ->
     ?assertEqual(7.0, I:toFloat(7)),
     ?assertThrow({ern, fault, <<"Int out of Float range">>}, I:toFloat(1 bsl 2000)),
     ?assertEqual({'Some', -2}, I:'div'(-7, 3)),
-    ?assertEqual({'Some', -1}, I:'mod'(-7, 3)),
+    ?assertEqual({'Some', -1}, I:'rem'(-7, 3)),
     ?assertEqual('None', I:'div'(1, 0)),
     ?assertEqual('Less', I:compare(1, 2)),
     ?assertEqual(-1, I:negate(1)),

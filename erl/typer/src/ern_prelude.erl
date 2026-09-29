@@ -502,8 +502,6 @@ values() ->
      {['String', '<>'], "(String, String) -> String", module},
      {['List', '<>'], "(List(a), List(a)) -> List(a)", module},
      {['Bytes', '<>'], "(Bytes, Bytes) -> Bytes", module},
-     {['Int', 'div'], "(Int, Int) -> Optional(Int)", module},
-     {['Int', 'mod'], "(Int, Int) -> Optional(Int)", module},
      {['Int', compare], "(Int, Int) -> Ordering", module},
      {['Float', compare], "(Float, Float) -> Ordering", module},
      {['Char', compare], "(Char, Char) -> Ordering", module},

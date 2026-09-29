@@ -275,7 +275,7 @@ number : String
 "\\d+(\\.\\d+)?" : String
 ```
 
-`Int` division `/` and remainder `%` by zero fault, and so does `Float` arithmetic whose result would not be finite. `Int.div` and `Int.mod` return `Optional(Int)` instead. A fault ends the process, or restarts it where it was started to restart (§6).
+`Int` division `/` and remainder `%` by zero fault, and so does `Float` arithmetic whose result would not be finite. `Int.div` and `Int.rem` return `Optional(Int)` instead. A fault ends the process, or restarts it where it was started to restart (§6).
 
 `Int` and `Float` are separate types, and nothing converts between them implicitly: `1 + 2.0` is a type error. Convert with `Int.toFloat`, or with `Float.round`, `Float.floor`, `Float.ceil`, or `Float.truncate`.
 

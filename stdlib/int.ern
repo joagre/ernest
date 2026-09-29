@@ -10,7 +10,7 @@
 /// ```
 ///
 /// ```ernest
-/// #(Int.div(-7, 3), Int.mod(-7, 3), Int.div(1, 0))
+/// #(Int.div(-7, 3), Int.rem(-7, 3), Int.div(1, 0))
 /// // => #(Some(-2), Some(-1), None)
 /// ```
 ///
@@ -44,7 +44,7 @@ export fn Int./(a : Int, b : Int) : Int =
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("division by zero")` when `b` is `0`; `Int.mod` does not.
+/// Faults with `Fault("division by zero")` when `b` is `0`; `Int.rem` does not.
 export fn Int.%(a : Int, b : Int) : Int =
     a % b
 
@@ -59,12 +59,12 @@ export fn Int.%(a : Int, b : Int) : Int =
 export fn negate(n : Int) : Int =
     -n
 
-/// `a / b`, or `None` when `b` is `0`.
+/// `a / b`, truncated toward zero, or `None` when `b` is `0`.
 export fn div(a : Int, b : Int) : Optional(Int) =
     if b == 0 then None else Some(a / b)
 
-/// `a % b`, or `None` when `b` is `0`.
-export fn mod(a : Int, b : Int) : Optional(Int) =
+/// `a % b`, the remainder with the sign of `a`, or `None` when `b` is `0`.
+export fn rem(a : Int, b : Int) : Optional(Int) =
     if b == 0 then None else Some(a % b)
 
 /// The numeric order, which `<` and the other comparisons use.
