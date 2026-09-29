@@ -83,8 +83,9 @@ discussed with the user one at a time as they are met.
    what it was compiled with and `:load` compiling what a module uses from its source (§11.1,
    §11.2), T8, an option given once in one spelling (§11), T10, every error that follows
    from none reported, by a block and by a directory build (§11.1, §11.5), T14, a faulting
-   binding named (§8.5), T19, the prelude shown by `:browse` and `:doc` (§11.2), and S11, the
-   history decoded in one pass, done 2026-09-29; the diagnostics' positions and labels
+   binding named (§8.5), T19, the prelude shown by `:browse` and `:doc` (§11.2), S11, the
+   history decoded in one pass, and a paste read once however many pieces it comes in, done
+   2026-09-29; the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):

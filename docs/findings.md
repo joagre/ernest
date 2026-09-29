@@ -8,10 +8,6 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 - 2.98 — §4.4 does not cover a broadcast to a consumer that stalls (N4)
 - 2.98 — the language: sockets pull-only, mandatory timeouts, slow standard library calls, no bounded mailbox (N-L1..L6)
 
-## The toolchain
-
-- 2.98 — a large paste is scanned again as it grows, a cost of `ern_tty`'s (shell_design.md's rewrite)
-
 ## The runtime
 
 - 2.98 — sockets, listeners and programs are missing from `Process.live`, `info` and faults (C10)

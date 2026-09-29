@@ -26,7 +26,12 @@
 %% whether keys can come, which a test's keys say they can.
 -module(ern_tty).
 
--export([loop/2, restore/0, is_terminal/1, decode/1, flush/1]).
+-export([loop/2, restore/0, is_terminal/1, more/2, decode/1, flush/1]).
+
+%% What waits for more to arrive: the characters of an escape that may
+%% still grow into a sequence, or a paste under way, its text so far
+%% reversed and a tail that may still grow into its end.
+-type pending() :: [char()] | {paste, [char()], [char()]}.
 
 %% Report §8.2: how long a paste may take to arrive whole.
 -define(PASTE_PAUSE, 200).
@@ -96,7 +101,7 @@ loop(Subscribers, Reader, Pending, Size) ->
             ern_rt:answer(Reply, optional(size_now())),
             loop(Subscribers, Reader, Pending, Size);
         {chars, Chars} ->
-            {Decoded, Left} = decode(Pending ++ Chars),
+            {Decoded, Left} = more(Pending, Chars),
             deliver(Decoded, Subscribers),
             loop(Subscribers, Reader, Left, Size);
         closed ->
@@ -120,7 +125,7 @@ loop(Subscribers, Reader, Pending, Size) ->
         loop(Subscribers, Reader, [], Size)
     end.
 
-pasting(?PASTE_BEGIN ++ _) -> true;
+pasting({paste, _, _}) -> true;
 pasting(_) -> false.
 
 %% An escape alone may still grow into an arrow, and `\e[2` into the start
@@ -385,26 +390,43 @@ read_loop(Keys, Open, Partial) ->
 keys(_, []) -> ok;
 keys(Keys, Chars) -> Keys ! {chars, Chars}.
 
+%% What has arrived after what was pending. A paste under way is read on
+%% from where it stopped, so that each of its characters is read once
+%% however many pieces it comes in; anything else is decoded with the
+%% escape that was pending before it. A regression: a paste was read again
+%% from its start at every piece, a cost that grew as its square.
+-spec more(pending(), [char()]) -> {[term()], pending()}.
+more({paste, Text, Tail}, Chars) ->
+    case pasted(Tail ++ Chars, Text) of
+        {ok, Pasted, After} ->
+            {Events, Left} = decode(After),
+            {[{'Pasted', Pasted} | Events], Left};
+        {more, Text1, Tail1} ->
+            {[], {paste, Text1, Tail1}}
+    end;
+more(Pending, Chars) ->
+    decode(Pending ++ Chars).
+
 %% Report Appendix E.16: Event = Key(Char) | ArrowUp | ArrowDown | ArrowLeft
 %% | ArrowRight | Enter | Escape | Interrupt | Resized(Size), one list of
 %% what the terminal sent. An escape sequence that is none of those is the
 %% Escape key and the characters after it, which is how Meta and Shift-Tab
 %% reach a program (§8.2).
--spec decode([char()]) -> {[term()], [char()]}.
+-spec decode([char()]) -> {[term()], pending()}.
 decode(Chars) ->
     decode(Chars, []).
 
 %% Report §8.2: what is left when nothing followed it. An escape alone is
 %% the Escape key, and a sequence that never grew into an arrow is the
 %% Escape key and the characters after it.
--spec flush([char()]) -> [term()].
-flush(?PASTE_BEGIN ++ Rest) ->
-    %% report §8.2: a paste whose end did not come
-    {Text, Keys} = case pasted(Rest, []) of
-                       {ok, T, After} -> {T, element(1, decode(After))};
-                       {more, T} -> {T, []}
-                   end,
-    [{'Pasted', Text} | Keys];
+-spec flush(pending()) -> [term()].
+flush({paste, Text, Tail}) ->
+    %% report §8.2: a paste whose end did not come, what it held back as
+    %% the start of an end being its text too
+    [{'Pasted', unicode:characters_to_binary(lists:reverse(Text, [line_feed(C) || C <- Tail]))}];
+flush(?PASTE_BEGIN ++ _ = Chars) ->
+    {Events, Left} = decode(Chars),
+    Events ++ flush(Left);
 flush([$\e | Rest]) ->
     {Keys, _} = decode(Rest),
     ['Escape' | Keys];
@@ -419,7 +441,7 @@ decode([], Acc) ->
 decode(?PASTE_BEGIN ++ Rest, Acc) ->
     case pasted(Rest, []) of
         {ok, Text, After} -> decode(After, [{'Pasted', Text} | Acc]);
-        {more, _} -> {lists:reverse(Acc), ?PASTE_BEGIN ++ Rest}
+        {more, Text, Tail} -> {lists:reverse(Acc), {paste, Text, Tail}}
     end;
 %% report §8.2: the end of a paste that had already ended is nothing
 decode(?PASTE_END ++ Rest, Acc) ->
@@ -440,12 +462,23 @@ decode([$\n | Rest], Acc) -> decode(Rest, ['Enter' | Acc]);
 decode([$\r | Rest], Acc) -> decode(Rest, ['Enter' | Acc]);
 decode([C | Rest], Acc) -> decode(Rest, [{'Key', C} | Acc]).
 
-%% The text of a paste, up to the end the terminal puts after it. A
-%% terminal sends the line endings of what was pasted, and a program is
-%% given the text as Ernest writes it (report §2.5).
+%% The text of a paste, up to the end the terminal puts after it, from its
+%% text so far, reversed, and what has arrived since. A terminal sends the
+%% line endings of what was pasted, and a program is given the text as
+%% Ernest writes it (report §2.5). What may still grow into the end, or a
+%% carriage return a line feed may follow, is held back as the tail.
 pasted(?PASTE_END ++ Rest, Text) ->
     {ok, unicode:characters_to_binary(lists:reverse(Text)), Rest};
 pasted([$\r, $\n | Rest], Text) -> pasted(Rest, [$\n | Text]);
+pasted([$\r], Text) -> {more, Text, [$\r]};
 pasted([$\r | Rest], Text) -> pasted(Rest, [$\n | Text]);
+pasted([$\e | Rest] = Chars, Text) ->
+    case lists:prefix(Chars, ?PASTE_END) of
+        true -> {more, Text, Chars};
+        false -> pasted(Rest, [$\e | Text])
+    end;
 pasted([C | Rest], Text) -> pasted(Rest, [C | Text]);
-pasted([], Text) -> {more, unicode:characters_to_binary(lists:reverse(Text))}.
+pasted([], Text) -> {more, Text, []}.
+
+line_feed($\r) -> $\n;
+line_feed(C) -> C.

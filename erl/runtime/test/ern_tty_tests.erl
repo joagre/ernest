@@ -203,13 +203,16 @@ paste_test() ->
     ?assertEqual({[{'Pasted', <<"a\nb">>}], []}, ern_tty:decode("\e[200~a\r\nb\e[201~")),
     %% what follows a paste is read as keys again
     ?assertEqual({[{'Pasted', <<"x">>}, 'Enter'], []}, ern_tty:decode("\e[200~x\e[201~\r")),
-    %% a read may end anywhere in a paste, so each piece waits
+    %% a read may end anywhere in a paste, so each piece waits, and the
+    %% paste is read on from where it stopped, a line ending and its end
+    %% split between pieces among them
     Pending = lists:foldl(fun(C, Buffer) ->
-                              {[], Left} = ern_tty:decode(Buffer ++ [C]),
+                              {[], Left} = ern_tty:more(Buffer, [C]),
                               Left
-                          end, [], "\e[200~hi"),
-    ?assertEqual("\e[200~hi", Pending),
-    ?assertEqual({[{'Pasted', <<"hi">>}], []}, ern_tty:decode(Pending ++ "\e[201~")).
+                          end, [], "\e[200~h\r\ni\e[20"),
+    ?assertEqual({[{'Pasted', <<"h\ni">>}, {'Key', $x}], []},
+                 ern_tty:more(Pending, "1~x")),
+    ?assertEqual([{'Pasted', <<"h\ni\e[20">>}], ern_tty:flush(Pending)).
 
 %% report §8.2: a paste whose end does not come ends when no more of it
 %% arrives, what came of it being the paste, and an end that comes after it
