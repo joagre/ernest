@@ -10,7 +10,7 @@ Sets are the known hard case for type classes. Haskell's `Data.Set` is `Foldable
 
 ## Requirements
 
-1. Each type reads as it does today: `Set.put(s, x)`, `OrderedSet.put(s, x)`, and the ordered set's own `OrderedSet.min(s)`.
+1. Each type's operations are called through its module: `Set.put(s, x)`, `OrderedSet.put(s, x)`, and the ordered set's own `OrderedSet.min(s)`.
 2. Generic code is an ordinary function, and the caller chooses the representation.
 3. An ordered set is data: it has `==`, can key a `Map`, and can be sent to another node.
 4. Sets in different orders cannot be combined.
@@ -20,14 +20,14 @@ Sets are the known hard case for type classes. Haskell's `Data.Set` is `Foldable
 
 One restriction is lifted, and the standard library adopts a convention. The syntax does not change.
 
-1. `==` on a type variable already gives it an *equality restriction*, inferred and printed `a=`, as Standard ML's equality types do (§3.10). The proposal treats `<`, `<=`, `>` and `>=` the same way: on a type variable they give it an *ordering restriction*, printed `a<`: the predicate `Ord a` of qualified types (Jones 1994). At each instantiation the type must have a `compare`, or be a variable, which then inherits the restriction. Anything else is a type error, and so is an ordered variable left ambiguous.
+1. In Ernest, `==` on a type variable gives it an *equality restriction*, inferred and printed `a=`, as Standard ML's equality types do (§3.10). `<`, `<=`, `>` and `>=` on a type variable give it an *ordering restriction* in the same way, printed `a<`: the predicate `Ord a` of qualified types (Jones 1994). At each instantiation the type must have a `compare`, or be a variable, which then inherits the restriction. Anything else is a type error, and so is an ordered variable left ambiguous.
 2. A parameterized type's `T.compare` may compare its parameters, and then carries their restriction: `Pair(Int)` is ordered and `Pair(Bool)` is not. Tuples and lists have no module in which to declare a `compare`, so they are ordered element by element whenever their elements are: `#(1, "b") < #(2, "a")`, `[1, 2] < [1, 3]` and `[] < [0]`. `Optional` and `Either` declare theirs in the prelude, with `None` before `Some` and `Left` before `Right`.
 3. No top-level `let` is generalized over an ordered variable, so that each is still computed once, before `main` runs (§8.5). A value that depends on an order must be a function.
 4. A record holds only the type's primitives, the few operations that touch its representation. `Set.Operations(s, e)` holds `Set`'s six: `empty`, `size`, `contains`, `put`, `remove` and `toList`. None of them is polymorphic beyond `s` and `e`.
 5. Generic code is a function of the record. It is declared as a member of the record type and takes the record last, as in `Set.Operations.union(a, b, ops)`. `map` and `filterMap` take two records, one for the source and one for the result.
 6. A representation exports one function per record it meets, named for that record, and its own functions, each of which calls the generic one with its record: `OrderedSet.setOperations()`, and `OrderedSet.union(a, b)` beside `Set.union(a, b)`. A type may meet several records, as a class implements several interfaces. A record may also hold another as a field, as one interface extends another: `Ordered.Operations(s, e)` holds `set : Set.Operations(s, e)` beside `min` and `max`. Any module can build a record, for its own type or for another module's.
 7. An ordered set uses its element type's `compare`. A different order is a different type, such as `Descending(Int)` with its own `compare`, like Haskell's `Down`.
-8. A list that mixes representations holds records whose functions close over their sets, as it does today.
+8. A list that mixes representations holds records whose functions close over their sets.
 9. `OrderedSet` joins the standard library in `ordered_set.ern`. A file name of words joined by `_` will name one namespace, as it does in Elixir. `Map` gets a record only when it gets a second representation.
 
 ```ernest
@@ -108,11 +108,11 @@ OrderedSet.size(small)                                // 2
 small == fromList([1, 3], OrderedSet.setOperations()) // true: an ordered set is data
 ```
 
-Types print as `OrderedSet.put : (OrderedSet(a<), a<) -> OrderedSet(a<)`, beside today's `Set.put : (Set(a=), a=) -> Set(a=)`.
+Types print as `OrderedSet.put : (OrderedSet(a<), a<) -> OrderedSet(a<)` and `Set.put : (Set(a=), a=) -> Set(a=)`.
 
 ## Typing and semantics
 
-The ordering restriction is a type class with one method, built in and closed: Haskell's `Ord`, with each type's instance fixed to its `T.compare`. It is inferred the way the equality restriction already is, as a flag on a variable that unification propagates and instantiation checks, so I expect inference to stay decidable. It would also be elaborated the way `Ord` is. A definition takes a hidden `compare` for each ordered variable it generalizes, each call passes the instantiating type's, and a comparison on the variable calls it. Rule 2 is a conditional instance, `instance Ord a => Ord (Pair a)`, with the condition inferred, and tuples and lists get Haskell's derived instances. Rule 3 is Haskell's monomorphism restriction, there for the same reason.
+The ordering restriction is a type class with one method, built in and closed: Haskell's `Ord`, with each type's instance fixed to its `T.compare`. It is inferred like the equality restriction, as a flag on a variable that unification propagates and instantiation checks, so I expect inference to stay decidable. It would also be elaborated the way `Ord` is. A definition takes a hidden `compare` for each ordered variable it generalizes, each call passes the instantiating type's, and a comparison on the variable calls it. Rule 2 is a conditional instance, `instance Ord a => Ord (Pair a)`, with the condition inferred, and tuples and lists get Haskell's derived instances. Rule 3 is Haskell's monomorphism restriction, there for the same reason.
 
 In rules, as a sketch I have not yet checked against the checker, with `Ord τ` the predicate:
 
@@ -150,13 +150,20 @@ Finally, `compare` is assumed to be a total order that says `Equal` only where `
 
 ## What it buys and what it costs
 
-As far as I can tell, the proposal meets the five requirements with one mechanism, the record, which serves both generic code and lists that mix representations, and the standard library uses it too. Each call names the record it uses, so nothing is chosen out of the reader's sight. There is no new syntax, declaration or reserved word, and one error that exists today, `<` on a type variable, goes away. Any module can build a record for any type, `List` included, and since nothing is resolved by type, there are no orphan rules. Type classes could still come later, built on the hidden `compare` argument and on records.
+As far as I can tell, the proposal meets the five requirements with one mechanism, the record, which serves both generic code and lists that mix representations, and the standard library uses it too. Each call names the record it uses, so nothing is chosen out of the reader's sight. There is no new syntax, declaration or reserved word. Any module can build a record for any type, `List` included, and since nothing is resolved by type, there are no orphan rules. Type classes could still come later, built on the hidden `compare` argument and on records.
 
 Most of the price is paid at call sites. A function that only passes a set on must take the record too, where type classes would pass nothing. A record parameter needs an annotation, because selecting a field needs the record's type (§3.5). Each operation has two names, `OrderedSet.union(a, b)` and `Set.Operations.union(a, b, ops)`, and `Set.Operations.map` takes a second record where Haskell's `Set.map` takes an `Ord` constraint. Generic code cannot name its variable's `compare`, so it sorts with `List.sort` and a lambda built from `<`.
 
-The rest falls elsewhere. The hidden `compare` is passed at run time, where today `<` finds `T.compare` at compile time. A top-level `let` used at two ordered types is refused, the monomorphism restriction's familiar surprise, and the error says to write a function instead. And tuples and lists gain an order they do not have today, one more rule in §3.10.
+The rest falls elsewhere. A comparison through an ordered variable calls a `compare` passed at run time. A top-level `let` used at two ordered types is refused, the monomorphism restriction's familiar surprise, and the error says to write a function instead.
 
-Building it means the ordering restriction, its check at instantiation and the order of tuples and lists in the checker; the hidden `compare` argument in the emitter; `set.ern` rewritten over its record; `OrderedSet` with its tests and documentation; and changes to the report and the guide.
+## What changes in Ernest
+
+- §3.10: `<`, `<=`, `>` and `>=` on a type variable give it the ordering restriction, and tuples and lists are ordered element by element.
+- §4.6: no top-level `let` is generalized over an ordered variable.
+- §9.3 and §9.6: `Optional` and `Either` declare `compare`.
+- §4.2 and §11.1: a file name of words joined by `_` names one namespace.
+- The checker infers the restriction, checks it at instantiation, and resolves its instances; the emitter passes the hidden `compare`.
+- The standard library: `set.ern` over `Set.Operations`, and `OrderedSet`.
 
 ## Why not type classes
 
