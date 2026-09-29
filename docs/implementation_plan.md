@@ -51,25 +51,23 @@ taken out of order. Each has its paragraph under "Done". The first release is MV
 Decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*): the guide's §7.3 is
 rewritten to test whether a record of functions does what an interface does in Java and a type
 class in Haskell. Its first form, a value that carries its operations (`Shape`), goes. Its
-second is rewritten around a contract `SetOps(s, a)` holding the operations of the built-in
+second is rewritten around a contract `Set.Operations(s, a)` holding the operations of the built-in
 `Set` (Appendix E), which `Set` fills in, and so does a module `OrderedSet`, a set kept in a
 `compare`'s order that exports functions of its own beyond the contract, such as `min` and
 `max`. It follows MVP 2.96.
 
 1. **The contract waits on a decision**, discussed with the user first (language feedback
-   64), over the alternatives [`contract.md`](contract.md) lays side by side, measured by what
-   the user of `Set` and an ordered set sees: whether a field may be polymorphic in a variable its type does not take, as
-   `foldLeft`'s accumulator and `any`'s effect are. Without it the contract cannot hold nine
-   of `Set`'s twenty functions, and the section does not go around that. The suggestion,
-   against type classes: polymorphic record fields, as OCaml has them. A field quantifies the
-   variables its type does not take, so `foldLeft` sits in the record; there is no instance
-   resolution, no constraint in an inferred type and no hidden argument. Its cost is a type
-   scheme inside a type declaration, a rank-2 type confined to declared fields, where the
-   log's *Dropped from Unison* drops rank-n types.
+   64), over what [`contract.md`](contract.md) recommends and compares with full type classes:
+   a contract is a record of functions that the caller passes; a named field may be
+   polymorphic in a variable its type does not take, as `foldLeft`'s accumulator and `any`'s
+   effect are, without which the contract cannot hold nine of `Set`'s twenty functions; and
+   `<` on a type variable gives it an ordering restriction, as `==` gives equality, so that an
+   ordered set holds only its elements. The section does not go around the decision. Taken,
+   the recommendation makes the milestone about seven days (the note's *Cost*).
 2. **What the section verifies**, each stated in it or in the log: code written once against
    the contract (a Java parameter of an interface type, a Haskell constraint); a
    representation's own functions beside the contract (a class's further methods); a contract
-   that extends another, an `OrderedSetOps` holding a `SetOps` (`SortedSet extends Set`, a
+   that extends another, an ordered set's record holding a `Set.Operations` (`SortedSet extends Set`, a
    superclass); defaults built from a smaller record (a default method); the representation
    chosen at the call, never found by its type (instance resolution, which principle 3 leaves
    out); two ordered sets of different `compare`s meeting in `union` (Haskell's coherence;
@@ -89,7 +87,7 @@ second is rewritten around a contract `SetOps(s, a)` holding the operations of t
 
 What the review of MVP 2.95 found and did not fix there, decided 2026-09-28 and moved from MVP 3.0 the same day, since none of it needs a peer (the log's
 *MVP 3.0 Is Distributed Code and the Node Protocol*). It is taken before MVP 2.97, which rests on
-the contract's decision (2026-09-29), in this order: 4, 5, 3, 1, 2, the design questions of 2
+the contract's decision (2026-09-29), in this order: 4, 5, 6, 3, 1, 2, the design questions of 2
 discussed with the user one at a time as they are met.
 
 1. **[`findings.md`](findings.md)'s `cheap` lines**, a batch a document. The report's, done
@@ -121,6 +119,15 @@ discussed with the user one at a time as they are met.
    2026-09-29 as `ern_build`; and the programs area's builds in the test's node, where a
    launch of `ern` costs 0.6 seconds a build and the node 0.08, done 2026-09-29, the area 23
    seconds to 20 and `make test` 93 to 90.
+6. **`==` on a value that holds a function** (found 2026-09-29, weighing the contract): §3.10
+   makes it a type error, and the checker accepts it in two ways. A declared type whose field
+   holds a function, `type Box = Box((Int) -> Int)`, passes, since the check reads the type as
+   written and not its fields. And a variable with the equality restriction, bound to a type
+   that holds another variable, drops the restriction: with `fn eq(a, b) = a == b`,
+   `fn g(x) = eq([x], [x])` carries none, and `g(fn(y : Int) = y)` compares two functions. The
+   fix: the check (`has_fn_or_address`) reads a declared type's fields with its arguments in
+   place, and binding a restricted variable to a type (`ern_types:bind_var`) checks that type
+   and restricts the variables in it, each with a regression test.
 
 ---
 

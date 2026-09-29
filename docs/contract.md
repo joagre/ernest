@@ -1,32 +1,27 @@
 # Contracts
 
-The ways code written once can use several representations of one thing, a set kept hashed and a set kept in order, laid side by side so that MVP 2.97 can choose. The last, E, is the recommendation. This note holds the alternatives until then; the choice goes to the report and the decisions log, and the note goes. The example marked `ernest` is today's Ernest and was compiled when the note was written (2026-09-29); those marked `sketch` are in syntax Ernest does not have.
+How code written once uses several representations of one thing, a set kept hashed and a set kept in order. The note holds the recommended way, its cost, and how it compares with full type classes, until MVP 2.97 decides; the decision goes to the report and the decisions log, and the note goes. The block marked `ernest` compiles today (2026-09-29); those marked `sketch` are Ernest as the recommendation, or type classes, would make it.
 
 ## What the user should see
 
-The measure is the user of `Set` and `OrderedSet`, who should see none of the machinery:
+The measure is the user of `Set` and an ordered set, judged by the five principles (§0):
 
-1. **Each type on its own reads as today.** `Set.put(s, x)`, and `OrderedSet.put(s, x)` and `OrderedSet.min(s)`: the same verbs for the same operations (E.0 shape rule 2), and `OrderedSet`'s own beside them.
-2. **Code written once is called as any function is.** `fromList([3, 1, 3])` gives a `Set(Int)` or an `OrderedSet(Int)` as the caller asks, with no argument that only carries machinery.
-3. **An `OrderedSet(Int)` is data.** It has `==`, keys a `Map`, and goes to a peer in a message, as a `Set(Int)` does.
+1. **Each type on its own reads as today.** `Set.put(s, x)`, `OrderedSet.put(s, x)` and `OrderedSet.min(s)`: the same verbs for the same operations (E.0 shape rule 2), and the ordered set's own beside them.
+2. **Code written once is an ordinary function**, and its caller chooses the representation.
+3. **An ordered set is data.** It has `==`, keys a `Map`, and goes to a peer in a message, as a `Set(Int)` does.
 4. **A wrong mix is refused, not computed.** Two sets ordered differently cannot meet in `union` and give a set in neither order.
-5. **A mistake is reported in the user's words**, as a function or a type the user wrote, never as a dictionary, an instance or a hidden argument.
+5. **A mistake is reported in the user's words**, as a function, a type or a record the user wrote.
 
 ## What Ernest has today
 
-- **Three resolutions by type.** `==` carries an inferred equality constraint, written `a=` when a type is printed (report §3.10); `<` finds `T.compare` in the operand type's namespace (§3.10); `+` and the other operators resolve against the operand's type (§4.8). Each is a contract of one or two operations found by the type: `compare` and an operator a type meets in its own module, and `==` every type meets that holds no function or address.
-- **No type variable stands for a type constructor.** `s` may be `Set(Int)`, never `Set` alone.
-- **A function cannot cross nodes**, alone or inside a value (§3.11), and a value that holds one has no `==`.
-- **The five principles** (§0): least surprise (1), one way (2), nothing invisible (3), simple to parse (4), small (5).
+- `==` on a type variable gives it the equality restriction, inferred and never written (§3.9, §3.10).
+- `<` finds `T.compare` in its operand type's namespace (§3.10), but only where the definition fixes the type: on a type variable it is refused, ``the operand type of `<` is not determined; annotate it`` (§4.8).
+- A type variable in a field must be a parameter of its type (§3.9), so a record cannot hold `Set.foldLeft`: `type variable b is not a parameter of the type` (language feedback 64).
+- A value that holds a function has no `==` (§3.10; the checker does not refuse it yet, MVP 2.98 item 6) and cannot go to a peer (§3.11).
 
-## The running example
-
-A simplified `Set`: `empty`, `put`, `contains`, `union`, and `foldLeft`, whose accumulator is a type of its own, the operation that tests whether a contract can hold a polymorphic operation. An `OrderedSet` has the same five and `min`. Code written once: `fromList`, and `size` through `foldLeft`.
-
-Today `OrderedSet` must carry its `compare` in each value, since nothing else can give it one:
+So an ordered set must carry its `compare` in each value, since nothing else can give it one:
 
 ```ernest
-// orderedset.ern (namespace Orderedset)
 export abstract type OrderedSet(a) = OrderedSet(compare : (a, a) -> Ordering, items : List(a))
 
 export fn empty(compare : (a, a) -> Ordering) : OrderedSet(a) =
@@ -35,221 +30,207 @@ export fn empty(compare : (a, a) -> Ordering) : OrderedSet(a) =
 export fn put(s : OrderedSet(a), x : a) : OrderedSet(a) =
     OrderedSet(..s, items = inserted(s.items, x, s.compare))
 
-export fn contains(s : OrderedSet(a), x : a) : Bool =
-    List.any(s.items, fn(y) = s.compare(x, y) == Equal)
-
-export fn union(s : OrderedSet(a), t : OrderedSet(a)) : OrderedSet(a) =
-    List.foldLeft(t.items, s, put)
-
-export fn foldLeft(s : OrderedSet(a), acc : b, step : (b, a) -> b) : b =
-    List.foldLeft(s.items, acc, step)
+fn inserted(items : List(a), x : a, compare : (a, a) -> Ordering) : List(a) =
+    match items {
+        [] -> [x]
+      | y :: rest -> match compare(x, y) {
+            Less -> x :: items
+          | Equal -> items
+          | Greater -> y :: inserted(rest, x, compare)
+        }
+    }
 
 export fn min(s : OrderedSet(a)) : Optional(a) =
     List.get(s.items, 0)
 ```
 
-That already breaks measure 3: the value holds a function, so `OrderedSet(Int)` has no `==` and cannot go to a peer. It keeps measure 4 by a rule of its own, `union` taking the first set's order. The alternatives that find `compare` by the element's type, B, C and D below, give both back: `OrderedSet(Int)` is a sorted list and nothing else, and `Int.compare` is found as `<` finds it today.
+That breaks measure 3, since the value holds a function, and measure 1, since `empty` takes an order that `Set.empty` does not.
 
-## Left out
+## The recommendation: records of functions, two restrictions lifted
 
-Each of these fails a measure outright, and none is weighed further:
+A contract is a record of functions, which Ernest has, and the caller chooses the representation by the record it passes. Two restrictions are lifted, each an error a user meets today. Nothing is added: no reserved word, no kind of declaration, no form of call.
 
-- **No contract**, each representation written for: code written once is written twice (measure 2).
-- **Values that carry their operations**, records of closures, the guide's §7.3 first form: `union` cannot be written, the value has no `==` and cannot cross nodes, and `s.put(x)` is a second way to call `Set.put` (measures 1, 3 and 4). It stays the guide's form for values of several representations in one list.
-- **Records of operations passed beside the data**, the guide's §7.3 second form, and the same with polymorphic fields (language feedback 64): the record is threaded through every caller, and nothing ties it to its type, so two orders fit one record type (measures 2 and 4).
-- **A service's message type**, each representation a process: a set is a value, and every operation would be a message and a wait.
-- **Structural records**, row polymorphism: the threading and the incoherence of records passed, and a second kind of record (measures 2 and 4, principle 2).
-- **Implicit arguments**, Scala 3's givens: what is in scope decides, and two of one type are ambiguous or silently chosen (measure 4, principle 3).
-
-## A. Signatures and functors
-
-ML's modules. A contract is a signature, a module meets it, and code written once is a functor, a module that takes modules. OCaml's `Set.Make(Ord)` is this.
-
-```sketch
-signature SET = {
-    type t(a)
-    fn empty() : t(a)
-    fn put(s : t(a), x : a) : t(a)
-    fn union(s : t(a), u : t(a)) : t(a)
-    fn foldLeft(s : t(a), acc : b, step : (b, a) -> b) : b
-}
-
-module Ordered(O : { fn compare(x : Int, y : Int) : Ordering }) : SET = { ... }
-module Tools(S : SET) = { fn fromList(xs : List(a)) : S.t(a) = List.foldLeft(xs, S.empty(), S.put) }
-
-let ascending = Tools(Ordered(Int))       // applied once, then used by name
-```
-
-- **The user writes** `Tools(Set).fromList(xs)`, or a name bound to the application.
-- **For:** a named contract, checked where a module claims it; `t(a)` stands for a type constructor inside a signature, with no higher-kinded variables in the core; polymorphic operations are simply functions; a signature extends another by inclusion. Two orders give two modules whose types differ, so a mix of orders is a type error (measure 4). All of it is explicit (principle 3).
-- **Against:** a second language above the first: signatures, functors, application, and module paths in types (principle 5); every use names the module it applies, which is the machinery showing through (measure 2).
-- **Cost:** a module language in the report, the checker and the compiled interfaces; Ernest's modules are files, and a functor is not one.
-
-## B. Type classes
-
-Haskell's classes. A contract is a class, a type meets it with an instance, and the instance is found by type, the checker passing it as a hidden argument.
+1. **An order on a type variable, as equality.** `<`, `<=`, `>` and `>=` on a type variable give it the *ordering restriction*, inferred and never written, as `==` gives the equality restriction, and printed `a<` as that one is printed `a=`. At each instantiation the variable's type must have `compare`, or the call is a type error, and the comparison is that type's `compare`. A variable that no definition generalizes and nothing fixes is refused, as today (§4.8). The arithmetic operators keep §4.8's rule.
+2. **A `compare` over parameters.** A member `T.compare` of a type with parameters may compare them, and then carries the restriction on them: `Pair(Int)` has an order and `Pair(Bool)` none.
+3. **A top-level `let` is not generalized over an ordered variable**, as it is not when its initializer calls a process-only function (§3.9, §4.6), so it is still computed once (§8.5). A value that depends on an order is a function.
+4. **A named field's own variables.** A type or effect variable that a named field names and its type does not take is the field's own, as a variable named only in a lambda's annotation is the lambda's own (§3.9). The value given for the field, where the record is built or updated with `..`, must have the field's type for every type the variable takes, and each selection or pattern instantiates it afresh. A positional field has none, since a single-positional constructor is a function value (§5.6). A field's own variable carries no inferred restriction, so a value that needs one does not fit the field.
+5. **A contract is a record type**, named for what it holds. `Set.Operations(s, a)`, in `set.ern`, holds `Set`'s functions whose types stay within one representation: all but `map` and `filterMap`, whose result has another element.
+6. **A representation meets a contract by a function its module exports**, `operations()`, whose annotation names the contract. It is a function in every representation, since an ordered one depends on an order (rule 3), so that all read alike. Any module may build a contract's record, for a type of its own or another's.
+7. **Code written once takes the record last**, as `List.sort` takes its `compare` (E.0 shape rule 1).
+8. **An ordered set orders its elements by their type's `compare`.** Another order is another type, as Haskell's `Down` is: `Descending(Int)`, with its own `compare`.
+9. **`==` stays as it is**, structural. Values of several representations in one list are records whose functions close over their values, the guide's §7.3 first form: the same mechanism.
 
 ```sketch
-class SetLike(s, a) | s -> a {            // two parameters, a fixed by s
-    fn empty() : s
-    fn put(set : s, x : a) : s
-    fn union(set : s, other : s) : s
-    fn foldLeft(set : s, acc : b, step : (b, a) -> b) : b
-}
-instance SetLike(Set(a), a) where Eq(a) { fn empty() = Set.empty ... }
-instance SetLike(OrderedSet(a), a) where Ord(a) { ... }   // compare found by a's type
-class SetLike(s, a) => OrderedSetLike(s, a) { fn min(set : s) : Optional(a) }
+// set.ern: the contract, and Set's record
+export type Operations(s, a) =
+    Operations(empty : s,
+               put : (s, a) -> s,
+               contains : (s, a) -> Bool,
+               union : (s, s) -> s,
+               foldLeft : (s, b, (b, a) -> b with e) -> b with e)  // b and e are the field's own
 
-fn fromList(xs : List(a)) : s where SetLike(s, a) = List.foldLeft(xs, empty(), put)
+export fn operations() : Operations(Set(a), a) =
+    Operations(empty = empty,
+               put = put,
+               contains = contains,
+               union = union,
+               foldLeft = foldLeft)
 
-let small : OrderedSet(Int) = fromList([3, 1, 3])      // the annotation chooses
-```
-
-- **The user writes** `fromList(xs)`, the result's type choosing the instance; `OrderedSet.min(s)` as a function of its own.
-- **For:** meets measures 1 to 4: nothing threaded, one instance per type (coherence), polymorphic operations, superclasses, defaults. It would make `==`, `compare` and the operators instances of one mechanism (principle 2).
-- **Against:** a class over `Set` itself, not `Set(a)`, needs a higher-kinded variable, and then cannot demand `Ord(a)` of `OrderedSet`'s elements, which is why Haskell's own library has no set class; the two-parameter class above avoids that at the price of functional dependencies. Instances need rules for where they may be declared (orphans), for overlap and for ambiguity; `empty()` alone cannot choose, so the user annotates (measure 5); a constraint is a second mark on a function's type, where §0 has `with M` as the only one; the dictionary is an argument no one wrote (principle 3).
-- **Cost:** qualified types in the checker, instance resolution, dictionaries in the emitter, constraints in the compiled interfaces and in MVP 3.1's hashes; the most machinery of the four.
-
-## C. Traits with associated types
-
-Rust's traits and Swift's protocols: type classes over a whole type, the element type a member of the trait rather than a parameter.
-
-```sketch
-trait SetLike {
-    type Item
-    fn empty() : Self
-    fn put(self, x : Item) : Self
-    fn foldLeft(self, acc : b, step : (b, Item) -> b) : b
-}
-impl SetLike for Set(a) where a has == { type Item = a ... }
-impl SetLike for OrderedSet(a) where a has compare { ... }
-
-fn fromList(xs : List(S.Item)) : S where S : SetLike = ...
-```
-
-- **The user writes** as with B.
-- **For:** B's ergonomics without higher-kinded variables or functional dependencies, the element type being the trait's; coherence by a rule that an impl stands with its trait or its type, which also lets a contract be met for a type declared elsewhere.
-- **Against:** associated types are a concept of their own; bounds are written (`where S : SetLike`), a second mark on types; Rust copies each generic function per type, where Ernest would pass the dictionary unseen (principle 3).
-- **Cost:** close to B's, the associated type in place of the second parameter.
-
-## D. Contracts as type members
-
-Ernest's own shape, grown from how `<` finds `T.compare` today. A contract is a record type that the library names. A type meets it by declaring a member of that type in its own module. A contract's field, called through the contract, is the member of its argument's type, and the constraint that a type meets the contract is inferred and carried as `a=` is.
-
-```sketch
-// set.ern: the contract, and Set's member meeting it
-export type Ops(s, a) =
-    Ops(empty : s,
-        put : (s, a) -> s,
-        contains : (s, a) -> Bool,
-        union : (s, s) -> s,
-        foldLeft : (s, b, (b, a) -> b) -> b)     // b is the field's own
-
-export let Set.ops : Set.Ops(Set(a), a) = Set.Ops(empty = Set.empty, put = Set.put, ...)
-
-// orderedset.ern: an OrderedSet(a) is its items, ordered by a's compare
+// orderedset.ern: an ordered set is its elements, in their type's order
 export abstract type OrderedSet(a) = OrderedSet(List(a))
-export let OrderedSet.ops : Set.Ops(OrderedSet(a), a) = Set.Ops(...)
-export fn min(s : OrderedSet(a)) : Optional(a) = ...
 
-// written once: Set.Ops.put resolves against its argument's type, as < does
-fn fromList(xs : List(a)) : s = List.foldLeft(xs, Set.Ops.empty, Set.Ops.put)
+export let empty : OrderedSet(a) = OrderedSet([])
 
-let small : OrderedSet(Int) = fromList([3, 1, 3])
-```
+export fn put(OrderedSet(xs) : OrderedSet(a), x : a) : OrderedSet(a) =
+    OrderedSet(inserted(xs, x))
 
-The field `foldLeft` names a variable, `b`, that the record type does not take: each use of the field chooses its own `b`, as OCaml's polymorphic record fields allow. Today's checker refuses it, `type variable b is not a parameter of the type` (language feedback 64), and D needs it.
+fn inserted(xs : List(a), x : a) : List(a) =
+    match xs {
+        [] -> [x]
+      | y :: rest -> if x < y then x :: xs else if y < x then y :: inserted(rest, x) else xs
+    }
 
-- **The user writes** `Set.put(s, x)`, `OrderedSet.put(s, x)` and `OrderedSet.min(s)` as today, and `fromList(xs)` written once. An `OrderedSet(Int)` is its sorted items, with `==`.
-- **For:** measures 1 to 4. Coherence comes by construction: a type's members belong to its module (§4.2), so a type meets a contract once, where it is declared, and no one else's module can. There is no higher-kinded variable, since the contract is over the whole type. `compare` and the operators become contracts of one rule (principle 2), and nothing is written on a function's type, the constraint being inferred as `a=` is.
-- **Against:** what the next section lists.
-- **Cost:** constraints on type variables, inferred and printed, with the dictionary passed by the emitter; resolution by the argument's type or the expected type; members whose own type carries a constraint; the polymorphic field. It is less surface than B and C: no classes, no instance declarations, no orphans and no written bounds. It is not less machinery at the core: inferred constraints and a dictionary passed unseen are what B and C are made of.
+export fn min(OrderedSet(xs) : OrderedSet(a)) : Optional(a) =
+    List.get(xs, 0)
 
-## What D has not settled
-
-1. **The polymorphic field, with its effects.** `Set.foldLeft` is polymorphic in its effect as in its accumulator, so the field needs a variable and an effect variable of its own: a rank-2 type confined to declared fields, where the log's *Dropped from Unison* dropped rank-n types. Whether inference keeps principal types with such fields and inferred constraints together is the question the literature finds hard, and D stands or falls on it. Without it, a contract cannot hold `foldLeft`, and D shrinks to what its types close over.
-2. **An operation chosen by the expected type.** `Set.Ops.empty` has no argument to resolve against, so the expected type chooses, and `fromList(xs)` needs an annotation somewhere or reports an ambiguity, Haskell's `read` problem (measure 5).
-3. **`==` does not fit.** `compare` and the operators are members a type declares; `==` is structural and every type without a function or an address has it. Either `==` stays a rule of its own, and "one mechanism for three" is two, or every type meets an equality contract without declaring it, which is a rule of its own too.
-4. **A member with a condition.** `OrderedSet.ops` exists only for elements that have `compare`, a member whose type carries a constraint, Haskell's `instance Ord a => …`, which the sketch passes over.
-5. **No contract for another's type.** Only a type's own module can declare its member, so a user cannot make `List` meet `Set.Ops`, only wrap it. C's rule, the impl beside its trait or its type, allows it, but a member belongs to its type's namespace (§4.2), and D's framing forbids it.
-6. **An argument no one wrote.** The member is passed unseen. Principle 3 is argued only by `<`, which does the same today, and a strict reader may take that as a precedent rather than a reason.
-
-## E. Recommended: contracts met where a type is declared
-
-D, settled, all things considered. Go and Roc chose its central rule and live with it: a type's operations are declared in its own module, and nowhere else. Java's lesson is that a contract feels simple when it is said where the type is declared and its polymorphic operations are written, not inferred.
-
-1. **A contract is a record type the library names**, as `Set.Ops`. A field may name variables and effect variables of its own, declared in the field's type and never inferred. The record is checked where it is built and instantiated where a field is selected, as OCaml's polymorphic fields are, so a field's polymorphism is checked, never inferred (language feedback 64).
-2. **A type meets a contract in its own module, by a member**, `let OrderedSet.ops : Set.Ops(OrderedSet(a), a) = …`, which says so in its annotation where a reader looks. A member's type may carry constraints on the type's parameters, as `Set.ops` carries `a=` today and `OrderedSet.ops` needs its elements' order.
-3. **A contract's field, called through the contract, is the member of its type**: `Set.Ops.put(s, x)` resolves against the type of `s`, as `<` resolves `T.compare`, and `Set.Ops.empty` against the type expected, an annotation deciding where nothing else does. Where nothing decides, the error names the contract and asks for the type: ``fromList gives any type that meets `Set.Ops`; say which, as `: Set(Int)` ``.
-4. **The constraint is inferred and printed, never written**, as `a=` is. `:type fromList` shows it, which is where principle 3 finds it.
-5. **`compare` is the first contract.** `<` on a type variable infers that its type has `compare`, as `==` infers `a=`, so `OrderedSet(a)` orders its elements by their type's `compare`, and an order of one's own is a type of one's own, `Descending(Int)` with its `compare`.
-6. **`==` stays as it is.** It is structural, and every type without a function or an address has it, the derived case, as Roc derives equality; no type declares it.
-7. **Values of several representations in one list stay the guide's first form**, records of closures. A value packed with its type's member, Java's `Set<E> s`, is a later addition, not part of this.
-
-```sketch
-// set.ern: the contract, and Set meeting it
-export type Ops(s, a) =
-    Ops(empty : s,
-        put : (s, a) -> s,
-        contains : (s, a) -> Bool,
-        union : (s, s) -> s,
-        foldLeft : (s, b, (b, a) -> b with e) -> b with e)     // b and e are the field's own
-
-export let Set.ops : Set.Ops(Set(a), a) =
-    Set.Ops(empty = Set.empty, put = Set.put, contains = Set.contains, union = Set.union,
-            foldLeft = Set.foldLeft)
-
-// orderedset.ern: its items, in the order of their type's compare
-export abstract type OrderedSet(a) = OrderedSet(List(a))
-export let OrderedSet.ops : Set.Ops(OrderedSet(a), a) = Set.Ops(empty = OrderedSet([]), put = put, ...)
-export fn put(s : OrderedSet(a), x : a) : OrderedSet(a) = ...     // x < y, a's compare
-export fn min(s : OrderedSet(a)) : Optional(a) = ...
+export fn operations() : Set.Operations(OrderedSet(a), a) =
+    Set.Operations(empty = empty, put = put, ...)
 
 // the user
-fn fromList(xs : List(a)) : s = List.foldLeft(xs, Set.Ops.empty, Set.Ops.put)
-fn size(set : s) : Int = Set.Ops.foldLeft(set, 0, fn(n, _) = n + 1)
+fn fromList(xs : List(a), operations : Set.Operations(s, a)) : s =
+    List.foldLeft(xs, operations.empty, operations.put)
 
-let small : OrderedSet(Int) = fromList([3, 1, 3])
-OrderedSet.min(small)           // Some(1)
-small == fromList([1, 3])       // true: an OrderedSet(Int) is data
+fn size(set : s, operations : Set.Operations(s, a)) : Int =
+    operations.foldLeft(set, 0, fn(n, _) = n + 1)
+
+let small = fromList([3, 1, 3], OrderedSet.operations())
+OrderedSet.min(small)                                 // Some(1)
+size(small, OrderedSet.operations())                  // 2
+small == fromList([1, 3], OrderedSet.operations())    // true: an ordered set is data
 ```
 
+`inserted` compares with `<`, so `put` and `operations` carry the ordering restriction, and `:type OrderedSet.put` shows `(OrderedSet(a<), a<) -> OrderedSet(a<)`.
+
 **For:**
-- The five measures. The user of `Set` and `OrderedSet` writes each as today and `fromList(xs)` once, threads nothing, holds data that has `==` and crosses nodes, and cannot mix two orders, which are two types.
-- Coherence by construction: a type's members are its module's (§4.2), so there is one per type, and no orphan rule is needed.
-- No new keyword and no new kind of declaration: a contract is a type and a member is a `let`. Nothing is written on a function's type, `with M` staying the only mark (§0).
-- No variable stands for a type constructor, since a contract is over a whole type.
-- It grows from what the report has: the inferred `a=`, type members, and `<` resolving `T.compare`. `compare` joins as its first contract, and the operators can follow.
-- Polymorphic fields are declared, so inference only checks them, the property that makes Java's generic methods and OCaml's polymorphic fields easy.
-- Go and Roc are precedents at scale for its rule, and Roc for leaving `==` derived.
+- The five measures. Each set reads as today, and `OrderedSet.put` takes no order. Code written once is a function of the record. An ordered set is its elements alone. Two orders are two types, and only the ordered set's module can build a record that sees inside it. A mistake is a record, a function, or a type without `compare`.
+- Nothing new to learn: two errors a user meets today go, and Appendix A and §2.4 do not change (principles 4 and 5).
+- One mechanism for every contract, a record of functions, for code written once and for values of several representations in one list (principle 2).
+- A call names what it calls: the record is written at the call, and the function at the selection (principle 3).
+- The record chooses the representation, so no annotation chooses it and no call is ambiguous.
+- A contract may be met for any type in any module, `List` included: nothing is found by type, so there is no coherence rule and no orphan rule.
+- Coherence where it matters, for orders, comes from the type: one `compare` per type, declared in its module (§3.10, §4.2).
+- Inference stays Hindley-Milner's: a field's own variables are declared and checked, never inferred, as OCaml's polymorphic fields are.
+- It closes no door. A field's own variables are what a class method needs, and the ordering restriction is the smallest case of a class's hidden argument, so type classes, if ever taken, would build on both.
 
 **Against:**
-- The core is type classes' core: constraints inferred on type variables, and a dictionary passed where no one wrote it. It is less surface, not less machinery, and a strict reader will call it restricted type classes, rightly.
-- The argument no one wrote rests on `<` as its precedent (principle 3), and its reason is that the type shows it.
-- An operation that takes no value of its type is chosen by the expected type, so a user sometimes annotates (measure 5).
-- No contract for another's type: the built-in `List` cannot be made a `Set.Ops`, only wrapped.
-- A field's own variable carries no inferred restriction, so an operation that needs `==` on it does not fit a field.
-- Java's interface values, a set of either representation in one variable, wait for a later addition.
-- MVP 3.1's hashes must count the members a definition resolves, which its text does not name.
+- A function that is only handed a set takes the record too, and passes it on: `size(small, OrderedSet.operations())`, where type classes write `size(small)`.
+- The record's parameter is annotated, since a selection needs its record's type (§3.5).
+- One argument no one wrote: the `compare` of an ordered variable, passed by the emitter. `<` is its precedent, finding `T.compare` by type today, and the restriction is the language's own: no user declares another.
+- A field's own variable is a rank-2 type confined to named fields, which the log's *Dropped from Unison* left out. The user sees only the error go.
+- A field's own variable carries no restriction, so `map` and `filterMap` stay out of the contract, as they are out of Haskell's and Java's.
+- A value that depends on an order is a function, `OrderedSet.operations()`, not a `let`.
+- Generic code orders with `<` and its kin and has no name for its variable's `compare`, so it sorts with `List.sort` and a lambda built from `<`.
 
-**What it asks of the implementation**, in order: polymorphic fields, declared, with their effects; ordering inferred as a constraint beside `a=`; constraints of named contracts, inferred, printed and carried in compiled interfaces; resolution by argument and by expected type, with its error; the dictionary passed by the emitter; then `Set.Ops`, `OrderedSet` in the standard library, and the guide's §7.3 rewritten over them.
+**Cost**, in the plan's days:
+- **A named field's own variables, about 2 days**, in the checker alone. `field_type` keeps the variables it refuses today, and `#cinfo` records them per field, which the compiled interface carries. A field's value is inferred, generalized, and checked with the field's own variables rigid, as an annotation's are, whose errors exist already. Selection and patterns instantiate them. The emitter does nothing, since the value's representation does not change.
+- **The ordering restriction, about 3 days.** In the checker: a fourth flag on a variable beside `eq`, `process_only` and `no_reply`; a comparison on a variable sets it where it fails today; the check at instantiation stands beside equality's; the printer adds the mark; the compiled interface carries flags already. In the emitter, the first argument no one wrote, since none is passed today: a definition takes a `compare` for each ordered variable, each call passes one, a function used as a value closes over it, and a comparison on a variable calls it. A `T.compare` over parameters is closed over its parameters' `compare`s.
+- **The report**: §3.9, §3.10, §4.8 and §11.5 amended, and Appendix E for the contract and the ordered set. With the guide's §7.3 and the library, that is MVP 2.97's own 2 days.
+- **In all, about 7 days**, 5 more than MVP 2.97 has now.
 
-## Side by side
+## Full type classes
 
-| | written once | `union` | `foldLeft` | `OrderedSet` extends `Set` | two orders refused | nothing threaded | `OrderedSet(Int)` is data | new in the language |
-|---|---|---|---|---|---|---|---|---|
-| A. signatures, functors | yes | yes | yes | by inclusion | yes | named once | yes | a module language |
-| B. type classes | yes | yes | yes | superclass | yes | yes | yes | classes, instances, constraints |
-| C. traits | yes | yes | yes | supertrait | yes | yes | yes | traits, associated types, bounds |
-| D. type members | yes | yes | if the field holds | by holding | yes | yes | yes | inferred contract constraints, the field |
-| E. recommended | yes | yes | yes, declared | by holding | yes, as two types | yes | yes | inferred contract constraints, declared polymorphic fields, ordering inferred |
+Haskell's classes, in the form that can hold a set's operations, with what a full design brings. A `class` is over the whole set type, with its element an associated type, as Rust's traits have, so that no variable stands for a type constructor. Instances are declared with `instance`, with their conditions written in their heads. There are superclasses and default methods. Constraints are inferred, as `a=` is, and never written on a function. A method is resolved by its argument's type or by the type expected. There is one instance per type, with an orphan rule. `==`, `compare` and the operators become classes, so that the three are one mechanism. A method is named through its class, as a type's member is through its type (§4.2), since Ernest has no import to bring a method's name into scope.
 
-## To think hard about
+```sketch
+// set.ern: the class, and Set's instance of it
+export class Collection(s) {
+    type Element
+    let empty : s
+    fn put(set : s, x : Element) : s
+    fn contains(set : s, x : Element) : Bool
+    fn union(set : s, other : s) : s
+    fn foldLeft(set : s, acc : b, step : (b, Element) -> b with e) : b with e
+}
 
-- **Is a dictionary found by type invisible?** Principle 3 asks that control flow and failure be visible in the code or in the type. In B, C and D the operation called is decided by a type the code states or infers, and no argument is written. `<` has done this since the first MVP. A, alone, keeps everything written.
-- **One mechanism for three.** `==`, `compare` and the operators resolve by type today, each by a rule of its own. A contract mechanism that absorbed them would be one way (principle 2); one that stood beside them would be a fourth.
-- **Where may a type meet a contract?** Only in its own module (D) gives coherence for nothing and forbids retrofitting. B and C allow more and need orphan rules.
-- **Written or inferred constraints.** §0 keeps `with M` as the only mark written on a function type, and `a=` is inferred and never written. D keeps that; B and C write bounds.
-- **What the user annotates.** A contract whose operation takes no value of the type, `empty`, is chosen by the expected type. How often does a user then write `: OrderedSet(Int)`?
-- **What crosses nodes.** A record of functions cannot, and a dictionary found by type need not, since each node finds its own. B, C and D keep functions out of values; A's modules are not values.
-- **MVP 3.1's hashes.** A definition's hash names what it uses. A dictionary found by type is used without being named, and its instance's hash must enter the definition's.
+instance Collection(Set(a)) where Eq(a) {
+    type Element = a
+    ...
+}
+
+// orderedset.ern: the ordered set's instance, which needs an order on its elements
+instance Collection(OrderedSet(a)) where Ord(a) {
+    type Element = a
+    ...
+}
+
+// the user
+fn fromList(xs) =
+    List.foldLeft(xs, Set.Collection.empty, Set.Collection.put)
+
+fn size(set) =
+    Set.Collection.foldLeft(set, 0, fn(n, _) = n + 1)
+
+let small : OrderedSet(Int) = fromList([3, 1, 3])
+OrderedSet.min(small)                                 // Some(1)
+size(small)                                           // 2
+```
+
+## Compared
+
+### For the developer
+
+| The developer | Recommended | Type classes |
+|---|---|---|
+| uses one kind of set | `OrderedSet.put(s, x)` | `OrderedSet.put(s, x)`, or the method `Set.Collection.put(s, x)` |
+| writes code once | annotates the record, `operations : Set.Operations(s, a)`, and calls `operations.put` | calls `Set.Collection.put`, the constraint inferred |
+| builds a set with it | `fromList([3, 1, 3], OrderedSet.operations())` | `let small : OrderedSet(Int) = fromList([3, 1, 3])`, the annotation choosing |
+| hands it a set | `size(small, OrderedSet.operations())` | `size(small)` |
+| adds a representation | exports `operations()` | declares an `instance` |
+| fits a type declared elsewhere, `List` | builds a record, in any module | declares an instance beside the class or the type, and nowhere else |
+| orders a type | `fn T.compare` | `fn T.compare`, or an `Ord` instance, whichever the design keeps |
+| orders a type another way | a type of its own, with its `compare` | the same, with its instance |
+| reads a call | the record, named at the call | the argument's type, then its instance |
+| meets a mistake | a record or a function of the wrong type; a type without `compare` | also: no instance, an ambiguous type, overlapping instances, an orphan |
+| needs two contracts | two record arguments | two inferred constraints |
+| holds both kinds in one list | a record that closes over its value | the same, or an existential type, which is more |
+
+Type classes write less where a set is only handed on, and need no annotation on a function written once. The recommendation writes a record at the call where type classes write an annotation. Otherwise the two are equal, or the recommendation has less to learn: every call says what it calls, every error is about a record, a function or a type, and a contract fits any type in any module.
+
+### By the principles
+
+| Principle | Recommended | Type classes |
+|---|---|---|
+| 1. Least surprise | A call names what it calls; two errors a reader would not predict go. | What a method runs is chosen by a type the reader infers, and `empty` alone needs an annotation. |
+| 2. One way | Every contract is a record of functions. | Classes beside records of functions, and methods beside module functions; `==`, `compare` and the operators become one mechanism. |
+| 3. Nothing invisible | The record is written at the call. One argument is unwritten, an ordered variable's `compare`, as `<` finds `T.compare` today. | An unwritten dictionary for every constraint, of every class a program declares. |
+| 4. Simple to parse | Appendix A does not change. | `class` and `instance`, method signatures, associated types, and conditions in instance heads. |
+| 5. Small | Two restrictions lifted. | Classes, instances, associated types, conditions, superclasses, defaults, coherence and orphan rules, ambiguity. |
+
+### The work
+
+The toolchain has about 18,000 lines of Erlang, the checker 3,000 of them and the emitter 1,400. The estimates are in the plan's days.
+
+| Part | Recommended | Type classes |
+|---|---|---|
+| Lexer, parser, formatter, Emacs mode | none | two reserved words; class and instance declarations, their layout and their indentation: 2 days |
+| Types | a fourth flag on a variable; a field's own variables in `#cinfo` | conditions over types in every scheme, through unification, generalization, instantiation and printing |
+| Checker | a comparison flags a variable; `compare` checked at instantiation beside equality; a field's own variables checked at construction and instantiated at selection | the same polymorphic methods; resolution with conditions and superclasses; associated types reduced in unification; overlap, orphan and ambiguity checks across modules; defaults: 3 weeks with the types |
+| Emitter | a `compare` per ordered variable, passed at each call and closed over by each function used as a value | a dictionary per constraint: a tuple of methods with its superclasses', and an instance a function of its conditions' dictionaries: 1 week |
+| Compiled interfaces | flags travel already; `#cinfo` gains the field's own variables | classes, instances and conditions |
+| Shell and `ern doc` | the mark `a<` | conditions in `:type`, pages for classes and instances, an ambiguous type at the prompt: 2 days |
+| Report and guide | §3.9, §3.10, §4.8 and §11.5 amended; the guide's §7.3 | sections for classes, instances, constraints, resolution and coherence; Appendix A; §3.10 and §4.8 rewritten on classes; a chapter of the guide: 3 days |
+| Standard library | `Set.Operations` and the ordered set | the classes, and an instance for every type with `compare` or an operator |
+| MVP 3.1's hashes | as `<` today | a definition's hash names the instances it resolves |
+| In all | about 5 days, beside MVP 2.97's own 2 | about 6 weeks |
+
+Type classes contain the recommendation: their methods need a field's own variables, and their dictionaries are the ordering restriction's hidden argument made general. What they add is the surface that declares classes and instances and the resolution that finds an instance by type: the six weeks, and an argument no one wrote at every call of a method.
+
+**The verdict.** For the developer, type classes save the record at a call, and in a function that only hands a set on. For that they add classes, instances, associated types, conditions and the rules of coherence, a second mechanism beside records of functions, and about six weeks of work where the recommendation takes five days. The recommendation meets the five measures with neither, and is the one recommended.
+
+## What MVP 2.97 settles beside
+
+- **The ordered set's name and place.** The sketches write its namespace `OrderedSet`, and a file `orderedset.ern` provides `Orderedset` (§4.2).
+- **Its representation.** `==` is structural, so a set must have one representation: a sorted list has, and a balanced tree whose shape follows the order of insertion has not.
+- **Which of two elements it keeps** when `compare` finds them equal and `==` tells them apart.
+- **The contract's fields** beyond the sketch's five.
+- **The plan's item 4 (U8).** A member is resolved by type only for an operator and `compare`; whether a type's other operations are members or module functions is then naming alone, which item 4 decides.
