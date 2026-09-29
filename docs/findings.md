@@ -40,7 +40,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 ## The report
 
 - done — a `foreign fn`'s type variables escape §6.6 and §3.10: `Foreign.from(r)` drops a Reply, `Foreign.from` compares functions and addresses; a foreign type's arguments are never reply-carrying (P1, P3, K1): the reply half fixed 2026-09-29, a variable a foreign function's parameter holds is not reply-carrying (§4.7); the equality half fixed the same day, `Foreign` having no `==` (§3.10)
-- 2.98 — `Io.show` and `Io.debug` depend on the static type at the call: `fn s(x) = Io.show(x)` prints a Char as its Int (P2, K4, E-C4)
+- done — `Io.show` and `Io.debug` depend on the static type at the call: `fn s(x) = Io.show(x)` prints a Char as its Int (P2, K4, E-C4): decided 2026-09-29, the type's description passed as the ordering restriction's `compare` is, planned as MVP 2.99b item 7
 - done — where `via`'s function runs: §6.5 in the sender, §6.9 by the delivery; its fault is the target's (P11, K2): decided 2026-09-29, in the sender at the `send`, and a wrap by the runtime as it delivers (§6.5, §6.9)
 - 2.98 — §4.2's lookup names a type-member step the compiler does not implement, and which would shadow a member by a module function (P5)
 - 2.98 — `Optional` and `Either` refuse reply-carrying elements while user sum types allow them; the rule and §3.9's exemption exist for each other (P6); met again 2026-09-28, when `Supervisor`'s watcher had to hold its children's replies in a list type of its own, `Held`, since `List` holds none

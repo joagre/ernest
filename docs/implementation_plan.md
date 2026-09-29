@@ -109,7 +109,7 @@ the README then says to download it.
 
 ---
 
-## MVP 2.99b (operations records: `Set`'s record and an ordered set), about nine days
+## MVP 2.99b (operations records: `Set`'s record and an ordered set), about ten days
 
 How code written once works over several representations of one thing, decided here, after the
 first release (the log's *The Contract's Decision After the First Release*), over what
@@ -142,6 +142,14 @@ decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*), is rewritt
    digits and a `_` standing only between two words; `ern build`, `:load`, completion, `ern
    doc` and the manual pages' names follow, the shell finding `ordered_set.ern` for
    `OrderedSet`.
+7. **`Io.show` follows its type through a generic function** (decided 2026-09-29, the log's
+   *`Io.show` Follows Its Type*): `Io.show` and `Io.debug` on a type variable give it a
+   *shown* restriction, printed with a mark, and a function generalized over it takes its
+   caller's type description, as the ordering restriction takes a `compare`; `wrap('a')`, with
+   `fn wrap(x) = Io.show(x)`, prints `'a'`. It is built on item 1's hidden argument, about a
+   day; if item 1 refuses the ordering restriction, the choice returns to the user. Until then
+   Appendix E.1 states what the code does: through a type variable, a value is written by its
+   representation.
 
 ---
 
