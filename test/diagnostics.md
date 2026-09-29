@@ -2743,10 +2743,30 @@ fn f(n : Int, b : Bytes) : Int =
 
 ```console
 $ ern build example.ern
-example.ern:3:18: a size in a pattern is a variable, an Int literal, or `+`, `-`, `*` of them
+example.ern:3:18: a size in a pattern is a variable, a top-level `let`, an Int literal, or `+`, `-`, `*` of them
 2 |     match b {
 3 |         <<x:size(n / 2), _:bytes>> -> x
   |                  ^^^^^
+```
+
+### A size that names a variable bound elsewhere in the same pattern (§5.11)
+
+```ernest-rejected
+fn f(p : #(Int, Bytes)) : Int =
+    match p {
+        #(n, <<x:size(n), _:bytes>>) -> x
+      | _ -> 0
+    }
+```
+
+```console
+$ ern build example.ern
+example.ern:3:23: n is bound in the same pattern, and a size names a variable an earlier segment of its bitstring binds, or one bound before the pattern
+2 |     match p {
+3 |         #(n, <<x:size(n), _:bytes>>) -> x
+  |           - n is bound here
+  |                       ^
+  | = help: match the bitstring in a `match` of its own, once n is bound
 ```
 
 ### A `bytes` segment without a size before another segment (§5.11)

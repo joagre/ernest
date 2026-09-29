@@ -1416,6 +1416,28 @@ call_as_value_test() ->
     Src = unicode:characters_to_binary(ern_emitter:erl_source(['M'], Typed, Env)),
     ?assertMatch({_, _}, binary:match(Src, <<"reply does not match Optional(Int)">>)).
 
+%% report §5.11, §6.3: a pattern's size names a top-level `let`, which the
+%% `match` or the `receive` reads before it begins. A regression test: the
+%% checker refused it, the host's pattern showing through
+bitstring_size_reads_a_top_level_let_test() ->
+    {ok, Out} = run(
+        "type Msg = Packet(Bytes)\n"
+        "let headerSize = 2\n"
+        "fn header(b : Bytes) : Optional(Bytes) = match b {\n"
+        "    <<h:size(headerSize)-bytes, _:bytes>> -> Some(h)\n"
+        "  | _ -> None\n"
+        "}\n"
+        "fn take() : Optional(Bytes) with Msg = receive {\n"
+        "    Packet(<<h:size(headerSize * 2)-bytes, _:bytes>>) -> Some(h)\n"
+        "  | Packet(_) -> None\n"
+        "}\n"
+        "export fn main() : Unit with Msg = {\n"
+        "    Io.println(Io.show(#(header(<<1, 2, 3>>), header(<<1>>))));\n"
+        "    send(self(), Packet(<<1, 2, 3, 4, 5>>));\n"
+        "    Io.println(Io.show(take()))\n"
+        "}\n"),
+    ?assertEqual(<<"#(Some(<<1, 2>>), None)\nSome(<<1, 2, 3, 4>>)\n">>, Out).
+
 %% report §5.11: the report's frame round trip, sub-octet fields, utf8,
 %% float and signed and little segments, a dynamic size in a pattern, and
 %% an unaligned rest that fails the match

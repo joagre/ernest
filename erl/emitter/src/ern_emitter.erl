@@ -368,15 +368,19 @@ expr(#e_if{pos = Pos, condition = C, then_branch = T, else_branch = E}, Cx) ->
     {at(Pos, erl_syntax:case_expr(CF, [erl_syntax:clause([erl_syntax:atom(true)], none, TF),
                                        erl_syntax:clause([erl_syntax:atom(false)], none, EF)])),
      Cx3};
-expr(#e_match{pos = Pos, scrutinee = S, clauses = Clauses}, Cx) ->
+expr(#e_match{pos = Pos, scrutinee = S, clauses = Clauses0}, Cx) ->
     {SF, Cx1} = expr(S, Cx),
-    {Form, Cx2} = match_clauses(SF, Clauses, Cx1),
-    {at(Pos, Form), Cx2};
+    %% report §5.11: a top-level `let` a pattern's size names is read into a
+    %% variable before the match
+    {Clauses, {Reads, Cx2}} = lists:mapfoldl(fun read_sizes/2, {[], Cx1}, Clauses0),
+    {Form, Cx3} = match_clauses(SF, Clauses, Cx2),
+    {at(Pos, with_binds(Reads, Form)), Cx3};
 expr(#e_receive{pos = Pos, clauses = Clauses0, 'after' = After}, Cx0) ->
     %% report §6.3: a receive guard is a guard expression, which the
     %% checker holds it to, so it is an Erlang guard here, a top-level `let`
-    %% it names read into a variable before the receive; a message from a
-    %% foreign process was checked by the proxy that delivered it (§8.4)
+    %% it names, or a pattern's size names (§5.11), read into a variable
+    %% before the receive; a message from a foreign process was checked by
+    %% the proxy that delivered it (§8.4)
     {Clauses, {Reads, Cx}} = lists:mapfoldl(fun read_before/2, {[], Cx0}, Clauses0),
     {Parts, Cx1} = lists:mapfoldl(fun simple_clauses/2, Cx, Clauses),
     {Binds0, OwnForms} = join_parts(Parts),
@@ -421,13 +425,40 @@ expr(#e_receive{pos = Pos, clauses = Clauses0, 'after' = After}, Cx0) ->
 exprs(Es, Cx) ->
     lists:mapfoldl(fun expr/2, Cx, Es).
 
-%% Report §6.3: each top-level `let` a receive clause's guard names, read
-%% into a fresh variable that the guard names in its place.
-read_before(#clause{guard = undefined} = C, Acc) ->
+%% Report §6.3, §5.11: each top-level `let` a receive clause's guard or its
+%% pattern's sizes name, read into a fresh variable that names it in its
+%% place.
+read_before(C, Acc) ->
+    {C1, Acc1} = read_sizes(C, Acc),
+    read_guard(C1, Acc1).
+
+read_guard(#clause{guard = undefined} = C, Acc) ->
     {C, Acc};
-read_before(#clause{guard = G} = C, Acc) ->
+read_guard(#clause{guard = G} = C, Acc) ->
     {G1, Acc1} = read_top(G, Acc),
     {C#clause{guard = G1}, Acc1}.
+
+%% Report §5.11: each top-level `let` a clause's pattern names in a size.
+read_sizes(#clause{pattern = P} = C, Acc) ->
+    {P1, Acc1} = sizes_read(P, Acc),
+    {C#clause{pattern = P1}, Acc1}.
+
+sizes_read(#bit_seg{specs = Specs} = S, Acc) ->
+    {Specs1, Acc1} = lists:mapfoldl(fun({size, E}, A) ->
+                                            {E1, A1} = read_top(E, A),
+                                            {{size, E1}, A1};
+                                       (Spec, A) ->
+                                            {Spec, A}
+                                    end, Acc, Specs),
+    {S#bit_seg{specs = Specs1}, Acc1};
+sizes_read(T, Acc) when is_tuple(T), tuple_size(T) > 0, is_atom(element(1, T)) ->
+    [Tag | Fields] = tuple_to_list(T),
+    {Fields1, Acc1} = lists:mapfoldl(fun sizes_read/2, Acc, Fields),
+    {list_to_tuple([Tag | Fields1]), Acc1};
+sizes_read(L, Acc) when is_list(L) ->
+    lists:mapfoldl(fun sizes_read/2, Acc, L);
+sizes_read(X, Acc) ->
+    {X, Acc}.
 
 read_top(#e_binop{left = L, right = R} = B, Acc) ->
     {L1, Acc1} = read_top(L, Acc),
@@ -436,6 +467,9 @@ read_top(#e_binop{left = L, right = R} = B, Acc) ->
 read_top(#e_not{expr = X} = N, Acc) ->
     {X1, Acc1} = read_top(X, Acc),
     {N#e_not{expr = X1}, Acc1};
+read_top(#e_neg{expr = X} = N, Acc) ->
+    {X1, Acc1} = read_top(X, Acc),
+    {N#e_neg{expr = X1}, Acc1};
 read_top(#e_var{ref = Ref} = V, {Reads, Cx}) when Ref =/= var ->
     {Form, Cx1} = expr(V, Cx),
     {[E], Cx2} = fresh_vars(1, "Read", Cx1),

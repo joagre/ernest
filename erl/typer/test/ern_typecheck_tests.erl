@@ -2041,27 +2041,32 @@ receive_guard_ordering_test() ->
 bitstring_size_shape_test() ->
     ?assertEqual(ok, ok("fn f(b : Bytes, n : Int) = match b {"
                         " <<k, rest:size(k * 8 + n - 1)-bytes-unit(1)>> -> rest | _ -> b }")),
-    ?assertEqual("a size in a pattern is a variable, an Int literal, or `+`, `-`, `*` of them",
+    ?assertEqual("a size in a pattern is a variable, a top-level `let`, an Int literal, or `+`,"
+                 " `-`, `*` of them",
                  err("fn f(b : Bytes) = match b {"
                      " <<n, rest:size(List.size([n]))-bytes>> -> rest | _ -> b }")),
-    ?assertEqual("a size in a pattern is a variable, an Int literal, or `+`, `-`, `*` of them",
+    ?assertEqual("a size in a pattern is a variable, a top-level `let`, an Int literal, or `+`,"
+                 " `-`, `*` of them",
                  err("fn f(b : Bytes) = match b { <<n, rest:size(n / 2)-bytes>> -> rest"
                      " | _ -> b }")).
 
 %% report §5.11: a pattern's size may name a block `let`'s variable or one a
-%% lambda captures, as a parameter; a top-level `let` is no variable, and
-%% one bound elsewhere in the same pattern, outside the bitstring, is not
-%% in scope. A regression test: the checker conformed before it was
-%% written. It does not cover a receive clause's pattern.
+%% lambda captures, as a parameter, and a top-level `let`, of this module or
+%% another; one bound elsewhere in the same pattern, outside the bitstring,
+%% is not in scope, and the error says so. A regression test for the
+%% variables: the checker conformed before it was written. It does not
+%% cover a receive clause's pattern, which the emitter's test runs.
 bitstring_size_variables_test() ->
     ?assertEqual(ok, ok("fn f(n : Int, b : Bytes) : Int ="
                         " { let k = n; match b { <<x:size(k)>> -> x | _ -> 0 } }")),
     ?assertEqual(ok, ok("fn f(n : Int) : (Bytes) -> Int ="
                         " fn(b) = match b { <<x:size(n)>> -> x | _ -> 0 }")),
-    ?assertEqual("a size in a pattern is a variable, an Int literal, or `+`, `-`, `*` of them",
-                 err("let k = 8\nfn f(b : Bytes) : Int ="
-                     " match b { <<x:size(k)>> -> x | _ -> 0 }")),
-    ?assertEqual("unknown name k",
+    ?assertEqual(ok, ok("let k = 8\nfn f(b : Bytes) : Int ="
+                        " match b { <<x:size(k)>> -> x | _ -> 0 }")),
+    ?assertEqual(ok, ok("let k = 8\nfn f(b : Bytes) : Int ="
+                        " match b { <<x:size(k * 2 - -k)>> -> x | _ -> 0 }")),
+    ?assertEqual("k is bound in the same pattern, and a size names a variable an earlier segment"
+                 " of its bitstring binds, or one bound before the pattern",
                  err("fn f(p : #(Int, Bytes)) : Int ="
                      " match p { #(k, <<x:size(k)-bytes>>) -> k | _ -> 0 }")).
 

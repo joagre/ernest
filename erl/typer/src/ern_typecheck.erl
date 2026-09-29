@@ -2719,6 +2719,7 @@ statement_unit(X, T, #env{st = St, rigid = Rigid} = Env) ->
 %%
 
 check_pattern(P, Env) ->
+    sizes_see_no_sibling(P, Env),
     {TypedP, T, Bindings, Env1} = pat(P, Env),
     Names = [N || {N, _} <- Bindings],
     case Names -- lists:usort(Names) of
@@ -2924,20 +2925,65 @@ size_expr(Specs, Env) ->
                            {Other, En}
                    end, Env, Specs).
 
-%% Report §5.11: a size in a pattern is a variable, a literal, or +, -, * of
-%% them, since the runtime evaluates it while matching.
+%% Report §5.11: a size in a pattern is a variable, a top-level `let`, a
+%% literal, or +, -, * of them, since the runtime evaluates it while
+%% matching; the `match` or `receive` reads a top-level `let` before it.
 size_shape(E, Env) ->
     size_expression(E, Env) orelse
-        fail(node_span(E), "a size in a pattern is a variable, an Int literal, or `+`, `-`, `*`"
-                           " of them").
+        fail(node_span(E), "a size in a pattern is a variable, a top-level `let`, an Int"
+                           " literal, or `+`, `-`, `*` of them").
 
 size_expression(#e_lit{kind = int}, _) -> true;
-size_expression(#e_var{path = [], name = N}, #env{vars = Vs}) -> maps:is_key(N, Vs);
+size_expression(#e_var{path = [], name = N}, #env{vars = Vs}) when is_map_key(N, Vs) -> true;
+size_expression(#e_var{ref = Ref}, Env) -> top_let(Ref, Env);
 size_expression(#e_neg{expr = E}, Env) -> size_expression(E, Env);
 size_expression(#e_binop{op = Op, left = L, right = R}, Env) when Op =:= '+'; Op =:= '-';
                                                                 Op =:= '*' ->
     size_expression(L, Env) andalso size_expression(R, Env);
 size_expression(_, _) -> false.
+
+%% Report §5.11: a variable bound elsewhere in the same pattern is not in
+%% scope in its sizes, only one an earlier segment of the same bitstring
+%% binds; a size that names one is refused as such, where it would
+%% otherwise be an unknown name.
+sizes_see_no_sibling(P, Env) ->
+    Bound = ern_ast:walk(fun(#p_var{pos = Pos, name = N}, Acc) -> Acc ++ [{N, Pos}];
+                            (#p_as{pos = Pos, name = N}, Acc) -> Acc ++ [{N, Pos}];
+                            (_, Acc) -> Acc
+                         end, P, []),
+    ern_ast:walk(fun(#p_bits{segments = Segs}, ok) ->
+                         lists:foldl(fun(#bit_seg{value = V, specs = Specs}, Earlier) ->
+                                         [sibling_size(X, Bound, Earlier, Env)
+                                          || {size, S} <- Specs,
+                                             X <- ern_ast:walk(fun size_vars/2, S, [])],
+                                         Own = #{N => true || #p_var{name = N} <- [V]},
+                                         maps:merge(Earlier, Own)
+                                     end, #{}, Segs),
+                         ok;
+                    (_, ok) -> ok
+                 end, P, ok).
+
+size_vars(#e_var{path = [], name = _} = V, Acc) -> Acc ++ [V];
+size_vars(_, Acc) -> Acc.
+
+sibling_size(#e_var{pos = Pos, name = N}, Bound, Earlier, Env) ->
+    case lists:keyfind(N, 1, Bound) of
+        {N, At} when not is_map_key(N, Earlier) ->
+            Name = atom_to_list(N),
+            known_name(N, Env) orelse
+                fail(Pos, Name ++ " is bound in the same pattern, and a size names a variable an"
+                          " earlier segment of its bitstring binds, or one bound before the"
+                          " pattern",
+                     [{ern_diag:span(At), Name ++ " is bound here"}],
+                     "match the bitstring in a `match` of its own, once " ++ Name ++ " is bound");
+        _ ->
+            true
+    end.
+
+%% Whether an unqualified name is bound where the pattern stands.
+known_name(N, #env{vars = Vs, local_values = LV, globals = Gs} = Env) ->
+    is_map_key(N, Vs) orelse is_map_key(N, LV) orelse is_map_key([N], Gs)
+        orelse session(values, N, Env) =/= error.
 
 segment_type(#{kind := int}) -> ?INT;
 segment_type(#{kind := float}) -> ?FLOAT;

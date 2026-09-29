@@ -70,8 +70,9 @@ discussed with the user one at a time as they are met.
    written `T.name` (§4.2), `Optional` and `Either` holding a reply (§6.6), a `receive` guard
    reading a top-level `let` (§6.3), a lambda bound by `let` generalized (§4.6), the
    supervisor's restart on request kept as it is (§6.9), a claim of the terminal the other
-   way faulting the process that makes it (§8.2), and `Tcp.write` and `Os.write` answering
-   `Either(Io.Error, Unit)` (E.18, E.23); the diagnostics' positions and labels
+   way faulting the process that makes it (§8.2), `Tcp.write` and `Os.write` answering
+   `Either(Io.Error, Unit)` (E.18, E.23), and a pattern's size reading a top-level `let`, a
+   variable its own pattern binds still refused (§5.11); the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
