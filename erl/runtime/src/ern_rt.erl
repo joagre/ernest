@@ -402,17 +402,16 @@ reaper_loop(Waiters, Watching, Watched) ->
         {end_program, From, Ref} ->
             ended_program(From, Ref);
         {'DOWN', _MRef, process, Pid, Reason} ->
-            case ets:lookup(?PROCESSES, Pid) of
+            case ets:take(?PROCESSES, Pid) of
                 [{_, Site, _, _}] ->
-                    ets:delete(?PROCESSES, Pid),
                     %% its pending call, which a process killed while it
                     %% waited leaves; a caller learns of a callee's end by
                     %% its own monitor, and removes its own
                     ets:delete(?CALLS, Pid),
                     died(Pid, Site, Reason),
-                    Down = {'Down', reason(Reason), Site},
                     lists:foreach(fun({To, {raw, Tag}}) -> To ! {Tag, Site, Reason};
-                                     ({To, Wrap}) -> wrapped(To, Wrap, Down)
+                                     ({To, Wrap}) ->
+                                          wrapped(To, Wrap, {'Down', reason(Reason), Site})
                                   end, maps:get(Pid, Waiters, []));
                 [] ->
                     %% report §6.9: the spawn site of a process the runtime
@@ -424,13 +423,21 @@ reaper_loop(Waiters, Watching, Watched) ->
                 _ ->
                     ok
             end,
-            %% its waiters no longer await it, and its own waits go
-            Watching1 = lists:foldl(fun({To, _}, W) -> forgotten(To, Pid, W) end,
-                                    maps:remove(Pid, Watching), maps:get(Pid, Waiters, [])),
-            {Waiters1, Watched1} = unwatched(Pid, maps:get(Pid, Watching, []),
-                                             maps:remove(Pid, Waiters),
-                                             maps:remove(Pid, Watched)),
-            reaper_loop(Waiters1, Watching1, Watched1)
+            case is_map_key(Pid, Waiters) orelse is_map_key(Pid, Watching)
+                orelse is_map_key(Pid, Watched) of
+                false ->
+                    %% nothing awaited it, and it awaited nothing
+                    reaper_loop(Waiters, Watching, Watched);
+                true ->
+                    %% its waiters no longer await it, and its own waits go
+                    Watching1 = lists:foldl(fun({To, _}, W) -> forgotten(To, Pid, W) end,
+                                            maps:remove(Pid, Watching),
+                                            maps:get(Pid, Waiters, [])),
+                    {Waiters1, Watched1} = unwatched(Pid, maps:get(Pid, Watching, []),
+                                                     maps:remove(Pid, Waiters),
+                                                     maps:remove(Pid, Watched)),
+                    reaper_loop(Waiters1, Watching1, Watched1)
+            end
     after 100 ->
         case deadlocked() of
             true ->

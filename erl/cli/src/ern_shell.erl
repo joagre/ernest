@@ -401,8 +401,11 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                 decls -> mentions(Iface, Ns);
                 _ -> []
             end,
+    %% the keys its top-level lets are stored under (report §8.5), which go
+    %% when it does
+    Keys = [{Mod, ern_emitter:function_name(O, N)} || #let_decl{owner = O, name = N} <- Typed],
     set_uses(maps:put(Mod, {Ns, lists:usort([M || {M, _, _} <- Imports, session_module(M),
-                                                  M =/= Mod] ++ Named)},
+                                                  M =/= Mod] ++ Named), Keys},
                       uses())),
     set_names(maps:put(Mod, Where, names_of_inputs())),
     %% report §11.2: an input that declares keeps its module for `:doc`;
@@ -1854,9 +1857,9 @@ bind(Env, decls, Ns, _Value, _Type, _TEnv, Iface) ->
     %% the functions its own values hold join what the input needs
     Mod = ern_emitter:module_atom(Ns),
     Held = lists:foldl(fun({_, V}, Acc) -> fun_modules(V, Acc) end, [], stored(Mod)),
-    {Ns, Needs} = maps:get(Mod, uses()),
+    {Ns, Needs, Keys} = maps:get(Mod, uses()),
     set_uses(maps:put(Mod, {Ns, lists:usort(Needs ++ [M || M <- Held, session_module(M),
-                                                           M =/= Mod])},
+                                                           M =/= Mod]), Keys},
                       uses())),
     session(Env, Iface);
 bind(Env, it, _Ns, Value, Type, TEnv, _Iface) ->
@@ -1915,7 +1918,8 @@ bound(#env{holders = N, free_holders = Free} = Env0, Bound, TEnv) ->
     Iface = #iface{namespace = Holder, values = Values, lets = [Holder ++ [Name] || Name <- Names]},
     Held = lists:foldl(fun({_, Value, _}, Acc) -> fun_modules(Value, Acc) end, [], Bound),
     set_uses(maps:put(Mod, {Holder, lists:usort([M || M <- Held, session_module(M)]
-                                                ++ mentions(Iface, Holder))},
+                                                ++ mentions(Iface, Holder)),
+                            [{Mod, Name} || Name <- Names]},
                       uses())),
     session(Env, Iface).
 
@@ -1948,7 +1952,7 @@ collected(#env{ifaces = Ifaces, session = S, beams = Beams, free_holders = Free,
                                                  Q <- maps:values(maps:get(Which, S, #{})),
                                                  session_segment(hd(Q))],
     Live = reached(Named ++ Old, Uses, #{}),
-    Dead = [Ns || M := {Ns, _} <- Uses, not is_map_key(M, Live)],
+    Dead = [Ns || M := {Ns, _, _} <- Uses, not is_map_key(M, Live)],
     lists:foreach(fun(Ns) -> code:delete(ern_emitter:module_atom(Ns)) end, Dead),
     {DeadHolders, DeadInputs} = lists:partition(fun([Seg]) -> holder_number(Seg) =/= none end,
                                                 Dead),
@@ -1968,10 +1972,13 @@ collected(#env{ifaces = Ifaces, session = S, beams = Beams, free_holders = Free,
             free_holders = Free ++ [holder_number(H) || H <- Purged],
             draining = Held}.
 
-%% The values a module's top-level bindings hold, each under its key, as
-%% the emitter keeps them (report §8.5).
+%% The values a session module's top-level bindings hold, each under its
+%% key, as the emitter keeps them (report §8.5): read by the module's own
+%% keys, and not by every term the node holds, which reading would copy.
 stored(Mod) ->
-    [{Key, V} || {{M, _} = Key, V} <- persistent_term:get(), M =:= Mod].
+    {_, _, Keys} = maps:get(Mod, uses()),
+    Missing = make_ref(),
+    [{Key, V} || Key <- Keys, V <- [persistent_term:get(Key, Missing)], V =/= Missing].
 
 %% The session's modules the given ones reach, through what each needs.
 reached([], _Uses, Live) ->
@@ -1980,7 +1987,7 @@ reached([M | Rest], Uses, Live) when is_map_key(M, Live) ->
     reached(Rest, Uses, Live);
 reached([M | Rest], Uses, Live) ->
     Needs = case Uses of
-                #{M := {_, N}} -> N;
+                #{M := {_, N, _}} -> N;
                 _ -> []
             end,
     reached(Needs ++ Rest, Uses, Live#{M => true}).
@@ -2018,8 +2025,9 @@ session_module(M) ->
     lists:prefix("ern@$bindings", Name) orelse lists:prefix("ern@$input", Name).
 
 %% What each session module needs of the others, by the module: the
-%% namespace it is, and the session's modules its code calls, whose types
-%% its interface names, and whose functions its values hold.
+%% namespace it is, the session's modules its code calls, whose types its
+%% interface names, and whose functions its values hold, and the keys its
+%% top-level bindings are stored under.
 uses() ->
     persistent_term:get({?MODULE, uses}, #{}).
 

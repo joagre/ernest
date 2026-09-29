@@ -111,9 +111,42 @@ trim_start(S) ->
 %% White_Space.
 -spec trim_end(binary()) -> binary().
 trim_end(S) ->
-    Kept = lists:dropwhile(fun(G) -> ern_char:is_space(first(G)) end,
-                           lists:reverse(string:to_graphemes(S))),
-    unicode:characters_to_binary(lists:reverse(Kept)).
+    From = word_byte(S, byte_size(S) - 1),
+    <<_:From/binary, Tail/binary>> = S,
+    binary:part(S, 0, byte_size(S) - dropped(lists:reverse(string:to_graphemes(Tail)), 0)).
+
+%% The offset of the last ASCII byte that is not White_Space, or 0. No
+%% ASCII code point extends a grapheme or is prepended to one, so the
+%% grapheme it is in begins with no White_Space, and the graphemes after it
+%% are the host's graphemes of the tail from it: only the tail is split.
+word_byte(_, -1) ->
+    0;
+word_byte(S, I) ->
+    case binary:at(S, I) of
+        C when C < 16#80 ->
+            case ern_char:is_space(C) of
+                true -> word_byte(S, I - 1);
+                false -> I
+            end;
+        _ ->
+            word_byte(S, I - 1)
+    end.
+
+%% The octets of the graphemes, last first, that begin with White_Space.
+dropped([G | Gs], N) ->
+    case ern_char:is_space(first(G)) of
+        true -> dropped(Gs, N + octets(G));
+        false -> N
+    end;
+dropped([], N) ->
+    N.
+
+%% A grapheme's length in UTF-8, a code point or a list of them.
+octets(Cs) when is_list(Cs) -> lists:sum([octets(C) || C <- Cs]);
+octets(C) when C < 16#80 -> 1;
+octets(C) when C < 16#800 -> 2;
+octets(C) when C < 16#10000 -> 3;
+octets(_) -> 4.
 
 first([C | _]) -> C;
 first(C) -> C.
@@ -135,13 +168,32 @@ to_int_base(S, Base) ->
 %% §3.1: "-0.0" reads as 0.0
 -spec to_float(binary()) -> {'Some', float()} | 'None'.
 to_float(S) ->
-    case re:run(S, "^-?[0-9]+\\.[0-9]+([eE][+-]?[0-9]+)?$") of
-        nomatch -> 'None';
-        _ ->
+    case float_form(S) of
+        true ->
             try {'Some', binary_to_float(S) + 0.0}
             catch error:badarg -> 'None'
-            end
+            end;
+        false ->
+            'None'
     end.
+
+%% Digits, a point, digits, and an exponent that may follow, `e` or `E`,
+%% a sign that may, and digits; a minus may lead.
+float_form(<<"-", Rest/binary>>) -> digits(Rest, point);
+float_form(S) -> digits(S, point).
+
+%% At least one digit, then Next: the point, the exponent, or the end.
+digits(<<C, Rest/binary>>, Next) when C >= $0, C =< $9 -> more_digits(Rest, Next);
+digits(_, _) -> false.
+
+more_digits(<<C, Rest/binary>>, Next) when C >= $0, C =< $9 -> more_digits(Rest, Next);
+more_digits(<<".", Rest/binary>>, point) -> digits(Rest, exponent);
+more_digits(<<E, Sign, Rest/binary>>, exponent) when (E =:= $e orelse E =:= $E),
+                                                    (Sign =:= $+ orelse Sign =:= $-) ->
+    digits(Rest, done);
+more_digits(<<E, Rest/binary>>, exponent) when E =:= $e; E =:= $E -> digits(Rest, done);
+more_digits(<<>>, Next) -> Next =/= point;
+more_digits(_, _) -> false.
 
 -spec to_list(binary()) -> [char()].
 to_list(S) -> unicode:characters_to_list(S).

@@ -159,6 +159,16 @@ string_graphemes_test() ->
     ?assertEqual(<<"\x{200e}a"/utf8>>, S:trimStart(<<" \x{200e}a"/utf8>>)),
     ?assertEqual(<<"a ">>, S:trimStart(<<"\r\n a ">>)),
     ?assertEqual(<<" a">>, S:trimEnd(<<" a \r\n">>)),
+    %% report Appendix E.5: a grapheme is removed by its first code point, a
+    %% space that a combining mark joins among them, and one a prepended
+    %% code point begins is kept; the fast pass over ASCII meets none of
+    %% them. A regression test for the pass that replaced a list of every
+    %% grapheme, 34 times the host's trim over 100 KB
+    ?assertEqual(<<"a">>, S:trimEnd(<<"a \x{301}\t"/utf8>>)),
+    ?assertEqual(<<"a\x{600} "/utf8>>, S:trimEnd(<<"a\x{600} \n"/utf8>>)),
+    ?assertEqual(<<"é"/utf8>>, S:trimEnd(<<"é\x{3000}"/utf8>>)),
+    ?assertEqual(<<>>, S:trimEnd(<<" \r\n\x{2028}"/utf8>>)),
+    ?assertEqual(<<>>, S:trimEnd(<<>>)),
     ?assertEqual(<<"SS">>, S:toUpper(<<"ß"/utf8>>)),
     ?assertEqual(<<"σασ"/utf8>>, S:toLower(<<"ΣΑΣ"/utf8>>)),
     ?assertEqual('Less', S:compare(<<"z">>, <<"é"/utf8>>)).
@@ -216,6 +226,13 @@ string_test() ->
     ?assertEqual('None', S:toFloat(<<"1">>)),
     ?assertEqual('None', S:toFloat(<<"1e5">>)),
     ?assertEqual('None', S:toFloat(<<"1.0e999">>)),
+    %% the form read by a scan of its own, which a pattern once checked; a
+    %% regression test for the edges of the form
+    ?assertEqual({'Some', 150.0}, S:toFloat(<<"1.5E+2">>)),
+    ?assertEqual({'Some', 0.0}, S:toFloat(<<"-0.0">>)),
+    [?assertEqual('None', S:toFloat(T)) || T <- [<<"1.">>, <<".5">>, <<"1.5e">>, <<"1.5e+">>,
+                                                 <<"1.5.3">>, <<"--1.5">>, <<"+1.5">>,
+                                                 <<"1.5 ">>, <<"-">>, <<>>]],
     ?assertEqual(<<"ABC">>, S:toUpper(<<"abC">>)),
     ?assertEqual([$a, $b], S:toList(<<"ab">>)),
     ?assertEqual(<<"ab">>, S:fromList([$a, $b])),

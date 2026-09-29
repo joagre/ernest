@@ -103,17 +103,17 @@ discussed with the user one at a time as they are met.
    the user, and an address sent in a message to a foreign process crossing as a foreign
    function's argument does, a defect, both done 2026-09-30 (§7.4, §8.4; the log's *A Value
    Is Checked Where It Crosses*); `spawn`, `monitor` and a call's row kept in the reaper and
-   its table, decided with the user 2026-09-30, the reaper's work at a process's end cut
-   toward the 4.2 µs the same protocol costs in Erlang, by 2026-09-30 (§6.2, §6.6, §6.9,
-   §8.6); the decision for the user in this item of what order `RestForOne` reads (E.22),
-   since a child joins when it first runs, so children spawned in one order join in the
-   scheduler's, which `examples/services.ern` met, with the order of spawns recommended; and
-   two defects fixed in it by 2026-09-30: `String.trimEnd` reads
-   the whole string as graphemes, 34 times the host's trim over 100 KB, to be cut at the last
-   code point that is not White_Space, read back from the end, with the grapheme boundary
-   settled around it; and the shell reads every persistent term at each input it purges, to
-   be read by the input's own keys; the
-   diagnostics' positions and labels
+   its table, decided with the user, and the reaper's work at a process's end cut, `spawn`
+   at 4.9 to 5.1 µs against 4.2 for the same protocol in Erlang (§6.2, §6.6, §6.9, §8.6; the
+   log's *Supervision Stays in the Reaper*), `String.trimEnd` splitting only the tail that
+   could go, `String.toFloat` reading its form by a scan, and the shell reading a purged
+   input's own keys, done 2026-09-30 (the log's *Three Scans on a Value*); two decisions for
+   the user in this item, one at a time: what order `RestForOne` reads (E.22), since a child
+   joins when it first runs, so children spawned in one order join in the scheduler's, which
+   `examples/services.ern` met, with the order of spawns recommended; and whether `Char`'s
+   predicates read the host's `unicode_util`, whose documentation hides it, rather than a
+   regular expression 30 to 100 times slower (E.6), recommended; the diagnostics' positions
+   and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
