@@ -58,6 +58,10 @@ export fn Operations.map(set : s,
 export fn union(a : Set(e), b : Set(e)) : Set(e) =
     Operations.union(a, b, setOperations())
 
+// ordered.ern: a record that holds another
+export type Operations(s, e) =
+    Operations(set : Set.Operations(s, e), min : (s) -> Optional(e), max : (s) -> Optional(e))
+
 // ordered_set.ern: an ordered set is its elements, in their type's order
 export abstract type OrderedSet(e) = OrderedSet(List(e))
 
@@ -75,8 +79,16 @@ fn inserted(xs : List(e), x : e) : List(e) =
 export fn min(OrderedSet(xs) : OrderedSet(e)) : Optional(e) =
     List.get(xs, 0)
 
+export fn max(OrderedSet(xs) : OrderedSet(e)) : Optional(e) =
+    List.last(xs)
+
 export fn setOperations() : Set.Operations(OrderedSet(e), e) =
-    Set.Operations(empty = empty, put = put, ...)
+    Set.Operations(empty = empty,
+                   size = size,
+                   contains = contains,
+                   put = put,
+                   remove = remove,
+                   toList = toList)
 
 export fn orderedOperations() : Ordered.Operations(OrderedSet(e), e) =
     Ordered.Operations(set = setOperations(), min = min, max = max)
@@ -142,4 +154,4 @@ Type classes contain the proposal: the ordering restriction is one class with fi
 
 ## Open question
 
-- **Representation.** Structural `==` needs one shape per set. A sorted list has one, but `put` and `contains` are linear. A balanced tree's shape depends on the order of insertion. A treap with hash-derived priorities has one shape and logarithmic operations, but needs a hash the standard library lacks.
+- **Representation.** Structural `==` needs one shape per set. `Set` has one, being the runtime's map, whose `==` is by content. For `OrderedSet`, a sorted list has one, but `put` and `contains` are linear. A balanced tree's shape depends on the order of insertion. A treap with hash-derived priorities has one shape and logarithmic operations, but needs a hash the standard library lacks.

@@ -9,4 +9,4 @@ What a release runs to be ready, and nothing else. Between releases a change run
    - **A newcomer:** N, with a program no earlier newcomer wrote.
    - **The code:** C, E and S as one reader, over what changed in `erl/`, `stdlib/`, `shell/` and `libs/` since the last release.
 4. **The findings:** a defect is fixed, or planned in a milestone; clarity is fixed where it is cheap, and otherwise dropped.
-5. **The release notes,** what changed since the last release, and then the tag.
+5. **The release notes,** what changed since the last release and the newcomer's program, and then the tag.

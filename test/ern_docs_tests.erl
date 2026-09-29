@@ -111,8 +111,9 @@ adds(Bin) ->
 %% docs/style.md, docs/development.md "The layout of the repository": a document that says
 %% where things are names things that are there, from the repository's root
 %% or, as shell/README.md does, from its own directory. The report and the
-%% guide name paths a program might have, `net/http.ern`, and the plan
-%% paths not yet written, so every other document is checked.
+%% guide name paths a program might have, `net/http.ern`, the plan
+%% paths not yet written, and the findings' lists the paths of the tree
+%% their readers read, so every other document is checked.
 document_paths_test() ->
     Missing = [{F, P} || F <- described(), P <- paths(read(F)),
                          not exists(P), not exists(filename:join(filename:dirname(F), P))],
@@ -130,7 +131,7 @@ documents() ->
 
 %% The documents that describe the repository as it is.
 described() ->
-    documents() -- ["ernest_report.md", "docs/implementation_plan.md"].
+    documents() -- ["ernest_report.md", "docs/implementation_plan.md", "docs/findings.md"].
 
 %% A backticked path under one of the repository's own directories. A
 %% metavariable is written `<name>`, as docs/style.md writes `ern_<thing>`,
