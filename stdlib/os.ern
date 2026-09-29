@@ -70,7 +70,8 @@ export type Finished = Finished(status : Int, stdout : Bytes, stderr : Bytes)
 /// Os.start(Os.Command(program = "cat", arguments = [], input = <<>>), 5000)
 /// ```
 export abstract type ProgramMsg =
-    Read(reply : Reply(Either(Io.Error, Output))) | Write(bytes : Bytes, reply : Reply(Unit))
+    Read(reply : Reply(Either(Io.Error, Output)))
+  | Write(bytes : Bytes, reply : Reply(Unit))
   | CloseInput
 
 // What Os's system process takes: a program to start, with the process

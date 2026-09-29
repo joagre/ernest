@@ -3,10 +3,10 @@
 %%
 %% Values follow the ABI of report §8.4. The type
 %%
-%%   type CounterMsg
-%%       = Inc(Int)
-%%       | Get(reply : Reply(Int))
-%%       | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
+%%   type CounterMsg =
+%%       Inc(Int)
+%%     | Get(reply : Reply(Int))
+%%     | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 %%
 %% has no code of its own; its constructors are the tuples
 %%
@@ -43,7 +43,7 @@
 %%     }
 %% }
 main() ->
-    C = ern_rt:spawn('Local', fun() -> counter(0) end, <<"Counter.main:16">>),
+    C = ern_rt:spawn('Local', fun() -> counter(0) end, <<"Counter.main:17">>),
     ern_rt:send(C, {'Inc', 5}),
     ern_rt:send(C, {'Inc', 3}),
     case ern_boundary:value('$type_1'(), ern_rt:call(C, fun(R) -> {'Get', R} end, 1000),

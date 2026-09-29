@@ -64,15 +64,21 @@ export abstract type Msg =
     Join(process : Process,
          stop : () -> Unit with Watch,
          watch : ((Down) -> Watch) -> Unit with Watch,
-         reply : Reply(Unit)) | Faulted(process : Process, reply : Reply(Optional(Address(Watch))))
-  | WatcherIs(Address(Watch)) | Expired(Int)
+         reply : Reply(Unit))
+  | Faulted(process : Process, reply : Reply(Optional(Address(Watch))))
+  | WatcherIs(Address(Watch))
+  | Expired(Int)
 
 // What the watcher takes: a child to watch, the children in the order they
 // joined, the number of a new run of the supervisor, a child that ended,
 // the supervisor's end, and a child that waits for either of the last two.
 type Watch =
-    Add(Member) | Members(reply : Reply(List(Process))) | Run(reply : Reply(Int)) | Gone(Process)
-  | SupervisorDied | Hold(reply : Reply(Unit))
+    Add(Member)
+  | Members(reply : Reply(List(Process)))
+  | Run(reply : Reply(Int))
+  | Gone(Process)
+  | SupervisorDied
+  | Hold(reply : Reply(Unit))
 
 // The replies of the children that wait, which the watcher holds until the
 // supervisor's next run or its end.

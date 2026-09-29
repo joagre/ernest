@@ -112,7 +112,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — no way to wait without a limit is said; `accept` and `read` repeat on `Timeout` (N6): fixed 2026-09-29, §2.9
 - done — how to show an `Io.Error` to a user (N7): fixed 2026-09-29, §2.9: a `match` in the program's own words, as the shell's `trouble` does
 - done — README: an example, compiled by `readme_examples_test_`; the unbuilt bullet cut, in the guide's list as well; a clone line; "§14 says what each shows" says the larger ones; Gleam and Unison stay, since the sentence that names them says what each gives (N9)
-- 2.98 — `ern format` re-joins a split type; `Clock.now` untaught; `ern shell prog.erc` and `Os.arguments` (N10): `Clock.now` and `Os.arguments` fixed 2026-09-29; whether a type that breaks takes one alternative a line, as a `match` does, rather than filling its lines, is a question for the user
+- done — `ern format` re-joins a split type; `Clock.now` untaught; `ern shell prog.erc` and `Os.arguments` (N10): `Clock.now` and `Os.arguments` fixed 2026-09-29; a type that breaks now holds one alternative a line, decided with the user 2026-09-29 (`docs/style.md`; the log's *A Type That Breaks Holds One Alternative a Line*)
 - 2.98 — the language: sockets pull-only, mandatory timeouts, slow standard library calls, no bounded mailbox (N-L1..L6)
 
 ## Diagnostics (§11.5)

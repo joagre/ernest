@@ -11,7 +11,9 @@
 //
 
 type StoreMsg =
-    Put(key : String, value : Int) | Get(key : String, reply : Reply(Optional(Int))) | Corrupt
+    Put(key : String, value : Int)
+  | Get(key : String, reply : Reply(Optional(Int)))
+  | Corrupt
 
 type IdMsg = NextId(reply : Reply(Int))
 

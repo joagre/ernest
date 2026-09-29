@@ -1,9 +1,8 @@
 %% The layout ern_format builds, and the printer that lays it out in 100
 %% columns (report §11.6, docs/style.md). It is Wadler's prettier printer,
 %% evaluated strictly as Lindig's is, with what the style guide needs
-%% beside it: alignment to a column, a fill, a choice between two layouts
-%% made on the first line of the first, and a trailing comment that ends
-%% its line.
+%% beside it: alignment to a column, a choice between two layouts made on
+%% the first line of the first, and a trailing comment that ends its line.
 %%
 %% A doc is text, a list of docs one after the other, or one of these:
 %%   line, softline   a space or nothing on one line, a line break when
@@ -16,8 +15,6 @@
 %%   {group, D}       D on one line when that fits, else every break taken
 %%   {bracket, D}     a group, which a fit after it takes flat, so that of
 %%                    two brackets on a line the first breaks
-%%   {fill, Xs}       items and separators alternating; a separator breaks
-%%                    only where the item after it does not fit
 %%   {choice, K, A, B}  A when its first line fits and, for hug and
 %%                    branch, ends in a brace, or, for body, reaches its
 %%                    mark or ends in a brace or `then`, or, for
@@ -36,7 +33,6 @@
              | {align, doc()}
              | {group, doc()}
              | {bracket, doc()}
-             | {fill, [doc()]}
              | {choice, hug | branch | body | alternative, doc(), doc()}
              | {suffix, unicode:unicode_binary()}.
 
@@ -85,7 +81,6 @@ go([{I, M, D} | Rest], P) ->
                        false -> break
                    end,
             go([{I, Mode, X} | Rest], P);
-        {fill, Xs} -> fill(Xs, I, M, Rest, P);
         {choice, _, A, _} when M =:= flat -> go([{I, flat, A} | Rest], P);
         {choice, Kind, A, B} ->
             case accept(Kind, [{I, break, A} | Rest], P) of
@@ -94,23 +89,6 @@ go([{I, M, D} | Rest], P) ->
             end;
         {suffix, Text} -> go(Rest, P#p{suffix = [Text | P#p.suffix]})
     end.
-
-%% A fill lays each item out in the mode around it and breaks a separator
-%% only where the separator and the item after it do not fit flat.
-fill([], _I, _M, Rest, P) ->
-    go(Rest, P);
-fill([X], I, M, Rest, P) ->
-    go([{I, M, X} | Rest], P);
-fill([X, Sep, Y | Xs], I, flat, Rest, P) ->
-    go([{I, flat, X}, {I, flat, Sep}, {I, flat, {fill, [Y | Xs]}} | Rest], P);
-fill([X, Sep, Y | Xs], I, break, Rest, P) ->
-    P1 = go([{I, break, X}], P),
-    SepMode = case fits(?WIDTH - column(P1), [{I, flat, Sep}, {I, flat, Y}]) of
-                  true -> flat;
-                  false -> break
-              end,
-    P2 = go([{I, SepMode, Sep}], P1),
-    fill([Y | Xs], I, break, Rest, P2).
 
 %%
 %% Writing
@@ -224,7 +202,6 @@ fits(W, [{I, M, D} | Rest], Ended) ->
         {align, X} -> fits(W, [{I, M, X} | Rest], Ended);
         {group, X} -> fits(W, [{I, M, X} | Rest], Ended);
         {bracket, X} -> fits(W, [{I, flat, X} | Rest], Ended);
-        {fill, Xs} -> fits(W, [{I, M, X} || X <- Xs] ++ Rest, Ended);
         {choice, hug, A, _} -> fits(W, [{I, M, A} | Rest], Ended);
         {choice, _, A, _} when M =:= flat -> fits(W, [{I, M, A} | Rest], Ended);
         {choice, _, _, _} -> true;

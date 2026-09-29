@@ -9,7 +9,8 @@
 //
 
 type CounterMsg =
-    Inc(Int) | Get(reply : Reply(Int))
+    Inc(Int)
+  | Get(reply : Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
 export fn main() : Unit with m = {

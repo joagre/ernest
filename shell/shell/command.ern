@@ -8,13 +8,30 @@
 
 // What a command does.
 export type Action =
-    Bindings | Browse | Doc | Faults | Forget | Help | Load | Output | Processes | Quit | Reload
-  | Set | Type
+    Bindings
+  | Browse
+  | Doc
+  | Faults
+  | Forget
+  | Help
+  | Load
+  | Output
+  | Processes
+  | Quit
+  | Reload
+  | Set
+  | Type
 
 // Report §11.2: what completes after a command's name. A path is an
 // argument, but nothing completes it.
 export type Completes =
-    Expressions | Modules | SourceModules | Names | SessionNames | SettingWords | Paths
+    Expressions
+  | Modules
+  | SourceModules
+  | Names
+  | SessionNames
+  | SettingWords
+  | Paths
 
 // What a command takes after its name: nothing, a word it needs, named in
 // its refusal, or a word it allows.

@@ -25,7 +25,9 @@ type Change = Change(path : Path, mtime : Int)
 type Ack = Stored | Conflict | Failed(Io.Error)
 
 type SyncMsg =
-    Link(Address(SyncMsg)) | Tick | Listed(Either(Io.Error, List(Fs.Entry)))
+    Link(Address(SyncMsg))
+  | Tick
+  | Listed(Either(Io.Error, List(Fs.Entry)))
   | Put(path : Path, mtime : Int, bytes : Bytes, ack : Reply(Ack))
 
 //

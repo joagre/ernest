@@ -5049,6 +5049,10 @@ MVP 2.98's first batch settled the report's lines of `docs/findings.md`, and fiv
 
 The guide's answer to why a lambda is `fn(x) = e` and not `x -> e` had no entry here (U23). A lambda begins with `fn`, so the parser knows at its first token that one begins (principle 4); `x -> e` and `(x, y) -> e` read as a variable and a tuple until the arrow, which a parser can find only by looking past a whole pattern. It is a declaration's form with the name left out, one form for a function wherever it is written (principle 2), and its parameter list shows its arity, which §3.4 makes part of its type. `->` already ends a clause's pattern and a function type's parameters, and a third meaning would be one more for a reader to tell apart (principle 1).
 
+## A Type That Breaks Holds One Alternative a Line, 2026-09-29
+
+`ern format` broke a type whose alternatives did not fit after its `=` and filled the lines that followed, so where a line ended was decided by the width, and a reader could not run an eye down the constructors (N10). A type written one alternative a line came back joined. Every other list the layout breaks stands one item a line: a bracket's items, a `match`'s arms and a `receive`'s clauses. A reader who knows those expects a type's alternatives to do the same (principle 1), and one rule for a list that does not fit is one way where there were two (principle 2). Decided with the user: a type that breaks holds one alternative a line, its first after the `=` a step in and each further one led by its bar. What it costs is height, a line for each of many short tags where they do not fit on one; a doc block on a constructor had already put that constructor on a line of its own. The printer's fill had no other user and went with it.
+
 ## Erlang's Standard Library, Module by Module
 
 Where each user-facing OTP module stands, first read on 2026-09-18 (*The Erlang Standard Library, Read for Ernest*) and kept current since. What is not a row is OTP's own machinery, which Ernest's concepts or toolchain replace.

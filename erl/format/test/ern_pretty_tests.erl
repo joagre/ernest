@@ -23,15 +23,6 @@ align_and_nest_test() ->
     ?assertEqual(<<"x =\n    y\n">>,
                  ern_pretty:render([<<"x =">>, {nest, 4, [hardline, <<"y">>]}])).
 
-%% report §11.6: a fill breaks a separator only where the item after it
-%% does not fit
-fill_test() ->
-    Item = binary:copy(<<"x">>, 30),
-    Out = ern_pretty:render({fill, lists:join(line, [Item || _ <- lists:seq(1, 5)])}),
-    ?assertEqual([<<Item/binary, " ", Item/binary, " ", Item/binary>>,
-                  <<Item/binary, " ", Item/binary>>],
-                 binary:split(string:trim(Out), <<"\n">>, [global])).
-
 %% report §11.6: a hug takes its first layout where the first line fits and
 %% ends in a brace; a body takes its first where the body fits whole
 choice_test() ->

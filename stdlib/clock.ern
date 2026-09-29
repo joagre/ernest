@@ -21,7 +21,8 @@
 // the caller goes on only when it is counted as pending (report §8.6).
 type Msg =
     After(ms : Int, to : Address(Int), reply : Reply(Unit))
-  | At(at : Int, to : Address(Int), reply : Reply(Unit)) | Now(reply : Reply(Int))
+  | At(at : Int, to : Address(Int), reply : Reply(Unit))
+  | Now(reply : Reply(Int))
 
 // Report §8.2: the system reference, the runtime's address of the clock,
 // bound at each start.

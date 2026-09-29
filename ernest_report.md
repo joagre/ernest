@@ -618,7 +618,8 @@ A process replaces its code by a message in its own type that carries the new lo
 
 ```ernest
 type CounterMsg =
-    Inc(Int) | Get(reply : Reply(Int))
+    Inc(Int)
+  | Get(reply : Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
 fn counter(n : Int) : Unit with CounterMsg =
@@ -1029,7 +1030,8 @@ The counter of §6.10, with a `main` that sends it `Inc` and `Get`. §6.10 shows
 
 ```ernest
 type CounterMsg =
-    Inc(Int) | Get(reply : Reply(Int))
+    Inc(Int)
+  | Get(reply : Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
 export fn main() : Unit with m = {

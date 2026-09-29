@@ -47,8 +47,16 @@ export type Size = Size(rows : Int, columns : Int)
 /// // => true
 /// ```
 export type Event =
-    Key(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Enter | Escape | Interrupt
-  | Pasted(String) | Resized(Size)
+    Key(Char)
+  | ArrowUp
+  | ArrowDown
+  | ArrowLeft
+  | ArrowRight
+  | Enter
+  | Escape
+  | Interrupt
+  | Pasted(String)
+  | Resized(Size)
 
 // What the terminal takes.
 type Msg =

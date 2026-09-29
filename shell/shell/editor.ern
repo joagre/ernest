@@ -37,7 +37,12 @@ type Pending = Plain | Meta | Bracket
 type Search = Search(query : String, back : Int, from : Int, before : String, forward : Bool)
 
 export type Edit =
-    Typing(State) | Submit(State) | Cancel | Clear(State) | Completing(State) | Documenting(State)
+    Typing(State)
+  | Submit(State)
+  | Cancel
+  | Clear(State)
+  | Completing(State)
+  | Documenting(State)
   | Leave
 
 // Nothing typed yet and nothing behind it.

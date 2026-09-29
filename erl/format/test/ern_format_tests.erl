@@ -166,11 +166,16 @@ operators_test() ->
                        " than these four ones\""])).
 
 %% docs/style.md: a type whose alternatives run past the line breaks after
-%% its `=` and fills the lines, a doc block before a later one at its bar
+%% its `=` and holds one alternative a line, a doc block before a later one
+%% at its bar
 types_test() ->
     ?assertEqual([<<"type ShellMsg =">>,
-                  <<"    Typed(String) | Eof | Interrupted | Done(Outcome)"
-                    " | Reported(Process.FaultReport) | Ready">>,
+                  <<"    Typed(String)">>,
+                  <<"  | Eof">>,
+                  <<"  | Interrupted">>,
+                  <<"  | Done(Outcome)">>,
+                  <<"  | Reported(Process.FaultReport)">>,
+                  <<"  | Ready">>,
                   <<"  | NoKeys">>],
                  laid(["type ShellMsg = Typed(String) | Eof | Interrupted | Done(Outcome)"
                        " | Reported(Process.FaultReport) | Ready | NoKeys"])),

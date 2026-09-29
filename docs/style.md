@@ -47,7 +47,7 @@ For every Ernest source in the repository and every Ernest block of the report a
 - **An `if` stays on one line when it fits, and otherwise breaks at every `then` and `else`.** A branch whose first line ends in a brace or a `then` stays beside its `then` or `else` when that fits: `then {`, `} else {`, `else match x {`, and `else if` are each written on one line.
 - **The body after an arm's `->`, a lambda's `=`, or a `let`'s `=` or `<-` stays on its line when it fits**, whole or up to a brace or a `then` that ends its first line. Otherwise it begins the next line. A lambda and a `let` have no other rule of their own.
 - **A function's body begins on the line after its head's `=`, however short.** A body that is a block opens its brace at the end of the head's line. A `foreign fn`'s implementation string stands where a body does.
-- **A type whose alternatives do not fit breaks after its `=`**, and its alternatives fill the lines that follow.
+- **A type whose alternatives do not fit breaks after its `=`**, and holds one alternative a line, as a `match` holds one arm a line.
 
 Illustrative code in the layout:
 

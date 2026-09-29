@@ -116,27 +116,27 @@ report(Moment_17) ->
                                                           {'RestartLimit',
                                                            3,
                                                            10000}),
-                                     <<"Services.services:21">>)),
+                                     <<"Services.services:23">>)),
     persistent_term:put({ern@services, store},
                         ern_rt:spawn('Local',
                                      ern@supervisor:child(services(),
                                                           fun () ->
                                                                   storing(ern@map:empty())
                                                           end),
-                                     <<"Services.store:24">>)),
+                                     <<"Services.store:26">>)),
     persistent_term:put({ern@services, ids},
                         ern_rt:spawn('Local',
                                      ern@supervisor:child(services(),
                                                           fun () -> counting(1)
                                                           end),
-                                     <<"Services.ids:36">>)),
+                                     <<"Services.ids:38">>)),
     persistent_term:put({ern@services, audit},
                         ern_rt:spawn('Local',
                                      ern@supervisor:child(services(),
                                                           fun () ->
                                                                   recording([])
                                                           end),
-                                     <<"Services.audit:46">>)),
+                                     <<"Services.audit:48">>)),
     ok.
 
 '$fun'(main, 0) -> fun main/0.

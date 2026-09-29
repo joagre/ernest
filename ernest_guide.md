@@ -945,7 +945,8 @@ The counter of §4.5 gains an `Upgrade` constructor. The program is three parts 
 ```ernest
 // counter.ern
 type CounterMsg =
-    Inc(Int) | Get(reply : Reply(Int))
+    Inc(Int)
+  | Get(reply : Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
 fn counter(n : Int) : Unit with CounterMsg =

@@ -25,8 +25,12 @@ type Token = Num(Int) | Ident(String) | Op(Char) | LParen | RParen | KwLet | KwF
 type LexError = BadChar(c : Char, at : Int)
 
 type Expr =
-    Lit(Int) | Var(String) | Bin(op : Char, l : Expr, r : Expr) | Let(name : String, value : Expr)
-  | Fun(param : String, body : Expr) | App(f : Expr, arg : Expr)
+    Lit(Int)
+  | Var(String)
+  | Bin(op : Char, l : Expr, r : Expr)
+  | Let(name : String, value : Expr)
+  | Fun(param : String, body : Expr)
+  | App(f : Expr, arg : Expr)
 
 type ParseError = Unexpected(Token) | Eof
 

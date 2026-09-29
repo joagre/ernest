@@ -95,8 +95,9 @@ discussed with the user one at a time as they are met.
 1. **[`findings.md`](findings.md)'s `cheap` lines**, a batch a document. The report's, done
    2026-09-29 (the log's *The Report's Cheap Lines*).
 2. **Its `2.98` lines**: the report's contradictions and silent cases, among them `Io.show`'s
-   dependence on the type at the call; whether a type that breaks takes one alternative a
-   line, as a `match` does, where `ern format` now fills its lines (N10), the user's to decide; the diagnostics'
+   dependence on the type at the call; a type that breaks laid one alternative a line, as a
+   `match` is, decided with the user and done 2026-09-29 (N10; the log's *A Type That Breaks
+   Holds One Alternative a Line*); the diagnostics'
    positions and labels (§11.5); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):

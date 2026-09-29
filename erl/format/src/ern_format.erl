@@ -335,8 +335,8 @@ type_decl(Ps, Cs, X) ->
     [tok(type), sp(), tok(), Vars, sp(), tok('='), alternatives(Cs, X)].
 
 %% A type of one alternative keeps it on its line; alternatives that run
-%% past the line break after the `=` and fill the lines, each further line
-%% led by its bar (docs/style.md).
+%% past the line break after the `=` and stand one a line, each further
+%% line led by its bar, as a `match`'s arms do (docs/style.md).
 alternatives([C], X) ->
     %% a doc block puts the one alternative on a line of its own, a step in;
     %% one that does not fit breaks after the `=`, as several do, before a
@@ -344,7 +344,7 @@ alternatives([C], X) ->
     {if_lead, {nest, 4, [sp(), con(C, X)]}, {alternative, con(C, X)}};
 alternatives([C | Cs], X) ->
     Bar = {nest, -2, [line, tok('|'), sp()]},
-    {group, {nest, 4, [line, {fill, [con(C, X) | lists:append([[Bar, con(D, X)] || D <- Cs])]}]}}.
+    {group, {nest, 4, [line, con(C, X) | lists:append([[Bar, con(D, X)] || D <- Cs])]}}.
 
 con(#constructor{fields = none}, _) -> tok();
 con(#constructor{fields = {positional, T}}, X) -> [tok(), bracket(tok('('), [ty(T, X)], ')')];
@@ -580,9 +580,6 @@ resolve({group, T}, X, C) ->
                  end,
     {D, C2} = resolve(T, X, C1),
     {[Lead, {group, D}], C2};
-resolve({fill, Ts}, X, C) ->
-    {Ds, C1} = resolve(Ts, X, C),
-    {{fill, Ds}, C1};
 resolve({tok, Expect}, X, C) ->
     consume(Expect, X, C);
 resolve({if_lead, WithLead, Without}, X, C) ->
@@ -616,7 +613,6 @@ leading_break([H | _]) -> leading_break(H);
 leading_break({nest, _, T}) -> leading_break(T);
 leading_break({align, T}) -> leading_break(T);
 leading_break({group, T}) -> leading_break(T);
-leading_break({fill, [T | _]}) -> leading_break(T);
 leading_break(_) -> false.
 
 %% A node's own parentheses, the outermost closing where its span ends.
