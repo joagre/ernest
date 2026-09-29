@@ -38,14 +38,37 @@ compile(Opts, Path, Err) ->
     try
         %% report §11.1: a module outside the source root is found under
         %% build-root, then under each --load-path root
-        Order = compile_order(Modules, Root, Dirs),
+        {Parsed, Unparsed} = parse_all(Modules, Root, Dirs),
+        Order = order(Parsed),
         Std = stdlib_hash(Root),
-        lists:foldl(fun(M, Ifaces) -> build(M, Ifaces, Root, Dirs, Emit, Std) end, #{}, Order),
-        case DirMode andalso Emit =:= erc of
-            true -> sweep(absolute(Path), Root, OutDir);
-            false -> ok
-        end,
-        0
+        %% report §11.5: every module is built but one that uses a module
+        %% that failed, whose errors would follow from that one's
+        {_, Failed} =
+            lists:foldl(fun(#mod{deps = Deps} = M, {Ifaces, Failed0}) ->
+                                case [D || D <- Deps, lists:keymember(D, 1, Failed0)] of
+                                    [] ->
+                                        try build(M, Ifaces, Root, Dirs, Emit, Std) of
+                                            Ifaces1 -> {Ifaces1, Failed0}
+                                        catch
+                                            throw:{errors, File, Errors} ->
+                                                {Ifaces, Failed0 ++ [{M#mod.ns, File, Errors}]}
+                                        end;
+                                    _ ->
+                                        {Ifaces, Failed0 ++ [{M#mod.ns, none, []}]}
+                                end
+                        end, {#{}, Unparsed}, Order),
+        case [{File, Errors} || {_, File, Errors} <- Failed, File =/= none] of
+            [] ->
+                case DirMode andalso Emit =:= erc of
+                    true -> sweep(absolute(Path), Root, OutDir);
+                    false -> ok
+                end,
+                0;
+            Reported ->
+                lists:foreach(fun({File, Errors}) -> report_errors(Opts, File, Errors, Err) end,
+                              Reported),
+                1
+        end
     catch
         throw:{errors, File, Errors} -> report_errors(Opts, File, Errors, Err)
     end.
@@ -207,7 +230,23 @@ compile_order(Modules, Root) ->
 
 -spec compile_order([#mod{}], file:filename(), [file:filename()]) -> [#mod{}].
 compile_order(Modules, Root, LoadPath) ->
-    Parsed = [parse_module(M, Root, LoadPath) || M <- Modules],
+    order([parse_module(M, Root, LoadPath) || M <- Modules]).
+
+%% Every module parsed, and each that does not parse with its errors, as a
+%% build reports them (report §11.5).
+parse_all(Modules, Root, LoadPath) ->
+    lists:foldl(fun(M, {Parsed, Failed}) ->
+                        try parse_module(M, Root, LoadPath) of
+                            P -> {Parsed ++ [P], Failed}
+                        catch
+                            throw:{errors, File, Errors} ->
+                                {Parsed, Failed ++ [{M#mod.ns, File, Errors}]}
+                        end
+                end, {[], []}, Modules).
+
+%% The parsed modules in an order where each follows those it uses; a
+%% cycle is an error naming the modules in it (§11.1).
+order(Parsed) ->
     %% the graph is tables of this process's, deleted whether or not the
     %% order is found
     G = digraph:new(),

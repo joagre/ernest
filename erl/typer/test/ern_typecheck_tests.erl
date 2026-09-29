@@ -1017,6 +1017,21 @@ constructors_test() ->
     ?assertEqual("None takes no fields", err("fn f() = None(1)")),
     ?assertEqual("unknown constructor Nope", err("fn f() = Nope")).
 
+%% report §11.5: a block goes on after an error in a statement that binds
+%% nothing, or in a `let` whose annotation fixes its name's type, and
+%% reports every error of its own; it stops at any other binding's error,
+%% whose name the rest may use. A regression test: a definition's first
+%% error was its only one (findings.md's T10)
+errors_of_a_block_test() ->
+    ?assertEqual(["the argument does not fit Io.println: expected String, found Int",
+                  "the argument does not fit Io.println: expected String, found Int"],
+                 errs("fn f() : Unit with Never = { Io.println(1); Io.println(2); Unit }")),
+    ?assertEqual(["the value does not have the declared type: expected Int, found String",
+                  "the value does not have the declared type: expected Int, found String"],
+                 errs("fn f() : Int = { let a : Int = \"x\"; let b : Int = \"y\"; a + b }")),
+    ?assertEqual(["both operands of `+` must have the same type: expected String, found Int"],
+                 errs("fn f() : Int = { let c = \"z\" + 1; c * 2 }")).
+
 %% report §5.10: each constructor is matched in one form: a nullary one
 %% bare, a single-positional one with one pattern, and one with named
 %% fields with its parentheses, `C()` matching any of its values. A

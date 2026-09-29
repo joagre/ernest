@@ -1408,6 +1408,25 @@ old_spellings_per_job_test() ->
     [?assertMatch({_, _}, binary:match(Out, Text)) || {_, Text} <- Refused],
     ?assertEqual(nomatch, binary:match(Out, <<"is now">>)).
 
+%% report §11.1, §11.5: a directory build compiles every module but one that
+%% uses a module that failed, and reports every failure, a module that
+%% does not parse among them. A regression test: it stopped at the first
+%% (findings.md's T10)
+every_failure_reported_test() ->
+    Dir = tmp(),
+    write(Dir, "src/c.ern", "export fn c() : Int = \"x\"\n"),
+    write(Dir, "src/e.ern", "export fn e() : Int = \"y\"\n"),
+    write(Dir, "src/p.ern", "export fn p( : Int = 1\n"),
+    write(Dir, "src/d.ern", "export fn d() : Int = C.c()\n"),
+    write(Dir, "src/fine.ern", "export fn ok() : Int = 1\n"),
+    ?assertEqual(1, build_err(["--short-errors", Dir ++ "/src"])),
+    Out = iolist_to_binary(?capturedOutput),
+    [?assertMatch({_, _}, binary:match(Out, Text))
+     || Text <- [<<"c.ern:1:23:">>, <<"e.ern:1:23:">>, <<"p.ern:1:14:">>]],
+    ?assertEqual(nomatch, binary:match(Out, <<"d.ern">>)),
+    ?assert(filelib:is_regular(Dir ++ "/src/fine.erc")),
+    ?assertNot(filelib:is_regular(Dir ++ "/src/d.erc")).
+
 %% report §11: an option is given once, a `-path` one excepted, with its
 %% value as the next word, and never an empty one. A regression test: a
 %% repeat took its first value, and `--name=value` and an empty value were

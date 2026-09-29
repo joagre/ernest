@@ -628,6 +628,31 @@ example.ern:1:17: a block needs at least one expression
   |                 ^
 ```
 
+### Two errors of one block (§11.5)
+
+```ernest-rejected
+fn f() : Unit with Never = {
+    Io.println(1);
+    Io.println(2);
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:2:16: the argument does not fit Io.println: expected String, found Int
+1 | fn f() : Unit with Never = {
+2 |     Io.println(1);
+  |     ---------- Io.println : (String) -> Unit with e
+  |                ^
+
+example.ern:3:16: the argument does not fit Io.println: expected String, found Int
+2 |     Io.println(1);
+3 |     Io.println(2);
+  |     ---------- Io.println : (String) -> Unit with e
+  |                ^
+```
+
 ### A block that ends with `;` (§5.4)
 
 ```ernest-rejected

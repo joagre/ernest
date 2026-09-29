@@ -113,7 +113,8 @@ check(Ns, Decls0, Ifaces, Session) ->
         end
     catch
         throw:{type_error, Pos, Msg} -> {error, hidden_notes(Decls, [diag(Pos, Msg)])};
-        throw:{type_error, #diag{} = D} -> {error, hidden_notes(Decls, [D])}
+        throw:{type_error, #diag{} = D} -> {error, hidden_notes(Decls, [D])};
+        throw:{type_errors, Ds} -> {error, hidden_notes(Decls, lists:sort(Ds))}
     end.
 
 %% Report §4.2, §11.5: a module's own declaration hides a prelude name of
@@ -749,7 +750,10 @@ run_group(Group, #env{groups = Pending} = Env) ->
                     E#env{typed = E#env.typed ++ Group, errs = [diag(Pos, Msg) | E#env.errs]};
                 throw:{type_error, #diag{} = D} ->
                     E = placeholder_group(Group, Env1),
-                    E#env{typed = E#env.typed ++ Group, errs = [D | E#env.errs]}
+                    E#env{typed = E#env.typed ++ Group, errs = [D | E#env.errs]};
+                throw:{type_errors, Ds} ->
+                    E = placeholder_group(Group, Env1),
+                    E#env{typed = E#env.typed ++ Group, errs = Ds ++ E#env.errs}
             end
     end.
 
@@ -2593,8 +2597,68 @@ infer_stmts([#fn_decl{name = N} = D | Rest], Pos, Expect, Env, Local, Acc) ->
                     waiting => [N | maps:get(waiting, Local)]},
     {Env4, Local2} = release(Env3, Local1),
     infer_stmts(Rest, Pos, Expect, Env4, Local2, [TypedD | Acc]);
-infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '=', expr = X} = B | Rest],
+infer_stmts([#binding{op = '='} = B | Rest], Pos, Expect, Env, Fns, Acc) ->
+    Continue = fun(En, Typed) -> infer_stmts(Rest, Pos, Expect, En, Fns, Typed ++ Acc) end,
+    case annotated_fallback(B, Env) of
+        none ->
+            {TypedB, Env1} = let_binding(B, Env),
+            Continue(Env1, [TypedB]);
+        {ok, Fallback} ->
+            %% report §11.5: the annotation fixes the name's type whatever
+            %% the value is, so nothing after depends on the value's error
+            try let_binding(B, Env) of
+                {TypedB, Env1} -> Continue(Env1, [TypedB])
+            catch
+                throw:{type_error, _, _} = E -> recovered(E, fun() -> Continue(Fallback, []) end);
+                throw:{type_error, _} = E -> recovered(E, fun() -> Continue(Fallback, []) end);
+                throw:{type_errors, _} = E -> recovered(E, fun() -> Continue(Fallback, []) end)
+            end
+    end;
+infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '<-', expr = X} = B | Rest],
             Pos, Expect, Env, Fns, Acc) ->
+    %% report §5.5: e : Either(err, a) binds p : a; the rest is Either(err, _).
+    %% Which sum type is decided at the end of the definition (solve_deferred).
+    {TypedX, XT, Env1} = infer(X, Env),
+    {TypedP, PT, Bindings, Env2} = check_pattern(P, Env1),
+    irrefutable(P, Env2) orelse fail(BPos, "a `let` pattern must be irrefutable", [],
+                                     "use `match` for a pattern that can fail"),
+    Env3 = case Ann of
+               undefined -> Env2;
+               _ ->
+                   {AT, _, St} = ann(Ann, Env2#env.ann_vars, Env2),
+                   unify_at(BPos, AT, PT, Env2#env{st = St}, "the value does not have the"
+                                                             " declared type")
+           end,
+    Env4 = bind_vars(Bindings, Env3),
+    {TypedRest, RestT, Env5} = infer_stmts(Rest, Pos, Expect, Env4, Fns, []),
+    Spans = {node_span(P), node_span(X)},
+    %% report §11.5: what fixed the block's type, the annotation that did,
+    %% or else the block's last expression
+    Fixed = case Expect of
+                {_, _, {_, _} = Origin} -> Origin;
+                _ -> {last, node_span(lists:last(Rest))}
+            end,
+    Env6 = Env5#env{deferred = [{bind_arrow, BPos, Spans, XT, PT, RestT, Fixed}
+                                | Env5#env.deferred]},
+    {lists:reverse(Acc) ++ [B#binding{pattern = TypedP, expr = TypedX} | TypedRest], RestT, Env6};
+infer_stmts([X | Rest], Pos, Expect, Env, Fns, Acc) ->
+    %% report §11.5: a statement binds nothing, so the rest of its block is
+    %% checked after its error too
+    Continue = fun(En, Typed) -> infer_stmts(Rest, Pos, Expect, En, Fns, Typed ++ Acc) end,
+    try
+        {TypedX0, T, Env1} = infer(X, Env),
+        {TypedX0, statement_unit(X, T, Env1)}
+    of
+        {TypedX, Env2} -> Continue(Env2, [TypedX])
+    catch
+        throw:{type_error, _, _} = E -> recovered(E, fun() -> Continue(Env, []) end);
+        throw:{type_error, _} = E -> recovered(E, fun() -> Continue(Env, []) end);
+        throw:{type_errors, _} = E -> recovered(E, fun() -> Continue(Env, []) end)
+    end.
+
+%% Report §4.6: a block's `let p = e` checked: the binding as typed, and the
+%% environment with its names bound.
+let_binding(#binding{pos = BPos, pattern = P, ann = Ann, expr = X} = B, Env) ->
     %% report §4.6: a `let` of a lambda to a name is generalized, as a local
     %% `fn` is; any other block binding is not
     Generalize = is_record(P, p_var) andalso is_record(X, e_lambda),
@@ -2637,38 +2701,42 @@ infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '=', expr = X} = 
                false ->
                    bind_vars(Bindings, Env3)
            end,
-    infer_stmts(Rest, Pos, Expect, Env5, Fns, [B#binding{pattern = TypedP, expr = TypedX} | Acc]);
-infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '<-', expr = X} = B | Rest],
-            Pos, Expect, Env, Fns, Acc) ->
-    %% report §5.5: e : Either(err, a) binds p : a; the rest is Either(err, _).
-    %% Which sum type is decided at the end of the definition (solve_deferred).
-    {TypedX, XT, Env1} = infer(X, Env),
-    {TypedP, PT, Bindings, Env2} = check_pattern(P, Env1),
-    irrefutable(P, Env2) orelse fail(BPos, "a `let` pattern must be irrefutable", [],
-                                     "use `match` for a pattern that can fail"),
-    Env3 = case Ann of
-               undefined -> Env2;
-               _ ->
-                   {AT, _, St} = ann(Ann, Env2#env.ann_vars, Env2),
-                   unify_at(BPos, AT, PT, Env2#env{st = St}, "the value does not have the"
-                                                             " declared type")
-           end,
-    Env4 = bind_vars(Bindings, Env3),
-    {TypedRest, RestT, Env5} = infer_stmts(Rest, Pos, Expect, Env4, Fns, []),
-    Spans = {node_span(P), node_span(X)},
-    %% report §11.5: what fixed the block's type, the annotation that did,
-    %% or else the block's last expression
-    Fixed = case Expect of
-                {_, _, {_, _} = Origin} -> Origin;
-                _ -> {last, node_span(lists:last(Rest))}
+    {B#binding{pattern = TypedP, expr = TypedX}, Env5}.
+
+%% Report §11.5: a `let x : T = e` binds x at T whatever e's error, so the
+%% rest of its block is checked with x at T; any other binding's error may
+%% be the cause of one after it, and the block stops there. A lambda's
+%% annotation may name variables of its own, and is not taken so.
+annotated_fallback(#binding{pattern = #p_var{name = N}, ann = Ann, expr = X}, Env)
+  when Ann =/= undefined, not is_record(X, e_lambda) ->
+    try ann(Ann, Env#env.ann_vars, Env) of
+        {AT, AnnVars, St} when map_size(AnnVars) =:= map_size(Env#env.ann_vars) ->
+            {ok, bind_vars([{N, AT}], Env#env{st = St})};
+        _ ->
+            none
+    catch
+        throw:_ -> none
+    end;
+annotated_fallback(_, _) ->
+    none.
+
+%% Report §11.5: a statement's error, then those the rest of the block has
+%% of its own, checked as though the statement had failed silently; the
+%% definition fails with them all.
+-spec recovered(term(), fun(() -> term())) -> no_return().
+recovered(Error, Rest) ->
+    Later = try Rest() of
+                _ -> []
+            catch
+                throw:{type_error, _, _} = E -> diags(E);
+                throw:{type_error, _} = E -> diags(E);
+                throw:{type_errors, _} = E -> diags(E)
             end,
-    Env6 = Env5#env{deferred = [{bind_arrow, BPos, Spans, XT, PT, RestT, Fixed}
-                                | Env5#env.deferred]},
-    {lists:reverse(Acc) ++ [B#binding{pattern = TypedP, expr = TypedX} | TypedRest], RestT, Env6};
-infer_stmts([X | Rest], Pos, Expect, Env, Fns, Acc) ->
-    {TypedX, T, Env1} = infer(X, Env),
-    Env2 = statement_unit(X, T, Env1),
-    infer_stmts(Rest, Pos, Expect, Env2, Fns, [TypedX | Acc]).
+    throw({type_errors, diags(Error) ++ Later}).
+
+diags({type_error, Pos, Msg}) -> [diag(Pos, Msg)];
+diags({type_error, #diag{} = D}) -> [D];
+diags({type_errors, Ds}) -> Ds.
 
 %% Report §5.4: an expression that is not a block's last statement has type
 %% Unit, so no value is dropped unseen; §11.5 reports it whole.
