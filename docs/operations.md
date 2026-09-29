@@ -30,8 +30,11 @@ The syntax does not change. The rules below lift one restriction, add one, and g
 8. A list that mixes representations needs a second record type, one that hides `s`: its functions close over one set, and its `put` returns another such record (Mitchell and Plotkin 1988). It loses operations on two sets, such as a `union` that reaches both representations (Bruce et al. 1995), and since it holds functions it has no `==`.
 9. `OrderedSet` joins the standard library in `ordered_set.ern`, and `Ordered` in `ordered.ern`. A file name of words joined by `_` names one namespace. `Map` gets a record only when it gets a second representation.
 
+The sketch is four files.
+
+`set.ern` shows only what the proposal adds to `Set`: the record type, `Set`'s record, two generic functions, and `Set.union`, now a call of the generic one.
+
 ```ernest
-// set.ern: the record type, Set's record, and the generic functions
 export type Operations(s, e) =
     Operations(empty : s,
                size : (s) -> Int,
@@ -59,12 +62,18 @@ export fn Operations.map(set : s,
 
 export fn union(a : Set(e), b : Set(e)) : Set(e) =
     Operations.union(a, b, setOperations())
+```
 
-// ordered.ern: a record that holds another
+`ordered.ern` declares a record that holds another.
+
+```ernest
 export type Operations(s, e) =
     Operations(set : Set.Operations(s, e), min : (s) -> Optional(e), max : (s) -> Optional(e))
+```
 
-// ordered_set.ern: an ordered set is its elements, in their type's order
+`ordered_set.ern` is the ordered set, its elements kept in their type's order. Its `size`, `contains`, `remove` and `toList`, which its record names, are left out.
+
+```ernest
 export abstract type OrderedSet(e) = OrderedSet(List(e))
 
 export let empty : OrderedSet(e) = OrderedSet([])
@@ -97,15 +106,23 @@ export fn orderedOperations() : Ordered.Operations(OrderedSet(e), e) =
 
 export fn union(a : OrderedSet(e), b : OrderedSet(e)) : OrderedSet(e) =
     Set.Operations.union(a, b, setOperations())
+```
 
-// the user
+`usage.ern` is a program that uses it.
+
+```ernest
 fn fromList(xs : List(e), operations : Set.Operations(s, e)) : s =
     List.foldLeft(xs, operations.empty, operations.put)
 
-let small = fromList([3, 1, 3], OrderedSet.setOperations())
-// OrderedSet.min(small) is Some(1), and OrderedSet.size(small) is 2.
-// small == fromList([1, 3], OrderedSet.setOperations()) is true: an ordered set is data.
+export fn main() : Unit with Never = {
+    let small = fromList([3, 1, 3], OrderedSet.setOperations());
+    Io.println(Io.show(OrderedSet.min(small)));
+    Io.println(Int.toString(OrderedSet.size(small)));
+    Io.println(Bool.toString(small == fromList([1, 3], OrderedSet.setOperations())))
+}
 ```
+
+It prints `Some(1)`, `2` and `true`: an ordered set is data, and two sets built in different orders are equal.
 
 Types print as `OrderedSet.put : (OrderedSet(a<), a<) -> OrderedSet(a<)` and `Set.put : (Set(a=), a=) -> Set(a=)`.
 
