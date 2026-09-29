@@ -25,7 +25,7 @@
 %% of that type can carry a reply there.
 -module(ern_reply).
 
--export([check/4]).
+-export([check/4, elements/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -87,6 +87,7 @@ value_vars(T, St) ->
 %% type or the result type, directly or through tuples and containers.
 %% No expression of such a container type with a reply-carrying element
 %% is legal, so the variable can never be reply-carrying there.
+-spec elements(ern_types:type(), ern_types:st()) -> [ern_types:type()].
 elements(FnT, St) ->
     case ern_types:resolve(FnT, St) of
         {tfn, Ps, _, R} -> lists:append([within(T, false, St) || T <- [R | Ps]]);

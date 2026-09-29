@@ -186,8 +186,10 @@ foreign_type_equality_test() ->
                  err(T ++ "fn f() = put(mk(), fn(x : Int) : Int = x, 2)\n")),
     %% a parameter without `=` asks nothing
     ?assertEqual(ok, ok(T ++ "fn f() = put(mk(), 1, fn(x : Int) : Int = x)\n")),
-    %% the constraint shows in a type that names the parameter
-    ?assertEqual("(a=, b) -> M.T(a=, b)",
+    %% the constraint shows in a type that names the parameter, and so
+    %% does the no-reply restriction a foreign function's parameters give
+    %% (report §4.7)
+    ?assertEqual("(a=!, b!) -> M.T(a=!, b!)",
                  type_of(T ++ "export fn g(key, value) = put(mk(), key, value)\n", g)).
 
 %% report §4.8: `!` is negation on Bool
@@ -1123,6 +1125,22 @@ smaller_silences_test() ->
     ?assertEqual(ok, ok(P ++ "fn g(p : P(Int)) : Int = p.x")),
     ?assertEqual("the field x in every constructor: expected String, found Int",
                  err(P ++ "fn g(p : P(String)) = p.x")).
+
+%% report §4.7, §3.9, §6.6: a foreign function's variables whose values a
+%% parameter holds are not reply-carrying, since its code may copy or drop
+%% what it is given; a variable under an address or in a function type is
+%% not held. A regression test: `Foreign.from(r)` dropped a reply
+foreign_no_reply_test() ->
+    Msg = "type Msg = Get(reply : Reply(Int))\n",
+    ?assertEqual("a reply-carrying value, Reply(Int), passed where the function duplicates or"
+                 " discards its argument",
+                 err(Msg ++ "fn f(r : Reply(Int)) = { let _ = Foreign.from(r); Unit }")),
+    ?assertEqual("(a!) -> M.Held(a!)",
+                 type_of("export type Held(a) = Held(a)\n"
+                         "export foreign fn hold(x : a) : Held(a) = \"erlang:hd/1\"", hold)),
+    ?assertEqual(ok, ok(Msg ++ "fn f(a : Address(Msg)) : Process = Process.fromAddress(a)")),
+    ?assertEqual("((Int) -> m) -> Unit",
+                 type_of("export foreign fn call(f : (Int) -> m) : Unit = \"erlang:hd/1\"", call)).
 
 %% report §6.6, §3.9: no container holds a reply, however deep in a type
 %% it stands, through tuples and containers, since a variable that is a

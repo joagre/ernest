@@ -39,7 +39,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 
 ## The report
 
-- 2.98 — a `foreign fn`'s type variables escape §6.6 and §3.10: `Foreign.from(r)` drops a Reply, `Foreign.from` compares functions and addresses; a foreign type's arguments are never reply-carrying (P1, P3, K1)
+- 2.98 — a `foreign fn`'s type variables escape §6.6 and §3.10: `Foreign.from(r)` drops a Reply, `Foreign.from` compares functions and addresses; a foreign type's arguments are never reply-carrying (P1, P3, K1): the reply half fixed 2026-09-29, a variable a foreign function's parameter holds is not reply-carrying (§4.7); the equality half is the user's choice, a mark `a=` in a foreign declaration or no `==` on `Foreign`
 - 2.98 — `Io.show` and `Io.debug` depend on the static type at the call: `fn s(x) = Io.show(x)` prints a Char as its Int (P2, K4, E-C4)
 - done — where `via`'s function runs: §6.5 in the sender, §6.9 by the delivery; its fault is the target's (P11, K2): decided 2026-09-29, in the sender at the `send`, and a wrap by the runtime as it delivers (§6.5, §6.9)
 - 2.98 — §4.2's lookup names a type-member step the compiler does not implement, and which would shadow a member by a module function (P5)

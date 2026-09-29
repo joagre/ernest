@@ -1142,9 +1142,35 @@ signature_shape(#foreign_fn_decl{pos = Pos, params = Params, ret = Ret, effect =
     Syntax = #t_fn{pos = Pos, params = [T || #param{type = T} <- Params], ret = Ret,
                    effect = Effect},
     {T, _, St} = ann(Syntax, #{}, Env),
-    bound(V, T, Env#env{st = foreign_effect(T, St)});
+    bound(V, T, Env#env{st = foreign_no_reply(T, foreign_effect(T, St))});
 signature_shape(_, _, Env) ->
     Env.
+
+%% Report §4.7, §3.9: a foreign function has no body to infer from, and its
+%% code may copy a value it is given or drop it, so a type variable whose
+%% values a parameter holds is not reply-carrying: one the parameter's type
+%% reaches through tuples and type arguments, and not under an address, a
+%% reply or a function type, whose values the parameter does not hold. As
+%% for a function with a body, a variable that is a container's element in
+%% the function's type is exempt, since no container holds a reply. A
+%% regression: `Foreign.from(r)` dropped a reply, and `Ets.put(t, k, r)`
+%% stored one.
+foreign_no_reply({tfn, Params, _, _} = T, St) ->
+    Elements = ern_reply:elements(T, St),
+    lists:foldl(fun(Id, S) -> ern_types:add_flag({tvar, Id}, no_reply, S) end, St,
+                [Id || P <- Params, Id <- held_vars(P, St),
+                       not lists:member({tvar, Id}, Elements)]).
+
+held_vars(T, St) ->
+    case ern_types:resolve(T, St) of
+        {tvar, Id} -> [Id];
+        {tcon, ['Address'], _} -> [];
+        {tcon, ['Reply'], _} -> [];
+        {tcon, Q, Args} ->
+            lists:append([held_vars(A, St) || A <- ern_types:value_args(Q, Args, St)]);
+        {ttuple, Es} -> lists:append([held_vars(E, St) || E <- Es]);
+        _ -> []
+    end.
 
 set_decl_type(#fn_decl{} = D, S) -> D#fn_decl{type = S};
 set_decl_type(#let_decl{} = D, S) -> D#let_decl{type = S};
