@@ -1,8 +1,10 @@
 # Operations records
 
-Ernest is a functional language for concurrent programs on the BEAM: pure functions typed by Hindley–Milner inference, and processes with typed mailboxes. Its report, which the § numbers below cite, states five principles (§0): least surprise, one way, nothing invisible, simple to parse, and small. This note proposes how code written once works over several representations of one thing, a set kept hashed and a set kept in order, and argues against type classes. Where Java would declare an interface and Haskell a type class, the proposal passes an *operations record*, a record of a type's operations, explicitly: dictionary passing written by the program. The block marked `ernest` compiles with Ernest as it is; the one marked `sketch` is Ernest as the proposal would make it.
+Ernest is a functional language for concurrent programs on Erlang's virtual machine: pure functions typed by Hindley–Milner inference, and processes with typed mailboxes. Its report, which the § numbers below cite, states five principles (§0): least surprise, one way, nothing invisible, simple to parse, and small.
 
-## The problem
+Its standard library has one set, `Set`, kept in a hash. A program that needs its elements in order needs a second representation, a set kept sorted, and code written once, a `fromList` or a `size`, should serve both. Java would declare an interface, Haskell a type class, and ML a functor. This note proposes an *operations record*: a record of a type's operations that the caller passes, dictionary passing written by the program. It then argues against type classes. The block marked `ernest` compiles with Ernest as it is; the one marked `sketch` is Ernest as the proposal would make it.
+
+## Ernest today
 
 `==` is structural. Used on a type variable it gives the variable an *equality restriction* (a constraint, in the usual term), inferred and never written, as Standard ML's equality types do; a type holding a function or an address has no equality (§3.9, §3.10). Ordering is per type: `<` calls `T.compare` of its operand's type `T`, which the type's module declares. `<` on a type variable is refused, ``the operand type of `<` is not determined; annotate it`` (§4.8), so an ordered set must carry its order in every value:
 
@@ -13,17 +15,19 @@ export fn empty(compare : (a, a) -> Ordering) : OrderedSet(a) =
     OrderedSet(compare = compare, items = [])
 ```
 
-Such a value holds a function, so it has no `==`, keys no `Map`, and cannot go to a peer (§3.11); `empty` takes an argument that `Set.empty` does not; and two sets built with two orders would meet in `union` and give a set in neither.
+Such a value holds a function, so it has no `==`, keys no `Map`, and cannot be sent to another node (§3.11); `empty` takes an argument that `Set.empty` does not; and two sets built with two orders would meet in `union` and give a set in neither.
 
-## Why sets
+## Why sets are the test
 
-Sets are the known hard case for type classes. Haskell's `Data.Set` is `Foldable` but cannot be a `Functor`, since `fmap` puts no constraint on its result's element and a set's `map` needs `Ord` on it: the problem of restricted data types (Hughes, *Restricted Data Types in Haskell*, 1999), which GHC's `ConstraintKinds` later let libraries work around. A class of collections needs the element type as a function of the collection's, which Haskell gained through functional dependencies, whose running example is a class `Collects` (Jones, *Type Classes with Functional Dependencies*, 2000), and later through associated types (Chakravarty et al., 2005), `class Collects ce where type Elem ce`. The ML family writes a set as a functor over an ordered type, OCaml's `Set.Make(Ord)`, whose application fixes the order: the closest relative of this proposal. Sets test the proposal where type classes needed extensions. What needs a variable over type constructors, a `Functor` or a `Monad`, stays out of its reach, since Ernest has none.
+Sets were chosen as the example because they are the known hard case for type classes. Haskell's `Data.Set` is `Foldable` but cannot be a `Functor`, since `fmap` puts no constraint on its result's element and a set's `map` needs `Ord` on it: the problem of restricted data types (Hughes, *Restricted Data Types in Haskell*, 1999), which GHC's `ConstraintKinds` later let libraries work around. A class of collections needs the element type as a function of the collection's, which Haskell gained through functional dependencies, whose running example is a class `Collects` (Jones, *Type Classes with Functional Dependencies*, 2000), and later through associated types (Chakravarty et al., 2005), `class Collects ce where type Elem ce`. The ML family writes a set as a functor over an ordered type, OCaml's `Set.Make(Ord)`, whose application fixes the order: the closest relative of this proposal. Sets test the proposal where type classes needed extensions. What needs a variable over type constructors, a `Functor` or a `Monad`, stays out of its reach, since Ernest has none.
 
 ## The measures
 
+A solution is judged by what a user of both sets sees:
+
 1. **Each type on its own reads as today.** `Set.put(s, x)`, `OrderedSet.put(s, x)`, and the ordered set's own `OrderedSet.min(s)`: the same verbs for the same operations.
 2. **Code written once is an ordinary function**, and its caller chooses the representation.
-3. **An ordered set is data.** It has `==`, keys a `Map`, and goes to a peer, as a `Set(Int)` does.
+3. **An ordered set is data.** It has `==`, keys a `Map`, and can be sent to another node, as a `Set(Int)` can.
 4. **A wrong mix is refused, not computed.** Two sets ordered differently cannot meet in `union`.
 5. **A mistake is reported in the user's words**: a function, a type or a record the user wrote.
 
@@ -34,8 +38,8 @@ One restriction is lifted, and the standard library follows a convention. No syn
 1. **An ordering restriction, as the equality one.** `<`, `<=`, `>` and `>=` on a type variable give it the ordering restriction, inferred and never written, printed `a<` as the equality restriction is printed `a=`. At each instantiation the variable's type must have `compare`, or be a variable, which takes the restriction; any other type is a type error at the call. A variable that nothing fixes and no definition generalizes is refused, as today.
 2. **A `compare` over parameters.** A member `T.compare` of a type with parameters may compare them, and then carries their restriction: `Pair(Int)` is ordered and `Pair(Bool)` is not.
 3. **A top-level `let` is not generalized over an ordered variable**, so it is still computed once, before `main` (§8.5). A value that depends on an order is a function.
-4. **An operations record holds a type's primitives**, the few operations that reach its representation, which the standard library already names (Appendix E.0 rule 1). `Set.Operations(s, e)` holds `Set`'s six: `empty`, `size`, `contains`, `put`, `remove`, and `toList`. None is polymorphic beyond the record's parameters.
-5. **A function written once is a member of the record's type**, and takes the record last, as `List.sort` takes its `compare`: `Set.Operations.union(a, b, operations)`. `Set`'s own fourteen functions beyond the primitives are written so, each `Set.f` a call of `Set.Operations.f` with `Set`'s record. `map` and `filterMap` take two records, the source's and the result's.
+4. **An operations record holds a type's primitives**, the few operations that reach its representation, which the standard library already lists for each module (Appendix E.0). `Set.Operations(s, e)` holds `Set`'s six: `empty`, `size`, `contains`, `put`, `remove`, and `toList`. None is polymorphic beyond the record's parameters.
+5. **A function written once is a member of the record's type**, `T.name`, as a type's own operations are in Ernest (§4.2), and takes the record last, as `List.sort` takes its `compare`: `Set.Operations.union(a, b, operations)`. `Set`'s own fourteen functions beyond the primitives are written so, each `Set.f` a call of `Set.Operations.f` with `Set`'s record. `map` and `filterMap` take two records, the source's and the result's.
 6. **A representation meets the record by a function its module exports**, `operations()`, and names its own functions as `Set` does: `OrderedSet.union(a, b)` calls `Set.Operations.union` with its record. Any module may build a record, for a type of its own or another's.
 7. **An ordered set orders its elements by their type's `compare`.** Another order is another type, `Descending(Int)` with its own `compare`, as Haskell's `Down` is.
 8. **`==` stays structural.** Values of several representations in one list are records whose functions close over their values, which Ernest has today.
