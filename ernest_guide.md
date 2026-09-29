@@ -1213,7 +1213,7 @@ fn startWorker() : Unit with GameMsg = {
 
 `me` is taken before the spawn: inside the lambda, `self()` would be the worker's own address. A library is used the same way, written against a message type of its own, so a program never needs one message type for all its processes.
 
-**The system modules deliver so too.** Wherever something arrives later, a system module takes the function that makes your message from its own: `monitor(child, wrap)` (§5.2), `Clock.alarm(ms, wrap)`, which puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, `Terminal.subscribe(wrap)`, which puts every key pressed and every resize in it, and `Process.faults(wrap)`. A constructor with one positional field is a function value, so `Clock.alarm(100, Tick)` delivers `Tick(t)`. A message that needs no value is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Refresh)` for a constructor `Refresh` without fields.
+**The system modules deliver so too.** Wherever something arrives later, a system module takes the function that makes your message from its own: `monitor(child, wrap)` (§5.2), `Clock.alarm(ms, wrap)`, which puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, `Terminal.subscribe(wrap)`, which puts every key pressed and every resize in it, and `Process.faults(wrap)`. A read is not such a delivery: `Io.readLine`, `Os.read` and `Tcp.read` wait for what they read and answer it, and a process that must also receive gives the reading to a process of its own (§8.7). A constructor with one positional field is a function value, so `Clock.alarm(100, Tick)` delivers `Tick(t)`. A message that needs no value is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Refresh)` for a constructor `Refresh` without fields.
 
 **Where the function runs.** A `send` to an adapted address applies the function in the sender, at the `send`, which returns once it has; the sender's messages keep their order through it (§5.1). A wrap has no sender to run in, so the runtime applies it as it delivers the message. Either way, a fault in the function is the fault of the process the message is for, not of the one that sent it (report §6.5, report §6.9), so keep the function to shaping the value:
 
@@ -2071,7 +2071,73 @@ fn newline(bytes : Bytes, at : Int) : Optional(Int) =
 
 In a pattern, `size(len)` may name a variable bound by an earlier segment. A `match` over bitstrings ends with a clause that takes anything, as `parseFrame` does, since the checker does not decide whether bitstring patterns cover every `Bytes` value.
 
-### 8.7 Prediction exercise
+### 8.7 Sockets
+
+A server is a listener and a process for each connection. `Tcp.listen(host, port)` answers a listener, and `Tcp.accept(listener, ms)` the next connection, a socket, or `Left(Timeout)` when none came within `ms` milliseconds. No time means no limit, so the loop that accepts takes again after a timeout, and that turn is where it looks at anything else it must.
+
+A socket is read by pulling. `Tcp.read(socket, ms)` answers what has arrived, at least one byte, `Left(Timeout)` when nothing did, and `Left(Closed)` once the connection has closed; nothing the socket receives comes to a mailbox. A process waits on one thing at a time, so one that must wait on its socket and on its mailbox gives the socket to a reader of its own, a process that pulls each piece and sends it on. One process may read a socket while another writes to it, and a read that waits answers `Left(Closed)` when the socket is closed. A write answers `Left(Closed)` once the far end has gone.
+
+Bytes arrive in pieces that need not end where a line ends, so what follows the last line feed waits for the next piece. A server that sends each line back, and says it is still there every ten seconds:
+
+```ernest
+type Session = Arrived(Bytes) | Gone | Tick(Int)
+
+export fn main() : Unit with Never =
+    match Tcp.listen("127.0.0.1", 7000) {
+        Right(listener) -> serve(listener)
+      | Left(e) -> Io.printlnError("cannot listen: " <> Io.show(e))
+    }
+
+fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
+    match Tcp.accept(listener, 60000) {
+        Right(socket) -> {
+            let _ = spawn(Local, fn() = session(socket));
+            serve(listener)
+        }
+      | Left(Io.Timeout) -> serve(listener)
+      | Left(_) -> Unit
+    }
+
+// The session waits on its mailbox, and its reader on the socket.
+fn session(socket : Address(Tcp.SockMsg)) : Unit with Session = {
+    let me = self();
+    let _ = spawn(Local, fn() = reader(socket, me));
+    Clock.alarm(10000, Tick);
+    talk(socket, <<>>)
+}
+
+fn reader(socket : Address(Tcp.SockMsg), session : Address(Session)) : Unit with Never =
+    match Tcp.read(socket, 60000) {
+        Right(bytes) -> {
+            send(session, Arrived(bytes));
+            reader(socket, session)
+        }
+      | Left(Io.Timeout) -> reader(socket, session)
+      | Left(_) -> send(session, Gone)
+    }
+
+fn talk(socket : Address(Tcp.SockMsg), rest : Bytes) : Unit with Session =
+    receive {
+        Arrived(bytes) -> {
+            let parts = Bytes.split(rest <> bytes, <<10>>);
+            List.foreach(List.dropLast(parts), fn(line) = {
+                let _ = Tcp.write(socket, line <> <<10>>);
+                Unit
+            });
+            talk(socket, Optional.withDefault(List.last(parts), <<>>))
+        }
+      | Tick(_) -> {
+            let _ = Tcp.write(socket, String.toUtf8("still here\n"));
+            Clock.alarm(10000, Tick);
+            talk(socket, rest)
+        }
+      | Gone -> Tcp.close(socket)
+    }
+```
+
+A socket lives until `Tcp.close`, so the session closes it when its reader finds the connection gone. Its process, and the listener's, are the program's: `Process.live` lists them, and a fault in one is reported under the function that opened it, `Tcp.accept` (report Appendix E.18).
+
+### 8.8 Prediction exercise
 
 A process sends a service on another node `Register(fn(x) = x + 1)`, a message with a function in it. What happens, and how does the function get to run on that node?
 
@@ -2204,7 +2270,7 @@ It begins with `fn`, so a reader and the parser see a lambda begin at its first 
 
 **§7.4.** Yes. The boundary of an abstract type is its module, so every definition in `main.ern` may name the constructor, a helper or a test included; another module sees the type and its operations, never the constructor.
 
-**§8.7.** The `send` faults the sending process, at the call, with `function cannot cross nodes`: a function does not leave its node inside a message. To give the service the function, spawn a process on its node, which takes the function's code with it, and let that process send the message there: `spawn(Peer(name), fn() = send(service, Register(fn(x) = x + 1)))`.
+**§8.8.** The `send` faults the sending process, at the call, with `function cannot cross nodes`: a function does not leave its node inside a message. To give the service the function, spawn a process on its node, which takes the function's code with it, and let that process send the message there: `spawn(Peer(name), fn() = send(service, Register(fn(x) = x + 1)))`.
 
 ## 14. Reading further
 

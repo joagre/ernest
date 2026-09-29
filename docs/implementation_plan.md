@@ -91,8 +91,10 @@ discussed with the user one at a time as they are met.
    history (§11.2), a foreign function's unnamed result variable matching no value and a
    function given to foreign code checking its arguments (§8.4), and the host's flags cleared
    from the environment (§11), with `Erl.atom` and the unbounded reads kept and the key's
-   place decided in MVP 3.0 (the log's *The Security Reader's Decisions*), done 2026-09-29; the
-   diagnostics' positions and labels
+   place decided in MVP 3.0 (the log's *The Security Reader's Decisions*), and sockets kept
+   read by pulling, with a time on every wait, the guide's §8.7 teaching them (N1, N-L1, N-L2;
+   the log's *Sockets Are Read by Pulling*), done 2026-09-29; the diagnostics' positions and
+   labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
