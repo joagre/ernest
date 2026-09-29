@@ -1408,6 +1408,59 @@ old_spellings_per_job_test() ->
     [?assertMatch({_, _}, binary:match(Out, Text)) || {_, Text} <- Refused],
     ?assertEqual(nomatch, binary:match(Out, <<"is now">>)).
 
+%% report §11.1: a module outside the source root is read from its .erc
+%% under build-root, and the sweep keeps it. A regression test: only the
+%% --load-path roots were searched, and the use was an unknown name (T2)
+module_under_build_root_test() ->
+    Dir = tmp(),
+    write(Dir, "lib/util/math.ern", "export fn twice(n : Int) : Int = n * 2\n"),
+    write(Dir, "app/main.ern", "export fn main() : Unit with Never ="
+                               " Io.println(Int.toString(Util.Math.twice(21)))\n"),
+    Build = Dir ++ "/build",
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir ++ "/lib", "--build-root", Build,
+                                 Dir ++ "/lib"])),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Build, Dir ++ "/app"])),
+    ?assert(filelib:is_regular(Build ++ "/util/math.erc")),
+    ?assertEqual(0, ern_cli:ern(["run", Build ++ "/main.erc"])),
+    ?assertEqual(<<"42\n">>, iolist_to_binary(?capturedOutput)).
+
+%% report §11.2: `ern run` refuses a module compiled against another
+%% interface of a module it uses, where it had run and faulted where the two
+%% differ. A regression test (T3); it does not cover the standard library's
+%% hash, which only another build of `ern` changes
+stale_dependent_refused_test() ->
+    Dir = tmp(),
+    write(Dir, "src/geo/shape.ern", "export fn area(n : Int) : Int = n * n\n"),
+    write(Dir, "src/main.ern", "export fn main() : Unit with Never ="
+                               " Io.println(Int.toString(Geo.Shape.area(3)))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", Dir ++ "/src"])),
+    write(Dir, "src/geo/shape.ern", "export fn area(n : Int) : String = \"big\"\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir ++ "/src",
+                                 Dir ++ "/src/geo/shape.ern"])),
+    ?assertEqual(1, ern_err(["run", Dir ++ "/src/main.erc"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"Main was compiled against another Geo.Shape;"
+                                        " build Main again">>)).
+
+%% report §11.1, §11.2: a single-file build from another source root does
+%% not write over a .erc of another namespace, and `ern run` refuses a file
+%% that holds another module than its path names. A regression test (T4):
+%% the build replaced it, and the run failed in the host's loader
+other_namespace_test() ->
+    Dir = tmp(),
+    write(Dir, "src/geo/shape.ern", "export fn area(n : Int) : Int = n * n\n"),
+    write(Dir, "src/main.ern", "export fn main() : Unit with Never ="
+                               " Io.println(Int.toString(Geo.Shape.area(3)))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", Dir ++ "/src"])),
+    ?assertEqual(1, build_err(["--source-root", Dir, Dir ++ "/src/geo/shape.ern"])),
+    ok = file:delete(Dir ++ "/src/geo/shape.erc"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, Dir ++ "/src/geo/shape.ern"])),
+    ?assertEqual(1, ern_err(["run", Dir ++ "/src/main.erc"])),
+    Out = iolist_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Out, <<"holds Geo.Shape, and this build names the module"
+                                             " Src.Geo.Shape">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"holds Src.Geo.Shape, not Geo.Shape">>)).
+
 %%
 %% ern, report §11.2 and §11.3
 %%

@@ -166,6 +166,43 @@ reload_sources_named() ->
     ?assertMatch({_, _}, binary:match(Load, <<"bad.ern:2:5: the body">>)),
     ?assertEqual(nomatch, binary:match(Load, list_to_binary(Dir))).
 
+%% report §11.2: `:load` compiles from its source a module the loaded one
+%% uses that the session has not loaded, and compiles it against the
+%% session's modules; `:reload` compiles again, with a changed module, each
+%% loaded module that uses it where its interface changed, and a type error
+%% there reloads nothing. A regression test: `:load Main` sought
+%% `geo/shape.erc`, and a reload left `Main` running against the previous
+%% interface, to fault (findings.md's T12, T3)
+load_and_reload_dependents_test_() ->
+    {timeout, 60, fun load_and_reload_dependents/0}.
+
+load_and_reload_dependents() ->
+    Dir = fresh_home(),
+    ok = filelib:ensure_path(filename:join(Dir, "src/geo")),
+    ok = file:write_file(filename:join(Dir, "src/geo/shape.ern"),
+                         "export fn area(n : Int) : Int = n * n\n"),
+    ok = file:write_file(filename:join(Dir, "src/main.ern"),
+                         "export fn main() : Unit with Never =\n"
+                         "    Io.println(Int.toString(Geo.Shape.area(3)))\n"),
+    Write = fun(Text) ->
+                    ["let _ = Fs.write(Path(\"src/geo/shape.ern\"), String.toUtf8(\"", Text,
+                     "\\n\"), 1000)\n"]
+            end,
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, [":load Main\nMain.main()\n",
+                              Write("export fn area(n : Int) : String = \\\"big\\\""),
+                              ":reload\n",
+                              Write("export fn area(n : Int) : Int = n * 10"),
+                              ":reload\nMain.main()\n"]),
+    Ern = filename:absname("../bin/ern"),
+    {0, Out} = sh("cd " ++ Dir ++ " && " ++ Ern ++ " shell --source-root src < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"Geo.Shape, compiled from geo/shape.ern\n"
+                                             "Main, compiled from main.ern\n> 9\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"the argument does not fit Int.toString">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"nothing was reloaded">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"Geo.Shape, compiled again\n> 30\n">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"Main, compiled again">>)).
+
 %% report §11.2: in line mode, as at a terminal, an input the parser cannot
 %% finish takes the next line, and a blank line or the end of input runs
 %% what there is; a startup file's inputs are taken so too, each named by
@@ -974,19 +1011,19 @@ load_unreadable() ->
     ?assertMatch({_, _}, binary:match(Out, <<"bad.ern:1:25: illegal character">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)).
 
-%% report §11.2: `:load` loads the modules a module uses in their compiled
-%% form, and refuses one whose dependency is not compiled with a sentence
-%% naming it. A regression test of compile_source's refusal, which the
-%% shell had told apart from diagnostics by the shape of a list.
-load_uncompiled_dependency_test_() ->
-    {timeout, 60, fun load_uncompiled_dependency/0}.
+%% report §11.2: `:load` refuses a module whose dependency has no source
+%% and a compiled form it cannot read, with a sentence naming it. A
+%% regression test of compile_source's refusal, which the shell had told
+%% apart from diagnostics by the shape of a list.
+load_unreadable_dependency_test_() ->
+    {timeout, 60, fun load_unreadable_dependency/0}.
 
-load_uncompiled_dependency() ->
+load_unreadable_dependency() ->
     Dir = filename:join("/tmp", "ern_dep_" ++ os:getpid() ++ "_"
                         ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(filename:join(Dir, "top.ern"), "export fn g() : Int = Dep.f()\n"),
-    ok = file:write_file(filename:join(Dir, "dep.ern"), "export fn f() : Int = 1\n"),
+    ok = file:write_file(filename:join(Dir, "dep.erc"), "not a module\n"),
     In = filename:join(Dir, "session.in"),
     ok = file:write_file(In, ":load Top\n1\n"),
     {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),

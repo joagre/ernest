@@ -315,13 +315,13 @@ beam_of(Opts, Path) ->
         _ ->
             Root = ern_build:source_root(Opts, Path, "."),
             OutDir = ern_build:out_dir(Opts, Root),
+            %% report §11.1: a module outside the source root is found under
+            %% build-root, then under each --load-path root
+            Dirs = [OutDir | ern_build:load_path(Opts)],
             [#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}] =
                 ern_build:compile_order([ern_build:module_of(ern_build:absolute(Path), Root)],
-                                        Root, ern_build:load_path(Opts)),
-            DepIfaces = [I || D <- Deps,
-                              {_, I} <- [ern_build:dep_iface(D, #{},
-                                                             [OutDir | ern_build:load_path(Opts)],
-                                                             Root)]],
+                                        Root, Dirs),
+            DepIfaces = [I || D <- Deps, {_, I} <- [ern_build:dep_iface(D, #{}, Dirs, Root)]],
             case ern_typecheck:check(Ns, Decls, DepIfaces) of
                 {ok, Typed, Iface, Env} ->
                     Build = #{source_hash => <<>>, deps => [],
@@ -940,6 +940,9 @@ entry_ns(Mod) ->
 %% Load a module and, first, its dependencies, each once; the result lists
 %% modules most recently loaded first, so dependencies come last.
 load(Ns, Roots, Loaded) ->
+    load(Ns, Roots, Loaded, ern_build:stdlib_hash(".")).
+
+load(Ns, Roots, Loaded, Std) ->
     Mod = ern_emitter:module_atom(Ns),
     case lists:member(Mod, Loaded) of
         true -> Loaded;
@@ -951,8 +954,28 @@ load(Ns, Roots, Loaded) ->
                                             ++ " (" ++ Rel ++ ") on the load path")
                    end,
             {ok, Bin} = file:read_file(File),
-            {ok, #{deps := Deps}} = ern_iface:read(Bin),
-            Loaded1 = lists:foldl(fun({D, _}, L) -> load(D, Roots, L) end, Loaded, Deps),
+            {Deps, Chunk} = case ern_iface:read(Bin) of
+                                {ok, #{deps := Ds} = C} -> {Ds, C};
+                                {error, Why} -> ern_build:fail(File ++ ": " ++ Why)
+                            end,
+            %% report §11.2: a module is found by its namespace, and a file
+            %% there holding another is no module of that name
+            case Chunk of
+                #{iface := #iface{namespace = Ns}} -> ok;
+                #{iface := #iface{namespace = Held}} ->
+                    ern_build:fail(ern_build:shown(File) ++ " holds " ++ ern_build:qname(Held)
+                                   ++ ", not " ++ ern_build:qname(Ns) ++ "; build it again from"
+                                   " its source root")
+            end,
+            Loaded1 = lists:foldl(fun({D, _}, L) -> load(D, Roots, L, Std) end, Loaded, Deps),
+            %% report §11.2: a module compiled against another interface of a
+            %% module it uses, or of the standard library, is refused, not run
+            %% to fault where they differ
+            lists:foreach(fun({D, Hash}) -> same_interface(Ns, D, Hash) end, Deps),
+            lists:member(maps:get(stdlib, Chunk, none), [none, Std])
+                orelse ern_build:fail(ern_build:qname(Ns) ++ " was compiled against another"
+                                      " standard library; build " ++ ern_build:qname(Ns)
+                                      ++ " again"),
             code:purge(Mod),
             case code:load_binary(Mod, File, Bin) of
                 {module, Mod} -> [Mod | Loaded1];
@@ -960,6 +983,14 @@ load(Ns, Roots, Loaded) ->
                     ern_build:fail("cannot load " ++ File ++ ": " ++ atom_to_list(What))
             end
     end.
+
+same_interface(Ns, D, Hash) ->
+    {ok, Bin} = file:read_file(code:which(ern_emitter:module_atom(D))),
+    {ok, #{iface := I}} = ern_iface:read(Bin),
+    ern_iface:hash(I) =:= Hash
+        orelse ern_build:fail(ern_build:qname(Ns) ++ " was compiled against another "
+                              ++ ern_build:qname(D) ++ "; build " ++ ern_build:qname(Ns)
+                              ++ " again").
 
 %% Report §11.3, Appendix C: the configuration directory itself, with a
 %% configuration of no peers and this node's key pair; the network address

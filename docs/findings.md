@@ -10,12 +10,8 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 
 ## The toolchain
 
-- 2.98 — `--build-root` does not find modules outside the source root, against §11.1 (T2)
-- 2.98 — a stale dependent runs against a changed interface and faults (T3)
-- 2.98 — a single-file build takes its namespace from the working directory and rewrites a module as another (T4)
 - 2.98 — a repeated option takes the first; `--name=value` undocumented; empty values accepted (T8)
 - 2.98 — the checker reports one error per function; a directory build stops at the first failing module (T10)
-- 2.98 — `:load` of a dependent cannot use a module already loaded (T12)
 - 2.98 — a faulting top-level binding: three behaviours and the wrong name (T14)
 - 2.98 — the shell cannot show the prelude (T19)
 - 2.98 — a large paste is scanned again as it grows, a cost of `ern_tty`'s (shell_design.md's rewrite)

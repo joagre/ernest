@@ -9,10 +9,10 @@
 -module(ern_build).
 
 -export([compile/3, report_errors/4, shown/1, sources/1, bytes_text/1, module_of/2, shape/2,
-         segment/1, namespace/1, module_path/1, compile_order/2, compile_order/3,
-         source_root/3, out_dir/2, is_stdlib_root/1, dep_iface/4, load_path/1,
-         compiler_modules/0, sweep_pages/5, compile_source/3, absolute/1, relative/2, qname/1,
-         write_whole/2, write_whole/3, fail/1]).
+         segment/1, namespace/1, module_path/1, compile_order/2, compile_order/3, source_root/3,
+         out_dir/2, is_stdlib_root/1, stdlib_hash/1, dep_iface/4, load_path/1, compiler_modules/0,
+         sweep_pages/5, compile_source/4, absolute/1, relative/2, qname/1, write_whole/2,
+         write_whole/3, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -36,7 +36,9 @@ compile(Opts, Path, Err) ->
     Modules = [module_of(absolute(F), Root) || F <- Files],
     Dirs = [OutDir | load_path(Opts)],
     try
-        Order = compile_order(Modules, Root, load_path(Opts)),
+        %% report §11.1: a module outside the source root is found under
+        %% build-root, then under each --load-path root
+        Order = compile_order(Modules, Root, Dirs),
         Std = stdlib_hash(Root),
         lists:foldl(fun(M, Ifaces) -> build(M, Ifaces, Root, Dirs, Emit, Std) end, #{}, Order),
         case DirMode andalso Emit =:= erc of
@@ -304,16 +306,17 @@ paths(L) when is_list(L) -> lists:append([paths(X) || X <- L]);
 paths(_) -> [].
 
 %% Report §11.1: a prefix of a qualified name is a module when the source
-%% root holds its source or a --load-path root its compiled module.
+%% root holds its source, or the build root or a --load-path root, Dirs,
+%% its compiled module.
 module_prefix([], _Root, _LoadPath) ->
     false;
-module_prefix(Path, Root, LoadPath) ->
+module_prefix(Path, Root, Dirs) ->
     Rel = module_path(Path),
     case filelib:is_regular(filename:join(Root, Rel ++ ".ern"))
         orelse lists:any(fun(D) -> filelib:is_regular(filename:join(D, Rel ++ ".erc")) end,
-                         LoadPath) of
+                         Dirs) of
         true -> {true, Path};
-        false -> module_prefix(lists:droplast(Path), Root, LoadPath)
+        false -> module_prefix(lists:droplast(Path), Root, Dirs)
     end.
 
 %% Report §11.1: the source root is --source-root; without it, the standard
@@ -395,6 +398,7 @@ build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
                                    ern_emitter:erl_source(Ns, Typed, Env)],
                             ok = write_whole(Out ++ ".erl", unicode:characters_to_binary(Src));
                         erc ->
+                            held_by_another(Erc, Ns),
                             Build = #{source_hash => SourceHash, source_path => SourcePath,
                                       deps => DepHashes, compiler => compiler_build(),
                                       stdlib => Std,
@@ -408,11 +412,25 @@ build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
             end
     end.
 
+%% Report §11.1: a .erc that holds another namespace is not written over, as
+%% a single-file build from another source root would: the file is another
+%% module's. A regression: the build replaced it, and a run of a module
+%% using it failed in the host's loader.
+held_by_another(Erc, Ns) ->
+    case read_erc(Erc) of
+        {ok, #{iface := #iface{namespace = Held}}} when Held =/= Ns ->
+            fail(shown(Erc) ++ " holds " ++ qname(Held) ++ ", and this build names the module "
+                 ++ qname(Ns) ++ "; name its source root with --source-root");
+        _ ->
+            ok
+    end.
+
 %% Report §11.1: one hash over every installed standard library interface,
 %% so that any change to one recompiles the modules built against it; an
 %% operator can reach a standard library module no path names, so the whole
 %% set is hashed. The standard library's own modules depend on each other
 %% as ordinary modules do, and record none.
+-spec stdlib_hash(file:filename()) -> binary() | none.
 stdlib_hash(Root) ->
     case is_stdlib_root(Root) of
         true -> none;
@@ -593,16 +611,19 @@ remove_emptied(Dir, Sub, OutDir) ->
 %% `ern build` would compile it but in memory, since `:load` and `:reload`
 %% write nothing. `Root` is the source root and `Dirs` the load path, the
 %% roots a dependency outside the source root is found under by its
-%% namespace, in order (§11.1). A refusal is a sentence, and diagnostics
-%% come with the file they are in.
--spec compile_source(file:filename(), file:filename(), [file:filename(), ...]) ->
+%% namespace, in order (§11.1). A dependency the session has loaded is
+%% compiled against as `Ifaces` holds it, since it has no `.erc` or one
+%% older than it. A refusal is a sentence, and diagnostics come with the
+%% file they are in.
+-spec compile_source(file:filename(), file:filename(), [file:filename(), ...],
+                     #{[atom()] => #iface{}}) ->
           {ok, [atom()], binary(), binary()} | {refused, string()}
           | {error, file:filename(), [ern_diag:diag()]}.
-compile_source(File, Root, Dirs) ->
+compile_source(File, Root, Dirs, Ifaces) ->
     try
         [#mod{ns = Ns, rel = Rel, decls = Decls, deps = Deps}] =
             compile_order([module_of(absolute(File), Root)], Root, Dirs),
-        DepIfaces = [dep_iface(D, #{}, Dirs, Root) || D <- Deps],
+        DepIfaces = [dep_iface(D, Ifaces, Dirs, Root) || D <- Deps],
         DepHashes = lists:sort([{D, ern_iface:hash(I)} || {D, I} <- DepIfaces]),
         {ok, Source} = file:read_file(File),
         Hash = crypto:hash(sha256, Source),

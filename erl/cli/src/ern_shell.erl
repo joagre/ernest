@@ -17,6 +17,7 @@
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("utils/include/ern_diag.hrl").
+-include_lib("cli/include/ern_build.hrl").
 
 -define(UNIT, {tcon, ['Unit'], []}).
 
@@ -1270,20 +1271,27 @@ load(#env{modules = Modules} = Env, Text) ->
 %% A refusal ends in a line feed, as a diagnostic the compiler gives does,
 %% since the shell prints both alike. What is loaded is remembered, since
 %% completion and `Shift-Tab` read the session from where it is kept.
-load(Env, Name, Ns) ->
+load(#env{source_root = Root} = Env, Name, Ns) ->
     case source_of(Env, Ns) of
         {ok, File} ->
-            case compile_source(Env, File) of
-                {ok, Ns2, Beam, Hash} when Ns2 =:= Ns ->
-                    with_needed(Env, [{Ns, Beam, Hash}],
-                                <<Name/binary, ", compiled from ",
-                                  (list_to_binary(relative(File, Env)))/binary>>);
-                {ok, Ns2, _, _} ->
+            case (ern_build:module_of(ern_build:absolute(File), Root))#mod.ns of
+                Ns ->
+                    %% report §11.2: what it uses that the session has not
+                    %% loaded and whose source the root holds is compiled too
+                    Sources = with_sources(Env, [{Ns, File}], []),
+                    case compile_in_order(Env, Sources) of
+                        {ok, Modules} ->
+                            Lines = [[qname_text(N), ", compiled from ", relative(F, Env)]
+                                     || {N, F} <- lists:reverse(Sources)],
+                            with_needed(Env, Modules,
+                                        unicode:characters_to_binary(lists:join("\n", Lines)));
+                        {error, Failed} ->
+                            {'Left', iolist_to_binary(Failed)}
+                    end;
+                Ns2 ->
                     {'Left', <<(list_to_binary(qname_text(Ns2)))/binary, " is declared in ",
                                (list_to_binary(relative(File, Env)))/binary,
-                               ", which is not where ", Name/binary, " belongs\n">>};
-                {error, Diags} ->
-                    {'Left', Diags}
+                               ", which is not where ", Name/binary, " belongs\n">>}
             end;
         none ->
             case compiled_of(Env, Ns) of
@@ -1295,6 +1303,28 @@ load(Env, Name, Ns) ->
                     {'Left', <<"no module ", Name/binary, " under the source root or on the"
                                " load path\n">>}
             end
+    end.
+
+%% Report §11.2: the modules to compile for `:load`, each with its source:
+%% the one named, and each it uses, directly or through another, that the
+%% session has not loaded and whose source the source root holds. A module
+%% that does not parse uses nothing here; compiling it reports why.
+with_sources(_Env, [], Acc) ->
+    Acc;
+with_sources(#env{source_root = Root, modules = Loaded} = Env, [{Ns, File} | Rest], Acc) ->
+    case lists:keymember(Ns, 1, Acc) of
+        true ->
+            with_sources(Env, Rest, Acc);
+        false ->
+            Deps = try ern_build:compile_order([ern_build:module_of(ern_build:absolute(File),
+                                                                    Root)],
+                                               Root, load_path(Env)) of
+                       [#mod{deps = Ds}] -> Ds
+                   catch
+                       throw:_ -> []
+                   end,
+            More = [{D, F} || D <- Deps, not is_map_key(D, Loaded), {ok, F} <- [source_of(Env, D)]],
+            with_sources(Env, Rest ++ More, Acc ++ [{Ns, File}])
     end.
 
 %% The modules loaded, after what they use that the session has not
@@ -1394,25 +1424,30 @@ binding_fault(Ns, Cause) ->
 %% each found as the runner finds it, by namespace on the load path, and
 %% loaded before them, the modules it uses first.
 needed(Env, Modules) ->
-    lists:foldl(fun({_, Beam, _}, Found) -> needed(Env, Beam, Found) end, {ok, []}, Modules).
+    Compiled = [Ns || {Ns, _, _} <- Modules],
+    lists:foldl(fun({_, Beam, _}, Found) -> needed(Env, Beam, Found, Compiled) end, {ok, []},
+                Modules).
 
-needed(_Env, _Beam, {error, _} = Error) ->
+%% What one module uses that neither the session nor the modules compiled
+%% with it, Compiled, provide.
+needed(_Env, _Beam, {error, _} = Error, _Compiled) ->
     Error;
-needed(#env{modules = Loaded} = Env, Beam, {ok, _} = Found) ->
+needed(#env{modules = Loaded} = Env, Beam, {ok, _} = Found, Compiled) ->
     {ok, #{deps := Deps}} = ern_iface:read(Beam),
     lists:foldl(fun(_, {error, _} = Error) ->
                         Error;
                    ({Ns, _}, {ok, Acc}) ->
-                        case is_map_key(Ns, Loaded) orelse lists:keymember(Ns, 1, Acc) of
+                        case is_map_key(Ns, Loaded) orelse lists:member(Ns, Compiled)
+                             orelse lists:keymember(Ns, 1, Acc) of
                             true -> {ok, Acc};
-                            false -> needed_one(Env, Ns, Acc)
+                            false -> needed_one(Env, Ns, Acc, Compiled)
                         end
                 end, Found, Deps).
 
-needed_one(Env, Ns, Acc) ->
+needed_one(Env, Ns, Acc, Compiled) ->
     case compiled_of(Env, Ns) of
         {ok, _, Beam, Hash} ->
-            case needed(Env, Beam, {ok, Acc}) of
+            case needed(Env, Beam, {ok, Acc}, Compiled) of
                 {ok, Acc1} -> {ok, Acc1 ++ [{Ns, Beam, Hash}]};
                 Error -> Error
             end;
@@ -1474,20 +1509,94 @@ sourceless(#env{source_root = Root}, Names) ->
     [unicode:characters_to_binary(["the source root ", ern_build:shown(Root),
                                    " holds no source of ", Text])].
 
-%% The changed modules compiled, with what they use that the session has
-%% not loaded; or why they cannot all be loaded.
+%% Report §11.2: the changed modules compiled in the order they use one
+%% another, each against the session's modules and those compiled before
+%% it; and, while one's interface differs from the one the session holds,
+%% every loaded module that uses it compiled again with them, from its
+%% source. The modules compiled, with what they use that the session has
+%% not loaded; or why they cannot all be. A regression: a module that used
+%% a changed interface kept running against the previous one, and faulted.
 compile_all(Env, Changed) ->
-    Compiled = [{Ns, compile_source(Env, File)} || {Ns, File} <- Changed],
-    case [Diags || {_, {error, Diags}} <- Compiled] of
-        [] ->
-            Modules = [{Ns, Beam, Hash} || {Ns, {ok, _, Beam, Hash}} <- Compiled],
-            case needed(Env, Modules) of
-                {ok, Needed} -> {ok, Needed, Modules};
-                Error -> Error
+    case compile_in_order(Env, Changed) of
+        {ok, Modules} ->
+            case stale_users(Env, Changed, Modules) of
+                [] ->
+                    case needed(Env, Modules) of
+                        {ok, Needed} -> {ok, Needed, Modules};
+                        Error -> Error
+                    end;
+                Users ->
+                    case [Ns || Ns <- Users, source_of(Env, Ns) =:= none] of
+                        [] ->
+                            More = [{Ns, File} || Ns <- Users, {ok, File} <- [source_of(Env, Ns)]],
+                            compile_all(Env, Changed ++ More);
+                        Sourceless ->
+                            {error, [unicode:characters_to_binary(
+                                       [qname_text(Ns), " uses a module whose interface changed,"
+                                        " and the source root holds no source of it\n"])
+                                     || Ns <- Sourceless]}
+                    end
             end;
-        Failed ->
-            {error, Failed}
+        Error ->
+            Error
     end.
+
+%% Each module compiled, a module before those that use it, against the
+%% interfaces of the session and of the modules compiled before it.
+compile_in_order(#env{source_root = Root} = Env, Set) ->
+    try ern_build:compile_order([ern_build:module_of(ern_build:absolute(F), Root)
+                                 || {_, F} <- Set], Root, load_path(Env)) of
+        Ordered ->
+            {Compiled, _} =
+                lists:mapfoldl(fun(#mod{ns = Ns, file = File}, Ifaces) ->
+                                   case compile_source(Env, File, Ifaces) of
+                                       {ok, _, Beam, _} = Ok ->
+                                           {ok, #{iface := I}} = ern_iface:read(Beam),
+                                           {{Ns, Ok}, Ifaces#{Ns => I}};
+                                       Error ->
+                                           {{Ns, Error}, Ifaces}
+                                   end
+                               end, loaded_ifaces(Env), Ordered),
+            case [Text || {_, {error, Text}} <- Compiled] of
+                [] -> {ok, [{Ns, Beam, Hash} || {Ns, {ok, _, Beam, Hash}} <- Compiled]};
+                Failed -> {error, Failed}
+            end
+    catch
+        throw:{cli_error, Message} ->
+            {error, [unicode:characters_to_binary([Message, "\n"])]};
+        throw:{errors, Failed, Diags} ->
+            {ok, Source} = file:read_file(Failed),
+            {error, [unicode:characters_to_binary(
+                       [ern_diag:format(ern_build:shown(Failed), Source, D) || D <- Diags])]}
+    end.
+
+%% The loaded modules, outside those compiled, that use a compiled module
+%% whose interface is not the one the session holds.
+stale_users(#env{modules = Loaded} = Env, Set, Modules) ->
+    Held = loaded_ifaces(Env),
+    Changed = [Ns || {Ns, Beam, _} <- Modules,
+                     {ok, #{iface := I}} <- [ern_iface:read(Beam)],
+                     not is_map_key(Ns, Held)
+                         orelse ern_iface:hash(maps:get(Ns, Held)) =/= ern_iface:hash(I)],
+    [Ns || Ns <- lists:sort(maps:keys(Loaded)), not lists:keymember(Ns, 1, Set),
+           lists:any(fun({D, _}) -> lists:member(D, Changed) end, recorded_deps(Env, Ns))].
+
+%% The dependencies a loaded module was compiled against, as its compiled
+%% form records them: the session's, or the file it was loaded from.
+recorded_deps(#env{beams = Beams}, Ns) ->
+    Beam = case Beams of
+               #{Ns := B} -> B;
+               _ ->
+                   {ok, B} = file:read_file(code:which(ern_emitter:module_atom(Ns))),
+                   B
+           end,
+    {ok, #{deps := Deps}} = ern_iface:read(Beam),
+    Deps.
+
+%% The interfaces of the modules the session has loaded, by namespace.
+loaded_ifaces(#env{ifaces = Ifaces, modules = Modules}) ->
+    maps:from_list([{I#iface.namespace, I} || I <- Ifaces,
+                                               is_map_key(I#iface.namespace, Modules)]).
 
 reload_one({Ns, Beam, Hash}, {Env, Lines}) ->
     Mod = ern_emitter:module_atom(Ns),
@@ -1569,8 +1678,11 @@ install(#env{ifaces = Ifaces, modules = Modules} = Env, Ns, Beam, Hash) ->
             modules = Modules#{Ns => Hash},
             beams = maps:put(Ns, Beam, Env#env.beams)}.
 
-compile_source(#env{source_root = Root} = Env, File) ->
-    case ern_build:compile_source(File, Root, load_path(Env)) of
+%% Report §11.2: a module compiled against the modules the session has
+%% loaded, as Ifaces holds them. A regression: a dependency `:load` had
+%% compiled in memory was sought as a `.erc`, and the dependent refused.
+compile_source(#env{source_root = Root} = Env, File, Ifaces) ->
+    case ern_build:compile_source(File, Root, load_path(Env), Ifaces) of
         {ok, Ns, Beam, Hash} ->
             {ok, Ns, Beam, Hash};
         {refused, Text} ->
