@@ -1672,10 +1672,11 @@ fn Money.compare(a : Money, b : Money) : Int = if a < b then 1 else 2
 
 ```console
 $ ern build example.ern
-example.ern:3:51: Money.compare must return an Ordering: expected Ordering, found Int
+example.ern:3:42: Money.compare must have the type (Money, Money) -> Ordering, not (Money, Money) -> Int
 2 | 
 3 | fn Money.compare(a : Money, b : Money) : Int = if a < b then 1 else 2
-  |                                                   ^^^^^
+  |                                          ^^^
+  | = help: compare takes two values of its type, returns an Ordering, and is pure
 ```
 
 ### `&&` on a value that is no Bool (§4.8)

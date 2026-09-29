@@ -1084,6 +1084,26 @@ member_type(D, #env{ns = Ns} = Env) when is_record(D, fn_decl); is_record(D, for
 member_type(_, _) ->
     none.
 
+%% Report §4.8, §11.5: a compare whose declared result is another type is
+%% an error at that result, before its body, whose own `<` would call it.
+%% A regression: the body's use was reported, not the declaration.
+early_compare_shape(D, Ret, {tfn, Ps, _, RetT}, #env{st = St} = Env) ->
+    case {member_type(D, Env), ern_types:resolve(RetT, St)} of
+        {{TQ, compare}, {tcon, Q, _}} when Q =/= ['Ordering'] ->
+            Self = case Ps of
+                       [P | _] -> P;
+                       [] -> {tcon, TQ, []}
+                   end,
+            Shown = fun(T) -> ern_types:format(T, St) end,
+            fail(node_span(Ret), format_qname([lists:last(TQ), compare])
+                                 ++ " must have the type "
+                                 ++ Shown({tfn, [Self, Self], pure, {tcon, ['Ordering'], []}})
+                                 ++ ", not " ++ Shown({tfn, Ps, pure, RetT}), [],
+                 "compare takes two values of its type, returns an Ordering, and is pure");
+        _ ->
+            ok
+    end.
+
 %% Report §11.2: the type a member names, the module's own or, at the
 %% prompt, one the session declared.
 owner_qname(Owner, #env{local_types = LT} = Env) ->
@@ -1251,6 +1271,7 @@ check_value(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect, bod
     Env2 = Env1b#env{st = mark_process_only(FnT, St1b), effect = EffT, pending = [],
                      deferred = [], ann_vars = AnnVars1, rigid = maps:to_list(AnnVars1),
                      effect_origin = effect_origin(decl_name(D), Ret, Effect, RetT, EffT, St1b)},
+    early_compare_shape(D, Ret, FnT, Env2),
     Context = ret_context(Ret, "the body does not have the declared return type"),
     {TypedBody, _BodyT, Env4} = check_expr(Body, RetT, Context, ret_origin(Ret, RetT, Env2), Env2),
     Env5 = unify_at(Pos, Placeholder, FnT, Env4, "recursive use does not match the definition"),
