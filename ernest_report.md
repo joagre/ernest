@@ -1640,7 +1640,7 @@ Erl.atom : (String) -> Foreign // the Erlang atom of the text
 
 ### Appendix E.20. `bytes.ern` (namespace `Bytes`)
 
-A `Bytes` is not a container: operations on its octets go through `toList`, which gives each as an `Int` from 0 to 255. `Bytes.<>` is the prelude's, §9.6; this module provides it. `<<...>>` builds and matches a `Bytes` at the bit level (§5.11), so there is no constructor here. The primitives are `size` and `slice` (E.0 rule 1); the rest is written with the bit syntax.
+A `Bytes` is not a container: operations on its octets go through `toList`, which gives each as an `Int` from 0 to 255. `Bytes.<>` is the prelude's, §9.6; this module provides it. `<<...>>` builds and matches a `Bytes` at the bit level (§5.11), so there is no constructor here. The primitives are `size` and `slice` (E.0 rule 1); the rest is written over them and with the bit syntax. The functions `String` has for text, a search, a split, a replacement and their like, are `Bytes`' too, for octets, under the same names. `toHex` and `fromHex` are one encoding, Bytes written as text, whose two directions stand in the module of what is encoded, as `String.toUtf8` and `String.fromUtf8` stand in `String`'s.
 
 ```
 Bytes.size : (Bytes) -> Int // octets
@@ -1649,6 +1649,16 @@ Bytes.get : (Bytes, Int) -> Optional(Int) // the octet at the index from 0
 Bytes.slice : (Bytes, Int, Int) -> Bytes // from the index, that many octets, clipped; a negative index or count is 0
 Bytes.toList : (Bytes) -> List(Int)
 Bytes.fromList : (List(Int)) -> Optional(Bytes) // None when a value is outside 0 to 255
+Bytes.contains : (Bytes, Bytes) -> Bool // an empty second is always there
+Bytes.indexOf : (Bytes, Bytes) -> Optional(Int) // where the second first begins, None where it is not there; an empty second is 0
+Bytes.startsWith : (Bytes, Bytes) -> Bool // true for an empty second
+Bytes.endsWith : (Bytes, Bytes) -> Bool // true for an empty second
+Bytes.split : (Bytes, Bytes) -> List(Bytes) // at each occurrence of the second; an empty second gives the first alone
+Bytes.replace : (Bytes, Bytes, Bytes) -> Bytes // every occurrence of the second by the third; an empty second changes nothing
+Bytes.join : (List(Bytes), Bytes) -> Bytes // the second between the parts
+Bytes.repeat : (Bytes, Int) -> Bytes // n times; n below 0 is 0
+Bytes.toHex : (Bytes) -> String // two hexadecimal digits an octet, with upper-case letters
+Bytes.fromHex : (String) -> Optional(Bytes) // two digits an octet, in either case; None for an odd count or another character
 ```
 
 ### Appendix E.21. `process.ern` (namespace `Process`)

@@ -2,8 +2,8 @@
 /// not a container: its octets are reached through `toList`, each an `Int`
 /// from 0 to 255, and `<<...>>` builds and matches one at the bit level
 /// (report §5.11), so there is no constructor here. The primitives are
-/// `size` and `slice`, the runtime's; the rest is written with the bit
-/// syntax (report Appendix E.0 rule 1).
+/// `size` and `slice`, the runtime's; the rest is written over them and
+/// with the bit syntax (report Appendix E.0 rule 1).
 ///
 /// ## Examples
 ///
@@ -95,5 +95,171 @@ fn octets(b : Bytes, done : List(Int)) : List(Int) =
 export fn fromList(octets : List(Int)) : Optional(Bytes) =
     if List.all(octets, fn(n) = n >= 0 && n <= 255) then
         Some(List.foldLeft(octets, <<>>, fn(done, n) = <<done:bytes, n>>))
+    else
+        None
+
+/// `true` when the second occurs in the first; an empty second always does.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Bytes.contains(<<1, 2, 3>>, <<2, 3>>), Bytes.contains(<<1, 2>>, <<3>>))
+/// // => #(true, false)
+/// ```
+export fn contains(b : Bytes, part : Bytes) : Bool =
+    indexOf(b, part) != None
+
+/// Where the second begins in the first, the first place it does, and
+/// `None` where it is not there. An empty second is at 0.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Bytes.indexOf(<<1, 2, 1, 2>>, <<1, 2>>), Bytes.indexOf(<<1>>, <<2>>))
+/// // => #(Some(0), None)
+/// ```
+export fn indexOf(b : Bytes, part : Bytes) : Optional(Int) =
+    seek(b, part, 0)
+
+// The first place from the index where the part begins.
+fn seek(b : Bytes, part : Bytes, at : Int) : Optional(Int) =
+    if at + size(part) > size(b) then
+        None
+    else if slice(b, at, size(part)) == part then
+        Some(at)
+    else
+        seek(b, part, at + 1)
+
+/// `true` when the first begins with the second, and for an empty second.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Bytes.startsWith(<<1, 2, 3>>, <<1, 2>>), Bytes.startsWith(<<1>>, <<1, 2>>))
+/// // => #(true, false)
+/// ```
+export fn startsWith(b : Bytes, prefix : Bytes) : Bool =
+    slice(b, 0, size(prefix)) == prefix
+
+/// `true` when the first ends with the second, and for an empty second.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Bytes.endsWith(<<1, 2, 3>>, <<3>>)
+/// // => true
+/// ```
+export fn endsWith(b : Bytes, suffix : Bytes) : Bool = {
+    let n = size(suffix);
+    size(b) >= n && slice(b, size(b) - n, n) == suffix
+}
+
+/// The parts between the occurrences of the second, the empty parts
+/// included; an empty second gives the first alone.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Bytes.split(<<1, 0, 0, 2>>, <<0>>)
+/// // => [<<1>>, <<>>, <<2>>]
+/// ```
+export fn split(b : Bytes, separator : Bytes) : List(Bytes) =
+    if isEmpty(separator) then [b] else List.reverse(parts(b, separator, []))
+
+// The parts found so far, the last first, and the rest of the octets.
+fn parts(b : Bytes, separator : Bytes, done : List(Bytes)) : List(Bytes) =
+    match indexOf(b, separator) {
+        None -> b :: done
+      | Some(at) -> {
+            let rest = at + size(separator);
+            parts(slice(b, rest, size(b) - rest), separator, slice(b, 0, at) :: done)
+        }
+    }
+
+/// Every occurrence of the second replaced by the third, the first
+/// occurrence first; an empty second changes nothing.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Bytes.replace(<<1, 0, 2, 0>>, <<0>>, <<9, 9>>)
+/// // => <<1, 9, 9, 2, 9, 9>>
+/// ```
+export fn replace(b : Bytes, old : Bytes, new : Bytes) : Bytes =
+    if isEmpty(old) then b else join(split(b, old), new)
+
+/// The parts with the second between them.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Bytes.join([<<1>>, <<2>>], <<0>>)
+/// // => <<1, 0, 2>>
+/// ```
+export fn join(parts : List(Bytes), separator : Bytes) : Bytes =
+    match parts {
+        [] -> <<>>
+      | first :: rest -> List.foldLeft(rest, first, fn(done, part) = done <> separator <> part)
+    }
+
+/// The octets `n` times; `n` below 0 gives the empty `Bytes`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Bytes.repeat(<<1, 2>>, 2)
+/// // => <<1, 2, 1, 2>>
+/// ```
+export fn repeat(b : Bytes, n : Int) : Bytes =
+    copies(b, n, <<>>)
+
+fn copies(b : Bytes, n : Int, done : Bytes) : Bytes =
+    if n <= 0 then done else copies(b, n - 1, done <> b)
+
+/// Each octet as two hexadecimal digits, with upper-case letters as
+/// `Int.toStringBase` writes them.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Bytes.toHex(<<0, 171, 255>>)
+/// // => "00ABFF"
+/// ```
+export fn toHex(b : Bytes) : String =
+    String.join(List.map(toList(b), fn(n) = digit(n / 16) <> digit(n % 16)), "")
+
+fn digit(d : Int) : String =
+    String.slice("0123456789ABCDEF", d, 1)
+
+/// The octets two hexadecimal digits write each, in either case, or `None`
+/// for an odd number of digits or a character that is none.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Bytes.fromHex("00abFF"), Bytes.fromHex("0"), Bytes.fromHex("zz"))
+/// // => #(Some(<<0, 171, 255>>), None, None)
+/// ```
+export fn fromHex(text : String) : Optional(Bytes) =
+    octetsOf(String.toList(text), <<>>)
+
+// The octets the digits write, after those already read.
+fn octetsOf(digits : List(Char), done : Bytes) : Optional(Bytes) =
+    match digits {
+        [] -> Some(done)
+      | high :: low :: rest -> match #(value(high), value(low)) {
+            #(Some(h), Some(l)) -> octetsOf(rest, <<done:bytes, (h * 16 + l)>>)
+          | _ -> None
+        }
+      | [_] -> None
+    }
+
+fn value(c : Char) : Optional(Int) =
+    if c >= '0' && c <= '9' then
+        Some(Char.toInt(c) - Char.toInt('0'))
+    else if c >= 'a' && c <= 'f' then
+        Some(Char.toInt(c) - Char.toInt('a') + 10)
+    else if c >= 'A' && c <= 'F' then
+        Some(Char.toInt(c) - Char.toInt('A') + 10)
     else
         None

@@ -14,7 +14,6 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 
 ## The standard library, the libraries, the examples
 
-- 2.98 — `Bytes` has no search or split (N-L), and gains the functions of Erlang's `binary` that `String` has, named as `String`'s are: `contains`, `indexOf`, `startsWith` and `endsWith` from `match`, `split`, `replace`, `join`, `repeat` from `copy/2`, and `toHex` and `fromHex` from `encode_hex` and `decode_hex`. Not taken: `at`, `part`, `bin_to_list` and `list_to_bin`, which are `get`, `slice`, `toList` and `fromList`; `first` and `last`, which `get` is; `encode_unsigned` and `decode_unsigned`, which are bitstrings' (§5.11); `longest_common_prefix` and `longest_common_suffix`, words `String` has not; and `compile_pattern`, `copy/1` and `referenced_byte_size`, which are the host's representation
 - 2.98 — the language: a list of functions as a binding, `kill` and `monitor` on `Process`, "no limit" unnamed, `Io.debug` a shim, every program's `errorText`, no word of a restart's end, `Tcp.close` and `closeListener`, `Bytes.slice` a shim (E-C1..C8)
 
 ## The documents

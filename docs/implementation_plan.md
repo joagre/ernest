@@ -86,7 +86,8 @@ discussed with the user one at a time as they are met.
    binding named (§8.5), T19, the prelude shown by `:browse` and `:doc` (§11.2), S11, the
    history decoded in one pass, a paste read once however many pieces it comes in, and C10,
    sockets, listeners and programs known as processes under the function that opened them
-   (E.18, E.23), done 2026-09-29; the diagnostics' positions and labels
+   (E.18, E.23), and `Bytes` gaining `String`'s text functions with `toHex` and `fromHex`
+   (E.20), done 2026-09-29; the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
