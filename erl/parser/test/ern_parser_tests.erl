@@ -615,7 +615,7 @@ operator_grammar_test() ->
 %% report Appendix A
 misc_errors_test() ->
     ?assertEqual("`_` is a pattern, not an expression", err_expr("_ + 1")),
-    ?assertEqual("a constructor's fields are listed inside the parentheses", err_expr("None()")),
+    ?assertEqual("empty parentheses after None", err_expr("None()")),
     ?assertEqual("expected a name; a type member is written `Stack.name`",
                  err("fn Stack(x) = x")),
     ?assertEqual("a foreign function declares its return type",

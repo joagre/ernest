@@ -727,7 +727,7 @@ type_declarations_test() ->
                  type_of("export type Key = Up | Down\nexport fn isDown(k) = match k"
                          " { Down -> true"
                          " | Up -> false }", isDown)),
-    ?assertEqual("field names must be unique within a constructor",
+    ?assertEqual("field a is declared twice",
                  err("type T = T(a : Int, a : Int)")).
 
 %% report §4.2, §5.4: a module declares each top-level name once, private or
@@ -1251,7 +1251,8 @@ warts_audit_test() ->
     %% the parameter count
     ?assertEqual("the implementation names arity 2, and tick has 0 parameters",
                  err("foreign fn tick() : Unit with m = \"m:tick/2\"")),
-    ?assertEqual("the implementation of tick is named module:function/arity, as \"ets:new/2\"",
+    ?assertEqual("the implementation of tick is named module:function/arity, here"
+                 " module:function/0",
                  err("foreign fn tick() : Unit with m = \"tick\"")),
     %% foreign fn with an effect is process-only
     ?assertEqual("tick needs a process, and f is pure",
@@ -1276,7 +1277,7 @@ warts_audit_test() ->
 %% A regression test: the checker conformed before it was written. It does
 %% not cover a module or function missing at run time.
 foreign_implementation_name_test() ->
-    Named = "the implementation of tick is named module:function/arity, as \"ets:new/2\"",
+    Named = "the implementation of tick is named module:function/arity, here module:function/1",
     ?assertEqual(Named, err("foreign fn tick(n : Int) : Int = \"erlang:abs\"")),
     ?assertEqual(Named, err("foreign fn tick(n : Int) : Int = \"abs/1\"")),
     ?assertEqual(Named, err("foreign fn tick(n : Int) : Int = \"erlang:abs/x\"")),
@@ -1910,7 +1911,7 @@ bitstring_construction_test() ->
                  err("fn f() = <<1:int-float>>")),
     ?assertEqual("conflicting bitstring specifiers `big` and `little`",
                  err("fn f() = <<1:big-little>>")),
-    ?assertEqual("unit is 1 to 256 on this runtime", err("fn f() = <<1:unit(0)>>")),
+    ?assertEqual("unit is 1 to 256", err("fn f() = <<1:unit(0)>>")),
     ?assertEqual("a utf segment has no size or unit", err("fn f() = <<'a':utf8-size(8)>>")),
     ?assertEqual("a float segment is 16, 32, or 64 bits", err("fn f() = <<1.0:size(8)-float>>")),
     ?assertEqual("a `bytes` segment is a whole number of bytes, not 12 bits",

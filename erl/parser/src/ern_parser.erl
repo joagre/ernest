@@ -350,10 +350,10 @@ foreign_decl([{foreign, Pos}, {fn, _} | R], Doc, Export) ->
                         end,
     R6 = expect(R5, '='),
     case R6 of
-        [{string, _, Impl} | R7] ->
+        [{string, IPos, Impl} | R7] ->
             w({#foreign_fn_decl{pos = Pos, doc = Doc, export = Export, owner = Owner,
                                 name = Name, params = Params, ret = Ret, effect = Effect,
-                                impl = Impl}, R7});
+                                impl = Impl, impl_pos = IPos}, R7});
         [T | _] ->
             fail(pos(T), "expected the implementation name as a string instead of "
                          ++ describe(T))
@@ -390,9 +390,11 @@ type([{'(', Pos} | R]) ->
         _ ->
             case Elems of
                 [T] -> w({T, R2});
-                [] -> fail(Pos, "expected a type inside the parentheses, or `->` after them");
+                [] -> fail(Pos, "expected a type inside the parentheses, or `->` after them",
+                           "the type of no value is Unit");
                 _ -> fail(pos(hd(R2)), "expected `->` after a parameter list instead of "
-                                       ++ describe(hd(R2)))
+                                       ++ describe(hd(R2)),
+                          "a tuple type is written with `#(`, as #(Int, Int)")
             end
     end;
 type([{'#(', Pos} | R]) ->
@@ -405,8 +407,13 @@ type([{typename, Pos, _} | _] = Ts) ->
             w({#t_con{pos = Pos, path = Path, name = Name, args = Args}, expect(R1, ')')});
         {{con, Path, Name}, R} ->
             w({#t_con{pos = Pos, path = Path, name = Name}, R});
-        {{value, _, _}, _} ->
-            fail(Pos, "expected a type name; a qualified type ends in an uppercase name")
+        {{value, Path, Name}, R} ->
+            %% report §11.5: over the whole name, with how an argument is
+            %% written
+            fail(through(Pos, Ts, R),
+                 "expected a type name; a qualified type ends in an uppercase name",
+                 "type arguments are written " ++ lists:join(".", [atom_to_list(P) || P <- Path])
+                 ++ "(" ++ atom_to_list(Name) ++ ")")
     end;
 type([{ident, Pos, Name} | R]) ->
     w({#t_var{pos = Pos, name = Name}, R});
@@ -466,8 +473,9 @@ if_expr(Ts, Pos) ->
         [{'else', _} | R3] ->
             {Else, R4} = expr(R3),
             w({#e_if{pos = Pos, condition = Cond, then_branch = Then, else_branch = Else}, R4});
-        [T | _] ->
-            fail(pos(T), "`if` needs an `else`", "every `if` is an expression; give the"
+        [_ | _] ->
+            %% report §11.5: at the `if`, which the next line need not show
+            fail(Pos, "`if` needs an `else`", "every `if` is an expression; give the"
                  " other branch a value")
     end.
 
@@ -683,8 +691,9 @@ constructor_expr(Pos, Path, Name, [{'(', _} | R]) ->
             w({#e_con{pos = Pos, path = Path, name = Name, args = {named, undefined, Sets}},
                expect(R1, ')')});
         [{')', P} | _] ->
-            fail(P, "a constructor's fields are listed inside the parentheses",
-                 "a nullary constructor takes none: write it without parentheses");
+            fail(P, "empty parentheses after " ++ atom_to_list(Name),
+                 "a constructor without fields is written without them: "
+                 ++ atom_to_list(Name));
         [{eof, P} | _] ->
             %% report §11.2: the input ends where the constructor's first
             %% argument would stand, and positional or named is not
@@ -736,7 +745,8 @@ stmts(Ts, Prev, Acc) ->
     {S, R} = stmt(Ts),
     one_clause(S, Prev),
     case R of
-        [{';', _}, {'}', P} | _] ->
+        [{';', P}, {'}', _} | _] ->
+            %% report §11.5: at the `;` the help says to remove
             fail(P, "a block ends with an expression", "remove the trailing `;`");
         [{';', _} | R1] ->
             stmts(R1, S, [S | Acc]);
@@ -816,8 +826,9 @@ atompat([{'-', _}, T | _]) ->
 atompat([{typename, Pos, _} | _] = Ts) ->
     case qualified(Ts) of
         {{con, Path, Name}, R} -> constructor_pat(Pos, Path, Name, R);
-        {{value, _, _}, _} -> fail(Pos, "expected a constructor; a pattern cannot name a"
-                                       " function or value")
+        {{value, _, _}, R} ->
+            fail(through(Pos, Ts, R),
+                 "expected a constructor; a pattern cannot name a function or value")
     end;
 atompat([{'#(', Pos} | R]) ->
     {Elems, R1} = sep_by(R, ',', fun pattern/1),
@@ -934,11 +945,22 @@ expect_typename(Ts) ->
     {Name, R}.
 
 expect_typename_pos([{typename, Pos, Name} | R]) -> {Name, Pos, R};
+expect_typename_pos([{ident, P, N} = T | _]) ->
+    [C | Rest] = atom_to_list(N),
+    throw({parse_error, (diag(P, "expected a type name instead of " ++ describe(T),
+                              "a type name begins with an uppercase letter: "
+                              ++ [string:to_upper(C) | Rest]))#diag{expected = typename}});
 expect_typename_pos([T | _]) ->
     wanted(typename, pos(T), "expected a type name instead of " ++ describe(T)).
 
 sym(T) -> element(1, T).
 pos(T) -> element(2, T).
+
+%% Report §11.5: the span from Pos to the end of the last token Ts gave
+%% before Rest, so an error covers a qualified name whole.
+through(Pos, Ts, Rest) ->
+    Last = lists:nth(length(Ts) - length(Rest), Ts),
+    setelement(3, Pos, element(3, pos(Last))).
 line(T) -> element(1, pos(T)).
 node_pos(Node) -> element(2, Node).
 

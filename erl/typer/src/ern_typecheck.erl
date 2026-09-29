@@ -580,11 +580,22 @@ constructor_fields({positional, Syntax}, VarMap, Env) ->
 constructor_fields({named, Fields}, VarMap, Env) ->
     Sorted = lists:sort(fun(#field{name = A}, #field{name = B}) -> A =< B end, Fields),
     Names = [N || #field{name = N} <- Sorted],
-    length(lists:usort(Names)) =:= length(Names) orelse
-        fail((hd(Sorted))#field.pos, "field names must be unique within a constructor"),
+    %% report §11.5: at the second, named, the first labelled
+    case [{F, Again} || {#field{name = N} = F, Again} <- first_repeat(Fields), N =/= none] of
+        [] ->
+            ok;
+        [{#field{name = N, pos = First}, #field{pos = Second}} | _] ->
+            fail(Second, "field " ++ atom_to_list(N) ++ " is declared twice",
+                 [{ern_diag:span(First), "first declared here"}], undefined)
+    end,
     {Types, Env1} = lists:mapfoldl(fun(#field{type = S}, E) -> field_type(S, VarMap, E) end,
                                    Env, Sorted),
     {{named, Names}, Types, Env1}.
+
+%% Each field whose name a later one repeats, with the later one.
+first_repeat(Fields) ->
+    [{F, G} || {I, #field{name = N} = F} <- lists:enumerate(Fields),
+               {J, #field{name = M} = G} <- lists:enumerate(Fields), J > I, M =:= N].
 
 field_type(Syntax, VarMap, Env) ->
     {T, VarMap1, St} = ann(Syntax, VarMap, Env),
@@ -1224,16 +1235,22 @@ check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) 
                 end,
     {D#let_decl{body = TypedBody}, post(Pos, [], TypedBody, BodyT, Env3),
      (restore_scope(Env3, Env))#env{effectful_lets = Effectful}};
-check_value(#foreign_fn_decl{pos = Pos, params = Params, impl = Impl} = D, _Placeholder, Env) ->
-    %% report §8.4: the implementation is module:function/arity
+check_value(#foreign_fn_decl{pos = Pos, params = Params, impl = Impl, impl_pos = IPos} = D,
+            _Placeholder, Env) ->
+    %% report §8.4: the implementation is module:function/arity; report
+    %% §11.5: the error stands at the string
+    At = case IPos of
+             undefined -> Pos;
+             _ -> IPos
+         end,
     case foreign_impl(Impl) of
         {ok, {_, _, A}} when A =:= length(Params) -> ok;
         {ok, {_, _, A}} ->
-            fail(Pos, io_lib:format("the implementation names arity ~B, and ~s has ~B parameter~s",
-                                    [A, decl_name(D), length(Params), plural(length(Params))]));
+            fail(At, io_lib:format("the implementation names arity ~B, and ~s has ~B parameter~s",
+                                   [A, decl_name(D), length(Params), plural(length(Params))]));
         error ->
-            fail(Pos, "the implementation of " ++ decl_name(D)
-                      ++ " is named module:function/arity, as \"ets:new/2\"")
+            fail(At, io_lib:format("the implementation of ~s is named module:function/arity,"
+                                   " here module:function/~B", [decl_name(D), length(Params)]))
     end,
     %% its type is its signature's, which signature_shape gave it
     {D, none, Env}.
@@ -1277,7 +1294,8 @@ bind_params(Params, Env, AnnVars) ->
 
 bind_param(#param{pos = Pos, pattern = P, type = Ann} = Param, {Env, AnnVars}) ->
     {TypedP, PT, Bindings, Env1} = check_pattern(P, Env),
-    irrefutable(P, Env1) orelse fail(Pos, "a parameter pattern must be irrefutable"),
+    irrefutable(P, Env1) orelse fail(Pos, "a parameter pattern must be irrefutable", [],
+                                     "take the value whole, and match on it in the body"),
     {AnnVars1, Env2} = case Ann of
                            undefined -> {AnnVars, Env1};
                            _ ->
@@ -1859,7 +1877,7 @@ infer(#e_call{pos = Pos, callee = Callee, args = Args} = E, Env) ->
             {RetT, St} = ern_types:fresh(Env2#env.st),
             {Eff, St1} = ern_types:fresh_effect(St),
             Env3 = unify_at(Pos, CalleeT, {tfn, ArgTs, Eff, RetT}, Env2#env{st = St1},
-                            "not a function"),
+                            "calling " ++ Name ++ " needs it to be a function"),
             Env4 = use_effect(Pos, Name, Eff, Env3),
             {E#e_call{callee = TypedCallee, args = TypedArgs, type = RetT}, RetT, Env4};
         Other ->

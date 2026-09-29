@@ -39,8 +39,9 @@
 -record(foreign_type_decl, {pos, doc, export = false, name, params = [], eq = []}).
 %% eq: the parameters written `k=`, which require equality (report §4.7)
 -record(foreign_fn_decl, {pos, doc, export = false, owner, name, params, ret, effect,
-                          impl, type}).
-%% type: the scheme, set by the checker, as on fn_decl
+                          impl, impl_pos, type}).
+%% type: the scheme, set by the checker, as on fn_decl; impl_pos: where the
+%% implementation's string stands, for its diagnostics (report §11.5)
 
 %%
 %% Types (syntactic)

@@ -474,6 +474,7 @@ $ ern build example.ern
 example.ern:1:10: expected a type inside the parentheses, or `->` after them
 1 | fn f() : () = 1
   |          ^
+  | = help: the type of no value is Unit
 ```
 
 ### Parenthesized types that are no function type (§3.2)
@@ -487,6 +488,7 @@ $ ern build example.ern
 example.ern:1:23: expected `->` after a parameter list instead of `)`
 1 | fn f(pair : (Int, Int)) : Int = 1
   |                       ^
+  | = help: a tuple type is written with `#(`, as #(Int, Int)
 ```
 
 ### A qualified type that ends in a lowercase name (§3.2)
@@ -499,7 +501,8 @@ fn f(xs : List.a) : Int = 1
 $ ern build example.ern
 example.ern:1:11: expected a type name; a qualified type ends in an uppercase name
 1 | fn f(xs : List.a) : Int = 1
-  |           ^^^^
+  |           ^^^^^^
+  | = help: type arguments are written List(a)
 ```
 
 ### Something that is no type where a type stands (§3.2)
@@ -550,10 +553,9 @@ fn f(b : Bool) : Int = if b then 1
 
 ```console
 $ ern build example.ern
-example.ern:2:1: `if` needs an `else`
+example.ern:1:24: `if` needs an `else`
 1 | fn f(b : Bool) : Int = if b then 1
-2 | 
-  | ^
+  |                        ^^
   | = help: every `if` is an expression; give the other branch a value
 ```
 
@@ -605,10 +607,10 @@ fn f() : Optional(Int) = None()
 
 ```console
 $ ern build example.ern
-example.ern:1:31: a constructor's fields are listed inside the parentheses
+example.ern:1:31: empty parentheses after None
 1 | fn f() : Optional(Int) = None()
   |                               ^
-  | = help: a nullary constructor takes none: write it without parentheses
+  | = help: a constructor without fields is written without them: None
 ```
 
 ### An empty block (§5.4)
@@ -634,10 +636,10 @@ fn f() : Int = {
 
 ```console
 $ ern build example.ern
-example.ern:3:1: a block ends with an expression
+example.ern:2:6: a block ends with an expression
+1 | fn f() : Int = {
 2 |     1;
-3 | }
-  | ^
+  |      ^
   | = help: remove the trailing `;`
 ```
 
@@ -760,7 +762,7 @@ $ ern build example.ern
 example.ern:3:9: expected a constructor; a pattern cannot name a function or value
 2 |     match xs {
 3 |         List.map -> 1
-  |         ^^^^
+  |         ^^^^^^^^
 ```
 
 ### Something that is no pattern where one stands (§5.10)
@@ -873,6 +875,7 @@ $ ern build example.ern
 example.ern:1:6: expected a type name instead of identifier `point`
 1 | type point = Point(Int)
   |      ^^^^^
+  | = help: a type name begins with an uppercase letter: Point
 ```
 
 ## Types (report §3)
@@ -978,9 +981,10 @@ type Point = Point(x : Int, x : Int)
 
 ```console
 $ ern build example.ern
-example.ern:1:20: field names must be unique within a constructor
+example.ern:1:29: field x is declared twice
 1 | type Point = Point(x : Int, x : Int)
-  |                    ^^^^^^^
+  |                    ------- first declared here
+  |                             ^^^^^^^
 ```
 
 ### A type variable that is no parameter (§3.9)
@@ -1085,9 +1089,10 @@ foreign fn size(t : Foreign) : Int =
 
 ```console
 $ ern build example.ern
-example.ern:1:1: the implementation names arity 2, and size has 1 parameter
+example.ern:2:5: the implementation names arity 2, and size has 1 parameter
 1 | foreign fn size(t : Foreign) : Int =
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2 |     "erlang:tuple_size/2"
+  |     ^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A foreign implementation that is no `module:function/arity` (§8.4)
@@ -1099,9 +1104,10 @@ foreign fn size(t : Foreign) : Int =
 
 ```console
 $ ern build example.ern
-example.ern:1:1: the implementation of size is named module:function/arity, as "ets:new/2"
+example.ern:2:5: the implementation of size is named module:function/arity, here module:function/1
 1 | foreign fn size(t : Foreign) : Int =
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2 |     "tuple_size"
+  |     ^^^^^^^^^^^^
 ```
 
 ### A refutable parameter pattern (§4.5)
@@ -1115,6 +1121,7 @@ $ ern build example.ern
 example.ern:1:6: a parameter pattern must be irrefutable
 1 | fn f(Some(x)) : Int = x
   |      ^^^^^^^
+  | = help: take the value whole, and match on it in the body
 ```
 
 ### A parameter pattern that does not fit its annotation (§4.5)
@@ -1804,7 +1811,7 @@ fn f(g) = g(g)
 
 ```console
 $ ern build example.ern
-example.ern:1:11: not a function: a type that would contain itself (a against (a) -> b)
+example.ern:1:11: calling g needs it to be a function: a type that would contain itself (a against (a) -> b)
 1 | fn f(g) = g(g)
   |           ^^^^
 ```
@@ -2538,7 +2545,7 @@ fn f(n : Int) : Bytes = <<n:size(1)-unit(300)>>
 
 ```console
 $ ern build example.ern
-example.ern:1:27: unit is 1 to 256 on this runtime
+example.ern:1:27: unit is 1 to 256
 1 | fn f(n : Int) : Bytes = <<n:size(1)-unit(300)>>
   |                           ^^^^^^^^^^^^^^^^^^^
 ```
@@ -3004,6 +3011,7 @@ example.ern:2:5: the reply-carrying value r is captured by a local function
 1 | fn later(r : Reply(Int)) : Unit with m = {
 2 |     fn g() : Unit with m = answer(r, 1);
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: a local fn may be called many times; pass r to it as a parameter
 ```
 
 ### A reply answered twice (§6.6)

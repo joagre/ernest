@@ -42,7 +42,7 @@ spec(Specs) ->
         end,
         case Unit >= 1 andalso Unit =< 256 of
             true -> ok;
-            false -> throw("unit is 1 to 256 on this runtime")
+            false -> throw("unit is 1 to 256")
         end,
         case {Kind, Size} of
             {float, {const, N}} when N =/= 16, N =/= 32, N =/= 64 ->

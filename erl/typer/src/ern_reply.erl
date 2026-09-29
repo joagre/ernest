@@ -29,6 +29,7 @@
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
+-include_lib("utils/include/ern_diag.hrl").
 
 -define(CONTAINERS, [['List'], ['Map'], ['Set']]).
 
@@ -253,8 +254,12 @@ uses(#e_lambda{pos = Pos} = L, Linear, Env) ->
 uses(#fn_decl{pos = Pos, body = Body}, Linear, Env) ->
     case [N || {N, _} <- uses(Body, Linear, Env), N =/= '$fault'] of
         [] -> [];
-        [N | _] -> throw({type_error, Pos, "the reply-carrying value " ++ atom_to_list(N)
-                                           ++ " is captured by a local function"})
+        [N | _] -> throw({type_error,
+                          #diag{span = ern_diag:span(Pos),
+                                message = "the reply-carrying value " ++ atom_to_list(N)
+                                          ++ " is captured by a local function",
+                                help = "a local fn may be called many times; pass "
+                                       ++ atom_to_list(N) ++ " to it as a parameter"}})
     end;
 uses(#e_if{pos = Pos, condition = C, then_branch = T, else_branch = E}, Linear, Env) ->
     seq([uses(C, Linear, Env), branches(Pos, [uses(T, Linear, Env), uses(E, Linear, Env)])]);
