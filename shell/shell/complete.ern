@@ -1,43 +1,43 @@
-//
-// Completion (report §11.2), designed in docs/shell_design.md: what
-// `Tab` puts in the line, and what a second `Tab` lists.
-//
-// The matching and the ranking are pure functions from what is typed and
-// the names in scope, which is where the rule in CLAUDE.md puts them.
-// `completion` gathers the names: from the compiled interfaces and the
-// session, which only the front end can read, and from the source root,
-// through `Fs`.
-//
+/// Completion (report §11.2), designed in docs/shell_design.md: what
+/// `Tab` puts in the line, and what a second `Tab` lists.
+///
+/// The matching and the ranking are pure functions from what is typed and
+/// the names in scope, which is where the rule in CLAUDE.md puts them.
+/// `completion` gathers the names: from the compiled interfaces and the
+/// session, which only the front end can read, and from the source root,
+/// through `Fs`.
 
+/// What a name is: a value, a type, a constructor, or a module.
 export type Kind = Value | Type | Constructor | Module
 
-// Report §11.2: what may stand where the cursor is, which the parser
-// answers by saying what it wanted where it stopped. Each admits its
-// own kinds of name, which is what a completion is filtered by.
-// `Anything` is the shell's, for a command's argument, whose names the
-// command has chosen already.
+/// Report §11.2: what may stand where the cursor is, which the parser
+/// answers by saying what it wanted where it stopped. Each admits its
+/// own kinds of name, which is what a completion is filtered by.
+/// `Anything` is the shell's, for a command's argument, whose names the
+/// command has chosen already.
 export type Where = Expression | TypeName | Pattern | Declaration | Fields(List(Name)) | Anything
 
-// A name the shell can complete to: as it is typed, what it is, and the
-// line a listing shows, which carries its type.
+/// A name the shell can complete to: as it is typed, what it is, and the
+/// line a listing shows, which carries its type.
 export type Name = Name(text : String, kind : Kind, shown : String)
 
-// What a `Tab` does: the word that stands in place of the one before
-// the cursor, and the names it could still be, which a second `Tab`
-// lists, a lone one too. The word replaces rather than extends, since an
-// abbreviation is no prefix of what it reaches: `L.fm` becomes
-// `List.filterMap`. A completion whose word is empty changes nothing.
+/// What a `Tab` does: the word that stands in place of the one before
+/// the cursor, and the names it could still be, which a second `Tab`
+/// lists, a lone one too. The word replaces rather than extends, since an
+/// abbreviation is no prefix of what it reaches: `L.fm` becomes
+/// `List.filterMap`. A completion whose word is empty changes nothing.
 export type Completion = Completion(word : String, candidates : List(Name))
 
+/// The completion that changes nothing.
 export let nothing = Completion(word = "", candidates = [])
 
-// Report §11.2: what `Tab` completes the word before the cursor to, and
-// that word. A command is the shell's own word, not the language's, so
-// the parser is not asked about it; after a command, what completes is
-// what the command takes; anywhere else, what `context` says may stand
-// at the cursor, the parser being given the text before the word: with
-// the word there it has been read already, and what may stand at the
-// cursor is what may stand in its place.
+/// Report §11.2: what `Tab` completes the word before the cursor to, and
+/// that word. A command is the shell's own word, not the language's, so
+/// the parser is not asked about it; after a command, what completes is
+/// what the command takes; anywhere else, what `context` says may stand
+/// at the cursor, the parser being given the text before the word: with
+/// the word there it has been read already, and what may stand at the
+/// cursor is what may stand in its place.
 export fn completion(line : String, at : Int) : #(Completion, String) with m = {
     let typed = word(String.slice(line, 0, at));
     if String.startsWith(line, ":") && at <= Shell.Command.wordEnd(line) then {
@@ -72,6 +72,7 @@ fn offered(typed : String) : List(Name) with m = {
     }
 }
 
+/// `true` when the completion has one candidate.
 export fn lone(completion : Completion) : Bool =
     match completion {
         Completion(candidates = [_]) -> true
@@ -224,12 +225,12 @@ foreign fn fields(typed : String) : List(Name) with m =
 foreign fn segment(name : String) : Optional(String) =
     "ern_shell:segment/1"
 
-// Report §11.2: the word before the cursor completes against the names
-// in scope, segment by segment, so `Li` gives `List.` and `List.ma`
-// gives `List.map`. Nothing typed reaches every name admitted there,
-// which is what a `Tab` after a command lists. The word is the caller's
-// to give, since only it knows what a word is where the cursor stands:
-// the shell's own commands begin with a `:`, which is no part of a name.
+/// Report §11.2: the word before the cursor completes against the names
+/// in scope, segment by segment, so `Li` gives `List.` and `List.ma`
+/// gives `List.map`. Nothing typed reaches every name admitted there,
+/// which is what a `Tab` after a command lists. The word is the caller's
+/// to give, since only it knows what a word is where the cursor stands:
+/// the shell's own commands begin with a `:`, which is no part of a name.
 export fn complete(typed : String, names : List(Name), where : Where) : Completion =
     match matches(typed, admitted(names, where)) {
         #([], []) -> nothing
@@ -245,11 +246,11 @@ export fn complete(typed : String, names : List(Name), where : Where) : Completi
         }
     }
 
-// Report §11.2: every namespace the names are in, offered as a module is,
-// completing with its dot: a type with members, `Address` for
-// `Address.call` (§4.8), and a directory of modules, `Net` for
-// `Net.Http`, are namespaces though they are no modules, and a listing
-// says so, as it says `module List`.
+/// Report §11.2: every namespace the names are in, offered as a module is,
+/// completing with its dot: a type with members, `Address` for
+/// `Address.call` (§4.8), and a directory of modules, `Net` for
+/// `Net.Http`, are namespaces though they are no modules, and a listing
+/// says so, as it says `module List`.
 export fn withNamespaces(names : List(Name)) : List(Name) = {
     let texts = List.map(names, fn(name) = name.text);
     let prefixes = List.flatMap(texts, fn(t) = {
@@ -265,16 +266,16 @@ export fn withNamespaces(names : List(Name)) : List(Name) = {
     names <> List.map(fresh, fn(p) = Name(text = p, kind = Module, shown = "namespace " <> p))
 }
 
-// Report §11.2: the whole name the cursor stands in, what is before it
-// and what goes on after it, for `Shift-Tab`.
+/// Report §11.2: the whole name the cursor stands in, what is before it
+/// and what goes on after it, for `Shift-Tab`.
 export fn wordAt(line : String, at : Int) : String = {
     let following = String.toList(String.slice(line, at, String.size(line) - at));
     let #(rest, _) = List.span(following, fn(c) = inName(Char.toString(c)));
     word(String.slice(line, 0, at)) <> String.fromList(rest)
 }
 
-// The word being completed: the qualified name the cursor stands at the
-// end of. A name is letters, digits, `_`, and the `.` between segments.
+/// The word being completed: the qualified name the cursor stands at the
+/// end of. A name is letters, digits, `_`, and the `.` between segments.
 export fn word(before : String) : String = {
     let size = String.size(before);
     String.slice(before, start(before, size), size - start(before, size))
@@ -336,9 +337,9 @@ fn held(names : List(Name), stands : (Name) -> Bool) : List(Name) =
 fn isKind(name : Name, kind : Kind) : Bool =
     name.kind == kind
 
-// The line a completion leaves, and where the cursor lands in it: the
-// word before the cursor is replaced, since an abbreviation is no
-// prefix of what it reaches.
+/// The line a completion leaves, and where the cursor lands in it: the
+/// word before the cursor is replaced, since an abbreviation is no
+/// prefix of what it reaches.
 export fn applied(text : String,
                   at : Int,
                   typed : String,

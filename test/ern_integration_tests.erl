@@ -39,6 +39,17 @@ compiles(Name) ->
     0 = build(?BUILD ++ "../examples/" ++ Name ++ ".ern"),
     ?assert(filelib:is_regular("build/" ++ Name ++ ".erc")).
 
+%% report §8.2, E.16: without a terminal snake has no keys, so it says so
+%% and ends with status 1 before it draws. A regression test: it drew a
+%% frame and ended with status 0 (findings.md's pages line)
+snake_without_terminal_test_() ->
+    {timeout, 60,
+     fun() ->
+             0 = build(?BUILD ++ "../examples/snake.ern"),
+             ?assertEqual({1, <<"snake needs a terminal, since its keys are the game's input\n">>},
+                          sh("../bin/ern run build/snake.erc < /dev/null"))
+     end}.
+
 %% Paper program 4 (plan, MVP 2.5): the REPL reads stdin and ends at
 %% end of input, so its run is bounded by its input. The last two lines are
 %% the point of the program: an expression that does not terminate is killed

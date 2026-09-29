@@ -10,9 +10,9 @@
 %% (§8.6).
 %%
 %% The mode is stty's raw mode on a port that inherits the terminal, with
-%% two flags put back: opost, without which a line feed would no longer
-%% return the carriage, and isig, so that the interrupt ends the program,
-%% but for the shell, for which it is a key (§11.2).
+%% opost put back, without which a line feed would no longer return the
+%% carriage. Raw mode turns the interrupt's signal off, so that the
+%% interrupt arrives as a key, Interrupt, to every subscriber.
 %%
 %% A resize arrives as SIGWINCH, which OTP's signal server hands to
 %% ern_tty_signal, installed with the first subscription; the size is
@@ -230,8 +230,9 @@ start_reader(Reader) ->
 %% a column at a time, so `opost` goes back. A paste is asked to be
 %% bracketed, so that pasted text is one `Pasted` and not the keys of its
 %% characters; a terminal that does not know the request ignores it.
-%% Report §11.2: the shell reads the terminal's interrupt as a key, so its
-%% signal is turned off for the shell and for nobody else.
+%% Report §8.2: while the terminal is claimed for keys, its interrupt is
+%% delivered to every subscriber as `Interrupt`, so raw mode's `-isig`
+%% stays. A regression: the signal was turned back on but for the shell.
 %% Report §8.6: the terminal's settings are kept first, so that the end
 %% gives back the ones the program found; where they cannot be read, the
 %% mode is left as it is, since it could not be given back.
@@ -241,15 +242,9 @@ raw_mode() ->
             ok;
         Found ->
             persistent_term:put({?MODULE, found}, Found),
-            stty(["raw", "-echo", "opost" | interrupt_mode()])
+            stty(["raw", "-echo", "opost"])
     end,
     write(?PASTE_ON).
-
-interrupt_mode() ->
-    case ern_rt:terminal_holder() of
-        undefined -> ["isig"];
-        _ -> ["-isig"]
-    end.
 
 held_by_another(Address) ->
     case ern_rt:terminal_holder() of

@@ -24,7 +24,9 @@
 ///
 /// ## Examples
 ///
-/// A group of one, a child that answers, and the group stopped:
+/// A group of one, a child that answers, and the group stopped. The child's
+/// mailbox takes a bare `Reply(Int)`, so the call makes its message with
+/// `fn(r) = r`:
 ///
 /// ```ernest
 /// {
@@ -60,6 +62,19 @@ export type Strategy = OneForOne | OneForAll | RestForOne
 
 /// What a supervisor takes: its children's joins and faults, and what it
 /// sends itself; only this module makes it.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let sup : Address(Supervisor.Msg) =
+///         spawn(Local,
+///               Supervisor.group(Supervisor.OneForOne,
+///                                RestartLimit(restarts = 3, within = 5000)));
+///     kill(sup)
+/// }
+/// // => Unit
+/// ```
 export abstract type Msg =
     Join(process : Process,
          stop : () -> Unit with Watch,
@@ -254,7 +269,7 @@ fn stopAll(children : List(Member)) : Unit with Watch =
 ///
 /// `Fault("the supervisor has ended")` when `sup` has ended before the
 /// child joins, and `Fault("a child runs on its supervisor's node")` when
-/// `sup` is on another node, which MVP 3.0 checks once there are peers.
+/// `sup` is on another node.
 ///
 /// ### Examples
 ///

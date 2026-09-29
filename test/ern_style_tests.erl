@@ -11,7 +11,8 @@
 -define(DOCUMENTS, ["ernest_guide.md", "ernest_report.md"]).
 
 %% docs/style.md: code lines are at most 100 characters, in the compiler's
-%% Erlang, its C and in Ernest alike; the vendored getopt keeps its upstream form
+%% Erlang, its C and in Ernest alike; the vendored getopt keeps its upstream
+%% form, and test/build holds a build's copies, which a stale one failed
 line_length_test() ->
     Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/c_src/*.c", "test/*.erl",
                 "stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern", "test/**/*.ern",
@@ -19,6 +20,7 @@ line_length_test() ->
                 "tools/*.sh", "bin/ern"],
     Files = [F || P <- Patterns, F <- filelib:wildcard(P, ?ROOT),
                   filename:basename(F) =/= "getopt.erl",
+                  not lists:prefix("test/build/", F),
                   not editor_artifact(filename:basename(F))],
     ?assert(length(Files) > 20),
     Long = [{F, N} || F <- Files,
@@ -37,6 +39,7 @@ no_tab_test() ->
                 "docs/*.md"],
     Files = [F || P <- Patterns, F <- filelib:wildcard(P, ?ROOT),
                  filename:basename(F) =/= "getopt.erl",
+                 not lists:prefix("test/build/", F),
                  not editor_artifact(filename:basename(F))],
     ?assert(length(Files) > 20),
     ?assertEqual([], [{F, N} || F <- Files, {N, Line} <- numbered(F),

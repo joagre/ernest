@@ -1,7 +1,7 @@
 /// A value or the cause of its absence. `Either(e, a)` is `Left(e)`, the
 /// cause, or `Right(a)`, the value, a prelude type (report §9.3); this module
 /// holds the operations over it. A function that can fail with a cause
-/// returns an `Either` (Appendix E.0 rule 4), and `<-` in a block unwraps one
+/// returns an `Either` (Appendix E.0 shape rule 4), and `<-` in a block unwraps one
 /// (report §5.5).
 ///
 /// ## Examples

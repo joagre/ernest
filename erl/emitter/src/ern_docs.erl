@@ -46,7 +46,10 @@ doc_entry(D, Prefix, Env) ->
          undefined -> none;
          Doc -> #{<<"en">> => Doc}
      end,
-     doc_meta(D)}.
+     case doc_exported(D) of
+         true -> doc_meta(D);
+         false -> (doc_meta(D))#{private => true}
+     end}.
 
 %% A type declaration is a type entry; everything else is a function of the
 %% module, under the name and arity the emission gives it.
@@ -65,7 +68,8 @@ doc_signature(D, Prefix, Env) ->
      || L <- string:split(signature(D, Prefix, Env), "\n", all)].
 
 %% The parameter list as the module writes it, for the shell's completion,
-%% and a type's documented parts, for a reader that renders them itself.
+%% and a type's documented parts, for a reader that renders them itself;
+%% `private` marks a declaration the module does not export (report §11.4).
 doc_meta(#fn_decl{params = Ps}) -> #{params => param_names(Ps)};
 doc_meta(#foreign_fn_decl{params = Ps}) -> #{params => param_names(Ps)};
 doc_meta(#type_decl{constructors = Cs}) -> #{items => [constructor_item(C) || C <- Cs]};

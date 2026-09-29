@@ -139,10 +139,10 @@ for a circle, since the module has no `Float`.
 
 `circle`, which builds the shape whose area is not zero.
 
-## Template.checked
+## Template.radius
 
 ```ernest
-Template.checked : (Int) -> Int
+Template.radius : (Int) -> Int
 ```
 
 The radius of a circle across the diameter, toward zero.
@@ -155,7 +155,7 @@ one fault in this module.
 ### Examples
 
 ```ernest
-Template.checked(9)
+Template.radius(9)
 // => 4
 ```
 
@@ -165,9 +165,10 @@ Template.checked(9)
 Template.half : (Int) -> Int
 ```
 
-Half of a whole number, toward zero, which `checked` takes of a
-diameter. Private, and documented, so it appears in the module's
-documentation among the exported declarations.
+*Private to the module.*
+
+Half of a whole number, toward zero, which `radius` takes of a
+diameter.
 
 ### Examples
 

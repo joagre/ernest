@@ -840,7 +840,7 @@ Char.compare : (Char, Char) -> Ordering
 fault : (String) -> a // §7.4: faults with the cause given
 ```
 
-On `Int`, `Float`, `String`, `List`, and `Bytes` an operator is the runtime's own operation. The declaration of one in the type's module, `fn Int.+(a, b) = a + b`, names that operation and is not a recursive call.
+On `Int`, `Float`, `String`, `List`, and `Bytes` an operator is the runtime's own operation. The declaration of one in the type's module, `fn Int.+(a, b) = a + b`, names that operation and is not a recursive call. On `Int`, `Float`, `String`, and `Char`, `<`, `<=`, `>`, and `>=` are likewise the runtime's own ordering, and `compare` in the type's module is written with them and is not a recursive call.
 
 ### 9.7 System references
 
@@ -933,7 +933,7 @@ The configuration directory is `./.ernest` unless `--config-dir` names another. 
 
 ### 11.4 Documentation extraction
 
-`ern doc [--man] [--source-root src-root] [--build-root build-root] [--load-path dir]... [--short-errors] file.ern` writes the module's documentation to stdout as CommonMark. The documentation is read from the compiled module, so `ern doc file.erc` writes the same text, and a source path is compiled first. The text is: a title naming the module, `# Ernest module Net.Http`, the module's `since v` line (E.0 shape rule 6) as *Since v.*, and the module's doc block; then, in source order, every exported declaration and every declaration with a doc block, each under a heading of its name as a caller writes it, `Net.Http.parse`, with its type (§11.5) in a code block, under the same name, a `since v` line of its own as *Since v.*, the rest of its doc block, and the doc blocks of its constructors or fields as a list. `ern doc src-dir` builds the directory as `ern build` does (§11.1), and writes one such document per module into `build-root` beside the `.erc`, and `index.md` listing them. For the standard library's own source root it also writes the prelude's page, `prelude.md`, titled `# Ernest prelude`, first in the index. The last line names `ern`'s version and the source file. A declaration's heading is level two, so a heading inside its doc block is level three or deeper; a heading in the module's doc block is level two. Appendix E.0 shape rule 6 says what a doc block contains.
+`ern doc [--man] [--source-root src-root] [--build-root build-root] [--load-path dir]... [--short-errors] file.ern` writes the module's documentation to stdout as CommonMark. The documentation is read from the compiled module, so `ern doc file.erc` writes the same text, and a source path is compiled first. The text is: a title naming the module, `# Ernest module Net.Http`, the module's `since v` line (E.0 shape rule 6) as *Since v.*, and the module's doc block; then, in source order, every exported declaration and every declaration with a doc block, each under a heading of its name as a caller writes it, `Net.Http.parse`, with its type (§11.5) in a code block, under the same name, a `since v` line of its own as *Since v.*, the line *Private to the module.* where the module does not export it, the rest of its doc block, and the doc blocks of its constructors or fields as a list. `ern doc src-dir` builds the directory as `ern build` does (§11.1), and writes one such document per module into `build-root` beside the `.erc`, and `index.md` listing them. For the standard library's own source root it also writes the prelude's page, `prelude.md`, titled `# Ernest prelude`, first in the index. The last line names `ern`'s version and the source file. A declaration's heading is level two, so a heading inside its doc block is level three or deeper; a heading in the module's doc block is level two. Appendix E.0 shape rule 6 says what a doc block contains.
 
 **Manual pages.** `--man` writes a manual page instead, in the roff of man(7), which `man` reads. The page is named `Ernest.` and the module's name as a caller writes it, in section `3ern`: `Ernest.Net.Http(3ern)`, and the prelude's `Ernest.Prelude(3ern)`. `ern doc --man src-dir` writes each page beside its module's `.erc`, in a file named as `man` finds it, `Ernest.Net.Http.3ern`, and writes no index. A document or a page `ern doc` wrote of a module under the directory whose source is gone is removed, as the build removes its `.erc`. Each names its module in its title and stands at the module's place, and a file that does not is kept. The page's header names the page, and its footer the version of `ern`. Its NAME line is the page's name and the module's first sentence, the text of the first paragraph of its doc block up to the first period a space follows outside emphasis, code spans, and links, or the whole paragraph where there is none; a module whose doc block has no paragraph has its page's title there. The rest is the page above after its title, under DESCRIPTION: a heading of level two is a subsection and a deeper one a paragraph in bold, a code span and strong emphasis are bold, emphasis is in italics, a code block is indented and not filled, a list item follows its bullet or its number, a block quote is indented, and a link is its text with its address after it. The page's last line is a comment at the head of its source.
 
@@ -1259,7 +1259,7 @@ Nine *shape rules* give a function its shape. Shape rules 1 to 4, 7, and 9 hold 
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
 
-Output to standard output and standard error, and input from standard input, through the module's system references `stdout`, `stderr`, and `stdin` (§8.2). `Error` is the error of every system module.
+Output to standard output and standard error, and input from standard input, through the module's system references `stdout`, `stderr`, and `stdin` (§8.2). `Error` is the error of every system module. `Other(text)` holds a sentence of the runtime's, `"not a regular file"`, or the host's name for its reason, `"eisdir"`.
 
 ```
 type Error = NotFound | Denied | Refused | Closed | Timeout | NotATerminal | Other(String)
@@ -1274,7 +1274,7 @@ Io.show : (a) -> String // the value as Ernest writes it
 Io.debug : (a) -> a with m // prints Io.show of the value and a line feed, then returns the value
 ```
 
-`Io.show` writes a value by the argument's type at the call, each value as its literal or construction is written: a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in canonical order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements. An address prints as `<address 84>`, the number naming the process behind it, and a `Process` as `<process 84>` (E.21). A reply and a function print as `<reply>` and `<function>`, and a value of an abstract type outside its module as `<abstract>`. Where the argument's type is a type variable or a foreign type, the value is written by its runtime representation (§8.4): a `Char` as its `Int`, a `Bytes` that is UTF-8 as a `String`, a constructor's fields positional, and `<foreign>` where the representation reads as none of these. `Io.debug` writes `Io.show`'s text to standard output.
+`Io.show` writes a value by the argument's type at the call, each value as its literal or construction is written: a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in canonical order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements. An address prints as `<address 84>`, the number naming the process behind it, and a `Process` as `<process 84>` (E.21). A reply and a function print as `<reply>` and `<function>`, and a value of an abstract type outside its module as `<abstract>`. Where the argument's type is a type variable or a foreign type, the value is written by its runtime representation (§8.4): a `Char` as its `Int`, a `Bytes` that is UTF-8 as a `String`, a constructor's fields positional, an atom as a nullary constructor, by its name, and `<foreign>` where the representation reads as none of these. `Io.debug` writes `Io.show`'s text to standard output.
 
 ### Appendix E.2. `list.ern` (namespace `List`)
 
@@ -1316,7 +1316,7 @@ List.tryFold : (List(a), b, (b, a) -> Either(e, b) with x) -> Either(e, b) with 
 
 ### Appendix E.3. `map.ern` (namespace `Map`)
 
-Requires equality on `k` (§3.10). The order of `keys`, `values`, `toList`, `foldLeft`, `foreach`, and `find` is unspecified. The primitives are `empty`, `size`, `get`, `put`, `remove`, and `toList` (E.0 rule 1).
+Requires equality on `k` (§3.10). The order of `keys`, `values`, `toList`, `foldLeft`, `foreach`, and `find` is unspecified, and so is the order in which `map`, `filter`, `filterMap`, `any`, `all`, and `mergeWith` meet the entries. The primitives are `empty`, `size`, `get`, `put`, `remove`, and `toList` (E.0 rule 1).
 
 ```
 Map.empty : Map(k, v)
@@ -1345,7 +1345,7 @@ Map.values : (Map(k, v)) -> List(v)
 
 ### Appendix E.4. `set.ern` (namespace `Set`)
 
-Requires equality on `a` (§3.10). A set has no `get`; membership is `contains`. The order of `toList`, `foldLeft`, `foreach`, and `find` is unspecified. The primitives are `empty`, `size`, `contains`, `put`, `remove`, and `toList` (E.0 rule 1).
+Requires equality on `a` (§3.10). A set has no `get`; membership is `contains`. The order of `toList`, `foldLeft`, `foreach`, and `find` is unspecified, and so is the order in which `map`, `filter`, `filterMap`, `any`, and `all` meet the elements. The primitives are `empty`, `size`, `contains`, `put`, `remove`, and `toList` (E.0 rule 1).
 
 ```
 Set.empty : Set(a)
@@ -1574,7 +1574,7 @@ Terminal.columns : (String) -> Int // the columns the text takes at a terminal: 
 
 ### Appendix E.17. `fs.ern` (namespace `Fs`)
 
-Over the file system's system reference (§8.2). The last argument is the milliseconds to wait. A relative path names a file under the working directory, `Os.workingDirectory` (Appendix E.23). A path that holds U+0000 names no file, and each function answers `Left(Other("a path holds U+0000"))` for it. `read`, `readRange`, `write`, `append`, and `copy` work on regular files: a path that names anything else, a directory, a named pipe, a device, or a socket, answers `Left(Other("not a regular file"))`. The path `write` and `append` take, and the second path of `copy`, may name nothing, and the file is then created. A function follows the symbolic links of the paths it is given, but for a path's last segment where it names a link: `list` describes each entry as it is, a link as a `Link`, and `remove`, `rename`, and `readLink` act on the link itself. `makeLink` and `create` answer `Left(Other("exists"))` where the path they make names something, and `readLink` answers `Right(None)` for a path that names anything but a link and `Left(Other("the target is not UTF-8"))` for a link whose target is not. `removeAll` is the standard library's over `readLink`, `stat`, `list`, and `remove`, and each file operation it makes waits the milliseconds it is given.
+Over the file system's system reference (§8.2). The last argument is the milliseconds to wait. A `Left(Timeout)` does not undo the request: a write, a rename or a removal that answered it may still take place. A relative path names a file under the working directory, `Os.workingDirectory` (Appendix E.23). A path that holds U+0000 names no file, and each function answers `Left(Other("a path holds U+0000"))` for it. `read`, `readRange`, `write`, `append`, and `copy` work on regular files: a path that names anything else, a directory, a named pipe, a device, or a socket, answers `Left(Other("not a regular file"))`. The path `write` and `append` take, and the second path of `copy`, may name nothing, and the file is then created. A function follows the symbolic links of the paths it is given, but for a path's last segment where it names a link: `list` describes each entry as it is, a link as a `Link`, and `remove`, `rename`, and `readLink` act on the link itself. `makeLink` and `create` answer `Left(Other("exists"))` where the path they make names something, and `readLink` answers `Right(None)` for a path that names anything but a link and `Left(Other("the target is not UTF-8"))` for a link whose target is not. `removeAll` is the standard library's over `readLink`, `stat`, `list`, and `remove`, and each file operation it makes waits the milliseconds it is given.
 
 ```
 type Kind = File | Directory | Link | Other // Other: a named pipe, a device, or a socket
@@ -1802,7 +1802,7 @@ Informative. The libraries this project writes, each a directory under `libs/` a
 
 ### Appendix G.1. `libs/ets` (namespace `Ets`)
 
-Tables of the runtime, Erlang's `ets` tables of type `set`, which Appendix D shows abridged. A table holds a value of type `v` at each key of type `k`, and keys are compared as the runtime compares its terms. A table belongs to the process that made it and ends with that process or with `close`, and every operation on a table that has ended faults. Any process on the node that holds a table reads and writes it. `put` replaces the entry a key had, `remove` of a key that is not there does nothing, `clear` leaves the table empty, and `toList` answers the entries in unspecified order.
+Tables of the runtime, Erlang's `ets` tables of type `set`, which Appendix D shows abridged. A table holds a value of type `v` at each key of type `k`, and keys are compared as the runtime compares its terms. A table belongs to the process that made it and ends with that process or with `close`, and every operation on a table that has ended faults, as a foreign function that raises does (§7.4). Any process on the node that holds a table reads and writes it. `put` replaces the entry a key had, `remove` of a key that is not there does nothing, `clear` leaves the table empty, and `toList` answers the entries in unspecified order.
 
 ```
 foreign type Table(k=, v)

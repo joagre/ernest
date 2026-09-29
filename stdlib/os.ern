@@ -166,14 +166,12 @@ export foreign fn exit(status : Int) : a with m =
 /// milliseconds have passed since the start, a program still running is
 /// killed. It is killed too when its process is killed, and when the
 /// process that called `start` dies, with the processes it started that
-/// are still in its process group.
-///
-/// ### Errors
-///
-/// `Left(NotFound)` when the program is not found, `Left(Denied)` when it
-/// may not be run, `Left(Timeout)` when `ms` milliseconds pass before it
-/// has started, and `Left(Other("an argument holds U+0000"))` for a name or
-/// an argument no program could be given.
+/// are still in its process group. It answers `Left(NotFound)` when the
+/// program is not found, `Left(Denied)` when it may not be run,
+/// `Left(Timeout)` when `ms` milliseconds pass before it has started,
+/// `Left(Other("an argument holds U+0000"))` for a name or an argument no
+/// program could be given, and `Left(Other(text))`, the host's reason, when
+/// it cannot start for another.
 ///
 /// ### Examples
 ///
@@ -198,13 +196,14 @@ export fn start(command : Command, ms : Int) : Either(Io.Error, Address(ProgramM
 /// exit status, once it has exited and both have ended. The host takes the
 /// program's output only while a read waits, so a program that no one
 /// reads waits on its output. A status other than 0 is the program's
-/// answer, not a `Left`. The program's process ends once it has answered
+/// answer, not a `Left`. It answers `Left(Timeout)` once the program was
+/// killed for its time. The program's process ends once it has answered
 /// the exit status or `Left(Timeout)`.
 ///
 /// ### Errors
 ///
-/// `Left(Timeout)` once the program was killed for its time. A read after
-/// the program's process has ended faults as `Address.callForever` does.
+/// A read after the program's process has ended faults as
+/// `Address.callForever` does.
 ///
 /// ### Examples
 ///
@@ -271,13 +270,10 @@ export fn closeInput(program : Address(ProgramMsg)) : Unit with m =
 /// Runs the program to its end: starts it, ends its input after `input`,
 /// and reads it until it has exited, within `ms` milliseconds of its start.
 /// It answers the exit status and all the program wrote to its standard
-/// output and to its standard error, or why it did not run to its end.
-///
-/// ### Errors
-///
-/// As `Os.start` and `Os.read`: `Left(NotFound)`, `Left(Denied)`,
-/// `Left(Other("an argument holds U+0000"))`, and `Left(Timeout)` when the
-/// milliseconds pass first.
+/// output and to its standard error, or why it did not run to its end, as
+/// `Os.start` and `Os.read` answer it: `Left(NotFound)`, `Left(Denied)`,
+/// `Left(Other(text))`, and `Left(Timeout)` when the milliseconds pass
+/// first.
 ///
 /// ### Examples
 ///

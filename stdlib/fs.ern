@@ -1,8 +1,14 @@
 /// The file system through its system process, which reaches it
 /// (report §8.2). Every function answers `Right` with what it read or did,
 /// or `Left` with an `Io.Error`; the last argument is how many milliseconds
-/// to wait, and a slower answer than that is `Left(Io.Timeout)`. A path is a
-/// `Path`, which `Path` builds and takes apart.
+/// to wait, and a slower answer than that is `Left(Io.Timeout)`, which does
+/// not undo the request: a write, a rename or a removal may still take
+/// place. A path is a `Path`, which `Path` builds and takes apart; a
+/// relative one names a file under `Os.workingDirectory`, and one that
+/// holds U+0000 names none, `Left(Io.Other("a path holds U+0000"))`. A name
+/// that is not UTF-8 is left out of `list`. `Io.Other` holds the host's
+/// name for a reason it has no constructor for, `"eisdir"` or `"enotdir"`
+/// (report Appendix E.17).
 ///
 /// ## Examples
 ///

@@ -1,20 +1,18 @@
-//
-// The shell's line editor (report §11.2), designed in
-// docs/shell_design.md: a pure function from what is being edited and an
-// event to what the reader must do next. GNU Readline's Emacs bindings;
-// `Escape` and the key after it are `Meta` and that key (§8.2).
-//
-// Pure, and tested on its own: the tests at the foot of this file are
-// what `ern test` runs (§9.3). The reader holds a `State` and reads it
-// through the functions here, since its constructor is this module's.
-//
+/// The shell's line editor (report §11.2), designed in
+/// docs/shell_design.md: a pure function from what is being edited and an
+/// event to what the reader must do next. GNU Readline's Emacs bindings;
+/// `Escape` and the key after it are `Meta` and that key (§8.2).
+///
+/// Pure, and tested on its own: the tests at the foot of this file are
+/// what `ern test` runs (§9.3). The reader holds a `State` and reads it
+/// through the functions here, since its constructor is this module's.
 
-// What is being edited: the line and the cursor, what was last killed,
-// what the keys before this one have begun, the inputs before this one
-// with how far back through them the person has walked, the line they
-// were typing when they began to walk, and the search when one is
-// running. Abstract (report §4.4): the editor alone keeps the cursor
-// inside the line and a search's place inside the history.
+/// What is being edited: the line and the cursor, what was last killed,
+/// what the keys before this one have begun, the inputs before this one
+/// with how far back through them the person has walked, the line they
+/// were typing when they began to walk, and the search when one is
+/// running. Abstract (report §4.4): the editor alone keeps the cursor
+/// inside the line and a search's place inside the history.
 export abstract type State =
     State(text : String,
           at : Int,
@@ -36,6 +34,9 @@ type Pending = Plain | Meta | Bracket
 // when the search began, and its direction.
 type Search = Search(query : String, back : Int, from : Int, before : String, forward : Bool)
 
+/// What the reader does after a key: go on with what is being edited,
+/// submit the line, cancel it, clear the screen, complete, show
+/// documentation, or leave the session.
 export type Edit =
     Typing(State)
   | Submit(State)
@@ -56,15 +57,15 @@ let fresh =
           saved = "",
           search = None)
 
-// A session's first line, after the inputs of the sessions before it,
-// newest first.
+/// A session's first line, after the inputs of the sessions before it,
+/// newest first.
 export fn start(history : List(String)) : State =
     State(..fresh, history = history)
 
-// The state to type the next line in: the line just taken joins the
-// history, which keeps the last inputs as the file does (report §11.2),
-// and what was killed outlives the line it was killed from, as Readline's
-// does.
+/// The state to type the next line in: the line just taken joins the
+/// history, which keeps the last inputs as the file does (report §11.2),
+/// and what was killed outlives the line it was killed from, as Readline's
+/// does.
 export fn next(state : State) : State =
     State(..fresh,
           kill = state.kill,
@@ -73,46 +74,48 @@ export fn next(state : State) : State =
           else
               state.history)
 
-// Report §11.2: a blank input and one equal to the input before it are
-// not kept, in the history or in the file.
+/// Report §11.2: a blank input and one equal to the input before it are
+/// not kept, in the history or in the file.
 export fn keeps(state : State) : Bool =
     !String.isEmpty(String.trim(state.text)) && List.get(state.history, 0) != Some(state.text)
 
-// Report §11.2: another line of the same input, which `M-Enter` asks
-// for and `Enter` does where the parser cannot finish what is typed.
+/// Report §11.2: another line of the same input, which `M-Enter` asks
+/// for and `Enter` does where the parser cannot finish what is typed.
 export fn newline(state : State) : State =
     insert(state, "\n")
 
-// The line and the cursor a completion left, which the reader puts
-// back; the editor knows no names and does no completing of its own. The
-// cursor is kept inside the line, whatever it is given.
+/// The line and the cursor a completion left, which the reader puts
+/// back; the editor knows no names and does no completing of its own. The
+/// cursor is kept inside the line, whatever it is given.
 export fn typed(state : State, text : String, at : Int) : State =
     State(..state, text = text, at = Int.max(0, Int.min(String.size(text), at)))
 
-// The line being edited and the cursor in it, a search aside.
+/// The line being edited, a search aside.
 export fn text(state : State) : String =
     state.text
 
+/// The cursor in the line being edited, a search aside.
 export fn at(state : State) : Int =
     state.at
 
-// Whether the keys so far have begun a sequence the next key ends
-// (report §8.2).
+/// Whether the keys so far have begun a sequence the next key ends
+/// (report §8.2).
 export fn midSequence(state : State) : Bool =
     match state {
         State(pending = Plain) -> false
       | _ -> true
     }
 
-// What the reader shows on the line and where the cursor stands in it:
-// the line itself, or, while a search runs, Readline's search prompt
-// with the match after it.
+/// What the reader shows on the line and where the cursor stands in it:
+/// the line itself, or, while a search runs, Readline's search prompt
+/// with the match after it.
 export fn shown(state : State) : String =
     match state {
         State(search = None, text = text) -> text
       | State(search = Some(s), text = text) -> asked(s, text) <> text
     }
 
+/// Where the cursor stands in what `shown` answers.
 export fn cursor(state : State) : Int =
     match state {
         State(search = None, at = at) -> at
@@ -128,6 +131,8 @@ fn missing(query : String, text : String) : String =
 fn direction(forward : Bool) : String =
     if forward then "i-search" else "reverse-i-search"
 
+/// What a key does to what is being edited, and what the reader does
+/// next.
 export fn edit(state : State, event : Terminal.Event) : Edit =
     match state {
         State(search = Some(s)) -> searching(State(..state, pending = Plain), s, event)
@@ -336,10 +341,10 @@ fn step(s : Search) : Int =
 // which is what makes the editor testable on its own.
 //
 
-// Text put in at the cursor, which is left after it. The cursor counts
-// graphemes, as the text is indexed, and what is put in may join the
-// grapheme before it, a combining mark or a skin tone, so the cursor is
-// measured as the text before it now stands.
+/// Text put in at the cursor, which is left after it. The cursor counts
+/// graphemes, as the text is indexed, and what is put in may join the
+/// grapheme before it, a combining mark or a skin tone, so the cursor is
+/// measured as the text before it now stands.
 export fn insert(state : State, what : String) : State = {
     let State(text = text, at = at) = state;
     let before = String.slice(text, 0, at) <> what;

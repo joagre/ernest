@@ -37,6 +37,16 @@
 /// since 0.1.0
 
 /// A table of the runtime, keyed by `k` with values of type `v`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let t : Ets.Table(String, Int) = Ets.new();
+///     Ets.size(t)
+/// }
+/// // => 0
+/// ```
 export foreign type Table(k=, v)
 
 /// A fresh empty table, owned by the calling process.
@@ -47,6 +57,11 @@ foreign fn rawNew(name : Foreign, options : List(Foreign)) : Table(k, v) with m 
     "ets:new/2"
 
 /// Puts the value at that key, replacing any entry the key had.
+///
+/// ### Errors
+///
+/// On a table that has ended, faults as a foreign function that raises
+/// does (report §7.4).
 export fn put(t : Table(k, v), key : k, value : v) : Unit with m = {
     let _ = rawInsert(t, #(key, value));
     Unit
@@ -56,6 +71,11 @@ foreign fn rawInsert(t : Table(k, v), row : #(k, v)) : Bool with m =
     "ets:insert/2"
 
 /// The value at that key.
+///
+/// ### Errors
+///
+/// On a table that has ended, faults as a foreign function that raises
+/// does (report §7.4).
 export fn get(t : Table(k, v), key : k) : Optional(v) with m =
     match rawLookup(t, key) {
         [#(_, value)] -> Some(value)
@@ -66,10 +86,20 @@ foreign fn rawLookup(t : Table(k, v), key : k) : List(#(k, v)) with m =
     "ets:lookup/2"
 
 /// `true` when the table has an entry with that key.
+///
+/// ### Errors
+///
+/// On a table that has ended, faults as a foreign function that raises
+/// does (report §7.4).
 export foreign fn contains(t : Table(k, v), key : k) : Bool with m =
     "ets:member/2"
 
 /// Removes the entry at that key, which need not be there.
+///
+/// ### Errors
+///
+/// On a table that has ended, faults as a foreign function that raises
+/// does (report §7.4).
 export fn remove(t : Table(k, v), key : k) : Unit with m = {
     let _ = rawDelete(t, key);
     Unit
@@ -79,6 +109,11 @@ foreign fn rawDelete(t : Table(k, v), key : k) : Bool with m =
     "ets:delete/2"
 
 /// The number of entries.
+///
+/// ### Errors
+///
+/// On a table that has ended, faults as a foreign function that raises
+/// does (report §7.4).
 export fn size(t : Table(k, v)) : Int with m =
     rawInfo(t, Erl.atom("size"))
 
@@ -86,6 +121,11 @@ foreign fn rawInfo(t : Table(k, v), item : Foreign) : Int with m =
     "ets:info/2"
 
 /// Removes every entry, leaving the table.
+///
+/// ### Errors
+///
+/// On a table that has ended, faults as a foreign function that raises
+/// does (report §7.4).
 ///
 /// ### Examples
 ///
@@ -108,6 +148,11 @@ foreign fn rawClear(t : Table(k, v)) : Bool with m =
 
 /// Closes the table, deleting it; every operation on it after this faults.
 ///
+/// ### Errors
+///
+/// On a table that has ended, faults as a foreign function that raises
+/// does (report §7.4).
+///
 /// ### Examples
 ///
 /// ```ernest
@@ -128,5 +173,10 @@ foreign fn rawClose(t : Table(k, v)) : Bool with m =
     "ets:delete/1"
 
 /// The entries as pairs, in unspecified order.
+///
+/// ### Errors
+///
+/// On a table that has ended, faults as a foreign function that raises
+/// does (report §7.4).
 export foreign fn toList(t : Table(k, v)) : List(#(k, v)) with m =
     "ets:tab2list/1"

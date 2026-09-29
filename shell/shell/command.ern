@@ -1,12 +1,10 @@
-//
-// The shell's commands (report §11.2), designed in docs/shell_design.md:
-// the one table every part of the shell reads, what a command's name
-// selects, what a command line is, what completes after it, what the
-// help says, and what `:set` sets. Pure, and tested by `ern test`; the
-// session carries the actions out.
-//
+/// The shell's commands (report §11.2), designed in docs/shell_design.md:
+/// the one table every part of the shell reads, what a command's name
+/// selects, what a command line is, what completes after it, what the
+/// help says, and what `:set` sets. Pure, and tested by `ern test`; the
+/// session carries the actions out.
 
-// What a command does.
+/// What a command does.
 export type Action =
     Bindings
   | Browse
@@ -22,8 +20,8 @@ export type Action =
   | Set
   | Type
 
-// Report §11.2: what completes after a command's name. A path is an
-// argument, but nothing completes it.
+/// Report §11.2: what completes after a command's name. A path is an
+/// argument, but nothing completes it.
 export type Completes =
     Expressions
   | Modules
@@ -33,16 +31,16 @@ export type Completes =
   | SettingWords
   | Paths
 
-// What a command takes after its name: nothing, a word it needs, named in
-// its refusal, or a word it allows.
+/// What a command takes after its name: nothing, a word it needs, named in
+/// its refusal, or a word it allows.
 export type Takes = Nothing | Needs(what : String, completes : Completes) | Allows(Completes)
 
-// A command: its name, what it does and takes, the word its help line
-// shows for what it takes, and the rest of that line.
+/// A command: its name, what it does and takes, the word its help line
+/// shows for what it takes, and the rest of that line.
 export type Command =
     Command(name : String, action : Action, takes : Takes, placeholder : String, about : String)
 
-// Report §11.2: the commands, in the alphabetical order the help lists them.
+/// Report §11.2: the commands, in the alphabetical order the help lists them.
 export let commands =
     [Command(name = "bindings",
              action = Bindings,
@@ -106,8 +104,8 @@ export let commands =
              takes = Needs(what = "an expression", completes = Expressions),
              about = "the type of e, which is not run")]
 
-// Report §11.2: a command line, the action its name selects and the
-// argument after it, or the refusal that says why it selects none.
+/// Report §11.2: a command line, the action its name selects and the
+/// argument after it, or the refusal that says why it selects none.
 export fn parse(line : String) : Either(String, #(Action, String)) = {
     let #(word, arg) = split(line);
     match pick(String.slice(word, 1, String.size(word) - 1)) {
@@ -162,13 +160,13 @@ fn split(line : String) : #(String, String) = {
     #(String.slice(line, 0, end), String.trim(String.slice(line, end, String.size(line) - end)))
 }
 
-// Report §11.2: a command's own word is everything up to the first space,
-// which is where its argument begins.
+/// Report §11.2: a command's own word is everything up to the first space,
+/// which is where its argument begins.
 export fn wordEnd(line : String) : Int =
     Optional.withDefault(String.indexOf(line, " "), String.size(line))
 
-// Report §11.2: what completes after a command's word, where it takes
-// anything after it.
+/// Report §11.2: what completes after a command's word, where it takes
+/// anything after it.
 export fn completes(word : String) : Optional(Completes) =
     match pick(String.slice(word, 1, String.size(word) - 1)) {
         Picked(Command(takes = Needs(completes = k))) -> Some(k)
@@ -176,13 +174,15 @@ export fn completes(word : String) : Optional(Completes) =
       | _ -> None
     }
 
-// Report §11.2: the help, a line for each command. Completion lists a
-// command by the same line.
+/// Report §11.2: the help, a line for each command. Completion lists a
+/// command by the same line.
 export fn help() : List(String) =
     ["Commands, which a prefix of the name selects where it begins no other:"]
         <> List.map(commands, fn(c) = "  " <> line(c))
         <> ["The value of the last expression is `it`."]
 
+/// A command's line of the help: its name, the word it takes, and what it
+/// does.
 export fn line(c : Command) : String = {
     let head = if String.isEmpty(c.placeholder) then c.name else c.name <> " " <> c.placeholder;
     String.padEnd(":" <> head, column, ' ') <> c.about
@@ -196,18 +196,18 @@ let column = 16
 // `:set`
 //
 
-// Report §11.2: what `:set` sets, each with the word its value is.
+/// Report §11.2: what `:set` sets, each with the word its value is.
 export let settings =
     [#("depth", "n"), #("length", "n"), #("output", "n"), #("timing", "on or off")]
 
 let settingsAbout = String.join(List.map(settings, fn(#(name, value)) = name <> " " <> value), ", ")
     <> "; :set alone shows them"
 
-// What one `:set` sets.
+/// What one `:set` sets.
 export type Setting = Depth(Int) | Length(Int) | OutputRows(Int) | Timing(Bool)
 
-// Report §11.2: what `:set`'s argument sets, or the refusal that says why
-// it sets nothing.
+/// Report §11.2: what `:set`'s argument sets, or the refusal that says why
+/// it sets nothing.
 export fn setting(arg : String) : Either(String, Setting) =
     match split(arg) {
         #("depth", rest) -> count("depth", rest, Depth)

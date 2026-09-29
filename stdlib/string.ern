@@ -3,8 +3,8 @@
 /// `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and
 /// index in graphemes, extended grapheme clusters, each what a reader sees
 /// as one letter; `toList` and `fromList` are `Char`s, one scalar value
-/// each. The primitives are `size`, `indexOf`, `lastIndexOf`, `slice`, the
-/// operations that need Unicode's tables, `trimStart`, `trimEnd`,
+/// each. The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`,
+/// `slice`, the operations that need Unicode's tables, `trimStart`, `trimEnd`,
 /// `toLower`, and `toUpper`, and the conversions `toIntBase`, `toFloat`,
 /// `toList`, `fromList`, `toUtf8`, and `fromUtf8`, the runtime's; the rest
 /// is written over them, so every search matches whole graphemes (report
@@ -86,7 +86,7 @@ export fn isEmpty(s : String) : Bool =
 /// // => Less
 /// ```
 export fn compare(a : String, b : String) : Ordering =
-    if a < b then Less else if a == b then Equal else Greater
+    if a < b then Less else if a > b then Greater else Equal
 
 /// `true` when the second is somewhere in the first, as whole graphemes; an
 /// empty second is always there.
@@ -260,7 +260,7 @@ export foreign fn toUpper(s : String) : String =
 
 /// The lines, split at each line feed and at each carriage return with a
 /// line feed, which is one grapheme; a line's end at the end adds no empty
-/// line.
+/// line, and `""` has no lines.
 ///
 /// ### Examples
 ///
@@ -367,8 +367,10 @@ foreign fn inBase(s : String, base : Int) : Optional(Int) =
 export fn toBool(s : String) : Optional(Bool) =
     if s == "true" then Some(true) else if s == "false" then Some(false) else None
 
-/// The float literal form of report §2.5 as a `Float`, with an optional
-/// leading `-`, or `None` for anything else.
+/// The float literal form of report §2.5 without `_`, with an optional
+/// leading `-`, as a `Float`, or `None` for anything else and for a value
+/// beyond the finite range of report §3.1; one below the smallest
+/// subnormal is the nearest `Float`, `0.0` among them.
 ///
 /// ### Examples
 ///

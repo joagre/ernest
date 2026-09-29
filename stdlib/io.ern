@@ -28,7 +28,8 @@
 /// Why an operation of a system module found no answer: the file or the
 /// host is not there, access was refused, the connection was refused or
 /// has closed, the time ran out, standard input is not a terminal, or
-/// another reason, in the runtime's own words (report Appendix E.1).
+/// another reason: a sentence of the runtime's, `"not a regular file"`, or
+/// the host's name for its reason, `"eisdir"` (report Appendix E.1).
 ///
 /// ### Examples
 ///

@@ -28,6 +28,13 @@
 
 /// The generator's state, which a draw takes and gives back: SplitMix64's
 /// 64-bit counter, a value like any other, which crosses nodes.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Random.next(Random.seed(42), 100) == Random.next(Random.seed(42), 100)
+/// // => true
+/// ```
 export abstract type Seed = Seed(Int)
 
 /// The seed that number names; the same number gives the same sequence, and

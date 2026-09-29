@@ -91,10 +91,10 @@ unstamped_at_a_terminal() ->
     ?assertMatch({match, _}, re:run(Screen, "^Faulty\\.main faulted: division by zero",
                                     [multiline])).
 
-%% report §8.2, §8.6: a key is read as UTF-8 whatever the host's locale,
-%% and the terminal's interrupt ends a program that reads keys at once. A
-%% regression test for the raw mode set by stty alone, which turns the
-%% interrupt off unless it is asked back
+%% report §8.2: a key is read as UTF-8 whatever the host's locale, and the
+%% terminal's interrupt arrives as `Interrupt` to a program that reads
+%% keys. A regression test: the interrupt's signal was turned back on for
+%% all but the shell, and ended such a program, where §8.2 delivers it
 utf8_key_interrupt_test_() ->
     {timeout, 60, fun utf8_key_interrupt/0}.
 
@@ -104,14 +104,12 @@ utf8_key_interrupt() ->
                            [{expect, "ready"},
                             {send, "c3a9"},     % é, two bytes
                             {expect, "char"},
-                            {send, "03"}],      % the interrupt
+                            {send, "03"},       % the interrupt
+                            {expect, "interrupt"},
+                            {send, "1b"}],      % Escape ends the probe
                            15),
     ?assertMatch({_, _}, binary:match(Screen, <<"char ", 16#e9/utf8>>)),
-    %% the interrupt ended the program rather than arriving as a key, which
-    %% the probe would print; the harness interrupts a program that is left
-    ?assertEqual(nomatch, binary:match(Screen, <<"interrupt">>)),
-    %% the harness gives a program a signal ended as minus its number
-    ?assertEqual(-2, Status).
+    ?assertEqual(0, Status).
 
 %% report §8.2: the runtime restores line mode with echo when the program
 %% ends, so the terminal is the one the program found
@@ -175,6 +173,18 @@ snake() ->
     {_, Y0} = hd(Heads),
     {_, [{Turned, _} | After]} = lists:splitwith(fun({_, Y}) -> Y =:= Y0 end, Heads),
     ?assert(lists:any(fun({X, _}) -> X < Turned end, After)).
+
+%% report §8.2: C-c, which the terminal delivers as `Interrupt` while a
+%% subscriber claims it, leaves the game as `Escape` does. A regression
+%% test: the game ignored it
+snake_interrupt_test_() ->
+    {timeout, 60, fun snake_interrupt/0}.
+
+snake_interrupt() ->
+    ok = compile("../examples/snake.ern", "../examples"),
+    {0, _} = pty("../bin/ern run build/examples/snake.erc",
+                 [{expect, "tick "}, {send, "03"}],
+                 15).
 
 %% The head's column and row in a frame.
 head(Frame) ->

@@ -1,48 +1,51 @@
-//
-// The shell's colours (report §11.2): colour where it carries meaning, at a
-// terminal only, and not where the environment sets `NO_COLOR`. Each
-// function takes whether colour is on, and gives the text unchanged when it
-// is not, so what the shell says reads the same without it; the parameter a
-// signature marks is the one mark that must show, and has asterisks then.
-//
+/// The shell's colours (report §11.2): colour where it carries meaning, at a
+/// terminal only, and where the environment's `NO_COLOR` is unset or empty.
+/// Each function takes whether the shell colours, `Markdown.Styled` or
+/// `Markdown.Plain` as documentation is rendered, and gives the text
+/// unchanged when it is `Plain`, so what the shell says reads the same
+/// without colour; the parameter a signature marks is the one mark that
+/// must show, and has asterisks then.
 
-// A fault, or the first line of a diagnostic: what needs the eye.
-export fn fault(on : Bool, text : String) : String =
-    paint(on, Terminal.Foreground(Terminal.Red), text)
+/// A fault, or the first line of a diagnostic: what needs the eye.
+export fn fault(colour : Markdown.Style, text : String) : String =
+    paint(colour, Terminal.Foreground(Terminal.Red), text)
 
-// A diagnostic, its first line coloured as a fault, the source under it
-// plain.
-export fn diagnostic(on : Bool, text : String) : String =
+/// A diagnostic, its first line coloured as a fault, the source under it
+/// plain.
+export fn diagnostic(colour : Markdown.Style, text : String) : String =
     match String.split(text, "\n") {
         [] -> text
-      | first :: rest -> String.join(fault(on, first) :: rest, "\n")
+      | first :: rest -> String.join(fault(colour, first) :: rest, "\n")
     }
 
-// The type after a printed value, dimmed so that the value stands out.
-export fn quiet(on : Bool, text : String) : String =
-    paint(on, Terminal.Dim, text)
+/// The type after a printed value, dimmed so that the value stands out.
+export fn quiet(colour : Markdown.Style, text : String) : String =
+    paint(colour, Terminal.Dim, text)
 
-// A name in a listing or a brief, `name : type`, the name bold.
-export fn named(on : Bool, text : String) : String =
+/// A name in a listing or a brief, `name : type`, the name bold.
+export fn named(colour : Markdown.Style, text : String) : String =
     match String.indexOf(text, " : ") {
         None -> text
       | Some(at) ->
-            paint(on, Terminal.Bold, String.slice(text, 0, at))
+            paint(colour, Terminal.Bold, String.slice(text, 0, at))
                 <> String.slice(text, at, String.size(text) - at)
     }
 
-// The parameter at the cursor in a signature, in the terminal's cyan, which
-// its theme chooses, so that it reads on a dark screen and a light one.
-// Report §11.2: without colour it is between asterisks, since the mark
-// carries meaning where the other colours only help the eye.
-export fn emphasis(on : Bool, text : String) : String =
-    if on || String.isEmpty(text) then
-        paint(on, Terminal.Foreground(Terminal.Cyan), text)
-    else
-        "*" <> text <> "*"
+/// The parameter at the cursor in a signature, in the terminal's cyan, which
+/// its theme chooses, so that it reads on a dark screen and a light one.
+/// Report §11.2: without colour it is between asterisks, since the mark
+/// carries meaning where the other colours only help the eye.
+export fn emphasis(colour : Markdown.Style, text : String) : String =
+    match colour {
+        Markdown.Plain -> if String.isEmpty(text) then text else "*" <> text <> "*"
+      | Markdown.Styled -> paint(colour, Terminal.Foreground(Terminal.Cyan), text)
+    }
 
-fn paint(on : Bool, style : Terminal.Style, text : String) : String =
-    if !on || String.isEmpty(text) then text else Terminal.styled(text, style)
+fn paint(colour : Markdown.Style, style : Terminal.Style, text : String) : String =
+    match colour {
+        Markdown.Styled -> if String.isEmpty(text) then text else Terminal.styled(text, style)
+      | Markdown.Plain -> text
+    }
 
 //
 // Tests
@@ -51,43 +54,47 @@ fn paint(on : Bool, style : Terminal.Style, text : String) : String =
 let off =
     Test(name = "without colour the text is unchanged",
          run = fn() =
-             if fault(false, "f faulted") == "f faulted"
-                 && named(false, "a : Int") == "a : Int" then
+             if fault(Markdown.Plain, "f faulted") == "f faulted"
+                 && named(Markdown.Plain, "a : Int") == "a : Int" then
                  Passed
              else
                  Failed("coloured when off"))
 
 let faults =
     Test(name = "a fault is red",
-         run = fn() = if fault(true, "x") == "\u{1b}[31mx\u{1b}[39m" then
+         run = fn() = if fault(Markdown.Styled, "x") == "\u{1b}[31mx\u{1b}[39m" then
              Passed
          else
-             Failed(fault(true, "x")))
+             Failed(fault(Markdown.Styled, "x")))
 
 let diagnostics =
     Test(name = "a diagnostic's first line is red, its source plain",
          run = fn() =
-             if diagnostic(true, "a:1:1: bad\n1 | a")
+             if diagnostic(Markdown.Styled, "a:1:1: bad\n1 | a")
                  == "\u{1b}[31ma:1:1: bad\u{1b}[39m\n1 | a" then
                  Passed
              else
-                 Failed(diagnostic(true, "a:1:1: bad\n1 | a")))
+                 Failed(diagnostic(Markdown.Styled, "a:1:1: bad\n1 | a")))
 
 let names =
     Test(name = "a name before its type is bold",
          run = fn() =
-             if named(true, "List.map : (a) -> b") == "\u{1b}[1mList.map\u{1b}[22m : (a) -> b" then
+             if named(Markdown.Styled, "List.map : (a) -> b")
+                 == "\u{1b}[1mList.map\u{1b}[22m : (a) -> b" then
                  Passed
              else
-                 Failed(named(true, "List.map : (a) -> b")))
+                 Failed(named(Markdown.Styled, "List.map : (a) -> b")))
 
 let marksWithout =
     Test(name = "without colour the marked parameter is between asterisks",
-         run = fn() = if emphasis(false, "f : Int") == "*f : Int*" then
+         run = fn() = if emphasis(Markdown.Plain, "f : Int") == "*f : Int*" then
              Passed
          else
-             Failed(emphasis(false, "f : Int")))
+             Failed(emphasis(Markdown.Plain, "f : Int")))
 
 let empties =
     Test(name = "an empty text takes no colour",
-         run = fn() = if emphasis(true, "") == "" then Passed else Failed("coloured nothing"))
+         run = fn() = if emphasis(Markdown.Styled, "") == "" then
+             Passed
+         else
+             Failed("coloured nothing"))

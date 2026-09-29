@@ -100,10 +100,9 @@ export foreign fn live() : List(Process) with m =
 
 /// Every fault of every process the runtime started, from now on, wrapped,
 /// in the caller's mailbox, the system processes' excepted. A process holds
-/// one subscription: a second call replaces the first, its wrap from then
-/// on, and a subscription ends when its process dies. It is no source that
-/// can deliver (report §8.6), since a fault comes only from a process that
-/// runs.
+/// one subscription: a second call replaces the first, and its wrap is the
+/// one used from then on. A subscription ends when its process dies, and
+/// does not keep a deadlock from being detected (report §8.6).
 ///
 /// ### Examples
 ///

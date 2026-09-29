@@ -79,13 +79,28 @@ fn seeAlso(files : List(String)) : List(Markdown.Block) = {
                            None);
     let #(prelude, modules) =
         List.partition(List.sort(names, String.compare), fn(n) = n == "Ernest.Prelude");
-    let pages = List.map(prelude <> modules, fn(n) = "**" <> n <> "**(3ern)");
     let rest =
-        "; every Ernest page installed, which `apropos Ernest.` lists; "
-            <> "and the Ernest language report, `ernest_report.md`, installed with Ernest "
-            <> "in `share/doc/ernest`, whose sections this page cites.";
-    Markdown.parse("# SEE ALSO\n\n" <> String.join(pages, ", ") <> rest)
+        [Markdown.Text("; every Ernest page installed, which "),
+         Markdown.CodeSpan("apropos Ernest."),
+         Markdown.Text(" lists; and the Ernest language report, "),
+         Markdown.CodeSpan("ernest_report.md"),
+         Markdown.Text(", installed with Ernest in "),
+         Markdown.CodeSpan("share/doc/ernest"),
+         Markdown.Text(", whose sections this page cites.")];
+    [Markdown.Heading(level = 1, text = [Markdown.Text("SEE ALSO")]),
+     Markdown.Paragraph(references(prelude <> modules) <> rest)]
 }
+
+// The pages by name, a comma between two, as man(7) writes a reference.
+fn references(names : List(String)) : List(Markdown.Inline) =
+    match names {
+        [] -> []
+      | [name] -> reference(name)
+      | name :: rest -> reference(name) <> [Markdown.Text(", ")] <> references(rest)
+    }
+
+fn reference(name : String) : List(Markdown.Inline) =
+    [Markdown.Strong([Markdown.Text(name)]), Markdown.Text("(3ern)")]
 
 fn quit(message : String) : Unit with m = {
     Io.printlnError("manual: " <> message);

@@ -1,29 +1,27 @@
-//
-// The shell's history (report §11.2): the inputs of the sessions before
-// this one, kept in `$HOME/.ernest/history`, one input a line with a
-// newline written `\n` and a backslash `\\`.
-//
-// It is ordinary Ernest over `Os`, `Fs`, `String` and `List`: the home
-// directory from the environment, and the reading, the appending, the
-// escaping and the trimming, which is where the line between Ernest and
-// `foreign` runs (docs/decisions.md).
-//
+/// The shell's history (report §11.2): the inputs of the sessions before
+/// this one, kept in `$HOME/.ernest/history`, one input a line with a
+/// newline written `\n` and a backslash `\\`.
+///
+/// It is ordinary Ernest over `Os`, `Fs`, `String` and `List`: the home
+/// directory from the environment, and the reading, the appending, the
+/// escaping and the trimming, which is where the line between Ernest and
+/// `foreign` runs (docs/decisions.md).
 
-// Report §11.2: how many inputs the history keeps, in the session and in
-// the file.
+/// Report §11.2: how many inputs the history keeps, in the session and in
+/// the file.
 export let kept = 1000
 
 // How long to wait for the file system, which is a local file.
 let wait = 5000
 
-// The file in the person's home directory, and none where the environment
-// names no home.
+/// The file in the person's home directory, and none where the environment
+/// names no home.
 export let file : Optional(Path) =
     Optional.map(Map.get(Os.environment, "HOME"),
                  fn(home) = Path.join(Path(home), Path(".ernest/history")))
 
-// The inputs of the sessions before this one, newest first. A file that
-// holds more than the last thousand is trimmed to them as it is read.
+/// The inputs of the sessions before this one, newest first. A file that
+/// holds more than the last thousand is trimmed to them as it is read.
 export fn read() : Either(Io.Error, List(String)) with m =
     match file {
         None -> Right([])
@@ -68,7 +66,7 @@ fn inputs(bytes : Bytes) : Either(Io.Error, List(String)) =
 fn text(inputs : List(String)) : String =
     String.join(List.map(inputs, fn(input) = encode(input) <> "\n"), "")
 
-// One input, appended as the shell takes it.
+/// One input, appended as the shell takes it.
 export fn add(input : String) : Either(Io.Error, Unit) with m =
     match file {
         None -> Right(Unit)

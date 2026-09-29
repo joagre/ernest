@@ -1,13 +1,11 @@
-//
-// The Ernest shell (report §11.2), designed in docs/shell_design.md.
-//
-// An input is checked against the session, compiled as a module of its own
-// and run in a process of its own; its value is printed with its type, or
-// what it declared is. Three processes: the session holds the state, the
-// reader owns the keys, and the screen is the only writer, which is what
-// the sinks are bound to. When input is not a terminal the shell reads
-// lines instead.
-//
+/// The Ernest shell (report §11.2), designed in docs/shell_design.md.
+///
+/// An input is checked against the session, compiled as a module of its own
+/// and run in a process of its own; its value is printed with its type, or
+/// what it declared is. Three processes: the session holds the state, the
+/// reader owns the keys, and the screen is the only writer, which is what
+/// the sinks are bound to. When input is not a terminal the shell reads
+/// lines instead.
 
 //
 // The front end
@@ -149,7 +147,7 @@ type ShellMsg =
 type State =
     State(env : Env,
           settings : Settings,
-          colour : Bool,
+          colour : Markdown.Style,
           own : Set(Process),
           faults : List(Process.FaultReport),
           from : Optional(#(String, Int)),
@@ -192,14 +190,21 @@ type ScreenMsg =
 // does not where it could not be read, and whether the shell colours.
 type ReaderMsg =
     K(Terminal.Event)
-  | Start(screen : Address(ScreenMsg), earlier : List(String), keeping : Bool, colour : Bool)
+  | Start(screen : Address(ScreenMsg),
+          earlier : List(String),
+          keeping : Bool,
+          colour : Markdown.Style)
 
 // What the reader carries between keys: the line being edited, whether
 // the history file still takes what is typed, whether this session has
 // said how a multi-line input is run, what the key before did, and whether
 // the shell colours (report §11.2).
 type Reading =
-    Reading(editing : Shell.Editor.State, keeping : Bool, hinted : Bool, last : Last, colour : Bool)
+    Reading(editing : Shell.Editor.State,
+            keeping : Bool,
+            hinted : Bool,
+            last : Last,
+            colour : Markdown.Style)
 
 // What the key before this one did, since `Tab` twice lists and
 // `Shift-Tab` twice shows the whole page (report §11.2).
@@ -210,6 +215,8 @@ type Last = Ordinary | Tabbed | Documented
 // value that would scroll the session away.
 let defaults = Settings(depth = 10, length = 100, timing = false, output = Shell.Region.tailRows)
 
+/// The shell: a session at a terminal, or one that reads lines where
+/// input is not a terminal (report §11.2).
 export fn main() : Unit with ShellMsg = {
     let me = self();
     // report §11.2: at a terminal the keys are read and a region painted;
@@ -226,7 +233,7 @@ export fn main() : Unit with ShellMsg = {
             }
         }
     };
-    let colour = Optional.isSome(keys) && colours;
+    let colour = if Optional.isSome(keys) && colours then Markdown.Styled else Markdown.Plain;
     let screen = spawn(Local, fn() = match keys {
         Some(#(_, size)) -> screenLoop(Shell.Region.new(size))
       | None -> plainLoop()
@@ -235,8 +242,8 @@ export fn main() : Unit with ShellMsg = {
     // holds the terminal, so that an input that asks for the keys or a
     // line faults rather than taking them
     if Optional.isNone(keys) then holdTerminal(self()) else Unit;
-    // report §11.2: what a program writes goes to the tail, what the
-    // session says is committed to the transcript
+    // report §11.2: what a program writes goes to the live region, what
+    // the session says is committed to the transcript
     setScreen(via(Wrote, screen));
     send(screen, Said("Ernest " <> version() <> ". :help for the commands, :quit to leave.\n"));
     // report §11.2: the session, the screen and the reader are the shell's
@@ -299,8 +306,8 @@ export fn main() : Unit with ShellMsg = {
     }
 }
 
-// Report §11.2: the shell colours what it says at a terminal, and not where
-// the environment sets `NO_COLOR` to anything, as that convention asks.
+// Report §11.2: the shell colours what it says at a terminal, where the
+// environment's `NO_COLOR` is unset or empty, as that convention asks.
 let colours = Optional.withDefault(Map.get(Os.environment, "NO_COLOR"), "") == ""
 
 // One input, from either reader: checked, run in a process of its own, its
@@ -521,7 +528,9 @@ fn taking(state : State, screen : Address(ScreenMsg), line : String) : Unit with
         }
     }
 
-fn readerDied(screen : Address(ScreenMsg), colour : Bool, down : Down) : Unit with ShellMsg =
+fn readerDied(screen : Address(ScreenMsg),
+              colour : Markdown.Style,
+              down : Down) : Unit with ShellMsg =
     match down {
         Down(reason = Returned) -> finish(screen, "")
       | other -> {
@@ -593,7 +602,7 @@ fn escapedChar(c : Char) : String =
     }
 
 // A diagnostic, its first line coloured as a fault (report §11.2).
-fn diagnose(screen : Address(ScreenMsg), colour : Bool, text : String) : Unit with m =
+fn diagnose(screen : Address(ScreenMsg), colour : Markdown.Style, text : String) : Unit with m =
     send(screen, Said(Shell.Style.diagnostic(colour, text)))
 
 fn say(screen : Address(ScreenMsg), text : String) : Unit with m =
@@ -776,7 +785,7 @@ fn obey(state : State,
 }
 
 // Report §11.2: the depth and the length a value is printed to, the rows
-// the tail takes, and whether a result is followed by the time its run
+// of the live region, and whether a result is followed by the time its run
 // took.
 fn set(state : State, screen : Address(ScreenMsg), arg : String) : Settings with m = {
     let settings = state.settings;
@@ -1058,7 +1067,7 @@ fn documenting(session : Address(ShellMsg),
 // appeared in: the first line of its first code block, the first sentence
 // of its first paragraph (report §11.4), and its `Since` paragraph, the
 // name before the type bold.
-fn brief(text : String, width : Int, colour : Bool) : List(String) = {
+fn brief(text : String, width : Int, colour : Markdown.Style) : List(String) = {
     let blocks = Markdown.parse(text);
     let types = List.flatMap(blocks, fn(b) = match b {
         Markdown.Code(lines = lines) -> List.take(lines, 1)
@@ -1074,8 +1083,8 @@ fn brief(text : String, width : Int, colour : Bool) : List(String) = {
       | xs -> [Markdown.Paragraph(xs)]
     };
     List.map(List.take(types, 1), fn(t) = Shell.Style.named(colour, t))
-        <> Markdown.render(sentence, width, styleOf(colour))
-        <> Markdown.render(List.take(versions, 1), width, styleOf(colour))
+        <> Markdown.render(sentence, width, colour)
+        <> Markdown.render(List.take(versions, 1), width, colour)
 }
 
 // The line §11.4 writes for the version a declaration appeared in.
@@ -1088,13 +1097,8 @@ fn isVersion(b : Markdown.Block) : Bool =
 
 // Report §11.2: a page of documentation rendered for the terminal, at its
 // width, or at 80 columns where there is no terminal.
-fn rendered(text : String, width : Int, colour : Bool) : List(String) =
-    Markdown.render(Markdown.parse(text), width, styleOf(colour))
-
-// How documentation is written: with the terminal's styles where the shell
-// colours what it says.
-fn styleOf(colour : Bool) : Markdown.Style =
-    if colour then Markdown.Styled else Markdown.Plain
+fn rendered(text : String, width : Int, colour : Markdown.Style) : List(String) =
+    Markdown.render(Markdown.parse(text), width, colour)
 
 fn screenWidth() : Int with m =
     match Terminal.size() {
@@ -1105,7 +1109,7 @@ fn screenWidth() : Int with m =
 // Report §11.2: the candidates, a lone one too, a line each with the
 // type they carry, or a command's help line. The region cuts the listing
 // to the rows the screen has.
-fn listing(completion : Shell.Complete.Completion, colour : Bool) : List(String) =
+fn listing(completion : Shell.Complete.Completion, colour : Markdown.Style) : List(String) =
     List.map(completion.candidates, fn(name) = Shell.Style.named(colour, name.shown))
 
 // The screen is told what is being typed, and the session is told once

@@ -2,9 +2,11 @@
 /// §9.2). The key type needs equality, which the type itself requires
 /// (report §3.10), so a key holding a function or an address is a type
 /// error. The order of `keys`, `values`, `toList`, `foldLeft`, `foreach`,
-/// and `find` is unspecified. The primitives are `empty`, `size`, `get`,
-/// `put`, `remove`, and `toList`, the runtime's; the rest is written over
-/// them (report Appendix E.0 rule 1).
+/// and `find` is unspecified, and so is the order in which `map`,
+/// `filter`, `filterMap`, `any`, `all`, and `mergeWith` meet the entries.
+/// The primitives are `empty`, `size`, `get`, `put`, `remove`, and
+/// `toList`, the runtime's; the rest is written over them (report Appendix
+/// E.0 rule 1).
 ///
 /// ## Examples
 ///
@@ -205,11 +207,11 @@ export fn mergeWith(m : Map(k, v), other : Map(k, v), f : (v, v) -> v with e) : 
 export fn fromList(pairs : List(#(k, v))) : Map(k, v) =
     List.foldLeft(pairs, empty, fn(acc, #(key, value)) = put(acc, key, value))
 
-/// The entries as pairs.
+/// The entries as pairs, in unspecified order.
 export foreign fn toList(m : Map(k, v)) : List(#(k, v)) =
     "ern_map:to_list/1"
 
-/// The keys.
+/// The keys, in unspecified order.
 ///
 /// ### Examples
 ///
@@ -220,6 +222,6 @@ export foreign fn toList(m : Map(k, v)) : List(#(k, v)) =
 export fn keys(m : Map(k, v)) : List(k) =
     List.map(toList(m), fn(#(key, _)) = key)
 
-/// The values.
+/// The values, in unspecified order.
 export fn values(m : Map(k, v)) : List(v) =
     List.map(toList(m), fn(#(_, value)) = value)

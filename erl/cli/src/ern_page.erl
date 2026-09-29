@@ -93,7 +93,7 @@ entry({{_, Name, _}, _, Signature, Doc, Meta}, Prefix) ->
     section([Prefix, atom_to_list(Name)], Signature, Doc, Meta).
 
 %% A declaration's section under its heading: its signature, its `since`
-%% line, its text, and its items.
+%% line, whether it is private (report §11.4), its text, and its items.
 section(Heading, Signature, Doc, Meta) ->
     {Text, Since} = case Doc of
                         none -> {undefined, undefined};
@@ -102,6 +102,10 @@ section(Heading, Signature, Doc, Meta) ->
     ["## ", Heading, "\n\n```ernest\n",
      lists:join("\n", [binary_to_list(L) || L <- Signature]), "\n```\n\n",
      since_line(Since),
+     case Meta of
+         #{private := true} -> "*Private to the module.*\n\n";
+         _ -> []
+     end,
      case Text of
          T2 when T2 =:= undefined; T2 =:= <<>> -> [];
          _ -> [Text, "\n\n"]

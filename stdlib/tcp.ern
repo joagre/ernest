@@ -1,7 +1,8 @@
 /// TCP over its system process, which opens sockets (report §8.2).
 /// A socket is a process: its address can be sent, monitored, killed, and
-/// adapted with `via` like any other. It lives until `Tcp.close`: after its
-/// connection closes, from either end, each read answers `Left(Closed)`.
+/// adapted with `via` like any other. It lives until `Tcp.close`, and a
+/// read after that faults. Once its connection has closed from the far
+/// end, each read answers `Left(Closed)`.
 /// A listener lives until `Tcp.closeListener`. A read, an accept, or a
 /// connect that times out has taken nothing, so bytes that arrive later
 /// wait for the next read. There are no socket options; framing is
@@ -49,7 +50,11 @@
 /// ### Examples
 ///
 /// ```ernest
-/// Either.map(Tcp.listen("127.0.0.1", 0), fn(listener) = listener)
+/// {
+///     let listener <- Tcp.listen("127.0.0.1", 0);
+///     Tcp.closeListener(listener);
+///     Right(Unit)
+/// }
 /// ```
 export abstract type ListenerMsg =
     Accept(ms : Int, reply : Reply(Either(Io.Error, Address(SockMsg))))
@@ -102,6 +107,11 @@ export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerM
 
 /// The port the listener listens on.
 ///
+/// ### Errors
+///
+/// On a listener that has ended, closed or killed, faults as
+/// `Address.callForever` does on an ended process.
+///
 /// ### Examples
 ///
 /// ```ernest
@@ -119,6 +129,11 @@ export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) with m =
 /// The next connection to the listener, or `Left(Io.Timeout)` when none
 /// comes in time, having taken none; `Left(Io.Closed)` when the listener is
 /// closed while it waits.
+///
+/// ### Errors
+///
+/// On a listener that has ended, closed or killed, faults as
+/// `Address.callForever` does on an ended process.
 ///
 /// ### Examples
 ///
@@ -142,6 +157,11 @@ export fn connect(host : String, port : Int, ms : Int) : Either(Io.Error, Addres
 /// What has arrived, at least one byte, or `Left(Io.Closed)` once the
 /// connection has closed and what came before is read, or
 /// `Left(Io.Timeout)` when nothing comes in time, having taken nothing.
+///
+/// ### Errors
+///
+/// On a socket that has ended, closed or killed, faults as
+/// `Address.callForever` does on an ended process.
 export fn read(socket : Address(SockMsg), ms : Int) : Either(Io.Error, Bytes) with m =
     Address.callForever(socket, fn(r) = Recv(ms = ms, reply = r))
 
@@ -168,6 +188,11 @@ export fn closeListener(listener : Address(ListenerMsg)) : Unit with m =
 /// The connection's far end, in TCP's sense, not a peer of report §8.3, or
 /// `Left(Io.Closed)` once the connection has closed.
 ///
+/// ### Errors
+///
+/// On a socket that has ended, closed or killed, faults as
+/// `Address.callForever` does on an ended process.
+///
 /// ### Examples
 ///
 /// ```ernest
@@ -187,6 +212,11 @@ export fn peer(socket : Address(SockMsg)) : Either(Io.Error, Endpoint) with m =
 
 /// The connection's near end, or `Left(Io.Closed)` once the connection has
 /// closed.
+///
+/// ### Errors
+///
+/// On a socket that has ended, closed or killed, faults as
+/// `Address.callForever` does on an ended process.
 ///
 /// ### Examples
 ///

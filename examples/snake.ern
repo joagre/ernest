@@ -1,12 +1,12 @@
 //
 // Paper program 3: tick game
 //
-// Written against the Ernest report, September 2026. A multiplayer snake game
-// in the terminal: the world is updated ten times per second, players send
-// directions between ticks, apples appear at random, scores are counted. The
-// aim is to hit local state in pure code, time drift, input faster than ticks,
-// and randomness in pure code through a threaded seed rather than a hidden
-// source.
+// Written against the Ernest report, September 2026. A snake game in the
+// terminal: the world, which holds its players by number, is updated ten
+// times per second, the player sends directions between ticks, apples
+// appear at random, scores are counted. The aim is to hit local state in
+// pure code, time drift, input faster than ticks, and randomness in pure
+// code through a threaded seed rather than a hidden source.
 //
 // Assumptions. Terminal, Clock, and Random are the standard library's
 // (report Appendix E); Terminal.Event and Terminal.Size are the module's.
@@ -15,7 +15,7 @@
 //
 // Compiled under test since 2026-09-20, and played under a pseudo-terminal by
 // test/ern_terminal_tests.erl since the same day, since it reads keys from a
-// terminal and runs until Escape.
+// terminal and runs until Escape or C-c.
 //
 
 //
@@ -38,7 +38,7 @@ type World =
 
 type Input = Turn(id : Int, dir : Dir) | Leave(Int)
 
-type GameMsg = Tick | In(Input)
+type GameMsg = Tick | In(Input) | Joined(Int)
 
 //
 // Program
@@ -52,16 +52,22 @@ export fn main() : Unit with GameMsg = {
     let world0 =
         World(w = w, h = h, players = Map.empty, apples = [], seed = Random.seed(42), tick = 0);
     let me = self();
-    // report §8.2: the keys are the game's input, so without a terminal
-    // the player leaves, and with the last player the game is over
+    // report §8.2: the keys are the game's input, so the game begins once
+    // the player has the terminal's keys, and without them the program
+    // ends before it draws
     let _ = spawn(Local, fn() = match Terminal.subscribe(fn(e) = e) {
-        Right(_) -> player(1, me)
+        Right(_) -> {
+            send(me, Joined(1));
+            player(1, me)
+        }
       | Left(_) -> {
             Io.printlnError("snake needs a terminal, since its keys are the game's input");
-            send(me, In(Leave(1)))
+            Os.exit(1)
         }
     });
-    game(addPlayer(world0, 1))
+    receive {
+        Joined(id) -> game(addPlayer(world0, id))
+    }
 }
 
 //
@@ -109,6 +115,7 @@ fn player(id : Int, game : Address(GameMsg)) : Unit with Terminal.Event =
             player(id, game)
         }
       | Terminal.Escape -> send(game, In(Leave(id)))
+      | Terminal.Interrupt -> send(game, In(Leave(id)))
       | _ -> player(id, game)
     }
 
