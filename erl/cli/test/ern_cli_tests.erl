@@ -1398,7 +1398,7 @@ old_spellings_per_job_test() ->
     Refused = [{["run", "--out-dir", "x", "a.erc"], <<"ern run: invalid option: --out-dir">>},
                {["run", "--errors", "short", "a.erc"], <<"ern run: invalid option: --errors">>},
                {["run", "--emit", "erl", "a.erc"], <<"ern run: invalid option: --emit">>},
-               {["build", "--emit-erl=x", "a.ern"], <<"invalid option argument: --emit-erl=x">>},
+               {["build", "--emit-erl=x", "a.ern"], <<"--emit-erl=x: --emit-erl takes no value">>},
                {["--version", "--help"], <<"ern: --version stands alone: ern --version">>},
                {["-v"], <<"ern: no job -v; the jobs are">>},
                {["--load-path=d", "x.erc"],
@@ -1407,6 +1407,25 @@ old_spellings_per_job_test() ->
     Out = iolist_to_binary(?capturedOutput),
     [?assertMatch({_, _}, binary:match(Out, Text)) || {_, Text} <- Refused],
     ?assertEqual(nomatch, binary:match(Out, <<"is now">>)).
+
+%% report §11: an option is given once, a `-path` one excepted, with its
+%% value as the next word, and never an empty one. A regression test: a
+%% repeat took its first value, and `--name=value` and an empty value were
+%% accepted (findings.md's T8)
+option_spellings_test() ->
+    Refused = [{["build", "--build-root", "a", "--build-root", "b", "x.ern"],
+                <<"ern build: --build-root is given more than once">>},
+               {["run", "--main", "A.b", "--main", "A.c", "x.erc"],
+                <<"ern run: --main is given more than once">>},
+               {["build", "--short-errors", "--short-errors", "x.ern"],
+                <<"ern build: --short-errors is given more than once">>},
+               {["build", "--build-root=b", "x.ern"],
+                <<"--build-root=b: an option's value is the next word, --build-root value">>},
+               {["build", "--build-root", "", "x.ern"],
+                <<"ern build: --build-root is given an empty value">>}],
+    lists:foreach(fun({Args, _}) -> ?assertEqual(1, ern_err(Args)) end, Refused),
+    Out = iolist_to_binary(?capturedOutput),
+    [?assertMatch({_, _}, binary:match(Out, Text)) || {_, Text} <- Refused].
 
 %% report §11.1: a module outside the source root is read from its .erc
 %% under build-root, and the sweep keeps it. A regression test: only the

@@ -10,7 +10,6 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 
 ## The toolchain
 
-- 2.98 — a repeated option takes the first; `--name=value` undocumented; empty values accepted (T8)
 - 2.98 — the checker reports one error per function; a directory build stops at the first failing module (T10)
 - 2.98 — a faulting top-level binding: three behaviours and the wrong name (T14)
 - 2.98 — the shell cannot show the prelude (T19)

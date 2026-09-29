@@ -81,7 +81,8 @@ discussed with the user one at a time as they are met.
    (§5.11), and five small rules kept, `true` and `false` reserved among them (the log's
    *Five Small Rules Kept*); the toolchain's T2, T3, T4 and T12, a module checked against
    what it was compiled with and `:load` compiling what a module uses from its source (§11.1,
-   §11.2), done 2026-09-29; the diagnostics' positions and labels
+   §11.2), and T8, an option given once in one spelling (§11), done 2026-09-29; the
+   diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):

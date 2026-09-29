@@ -158,11 +158,13 @@ job(Job, Spec, Positional, Args, Fun, Err) ->
                               Msg -> usage_fail(Msg)
                           end
                       end, Own),
+        lists:foreach(fun(A) -> one_spelling(A, Spec) end, Own),
         {Opts, Rest} = case getopt:parse(Spec, Own) of
                            {ok, Parsed} -> Parsed;
                            {error, {Reason, Data}} ->
                                usage_fail(getopt:format_error(Spec, {Reason, Data}))
                        end,
+        given_once(Opts, Spec),
         case lists:member(help, Opts) of
             true -> job_usage(Spec, Name, Positional, standard_io), 0;
             false -> Fun(Opts, Rest ++ Program, Err)
@@ -175,6 +177,38 @@ job(Job, Spec, Positional, Args, Fun, Err) ->
         throw:{cli_error, Msg3} ->
             io:format(Err, "~s: ~ts~n", [Name, Msg3]),
             1
+    end.
+
+%% Report §11: an option's value is the next word, so `--name=value` is a
+%% second spelling, refused with the first; a flag takes none. A name the
+%% job does not take is getopt's to refuse.
+one_spelling("--" ++ _ = Word, Spec) ->
+    Name = option_name(Word),
+    Known = lists:any(fun({_, _, L, _, _}) -> "--" ++ L =:= Name end, Spec),
+    case {Name =:= Word, Known, takes_value(Spec, Name)} of
+        {true, _, _} -> ok;
+        {false, false, _} -> ok;
+        {false, true, true} ->
+            usage_fail(Word ++ ": an option's value is the next word, " ++ Name ++ " value");
+        {false, true, false} ->
+            usage_fail(Word ++ ": " ++ Name ++ " takes no value")
+    end;
+one_spelling(_, _) ->
+    ok.
+
+%% Report §11: only a `-path` option is given more than once, and no option
+%% takes an empty value. A regression: a repeat took the first value, and
+%% an empty directory was accepted.
+given_once(Opts, Spec) ->
+    Keys = [K || {K, _} <- Opts] ++ [K || K <- Opts, is_atom(K)],
+    Name = fun(K) -> hd(["--" ++ L || {Key, _, L, _, _} <- Spec, Key =:= K]) end,
+    case [K || K <- lists:usort(Keys), K =/= load_path, length([X || X <- Keys, X =:= K]) > 1] of
+        [] -> ok;
+        [K | _] -> usage_fail(Name(K) ++ " is given more than once")
+    end,
+    case [K || {K, ""} <- Opts] of
+        [] -> ok;
+        [E | _] -> usage_fail(Name(E) ++ " is given an empty value")
     end.
 
 %% Report §11: a word of the command line that is not UTF-8 is refused,
@@ -199,7 +233,8 @@ word_bytes(Word) ->
 %% Report §11.2: the words after `ern run`'s file are the program's,
 %% whatever they look like, so they are split off before the options are
 %% read: the job's own words, the file last, and the program's. An option
-%% that takes a value takes the next word, unless it is written with `=`.
+%% that takes a value takes the next word; one written with `=` takes none,
+%% and is refused as a second spelling.
 program_words(Spec, ["-" ++ _ = Option | Rest], Own) when Option =/= "-" ->
     case {Rest, takes_value(Spec, Option)} of
         {[Value | Rest1], true} -> program_words(Spec, Rest1, [Value, Option | Own]);
