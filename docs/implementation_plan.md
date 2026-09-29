@@ -77,8 +77,9 @@ discussed with the user one at a time as they are met.
    beside `Address.call` (§6.6), a prelude type without members taking no namespace (§4.2),
    `Prelude.X` written only where the module hides `X` (§4.2), a block binding's variable
    that nothing pins left free (§4.6), a constructor with named fields matched as `C()`
-   alone (§5.10), and `unit` gone from bitstrings, a size counting bits, or octets for
-   `bytes` (§5.11); the diagnostics' positions and labels
+   alone (§5.10), `unit` gone from bitstrings, a size counting bits, or octets for `bytes`
+   (§5.11), and five small rules kept, `true` and `false` reserved among them (the log's
+   *Five Small Rules Kept*); the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):

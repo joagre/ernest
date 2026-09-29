@@ -2,10 +2,6 @@
 
 The findings of the twelve readers of 2026-09-28 still open, one line each, by area; each is planned in MVP 2.98. The readers: the report's principles (P), the cold reader (K), the register (G), the guide (U), the newcomer (N), the documents (D), the code (C), the Ernest code (E), the tools (T), the diagnostics (X), security (S), the shell's README (H). The 143 lines done by 2026-09-29, each with what was done, are at commit b7d34c0. Each reader's whole list, as it was handed in, stands below the lines, since a line is too short to fix from ([`full_review.md`](full_review.md)); the lists keep the paths and line numbers of the tree they read. This file goes when every line is done or in the plan.
 
-## The report
-
-- 2.98 — rules that buy little, to weigh: `true`/`false` reserved, prefix `!`, `abstract` with `export` only, the 255-character limit, `Path` in the prelude (P-C)
-
 ## The guide and the README
 
 - 2.98 — `Tcp` is never taught, though §9.5 shows a chat server's unit (N1)
