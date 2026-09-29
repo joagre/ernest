@@ -95,6 +95,7 @@ check(Ns, Decls0, Ifaces, Session) ->
     Seeded = lists:foldl(fun add_iface/2, (prelude_env())#env{ns = Ns}, Ifaces),
     Env0 = Seeded#env{session = Session},
     try
+        declared_twice(Decls),
         {Env1a, Errs1} = declare_types(Decls, Env0),
         %% report §11.5: the module's types print unqualified, except those
         %% that shadow a prelude name
@@ -183,6 +184,40 @@ within({L, C, _}, {SL, SC, {EL, EC}}) ->
     ({L, C} >= {SL, SC}) andalso ({L, C} < {EL, EC});
 within(_, _) ->
     false.
+
+%% Report §4.2, §11.5: a type, a constructor or a value a module declares
+%% twice is an error at the second, with the first labelled.
+declared_twice(Decls) ->
+    Named = lists:append([decl_names(D) || D <- Decls]),
+    Twice = [{Kind, Key, First, Second}
+             || {I, {Kind, Key, First}} <- lists:enumerate(Named),
+                {J, {Kind2, Key2, Second}} <- lists:enumerate(Named),
+                J > I, Kind2 =:= Kind, Key2 =:= Key],
+    case Twice of
+        [] ->
+            ok;
+        [{Kind, Key, First, Second} | _] ->
+            fail(Second, atom_to_list(Kind) ++ " " ++ key_text(Key) ++ " is declared twice",
+                 [{ern_diag:span(First), "first declared here"}], undefined)
+    end.
+
+decl_names(#type_decl{pos = Pos, name = N, constructors = Cs}) ->
+    [{type, N, Pos} | [{constructor, C, CPos} || #constructor{pos = CPos, name = C} <- Cs]];
+decl_names(#abstract_decl{type = TD}) ->
+    decl_names(TD);
+decl_names(#foreign_type_decl{pos = Pos, name = N}) ->
+    [{type, N, Pos}];
+decl_names(#fn_decl{pos = Pos, owner = O, name = N}) ->
+    [{value, {O, N}, Pos}];
+decl_names(#let_decl{pos = Pos, owner = O, name = N}) ->
+    [{value, {O, N}, Pos}];
+decl_names(#foreign_fn_decl{pos = Pos, owner = O, name = N}) ->
+    [{value, {O, N}, Pos}];
+decl_names(_) ->
+    [].
+
+key_text({Owner, Name}) -> local_name(Owner, Name);
+key_text(Name) -> atom_to_list(Name).
 
 %% Report §4.8: in the standard library module of a built-in type, an
 %% operator declared as that type's, `fn Float.+` in float.ern, is the
@@ -1220,7 +1255,8 @@ check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) 
                    %% generalized with it, and may name variables of its own
                    generalizing = is_record(Body, e_lambda),
                    effect_origin = {top_let, Pos,
-                                    "a top-level initializer runs as a body of mailbox type Never",
+                                    "the initializer of " ++ decl_name(D)
+                                    ++ " runs as a body of mailbox type Never",
                                     "receive in a process the initializer spawns"}},
     {TypedBody, BodyT, Env2} =
         case AnnT of
@@ -1604,26 +1640,40 @@ field_type(Pos, F, T, Cs, Env) ->
     Shown = ern_types:format(T, Env#env.st),
     lists:any(fun(#cinfo{fields = {named, Ns}}) -> lists:member(F, Ns); (_) -> false end, Cs)
         orelse fail(Pos, Shown ++ " has no field " ++ atom_to_list(F)),
-    lists:foldl(
-      fun(#cinfo{name = C, fields = Fields, scheme = Scheme}, {FT0, E}) ->
-              Names = case Fields of {named, Ns} -> Ns; _ -> [] end,
-              case index_of(F, Names) of
-                  none ->
-                      fail(Pos, Shown ++ " has no field " ++ atom_to_list(F)
-                                ++ " in every constructor: " ++ atom_to_list(C) ++ " has none");
-                  I ->
-                      {{tfn, FTs, pure, RT}, St1} = ern_types:instantiate(Scheme, E#env.st),
-                      %% RT is T's constructor applied to fresh variables
-                      E1 = bound(T, RT, E#env{st = St1}),
-                      FT = lists:nth(I, FTs),
-                      E2 = case FT0 of
-                               undefined -> E1;
-                               _ -> unify_at(Pos, FT0, FT, E1, "the field " ++ atom_to_list(F)
-                                                               ++ " in every constructor")
-                           end,
-                      {FT, E2}
-              end
-      end, {undefined, Env}, Cs).
+    %% report §11.5: each message names the constructors it compares
+    {FT, _, EnvN} =
+        lists:foldl(
+          fun(#cinfo{name = C, fields = Fields, scheme = Scheme}, {FT0, C0, E}) ->
+                  Names = case Fields of {named, Ns} -> Ns; _ -> [] end,
+                  case index_of(F, Names) of
+                      none ->
+                          fail(Pos, "not every constructor of " ++ Shown ++ " has the field "
+                                    ++ atom_to_list(F) ++ ": " ++ atom_to_list(C)
+                                    ++ " has none");
+                      I ->
+                          {{tfn, FTs, pure, RT}, St1} = ern_types:instantiate(Scheme, E#env.st),
+                          %% RT is T's constructor applied to fresh variables
+                          E1 = bound(T, RT, E#env{st = St1}),
+                          FT1 = lists:nth(I, FTs),
+                          E2 = case FT0 of
+                                   undefined -> E1;
+                                   _ -> one_field_type(Pos, F, Shown, {C0, FT0}, {C, FT1}, E1)
+                               end,
+                          {FT1, C, E2}
+                  end
+          end, {undefined, undefined, Env}, Cs),
+    {FT, EnvN}.
+
+one_field_type(Pos, F, Shown, {C0, FT0}, {C, FT}, #env{st = St} = Env) ->
+    case ern_types:unify(FT0, FT, St) of
+        {ok, St1} ->
+            Env#env{st = St1};
+        {error, _} ->
+            Name = atom_to_list(F),
+            fail(Pos, Shown ++ " has no field " ++ Name ++ " of one type: " ++ Name ++ " is "
+                      ++ ern_types:format(FT0, St) ++ " in " ++ atom_to_list(C0) ++ " and "
+                      ++ ern_types:format(FT, St) ++ " in " ++ atom_to_list(C))
+    end.
 
 index_of(X, L) -> index_of(X, L, 1).
 index_of(_, [], _) -> none;
@@ -1889,9 +1939,14 @@ infer(#e_not{pos = Pos, expr = X} = E, Env) ->
     {TypedX, XT, Env1} = infer(X, Env),
     Env2 = unify_at(Pos, ?BOOL, XT, Env1, "the operand of `!`"),
     {E#e_not{expr = TypedX, type = ?BOOL}, ?BOOL, Env2};
-infer(#e_select{pos = Pos, expr = X, field = F} = E, Env) ->
+infer(#e_select{pos = Pos, expr = X, field = F, field_pos = FPos} = E, Env) ->
     {TypedX, XT, Env1} = infer(X, Env),
-    {T0, Env2} = select_result(Pos, F, XT, Env1),
+    %% report §11.5: a selection's error stands at the selector
+    At = case FPos of
+             undefined -> Pos;
+             _ -> FPos
+         end,
+    {T0, Env2} = select_result(At, F, XT, Env1),
     {T, St} = open_effect(T0, Env2#env.st),
     {E#e_select{expr = TypedX, type = T}, T, Env2#env{st = St}};
 infer(#e_neg{pos = Pos, expr = X} = E, Env) ->
@@ -2105,8 +2160,15 @@ use_effect(Pos, Name, Eff, #env{st = St, effect = Have, effect_origin = Origin} 
 %% Report §6.8, §4.6: a receive with a pattern clause where the mailbox is
 %% Never, in a function or in a top-level initializer.
 -spec never_receives(ern_diag:pos(), term()) -> no_return().
-never_receives(Pos, {top_let, _, _, Help}) ->
-    fail(Pos, "a top-level initializer runs with mailbox Never and cannot receive", [], Help);
+never_receives(Pos, {top_let, _, _, Help} = Origin) ->
+    fail(Pos, "a top-level initializer runs with mailbox Never and cannot receive",
+         labels(Origin), Help);
+never_receives(Pos, {Name, _, _, _} = Origin) when is_list(Name) ->
+    %% report §11.5: the function named, and the `with` that fixed its
+    %% mailbox labelled
+    fail(Pos, Name ++ " is declared with mailbox Never and cannot receive", labels(Origin),
+         "only an `after` clause is allowed; give " ++ Name ++ " another mailbox type with"
+         " `with`");
 never_receives(Pos, _) ->
     fail(Pos, "a function with mailbox Never cannot receive", [],
          "only an `after` clause is allowed; give the function another mailbox type with `with`").
@@ -2122,13 +2184,23 @@ what(undefined) -> "this function";
 what({top_let, _, _, _}) -> "a top-level `let`";
 what({What, _, _, _}) -> What.
 
+%% Report §11.5: a field given or matched twice, named, at the second, the
+%% first labelled.
+twice(Fields, Verb) ->
+    case [{N, P1, P2} || {I, {N, P1}} <- lists:enumerate(Fields),
+                         {J, {M, P2}} <- lists:enumerate(Fields), J > I, M =:= N] of
+        [] -> ok;
+        [{N, First, Second} | _] ->
+            fail(Second, "field " ++ atom_to_list(N) ++ " is " ++ Verb ++ " twice",
+                 [{ern_diag:span(First), "first " ++ Verb ++ " here"}], undefined)
+    end.
+
 help(undefined) -> "give the function a mailbox type with `with`";
 help({_, _, _, Help}) -> Help.
 
 infer_named(#e_con{pos = Pos, name = Name} = E, Names, FTs, RT, Base, Sets, Env) ->
     SetNames = [N || #field_set{name = N} <- Sets],
-    length(lists:usort(SetNames)) =:= length(SetNames) orelse
-        fail(Pos, "a field is given twice"),
+    twice([{N, P} || #field_set{pos = P, name = N} <- Sets], "given"),
     lists:foreach(fun(N) ->
                       lists:member(N, Names) orelse
                           fail(Pos, atom_to_list(Name) ++ " has no field " ++ atom_to_list(N))
@@ -2375,9 +2447,13 @@ infer_block(Stmts, Pos, Expect, Env) ->
 one_local_fn([], _Seen) ->
     ok;
 one_local_fn([#fn_decl{pos = Pos, name = N} | Rest], Seen) ->
-    lists:member(N, Seen) andalso
-        fail(Pos, "local function " ++ atom_to_list(N) ++ " is declared twice in the block"),
-    one_local_fn(Rest, [N | Seen]).
+    case lists:keyfind(N, 1, Seen) of
+        {N, First} ->
+            fail(Pos, "local function " ++ atom_to_list(N) ++ " is declared twice in the block",
+                 [{ern_diag:span(First), "first declared here"}], undefined);
+        false ->
+            one_local_fn(Rest, [{N, Pos} | Seen])
+    end.
 
 %% Local fns not yet checked that N depends on, transitively.
 pending(N, #{deps := Deps, checked := Checked}) ->
@@ -2511,8 +2587,14 @@ check_pattern(P, Env) ->
     Names = [N || {N, _} <- Bindings],
     case Names -- lists:usort(Names) of
         [] -> ok;
-        [Dup | _] -> fail(element(2, P), "variable " ++ atom_to_list(Dup)
-                                         ++ " appears twice in the pattern")
+        [Dup | _] ->
+            %% report §11.5: at the second, the first labelled
+            [First, Second | _] = ern_ast:walk(fun(#p_var{pos = VPos, name = V}, Acc)
+                                                     when V =:= Dup -> Acc ++ [VPos];
+                                                  (_, Acc) -> Acc
+                                               end, P, []),
+            fail(Second, "variable " ++ atom_to_list(Dup) ++ " appears twice in the pattern",
+                 [{ern_diag:span(First), "first bound here"}], undefined)
     end,
     {TypedP, T, Bindings, Env1}.
 
@@ -2570,9 +2652,7 @@ pat(#p_con{pos = Pos, path = Path, name = Name, args = Args} = P, Env) ->
                       ++ atom_to_list(Name) ++ "(p)");
         {{named, Names}, {named, FieldPats}} ->
             {tfn, FTs, pure, RT} = CT,
-            FieldNames = [N || #field_pat{name = N} <- FieldPats],
-            length(lists:usort(FieldNames)) =:= length(FieldNames) orelse
-                fail(Pos, "a field is matched twice"),
+            twice([{N, FP} || #field_pat{pos = FP, name = N} <- FieldPats], "matched"),
             {Typed, Env2} =
                 lists:mapfoldl(
                   fun(#field_pat{pos = FPos, name = N, pattern = Sub} = FP, En) ->

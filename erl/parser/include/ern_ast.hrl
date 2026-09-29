@@ -81,8 +81,9 @@
 -record(e_call, {pos, callee, args, pipe = false, type}).
 %% pipe: true when `x |> e` wrote it; x is the first argument, evaluated
 %% before a callee that is not a name (report §5.1)
--record(e_select, {pos, expr, field, type}).
-%% expr.field, report §3.5
+-record(e_select, {pos, expr, field, field_pos, type}).
+%% expr.field, report §3.5; field_pos: where the selector stands, where its
+%% errors are reported (report §11.5)
 -record(e_neg, {pos, expr, type}).
 -record(e_not, {pos, expr, type}).
 -record(e_binop, {pos, op, left, right, type}).

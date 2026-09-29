@@ -535,7 +535,7 @@ receive_and_mailboxes_test() ->
     ?assertEqual("sleep needs a process, and p is pure",
                  err("fn sleep(ms : Int) = receive { after ms -> Unit }\n"
                      "fn p() : Unit = sleep(1)")),
-    ?assertEqual("a function with mailbox Never cannot receive",
+    ?assertEqual("f is declared with mailbox Never and cannot receive",
                  err("fn f() : Unit with Never = receive { Unit -> Unit }")),
     ?assertEqual("(a!) -> Unit with e",
                  type_of("export fn tick(n) = { let m = receive { k -> k }; Unit }", tick)).
@@ -990,13 +990,13 @@ field_selection_test() ->
     ?assertEqual("(M.Point) -> Int",
                  type_of(Shape ++ "export fn g(p) = { let n = p.x; n + norm(p) }\n"
                          "fn norm(p : Point) : Int = p.y", g)),
-    ?assertEqual("Shape has no field radius in every constructor: Dot has none",
+    ?assertEqual("not every constructor of Shape has the field radius: Dot has none",
                  err(Shape ++ "fn f(s : Shape) = s.radius")),
     ?assertEqual("Point has no field z", err(Shape ++ "fn f(p : Point) = p.z")),
     ?assertEqual("#(Int, Int) has no field x", err("fn f() = #(1, 2).x")),
     ?assertEqual("the type whose field x is read is not determined; annotate it",
                  err(Shape ++ "fn f(p) = p.x")),
-    ?assertMatch("the field name in every constructor" ++ _,
+    ?assertEqual("T has no field name of one type: name is Int in A and String in B",
                  err("type T = A(name : Int) | B(name : String)\nfn f(t : T) = t.name")),
     ?assertEqual(ok, ok("export abstract type Box = Box(n : Int)\nfn f(b : Box) = b.n")).
 
@@ -1164,7 +1164,7 @@ smaller_silences_test() ->
                  err("fn g(f : (Int) -> Int) = 1 |> [f]")),
     P = "type P(a) = A(x : a) | B(x : Int)\n",
     ?assertEqual(ok, ok(P ++ "fn g(p : P(Int)) : Int = p.x")),
-    ?assertEqual("the field x in every constructor: expected String, found Int",
+    ?assertEqual("P(String) has no field x of one type: x is String in A and Int in B",
                  err(P ++ "fn g(p : P(String)) = p.x")).
 
 %% report §4.7, §3.9, §6.6: a foreign function's variables whose values a
@@ -1244,7 +1244,7 @@ warts_audit_test() ->
                  " discards its argument",
                  err(Msg ++ "fn fst(#(x, y)) = x\nfn f(r : Reply(Int)) = fst(#(1, r))")),
     %% duplicate field in a pattern
-    ?assertEqual("a field is matched twice",
+    ?assertEqual("field reply is matched twice",
                  err(Msg ++ "fn f(r) = match r { Get(reply = a, reply = b) -> Unit"
                      " | Stop -> Unit }")),
     %% report §8.4: the implementation is module:function/arity, the arity

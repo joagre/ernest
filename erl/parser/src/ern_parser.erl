@@ -143,8 +143,11 @@ program(Ts, Prev, Acc) ->
     program(Ts1, D, [D | Acc]).
 
 %% A second consecutive fn with the same name is the Haskell habit.
-one_clause(#fn_decl{pos = Pos, owner = O, name = N}, #fn_decl{owner = O, name = N}) ->
-    fail(Pos, "a function has one clause", "write one clause whose body is a `match`");
+one_clause(#fn_decl{pos = Pos, owner = O, name = N}, #fn_decl{pos = First, owner = O, name = N}) ->
+    %% report §11.5: at the second clause, the first labelled
+    throw({parse_error, (diag(Pos, "a function has one clause",
+                              "write one clause whose body is a `match`"))
+                        #diag{labels = [{ern_diag:span(First), "first clause"}]}});
 one_clause(_, _) ->
     ok.
 
@@ -610,9 +613,10 @@ calls(Callee, [{'(', _} | R]) ->
     Closed = inside(Callee, max(0, length(Args) - 1), fun() -> expect(R1, ')') end),
     {Call, R2} = w({#e_call{pos = node_pos(Callee), callee = Callee, args = Args}, Closed}),
     calls(Call, R2);
-calls(E, [{'.', _}, {ident, _, Field} | R]) ->
+calls(E, [{'.', _}, {ident, FPos, Field} | R]) ->
     %% report §3.5: a field selected from the value before it
-    {Select, R1} = w({#e_select{pos = node_pos(E), expr = E, field = Field}, R}),
+    {Select, R1} = w({#e_select{pos = node_pos(E), expr = E, field = Field, field_pos = FPos},
+                      R}),
     calls(Select, R1);
 calls(E, Ts) ->
     {E, Ts}.

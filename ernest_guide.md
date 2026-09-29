@@ -762,7 +762,9 @@ fn twice(dst : Address(CounterMsg), msg : CounterMsg) : Unit with m = {
 ```console
 $ ern build resend.ern
 resend.ern:5:15: the reply-carrying value msg is consumed twice
+3 | fn twice(dst : Address(CounterMsg), msg : CounterMsg) : Unit with m = {
 4 |     send(dst, msg);
+  |               --- first consumed here
 5 |     send(dst, msg)
   |               ^^^
 ```

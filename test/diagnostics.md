@@ -333,7 +333,9 @@ fn size(xs : List(Int)) : Int = List.size(xs)
 ```console
 $ ern build example.ern
 example.ern:3:1: a function has one clause
-2 | 
+1 | fn size(xs : List(Int)) : Int = 0
+  | --------------------------------- first clause
+...
 3 | fn size(xs : List(Int)) : Int = List.size(xs)
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   | = help: write one clause whose body is a `match`
@@ -956,6 +958,7 @@ type Colour = Blue
 $ ern build example.ern
 example.ern:2:1: type Colour is declared twice
 1 | type Colour = Red
+  | ----------------- first declared here
 2 | type Colour = Blue
   | ^^^^^^^^^^^^^^^^^^
 ```
@@ -970,6 +973,7 @@ type Colour = Red | Red
 $ ern build example.ern
 example.ern:1:21: constructor Red is declared twice
 1 | type Colour = Red | Red
+  |               --- first declared here
   |                     ^^^
 ```
 
@@ -1013,7 +1017,9 @@ let n = 2
 ```console
 $ ern build example.ern
 example.ern:3:1: value n is declared twice
-2 | 
+1 | let n = 1
+  | --------- first declared here
+...
 3 | let n = 2
   | ^^^^^^^^^
 ```
@@ -1324,9 +1330,9 @@ fn f(n : Int) : Int = n.size
 
 ```console
 $ ern build example.ern
-example.ern:1:23: Int has no field size
+example.ern:1:25: Int has no field size
 1 | fn f(n : Int) : Int = n.size
-  |                       ^^^^^^
+  |                         ^^^^
 ```
 
 ### A field of a tuple (§3.5)
@@ -1337,9 +1343,9 @@ fn f(t : #(Int, Int)) : Int = t.size
 
 ```console
 $ ern build example.ern
-example.ern:1:31: #(Int, Int) has no field size
+example.ern:1:33: #(Int, Int) has no field size
 1 | fn f(t : #(Int, Int)) : Int = t.size
-  |                               ^^^^^^
+  |                                 ^^^^
 ```
 
 ### A field the type lacks (§3.5)
@@ -1352,10 +1358,10 @@ fn f(p : Point) : Int = p.y
 
 ```console
 $ ern build example.ern
-example.ern:3:25: Point has no field y
+example.ern:3:27: Point has no field y
 2 | 
 3 | fn f(p : Point) : Int = p.y
-  |                         ^^^
+  |                           ^
 ```
 
 ### A field one constructor lacks (§3.5)
@@ -1368,10 +1374,10 @@ fn f(s : Shape) : Int = s.r
 
 ```console
 $ ern build example.ern
-example.ern:3:25: Shape has no field r in every constructor: Dot has none
+example.ern:3:27: not every constructor of Shape has the field r: Dot has none
 2 | 
 3 | fn f(s : Shape) : Int = s.r
-  |                         ^^^
+  |                           ^
 ```
 
 ### A field of two types (§3.5)
@@ -1384,10 +1390,10 @@ fn f(s : Shape) : Int = s.r
 
 ```console
 $ ern build example.ern
-example.ern:3:25: the field r in every constructor: expected Int, found Float
+example.ern:3:27: Shape has no field r of one type: r is Int in Circle and Float in Square
 2 | 
 3 | fn f(s : Shape) : Int = s.r
-  |                         ^^^
+  |                           ^
 ```
 
 ### A field of another module's abstract type (§4.4)
@@ -1398,9 +1404,9 @@ fn f(s : Random.Seed) : Int = s.value
 
 ```console
 $ ern build example.ern
-example.ern:1:31: Random.Seed is abstract, and its fields are its module's alone
+example.ern:1:33: Random.Seed is abstract, and its fields are its module's alone
 1 | fn f(s : Random.Seed) : Int = s.value
-  |                               ^^^^^^^
+  |                                 ^^^^^
 ```
 
 ### A field of a value whose type is not determined (§4.8)
@@ -1411,9 +1417,9 @@ fn f(p) = p.x
 
 ```console
 $ ern build example.ern
-example.ern:1:11: the type whose field x is read is not determined; annotate it
+example.ern:1:13: the type whose field x is read is not determined; annotate it
 1 | fn f(p) = p.x
-  |           ^^^
+  |             ^
 ```
 
 ### A field read at another type than its own (§3.5)
@@ -1430,10 +1436,10 @@ fn f(p) : String = {
 
 ```console
 $ ern build example.ern
-example.ern:4:22: the field x: expected String, found Int
+example.ern:4:24: the field x: expected String, found Int
 3 | fn f(p) : String = {
 4 |     let s : String = p.x;
-  |                      ^^^
+  |                        ^
 ```
 
 ### Fields given to a constructor that has none (§5.6)
@@ -1488,10 +1494,11 @@ fn f() : Point = Point(x = 1, x = 2)
 
 ```console
 $ ern build example.ern
-example.ern:3:18: a field is given twice
+example.ern:3:31: field x is given twice
 2 | 
 3 | fn f() : Point = Point(x = 1, x = 2)
-  |                  ^^^^^^^^^^^^^^^^^^^
+  |                        ----- first given here
+  |                               ^^^^^
 ```
 
 ### A field the constructor lacks (§5.6)
@@ -1903,7 +1910,10 @@ fn f() : Int = {
 ```console
 $ ern build example.ern
 example.ern:4:5: local function g is declared twice in the block
-3 |     let n = 1;
+1 | fn f() : Int = {
+2 |     fn g() : Int = 1;
+  |     ---------------- first declared here
+...
 4 |     fn g() : Int = 2;
   |     ^^^^^^^^^^^^^^^^
 ```
@@ -2308,10 +2318,11 @@ fn f(p : Point) : Int =
 
 ```console
 $ ern build example.ern
-example.ern:5:9: a field is matched twice
+example.ern:5:22: field x is matched twice
 4 |     match p {
 5 |         Point(x = a, x = b) -> a
-  |         ^^^^^^^^^^^^^^^^^^^
+  |               ----- first matched here
+  |                      ^^^^^
 ```
 
 ### A field the constructor lacks, matched (§5.10)
@@ -2363,10 +2374,11 @@ fn f(p : #(Int, Int)) : Int =
 
 ```console
 $ ern build example.ern
-example.ern:3:9: variable x appears twice in the pattern
+example.ern:3:14: variable x appears twice in the pattern
 2 |     match p {
 3 |         #(x, x) -> x
-  |         ^^^^^^^
+  |           - first bound here
+  |              ^
 ```
 
 ### A list pattern of two types (§5.10)
@@ -2759,11 +2771,12 @@ fn f() : Int with Never =
 
 ```console
 $ ern build example.ern
-example.ern:2:5: a function with mailbox Never cannot receive
+example.ern:2:5: f is declared with mailbox Never and cannot receive
 1 | fn f() : Int with Never =
+  |                   ----- f is declared `with Never` here
 2 |     receive {
   |     ^^^^^^^^^
-  | = help: only an `after` clause is allowed; give the function another mailbox type with `with`
+  | = help: only an `after` clause is allowed; give f another mailbox type with `with`
 ```
 
 ### `receive` in a top-level initializer (§4.6, §6.8)
@@ -2779,6 +2792,7 @@ let n : Int =
 $ ern build example.ern
 example.ern:2:5: a top-level initializer runs with mailbox Never and cannot receive
 1 | let n : Int =
+  | ------------- the initializer of n runs as a body of mailbox type Never
 2 |     receive {
   |     ^^^^^^^^^
   | = help: receive in a process the initializer spawns
@@ -3026,7 +3040,9 @@ fn twice(r : Reply(Int)) : Unit with m = {
 ```console
 $ ern build example.ern
 example.ern:3:12: the reply-carrying value r is consumed twice
+1 | fn twice(r : Reply(Int)) : Unit with m = {
 2 |     answer(r, 1);
+  |            - first consumed here
 3 |     answer(r, 2)
   |            ^
 ```

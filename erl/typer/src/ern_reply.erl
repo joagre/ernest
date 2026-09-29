@@ -64,7 +64,8 @@ holds(Params, Body, Env) ->
         discipline(Params, Body, Env),
         true
     catch
-        throw:{type_error, _, _} -> false
+        throw:{type_error, _, _} -> false;
+        throw:{type_error, #diag{}} -> false
     end.
 
 %% The type variables of the parameters' types, where values stand: not a
@@ -332,11 +333,18 @@ seq(Lists) ->
                     lists:foreach(fun({'$fault', _}) ->
                                       ok;
                                      ({N, Pos}) ->
-                                      case lists:keymember(N, 1, Acc) of
-                                          true -> throw({type_error, Pos,
-                                                         "the reply-carrying value "
-                                                         ++ atom_to_list(N)
-                                                         ++ " is consumed twice"});
+                                      %% report §11.5: at the second use,
+                                      %% the first labelled
+                                      case lists:keyfind(N, 1, Acc) of
+                                          {N, First} ->
+                                              throw({type_error,
+                                                     #diag{span = ern_diag:span(Pos),
+                                                           message = "the reply-carrying"
+                                                                     " value "
+                                                                     ++ atom_to_list(N)
+                                                                     ++ " is consumed twice",
+                                                           labels = [{ern_diag:span(First),
+                                                                      "first consumed here"}]}});
                                           false -> ok
                                       end
                                   end, Uses),
