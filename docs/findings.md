@@ -4,7 +4,6 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 
 ## The report
 
-- 2.98 — the supervisor's restart on request is a language mechanism with no prelude entry; every `receive` of a child is an unwritten exit point (P10)
 - 2.98 — claiming the terminal twice faults the entry process rather than the caller (P12)
 - 2.98 — `Tcp.write` and `Os.write` fail silently (P13)
 - 2.98 — bitstring sizes cannot name a top-level constant or a variable bound to their left (P16)
