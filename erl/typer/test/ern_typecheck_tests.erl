@@ -1088,6 +1088,14 @@ reply_test() ->
     ?assertEqual(ok, ok(Msg ++ "fn ask(a : Address(Req)) = Address.call(a, fn(r) = Get(reply = r),"
                         " 1000)")).
 
+%% report §4.2: a type's member is written `T.name`, within the type's own
+%% members too; no lookup step finds it unqualified. A regression test,
+%% written when the report dropped the step the compiler never had
+member_written_qualified_test() ->
+    Box = "type Box = Box(Int)\nlet Box.empty : Box = Box(0)\n",
+    ?assertEqual("unknown name empty", err(Box ++ "fn Box.fresh() : Box = empty")),
+    ?assertEqual(ok, ok(Box ++ "fn Box.fresh() : Box = Box.empty")).
+
 %% report §4.2: a dotted name's first segment is the module's own type
 %% where that type has a member of the name, and otherwise the namespace
 %% of that name; `Prelude.T.name` reaches a prelude namespace's name past

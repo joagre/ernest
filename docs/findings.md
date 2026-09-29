@@ -42,7 +42,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — a `foreign fn`'s type variables escape §6.6 and §3.10: `Foreign.from(r)` drops a Reply, `Foreign.from` compares functions and addresses; a foreign type's arguments are never reply-carrying (P1, P3, K1): the reply half fixed 2026-09-29, a variable a foreign function's parameter holds is not reply-carrying (§4.7); the equality half fixed the same day, `Foreign` having no `==` (§3.10)
 - done — `Io.show` and `Io.debug` depend on the static type at the call: `fn s(x) = Io.show(x)` prints a Char as its Int (P2, K4, E-C4): decided 2026-09-29, the type's description passed as the ordering restriction's `compare` is, planned as MVP 2.99b item 7
 - done — where `via`'s function runs: §6.5 in the sender, §6.9 by the delivery; its fault is the target's (P11, K2): decided 2026-09-29, in the sender at the `send`, and a wrap by the runtime as it delivers (§6.5, §6.9)
-- 2.98 — §4.2's lookup names a type-member step the compiler does not implement, and which would shadow a member by a module function (P5)
+- done — §4.2's lookup names a type-member step the compiler does not implement, and which would shadow a member by a module function (P5): fixed 2026-09-29, the step dropped from §4.2 and §11.2, a member written `T.name` as the compiler requires
 - 2.98 — `Optional` and `Either` refuse reply-carrying elements while user sum types allow them; the rule and §3.9's exemption exist for each other (P6); met again 2026-09-28, when `Supervisor`'s watcher had to hold its children's replies in a list type of its own, `Held`, since `List` holds none
 - 2.98 — a `receive` guard is a second, smaller expression language: no top-level binding, no call, no ordering on a user type (P7)
 - 2.98 — a type variable named only in a lambda's annotation is the lambda's and not rigid, so one annotation text has two meanings (P8)
@@ -58,7 +58,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - 2.98 — an unresolved block variable is an error though nothing depends on it (P20)
 - 2.98 — `C` and `C()` both match any value of a named constructor; `Some()` and `None()` are grammatical (P21, K19)
 - 2.98 — `unit(N)` is a second way to scale a size (P22)
-- 2.98 — `fn Int.+(a, b) = a + b` "is not a recursive call"; `negate` and `compare` are not covered (P23, K27, E-B11)
+- done — `fn Int.+(a, b) = a + b` "is not a recursive call"; `negate` and `compare` are not covered (P23, K27, E-B11): fixed 2026-09-29, §9.6 states `compare` and `negate` beside the operators; the operators stay declared as members, a shim of one line each being a second form for the same operation
 - done — §3.9 misses field selection among the places inference asks for an annotation (K5): fixed 2026-09-29, four places
 - done — what `T` annotates in `let p : T <- e` (K6): fixed 2026-09-29, `p`'s type, and where the asked-for annotation goes
 - done — a first segment's lookup where a module declares a prelude type's name; `Prelude.T.member` (K7): fixed 2026-09-29, the lookup stated and `Prelude.List.size` admitted
