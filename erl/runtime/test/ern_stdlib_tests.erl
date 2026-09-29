@@ -612,6 +612,29 @@ fs_links_test() ->
                  [filename:basename(Path) || {'Entry', _, _, {'Path', Path}, _} <- Kept]),
     file:del_dir_r(Dir).
 
+%% report Appendix E.17: `readRange` reads a part of a file, fewer bytes at
+%% its end and none past it, a regular file only, and refuses a negative
+%% offset or count in words. Written with the code (MVP 2.98)
+fs_read_range_test() ->
+    Me = self(),
+    Dir = filename:join("/tmp", "ern_range_" ++ os:getpid() ++ "_"
+                                 ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(filename:join(Dir, "abc.txt"), <<"abcdef">>),
+    P = {'Path', list_to_binary(filename:join(Dir, "abc.txt"))},
+    F = 'ern@fs',
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           [Me ! {fs, F:readRange(P, O, N, 1000)}
+                            || {O, N} <- [{0, 2}, {4, 9}, {6, 1}, {9, 1}, {1, 0}, {-1, 2}]],
+                           Me ! {fs, F:readRange({'Path', list_to_binary(Dir)}, 0, 1, 1000)}
+                       end, <<"fs_read_range_test">>, #{})),
+    ?assertEqual([{'Right', <<"ab">>}, {'Right', <<"ef">>}, {'Right', <<>>}, {'Right', <<>>},
+                  {'Right', <<>>}, {'Left', {'Other', <<"a negative offset or count">>}},
+                  {'Left', {'Other', <<"not a regular file">>}}],
+                 collect(fs, [])),
+    file:del_dir_r(Dir).
+
 %% report Appendix E.17: `create` makes a new file or none; `removeAll`
 %% removes a tree, a link in it removed and what it leads to kept;
 %% `setModified` sets the time a `stat` then reads, to the second. Written

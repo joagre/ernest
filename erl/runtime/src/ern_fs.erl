@@ -33,6 +33,13 @@ guarded(Msg) ->
 handle({'ReadFile', Path, Reply}) ->
     Name = text(Path),
     answer(Reply, regular(Name, fun() -> file:read_file(Name, [raw]) end));
+%% Report Appendix E.17: a part of a file, read where it lies, without
+%% holding the rest; fewer bytes at its end, and none past it.
+handle({'ReadRange', Count, Offset, _Path, Reply}) when Count < 0; Offset < 0 ->
+    ern_rt:answer(Reply, {'Left', {'Other', <<"a negative offset or count">>}});
+handle({'ReadRange', Count, Offset, Path, Reply}) ->
+    Name = text(Path),
+    answer(Reply, regular(Name, fun() -> range(Name, Offset, Count) end));
 handle({'WriteFile', Bytes, Path, Reply}) ->
     Name = text(Path),
     answer(Reply, regular_or_none(Name, fun() -> unit(file:write_file(Name, Bytes, [raw])) end));
@@ -115,6 +122,20 @@ handle({'Copy', From, Reply, To}) ->
     answer(Reply, regular(Source, fun() ->
                                       regular_or_none(Target, fun() -> copy(Source, Target) end)
                                   end)).
+
+range(Name, Offset, Count) ->
+    case file:open(Name, [read, raw, binary]) of
+        {ok, File} ->
+            Read = file:pread(File, Offset, Count),
+            ok = file:close(File),
+            case Read of
+                {ok, Bytes} -> {ok, Bytes};
+                eof -> {ok, <<>>};
+                Error -> Error
+            end;
+        Error ->
+            Error
+    end.
 
 copy(Source, Target) ->
     case file:copy({Source, [raw]}, {Target, [raw]}) of

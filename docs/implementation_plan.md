@@ -96,7 +96,8 @@ discussed with the user one at a time as they are met.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
    `create`, a new file or none; `removeAll`; `setModified`, done 2026-09-29, `readLink`
    answering `None` for what is no link; and, decided with the user, a file read and written in
-   parts, which a file too large to hold whole needs. An entry's kind and
+   parts, which a file too large to hold whole needs, done 2026-09-29 as `readRange`, a part read
+   by its path, and `append`. An entry's kind and
    its links were built in MVP 2.95.
 4. **The formatter's one-constructor type**: a type of one constructor too long for its line
    breaks inside its parameters, `SetOps(s,` and `a)`, where `style.md`'s rule for a type
