@@ -1977,8 +1977,9 @@ receive_guard_forms_test() ->
     [?assertEqual({G, ok}, {G, ok(Head ++ G ++ Tail)}) || G <- Accepted].
 
 %% report §6.3: a comparison's operands are operands, so a comparison, a
-%% negation, arithmetic, or a negated variable is not one; a variable bound
-%% at top level is not the function's
+%% negation, arithmetic, or a negated variable is not one; a top-level `let`
+%% is one, which the `receive` reads before it waits. The top-level half is
+%% a regression test: such a binding was refused
 receive_guard_refused_test() ->
     Head = "type Msg = N(Int)\nlet limit = 5\nlet ready = true\n"
            "fn loop(flag : Bool, go : Bool, m : Int) : Unit with Msg = receive { ",
@@ -1989,17 +1990,11 @@ receive_guard_refused_test() ->
                {"N(_) when flag == go == true", Operand},
                {"N(k) when k + 1 > 2", Operand},
                {"N(k) when k > -m", Operand},
-               {"N(k) when k > limit",
-                "limit is bound at top level, and a `receive` guard reads only the function's"
-                " variables"},
-               {"N(_) when !ready",
-                "ready is bound at top level, and a `receive` guard reads only the function's"
-                " variables"},
                {"N(k) when Int.compare(k, m) == Less",
                 Operand}],
     [?assertEqual({G, Expected}, {G, err(Head ++ G ++ Tail)}) || {G, Expected} <- Refused],
-    D = diag(Head ++ "N(k) when k > limit" ++ Tail),
-    ?assertEqual("bind its value to a variable before the `receive`", D#diag.help).
+    [?assertEqual({G, ok}, {G, ok(Head ++ G ++ Tail)})
+     || G <- ["N(k) when k > limit", "N(_) when !ready", "N(k) when k > limit && ready"]].
 
 %% report §6.3, §3.10: `<`, `<=`, `>`, and `>=` in a receive guard order
 %% Int, Float, String, and Char only, not a user type with its own compare

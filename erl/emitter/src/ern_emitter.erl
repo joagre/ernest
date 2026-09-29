@@ -372,12 +372,15 @@ expr(#e_match{pos = Pos, scrutinee = S, clauses = Clauses}, Cx) ->
     {SF, Cx1} = expr(S, Cx),
     {Form, Cx2} = match_clauses(SF, Clauses, Cx1),
     {at(Pos, Form), Cx2};
-expr(#e_receive{pos = Pos, clauses = Clauses, 'after' = After}, Cx) ->
+expr(#e_receive{pos = Pos, clauses = Clauses0, 'after' = After}, Cx0) ->
     %% report §6.3: a receive guard is a guard expression, which the
-    %% checker holds it to, so it is an Erlang guard here; a message from a
+    %% checker holds it to, so it is an Erlang guard here, a top-level `let`
+    %% it names read into a variable before the receive; a message from a
     %% foreign process was checked by the proxy that delivered it (§8.4)
+    {Clauses, {Reads, Cx}} = lists:mapfoldl(fun read_before/2, {[], Cx0}, Clauses0),
     {Parts, Cx1} = lists:mapfoldl(fun simple_clauses/2, Cx, Clauses),
-    {Binds, OwnForms} = join_parts(Parts),
+    {Binds0, OwnForms} = join_parts(Parts),
+    Binds = Reads ++ Binds0,
     %% report §6.9: a restart a supervisor asks for arrives before every
     %% other message and is taken here, first
     ClauseForms = [erl_syntax:clause([erl_syntax:atom('$ern_restart')], none,
@@ -417,6 +420,30 @@ expr(#e_receive{pos = Pos, clauses = Clauses, 'after' = After}, Cx) ->
 
 exprs(Es, Cx) ->
     lists:mapfoldl(fun expr/2, Cx, Es).
+
+%% Report §6.3: each top-level `let` a receive clause's guard names, read
+%% into a fresh variable that the guard names in its place.
+read_before(#clause{guard = undefined} = C, Acc) ->
+    {C, Acc};
+read_before(#clause{guard = G} = C, Acc) ->
+    {G1, Acc1} = read_top(G, Acc),
+    {C#clause{guard = G1}, Acc1}.
+
+read_top(#e_binop{left = L, right = R} = B, Acc) ->
+    {L1, Acc1} = read_top(L, Acc),
+    {R1, Acc2} = read_top(R, Acc1),
+    {B#e_binop{left = L1, right = R1}, Acc2};
+read_top(#e_not{expr = X} = N, Acc) ->
+    {X1, Acc1} = read_top(X, Acc),
+    {N#e_not{expr = X1}, Acc1};
+read_top(#e_var{ref = Ref} = V, {Reads, Cx}) when Ref =/= var ->
+    {Form, Cx1} = expr(V, Cx),
+    {[E], Cx2} = fresh_vars(1, "Read", Cx1),
+    {V#e_var{path = [], name = E, ref = var},
+     {Reads ++ [erl_syntax:match_expr(erl_syntax:variable(E), Form)],
+      Cx2#cx{vars = maps:put(E, E, Cx2#cx.vars)}}};
+read_top(X, Acc) ->
+    {X, Acc}.
 
 %% A body: a block's statements spliced into the clause, else one expression.
 body(#e_block{stmts = Stmts}, Cx) ->

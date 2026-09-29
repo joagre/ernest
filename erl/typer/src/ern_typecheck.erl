@@ -1983,19 +1983,34 @@ receive_guard(G, _) ->
          [], "receive the message and `match` it").
 
 %% An operand: a variable of the pattern or of the enclosing function, a
-%% literal, a negative numeric literal, or a nullary constructor.
+%% top-level `let`, which the `receive` reads before it waits, a literal, a
+%% negative numeric literal, or a nullary constructor. A regression: a
+%% top-level binding was refused, the host's guard showing through.
 guard_operand(#e_lit{}, _) -> ok;
 guard_operand(#e_neg{expr = #e_lit{kind = K}}, _) when K =:= int; K =:= float -> ok;
 guard_operand(#e_con{args = none}, _) -> ok;
 guard_operand(#e_var{path = [], name = N}, #env{vars = Vs}) when is_map_key(N, Vs) -> ok;
-guard_operand(#e_var{} = V, _) ->
-    fail(node_span(V), callee_name(V) ++ " is bound at top level, and a `receive` guard reads"
-                                         " only the function's variables",
-         [], "bind its value to a variable before the `receive`");
+guard_operand(#e_var{ref = Ref} = V, Env) ->
+    case top_let(Ref, Env) of
+        true -> ok;
+        false -> fail(node_span(V), callee_name(V) ++ " is a function, and a `receive` guard"
+                                                     " calls nothing",
+                      [], "receive the message and `match` it")
+    end;
 guard_operand(X, _) ->
     fail(node_span(X), "a comparison in a `receive` guard compares variables, literals, and"
                        " nullary constructors",
          [], "receive the message and `match` it").
+
+%% Whether a reference names a top-level `let`, of this module or another.
+top_let({own, Owner, Name}, #env{ns = Ns, lets = Lets}) ->
+    is_map_key(Ns ++ [O || O <- [Owner], O =/= undefined] ++ [Name], Lets);
+top_let({remote, Module, Owner, Name}, #env{lets = Lets}) ->
+    is_map_key(Module ++ [O || O <- [Owner], O =/= undefined] ++ [Name], Lets);
+top_let({prelude, Q}, #env{lets = Lets}) ->
+    is_map_key(Q, Lets);
+top_let(_, _) ->
+    false.
 
 %% After the first branch, the expectation's origin is that branch when
 %% nothing outside fixed it.

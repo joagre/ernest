@@ -1226,6 +1226,29 @@ foreign_equality_test() ->
         "}\n"),
     ?assertEqual(<<"#(true, false, true, false)\n">>, Out).
 
+%% report §6.3: a receive guard reads a top-level `let`, in a receive with
+%% and without an `after`, the value read before the receive waits. A
+%% regression test, written with the rule
+receive_guard_reads_top_level_test() ->
+    {ok, Out} = run(
+        "type Msg = Tick(Int)\n"
+        "let limit = 10\n"
+        "fn first() : Int with Msg = receive { Tick(k) when k > limit -> k }\n"
+        "fn timed() : Int with Msg =\n"
+        "    receive {\n"
+        "        Tick(k) when k > limit -> k\n"
+        "      | after 1000 -> 0\n"
+        "    }\n"
+        "export fn main() : Unit with Msg = {\n"
+        "    let me = self();\n"
+        "    send(me, Tick(3));\n"
+        "    send(me, Tick(20));\n"
+        "    send(me, Tick(30));\n"
+        "    let _ = Io.debug(#(first(), timed()));\n"
+        "    Unit\n"
+        "}\n"),
+    ?assertEqual(<<"#(20, 30)\n">>, Out).
+
 %% report §8.4, §7.4: an address given to foreign code is a proxy that
 %% checks each message on delivery, a bad one faulting the target even
 %% when no clause would bind it; a good one arrives, also from inside a

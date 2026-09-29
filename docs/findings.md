@@ -44,7 +44,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — where `via`'s function runs: §6.5 in the sender, §6.9 by the delivery; its fault is the target's (P11, K2): decided 2026-09-29, in the sender at the `send`, and a wrap by the runtime as it delivers (§6.5, §6.9)
 - done — §4.2's lookup names a type-member step the compiler does not implement, and which would shadow a member by a module function (P5): fixed 2026-09-29, the step dropped from §4.2 and §11.2, a member written `T.name` as the compiler requires
 - done — `Optional` and `Either` refuse reply-carrying elements while user sum types allow them; the rule and §3.9's exemption exist for each other (P6); met again 2026-09-28, when `Supervisor`'s watcher had to hold its children's replies in a list type of its own, `Held`, since `List` holds none: fixed 2026-09-29, both sum types like any other, `List`, `Map` and `Set` keeping the rule; `Held` stays, holding a list
-- 2.98 — a `receive` guard is a second, smaller expression language: no top-level binding, no call, no ordering on a user type (P7)
+- done — a `receive` guard is a second, smaller expression language: no top-level binding, no call, no ordering on a user type (P7): fixed 2026-09-29, a top-level `let` an operand, read before the `receive` waits; a guard still calls nothing
 - 2.98 — a type variable named only in a lambda's annotation is the lambda's and not rigid, so one annotation text has two meanings (P8)
 - 2.98 — a block `let` of a lambda is monomorphic while a block `fn` and a top-level `let` are polymorphic (P9)
 - 2.98 — the supervisor's restart on request is a language mechanism with no prelude entry; every `receive` of a child is an unwritten exit point (P10)

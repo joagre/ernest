@@ -2871,28 +2871,6 @@ example.ern:3:16: a comparison in a `receive` guard compares variables, literals
   | = help: receive the message and `match` it
 ```
 
-### A `receive` guard that reads a top-level value (§6.3)
-
-```ernest-rejected
-let limit = 3
-
-fn f() : Int with Int =
-    receive {
-        n when n > limit -> 1
-    }
-```
-
-```console
-$ ern build example.ern
-example.ern:5:20: limit is bound at top level, and a `receive` guard reads only the function's variables
-4 |     receive {
-5 |         n when n > limit -> 1
-  |                    ^^^^^
-  | = help: bind its value to a variable before the `receive`
-```
-
-## Replies (report §6.6)
-
 ### A reply discarded with `_` (§6.6)
 
 ```ernest-rejected
