@@ -1,6 +1,6 @@
 # Contracts
 
-How code written once uses several representations of one thing, a set kept hashed and a set kept in order. The note holds the recommended way, its cost, and how it compares with full type classes, until MVP 2.97 decides; the decision goes to the report and the decisions log, and the note goes. The block marked `ernest` compiles today (2026-09-29); those marked `sketch` are Ernest as the recommendation, or type classes, would make it.
+How code written once uses several representations of one thing, a set kept hashed and a set kept in order. The note holds the recommended way, its cost, and how it compares with full type classes, until MVP 2.99b decides; the decision goes to the report and the decisions log, and the note goes. The block marked `ernest` compiles today (2026-09-29); those marked `sketch` are Ernest as the recommendation, or type classes, would make it.
 
 ## What the user should see
 
@@ -134,8 +134,8 @@ small == fromList([1, 3], OrderedSet.operations())    // true: an ordered set is
 **Cost**, in the plan's days:
 - **A named field's own variables, about 2 days**, in the checker alone. `field_type` keeps the variables it refuses today, and `#cinfo` records them per field, which the compiled interface carries. A field's value is inferred, generalized, and checked with the field's own variables rigid, as an annotation's are, whose errors exist already. Selection and patterns instantiate them. The emitter does nothing, since the value's representation does not change.
 - **The ordering restriction, about 3 days.** In the checker: a fourth flag on a variable beside `eq`, `process_only` and `no_reply`; a comparison on a variable sets it where it fails today; the check at instantiation stands beside equality's; the printer adds the mark; the compiled interface carries flags already. In the emitter, the first argument no one wrote, since none is passed today: a definition takes a `compare` for each ordered variable, each call passes one, a function used as a value closes over it, and a comparison on a variable calls it. A `T.compare` over parameters is closed over its parameters' `compare`s.
-- **The report**: §3.9, §3.10, §4.8 and §11.5 amended, and Appendix E for the contract and the ordered set. With the guide's §7.3 and the library, that is MVP 2.97's own 2 days.
-- **In all, about 7 days**, 5 more than MVP 2.97 has now.
+- **The report**: §3.9, §3.10, §4.8 and §11.5 amended, and Appendix E for the contract and the ordered set. With the guide's §7.3 and the library, that is MVP 2.99b's own 2 days.
+- **In all, about 7 days**, 5 more than MVP 2.99b has now.
 
 ## Full type classes
 
@@ -221,13 +221,13 @@ The toolchain has about 18,000 lines of Erlang, the checker 3,000 of them and th
 | Report and guide | §3.9, §3.10, §4.8 and §11.5 amended; the guide's §7.3 | sections for classes, instances, constraints, resolution and coherence; Appendix A; §3.10 and §4.8 rewritten on classes; a chapter of the guide: 3 days |
 | Standard library | `Set.Operations` and the ordered set | the classes, and an instance for every type with `compare` or an operator |
 | MVP 3.1's hashes | as `<` today | a definition's hash names the instances it resolves |
-| In all | about 5 days, beside MVP 2.97's own 2 | about 6 weeks |
+| In all | about 5 days, beside MVP 2.99b's own 2 | about 6 weeks |
 
 Type classes contain the recommendation: their methods need a field's own variables, and their dictionaries are the ordering restriction's hidden argument made general. What they add is the surface that declares classes and instances and the resolution that finds an instance by type: the six weeks, and an argument no one wrote at every call of a method.
 
 **The verdict.** For the developer, type classes save the record at a call, and in a function that only hands a set on. For that they add classes, instances, associated types, conditions and the rules of coherence, a second mechanism beside records of functions, and about six weeks of work where the recommendation takes five days. The recommendation meets the five measures with neither, and is the one recommended.
 
-## What MVP 2.97 settles beside
+## What MVP 2.99b settles beside
 
 - **The ordered set's name and place.** The sketches write its namespace `OrderedSet`, and a file `orderedset.ern` provides `Orderedset` (§4.2).
 - **Its representation.** `==` is structural, so a set must have one representation: a sorted list has, and a balanced tree whose shape follows the order of insertion has not.

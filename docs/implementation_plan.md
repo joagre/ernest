@@ -13,8 +13,9 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
-**MVP 2.98 is under way**, taken before MVP 2.97, which rests on a decision with the user:
-how a contract is written, which [`contract.md`](contract.md) weighs (2026-09-29). Every earlier milestone
+**MVP 2.98 is under way.** The decision on how a contract is written, which
+[`contract.md`](contract.md) weighs, is taken in MVP 2.99b, after the first release
+(2026-09-29). Every earlier milestone
 is done, the last MVP 2.96 on 2026-09-29; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were
 taken out of order. Each has its paragraph under "Done". The first release is MVP 2.99's.
 
@@ -36,9 +37,9 @@ taken out of order. Each has its paragraph under "Done". The first release is MV
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 2.95 | manual pages, an installation, the review | done 2026-09-28 |
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
-| MVP 2.97 | one contract, several representations: an ordered set | rests on the contract's decision (`contract.md`) |
-| **MVP 2.98** | **what the first review left** | **under way, before MVP 2.97** |
+| **MVP 2.98** | **what the first review left** | **under way** |
 | MVP 2.99 | running as a service, and the first release | |
+| MVP 2.99b | one contract, several representations: an ordered set | the contract's decision first (`contract.md`) |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -46,48 +47,11 @@ taken out of order. Each has its paragraph under "Done". The first release is MV
 
 ---
 
-## MVP 2.97 (one contract, several representations: an ordered set), about two days
-
-Decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*): the guide's §7.3 is
-rewritten to test whether a record of functions does what an interface does in Java and a type
-class in Haskell. Its first form, a value that carries its operations (`Shape`), goes. Its
-second is rewritten around a contract `Set.Operations(s, a)` holding the operations of the built-in
-`Set` (Appendix E), which `Set` fills in, and so does a module `OrderedSet`, a set kept in a
-`compare`'s order that exports functions of its own beyond the contract, such as `min` and
-`max`. It follows MVP 2.96.
-
-1. **The contract waits on a decision**, discussed with the user first (language feedback
-   64), over what [`contract.md`](contract.md) recommends and compares with full type classes:
-   a contract is a record of functions that the caller passes; a named field may be
-   polymorphic in a variable its type does not take, as `foldLeft`'s accumulator and `any`'s
-   effect are, without which the contract cannot hold nine of `Set`'s twenty functions; and
-   `<` on a type variable gives it an ordering restriction, as `==` gives equality, so that an
-   ordered set holds only its elements. The section does not go around the decision. Taken,
-   the recommendation makes the milestone about seven days (the note's *Cost*).
-2. **What the section verifies**, each stated in it or in the log: code written once against
-   the contract (a Java parameter of an interface type, a Haskell constraint); a
-   representation's own functions beside the contract (a class's further methods); a contract
-   that extends another, an ordered set's record holding a `Set.Operations` (`SortedSet extends Set`, a
-   superclass); defaults built from a smaller record (a default method); the representation
-   chosen at the call, never found by its type (instance resolution, which principle 3 leaves
-   out); two ordered sets of different `compare`s meeting in `union` (Haskell's coherence;
-   Java's `TreeSet`, which keeps its comparator); and values of different representations in
-   one list, which the first form gave. What Ernest cannot express goes to
-   [`language_feedback.md`](language_feedback.md) and is decided with the user before the
-   section goes around it.
-3. **The section's examples** compile and run under the guide's checks.
-4. **When a type's operation is a member and when a module function** (`findings.md`'s U8,
-   moved here 2026-09-29): §7.2 declares them `fn Stack.push` and §7.3 `toList` of a module,
-   and the contract's decision settles how a type's operations are declared, so the guide
-   states one rule with it.
-
----
-
 ## MVP 2.98 (what the first review left), about two weeks
 
-What the review of MVP 2.95 found and did not fix there, decided 2026-09-28 and moved from MVP 3.0 the same day, since none of it needs a peer (the log's
-*MVP 3.0 Is Distributed Code and the Node Protocol*). It is taken before MVP 2.97, which rests on
-the contract's decision (2026-09-29), in this order: 4, 5, 6, 3, 1, 2, the design questions of 2
+What the review of MVP 2.95 found and did not fix there, decided 2026-09-28 and moved from MVP
+3.0 the same day, since none of it needs a peer (the log's *MVP 3.0 Is Distributed Code and the
+Node Protocol*). It is taken in this order: 4, 5, 6, 3, 1, 2, the design questions of 2
 discussed with the user one at a time as they are met.
 
 1. **[`findings.md`](findings.md)'s `cheap` lines**, a batch a document, done 2026-09-29 (the
@@ -167,6 +131,43 @@ follows MVP 2.98.
    OPTIONS and EXIT STATUS among them, where it is §11 rendered as it stands (`findings.md`'s
    T31, 2026-09-29); and the release is tagged with its notes, the archive published beside it,
    where the README then says to download it.
+
+## MVP 2.99b (one contract, several representations: an ordered set), about two days
+
+Decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*): the guide's §7.3 is
+rewritten to test whether a record of functions does what an interface does in Java and a type
+class in Haskell. Its first form, a value that carries its operations (`Shape`), goes. Its
+second is rewritten around a contract `Set.Operations(s, a)` holding the operations of the built-in
+`Set` (Appendix E), which `Set` fills in, and so does a module `OrderedSet`, a set kept in a
+`compare`'s order that exports functions of its own beyond the contract, such as `min` and
+`max`. It follows the first release, MVP 2.99: the contract's decision is taken here, and
+not before the release (decided 2026-09-29, the log's *The Contract's Decision After the First
+Release*).
+
+1. **The contract's decision**, taken first, with the user (language feedback 64), over what
+   [`contract.md`](contract.md) recommends and compares with full type classes:
+   a contract is a record of functions that the caller passes; a named field may be
+   polymorphic in a variable its type does not take, as `foldLeft`'s accumulator and `any`'s
+   effect are, without which the contract cannot hold nine of `Set`'s twenty functions; and
+   `<` on a type variable gives it an ordering restriction, as `==` gives equality, so that an
+   ordered set holds only its elements. The section does not go around the decision. Taken,
+   the recommendation makes the milestone about seven days (the note's *Cost*).
+2. **What the section verifies**, each stated in it or in the log: code written once against
+   the contract (a Java parameter of an interface type, a Haskell constraint); a
+   representation's own functions beside the contract (a class's further methods); a contract
+   that extends another, an ordered set's record holding a `Set.Operations` (`SortedSet extends Set`, a
+   superclass); defaults built from a smaller record (a default method); the representation
+   chosen at the call, never found by its type (instance resolution, which principle 3 leaves
+   out); two ordered sets of different `compare`s meeting in `union` (Haskell's coherence;
+   Java's `TreeSet`, which keeps its comparator); and values of different representations in
+   one list, which the first form gave. What Ernest cannot express goes to
+   [`language_feedback.md`](language_feedback.md) and is decided with the user before the
+   section goes around it.
+3. **The section's examples** compile and run under the guide's checks.
+4. **When a type's operation is a member and when a module function** (`findings.md`'s U8,
+   moved here 2026-09-29): §7.2 declares them `fn Stack.push` and §7.3 `toList` of a module,
+   and the contract's decision settles how a type's operations are declared, so the guide
+   states one rule with it.
 
 ---
 
