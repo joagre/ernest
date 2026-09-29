@@ -88,7 +88,8 @@ What the review of MVP 2.95 found and did not fix there, decided 2026-09-28 and 
 the contract's decision (2026-09-29), in this order: 4, 5, 3, 1, 2, the design questions of 2
 discussed with the user one at a time as they are met.
 
-1. **[`findings.md`](findings.md)'s `cheap` lines**, a batch a document.
+1. **[`findings.md`](findings.md)'s `cheap` lines**, a batch a document. The report's, done
+   2026-09-29 (the log's *The Report's Cheap Lines*).
 2. **Its `2.98` lines**: the report's contradictions and silent cases, among them `Io.show`'s
    dependence on the type at the call; the diagnostics'
    positions and labels (§11.5); the guide's gaps, `Tcp` untaught among them; and the documents

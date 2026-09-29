@@ -50,7 +50,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - 2.98 — the supervisor's restart on request is a language mechanism with no prelude entry; every `receive` of a child is an unwritten exit point (P10)
 - 2.98 — claiming the terminal twice faults the entry process rather than the caller (P12)
 - 2.98 — `Tcp.write` and `Os.write` fail silently (P13)
-- cheap — E.0 shape rule 8 lists waits that take no milliseconds and omits `Io.print`, `println`, `printError`, `printlnError`, `write`, `Tcp.write`, `Os.read`, `Os.write` (P14, K3, U2, E-B12)
+- done — E.0 shape rule 8 lists waits that take no milliseconds and omits `Io.print`, `println`, `printError`, `printlnError`, `write`, `Tcp.write`, `Os.read`, `Os.write` (P14, K3, U2, E-B12): fixed 2026-09-29, rule 8 names the three kinds that take no milliseconds
 - 2.98 — bitstring sizes cannot name a top-level constant or a variable bound to their left (P16)
 - 2.98 — `Int.div` and `Int.mod` are prelude variants of `/` and `%`, and `mod` is a remainder (P17, K-B6)
 - 2.98 — `Address.callForever` beside `Address.call` is a second way (P18)
@@ -64,34 +64,34 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - 2.98 — a first segment's lookup where a module declares a prelude type's name; `Prelude.T.member` (K7)
 - 2.98 — §4.8's `fn Float.+` against §4.2's export rule (K8)
 - 2.98 — "faults the binding `Os.workingDirectory`" against §8.5 (K9)
-- cheap — E.0 rule 4 against `Optional.isNone` and `Either.isRight` (K11)
-- cheap — shape rule 2's `contains` "one grapheme long or longer" against E.5's empty substring (K12)
-- cheap — E.6 and E.8 name no primitives, as E.0 rule 1 asks (K13)
-- cheap — §3.11 leaves out `spawnMonitored` (K14)
-- cheap — Appendix D and G.1's `Ets.new` against shape rule 2's `empty` (K15)
-- cheap — G.2's `parse` reads images that `Inline` cannot hold (K16)
-- cheap — §7.4's first list: `Int.toFloat` is E.8's, and a partial operation that faults breaks shape rule 4 (K17)
-- 2.98 — §5.11 leaves conflicting, duplicate and size-less specifiers, and negative literals, open (K18)
+- done — E.0 rule 4 against `Optional.isNone` and `Either.isRight` (K11): fixed 2026-09-29, rule 4 keeps the two negations as a pair and says why principle 2 allows it
+- done — shape rule 2's `contains` "one grapheme long or longer" against E.5's empty substring (K12): fixed 2026-09-29, rule 2's `contains` on text finds a substring of any length, the empty one included
+- done — E.6 and E.8 name no primitives, as E.0 rule 1 asks (K13): fixed 2026-09-29, each names its primitives
+- done — §3.11 leaves out `spawnMonitored` (K14): fixed 2026-09-29
+- done — Appendix D and G.1's `Ets.new` against shape rule 2's `empty` (K15): fixed 2026-09-29, shape rule 2: `empty` is a value, and what belongs to a process and ends is made by `new`
+- done — G.2's `parse` reads images that `Inline` cannot hold (K16): fixed 2026-09-29, G.2 says an image is read as a `Link`
+- done — §7.4's first list: `Int.toFloat` is E.8's, and a partial operation that faults breaks shape rule 4 (K17): fixed 2026-09-29, §7.4 speaks of every partial operation, and shape rule 4 names `Int.toFloat` as its exception; whether `Float.exp` and `pow` fault is K25's
+- 2.98 — §5.11 leaves conflicting, duplicate and size-less specifiers, and negative literals, open (K18, K-B7: `<<-1>>` is a fault the compiler could see)
 - 2.98 — §8.5's order between dependent modules whose bindings do not depend on each other (K20)
 - 2.98 — §8.4's ABI for `Map` and `Set` (K21)
 - 2.98 — §11.6 defers the layout to `docs/style.md` (K22)
-- cheap — §11.5 does not say how columns count (K23)
+- done — §11.5 does not say how columns count (K23): fixed 2026-09-29, lines and columns from 1, a column a code point
 - 2.98 — `String.padStart` with a Char that does not start a grapheme (K24, E14)
 - 2.98 — `Float.exp` and `pow` out of range: fault or `None` (K25)
-- cheap — §6.5's remote adapted address has no cause in §7.4 (K26)
+- done — §6.5's remote adapted address has no cause in §7.4 (K26): fixed 2026-09-29, `Fault("function cannot cross nodes")`, as a function's
 - 2.98 — smaller silences: `true` and `false` covering `Bool`; pipe right-hand forms; one type of a selector over a parameterized type; tail position of `&&`, `||`, a pipe; a `spawnMonitored` site; `abstract type` at the prompt; `Os.exit(300)` in the shell (K28)
-- cheap — wrong references: §6.6's "(§7.2)"; glossary's arity §4.5, node §8.3; missing glossary terms (K29, P-B11)
-- cheap — names used before they are defined, and `Distance`, `Vec`, `Player` never declared (K30)
-- cheap — clarity: §6.6's "may appear nowhere else", §6.3's operand sentence, §7.4's shell clause, E.2's `get`, §5.11's `<<-1>>`, App. B's prose, Appendix E's missing `a=`/`a!`, §8.4's `fn` placeholder, §8.7's list of ways to an address, §5.3's `{`, §6.10's statement, §7.3's example (K-B1..B14)
-- cheap — clarity: §2.1 whitespace against §2.2's doc blocks, §2.6's `!`, §5.5's irrefutable `<-` pattern, §6.6's second answer, `a=`/`a!` not writable, one signature two behaviours (P-B1..B10)
-- cheap — §11.2's `--config-dir` explained last; the `Os.arguments` rule in the `ern test` paragraph (G29, G32)
-- cheap — rationale left in sections under 600 words: §4.4, §5.9, §6.5, §6.9, §11.5, E.16, E.21, E.22 (G, outside the brief)
+- done — wrong references: §6.6's "(§7.2)"; glossary's arity §4.5, node §8.3; missing glossary terms (K29, P-B11): fixed 2026-09-29, §7.4 and §3.4 cited, *node* and *peer* defined in §8.3, and eleven terms added
+- done — names used before they are defined, and `Distance`, `Vec`, `Player` never declared (K30): fixed 2026-09-29, `node` pointed to §8.3 at its first use, and the three types declared where they are used; the other names the reader listed cite their section already
+- done — clarity: §6.6's "may appear nowhere else", §6.3's operand sentence, §7.4's shell clause, E.2's `get`, §5.11's `<<-1>>`, App. B's prose, Appendix E's missing `a=`/`a!`, §8.4's `fn` placeholder, §8.7's list of ways to an address, §5.3's `{`, §6.10's statement, §7.3's example (K-B1..B14): fixed 2026-09-29; B6 is P17's, B7 is K18's, and B11's sentence had gone
+- done — clarity: §2.1 whitespace against §2.2's doc blocks, §2.6's `!`, §5.5's irrefutable `<-` pattern, §6.6's second answer, `a=`/`a!` not writable, one signature two behaviours (P-B1..B10): fixed 2026-09-29; B2 with K-B3, and B7's sentence had gone
+- done — §11.2's `--config-dir` explained last; the `Os.arguments` rule in the `ern test` paragraph (G29, G32): fixed 2026-09-29, `--config-dir` in the first paragraph and its default in §11.3; the rule with the shell
+- done — rationale left in sections under 600 words: §4.4, §5.9, §6.5, §6.9, §11.5, E.16, E.21, E.22 (G, outside the brief): fixed 2026-09-29, the clauses cut, or stated as rules where they were rules
 - 2.98 — `Io.read` from another process under the shell is unstated (G)
 - 2.98 — rules that buy little, to weigh: `true`/`false` reserved, prefix `!`, `abstract` with `export` only, the 255-character limit, `Path` in the prelude (P-C)
-- cheap — §11.2 is silent on the defaults: the depth 10 and the length 100 a value prints to, the live region's five rows, the start's greeting, and that `:output path` appends (shell_design.md's rewrite)
-- cheap — §11.2 says a session whose input is not a terminal keeps no history; the code keeps none whenever input or output is not one (shell_design.md's rewrite)
-- cheap — §11.2's "does not set `NO_COLOR`": the code reads `NO_COLOR=""` as unset, as no-color.org does, which the report does not say (shell_design.md's rewrite)
-- cheap — §11.2's "the Emacs keys of GNU Readline" names no subset; the keys bound are `editor.ern`'s `plain`, `character` and `meta` (shell_design.md's rewrite)
+- done — §11.2 is silent on the defaults: the depth 10 and the length 100 a value prints to, the live region's five rows, the start's greeting, and that `:output path` appends (shell_design.md's rewrite): fixed 2026-09-29
+- done — §11.2 says a session whose input is not a terminal keeps no history; the code keeps none whenever input or output is not one (shell_design.md's rewrite): fixed 2026-09-29, *line mode* named and the rule said of it
+- done — §11.2's "does not set `NO_COLOR`": the code reads `NO_COLOR=""` as unset, as no-color.org does, which the report does not say (shell_design.md's rewrite): fixed 2026-09-29, "unset or empty"
+- done — §11.2's "the Emacs keys of GNU Readline" names no subset; the keys bound are `editor.ern`'s `plain`, `character` and `meta` (shell_design.md's rewrite): fixed 2026-09-29, the keys listed, and every other control key doing nothing
 
 ## The guide and the README
 
@@ -197,7 +197,7 @@ Every finding of the twelve readers of 2026-09-28, one line each, by area, with 
 - done — code comments that cited the old plan's numbered sections (`plan 2.1`, `plan 2.4`) or `review.md`'s numbered steps cite the report, or nothing; `ern_rt`'s header said a late monitor reports the cause, where §6.9 says `Unknown`
 - cheap — `make sections` and `make xref` never check Appendix G; the documents' tests read too few files (D1, D4)
 - done — `shell/README.md`: `Process` is no system module; the reader bullet does not parse; the greeting, the first prompt, line mode (D26, D-B8); the page cut from 2,297 words to 1,325, what `shell_design.md` owns pointed at
-- cheap — the report's line 3 sends open questions to the log (D)
+- done — the report's line 3 sends open questions to the log (D): fixed 2026-09-29, the decisions still to be made are the plan's
 - cheap — `ern_cli_tests`' `--help` loop leaves out `format`; `editor.ern` cites §9.3 for E.16 (D)
 - done — the shell reader's findings (H1..H18), the register reader's (G1..G28, G30, G31, G33..G39)
 - 2.98 — the tightened documents were checked by their writers against the code and by `make test-docs`, and read back whole only in part: the plan's MVP 2.95, 3.0 and 3.1, `style.md`, `install.md` and the shell note's opening. `architecture.md`, `shell_design.md`, the two distribution notes, `memory.md`, `development.md` and `emacs_mode.md` are read back against the code, and D5..D31 checked one by one (the documents' rewrite)
