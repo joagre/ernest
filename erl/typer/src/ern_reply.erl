@@ -173,16 +173,27 @@ reply_field(Pos, Name, Field, FT, Env) ->
         false -> ok
     end.
 
+%% No container in the type holds a reply-carrying element, read through
+%% tuples and containers as elements/2 reads a function's type, since that
+%% exemption rests on it. A regression: only the outermost type was read,
+%% and `fn pair(x) = #([x], 1)` put a reply in a List.
 container(Pos, T, Env) ->
     case ern_typecheck:resolve_type(T, Env) of
         {tcon, Q, Args} ->
-            case lists:member(Q, ?CONTAINERS) andalso
-                 lists:any(fun(A) -> ern_typecheck:is_reply_carrying(A, Env) end, Args) of
-                true -> throw({type_error, Pos, "a reply-carrying value cannot be an element of "
-                                                ++ atom_to_list(lists:last(Q))});
-                false -> ok
+            case lists:member(Q, ?CONTAINERS) of
+                true ->
+                    lists:any(fun(A) -> ern_typecheck:is_reply_carrying(A, Env) end, Args)
+                        andalso throw({type_error, Pos, "a reply-carrying value cannot be an"
+                                                        " element of "
+                                                        ++ atom_to_list(lists:last(Q))}),
+                    lists:foreach(fun(A) -> container(Pos, A, Env) end, Args);
+                false ->
+                    ok
             end;
-        _ -> ok
+        {ttuple, Es} ->
+            lists:foreach(fun(E) -> container(Pos, E, Env) end, Es);
+        _ ->
+            ok
     end.
 
 %%

@@ -85,15 +85,10 @@ discussed with the user one at a time as they are met.
    2026-09-29 as `ern_build`; and the programs area's builds in the test's node, where a
    launch of `ern` costs 0.6 seconds a build and the node 0.08, done 2026-09-29, the area 23
    seconds to 20 and `make test` 93 to 90.
-6. **`==` on a value that holds a function** (found 2026-09-29, weighing the contract): §3.10
-   makes it a type error, and the checker accepts it in two ways. A declared type whose field
-   holds a function, `type Box = Box((Int) -> Int)`, passes, since the check reads the type as
-   written and not its fields. And a variable with the equality restriction, bound to a type
-   that holds another variable, drops the restriction: with `fn eq(a, b) = a == b`,
-   `fn g(x) = eq([x], [x])` carries none, and `g(fn(y : Int) = y)` compares two functions. The
-   fix: the check (`has_fn_or_address`) reads a declared type's fields with its arguments in
-   place, and binding a restricted variable to a type (`ern_types:bind_var`) checks that type
-   and restricts the variables in it, each with a regression test.
+6. **`==` on a value that holds a function**, done 2026-09-29: a declared type's fields are read
+   with its arguments in place, and a variable with the equality restriction passes it to the
+   variables of the type it is bound to. The same shape let a reply into a `List` nested in a
+   tuple or an `Optional`, fixed with it (the log's *`==` on a Value That Holds a Function*).
 
 ---
 

@@ -338,7 +338,7 @@ ann(#t_con{pos = Pos, path = Path, name = Name, args = Args}, VarMap, Env) ->
                _ -> []
            end,
     St1 = lists:foldl(fun(T, S) -> ern_types:add_flag(T, eq, S) end, St,
-                      [{tvar, Id} || K <- Keys, not has_fn_or_address(K),
+                      [{tvar, Id} || K <- Keys, not has_fn_or_address(K, Env#env{st = St}),
                                      Id <- ern_types:free_vars(K, St)]),
     {{tcon, QName, ArgTs}, VarMap1, St1};
 ann(#t_tuple{elems = Es}, VarMap, Env) ->
@@ -1416,7 +1416,7 @@ no_reply_instantiations(#env{pending = Pending} = Env) ->
                           end;
                      ({eq, Id, Pos, Need}) ->
                           T = ern_types:zonk({tvar, Id}, Env#env.st),
-                          case has_fn_or_address(T) of
+                          case has_fn_or_address(T, Env) of
                               true -> fail(Pos, ern_types:format(T, Env#env.st)
                                                 ++ " does not support equality (it contains"
                                                 " a function or an address), " ++ Need
@@ -2115,7 +2115,7 @@ same_operands(Op, L, LT, R, RT, Env) ->
 equality_constraint(Pos, T, Env) ->
     St = Env#env.st,
     Z = ern_types:zonk(T, St),
-    case has_fn_or_address(Z) of
+    case has_fn_or_address(Z, Env) of
         true -> fail(Pos, "`==` is not defined on " ++ ern_types:format(Z, St)
                           ++ ": it contains a function or an address" ++ identity_hint(Z));
         false ->
@@ -2137,12 +2137,51 @@ has_address({tcon, _, Args}) -> lists:any(fun has_address/1, Args);
 has_address({ttuple, Es}) -> lists:any(fun has_address/1, Es);
 has_address(_) -> false.
 
-has_fn_or_address({tfn, _, _, _}) -> true;
-has_fn_or_address({tcon, ['Address'], _}) -> true;
-has_fn_or_address({tcon, ['Reply'], _}) -> true;
-has_fn_or_address({tcon, _, Args}) -> lists:any(fun has_fn_or_address/1, Args);
-has_fn_or_address({ttuple, Es}) -> lists:any(fun has_fn_or_address/1, Es);
-has_fn_or_address(_) -> false.
+%% Report §3.10: whether a value of the type may hold a function or an
+%% address: a function type, an address or a reply, what a built-in or
+%% foreign type holds, its arguments, or a declared type's fields with its
+%% arguments in place of its parameters. A declared type met again inside
+%% its own fields is not read again: what its fields hold of their own is
+%% being read already, and what its arguments bring is read in their place.
+%% A regression: a declared type's fields were not read, and `Box(f) ==
+%% Box(f)` compared two functions.
+has_fn_or_address(T, Env) ->
+    holds_fn(T, Env, []).
+
+holds_fn(T, #env{st = St} = Env, Seen) ->
+    case ern_types:resolve(T, St) of
+        {tfn, _, _, _} ->
+            true;
+        {tcon, ['Address'], _} ->
+            true;
+        {tcon, ['Reply'], _} ->
+            true;
+        {tcon, Q, Args} ->
+            case {lists:member(Q, Seen), declared_fields(Q, Args, Env)} of
+                {false, {ok, Fields}} ->
+                    lists:any(fun(F) -> holds_fn(F, Env, [Q | Seen]) end, Fields);
+                _ ->
+                    lists:any(fun(A) -> holds_fn(A, Env, Seen) end,
+                              ern_types:value_args(Q, Args, St))
+            end;
+        {ttuple, Es} ->
+            lists:any(fun(E) -> holds_fn(E, Env, Seen) end, Es);
+        _ ->
+            false
+    end.
+
+%% The field types of a declared type's constructors, its arguments in
+%% place of its parameters; none for a built-in or a foreign type.
+declared_fields(Q, Args, Env) ->
+    case lookup_type(Q, Env) of
+        #tinfo{foreign = false, params = Ps, constructors = [_ | _] = Cs}
+          when length(Ps) =:= length(Args) ->
+            Map = maps:from_list([{Id, A} || {{tvar, Id}, A} <- lists:zip(Ps, Args)]),
+            {ok, [ern_types:substitute(F, Map)
+                  || #cinfo{scheme = #scheme{type = {tfn, Fs, _, _}}} <- Cs, F <- Fs]};
+        _ ->
+            none
+    end.
 
 %% The enclosing function's effect must be a mailbox type here.
 mailbox_type(Pos, Env) ->

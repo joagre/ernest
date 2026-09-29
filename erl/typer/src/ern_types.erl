@@ -6,8 +6,8 @@
 -export([new/0, fresh/1, fresh/2, fresh_named/2, fresh_effect/1, flags/2, add_flag/3,
          enter/1, leave/1,
          resolve/2, zonk/2, unify/3, free_vars/2,
-         mono/1, generalize/2, generalize/3, instantiate/2,
-         mismatch_pair/3, format/2, value_vars/2, effect_vars/1, set_scope/4,
+         mono/1, generalize/2, generalize/3, instantiate/2, substitute/2,
+         mismatch_pair/3, format/2, value_vars/2, value_args/3, effect_vars/1, set_scope/4,
          set_effect_params/2,
          format_scheme/2, format_call/4, format_error/1]).
 
@@ -174,7 +174,20 @@ bind_var(Id, V, T, _Reason, St) ->
         true -> throw({unify_error, {occurs, V, T}});
         false ->
             St1 = adjust_levels(Id, T, St),
-            bind(Id, T, St1)
+            bind(Id, T, restrict(Id, T, St1))
+    end.
+
+%% Report §3.10: a variable with the equality constraint passes it to the
+%% variables in value positions of the type it is bound to, so that what
+%% they are bound to later is compared as the variable's own binding is. A
+%% regression: `eq([x], [x])` left `x` free to be a function.
+restrict(Id, T, St) ->
+    case lists:member(eq, flags(Id, St)) of
+        true ->
+            lists:foldl(fun(V, S) -> add_flag({tvar, V}, eq, S) end, St,
+                        value_vars(zonk(T, St), St));
+        false ->
+            St
     end.
 
 occurs(Id, T, St) ->
@@ -284,6 +297,10 @@ instantiate(#scheme{vars = Vars, type = T}, St) ->
                              end, {#{}, St}, Vars),
     {subst_vars(T, Map), St1}.
 
+%% The type with each variable the map names replaced by its type.
+-spec substitute(type() | pure, #{id() => type()}) -> type() | pure.
+substitute(T, Map) -> subst_vars(T, Map).
+
 subst_vars({tvar, Id} = V, Map) -> maps:get(Id, Map, V);
 subst_vars({tcon, N, As}, Map) -> {tcon, N, [subst_vars(A, Map) || A <- As]};
 subst_vars({ttuple, Es}, Map) -> {ttuple, [subst_vars(E, Map) || E <- Es]};
@@ -340,6 +357,15 @@ effect_only_vars(T, St) ->
 %% its parameter occurs in no value position of the type's fields.
 -spec value_vars(type() | pure, st()) -> [id()].
 value_vars(T, #st{effect_params = EP}) -> lists:usort(value_positions(T, EP, [])).
+
+%% The arguments of a type in value positions, those whose parameter occurs
+%% in a value position of the type's fields (report §3.9).
+-spec value_args(qname(), [type()], st()) -> [type()].
+value_args(Q, Args, #st{effect_params = EP}) ->
+    case EP of
+        #{Q := Flags} -> [A || {A, true} <- lists:zip(Args, Flags)];
+        _ -> Args
+    end.
 
 -spec effect_vars(type() | pure) -> [id()].
 effect_vars(T) -> lists:usort(effect_positions(T, [])).

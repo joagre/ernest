@@ -379,6 +379,50 @@ equality_test() ->
                  err("fn f(a : Address(Int)) = Map.put(Map.empty, a, 1)")),
     ?assertEqual(ok, ok("fn f(a : String) = Map.put(Map.empty, a, 1)")).
 
+%% report §3.10: a declared type holds what its fields hold, its arguments
+%% in place of its parameters, an abstract type too; a recursive type, one
+%% nested in itself at other arguments among them, is read to its end; a
+%% parameter no field holds brings nothing. A regression test: the fields
+%% were not read, and `Box(f) == Box(f)` compared two functions. It does
+%% not cover an abstract type of another module, which reads the same
+%% constructors from its interface.
+declared_type_equality_test() ->
+    ?assertEqual("`==` is not defined on Box: it contains a function or an address",
+                 err("type Box = Box((Int) -> Int)\nfn f(b : Box) = b == b")),
+    ?assertEqual("`==` is not defined on Wrap(Int): it contains a function or an address",
+                 err("type Wrap(a) = Wrap((a) -> Int)\nfn f(w : Wrap(Int)) = w == w")),
+    ?assertEqual("`==` is not defined on Holder((Int) -> Int): it contains a function or an"
+                 " address",
+                 err("type Holder(a) = Holder(Optional(a))\n"
+                     "fn f(h : Holder((Int) -> Int)) = h == h")),
+    ?assertEqual("`==` is not defined on Tree: it contains a function or an address",
+                 err("type Tree = Leaf | Node(left : Tree, f : (Int) -> Int)\n"
+                     "fn f(t : Tree) = t == t")),
+    ?assertEqual("`==` is not defined on Nest((Int) -> Int): it contains a function or an"
+                 " address",
+                 err("type Nest(a) = Flat(a) | Deeper(Nest(List(a)))\n"
+                     "fn f(n : Nest((Int) -> Int)) = n == n")),
+    ?assertEqual("`==` is not defined on Hidden: it contains a function or an address",
+                 err("export abstract type Hidden = Hidden((Int) -> Int)\n"
+                     "fn f(h : Hidden) = h == h")),
+    ?assertEqual(ok, ok("type Tree(a) = Leaf | Node(left : Tree(a), value : a)\n"
+                        "type Nest(a) = Flat(a) | Deeper(Nest(List(a)))\n"
+                        "fn f(t : Tree(Int), n : Nest(String)) = t == t && n == n")),
+    ?assertEqual(ok, ok("type Tag(a) = Tag(Int)\nfn f(t : Tag((Int) -> Int)) = t == t")).
+
+%% report §3.10: a variable with the equality constraint bound to a type
+%% passes the constraint to the variables of that type, so an instance
+%% that makes one of them a function is refused where it is made. A
+%% regression test: `eq([x], [x])` gave `g` no constraint, and
+%% `g(fn(y : Int) = y)` compared two functions.
+equality_through_a_binding_test() ->
+    Eq = "fn eq(a, b) = a == b\nexport fn g(x) = eq([x], [x])\n",
+    ?assertEqual("(Int) -> Int does not support equality (it contains a function or an"
+                 " address), but it is compared here",
+                 err(Eq ++ "fn h() = g(fn(y : Int) = y)")),
+    ?assertEqual(ok, ok(Eq ++ "fn h() = g(1)")),
+    ?assertEqual("(a=!) -> Bool", type_of(Eq, g)).
+
 %% report §3.10: a type's ordering is the `compare` in its own namespace; a
 %% module-level `fn compare` is an ordinary function and gives the type no
 %% ordering. A regression test: the checker conformed before it was
@@ -1029,6 +1073,23 @@ reply_test() ->
     %% the mk callback of Address.call
     ?assertEqual(ok, ok(Msg ++ "fn ask(a : Address(Req)) = Address.call(a, fn(r) = Get(reply = r),"
                         " 1000)")).
+
+%% report §6.6, §3.9: no container holds a reply, however deep in a type
+%% it stands, through tuples and containers, since a variable that is a
+%% container's element there takes no no-reply restriction; one elsewhere
+%% in the tuple may hold a reply. A regression test: the check read only
+%% the outermost type, and `pair(r)` put a reply in a List. It does not
+%% cover a container inside a declared type, whose variable takes the
+%% restriction instead.
+reply_in_a_nested_container_test() ->
+    ?assertEqual("a reply-carrying value cannot be an element of List",
+                 err("fn pair(x) = #([x], 1)\n"
+                     "fn f(r : Reply(Int)) = { let _ = pair(r); Unit }")),
+    ?assertEqual("a reply-carrying value cannot be an element of List",
+                 err("fn some(x) = Some([x])\n"
+                     "fn f(r : Reply(Int)) = { let _ = some(r); Unit }")),
+    ?assertEqual(ok, ok("fn pair(x) = #([x], 1)\nfn f(n : Int) = pair(n)")),
+    ?assertEqual(ok, ok("fn f(r : Reply(Int)) = { let #(r2, _) = #(r, [1]); answer(r2, 1) }")).
 
 %% report §6.6: a local fn may not capture a reply-carrying value, since it
 %% may be called many times; a function whose inferred result is
