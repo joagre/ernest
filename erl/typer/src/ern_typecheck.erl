@@ -2789,8 +2789,10 @@ pat(#p_con{pos = Pos, path = Path, name = Name, args = Args} = P, Env) ->
             {TypedFPs, Bs} = lists:unzip(Typed),
             {P#p_con{args = {named, TypedFPs}, type = RT}, RT, lists:append(Bs), Env2};
         {{named, _}, none} ->
-            {tfn, _, pure, RT} = CT,
-            {P#p_con{type = RT}, RT, [], Env1};
+            %% report §5.10: a constructor with named fields is written with
+            %% its parentheses, `C()` matching any value of it
+            Text = atom_to_list(Name),
+            fail(Pos, Text ++ " has named fields; write " ++ Text ++ "() to match any " ++ Text);
         {{named, _}, _} ->
             fail(Pos, atom_to_list(Name) ++ " has named fields; write "
                       ++ atom_to_list(Name) ++ "(field = p, ...)")

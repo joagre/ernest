@@ -1017,6 +1017,23 @@ constructors_test() ->
     ?assertEqual("None takes no fields", err("fn f() = None(1)")),
     ?assertEqual("unknown constructor Nope", err("fn f() = Nope")).
 
+%% report §5.10: each constructor is matched in one form: a nullary one
+%% bare, a single-positional one with one pattern, and one with named
+%% fields with its parentheses, `C()` matching any of its values. A
+%% regression test: a bare `Circle` matched as `Circle()` did
+constructor_pattern_forms_test() ->
+    Shape = "type Shape = Circle(r : Int) | Square(side : Int) | Dot\n",
+    ?assertEqual(ok, ok(Shape ++ "fn f(s : Shape) : Int ="
+                        " match s { Circle() -> 1 | Square(side = n) -> n | Dot -> 0 }")),
+    ?assertEqual(ok, ok(Shape ++ "fn f(s : Shape) : Int ="
+                        " match s { Circle() or Square() -> 1 | Dot -> 0 }")),
+    ?assertEqual("Circle has named fields; write Circle() to match any Circle",
+                 err(Shape ++ "fn f(s : Shape) : Int = match s { Circle -> 1 | _ -> 0 }")),
+    ?assertEqual("Dot takes no fields",
+                 err(Shape ++ "fn f(s : Shape) : Int = match s { Dot() -> 1 | _ -> 0 }")),
+    ?assertEqual("Some has one positional field; write Some(p)",
+                 err("fn f(o : Optional(Int)) : Int = match o { Some() -> 1 | _ -> 0 }")).
+
 %% report §5.6: `..` is allowed only on a type with one constructor. It was
 %% accepted on a type of two, and the program faulted with badmatch where
 %% the value was the other constructor.

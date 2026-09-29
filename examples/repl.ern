@@ -105,7 +105,7 @@ fn await(child : Address(Never), run : Int) : Either(TryError, Value) with ReplM
     receive {
         Result(run = r, value = v) when r == run -> Either.mapLeft(v, Eval)
       | Died(run = r) when r == run -> Left(Crashed) // a fault in the child
-      | Result or Died -> await(child, run) // an earlier expression's child
+      | Result() or Died() -> await(child, run) // an earlier expression's child
       | after 2000 -> {
             kill(child);
             Left(Timeout)
@@ -115,7 +115,7 @@ fn await(child : Address(Never), run : Int) : Either(TryError, Value) with ReplM
 fn show(r : Either(TryError, Value)) : Unit with ReplMsg =
     Io.println(match r {
         Right(N(n)) -> Int.toString(n)
-      | Right(Closure) -> "<fun>"
+      | Right(Closure()) -> "<fun>"
       | Left(Eval(e)) -> "error: " <> EvalError.toString(e)
       | Left(Crashed) -> "crashed"
       | Left(Timeout) -> "aborted after 2 s"

@@ -2420,6 +2420,26 @@ example.ern:5:9: Point has named fields; write Point(field = p, ...)
   |         ^^^^^^^^
 ```
 
+### A constructor of named fields matched bare (§5.10)
+
+```ernest-rejected
+type Shape = Circle(r : Int) | Dot
+
+fn f(s : Shape) : Int =
+    match s {
+        Circle -> 1
+      | Dot -> 0
+    }
+```
+
+```console
+$ ern build example.ern
+example.ern:5:9: Circle has named fields; write Circle() to match any Circle
+4 |     match s {
+5 |         Circle -> 1
+  |         ^^^^^^
+```
+
 ### A variable twice in one pattern (§5.10)
 
 ```ernest-rejected
