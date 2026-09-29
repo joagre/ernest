@@ -5,7 +5,6 @@ Twelve readers, each over the whole of its area: the report, the guide, every ot
 ## When it runs
 
 - Before a milestone that others will build on. The plan names it; the next is MVP 3.0.
-- When a release's readers or the user find a defect in what had not changed since the last full review.
 - When the user asks.
 
 It does not run while the findings of the last one are open.

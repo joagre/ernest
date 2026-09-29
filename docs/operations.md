@@ -19,7 +19,7 @@ Sets are the known hard case for type classes. Haskell's `Data.Set` is `Foldable
 One restriction is lifted and the standard library adopts a convention. No syntax changes.
 
 1. **Ordering restriction.** `==` on a type variable gives it an *equality restriction*, inferred and printed `a=`, as Standard ML's equality types do (§3.10). Likewise `<`, `<=`, `>` and `>=` on a type variable give it an *ordering restriction*, printed `a<`. At each instantiation the type must have `compare`, or be a variable, which inherits the restriction; otherwise the call is a type error. An ambiguous ordered variable is an error.
-2. **Conditional `compare`.** `T.compare` for a parameterized type may compare the parameters, and then carries their restriction: `Pair(Int)` is ordered, `Pair(Bool)` is not.
+2. **Conditional `compare`.** `T.compare` for a parameterized type may compare the parameters, and then carries their restriction: `Pair(Int)` is ordered, `Pair(Bool)` is not. Tuples and lists, which have no module to declare one in, are ordered element by element when their elements are: `#(1, "b") < #(2, "a")`, `[1, 2] < [1, 3]`, `[] < [0]`. `Optional` and `Either` declare theirs in the prelude, `None` before `Some` and `Left` before `Right`.
 3. **No top-level `let` is generalized over an ordered variable**, so it is still computed once, before `main` (§8.5). A value that depends on an order is a function.
 4. **A record holds the type's primitives**, the few operations that touch its representation. `Set.Operations(s, e)` holds `Set`'s six: `empty`, `size`, `contains`, `put`, `remove`, `toList`. None is polymorphic beyond `s` and `e`.
 5. **Code written once is a function of the record**, declared as a member of the record type and taking the record last: `Set.Operations.union(a, b, ops)`. `map` and `filterMap` take two records, the source's and the result's.
@@ -98,11 +98,11 @@ Types print as `OrderedSet.put : (OrderedSet(a<), a<) -> OrderedSet(a<)`, beside
 
 ## Typing and semantics
 
-- **The ordering restriction is a one-method type class, built in and closed**: Haskell's `Ord` with each type's instance fixed to its `T.compare`. It is inferred as the equality restriction is, a flag on a variable propagated by unification and checked at instantiation, so inference stays decidable. It is elaborated as `Ord` is: a definition takes a `compare` for each ordered variable it generalizes, each call passes the instantiating type's, and a comparison on the variable calls it. Rule 2 is a conditional instance, `instance Ord a => Ord (Pair a)`, its condition inferred. Rule 3 is Haskell's monomorphism restriction, for the same reason.
+- **The ordering restriction is a one-method type class, built in and closed**: Haskell's `Ord` with each type's instance fixed to its `T.compare`. It is inferred as the equality restriction is, a flag on a variable propagated by unification and checked at instantiation, so inference stays decidable. It is elaborated as `Ord` is: a definition takes a `compare` for each ordered variable it generalizes, each call passes the instantiating type's, and a comparison on the variable calls it. Rule 2 is a conditional instance, `instance Ord a => Ord (Pair a)`, its condition inferred; tuples and lists have Haskell's derived instances. Rule 3 is Haskell's monomorphism restriction, for the same reason.
 - **The order belongs to the type, not the value or the record.** A set could carry its comparator, as Java's `TreeSet` does. But it would then hold a function, so it would have no `==`, could not key a `Map` and could not be sent as a message (§3.10, §3.11), and two sets in different orders could meet in `union`. A record carrying `compare` has the second fault. Fixing the order by the element type gives requirements 3 and 4 by construction.
 - **Coherence by construction.** A type's `compare` is a member declared in the type's module (§4.2), so a type has one order in a program, and no instance can overlap another or be an orphan. This holds within one version of a program: a set sent to a node whose `T.compare` differs is misordered there.
-- **Records are ordinary records**, so inference stays Hindley–Milner. A record holding an operation polymorphic beyond its parameters, a fold with its own accumulator type, would need rank-2 fields, like OCaml's polymorphic record fields; the primitives need none.
-- **`compare` is assumed a total order, `Equal` only where `==` holds.** Nothing checks it, as Haskell does not check `Ord`'s laws.
+- **Records are ordinary records**, so inference stays Hindley–Milner. A record holding an operation polymorphic beyond its parameters, a fold with its own accumulator type, would need rank-2 fields, like OCaml's polymorphic record fields; the primitives need none. So `foldLeft` is not in the record: it is written once over `toList`, `Set.Operations.foldLeft(set, acc, f, ops)`, at the cost of the list `toList` builds.
+- **`compare` is assumed a total order, `Equal` only where `==` holds.** Nothing checks it, as Haskell does not check `Ord`'s laws. Where a `compare` breaks it, `put` keeps the element already in the set.
 
 ## Pros, cons, cost
 
@@ -120,11 +120,11 @@ Cons:
 - The hidden `compare` is passed at run time, where today `<` resolves `T.compare` at compile time.
 - Each operation has two names: `OrderedSet.union(a, b)` and `Set.Operations.union(a, b, ops)`.
 - A top-level `let` used at two ordered types is refused, the monomorphism restriction's known surprise; the error says to write a function.
-- Only `Int`, `Float`, `String`, `Char` and types that declare `compare` are ordered. Pairs, lists and `Optional` are not (§3.10), so a set of pairs needs a wrapper type.
+- Tuples and lists gain an order they do not have today (§3.10), a rule more.
 - Generic code cannot name its variable's `compare`; it sorts with `List.sort` and a lambda built from `<`.
 - `Set.Operations.map` takes a second record where Haskell's `Set.map` takes an `Ord` constraint.
 
-Cost: in the checker, the ordering restriction and its check at instantiation; in the emitter, the hidden `compare` argument; `set.ern` rewritten over its record; `OrderedSet` with its tests and documentation; and the report and the guide.
+Cost: in the checker, the ordering restriction, its check at instantiation, and the order of tuples and lists; in the emitter, the hidden `compare` argument; `set.ern` rewritten over its record; `OrderedSet` with its tests and documentation; and the report and the guide.
 
 ## Why not type classes
 
@@ -140,9 +140,6 @@ Cost:
 
 Type classes contain the proposal: the ordering restriction is one class with fixed instances, and a dictionary is an operations record found by type. What they add, declared instances and resolution by type, saves the record at call sites, at the cost of a second mechanism and a larger type system.
 
-## Open questions
+## Open question
 
 - **Representation.** Structural `==` needs one shape per set. A sorted list has one, but `put` and `contains` are linear. A balanced tree's shape depends on the order of insertion. A treap with hash-derived priorities has one shape and logarithmic operations, but needs a hash the standard library lacks.
-- **Which element to keep** when `compare` says `Equal` and `==` does not.
-- **Whether the record includes `foldLeft`** beside `toList`.
-- **Whether tuples, lists and `Optional` get a lexicographic `compare`**, as rule 2 allows, so that a set of pairs needs no wrapper.

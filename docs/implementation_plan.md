@@ -119,7 +119,12 @@ decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*), is rewritt
 1. **The decision**, taken first, with the user (language feedback 64): the proposal's
    ordering restriction, inferred on a type variable as the equality restriction is, with a
    type's order its `compare`; an operations record holding a type's primitives; and what the
-   note's last section leaves to the decision. Nothing is built around the decision.
+   note's last section leaves to the decision. Nothing is built around the decision. Three
+   parts were decided with the user on 2026-09-29, before the note went out (the log's
+   *Operations Records*): tuples and lists are ordered element by element, and `Optional`
+   and `Either` by a `compare` in the prelude, `None` and `Left` first; `put` keeps the
+   element already in the set; and `foldLeft` is written once over `toList`, outside the
+   record. The ordered set's representation is the note's open question.
 2. **`set.ern` over its record**: `Set.Operations(s, e)` with `Set`'s six primitives, the
    functions written once as members of that type, and each of `Set`'s own a call of one.
 3. **`OrderedSet` in the standard library**, the record's second representation, with its
