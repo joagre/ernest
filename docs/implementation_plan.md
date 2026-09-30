@@ -72,7 +72,7 @@ first release (the log's *The Contract's Decision After the First Release*), ove
 [`operations.md`](operations.md) proposes and compares with type classes. The guide's §7.3,
 decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*), is rewritten around it.
 
-1. **The decision**, taken first, with the user (language feedback 64): the proposal's
+1. **The decision**, taken first, with the user (language feedback 64, and 69 to 73): the proposal's
    ordering restriction, inferred on a type variable as the equality restriction is, with a
    type's order its `compare`; an operations record holding a type's primitives; and what the
    note's last section leaves to the decision. Nothing is built around the decision. Three
@@ -99,13 +99,14 @@ decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*), is rewritt
 6. **A file's words joined by `_` name one namespace segment** (decided 2026-09-29, the log's
    *A Namespace From Words Joined by `_`*): `ordered_set.ern` provides `OrderedSet`, each word
    capitalized and the `_` dropped, a directory's name too, `net/http_client.ern` providing
-   `Net.HttpClient`. §4.2's and §11.1's path shape gain it, a word being lowercase letters and
-   digits and a `_` standing only between two words; `ern build`, `:load`, completion, `ern
+   `Net.HttpClient`. §4.2's and §11.1's path shape gain it, a word being a lowercase letter
+   followed by lowercase letters and digits and a `_` standing only between two words, so that
+   no two files name one namespace (language feedback 74, decided with the user 2026-09-30); `ern build`, `:load`, completion, `ern
    doc` and the manual pages' names follow, the shell finding `ordered_set.ern` for
    `OrderedSet`.
 7. **`Io.show` follows its type through a generic function** (decided 2026-09-29, the log's
-   *`Io.show` Follows Its Type*): `Io.show` and `Io.debug` on a type variable give it a
-   *shown* restriction, printed with a mark, and a function generalized over it takes its
+   *`Io.show` Follows Its Type*; language feedback 72 with item 1): `Io.show` and `Io.debug`
+   on a type variable give it a *shown* restriction, printed with a mark, and a function generalized over it takes its
    caller's type description, as the ordering restriction takes a `compare`; `wrap('a')`, with
    `fn wrap(x) = Io.show(x)`, prints `'a'`. `Io.debug` is then written in Ernest over
    `Io.show` and `Io.println`, and its shim `ern_io:debug/2`, which writes to standard output
@@ -238,7 +239,9 @@ The milestone is §8.7's identity in full:
 
 - **The normalized definition, decided first**: the typed tree or the untyped one, and what
   becomes of the effect variables, which are inferred and
-  never written. Whether `ern_iface:hash/1`, which hashes a canonical interface, grows into
+  never written. With it, whether a type's identity holds the hash of its `compare`, so that
+  a value ordered under one order is not read under another where versions meet (language
+  feedback 71, which MVP 2.99b decides for the ordered set on one node). Whether `ern_iface:hash/1`, which hashes a canonical interface, grows into
   the definition hash or a second scheme stands beside it is part of that decision.
 - Every definition gets a hash of its typed AST; modules are named by hash, with a registry
   per node `{Hash -> Module}`. A function spawned on a peer carries its hash, and a node that
