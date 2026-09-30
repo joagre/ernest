@@ -1198,6 +1198,22 @@ example.ern:1:15: the value does not have the declared type: expected Int, found
   |               ^^^^^
 ```
 
+### A top-level `let` that depends on itself through a function (§8.5)
+
+```ernest-rejected
+let handlers = [f]
+
+fn f() : Int = List.size(handlers)
+```
+
+```console
+$ ern build example.ern
+example.ern:1:1: the initializer of handlers depends on itself, through f
+1 | let handlers = [f]
+  | ^^^^^^^^^^^^^^^^^^
+  | = help: `f` reads handlers when it is called; a `fn handlers() = ...` builds the value when it is asked for
+```
+
 ## Names (report §4.2)
 
 ### A name nothing binds (§4.2)

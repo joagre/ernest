@@ -1149,7 +1149,8 @@ zonk_ast(X, _) -> X.
 let_cycles(Decls, Env) ->
     G = reference_graph(Decls, Env),
     Lets = lists:keysort(2, [D || #let_decl{} = D <- Decls]),
-    {Errs, _} = lists:foldl(fun(D, {Acc, Seen}) -> let_cycle(D, G, Acc, Seen) end,
+    Fns = [decl_key(F) || #fn_decl{} = F <- Decls],
+    {Errs, _} = lists:foldl(fun(D, {Acc, Seen}) -> let_cycle(D, G, Fns, Acc, Seen) end,
                             {[], []}, Lets),
     digraph:delete(G),
     lists:reverse(Errs).
@@ -1184,7 +1185,7 @@ reference_graph(Decls, Env) ->
                   end, Decls),
     G.
 
-let_cycle(#let_decl{pos = Pos, name = Name, body = Body} = D, G, Errs, Seen) ->
+let_cycle(#let_decl{pos = Pos, name = Name, body = Body} = D, G, Fns, Errs, Seen) ->
     Key = decl_key(D),
     case lists:member(Key, Seen) of
         true ->
@@ -1202,11 +1203,18 @@ let_cycle(#let_decl{pos = Pos, name = Name, body = Body} = D, G, Errs, Seen) ->
                     Msg = lists:flatten(["the initializer of ", atom_to_list(Name),
                                          " depends on itself", Through]),
                     %% report §11.5: a lambda that calls itself is a
-                    %% recursive function, which is a `fn`
-                    Help = case {Others, Body} of
-                               {[], #e_lambda{}} ->
+                    %% recursive function, which is a `fn`; a value that a
+                    %% function on the cycle reads is built by a `fn` when
+                    %% it is asked for
+                    Help = case {Others, Body, [K || K <- Cycle, lists:member(K, Fns)]} of
+                               {[], #e_lambda{}, _} ->
                                    "a recursive function is declared with `fn "
                                    ++ atom_to_list(Name) ++ "(...) = ...`";
+                               {_, _, [{O, F} | _]} ->
+                                   lists:flatten(["`", local_name(O, F), "` reads ",
+                                                  atom_to_list(Name), " when it is called;"
+                                                  " a `fn ", atom_to_list(Name), "() = ...`"
+                                                  " builds the value when it is asked for"]);
                                _ -> undefined
                            end,
                     {[(diag(Pos, Msg))#diag{help = Help} | Errs], Cycle ++ Seen}

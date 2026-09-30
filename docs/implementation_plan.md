@@ -147,7 +147,9 @@ discussed with the user one at a time as they are met.
    they are (N-L6), decided with the user 2026-09-30: an `if` has its `else` (Appendix A,
    *Grammar Audit*), a `Process` is an address's identity (§3.10, *A Process's Identity Is a
    `Process`*), and a constructor holds one positional field or named ones (§3.5, *Reasons
-   Lifted Out of the Report*);
+   Lifted Out of the Report*); a list of functions that reach back to it kept a cycle (E-C1),
+   the cycle's diagnostic now naming the `fn` that builds it when asked, decided with the user
+   and done 2026-09-30 (§8.5, §11.5; the log's *A Cycle Through a Function Stays One*);
    the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.

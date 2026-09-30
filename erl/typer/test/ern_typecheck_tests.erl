@@ -901,6 +901,19 @@ let_cycle_through_a_named_function_test() ->
     ?assertEqual(["the initializer of a depends on itself"],
                  errs("let a : () -> Int = fn() : Int = a()\n")).
 
+%% report §8.5, §11.5: a cycle through a function says that the function
+%% reads the value when called and that a `fn` builds it when asked; one
+%% through lets alone has no help. A regression test, written with the
+%% help; it does not cover a cycle through a function of another module,
+%% which a module cycle refuses first (§4.2)
+let_cycle_help_test() ->
+    {error, [#diag{help = Help} | _]} =
+        check("let handlers = [f]\nfn f() : Int = List.size(handlers)\n"),
+    ?assertEqual("`f` reads handlers when it is called; a `fn handlers() = ...` builds the"
+                 " value when it is asked for", Help),
+    {error, [#diag{help = None} | _]} = check("let a : Int = b\nlet b : Int = a\n"),
+    ?assertEqual(undefined, None).
+
 %% report §4.6
 toplevel_let_test() ->
     ?assertEqual("Int", type_of("export let port : Int = 8080", port)),
