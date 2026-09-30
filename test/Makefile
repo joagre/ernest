@@ -74,7 +74,7 @@ format: $(EBIN)/ern_style_tests.beam
 
 # The load programs under load/ and the shell under a long session, each in
 # a node of its own, as docs/memory.md says; not part of `test`, and run
-# before every release (docs/review.md). Each prints its samples and whether
+# before every release (docs/release_review.md). Each prints its samples and whether
 # it stayed flat, into build/load/ as well.
 LOADS = processes supervisors sockets programs files alarms
 LOAD = erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN)

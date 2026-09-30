@@ -5,7 +5,7 @@
 %% every process's garbage and samples the node. After the warm-up rounds
 %% nothing may grow: not the atoms, the processes, the ports, the rows of
 %% the runtime's tables or the persistent terms, which only a defect keeps,
-%% and not the memory beyond the noise below. `make load` runs it (docs/review.md).
+%% and not the memory beyond the noise below. `make load` runs it (docs/release_review.md).
 -module(ern_load).
 
 -export([main/1, mark/1]).

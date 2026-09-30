@@ -174,7 +174,7 @@ test-guide: all
 test-shell: all
 	@$(MAKE) -C test shell
 
-# The loads of docs/memory.md, which a release runs (docs/review.md).
+# The loads of docs/memory.md, which a release runs (docs/release_review.md).
 load: all
 	@$(MAKE) -C test load
 
@@ -227,7 +227,7 @@ golden: all
 # Dialyzer over the toolchain's Erlang, its tests aside, and over the Erlang
 # the compiler writes for the standard library, the shell and the
 # libraries, a library's .erc copied under its module's name, since
-# Dialyzer reads only a .beam (docs/review.md). The table of the
+# Dialyzer reads only a .beam (docs/release_review.md). The table of the
 # host's applications the toolchain calls is built once, into
 # build/dialyzer.plt, and Dialyzer checks it against the host at each run.
 DIALYZER_APPS = erts kernel stdlib compiler syntax_tools crypto public_key asn1 parsetools
@@ -243,7 +243,7 @@ dialyzer: all
 	  build/dialyzer/*.beam
 
 # The helper in C under Clang's static analyzer and under the address and
-# undefined-behaviour sanitizers (docs/review.md): the analyzer
+# undefined-behaviour sanitizers (docs/release_review.md): the analyzer
 # over its source, which must say nothing; then the helper built with the
 # sanitizers where make builds it, the runtime's tests and the programs'
 # run with it, each sanitizer writing what it finds into build/sanitize,

@@ -1,6 +1,6 @@
 # Memory
 
-How the project checks that nothing grows with the work done: the loads that measure it, the reading that looks for it, and the ways a growth is traced to its cause. The rule is CLAUDE.md's *Memory that no collection reclaims is a defect*; [`review.md`](review.md) says when the loads run.
+How the project checks that nothing grows with the work done: the loads that measure it, the reading that looks for it, and the ways a growth is traced to its cause. The rule is CLAUDE.md's *Memory that no collection reclaims is a defect*; [`release_review.md`](release_review.md) says when the loads run.
 
 ## The loads
 

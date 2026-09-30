@@ -1,6 +1,6 @@
 # The full review
 
-Twelve readers, each over the whole of its area. Between them they read the report, the guide, every other document, and all the code: the Erlang and the Ernest, the helper in C, the Emacs mode, the Makefiles and the launcher. It is expensive and runs seldom. What every release runs is [`review.md`](review.md)'s. The first, on 2026-09-28, read the code only where it had changed since the review before, and MVP 2.98 worked through its findings.
+Twelve readers, each over the whole of its area. Between them they read the report, the guide, every other document, and all the code: the Erlang and the Ernest, the helper in C, the Emacs mode, the Makefiles and the launcher. It is expensive and runs seldom. What every release runs is [`release_review.md`](release_review.md)'s. The first, on 2026-09-28, read the code only where it had changed since the review before, and MVP 2.98 worked through its findings.
 
 ## When it runs
 

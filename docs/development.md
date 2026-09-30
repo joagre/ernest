@@ -10,7 +10,7 @@ The report, [`ernest_report.md`](../ernest_report.md), is the one normative docu
 - **[`decisions.md`](decisions.md)**: the dated rationale for the report and the plan, and what was rejected. Not normative.
 - **[`architecture.md`](architecture.md)**: how the toolchain is built, from the lexer to the runtime, and what each test runs.
 - **[`memory.md`](memory.md)**: how the project checks that nothing grows with the work done.
-- **[`review.md`](review.md)**: what a release runs to be ready.
+- **[`release_review.md`](release_review.md)**: what a release runs to be ready.
 - **[`full_review.md`](full_review.md)**: every reader over the whole of its area, run seldom.
 - **[`principles_review.md`](principles_review.md)**: the report and the guide read against §0, and §0 against what it decided.
 - **[`style.md`](style.md)**: the style of the Erlang, the C and the Ernest.

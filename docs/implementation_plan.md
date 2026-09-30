@@ -640,7 +640,7 @@ Guide Read in Order*). `Fs.watch` stays out (the log's *Later*).
 `PREFIX`, and `make release` writes one archive for every system, compiled where it is
 installed ([`install.md`](install.md); the log's *`bin/ern` Is a Launcher*, *The Layout Under
 the Prefix* and *One Archive, Compiled Where It Is Installed*). The review ran a machine for
-every check and twelve readers, and is now [`review.md`](review.md)'s one page (the log's *A
+every check and twelve readers, and is now [`release_review.md`](release_review.md)'s one page (the log's *A
 Lean Review*); `make test` went from 280 seconds to under a minute (the log's *The Time of
 `make test`*). The readers' findings that lose data, expose a user or break a program were
 fixed, each with a regression test, and the rest were MVP 2.98's (`findings.md`, under MVP
@@ -690,7 +690,7 @@ Ernest 0.1.0, the first release, for programs on one node, installed from its ar
 log's *The First Release Is for Others* and *The First Release Follows MVP 2.99*). A restart
 became a new run in all but its address (§6.9, *A Restart Begins Afresh*), and `ern(1)` gained
 the sections man-pages(7) names (§11.7, §11.8, *`ern(1)` Has Its Sections*). The release review
-ran as [`review.md`](review.md) says (*The Release Review*), and its findings were fixed area by
+ran as [`release_review.md`](release_review.md) says (*The Release Review*), and its findings were fixed area by
 area, the security lines first, and its questions decided with the user one at a time (the
 log's entries from *The Release Review's Security Lines* to *The Release Review's
 Questions*). Among what they decided: `String.split` reads the string once over a private
