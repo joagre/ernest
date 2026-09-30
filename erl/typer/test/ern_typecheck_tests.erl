@@ -877,6 +877,20 @@ or_pattern_test() ->
     [Cover | _] = errs("fn f(o : Optional(Int)) = match o { Some(1) or Some(2) -> 1 }"),
     ?assertMatch({match, _}, re:run(Cover, "^match on Optional")).
 
+%% report §5.9, §5.10: `or` stands between a clause's whole patterns and
+%% `as` names what one of them matches, so each alternative names the value
+%% itself, which the refusal's help says. A regression test, written when
+%% §5.10 was made to agree with Appendix A (R-5)
+as_in_each_alternative_test() ->
+    ?assertEqual(ok, ok("fn f(o : Optional(Int)) : Optional(Int) ="
+                        " match o { Some(1) as x or Some(2) as x -> x | _ -> None }")),
+    {error, [#diag{message = Message, help = Help} | _]} =
+        check("fn f(o : Optional(Int)) : Optional(Int) ="
+              " match o { Some(1) or Some(2) as x -> x | _ -> None }"),
+    ?assertEqual("the alternatives of a clause bind different variables: `x` is bound by this"
+                 " alternative and not by the first", Message),
+    ?assertEqual("bind each name in every alternative, as `Some(1) as x or Some(2) as x`", Help).
+
 %% report §4.8: an operator is declared with `fn`
 let_operator_test() ->
     ?assertEqual("an operator is declared with `fn`, not `let`",

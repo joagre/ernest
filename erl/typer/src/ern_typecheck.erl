@@ -2872,7 +2872,10 @@ alternatives_differ(Pos, Names, NamesA) ->
                      "`" ++ atom_to_list(N) ++ "` is bound by this alternative and not by"
                      " the first"
            end,
-    fail(Pos, "the alternatives of a clause bind different variables: " ++ Text).
+    %% report §5.10: `as` names what one alternative matches, and `or` stands
+    %% between whole patterns, so each alternative names the value itself
+    fail(Pos, "the alternatives of a clause bind different variables: " ++ Text, [],
+         "bind each name in every alternative, as `Some(1) as x or Some(2) as x`").
 
 pat(#p_wild{} = P, Env) ->
     {T, St} = ern_types:fresh(Env#env.st),

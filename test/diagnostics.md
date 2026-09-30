@@ -2591,6 +2591,7 @@ example.ern:3:20: the alternatives of a clause bind different variables: `x` is 
 2 |     match e {
 3 |         Left(x) or Right(y) -> 1
   |                    ^^^^^^^^
+  | = help: bind each name in every alternative, as `Some(1) as x or Some(2) as x`
 ```
 
 ### A `match` that misses a constructor (§5.10)

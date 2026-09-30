@@ -83,7 +83,7 @@ After the First Release*; one milestone with the operations records since 2026-0
    a time (the log's *The Release Review's Questions*): `Io.show` through a type variable and a
    foreign function's type variables ship stated in §4.4 and §8.4, closed by MVP 2.99b's item 13
    (R-1, R-2), and `Prelude.T.name` reaches every namespace of the prelude or the standard
-   library past a member of the module's own (R-3, §4.2). `String.split` reads the string once
+   library past a member of the module's own (R-3, §4.2); §5.10 agrees with Appendix A on `as` and `or` (R-5). `String.split` reads the string once
    over a private primitive, `drop`, decided with the user over the measure of a split written
    over `graphemes` (Appendix E.5). Three decisions came with the crashes: a fault the shell's
    standard input gives it exits with status 1, and any other fault of its own with 70 (§11.8);
