@@ -178,8 +178,13 @@ when this milestone is done.
   does not say what its value or its work is: a variable, a function, and in Erlang a record
   and its fields, in Ernest a type, a constructor and a field. The rules are
   [`style.md`](style.md)'s *Names*, written on 2026-09-30 so that the code written before
-  the pass keeps them. First a glossary of the names that recur goes there, read with the
-  user: one name for each concept, the same in every module. The code grows longer, and the
+  the pass keeps them. Before any renaming, **the style guides are a decision with the user**:
+  `style.md` rests them on guides that are widely accepted, Ericsson's *Programming Rules
+  and Conventions* and Inaka's guidelines for Erlang, the *Elm Style Guide* for Ernest, and
+  holds a proposal for names and for structure, drawn from what the code has shown good and
+  bad, written on 2026-09-30, which the user reads when this milestone begins. Then a
+  glossary of the names that recur goes there, read with the user: one name for each
+  concept, the same in every module. The code grows longer, and the
   line stays at 100 characters. The renaming then goes area by area, a commit each, the
   area's tests green before the next. A name the report states, an exported function's or a
   constructor's, changes only through the report.
