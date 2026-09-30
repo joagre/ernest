@@ -150,6 +150,8 @@ discussed with the user one at a time as they are met.
    Lifted Out of the Report*); a list of functions that reach back to it kept a cycle (E-C1),
    the cycle's diagnostic now naming the `fn` that builds it when asked, decided with the user
    and done 2026-09-30 (§8.5, §11.5; the log's *A Cycle Through a Function Stays One*);
+   `kill` and `monitor` kept on an address, not a `Process` (E-C2), decided with the user
+   2026-09-30 (§6.5, §9.4; the log's *`kill` and `monitor` Keep the Address*);
    the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.

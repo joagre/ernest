@@ -10,7 +10,7 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 
 ## The standard library, the libraries, the examples
 
-- 2.98 — the language: `kill` and `monitor` on `Process`, "no limit" unnamed, `Io.debug` a shim, every program's `errorText`, no word of a restart's end, `Tcp.close` and `closeListener` (E-C2..C7)
+- 2.98 — the language: "no limit" unnamed, `Io.debug` a shim, every program's `errorText`, no word of a restart's end, `Tcp.close` and `closeListener` (E-C3..C7)
 
 ## The documents
 
