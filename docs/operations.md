@@ -64,10 +64,21 @@ export fn union(a : Set(e), b : Set(e)) : Set(e) =
     Operations.union(a, b, setOperations())
 ```
 
-`ordered_set.ern` is the ordered set, its elements kept in their type's order. Its `size`, `contains`, `remove` and `toList`, which its record names, are left out.
+`ordered_set.ern` is the ordered set. It meets `Set`'s record first, with `setOperations()` and `union`, and the rest is its own: its elements kept in their type's order, and `min` and `max`. Its `size`, `contains`, `remove` and `toList`, which the record names, are left out.
 
 ```ernest
 export abstract type OrderedSet(e) = OrderedSet(List(e))
+
+export fn setOperations() : Set.Operations(OrderedSet(e), e) =
+    Set.Operations(empty = empty,
+                   size = size,
+                   contains = contains,
+                   put = put,
+                   remove = remove,
+                   toList = toList)
+
+export fn union(a : OrderedSet(e), b : OrderedSet(e)) : OrderedSet(e) =
+    Set.Operations.union(a, b, setOperations())
 
 export let empty : OrderedSet(e) = OrderedSet([])
 
@@ -85,17 +96,6 @@ export fn min(OrderedSet(xs) : OrderedSet(e)) : Optional(e) =
 
 export fn max(OrderedSet(xs) : OrderedSet(e)) : Optional(e) =
     List.last(xs)
-
-export fn setOperations() : Set.Operations(OrderedSet(e), e) =
-    Set.Operations(empty = empty,
-                   size = size,
-                   contains = contains,
-                   put = put,
-                   remove = remove,
-                   toList = toList)
-
-export fn union(a : OrderedSet(e), b : OrderedSet(e)) : OrderedSet(e) =
-    Set.Operations.union(a, b, setOperations())
 ```
 
 `usage.ern` is a program that uses it.
