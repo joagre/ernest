@@ -1121,6 +1121,40 @@ L2-103. *The Closing Sweep of the Shell*, 3902, against *A Lambda Bound by `let`
 L2-104. *What `Fs` Holds*, 5006, *A Running Program Is a Process*, 4608, and C1-3, 5491: `removeAll` waits a step, `Os.start`'s time bounds the life, then `removeAll` waits once; a step, a life or a whole, by function (L2-25).
 L2-105. *A Built-in Type's Operators in Its Module*, 2770, *A Member Is Written `T.name`*, 5139, R-27, 5491: members with an inline body, shims left, shims taken; the same operators, member, shim, member, shim (L2-28).
 
+### X, the sixteen sentences read back
+
+Read at a6a93ab against the rest of the report; each line carries its decision.
+
+- fixed — X-1 §6.6: a built-in type never reply-carrying through its arguments let `[r]` escape; `List` exempted, a list element and `::` named.
+- gap, and fixed for `let` — X-2 §4.5 against §4.4's example, §4.2, §4.6, §11.2: members that are not operators; a `let` declares no member.
+- fixed, the code a gap — X-3 §8.2 against E.17's `Fs.list` and E.23's `environment`: nothing left out; an error naming the entry, a fault naming the variable.
+- fixed — X-4 §3.8 against §3.10: `Foreign`'s equality; §3.10 no longer denies it.
+- fixed — X-5 E.1: `Io.debug` written over `Io.show` at a variable; both are primitives resolved at the call, the type known whole.
+- fixed — X-6 rule 2 against E.5 and E.20: text and octets are containers read through `toList`, their operations named.
+- gap — X-7 shape rule 8 against E.18's and E.23's signatures (`Tcp.write`, `Os.write`, `Os.read`, `Os.start`).
+- fixed, the code a gap — X-8 E.18: a listener dies with its owner.
+- fixed — X-9 §6.2: a restart's dropped messages and a program's end named with the one silence.
+- fixed, `via` a gap — X-10 §9 against §9.5: milliseconds after any callback (rules 1 and 8); `via(f, addr)`'s order for round 2.
+- fixed, `readRange` a gap — X-11 §7.4 against §6.9 and E.17: no other value corrected unsaid; a negative count answers `Left` for round 2.
+- gap — X-12 principle 5 against `spawn`'s `Where`: the sentence's intended `report` line.
+- gap — X-13 rule 2 against E.16's ECMA-48 builders: to a library in round 2.
+- fixed — X-14 rule 1 lost the host's path syntax; named among its tables.
+- fixed — X-15 principle 3: a rule the value decides is a value or a fault when it runs.
+- fixed, the reader right — X-16 principle 3's "a result no value can be" is `fault`'s type; the item went, §8.4 stands.
+- fixed — X-17 §3.8: a host value Ernest does not inspect.
+- fixed — X-18 §4.8: `==` exact on a foreign type and `Process`.
+- fixed — X-19 rule 4: a two-constructor type's pair.
+- fixed — X-20 rule 2: the kinds it lists, not "more than one module".
+- fixed — X-21 glossary and §11.5 on the mark a foreign type writes.
+- fixed — X-22 §9: a rule that names it, or the runtime alone.
+- fixed — X-23 §7.4: a stream's failure faults the entry process.
+- fixed — X-24 rule 1: a system module's functions are its primitives; E.12 says so.
+- fixed — X-25 glossary: *primitive* in §0's sense too.
+- fixed — X-26 principle 1: the report states the departure as a rule.
+- fixed — X-27 §6.2: `kill` or a close of what has ended is within the silence.
+- dropped — X-28 E.20's `size` and E.8's `toString`: `size` is the operation, not a primitive beneath one; `Int.toString`'s admission is E.8's in round 2.
+- fixed — X-29 §7.4: a duration has no upper bound.
+
 ---
 
 # Findings of the release review

@@ -166,12 +166,13 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
     of `setOperations`, since the ordering restriction's hidden argument is refused
     (2026-10-01). `Map` gains a record with a
     second representation, and not before.
-13. **`Io.debug` in Ernest, and the boundary at a type variable** (the shown restriction of
+13. **`Io.debug` through `Io`, and the boundary at a type variable** (the shown restriction of
     2026-09-29 was refused on 2026-10-01, the log's *A Value Shows Itself at a Known Type*:
     `Io.show` on a type variable is a type error, as an operator is, and takes no hidden
     argument, so `fn wrap(x) = Io.show(x)` is refused and shows at its caller). `Io.debug`
-    is then written in Ernest over `Io.show` and `Io.println`, and its shim
-    `ern_io:debug/2`, which writes to standard output past `Io`, goes (`findings.md`'s E-C4,
+    stays a primitive resolved at its call as `Io.show` is, since a function applying `Io.show`
+    at a type variable is refused (Appendix E.1, 2026-10-01), and its shim `ern_io:debug/2`,
+    which writes to standard output past `Io`, writes through `Io`'s stream process (`findings.md`'s E-C4,
     2026-09-30). A foreign function's result at a type variable its parameters name, which §8.4 lets
     through unchecked, is decided here under §4.8's rule of no hidden argument: a check where
     the function is instantiated at a known type, or the trust stated (R-2, placed here
@@ -256,7 +257,14 @@ Appendix E.1). Under E.1's sentence of 2026-10-01, the checker accepts `Io.show`
 variable and the runtime then writes the representation (Appendix E.1, §4.4). Under §3.8's sentence of 2026-10-01, `Foreign` is a built-in type of
 §3.7 and the prelude without equality (§3.10, §9.1), with its conversions in Appendix E.12,
 where it is the library's foreign type `Foreign.Term` of Appendix E.12, which keeps its section;
-Appendix D's code and the shims change with it.
+Appendix D's code and the shims change with it. The read-back of the sixteen sentences
+(2026-10-01, the log's *The Sixteen Sentences Read Back*) adds: `via(f, addr)` takes its
+function before its subject (§9.5, shape rule 1); every `spawn` writes `Local` (§6.2,
+principle 5); §4.6's `let Stack.empty` and §11.2's `let T.name` declare value members;
+the checker refuses `==` on `Foreign` (§3.10); `Fs.readRange` answers `Left` for a negative
+count where §7.4 says none (E.17); `Fs.list` leaves out a name and `Os.environment` a
+variable that E.17 and E.23 now answer or fault; and an `// =>` example whose value's type
+keeps a variable, `Io.debug([])`, needs an annotation once E.1's rule is checked.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is
