@@ -7,6 +7,18 @@ Four rules hold in every language of the repository. `test/ern_style_tests.erl` 
 - A line of code is at most 100 characters. Prose in markdown may be longer.
 - A name in a namespace the repository shares with other code carries the repository's name: an Erlang module begins `ern`, an Emacs Lisp symbol `ernest-`.
 
+## Names
+
+Code is read more often than it is written, and mostly by someone other than its writer, so a name is written for that reader. These rules hold for every name in every language of the repository: a variable, a parameter, a function, and a record and its fields in Erlang, a type, a constructor and a field in Ernest. Longer names make the code longer, and that is accepted; the line stays at 100 characters.
+
+- **A name says what its value is, or what its function does**, in the words of what the code is about: `Tokens`, `Descriptor`, `Namespace`, `parse_module`. It does not say what the value is made of, `List`, `Tuple`, `Map`, where that is not what it is.
+- **One concept has one name** across the repository. A thing named one way in one module is named the same way in every other: a type's descriptor is `Descriptor` in the emitter, the boundary and the runtime alike. Two concepts never share a name, even in different modules. A value that changes as it goes through a function is its name numbered, `Env1`, `Env2`, and a numbered name is never anything else.
+- **No abbreviation or acronym a reader must guess.** Those the host or the report writes are kept: `Pid`, `Ref`, `Fd`, `UTF-8`, and `Acc` for what a fold carries.
+- **A one-letter name only where its whole scope is one line that shows what it is**: the element of a list comprehension, the parameter of a one-line fun, `[size(Module) || Module <- Modules]` over `[size(M) || M <- Ms]` wherever the line does not show it.
+- **A function that does something is named by a verb**, `compile`, `send`; one that gives a value by that value, a noun or, for the value made so, a past participle: `descriptor`, `armed`, `held`. A function that answers yes or no reads as the question: `is_link` in Erlang, `isEmpty` in Ernest.
+- **A record's name says what one holds, and each field what it holds**: `#emit_context{}`, never `#cx{}`. In Ernest a type is a noun, and a constructor says which case of the type a value is: `Key(Terminal.Event)`, never `K`.
+- **A name the report states**, an exported function's, a type's, a constructor's, changes only through the report.
+
 ## Erlang style guide
 
 For the toolchain's code under `erl/`.

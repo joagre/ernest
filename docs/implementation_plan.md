@@ -172,6 +172,18 @@ language made their work harder, each taken to
 [`language_feedback.md`](language_feedback.md) or dropped with its reason. The file goes
 when this milestone is done.
 
+- **Names that read** (2026-09-30, the log's *Names Are the First Documentation*). Every
+  Erlang module under `erl/` and `test/`, and then every Ernest source, the standard library,
+  the shell, the libraries and the examples, is read for its names and renamed where a name
+  does not say what its value or its work is: a variable, a function, and in Erlang a record
+  and its fields, in Ernest a type, a constructor and a field. The rules are
+  [`style.md`](style.md)'s *Names*, written on 2026-09-30 so that the code written before
+  the pass keeps them. First a glossary of the names that recur goes there, read with the
+  user: one name for each concept, the same in every module. The code grows longer, and the
+  line stays at 100 characters. The renaming then goes area by area, a commit each, the
+  area's tests green before the next. A name the report states, an exported function's or a
+  constructor's, changes only through the report.
+
 ---
 
 ## MVP 3.0 (peers: distributed code and the node protocol), about three weeks
