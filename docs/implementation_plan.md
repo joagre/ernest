@@ -47,11 +47,12 @@ published on 2026-09-30 with MVP 2.99, the last milestone done; MVP 2.9, MVP 2.6
 | MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
 | MVP 2.99b | what the release review left, names that read among it; operations records: `Set`'s record and an ordered set; running as a service | the decisions before anything is built (`operations.md`) |
 | The principles review | the report and the guide against §0, and §0 against what it decided | after MVP 2.99b's item 3, before its item 4 |
+| MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines | moved from MVP 3.9 on 2026-10-01 |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 | MVP 3.3 | the shell's second round | |
-| MVP 3.9 | the review before 1.0: soundness argued and generated against | |
+| MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
 
 ---
 
@@ -263,6 +264,33 @@ revised when they are in.
 
 ---
 
+## MVP 2.99c (the language argued), about three weeks
+
+The core language argued sound and generated against, before peers build on it, moved here
+from MVP 3.9 on 2026-10-01 (the log's *The Language Argued Before Peers*). After MVP 2.99b,
+since the review's phase 5 and the operations records are the last changes to the type system
+on one node, and before MVP 3.0, whose code shipping and type identity extend the argument
+rather than begin it.
+
+1. **The type system argued.** A written argument that a well-typed program does not go wrong:
+   the core calculus, then effects and mailbox types, the reply discipline's linearity as §6.6
+   now states it, naming no type, and where rules meet, generalization against effects, a pure
+   function standing for one with a mailbox, a reply captured by a lambda, an operator resolved
+   where its operand's type is known. Where it cannot be made, that is a finding; a model a
+   machine checks follows only if the argument meets a rule it cannot settle.
+2. **Well-typed programs generated.** Programs generated to type-check run under the runtime and
+   end by returning, by a cause of §7.4, or by a deadlock; a host error that is none of those is
+   a finding in the checker or the runtime. A machine of `make test` once it runs in its time.
+3. **The grammar generated against.** A thousand programs generated from Appendix A, reaching
+   every alternative, parsed, and each near miss refused with a diagnostic (the log's *Enough
+   Coherence*). A machine of `make test`.
+4. **The standard library's laws as properties**, generated against each module's contract:
+   `String.split` then `String.join` gives the string back, `List.sort` is stable, a search
+   matches whole graphemes, and the rest its sections and doc blocks state. A machine of
+   `make test`, a module at a time.
+
+---
+
 ## MVP 3.0 (peers: distributed code and the node protocol), about three weeks
 
 Designed in [`node_protocol.md`](node_protocol.md), which owns the protocol. The note is
@@ -448,23 +476,16 @@ log's *The Shell's Second Round*), in this order. The first three need nothing o
 
 ## MVP 3.9 (the review before 1.0)
 
-What a first release could leave out and a promise of stability cannot (the log's *The First
-Release Is for Others*):
+What a promise of stability needs and a first release could leave out (the log's *The First
+Release Is for Others*), after the language was argued in MVP 2.99c:
 
-- **The type system argued.** A written argument that a well-typed program does not go wrong:
-  the core calculus, then effects and mailbox types, the reply discipline's linearity, and
-  where rules meet, generalization against effects, a pure function standing for one with a
-  mailbox, a reply captured by a lambda. Where it cannot be made, that is a finding; a model a
-  machine checks follows only if the argument meets a rule it cannot settle.
-- **Well-typed programs generated.** Programs generated to type-check run under the runtime and
-  end by returning, by a cause of §7.4, or by a deadlock; a host error that is none of those is
-  a finding in the checker or the runtime.
-- **The grammar generated against.** A thousand programs generated from Appendix A, reaching
-  every alternative, parsed, and each near miss refused with a diagnostic (the log's *Enough
-  Coherence*).
-- **The standard library's laws as properties**, generated against each module's contract:
-  `String.split` then `String.join` gives the string back, `List.sort` is stable, a search
-  matches whole graphemes, and the rest its sections and doc blocks state.
+- **The full review**, every reader over the whole of its area ([`full_review.md`](full_review.md)),
+  and its findings worked.
+- **The numbering decided once.** Whether the report's section numbers have drifted enough since
+  0.1.0 to renumber, with the mapping table written first and one commit that rewrites every
+  citation, in the report, the guide, the log, the code, the tests and the diagnostics; or the
+  numbers kept for good (the log's *The Language Argued Before Peers*).
+- **The promise**: what 1.0 holds stable, stated in the report's §0 and the release's notes.
 
 ---
 

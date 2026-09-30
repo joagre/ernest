@@ -5722,6 +5722,12 @@ Not taken: `Foreign` kept as a built-in without equality, the exception the sent
 
 With this the review's phase 2 is complete: sixteen sentences in §0, §3.5, §3.8, §3.9, §4.5, §4.8, §6.2, §6.6, §6.9, §7.4, §8.2, §9, E.0, and E.1, each decided in one turn and recorded here, and every family of `findings.md` marked `sentence` with its rules left to round 2.
 
+## The Language Argued Before Peers, 2026-10-01
+
+MVP 3.9 held four things by when rather than by what: the type system argued, well-typed programs generated and run, the grammar generated against, and the library's laws as properties, all placed after MVP 3.3 as the review before 1.0. Two of them are about the core language, which the principles review's phase 5 and MVP 2.99b settle on one node; done after MVP 3.0 the argument would have to cover code shipping and type identity across nodes too, and every milestone between would build on a checker nobody had argued sound, right after the review changed its rules, the reply discipline naming no type, no hidden argument, an operator refused on a type variable. The other two are machines that belong in `make test` as soon as their subject settles, a module at a time, and not in a review. So MVP 2.99c, the language argued, stands between MVP 2.99b and MVP 3.0 with the four, the machines joining the suite as they are built; and MVP 3.9 keeps what needs the whole: the full review, the promise of stability, and the numbering decided once.
+
+The numbering. The report's section numbers never change (CLAUDE.md, *Writing*), since the log's five hundred entries, the code's comments, the tests and the diagnostics cite them. A renumbering is possible at a price: a mapping table, old number to new, and one commit that rewrites every citation everywhere, a day's work if the mapping is one to one and a loss of meaning in the log's citations if it is not, and a while in which no citation is trusted. That price is paid once or never, so MVP 3.9 decides it once, before 1.0, with the table written first; until then a section keeps its number and one whose content moved holds the line that says where, as E.12 will for `Foreign.Term`.
+
 ## Erlang's Standard Library, Module by Module
 
 Where each user-facing OTP module stands, first read on 2026-09-18 (*The Erlang Standard Library, Read for Ernest*) and kept current since. What is not a row is OTP's own machinery, which Ernest's concepts or toolchain replace. What a module still waits for, and when, is the plan's.
