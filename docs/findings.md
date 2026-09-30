@@ -4,7 +4,6 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 
 ## Security
 
-- ask — `Foreign.from` hands foreign code an address past its proxy (C1-4)
 
 ## Questions for the user
 
