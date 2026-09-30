@@ -83,7 +83,7 @@ After the First Release*; one milestone with the operations records since 2026-0
    a time (the log's *The Release Review's Questions*): `Io.show` through a type variable and a
    foreign function's type variables ship stated in §4.4 and §8.4, closed by MVP 2.99b's item 13
    (R-1, R-2), and `Prelude.T.name` reaches every namespace of the prelude or the standard
-   library past a member of the module's own (R-3, §4.2); §5.10 agrees with Appendix A on `as` and `or` (R-5); and E.0 rule 4 refuses only a composition outside the vocabulary, which rule 2 extends to sets and maps (R-6); and a pipe applies a construction and never fills it, as Appendix A has it (R-12, §5.7); and a numeric literal that does not fit a segment of constant width is a compile-time error (R-13, §5.11); `Foreign`'s equality and a foreign type's stay as they are (R-21); and `fn f` and `let f = fn` stay both, §4.6 saying that a function that calls itself is declared with `fn` (R-22); and how a printed type marks the inferred restrictions is MVP 2.99b's item 4 (R-23); `via` still runs its function in the sender (R-24); and shape rule 8 says that `Os.start`'s milliseconds bound its program's run (R-25); and a local helper over an operator says its type, §4.8 naming a lambda a block `let` binds among the definitions an operator is resolved in (R-26). `String.split` reads the string once
+   library past a member of the module's own (R-3, §4.2); §5.10 agrees with Appendix A on `as` and `or` (R-5); and E.0 rule 4 refuses only a composition outside the vocabulary, which rule 2 extends to sets and maps (R-6); and a pipe applies a construction and never fills it, as Appendix A has it (R-12, §5.7); and a numeric literal that does not fit a segment of constant width is a compile-time error (R-13, §5.11); `Foreign`'s equality and a foreign type's stay as they are (R-21); and `fn f` and `let f = fn` stay both, §4.6 saying that a function that calls itself is declared with `fn` (R-22); and how a printed type marks the inferred restrictions is MVP 2.99b's item 4 (R-23); `via` still runs its function in the sender (R-24); and shape rule 8 says that `Os.start`'s milliseconds bound its program's run (R-25); and a local helper over an operator says its type, §4.8 naming a lambda a block `let` binds among the definitions an operator is resolved in (R-26); and the built-in operators become shims in MVP 2.99b's item 14 (R-27). `String.split` reads the string once
    over a private primitive, `drop`, decided with the user over the measure of a split written
    over `graphemes` (Appendix E.5). Three decisions came with the crashes: a fault the shell's
    standard input gives it exits with status 1, and any other fault of its own with 70 (§11.8);
@@ -130,7 +130,7 @@ renamed over it, then the guide, and the soak last.
    report names is named as the report names it, and a place where the code names such a
    concept otherwise, or where the report's name seems wrong for the code, is discussed with
    the user each time, never renamed on its own. The glossary is the best first draft that
-   can be made before the code is read name by name; items 6 and 14 change it, add to it and
+   can be made before the code is read name by name; items 6 and 15 change it, add to it and
    delete from it as the renaming finds what it missed, and each area's commit carries the
    glossary's change with it.
 3. **The places the language made the review's work harder**, the lines of
@@ -209,15 +209,23 @@ renamed over it, then the guide, and the soak last.
     caller's description of each type variable its result or a function it is given names, and
     checks at the caller's type what §8.4 now lets through at a variable, the sentence that
     says so going (R-2, decided with the user 2026-09-30).
-14. **Names that read, in Ernest**: the standard library, the shell, the libraries and the
+14. **The built-in operators as shims** (`findings.md`'s R-27, decided with the user
+    2026-09-30): each operator §9.6 gives `Int`, `Float`, `String`, `List` and `Bytes`, their
+    `negate`, and the `compare` of `Int`, `Float`, `String` and `Char` become a `foreign fn`
+    over the host's operation, or over a helper in the runtime's Erlang where the host has
+    none of the shape, `String.<>` and the `compare`s, since the operation is the host's alone
+    (Appendix E.0 rule 1). §9.6's sentences that such a body is no recursive call go, and so
+    does the checker's case for them; an operator costs what it costs now, which `make bench`
+    measures. After item 13 and before item 15, so that the Ernest is read as it stays.
+15. **Names that read, in Ernest**: the standard library, the shell, the libraries and the
     examples, read and renamed as item 6 renames the Erlang, a type, a constructor and a field
     among the names, the glossary corrected as it goes and each name that differs from the
-    report's brought to the user, after items 10 to 13 so that the code they write is read once with the
+    report's brought to the user, after items 10 to 14 so that the code they write is read once with the
     rest. A name the report states, an exported function's or a constructor's, changes only
     through the report. Among it the shell's `obey`, which writes each refusal eight times,
     the editor's names that mean two things, `back`, `from` and `step`, and what
     `complete.ern` repeats (C3-35 to C3-37).
-15. **The guide's §7.3**, over the finished code and its names: it says "operations record"
+16. **The guide's §7.3**, over the finished code and its names: it says "operations record"
     and shows code written once, a representation's own functions beside the record's, two
     ordered sets that cannot meet in `union`, and values of several representations in one
     list, and §7.2 states item 4's rule for a type's operations. Its examples compile and run
@@ -225,7 +233,7 @@ renamed over it, then the guide, and the soak last.
     [`language_feedback.md`](language_feedback.md) and is decided with the user before the
     section goes around it. The guide's §7.3 was decided 2026-09-28 (the log's *§7.3 Written
     Around an Ordered Set*).
-16. **A soak of hours**, last, since it measures all the rest: `examples/webserver.ern` under
+17. **A soak of hours**, last, since it measures all the rest: `examples/webserver.ern` under
     steady requests, measured as [`memory.md`](memory.md) says.
 
 ---
