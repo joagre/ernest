@@ -2056,6 +2056,22 @@ deferred_operator_keeps_its_members_equality_test() ->
 %% Bitstrings (report §5.11)
 %%
 
+%% report §5.11: a numeric literal that does not fit a segment of constant
+%% width is a compile-time error, in a construction and in a pattern; one
+%% that fits, and a computed value, are not refused. A regression test: a
+%% literal faulted at construction and never matched (findings.md's R-13)
+literal_does_not_fit_test() ->
+    Byte = "the literal does not fit an unsigned segment of 8 bits, which holds 0 to 255",
+    ?assertEqual(Byte, err("fn f() : Bytes = <<256>>")),
+    ?assertEqual(Byte, err("fn f() : Bytes = <<-1>>")),
+    ?assertEqual("the literal does not fit a signed segment of 8 bits, which holds -128 to 127",
+                 err("fn f() : Bytes = <<-129:signed>>")),
+    ?assertEqual("the literal does not fit a float segment of 16 bits, whose largest finite"
+                 " value is 65504.0", err("fn f() : Bytes = <<70000.0:size(16)-float>>")),
+    ?assertEqual(Byte, err("fn f(b : Bytes) : Int = match b { <<256>> -> 1 | _ -> 0 }")),
+    ?assertEqual(ok, ok("fn f() : Bytes = <<255, -1:signed, 65504.0:size(16)-float>>")),
+    ?assertEqual(ok, ok("fn f(n : Int) : Bytes = <<n + 256>>")).
+
 %% report §5.11: a construction is Bytes; each segment's value has its
 %% specifier's type; the specifiers have their defaults and cannot
 %% conflict; a constant bit count is a multiple of 8

@@ -3005,6 +3005,11 @@ pat(#p_bits{pos = Pos, segments = Segs} = P, Env) ->
 %% Report §5.11: a segment's value against its specifiers' type.
 bit_segment(#bit_seg{pos = Pos, value = V, specs = Specs} = S, construct, Env) ->
     Spec = spec_of(Pos, Specs),
+    case V of
+        #e_lit{kind = Kind, value = Value} -> literal_fits(V, Kind, Value, Spec);
+        #e_neg{expr = #e_lit{kind = Kind, value = Value}} -> literal_fits(V, Kind, -Value, Spec);
+        _ -> ok
+    end,
     {TypedSpecs, Env1} = size_expr(Specs, Env),
     {TypedV, _, Env2} = check_expr(V, segment_type(Spec), segment_context(Spec), undefined,
                                    Env1),
@@ -3015,7 +3020,7 @@ bit_pattern(#bit_seg{pos = Pos, value = V, specs = Specs} = S, Bindings, Env) ->
     case V of
         #p_var{} -> ok;
         #p_wild{} -> ok;
-        #p_lit{} -> ok;
+        #p_lit{kind = Kind, value = Value} -> literal_fits(V, Kind, Value, Spec);
         _ -> fail(element(2, V), "a segment pattern is a variable, `_`, or a literal")
     end,
     %% a size expression is pure and sees the earlier segments (report §5.11)
@@ -3030,6 +3035,33 @@ bit_pattern(#bit_seg{pos = Pos, value = V, specs = Specs} = S, Bindings, Env) ->
     {TypedV, VT, Bs, Env2} = pat(V, Env1),
     Env3 = unify_at(element(2, V), segment_type(Spec), VT, Env2, segment_context(Spec)),
     {S#bit_seg{value = TypedV, specs = TypedSpecs}, Bs, Env3}.
+
+%% Report §5.11: a literal the compiler sees not fitting a segment of
+%% constant width is a compile-time error, in a construction and in a
+%% pattern, which it would never match; any other value is checked at
+%% construction, as the runtime's ern_bits checks it.
+literal_fits(Literal, int, Value, #{kind := int, size := {const, Bits}, sign := Sign}) ->
+    {Segment, Low, High} = case Sign of
+                               unsigned -> {"an unsigned", 0, (1 bsl Bits) - 1};
+                               signed -> {"a signed", -(1 bsl (Bits - 1)), (1 bsl (Bits - 1)) - 1}
+                           end,
+    (Value >= Low andalso Value =< High)
+        orelse fail(element(2, Literal),
+                    io_lib:format("the literal does not fit ~s segment of ~B bits, which holds"
+                                  " ~B to ~B", [Segment, Bits, Low, High]));
+literal_fits(Literal, float, Value, #{kind := float, size := {const, Bits}}) ->
+    Largest = case Bits of
+                  16 -> 65504.0;
+                  32 -> 3.4028234663852886e38;
+                  64 -> infinity
+              end,
+    (Largest =:= infinity orelse abs(Value) =< Largest)
+        orelse fail(element(2, Literal),
+                    io_lib:format("the literal does not fit a float segment of ~B bits, whose"
+                                  " largest finite value is ~s",
+                                  [Bits, float_to_list(Largest, [short])]));
+literal_fits(_, _, _, _) ->
+    ok.
 
 size_expr(Specs, Env) ->
     lists:mapfoldl(fun({size, E}, En) ->

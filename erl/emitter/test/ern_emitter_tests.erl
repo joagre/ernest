@@ -1918,15 +1918,15 @@ bitstrings_test() ->
     ?assertEqual(<<"0 1 65 66 \n1: 65 | 66 \nnone\né\n1:15 2:10 \n63 192 0 0 255 2 1 \n2 \nno\n"
                    "104 105 52 \n"/utf8>>, Out).
 
-%% report §7.4, §5.11: a value that does not fit its width faults with
-%% segment overflow, an Int, a Float, a Bytes of another size; a dynamic
-%% size that leaves the count unaligned faults at construction
+%% report §7.4, §5.11: a computed value that does not fit its width faults
+%% with segment overflow, an Int, a Float, a Bytes of another size; a
+%% dynamic size that leaves the count unaligned faults at construction
 bitstring_faults_test() ->
     Main = "export fn main() : Unit with Never = ",
     Three = "fn three() : Int = List.size([1, 2, 3])\n",
-    Faults = [{"<<300:size(8)>>", <<"segment overflow">>},
+    Faults = [{"<<(299 + 1):size(8)>>", <<"segment overflow">>},
               {"<<(0 - 129):size(8)-signed>>", <<"segment overflow">>},
-              {"<<1.0e300:size(32)-float>>", <<"segment overflow">>},
+              {"<<(1.0e300 * 1.0):size(32)-float>>", <<"segment overflow">>},
               {"<<(<<1, 2, 3>>):size(2)-bytes>>", <<"segment overflow">>},
               {"<<7:size(three())>>", <<"bitstring not byte-aligned">>}],
     lists:foreach(fun({Bits, Cause}) ->
@@ -1950,7 +1950,7 @@ bitstring_defaults_test() ->
         "    Io.println(show(<<-1:signed>>))\n"
         "}\n"),
     ?assertEqual(<<"1 2 \n255\n255 \n">>, Out),
-    {R, _} = run("export fn main() : Unit with Never = { let _ = <<-1>>; Unit }\n"),
+    {R, _} = run("export fn main() : Unit with Never = { let n = 0 - 1; let _ = <<n>>; Unit }\n"),
     ?assertEqual({fault, <<"segment overflow">>}, R).
 
 %% report §8.5: top-level lets run in the order the checker found, a let
@@ -2023,7 +2023,7 @@ bitstring_edges_test() ->
     Neg = "fn neg() : Int = 0 - List.size([1, 2, 3, 4, 5, 6, 7, 8])\n",
     Main = "export fn main() : Unit with Never = ",
     Faults = ["<<(<<1>>):size(2)-bytes>>", "<<1:size(neg())>>", "<<(<<1>>):size(neg())-bytes>>",
-              "<<65519.0:size(16)-float>>"],
+              "<<(65519.0 * 1.0):size(16)-float>>"],
     lists:foreach(fun(Bits) ->
                       {R, _} = run(Neg ++ Main ++ "{ let _ = " ++ Bits ++ "; Unit }\n"),
                       ?assertEqual({Bits, {fault, <<"segment overflow">>}}, {Bits, R})
