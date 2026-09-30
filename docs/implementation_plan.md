@@ -264,7 +264,8 @@ principle 5); §4.6's `let Stack.empty` and §11.2's `let T.name` declare value 
 the checker refuses `==` on `Foreign` (§3.10); `Fs.readRange` answers `Left` for a negative
 count where §7.4 says none (E.17); `Fs.list` leaves out a name and `Os.environment` a
 variable that E.17 and E.23 now answer or fault; and an `// =>` example whose value's type
-keeps a variable, `Io.debug([])`, needs an annotation once E.1's rule is checked.
+keeps a variable, `Io.debug([])`, needs an annotation once E.1's rule is checked. The second read-back adds Appendix A's `DeclName`, which admits
+`let T.name`, and E.16's and E.1's sections naming their primitives (clarity, K-24, K-39).
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is

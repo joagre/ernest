@@ -1155,6 +1155,29 @@ Read at a6a93ab against the rest of the report; each line carries its decision.
 - dropped — X-28 E.20's `size` and E.8's `toString`: `size` is the operation, not a primitive beneath one; `Int.toString`'s admission is E.8's in round 2.
 - fixed — X-29 §7.4: a duration has no upper bound.
 
+### Y, the fixes read back
+
+Read at 143f34a against the rest of the report; each line carries its decision.
+
+- gap — Y-1 §4.5's "a `let` declares no member" against §4.2, §4.4, §4.6, §11.2 and Appendix A's `DeclName`: the rule; the sections and the grammar are the dated gap.
+- fixed — Y-2 §6.6's definition of reply-carrying names a list element; a pattern binds every reply-carrying field and element.
+- fixed — Y-3 §7.4: an unwritable output stream ends the program without a fault (§8.6); an unreadable input and keys not UTF-8 fault the entry process.
+- fixed — Y-4 E.23's "variables `environment` leaves out" went.
+- fixed, naming a gap — Y-5 rule 1: each section names its primitives, a system module's too; E.16 and E.1 name theirs in round 2.
+- fixed — Y-6 §6.2: the one silence is an act on what has ended, `give` among them, stated once.
+- fixed — Y-7 §3.8: a host value of no other Ernest type.
+- gap — Y-8 shape rule 1 against `via(f, addr)`: dated.
+- fixed — Y-9 §9: where no declaration, a `foreign fn` among them, could give it its meaning.
+- fixed, `readRange` a gap — Y-10 §6.9: a window below 1 is 1, since a window of none would be `Unlimited` written otherwise.
+- fixed — Y-11 shape rule 2: `size` on text counts graphemes.
+- fixed — Y-12 glossary: *primitive* one concept, beneath what Ernest writes, the language's and a module's.
+- fixed — Y-13 §11.5: `Map(k=, v)` and `Set(a=)` written so by the report.
+- fixed — Y-14 E.1: by the type at which the name is used, more than an operator asks.
+- fixed — Y-15 E.18: a listener's owner is `listen`'s caller.
+- fixed — Y-16 principle 3 and §6.2: a value, a message, or a fault.
+- fixed — Y-17 §7.4 lists `Os.environment`'s initializer fault.
+- fixed — Y-18 rule 1: a primitive calls no Ernest function but a wrap it delivers through.
+
 ---
 
 # Findings of the release review
