@@ -18,8 +18,9 @@ the decision on how code written once works over several representations, which
 [`operations.md`](operations.md) weighs, and running as a service. Its first item makes every
 run of `make test` trusted. Between its items 3 and 4 runs the principles review, the report
 and the guide read against §0 and §0 against what it decided, a milestone of its own below;
-its readers ran on 2026-09-30, on `57b8356`, and their findings stand in
-[`findings.md`](findings.md), sixteen families with the sentences proposed, awaiting round 1. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was
+its readers ran on 2026-09-30, on `57b8356`, their findings stand in
+[`findings.md`](findings.md), and [`attack_plan.md`](attack_plan.md) gives the order in which
+they are worked, the principles' sentences first. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was
 published on 2026-09-30 with MVP 2.99, the last milestone done; MVP 2.9, MVP 2.61,
 `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under "Done".
 
@@ -216,19 +217,15 @@ proposal* and *What changes in Ernest*, and its items 13 and 14, is read as prop
 principles themselves are in its scope: one changes where the readers show it did not
 decide, by a sentence that decides.
 
-1. **The readers**: P in two parts, K, W and L, on one commit, editing nothing; P's list compared
-   with the release review's, R's in [`findings.md`](findings.md), what both name being the
-   strongest finding.
-2. **The sentences**, decided with the user first, one at a time: each proposed for §0 or E.0
-   accepted or refused, the report and the log changing with each.
-3. **The families**, each decided under the principles as they then read, `report`, `kept`
-   or `later`, and closed in the log.
-4. **The edits**: the report, the guide, the log, then the code and its tests where a rule
-   changed, each rule's change a commit; `findings.md`'s heading goes when every line has its
-   decision; the next release's notes list the rules that changed.
+The readers ran on 2026-09-30, on `57b8356`, and their findings stand in
+[`findings.md`](findings.md). The order in which the findings are worked is
+[`attack_plan.md`](attack_plan.md)'s, seven phases: the principles' sentences, the sections'
+sentences, MVP 2.99b's items 1 to 3, the defects, the families' rules, the log, and the
+closure, after which MVP 2.99b resumes at item 4.
 
-The week is the readers' half day and the edits; the decisions take the user's time, at the
-user's pace, and the estimate is revised when the findings are in.
+The sentences take the user's time, fifteen questions at the user's pace; the defects about a
+week; the families' rules are bounded by the list the sentences leave, and the estimate is
+revised when they are in.
 
 ---
 
