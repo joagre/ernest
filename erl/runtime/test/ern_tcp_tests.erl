@@ -107,7 +107,7 @@ close_listener_test() ->
                %% the close raced it, and the close could come first
                _ = erlang:spawn(fun() ->
                                     Alias = erlang:alias(),
-                                    Pid ! {'Accept', 5000, Alias},
+                                    Pid ! {'Accept', 5000, self(), Alias},
                                     Main ! sent,
                                     Me ! {accepted, receive {Alias, answered, V} -> V
                                                     after 5000 -> timeout end}
@@ -281,13 +281,16 @@ connect(Port, Ms) ->
     connect(<<"127.0.0.1">>, Port, Ms).
 
 connect(Host, Port, Ms) ->
-    ern_rt:call_forever(ern_rt:sys(tcp), fun(R) -> {'Connect', Host, Ms, Port, R} end).
+    %% report Appendix E.18: the caller owns the socket
+    Owner = self(),
+    ern_rt:call_forever(ern_rt:sys(tcp), fun(R) -> {'Connect', Host, Ms, Owner, Port, R} end).
 
 port(Listener) ->
     ern_rt:call_forever(Listener, fun(R) -> {'Port', R} end).
 
 accept(Listener, Ms) ->
-    ern_rt:call_forever(Listener, fun(R) -> {'Accept', Ms, R} end).
+    Owner = self(),
+    ern_rt:call_forever(Listener, fun(R) -> {'Accept', Ms, Owner, R} end).
 
 write(Socket, Bytes) ->
     ern_rt:call_forever(Socket, fun(R) -> {'Send', Bytes, R} end).

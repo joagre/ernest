@@ -26,8 +26,8 @@ export fn main() : Unit with Never =
 fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never = {
     match Tcp.accept(listener, 60000) {
         Right(peer) -> {
-            let _ = spawn(Local, fn() : Unit with Never = echo(peer));
-            Unit
+            let echoer = spawn(Local, fn() : Unit with Never = echo(peer));
+            Tcp.give(peer, Process.fromAddress(echoer))
         }
       | Left(_) -> Unit
     };

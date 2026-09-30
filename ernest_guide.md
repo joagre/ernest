@@ -2090,7 +2090,8 @@ export fn main() : Unit with Never =
 fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
     match Tcp.accept(listener, 60000) {
         Right(socket) -> {
-            let _ = spawn(Local, fn() = session(socket));
+            let talker = spawn(Local, fn() = session(socket));
+            Tcp.give(socket, Process.fromAddress(talker));
             serve(listener)
         }
       | Left(Io.Timeout) -> serve(listener)
@@ -2134,7 +2135,7 @@ fn talk(socket : Address(Tcp.SockMsg), rest : Bytes) : Unit with Session =
     }
 ```
 
-A socket lives until `Tcp.close`, so the session closes it when its reader finds the connection gone. Its process, and the listener's, are the program's: `Process.live` lists them, and a fault in one is reported under the function that opened it, `Tcp.accept` (report Appendix E.18).
+A socket lives until `Tcp.close`, so the session closes it when its reader finds the connection gone. It is owned by the process that accepted it and is killed when its owner dies, so the loop that accepts gives each socket to its session, `Tcp.give`, and a session that faults takes its connection with it. Its process, and the listener's, are the program's: `Process.live` lists them, and a fault in one is reported under the function that opened it, `Tcp.accept` (report Appendix E.18).
 
 ### 8.8 Prediction exercise
 

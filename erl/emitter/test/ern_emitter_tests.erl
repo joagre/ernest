@@ -3306,6 +3306,66 @@ foreign_type_variables_unchecked_test() ->
     ?assertEqual(ok, Run("foreign fn each(f : (a) -> Int, x : a) : List(Int) =\n"
                          "    \"lists:map/2\"\n", "each(fn(_) = 1, [[\"x\"]])")).
 
+%% report Appendix E.18: a socket is owned by the process that opened it and
+%% killed when its owner dies; `give` makes another its owner, and a socket
+%% given to a process that has ended is killed at once. A regression test:
+%% a socket outlived a handler that faulted, one leaked connection each
+%% (findings.md's C1-2)
+socket_owner_test() ->
+    {ok, Out} = run(
+        "type Msg = Opened(Address(Tcp.SockMsg)) | Ended(Down)\n"
+        "fn opener(port : Int, to : Address(Msg)) : Unit with Never =\n"
+        "    match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
+        "        Right(s) -> send(to, Opened(s))\n"
+        "      | Left(_) -> Unit\n"
+        "    }\n"
+        "fn keeper() : Unit with Int = receive { _ -> Unit }\n"
+        "fn giver(port : Int, keep : Process, to : Address(Msg)) : Unit with Never =\n"
+        "    match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
+        "        Right(s) -> {\n"
+        "            Tcp.give(s, keep);\n"
+        "            send(to, Opened(s))\n"
+        "        }\n"
+        "      | Left(_) -> Unit\n"
+        "    }\n"
+        "fn opened() : Address(Tcp.SockMsg) with Msg = receive { Opened(s) -> s }\n"
+        "fn ends(s : Address(Tcp.SockMsg), ms : Int) : String with Msg = {\n"
+        "    monitor(s, Ended);\n"
+        "    receive { Ended(_) -> \"ended\" | after ms -> \"alive\" }\n"
+        "}\n"
+        "fn check(port : Int) : Unit with Msg = {\n"
+        "    let me = self();\n"
+        "    let first = spawnMonitored(Local, fn() = opener(port, me), Ended);\n"
+        "    let orphan = opened();\n"
+        "    receive { Ended(_) -> Unit };\n"
+        "    Io.println(\"opener's: \" <> ends(orphan, 2000));\n"
+        "    let keep = spawn(Local, keeper);\n"
+        "    let _ = spawnMonitored(Local,\n"
+        "                           fn() = giver(port, Process.fromAddress(keep), me),\n"
+        "                           Ended);\n"
+        "    let given = opened();\n"
+        "    receive { Ended(_) -> Unit };\n"
+        "    Io.println(\"given, giver gone: \" <> ends(given, 300));\n"
+        "    send(keep, 1);\n"
+        "    Io.println(\"given, keeper gone: \" <> ends(given, 2000));\n"
+        "    match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
+        "        Right(s) -> {\n"
+        "            Tcp.give(s, Process.fromAddress(first));\n"
+        "            Io.println(\"given to the dead: \" <> ends(s, 2000))\n"
+        "        }\n"
+        "      | Left(_) -> Unit\n"
+        "    }\n"
+        "}\n"
+        "export fn main() : Unit with Msg = match Tcp.listen(\"127.0.0.1\", 0) {\n"
+        "    Right(listener) -> {\n"
+        "        let _ = Either.map(Tcp.port(listener), check);\n"
+        "        Tcp.closeListener(listener)\n"
+        "    }\n"
+        "  | Left(_) -> Unit\n"
+        "}\n"),
+    ?assertEqual(<<"opener's: ended\ngiven, giver gone: alive\ngiven, keeper gone: ended\n"
+                   "given to the dead: ended\n">>, Out).
+
 %% report §8.4, Appendix E.12: an address given to foreign code in an
 %% argument of its type crosses behind a proxy, which faults its process on
 %% a message of another type; given as `Foreign.from` makes it, it crosses

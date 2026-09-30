@@ -1,7 +1,9 @@
 /// TCP over its system process, which opens sockets (report §8.2).
 /// A socket is a process: its address can be sent, monitored, killed, and
-/// adapted with `via` like any other. It lives until `Tcp.close`, and a
-/// read after that faults. Once its connection has closed from the far
+/// adapted with `via` like any other. It is owned by the process that
+/// opened it, the caller of `accept` or `connect`, until `Tcp.give` gives
+/// it another, and it lives until `Tcp.close` or until its owner dies,
+/// which kills it; a read after its end faults. Once its connection has closed from the far
 /// end, each read and each write answers `Left(Closed)`.
 /// A listener lives until `Tcp.closeListener`. A read, an accept, or a
 /// connect that times out has taken nothing, so bytes that arrive later
@@ -57,12 +59,13 @@
 /// }
 /// ```
 export abstract type ListenerMsg =
-    Accept(ms : Int, reply : Reply(Either(Io.Error, Address(SockMsg))))
+    Accept(ms : Int, owner : Process, reply : Reply(Either(Io.Error, Address(SockMsg))))
   | Port(reply : Reply(Either(Io.Error, Int)))
   | CloseListener
 
 /// What a connected socket takes; a program uses `Tcp.read`, `Tcp.write`,
-/// `Tcp.close`, `Tcp.peer`, and `Tcp.local` (report Appendix E.18).
+/// `Tcp.close`, `Tcp.give`, `Tcp.peer`, and `Tcp.local` (report Appendix
+/// E.18).
 ///
 /// ### Examples
 ///
@@ -73,6 +76,7 @@ export abstract type SockMsg =
     Recv(ms : Int, reply : Reply(Either(Io.Error, Bytes)))
   | Send(bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
   | Close
+  | Give(owner : Process)
   | FarEnd(reply : Reply(Either(Io.Error, Endpoint)))
   | NearEnd(reply : Reply(Either(Io.Error, Endpoint)))
 
@@ -89,7 +93,11 @@ export type Endpoint = Endpoint(host : String, port : Int)
 // What TCP's system process takes.
 type Msg =
     Listen(host : String, port : Int, reply : Reply(Either(Io.Error, Address(ListenerMsg))))
-  | Connect(host : String, port : Int, ms : Int, reply : Reply(Either(Io.Error, Address(SockMsg))))
+  | Connect(host : String,
+            port : Int,
+            ms : Int,
+            owner : Process,
+            reply : Reply(Either(Io.Error, Address(SockMsg))))
 
 // Report §8.2: the system reference, the runtime's address of the TCP process,
 // bound at each start.
@@ -126,9 +134,9 @@ export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerM
 export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) with m =
     Address.callForever(listener, fn(r) = Port(reply = r))
 
-/// The next connection to the listener, or `Left(Io.Timeout)` when none
-/// comes in time, having taken none; `Left(Io.Closed)` when the listener is
-/// closed while it waits.
+/// The next connection to the listener, owned by the caller, or
+/// `Left(Io.Timeout)` when none comes in time, having taken none;
+/// `Left(Io.Closed)` when the listener is closed while it waits.
 ///
 /// ### Errors
 ///
@@ -146,13 +154,22 @@ export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) with m =
 /// }
 /// ```
 export fn accept(listener : Address(ListenerMsg),
-                 ms : Int) : Either(Io.Error, Address(SockMsg)) with m =
-    Address.callForever(listener, fn(r) = Accept(ms = ms, reply = r))
+                 ms : Int) : Either(Io.Error, Address(SockMsg)) with m = {
+    let owner = Process.fromAddress(self());
+    Address.callForever(listener, fn(r) = Accept(ms = ms, owner = owner, reply = r))
+}
 
-/// A connection to that host and port, or `Left(Io.Timeout)` when it is not
-/// made in time; one made later is closed.
-export fn connect(host : String, port : Int, ms : Int) : Either(Io.Error, Address(SockMsg)) with m =
-    Address.callForever(reference, fn(r) = Connect(host = host, port = port, ms = ms, reply = r))
+/// A connection to that host and port, owned by the caller, or
+/// `Left(Io.Timeout)` when it is not made in time; one made later is
+/// closed.
+export fn connect(host : String,
+                  port : Int,
+                  ms : Int) : Either(Io.Error, Address(SockMsg)) with m = {
+    let owner = Process.fromAddress(self());
+    Address.callForever(reference,
+                        fn(r) =
+                            Connect(host = host, port = port, ms = ms, owner = owner, reply = r))
+}
 
 /// What has arrived, at least one byte, or `Left(Io.Closed)` once the
 /// connection has closed and what came before is read, or
@@ -182,6 +199,30 @@ export fn write(socket : Address(SockMsg), bytes : Bytes) : Either(Io.Error, Uni
 /// Closes the socket, which ends its process.
 export fn close(socket : Address(SockMsg)) : Unit with m =
     send(socket, Close)
+
+/// Makes the process the socket's owner, so that the socket is killed when
+/// that process dies and no longer when the one before did; a process that
+/// has ended already takes it with it at once. Nothing happens on a socket
+/// that has ended.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let listener <- Tcp.listen("127.0.0.1", 0);
+///     let port <- Tcp.port(listener);
+///     let client <- Tcp.connect("127.0.0.1", port, 1000);
+///     let keeper = spawn(Local, fn() : Unit with Never = receive {
+///         after 1000 -> Unit
+///     });
+///     Tcp.give(client, Process.fromAddress(keeper));
+///     Tcp.close(client);
+///     Tcp.closeListener(listener);
+///     Right(Unit)
+/// }
+/// ```
+export fn give(socket : Address(SockMsg), owner : Process) : Unit with m =
+    send(socket, Give(owner = owner))
 
 /// Stops the listener, which ends its process; an accept waiting on it
 /// answers `Left(Io.Closed)`.
