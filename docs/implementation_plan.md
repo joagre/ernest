@@ -251,7 +251,10 @@ Placed*). Under §8.2's *Text from the host* of 2026-10-01, `Fs.list` leaves out
 entry whose name is not UTF-8 and `Os.environment` a variable whose name or value is not
 (E.17, E.23). Under §6.9's ownership sentence of 2026-10-01, a listener belongs to no one
 and lives until the program ends, and a program the runtime started cannot be given (E.18,
-E.23).
+E.23). Under §6.6's and §3.9's sentences of 2026-10-01, the checker refuses a reply as
+an element of `List`, `Map` or `Set` at `[]` and exempts those types' variables from the
+not-reply-carrying restriction, treats the name `fault` alone as a call that does not return,
+and prints a process-only variable without a mark (§11.5).
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is
