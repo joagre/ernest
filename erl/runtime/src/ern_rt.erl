@@ -123,7 +123,7 @@ process_of(Pid) -> behind(Pid).
 
 behind(Pid) ->
     case ets_lookup(?PROCESSES, {behind, Pid}) of
-        [{_, Real, _}] -> Real;
+        [{_, Real, _, _}] -> Real;
         _ -> Pid
     end.
 
@@ -131,13 +131,18 @@ behind(Pid) ->
 %% inside the mu bindings B, as the program holds it: where it names one of
 %% the program's processes, the address that went out, the proxy in front
 %% of it undone and a function `via` made kept (§6.5), and otherwise
-%% foreign.
+%% foreign. A proxy comes back as the address that went out only at the
+%% type it went out at; at another it stays foreign, so that what is sent
+%% through it is checked against the process's own type.
 -spec held(pid(), term(), map()) -> address().
 held(Pid, D, B) ->
-    {Real, Address} = case ets_lookup(?PROCESSES, {behind, Pid}) of
-                          [{_, Process, Exposed}] -> {Process, Exposed};
-                          _ -> {Pid, Pid}
-                      end,
+    case ets_lookup(?PROCESSES, {behind, Pid}) of
+        [{_, Real, Exposed, {_, D, B}}] -> own_or_foreign(Real, Exposed, Pid, D, B);
+        [{_, _, _, _}] -> {foreign, Pid, D, B};
+        _ -> own_or_foreign(Pid, Pid, Pid, D, B)
+    end.
+
+own_or_foreign(Real, Address, Pid, D, B) ->
     case ets_lookup(?PROCESSES, Real) of
         [_] -> Address;
         [] -> {foreign, Pid, D, B}
@@ -762,7 +767,9 @@ proxy_for(Key, Behind, Start) ->
             Pid = Start(),
             case ets:insert_new(?PROCESSES, {{proxy, Key}, Pid}) of
                 true ->
-                    ets:insert(?PROCESSES, {{behind, Pid}, process_of(Behind), Behind}),
+                    %% what the proxy stands before, and the key, which
+                    %% holds the type it checks (ern_boundary:proxy/4)
+                    ets:insert(?PROCESSES, {{behind, Pid}, process_of(Behind), Behind, Key}),
                     Pid;
                 false ->
                     exit(Pid, kill),
