@@ -341,7 +341,7 @@ A function has one clause. Patterns in parameters are irrefutable, §5.10: `fn s
 
 ### 4.6 Bindings
 
-In a block, `let p = e` binds the irrefutable pattern `p` to the value of `e`; `let p <- e` is described in §5.5. A binding does not see its own name. It is monomorphic, except one that binds a name to a lambda, `let id = fn(x) = x`, which is generalized as a local `fn` is (§3.9). A later binding of the same name shadows the earlier one from the next statement on; the right-hand side of the later binding sees the earlier one.
+In a block, `let p = e` binds the irrefutable pattern `p` to the value of `e`; `let p <- e` is described in §5.5. A binding does not see its own name, so a function that calls itself is declared with `fn` (§4.5). It is monomorphic, except one that binds a name to a lambda, `let id = fn(x) = x`, which is generalized as a local `fn` is (§3.9). A later binding of the same name shadows the earlier one from the next statement on; the right-hand side of the later binding sees the earlier one.
 
 A block binding's type may hold unresolved type variables; `[]`, `None`, `Map.empty`, and a call that returns a polymorphic value introduce them. A later use of the binding in the block pins such a variable: `let m = Map.empty; Map.put(m, "a", 1)` pins `m` at `Map(String, Int)`. One that reaches the block's result is generalized by the enclosing `fn` or top-level `let`: `fn namedEmpty() = { let xs = []; xs }` has type `() -> List(a)`. An annotation on the binding fixes it. A use pins a variable only where it fixes the variable's type, and a variable that nothing pins stays free: in `{ let xs = []; List.size(xs) }` the element type stays open.
 

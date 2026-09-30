@@ -9,7 +9,6 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 
 ## Questions for the user
 
-- ask — `fn f` beside `let f = fn` (R-22)
 - ask — the inferred restrictions are never written (R-23)
 - ask — `via` runs its function in the sender (R-24)
 - ask — `Os.start`'s milliseconds are a lifetime (R-25)

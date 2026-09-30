@@ -636,6 +636,16 @@ blocks_test() ->
     ?assertEqual("unknown name k",
                  err("fn f(n : Int) = { fn g(x) = x * k; let k = 2; g(n) }")).
 
+%% report §4.5, §4.6: a binding does not see its own name, so a lambda bound
+%% by `let` does not call itself, and a local `fn` does. A regression test,
+%% written when §4.6 said so (findings.md's R-22)
+let_lambda_does_not_recur_test() ->
+    ?assertEqual("unknown name count",
+                 err("fn f() : Int = { let count = fn(n : Int) : Int ="
+                     " if n == 0 then 0 else count(n - 1); count(3) }")),
+    ?assertEqual(ok, ok("fn f() : Int = { fn count(n : Int) : Int ="
+                        " if n == 0 then 0 else count(n - 1); count(3) }")).
+
 %% report §4.5
 local_fn_names_are_plain_test() ->
     ?assertEqual("a type-member name, `fn T.name`, is a top-level form; a local function has a"
