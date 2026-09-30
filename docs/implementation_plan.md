@@ -118,8 +118,11 @@ renamed over it, then the guide, and the soak last.
    proposal for names and for structure drawn from what the code has shown good and bad,
    written on 2026-09-30 so that the code written before the renaming keeps it. The user
    reads it, and then a glossary of the names that recur goes there: one name for each
-   concept, the same in every module. The glossary is the best first draft that can be
-   made before the code is read name by name; items 6 and 14 change it, add to it and
+   concept, the same in every module. The report is the glossary's authority: a concept the
+   report names is named as the report names it, and a place where the code names such a
+   concept otherwise, or where the report's name seems wrong for the code, is discussed with
+   the user each time, never renamed on its own. The glossary is the best first draft that
+   can be made before the code is read name by name; items 6 and 14 change it, add to it and
    delete from it as the renaming finds what it missed, and each area's commit carries the
    glossary's change with it.
 3. **The places the language made the review's work harder**, the lines of
@@ -147,7 +150,7 @@ renamed over it, then the guide, and the soak last.
 6. **Names that read, in Erlang**, about a week: every module under `erl/` and `test/` read
    for its names and renamed where a name does not say what its value or its work is, a
    variable, a function, a record and its fields, by the glossary, which it corrects as it
-   goes (item 2). Area by area, a commit each that changes names and nothing else, the area's tests green before the next; the code grows
+   goes (item 2), each name that differs from the report's brought to the user. Area by area, a commit each that changes names and nothing else, the area's tests green before the next; the code grows
    longer, and the line stays at 100 characters. Before the toolchain's changes below, so that
    they are written in the new names.
 7. **The hardening the code readers found** (C1-5, C1-9, C1-10, C3-26 to C3-31), in the new
@@ -187,7 +190,8 @@ renamed over it, then the guide, and the soak last.
     representation.
 14. **Names that read, in Ernest**: the standard library, the shell, the libraries and the
     examples, read and renamed as item 6 renames the Erlang, a type, a constructor and a field
-    among the names, the glossary corrected as it goes, after items 10 to 13 so that the code they write is read once with the
+    among the names, the glossary corrected as it goes and each name that differs from the
+    report's brought to the user, after items 10 to 13 so that the code they write is read once with the
     rest. A name the report states, an exported function's or a constructor's, changes only
     through the report.
 15. **The guide's §7.3**, over the finished code and its names: it says "operations record"
