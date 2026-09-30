@@ -12,6 +12,12 @@ The order in which the principles review's findings, [`findings.md`](findings.md
 6. **The log**: the entries whose reason has lapsed or was abolished marked superseded, or their verdict restated on the reason that holds; one commit.
 7. **Closure**: the log's entry for the review, its date, commit, counts, and how many lines took each decision; `findings.md`'s heading goes, and this document with it; the next release's notes list the rules that changed; MVP 2.99b resumes at item 4.
 
+## The rules of the road
+
+- Phases 1 and 2 change the report, the guide and the log, and nothing else: no code, no test, and no example's output, since the report's `// =>` lines and the guide's programs are run by tests.
+- A sentence of phase 2 that the code does not yet meet is a gap the plan names, dated to phase 5, where the rule's code and its examples change together, a commit each rule.
+- The report and the guide before the review are the release's, tag `v0.1.0`, and every commit of the review since `57b8356` touches documents only until phase 4; if the review is abandoned, a revert of that range restores them and the code needs no undoing.
+
 ## Cost
 
 Phases 1 and 2 are fifteen questions, at the user's pace. Phase 4 is about a week. Phase 5 is unknown until phase 2 has run, and bounded by its list; the plan's estimate is revised then.
