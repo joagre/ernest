@@ -1832,6 +1832,20 @@ variable_names_test() ->
                  type_of("export fn twice(f : (a) -> a with e, x : a) : a with e = f(f(x))",
                          twice)).
 
+%% report §4.8: an operator is resolved in its definition, and a local fn
+%% and a lambda a block `let` binds are definitions of their own, since
+%% each is generalized; a lambda passed on belongs to the definition it
+%% stands in. A regression test of what the report states (findings.md's
+%% R-26)
+local_helper_over_an_operator_test() ->
+    Undetermined = "the operand type of `+` is not determined; annotate it",
+    ?assertEqual(Undetermined, err("fn f(x : Int) : Int = { fn add(a, b) = a + b; add(x, 1) }")),
+    ?assertEqual(Undetermined,
+                 err("fn f(x : Int) : Int = { let add = fn(a, b) = a + b; add(x, 1) }")),
+    ?assertEqual(ok, ok("fn f(x : Int) : Int ="
+                        " { fn add(a : Int, b : Int) = a + b; add(x, 1) }")),
+    ?assertEqual(ok, ok("fn f(x : Int) : Int = List.foldLeft([x, 1], 0, fn(acc, n) = acc + n)")).
+
 %% report §5.7, Appendix A: a construction is a value and no call, so the
 %% pipe applies a bare constructor and does not fill a construction. A
 %% regression test: the refusals named the callee or a missing field and
