@@ -3290,6 +3290,22 @@ foreign_casts_and_callbacks_test() ->
                  Run("foreign fn each(f : (Int) -> Int, xs : List(String)) : List(Int) =\n"
                      "    \"lists:map/2\"\n", "each(fn(n) = n + 1, [\"x\"])")).
 
+%% report §8.4: a type variable a parameter's type names matches any value at
+%% the boundary, in a foreign function's result and in an argument foreign
+%% code calls a function with, until a foreign function takes its caller's
+%% description of the type (MVP 2.99b's item 13). A regression test of what
+%% the report states
+foreign_type_variables_unchecked_test() ->
+    Run = fun(Decl, Body) ->
+                  {R, _} = run(Decl ++ "export fn main() : Unit with Never = {\n"
+                               "    let _ = " ++ Body ++ ";\n    Unit\n}\n"),
+                  R
+          end,
+    ?assertEqual(ok, Run("foreign fn weird(x : a) : a =\n    \"erlang:length/1\"\n",
+                         "weird([1, 2])")),
+    ?assertEqual(ok, Run("foreign fn each(f : (a) -> Int, x : a) : List(Int) =\n"
+                         "    \"lists:map/2\"\n", "each(fn(_) = 1, [[\"x\"]])")).
+
 %% Appendix E.18, E.21, E.23: a listener, a socket and a running program are
 %% processes of the program's: Process.live lists them, and Process.info
 %% gives the function that opened each as its site. A regression test: the
