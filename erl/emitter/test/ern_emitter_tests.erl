@@ -3366,6 +3366,20 @@ socket_owner_test() ->
     ?assertEqual(<<"opener's: ended\ngiven, giver gone: alive\ngiven, keeper gone: ended\n"
                    "given to the dead: ended\n">>, Out).
 
+%% report §6.9, §6.6: a callee's own answer to a call is not overtaken by
+%% its end, so a worker that answers and returns at once is answered, every
+%% time. A regression test of what the report states (findings.md's N-B5);
+%% the order of a `Down` and the ended process's own messages is not
+%% promised, and so not tested
+answer_before_end_test() ->
+    {ok, Out} = run(
+        "fn worker() : Unit with Reply(Int) = receive { r -> answer(r, 7) }\n"
+        "fn rounds(n : Int, sum : Int) : Int with m =\n"
+        "    if n == 0 then sum\n"
+        "    else rounds(n - 1, sum + Address.callForever(spawn(Local, worker), fn(r) = r))\n"
+        "export fn main() : Unit with Never = Io.println(Int.toString(rounds(200, 0)))\n"),
+    ?assertEqual(<<"1400\n">>, Out).
+
 %% report §8.4: an address foreign code gives back is the program's own at
 %% the type it went out at, and foreign at another, so that what is sent
 %% through it is checked against the process's own type. A regression test:

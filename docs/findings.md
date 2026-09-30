@@ -7,7 +7,7 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 
 ## Questions for the user
 
-- ask — the order of a `Down` and the messages before it (N-B5), and `type Word = String` (N-C3)
+- ask — `type Word = String` (N-C3)
 - ask — the line the interrupt ends, kept in the history (C3-23)
 
 ## Hardening

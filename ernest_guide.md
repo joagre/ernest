@@ -1162,6 +1162,8 @@ run 2: 4
 
 A death whose run is not the one being waited for is an earlier worker's, and `waitFor` passes over it. The wrap is where a death says whose it is.
 
+A `Down` comes from the runtime and not from the process that ended, so it has no order with that process's own messages (§5.1): a worker's last message may arrive after its `Down`. A result that must not be lost to a `Down` comes as the worker's answer to a call (§4.4), which its end does not overtake.
+
 `Process.live()` lists the live processes, `Process.info(p)` tells where one was spawned, how many messages wait for it and whether it runs, and `Process.faults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
 
 A fault in one process does not affect another, apart from the cases §6.3 lists.
