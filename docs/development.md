@@ -15,7 +15,6 @@ The report, [`ernest_report.md`](../ernest_report.md), is the one normative docu
 - **[`style.md`](style.md)**: the style of the Erlang, the C and the Ernest.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
-- **[`findings.md`](findings.md)**: what the first review's readers found and is still open, until MVP 2.98 is done.
 - **[`operations.md`](operations.md)**: the proposal of operations records, until MVP 2.99b decides it.
 - **[`shell_design.md`](shell_design.md)**, **[`node_protocol.md`](node_protocol.md)**, **[`code_distribution.md`](code_distribution.md)**, **[`install.md`](install.md)**: the design notes of the shell, of the protocol between nodes, of code distribution, and of the installation.
 - **[`emacs_mode.md`](emacs_mode.md)**: the Emacs major mode.

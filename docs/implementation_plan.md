@@ -13,11 +13,11 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
-**MVP 2.98 is under way.** The decision on how code written once works over several
-representations, which [`operations.md`](operations.md) weighs, is taken in MVP 2.99b, after
-the first release (2026-09-29). Every earlier milestone
-is done, the last MVP 2.96 on 2026-09-29; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were
-taken out of order. Each has its paragraph under "Done". The first release is MVP 2.99's.
+**MVP 2.98 is done, and the first release, MVP 2.99, is next.** The decision on how code
+written once works over several representations, which [`operations.md`](operations.md)
+weighs, is taken in MVP 2.99b, after the first release (2026-09-29). Every earlier milestone
+is done, the last MVP 2.98 on 2026-09-30; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were
+taken out of order. Each has its paragraph under "Done".
 
 ---
 
@@ -37,7 +37,7 @@ taken out of order. Each has its paragraph under "Done". The first release is MV
 | MVP 2.9 | an Emacs major mode | done 2026-09-23, out of order |
 | MVP 2.95 | manual pages, an installation, the review | done 2026-09-28 |
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
-| **MVP 2.98** | **what the first review left** | **under way** |
+| MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | the first release | |
 | MVP 2.99b | operations records: `Set`'s record and an ordered set | the decision first (`operations.md`) |
 | MVP 2.99c | running as a service | |
@@ -46,159 +46,6 @@ taken out of order. Each has its paragraph under "Done". The first release is MV
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 | MVP 3.3 | the shell's second round | |
 | MVP 3.9 | the review before 1.0: soundness argued and generated against | |
-
----
-
-## MVP 2.98 (what the first review left), about two weeks
-
-What the review of MVP 2.95 found and did not fix there, decided 2026-09-28 and moved from MVP
-3.0 the same day, since none of it needs a peer (the log's *MVP 3.0 Is Distributed Code and the
-Node Protocol*). It is taken in this order: 4, 5, 6, 3, 1, 2, 7, the design questions of 2
-discussed with the user one at a time as they are met.
-
-1. **[`findings.md`](findings.md)'s `cheap` lines**, a batch a document, done 2026-09-29 (the
-   log's entries from *The Report's Cheap Lines* to *The Documents' Cheap Lines*). Measuring
-   the loads for it found the shell's code growing with every input, T26's sites compiled into
-   each input's module, fixed the same day.
-2. **Its `2.98` lines**: the report's contradictions and silent cases, the silent cases done 2026-09-29 (the log's *The Report's Silences*), among them `Io.show`'s
-   dependence on the type at the call; a type that breaks laid one alternative a line, as a
-   `match` is, decided with the user and done 2026-09-29 (N10; the log's *A Type That Breaks
-   Holds One Alternative a Line*); three decisions of the shell's, decided with the user and
-   done 2026-09-29 (the log's *Three of the Shell's Choices*): a typed input named by its count,
-   `input 3` (T26), line mode taking an input's further lines as a terminal does (T29), and the
-   shell's exit status and streams stated in §11.2 (T32); the report's contradictions decided
-   with the user and done 2026-09-29, each argued in the log's entry of that name: a member
-   written `T.name` (§4.2), `Optional` and `Either` holding a reply (§6.6), a `receive` guard
-   reading a top-level `let` (§6.3), a lambda bound by `let` generalized (§4.6), the
-   supervisor's restart on request kept as it is (§6.9), a claim of the terminal the other
-   way faulting the process that makes it (§8.2), `Tcp.write` and `Os.write` answering
-   `Either(Io.Error, Unit)` (E.18, E.23), a pattern's size reading a top-level `let`, a
-   variable its own pattern binds still refused (§5.11), and `Int.div` and `Int.rem`, renamed
-   from `Int.mod`, moved from the prelude to the library (E.8), `Address.callForever` kept
-   beside `Address.call` (§6.6), a prelude type without members taking no namespace (§4.2),
-   `Prelude.X` written only where the module hides `X` (§4.2), a block binding's variable
-   that nothing pins left free (§4.6), a constructor with named fields matched as `C()`
-   alone (§5.10), `unit` gone from bitstrings, a size counting bits, or octets for `bytes`
-   (§5.11), and five small rules kept, `true` and `false` reserved among them (the log's
-   *Five Small Rules Kept*); the toolchain's T2, T3, T4 and T12, a module checked against
-   what it was compiled with and `:load` compiling what a module uses from its source (§11.1,
-   §11.2), T8, an option given once in one spelling (§11), T10, every error that follows
-   from none reported, by a block and by a directory build (§11.1, §11.5), T14, a faulting
-   binding named (§8.5), T19, the prelude shown by `:browse` and `:doc` (§11.2), S11, the
-   history decoded in one pass, a paste read once however many pieces it comes in, and C10,
-   sockets, listeners and programs known as processes under the function that opened them
-   (E.18, E.23), and `Bytes` gaining `String`'s text functions with `toHex` and `fromHex`
-   (E.20), and S-H, the system's own `stty`, a relative `HOME` naming no startup file and no
-   history (§11.2), a foreign function's unnamed result variable matching no value and a
-   function given to foreign code checking its arguments (§8.4), and the host's flags cleared
-   from the environment (§11), with `Erl.atom` and the unbounded reads kept and the key's
-   place decided in MVP 3.0 (the log's *The Security Reader's Decisions*), and sockets kept
-   read by pulling, with a time on every wait, the guide's §8.7 teaching them (N1, N-L1, N-L2;
-   the log's *Sockets Are Read by Pulling*), done 2026-09-29; a foreign call written in place,
-   its return checked as its type needs, the library's calls without a mailbox type not
-   counted, a call's monitor the alias of its reply, and no table scanned at a process's end
-   or at a fault, measured by `make bench` (N-L4; the log's *What Ernest Adds to a Host
-   Call*), done 2026-09-29; the standard library's own returns and replies not checked,
-   decided with the user and done 2026-09-30 (§8.4; the log's *The Runtime's Own Is Not
-   Checked*); a reply checked only where its `Reply` crossed into foreign code, decided with
-   the user, and an address sent in a message to a foreign process crossing as a foreign
-   function's argument does, a defect, both done 2026-09-30 (§7.4, §8.4; the log's *A Value
-   Is Checked Where It Crosses*); `spawn`, `monitor` and a call's row kept in the reaper and
-   its table, decided with the user, and the reaper's work at a process's end cut, `spawn`
-   at 4.9 to 5.1 µs against 4.2 for the same protocol in Erlang (§6.2, §6.6, §6.9, §8.6; the
-   log's *Supervision Stays in the Reaper*), `String.trimEnd` splitting only the tail that
-   could go, `String.toFloat` reading its form by a scan, and the shell reading a purged
-   input's own keys, done 2026-09-30 (the log's *Three Scans on a Value*); `RestForOne`
-   reading the order of spawns, since a child joins when it first runs, so children spawned
-   in one order joined in the scheduler's, which `examples/services.ern` met, decided with
-   the user and done 2026-09-30 (E.22; the log's *`RestForOne` Reads the Order of Spawns*);
-   `Char`'s predicates
-   reading the host's `unicode_util`, whose documentation hides it, rather than a regular
-   expression 30 to 100 times slower, decided with the user and done 2026-09-30 (E.6; the
-   log's *Char Reads the Host's Tables*); the guide's §4.4 on sending to many receivers, a
-   window of credits for each and `Process.info` for watching only (N4), done 2026-09-30;
-   `Clock.monotonic` in, a shim over the host's monotonic milliseconds, and `Udp` placed in
-   MVP 3.2 (E.15; the log's *`Clock.monotonic` Is In, and `Udp` Is Placed*), done 2026-09-30;
-   `architecture.md`, `memory.md`, `development.md`, `shell_design.md` and `emacs_mode.md`
-   read back whole against the code and corrected, and the documents reader's D5 to D31
-   checked one by one, with two defects of the shell the read-back found fixed: the late
-   outcome of an interrupted input, which the next input could take as its own, now dropped
-   by its run's number, and the history's directory, made its owner's alone only after a
-   read that succeeded, now before any read (§11.2), done 2026-09-30; the check of an
-   address exposed to foreign code kept until the process it names ends, one for each
-   distinct address and a `via` distinct by its function and what that captured, decided with
-   the user 2026-09-30, and an answer to a `Reply` foreign code gave, which went out
-   unexposed, crossing as a message does, done 2026-09-30 (§8.4; the log's *A Check at the
-   Boundary Lasts as Long as Its Process*); make
-   keeping no stamp of the Ernest trees and running `ern build` every time, its own rule
-   deciding by content (§11.1; the log's *Make Runs `ern build` Every Time*), decided with the
-   user and done 2026-09-30; the distribution notes read back against the report, what was
-   false corrected, their reasons moved to the log, and every question they leave open
-   numbered in them and so decided in MVP 3.0 or 3.1, done 2026-09-30; Erlang scheduling
-   hints placed out of the language and the library, by §10 and principles 2, 3 and 5,
-   decided with the user 2026-09-30 (the log's *Scheduling Hints Are the Host's*); a
-   library found by its name placed out of the toolchain, by principles 3, 2 and 5, decided
-   with the user 2026-09-30 (the log's *A Library Is Fetched by Its URL*); the shell's
-   later work placed part by part, Readline's remaining keys, `:trace`, completion by type
-   and attaching to a node in MVP 3.3, and the grey suggestion, re-running by number and a
-   report of quiescence out, decided with the user 2026-09-30 (the log's *The Shell's Second
-   Round*); no send with a limit beside the unbounded mailbox (N-L5), decided with the user
-   2026-09-30 (§10; the log's *Back Pressure, Again*); the newcomer's small things kept as
-   they are (N-L6), decided with the user 2026-09-30: an `if` has its `else` (Appendix A,
-   *Grammar Audit*), a `Process` is an address's identity (§3.10, *A Process's Identity Is a
-   `Process`*), and a constructor holds one positional field or named ones (§3.5, *Reasons
-   Lifted Out of the Report*); a list of functions that reach back to it kept a cycle (E-C1),
-   the cycle's diagnostic now naming the `fn` that builds it when asked, decided with the user
-   and done 2026-09-30 (§8.5, §11.5; the log's *A Cycle Through a Function Stays One*);
-   `kill` and `monitor` kept on an address, not a `Process` (E-C2), decided with the user
-   2026-09-30 (§6.5, §9.4; the log's *`kill` and `monitor` Keep the Address*); no limit on
-   restarts named `Unlimited`, a constructor of `RestartLimit`, a time below 1 now 1, which
-   ended `restarting` and a group disagreeing on `RestartLimit(restarts = 0, within = 0)`
-   (E-C3), decided with the user and done 2026-09-30 (§6.9, §9; the log's *No Limit Is
-   `Unlimited`*); `Io.debug` in Ernest once `Io.show` follows its type, placed in MVP 2.99b's
-   item 7 (E-C4), decided with the user 2026-09-30; an `Io.Error` worded by each program,
-   with `Other` holding the host's description of a reason, "address already in use", where
-   it held the code (E-C5), decided with the user and done 2026-09-30 (Appendix E.1; the
-   log's *`Other` Says the Host's Words*); a group restarted whole, the child that faulted
-   running again once each sibling its strategy restarts has restarted or ended, so that
-   `services.ern` and the guide's `pair.ern` no longer sleep (E-C6), decided with the user and
-   done 2026-09-30 (Appendix E.22; the log's *A Group Restarts Whole*); `Tcp.closeListener`
-   kept beside `Tcp.close`, a verb followed by the kind of thing it acts on, as `readLink`
-   beside `read` (E-C7), decided with the user 2026-09-30 (E.0 rule 2; the log's
-   *`closeListener` Names What It Closes*);
-   the diagnostics' positions and labels
-   (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
-   the code has left behind.
-3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
-   `create`, a new file or none; `removeAll`; `setModified`, done 2026-09-29, `readLink`
-   answering `None` for what is no link; and, decided with the user, a file read and written in
-   parts, which a file too large to hold whole needs, done 2026-09-29 as `readRange`, a part read
-   by its path, and `append`. An entry's kind and
-   its links were built in MVP 2.95.
-4. **The formatter's one-constructor type**: a type of one constructor too long for its line
-   breaks inside its parameters, `SetOps(s,` and `a)`, where `style.md`'s rule for a type
-   breaks after its `=`, as the guide's §7.3 shows (found 2026-09-29); done 2026-09-29, one
-   alternative breaking after the `=` as several do, but where a doc block opens its bracket.
-5. **Three changes that take work from `make test`**, done 2026-09-29: the shell's tests waiting
-   for the prompt or a program's output, not a fixed time, 17 of 21 sleeps now text a test
-   waits for and the four left moments no text marks, a game's ticks, a late paste end, and
-   two Tabs that must do nothing, with no gain in time, the area being bound by its CPU; `ern_cli`'s build in a module of its own, so that
-   the compiler's hash leaves out its other jobs and a change to them recompiles nothing, done
-   2026-09-29 as `ern_build`; and the programs area's builds in the test's node, where a
-   launch of `ern` costs 0.6 seconds a build and the node 0.08, done 2026-09-29, the area 23
-   seconds to 20 and `make test` 93 to 90.
-6. **`==` on a value that holds a function**, done 2026-09-29: a declared type's fields are read
-   with its arguments in place, and a variable with the equality restriction passes it to the
-   variables of the type it is bound to. The same shape let a reply into a `List` nested in a
-   tuple or an `Optional`, fixed with it (the log's *`==` on a Value That Holds a Function*).
-7. **A load sample that catches a process mid-work**, found 2026-09-29, done 2026-09-30 (the
-   log's *A Load Samples a Node at Rest*): about one run of `make load` in ten failed a load
-   that leaks nothing. Each process logged at each sample showed three causes: the caller of
-   `mark` sampling while mid-work; a heap the host keeps at either of two sizes for the same
-   data; and the host's pool of process structures and its lag in counting freed heaps. A
-   process of the harness's own now samples while the caller waits, a heap is counted by the
-   words it holds, and the memory is what is in use. The loads vary by about 15 KB where they
-   varied by several hundred.
 
 ---
 
@@ -699,9 +546,9 @@ the Prefix* and *One Archive, Compiled Where It Is Installed*). The review ran a
 every check and twelve readers, and is now [`review.md`](review.md)'s one page (the log's *A
 Lean Review*); `make test` went from 280 seconds to under a minute (the log's *The Time of
 `make test`*). The readers' findings that lose data, expose a user or break a program were
-fixed, each with a regression test, and the rest are MVP 2.98's ([`findings.md`](findings.md);
-the log's entries from *The Sweep Removes What a Build Wrote* to *An Unfinished Line Leaves
-the Region a Row at a Time*). Three entries of the language feedback were decided: names stay
+fixed, each with a regression test, and the rest were MVP 2.98's (`findings.md`, under MVP
+2.98 below; the log's entries from *The Sweep Removes What a Build Wrote* to *An Unfinished
+Line Leaves the Region a Row at a Time*). Three entries of the language feedback were decided: names stay
 qualified and the shell's completion moved into `Shell.Complete`, `List.intersperse` is
 refused, and `Fs` sees a symbolic link (the log's *What MVP 2.95 Takes From the Rest* and
 *What `Fs` Holds*). An intermittent failure of the guide's diagnostics was EUnit's capture,
@@ -721,3 +568,21 @@ wraps, where the function runs, what does not deliver, the one process behind th
 addresses that travel; a `send` applies an adapted address's function in the sender, and the
 runtime a wrap as it delivers (§6.5, §6.9; the log's *A Process's Addresses, Taught in
 Order*).
+
+### MVP 2.98 — what the first review left (done 2026-09-30)
+
+Every finding of the first review that MVP 2.95 left was fixed or decided, and `findings.md`
+went: its lines with what was done stand at commit `b7d34c0`, and its readers' lists in the
+file's history up to commit `08edfda` (the log's entries of 2026-09-29 and 2026-09-30, from
+*The Report's Cheap Lines* to *`closeListener` Names What It Closes*). The report's
+contradictions and silent cases were decided with the user, each argued in the log's entry
+of its name. The formatter lays a type of one constructor as it lays several, `==` reads a
+function through a type's arguments, and `Fs` gained `create`, `removeAll`, `setModified`,
+`readRange` and `append` (E.17). The foreign boundary checks only what crosses, the runtime's
+own left unchecked, and a check lasts as long as the process behind it (§8.4); what Ernest
+adds to a host call is measured by `make bench`, and supervision stays in the reaper.
+`RestartLimit` gained `Unlimited` (§6.9), `Io.Error`'s `Other` says the host's words (E.1),
+and a supervisor's group restarts whole (E.22). Erlang's scheduling hints and a registry of
+libraries are out, and the shell's later work is MVP 3.3's. A load samples a node at rest,
+the loads flat within 15 KB ([`memory.md`](memory.md)), and make runs `ern build` every
+time, its own rule deciding by content (§11.1).

@@ -21,10 +21,7 @@ citations_resolve_test() ->
     Guide = read("ernest_guide.md"),
     ReportHeads = headings(Report),
     GuideHeads = headings(Guide),
-    %% docs/findings.md's lines cite each document as its reader did, the
-    %% guide's sections bare beside the report's, and the list goes with
-    %% MVP 2.98
-    Live = (documents() -- ["docs/findings.md"]) ++ examples() ++ stdlib() ++ shell() ++ tools(),
+    Live = documents() ++ examples() ++ stdlib() ++ shell() ++ tools(),
     Dangling =
         [{F, C} || F <- Live, C <- cites(read(F)), not resolves(C, report, ReportHeads, GuideHeads)]
         ++ [{"ernest_guide.md", C} || C <- cites(Guide),
@@ -131,7 +128,7 @@ documents() ->
 
 %% The documents that describe the repository as it is.
 described() ->
-    documents() -- ["ernest_report.md", "docs/implementation_plan.md", "docs/findings.md"].
+    documents() -- ["ernest_report.md", "docs/implementation_plan.md"].
 
 %% A backticked path under one of the repository's own directories. A
 %% metavariable is written `<name>`, as docs/style.md writes `ern_<thing>`,
