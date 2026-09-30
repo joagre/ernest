@@ -36,9 +36,13 @@ start() ->
     Args = init:get_plain_arguments(),
     %% a job writes through ports of its own, which end it when a stream's
     %% reader has gone (ern_out); the shell's terminal is the host's own
-    Err = case Args of
-              ["shell" | Rest] when Rest =:= []; hd(Rest) =/= "--help" -> standard_error;
-              _ -> ern_out:take()
+    Shell = case Args of
+                ["shell" | Rest] -> Rest =:= [] orelse hd(Rest) =/= "--help";
+                _ -> false
+            end,
+    Err = case Shell andalso ern_tty:is_terminal(stdout) of
+              true -> standard_error;
+              false -> ern_out:take()
           end,
     Status = try
                  persistent_term:put({?MODULE, streams}, fds),
@@ -400,7 +404,7 @@ markdown_dir(Mods, Stdlib, OutDir) ->
     Entries = [begin
                    Rel = ern_build:module_path(Ns) ++ ".md",
                    Out = filename:join(OutDir, Rel),
-                   ok = filelib:ensure_dir(Out),
+                   ok = ern_build:made_dir(Out),
                    Page = unicode:characters_to_binary(ern_page:page(built(OutDir, Ns))),
                    ok = ern_build:write_output(Out, Page),
                    ["- [", ern_build:qname(Ns), "](", Rel, ")\n"]
@@ -429,8 +433,7 @@ man_dir(Mods, Stdlib, OutDir) ->
 
 %% A module's compiled form, which the build just wrote under OutDir.
 built(OutDir, Ns) ->
-    {ok, Beam} = file:read_file(filename:join(OutDir, ern_build:module_path(Ns) ++ ".erc")),
-    Beam.
+    ern_build:read(filename:join(OutDir, ern_build:module_path(Ns) ++ ".erc")).
 
 %% Report §11.4: the standard library's own source root also gets the
 %% prelude's page, first in the index.
@@ -504,7 +507,7 @@ format_result(Opts, Out, Same) ->
     end.
 
 format_file(Opts, File, Err) ->
-    {ok, Text} = file:read_file(File),
+    Text = ern_build:read(File),
     case ern_format:format(Text) of
         {ok, Text} -> ok;
         {ok, Out} ->
@@ -696,15 +699,13 @@ journal() ->
     end.
 
 %% Report §11: a compiled module's bytes, or the refusal of a file that is
-%% none, named as the user named it and not by what it holds.
+%% none, named as the user named it and not by what it holds. A module the
+%% host compiled from another language holds no interface, and is none.
 compiled(File) ->
-    Bin = case file:read_file(File) of
-              {ok, B} -> B;
-              {error, Reason} -> ern_build:fail(File ++ ": " ++ file:format_error(Reason))
-          end,
-    case beam_lib:info(Bin) of
+    Bin = ern_build:read(File),
+    case beam_lib:chunks(Bin, [binary_to_list(ern_iface:chunk_name())]) of
         {error, beam_lib, _} -> ern_build:fail(File ++ " is not a compiled module");
-        _ -> Bin
+        {ok, _} -> Bin
     end.
 
 %% The module of a `.erc`, its load path, and every module loaded for it:
@@ -805,13 +806,23 @@ outcome(_Err, _Fault) -> 1.
 
 %% Report §11.2: the shell reports the faults of the session's processes
 %% itself, as a subscriber, so its own end, which no subscriber of its own
-%% is left to see, is said here.
-shell_outcome(Err, {fault, Msg}) -> io:format(Err, "fault: ~ts~n", [Msg]), 1;
+%% is left to see, is said here, its cause escaped as every fault's is. A
+%% fault of the shell's own is a failure of ern itself, but for one its
+%% standard input gave it (§11.8).
+shell_outcome(Err, {fault, Msg}) ->
+    io:format(Err, "fault: ~ts~n", [ern_show:controls(Msg, line)]),
+    case ern_rt:by_input(Msg) of
+        true -> 1;
+        false -> 70
+    end;
 %% report §8.5, §11.2: a binding that faulted before the shell began
 shell_outcome(Err, {initializer_fault, Site, Msg}) ->
     io:format(Err, "~ts faulted: ~ts~n", [Site, ern_show:controls(Msg, line)]),
     1;
-shell_outcome(Err, {fault, Msg, Trace}) -> io:format(Err, "fault: ~ts~n~ts", [Msg, Trace]), 1;
+shell_outcome(Err, {fault, Msg, Trace}) ->
+    io:format(Err, "fault: ~ts~n~ts",
+              [ern_show:controls(Msg, line), ern_show:controls(Trace, lines)]),
+    70;
 shell_outcome(Err, Other) -> outcome(Err, Other).
 
 %% Report §8.5: every top-level let of the loaded modules, dependencies
@@ -938,11 +949,8 @@ entry_point(Opts, Ns, Roots, Loaded) ->
         case proplists:get_value(main, Opts) of
             undefined -> {ern_emitter:module_atom(Ns), main, Loaded};
             Q ->
-                Parts = [list_to_atom(P) || P <- string:split(Q, ".", all)],
-                length(Parts) >= 2 orelse
-                    usage_fail("--main takes a qualified name, Module.function"),
-                MainNs = lists:droplast(Parts),
-                {ern_emitter:module_atom(MainNs), lists:last(Parts), load(MainNs, Roots, Loaded)}
+                {MainNs, Fn} = main_name(Q),
+                {ern_emitter:module_atom(MainNs), Fn, load(MainNs, Roots, Loaded)}
         end,
     Name = ern_build:qname(entry_ns(EntryMod) ++ [EntryFn]),
     Shape = "; an entry point is an exported fn of type () -> Unit (report §8.1)",
@@ -955,6 +963,30 @@ entry_point(Opts, Ns, Roots, Loaded) ->
             ern_build:fail(Name ++ " is not an entry point: its type is " ++ Type ++ Shape)
     end,
     {EntryMod, EntryFn, Loaded1}.
+
+%% Report §11.2, Appendix A: `--main` names a function by its qualified
+%% name, a typename for each segment of the module's namespace and an
+%% ident for the function, as the lexer reads them, and nothing between
+%% them or after them.
+main_name(Q) ->
+    Named = case ern_lexer:tokenize(Q, []) of
+                {ok, Tokens} -> qualified(Tokens, 1);
+                {error, _} -> error
+            end,
+    case Named of
+        {ok, [_ | _] = Ns, Fn} -> {Ns, Fn};
+        _ -> usage_fail("--main takes a qualified name, Module.function")
+    end.
+
+qualified([{typename, {1, C, {1, E}, _}, T}, {'.', {1, E, {1, Next}, _}} | Rest], C) ->
+    case qualified(Rest, Next) of
+        {ok, Ns, Fn} -> {ok, [T | Ns], Fn};
+        error -> error
+    end;
+qualified([{ident, {1, C, {1, E}, _}, Fn}, {eof, {1, E, _, _}}], C) ->
+    {ok, [], Fn};
+qualified(_, _) ->
+    error.
 
 %% What the interface of a loaded module says of one of its names: an entry
 %% point, a `let`, a function of another shape, or nothing it exports. A
@@ -1001,7 +1033,7 @@ load(Ns, Roots, Loaded, Std) ->
                        [] -> ern_build:fail("cannot find module " ++ ern_build:qname(Ns)
                                             ++ " (" ++ Rel ++ ") on the load path")
                    end,
-            {ok, Bin} = file:read_file(File),
+            Bin = ern_build:read(File),
             {Deps, Chunk} = case ern_iface:read(Bin) of
                                 {ok, #{deps := Ds} = C} -> {Ds, C};
                                 {error, Why} -> ern_build:fail(File ++ ": " ++ Why)
@@ -1045,9 +1077,11 @@ same_interface(Ns, D, Hash) ->
 %% is a placeholder to edit. The directory is made here or not at all, so
 %% that one another made first, as this runs, is refused, and it is its
 %% owner's alone before a file is written in it, so that no one else can
-%% open a file there, the key's while it is being written among them.
-create_config_dir(Conf) ->
-    ok = filelib:ensure_dir(Conf),
+%% open a file there, the key's while it is being written among them. A
+%% name ending in `/` names the directory before it.
+create_config_dir(Given) ->
+    Conf = filename:join([Given]),
+    ok = ern_build:made_dir(Conf),
     case file:make_dir(Conf) of
         ok -> ok = file:change_mode(Conf, 8#700);
         {error, eexist} -> ern_build:fail(Conf ++ " exists");

@@ -43,8 +43,8 @@
          untimed/0, deadline/1, remaining/1, monotonic/0, in_foreign/1,
          undefined_function/3, undefined_lambda/3, fault/1, fault/2, trace/1, sys/1,
          hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1, input_not_utf8/0,
-         read_input/1, run_main/3, arguments/0, exit_program/1, deadlock_target/1, signal/1,
-         initializing/1, site/0, binding/1, restarting/2, restart_now/0, ask_restart/1,
+         by_input/1, read_input/1, run_main/3, arguments/0, exit_program/1, deadlock_target/1,
+         signal/1, initializing/1, site/0, binding/1, restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, spawn_order/1, init_stdlib/0, init_modules/1, ordered/1]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
@@ -1175,7 +1175,10 @@ bytes(Reply, eof) -> answer(Reply, 'None');
 bytes(_, {error, Reason}) -> unreadable(Reason).
 
 unreadable(Reason) ->
-    end_with_fault(format("the standard input could not be read: ~p", [Reason])).
+    end_with_fault(<<(unreadable())/binary, (format("~p", [Reason]))/binary>>).
+
+unreadable() ->
+    <<"the standard input could not be read: ">>.
 
 not_utf8() ->
     <<"the standard input is not UTF-8">>.
@@ -1185,6 +1188,16 @@ not_utf8() ->
 -spec input_not_utf8() -> ok.
 input_not_utf8() ->
     end_with_fault(not_utf8()).
+
+%% Report §8.2, §11.8: whether a fault's cause is one of standard input's,
+%% which ends a shell as it ends a run, by its input and not by a defect.
+-spec by_input(binary()) -> boolean().
+by_input(Cause) ->
+    Prefix = unreadable(),
+    case Cause of
+        <<Prefix:(byte_size(Prefix))/binary, _/binary>> -> true;
+        _ -> Cause =:= not_utf8()
+    end.
 
 %% The input as it arrives, for one request: at least one byte, eof, or
 %% {error, Reason}. The input is open from the request to its first answer,

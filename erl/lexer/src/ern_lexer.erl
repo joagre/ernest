@@ -60,9 +60,17 @@ tokenize(Data, Options) ->
                     {error, #diag{span = {Line, Col, {Line, Col + 1}}, message = Message,
                                   incomplete = Incomplete}}
             end;
-        _ ->
-            {error, #diag{span = {1, 1, {1, 2}}, message = "input is not valid UTF-8"}}
+        {_, Good, _} ->
+            {Line, Col} = place(strip_bom(Good), 1, 1),
+            {error, #diag{span = {Line, Col, {Line, Col + 1}},
+                          message = "input is not valid UTF-8"}}
     end.
+
+%% Report §2.1: where the byte after the characters stands, the first that
+%% begins no UTF-8 character.
+place([], Line, Col) -> {Line, Col};
+place([$\n | Rest], Line, _) -> place(Rest, Line + 1, 1);
+place([_ | Rest], Line, Col) -> place(Rest, Line, Col + 1).
 
 strip_bom([16#FEFF | Rest]) -> Rest;
 strip_bom(Chars) -> Chars.

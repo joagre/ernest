@@ -12,7 +12,7 @@
          segment/1, namespace/1, module_path/1, compile_order/2, compile_order/3, source_root/3,
          out_dir/2, is_stdlib_root/1, stdlib_hash/1, dep_iface/4, load_path/1, compiler_modules/0,
          sweep_pages/5, compile_source/4, absolute/1, relative/2, qname/1, write_whole/2,
-         write_whole/3, write_output/2, fail/1]).
+         write_whole/3, write_output/2, read/1, made_dir/1, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -109,15 +109,17 @@ shown(File) ->
 %% error.
 -spec sources(file:filename()) -> [file:filename()].
 sources(Dir) ->
-    {ok, Names} = file:list_dir_all(Dir),
+    Names = case file:list_dir_all(Dir) of
+                {ok, Found} -> Found;
+                {error, Reason} -> refused(Dir, Reason)
+            end,
     lists:append([source(Dir, Name) || Name <- lists:sort(Names), not dot_name(Name)]).
 
 source(Dir, Name) when is_binary(Name) ->
     Path = filename:join(Dir, Name),
     Module = filename:extension(Name) =:= <<".ern">>
         orelse (filelib:is_dir(Path) andalso not is_link(Path) andalso sources(Path) =/= []),
-    Module andalso fail("a name that is not UTF-8: "
-                        ++ filename:join(unicode:characters_to_list(Dir), bytes_text(Name))),
+    Module andalso fail("a name that is not UTF-8: " ++ bytes_text(Path)),
     [];
 source(Dir, Name) ->
     Path = filename:join(Dir, Name),
@@ -131,8 +133,12 @@ dot_name(<<$., _/binary>>) -> true;
 dot_name([$. | _]) -> true;
 dot_name(_) -> false.
 
-%% A name the host could not decode, each byte past ASCII as `\xHH`.
--spec bytes_text(binary()) -> string().
+%% A name the host could not decode, each byte past ASCII as `\xHH`, and
+%% one it could as it is. A directory's name may be either, so a name is
+%% any path the host gives.
+-spec bytes_text(file:filename_all()) -> string().
+bytes_text(Name) when is_list(Name) ->
+    Name;
 bytes_text(Name) ->
     lists:append([case B < 16#80 of
                       true -> [B];
@@ -191,15 +197,17 @@ shape(File, Component) ->
         true -> ok;
         false ->
             Named = File ++ ": path component `" ++ Component ++ "`",
-            case re:run(Component, "[A-Z]") of
-                {match, _} -> fail(Named ++ " must be lowercase");
-                nomatch -> fail(Named ++ " must be one word: a lowercase letter, then lowercase"
-                                " letters and digits; a multi-word module is a directory")
+            case lists:any(fun(C) -> C >= $A andalso C =< $Z end, Component) of
+                true -> fail(Named ++ " must be lowercase");
+                false -> fail(Named ++ " must be one word: a lowercase letter, then lowercase"
+                              " letters and digits; a multi-word module is a directory")
             end
     end.
 
-word(Component) ->
-    re:run(Component, "^[a-z][a-z0-9]*$") =/= nomatch.
+word([C | Cs]) when C >= $a, C =< $z ->
+    lists:all(fun(D) -> (D >= $a andalso D =< $z) orelse (D >= $0 andalso D =< $9) end, Cs);
+word(_) ->
+    false.
 
 %% Report §11.1, §4.2: the namespace segment a path component names, where
 %% it is one word; the shell's `:load` completion asks here, so that the
@@ -219,8 +227,11 @@ namespace(Components) ->
 %% The inverse: a namespace as a relative path without extension.
 -spec module_path([atom()]) -> string().
 module_path(Ns) ->
-    filename:join([string:lowercase(string:slice(atom_to_list(S), 0, 1))
-                   ++ string:slice(atom_to_list(S), 1) || S <- Ns]).
+    segments_path([atom_to_list(S) || S <- Ns]).
+
+segments_path(Segments) ->
+    filename:join([string:lowercase(string:slice(S, 0, 1)) ++ string:slice(S, 1)
+                   || S <- Segments]).
 
 %% Parse every module, find its dependencies, and order them; a cycle is
 %% an error naming the modules in it (§11.1).
@@ -275,8 +286,7 @@ topsort(G) ->
     end.
 
 parse_module(#mod{file = File} = M, Root, LoadPath) ->
-    {ok, Bin} = file:read_file(File),
-    case ern_parser:parse_string(Bin) of
+    case ern_parser:parse_string(read(File)) of
         {ok, Decls} ->
             namespace_clash(M#mod{decls = Decls}, Root),
             %% a module naming itself qualified (report §4.2) depends on nothing by it
@@ -419,8 +429,7 @@ build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
       [OutDir | _] = Dirs, Emit, Std) ->
     DepIfaces = [dep_iface(D, Ifaces, Dirs, Root) || D <- Deps],
     DepHashes = lists:sort([{D, ern_iface:hash(I)} || {D, I} <- DepIfaces]),
-    {ok, Source} = file:read_file(File),
-    SourceHash = crypto:hash(sha256, Source),
+    SourceHash = crypto:hash(sha256, read(File)),
     SourcePath = path_from(OutDir, File),
     Out = filename:join(OutDir, filename:rootname(Rel)),
     Erc = Out ++ ".erc",
@@ -430,7 +439,7 @@ build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
         false ->
             case ern_typecheck:check(Ns, Decls, [I || {_, I} <- DepIfaces]) of
                 {ok, Typed, Iface, Env} ->
-                    ok = filelib:ensure_dir(Erc),
+                    ok = made_dir(Erc),
                     case Emit of
                         erl ->
                             Src = ["%% Generated by ern build from ", Rel, "\n",
@@ -564,7 +573,7 @@ read_erc(Erc) ->
 sweep(Dir, Root, OutDir) ->
     Sub = absolute(filename:join(OutDir, relative(Dir, Root))),
     lists:foreach(fun(Erc) ->
-                      ok = file:delete(Erc),
+                      ok = deleted(Erc),
                       remove_emptied(filename:dirname(Erc), Sub, OutDir)
                   end, [Erc || Erc <- outputs(Sub, ".erc"), stale(Erc, OutDir, Root)]).
 
@@ -604,37 +613,44 @@ sweep_pages(Kind, Dir, Root, OutDir, Kept) ->
               markdown -> ".md";
               man -> ".3ern"
           end,
+    Names = [[atom_to_list(S) || S <- Ns] || Ns <- Kept],
     lists:foreach(fun(Page) ->
-                      ok = file:delete(Page),
+                      ok = deleted(Page),
                       remove_emptied(filename:dirname(Page), Sub, OutDir)
                   end, [Page || Page <- outputs(Sub, Ext),
-                                {ok, Ns} <- [page_of(Kind, Page, OutDir)],
-                                not lists:member(Ns, Kept)]).
+                                {ok, Segments} <- [page_of(Kind, Page, OutDir)],
+                                not lists:member(Segments, Names)]).
 
-%% The module a page documents, by its title, where the page stands at that
-%% module's place.
+%% The segments of the module a page documents, by its title, where the
+%% page stands at that module's place. A title is no module's name until
+%% the place agrees, so it is read as text.
 page_of(Kind, Page, OutDir) ->
-    {ok, Bin} = file:read_file(Page),
-    Title = case {Kind, binary:split(Bin, <<"\n">>, [global])} of
-                {markdown, [<<"# Ernest module ", Q/binary>> | _]} -> binary_to_list(Q);
+    Title = case {Kind, binary:split(read(Page), <<"\n">>, [global])} of
+                {markdown, [<<"# Ernest module ", Q/binary>> | _]} -> title(Q);
                 {man, [_, <<".TH \"Ernest.", Rest/binary>> | _]} ->
                     [Q | _] = binary:split(Rest, <<"\"">>),
-                    binary_to_list(Q);
+                    title(Q);
                 _ -> none
             end,
     case Title of
         none -> none;
         _ ->
-            Ns = [list_to_atom(S) || S <- string:split(Title, ".", all)],
+            Segments = string:split(Title, ".", all),
             Place = case Kind of
-                        markdown -> module_path(Ns) ++ ".md";
-                        man -> filename:join(filename:dirname(module_path(Ns)),
+                        markdown -> segments_path(Segments) ++ ".md";
+                        man -> filename:join(filename:dirname(segments_path(Segments)),
                                              "Ernest." ++ Title ++ ".3ern")
                     end,
             case relative(Page, OutDir) =:= Place of
-                true -> {ok, Ns};
+                true -> {ok, Segments};
                 false -> none
             end
+    end.
+
+title(Text) ->
+    case unicode:characters_to_list(Text) of
+        Title when is_list(Title) -> Title;
+        _ -> none
     end.
 
 %% A directory the sweep emptied, and each above it that it empties in turn,
@@ -665,8 +681,7 @@ compile_source(File, Root, Dirs, Ifaces) ->
             compile_order([module_of(absolute(File), Root)], Root, Dirs),
         DepIfaces = [dep_iface(D, Ifaces, Dirs, Root) || D <- Deps],
         DepHashes = lists:sort([{D, ern_iface:hash(I)} || {D, I} <- DepIfaces]),
-        {ok, Source} = file:read_file(File),
-        Hash = crypto:hash(sha256, Source),
+        Hash = crypto:hash(sha256, read(File)),
         case ern_typecheck:check(Ns, Decls, [I || {_, I} <- DepIfaces]) of
             {ok, Typed, Iface, Env} ->
                 %% the dependencies are recorded as `ern build` records them, so
@@ -775,6 +790,35 @@ written(File, Target, Data, Mode) ->
             _ = file:delete(New),
             fail(File ++ ": " ++ file:format_error(Reason))
     end.
+
+%% Report §11.8: a file a job cannot read, a directory it cannot make, and
+%% a file it cannot remove are refused with the host's reason, status 1.
+%% A file already gone is removed.
+-spec read(file:filename_all()) -> binary().
+read(File) ->
+    case file:read_file(File) of
+        {ok, Bin} -> Bin;
+        {error, Reason} -> refused(File, Reason)
+    end.
+
+%% The directories a file is written under.
+-spec made_dir(file:filename()) -> ok.
+made_dir(File) ->
+    case filelib:ensure_dir(File) of
+        ok -> ok;
+        {error, Reason} -> refused(filename:dirname(File), Reason)
+    end.
+
+deleted(File) ->
+    case file:delete(File) of
+        ok -> ok;
+        {error, enoent} -> ok;
+        {error, Reason} -> refused(File, Reason)
+    end.
+
+-spec refused(file:filename_all(), term()) -> no_return().
+refused(File, Reason) ->
+    fail(bytes_text(File) ++ ": " ++ file:format_error(Reason)).
 
 %% The file a path names, its links followed, as the host follows them, up
 %% to a depth past which the host would refuse the path.

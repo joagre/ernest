@@ -1070,8 +1070,10 @@ wide_input() ->
     ?assert(lists:member(<<"> let longname = \"abcdefghijklmnopqrstuv">>, Lines)).
 
 %% report §11.2: `:load` of a source that does not lex or parse reports its
-%% diagnostic and the session goes on. A regression test: the error was
-%% raised out of the front end, and the shell ended with it
+%% diagnostic and the session goes on, and so does `:load` of a source that
+%% is not UTF-8 or cannot be read (§11.8). A regression test: the error was
+%% raised out of the front end, and the shell ended with it; the release
+%% review found the same of the last two
 load_unreadable_test_() ->
     {timeout, 60, fun load_unreadable/0}.
 
@@ -1081,15 +1083,36 @@ load_unreadable() ->
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(filename:join(Dir, "bad.ern"), "export fn f() : Int = 1 \\ 2\n"),
     In = filename:join(Dir, "session.in"),
-    ok = file:write_file(In, ":load Bad\n1\n"),
+    ok = file:write_file(filename:join(Dir, "garbled.ern"), <<"export let x : Int = ", 16#FF>>),
+    Closed = filename:join(Dir, "closed.ern"),
+    ok = file:write_file(Closed, "export let y : Int = 1\n"),
+    ok = file:change_mode(Closed, 8#000),
+    ok = file:write_file(In, ":load Bad\n:load Garbled\n:load Closed\n1\n"),
     {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
+    ok = file:change_mode(Closed, 8#600),
     ?assertMatch({_, _}, binary:match(Out, <<"bad.ern:1:25: illegal character">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"garbled.ern:1:22: input is not valid UTF-8">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"closed.ern: permission denied">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)).
+
+%% report §11.8, §8.2: a line of standard input that is not UTF-8 faults
+%% the shell, which reads it, and the shell ends with status 1, as a run
+%% does whose entry process faults. A regression test of the status, the
+%% shell's own faults now being failures of ern: that a fault by a defect
+%% exits with status 70 is not covered, since no input gives the shell one
+input_fault_status_test_() ->
+    {timeout, 60, fun input_fault_status/0}.
+
+input_fault_status() ->
+    {1, Out} = sh("printf \"1 + 1\\n\\377\\n2 + 2\\n\" | ../bin/ern shell"),
+    ?assertMatch({_, _}, binary:match(Out, <<"fault: the standard input is not UTF-8">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"4 : Int">>)).
 
 %% report §11.2: `:load` refuses a module whose dependency has no source
 %% and a compiled form it cannot read, with a sentence naming it. A
 %% regression test of compile_source's refusal, which the shell had told
-%% apart from diagnostics by the shape of a list.
+%% apart from diagnostics by the shape of a list, and, since the release
+%% review, of the refusal's text, which quoted the file's bytes
 load_unreadable_dependency_test_() ->
     {timeout, 60, fun load_unreadable_dependency/0}.
 
@@ -1102,7 +1125,8 @@ load_unreadable_dependency() ->
     In = filename:join(Dir, "session.in"),
     ok = file:write_file(In, ":load Top\n1\n"),
     {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
-    ?assertMatch({_, _}, binary:match(Out, <<"compile Dep first">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"compile Dep first: ">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"dep.erc: not a compiled module">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)).
 
 %% report §11.2: a binding and a function may take the names the host gives

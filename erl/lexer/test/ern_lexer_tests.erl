@@ -228,11 +228,14 @@ position_after_multiline_things_test() ->
 bom_is_stripped_test() ->
     ?assertEqual([{ident, a}], toks([16#FEFF | "a"])).
 
-%% report §2.1: a source is UTF-8, and bytes that are not are refused. A
-%% regression test: the catalogue of diagnostics, which cannot hold such
-%% bytes, found no test that gave the error
+%% report §2.1: a source is UTF-8, and bytes that are not are refused
+%% where the first of them stands. A regression test: the catalogue of
+%% diagnostics, which cannot hold such bytes, found no test that gave the
+%% error, and the release review found it placed at 1:1
 not_utf8_test() ->
-    ?assertEqual({1, 1, "input is not valid UTF-8"}, err(<<"fn f() = ", 16#FF>>)).
+    ?assertEqual({1, 10, "input is not valid UTF-8"}, err(<<"fn f() = ", 16#FF>>)),
+    ?assertEqual({2, 2, "input is not valid UTF-8"},
+                 err(<<16#EF, 16#BB, 16#BF, "a\n\t", 16#C3, "b", 16#FF>>)).
 
 %% report §2.5
 errors_test() ->

@@ -77,8 +77,15 @@ width(L, C, _, Lines) when L =< length(Lines) -> max(1, length(lists:nth(L, Line
 width(_, _, _, _) -> 1.
 
 lines(Source) ->
-    Chars = unicode:characters_to_list(Source),
+    Chars = chars(Source),
     [[shown(Ch) || Ch <- Line, Ch =/= $\r] || Line <- string:split(Chars, "\n", all)].
+
+%% Report §11.5: a source's characters, each byte that begins no UTF-8
+%% character as U+FFFD, so that the lexer's refusal of one shows its line.
+chars(<<Ch/utf8, Rest/binary>>) -> [Ch | chars(Rest)];
+chars(<<_, Rest/binary>>) -> [16#FFFD | chars(Rest)];
+chars(<<>>) -> [];
+chars(Source) -> chars(unicode:characters_to_binary(Source)).
 
 %% Report §11.5: an excerpt shows a tab as a space and a control character
 %% as its picture, one column each, so that the caret stays under it and

@@ -26,8 +26,9 @@ export abstract type State =
 // Report §8.2: a sequence the terminal sends that `Terminal.Event` does
 // not name (Appendix E.16) arrives as `Escape` and the characters after
 // it, so the editor reads one: `Escape` begins a Meta key, and `Escape [`
-// begins the rest of a sequence, of which `Escape [ Z` is `Shift-Tab`.
-type Pending = Plain | Meta | Bracket
+// and `Escape O` begin the rest of a sequence, of which `Escape [ Z` is
+// `Shift-Tab`. After the first character of the rest come its parameters.
+type Pending = Plain | Meta | Bracket | Parameters
 
 // An incremental search: what has been typed to search for, where in the
 // history the match is, where the walk stood and what was being typed
@@ -138,15 +139,31 @@ export fn edit(state : State, event : Terminal.Event) : Edit =
         State(search = Some(s)) -> searching(State(..state, pending = Plain), s, event)
       | State(pending = Meta) -> meta(State(..state, pending = Plain), event)
       | State(pending = Bracket) -> bracket(State(..state, pending = Plain), event)
+      | State(pending = Parameters) -> sequence(State(..state, pending = Plain), event)
       | State(pending = Plain) -> plain(state, event)
     }
 
 // Report §11.2: `Shift-Tab`, which the terminal sends as `Escape [ Z`,
-// shows what the name at the cursor is. Any other sequence is the
-// `Escape` key and the characters after it, as §8.2 delivers it.
+// shows what the name at the cursor is.
 fn bracket(state : State, event : Terminal.Event) : Edit =
     match event {
         Terminal.Key('Z') -> Documenting(state)
+      | other -> sequence(state, other)
+    }
+
+// Report §11.2: every other sequence does nothing, `Delete` as `Escape [
+// 3 ~`, `Home` as `Escape [ H` and `F1` as `Escape O P` among them. Its
+// parameters are characters from U+0020 to U+003F, and one from U+0040
+// to U+007E ends it, as ECMA-48 writes a control sequence; anything else
+// ends it unread, and does what it does.
+fn sequence(state : State, event : Terminal.Event) : Edit =
+    match event {
+        Terminal.Key(c) -> if c >= ' ' && c <= '?' then
+            Typing(State(..state, pending = Parameters))
+        else if c >= '@' && c <= '~' then
+            Typing(state)
+        else
+            plain(state, event)
       | other -> plain(state, other)
     }
 
@@ -199,9 +216,11 @@ fn meta(state : State, event : Terminal.Event) : Edit = {
         // report §11.2: another line, though the parser could run what
         // is typed
         Terminal.Enter -> Typing(newline(state))
-      // report §8.2: `Escape [` begins a sequence `Terminal.Event` does
-      // not name (Appendix E.16), of which `Escape [ Z` is `Shift-Tab`
+      // report §8.2: `Escape [` and `Escape O` begin a sequence
+      // `Terminal.Event` does not name (Appendix E.16), of which `Escape [
+      // Z` is `Shift-Tab`
       | Terminal.Key('[') -> Typing(State(..state, pending = Bracket))
+      | Terminal.Key('O') -> Typing(State(..state, pending = Parameters))
       | Terminal.Key('<') -> Typing(walkTo(state, List.size(state.history)))
       | Terminal.Key('>') -> Typing(walkTo(state, 0))
       | Terminal.Key('b') -> Typing(State(..state, at = wordLeft(text, at, alphanumeric)))
@@ -575,9 +594,24 @@ let asksToDocument =
            | other -> Failed(said(other))
          })
 
-let escapeThenBracket =
-    Test(name = "Escape and a bracket that is no sequence types on",
-         run = fn() = reads(play(keys("a") <> [Terminal.Escape] <> keys("[b")), "ab", 2))
+// report §11.2. A regression test: the rest of a sequence but `Shift-Tab`
+// was typed into the line, `a3~` for `Delete`
+let unboundSequences = Test(name = "a sequence that is not bound does nothing", run = fn() = {
+    let sequences = ["[3~", "[H", "[F", "[5~", "[1;5C", "OP", "[15~"];
+    let typed = List.flatMap(sequences, fn(s) = [Terminal.Escape] <> keys(s));
+    reads(play(keys("a") <> typed <> keys("b")), "ab", 2)
+})
+
+let sequenceEndsUnread =
+    Test(name = "a key that is no part of a sequence ends it and does what it does",
+         run = fn() =
+             reads(play(keys("a")
+                            <> [Terminal.Escape]
+                            <> keys("[1")
+                            <> [Terminal.ArrowLeft]
+                            <> keys("b")),
+                   "ba",
+                   1))
 
 let walks =
     Test(name = "the arrows walk back through the inputs",

@@ -789,7 +789,13 @@ incomplete_test() ->
     ?assert(Decls("fn f() =")),
     ?assert(Decls("type T = A | ")),
     ?assert(Decls("/* a comment")),
-    ?assertMatch({ok, _}, ern_parser:parse_string("fn f() = 1")).
+    ?assertMatch({ok, _}, ern_parser:parse_string("fn f() = 1")),
+    %% an `if` whose `else` is still to come, and a parameter list whose
+    %% `->` is; a regression test: the error stood at the `if` or the
+    %% bracket, and the input was refused (findings.md's C2-4)
+    ?assert(Expr("if c then a")),
+    ?assertNot(Expr("if c then a )")),
+    ?assert(Decls("fn f(g : ()")).
 
 %% report §11.2: an input that stops inside a call says which call and
 %% which argument, the innermost call first, for `Shift-Tab`; `expected`

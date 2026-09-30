@@ -12,7 +12,10 @@
 # interrupt ends it (report §8.6); and it reads no ~/.erlang. The host's
 # flags from the environment, ERL_AFLAGS, ERL_FLAGS and ERL_ZFLAGS, and its
 # code path from ERL_LIBS, are cleared, since they would change the host,
-# or run code with -eval, with nothing in the command saying so.
+# or run code with -eval, with nothing in the command saying so. A
+# standard output or standard error closed as the job begins can no longer
+# be written, and the host would open /dev/null in its place: ern exits
+# with status 141, and writes nothing (report §11.8).
 
 self=$0
 while [ -L "$self" ]; do
@@ -32,6 +35,10 @@ fi
 if ! command -v erl >/dev/null 2>&1; then
     echo "ern: erl, of Erlang/OTP 29, is not on the path" >&2
     exit 1
+fi
+
+if ! { true; } 2>/dev/null 3>&1 || ! { true; } 3>&2; then
+    exit 141
 fi
 
 unset ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS ERL_LIBS

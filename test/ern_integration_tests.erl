@@ -674,7 +674,9 @@ foreign_module() ->
 %% report §11: a job whose standard output or standard error has no reader
 %% any more ends at once with status 141, and leaves no crash dump. A
 %% regression test: every job but a program's run halted the host, which
-%% wrote erl_crash.dump into the working directory
+%% wrote erl_crash.dump into the working directory; the release review
+%% found the shell in line mode ending with status 0 and the host's report
+%% of the failed write
 closed_pipe_test_() ->
     {timeout, 60, fun closed_pipe/0}.
 
@@ -691,8 +693,25 @@ closed_pipe() ->
              end,
     [?assertEqual({Job, <<"141">>}, {Job, Status(Job)})
      || Job <- ["--version", "--help", "build missing.ern", "run missing.erc", "test --help",
-                "doc " ++ filename:absname("../stdlib/list.ern")]],
-    ?assertNot(filelib:is_file(Dir ++ "/erl_crash.dump")).
+                "doc " ++ filename:absname("../stdlib/list.ern"), "shell < /dev/null"]],
+    ?assertNot(filelib:is_file(Dir ++ "/erl_crash.dump")),
+    {0, _} = sh("sh -c 'cd " ++ Dir ++ " && ( sleep 0.3; echo 1 | " ++ Ern ++ " shell"
+                " 2> err; echo $? > status ) | true'"),
+    ?assertEqual({ok, <<"141\n">>}, file:read_file(Dir ++ "/status")),
+    ?assertEqual({ok, <<>>}, file:read_file(Dir ++ "/err")).
+
+%% report §11, §11.8: a job whose standard output or standard error is
+%% closed as it begins ends with status 141 and writes nothing. A
+%% regression test: the host opened /dev/null in the stream's place, and
+%% the job wrote there and ended with status 0
+closed_stream_test_() ->
+    {timeout, 60, fun closed_stream/0}.
+
+closed_stream() ->
+    Ern = filename:absname("../bin/ern"),
+    ?assertEqual({141, <<>>}, sh(Ern ++ " --version >&- 2>/dev/null")),
+    ?assertEqual({141, <<>>}, sh(Ern ++ " shell < /dev/null >/dev/null 2>&-")),
+    ?assertEqual({0, <<>>}, sh(Ern ++ " --version >/dev/null")).
 
 %% report §11.2: a fault line writes a control character of the cause as
 %% its escape, so that a fault is one line. A regression test: a cause's

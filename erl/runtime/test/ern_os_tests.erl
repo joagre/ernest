@@ -66,10 +66,14 @@ helper_says_input_was_dropped_test() ->
 %% Appendix E.23: a program the host cannot start, here for want of a file
 %% descriptor for its pipes, is answered with the host's reason. A
 %% regression test: the helper ended without a word, and `start` answered
-%% only that the helper failed (findings.md's C19)
+%% only that the helper failed (findings.md's C19). Under `make sanitize`
+%% the leak checker, which needs descriptors of its own as the helper
+%% ends, is off for this run alone; the release review found it starved,
+%% and the helper hung as it failed
 helper_gives_the_hosts_reason_test() ->
     Helper = filename:join([filename:dirname(code:which(ern_os)), "..", "priv", "ern_exec"]),
-    Port = open_port({spawn, "sh -c \"ulimit -n 7; exec " ++ Helper ++ " true\""},
+    Port = open_port({spawn, "sh -c \"ulimit -n 7; ASAN_OPTIONS=$ASAN_OPTIONS:detect_leaks=0"
+                      " exec " ++ Helper ++ " true\""},
                      [{packet, 4}, binary, exit_status]),
     ?assertEqual(<<"fToo many open files">>,
                  receive {Port, {data, D}} -> D after 5000 -> none end),

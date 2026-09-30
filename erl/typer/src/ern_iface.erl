@@ -43,8 +43,9 @@ read(Beam) ->
             catch _:_ ->
                 {error, "the interface chunk is of another compiler version"}
             end;
-        {error, beam_lib, Reason} ->
-            {error, lists:flatten(beam_lib:format_error(Reason))}
+        %% the host's text of the error quotes the bytes it was given
+        {error, beam_lib, _} ->
+            {error, "not a compiled module"}
     end.
 
 -spec hash(#iface{}) -> binary().

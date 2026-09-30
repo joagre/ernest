@@ -476,7 +476,7 @@ $ ern build example.ern
 example.ern:1:10: expected a type inside the parentheses, or `->` after them
 1 | fn f() : () = 1
   |          ^
-  | = help: the type of no value is Unit
+  | = help: the type whose one value is written () is Unit
 ```
 
 ### Parenthesized types that are no function type (§3.2)

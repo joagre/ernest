@@ -16,6 +16,18 @@ control_picture_test() ->
                  "  |       ^\n",
                  lists:flatten(ern_diag:format("main.ern", "/// a \e[2J\n", D))).
 
+%% report §11.5: the source shows a byte that begins no UTF-8 character
+%% as U+FFFD, one column. A regression test: the release review found
+%% `ern build` of such a source ending as a failure of ern itself
+not_utf8_test() ->
+    D = #diag{span = {2, 5, {2, 6}}, message = "input is not valid UTF-8"},
+    ?assertEqual("main.ern:2:5: input is not valid UTF-8\n"
+                 "1 | é\n"
+                 "2 | a = \x{FFFD}\x{FFFD}\n"
+                 "  |     ^\n",
+                 lists:flatten(ern_diag:format("main.ern",
+                                               <<"\xC3\xA9\na = ", 16#FF, 16#C3>>, D))).
+
 %% report §11.5: the first line is file:line:column: message
 short_test() ->
     D = #diag{span = {2, 7, {2, 10}}, message = "expected Int, found String"},

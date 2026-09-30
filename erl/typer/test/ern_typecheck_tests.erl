@@ -592,6 +592,14 @@ guards_are_pure_test() ->
 %% Patterns and blocks
 %%
 
+%% report §5.10, §11.5: a name after `as` binds as a variable does, so one
+%% bound twice through it is refused at the second. A regression test: the
+%% checker crashed looking for two variables (findings.md's C2-3)
+as_binds_twice_test() ->
+    ?assertEqual("variable x appears twice in the pattern", err("fn f(x as x) : Int = x")),
+    ?assertEqual("variable a appears twice in the pattern",
+                 err("fn g(p : #(Int, Int)) : Int = match p { #(a, b) as a -> a }")).
+
 %% report §5.10
 patterns_test() ->
     ?assertEqual("variable x appears twice in the pattern",
@@ -1303,6 +1311,11 @@ warts_audit_test() ->
     ?assertEqual("the implementation of tick is named module:function/arity, here"
                  " module:function/0",
                  err("foreign fn tick() : Unit with m = \"tick\"")),
+    %% a line feed after the arity is no part of the form; a regression
+    %% test: `$` matched before it (findings.md's C2-8)
+    ?assertEqual("the implementation of tick is named module:function/arity, here"
+                 " module:function/0",
+                 err("foreign fn tick() : Unit with m = \"m:tick/0\\n\"")),
     %% foreign fn with an effect is process-only
     ?assertEqual("tick needs a process, and f is pure",
                  err("foreign fn tick() : Unit with m = \"m:tick/0\"\nfn f() : Unit = tick()")),

@@ -393,8 +393,12 @@ type([{'(', Pos} | R]) ->
         _ ->
             case Elems of
                 [T] -> w({T, R2});
-                [] -> fail(Pos, "expected a type inside the parentheses, or `->` after them",
-                           "the type of no value is Unit");
+                [] ->
+                    %% report §11.2: at the input's end a further line may
+                    %% hold the `->`
+                    D = diag(Pos, "expected a type inside the parentheses, or `->` after them",
+                             "the type whose one value is written () is Unit"),
+                    throw({parse_error, D#diag{incomplete = ended(R2)}});
                 _ -> fail(pos(hd(R2)), "expected `->` after a parameter list instead of "
                                        ++ describe(hd(R2)),
                           "a tuple type is written with `#(`, as #(Int, Int)")
@@ -476,10 +480,13 @@ if_expr(Ts, Pos) ->
         [{'else', _} | R3] ->
             {Else, R4} = expr(R3),
             w({#e_if{pos = Pos, condition = Cond, then_branch = Then, else_branch = Else}, R4});
-        [_ | _] ->
-            %% report §11.5: at the `if`, which the next line need not show
-            fail(Pos, "`if` needs an `else`", "every `if` is an expression; give the"
-                 " other branch a value")
+        [Next | _] ->
+            %% report §11.5: at the `if`, which the next line need not show;
+            %% report §11.2: where the input ended there, a further line may
+            %% hold the `else`, and the shell takes it
+            D = diag(Pos, "`if` needs an `else`", "every `if` is an expression; give the"
+                     " other branch a value"),
+            throw({parse_error, D#diag{incomplete = ended([Next])}})
     end.
 
 match_expr(Ts, Pos) ->
@@ -798,8 +805,8 @@ stmt(Ts) ->
 pattern(Ts) ->
     {P, R} = conspat(Ts),
     case R of
-        [{as, _}, {ident, _, Name} | R1] ->
-            w({#p_as{pos = node_pos(P), pattern = P, name = Name}, R1});
+        [{as, _}, {ident, NamePos, Name} | R1] ->
+            w({#p_as{pos = node_pos(P), pattern = P, name = Name, name_pos = NamePos}, R1});
         [{as, _}, T | _] ->
             fail(pos(T), "expected a name after `as` instead of " ++ describe(T));
         _ ->
@@ -1014,6 +1021,11 @@ tagging(What, Parse) ->
 -spec fail(ern_diag:pos(), iodata(), string() | undefined) -> no_return().
 fail(Pos, Message, Help) ->
     throw({parse_error, diag(Pos, Message, Help)}).
+
+%% Whether what is left is the input's end, where a further line may finish
+%% what the parser was reading (report §11.2).
+ended([{eof, _} | _]) -> true;
+ended(_) -> false.
 
 diag(Pos, Message, Help) ->
     #diag{span = ern_diag:span(Pos), message = lists:flatten(Message), help = Help}.

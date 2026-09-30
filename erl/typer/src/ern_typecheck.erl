@@ -1375,7 +1375,8 @@ parameter_effect(_, _) -> false.
 -spec foreign_impl(binary()) -> {ok, {atom(), atom(), non_neg_integer()}} | error.
 foreign_impl(Impl) ->
     case re:run(Impl, "^([a-z][A-Za-z0-9_@]*):([a-z][A-Za-z0-9_]*)/([0-9]+)$",
-                [{capture, all_but_first, list}]) of
+                %% `$` at the very end, not before a final line feed
+                [dollar_endonly, {capture, all_but_first, list}]) of
         {match, [M, F, A]} -> {ok, {list_to_atom(M), list_to_atom(F), list_to_integer(A)}};
         nomatch -> error
     end.
@@ -2784,11 +2785,15 @@ check_pattern(P, Env) ->
     case Names -- lists:usort(Names) of
         [] -> ok;
         [Dup | _] ->
-            %% report §11.5: at the second, the first labelled
-            [First, Second | _] = ern_ast:walk(fun(#p_var{pos = VPos, name = V}, Acc)
-                                                     when V =:= Dup -> Acc ++ [VPos];
-                                                  (_, Acc) -> Acc
-                                               end, P, []),
+            %% report §11.5: at the second, the first labelled; a name
+            %% after `as` binds as a variable does
+            [First, Second | _] =
+                lists:sort(ern_ast:walk(fun(#p_var{pos = VPos, name = V}, Acc)
+                                              when V =:= Dup -> [VPos | Acc];
+                                           (#p_as{name_pos = NPos, name = V}, Acc)
+                                              when V =:= Dup -> [NPos | Acc];
+                                           (_, Acc) -> Acc
+                                        end, P, [])),
             fail(Second, "variable " ++ atom_to_list(Dup) ++ " appears twice in the pattern",
                  [{ern_diag:span(First), "first bound here"}], undefined)
     end,

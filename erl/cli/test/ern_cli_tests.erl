@@ -100,17 +100,22 @@ many_tests() ->
     ?assertEqual(0, ern_cli:ern(["test", filename:join(Dir, "many.erc")])).
 
 %% report §11: a `.erc` that is no compiled module is refused by `ern doc`,
-%% `ern run` and `ern test` alike, by its name. A regression test: `ern doc`
-%% failed with status 70, and a run's refusal quoted the file's bytes
+%% `ern run` and `ern test` alike, by its name, and so is a module the host
+%% compiled from Erlang. A regression test: `ern doc` failed with status
+%% 70, and a run's refusal quoted the file's bytes; the release review found
+%% the second quoting the host module's bytes
 not_a_compiled_module_test() ->
     Dir = tmp(),
-    Erc = write(Dir, "junk.erc", "garbage\n"),
-    lists:foreach(fun(Job) ->
+    Junk = write(Dir, "junk.erc", "garbage\n"),
+    {ok, Host} = file:read_file(code:which(lists)),
+    Beam = write(Dir, "lists.erc", Host),
+    lists:foreach(fun({Job, Erc}) ->
                       ?assertEqual(1, ern_err([Job, Erc])),
                       Said = unicode:characters_to_binary(?capturedOutput),
-                      ?assertMatch({_, _},
-                                   binary:match(Said, <<"junk.erc is not a compiled module">>))
-                  end, ["doc", "run", "test"]).
+                      Line = iolist_to_binary(["ern ", Job, ": ", Erc,
+                                               " is not a compiled module\n"]),
+                      ?assertMatch({Job, Erc, {_, _}}, {Job, Erc, binary:match(Said, Line)})
+                  end, [{Job, Erc} || Job <- ["doc", "run", "test"], Erc <- [Junk, Beam]]).
 
 %% report §11.1: a name that is not UTF-8, of a `.ern` or of a directory
 %% that holds one, is an error; one of another file is passed over. A
@@ -191,6 +196,78 @@ read_only_refused_test() ->
     ?assertEqual(1, ern_err(["format", Inside])),
     ?assertEqual({ok, ["c.ern"]}, file:list_dir(Closed)),
     ok = file:change_mode(Closed, 8#755).
+
+%% report §11.8: a file a job cannot read, and a directory it cannot make,
+%% are refused with the host's reason and status 1: a source `ern build`
+%% and `ern format` read, a module's directory under the build root, and
+%% the directory the configuration's is made in. A regression test: each
+%% ended as a failure of ern itself, status 70
+cannot_read_or_make_test() ->
+    Dir = tmp(),
+    Said = fun(Text) ->
+                   ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(
+                                                       ?capturedOutput), Text))
+           end,
+    Src = write(Dir, "closed.ern", "export let x : Int = 1\n"),
+    ok = file:change_mode(Src, 8#000),
+    ?assertEqual(1, build_err(["--source-root", Dir, Src])),
+    Said(<<"closed.ern: permission denied">>),
+    ?assertEqual(1, ern_err(["format", Src])),
+    ok = file:change_mode(Src, 8#644),
+    write(Dir, "src/deep/m.ern", "export let x : Int = 1\n"),
+    Out = filename:join(Dir, "out"),
+    ok = file:make_dir(Out),
+    ok = file:change_mode(Out, 8#555),
+    ?assertEqual(1, build_err(["--build-root", Out, Dir ++ "/src"])),
+    Said(<<"out/deep: permission denied">>),
+    ?assertEqual(1, ern_err(["config", "--config-dir", Out ++ "/sub/.ernest"])),
+    Said(<<"out/sub: permission denied">>),
+    ok = file:change_mode(Out, 8#755).
+
+%% report §11.3: `--config-dir dir/` names the directory dir. A regression
+%% test: the directory was made, then refused as one that exists
+config_dir_slash_test() ->
+    Dir = tmp() ++ "/.ernest",
+    ?assertEqual(0, ern_err(["config", "--config-dir", Dir ++ "/"])),
+    ?assert(filelib:is_regular(Dir ++ "/ernest.conf")).
+
+%% report §11.1: a name that is not UTF-8 is named, bytes and all, where a
+%% directory's name holding it is not UTF-8 either. A regression test: the
+%% name's text was made from the directory's as though that were UTF-8,
+%% and the build ended as a failure of ern itself
+nested_name_not_utf8_test() ->
+    Dir = tmp(),
+    Inner = filename:join(Dir, <<"b", 16#FF>>),
+    ok = file:make_dir(Inner),
+    ok = file:write_file(filename:join(Inner, <<"d", 16#FE, ".ern">>), <<>>),
+    ?assertEqual(1, build_err([Dir])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"/b\\xFF/d\\xFE.ern">>)).
+
+%% report §11.1: a path component outside Latin-1 is refused by the shape
+%% rule, as any other that is not one word. A regression test: the rule's
+%% test could not read such a component, and the build ended as a failure
+%% of ern itself
+component_outside_latin1_test() ->
+    Dir = tmp(),
+    File = write(Dir, "\x{3b1}\x{3b2}.ern", "export let x : Int = 1\n"),
+    ?assertEqual(1, build_err(["--source-root", Dir, File])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"must be one word">>)),
+    Upper = write(Dir, "sub/\x{3b1}B.ern", "export let x : Int = 1\n"),
+    ?assertEqual(1, build_err(["--source-root", Dir, Upper])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"must be lowercase">>)).
+
+%% report §11.8, §11.5: a source that is not UTF-8 is refused where its
+%% first such byte stands, its line shown, status 1. A regression test: the
+%% line could not be shown, and the build ended as a failure of ern itself
+source_not_utf8_test() ->
+    Dir = tmp(),
+    Src = write(Dir, "bad.ern", <<"fn main() : Unit = ", 16#FF, "\n">>),
+    ?assertEqual(1, build_err(["--source-root", Dir, Src])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"bad.ern:1:20: input is not valid UTF-8">>)).
 
 %% A tool run with the captured output as its error device, so a test
 %% reads what the user sees on stderr.
@@ -1215,6 +1292,24 @@ doc_sweeps_pages_test() ->
     {ok, Index} = file:read_file(filename:join(Out, "index.md")),
     ?assertEqual(nomatch, binary:match(Index, <<"Extra">>)).
 
+%% report §11.4, §11.8: a page whose title names no module at its place
+%% is kept, however long the title, and one the sweep cannot read is
+%% refused with the host's reason and status 1. A regression test: the
+%% sweep made an atom of each title, and a long one, or a page it could not
+%% read, ended it as a failure of ern itself
+doc_sweep_reads_titles_as_text_test() ->
+    Dir = pair(tmp()),
+    Src = filename:join(Dir, "src"),
+    Out = filename:join(Dir, "build"),
+    Notes = write(Out, "notes.md", "# Ernest module " ++ lists:duplicate(300, $A) ++ "\n"),
+    ?assertEqual(0, ern_err(["doc", "--build-root", Out, Src])),
+    ?assert(filelib:is_regular(Notes)),
+    ok = file:change_mode(Notes, 8#000),
+    ?assertEqual(1, ern_err(["doc", "--build-root", Out, Src])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"notes.md: permission denied">>)),
+    ok = file:change_mode(Notes, 8#644).
+
 %% report §11.4: a manual page is UTF-8 text. A regression test: the
 %% prelude's wrote its `§` as one byte of Latin-1
 doc_man_utf8_test_() ->
@@ -1571,6 +1666,25 @@ main_option_test() ->
     ?assertEqual(<<"checked\n">>, iolist_to_binary(?capturedOutput)),
     ?assertEqual(1, ern_cli:ern(["run", "--main", "Tools.twice", Dir ++ "/build/main.erc"])),
     ?assertEqual(1, ern_cli:ern(["run", "--main", "check", Dir ++ "/build/main.erc"])).
+
+%% report §11.2, Appendix A: --main is a qualified name, typenames and then
+%% an ident, and anything else is refused as a usage error before any
+%% module is looked for. A regression test: a segment past the host's
+%% limit on a name ended the job as a failure of ern itself, and a path or
+%% an empty segment was looked for on the load path
+main_option_checked_test() ->
+    Dir = pair(tmp()),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    lists:foreach(fun(Main) ->
+                      ?assertEqual({Main, 1},
+                                   {Main, ern_err(["run", "--main", Main,
+                                                   Dir ++ "/build/main.erc"])}),
+                      ?assertMatch({_, _},
+                                   binary:match(unicode:characters_to_binary(?capturedOutput),
+                                                <<"--main takes a qualified name">>))
+                  end, [lists:duplicate(300, $A) ++ ".main", "../../etc.main", "A..b",
+                        "Main.main ", "Main. main", "Main.if", "Main.Other", "main.main",
+                        "Main.main//x"]).
 
 %% report §8.1, §11.2: an entry point is an exported fn of type
 %% `() -> Unit`, with a mailbox type or pure; a function of another shape

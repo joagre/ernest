@@ -3,8 +3,9 @@
 %% host's user process, which halts the host with a crash dump once a
 %% stream's reader has gone. Where one has, the job ends at once and says
 %% nothing, with the status 141 that shells give a process a closed pipe
-%% ended. `ern run`, `ern test` and `ern shell` write through the runtime,
-%% which learns the same of its own streams (report §8.2).
+%% ended. `ern run` and `ern test` write through the runtime, which learns
+%% the same of its own streams (report §8.2); `ern shell` writes here where
+%% its output is no terminal, and takes the bytes a run writes as they are.
 -module(ern_out).
 
 -export([take/0, finish/1]).
@@ -31,21 +32,26 @@ finish(Err) when is_pid(Err) ->
 finish(_) ->
     ok.
 
+%% A device writes text as UTF-8, and bytes as they are once the runtime
+%% has set its encoding to latin1 (ern_rt's bytes_out/0).
 device(Fd) ->
     spawn(fun() ->
               process_flag(trap_exit, true),
-              loop(erlang:open_port({fd, 0, Fd}, [out, binary]))
+              loop(erlang:open_port({fd, 0, Fd}, [out, binary]), unicode)
           end).
 
-loop(Port) ->
+loop(Port, Encoding) ->
     receive
+        {io_request, From, ReplyAs, {setopts, Opts}} ->
+            From ! {io_reply, ReplyAs, ok},
+            loop(Port, proplists:get_value(encoding, Opts, Encoding));
         {io_request, From, ReplyAs, Request} ->
-            From ! {io_reply, ReplyAs, request(Port, Request)},
-            loop(Port);
+            From ! {io_reply, ReplyAs, request(Port, Encoding, Request)},
+            loop(Port, Encoding);
         {finish, From, Ref} ->
             drained(Port),
             From ! {Ref, finished},
-            loop(Port);
+            loop(Port, Encoding);
         {'EXIT', Port, _} ->
             gone()
     end.
@@ -59,22 +65,20 @@ drained(Port) ->
     end.
 
 %% The requests io:format and io:put_chars make; nothing reads from here.
-request(Port, {put_chars, Encoding, Chars}) ->
-    case unicode:characters_to_binary(Chars, Encoding, utf8) of
+request(Port, Encoding, {put_chars, Given, Chars}) ->
+    case unicode:characters_to_binary(Chars, Given, Encoding) of
         Bin when is_binary(Bin) -> write(Port, Bin);
         _ -> {error, no_translation}
     end;
-request(Port, {put_chars, Encoding, M, F, A}) ->
-    request(Port, {put_chars, Encoding, apply(M, F, A)});
-request(Port, {requests, Requests}) ->
-    lists:foldl(fun(R, ok) -> request(Port, R);
+request(Port, Encoding, {put_chars, Given, M, F, A}) ->
+    request(Port, Encoding, {put_chars, Given, apply(M, F, A)});
+request(Port, Encoding, {requests, Requests}) ->
+    lists:foldl(fun(R, ok) -> request(Port, Encoding, R);
                    (_, Error) -> Error
                 end, ok, Requests);
-request(_, {setopts, _}) ->
-    ok;
-request(_, getopts) ->
-    [{binary, false}, {encoding, unicode}];
-request(_, _) ->
+request(_, Encoding, getopts) ->
+    [{binary, false}, {encoding, Encoding}];
+request(_, _, _) ->
     {error, enotsup}.
 
 write(Port, Bin) ->

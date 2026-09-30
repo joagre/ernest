@@ -76,7 +76,12 @@ After the First Release*).
    about 150 (the log's *The Release Review*). Before the tag, each `tag` line is fixed with
    a regression test, area by area, the security findings first, and each `ask` line is
    decided with the user one at a time; `cheap` clarity is fixed where it is cheap. What is
-   left is MVP 2.99d's.
+   left is MVP 2.99d's. The security lines and the crashes are done (the log's *The Release
+   Review's Security Lines* and *The Release Review's Crashes*). Three decisions came with
+   the crashes: a fault the shell's standard input gives it exits with status 1, and any
+   other fault of its own with 70 (§11.8); a standard stream closed as a job begins ends it
+   with status 141 (§11); and an escape sequence the editor does not bind does nothing
+   (§11.2).
 
 ---
 

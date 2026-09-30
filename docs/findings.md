@@ -7,20 +7,6 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 - ask — `Fs.removeAll` can be steered into another directory between its check and its listing (C1-3)
 - ask — `Foreign.from` hands foreign code an address past its proxy (C1-4)
 
-## Crashes and exit statuses
-
-- tag — the checker crashes on a name bound twice through `as` (C2-3)
-- tag — the shell takes no further line after `if c then a`, nor after `fn f(g : ()` (C2-4)
-- tag — a foreign implementation's name with a trailing line feed is accepted (C2-8)
-- tag — `:load` of an unreadable or non-UTF-8 source ends the session (C3-3)
-- tag — a file a job cannot read or write exits 70, not 1 (C3-4), and so do a source that is not UTF-8 (C3-5), a path outside Latin-1 (C3-6), nested names that are not UTF-8 (C3-15) and a page's long title in `ern doc`'s sweep (C3-16)
-- tag — `ern config --config-dir dir/` makes the directory and refuses it (C3-7)
-- tag — the shell with its standard output closed exits 0 (C3-8), and its own fault exits 1 (C3-18)
-- tag — Delete, Home, End and the other keys of their kind type characters into the line (C3-11)
-- tag — a `.erc` that is no Ernest module is refused with its bytes (C3-13)
-- tag — `--main` is not checked to be a qualified name (C3-14)
-- tag — `make sanitize`: a test's limit of seven descriptors starves the leak checker (M1)
-
 ## Wrong results
 
 - tag — a module's own `Io.show` and `Io.debug` are replaced by the library's (C2-1)
@@ -30,7 +16,6 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 - tag — an address made by `via` loses its function when foreign code gives it back (C1-12)
 - tag — a foreign raise in an initializer is not reported under its binding (C1-22)
 - tag — `Fs.readRange` with a large count or offset (C1-25), `Os.start` with a long argument (C1-26), `Foreign.toList` of an improper list (C1-27), and a stale timer in `Os` (C1-28)
-- tag — `Tcp.connect` cannot reach IPv6 (C1-24)
 - tag — `String.split`, `lines` and `replace` take quadratic time, and so does input to a started program (C1-14, C1-15)
 - tag — `Path` on `..` and on doubled separators (C1-29), `String.isEmpty` and the missing `Bytes.lastIndexOf` (C1-30), the pages' examples and tests (C1-31)
 - tag — `ern format dir` takes `dir` as the source root (C3-12); a startup file's diagnostics lose their place (C3-10); `:load List` answers as a success (C3-20); `:type let _ = 1` is accepted (C3-21); two shells trim the history through one file (C3-22); a reload's ended processes may end `Killed` (C3-19)
