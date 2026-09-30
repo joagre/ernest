@@ -11,4 +11,4 @@ ern --version
 man ern
 ```
 
-`make install PREFIX=$HOME/.local` installs Ernest for you alone, with no `sudo`, where `~/.local/bin` is on your `PATH`, and `make uninstall`, with the same `PREFIX`, removes it. The installation can be moved to another directory whole, and runs there.
+Installing for you alone, with no `sudo`, and removing an installation, are that README's *Installing*. The installation can be moved to another directory whole, and runs there.

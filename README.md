@@ -49,7 +49,7 @@ ern shell                          # :quit to leave
 man ern                            # the toolchain; man Ernest.List for a module
 ```
 
-`make install PREFIX=$HOME/.local` installs Ernest for you alone, with no `sudo`, where `~/.local/bin` is on your `PATH`. `make uninstall`, with the same `PREFIX`, removes it. Without installing, the checkout's `bin/ern` runs in place. The Emacs mode is installed with the rest, and [its page](docs/emacs_mode.md) says how to turn it on.
+`make install PREFIX=$HOME/.local` installs Ernest for you alone, with no `sudo`, where `~/.local/bin` is on your `PATH`. `make uninstall`, with the same `PREFIX`, removes it. Without installing, the checkout's `bin/ern` runs in place. The Emacs mode is installed with the rest, as `share/emacs/site-lisp/ernest-mode.el`, and the header of [`emacs/ernest-mode.el`](emacs/ernest-mode.el) says how to turn it on.
 
 ## Reading more
 

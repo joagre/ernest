@@ -19,7 +19,7 @@ foreign type Value
 
 // What running an input came to: its value, or the cause of the fault
 // that ended it (report §11.2, §6.9).
-type Outcome = Ok(env : Env, value : Value) | Faulted(String)
+type Outcome = Ok(env : Env, run : Int, value : Value) | Faulted(cause : String, run : Int)
 
 foreign fn start() : Env with m =
     "ern_shell:start/0"
@@ -86,8 +86,11 @@ foreign fn unbound(c : Checked) : Bool =
 foreign fn collect(env : Env) : Env with m =
     "ern_shell:collect/1"
 
-foreign fn spawnInput(env : Env, c : Checked, to : Address(Outcome)) : Address(Never) with m =
-    "ern_shell:run/3"
+foreign fn spawnInput(env : Env,
+                      c : Checked,
+                      run : Int,
+                      to : Address(Outcome)) : Address(Never) with m =
+    "ern_shell:run/4"
 
 foreign fn show(v : Value, depth : Int, length : Int) : String =
     "ern_shell:show/3"
@@ -124,7 +127,9 @@ foreign fn holdTerminal(reader : Address(a)) : Unit with m =
 // What the session is told. The reader sends `Ready` once it holds the
 // keyboard, or `NoKeys` where standard input is not a terminal, `Typed`
 // for an input entered, `Interrupted` for `C-c`, and `Eof` for `C-d` on an
-// empty line; the input's process sends `Done` as its run ends;
+// empty line; the input's process sends `Done` as its run ends, its
+// outcome carrying the number of its run, so that the outcome of one
+// `Interrupted` killed is known wherever it arrives;
 // `Process.faults` sends `Reported` for every fault, and the monitor on the
 // reader `ReaderDied` for its end.
 type ShellMsg =
@@ -151,7 +156,8 @@ type State =
           own : Set(Process),
           faults : List(Process.FaultReport),
           from : Optional(#(String, Int)),
-          entered : Int)
+          entered : Int,
+          runs : Int)
 
 // Where an input came from, which its diagnostics and its spawn sites name:
 // the prompt, with the count of what was entered there, or a line of a
@@ -261,7 +267,8 @@ export fn main() : Unit with ShellMsg = {
               own = own,
               faults = [],
               from = None,
-              entered = 0);
+              entered = 0,
+              runs = 0);
     // report §11.2: a process that faults is news at the prompt, whichever
     // it is, and the session hears of it as any subscriber does, from
     // before the program's entry point runs
@@ -339,8 +346,9 @@ fn run(state : State,
       | Right(#(env2, checked)) -> {
             // report §11.2: the run is what timing measures, not the check
             let started = Clock.now();
-            let child = spawnInput(env2, checked, via(Done, self()));
-            await(State(..state, env = env2), screen, checked, child, started, printing)
+            let run = state.runs + 1;
+            let child = spawnInput(env2, checked, run, via(Done, self()));
+            await(State(..state, env = env2, runs = run), screen, checked, child, started, printing)
         }
     }
 
@@ -435,9 +443,10 @@ fn await(state : State,
          checked : Checked,
          child : Address(Never),
          started : Int,
-         printing : Bool) : State with ShellMsg =
+         printing : Bool) : State with ShellMsg = {
+    let current = state.runs;
     receive {
-        Done(Ok(env = env2, value = value)) -> {
+        Done(Ok(env = env2, run = n, value = value)) when n == current -> {
             let shown = typeText(checked);
             if printing then {
                 match declared(checked) {
@@ -463,11 +472,14 @@ fn await(state : State,
             // session's process, once the input has answered
             State(..state, env = collect(env2))
         }
-      | Done(Faulted(text)) -> {
+      | Done(Faulted(cause = text, run = n)) when n == current -> {
             say(screen, Shell.Style.fault(state.colour, placed(state, "fault: " <> text)));
             if printing then timed(screen, state.settings, started) else Unit;
             state
         }
+      // the outcome of an input `Interrupted` killed, which came after the
+      // next was taken
+      | Done(_) -> await(state, screen, checked, child, started, printing)
       | Interrupted -> {
             kill(child);
             say(screen, "Killed");
@@ -485,6 +497,7 @@ fn await(state : State,
         // an input typed meanwhile, and the end of input, are left in the
         // mailbox: they wait for this one, and run after it (report §11.2)
     }
+}
 
 // Report §11.2: with timing on, a result is followed by the time the run
 // took.

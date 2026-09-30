@@ -12,9 +12,11 @@ The report, [`ernest_report.md`](../ernest_report.md), is the one normative docu
 - **[`memory.md`](memory.md)**: how the project checks that nothing grows with the work done.
 - **[`review.md`](review.md)**: what a release runs to be ready.
 - **[`full_review.md`](full_review.md)**: every reader over the whole of its area, run seldom.
-- **[`style.md`](style.md)**: the style of the Erlang and of the Ernest.
+- **[`style.md`](style.md)**: the style of the Erlang, the C and the Ernest.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
+- **[`findings.md`](findings.md)**: what the first review's readers found and is still open, until MVP 2.98 is done.
+- **[`operations.md`](operations.md)**: the proposal of operations records, until MVP 2.99b decides it.
 - **[`shell_design.md`](shell_design.md)**, **[`node_protocol.md`](node_protocol.md)**, **[`code_distribution.md`](code_distribution.md)**, **[`install.md`](install.md)**: the design notes of the shell, of the protocol between nodes, of code distribution, and of the installation.
 - **[`emacs_mode.md`](emacs_mode.md)**: the Emacs major mode.
 - **[`shell/README.md`](../shell/README.md)**: a guide to the shell's code.
@@ -25,6 +27,10 @@ The prelude is the report's §9 and the standard library its Appendix E, which a
 
 ```
 VERSION            the toolchain's version, read at build time
+README.md          what Ernest is and where to begin
+CLAUDE.md          the working rules
+Makefile           the build and the tests' targets
+LICENSE, THIRD_PARTY_LICENSES  the licence, and the third-party code's
 ernest_report.md   the language report (normative)
 ernest_guide.md    the guide
 docs/              the documents listed above, and this one
@@ -38,7 +44,8 @@ test/              what spans applications: the integration, document, style, gu
                    shell and terminal tests, the harnesses of the loads, the benchmark
                    and the pseudo-terminal, and the catalogue of diagnostics; target/,
                    the hand-written target modules; expected/ and golden/, what the
-                   MVP 1 examples print and the Erlang they compile to; and bench/,
+                   MVP 1 examples, services and examples/modules print, repl's session
+                   among them, and the Erlang they compile to; and bench/,
                    input/, load/, session/, stdin/ and terminal/, the programs and
                    inputs tests run
 bin/               ern, the launcher, a POSIX sh script
@@ -74,7 +81,8 @@ make test-erl     the unit tests of every application under erl/, side by side;
 make test-programs  the integration tests: the programs compiled and run as a user
                   runs them, the manual pages and the installation
 make test-docs    the document tests and the style tests
-make test-guide   the guide's examples, the report's, and the catalogue of diagnostics
+make test-guide   the guide's examples, the report's, the README's, and the catalogue of
+                  diagnostics
 make test-shell   the shell's sessions and the terminal
 make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
 make load         the loads of docs/memory.md; not part of make test
@@ -97,8 +105,8 @@ make sections     list the report sections no test cites
 make xref         the document tests alone, without a build: every citation and
                   document path resolves
 make coverage     every section with how many tests cite it and its length, thinnest first
-make golden       rewrite test/golden/, the Erlang the compiler emits for each MVP 1
-                  example
+make golden       rewrite test/golden/, the Erlang the compiler emits for each program
+                  `golden_names/0` lists: the MVP 1 examples, services and examples/modules
 make diagnostics  rewrite the outputs of test/diagnostics.md, the front end's errors,
                   from what ern build prints
 make contents     rewrite the contents lists of the report and the guide from their headings

@@ -1,13 +1,13 @@
 ;;; reindent.el --- Reindent Ernest sources and report what moved  -*- lexical-binding: t; -*-
 
-;; The first of the two corpora in docs/emacs_mode.md: the repository's
-;; own sources are indented as the style guide says, so reindenting one
-;; with the mode must leave it unchanged.  Run from `emacs/':
+;; The repository's own sources are indented as the style guide says, so
+;; reindenting one with the mode must leave it unchanged (docs/emacs_mode.md,
+;; the table of tests).  Run from `emacs/':
 ;;
 ;;     emacs -Q -batch -l test/reindent.el ../stdlib/*.ern
 ;;
-;; With `-f ernest-reindent-show' after the files, every line that moved
-;; is printed as `file:line: old -> new'.
+;; With SHOW set in the environment, every line that moved is printed as
+;; `file:line: old -> new'.
 
 ;;; Code:
 

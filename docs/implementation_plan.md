@@ -118,6 +118,16 @@ discussed with the user one at a time as they are met.
    window of credits for each and `Process.info` for watching only (N4), done 2026-09-30;
    `Clock.monotonic` in, a shim over the host's monotonic milliseconds, and `Udp` placed in
    MVP 3.2 (E.15; the log's *`Clock.monotonic` Is In, and `Udp` Is Placed*), done 2026-09-30;
+   `architecture.md`, `memory.md`, `development.md`, `shell_design.md` and `emacs_mode.md`
+   read back whole against the code and corrected, and the documents reader's D5 to D31
+   checked one by one, with two defects of the shell the read-back found fixed: the late
+   outcome of an interrupted input, which the next input could take as its own, now dropped
+   by its run's number, and the history's directory, made its owner's alone only after a
+   read that succeeded, now before any read (§11.2), done 2026-09-30; the decision for the
+   user in this item of how long the proxy of a `via` address exposed to foreign code lives
+   (§8.4): one is made for each distinct function and lives as long as its target, so a
+   program that exposes a `via` over a fresh closure again and again grows by a process each
+   time, which the shell's run numbers met, and which a constant function avoids;
    the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
@@ -343,8 +353,7 @@ The milestone is §8.7's identity in full:
 - **The normalized definition, decided first**: the typed tree or the untyped one, whether
   local names are erased, and what becomes of the effect variables, which are inferred and
   never written. Whether `ern_iface:hash/1`, which hashes a canonical interface, grows into
-  the definition hash or a second scheme stands beside it is part of that decision; the first
-  is the cheaper.
+  the definition hash or a second scheme stands beside it is part of that decision.
 - Every definition gets a hash of its typed AST; modules are named by hash, with a registry
   per node `{Hash -> Module}`. A function spawned on a peer carries its hash, and a node that
   lacks it fetches the code from the sender. Erlang's module distribution is not used.
@@ -444,8 +453,6 @@ a shell attached to a running node (moved from `shell_design.md`, 2026-09-28).
 
 - **§3.11, §8.3 and §8.7 have no citing test**, which `make sections` lists. All three are MVP
   3.0 and 3.1 material and unbuilt; anything else it lists is a gap.
-- **A label at the first use of the variable whose type a mismatch names** was planned for
-  §3.4's placement work and not built (2026-09-18).
 - **A termination or hangup that comes while the host starts**, before any of `ern` runs, is
   dropped by the host, on this machine in the first 0.2 seconds (report §11). A launcher that
   passes a signal on to the host until the host has taken it would close it, and is decided in

@@ -601,7 +601,7 @@ config(_Opts, _Rest, _Err) ->
 %% Report §11.2: the shell is the entry process, and a file's entry point is
 %% spawned beside it, so §8.6 ends the program when the shell ends and not
 %% when that entry point returns. The shell spawns it itself, through the
-%% front end, so that it can monitor it (§6.9); what the runner does is load
+%% front end, after it has subscribed to faults (E.21); what the runner does is load
 %% the modules, put their interfaces in the session's scope, and run their
 %% initializers (§8.5) before the shell starts.
 shell(Opts, Rest, Err) ->

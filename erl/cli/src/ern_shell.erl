@@ -8,7 +8,7 @@
 -module(ern_shell).
 
 -export([loaded/1, start/0, program/0, startup_files/0, needs_more/1, check/3,
-         is_unit/1, type_text/1, run/3, show/3, bindings/1, context/1, names/0,
+         is_unit/1, type_text/1, run/4, show/3, bindings/1, context/1, names/0,
          session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
          documentation/1, fields/1, signature/1, load/2,
          reload/1, version/0, write/1, screen/1, to_screen/1,
@@ -77,8 +77,9 @@ remember(Env) ->
     Env.
 
 %% Report §11.2, §8.1: the file's entry point, spawned beside the prompt and
-%% not entered, and nothing where the shell was started with no file. The
-%% shell monitors what it gets back (§6.9), so a fault in it is seen.
+%% not entered, and nothing where the shell was started with no file. A
+%% fault in it reaches the session through Process.faults, to which the
+%% session subscribed before (E.21).
 -spec program() -> {'Some', pid()} | 'None'.
 program() ->
     case persistent_term:get({?MODULE, loaded}, #{}) of
@@ -386,9 +387,9 @@ one_name(Typed) ->
 %% Report §11.2: the input runs in a process of its own; the outcome goes to
 %% `To`, so the shell's reader stays live and the address is what an
 %% interruption kills.
--spec run(#env{}, #checked{}, term()) -> term().
+-spec run(#env{}, #checked{}, integer(), term()) -> term().
 run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
-                  binds = Binds, site = {Where, Offset}}, To) ->
+                  binds = Binds, site = {Where, Offset}}, Run, To) ->
     Desc = ern_descriptor:describe(T, TEnv, []),
     {ok, Mod, Beam} = ern_emitter:compile(Ns, Typed, Iface, TEnv,
                                           #{source_hash => <<>>, deps => [], session => Offset}),
@@ -419,12 +420,12 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                 %% here, so that its process does not end with a fault
                 Outcome = try
                               V = value(Mod, Binds),
-                              {'Ok', remember(bind(Env1, Binds, Ns, V, T, TEnv, Iface)),
+                              {'Ok', remember(bind(Env1, Binds, Ns, V, T, TEnv, Iface)), Run,
                                #value{term = V, desc = Desc}}
                           catch
-                              throw:{ern, fault, Msg} -> {'Faulted', Msg};
-                              throw:{ern, fault, Msg, _} -> {'Faulted', Msg};
-                              Class:Reason -> {'Faulted', fault_text(Class, Reason)}
+                              throw:{ern, fault, Msg} -> {'Faulted', Msg, Run};
+                              throw:{ern, fault, Msg, _} -> {'Faulted', Msg, Run};
+                              Class:Reason -> {'Faulted', fault_text(Class, Reason), Run}
                           end,
                 forget(Ns, Binds, Outcome),
                 ern_rt:send(To, Outcome)
@@ -445,12 +446,12 @@ forget(Ns, Binds, Outcome) ->
                                          Pending),
     Now = case {Binds, Outcome} of
               {decls, _} -> kept;
-              {_, {'Ok', _, #value{term = V}}} ->
+              {_, {'Ok', _, _, #value{term = V}}} ->
                   case lists:member(Mod, fun_modules(V, [])) of
                       true -> kept;
                       false -> unload(Mod)
                   end;
-              {_, {'Faulted', _}} -> unload(Mod)
+              {_, {'Faulted', _, _}} -> unload(Mod)
           end,
     Left = case Now of
                unpurged -> [Ns | Unpurged];

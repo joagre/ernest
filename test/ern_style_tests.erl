@@ -11,13 +11,16 @@
 -define(DOCUMENTS, ["ernest_guide.md", "ernest_report.md"]).
 
 %% docs/style.md: code lines are at most 100 characters, in the compiler's
-%% Erlang, its C and in Ernest alike; the vendored getopt keeps its upstream
-%% form, and test/build holds a build's copies, which a stale one failed
+%% Erlang, its C, its Makefiles and its scripts, and in Ernest alike; the
+%% vendored getopt keeps its upstream form, and test/build holds a build's
+%% copies, which a stale one failed. A regression test for the Makefiles,
+%% scripts and headers it once left unread
 line_length_test() ->
     Patterns = ["erl/*/src/*.erl", "erl/*/test/*.erl", "erl/*/c_src/*.c", "test/*.erl",
                 "stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern", "test/**/*.ern",
                 "test/*.py", "emacs/*.el", "emacs/test/*.el", "libs/**/*.ern", "tools/*.ern",
-                "tools/*.sh", "bin/ern"],
+                "tools/*.sh", "tools/*.escript", "bin/ern", "erl/*/include/*.hrl", "Makefile",
+                "test/Makefile", "erl/*/src/Makefile", "tools/release/Makefile"],
     Files = [F || P <- Patterns, F <- filelib:wildcard(P, ?ROOT),
                   filename:basename(F) =/= "getopt.erl",
                   not lists:prefix("test/build/", F),
@@ -215,8 +218,9 @@ module_name_test() ->
     ?assert(length(Ern) > 10),
     ?assertEqual([], [F || F <- Ern, not compiled_as(F)]).
 
-%% docs/emacs_mode.md: the Emacs mode restates Appendix A's reserved words
-%% and a subset of its symbols, so a test keeps the two equal. It found `=>`
+%% docs/emacs_mode.md: the Emacs mode restates §2.4's reserved words, but
+%% true and false, which it paints as constants, and a subset of §2.6's
+%% symbols, so a test keeps the two equal. It found `=>`
 %% and `do`, which the mode painted and the language does not have.
 %% report §2.4, Appendix A
 emacs_mode_mirrors_the_lexer_test() ->

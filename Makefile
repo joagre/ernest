@@ -148,8 +148,9 @@ unicode:
 # jobs that start no host: EUnit gives a test with no time of its own five
 # seconds, which the load of the areas that start hosts would take from
 # them. Those areas then run, each its own tests side by side. Make starts
-# the jobs in the order given, so the longest come first. The modules under test/ are compiled first,
-# once. A change may run its own area's target as it is worked on.
+# the jobs in the order given, so the longest come first. The modules under
+# test/ are compiled first, once. A change may run its own area's target as
+# it is worked on.
 JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 test: all
 	@$(MAKE) -s -C test beams
@@ -317,7 +318,9 @@ coverage:
 	@awk '/^#{2,3} [0-9]+\.[0-9]+/ { if (s != "") print s, w; s = $$2; w = 0; next } \
 	      /^#/ { if (s != "") print s, w; s = ""; next } \
 	      s != "" { w += NF } END { if (s != "") print s, w }' ernest_report.md | \
-	  while read s w; do c=$$(cat erl/*/test/*.erl test/*.erl | grep -o "\(guide \)\?§$$s\b" | grep -v '^guide' | wc -l); \
+	  while read s w; do \
+	    c=$$(cat erl/*/test/*.erl test/*.erl | grep -o "\(guide \)\?§$$s\b" | grep -v '^guide' \
+	         | wc -l); \
 	    printf '%3d cites %5d words  §%s\n' $$c $$w $$s; done | sort -k1,1n -k3,3nr
 
 # Emacs backup (foo~), auto-save (#foo#), and lock (.#foo) files, anywhere.
@@ -328,5 +331,6 @@ clean-emacs:
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load bench test-emacs \
-        $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean clean-emacs sections coverage golden xref contents format stdlib shell doc man install uninstall release unicode \
-        dialyzer sanitize diagnostics
+        $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean clean-emacs sections coverage golden xref \
+        contents format stdlib shell doc man install uninstall release unicode dialyzer sanitize \
+        diagnostics

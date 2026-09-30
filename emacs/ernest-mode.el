@@ -66,7 +66,7 @@
 (defconst ernest-reserved-words
   '("type" "abstract" "with" "foreign" "match" "when" "receive" "after" "or"
     "as" "if" "then" "else" "fn" "let" "export")
-  "Ernest's reserved words, Appendix A.")
+  "Ernest's reserved words, report §2.4, but `true' and `false'.")
 
 (defconst ernest-operators
   '("->" "<-" "::" "<>" "|>" "==" "!=" "<=" ">=" "&&" "||" "..")

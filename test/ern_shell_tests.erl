@@ -363,9 +363,10 @@ fault_line_escaped() ->
 
 %% report §11.2, Appendix E.17: the history's directory is its owner's
 %% alone, made so before the history is written, and one an earlier
-%% version left open to others is closed before the history is read. A
-%% regression test: the directory and the file took the host's default
-%% mode, and others could read what was typed
+%% version left open to others is closed before the history is read, even
+%% where the history cannot be read. A regression test: the directory and
+%% the file took the host's default mode, and others could read what was
+%% typed; and the directory was closed only after a read that succeeded
 history_is_private_test_() ->
     {timeout, 60, fun history_is_private/0}.
 
@@ -379,7 +380,12 @@ history_is_private() ->
     ok = file:change_mode(Dir, 8#755),
     _ = pty("HOME=" ++ Home ++ " ../bin/ern shell", [{expect, "> "}, {send, "04"}], 20),
     {ok, Read} = file:read_file_info(Dir),
-    ?assertEqual(0, element(8, Read) band 8#077).
+    ?assertEqual(0, element(8, Read) band 8#077),
+    ok = file:change_mode(Dir, 8#755),
+    ok = file:change_mode(filename:join(Dir, "history"), 8#000),
+    _ = pty("HOME=" ++ Home ++ " ../bin/ern shell", [{expect, "> "}, {send, "04"}], 20),
+    {ok, Unreadable} = file:read_file_info(Dir),
+    ?assertEqual(0, element(8, Unreadable) band 8#077).
 
 %% report §11.2: on a terminal the shell commits its transcript to the
 %% terminal and paints only the live region, the tail of what programs

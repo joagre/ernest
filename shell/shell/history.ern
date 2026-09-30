@@ -28,14 +28,16 @@ export let file : Optional(Path) =
 export fn read() : Either(Io.Error, List(String)) with m =
     match file {
         None -> Right([])
-      | Some(path) -> match Fs.read(path, wait) {
-            // no file yet: a first session has no history and makes none
-            Left(Io.NotFound) -> Right([])
-          | Left(why) -> Left(why)
-          | Right(bytes) -> {
-                let _ <- made(path);
-                let read <- inputs(bytes);
-                trimmed(path, read)
+      | Some(path) -> {
+            let _ <- made(path);
+            match Fs.read(path, wait) {
+                // no file yet: a first session has no history
+                Left(Io.NotFound) -> Right([])
+              | Left(why) -> Left(why)
+              | Right(bytes) -> {
+                    let read <- inputs(bytes);
+                    trimmed(path, read)
+                }
             }
         }
     }
@@ -81,7 +83,7 @@ export fn add(input : String) : Either(Io.Error, Unit) with m =
 
 // Report §11.2: the directory made where it is not there, as before a
 // first session, and its owner's alone, so that no one else reads what was
-// typed, before the file is written or trimmed.
+// typed, before the file is read, written or trimmed.
 fn made(path : Path) : Either(Io.Error, Unit) with m =
     match Path.parent(path) {
         None -> Right(Unit)

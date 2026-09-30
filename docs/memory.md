@@ -34,9 +34,9 @@ The first six rounds are the warm-up, in which heaps, caches and windows settle,
 
 A load that grew prints what grew and by how much, and `make load` fails.
 
-**The host's code.** OTP keeps an entry of about 176 bytes for each lambda of each distinct version of a module it loads, for as long as the node lives, and stops the node at 524,288 of them. It shows as `code` that rises with every new version of a module, and not with a version loaded again. New versions come from the shell's inputs and declarations, and in MVP 3.0 from code shipped between peers; the log's *The Shell's Code Memory* weighs it.
+**The host's code.** OTP keeps an entry for each lambda of each distinct version of a module it loads, for as long as the node lives, up to a limit that stops the node. It shows as `code` that rises with every new version of a module, and not with a version loaded again. New versions come from the shell's inputs and declarations, and in MVP 3.0 from code shipped between peers; the log's *The Shell's Code Memory* has the figures and weighs it.
 
-**Atoms.** The host never frees an atom and stops a node at 1,048,576 of them, so what makes one is read for as well as counted. A running program makes none from what it is given: the runtime makes atoms only of the names compiled into a program, and `Erl.atom` is the program's own request (Appendix E.19). The shell makes them of the text typed to it, through the lexer, for the prompt's inputs, its completion and its `Shift-Tab`. A name bound or declared costs about three the first time and none again; a name only mentioned, or a module name given to `:load`, costs one. An input's module and holder numbers are given again, so an input costs none of its own.
+**Atoms.** The host never frees an atom and stops a node when it has made too many, so what makes one is read for as well as counted: a running program makes none from what it is given, and the shell makes them of the text typed to it. What each costs, and why the numbers of inputs are given again, is the log's *Atoms, Counted*.
 
 ## Reading the code
 

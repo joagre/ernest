@@ -23,14 +23,15 @@
 %% no timed receive or clock alarm pending, no process inside foreign code,
 %% and no source held that can still deliver.
 %%
-%% Three tables hold the run's state. `ern_processes` has a row {Pid,
-%% Site, Timers, Foreign} per process the runtime started, where
-%% Timers counts the timed receives the process is in and Foreign its
-%% foreign calls, and beside them the way the terminal is read, `reading`,
-%% the process deadlock faults, `deadlock_target`, and a row per fault
-%% subscription, per restart a process may be asked, and per checking
-%% proxy of §8.4 and what it stands for. `ern_calls` holds the pending
-%% calls, and `ern_held` the sources and the processes the system modules
+%% Four tables hold the run's state. `ern_processes` has a row {Pid,
+%% Site, Timers, Foreign, Spawned} per process the runtime started or
+%% adopted, where Timers counts the timed receives the process is in,
+%% Foreign its foreign calls, and Spawned its place in the order of spawns,
+%% and beside them the way the terminal is read, `reading`, the process
+%% deadlock faults, `deadlock_target`, and a row per restart a process may
+%% be asked, and per checking proxy of §8.4 and what it stands for.
+%% `ern_calls` holds the pending calls, `ern_faults` the subscriptions to
+%% faults, and `ern_held` the sources and the processes the system modules
 %% opened, each described where it is defined.
 -module(ern_rt).
 

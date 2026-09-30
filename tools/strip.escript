@@ -3,7 +3,7 @@
 %% The installation's modules without the host's debug information
 %% (docs/install.md): every .beam and .erc under the directory given,
 %% stripped in place of every chunk the host does not load with, but for
-%% the two of Ernest's own that its tools read, ErnI and Docs. The host's
+%% Ernest's ErnI and the host's EEP 48 Docs, which its tools read. The host's
 %% development tools, cover, xref and dialyzer, read what goes, and they
 %% run in the checkout.
 
