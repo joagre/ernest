@@ -504,7 +504,7 @@ $ ern build example.ern
 example.ern:1:11: expected a type name; a qualified type ends in an uppercase name
 1 | fn f(xs : List.a) : Int = 1
   |           ^^^^^^
-  | = help: type arguments are written List(a)
+  | = help: a type's arguments are written in parentheses, as List(a), and a lowercase name after `.` names a value
 ```
 
 ### Something that is no type where a type stands (§3.2)
@@ -612,7 +612,7 @@ $ ern build example.ern
 example.ern:1:31: empty parentheses after None
 1 | fn f() : Optional(Int) = None()
   |                               ^
-  | = help: a constructor without fields is written without them: None
+  | = help: a constructor without fields is written without parentheses, None; one with fields has its fields inside them
 ```
 
 ### An empty block (§5.4)

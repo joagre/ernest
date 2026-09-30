@@ -434,7 +434,10 @@ scheme_state(#scheme{vars = Vars, names = Names}, #st{vars = Vs, subst = S} = St
 %% gives one, and the variables named once across the whole: the text
 %% before the parameter at the cursor, counted from 0, that parameter, and
 %% the text after it, so that whoever paints it can mark the middle part.
--spec format_call(#scheme{}, [atom()], non_neg_integer(), st()) ->
+%% Params are the declaration's parameters, `_` for a pattern, or none for
+%% a function that has no declaration of its own, a value of a function
+%% type.
+-spec format_call(#scheme{}, [atom()] | none, non_neg_integer(), st()) ->
           {string(), string(), string()}.
 format_call(#scheme{type = T} = Scheme, Params, Marked, St) ->
     St1 = scheme_state(Scheme, St),
@@ -450,11 +453,12 @@ format_call(#scheme{type = T} = Scheme, Params, Marked, St) ->
                          pure -> [];
                          _ -> [" with ", element(1, fmt(E, St1, Names2))]
                      end,
-            %% parameters as declared are a head's, whose result is written
-            %% after `:`; a function's type alone keeps its arrow (§4.5)
-            Arrow = case lists:any(fun(Name) -> Name =/= '_' end, Params) of
-                        true -> ") : ";
-                        false -> ") -> "
+            %% a declaration's head, whatever its parameters, writes its
+            %% result after `:`; a function's type alone keeps its arrow
+            %% (§4.5)
+            Arrow = case Params of
+                        none -> ") -> ";
+                        _ -> ") : "
                     end,
             Tail = [Arrow, Rs, Effect],
             case Marked < length(Named) of
@@ -472,7 +476,7 @@ format_call(#scheme{type = T} = Scheme, Params, Marked, St) ->
 parameter('_', Type) -> Type;
 parameter(Name, Type) -> [atom_to_list(Name), " : ", Type].
 
-padded(Params, N) when length(Params) =:= N -> Params;
+padded(Params, N) when is_list(Params), length(Params) =:= N -> Params;
 padded(_, N) -> lists:duplicate(N, '_').
 
 %% Report §11.5: the annotation's name if the variable has one and it is

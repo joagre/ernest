@@ -73,6 +73,9 @@ foreign fn typeText(c : Checked) : String =
 foreign fn isUnit(c : Checked) : Bool =
     "ern_shell:is_unit/1"
 
+foreign fn isExpression(c : Checked) : Bool =
+    "ern_shell:is_expression/1"
+
 foreign fn declared(c : Checked) : List(String) =
     "ern_shell:declared/1"
 
@@ -161,8 +164,9 @@ type State =
 
 // Where an input came from, which its diagnostics and its spawn sites name:
 // the prompt, with the count of what was entered there, or a line of a
-// startup file (report §11.2).
-type Origin = Prompt(Int) | Startup(file : String, line : Int)
+// startup file and the column the input begins in there, after a command's
+// word where it is a command's argument (report §11.2).
+type Origin = Prompt(Int) | Startup(file : String, line : Int, column : Int)
 
 type Settings = Settings(depth : Int, length : Int, timing : Bool, output : Int)
 
@@ -331,7 +335,7 @@ fn quietly(state : State,
            from : String,
            line : Int,
            input : String) : State with ShellMsg =
-    run(state, screen, Startup(file = from, line = line), input, false)
+    run(state, screen, Startup(file = from, line = line, column = 1), input, false)
 
 fn run(state : State,
        screen : Address(ScreenMsg),
@@ -628,6 +632,15 @@ fn say(screen : Address(ScreenMsg), text : String) : Unit with m =
 fn refuse(state : State, screen : Address(ScreenMsg), text : String) : Unit with m =
     say(screen, Shell.Style.fault(state.colour, placed(state, text)))
 
+// Report §11.2: where the input being run came from, which its diagnostics
+// name: a line of a startup file, the input beginning in that column, or
+// the prompt.
+fn origin(state : State, column : Int) : Origin =
+    match state.from {
+        Some(#(file, line)) -> Startup(file = file, line = line, column = column)
+      | None -> Prompt(state.entered)
+    }
+
 // Report §11.2: what a startup input refuses or faults with is named by its
 // file and line, as its diagnostic is.
 fn placed(state : State, text : String) : String =
@@ -676,13 +689,22 @@ fn perform(state : State, screen : Address(ScreenMsg), input : String) : Next wi
             refuse(state, screen, text);
             Continue(state)
         }
-      | Right(#(action, arg)) -> obey(state, screen, action, arg)
+      | Right(#(action, arg)) -> obey(state, screen, action, arg, argumentColumn(input))
     }
+
+// The column on its line where a command's argument begins, after the
+// command's word and the spaces after it.
+fn argumentColumn(input : String) : Int = {
+    let end = Shell.Command.wordEnd(input);
+    let rest = String.slice(input, end, String.size(input) - end);
+    end + String.size(rest) - String.size(String.trimStart(rest)) + 1
+}
 
 fn obey(state : State,
         screen : Address(ScreenMsg),
         action : Shell.Command.Action,
-        arg : String) : Next with ShellMsg = {
+        arg : String,
+        column : Int) : Next with ShellMsg = {
     let State(env = env, settings = settings, colour = colour) = state;
     match action {
         Shell.Command.Quit -> Leave
@@ -700,21 +722,20 @@ fn obey(state : State,
                 Continue(state)
             }
         }
-      | Shell.Command.Type -> match check(env, Prompt(state.entered), arg) {
+      | Shell.Command.Type -> match check(env, origin(state, column), arg) {
             Left(text) -> {
                 diagnose(screen, colour, text);
                 Continue(state)
             }
-          | Right(#(env2, checked)) -> match declared(checked) {
-                [] -> {
-                    say(screen, arg <> " : " <> typeText(checked));
-                    Continue(State(..state, env = env2))
-                }
-              // report §11.2: `:type` takes an expression
-              | _ -> {
-                    refuse(state, screen, ":type takes an expression, and this is a declaration");
-                    Continue(state)
-                }
+          | Right(#(env2, checked)) -> if isExpression(checked) then {
+                say(screen, arg <> " : " <> typeText(checked));
+                Continue(State(..state, env = env2))
+            } else {
+                // report §11.2: `:type` takes an expression
+                refuse(state,
+                       screen,
+                       ":type takes an expression, and a `let` or a declaration is not one");
+                Continue(state)
             }
         }
       | Shell.Command.Forget -> match forget(env, arg) {
@@ -778,7 +799,7 @@ fn obey(state : State,
         }
       | Shell.Command.Load -> match load(env, arg) {
             Left(text) -> {
-                diagnose(screen, colour, text);
+                diagnose(screen, colour, placed(state, text));
                 Continue(state)
             }
           | Right(#(env2, line)) -> {
@@ -788,7 +809,7 @@ fn obey(state : State,
         }
       | Shell.Command.Reload -> match reload(env) {
             Left(text) -> {
-                diagnose(screen, colour, text);
+                diagnose(screen, colour, placed(state, text));
                 Continue(state)
             }
           | Right(#(env2, lines)) -> {

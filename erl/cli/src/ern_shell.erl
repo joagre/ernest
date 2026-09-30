@@ -12,7 +12,7 @@
          session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
          documentation/1, fields/1, signature/1, load/2,
          reload/1, version/0, write/1, screen/1, to_screen/1,
-         output/1, unbound/1, collect/1, input_site/2, declared/1]).
+         output/1, unbound/1, collect/1, input_site/2, is_expression/1, declared/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -114,13 +114,15 @@ unfinished(_) -> false.
 %% text, as `ern build` shows it, under the name of where the input came from:
 %% `input 3` for the third thing entered at the prompt, the file's path for
 %% an input from a startup file. The shell's `Origin` says which:
-%% `Prompt(n)`, or `Startup(file, line)` in canonical order.
--spec check(#env{}, {'Prompt', pos_integer()} | {'Startup', binary(), pos_integer()}, binary()) ->
+%% `Prompt(n)`, or `Startup(file, line, column)`, its fields in canonical
+%% order, the column where the input begins on the line.
+-spec check(#env{}, {'Prompt', pos_integer()}
+                    | {'Startup', pos_integer(), binary(), pos_integer()}, binary()) ->
           {'Left', binary()} | {'Right', {#env{}, #checked{}}}.
 check(#env{n = N} = Env, From, Input) ->
     Origin = case From of
                  {'Prompt', K} -> {typed, <<"input ", (integer_to_binary(K))/binary>>};
-                 {'Startup', File, First} -> {file, File, First}
+                 {'Startup', Column, File, First} -> {file, File, First, Column}
              end,
     %% an input takes the number of one whose module was unloaded, whose
     %% name is an atom already, before a new one (report §2.3)
@@ -278,7 +280,7 @@ check_module(#env{ifaces = Ifaces, session = Session} = Env, Ns, From, Input, De
 %% Report §11.2: the name and the line offset a spawn site in the input is
 %% written with, as its diagnostics name and count it.
 site({typed, Name}) -> {Name, 0};
-site({file, File, First}) -> {File, First - 1}.
+site({file, File, First, _}) -> {File, First - 1}.
 
 %% Report §11.2: an input is compiled and run on its own, so what it
 %% binds must have a type by the time it runs; a later input cannot
@@ -984,9 +986,10 @@ con_signature(Path, Name, At) ->
     Env = persistent_term:get({?MODULE, env}, #env{}),
     case con_info(Env, Path, Name) of
         {ok, #cinfo{fields = Fields, scheme = #scheme{type = {tfn, Ps, _, _}} = Sc}} ->
+            %% a constructor is declared, so its signature is a head's
             Names = case Fields of
                         {named, Fs} -> Fs;
-                        _ -> []
+                        _ -> lists:duplicate(length(Ps), '_')
                     end,
             Marked = case At of
                          {field, F} -> index(F, Names, length(Ps));
@@ -1037,7 +1040,8 @@ within(Before) ->
     end.
 
 %% The parameter names a function's documentation entry carries, from the
-%% session's input or the module that declares it; none for the prelude's.
+%% session's input or the module that declares it; none where no
+%% declaration carries them, the prelude's and a function value's.
 parameters(Env, Path, Name) ->
     Beam = case session_beam(Env, Path, Name) of
                none when Path =/= [] -> beam_of(Env, Path);
@@ -1047,13 +1051,13 @@ parameters(Env, Path, Name) ->
     Keys = [entry_name([Name]) | [entry_name([lists:last(Path), Name]) || Path =/= []]],
     case Beam of
         none ->
-            [];
+            none;
         _ ->
             {ok, {docs_v1, _, _, _, _, _, Entries}} = ern_docs:read(Beam),
             case [Ps || {{function, K, _}, _, _, _, #{params := Ps}} <- Entries,
                         lists:member(atom_to_binary(K), Keys)] of
                 [Ps | _] -> Ps;
-                [] -> []
+                [] -> none
             end
     end.
 
@@ -1243,24 +1247,32 @@ entry(Beam, Name) -> ern_page:declaration(Beam, Name).
 
 %% Report §11.2: a typed input is the file `input`; an input from a startup
 %% file is named by the file, its positions moved to the line it stands on
-%% there, and its lines quoted from the file.
+%% there and, on its first line, to the column it begins in, and its lines
+%% quoted from the file.
 diagnostic({typed, Name}, Input, Diags) ->
     unicode:characters_to_binary([ern_diag:format(binary_to_list(Name), Input, D) || D <- Diags]);
-diagnostic({file, Path, First}, Input, Diags) ->
+diagnostic({file, Path, First, Column}, Input, Diags) ->
     Source = case file:read_file(Path) of
                  {ok, Text} -> Text;
                  {error, _} -> Input
              end,
     unicode:characters_to_binary(
-      [ern_diag:format(ern_build:shown(binary_to_list(Path)), Source, down(D, First - 1))
+      [ern_diag:format(ern_build:shown(binary_to_list(Path)), Source,
+                       moved(D, First - 1, Column - 1))
        || D <- Diags]).
 
-%% A diagnostic's positions, the line a number of lines further down.
-down(#diag{span = Span, labels = Labels} = D, K) ->
-    D#diag{span = lower(ern_diag:span(Span), K),
-           labels = [{lower(ern_diag:span(S), K), T} || {S, T} <- Labels]}.
+%% A diagnostic's positions, a number of lines further down, and on the
+%% input's first line a number of columns further right.
+moved(#diag{span = Span, labels = Labels} = D, Lines, Columns) ->
+    D#diag{span = moved_span(ern_diag:span(Span), Lines, Columns),
+           labels = [{moved_span(ern_diag:span(S), Lines, Columns), T} || {S, T} <- Labels]}.
 
-lower({L, C, {EL, EC}}, K) -> {L + K, C, {EL + K, EC}}.
+moved_span({Line, Column, {EndLine, EndColumn}}, Lines, Columns) ->
+    {Line + Lines, moved_column(Line, Column, Columns),
+     {EndLine + Lines, moved_column(EndLine, EndColumn, Columns)}}.
+
+moved_column(1, Column, Columns) -> Column + Columns;
+moved_column(_, Column, _) -> Column.
 
 %% Report §11.2: `:load` takes a module by its namespace. Its source under
 %% the source root is compiled as `ern build` would compile it and nothing is
@@ -1276,11 +1288,12 @@ load(#env{modules = Modules} = Env, Text) ->
             Name = unicode:characters_to_binary(qname_text(Ns)),
             case lists:any(fun(#iface{namespace = N}) -> N =:= Ns end,
                            ern_prelude:stdlib_ifaces()) of
-                %% report §4.2: a standard library namespace is taken, and
-                %% the module has been in scope since the session began
+                %% report §4.2, §11.2: a standard library namespace is taken,
+                %% and the module, in scope since the session began, is one
+                %% the session has loaded, which is refused
                 true ->
-                    {'Right', {Env, <<Name/binary, " is the standard library's, in scope"
-                                      " from the start">>}};
+                    {'Left', <<Name/binary, " is the standard library's, in scope from the"
+                               " start\n">>};
                 false when is_map_key(Ns, Modules) ->
                     {'Left', <<Name/binary, " is loaded already; :reload compiles it again"
                                " when its source has changed\n">>};
@@ -1380,11 +1393,17 @@ in_order(Modules) ->
 %% previous version, so that the session is as it was.
 withdraw(Mod) ->
     code:delete(Mod),
-    Running = [Pid || {Pid, _} <- ern_rt:live(), erlang:check_process_code(Pid, Mod)],
-    Monitors = [erlang:monitor(process, Pid) || Pid <- Running],
-    lists:foreach(fun(Pid) -> exit(Pid, {ern, code_unloaded}) end, Running),
-    lists:foreach(fun(M) -> receive {'DOWN', M, process, _, _} -> ok end end, Monitors),
+    unloaded([Pid || {Pid, _} <- ern_rt:live(), erlang:check_process_code(Pid, Mod)]),
     code:purge(Mod).
+
+%% Report §7.3, §11.2: each process ends with its code unloaded, and is
+%% waited for before its code is purged, since the purge kills one that has
+%% not yet taken the signal, which would end `Killed`.
+unloaded(Pids) ->
+    Monitors = [erlang:monitor(process, Pid) || Pid <- Pids],
+    lists:foreach(fun(Pid) -> exit(Pid, {ern, code_unloaded}) end, Pids),
+    lists:foreach(fun(Monitor) -> receive {'DOWN', Monitor, process, _, _} -> ok end end,
+                  Monitors).
 
 %% Report §11.2, §8.5: the top-level bindings of each module, dependencies
 %% first, each module's evaluated in a process of the shell's own, whose
@@ -1664,7 +1683,7 @@ in_previous(Env, Mod) ->
 end_previous(#env{session = S} = Env, Mod) ->
     Processes = [{Pid, Site} || {Pid, Site} <- ern_rt:live(),
                                 erlang:check_process_code(Pid, Mod)],
-    lists:foreach(fun({Pid, _}) -> exit(Pid, {ern, code_unloaded}) end, Processes),
+    unloaded([Pid || {Pid, _} <- Processes]),
     Bindings = bindings_of(Env, Mod),
     Values = maps:without([Key || {_, Key} <- Bindings], maps:get(values, S, #{})),
     {[<<Site/binary, ", a process">> || {_, Site} <- Processes]
@@ -2114,6 +2133,12 @@ holder_beam(Mod, Names) ->
 %% Report §11.2: what an input declares, a line for each, in the order they
 %% were written. A value is its name and its type, a type its keyword and
 %% its name.
+%% Report §11.2: whether the input is an expression, which binds `it`, and
+%% not a `let` or declarations, which `:type` refuses.
+-spec is_expression(#checked{}) -> boolean().
+is_expression(#checked{binds = Binds}) ->
+    Binds =:= it.
+
 -spec declared(#checked{}) -> [binary()].
 declared(#checked{binds = it}) ->
     [];

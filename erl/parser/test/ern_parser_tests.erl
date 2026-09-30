@@ -592,6 +592,18 @@ if_without_else_test() ->
     ?assertEqual("every `if` is an expression; give the other branch a value",
                  help_expr("if c then a")).
 
+%% report §11.5: a help line says what is true of the input whatever the
+%% parser cannot know. A regression test: `Io.println` as a type was told
+%% `Io(println)`, `_p` was told it began `_p`, and `Circle()` was told it
+%% had no fields, which the parser cannot see
+help_lines_hold_test() ->
+    ?assertEqual("a type's arguments are written in parentheses, as List(a), and a lowercase"
+                 " name after `.` names a value", help("fn f(x : Io.println) : Int = 1")),
+    ?assertEqual("a type name begins with an uppercase letter: P", help("type _p = A")),
+    ?assertEqual("a type name begins with an uppercase letter", help("type _1 = A")),
+    ?assertEqual("a constructor without fields is written without parentheses, Circle; one"
+                 " with fields has its fields inside them", help_expr("Circle()")).
+
 %% report §4.6
 toplevel_bind_arrow_test() ->
     ?assertEqual("`<-` is a block form", err("let x <- f()")),

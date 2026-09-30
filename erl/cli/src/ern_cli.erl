@@ -483,21 +483,27 @@ format(Opts, Paths, Err) ->
     end.
 
 %% Report §11.6: the modules a path names. Those under a directory are
-%% found as `ern build` finds them (§11.1), the directory their root; a
-%% file named alone has no root, and is a module when its name ends in
-%% `.ern` and is otherwise one word.
+%% found as `ern build` finds them (§11.1), each component of the path
+%% under the directory one word; the directory is no source root, so
+%% nothing that a namespace decides is checked. A file named alone is a
+%% module when its name ends in `.ern` and is otherwise one word.
 modules_named(Path) ->
     case filelib:is_dir(Path) of
         true ->
-            Root = ern_build:source_root([], Path, Path),
-            [F || F <- ern_build:sources(Path),
-                  is_record(ern_build:module_of(ern_build:absolute(F), Root), mod)];
+            [shaped(File, Path) || File <- ern_build:sources(Path)];
         false ->
             filename:extension(Path) =:= ".ern"
                 orelse ern_build:fail(Path ++ " does not end in .ern"),
             ern_build:shape(Path, filename:basename(Path, ".ern")),
             [Path]
     end.
+
+%% A module found under a directory, its path's shape checked from there.
+shaped(File, Directory) ->
+    Relative = ern_build:relative(ern_build:absolute(File), ern_build:absolute(Directory)),
+    Components = filename:split(filename:rootname(Relative)),
+    lists:foreach(fun(Component) -> ern_build:shape(Relative, Component) end, Components),
+    File.
 
 format_result(Opts, Out, Same) ->
     case {lists:member(check, Opts), Same} of

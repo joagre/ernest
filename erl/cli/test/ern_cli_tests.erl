@@ -43,6 +43,21 @@ format_test() ->
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"broken.ern:1:">>)),
     ?assertEqual(1, ern_err(["format"])).
 
+%% report §11.6: a directory named is no source root, so a module under it
+%% whose name would take a prelude namespace from there is laid out as any
+%% other, and a path component that breaks the shape is still refused. A
+%% regression test: `util/list.ern` named as `util` was refused as taking
+%% the prelude namespace List
+format_directory_is_no_root_test() ->
+    Dir = tmp(),
+    List = write(Dir, "util/list.ern", "fn f(x) = x+1\n"),
+    ?assertEqual(0, ern_err(["format", Dir ++ "/util"])),
+    ?assertEqual({ok, <<"fn f(x) =\n    x + 1\n">>}, file:read_file(List)),
+    write(Dir, "util/Bad/x.ern", "fn f(x) = x\n"),
+    ?assertEqual(1, ern_err(["format", Dir ++ "/util"])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"path component `Bad` must be lowercase">>)).
+
 %% report §11: a file a job writes is written whole, beside its place and
 %% renamed into it, which keeps what the file was: a module reached by a
 %% link is laid out where the link leads and the link stays, a module keeps

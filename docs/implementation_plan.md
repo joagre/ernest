@@ -74,9 +74,9 @@ After the First Release*; one milestone with the operations records since 2026-0
    about 150 (the log's *The Release Review*). Before the tag, each `tag` line is fixed with
    a regression test, area by area, the security findings first, and each `ask` line is
    decided with the user one at a time; `cheap` clarity is fixed where it is cheap. What is
-   left is MVP 2.99b's first item. The security lines, the crashes, and the wrong results'
-   first part are done (the log's *The Release Review's Security Lines*, *The Release
-   Review's Crashes* and *The Release Review's Wrong Results*). `String.split` reads the
+   left is MVP 2.99b's first item. The security lines, the crashes, and the wrong results
+   are done (the log's *The Release Review's Security Lines*, *The Release Review's Crashes*
+   and *The Release Review's Wrong Results*). `String.split` reads the
    string once over a private primitive, `drop`, decided with the user over the measure of a
    split written over `graphemes` (Appendix E.5). Three decisions came with
    the crashes: a fault the shell's standard input gives it exits with status 1, and any

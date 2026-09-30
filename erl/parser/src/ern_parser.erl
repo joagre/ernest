@@ -414,13 +414,14 @@ type([{typename, Pos, _} | _] = Ts) ->
             w({#t_con{pos = Pos, path = Path, name = Name, args = Args}, expect(R1, ')')});
         {{con, Path, Name}, R} ->
             w({#t_con{pos = Pos, path = Path, name = Name}, R});
-        {{value, Path, Name}, R} ->
+        {{value, _, _}, R} ->
             %% report §11.5: over the whole name, with how an argument is
-            %% written
+            %% written, which is true whether the name was meant as a type's
+            %% argument, `List.a`, or is a value's, `Io.println`
             fail(through(Pos, Ts, R),
                  "expected a type name; a qualified type ends in an uppercase name",
-                 "type arguments are written " ++ lists:join(".", [atom_to_list(P) || P <- Path])
-                 ++ "(" ++ atom_to_list(Name) ++ ")")
+                 "a type's arguments are written in parentheses, as List(a), and a lowercase"
+                 " name after `.` names a value")
     end;
 type([{ident, Pos, Name} | R]) ->
     w({#t_var{pos = Pos, name = Name}, R});
@@ -702,9 +703,11 @@ constructor_expr(Pos, Path, Name, [{'(', _} | R]) ->
             w({#e_con{pos = Pos, path = Path, name = Name, args = {named, undefined, Sets}},
                expect(R1, ')')});
         [{')', P} | _] ->
+            %% report §11.5: the parser does not know the constructor's
+            %% fields, so the help gives both forms
             fail(P, "empty parentheses after " ++ atom_to_list(Name),
-                 "a constructor without fields is written without them: "
-                 ++ atom_to_list(Name));
+                 "a constructor without fields is written without parentheses, "
+                 ++ atom_to_list(Name) ++ "; one with fields has its fields inside them");
         [{eof, P} | _] ->
             %% report §11.2: the input ends where the constructor's first
             %% argument would stand, and positional or named is not
@@ -958,12 +961,22 @@ expect_typename(Ts) ->
 
 expect_typename_pos([{typename, Pos, Name} | R]) -> {Name, Pos, R};
 expect_typename_pos([{ident, P, N} = T | _]) ->
-    [C | Rest] = atom_to_list(N),
-    throw({parse_error, (diag(P, "expected a type name instead of " ++ describe(T),
-                              "a type name begins with an uppercase letter: "
-                              ++ [string:to_upper(C) | Rest]))#diag{expected = typename}});
+    Help = case meant_typename(atom_to_list(N)) of
+               none -> "a type name begins with an uppercase letter";
+               Typename -> "a type name begins with an uppercase letter: " ++ Typename
+           end,
+    throw({parse_error, (diag(P, "expected a type name instead of " ++ describe(T), Help))
+                            #diag{expected = typename}});
 expect_typename_pos([T | _]) ->
     wanted(typename, pos(T), "expected a type name instead of " ++ describe(T)).
+
+%% The type name an identifier was meant as, its leading `_` gone and its
+%% first letter uppercase, or none where no letter begins what is left.
+meant_typename(Identifier) ->
+    case lists:dropwhile(fun(Ch) -> Ch =:= $_ end, Identifier) of
+        [First | Rest] when First >= $a, First =< $z -> [First - $a + $A | Rest];
+        _ -> none
+    end.
 
 sym(T) -> element(1, T).
 pos(T) -> element(2, T).

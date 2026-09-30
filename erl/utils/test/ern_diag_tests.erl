@@ -28,6 +28,21 @@ not_utf8_test() ->
                  lists:flatten(ern_diag:format("main.ern",
                                                <<"\xC3\xA9\na = ", 16#FF, 16#C3>>, D))).
 
+%% report §11.5: a carriage return that ends a line with its line feed is
+%% not shown, and one anywhere else is a column, shown as its picture, so
+%% the caret after it stands under what the lexer counted. A regression
+%% test: every carriage return was dropped, and the caret stood one column
+%% early
+carriage_return_test() ->
+    Source = "a\r\nx\r y\r\n",
+    {ok, [_, _, {ident, Where, y} | _]} = ern_lexer:tokenize(Source, []),
+    D = #diag{span = ern_diag:span(Where), message = "unknown name y"},
+    ?assertEqual("main.ern:2:4: unknown name y\n"
+                 "1 | a\n"
+                 "2 | x\x{240D} y\n"
+                 "  |    ^\n",
+                 lists:flatten(ern_diag:format("main.ern", Source, D))).
+
 %% report §11.5: the first line is file:line:column: message
 short_test() ->
     D = #diag{span = {2, 7, {2, 10}}, message = "expected Int, found String"},

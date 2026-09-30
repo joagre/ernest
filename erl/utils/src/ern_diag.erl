@@ -76,9 +76,17 @@ width(L, C, {L, EC}, _) -> max(1, EC - C);
 width(L, C, _, Lines) when L =< length(Lines) -> max(1, length(lists:nth(L, Lines)) - C + 1);
 width(_, _, _, _) -> 1.
 
+%% Report §11.5: a line ends at a line feed, and a carriage return before
+%% it ends the line with it; a carriage return anywhere else is a column
+%% of the line, as the lexer counts it, shown as its picture.
 lines(Source) ->
-    Chars = chars(Source),
-    [[shown(Ch) || Ch <- Line, Ch =/= $\r] || Line <- string:split(Chars, "\n", all)].
+    [[shown(Ch) || Ch <- without_return(Line)] || Line <- string:split(chars(Source), "\n", all)].
+
+without_return(Line) ->
+    case lists:reverse(Line) of
+        [$\r | Rest] -> lists:reverse(Rest);
+        _ -> Line
+    end.
 
 %% Report §11.5: a source's characters, each byte that begins no UTF-8
 %% character as U+FFFD, so that the lexer's refusal of one shows its line.

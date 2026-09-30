@@ -182,8 +182,10 @@ foreign_type_equality_test() ->
         "foreign fn mk() : T(k, v) = \"m:mk/0\"\n"
         "foreign fn put(t : T(k, v), key : k, value : v) : T(k, v) = \"m:put/3\"\n",
     ?assertEqual(ok, ok(T ++ "fn f() = put(mk(), 1, 2)\n")),
+    %% reported at the first place that needs it, `put`, whose signature
+    %% shows the key's restriction
     ?assertEqual("(Int) -> Int does not support equality (it contains a function or an"
-                 " address), which mk requires: mk : () -> T(k=, v)",
+                 " address), which put requires: put : (T(k=!, v!), k=!, v!) -> T(k=!, v!)",
                  err(T ++ "fn f() = put(mk(), fn(x : Int) : Int = x, 2)\n")),
     %% a parameter without `=` asks nothing
     ?assertEqual(ok, ok(T ++ "fn f() = put(mk(), 1, fn(x : Int) : Int = x)\n")),
@@ -920,7 +922,24 @@ let_cycle_help_test() ->
     ?assertEqual("`f` reads handlers when it is called; a `fn handlers() = ...` builds the"
                  " value when it is asked for", Help),
     {error, [#diag{help = None} | _]} = check("let a : Int = b\nlet b : Int = a\n"),
-    ?assertEqual(undefined, None).
+    ?assertEqual(undefined, None),
+    %% the function the help names is the one that reads the value, the last
+    %% on the cycle, which is listed in its order; a lambda on a longer cycle
+    %% is a recursive function still; and a member let is named with its
+    %% type. A regression test: the help named the first function, the
+    %% cycle was listed sorted, a lambda was told to take no parameters, and
+    %% a member was named bare
+    {error, [#diag{message = Order, help = Reads} | _]} =
+        check("let a : Int = g()\nfn g() : Int = f()\nfn f() : Int = a\n"),
+    ?assertEqual("the initializer of a depends on itself, through g, f", Order),
+    ?assertEqual("`f` reads a when it is called; a `fn a() = ...` builds the value when it is"
+                 " asked for", Reads),
+    {error, [#diag{help = Lambda} | _]} =
+        check("let h = fn(n : Int) : Int = g(n)\nfn g(n : Int) : Int = h(n)\n"),
+    ?assertEqual("a recursive function is declared with `fn h(...) = ...`", Lambda),
+    {error, [#diag{message = Member} | _]} =
+        check("type Stack = Stack(Int)\nlet Stack.empty : Stack = Stack.empty\n"),
+    ?assertEqual("the initializer of Stack.empty depends on itself", Member).
 
 %% report §4.6
 toplevel_let_test() ->
@@ -1948,6 +1967,29 @@ deferred_operator_calls_a_pure_member_test() ->
                         "    g(V(1), V(2))\n"
                         "}\n")),
     ?assertEqual(ok, ok(V ++ "fn f(x, y) : V = { let z = x + y; let V(_) = x; z }\n")).
+
+%% report §3.10, §11.5: a comparison on a value a later use makes a function
+%% is reported at the comparison, which needed the equality. A regression
+%% test: it was reported at the later call, saying it was compared there
+comparison_reported_where_it_stands_test() ->
+    {error, [#diag{span = Span, message = Message} | _]} =
+        check("fn k(g) = {\n    let _ = g == g;\n    g(1)\n}\n"),
+    ?assertMatch({2, 13, _}, ern_diag:span(Span)),
+    ?assertMatch("(Int) -> a" ++ _, Message),
+    ?assertNotEqual(nomatch, string:find(Message, "but it is compared here")).
+
+%% report §3.10, §11.5: a map keyed by addresses is an error at its first
+%% operation, as the guide teaches it. A regression test: the error stood
+%% at the map's last operation, a `Map.size` after the `Map.put` that gave
+%% it the key
+address_key_at_first_operation_test() ->
+    {error, [#diag{span = Span} | _]} =
+        check("type Msg = Go\n"
+              "fn main() : Unit with Msg = {\n"
+              "    let m = Map.put(Map.empty, self(), 1);\n"
+              "    Io.println(Int.toString(Map.size(m)))\n"
+              "}\n"),
+    ?assertMatch({3, 13, _}, ern_diag:span(Span)).
 
 %% report §3.10, §4.8: a regression test. An operator resolved at the end
 %% of its definition keeps its member's equality constraint, as one

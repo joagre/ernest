@@ -27,6 +27,21 @@ session() ->
     {ok, Expected} = file:read_file("session/basic.out"),
     ?assertEqual(Expected, Out).
 
+%% report §11.2: `:type` shows an expression's type and refuses a `let` and a
+%% declaration, whatever the `let` binds. A regression test: `:type let _ =
+%% 1`, which declares no name, was answered as an expression
+type_refuses_a_let_test_() ->
+    {timeout, 60, fun type_refuses_a_let/0}.
+
+type_refuses_a_let() ->
+    Dir = fresh_home(),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, ":type let _ = 1\n:type let x = 1\n:type type T = T\n:type 1\n"),
+    {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
+    ?assertEqual(3, count(Out, <<":type takes an expression, and a `let` or a declaration"
+                                 " is not one">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"1 : Int">>)).
+
 %% report §11.2, §8.1, §6.9: with a file the shell is the entry point and
 %% the file's entry point is spawned beside it; the loaded modules are in
 %% scope, by their qualified names; every process that faults is reported
@@ -118,7 +133,9 @@ startup() ->
 %% report §11.2: a startup input's refusal and fault are named by its file
 %% and line, as its diagnostic is, and a file that is not UTF-8 is said and
 %% not run. A regression test: each was printed bare, and the file was read
-%% as empty (findings.md's T15)
+%% as empty (findings.md's T15); the release review found `:type`'s
+%% diagnostic named as though typed at the prompt, and `:load`'s refusal
+%% bare, and `:type`'s excerpt now places its argument after the command
 startup_failures_named_test_() ->
     {timeout, 60, fun startup_failures_named/0}.
 
@@ -126,7 +143,8 @@ startup_failures_named() ->
     Node = filename:join(fresh_home(), ".ernest"),
     ok = filelib:ensure_path(Node),
     Startup = filename:join(Node, "startup"),
-    ok = file:write_file(Startup, ":set depth x\n:bogus\n1 / 0\nlet k = 2\n"),
+    ok = file:write_file(Startup, ":set depth x\n:bogus\n1 / 0\nlet k = 2\n:type  1 + \"a\"\n"
+                         ":load Nope\n"),
     Empty = filename:join(Node, "session.in"),
     ok = file:write_file(Empty, "k\n"),
     Shell = "HOME=" ++ fresh_home() ++ " ../bin/ern shell --config-dir " ++ Node
@@ -134,7 +152,9 @@ startup_failures_named() ->
     {0, Out} = sh(Shell),
     [?assertMatch({_, _}, binary:match(Out, list_to_binary(Startup ++ Line)))
      || Line <- [":1: :set depth takes a number", ":2: no command :bogus",
-                 ":3: fault: division by zero"]],
+                 ":3: fault: division by zero", ":5:12: both operands of `+`",
+                 ":6: no module Nope"]],
+    ?assertMatch({_, _}, binary:match(Out, <<"5 | :type  1 + \"a\"\n  |        -">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
     ok = file:write_file(Startup, <<255, 254, "\n">>),
     {0, Bad} = sh(Shell),
@@ -553,6 +573,37 @@ history() ->
     %% a session that is not a terminal neither reads the file nor writes it
     {0, _} = sh("HOME=" ++ Home ++ " ../bin/ern shell < session/basic.in"),
     ?assertEqual([<<"11 + 11">>, <<"33 + 33">>, <<"11 + 11">>], history_lines(File)).
+
+%% report §11.2, §11: the history file is trimmed at start to the last
+%% thousand inputs, written whole under a name of the session's own and
+%% renamed over the history, so that a file another session was writing,
+%% or one a killed session left, is not written over and does not stop the
+%% trim. A regression test: every session wrote `history.new`, two at once
+%% into one file
+history_trimmed_beside_test_() ->
+    {timeout, 60, fun history_trimmed_beside/0}.
+
+history_trimmed_beside() ->
+    Home = fresh_home(),
+    Dir = filename:join(Home, ".ernest"),
+    ok = filelib:ensure_path(Dir),
+    ok = file:change_mode(Dir, 8#700),
+    File = filename:join(Dir, "history"),
+    ok = file:write_file(File, [[integer_to_list(N), "\n"] || N <- lists:seq(1, 1005)]),
+    ok = file:change_mode(File, 8#600),
+    Left = filename:join(Dir, "history.new1"),
+    ok = file:write_file(Left, <<"a session's own\n">>),
+    _ = pty("HOME=" ++ Home ++ " ../bin/ern shell",
+            [{expect, "> "}, {send, "04"}],
+            20),
+    Lines = history_lines(File),
+    ?assertEqual({1000, <<"6">>, <<"1005">>}, {length(Lines), hd(Lines), lists:last(Lines)}),
+    ?assertEqual({ok, <<"a session's own\n">>}, file:read_file(Left)),
+    ?assertEqual({ok, ["history", "history.new1"]},
+                 case file:list_dir(Dir) of
+                     {ok, Names} -> {ok, lists:sort(Names)};
+                     Error -> Error
+                 end).
 
 %% report §11.2: a history file that cannot be read is reported once, and
 %% the session goes on without one. A regression test: a second report came
@@ -1329,7 +1380,8 @@ declarations_kept_while_reached() ->
 %% report §11.2: every refusal of a command is red, as a diagnostic's first
 %% line is, and an answer is plain. A regression test for a finding of the
 %% session of real use: `:load`'s refusal was red and `:set`'s was not, the
-%% colour following the code path and not the meaning
+%% colour following the code path and not the meaning; the release review
+%% found `:load` of a standard library module answered as a success
 refusal_colour_test_() ->
     {timeout, 60, fun refusal_colour/0}.
 
@@ -1344,6 +1396,8 @@ refusal_colour() ->
                {expect, "takes no argument"},
                {send, hex(":load hhhh\r")},
                {expect, "not a module name"},
+               {send, hex(":load List\r")},
+               {expect, "in scope from the start"},
                {send, hex(":bindings\r")},
                {expect, "declares nothing yet"},
                {send, "04"}],
@@ -1353,6 +1407,7 @@ refusal_colour() ->
     ?assert(Red(<<":set depth takes a number">>)),
     ?assert(Red(<<":reload takes no argument">>)),
     ?assert(Red(<<"hhhh is not a module name">>)),
+    ?assert(Red(<<"List is the standard library's">>)),
     ?assertNot(Red(<<"the session declares nothing yet">>)).
 
 %% report §11.2: what may stand at the cursor decides what completes,
@@ -1633,7 +1688,10 @@ holders_freed() ->
 %% report §11.2, §7.4: a further reload of a module ends the processes of
 %% its previous version, which the reload names, and each one's fault,
 %% `its code was unloaded`, is reported as every fault is. A regression test
-%% for the move to Process.faults, which quiets no process `:reload` ends
+%% for the move to Process.faults, which quiets no process `:reload` ends.
+%% The release review found the purge made before the process had taken
+%% its end, which kills it `Killed`; the reload now waits, and this test
+%% does not force that race
 reload_ends_test_() ->
     {timeout, 60, fun reload_ends/0}.
 

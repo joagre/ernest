@@ -43,19 +43,34 @@ export fn read() : Either(Io.Error, List(String)) with m =
     }
 
 // Newest first is the order the editor walks; the file is oldest first,
-// as a person reading it expects. The trimmed file is written beside the
-// history and renamed over it, so that it is written whole or not at all
-// (report §11).
+// as a person reading it expects.
 fn trimmed(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) with m = {
     let extra = List.size(inputs) - kept;
     if extra <= 0 then
         Right(List.reverse(inputs))
     else {
         let last = List.drop(inputs, extra);
-        let beside = Path.withExtension(path, "new");
-        let _ <- Fs.write(beside, String.toUtf8(text(last)), wait);
-        let _ <- Fs.rename(beside, path, wait);
+        let _ <- replaced(path, String.toUtf8(text(last)), 1);
         Right(List.reverse(last))
+    }
+}
+
+// Report §11: the trimmed file is written beside the history and renamed
+// over it, so that it is written whole or not at all, under a name no other
+// session writes at once: the first of `history.new1`, `history.new2` and
+// on that `create` makes, since it refuses one that exists.
+fn replaced(path : Path, bytes : Bytes, n : Int) : Either(Io.Error, Unit) with m = {
+    let beside = Path.withExtension(path, "new" <> Int.toString(n));
+    match Fs.create(beside, bytes, wait) {
+        Left(Io.Other("exists")) -> replaced(path, bytes, n + 1)
+      | Left(why) -> Left(why)
+      | Right(_) -> match Fs.rename(beside, path, wait) {
+            Left(why) -> {
+                let _ = Fs.remove(beside, wait);
+                Left(why)
+            }
+          | Right(_) -> Right(Unit)
+        }
     }
 }
 

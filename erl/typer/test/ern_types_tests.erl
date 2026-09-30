@@ -133,7 +133,10 @@ format_test() ->
 
 %% report §11.2, §11.5: a signature inside a call, each parameter under
 %% its declared name, in three parts around the one at the cursor, the
-%% variables named once across the whole
+%% variables named once across the whole; a declaration's head writes its
+%% result after `:` however its parameters are written, and a function
+%% with no declaration keeps its type's arrow. The heads with patterns for
+%% parameters are a regression test: they were written as a type
 format_call_test() ->
     St0 = ern_types:new(),
     {A, St1} = ern_types:fresh(St0),
@@ -143,11 +146,15 @@ format_call_test() ->
     ?assertEqual({"(xs : List(a), ", "f : (a) -> b with e", ") : List(b) with e"},
                  ern_types:format_call(Scheme, [xs, f], 1, St3)),
     ?assertEqual({"(", "List(a)", ", (a) -> b with e) -> List(b) with e"},
-                 ern_types:format_call(Scheme, [], 0, St3)),
+                 ern_types:format_call(Scheme, none, 0, St3)),
+    ?assertEqual({"(", "List(a)", ", (a) -> b with e) : List(b) with e"},
+                 ern_types:format_call(Scheme, ['_', '_'], 0, St3)),
     %% an argument past the last parameter marks nothing
     ?assertEqual({"(List(a), (a) -> b with e) -> List(b) with e", "", ""},
-                 ern_types:format_call(Scheme, [], 2, St3)),
-    ?assertEqual({"Int", "", ""}, ern_types:format_call(#scheme{type = int()}, [], 0, St3)).
+                 ern_types:format_call(Scheme, none, 2, St3)),
+    ?assertEqual({"() : Int", "", ""},
+                 ern_types:format_call(#scheme{type = {tfn, [], pure, int()}}, [], 0, St3)),
+    ?assertEqual({"Int", "", ""}, ern_types:format_call(#scheme{type = int()}, none, 0, St3)).
 
 %% report §11.5
 format_error_test() ->

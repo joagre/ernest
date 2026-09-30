@@ -717,7 +717,8 @@ ends_before_gap(Last, _, {NL, _}, First) ->
 %% Comments that begin on the line a token ended on, before the next
 %% token: a line comment ends the line, a block comment need not, and is
 %% kept apart by a space from a token after it on its line but a closing
-%% bracket or a separator.
+%% bracket or a separator, and from the token before it but an opening
+%% bracket.
 trailing(#cur{trivia = [{Kind, L, Col, EL, Text} | Rest]} = C, X, Line)
   when L =:= Line, Kind =/= doc ->
     Next = element(C#cur.i, X#ctx.toks),
@@ -726,14 +727,19 @@ trailing(#cur{trivia = [{Kind, L, Col, EL, Text} | Rest]} = C, X, Line)
         true ->
             Apart = NL =:= EL andalso not lists:member(element(1, Next),
                                                        [')', ']', '}', '>>', ',', ';']),
+            Opened = lists:member(C#cur.prev, ['(', '[', '{', '#(', '<<']),
             %% the space after a block comment is one with a space the
             %% layout puts there (ern_pretty)
+            Before = case Opened of
+                         true -> [];
+                         false -> [sp()]
+                     end,
             D = case {Kind, Apart} of
                     {line, _} -> {suffix, <<" ", Text/binary>>};
-                    {block, true} -> [sp(), Text, sp()];
-                    {block, false} -> [sp(), Text]
+                    {block, true} -> [Before, Text, sp()];
+                    {block, false} -> [Before, Text]
                 end,
-            {More, C1} = trailing(C#cur{trivia = Rest, last = EL}, X, EL),
+            {More, C1} = trailing(C#cur{trivia = Rest, last = EL, prev = Kind}, X, EL),
             {[D, More], C1};
         false -> {[], C}
     end;

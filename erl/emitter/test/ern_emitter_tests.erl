@@ -1848,6 +1848,32 @@ bitstring_size_reads_a_top_level_let_test() ->
         "}\n"),
     ?assertEqual(<<"#(Some(<<1, 2>>), None)\nSome(<<1, 2, 3, 4>>)\n">>, Out).
 
+%% report §5.1, §5.11: a match evaluates its scrutinee before it reads a
+%% top-level `let` a pattern's size names. The module runs without its
+%% initializers, so the read faults, and what the scrutinee printed shows
+%% that it came first. A regression test: the read came before the
+%% scrutinee, against §5.1's left to right
+size_read_after_scrutinee_test() ->
+    Text = "let width = 1\n"
+           "fn first(b : Bytes) : Bytes with Never = match Io.debug(b) {\n"
+           "    <<h:size(width)-bytes, _:bytes>> -> h\n"
+           "  | _ -> b\n"
+           "}\n"
+           "export fn main() : Unit with Never = {\n"
+           "    let _ = first(<<7, 8>>);\n"
+           "    Unit\n"
+           "}\n",
+    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'], Text),
+    Build = #{source_hash => <<>>, deps => [], standard => false},
+    {ok, Mod, Bin} = ern_emitter:compile(['M'], Typed, Iface, Env, Build),
+    {module, Mod} = code:load_binary(Mod, "test", Bin),
+    Me = self(),
+    Result = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
+                             #{init => fun() -> ok end, stdout => fun(B) -> Me ! {out, B} end,
+                               stdin => fun() -> eof end}),
+    ?assertNotEqual(ok, Result),
+    ?assertEqual(<<"<<7, 8>>\n">>, collect([])).
+
 %% report §5.11: the report's frame round trip, sub-octet fields, utf8,
 %% float and signed and little segments, a dynamic size in a pattern, and
 %% an unaligned rest that fails the match

@@ -20,12 +20,16 @@ fixed(Lines) ->
     ?assertEqual({ok, Text}, ern_format:format(Text)).
 
 %% report §11.6: a block comment on a line of code stands apart from the
-%% token after it, but a closing bracket or a separator, by one space. A
-%% regression test: it was glued to a token the layout puts no space
-%% before, `- /* neg */1` (findings.md's C-B5)
+%% tokens around it by one space, but for none after an opening bracket
+%% and none before a closing bracket or a separator. A regression test: it
+%% was glued to a token the layout puts no space before, `- /* neg */1`
+%% (findings.md's C-B5), and the release review found a space put after an
+%% opening bracket, `h( /* f */ x)`
 block_comment_apart_test() ->
     ?assertEqual([<<"fn f(x) =">>, <<"    - /* neg */ 1">>], laid(["fn f(x) = - /* neg */1"])),
-    ?assertEqual([<<"fn g(x) =">>, <<"    h( /* f */ x)">>], laid(["fn g(x) = h( /* f */x)"])),
+    ?assertEqual([<<"fn g(x) =">>, <<"    h(/* f */ x)">>], laid(["fn g(x) = h( /* f */x)"])),
+    ?assertEqual([<<"fn g(x) =">>, <<"    [/* a */ x, /* b */ x]">>],
+                 laid(["fn g(x) = [ /* a */ x, /* b */ x]"])),
     fixed(["fn k(x) =", "    h(x /* last */)"]),
     fixed(["fn m(x) =", "    x /* a */ + 1"]).
 

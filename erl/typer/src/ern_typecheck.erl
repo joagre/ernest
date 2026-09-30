@@ -1185,7 +1185,8 @@ reference_graph(Decls, Env) ->
                   end, Decls),
     G.
 
-let_cycle(#let_decl{pos = Pos, name = Name, body = Body} = D, G, Fns, Errs, Seen) ->
+let_cycle(#let_decl{pos = Pos, owner = Owner, name = Name, body = Body} = D, G, Fns, Errs,
+          Seen) ->
     Key = decl_key(D),
     case lists:member(Key, Seen) of
         true ->
@@ -1195,30 +1196,43 @@ let_cycle(#let_decl{pos = Pos, name = Name, body = Body} = D, G, Fns, Errs, Seen
                 false ->
                     {Errs, Seen};
                 Cycle ->
-                    Others = [local_name(O, N) || {O, N} <- lists:usort(Cycle), {O, N} =/= Key],
-                    Through = case Others of
-                                  [] -> "";
-                                  _ -> ", through " ++ lists:join(", ", Others)
+                    LetName = local_name(Owner, Name),
+                    %% the cycle is [Key, ..., Key], or [Key] where the let
+                    %% names itself; what stands between, in the cycle's
+                    %% order, and the last of it reads the let
+                    Between = case Cycle of
+                                  [_] -> [];
+                                  [_ | After] -> lists:droplast(After)
                               end,
-                    Msg = lists:flatten(["the initializer of ", atom_to_list(Name),
-                                         " depends on itself", Through]),
-                    %% report §11.5: a lambda that calls itself is a
-                    %% recursive function, which is a `fn`; a value that a
-                    %% function on the cycle reads is built by a `fn` when
-                    %% it is asked for
-                    Help = case {Others, Body, [K || K <- Cycle, lists:member(K, Fns)]} of
-                               {[], #e_lambda{}, _} ->
-                                   "a recursive function is declared with `fn "
-                                   ++ atom_to_list(Name) ++ "(...) = ...`";
-                               {_, _, [{O, F} | _]} ->
-                                   lists:flatten(["`", local_name(O, F), "` reads ",
-                                                  atom_to_list(Name), " when it is called;"
-                                                  " a `fn ", atom_to_list(Name), "() = ...`"
-                                                  " builds the value when it is asked for"]);
-                               _ -> undefined
-                           end,
+                    Through = case Between of
+                                  [] -> "";
+                                  _ -> ", through " ++ lists:join(", ", [local_name(O, N)
+                                                                     || {O, N} <- Between])
+                              end,
+                    Msg = lists:flatten(["the initializer of ", LetName, " depends on itself",
+                                         Through]),
+                    Help = cycle_help(LetName, Body, Between, Fns),
                     {[(diag(Pos, Msg))#diag{help = Help} | Errs], Cycle ++ Seen}
             end
+    end.
+
+%% Report §11.5: a lambda on a cycle is a recursive function, which is a
+%% `fn` whatever else the cycle holds; a value that a function reads, the
+%% function that closes the cycle, is built by a `fn` when it is asked for;
+%% a cycle closed by a let has no help.
+cycle_help(LetName, #e_lambda{}, _, _) ->
+    "a recursive function is declared with `fn " ++ LetName ++ "(...) = ...`";
+cycle_help(_, _, [], _) ->
+    undefined;
+cycle_help(LetName, _, Between, Fns) ->
+    {Owner, Reader} = lists:last(Between),
+    case lists:member({Owner, Reader}, Fns) of
+        true ->
+            lists:flatten(["`", local_name(Owner, Reader), "` reads ", LetName,
+                           " when it is called; a `fn ", LetName, "() = ...` builds the value"
+                           " when it is asked for"]);
+        false ->
+            undefined
     end.
 
 %% Unify a placeholder with what the annotations say, before any body. A
@@ -1566,7 +1580,10 @@ fixed_label(Origin, _, _) ->
 
 %% Restrictions checked at instantiation (report §3.9, §3.10): a no-reply
 %% variable bound to a reply-carrying type, an equality-constrained one
-%% bound to a type containing a function or an address.
+%% bound to a type containing a function or an address. They are checked
+%% in the order they stand in the source, so that the one reported is the
+%% first place that needed the restriction: a map's first operation, and a
+%% comparison before a later use that made its type one without equality.
 no_reply_instantiations(#env{pending = Pending} = Env) ->
     %% report §11.5: at a rejected call site the error names the function
     %% and shows the restriction its type carries
@@ -1589,7 +1606,12 @@ no_reply_instantiations(#env{pending = Pending} = Env) ->
                                                 ++ "), " ++ need_text(Need, Who)
                                                 ++ identity_hint(T))
                           end
-                  end, Pending).
+                  end, lists:sort(fun(A, B) -> place(A) =< place(B) end, Pending)).
+
+%% Where a pending restriction was needed, as a line and a column.
+place(Pending) ->
+    {Line, Column, _} = ern_diag:span(element(3, Pending)),
+    {Line, Column}.
 
 who(undefined, Default) -> Default;
 who({Name, _}, _) -> Name.
@@ -2384,16 +2406,20 @@ same_operands(Op, L, LT, R, RT, Env) ->
                                         ++ "` must have the same type",
              {node_span(L), "the left operand has type " ++ ern_types:format(LT, Env#env.st)}).
 
-%% Report §3.10: == on a type variable records the constraint; on a
-%% concrete type without equality it is an error now.
+%% Report §3.10: == on a type variable records the constraint, and the
+%% comparison as where it was needed, so that a later use that makes the
+%% type one without equality is reported here; on a concrete type without
+%% equality it is an error now.
 equality_constraint(Pos, T, Env) ->
     St = Env#env.st,
     Z = ern_types:zonk(T, St),
     case lacks_equality(Z, Env) of
         false ->
+            Vars = ern_types:free_vars(Z, St),
             St1 = lists:foldl(fun(Id, S) -> ern_types:add_flag({tvar, Id}, eq, S) end,
-                              St, ern_types:free_vars(Z, St)),
-            Env#env{st = St1};
+                              St, Vars),
+            Compared = [{eq, Id, Pos, compared, undefined} || Id <- Vars],
+            Env#env{st = St1, pending = Compared ++ Env#env.pending};
         Lack ->
             fail(Pos, "`==` is not defined on " ++ ern_types:format(Z, St) ++ ": " ++ Lack
                       ++ identity_hint(Z))

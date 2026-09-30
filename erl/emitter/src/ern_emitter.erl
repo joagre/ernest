@@ -398,10 +398,18 @@ expr(#e_if{pos = Pos, condition = C, then_branch = T, else_branch = E}, Cx) ->
 expr(#e_match{pos = Pos, scrutinee = S, clauses = Clauses0}, Cx) ->
     {SF, Cx1} = expr(S, Cx),
     %% report §5.11: a top-level `let` a pattern's size names is read into a
-    %% variable before the match
-    {Clauses, {Reads, Cx2}} = lists:mapfoldl(fun read_sizes/2, {[], Cx1}, Clauses0),
-    {Form, Cx3} = match_clauses(SF, Clauses, Cx2),
-    {at(Pos, with_binds(Reads, Form)), Cx3};
+    %% variable when the match begins, after its scrutinee (§5.1: left to
+    %% right), which is then matched from a variable of its own
+    case lists:mapfoldl(fun read_sizes/2, {[], Cx1}, Clauses0) of
+        {Clauses, {[], Cx2}} ->
+            {Form, Cx3} = match_clauses(SF, Clauses, Cx2),
+            {at(Pos, Form), Cx3};
+        {Clauses, {Reads, Cx2}} ->
+            {[Scrutinee], Cx3} = fresh_vars(1, "Scrutinee", Cx2),
+            Evaluated = erl_syntax:match_expr(erl_syntax:variable(Scrutinee), SF),
+            {Form, Cx4} = match_clauses(erl_syntax:variable(Scrutinee), Clauses, Cx3),
+            {at(Pos, with_binds([Evaluated | Reads], Form)), Cx4}
+    end;
 expr(#e_receive{pos = Pos, clauses = Clauses0, 'after' = After}, Cx0) ->
     %% report §6.3: a receive guard is a guard expression, which the
     %% checker holds it to, so it is an Erlang guard here, a top-level `let`

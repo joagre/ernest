@@ -7,12 +7,6 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 - ask — `Fs.removeAll` can be steered into another directory between its check and its listing (C1-3)
 - ask — `Foreign.from` hands foreign code an address past its proxy (C1-4)
 
-## Wrong results
-
-- tag — `ern format dir` takes `dir` as the source root (C3-12); a startup file's diagnostics lose their place (C3-10); `:load List` answers as a success (C3-20); `:type let _ = 1` is accepted (C3-21); two shells trim the history through one file (C3-22); a reload's ended processes may end `Killed` (C3-19)
-- tag — the cycle diagnostic names a member without its type, helps a lambda wrongly, and lists the cycle out of order (C2-9, C2-10, C2-11); `==` is reported at a later call (C2-12); a lone carriage return (C2-13); three help lines, the fourth, `()`'s, done with the crashes (C2-14); `->` in a signature (C2-15); a space after a bracket before a comment (C2-16); a size's read before the scrutinee (C2-17)
-- tag — the address-as-key diagnostic stands at the wrong place (N-A5)
-
 ## The restart and the supervisor
 
 - tag — a faulted child waits for ever when a sibling faults on its own, or has only joined, before it takes its restart (C1-11, C1-19)
