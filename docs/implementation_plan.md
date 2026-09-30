@@ -130,7 +130,15 @@ discussed with the user one at a time as they are met.
    time, which the shell's run numbers met, and which a constant function avoids; make
    keeping no stamp of the Ernest trees and running `ern build` every time, its own rule
    deciding by content (§11.1; the log's *Make Runs `ern build` Every Time*), decided with the
-   user and done 2026-09-30; the diagnostics' positions and labels
+   user and done 2026-09-30; the distribution notes read back against the report, what was
+   false corrected, their reasons moved to the log, and every question they leave open
+   numbered in them and so decided in MVP 3.0 or 3.1, done 2026-09-30; three placements for
+   the user in this item, each a verdict by principle and what would change it, or a
+   milestone: Erlang scheduling hints, which wait "for a program that needs them", a count
+   CLAUDE.md does not allow; discovery of a library by name, "a tooling question for later";
+   and the shell's later work, the grey suggestion, the kill ring and the other keys,
+   completion by type, re-running by number, `:trace`, quiescence and attaching to a node;
+   the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
@@ -280,8 +288,8 @@ log's *A Full Review Now and Then*).
 - **The distribution notes' rewrite, read with the user before any of it is built.** Brought to
   the report on 2026-09-28, the two notes also gained design no one has weighed: a `spawned`
   and a `kill` frame, `demonitor` kept to the runtime, the spawn site in the spawn frame, the
-  hash modules named `ern#<base32>`, and new open questions, the protocol note's 5 and 7 to
-  12 and the distribution note's 8 to 10.
+  hash modules named `ern#<base32>`, and new open questions, the protocol note's 5, 7 to 12
+  and 15 to 21, and the distribution note's 8 to 17 (the second read-back, 2026-09-30).
 - `spawn(Peer(name), f)` over the peers in `ernest.conf`, authenticated with the configured
   keys: the connection is `ssl`, with the peer's public key from `ernest.conf` as the only
   trust, read with `public_key`, inside `ern`; a program never sees either module.
@@ -301,7 +309,7 @@ log's *A Full Review Now and Then*).
   common call is `Balancer.pick(Peer.runQueue)`. Its module page states the cost, two round
   trips per `pick`.
 - **What the protocol note asks of the report**, each decided before it is built: whether
-  `Down` gains `Unreachable` for a lost peer whose process may live on (the note's question 6,
+  `Reason` gains `Unreachable` for a lost peer whose process may live on (the note's question 6,
   §9.3, §6.9), and whether §6.4 states that what arrives is an unbroken prefix of what was sent,
   a sender told nothing of a drop, as the note's section 8 promises.
 - **Where a node's configuration is read**, decided before `ernest.conf` is: its default,
@@ -352,8 +360,8 @@ the typed AST canonicalized is part of the decision on the normalized definition
 
 The milestone is §8.7's identity in full:
 
-- **The normalized definition, decided first**: the typed tree or the untyped one, whether
-  local names are erased, and what becomes of the effect variables, which are inferred and
+- **The normalized definition, decided first**: the typed tree or the untyped one, and what
+  becomes of the effect variables, which are inferred and
   never written. Whether `ern_iface:hash/1`, which hashes a canonical interface, grows into
   the definition hash or a second scheme stands beside it is part of that decision.
 - Every definition gets a hash of its typed AST; modules are named by hash, with a registry
@@ -363,6 +371,8 @@ The milestone is §8.7's identity in full:
   ([`code_distribution.md`](code_distribution.md) section 8). The shell's reload then ends
   nothing: §7.3's unloading cause, §7.4's `Fault("its code was unloaded")` and §11.2's
   second-reload rule go, with the test that pins them.
+- **The loader's one `code_server`**, measured under the loader's batches before it is relied
+  on, and **normalization**, given a test suite of its own (the note's section 6 and risk 1).
 - **A node whose atoms near the host's limit**, decided with the hash modules: the note's
   section 10.2 drains and restarts it, which CLAUDE.md's rule that memory no collection
   reclaims is fixed at its cause, never by a cap, questions (a reader's finding).
