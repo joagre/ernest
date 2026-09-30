@@ -288,6 +288,14 @@ char_test() ->
     ?assertEqual(true, C:isSpace(16#85)),
     ?assertEqual(true, C:isSpace(16#3000)),
     ?assertEqual(false, C:isSpace(16#200E)),
+    %% the host's own tables, which its string module follows: White_Space
+    %% as Unicode has it, and a letter Unicode 17 added. A regression test
+    %% for the regular expression the properties were once read by, whose
+    %% tables were older than the host's
+    ?assertEqual(true, C:isSpace(16#2028)),
+    ?assertEqual(false, C:isSpace(16#180E)),
+    ?assertEqual(false, C:isSpace(16#200B)),
+    ?assertEqual(true, C:isUpper(16#A7CE)),
     ?assertEqual(true, C:isUpper($A)),
     ?assertEqual(false, C:isUpper($a)),
     ?assertEqual(true, C:isLower(16#E9)),

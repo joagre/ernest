@@ -43,7 +43,7 @@
          hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1, input_not_utf8/0,
          read_input/1, run_main/3, arguments/0, exit_program/1, deadlock_target/1, signal/1,
          initializing/1, site/0, binding/1, restarting/2, restart_now/0, ask_restart/1,
-         start_cause/0, init_stdlib/0, init_modules/1, ordered/1]).
+         start_cause/0, spawn_order/1, init_stdlib/0, init_modules/1, ordered/1]).
 
 -compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
 
@@ -371,7 +371,7 @@ reaper_loop(Waiters, Watching, Watched) ->
             %% the process starts once its row is in the table, since a
             %% timed receive it enters first counts itself there (§8.6)
             {Pid, _MRef} = erlang:spawn_monitor(fun() -> receive Ref -> run(Fun) end end),
-            ets:insert(?PROCESSES, {Pid, Site, 0, 0}),
+            ets:insert(?PROCESSES, {Pid, Site, 0, 0, spawn_number()}),
             Pid ! Ref,
             From ! {Ref, Pid},
             %% a wait made with the spawn, spawnMonitored's, is watched as
@@ -386,7 +386,7 @@ reaper_loop(Waiters, Watching, Watched) ->
             %% program, which its system process starts, is a process of the
             %% program's as one spawned is, watched here and listed
             _ = erlang:monitor(process, Pid),
-            ets:insert(?PROCESSES, {Pid, Site, 0, 0}),
+            ets:insert(?PROCESSES, {Pid, Site, 0, 0, spawn_number()}),
             From ! {Ref, adopted},
             reaper_loop(Waiters, Watching, Watched);
         {await, Pid, To, Wrap, Ref} ->
@@ -412,7 +412,7 @@ reaper_loop(Waiters, Watching, Watched) ->
             ended_program(From, Ref);
         {'DOWN', _MRef, process, Pid, Reason} ->
             case ets:take(?PROCESSES, Pid) of
-                [{_, Site, _, _}] ->
+                [{_, Site, _, _, _}] ->
                     %% its pending call, which a process killed while it
                     %% waited leaves; a caller learns of a callee's end by
                     %% its own monitor, and removes its own
@@ -464,12 +464,17 @@ reaper_loop(Waiters, Watching, Watched) ->
         reaper_loop(Waiters, Watching, Watched)
     end.
 
+%% Appendix E.22: a number that grows with each process the reaper starts
+%% or adopts, so that processes are in the order they were spawned.
+spawn_number() ->
+    erlang:unique_integer([monotonic, positive]).
+
 %% Report §8.6: the program's end ends every process the runtime started.
 %% The reaper spawns each, so it ends them: every one it has spawned, and
 %% none after, since a spawn it is asked for then was asked by a process
 %% that is itself ending. It answers nothing more until it is stopped.
 ended_program(From, Ref) ->
-    lists:foreach(fun({Pid, _, _, _}) -> exit(Pid, {ern, program_end}) end, live_rows()),
+    lists:foreach(fun({Pid, _, _, _, _}) -> exit(Pid, {ern, program_end}) end, live_rows()),
     From ! {Ref, ended},
     ended_program().
 
@@ -521,7 +526,7 @@ counted_link(Work) ->
 %% the shell's :reload reads to find what still runs a module.
 -spec live() -> [{pid(), binary()}].
 live() ->
-    try [{Pid, Site} || {Pid, Site, _, _} <- live_rows()]
+    try [{Pid, Site} || {Pid, Site, _, _, _} <- live_rows()]
     catch _:_ -> []
     end.
 
@@ -539,7 +544,7 @@ processes() ->
 info(Pid) when node(Pid) =:= node() ->
     case {ets_lookup(?PROCESSES, Pid),
           erlang:process_info(Pid, [status, message_queue_len])} of
-        {[{_, Site, _, _}], [{status, Status}, {message_queue_len, Queued}]} ->
+        {[{_, Site, _, _, _}], [{status, Status}, {message_queue_len, Queued}]} ->
             Activity = case Status of
                            waiting ->
                                case ets_lookup(?CALLS, Pid) of
@@ -591,10 +596,10 @@ report(Pid, Site, Fault, Restarted) ->
     Subscribers = [To || {_, To} <- ets_match(?FAULTS, '_')],
     lists:foreach(fun(To) -> counted_link(fun() -> deliver(To, Report) end) end, Subscribers).
 
-%% The live processes' rows, each its pid, its spawn site, and the counts
-%% of its timed waits and of its foreign calls in progress.
+%% The live processes' rows, each its pid, its spawn site, the counts of its
+%% timed waits and of its foreign calls in progress, and its spawn number.
 live_rows() ->
-    ets:select(?PROCESSES, [{{'_', '_', '_', '_'}, [], ['$_']}]).
+    ets:select(?PROCESSES, [{{'_', '_', '_', '_', '_'}, [], ['$_']}]).
 
 %% Report §6.9, §11.2: a process that ended faulting is reported, and a
 %% subscription to faults it held ends with it.
@@ -631,7 +636,7 @@ deadlocked() ->
     terminal_holder() =:= undefined
         andalso nothing_delivers()
         andalso begin
-                    Pids = [Pid || {Pid, _, _, _} <- live_rows()],
+                    Pids = [Pid || {Pid, _, _, _, _} <- live_rows()],
                     First = snapshot(Pids),
                     Pids =/= []
                         andalso lists:all(fun({_, S, _}) -> S =:= waiting end, First)
@@ -648,7 +653,7 @@ nothing_delivers() ->
 %% Whether a process is in a timed receive or a foreign call, found at the
 %% first such row.
 counted() ->
-    ets:select(?PROCESSES, [{{'_', '_', '$1', '$2'},
+    ets:select(?PROCESSES, [{{'_', '_', '$1', '$2', '_'},
                              [{'orelse', {'>', '$1', 0}, {'>', '$2', 0}}], [true]}], 1)
         =/= '$end_of_table'.
 
@@ -1458,7 +1463,7 @@ initializing(Site) ->
 -spec site() -> binary().
 site() ->
     case ets_lookup(?PROCESSES, erlang:self()) of
-        [{_, Site, _, _}] -> Site;
+        [{_, Site, _, _, _}] -> Site;
         _ -> <<>>
     end.
 
@@ -1538,6 +1543,15 @@ start_cause() ->
         Cause -> Cause
     end.
 
+%% Appendix E.22: where a process stands in the order the runtime spawned
+%% its processes, 0 for one it did not start, which stands first.
+-spec spawn_order(pid()) -> non_neg_integer().
+spawn_order(Pid) ->
+    case ets_lookup(?PROCESSES, Pid) of
+        [{_, _, _, _, N}] -> N;
+        _ -> 0
+    end.
+
 restarts(F, Restarts, Within, Times, Level) ->
     try
         F()
@@ -1559,11 +1573,7 @@ restarts(F, Restarts, Within, Times, Level) ->
                 true ->
                     %% report §11.2: a fault after which the process
                     %% restarts is reported as one
-                    Site = case ets_lookup(?PROCESSES, erlang:self()) of
-                               [{_, S, _, _}] -> S;
-                               _ -> <<>>
-                           end,
-                    persistent_term:get({?MODULE, reaper}) ! {report, erlang:self(), Site, Fault},
+                    persistent_term:get({?MODULE, reaper}) ! {report, erlang:self(), site(), Fault},
                     restarted(element(3, Fault)),
                     Level =:= outer andalso put('$ern_start', 'AfterFault'),
                     restarts(F, Restarts, Within, [Now | Recent], Level);
@@ -1593,7 +1603,7 @@ end_program(Run, Reaper, System) ->
         {Ended, ended} ->
             ok;
         {'DOWN', Watch, process, _, _} ->
-            lists:foreach(fun({Pid, _, _, _}) -> exit(Pid, {ern, program_end}) end, live_rows())
+            lists:foreach(fun({Pid, _, _, _, _}) -> exit(Pid, {ern, program_end}) end, live_rows())
     end,
     erlang:demonitor(Watch, [flush]),
     lists:foreach(fun(Sink) ->

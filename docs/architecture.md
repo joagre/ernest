@@ -74,7 +74,7 @@ A module's atom is [`style.md`](style.md)'s `ern@` name, and a type member keeps
 
 `ern_rt` is what compiled code calls for processes, and the launcher. It keeps four tables:
 
-- `ern_processes`: `{Pid, Site, Timers, Foreign}` per process the runtime started, `Timers` and `Foreign` counting its timed receives and foreign calls; beside them, the proxies' `{proxy, Key}` and `{behind, Pid}` rows, the `{restart, Pid}` rows, the deadlock target, and how the terminal is read.
+- `ern_processes`: `{Pid, Site, Timers, Foreign, Spawned}` per process the runtime started, `Timers` and `Foreign` counting its timed receives and foreign calls, and `Spawned` its place in the order of spawns, which `RestForOne` reads; beside them, the proxies' `{proxy, Key}` and `{behind, Pid}` rows, the `{restart, Pid}` rows, the deadlock target, and how the terminal is read.
 - `ern_calls`: `{Caller, Callee, Alias}` per pending call, keyed by the caller, which makes one call at a time; `Alias` is the alias of the caller's monitor of the callee, and the reply's.
 - `ern_faults`: `{Subscriber, To}` per subscription to faults.
 - `ern_held`: `{{source, Holder}, Count}` for each system process, listener, socket or running program holding a source, and `{{opened, Pid}}` for each process a system module opened.

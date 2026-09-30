@@ -11,7 +11,7 @@
 /// mailbox (report §6.9). A group whose children fault more often than its
 /// limit allows faults. A supervisor that is itself a child restarts in
 /// place, and asks each of its own children to restart. When a
-/// supervisor dies, its children are killed after it, the last to join
+/// supervisor dies, its children are killed after it, the last spawned
 /// first, each once the one before has ended, by a watcher the module
 /// spawns beside it; so `kill(sup)` stops a group. A child that must finish
 /// its work first is sent a message of its own protocol before, since a
@@ -51,7 +51,8 @@
 /// since 0.1.0
 
 /// What else a child's fault restarts: nothing, every other child, or the
-/// children that joined after it.
+/// children spawned after it, in the order the runtime spawned them,
+/// whatever order they joined in.
 ///
 /// ### Examples
 ///
@@ -85,8 +86,9 @@ export abstract type Msg =
   | Expired(Int)
 
 // What the watcher takes: a child to watch, the children in the order they
-// joined, the number of a new run of the supervisor, a child that ended,
-// the supervisor's end, and a child that waits for either of the last two.
+// were spawned, the number of a new run of the supervisor, a child that
+// ended, the supervisor's end, and a child that waits for either of the
+// last two.
 type Watch =
     Add(Member)
   | Members(reply : Reply(List(Process)))
@@ -99,10 +101,11 @@ type Watch =
 // supervisor's next run or its end.
 type Held = Holding(reply : Reply(Unit), next : Held) | Nobody
 
-// A child as the watcher holds it: its process, how to kill it, and how to
-// monitor it.
+// A child as the watcher holds it: its process, where it stands in the
+// order of spawns, how to kill it, and how to monitor it.
 type Member =
     Member(process : Process,
+           spawned : Int,
            stop : () -> Unit with Watch,
            watch : ((Down) -> Watch) -> Unit with Watch)
 
@@ -159,7 +162,7 @@ export fn group(strategy : Strategy, limit : RestartLimit) : () -> Unit with Msg
 fn supervise(g : Group, recent : Int) : Unit with Msg =
     receive {
         Join(process = p, stop = s, watch = w, reply = r) -> {
-            send(g.watcher, Add(Member(process = p, stop = s, watch = w)));
+            send(g.watcher, Add(Member(process = p, spawned = spawnOrder(p), stop = s, watch = w)));
             answer(r, Unit);
             supervise(g, recent)
         }
@@ -186,14 +189,14 @@ fn restartSiblings(strategy : Strategy,
     match strategy {
         OneForOne -> Unit
       | OneForAll -> List.foreach(List.filter(members(watcher), fn(q) = q != faulted), askRestart)
-      | RestForOne -> List.foreach(joinedAfter(members(watcher), faulted), askRestart)
+      | RestForOne -> List.foreach(spawnedAfter(members(watcher), faulted), askRestart)
     }
 
-// The children that joined after `p`.
-fn joinedAfter(children : List(Process), p : Process) : List(Process) =
+// The children spawned after `p`, which the watcher holds in that order.
+fn spawnedAfter(children : List(Process), p : Process) : List(Process) =
     match children {
         [] -> []
-      | q :: rest -> if q == p then rest else joinedAfter(rest, p)
+      | q :: rest -> if q == p then rest else spawnedAfter(rest, p)
     }
 
 fn members(watcher : Address(Watch)) : List(Process) with Msg =
@@ -204,8 +207,14 @@ fn members(watcher : Address(Watch)) : List(Process) with Msg =
 foreign fn askRestart(child : Process) : Unit with m =
     "ern_rt:ask_restart/1"
 
-// The watcher: it holds the children in the order they joined, forgets one
-// that ends, and when the supervisor dies kills them, the last first.
+// Where a process stands in the order the runtime spawned its processes,
+// which `RestForOne` reads and the watcher keeps its children in.
+foreign fn spawnOrder(p : Process) : Int with m =
+    "ern_rt:spawn_order/1"
+
+// The watcher: it holds the children in the order they were spawned,
+// forgets one that ends, and when the supervisor dies kills them, the last
+// first.
 fn watch(sup : Address(Msg)) : Unit with Watch = {
     monitor(sup, fn(_) = SupervisorDied);
     watching([], 0, Nobody)
@@ -216,9 +225,9 @@ fn watching(children : List(Member), runs : Int, held : Held) : Unit with Watch 
         Add(m) -> if List.any(children, fn(c) = c.process == m.process) then
             watching(children, runs, held)
         else {
-            let Member(process = p, stop = _, watch = w) = m;
+            let Member(process = p, spawned = _, stop = _, watch = w) = m;
             w(fn(_) = Gone(p));
-            watching(children <> [m], runs, held)
+            watching(inOrder(children, m), runs, held)
         }
       | Members(reply = r) -> {
             answer(r, List.map(children, fn(c) = c.process));
@@ -248,10 +257,17 @@ fn released(held : Held) : Unit with Watch =
         }
     }
 
+// The children with a new one among them, in the order they were spawned.
+fn inOrder(children : List(Member), m : Member) : List(Member) =
+    match children {
+        [] -> [m]
+      | c :: rest -> if m.spawned < c.spawned then m :: children else c :: inOrder(rest, m)
+    }
+
 fn stopAll(children : List(Member)) : Unit with Watch =
     match children {
         [] -> Unit
-      | Member(process = p, stop = stop, watch = _) :: rest -> {
+      | Member(process = p, spawned = _, stop = stop, watch = _) :: rest -> {
             stop();
             receive {
                 Gone(q) when q == p -> Unit

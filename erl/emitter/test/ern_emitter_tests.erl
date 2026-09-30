@@ -2032,8 +2032,8 @@ one_for_one_restarts_the_child_alone_test() ->
         "}\n"),
     ?assertEqual(<<"0 1\n">>, Out).
 
-%% Appendix E.22: under RestForOne a fault restarts the children that
-%% joined after the one that faulted, and not those before it
+%% Appendix E.22: under RestForOne a fault restarts the children spawned
+%% after the one that faulted, and not those before it
 rest_for_one_restarts_later_children_test() ->
     {ok, Out} = supervised("RestForOne", ?LIMIT, ["a", "b", "c"],
         "export fn main() : Unit with Never = {\n"
@@ -2043,6 +2043,38 @@ rest_for_one_restarts_later_children_test() ->
         "    Io.println(show(a) <> \" \" <> show(b) <> \" \" <> show(c))\n"
         "}\n"),
     ?assertEqual(<<"1 0 0\n">>, Out).
+
+%% Appendix E.22: RestForOne reads the order the children were spawned in,
+%% whatever order they joined in: `a`, spawned first, joins last, and its
+%% fault still restarts `b` and `c`. A regression test: the order read was
+%% the order of joins, which the scheduler decides, and a race of it failed
+%% examples/services.ern
+rest_for_one_reads_the_order_of_spawns_test() ->
+    {ok, Out} = run(["type Msg = Ask(reply : Reply(Int)) | Boom\n"
+                     "let sup : Address(Supervisor.Msg) = spawn(Local, Supervisor.group("
+                     "Supervisor.RestForOne, ", ?LIMIT, "))\n"
+                     "let a : Address(Msg) = spawn(Local, fn() : Unit with Msg = {\n"
+                     "    receive { after 100 -> Unit };\n"
+                     "    Supervisor.child(sup, fn() = count(0))()\n"
+                     "})\n"
+                     "let b : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = count(0)))\n"
+                     "let c : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = count(0)))\n"
+                     "fn count(n : Int) : Unit with Msg = receive {\n"
+                     "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
+                     "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
+                     "}\n"
+                     "fn ask(c : Address(Msg)) : Int with m ="
+                     " Address.callForever(c, fn(r) = Ask(reply = r))\n"
+                     "fn show(c : Address(Msg)) : String with m = Int.toString(ask(c))\n"
+                     "fn pause() : Unit with m = receive { after 100 -> Unit }\n"
+                     "export fn main() : Unit with Never = {\n"
+                     "    pause(); pause();\n"
+                     "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
+                     "    send(a, Boom);\n"
+                     "    pause();\n"
+                     "    Io.println(show(a) <> \" \" <> show(b) <> \" \" <> show(c))\n"
+                     "}\n"]),
+    ?assertEqual(<<"0 0 0\n">>, Out).
 
 %% report §6.9: a restart asked for is no fault, and no fault is reported
 %% for it; only the child that faulted is

@@ -1,6 +1,10 @@
 %% The shims behind Char (report Appendix E.6): the Unicode properties, the
 %% case mappings, and the conversions between a Char and its code point,
-%% which are one Erlang integer.
+%% which are one Erlang integer. The properties are read from the host's
+%% own tables, unicode_util's, which its string module is built on, so that
+%% Char and String follow one version of Unicode; the host's documentation
+%% hides that module, which the log's *Char Reads the Host's Tables*
+%% weighs.
 -module(ern_char).
 
 -export([is_digit/1, is_alpha/1, is_space/1, is_upper/1, is_lower/1, to_upper/1, to_lower/1,
@@ -8,25 +12,24 @@
 
 -spec is_digit(char()) -> boolean().
 is_digit(C) when C < 16#80 -> C >= $0 andalso C =< $9;
-is_digit(C) -> category(C, "Nd").
+is_digit(C) -> unicode_util:category(C) =:= {number, decimal}.
 
 -spec is_alpha(char()) -> boolean().
 is_alpha(C) when C < 16#80 -> (C >= $a andalso C =< $z) orelse (C >= $A andalso C =< $Z);
-is_alpha(C) -> category(C, "L").
+is_alpha(C) -> element(1, unicode_util:category(C)) =:= letter.
 
 %% White_Space: the ASCII controls 9 to 13 and space, U+0085, and the
 %% separators of category Z
 -spec is_space(char()) -> boolean().
-is_space(C) when C < 16#80 -> (C >= 16#9 andalso C =< 16#D) orelse C =:= $\s;
-is_space(C) -> C =:= 16#85 orelse category(C, "Z").
+is_space(C) -> unicode_util:is_whitespace(C).
 
 -spec is_upper(char()) -> boolean().
 is_upper(C) when C < 16#80 -> C >= $A andalso C =< $Z;
-is_upper(C) -> category(C, "Lu").
+is_upper(C) -> unicode_util:category(C) =:= {letter, uppercase}.
 
 -spec is_lower(char()) -> boolean().
 is_lower(C) when C < 16#80 -> C >= $a andalso C =< $z;
-is_lower(C) -> category(C, "Ll").
+is_lower(C) -> unicode_util:category(C) =:= {letter, lowercase}.
 
 -spec to_upper(char()) -> char().
 to_upper(C) -> single(string:uppercase([C]), C).
@@ -46,6 +49,3 @@ from_int(N) -> N.
 
 single([U], _) -> U;
 single(_, C) -> C.
-
-category(C, Class) ->
-    re:run(<<C/utf8>>, "^\\p{" ++ Class ++ "}$", [unicode]) =/= nomatch.

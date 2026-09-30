@@ -107,13 +107,14 @@ discussed with the user one at a time as they are met.
    at 4.9 to 5.1 µs against 4.2 for the same protocol in Erlang (§6.2, §6.6, §6.9, §8.6; the
    log's *Supervision Stays in the Reaper*), `String.trimEnd` splitting only the tail that
    could go, `String.toFloat` reading its form by a scan, and the shell reading a purged
-   input's own keys, done 2026-09-30 (the log's *Three Scans on a Value*); two decisions for
-   the user in this item, one at a time: what order `RestForOne` reads (E.22), since a child
-   joins when it first runs, so children spawned in one order join in the scheduler's, which
-   `examples/services.ern` met, with the order of spawns recommended; and whether `Char`'s
-   predicates read the host's `unicode_util`, whose documentation hides it, rather than a
-   regular expression 30 to 100 times slower (E.6), recommended; the diagnostics' positions
-   and labels
+   input's own keys, done 2026-09-30 (the log's *Three Scans on a Value*); `RestForOne`
+   reading the order of spawns, since a child joins when it first runs, so children spawned
+   in one order joined in the scheduler's, which `examples/services.ern` met, decided with
+   the user and done 2026-09-30 (E.22; the log's *`RestForOne` Reads the Order of Spawns*);
+   `Char`'s predicates
+   reading the host's `unicode_util`, whose documentation hides it, rather than a regular
+   expression 30 to 100 times slower, decided with the user and done 2026-09-30 (E.6; the
+   log's *Char Reads the Host's Tables*); the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
