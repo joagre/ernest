@@ -65,12 +65,10 @@ After the First Release*).
    way; and `Supervisor.group` spawns the process that keeps its children when it is called,
    since a supervisor restarted in place found it through its mailbox. It came before the
    review, since it changes what programs observe.
-2. **The release.** [`review.md`](review.md) runs on the code as it is then; `VERSION` is set
-   to the release's version before the tag; `ern(1)` is given the sections man-pages(7)
-   names, SYNOPSIS, OPTIONS and EXIT STATUS among them, where it is §11 rendered as it stands
-   (`findings.md`'s T31, 2026-09-29); and the release is tagged with its notes, the archive
-   `make release` writes, `build/release/ern-VERSION.tar.gz`, published beside it, where the
-   README then says to download it.
+2. **The release**, as [`review.md`](review.md) runs one, with what the first release alone
+   needs beside it: `ern(1)` given the sections man-pages(7) names, SYNOPSIS, OPTIONS and
+   EXIT STATUS among them, where it is §11 rendered as it stands (`findings.md`'s T31,
+   2026-09-29), and the README saying where to download the archive.
 
 ---
 
