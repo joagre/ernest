@@ -56,9 +56,9 @@ fn measure(key : String, n : Int, f : (Int) -> Int with m) : Unit with m = {
 }
 
 fn run(n : Int, f : (Int) -> Int with m) : Int with m = {
-    let start = Clock.now();
+    let start = Clock.monotonic();
     let _ = loop(n, f, 0);
-    Clock.now() - start
+    Clock.monotonic() - start
 }
 
 fn loop(n : Int, f : (Int) -> Int with m, acc : Int) : Int with m =

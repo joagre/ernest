@@ -1,5 +1,7 @@
 /// Time from the clock, the system process that keeps it (report §8.2).
-/// Times are milliseconds since the epoch. An alarm fires once and cannot
+/// Times are milliseconds since the epoch; `monotonic` is the clock to
+/// measure a duration by, since `now` moves when the clock is set. An
+/// alarm fires once and cannot
 /// be cancelled: a process that no longer wants it ignores the message, and
 /// a periodic tick is scheduled again after the previous one is handled.
 ///
@@ -34,6 +36,22 @@ foreign fn system(name : Foreign) : Address(Msg) with m =
 /// The time now.
 export fn now() : Int with m =
     Address.callForever(reference, fn(r) = Now(reply = r))
+
+/// Milliseconds since a moment the runtime chose, which never go back, so
+/// that the difference of two readings is the time between them. Its
+/// value alone says nothing; `now` is the time of day.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let start = Clock.monotonic();
+///     Clock.monotonic() - start >= 0
+/// }
+/// // => true
+/// ```
+export foreign fn monotonic() : Int with m =
+    "ern_rt:monotonic/0"
 
 /// After that many milliseconds, `wrap(t)` arrives in the caller's mailbox,
 /// `t` the time it fired. A single-positional constructor passes as

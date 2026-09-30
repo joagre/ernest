@@ -38,7 +38,7 @@
          call/3, call/4, call_forever/2, call_forever/3, answer/2, refuse/2, monitor/2, kill/1,
          reason/1, live/0, processes/0, info/1, faults/1, proxy_for/3, proxy_forget/2,
          source_begin/0, source_begin/1, source_end/0, opened/2, forget_opened/1, timed/0,
-         untimed/0, deadline/1, remaining/1, in_foreign/1,
+         untimed/0, deadline/1, remaining/1, monotonic/0, in_foreign/1,
          undefined_function/3, undefined_lambda/3, fault/1, fault/2, trace/1, sys/1,
          hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1, input_not_utf8/0,
          read_input/1, run_main/3, arguments/0, exit_program/1, deadlock_target/1, signal/1,
@@ -810,6 +810,12 @@ deadline(Ms) ->
 -spec remaining(integer()) -> 0..?SLICE.
 remaining(Deadline) ->
     min(?SLICE, max(0, Deadline - erlang:monotonic_time(millisecond))).
+
+%% Appendix E.15: Clock.monotonic, milliseconds since a moment the runtime
+%% chose, which never go back.
+-spec monotonic() -> integer().
+monotonic() ->
+    erlang:monotonic_time(millisecond).
 
 %% Report §8.4, §8.6: a process inside foreign code is not waiting.
 -spec in_foreign(fun(() -> term())) -> term().

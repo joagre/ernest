@@ -115,8 +115,10 @@ discussed with the user one at a time as they are met.
    reading the host's `unicode_util`, whose documentation hides it, rather than a regular
    expression 30 to 100 times slower, decided with the user and done 2026-09-30 (E.6; the
    log's *Char Reads the Host's Tables*); the guide's §4.4 on sending to many receivers, a
-   window of credits for each and `Process.info` for watching only (N4), done 2026-09-30; the
-   diagnostics' positions and labels
+   window of credits for each and `Process.info` for watching only (N4), done 2026-09-30;
+   `Clock.monotonic` in, a shim over the host's monotonic milliseconds, and `Udp` placed in
+   MVP 3.2 (E.15; the log's *`Clock.monotonic` Is In, and `Udp` Is Placed*), done 2026-09-30;
+   the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
@@ -392,6 +394,10 @@ package story. Written: `libs/ets` and `libs/markdown` (Appendix G; `libs/markdo
   Either(RegexError, Regex)`, `Regex` a foreign type.
 - **`libs/crypto`**, a shim over `crypto` for hashes, HMAC and random bytes; **`libs/uri`**,
   pure Ernest or a shim over `uri_string`; **`libs/zlib`**, a shim over `zlib`.
+- **`Udp`**, a system module of Appendix E beside `Tcp` and not a library, admitted by E.0
+  rule 1 and written as wanted too, with `Tcp`'s shapes: a socket an address, a read pulled
+  with a time, a datagram `Bytes` (the log's *`Clock.monotonic` Is In, and `Udp` Is
+  Placed*).
 
 ---
 
@@ -421,8 +427,7 @@ Release Is for Others*):
 
 `Slot(a)`, a one-shot credit parallel to `Reply(a)`, is out on principles 2 and 5; the log
 holds its shape if the verdict is revisited. String interpolation is declined for now on
-principles 2, 3 and 4. Erlang scheduling hints wait for a program that needs them.
-`Clock.monotonic`, and `Udp` as a module of its own, wait for a later MVP (2026-09-18). No HTTP
+principles 2, 3 and 4. Erlang scheduling hints wait for a program that needs them. No HTTP
 server, ever, and no database connectors: those are libraries for others to write on Appendix
 D's pattern.
 
