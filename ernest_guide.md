@@ -2238,7 +2238,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 
 Report §0 gives five principles, and the rules of the guide follow from them.
 
-1. **Least surprise decides.** A rule stays when the code it produces is what a reader who knows the rest of Ernest would write, and changes when it is not. The other four principles build the language, and this one audits the code they produce.
+1. **Least surprise decides.** A rule stays when the code it produces is what a reader who knows the rest of Ernest would write, and changes when it is not. That reader knows Ernest first, then types as Standard ML and OCaml have them and values and processes as Erlang has them, and no other language. The other four principles build the language, and this one audits the code they produce.
 2. **One way, one job.** The language and the prelude have one way to do each thing: a record is a constructor with named fields, a server is a `receive` loop, a request is a `Reply`.
 3. **Nothing invisible.** Control flow, communication, and failure show in the code or in the type. A top-level binding is visible where its name appears at the use site, which is what makes a service (§6.5) one.
 4. **Simple to parse.** Each construct is known by its first token, or by a later one a bounded way ahead, so a reader, like the parser, never has to look far.
