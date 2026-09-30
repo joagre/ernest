@@ -25,12 +25,12 @@ The syntax does not change. The rules below lift one restriction, add one, and g
 3. No top-level `let` is generalized over an ordered variable. Its initializer may spawn and send, and must run once, before `main` runs (§8.5). A variable left ordered is an error at the binding (§4.6). A value that depends on an order must be a function, which is why `setOperations` is one.
 4. A record holds only the type's primitives, the few operations that touch its representation. `Set.Operations(s, e)` holds `Set`'s six: `empty`, `size`, `contains`, `put`, `remove` and `toList`. None of them is polymorphic beyond `s` and `e`.
 5. Generic code is a function of the record. It is declared as a member of the record type and takes the record last, as in `Set.Operations.union(a, b, ops)`. `map` and `filterMap` take two records, one for the source and one for the result.
-6. A representation exports one function per record it meets, named for that record, and its own functions, each of which calls the generic one with its record: `OrderedSet.setOperations()`, and `OrderedSet.union(a, b)` beside `Set.union(a, b)`. A type may meet several records, as a class implements several interfaces. A record may also hold another as a field, as one interface extends another: `Ordered.Operations(s, e)` holds `set : Set.Operations(s, e)` beside `min` and `max`. Any module can build a record from the operations another module exports.
+6. A representation exports one function per record it meets, named for that record, and its own functions, each of which calls the generic one with its record: `OrderedSet.setOperations()`, and `OrderedSet.union(a, b)` beside `Set.union(a, b)`. A type may meet several records, as a class implements several interfaces. A record may also hold another as a field, as one interface extends another: a second ordered representation would bring an `Ordered.Operations(s, e)` holding `set : Set.Operations(s, e)` beside `min` and `max`. Any module can build a record from the operations another module exports.
 7. An ordered set uses its element type's `compare`. A different order is a different type, such as `Descending(Int)` with its own `compare`, like Haskell's `Down`.
 8. A list that mixes representations needs a second record type, one that hides `s`: its functions close over one set, and its `put` returns another such record (Mitchell and Plotkin 1988). It loses operations on two sets, such as a `union` that reaches both representations (Bruce et al. 1995), and since it holds functions it has no `==`.
-9. `OrderedSet` joins the standard library in `ordered_set.ern`, and `Ordered` in `ordered.ern`. A file name of words joined by `_` names one namespace. `Map` gets a record only when it gets a second representation.
+9. `OrderedSet` joins the standard library in `ordered_set.ern`. A file name of words joined by `_` names one namespace. `Map` gets a record only when it gets a second representation.
 
-The sketch is four files.
+The sketch is three files.
 
 `set.ern` shows only what the proposal adds to `Set`: the record type, `Set`'s record, two generic functions, and `Set.union`, now a call of the generic one.
 
@@ -64,13 +64,6 @@ export fn union(a : Set(e), b : Set(e)) : Set(e) =
     Operations.union(a, b, setOperations())
 ```
 
-`ordered.ern` declares a record that holds another.
-
-```ernest
-export type Operations(s, e) =
-    Operations(set : Set.Operations(s, e), min : (s) -> Optional(e), max : (s) -> Optional(e))
-```
-
 `ordered_set.ern` is the ordered set, its elements kept in their type's order. Its `size`, `contains`, `remove` and `toList`, which its record names, are left out.
 
 ```ernest
@@ -100,9 +93,6 @@ export fn setOperations() : Set.Operations(OrderedSet(e), e) =
                    put = put,
                    remove = remove,
                    toList = toList)
-
-export fn orderedOperations() : Ordered.Operations(OrderedSet(e), e) =
-    Ordered.Operations(set = setOperations(), min = min, max = max)
 
 export fn union(a : OrderedSet(e), b : OrderedSet(e)) : OrderedSet(e) =
     Set.Operations.union(a, b, setOperations())
@@ -185,7 +175,7 @@ The rest falls elsewhere. A comparison through an ordered variable calls a `comp
 - §4.6: no top-level `let` is generalized over an ordered variable.
 - §4.8: a comparison whose operand type is still a variable when its definition ends gives the constraint instead of an error, and `T.compare` is declared over `T`'s own parameters.
 - §6.3: a guard's comparison stays on `Int`, `Float`, `String` and `Char`.
-- §9, §9.6 and Appendix E: `List.compare`, `Optional.compare` and `Either.compare`, `set.ern` over `Set.Operations`, and the modules `Ordered` and `OrderedSet`.
+- §9, §9.6 and Appendix E: `List.compare`, `Optional.compare` and `Either.compare`, `set.ern` over `Set.Operations`, and the module `OrderedSet`.
 - §4.2 and §11.1: a file name of words joined by `_` names one namespace.
 - §11.1 and §11.5: a compiled interface records each function's ordered variables in order, and a type prints `a<`, beside `a=` where a variable has both.
 - The checker infers, reduces and checks the constraint; the emitter passes the hidden `compare`.
