@@ -254,8 +254,8 @@ descriptors, `Io.show` and the ABI place named fields in the order of their name
 Appendix E.1). Under E.1's sentence of 2026-10-01, the checker accepts `Io.show` on a type
 variable and the runtime then writes the representation (Appendix E.1, §4.4). Under §3.8's sentence of 2026-10-01, `Foreign` is a built-in type of
 §3.7 and the prelude without equality (§3.10, §9.1), with its conversions in Appendix E.12,
-where it is the library's foreign type `Erl.Term` of Appendix E.19; Appendix D's code and the
-shims change with it.
+where it is the library's foreign type `Foreign.Term` of Appendix E.12, which keeps its section;
+Appendix D's code and the shims change with it.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is
