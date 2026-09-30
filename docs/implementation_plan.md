@@ -13,11 +13,12 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
-**MVP 2.99 is under way**: a restart began afresh, the release review has run, and its findings are being fixed and decided before the tag. The decision on how code
-written once works over several representations, which [`operations.md`](operations.md)
-weighs, is taken in MVP 2.99b, after the first release (2026-09-29). Every earlier milestone
-is done, the last MVP 2.98 on 2026-09-30; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were
-taken out of order. Each has its paragraph under "Done".
+**MVP 2.99b is next**: what the release review left, the code's names read and made to read,
+the decision on how code written once works over several representations, which
+[`operations.md`](operations.md) weighs, and running as a service. Its first item makes every
+run of `make test` trusted. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was
+published on 2026-09-30 with MVP 2.99, the last milestone done; MVP 2.9, MVP 2.61,
+`libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under "Done".
 
 ---
 
@@ -38,80 +39,13 @@ taken out of order. Each has its paragraph under "Done".
 | MVP 2.95 | manual pages, an installation, the review | done 2026-09-28 |
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.98 | what the first review left | done 2026-09-30 |
-| MVP 2.99 | a restart begins afresh, and the first release | the restart, the release's review and its findings done 2026-09-30; the tag next |
+| MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
 | MVP 2.99b | what the release review left, names that read among it; operations records: `Set`'s record and an ordered set; running as a service | the decisions before anything is built (`operations.md`) |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 | MVP 3.3 | the shell's second round | |
 | MVP 3.9 | the review before 1.0: soundness argued and generated against | |
-
----
-
-## MVP 2.99 (the first release), about three days
-
-The first release, placed here on 2026-09-28 (the log's *The First Release Follows MVP 2.99*):
-Ernest for programs on one node, for other programmers to install and use, decided 2026-09-27
-(the log's *The First Release Is for Others*); peers are the next release's. It follows MVP
-2.98. Running as a service is MVP 2.99b's, after it (2026-09-29, the log's *Running as a Service
-After the First Release*; one milestone with the operations records since 2026-09-30).
-
-1. **A restart is a new run in all but its address** (language feedback 68, decided with the
-   user and done 2026-09-30; §6.9, §8.2, E.15, E.21, E.22; the log's *A Restart Begins
-   Afresh*): at a restart the runtime empties the mailbox and cancels what the process asked
-   of it, its alarms, its monitors and its subscriptions, deliveries under way to it among
-   them, so that a call the restart ended was not done, unless its request was still on its
-   way; and `Supervisor.group` spawns the process that keeps its children when it is called,
-   since a supervisor restarted in place found it through its mailbox. It came before the
-   review, since it changes what programs observe.
-2. **The release**, as [`review.md`](review.md) runs one, with what the first release alone
-   needs beside it, done 2026-09-30: `ern(1)` given the sections man-pages(7) names, its
-   SYNOPSIS each job's usage line and its OPTIONS and EXIT STATUS §11's new §11.7 and §11.8,
-   whose every exit status was stated once, the general one for the first time (`findings.md`'s
-   T31; the log's *`ern(1)` Has Its Sections*), and the README saying where to download the
-   archive.
-3. **The review's findings**, [`findings.md`](findings.md), done 2026-09-30: the review of
-   2026-09-30 found about 150 (the log's *The Release Review*). Before the tag, each `tag` line
-   is fixed with a regression test, area by area, the security findings first, and each `ask`
-   line is decided with the user one at a time; `cheap` clarity is fixed where it is cheap. What
-   is left is in MVP 2.99b, its first, third and seventh items, and the rules that buy little
-   are the next full review's. The security lines, the crashes, the wrong results, the restart
-   and the supervisor, and the false documents are done (the log's *The Release Review's
-   Security Lines*, *The Release Review's Crashes*, *The Release Review's Wrong Results*, *The
-   Release Review's Restarts* and *The Release Review's Documents*). `Markdown.roff` takes its
-   blocks first, its subject, and the manual second (Appendix G.2), and an annotated `let` at
-   the prompt is checked as a block's `let` (§11.2). Of the questions, decided with the user one
-   at a time (the log's *The Release Review's Questions*): `Io.show` through a type variable and
-   a foreign function's type variables ship stated in §4.4 and §8.4, closed by MVP 2.99b's item
-   13 (R-1, R-2), and `Prelude.T.name` reaches every namespace of the prelude or the standard
-   library past a member of the module's own (R-3, §4.2); §5.10 agrees with Appendix A on `as`
-   and `or` (R-5); and E.0 rule 4 refuses only a composition outside the vocabulary, which rule
-   2 extends to sets and maps (R-6); and a pipe applies a construction and never fills it, as
-   Appendix A has it (R-12, §5.7); and a numeric literal that does not fit a segment of constant
-   width is a compile-time error (R-13, §5.11); `Foreign`'s equality and a foreign type's stay
-   as they are (R-21); and `fn f` and `let f = fn` stay both, §4.6 saying that a function that
-   calls itself is declared with `fn` (R-22); and how a printed type marks the inferred
-   restrictions is MVP 2.99b's item 4 (R-23); `via` still runs its function in the sender
-   (R-24); and shape rule 8 says that `Os.start`'s milliseconds bound its program's run (R-25);
-   and a local helper over an operator says its type, §4.8 naming a lambda a block `let` binds
-   among the definitions an operator is resolved in (R-26); and the built-in operators become
-   shims in MVP 2.99b's item 14 (R-27); and `Fs.removeAll` walks a tree by the directories it
-   has opened, the runtime helper's second job, so that a link put in a directory's place leads
-   it nowhere else (C1-3, E.17); and §8.4 says that `Foreign.from` gives its value as the
-   runtime holds it, until item 13 closes it (C1-4); and a socket is owned by the process that
-   opened it and killed when its owner dies, `Tcp.give` passing it on (C1-2, E.18), what the
-   shell's inputs open being MVP 3.3's decision; and an address foreign code gives back is the
-   program's own only at the type it crossed at (C1-6, §8.4); and `:load` refuses a compiled
-   module as `ern run` does (C3-9, §11.2); and an alarm stays without a cancel, the guide
-   showing a deadline dropped once its job is done (N-C1); and §6.9 says that a `Down` has no
-   order with the ended process's own messages (N-B5); and `type Word = String` stays a type of
-   one value, the mistake of an alias told in a mismatch's help (N-C3); and a line `C-c`
-   abandons is kept in the history (C3-23, §11.2). `String.split` reads the string once over a
-   private primitive, `drop`, decided with the user over the measure of a split written over
-   `graphemes` (Appendix E.5). Three decisions came with the crashes: a fault the shell's
-   standard input gives it exits with status 1, and any other fault of its own with 70 (§11.8);
-   a standard stream closed as a job begins ends it with status 141 (§11); and an escape
-   sequence the editor does not bind does nothing (§11.2).
 
 ---
 
@@ -716,3 +650,21 @@ and a supervisor's group restarts whole (E.22). Erlang's scheduling hints and a 
 libraries are out, and the shell's later work is MVP 3.3's. A load samples a node at rest,
 the loads flat within 15 KB ([`memory.md`](memory.md)), and make runs `ern build` every
 time, its own rule deciding by content (§11.1).
+
+### MVP 2.99 — a restart begins afresh, and the first release (done 2026-09-30, tag `v0.1.0`)
+
+Ernest 0.1.0, the first release, for programs on one node, installed from its archive (the
+log's *The First Release Is for Others* and *The First Release Follows MVP 2.99*). A restart
+became a new run in all but its address (§6.9, *A Restart Begins Afresh*), and `ern(1)` gained
+the sections man-pages(7) names (§11.7, §11.8, *`ern(1)` Has Its Sections*). The release review
+ran as [`review.md`](review.md) says (*The Release Review*), and its findings were fixed area by
+area, the security lines first, and its questions decided with the user one at a time (the
+log's entries from *The Release Review's Security Lines* to *The Release Review's
+Questions*). Among what they decided: `String.split` reads the string once over a private
+primitive (E.5); `Fs.removeAll` walks a tree by the directories it has opened, the C helper's
+second job (E.17); a socket is owned by the process that opened it, and `Tcp.give` passes it
+on (E.18); an address foreign code gives back is the program's own only at the type it went
+out at (§8.4); a bitstring literal that does not fit is a compile-time error (§5.11); and
+`Prelude.T.name` reaches the standard library's namespaces (§4.2). What the review left is
+MVP 2.99b's, its first, third and seventh items, and [`findings.md`](findings.md) holds it
+until they are done.
