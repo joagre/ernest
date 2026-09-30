@@ -164,7 +164,8 @@ log's *A Full Review Now and Then*).
   the report on 2026-09-28, the two notes also gained design no one has weighed: a `spawned`
   and a `kill` frame, `demonitor` kept to the runtime, the spawn site in the spawn frame, the
   hash modules named `ern#<base32>`, and new open questions, the protocol note's 5, 7 to 12
-  and 15 to 21, and the distribution note's 8 to 17 (the second read-back, 2026-09-30).
+  and 15 to 21, and the distribution note's 8 to 17 (the second read-back, 2026-09-30, placed
+  here with the user the same day).
 - `spawn(Peer(name), f)` over the peers in `ernest.conf`, authenticated with the configured
   keys: the connection is `ssl`, with the peer's public key from `ernest.conf` as the only
   trust, read with `public_key`, inside `ern`; a program never sees either module.
