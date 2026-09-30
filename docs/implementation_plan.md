@@ -13,7 +13,7 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
-**MVP 2.99 is under way**: a restart begins afresh, and then the first release. The decision on how code
+**MVP 2.99 is under way**: a restart began afresh, the release review has run, and its findings are being fixed and decided before the tag. The decision on how code
 written once works over several representations, which [`operations.md`](operations.md)
 weighs, is taken in MVP 2.99b, after the first release (2026-09-29). Every earlier milestone
 is done, the last MVP 2.98 on 2026-09-30; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were
@@ -41,6 +41,7 @@ taken out of order. Each has its paragraph under "Done".
 | MVP 2.99 | a restart begins afresh, and the first release | |
 | MVP 2.99b | operations records: `Set`'s record and an ordered set | the decision first (`operations.md`) |
 | MVP 2.99c | running as a service | |
+| MVP 2.99d | what the release review left | |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -71,6 +72,11 @@ After the First Release*).
    whose every exit status was stated once, the general one for the first time (`findings.md`'s
    T31; the log's *`ern(1)` Has Its Sections*), and the README saying where to download the
    archive.
+3. **The review's findings**, [`findings.md`](findings.md): the review of 2026-09-30 found
+   about 150 (the log's *The Release Review*). Before the tag, each `tag` line is fixed with
+   a regression test, area by area, the security findings first, and each `ask` line is
+   decided with the user one at a time; `cheap` clarity is fixed where it is cheap. What is
+   left is MVP 2.99d's.
 
 ---
 
@@ -150,6 +156,16 @@ peer (the log's *MVP 3.0 Is Distributed Code and the Node Protocol*):
   end the program printing nothing (`interrupt_test_`, found 2026-09-28, not yet
   diagnosed). Its shape: read the helper's source for what it reports, meet it under load,
   and end the host so that its helper is not caught mid-write.
+
+---
+
+## MVP 2.99d (what the release review left)
+
+The lines of [`findings.md`](findings.md) marked `2.99d`, after the first release: the
+hardening the code readers found (C1-5, C1-9, C1-10, C3-26 to C3-31), and the places the
+language made their work harder, each taken to
+[`language_feedback.md`](language_feedback.md) or dropped with its reason. The file goes
+when this milestone is done.
 
 ---
 
