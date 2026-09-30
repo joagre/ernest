@@ -66,9 +66,11 @@ After the First Release*).
    since a supervisor restarted in place found it through its mailbox. It came before the
    review, since it changes what programs observe.
 2. **The release**, as [`review.md`](review.md) runs one, with what the first release alone
-   needs beside it: `ern(1)` given the sections man-pages(7) names, SYNOPSIS, OPTIONS and
-   EXIT STATUS among them, where it is §11 rendered as it stands (`findings.md`'s T31,
-   2026-09-29), and the README saying where to download the archive.
+   needs beside it, done 2026-09-30: `ern(1)` given the sections man-pages(7) names, its
+   SYNOPSIS each job's usage line and its OPTIONS and EXIT STATUS §11's new §11.7 and §11.8,
+   whose every exit status was stated once, the general one for the first time (`findings.md`'s
+   T31; the log's *`ern(1)` Has Its Sections*), and the README saying where to download the
+   archive.
 
 ---
 

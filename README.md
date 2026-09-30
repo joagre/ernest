@@ -32,7 +32,7 @@ export fn main() : Unit with Never = {
 }
 ```
 
-It is young. The language and its toolchain are complete enough for programs on one node, and programs across nodes come after the first release, which is on its way; where the project stands is "Where we are" in the [plan](docs/implementation_plan.md).
+It is young. The language and its toolchain are complete enough for programs on one node, and programs across nodes come in a later release; where the project stands is "Where we are" in the [plan](docs/implementation_plan.md).
 
 ## Installing
 
@@ -48,6 +48,8 @@ ern run examples/hello.erc         # hello, world
 ern shell                          # :quit to leave
 man ern                            # the toolchain; man Ernest.List for a module
 ```
+
+Or from a release: download `ern-<version>.tar.gz` from the [releases page](https://github.com/joagre/ernest/releases), and in the directory it unpacks to run `make` and `sudo make install`, as its own README says; the archive is compiled where it is installed.
 
 `make install PREFIX=$HOME/.local` installs Ernest for you alone, with no `sudo`, where `~/.local/bin` is on your `PATH`. `make uninstall`, with the same `PREFIX`, removes it. Without installing, the checkout's `bin/ern` runs in place. The Emacs mode is installed with the rest, as `share/emacs/site-lisp/ernest-mode.el`, and the header of [`emacs/ernest-mode.el`](emacs/ernest-mode.el) says how to turn it on.
 

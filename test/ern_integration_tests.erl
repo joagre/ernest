@@ -242,8 +242,9 @@ cookie_of(Answer) ->
 %% report §11, §11.4: the manual pages `make man` writes. `ern doc --man`
 %% writes the prelude's page and each standard library module's beside its
 %% .erc; tools/manual.ern writes ern(1), whose NAME line, DESCRIPTION, and
-%% subsections are §11's, in the report's order, and whose SEE ALSO names
-%% those pages, the prelude's first. Every page renders without a warning:
+%% subsections are §11's, in the report's order, whose SYNOPSIS holds every
+%% job's usage line, whose OPTIONS and EXIT STATUS are §11.7 and §11.8, and
+%% whose SEE ALSO names those pages, the prelude's first. Every page renders without a warning:
 %% groff checks it where it is installed, with UTF-8 read as man-db reads
 %% it, mandoc where groff is not, and a machine with neither says so.
 %% Written after the code, a regression test.
@@ -266,13 +267,23 @@ manual_pages() ->
                   <<".TH \"ern\" \"1\" \"\" \"Ernest 9.9.9\" \"Ernest Manual\"">>,
                   <<".nh">>, <<".ds AD l">>, <<".ad l">>,
                   <<".SH NAME">>, <<"ern \\- the Ernest toolchain">>,
-                  <<".SH DESCRIPTION">>, <<".PP">>,
-                  <<"The toolchain is one command, \\fBern\\fR, ", _/binary>> | _], Lines),
+                  <<".SH">>, <<"SYNOPSIS">>, <<".PP">>, <<"\\fBern \\-\\-help\\fR">> | _], Lines),
+    Pairs = lists:zip(lists:droplast(Lines), tl(Lines)),
+    %% man-pages(7)'s sections, in its order
+    ?assertEqual([<<"SYNOPSIS">>, <<"DESCRIPTION">>, <<"OPTIONS">>, <<"EXIT STATUS">>,
+                  <<"SEE ALSO">>],
+                 [S || {<<".SH">>, S} <- Pairs]),
+    [_, Synopsis | _] = binary:split(Out, [<<"SYNOPSIS">>, <<"DESCRIPTION">>], [global]),
+    ?assertEqual([], [J || J <- ["build", "run", "test", "shell", "config", "doc", "format"],
+                           binary:match(Synopsis, iolist_to_binary(["\\fBern ", J, " ["]))
+                               =:= nomatch]),
+    ?assertMatch({_, _}, binary:match(Out, <<".SH\nDESCRIPTION\n.PP\n"
+                                              "The toolchain is one command, \\fBern\\fR, ">>)),
     {ok, Report} = file:read_file("../ernest_report.md"),
-    {match, Sections} = re:run(Report, "^### (11\\.[0-9]+ .*)$",
+    {match, Sections} = re:run(Report, "^### (11\\.[0-6] .*)$",
                                [multiline, global, {capture, all_but_first, binary}]),
     ?assertEqual([binary:replace(S, <<"`">>, <<>>, [global]) || [S] <- Sections],
-                 [S || {<<".SS">>, S} <- lists:zip(lists:droplast(Lines), tl(Lines))]),
+                 [S || {<<".SS">>, S} <- Pairs]),
     ?assertMatch({_, _}, binary:match(Out, <<".SH\nSEE ALSO\n.PP\n\\fBErnest.Prelude\\fR(3ern), "
                                               "\\fBErnest.Bool\\fR(3ern), ">>)),
     ?assertEqual([], [M || M <- Modules,
