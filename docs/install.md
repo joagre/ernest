@@ -1,6 +1,6 @@
 # The installation
 
-How the installation is built, from a checkout and from the release archive; the README and the archive's own README tell a user how to install. The plan's MVP 2.95 decided it, and the log's *`bin/ern` Is a Launcher*, *The Layout Under the Prefix* and *One Archive, Compiled Where It Is Installed* argue it. `install_test_`, `working_directory_test_` and `release_test_` in `test/ern_integration_tests.erl` test it.
+How the installation is built, from a checkout and from the release archive; the README and the archive's own README tell a user how to install. The plan's MVP 2.95 decided it, and the log's *`bin/ern` Is a Launcher*, *The Layout Under the Prefix* and *One Archive, Compiled Where It Is Installed* argue it. `installation_test_` and `working_directory_test_` in `test/ern_integration_tests.erl` test it.
 
 ## The layout
 

@@ -127,8 +127,10 @@ discussed with the user one at a time as they are met.
    user in this item of how long the proxy of a `via` address exposed to foreign code lives
    (§8.4): one is made for each distinct function and lives as long as its target, so a
    program that exposes a `via` over a fresh closure again and again grows by a process each
-   time, which the shell's run numbers met, and which a constant function avoids;
-   the diagnostics' positions and labels
+   time, which the shell's run numbers met, and which a constant function avoids; make
+   keeping no stamp of the Ernest trees and running `ern build` every time, its own rule
+   deciding by content (§11.1; the log's *Make Runs `ern build` Every Time*), decided with the
+   user and done 2026-09-30; the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):

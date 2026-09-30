@@ -8,18 +8,11 @@ APPS = utils lexer parser format typer runtime emitter cli
 ERNEST_SOURCES = stdlib/*.ern shell/*.ern shell/shell/*.ern examples/*.ern \
 		examples/modules/*.ern examples/modules/*/*.ern test/*/*.ern libs/*/*.ern tools/*.ern
 
-# What the Ernest trees are built from: the compiler's beams, and each
-# tree's sources and the directories that hold them, so that a source
-# added or removed is seen and the sweep of §11.1 runs. Each tree is a
-# stamp file that make rebuilds only when one of these is newer, so a make
-# with nothing to do starts no build; the build records then decide
-# what inside a tree to compile.
-TOOL = $(filter-out %_tests.beam,$(wildcard erl/*/ebin/*.beam))
-# The top directory is written `dir/.`, since `stdlib`, `libs` and `shell`
-# are also the names of targets. A name that begins with a dot, an editor's
-# lock file among them, is no source (report §11.1).
-sources = $(shell find $(1) -mindepth 1 -name '.*' -prune -o -name '*.ern' -print) $(1)/. \
-	$(shell find $(1) -mindepth 1 -name '.*' -prune -o -type d -print)
+# The Ernest trees, stdlib/, libs/, shell/ and tools/, are built by `ern build`
+# every time, and its own rule decides what in each to compile again, by the
+# sources' and the interfaces' hashes (report §11.1): make keeps no stamp of
+# its own, whose times would disagree with the sources' contents. A copy of
+# a module under its Erlang name is written only where its content differs.
 
 # The helper that runs a program for Os.run (report Appendix E.23), written
 # in C since the host's ports cannot keep a program's standard error apart,
@@ -29,54 +22,46 @@ CC ?= cc
 
 all: $(EXEC)
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
-	@$(MAKE) -s shell
-	@$(MAKE) -s man
+	@$(MAKE) -s shell man
 
 $(EXEC): erl/runtime/c_src/ern_exec.c
 	@mkdir -p $(dir $@)
 	$(CC) -std=c99 -pedantic -O2 -Wall -Wextra -Werror -o $@ $<
-
-stdlib: build/stdlib/.built
-libs: build/libs/.built
-shell: build/shell/.built
-man: build/man/.built
 
 # The standard library written in Ernest: stdlib/ compiled by ern build into
 # build/stdlib under its Erlang module name, where the tools put it on the
 # code path and the checker reads its interface (plan, MVP 2.5). ern build
 # recompiles what a changed compiler changes (report §11.1). A copy under
 # the Erlang name whose module the sweep removed is removed with it.
-build/stdlib/.built: $(TOOL) $(call sources,stdlib)
+stdlib:
 	@bin/ern build --build-root build/stdlib stdlib
-	@for f in build/stdlib/*.erc; do \
-	  cp $$f build/stdlib/ern@$$(basename $$f .erc).beam; done
+	@for f in build/stdlib/*.erc; do b=build/stdlib/ern@$$(basename $$f .erc).beam; \
+	  cmp -s $$f $$b || cp $$f $$b; done
 	@for b in build/stdlib/ern@*.beam; do m=$${b#build/stdlib/ern@}; \
 	  [ -f build/stdlib/$${m%.beam}.erc ] || rm -f $$b; done
-	@touch $@
 
 # The libraries (plan, MVP 3.2): each libs/<name>/ is a source root of its
 # own, compiled into build/libs/<name>, which a program adds with
 # --load-path.
-build/libs/.built: build/stdlib/.built $(TOOL) $(call sources,libs)
+libs: stdlib
 	@for d in libs/*/; do n=$$(basename $$d); \
 	  bin/ern build --source-root $$d --build-root build/libs/$$n $$d || exit 1; done
-	@touch $@
 
 # The shell, written in Ernest (report §11.2, plan MVP 2.6): shell/ compiled
 # by ern build into build/shell, where `ern shell` finds it on the code path.
 # It renders documentation with libs/markdown, which it is compiled against
 # and which ships beside it. A copy whose module is gone is removed, as the
 # standard library's are.
-build/shell/.built: build/stdlib/.built build/libs/.built $(TOOL) $(call sources,shell)
+shell: stdlib libs
 	@bin/ern build --load-path build/libs/markdown --build-root build/shell shell
 	@find build/shell -name '*.erc' | while read f; do \
-	  m=$${f#build/shell/}; \
-	  cp $$f build/shell/ern@$$(echo $${m%.erc} | tr / @).beam; done
-	@cp build/libs/markdown/markdown.erc build/shell/ern@markdown.beam
+	  m=$${f#build/shell/}; b=build/shell/ern@$$(echo $${m%.erc} | tr / @).beam; \
+	  cmp -s $$f $$b || cp $$f $$b; done
+	@cmp -s build/libs/markdown/markdown.erc build/shell/ern@markdown.beam \
+	  || cp build/libs/markdown/markdown.erc build/shell/ern@markdown.beam
 	@for b in build/shell/ern@*.beam; do m=$${b#build/shell/ern@}; \
 	  [ "$$m" = markdown.beam ] || [ -f build/shell/$$(echo $${m%.beam} | tr @ /).erc ] \
 	  || rm -f $$b; done
-	@touch $@
 
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).
@@ -90,8 +75,7 @@ doc: all
 # pages in its SEE ALSO. make writes them, so that make install, which a
 # user may run as another, only copies. A page is written whole or not at
 # all.
-build/man/.built: $(TOOL) build/stdlib/.built build/libs/.built build/tools/.built \
-		  ernest_report.md
+man: stdlib libs tools
 	@bin/ern doc --man --build-root build/stdlib stdlib
 	@for d in libs/*/; do n=$$(basename $$d); \
 	  bin/ern doc --man --source-root $$d --build-root build/libs/$$n $$d || exit 1; done
@@ -99,7 +83,6 @@ build/man/.built: $(TOOL) build/stdlib/.built build/libs/.built build/tools/.bui
 	@bin/ern run --load-path build/libs/markdown build/tools/manual.erc \
 	  ernest_report.md $$(cat VERSION) build/stdlib > build/man/ern.1.new
 	@mv build/man/ern.1.new build/man/ern.1
-	@touch $@
 
 # The installation (docs/install.md): the toolchain's tree under
 # $(PREFIX)/lib/ernest, bin/ern a link to its launcher, and the manual
@@ -129,9 +112,8 @@ release: all
 
 # The programs of the build written in Ernest, tools/*.ern, compiled into
 # build/tools against libs/markdown.
-build/tools/.built: build/libs/.built $(TOOL) $(call sources,tools)
+tools: libs
 	@bin/ern build --load-path build/libs/markdown --build-root build/tools tools
-	@touch $@
 
 # Terminal.columns' width table in stdlib/terminal.ern, from the Unicode
 # data of the version the host's grapheme segmentation follows: UC_SPEC is
@@ -330,7 +312,7 @@ clean-emacs:
 
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
-.PHONY: all libs test test-erl test-programs test-docs test-guide test-shell load bench test-emacs \
-        $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean clean-emacs sections coverage golden xref \
-        contents format stdlib shell doc man install uninstall release unicode dialyzer sanitize \
-        diagnostics
+.PHONY: all stdlib libs shell tools man test test-erl test-programs test-docs test-guide \
+        test-shell load bench test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean clean-emacs \
+        sections coverage golden xref contents format doc install uninstall release unicode \
+        dialyzer sanitize diagnostics
