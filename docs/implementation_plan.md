@@ -83,7 +83,7 @@ After the First Release*; one milestone with the operations records since 2026-0
    a time (the log's *The Release Review's Questions*): `Io.show` through a type variable and a
    foreign function's type variables ship stated in §4.4 and §8.4, closed by MVP 2.99b's item 13
    (R-1, R-2), and `Prelude.T.name` reaches every namespace of the prelude or the standard
-   library past a member of the module's own (R-3, §4.2); §5.10 agrees with Appendix A on `as` and `or` (R-5); and E.0 rule 4 refuses only a composition outside the vocabulary, which rule 2 extends to sets and maps (R-6); and a pipe applies a construction and never fills it, as Appendix A has it (R-12, §5.7); and a numeric literal that does not fit a segment of constant width is a compile-time error (R-13, §5.11); `Foreign`'s equality and a foreign type's stay as they are (R-21); and `fn f` and `let f = fn` stay both, §4.6 saying that a function that calls itself is declared with `fn` (R-22). `String.split` reads the string once
+   library past a member of the module's own (R-3, §4.2); §5.10 agrees with Appendix A on `as` and `or` (R-5); and E.0 rule 4 refuses only a composition outside the vocabulary, which rule 2 extends to sets and maps (R-6); and a pipe applies a construction and never fills it, as Appendix A has it (R-12, §5.7); and a numeric literal that does not fit a segment of constant width is a compile-time error (R-13, §5.11); `Foreign`'s equality and a foreign type's stay as they are (R-21); and `fn f` and `let f = fn` stay both, §4.6 saying that a function that calls itself is declared with `fn` (R-22); and how a printed type marks the inferred restrictions is MVP 2.99b's item 4 (R-23). `String.split` reads the string once
    over a private primitive, `drop`, decided with the user over the measure of a split written
    over `graphemes` (Appendix E.5). Three decisions came with the crashes: a fault the shell's
    standard input gives it exits with status 1, and any other fault of its own with 70 (§11.8);
@@ -148,7 +148,12 @@ renamed over it, then the guide, and the soak last.
    ordered element by element, and `Optional` and `Either` by a `compare` in the prelude,
    `None` and `Left` first; `put` keeps the element already in the set; and `foldLeft` is
    written once over `toList`, outside the record. The ordered set's representation is the
-   note's open question.
+   note's open question. With the ordering restriction's mark, and item 13's shown one, the
+   decision of how a printed type marks every inferred restriction: a process-only effect
+   variable prints unmarked, so that one a callback's type shares prints as an effect-polymorphic
+   function does; and whether a restriction may be written in an annotation, a change to the
+   grammar and a second way beside inference (`findings.md`'s R-23, placed here with the user
+   2026-09-30).
 5. **The service's two decisions, with the user**: what an alarm at a time does when the
    host's wall clock jumps, since deadlines use the monotonic clock and a time does not
    (`Clock.alarmAt`, Appendix E.15); and whether a launcher passes a termination or hangup
