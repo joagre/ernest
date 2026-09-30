@@ -3557,9 +3557,44 @@ unify_at(Pos, Expected, Actual, #env{st = St, rigid = Rigid} = Env, Context, Ori
                      labels(Origin), undefined),
             Env#env{st = St1};
         {error, Reason} ->
-            fail(Pos, unify_message(Context, Reason, Expected, Actual, St), labels(Origin),
-                 differing_help(Reason, Expected, Actual, St))
+            Help = case not_an_alias(Expected, Actual, Env) of
+                       undefined -> differing_help(Reason, Expected, Actual, St);
+                       Alias -> Alias
+                   end,
+            fail(Pos, unify_message(Context, Reason, Expected, Actual, St), labels(Origin), Help)
     end.
+
+%% Report §3.5, §11.5: `type Word = String` declares a type whose one value
+%% is the constructor `String`, and not another name for the type `String`;
+%% where one of the two meets the other, the help says so.
+not_an_alias(Expected, Actual, #env{st = St} = Env) ->
+    Resolved = {ern_types:resolve(Expected, St), ern_types:resolve(Actual, St)},
+    case {one_named(Resolved, Env), one_named(swap(Resolved), Env)} of
+        {{T, Other}, _} -> alias_help(T, Other, St);
+        {_, {T, Other}} -> alias_help(T, Other, St);
+        _ -> undefined
+    end.
+
+swap({A, B}) -> {B, A}.
+
+%% The first type where its one constructor is nullary and named as the
+%% second type is.
+one_named({{tcon, TQ, _} = T, {tcon, OtherQ, _} = Other}, #env{types = Ts}) ->
+    Name = lists:last(OtherQ),
+    case maps:get(TQ, Ts, undefined) of
+        #tinfo{constructors = [#cinfo{name = Name, fields = none}]} -> {T, Other};
+        _ -> none
+    end;
+one_named(_, _) ->
+    none.
+
+alias_help(T, Other, St) ->
+    Type = ern_types:format(T, St),
+    Name = atom_to_list(lists:last(element(2, Other))),
+    Wrapped = ern_types:format(Other, St),
+    "`type " ++ Type ++ " = " ++ Name ++ "` declares a type whose one value is `" ++ Name
+        ++ "`, not another name for " ++ Wrapped ++ "; there are no type aliases, and a wrapper is"
+           " `type " ++ Type ++ " = " ++ Type ++ "(" ++ Wrapped ++ ")`".
 
 %% Whether the rigid variables are still distinct variables.
 rigid_kept(Rigid, St) ->

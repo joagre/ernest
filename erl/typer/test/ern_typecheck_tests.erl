@@ -1846,6 +1846,21 @@ local_helper_over_an_operator_test() ->
                         " { fn add(a : Int, b : Int) = a + b; add(x, 1) }")),
     ?assertEqual(ok, ok("fn f(x : Int) : Int = List.foldLeft([x, 1], 0, fn(acc, n) = acc + n)")).
 
+%% report §3.5, §11.5: `type Word = String` declares a type whose one value
+%% is a nullary constructor, and no alias, and a mismatch between the two
+%% types says so in its help, either way round; a type whose constructor
+%% names no type in the mismatch has no such help. A regression test,
+%% written with the help (findings.md's N-C3)
+not_an_alias_test() ->
+    Help = fun(Source) -> {error, [#diag{help = H} | _]} = check(Source), H end,
+    Alias = "`type Word = String` declares a type whose one value is `String`, not another"
+            " name for String; there are no type aliases, and a wrapper is"
+            " `type Word = Word(String)`",
+    Word = "type Word = String\n",
+    ?assertEqual(Alias, Help(Word ++ "fn f() : Word = \"x\"")),
+    ?assertEqual(Alias, Help(Word ++ "fn f(w : Word) : Int = String.size(w)")),
+    ?assertEqual(undefined, Help("type Word = Word(String)\nfn f() : Word = \"x\"")).
+
 %% report §5.7, Appendix A: a construction is a value and no call, so the
 %% pipe applies a bare constructor and does not fill a construction. A
 %% regression test: the refusals named the callee or a missing field and

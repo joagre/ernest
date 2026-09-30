@@ -344,6 +344,8 @@ Three shapes of constructor, with different usage:
 - **Positional** (`Some(a)`): one value, and the constructor is also a function, `(a) -> Optional(a)`, so it can be passed: `List.map(xs, Some)`. A constructor takes one positional value or named fields; several values without names are a tuple, `Point(#(Int, Int))`.
 - **Named fields** (`Person(name : String, age : Int)`): construction uses the field syntax (`Person(name = "Alice", age = 30)`). Not a function value.
 
+There are no type aliases. `type Word = String` declares a type whose one value is a nullary constructor named `String`, and no other name for `String`; a type that holds a string is a wrapper, `type Word = Word(String)`, and the compiler's help says so where the two meet.
+
 ### 2.4 Named fields, selection, and `..` update
 
 For constructors that carry several things, name each field:
