@@ -44,6 +44,7 @@ taken out of order. Each has its paragraph under "Done". The first release is MV
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
+| MVP 3.3 | the shell's second round | |
 | MVP 3.9 | the review before 1.0: soundness argued and generated against | |
 
 ---
@@ -137,10 +138,11 @@ discussed with the user one at a time as they are met.
    hints placed out of the language and the library, by §10 and principles 2, 3 and 5,
    decided with the user 2026-09-30 (the log's *Scheduling Hints Are the Host's*); a
    library found by its name placed out of the toolchain, by principles 3, 2 and 5, decided
-   with the user 2026-09-30 (the log's *A Library Is Fetched by Its URL*); one placement for
-   the user in this item, a verdict by principle and what would change it, or a milestone:
-   the shell's later work, the grey suggestion, the kill ring and the other keys,
-   completion by type, re-running by number, `:trace`, quiescence and attaching to a node;
+   with the user 2026-09-30 (the log's *A Library Is Fetched by Its URL*); the shell's
+   later work placed part by part, Readline's remaining keys, `:trace`, completion by type
+   and attaching to a node in MVP 3.3, and the grey suggestion, re-running by number and a
+   report of quiescence out, decided with the user 2026-09-30 (the log's *The Shell's Second
+   Round*);
    the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
@@ -422,6 +424,26 @@ package story. Written: `libs/ets` and `libs/markdown` (Appendix G; `libs/markdo
 
 ---
 
+## MVP 3.3 (the shell's second round), about three weeks
+
+The shell's later work that its parts' merits take, decided with the user 2026-09-30 (the
+log's *The Shell's Second Round*), in this order. The first three need nothing of MVP 3.0 or
+3.1 and may be taken earlier where the user wants them.
+
+1. **Readline's remaining keys**, about a day: the kill ring with `M-y` cycling the earlier
+   kills, `C-t` and `M-t` transposing, and `M-u`, `M-l` and `M-c` for case, each a change to
+   `Shell.Editor`'s pure `edit`, with key-stream tests.
+2. **`:trace f`**, about two days: each call of `f` and each return printed, the values by
+   their types (§11.2).
+3. **Completion by type**, about one to two weeks: a `match`'s clauses, a mailbox's
+   constructors, the functions after `|>`, and an argument's bindings. It needs the checker to
+   check an unfinished input, designed first.
+4. **A shell attached to a running node**, about a week: each input run on the peer, over MVP
+   3.0's peers and MVP 3.1's shipping of code. The shell's design does not assume it runs on
+   the node whose code it evaluates.
+
+---
+
 ## MVP 3.9 (the review before 1.0)
 
 What a first release could leave out and a promise of stability cannot (the log's *The First
@@ -457,12 +479,13 @@ URL*). No HTTP
 server, ever, and no database connectors: those are libraries for others to write on Appendix
 D's pattern.
 
-The shell's later work waits for a milestone that takes it, each part weighed on its own
-merits: the grey suggestion; the kill ring with `M-y`, and `C-t`, `M-t`, `M-u`, `M-l` and
-`M-c`; completion by type once the checker checks an unfinished input, a `match`'s clauses,
-a mailbox's constructors, the functions after `|>` and an argument's bindings; re-running an
-input by number; `:trace f`; a report of a program's quiescence; and, with MVP 3.0's peers,
-a shell attached to a running node (moved from `shell_design.md`, 2026-09-28).
+Three parts of the shell's later work are out (the log's *The Shell's Second Round*): the
+grey suggestion, a third way into the history beside `Up` and `C-r` (principle 2), told from
+what was typed by colour alone, which the plain mode lacks; re-running an input by number, a
+second way to name an input, which `Up` or `C-r` and `Enter` already re-run (principle 2);
+and a report of a program's quiescence at the prompt, since a later input may send to any
+waiting process, so the report would be a guess (§11.2 detects no deadlock while a shell holds
+the terminal). The rest is MVP 3.3's.
 
 ---
 
