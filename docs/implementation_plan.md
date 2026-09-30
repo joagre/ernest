@@ -135,9 +135,10 @@ discussed with the user one at a time as they are met.
    false corrected, their reasons moved to the log, and every question they leave open
    numbered in them and so decided in MVP 3.0 or 3.1, done 2026-09-30; Erlang scheduling
    hints placed out of the language and the library, by §10 and principles 2, 3 and 5,
-   decided with the user 2026-09-30 (the log's *Scheduling Hints Are the Host's*); two
-   placements for the user in this item, each a verdict by principle and what would change
-   it, or a milestone: discovery of a library by name, "a tooling question for later"; and
+   decided with the user 2026-09-30 (the log's *Scheduling Hints Are the Host's*); a
+   library found by its name placed out of the toolchain, by principles 3, 2 and 5, decided
+   with the user 2026-09-30 (the log's *A Library Is Fetched by Its URL*); one placement for
+   the user in this item, a verdict by principle and what would change it, or a milestone:
    the shell's later work, the grey suggestion, the kill ring and the other keys,
    completion by type, re-running by number, `:trace`, quiescence and attaching to a node;
    the diagnostics' positions and labels
@@ -382,8 +383,7 @@ The milestone is §8.7's identity in full:
   down (node protocol, section 4.2).
 - The library fetcher, decided 2026-09-19: `ern fetch name url` fetches a library's source
   tree from a git URL into a directory on the load path, compiles it, and records the hashes of
-  its definitions. No resolver, no semver, no lockfile beyond those hashes, and no registry;
-  discovery by name is a tooling question for later.
+  its definitions. No resolver, no semver, no lockfile beyond those hashes, and no registry.
 
 ---
 
@@ -451,7 +451,9 @@ holds its shape if the verdict is revisited. String interpolation is declined fo
 principles 2, 3 and 4. Erlang scheduling hints are out: a priority breaks §10's rule that a
 process cannot prevent others from running, and the memory options of a spawn change no
 meaning; a program reaches either through `foreign fn` (the log's *Scheduling Hints Are the
-Host's*). No HTTP
+Host's*). A library is not found by its name: its URL is the one way to say where it comes
+from, and an index of libraries is others' to publish (the log's *A Library Is Fetched by Its
+URL*). No HTTP
 server, ever, and no database connectors: those are libraries for others to write on Appendix
 D's pattern.
 
