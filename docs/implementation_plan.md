@@ -16,7 +16,8 @@ milestone, the standing gaps, and what is done.
 **MVP 2.99b is next**: what the release review left, the code's names read and made to read,
 the decision on how code written once works over several representations, which
 [`operations.md`](operations.md) weighs, and running as a service. Its first item makes every
-run of `make test` trusted. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was
+run of `make test` trusted. Between its items 3 and 4 runs the principles review, the report
+and the guide read against §0 and §0 against what it decided, a milestone of its own below. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was
 published on 2026-09-30 with MVP 2.99, the last milestone done; MVP 2.9, MVP 2.61,
 `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under "Done".
 
@@ -41,6 +42,7 @@ published on 2026-09-30 with MVP 2.99, the last milestone done; MVP 2.9, MVP 2.6
 | MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
 | MVP 2.99b | what the release review left, names that read among it; operations records: `Set`'s record and an ordered set; running as a service | the decisions before anything is built (`operations.md`) |
+| The principles review | the report and the guide against §0, and §0 against what it decided | after MVP 2.99b's item 3, before its item 4 |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -63,7 +65,9 @@ moved from MVP 2.7 on 2026-09-27 (the log's *Running as a Service*), from MVP 3.
 Protocol*), and from MVP 2.99 on 2026-09-29, so that the first release came first. The items
 run in this order, each needing the ones before it (the log's *MVP 2.99b's Order*): the tests
 trusted, then every decision, then the Erlang renamed, then what is built, then the Ernest
-renamed over it, then the guide, and the soak last.
+renamed over it, then the guide, and the soak last. The principles review, a milestone of its
+own below, runs between items 3 and 4, since item 4 is decided under the principles it
+sharpens (decided 2026-09-30, the log's *The Principles Review*).
 
 1. **The host's port helper's intermittent failure**: `erl_child_setup`, which once in some
    twenty runs of `make test` wrote `failed with error` as an interrupt ended the host, where
@@ -194,6 +198,35 @@ renamed over it, then the guide, and the soak last.
     Around an Ordered Set*).
 17. **A soak of hours**, last, since it measures all the rest: `examples/webserver.ern` under
     steady requests, measured as [`memory.md`](memory.md) says.
+
+---
+
+## The principles review (after MVP 2.99b's item 3, before its item 4), about a week
+
+The report and the guide read against §0, and §0 against what it decided, as
+[`principles_review.md`](principles_review.md) says; decided 2026-09-30 (the log's *The
+Principles Review*). It runs after MVP 2.99b's item 3, since its edits lean on the
+tests item 1 makes trusted and item 3's triage is among what reader L weighs, and before item
+4, since the operations decision adds to the type system and is judged under the principles
+the review sharpens. Peers, §3.11, §8.3, §8.7 and what §6.10 says of one, are unbuilt and
+tentative and are not read; what MVP 2.99b proposes, [`operations.md`](operations.md)'s *The
+proposal* and *What changes in Ernest*, and its items 13 and 14, is read as proposed. The
+principles themselves are in its scope: one changes where the readers show it did not
+decide, by a sentence that decides.
+
+1. **The readers**: P in two parts, K, W and L, on one commit, editing nothing; P's list compared
+   with the release review's, R's in [`findings.md`](findings.md), what both name being the
+   strongest finding.
+2. **The sentences**, decided with the user first, one at a time: each proposed for §0 or E.0
+   accepted or refused, the report and the log changing with each.
+3. **The families**, each decided under the principles as they then read, `report`, `kept`
+   or `later`, and closed in the log.
+4. **The edits**: the report, the guide, the log, then the code and its tests where a rule
+   changed, each rule's change a commit; `findings.md`'s heading goes when every line has its
+   decision; the next release's notes list the rules that changed.
+
+The week is the readers' half day and the edits; the decisions take the user's time, at the
+user's pace, and the estimate is revised when the findings are in.
 
 ---
 

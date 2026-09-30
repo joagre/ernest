@@ -12,6 +12,7 @@ The report, [`ernest_report.md`](../ernest_report.md), is the one normative docu
 - **[`memory.md`](memory.md)**: how the project checks that nothing grows with the work done.
 - **[`review.md`](review.md)**: what a release runs to be ready.
 - **[`full_review.md`](full_review.md)**: every reader over the whole of its area, run seldom.
+- **[`principles_review.md`](principles_review.md)**: the report and the guide read against §0, and §0 against what it decided.
 - **[`style.md`](style.md)**: the style of the Erlang, the C and the Ernest.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
