@@ -23,7 +23,7 @@ Four readers in five sessions.
 ## The findings
 
 - They go to `findings.md` under a heading of their own, by family, each line naming its reader's letter and number, the readers' lists below, as the full review's.
-- A line's decision: `sentence`, a rule added to §0 or E.0; `report`, a rule changed or removed; `kept`, with the principle that keeps it; `guide`, the guide changed where its rule stays; `later`, to the log's *Later* with what would change it.
+- A line's decision: `sentence`, a rule added to §0 or E.0; `report`, a rule changed or removed; `kept`, with the principle that keeps it; `guide`, the guide changed where its rule stays; `fix`, a defect or a disagreement between two sections the readers met on the way, fixed in the milestone's edits; `log`, an entry of the log marked superseded or its reason restated; `later`, to the log's *Later* with what would change it.
 - The decisions are taken with the user one at a time, in prose, in two rounds. First the sentences, since they are the measure: P's and L's proposals are compared, one both make being the strongest, and each is accepted into §0 or E.0 or refused. Then each family, under the principles as they then read. A rule goes only where the smallest program that shows it reads better without it, never for being a rule (principle 1), and never where a program under `examples/` or one a newcomer wrote gets harder.
 - A family decided is closed: the log records the principle that decided it, and it is not reopened before 1.0 but by a program that shows a case the decision did not.
 

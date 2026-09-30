@@ -17,7 +17,9 @@ milestone, the standing gaps, and what is done.
 the decision on how code written once works over several representations, which
 [`operations.md`](operations.md) weighs, and running as a service. Its first item makes every
 run of `make test` trusted. Between its items 3 and 4 runs the principles review, the report
-and the guide read against §0 and §0 against what it decided, a milestone of its own below. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was
+and the guide read against §0 and §0 against what it decided, a milestone of its own below;
+its readers ran on 2026-09-30, on `57b8356`, and their findings stand in
+[`findings.md`](findings.md), sixteen families with the sentences proposed, awaiting round 1. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was
 published on 2026-09-30 with MVP 2.99, the last milestone done; MVP 2.9, MVP 2.61,
 `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under "Done".
 
