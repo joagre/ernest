@@ -1178,6 +1178,18 @@ Read at 143f34a against the rest of the report; each line carries its decision.
 - fixed — Y-17 §7.4 lists `Os.environment`'s initializer fault.
 - fixed — Y-18 rule 1: a primitive calls no Ernest function but a wrap it delivers through.
 
+### Z, the second fixes read back
+
+Read at 2ac2603; each line carries its decision. Nine of the fourteen fixes conflicted with nothing.
+
+- fixed — Z-1 §6.2: an act on what has ended that asks nothing back.
+- fixed — Z-2 rule 1: in a system module, a function that reaches its process is a primitive and the rest is Ernest.
+- fixed — Z-3 §7.4 names the restart window's floor; §6.9 loses its rationale clause.
+- fixed, the reader right — Z-4 §9's test makes `Io.show` and `Io.debug` the prelude's, which they are: §9.4 lists them, E.1 provides them.
+- fixed — Z-5 E.1: the type at which the name is used as a callee or an argument.
+- fixed — Z-6 §6.6: the pattern `[]` discharges.
+- fixed — Z-7 §11.5: §9.2 lists `Map(k=, v)` and `Set(a=)` with the mark, though neither is a foreign type.
+
 ---
 
 # Findings of the release review
