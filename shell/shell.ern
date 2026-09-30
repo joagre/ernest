@@ -473,7 +473,7 @@ fn await(state : State,
             State(..state, env = collect(env2))
         }
       | Done(Faulted(cause = text, run = n)) when n == current -> {
-            say(screen, Shell.Style.fault(state.colour, placed(state, "fault: " <> text)));
+            say(screen, Shell.Style.fault(state.colour, placed(state, "fault: " <> escaped(text))));
             if printing then timed(screen, state.settings, started) else Unit;
             state
         }
@@ -489,7 +489,8 @@ fn await(state : State,
       // what it raises, so a report of its process is a fault a signal
       // brought, after which no `Done` comes
       | Reported(report) -> if report.process == Process.fromAddress(child) then {
-            say(screen, Shell.Style.fault(state.colour, placed(state, "fault: " <> report.cause)));
+            say(screen,
+                Shell.Style.fault(state.colour, placed(state, "fault: " <> escaped(report.cause))));
             if printing then timed(screen, state.settings, started) else Unit;
             state
         } else

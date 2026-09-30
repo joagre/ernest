@@ -711,6 +711,32 @@ test_runner_os_test() ->
     ?assertEqual(<<"none: passed\nexits: faulted: exited with status 2\nlater: passed\n">>,
                  iolist_to_binary(?capturedOutput)).
 
+%% report §11: a link where `ern build` writes a `.erc` is replaced by the
+%% module, and what the link named is left as it was. A regression test:
+%% the build wrote through a link planted in the build tree
+%% (findings.md's C3-25)
+build_replaces_a_link_test() ->
+    Dir = tmp(),
+    write(Dir, "src/util.ern", "export fn one() : Int = 1\n"),
+    write(Dir, "victim/notes.txt", "mine\n"),
+    ok = file:make_symlink("../victim/notes.txt", filename:join(Dir, "src/util.erc")),
+    ?assertEqual(0, ern_cli:ern(["build", Dir ++ "/src"])),
+    ?assertEqual({ok, <<"mine\n">>}, file:read_file(filename:join(Dir, "victim/notes.txt"))),
+    {ok, Info} = file:read_link_info(filename:join(Dir, "src/util.erc")),
+    ?assertEqual(regular, element(3, Info)).
+
+%% report §11.2: `ern test` writes a test's name as it writes a cause, its
+%% control characters escaped. A regression test: the name reached the
+%% terminal as it was (findings.md's C3-17)
+test_name_escaped_test() ->
+    Dir = tmp(),
+    write(Dir, "src/names.ern",
+          "let t = Test(name = \"red\\u{1b}[31mX\\nsecond\",\n"
+          "             run = fn() : TestResult with Never = Passed)\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_err(["test", Dir ++ "/build/names.erc"])),
+    ?assertEqual(<<"red\\u{1B}[31mX\\nsecond: passed\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §11.2, Appendix E.23: the words after `ern run`'s file are the
 %% program's, whatever they look like, and the job's options come before
 %% the file; an argument that is not UTF-8, as the host gives one, is

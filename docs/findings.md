@@ -4,12 +4,8 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 
 ## Security
 
-- tag — the shell writes an input's fault cause raw, and paints pasted and recalled text with its control characters, an OSC among them (C3-1, C3-2)
-- tag — `ern test` writes a test's name raw (C3-17)
-- tag — `Tcp.connect` to a host that holds U+0000 hangs its caller and stops deadlock detection (C1-1)
-- tag — a function inside a foreign argument, message or answer is not wrapped, nor one `Foreign.from` hands out (C2-7, C1-4)
-- tag — `ern build` writes through a `.erc` link planted in the build tree (C3-25)
 - ask — `Fs.removeAll` can be steered into another directory between its check and its listing (C1-3)
+- ask — `Foreign.from` hands foreign code an address past its proxy (C1-4)
 
 ## Crashes and exit statuses
 

@@ -348,17 +348,21 @@ startup_of_the_working_directory() ->
                   end, ["", " --config-dir " ++ filename:join(Home, ".ernest")]).
 
 %% report §11.2: the shell writes a fault's cause as `ern run` does, each
-%% control character as its escape. A regression test: the cause reached
-%% the terminal as it was, an escape and a line feed among it
+%% control character as its escape, a spawned process's and an input's own
+%% alike. A regression test: the cause reached the terminal as it was, an
+%% escape and a line feed among it, and an input's own did until the
+%% release review (findings.md's C3-1)
 fault_line_escaped_test_() ->
     {timeout, 60, fun fault_line_escaped/0}.
 
 fault_line_escaped() ->
     Dir = fresh_home(),
     In = filename:join(Dir, "session.in"),
-    ok = file:write_file(In, "spawn(Local, fn() = fault(\"a\\u{1b}b\\nforged\"))\n:faults\n"),
+    ok = file:write_file(In, "spawn(Local, fn() = fault(\"a\\u{1b}b\\nforged\"))\n:faults\n"
+                             "fault(\"c\\u{1b}d\")\n"),
     {0, Out} = sh("HOME=" ++ Dir ++ " ../bin/ern shell < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"input 1:1 faulted: a\\u{1B}b\\nforged">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"fault: c\\u{1B}d">>)),
     ?assertEqual(nomatch, binary:match(Out, <<27>>)).
 
 %% report §11.2, Appendix E.17: the history's directory is its owner's

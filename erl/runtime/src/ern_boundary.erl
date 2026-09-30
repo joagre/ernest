@@ -15,7 +15,7 @@
 %% and checked. The compiler describes a type as a term this module
 %% interprets:
 %% any | int | float | bool | char | string | bytes | {pid, D, Text} | {reply, D, Text} | process
-%% | {'fun', Arity, R, Text, Make} | {'fun', Arity, R, Text} | never | {list, D}
+%% | {'fun', Arity, R, Text, Make, Exposer} | {'fun', Arity, R, Text, Ps, Texts} | never | {list, D}
 %% | {tuple, [D]} | {map, K, V} | {set, D} | {con, [{Tag, [D]} | {Tag, [D], [Name]}]}
 %% | {abstract, D} | {mu, Id, D} | {ref, Id}, mu binding Id for the ref inside it, which is
 %% how a recursive type is described once; {pid, D, Text} is an address
@@ -29,7 +29,7 @@
 %% `Io.debug` print by carry no Make, since nothing is checked there.
 -module(ern_boundary).
 
--export([raised/6, expose/2, check/3, value/3, expose/3]).
+-export([raised/6, expose/2, check/3, value/3, argument/4, expose/3]).
 
 %% Report §7.4: an exception foreign function M:F/Arity raised, a fault of
 %% the calling process that names the implementation; an Ernest fault
@@ -78,6 +78,16 @@ value(Desc, V, Text) ->
         false -> ern_rt:fault(Text)
     end.
 
+%% Report §8.4: an argument foreign code calls a function of the program's
+%% with, where the function stood inside what crossed, the recursive types
+%% around it in B: the value as the program holds it, or the fault Text.
+-spec argument(term(), term(), binary(), map()) -> term().
+argument(Desc, V, Text, B) ->
+    case chk(Desc, V, B) of
+        true -> armed(Desc, zeroed(Desc, V, B), B);
+        false -> ern_rt:fault(Text)
+    end.
+
 %% Report §7.4, §8.4: a checked value from foreign code as the program
 %% holds it: every function value in it wrapped so that its result is
 %% checked at each call, and every address in it that names no process of
@@ -88,14 +98,14 @@ armed(D, V, B) ->
         false -> V
     end.
 
-arms({'fun', _, _, _, _}) -> true;
+arms({'fun', _, _, _, _, _}) -> true;
 arms({pid, _, _}) -> true;
 arms({reply, _, _}) -> true;
 arms(T) when is_tuple(T) -> lists:any(fun arms/1, tuple_to_list(T));
 arms(L) when is_list(L) -> lists:any(fun arms/1, L);
 arms(_) -> false.
 
-arm({'fun', _, R, _, Make}, V, B) -> Make(V, closed(R, B));
+arm({'fun', _, R, _, Make, _}, V, B) -> Make(V, closed(R, B));
 arm({pid, D, _}, V, B) when is_pid(V) -> ern_rt:held(V, D, B);
 arm({reply, D, _}, V, B) when is_reference(V) -> {foreign_reply, V, D, B};
 arm({list, D}, V, B) -> [arm(D, X, B) || X <- V];
@@ -172,8 +182,7 @@ chk({reply, _, _}, V, _) when is_reference(V) -> true;
 chk({reply, _, _}, {foreign_reply, V, _, _}, _) -> is_reference(V);
 chk({reply, _, _}, _, _) -> false;
 chk(process, V, _) -> is_pid(V);
-chk({'fun', N, _, _, _}, V, _) -> is_function(V, N);
-chk({'fun', N, _, _}, V, _) -> is_function(V, N);
+chk({'fun', N, _, _, _, _}, V, _) -> is_function(V, N);
 chk(never, _, _) -> false;
 chk({list, D}, V, B) -> is_list(V) andalso every(D, V, B);
 chk({tuple, Ds}, V, B) ->
@@ -230,8 +239,10 @@ every(_, _, _) -> false.
 %% inside them.
 -spec expose(term(), term(), map()) -> term().
 %% report §8.4: a function given to foreign code checks the arguments it is
-%% called with
+%% called with, whether it is the argument or stands in one, in a message
+%% or in an answer
 expose({callback, Make}, V, _) when is_function(V) -> Make(V);
+expose({'fun', _, _, _, _, Exposer}, V, B) when is_function(V) -> Exposer(V, B);
 expose({pid, D, Text}, V, B) when is_pid(V) -> proxy(V, D, B, Text);
 %% report §6.5: an address seen through a function is an address too, and
 %% foreign code must reach it through the same checking proxy

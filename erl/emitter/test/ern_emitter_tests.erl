@@ -2,7 +2,7 @@
 
 -export([write_golden/0, pair/0, opt/1, funs/0, improper/1, remember/1, junk/1, good/1,
          tell/1, junk_server/0, hello_junk/0, hello_good/0, relay_junk/1, relay_good/1, same/1,
-         ask_junk/1, ask_good/1, reaper_words/0]).
+         ask_junk/1, ask_good/1, call_nested_bad/1, call_nested_good/1, reaper_words/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -1500,6 +1500,22 @@ foreign_messages_test() ->
                   "}\n"),
     ?assertEqual({fault, <<"reply does not match Int">>}, R2).
 
+%% report §8.4: a function that stands inside a foreign function's argument
+%% crosses as one given alone does, each argument foreign code calls it with
+%% checked. A regression test: only a parameter that was itself a function
+%% was wrapped, and the bad argument faulted inside the function
+%% (findings.md's C2-7)
+nested_function_checked_test() ->
+    Source = fun(Name) ->
+                 "foreign fn call(p : #(Int, (Int) -> Int)) : Int with m = \"ern_emitter_tests:"
+                 ++ Name ++ "/1\"\n"
+                 "export fn main() : Unit with Never =\n"
+                 "    Io.println(Int.toString(call(#(4, fn(n) = n * 2))))\n"
+             end,
+    ?assertEqual({fault, <<"foreign argument does not match Int">>},
+                 element(1, run(Source("call_nested_bad")))),
+    ?assertEqual({ok, <<"8\n">>}, run(Source("call_nested_good"))).
+
 %% report §8.4: an address sent in a message to a foreign address crosses
 %% into foreign code, so a bad message foreign code sends it back faults the
 %% receiver on delivery, and a good one arrives. A regression test: only a
@@ -1621,6 +1637,10 @@ relay_junk(Alias) -> Alias ! {Alias, <<"x">>}, 'Unit'.
 relay_good(Alias) -> Alias ! {Alias, 5}, 'Unit'.
 %% report §8.4: a Reply handed back as it was given, its type declared anew
 same(R) -> R.
+%% report §8.4: foreign code that calls the function inside its argument
+%% with a value of another type, or of the declared one
+call_nested_bad({_, F}) -> F(<<"bad">>).
+call_nested_good({N, F}) -> F(N).
 %% report §8.4: foreign code that asks an Ernest server with a Reply of its
 %% own, and sends the address it is answered a message of another type or
 %% of the declared one

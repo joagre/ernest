@@ -57,6 +57,8 @@ listen(Tcp, Host, Port, Reply) ->
                      {'Left', {'Other', <<"port out of range">>}};
                  {true, {error, Reason}} ->
                      {'Left', io_error(Reason)};
+                 {true, {refused, Why}} ->
+                     {'Left', {'Other', Why}};
                  {true, {ok, Address}} ->
                      Options = [binary, {active, false}, {reuseaddr, true}, {packet, raw},
                                 {ip, Address} | family(Address)],
@@ -75,9 +77,15 @@ listen(Tcp, Host, Port, Reply) ->
 in_range(Port) ->
     Port >= 0 andalso Port =< 65535.
 
-%% An address the host's name or address stands for, IPv4's first.
+%% An address the host's name or address stands for, IPv4's first. Report
+%% Appendix E.18: a host that holds U+0000 names none.
 address(Host) ->
-    Name = unicode:characters_to_list(Host),
+    case binary:match(Host, <<0>>) of
+        nomatch -> named(unicode:characters_to_list(Host));
+        _ -> {refused, <<"a host holds U+0000">>}
+    end.
+
+named(Name) ->
     case inet:parse_address(Name) of
         {ok, Address} ->
             {ok, Address};
@@ -91,10 +99,11 @@ address(Host) ->
 family({_, _, _, _, _, _, _, _}) -> [inet6];
 family(_) -> [].
 
-%% What the host raises for an input it refuses, as the error it would be.
+%% What the host raises for an input it refuses, as the error it would be,
+%% whatever the class it raises: a worker that dies of one answers nothing.
 guarded(Call) ->
     try Call()
-    catch error:Reason -> {error, Reason}
+    catch _:Reason -> {error, Reason}
     end.
 
 %% Report Appendix E.18: a connect that times out takes no connection, since
@@ -103,14 +112,18 @@ guarded(Call) ->
 connect(Tcp, Host, Port, Deadline, Reply) ->
     Options = [binary, {active, false}, {packet, raw}],
     Try = fun() ->
-              case in_range(Port) of
-                  true ->
+              case {in_range(Port), address(Host)} of
+                  {false, _} ->
+                      {refused, <<"port out of range">>};
+                  {true, {ok, Address}} ->
+                      %% report Appendix E.18: the address the host names, of
+                      %% its own family, IPv6's included
                       guarded(fun() ->
-                                  gen_tcp:connect(unicode:characters_to_list(Host), Port,
-                                                  Options, ern_rt:remaining(Deadline))
+                                  gen_tcp:connect(Address, Port, Options ++ family(Address),
+                                                  ern_rt:remaining(Deadline))
                               end);
-                  false ->
-                      {refused, <<"port out of range">>}
+                  {true, Other} ->
+                      Other
               end
           end,
     attempt(Tcp, Try, Deadline, Reply, <<"Tcp.connect">>).

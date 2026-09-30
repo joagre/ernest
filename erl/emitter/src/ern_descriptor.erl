@@ -30,9 +30,13 @@ desc({ttuple, Es}, Seen, Cx) ->
     {{tuple, Ds}, Seen1};
 desc({tfn, Ps, _, R}, Seen, Cx) ->
     %% report §7.4: a function value from foreign code has its result
-    %% checked at each call, against the result's descriptor
+    %% checked at each call, against the result's descriptor; report §8.4:
+    %% one that crosses into foreign code has each argument checked, against
+    %% its parameter's
     {D, Seen1} = desc(R, Seen, Cx),
-    {{'fun', length(Ps), D, text_binary("foreign return does not match ", R, Cx)}, Seen1};
+    {PDs, Seen2} = descs(Ps, Seen1, Cx),
+    {{'fun', length(Ps), D, text_binary("foreign return does not match ", R, Cx), PDs,
+      [text_binary("foreign argument does not match ", P, Cx) || P <- Ps]}, Seen2};
 desc({tcon, ['Int'], []}, Seen, _) -> {int, Seen};
 desc({tcon, ['Float'], []}, Seen, _) -> {float, Seen};
 desc({tcon, ['Bool'], []}, Seen, _) -> {bool, Seen};

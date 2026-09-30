@@ -21,7 +21,10 @@ citations_resolve_test() ->
     Guide = read("ernest_guide.md"),
     ReportHeads = headings(Report),
     GuideHeads = headings(Guide),
-    Live = documents() ++ examples() ++ stdlib() ++ shell() ++ tools(),
+    %% docs/findings.md's lines cite each document as its reader did, the
+    %% guide's sections bare beside the report's, and the list goes when a
+    %% review's findings are done
+    Live = (documents() -- ["docs/findings.md"]) ++ examples() ++ stdlib() ++ shell() ++ tools(),
     Dangling =
         [{F, C} || F <- Live, C <- cites(read(F)), not resolves(C, report, ReportHeads, GuideHeads)]
         ++ [{"ernest_guide.md", C} || C <- cites(Guide),

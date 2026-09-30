@@ -402,11 +402,11 @@ markdown_dir(Mods, Stdlib, OutDir) ->
                    Out = filename:join(OutDir, Rel),
                    ok = filelib:ensure_dir(Out),
                    Page = unicode:characters_to_binary(ern_page:page(built(OutDir, Ns))),
-                   ok = ern_build:write_whole(Out, Page),
+                   ok = ern_build:write_output(Out, Page),
                    ["- [", ern_build:qname(Ns), "](", Rel, ")\n"]
                end || #mod{ns = Ns} <- lists:sort(Mods)],
     Prelude = prelude_page(Stdlib, OutDir),
-    ok = ern_build:write_whole(filename:join(OutDir, "index.md"),
+    ok = ern_build:write_output(filename:join(OutDir, "index.md"),
                      unicode:characters_to_binary(["# Modules\n\n", Prelude, Entries])).
 
 %% Report §11.4: each manual page beside its module's .erc, in a file named
@@ -417,13 +417,13 @@ man_dir(Mods, Stdlib, OutDir) ->
                           Dir = filename:dirname(filename:join(OutDir, ern_build:module_path(Ns))),
                           Out = filename:join(Dir, "Ernest." ++ ern_build:qname(Ns) ++ ".3ern"),
                           Page = unicode:characters_to_binary(ern_page:manual(built(OutDir, Ns))),
-                          ok = ern_build:write_whole(Out, Page)
+                          ok = ern_build:write_output(Out, Page)
                   end, lists:sort(Mods)),
     case Stdlib of
         true ->
             %% a page is text, written as UTF-8
             Page = unicode:characters_to_binary(ern_page:prelude_manual()),
-            ok = ern_build:write_whole(filename:join(OutDir, "Ernest.Prelude.3ern"), Page);
+            ok = ern_build:write_output(filename:join(OutDir, "Ernest.Prelude.3ern"), Page);
         false -> ok
     end.
 
@@ -437,7 +437,7 @@ built(OutDir, Ns) ->
 prelude_page(false, _OutDir) ->
     [];
 prelude_page(true, OutDir) ->
-    ok = ern_build:write_whole(filename:join(OutDir, "prelude.md"),
+    ok = ern_build:write_output(filename:join(OutDir, "prelude.md"),
                      unicode:characters_to_binary(ern_page:prelude_page())),
     ["- [Prelude](prelude.md)\n"].
 
@@ -891,7 +891,10 @@ run_test({'Test', Name, Run}) ->
               end,
     ok = ern_rt:deadlock_target(none),
     persistent_term:erase({?MODULE, test}),
-    ern_rt:send(ern_rt:sys(stdout), <<Name/binary, ": ", Outcome/binary, "\n">>),
+    %% report §11.2: a test's name is written as a cause is, its controls
+    %% escaped
+    ern_rt:send(ern_rt:sys(stdout),
+                <<(ern_show:controls(Name, line))/binary, ": ", Outcome/binary, "\n">>),
     Outcome =:= <<"passed">>.
 
 %% A test that returned still sends its Down; it is taken so that it is not

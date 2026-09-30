@@ -156,6 +156,37 @@ port_out_of_range_test() ->
     ?assertEqual(Refused, wait(connected)),
     ?assertEqual({fault, <<"deadlock">>}, Result).
 
+%% Appendix E.18: a host that holds U+0000 names none, by `listen` and
+%% `connect` alike, and the program is still found deadlocked after. A
+%% regression test: the host raised an exit the worker did not catch, the
+%% caller waited for good, and no deadlock was found (findings.md's C1-1)
+host_with_nul_test() ->
+    Me = self(),
+    Result = ern_rt:run_main(
+               fun() ->
+                   Me ! {listened, listen(<<"127.0.0.1", 0, "evil">>, 0)},
+                   Me ! {connected, connect(<<"127.0.0.1", 0, "evil">>, 1, 1000)},
+                   receive never -> ok end
+               end, <<"main">>, quiet()),
+    Refused = {'Left', {'Other', <<"a host holds U+0000">>}},
+    ?assertEqual(Refused, wait(listened)),
+    ?assertEqual(Refused, wait(connected)),
+    ?assertEqual({fault, <<"deadlock">>}, Result).
+
+%% Appendix E.18: `connect` reaches the address its host names, IPv6's
+%% too. A regression test: the host's name went to the host without its
+%% family, and `::1` was answered `Other("non-existing domain")`
+%% (findings.md's C1-24)
+connect_ipv6_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(<<"::1">>, 0),
+               {'Right', Port} = port(Listener),
+               Me ! {connected, element(1, connect(<<"::1">>, Port, 2000))}
+           end, <<"main">>, quiet()),
+    ?assertEqual('Right', wait(connected)).
+
 %% Appendix E.1, E.18: a reason of the host's that no constructor of
 %% Io.Error names is answered in the host's words, a port already in use
 %% "address already in use". A regression test: `Other` held the code,
@@ -242,8 +273,10 @@ listen(Host, Port) ->
     ern_rt:call_forever(ern_rt:sys(tcp), fun(R) -> {'Listen', Host, Port, R} end).
 
 connect(Port, Ms) ->
-    ern_rt:call_forever(ern_rt:sys(tcp),
-                        fun(R) -> {'Connect', <<"127.0.0.1">>, Ms, Port, R} end).
+    connect(<<"127.0.0.1">>, Port, Ms).
+
+connect(Host, Port, Ms) ->
+    ern_rt:call_forever(ern_rt:sys(tcp), fun(R) -> {'Connect', Host, Ms, Port, R} end).
 
 port(Listener) ->
     ern_rt:call_forever(Listener, fun(R) -> {'Port', R} end).

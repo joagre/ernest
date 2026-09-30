@@ -1010,17 +1010,27 @@ desc_form({callback, N, Ds, Texts}) ->
                                                       [erl_syntax:application(F, Checked)])]),
     Maker = erl_syntax:fun_expr([erl_syntax:clause([F], none, [Wrapper])]),
     erl_syntax:tuple([erl_syntax:atom(callback), Maker]);
-desc_form({'fun', N, R, Text}) ->
+desc_form({'fun', N, R, Text, Ps, PTexts}) ->
     F = erl_syntax:variable('F'),
     Result = erl_syntax:variable('R'),
+    Bound = erl_syntax:variable('B'),
     Args = [erl_syntax:variable(list_to_atom("A" ++ integer_to_list(I)))
             || I <- lists:seq(1, N)],
     Check = call_remote(ern_boundary, value,
                         [Result, erl_syntax:application(F, Args), erl_syntax:abstract(Text)]),
     Wrapper = erl_syntax:fun_expr([erl_syntax:clause(Args, none, [Check])]),
     Maker = erl_syntax:fun_expr([erl_syntax:clause([F, Result], none, [Wrapper])]),
+    %% report §8.4: the same function crossing into foreign code, wherever
+    %% it stands in what crosses, each argument checked against its
+    %% parameter's type, the recursive types around it in B
+    Checked = [call_remote(ern_boundary, argument,
+                           [desc_form(P), A, erl_syntax:abstract(T), Bound])
+               || {P, A, T} <- lists:zip3(Ps, Args, PTexts)],
+    Exposed = erl_syntax:fun_expr([erl_syntax:clause(Args, none,
+                                                      [erl_syntax:application(F, Checked)])]),
+    Exposer = erl_syntax:fun_expr([erl_syntax:clause([F, Bound], none, [Exposed])]),
     erl_syntax:tuple([erl_syntax:atom('fun'), erl_syntax:integer(N), desc_form(R),
-                      erl_syntax:abstract(Text), Maker]);
+                      erl_syntax:abstract(Text), Maker, Exposer]);
 desc_form(T) when is_tuple(T) ->
     erl_syntax:tuple([desc_form(E) || E <- tuple_to_list(T)]);
 desc_form(L) when is_list(L) ->
@@ -1040,9 +1050,10 @@ descriptor(T, #cx{env = Env, ns = Ns}) ->
     ern_descriptor:describe(T, Env, Ns).
 
 %% Whether a descriptor holds what crossing into foreign code changes: an
-%% address or a Reply.
+%% address, a Reply, or a function.
 crosses({pid, _, _}) -> true;
 crosses({reply, _, _}) -> true;
+crosses(T) when is_tuple(T), element(1, T) =:= 'fun' -> true;
 crosses(T) when is_tuple(T) -> lists:any(fun crosses/1, tuple_to_list(T));
 crosses(L) when is_list(L) -> lists:any(fun crosses/1, L);
 crosses(_) -> false.

@@ -288,8 +288,29 @@ fn tailRowsOf(r : Region) : List(String) = {
 fn inputRows(r : Region) : List(String) =
     match String.split(r.typed, "\n") {
         [] -> [r.prompt]
-      | first :: rest -> (r.prompt <> first) :: List.map(rest, fn(line) = continuation <> line)
+      | first :: rest ->
+            (r.prompt <> pictured(first))
+                :: List.map(rest, fn(line) = continuation <> pictured(line))
     }
+
+// Report §11.2, §11.5: a control character of what is typed is painted as
+// its picture, `␛` for U+001B, one of U+0080 to U+009F as U+FFFD, so that
+// none reaches the terminal as itself, a paste's or the history's among
+// them; the input keeps it as typed. A tab is painted by `expand`.
+fn pictured(text : String) : String =
+    String.join(List.map(String.toList(text), picture), "")
+
+fn picture(c : Char) : String = {
+    let n = Char.toInt(c);
+    if n == 9 || n >= 32 && n < 127 || n > 159 then
+        Char.toString(c)
+    else if n < 32 then
+        Optional.withDefault(Optional.map(Char.fromInt(0x2400 + n), Char.toString), "\u{FFFD}")
+    else if n == 127 then
+        "\u{2421}"
+    else
+        "\u{FFFD}"
+}
 
 // The tail's height: what `:set output` asks for, and never more than
 // the screen has room for, the input having the last word.
@@ -318,8 +339,9 @@ fn column(r : Region) : Int =
 fn offset(r : Region) : Int = {
     let before = String.slice(r.typed, 0, r.at);
     let head = match String.lastIndexOf(before, "\n") {
-        None -> r.prompt <> before
-      | Some(i) -> continuation <> String.slice(before, i + 1, String.size(before) - i - 1)
+        None -> r.prompt <> pictured(before)
+      | Some(i) ->
+            continuation <> pictured(String.slice(before, i + 1, String.size(before) - i - 1))
     };
     Terminal.columns(expand(head))
 }
@@ -419,6 +441,17 @@ let showsTheEmptyRow =
 let restsWhereTyped =
     Test(name = "the cursor rests on the row and column it is typed at",
          run = fn() = at(typed("a\nbc", 4), 1, 7))
+
+// Report §11.2, §11.5. A regression test: a paste's OSC reached the
+// terminal as itself, and the cursor was placed past what it painted
+let picturesControls =
+    Test(name = "a control character typed or pasted is painted as its picture", run = fn() = {
+        let r = typed("x\u{1b}]0;t\u{7}y\u{7f}\u{85}", 10);
+        match rowsAre(inputRows(r), ["> x\u{241b}]0;t\u{2407}y\u{2421}\u{fffd}"]) {
+            Passed -> at(r, 0, 13)
+          | failed -> failed
+        }
+    })
 
 let restsOnTheFirstRow =
     Test(name = "a one-line input rests after its prompt", run = fn() = at(typed("abc", 2), 0, 5))
