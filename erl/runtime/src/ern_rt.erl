@@ -1488,16 +1488,22 @@ binding(Key) ->
 
 %% Report §6.9: a function that runs F, and on a fault runs it again in the
 %% same process, until the limit's restarts within its milliseconds have
-%% happened, when the next fault ends the process with its cause. Only a
-%% fault restarts, or a restart asked for (restartable/0): a kill and the
-%% program's end are exit signals, which no try catches, and F returning
-%% ends it as any process ends.
--spec restarting({'RestartLimit', integer(), integer()}, fun(() -> term())) -> fun(() -> term()).
-restarting({'RestartLimit', Restarts, Within}, F) ->
+%% happened, when the next fault ends the process with its cause, or after
+%% every fault where the limit is Unlimited. Only a fault restarts, or a
+%% restart asked for (restartable/0): a kill and the program's end are exit
+%% signals, which no try catches, and F returning ends it as any process
+%% ends.
+-spec restarting({'RestartLimit', integer(), integer()} | 'Unlimited', fun(() -> term())) ->
+          fun(() -> term()).
+restarting(Limit, F) ->
+    Kept = case Limit of
+               'Unlimited' -> unlimited;
+               {'RestartLimit', Restarts, Within} -> {max(Restarts, 0), max(Within, 1)}
+           end,
     fun() ->
         Level = restartable(),
         try
-            restarts(F, max(Restarts, 0), max(Within, 0), [], Level)
+            restarts(F, Kept, [], Level)
         after
             Level =:= outer andalso unrestartable()
         end
@@ -1561,7 +1567,7 @@ spawn_order(Pid) ->
         _ -> 0
     end.
 
-restarts(F, Restarts, Within, Times, Level) ->
+restarts(F, Limit, Times, Level) ->
     try
         F()
     catch
@@ -1571,26 +1577,36 @@ restarts(F, Restarts, Within, Times, Level) ->
             %% process end as at a fault
             put('$ern_start', 'Asked'),
             restarted(<<"callee was restarted">>),
-            restarts(F, Restarts, Within, Times, Level);
+            restarts(F, Limit, Times, Level);
         throw:'$ern_restart' ->
             throw('$ern_restart');
         Class:Reason:Stack ->
             Fault = fault_reason(Class, Reason, Stack),
-            Now = erlang:monotonic_time(millisecond),
-            Recent = [T || T <- Times, Now - T < Within],
-            case length(Recent) < Restarts of
-                true ->
+            case within_limit(Limit, Times) of
+                {true, Recent} ->
                     %% report §11.2: a fault after which the process
                     %% restarts is reported as one
                     persistent_term:get({?MODULE, reaper}) ! {report, erlang:self(), site(), Fault},
                     restarted(element(3, Fault)),
                     Level =:= outer andalso put('$ern_start', 'AfterFault'),
-                    restarts(F, Restarts, Within, [Now | Recent], Level);
+                    restarts(F, Limit, Recent, Level);
                 false ->
                     %% raised again as the fault it is, for run/1 to end the
                     %% process with, its stack beside it where it had one
                     throw(Fault)
             end
+    end.
+
+%% Report §6.9: whether a fault now is restarted, and the times of the
+%% restarts within the window then; Unlimited keeps no time.
+within_limit(unlimited, _) ->
+    {true, []};
+within_limit({Restarts, Within}, Times) ->
+    Now = erlang:monotonic_time(millisecond),
+    Recent = [T || T <- Times, Now - T < Within],
+    case length(Recent) < Restarts of
+        true -> {true, [Now | Recent]};
+        false -> false
     end.
 
 %% Report §6.6, §6.9: a restart ends every call waiting on the process, each

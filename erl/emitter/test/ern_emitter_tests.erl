@@ -739,17 +739,41 @@ restart_limit_test() ->
     ?assertEqual({ok, <<"start\nended 1\n">>}, run(Program("0"))),
     ?assertEqual({ok, <<"start\nended 1\n">>}, run(Program("-2"))).
 
+%% report §6.9: `Unlimited` runs the function again after every fault, and a
+%% time of 0 is a window of one millisecond, which a loop that faults at
+%% once passes. A regression test: a time of 0 set no limit, and the loop
+%% ran for good
+restart_unlimited_test_() ->
+    {timeout, 30, fun restart_unlimited/0}.
+
+restart_unlimited() ->
+    Program = fun(Limit, Body) ->
+        "type Msg = Crash | Stop\n"
+        "type MainMsg = Died(Down)\n"
+        "fn loop() : Unit with Msg = receive { Crash -> fault(\"crash\") | Stop -> Unit }\n"
+        "fn boom() : Unit with Msg = fault(\"boom\")\n"
+        "export fn main() : Unit with MainMsg = {\n"
+        "    let s = spawnMonitored(Local, restarting(" ++ Limit ++ ", " ++ Body ++ "), Died);\n"
+        "    List.foreach(List.range(1, 50), fn(_) = send(s, Crash));\n"
+        "    send(s, Stop);\n"
+        "    receive { Died(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
+        "}\n"
+    end,
+    ?assertEqual({ok, <<"Returned\n">>}, run(Program("Unlimited", "loop"))),
+    ?assertEqual({ok, <<"Fault(\"boom\")\n">>},
+                 run(Program("RestartLimit(restarts = 3, within = 0)", "boom"))).
+
 %% Appendix E.22, report §6.9: a child's fault is counted by its supervisor
 %% before the child runs again, so a limit of two restarts lets the child
-%% run three times; and a time of 0 sets no limit, so the supervisor never
-%% gives up. A regression test: the child restarted itself and told the
-%% supervisor after, running about two hundred times under a limit of two,
-%% and a time of 0 still gave up
+%% run three times; and under `Unlimited` the supervisor never gives up. A
+%% regression test: the child restarted itself and told the supervisor
+%% after, running about two hundred times under a limit of two, and a time
+%% of 0, which set no limit then, still gave up
 supervisor_counts_before_the_restart_test_() ->
     {timeout, 60, fun supervisor_counts_before_the_restart/0}.
 
 supervisor_counts_before_the_restart() ->
-    Program = fun(Within) ->
+    Program = fun(Limit) ->
         "type CounterMsg = Next(reply : Reply(Int))\n"
         "type MainMsg = SupDied(Down) | ChildEnded(Down)\n"
         "fn counter(n : Int) : Unit with CounterMsg =\n"
@@ -761,7 +785,7 @@ supervisor_counts_before_the_restart() ->
         "}\n"
         "export fn main() : Unit with MainMsg = {\n"
         "    let c = spawn(Local, fn() = counter(1));\n"
-        "    let limit = RestartLimit(restarts = 2, within = " ++ Within ++ ");\n"
+        "    let limit = " ++ Limit ++ ";\n"
         "    let sup = spawnMonitored(Local, Supervisor.group(Supervisor.OneForOne, limit),\n"
         "                             SupDied);\n"
         "    let _ = spawnMonitored(Local, Supervisor.child(sup, fn() = crash(c)), ChildEnded);\n"
@@ -773,9 +797,9 @@ supervisor_counts_before_the_restart() ->
         "}\n"
     end,
     ?assertEqual({ok, <<"run 1\nrun 2\nrun 3\nsupervisor restart limit reached\n">>},
-                 run(Program("60000"))),
+                 run(Program("RestartLimit(restarts = 2, within = 60000)"))),
     ?assertEqual({ok, <<"run 1\nrun 2\nrun 3\nrun 4\nrun 5\nrun 6\nkept\n">>},
-                 run(Program("0"))).
+                 run(Program("Unlimited"))).
 
 %% report §6.9: returning and a kill end a restarting process as they end
 %% any; only a fault restarts

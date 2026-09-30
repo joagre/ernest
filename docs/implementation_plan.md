@@ -151,7 +151,11 @@ discussed with the user one at a time as they are met.
    the cycle's diagnostic now naming the `fn` that builds it when asked, decided with the user
    and done 2026-09-30 (§8.5, §11.5; the log's *A Cycle Through a Function Stays One*);
    `kill` and `monitor` kept on an address, not a `Process` (E-C2), decided with the user
-   2026-09-30 (§6.5, §9.4; the log's *`kill` and `monitor` Keep the Address*);
+   2026-09-30 (§6.5, §9.4; the log's *`kill` and `monitor` Keep the Address*); no limit on
+   restarts named `Unlimited`, a constructor of `RestartLimit`, a time below 1 now 1, which
+   ended `restarting` and a group disagreeing on `RestartLimit(restarts = 0, within = 0)`
+   (E-C3), decided with the user and done 2026-09-30 (§6.9, §9; the log's *No Limit Is
+   `Unlimited`*);
    the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.

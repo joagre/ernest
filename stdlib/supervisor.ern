@@ -155,7 +155,7 @@ export fn group(strategy : Strategy, limit : RestartLimit) : () -> Unit with Msg
 // window. Each one expires by an alarm, so no clock is read, and an alarm
 // set by an earlier run, before a restart in place, is taken and ignored.
 // A child waits for its fault's answer before it runs again, so each fault
-// is counted before the next can come; a time of 0 counts none (§6.9).
+// is counted before the next can come; `Unlimited` counts none (§6.9).
 // The fault the group gives up at is answered with the watcher before the
 // supervisor faults, so that the child waits there for the group's end or
 // its restart in place, rather than fault of the supervisor's end.
@@ -166,19 +166,16 @@ fn supervise(g : Group, recent : Int) : Unit with Msg =
             answer(r, Unit);
             supervise(g, recent)
         }
-      | Faulted(process = p, reply = r) -> if g.limit.within <= 0 then {
-            restartSiblings(g.strategy, p, g.watcher);
-            answer(r, None);
-            supervise(g, recent)
-        } else if recent < g.limit.restarts then {
-            let run = g.run;
-            Clock.alarm(g.limit.within, fn(_) = Expired(run));
-            restartSiblings(g.strategy, p, g.watcher);
-            answer(r, None);
-            supervise(g, recent + 1)
-        } else {
-            answer(r, Some(g.watcher));
-            fault("supervisor restart limit reached")
+      | Faulted(process = p, reply = r) -> match g.limit {
+            Unlimited -> restarted(g, p, r, recent)
+          | RestartLimit(restarts = n, within = t) -> if recent < n then {
+                let run = g.run;
+                Clock.alarm(Int.max(t, 1), fn(_) = Expired(run));
+                restarted(g, p, r, recent + 1)
+            } else {
+                answer(r, Some(g.watcher));
+                fault("supervisor restart limit reached")
+            }
         }
       | Expired(run) -> supervise(g, if run == g.run then recent - 1 else recent)
     }
@@ -191,6 +188,18 @@ fn restartSiblings(strategy : Strategy,
       | OneForAll -> List.foreach(List.filter(members(watcher), fn(q) = q != faulted), askRestart)
       | RestForOne -> List.foreach(spawnedAfter(members(watcher), faulted), askRestart)
     }
+
+// A child's fault that the group restarts: the siblings its strategy names
+// asked to restart, the child told to run again, and the loop on with the
+// faults now counted.
+fn restarted(g : Group,
+             p : Process,
+             r : Reply(Optional(Address(Watch))),
+             recent : Int) : Unit with Msg = {
+    restartSiblings(g.strategy, p, g.watcher);
+    answer(r, None);
+    supervise(g, recent)
+}
 
 // The children spawned after `p`, which the watcher holds in that order.
 fn spawnedAfter(children : List(Process), p : Process) : List(Process) =
@@ -305,7 +314,8 @@ export fn child(sup : Address(Msg), f : () -> Unit with m) : () -> Unit with m =
         let me = self();
         let p = Process.fromAddress(me);
         join(sup, p, fn() = kill(me), fn(wrap) = monitor(me, wrap));
-        restarting(unlimited, fn() = match startCause() {
+        // the group's limit decides when a child stops, so its own is none
+        restarting(Unlimited, fn() = match startCause() {
             AfterFault -> counted(sup, me, f)
           | _ -> f()
         })()
@@ -329,10 +339,6 @@ fn counted(sup : Address(Msg), me : Address(m), f : () -> Unit with m) : Unit wi
             }
         }
     }
-
-// A child restarts until its group gives up, so its own limit is none: no
-// restart is within the last 0 milliseconds (report §6.9).
-let unlimited = RestartLimit(restarts = 1, within = 0)
 
 // The child joins, and waits until the supervisor has it. A call that ends
 // unanswered was made as the supervisor restarted, and is made again; one

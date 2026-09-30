@@ -1399,7 +1399,7 @@ prelude_types_test() ->
     ?assertEqual(ok, ok("fn f(x : Reason) = match x { Returned -> 0 | Killed -> 1 | ProgramEnd -> 2"
                         " | Fault(_) -> 3 | Unknown -> 4 }")),
     ?assertEqual(ok, ok("fn f(x : RestartLimit) = match x {"
-                        " RestartLimit(restarts = n, within = _) -> n }")),
+                        " RestartLimit(restarts = n, within = _) -> n | Unlimited -> -1 }")),
     ?assertEqual(ok, ok("fn f(x : Where) = match x { Local -> 0 | Peer(_) -> 1 }")).
 
 %% report §9.4, §9.5, §9.6, §9.7 and Appendix E: every prelude and stdlib
@@ -1685,7 +1685,8 @@ prelude_namespace_test() ->
                          " Prelude.Peer(t) -> t | _ -> \"here\" }", describe)),
     ?assertEqual("(RestartLimit) -> Int",
                  type_of(Shadow ++ "export fn size(e : Prelude.RestartLimit) ="
-                         " match e { Prelude.RestartLimit(restarts = n) -> n }", size)),
+                         " match e { Prelude.RestartLimit(restarts = n) -> n | Unlimited -> 0 }",
+                         size)),
     ?assertEqual("() -> Where",
                  type_of(Shadow ++ "export fn other() = Prelude.Peer(\"x\")", other)),
     ?assertEqual(ok, ok(Shadow ++ "fn f(a : Address(String)) : Unit with m ="

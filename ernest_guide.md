@@ -1558,7 +1558,7 @@ Some(3)
 
 `counter` is evaluated before `main` runs, in the entry process, like every top-level `let` (§2.2). An initializer may spawn, send and call, but not receive, so a service's `let` starts its process and nothing waits.
 
-`restarting(RestartLimit(restarts = 3, within = 5000), f)` is a function that runs `f`, and runs it again after a fault, in the same process, with the same address and mailbox. Whoever holds the address keeps it, so nothing is handed out again after a restart. What the loop held is gone: the count starts at zero again, as `Some(3)` shows. After three restarts within five seconds, the next fault ends the process (report §6.9). A restart is not an end: no `monitor` hears of it, and the process's `Down` comes only when it ends for good.
+`restarting(RestartLimit(restarts = 3, within = 5000), f)` is a function that runs `f`, and runs it again after a fault, in the same process, with the same address and mailbox. Whoever holds the address keeps it, so nothing is handed out again after a restart. What the loop held is gone: the count starts at zero again, as `Some(3)` shows. After three restarts within five seconds, the next fault ends the process (report §6.9); `restarting(Unlimited, f)` runs `f` again after every fault. A restart is not an end: no `monitor` hears of it, and the process's `Down` comes only when it ends for good.
 
 The call that was waiting when the counter faulted ends at once: `Address.call` answers `None`, and `Address.callForever` would fault the caller with the same cause. A caller that must outlive a service's faults calls with a limit. The second line is `ern run`'s report of the fault, on standard error (§6.3).
 

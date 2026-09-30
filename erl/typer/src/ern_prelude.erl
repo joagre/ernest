@@ -272,15 +272,16 @@ declared_types() ->
     /// ```
     type Where = Local | Peer(String)
     /// How often `restarting` restarts: at most `restarts` times within
-    /// `within` milliseconds, the next fault ending the process (report
-    /// §6.9). A count or a time below 0 is 0.
+    /// `within` milliseconds, the next fault ending the process, or after
+    /// every fault where it is `Unlimited` (report §6.9). A count below 0 is
+    /// 0, and a time below 1 is 1.
     ///
     /// ### Examples
     ///
     /// ```ernest
     /// RestartLimit(restarts = 3, within = 5000)
     /// ```
-    type RestartLimit = RestartLimit(restarts : Int, within : Int)
+    type RestartLimit = RestartLimit(restarts : Int, within : Int) | Unlimited
     /// A file system path, in the runtime's syntax; the `Path` module takes it
     /// apart (report Appendix E.14).
     ///
