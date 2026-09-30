@@ -7,7 +7,7 @@ Four rules hold in every language of the repository. `test/ern_style_tests.erl` 
 - A line of code is at most 100 characters. Prose in markdown may be longer.
 - A name in a namespace the repository shares with other code carries the repository's name: an Erlang module begins `ern`, an Emacs Lisp symbol `ernest-`.
 
-The rules below build on style guides that are widely accepted, and state only the repository's own rules and where it differs from them. For Erlang they are Ericsson's *Programming Rules and Conventions* (Eriksson, Williams and Armstrong) and Inaka's *Erlang Coding Standards & Guidelines*; for Ernest, the *Elm Style Guide*, the nearest in spirit, and after it the conventions of Gleam and OCaml. Where one of them and this file differ, this file holds.
+The rules below build on style guides that are widely accepted, and state only the repository's own rules and where it differs from them. For Erlang they are Ericsson's *Programming Rules and Conventions* (Eriksson, Williams and Armstrong) and Inaka's *Erlang Coding Standards & Guidelines*; for Ernest, the *Elm Style Guide*, the nearest in spirit, and after it the conventions of Gleam and OCaml. Where one of them and this file differ, this file holds. A guide serves the code's reader and is not a law: the rules a test checks hold always, and where another would make the code read worse, the writer's judgment goes before it.
 
 ## Names
 
