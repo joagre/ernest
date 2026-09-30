@@ -5710,6 +5710,18 @@ What it decides. Item 13 shrinks to `Io.debug` written in Ernest over `Io.show`;
 
 Not taken: the shown restriction, which was type classes for one function; and `Io.show` by the representation everywhere, which prints a `Char` as its `Int` at a known type too.
 
+## One Door for the Host's Values, 2026-10-01
+
+The sixteenth sentence of the principles review, decided with the user, and the last of the sections'. §3.8: the host's values enter Ernest through foreign types alone, each with the runtime's exact equality, `foreign type T` declared by a module and the foreign type of any host value, `Foreign`.
+
+The language had two concepts for a value the host made: `foreign type T`, whose values are made and used only by foreign functions and have the runtime's exact equality, and `Foreign`, a built-in type of §3.7 and the prelude with no equality (*What a Foreign Function's Variables Carry*). They differed in nothing a program can see but the equality, and `Foreign` behaved as a foreign type in every other way, its values coming from foreign functions alone; the review's P1-26 found the two concepts for one thing. One door: every host value is a value of a foreign type, and the type of any host term is one such type, not a fourth kind. Its equality follows its kind's rule, so the exception goes: a term made from a function compares by identity, as the host compares it, and a reply cannot be made into a term, which §4.7 already says. Where it lives follows from §9's sentence of the same day: no rule of the language names it, so it is the library's, and its home is E.19, what a shim over an Erlang API needs, as `Erl.Term`, with E.12's conversions.
+
+What it decides. §3.10's clause denying `Foreign` equality goes, a `report` line. `Foreign` leaves §3.7 and the prelude for E.19 as `Erl.Term`, `Erl.atom` answering it and E.12's functions becoming `Erl`'s, a `report` line of round 2 and a gap the plan dates, since Appendix D's code and the shims change with it and the report's examples are built by a test. The prelude loses a type and Appendix F a concept.
+
+Not taken: `Foreign` kept as a built-in without equality, the exception the sentence removes; and its home in the prelude by the module named after it, which §9's rule for types would give and which round 2 weighs for `Path` and `Process` too.
+
+With this the review's phase 2 is complete: sixteen sentences in §0, §3.5, §3.8, §3.9, §4.5, §4.8, §6.2, §6.6, §6.9, §7.4, §8.2, §9, E.0, and E.1, each decided in one turn and recorded here, and every family of `findings.md` marked `sentence` with its rules left to round 2.
+
 ## Erlang's Standard Library, Module by Module
 
 Where each user-facing OTP module stands, first read on 2026-09-18 (*The Erlang Standard Library, Read for Ernest*) and kept current since. What is not a row is OTP's own machinery, which Ernest's concepts or toolchain replace. What a module still waits for, and when, is the plan's.

@@ -226,7 +226,7 @@ A sum type whose constructors may be mentioned only in the module that declares 
 
 ### 3.8 Foreign types
 
-A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, §4.7, and can otherwise be held, passed, and sent. Its equality is §3.10's.
+A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, §4.7, and can otherwise be held, passed, and sent. Its equality is §3.10's. The host's values enter Ernest through foreign types alone, each with the runtime's exact equality: `foreign type T` declared by a module, and the foreign type of any host value, `Foreign` (§3.7).
 
 A foreign value is bound to the node (§8.3) that made it: transporting a value that transitively contains one to another node faults with cause `Fault("foreign value cannot cross nodes")`. Transport is `spawn(Peer(...), f)` and `spawnMonitored(Peer(...), f, wrap)`, `send` to a remote address, the request of a call to one, `answer(r, v)` to a caller on another node, and the captures of a function spawned on a peer. The fault is the transporting process's, at the operation that transports: the caller of `spawn` or `spawnMonitored`, the sender of `send`, the caller of a call, and the process that calls `answer`.
 

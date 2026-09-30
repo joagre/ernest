@@ -20,8 +20,8 @@ run of `make test` trusted. Between its items 3 and 4 runs the principles review
 and the guide read against §0 and §0 against what it decided, a milestone of its own below;
 its readers ran on 2026-09-30, on `57b8356`, their findings stand in
 [`findings.md`](findings.md), and [`attack_plan.md`](attack_plan.md) gives the order in which
-they are worked; its phase 1, the principles' sentences, was done on 2026-10-01, and phase 2,
-the sections' sentences, is next. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was
+they are worked; its phases 1 and 2, the sixteen sentences, were done on 2026-10-01, and phase
+3, MVP 2.99b's items 1 to 3, is next. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was
 published on 2026-09-30 with MVP 2.99, the last milestone done; MVP 2.9, MVP 2.61,
 `libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under "Done".
 
@@ -252,7 +252,10 @@ not-reply-carrying restriction, treats the name `fault` alone as a call that doe
 and prints a process-only variable without a mark (§11.5). Under §3.5's declared order of 2026-10-01, the emitter's
 descriptors, `Io.show` and the ABI place named fields in the order of their names (§3.5, §8.4,
 Appendix E.1). Under E.1's sentence of 2026-10-01, the checker accepts `Io.show` on a type
-variable and the runtime then writes the representation (Appendix E.1, §4.4).
+variable and the runtime then writes the representation (Appendix E.1, §4.4). Under §3.8's sentence of 2026-10-01, `Foreign` is a built-in type of
+§3.7 and the prelude without equality (§3.10, §9.1), with its conversions in Appendix E.12,
+where it is the library's foreign type `Erl.Term` of Appendix E.19; Appendix D's code and the
+shims change with it.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is
