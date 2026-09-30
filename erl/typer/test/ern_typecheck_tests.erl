@@ -1822,6 +1822,17 @@ variable_names_test() ->
                  type_of("export fn twice(f : (a) -> a with e, x : a) : a with e = f(f(x))",
                          twice)).
 
+%% report §5.7, Appendix A: a construction is a value and no call, so the
+%% pipe applies a bare constructor and does not fill a construction. A
+%% regression test: the refusals named the callee or a missing field and
+%% not the pipe (findings.md's R-12)
+pipe_into_construction_test() ->
+    W = "type W = W(a : Int, b : Int)\n",
+    ?assertEqual(ok, ok("fn f() : Optional(Int) = 1 |> Some")),
+    Refused = "a construction is a value, not a call, and `|>` does not fill it",
+    ?assertEqual(Refused, err("fn f() : Optional(Int) = 1 |> Some(2)")),
+    ?assertEqual(Refused, err(W ++ "fn f() : W = 1 |> W(b = 2)")).
+
 %% report §5.7: the piped value must fit the target's first argument
 pipe_type_test() ->
     ?assertEqual("(String) -> Int",

@@ -2026,6 +2026,12 @@ infer(#e_bits{pos = Pos, segments = Segs} = E, Env) ->
 infer(#e_block{pos = Pos, stmts = Stmts} = E, Env) ->
     {TypedStmts, T, Env1} = infer_block(Stmts, Pos, undefined, Env),
     {E#e_block{stmts = TypedStmts, type = T}, T, Env1#env{vars = Env#env.vars}};
+infer(#e_call{pipe = true, callee = #e_con{pos = ConPos, args = ConArgs}}, _Env)
+  when ConArgs =/= none ->
+    %% report §5.7, Appendix A: a construction is a value of its type, never
+    %% a function, which the pipe applies and does not fill
+    fail(ConPos, "a construction is a value, not a call, and `|>` does not fill it", [],
+         "put the piped value in the construction itself");
 infer(#e_call{pos = Pos, callee = Callee, args = Args} = E, Env) ->
     {TypedCallee, CalleeT, Env1} = infer(Callee, Env),
     Name = callee_name(Callee),
