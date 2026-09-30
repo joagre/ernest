@@ -9,7 +9,6 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 
 ## Questions for the user
 
-- ask — `Os.start`'s milliseconds are a lifetime (R-25)
 - ask — a local helper over an operator (R-26), and `Int.+`'s body that is not a call (R-27)
 - ask — who owns a socket (C1-2), an address retyped by foreign code (C1-6), and `:load` of a compiled module unchecked (C3-9)
 - ask — an alarm cannot be cancelled (N-C1), which the guide then says (N-B4), the order of a `Down` and the messages before it (N-B5), and `type Word = String` (N-C3)
