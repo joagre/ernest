@@ -142,7 +142,8 @@ discussed with the user one at a time as they are met.
    later work placed part by part, Readline's remaining keys, `:trace`, completion by type
    and attaching to a node in MVP 3.3, and the grey suggestion, re-running by number and a
    report of quiescence out, decided with the user 2026-09-30 (the log's *The Shell's Second
-   Round*);
+   Round*); no send with a limit beside the unbounded mailbox (N-L5), decided with the user
+   2026-09-30 (§10; the log's *Back Pressure, Again*);
    the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.

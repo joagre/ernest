@@ -4,7 +4,7 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 
 ## The guide and the README
 
-- 2.98 — the language: no bounded mailbox, and the small things of N-L6 (N-L5, N-L6)
+- 2.98 — the language: the small things of N-L6 (N-L6)
 
 ## The runtime
 
