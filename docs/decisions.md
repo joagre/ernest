@@ -5670,6 +5670,16 @@ What it decides. The late reply, the second answer and the lost peer's messages 
 
 Not taken: a `send` that reports a dead receiver, which would need an answer on every send and make a message a request; and text that is not UTF-8 left out where the program did not name it, which the log's reader proposed, since `Map.get(env, "PATH")` names it.
 
+## Who Owns a Process, 2026-10-01
+
+The twelfth sentence of the principles review, decided with the user. §6.9 ends: a process the program spawns belongs to no one and ends only as the section says; a process the runtime starts for a resource, a socket, a listener or a program the runtime started, belongs to the process that opened it or was given it and ends with it; closing the resource ends its process, and killing its process closes it.
+
+The report had three ownership rules and no sentence. §6.9 said nothing owns a process (*A Restart Has a Limit and No Strategy*); E.18 owned a socket by its opener, with `give`, after the release review's C1-2 had reversed *A Socket Lives Until It Is Closed* citing the same memory rule; E.23 killed a program with the process that started it and had no `give`; a listener was owned by no one; a supervisor's children died through a watcher process the library spawns (*The `Supervisor`'s Shape*). The distinction the practice followed is what the program spawns against what the runtime starts to stand for a resource. The first is the program's to end, and there are no links, which is why a supervisor needs a watcher to end its children after its own death. The second holds what the host will not reclaim on its own, a descriptor, a child process, so it belongs to a process and ends with it, which is what §0's *The host* asks: the host would leak it silently, so Ernest ties it to an owner.
+
+What it decides. A listener gains an owner and `Os.give` exists beside `Tcp.give`, two `report` lines and gaps the plan dates. `kill(socket)` and `Tcp.close` are one act, so whether both names stay is principle 2's question in round 2 (the review's P2-13, K-41). The supervisor's watcher stays, since children are the program's spawns, and P2-7 closes as kept: E.22 states the process, and a stated cost is not an invisible one. `spawnMonitored` stays, since the runtime keeps nothing of a dead process and ownership does not change that. A `Down` that names no process (W-1) is a rule of the family for round 2.
+
+Not taken: ownership for a process the program spawns, which is a link under another name and which §6.9 refuses; and a listener left unowned as a thing that holds nothing, which is false, since it holds a port.
+
 ## Erlang's Standard Library, Module by Module
 
 Where each user-facing OTP module stands, first read on 2026-09-18 (*The Erlang Standard Library, Read for Ernest*) and kept current since. What is not a row is OTP's own machinery, which Ernest's concepts or toolchain replace. What a module still waits for, and when, is the plan's.

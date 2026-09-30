@@ -249,7 +249,9 @@ builders write a published specification, ECMA-48, in a standard library module 
 and `Udp` waits on a count (Appendix E, the log's *`Clock.monotonic` Is In, and `Udp` Is
 Placed*). Under §8.2's *Text from the host* of 2026-10-01, `Fs.list` leaves out an
 entry whose name is not UTF-8 and `Os.environment` a variable whose name or value is not
-(E.17, E.23).
+(E.17, E.23). Under §6.9's ownership sentence of 2026-10-01, a listener belongs to no one
+and lives until the program ends, and a program the runtime started cannot be given (E.18,
+E.23).
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is
