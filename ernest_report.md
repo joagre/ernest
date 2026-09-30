@@ -331,7 +331,7 @@ export fn size(Stack(xs)) =
     List.size(xs)
 ```
 
-External callers see `Main.Stack`, `Main.Stack.empty`, `Main.Stack.push`, `Main.Stack.pop`, and `Main.size`; `Stack(...)` is refused outside `main.ern`. A module may declare several abstract types. Outside its module, `Io.show` writes a value of an abstract type as `<abstract>`, and, through a type variable, by its representation, its constructor included (Appendix E.1).
+External callers see `Main.Stack`, `Main.Stack.empty`, `Main.Stack.push`, `Main.Stack.pop`, and `Main.size`; `Stack(...)` is refused outside `main.ern`. A module may declare several abstract types. Outside its module, `Io.show` writes a value of an abstract type as `<abstract>` (Appendix E.1).
 
 ### 4.5 Functions
 
@@ -1314,7 +1314,7 @@ Io.show : (a) -> String // the value as Ernest writes it
 Io.debug : (a) -> a with m // prints Io.show of the value and a line feed, then returns the value
 ```
 
-`Io.show` writes a value by the argument's type at the call, each value as its literal or construction is written: a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in their declared order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements, in an order the values fix, so that equal maps and equal sets print alike: ascending where the keys or the elements are `Int`, `Float`, `Char`, or `String`. An address prints as `<address 84>`, the number naming the process behind it, and a `Process` as `<process 84>` (E.21). A function prints as `<function>`, and a value of an abstract type outside its module as `<abstract>`; no reply reaches `Io.show`, whose argument is no reply-carrying type (§6.6). Where the argument's type is a type variable or a foreign type, the value is written by its runtime representation (§8.4): a `Char` as its `Int`, a `Bytes` that is UTF-8 as a `String`, a constructor's fields positional, an atom as a nullary constructor, by its name, and `<foreign>` where the representation reads as none of these. `Io.debug` writes `Io.show`'s text to standard output.
+`Io.show` writes a value by the argument's type at the call, each value as its literal or construction is written: a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in their declared order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements, in an order the values fix, so that equal maps and equal sets print alike: ascending where the keys or the elements are `Int`, `Float`, `Char`, or `String`. An address prints as `<address 84>`, the number naming the process behind it, and a `Process` as `<process 84>` (E.21). A function prints as `<function>`; no reply reaches `Io.show`, whose argument is no reply-carrying type (§6.6). `Io.show` writes a value by its type at the call, which must be known there: on a type variable it is a type error, as an operator is (§4.8), and it takes no hidden argument. A value of an abstract type outside its module is written as `<abstract>`, and a value of a foreign type or of `Foreign` as `<foreign>`. `Io.debug` writes `Io.show`'s text to standard output.
 
 ### Appendix E.2. `list.ern` (namespace `List`)
 

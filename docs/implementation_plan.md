@@ -165,21 +165,16 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
     of `setOperations`, since the ordering restriction's hidden argument is refused
     (2026-10-01). `Map` gains a record with a
     second representation, and not before.
-13. **`Io.show` follows its type through a generic function** (decided 2026-09-29, the log's
-    *`Io.show` Follows Its Type*; language feedback 72 with item 4): `Io.show` and `Io.debug`
-    on a type variable give it a *shown* restriction, printed with a mark, and a function
-    generalized over it takes its caller's type description, as the ordering restriction
-    takes a `compare`; `wrap('a')`, with `fn wrap(x) = Io.show(x)`, prints `'a'`. `Io.debug`
+13. **`Io.debug` in Ernest, and the boundary at a type variable** (the shown restriction of
+    2026-09-29 was refused on 2026-10-01, the log's *A Value Shows Itself at a Known Type*:
+    `Io.show` on a type variable is a type error, as an operator is, and takes no hidden
+    argument, so `fn wrap(x) = Io.show(x)` is refused and shows at its caller). `Io.debug`
     is then written in Ernest over `Io.show` and `Io.println`, and its shim
     `ern_io:debug/2`, which writes to standard output past `Io`, goes (`findings.md`'s E-C4,
-    2026-09-30). Its hidden type description is a hidden argument, and the principles review's
-    question on what a value shows of itself decides whether it stands (2026-10-01). Until then
-    Appendix E.1 states what the code does: through a type variable, a value is written by its
-    representation, and §4.4 says so of an abstract type's value, a sentence this item removes
-    (`findings.md`'s R-1, decided with the user 2026-09-30). A foreign function takes its
-    caller's description of each type variable its result or a function it is given names, and
-    checks at the caller's type what §8.4 now lets through at a variable, the sentence that
-    says so going (R-2, decided with the user 2026-09-30); and `Foreign.from` exposes its
+    2026-09-30). A foreign function's result at a type variable its parameters name, which §8.4 lets
+    through unchecked, is decided here under §4.8's rule of no hidden argument: a check where
+    the function is instantiated at a known type, or the trust stated (R-2, placed here
+    2026-10-01); and `Foreign.from` exposes its
     value at the caller's type, a proxy for each address in it and a check for each function,
     as a foreign function's argument is (C1-4, decided with the user 2026-09-30).
 14. **The built-in operators as shims** (`findings.md`'s R-27, decided with the user
@@ -256,7 +251,8 @@ an element of `List`, `Map` or `Set` at `[]` and exempts those types' variables 
 not-reply-carrying restriction, treats the name `fault` alone as a call that does not return,
 and prints a process-only variable without a mark (§11.5). Under §3.5's declared order of 2026-10-01, the emitter's
 descriptors, `Io.show` and the ABI place named fields in the order of their names (§3.5, §8.4,
-Appendix E.1).
+Appendix E.1). Under E.1's sentence of 2026-10-01, the checker accepts `Io.show` on a type
+variable and the runtime then writes the representation (Appendix E.1, §4.4).
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is

@@ -5700,6 +5700,16 @@ What it decides. `Io.show` and the ABI use the declared order, a `report` line t
 
 Not taken: a normal form for the hash alone, which the principles reader proposed, since it splits identity from layout; and the canonical order kept with printing in declared order, which would leave the ABI's surprise.
 
+## A Value Shows Itself at a Known Type, 2026-10-01
+
+The fifteenth sentence of the principles review, decided with the user. Appendix E.1: `Io.show` writes a value by its type at the call, which must be known there; on a type variable it is a type error, as an operator is, and it takes no hidden argument; a value of an abstract type outside its module is written as `<abstract>`, and a value of a foreign type or of `Foreign` as `<foreign>`. §4.4's sentence on the representation through a type variable goes.
+
+`Io.show` was the one function the compiler treated by its argument's static type, and the report said so by its effect alone: at a known type `'a'`, through a type variable `97`, a `Bytes` as a string, an abstract type's value with its constructor (*`Io.show` Follows Its Type*, the release review's R-1), and a foreign type's value as the host's term. Three readers found it and the cold reader added that no user `foreign fn` could have the mechanism, so a builder must guess it (K-7). MVP 2.99b's item 13 would have fixed it with a *shown* restriction and a hidden type description passed to every generic function that shows, the same hidden argument §4.8 refused for `<` the day before, with a fourth restriction and a mark that refuses nothing (P2-46). The rule the language has decides it: `Io.show` is resolved by its argument's type as an operator is, so it is resolved where that type is known and refused on a variable, with the same error; `List.map(xs, Io.show)` at a known element type still works, the primitive being instantiated where the type is known, and a generic function that would show its own variable shows at its caller. With no hidden argument nothing leaks: an abstract type's value is `<abstract>` at every type, and a foreign type's value `<foreign>`, which §0's *The host* asks, the host's term being the host's own.
+
+What it decides. Item 13 shrinks to `Io.debug` written in Ernest over `Io.show`; its half on a foreign function's result at a type variable, R-2, is a hidden argument of the same kind and is decided in item 13 under §4.8's rule, a check where the function is instantiated at a known type or the trust stated. The checker accepting `Io.show` on a variable is a gap the plan dates to phase 5. P1-8, P2-5, K-7 and W-80 close by the rule.
+
+Not taken: the shown restriction, which was type classes for one function; and `Io.show` by the representation everywhere, which prints a `Char` as its `Int` at a known type too.
+
 ## Erlang's Standard Library, Module by Module
 
 Where each user-facing OTP module stands, first read on 2026-09-18 (*The Erlang Standard Library, Read for Ernest*) and kept current since. What is not a row is OTP's own machinery, which Ernest's concepts or toolchain replace. What a module still waits for, and when, is the plan's.
