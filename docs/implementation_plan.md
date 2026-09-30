@@ -159,7 +159,10 @@ discussed with the user one at a time as they are met.
    item 7 (E-C4), decided with the user 2026-09-30; an `Io.Error` worded by each program,
    with `Other` holding the host's description of a reason, "address already in use", where
    it held the code (E-C5), decided with the user and done 2026-09-30 (Appendix E.1; the
-   log's *`Other` Says the Host's Words*);
+   log's *`Other` Says the Host's Words*); a group restarted whole, the child that faulted
+   running again once each sibling its strategy restarts has restarted or ended, so that
+   `services.ern` and the guide's `pair.ern` no longer sleep (E-C6), decided with the user and
+   done 2026-09-30 (Appendix E.22; the log's *A Group Restarts Whole*);
    the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.

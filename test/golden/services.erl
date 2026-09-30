@@ -45,58 +45,44 @@ main() ->
     put(<<"pears">>, 5),
     report(<<"before">>),
     ern_rt:send(store(), 'Corrupt'),
-    begin
-        Deadline_11 = ern_rt:deadline(500),
-        ern_rt:timed(),
-        fun Wait_12() ->
-                receive
-                    '$ern_restart' ->
-                        ern_rt:untimed(),
-                        ern_rt:restart_now()
-                    after ern_rt:remaining(Deadline_11) ->
-                              case ern_rt:remaining(Deadline_11) of
-                                  0 ->
-                                      ern_rt:untimed(),
-                                      'Unit';
-                                  _ -> Wait_12()
-                              end
-                end
-        end()
-    end,
     report(<<"after the restart">>).
 
-put(Key_13, Value_14) ->
-    Id_16 = ern_rt:call_forever(ids(),
-                                fun (R_15) -> {'NextId', R_15} end,
+put(Key_11, Value_12) ->
+    Id_14 = ern_rt:call_forever(ids(),
+                                fun (R_13) -> {'NextId', R_13} end,
                                 {int, <<"reply does not match Int">>}),
-    ern_rt:send(store(), {'Put', Key_13, Value_14}),
+    ern_rt:send(store(), {'Put', Key_11, Value_12}),
     ern_rt:send(audit(),
                 {'Record',
-                 <<(ern@int:toString(Id_16))/binary, ": put ",
-                   Key_13/binary>>}).
+                 <<(ern@int:toString(Id_14))/binary, ": put ",
+                   Key_11/binary>>}).
 
-report(Moment_17) ->
-    Apples_20 = case ern_rt:call_forever(store(),
-                                         fun (R_18) ->
-                                                 {'Get', <<"apples">>, R_18}
-                                         end,
-                                         {'$type_1'(),
-                                          <<"reply does not match Optional(Int)">>})
-                    of
-                    {'Some', N_19} -> ern@int:toString(N_19);
+report(Moment_15) ->
+    Apples_17 = case stored(<<"apples">>) of
+                    {'Some', N_16} -> ern@int:toString(N_16);
                     'None' -> <<"none">>
                 end,
-    Entries_22 = ern_rt:call_forever(audit(),
-                                     fun (R_21) -> {'Entries', R_21} end,
-                                     {'$type_2'(),
+    Entries_19 = ern_rt:call_forever(audit(),
+                                     fun (R_18) -> {'Entries', R_18} end,
+                                     {'$type_1'(),
                                       <<"reply does not match List(String)">>}),
-    Id_24 = ern_rt:call_forever(ids(),
-                                fun (R_23) -> {'NextId', R_23} end,
+    Id_21 = ern_rt:call_forever(ids(),
+                                fun (R_20) -> {'NextId', R_20} end,
                                 {int, <<"reply does not match Int">>}),
-    ern@io:println(<<Moment_17/binary, ": apples ",
-                     Apples_20/binary, ", next id ",
-                     (ern@int:toString(Id_24))/binary, ", audit [",
-                     (ern@string:join(Entries_22, <<"; ">>))/binary, "]">>).
+    ern@io:println(<<Moment_15/binary, ": apples ",
+                     Apples_17/binary, ", next id ",
+                     (ern@int:toString(Id_21))/binary, ", audit [",
+                     (ern@string:join(Entries_19, <<"; ">>))/binary, "]">>).
+
+stored(Key_22) ->
+    case ern_rt:call(store(),
+                     fun (R_23) -> {'Get', Key_22, R_23} end,
+                     1000,
+                     {'$type_2'(), <<"reply does not match Optional(Int)">>})
+        of
+        {'Some', Value_24} -> Value_24;
+        'None' -> stored(Key_22)
+    end.
 
 '$init'() ->
     ern_rt:initializing(<<"Services.services:22">>),
@@ -134,6 +120,6 @@ report(Moment_17) ->
 
 '$fun'(main, 0) -> fun main/0.
 
-'$type_1'() -> {con, [{'None', []}, {'Some', [int]}]}.
+'$type_1'() -> {list, string}.
 
-'$type_2'() -> {list, string}.
+'$type_2'() -> {con, [{'None', []}, {'Some', [int]}]}.

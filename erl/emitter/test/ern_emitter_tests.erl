@@ -801,6 +801,49 @@ supervisor_counts_before_the_restart() ->
     ?assertEqual({ok, <<"run 1\nrun 2\nrun 3\nrun 4\nrun 5\nrun 6\nkept\n">>},
                  run(Program("Unlimited"))).
 
+%% Appendix E.22: the child whose fault restarts its siblings runs again
+%% once each of them has restarted, so that a call to it after its fault is
+%% answered by the group restarted whole. The sibling spins when the fault
+%% comes and takes its restart at its next wait. A regression test: the
+%% faulted child ran again at once, and a call to the sibling made after it
+%% had answered was still waiting when the sibling restarted, and ended
+supervisor_restarts_whole_test_() ->
+    {timeout, 30, fun supervisor_restarts_whole/0}.
+
+supervisor_restarts_whole() ->
+    {ok, Out} = run(
+        "type AMsg = Crash | Ping(reply : Reply(Int))\n"
+        "type BMsg = Inc | Busy | Count(reply : Reply(Int))\n"
+        "fn a() : Unit with AMsg =\n"
+        "    receive { Crash -> fault(\"crash\") | Ping(reply = r) -> { answer(r, 1); a() } }\n"
+        "fn b(n : Int) : Unit with BMsg =\n"
+        "    receive {\n"
+        "        Inc -> b(n + 1)\n"
+        "      | Busy -> { spin(Clock.monotonic() + 300); b(n) }\n"
+        "      | Count(reply = r) -> { answer(r, n); b(n) }\n"
+        "    }\n"
+        "fn spin(until : Int) : Unit with m =\n"
+        "    if Clock.monotonic() >= until then Unit else spin(until)\n"
+        "fn ping(x : Address(AMsg)) : Int with m =\n"
+        "    match Address.call(x, fn(r) = Ping(reply = r), 1000) {\n"
+        "        Some(v) -> v\n"
+        "      | None -> ping(x)\n"
+        "    }\n"
+        "export fn main() : Unit with Never = {\n"
+        "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
+        "    let sup = spawn(Local, Supervisor.group(Supervisor.OneForAll, limit));\n"
+        "    let x = spawn(Local, Supervisor.child(sup, a));\n"
+        "    let y = spawn(Local, Supervisor.child(sup, fn() = b(0)));\n"
+        "    send(y, Inc);\n"
+        "    let _ = Address.callForever(y, fn(r) = Count(reply = r));\n"
+        "    let _ = ping(x);\n"
+        "    send(y, Busy);\n"
+        "    send(x, Crash);\n"
+        "    let _ = ping(x);\n"
+        "    Io.println(Io.show(Address.call(y, fn(r) = Count(reply = r), 2000)))\n"
+        "}\n"),
+    ?assertEqual(<<"Some(0)\n">>, Out).
+
 %% report §6.9: returning and a kill end a restarting process as they end
 %% any; only a fault restarts
 restart_only_on_fault_test() ->

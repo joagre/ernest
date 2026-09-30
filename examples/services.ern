@@ -61,11 +61,6 @@ export fn main() : Unit with Never = {
     put("pears", 5);
     report("before");
     send(store, Corrupt);
-    // the restart is asynchronous, and a call made during it may be answered from the old
-    // state or end (report §6.6); main waits so that its output is the same on every run
-    receive {
-        after 500 -> Unit
-    };
     report("after the restart")
 }
 
@@ -76,7 +71,7 @@ fn put(key : String, value : Int) : Unit with m = {
 }
 
 fn report(moment : String) : Unit with m = {
-    let apples = match Address.callForever(store, fn(r) = Get(key = "apples", reply = r)) {
+    let apples = match stored("apples") {
         Some(n) -> Int.toString(n)
       | None -> "none"
     };
@@ -91,3 +86,12 @@ fn report(moment : String) : Unit with m = {
                    <> String.join(entries, "; ")
                    <> "]")
 }
+
+// The store's value for a key. A call waiting on the store when it faults ends (report
+// §6.6), and one made again is answered once its group has restarted whole (Appendix
+// E.22), so the services asked after it answer from their first state too.
+fn stored(key : String) : Optional(Int) with m =
+    match Address.call(store, fn(r) = Get(key = key, reply = r), 1000) {
+        Some(value) -> value
+      | None -> stored(key)
+    }
