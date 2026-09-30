@@ -901,6 +901,8 @@ sum 5050
 
 However slow the consumer, no more than ten items wait in its mailbox. Where nothing paces a queue, `Process.info` shows it building: for a live process it answers `Some(info)`, and `info.queued` is the number of messages waiting in its mailbox. A write paces its writer as a call does: `Io.println`, and every other write of the system modules, returns once its stream has taken the bytes, so a program's output goes at the pace of what reads it.
 
+**Fan-out.** A process that sends each message to many receivers, as a chat room sends each line to its members, is not paced by any of them. A call to each would pace it by the slowest, and one receiver that stalls would then hold up all the others. So each receiver gets a window of its own. The sender keeps the credit each receiver has left, and sends only to one that has some; each receiver grants more as it takes what it was sent. A member's writer grants once its write has returned, so a client that stops reading stops its writer's grants (§8.7). A receiver whose credit stays at nothing has stalled, and the sender skips it or drops it, as its protocol says. Either way, no more than its window waits in its mailbox. `Process.info` shows such a queue building, but it is for watching what runs: a program paces its messages with its own protocol.
+
 ### 4.5 Running the counter
 
 The counter of §4.1 with a `main` that uses it, in `counter.ern`:

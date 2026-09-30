@@ -114,7 +114,9 @@ discussed with the user one at a time as they are met.
    `Char`'s predicates
    reading the host's `unicode_util`, whose documentation hides it, rather than a regular
    expression 30 to 100 times slower, decided with the user and done 2026-09-30 (E.6; the
-   log's *Char Reads the Host's Tables*); the diagnostics' positions and labels
+   log's *Char Reads the Host's Tables*); the guide's §4.4 on sending to many receivers, a
+   window of credits for each and `Process.info` for watching only (N4), done 2026-09-30; the
+   diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
 3. **`Fs` brought to what a program needs of a file system** (the log's *What `Fs` Holds*):
