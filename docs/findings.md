@@ -41,7 +41,7 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 
 ## Questions for the user
 
-- ask — `Io.show` through a generic function shows what an abstract type hides (R-1, with MVP 2.99b's item 8)
+- ask — `Io.show` through a generic function shows what an abstract type hides (R-1, with MVP 2.99b's item 13)
 - ask — a foreign result at a type variable a parameter names is not checked (R-2)
 - ask — `Prelude.` and the taken namespaces (R-3)
 - ask — `as` and `or` in a pattern (R-5)

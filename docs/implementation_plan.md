@@ -39,8 +39,7 @@ taken out of order. Each has its paragraph under "Done".
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | a restart begins afresh, and the first release | |
-| MVP 2.99b | what the release review left, names that read among it; then operations records: `Set`'s record and an ordered set | the operations' decision before they are built (`operations.md`) |
-| MVP 2.99c | running as a service | |
+| MVP 2.99b | what the release review left, names that read among it; operations records: `Set`'s record and an ordered set; running as a service | the decisions before anything is built (`operations.md`) |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -54,8 +53,8 @@ taken out of order. Each has its paragraph under "Done".
 The first release, placed here on 2026-09-28 (the log's *The First Release Follows MVP 2.99*):
 Ernest for programs on one node, for other programmers to install and use, decided 2026-09-27
 (the log's *The First Release Is for Others*); peers are the next release's. It follows MVP
-2.98. Running as a service is MVP 2.99c's, after it (2026-09-29, the log's *Running as a Service
-After the First Release*).
+2.98. Running as a service is MVP 2.99b's, after it (2026-09-29, the log's *Running as a Service
+After the First Release*; one milestone with the operations records since 2026-09-30).
 
 1. **A restart is a new run in all but its address** (language feedback 68, decided with the
    user and done 2026-09-30; §6.9, §8.2, E.15, E.21, E.22; the log's *A Restart Begins
@@ -84,105 +83,113 @@ After the First Release*).
 
 ---
 
-## MVP 2.99b (what the release review left; operations records: `Set`'s record and an ordered set), about three weeks
+## MVP 2.99b (what the release review left, operations records, and running as a service), about three and a half weeks
 
-First what the release review left, the naming of all the code among it, moved here from MVP
-2.99d on 2026-09-30 so that it comes before anything is built on the released code (the log's
-*Names Are the First Documentation*). Then how code written once works over several
-representations of one thing, decided here, after the first release (the log's *The Contract's Decision After the First Release*), over what
-[`operations.md`](operations.md) proposes and compares with type classes. The guide's §7.3,
-decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*), is rewritten around it.
+What the release review left, the naming of all the code among it, moved here from MVP 2.99d
+on 2026-09-30 so that it comes before anything is built on the released code (the log's
+*Names Are the First Documentation*); how code written once works over several
+representations of one thing, decided here, after the first release (the log's *The
+Contract's Decision After the First Release*), over what [`operations.md`](operations.md)
+proposes and compares with type classes; and a program on one node run for days under a
+service manager, which was MVP 2.99c until the two milestones became one on 2026-09-30. It had
+moved from MVP 2.7 on 2026-09-27 (the log's *Running as a Service*), from MVP 3.0 on
+2026-09-28, since it needs no peer (the log's *MVP 3.0 Is Distributed Code and the Node
+Protocol*), and from MVP 2.99 on 2026-09-29, so that the first release came first. The items
+run in this order, each needing the ones before it (the log's *MVP 2.99b's Order*): the tests
+trusted, then every decision, then the Erlang renamed, then what is built, then the Ernest
+renamed over it, then the guide, and the soak last.
 
-1. **What the release review left**: the lines of [`findings.md`](findings.md) marked `2.99b`,
-   the hardening the code readers found (C1-5, C1-9, C1-10, C3-26 to C3-31), and the places
-   the language made their work harder, each taken to
-   [`language_feedback.md`](language_feedback.md) or dropped with its reason; the file goes
-   when this item is done. And **names that read**, about a week and a half: every Erlang
-   module under `erl/` and `test/`, and then every Ernest source, the standard library, the
-   shell, the libraries and the examples, is read for its names and renamed where a name does
-   not say what its value or its work is: a variable, a function, and in Erlang a record and
-   its fields, in Ernest a type, a constructor and a field. The rules are
-   [`style.md`](style.md)'s, written on 2026-09-30 so that the code written before the pass
-   keeps them. Before any renaming, **the style guides are a decision with the user**:
-   `style.md` rests them on widely accepted guides, Ericsson's *Programming Rules and
-   Conventions* and Inaka's guidelines for Erlang, the *Elm Style Guide* for Ernest, and
-   holds a proposal for names and for structure drawn from what the code has shown good and
-   bad, which the user reads when this item begins. Then a glossary of the names that recur
-   goes there, read with the user: one name for each concept, the same in every module. The
-   renaming goes area by area, a commit each that changes names and nothing else, the area's
-   tests green before the next; the code grows longer, and the line stays at 100 characters.
-   A name the report states, an exported function's or a constructor's, changes only through
-   the report.
-2. **The decision**, taken with the user before anything of it is built (language feedback 64,
-   and 69 to 73): the proposal's
-   ordering restriction, inferred on a type variable as the equality restriction is, with a
-   type's order its `compare`; an operations record holding a type's primitives; and what the
-   note's last section leaves to the decision. Nothing is built around the decision. Three
-   parts were decided with the user on 2026-09-29, before the note went out (the log's
-   *Operations Records*): tuples and lists are ordered element by element, and `Optional`
-   and `Either` by a `compare` in the prelude, `None` and `Left` first; `put` keeps the
-   element already in the set; and `foldLeft` is written once over `toList`, outside the
-   record. The ordered set's representation is the note's open question.
-3. **`set.ern` over its record**: `Set.Operations(s, e)` with `Set`'s six primitives, the
-   functions written once as members of that type, and each of `Set`'s own a call of one.
-4. **`OrderedSet` in the standard library**, the record's second representation, with its
-   tests and its page, in a section of its own at the end of Appendix E. `Map` gains a record
-   with a second representation, and not before.
-5. **The guide's §7.3** says "operations record" and shows code written once, a
-   representation's own functions beside the record's, two ordered sets that cannot meet in
-   `union`, and values of several representations in one list. Its examples compile and run
-   under the guide's checks. What Ernest cannot express goes to
-   [`language_feedback.md`](language_feedback.md) and is decided with the user before the
-   section goes around it.
-6. **When a type's operation is a member and when a module function** (`findings.md`'s U8,
-   moved here 2026-09-29): §7.2 declares them `fn Stack.push` and §7.3 `toList` of a module,
-   and the decision settles how a type's operations are declared, so the guide states one
-   rule with it.
-7. **A file's words joined by `_` name one namespace segment** (decided 2026-09-29, the log's
-   *A Namespace From Words Joined by `_`*): `ordered_set.ern` provides `OrderedSet`, each word
-   capitalized and the `_` dropped, a directory's name too, `net/http_client.ern` providing
-   `Net.HttpClient`. §4.2's and §11.1's path shape gain it, a word being a lowercase letter
-   followed by lowercase letters and digits and a `_` standing only between two words, so that
-   no two files name one namespace (language feedback 74, decided with the user 2026-09-30); `ern build`, `:load`, completion, `ern
-   doc` and the manual pages' names follow, the shell finding `ordered_set.ern` for
-   `OrderedSet`.
-8. **`Io.show` follows its type through a generic function** (decided 2026-09-29, the log's
-   *`Io.show` Follows Its Type*; language feedback 72 with item 2): `Io.show` and `Io.debug`
-   on a type variable give it a *shown* restriction, printed with a mark, and a function generalized over it takes its
-   caller's type description, as the ordering restriction takes a `compare`; `wrap('a')`, with
-   `fn wrap(x) = Io.show(x)`, prints `'a'`. `Io.debug` is then written in Ernest over
-   `Io.show` and `Io.println`, and its shim `ern_io:debug/2`, which writes to standard output
-   past `Io`, goes (`findings.md`'s E-C4, 2026-09-30). It is built on item 2's hidden
-   argument, about a day; if item 2 refuses the ordering restriction, the choice returns to the
-   user. Until then Appendix E.1 states what the code does: through a type variable, a value
-   is written by its representation.
-
----
-
-## MVP 2.99c (running as a service), about three days
-
-A program on one node run for days under a service manager, moved from MVP 2.99 on 2026-09-29
-so that the first release and the operations records come first. It had moved from MVP 2.7 on
-2026-09-27 (the log's *Running as a Service*) and from MVP 3.0 on 2026-09-28, since it needs no
-peer (the log's *MVP 3.0 Is Distributed Code and the Node Protocol*):
-- a systemd unit: start and stop, a stop asked for ending the program by its signal;
-  `Restart=on-failure` after a program ends with `Os.exit(1)`; and the journal showing fault
-  lines without a doubled time;
-- a launchd plist on macOS, with the same checks;
-- a soak of hours: `examples/webserver.ern` under steady requests, measured as
-  [`memory.md`](memory.md) says;
-- standard error on a full or failing disk ending the run with status 141, as §8.2 says;
-- `Clock.alarmAt` when the host's wall clock jumps: deadlines use the monotonic clock and a
-  time does not, and the report decides what an alarm at a time does when the clock moves
-  (Appendix E.15);
-- a termination or hangup that comes while the host starts, which the host drops (*Standing
-  gaps* below): whether a launcher passes a signal on to the host until the host has taken
-  it, at the price of a second process between a service manager and the program.
-- the host's port helper, `erl_child_setup`, which once in some twenty runs of `make test`
-  wrote `failed with error` as an interrupt ended the host, where §8.6 has the interrupt
-  end the program printing nothing (`interrupt_test_`, found 2026-09-28, not yet
-  diagnosed). Its shape: read the helper's source for what it reports, meet it under load,
-  and end the host so that its helper is not caught mid-write.
+1. **The host's port helper's intermittent failure**: `erl_child_setup`, which once in some
+   twenty runs of `make test` wrote `failed with error` as an interrupt ended the host, where
+   §8.6 has the interrupt end the program printing nothing (`interrupt_test_`, found
+   2026-09-28, not yet diagnosed). Its shape: read the helper's source for what it reports,
+   meet it under load, and end the host so that its helper is not caught mid-write. First, so
+   that every run of `make test` the renaming leans on is trusted.
+2. **The style guides and the glossary, a decision with the user.** [`style.md`](style.md)
+   rests its guides on widely accepted ones, Ericsson's *Programming Rules and Conventions*
+   and Inaka's guidelines for Erlang and the *Elm Style Guide* for Ernest, and holds a
+   proposal for names and for structure drawn from what the code has shown good and bad,
+   written on 2026-09-30 so that the code written before the renaming keeps it. The user
+   reads it, and then a glossary of the names that recur goes there: one name for each
+   concept, the same in every module.
+3. **The places the language made the review's work harder**, the lines of
+   [`findings.md`](findings.md) marked `2.99b` that are not hardening, each taken to
+   [`language_feedback.md`](language_feedback.md) or dropped with its reason; before item 4,
+   which weighs them.
+4. **The operations' decision**, taken with the user before anything of it is built (language
+   feedback 64, and 69 to 73): the proposal's ordering restriction, inferred on a type
+   variable as the equality restriction is, with a type's order its `compare`; an operations
+   record holding a type's primitives; what the note's last section leaves to the decision;
+   and **when a type's operation is a member and when a module function** (`findings.md`'s
+   U8, moved here 2026-09-29), since §7.2 declares them `fn Stack.push` and §7.3 `toList` of a
+   module, and item 11 declares `Set`'s by the rule. Three parts were decided with the user on
+   2026-09-29, before the note went out (the log's *Operations Records*): tuples and lists are
+   ordered element by element, and `Optional` and `Either` by a `compare` in the prelude,
+   `None` and `Left` first; `put` keeps the element already in the set; and `foldLeft` is
+   written once over `toList`, outside the record. The ordered set's representation is the
+   note's open question.
+5. **The service's two decisions, with the user**: what an alarm at a time does when the
+   host's wall clock jumps, since deadlines use the monotonic clock and a time does not
+   (`Clock.alarmAt`, Appendix E.15); and whether a launcher passes a termination or hangup
+   that comes while the host starts, which the host drops (*Standing gaps* below), on to the
+   host until the host has taken it, at the price of a second process between a service
+   manager and the program.
+6. **Names that read, in Erlang**, about a week: every module under `erl/` and `test/` read
+   for its names and renamed where a name does not say what its value or its work is, a
+   variable, a function, a record and its fields, by the glossary. Area by area, a commit each
+   that changes names and nothing else, the area's tests green before the next; the code grows
+   longer, and the line stays at 100 characters. Before the toolchain's changes below, so that
+   they are written in the new names.
+7. **The hardening the code readers found** (C1-5, C1-9, C1-10, C3-26 to C3-31), in the new
+   names; `findings.md` goes when this item and item 3 are done.
+8. **The runtime's part of running as a service**: what item 5's decisions build, and
+   standard error on a full or failing disk ending the run with status 141, as §8.2 says;
+   beside item 7, in the same code.
+9. **A service manager's checks**: a systemd unit, start and stop, a stop asked for ending the
+   program by its signal, `Restart=on-failure` after a program ends with `Os.exit(1)`, and the
+   journal showing fault lines without a doubled time; and a launchd plist on macOS, with the
+   same checks.
+10. **A file's words joined by `_` name one namespace segment** (decided 2026-09-29, the log's
+    *A Namespace From Words Joined by `_`*): `ordered_set.ern` provides `OrderedSet`, each
+    word capitalized and the `_` dropped, a directory's name too, `net/http_client.ern`
+    providing `Net.HttpClient`. §4.2's and §11.1's path shape gain it, a word being a
+    lowercase letter followed by lowercase letters and digits and a `_` standing only between
+    two words, so that no two files name one namespace (language feedback 74, decided with
+    the user 2026-09-30); `ern build`, `:load`, completion, `ern doc` and the manual pages'
+    names follow, the shell finding `ordered_set.ern` for `OrderedSet`. Before item 12's
+    file, and before the Ernest renaming, which may give a module a name of two words.
+11. **`set.ern` over its record**: `Set.Operations(s, e)` with `Set`'s six primitives, the
+    functions written once as members of that type, and each of `Set`'s own a call of one.
+12. **`OrderedSet` in the standard library**, the record's second representation, with its
+    tests and its page, in a section of its own at the end of Appendix E, and the ordering
+    restriction's hidden argument in the checker and the emitter. `Map` gains a record with a
+    second representation, and not before.
+13. **`Io.show` follows its type through a generic function** (decided 2026-09-29, the log's
+    *`Io.show` Follows Its Type*; language feedback 72 with item 4): `Io.show` and `Io.debug`
+    on a type variable give it a *shown* restriction, printed with a mark, and a function
+    generalized over it takes its caller's type description, as the ordering restriction
+    takes a `compare`; `wrap('a')`, with `fn wrap(x) = Io.show(x)`, prints `'a'`. `Io.debug`
+    is then written in Ernest over `Io.show` and `Io.println`, and its shim
+    `ern_io:debug/2`, which writes to standard output past `Io`, goes (`findings.md`'s E-C4,
+    2026-09-30). It is built on item 12's hidden argument, about a day, right after it; if
+    item 4 refuses the ordering restriction, the choice returns to the user. Until then
+    Appendix E.1 states what the code does: through a type variable, a value is written by its
+    representation.
+14. **Names that read, in Ernest**: the standard library, the shell, the libraries and the
+    examples, read and renamed as item 6 renames the Erlang, a type, a constructor and a field
+    among the names, after items 10 to 13 so that the code they write is read once with the
+    rest. A name the report states, an exported function's or a constructor's, changes only
+    through the report.
+15. **The guide's §7.3**, over the finished code and its names: it says "operations record"
+    and shows code written once, a representation's own functions beside the record's, two
+    ordered sets that cannot meet in `union`, and values of several representations in one
+    list, and §7.2 states item 4's rule for a type's operations. Its examples compile and run
+    under the guide's checks. What Ernest cannot express goes to
+    [`language_feedback.md`](language_feedback.md) and is decided with the user before the
+    section goes around it. The guide's §7.3 was decided 2026-09-28 (the log's *§7.3 Written
+    Around an Ordered Set*).
+16. **A soak of hours**, last, since it measures all the rest: `examples/webserver.ern` under
+    steady requests, measured as [`memory.md`](memory.md) says.
 
 ---
 
@@ -414,7 +421,7 @@ the terminal). The rest is MVP 3.3's.
 - **A termination or hangup that comes while the host starts**, before any of `ern` runs, is
   dropped by the host, on this machine in the first 0.2 seconds (report §11). A launcher that
   passes a signal on to the host until the host has taken it would close it, and is decided in
-  MVP 2.99c (2026-09-29).
+  MVP 2.99b's item 5 (2026-09-29, placed there 2026-09-30).
 
 ---
 
