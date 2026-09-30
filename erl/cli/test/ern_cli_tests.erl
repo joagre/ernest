@@ -547,6 +547,22 @@ abstract_through_type_variable_test() ->
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"<abstract>\nStack([1])\n">>, iolist_to_binary(?capturedOutput)).
 
+%% report §4.2: `T.name` is the module's own member where its type `T`
+%% declares one of that name, and the module T's `name` otherwise. A
+%% regression test: the build left module T out wherever the module
+%% declared a type T, and `Stack.other` was an unknown name (R-3)
+type_name_shares_a_module_test() ->
+    Dir = tmp(),
+    write(Dir, "src/stack.ern", "export fn other() : Int = 7\n"),
+    write(Dir, "src/main.ern",
+          "type Stack = Stack(List(Int))\n\n"
+          "fn Stack.size(s : Stack) : Int = match s { Stack(xs) -> List.size(xs) }\n\n"
+          "export fn main() : Unit with Never =\n"
+          "    Io.println(Int.toString(Stack.other() + Stack.size(Stack([1]))))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"8\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §4.2: a module may not take a prelude namespace
 prelude_namespace_test() ->
     Dir = tmp(),

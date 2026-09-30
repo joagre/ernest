@@ -335,25 +335,40 @@ local_types(Decls) ->
         ++ [N || #abstract_decl{type = #type_decl{name = N}} <- Decls]
         ++ [N || #foreign_type_decl{name = N} <- Decls].
 
-%% The modules a source refers to: every qualified name whose first
-%% segment is neither a type of this module nor a prelude namespace, and
-%% whose longest prefix names an existing .ern under the root.
+%% The modules a source refers to: every qualified name that is not a
+%% member of one of this module's types and whose first segment is not a
+%% prelude namespace, and whose longest prefix names an existing .ern under
+%% the root. Report §4.2: `T.name` is the module's own member where its type
+%% `T` declares one of that name, and the namespace T's `name` otherwise.
 deps(Decls, Root, LoadPath) ->
     %% in the standard library's root its own namespaces are dependencies
     Skip = case is_stdlib_root(Root) of
-               true -> local_types(Decls);
-               false -> local_types(Decls) ++ prelude_namespaces()
+               true -> [];
+               false -> prelude_namespaces()
            end,
-    Paths = lists:usort([P || P <- paths(Decls), P =/= [], not lists:member(hd(P), Skip)]),
+    Members = local_members(Decls),
+    Paths = lists:usort([P || {P, Name} <- references(Decls), P =/= [],
+                              not lists:member(hd(P), Skip),
+                              not lists:member({P, Name}, Members)]),
     lists:usort(lists:filtermap(fun(P) -> module_prefix(P, Root, LoadPath) end, Paths)).
 
-paths(#e_var{path = P}) -> [P];
-paths(#e_con{path = P, args = A}) -> [P | paths(A)];
-paths(#p_con{path = P, args = A}) -> [P | paths(A)];
-paths(#t_con{path = P, args = A}) -> [P | paths(A)];
-paths(T) when is_tuple(T) -> lists:append([paths(X) || X <- tuple_to_list(T)]);
-paths(L) when is_list(L) -> lists:append([paths(X) || X <- L]);
-paths(_) -> [].
+%% Each qualified reference of a source, its path and its last name; only a
+%% value's lowercase name or operator can be a type's member.
+references(#e_var{path = P, name = N}) -> [{P, N}];
+references(#e_con{path = P, name = N, args = A}) -> [{P, N} | references(A)];
+references(#p_con{path = P, name = N, args = A}) -> [{P, N} | references(A)];
+references(#t_con{path = P, name = N, args = A}) -> [{P, N} | references(A)];
+references(T) when is_tuple(T) -> lists:append([references(X) || X <- tuple_to_list(T)]);
+references(L) when is_list(L) -> lists:append([references(X) || X <- L]);
+references(_) -> [].
+
+%% The members this module's types declare, `T.name` as {[T], name}.
+local_members(Decls) ->
+    [{[Owner], Name} || #fn_decl{owner = Owner, name = Name} <- Decls, Owner =/= undefined]
+        ++ [{[Owner], Name} || #let_decl{owner = Owner, name = Name} <- Decls,
+                               Owner =/= undefined]
+        ++ [{[Owner], Name} || #foreign_fn_decl{owner = Owner, name = Name} <- Decls,
+                               Owner =/= undefined].
 
 %% Report §11.1: a prefix of a qualified name is a module when the source
 %% root holds its source, or the build root or a --load-path root, Dirs,

@@ -1250,9 +1250,10 @@ fn f() : Unit with m = Prelude.Io.println("x")
 
 ```console
 $ ern build example.ern
-example.ern:1:24: Prelude.Io.println: Prelude takes one name the prelude declares, as `Prelude.Some`, or a prelude namespace's, as `Prelude.List.size`
+example.ern:1:24: Prelude.Io.println is written only where the module hides Io.println
 1 | fn f() : Unit with m = Prelude.Io.println("x")
   |                        ^^^^^^^^^^^^^^^^^^
+  | = help: nothing here hides it; write Io.println
 ```
 
 ### A constructor nothing declares (§4.2)

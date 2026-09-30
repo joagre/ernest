@@ -1205,13 +1205,17 @@ member_written_qualified_test() ->
 
 %% report §4.2: a dotted name's first segment is the module's own type
 %% where that type has a member of the name, and otherwise the namespace
-%% of that name; `Prelude.T.name` reaches a prelude namespace's name past
-%% the module's own member. A regression test, written with the rule: the
-%% prelude's `List.size` was out of reach there
+%% of that name; `Prelude.T.name` reaches the name of a namespace of the
+%% prelude or the standard library past the module's own member. A
+%% regression test, written with the rule: the standard library's
+%% `List.size` was out of reach there, and its `Io.println` until R-3
 first_segment_test() ->
     Own = "type List = Nil | Cons(Int)\nfn List.size(l : List) : String = \"mine\"\n",
     ?assertEqual(ok, ok(Own ++ "fn f() : String = List.size(Nil)")),
     ?assertEqual(ok, ok(Own ++ "fn f() : Int = Prelude.List.size([1])")),
+    OwnIo = "type Io = Io(Int)\nfn Io.println(x : Io) : Int = 1\n",
+    ?assertEqual(ok, ok(OwnIo ++ "fn f() : Int = Io.println(Io(1))")),
+    ?assertEqual(ok, ok(OwnIo ++ "fn f() : Unit with m = Prelude.Io.println(\"x\")")),
     ?assertEqual(ok, ok(Own ++ "fn f() : Prelude.List(Int) = List.reverse([1])")),
     ?assertEqual("the argument does not fit List.size: expected M.List, found List(Int)",
                  err(Own ++ "fn f() : Int = List.size([1])")).
@@ -1735,9 +1739,12 @@ prelude_namespace_test() ->
                         " Prelude.send(a, \"x\")")),
     %% the module's own names are untouched
     ?assertEqual(ok, ok(Shadow ++ "fn g() : Int = send(1)\nfn h() : Last = Peer")),
-    ?assertEqual("Prelude.Io.println: Prelude takes one name the prelude declares,"
-                 " as `Prelude.Some`, or a prelude namespace's, as `Prelude.List.size`",
+    ?assertEqual("Prelude.Io.println is written only where the module hides Io.println",
                  err("fn f() : Unit with m = Prelude.Io.println(\"x\")")),
+    ?assertEqual("Prelude.Stack.other: Prelude takes one name the prelude declares, as"
+                 " `Prelude.Some`, or a name of the prelude's or the standard library's"
+                 " namespaces, as `Prelude.Io.println`",
+                 err("fn f() : Int = Prelude.Stack.other()")),
     ?assertEqual("the prelude declares no constructor Nope", err("fn f() = Prelude.Nope")),
     ?assertEqual("Prelude names the prelude, and a type may not take it",
                  err("type Prelude = P")).
@@ -1747,8 +1754,11 @@ prelude_namespace_test() ->
 %% to write it. A regression test: `Prelude.Some` was accepted anywhere
 prelude_only_where_hidden_test() ->
     Refused = fun(Name) ->
-                      "Prelude." ++ Name ++ " is written only where the module hides the"
-                          " prelude's " ++ Name
+                      Hidden = case lists:member($., Name) of
+                                   true -> Name;
+                                   false -> "the prelude's " ++ Name
+                               end,
+                      "Prelude." ++ Name ++ " is written only where the module hides " ++ Hidden
               end,
     ?assertEqual(Refused("Some"), err("fn f() : Optional(Int) = Prelude.Some(1)")),
     ?assertEqual(Refused("Where"), err("fn f(w : Prelude.Where) : Int = 0")),

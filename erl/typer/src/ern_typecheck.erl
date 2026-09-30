@@ -31,7 +31,9 @@
               ann_vars = #{}, rigid = [], effect_origin = undefined,
               groups = #{}, typed = [], errs = [], reply_vars = [],
               reply_params = #{}, let_order = [], effectful = false, effectful_lets = [],
-              generalizing = false}).
+              generalizing = false, provided = []}).
+%% provided: the namespaces the toolchain provides, the prelude's and the
+%% standard library's, which `Prelude.T.name` reaches (report §4.2)
 %% generalizing: whether the lambda about to be inferred is a binding's
 %% whole value that is generalized, so that a type variable its annotation
 %% names first is rigid and quantified (report §3.9)
@@ -331,7 +333,10 @@ prelude_env() ->
                        Env2#env{ns = [], local_types = #{}, local_cons = #{}, local_values = #{}},
                        ern_prelude:values()),
     %% the standard library modules written in Ernest, by their interfaces
-    lists:foldl(fun add_iface/2, Env3, ern_prelude:stdlib_ifaces()).
+    Stdlib = ern_prelude:stdlib_ifaces(),
+    Provided = lists:usort(ern_prelude:member_types()
+                           ++ [hd(I#iface.namespace) || I <- Stdlib]),
+    lists:foldl(fun add_iface/2, Env3#env{provided = Provided}, Stdlib).
 
 %% Report §4.4: the type's info, and so the compiled interface, marks an
 %% abstract type; lookup_con refuses its constructor from another module.
@@ -3182,9 +3187,11 @@ lookup_value(Pos, ['Prelude'], Name, #env{globals = Gs, vars = Vs, local_values 
         _ ->
             fail(Pos, "the prelude declares no " ++ atom_to_list(Name))
     end;
-lookup_value(Pos, ['Prelude', T], Name, #env{types = Ts} = Env) when is_map_key([T], Ts) ->
-    %% report §4.2: `Prelude.T.name` is the prelude namespace T's name, past
-    %% a member of the same name that a type T of the module's own declares
+lookup_value(Pos, ['Prelude', T], Name, #env{provided = Provided} = Env) ->
+    %% report §4.2: `Prelude.T.name` is the name of T, a namespace of the
+    %% prelude or the standard library, past a member of the same name that
+    %% a type T of the module's own declares
+    lists:member(T, Provided) orelse prelude_one(Pos, ['Prelude', T], Name),
     hidden(Pos, [T, Name], own_member(T, Name, Env) =/= error),
     lookup_global(Pos, [T], Name, Env);
 lookup_value(Pos, ['Prelude' | _] = Path, Name, _Env) ->
@@ -3228,18 +3235,23 @@ hidden(_Pos, _Name, true) ->
 hidden(Pos, Name, false) ->
     Plain = format_qname(Name),
     Written = "Prelude." ++ Plain,
+    Hidden = case Name of
+                 [_] -> "the prelude's " ++ Plain;
+                 _ -> Plain
+             end,
     {L, C, _} = ern_diag:span(Pos),
     fail({L, C, {L, C + length(Written)}},
-         Written ++ " is written only where the module hides the prelude's " ++ Plain, [],
+         Written ++ " is written only where the module hides " ++ Hidden, [],
          "nothing here hides it; write " ++ Plain).
 
 %% Report §4.2: `Prelude.` takes one name the prelude declares, or a
-%% prelude namespace and one of its names; what is deeper is reached by
-%% its namespace.
+%% namespace of the prelude or the standard library and one of its names;
+%% a module of the program's own is reached by its namespace alone.
 -spec prelude_one(ern_diag:pos(), [atom()], atom()) -> no_return().
 prelude_one(Pos, Path, Name) ->
     fail(Pos, format_qname(Path ++ [Name]) ++ ": Prelude takes one name the prelude declares,"
-              " as `Prelude.Some`, or a prelude namespace's, as `Prelude.List.size`").
+              " as `Prelude.Some`, or a name of the prelude's or the standard library's"
+              " namespaces, as `Prelude.Io.println`").
 
 own_member(Owner, Name, #env{local_values = LV} = Env) ->
     case LV of
