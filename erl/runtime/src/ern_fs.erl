@@ -76,6 +76,12 @@ handle({'Remove', Path, Reply}) ->
                            {ok, #file_info{type = directory}} -> file:del_dir(Name);
                            _ -> file:delete(Name, [raw])
                        end));
+%% Report Appendix E.17: a tree removed by the runtime's helper, which walks
+%% a directory by the directories it has opened and never by a path, so
+%% that a directory replaced by a link while it runs leads it nowhere else;
+%% Erlang's file module has no operation relative to an open directory.
+handle({'RemoveAll', Path, Reply}) ->
+    ern_rt:answer(Reply, removed_by_helper(text(Path)));
 handle({'Rename', From, Reply, To}) ->
     answer(Reply, unit(file:rename(text(From), text(To))));
 %% Report Appendix E.17: the link at the path, holding the target as it is
@@ -238,6 +244,30 @@ floor_div(A, B) -> -((-A + B - 1) div B).
 
 %% report Appendix E.1: Io.Error = NotFound | Denied | Refused | Closed | Timeout
 %% | Other(String)
+%% The helper's job `remove` run on the path: Right(Unit) once it is gone.
+removed_by_helper(Name) ->
+    try erlang:open_port({spawn_executable, ern_os:helper()},
+                         [{args, ["remove"]}, {packet, 4}, binary, exit_status]) of
+        Port ->
+            erlang:port_command(Port, <<"p", Name/binary>>),
+            receive
+                {Port, {data, <<"d">>}} -> {'Right', 'Unit'};
+                {Port, {data, <<"f", Error/binary>>}} -> {'Left', removal_error(Error)};
+                {Port, {exit_status, _}} -> {'Left', ern_os:helper_failed()}
+            end
+    catch
+        error:_ -> {'Left', ern_os:helper_failed()}
+    end.
+
+%% The helper's name for an error, described as the file module's errors
+%% are, and its host's words where it has no name.
+removal_error(Name) ->
+    try binary_to_existing_atom(Name) of
+        Reason -> io_error(Reason)
+    catch
+        error:badarg -> {'Other', Name}
+    end.
+
 io_error(enoent) -> 'NotFound';
 io_error(eacces) -> 'Denied';
 io_error(eperm) -> 'Denied';

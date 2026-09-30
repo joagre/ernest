@@ -10,7 +10,7 @@
 %% start until it has exited or been killed.
 -module(ern_os).
 
--export([loop/0, environment/0, working_directory/0]).
+-export([loop/0, helper_failed/0, helper/0, environment/0, working_directory/0]).
 
 %% Report §8.6: every program's process is linked to this one, which the
 %% runtime kills when the program ends, so that none outlives it; this
@@ -75,10 +75,14 @@ started(Port, Input, {Deadline, Timer}, Owner, Reply) ->
                writes => queue:in(none, queue:new())},
              Reply).
 
+%% The Io.Error of a helper that failed, Os's and Fs's alike.
+-spec helper_failed() -> {'Other', binary()}.
 helper_failed() ->
     {'Other', <<"the runtime's helper ern_exec failed">>}.
 
-%% The helper beside the runtime's modules: erl/runtime/priv/ern_exec.
+%% The helper beside the runtime's modules: erl/runtime/priv/ern_exec, whose
+%% jobs are Os's programs and Fs's removal of a tree.
+-spec helper() -> file:filename().
 helper() ->
     filename:join([filename:dirname(code:which(?MODULE)), "..", "priv", "ern_exec"]).
 

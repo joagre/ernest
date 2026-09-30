@@ -761,6 +761,48 @@ fs_create_remove_all_modified_test() ->
     ?assertMatch({'Right', {'Entry', 'File', 86400000, _, 1}}, Stat),
     file:del_dir_r(Dir).
 
+%% report Appendix E.17: `removeAll` removes a link where it stands, at the
+%% root as inside, and never what it leads to, removes a named pipe without
+%% waiting on it, and answers the error that stopped it: a directory it
+%% cannot list is Denied, and a path that names nothing NotFound. A
+%% regression test, written with the walk by open directories that replaced
+%% one by paths (findings.md's C1-3); it cannot put a link in a directory's
+%% place between two steps of the walk, which the walk makes harmless by
+%% opening each directory refusing a link
+fs_remove_all_by_directories_test() ->
+    Me = self(),
+    Dir = filename:join("/tmp", "ern_fs4_" ++ os:getpid() ++ "_"
+                                 ++ integer_to_list(erlang:unique_integer([positive]))),
+    Kept = filename:join(Dir, "kept"),
+    ok = filelib:ensure_path(Kept),
+    ok = file:write_file(filename:join(Kept, "precious.txt"), <<"keep">>),
+    ok = filelib:ensure_path(filename:join([Dir, "tree", "deep"])),
+    ok = file:make_symlink(Kept, filename:join([Dir, "tree", "deep", "to_kept"])),
+    ok = file:make_symlink(Kept, filename:join(Dir, "root_link")),
+    "" = os:cmd("mkfifo " ++ filename:join([Dir, "tree", "pipe"])),
+    ok = filelib:ensure_path(filename:join([Dir, "locked", "inner"])),
+    ok = file:write_file(filename:join([Dir, "locked", "inner", "f"]), <<>>),
+    ok = file:change_mode(filename:join([Dir, "locked", "inner"]), 8#000),
+    P = fun(Name) -> {'Path', list_to_binary(filename:join(Dir, Name))} end,
+    F = 'ern@fs',
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Me ! {fs, F:removeAll(P("tree"), 5000)},
+                           Me ! {fs, F:removeAll(P("root_link"), 5000)},
+                           Me ! {fs, F:removeAll(P("locked"), 5000)},
+                           Me ! {fs, F:removeAll(P("nothing"), 5000)}
+                       end, <<"fs_remove_all_by_directories_test">>, #{})),
+    [Tree, RootLink, Locked, Nothing] = collect(fs, []),
+    ?assertEqual({'Right', 'Unit'}, Tree),
+    ?assertNot(filelib:is_file(filename:join(Dir, "tree"))),
+    ?assertEqual({'Right', 'Unit'}, RootLink),
+    ?assertEqual({error, enoent}, file:read_link_info(filename:join(Dir, "root_link"))),
+    ?assertEqual({ok, <<"keep">>}, file:read_file(filename:join(Kept, "precious.txt"))),
+    ?assertEqual({'Left', 'Denied'}, Locked),
+    ?assertEqual({'Left', 'NotFound'}, Nothing),
+    ok = file:change_mode(filename:join([Dir, "locked", "inner"]), 8#755),
+    file:del_dir_r(Dir).
+
 %% report Appendix E.18, §8.2: a listener and a socket are processes, a
 %% write arrives at the peer's read, and a closed socket answers Left(Closed)
 tcp_test() ->

@@ -67,6 +67,7 @@ type Msg =
   | MakeDir(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | MakePrivate(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | Remove(path : Path, reply : Reply(Either(Io.Error, Unit)))
+  | RemoveAll(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | Rename(from : Path, to : Path, reply : Reply(Either(Io.Error, Unit)))
   | Copy(from : Path, to : Path, reply : Reply(Either(Io.Error, Unit)))
   | MakeLink(target : Path, path : Path, reply : Reply(Either(Io.Error, Unit)))
@@ -290,8 +291,10 @@ export fn create(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) 
     answered(Address.call(reference, fn(r) = Create(path = path, bytes = bytes, reply = r), ms))
 
 /// Removes a directory and everything under it, or a file or a link. A link
-/// is removed and not followed, so what it leads to is left. Each file
-/// operation it makes waits the milliseconds given.
+/// is removed and not followed, wherever it stands, so what it leads to is
+/// left, even where another process puts it in a directory's place while
+/// the removal runs. It waits the milliseconds given once, for the whole
+/// removal.
 ///
 /// ### Examples
 ///
@@ -305,31 +308,7 @@ export fn create(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) 
 /// // => true
 /// ```
 export fn removeAll(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
-    match readLink(path, ms) {
-        Right(Some(_)) -> remove(path, ms)
-      | Right(None) -> match stat(path, ms) {
-            Right(Entry(kind = Directory)) -> emptied(path, ms)
-          | Right(_) -> remove(path, ms)
-          | Left(e) -> Left(e)
-        }
-      | Left(e) -> Left(e)
-    }
-
-// A directory's entries removed, each as it is, and then the directory.
-fn emptied(dir : Path, ms : Int) : Either(Io.Error, Unit) with m =
-    match list(dir, ms) {
-        Right(entries) -> match List.tryFold(entries, Unit, fn(_, e) = removed(e, ms)) {
-            Right(_) -> remove(dir, ms)
-          | Left(e) -> Left(e)
-        }
-      | Left(e) -> Left(e)
-    }
-
-fn removed(entry : Entry, ms : Int) : Either(Io.Error, Unit) with m =
-    match entry {
-        Entry(path = p, kind = Directory) -> emptied(p, ms)
-      | Entry(path = p) -> remove(p, ms)
-    }
+    answered(Address.call(reference, fn(r) = RemoveAll(path = path, reply = r), ms))
 
 /// Sets the modification time, in milliseconds since the epoch as
 /// `Clock.now` gives it, kept to the second as the file system keeps it.
