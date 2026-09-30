@@ -118,7 +118,9 @@ renamed over it, then the guide, and the soak last.
    proposal for names and for structure drawn from what the code has shown good and bad,
    written on 2026-09-30 so that the code written before the renaming keeps it. The user
    reads it, and then a glossary of the names that recur goes there: one name for each
-   concept, the same in every module. The report is the glossary's authority: a concept the
+   concept, the same in every module. It holds what needs agreeing, a concept several
+   modules name, and not every name: the rest is left to the judgment of whoever writes the
+   code, under `style.md`'s rules. The report is the glossary's authority: a concept the
    report names is named as the report names it, and a place where the code names such a
    concept otherwise, or where the report's name seems wrong for the code, is discussed with
    the user each time, never renamed on its own. The glossary is the best first draft that
