@@ -1,4 +1,4 @@
-/// Operations on `Set(a)`, a finite set of elements (report §9.2). The
+/// Operations on `Set(a=)`, a finite set of elements (report §9.2). The
 /// element type needs equality, which the type itself requires (report
 /// §3.10). A set has no `get`: membership is `contains`. The order of
 /// `toList`, `foldLeft`, `foreach`, and `find` is unspecified, and so is
@@ -153,7 +153,7 @@ export fn find(s : Set(a), p : (a) -> Bool with e) : Optional(a) with e =
 export fn fromList(xs : List(a)) : Set(a) =
     List.foldLeft(xs, empty, put)
 
-/// The elements.
+/// The elements, in unspecified order.
 export foreign fn toList(s : Set(a)) : List(a) =
     "ern_set:to_list/1"
 

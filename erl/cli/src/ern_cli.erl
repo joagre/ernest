@@ -101,19 +101,15 @@ jobs() ->
 
 %% Report §11: a first word that is no job. A spelling of the toolchain
 %% before its jobs is refused with the one that replaces it.
-no_job("--shell") -> "--shell is now the job: ern shell";
-no_job("--test") -> "--test is now the job: ern test";
-no_job("--doc") -> "--doc is now the job: ern doc";
-no_job("--create-config-dir") ->
-    "--create-config-dir is now the job ern config, whose --config-dir names the directory itself";
 no_job("--help") -> "--help stands alone: ern --help, or ern <job> --help";
 no_job("--version") -> "--version stands alone: ern --version";
 no_job("-" ++ _ = Word) ->
     Name = option_name(Word),
     Taken = [Job || {Job, Spec, _, _} <- jobs(), {_, _, Long, _, _} <- Spec, "--" ++ Long =:= Name],
-    case Taken of
-        [] -> no_such_job(Word);
-        _ -> Name ++ " comes after the job: ern <job> " ++ Name
+    case {old_spelling(Name), Taken} of
+        {{job, Message}, _} -> Message;
+        {_, []} -> no_such_job(Word);
+        {_, _} -> Name ++ " comes after the job: ern <job> " ++ Name
     end;
 no_job(Word) ->
     case filename:extension(Word) of

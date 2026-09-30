@@ -980,14 +980,14 @@ meant_typename(Identifier) ->
 
 sym(T) -> element(1, T).
 pos(T) -> element(2, T).
+line(T) -> element(1, pos(T)).
+node_pos(Node) -> element(2, Node).
 
 %% Report §11.5: the span from Pos to the end of the last token Ts gave
 %% before Rest, so an error covers a qualified name whole.
 through(Pos, Ts, Rest) ->
     Last = lists:nth(length(Ts) - length(Rest), Ts),
     setelement(3, Pos, element(3, pos(Last))).
-line(T) -> element(1, pos(T)).
-node_pos(Node) -> element(2, Node).
 
 %% Report §11.5: a node's pos is its span, from the node's first token to
 %% the end of the token before the rest, which every token carries.

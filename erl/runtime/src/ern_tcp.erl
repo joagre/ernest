@@ -239,13 +239,13 @@ socket_loop(Socket, Writer, Waiting, Buffer, State) ->
                     ern_rt:answer(Reply, {'Right', Buffer}),
                     socket_loop(Socket, Writer, Waiting, <<>>, State)
             end;
-        %% report Appendix E.18: answered once the socket has taken the
-        %% bytes, by the writer, which gen_tcp holds while the connection is
-        %% behind
         %% report Appendix E.18: a write after the connection has closed
         {'Send', _, Reply} when State =:= closed ->
             ern_rt:answer(Reply, {'Left', 'Closed'}),
             socket_loop(Socket, Writer, Waiting, Buffer, State);
+        %% report Appendix E.18: answered once the socket has taken the
+        %% bytes, by the writer, which gen_tcp holds while the connection is
+        %% behind
         {'Send', _, _} = Send ->
             ern_rt:source_begin(),
             Writer ! Send,

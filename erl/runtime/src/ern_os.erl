@@ -86,8 +86,7 @@ helper() ->
 %% answered by nothing else, and nothing else knows the process. Report
 %% Appendix E.23: a start learned after the time has passed is a time
 %% passed, whichever of the helper's word and the timer's arrived first, so
-%% a time of 0 always answers `Left(Timeout)`. A regression: a fast helper
-%% was answered `Right` before the timer's message came.
+%% a time of 0 always answers `Left(Timeout)`, however fast the helper.
 starting(#{port := Port, deadline := Deadline} = Run, Reply) ->
     receive
         {Port, {data, <<"s">>}} ->

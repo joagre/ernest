@@ -29,7 +29,7 @@
 /// host is not there, access was refused, the connection was refused or
 /// has closed, the time ran out, standard input is not a terminal, or
 /// another reason: a sentence of the runtime's, `"not a regular file"`, or
-/// the host's description of its reason, `"address already in use"`, and
+/// the host's description of its reason, `"address already in use"`, or
 /// the reason as the host writes it where the host has no description
 /// (report Appendix E.1).
 ///

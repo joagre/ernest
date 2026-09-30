@@ -1557,7 +1557,7 @@ fn f() : Point = Point(1)
 
 ```console
 $ ern build example.ern
-example.ern:3:18: Point has named fields; write Point(field = value, ...)
+example.ern:3:18: Point has named fields; write Point(x = value)
 2 | 
 3 | fn f() : Point = Point(1)
   |                  ^^^^^^^^
@@ -2456,7 +2456,7 @@ fn f(p : Point) : Int =
 
 ```console
 $ ern build example.ern
-example.ern:5:9: Point has named fields; write Point(field = p, ...)
+example.ern:5:9: Point has named fields; write Point(x = p)
 4 |     match p {
 5 |         Point(a) -> a
   |         ^^^^^^^^

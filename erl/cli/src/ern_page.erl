@@ -70,7 +70,7 @@ roff(Name, Title, Prefix, {docs_v1, _, ernest, _, ModDoc, Meta, Entries}) ->
               end,
     Manual = {'Manual', list_to_binary(Name), <<"3ern">>, <<"Ernest ", ?VERSION>>, Summary,
               <<"Ernest Manual">>},
-    Lines = 'ern@markdown':roff(Manual, markdown(Body)),
+    Lines = 'ern@markdown':roff(markdown(Body), Manual),
     [".\\\" ", generated(Meta), "\n", lists:join("\n", Lines), "\n"].
 
 markdown(Text) ->

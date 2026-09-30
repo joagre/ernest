@@ -3,9 +3,10 @@
 %% finding the modules under a source root and giving each its namespace
 %% by the path shape, ordering them by their dependencies, compiling each
 %% to its `.erc` when it has changed, and removing what an earlier build,
-%% or `ern doc`, wrote that no source now makes. Apart from ern_cli, whose other jobs do
-%% not shape a `.erc`, so that the compiler's hash (compiler_modules/0)
-%% leaves them out and a change to them recompiles nothing.
+%% or `ern doc`, wrote that no source now makes. It shapes a `.erc`, so it
+%% is in the compiler's hash (compiler_modules/0); ern_cli and the other
+%% jobs' modules shape none and are not, so a change to them recompiles
+%% nothing.
 -module(ern_build).
 
 -export([compile/3, report_errors/4, shown/1, sources/1, bytes_text/1, module_of/2, shape/2,

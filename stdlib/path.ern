@@ -90,7 +90,7 @@ export fn parent(p : Path) : Optional(Path) =
       | first :: rest -> Some(List.foldLeft(rest, Path(first), fn(up, s) = join(up, Path(s))))
     }
 
-/// The last segment.
+/// The last segment, and `""` for the root.
 export fn name(p : Path) : String =
     match split(p) {
         [_] when isAbsolute(p) -> ""

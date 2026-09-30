@@ -1,6 +1,6 @@
 # Programming in Ernest
 
-This guide teaches Ernest to a programmer who knows another language, and it needs nothing beside it. Each complete program in it compiles as shown, and prints what is shown after it. The language is defined by [`ernest_report.md`](ernest_report.md), to which the guide points where a question turns on a detail.
+This guide teaches Ernest to a programmer who knows another language, and needs nothing read before it. Each complete program in it compiles as shown, and prints what is shown after it. The language is defined by [`ernest_report.md`](ernest_report.md), to which the guide points where a question turns on a detail.
 
 **Contents**
 <!-- contents -->
@@ -241,7 +241,7 @@ export fn main() =
     Io.println("hello, world")
 ```
 
-and (b) with `-> Unit`:
+and (b) with `: Unit`:
 
 ```ernest-rejected
 export fn main() : Unit =
@@ -363,7 +363,7 @@ Person(age = 31, name = "Alice") : Person
 31 : Int
 ```
 
-`older.age` reads one field. `..alice` copies the fields not listed, and `age = 31` overrides one. `..` works on a type with one constructor, since the value might otherwise have been built by another. `alice` is unchanged; `older` is a second `Person` value. Ernest uses `:` for types (`name : String`) and `=` for values (`name = "Alice"`); function result types use `->`.
+`older.age` reads one field. `..alice` copies the fields not listed, and `age = 31` overrides one. `..` works on a type with one constructor, since the value might otherwise have been built by another. `alice` is unchanged; `older` is a second `Person` value. Ernest uses `:` for types (`name : String`, and a function's result, `fn age() : Int`) and `=` for values (`name = "Alice"`); `->` stands in a function type, `(Int) -> Int`.
 
 The fields may be given in any order, and are evaluated in the order written. The shell prints them in the order of their names.
 
@@ -530,12 +530,12 @@ The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char
 - **One verb per operation, in every module that has it.** `Map.get(m, k)` and `List.get(xs, 0)`; `size`, `isEmpty`, `contains`, `put`, `remove`, `map`, `filter`, `foldLeft`, `find`, `fromList`, `toList` wherever they apply.
 - **Subject first, callbacks last**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
 - **A conversion is named by the other type.** Between a type and one its module builds on, both directions are the building module's, `String.fromList` and `String.toList`; any other conversion is its argument's module's `toX`: `String.toInt`, `Int.toString`.
-- **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(Io.Error, Bytes)`. A program says an `Io.Error` to its user in its own words, with a `match` over its constructors; `Io.show` writes it as a value, `Other("eaddrinuse")`.
+- **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(Io.Error, Bytes)`. A program says an `Io.Error` to its user in its own words, with a `match` over its constructors; `Io.show` writes it as a value, `Other("address already in use")`.
 - **Pure unless the value lives in a process.** A function carries `with m` only where it reaches a system process or asks the runtime about its processes, as `Process.live` does, and every function that calls a function it takes is as pure as the function it is given (§3.5). One that delivers later, `Clock.alarm` or `Terminal.subscribe`, takes a pure function to make the message and acts through a process anyway.
 - **A `String` is text, not a list.** Its length and positions count what a reader sees as letters, which `String.graphemes` gives one by one; `String.toList` gives its `Char`s.
 - **A system process is used through its module**, never by `send`. A function that waits takes a timeout in milliseconds last and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. There is no time that means no limit: a server that waits for as long as it takes calls `Tcp.accept` or `Tcp.read` again on each `Left(Timeout)`. A read of standard input, and `Os.read`, wait for what they read, and a write waits while its stream is behind; none of them takes a time (report Appendix E.0 shape rule 8). One that delivers later takes a function that makes the message: `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired, and `Clock.now()` is the time now, in milliseconds since the epoch.
 
-What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it.
+What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it. `:browse Fs` lists a module's types by name and its functions with their types, and `:doc Fs.Entry` shows a type's declaration, its fields among it.
 
 ### 2.10 A word counter, by hand
 
@@ -901,7 +901,7 @@ sum 5050
 
 However slow the consumer, no more than ten items wait in its mailbox. Where nothing paces a queue, `Process.info` shows it building: for a live process it answers `Some(info)`, and `info.queued` is the number of messages waiting in its mailbox. A write paces its writer as a call does: `Io.println`, and every other write of the system modules, returns once its stream has taken the bytes, so a program's output goes at the pace of what reads it.
 
-**Fan-out.** A process that sends each message to many receivers, as a chat room sends each line to its members, is not paced by any of them. A call to each would pace it by the slowest, and one receiver that stalls would then hold up all the others. So each receiver gets a window of its own. The sender keeps the credit each receiver has left, and sends only to one that has some; each receiver grants more as it takes what it was sent. A member's writer grants once its write has returned, so a client that stops reading stops its writer's grants (§8.7). A receiver whose credit stays at nothing has stalled, and the sender skips it or drops it, as its protocol says. Either way, no more than its window waits in its mailbox. `Process.info` shows such a queue building, but it is for watching what runs: a program paces its messages with its own protocol.
+**Fan-out.** A process that sends each message to many receivers, as a chat room sends each line to its members, is not paced by any of them. A call to each would pace it by the slowest, and one receiver that stalls would then hold up all the others. So each receiver gets a window of its own. The sender keeps the credit each receiver has left, and sends only to one that has some; each receiver grants more as it takes what it was sent. A receiver that writes each message on to a socket grants once its write has returned, and a write waits while the far end is behind (§8.7), so a client that stops reading stops the grants. A receiver whose credit stays at nothing has stalled, and the sender skips it or drops it, as its protocol says. Either way, no more than its window waits in its mailbox. `Process.info` shows such a queue building, but it is for watching what runs: a program paces its messages with its own protocol.
 
 ### 4.5 Running the counter
 
@@ -1464,7 +1464,7 @@ Faults.main:10 faulted: division by zero
 the worker spawned at Faults.main:10 faulted: division by zero
 ```
 
-`average` is pure and still faults. A type says what a function returns when it returns, not that it will. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first line is `ern run`'s own: it writes every fault to standard error as it happens, the spawn site and the cause, whatever the program does about it.
+`average` is pure and still faults. A type says what a function returns when it returns, not that it will. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first line is `ern run`'s own: it writes every fault to standard error as it happens, the spawn site and the cause, whatever the program does about it. Where standard error goes to a file or a pipe, and not to the journal, each line begins with the time of the fault (report §11.2).
 
 Some faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1, as a fault in an initializer does. A fault in a function that makes a message, an adapted address's (§5.5) or the wrap given to `monitor`, `Clock.alarm`, `Terminal.subscribe` or `Process.faults`, is the fault of the process the message is for. The loss of a peer faults every process on it (report §10). A fault in a process that a `callForever` waits on faults the caller with the same cause (report §6.6). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
 
@@ -1718,7 +1718,7 @@ export abstract type Stack(a) = Stack(List(a))
 
 export let Stack.empty : Stack(a) = Stack([])
 
-export fn Stack.push(x : a, Stack(xs) : Stack(a)) : Stack(a) =
+export fn Stack.push(Stack(xs) : Stack(a), x : a) : Stack(a) =
     Stack(x :: xs)
 
 export fn Stack.pop(Stack(xs) : Stack(a)) : Optional(#(a, Stack(a))) =
@@ -1935,7 +1935,7 @@ A value foreign code made and Ernest does not inspect has the built-in type `For
 
 A foreign value belongs to the node that made it, and sending one to another node, alone, inside a message, or among the captures of a function spawned there, faults with `Fault("foreign value cannot cross nodes")`.
 
-An `Ets.Table` of §8.3 is such a value, a table of the node's runtime: `Ets.new()` makes one, `Ets.put` stores an entry, and `Ets.get` looks one up, a function §8.5 builds. The closure below captures one, so shipping it to the peer `alice` faults with that cause:
+An `Ets.Table` of §8.3 is such a value, a table of the node's runtime: `Ets.new()` makes one, `Ets.put` stores an entry, and `Ets.get`, the function §8.5 builds, looks one up. The closure below captures one, so shipping it to the peer `alice` faults with that cause:
 
 ```ernest
 export fn main() : Unit with Never = {
@@ -2013,7 +2013,7 @@ found 42
 
 A helper converts whatever its Erlang function returns to the declared type; Ernest does not. A `foreign fn` that takes a `Foreign` is given one by `Foreign.from(value)`, and `Erl.atom(name)` makes an atom (report Appendix E.12, report Appendix E.19).
 
-`libs/ets` is such a library, report Appendix G.1, which Appendix D shows abridged, and a program adds it with `--load-path`. A data format, a protocol and a pattern language each belong to a library outside the standard library (report Appendix E.0 rule 3), and report Appendix G lists the libraries there are.
+`libs/ets` is such a library, report Appendix G.1, which Appendix D shows with a shorter documentation, and a program adds it with `--load-path`. A data format, a protocol and a pattern language each belong to a library outside the standard library (report Appendix E.0 rule 3), and report Appendix G lists the libraries there are.
 
 ### 8.6 Bitstrings
 
@@ -2074,7 +2074,7 @@ In a pattern, `size(len)` may name a variable bound by an earlier segment. A `ma
 
 A server is a listener and a process for each connection. `Tcp.listen(host, port)` answers a listener, and `Tcp.accept(listener, ms)` the next connection, a socket, or `Left(Timeout)` when none came within `ms` milliseconds. No time means no limit, so the loop that accepts takes again after a timeout, and that turn is where it looks at anything else it must.
 
-A socket is read by pulling. `Tcp.read(socket, ms)` answers what has arrived, at least one byte, `Left(Timeout)` when nothing did, and `Left(Closed)` once the connection has closed; nothing the socket receives comes to a mailbox. A process waits on one thing at a time, so one that must wait on its socket and on its mailbox gives the socket to a reader of its own, a process that pulls each piece and sends it on. One process may read a socket while another writes to it, and a read that waits answers `Left(Closed)` when the socket is closed. A write answers `Left(Closed)` once the far end has gone.
+A socket is read by pulling. `Tcp.read(socket, ms)` answers what has arrived, at least one byte, `Left(Timeout)` when nothing did, and `Left(Closed)` once the connection has closed; nothing the socket receives comes to a mailbox. A process waits on one thing at a time, so one that must wait on its socket and on its mailbox gives the socket to a reader of its own, a process that pulls each piece and sends it on. One process may read a socket while another writes to it, and a read that waits answers `Left(Closed)` when the socket is closed. A write returns once the socket has taken its bytes, and waits while the far end is behind taking them; it answers `Left(Closed)` once the far end has gone.
 
 Bytes arrive in pieces that need not end where a line ends, so what follows the last line feed waits for the next piece. A server that sends each line back, and says it is still there every ten seconds:
 
@@ -2175,25 +2175,25 @@ At a terminal the history is kept in `$HOME/.ernest/history`. When the shell sta
 
 ### 9.5 Running a program as a service
 
-A program meant to keep running is run in the foreground and left to a service manager, which starts it, restarts it, and keeps what it writes; `ern` has no mode of its own for it. A service here is the operating system's, not §6.5's. Standard output is the program's, and standard error is where `ern run` reports every fault, so the two streams are its log. A unit for systemd:
+A program meant to keep running is run in the foreground and left to a service manager, which starts it, restarts it, and keeps what it writes; `ern` has no mode of its own for it. A service here is the operating system's, not §6.5's. Standard output is the program's, and standard error is where `ern run` reports every fault, so the two streams are its log. A unit for systemd, running the web server of [`examples/webserver.ern`](examples/webserver.ern) built into `/srv/web/build`:
 
 ```ini
 [Unit]
-Description=The chat server
+Description=The web server
 
 [Service]
-ExecStart=/usr/local/bin/ern run /srv/chat/build/main.erc
-WorkingDirectory=/srv/chat
+ExecStart=/usr/local/bin/ern run /srv/web/build/webserver.erc
+WorkingDirectory=/srv/web
 Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-systemd keeps both streams in its journal, which stamps every line, and `journalctl -u chat` reads them. Where standard error is neither a terminal nor the journal, a file or a pipe, each fault line begins with its time, in UTC: `2026-09-27T14:22:11.836Z Chat.room:31 faulted: division by zero`. Without a service manager, `nohup` keeps a program running once its terminal has closed:
+systemd keeps both streams in its journal, which stamps every line, and `journalctl -u web` reads them. Where standard error is neither a terminal nor the journal, a file or a pipe, each fault line begins with its time, in UTC: `2026-09-27T14:22:11.836Z Webserver.handler:88 faulted: division by zero`. Without a service manager, `nohup` keeps a program running once its terminal has closed:
 
 ```console
-$ nohup ern run build/main.erc >> chat.log 2>&1 &
+$ nohup ern run build/webserver.erc >> web.log 2>&1 &
 ```
 
 `kill` stops the program as §9.2 says: its output is flushed, and `ern run` ends by the signal, which systemd counts as a stop it asked for. A program that ends on its own gives the manager its reason with `Os.exit(status)` (§1.3), and `Restart=on-failure` starts again one that ends with any status but 0. A program whose output can no longer be written, because what reads it has ended, ends too, with status 141, as `ern run app.erc | head -1` shows. `ern` never changes what a program writes, on either stream.
@@ -2273,7 +2273,7 @@ It begins with `fn`, so a reader and the parser see a lambda begin at its first 
 
 ## 14. Reading further
 
-The four paper programs, in ascending complexity:
+Four larger programs, each written against the report to try the language on a whole program, in ascending complexity:
 
 - [`examples/snake.ern`](examples/snake.ern) — snake game with tick-based updates; `..` record updates, one process per player, `Clock`, `Terminal`, `Random`.
 - [`examples/repl.ern`](examples/repl.ern) — small read-eval-print loop; `<-` for chained parsing, `spawnMonitored` + `kill` for aborting slow evaluation, `Io.readLine`.

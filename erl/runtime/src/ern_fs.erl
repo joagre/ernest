@@ -14,13 +14,13 @@
 loop() ->
     receive
         Msg ->
-            erlang:spawn(fun() -> guarded(Msg) end),
+            erlang:spawn(fun() -> serve(Msg) end),
             loop()
     end.
 
 %% Report Appendix E.17: a path that holds U+0000 names no file, and the
 %% request is answered so before any work.
-guarded(Msg) ->
+serve(Msg) ->
     Fields = tuple_to_list(Msg),
     case [B || {'Path', B} <- Fields, binary:match(B, <<0>>) =/= nomatch] of
         [] ->

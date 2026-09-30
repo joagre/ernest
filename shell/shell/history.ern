@@ -86,14 +86,12 @@ fn inputs(bytes : Bytes) : Either(Io.Error, List(String)) =
 fn text(inputs : List(String)) : String =
     String.join(List.map(inputs, fn(input) = encode(input) <> "\n"), "")
 
-/// One input, appended as the shell takes it.
+/// One input, appended as the shell takes it, to the file `read` has made
+/// the directory of.
 export fn add(input : String) : Either(Io.Error, Unit) with m =
     match file {
         None -> Right(Unit)
-      | Some(path) -> match made(path) {
-            Left(why) -> Left(why)
-          | Right(_) -> Fs.append(path, String.toUtf8(encode(input) <> "\n"), wait)
-        }
+      | Some(path) -> Fs.append(path, String.toUtf8(encode(input) <> "\n"), wait)
     }
 
 // Report §11.2: the directory made where it is not there, as before a

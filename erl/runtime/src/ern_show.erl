@@ -164,7 +164,7 @@ escape(C, _) -> [C].
 %% cause, with each control character as the escape a literal writes for
 %% it, so that no control character of a program's reaches the terminal as
 %% itself. With `lines`, a line feed stays, for the host's stack; with
-%% `line`, it is `\\n`, so that a fault is one line.
+%% `line`, it is `\n`, so that a fault is one line.
 -spec controls(unicode:unicode_binary(), line | lines) -> unicode:unicode_binary().
 controls(Text, Keep) ->
     unicode:characters_to_binary([control(C, Keep) || C <- unicode:characters_to_list(Text)]).

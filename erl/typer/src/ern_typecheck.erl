@@ -189,17 +189,26 @@ within(_, _) ->
 %% Report §4.2, §11.5: a type, a constructor or a value a module declares
 %% twice is an error at the second, with the first labelled.
 declared_twice(Decls) ->
-    Named = lists:append([decl_names(D) || D <- Decls]),
-    Twice = [{Kind, Key, First, Second}
-             || {I, {Kind, Key, First}} <- lists:enumerate(Named),
-                {J, {Kind2, Key2, Second}} <- lists:enumerate(Named),
-                J > I, Kind2 =:= Kind, Key2 =:= Key],
-    case Twice of
-        [] ->
+    Named = [{{Kind, Key}, Pos} || D <- Decls, {Kind, Key, Pos} <- decl_names(D)],
+    case repeated(Named) of
+        none ->
             ok;
-        [{Kind, Key, First, Second} | _] ->
+        {{Kind, Key}, First, Second} ->
             fail(Second, atom_to_list(Kind) ++ " " ++ key_text(Key) ++ " is declared twice",
                  [{ern_diag:span(First), "first declared here"}], undefined)
+    end.
+
+%% The first of Items whose key an earlier one has, with that earlier one's
+%% value and its own, `{Key, First, Second}`, or `none`.
+repeated(Items) ->
+    repeated(Items, #{}).
+
+repeated([], _Seen) ->
+    none;
+repeated([{Key, Value} | Rest], Seen) ->
+    case Seen of
+        #{Key := First} -> {Key, First, Value};
+        _ -> repeated(Rest, Seen#{Key => Value})
     end.
 
 decl_names(#type_decl{pos = Pos, name = N, constructors = Cs}) ->
@@ -629,21 +638,16 @@ constructor_fields({named, Fields}, VarMap, Env) ->
     Sorted = lists:sort(fun(#field{name = A}, #field{name = B}) -> A =< B end, Fields),
     Names = [N || #field{name = N} <- Sorted],
     %% report §11.5: at the second, named, the first labelled
-    case [{F, Again} || {#field{name = N} = F, Again} <- first_repeat(Fields), N =/= none] of
-        [] ->
+    case repeated([{N, Pos} || #field{name = N, pos = Pos} <- Fields]) of
+        none ->
             ok;
-        [{#field{name = N, pos = First}, #field{pos = Second}} | _] ->
+        {N, First, Second} ->
             fail(Second, "field " ++ atom_to_list(N) ++ " is declared twice",
                  [{ern_diag:span(First), "first declared here"}], undefined)
     end,
     {Types, Env1} = lists:mapfoldl(fun(#field{type = S}, E) -> field_type(S, VarMap, E) end,
                                    Env, Sorted),
     {{named, Names}, Types, Env1}.
-
-%% Each field whose name a later one repeats, with the later one.
-first_repeat(Fields) ->
-    [{F, G} || {I, #field{name = N} = F} <- lists:enumerate(Fields),
-               {J, #field{name = M} = G} <- lists:enumerate(Fields), J > I, M =:= N].
 
 field_type(Syntax, VarMap, Env) ->
     {T, VarMap1, St} = ann(Syntax, VarMap, Env),
@@ -716,13 +720,15 @@ check_values(Decls, Env0) ->
     Groups = dependency_groups(Values, Env1),
     Pending = maps:from_list([{group_qname(D, Env1), G} || G <- Groups, D <- G]),
     Env2 = lists:foldl(fun run_group/2, Env1#env{groups = Pending, typed = [], errs = []}, Groups),
-    Errs = let_cycles(Env2#env.typed, Env2) ++ Env2#env.errs,
+    Graph = reference_graph(Env2#env.typed, Env2),
+    Errs = let_cycles(Env2#env.typed, Graph) ++ Env2#env.errs,
     %% restore declaration order for the typed output
     Typed = [replace_typed(D, Env2#env.typed) || D <- Decls],
     Order = case Errs of
-                [] -> initialization_order([D || D <- Typed, is_value_decl(D)], Env2);
+                [] -> initialization_order([D || D <- Typed, is_value_decl(D)], Graph);
                 _ -> []
             end,
+    digraph:delete(Graph),
     {Typed, Env2#env{groups = #{}, typed = [], errs = [], let_order = Order}, Errs}.
 
 %% Report §8.5: the order the module's top-level lets are evaluated in, a
@@ -1146,24 +1152,20 @@ zonk_ast(X, _) -> X.
 %% functions they call, is a compile-time error. Read off the typed
 %% declarations, since an operator names its member only once typed; one
 %% error per cycle, at its first let.
-let_cycles(Decls, Env) ->
-    G = reference_graph(Decls, Env),
+let_cycles(Decls, Graph) ->
     Lets = lists:keysort(2, [D || #let_decl{} = D <- Decls]),
     Fns = [decl_key(F) || #fn_decl{} = F <- Decls],
-    {Errs, _} = lists:foldl(fun(D, {Acc, Seen}) -> let_cycle(D, G, Fns, Acc, Seen) end,
+    {Errs, _} = lists:foldl(fun(D, {Acc, Seen}) -> let_cycle(D, Graph, Fns, Acc, Seen) end,
                             {[], []}, Lets),
-    digraph:delete(G),
     lists:reverse(Errs).
 
 %% Report §8.5: the lets of Decls, which are in declaration order, each
 %% after every let its initializer reaches and otherwise as declared.
-initialization_order(Decls, Env) ->
-    G = reference_graph(Decls, Env),
+initialization_order(Decls, Graph) ->
     Lets = [decl_key(D) || #let_decl{} = D <- Decls],
-    Needs = maps:from_list([{K, [R || R <- digraph_utils:reachable_neighbours([K], G),
+    Needs = maps:from_list([{K, [R || R <- digraph_utils:reachable_neighbours([K], Graph),
                                       R =/= K, lists:member(R, Lets)]}
                             || K <- Lets]),
-    digraph:delete(G),
     in_order(Lets, Needs, []).
 
 %% Each let once every let it needs is placed, the first declared of those
@@ -1175,6 +1177,7 @@ in_order(Lets, Needs, Placed) ->
                                              maps:get(K, Needs))],
     in_order(Lets -- [Next], Needs, [Next | Placed]).
 
+%% The module's references, from each declaration to those it names.
 reference_graph(Decls, Env) ->
     Keys = [decl_key(D) || D <- Decls],
     G = digraph:new(),
@@ -1920,7 +1923,8 @@ declared_scheme(Env, Path, Name) ->
     try lookup_value({1, 1, {1, 1}}, Path, Name, Env) of
         {Scheme, _, _} -> {ok, Scheme}
     catch
-        throw:{type_error, _, _} -> error
+        throw:{type_error, _, _} -> error;
+        throw:{type_error, _} -> error
     end.
 
 
@@ -1984,9 +1988,9 @@ infer(#e_con{pos = Pos, path = Path, name = Name, args = Args} = E, Env) ->
             {tfn, FTs, pure, RT} = CT,
             Base =:= undefined orelse one_constructor(Pos, CI, Env1),
             infer_named(E, Names, FTs, RT, Base, Sets, Env1);
-        {{named, _}, _} ->
+        {{named, Names}, _} ->
             fail(Pos, atom_to_list(Name) ++ " has named fields; write "
-                      ++ atom_to_list(Name) ++ "(field = value, ...)")
+                      ++ named_form(Name, Names, "value"))
     end;
 infer(#e_tuple{elems = Es} = E, Env) ->
     {TypedEs, Ts, Env1} = infer_list(Es, Env),
@@ -2314,10 +2318,9 @@ what({What, _, _, _}) -> What.
 %% Report §11.5: a field given or matched twice, named, at the second, the
 %% first labelled.
 twice(Fields, Verb) ->
-    case [{N, P1, P2} || {I, {N, P1}} <- lists:enumerate(Fields),
-                         {J, {M, P2}} <- lists:enumerate(Fields), J > I, M =:= N] of
-        [] -> ok;
-        [{N, First, Second} | _] ->
+    case repeated(Fields) of
+        none -> ok;
+        {N, First, Second} ->
             fail(Second, "field " ++ atom_to_list(N) ++ " is " ++ Verb ++ " twice",
                  [{ern_diag:span(First), "first " ++ Verb ++ " here"}], undefined)
     end.
@@ -2377,6 +2380,12 @@ one_constructor(Pos, #cinfo{name = Name, type_qname = TQ}, #env{types = Ts} = En
                                                    length(Cs)]),
                  [], "give every field of " ++ atom_to_list(Name))
     end.
+
+%% Report §5.6, §5.10: a constructor with named fields as it is written,
+%% each field given `Part`: `Point(x = value, y = value)`.
+named_form(Name, Fields, Part) ->
+    atom_to_list(Name) ++ "("
+        ++ lists:join(", ", [atom_to_list(F) ++ " = " ++ Part || F <- Fields]) ++ ")".
 
 binop_type(Pos, Op, L, LT, R, RT, Env) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
                                             Op =:= '%'; Op =:= '<>' ->
@@ -2907,9 +2916,9 @@ pat(#p_con{pos = Pos, path = Path, name = Name, args = Args} = P, Env) ->
             %% its parentheses, `C()` matching any value of it
             Text = atom_to_list(Name),
             fail(Pos, Text ++ " has named fields; write " ++ Text ++ "() to match any " ++ Text);
-        {{named, _}, _} ->
+        {{named, Names}, _} ->
             fail(Pos, atom_to_list(Name) ++ " has named fields; write "
-                      ++ atom_to_list(Name) ++ "(field = p, ...)")
+                      ++ named_form(Name, Names, "p"))
     end;
 pat(#p_tuple{elems = Es} = P, Env) ->
     {Typed, Env1} = lists:mapfoldl(fun(E, En) ->
@@ -3212,10 +3221,6 @@ lookup_value(Pos, Path, Name, #env{ns = Ns, local_values = LV} = Env) ->
             end
     end.
 
-%% Report §4.2: `Prelude.` takes one name the prelude declares, or a
-%% prelude namespace and one of its names; what is deeper is reached by
-%% its namespace.
--spec prelude_one(ern_diag:pos(), [atom()], atom()) -> no_return().
 %% Report §4.2: `Prelude.` is written where the module hides the prelude's
 %% name, and nowhere else, where the plain name is the one way to write it.
 hidden(_Pos, _Name, true) ->
@@ -3228,6 +3233,10 @@ hidden(Pos, Name, false) ->
          Written ++ " is written only where the module hides the prelude's " ++ Plain, [],
          "nothing here hides it; write " ++ Plain).
 
+%% Report §4.2: `Prelude.` takes one name the prelude declares, or a
+%% prelude namespace and one of its names; what is deeper is reached by
+%% its namespace.
+-spec prelude_one(ern_diag:pos(), [atom()], atom()) -> no_return().
 prelude_one(Pos, Path, Name) ->
     fail(Pos, format_qname(Path ++ [Name]) ++ ": Prelude takes one name the prelude declares,"
               " as `Prelude.Some`, or a prelude namespace's, as `Prelude.List.size`").

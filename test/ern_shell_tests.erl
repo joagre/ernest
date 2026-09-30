@@ -1483,6 +1483,23 @@ open_binding() ->
     ?assertMatch({_, _}, binary:match(Out, <<"2 : Int">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"badkey">>)).
 
+%% report §11.2, §11.5: a `let` at the prompt binds as a `let` in a block
+%% does, so a value that is not of its annotation's type is told so as a
+%% block's `let` is. A regression test: it was told of a declared return
+%% type, since the annotation was the input's result
+annotated_let_test_() ->
+    {timeout, 60, fun annotated_let/0}.
+
+annotated_let() ->
+    In = filename:join("/tmp", "ern_let_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = file:write_file(In, "let w : Int = \"x\"\nlet n : Int = 2\nn + 1\n"),
+    {0, Out} = sh("../bin/ern shell < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"the value does not have the declared type:"
+                                             " expected Int, found String">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"declared Int here">>)),
+    ?assertEqual(nomatch, binary:match(Out, <<"return type">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"3 : Int">>)).
+
 %% report §11.2, §7.4: the terminal is the shell's, so an input that reads a
 %% line faults with the cause §7.4 gives and the shell goes on. A
 %% regression test: in line mode the input took the shell's next line, and

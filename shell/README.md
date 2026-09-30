@@ -66,13 +66,13 @@ In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault repor
 | `Shell.Style` | [`shell/style.ern`](shell/style.ern) | The colours. Each function is given `Markdown.Styled` or `Markdown.Plain`, as documentation is rendered. |
 | `Markdown` | [`libs/markdown`](../libs/markdown/markdown.ern) | A library, not part of the shell, which renders documentation. |
 
-`Shell` uses all the others. Of the others, only `Shell.Editor` uses another: it reads the history's length, `Shell.History.kept`.
+`Shell` uses all the others. Of the others, two use another: `Shell.Editor` reads the history's length, `Shell.History.kept`, and `Shell.Complete` reads from `Shell.Command` what each command takes and where a command's word ends.
 
 Every module but `Shell`, `Shell.History` and `Shell.Complete` is pure, and `Shell.Complete`'s matching is. `Shell.Editor.State` and `Shell.Region.Region` are abstract (§4.4), so the shell reads them through their modules' functions, such as `Shell.Editor.text`. Each pure module is tested by its `Test` values (§9.3). `make test-shell` runs them with the tests of the session and the terminal (the design note's *Testing*).
 
 ## The front end
 
-The shell reaches the host as any program does: through the system modules `Terminal`, `Io`, `Fs`, `Os` and `Clock` (§8.2), and through the standard library's `Process` (E.21). Beyond them it declares `foreign fn`s (§4.7). Each declaration's string names the Erlang function that answers it, whose name may differ: `spawnInput` is `ern_shell:run/3`. [`erl/cli/src/ern_shell.erl`](../erl/cli/src/ern_shell.erl) answers every one but `holdTerminal`, which the runtime answers. The design note's *The foreign interface* groups them by what they are for.
+The shell reaches the host as any program does: through the system modules `Terminal`, `Io`, `Fs`, `Os` and `Clock` (§8.2), and through the standard library's `Process` (E.21). Beyond them it declares `foreign fn`s (§4.7). Each declaration's string names the Erlang function that answers it, whose name may differ: `spawnInput` is `ern_shell:run/4`. [`erl/cli/src/ern_shell.erl`](../erl/cli/src/ern_shell.erl) answers every one but `holdTerminal`, which the runtime answers. The design note's *The foreign interface* groups them by what they are for.
 
 `Env`, `Checked` and `Value` are foreign types (§3.8), handles the shell never looks inside. The session keeps the `Env` in its `State` and passes it to `check`, `spawnInput`, and each command's function that needs it. The reader's questions, such as `names` and `documentation`, take no `Env`. They read the front end's own copy of the session, which the design note's *The front end's copy* explains.
 

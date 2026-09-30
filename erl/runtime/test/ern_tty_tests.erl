@@ -210,6 +210,7 @@ restart_ends_subscription_test() ->
     ?assertEqual({'Some', {'Right', 'Unit'}}, wait(subscribed)),
     ?assertEqual(none, wait(got)).
 
+%% A terminal's key reader that never reads a key.
 silent() ->
     receive after infinity -> eof end.
 

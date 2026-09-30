@@ -1006,16 +1006,16 @@ fn filled(pieces : List(String), width : Int, row : String, rows : List(String))
 /// The page from its NAME line on, after its header's four lines:
 ///
 /// ```ernest
-/// List.drop(Markdown.roff(Markdown.Manual(name = "hello",
+/// List.drop(Markdown.roff(Markdown.parse("Says *hello*."),
+///                         Markdown.Manual(name = "hello",
 ///                                         section = "1",
 ///                                         summary = [Markdown.Text("greet")],
 ///                                         source = "Hello 1.0",
-///                                         title = "Hello Manual"),
-///                         Markdown.parse("Says *hello*.")),
+///                                         title = "Hello Manual")),
 ///           4)
 /// // => [".SH NAME", "hello \\- greet", ".SH DESCRIPTION", ".PP", "Says \\fIhello\\fR."]
 /// ```
-export fn roff(page : Manual, blocks : List(Block)) : List(String) = {
+export fn roff(blocks : List(Block), page : Manual) : List(String) = {
     let description = match blocks {
         [] -> []
       | Heading(level = 1) :: _ -> []
@@ -1409,7 +1409,7 @@ let nestedRows =
 let manualHeader =
     Test(name = "a manual page begins with its header and its NAME line",
          run = fn() =
-             rowsAre(roff(hello(), []),
+             rowsAre(roff([], hello()),
                      [".TH \"hello\" \"1\" \"\" \"Hello 1.0\" \"Hello Manual\"",
                       ".nh",
                       ".ds AD l",
@@ -1420,47 +1420,47 @@ let manualHeader =
 let manualDescription =
     Test(name = "the blocks before a first section are the page's DESCRIPTION",
          run = fn() =
-             rowsAre(List.drop(roff(hello(), parse("Text.\n\n# USAGE\n\nMore.")), 6),
+             rowsAre(List.drop(roff(parse("Text.\n\n# USAGE\n\nMore."), hello()), 6),
                      [".SH DESCRIPTION", ".PP", "Text.", ".SH", "USAGE", ".PP", "More."]))
 
 let manualSection =
     Test(name = "a page that begins with a section has no DESCRIPTION of its own",
-         run = fn() = rowsAre(List.drop(roff(hello(), parse("# USAGE")), 6), [".SH", "USAGE"]))
+         run = fn() = rowsAre(List.drop(roff(parse("# USAGE"), hello()), 6), [".SH", "USAGE"]))
 
 let manualHeadings =
     Test(name = "a heading of level 2 is a subsection and a deeper one a bold paragraph",
          run = fn() =
-             rowsAre(List.drop(roff(hello(), parse("## Two `x`\n### Three *y*")), 7),
+             rowsAre(List.drop(roff(parse("## Two `x`\n### Three *y*"), hello()), 7),
                      [".SS", "Two x", ".PP", "\\fBThree \\f(BIy\\fB\\fR"]))
 
 let manualFonts =
     Test(name = "each font returns to the one around it",
          run = fn() =
-             rowsAre(List.drop(roff(hello(), parse("**a *b* `c`** `d` *e `f`*")), 8),
+             rowsAre(List.drop(roff(parse("**a *b* `c`** `d` *e `f`*"), hello()), 8),
                      ["\\fBa \\f(BIb\\fB c\\fR \\fBd\\fR \\fIe \\f(BIf\\fI\\fR"]))
 
 let manualEscapes =
     Test(name = "what roff would change is written by its escape, and the rest as it is",
          run = fn() =
-             rowsAre(List.drop(roff(hello(), parse("a-b \\\\ 'c' ~ ^ \"d\" § \u{1f600}")), 8),
+             rowsAre(List.drop(roff(parse("a-b \\\\ 'c' ~ ^ \"d\" § \u{1f600}"), hello()), 8),
                      ["a\\-b \\(rs \\(aqc\\(aq \\(ti \\(ha \\(dqd\\(dq § \u{1f600}"]))
 
 let manualLineStarts =
     Test(name = "a line that begins with a period is not a request",
          run = fn() =
-             rowsAre(List.drop(roff(hello(), parse("\\.a\\\n.b\n\n    .c")), 8),
+             rowsAre(List.drop(roff(parse("\\.a\\\n.b\n\n    .c"), hello()), 8),
                      ["\\&.a", ".br", "\\&.b", ".PP", ".RS 4", ".nf", "\\&.c", ".fi", ".RE"]))
 
 let manualCode =
     Test(name = "a code block keeps its lines and its spaces, blank lines among them",
          run = fn() =
-             rowsAre(List.drop(roff(hello(), parse("```\nf(x)\n\n  `y`\n```")), 7),
+             rowsAre(List.drop(roff(parse("```\nf(x)\n\n  `y`\n```"), hello()), 7),
                      [".PP", ".RS 4", ".nf", "f(x)", "", "  \\(gay\\(ga", ".fi", ".RE"]))
 
 let manualItems =
     Test(name = "an item follows its label, and its later blocks stand under its text",
          run = fn() =
-             rowsAre(List.drop(roff(hello(), parse("- a\n\n  b\n- c\n  - d")), 7),
+             rowsAre(List.drop(roff(parse("- a\n\n  b\n- c\n  - d"), hello()), 7),
                      [".IP \\(bu 2",
                       "a",
                       ".RS 2",
@@ -1477,13 +1477,13 @@ let manualItems =
 let manualNumbers =
     Test(name = "an ordered list's text is as far in as its widest number",
          run = fn() =
-             rowsAre(List.drop(roff(hello(), parse("9. a\n10. b")), 7),
+             rowsAre(List.drop(roff(parse("9. a\n10. b"), hello()), 7),
                      [".IP 9. 4", "a", ".IP 10. 4", "b"]))
 
 let manualRest =
     Test(name = "a quote is indented, a rule is asterisks, raw lines are as written",
          run = fn() =
-             rowsAre(List.drop(roff(hello(), parse("> q\n\n---\n\n<div>\n</div>")), 7),
+             rowsAre(List.drop(roff(parse("> q\n\n---\n\n<div>\n</div>"), hello()), 7),
                      [".RS 4",
                       ".PP",
                       "q",
@@ -1499,7 +1499,7 @@ let manualRest =
 let manualLinks =
     Test(name = "a link is its text with its address after it",
          run = fn() =
-             rowsAre(List.drop(roff(hello(), parse("[home](https://a.org) <https://b.org>")), 8),
+             rowsAre(List.drop(roff(parse("[home](https://a.org) <https://b.org>"), hello()), 8),
                      ["home (https://a.org) https://b.org"]))
 
 let sentences =

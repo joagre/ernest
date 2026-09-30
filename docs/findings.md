@@ -7,13 +7,6 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 - ask — `Fs.removeAll` can be steered into another directory between its check and its listing (C1-3)
 - ask — `Foreign.from` hands foreign code an address past its proxy (C1-4)
 
-## False documents
-
-- tag — the guide's `Other("eaddrinuse")` (N-A1), `-> Unit` (N-A2), §4.4's chat room (N-A4), `Ets.new` and `put` (N-A7), and "needs nothing beside it" (N-A6)
-- tag — `shell/README.md`'s `run/3` and its one user of another module (C3-24)
-- tag — the report's `<reply>` (R-8), §7.4's causes (R-7), `ern doc`'s usage lines (R-19), §3.10's `Foreign` (R-11), §3.9 against §4.6 (R-4), shape rules 5 and 8 (R-9, R-10), §11.8's interrupt (R-16), §8.2's order of checks (R-17), §11's old spellings (R-18), and `Io.show` of a `Map` (R-20)
-- cheap — the report's clarity lines (R-C1 to R-C17), the toolchain's (C2's list B, C1-33 to C1-37, C3-32 to C3-40), and the guide's and the README's (N-B1 to N-B13)
-
 ## Questions for the user
 
 - ask — `Io.show` through a generic function shows what an abstract type hides (R-1, with MVP 2.99b's item 13)
@@ -30,7 +23,7 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 - ask — `Os.start`'s milliseconds are a lifetime (R-25)
 - ask — a local helper over an operator (R-26), and `Int.+`'s body that is not a call (R-27)
 - ask — who owns a socket (C1-2), an address retyped by foreign code (C1-6), and `:load` of a compiled module unchecked (C3-9)
-- ask — an alarm cannot be cancelled (N-C1), the order of a `Down` and the messages before it (N-B5), and `type Word = String` (N-C3)
+- ask — an alarm cannot be cancelled (N-C1), which the guide then says (N-B4), the order of a `Down` and the messages before it (N-B5), and `type Word = String` (N-C3)
 - ask — the line the interrupt ends, kept in the history (C3-23)
 
 ## Hardening

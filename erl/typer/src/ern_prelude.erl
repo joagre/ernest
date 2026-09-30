@@ -448,12 +448,13 @@ values() ->
       same process: the process keeps its address, its mailbox is emptied,
       every call waiting for its answer ends, and what the process asked the
       runtime for, its alarms, monitors and subscriptions, is cancelled
-      (report §6.9). A restart is not a death; no `monitor` is told.
+      (report §6.9). A restart is not a death; no `monitor` is told. With
+      `Unlimited`, `f` runs again after every fault.
 
       ### Errors
 
-      The fault of `f` after the limit's restarts within its time, with that
-      fault's cause.
+      Under `RestartLimit`, the fault of `f` after the limit's restarts within
+      its time, with that fault's cause.
 
       ### Examples
 
@@ -605,7 +606,7 @@ prelude_doc() ->
 
 %% The interfaces of the standard library modules written in Ernest: every
 %% ern@*.beam in a `stdlib` directory on the code path that carries an
-%% interface chunk (plan, MVP 2.5). The compiled library is build
+%% interface chunk (report §11.1). The compiled library is build
 %% output, so it is found by where it is installed rather than by an
 %% application's name; taking every ern@ module on the path instead would
 %% make the shell's own module, which lives in `build/shell` and is on the

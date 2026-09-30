@@ -88,7 +88,8 @@ export foreign fn info(process : Process) : Optional(Info) with m =
     "ern_rt:info/1"
 
 /// The processes the runtime started that have not ended, the system
-/// processes excepted, in unspecified order.
+/// processes excepted, in unspecified order: those a program spawned, and a
+/// listener, a socket or a running program a system module opened.
 ///
 /// ### Examples
 ///

@@ -32,6 +32,8 @@ export fn main() : Unit with Never = {
 }
 ```
 
+`main` receives nothing, `with Never`, and spawns the counter on this node, `Local`. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers once with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
+
 It is young. The language and its toolchain are complete enough for programs on one node, and programs across nodes come in a later release; where the project stands is "Where we are" in the [plan](docs/implementation_plan.md).
 
 ## Installing

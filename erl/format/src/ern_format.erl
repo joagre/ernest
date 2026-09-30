@@ -340,8 +340,8 @@ type_decl(Ps, Cs, X) ->
 %% line led by its bar, as a `match`'s arms do (report §11.6).
 alternatives([C], X) ->
     %% a doc block puts the one alternative on a line of its own, a step in;
-    %% one that does not fit breaks after the `=`, as several do, before a
-    %% bracket of the type's own parameters or of its fields
+    %% one that does not fit breaks after the `=`, as several do, rather than
+    %% inside the parentheses of the type's parameters or of its fields
     {if_lead, {nest, 4, [sp(), con(C, X)]}, {alternative, con(C, X)}};
 alternatives([C | Cs], X) ->
     Bar = {nest, -2, [line, tok('|'), sp()]},

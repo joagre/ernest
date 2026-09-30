@@ -26,7 +26,9 @@
 %% result, and Make wraps a function value, given R closed over the
 %% recursive types around it, so that each call's result is checked against
 %% R, faulting with Text (report §7.4); the descriptors `Io.show` and
-%% `Io.debug` print by carry no Make, since nothing is checked there.
+%% `Io.debug` print by carry no Make, since nothing is checked there. A
+%% function given to foreign code is {callback, Make}, Make wrapping it to
+%% check each argument foreign code calls it with (report §8.4).
 -module(ern_boundary).
 
 -export([raised/6, called_raised/3, expose/2, check/3, value/3, argument/4, expose/3]).
@@ -67,7 +69,8 @@ expose(Desc, V) ->
     expose(Desc, V, #{}).
 
 %% The value, or the fault Text (report §7.4), where the descriptor holds
-%% no function and no float, so that the checked value is the value itself.
+%% no function, no address, no Reply and no float, so that the checked
+%% value is the value itself.
 -spec check(term(), term(), binary()) -> term().
 check(Desc, V, Text) ->
     case chk(Desc, V, #{}) of

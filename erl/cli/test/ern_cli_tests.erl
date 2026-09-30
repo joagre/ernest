@@ -396,8 +396,6 @@ segment_test() ->
     ?assertEqual({'Some', <<"Http">>}, ern_shell:segment(<<"http">>)),
     ?assertEqual('None', ern_shell:segment(<<"Bad">>)).
 
-%% report §11.1, §11.5: a parse error in directory mode is reported as
-%% file:line:column: text, status 1
 %% report §11.1: single-file mode with no --source-root uses the current
 %% directory, so `ern build a.ern` in a project's directory works
 default_root_test() ->
@@ -412,8 +410,8 @@ default_root_test() ->
         file:set_cwd(Cwd)
     end.
 
-%% report §11.5: a parse error is its position, its message, and the source
-%% under it with the span marked
+%% report §11.1, §11.5: a parse error in directory mode is its position,
+%% its message, and the source under it with the span marked, status 1
 parse_error_test() ->
     Dir = tmp(),
     File = write(Dir, "a.ern", "export fn f() : Int = \n"),

@@ -1,6 +1,6 @@
 %% The layout ern_format builds, and the printer that lays it out in 100
 %% columns (report §11.6). It is Wadler's prettier printer,
-%% evaluated strictly as Lindig's is, with what the style guide needs
+%% evaluated strictly as Lindig's is, with what §11.6's layout needs
 %% beside it: alignment to a column, a choice between two layouts made on
 %% the first line of the first, and a trailing comment that ends its line.
 %%
@@ -214,9 +214,10 @@ fits(W, [{I, M, D} | Rest], Ended) ->
     end.
 
 %% A choice takes its first layout when a trial of it, written up to its
-%% first line break, fits, and for hug ends in the brace that opens what
-%% runs over lines, for body either reaches the mark after the body or ends
-%% in a brace or `then`.
+%% first line break, fits, and: for hug and branch, ends in the brace that
+%% opens what runs over lines; for body, reaches the mark after the body or
+%% ends in a brace or `then`; for alternative, reaches the mark or ends in
+%% `(`.
 accept(Kind, Stack, P) ->
     Start = case P#p.pending of
                 {Indent, _} -> P#p{pending = none, col = Indent, line = [], started = true};

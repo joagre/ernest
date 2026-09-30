@@ -70,20 +70,21 @@ After the First Release*; one milestone with the operations records since 2026-0
    whose every exit status was stated once, the general one for the first time (`findings.md`'s
    T31; the log's *`ern(1)` Has Its Sections*), and the README saying where to download the
    archive.
-3. **The review's findings**, [`findings.md`](findings.md): the review of 2026-09-30 found
-   about 150 (the log's *The Release Review*). Before the tag, each `tag` line is fixed with
-   a regression test, area by area, the security findings first, and each `ask` line is
-   decided with the user one at a time; `cheap` clarity is fixed where it is cheap. What is
-   left is MVP 2.99b's first item. The security lines, the crashes, the wrong results, and the
-   restart and the supervisor are done (the log's *The Release Review's Security Lines*, *The
-   Release Review's Crashes*, *The Release Review's Wrong Results* and *The Release Review's
-   Restarts*). `String.split` reads the
-   string once over a private primitive, `drop`, decided with the user over the measure of a
-   split written over `graphemes` (Appendix E.5). Three decisions came with
-   the crashes: a fault the shell's standard input gives it exits with status 1, and any
-   other fault of its own with 70 (§11.8); a standard stream closed as a job begins ends it
-   with status 141 (§11); and an escape sequence the editor does not bind does nothing
-   (§11.2).
+3. **The review's findings**, [`findings.md`](findings.md): the review of 2026-09-30 found about
+   150 (the log's *The Release Review*). Before the tag, each `tag` line is fixed with a
+   regression test, area by area, the security findings first, and each `ask` line is decided
+   with the user one at a time; `cheap` clarity is fixed where it is cheap. What is left is MVP
+   2.99b's first item. The security lines, the crashes, the wrong results, the restart and the
+   supervisor, and the false documents are done (the log's *The Release Review's Security
+   Lines*, *The Release Review's Crashes*, *The Release Review's Wrong Results*, *The Release
+   Review's Restarts* and *The Release Review's Documents*). `Markdown.roff` takes its blocks
+   first, its subject, and the manual second (Appendix G.2), and an annotated `let` at the
+   prompt is checked as a block's `let` (§11.2). `String.split` reads the string once over a
+   private primitive, `drop`, decided with the user over the measure of a split written over
+   `graphemes` (Appendix E.5). Three decisions came with the crashes: a fault the shell's
+   standard input gives it exits with status 1, and any other fault of its own with 70 (§11.8);
+   a standard stream closed as a job begins ends it with status 141 (§11); and an escape
+   sequence the editor does not bind does nothing (§11.2).
 
 ---
 
@@ -157,7 +158,11 @@ renamed over it, then the guide, and the soak last.
    longer, and the line stays at 100 characters. Before the toolchain's changes below, so that
    they are written in the new names.
 7. **The hardening the code readers found** (C1-5, C1-9, C1-10, C3-26 to C3-31), in the new
-   names; `findings.md` goes when this item and item 3 are done.
+   names; `findings.md` goes when this item and item 3 are done. With it the shell's and `ern
+   test`'s `persistent_term` replaced at each input and each test, each replacement a scan of
+   every process by the host (C3-39): what changes per input or per test moves to a table, and
+   what a binding's holder keeps, which a read must not copy, is measured against a table and
+   decided with the user with the numbers.
 8. **The runtime's part of running as a service**: what item 5's decisions build, and
    standard error on a full or failing disk ending the run with status 141, as §8.2 says;
    beside item 7, in the same code.
@@ -196,7 +201,9 @@ renamed over it, then the guide, and the soak last.
     among the names, the glossary corrected as it goes and each name that differs from the
     report's brought to the user, after items 10 to 13 so that the code they write is read once with the
     rest. A name the report states, an exported function's or a constructor's, changes only
-    through the report.
+    through the report. Among it the shell's `obey`, which writes each refusal eight times,
+    the editor's names that mean two things, `back`, `from` and `step`, and what
+    `complete.ern` repeats (C3-35 to C3-37).
 15. **The guide's §7.3**, over the finished code and its names: it says "operations record"
     and shows code written once, a representation's own functions beside the record's, two
     ordered sets that cannot meet in `union`, and values of several representations in one

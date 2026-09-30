@@ -1,4 +1,4 @@
-/// Operations on `Map(k, v)`, a finite map from keys to values (report
+/// Operations on `Map(k=, v)`, a finite map from keys to values (report
 /// §9.2). The key type needs equality, which the type itself requires
 /// (report §3.10), so a key holding a function or an address is a type
 /// error. The order of `keys`, `values`, `toList`, `foldLeft`, `foreach`,

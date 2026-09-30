@@ -117,7 +117,7 @@ forms(Ns, Decls, Env, Build) ->
 %% let of type Test, exported or not, for `ern test`.
 tests_fun(Lets) ->
     Names = [fname(O, N) || #let_decl{owner = O, name = N, type = Scheme} <- Lets,
-                            element(3, Scheme) =:= {tcon, ['Test'], []}],
+                            Scheme#scheme.type =:= {tcon, ['Test'], []}],
     case Names of
         [] -> [];
         _ ->
@@ -904,8 +904,8 @@ resolved(T, #cx{env = Env}) ->
 
 %% Form's value checked against T and the fault's text naming Named (report
 %% §7.4, §8.4). A word's check is written in place; a value that holds no
-%% function to arm and no float to make the language's is checked alone
-%% (ern_boundary:check/3); a type variable a parameter names matches any
+%% function, address or Reply to arm and no float to make the language's is
+%% checked alone (ern_boundary:check/3); a type variable a parameter names matches any
 %% value, and is not checked.
 check_form(T, Named, Form, Prefix, Cx) ->
     Text = check_text(Prefix, Named, Cx),
@@ -1289,7 +1289,7 @@ emit_locals(Fns, Cx) ->
               C2#cx{vars = C#cx.vars, lifted = [Fun | C2#cx.lifted]}
       end, Cx, Fns).
 
-%% Unqualified names free in Node, given the names bound around it.
+%% The names a pattern binds.
 pattern_names(P) -> [N || {N, _} <- ern_ast:pattern_bindings(P)].
 
 %%
@@ -1475,8 +1475,6 @@ pattern(#p_con{pos = Pos, path = Path, name = Name, args = Args}, Cx) ->
         {positional, {positional, P}} ->
             {PF, Cx1} = pattern(P, Cx),
             {at(Pos, erl_syntax:tuple([Tag, PF])), Cx1};
-        {{named, Names}, none} ->
-            {at(Pos, erl_syntax:tuple([Tag | [erl_syntax:underscore() || _ <- Names]])), Cx};
         {{named, Names}, {named, FPs}} ->
             {Forms, Cx1} = lists:mapfoldl(fun(N, C) ->
                                               case [P || #field_pat{name = FN, pattern = P} <- FPs,
@@ -1558,9 +1556,9 @@ segment_value(#{kind := bytes} = Spec, VF, SizeF) ->
     call_remote(ern_bits, bytes, [VF, bits_form(Spec, SizeF)]);
 segment_value(_, VF, _) -> VF.
 
-%% A dynamic size counted in bits leaves the bit count open; the built
-%% value is then checked for alignment.
-open(#{size := {expr, _}, unit := U}) -> U rem 8 =/= 0;
+%% A dynamic size counted in bits, a unit of 1, leaves the bit count open;
+%% the built value is then checked for alignment.
+open(#{size := {expr, _}, unit := 1}) -> true;
 open(_) -> false.
 
 type_specs(#{kind := Kind, unit := Unit, endian := Endian, sign := Sign, size := Size}) ->

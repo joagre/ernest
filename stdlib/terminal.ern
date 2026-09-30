@@ -266,18 +266,23 @@ fn afterSequence(graphemes : List(String)) : List(String) =
         }
     }
 
-// A grapheme by its first code point that counts.
+// A grapheme by its first code point that counts; a pictograph is wide
+// where the grapheme asks for its emoji presentation, U+FE0F.
 fn width(grapheme : String) : Int = {
     let codes = List.map(String.toList(grapheme), Char.toInt);
-    match List.find(codes, fn(c) = widthOf(c, widths) != Some(Zero)) {
-        None -> 0
-      | Some(c) -> match widthOf(c, widths) {
-            Some(Wide) -> 2
-          | Some(Pictographic) -> if List.contains(codes, 0xFE0F) then 2 else 1
-          | _ -> 1
+    firstWidth(codes, List.contains(codes, 0xFE0F))
+}
+
+fn firstWidth(codes : List(Int), emojiPresentation : Bool) : Int =
+    match codes {
+        [] -> 0
+      | code :: rest -> match widthOf(code, widths) {
+            Some(Zero) -> firstWidth(rest, emojiPresentation)
+          | Some(Wide) -> 2
+          | Some(Pictographic) -> if emojiPresentation then 2 else 1
+          | None -> 1
         }
     }
-}
 
 // How a code point counts, where the table lists it.
 type Width = Zero | Wide | Pictographic

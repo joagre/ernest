@@ -12,7 +12,7 @@
 %% call's monitor of its callee, as gen_server's call makes one: it
 %% deactivates when the call is over, which drops a late answer (report
 %% §6.6). Ernest answers {Alias, answered, V} and foreign code {Alias, V},
-%% as §8.4 says, and only the second is checked; a Reply foreign code gave
+%% so that a call checks the second only, as §8.4 says; a Reply foreign code gave
 %% back is {foreign_reply, Alias, D, B}, answered in the second form with
 %% the answer exposed.
 %% Every process body runs under run/1, which turns an exception into an
@@ -462,9 +462,7 @@ reaper_loop(Waiters, Watching, Watched) ->
                     lists:foreach(fun({To, Wrap}) ->
                                       wrapped(To, Wrap, {'Down', reason(Reason), <<>>})
                                   end, maps:get(Pid, Waiters, [])),
-                    is_map_key(Pid, Watched) andalso source_end();
-                _ ->
-                    ok
+                    is_map_key(Pid, Watched) andalso source_end()
             end,
             case is_map_key(Pid, Waiters) orelse is_map_key(Pid, Watching)
                 orelse is_map_key(Pid, Watched) of
@@ -625,7 +623,8 @@ info(_) ->
 ets_lookup(Table, Key) ->
     try ets:lookup(Table, Key) catch _:_ -> [] end.
 
-ets_match(Table, Pattern) ->
+%% The rows of Table that match Pattern, none where the table has gone.
+matching_rows(Table, Pattern) ->
     try ets:match_object(Table, Pattern) catch _:_ -> [] end.
 
 %% Appendix E.21: Process.faults, the caller subscribed to every fault of
@@ -655,7 +654,7 @@ report(Pid, Site, Fault, Restarted) ->
         undefined -> ok;
         Reporter -> Reporter(Report)
     end,
-    Subscribers = [To || {_, To} <- ets_match(?FAULTS, '_')],
+    Subscribers = [To || {_, To} <- matching_rows(?FAULTS, '_')],
     lists:foreach(fun(To) -> counted_link(To, fun() -> deliver(To, Report) end) end, Subscribers).
 
 %% The live processes' rows, each its pid, its spawn site, the counts of its
@@ -725,7 +724,7 @@ counted() ->
 %% request still in transit is not seen at its receiver.
 calling_the_system() ->
     Held = system_pids() ++ opened(),
-    lists:any(fun({_, Callee, _}) -> lists:member(Callee, Held) end, ets_match(?CALLS, '_')).
+    lists:any(fun({_, Callee, _}) -> lists:member(Callee, Held) end, matching_rows(?CALLS, '_')).
 
 quiet_system() ->
     element(2, erlang:process_info(erlang:self(), message_queue_len)) =:= 0

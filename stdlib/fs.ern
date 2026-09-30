@@ -45,8 +45,9 @@
 export type Kind = File | Directory | Link | Other
 
 /// What `Fs.stat` and `Fs.list` tell of a file: its path, its modification
-/// time in milliseconds since the epoch, as `Clock.now`, a whole number of
-/// seconds, its size in bytes, and its kind (report Appendix E.17).
+/// time in milliseconds since the epoch, as `Clock.now`, read to the second
+/// and so a multiple of 1000, its size in bytes, and its kind (report
+/// Appendix E.17).
 ///
 /// ### Examples
 ///

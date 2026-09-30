@@ -8,7 +8,7 @@
          '$fun'/2]).
 
 main() ->
-    S_1 = 'Stack.push'(2, 'Stack.push'(1, 'Stack.empty'())),
+    S_1 = 'Stack.push'('Stack.push'('Stack.empty'(), 1), 2),
     case 'Stack.pop'(S_1) of
         {'Some', {Top_2, _}} ->
             ern@io:println(<<"top is ",
@@ -19,8 +19,8 @@ main() ->
 'Stack.empty'() ->
     ern_rt:binding({ern@stack, 'Stack.empty'}).
 
-'Stack.push'(X_3, {'Stack', Xs_4}) ->
-    {'Stack', [X_3 | Xs_4]}.
+'Stack.push'({'Stack', Xs_3}, X_4) ->
+    {'Stack', [X_4 | Xs_3]}.
 
 'Stack.pop'({'Stack', Xs_5}) ->
     case Xs_5 of

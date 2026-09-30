@@ -1089,6 +1089,16 @@ constructor_pattern_forms_test() ->
     ?assertEqual("Some has one positional field; write Some(p)",
                  err("fn f(o : Optional(Int)) : Int = match o { Some() -> 1 | _ -> 0 }")).
 
+%% report §5.6, §5.10, §11.5: a constructor with named fields written with
+%% positional ones is told its fields by name, as a construction and as a
+%% pattern. A regression test: the help said `field = value`, naming none
+named_fields_named_test() ->
+    Point = "type Point = Point(x : Int, y : Int)\n",
+    ?assertEqual("Point has named fields; write Point(x = value, y = value)",
+                 err(Point ++ "fn f() : Point = Point(1)")),
+    ?assertEqual("Point has named fields; write Point(x = p, y = p)",
+                 err(Point ++ "fn f(q : Point) : Int = match q { Point(a) -> a }")).
+
 %% report §5.6: `..` is allowed only on a type with one constructor. It was
 %% accepted on a type of two, and the program faulted with badmatch where
 %% the value was the other constructor.

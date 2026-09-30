@@ -15,7 +15,7 @@
 /// A stack of shapes, pushed and popped:
 ///
 /// ```ernest
-/// let s = Template.Stack.push(Template.Dot(Template.Point(x = 1, y = 1)), Template.Stack.empty);
+/// let s = Template.Stack.push(Template.Stack.empty, Template.Dot(Template.Point(x = 1, y = 1)));
 /// match Template.Stack.pop(s) {
 ///     Some(#(top, _)) -> Template.area(top)
 ///   | None -> -1
@@ -63,7 +63,7 @@ export type Shape =
 /// ### Examples
 ///
 /// ```ernest
-/// Template.Stack.push(Template.Dot(Template.Point(x = 0, y = 0)), Template.Stack.empty)
+/// Template.Stack.push(Template.Stack.empty, Template.Dot(Template.Point(x = 0, y = 0)))
 /// ```
 ///
 /// ### See also
@@ -75,7 +75,7 @@ export abstract type Stack = Stack(List(Shape))
 export let Stack.empty = Stack([])
 
 /// The stack with the shape on top.
-export fn Stack.push(s : Shape, Stack(ss) : Stack) : Stack =
+export fn Stack.push(Stack(ss) : Stack, s : Shape) : Stack =
     Stack(s :: ss)
 
 /// The top shape and the rest, `None` when the stack is empty.

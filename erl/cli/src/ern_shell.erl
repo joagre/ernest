@@ -131,9 +131,8 @@ check(#env{n = N} = Env, From, Input) ->
                    [] -> {input_namespace(N + 1), N + 1}
                end,
     case input(Input) of
-        {ok, Binds, Expr, Ann} ->
-            checked(check_module(Env#env{n = N1}, Ns, Origin, Input,
-                                 input_entry(Expr, Ann), Binds));
+        {ok, Binds, Expr} ->
+            checked(check_module(Env#env{n = N1}, Ns, Origin, Input, input_entry(Expr), Binds));
         {decls, Decls} ->
             checked(check_module(Env#env{n = N1}, Ns, Origin, Input, Decls, decls));
         {error, Diag} ->
@@ -161,11 +160,11 @@ checked(Other) ->
 input(Text) ->
     case ern_parser:parse_expr(Text) of
         {ok, Expr} ->
-            {ok, it, Expr, undefined};
+            {ok, it, Expr};
         {error, Diag} ->
             case ern_parser:parse_string(Text) of
                 {ok, [#let_decl{owner = undefined, name = Name, body = Body, ann = Ann}]} ->
-                    {ok, Name, Body, Ann};
+                    {ok, Name, annotated(Name, Body, Ann)};
                 {ok, Decls} -> declarations(Decls);
                 {error, DeclDiag} ->
                     case pattern_let(Text) of
@@ -193,7 +192,7 @@ pattern_let(Text) ->
                        [V] -> V;
                        _ -> #e_tuple{pos = Pos, elems = Vars}
                    end,
-            {ok, {names, Names}, #e_block{pos = Pos, stmts = [B, Last]}, undefined};
+            {ok, {names, Names}, #e_block{pos = Pos, stmts = [B, Last]}};
         _ ->
             none
     end.
@@ -246,20 +245,20 @@ exported(#let_decl{} = D) -> D#let_decl{export = true};
 exported(#foreign_fn_decl{} = D) -> D#foreign_fn_decl{export = true};
 exported(D) -> D.
 
-%% `export fn '$input'() -> a with m = <the input>`, the entry point of §8.1.
-%% Report §11.2: a `let` at the prompt may carry an annotation, and it
-%% is the entry point's return type, so the checker holds the input to
-%% it as it would hold a `let` in a block.
-input_entry(Expr, Ann) ->
-    %% the effect stays a variable: an input runs in a process, whose
-    %% mailbox is the entry point's (§11.2), so a return annotation must
-    %% not make it pure
-    Effect = case Ann of
-                 undefined -> undefined;
-                 _ -> #t_var{pos = {1, 1, {1, 1}}, name = m}
-             end,
-    [#fn_decl{pos = {1, 1, {1, 1}}, export = true, name = ?ENTRY, params = [], body = Expr,
-              ret = Ann, effect = Effect}].
+%% Report §11.2: a `let` at the prompt may carry an annotation, which the
+%% checker holds its value to as it holds a `let` in a block's: the input
+%% is `{ let x : T = e; x }`.
+annotated(_Name, Body, undefined) ->
+    Body;
+annotated(Name, Body, Ann) ->
+    Pos = element(2, Body),
+    #e_block{pos = Pos, stmts = [#binding{pos = Pos, pattern = #p_var{pos = Pos, name = Name},
+                                          ann = Ann, op = '=', expr = Body},
+                                 #e_var{pos = Pos, name = Name}]}.
+
+%% `export fn '$input'() = <the input>`, the entry point of §8.1.
+input_entry(Expr) ->
+    [#fn_decl{pos = {1, 1, {1, 1}}, export = true, name = ?ENTRY, params = [], body = Expr}].
 
 check_module(#env{ifaces = Ifaces, session = Session} = Env, Ns, From, Input, Decls, Binds) ->
     case ern_typecheck:check(Ns, Decls, Ifaces, Session) of
@@ -914,10 +913,10 @@ fields(Typed) ->
     case string:split(Typed, ".", trailing) of
         [Head, _] when Head =/= <<>> ->
             maybe
-                {ok, Binds, Expr, Ann} ?= input(Head),
+                {ok, Binds, Expr} ?= input(Head),
                 {'Right', {_, #checked{type = T, env = TEnv}}} ?=
                     check_module(Env#env{n = Env#env.n + 1}, ['$Fields'], {typed, <<"fields">>},
-                                 Head, input_entry(Expr, Ann), Binds),
+                                 Head, input_entry(Expr), Binds),
                 St = ern_typecheck:type_state(TEnv),
                 [name('Value', [Head, ".", atom_to_list(F)],
                       [Head, ".", atom_to_list(F), " : ", ern_types:format(FT, St)])
@@ -969,10 +968,10 @@ call_signature(Path, Name, N) ->
 %% module of its own that does not enter the session.
 scheme_of(Env, Text) ->
     maybe
-        {ok, Binds, Expr, Ann} ?= input(Text),
+        {ok, Binds, Expr} ?= input(Text),
         {'Right', {_, #checked{typed = Typed, env = TEnv}}} ?=
             check_module(Env#env{n = Env#env.n + 1}, ['$Signature'], {typed, <<"signature">>},
-                         Text, input_entry(Expr, Ann), Binds),
+                         Text, input_entry(Expr), Binds),
         {P, Nm} ?= one_name(Typed),
         {ok, #scheme{type = {tfn, _, _, _}} = Scheme} ?= ern_typecheck:declared_scheme(TEnv, P, Nm),
         {ok, Scheme, TEnv}
