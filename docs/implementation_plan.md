@@ -155,7 +155,8 @@ discussed with the user one at a time as they are met.
    restarts named `Unlimited`, a constructor of `RestartLimit`, a time below 1 now 1, which
    ended `restarting` and a group disagreeing on `RestartLimit(restarts = 0, within = 0)`
    (E-C3), decided with the user and done 2026-09-30 (§6.9, §9; the log's *No Limit Is
-   `Unlimited`*);
+   `Unlimited`*); `Io.debug` in Ernest once `Io.show` follows its type, placed in MVP 2.99b's
+   item 7 (E-C4), decided with the user 2026-09-30;
    the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.
@@ -250,10 +251,12 @@ decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*), is rewritt
    *`Io.show` Follows Its Type*): `Io.show` and `Io.debug` on a type variable give it a
    *shown* restriction, printed with a mark, and a function generalized over it takes its
    caller's type description, as the ordering restriction takes a `compare`; `wrap('a')`, with
-   `fn wrap(x) = Io.show(x)`, prints `'a'`. It is built on item 1's hidden argument, about a
-   day; if item 1 refuses the ordering restriction, the choice returns to the user. Until then
-   Appendix E.1 states what the code does: through a type variable, a value is written by its
-   representation.
+   `fn wrap(x) = Io.show(x)`, prints `'a'`. `Io.debug` is then written in Ernest over
+   `Io.show` and `Io.println`, and its shim `ern_io:debug/2`, which writes to standard output
+   past `Io`, goes (`findings.md`'s E-C4, 2026-09-30). It is built on item 1's hidden
+   argument, about a day; if item 1 refuses the ordering restriction, the choice returns to the
+   user. Until then Appendix E.1 states what the code does: through a type variable, a value
+   is written by its representation.
 
 ---
 
