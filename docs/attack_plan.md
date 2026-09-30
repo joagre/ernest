@@ -1,6 +1,6 @@
 # The attack plan
 
-The order in which the principles review's findings, [`findings.md`](findings.md), are worked, until they are; then this document goes. What the review is and how it decides is [`principles_review.md`](principles_review.md)'s, and why the order is this is the log's *The Attack Plan*. The aim is consistency and beauty, not a makeover: the five principles stand, each gains the sentence the log shows it lacked, and a rule changes only where the smallest program that shows it reads better without it and no program under `examples/` or one a newcomer wrote gets harder.
+The order in which the principles review's findings, [`findings.md`](findings.md), are worked, until they are; then this document goes. What the review is and how it decides is [`principles_review.md`](principles_review.md)'s, and why the order is this is the log's *The Attack Plan*. The aim is consistency and beauty, not a makeover: the five principles stand, each gains the sentence the log shows it lacked, and a rule changes only where the smallest program that shows it reads better without it and no program under `examples/` or one a newcomer wrote gets harder. Its outcome is a revised report, guide and code, committed rule by rule with their tests, never a list of suggestions: a finding ends as `report`, `kept` or `later`, and nothing else.
 
 ## The phases
 
