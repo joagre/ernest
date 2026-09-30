@@ -103,7 +103,7 @@ represented(Bin, L) when is_binary(Bin) ->
     end;
 represented(P, _) when is_pid(P) -> address(P);
 %% a Reply and an address foreign code gave (ern_rt)
-represented({foreign_reply, R}, _) when is_reference(R) -> "<reply>";
+represented({foreign_reply, R, _, _}, _) when is_reference(R) -> "<reply>";
 represented({foreign, P, _, _} = A, _) when is_pid(P) -> address(A);
 represented(F, _) when is_function(F) -> "<function>";
 represented(V, #lim{depth = 0}) when is_list(V); is_tuple(V); is_map(V) ->

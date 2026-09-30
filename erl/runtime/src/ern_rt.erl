@@ -13,7 +13,8 @@
 %% deactivates when the call is over, which drops a late answer (report
 %% §6.6). Ernest answers {Alias, answered, V} and foreign code {Alias, V},
 %% as §8.4 says, and only the second is checked; a Reply foreign code gave
-%% back is {foreign_reply, Alias}, answered in the second form.
+%% back is {foreign_reply, Alias, D, B}, answered in the second form with
+%% the answer exposed.
 %% Every process body runs under run/1, which turns an exception into an
 %% exit reason that Down reports as a Fault. All spawns go through the
 %% reaper process, which spawn_monitors each process; a monitor placed
@@ -72,7 +73,7 @@
 %% Report §8.2: the system processes, by the names the runtime keeps them
 %% under.
 -type system() :: stdout | stderr | stdin | clock | fs | terminal | tcp | os.
--type reply() :: reference() | {foreign_reply, reference()}.
+-type reply() :: reference() | {foreign_reply, reference(), term(), map()}.
 %% What a program's answer from foreign code is checked by: its descriptor
 %% and the fault's text, or none for the runtime's own calls.
 -type check() :: none | {term(), binary()}.
@@ -302,10 +303,11 @@ settled(Alias) ->
     end.
 
 %% Report §6.6, §8.4: an answer in Ernest's form, or in foreign code's for a
-%% Reply foreign code gave back, which the caller checks.
+%% Reply foreign code gave back, which the caller checks and which crosses
+%% into foreign code.
 -spec answer(reply(), term()) -> 'Unit'.
-answer({foreign_reply, Alias}, V) ->
-    Alias ! {Alias, V},
+answer({foreign_reply, Alias, D, B}, V) ->
+    Alias ! {Alias, ern_boundary:expose(D, V, B)},
     ?UNIT;
 answer(Alias, V) ->
     Alias ! {Alias, answered, V},
@@ -313,7 +315,7 @@ answer(Alias, V) ->
 
 %% Report §8.2, §7.4: a system process faults the caller it answers.
 -spec refuse(reply(), binary()) -> 'Unit'.
-refuse({foreign_reply, Alias}, Cause) ->
+refuse({foreign_reply, Alias, _, _}, Cause) ->
     refuse(Alias, Cause);
 refuse(Alias, Cause) ->
     Alias ! {Alias, fault, Cause},

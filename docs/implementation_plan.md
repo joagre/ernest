@@ -123,11 +123,12 @@ discussed with the user one at a time as they are met.
    checked one by one, with two defects of the shell the read-back found fixed: the late
    outcome of an interrupted input, which the next input could take as its own, now dropped
    by its run's number, and the history's directory, made its owner's alone only after a
-   read that succeeded, now before any read (§11.2), done 2026-09-30; the decision for the
-   user in this item of how long the proxy of a `via` address exposed to foreign code lives
-   (§8.4): one is made for each distinct function and lives as long as its target, so a
-   program that exposes a `via` over a fresh closure again and again grows by a process each
-   time, which the shell's run numbers met, and which a constant function avoids; make
+   read that succeeded, now before any read (§11.2), done 2026-09-30; the check of an
+   address exposed to foreign code kept until the process it names ends, one for each
+   distinct address and a `via` distinct by its function and what that captured, decided with
+   the user 2026-09-30, and an answer to a `Reply` foreign code gave, which went out
+   unexposed, crossing as a message does, done 2026-09-30 (§8.4; the log's *A Check at the
+   Boundary Lasts as Long as Its Process*); make
    keeping no stamp of the Ernest trees and running `ern build` every time, its own rule
    deciding by content (§11.1; the log's *Make Runs `ern build` Every Time*), decided with the
    user and done 2026-09-30; the distribution notes read back against the report, what was

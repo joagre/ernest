@@ -2,7 +2,7 @@
 
 -export([write_golden/0, pair/0, opt/1, funs/0, improper/1, remember/1, junk/1, good/1,
          tell/1, junk_server/0, hello_junk/0, hello_good/0, relay_junk/1, relay_good/1, same/1,
-         reaper_words/0]).
+         ask_junk/1, ask_good/1, reaper_words/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -1391,6 +1391,29 @@ reply_given_back_test() ->
                  "}\n"),
     ?assertEqual({fault, <<"reply does not match Int">>}, R).
 
+%% report §8.4: an answer given to a Reply foreign code gave crosses into
+%% foreign code, so an address in it reaches foreign code through the
+%% proxy, and a bad message foreign code sends there faults its process; a
+%% good one arrives. A regression test: the answer went out as it was, and
+%% the bad message was delivered unchecked. It does not cover a function
+%% in the answer, which crosses as one in a message does
+answer_to_foreign_reply_test() ->
+    Source = fun(Asker) ->
+                 "type Msg = Go(Int)\n"
+                 "type Ask = Ask(reply : Reply(Address(Msg)))\n"
+                 "foreign fn ask(server : Address(Ask)) : Unit with m = \"ern_emitter_tests:"
+                 ++ Asker ++ "/1\"\n"
+                 "fn serve(me : Address(Msg)) : Unit with Ask =\n"
+                 "    receive { Ask(reply = r) -> answer(r, me) }\n"
+                 "export fn main() : Unit with Msg = {\n"
+                 "    let me = self();\n"
+                 "    ask(spawn(Local, fn() = serve(me)));\n"
+                 "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
+                 "}\n"
+             end,
+    ?assertEqual({fault, <<"message does not match Msg">>}, element(1, run(Source("ask_junk")))),
+    ?assertEqual({ok, <<"1\n">>}, run(Source("ask_good"))).
+
 %% report §8.4: the standard library is the runtime's own, so the return of
 %% one of its foreign functions and the reply to a call it makes are not
 %% checked; the same declarations in a program's module fault
@@ -1438,6 +1461,18 @@ relay_junk(Alias) -> Alias ! {Alias, <<"x">>}, 'Unit'.
 relay_good(Alias) -> Alias ! {Alias, 5}, 'Unit'.
 %% report §8.4: a Reply handed back as it was given, its type declared anew
 same(R) -> R.
+%% report §8.4: foreign code that asks an Ernest server with a Reply of its
+%% own, and sends the address it is answered a message of another type or
+%% of the declared one
+ask_junk(Server) -> ask(Server, <<"x">>).
+ask_good(Server) -> ask(Server, 1).
+ask(Server, N) ->
+    spawn(fun() ->
+              Alias = erlang:alias(),
+              Server ! {'Ask', Alias},
+              receive {Alias, P} -> P ! {'Go', N} end
+          end),
+    'Unit'.
 
 %% report §4.5: an Ernest function named like an auto-imported
 %% Erlang BIF, `size`, `max`, is called by its own name
