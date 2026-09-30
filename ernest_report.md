@@ -34,7 +34,7 @@ Every function runs inside a process, an execution of a function with a mailbox 
 Five principles. Principles 2 to 5 are constructive; when following them yields code that surprises, principle 1 overrides.
 
 1. Least surprise decides. A design surprises when a reader who knows the rest of Ernest would predict different code from the same requirement. The resulting code decides, not the rule. The reader knows Ernest first. Where Ernest's own rules do not decide, the reader knows types as Standard ML and OCaml have them, and values and processes as Erlang has them, and no other language; a form is not admitted because another language has it. Where Ernest departs from what that reader predicts, the sentence that departs says so.
-2. One way, one job, in the language and prelude. No variants for the same thing, no two concepts that overlap. The standard library may pair functions for convenience.
+2. One way, one job, in the language and prelude. No variants for the same thing, no two concepts that overlap. The standard library may pair functions for convenience. A second spelling of what the language already writes enters only where the first would nest where the reader reads a sequence, repeat a body, or rebuild what a pattern already holds; one that only shortens stays out. A literal form enters where the reader of principle 1 writes the value that way.
 3. Nothing invisible. Control flow, communication, and failure are visible in the code or in the type. A top-level binding is visible when its name appears at the use site.
 4. Simple to parse: recursive descent, first-token dispatch, small bounded lookahead where the grammar demands it, no backtracking.
 5. Small: few concepts, few primitives, few reserved words.
