@@ -32,7 +32,7 @@ The syntax does not change. The rules below lift one restriction, add one, and g
 
 The sketch is three files.
 
-`set.ern` shows only what the proposal adds to `Set`: the record type, `Set`'s record, two generic functions, and `Set.union`, now a call of the generic one.
+[`set.ern`](../stdlib/set.ern) shows only what the proposal adds to `Set`: the record type, `Set`'s record, two generic functions, and `Set.union`, now a call of the generic one.
 
 ```ernest
 export type Operations(s, e) =
