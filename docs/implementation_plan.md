@@ -13,7 +13,7 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
-**MVP 2.98 is done, and the first release, MVP 2.99, is next.** The decision on how code
+**MVP 2.99 is under way**: a restart begins afresh, and then the first release. The decision on how code
 written once works over several representations, which [`operations.md`](operations.md)
 weighs, is taken in MVP 2.99b, after the first release (2026-09-29). Every earlier milestone
 is done, the last MVP 2.98 on 2026-09-30; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were
@@ -38,7 +38,7 @@ taken out of order. Each has its paragraph under "Done".
 | MVP 2.95 | manual pages, an installation, the review | done 2026-09-28 |
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.98 | what the first review left | done 2026-09-30 |
-| MVP 2.99 | the first release | |
+| MVP 2.99 | a restart begins afresh, and the first release | |
 | MVP 2.99b | operations records: `Set`'s record and an ordered set | the decision first (`operations.md`) |
 | MVP 2.99c | running as a service | |
 | MVP 3.0 | peers: distributed code and the node protocol | |
@@ -49,7 +49,7 @@ taken out of order. Each has its paragraph under "Done".
 
 ---
 
-## MVP 2.99 (the first release), about a day
+## MVP 2.99 (the first release), about three days
 
 The first release, placed here on 2026-09-28 (the log's *The First Release Follows MVP 2.99*):
 Ernest for programs on one node, for other programmers to install and use, decided 2026-09-27
@@ -57,11 +57,20 @@ Ernest for programs on one node, for other programmers to install and use, decid
 2.98. Running as a service is MVP 2.99c's, after it (2026-09-29, the log's *Running as a Service
 After the First Release*).
 
-[`review.md`](review.md) runs on the code as it is then; `VERSION` is set to the release's
-version before the tag; `ern(1)` is given the sections man-pages(7) names, SYNOPSIS, OPTIONS
-and EXIT STATUS among them, where it is §11 rendered as it stands (`findings.md`'s T31,
-2026-09-29); and the release is tagged with its notes, the archive published beside it, where
-the README then says to download it.
+1. **A restart is a new run in all but its address** (language feedback 68, decided with the
+   user and done 2026-09-30; §6.9, §8.2, E.15, E.21, E.22; the log's *A Restart Begins
+   Afresh*): at a restart the runtime empties the mailbox and cancels what the process asked
+   of it, its alarms, its monitors and its subscriptions, deliveries under way to it among
+   them, so that a call the restart ended was not done, unless its request was still on its
+   way; and `Supervisor.group` spawns the process that keeps its children when it is called,
+   since a supervisor restarted in place found it through its mailbox. It came before the
+   review, since it changes what programs observe.
+2. **The release.** [`review.md`](review.md) runs on the code as it is then; `VERSION` is set
+   to the release's version before the tag; `ern(1)` is given the sections man-pages(7)
+   names, SYNOPSIS, OPTIONS and EXIT STATUS among them, where it is §11 rendered as it stands
+   (`findings.md`'s T31, 2026-09-29); and the release is tagged with its notes, the archive
+   `make release` writes, `build/release/ern-VERSION.tar.gz`, published beside it, where the
+   README then says to download it.
 
 ---
 

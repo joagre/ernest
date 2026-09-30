@@ -66,7 +66,10 @@ refusing() ->
                 false -> ern_rt:answer(Reply, {'Left', 'NotATerminal'})
             end;
         {'Measure', Reply} ->
-            ern_rt:answer(Reply, optional(size_now()))
+            ern_rt:answer(Reply, optional(size_now()));
+        {new_run, Pid, Ref} ->
+            %% report §6.9: where nothing is subscribed, a restart ends nothing
+            Pid ! {Ref, fresh}
     end,
     refusing().
 
@@ -97,6 +100,11 @@ loop(Subscribers, Reader, Pending, Size) ->
         {'DOWN', _, process, Pid, _} ->
             %% report §8.2: a subscription ends when its process dies
             loop(unsubscribe(Pid, Subscribers, Reader), Reader, Pending, Size);
+        {new_run, Pid, Ref} ->
+            %% report §6.9: and when it restarts, with the keys on their way
+            Left = unsubscribe(Pid, Subscribers, Reader),
+            Pid ! {Ref, fresh},
+            loop(Left, Reader, Pending, Size);
         {'Measure', Reply} ->
             ern_rt:answer(Reply, optional(size_now())),
             loop(Subscribers, Reader, Pending, Size);
@@ -146,7 +154,7 @@ pause(Pending) ->
 deliver([], _) ->
     ok;
 deliver(Events, Subscribers) ->
-    lists:foreach(fun({_, Courier}) -> Courier ! {events, Events} end, Subscribers).
+    lists:foreach(fun({_, Courier, _}) -> Courier ! {events, Events} end, Subscribers).
 
 %% Report §8.2: one subscriber's keys, in order, its wrap applied here, so
 %% that a wrap that does not finish delays that subscriber's keys and no
@@ -169,20 +177,28 @@ courier(Address) ->
 subscribe(Address, Subscribers, Before, After) ->
     Pid = ern_rt:process_of(Address),
     case lists:keyfind(Pid, 1, Subscribers) of
-        {Pid, Courier} ->
+        {Pid, Courier, _} ->
             Courier ! {to, Address},
             Subscribers;
         false ->
-            erlang:monitor(process, Pid),
+            Watch = erlang:monitor(process, Pid),
             Subscribers =:= [] andalso running(Before) andalso After =/= closed
                 andalso ern_rt:source_begin(),
-            [{Pid, erlang:spawn_link(fun() -> courier(Address) end)} | Subscribers]
+            [{Pid, erlang:spawn_link(fun() -> courier(Address) end), Watch} | Subscribers]
     end.
 
+%% The subscription of Pid, its courier ended and waited for, so that no
+%% key it carried arrives after, and its watch of Pid with it.
 unsubscribe(Pid, Subscribers, Reader) ->
     case lists:keyfind(Pid, 1, Subscribers) of
-        {Pid, Courier} -> erlang:unlink(Courier), exit(Courier, kill);
-        false -> ok
+        {Pid, Courier, Watch} ->
+            erlang:demonitor(Watch, [flush]),
+            Ended = erlang:monitor(process, Courier),
+            erlang:unlink(Courier),
+            exit(Courier, kill),
+            receive {'DOWN', Ended, process, Courier, _} -> ok end;
+        false ->
+            ok
     end,
     Left = lists:keydelete(Pid, 1, Subscribers),
     Left =:= [] andalso Subscribers =/= [] andalso Reader =/= closed

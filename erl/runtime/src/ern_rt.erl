@@ -411,6 +411,15 @@ reaper_loop(Waiters, Watching, Watched) ->
         {report, Pid, Site, Fault} ->
             report(Pid, Site, Fault, true),
             reaper_loop(Waiters, Watching, Watched);
+        {new_run, Pid, Ref} ->
+            %% report §6.9: a restarted process's waits and its subscription
+            %% to faults are cancelled, with what is on its way to it; the
+            %% waits on it stand, since a restart is not a death
+            ets:delete(?FAULTS, Pid),
+            {Waiters1, Watched1} = unwatched(Pid, maps:get(Pid, Watching, []), Waiters, Watched),
+            cancelled(Pid),
+            Pid ! {Ref, fresh},
+            reaper_loop(Waiters1, maps:remove(Pid, Watching), Watched1);
         {end_program, From, Ref} ->
             ended_program(From, Ref);
         {'DOWN', _MRef, process, Pid, Reason} ->
@@ -515,15 +524,38 @@ unwatched(To, [Pid | Rest], Waiters, Watched) ->
 %% other delivery. The message counts as a source until it is delivered
 %% (§8.6). Linked, so that one that never finishes ends with the program.
 wrapped(To, Wrap, Msg) ->
-    counted_link(fun() -> deliver({via, Wrap, To}, Msg) end).
+    counted_link(To, fun() -> deliver({via, Wrap, To}, Msg) end).
 
-%% Report §8.6: a process that will deliver a message, counted as a source
-%% from before it starts until its work is done, and linked, so that one
-%% that never finishes ends with the process that started it.
-counted_link(Work) ->
-    Pid = erlang:spawn_link(fun() -> receive go -> Work(), source_end() end end),
+%% Report §8.6: a process that will deliver a message to the process behind
+%% To, counted as a source from before it starts until its work is done,
+%% and linked, so that one that never finishes ends with the process that
+%% started it. Report §6.9: it is noted against its target and the process
+%% that started it, which ends it when the target restarts (cancelled/1).
+counted_link(To, Work) ->
+    Target = process_of(To),
+    Pid = erlang:spawn_link(fun() -> receive go -> Work(), delivered() end end),
+    try ets:insert(?HELD, {{delivering, Pid}, Target, erlang:self()}) catch _:_ -> true end,
     source_begin(Pid),
     Pid ! go.
+
+delivered() ->
+    try ets:delete(?HELD, {delivering, erlang:self()}) catch _:_ -> true end,
+    source_end().
+
+%% Report §6.9: the deliveries this process started to Target, ended when
+%% Target restarts, each waited for, so that none reaches the new run.
+cancelled(Target) ->
+    Mine = try ets:match(?HELD, {{delivering, '$1'}, Target, erlang:self()})
+           catch _:_ -> []
+           end,
+    lists:foreach(fun([Pid]) ->
+                      MRef = erlang:monitor(process, Pid),
+                      erlang:unlink(Pid),
+                      exit(Pid, kill),
+                      receive {'DOWN', MRef, process, Pid, _} -> ok end,
+                      ets:delete(?HELD, {delivering, Pid}),
+                      ets:delete(?HELD, {source, Pid})
+                  end, Mine).
 
 %% The live processes the runtime started with their spawn sites, which
 %% the shell's :reload reads to find what still runs a module.
@@ -597,7 +629,7 @@ report(Pid, Site, Fault, Restarted) ->
         Reporter -> Reporter(Report)
     end,
     Subscribers = [To || {_, To} <- ets_match(?FAULTS, '_')],
-    lists:foreach(fun(To) -> counted_link(fun() -> deliver(To, Report) end) end, Subscribers).
+    lists:foreach(fun(To) -> counted_link(To, fun() -> deliver(To, Report) end) end, Subscribers).
 
 %% The live processes' rows, each its pid, its spawn site, the counts of its
 %% timed waits and of its foreign calls in progress, and its spawn number.
@@ -1214,45 +1246,63 @@ fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 %% Clock's messages, report Appendix E.15: After(ms, reply, to), At(at,
 %% reply, to), and Now(reply). Alarms are delivered through the clock
 %% itself, so each is counted as a source while it is pending (report
-%% §8.6).
-clock_loop() ->
+%% §8.6). Alarms holds each pending alarm by its timer, its deadline, where
+%% it goes and the process behind that, so that a restart of that process
+%% cancels it (report §6.9).
+clock_loop(Alarms) ->
     receive
         %% an alarm is answered once it is counted, so that the caller
         %% goes on waiting only on what is counted (report §8.6)
         {'After', Ms, Reply, To} ->
             source_begin(),
-            arm(deadline(Ms), To),
+            Alarms1 = armed(deadline(Ms), To, Alarms),
             answer(Reply, ?UNIT),
-            clock_loop();
+            clock_loop(Alarms1);
         {'At', At, Reply, To} ->
             source_begin(),
-            arm(deadline(At - erlang:system_time(millisecond)), To),
+            Alarms1 = armed(deadline(At - erlang:system_time(millisecond)), To, Alarms),
             answer(Reply, ?UNIT),
-            clock_loop();
-        {fire, Deadline, To} ->
-            case remaining(Deadline) of
-                0 ->
-                    %% report §6.5, E.15: the alarm's target may be an
-                    %% address seen through a function, and it is sent the
-                    %% time it fired, from a process of its own, so that a
-                    %% function that does not finish holds up no other
-                    %% alarm; the alarm is a source until it is delivered
-                    Now = erlang:system_time(millisecond),
-                    counted_link(fun() -> deliver(To, Now) end),
-                    source_end();
-                _ ->
-                    arm(Deadline, To)
-            end,
-            clock_loop();
+            clock_loop(Alarms1);
+        {timeout, Timer, fire} ->
+            case maps:take(Timer, Alarms) of
+                {{Deadline, To, _}, Rest} ->
+                    case remaining(Deadline) of
+                        0 ->
+                            %% report §6.5, E.15: the alarm's target may be an
+                            %% address seen through a function, and it is sent
+                            %% the time it fired, from a process of its own, so
+                            %% that a function that does not finish holds up no
+                            %% other alarm; the alarm is a source until it is
+                            %% delivered
+                            Now = erlang:system_time(millisecond),
+                            counted_link(To, fun() -> deliver(To, Now) end),
+                            source_end(),
+                            clock_loop(Rest);
+                        _ ->
+                            clock_loop(armed(Deadline, To, Rest))
+                    end;
+                error ->
+                    %% cancelled by a restart as it fired
+                    clock_loop(Alarms)
+            end;
         {'Now', Reply} ->
             answer(Reply, erlang:system_time(millisecond)),
-            clock_loop()
+            clock_loop(Alarms);
+        {new_run, Pid, Ref} ->
+            %% report §6.9: a restart cancels the process's alarms, and those
+            %% on their way to it
+            Timers = [Timer || Timer := {_, _, Target} <- Alarms, Target =:= Pid],
+            lists:foreach(fun(Timer) -> erlang:cancel_timer(Timer), source_end() end, Timers),
+            cancelled(Pid),
+            Pid ! {Ref, fresh},
+            clock_loop(maps:without(Timers, Alarms))
     end.
 
 %% Appendix E.0 rule 8: a time has no upper bound, and the host's timers
 %% have one, so an alarm is set again until its deadline has passed.
-arm(Deadline, To) ->
-    erlang:send_after(remaining(Deadline), erlang:self(), {fire, Deadline, To}).
+armed(Deadline, To, Alarms) ->
+    Timer = erlang:start_timer(remaining(Deadline), erlang:self(), fire),
+    Alarms#{Timer => {Deadline, To, process_of(To)}}.
 
 %%
 %% Report §8.1, §8.6: the launcher
@@ -1322,7 +1372,7 @@ run_main(Main, Site, Opts) ->
               {terminal, erlang:spawn(fun() -> ern_tty:loop(Keys, KeysCome) end)},
               {tcp, erlang:spawn(fun ern_tcp:loop/0)},
               {os, erlang:spawn(fun ern_os:loop/0)},
-              {clock, erlang:spawn(fun clock_loop/0)}],
+              {clock, erlang:spawn(fun() -> clock_loop(#{}) end)}],
     lists:foreach(fun({Name, Pid}) -> persistent_term:put({?MODULE, Name}, Pid) end, System),
     try
         %% report §8.5: the initializers, the standard library's first, run
@@ -1576,6 +1626,7 @@ restarts(F, Limit, Times, Level) ->
             %% no limit, and is not reported; the calls waiting on the
             %% process end as at a fault
             put('$ern_start', 'Asked'),
+            fresh_run(),
             restarted(<<"callee was restarted">>),
             restarts(F, Limit, Times, Level);
         throw:'$ern_restart' ->
@@ -1587,6 +1638,7 @@ restarts(F, Limit, Times, Level) ->
                     %% report §11.2: a fault after which the process
                     %% restarts is reported as one
                     persistent_term:get({?MODULE, reaper}) ! {report, erlang:self(), site(), Fault},
+                    fresh_run(),
                     restarted(element(3, Fault)),
                     Level =:= outer andalso put('$ern_start', 'AfterFault'),
                     restarts(F, Limit, Recent, Level);
@@ -1595,6 +1647,28 @@ restarts(F, Limit, Times, Level) ->
                     %% process with, its stack beside it where it had one
                     throw(Fault)
             end
+    end.
+
+%% Report §6.9: a restart begins a new run with nothing of the old. What
+%% the process asked the runtime for is cancelled, with what is on its way
+%% to it: its waits and its subscription to faults by the reaper, its
+%% alarms by the clock, its keys by the terminal; then its mailbox is
+%% emptied, before the calls waiting on it are told they have ended, so
+%% that the request of an ended call is not taken by the new run.
+fresh_run() ->
+    Self = erlang:self(),
+    lists:foreach(fun(Service) ->
+                      Ref = make_ref(),
+                      Service ! {new_run, Self, Ref},
+                      receive {Ref, fresh} -> ok end
+                  end,
+                  [persistent_term:get({?MODULE, reaper}), sys(clock), sys(terminal)]),
+    emptied().
+
+emptied() ->
+    receive
+        _ -> emptied()
+    after 0 -> ok
     end.
 
 %% Report §6.9: whether a fault now is restarted, and the times of the

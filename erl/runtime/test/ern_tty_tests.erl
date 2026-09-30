@@ -177,6 +177,36 @@ couriers_test() ->
 
 %% A terminal at which nothing is typed, so that a test's keys are the ones
 %% it sends the terminal's process itself.
+%% report §6.9, §8.2: a restart ends the process's subscription to the
+%% terminal, so a key typed in the new run does not reach it. A regression
+%% test: the subscription stood, and the key arrived
+restart_ends_subscription_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Tty = ern_rt:sys(terminal),
+               Main = erlang:self(),
+               Run = fun() ->
+                         case get(ran) of
+                             undefined ->
+                                 put(ran, true),
+                                 subscribe(Tty),
+                                 error(crash);
+                             true ->
+                                 Tty ! {chars, "a"},
+                                 ern_rt:timed(),
+                                 Got = receive K -> K after 300 -> none end,
+                                 ern_rt:untimed(),
+                                 Main ! {got, Got}
+                         end
+                     end,
+               _ = ern_rt:spawn('Local', ern_rt:restarting({'RestartLimit', 1, 60000}, Run),
+                                <<"worker">>),
+               receive {got, Got} -> Me ! {got, Got} end
+           end, <<"main">>,
+           #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end, keys => fun silent/0}),
+    ?assertEqual(none, wait(got)).
+
 silent() ->
     receive after infinity -> eof end.
 

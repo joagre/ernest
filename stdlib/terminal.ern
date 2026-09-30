@@ -76,7 +76,8 @@ foreign fn system(name : Foreign) : Address(Msg) with m =
 /// or with `Left(Io.NotATerminal)` where standard input is not a terminal,
 /// claiming nothing, so that the program can read lines instead. A process
 /// holds one subscription: a second call replaces the first, and the keys
-/// come wrapped the new way from then on. The terminal applies each
+/// come wrapped the new way from then on. A subscription ends when its
+/// process dies or restarts (report §6.9). The terminal applies each
 /// subscriber's wrap itself, in order, so a wrap that does not finish
 /// delays that subscriber's keys and no other's.
 export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) with m = {

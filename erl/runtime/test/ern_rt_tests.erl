@@ -812,8 +812,10 @@ subscribe(Tty) ->
 %% report §6.9, Appendix E.22: a process that is not restarting is never
 %% asked, nor is one that has ended; a restarting one restarts at its wait,
 %% the cause of its new start `Asked`, and the time it restarted is not
-%% counted against its limit. A regression test, written after the code; it
-%% does not cover a process that computes without waiting, which is never
+%% counted against its limit. Two asks made before it takes either restart
+%% it once, the second emptied with its mailbox, and an ask after that
+%% restarts it again. A regression test, written after the code; it does
+%% not cover a process that computes without waiting, which is never
 %% restarted and so shows nothing to wait for
 ask_restart_test() ->
     Me = self(),
@@ -835,6 +837,8 @@ ask_restart_test() ->
                ern_rt:ask_restart(ern_rt:process_of(Child)),
                ern_rt:ask_restart(ern_rt:process_of(Child)),
                nap(),
+               ern_rt:ask_restart(ern_rt:process_of(Child)),
+               nap(),
                Me ! {plain, ern_rt:info(ern_rt:process_of(Plain)) =/= 'None'},
                ern_rt:kill(Child),
                nap(),
@@ -843,6 +847,7 @@ ask_restart_test() ->
            end, <<"main">>, #{}),
     Started = [receive {started, S} -> S after 1000 -> timeout end || _ <- [1, 2, 3]],
     ?assertEqual(['First', 'Asked', 'Asked'], Started),
+    ?assertEqual(none, receive {started, More} -> More after 200 -> none end),
     ?assertEqual(true, receive {plain, P} -> P after 1000 -> timeout end),
     ?assertEqual('Unit', receive {ended, E} -> E after 1000 -> timeout end).
 

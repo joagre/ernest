@@ -445,9 +445,10 @@ values() ->
      {[restarting], "(RestartLimit, () -> Unit with n) -> () -> Unit with n",
       <<"""
       A function that runs `f()` and, when `f` faults, runs it again in the
-      same process: the process keeps its address and its mailbox, the
-      message being handled is lost, and every call waiting for its answer
-      ends (report §6.9). A restart is not a death; no `monitor` is told.
+      same process: the process keeps its address, its mailbox is emptied,
+      every call waiting for its answer ends, and what the process asked the
+      runtime for, its alarms, monitors and subscriptions, is cancelled
+      (report §6.9). A restart is not a death; no `monitor` is told.
 
       ### Errors
 

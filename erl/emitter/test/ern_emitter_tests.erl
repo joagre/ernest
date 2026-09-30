@@ -5,6 +5,17 @@
          ask_junk/1, ask_good/1, reaper_words/0]).
 
 -include_lib("eunit/include/eunit.hrl").
+
+%% A program's `up(s)`: true once the restarting process `s` answers, its
+%% new run begun, and false once it has ended. A message sent before a
+%% restart is lost with the mailbox (report §6.9), so a test that restarts
+%% a process sends it the next message only after this.
+-define(UP,
+        "fn up(s : Address(Msg)) : Bool with m =\n"
+        "    match Address.call(s, fn(r) = Ping(reply = r), 1000) {\n"
+        "        Some(_) -> true\n"
+        "      | None -> Process.info(Process.fromAddress(s)) != None && up(s)\n"
+        "    }\n").
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("utils/include/ern_diag.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -716,18 +727,24 @@ restart_keeps_address_test() ->
 %% the test could not do before (findings.md's C38)
 restart_limit_test() ->
     Program = fun(Restarts) ->
-        "type Msg = Crash\n"
+        "type Msg = Crash | Ping(reply : Reply(Unit))\n"
         "type MainMsg = Died(Down)\n"
-        "fn loop(n : Int) : Unit with Msg = receive { Crash -> fault(Int.toString(n)) }\n"
+        "fn loop(n : Int) : Unit with Msg =\n"
+        "    receive {\n"
+        "        Crash -> fault(Int.toString(n))\n"
+        "      | Ping(reply = r) -> { answer(r, Unit); loop(n) }\n"
+        "    }\n"
         "fn count() : Unit with Msg = {\n"
         "    Io.println(\"start\");\n"
         "    loop(1)\n"
         "}\n"
+        ++ ?UP ++
         "export fn main() : Unit with MainMsg = {\n"
         "    let limit = RestartLimit(restarts = " ++ Restarts ++ ", within = 60000);\n"
         "    let s = spawnMonitored(Local, restarting(limit, count), Died);\n"
+        "    let _ = up(s);\n"
         "    send(s, Crash);\n"
-        "    send(s, Crash);\n"
+        "    if up(s) then send(s, Crash) else Unit;\n"
         "    receive {\n"
         "        Died(Down(reason = Fault(c), site = _)) -> Io.println(\"ended \" <> c)\n"
         "      | Died(_) -> Io.println(\"other\")\n"
@@ -747,21 +764,97 @@ restart_unlimited_test_() ->
     {timeout, 30, fun restart_unlimited/0}.
 
 restart_unlimited() ->
-    Program = fun(Limit, Body) ->
-        "type Msg = Crash | Stop\n"
+    Program = fun(Limit, Body, Crashes) ->
+        "type Msg = Crash | Stop | Ping(reply : Reply(Unit))\n"
         "type MainMsg = Died(Down)\n"
-        "fn loop() : Unit with Msg = receive { Crash -> fault(\"crash\") | Stop -> Unit }\n"
+        "fn loop() : Unit with Msg =\n"
+        "    receive {\n"
+        "        Crash -> fault(\"crash\")\n"
+        "      | Stop -> Unit\n"
+        "      | Ping(reply = r) -> { answer(r, Unit); loop() }\n"
+        "    }\n"
         "fn boom() : Unit with Msg = fault(\"boom\")\n"
+        ++ ?UP ++
+        "fn crash(s : Address(Msg), left : Int) : Unit with m =\n"
+        "    if left == 0 || !up(s) then Unit else { send(s, Crash); crash(s, left - 1) }\n"
         "export fn main() : Unit with MainMsg = {\n"
         "    let s = spawnMonitored(Local, restarting(" ++ Limit ++ ", " ++ Body ++ "), Died);\n"
-        "    List.foreach(List.range(1, 50), fn(_) = send(s, Crash));\n"
-        "    send(s, Stop);\n"
+        "    crash(s, " ++ Crashes ++ ");\n"
+        "    if up(s) then send(s, Stop) else Unit;\n"
         "    receive { Died(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
         "}\n"
     end,
-    ?assertEqual({ok, <<"Returned\n">>}, run(Program("Unlimited", "loop"))),
+    ?assertEqual({ok, <<"Returned\n">>}, run(Program("Unlimited", "loop", "50"))),
     ?assertEqual({ok, <<"Fault(\"boom\")\n">>},
-                 run(Program("RestartLimit(restarts = 3, within = 0)", "boom"))).
+                 run(Program("RestartLimit(restarts = 3, within = 0)", "boom", "0"))).
+
+%% report §6.9, §6.6: a restart empties the mailbox, so a plain send and
+%% the request of a call the restart ended, both waiting there as the
+%% process faulted, are not taken by the new run: the ended call was not
+%% done. A regression test: the new run took both, and the total was 6
+restart_empties_the_mailbox_test() ->
+    {ok, Out} = run(
+        "type Msg = Add(n : Int, reply : Reply(Int)) | Total(reply : Reply(Int)) | Plain(Int)"
+        " | Busy\n"
+        "fn count(total : Int) : Unit with Msg =\n"
+        "    receive {\n"
+        "        Add(n = n, reply = r) -> { answer(r, total + n); count(total + n) }\n"
+        "      | Total(reply = r) -> { answer(r, total); count(total) }\n"
+        "      | Plain(n) -> count(total + n)\n"
+        "      | Busy -> { spin(Clock.monotonic() + 200); fault(\"busy\") }\n"
+        "    }\n"
+        "fn spin(until : Int) : Unit with m =\n"
+        "    if Clock.monotonic() >= until then Unit else spin(until)\n"
+        "export fn main() : Unit with Never = {\n"
+        "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
+        "    let s = spawn(Local, restarting(limit, fn() = count(0)));\n"
+        "    send(s, Busy);\n"
+        "    send(s, Plain(5));\n"
+        "    Io.println(Io.show(Address.call(s, fn(r) = Add(n = 1, reply = r), 2000)));\n"
+        "    Io.println(Int.toString(Address.callForever(s, fn(r) = Total(reply = r))))\n"
+        "}\n"),
+    ?assertEqual(<<"None\n0\n">>, Out).
+
+%% report §6.9, Appendix E.15, E.21: a restart cancels the process's alarm,
+%% its monitor and its subscription to faults, so the new run hears nothing
+%% of what the old one asked for. A regression test: the alarm, the Down
+%% and the fault reached the new run
+restart_cancels_what_it_asked_for_test_() ->
+    {timeout, 30, fun restart_cancels_what_it_asked_for/0}.
+
+restart_cancels_what_it_asked_for() ->
+    Program = fun(Ask, After) ->
+        "type Msg = Heard | Ask(Address(Int)) | Crash | Ping(reply : Reply(Unit))"
+        " | Count(reply : Reply(Int))\n"
+        "fn loop(n : Int) : Unit with Msg =\n"
+        "    receive {\n"
+        "        Heard -> loop(n + 1)\n"
+        "      | Ask(other) -> { " ++ Ask ++ "; loop(n) }\n"
+        "      | Crash -> fault(\"crash\")\n"
+        "      | Ping(reply = r) -> { answer(r, Unit); loop(n) }\n"
+        "      | Count(reply = r) -> { answer(r, n); loop(n) }\n"
+        "    }\n"
+        ++ ?UP ++
+        "export fn main() : Unit with Never = {\n"
+        "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
+        "    let s = spawn(Local, restarting(limit, fn() = loop(0)));\n"
+        "    let other = spawn(Local, fn() : Unit with Int = receive { _ -> Unit });\n"
+        "    send(s, Ask(other));\n"
+        "    send(s, Crash);\n"
+        "    let _ = up(s);\n"
+        "    " ++ After ++ ";\n"
+        "    receive { after 300 -> Unit };\n"
+        "    Io.println(Int.toString(Address.callForever(s, fn(r) = Count(reply = r))))\n"
+        "}\n"
+    end,
+    %% an alarm set by the old run
+    ?assertEqual({ok, <<"0\n">>}, run(Program("Clock.alarm(100, fn(_) = Heard)", "Unit"))),
+    %% a monitor made by the old run, of a process killed after the restart
+    ?assertEqual({ok, <<"0\n">>}, run(Program("monitor(other, fn(_) = Heard)", "kill(other)"))),
+    %% a subscription to faults, and a fault after the restart
+    ?assertEqual({ok, <<"0\n">>},
+                 run(Program("Process.faults(fn(_) = Heard)",
+                             "let _ = spawn(Local, fn() : Unit with Never = fault(\"other\"))"))).
 
 %% Appendix E.22, report §6.9: a child's fault is counted by its supervisor
 %% before the child runs again, so a limit of two restarts lets the child
@@ -2344,6 +2437,20 @@ limit_reports_only_real_faults_test() ->
         "}\n"),
     ?assertEqual(<<"division by zero; division by zero; supervisor restart limit reached\n">>,
                  Out).
+
+%% Appendix E.22: one process runs a group's function, and a second that
+%% runs it faults, since the process that keeps the group's children is
+%% the function's. Written with the rule (report §6.9's emptied mailbox)
+group_runs_in_one_process_test() ->
+    {ok, Out} = run(
+        "type MainMsg = Died(Down)\n"
+        "export fn main() : Unit with MainMsg = {\n"
+        "    let g = Supervisor.group(Supervisor.OneForOne, Unlimited);\n"
+        "    let _ = spawnMonitored(Local, g, Died);\n"
+        "    let _ = spawnMonitored(Local, g, Died);\n"
+        "    receive { Died(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
+        "}\n"),
+    ?assertEqual(<<"Fault(\"a group runs in one process\")\n">>, Out).
 
 %% Appendix E.22: a supervisor that its parent restarts asks its own
 %% children to restart, so a subtree restarts with its root. A regression
