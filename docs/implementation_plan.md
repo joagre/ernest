@@ -279,24 +279,27 @@ The core language argued sound and generated against, before peers build on it, 
 from MVP 3.9 on 2026-10-01 (the log's *The Language Argued Before Peers*). After MVP 2.99b,
 since the review's phase 5 and the operations records are the last changes to the type system
 on one node, and before MVP 3.0, whose code shipping and type identity extend the argument
-rather than begin it.
+rather than begin it. The machines first, cheapest first, since each finds concrete defects
+in a day or two, and the argument last, written over a parser and a checker the machines have
+shaken (reordered 2026-10-01).
 
-1. **The type system argued.** A written argument that a well-typed program does not go wrong:
-   the core calculus, then effects and mailbox types, the reply discipline's linearity as §6.6
-   now states it, naming no type, and where rules meet, generalization against effects, a pure
-   function standing for one with a mailbox, a reply captured by a lambda, an operator resolved
-   where its operand's type is known. Where it cannot be made, that is a finding; a model a
-   machine checks follows only if the argument meets a rule it cannot settle.
+1. **The grammar generated against.** A thousand programs generated from Appendix A as round 2
+   leaves it, reaching every alternative, parsed, and each near miss refused with a diagnostic
+   (the log's *Enough Coherence*). A machine of `make test`.
 2. **Well-typed programs generated.** Programs generated to type-check run under the runtime and
    end by returning, by a cause of §7.4, or by a deadlock; a host error that is none of those is
    a finding in the checker or the runtime. A machine of `make test` once it runs in its time.
-3. **The grammar generated against.** A thousand programs generated from Appendix A, reaching
-   every alternative, parsed, and each near miss refused with a diagnostic (the log's *Enough
-   Coherence*). A machine of `make test`.
-4. **The standard library's laws as properties**, generated against each module's contract:
-   `String.split` then `String.join` gives the string back, `List.sort` is stable, a search
-   matches whole graphemes, and the rest its sections and doc blocks state. A machine of
-   `make test`, a module at a time.
+3. **The standard library's laws as properties**, generated against each module's contract as
+   round 2 leaves it: `String.split` then `String.join` gives the string back, `List.sort` is
+   stable, a search matches whole graphemes, and the rest its sections and doc blocks state. A
+   machine of `make test`, a module at a time.
+4. **The type system argued.** A written argument that a well-typed program does not go wrong:
+   the core calculus, then effects and mailbox types, the reply discipline's linearity as §6.6
+   now states it, naming no type and a list element among the places a reply stands, and where
+   rules meet, generalization against effects, a pure function standing for one with a mailbox,
+   a reply captured by a lambda, an operator resolved where its operand's type is known and
+   carrying nothing hidden. Where it cannot be made, that is a finding; a model a machine
+   checks follows only if the argument meets a rule it cannot settle.
 
 ---
 
