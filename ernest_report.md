@@ -329,7 +329,7 @@ export fn size(Stack(xs)) =
     List.size(xs)
 ```
 
-External callers see `Main.Stack`, `Main.Stack.empty`, `Main.Stack.push`, `Main.Stack.pop`, and `Main.size`; `Stack(...)` is refused outside `main.ern`. A module may declare several abstract types.
+External callers see `Main.Stack`, `Main.Stack.empty`, `Main.Stack.push`, `Main.Stack.pop`, and `Main.size`; `Stack(...)` is refused outside `main.ern`. A module may declare several abstract types. Outside its module, `Io.show` writes a value of an abstract type as `<abstract>`, and, through a type variable, by its representation, its constructor included (Appendix E.1).
 
 ### 4.5 Functions
 

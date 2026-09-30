@@ -527,6 +527,26 @@ type_member_across_modules_test() ->
     %% report Appendix E.1: an abstract value outside its module
     ?assertEqual(<<"1\n#(<abstract>, 2)\n">>, iolist_to_binary(?capturedOutput)).
 
+%% report §4.4, Appendix E.1: outside its module an abstract value is shown as
+%% `<abstract>`, and through a type variable by its representation, its
+%% constructor included, until a generic function takes its caller's
+%% description of the type (MVP 2.99b's item 13). A regression test of what
+%% the report states
+abstract_through_type_variable_test() ->
+    Dir = tmp(),
+    write(Dir, "src/lib/stack.ern",
+          "export abstract type Stack(a) = Stack(List(a))\n"
+          "export let Stack.one : Stack(Int) = Stack([1])\n"),
+    write(Dir, "src/main.ern",
+          "fn shown(x : a) : String = Io.show(x)\n\n"
+          "export fn main() : Unit with Never = {\n"
+          "    Io.println(Io.show(Lib.Stack.Stack.one));\n"
+          "    Io.println(shown(Lib.Stack.Stack.one))\n"
+          "}\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"<abstract>\nStack([1])\n">>, iolist_to_binary(?capturedOutput)).
+
 %% report §4.2: a module may not take a prelude namespace
 prelude_namespace_test() ->
     Dir = tmp(),

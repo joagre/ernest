@@ -195,7 +195,8 @@ renamed over it, then the guide, and the soak last.
     2026-09-30). It is built on item 12's hidden argument, about a day, right after it; if
     item 4 refuses the ordering restriction, the choice returns to the user. Until then
     Appendix E.1 states what the code does: through a type variable, a value is written by its
-    representation.
+    representation, and §4.4 says so of an abstract type's value, a sentence this item removes
+    (`findings.md`'s R-1, decided with the user 2026-09-30).
 14. **Names that read, in Ernest**: the standard library, the shell, the libraries and the
     examples, read and renamed as item 6 renames the Erlang, a type, a constructor and a field
     among the names, the glossary corrected as it goes and each name that differs from the
