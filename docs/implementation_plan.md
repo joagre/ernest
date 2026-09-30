@@ -247,7 +247,9 @@ library function of its kind answers `Left` with the cause (§6.6, §7.2, §9.5)
 builders write a published specification, ECMA-48, in a standard library module (E.16);
 `Optional.orElse`, `Either.orElse` and `Char.isAsciiDigit` stand though no rule admits them;
 and `Udp` waits on a count (Appendix E, the log's *`Clock.monotonic` Is In, and `Udp` Is
-Placed*).
+Placed*). Under §8.2's *Text from the host* of 2026-10-01, `Fs.list` leaves out an
+entry whose name is not UTF-8 and `Os.environment` a variable whose name or value is not
+(E.17, E.23).
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is
