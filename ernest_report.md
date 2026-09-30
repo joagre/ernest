@@ -1,6 +1,6 @@
 # Ernest: Language Report
 
-Revision of 30 September 2026. Rationale and rejected alternatives are in [`decisions.md`](docs/decisions.md), and the decisions still to be made in [`implementation_plan.md`](docs/implementation_plan.md).
+Revision of 1 October 2026. Rationale and rejected alternatives are in [`decisions.md`](docs/decisions.md), and the decisions still to be made in [`implementation_plan.md`](docs/implementation_plan.md).
 
 **Contents**
 <!-- contents -->
@@ -38,6 +38,8 @@ Five principles. Principles 2 to 5 are constructive; when following them yields 
 3. Nothing invisible. Control flow, communication, and failure are visible in the code or in the type. A top-level binding is visible when its name appears at the use site.
 4. Simple to parse: recursive descent, first-token dispatch, small bounded lookahead where the grammar demands it, no backtracking.
 5. Small: few concepts, few primitives, few reserved words.
+
+**The host.** Ernest runs on a host runtime (§10). A rule of the host is a rule of Ernest only where this report states it as Ernest's own. A host rule whose outcome the program sees, a value or a fault, is taken and stated. One whose outcome would be silent, a truncation, a coerced value, a fault made false, is met by a check on the value or a refusal of the form, and the cost of the check falls on that form alone. Where the report is silent, the runtime carries the host's rule without letting it show.
 
 ## 1. Notation
 

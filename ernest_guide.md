@@ -2244,6 +2244,8 @@ Report §0 gives five principles, and the rules of the guide follow from them.
 4. **Simple to parse.** Each construct is known by its first token, or by a later one a bounded way ahead, so a reader, like the parser, never has to look far.
 5. **Small.** Few concepts, few primitives, few reserved words.
 
+§0 also says how Ernest stands to the runtime beneath it: a rule of the host is Ernest's only where the report states it as Ernest's own, and where the report is silent the runtime carries the host's rule without letting it show.
+
 Principle 3 turns an omission into a statement. Exhaustiveness makes you say what every constructor does; `let _ = e` says a value is dropped on purpose; the reply discipline says where each `Reply` is consumed; `export` says what crosses a module's boundary; `with` says a function acts through a process; a qualified name says which module a name comes from. Several of these tell the compiler nothing it could not work out for itself. What they add is that the decision is written down, where a reader meets it. It is programming on purpose, to borrow P. J. Plauger's phrase for designing deliberately rather than by accident; his subject is software design as a whole, broader than these rules (*Programming on Purpose: Essays on Software Design*, Prentice Hall, 1993).
 
 ## 12. Frequently asked questions
