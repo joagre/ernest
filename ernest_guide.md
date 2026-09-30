@@ -367,7 +367,7 @@ Person(age = 31, name = "Alice") : Person
 
 `older.age` reads one field. `..alice` copies the fields not listed, and `age = 31` overrides one. `..` works on a type with one constructor, since the value might otherwise have been built by another. `alice` is unchanged; `older` is a second `Person` value. Ernest uses `:` for types (`name : String`, and a function's result, `fn age() : Int`) and `=` for values (`name = "Alice"`); `->` stands in a function type, `(Int) -> Int`.
 
-The fields may be given in any order, and are evaluated in the order written. The shell prints them in the order of their names.
+The fields may be given in any order, and are evaluated in the order written; a value prints them in the order the type declares them.
 
 A type with several constructors has a field only where every constructor has it, with one type: in `type Shape = Dot(at : Point) | Circle(at : Point, radius : Int)`, `s.at` reads any shape's point, and `s.radius` is refused, since a `Dot` has none; a `match` reads it. An abstract type's fields are its own module's (§7.2).
 

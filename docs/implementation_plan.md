@@ -254,7 +254,9 @@ and lives until the program ends, and a program the runtime started cannot be gi
 E.23). Under §6.6's and §3.9's sentences of 2026-10-01, the checker refuses a reply as
 an element of `List`, `Map` or `Set` at `[]` and exempts those types' variables from the
 not-reply-carrying restriction, treats the name `fault` alone as a call that does not return,
-and prints a process-only variable without a mark (§11.5).
+and prints a process-only variable without a mark (§11.5). Under §3.5's declared order of 2026-10-01, the emitter's
+descriptors, `Io.show` and the ABI place named fields in the order of their names (§3.5, §8.4,
+Appendix E.1).
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is

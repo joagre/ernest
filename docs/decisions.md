@@ -5690,6 +5690,16 @@ What it decides. P1-1's hole closes by the general rule and W-5's waiter process
 
 Not taken: the ban kept and checked at `::`, `[x]`, `Map.put` and `Set.put`, which P1 offered as the other fix, since it keeps the waiter process and a rule the general one already decides; and marks writable in an annotation, which would make a second way of saying what inference says and put a restriction where a reader cannot check it against a body.
 
+## No Canonical Order, 2026-10-01
+
+The fourteenth sentence of the principles review, decided with the user. §3.5: a constructor's named fields are stored, transported and shown in their declared order, which is part of the type's identity, a construction and a pattern may give them in any order, and there is no canonical order. §8.4, §8.7, Appendix E.1 and the glossary follow.
+
+§3.5 had said the declaration order carries no meaning and placed named fields in lexicographic order of their names for storage, hashing and transport, so that §8.7's normalization could hash a definition whatever its order (*Content Hashing*). The order then showed where it was not meant to: `Io.show(S(z = 1, a = 2))` printed `S(a = 2, z = 1)`, the ABI tuple was `{'S', A, Z}` so a foreign author who wrote the declaration's order got the fields swapped, and the guide warned that the shell prints fields in the order of their names (the review's P1-11, P1-50, W-14). The reader predicts the declaration's order, as every language with records gives it. And the normal form bought nothing it was for: had storage followed the declaration while the hash sorted, two declarations of one type in different orders would hash alike and lay out differently, and a value shipped between them would be read wrong; so the order is normalized everywhere, which was the surprise, or nowhere, which makes it part of the type's identity and removes a concept from Appendix F.
+
+What it decides. `Io.show` and the ABI use the declared order, a `report` line the plan dates to the attack plan's phase 5, since the emitter's descriptors sort today. §8.7's hash keeps the declared order, which peers inherit when built. The guide's warning goes.
+
+Not taken: a normal form for the hash alone, which the principles reader proposed, since it splits identity from layout; and the canonical order kept with printing in declared order, which would leave the ABI's surprise.
+
 ## Erlang's Standard Library, Module by Module
 
 Where each user-facing OTP module stands, first read on 2026-09-18 (*The Erlang Standard Library, Read for Ernest*) and kept current since. What is not a row is OTP's own machinery, which Ernest's concepts or toolchain replace. What a module still waits for, and when, is the plan's.

@@ -212,7 +212,7 @@ type Optional(a) = None | Some(a)
 type Snapshot = Snapshot(dir : Path, seen : Map(Path, Int))
 ```
 
-Field names are unique within a constructor, and their declaration order carries no meaning. Positional and named fields are told apart by `:` after the first identifier in a declaration and by `=` in construction and patterns. For storage, hashing, and transport, named fields are placed in *canonical order*, lexicographic ASCII order of their names; field expressions are still evaluated in source order (§5.1).
+Field names are unique within a constructor. Their declaration order is the order in which a value's fields are stored, transported (§8.4), and shown (Appendix E.1), and is part of the type's identity (§8.7); a construction and a pattern may give them in any order, and field expressions are evaluated in source order (§5.1). There is no canonical order. Positional and named fields are told apart by `:` after the first identifier in a declaration and by `=` in construction and patterns.
 
 A named field is *selected* with `e.f`: the field `f` of the value `e`, `snapshot.seen`. A type has the selector `f` when every one of its constructors has a named field `f`, and they have one type once the operand type's arguments stand for its parameters, which is the selector's; on any other type `e.f` is a type error. A positional field has no selector. Outside the module that declares an abstract type, its fields have no selectors, as its constructors are not visible there (§4.4). The type of `e` is found as an operator's operand type is (§4.8).
 
@@ -712,7 +712,7 @@ The system processes are foreign processes: their message types are declared in 
 - `Bytes` → binary.
 - Nullary constructor `C` → the quoted atom of its source spelling, `'Ready'`, `'None'`.
 - Positional constructor `C(v)` → `{'C', v}`.
-- Named constructor `C(f1 = v1, ..., fk = vk)` → `{'C', v1, ..., vk}` with the fields in canonical order (§3.5).
+- Named constructor `C(f1 = v1, ..., fk = vk)` → `{'C', v1, ..., vk}` with the fields in their declared order (§3.5).
 - Tuple `#(v1, ..., vn)` → `{v1, ..., vn}`.
 - `List(a)` → proper list.
 - `Map(k, v)` → a map from each key's term to its value's term.
@@ -739,7 +739,7 @@ When no forward progress is possible, the entry process faults with `Fault("dead
 
 Only a spawn on a peer ships code: `spawn(Peer(name), f)` and `spawnMonitored(Peer(name), f, wrap)` ship `f`, the values it captures, and the code that `f` and every function among its captures depend on. A message ships no code (§3.11): it is decoded with the types of the receiving process's mailbox type, which that process's node holds, and a value sent to an adapted address with the types of its function's argument, which the node where the address was made holds. Within a node nothing is shipped.
 
-**Content addressing.** Every function, constructor, and type is identified across nodes by a hash of its normalized definition together with the hashes of what it references. Identical definitions have the same hash on every node. A type's hash includes its qualified name, so two types with the same constructors under different names are different types. A change to a definition that normalization does not undo changes its hash, and transitively the hashes of everything that depends on it. A set of mutually recursive definitions is hashed as a group, internal references by position, and each member's identity derives from the group's hash. Normalization renames local variables, orders named fields canonically (§3.5), preserves the source evaluation order of construction expressions, and preserves the qualified names of external references.
+**Content addressing.** Every function, constructor, and type is identified across nodes by a hash of its normalized definition together with the hashes of what it references. Identical definitions have the same hash on every node. A type's hash includes its qualified name, so two types with the same constructors under different names are different types. A change to a definition that normalization does not undo changes its hash, and transitively the hashes of everything that depends on it. A set of mutually recursive definitions is hashed as a group, internal references by position, and each member's identity derives from the group's hash. Normalization renames local variables, keeps named fields in their declared order (§3.5), preserves the source evaluation order of construction expressions, and preserves the qualified names of external references.
 
 **Resolution.** Before a shipped function runs, the peer resolves every hash it carries, transitively, from its own store or by fetching from the sender, and caches what it fetched. A resolution failure is a missing dependency, a system module the peer's runtime does not provide, or an incompatible foreign definition, and it faults the caller of `spawn` or `spawnMonitored`. A resolution failure does not invalidate other addresses on that peer; only the loss of the peer does (§10).
 
@@ -1314,7 +1314,7 @@ Io.show : (a) -> String // the value as Ernest writes it
 Io.debug : (a) -> a with m // prints Io.show of the value and a line feed, then returns the value
 ```
 
-`Io.show` writes a value by the argument's type at the call, each value as its literal or construction is written: a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in canonical order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements, in an order the values fix, so that equal maps and equal sets print alike: ascending where the keys or the elements are `Int`, `Float`, `Char`, or `String`. An address prints as `<address 84>`, the number naming the process behind it, and a `Process` as `<process 84>` (E.21). A function prints as `<function>`, and a value of an abstract type outside its module as `<abstract>`; no reply reaches `Io.show`, whose argument is no reply-carrying type (§6.6). Where the argument's type is a type variable or a foreign type, the value is written by its runtime representation (§8.4): a `Char` as its `Int`, a `Bytes` that is UTF-8 as a `String`, a constructor's fields positional, an atom as a nullary constructor, by its name, and `<foreign>` where the representation reads as none of these. `Io.debug` writes `Io.show`'s text to standard output.
+`Io.show` writes a value by the argument's type at the call, each value as its literal or construction is written: a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in their declared order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements, in an order the values fix, so that equal maps and equal sets print alike: ascending where the keys or the elements are `Int`, `Float`, `Char`, or `String`. An address prints as `<address 84>`, the number naming the process behind it, and a `Process` as `<process 84>` (E.21). A function prints as `<function>`, and a value of an abstract type outside its module as `<abstract>`; no reply reaches `Io.show`, whose argument is no reply-carrying type (§6.6). Where the argument's type is a type variable or a foreign type, the value is written by its runtime representation (§8.4): a `Char` as its `Int`, a `Bytes` that is UTF-8 as a `String`, a constructor's fields positional, an atom as a nullary constructor, by its name, and `<foreign>` where the representation reads as none of these. `Io.debug` writes `Io.show`'s text to standard output.
 
 ### Appendix E.2. `list.ern` (namespace `List`)
 
@@ -1760,7 +1760,6 @@ Every technical term this report introduces, with a gloss and the section that d
 - **bitstring** — a bit-level value or pattern `<<...>>` that produces or matches a `Bytes` value. §5.11.
 - **build root** — the directory a build writes its `.erc` files under, `--build-root`, mirroring the source root. §11.1.
 - **`Bytes`** — the type of an octet sequence. §3.1.
-- **canonical order** — the order in which a constructor's named fields are stored and transported. §3.5.
 - **clause** — one pattern-branch of a `match` or `receive`. §5.9, §6.3.
 - **code replacement** — a running process going on in a new function it received in a message. §6.10.
 - **compare** — the per-type function that produces `Ordering`. §3.10.
