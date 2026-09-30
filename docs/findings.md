@@ -7,16 +7,6 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 - ask — `Fs.removeAll` can be steered into another directory between its check and its listing (C1-3)
 - ask — `Foreign.from` hands foreign code an address past its proxy (C1-4)
 
-## The restart and the supervisor
-
-- tag — a faulted child waits for ever when a sibling faults on its own, or has only joined, before it takes its restart (C1-11, C1-19)
-- tag — a held child runs `f` twice at its supervisor's restart in place (C1-16)
-- tag — a nested supervisor's restart is a fault of each child waiting on it (C1-17)
-- tag — a second process that runs a group after the first has ended gets another cause (C1-18)
-- tag — a restart scans whole tables and makes three round trips (C1-21), waits on a service without a monitor (C1-7), and `settled` flushes one late answer (C1-8)
-- tag — the supervisor's page (C1-23), its dead run numbers (C1-32) and smaller points (C1-35)
-- tag — §6.9 and E.22 are silent on a sibling that never waits and on what the process asked before `restarting` (R-14, R-15)
-
 ## False documents
 
 - tag — the guide's `Other("eaddrinuse")` (N-A1), `-> Unit` (N-A2), §4.4's chat room (N-A4), `Ets.new` and `put` (N-A7), and "needs nothing beside it" (N-A6)

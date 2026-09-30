@@ -833,9 +833,9 @@ ask_restart_test() ->
                                         end),
                Child = ern_rt:spawn('Local', Once, <<"M.c:2">>),
                nap(),
-               ern_rt:ask_restart(ern_rt:process_of(Plain)),
-               ern_rt:ask_restart(ern_rt:process_of(Child)),
-               ern_rt:ask_restart(ern_rt:process_of(Child)),
+               Me ! {asked, [ern_rt:ask_restart(ern_rt:process_of(Plain)),
+                             ern_rt:ask_restart(ern_rt:process_of(Child)),
+                             ern_rt:ask_restart(ern_rt:process_of(Child))]},
                nap(),
                ern_rt:ask_restart(ern_rt:process_of(Child)),
                nap(),
@@ -849,7 +849,37 @@ ask_restart_test() ->
     ?assertEqual(['First', 'Asked', 'Asked'], Started),
     ?assertEqual(none, receive {started, More} -> More after 200 -> none end),
     ?assertEqual(true, receive {plain, P} -> P after 1000 -> timeout end),
-    ?assertEqual('Unit', receive {ended, E} -> E after 1000 -> timeout end).
+    %% the answer says whether the process was asked, which the supervisor
+    %% counts on (Appendix E.22)
+    ?assertEqual([false, true, true], receive {asked, A} -> A after 1000 -> timeout end),
+    ?assertEqual(false, receive {ended, E} -> E after 1000 -> timeout end).
+
+%% report §6.9: a restart asks the services that hold what the process
+%% asked for at once, and one that has died holds up no restart. A
+%% regression test: a restart waited on each in turn, with no monitor, and
+%% a dead clock held every restart for ever
+restart_outlives_a_dead_service_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Clock = ern_rt:sys(clock),
+               Watch = erlang:monitor(process, Clock),
+               exit(Clock, kill),
+               receive {'DOWN', Watch, process, _, _} -> ok end,
+               Twice = ern_rt:restarting({'RestartLimit', 1, 5000},
+                                         fun() ->
+                                             Me ! {started, ern_rt:start_cause()},
+                                             case ern_rt:start_cause() of
+                                                 'First' -> error(once);
+                                                 _ -> ok
+                                             end
+                                         end),
+               Child = ern_rt:spawn('Local', Twice, <<"M.c:1">>),
+               ern_rt:monitor(Child, fun(D) -> {down, D} end),
+               receive {down, _} -> ok end
+           end, <<"main">>, #{stderr => fun(_) -> ok end}),
+    ?assertEqual(['First', 'AfterFault'],
+                 [receive {started, S} -> S after 2000 -> timeout end || _ <- [1, 2]]).
 
 %% A pause that the check for a deadlock counts as a timed wait (§8.6).
 nap() ->

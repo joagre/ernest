@@ -74,9 +74,10 @@ After the First Release*; one milestone with the operations records since 2026-0
    about 150 (the log's *The Release Review*). Before the tag, each `tag` line is fixed with
    a regression test, area by area, the security findings first, and each `ask` line is
    decided with the user one at a time; `cheap` clarity is fixed where it is cheap. What is
-   left is MVP 2.99b's first item. The security lines, the crashes, and the wrong results
-   are done (the log's *The Release Review's Security Lines*, *The Release Review's Crashes*
-   and *The Release Review's Wrong Results*). `String.split` reads the
+   left is MVP 2.99b's first item. The security lines, the crashes, the wrong results, and the
+   restart and the supervisor are done (the log's *The Release Review's Security Lines*, *The
+   Release Review's Crashes*, *The Release Review's Wrong Results* and *The Release Review's
+   Restarts*). `String.split` reads the
    string once over a private primitive, `drop`, decided with the user over the measure of a
    split written over `graphemes` (Appendix E.5). Three decisions came with
    the crashes: a fault the shell's standard input gives it exits with status 1, and any
@@ -237,6 +238,9 @@ log's *A Full Review Now and Then*).
   trust, read with `public_key`, inside `ern`; a program never sees either module.
 - Peer loss as §10 says: every process on the lost peer dead with `Fault("peer lost")`, its
   monitors delivered; a peer that reappears is a new instance.
+- `Supervisor.child` refusing a supervisor on another node, `Fault("a child runs on its
+  supervisor's node")`, which Appendix E.22 states and no code can reach before peers exist
+  (the release review's C1-35, 2026-09-30).
 - **Placement by load, in `Peer` and a library** (feedback items 14 and 25, decided in MVP
   2.66; the log's *No Remote Computation in the Language*). `Peer.nodes : () -> List(Where)
   with m` answers the nodes a program can place work on, `Local` first, then each peer of
