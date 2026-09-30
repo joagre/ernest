@@ -1,5 +1,7 @@
 # Operations records
 
+*On 2026-10-01 the principles review decided that no operator carries a hidden argument (report §4.8), so the ordering constraint this note proposes is out, and an ordered set takes its order visibly; the note is rewritten under that rule before MVP 2.99b's item 4 (the log's *Members, Operators, and No Hidden Argument*). It stands as written until then.*
+
 Ernest has one set in its standard library, `Set`, a hash set. I want a second one that keeps its elements in order, and generic code, a `fromList` or a `size`, should work on both. Java would reach for an interface, Haskell for a type class and ML for a functor. Ernest has no type classes, and this note is an attempt to do without them. It proposes *operations records*: records of a type's operations that the caller passes explicitly. In other words, dictionary passing (Wadler and Blott 1989), written by the program instead of by the compiler.
 
 What I would most like from you is where this breaks. Which of the programs type classes express would you miss here? Is the ordering constraint sound as I describe it? And is my leaning on the question at the end right? I am least sure of the judgment against type classes and their implicit relatives, near the end. The § numbers cite Ernest's report, and the code assumes the proposal.

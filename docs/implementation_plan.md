@@ -103,8 +103,13 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    [`language_feedback.md`](language_feedback.md) or dropped with its reason; before item 4,
    which weighs them.
 4. **The operations' decision**, taken with the user before anything of it is built (language
-   feedback 64, and 69 to 73): the proposal's ordering restriction, inferred on a type
-   variable as the equality restriction is, with a type's order its `compare`; an operations
+   feedback 64, and 69 to 73). Two parts were decided by the principles review on 2026-10-01
+   (the log's *Members, Operators, and No Hidden Argument*): a type's operations are functions
+   of its module, a member only an operator, `compare` or `negate`; and no operator carries a
+   hidden argument, so the proposal's ordering restriction is refused and an ordered set takes
+   its order visibly, as an argument of the functions that build its record. What remains: the
+   proposal's ordering restriction, inferred on a type
+   variable as the equality restriction is, with a type's order its `compare`, is out; an operations
    record holding a type's primitives; what the note's last section leaves to the decision;
    and **when a type's operation is a member and when a module function** (`findings.md`'s
    U8, moved here 2026-09-29), since §7.2 declares them `fn Stack.push` and §7.3 `toList` of a
@@ -156,8 +161,9 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
 11. **`set.ern` over its record**: `Set.Operations(s, e)` with `Set`'s six primitives, the
     functions written once as members of that type, and each of `Set`'s own a call of one.
 12. **`OrderedSet` in the standard library**, the record's second representation, with its
-    tests and its page, in a section of its own at the end of Appendix E, and the ordering
-    restriction's hidden argument in the checker and the emitter. `Map` gains a record with a
+    tests and its page, in a section of its own at the end of Appendix E; its order an argument
+    of `setOperations`, since the ordering restriction's hidden argument is refused
+    (2026-10-01). `Map` gains a record with a
     second representation, and not before.
 13. **`Io.show` follows its type through a generic function** (decided 2026-09-29, the log's
     *`Io.show` Follows Its Type*; language feedback 72 with item 4): `Io.show` and `Io.debug`
@@ -166,8 +172,8 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
     takes a `compare`; `wrap('a')`, with `fn wrap(x) = Io.show(x)`, prints `'a'`. `Io.debug`
     is then written in Ernest over `Io.show` and `Io.println`, and its shim
     `ern_io:debug/2`, which writes to standard output past `Io`, goes (`findings.md`'s E-C4,
-    2026-09-30). It is built on item 12's hidden argument, about a day, right after it; if
-    item 4 refuses the ordering restriction, the choice returns to the user. Until then
+    2026-09-30). Its hidden type description is a hidden argument, and the principles review's
+    question on what a value shows of itself decides whether it stands (2026-10-01). Until then
     Appendix E.1 states what the code does: through a type variable, a value is written by its
     representation, and §4.4 says so of an abstract type's value, a sentence this item removes
     (`findings.md`'s R-1, decided with the user 2026-09-30). A foreign function takes its
@@ -231,7 +237,10 @@ its examples change together (the attack plan's rules of the road): under §7.4'
 on a negative count where the rule says none (E.8); and `Io.Error` carries causes the report
 names as text in `Other` (E.1, E.17, E.18, E.23). Under E.0 shape rule 8's restatement of
 2026-10-01, `Tcp.write`, `Os.write` and `Os.read` take no milliseconds for a wait on another
-party, and `Os.start` takes milliseconds that bound a run and not a request (E.18, E.23).
+party, and `Os.start` takes milliseconds that bound a run and not a request (E.18, E.23). Under §4.5's sentence of
+2026-10-01, the checker accepts `fn T.f` for any operation, and §4.2's *Type members*, §4.4's
+example, the guide's §7.2 and `examples/stack.ern`, `repl.ern`, `template.ern` and
+`webserver.ern` declare members that are not operators; they change together with the refusal.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is
