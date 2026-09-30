@@ -2210,6 +2210,39 @@ load_path_dependency() ->
     ?assertMatch({_, _}, binary:match(Out, <<"User, compiled from user.ern">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> 10 : Int">>)).
 
+%% report §11.2: `:load` refuses a compiled module as `ern run` does, one
+%% compiled against another interface of a module it uses than the session
+%% holds, and loads nothing. A regression test: `:load` took such a module
+%% and it faulted where the two differed (findings.md's C3-9)
+load_refuses_stale_compiled_test_() ->
+    {timeout, 60, fun load_refuses_stale_compiled/0}.
+
+load_refuses_stale_compiled() ->
+    Dir = scratch("ern_load_stale_"),
+    Lib = filename:join(Dir, "lib"),
+    Build = filename:join(Dir, "build"),
+    Empty = filename:join(Dir, "empty"),
+    [ok = filelib:ensure_path(D) || D <- [Lib, Build, Empty]],
+    ok = file:write_file(filename:join(Lib, "dep.ern"), answer(5)),
+    ok = file:write_file(filename:join(Lib, "user.ern"),
+                         "export fn twice() : Int = Dep.answer() * 2\n"),
+    Build1 = fun(Path) ->
+                     {0, _} = sh("../bin/ern build --source-root " ++ Lib ++ " --build-root "
+                                 ++ Build ++ " " ++ Path)
+             end,
+    Build1(Lib),
+    %% Dep's interface changes, and Dep alone is built again
+    ok = file:write_file(filename:join(Lib, "dep.ern"),
+                         "export fn answer() : String = \"five\"\n"),
+    Build1(filename:join(Lib, "dep.ern")),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, [":load User\n", "User.twice()\n"]),
+    {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Empty ++ " --load-path " ++ Build)
+                  ++ " < " ++ In),
+    ?assertMatch({_, _}, binary:match(Out, <<"User was compiled against another Dep; build User"
+                                              " again">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"unknown name User.twice">>)).
+
 %% report §11.2: the fields completion offers inside a constructor are
 %% those of the constructor written there, found as the checker finds it:
 %% a qualified one in its module, in an expression and in a pattern alike.

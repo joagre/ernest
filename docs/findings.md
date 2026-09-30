@@ -7,7 +7,6 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 
 ## Questions for the user
 
-- ask — `:load` of a compiled module unchecked (C3-9)
 - ask — an alarm cannot be cancelled (N-C1), which the guide then says (N-B4), the order of a `Down` and the messages before it (N-B5), and `type Word = String` (N-C3)
 - ask — the line the interrupt ends, kept in the history (C3-23)
 

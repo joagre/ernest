@@ -1368,16 +1368,50 @@ with_needed(Env, Modules, Line) ->
     case needed(Env, Modules) of
         {ok, Needed} ->
             All = Needed ++ Modules,
-            Env1 = install(Env, All),
-            case initialize(in_order(All)) of
-                ok ->
-                    {'Right', {remember(Env1), Line}};
-                {fault, Site, Cause} ->
-                    lists:foreach(fun({N, _, _}) -> withdraw(ern_emitter:module_atom(N)) end, All),
-                    {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was loaded\n">>}
+            case refused_compiled(Env, All) of
+                none -> installed(Env, All, Line);
+                Refusal -> {'Left', <<(unicode:characters_to_binary(Refusal))/binary, "\n">>}
             end;
         {error, Text} ->
             {'Left', Text}
+    end.
+
+%% Report §11.2: a compiled module is refused as `ern run` refuses one: a
+%% file that holds another module than its path names, and a module compiled
+%% against another interface of a module it uses, or of the standard
+%% library, than the session holds; none, or the refusal.
+refused_compiled(Env, All) ->
+    Std = ern_build:stdlib_hash("."),
+    Ifaces = [I || {_, Beam, _} <- All, {ok, #{iface := I}} <- [ern_iface:read(Beam)]]
+        ++ Env#env.ifaces ++ ern_prelude:stdlib_ifaces(),
+    Refusals = lists:append([compiled_refusals(Ns, Beam, Ifaces, Std) || {Ns, Beam, _} <- All]),
+    case Refusals of
+        [] -> none;
+        [First | _] -> First
+    end.
+
+compiled_refusals(Ns, Beam, Ifaces, Std) ->
+    {ok, #{iface := #iface{namespace = Held}, deps := Deps} = Chunk} = ern_iface:read(Beam),
+    Name = ern_build:qname(Ns),
+    [Name ++ "'s compiled file holds " ++ ern_build:qname(Held) ++ "; build it again from its"
+     " source root" || Held =/= Ns]
+        ++ [Name ++ " was compiled against another standard library; build " ++ Name
+            ++ " again" || not lists:member(maps:get(stdlib, Chunk, none), [none, Std])]
+        ++ [Name ++ " was compiled against another " ++ ern_build:qname(D) ++ "; build "
+            ++ Name ++ " again"
+            || {D, Hash} <- Deps,
+               [I | _] <- [[I || I <- Ifaces, I#iface.namespace =:= D]],
+               ern_iface:hash(I) =/= Hash].
+
+%% The modules installed and their bindings evaluated, and `:load`'s answer.
+installed(Env, All, Line) ->
+    Env1 = install(Env, All),
+    case initialize(in_order(All)) of
+        ok ->
+            {'Right', {remember(Env1), Line}};
+        {fault, Site, Cause} ->
+            lists:foreach(fun({N, _, _}) -> withdraw(ern_emitter:module_atom(N)) end, All),
+            {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was loaded\n">>}
     end.
 
 %% Report §8.5, §11.2: the modules in the order their bindings are
