@@ -38,7 +38,7 @@ taken out of order. Each has its paragraph under "Done".
 | MVP 2.95 | manual pages, an installation, the review | done 2026-09-28 |
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.98 | what the first review left | done 2026-09-30 |
-| MVP 2.99 | a restart begins afresh, and the first release | |
+| MVP 2.99 | a restart begins afresh, and the first release | the restart, the release's review and its findings done 2026-09-30; the tag next |
 | MVP 2.99b | what the release review left, names that read among it; operations records: `Set`'s record and an ordered set; running as a service | the decisions before anything is built (`operations.md`) |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
@@ -70,22 +70,45 @@ After the First Release*; one milestone with the operations records since 2026-0
    whose every exit status was stated once, the general one for the first time (`findings.md`'s
    T31; the log's *`ern(1)` Has Its Sections*), and the README saying where to download the
    archive.
-3. **The review's findings**, [`findings.md`](findings.md): the review of 2026-09-30 found about
-   150 (the log's *The Release Review*). Before the tag, each `tag` line is fixed with a
-   regression test, area by area, the security findings first, and each `ask` line is decided
-   with the user one at a time; `cheap` clarity is fixed where it is cheap. What is left is MVP
-   2.99b's first item. The security lines, the crashes, the wrong results, the restart and the
-   supervisor, and the false documents are done (the log's *The Release Review's Security
-   Lines*, *The Release Review's Crashes*, *The Release Review's Wrong Results*, *The Release
-   Review's Restarts* and *The Release Review's Documents*). `Markdown.roff` takes its blocks
-   first, its subject, and the manual second (Appendix G.2), and an annotated `let` at the
-   prompt is checked as a block's `let` (§11.2). Of the questions, decided with the user one at
-   a time (the log's *The Release Review's Questions*): `Io.show` through a type variable and a
-   foreign function's type variables ship stated in §4.4 and §8.4, closed by MVP 2.99b's item 13
-   (R-1, R-2), and `Prelude.T.name` reaches every namespace of the prelude or the standard
-   library past a member of the module's own (R-3, §4.2); §5.10 agrees with Appendix A on `as` and `or` (R-5); and E.0 rule 4 refuses only a composition outside the vocabulary, which rule 2 extends to sets and maps (R-6); and a pipe applies a construction and never fills it, as Appendix A has it (R-12, §5.7); and a numeric literal that does not fit a segment of constant width is a compile-time error (R-13, §5.11); `Foreign`'s equality and a foreign type's stay as they are (R-21); and `fn f` and `let f = fn` stay both, §4.6 saying that a function that calls itself is declared with `fn` (R-22); and how a printed type marks the inferred restrictions is MVP 2.99b's item 4 (R-23); `via` still runs its function in the sender (R-24); and shape rule 8 says that `Os.start`'s milliseconds bound its program's run (R-25); and a local helper over an operator says its type, §4.8 naming a lambda a block `let` binds among the definitions an operator is resolved in (R-26); and the built-in operators become shims in MVP 2.99b's item 14 (R-27); and `Fs.removeAll` walks a tree by the directories it has opened, the runtime helper's second job, so that a link put in a directory's place leads it nowhere else (C1-3, E.17); and §8.4 says that `Foreign.from` gives its value as the runtime holds it, until item 13 closes it (C1-4); and a socket is owned by the process that opened it and killed when its owner dies, `Tcp.give` passing it on (C1-2, E.18), what the shell's inputs open being MVP 3.3's decision; and an address foreign code gives back is the program's own only at the type it crossed at (C1-6, §8.4); and `:load` refuses a compiled module as `ern run` does (C3-9, §11.2); and an alarm stays without a cancel, the guide showing a deadline dropped once its job is done (N-C1); and §6.9 says that a `Down` has no order with the ended process's own messages (N-B5); and `type Word = String` stays a type of one value, the mistake of an alias told in a mismatch's help (N-C3). `String.split` reads the string once
-   over a private primitive, `drop`, decided with the user over the measure of a split written
-   over `graphemes` (Appendix E.5). Three decisions came with the crashes: a fault the shell's
+3. **The review's findings**, [`findings.md`](findings.md), done 2026-09-30: the review of
+   2026-09-30 found about 150 (the log's *The Release Review*). Before the tag, each `tag` line
+   is fixed with a regression test, area by area, the security findings first, and each `ask`
+   line is decided with the user one at a time; `cheap` clarity is fixed where it is cheap. What
+   is left is in MVP 2.99b, its first, third and seventh items, and the rules that buy little
+   are the next full review's. The security lines, the crashes, the wrong results, the restart
+   and the supervisor, and the false documents are done (the log's *The Release Review's
+   Security Lines*, *The Release Review's Crashes*, *The Release Review's Wrong Results*, *The
+   Release Review's Restarts* and *The Release Review's Documents*). `Markdown.roff` takes its
+   blocks first, its subject, and the manual second (Appendix G.2), and an annotated `let` at
+   the prompt is checked as a block's `let` (§11.2). Of the questions, decided with the user one
+   at a time (the log's *The Release Review's Questions*): `Io.show` through a type variable and
+   a foreign function's type variables ship stated in §4.4 and §8.4, closed by MVP 2.99b's item
+   13 (R-1, R-2), and `Prelude.T.name` reaches every namespace of the prelude or the standard
+   library past a member of the module's own (R-3, §4.2); §5.10 agrees with Appendix A on `as`
+   and `or` (R-5); and E.0 rule 4 refuses only a composition outside the vocabulary, which rule
+   2 extends to sets and maps (R-6); and a pipe applies a construction and never fills it, as
+   Appendix A has it (R-12, §5.7); and a numeric literal that does not fit a segment of constant
+   width is a compile-time error (R-13, §5.11); `Foreign`'s equality and a foreign type's stay
+   as they are (R-21); and `fn f` and `let f = fn` stay both, §4.6 saying that a function that
+   calls itself is declared with `fn` (R-22); and how a printed type marks the inferred
+   restrictions is MVP 2.99b's item 4 (R-23); `via` still runs its function in the sender
+   (R-24); and shape rule 8 says that `Os.start`'s milliseconds bound its program's run (R-25);
+   and a local helper over an operator says its type, §4.8 naming a lambda a block `let` binds
+   among the definitions an operator is resolved in (R-26); and the built-in operators become
+   shims in MVP 2.99b's item 14 (R-27); and `Fs.removeAll` walks a tree by the directories it
+   has opened, the runtime helper's second job, so that a link put in a directory's place leads
+   it nowhere else (C1-3, E.17); and §8.4 says that `Foreign.from` gives its value as the
+   runtime holds it, until item 13 closes it (C1-4); and a socket is owned by the process that
+   opened it and killed when its owner dies, `Tcp.give` passing it on (C1-2, E.18), what the
+   shell's inputs open being MVP 3.3's decision; and an address foreign code gives back is the
+   program's own only at the type it crossed at (C1-6, §8.4); and `:load` refuses a compiled
+   module as `ern run` does (C3-9, §11.2); and an alarm stays without a cancel, the guide
+   showing a deadline dropped once its job is done (N-C1); and §6.9 says that a `Down` has no
+   order with the ended process's own messages (N-B5); and `type Word = String` stays a type of
+   one value, the mistake of an alias told in a mismatch's help (N-C3); and a line `C-c`
+   abandons is kept in the history (C3-23, §11.2). `String.split` reads the string once over a
+   private primitive, `drop`, decided with the user over the measure of a split written over
+   `graphemes` (Appendix E.5). Three decisions came with the crashes: a fault the shell's
    standard input gives it exits with status 1, and any other fault of its own with 70 (§11.8);
    a standard stream closed as a job begins ends it with status 141 (§11); and an escape
    sequence the editor does not bind does nothing (§11.2).

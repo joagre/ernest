@@ -5536,6 +5536,8 @@ The review's questions, decided with the user one at a time before the tag.
 
 **`type Word = String` (N-C3).** The newcomer wrote it for an alias and got a type whose one value is a nullary constructor named `String`, and met it first as "expected Word, found String". Ernest has no type aliases: an alias is a second name for one type (principle 2), and the case that asks for one in Elm, a record, is a named-field constructor here; a wrapper, `type Word = Word(String)`, is the way, and a type of its own. Refusing a nullary constructor named as a type would forbid an enumeration of type names, `type Kind = Int | Float | String`. So the mistake is told where it shows: a mismatch between a type whose one constructor is nullary and the type that constructor is named as gains a help line saying there are no aliases and what a wrapper is, and the guide's §2.3 says it.
 
+**The line `C-c` abandons (C3-23).** `C-c` on a line being typed abandons it: it stays in the transcript, runs nothing, and ends an input that runs. The shell keeps it in the history, to recall and mend, and §11.2 did not say so. It stays and §11.2 says it: the usual reason to abandon a long input is a mistake seen in it, and the history gives it back. Dropping it, as Bash and GNU Readline do, was weighed and left, since an abandoned long input would be lost.
+
 ## Erlang's Standard Library, Module by Module
 
 Where each user-facing OTP module stands, first read on 2026-09-18 (*The Erlang Standard Library, Read for Ernest*) and kept current since. What is not a row is OTP's own machinery, which Ernest's concepts or toolchain replace. What a module still waits for, and when, is the plan's.

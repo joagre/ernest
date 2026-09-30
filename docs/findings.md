@@ -2,13 +2,6 @@
 
 The findings of the review of the first release, run on 2026-09-30 as [`review.md`](review.md) says, on commit `691b4d6`: its machines, and its readers, the report's (R, the principles and the cold reader as one), a newcomer's (N), and the code's in three parts, over what changed since `0753fd8`: C1 the runtime and the standard library, C2 the front end, the checker and the emitter, C3 the command line, the shell and the libraries. M is a machine's. A line carries its decision: **tag**, fixed before the release's tag; **ask**, a question for the user, decided before the tag; **cheap**, clarity fixed before the tag where it is cheap; **2.99b**, planned in the plan's MVP 2.99b, its first item; **dropped**, with the reason; **next full review**, left for it. Each reader's list stands below the lines, condensed from what the reader handed in. This file goes when every line is done, dropped, or planned.
 
-## Security
-
-
-## Questions for the user
-
-- ask — the line the interrupt ends, kept in the history (C3-23)
-
 ## Hardening
 
 - 2.99b — foreign code forging the runtime's handles (C1-5)

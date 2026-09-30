@@ -690,6 +690,29 @@ multiline() ->
     %% brought back shows its empty second row as `...` alone
     ?assert(lists:member(<<"...">>, Lines)).
 
+%% report §11.2: a line `C-c` abandons runs nothing and is kept in the
+%% history, where `C-p` recalls it. A regression test of what the shell
+%% did and the report came to say (findings.md's C3-23)
+abandoned_line_kept_test_() ->
+    {timeout, 90, fun abandoned_line_kept/0}.
+
+abandoned_line_kept() ->
+    Home = fresh_home(),
+    Screen = screen("HOME=" ++ Home ++ " ../bin/ern shell",
+                    [{expect, "> "},
+                     {send, hex("40 + 1")},
+                     {expect, "40 + 1"},
+                     {send, "03"},                        % C-c abandons it
+                     {expect, "> "},
+                     {send, "10"},                        % C-p recalls it
+                     {send, hex("\r")},
+                     {expect, "41 : Int"},
+                     {send, "04"}],
+                    30, "30x46"),
+    ?assertMatch({_, _}, binary:match(Screen, <<"41 : Int">>)),
+    ?assertEqual(1, count(Screen, <<"41 : Int">>)),
+    ?assertEqual([<<"40 + 1">>], history_lines(filename:join([Home, ".ernest", "history"]))).
+
 %% report §11.2, §8.2: a paste goes into the line at the cursor and its
 %% line feeds add lines, so a pasted two-line input is one input and runs
 %% when `Enter` is pressed after it
