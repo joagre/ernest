@@ -5,11 +5,16 @@
  * of the program with its process group. It is C99 over POSIX.1-2008 alone,
  * so that any POSIX host builds it; Ernest runs on Linux and macOS.
  *
- * argv[1] is the program and argv[2..] its arguments, as execvp takes
- * them. The runtime and this helper talk over fd 0 and fd 1 in frames of a
- * 4-byte big-endian length followed by a tag byte and the frame's data.
+ * Run with the argument `run`, the helper runs the program the runtime's
+ * first frame names. The runtime and this helper talk over fd 0 and fd 1 in
+ * frames of a 4-byte big-endian length followed by a tag byte and the
+ * frame's data.
  *
- *   To the program: 'i' bytes of its input, dropped after 'e' or once the
+ *   To the program: first 'c', the program and then each of its arguments,
+ *   each ended by a NUL byte, as execvp takes them; they come here and not
+ *   on the helper's own command line, so that an argument too long for the
+ *   host is the program's failure to start, and not the helper's. Then 'i'
+ *   bytes of its input, dropped after 'e' or once the
  *   program has closed its input; 'e' the end of its input; 'n' a request
  *   for the next piece of its output. The end of fd 0 means the runtime has
  *   let go of the run: the program and its process group are killed, and
@@ -26,7 +31,7 @@
  *   output and its standard error have ended. A status is the program's
  *   exit code, or 128 and the signal's number for a program a signal ended.
  *
- * With no program, the helper writes its environment, which it inherited
+ * With no argument, the helper writes its environment, which it inherited
  * as exec passes it, byte for byte: a 'v' frame for each variable, NAME=VALUE,
  * and an 'x' frame. Report Appendix E.23: the runtime reads the program's
  * environment so, since the host decodes a value that is not UTF-8 without
@@ -49,6 +54,12 @@
 extern char **environ;
 
 static pid_t program = -1;
+
+/* The command the runtime's first frame names: the frame's text, and the
+   program and its arguments pointing into it, as execvp takes them, held
+   here so that they stay reachable until the helper ends. */
+static char *command_text = NULL;
+static char **command = NULL;
 
 /* The program and every process of its group, killed and reaped. */
 static void kill_program(void)
@@ -109,9 +120,14 @@ static int not_started(int error)
     return 0;
 }
 
-/* The input not yet written to the program, as a growing buffer. */
+/* The input not yet written to the program: pending_size bytes from
+   pending_start in a buffer that grows. A write takes bytes from the front
+   by moving the start; the unwritten bytes move to the buffer's front only
+   when an input does not fit after them, into a buffer at least twice
+   their size, so each byte moves a bounded number of times however little
+   the program takes at once. */
 static unsigned char *pending = NULL;
-static size_t pending_size = 0, pending_capacity = 0;
+static size_t pending_start = 0, pending_size = 0, pending_capacity = 0;
 
 /* The end of each 'i' not yet answered, as a count of the input's bytes
    from its start, oldest first, and whether it was dropped, given after
@@ -163,25 +179,77 @@ static void add_pending(const unsigned char *data, size_t size)
     /* nothing to add, and before the first input no buffer to add it to */
     if (size == 0)
         return;
-    if (pending_size + size > pending_capacity) {
+    if (pending_start + pending_size + size > pending_capacity) {
         size_t capacity = pending_capacity ? pending_capacity : CHUNK;
-        while (capacity < pending_size + size)
+        while (capacity < 2 * (pending_size + size))
             capacity *= 2;
-        unsigned char *grown = realloc(pending, capacity);
-        if (grown == NULL) {
-            kill_program();
-            _exit(1);
+        if (capacity != pending_capacity) {
+            unsigned char *grown = realloc(pending, capacity);
+            if (grown == NULL) {
+                kill_program();
+                _exit(1);
+            }
+            pending = grown;
+            pending_capacity = capacity;
         }
-        pending = grown;
-        pending_capacity = capacity;
+        memmove(pending, pending + pending_start, pending_size);
+        pending_start = 0;
     }
-    memcpy(pending + pending_size, data, size);
+    memcpy(pending + pending_start + pending_size, data, size);
     pending_size += size;
+}
+
+/* Size bytes from the runtime into data: 0 where the runtime let go
+   first. */
+static int read_all(unsigned char *data, size_t size)
+{
+    while (size > 0) {
+        ssize_t n = read(0, data, size);
+        if (n < 0 && errno == EINTR)
+            continue;
+        if (n <= 0)
+            return 0;
+        data += n;
+        size -= (size_t)n;
+    }
+    return 1;
+}
+
+/* The runtime's first frame, the command, 'c' and at least the program,
+   each part ended by a NUL byte, as execvp takes it; NULL where it is not
+   one. */
+static char **read_command(void)
+{
+    unsigned char head[4];
+    size_t length, at, parts = 0, part;
+
+    if (!read_all(head, sizeof head))
+        return NULL;
+    length = (size_t)head[0] << 24 | (size_t)head[1] << 16 | (size_t)head[2] << 8 | head[3];
+    if (length < 3)
+        return NULL;
+    command_text = malloc(length);
+    if (command_text == NULL || !read_all((unsigned char *)command_text, length)
+        || command_text[0] != 'c' || command_text[length - 1] != '\0')
+        return NULL;
+    for (at = 1; at < length; at++)
+        if (command_text[at] == '\0')
+            parts++;
+    command = malloc((parts + 1) * sizeof *command);
+    if (command == NULL)
+        return NULL;
+    for (at = 1, part = 0; part < parts; part++) {
+        command[part] = command_text + at;
+        at += strlen(command_text + at) + 1;
+    }
+    command[parts] = NULL;
+    return command;
 }
 
 int main(int argc, char **argv)
 {
     int in[2], out[2], err[2], failed[2];
+    char **program_command;
 
     signal(SIGPIPE, SIG_IGN);
     if (argc < 2) {
@@ -191,6 +259,10 @@ int main(int argc, char **argv)
         frame('x', (const unsigned char *)"\0\0\0\0", 4);
         return 0;
     }
+    (void)argv;
+    program_command = read_command();
+    if (program_command == NULL || program_command[0] == NULL)
+        return 1;
     if (pipe(in) < 0 || pipe(out) < 0 || pipe(err) < 0 || pipe(failed) < 0)
         return not_started(errno);
     fcntl(failed[1], F_SETFD, FD_CLOEXEC);
@@ -213,7 +285,7 @@ int main(int argc, char **argv)
         close(out[0]); close(out[1]);
         close(err[0]); close(err[1]);
         close(failed[0]);
-        execvp(argv[1], &argv[1]);
+        execvp(program_command[0], program_command);
         {
             int error = errno;
             ssize_t ignored = write(failed[1], &error, sizeof error);
@@ -332,13 +404,16 @@ int main(int argc, char **argv)
             }
 
             if (i_in >= 0 && fds[i_in].revents) {
-                ssize_t wrote = write(program_in, pending, pending_size);
+                ssize_t wrote = write(program_in, pending + pending_start, pending_size);
                 if (wrote > 0) {
-                    memmove(pending, pending + wrote, pending_size - (size_t)wrote);
+                    pending_start += (size_t)wrote;
                     pending_size -= (size_t)wrote;
+                    if (pending_size == 0)
+                        pending_start = 0;
                     taken += (uint64_t)wrote;
                 } else if (wrote < 0 && errno != EAGAIN && errno != EINTR) {
                     /* the program closed its input: what it did not take is dropped */
+                    pending_start = 0;
                     pending_size = 0;
                     close(program_in);
                     program_in = -1;

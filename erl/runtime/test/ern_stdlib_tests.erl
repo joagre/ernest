@@ -192,6 +192,17 @@ string_searches_begin_at_a_grapheme_test() ->
     ?assertEqual([<<"a">>, <<"b">>], S:lines(<<"a\r\nb\r\n">>)),
     ?assertEqual([<<"a">>, <<"b">>], S:lines(<<"a\nb">>)).
 
+%% report Appendix E.5: `split`, `lines` and `replace` read the string
+%% once. A regression test: each part measured the rest again, a cost that
+%% grew as the square of the parts, 2.6 s for 16,000 of them; 64,000 now
+%% take a fraction of EUnit's five seconds, and took about forty before
+string_split_reads_once_test() ->
+    S = 'ern@string',
+    Text = iolist_to_binary(lists:duplicate(64000, <<"abcd,">>)),
+    ?assertEqual(64001, length(S:split(Text, <<",">>))),
+    ?assertEqual(64000, length(S:lines(binary:replace(Text, <<",">>, <<"\n">>, [global])))),
+    ?assertEqual(byte_size(Text), byte_size(S:replace(Text, <<",">>, <<";">>))).
+
 %% report Appendix E.5, §9.6
 string_test() ->
     S = 'ern@string',
@@ -328,6 +339,38 @@ bytes_test() ->
     ?assertEqual({'Some', <<104, 105>>}, B:fromList([104, 105])),
     ?assertEqual('None', B:fromList([256])),
     ?assertEqual(<<1, 2>>, B:'<>'(<<1>>, <<2>>)).
+
+%% report Appendix E.20: the text functions over octets, at their edges: an
+%% empty second is at 0 for `indexOf` and at the end for `lastIndexOf`, is
+%% in every `Bytes`, begins and ends every one, splits nothing and
+%% replaces nothing; a count below 0 repeats nothing; hexadecimal is
+%% upper-case out and either case in, and an odd count or another
+%% character is None. A regression test: the ten functions were tested only
+%% by their pages' examples, and `lastIndexOf` was missing
+bytes_text_test() ->
+    B = 'ern@bytes',
+    ?assertEqual(true, B:contains(<<1, 2>>, <<>>)),
+    ?assertEqual(false, B:contains(<<1, 2>>, <<2, 1>>)),
+    ?assertEqual({'Some', 0}, B:indexOf(<<1>>, <<>>)),
+    ?assertEqual({'Some', 1}, B:indexOf(<<0, 1, 2, 1, 2>>, <<1, 2>>)),
+    ?assertEqual({'Some', 3}, B:lastIndexOf(<<0, 1, 2, 1, 2>>, <<1, 2>>)),
+    ?assertEqual({'Some', 2}, B:lastIndexOf(<<1, 2>>, <<>>)),
+    ?assertEqual('None', B:lastIndexOf(<<1>>, <<1, 1>>)),
+    ?assertEqual(true, B:startsWith(<<1>>, <<>>)),
+    ?assertEqual(true, B:endsWith(<<1>>, <<>>)),
+    ?assertEqual(false, B:endsWith(<<1>>, <<0, 1>>)),
+    ?assertEqual([<<1, 2>>], B:split(<<1, 2>>, <<>>)),
+    ?assertEqual([<<>>, <<1>>, <<>>], B:split(<<0, 1, 0>>, <<0>>)),
+    ?assertEqual(<<1, 2>>, B:replace(<<1, 2>>, <<>>, <<9>>)),
+    ?assertEqual(<<9, 2, 9>>, B:replace(<<1, 2, 1>>, <<1>>, <<9>>)),
+    ?assertEqual(<<1, 0, 2>>, B:join([<<1>>, <<2>>], <<0>>)),
+    ?assertEqual(<<>>, B:join([], <<0>>)),
+    ?assertEqual(<<1, 1, 1>>, B:repeat(<<1>>, 3)),
+    ?assertEqual(<<>>, B:repeat(<<1>>, -2)),
+    ?assertEqual(<<"00FF1A">>, B:toHex(<<0, 255, 26>>)),
+    ?assertEqual({'Some', <<0, 255, 26>>}, B:fromHex(<<"00ff1A">>)),
+    ?assertEqual('None', B:fromHex(<<"0">>)),
+    ?assertEqual('None', B:fromHex(<<"0g">>)).
 
 %% report Appendix E.19
 erl_test() ->
@@ -656,7 +699,10 @@ fs_links_test() ->
 
 %% report Appendix E.17: `readRange` reads a part of a file, fewer bytes at
 %% its end and none past it, a regular file only, and refuses a negative
-%% offset or count in words. Written with the code (MVP 2.98)
+%% offset or count in words. Written with the code (MVP 2.98); the counts and
+%% the offset past what the host can hold are a regression test, since the
+%% host made room for the count first and answered `Other("not enough
+%% memory")` or `Other("invalid argument")`
 fs_read_range_test() ->
     Me = self(),
     Dir = filename:join("/tmp", "ern_range_" ++ os:getpid() ++ "_"
@@ -668,11 +714,13 @@ fs_read_range_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            [Me ! {fs, F:readRange(P, O, N, 1000)}
-                            || {O, N} <- [{0, 2}, {4, 9}, {6, 1}, {9, 1}, {1, 0}, {-1, 2}]],
+                            || {O, N} <- [{0, 2}, {4, 9}, {6, 1}, {9, 1}, {1, 0}, {-1, 2},
+                                          {2, 1 bsl 62}, {3, 1 bsl 80}, {1 bsl 80, 1}]],
                            Me ! {fs, F:readRange({'Path', list_to_binary(Dir)}, 0, 1, 1000)}
                        end, <<"fs_read_range_test">>, #{})),
     ?assertEqual([{'Right', <<"ab">>}, {'Right', <<"ef">>}, {'Right', <<>>}, {'Right', <<>>},
                   {'Right', <<>>}, {'Left', {'Other', <<"a negative offset or count">>}},
+                  {'Right', <<"cdef">>}, {'Right', <<"def">>}, {'Right', <<>>},
                   {'Left', {'Other', <<"not a regular file">>}}],
                  collect(fs, [])),
     file:del_dir_r(Dir).
@@ -761,7 +809,9 @@ foreign_test() ->
     ?assertEqual({'Some', true}, F:toBool(true)),
     ?assertEqual('None', F:toBool(1)),
     ?assertEqual({'Some', [1, x]}, F:toList([1, x])),
-    ?assertEqual('None', F:toList(<<>>)).
+    ?assertEqual('None', F:toList(<<>>)),
+    %% an improper list is no List; a regression test, it was answered as one
+    ?assertEqual('None', F:toList([1 | x])).
 
 %% report Appendix E.9: the shortest digits, plain from 0.0001 to below
 %% 1.0e16 and with an exponent beyond, its sign only when negative, each
@@ -831,7 +881,7 @@ path_edges_test() ->
     ?assertEqual(<<>>, P:name(T(<<"/">>))),
     ?assertEqual({'Some', <<>>}, P:extension(T(<<"a.">>))),
     ?assertEqual('None', P:extension(T(<<"a.d/b">>))),
-    ?assertEqual(T(<<"a/b">>), P:withExtension(T(<<"a/b.txt/">>), <<>>)),
+    ?assertEqual(T(<<"a/b/">>), P:withExtension(T(<<"a/b.txt/">>), <<>>)),
     ?assertEqual(T(<<"a.d/b.md">>), P:withExtension(T(<<"a.d/b">>), <<"md">>)),
     %% a dot that begins a name begins no extension, and the root has no name
     %% to extend; a regression test, `.bashrc`'s extension was `bashrc`, so
@@ -840,7 +890,18 @@ path_edges_test() ->
     ?assertEqual({'Some', <<"bak">>}, P:extension(T(<<".profile.bak">>))),
     ?assertEqual(T(<<".bashrc">>), P:withExtension(T(<<".bashrc">>), <<>>)),
     ?assertEqual(T(<<"dir/.bashrc.txt">>), P:withExtension(T(<<"dir/.bashrc">>), <<"txt">>)),
-    ?assertEqual(T(<<"/">>), P:withExtension(T(<<"/">>), <<"txt">>)).
+    ?assertEqual(T(<<"/">>), P:withExtension(T(<<"/">>), <<"txt">>)),
+    %% the dots that begin a name begin no extension, `..` is left as it is,
+    %% and the rest of a path stays as written; a regression test, `..` had
+    %% the extension "", which removing turned into `.`, and a doubled
+    %% separator was made one
+    ?assertEqual('None', P:extension(T(<<"..">>))),
+    ?assertEqual('None', P:extension(T(<<"...">>))),
+    ?assertEqual({'Some', <<"b">>}, P:extension(T(<<"..a.b">>))),
+    ?assertEqual(T(<<"a/..">>), P:withExtension(T(<<"a/..">>), <<>>)),
+    ?assertEqual(T(<<"a/..">>), P:withExtension(T(<<"a/..">>), <<"md">>)),
+    ?assertEqual(T(<<"a//b.md">>), P:withExtension(T(<<"a//b.txt">>), <<"md">>)),
+    ?assertEqual(T(<<"a/b/c">>), P:join(T(<<"a//b">>), T(<<"c">>))).
 
 %% report Appendix E.16, E.5: columns counts by grapheme, by its first code
 %% point that counts: a combining mark adds none, alone it takes none; an

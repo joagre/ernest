@@ -4,8 +4,9 @@
 /// index in graphemes, extended grapheme clusters, each what a reader sees
 /// as one letter; `toList` and `fromList` are `Char`s, one scalar value
 /// each. The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`,
-/// `slice`, the operations that need Unicode's tables, `trimStart`, `trimEnd`,
-/// `toLower`, and `toUpper`, and the conversions `toIntBase`, `toFloat`,
+/// `slice`, and the private `drop`, the operations that need Unicode's
+/// tables, `trimStart`, `trimEnd`, `toLower`, and `toUpper`, and the
+/// conversions `toIntBase`, `toFloat`,
 /// `toList`, `fromList`, `toUtf8`, and `fromUtf8`, the runtime's; the rest
 /// is written over them, so every search matches whole graphemes (report
 /// Appendix E.0 rule 1).
@@ -75,7 +76,7 @@ export foreign fn graphemes(s : String) : List(String) =
 
 /// `true` for the empty string.
 export fn isEmpty(s : String) : Bool =
-    size(s) == 0
+    s == ""
 
 /// The order of the code points, which `<` and the other comparisons use.
 ///
@@ -295,17 +296,20 @@ export fn lines(s : String) : List(String) =
 /// // => ["a", "", "b"]
 /// ```
 export fn split(s : String, separator : String) : List(String) =
-    if isEmpty(separator) then [s] else List.reverse(parts(s, separator, []))
+    if isEmpty(separator) then [s] else List.reverse(parts(s, separator, size(separator), []))
 
-// The parts found so far, the last first, and the rest of the string.
-fn parts(s : String, separator : String, done : List(String)) : List(String) =
+// The parts found so far, the last first, and the rest of the string, each
+// step reading only as far as the next separator.
+fn parts(s : String, separator : String, width : Int, done : List(String)) : List(String) =
     match indexOf(s, separator) {
         None -> s :: done
-      | Some(at) -> {
-            let rest = at + size(separator);
-            parts(slice(s, rest, size(s) - rest), separator, slice(s, 0, at) :: done)
-        }
+      | Some(at) -> parts(drop(s, at + width), separator, width, slice(s, 0, at) :: done)
     }
+
+// Report Appendix E.5: the string after that many graphemes, walking only
+// those, a primitive since graphemes are the host's.
+foreign fn drop(s : String, count : Int) : String =
+    "ern_string:drop/2"
 
 /// The parts with the second between them.
 ///

@@ -41,6 +41,7 @@ export type Info = Info(site : String, queued : Int, activity : Activity)
 ///
 /// ```ernest
 /// Process.Receiving
+/// // => Receiving
 /// ```
 export type Activity = Running | Receiving | Calling
 

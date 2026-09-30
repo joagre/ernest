@@ -126,7 +126,13 @@ handle({'Copy', From, Reply, To}) ->
 range(Name, Offset, Count) ->
     case file:open(Name, [read, raw, binary]) of
         {ok, File} ->
-            Read = file:pread(File, Offset, Count),
+            %% the host makes room for the count before it reads, so the
+            %% count asked for is what the file holds from the offset
+            Read = case file:position(File, eof) of
+                       {ok, Size} when Offset >= Size -> eof;
+                       {ok, Size} -> file:pread(File, Offset, min(Count, Size - Offset));
+                       Failed -> Failed
+                   end,
             ok = file:close(File),
             case Read of
                 {ok, Bytes} -> {ok, Bytes};

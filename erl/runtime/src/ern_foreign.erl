@@ -29,6 +29,8 @@ to_string(_) -> 'None'.
 to_bool(X) when is_boolean(X) -> {'Some', X};
 to_bool(_) -> 'None'.
 
+%% report §8.4, Appendix E.12: a List is a proper list, so an improper one
+%% is none; the guard's length fails on one
 -spec to_list(term()) -> {'Some', [term()]} | 'None'.
-to_list(X) when is_list(X) -> {'Some', X};
+to_list(X) when is_list(X), length(X) >= 0 -> {'Some', X};
 to_list(_) -> 'None'.

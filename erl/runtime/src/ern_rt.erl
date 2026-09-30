@@ -41,7 +41,7 @@
          reason/1, live/0, processes/0, info/1, faults/1, proxy_for/3, proxy_forget/2,
          source_begin/0, source_begin/1, source_end/0, opened/2, forget_opened/1, timed/0,
          untimed/0, deadline/1, remaining/1, monotonic/0, in_foreign/1,
-         undefined_function/3, undefined_lambda/3, fault/1, fault/2, trace/1, sys/1,
+         undefined_function/3, undefined_lambda/3, fault_reason/3, fault/1, fault/2, trace/1, sys/1,
          hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1, input_not_utf8/0,
          by_input/1, read_input/1, run_main/3, arguments/0, exit_program/1, deadlock_target/1,
          signal/1, initializing/1, site/0, binding/1, restarting/2, restart_now/0, ask_restart/1,
@@ -116,19 +116,23 @@ process_of(Pid) -> behind(Pid).
 
 behind(Pid) ->
     case ets_lookup(?PROCESSES, {behind, Pid}) of
-        [{_, Real}] -> Real;
+        [{_, Real, _}] -> Real;
         _ -> Pid
     end.
 
 %% Report §8.4: an address foreign code gave, whose messages D describes
-%% inside the mu bindings B, as the program holds it: the process it names
-%% where that is one of the program's, the proxy in front of it undone, and
-%% otherwise foreign.
+%% inside the mu bindings B, as the program holds it: where it names one of
+%% the program's processes, the address that went out, the proxy in front
+%% of it undone and a function `via` made kept (§6.5), and otherwise
+%% foreign.
 -spec held(pid(), term(), map()) -> address().
 held(Pid, D, B) ->
-    Real = behind(Pid),
+    {Real, Address} = case ets_lookup(?PROCESSES, {behind, Pid}) of
+                          [{_, Process, Exposed}] -> {Process, Exposed};
+                          _ -> {Pid, Pid}
+                      end,
     case ets_lookup(?PROCESSES, Real) of
-        [_] -> Real;
+        [_] -> Address;
         [] -> {foreign, Pid, D, B}
     end.
 
@@ -727,7 +731,7 @@ snapshot(Pids) ->
 %% foreign code is one per address and mailbox type, not one per call: two
 %% proxies checking the same messages for the same process are two of the
 %% same thing. The loser of a race is killed and the winner used.
--spec proxy_for(term(), pid(), fun(() -> pid())) -> pid().
+-spec proxy_for(term(), address(), fun(() -> pid())) -> pid().
 proxy_for(Key, Behind, Start) ->
     case ets:lookup(?PROCESSES, {proxy, Key}) of
         [{_, Pid}] ->
@@ -736,7 +740,7 @@ proxy_for(Key, Behind, Start) ->
             Pid = Start(),
             case ets:insert_new(?PROCESSES, {{proxy, Key}, Pid}) of
                 true ->
-                    ets:insert(?PROCESSES, {{behind, Pid}, Behind}),
+                    ets:insert(?PROCESSES, {{behind, Pid}, process_of(Behind), Behind}),
                     Pid;
                 false ->
                     exit(Pid, kill),
@@ -898,6 +902,7 @@ run(Fun) ->
 %% Report §7.3, §7.4: what a host error is as an Ernest fault. A failure of
 %% the runtime is the host's class and reason, and carries the host's stack
 %% beside it for the report a person reads (§11.2).
+-spec fault_reason(error | exit | throw, term(), list()) -> tuple().
 fault_reason(error, badarith, _) -> {ern, fault, <<"division by zero">>};
 fault_reason(throw, {ern, fault, Msg}, _) -> {ern, fault, Msg};
 fault_reason(throw, {ern, fault, Msg, Trace}, _) -> {ern, fault, Msg, Trace};
@@ -1323,6 +1328,7 @@ armed(Deadline, To, Alarms) ->
 
 -type outcome() :: ok | killed | {fault, binary()} | {fault, binary(), binary()}
                  | {initializer_fault, binary(), binary()}
+                 | {initializer_fault, binary(), binary(), binary()}
                  | {exit, 0..255} | {gone, stdout | stderr} | {signal, sigterm | sighup}.
 
 %% Runs Main as the entry process. It returns ok, killed if the entry
@@ -1331,7 +1337,8 @@ armed(Deadline, To, Alarms) ->
 %% and {fault, Message, Trace} where the fault was a failure of the runtime
 %% or a foreign function's raise, the host's stack beneath it;
 %% {initializer_fault, Site, Message} if a top-level binding faulted before
-%% Main ran, Site naming the binding (report §8.5); {exit,
+%% Main ran, Site naming the binding (report §8.5), and the host's stack
+%% after them where it faulted so; {exit,
 %% Status} if a process called Os.exit, {gone, Stream} if standard output
 %% or standard error could no longer be written, or {signal, Signal} if the
 %% host's termination or hangup ended the program. Every local process is
@@ -1407,6 +1414,7 @@ run_main(Main, Site, Opts) ->
                                 [{erlang:self(), {raw, {main_down, Run}}}]),
         case await_main(MainPid, Run) of
             {{fault, Msg}, At} when At =/= Site -> {initializer_fault, At, Msg};
+            {{fault, Msg, Trace}, At} when At =/= Site -> {initializer_fault, At, Msg, Trace};
             {Outcome, _} -> Outcome
         end
     after

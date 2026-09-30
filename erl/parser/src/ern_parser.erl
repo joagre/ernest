@@ -831,7 +831,7 @@ atompat([{Kind, Pos, V} | R]) when Kind =:= int; Kind =:= float; Kind =:= char;
                                    Kind =:= string; Kind =:= bool ->
     w({#p_lit{pos = Pos, kind = Kind, value = V}, R});
 atompat([{'-', Pos}, {Kind, _, V} | R]) when Kind =:= int; Kind =:= float ->
-    w({#p_lit{pos = Pos, kind = Kind, value = -V}, R});
+    w({#p_lit{pos = Pos, kind = Kind, value = negated(V)}, R});
 atompat([{'-', _}, T | _]) ->
     fail(pos(T), "expected a number after `-` in a pattern instead of " ++ describe(T));
 atompat([{typename, Pos, _} | _] = Ts) ->
@@ -1021,6 +1021,11 @@ tagging(What, Parse) ->
 -spec fail(ern_diag:pos(), iodata(), string() | undefined) -> no_return().
 fail(Pos, Message, Help) ->
     throw({parse_error, diag(Pos, Message, Help)}).
+
+%% Report §3.1: a negated literal, and no negative zero, so `-0.0` is the
+%% zero.
+negated(Number) when Number == 0 -> Number;
+negated(Number) -> -Number.
 
 %% Whether what is left is the input's end, where a further line may finish
 %% what the parser was reading (report §11.2).

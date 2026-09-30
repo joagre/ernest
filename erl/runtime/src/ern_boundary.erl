@@ -29,7 +29,7 @@
 %% `Io.debug` print by carry no Make, since nothing is checked there.
 -module(ern_boundary).
 
--export([raised/6, expose/2, check/3, value/3, argument/4, expose/3]).
+-export([raised/6, called_raised/3, expose/2, check/3, value/3, argument/4, expose/3]).
 
 %% Report §7.4: an exception foreign function M:F/Arity raised, a fault of
 %% the calling process that names the implementation; an Ernest fault
@@ -40,11 +40,24 @@ raised(_, _, _, throw, {ern, _, _} = Passing, _) ->
     throw(Passing);
 raised(_, _, _, throw, {ern, _, _, _} = Passing, _) ->
     throw(Passing);
+%% report §6.9: a restart asked for inside it is a restart
+raised(_, _, _, throw, '$ern_restart', _) ->
+    throw('$ern_restart');
 raised(M, F, Arity, Class, Reason, Stack) ->
     ern_rt:fault(unicode:characters_to_binary(
                    io_lib:format("foreign function ~s:~s/~B raised ~p:~p",
                                  [M, F, Arity, Class, Reason])),
                  ern_rt:trace(Stack)).
+
+%% Report §7.4: an exception a function of the program's raised where
+%% foreign code called it is the fault it would be anywhere, raised again
+%% as that fault, so that it passes through the foreign function as
+%% itself; a restart asked for there stays one (§6.9).
+-spec called_raised(error | exit | throw, term(), list()) -> no_return().
+called_raised(throw, '$ern_restart', _) ->
+    throw('$ern_restart');
+called_raised(Class, Reason, Stack) ->
+    throw(ern_rt:fault_reason(Class, Reason, Stack)).
 
 %% An argument given to foreign code (report §8.4): every address inside it
 %% replaced by the proxy that checks what foreign code sends it, and a
@@ -273,8 +286,7 @@ expose(_, V, _) -> V.
 %% would have.
 proxy(Target, D, B, Text) ->
     Key = {Target, D, B},
-    ern_rt:proxy_for(Key, ern_rt:process_of(Target),
-                     fun() -> start_proxy(Key, Target, D, B, Text) end).
+    ern_rt:proxy_for(Key, Target, fun() -> start_proxy(Key, Target, D, B, Text) end).
 
 start_proxy(Key, Target, D, B, Text) ->
     erlang:spawn(fun() ->

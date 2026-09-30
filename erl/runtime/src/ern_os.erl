@@ -49,8 +49,14 @@ start({'Command', Arguments, Input, Program}, Ms, Owner, Reply) ->
         true ->
             answered(Reply, {'Left', {'Other', <<"an argument holds U+0000">>}});
         false ->
-            try open([Program | Arguments]) of
-                Port -> started(Port, Input, {Deadline, Timer}, Owner, Reply)
+            try open(["run"]) of
+                Port ->
+                    %% the command comes as the first frame, not on the
+                    %% helper's command line, so that an argument too long
+                    %% for the host is the program's failure to start
+                    Parts = << <<Part/binary, 0>> || Part <- [Program | Arguments] >>,
+                    command(Port, <<"c", Parts/binary>>),
+                    started(Port, Input, {Deadline, Timer}, Owner, Reply)
             catch
                 error:_ -> answered(Reply, {'Left', helper_failed()})
             end
@@ -101,7 +107,7 @@ starting(#{port := Port, deadline := Deadline} = Run, Reply) ->
             answered(Reply, {'Left', helper_failed()});
         {'DOWN', _, process, _, _} ->
             killed(Run);
-        {timeout, _} = Tick ->
+        {timeout, _, deadline} = Tick ->
             case timed_out(Run, Tick) of
                 {again, Run1} -> starting(Run1, Reply);
                 over -> stop(Run), answered(Reply, {'Left', 'Timeout'})
@@ -149,7 +155,7 @@ running(#{port := Port} = Run, Waiting) ->
             over(Waiting, {'Left', helper_failed()});
         {'DOWN', _, process, _, _} ->
             killed(Run);
-        {timeout, _} = Tick ->
+        {timeout, _, deadline} = Tick ->
             case timed_out(Run, Tick) of
                 {again, Run1} -> running(Run1, Waiting);
                 over ->
@@ -209,11 +215,9 @@ unwritable(Answer) -> Answer.
 %% The time limit, armed as the host's longest timer allows and armed again
 %% until it has passed (report §6.3).
 arm(Deadline) ->
-    Ref = make_ref(),
-    erlang:send_after(ern_rt:remaining(Deadline), erlang:self(), {timeout, Ref}),
-    Ref.
+    erlang:start_timer(ern_rt:remaining(Deadline), erlang:self(), deadline).
 
-timed_out(#{deadline := Deadline, timer := Ref} = Run, {timeout, Ref}) ->
+timed_out(#{deadline := Deadline, timer := Timer} = Run, {timeout, Timer, deadline}) ->
     case ern_rt:remaining(Deadline) of
         0 -> over;
         _ -> {again, Run#{timer := arm(Deadline)}}
@@ -221,10 +225,14 @@ timed_out(#{deadline := Deadline, timer := Ref} = Run, {timeout, Ref}) ->
 timed_out(Run, _) ->
     {again, Run}.
 
-%% The port closed, which ends the helper and kills the program if it runs.
-%% The watch on the process that started it stays, since this process lives
-%% on after a time limit.
-stop(#{port := Port}) ->
+%% The port closed, which ends the helper and kills the program if it runs,
+%% and the time limit cancelled, what its timer already sent taken, so that
+%% this process, which may live on to answer a read, holds no message the
+%% check for a deadlock would read as work (report §8.6). The watch on the
+%% process that started it stays.
+stop(#{port := Port, timer := Timer}) ->
+    _ = erlang:cancel_timer(Timer),
+    receive {timeout, Timer, deadline} -> ok after 0 -> ok end,
     try erlang:port_close(Port) catch error:badarg -> closed end.
 
 %% The last answer while the program counts as a source, given before the

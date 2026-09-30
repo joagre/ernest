@@ -9,17 +9,8 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 
 ## Wrong results
 
-- tag — a module's own `Io.show` and `Io.debug` are replaced by the library's (C2-1)
-- tag — a foreign result that names a parameter's variable twice faults at every return (C2-2)
-- tag — the pattern `-0.0` never matches (C2-5)
-- tag — a fault in a callback foreign code calls takes the foreign function's cause, and a restart asked there is a fault (C2-6, C1-13)
-- tag — an address made by `via` loses its function when foreign code gives it back (C1-12)
-- tag — a foreign raise in an initializer is not reported under its binding (C1-22)
-- tag — `Fs.readRange` with a large count or offset (C1-25), `Os.start` with a long argument (C1-26), `Foreign.toList` of an improper list (C1-27), and a stale timer in `Os` (C1-28)
-- tag — `String.split`, `lines` and `replace` take quadratic time, and so does input to a started program (C1-14, C1-15)
-- tag — `Path` on `..` and on doubled separators (C1-29), `String.isEmpty` and the missing `Bytes.lastIndexOf` (C1-30), the pages' examples and tests (C1-31)
 - tag — `ern format dir` takes `dir` as the source root (C3-12); a startup file's diagnostics lose their place (C3-10); `:load List` answers as a success (C3-20); `:type let _ = 1` is accepted (C3-21); two shells trim the history through one file (C3-22); a reload's ended processes may end `Killed` (C3-19)
-- tag — the cycle diagnostic names a member without its type, helps a lambda wrongly, and lists the cycle out of order (C2-9, C2-10, C2-11); `==` is reported at a later call (C2-12); a lone carriage return (C2-13); four help lines (C2-14); `->` in a signature (C2-15); a space after a bracket before a comment (C2-16); a size's read before the scrutinee (C2-17)
+- tag — the cycle diagnostic names a member without its type, helps a lambda wrongly, and lists the cycle out of order (C2-9, C2-10, C2-11); `==` is reported at a later call (C2-12); a lone carriage return (C2-13); three help lines, the fourth, `()`'s, done with the crashes (C2-14); `->` in a signature (C2-15); a space after a bracket before a comment (C2-16); a size's read before the scrutinee (C2-17)
 - tag — the address-as-key diagnostic stands at the wrong place (N-A5)
 
 ## The restart and the supervisor

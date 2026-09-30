@@ -190,7 +190,7 @@ restart_ends_subscription_test() ->
                          case get(ran) of
                              undefined ->
                                  put(ran, true),
-                                 subscribe(Tty),
+                                 Me ! {subscribed, subscribe(Tty)},
                                  error(crash);
                              true ->
                                  Tty ! {chars, "a"},
@@ -205,6 +205,9 @@ restart_ends_subscription_test() ->
                receive {got, Got} -> Me ! {got, Got} end
            end, <<"main">>,
            #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end, keys => fun silent/0}),
+    %% the subscription was granted, so the key it no longer gets is the
+    %% restart's doing; a regression test, the answer was not looked at
+    ?assertEqual({'Some', {'Right', 'Unit'}}, wait(subscribed)),
     ?assertEqual(none, wait(got)).
 
 silent() ->

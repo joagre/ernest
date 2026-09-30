@@ -569,6 +569,22 @@ show_test() ->
         "}\n"),
     ?assertEqual(<<"Snap(dir = \"x\", seen = 2)\nSome('a')\n<<1>> <<2, 3>>\n97\n">>, Out).
 
+%% report §4.2, Appendix E.1: a module's own type named Io may have members
+%% show and debug, and a call of them, and each as a value, is the
+%% module's. A regression test: the emitter read the written path, and
+%% called the library's in their place
+own_io_show_test() ->
+    {ok, Out} = run(
+        "type Io = Io(n : Int)\n"
+        "fn Io.show(x : Io) : String = \"mine \" <> Int.toString(x.n)\n"
+        "fn Io.debug(x : Io) : Io = x\n"
+        "export fn main() : Unit with Never = {\n"
+        "    Io.println(Io.show(Io(n = 1)));\n"
+        "    let f = Io.show;\n"
+        "    Io.println(f(Io.debug(Io(n = 2))))\n"
+        "}\n"),
+    ?assertEqual(<<"mine 1\nmine 2\n">>, Out).
+
 %% report Appendix E.1: Io.debug writes a String as a literal, with `"`,
 %% `\\`, a line feed and a tab escaped by name, another control character
 %% by its code point, and every other character as itself. A regression
@@ -1364,6 +1380,90 @@ foreign_faults_test() ->
                   " = \"lists:foreach/2\"\n"
                   ++ Main ++ "each(fn(n : Int) : Unit with Never = fault(\"later\"), [1])\n"),
     ?assertEqual({fault, <<"later">>}, R5).
+
+%% report §6.5, §8.4: an address `via` made, given to foreign code and given
+%% back, is the address that went out, its function kept. A regression
+%% test: the program got the process behind it, and a message sent to it
+%% arrived without the function applied, not of the mailbox type
+via_address_round_trip_test() ->
+    {ok, Out} = run("type Msg = Wrapped(Int)\n"
+                    "foreign fn first(xs : List(Address(Int))) : Address(Int) = \"erlang:hd/1\"\n"
+                    "export fn main() : Unit with Msg = {\n"
+                    "    let back = first([via(Wrapped, self())]);\n"
+                    "    send(back, 7);\n"
+                    "    receive { Wrapped(n) -> Io.println(Int.toString(n)) }\n"
+                    "}\n"),
+    ?assertEqual(<<"7\n">>, Out).
+
+%% report §7.4, §8.4: a fault of the program's own function where foreign
+%% code calls it passes through as the fault it would be anywhere, with no
+%% foreign function named. A regression test: it took the foreign
+%% function's cause, `foreign function lists:foreach/2 raised
+%% error:badarith`
+callback_fault_passes_through_test() ->
+    {R, Out} = run("foreign fn each(f : (a) -> Unit with m, xs : List(a)) : Unit with m ="
+                   " \"lists:foreach/2\"\n"
+                   "export fn main() : Unit with Never =\n"
+                   "    each(fn(n : Int) : Unit with Never = Io.println(Int.toString(10 / n)),"
+                   " [2, 0])\n"),
+    ?assertEqual({{fault, <<"division by zero">>}, <<"5\n">>}, {R, Out}).
+
+%% report §6.9, §8.4: a restart asked for while foreign code calls the
+%% program's function is a restart, the cause of the new start `Asked`. A
+%% regression test: it was a fault of the foreign function, and the process
+%% restarted after a fault
+callback_restart_passes_through_test() ->
+    {ok, Out} = run(
+        "type Start = First | Asked | AfterFault\n"
+        "foreign fn startCause() : Start with m = \"ern_rt:start_cause/0\"\n"
+        "foreign fn askRestart(child : Process) : Unit with m = \"ern_rt:ask_restart/1\"\n"
+        "foreign fn each(f : (a) -> Unit with m, xs : List(a)) : Unit with m ="
+        " \"lists:foreach/2\"\n"
+        "export fn main() : Unit with String = {\n"
+        "    let me = self();\n"
+        "    let body = fn() : Unit with Never = {\n"
+        "        let cause = startCause();\n"
+        "        send(me, Io.show(cause));\n"
+        "        match cause {\n"
+        "            First -> each(fn(_ : Int) : Unit with Never = {\n"
+        "                askRestart(Process.fromAddress(self()));\n"
+        "                receive { after 5000 -> Unit }\n"
+        "            }, [1])\n"
+        "          | _ -> Unit\n"
+        "        }\n"
+        "    };\n"
+        "    let _ = spawn(Local, restarting(Unlimited, body));\n"
+        "    receive { s -> Io.println(s) };\n"
+        "    receive { s -> Io.println(s) }\n"
+        "}\n"),
+    ?assertEqual(<<"First\nAsked\n">>, Out).
+
+%% report §3.1, §5.10: there is no negative zero, so the pattern `-0.0`
+%% matches the zero, however it was made. A regression test: the pattern
+%% was the host's negative zero, which no value matched
+negative_zero_pattern_test() ->
+    {ok, Out} = run("fn kind(x : Float) : String = match x {\n"
+                    "    -0.0 -> \"zero\"\n"
+                    "  | _ -> \"other\"\n"
+                    "}\n"
+                    "export fn main() : Unit with Never = {\n"
+                    "    Io.println(kind(0.0));\n"
+                    "    Io.println(kind(-0.0));\n"
+                    "    Io.println(kind(0.0 * -1.0))\n"
+                    "}\n"),
+    ?assertEqual(<<"zero\nzero\nzero\n">>, Out).
+
+%% report §8.4: a type variable a parameter names may stand in the result
+%% more than once. A regression test: only its first place was taken as
+%% named, the second was checked as matching no value, and every return
+%% faulted
+foreign_result_names_a_variable_twice_test() ->
+    {ok, Out} = run("foreign fn pair(n : Int, x : a) : #(a, a) = \"erlang:make_tuple/2\"\n"
+                    "export fn main() : Unit with Never = {\n"
+                    "    let _ = Io.debug(pair(2, \"x\"));\n"
+                    "    Unit\n"
+                    "}\n"),
+    ?assertEqual(<<"#(\"x\", \"x\")\n">>, Out).
 
 %% report §7.4, §8.4: a List is a proper list, so an improper one a foreign
 %% function returns faults naming the declared type, whether its elements

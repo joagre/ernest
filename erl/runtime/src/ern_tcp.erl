@@ -175,8 +175,18 @@ listener_loop(Tcp, Socket) ->
 %% which is the only legal chain: only an owner may pass a socket on. An
 %% accept that times out has taken no connection.
 accept(Tcp, Socket, Deadline, Reply) ->
-    attempt(Tcp, fun() -> gen_tcp:accept(Socket, ern_rt:remaining(Deadline)) end, Deadline, Reply,
-            <<"Tcp.accept">>).
+    attempt(Tcp, fun() -> accepted(gen_tcp:accept(Socket, ern_rt:remaining(Deadline))) end,
+            Deadline, Reply, <<"Tcp.accept">>).
+
+%% Report Appendix E.18: an accept the listener's close answers is
+%% `Closed`. The host answers `closed` to an accept waiting when the close
+%% comes, and `einval` to one that meets the close under way; the socket
+%% listens from its start until the listener closes it, so `einval` is
+%% that close.
+accepted({error, einval}) ->
+    {error, closed};
+accepted(Result) ->
+    Result.
 
 socket_process(Tcp, Socket, Site) ->
     Owner = opened(Tcp, fun() ->

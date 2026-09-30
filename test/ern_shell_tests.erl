@@ -229,7 +229,16 @@ faulting_binding_named() ->
     Ern = filename:absname("../bin/ern"),
     {0, _} = sh("cd " ++ Dir ++ " && " ++ Ern ++ " build init.ern"),
     {1, Out} = sh("cd " ++ Dir ++ " && " ++ Ern ++ " shell init.erc < /dev/null"),
-    ?assertMatch({_, _}, binary:match(Out, <<"Init.bad:3 faulted: division by zero">>)).
+    ?assertMatch({_, _}, binary:match(Out, <<"Init.bad:3 faulted: division by zero">>)),
+    %% a foreign function's raise, its stack beneath; a regression test, it
+    %% was reported as the shell's own fault
+    ok = file:write_file(filename:join(Dir, "raise.ern"),
+                         "foreign fn boom(x : Int) : Int = \"erlang:error/1\"\n\n"
+                         "let bad : Int = boom(7)\n"),
+    {0, _} = sh("cd " ++ Dir ++ " && " ++ Ern ++ " build raise.ern"),
+    {1, Raised} = sh("cd " ++ Dir ++ " && " ++ Ern ++ " shell raise.erc < /dev/null"),
+    ?assertMatch({_, _}, binary:match(Raised, <<"Raise.bad:3 faulted: foreign function"
+                                                " erlang:error/1 raised error:7\n    ">>)).
 
 %% report §11.2: `:load` compiles from its source a module the loaded one
 %% uses that the session has not loaded, and compiles it against the

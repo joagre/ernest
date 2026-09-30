@@ -5,8 +5,9 @@
 %% and comparison is Erlang's on binaries, which is by code point.
 -module(ern_string).
 
--export([graphemes/1, index_of/2, last_index_of/2, slice/3, trim_start/1, trim_end/1, to_lower/1,
-         to_upper/1, to_int_base/2, to_float/1, to_list/1, from_list/1, from_utf8/1, to_utf8/1]).
+-export([graphemes/1, index_of/2, last_index_of/2, slice/3, drop/2, trim_start/1, trim_end/1,
+         to_lower/1, to_upper/1, to_int_base/2, to_float/1, to_list/1, from_list/1, from_utf8/1,
+         to_utf8/1]).
 
 %% Appendix E.5: the graphemes in order, as `string:to_graphemes/1` splits
 %% them, extended grapheme clusters by the host's Unicode data, the same
@@ -91,6 +92,23 @@ step(S, B, I) ->
 
 -spec slice(binary(), integer(), integer()) -> binary().
 slice(S, From, Count) -> unicode:characters_to_binary(string:slice(S, From, Count)).
+
+%% Appendix E.5: the string after its first Count graphemes, found by
+%% walking only those, so that `split` costs what it reads; what is after
+%% begins at a grapheme of valid UTF-8, and is the string's own bytes.
+-spec drop(binary(), integer()) -> binary().
+drop(String, Count) ->
+    Boundary = past(String, 0, Count),
+    binary:part(String, Boundary, byte_size(String) - Boundary).
+
+%% The boundary Count graphemes past Boundary, or the string's end.
+past(_, Boundary, Count) when Count =< 0 ->
+    Boundary;
+past(String, Boundary, Count) ->
+    case step(String, Boundary, 0) of
+        {Boundary, _} -> Boundary;
+        {Next, _} -> past(String, Next, Count - 1)
+    end.
 
 %% Appendix E.5: without the leading graphemes whose first code point is
 %% White_Space, as Char.isSpace says. string:next_grapheme/1 answers the

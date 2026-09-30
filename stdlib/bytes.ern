@@ -131,6 +131,27 @@ fn seek(b : Bytes, part : Bytes, at : Int) : Optional(Int) =
     else
         seek(b, part, at + 1)
 
+/// Where the second begins in the first, the last place it does, and
+/// `None` where it is not there. An empty second is at the end.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Bytes.lastIndexOf(<<1, 2, 1, 2>>, <<1, 2>>), Bytes.lastIndexOf(<<1>>, <<2>>))
+/// // => #(Some(2), None)
+/// ```
+export fn lastIndexOf(b : Bytes, part : Bytes) : Optional(Int) =
+    seekBack(b, part, size(b) - size(part))
+
+// The last place at or before the index where the part begins.
+fn seekBack(b : Bytes, part : Bytes, at : Int) : Optional(Int) =
+    if at < 0 then
+        None
+    else if slice(b, at, size(part)) == part then
+        Some(at)
+    else
+        seekBack(b, part, at - 1)
+
 /// `true` when the first begins with the second, and for an empty second.
 ///
 /// ### Examples

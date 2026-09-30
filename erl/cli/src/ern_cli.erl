@@ -819,6 +819,10 @@ shell_outcome(Err, {fault, Msg}) ->
 shell_outcome(Err, {initializer_fault, Site, Msg}) ->
     io:format(Err, "~ts faulted: ~ts~n", [Site, ern_show:controls(Msg, line)]),
     1;
+shell_outcome(Err, {initializer_fault, Site, Msg, Trace}) ->
+    io:format(Err, "~ts faulted: ~ts~n~ts",
+              [Site, ern_show:controls(Msg, line), ern_show:controls(Trace, lines)]),
+    1;
 shell_outcome(Err, {fault, Msg, Trace}) ->
     io:format(Err, "fault: ~ts~n~ts",
               [ern_show:controls(Msg, line), ern_show:controls(Trace, lines)]),
@@ -968,24 +972,27 @@ entry_point(Opts, Ns, Roots, Loaded) ->
 %% name, a typename for each segment of the module's namespace and an
 %% ident for the function, as the lexer reads them, and nothing between
 %% them or after them.
-main_name(Q) ->
-    Named = case ern_lexer:tokenize(Q, []) of
-                {ok, Tokens} -> qualified(Tokens, 1);
+main_name(Text) ->
+    Named = case ern_lexer:tokenize(Text, []) of
+                {ok, Tokens} -> qualified_name(Tokens, 1);
                 {error, _} -> error
             end,
     case Named of
-        {ok, [_ | _] = Ns, Fn} -> {Ns, Fn};
+        {ok, [_ | _] = Namespace, Function} -> {Namespace, Function};
         _ -> usage_fail("--main takes a qualified name, Module.function")
     end.
 
-qualified([{typename, {1, C, {1, E}, _}, T}, {'.', {1, E, {1, Next}, _}} | Rest], C) ->
-    case qualified(Rest, Next) of
-        {ok, Ns, Fn} -> {ok, [T | Ns], Fn};
+%% The namespace and the function a qualified name's tokens spell, each
+%% token beginning in the column where the one before it ended.
+qualified_name([{typename, {1, Column, {1, End}, _}, Segment},
+                {'.', {1, End, {1, Next}, _}} | Rest], Column) ->
+    case qualified_name(Rest, Next) of
+        {ok, Namespace, Function} -> {ok, [Segment | Namespace], Function};
         error -> error
     end;
-qualified([{ident, {1, C, {1, E}, _}, Fn}, {eof, {1, E, _, _}}], C) ->
-    {ok, [], Fn};
-qualified(_, _) ->
+qualified_name([{ident, {1, Column, {1, End}, _}, Function}, {eof, {1, End, _, _}}], Column) ->
+    {ok, [], Function};
+qualified_name(_, _) ->
     error.
 
 %% What the interface of a loaded module says of one of its names: an entry

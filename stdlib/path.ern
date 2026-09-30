@@ -98,18 +98,25 @@ export fn name(p : Path) : String =
     }
 
 /// What follows the last `.` of the name, without the dot, or `None` when
-/// the name has none. A `.` that begins the name begins no extension, so
-/// `.bashrc` has none.
+/// the name has none. The dots that begin the name begin no extension, so
+/// `.bashrc`, `.` and `..` have none.
 export fn extension(p : Path) : Optional(String) = {
-    let n = name(p);
-    match String.lastIndexOf(n, ".") {
-        Some(at) when at > 0 -> Some(String.slice(n, at + 1, String.size(n)))
-      | _ -> None
+    let bare = withoutLeadingDots(name(p));
+    match String.lastIndexOf(bare, ".") {
+        Some(at) -> Some(String.slice(bare, at + 1, String.size(bare)))
+      | None -> None
     }
 }
 
+fn withoutLeadingDots(name : String) : String =
+    if String.startsWith(name, ".") then
+        withoutLeadingDots(String.slice(name, 1, String.size(name)))
+    else
+        name
+
 /// The path with that extension in place of any it had; an empty string
-/// removes it. A path without a name, the root, is left as it is.
+/// removes it. The rest of the path stays as it was written. The root, `.`
+/// and `..` have no name to extend, and are left as they are.
 ///
 /// ### Examples
 ///
@@ -119,16 +126,27 @@ export fn extension(p : Path) : Optional(String) = {
 /// // => #("a/b.md", "a/b")
 /// ```
 export fn withExtension(p : Path, ext : String) : Path =
-    if String.isEmpty(name(p)) then p else extended(p, ext)
+    if List.contains(["", ".", ".."], name(p)) then p else extended(p, ext)
 
+// The name's extension replaced where the name ends, before any
+// separators after it.
 fn extended(p : Path, ext : String) : Path = {
-    let text = written(split(p));
+    let text = toString(p);
+    let head = withoutTrailingSeparators(text);
+    let tail = String.slice(text, String.size(head), String.size(text));
     let stem = match extension(p) {
-        Some(old) -> String.slice(text, 0, String.size(text) - String.size(old) - 1)
-      | None -> text
+        Some(old) -> String.slice(head, 0, String.size(head) - String.size(old) - 1)
+      | None -> head
     };
-    if String.isEmpty(ext) then Path(stem) else Path(stem <> "." <> ext)
+    if String.isEmpty(ext) then Path(stem <> tail) else Path(stem <> "." <> ext <> tail)
 }
+
+fn withoutTrailingSeparators(text : String) : String =
+    if String.endsWith(text, separator()) then {
+        let kept = String.size(text) - String.size(separator());
+        withoutTrailingSeparators(String.slice(text, 0, kept))
+    } else
+        text
 
 /// `true` when the path starts at a root.
 ///

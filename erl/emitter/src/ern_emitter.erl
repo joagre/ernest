@@ -268,7 +268,8 @@ decl(#foreign_fn_decl{pos = Pos, owner = O, name = N, params = Params, impl = Im
     %% not checked; a type variable of the result that no parameter names
     %% stands for no value the function could have been given, so it
     %% matches none, and the return faults where it holds one
-    Unnamed = type_vars(Ret) -- lists:append([type_vars(P) || P <- ParamTs]),
+    Named = lists:append([type_vars(P) || P <- ParamTs]),
+    Unnamed = [V || V <- lists:usort(type_vars(Ret)), not lists:member(V, Named)],
     {Body, Cx4} = case Cx#cx.standard of
                       true -> {Try, Cx3};
                       false -> check_form(as_never(Unnamed, Ret), Ret, Try,
@@ -542,8 +543,14 @@ var_ref(Pos, _, Name, var, T, #cx{vars = Vars, locals = Locals} = Cx) ->
             #{Name := #local{lifted = Lifted}} = Locals,
             closure(Lifted, instances(Name, Cx), arity_of(T, Pos), Cx)
     end;
-var_ref(Pos, ['Io'], Name, _, T, Cx) when Name =:= show; Name =:= debug ->
-    %% Appendix E.1: as a value too, the descriptor of the argument's type
+%% Appendix E.1: the library's Io.show and Io.debug as values too, the
+%% descriptor of the argument's type, named by the checker's ref from
+%% another module and from the library's own, and never by the path
+var_ref(Pos, _, Name, {remote, ['Io'], undefined, Name}, T, Cx)
+  when Name =:= show; Name =:= debug ->
+    prelude_value(Pos, ['Io', Name], T, Cx);
+var_ref(Pos, _, Name, {own, undefined, Name}, T, #cx{mod = 'ern@io'} = Cx)
+  when Name =:= show; Name =:= debug ->
     prelude_value(Pos, ['Io', Name], T, Cx);
 var_ref(Pos, _, _, {prelude, Q}, T, Cx) ->
     prelude_value(Pos, Q, T, Cx);
@@ -608,11 +615,14 @@ call(Pos, #e_var{ref = var, name = Name}, Args, Cx) ->
             App = erl_syntax:application(erl_syntax:atom(Lifted), Insts ++ ArgForms),
             {at(Pos, App), Cx1}
     end;
-call(Pos, #e_var{path = ['Io'], name = Name}, [A], Cx) when Name =:= show; Name =:= debug ->
-    %% Appendix E.1: written by the argument's type at the call
-    {[F], Cx1} = exprs([A], Cx),
-    Desc = erl_syntax:abstract(descriptor(ern_typecheck:node_type(A), Cx)),
-    {at(Pos, call_remote(ern_io, Name, [F, Desc])), Cx1};
+%% Appendix E.1: the library's Io.show and Io.debug, as var_ref/6 names
+%% them, written by the argument's type at the call
+call(Pos, #e_var{ref = {remote, ['Io'], undefined, Name}}, [A], Cx)
+  when Name =:= show; Name =:= debug ->
+    io_call(Pos, Name, A, Cx);
+call(Pos, #e_var{ref = {own, undefined, Name}}, [A], #cx{mod = 'ern@io'} = Cx)
+  when Name =:= show; Name =:= debug ->
+    io_call(Pos, Name, A, Cx);
 call(Pos, #e_var{ref = {prelude, Q}} = Callee, Args, Cx) ->
     %% report §4.2: the prelude's, `Prelude.x` among them
     {ArgForms, Cx1} = exprs(Args, Cx),
@@ -641,6 +651,11 @@ call(Pos, Callee, Args, Cx) ->
     {CalleeForm, Cx1} = expr(Callee, Cx),
     {ArgForms, Cx2} = exprs(Args, Cx1),
     {at(Pos, erl_syntax:application(CalleeForm, ArgForms)), Cx2}.
+
+io_call(Pos, Name, Argument, Cx) ->
+    {[ArgumentForm], Cx1} = exprs([Argument], Cx),
+    Descriptor = erl_syntax:abstract(descriptor(ern_typecheck:node_type(Argument), Cx)),
+    {at(Pos, call_remote(ern_io, Name, [ArgumentForm, Descriptor])), Cx1}.
 
 %% Report §4.6: a call of the module's own declaration, a `let` through
 %% what its getter answers.
@@ -1007,7 +1022,7 @@ desc_form({callback, N, Ds, Texts}) ->
     Checked = [call_remote(ern_boundary, value, [desc_form(D), A, erl_syntax:abstract(T)])
                || {D, A, T} <- lists:zip3(Ds, Args, Texts)],
     Wrapper = erl_syntax:fun_expr([erl_syntax:clause(Args, none,
-                                                      [erl_syntax:application(F, Checked)])]),
+                                                      [called(F, Checked)])]),
     Maker = erl_syntax:fun_expr([erl_syntax:clause([F], none, [Wrapper])]),
     erl_syntax:tuple([erl_syntax:atom(callback), Maker]);
 desc_form({'fun', N, R, Text, Ps, PTexts}) ->
@@ -1026,8 +1041,7 @@ desc_form({'fun', N, R, Text, Ps, PTexts}) ->
     Checked = [call_remote(ern_boundary, argument,
                            [desc_form(P), A, erl_syntax:abstract(T), Bound])
                || {P, A, T} <- lists:zip3(Ps, Args, PTexts)],
-    Exposed = erl_syntax:fun_expr([erl_syntax:clause(Args, none,
-                                                      [erl_syntax:application(F, Checked)])]),
+    Exposed = erl_syntax:fun_expr([erl_syntax:clause(Args, none, [called(F, Checked)])]),
     Exposer = erl_syntax:fun_expr([erl_syntax:clause([F, Bound], none, [Exposed])]),
     erl_syntax:tuple([erl_syntax:atom('fun'), erl_syntax:integer(N), desc_form(R),
                       erl_syntax:abstract(Text), Maker, Exposer]);
@@ -1037,6 +1051,15 @@ desc_form(L) when is_list(L) ->
     erl_syntax:list([desc_form(E) || E <- L]);
 desc_form(Other) ->
     erl_syntax:abstract(Other).
+
+%% Report §7.4: the program's function F where foreign code calls it, an
+%% exception it raises the fault it would be anywhere (called_raised/3).
+called(Function, Arguments) ->
+    [Class, Reason, Stack] = Raised = [erl_syntax:variable(Name)
+                                       || Name <- ['Class', 'Reason', 'Stack']],
+    Handler = erl_syntax:clause([erl_syntax:class_qualifier(Class, Reason, Stack)], none,
+                                [call_remote(ern_boundary, called_raised, Raised)]),
+    erl_syntax:try_expr([erl_syntax:application(Function, Arguments)], [Handler]).
 
 check_text(Prefix, T, Cx) ->
     string_binary(text_binary(Prefix, T, Cx)).

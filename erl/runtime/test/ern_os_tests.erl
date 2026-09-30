@@ -34,9 +34,7 @@ helper_ends_under_a_write_and_a_read_test() ->
 %% answered at once, ahead of one the program had not taken, which let its
 %% writer go (findings.md's C8)
 helper_answers_input_in_order_test() ->
-    Helper = filename:join([filename:dirname(code:which(ern_os)), "..", "priv", "ern_exec"]),
-    Port = open_port({spawn_executable, Helper},
-                     [{args, ["sleep", "2"]}, {packet, 4}, binary, exit_status]),
+    Port = helper(["sleep", "2"]),
     receive {Port, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
     %% more than a pipe holds, which `sleep` never reads
     true = port_command(Port, <<"i", (binary:copy(<<"x">>, 200000))/binary>>),
@@ -48,15 +46,40 @@ helper_answers_input_in_order_test() ->
                        end),
     port_close(Port).
 
+%% Appendix E.23: an input larger than a pipe holds reaches the program
+%% whole and in order, taken by the program a part at a time. A regression
+%% test of the helper's buffer, which moved what was left to its front
+%% after each part the program took, a cost that grew as the square of the
+%% input: 128 MB took 16 s and takes 3 s now. It checks the bytes, not the
+%% time, which the measure in the log's entry shows
+helper_gives_a_large_input_whole_test() ->
+    Port = helper(["cat"]),
+    receive {Port, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
+    Input = << <<(N rem 251)>> || N <- lists:seq(1, 4000000) >>,
+    true = port_command(Port, <<"i", Input/binary>>),
+    true = port_command(Port, <<"i", "more">>),
+    true = port_command(Port, <<"e">>),
+    true = port_command(Port, <<"n">>),
+    ?assert(<<Input/binary, "more">> =:= output(Port, <<>>)).
+
+%% What the program wrote to its standard output, read a piece at a time,
+%% until the helper's exit status.
+output(Port, Read) ->
+    receive
+        {Port, {data, <<"o", Bytes/binary>>}} ->
+            true = port_command(Port, <<"n">>),
+            output(Port, <<Read/binary, Bytes/binary>>);
+        {Port, {data, <<"x", _/binary>>}} -> Read;
+        {Port, {data, _}} -> output(Port, Read)
+    after 20000 -> timeout
+    end.
+
 %% Appendix E.23: bytes given once the program has closed its input are
 %% dropped, and the helper says so with `d`, where it says `a` of bytes the
 %% program took. The program closes its input and is given time to, so
 %% that the bytes do not reach the pipe before it is closed
 helper_says_input_was_dropped_test() ->
-    Helper = filename:join([filename:dirname(code:which(ern_os)), "..", "priv", "ern_exec"]),
-    Port = open_port({spawn_executable, Helper},
-                     [{args, ["sh", "-c", "exec 0<&-; sleep 2"]}, {packet, 4}, binary,
-                      exit_status]),
+    Port = helper(["sh", "-c", "exec 0<&-; sleep 2"]),
     receive {Port, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
     receive after 300 -> ok end,
     true = port_command(Port, <<"i", "x">>),
@@ -71,13 +94,47 @@ helper_says_input_was_dropped_test() ->
 %% ends, is off for this run alone; the release review found it starved,
 %% and the helper hung as it failed
 helper_gives_the_hosts_reason_test() ->
-    Helper = filename:join([filename:dirname(code:which(ern_os)), "..", "priv", "ern_exec"]),
     Port = open_port({spawn, "sh -c \"ulimit -n 7; ASAN_OPTIONS=$ASAN_OPTIONS:detect_leaks=0"
-                      " exec " ++ Helper ++ " true\""},
+                      " exec " ++ helper_path() ++ " run\""},
                      [{packet, 4}, binary, exit_status]),
+    true = port_command(Port, command(["true"])),
     ?assertEqual(<<"fToo many open files">>,
                  receive {Port, {data, D}} -> D after 5000 -> none end),
     ?assertEqual(0, receive {Port, {exit_status, S}} -> S after 5000 -> none end).
+
+%% report §8.6, Appendix E.23: a program whose helper ended waits for a read
+%% to answer why, and holds nothing the check for a deadlock would read as
+%% work, its time limit gone with the helper. A regression test: the time
+%% limit's message came later and stayed, so the process never read as
+%% waiting
+lost_program_holds_no_timer_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Program} = start(<<"sleep">>, [<<"3">>], 300),
+               [Port] = [P || P <- element(2, process_info(Program, links)), is_port(P)],
+               {os_pid, Helper} = erlang:port_info(Port, os_pid),
+               _ = os:cmd("kill -9 " ++ integer_to_list(Helper)),
+               closed(Port),
+               sleep(500),
+               Me ! {queued, process_info(Program, message_queue_len)},
+               Read = alias(),
+               Program ! {'Read', Read},
+               Me ! {read, answer(Read)}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({message_queue_len, 0}, wait(queued)),
+    ?assertMatch({'Left', {'Other', _}}, wait(read)).
+
+%% Appendix E.23: an argument longer than the host takes is the program's
+%% failure to start, with the host's reason. A regression test: the
+%% arguments were the helper's own, which the host would not start, and
+%% `start` answered that the helper failed
+argument_too_long_test() ->
+    Me = self(),
+    Long = binary:copy(<<"x">>, 200000),
+    ok = ern_rt:run_main(fun() -> Me ! {started, start(<<"echo">>, [Long])} end,
+                         <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({'Left', {'Other', <<"Argument list too long">>}}, wait(started)).
 
 %% Appendix E.23: a time that passes before the program has started makes
 %% `start` answer `Left(Timeout)`. A regression test, written as the report
@@ -87,6 +144,20 @@ start_timeout_test() ->
     ok = ern_rt:run_main(fun() -> Me ! {started, start(<<"sleep">>, [<<"1">>], 0)} end,
                          <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({'Left', 'Timeout'}, wait(started)).
+
+%% The helper run on a command, as ern_os runs it: the command comes as the
+%% first frame.
+helper(Command) ->
+    Port = open_port({spawn_executable, helper_path()},
+                     [{args, ["run"]}, {packet, 4}, binary, exit_status]),
+    true = port_command(Port, command(Command)),
+    Port.
+
+helper_path() ->
+    filename:join([filename:dirname(code:which(ern_os)), "..", "priv", "ern_exec"]).
+
+command(Parts) ->
+    iolist_to_binary(["c" | [[Part, 0] || Part <- Parts]]).
 
 start(Program, Arguments) ->
     start(Program, Arguments, 5000).

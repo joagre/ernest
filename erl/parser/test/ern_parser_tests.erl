@@ -346,6 +346,9 @@ patterns_test() ->
     ?assertMatch(#p_lit{kind = int, value = 1}, Pat("1")),
     ?assertMatch(#p_lit{kind = int, value = -1}, Pat("-1")),
     ?assertMatch(#p_lit{kind = float, value = -2.5}, Pat("-2.5")),
+    %% report §3.1: no negative zero, so `-0.0` is the zero; a regression
+    %% test, it was the host's negative zero, which no value matched
+    ?assertMatch(#p_lit{kind = float, value = +0.0}, Pat("-0.0")),
     ?assertMatch(#p_lit{kind = string, value = <<"let">>}, Pat("\"let\"")),
     ?assertMatch(#p_lit{kind = char, value = $-}, Pat("'-'")),
     ?assertMatch(#p_lit{kind = bool, value = false}, Pat("false")),

@@ -74,8 +74,11 @@ After the First Release*; one milestone with the operations records since 2026-0
    about 150 (the log's *The Release Review*). Before the tag, each `tag` line is fixed with
    a regression test, area by area, the security findings first, and each `ask` line is
    decided with the user one at a time; `cheap` clarity is fixed where it is cheap. What is
-   left is MVP 2.99b's first item. The security lines and the crashes are done (the log's *The Release
-   Review's Security Lines* and *The Release Review's Crashes*). Three decisions came with
+   left is MVP 2.99b's first item. The security lines, the crashes, and the wrong results'
+   first part are done (the log's *The Release Review's Security Lines*, *The Release
+   Review's Crashes* and *The Release Review's Wrong Results*). `String.split` reads the
+   string once over a private primitive, `drop`, decided with the user over the measure of a
+   split written over `graphemes` (Appendix E.5). Three decisions came with
    the crashes: a fault the shell's standard input gives it exits with status 1, and any
    other fault of its own with 70 (§11.8); a standard stream closed as a job begins ends it
    with status 141 (§11); and an escape sequence the editor does not bind does nothing
@@ -103,8 +106,12 @@ renamed over it, then the guide, and the soak last.
    twenty runs of `make test` wrote `failed with error` as an interrupt ended the host, where
    §8.6 has the interrupt end the program printing nothing (`interrupt_test_`, found
    2026-09-28, not yet diagnosed). Its shape: read the helper's source for what it reports,
-   meet it under load, and end the host so that its helper is not caught mid-write. First, so
-   that every run of `make test` the renaming leans on is trusted.
+   meet it under load, and end the host so that its helper is not caught mid-write. With it
+   the one failure of `filesync_test_` seen on 2026-09-30, under the whole suite's load and
+   not alone, where the example did not print its conflict within the test's thirty seconds:
+   its shape, run the programs' tests under a load until it comes again, and read what the
+   example was doing when the time ran out. First, so that every run of `make test` the
+   renaming leans on is trusted.
 2. **The style guides and the glossary, a decision with the user.** [`style.md`](style.md)
    rests its guides on widely accepted ones, Ericsson's *Programming Rules and Conventions*
    and Inaka's guidelines for Erlang and the *Elm Style Guide* for Ernest, and holds a

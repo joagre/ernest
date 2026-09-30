@@ -31,6 +31,7 @@
 ///
 /// ```ernest
 /// Terminal.Size(rows = 24, columns = 80)
+/// // => Size(columns = 80, rows = 24)
 /// ```
 export type Size = Size(rows : Int, columns : Int)
 
@@ -111,6 +112,7 @@ export fn size() : Optional(Size) with m =
 ///
 /// ```ernest
 /// Terminal.Foreground(Terminal.Red)
+/// // => Foreground(Red)
 /// ```
 export type Colour = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
 
@@ -210,7 +212,8 @@ fn move(n : Int, direction : String) : String =
 /// ### Examples
 ///
 /// ```ernest
-/// Io.print("\r" <> Terminal.clearBelow)
+/// "\r" <> Terminal.clearBelow
+/// // => "\r\u{1B}[J"
 /// ```
 export let clearBelow = sequence("J")
 
@@ -219,7 +222,8 @@ export let clearBelow = sequence("J")
 /// ### Examples
 ///
 /// ```ernest
-/// Io.print(Terminal.clearScreen)
+/// Terminal.clearScreen
+/// // => "\u{1B}[2J\u{1B}[H"
 /// ```
 export let clearScreen = sequence("2J") <> sequence("H")
 

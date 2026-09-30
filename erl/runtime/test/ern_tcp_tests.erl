@@ -79,8 +79,11 @@ socket_lives_until_closed_test() ->
                Me ! {reads, [read(Socket, 1000), read(Socket, 1000), read(Socket, 1000),
                              peer(Socket), local(Socket)]},
                ern_rt:send(Socket, 'Close'),
-               Reader = ern_rt:spawn('Local', fun() -> read(Socket, 1000) end, <<"reader">>),
-               ern_rt:monitor(Reader, fun(D) -> {down, D} end),
+               %% monitored from its start: a reader that faulted before a
+               %% monitor was made would be `Unknown`, as the test once saw
+               %% under load
+               _ = ern_rt:spawn_monitored('Local', fun() -> read(Socket, 1000) end,
+                                         fun(D) -> {down, D} end, <<"reader">>),
                receive {down, D} -> Me ! {down, D} end
            end, <<"main">>, quiet()),
     gen_tcp:close(Listen),
@@ -89,7 +92,9 @@ socket_lives_until_closed_test() ->
     ?assertMatch({'Down', {'Fault', _}, _}, wait(down)).
 
 %% Appendix E.18: closing a listener answers an accept waiting on it with
-%% `Left(Closed)`, and the listener's process ends
+%% `Left(Closed)`, and the listener's process ends. Under load the close
+%% could come before the accept's worker began, and the host's `einval`
+%% was answered `Other("invalid argument")`; that race is not forced here
 close_listener_test() ->
     Me = self(),
     ok = ern_rt:run_main(
