@@ -747,7 +747,7 @@ Only a spawn on a peer ships code: `spawn(Peer(name), f)` and `spawnMonitored(Pe
 
 ## 9. Prelude
 
-The prelude is what §9 names. Everything else is the standard library, Appendix E: the container, string, and numeric operations and the output helpers. An operation of §9.6 in a type's namespace, `Int.compare`, is provided by that type's standard library module. `Address.call` and `Address.callForever` are the runtime's, as the rest of §9.4 and §9.5 are.
+The prelude holds what a rule of this report names and what no function written over the prelude could provide: a function is the prelude's only where the runtime alone gives it its meaning, and how common an operation is puts it nowhere. A prelude function has the shape Appendix E.0 gives a library function of its kind, and differs from one by nothing but its place. Everything else is the standard library, Appendix E: the container, string, and numeric operations and the output helpers. An operation of §9.6 in a type's namespace, `Int.compare`, is provided by that type's standard library module. `Address.call` and `Address.callForever` are the runtime's, as the rest of §9.4 and §9.5 are.
 
 The prelude's names are documented as a standard library module's declarations are (E.0 shape rule 6), on a page of their own, and an operation a type's module provides is documented there.
 
