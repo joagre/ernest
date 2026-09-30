@@ -47,6 +47,7 @@ published on 2026-09-30 with MVP 2.99, the last milestone done; MVP 2.9, MVP 2.6
 | MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
 | MVP 2.99b | what the release review left, names that read among it; operations records: `Set`'s record and an ordered set; running as a service | the decisions before anything is built (`operations.md`) |
 | The principles review | the report and the guide against §0, and §0 against what it decided | after MVP 2.99b's item 3, before its item 4 |
+| Ernest 0.2.0 | the review's changes shipped as one, after the release review | after the principles review's closure |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines | moved from MVP 3.9 on 2026-10-01 |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
@@ -225,7 +226,8 @@ The readers ran on 2026-09-30, on `57b8356`, and their findings stand in
 [`findings.md`](findings.md). The order in which the findings are worked is
 [`attack_plan.md`](attack_plan.md)'s, seven phases: the principles' sentences, the sections'
 sentences, MVP 2.99b's items 1 to 3, the defects, the families' rules, the log, and the
-closure, after which MVP 2.99b resumes at item 4.
+closure, after which the release review runs and Ernest 0.2.0 is tagged (decided 2026-10-01,
+the log's *A Release After the Review*), and MVP 2.99b resumes at item 4.
 
 **Gaps the sentences open**, each dated to the attack plan's phase 5, where the rule's code and
 its examples change together (the attack plan's rules of the road): under §7.4's opening of
