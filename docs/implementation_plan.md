@@ -133,11 +133,12 @@ discussed with the user one at a time as they are met.
    deciding by content (§11.1; the log's *Make Runs `ern build` Every Time*), decided with the
    user and done 2026-09-30; the distribution notes read back against the report, what was
    false corrected, their reasons moved to the log, and every question they leave open
-   numbered in them and so decided in MVP 3.0 or 3.1, done 2026-09-30; three placements for
-   the user in this item, each a verdict by principle and what would change it, or a
-   milestone: Erlang scheduling hints, which wait "for a program that needs them", a count
-   CLAUDE.md does not allow; discovery of a library by name, "a tooling question for later";
-   and the shell's later work, the grey suggestion, the kill ring and the other keys,
+   numbered in them and so decided in MVP 3.0 or 3.1, done 2026-09-30; Erlang scheduling
+   hints placed out of the language and the library, by §10 and principles 2, 3 and 5,
+   decided with the user 2026-09-30 (the log's *Scheduling Hints Are the Host's*); two
+   placements for the user in this item, each a verdict by principle and what would change
+   it, or a milestone: discovery of a library by name, "a tooling question for later"; and
+   the shell's later work, the grey suggestion, the kill ring and the other keys,
    completion by type, re-running by number, `:trace`, quiescence and attaching to a node;
    the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
@@ -447,7 +448,10 @@ Release Is for Others*):
 
 `Slot(a)`, a one-shot credit parallel to `Reply(a)`, is out on principles 2 and 5; the log
 holds its shape if the verdict is revisited. String interpolation is declined for now on
-principles 2, 3 and 4. Erlang scheduling hints wait for a program that needs them. No HTTP
+principles 2, 3 and 4. Erlang scheduling hints are out: a priority breaks §10's rule that a
+process cannot prevent others from running, and the memory options of a spawn change no
+meaning; a program reaches either through `foreign fn` (the log's *Scheduling Hints Are the
+Host's*). No HTTP
 server, ever, and no database connectors: those are libraries for others to write on Appendix
 D's pattern.
 
