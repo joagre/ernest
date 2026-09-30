@@ -39,9 +39,8 @@ taken out of order. Each has its paragraph under "Done".
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | a restart begins afresh, and the first release | |
-| MVP 2.99b | operations records: `Set`'s record and an ordered set | the decision first (`operations.md`) |
+| MVP 2.99b | what the release review left, names that read among it; then operations records: `Set`'s record and an ordered set | the operations' decision before they are built (`operations.md`) |
 | MVP 2.99c | running as a service | |
-| MVP 2.99d | what the release review left | |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -76,7 +75,7 @@ After the First Release*).
    about 150 (the log's *The Release Review*). Before the tag, each `tag` line is fixed with
    a regression test, area by area, the security findings first, and each `ask` line is
    decided with the user one at a time; `cheap` clarity is fixed where it is cheap. What is
-   left is MVP 2.99d's. The security lines and the crashes are done (the log's *The Release
+   left is MVP 2.99b's first item. The security lines and the crashes are done (the log's *The Release
    Review's Security Lines* and *The Release Review's Crashes*). Three decisions came with
    the crashes: a fault the shell's standard input gives it exits with status 1, and any
    other fault of its own with 70 (§11.8); a standard stream closed as a job begins ends it
@@ -85,14 +84,37 @@ After the First Release*).
 
 ---
 
-## MVP 2.99b (operations records: `Set`'s record and an ordered set), about ten days
+## MVP 2.99b (what the release review left; operations records: `Set`'s record and an ordered set), about three weeks
 
-How code written once works over several representations of one thing, decided here, after the
-first release (the log's *The Contract's Decision After the First Release*), over what
+First what the release review left, the naming of all the code among it, moved here from MVP
+2.99d on 2026-09-30 so that it comes before anything is built on the released code (the log's
+*Names Are the First Documentation*). Then how code written once works over several
+representations of one thing, decided here, after the first release (the log's *The Contract's Decision After the First Release*), over what
 [`operations.md`](operations.md) proposes and compares with type classes. The guide's §7.3,
 decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*), is rewritten around it.
 
-1. **The decision**, taken first, with the user (language feedback 64, and 69 to 73): the proposal's
+1. **What the release review left**: the lines of [`findings.md`](findings.md) marked `2.99b`,
+   the hardening the code readers found (C1-5, C1-9, C1-10, C3-26 to C3-31), and the places
+   the language made their work harder, each taken to
+   [`language_feedback.md`](language_feedback.md) or dropped with its reason; the file goes
+   when this item is done. And **names that read**, about a week and a half: every Erlang
+   module under `erl/` and `test/`, and then every Ernest source, the standard library, the
+   shell, the libraries and the examples, is read for its names and renamed where a name does
+   not say what its value or its work is: a variable, a function, and in Erlang a record and
+   its fields, in Ernest a type, a constructor and a field. The rules are
+   [`style.md`](style.md)'s, written on 2026-09-30 so that the code written before the pass
+   keeps them. Before any renaming, **the style guides are a decision with the user**:
+   `style.md` rests them on widely accepted guides, Ericsson's *Programming Rules and
+   Conventions* and Inaka's guidelines for Erlang, the *Elm Style Guide* for Ernest, and
+   holds a proposal for names and for structure drawn from what the code has shown good and
+   bad, which the user reads when this item begins. Then a glossary of the names that recur
+   goes there, read with the user: one name for each concept, the same in every module. The
+   renaming goes area by area, a commit each that changes names and nothing else, the area's
+   tests green before the next; the code grows longer, and the line stays at 100 characters.
+   A name the report states, an exported function's or a constructor's, changes only through
+   the report.
+2. **The decision**, taken with the user before anything of it is built (language feedback 64,
+   and 69 to 73): the proposal's
    ordering restriction, inferred on a type variable as the equality restriction is, with a
    type's order its `compare`; an operations record holding a type's primitives; and what the
    note's last section leaves to the decision. Nothing is built around the decision. Three
@@ -101,22 +123,22 @@ decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*), is rewritt
    and `Either` by a `compare` in the prelude, `None` and `Left` first; `put` keeps the
    element already in the set; and `foldLeft` is written once over `toList`, outside the
    record. The ordered set's representation is the note's open question.
-2. **`set.ern` over its record**: `Set.Operations(s, e)` with `Set`'s six primitives, the
+3. **`set.ern` over its record**: `Set.Operations(s, e)` with `Set`'s six primitives, the
    functions written once as members of that type, and each of `Set`'s own a call of one.
-3. **`OrderedSet` in the standard library**, the record's second representation, with its
+4. **`OrderedSet` in the standard library**, the record's second representation, with its
    tests and its page, in a section of its own at the end of Appendix E. `Map` gains a record
    with a second representation, and not before.
-4. **The guide's §7.3** says "operations record" and shows code written once, a
+5. **The guide's §7.3** says "operations record" and shows code written once, a
    representation's own functions beside the record's, two ordered sets that cannot meet in
    `union`, and values of several representations in one list. Its examples compile and run
    under the guide's checks. What Ernest cannot express goes to
    [`language_feedback.md`](language_feedback.md) and is decided with the user before the
    section goes around it.
-5. **When a type's operation is a member and when a module function** (`findings.md`'s U8,
+6. **When a type's operation is a member and when a module function** (`findings.md`'s U8,
    moved here 2026-09-29): §7.2 declares them `fn Stack.push` and §7.3 `toList` of a module,
    and the decision settles how a type's operations are declared, so the guide states one
    rule with it.
-6. **A file's words joined by `_` name one namespace segment** (decided 2026-09-29, the log's
+7. **A file's words joined by `_` name one namespace segment** (decided 2026-09-29, the log's
    *A Namespace From Words Joined by `_`*): `ordered_set.ern` provides `OrderedSet`, each word
    capitalized and the `_` dropped, a directory's name too, `net/http_client.ern` providing
    `Net.HttpClient`. §4.2's and §11.1's path shape gain it, a word being a lowercase letter
@@ -124,14 +146,14 @@ decided 2026-09-28 (the log's *§7.3 Written Around an Ordered Set*), is rewritt
    no two files name one namespace (language feedback 74, decided with the user 2026-09-30); `ern build`, `:load`, completion, `ern
    doc` and the manual pages' names follow, the shell finding `ordered_set.ern` for
    `OrderedSet`.
-7. **`Io.show` follows its type through a generic function** (decided 2026-09-29, the log's
-   *`Io.show` Follows Its Type*; language feedback 72 with item 1): `Io.show` and `Io.debug`
+8. **`Io.show` follows its type through a generic function** (decided 2026-09-29, the log's
+   *`Io.show` Follows Its Type*; language feedback 72 with item 2): `Io.show` and `Io.debug`
    on a type variable give it a *shown* restriction, printed with a mark, and a function generalized over it takes its
    caller's type description, as the ordering restriction takes a `compare`; `wrap('a')`, with
    `fn wrap(x) = Io.show(x)`, prints `'a'`. `Io.debug` is then written in Ernest over
    `Io.show` and `Io.println`, and its shim `ern_io:debug/2`, which writes to standard output
-   past `Io`, goes (`findings.md`'s E-C4, 2026-09-30). It is built on item 1's hidden
-   argument, about a day; if item 1 refuses the ordering restriction, the choice returns to the
+   past `Io`, goes (`findings.md`'s E-C4, 2026-09-30). It is built on item 2's hidden
+   argument, about a day; if item 2 refuses the ordering restriction, the choice returns to the
    user. Until then Appendix E.1 states what the code does: through a type variable, a value
    is written by its representation.
 
@@ -161,33 +183,6 @@ peer (the log's *MVP 3.0 Is Distributed Code and the Node Protocol*):
   end the program printing nothing (`interrupt_test_`, found 2026-09-28, not yet
   diagnosed). Its shape: read the helper's source for what it reports, meet it under load,
   and end the host so that its helper is not caught mid-write.
-
----
-
-## MVP 2.99d (what the release review left)
-
-The lines of [`findings.md`](findings.md) marked `2.99d`, after the first release: the
-hardening the code readers found (C1-5, C1-9, C1-10, C3-26 to C3-31), and the places the
-language made their work harder, each taken to
-[`language_feedback.md`](language_feedback.md) or dropped with its reason. The file goes
-when this milestone is done.
-
-- **Names that read** (2026-09-30, the log's *Names Are the First Documentation*). Every
-  Erlang module under `erl/` and `test/`, and then every Ernest source, the standard library,
-  the shell, the libraries and the examples, is read for its names and renamed where a name
-  does not say what its value or its work is: a variable, a function, and in Erlang a record
-  and its fields, in Ernest a type, a constructor and a field. The rules are
-  [`style.md`](style.md)'s *Names*, written on 2026-09-30 so that the code written before
-  the pass keeps them. Before any renaming, **the style guides are a decision with the user**:
-  `style.md` rests them on guides that are widely accepted, Ericsson's *Programming Rules
-  and Conventions* and Inaka's guidelines for Erlang, the *Elm Style Guide* for Ernest, and
-  holds a proposal for names and for structure, drawn from what the code has shown good and
-  bad, written on 2026-09-30, which the user reads when this milestone begins. Then a
-  glossary of the names that recur goes there, read with the user: one name for each
-  concept, the same in every module. The code grows longer, and the
-  line stays at 100 characters. The renaming then goes area by area, a commit each, the
-  area's tests green before the next. A name the report states, an exported function's or a
-  constructor's, changes only through the report.
 
 ---
 

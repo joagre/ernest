@@ -1,6 +1,6 @@
 # Findings of the release review
 
-The findings of the review of the first release, run on 2026-09-30 as [`review.md`](review.md) says, on commit `691b4d6`: its machines, and its readers, the report's (R, the principles and the cold reader as one), a newcomer's (N), and the code's in three parts, over what changed since `0753fd8`: C1 the runtime and the standard library, C2 the front end, the checker and the emitter, C3 the command line, the shell and the libraries. M is a machine's. A line carries its decision: **tag**, fixed before the release's tag; **ask**, a question for the user, decided before the tag; **cheap**, clarity fixed before the tag where it is cheap; **2.99d**, planned in the plan's MVP 2.99d; **dropped**, with the reason; **next full review**, left for it. Each reader's list stands below the lines, condensed from what the reader handed in. This file goes when every line is done, dropped, or planned.
+The findings of the review of the first release, run on 2026-09-30 as [`review.md`](review.md) says, on commit `691b4d6`: its machines, and its readers, the report's (R, the principles and the cold reader as one), a newcomer's (N), and the code's in three parts, over what changed since `0753fd8`: C1 the runtime and the standard library, C2 the front end, the checker and the emitter, C3 the command line, the shell and the libraries. M is a machine's. A line carries its decision: **tag**, fixed before the release's tag; **ask**, a question for the user, decided before the tag; **cheap**, clarity fixed before the tag where it is cheap; **2.99b**, planned in the plan's MVP 2.99b, its first item; **dropped**, with the reason; **next full review**, left for it. Each reader's list stands below the lines, condensed from what the reader handed in. This file goes when every line is done, dropped, or planned.
 
 ## Security
 
@@ -41,7 +41,7 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 
 ## Questions for the user
 
-- ask — `Io.show` through a generic function shows what an abstract type hides (R-1, with MVP 2.99b's item 7)
+- ask — `Io.show` through a generic function shows what an abstract type hides (R-1, with MVP 2.99b's item 8)
 - ask — a foreign result at a type variable a parameter names is not checked (R-2)
 - ask — `Prelude.` and the taken namespaces (R-3)
 - ask — `as` and `or` in a pattern (R-5)
@@ -60,15 +60,15 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 
 ## Hardening
 
-- 2.99d — foreign code forging the runtime's handles (C1-5)
-- 2.99d — the signals a started program inherits (C1-9), and the launcher's environment (C1-10)
-- 2.99d — a temporary name, the configuration directory's window, startup files' owner, a crafted `.erc`, the shell's atoms, and `:output` to a pipe with no reader (C3-26 to C3-31)
+- 2.99b — foreign code forging the runtime's handles (C1-5)
+- 2.99b — the signals a started program inherits (C1-9), and the launcher's environment (C1-10)
+- 2.99b — a temporary name, the configuration directory's window, startup files' owner, a crafted `.erc`, the shell's atoms, and `:output` to a pipe with no reader (C3-26 to C3-31)
 - dropped — the proxies of distinct `via` addresses (C1-20): decided 2026-09-30, §8.4
 
 ## Where the language made the work harder
 
 - dropped — decided before: a list of functions as a binding (C3-47, *A Cycle Through a Function Stays One*), `kill` on a `Process` (C1-39, *`kill` and `monitor` Keep the Address*), `Io.Error`'s text (C3-45, *`Other` Says the Host's Words*), an `if` without `else` (N-C4, N-L6), a `List` of `Reply` (C1-38, §6.6)
-- 2.99d — the rest, each to [`language_feedback.md`](language_feedback.md) or dropped with its reason: C1-40 to C1-42, C3-41 to C3-44, C3-46, C3-48, N-C2, N-C5 to N-C8
+- 2.99b — the rest, each to [`language_feedback.md`](language_feedback.md) or dropped with its reason: C1-40 to C1-42, C3-41 to C3-44, C3-46, C3-48, N-C2, N-C5 to N-C8
 
 ## Rules that buy little
 
