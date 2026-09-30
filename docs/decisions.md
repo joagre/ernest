@@ -5530,6 +5530,8 @@ The review's questions, decided with the user one at a time before the tag.
 
 **`:load` of a compiled module (C3-9).** `ern run` refuses a module compiled against another interface of a module it uses or of the standard library, and a file at a module's path that holds another; `:load` of a module with no source took its compiled form without either check, and the module faulted later where the two differed. §11.2 was silent, and this needed no choice: the shell refuses as the runner does, in its words, and loads nothing.
 
+**An alarm is not cancelled (N-C1, N-B4).** A coordinator that set a deadline per job and did not match the deadlines of jobs done early grew its mailbox by one message a job. A cancel would not remove the need to drop a stale deadline: an alarm that fires as it is cancelled has delivered already, and no cancel takes a delivered message back, so a process matches stale deadlines with a cancel or without one, and with one it is rarer and so forgotten. What a cancel adds is freeing the clock's pending alarm early, which without it lasts until the alarm fires, at the price of `Clock.alarm` answering a handle at every call. E.15 stays; the guide's §5.5 now says that an alarm cannot be cancelled and shows a deadline carrying its job's id, matched and dropped once the job is done.
+
 ## Erlang's Standard Library, Module by Module
 
 Where each user-facing OTP module stands, first read on 2026-09-18 (*The Erlang Standard Library, Read for Ernest*) and kept current since. What is not a row is OTP's own machinery, which Ernest's concepts or toolchain replace. What a module still waits for, and when, is the plan's.

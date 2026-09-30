@@ -1299,6 +1299,8 @@ fn waitForTick(state : World) : Unit with GameMsg =
 
 `game` schedules one alarm and hands over to `waitForTick`, which takes inputs without touching the alarm; only a `Tick` returns to `game`, which schedules the next. `step` reads the world's field by selecting it, `w.score`.
 
+An alarm cannot be cancelled. A process that no longer wants one takes its message when it comes and drops it, since even a cancel could not take back a message already delivered. A deadline for a piece of work carries the work's id, `Clock.alarm(5000, fn(_) = Expired(job))`, and the loop that waits matches every `Expired`, acting on one whose job is still open and dropping the rest; a message that no `receive` takes stays in the mailbox for as long as the process lives (report Appendix E.15).
+
 ### 5.6 The word counter at once
 
 Several texts are counted at once, by a worker each, and the tally totals them. `words.ern` gets its `main`:
