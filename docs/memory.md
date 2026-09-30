@@ -4,7 +4,7 @@ How the project checks that nothing grows with the work done: the loads that mea
 
 ## The loads
 
-`make load` runs each load in an Erlang node of its own and prints its samples and whether it stayed flat, which it also writes to `test/build/load/<load>.txt`. It takes about a hundred seconds (measured 2026-09-29).
+`make load` runs each load in an Erlang node of its own and prints its samples and whether it stayed flat, which it also writes to `test/build/load/<load>.txt`. It takes about 110 seconds (measured 2026-09-30).
 
 A load does the same work in each of fourteen rounds and calls `mark(round)`, a `foreign fn` of `test/ern_load.erl`, after each. The programs are under `test/load/`; the shell's session is written by that harness.
 
@@ -18,11 +18,11 @@ A load does the same work in each of fourteen rounds and calls `mark(round)`, a 
 | `alarms` | 500 times: an alarm after a millisecond and one at the time now, each taken, and a wait that times out |
 | `shell` | 101 inputs at the prompt in line mode: expressions, `let`s, a function and a type declared again under the same names, a function as a value, output, a process spawned, and `:type`, `:bindings`, `:doc` and `:faults` |
 
-`mark` gives what the round set ending, a killed process or a `Down` on its way, 200 milliseconds to end, collects every process's garbage, and samples:
+`mark` gives what the round set ending, a killed process or a `Down` on its way, 200 milliseconds to end. It then waits while a process of the harness's own collects every other process's garbage, gives the host 100 milliseconds to count the heaps the collections freed, and samples:
 
-- `memory`, the node's total, less the harness's own table;
+- `memory`, the node's memory in use: what the processes and the system use, less the harness's own table and process and the words of every heap that hold nothing. The structures the host keeps for processes to come are not in use;
 - `code`, the loaded code's;
-- `reaper`, the memory of the runtime's reaper, which holds every wait on a process, collected again just before it is read, since a message it takes after the first collection leaves its heap a size larger at that sample alone;
+- `reaper`, the memory the runtime's reaper holds, which holds every wait on a process, collected again just before it is read, since a message it takes after the first collection leaves words in its heap that the next collection frees;
 - `atoms`, `procs` and `ports`, the node's counts;
 - `rows`, the rows of the runtime's tables `ern_processes`, `ern_calls`, `ern_faults` and `ern_held`;
 - `terms`, the persistent terms.
@@ -30,7 +30,7 @@ A load does the same work in each of fourteen rounds and calls `mark(round)`, a 
 The first six rounds are the warm-up, in which heaps, caches and windows settle, the supervisors' restart window of one second among them. From the seventh on:
 
 - the code, the atoms, processes, ports, rows, persistent terms and the reaper's memory may not grow at all, the last sample against the first;
-- the node's memory may not grow by more than 128 KB, the mean of the last three samples against the mean of the first three. On loads that leak nothing it varies by about 100 KB either way, and a leak of about a hundred bytes an operation passes the bound over a load's eight counted rounds.
+- the node's memory may not grow by more than 128 KB, the mean of the last three samples against the mean of the first three. On loads that leak nothing it varies by about 15 KB either way, and a leak of about a hundred bytes an operation passes the bound over a load's eight counted rounds.
 
 A load that grew prints what grew and by how much, and `make load` fails.
 
@@ -55,6 +55,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 - **One kind at a time.** At the prompt, the same input a hundred times between two readings of `erlang:system_info(atom_count)`, through `foreign fn info(k : Foreign) : Int with m = "erlang:system_info/1"`, one kind of input a run.
 - **A longer run.** The load edited to forty rounds and run through `ern_cli:ern(["run", ...])`, with the table `ern_load_samples` created by hand, tells settling from growth.
 - **One process's memory.** A column for the process suspected, as `reaper` was added, shows a growth that the node's total hides in its variation.
+- **Every process at each sample.** Each process's memory and heap sizes (`erlang:process_info(P, garbage_collection_info)`) written at each sample, beside the kinds of `erlang:memory()` read at the sample and a moment after: a process whose heap steps between two sizes tells a swing from a growth, and a kind that differs only at the sample tells the host's lag.
 - **Same and distinct.** The same input a hundred times, and a hundred inputs that each differ, `1 + 1` against `1 + n`, between two readings of `erlang:memory(code)`: a cost of the distinct ones alone is a cost per version of the code. The same test in plain Erlang, one module loaded, deleted and purged in a loop, tells the host's cost from the program's.
 - **With and without.** The fix stashed (`git stash -- file`), rebuilt, and the load run again beside the run with it: the difference is the fix's. A regression test is checked the same way, and fails without the fix.
 

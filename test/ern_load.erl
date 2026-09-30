@@ -16,7 +16,7 @@
 
 %% The noise within which memory counts as flat, between the mean of the
 %% three samples after the warm-up and the mean of the last three:
-%% measured at about 100 KB either way on loads that leak nothing, and
+%% measured at about 15 KB either way on loads that leak nothing, and
 %% small enough that a load of a few thousand operations after its warm-up
 %% shows a leak of a hundred bytes an operation.
 -define(NOISE_BYTES, 128 * 1024).
@@ -72,37 +72,70 @@ round_inputs(K) ->
 
 %% Called by a load after each round, through a `foreign fn`. What the
 %% round set ending, a killed process or a delivery of its `Down`, is given
-%% a moment to end before the node is sampled.
+%% a moment to end before the node is sampled. The caller then waits while
+%% a process of the harness's own samples the node: sampled by itself, the
+%% caller would be mid-work.
 -spec mark(integer()) -> 'Unit'.
 mark(Round) ->
     timer:sleep(200),
-    [erlang:garbage_collect(P) || P <- erlang:processes()],
-    Own = ets:info(ern_load_samples, memory) * erlang:system_info(wordsize),
-    ets:insert(ern_load_samples,
-               {Round, #{round => Round,
-                         memory => erlang:memory(total) - Own,
-                         code => erlang:memory(code),
-                         reaper => reaper_memory(),
-                         atoms => erlang:system_info(atom_count),
-                         processes => erlang:system_info(process_count),
-                         ports => erlang:system_info(port_count),
-                         rows => rows(ern_processes) + rows(ern_calls) + rows(ern_faults)
-                                 + rows(ern_held),
-                         terms => maps:get(count, persistent_term:info())}}),
+    Caller = self(),
+    Sampler = spawn(fun() -> Caller ! {self(), sample(Round)} end),
+    receive
+        {Sampler, Sample} -> ets:insert(ern_load_samples, {Round, Sample})
+    end,
     'Unit'.
 
-%% The memory of the runtime's reaper, which holds every wait on a process
-%% (report §6.9), after its garbage is collected. It is collected again just
-%% before it is read: a message it took after the collection of every
-%% process leaves its heap a size larger at the sample, a step of the
-%% host's heap sizes that the next sample does not show.
+%% The node, every process but the sampler collected first, and the host
+%% given a moment to count the heaps the collections freed. The memory is
+%% what is in use: it leaves out the structures the host keeps for
+%% processes to come, which it trims when it likes, the samples' own table,
+%% the sampler, and the words of every heap that hold nothing.
+sample(Round) ->
+    Sampler = self(),
+    Others = [P || P <- erlang:processes(), P =/= Sampler],
+    [erlang:garbage_collect(P) || P <- Others],
+    timer:sleep(100),
+    Reaper = reaper_memory(),
+    Unused = lists:sum([unused(P) || P <- Others]),
+    Own = ets:info(ern_load_samples, memory) * erlang:system_info(wordsize)
+          + element(2, erlang:process_info(Sampler, memory)),
+    [{processes_used, Processes}, {system, System}] = erlang:memory([processes_used, system]),
+    #{round => Round,
+      memory => Processes + System - Own - Unused,
+      code => erlang:memory(code),
+      reaper => Reaper,
+      atoms => erlang:system_info(atom_count),
+      processes => erlang:system_info(process_count),
+      ports => erlang:system_info(port_count),
+      rows => rows(ern_processes) + rows(ern_calls) + rows(ern_faults) + rows(ern_held),
+      terms => maps:get(count, persistent_term:info())}.
+
+%% The bytes of a process's heaps that hold nothing. The host sizes a heap
+%% by what the process held before its collection, garbage included, and
+%% grows it a size at the next when what lives fills most of it, so the
+%% same data sits in a heap of one size at one sample and of the next at
+%% another, a step of over a hundred kilobytes in the shell's own process.
+unused(Pid) ->
+    case erlang:process_info(Pid, garbage_collection_info) of
+        undefined ->
+            0;
+        {garbage_collection_info, Info} ->
+            #{heap_block_size := Heap, heap_size := Used, stack_size := Stack,
+              old_heap_block_size := Old, old_heap_size := OldUsed} = maps:from_list(Info),
+            (Heap - Used - Stack + Old - OldUsed) * erlang:system_info(wordsize)
+    end.
+
+%% The memory the runtime's reaper holds, which holds every wait on a
+%% process (report §6.9). It is collected again just before it is read: a
+%% message it took after the collection of every process leaves words in
+%% its heap that the next collection frees.
 reaper_memory() ->
     case persistent_term:get({ern_rt, reaper}, none) of
         none ->
             0;
         Pid ->
             erlang:garbage_collect(Pid),
-            element(2, erlang:process_info(Pid, memory))
+            element(2, erlang:process_info(Pid, memory)) - unused(Pid)
     end.
 
 rows(Table) ->

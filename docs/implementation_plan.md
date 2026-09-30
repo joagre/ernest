@@ -163,16 +163,14 @@ discussed with the user one at a time as they are met.
    with its arguments in place, and a variable with the equality restriction passes it to the
    variables of the type it is bound to. The same shape let a reply into a `List` nested in a
    tuple or an `Optional`, fixed with it (the log's *`==` on a Value That Holds a Function*).
-7. **A load sample that catches a process mid-work**, found 2026-09-29: about one run of
-   `make load` in ten fails a load that leaks nothing, the node's memory a few hundred
-   kilobytes higher in process heaps at one sample and back at the next, in `supervisors` and
-   `shell` alike. The same cause in the reaper's column, its heap a size larger where a
-   message came after the collection, was fixed the same day by collecting it again just
-   before it is read (`docs/memory.md`). The fix's shape: log each process's memory at each
-   sample until a swing is caught, and sample that process once it has settled, as the reaper
-   is. A statistic that leaves the swing out, the median of three, was tried and failed the
-   shell's load, whose last samples swing both ways. It is due before MVP 2.99's tag, whose
-   check runs the loads.
+7. **A load sample that catches a process mid-work**, found 2026-09-29, done 2026-09-30 (the
+   log's *A Load Samples a Node at Rest*): about one run of `make load` in ten failed a load
+   that leaks nothing. Each process logged at each sample showed three causes: the caller of
+   `mark` sampling while mid-work; a heap the host keeps at either of two sizes for the same
+   data; and the host's pool of process structures and its lag in counting freed heaps. A
+   process of the harness's own now samples while the caller waits, a heap is counted by the
+   words it holds, and the memory is what is in use. The loads vary by about 15 KB where they
+   varied by several hundred.
 
 ---
 
