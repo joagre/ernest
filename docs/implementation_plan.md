@@ -162,7 +162,10 @@ discussed with the user one at a time as they are met.
    log's *`Other` Says the Host's Words*); a group restarted whole, the child that faulted
    running again once each sibling its strategy restarts has restarted or ended, so that
    `services.ern` and the guide's `pair.ern` no longer sleep (E-C6), decided with the user and
-   done 2026-09-30 (Appendix E.22; the log's *A Group Restarts Whole*);
+   done 2026-09-30 (Appendix E.22; the log's *A Group Restarts Whole*); `Tcp.closeListener`
+   kept beside `Tcp.close`, a verb followed by the kind of thing it acts on, as `readLink`
+   beside `read` (E-C7), decided with the user 2026-09-30 (E.0 rule 2; the log's
+   *`closeListener` Names What It Closes*);
    the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.

@@ -10,7 +10,6 @@ The findings of the twelve readers of 2026-09-28 still open, one line each, by a
 
 ## The standard library, the libraries, the examples
 
-- 2.98 — the language: `Tcp.close` and `closeListener` (E-C7)
 
 ## The documents
 
