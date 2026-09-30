@@ -5598,6 +5598,16 @@ What it decides. `<<-1>>` in a constant-width segment is a compile error. A redu
 
 Not taken: a warning, which would make a third voice between an error and silence and put in the toolchain a judgment the report does not state; and a sentence that also decided the run-time silences, which are a failure's shape and belong to §7.4.
 
+## What Principle 5 Counts, 2026-10-01
+
+The fifth sentence of the principles review, decided with the user, and the last of the principles'. Principle 5 gains three sentences: the count is the language's, its concepts, its primitives and its reserved words, the standard library being bounded by E.0's rules and a function there where a reader who knows the type looks for it; how many programs ask for a feature decides nothing, for it or against it; and a feature costs a program that does not use it nothing, no argument, no word, and no name of it written there.
+
+Principle 5 had been cited for three things it does not say. For a program count: "rarely wanted (principle 5)" kept a key out of `Fs.list` and "few programs need (principle 5)" hard links out (*What the Library Lacked*, *What `Fs` Holds*), and `Udp`, `Process.restart` and `Event`'s keys wait for someone asking (*`Clock.monotonic` Is In*, *The Supervisor's Restart on Request Stays Its Own*, *One Event*), though E.0's preamble and CLAUDE.md both say a count decides nothing, and the log's seventeen entries on the three-uses rule are all superseded. For the library's size: rule 2 admits a vocabulary whole, and "few primitives" as written was read against it. And for nothing, where the cost to a program was the question: every `spawn` writes `Local` for a feature no program uses, two prelude types exist for `ern test`, and hello-world carries a `with Never` inference gives for free, which the guide explains in an exercise of its own (the review's P1-52, P1-61, W-2). The three sentences say what the principle counts and for whom; the last is the principle read from the program's side, where smallness is felt: the language a program sees is what it uses.
+
+What it decides. `Udp`, `Process.restart` and `Event`'s keys are judged by E.0's rules alone in round 2, and the entries that cited principle 5 for a count are marked in phase 6. `!`, `use` and list spread stand by principle 2's sentence and not by counts. `Local` at every spawn, `Test` and `TestResult` in the prelude, and `with Never` on an entry point that never receives are `report` candidates of round 2, each judged by the smallest program: a spawn without a peer argument, a test type in the library that `ern test` finds, and an entry point whose effect inference gives. The last touches §8.1, §6.8 and every example, and round 2 weighs it against the guard that no example gets harder.
+
+Not taken: a sentence that counts the library too, which would refuse the vocabulary rule 2 admits whole and put a reader's guess back in every module; and a sentence that lets a count decide against a feature while never for one, which is the same count.
+
 ## Erlang's Standard Library, Module by Module
 
 Where each user-facing OTP module stands, first read on 2026-09-18 (*The Erlang Standard Library, Read for Ernest*) and kept current since. What is not a row is OTP's own machinery, which Ernest's concepts or toolchain replace. What a module still waits for, and when, is the plan's.
