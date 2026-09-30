@@ -242,7 +242,12 @@ party, and `Os.start` takes milliseconds that bound a run and not a request (E.1
 example, the guide's §7.2 and `examples/stack.ern`, `repl.ern`, `template.ern` and
 `webserver.ern` declare members that are not operators; they change together with the refusal. Under §9's opening of
 2026-10-01, `Address.call` answers `None` for a timeout and for a callee's end alike, where a
-library function of its kind answers `Left` with the cause (§6.6, §7.2, §9.5).
+library function of its kind answers `Left` with the cause (§6.6, §7.2, §9.5). Under E.0's rules of
+2026-10-01, `List.<>` is a shim by §9.6 where a list is the language's; `Terminal`'s
+builders write a published specification, ECMA-48, in a standard library module (E.16);
+`Optional.orElse`, `Either.orElse` and `Char.isAsciiDigit` stand though no rule admits them;
+and `Udp` waits on a count (Appendix E, the log's *`Clock.monotonic` Is In, and `Udp` Is
+Placed*).
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is
