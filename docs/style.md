@@ -26,7 +26,7 @@ Code is read more often than it is written, and mostly by someone other than its
 These hold in every language of the repository, as the names do.
 
 - **A function reads on one screen.** A longer one is split into steps, each a function whose name says what the step does.
-- **Nesting goes no more than three levels deep**: a `case` inside a `case` inside a `case` is the most, and a fourth is a function of its own.
+- **How deep a construct nests is the writer's judgment.** The 100 characters of a line bound it: where a nested construct no longer reads within them, it becomes a function of its own.
 - **A module has one job**, which its first comment states.
 - **A comment says why, and cites the report section the code implements**: `%% Report §8.4: ...` in Erlang, `// Report §11.2: ...` in Ernest. What the code does, its names say.
 
