@@ -137,6 +137,22 @@ stdlib_types_test() ->
                    TI <- maps:values(element(3, I))],
     same(lists:sort([{Ns, rename(D)} || {Ns, D} <- Report]), lists:sort(Compiled)).
 
+%% report Appendix E.0 rule 2: the words rule 2 gives a set and a map are
+%% functions of `Set` and `Map`, which rule 4 admits as the vocabulary. A
+%% regression test, written when rule 2 named them (findings.md's R-6)
+set_and_map_words_test() ->
+    Rules = lists:flatten(lists:join(" ", section("Four *admission rules*", "Nine *shape rules*"))),
+    Exported = lists:append([maps:keys(element(4, I)) || I <- ern_prelude:stdlib_ifaces()]),
+    lists:foreach(
+      fun({Kind, Module}) ->
+              {match, [Sentence]} = re:run(Rules, "A " ++ Kind ++ " adds ([^.]*)\\.",
+                                           [{capture, all_but_first, list}]),
+              {match, Words} = re:run(Sentence, "`([a-zA-Z]+)`",
+                                      [global, {capture, all_but_first, list}]),
+              ?assertNotEqual([], Words),
+              [?assert(lists:member([Module, list_to_atom(W)], Exported)) || [W] <- Words]
+      end, [{"set", 'Set'}, {"map", 'Map'}]).
+
 %% report Appendix G: every library under libs/ has a section, and each
 %% section's signatures and types are the library's compiled interface,
 %% as Appendix E's are the standard library's

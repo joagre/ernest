@@ -9,7 +9,6 @@ The findings of the review of the first release, run on 2026-09-30 as [`review.m
 
 ## Questions for the user
 
-- ask — E.0 rule 4 against the compositions the listing keeps (R-6)
 - ask — a pipe into a construction (R-12)
 - ask — a bitstring literal that overflows (R-13)
 - ask — `Foreign` and a foreign type's equality (R-21)
