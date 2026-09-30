@@ -156,6 +156,19 @@ port_out_of_range_test() ->
     ?assertEqual(Refused, wait(connected)),
     ?assertEqual({fault, <<"deadlock">>}, Result).
 
+%% Appendix E.1, E.18: a reason of the host's that no constructor of
+%% Io.Error names is answered in the host's words, a port already in use
+%% "address already in use". A regression test: `Other` held the code,
+%% "eaddrinuse"; it does not cover a reason the host has no words for,
+%% which keeps its printed form
+port_in_use_test() ->
+    {ok, Taken} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}}]),
+    {ok, Port} = inet:port(Taken),
+    Me = self(),
+    ok = ern_rt:run_main(fun() -> Me ! {listened, listen(Port)} end, <<"main">>, quiet()),
+    gen_tcp:close(Taken),
+    ?assertEqual({'Left', {'Other', <<"address already in use">>}}, wait(listened)).
+
 %% Appendix E.18: a listener listens on the interface its host names, the
 %% loopback alone for "127.0.0.1". A regression test: `listen` took the
 %% port alone and listened on every interface, 127.0.0.2's among them

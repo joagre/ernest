@@ -239,4 +239,4 @@ io_error(econnrefused) -> 'Refused';
 io_error(not_regular) -> {'Other', <<"not a regular file">>};
 io_error(eexist) -> {'Other', <<"exists">>};
 io_error(target_not_utf8) -> {'Other', <<"the target is not UTF-8">>};
-io_error(Reason) -> {'Other', unicode:characters_to_binary(io_lib:format("~p", [Reason]))}.
+io_error(Reason) -> ern_io:other(Reason, fun file:format_error/1).

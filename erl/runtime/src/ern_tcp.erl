@@ -307,4 +307,4 @@ io_error(eperm) -> 'Denied';
 io_error(econnrefused) -> 'Refused';
 io_error(closed) -> 'Closed';
 io_error(etimedout) -> 'Timeout';
-io_error(Reason) -> {'Other', unicode:characters_to_binary(io_lib:format("~p", [Reason]))}.
+io_error(Reason) -> ern_io:other(Reason, fun inet:format_error/1).

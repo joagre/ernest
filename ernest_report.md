@@ -1271,7 +1271,7 @@ Nine *shape rules* give a function its shape. Shape rules 1 to 4, 7, and 9 hold 
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
 
-Output to standard output and standard error, and input from standard input, through the module's system references `stdout`, `stderr`, and `stdin` (§8.2). `Error` is the error of every system module. `Other(text)` holds a sentence of the runtime's, `"not a regular file"`, or the host's name for its reason, `"eisdir"`.
+Output to standard output and standard error, and input from standard input, through the module's system references `stdout`, `stderr`, and `stdin` (§8.2). `Error` is the error of every system module. `Other(text)` holds a sentence of the runtime's, `"not a regular file"`, or the host's description of its reason, `"address already in use"`. Where the host has no description, it holds the reason as the host writes it.
 
 ```
 type Error = NotFound | Denied | Refused | Closed | Timeout | NotATerminal | Other(String)

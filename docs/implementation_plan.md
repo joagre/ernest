@@ -156,7 +156,10 @@ discussed with the user one at a time as they are met.
    ended `restarting` and a group disagreeing on `RestartLimit(restarts = 0, within = 0)`
    (E-C3), decided with the user and done 2026-09-30 (§6.9, §9; the log's *No Limit Is
    `Unlimited`*); `Io.debug` in Ernest once `Io.show` follows its type, placed in MVP 2.99b's
-   item 7 (E-C4), decided with the user 2026-09-30;
+   item 7 (E-C4), decided with the user 2026-09-30; an `Io.Error` worded by each program,
+   with `Other` holding the host's description of a reason, "address already in use", where
+   it held the code (E-C5), decided with the user and done 2026-09-30 (Appendix E.1; the
+   log's *`Other` Says the Host's Words*);
    the diagnostics' positions and labels
    (§11.5), done 2026-09-29 (the log's *The Diagnostics Reader's Lines*); the guide's gaps, `Tcp` untaught among them; and the documents
    the code has left behind.

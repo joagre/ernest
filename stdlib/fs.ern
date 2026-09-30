@@ -7,8 +7,8 @@
 /// relative one names a file under `Os.workingDirectory`, and one that
 /// holds U+0000 names none, `Left(Io.Other("a path holds U+0000"))`. A name
 /// that is not UTF-8 is left out of `list`. `Io.Other` holds the host's
-/// name for a reason it has no constructor for, `"eisdir"` or `"enotdir"`
-/// (report Appendix E.17).
+/// description of a reason it has no constructor for, `"illegal operation
+/// on a directory"` or `"not a directory"` (report Appendix E.1).
 ///
 /// ## Examples
 ///
