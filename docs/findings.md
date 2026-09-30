@@ -1141,7 +1141,7 @@ The findings of the review of the first release, run on 2026-09-30 as [`release_
 
 ## Rules that buy little
 
-- next full review — the report reader's list of rules that buy little, and its counts (R's list below)
+- principles review — the report reader's list of rules that buy little, taken by the principles review above, whose *Rules that buy little* compares it with P's, and its counts, which that review counts against (R's list below)
 
 ## The readers' lists
 
