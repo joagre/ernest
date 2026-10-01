@@ -118,8 +118,8 @@ process_info_test() ->
                ern_rt:kill(Caller),
                ern_rt:kill(Server)
            end, <<"M.main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual([{'Some', {'Info', 'Receiving', 1, <<"M.quiet:1">>}},
-                  {'Some', {'Info', 'Calling', 0, <<"M.caller:3">>}}], wait(infos)),
+    ?assertEqual([{'Some', {'Info', <<"M.quiet:1">>, 1, 'Receiving'}},
+                  {'Some', {'Info', <<"M.caller:3">>, 0, 'Calling'}}], wait(infos)),
     ?assertEqual(true, wait(live)),
     ?assertEqual('None', wait(gone)).
 
@@ -167,7 +167,7 @@ fault_reports_test() ->
                ern_rt:kill(Killed),
                Reports = [receive {report, R} -> R end, receive {report, R2} -> R2 end],
                Me ! {reports, lists:sort([{Site, Cause, Restarted}
-                                          || {'FaultReport', Cause, _, Restarted, Site, <<>>}
+                                          || {'FaultReport', _, Site, Cause, Restarted, <<>>}
                                                  <- Reports])},
                nap(100),
                Me ! {first, receive {first, _} -> true after 0 -> false end}
@@ -807,7 +807,7 @@ zero() ->
 %% in the mode the keys need.
 subscribe(Tty) ->
     Me = ern_rt:self(),
-    ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Reply, Me} end, 5000).
+    ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Me, Reply} end, 5000).
 
 %% report §6.9, Appendix E.22: a process that is not restarting is never
 %% asked, nor is one that has ended; a restarting one restarts at its wait,
@@ -893,4 +893,4 @@ nap(Ms) ->
 %% Report Appendix E.15: an alarm as `Clock.alarm` sets one, After(ms,
 %% reply, to) in canonical field order, answered once the clock holds it.
 alarm(Clock, Ms, To) ->
-    'Unit' = ern_rt:call_forever(Clock, fun(R) -> {'After', Ms, R, To} end).
+    'Unit' = ern_rt:call_forever(Clock, fun(R) -> {'After', Ms, To, R} end).

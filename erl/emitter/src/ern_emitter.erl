@@ -1107,7 +1107,7 @@ crosses(_) -> false.
 %%
 
 %% Report §3.5, §8.4: a selected field. A named constructor is its tag and
-%% its fields in canonical order, so the field is one element of the tuple
+%% its fields in declared order, so the field is one element of the tuple
 %% where every constructor has it at one place, and a case on the tag where
 %% the places differ.
 select(Pos, F, XT, Form, #cx{env = Env} = Cx) ->
@@ -1168,7 +1168,7 @@ con_expr(Pos, Path, Name, Args, Cx) ->
                       " T is the type checker's job")
     end.
 
-%% Report §3.5, §5.1: named fields are stored in canonical order and
+%% Report §3.5, §5.1: named fields are stored in declared order and
 %% evaluated in the order written. Where the two differ, each field is
 %% bound to a variable first, as written. The field forms by name, and
 %% the bindings that go before the tuple.

@@ -164,7 +164,7 @@ export fn writeError(b : Bytes) : Unit with m =
 
 /// The value as Ernest writes it, by its type at the call: a value as its
 /// literal or construction is written, a named constructor's fields in
-/// canonical order (report §3.5), an address as the process behind it,
+/// declared order (report §3.5), an address as the process behind it,
 /// `<address 84>`, and a function as `<function>`. The type at the call is
 /// known whole, with no type variable in it, so that in a generic function
 /// `Io.show` at the function's type variable is a type error (report

@@ -360,7 +360,7 @@ alice : Person
 > let older = Person(..alice, age = 31)
 older : Person
 > older
-Person(age = 31, name = "Alice") : Person
+Person(name = "Alice", age = 31) : Person
 > older.age
 31 : Int
 ```

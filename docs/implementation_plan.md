@@ -239,9 +239,7 @@ and `Udp` waited on a count, dated by the tenth family to MVP 3.2 as a module of
 Placed*). Under §3.9's sentence of 2026-10-01, each restriction prints with its mark,
 and a process-only variable prints without one, §11.5 saying so and giving no spelling: the
 mark's spelling is a decision of this phase's edits, taken with the user before the printer
-and §11.5 change. Under §3.5's declared order of 2026-10-01, the emitter's
-descriptors, `Io.show` and the ABI place named fields in the order of their names (§3.5, §8.4,
-Appendix E.1). Under E.0's rules, the tenth family's round 2
+and §11.5 change. Under E.0's rules, the tenth family's round 2
 (2026-10-01, the log's *The Library Family's Rules*): `styled`, the cursor's moves and the two
 erasures leave E.16 for a terminal library under `libs/`, Ernest over ECMA-48, which the shell, `libs/markdown`
 and `examples/snake.ern` take from the load path, `subscribe`, `size` and `columns` staying.

@@ -42,7 +42,7 @@
 ///
 /// ```ernest
 /// Markdown.Link(address = "https://example.org", text = [Markdown.Text("home")])
-/// // => Link(address = "https://example.org", text = [Text("home")])
+/// // => Link(text = [Text("home")], address = "https://example.org")
 /// ```
 export type Inline =
     /// Text as it reads.

@@ -3,7 +3,7 @@
 %% that one slow file does not hold up the rest. The work that opens a file
 %% goes around the host's file server, which does one request at a time:
 %% raw, as the host calls it. A Path is {'Path', Bin} and an Entry's fields
-%% are in canonical order (report §3.5): kind, mtime, path, size.
+%% are in declared order (report §3.5): path, mtime, size, kind.
 -module(ern_fs).
 
 -export([loop/0]).
@@ -36,13 +36,13 @@ handle({'ReadFile', Path, Reply}) ->
 %% Report Appendix E.17: a part of a file, read where it lies, without
 %% holding the rest; fewer bytes at its end, and none past it. Report §7.4:
 %% an offset or a count below 0 is none.
-handle({'ReadRange', Count, Offset, Path, Reply}) ->
+handle({'ReadRange', Path, Offset, Count, Reply}) ->
     Name = text(Path),
     answer(Reply, regular(Name, fun() -> range(Name, max(Offset, 0), max(Count, 0)) end));
-handle({'WriteFile', Bytes, Path, Reply}) ->
+handle({'WriteFile', Path, Bytes, Reply}) ->
     Name = text(Path),
     answer(Reply, regular_or_none(Name, fun() -> unit(file:write_file(Name, Bytes, [raw])) end));
-handle({'AppendFile', Bytes, Path, Reply}) ->
+handle({'AppendFile', Path, Bytes, Reply}) ->
     Name = text(Path),
     answer(Reply, regular_or_none(Name, fun() ->
                                             unit(file:write_file(Name, Bytes, [raw, append]))
@@ -60,9 +60,9 @@ handle({'MakeDir', Path, Reply}) ->
     answer(Reply, unit(filelib:ensure_path(text(Path))));
 %% Report Appendix E.17: the permission bits as the host writes them; a
 %% mode beyond them is an argument the host cannot take.
-handle({'SetMode', Mode, _Path, Reply}) when Mode < 0; Mode > 8#7777 ->
+handle({'SetMode', _Path, Mode, Reply}) when Mode < 0; Mode > 8#7777 ->
     ern_rt:answer(Reply, {'Left', 'Invalid'});
-handle({'SetMode', Mode, Path, Reply}) ->
+handle({'SetMode', Path, Mode, Reply}) ->
     answer(Reply, unit(file:change_mode(text(Path), Mode)));
 %% Report Appendix E.17: a link is removed, not what it leads to.
 handle({'Remove', Path, Reply}) ->
@@ -80,11 +80,11 @@ handle({'RemoveAll', Path, Reply}) ->
         {fault, Cause} -> ern_rt:refuse(Reply, Cause);
         Answer -> ern_rt:answer(Reply, Answer)
     end;
-handle({'Rename', From, Reply, To}) ->
+handle({'Rename', From, To, Reply}) ->
     answer(Reply, unit(file:rename(text(From), text(To))));
 %% Report Appendix E.17: the link at the path, holding the target as it is
 %% written, which may name nothing.
-handle({'MakeLink', Path, Reply, Target}) ->
+handle({'MakeLink', Target, Path, Reply}) ->
     answer(Reply, unit(file:make_symlink(text(Target), text(Path))));
 %% Report Appendix E.17: None for a path that names anything but a link.
 handle({'ReadLink', Path, Reply}) ->
@@ -95,7 +95,7 @@ handle({'ReadLink', Path, Reply}) ->
                   end);
 %% Report Appendix E.17: a new file, claimed by its name at once, or none:
 %% one whose write fails is removed.
-handle({'MakeFile', Bytes, Path, Reply}) ->
+handle({'MakeFile', Path, Bytes, Reply}) ->
     Name = text(Path),
     answer(Reply, case file:open(Name, [write, exclusive, raw, binary]) of
                       {ok, File} ->
@@ -111,7 +111,7 @@ handle({'MakeFile', Bytes, Path, Reply}) ->
                   end);
 %% Report Appendix E.17: the modification time, kept to the second, as the
 %% host sets it; the access time is left as it was.
-handle({'SetModified', Mtime, Path, Reply}) ->
+handle({'SetModified', Path, Mtime, Reply}) ->
     Name = text(Path),
     answer(Reply, case file:read_file_info(Name, [raw, {time, posix}]) of
                       {ok, #file_info{atime = Atime}} ->
@@ -121,7 +121,7 @@ handle({'SetModified', Mtime, Path, Reply}) ->
                       Error ->
                           Error
                   end);
-handle({'Copy', From, Reply, To}) ->
+handle({'Copy', From, To, Reply}) ->
     {Source, Target} = {text(From), text(To)},
     answer(Reply, regular(Source, fun() ->
                                       regular_or_none(Target, fun() -> copy(Source, Target) end)
@@ -221,7 +221,7 @@ entry(Name) ->
     entry(Name, file:read_file_info(Name, [raw, {time, posix}])).
 
 entry(Name, {ok, #file_info{type = Type, mtime = Mtime, size = Size}}) ->
-    {ok, {'Entry', kind(Type), Mtime * 1000, {'Path', Name}, Size}};
+    {ok, {'Entry', {'Path', Name}, Mtime * 1000, Size, kind(Type)}};
 entry(_, Error) ->
     Error.
 

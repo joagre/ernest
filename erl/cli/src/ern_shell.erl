@@ -115,15 +115,15 @@ unfinished(_) -> false.
 %% text, as `ern build` shows it, under the name of where the input came from:
 %% `input 3` for the third thing entered at the prompt, the file's path for
 %% an input from a startup file. The shell's `Origin` says which:
-%% `Prompt(n)`, or `Startup(file, line, column)`, its fields in canonical
+%% `Prompt(n)`, or `Startup(file, line, column)`, its fields in declared
 %% order, the column where the input begins on the line.
 -spec check(#env{}, {'Prompt', pos_integer()}
-                    | {'Startup', pos_integer(), binary(), pos_integer()}, binary()) ->
+                    | {'Startup', binary(), pos_integer(), pos_integer()}, binary()) ->
           {'Left', binary()} | {'Right', {#env{}, #checked{}}}.
 check(#env{n = N} = Env, From, Input) ->
     Origin = case From of
                  {'Prompt', K} -> {typed, <<"input ", (integer_to_binary(K))/binary>>};
-                 {'Startup', Column, File, First} -> {file, File, First, Column}
+                 {'Startup', File, First, Column} -> {file, File, First, Column}
              end,
     %% an input takes the number of one whose module was unloaded, whose
     %% name is an atom already, before a new one (report §2.3)
@@ -598,7 +598,7 @@ where({field_or_pattern, Path, Con}) ->
 %% finds it (report §4.2): unqualified, the session's or the prelude's, and
 %% qualified, its module's.
 %% Report §11.2: each as a `Shell.Complete.Name`, listed with its type, the
-%% constructor's parameter in the field's place, both in canonical order.
+%% constructor's parameter in the field's place, both in declared order.
 fields_of(Path, Con) ->
     Env = persistent_term:get({?MODULE, env}, #env{}),
     case con_info(Env, Path, Con) of
@@ -612,10 +612,10 @@ fields_of(Path, Con) ->
 
 %% Report §11.2: every name completion may reach — the session's, the
 %% prelude's, and each module in scope with its exports — as
-%% `Shell.Complete.Name`, whose fields are in canonical order (§3.5):
-%% kind, the line a listing shows, the text as it is typed. Only the
+%% `Shell.Complete.Name`, whose fields are in declared order (§3.5): the
+%% text as it is typed, its kind, the line a listing shows. Only the
 %% reading of the interfaces is the host's; the matching is Ernest's.
--spec names() -> [{'Name', atom(), binary(), binary()}].
+-spec names() -> [{'Name', binary(), atom(), binary()}].
 names() ->
     names(persistent_term:get({?MODULE, env}, #env{})).
 
@@ -637,7 +637,7 @@ names(#env{ifaces = Ifaces, session = S} = Env) ->
                             || I <- Ifaces ++ ern_prelude:stdlib_ifaces()]),
     %% report §11.2: an operator is no name, and does not complete, and
     %% neither does a module the session made, which is spelled as no name
-    lists:usort([Name || {'Name', _, _, Text} = Name <- Session ++ Prelude ++ Modules,
+    lists:usort([Name || {'Name', Text, _, _} = Name <- Session ++ Prelude ++ Modules,
                          words(Text)]).
 
 %% Every segment of a text begins with a letter or `_`, as a name's does.
@@ -660,7 +660,7 @@ con_scheme(CQ, #env{ifaces = Ifaces}) ->
 
 %% Report §11.2: the names `:forget` takes, the values and the types the
 %% session declares; a member goes with its type.
--spec session_names() -> [{'Name', atom(), binary(), binary()}].
+-spec session_names() -> [{'Name', binary(), atom(), binary()}].
 session_names() ->
     #env{session = S} = Env = persistent_term:get({?MODULE, env}, #env{}),
     St = session_state(Env),
@@ -709,7 +709,7 @@ module_names(#iface{namespace = Ns, types = Ts, values = Vs}, St) ->
               || {Q, #tinfo{constructors = Cs} = TI} <- maps:to_list(Ts)]).
 
 name(Kind, Text, Shown) ->
-    {'Name', Kind, unicode:characters_to_binary(Shown), unicode:characters_to_binary(Text)}.
+    {'Name', unicode:characters_to_binary(Text), Kind, unicode:characters_to_binary(Shown)}.
 
 scheme_line(Text, Q, Env, St) ->
     case scheme(Q, Env) of
@@ -930,7 +930,7 @@ prelude_or_none(Segments) ->
 %% selections is the checker's, and a name the unfinished input binds is
 %% not in scope; the fields its type selects are then the checker's too,
 %% each listed with its type. A namespace checks as no value and has none.
--spec fields(binary()) -> [{'Name', 'Value', binary(), binary()}].
+-spec fields(binary()) -> [{'Name', binary(), 'Value', binary()}].
 fields(Typed) ->
     Env = persistent_term:get({?MODULE, env}, #env{}),
     case string:split(Typed, ".", trailing) of
@@ -1130,7 +1130,7 @@ namespace_doc(_, []) ->
     none;
 namespace_doc(Env, Segments) ->
     Prefix = unicode:characters_to_binary(qname_text(Segments) ++ "."),
-    case [Shown || {'Name', _, Shown, Text} <- names(Env),
+    case [Shown || {'Name', Text, _, Shown} <- names(Env),
                    binary:match(Text, Prefix) =:= {0, byte_size(Prefix)}] of
         [] -> none;
         Held -> {ok, ["# namespace ", qname_text(Segments), "\n\n",

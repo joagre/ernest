@@ -24,7 +24,7 @@ serve(Tcp) ->
         {'Listen', Host, Owner, Port, Reply} ->
             erlang:spawn(fun() -> listen(Tcp, Host, Owner, Port, Reply) end),
             serve(Tcp);
-        {'Connect', Host, Ms, Owner, Port, Reply} ->
+        {'Connect', Host, Port, Ms, Owner, Reply} ->
             counted(fun() -> connect(Tcp, Host, Port, ern_rt:deadline(Ms), Owner, Reply) end),
             serve(Tcp);
         {'EXIT', Pid, _} ->

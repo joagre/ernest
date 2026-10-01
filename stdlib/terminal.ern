@@ -31,7 +31,7 @@
 ///
 /// ```ernest
 /// Terminal.Size(rows = 24, columns = 80)
-/// // => Size(columns = 80, rows = 24)
+/// // => Size(rows = 24, columns = 80)
 /// ```
 export type Size = Size(rows : Int, columns : Int)
 

@@ -38,8 +38,8 @@ serve(Os) ->
     end.
 
 %% Command is `Command(program, arguments, input)`, its fields in their
-%% canonical order.
-start({'Command', Arguments, Input, Program}, Owner, Reply) ->
+%% declared order (report §3.5).
+start({'Command', Program, Arguments, Input}, Owner, Reply) ->
     case lists:any(fun(A) -> binary:match(A, <<0>>) =/= nomatch end, [Program | Arguments]) of
         true ->
             answered(Reply, {'Left', 'Invalid'});

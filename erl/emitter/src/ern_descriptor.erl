@@ -94,7 +94,7 @@ desc({tcon, Q, Args} = T, Seen, #cx{env = Env} = Cx) ->
             end
     end.
 
-%% A named constructor's descriptor keeps its field names, in canonical
+%% A named constructor's descriptor keeps its field names, in declared
 %% order (report §3.5), for printing.
 con_desc(Tag, {named, Names}, Ds) -> {Tag, Ds, Names};
 con_desc(Tag, _, Ds) -> {Tag, Ds}.

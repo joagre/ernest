@@ -594,14 +594,14 @@ fs_test() ->
     ?assertEqual({'Right', <<"hello">>}, Read),
     ?assertEqual({'Right', 'Unit'}, Append),
     ?assertEqual({'Right', <<"hello!">>}, Read2),
-    ?assertMatch({'Right', {'Entry', 'File', _, _, 6}}, Stat),
+    ?assertMatch({'Right', {'Entry', _, _, 6, 'File'}}, Stat),
     ?assertEqual({'Right', 'Unit'}, Rename),
     ?assertEqual({'Right', 'Unit'}, Copy),
     ?assertEqual({'Right', 'Unit'}, MakeDir),
     {'Right', Entries} = List,
     ?assertEqual([<<"b.txt">>, <<"c.txt">>, <<"d">>],
                  lists:sort([filename:basename(Path)
-                             || {'Entry', _, _, {'Path', Path}, _} <- Entries])),
+                             || {'Entry', {'Path', Path}, _, _, _} <- Entries])),
     ?assertEqual({'Right', 'Unit'}, Remove),
     ?assertEqual({'Left', 'NotFound'}, Gone),
     file:del_dir_r(Dir).
@@ -679,7 +679,7 @@ fs_list_dangling_link_test() ->
                        end, <<"fs_list_dangling_link_test">>, #{})),
     [{'Right', Entries}] = collect(fs, []),
     Described = lists:sort([{filename:basename(P), K, S}
-                            || {'Entry', K, _, {'Path', P}, S} <- Entries]),
+                            || {'Entry', {'Path', P}, _, S, K} <- Entries]),
     %% a link is the link itself, whose size is its target's name
     ?assertEqual([{<<"plain">>, 'File', 4}, {<<"to_nothing">>, 'Link', 7},
                   {<<"to_plain">>, 'Link', 5}], Described),
@@ -712,17 +712,17 @@ fs_links_test() ->
     [Made, Read, Stat, Listed, Again, NotLink, Removed, After] = collect(fs, []),
     ?assertEqual({'Right', 'Unit'}, Made),
     ?assertEqual({'Right', {'Some', {'Path', <<"shelf">>}}}, Read),
-    ?assertMatch({'Right', {'Entry', 'Directory', _, _, _}}, Stat),
+    ?assertMatch({'Right', {'Entry', _, _, _, 'Directory'}}, Stat),
     {'Right', Entries} = Listed,
     ?assertEqual([{<<"shelf">>, 'Directory'}, {<<"to_shelf">>, 'Link'}],
                  lists:sort([{filename:basename(Path), K}
-                             || {'Entry', K, _, {'Path', Path}, _} <- Entries])),
+                             || {'Entry', {'Path', Path}, _, _, K} <- Entries])),
     ?assertEqual({'Left', 'Exists'}, Again),
     ?assertEqual({'Right', 'None'}, NotLink),
     ?assertEqual({'Right', 'Unit'}, Removed),
     {'Right', Kept} = After,
     ?assertEqual([<<"shelf">>],
-                 [filename:basename(Path) || {'Entry', _, _, {'Path', Path}, _} <- Kept]),
+                 [filename:basename(Path) || {'Entry', {'Path', Path}, _, _, _} <- Kept]),
     file:del_dir_r(Dir).
 
 %% report Appendix E.17: `readRange` reads a part of a file, fewer bytes at
@@ -787,7 +787,7 @@ fs_create_remove_all_modified_test() ->
     ?assertNot(filelib:is_file(filename:join(Dir, "tree"))),
     ?assertEqual({ok, <<"keep">>}, file:read_file(filename:join([Dir, "kept", "precious.txt"]))),
     ?assertEqual({'Right', 'Unit'}, Set),
-    ?assertMatch({'Right', {'Entry', 'File', 86400000, _, 1}}, Stat),
+    ?assertMatch({'Right', {'Entry', _, 86400000, 1, 'File'}}, Stat),
     file:del_dir_r(Dir).
 
 %% report Appendix E.17: `removeAll` removes a link where it stands, at the

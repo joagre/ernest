@@ -549,7 +549,7 @@ io_debug_test() ->
         "    Unit\n"
         "}\n"),
     ?assertEqual(<<"4\n5\n[Circle(-3), Dot]\n#(1.5, \"a\\nb\", true, Unit)\n"
-                   "Snap(dir = \"x\", seen = 2)\n"
+                   "Snap(seen = 2, dir = \"x\")\n"
                    "Map.fromList([#(\"k\", [1])])\nSet.fromList([1, 2])\n<function>\n"
                    "#(true, false)\n\"é中\"\n#('a', '\\'', Some('\\n'))\n#(Ready, 1)\n"
                    "<<104, 105>>\n'x'\n"/utf8>>, Out).
@@ -565,7 +565,7 @@ show_test() ->
         "    Io.println(pure('a'));\n"
         "    Io.println(String.join(List.map([<<1>>, <<2, 3>>], Io.show), \" \"))\n"
         "}\n"),
-    ?assertEqual(<<"Snap(dir = \"x\", seen = 2)\nSome('a')\n<<1>> <<2, 3>>\n">>, Out).
+    ?assertEqual(<<"Snap(seen = 2, dir = \"x\")\nSome('a')\n<<1>> <<2, 3>>\n">>, Out).
 
 %% report §4.2, §4.5: a module's own type named Float may have members
 %% negate and compare, and a call of them, each as a value, and prefix `-`
@@ -2123,23 +2123,24 @@ field_selection_test() ->
         "}\n"),
     ?assertEqual(<<"once\nlr\n4\n">>, Out).
 
-%% report §3.5, §5.1: named fields are stored in canonical order and
-%% evaluated in the order written, in a construction and in an update from
-%% a base value, whose base is evaluated first. A regression test: the
-%% fields were evaluated in canonical order. It does not cover a positional
-%% constructor, whose one field has no order
+%% report §3.5, §5.1: named fields are stored and shown in their declared
+%% order and evaluated in the order written, in a construction and in an
+%% update from a base value, whose base is evaluated first. A regression
+%% test: the fields were evaluated in the order of their names, and then
+%% stored so. It does not cover a positional constructor, whose one field
+%% has no order
 field_order_test() ->
     {ok, Out} = run(
         "type Snap = Snap(z : Int, a : Int, m : Int)\n"
         "fn v(s : String, n : Int) : Int with Never = { Io.println(s); n }\n"
         "export fn main() : Unit with Never = {\n"
-        "    let s = Snap(z = v(\"z\", 1), a = v(\"a\", 2), m = v(\"m\", 3));\n"
+        "    let s = Snap(m = v(\"m\", 3), z = v(\"z\", 1), a = v(\"a\", 2));\n"
         "    let t = Snap(..{ Io.println(\"base\"); s }, m = v(\"m\", 4), a = v(\"a\", 5));\n"
         "    let _ = Io.debug(#(s, t));\n"
         "    Unit\n"
         "}\n"),
-    ?assertEqual(<<"z\na\nm\nbase\nm\na\n"
-                   "#(Snap(a = 2, m = 3, z = 1), Snap(a = 5, m = 4, z = 1))\n">>, Out).
+    ?assertEqual(<<"m\nz\na\nbase\nm\na\n"
+                   "#(Snap(z = 1, a = 2, m = 3), Snap(z = 1, a = 5, m = 4))\n">>, Out).
 
 %% report §5.3, §5.8: lambdas capture, if is an expression
 lambda_if_test() ->

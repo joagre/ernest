@@ -643,8 +643,8 @@ constructor_fields({positional, Syntax}, VarMap, Env) ->
     {T, Env1} = field_type(Syntax, VarMap, Env),
     {positional, [T], Env1};
 constructor_fields({named, Fields}, VarMap, Env) ->
-    Sorted = lists:sort(fun(#field{name = A}, #field{name = B}) -> A =< B end, Fields),
-    Names = [N || #field{name = N} <- Sorted],
+    %% report §3.5: the fields in the order the declaration writes them
+    Names = [N || #field{name = N} <- Fields],
     %% report §11.5: at the second, named, the first labelled
     case repeated([{N, Pos} || #field{name = N, pos = Pos} <- Fields]) of
         none ->
@@ -654,7 +654,7 @@ constructor_fields({named, Fields}, VarMap, Env) ->
                  [{ern_diag:span(First), "first declared here"}], undefined)
     end,
     {Types, Env1} = lists:mapfoldl(fun(#field{type = S}, E) -> field_type(S, VarMap, E) end,
-                                   Env, Sorted),
+                                   Env, Fields),
     {{named, Names}, Types, Env1}.
 
 field_type(Syntax, VarMap, Env) ->

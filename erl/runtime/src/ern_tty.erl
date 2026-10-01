@@ -60,7 +60,7 @@ loop(_, false) ->
 %% refused and claims nothing, and the size is asked of standard output.
 refusing() ->
     receive
-        {'Subscribe', Reply, Address} ->
+        {'Subscribe', Address, Reply} ->
             case held_by_another(Address) of
                 true -> exit(ern_rt:process_of(Address), {ern, fault, ern_rt:shell_holds()});
                 false -> ern_rt:answer(Reply, {'Left', 'NotATerminal'})
@@ -76,8 +76,8 @@ refusing() ->
 loop(Subscribers, Reader, Pending, Size) ->
     Pause = pause(Pending),
     receive
-        %% report §3.5: the fields are in canonical order, `reply` before `to`
-        {'Subscribe', Reply, Address} ->
+        %% report §3.5: the fields are in declared order, `to` before `reply`
+        {'Subscribe', Address, Reply} ->
             case held_by_another(Address) of
                 true ->
                     %% report §11.2: the terminal is the shell's
@@ -214,7 +214,7 @@ running(_) -> true.
 %% the job writes to.
 size_now() ->
     case {io:rows(user), io:columns(user)} of
-        {{ok, Rows}, {ok, Columns}} -> {'Size', Columns, Rows};
+        {{ok, Rows}, {ok, Columns}} -> {'Size', Rows, Columns};
         _ -> none
     end.
 

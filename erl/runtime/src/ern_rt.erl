@@ -3,7 +3,7 @@
 %%
 %% Values follow the ABI of report §8.4: Unit is 'Unit', a nullary constructor
 %% is its quoted name, Some(v) is {'Some', V}, Down(process, reason, site) is
-%% {'Down', Pid, Reason, Site} in canonical field order.
+%% {'Down', Pid, Reason, Site} in declared field order.
 %%
 %% An Address is a pid, or {via, F, Target} for an address seen through a
 %% function (report §6.5), which send/2 applies in the sender, or
@@ -607,7 +607,7 @@ processes() ->
 %% has ended and for a process on another node. A process waiting for a
 %% call's answer is Calling, which the host's status does not tell from a
 %% receive: its pending call is in the table of calls (§6.6).
--spec info(pid()) -> 'None' | {'Some', {'Info', atom(), non_neg_integer(), binary()}}.
+-spec info(pid()) -> 'None' | {'Some', {'Info', binary(), non_neg_integer(), atom()}}.
 info(Pid) when node(Pid) =:= node() ->
     case {ets_lookup(?PROCESSES, Pid),
           erlang:process_info(Pid, [status, message_queue_len])} of
@@ -620,7 +620,7 @@ info(Pid) when node(Pid) =:= node() ->
                                end;
                            _ -> 'Running'
                        end,
-            {'Some', {'Info', Activity, Queued, Site}};
+            {'Some', {'Info', Site, Queued, Activity}};
         _ ->
             'None'
     end;
@@ -647,7 +647,7 @@ faults(To) ->
 %% FaultReport, each delivery a process of its own as a monitor's is, and
 %% which `ern run`'s reporter, the runtime's own subscriber, is given as it
 %% happens, before the process's end reaches anyone who waits on it. The
-%% fields are in canonical order: cause, process, restarted, site, trace.
+%% fields are in declared order: process, site, cause, restarted, trace.
 %% The reaper reports, so that a delivery is linked to a process that lives
 %% as long as the run; a process that restarts sends it its fault.
 report(Pid, Site, Fault, Restarted) ->
@@ -656,7 +656,7 @@ report(Pid, Site, Fault, Restarted) ->
                          {ern, fault, Msg} -> {Msg, <<>>};
                          _ -> {element(2, reason(Fault)), <<>>}
                      end,
-    Report = {'FaultReport', Cause, Pid, Restarted, Site, Trace},
+    Report = {'FaultReport', Pid, Site, Cause, Restarted, Trace},
     case persistent_term:get({?MODULE, reporter}, undefined) of
         undefined -> ok;
         Reporter -> Reporter(Report)
@@ -1303,12 +1303,12 @@ clock_loop(Alarms, Targets) ->
     receive
         %% an alarm is answered once it is counted, so that the caller
         %% goes on waiting only on what is counted (report §8.6)
-        {'After', Ms, Reply, To} ->
+        {'After', Ms, To, Reply} ->
             source_begin(),
             {Alarms1, Targets1} = armed(deadline(Ms), To, Alarms, Targets),
             answer(Reply, ?UNIT),
             clock_loop(Alarms1, Targets1);
-        {'At', At, Reply, To} ->
+        {'At', At, To, Reply} ->
             source_begin(),
             {Alarms1, Targets1} = armed(deadline(At - erlang:system_time(millisecond)), To,
                                         Alarms, Targets),

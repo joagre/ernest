@@ -345,7 +345,7 @@ connect(Port, Ms) ->
 connect(Host, Port, Ms) ->
     %% report Appendix E.18: the caller owns the socket
     Owner = self(),
-    ern_rt:call_forever(ern_rt:sys(tcp), fun(R) -> {'Connect', Host, Ms, Owner, Port, R} end).
+    ern_rt:call_forever(ern_rt:sys(tcp), fun(R) -> {'Connect', Host, Port, Ms, Owner, R} end).
 
 port(Listener) ->
     ern_rt:call_forever(Listener, fun(R) -> {'Port', R} end).

@@ -57,7 +57,7 @@ render(Title, Prefix, {docs_v1, _, ernest, _, ModDoc, Meta, Entries}) ->
 %% `since` line apart, or the page's title where the block has no
 %% paragraph, and the page's last line is a comment at the head of the
 %% source. libs/markdown takes the header as a `Manual`, a named
-%% constructor, whose fields stand in their canonical order.
+%% constructor, whose fields stand in their declared order.
 roff(Name, Title, Prefix, {docs_v1, _, ernest, _, ModDoc, Meta, Entries}) ->
     Body = [module_text(ModDoc), [entry(E, Prefix) || E <- Entries]],
     Prose = case ModDoc of
@@ -68,7 +68,7 @@ roff(Name, Title, Prefix, {docs_v1, _, ernest, _, ModDoc, Meta, Entries}) ->
                   [] -> 'ern@markdown':firstSentence(markdown(Title));
                   Sentence -> Sentence
               end,
-    Manual = {'Manual', list_to_binary(Name), <<"3ern">>, <<"Ernest ", ?VERSION>>, Summary,
+    Manual = {'Manual', list_to_binary(Name), <<"3ern">>, Summary, <<"Ernest ", ?VERSION>>,
               <<"Ernest Manual">>},
     Lines = 'ern@markdown':roff(markdown(Body), Manual),
     [".\\\" ", generated(Meta), "\n", lists:join("\n", Lines), "\n"].

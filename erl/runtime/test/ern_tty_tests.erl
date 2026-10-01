@@ -66,7 +66,7 @@ second_subscription_test() ->
                Tty = ern_rt:sys(terminal),
                subscribe(Tty),
                Wrapped = ern_rt:via(ern_rt:self(), fun(E) -> {again, E} end),
-               ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Reply, Wrapped} end, 5000),
+               ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Wrapped, Reply} end, 5000),
                %% a key delivered twice would come before the second key
                Tty ! {chars, "a"},
                First = receive M1 -> M1 end,
@@ -132,7 +132,7 @@ not_a_terminal_test() ->
                %% the terminal's process as the runtime starts it where no
                %% keys can come
                Tty = erlang:spawn(fun() -> ern_tty:loop(fun silent/0, false) end),
-               Me ! {answer, ern_rt:call_forever(Tty, fun(R) -> {'Subscribe', R, Me} end)},
+               Me ! {answer, ern_rt:call_forever(Tty, fun(R) -> {'Subscribe', Me, R} end)},
                Me ! {line, ern_rt:call_forever(ern_rt:sys(stdin), fun(R) -> {'ReadLine', R} end)},
                exit(Tty, kill)
            end, <<"main">>, #{stdout => fun(_) -> ok end, stdin => fun() -> "line\n" end}),
@@ -220,11 +220,11 @@ silent() ->
 %% in the mode the keys need.
 subscribe(Tty) ->
     Me = ern_rt:self(),
-    ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Reply, Me} end, 5000).
+    ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Me, Reply} end, 5000).
 
 subscribe(Tty, Wrap) ->
     To = ern_rt:via(ern_rt:self(), Wrap),
-    ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Reply, To} end, 5000).
+    ern_rt:call(Tty, fun(Reply) -> {'Subscribe', To, Reply} end, 5000).
 
 wait_atom(Atom) ->
     receive Atom -> Atom after 2000 -> error({no, Atom}) end.

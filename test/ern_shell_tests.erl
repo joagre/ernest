@@ -2302,7 +2302,7 @@ fields_by_module_test() ->
                          "export type Shape = Round(radius : Int)\n"),
     ok = file:write_file(filename:join(Dir, "discs.ern"),
                          "export type Shape = Round(diameter : Int, hole : Bool)\n"),
-    Texts = fun({'Fields', Names}) -> [Text || {'Name', _, _, Text} <- Names];
+    Texts = fun({'Fields', Names}) -> [Text || {'Name', Text, _, _} <- Names];
                (Other) -> Other
             end,
     try

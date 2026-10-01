@@ -658,7 +658,7 @@ no_main_file() ->
 %% own subscriber of Process.faults (Appendix E.21).
 %% Where standard error is neither a terminal nor a service manager's
 %% journal, each line begins with the time, in UTC as RFC 3339 writes it.
-report_fault({'FaultReport', Cause, _Process, Restarted, Site, Trace}, Stamped) ->
+report_fault({'FaultReport', _Process, Site, Cause, Restarted, Trace}, Stamped) ->
     Faulted = case Restarted of
                   true -> <<" faulted, restarted: ">>;
                   false -> <<" faulted: ">>
@@ -870,8 +870,8 @@ run_tests(Ns, Loaded, Err) ->
     %% report §11.2: Os.exit faults the test that calls it
     Opts = reporting(#{init => init_fun(Loaded), exit => fault}, Err),
     Report = maps:get(faults, Opts),
-    Reporter = fun(R) ->
-                   element(3, R) =:= persistent_term:get({?MODULE, test}, none)
+    Reporter = fun({'FaultReport', Process, _, _, _, _} = R) ->
+                   Process =:= persistent_term:get({?MODULE, test}, none)
                        orelse Report(R)
                end,
     case ern_rt:run_main(Main, Site, Opts#{faults => Reporter}) of
@@ -884,7 +884,7 @@ run_tests(Ns, Loaded, Err) ->
             outcome(Err, Other)
     end.
 
-%% One test, Test.Case(name, run) in canonical field order, in a process of its
+%% One test, Test.Case(name, run) in declared field order, in a process of its
 %% own, monitored from its start so that a fault is reported, however soon
 %% it comes, and not taken for the run's (report §6.9). A deadlock while it
 %% runs is its fault (§11.2). Its line goes through standard output's

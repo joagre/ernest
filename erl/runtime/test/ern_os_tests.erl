@@ -214,7 +214,7 @@ command(Parts) ->
 
 start(Program, Arguments) ->
     Self = self(),
-    Command = {'Command', Arguments, <<>>, Program},
+    Command = {'Command', Program, Arguments, <<>>},
     ern_rt:call_forever(ern_rt:sys(os), fun(R) -> {'Start', Command, Self, R} end).
 
 read(Program, Ms) ->

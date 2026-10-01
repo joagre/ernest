@@ -41,7 +41,7 @@ Types are the terms of `erl/typer/include/ern_types.hrl`: `{tcon, QName, Args}`,
 
 A module is checked in this order:
 
-1. `declare_types`: every type, its constructors in canonical field order (§3.5), reply-carrying computed (§6.6); `mark_abstract` flags an abstract type, whose constructor `lookup_con` refuses elsewhere (§4.4).
+1. `declare_types`: every type, its constructors with their fields in declared order (§3.5), reply-carrying computed (§6.6); `mark_abstract` flags an abstract type, whose constructor `lookup_con` refuses elsewhere (§4.4).
 2. `check_values`: the value declarations in dependency groups, from a `digraph` of references by name (§4.2). `run_group` checks a group when the fold reaches it, or when `demand` asks for one of its names during another definition's inference (§4.8). `check_group` gives each member a monomorphic placeholder, unifies the annotations first, infers the bodies in order and generalizes. `alternatives_differ` and `alternatives_agree` check pattern alternatives (§5.9). After each group, `let_cycles` reports a cycle of top-level lets (§8.5).
 3. `post_checks`, per definition: `<-` resolved to `Either` or `Optional` (§5.5); operators left open by `operator_result/4` (§4.8); rigid annotation variables (§3.9); the local-fn use order (§5.4); undetermined block bindings (§4.6); exhaustiveness by `ern_exhaust`, Maranget's algorithm with a witness (§5.9); the reply discipline by `ern_reply` (§6.6); and the no-reply instantiation check.
 4. `check_abstract` and `check_exports`: §4.2's and §4.4's visibility rules.

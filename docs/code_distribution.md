@@ -20,7 +20,7 @@ A definition's hash is the SHA-256, by `crypto:hash/2`, of its IR in canonical f
 2. each external reference as its qualified name and the hash of what it names (§8.7);
 3. local variables numbered by position;
 4. the hashes of the types the definition uses;
-5. named fields in canonical order (§3.5), and construction in source evaluation order (§8.7).
+5. named fields in declared order (§3.5), and construction in source evaluation order (§8.7).
 
 Comments and formatting are not hashed. Whether source positions are, which a spawn's site reports (§6.9), is open question 11. *Changed:* the note replaced references by their hashes and hashed no name; §8.7 keeps the qualified names of external references.
 
@@ -32,7 +32,7 @@ Each hash, and each group's, is compiled to a BEAM module of its own, named `ern
 
 ## 3. Types
 
-A type's hash covers its qualified name, its parameters by position, its constructors by name in declared order, each constructor's field names in canonical order (§3.5), and the hashes of its fields' types. An abstract type's hash also covers the types of its module's exported declarations (§8.7, *Identity*). *Changed:* the note hashed an abstract type as any other.
+A type's hash covers its qualified name, its parameters by position, its constructors by name in declared order, each constructor's field names in declared order (§3.5), and the hashes of its fields' types. An abstract type's hash also covers the types of its module's exported declarations (§8.7, *Identity*). *Changed:* the note hashed an abstract type as any other.
 
 Renaming a type or a constructor, or moving a type to another module, changes its hash, which an address of a mailbox of that type carries (node protocol, section 4.2): it is a change of protocol between processes. Two unrelated codebases with a type of the same qualified name and definition share its hash; whether a project name at the top of every qualified name parts them is open question 16.
 
