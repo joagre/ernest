@@ -6414,7 +6414,7 @@ They are written at a release and not held equal to the sources on every commit.
 
 ## The Emacs Mode's Installation Beside It, 2026-10-01
 
-The lines an init file needs to load the Emacs mode moved from the header of `emacs/ernest-mode.el` to `emacs/README.md`, which GitHub shows when `emacs/` is opened: a reader who finds the directory wants to install what is in it. The README holds the installation and nothing else; the mode's design stays in `docs/emacs_mode.md` with the other design notes. The header points at the README by its path and by its address, so that a copy installed without the repository still finds it, and one document owns the lines.
+The lines an init file needs to load the Emacs mode are in the header of `emacs/ernest-mode.el` and in `emacs/README.md`, which GitHub shows when `emacs/` is opened: a reader who finds the directory wants to install what is in it. The README holds the installation and nothing else; the mode's design stays in `docs/emacs_mode.md` with the other design notes. The header keeps the lines too, since the file is installed alone and is the mode's whole, read where no repository is. The two are a list in two places, so `emacs_installation_test` holds the README's lines equal to the header's.
 
 ## Erlang's Standard Library, Module by Module
 

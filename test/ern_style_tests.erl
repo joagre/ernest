@@ -218,6 +218,23 @@ module_name_test() ->
     ?assert(length(Ern) > 10),
     ?assertEqual([], [F || F <- Ern, not compiled_as(F)]).
 
+%% emacs/README.md: the lines an init file needs are in the README and in
+%% the header of emacs/ernest-mode.el, which is installed alone, and the two
+%% give the same lines in the same order
+emacs_installation_test() ->
+    {ok, Readme} = file:read_file(filename:join(?ROOT, "emacs/README.md")),
+    {ok, Mode} = file:read_file(filename:join(?ROOT, "emacs/ernest-mode.el")),
+    Blocks = tl(binary:split(Readme, <<"```elisp\n">>, [global])),
+    FromReadme = lists:append([lines(hd(binary:split(B, <<"```">>))) || B <- Blocks]),
+    [_, AfterHead] = binary:split(Mode, <<";;; Installation:\n">>),
+    [Installation, _] = binary:split(AfterHead, <<";;; Code:\n">>),
+    FromHeader = [L || <<";;     ", L/binary>> <- binary:split(Installation, <<"\n">>, [global])],
+    ?assert(length(FromReadme) >= 5),
+    ?assertEqual(FromReadme, FromHeader).
+
+lines(Text) ->
+    [L || L <- binary:split(Text, <<"\n">>, [global]), L =/= <<>>].
+
 %% docs/emacs_mode.md: the Emacs mode restates §2.4's reserved words, but
 %% true and false, which it paints as constants, and a subset of §2.6's
 %% symbols, so a test keeps the two equal. It found `=>`

@@ -1,6 +1,6 @@
 # The Emacs mode
 
-`ernest-mode` edits `.ern` files. It is `emacs/ernest-mode.el`, the mode's one source file, and the lines an init file needs, to load it and to lay out each buffer as it is saved, are in [`emacs/README.md`](../emacs/README.md) beside it. Emacs 29 is the first with `font-lock-operator-face`, which it uses. Its tests have run on Emacs 31.1 alone, so Emacs 29 and 30 are expected to work and are not yet verified; `make test-emacs EMACS=path` runs them under another. The plan's MVP 2.9 is its roadmap entry, and [`decisions.md`](decisions.md) argues it.
+`ernest-mode` edits `.ern` files. It is `emacs/ernest-mode.el`, the mode's one source file, and the lines an init file needs, to load it and to lay out each buffer as it is saved, are in that file's header and in [`emacs/README.md`](../emacs/README.md) beside it, which a test holds equal. Emacs 29 is the first with `font-lock-operator-face`, which it uses. Its tests have run on Emacs 31.1 alone, so Emacs 29 and 30 are expected to work and are not yet verified; `make test-emacs EMACS=path` runs them under another. The plan's MVP 2.9 is its roadmap entry, and [`decisions.md`](decisions.md) argues it.
 
 ## What it is
 
@@ -29,9 +29,9 @@ A major mode sets buffer-local variables and turns nothing on. `fill-column` is 
             (whitespace-mode)))
 ```
 
-The indicator stands at `fill-column`, and `whitespace-line-column` nil makes `whitespace-mode` mark lines past `fill-column` rather than past 80. The mode does not `untabify` on save, since a tab inside a string is part of its value (report §2.5). `ern format`, which the README's line runs on save, replaces a tab between tokens and keeps one inside a string or a comment. `no_tab_test` and `line_length_test` in `test/ern_style_tests.erl` hold the repository to both rules.
+The indicator stands at `fill-column`, and `whitespace-line-column` nil makes `whitespace-mode` mark lines past `fill-column` rather than past 80. The mode does not `untabify` on save, since a tab inside a string is part of its value (report §2.5). `ern format`, which the header's line runs on save, replaces a tab between tokens and keeps one inside a string or a comment. `no_tab_test` and `line_length_test` in `test/ern_style_tests.erl` hold the repository to both rules.
 
-An Emacs started from a desktop menu has the login session's `PATH`, not the one a shell's startup file sets, so the README's line that names `ern` by its path is the sure way to find it.
+An Emacs started from a desktop menu has the login session's `PATH`, not the one a shell's startup file sets, so the header's line that names `ern` by its path is the sure way to find it.
 
 ## How it is judged
 
@@ -46,7 +46,7 @@ Eight tests under `emacs/test/`, which `make test-emacs` runs, or `make test-ema
 | `broken.el` over `broken/` | each half-typed buffer, written to report §11.6's layout by hand, keeps its indentation, and a fresh line at its end takes the column a person expects |
 | `colour.el` | one check for each kind of face, and what must not be painted |
 | `editing.el` | `imenu`, declaration movement, the diagnostic regexp |
-| `format.el` | a buffer is laid out with point on its token; `shell.ern`, every line moved to column zero, comes back as it was, point and mark in place; a buffer that does not parse is left as typed and its diagnostic names it; a formatter's text that differs beyond white space is refused; the README's line lays out a buffer as it is saved, and a buffer that does not parse, or an `ern` that is not there, is saved as typed, and `*ern format*` says why |
+| `format.el` | a buffer is laid out with point on its token; `shell.ern`, every line moved to column zero, comes back as it was, point and mark in place; a buffer that does not parse is left as typed and its diagnostic names it; a formatter's text that differs beyond white space is refused; the header's line lays out a buffer as it is saved, and a buffer that does not parse, or an `ern` that is not there, is saved as typed, and `*ern format*` says why |
 
 The mode restates two of the language's tables, and `test/ern_style_tests.erl` holds each to its source. `emacs_mode_mirrors_the_lexer_test` checks that the reserved words are the lexer's, §2.4's but `true` and `false`, which the mode paints as constants, and that every operator the mode paints is one of the lexer's symbols. `emacs_mode_mirrors_the_parser_test` holds the mode's table of how tightly each binary operator binds (report §2.6), which places a line an operator opens, equal to the parser's.
 
