@@ -825,6 +825,8 @@ binop('%', {tcon, ['Int'], []}, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:
 binop('<>', {tcon, ['String'], []}, L, R, _) -> binary_append(L, R);
 binop('<>', {tcon, ['Bytes'], []}, L, R, _) -> binary_append(L, R);
 binop('<>', {tcon, ['List'], _}, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('++'), R);
+%% Report §9.6: a prelude type's member the type's module provides, `Path.<>`
+binop('<>', {tcon, [Name], _}, L, R, _) -> call_remote(module_atom([Name]), '<>', [L, R]);
 binop('==', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('=:='), R);
 binop('!=', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('=/='), R);
 binop('&&', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('andalso'), R);

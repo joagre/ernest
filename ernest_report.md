@@ -840,6 +840,7 @@ Float.negate : (Float) -> Float
 String.<> : (String, String) -> String // §4.8: <> resolves per type
 List.<> : (List(a), List(a)) -> List(a)
 Bytes.<> : (Bytes, Bytes) -> Bytes
+Path.<> : (Path, Path) -> Path // Appendix E.14: the second under the first; an absolute second stands alone
 Int.compare : (Int, Int) -> Ordering // §3.10: ordering is per type
 Float.compare : (Float, Float) -> Ordering
 String.compare : (String, String) -> Ordering
@@ -1573,10 +1574,10 @@ Random.nextFloat : (Seed) -> #(Float, Seed) // uniform above 0.0 and below 1.0, 
 
 ### Appendix E.14. `path.ern` (namespace `Path`)
 
-`Path` is `Path(String)`, §9.3, in the runtime's syntax. The primitives are `isAbsolute` and `separator`, the host's separator, which is private to the module (E.0 rule 1); the rest is Ernest over `String`.
+`Path` is `Path(String)`, §9.3, in the runtime's syntax. `Path.<>` is the prelude's, §9.6; this module provides it (§9). The primitives are `isAbsolute` and `separator`, the host's separator, which is private to the module (E.0 rule 1); the rest is Ernest over `String`.
 
 ```
-Path.join : (Path, Path) -> Path // the second under the first, one separator between segments; an absolute second stands alone
+Path.join : (List(String)) -> Path // the segments as a path, the inverse of split: a root first stays a root, one separator between the others
 Path.split : (Path) -> List(String) // the segments; an absolute path's first is the root
 Path.parent : (Path) -> Optional(Path) // None for a bare name or the root
 Path.name : (Path) -> Optional(String) // the last segment, None for the root, which has none

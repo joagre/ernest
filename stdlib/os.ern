@@ -142,7 +142,7 @@ foreign fn hostEnvironment() : Map(String, Bytes) with m =
 /// ### Examples
 ///
 /// ```ernest
-/// Path.join(Os.workingDirectory, Path("notes.txt"))
+/// Os.workingDirectory <> Path("notes.txt")
 /// ```
 export let workingDirectory : Path = Path(hostDirectory())
 

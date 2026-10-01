@@ -109,7 +109,7 @@ fn store(dir : Path,
         answer(ack, Failed(Io.Denied));
         seen
     } else {
-        let here = Path.join(dir, p);
+        let here = dir <> p;
         match Map.get(seen, here) {
             Some(mine) when mine > m -> {
                 let _ = spawn(Local, fn() = writer(conflictPath(here), bytes, m, ack, Conflict));

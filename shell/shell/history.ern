@@ -19,7 +19,7 @@ let wait = 5000
 /// history under whatever directory the shell starts in (report §11.2).
 export let file : Optional(Path) =
     Optional.andThen(Os.environment("HOME"), fn(home) = match Path(home) {
-        at when Path.isAbsolute(at) -> Some(Path.join(at, Path(".ernest/history")))
+        at when Path.isAbsolute(at) -> Some(at <> Path(".ernest/history"))
       | _ -> None
     })
 

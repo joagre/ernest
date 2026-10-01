@@ -268,11 +268,7 @@ Under E.1's and §3.8's sentences, the fourteenth and fifteenth families' round 
 log's *The Order, Show and Door Families*): `Io.debug` writes to standard error, with item 13's
 rewrite of its shim, E.1 and the tests that read its output changing with it; and `Foreign.toBytes`
 joins E.12's conversions, a host binary that is not UTF-8 having no other way out of a term,
-with `Foreign.Term`'s edit. Under shape rule 2 read per kind (2026-10-01, the log's *The Verb
-Per Kind*): `Path.join`
-takes `List(String)`, the inverse of `split`, with `Path.<>` declared in `path.ern` as the two-path
-operation, the second under the first and an absolute second standing alone, its eight callers
-following. Among the rules that exist for another (2026-10-01, the log's *The
+with `Foreign.Term`'s edit. Among the rules that exist for another (2026-10-01, the log's *The
 Rules That Exist for Another*): `spawn(f)` and `spawnMonitored(f, wrap)` lose their placement,
 `Where` leaves §6.2 and §9.3, and §6.7 and §8.3 name a peer's spawn `Peer.spawn(name, f)`, a
 function of the module MVP 3.0 builds; the 102 spawns of the guide, the examples, the library

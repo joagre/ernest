@@ -10,7 +10,7 @@
 /// ## Examples
 ///
 /// ```ernest
-/// Path.toString(Path.join(Path("/etc"), Path("hosts")))
+/// Path.toString(Path("/etc") <> Path("hosts"))
 /// // => "/etc/hosts"
 /// ```
 ///
@@ -25,16 +25,29 @@
 ///
 /// since 0.1.0
 
-/// The second path under the first; an absolute second stands alone.
+/// The second path under the first, one separator between their segments;
+/// an absolute second stands alone (report §9.6).
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Path.toString(Path.join(Path("/etc"), Path("/var")))
-/// // => "/var"
+/// #(Path.toString(Path("/etc/") <> Path("hosts")), Path.toString(Path("/etc") <> Path("/var")))
+/// // => #("/etc/hosts", "/var")
 /// ```
-export fn join(p : Path, under : Path) : Path =
-    if isAbsolute(under) then under else Path(written(split(p) <> split(under)))
+export fn Path.<>(p : Path, under : Path) : Path =
+    if isAbsolute(under) then under else join(split(p) <> split(under))
+
+/// The segments as a path, the inverse of `split`: a root first stays a
+/// root, and one separator stands between the others.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Path.toString(Path.join(Path.split(Path("/etc//hosts"))))
+/// // => "/etc/hosts"
+/// ```
+export fn join(segments : List(String)) : Path =
+    Path(written(segments))
 
 // Segments as a path's text: after a root the next directly, else each
 // after a separator.
@@ -87,7 +100,7 @@ foreign fn separator() : String =
 export fn parent(p : Path) : Optional(Path) =
     match List.dropLast(split(p), 1) {
         [] -> None
-      | first :: rest -> Some(List.foldLeft(rest, Path(first), fn(up, s) = join(up, Path(s))))
+      | segments -> Some(join(segments))
     }
 
 /// The last segment, or `None` for the root, which has none, as it has no

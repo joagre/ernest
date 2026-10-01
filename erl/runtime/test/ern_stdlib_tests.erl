@@ -945,9 +945,9 @@ path_edges_test() ->
     ?assertEqual({'Some', <<"b">>}, P:name(T(<<"a/b/">>))),
     ?assertEqual([<<"a">>, <<"b">>], P:split(T(<<"a//b/">>))),
     ?assertEqual({'Some', T(<<"a">>)}, P:parent(T(<<"a/b/">>))),
-    ?assertEqual(T(<<"/var">>), P:join(T(<<"/etc">>), T(<<"/var">>))),
-    ?assertEqual(T(<<"/etc/hosts">>), P:join(T(<<"/etc/">>), T(<<"hosts">>))),
-    ?assertEqual(T(<<"b">>), P:join(T(<<"">>), T(<<"b">>))),
+    ?assertEqual(T(<<"/var">>), P:'<>'(T(<<"/etc">>), T(<<"/var">>))),
+    ?assertEqual(T(<<"/etc/hosts">>), P:'<>'(T(<<"/etc/">>), T(<<"hosts">>))),
+    ?assertEqual(T(<<"b">>), P:'<>'(T(<<"">>), T(<<"b">>))),
     ?assertEqual([<<"/">>], P:split(T(<<"/">>))),
     %% report Appendix E.14: the root has no name, a regression test of the
     %% rule of 2026-10-01, before which it was ""
@@ -977,7 +977,7 @@ path_edges_test() ->
     ?assertEqual(T(<<"a/..">>), P:withoutExtension(T(<<"a/..">>))),
     ?assertEqual(T(<<"a/..">>), P:withExtension(T(<<"a/..">>), <<"md">>)),
     ?assertEqual(T(<<"a//b.md">>), P:withExtension(T(<<"a//b.txt">>), <<"md">>)),
-    ?assertEqual(T(<<"a/b/c">>), P:join(T(<<"a//b">>), T(<<"c">>))).
+    ?assertEqual(T(<<"a/b/c">>), P:'<>'(T(<<"a//b">>), T(<<"c">>))).
 
 %% report Appendix E.16, E.5: columns counts by grapheme, by its first code
 %% point that counts: a combining mark adds none, alone it takes none; an
@@ -1002,9 +1002,15 @@ columns_test() ->
 %% report Appendix E.14, §9.3
 path_test() ->
     P = 'ern@path',
-    ?assertEqual({'Path', <<"a/b">>}, P:join({'Path', <<"a">>}, {'Path', <<"b">>})),
-    ?assertEqual({'Path', <<"a/b">>}, P:join({'Path', <<"a/">>}, {'Path', <<"b">>})),
-    ?assertEqual({'Path', <<"/b">>}, P:join({'Path', <<"a">>}, {'Path', <<"/b">>})),
+    ?assertEqual({'Path', <<"a/b">>}, P:'<>'({'Path', <<"a">>}, {'Path', <<"b">>})),
+    ?assertEqual({'Path', <<"a/b">>}, P:'<>'({'Path', <<"a/">>}, {'Path', <<"b">>})),
+    ?assertEqual({'Path', <<"/b">>}, P:'<>'({'Path', <<"a">>}, {'Path', <<"/b">>})),
+    %% report Appendix E.14: join is split's inverse, a root first staying
+    %% one; a regression test of the rule of 2026-10-01, before which join
+    %% took two paths, which `<>` now does
+    ?assertEqual({'Path', <<"/etc/hosts">>}, P:join([<<"/">>, <<"etc">>, <<"hosts">>])),
+    ?assertEqual({'Path', <<"a/b">>}, P:join(P:split({'Path', <<"a//b/">>}))),
+    ?assertEqual({'Path', <<>>}, P:join([])),
     ?assertEqual([<<"/">>, <<"a">>, <<"b">>], P:split({'Path', <<"/a/b">>})),
     ?assertEqual([<<"a">>, <<"b">>], P:split({'Path', <<"a/b">>})),
     ?assertEqual({'Some', {'Path', <<"a">>}}, P:parent({'Path', <<"a/b">>})),

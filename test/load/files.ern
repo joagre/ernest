@@ -36,8 +36,8 @@ fn work(left : Int) : Unit with Never =
     }
 
 fn once() : Unit with Never = {
-    let a = Path.join(dir, Path("a"));
-    let b = Path.join(dir, Path("b"));
+    let a = dir <> Path("a");
+    let b = dir <> Path("b");
     let _ = Fs.write(a, String.toUtf8("hello"), 1000);
     let _ = Fs.append(a, String.toUtf8(", world"), 1000);
     let _ = Fs.read(a, 1000);

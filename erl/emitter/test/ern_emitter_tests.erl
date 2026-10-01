@@ -2264,7 +2264,7 @@ clock_path_test() ->
         "    Clock.alarm(10, fn(_) = Tick);\n"
         "    receive { Tick -> Unit };\n"
         "    Io.println(Bool.toString(Clock.now() >= t0 + 10));\n"
-        "    Io.println(Path.toString(Path.join(Path(\"a\"), Path(\"b\"))))\n"
+        "    Io.println(Path.toString(Path(\"a\") <> Path(\"b\")))\n"
         "}\n"),
     ?assertEqual(<<"true\na/b\n">>, Out).
 

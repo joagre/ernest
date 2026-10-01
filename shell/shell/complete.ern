@@ -161,7 +161,7 @@ fn sourceModules(typed : String) : List(Name) with m = {
     let dir =
         List.foldLeft(finished,
                       Path(sourceRoot()),
-                      fn(path, segment) = Path.join(path, Path(String.toLower(segment))));
+                      fn(path, segment) = path <> Path(String.toLower(segment)));
     let prefix = String.join(List.map(finished, fn(segment) = segment <> "."), "");
     match Fs.list(dir, listWait) {
         Left(_) -> []

@@ -1851,6 +1851,9 @@ resolve_operator(Pos, Op, LT, #env{st = St} = Env) ->
         {tcon, ['List'], _} when Op =:= '<>' -> {LT, Env};
         ?BYTES when Op =:= '<>' -> {LT, Env};
         {tcon, Q, _} when length(Q) > 1 -> user_operator(Pos, Op, LT, Q, Env);
+        %% report §9.6: a prelude type's member, `Path.<>`, which the type's
+        %% module provides
+        {tcon, [_] = Q, _} -> user_operator(Pos, Op, LT, Q, Env);
         _ -> not_defined(Pos, Op, T, Env)
     end.
 

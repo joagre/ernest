@@ -505,6 +505,7 @@ values() ->
      {['String', '<>'], "(String, String) -> String", module},
      {['List', '<>'], "(List(a), List(a)) -> List(a)", module},
      {['Bytes', '<>'], "(Bytes, Bytes) -> Bytes", module},
+     {['Path', '<>'], "(Path, Path) -> Path", module},
      {['Int', compare], "(Int, Int) -> Ordering", module},
      {['Float', compare], "(Float, Float) -> Ordering", module},
      {['Char', compare], "(Char, Char) -> Ordering", module},
