@@ -1,6 +1,6 @@
 # Operations records
 
-*The specification of code written once over several representations of one type. MVP 2.99b's item 5 decides it, and items 11 and 12 build it; the log's *Operations Records*, *Members, Operators, and No Hidden Argument*, *The Operations Note Rewritten* and *The Order Bound Once* argue its choices. It was rewritten on 2026-10-01 under two rules the principles review gave the report that day: no operator carries a hidden argument (§4.8), and a member is an operator, `compare` or `negate` (§4.5). The code below was built and run on 2026-10-01 as user modules under other names, since `Set` is a namespace of the standard library; it is written here with the names it has there.*
+*The specification of code written once over several representations of one type. MVP 2.99b's item 5 decides and builds it; the log's *Operations Records*, *Members, Operators, and No Hidden Argument*, *The Operations Note Rewritten* and *The Order Bound Once* argue its choices. It was rewritten on 2026-10-01 under two rules the principles review gave the report that day: no operator carries a hidden argument (§4.8), and a member is an operator, `compare` or `negate` (§4.5). The code below was built and run on 2026-10-01 as user modules under other names, since `Set` is a namespace of the standard library; it is written here with the names it has there.*
 
 Ernest has one set in its standard library, `Set`, a hash set. A second one keeps its elements in order, and generic code, a `fromList` or a `union`, works on both. Java would reach for an interface, Haskell for a type class and ML for a functor. Ernest has no type classes. It writes *operations records*: records of a type's operations that the caller passes explicitly. That is dictionary passing (Wadler and Blott 1989), written by the program instead of by the compiler, with nothing passed that the program did not write. The § numbers cite Ernest's report.
 
@@ -234,9 +234,9 @@ Nothing in the checker, the emitter or the runtime changes. The files above were
 |---|---|---|
 | Checker, emitter, runtime | none | |
 | `ern build`'s path rule (§11.1), `:load`, completion, `ern doc`, the pages | `_` in a file name | 4 |
-| `set.ern` | the record, `operations`, fourteen `With` functions, its own functions as calls, doc blocks and examples | 11 |
-| `ordered_set.ern` | the module, its page, its tests, its section of Appendix E with a test per section | 12 |
-| Report | shape rule 1's clause, E.4, the new section, the departure stated | 11, 12 |
+| `set.ern` | the record, `operations`, fourteen `With` functions, its own functions as calls, doc blocks and examples | 5 |
+| `ordered_set.ern` | the module, its page, its tests, its section of Appendix E with a test per section | 5 |
+| Report | shape rule 1's clause, E.4, the new section, the departure stated | 5 |
 | Guide §7.3 | rewritten over the finished code | 16 |
 
 At run time a field use is one indirect call, the host's own application of a fun, which `make bench` confirms. The run-time cost that matters is the ordered set's own, linear per operation over a sorted list, which *The representation* decides.
