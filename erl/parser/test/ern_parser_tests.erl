@@ -276,7 +276,7 @@ doc_attachment_test() ->
                                              #constructor{doc = <<"B.">>}]},
                   #abstract_decl{doc = <<"S.">>}],
                  Ds),
-    ?assertMatch({ok, [#fn_decl{doc = undefined}]},
+    ?assertMatch({error, #diag{message = "a doc block documents nothing here"}},
                  ern_parser:parse_string(<<"fn f() = {\n    /// stray\n    1\n}\n">>)).
 
 %% report §5.9: a clause lists one or more patterns separated by `or`
@@ -515,40 +515,41 @@ doc_comments_test() ->
     ?assertMatch([#type_decl{doc = <<"A table">>}],
                  ds("/// A table\nexport type T = T")),
     %% a blank line breaks the attachment; first in the file, the block is then
-    %% the module's documentation, elsewhere a comment
+    %% the module's documentation, and anywhere else it documents nothing and
+    %% is an error: after a blank line, inside an expression, above a `fn` in
+    %% a block, or second before the first declaration (findings.md's P1-19,
+    %% K-11, K-17)
     ?assertMatch([#module_doc{text = <<"first">>}, #fn_decl{doc = undefined}],
                  ds("/// first\n\nfn inc(n) = n + 1")),
-    ?assertMatch([#fn_decl{doc = undefined}, #fn_decl{doc = undefined}],
-                 ds("fn a() = 1\n/// lost\n\nfn inc(n) = n + 1")),
-    %% a doc comment inside an expression is a comment
-    ?assertMatch([#fn_decl{doc = undefined, body = #e_block{}}],
-                 ds("fn f() = {\n    /// not a doc\n    1\n}")),
-    %% and so is one above a lambda, which `fn` before a bracket opens; it
-    %% had failed as an expression expected (regression test)
-    ?assertMatch([#let_decl{body = #e_lambda{}}],
-                 ds("let f =\n    /// not a doc\n    fn(x) = x")),
-    ?assertMatch([#fn_decl{body = #e_call{args = [_, #e_lambda{}]}}],
-                 ds("fn g() =\n    List.map(xs,\n             /// not a doc\n"
-                    "             fn(x) = x)")),
-    ?assertMatch([#fn_decl{body = #e_block{stmts = [#fn_decl{doc = <<"local">>}, _]}}],
-                 ds("fn f() = {\n    /// local\n    fn g() = 1;\n    g()\n}")).
+    Nothing = "a doc block documents nothing here",
+    ?assertEqual(Nothing, err("fn a() = 1\n/// lost\n\nfn inc(n) = n + 1")),
+    ?assertEqual(Nothing, err("fn f() = {\n    /// not a doc\n    1\n}")),
+    ?assertEqual(Nothing, err("fn f() = {\n    /// not a doc\n    fn g() = 1;\n    g()\n}")),
+    ?assertEqual(Nothing, err("/// first\n\n/// second\n\nfn inc(n) = n + 1")),
+    ?assertEqual(Nothing, err("fn inc(n) = n + 1\n/// at the end\n")),
+    %% and so is one above a lambda, which `fn` before a bracket opens and
+    %% no declaration; it had failed as an expression expected (regression
+    %% test)
+    ?assertEqual(Nothing, err("let f =\n    /// not a doc\n    fn(x) = x")),
+    ?assertEqual(Nothing, err("fn g() =\n    List.map(xs,\n             /// not a doc\n"
+                              "             fn(x) = x)")).
 
 %% report §2.2: a tuple's `#(` opens a bracket as `(` does, so a
 %% declaration after a type that holds a tuple type still ends the type,
-%% and a doc comment inside the function's body is a comment. A regression
-%% test: `#(` was not counted and `)` was, so the type never ended and the
-%% comment was kept as a doc token the expression could not parse.
+%% and a doc block inside the function's body documents nothing, an error,
+%% and is not taken for a constructor's. A regression test: `#(` was not
+%% counted and `)` was, so the type never ended and the doc block was kept
+%% as a doc token the expression could not parse.
 doc_after_tuple_type_test() ->
-    ?assertMatch([#type_decl{}, #fn_decl{doc = undefined, body = #e_var{name = x}}],
-                 ds("type T = A(#(Int, Int)) | B
+    Nothing = "a doc block documents nothing here",
+    ?assertEqual(Nothing, err("type T = A(#(Int, Int)) | B
 
 "
                     "fn g(x : Int) : Int =
     /// not a doc
     x
 ")),
-    ?assertMatch([#fn_decl{}, #type_decl{}, #fn_decl{body = #e_var{name = x}}],
-                 ds("fn f() = #(1, 2)
+    ?assertEqual(Nothing, err("fn f() = #(1, 2)
 type T = A
 
 "

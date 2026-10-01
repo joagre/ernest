@@ -281,9 +281,7 @@ computes applied in writing, `f(a)(x)`, in §5.7, the parser and the guide's pag
 the shell generalizes a
 lambda bound by `let` at the prompt as §4.6 does, which it refuses as undetermined today. Under
 principle 3's sentences, the sixth family's round 2 (2026-10-01, the log's *The Compiled Family's
-Rules*): a doc block that documents nothing, above a `fn` in a block or second before the first
-declaration, is an error, which §2.2 states and the parser does not yet give, accepting both as
-comments; and two refusals of a sound program gain a help line in §11.5 and the checker, a
+Rules*): two refusals of a sound program gain a help line in §11.5 and the checker, a
 recursive call at another type than the definition's naming §3.9's rule and a second function,
 and a reply-carrying value where it would be duplicated or discarded naming its three ways out,
 to answer it, to pass it on once, or to match it; `test/diagnostics.md` follows. Under §6.9's

@@ -94,24 +94,27 @@ module_doc(Ts) ->
 doc_end(Pos, Text) ->
     element(1, Pos) + length([Ch || <<Ch>> <= Text, Ch =:= $\n]).
 
-%% A doc token survives only where report §2.2 attaches it: on the line
-%% before a declaration, or, inside a type declaration, before a
-%% constructor or a field; elsewhere it is an ordinary comment. InType is
-%% true inside a type or abstract type declaration, where no expression can
-%% occur. Depth counts the open brackets, so that only a declaration keyword
-%% outside every bracket ends a type.
+%% A doc token stands only where report §2.2 attaches it: on the line
+%% before a top-level declaration, or, inside a type declaration, before a
+%% constructor or a field; anywhere else it documents nothing and is an
+%% error. InType is true inside a type or abstract type declaration, where
+%% no expression can occur. Depth counts the open brackets, so that only a
+%% declaration keyword outside every bracket is top-level, or ends a type.
 prune_docs(Ts) ->
     prune_docs(Ts, false, 0).
 
 prune_docs([{doc, Pos, Text} = D, Next | R], InType, Depth) ->
     Adjacent = line(Next) =:= doc_end(Pos, Text) + 1,
     Keep = Adjacent andalso
-           (declaration_start(Next, R)
+           ((Depth =:= 0 andalso declaration_start(Next, R))
             orelse (InType andalso lists:member(sym(Next), [typename, ident, '|']))),
-    Rest = prune_docs([Next | R], InType, Depth),
     case Keep of
-        true -> [D | Rest];
-        false -> Rest
+        true ->
+            [D | prune_docs([Next | R], InType, Depth)];
+        false ->
+            fail(Pos, "a doc block documents nothing here",
+                 "a doc block stands directly above a top-level declaration, a constructor"
+                 " or a named field; a comment is written `//`")
     end;
 prune_docs([T | R], InType, Depth) ->
     {InType1, Depth1} =
@@ -776,11 +779,6 @@ stmts(Ts, Prev, Acc) ->
             fail(pos(T), "expected `;` or `}` instead of " ++ describe(T))
     end.
 
-stmt([{doc, _, Text} | R]) ->
-    case stmt(R) of
-        {#fn_decl{} = F, R1} -> {F#fn_decl{doc = Text}, R1};
-        Other -> Other
-    end;
 stmt([{'let', Pos} | R]) ->
     {P, R1} = pattern(R),
     {Ann, R2} = case R1 of
