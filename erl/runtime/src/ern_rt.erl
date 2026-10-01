@@ -98,7 +98,7 @@ send(Addr, Msg) ->
 %% function, not a process of its own, so sending applies the function here
 %% and the message goes straight into the target's mailbox. A fault in the
 %% function is the target's, since the function is part of the protocol the
-%% target's own via(wrap, self()) built.
+%% target's own via(self(), wrap) built.
 deliver({via, F, Target}, Msg) ->
     try F(Msg) of
         Adapted -> deliver(Target, Adapted)
@@ -186,8 +186,8 @@ self() ->
 %% Report §6.5, §9.5
 %%
 
--spec via(fun((term()) -> term()), address()) -> address().
-via(F, Target) ->
+-spec via(address(), fun((term()) -> term())) -> address().
+via(Target, F) ->
     {via, F, Target}.
 
 %%

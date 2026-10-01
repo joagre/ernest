@@ -1811,7 +1811,7 @@ fault_subscriber() ->
     ok = file:write_file(filename:join(Dir, "bad.ern"),
                          "export let zero = List.size([])\nexport let boom = 1 / zero\n"),
     In = filename:join(Dir, "session.in"),
-    ok = file:write_file(In, ["send(via(fn(x) = x / List.size([]), self()), 1)\n",
+    ok = file:write_file(In, ["send(via(self(), fn(x) = x / List.size([])), 1)\n",
                               "1 + 1\n",
                               "let r = restarting(RestartLimit(restarts = 1, within = 60000),"
                               " fn() : Unit with Never = Io.println(Int.toString("

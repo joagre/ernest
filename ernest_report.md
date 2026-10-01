@@ -542,7 +542,7 @@ Messages from one process to another are received in sending order. Between diff
 
 ### 6.5 Addresses
 
-`Address(m)` identifies a process on a node and carries its protocol: `send(a, v)` is type-checked against `m` on any node. `via(f, addr)`, §9.5, is `addr` seen through `f : (a) -> b`: sending `v` to `via(f, addr)` sends `f(v)` to `addr`. `f` is applied on the node where `via(f, addr)` was made: by the `send`, in the sender, when the sender is on that node, and on delivery there when it is not. A `send` that applies `f` returns once `f` has, and a sender's messages keep their order through it (§6.4). An adapted address crosses to another node as a reference to `f` and the values `f` captured, which must be able to cross themselves (§3.11), and a `send` to it from another node carries `v` back to the node where it was made, where `f` is applied. An adapted address crosses only when `addr` names a process on the node where it was made. Otherwise transporting it faults as transporting a function does, with `Fault("function cannot cross nodes")` (§3.11). `via(Wrap, self())`, with `Wrap : (Int) -> Msg` and the mailbox type `Msg`, is an `Address(Int)`; a value sent to it arrives as `Wrap(v)`. A fault in `f` is the target's: the process `addr` names dies of it, and the sender goes on.
+`Address(m)` identifies a process on a node and carries its protocol: `send(a, v)` is type-checked against `m` on any node. `via(addr, f)`, §9.5, is `addr` seen through `f : (a) -> b`: sending `v` to `via(addr, f)` sends `f(v)` to `addr`. `f` is applied on the node where `via(addr, f)` was made: by the `send`, in the sender, when the sender is on that node, and on delivery there when it is not. A `send` that applies `f` returns once `f` has, and a sender's messages keep their order through it (§6.4). An adapted address crosses to another node as a reference to `f` and the values `f` captured, which must be able to cross themselves (§3.11), and a `send` to it from another node carries `v` back to the node where it was made, where `f` is applied. An adapted address crosses only when `addr` names a process on the node where it was made. Otherwise transporting it faults as transporting a function does, with `Fault("function cannot cross nodes")` (§3.11). `via(self(), Wrap)`, with `Wrap : (Int) -> Msg` and the mailbox type `Msg`, is an `Address(Int)`; a value sent to it arrives as `Wrap(v)`. A fault in `f` is the target's: the process `addr` names dies of it, and the sender goes on.
 
 Addresses have no equality (§3.10). The process behind an address is `Process.fromAddress(a)`, a value with equality that nothing can be sent to (Appendix E.21). There is no registry. A process reaches another through an address it holds or received, or through a top-level binding that holds one, which is a *service*:
 
@@ -821,7 +821,7 @@ Io.debug       : (a) -> a with m // prints Io.show's text and a line feed, then 
 ### 9.5 Process functions
 
 ```
-via                 : ((a) -> b, Address(b)) -> Address(a)
+via                 : (Address(b), (a) -> b) -> Address(a)
 Address.call        : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
 answer              : (Reply(a), a) -> Unit with m
@@ -1886,7 +1886,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **type variable** — a lowercase identifier in type position; universally quantified in a `fn` or a top-level `let`. §3.9.
 - **`Unit`** — the type with the single value `Unit`. §3.1, §9.3.
 - **value position** — an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. §3.9.
-- **`via`** — `via(f, addr)` is the address `addr` seen through `f`. §6.5, §9.5.
+- **`via`** — `via(addr, f)` is the address `addr` seen through `f`. §6.5, §9.5.
 - **vocabulary** — the operations a kind of type provides by its structure, named alike in every module that has them. Appendix E.0.
 - **`Where`** — where a spawn starts its process: `Local`, or `Peer(name)` on a peer. §6.2.
 - **wildcard** — the pattern `_`; matches anything, binds nothing. §2.3, §5.10.

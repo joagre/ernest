@@ -158,8 +158,8 @@ fault_reports_test() ->
     Reporter = fun(Report) -> Me ! {reported, Report} end,
     ok = ern_rt:run_main(
            fun() ->
-               ern_rt:faults(ern_rt:via(fun(R) -> {first, R} end, ern_rt:self())),
-               ern_rt:faults(ern_rt:via(fun(R) -> {report, R} end, ern_rt:self())),
+               ern_rt:faults(ern_rt:via(ern_rt:self(), fun(R) -> {first, R} end)),
+               ern_rt:faults(ern_rt:via(ern_rt:self(), fun(R) -> {report, R} end)),
                Limit = {'RestartLimit', 1, 60000},
                Twice = ern_rt:restarting(Limit, fun() -> 1 div zero() end),
                _ = ern_rt:spawn('Local', Twice, <<"M.twice:4">>),
@@ -329,7 +329,7 @@ call_clock_starts_at_the_call_test() ->
                                          receive {ask, R} -> nap(50), ern_rt:answer(R, done) end
                                      end, <<"callee">>),
                %% the adapting function runs in the caller, and takes 200 ms
-               Slow = ern_rt:via(fun(M) -> nap(200), M end, Callee),
+               Slow = ern_rt:via(Callee, fun(M) -> nap(200), M end),
                Me ! {result, ern_rt:call(Slow, fun(R) -> {ask, R} end, 100)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     receive {result, R} -> ?assertEqual('None', R) after 2000 -> ?assert(false) end.
@@ -581,8 +581,8 @@ endless_alarm_test() ->
            fun() ->
                Clock = ern_rt:sys(clock),
                Endless = fun Endless(X) -> Endless(X) end,
-               alarm(Clock, 10, ern_rt:via(Endless, ern_rt:self())),
-               alarm(Clock, 50, ern_rt:via(fun(_) -> tick end, ern_rt:self())),
+               alarm(Clock, 10, ern_rt:via(ern_rt:self(), Endless)),
+               alarm(Clock, 50, ern_rt:via(ern_rt:self(), fun(_) -> tick end)),
                receive tick -> Me ! ticked end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(ticked, wait_atom(ticked)).
@@ -609,7 +609,7 @@ via_test() ->
     Me = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Adapted = ern_rt:via(fun(N) -> {tick, N} end, ern_rt:self()),
+               Adapted = ern_rt:via(ern_rt:self(), fun(N) -> {tick, N} end),
                ern_rt:send(Adapted, 7),
                receive {tick, 7} -> Me ! via_ok end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
@@ -701,7 +701,7 @@ via_in_flight_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            Clock = ern_rt:sys(clock),
-                           alarm(Clock, 400, ern_rt:via(fun(_) -> tick end, ern_rt:self())),
+                           alarm(Clock, 400, ern_rt:via(ern_rt:self(), fun(_) -> tick end)),
                            receive tick -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
@@ -718,7 +718,7 @@ via_is_not_a_process_test() ->
                Clock = ern_rt:sys(clock),
                Mine = ern_rt:self(),
                lists:foreach(fun(_) ->
-                                 alarm(Clock, 1, ern_rt:via(fun(_) -> tick end, Mine))
+                                 alarm(Clock, 1, ern_rt:via(Mine, fun(_) -> tick end))
                              end, lists:seq(1, 100)),
                lists:foreach(fun(_) -> receive tick -> ok end end, lists:seq(1, 100)),
                Me ! {counts, Before, settled(Before, 100)}
@@ -766,7 +766,7 @@ via_fault_test() ->
                Victim = ern_rt:spawn('Local', fun() -> receive never -> ok end end,
                                      <<"Main.main:3">>),
                ern_rt:monitor(Victim, fun(D) -> {down, D} end),
-               ern_rt:send(ern_rt:via(fun(_) -> 1 div Zero end, Victim), 1),
+               ern_rt:send(ern_rt:via(Victim, fun(_) -> 1 div Zero end), 1),
                receive {down, D} -> Me ! {d, D} end,
                Me ! {sender, alive}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),

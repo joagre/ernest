@@ -1387,7 +1387,7 @@ via_address_round_trip_test() ->
     {ok, Out} = run("type Msg = Wrapped(Int)\n"
                     "foreign fn first(xs : List(Address(Int))) : Address(Int) = \"erlang:hd/1\"\n"
                     "export fn main() : Unit with Msg = {\n"
-                    "    let back = first([via(Wrapped, self())]);\n"
+                    "    let back = first([via(self(), Wrapped)]);\n"
                     "    send(back, 7);\n"
                     "    receive { Wrapped(n) -> Io.println(Int.toString(n)) }\n"
                     "}\n"),
@@ -1597,7 +1597,7 @@ foreign_messages_test() ->
                         "foreign fn good(a : Address(Inner)) : Unit with m ="
                         " \"ern_emitter_tests:good/1\"\n"
                         "export fn main() : Unit with Msg = {\n"
-                        "    good(via(fn(Go(n) : Inner) = Wrapped(n), self()));\n"
+                        "    good(via(self(), fn(Go(n) : Inner) = Wrapped(n)));\n"
                         "    receive { Wrapped(n) -> Io.println(Int.toString(n)) }\n"
                         "}\n"),
     ?assertEqual(<<"1\n">>, Wrapped),
@@ -2332,7 +2332,7 @@ process_functions_test() ->
         "        Died(Down(reason = Fault(m), site = _)) -> Io.println(m)\n"
         "      | _ -> Io.println(\"other\")\n"
         "    };\n"
-        "    send(via(fn(u : Unit) = Tick, self()), Unit);\n"
+        "    send(via(self(), fn(u : Unit) = Tick), Unit);\n"
         "    receive { Tick -> Io.println(\"tick\") | _ -> Io.println(\"other\") }\n"
         "}\n"),
     ?assertEqual(<<"killed\ndivision by zero\ntick\n">>, Out).

@@ -1186,12 +1186,12 @@ A process has one mailbox, and its mailbox has one type, but the process may be 
 $ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type via
-via : ((a) -> b, Address(b)) -> Address(a)
+via : (Address(b), (a) -> b) -> Address(a)
 ```
 
-`via(convert, target)` is an `Address(a)`: an `a` sent to it arrives at `target` as `convert(a)`. An adapted address is not a process and costs nothing to keep.
+`via(target, convert)` is an `Address(a)`: an `a` sent to it arrives at `target` as `convert(a)`. An adapted address is not a process and costs nothing to keep.
 
-**Why.** Whoever sends need not know the type of the mailbox it sends to. A worker written to report to an `Address(Either(String, Int))` knows nothing of your `GameMsg`. Given `via(Done, me)`, its report arrives as `Done(r)`:
+**Why.** Whoever sends need not know the type of the mailbox it sends to. A worker written to report to an `Address(Either(String, Int))` knows nothing of your `GameMsg`. Given `via(me, Done)`, its report arrives as `Done(r)`:
 
 ```ernest
 type GameMsg = Done(Either(String, Int)) | Tick(Int)
@@ -1201,7 +1201,7 @@ fn worker(report : Address(Either(String, Int))) : Unit with m =
 
 fn startWorker() : Unit with GameMsg = {
     let me = self();
-    let _ = spawn(Local, fn() = worker(via(Done, me)));
+    let _ = spawn(Local, fn() = worker(via(me, Done)));
     receive {
         Done(Right(n)) -> Io.println("done: " <> Int.toString(n))
       | Done(Left(why)) -> Io.println("failed: " <> why)
@@ -1220,7 +1220,7 @@ fn startWorker() : Unit with GameMsg = {
 type SplitMsg = Half(Int)
 
 fn halves(target : Address(SplitMsg)) : Address(Int) =
-    via(fn(n) = Half(100 / n), target)
+    via(target, fn(n) = Half(100 / n))
 ```
 
 A `0` sent to `halves(t)` faults the process `t` names, with `division by zero`, and the sender goes on.
@@ -1241,7 +1241,7 @@ fn reader(to : Address(Optional(String))) : Unit with m = {
 
 fn chat() : Unit with ChatMsg = {
     let me = self();
-    let _ = spawn(Local, fn() = reader(via(Line, me)));
+    let _ = spawn(Local, fn() = reader(via(me, Line)));
     talk()
 }
 
@@ -1265,10 +1265,10 @@ fn talk() : Unit with ChatMsg =
 type CountMsg = Counted(Int)
 
 fn oneProcess(me : Address(CountMsg)) : Bool =
-    Process.fromAddress(via(Counted, me)) == Process.fromAddress(me)
+    Process.fromAddress(via(me, Counted)) == Process.fromAddress(me)
 ```
 
-`oneProcess(self())` is `true`, and `via(Counted, me) == me` does not compile.
+`oneProcess(self())` is `true`, and `via(me, Counted) == me` does not compile.
 
 **Addresses travel.** An address is a value: it goes in a message, a field or a list, as `Link(me)` does in [`examples/filesync.ern`](examples/filesync.ern). To another node, an adapted address of your own process goes too, and its function stays here (§8.2).
 

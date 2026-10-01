@@ -152,7 +152,7 @@ builtin_types() ->
       ### Examples
 
       ```ernest
-      Process.fromAddress(self()) == Process.fromAddress(via(fn(x) = x, self()))
+      Process.fromAddress(self()) == Process.fromAddress(via(self(), fn(x) = x))
       // => true
       ```
       """/utf8>>},
@@ -386,7 +386,7 @@ values() ->
       ```
       """/utf8>>},
      %% §9.5 process functions
-     {[via], "((a) -> b, Address(b)) -> Address(a)",
+     {[via], "(Address(b), (a) -> b) -> Address(a)",
       <<"""
       An address that delivers what is sent to it to `target`, turned by `f`.
       It is not a process. A fault in `f` ends the process behind `target`,
@@ -396,7 +396,7 @@ values() ->
 
       ```ernest
       {
-          let texts = via(fn(n) = Int.toString(n), self());
+          let texts = via(self(), fn(n) = Int.toString(n));
           send(texts, 42)
       }
       ```

@@ -82,7 +82,7 @@ foreign fn system(name : Foreign) : Address(Msg) with m =
 /// subscriber's wrap itself, in order, so a wrap that does not finish
 /// delays that subscriber's keys and no other's.
 export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) with m = {
-    let to = via(wrap, self());
+    let to = via(self(), wrap);
     Address.callForever(reference, fn(r) = Subscribe(to = to, reply = r))
 }
 

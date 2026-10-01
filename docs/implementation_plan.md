@@ -243,8 +243,7 @@ Appendix E.1). Under §3.8's sentence of 2026-10-01, `Foreign` is a built-in typ
 §3.7 and the prelude (§9.1), with its conversions in Appendix E.12,
 where it is the library's foreign type `Foreign.Term` of Appendix E.12, which keeps its section;
 Appendix D's code and the shims change with it. The read-back of the sixteen sentences
-(2026-10-01, the log's *The Sixteen Sentences Read Back*) adds: `via(f, addr)` takes its
-function before its subject (§9.5, shape rule 1); every `spawn` writes `Local` (§6.2,
+(2026-10-01, the log's *The Sixteen Sentences Read Back*) adds: every `spawn` writes `Local` (§6.2,
 principle 5). The second read-back adds E.16's and E.1's sections naming their primitives (clarity, K-24, K-39). Under
 §0's *The host*, the first family's round 2 (2026-10-01, the log's *The Host Family's Rules*)
 moves the negative zero's normalization in the emitter from every float operation to the ones

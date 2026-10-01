@@ -69,7 +69,7 @@ export type FaultReport =
 /// ### Examples
 ///
 /// ```ernest
-/// Process.fromAddress(self()) == Process.fromAddress(via(fn(x) = x, self()))
+/// Process.fromAddress(self()) == Process.fromAddress(via(self(), fn(x) = x))
 /// // => true
 /// ```
 export foreign fn fromAddress(address : Address(m)) : Process =
@@ -113,7 +113,7 @@ export foreign fn live() : List(Process) with m =
 /// Process.faults(fn(report) = report)
 /// ```
 export fn faults(wrap : (FaultReport) -> m) : Unit with m =
-    subscribe(via(wrap, self()))
+    subscribe(via(self(), wrap))
 
 foreign fn subscribe(to : Address(FaultReport)) : Unit with m =
     "ern_rt:faults/1"

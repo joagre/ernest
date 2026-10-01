@@ -21,7 +21,7 @@ The shell runs as three processes of its own, and each input in one more.
 
 **Ordering.** The session drains the screen with `Flush` before each prompt and before it ends. A program's text reaches the screen from the program's own processes, not through the session, so without the drain a prompt could come before what the input printed. The screen writes to the terminal itself, so the runtime's flush at the end of a program (§8.6) does not reach it.
 
-**Queueing.** While an input runs, the session waits in `await`, which receives `Done`, `Interrupted` and `Reported` alone. An input typed meanwhile, and `Eof`, wait in the mailbox and are taken after the run. The queue holds text, so a queued input is checked when it runs, after the input before it has bound what it may use. `Interrupted` kills the input's process and says `Killed`. Each run's outcome carries the number of its run, so a `Done` that still arrives from a killed input is dropped, by `keyLoop` or by the next input's `await`. The number is an argument of `spawnInput`, and the address the outcome goes to is the one `via(Done, self())`, since an address a foreign function is given is exposed through a proxy, one for each distinct address.
+**Queueing.** While an input runs, the session waits in `await`, which receives `Done`, `Interrupted` and `Reported` alone. An input typed meanwhile, and `Eof`, wait in the mailbox and are taken after the run. The queue holds text, so a queued input is checked when it runs, after the input before it has bound what it may use. `Interrupted` kills the input's process and says `Killed`. Each run's outcome carries the number of its run, so a `Done` that still arrives from a killed input is dropped, by `keyLoop` or by the next input's `await`. The number is an argument of `spawnInput`, and the address the outcome goes to is the one `via(self(), Done)`, since an address a foreign function is given is exposed through a proxy, one for each distinct address.
 
 ### Start and end
 
@@ -30,7 +30,7 @@ The runner, `ern_cli`, loads the file and its dependencies and runs their initia
 `main` is ordered by what each step needs from the one before:
 
 1. Where `Terminal.size()` answers a size, it spawns the reader and waits for `Ready` or `NoKeys`. The reader answers once its subscription is granted, and so once the terminal no longer echoes (§8.2 *Keys*); what was typed at a prompt written earlier would be echoed and read as a line.
-2. It spawns the screen, binds the sinks to it with `setScreen(via(Wrote, screen))`, and says the greeting, the version and where the commands are.
+2. It spawns the screen, binds the sinks to it with `setScreen(via(screen, Wrote))`, and says the greeting, the version and where the commands are.
 3. It subscribes to `Process.faults(Reported)`, and only then spawns the file's entry point (`program`), so that a fault in the entry point is reported.
 4. At a terminal it reads the history, sends the reader `Start` with the screen, the history, whether the history file takes what is typed, which it does not where it could not be read, and whether to colour, and monitors the reader: the reader's end is the session's.
 5. It runs the startup inputs, and writes the first `> ` with `prompt`, which drains the screen first, as before every prompt.
@@ -55,7 +55,7 @@ The front end's values reach the shell as handles of three foreign types, `Env`,
 - **The questions the reader and `Shell.Complete` ask**: `names`, `sessionNames`, `sessionTexts`, `sourceRoot`, `context`, `needsMore`, `fields`, `documentation`, `signature` and `segment`. None takes an `Env`; those that read the session read the front end's copy.
 - **The host's alone**: `version`, `startupFiles`, `program`, `write`, `setScreen` and `holdTerminal`.
 
-`spawnInput` takes an address, `via(Done, self())`, and not the wrap E.0 shape rule 8 gives a function that delivers later: foreign code may pass a function value back but not call it (§8.4), so the shell wraps at its end and the front end only sends. `NO_COLOR`, and `HOME` for the history, are read in Ernest, with `Os.environment`, and what runs and what faulted through `Process` (E.21), as any program reads them.
+`spawnInput` takes an address, `via(self(), Done)`, and not the wrap E.0 shape rule 8 gives a function that delivers later: foreign code may pass a function value back but not call it (§8.4), so the shell wraps at its end and the front end only sends. `NO_COLOR`, and `HOME` for the history, are read in Ernest, with `Os.environment`, and what runs and what faulted through `Process` (E.21), as any program reads them.
 
 **The front end's copy.** The front end keeps the latest `Env` of its own (`remember`), besides the one the session holds. The reader completes and documents while an input runs, when the session waits in `await` and answers nothing, so the reader's questions cannot be messages to the session. The copy is set when an input is checked and again when it has run, since what an input declares joins the session when it has run.
 

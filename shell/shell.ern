@@ -255,7 +255,7 @@ export fn main() : Unit with ShellMsg = {
     if Optional.isNone(keys) then holdTerminal(self()) else Unit;
     // report §11.2: what a program writes goes to the live region, what
     // the session says is committed to the transcript
-    setScreen(via(Wrote, screen));
+    setScreen(via(screen, Wrote));
     send(screen, Said("Ernest " <> version() <> ". :help for the commands, :quit to leave.\n"));
     // report §11.2: the session, the screen and the reader are the shell's
     // own, whose faults are not news
@@ -351,7 +351,7 @@ fn run(state : State,
             // report §11.2: the run is what timing measures, not the check
             let started = Clock.now();
             let run = state.runs + 1;
-            let child = spawnInput(env2, checked, run, via(Done, self()));
+            let child = spawnInput(env2, checked, run, via(self(), Done));
             await(State(..state, env = env2, runs = run), screen, checked, child, started, printing)
         }
     }

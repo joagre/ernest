@@ -79,7 +79,7 @@ The shell reaches the host as any program does: through the system modules `Term
 ## Idioms to notice
 
 - **`Address(Never)`** is the address of a process that receives nothing, such as an input's. Nothing can be sent to it, but it can be killed (§6.8).
-- **A constructor as a function.** `Process.faults(Reported)` delivers each fault report as `Reported(report)` (E.21), and `monitor(reader, ReaderDied)` delivers the reader's end as `ReaderDied(down)`. `via(Wrote, screen)` is the screen's address seen through `Wrote`, so what the sinks send arrives as `Wrote(text)` (§6.5).
+- **A constructor as a function.** `Process.faults(Reported)` delivers each fault report as `Reported(report)` (E.21), and `monitor(reader, ReaderDied)` delivers the reader's end as `ReaderDied(down)`. `via(screen, Wrote)` is the screen's address seen through `Wrote`, so what the sinks send arrives as `Wrote(text)` (§6.5).
 - **`Process.fromAddress(a)`** is the process behind an address. It has equality where an address has none. So the session keeps its own processes, whose faults are not reported (§11.2 *Faults*), in a `Set(Process)`, and knows an input's fault by comparing processes.
 - **`Address.call` with a `Reply`** is request-reply (§6.6). `drain` calls the screen with `Flush` and waits up to five seconds for its answer.
 
