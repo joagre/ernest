@@ -1890,11 +1890,11 @@ type Inline = Text(String) | CodeSpan(String) | Emphasis(List(Inline)) | Strong(
 type Block = Heading(level : Int, text : List(Inline)) | Paragraph(List(Inline))
   | Code(info : String, lines : List(String)) | Quote(List(Block))
   | Items(start : Optional(Int), items : List(List(Block))) | Rule | Raw(List(String))
-type Style = Plain | Styled
+type Output = Plain | Styled
 type Manual = Manual(name : String, section : String, summary : List(Inline), source : String,
   title : String)
 Markdown.parse : (String) -> List(Block)
-Markdown.render : (List(Block), Int, Style) -> List(String)
+Markdown.render : (List(Block), Int, Output) -> List(String)
 Markdown.roff : (List(Block), Manual) -> List(String)
 Markdown.firstSentence : (List(Block)) -> List(Inline)
 ```

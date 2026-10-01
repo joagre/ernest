@@ -93,7 +93,7 @@ export type Block =
 /// Markdown.render(Markdown.parse("Some *words*."), 80, Markdown.Plain)
 /// // => ["Some *words*."]
 /// ```
-export type Style =
+export type Output =
     /// Emphasis, strong emphasis and code spans as they are written.
     Plain
   /// Bold, italics and colour, in the terminal's escape sequences.
@@ -782,7 +782,7 @@ fn autolink(chars : List(Char), done : List(Char)) : Optional(#(Inline, List(Cha
 //
 
 /// The document as rows of text at most that many columns wide where a
-/// word allows, with the terminal's styles when the style is `Styled`. A
+/// word allows, with the terminal's styles when the output is `Styled`. A
 /// heading is its text, bold with styles; a code block is indented four
 /// columns and never wrapped; a list item follows a bullet, or its number
 /// and a period whichever delimiter it was written with; a block quote
@@ -799,24 +799,24 @@ fn autolink(chars : List(Char), done : List(Char)) : Optional(#(Inline, List(Cha
 ///                 Markdown.Plain)
 /// // => ["A link (https://example.org).", "", "    code"]
 /// ```
-export fn render(blocks : List(Block), width : Int, style : Style) : List(String) =
+export fn render(blocks : List(Block), width : Int, output : Output) : List(String) =
     match blocks {
         [] -> []
       | first :: rest ->
-            rendered(first, width, style)
-                <> List.flatMap(rest, fn(b) = "" :: rendered(b, width, style))
+            rendered(first, width, output)
+                <> List.flatMap(rest, fn(b) = "" :: rendered(b, width, output))
     }
 
-fn rendered(b : Block, width : Int, style : Style) : List(String) =
+fn rendered(b : Block, width : Int, output : Output) : List(String) =
     match b {
         Heading(text = text) ->
-            standing(style,
-                     wrapped(paint(style, Terminal.Bold, spans(unstrong(text), style)), width))
-      | Paragraph(text) -> standing(style, wrapped(spans(text, style), width))
+            standing(output,
+                     wrapped(paint(output, Terminal.Bold, spans(unstrong(text), output)), width))
+      | Paragraph(text) -> standing(output, wrapped(spans(text, output), width))
       | Code(lines = lines) ->
             List.map(lines, fn(line) = if isBlank(line) then "" else "    " <> line)
-      | Quote(inner) -> List.map(render(inner, width - 2, style), fn(row) = "│ " <> row)
-      | Items(start = start, items = items) -> itemRows(start, items, width, style)
+      | Quote(inner) -> List.map(render(inner, width - 2, output), fn(row) = "│ " <> row)
+      | Items(start = start, items = items) -> itemRows(start, items, width, output)
       | Rule -> [String.repeat("─", width)]
       | Raw(lines) -> lines
     }
@@ -826,14 +826,14 @@ fn rendered(b : Block, width : Int, style : Style) : List(String) =
 fn itemRows(start : Optional(Int),
             items : List(List(Block)),
             width : Int,
-            style : Style) : List(String) = {
+            output : Output) : List(String) = {
     let labels = match start {
         None -> List.map(items, fn(_) = "•")
       | Some(n) -> List.map(List.indexed(items), fn(#(i, _)) = Int.toString(n + i) <> ".")
     };
     let size = List.foldLeft(labels, 0, fn(most, label) = Int.max(most, String.size(label))) + 1;
     List.flatMap(List.zip(labels, items),
-                 fn(#(label, item)) = match render(item, width - size, style) {
+                 fn(#(label, item)) = match render(item, width - size, output) {
                      [] -> [label]
                    | first :: rest ->
                          (String.padEnd(label, size, " ") <> first)
@@ -855,32 +855,32 @@ fn unstrong(xs : List(Inline)) : List(Inline) =
       | other -> [other]
     })
 
-fn spans(xs : List(Inline), style : Style) : String =
-    String.join(List.map(xs, fn(x) = span(x, style)), "")
+fn spans(xs : List(Inline), output : Output) : String =
+    String.join(List.map(xs, fn(x) = span(x, output)), "")
 
-fn span(x : Inline, style : Style) : String =
+fn span(x : Inline, output : Output) : String =
     match x {
         Text(s) -> s
-      | CodeSpan(s) -> marked(style, Terminal.Foreground(Terminal.Cyan), "`", s)
-      | Emphasis(xs) -> marked(style, Terminal.Italic, "*", spans(xs, style))
-      | Strong(xs) -> marked(style, Terminal.Bold, "**", spans(xs, style))
+      | CodeSpan(s) -> marked(output, Terminal.Foreground(Terminal.Cyan), "`", s)
+      | Emphasis(xs) -> marked(output, Terminal.Italic, "*", spans(xs, output))
+      | Strong(xs) -> marked(output, Terminal.Bold, "**", spans(xs, output))
       | Link(text = text, address = address) -> if plain(text) == address then
             address
         else
-            spans(text, style) <> " (" <> address <> ")"
+            spans(text, output) <> " (" <> address <> ")"
       | Break -> "\n"
     }
 
 // Text in the terminal's look where the rendering is styled; the terminal
 // turns a look off by its own code, so one inside another leaves the outer
 // one on (report Appendix E.16).
-fn paint(style : Style, look : Terminal.Style, text : String) : String =
-    if style == Styled then Terminal.styled(text, look) else text
+fn paint(output : Output, look : Terminal.Style, text : String) : String =
+    if output == Styled then Terminal.styled(text, look) else text
 
 // Inline markup: in the terminal's style where there is one, and as it is
 // written where there is none, the only way plain text can show it.
-fn marked(style : Style, look : Terminal.Style, mark : String, text : String) : String =
-    if style == Styled then paint(style, look, text) else mark <> text <> mark
+fn marked(output : Output, look : Terminal.Style, mark : String, text : String) : String =
+    if output == Styled then paint(output, look, text) else mark <> text <> mark
 
 fn plain(xs : List(Inline)) : String =
     String.join(List.map(xs, fn(x) = match x {
@@ -898,8 +898,8 @@ fn plain(xs : List(Inline)) : String =
 // without those after it, as a listing cut short shows it, leaves no look
 // on. The looks are Terminal.styled's, each turned off by a code of its
 // own.
-fn standing(style : Style, rows : List(String)) : List(String) =
-    if style == Styled then balanced(rows, []) else rows
+fn standing(output : Output, rows : List(String)) : List(String) =
+    if output == Styled then balanced(rows, []) else rows
 
 // The rows, `open` the looks on as the first begins, the latest first.
 fn balanced(rows : List(String), open : List(String)) : List(String) =

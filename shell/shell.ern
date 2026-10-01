@@ -155,7 +155,7 @@ type ShellMsg =
 type State =
     State(env : Env,
           settings : Settings,
-          colour : Markdown.Style,
+          colour : Markdown.Output,
           own : Set(Process),
           faults : List(Process.FaultReport),
           from : Optional(#(String, Int)),
@@ -203,7 +203,7 @@ type ReaderMsg =
   | Start(screen : Address(ScreenMsg),
           earlier : List(String),
           keeping : Bool,
-          colour : Markdown.Style)
+          colour : Markdown.Output)
 
 // What the reader carries between keys: the line being edited, whether
 // the history file still takes what is typed, whether this session has
@@ -214,7 +214,7 @@ type Reading =
             keeping : Bool,
             hinted : Bool,
             last : Last,
-            colour : Markdown.Style)
+            colour : Markdown.Output)
 
 // What the key before this one did, since `Tab` twice lists and
 // `Shift-Tab` twice shows the whole page (report §11.2).
@@ -548,7 +548,7 @@ fn taking(state : State, screen : Address(ScreenMsg), line : String) : Unit with
     }
 
 fn readerDied(screen : Address(ScreenMsg),
-              colour : Markdown.Style,
+              colour : Markdown.Output,
               down : Down) : Unit with ShellMsg =
     match down {
         Down(reason = Returned) -> finish(screen, "")
@@ -621,7 +621,7 @@ fn escapedChar(c : Char) : String =
     }
 
 // A diagnostic, its first line coloured as a fault (report §11.2).
-fn diagnose(screen : Address(ScreenMsg), colour : Markdown.Style, text : String) : Unit with m =
+fn diagnose(screen : Address(ScreenMsg), colour : Markdown.Output, text : String) : Unit with m =
     send(screen, Said(Shell.Style.diagnostic(colour, text)))
 
 fn say(screen : Address(ScreenMsg), text : String) : Unit with m =
@@ -1103,7 +1103,7 @@ fn documenting(session : Address(ShellMsg),
 // appeared in: the first line of its first code block, the first sentence
 // of its first paragraph (report §11.4), and its `Since` paragraph, the
 // name before the type bold.
-fn brief(text : String, width : Int, colour : Markdown.Style) : List(String) = {
+fn brief(text : String, width : Int, colour : Markdown.Output) : List(String) = {
     let blocks = Markdown.parse(text);
     let types = List.flatMap(blocks, fn(b) = match b {
         Markdown.Code(lines = lines) -> List.take(lines, 1)
@@ -1133,7 +1133,7 @@ fn isVersion(b : Markdown.Block) : Bool =
 
 // Report §11.2: a page of documentation rendered for the terminal, at its
 // width, or at 80 columns where there is no terminal.
-fn rendered(text : String, width : Int, colour : Markdown.Style) : List(String) =
+fn rendered(text : String, width : Int, colour : Markdown.Output) : List(String) =
     Markdown.render(Markdown.parse(text), width, colour)
 
 fn screenWidth() : Int with m =
@@ -1145,7 +1145,7 @@ fn screenWidth() : Int with m =
 // Report §11.2: the candidates, a lone one too, a line each with the
 // type they carry, or a command's help line. The region cuts the listing
 // to the rows the screen has.
-fn listing(completion : Shell.Complete.Completion, colour : Markdown.Style) : List(String) =
+fn listing(completion : Shell.Complete.Completion, colour : Markdown.Output) : List(String) =
     List.map(completion.candidates, fn(name) = Shell.Style.named(colour, name.shown))
 
 // The screen is told what is being typed, and the session is told once
