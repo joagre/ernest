@@ -75,3 +75,69 @@ Code in that layout:
         Response(status = StatusCode.ok, headers = [], body = body)
             |> withCookie("sid", SessionId.text(session))
             |> render
+
+## Glossary
+
+The names that recur across modules, one for each concept, in every module. A word is spelled as each language spells a name: `Descriptor` an Erlang variable, `descriptor` an Erlang function or field, an Ernest binding or parameter. The report is the authority: a concept it names takes its name. Drafted on 2026-10-01 from a survey of every module (MVP 2.99b's item 2); the renamings, items 6 and 15, correct it as they read the code name by name. A name not here is the writer's, under the rules above.
+
+**The compiler**
+
+- **Span**: the source a node or a diagnostic's label covers (§11.5); a token's start is its `Position`. Not `Pos` for a span.
+- **Diagnostic**: an error the toolchain reports, `#diagnostic{}` (§11.5); its text is its `Message`. Not `#diag{}`, `D`, `Error`, `Msg`.
+- **Env**: the names in scope as the checker reads them, the word every Hindley-Milner text uses. Not `En`, `E`. The shell's session is a `Session`, the host's variables an `Environment`.
+- **TypeState**: the checker's type variables and substitution, `#type_state{}`. Not `St`, `S`.
+- **Substitution**: not `S`, `Sub`, `subst`; applying one is `substitute`, not `zonk`.
+- **Context**: the emitter's, `#emit_context{}`, and nothing else. Not `Cx`, `C`. The formatter's state, the descriptor builder's, a message's prefix and a source line are each named for what they hold.
+- **QualifiedName**: §4.2's qualified name. Not `Q`, `QName`, `TQ`, `CQ`.
+- **Namespace**: §4.2's namespace. Not `Ns`, `Prefix`, nor `Module` for a namespace.
+- **Module**: an Ernest module (§4.1); the Erlang module it compiles to is its `ErlangModule`, `ern@io`, and a build's record of one a `#build_module{}`. Not `Mod`.
+- **Interface**: a compiled module's interface (§11.1), `#interface{}`. Not `Iface`, `I`.
+- **Scheme**: a type scheme (§3.9), as the code has it.
+- **Annotation**: a type the source writes. Not `Ann`; an AST record's `type` field holds one of the four things it holds today, each named.
+- **Effect**: the `with` part of a function type, a mailbox type or an effect variable (§3.9, §6.1). Not `E`, `Eff`, `EffT`, `MailboxT`.
+- **Constructor**: a constructor (§3.5, §5.6); many are `constructors`. Not `Cs`, `CI`, `cons`; `cons` is `::` alone.
+- **TypeVariable**: §3.9's type variable. A record's `vars` field is named for what it holds: a scheme's `quantified`, the type state's `variables`, the checker's `locals`.
+- **Descriptor**: a type's description at run time, in the emitter, the boundary and the runtime alike. Not `D`, `Desc`, `desc`; its tag for `Address(m)` is `address`, not `pid`.
+- **Token**: a token, many `Tokens`, what follows one `Rest`. Not `T`, `Ts`, `Toks`, `R`; `T` and `Ts` are a type and types in a one-line scope alone.
+- **Declaration, Statement, Element, Segment, Alternative**: whole words. Not `Decl`, `Stmt`, `Elem`, `Seg`, `Alt`.
+- **Doc**: §2.2's doc block, and nothing else; the pretty printer's document is named for what it lays out.
+
+**The runtime and the command line**
+
+- **Address**: §6.5's address. Not `Addr`, `To`, `A`; an IP address is an `IpAddress`, and `Target` is `via`'s target alone (§6.5).
+- **Pid**: the host's process; the Ernest value is a `Process` (E.21).
+- **Reply**: §6.6's reply. Not `Alias`, `Written`, `R`.
+- **Cause**: a fault's cause (§7.3). Not `Msg`, `Text`; the host's stack beside it is a `Trace`.
+- **Reason**: §9.3's `Reason`, and nothing else. The host's exit reason is an `ExitReason`, a host's error an `Error`. Not `Raw`, `How`.
+- **Site**: §6.9's spawn site. Not `At`, `Where`.
+- **Ms, Deadline**: milliseconds as given (E.0 shape rule 8) and the moment they end, as the code has them; a timer's message is `deadline` in every module.
+- **Monitor**: §6.9's monitor, in the reaper as elsewhere. Not `await`, `watch`, `Waiters`. The host's reference to one is a `MonitorRef`, not `Watch`, `Mon`, `MRef`, `OwnerMonitor`.
+- **Run**: §6.9's run of a restarting function, and nothing else; a launch, a running program and a test are named as such.
+- **Owner**: the process that opened a resource or was given it (§6.9, E.18), and nothing else.
+- **Port**: E.18's port of a socket. A host port is named for what it runs: `Helper`, `Stty`.
+- **EntryPoint, EntryProcess**: the entry point and its process (§8.1, §8.6). Not `Main`.
+- **LoadPath, SourceRoot, BuildRoot**: the load path, a source root and a build root (§11.1, §11.2). Not `Roots`, `Dirs`, `OutDir`, `Root` alone.
+- **Message**: a message. Not `Msg`.
+
+**Ernest**
+
+- A function's **subject** is named for its type, `list`, `text`, `map`, `set`, `bytes`, `path`, `table`, `process`. Not `xs`, `s`, `m`, `b`, `r`, `t`, `p`.
+- A **callback** is named for its role: `keep` for a predicate that keeps, `step` for a fold's or a try's (E.0 rule 2), `wrap` for what delivers a message (E.0 shape rule 8); `f` only where nothing more can be said. Not `p`, `g`.
+- **acc**: what a fold carries. Not `done`.
+- **reply**: a `Reply`. Not `r`.
+- **index**: a position in a sequence (E.2, E.5); a place in a file is an `offset` (E.17). Not `at`, `i`, `from`, `start`.
+- **count**: how many. Not `n`, `length`.
+- **ms**: milliseconds (E.23); a moment is a `time`. Not `wait`, `t`.
+- **old, new**: what `replace` takes, in every module. Not `from`, `to`.
+- **cause**: as above. Not `why`, `c`, `text`.
+- A **request** constructor is the function it serves, `Read` for `read`; an **event** is in the past tense, `Resized`. Not `Recv`, `Measure`, `FarEnd`, `Resize`.
+- A prelude name, `Where`, `answer`, `kill`, is not bound to another concept.
+
+**To decide with the user.** Where the code names a concept the report names otherwise, or the report's name seems wrong for the code (rule *One concept, one name* above):
+
+1. `flags`, `add_flag`, `eq` and `no_reply` in the checker are §3.9's inferred restrictions: `restrictions`, `equality`, `process_only`, `not_reply_carrying`. Recommended.
+2. `Linear` in the reply check is §6.6's obligation: `Obligation`. Recommended.
+3. `ret`, `Ret` and the diagnostics' "return type" are §4.5's result type: `ResultType`, and "result type" in every message. Recommended.
+4. The runtime's `Launcher` is §11.2's runner: `Runner`, and the launcher is `bin/ern` alone. Recommended.
+5. The runtime's `Service`, the reaper, the clock and the terminal, is a system process (§8.2, §8.4); the report's service is another thing (§6.5). `SystemProcess`. Recommended.
+6. `QualifiedName` is long for some 280 uses; `QName` is shorter and is not a word a reader knows. `QualifiedName` recommended, the line kept at 100 characters.

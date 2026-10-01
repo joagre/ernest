@@ -99,6 +99,10 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    can be made before the code is read name by name; items 6 and 15 change it, add to it and
    delete from it as the renaming finds what it missed, and each area's commit carries the
    glossary's change with it.
+   Drafted 2026-10-01 (the log's *The Glossary Drafted*): [`style.md`](style.md)'s *Glossary*
+   names forty-odd concepts, and ends with the six where the code's name differs from the
+   report's, each with a recommendation; the user's reading of the guide and the glossary,
+   and the six, close the item, before the attack plan's phase 4 writes code in its names.
 3. **The places the language made the review's work harder**, done 2026-10-01 (the log's *The
    Release Review's Harder Places*): of the fourteen lines of [`findings.md`](findings.md)
    marked `2.99b` that are not hardening, two are language feedback 75 and 76, decided in the
