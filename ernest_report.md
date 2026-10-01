@@ -813,8 +813,8 @@ self           : () -> Address(m) with m
 send           : (Address(a), a) -> Unit with m
 spawn          : (Where, () -> Unit with n) -> Address(n) with m
 spawnMonitored : (Where, () -> Unit with n, (Down) -> m) -> Address(n) with m
-Io.show        : (a) -> String // Appendix E.1 provides it: the type at the use, known whole
-Io.debug       : (a) -> a with m
+Io.show        : (a) -> String // the value as Ernest writes it, at the use's type (Appendix E.1)
+Io.debug       : (a) -> a with m // prints Io.show's text and a line feed, then returns the value
 ```
 
 ### 9.5 Process functions
@@ -1312,8 +1312,6 @@ Io.printlnError : (String) -> Unit with m // appends "\n"
 Io.readLine : () -> Optional(String) with m // the next line without its line feed; None at end of input
 Io.read : () -> Optional(Bytes) with m // what has arrived, at least one byte; None at end of input
 Io.write : (Bytes) -> Unit with m // the bytes to standard output, as they are
-Io.show : (a) -> String // the value as Ernest writes it
-Io.debug : (a) -> a with m // prints Io.show of the value and a line feed, then returns the value
 ```
 
 `Io.show` writes a value by the argument's type at the call, each value as its literal or construction is written: a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in their declared order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements, in an order the values fix, so that equal maps and equal sets print alike: ascending where the keys or the elements are `Int`, `Float`, `Char`, or `String`. An address prints as `<address 84>`, the number naming the process behind it, and a `Process` as `<process 84>` (E.21). A function prints as `<function>`; no reply reaches `Io.show`, whose argument is no reply-carrying type (§6.6). `Io.show` and `Io.debug` write a value by the type at which the name is used, as a callee or an argument, which must be known there whole, with no type variable in it, more than an operator asks (§4.8): on a type variable it is a type error, and neither takes a hidden argument. A value of an abstract type outside its module is written as `<abstract>`, and a value of a foreign type or of `Foreign` as `<foreign>`. `Io.debug` writes `Io.show`'s text to standard output.
