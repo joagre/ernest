@@ -267,10 +267,7 @@ and `Invalid`, which E.17's, E.18's and E.23's named `Other` texts become, `Othe
 host's description alone, and the helper `ern_exec` failing to start faults `Os.start` and
 `Fs.removeAll` as it faults `Os.environment`, the runtime's own failure; a call to a socket or
 a listener the program closed faults with `Fault("callee was closed")`, in §6.6, §7.4 and E.18;
-and `Path.name` answers `Optional(String)`, `None` for the root, its five callers following. Under
-principle 2's sentences, the fifth family's round 2 (2026-10-01, the log's *The Forms Family's
-Rules*): the shell generalizes a
-lambda bound by `let` at the prompt as §4.6 does, which it refuses as undetermined today. Under §6.9's
+and `Path.name` answers `Optional(String)`, `None` for the root, its five callers following. Under §6.9's
 ownership sentence, the eighth family's round 2 (2026-10-01, the log's *The Owner Family's
 Rules*): `Down` gains `process : Process`, declared first, the runtime filling it where it
 builds a `Down`, in §9.3, the prelude's declared types and the twelve tests that match one;

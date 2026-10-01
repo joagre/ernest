@@ -1621,14 +1621,14 @@ pattern_let() ->
     ?assertMatch({_, _}, binary:match(Out, <<"a `let` with `<-` at the prompt has no block">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"the types of e, f are not determined">>)).
 
-%% report §11.2, §3.9, §8.6: a `let` at the prompt is a block `let`, so a
-%% binding whose effect variable nothing settles is refused, as a block
-%% refuses it, and a timed receive is no deadlock in line mode, first
-%% input or not. A declared name prints its own scheme after inputs whose
-%% type state numbers other variables alike. A regression test for three
-%% defects: the effect variable entered the session unbound and crashed
-%% the next input's check, the first input's timed wait was a deadlock,
-%% and the scheme printed through the later input's substitution
+%% report §11.2, §3.9, §4.6, §8.6: a `let` at the prompt is a block `let`, so
+%% a lambda it binds is generalized, its effect variable with it, and runs,
+%% and a timed receive is no deadlock in line mode, first input or not. A
+%% declared name prints its own scheme after inputs whose type state numbers
+%% other variables alike. A regression test for three defects: the effect
+%% variable entered the session unbound and crashed the next input's check,
+%% the first input's timed wait was a deadlock, and the scheme printed
+%% through the later input's substitution
 effect_variable_test_() ->
     {timeout, 60, fun effect_variable/0}.
 
@@ -1636,17 +1636,39 @@ effect_variable() ->
     In = filename:join("/tmp", "ern_eff_" ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = file:write_file(In, "receive { after 300 -> 5 }\n"
                              "let h = fn() = Io.println(\"x\")\n"
+                             "h()\n"
                              "let f = fn(x : Int) = x + 1\n"
                              "f(2)\n"
                              "fn g() : Int with e = receive { after 5 -> 5 }\n"
                              ":type g\n"),
     {0, Out} = sh("../bin/ern shell < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"> 5 : Int\n">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"the type of h is not determined by this input;"
-                                             " it is () -> Unit with e">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> h : () -> Unit with e\n> x\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> f : (Int) -> Int\n> 3 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> g : () -> Int with e\n"
                                              "> g : () -> Int with e\n">>)).
+
+%% report §4.6, §11.2: a lambda bound by `let` at the prompt is generalized
+%% as in a block, its restrictions with it, and another value bound by `let`
+%% is not, so an open variable in its type is refused. A regression test of
+%% the rule of 2026-10-01: the shell refused the lambda as undetermined
+lambda_let_test_() ->
+    {timeout, 60, fun lambda_let/0}.
+
+lambda_let() ->
+    In = filename:join("/tmp", "ern_lam_" ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = file:write_file(In, "let id = fn(x) = x\n"
+                             "#(id(1), id(\"a\"))\n"
+                             "let same = fn(a, b) = a == b\n"
+                             "same(1, 1)\n"
+                             "same(fn() = 1, fn() = 2)\n"
+                             "let xs = []\n"),
+    {0, Out} = sh("../bin/ern shell < " ++ In),
+    [?assertMatch({_, _}, binary:match(Out, Text))
+     || Text <- [<<"> id : (a) -> a\n> #(1, \"a\") : #(Int, String)\n">>,
+                 <<"> same : (a=, a=) -> Bool\n> true : Bool\n">>,
+                 <<"does not support equality">>,
+                 <<"the type of xs is not determined by this input; it is List(a)">>]].
 
 %% report §11.2: a file without an entry point is loaded by the shell and
 %% nothing is spawned, so a library module is put in scope to be tried. A

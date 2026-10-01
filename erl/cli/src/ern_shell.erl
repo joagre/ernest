@@ -44,8 +44,9 @@
 %% which `:doc` reads the documentation of (report §11.2, §11.4)
 %% A checked input: the module it became, its typed tree, its type.
 -record(checked, {ns, typed, decls, iface, env, type, binds, site}).
-%% binds: the name a `let` binds, `{names, Ns}` for the names a `let` with
-%% a pattern binds, `it` for an expression, or `decls`
+%% binds: the name a `let` binds, `{lambda, Name, Scheme}` for a `let` of a
+%% lambda, generalized, `{names, Ns}` for the names a `let` with a pattern
+%% binds, `it` for an expression, or `decls`
 %% A value with the descriptor of its type, so it prints as E.1 prints it.
 -record(value, {term, desc}).
 
@@ -164,7 +165,7 @@ input(Text) ->
         {error, Diag} ->
             case ern_parser:parse_string(Text) of
                 {ok, [#let_decl{name = Name, body = Body, ann = Ann}]} ->
-                    {ok, Name, annotated(Name, Body, Ann)};
+                    {ok, let_binds(Name, Body), annotated(Name, Body, Ann)};
                 {ok, Decls} -> declarations(Decls);
                 {error, DeclDiag} ->
                     case pattern_let(Text) of
@@ -248,6 +249,11 @@ exported(D) -> D.
 %% Report §11.2: a `let` at the prompt may carry an annotation, which the
 %% checker holds its value to as it holds a `let` in a block's: the input
 %% is `{ let x : T = e; x }`.
+%% Report §4.6, §11.2: a `let` that binds a name to a lambda is generalized,
+%% as in a block; its scheme is known once the input is checked.
+let_binds(Name, #e_lambda{}) -> {lambda, Name};
+let_binds(Name, _) -> Name.
+
 annotated(_Name, Body, undefined) ->
     Body;
 annotated(Name, Body, Ann) ->
@@ -264,17 +270,31 @@ check_module(#env{ifaces = Ifaces, session = Session} = Env, Ns, From, Input, De
     case ern_typecheck:check(Ns, Decls, Ifaces, Session) of
         {ok, Typed, Iface, TEnv} ->
             Type = input_type(Typed, Binds),
-            case refused(Type, TEnv, Binds, Typed) of
+            Binds1 = generalized(Binds, Typed, TEnv),
+            case refused(Type, TEnv, Binds1, Typed) of
                 none ->
                     {'Right', {Env, #checked{ns = Ns, typed = Typed, decls = Decls,
                                              iface = Iface, env = TEnv, type = Type,
-                                             binds = Binds, site = site(From)}}};
+                                             binds = Binds1, site = site(From)}}};
                 {open, Diag} ->
                     {'Left', diagnostic(From, Input, [Diag])}
             end;
         {error, Diags} ->
             {'Left', diagnostic(From, Input, Diags)}
     end.
+
+%% Report §4.6: the scheme a `let` of a lambda binds its name to, the
+%% input's entry point's own over its result, the variables it quantifies
+%% kept with their restrictions.
+generalized({lambda, Name}, Typed, TEnv) ->
+    [#scheme{vars = Vars} = Scheme] = [S || #fn_decl{name = ?ENTRY, type = S} <- Typed],
+    Result = result_type(Scheme),
+    St = ern_typecheck:type_state(TEnv),
+    Free = ern_types:free_vars(ern_types:zonk(Result, St), St),
+    {lambda, Name, Scheme#scheme{vars = [V || {Id, _} = V <- Vars, lists:member(Id, Free)],
+                                 type = Result}};
+generalized(Binds, _Typed, _TEnv) ->
+    Binds.
 
 %% Report §11.2: the name and the line offset a spawn site in the input is
 %% written with, as its diagnostics name and count it.
@@ -318,6 +338,9 @@ undetermined(_Type, _TEnv, it, _Typed) ->
     %% cannot do is bind `it`, which `declared/1` says
     none;
 undetermined(_Type, _TEnv, {names, []}, _Typed) ->
+    none;
+undetermined(_Type, _TEnv, {lambda, _, _}, _Typed) ->
+    %% its variables are its scheme's, quantified (report §4.6)
     none;
 undetermined(Type, TEnv, Binds, Typed) ->
     St = ern_typecheck:type_state(TEnv),
@@ -1922,6 +1945,8 @@ bind(Env, it, _Ns, Value, Type, TEnv, _Iface) ->
     end;
 bind(Env, {names, Names}, _Ns, Value, Type, TEnv, _Iface) ->
     bound(Env, components(Names, Value, Type, TEnv), TEnv);
+bind(Env, {lambda, Name, Scheme}, _Ns, Value, _Type, TEnv, _Iface) ->
+    bound(Env, [{Name, Value, Scheme}], TEnv);
 bind(Env, Name, _Ns, Value, Type, TEnv, _Iface) ->
     bound(Env, [{Name, Value, Type}], TEnv).
 
@@ -1966,7 +1991,7 @@ bound(#env{holders = N, free_holders = Free} = Env0, Bound, TEnv) ->
     [persistent_term:put({Mod, Name}, Value) || {Name, Value, _} <- Bound],
     Names = [Name || {Name, _, _} <- Bound],
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), holder(Mod, Names)),
-    Values = maps:from_list([{Holder ++ [Name], ern_types:mono(ern_types:zonk(Type, St))}
+    Values = maps:from_list([{Holder ++ [Name], binding_scheme(Type, St)}
                              || {Name, _, Type} <- Bound]),
     Iface = #iface{namespace = Holder, values = Values, lets = [Holder ++ [Name] || Name <- Names]},
     Held = lists:foldl(fun({_, Value, _}, Acc) -> fun_modules(Value, Acc) end, [], Bound),
@@ -1975,6 +2000,10 @@ bound(#env{holders = N, free_holders = Free} = Env0, Bound, TEnv) ->
                             [{Mod, Name} || Name <- Names]},
                       uses())),
     session(Env, Iface).
+
+%% A bound name's scheme: a generalized `let`'s own, or its type alone.
+binding_scheme(#scheme{} = Scheme, _St) -> Scheme;
+binding_scheme(Type, St) -> ern_types:mono(ern_types:zonk(Type, St)).
 
 %% Report §11.2: the session after an input has answered, what nothing
 %% reaches any more let go, in the session's own process.
@@ -2187,6 +2216,10 @@ declared(#checked{binds = {names, Names}, type = Type, env = TEnv}) ->
             end,
     [unicode:characters_to_binary([atom_to_list(N), " : ", ern_types:format(T, St)])
      || {N, T} <- lists:zip(Names, Types)];
+declared(#checked{binds = {lambda, Name, Scheme}, env = TEnv}) ->
+    St = ern_typecheck:type_state(TEnv),
+    [unicode:characters_to_binary([atom_to_list(Name), " : ",
+                                   ern_types:format_scheme(Scheme, St)])];
 declared(#checked{binds = Name} = C) ->
     [<<(atom_to_binary(Name))/binary, " : ", (type_text(C))/binary>>].
 
