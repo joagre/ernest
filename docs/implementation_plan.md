@@ -321,7 +321,11 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     parameters of the type declared, so that `Deeper(Nest(List(a)))`, which no function could
     walk, is refused at its declaration; the type checker's tests of such a type change with
     it; about half a day. The third: §2.2's blank line that gives the first doc block to the
-    module kept, OCaml's own rule.
+    module kept, OCaml's own rule. The fourth: `spawnMonitored` and `Unknown` kept, the runtime
+    keeping nothing of an ended process. Every decision of this item was taken on 2026-10-02,
+    and `language_feedback.md` holds no entry; what remains is to build what the decisions
+    admitted, entries 76, 79, 81 and 82, 83 and 85 and the rule for a recursive type, about
+    five days, its report sentences with its code.
 
 ---
 
