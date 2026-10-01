@@ -3538,6 +3538,21 @@ io_write_waits_test() ->
     Elapsed = receive {err, B} -> binary_to_integer(string:trim(B)) after 5000 -> none end,
     ?assert(Elapsed >= 450).
 
+%% report Appendix E.1: Io.writeError writes its bytes to standard error as
+%% they are, a byte that is not UTF-8 among them, and nothing to standard
+%% output. Written with the code, of 2026-10-01
+io_write_error_test() ->
+    Me = self(),
+    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'],
+        "export fn main() : Unit with Never = Io.writeError(<<104, 105, 255>>)\n"),
+    {ok, Mod, Bin} = ern_emitter:compile(['M'], Typed, Iface, Env),
+    {module, Mod} = code:load_binary(Mod, "test", Bin),
+    ok = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
+                         #{stdout => fun(B) -> Me ! {out, B} end,
+                           stderr => fun(B) -> Me ! {err, B} end}),
+    ?assertEqual(<<104, 105, 255>>, receive {err, B} -> B after 5000 -> none end),
+    ?assertEqual(none, receive {out, O} -> O after 0 -> none end).
+
 %% report §8.5: a module the program does not depend on is not initialized,
 %% though it is on the code path; a regression test for the shell's modules,
 %% which every run initialized, before the standard library's

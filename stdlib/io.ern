@@ -150,6 +150,18 @@ export fn read() : Optional(Bytes) with m =
 export fn write(b : Bytes) : Unit with m =
     written(stdout, b)
 
+/// The bytes to standard error, as they are, `write`'s twin as
+/// `printError` is `print`'s.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Io.writeError(<<104, 105, 10>>)
+/// // => Unit
+/// ```
+export fn writeError(b : Bytes) : Unit with m =
+    written(stderr, b)
+
 /// The value as Ernest writes it, by its type at the call: a value as its
 /// literal or construction is written, a named constructor's fields in
 /// canonical order (report §3.5), an address as the process behind it,
