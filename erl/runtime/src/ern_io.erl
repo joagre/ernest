@@ -19,8 +19,9 @@ debug(V) -> debug(V, any).
 -spec debug(term(), term()) -> term().
 debug(V, Desc) ->
     Line = <<(show(V, Desc))/binary, "\n">>,
-    %% report §8.2: Io.OutMsg's Write(bytes, reply), answered once written
-    ern_rt:call_forever(ern_rt:sys(stdout), fun(Reply) -> {'Write', Line, Reply} end),
+    %% report §8.2, Appendix E.1: to standard error, as Io.OutMsg's
+    %% Write(bytes, reply), answered once written
+    ern_rt:call_forever(ern_rt:sys(stderr), fun(Reply) -> {'Write', Line, Reply} end),
     V.
 
 %% Report Appendix E.1: Io.Error's Other for a reason of the host's that no

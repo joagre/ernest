@@ -44,9 +44,12 @@ run(Ns, Text, Opts) ->
     {ok, Mod, Bin} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
     {module, Mod} = code:load_binary(Mod, "test", Bin),
     Me = self(),
+    %% standard error is read with standard output, where `Io.debug` writes
+    %% (Appendix E.1), unless the test reads it apart
+    Out = fun(B) -> Me ! {out, B} end,
     Result = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
-                             (maps:remove(standard, Opts))#{init => fun() -> init(Mod) end,
-                                   stdout => fun(B) -> Me ! {out, B} end,
+                             (maps:merge(#{stderr => Out}, maps:remove(standard, Opts)))
+                                 #{init => fun() -> init(Mod) end, stdout => Out,
                                    stdin => fun() -> eof end}),
     {Result, collect([])}.
 
@@ -1881,8 +1884,9 @@ size_read_after_scrutinee_test() ->
     {ok, Mod, Bin} = ern_emitter:compile(['M'], Typed, Iface, Env, Build),
     {module, Mod} = code:load_binary(Mod, "test", Bin),
     Me = self(),
+    %% Io.debug writes to standard error (Appendix E.1)
     Result = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
-                             #{init => fun() -> ok end, stdout => fun(B) -> Me ! {out, B} end,
+                             #{init => fun() -> ok end, stderr => fun(B) -> Me ! {out, B} end,
                                stdin => fun() -> eof end}),
     ?assertNotEqual(ok, Result),
     ?assertEqual(<<"<<7, 8>>\n">>, collect([])).

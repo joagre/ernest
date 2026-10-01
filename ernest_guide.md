@@ -155,7 +155,7 @@ Two ways of writing `with` follow, and the guide's programs use both. A function
 
 `Io.println` sends its text to standard output's process, which the runtime provides and `Io` alone reaches. `Io.printlnError` sends to standard error's, so a program whose output another program reads can still report trouble. Sending to a process of the runtime is one of the two ways a program reaches the world; the other is `foreign fn` (§8).
 
-`Io.debug(x)` prints any value as its literal or construction is written, where it has one, and returns it, so it wraps an expression where it stands: `let n = Io.debug(f(x))`. It sends, as `Io.println` does, so it cannot hide in a pure function. `Io.show(x)` is the text it prints, and is pure (report Appendix E.1).
+`Io.debug(x)` prints any value as its literal or construction is written, where it has one, to standard error, and returns it, so it wraps an expression where it stands: `let n = Io.debug(f(x))`. It sends, as `Io.println` does, so it cannot hide in a pure function. `Io.show(x)` is the text it prints, and is pure (report Appendix E.1).
 
 ### 1.2 The shell
 

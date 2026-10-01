@@ -114,7 +114,7 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    ordered element by element, and `Optional` and `Either` by a `compare` in the prelude,
    `None` and `Left` first; `put` keeps the element already in the set; and `foldLeft` is
    written once over `toList`, outside the record. The ordered set's representation is the
-   note's open question. With the ordering restriction's mark, and item 13's shown one, the
+   note's open question. With the ordering restriction's mark, the
    decision of how a printed type marks every inferred restriction: a process-only effect
    variable prints unmarked, so that one a callback's type shares prints as an effect-polymorphic
    function does; and whether a restriction may be written in an annotation, a change to the
@@ -167,14 +167,13 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
     of `setOperations`, since the ordering restriction's hidden argument is refused
     (2026-10-01). `Map` gains a record with a
     second representation, and not before.
-13. **`Io.debug` through `Io`, and the boundary at a type variable** (the shown restriction of
+13. **The boundary at a type variable** (`Io.debug` goes through `Io` since 2026-10-01; the shown restriction of
     2026-09-29 was refused on 2026-10-01, the log's *A Value Shows Itself at a Known Type*:
     `Io.show` on a type variable is a type error, as an operator is, and takes no hidden
     argument, so `fn wrap(x) = Io.show(x)` is refused and shows at its caller). `Io.debug`
     stays a primitive resolved at its call as `Io.show` is, since a function applying `Io.show`
-    at a type variable is refused (Appendix E.1, 2026-10-01), and its shim `ern_io:debug/2`,
-    which writes to standard output past `Io`, writes through `Io`'s stream process (`findings.md`'s E-C4,
-    2026-09-30). A foreign function's result at a type variable its parameters name, which §8.4 lets
+    at a type variable is refused (Appendix E.1, 2026-10-01); its shim writes through `Io`'s
+    stream process to standard error. A foreign function's result at a type variable its parameters name, which §8.4 lets
     through unchecked, is decided here under §4.8's rule of no hidden argument: a check where
     the function is instantiated at a known type, or the trust stated (R-2, placed here
     2026-10-01); and `Foreign.from` exposes its
@@ -248,9 +247,7 @@ principle 5). Under E.0's rules, the tenth family's round 2
 (2026-10-01, the log's *The Library Family's Rules*): `styled`, the cursor's moves and the two
 erasures leave E.16 for a terminal library under `libs/`, Ernest over ECMA-48, which the shell, `libs/markdown`
 and `examples/snake.ern` take from the load path, `subscribe`, `size` and `columns` staying.
-Under E.1's sentence, the fourteenth family's round 2 (2026-10-01, the
-log's *The Order, Show and Door Families*): `Io.debug` writes to standard error, with item 13's
-rewrite of its shim, E.1 and the tests that read its output changing with it. Among the rules that exist for another (2026-10-01, the log's *The
+Among the rules that exist for another (2026-10-01, the log's *The
 Rules That Exist for Another*): `spawn(f)` and `spawnMonitored(f, wrap)` lose their placement,
 `Where` leaves §6.2 and §9.3, and §6.7 and §8.3 name a peer's spawn `Peer.spawn(name, f)`, a
 function of the module MVP 3.0 builds; the 102 spawns of the guide, the examples, the library

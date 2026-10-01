@@ -522,7 +522,7 @@ either_test() ->
     ?assertEqual({'Left', e}, E:fromOptional('None', e)).
 
 %% report Appendix E.1, §8.2: print and println write to Io's stdout,
-%% printError and printlnError to its stderr, each as a message
+%% printError, printlnError and debug to its stderr, each as a message
 io_test() ->
     Me = self(),
     Sink = fun(Tag) -> fun(Bin) -> Me ! {Tag, Bin} end end,
@@ -535,8 +535,8 @@ io_test() ->
                              end, <<"io_test">>,
                              #{stdout => Sink(out), stderr => Sink(err)}),
     ?assertEqual(ok, Result),
-    ?assertEqual([<<"a">>, <<"b\n">>, <<"42\n">>], collect(out, [])),
-    ?assertEqual([<<"c">>, <<"d\n">>], collect(err, [])).
+    ?assertEqual([<<"a">>, <<"b\n">>], collect(out, [])),
+    ?assertEqual([<<"c">>, <<"d\n">>, <<"42\n">>], collect(err, [])).
 
 %% report Appendix E.1, §8.2: readLine gives the next line without its line
 %% feed, and None at end of input

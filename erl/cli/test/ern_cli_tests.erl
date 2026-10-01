@@ -524,8 +524,7 @@ type_member_across_modules_test() ->
           "    let t = Lib.Stack.push(2, s);\n"
           "    Io.println(Io.show(Lib.Stack.Stack.compare(t, s)));\n"
           "    Io.println(Io.show(s < t));\n"
-          "    let _ = Io.debug(#(s, 2));\n"
-          "    Unit\n"
+          "    Io.println(Io.show(#(s, 2)))\n"
           "}\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),

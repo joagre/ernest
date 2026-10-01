@@ -24,7 +24,7 @@ stdlib_present_test() ->
 
 %% report §2.2, Appendix E.0 rule 6: every fenced Ernest block in a module's
 %% doc blocks type-checks against the module as the body of a lambda, and
-%% one that ends in `// => v` is run and its Io.debug rendering compared
+%% one that ends in `// => v` is run and its Io.show rendering compared
 %% with v, so an example cannot rot
 doc_examples_test_() ->
     [{atom_to_list(hd(Ns)), fun() -> examples(Ns, File) end} || {Ns, File} <- modules()].
@@ -83,8 +83,8 @@ check_examples(Ns, Src, Docs) ->
              "\n}\n">> || {N, Body, _} <- WithResult],
     Q = lists:join(".", [atom_to_list(A) || A <- Ns]),
     Mains = [iolist_to_binary(["export fn docMain", integer_to_list(N),
-                               "() : Unit with Never = {\n    let _ = Io.debug(", Q,
-                               ".docExample", integer_to_list(N), "());\n    Unit\n}\n"])
+                               "() : Unit with Never =\n    Io.println(Io.show(", Q,
+                               ".docExample", integer_to_list(N), "()))\n"])
              || {N, _, _} <- WithResult],
     Text = iolist_to_binary([Src, "\n", Fns, Mains]),
     {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Text),
