@@ -761,3 +761,5 @@ defect in what a program computes, and the rest planned, asked, recorded or drop
 release's notes. What the release leaves: the timers `Os` and `Tcp` leave armed after an
 answer, with MVP 2.99b's item 7; the glossary's five names, with items 6 and 15; `ern test`
 over a directory, item 19; and the six rules that buy little, for the next full review.
+After the tag, `man/` took 0.2.0's pages as CommonMark, which GitHub shows, and each release
+writes them again (`release_review.md`'s step 5; the log's *The Release's Pages in `man/`*).

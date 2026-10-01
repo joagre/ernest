@@ -72,6 +72,40 @@ shell: stdlib libs
 doc: all
 	@bin/ern doc --build-root build/stdlib stdlib
 
+# The last release's pages as CommonMark in man/, which GitHub shows
+# (docs/release_review.md, step 5): the prelude's and the standard
+# library's under man/stdlib, with the index ern doc writes (report §11.4);
+# each library's under man/libs/<name>, with man/libs/index.md linking
+# them; and man/index.md, which links the two indexes and the report's §11
+# for ern itself. They are written into build/pages and replace man/ whole,
+# so a page whose module has gone goes.
+pages: all
+	@rm -rf build/pages
+	@bin/ern doc --build-root build/pages/stdlib stdlib
+	@for d in libs/*/; do n=$$(basename $$d); \
+	  bin/ern doc --source-root $$d --load-path build/libs/ansi --build-root build/pages/libs/$$n \
+	  $$d || exit 1; done
+	@rm -rf man && mkdir man
+	@cd build/pages && find . -name '*.md' ! -path './libs/*/index.md' | tar cf - -T - \
+	  | (cd ../../man && tar xf -)
+	@{ printf '# Libraries\n\n'; \
+	  for d in libs/*/; do n=$$(basename $$d); \
+	    sed -n "s|^- \[\(.*\)\](\(.*\))\$$|- [\1]($$n/\2), \`libs/$$n\`|p" \
+	      build/pages/libs/$$n/index.md; done; \
+	} > man/libs/index.md
+	@v=$$(cat VERSION); { \
+	  printf '# Ernest %s\n\n' "$$v"; \
+	  printf 'The pages `ern doc` wrote at the release of Ernest %s, ' "$$v"; \
+	  printf 'which `main` may have gone past. A page holds a module'"'"'s doc block, '; \
+	  printf 'then its declarations, each with its type and its own doc block '; \
+	  printf '(report §11.4). Where Ernest is installed, `man Ernest.List` shows a '; \
+	  printf 'module'"'"'s page and `man ern` the toolchain'"'"'s.\n\n'; \
+	  printf -- '- [The prelude and the standard library](stdlib/index.md)\n'; \
+	  printf -- '- [The libraries under `libs/`](libs/index.md)\n'; \
+	  printf -- '- [`ern`, the toolchain](../ernest_report.md#11-toolchain), '; \
+	  printf 'the report'"'"'s §11\n'; \
+	} > man/index.md
+
 # The manual pages (report §11, §11.4): the prelude's and every standard
 # library module's, beside the modules' .erc in build/stdlib, each
 # library's beside its own in build/libs, and ern(1), §11 of the report,
@@ -322,5 +356,5 @@ EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all stdlib libs shell tools man test test-erl test-programs test-docs test-guide \
         test-shell load bench test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean clean-emacs \
-        sections coverage golden xref contents format doc install uninstall release unicode \
+        sections coverage golden xref contents format doc pages install uninstall release unicode \
         dialyzer sanitize diagnostics
