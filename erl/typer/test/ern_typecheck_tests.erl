@@ -438,16 +438,13 @@ declared_type_equality_test() ->
                         "fn f(t : Tree(Int), n : Nest(String)) = t == t && n == n")),
     ?assertEqual(ok, ok("type Tag(a) = Tag(Int)\nfn f(t : Tag((Int) -> Int)) = t == t")).
 
-%% report §3.10, §3.7: a `Foreign` value has no equality, since Ernest
-%% does not inspect it, directly or inside another value. A regression
-%% test: `Foreign.from(f) == Foreign.from(g)` compared two functions
-foreign_has_no_equality_test() ->
-    ?assertEqual("`==` is not defined on Foreign: it contains a `Foreign` value, which Ernest"
-                 " does not inspect",
-                 err("fn f(g : (Int) -> Int) = Foreign.from(g) == Foreign.from(g)")),
-    ?assertEqual("List(Foreign) does not support equality (it contains a `Foreign` value, which"
-                 " Ernest does not inspect), which eq requires: eq : (a=, a=) -> Bool",
-                 err("fn eq(a, b) = a == b\nfn f() = eq([Foreign.from(1)], [Foreign.from(2)])")),
+%% report §3.8, §3.10: a `Foreign` value has the runtime's exact equality,
+%% directly or inside another value, whatever term foreign code made, a
+%% function's among them. A regression test of the rule of 2026-10-01: the
+%% checker refused `==` on `Foreign`
+foreign_has_exact_equality_test() ->
+    ?assertEqual(ok, ok("fn f(g : (Int) -> Int) = Foreign.from(g) == Foreign.from(g)")),
+    ?assertEqual(ok, ok("fn eq(a, b) = a == b\nfn f() = eq([Foreign.from(1)], [Foreign.from(2)])")),
     ?assertEqual(ok, ok("fn f() = Foreign.toInt(Foreign.from(1)) == Some(1)")).
 
 %% report §3.10: a variable with the equality constraint bound to a type

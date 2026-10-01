@@ -2477,15 +2477,14 @@ has_address({ttuple, Es}) -> lists:any(fun has_address/1, Es);
 has_address(_) -> false.
 
 %% Report §3.10: false where a value of the type has equality, and else
-%% what it may hold that has none: a function, an address or a reply, or a
-%% `Foreign` value. A built-in or foreign type holds its arguments, and a
+%% what it may hold that has none: a function, an address or a reply. A
+%% `Foreign` value has the runtime's exact equality (§3.8). A built-in or
+%% foreign type holds its arguments, and a
 %% declared type its fields with its arguments in place of its parameters.
 %% A declared type met again inside its own fields is not read again: what
 %% its fields hold of their own is being read already, and what its
 %% arguments bring is read in their place. A regression: a declared type's
-%% fields were not read, and `Box(f) == Box(f)` compared two functions; and
-%% `Foreign.from(f) == Foreign.from(g)` compared two functions through
-%% `Foreign`.
+%% fields were not read, and `Box(f) == Box(f)` compared two functions.
 lacks_equality(T, Env) ->
     lacks(T, Env, []).
 
@@ -2497,8 +2496,6 @@ lacks(T, #env{st = St} = Env, Seen) ->
             "it contains a function or an address";
         {tcon, ['Reply'], _} ->
             "it contains a function or an address";
-        {tcon, ['Foreign'], []} ->
-            "it contains a `Foreign` value, which Ernest does not inspect";
         {tcon, Q, Args} ->
             case {lists:member(Q, Seen), declared_fields(Q, Args, Env)} of
                 {false, {ok, Fields}} ->

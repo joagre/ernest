@@ -251,7 +251,7 @@ where it is the library's foreign type `Foreign.Term` of Appendix E.12, which ke
 Appendix D's code and the shims change with it. The read-back of the sixteen sentences
 (2026-10-01, the log's *The Sixteen Sentences Read Back*) adds: `via(f, addr)` takes its
 function before its subject (§9.5, shape rule 1); every `spawn` writes `Local` (§6.2,
-principle 5); the checker refuses `==` on `Foreign` (§3.10); `Fs.readRange` answers `Left` for a negative
+principle 5); `Fs.readRange` answers `Left` for a negative
 count where §7.4 says none (E.17); `Fs.list` leaves out a name, which E.17 now answers with
 `Left(NotUtf8(name))`, and `Os.environment` a variable, where the seventh family (2026-10-01, the
 log's *The Silence Family's Rules*) makes it a function, `Os.environment(name) : Optional(String)`,

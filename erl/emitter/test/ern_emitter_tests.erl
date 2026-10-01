@@ -1468,6 +1468,17 @@ foreign_result_names_a_variable_twice_test() ->
                     "}\n"),
     ?assertEqual(<<"#(\"x\", \"x\")\n">>, Out).
 
+%% report §3.8, §3.10: two `Foreign` values are equal where foreign code
+%% made them as the same term, the runtime's exact equality. A regression
+%% test of the rule of 2026-10-01, which the checker refused
+foreign_exact_equality_test() ->
+    {ok, Out} = run("export fn main() : Unit with Never = {\n"
+                    "    Io.println(Io.show(Foreign.from(1) == Foreign.from(1)));\n"
+                    "    Io.println(Io.show(Foreign.from(1) == Foreign.from(1.0)));\n"
+                    "    Io.println(Io.show([Foreign.from(\"a\")] != [Foreign.from(\"b\")]))\n"
+                    "}\n"),
+    ?assertEqual(<<"true\nfalse\ntrue\n">>, Out).
+
 %% report §7.4, §8.4: a List is a proper list, so an improper one a foreign
 %% function returns faults naming the declared type, whether its elements
 %% are checked or a parameter's type variable names them, that variable
