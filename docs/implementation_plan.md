@@ -131,7 +131,7 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    they are written in the new names.
 7. **The hardening the code readers found** (C1-5, C1-9, C1-10, C3-26 to C3-31; and 0.2.0's C-1,
    a read's and a write's timers in `Os` and a write's in `Tcp` cancelled when the request is
-   answered, as the socket's read cancels its own), in the new names; `findings.md` goes when this item, items 6, 15 and 19, and the next full review's reading of 0.2.0's six rules that buy little are done. With it the shell's and `ern
+   answered, as the socket's read cancels its own), in the new names; `findings.md` goes when this item and items 6, 15, 19 and 20 are done, with MVP 2.99b. With it the shell's and `ern
    test`'s `persistent_term` replaced at each input and each test, each replacement a scan of
    every process by the host (C3-39): what changes per input or per test moves to a table, and
    what a binding's holder keeps, which a read must not copy, is measured against a table and
@@ -214,10 +214,14 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
     the release.
 20. **The feedback the reviews left** ([`language_feedback.md`](language_feedback.md)'s entries
     76 to 88: the first release review's N-C8, the principles review's W-13, W-31, W-34 and
-    W-38, and 0.2.0's review's L-1 to L-3 and C-14 to C-18), each decided as item 3 decided
-    the first release's fourteen: a report change, a "Later" entry, or a line that it was
-    weighed and left alone, with the user one at a time; about two days, after item 4, whose
-    decision entries 64 to 73 wait on.
+    W-38, and 0.2.0's review's L-1 to L-3 and C-14 to C-18), and four of 0.2.0's rules that
+    buy little ([`findings.md`](findings.md)): §2.6's `-(-x)`, §3.9's polymorphic recursion
+    refused under a full signature, §2.2's blank line that gives the first doc block to the
+    module, and `spawnMonitored` with `Unknown`. Each is decided as item 3 decided the first
+    release's fourteen: a report change, a "Later" entry, or a line that it was weighed and
+    left alone, with the user one at a time; about two days, after item 4, whose decision
+    entries 64 to 73 wait on. With it `language_feedback.md` holds no entry and `findings.md`
+    goes (the log's *Both Lists Close With MVP 2.99b*).
 
 ---
 
@@ -446,8 +450,7 @@ What a promise of stability needs and a first release could leave out (the log's
 Release Is for Others*), after the language was argued in MVP 2.99c:
 
 - **The full review**, every reader over the whole of its area ([`full_review.md`](full_review.md)),
-  and its findings worked, 0.2.0's six rules that buy little ([`findings.md`](findings.md))
-  read with its own.
+  and its findings worked.
 - **The numbering decided once.** Whether the report's section numbers have drifted enough since
   0.1.0 to renumber, with the mapping table written first and one commit that rewrites every
   citation, in the report, the guide, the log, the code, the tests and the diagnostics; or the
@@ -760,6 +763,6 @@ defect in what a program computes, and the rest planned, asked, recorded or drop
 [`findings.md`](findings.md) says. What a program written for 0.1.0 changes is in the
 release's notes. What the release leaves: the timers `Os` and `Tcp` leave armed after an
 answer, with MVP 2.99b's item 7; the glossary's five names, with items 6 and 15; `ern test`
-over a directory, item 19; and the six rules that buy little, for the next full review.
+over a directory, item 19; and four of the six rules that buy little, item 20, the principles review having decided the other two.
 After the tag, `man/` took 0.2.0's pages as CommonMark, which GitHub shows, and each release
 writes them again (`release_review.md`'s step 5; the log's *The Release's Pages in `man/`*).
