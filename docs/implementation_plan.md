@@ -261,7 +261,12 @@ the checker refuses `==` on `Foreign` (§3.10); `Fs.readRange` answers `Left` fo
 count where §7.4 says none (E.17); `Fs.list` leaves out a name and `Os.environment` a
 variable that E.17 and E.23 now answer or fault; and an `// =>` example whose value's type
 keeps a variable, `Io.debug([])`, needs an annotation once E.1's rule is checked. The second read-back adds Appendix A's `DeclName`, which admits
-`let T.name`, and E.16's and E.1's sections naming their primitives (clarity, K-24, K-39).
+`let T.name`, and E.16's and E.1's sections naming their primitives (clarity, K-24, K-39). Under
+§0's *The host*, the first family's round 2 (2026-10-01, the log's *The Host Family's Rules*)
+moves the negative zero's normalization in the emitter from every float operation to the ones
+that can make one, `*`, `/`, negation and the entries, since under round to nearest a sum or a
+difference of operands that are not negative zero is never one; with a test that `-5.0 + 5.0`
+and `-1.0e-200 * 1.0e-200` show `0.0`.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is

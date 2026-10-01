@@ -531,7 +531,7 @@ type Where = Local | Peer(String)
 
 `receive { clauses }` matches the mailbox in arrival order. The first message that matches a clause's pattern and guard is removed and the clause is evaluated; the rest remain. If none matches, the process waits. Patterns are typed against the mailbox type. Coverage is not required: a message no clause matches stays in the mailbox. A redundant clause is a type error, as in a `match` (§5.9).
 
-A guard selects a message without removing it, so a `receive` guard is a *guard expression*. Its operands are the variables in scope, the pattern's and a lambda's captures among them, literals, negative numeric literals, and nullary constructors. A top-level `let` is an operand too, read when the `receive` begins. A guard expression is `true`, `false`, an operand of type `Bool`, a comparison of two operands with `==`, `!=`, `<`, `<=`, `>`, or `>=`, `!` before a guard expression, or two guard expressions joined by `&&` or `||`. `<`, `<=`, `>`, and `>=` compare `Int`, `Float`, `String`, and `Char` only, in the order of their `compare` (§3.10). A guard expression calls nothing and cannot fault.
+A guard selects a message without removing it, so a `receive` guard is a *guard expression*. Its operands are the variables in scope, the pattern's and a lambda's captures among them, literals, negative numeric literals, and nullary constructors. A top-level `let` is an operand too, read when the `receive` begins. A guard expression is `true`, `false`, an operand of type `Bool`, a comparison of two operands with `==`, `!=`, `<`, `<=`, `>`, or `>=`, `!` before a guard expression, or two guard expressions joined by `&&` or `||`. `<`, `<=`, `>`, and `>=` compare the types whose `compare` §9.6 provides, in its order (§3.10). A guard expression calls nothing and cannot fault.
 
 A final clause `after t -> e` gives a time limit of `t` milliseconds; `t` is evaluated on entry, and a time below 0 is 0. A time has no upper bound. When the limit passes without a matching message, `e` is evaluated. `after 0` does not wait for a message. Without `after` there is no limit.
 
@@ -860,6 +860,7 @@ The prelude binds no system reference. Each is a private binding of its system m
 - Mailboxes are unbounded; a program is responsible for its own backpressure.
 - `Int` has arbitrary precision.
 - Bitstrings are constructed and matched by the runtime's bit syntax (§5.11).
+- Unicode's tables, which decide a `Char`'s category and case, a `String`'s graphemes and White_Space, and a grapheme's width (Appendix E.4, E.5, E.16), are the host's, of the version it ships.
 - The representation of values is fixed and documented.
 - The hash and the normal form of §8.7, how nodes authenticate each other (§8.3), and the wire format are the runtime's, fixed and documented with it.
 - `Down` carries a reason distinguishable from every other.
