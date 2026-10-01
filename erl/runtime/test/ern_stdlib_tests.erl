@@ -928,14 +928,17 @@ path_edges_test() ->
     ?assertEqual(<<>>, P:name(T(<<"/">>))),
     ?assertEqual({'Some', <<>>}, P:extension(T(<<"a.">>))),
     ?assertEqual('None', P:extension(T(<<"a.d/b">>))),
-    ?assertEqual(T(<<"a/b/">>), P:withExtension(T(<<"a/b.txt/">>), <<>>)),
+    ?assertEqual(T(<<"a/b/">>), P:withoutExtension(T(<<"a/b.txt/">>))),
+    %% report Appendix E.14: an empty extension leaves the dot, and removing
+    %% one is withoutExtension's (findings.md's P2-28)
+    ?assertEqual(T(<<"a/b.">>), P:withExtension(T(<<"a/b.txt">>), <<>>)),
     ?assertEqual(T(<<"a.d/b.md">>), P:withExtension(T(<<"a.d/b">>), <<"md">>)),
     %% a dot that begins a name begins no extension, and the root has no name
     %% to extend; a regression test, `.bashrc`'s extension was `bashrc`, so
     %% removing it left an empty path (findings.md's E12)
     ?assertEqual('None', P:extension(T(<<".profile">>))),
     ?assertEqual({'Some', <<"bak">>}, P:extension(T(<<".profile.bak">>))),
-    ?assertEqual(T(<<".bashrc">>), P:withExtension(T(<<".bashrc">>), <<>>)),
+    ?assertEqual(T(<<".bashrc">>), P:withoutExtension(T(<<".bashrc">>))),
     ?assertEqual(T(<<"dir/.bashrc.txt">>), P:withExtension(T(<<"dir/.bashrc">>), <<"txt">>)),
     ?assertEqual(T(<<"/">>), P:withExtension(T(<<"/">>), <<"txt">>)),
     %% the dots that begin a name begin no extension, `..` is left as it is,
@@ -945,7 +948,7 @@ path_edges_test() ->
     ?assertEqual('None', P:extension(T(<<"..">>))),
     ?assertEqual('None', P:extension(T(<<"...">>))),
     ?assertEqual({'Some', <<"b">>}, P:extension(T(<<"..a.b">>))),
-    ?assertEqual(T(<<"a/..">>), P:withExtension(T(<<"a/..">>), <<>>)),
+    ?assertEqual(T(<<"a/..">>), P:withoutExtension(T(<<"a/..">>))),
     ?assertEqual(T(<<"a/..">>), P:withExtension(T(<<"a/..">>), <<"md">>)),
     ?assertEqual(T(<<"a//b.md">>), P:withExtension(T(<<"a//b.txt">>), <<"md">>)),
     ?assertEqual(T(<<"a/b/c">>), P:join(T(<<"a//b">>), T(<<"c">>))).
@@ -987,7 +990,7 @@ path_test() ->
     ?assertEqual('None', P:extension({'Path', <<"a/b">>})),
     ?assertEqual({'Path', <<"a/b.md">>}, P:withExtension({'Path', <<"a/b.txt">>}, <<"md">>)),
     ?assertEqual({'Path', <<"a/b.md">>}, P:withExtension({'Path', <<"a/b">>}, <<"md">>)),
-    ?assertEqual({'Path', <<"a/b">>}, P:withExtension({'Path', <<"a/b.txt">>}, <<>>)),
+    ?assertEqual({'Path', <<"a/b">>}, P:withoutExtension({'Path', <<"a/b.txt">>})),
     ?assertEqual(true, P:isAbsolute({'Path', <<"/a">>})),
     ?assertEqual(false, P:isAbsolute({'Path', <<"a">>})),
     ?assertEqual(<<"a">>, P:toString({'Path', <<"a">>})).

@@ -114,23 +114,37 @@ fn withoutLeadingDots(name : String) : String =
     else
         name
 
-/// The path with that extension in place of any it had; an empty string
-/// removes it. The rest of the path stays as it was written. The root, `.`
-/// and `..` have no name to extend, and are left as they are.
+/// The path with that extension in place of any it had, after a dot; an
+/// empty one leaves the dot. The rest of the path stays as it was written.
+/// The root, `.` and `..` have no name to extend, and are left as they
+/// are.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// #(Path.toString(Path.withExtension(Path("a/b.txt"), "md")),
-///   Path.toString(Path.withExtension(Path("a/b.txt"), "")))
-/// // => #("a/b.md", "a/b")
+///   Path.toString(Path.withExtension(Path("a/b"), "")))
+/// // => #("a/b.md", "a/b.")
 /// ```
 export fn withExtension(p : Path, ext : String) : Path =
-    if List.contains(["", ".", ".."], name(p)) then p else extended(p, ext)
+    if List.contains(["", ".", ".."], name(p)) then p else extended(p, "." <> ext)
 
-// The name's extension replaced where the name ends, before any
-// separators after it.
-fn extended(p : Path, ext : String) : Path = {
+/// The path without its extension, the rest as it was written. The root,
+/// `.` and `..` have no name to shorten, and are left as they are.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Path.toString(Path.withoutExtension(Path("a/b.txt"))),
+///   Path.toString(Path.withoutExtension(Path(".bashrc"))))
+/// // => #("a/b", ".bashrc")
+/// ```
+export fn withoutExtension(path : Path) : Path =
+    if List.contains(["", ".", ".."], name(path)) then path else extended(path, "")
+
+// The name's extension replaced by the suffix where the name ends, before
+// any separators after it.
+fn extended(p : Path, suffix : String) : Path = {
     let text = toString(p);
     let head = withoutTrailingSeparators(text);
     let tail = String.slice(text, String.size(head), String.size(text));
@@ -138,7 +152,7 @@ fn extended(p : Path, ext : String) : Path = {
         Some(old) -> String.slice(head, 0, String.size(head) - String.size(old) - 1)
       | None -> head
     };
-    if String.isEmpty(ext) then Path(stem <> tail) else Path(stem <> "." <> ext <> tail)
+    Path(stem <> suffix <> tail)
 }
 
 fn withoutTrailingSeparators(text : String) : String =

@@ -1578,7 +1578,8 @@ Path.split : (Path) -> List(String) // the segments; an absolute path's first is
 Path.parent : (Path) -> Optional(Path) // None for a bare name or the root
 Path.name : (Path) -> String // the last segment, and "" for the root
 Path.extension : (Path) -> Optional(String) // after the last "." of the name, without it; the dots that begin the name begin none
-Path.withExtension : (Path, String) -> Path // replaced or added, the rest as written; an empty string removes it; the root, "." and ".." are left as they are
+Path.withExtension : (Path, String) -> Path // replaced or added, the rest as written; an empty one leaves the dot; the root, "." and ".." are left as they are
+Path.withoutExtension : (Path) -> Path // removed, the rest as written; the root, "." and ".." are left as they are
 Path.isAbsolute : (Path) -> Bool
 Path.toString : (Path) -> String
 ```

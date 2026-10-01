@@ -178,7 +178,7 @@ fn sourceModule(prefix : String, entry : Fs.Entry) : Optional(Name) =
             })
       | Fs.Entry(path = path) -> if Path.extension(path) != Some("ern") then
             None
-        else Optional.map(segment(Path.name(Path.withExtension(path, ""))), fn(s) = {
+        else Optional.map(segment(Path.name(Path.withoutExtension(path))), fn(s) = {
             let text = prefix <> s;
             Name(text = text, kind = Value, shown = text)
         })
