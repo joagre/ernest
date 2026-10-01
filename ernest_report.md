@@ -1487,8 +1487,8 @@ Int.bitAnd : (Int, Int) -> Int
 Int.bitOr : (Int, Int) -> Int
 Int.bitXor : (Int, Int) -> Int
 Int.bitNot : (Int) -> Int
-Int.shiftLeft : (Int, Int) -> Int // times two to the power of the second; a negative second shifts right
-Int.shiftRight : (Int, Int) -> Int // arithmetic, sign-preserving; a negative second shifts left
+Int.shiftLeft : (Int, Int) -> Int // times two to the power of the second; a second below 0 is none
+Int.shiftRight : (Int, Int) -> Int // arithmetic, sign-preserving; a second below 0 is none
 Int.pow : (Int, Int) -> Optional(Int) // exact; None for a negative exponent; Int.pow(0, 0) is Some(1)
 Int.toString : (Int) -> String
 Int.toStringBase : (Int, Int) -> Optional(String) // in that base, 2 to 36, with upper-case letters; None outside

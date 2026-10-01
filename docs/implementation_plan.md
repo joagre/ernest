@@ -226,8 +226,7 @@ the log's *A Release After the Review*), and MVP 2.99b resumes at item 4.
 **Gaps the sentences open**, each dated to the attack plan's phase 5, where the rule's code and
 its examples change together (the attack plan's rules of the road): under §7.4's opening of
 2026-10-01, `Terminal.size` answers `None` for a cause `Terminal.subscribe` answers as
-`Left(NotATerminal)` (Appendix E.16); `Int.shiftLeft` and `Int.shiftRight` shift the other way
-on a negative count where the rule says none (E.8); and `Io.Error` carries causes the report
+`Left(NotATerminal)` (Appendix E.16); and `Io.Error` carries causes the report
 names as text in `Other` (E.1, E.17, E.18, E.23). Under E.0 shape rule 8's restatement of
 2026-10-01, `Tcp.write`, `Os.write` and `Os.read` take no milliseconds for a wait on another
 party, and `Os.start` takes milliseconds that bound a run and not a request (E.18, E.23). Under E.0's rules of

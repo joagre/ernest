@@ -421,8 +421,8 @@ int_test() ->
 %% report Appendix E.8, §3.1, §7.4: Int.toFloat rounds to the nearest
 %% Float and faults only where the rounding gives no finite Float: the
 %% largest finite Float as an Int, plus 2^970 - 1, rounds down to it, and
-%% plus 2^970 faults, of either sign. Int.pow(0, 0) is 1, and a negative
-%% count shifts the other way. A regression test, written after the code;
+%% plus 2^970 faults, of either sign. Int.pow(0, 0) is 1, and a count
+%% below 0 shifts by none. A regression test, written after the code;
 %% it does not cover the rounding of an Int within the range
 int_edges_test() ->
     I = 'ern@int',
@@ -432,8 +432,10 @@ int_edges_test() ->
     ?assertThrow({ern, fault, <<"Int out of Float range">>}, I:toFloat(Max + (1 bsl 970))),
     ?assertThrow({ern, fault, <<"Int out of Float range">>}, I:toFloat(-(Max + (1 bsl 970)))),
     ?assertEqual({'Some', 1}, I:pow(0, 0)),
-    ?assertEqual(2, I:shiftLeft(8, -2)),
-    ?assertEqual(32, I:shiftRight(8, -2)).
+    %% report §7.4, E.8: a count below 0 is none; a regression test of the rule
+    %% of 2026-10-01, before which it shifted the other way
+    ?assertEqual(8, I:shiftLeft(8, -2)),
+    ?assertEqual(8, I:shiftRight(8, -2)).
 
 %% report Appendix E.9, §3.1, §7.4, §9.6
 float_test() ->

@@ -120,21 +120,28 @@ export foreign fn bitXor(a : Int, b : Int) : Int =
 export foreign fn bitNot(n : Int) : Int =
     "erlang:bnot/1"
 
-/// `n` shifted left by `k` bits: `n` times two to the power `k`; a negative
-/// `k` shifts right.
+/// `n` shifted left by `count` bits: `n` times two to the power `count`; a
+/// count below 0 is none (report §7.4).
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// #(Int.shiftLeft(3, 2), Int.shiftRight(-7, 2))
-/// // => #(12, -2)
+/// #(Int.shiftLeft(3, 2), Int.shiftRight(-7, 2), Int.shiftLeft(3, -1))
+/// // => #(12, -2, 3)
 /// ```
-export foreign fn shiftLeft(n : Int, k : Int) : Int =
+export fn shiftLeft(n : Int, count : Int) : Int =
+    shiftedLeft(n, max(count, 0))
+
+foreign fn shiftedLeft(n : Int, count : Int) : Int =
     "erlang:bsl/2"
 
-/// `n` shifted right by `k` bits, the sign kept: `n` divided by two to the
-/// power `k`, rounded toward negative infinity.
-export foreign fn shiftRight(n : Int, k : Int) : Int =
+/// `n` shifted right by `count` bits, the sign kept: `n` divided by two to
+/// the power `count`, rounded toward negative infinity; a count below 0 is
+/// none.
+export fn shiftRight(n : Int, count : Int) : Int =
+    shiftedRight(n, max(count, 0))
+
+foreign fn shiftedRight(n : Int, count : Int) : Int =
     "erlang:bsr/2"
 
 /// The decimal form, with a leading `-` when negative.
