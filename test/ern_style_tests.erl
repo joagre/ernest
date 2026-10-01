@@ -218,7 +218,7 @@ module_name_test() ->
     ?assert(length(Ern) > 10),
     ?assertEqual([], [F || F <- Ern, not compiled_as(F)]).
 
-%% docs/emacs_mode.md: the Emacs mode restates §2.4's reserved words, but
+%% emacs/README.md: the Emacs mode restates §2.4's reserved words, but
 %% true and false, which it paints as constants, and a subset of §2.6's
 %% symbols, so a test keeps the two equal. It found `=>`
 %% and `do`, which the mode painted and the language does not have.
@@ -234,7 +234,7 @@ emacs_mode_mirrors_the_lexer_test() ->
     ?assert(length(Painted) > 5),
     ?assertEqual([], Painted -- Symbols).
 
-%% docs/emacs_mode.md: the Emacs mode restates how tightly each binary
+%% emacs/README.md: the Emacs mode restates how tightly each binary
 %% operator binds, which places a line an operator opens, so a test keeps
 %% its table equal to the parser's. Written with the table.
 %% report §2.6

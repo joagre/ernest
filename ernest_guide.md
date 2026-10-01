@@ -2144,7 +2144,7 @@ At a terminal the history is kept in `$HOME/.ernest/history`. When the shell sta
 
 ### 9.4 Emacs
 
-`emacs/ernest-mode.el` highlights Ernest, indents it as the style guide does, and lets `M-x compile` with `ern build` jump to each error. [`docs/emacs_mode.md`](docs/emacs_mode.md) says how to load it and what it leaves to your own configuration.
+`emacs/ernest-mode.el` highlights Ernest, indents it as the style guide does, and lets `M-x compile` with `ern build` jump to each error. [`emacs/README.md`](emacs/README.md) says how to load it and what it leaves to your own configuration.
 
 ### 9.5 Running a program as a service
 

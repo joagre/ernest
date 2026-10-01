@@ -539,7 +539,7 @@ Project*).
 ### MVP 2.9 — an Emacs major mode (done 2026-09-23, out of order)
 
 `emacs/ernest-mode.el` and its tests, run by `make test-emacs`;
-[`emacs_mode.md`](emacs_mode.md) owns the mode. It gave the style guide six indentation rules,
+[`emacs/README.md`](../emacs/README.md) owns the mode. It gave the style guide six indentation rules,
 and a test holds the mode's word lists equal to the lexer's.
 
 ### The report read as a Wirth report (done 2026-09-23 and 2026-09-24)
@@ -640,7 +640,7 @@ Ernest blocks of the report and the guide, and `formatted_test_` holds all of th
 layout is [`style.md`](style.md)'s (the log's *Layout for the Reader*). The Emacs mode indents
 as the formatter lays out, from a table of how tightly each operator binds that a test holds
 equal to the parser's, and `ernest-format-on-save-mode` lays out a buffer as it is saved
-([`emacs_mode.md`](emacs_mode.md); the log's *Format on Save*). Built ahead of MVP 2.7's last
+([`emacs/README.md`](../emacs/README.md); the log's *Format on Save*). Built ahead of MVP 2.7's last
 two items (the log's *The Formatter Before the Release*).
 
 ### MVP 2.7 — a program started from a command line, and the appendix of libraries (done 2026-09-28)

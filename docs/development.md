@@ -18,8 +18,8 @@ The report, [`ernest_report.md`](../ernest_report.md), is the one normative docu
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
 - **[`operations.md`](operations.md)**: the proposal of operations records, until MVP 2.99b decides it.
 - **[`shell_design.md`](shell_design.md)**, **[`node_protocol.md`](node_protocol.md)**, **[`code_distribution.md`](code_distribution.md)**, **[`install.md`](install.md)**: the design notes of the shell, of the protocol between nodes, of code distribution, and of the installation.
-- **[`emacs_mode.md`](emacs_mode.md)**: the Emacs major mode.
 - **[`shell/README.md`](../shell/README.md)**: a guide to the shell's code.
+- **[`emacs/README.md`](../emacs/README.md)**: the Emacs major mode.
 
 The prelude is the report's §9 and the standard library its Appendix E, which admits a module or a function by Appendix E.0's rules. The libraries under `libs/` are Appendix G's; a program adds one to its load path when it wants it, and which are first-party is the plan's MVP 3.2.
 
@@ -88,7 +88,7 @@ make test-docs    the document tests and the style tests
 make test-guide   the guide's examples, the report's, the README's, and the catalogue of
                   diagnostics
 make test-shell   the shell's sessions and the terminal
-make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
+make test-emacs   the Emacs mode's tests (emacs/README.md)
 make load         the loads of docs/memory.md; not part of make test
 make bench        what each of a few operations costs in Ernest beside the same
                   operation in Erlang, in nanoseconds; not part of make test

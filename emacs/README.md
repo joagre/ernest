@@ -1,6 +1,6 @@
 # The Emacs mode
 
-`ernest-mode` edits `.ern` files. It is `emacs/ernest-mode.el`, the mode's one source file, and the lines an init file needs, to load it and to lay out each buffer as it is saved, are in that file's header. It needs Emacs 29 or later, the first with `font-lock-operator-face`. Its tests have run on Emacs 31.1 alone, so Emacs 29 and 30 are expected to work and are not yet verified; `make test-emacs EMACS=path` runs them under another. The plan's MVP 2.9 is its roadmap entry, and [`decisions.md`](decisions.md) argues it.
+`ernest-mode` edits `.ern` files. It is [`ernest-mode.el`](ernest-mode.el) beside this file, the mode's one source file, and the lines an init file needs, to load it and to lay out each buffer as it is saved, are in that file's header. It needs Emacs 29 or later, the first with `font-lock-operator-face`. Its tests have run on Emacs 31.1 alone, so Emacs 29 and 30 are expected to work and are not yet verified; `make test-emacs EMACS=path` runs them under another. The plan's MVP 2.9 is its roadmap entry, and [`decisions.md`](decisions.md) argues it.
 
 ## What it is
 
