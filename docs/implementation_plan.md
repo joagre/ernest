@@ -258,8 +258,12 @@ Appendix D's code and the shims change with it. The read-back of the sixteen sen
 function before its subject (§9.5, shape rule 1); every `spawn` writes `Local` (§6.2,
 principle 5); §4.6's `let Stack.empty` and §11.2's `let T.name` declare value members;
 the checker refuses `==` on `Foreign` (§3.10); `Fs.readRange` answers `Left` for a negative
-count where §7.4 says none (E.17); `Fs.list` leaves out a name and `Os.environment` a
-variable that E.17 and E.23 now answer or fault; and an `// =>` example whose value's type
+count where §7.4 says none (E.17); `Fs.list` leaves out a name, which E.17 now answers with
+`Left(NotUtf8(name))`, and `Os.environment` a variable, where the seventh family (2026-10-01, the
+log's *The Silence Family's Rules*) makes it a function, `Os.environment(name) : Optional(String)`,
+`None` for no such variable and a fault of the asker for a value that is not UTF-8, the
+environment read once at the start and decoded at the asking, its two callers in the shell
+following; and an `// =>` example whose value's type
 keeps a variable, `Io.debug([])`, needs an annotation once E.1's rule is checked. The second read-back adds Appendix A's `DeclName`, which admits
 `let T.name`, and E.16's and E.1's sections naming their primitives (clarity, K-24, K-39). Under
 §0's *The host*, the first family's round 2 (2026-10-01, the log's *The Host Family's Rules*)
