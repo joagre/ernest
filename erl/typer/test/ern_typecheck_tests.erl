@@ -849,15 +849,27 @@ local_fn_signature_shares_variables_test() ->
                  err("fn outer(x : a) : a = { fn g(y : b) : b = 1; x }")).
 
 %% report §3.9: polymorphic recursion is refused, even under a full
-%% signature. A regression test: the checker conformed before it was
-%% written. It does not cover a mutually recursive group.
+%% signature, and §11.5's help line names the rule, at a top-level and a
+%% local definition's recursive call alike, and at no other call. A
+%% regression test: the checker conformed before it was written; the help
+%% line, of 2026-10-01, is its own. It does not cover a mutually recursive
+%% group.
 polymorphic_recursion_is_refused_test() ->
+    Help = "a recursive call is at the definition's own type, so a call at another type goes"
+           " to a second function (§3.9)",
     %% report §11.5: at the recursive call's argument, as any call is
-    ?assertEqual("the argument does not fit depth: a type that would contain itself"
-                 " (Nested(a) against Nested(List(a)))",
-                 err("type Nested(a) = Flat(a) | Nest(Nested(List(a)))\n"
-                     "fn depth(n : Nested(a)) : Int ="
-                     " match n { Flat(_) -> 0 | Nest(m) -> 1 + depth(m) }")).
+    ?assertEqual({"the argument does not fit depth: a type that would contain itself"
+                  " (Nested(a) against Nested(List(a)))", Help},
+                 err_help("type Nested(a) = Flat(a) | Nest(Nested(List(a)))\n"
+                          "fn depth(n : Nested(a)) : Int ="
+                          " match n { Flat(_) -> 0 | Nest(m) -> 1 + depth(m) }")),
+    ?assertEqual({"the argument does not fit both: expected a, found Bool", Help},
+                 err_help("fn f() : Int = {\n"
+                          "    fn both(x : a, n : Int) : Int ="
+                          " if n == 0 then 0 else both(true, n - 1);\n"
+                          "    both(1, 1)\n}")),
+    ?assertEqual({"the argument does not fit g: expected Int, found Bool", undefined},
+                 err_help("fn twice(g, n : Int) = { let _ = g(n); g(true) }")).
 
 %% report §3.9, §4.6: a signature's type variables reach a block `let`'s
 %% annotation, `=` and `<-` alike, and stay rigid there; a variable named
@@ -1238,9 +1250,11 @@ reply_test() ->
                  err(Msg ++ "fn f(r : Reply(Int)) = List.map([1], fn(x) = answer(r, x))")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) : Unit with Never ="
                         " { let _ = spawn(Local, fn() : Unit with Never = answer(r, 1)); Unit }")),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where dup duplicates or discards"
-                 " its argument: dup : (a!) -> #(a!, a!)",
-                 err(Msg ++ "fn dup(x) = #(x, x)\nfn f(r : Reply(Int)) = dup(r)")),
+    ?assertEqual({"a reply-carrying value, Reply(Int), passed where dup duplicates or discards"
+                  " its argument: dup : (a!) -> #(a!, a!)",
+                  "a reply is discharged by answering it, passing it on once, or matching it"
+                  " (§6.6)"},
+                 err_help(Msg ++ "fn dup(x) = #(x, x)\nfn f(r : Reply(Int)) = dup(r)")),
     ?assertEqual(ok, ok(Msg ++ "fn id(x) = x\nfn f(r : Reply(Int)) = answer(id(r), 1)")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) = { let r2 = r; answer(r2, 1) }")),
     %% the mk callback of Address.call

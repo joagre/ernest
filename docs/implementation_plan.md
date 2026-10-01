@@ -270,12 +270,7 @@ a listener the program closed faults with `Fault("callee was closed")`, in §6.6
 and `Path.name` answers `Optional(String)`, `None` for the root, its five callers following. Under
 principle 2's sentences, the fifth family's round 2 (2026-10-01, the log's *The Forms Family's
 Rules*): the shell generalizes a
-lambda bound by `let` at the prompt as §4.6 does, which it refuses as undetermined today. Under
-principle 3's sentences, the sixth family's round 2 (2026-10-01, the log's *The Compiled Family's
-Rules*): two refusals of a sound program gain a help line in §11.5 and the checker, a
-recursive call at another type than the definition's naming §3.9's rule and a second function,
-and a reply-carrying value where it would be duplicated or discarded naming its three ways out,
-to answer it, to pass it on once, or to match it; `test/diagnostics.md` follows. Under §6.9's
+lambda bound by `let` at the prompt as §4.6 does, which it refuses as undetermined today. Under §6.9's
 ownership sentence, the eighth family's round 2 (2026-10-01, the log's *The Owner Family's
 Rules*): `Down` gains `process : Process`, declared first, the runtime filling it where it
 builds a `Down`, in §9.3, the prelude's declared types and the twelve tests that match one;

@@ -31,7 +31,10 @@
               ann_vars = #{}, rigid = [], effect_origin = undefined,
               groups = #{}, typed = [], errs = [], reply_vars = [],
               reply_params = #{}, let_order = [], effectful = false, effectful_lets = [],
-              generalizing = false, provided = []}).
+              generalizing = false, provided = [], inferring = []}).
+%% inferring: the definitions whose inference is under way, {global, Q} for
+%% a top-level group's members and {local, Name} for a block's local fns,
+%% so that a call to one is known as a recursive call (report §3.9, §11.5)
 %% provided: the namespaces the toolchain provides, the prelude's and the
 %% standard library's, which `Prelude.T.name` reaches (report §4.2)
 %% generalizing: whether the lambda about to be inferred is a binding's
@@ -784,7 +787,7 @@ demand(Q, #env{groups = Pending} = Env) ->
     case Pending of
         #{Q := Group} ->
             Clean = Env#env{vars = #{}, effect = pure, pending = [], deferred = [], ann_vars = #{},
-                            rigid = [], effect_origin = undefined},
+                            rigid = [], effect_origin = undefined, inferring = []},
             restore_scope(run_group(Group, Clean), Env);
         _ ->
             Env
@@ -795,7 +798,8 @@ demand(Q, #env{groups = Pending} = Env) ->
 restore_scope(Checked, Env) ->
     Checked#env{vars = Env#env.vars, effect = Env#env.effect, pending = Env#env.pending,
                 deferred = Env#env.deferred, ann_vars = Env#env.ann_vars, rigid = Env#env.rigid,
-                effect_origin = Env#env.effect_origin, effectful = Env#env.effectful}.
+                effect_origin = Env#env.effect_origin, effectful = Env#env.effectful,
+                inferring = Env#env.inferring}.
 
 is_value_decl(#fn_decl{}) -> true;
 is_value_decl(#let_decl{}) -> true;
@@ -1003,7 +1007,8 @@ check_group(Group, Env0) ->
                                          end, St0, Group),
     Env1 = lists:foldl(fun({{Owner, Name}, V}, E) ->
                            Q = value_qname(E, Owner, Name),
-                           E#env{globals = maps:put(Q, ern_types:mono(V), E#env.globals)}
+                           E#env{globals = maps:put(Q, ern_types:mono(V), E#env.globals),
+                                 inferring = [{global, Q} | E#env.inferring]}
                        end, Env0#env{st = St1}, Placeholders),
     %% annotated shapes first, so every member sees every other's signature
     Env1a = lists:foldl(fun(D, E) ->
@@ -1017,7 +1022,7 @@ check_group(Group, Env0) ->
                                           end, Env1a, Group),
     Typed = [TD || {TD, _} <- TypedAndPost],
     Env2a = lists:foldl(fun({_, Post}, E) -> post_checks(Post, E) end, Env2, TypedAndPost),
-    Env3 = Env2a#env{st = ern_types:leave(Env2a#env.st)},
+    Env3 = Env2a#env{st = ern_types:leave(Env2a#env.st), inferring = Env0#env.inferring},
     %% generalize and publish; the typed AST is zonked so consumers read
     %% resolved types off the nodes
     {Typed2, Env4} = lists:mapfoldl(fun(D, E) ->
@@ -1627,7 +1632,9 @@ no_reply_instantiations(#env{pending = Pending} = Env) ->
                                                 ++ ern_types:format(T, Env#env.st)
                                                 ++ ", passed where " ++ who(Who, "the function")
                                                 ++ " duplicates or discards its argument"
-                                                ++ signature_of(Who));
+                                                ++ signature_of(Who), [],
+                                           "a reply is discharged by answering it, passing it"
+                                           " on once, or matching it (§6.6)");
                               false -> ok
                           end;
                      ({eq, Id, Pos, Need, Who}) ->
@@ -2070,10 +2077,10 @@ infer(#e_call{pos = Pos, callee = Callee, args = Args} = E, Env) ->
         {tfn, Ps, Eff, RetT} ->
             Returns = returns(Callee, Env1),
             Origin = {node_span(Callee), Name ++ " : " ++ ern_types:format(CalleeT, Env1#env.st)},
+            Context = argument_context(Name, TypedCallee, Env1),
             {TypedArgs, Env2} =
                 lists:mapfoldl(fun({Arg, P}, En) ->
-                                   {TA, _, En1} = check_expr(Arg, P, "the argument does not fit "
-                                                             ++ Name, Origin, En),
+                                   {TA, _, En1} = check_expr(Arg, P, Context, Origin, En),
                                    {TA, En1}
                                end, Env1, lists:zip(Args, Ps)),
             Env3 = use_effect(Pos, Name, Eff, Env2),
@@ -2305,6 +2312,23 @@ infer_list(Es, Env) ->
 
 callee_name(#e_var{path = Path, name = Name}) -> format_qname(Path ++ [Name]);
 callee_name(_) -> "the callee".
+
+%% Report §3.9, §11.5: an argument's mismatch in a recursive call, one to a
+%% definition whose inference is under way, names the rule it breaks: no
+%% polymorphic recursion.
+argument_context(Name, Callee, #env{inferring = Inferring} = Env) ->
+    Text = "the argument does not fit " ++ Name,
+    Recursive = case Callee of
+                    #e_var{ref = var, path = [], name = N} -> lists:member({local, N}, Inferring);
+                    #e_var{ref = {own, Owner, N}} ->
+                        lists:member({global, value_qname(Env, Owner, N)}, Inferring);
+                    _ -> false
+                end,
+    case Recursive of
+        true -> {help, Text, "a recursive call is at the definition's own type, so a call at"
+                             " another type goes to a second function (§3.9)"};
+        false -> Text
+    end.
 
 %% Report §6.6: a function whose result type is a variable no parameter's
 %% type names does not return, `fault` among them, and a call to it
@@ -2634,7 +2658,8 @@ infer_block(Stmts, Pos, Expect, Env) ->
                                              {{N, V}, S1}
                                          end, St0, Fns),
     Env1 = lists:foldl(fun({N, V}, E) ->
-                           E#env{vars = maps:put(N, ern_types:mono(V), E#env.vars)}
+                           E#env{vars = maps:put(N, ern_types:mono(V), E#env.vars),
+                                 inferring = [{local, N} | E#env.inferring]}
                        end, Env#env{st = St1}, Placeholders),
     %% the annotations shape the placeholder before any use, as at top
     %% level, at the block's level so that the fn still generalizes
@@ -2683,7 +2708,8 @@ release(Env, #{waiting := Waiting, placeholders := Ps, checked := Checked} = Loc
     Ready = [N || N <- Waiting, (pending(N, Local) -- Checked) =:= []],
     Env1 = lists:foldl(fun(N, E) ->
                            {Scheme, St} = ern_types:generalize(maps:get(N, Ps), E#env.st),
-                           E#env{st = St, vars = maps:put(N, Scheme, E#env.vars)}
+                           E#env{st = St, vars = maps:put(N, Scheme, E#env.vars),
+                                 inferring = lists:delete({local, N}, E#env.inferring)}
                        end, Env, Ready),
     {Env1, Local#{waiting => Waiting -- Ready}}.
 
@@ -3597,18 +3623,25 @@ bound(Expected, Actual, #env{st = St} = Env) ->
 %% span that fixed the expectation, as its label. An annotation variable is
 %% rigid (§3.9), so a unification that binds one to a type, or two to one
 %% another, is the mismatch.
-unify_at(Pos, Expected, Actual, #env{st = St, rigid = Rigid} = Env, Context, Origin) ->
+%% A context may carry its own help line, {help, Text, Help}, which names
+%% the rule the mismatch breaks, as a recursive call's does.
+unify_at(Pos, Expected, Actual, #env{st = St, rigid = Rigid} = Env, Context0, Origin) ->
+    {Context, RuleHelp} = case Context0 of
+                              {help, Text, Help0} -> {Text, Help0};
+                              _ -> {Context0, undefined}
+                          end,
     case ern_types:unify(Expected, Actual, St) of
         {ok, St1} ->
             rigid_kept(Rigid, St1) orelse not rigid_kept(Rigid, St) orelse
                 fail(Pos, unify_message(Context, {mismatch, Expected, Actual}, Expected, Actual,
                                         St),
-                     labels(Origin), undefined),
+                     labels(Origin), RuleHelp),
             Env#env{st = St1};
         {error, Reason} ->
-            Help = case not_an_alias(Expected, Actual, Env) of
-                       undefined -> differing_help(Reason, Expected, Actual, St);
-                       Alias -> Alias
+            Help = case {RuleHelp, not_an_alias(Expected, Actual, Env)} of
+                       {undefined, undefined} -> differing_help(Reason, Expected, Actual, St);
+                       {undefined, Alias} -> Alias;
+                       {Rule, _} -> Rule
                    end,
             fail(Pos, unify_message(Context, Reason, Expected, Actual, St), labels(Origin), Help)
     end.

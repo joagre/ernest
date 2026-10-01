@@ -2069,6 +2069,7 @@ example.ern:1:23: the argument does not fit f: expected Bool, found Int
 1 | fn f(x) = if x then f(1) else 2
   |                     - f : (Bool) -> a
   |                       ^
+  | = help: a recursive call is at the definition's own type, so a call at another type goes to a second function (§3.9)
 ```
 
 ### A recursive use at another type than the `let`'s (§4.6)
@@ -2132,6 +2133,7 @@ example.ern:3:38: a reply-carrying value, Reply(Int), passed where drop duplicat
 2 | 
 3 | fn f(r : Reply(Int)) : Unit with m = drop(r)
   |                                      ^^^^
+  | = help: a reply is discharged by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ## Names in a block (report §5.4)
@@ -3129,6 +3131,7 @@ $ ern build example.ern
 example.ern:1:62: a reply-carrying value, Reply(Int), passed where List.size duplicates or discards its argument: List.size : (List(a!)) -> Int
 1 | fn count(r : Reply(Int), waiting : List(Reply(Int))) : Int = List.size(r :: waiting)
   |                                                              ^^^^^^^^^
+  | = help: a reply is discharged by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ### A lambda that captures a reply, bound and passed on (§6.6)
