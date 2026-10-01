@@ -1767,6 +1767,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **block** — `{ s1; s2; e }`, statements separated by `;`, whose value is its last. §5.4.
 - **build root** — the directory a build writes its `.erc` files under, `--build-root`, mirroring the source root. §11.1.
 - **`Bytes`** — the type of an octet sequence. §3.1.
+- **cause** — the text a fault carries, `Fault(cause)`, which `Down` and a fault report give; §7.4 lists the language's. §7.3, §7.4.
 - **child** — a process of a `Supervisor`'s group, which its supervisor restarts. Appendix E.22.
 - **clause** — one pattern-branch of a `match` or `receive`. §5.9, §6.3.
 - **code replacement** — a running process going on in a new function it received in a message. §6.10.
@@ -1780,6 +1781,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **container** — a type of the kind that holds elements and provides the container operations, a list, a map, a set. Appendix E.0.
 - **content addressing** — naming a definition or type by the hash of its content. §8.7.
 - **deadlock** — no process can progress. §8.6.
+- **diagnostic** — an error the toolchain reports at a place in the source: its message, the source with the span underlined, its labels, and at most one help line. §11.5.
 - **doc block** — consecutive `///` lines, read as CommonMark. §2.2.
 - **doc comment** — `///`, not followed by a fourth `/`, to end of line; attached to the following declaration. §2.2.
 - **effect polymorphism** — a mailbox effect that is a type variable. §3.9.
@@ -1846,6 +1848,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **restart** — `restarting`'s run of its function again after a fault, or when a `Supervisor` asks, in the same process with its address, its mailbox emptied. §6.9.
 - **restart limit** — `RestartLimit(restarts, within)`, how many faults a restarting function or a group takes within a time, or `Unlimited`. §6.9, Appendix E.22.
 - **rigid** — of a type variable an annotation names, which means every type. §3.9.
+- **runner** — what `ern run`, `ern test` and `ern shell` start: it starts the system processes and calls the entry point. §11.2.
 - **runtime** — the system that runs Ernest programs. §10.
 - **scrutinee** — the value a `match` matches. §5.9.
 - **segment** — a part of a qualified name between dots (§4.2), of a bitstring (§5.11), or of a path (Appendix E.14).
@@ -1857,6 +1860,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **shape rule** — one of the nine rules that give a function of the standard library its shape. Appendix E.0.
 - **shim** — a primitive written as a `foreign fn` over the host or as a request to a system process. Appendix E.0.
 - **source root** — the directory under which a file's path gives its namespace. §4.2, §11.1.
+- **span** — a stretch of source a diagnostic underlines, the erroneous one with `^` and one the message depends on with `-` and its label. §11.5.
 - **`spawn`** — `spawn(w, f)`, starts a new process; `spawnMonitored(w, f, wrap)` starts one monitored from its start. §6.2.
 - **spawn site** — the top-level declaration and the line a process was spawned at, `Counter.main:19`, which `Down` and a fault report give. §6.9.
 - **standard library** — the modules under `stdlib/`, on the load path by default; not the prelude. §9, Appendix E.

@@ -117,7 +117,7 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Monitor**: §6.9's monitor, in the reaper as elsewhere. Not `await`, `watch`, `Waiters`. The host's reference to one is a `MonitorRef`, not `Watch`, `Mon`, `MRef`, `OwnerMonitor`.
 - **Runner**: §11.2's runner, the process that starts the system processes and the entry point; the launcher is `bin/ern` alone. Not `Launcher`.
 - **SystemProcess**: a system process (§8.2, §8.4). Not `Service`, `sys`; the report's service is §6.5's.
-- **Run**: §6.9's run of a restarting function, and nothing else; a launch, a running program and a test are named as such.
+- **Run**: one execution of a restarting function's `f` (§6.9), and nothing else; a launch, a running program and a test are named as such.
 - **Owner**: the process that opened a resource or was given it (§6.9, E.18), and nothing else.
 - **Port**: E.18's port of a socket. A host port is named for what it runs: `Helper`, `Stty`.
 - **EntryPoint, EntryProcess**: the entry point and its process (§8.1, §8.6). Not `Main`.
