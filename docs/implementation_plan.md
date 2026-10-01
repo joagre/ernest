@@ -287,7 +287,11 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     release's fourteen: a report change, a "Later" entry, or a line that it was weighed and
     left alone, with the user one at a time; about two days, after item 5's decision, which
     closed entries 64, 70 and 71 on 2026-10-02. With it `language_feedback.md` holds no entry and `findings.md`
-    goes (the log's *Both Lists Close With MVP 2.99b*).
+    goes (the log's *Both Lists Close With MVP 2.99b*). Taken with the user from 2026-10-02, one
+    by one (the log's *MVP 2.99b's Questions, One by One*); what a decision admits into the
+    language is built in this item after the decisions, its report sentences with its code.
+    Entry 76: a path in a record update, `Pool(..pool, stats.indexed = e)`, admitted by
+    principle 2's sequence clause, about a day and a half (§5.6, Appendix A).
 
 ---
 
