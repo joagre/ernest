@@ -296,8 +296,10 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     principle 2's sequence clause, about a day and a half (§5.6, Appendix A). Entry 77:
     `let me = self()` before a spawn kept, the guide teaching it once (item 16). Entry 78:
     `let _ = e` kept, `foreach`'s callback answering `Unit` (principle 3). Entry 79:
-    `Address.ask(addr, mk, wrap)` admitted to the prelude, `wrap` taking `Optional(a)`, about a
-    day and a half with §6.6, §9.4 and the guide's §4.4 rewritten without its helper.
+    `Address.ask(addr, mk, wrap, ms)` admitted to the prelude, `wrap` taking `Optional(a)`,
+    `None` when the milliseconds pass or the callee ends or restarts first, a late answer
+    discarded; about a day and a half with §6.6, §9.4 and the guide's §4.4 rewritten without
+    its helper.
 
 ---
 
