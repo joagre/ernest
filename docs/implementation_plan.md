@@ -140,27 +140,28 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    the same day: no second way beside inference (the log's *The Reply Discipline Names No
    Type*), and the process-only mark is `m+` (the log's *The Process-Only Mark*).
    [`operations.md`](operations.md) was rewritten under the two rules on 2026-10-01 (the log's
-   *The Operations Note Rewritten* and *The Order Bound Once*), and what it specifies is this
-   item's decision: the record of `Set`'s primitives in `set.ern`; the code written once as
-   functions of `set.ern` named with `With`, the record after the subjects; `OrderedSet.Set(a)`
-   in `ordered_set.ern`, its order written once, where the program binds its record,
-   `let ints = OrderedSet.operations(Int.compare)`, an operation that needs the order a field
-   of that record and no function of the module taking it, so that nothing past the binding
-   falls on the program; an order belonging to an element type, so that a second order is a
+   *The Operations Note Rewritten* and *The Order Bound Once*), and again on 2026-10-02 (the
+   log's *MVP 2.99b's Questions, One by One*), and what it specifies is this item's decision:
+   the record in `set.ern` holding the twelve operations of a set's vocabulary whose types name
+   only its parameters, with no generic function in the library, code written once being the
+   program's; `OrderedSet.Set(a)` in `ordered_set.ern`, its order written once, where the
+   program binds its record, `let ints = OrderedSet.operations(Int.compare)`, an operation
+   that needs the order a field of that record and no function of the module taking it, so
+   that nothing past the binding falls on the program, its `map` and `filterMap` taking the
+   result's record; an order belonging to an element type, so that a second order is a
    second type and two sets of different orders cannot meet; and no order for tuples, lists,
    `Optional` and `Either`, since their `compare` would compare a type variable, which
    reverses what was decided on 2026-09-29 (the log's *Operations Records*). Two parts of
-   2026-09-29 stand: `put` keeps the element already in the set, and `foldLeft` is written
-   once over `toList`, outside the record. The ordered set's representation is the
+   2026-09-29 stand: `put` keeps the element already in the set, and `foldLeft` stays out of
+   the record. The ordered set's representation is the
    specification's last question.
 
    Once decided, it is built in the report's order. The report first: E.0 shape rule 1's
-   clause for a record, E.4's record and `With` functions, and a section of its own at the end
-   of Appendix E for `ordered_set.ern`, which states the departure principle 1 asks for. Then
-   `set.ern` over its record: `Set.Operations(s, a)` with `Set`'s six primitives,
-   `Set.operations`, the functions written once, and each of `Set`'s own a call of one. Then
-   `OrderedSet` in the standard library, the record's second representation, with its tests
-   and its page. `Map` gains a record with a second representation, and not before. Nothing in
+   clause for a record, E.4's record, §11.5's message naming a selected callee as written,
+   `ints.union`, and a section of its own at the end of Appendix E for `ordered_set.ern`, which
+   states the departure principle 1 asks for. Then `set.ern` gains its record,
+   `Set.Operations(s, a)` and `Set.operations`, its functions unchanged. Then `OrderedSet` in
+   the standard library, the record's second representation, with its tests and its page. `Map` gains a record with a second representation, and not before. Nothing in
    the checker, the emitter or the runtime changes (`operations.md`'s *What it costs to
    build*), so the build does not wait for item 7, which renames the Erlang before the
    toolchain's changes so that they are written once; the code is written in the glossary's
@@ -235,7 +236,7 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     is, decided with the user 2026-10-02 (the log's *The Renamings Kept Whole*).
 16. **The guide's §7.3**, over the finished code and its names: it says "operations record"
     and shows code written once, a representation's own functions beside the record's, two
-    ordered sets of two orders, two element types, that cannot meet in `Set.unionWith`, and
+    ordered sets of two orders, two element types, that cannot meet in a record's `union`, and
     values of several representations in one list. Its examples compile and run under the
     guide's checks. What Ernest cannot express goes to
     [`language_feedback.md`](language_feedback.md) and is decided with the user before the
