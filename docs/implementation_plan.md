@@ -102,7 +102,10 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    Drafted 2026-10-01 (the log's *The Glossary Drafted*): [`style.md`](style.md)'s *Glossary*
    names forty-odd concepts. Where the code's name differed from the report's, six places, the
    report's word was taken with the user the same day; the user's reading of the guide and the
-   glossary closes the item, before the attack plan's phase 4 writes code in its names.
+   glossary closes the item, before the attack plan's phase 4 writes code in its names. Three
+   diagnostics say "return type" or "declared to return" where the report says result type;
+   they are text a user reads, not names, and change in the attack plan's phase 4 with the
+   defects, the tests and `test/diagnostics.md` with them.
 3. **The places the language made the review's work harder**, done 2026-10-01 (the log's *The
    Release Review's Harder Places*): of the fourteen lines of [`findings.md`](findings.md)
    marked `2.99b` that are not hardening, two are language feedback 75 and 76, decided in the
