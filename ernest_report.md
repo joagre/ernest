@@ -1,6 +1,6 @@
 # Ernest: Language Report
 
-Revision of 1 October 2026. Rationale and rejected alternatives are in [`decisions.md`](docs/decisions.md), and the decisions still to be made in [`implementation_plan.md`](docs/implementation_plan.md).
+Revision of 2 October 2026. Rationale and rejected alternatives are in [`decisions.md`](docs/decisions.md), and the decisions still to be made in [`implementation_plan.md`](docs/implementation_plan.md).
 
 **Contents**
 <!-- contents -->
@@ -1581,7 +1581,7 @@ Path.toString : (Path) -> String
 
 ### Appendix E.15. `clock.ern` (namespace `Clock`)
 
-Over the clock's system reference (§8.2). Times are milliseconds since the epoch. `monotonic` is milliseconds since a moment the runtime chose, and never goes back, so the difference of two readings is the time between them; the difference of two `now`s is not, when the clock is set between them. An alarm fires once, and a program cannot cancel it: a process that no longer wants it ignores the message, and a periodic tick is scheduled after the previous one is handled. A restart of the process that set it cancels it (§6.9).
+Over the clock's system reference (§8.2). Times are milliseconds since the epoch, by the host's clock, which may be set while the program runs. `monotonic` is milliseconds since a moment the runtime chose, and never goes back. The difference of two readings of `monotonic` is the time the host ran between them: where the host's monotonic clock stops while the machine is suspended, that time is left out. The difference of two `now`s is not that time when the clock is set between them. An alarm after milliseconds counts them as `monotonic` does, and setting the clock does not move it. An alarm at a time fires when the clock reaches the time, though the clock is set before it fires: a clock set past the time fires it once the host reports the change, and a clock set back delays it. An alarm fires once, and a program cannot cancel it: a process that no longer wants it ignores the message, and a periodic tick is scheduled after the previous one is handled. A restart of the process that set it cancels it (§6.9).
 
 ```
 Clock.now : () -> Int with m

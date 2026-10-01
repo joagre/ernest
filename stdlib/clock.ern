@@ -39,8 +39,10 @@ export fn now() : Int with m =
     Address.callForever(reference, fn(r) = Now(reply = r))
 
 /// Milliseconds since a moment the runtime chose, which never go back, so
-/// that the difference of two readings is the time between them. Its
-/// value alone says nothing; `now` is the time of day.
+/// that the difference of two readings is the time the host ran between
+/// them; where the host's monotonic clock stops while the machine is
+/// suspended, that time is left out. Its value alone says nothing; `now` is
+/// the time of day.
 ///
 /// ### Examples
 ///

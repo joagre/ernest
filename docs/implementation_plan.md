@@ -176,7 +176,11 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    (`Clock.alarmAt`, Appendix E.15); and whether a launcher passes a termination or hangup
    that comes while the host starts, which the host drops (*Standing gaps* below), on to the
    host until the host has taken it, at the price of a second process between a service
-   manager and the program.
+   manager and the program. The first was decided with the user 2026-10-02 (the log's *MVP
+   2.99b's Questions, One by One*), after reading OTP's *Time and Time Correction*: an alarm
+   at a time fires when the clock reaches the time, though the clock is set before it fires,
+   and the host's monotonic clock may stop while the machine is suspended, both now stated
+   in E.15.
 7. **Names that read, in Erlang**, about a week: every module under `erl/` and `test/` read
    for its names and renamed where a name does not say what its value or its work is, a
    variable, a function, a record and its fields, by the glossary, which it corrects as it
@@ -200,8 +204,11 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
 9. **The runtime's part of running as a service**: what item 6's decisions build, and a
    stream on a full or failing device ending the program, as §8.2 says, with status 141, as
    §11.8 says. On 2026-10-02 a program whose standard error was `/dev/full` lost the line, ran
-   on and exited with status 0, and so did one whose standard output was. Beside item 8, in the
-   same code.
+   on and exited with status 0, and so did one whose standard output was. Among item 6's: the
+   clock process asks the host to be told of each change of its time offset,
+   `erlang:monitor(time_offset, clock_service)`, and re-arms its alarms at a time on each, as
+   E.15 states since 2026-10-02, where today an alarm at a time fixes its deadline in monotonic
+   time when it is set; a test delivers the host's notice. Beside item 8, in the same code.
 10. **A service manager's checks**: a systemd unit, start and stop, a stop asked for ending the
     program by its signal, `Restart=on-failure` after a program ends with `Os.exit(1)`, and the
     journal showing fault lines without a doubled time; and a launchd plist on macOS, with the
