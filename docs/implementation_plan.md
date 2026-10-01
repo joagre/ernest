@@ -163,7 +163,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    Once decided, it is built in the report's order. The report first: E.0 shape rule 1's
    clause for a record, E.4's record, §11.5's message naming a selected callee as written,
    `ints.union`, and a section of its own at the end of Appendix E for `ordered_set.ern`, which
-   states the departure principle 1 asks for. Then `set.ern` gains its record,
+   states the departure principle 1 asks for, and its representation and costs whole, since
+   E.0 rule 3 admits it as it admitted `Random`, a choice the section states whole. Then `set.ern` gains its record,
    `Set.Operations(s, a)` and `Set.operations`, its functions unchanged. Then `OrderedSet` in
    the standard library, the record's second representation, with its tests and its page. `Map` gains a record with a second representation, and not before. Nothing in
    the checker, the emitter or the runtime changes (`operations.md`'s *What it costs to
