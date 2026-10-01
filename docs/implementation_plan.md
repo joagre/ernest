@@ -260,7 +260,9 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     [`language_feedback.md`](language_feedback.md) and is decided with the user before the
     section goes around it. The guide's §7.3 was decided 2026-09-28 (the log's *§7.3 Written
     Around an Ordered Set*); §7.2 states the rule for a type's operations since the principles
-    review's edits.
+    review's edits. With it, the guide teaches `let me = self()` before a spawn once, where
+    `spawn` is introduced, and drops its two warnings and the explanations that repeat it
+    (language feedback 77, kept 2026-10-02, the log's *MVP 2.99b's Questions, One by One*).
 17. **A soak of hours**: removed on 2026-10-02; `make load` stands for it (the log's *MVP
     2.99b Read After the Review*).
 18. **Two library shapes the log's reasons left open**, done 2026-10-01 (the log's *The Key
@@ -291,7 +293,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     by one (the log's *MVP 2.99b's Questions, One by One*); what a decision admits into the
     language is built in this item after the decisions, its report sentences with its code.
     Entry 76: a path in a record update, `Pool(..pool, stats.indexed = e)`, admitted by
-    principle 2's sequence clause, about a day and a half (§5.6, Appendix A).
+    principle 2's sequence clause, about a day and a half (§5.6, Appendix A). Entry 77:
+    `let me = self()` before a spawn kept, the guide teaching it once (item 16).
 
 ---
 
