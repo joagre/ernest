@@ -100,23 +100,25 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
 4. **The operations' decision**, taken with the user before anything of it is built (language
    feedback 64, 69 to 71, and 73). Two parts were decided by the principles review on 2026-10-01
    (the log's *Members, Operators, and No Hidden Argument*): a type's operations are functions
-   of its module, a member only an operator, `compare` or `negate`; and no operator carries a
-   hidden argument, so the proposal's ordering restriction is refused and an ordered set takes
-   its order visibly, as an argument of the functions that build its record. What remains: the
-   proposal's ordering restriction, inferred on a type
-   variable as the equality restriction is, with a type's order its `compare`, is out; an operations
-   record holding a type's primitives; what the note's last section leaves to the decision;
-   and **when a type's operation is a member and when a module function** (`findings.md`'s
-   U8, moved here 2026-09-29), since §7.2 declares them `fn Stack.push` and §7.3 `toList` of a
-   module, and item 11 declares `Set`'s by the rule. Three parts were decided with the user on
-   2026-09-29, before the note went out (the log's *Operations Records*): tuples and lists are
-   ordered element by element, and `Optional` and `Either` by a `compare` in the prelude,
-   `None` and `Left` first; `put` keeps the element already in the set; and `foldLeft` is
-   written once over `toList`, outside the record. The ordered set's representation is the
-   note's open question. With the ordering restriction's mark, whether a restriction may be
-   written in an annotation, a change to the grammar and a second way beside inference
-   (`findings.md`'s R-23, placed here with the user 2026-09-30); the process-only mark is
-   `m+` since 2026-10-01 (the log's *The Process-Only Mark*).
+   of its module, a member only an operator, `compare` or `negate`, which decides **when a
+   type's operation is a member and when a module function** (`findings.md`'s U8, moved here
+   2026-09-29); and no operator carries a hidden argument, so the proposal's ordering
+   restriction, inferred on a type variable as the equality restriction is, is out, and an
+   ordered set takes its order visibly. Whether a restriction may be written in an annotation
+   (`findings.md`'s R-23, placed here with the user 2026-09-30) was decided the same day: no
+   second way beside inference (the log's *The Reply Discipline Names No Type*), and the
+   process-only mark is `m+` (the log's *The Process-Only Mark*).
+   [`operations.md`](operations.md) was rewritten under the two rules on 2026-10-01 (the log's
+   *The Operations Note Rewritten*), and what it proposes is this item's decision: the record
+   of `Set`'s primitives in `set.ern`; the code written once as functions of `set.ern` named
+   with `With`, the record after the subjects; `OrderedSet.Set(a)` in `ordered_set.ern`, its
+   order an argument of `operations` and of each of its functions that needs one; an order
+   belonging to an element type, so that a second order is a second type and two sets of
+   different orders cannot meet; and no order for tuples, lists, `Optional` and `Either`,
+   since their `compare` would compare a type variable, which reverses what was decided on
+   2026-09-29 (the log's *Operations Records*). Two parts of 2026-09-29 stand: `put` keeps the
+   element already in the set, and `foldLeft` is written once over `toList`, outside the
+   record. The ordered set's representation is the note's open question.
 5. **The service's two decisions, with the user**: what an alarm at a time does when the
    host's wall clock jumps, since deadlines use the monotonic clock and a time does not
    (`Clock.alarmAt`, Appendix E.15); and whether a launcher passes a termination or hangup
@@ -158,13 +160,14 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
     the user 2026-09-30); `ern build`, `:load`, completion, `ern doc` and the manual pages'
     names follow, the shell finding `ordered_set.ern` for `OrderedSet`. Before item 12's
     file, and before the Ernest renaming, which may give a module a name of two words.
-11. **`set.ern` over its record**: `Set.Operations(s, e)` with `Set`'s six primitives, the
-    functions written once as members of that type, and each of `Set`'s own a call of one.
-12. **`OrderedSet` in the standard library**, the record's second representation, with its
-    tests and its page, in a section of its own at the end of Appendix E; its order an argument
-    of `setOperations`, since the ordering restriction's hidden argument is refused
-    (2026-10-01). `Map` gains a record with a
-    second representation, and not before.
+11. **`set.ern` over its record**: `Set.Operations(s, a)` with `Set`'s six primitives,
+    `Set.operations`, the functions written once as functions of the module named with
+    `With`, the record after the subjects, and each of `Set`'s own a call of one.
+12. **`OrderedSet` in the standard library**, the record's second representation,
+    `OrderedSet.Set(a)` in `ordered_set.ern`, with its tests and its page, in a section of its
+    own at the end of Appendix E; its order an argument of `operations` and of each function
+    that needs it, since the ordering restriction's hidden argument is refused (2026-10-01).
+    `Map` gains a record with a second representation, and not before.
 13. **The boundary at a type variable** (`Io.debug` goes through `Io` since 2026-10-01; the shown restriction of
     2026-09-29 was refused on 2026-10-01, the log's *A Value Shows Itself at a Known Type*:
     `Io.show` on a type variable is a type error, as an operator is, and takes no hidden
@@ -195,8 +198,8 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
     `complete.ern` repeats (C3-35 to C3-37).
 16. **The guide's §7.3**, over the finished code and its names: it says "operations record"
     and shows code written once, a representation's own functions beside the record's, two
-    ordered sets that cannot meet in `union`, and values of several representations in one
-    list, and §7.2 states item 4's rule for a type's operations. Its examples compile and run
+    ordered sets of two orders, two element types, that cannot meet in `union`, and values of
+    several representations in one list, and §7.2 states item 4's rule for a type's operations. Its examples compile and run
     under the guide's checks. What Ernest cannot express goes to
     [`language_feedback.md`](language_feedback.md) and is decided with the user before the
     section goes around it. The guide's §7.3 was decided 2026-09-28 (the log's *§7.3 Written
