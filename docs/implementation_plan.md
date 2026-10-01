@@ -153,7 +153,9 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    `Optional` and `Either`, since their `compare` would compare a type variable, which
    reverses what was decided on 2026-09-29 (the log's *Operations Records*). Two parts of
    2026-09-29 stand: `put` keeps the element already in the set, and `foldLeft` stays out of
-   the record. The ordered set's representation is the
+   the record. Decided with the user on 2026-10-02, one by one (the log's *MVP 2.99b's
+   Questions, One by One*): the record holds the vocabulary, and the type is
+   `OrderedSet.Set(a)`. The ordered set's representation is the
    specification's last question.
 
    Once decided, it is built in the report's order. The report first: E.0 shape rule 1's
