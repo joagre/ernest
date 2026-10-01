@@ -383,7 +383,7 @@ install() ->
     ok = file:rename(Base ++ "/a", Base ++ "/b"),
     Ern = Base ++ "/b/bin/ern",
     In = fun(Cmd) -> sh(Cmd, [{cd, Base ++ "/work"}]) end,
-    ?assertEqual({0, <<"ern 0.1.0\n">>}, In(Ern ++ " --version")),
+    ?assertEqual({0, <<"ern 0.2.0\n">>}, In(Ern ++ " --version")),
     ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
     {0, _} = In(Ern ++ " build hi.ern"),
     ?assertEqual({0, <<"hi\n">>}, In(Ern ++ " run hi.erc")),
@@ -408,7 +408,7 @@ install() ->
     ?assertMatch({2, _}, sh("make -s -C .. uninstall PREFIX=" ++ Base ++ "/b")),
     Stage = Base ++ "/stage",
     {0, _} = sh("make -s -C .. install DESTDIR=" ++ Stage ++ " PREFIX=/opt/ernest"),
-    ?assertEqual({0, <<"ern 0.1.0\n">>}, In(Stage ++ "/opt/ernest/bin/ern --version")),
+    ?assertEqual({0, <<"ern 0.2.0\n">>}, In(Stage ++ "/opt/ernest/bin/ern --version")),
     {0, _} = sh("make -s -C .. uninstall DESTDIR=" ++ Stage ++ " PREFIX=/opt/ernest"),
     ?assertEqual([], [F || F <- filelib:wildcard(Stage ++ "/**/*"), not filelib:is_dir(F)]),
     case sh("id -u") of

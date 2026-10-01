@@ -163,7 +163,7 @@ A function a process starts with that never receives, such as `main`, is written
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > 1 + 2
 3 : Int
 > let xs = [3, 1, 2]
@@ -268,7 +268,7 @@ A raw string, between backticks, is taken exactly as written, with no escapes, e
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > let number = `\d+(\.\d+)?`
 number : String
 > number
@@ -285,7 +285,7 @@ At the prompt, as in a block, `let` binds a name:
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > let x = 5
 x : Int
 > let y = x + 1
@@ -352,7 +352,7 @@ For constructors that carry several things, name each field:
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > type Person = Person(name : String, age : Int)
 type Person
 > let alice = Person(name = "Alice", age = 30)
@@ -377,7 +377,7 @@ A type with several constructors has a field only where every constructor has it
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > let xs = 1 :: [2, 3]
 xs : List(Int)
 > match xs { [] -> "empty" | head :: _ -> "first is " <> Int.toString(head) }
@@ -424,7 +424,7 @@ The same patterns appear in `match` clauses, `let` bindings, and function parame
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > let #(x, y) = #(3, 4)
 x : Int
 y : Int
@@ -444,7 +444,7 @@ A name in a pattern *introduces* a binding; it does not compare with a variable 
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > let x = 3
 x : Int
 > match 3 { n when n == x -> "same as x" | _ -> "different" }
@@ -518,7 +518,7 @@ Ernest's stdlib is subject-first. `|>` reads left-to-right:
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > "abc" |> String.toList |> List.reverse |> String.fromList
 "cba" : String
 ```
@@ -545,7 +545,7 @@ Sections 2 to 5 build one program, a word counter, a stage in each. Here it is v
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > let text = "the cat and the hat"
 text : String
 > let words = String.split(text, " ")
@@ -566,7 +566,7 @@ Given:
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > type Person = Person(name : String, age : Int)
 type Person
 > let p = Person(name = "Alice", age = 30)
@@ -599,7 +599,7 @@ Function arity is fixed and part of the type. `hypotenuseSquared(3, 4)` is `25`.
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > let add1 = fn(x) = x + 1
 add1 : (Int) -> Int
 > add1(5)
@@ -685,7 +685,7 @@ fn byCount(#(w1, c1) : #(String, Int), #(w2, c2) : #(String, Int)) : Ordering =
 ```console
 $ ern build words.ern
 $ ern shell words.erc
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > Words.count("the cat and the hat")
 Map.fromList([#("and", 1), #("cat", 1), #("hat", 1), #("the", 2)]) : Map(String, Int)
 > Words.top(Words.count("the cat and the hat"), 2)
@@ -730,7 +730,7 @@ fn counter(n : Int) : Unit with CounterMsg =
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > :type spawn
 spawn : (() -> Unit with n) -> Address(n) with m+
 > spawn(fn() : Unit = Unit)
@@ -797,7 +797,7 @@ Synchronous request-reply, used from the caller side:
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > :type Address.call
 Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n+
 ```
@@ -1029,7 +1029,7 @@ export fn tally(counts : Map(String, Int)) : Unit with TallyMsg =
 ```console
 $ ern build words.ern
 $ ern shell words.erc
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > let t = spawn(fn() = Words.tally(Map.empty))
 t : Address(Words.TallyMsg)
 > send(t, Words.Add(Words.count("the cat and the hat")))
@@ -1098,7 +1098,7 @@ The output is `ping 3`, `pong 3`, `ping 2`, and so on, alternating. Messages fro
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > :type monitor
 monitor : (Address(a), (Down) -> m) -> Unit with m
 > :type spawnMonitored
@@ -1167,7 +1167,7 @@ A fault in one process does not affect another, apart from the cases §6.3 lists
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > :type kill
 kill : (Address(a)) -> Unit with m+
 ```
@@ -1184,7 +1184,7 @@ A process has one mailbox, and its mailbox has one type, but the process may be 
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > :type via
 via : (Address(b), (a) -> b) -> Address(a)
 ```

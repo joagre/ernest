@@ -16,7 +16,7 @@
 /// `Terminal.columns` for the columns styled text takes, `Io.print` to
 /// write it.
 ///
-/// since 0.1.0
+/// since 0.2.0
 
 /// The eight colours of ECMA-48.
 ///

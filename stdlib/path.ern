@@ -34,6 +34,8 @@
 /// #(Path.toString(Path("/etc/") <> Path("hosts")), Path.toString(Path("/etc") <> Path("/var")))
 /// // => #("/etc/hosts", "/var")
 /// ```
+///
+/// since 0.2.0
 export fn Path.<>(p : Path, under : Path) : Path =
     if isAbsolute(under) then under else join(split(p) <> split(under))
 
@@ -161,6 +163,8 @@ export fn withExtension(p : Path, ext : String) : Path =
 ///   Path.toString(Path.withoutExtension(Path(".bashrc"))))
 /// // => #("a/b", ".bashrc")
 /// ```
+///
+/// since 0.2.0
 export fn withoutExtension(path : Path) : Path =
     if List.contains([None, Some("."), Some("..")], name(path)) then path else extended(path, "")
 

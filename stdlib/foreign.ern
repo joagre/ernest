@@ -33,6 +33,8 @@
 /// #(Foreign.from(1) == Foreign.from(1), Foreign.from(1) == Foreign.from(1.0))
 /// // => #(true, false)
 /// ```
+///
+/// since 0.2.0
 export foreign type Term
 
 /// The value as the runtime holds it, which a `foreign fn` may take where
@@ -75,6 +77,8 @@ export foreign fn toString(value : Term) : Optional(String) =
 /// #(Foreign.toBytes(Foreign.from(<<255>>)), Foreign.toBytes(Foreign.from(1)))
 /// // => #(Some(<<255>>), None)
 /// ```
+///
+/// since 0.2.0
 export foreign fn toBytes(value : Term) : Optional(Bytes) =
     "ern_foreign:to_bytes/1"
 

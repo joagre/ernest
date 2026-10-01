@@ -19,11 +19,12 @@ the decision on how code written once works over several representations, which
 run of `make test` trusted. Between its items 3 and 4 runs the principles review, the report
 and the guide read against §0 and §0 against what it decided, a milestone of its own;
 its readers ran on 2026-09-30, on `57b8356`, and it was worked on 2026-10-01 in seven phases
-and closed, its paragraph under "Done" (the log's *The Attack Plan* and *The Principles Review
-Closed*); the release review and Ernest 0.2.0 are next. Ernest 0.1.0, the
-first release, is tagged `v0.1.0` and was published on 2026-09-30 with MVP 2.99, the last
-milestone done; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each
-has its paragraph under "Done".
+and closed (the log's *The Attack Plan* and *The Principles Review Closed*); the review before
+a release ran the same day, and Ernest 0.2.0, the second release, is tagged `v0.2.0` on
+2026-10-01 (the log's *The Release Review Before 0.2.0*), the last milestone done; MVP 2.99b
+resumes at item 4. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
+order. Each has its paragraph under "Done".
 
 ---
 
@@ -46,8 +47,8 @@ has its paragraph under "Done".
 | MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
 | MVP 2.99b | what the release review left, names that read among it; operations records: `Set`'s record and an ordered set; running as a service | the decisions before anything is built (`operations.md`) |
-| The principles review | the report and the guide against §0, and §0 against what it decided | after MVP 2.99b's item 3, before its item 4 |
-| Ernest 0.2.0 | the review's changes shipped as one, after the release review | after the principles review's closure |
+| The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01 |
+| Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines | moved from MVP 3.9 on 2026-10-01 |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
@@ -738,5 +739,18 @@ a case it did not. What it leaves is dated: the `since` lines of what it added, 
 `VERSION` at the release (the release review's step 5); `Udp` to MVP 3.2 (the log's
 *`Clock.monotonic` Is In, and `Udp` Is Placed*); placing work without `Where` to MVP 3.0 (the
 log's *Placing Work Without `Where`*); and the guide's §7.3 to MVP 2.99b's item 16. The
-release review runs next, and Ernest 0.2.0 ships the review's rules as one (the log's *A
-Release After the Review*); MVP 2.99b then resumes at item 4.
+release review ran next, and Ernest 0.2.0 shipped the review's rules as one (the log's *A
+Release After the Review*); MVP 2.99b resumes at item 4.
+
+### Ernest 0.2.0 — the review's rules shipped as one (done 2026-10-01, tag `v0.2.0`)
+
+Ernest 0.2.0, the second release, after the review before a release ran as
+[`release_review.md`](release_review.md) says on `067ef80` (the log's *The Release Review
+Before 0.2.0*). Its machines passed, and its readers, the report's, a newcomer's, who wrote a
+key-value cache whose entries expire after a time or with the process that leased them, and
+the code's over what changed since `691b4d6`, found 55 lines: 33 fixed before the tag, none a
+defect in what a program computes, and the rest planned, asked, recorded or dropped as
+[`findings.md`](findings.md) says. What a program written for 0.1.0 changes is in the
+release's notes. What the release leaves: the timers `Os` and `Tcp` leave armed after an
+answer, with MVP 2.99b's item 7; the glossary's five names, with items 6 and 15; `ern test`
+over a directory, item 19; and the six rules that buy little, for the next full review.

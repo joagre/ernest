@@ -301,6 +301,8 @@ export fn closeInput(program : Address(ProgramMsg)) : Unit with m =
 ///     Right(Unit)
 /// }
 /// ```
+///
+/// since 0.2.0
 export fn give(program : Address(ProgramMsg), owner : Process) : Unit with m =
     send(program, Give(owner = owner))
 

@@ -161,6 +161,8 @@ export fn write(b : Bytes) : Unit with m =
 /// Io.writeError(<<104, 105, 10>>)
 /// // => Unit
 /// ```
+///
+/// since 0.2.0
 export fn writeError(b : Bytes) : Unit with m =
     written(stderr, b)
 

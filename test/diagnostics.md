@@ -285,7 +285,7 @@ example.ern:1:27: a doc comment `///` stands on a line of its own; a note after 
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > 1 )
 input 1:1:3: expected end of input instead of `)`
 1 | 1 )
@@ -1394,7 +1394,7 @@ example.ern:1:24: Random.Seed is the constructor of an abstract type and is not 
 
 ```console
 $ ern shell
-Ernest 0.1.0. :help for the commands, :quit to leave.
+Ernest 0.2.0. :help for the commands, :quit to leave.
 > export abstract type Box = Box(Int)
 abstract type Box
 > Box(1)

@@ -298,6 +298,8 @@ export fn lines(s : String) : List(String) =
 /// #(String.words("  one two\tthree\n"), String.words(" "))
 /// // => #(["one", "two", "three"], [])
 /// ```
+///
+/// since 0.2.0
 export fn words(s : String) : List(String) =
     List.reverse(wordsFrom(toList(s), [], []))
 

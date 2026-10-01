@@ -9,7 +9,7 @@
 /// Test.Case(name = "adds", run = fn() = if 1 + 1 == 2 then Test.Passed else Test.Failed("not 2"))
 /// ```
 ///
-/// since 0.1.0
+/// since 0.2.0
 
 /// A test: its name, which `ern test` prints, and the function it runs.
 ///

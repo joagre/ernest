@@ -257,6 +257,8 @@ export fn makeLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit
 /// }
 /// // => Right(Some("o"))
 /// ```
+///
+/// since 0.2.0
 export fn makeHardLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference,
                           fn(r) = MakeHardLink(path = path, target = target, reply = r),
@@ -350,6 +352,8 @@ export fn setModified(path : Path, mtime : Int, ms : Int) : Either(Io.Error, Uni
 /// }
 /// // => Right(Unit)
 /// ```
+///
+/// since 0.2.0
 export fn setMode(path : Path, mode : Int, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = SetMode(path = path, mode = mode, reply = r), ms))
 
