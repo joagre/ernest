@@ -5768,7 +5768,7 @@ MVP 2.99b's item 2, its first half. Three readers surveyed every module for the 
 
 Two choices in it are judgments. `Env` stays for the checker's scope, the word every text on Hindley-Milner uses, and is taken from the session and the host's variables, which are named for themselves. `QualifiedName` replaces `Q` and `QName` in some 280 places, longer lines being the price the style guide accepts for a name a reader need not guess.
 
-Six names differ from the report's, and the rule *One concept, one name* brings each to the user before anything is renamed: the checker's `flags` are §3.9's inferred restrictions, the reply check's `Linear` §6.6's obligation, `ret` and the diagnostics' "return type" §4.5's result type, the runtime's `Launcher` §11.2's runner, its `Service` a system process where the report's service is §6.5's, and `QualifiedName`'s length. The glossary recommended the report's name in each, and the user took it in all six the same day.
+Six names differ from the report's, and the rule *One concept, one name* brings each to the user before anything is renamed: the checker's `flags` are §3.9's inferred restrictions, the reply check's `Linear` §6.6's obligation, `ret` and the diagnostics' "return type" §4.5's result type, the runtime's `Launcher` §11.2's runner, its `Service` a system process where the report's service is §6.5's, and `QualifiedName`'s length. The glossary recommended the report's name in each, and the user took it in all six the same day, then read the guide and the glossary, which closed the item.
 
 Not taken: renaming any code now, which items 6 and 15 do area by area once the glossary is agreed; and a glossary of every name, which would decide what each writer is left to judge.
 

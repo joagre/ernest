@@ -20,9 +20,9 @@ run of `make test` trusted. Between its items 3 and 4 runs the principles review
 and the guide read against §0 and §0 against what it decided, a milestone of its own below;
 its readers ran on 2026-09-30, on `57b8356`, their findings stand in
 [`findings.md`](findings.md), and [`attack_plan.md`](attack_plan.md) gives the order in which
-they are worked; its phases 1 and 2, the sixteen sentences, were done on 2026-10-01, and phase
-3, MVP 2.99b's items 1 to 3, is under way, items 1 and 3 done on 2026-10-01. Ernest 0.1.0,
-the first release, is tagged `v0.1.0` and was published on 2026-09-30 with MVP 2.99, the last
+they are worked; its phases 1 to 3, the sixteen sentences and MVP 2.99b's items 1 to 3, were
+done on 2026-10-01, and phase 4, the defects and disagreements, is next. Ernest 0.1.0, the
+first release, is tagged `v0.1.0` and was published on 2026-09-30 with MVP 2.99, the last
 milestone done; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each
 has its paragraph under "Done".
 
@@ -84,28 +84,15 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    has started, and the start's case stands in *Standing gaps*. `filesync_test_`'s failure was
    the example's own race, a peer's file taken before the first listing and stored with no
    conflict, fixed with `filesync_first_listing_test_`.
-2. **The style guides and the glossary, a decision with the user.** [`style.md`](style.md)
-   rests its guides on widely accepted ones, Ericsson's *Programming Rules and Conventions*
-   and Inaka's guidelines for Erlang and the *Elm Style Guide* for Ernest, and holds a
-   proposal for names and for structure drawn from what the code has shown good and bad,
-   written on 2026-09-30 so that the code written before the renaming keeps it. The user
-   reads it, and then a glossary of the names that recur goes there: one name for each
-   concept, the same in every module. It holds what needs agreeing, a concept several
-   modules name, and not every name: the rest is left to the judgment of whoever writes the
-   code, under `style.md`'s rules. The report is the glossary's authority: a concept the
-   report names is named as the report names it, and a place where the code names such a
-   concept otherwise, or where the report's name seems wrong for the code, is discussed with
-   the user each time, never renamed on its own. The glossary is the best first draft that
-   can be made before the code is read name by name; items 6 and 15 change it, add to it and
-   delete from it as the renaming finds what it missed, and each area's commit carries the
-   glossary's change with it.
-   Drafted 2026-10-01 (the log's *The Glossary Drafted*): [`style.md`](style.md)'s *Glossary*
-   names forty-odd concepts. Where the code's name differed from the report's, six places, the
-   report's word was taken with the user the same day; the user's reading of the guide and the
-   glossary closes the item, before the attack plan's phase 4 writes code in its names. Three
-   diagnostics say "return type" or "declared to return" where the report says result type;
-   they are text a user reads, not names, and change in the attack plan's phase 4 with the
-   defects, the tests and `test/diagnostics.md` with them.
+2. **The style guides and the glossary, a decision with the user**, done 2026-10-01 (the log's
+   *The Glossary Drafted*). [`style.md`](style.md)'s *Glossary* names the concepts several
+   modules name, one name each, the report's where it has one; in the six places the code
+   departed from the report, the report's word was taken with the user, and the user read the
+   guide and the glossary the same day. Items 6 and 15 correct it as they read the code name by
+   name, each area's commit carrying its change. Three diagnostics say "return type" or
+   "declared to return" where the report says result type; they are text a user reads, not
+   names, and change in the attack plan's phase 4 with the defects, the tests and
+   `test/diagnostics.md` with them.
 3. **The places the language made the review's work harder**, done 2026-10-01 (the log's *The
    Release Review's Harder Places*): of the fourteen lines of [`findings.md`](findings.md)
    marked `2.99b` that are not hardening, two are language feedback 75 and 76, decided in the
