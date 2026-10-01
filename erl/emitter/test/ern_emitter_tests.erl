@@ -3273,9 +3273,11 @@ tcp_write_waits_test() ->
 
 %% report §8.4, §7.4: a type variable of a foreign function's result that no
 %% parameter names matches no value, so a return that holds one faults, and
-%% an empty list of it passes; a function given to foreign code has the
-%% arguments it is called with checked. A regression test: the first was an
-%% unchecked cast, and the second let any value in (findings.md's S-H)
+%% an empty list of it passes, as does a value of a foreign type over it,
+%% which the check does not look into; a function given to foreign code has
+%% the arguments it is called with checked. A regression test: the first was
+%% an unchecked cast, and the second let any value in (findings.md's S-H);
+%% the foreign type's case was written after the code (findings.md's K-8)
 foreign_casts_and_callbacks_test() ->
     Run = fun(Decl, Body) ->
                   {R, _} = run(Decl ++ "export fn main() : Unit with Never = {\n"
@@ -3286,6 +3288,9 @@ foreign_casts_and_callbacks_test() ->
                  Run("foreign fn cast(n : Int) : a =\n    \"erlang:abs/1\"\n", "cast(1) + 1")),
     ?assertEqual(ok, Run("foreign fn none(xs : List(Int)) : List(a) =\n    \"erlang:tl/1\"\n",
                          "List.size(none([1]))")),
+    ?assertEqual(ok, Run("foreign type Handle(a)\n"
+                         "foreign fn handle() : Handle(a) =\n    \"erlang:make_ref/0\"\n",
+                         "handle()")),
     ?assertEqual({fault, <<"foreign argument does not match Int">>},
                  Run("foreign fn each(f : (Int) -> Int, xs : List(String)) : List(Int) =\n"
                      "    \"lists:map/2\"\n", "each(fn(n) = n + 1, [\"x\"])")).
