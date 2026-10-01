@@ -185,7 +185,7 @@ export fn help() : List(String) =
 /// does.
 export fn line(c : Command) : String = {
     let head = if String.isEmpty(c.placeholder) then c.name else c.name <> " " <> c.placeholder;
-    String.padEnd(":" <> head, column, ' ') <> c.about
+    String.padEnd(":" <> head, column, " ") <> c.about
 }
 
 // The column a help line's prose starts at, past the longest command and

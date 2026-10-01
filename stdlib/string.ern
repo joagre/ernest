@@ -177,31 +177,34 @@ export fn slice(s : String, from : Int, count : Int) : String =
 foreign fn part(s : String, from : Int, count : Int) : String =
     "ern_string:slice/3"
 
-/// The `Char` in front, as many times as the string is graphemes short of
-/// that length. A `Char` that begins no grapheme, a combining mark, joins
-/// the one beside it, and the string stays short.
+/// The pad's copies in front until the text has that many graphemes, the
+/// last copy cut to fit; an empty pad adds none. A pad that begins no
+/// grapheme, a combining mark, joins the grapheme beside it, and the text
+/// stays short.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// #(String.padStart("7", 3, '0'), String.padEnd("7", 3, '.'))
-/// // => #("007", "7..")
+/// #(String.padStart("7", 3, "0"), String.padEnd("7", 4, "ab"))
+/// // => #("007", "7aba")
 /// ```
 ///
 /// ```ernest
-/// String.size(String.padStart("ab", 4, '\u{301}'))
+/// String.size(String.padStart("ab", 4, "\u{301}"))
 /// // => 3
 /// ```
-export fn padStart(s : String, length : Int, c : Char) : String =
-    padding(s, length, c) <> s
+export fn padStart(text : String, target : Int, pad : String) : String =
+    padding(text, target, pad) <> text
 
-/// The `Char` at the end, as many times as the string is graphemes short
-/// of that length, as `padStart` adds it in front.
-export fn padEnd(s : String, length : Int, c : Char) : String =
-    s <> padding(s, length, c)
+/// The pad's copies at the end until the text has that many graphemes, as
+/// `padStart` puts them in front.
+export fn padEnd(text : String, target : Int, pad : String) : String =
+    text <> padding(text, target, pad)
 
-fn padding(s : String, length : Int, c : Char) : String =
-    repeat(Char.toString(c), length - size(s))
+fn padding(text : String, target : Int, pad : String) : String = {
+    let short = target - size(text);
+    slice(repeat(pad, short), 0, short)
+}
 
 /// The string `n` times; `n` below 0 gives the empty string.
 ///

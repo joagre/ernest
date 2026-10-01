@@ -221,9 +221,14 @@ string_test() ->
     ?assertEqual(<<"éll"/utf8>>, S:slice(<<"héllo"/utf8>>, 1, 3)),
     ?assertEqual(<<"lo">>, S:slice(<<"hello">>, 3, 10)),
     ?assertEqual(<<>>, S:slice(<<"hello">>, -1, -1)),
-    ?assertEqual(<<"007">>, S:padStart(<<"7">>, 3, $0)),
-    ?assertEqual(<<"7  ">>, S:padEnd(<<"7">>, 3, $\s)),
-    ?assertEqual(<<"hello">>, S:padStart(<<"hello">>, 3, $0)),
+    ?assertEqual(<<"007">>, S:padStart(<<"7">>, 3, <<"0">>)),
+    ?assertEqual(<<"7  ">>, S:padEnd(<<"7">>, 3, <<" ">>)),
+    ?assertEqual(<<"hello">>, S:padStart(<<"hello">>, 3, <<"0">>)),
+    %% report Appendix E.5: the pad is text, its copies cut to fit, and an
+    %% empty pad adds none (findings.md's P2-20)
+    ?assertEqual(<<"ab-7">>, S:padStart(<<"7">>, 4, <<"ab-">>)),
+    ?assertEqual(<<"7éaé"/utf8>>, S:padEnd(<<"7">>, 4, <<"éa"/utf8>>)),
+    ?assertEqual(<<"7">>, S:padStart(<<"7">>, 3, <<>>)),
     ?assertEqual(<<"ababab">>, S:repeat(<<"ab">>, 3)),
     ?assertEqual(<<>>, S:repeat(<<"ab">>, -1)),
     ?assertEqual(<<"a b">>, S:trim(<<" \ta b\n">>)),

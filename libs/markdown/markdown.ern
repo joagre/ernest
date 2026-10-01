@@ -836,7 +836,7 @@ fn itemRows(start : Optional(Int),
                  fn(#(label, item)) = match render(item, width - size, style) {
                      [] -> [label]
                    | first :: rest ->
-                         (String.padEnd(label, size, ' ') <> first)
+                         (String.padEnd(label, size, " ") <> first)
                              :: List.map(rest,
                                          fn(row) = if String.isEmpty(row) then
                                              row
