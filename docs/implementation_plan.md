@@ -277,7 +277,14 @@ principle 2's sentences, the fifth family's round 2 (2026-10-01, the log's *The 
 Rules*): parentheses after `|>` change nothing, `x |> (f(a))` being `f(x, a)` and a function a call
 computes applied in writing, `f(a)(x)`, in §5.7, the parser and the guide's page on the pipe; §2.5's
 float literal admits `decimal exponent`, `1e10`, and the lexer follows; and the shell generalizes a
-lambda bound by `let` at the prompt as §4.6 does, which it refuses as undetermined today.
+lambda bound by `let` at the prompt as §4.6 does, which it refuses as undetermined today. Under
+principle 3's sentences, the sixth family's round 2 (2026-10-01, the log's *The Compiled Family's
+Rules*): a doc block that documents nothing, above a `fn` in a block or second before the first
+declaration, is an error, which §2.2 states and the parser does not yet give, accepting both as
+comments; and two refusals of a sound program gain a help line in §11.5 and the checker, a
+recursive call at another type than the definition's naming §3.9's rule and a second function,
+and a reply-carrying value where it would be duplicated or discarded naming its three ways out,
+to answer it, to pass it on once, or to match it; `test/diagnostics.md` follows.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is

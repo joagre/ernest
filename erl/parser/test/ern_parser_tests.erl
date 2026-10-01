@@ -518,13 +518,6 @@ doc_comments_test() ->
     %% a doc comment inside an expression is a comment
     ?assertMatch([#fn_decl{doc = undefined, body = #e_block{}}],
                  ds("fn f() = {\n    /// not a doc\n    1\n}")),
-    %% the first block before the first declaration is the module's, a second
-    %% a comment, and so is one above a `fn` in a block; a regression test,
-    %% written after the code (findings.md's K-11, K-17)
-    ?assertMatch([#module_doc{text = <<"first">>}, #fn_decl{doc = undefined}],
-                 ds("/// first\n\n/// second\n\nfn inc(n) = n + 1")),
-    ?assertMatch([#fn_decl{doc = undefined, body = #e_block{}}],
-                 ds("fn f() = {\n    /// not a doc\n    fn g() = 1;\n    g()\n}")),
     %% and so is one above a lambda, which `fn` before a bracket opens; it
     %% had failed as an expression expected (regression test)
     ?assertMatch([#let_decl{body = #e_lambda{}}],
