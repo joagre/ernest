@@ -70,13 +70,15 @@ unended_paste() ->
                  lines(Screen)).
 
 %% report §8.2, Appendix E.16: where standard input is not a terminal a
-%% subscription is refused, and the program goes on to say so
+%% subscription is refused, and the program goes on to say so; where
+%% standard output is not one, the size is `Left(NotATerminal)`, a
+%% regression test of the rule of 2026-10-01, before which it was `None`
 not_a_terminal_test_() ->
     {timeout, 60, fun not_a_terminal/0}.
 
 not_a_terminal() ->
     ok = compile("terminal/probe.ern", "terminal"),
-    ?assertEqual({0, <<"no terminal\n">>},
+    ?assertEqual({0, <<"no terminal, no size\n">>},
                  sh("echo x | ../bin/ern run build/terminal/probe.erc")).
 
 %% report §11.2: at a terminal a fault line is as the reader watches it

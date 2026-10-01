@@ -235,8 +235,8 @@ export fn main() : Unit with ShellMsg = {
     // Where standard output has a size the reader asks for the keys, and
     // a refusal says that standard input is not a terminal (§8.2)
     let keys = match Terminal.size() {
-        None -> None
-      | Some(size) -> {
+        Left(_) -> None
+      | Right(size) -> {
             let reader = spawn(Local, fn() = reader(me));
             receive {
                 Ready -> Some(#(reader, size))
@@ -877,8 +877,8 @@ fn screenLoop(r : Shell.Region.Region) : Unit with ScreenMsg = {
       | Entered -> Shell.Region.entered(r)
       | Taken -> Shell.Region.taken(r)
       | Resize -> match Terminal.size() {
-            Some(size) -> Shell.Region.resized(r, size)
-          | None -> #(r, "")
+            Right(size) -> Shell.Region.resized(r, size)
+          | Left(_) -> #(r, "")
         }
       | Clear -> Shell.Region.cleared(r)
       | Height(rows) -> Shell.Region.output(r, rows)
@@ -1138,8 +1138,8 @@ fn rendered(text : String, width : Int, colour : Markdown.Output) : List(String)
 
 fn screenWidth() : Int with m =
     match Terminal.size() {
-        Some(Terminal.Size(columns = columns)) -> columns
-      | None -> 80
+        Right(Terminal.Size(columns = columns)) -> columns
+      | Left(_) -> 80
     }
 
 // Report §11.2: the candidates, a lone one too, a line each with the

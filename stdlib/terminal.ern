@@ -62,7 +62,7 @@ export type Event =
 // What the terminal takes.
 type Msg =
     Subscribe(to : Address(Event), reply : Reply(Either(Io.Error, Unit)))
-  | Measure(reply : Reply(Optional(Size)))
+  | Measure(reply : Reply(Either(Io.Error, Size)))
 
 // Report §8.2: the system reference, the runtime's address of the terminal,
 // bound at each start.
@@ -86,19 +86,19 @@ export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) with m = {
     Address.callForever(reference, fn(r) = Subscribe(to = to, reply = r))
 }
 
-/// The terminal's size now, and `None` where standard output is not a
-/// terminal or its size is unknown. A program that draws asks at each
-/// redraw and hears of a change as `Resized`.
+/// The terminal's size now, or `Left(Io.NotATerminal)` where standard
+/// output is not a terminal. A program that draws asks at each redraw and
+/// hears of a change as `Resized`.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// match Terminal.size() {
-///     None -> 24
-///   | Some(Terminal.Size(rows = rows)) -> rows
+///     Left(_) -> 24
+///   | Right(Terminal.Size(rows = rows)) -> rows
 /// }
 /// ```
-export fn size() : Optional(Size) with m =
+export fn size() : Either(Io.Error, Size) with m =
     Address.callForever(reference, fn(r) = Measure(reply = r))
 
 //

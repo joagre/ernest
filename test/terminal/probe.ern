@@ -13,13 +13,14 @@ export fn main() : Unit with Msg =
             Io.println("ready " <> sizeText());
             loop()
         }
-      | Left(_) -> Io.println("no terminal")
+      | Left(_) -> Io.println("no terminal, " <> sizeText())
     }
 
 fn sizeText() : String with m =
     match Terminal.size() {
-        None -> "no size"
-      | Some(Terminal.Size(rows = rows, columns = columns)) ->
+        Left(Io.NotATerminal) -> "no size"
+      | Left(_) -> "a size refused otherwise"
+      | Right(Terminal.Size(rows = rows, columns = columns)) ->
             Int.toString(rows) <> "x" <> Int.toString(columns)
     }
 

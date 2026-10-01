@@ -66,7 +66,7 @@ refusing() ->
                 false -> ern_rt:answer(Reply, {'Left', 'NotATerminal'})
             end;
         {'Measure', Reply} ->
-            ern_rt:answer(Reply, optional(size_now()));
+            ern_rt:answer(Reply, measured(size_now()));
         {new_run, Pid, Ref} ->
             %% report §6.9: where nothing is subscribed, a restart ends nothing
             Pid ! {Ref, fresh}
@@ -106,7 +106,7 @@ loop(Subscribers, Reader, Pending, Size) ->
             Pid ! {Ref, fresh},
             loop(Left, Reader, Pending, Size);
         {'Measure', Reply} ->
-            ern_rt:answer(Reply, optional(size_now())),
+            ern_rt:answer(Reply, measured(size_now())),
             loop(Subscribers, Reader, Pending, Size);
         {chars, Chars} ->
             {Decoded, Left} = more(Pending, Chars),
@@ -218,8 +218,10 @@ size_now() ->
         _ -> none
     end.
 
-optional(none) -> 'None';
-optional(Size) -> {'Some', Size}.
+%% Report Appendix E.16: the host has no size for a device that is not a
+%% terminal, and that is the one cause.
+measured(none) -> {'Left', 'NotATerminal'};
+measured(Size) -> {'Right', Size}.
 
 %% The reader runs once a program has asked for keys, and not before: a
 %% program that reads lines never leaves the terminal's line mode, and a

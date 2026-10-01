@@ -1607,7 +1607,7 @@ type Event =
     Key(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Escape | Interrupt
   | Pasted(String) | Resized(Size)
 Terminal.subscribe : ((Event) -> m) -> Either(Io.Error, Unit) with m // every key pressed and every resize from now on, wrapped, in the caller's mailbox; a second call replaces the first; Left(NotATerminal) where standard input is not a terminal
-Terminal.size : () -> Optional(Size) with m // the terminal's size now, None where standard output is not a terminal
+Terminal.size : () -> Either(Io.Error, Size) with m // the terminal's size now; Left(NotATerminal) where standard output is not a terminal
 type Colour = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
 type Style = Bold | Dim | Italic | Underline | Foreground(Colour)
 Terminal.styled : (String, Style) -> String // the text in the style

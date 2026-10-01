@@ -123,8 +123,8 @@ fn player(id : Int, game : Address(GameMsg)) : Unit with Terminal.Event =
 // line, and a size to fall back on where there is no terminal.
 fn board() : #(Int, Int) with m =
     match Terminal.size() {
-        None -> #(40, 20)
-      | Some(Terminal.Size(rows = rows, columns = columns)) -> #(Int.min(columns, 80), rows - 2)
+        Left(_) -> #(40, 20)
+      | Right(Terminal.Size(rows = rows, columns = columns)) -> #(Int.min(columns, 80), rows - 2)
     }
 
 //
