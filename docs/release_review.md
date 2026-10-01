@@ -9,4 +9,4 @@ What a release runs to be ready, and nothing else. Between releases a change run
    - **A newcomer:** N, with a program no earlier newcomer wrote.
    - **The code:** C, E and S as one reader, over what changed in `erl/`, `stdlib/`, `shell/` and `libs/` since the last release, or since the last full review where that is later.
 4. **The findings:** a defect is fixed, or planned in a milestone; clarity is fixed where it is cheap, and otherwise dropped.
-5. **The release:** `VERSION` set to the release's version; the notes, what changed since the last release and the newcomer's program; the tag; and the archive `make release` writes, `ern-VERSION.tar.gz`, published beside it.
+5. **The release:** `VERSION` set to the release's version; every exported declaration of `stdlib/` and `libs/` that appeared since the last release ending its doc block with its own `since` (Appendix E.0 shape rule 6); the notes, what changed since the last release and the newcomer's program; the tag; and the archive `make release` writes, `ern-VERSION.tar.gz`, published beside it.

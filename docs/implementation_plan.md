@@ -227,7 +227,10 @@ The readers ran on 2026-09-30, on `57b8356`, and their findings stand in
 [`attack_plan.md`](attack_plan.md)'s, seven phases: the principles' sentences, the sections'
 sentences, MVP 2.99b's items 1 to 3, the defects, the families' rules, the log, and the
 closure, after which the release review runs and Ernest 0.2.0 is tagged (decided 2026-10-01,
-the log's *A Release After the Review*), and MVP 2.99b resumes at item 4.
+the log's *A Release After the Review*), and MVP 2.99b resumes at item 4. The declarations
+the edits add to `stdlib/` and `libs/` keep their module's `since 0.1.0` until then, since no
+`since` may be newer than `VERSION`; the release sets both together, as the release review's
+step 5 says.
 
 **Gaps the sentences open**, each dated to the attack plan's phase 5, where the rule's code and
 its examples change together (the attack plan's rules of the road): under E.0's rules of
