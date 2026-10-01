@@ -66,7 +66,7 @@ on 2026-09-30 so that it comes before anything is built on the released code (th
 *Names Are the First Documentation*); how code written once works over several
 representations of one thing, decided here, after the first release (the log's *The
 Contract's Decision After the First Release*), over what [`operations.md`](operations.md)
-proposes and compares with type classes; and a program on one node run for days under a
+proposes and compares with type classes; and a program on one node run under a
 service manager, which was MVP 2.99c until the two milestones became one on 2026-09-30. It had
 moved from MVP 2.7 on 2026-09-27 (the log's *Running as a Service*), from MVP 3.0 on
 2026-09-28, since it needs no peer (the log's *MVP 3.0 Is Distributed Code and the Node
@@ -75,10 +75,11 @@ run in this order, each needing the ones before it (the log's *MVP 2.99b's Order
 trusted, then the namespace of two words, decided already and needing nothing before it, then
 every other decision, the operations' with what they build, since that changes no Erlang,
 then the Erlang renamed, then the rest of what is built, then the Ernest renamed over it, then
-the guide, and the soak last. The namespace moved from the tenth item to the fourth on
+the guide last. The namespace moved from the tenth item to the fourth on
 2026-10-01, items 4 to 9 becoming 5 to 10 (the log's *The Namespace Item First*); items 11
 and 12, the operations' build, joined item 5 on 2026-10-02, and their numbers stand (the
-log's *The Operations Decided and Built*).
+log's *The Operations Decided and Built*); item 17, the soak, was removed the same day,
+`make load` standing for it (the log's *MVP 2.99b Read After the Review*).
 The principles review, a milestone of its own below, ran between items 3 and 4, since the
 operations' decision, item 5, is decided under the principles it sharpens (decided
 2026-09-30, the log's *The Principles Review*).
@@ -116,7 +117,7 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    before the operations' decision on 2026-10-01, since it is decided, needs nothing before
    it, and gives that decision a file that exists (the log's *The Namespace Item First*).
 5. **The operations, decided and built**, decided with the user before anything of it is built
-   (language feedback 64, 69 to 71, and 73), and then built. Two parts were decided by the
+   (language feedback 64, 70 and 71), and then built. Two parts were decided by the
    principles review on 2026-10-01 (the log's *Members, Operators, and No Hidden Argument*): a
    type's operations are functions of its module, a member only an operator, `compare` or
    `negate`, which decides **when a type's operation is a member and when a module function**
@@ -178,9 +179,11 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    holds the bytes is found by sampling the reaper's `monitored_by` and its collection's figures
    at such a round, its stack ruled out (nine words), and the measure counts what holds a wait
    and nothing else.
-9. **The runtime's part of running as a service**: what item 6's decisions build, and
-   standard error on a full or failing disk ending the run with status 141, as §8.2 says;
-   beside item 8, in the same code.
+9. **The runtime's part of running as a service**: what item 6's decisions build, and a
+   stream on a full or failing device ending the program, as §8.2 says, with status 141, as
+   §11.8 says. On 2026-10-02 a program whose standard error was `/dev/full` lost the line, ran
+   on and exited with status 0, and so did one whose standard output was. Beside item 8, in the
+   same code.
 10. **A service manager's checks**: a systemd unit, start and stop, a stop asked for ending the
     program by its signal, `Restart=on-failure` after a program ends with `Os.exit(1)`, and the
     journal showing fault lines without a doubled time; and a launchd plist on macOS, with the
@@ -188,20 +191,19 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
 11. **`set.ern` over its record**: joined item 5 on 2026-10-02 (the log's *The Operations
     Decided and Built*).
 12. **`OrderedSet` in the standard library**: joined item 5 on 2026-10-02.
-13. **The boundary at a type variable** (`Io.debug` goes through `Io` since 2026-10-01; the shown restriction of
-    2026-09-29 was refused on 2026-10-01, the log's *A Value Shows Itself at a Known Type*:
-    `Io.show` on a type variable is a type error, as an operator is, and takes no hidden
-    argument, so `fn wrap(x) = Io.show(x)` is refused and shows at its caller). `Io.debug`
-    stays a primitive resolved at its call as `Io.show` is, since a function applying `Io.show`
-    at a type variable is refused (Appendix E.1, 2026-10-01); its shim writes through `Io`'s
-    stream process to standard error. A foreign function's result at a type variable its parameters name, which §8.4 lets
-    through unchecked, is decided here under §4.8's rule of no hidden argument: a check where
-    the function is instantiated at a known type, or the trust stated (R-2, placed here
-    2026-10-01); and `Foreign.from` exposes its
-    value at the caller's type, a proxy for each address in it and a check for each function,
-    as a foreign function's argument is (C1-4, decided with the user 2026-09-30).
+13. **The boundary at a type variable**, what remains of it. A foreign function's result at a
+    type variable its parameters name, which §8.4 lets through unchecked, is decided under
+    §4.8's rule of no hidden argument: a check where the function is instantiated at a known
+    type, or the trust stated (R-2, placed here 2026-10-01). On 2026-10-02 `foreign fn weird(x
+    : a) : a = "erlang:length/1"` applied to a list was accepted and faulted inside `List.size`
+    with the host's `case_clause` and its stack. And `Foreign.from` exposes its value at the
+    caller's type, a proxy for each address in it and a check for each function, as a foreign
+    function's argument is (C1-4, decided with the user 2026-09-30). The rest was done by the
+    principles review's edits: `Io.show` and `Io.debug` on a type variable are refused, and
+    `Io.debug` writes through `Io`'s stream process to standard error (the log's *A Value Shows
+    Itself at a Known Type*).
 14. **The built-in operators as shims** (`findings.md`'s R-27, decided with the user
-    2026-09-30): each operator §9.6 gives `Int`, `Float`, `String`, `List` and `Bytes`, their
+    2026-09-30): each operator §9.6 gives `Int`, `Float`, `String` and `Bytes`, their
     `negate`, and the `compare` of `Int`, `Float`, `String` and `Char` become a `foreign fn`
     over the host's operation, or over a helper in the runtime's Erlang where the host has
     none of the shape, `String.<>` and the `compare`s, since the operation is the host's alone
@@ -219,13 +221,14 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
 16. **The guide's §7.3**, over the finished code and its names: it says "operations record"
     and shows code written once, a representation's own functions beside the record's, two
     ordered sets of two orders, two element types, that cannot meet in `Set.unionWith`, and
-    values of several representations in one list, and §7.2 states item 5's rule for a type's
-    operations. Its examples compile and run under the guide's checks. What Ernest cannot
-    express goes to [`language_feedback.md`](language_feedback.md) and is decided with the user
-    before the section goes around it. The guide's §7.3 was decided 2026-09-28 (the log's *§7.3 Written
-    Around an Ordered Set*).
-17. **A soak of hours**, last, since it measures all the rest: `examples/webserver.ern` under
-    steady requests, measured as [`memory.md`](memory.md) says.
+    values of several representations in one list. Its examples compile and run under the
+    guide's checks. What Ernest cannot express goes to
+    [`language_feedback.md`](language_feedback.md) and is decided with the user before the
+    section goes around it. The guide's §7.3 was decided 2026-09-28 (the log's *§7.3 Written
+    Around an Ordered Set*); §7.2 states the rule for a type's operations since the principles
+    review's edits.
+17. **A soak of hours**: removed on 2026-10-02; `make load` stands for it (the log's *MVP
+    2.99b Read After the Review*).
 18. **Two library shapes the log's reasons left open**, done 2026-10-01 (the log's *The Key
     and the Hard Link*): `Map.mergeWith`'s function takes the key, as Erlang's `maps:merge_with`
     and OCaml's `Map.union` pass it (principle 1, E.3), and `Fs.makeHardLink` makes a hard link,
@@ -243,7 +246,7 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     module, and `spawnMonitored` with `Unknown`. Each is decided as item 3 decided the first
     release's fourteen: a report change, a "Later" entry, or a line that it was weighed and
     left alone, with the user one at a time; about two days, after item 5, whose decision
-    entries 64 to 73 wait on. With it `language_feedback.md` holds no entry and `findings.md`
+    entries 64, 70 and 71 wait on. With it `language_feedback.md` holds no entry and `findings.md`
     goes (the log's *Both Lists Close With MVP 2.99b*).
 
 ---
