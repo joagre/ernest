@@ -47,7 +47,7 @@ start({'Command', Arguments, Input, Program}, Ms, Owner, Reply) ->
     Timer = arm(Deadline),
     case lists:any(fun(A) -> binary:match(A, <<0>>) =/= nomatch end, [Program | Arguments]) of
         true ->
-            answered(Reply, {'Left', {'Other', <<"an argument holds U+0000">>}});
+            answered(Reply, {'Left', 'Invalid'});
         false ->
             try open(["run"]) of
                 Port ->
@@ -58,7 +58,7 @@ start({'Command', Arguments, Input, Program}, Ms, Owner, Reply) ->
                     command(Port, <<"c", Parts/binary>>),
                     started(Port, Input, {Deadline, Timer}, Owner, Reply)
             catch
-                error:_ -> answered(Reply, {'Left', helper_failed()})
+                error:_ -> answered(Reply, helper_failed())
             end
     end.
 
@@ -76,9 +76,11 @@ started(Port, Input, {Deadline, Timer}, Owner, Reply) ->
              Reply).
 
 %% The Io.Error of a helper that failed, Os's and Fs's alike.
--spec helper_failed() -> {'Other', binary()}.
+%% Report §7.4, Appendix E.23: the helper's failure is the runtime's own,
+%% which faults the caller that meets it.
+-spec helper_failed() -> {fault, binary()}.
 helper_failed() ->
-    {'Other', <<"the runtime's helper ern_exec failed">>}.
+    {fault, <<"the runtime's helper ern_exec failed">>}.
 
 %% The helper beside the runtime's modules: erl/runtime/priv/ern_exec, whose
 %% jobs are Os's programs and Fs's removal of a tree.
@@ -107,7 +109,7 @@ starting(#{port := Port, deadline := Deadline} = Run, Reply) ->
             answered(Reply, {'Left', not_started(Name)});
         {Port, {exit_status, _}} ->
             stop(Run),
-            answered(Reply, {'Left', helper_failed()});
+            answered(Reply, helper_failed());
         {'DOWN', _, process, _, _} ->
             killed(Run);
         {timeout, _, deadline} = Tick ->
@@ -154,8 +156,8 @@ running(#{port := Port} = Run, Waiting) ->
         {Port, {exit_status, _}} ->
             %% the helper ended with no status to send: it failed
             stop(Run),
-            unwritten(Run, {'Left', helper_failed()}),
-            over(Waiting, {'Left', helper_failed()});
+            unwritten(Run, helper_failed()),
+            over(Waiting, helper_failed());
         {'DOWN', _, process, _, _} ->
             killed(Run);
         {timeout, _, deadline} = Tick ->
@@ -182,7 +184,7 @@ written($d) -> {'Left', 'Closed'}.
 %% dropped, and each is answered that its input is closed, or why the
 %% runtime lost the program.
 unwritten(#{writes := Writes}, Answer) ->
-    [ern_rt:answer(R, Answer) || R <- queue:to_list(Writes), R =/= none],
+    [respond(R, Answer) || R <- queue:to_list(Writes), R =/= none],
     ok.
 
 piece($o, Bytes) -> {'Stdout', Bytes};
@@ -204,8 +206,8 @@ over(Waiting, Answer) ->
 
 over(Answer) ->
     receive
-        {'Read', Reply} -> ern_rt:answer(Reply, Answer);
-        {'Write', _, Written} -> ern_rt:answer(Written, unwritable(Answer)), over(Answer);
+        {'Read', Reply} -> respond(Reply, Answer);
+        {'Write', _, Written} -> respond(Written, unwritable(Answer)), over(Answer);
         'CloseInput' -> over(Answer);
         {'DOWN', _, process, _, _} -> exit({ern, killed})
     end.
@@ -241,8 +243,12 @@ stop(#{port := Port, timer := Timer}) ->
 %% The last answer while the program counts as a source, given before the
 %% count ends, so that no deadlock is found between the two (report §8.6).
 answered(Reply, Answer) ->
-    ern_rt:answer(Reply, Answer),
+    respond(Reply, Answer),
     ern_rt:source_end().
+
+%% An answer, or the caller faulted where the runtime failed.
+respond(Reply, {fault, Cause}) -> ern_rt:refuse(Reply, Cause);
+respond(Reply, Answer) -> ern_rt:answer(Reply, Answer).
 
 %% The process that started the program died: the program is killed with
 %% this process, which ends as a killed process does.

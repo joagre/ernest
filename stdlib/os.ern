@@ -169,9 +169,10 @@ export foreign fn exit(status : Int) : a with m =
 /// are still in its process group. It answers `Left(NotFound)` when the
 /// program is not found, `Left(Denied)` when it may not be run,
 /// `Left(Timeout)` when `ms` milliseconds pass before it has started,
-/// `Left(Other("an argument holds U+0000"))` for a name or an argument no
-/// program could be given, and `Left(Other(text))`, the host's reason, when
-/// it cannot start for another.
+/// `Left(Invalid)` for a name or an argument no program could be given, and
+/// `Left(Other(text))`, the host's reason, when it cannot start for another.
+/// Where the runtime's helper fails, the caller faults with `Fault("the
+/// runtime's helper ern_exec failed")`, the runtime's own failure.
 ///
 /// ### Examples
 ///
@@ -234,8 +235,8 @@ export fn read(program : Address(ProgramMsg)) : Either(Io.Error, Output) with m 
 ///
 /// Bytes given after `Os.closeInput`, or once the program has closed its
 /// input or has exited, are dropped, and the write answers `Left(Closed)`.
-/// It answers `Left(Other(text))` when the runtime loses the program for a
-/// reason of the host's. A write after the program's process has ended
+/// Where the runtime's helper fails, the writer faults, as `Os.start`'s
+/// caller does. A write after the program's process has ended
 /// faults as `Address.callForever` does.
 ///
 /// ### Examples
@@ -274,8 +275,8 @@ export fn closeInput(program : Address(ProgramMsg)) : Unit with m =
 /// It answers the exit status and all the program wrote to its standard
 /// output and to its standard error, or why it did not run to its end, as
 /// `Os.start` and `Os.read` answer it: `Left(NotFound)`, `Left(Denied)`,
-/// `Left(Other(text))`, and `Left(Timeout)` when the milliseconds pass
-/// first.
+/// `Left(Invalid)`, `Left(Other(text))`, and `Left(Timeout)` when the
+/// milliseconds pass first.
 ///
 /// ### Examples
 ///

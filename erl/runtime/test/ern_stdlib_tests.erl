@@ -616,7 +616,7 @@ fs_named_pipe_test() ->
                            Me ! {fs, F:read(P("."), 1000)},
                            Me ! {fs, F:read(P("plain"), 1000)}
                        end, <<"fs_named_pipe_test">>, #{})),
-    Refused = {'Left', {'Other', <<"not a regular file">>}},
+    Refused = {'Left', 'NotAFile'},
     ?assertEqual(lists:duplicate(6, Refused) ++ [{'Right', <<"hi">>}], collect(fs, [])),
     file:del_dir_r(Dir).
 
@@ -670,8 +670,8 @@ fs_list_dangling_link_test() ->
 
 %% report Appendix E.17: a link made to a path is read back as it was
 %% written; `stat` follows it and `list` does not; `remove` takes the link
-%% and leaves what it leads to; a link where something is is answered in
-%% words, and a read of what is no link with None. Written with the code
+%% and leaves what it leads to; a link where something is is answered
+%% `Exists`, and a read of what is no link with None. Written with the code
 %% (language feedback 65); a link's target that is not UTF-8 is not
 %% covered, since a test cannot make one where the host's names are UTF-8
 fs_links_test() ->
@@ -700,7 +700,7 @@ fs_links_test() ->
     ?assertEqual([{<<"shelf">>, 'Directory'}, {<<"to_shelf">>, 'Link'}],
                  lists:sort([{filename:basename(Path), K}
                              || {'Entry', K, _, {'Path', Path}, _} <- Entries])),
-    ?assertEqual({'Left', {'Other', <<"exists">>}}, Again),
+    ?assertEqual({'Left', 'Exists'}, Again),
     ?assertEqual({'Right', 'None'}, NotLink),
     ?assertEqual({'Right', 'Unit'}, Removed),
     {'Right', Kept} = After,
@@ -709,8 +709,9 @@ fs_links_test() ->
     file:del_dir_r(Dir).
 
 %% report Appendix E.17: `readRange` reads a part of a file, fewer bytes at
-%% its end and none past it, a regular file only, and refuses a negative
-%% offset or count in words. Written with the code (MVP 2.98); the counts and
+%% its end and none past it, a regular file only, and an offset or a count
+%% below 0 is none (§7.4, a regression test of the rule of 2026-10-01, which
+%% refused one in words). Written with the code (MVP 2.98); the counts and
 %% the offset past what the host can hold are a regression test, since the
 %% host made room for the count first and answered `Other("not enough
 %% memory")` or `Other("invalid argument")`
@@ -725,14 +726,14 @@ fs_read_range_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            [Me ! {fs, F:readRange(P, O, N, 1000)}
-                            || {O, N} <- [{0, 2}, {4, 9}, {6, 1}, {9, 1}, {1, 0}, {-1, 2},
+                            || {O, N} <- [{0, 2}, {4, 9}, {6, 1}, {9, 1}, {1, 0}, {-1, 2}, {1, -1},
                                           {2, 1 bsl 62}, {3, 1 bsl 80}, {1 bsl 80, 1}]],
                            Me ! {fs, F:readRange({'Path', list_to_binary(Dir)}, 0, 1, 1000)}
                        end, <<"fs_read_range_test">>, #{})),
     ?assertEqual([{'Right', <<"ab">>}, {'Right', <<"ef">>}, {'Right', <<>>}, {'Right', <<>>},
-                  {'Right', <<>>}, {'Left', {'Other', <<"a negative offset or count">>}},
+                  {'Right', <<>>}, {'Right', <<"ab">>}, {'Right', <<>>},
                   {'Right', <<"cdef">>}, {'Right', <<"def">>}, {'Right', <<>>},
-                  {'Left', {'Other', <<"not a regular file">>}}],
+                  {'Left', 'NotAFile'}],
                  collect(fs, [])),
     file:del_dir_r(Dir).
 
@@ -763,7 +764,7 @@ fs_create_remove_all_modified_test() ->
                        end, <<"fs_create_remove_all_modified_test">>, #{})),
     [Made, Taken, Kept, Removed, Set, Stat] = collect(fs, []),
     ?assertEqual({'Right', 'Unit'}, Made),
-    ?assertEqual({'Left', {'Other', <<"exists">>}}, Taken),
+    ?assertEqual({'Left', 'Exists'}, Taken),
     ?assertEqual({'Right', <<"a">>}, Kept),
     ?assertEqual({'Right', 'Unit'}, Removed),
     ?assertNot(filelib:is_file(filename:join(Dir, "tree"))),

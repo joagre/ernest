@@ -27,19 +27,18 @@ serve(Msg) ->
             handle(Msg);
         _ ->
             [Reply] = [R || R <- Fields, is_reference(R)],
-            ern_rt:answer(Reply, {'Left', {'Other', <<"a path holds U+0000">>}})
+            ern_rt:answer(Reply, {'Left', 'Invalid'})
     end.
 
 handle({'ReadFile', Path, Reply}) ->
     Name = text(Path),
     answer(Reply, regular(Name, fun() -> file:read_file(Name, [raw]) end));
 %% Report Appendix E.17: a part of a file, read where it lies, without
-%% holding the rest; fewer bytes at its end, and none past it.
-handle({'ReadRange', Count, Offset, _Path, Reply}) when Count < 0; Offset < 0 ->
-    ern_rt:answer(Reply, {'Left', {'Other', <<"a negative offset or count">>}});
+%% holding the rest; fewer bytes at its end, and none past it. Report §7.4:
+%% an offset or a count below 0 is none.
 handle({'ReadRange', Count, Offset, Path, Reply}) ->
     Name = text(Path),
-    answer(Reply, regular(Name, fun() -> range(Name, Offset, Count) end));
+    answer(Reply, regular(Name, fun() -> range(Name, max(Offset, 0), max(Count, 0)) end));
 handle({'WriteFile', Bytes, Path, Reply}) ->
     Name = text(Path),
     answer(Reply, regular_or_none(Name, fun() -> unit(file:write_file(Name, Bytes, [raw])) end));
@@ -51,7 +50,8 @@ handle({'AppendFile', Bytes, Path, Reply}) ->
 handle({'ListDir', Path, Reply}) ->
     Dir = text(Path),
     answer(Reply, case file:list_dir_all(Dir) of
-                      {ok, Names} -> entries(Dir, lists:sort(utf8_names(Names)));
+                      {ok, Names} -> named_entries(Dir, lists:sort(lists:map(fun name_bytes/1,
+                                                                             Names)));
                       Error -> Error
                   end);
 handle({'Stat', Path, Reply}) ->
@@ -81,7 +81,10 @@ handle({'Remove', Path, Reply}) ->
 %% that a directory replaced by a link while it runs leads it nowhere else;
 %% Erlang's file module has no operation relative to an open directory.
 handle({'RemoveAll', Path, Reply}) ->
-    ern_rt:answer(Reply, removed_by_helper(text(Path)));
+    case removed_by_helper(text(Path)) of
+        {fault, Cause} -> ern_rt:refuse(Reply, Cause);
+        Answer -> ern_rt:answer(Reply, Answer)
+    end;
 handle({'Rename', From, Reply, To}) ->
     answer(Reply, unit(file:rename(text(From), text(To))));
 %% Report Appendix E.17: the link at the path, holding the target as it is
@@ -182,12 +185,19 @@ unit(Other) -> Other.
 
 text({'Path', Bin}) -> Bin.
 
-%% Report Appendix E.17: a name that is not UTF-8 is left out. The host
-%% gives a name decoded where its names are UTF-8, and one that is not as
-%% its bytes; where they are not, it gives every name's bytes.
-utf8_names(Names) ->
-    [Bytes || Bytes <- lists:map(fun name_bytes/1, Names),
-              is_binary(unicode:characters_to_binary(Bytes, utf8, utf8))].
+%% Report Appendix E.17, §8.2: a name that is not UTF-8 is no Path, so the
+%% list answers NotUtf8 with the first such, in the order of their bytes.
+named_entries(Dir, Names) ->
+    case [Bytes || Bytes <- Names, not is_utf8(Bytes)] of
+        [] -> entries(Dir, Names);
+        [First | _] -> {error, {not_utf8, First}}
+    end.
+
+is_utf8(Bytes) ->
+    is_binary(unicode:characters_to_binary(Bytes, utf8, utf8)).
+
+%% The host gives a name decoded where its names are UTF-8, and one that is
+%% not as its bytes; where they are not, it gives every name's bytes.
 
 name_bytes(Name) when is_binary(Name) -> Name;
 name_bytes(Name) ->
@@ -228,9 +238,9 @@ kind(_) -> 'Other'.
 
 %% Report Appendix E.17: a link's target is a Path, whose text is UTF-8.
 utf8_target(Bytes) ->
-    case unicode:characters_to_binary(Bytes, utf8, utf8) of
-        Text when is_binary(Text) -> {ok, {'Some', {'Path', Text}}};
-        _ -> {error, target_not_utf8}
+    case is_utf8(Bytes) of
+        true -> {ok, {'Some', {'Path', Bytes}}};
+        false -> {error, {not_utf8, Bytes}}
     end.
 
 %% A file created whose write failed is removed, so that none is left.
@@ -242,9 +252,9 @@ gone(Name, Error) ->
 floor_div(A, B) when A >= 0 -> A div B;
 floor_div(A, B) -> -((-A + B - 1) div B).
 
-%% report Appendix E.1: Io.Error = NotFound | Denied | Refused | Closed | Timeout
-%% | Other(String)
-%% The helper's job `remove` run on the path: Right(Unit) once it is gone.
+%% The helper's job `remove` run on the path: Right(Unit) once it is gone,
+%% and the runtime's own failure, which faults the caller, where the helper
+%% fails (report §7.4, Appendix E.17).
 removed_by_helper(Name) ->
     try erlang:open_port({spawn_executable, ern_os:helper()},
                          [{args, ["remove"]}, {packet, 4}, binary, exit_status]) of
@@ -253,10 +263,10 @@ removed_by_helper(Name) ->
             receive
                 {Port, {data, <<"d">>}} -> {'Right', 'Unit'};
                 {Port, {data, <<"f", Error/binary>>}} -> {'Left', removal_error(Error)};
-                {Port, {exit_status, _}} -> {'Left', ern_os:helper_failed()}
+                {Port, {exit_status, _}} -> ern_os:helper_failed()
             end
     catch
-        error:_ -> {'Left', ern_os:helper_failed()}
+        error:_ -> ern_os:helper_failed()
     end.
 
 %% The helper's name for an error, described as the file module's errors
@@ -272,7 +282,8 @@ io_error(enoent) -> 'NotFound';
 io_error(eacces) -> 'Denied';
 io_error(eperm) -> 'Denied';
 io_error(econnrefused) -> 'Refused';
-io_error(not_regular) -> {'Other', <<"not a regular file">>};
-io_error(eexist) -> {'Other', <<"exists">>};
-io_error(target_not_utf8) -> {'Other', <<"the target is not UTF-8">>};
+%% Report Appendix E.1: Io.Error's constructors for what the host names
+io_error(not_regular) -> 'NotAFile';
+io_error(eexist) -> 'Exists';
+io_error({not_utf8, Bytes}) -> {'NotUtf8', Bytes};
 io_error(Reason) -> ern_io:other(Reason, fun file:format_error/1).

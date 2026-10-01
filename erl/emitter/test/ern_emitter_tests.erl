@@ -2840,11 +2840,11 @@ os_run_signal_status_test() ->
     ?assertEqual(<<"143|Some(\"\")|Some(\"\")\n">>, Out).
 
 %% Appendix E.23: NotFound for a program not found, Denied for one that may
-%% not be run, and a named cause for an argument no program could be given
+%% not be run, and Invalid for an argument no program could be given
 os_run_refusals_test() ->
     ?assertEqual({ok, <<"NotFound\n">>}, os_run("\"no-such-program-ern\"", "[]", "<<>>", "5000")),
     ?assertEqual({ok, <<"Denied\n">>}, os_run("\"/dev/null\"", "[]", "<<>>", "5000")),
-    ?assertEqual({ok, <<"Other(\"an argument holds U+0000\")\n">>},
+    ?assertEqual({ok, <<"Invalid\n">>},
                  os_run("\"echo\"", "[\"a\\u{0}b\"]", "<<>>", "5000")).
 
 %% Appendix E.23: Timeout when the time runs out first, and the program,
@@ -2872,12 +2872,12 @@ os_run_dies_with_its_caller_test() ->
     timer:sleep(1500),
     ?assertNot(filelib:is_file(Mark)).
 
-%% Appendix E.17: a path that holds U+0000 names no file, and says so. A
+%% Appendix E.17: a path that holds U+0000 names no file, `Invalid`. A
 %% regression test for the host's own term, badarg, answered as the cause
 fs_path_with_nul_test() ->
     {ok, Out} = run("export fn main() : Unit with Never =\n"
                     "    Io.println(Io.show(Fs.read(Path(\"a\\u{0}b\"), 1000)))\n"),
-    ?assertEqual(<<"Left(Other(\"a path holds U+0000\"))\n">>, Out).
+    ?assertEqual(<<"Left(Invalid)\n">>, Out).
 
 %% report §8.6, Appendix E.23: a program running is a source, so a caller
 %% that only waits for it is in no deadlock
@@ -3044,9 +3044,11 @@ os_arguments_test() ->
                  run(['M'], Main, #{arguments => [<<"a">>, <<"b c">>, <<"--x">>]})),
     ?assertEqual({ok, <<"[]\n">>}, run(Main)).
 
-%% Appendix E.17: a name in a directory that is not UTF-8 is left out of
-%% Fs.list; a regression test for the host's warning printed in its place
-fs_list_leaves_out_names_not_utf8_test() ->
+%% Appendix E.17, §8.2: a name in a directory that is not UTF-8 makes
+%% Fs.list answer NotUtf8 with its bytes; a regression test for the host's
+%% warning printed in its place, and of the rule of 2026-10-01, before which
+%% the name was left out
+fs_list_names_a_name_not_utf8_test() ->
     Dir = scratch(),
     ok = file:write_file(<<(list_to_binary(Dir))/binary, "/caf", 16#e9>>, <<>>),
     ok = file:write_file(filename:join(Dir, "ok"), <<>>),
@@ -3056,7 +3058,7 @@ fs_list_leaves_out_names_not_utf8_test() ->
                      "        fn(e) = Path.name(e.path))))\n"
                      "  | Left(e) -> Io.println(Io.show(e))\n"
                      "}\n"]),
-    ?assertEqual(<<"[\"ok\"]\n">>, Out).
+    ?assertEqual(<<"NotUtf8(<<99, 97, 102, 233>>)\n">>, Out).
 
 %% report §6.9: a wait on a process is kept while its waiter lives: a
 %% watcher that ends takes its waits with it, and a process that ends

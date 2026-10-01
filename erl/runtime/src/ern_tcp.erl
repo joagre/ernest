@@ -54,11 +54,11 @@ opened(Tcp, Loop, Site) ->
 listen(Tcp, Host, Port, Reply) ->
     Answer = case {in_range(Port), address(Host)} of
                  {false, _} ->
-                     {'Left', {'Other', <<"port out of range">>}};
+                     {'Left', 'Invalid'};
                  {true, {error, Reason}} ->
                      {'Left', io_error(Reason)};
-                 {true, {refused, Why}} ->
-                     {'Left', {'Other', Why}};
+                 {true, invalid} ->
+                     {'Left', 'Invalid'};
                  {true, {ok, Address}} ->
                      Options = [binary, {active, false}, {reuseaddr, true}, {packet, raw},
                                 {ip, Address} | family(Address)],
@@ -82,7 +82,7 @@ in_range(Port) ->
 address(Host) ->
     case binary:match(Host, <<0>>) of
         nomatch -> named(unicode:characters_to_list(Host));
-        _ -> {refused, <<"a host holds U+0000">>}
+        _ -> invalid
     end.
 
 named(Name) ->
@@ -114,7 +114,7 @@ connect(Tcp, Host, Port, Deadline, Owner, Reply) ->
     Try = fun() ->
               case {in_range(Port), address(Host)} of
                   {false, _} ->
-                      {refused, <<"port out of range">>};
+                      invalid;
                   {true, {ok, Address}} ->
                       %% report Appendix E.18: the address the host names, of
                       %% its own family, IPv6's included
@@ -143,8 +143,8 @@ attempt(Tcp, Try, Deadline, Owner, Reply, Site) ->
                      end;
                  {error, Reason} ->
                      {'Left', io_error(Reason)};
-                 {refused, Why} ->
-                     {'Left', {'Other', Why}}
+                 invalid ->
+                     {'Left', 'Invalid'}
              end,
     case Answer of
         again ->

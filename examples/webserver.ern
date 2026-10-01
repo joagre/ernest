@@ -192,6 +192,10 @@ fn errorText(e : Io.Error) : String =
       | Io.Closed -> "closed"
       | Io.Timeout -> "timed out"
       | Io.NotATerminal -> "not a terminal"
+      | Io.NotAFile -> "not a regular file"
+      | Io.Exists -> "exists"
+      | Io.NotUtf8(_) -> "not UTF-8"
+      | Io.Invalid -> "invalid argument"
       | Io.Other(text) -> text
     }
 

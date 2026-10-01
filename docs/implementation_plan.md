@@ -224,18 +224,15 @@ closure, after which the release review runs and Ernest 0.2.0 is tagged (decided
 the log's *A Release After the Review*), and MVP 2.99b resumes at item 4.
 
 **Gaps the sentences open**, each dated to the attack plan's phase 5, where the rule's code and
-its examples change together (the attack plan's rules of the road): under §7.4's opening of
-2026-10-01, `Io.Error` carries causes the report
-names as text in `Other` (E.1, E.17, E.18, E.23). Under E.0 shape rule 8's restatement of
+its examples change together (the attack plan's rules of the road): under E.0 shape rule 8's restatement of
 2026-10-01, `Tcp.write`, `Os.write` and `Os.read` take no milliseconds for a wait on another
 party, and `Os.start` takes milliseconds that bound a run and not a request (E.18, E.23). Under E.0's rules of
 2026-10-01, `List.<>` is a shim by §9.6 where a list is the language's; `Terminal`'s
 builders write a published specification, ECMA-48, in a standard library module (E.16);
 `Optional.orElse`, `Either.orElse` and `Char.isAsciiDigit` stand though no rule admits them;
 and `Udp` waited on a count, dated by the tenth family to MVP 3.2 as a module of Appendix E (the log's *`Clock.monotonic` Is In, and `Udp` Is
-Placed*). Under §8.2's *Text from the host* of 2026-10-01, `Fs.list` leaves out an
-entry whose name is not UTF-8 and `Os.environment` a variable whose name or value is not
-(E.17, E.23). Under §6.9's ownership sentence of 2026-10-01, a listener belongs to no one
+Placed*). Under §8.2's *Text from the host* of 2026-10-01, `Os.environment` leaves out a
+variable whose name or value is not UTF-8 (E.23). Under §6.9's ownership sentence of 2026-10-01, a listener belongs to no one
 and lives until the program ends, and a program the runtime started cannot be given (E.18,
 E.23). Under §3.9's sentence of 2026-10-01, each restriction prints with its mark,
 and a process-only variable prints without one, §11.5 saying so and giving no spelling: the
@@ -248,9 +245,7 @@ where it is the library's foreign type `Foreign.Term` of Appendix E.12, which ke
 Appendix D's code and the shims change with it. The read-back of the sixteen sentences
 (2026-10-01, the log's *The Sixteen Sentences Read Back*) adds: `via(f, addr)` takes its
 function before its subject (§9.5, shape rule 1); every `spawn` writes `Local` (§6.2,
-principle 5); `Fs.readRange` answers `Left` for a negative
-count where §7.4 says none (E.17); `Fs.list` leaves out a name, which E.17 now answers with
-`Left(NotUtf8(name))`, and `Os.environment` a variable, where the seventh family (2026-10-01, the
+principle 5); and `Os.environment` leaves out a variable, where the seventh family (2026-10-01, the
 log's *The Silence Family's Rules*) makes it a function, `Os.environment(name) : Optional(String)`,
 `None` for no such variable and a fault of the asker for a value that is not UTF-8, the
 environment read once at the start and decoded at the asking, its two callers in the shell
@@ -260,10 +255,7 @@ moves the negative zero's normalization in the emitter from every float operatio
 that can make one, `*`, `/`, negation and the entries, since under round to nearest a sum or a
 difference of operands that are not negative zero is never one; with a test that `-5.0 + 5.0`
 and `-1.0e-200 * 1.0e-200` show `0.0`. Under §7.4's opening, the third family's round 2 (2026-10-01,
-the log's *The Failure Family's Rules*): `Io.Error` gains `Exists`, `NotAFile`, `NotUtf8(Bytes)`
-and `Invalid`, which E.17's, E.18's and E.23's named `Other` texts become, `Other` holding the
-host's description alone, and the helper `ern_exec` failing to start faults `Os.start` and
-`Fs.removeAll` as it faults `Os.environment`, the runtime's own failure; a call to a socket or
+the log's *The Failure Family's Rules*): a call to a socket or
 a listener the program closed faults with `Fault("callee was closed")`, in §6.6, §7.4 and E.18;
 and `Path.name` answers `Optional(String)`, `None` for the root, its five callers following. Under §6.9's
 ownership sentence, the eighth family's round 2 (2026-10-01, the log's *The Owner Family's

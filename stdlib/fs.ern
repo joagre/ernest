@@ -5,8 +5,8 @@
 /// not undo the request: a write, a rename or a removal may still take
 /// place. A path is a `Path`, which `Path` builds and takes apart; a
 /// relative one names a file under `Os.workingDirectory`, and one that
-/// holds U+0000 names none, `Left(Io.Other("a path holds U+0000"))`. A name
-/// that is not UTF-8 is left out of `list`. `Io.Other` holds the host's
+/// holds U+0000 names none, `Left(Io.Invalid)`. A name that is not UTF-8
+/// makes `list` answer `Left(Io.NotUtf8(name))`. `Io.Other` holds the host's
 /// description of a reason it has no constructor for, `"illegal operation
 /// on a directory"` or `"not a directory"` (report Appendix E.1).
 ///
@@ -88,8 +88,8 @@ export fn read(path : Path, ms : Int) : Either(Io.Error, Bytes) with m =
 
 /// Up to `count` octets of the file from `offset`, fewer at its end and
 /// none past it, the rest of the file never held: how a file too large to
-/// hold whole is read, a part at a time. A negative offset or count is
-/// `Left(Other("a negative offset or count"))`.
+/// hold whole is read, a part at a time. An offset or a count below 0 is
+/// none (report §7.4).
 ///
 /// ### Examples
 ///
@@ -241,7 +241,7 @@ export fn copy(from : Path, to : Path, ms : Int) : Either(Io.Error, Unit) with m
 
 /// Makes a symbolic link at the first path that leads to the second, which
 /// is kept as it is written and may name nothing. A first path that names
-/// something is `Left(Other("exists"))`.
+/// something is `Left(Exists)`.
 ///
 /// ### Examples
 ///
@@ -258,7 +258,7 @@ export fn makeLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit
 
 /// The path a symbolic link holds, as it was written, or `None` where the
 /// path names something that is not a link. A link whose target is not
-/// UTF-8 is `Left(Other("the target is not UTF-8"))`.
+/// UTF-8 is `Left(NotUtf8(target))`, the target's bytes.
 ///
 /// ### Examples
 ///
@@ -274,7 +274,7 @@ export fn readLink(path : Path, ms : Int) : Either(Io.Error, Optional(Path)) wit
     answered(Address.call(reference, fn(r) = ReadLink(path = path, reply = r), ms))
 
 /// Writes a new file, or none where the path names something already,
-/// which is `Left(Other("exists"))`: the one way to claim a name, as a lock
+/// which is `Left(Exists)`: the one way to claim a name, as a lock
 /// file or a temporary file needs.
 ///
 /// ### Examples
@@ -285,7 +285,7 @@ export fn readLink(path : Path, ms : Int) : Either(Io.Error, Optional(Path)) wit
 ///     let second = Fs.create(Path("claimed.txt"), String.toUtf8("yours"), 5000);
 ///     #(first, second)
 /// }
-/// // => #(Right(Unit), Left(Other("exists")))
+/// // => #(Right(Unit), Left(Exists))
 /// ```
 export fn create(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = Create(path = path, bytes = bytes, reply = r), ms))
@@ -294,7 +294,8 @@ export fn create(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) 
 /// is removed and not followed, wherever it stands, so what it leads to is
 /// left, even where another process puts it in a directory's place while
 /// the removal runs. It waits the milliseconds given once, for the whole
-/// removal.
+/// removal, and faults its caller where the runtime's helper fails, as
+/// `Os.start` does.
 ///
 /// ### Examples
 ///

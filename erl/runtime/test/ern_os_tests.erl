@@ -3,10 +3,11 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% Appendix E.23: a write and a read that wait while the helper ends are
-%% answered with why the runtime lost the program. A regression test: the
-%% process gave them to the port the helper's end had closed, and crashed
-%% with badarg (findings C9)
+%% Appendix E.23, report §7.4: a write and a read that wait while the helper
+%% ends fault their callers, the runtime's own failure. A regression test:
+%% the process gave them to the port the helper's end had closed, and
+%% crashed with badarg (findings C9); and of the rule of 2026-10-01, before
+%% which they were answered `Left(Other(...))`
 helper_ends_under_a_write_and_a_read_test() ->
     Me = self(),
     ok = ern_rt:run_main(
@@ -25,8 +26,9 @@ helper_ends_under_a_write_and_a_read_test() ->
                Me ! {write, answer(Written)},
                Me ! {read, answer(Read)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertMatch({'Left', {'Other', _}}, wait(write)),
-    ?assertMatch({'Left', {'Other', _}}, wait(read)).
+    Failed = {fault, <<"the runtime's helper ern_exec failed">>},
+    ?assertEqual(Failed, wait(write)),
+    ?assertEqual(Failed, wait(read)).
 
 %% Appendix E.23: the helper answers each 'i' in order, one taken after the
 %% input's end among them, so that a write returns only once the program
@@ -103,8 +105,8 @@ helper_gives_the_hosts_reason_test() ->
     ?assertEqual(0, receive {Port, {exit_status, S}} -> S after 5000 -> none end).
 
 %% report §8.6, Appendix E.23: a program whose helper ended waits for a read
-%% to answer why, and holds nothing the check for a deadlock would read as
-%% work, its time limit gone with the helper. A regression test: the time
+%% to fault, and holds nothing the check for a deadlock would read as work,
+%% its time limit gone with the helper. A regression test: the time
 %% limit's message came later and stayed, so the process never read as
 %% waiting
 lost_program_holds_no_timer_test() ->
@@ -123,7 +125,7 @@ lost_program_holds_no_timer_test() ->
                Me ! {read, answer(Read)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({message_queue_len, 0}, wait(queued)),
-    ?assertMatch({'Left', {'Other', _}}, wait(read)).
+    ?assertEqual({fault, <<"the runtime's helper ern_exec failed">>}, wait(read)).
 
 %% Appendix E.23: an argument longer than the host takes is the program's
 %% failure to start, with the host's reason. A regression test: the
@@ -178,7 +180,8 @@ closed(Port) ->
 answer(Alias) ->
     ern_rt:timed(),
     receive
-        {Alias, answered, V} -> ern_rt:untimed(), V
+        {Alias, answered, V} -> ern_rt:untimed(), V;
+        {Alias, fault, Cause} -> ern_rt:untimed(), {fault, Cause}
     after 5000 -> ern_rt:untimed(), timeout
     end.
 

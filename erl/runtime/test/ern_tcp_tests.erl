@@ -144,7 +144,7 @@ killed_socket_test() ->
     ?assertEqual({fault, <<"deadlock">>}, Result).
 
 %% Appendix E.18, report §8.6: a port out of range is answered as an error,
-%% by `listen` and `connect` alike, and the program is still found
+%% `Invalid`, by `listen` and `connect` alike, and the program is still found
 %% deadlocked after. A regression test: the host raised, the request was
 %% never answered, and a connect left its wait counted for good, so no
 %% deadlock was found again
@@ -156,13 +156,14 @@ port_out_of_range_test() ->
                    Me ! {connected, connect(70000, 1000)},
                    receive never -> ok end
                end, <<"main">>, quiet()),
-    Refused = {'Left', {'Other', <<"port out of range">>}},
+    Refused = {'Left', 'Invalid'},
     ?assertEqual(Refused, wait(listened)),
     ?assertEqual(Refused, wait(connected)),
     ?assertEqual({fault, <<"deadlock">>}, Result).
 
-%% Appendix E.18: a host that holds U+0000 names none, by `listen` and
-%% `connect` alike, and the program is still found deadlocked after. A
+%% Appendix E.18: a host that holds U+0000 names none, `Invalid`, by
+%% `listen` and `connect` alike, and the program is still found deadlocked
+%% after. A
 %% regression test: the host raised an exit the worker did not catch, the
 %% caller waited for good, and no deadlock was found (findings.md's C1-1)
 host_with_nul_test() ->
@@ -173,7 +174,7 @@ host_with_nul_test() ->
                    Me ! {connected, connect(<<"127.0.0.1", 0, "evil">>, 1, 1000)},
                    receive never -> ok end
                end, <<"main">>, quiet()),
-    Refused = {'Left', {'Other', <<"a host holds U+0000">>}},
+    Refused = {'Left', 'Invalid'},
     ?assertEqual(Refused, wait(listened)),
     ?assertEqual(Refused, wait(connected)),
     ?assertEqual({fault, <<"deadlock">>}, Result).

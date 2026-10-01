@@ -62,7 +62,7 @@ fn trimmed(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) 
 fn replaced(path : Path, bytes : Bytes, n : Int) : Either(Io.Error, Unit) with m = {
     let beside = Path.withExtension(path, "new" <> Int.toString(n));
     match Fs.create(beside, bytes, wait) {
-        Left(Io.Other("exists")) -> replaced(path, bytes, n + 1)
+        Left(Io.Exists) -> replaced(path, bytes, n + 1)
       | Left(why) -> Left(why)
       | Right(_) -> match Fs.rename(beside, path, wait) {
             Left(why) -> {
@@ -80,7 +80,7 @@ fn inputs(bytes : Bytes) : Either(Io.Error, List(String)) =
         Some(text) ->
             Right(List.map(List.filter(String.lines(text), fn(line) = !String.isEmpty(line)),
                            decode))
-      | None -> Left(Io.Other("the history is not UTF-8"))
+      | None -> Left(Io.NotUtf8(bytes))
     }
 
 fn text(inputs : List(String)) : String =

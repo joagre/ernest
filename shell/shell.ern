@@ -416,6 +416,10 @@ fn trouble(why : Io.Error) : String =
       | Io.Closed -> "the file was closed"
       | Io.Timeout -> "the file system did not answer"
       | Io.NotATerminal -> "standard input is not a terminal"
+      | Io.NotAFile -> "the path names something that is not a file"
+      | Io.Exists -> "the file exists already"
+      | Io.NotUtf8(_) -> "the file is not UTF-8"
+      | Io.Invalid -> "the path is not one the host can take"
       | Io.Other(text) -> text
     }
 
