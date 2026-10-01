@@ -824,9 +824,13 @@ binop('/', {tcon, ['Int'], []}, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:
 binop('%', {tcon, ['Int'], []}, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('rem'), R);
 binop('<>', {tcon, ['String'], []}, L, R, _) -> binary_append(L, R);
 binop('<>', {tcon, ['Bytes'], []}, L, R, _) -> binary_append(L, R);
-binop('<>', {tcon, ['List'], _}, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('++'), R);
-%% Report §9.6: a prelude type's member the type's module provides, `Path.<>`
-binop('<>', {tcon, [Name], _}, L, R, _) -> call_remote(module_atom([Name]), '<>', [L, R]);
+%% Report §9.6: `<>` on a prelude type whose module provides it in Ernest,
+%% `List.<>` and `Path.<>`, a call of that module's, and a local call within it
+binop('<>', {tcon, [Name], _}, L, R, #cx{ns = Ns}) ->
+    case Ns of
+        [Name] -> erl_syntax:application(erl_syntax:atom('<>'), [L, R]);
+        _ -> call_remote(module_atom([Name]), '<>', [L, R])
+    end;
 binop('==', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('=:='), R);
 binop('!=', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('=/='), R);
 binop('&&', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('andalso'), R);

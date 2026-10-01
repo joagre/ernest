@@ -34,7 +34,8 @@ audit() -> ern_rt:binding({ern@services, audit}).
 recording(Entries_8) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'Record', E_9} -> recording(Entries_8 ++ [E_9]);
+        {'Record', E_9} ->
+            recording(ern@list:'<>'(Entries_8, [E_9]));
         {'Entries', R_10} ->
             ern_rt:answer(R_10, Entries_8),
             recording(Entries_8)

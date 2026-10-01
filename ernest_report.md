@@ -848,7 +848,7 @@ Char.compare : (Char, Char) -> Ordering
 fault : (String) -> a // §7.4: faults with the cause given
 ```
 
-On `Int`, `Float`, `String`, `List`, and `Bytes` an operator is the runtime's own operation. The declaration of one in the type's module, `fn Int.+(a, b) = a + b`, names that operation and is not a recursive call. On `Int`, `Float`, `String`, and `Char`, `<`, `<=`, `>`, and `>=` are likewise the runtime's own ordering, and `compare` in the type's module is written with them and is not a recursive call. On `Int` and `Float`, prefix `-` is the runtime's own negation, and `negate` in the type's module is written with it.
+On `Int`, `Float`, `String`, and `Bytes` an operator is the runtime's own operation; `List.<>` and `Path.<>` are Ernest in their modules. The declaration of one in the type's module, `fn Int.+(a, b) = a + b`, names that operation and is not a recursive call. On `Int`, `Float`, `String`, and `Char`, `<`, `<=`, `>`, and `>=` are likewise the runtime's own ordering, and `compare` in the type's module is written with them and is not a recursive call. On `Int` and `Float`, prefix `-` is the runtime's own negation, and `negate` in the type's module is written with it.
 
 ### 9.7 System references
 

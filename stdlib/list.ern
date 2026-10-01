@@ -30,8 +30,18 @@
 /// since 0.1.0
 
 /// The elements of the first list, then those of the second.
+///
+/// ### Examples
+///
+/// ```ernest
+/// [1, 2] <> [3]
+/// // => [1, 2, 3]
+/// ```
 export fn List.<>(xs : List(a), ys : List(a)) : List(a) =
-    xs <> ys
+    match xs {
+        [] -> ys
+      | x :: rest -> x :: (rest <> ys)
+    }
 
 /// The number of elements.
 ///

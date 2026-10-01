@@ -231,7 +231,7 @@ the log's *A Release After the Review*), and MVP 2.99b resumes at item 4.
 
 **Gaps the sentences open**, each dated to the attack plan's phase 5, where the rule's code and
 its examples change together (the attack plan's rules of the road): under E.0's rules of
-2026-10-01, `List.<>` is a shim by §9.6 where a list is the language's; `Terminal`'s
+2026-10-01, `Terminal`'s
 builders write a published specification, ECMA-48, in a standard library module (E.16);
 and `Udp` waited on a count, dated by the tenth family to MVP 3.2 as a module of Appendix E (the log's *`Clock.monotonic` Is In, and `Udp` Is
 Placed*). Under §3.9's sentence of 2026-10-01, each restriction prints with its mark,
