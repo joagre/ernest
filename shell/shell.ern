@@ -320,7 +320,7 @@ export fn main() : Unit with ShellMsg = {
 
 // Report §11.2: the shell colours what it says at a terminal, where the
 // environment's `NO_COLOR` is unset or empty, as that convention asks.
-let colours = Optional.withDefault(Map.get(Os.environment, "NO_COLOR"), "") == ""
+let colours = Optional.withDefault(Os.environment("NO_COLOR"), "") == ""
 
 // One input, from either reader: checked, run in a process of its own, its
 // value printed with its type. An expression of type Unit prints nothing.

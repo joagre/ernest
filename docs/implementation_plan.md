@@ -234,8 +234,7 @@ its examples change together (the attack plan's rules of the road): under E.0's 
 2026-10-01, `List.<>` is a shim by §9.6 where a list is the language's; `Terminal`'s
 builders write a published specification, ECMA-48, in a standard library module (E.16);
 and `Udp` waited on a count, dated by the tenth family to MVP 3.2 as a module of Appendix E (the log's *`Clock.monotonic` Is In, and `Udp` Is
-Placed*). Under §8.2's *Text from the host* of 2026-10-01, `Os.environment` leaves out a
-variable whose name or value is not UTF-8 (E.23). Under §3.9's sentence of 2026-10-01, each restriction prints with its mark,
+Placed*). Under §3.9's sentence of 2026-10-01, each restriction prints with its mark,
 and a process-only variable prints without one, §11.5 saying so and giving no spelling: the
 mark's spelling is a decision of this phase's edits, taken with the user before the printer
 and §11.5 change. Under §3.5's declared order of 2026-10-01, the emitter's
@@ -246,11 +245,7 @@ where it is the library's foreign type `Foreign.Term` of Appendix E.12, which ke
 Appendix D's code and the shims change with it. The read-back of the sixteen sentences
 (2026-10-01, the log's *The Sixteen Sentences Read Back*) adds: `via(f, addr)` takes its
 function before its subject (§9.5, shape rule 1); every `spawn` writes `Local` (§6.2,
-principle 5); and `Os.environment` leaves out a variable, where the seventh family (2026-10-01, the
-log's *The Silence Family's Rules*) makes it a function, `Os.environment(name) : Optional(String)`,
-`None` for no such variable and a fault of the asker for a value that is not UTF-8, the
-environment read once at the start and decoded at the asking, its two callers in the shell
-following. The second read-back adds E.16's and E.1's sections naming their primitives (clarity, K-24, K-39). Under
+principle 5). The second read-back adds E.16's and E.1's sections naming their primitives (clarity, K-24, K-39). Under
 §0's *The host*, the first family's round 2 (2026-10-01, the log's *The Host Family's Rules*)
 moves the negative zero's normalization in the emitter from every float operation to the ones
 that can make one, `*`, `/`, negation and the entries, since under round to nearest a sum or a

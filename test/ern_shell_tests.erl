@@ -1698,7 +1698,7 @@ shell_os() ->
     Dir = filename:join("/tmp", "ern_os_" ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(filename:join(Dir, "in"),
-                         "Os.arguments\nOs.exit(2)\nMap.get(Os.environment, \"ERN_SEEN\")\n"),
+                         "Os.arguments\nOs.exit(2)\nOs.environment(\"ERN_SEEN\")\n"),
     {0, Out} = sh("HOME=" ++ Dir ++ " ERN_SEEN=yes ../bin/ern shell < "
                   ++ filename:join(Dir, "in")),
     ?assertMatch({_, _}, binary:match(Out, <<"[] : List(String)">>)),

@@ -302,8 +302,8 @@ not_started(Text) -> {'Other', Text}.
 
 %% Report Appendix E.23: the program's environment, as the helper run with
 %% no program writes it back, byte for byte, since the host decodes a value
-%% that is not UTF-8 without a sign. A variable whose name or value is not
-%% UTF-8 is left out, and a name that occurs twice keeps its first value.
+%% that is not UTF-8 without a sign. Each value is its bytes, which
+%% Os.environment decodes when it is asked for (report Appendix E.23).
 -spec environment() -> #{binary() => binary()}.
 environment() ->
     Port = try open([])
@@ -312,25 +312,24 @@ environment() ->
     variables(Port, #{}).
 
 %% Report Appendix E.23: a name that occurs twice keeps its first value, and
-%% one whose first value is not UTF-8 is left out, a later value of it too;
-%% the names seen are kept, a value left out as `dropped`, until the end.
+%% each value is kept as its bytes, decoded when it is asked for. A name that
+%% is not UTF-8 is none a String can ask for, and is not kept.
 variables(Port, Env) ->
     receive
         {Port, {data, <<"v", Variable/binary>>}} ->
             variables(Port, variable(binary:split(Variable, <<"=">>), Env));
         {Port, {data, <<"x", _/binary>>}} ->
             receive
-                {Port, {exit_status, _}} -> maps:filter(fun(_, V) -> V =/= dropped end, Env)
+                {Port, {exit_status, _}} -> Env
             end;
         {Port, {exit_status, _}} ->
             ern_rt:fault(<<"the runtime's helper ern_exec failed">>)
     end.
 
 variable([Name, Value], Env) ->
-    case {is_map_key(Name, Env), utf8(Name) andalso utf8(Value)} of
-        {true, _} -> Env;
-        {false, true} -> Env#{Name => Value};
-        {false, false} -> Env#{Name => dropped}
+    case is_map_key(Name, Env) orelse not utf8(Name) of
+        true -> Env;
+        false -> Env#{Name => Value}
     end;
 variable([_], Env) ->
     Env.

@@ -104,18 +104,34 @@ export let arguments : List(String) = commandLine()
 foreign fn commandLine() : List(String) with m =
     "ern_rt:arguments/0"
 
-/// The program's environment, bound when the program starts. A variable
-/// whose name or value is not UTF-8 is left out, and a name the host gives
-/// twice keeps its first value.
+/// The value of the program's environment variable of that name, or `None`
+/// where the host has none. The environment is read once, when the program
+/// starts, and a name the host gives twice keeps its first value.
+///
+/// ### Errors
+///
+/// A value that is not UTF-8 faults the caller with `Fault("the environment
+/// variable n is not UTF-8")`, `n` its name.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Map.get(Os.environment, "HOME")
+/// Os.environment("HOME")
 /// ```
-export let environment : Map(String, String) = hostEnvironment()
+export fn environment(name : String) : Optional(String) =
+    match Map.get(variables, name) {
+        None -> None
+      | Some(bytes) -> match String.fromUtf8(bytes) {
+            Some(text) -> Some(text)
+          | None -> fault("the environment variable " <> name <> " is not UTF-8")
+        }
+    }
 
-foreign fn hostEnvironment() : Map(String, String) with m =
+// Report Appendix E.23: the environment as the host gave it when the program
+// started, each value its bytes, decoded when it is asked for.
+let variables : Map(String, Bytes) = hostEnvironment()
+
+foreign fn hostEnvironment() : Map(String, Bytes) with m =
     "ern_os:environment/0"
 
 /// The absolute path of the directory the program was started in, bound

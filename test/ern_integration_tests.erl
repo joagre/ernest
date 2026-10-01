@@ -563,7 +563,9 @@ stdin() ->
 %% locale and under C, whose names the host takes as bytes: `ern run`
 %% refuses an argument that is not UTF-8 by its position, and a job one of
 %% its own words that is not UTF-8 by its text (§11), the environment
-%% leaves out a value that is not UTF-8, and ern run exits with the status
+%% answers a value asked for, None for a name it has not, and faults the
+%% asker of a value that is not UTF-8 (a regression test of the rule of
+%% 2026-10-01, which left the value out), and ern run exits with the status
 %% Os.exit gives. A regression test, written after the code; where the host
 %% has no C.UTF-8 locale both runs read bytes, and a name the environment
 %% gives twice is not covered, since a shell cannot give one.
@@ -579,10 +581,11 @@ os() ->
                          "    Os.exit(List.size(Os.arguments))\n"
                          "}\n"),
     ok = file:write_file(Src ++ "/env.ern",
-                         "fn get(name : String) : Optional(String) =\n"
-                         "    Map.get(Os.environment, name)\n"
-                         "export fn main() : Unit with Never =\n"
-                         "    Io.println(Io.show(#(get(\"ERN_OK\"), get(\"ERN_BAD\"))))\n"),
+                         "export fn main() : Unit with Never = {\n"
+                         "    Io.println(Io.show(#(Os.environment(\"ERN_OK\"),\n"
+                         "                         Os.environment(\"ERN_NONE\"))));\n"
+                         "    Io.println(Io.show(Os.environment(\"ERN_BAD\")))\n"
+                         "}\n"),
     0 = build("--source-root build/os/src --build-root build/os build/os/src"),
     lists:foreach(
       fun(Locale) ->
@@ -593,9 +596,13 @@ os() ->
               ?assertEqual({1, <<"ern build: a word that is not UTF-8: n\\xFFme.ern\n">>},
                            sh("env LC_ALL=" ++ Locale
                               ++ " ../bin/ern build \"$(printf 'n\\377me.ern')\"")),
-              ?assertEqual({0, <<"#(Some(\"caf", 16#e9/utf8, "\"), None)\n">>},
-                           sh("env ERN_OK=\"$(printf 'caf\\303\\251')\" "
-                              "ERN_BAD=\"$(printf 'caf\\351')\" " ++ Run ++ "env.erc"))
+              {Status, Out} = sh("env ERN_OK=\"$(printf 'caf\\303\\251')\" "
+                                 "ERN_BAD=\"$(printf 'caf\\351')\" " ++ Run ++ "env.erc"),
+              ?assertNotEqual(0, Status),
+              ?assertMatch({0, _}, binary:match(Out, <<"#(Some(\"caf", 16#e9/utf8,
+                                                       "\"), None)\n">>)),
+              ?assertMatch({_, _}, binary:match(Out, <<"faulted: the environment variable"
+                                                       " ERN_BAD is not UTF-8">>))
       end, ["C.UTF-8", "C"]).
 
 %% report §11, Appendix E.23, E.17: Os.workingDirectory is the absolute

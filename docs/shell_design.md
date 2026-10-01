@@ -55,7 +55,7 @@ The front end's values reach the shell as handles of three foreign types, `Env`,
 - **The questions the reader and `Shell.Complete` ask**: `names`, `sessionNames`, `sessionTexts`, `sourceRoot`, `context`, `needsMore`, `fields`, `documentation`, `signature` and `segment`. None takes an `Env`; those that read the session read the front end's copy.
 - **The host's alone**: `version`, `startupFiles`, `program`, `write`, `setScreen` and `holdTerminal`.
 
-`spawnInput` takes an address, `via(Done, self())`, and not the wrap E.0 shape rule 8 gives a function that delivers later: foreign code may pass a function value back but not call it (§8.4), so the shell wraps at its end and the front end only sends. `NO_COLOR`, and `HOME` for the history, are read in Ernest, from `Os.environment`, and what runs and what faulted through `Process` (E.21), as any program reads them.
+`spawnInput` takes an address, `via(Done, self())`, and not the wrap E.0 shape rule 8 gives a function that delivers later: foreign code may pass a function value back but not call it (§8.4), so the shell wraps at its end and the front end only sends. `NO_COLOR`, and `HOME` for the history, are read in Ernest, with `Os.environment`, and what runs and what faulted through `Process` (E.21), as any program reads them.
 
 **The front end's copy.** The front end keeps the latest `Env` of its own (`remember`), besides the one the session holds. The reader completes and documents while an input runs, when the session waits in `await` and answers nothing, so the reader's questions cannot be messages to the session. The copy is set when an input is checked and again when it has run, since what an input declares joins the session when it has run.
 
@@ -123,7 +123,7 @@ The row the cursor rests on is counted from the region's first: the tail's rows,
 
 ## The history file
 
-`Shell.History`, in `shell/shell/history.ern`, is Ernest over `Os`, `Fs`, `String` and `List`, with no foreign function. The file is `$HOME/.ernest/history`, from `Os.environment`, and there is none where `HOME` is unset or is no absolute path (§11.2).
+`Shell.History`, in `shell/shell/history.ern`, is Ernest over `Os`, `Fs`, `String` and `List`, with no foreign function. The file is `$HOME/.ernest/history`, from `Os.environment("HOME")`, and there is none where `HOME` is unset or is no absolute path (§11.2).
 
 - **Format.** One input a line, oldest first, a newline in an input written `\n` and a backslash `\\`. Decoding reads left to right, since `\\n` is a backslash and an `n`, which two passes of `String.replace` would read as a newline. An empty line is passed over.
 - **Reading.** `read` answers the inputs newest first, the order the editor walks. A file that holds more than `kept`, a thousand, is rewritten to the last thousand as it is read.

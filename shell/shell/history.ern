@@ -18,7 +18,7 @@ let wait = 5000
 /// names no home or one that is no absolute path, which would put the
 /// history under whatever directory the shell starts in (report §11.2).
 export let file : Optional(Path) =
-    Optional.andThen(Map.get(Os.environment, "HOME"), fn(home) = match Path(home) {
+    Optional.andThen(Os.environment("HOME"), fn(home) = match Path(home) {
         at when Path.isAbsolute(at) -> Some(Path.join(at, Path(".ernest/history")))
       | _ -> None
     })
