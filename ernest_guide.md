@@ -1099,7 +1099,7 @@ fn pong() : Unit with PongMsg =
 
 `main` starts pong with `spawnMonitored`, which §5.2 explains, so that a `PongDone` arrives when pong ends, and waits for it. Had `main` returned at once, the program would have ended before the two had played, since returning from `main` ends every process (§4.5).
 
-The output is likely `ping 3`, `pong 3`, `ping 2`, and so on, but not certain. Messages from one sender arrive in the order sent, so ping's requests reach pong in order. Ping and pong are two senders to standard output's process, and between senders there is no order.
+The output is `ping 3`, `pong 3`, `ping 2`, and so on, alternating. Messages from one sender arrive in the order sent, so ping's requests reach pong in order. `Io.println` returns once standard output has taken the line (report §8.2), and ping prints before it calls pong, pong before it answers, so each line is written before the next can be. Two processes whose writes nothing orders, two workers printing as they go, interleave in an order no rule fixes.
 
 ### 5.2 `monitor` and `Down`
 
@@ -1516,7 +1516,7 @@ Jobs.supervise:8 faulted: division by zero
 all jobs done
 ```
 
-A process for each job is the restart: the job that faulted ends its own worker, and the next job starts with a fresh one. Of the program, only `supervise` prints; the second line is `ern run`'s report of the fault, on standard error. A worker's `Io.println` and the supervisor's are two senders to standard output's process, which the runtime does not order (§5.1), so a worker reports by a message to its supervisor.
+A process for each job is the restart: the job that faulted ends its own worker, and the next job starts with a fresh one. Of the program, only `supervise` prints, so what became of each job is said in one place; the second line is `ern run`'s report of the fault, on standard error. A worker reports by a message to its supervisor, which knows the job and decides what follows.
 
 What must survive a fault lives in the process that does not fault: here the list of jobs is the watcher's. A long-lived process restarts in place instead, which §6.5 shows, and a group of them restarts together under the standard library's `Supervisor`, which §6.6 shows. A process that must not outlive another monitors it and returns when it dies.
 
@@ -2272,7 +2272,7 @@ It begins with `fn`, so a reader and the parser see a lambda begin at its first 
 
 **§4.8.** No. The timeout only bounds the caller's wait. The recipient may still be processing the request or may answer later; the late answer is silently discarded but the work done on the recipient side is not undone.
 
-**§5.7.** No. Per-sender FIFO orders messages from ping to pong and pong to ping, but the two processes both send to standard output's process, two senders to one process, and the runtime does not order across senders. Alternation is a *possible* trace, not a guaranteed one.
+**§5.7.** Yes. `Io.println` returns once standard output has taken the line (report §8.2). Ping prints before it calls pong and waits for the answer, and pong prints before it answers, so each line is written before the next can be. Per-sender order alone would not give it, since the two are two senders to standard output: the call orders them.
 
 **§6.7.** `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints the fault, `Main.main faulted: first of an empty list` for a `main` in `main.ern`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
 
