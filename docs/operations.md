@@ -192,11 +192,31 @@ Two versions of a `compare` can meet one set: at a node whose `T.compare` differ
 
 ## What it buys and what it costs
 
-The specification meets the five requirements under the conditions above, requirement 1 through the record for the ordered operations, with one mechanism for generic code, the record, which the standard library uses too. Each call names the record it uses, and no record is resolved by type; the order is written once, where the record is bound, and no argument is passed that the program did not write (§4.8). There is no new syntax, declaration or reserved word, and the checker and the emitter do not change. Type classes could still come later, built on records.
+It buys:
 
-Most of the price is paid at call sites. A function that only passes a set on must take the record too, where type classes would pass nothing. A record parameter needs its type fixed within its definition, usually by an annotation, before a field can be selected (§3.5, §4.8). The ordered set's user binds the record once, where OCaml's applies the functor once, and that binding is the floor §4.8 sets; the calls then go through the record, `ints.put(set, x)`, and not through the module, where both of principle 1's readers write the module's function, `IntSet.add x s` and `gb_sets:add(X, S)`, so the ordered set's section states the departure as a rule. Each derived operation has two names in `set.ern`, `Set.union(set, other)` and `Set.unionWith(set, other, operations)`, and `Set.mapWith` takes a second record where Haskell's `Set.map` takes an `Ord` constraint. Generic code cannot name its variable's `compare`, so it sorts with `List.sort` and a function the caller gives it. And a list of mixed representations needs a second record type (rule 7).
+- **No new theory and no new checker pass.** Rank-1 records, let-polymorphism, closures and nominal data types, all implemented today. Principal types and decidability are Damas and Milner's as before.
+- **Everything visible.** Every record is named at the call and every order at its binding. No code is chosen by an inferred type, so there is no coherence or ambiguity question to specify, to test or to explain in an error.
+- **One mechanism, which the library uses itself.** `set.ern` is written over its own record, so the mechanism is exercised on every build and not only in a guide example.
+- **An ordered set that is data**: `==`, a `Map` key, a message across nodes.
+- **Orders that are types cannot meet**, and the error is an ordinary type mismatch naming both types, as requirement 5 asks.
+- **Two things classes do not allow**: two records at one type, and a record built at run time from a value, as `operations(compare)` is.
+- **Nothing added to the language.** No reserved word, no grammar change, nothing in §3, §4 or §11. Type classes could still come later, built on records.
 
-The rest falls elsewhere. `Set.unionWith` over the ordered set inserts the second set's elements one at a time, each linear over a sorted list, where a merge would be linear in both; which representation pays what is the representation's question. Requirement 4 holds between orders that are types and not between two records of one type: two `OrderedSet.Set(Int)` built over `Int.compare` and over a function that reverses it meet in `unionWith` without an error, and their `==` is false on equal elements. And a record over a representation that is not abstract, `List(a)`, loses requirement 4 altogether: two records over `List(a)` with different invariants meet in `Set.unionWith`.
+It costs, at call sites:
+
+- **The record travels by hand.** Generic code takes it as a parameter, a function that only passes a set on must take it too, where type classes would pass nothing, and a record parameter needs its type fixed within its definition, usually by an annotation, before a field can be selected (§3.5, §4.8).
+- **`ints.put` instead of `OrderedSet.put`.** The ordered set's user binds the record once, where OCaml's applies the functor once, and that binding is the floor §4.8 sets; one binding per element type per program. The calls then go through the record and not through the module, where both of principle 1's readers write the module's function, `IntSet.add x s` and `gb_sets:add(X, S)`, so the ordered set's section states the departure as a rule.
+- **Two names per derived operation in `set.ern`**, `Set.union(set, other)` and `Set.unionWith(set, other, operations)`: fourteen `With` functions, each with a doc block and an example by E.0's shape rule 6, and `isEmptyWith` among them reads poorly. `Set.mapWith` takes a second record where Haskell's `Set.map` takes an `Ord` constraint.
+- **Rank-1 only.** No operation in the record is polymorphic beyond its parameters, so `foldLeftWith` and every generic function go through `toList` and build a list.
+- **Generic code cannot name its variable's `compare`**, so it sorts with `List.sort` and a function the caller gives it.
+- **A list of mixed representations needs a second record type** (rule 7), which loses `==`.
+
+And elsewhere:
+
+- **Requirement 4 holds between orders that are types and not between two records of one type.** Two `OrderedSet.Set(Int)` built over `Int.compare` and over a function that reverses it meet in `unionWith` without an error, and their `==` is false on equal elements. A record over a representation that is not abstract, `List(a)`, loses requirement 4 altogether: two records over `List(a)` with different invariants meet in `Set.unionWith`.
+- **No order for tuples, lists, `Optional` or `Either`.** A pair's compare is written by hand each time it is needed, since nothing composes compares.
+- **A linear ordered set for now.** `Set.unionWith` over the sorted list inserts the second set's elements one at a time, each linear, where a merge would be linear in both; which representation pays what is *The representation*'s question.
+- **The pattern does not scale for free.** Each container kind with a second representation needs its own record, its `With` functions and their pages, which is why `Map` gets a record only with a second representation.
 
 ## What changes in Ernest
 
@@ -205,6 +225,25 @@ The rest falls elsewhere. `Set.unionWith` over the ordered set inserts the secon
 - E.4: `Set.Operations(s, a)`, `Set.operations`, the fourteen functions named with `With`, and the sentence that each of `Set`'s own beyond the primitives is a call of one.
 - Appendix E, a section at its end: `ordered_set.ern`, namespace `OrderedSet`, with `abstract type Set(a)`, `operations`, `empty`, `size`, `toList`, `min` and `max`. Its section states the departure principle 1 asks for: an operation that needs the order is a field of the record `operations` builds, since no hidden argument carries it (§4.8), and the rest of the vocabulary E.0's rule 2 asks of a set is `Set`'s `With` functions over that record.
 - Nothing in §3, §4 or §11, and no change to the checker or the emitter. §3.10 stays as it is: tuples, lists, `Optional` and `Either` have no order, since their `compare` would compare elements of a type variable, which §4.8 refuses, and a program sorts pairs with a function it passes to `List.sort`. This reverses the verdict of 2026-09-29, which rested on what other languages do.
+
+## What it costs to build
+
+Nothing in the checker, the emitter or the runtime changes. The files above were built with Ernest 0.2.0's toolchain as it stands, and the guide's §7.3 has compiled the same shape under `make test` since 2026-09-28 without a change to the checker. The work falls on the library, the compiler's path rule and the documents, two to four days in all:
+
+| Area | Work | Item |
+|---|---|---|
+| Checker, emitter, runtime | none | |
+| `ern build`'s path rule (§11.1), `:load`, completion, `ern doc`, the pages | `_` in a file name | 10 |
+| `set.ern` | the record, `operations`, fourteen `With` functions, its own functions as calls, doc blocks and examples | 11 |
+| `ordered_set.ern` | the module, its page, its tests, its section of Appendix E with a test per section | 12 |
+| Report | shape rule 1's clause, E.4, the new section, the departure stated | 11, 12 |
+| Guide §7.3 | rewritten over the finished code | 16 |
+
+At run time a field use is one indirect call, the host's own application of a fun, which `make bench` confirms. The run-time cost that matters is the ordered set's own, linear per operation over a sorted list, which *The representation* decides.
+
+One caveat. The files were built as user modules. Under the standard library's own source root, where `Set` is a taken namespace and `ordered_set.ern` shadows the prelude's `Set` inside itself, a toolchain defect may surface that the user modules did not reach, and `ern doc` has not yet rendered a record type's page. One found is fixed where it is found, a defect in code that exists, not a feature the design needs.
+
+For scale: the design that went out, the ordering constraint, would have added a restriction to the checker, a mark to compiled interfaces and evidence passing to the emitter, weeks of work; type classes more than that.
 
 ## Why not type classes
 
