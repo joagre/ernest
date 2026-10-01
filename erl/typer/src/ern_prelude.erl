@@ -289,7 +289,7 @@ declared_types() ->
     ///
     /// ```ernest
     /// Path.name(Path("/tmp/a.txt"))
-    /// // => "a.txt"
+    /// // => Some("a.txt")
     /// ```
     type Path = Path(String)
     /// A test that `ern test` runs: its name, and a function that answers

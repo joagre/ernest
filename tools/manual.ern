@@ -34,7 +34,7 @@ fn manual(report : String,
                             "no section 11. Toolchain in " <> report);
     let #(description, rest) = List.span(section, fn(b) = !titled(b, "11.7 Options"));
     let #(options, exitStatus) = List.span(rest, fn(b) = !titled(b, "11.8 Exit status"));
-    let names = List.map(entries, fn(e) = Path.name(e.path));
+    let names = List.filterMap(entries, fn(e) = Path.name(e.path));
     if List.isEmpty(options) || List.isEmpty(exitStatus) then
         Left("no sections 11.7 Options and 11.8 Exit status in " <> report)
     else

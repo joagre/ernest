@@ -143,7 +143,10 @@ fn writer(p : Path, bytes : Bytes, mtime : Int, ack : Reply(Ack), okAck : Ack) :
 // One process per changed file: reads and sends to the peer.
 fn pusher(peer : Address(SyncMsg), Change(path = p, mtime = m) : Change) : Unit with n =
     match Fs.read(p, 10000) {
-        Right(bytes) -> push(peer, Path(Path.name(p)), m, bytes)
+        Right(bytes) -> match Path.name(p) {
+            Some(name) -> push(peer, Path(name), m, bytes)
+          | None -> Io.println("cannot push " <> Path.toString(p) <> ", which names no file")
+        }
       | Left(e) -> Io.println("cannot read " <> Path.toString(p) <> ": " <> errorText(e))
     }
 

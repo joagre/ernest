@@ -16,7 +16,7 @@
 ///
 /// ```ernest
 /// #(Path.name(Path("/tmp/report.txt")), Path.extension(Path("/tmp/report.txt")))
-/// // => #("report.txt", Some("txt"))
+/// // => #(Some("report.txt"), Some("txt"))
 /// ```
 ///
 /// ## See also
@@ -90,18 +90,27 @@ export fn parent(p : Path) : Optional(Path) =
       | first :: rest -> Some(List.foldLeft(rest, Path(first), fn(up, s) = join(up, Path(s))))
     }
 
-/// The last segment, and `""` for the root.
-export fn name(p : Path) : String =
-    match split(p) {
-        [_] when isAbsolute(p) -> ""
-      | segments -> Optional.withDefault(List.last(segments), "")
+/// The last segment, or `None` for the root, which has none, as it has no
+/// `parent`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Path.name(Path("a/b.txt")), Path.name(Path("/")))
+/// // => #(Some("b.txt"), None)
+/// ```
+export fn name(path : Path) : Optional(String) =
+    match split(path) {
+        [_] when isAbsolute(path) -> None
+      | segments -> List.last(segments)
     }
 
 /// What follows the last `.` of the name, without the dot, or `None` when
 /// the name has none. The dots that begin the name begin no extension, so
 /// `.bashrc`, `.` and `..` have none.
 export fn extension(p : Path) : Optional(String) = {
-    let bare = withoutLeadingDots(name(p));
+    let named <- name(p);
+    let bare = withoutLeadingDots(named);
     match String.lastIndexOf(bare, ".") {
         Some(at) -> Some(String.slice(bare, at + 1, String.size(bare)))
       | None -> None
@@ -127,7 +136,7 @@ fn withoutLeadingDots(name : String) : String =
 /// // => #("a/b.md", "a/b.")
 /// ```
 export fn withExtension(p : Path, ext : String) : Path =
-    if List.contains(["", ".", ".."], name(p)) then p else extended(p, "." <> ext)
+    if List.contains([None, Some("."), Some("..")], name(p)) then p else extended(p, "." <> ext)
 
 /// The path without its extension, the rest as it was written. The root,
 /// `.` and `..` have no name to shorten, and are left as they are.
@@ -140,7 +149,7 @@ export fn withExtension(p : Path, ext : String) : Path =
 /// // => #("a/b", ".bashrc")
 /// ```
 export fn withoutExtension(path : Path) : Path =
-    if List.contains(["", ".", ".."], name(path)) then path else extended(path, "")
+    if List.contains([None, Some("."), Some("..")], name(path)) then path else extended(path, "")
 
 // The name's extension replaced by the suffix where the name ends, before
 // any separators after it.

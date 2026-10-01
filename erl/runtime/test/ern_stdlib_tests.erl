@@ -925,14 +925,16 @@ random_splitmix64_test() ->
 path_edges_test() ->
     P = 'ern@path',
     T = fun(Text) -> {'Path', Text} end,
-    ?assertEqual(<<"b">>, P:name(T(<<"a/b/">>))),
+    ?assertEqual({'Some', <<"b">>}, P:name(T(<<"a/b/">>))),
     ?assertEqual([<<"a">>, <<"b">>], P:split(T(<<"a//b/">>))),
     ?assertEqual({'Some', T(<<"a">>)}, P:parent(T(<<"a/b/">>))),
     ?assertEqual(T(<<"/var">>), P:join(T(<<"/etc">>), T(<<"/var">>))),
     ?assertEqual(T(<<"/etc/hosts">>), P:join(T(<<"/etc/">>), T(<<"hosts">>))),
     ?assertEqual(T(<<"b">>), P:join(T(<<"">>), T(<<"b">>))),
     ?assertEqual([<<"/">>], P:split(T(<<"/">>))),
-    ?assertEqual(<<>>, P:name(T(<<"/">>))),
+    %% report Appendix E.14: the root has no name, a regression test of the
+    %% rule of 2026-10-01, before which it was ""
+    ?assertEqual('None', P:name(T(<<"/">>))),
     ?assertEqual({'Some', <<>>}, P:extension(T(<<"a.">>))),
     ?assertEqual('None', P:extension(T(<<"a.d/b">>))),
     ?assertEqual(T(<<"a/b/">>), P:withoutExtension(T(<<"a/b.txt/">>))),
@@ -992,7 +994,7 @@ path_test() ->
     ?assertEqual({'Some', {'Path', <<"/">>}}, P:parent({'Path', <<"/a">>})),
     ?assertEqual('None', P:parent({'Path', <<"a">>})),
     ?assertEqual('None', P:parent({'Path', <<"/">>})),
-    ?assertEqual(<<"b.txt">>, P:name({'Path', <<"a/b.txt">>})),
+    ?assertEqual({'Some', <<"b.txt">>}, P:name({'Path', <<"a/b.txt">>})),
     ?assertEqual({'Some', <<"txt">>}, P:extension({'Path', <<"a/b.txt">>})),
     ?assertEqual('None', P:extension({'Path', <<"a/b">>})),
     ?assertEqual({'Path', <<"a/b.md">>}, P:withExtension({'Path', <<"a/b.txt">>}, <<"md">>)),

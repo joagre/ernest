@@ -1579,7 +1579,7 @@ Random.nextFloat : (Seed) -> #(Float, Seed) // uniform above 0.0 and below 1.0, 
 Path.join : (Path, Path) -> Path // the second under the first, one separator between segments; an absolute second stands alone
 Path.split : (Path) -> List(String) // the segments; an absolute path's first is the root
 Path.parent : (Path) -> Optional(Path) // None for a bare name or the root
-Path.name : (Path) -> String // the last segment, and "" for the root
+Path.name : (Path) -> Optional(String) // the last segment, None for the root, which has none
 Path.extension : (Path) -> Optional(String) // after the last "." of the name, without it; the dots that begin the name begin none
 Path.withExtension : (Path, String) -> Path // replaced or added, the rest as written; an empty one leaves the dot; the root, "." and ".." are left as they are
 Path.withoutExtension : (Path) -> Path // removed, the rest as written; the root, "." and ".." are left as they are

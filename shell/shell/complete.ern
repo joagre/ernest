@@ -172,16 +172,19 @@ fn sourceModules(typed : String) : List(Name) with m = {
 fn sourceModule(prefix : String, entry : Fs.Entry) : Optional(Name) =
     match entry {
         Fs.Entry(path = path, kind = Fs.Directory) ->
-            Optional.map(segment(Path.name(path)), fn(s) = {
+            Optional.map(Optional.andThen(Path.name(path), segment), fn(s) = {
                 let text = prefix <> s;
                 Name(text = text, kind = Module, shown = text <> ".")
             })
       | Fs.Entry(path = path) -> if Path.extension(path) != Some("ern") then
             None
-        else Optional.map(segment(Path.name(Path.withoutExtension(path))), fn(s) = {
-            let text = prefix <> s;
-            Name(text = text, kind = Value, shown = text)
-        })
+        else {
+            let module = Optional.andThen(Path.name(Path.withoutExtension(path)), segment);
+            Optional.map(module, fn(s) = {
+                let text = prefix <> s;
+                Name(text = text, kind = Value, shown = text)
+            })
+        }
     }
 
 fn commandNames() : List(Name) =
