@@ -197,6 +197,17 @@ string_searches_begin_at_a_grapheme_test() ->
     ?assertEqual([<<"a">>, <<"b">>], S:lines(<<"a\r\nb\r\n">>)),
     ?assertEqual([<<"a">>, <<"b">>], S:lines(<<"a\nb">>)).
 
+%% report Appendix E.5: `words` splits at runs of White_Space, the Unicode
+%% property, a no-break space and a line separator among them, and gives
+%% no empty word. Written with the code, of 2026-10-01
+string_words_test() ->
+    S = 'ern@string',
+    ?assertEqual([], S:words(<<>>)),
+    ?assertEqual([<<"a">>], S:words(<<"a">>)),
+    ?assertEqual([<<"a">>, <<"b">>, <<"c">>],
+                 S:words(<<" a\x{A0}b\x{2028}\r\n c "/utf8>>)),
+    ?assertEqual([<<"e\x{301}"/utf8>>], S:words(<<"e\x{301}"/utf8>>)).
+
 %% report Appendix E.5: `split`, `lines` and `replace` read the string
 %% once. A regression test: each part measured the rest again, a cost that
 %% grew as the square of the parts, 2.6 s for 16,000 of them; 64,000 now

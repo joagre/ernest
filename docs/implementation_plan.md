@@ -261,8 +261,7 @@ builds a `Down`, in §9.3, the prelude's declared types and the twelve tests tha
 the guide's §5.2 wait shrinks in its pass. Under E.0's rules, the tenth family's round 2
 (2026-10-01, the log's *The Library Family's Rules*): `styled`, the cursor's moves and the two
 erasures leave E.16 for a terminal library under `libs/`, Ernest over ECMA-48, which the shell, `libs/markdown`
-and `examples/snake.ern` take from the load path, `subscribe`, `size` and `columns` staying;
-`String.words`, the parts between runs of White_Space, enters E.5 and rule 2's text vocabulary.
+and `examples/snake.ern` take from the load path, `subscribe`, `size` and `columns` staying.
 Under §9's opening and principle 5's cost sentence, the twelfth family's round 2 (2026-10-01, the
 log's *The Prelude Family's Rules*): `Test` and `TestResult` leave §9.3 for a standard library
 module `Test`, a section added at the end of Appendix E, with the types `Case` and `Result`, `Test.Case(name, run)` and

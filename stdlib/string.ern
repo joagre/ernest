@@ -289,6 +289,33 @@ export fn lines(s : String) : List(String) =
         }
     }
 
+/// The words: the parts between runs of White_Space, the Unicode property
+/// `Char.isSpace` reads, none of them empty.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(String.words("  one two\tthree\n"), String.words(" "))
+/// // => #(["one", "two", "three"], [])
+/// ```
+export fn words(s : String) : List(String) =
+    List.reverse(wordsFrom(toList(s), [], []))
+
+// The words before the characters, in reverse, the one being read's
+// characters in reverse too.
+fn wordsFrom(chars : List(Char), word : List(Char), acc : List(String)) : List(String) =
+    match chars {
+        [] -> ended(word, acc)
+      | c :: rest when Char.isSpace(c) -> wordsFrom(rest, [], ended(word, acc))
+      | c :: rest -> wordsFrom(rest, c :: word, acc)
+    }
+
+fn ended(word : List(Char), acc : List(String)) : List(String) =
+    match word {
+        [] -> acc
+      | _ -> fromList(List.reverse(word)) :: acc
+    }
+
 /// The parts between the occurrences of the second, the empty parts
 /// included; an empty second gives the string alone.
 ///
