@@ -79,11 +79,11 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
 1. **The host's port helper's intermittent failure**, done 2026-10-01 (the log's *A Port Lost
    While It Starts*). The line `interrupt_test_` met is the child OTP's helper forks for a
    port: an interrupt that ends the host while a port starts leaves it waiting for the host's
-   acknowledgement, and it reports that on standard error. Reproduced, and its fix is the third
-   decision of item 5; the test interrupts a program that has started, and the start's case
-   stands in *Standing gaps*. `filesync_test_`'s failure was the example's own race, a peer's
-   file taken before the first listing and stored with no conflict, fixed with
-   `filesync_first_listing_test_`.
+   acknowledgement, and it reports that on standard error. Reproduced. Its fix is OTP's, which
+   the user takes to OTP's maintainers (decided 2026-10-01); the test interrupts a program that
+   has started, and the start's case stands in *Standing gaps*. `filesync_test_`'s failure was
+   the example's own race, a peer's file taken before the first listing and stored with no
+   conflict, fixed with `filesync_first_listing_test_`.
 2. **The style guides and the glossary, a decision with the user.** [`style.md`](style.md)
    rests its guides on widely accepted ones, Ericsson's *Programming Rules and Conventions*
    and Inaka's guidelines for Erlang and the *Elm Style Guide* for Ernest, and holds a
@@ -100,9 +100,9 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    delete from it as the renaming finds what it missed, and each area's commit carries the
    glossary's change with it.
    Drafted 2026-10-01 (the log's *The Glossary Drafted*): [`style.md`](style.md)'s *Glossary*
-   names forty-odd concepts, and ends with the six where the code's name differs from the
-   report's, each with a recommendation; the user's reading of the guide and the glossary,
-   and the six, close the item, before the attack plan's phase 4 writes code in its names.
+   names forty-odd concepts. Where the code's name differed from the report's, six places, the
+   report's word was taken with the user the same day; the user's reading of the guide and the
+   glossary closes the item, before the attack plan's phase 4 writes code in its names.
 3. **The places the language made the review's work harder**, done 2026-10-01 (the log's *The
    Release Review's Harder Places*): of the fourteen lines of [`findings.md`](findings.md)
    marked `2.99b` that are not hardening, two are language feedback 75 and 76, decided in the
@@ -129,16 +129,12 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    function does; and whether a restriction may be written in an annotation, a change to the
    grammar and a second way beside inference (`findings.md`'s R-23, placed here with the user
    2026-09-30).
-5. **The service's three decisions, with the user**: what an alarm at a time does when the
+5. **The service's two decisions, with the user**: what an alarm at a time does when the
    host's wall clock jumps, since deadlines use the monotonic clock and a time does not
-   (`Clock.alarmAt`, Appendix E.15); whether a launcher passes a termination or hangup
+   (`Clock.alarmAt`, Appendix E.15); and whether a launcher passes a termination or hangup
    that comes while the host starts, which the host drops (*Standing gaps* below), on to the
    host until the host has taken it, at the price of a second process between a service
-   manager and the program; and how the line OTP's helper prints for a port lost while it
-   starts is ended (*Standing gaps*, the log's *A Port Lost While It Starts*): the fix at
-   its cause offered to OTP, that launcher passing a signal to the host's process group, or
-   every host program started through one helper started before `main` (placed here
-   2026-10-01).
+   manager and the program.
 6. **Names that read, in Erlang**, about a week: every module under `erl/` and `test/` read
    for its names and renamed where a name does not say what its value or its work is, a
    variable, a function, a record and its fields, by the glossary, which it corrects as it
@@ -546,8 +542,10 @@ the terminal). The rest is MVP 3.3's.
   `erl_child_setup: failed with error 32 on line 284`, where §8.6 has the runtime print
   nothing (found 2026-10-01). Every run starts two such ports before `main`, and a program
   that starts host programs meets it while it runs. A port closed while it starts would
-  leave the same line by OTP's source, and was not met in thirty tries. Its fix is decided
-  in MVP 2.99b's item 5.
+  leave the same line by OTP's source, and was not met in thirty tries. Its fix is OTP's: the
+  child exits silently when the host is gone, as the helper does, which the user takes to
+  OTP's maintainers (decided 2026-10-01, the log's *A Port Lost While It Starts*). Ernest adds
+  nothing around it, and the gap stands until a release of OTP that Ernest requires has it.
 
 ---
 

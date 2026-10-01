@@ -78,7 +78,7 @@ Code in that layout:
 
 ## Glossary
 
-The names that recur across modules, one for each concept, in every module. A word is spelled as each language spells a name: `Descriptor` an Erlang variable, `descriptor` an Erlang function or field, an Ernest binding or parameter. The report is the authority: a concept it names takes its name. Drafted on 2026-10-01 from a survey of every module (MVP 2.99b's item 2); the renamings, items 6 and 15, correct it as they read the code name by name. A name not here is the writer's, under the rules above.
+The names that recur across modules, one for each concept, in every module. A word is spelled as each language spells a name: `Descriptor` an Erlang variable, `descriptor` an Erlang function or field, an Ernest binding or parameter. The report is the authority: a concept it names takes its name. Drafted on 2026-10-01 from a survey of every module (MVP 2.99b's item 2), where the code departed from the report the report's word taken with the user; the renamings, items 6 and 15, correct it as they read the code name by name. A name not here is the writer's, under the rules above.
 
 **The compiler**
 
@@ -96,6 +96,9 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Annotation**: a type the source writes. Not `Ann`; an AST record's `type` field holds one of the four things it holds today, each named.
 - **Effect**: the `with` part of a function type, a mailbox type or an effect variable (§3.9, §6.1). Not `E`, `Eff`, `EffT`, `MailboxT`.
 - **Constructor**: a constructor (§3.5, §5.6); many are `constructors`. Not `Cs`, `CI`, `cons`; `cons` is `::` alone.
+- **Restriction**: §3.9's inferred restriction; the three are `equality`, `process_only` and `not_reply_carrying`. Not `flags`, `add_flag`, `eq`, `no_reply`.
+- **Obligation**: §6.6's obligation. Not `Linear`.
+- **ResultType**: §4.5's result type, and "result type" in every message. Not `ret`, `Ret`, `RetT`, `R`, "return type".
 - **TypeVariable**: §3.9's type variable. A record's `vars` field is named for what it holds: a scheme's `quantified`, the type state's `variables`, the checker's `locals`.
 - **Descriptor**: a type's description at run time, in the emitter, the boundary and the runtime alike. Not `D`, `Desc`, `desc`; its tag for `Address(m)` is `address`, not `pid`.
 - **Token**: a token, many `Tokens`, what follows one `Rest`. Not `T`, `Ts`, `Toks`, `R`; `T` and `Ts` are a type and types in a one-line scope alone.
@@ -112,6 +115,8 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Site**: §6.9's spawn site. Not `At`, `Where`.
 - **Ms, Deadline**: milliseconds as given (E.0 shape rule 8) and the moment they end, as the code has them; a timer's message is `deadline` in every module.
 - **Monitor**: §6.9's monitor, in the reaper as elsewhere. Not `await`, `watch`, `Waiters`. The host's reference to one is a `MonitorRef`, not `Watch`, `Mon`, `MRef`, `OwnerMonitor`.
+- **Runner**: §11.2's runner, the process that starts the system processes and the entry point; the launcher is `bin/ern` alone. Not `Launcher`.
+- **SystemProcess**: a system process (§8.2, §8.4). Not `Service`, `sys`; the report's service is §6.5's.
 - **Run**: §6.9's run of a restarting function, and nothing else; a launch, a running program and a test are named as such.
 - **Owner**: the process that opened a resource or was given it (§6.9, E.18), and nothing else.
 - **Port**: E.18's port of a socket. A host port is named for what it runs: `Helper`, `Stty`.
@@ -132,12 +137,3 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **cause**: as above. Not `why`, `c`, `text`.
 - A **request** constructor is the function it serves, `Read` for `read`; an **event** is in the past tense, `Resized`. Not `Recv`, `Measure`, `FarEnd`, `Resize`.
 - A prelude name, `Where`, `answer`, `kill`, is not bound to another concept.
-
-**To decide with the user.** Where the code names a concept the report names otherwise, or the report's name seems wrong for the code (rule *One concept, one name* above):
-
-1. `flags`, `add_flag`, `eq` and `no_reply` in the checker are §3.9's inferred restrictions: `restrictions`, `equality`, `process_only`, `not_reply_carrying`. Recommended.
-2. `Linear` in the reply check is §6.6's obligation: `Obligation`. Recommended.
-3. `ret`, `Ret` and the diagnostics' "return type" are §4.5's result type: `ResultType`, and "result type" in every message. Recommended.
-4. The runtime's `Launcher` is §11.2's runner: `Runner`, and the launcher is `bin/ern` alone. Recommended.
-5. The runtime's `Service`, the reaper, the clock and the terminal, is a system process (§8.2, §8.4); the report's service is another thing (§6.5). `SystemProcess`. Recommended.
-6. `QualifiedName` is long for some 280 uses; `QName` is shorter and is not a word a reader knows. `QualifiedName` recommended, the line kept at 100 characters.
