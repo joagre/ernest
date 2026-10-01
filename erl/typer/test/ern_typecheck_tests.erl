@@ -1123,6 +1123,13 @@ named_fields_named_test() ->
     ?assertEqual("Point has named fields; write Point(x = p, y = p)",
                  err(Point ++ "fn f(q : Point) : Int = match q { Point(a) -> a }")).
 
+%% report §5.6: a construction gives each field once. A regression test,
+%% written after the code (findings.md's K-12)
+field_given_once_test() ->
+    ?assertEqual("field x is given twice",
+                 err("type P = P(x : Int, y : Int)\n"
+                     "fn f() : P = P(x = 1, x = 2, y = 3)")).
+
 %% report §5.6: `..` is allowed only on a type with one constructor. It was
 %% accepted on a type of two, and the program faulted with badmatch where
 %% the value was the other constructor.

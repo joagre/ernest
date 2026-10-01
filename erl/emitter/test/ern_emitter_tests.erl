@@ -3271,6 +3271,25 @@ tcp_write_waits_test() ->
         "}\n"),
     ?assertEqual(<<"#(false, 4194304)\nFault(\"callee had ended\")\n">>, Out).
 
+%% report §6.9: where restarting functions are nested, a fault restarts the
+%% innermost, which counts it against its own limit; one whose limit is
+%% spent gives the fault to the one around it, whose restart enters the
+%% inner afresh, and the process dies where none is left. A regression
+%% test, written after the code (findings.md's K-13); it does not cover a
+%% restart a supervisor asks for, which §6.9 gives to the outer function
+nested_restarting_test() ->
+    {Result, Out} = run(
+        "export fn main() : Unit with Never =\n"
+        "    restarting(RestartLimit(restarts = 1, within = 60000), fn() = {\n"
+        "        Io.println(\"outer\");\n"
+        "        restarting(RestartLimit(restarts = 1, within = 60000), fn() = {\n"
+        "            Io.println(\"inner\");\n"
+        "            fault(\"boom\")\n"
+        "        })()\n"
+        "    })()\n"),
+    ?assertMatch({fault, <<"boom">>}, Result),
+    ?assertEqual(<<"outer\ninner\ninner\nouter\ninner\ninner\n">>, Out).
+
 %% report §8.4, §7.4: a type variable of a foreign function's result that no
 %% parameter names matches no value, so a return that holds one faults, and
 %% an empty list of it passes, as does a value of a foreign type over it,
