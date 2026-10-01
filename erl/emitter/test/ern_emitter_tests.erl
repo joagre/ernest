@@ -1216,7 +1216,8 @@ float_fault_test() ->
     ?assertEqual({fault, <<"float arithmetic error">>}, R5).
 
 %% report §3.1: there is no negative zero; an operation, a negation, a
-%% float segment, parsed text, and a foreign value give 0.0
+%% float segment, parsed text, and a foreign value give 0.0. A sum or a
+%% difference is not normalized, and gives 0.0 all the same
 no_negative_zero_test() ->
     {ok, Out} = run(
         "foreign fn parse(s : String) : Float = \"erlang:binary_to_float/1\"\n"
@@ -1224,6 +1225,7 @@ no_negative_zero_test() ->
         "export fn main() : Unit with Never = {\n"
         "    let z = 0.0;\n"
         "    let _ = Io.debug(#(z * -1.0, -z, z / -2.0, -tiny() * tiny()));\n"
+        "    let _ = Io.debug(#(-5.0 + 5.0, 5.0 - 5.0, -z - z, -1.0e-200 * 1.0e-200));\n"
         "    let _ = Io.debug(z * -1.0 == 0.0);\n"
         "    let _ = Io.debug(Map.size(Map.fromList([#(z, 1), #(-z, 2)])));\n"
         "    let b = <<128, 0, 0, 0, 0, 0, 0, 0>>;\n"
@@ -1237,8 +1239,8 @@ no_negative_zero_test() ->
         " | _ -> 1.0 };\n"
         "    Unit\n"
         "}\n"),
-    ?assertEqual(<<"#(0.0, 0.0, 0.0, 0.0)\ntrue\n1\n0.0\n\"zero\"\nSome(0.0)\n0.0\n"
-                   "\"guard\"\n0.0\n">>, Out).
+    ?assertEqual(<<"#(0.0, 0.0, 0.0, 0.0)\n#(0.0, 0.0, 0.0, 0.0)\ntrue\n1\n0.0\n\"zero\"\n"
+                   "Some(0.0)\n0.0\n\"guard\"\n0.0\n">>, Out).
 
 %% report §5.1: a callee is evaluated before its arguments; in `x |> e`,
 %% x is evaluated before e, a callee a call computes among it

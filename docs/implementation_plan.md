@@ -244,12 +244,7 @@ Appendix E.1). Under §3.8's sentence of 2026-10-01, `Foreign` is a built-in typ
 where it is the library's foreign type `Foreign.Term` of Appendix E.12, which keeps its section;
 Appendix D's code and the shims change with it. The read-back of the sixteen sentences
 (2026-10-01, the log's *The Sixteen Sentences Read Back*) adds: every `spawn` writes `Local` (§6.2,
-principle 5). The second read-back adds E.16's and E.1's sections naming their primitives (clarity, K-24, K-39). Under
-§0's *The host*, the first family's round 2 (2026-10-01, the log's *The Host Family's Rules*)
-moves the negative zero's normalization in the emitter from every float operation to the ones
-that can make one, `*`, `/`, negation and the entries, since under round to nearest a sum or a
-difference of operands that are not negative zero is never one; with a test that `-5.0 + 5.0`
-and `-1.0e-200 * 1.0e-200` show `0.0`. Under E.0's rules, the tenth family's round 2
+principle 5). The second read-back adds E.16's and E.1's sections naming their primitives (clarity, K-24, K-39). Under E.0's rules, the tenth family's round 2
 (2026-10-01, the log's *The Library Family's Rules*): `styled`, the cursor's moves and the two
 erasures leave E.16 for a terminal library under `libs/`, Ernest over ECMA-48, which the shell, `libs/markdown`
 and `examples/snake.ern` take from the load path, `subscribe`, `size` and `columns` staying.

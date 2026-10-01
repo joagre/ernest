@@ -862,11 +862,18 @@ float_op(Op, L, R, A, B) ->
     Text = erl_syntax:binary([erl_syntax:binary_field(Cause)]),
     Badarith = erl_syntax:class_qualifier(erl_syntax:atom(error), erl_syntax:atom(badarith)),
     Handler = erl_syntax:clause([Badarith], none, [call_remote(ern_rt, fault, [Text])]),
-    %% report §3.1: + 0.0 turns a negative zero into 0.0 and keeps any other
-    Operation = erl_syntax:infix_expr(
-                  erl_syntax:infix_expr(erl_syntax:variable(A), erl_syntax:operator(Op),
-                                        erl_syntax:variable(B)),
-                  erl_syntax:operator('+'), erl_syntax:float(0.0)),
+    Plain = erl_syntax:infix_expr(erl_syntax:variable(A), erl_syntax:operator(Op),
+                                  erl_syntax:variable(B)),
+    %% report §3.1: under round to nearest a sum or a difference of operands
+    %% that are not negative zero is never one, and no operand is; a product
+    %% or a quotient may be, and + 0.0 turns it into 0.0 and keeps any other
+    Operation = case Op of
+                    _ when Op =:= '*'; Op =:= '/' ->
+                        erl_syntax:infix_expr(Plain, erl_syntax:operator('+'),
+                                              erl_syntax:float(0.0));
+                    _ ->
+                        Plain
+                end,
     erl_syntax:block_expr([erl_syntax:match_expr(erl_syntax:variable(A), L),
                            erl_syntax:match_expr(erl_syntax:variable(B), R),
                            erl_syntax:try_expr([Operation], [Handler])]).
