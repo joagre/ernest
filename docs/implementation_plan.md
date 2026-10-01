@@ -313,7 +313,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     `Char.isAsciiDigit : (Char) -> Bool` restored in E.6 by E.0 rule 3, the digits
     `String.toInt` reads, and the eight hand-written copies use it; about an hour. Entry 86:
     `Test.` written on every test kept, with no import and `Test` out of the prelude. Entry 87:
-    `Io.NotUtf8` carrying the whole history file kept, as E.1 defines it.
+    `Io.NotUtf8` carrying the whole history file kept, as E.1 defines it. Entry 88: one budget
+    over several waits computed by the composing function, shape rule 8 bounding each request.
 
 ---
 
