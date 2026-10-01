@@ -299,7 +299,9 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     `Address.ask(addr, mk, wrap, ms)` admitted to the prelude, `wrap` taking `Optional(a)`,
     `None` when the milliseconds pass or the callee ends or restarts first, a late answer
     discarded; about a day and a half with §6.6, §9.4 and the guide's §4.4 rewritten without
-    its helper.
+    its helper. Entry 80: §6.9's `Down` without order kept, since the host's order would need a
+    mailbox of the runtime's own under every receive; the guide's §5.6 collects its workers'
+    results with `ask`, with entry 79's build.
 
 ---
 
