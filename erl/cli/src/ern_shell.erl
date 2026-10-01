@@ -163,7 +163,7 @@ input(Text) ->
             {ok, it, Expr};
         {error, Diag} ->
             case ern_parser:parse_string(Text) of
-                {ok, [#let_decl{owner = undefined, name = Name, body = Body, ann = Ann}]} ->
+                {ok, [#let_decl{name = Name, body = Body, ann = Ann}]} ->
                     {ok, Name, annotated(Name, Body, Ann)};
                 {ok, Decls} -> declarations(Decls);
                 {error, DeclDiag} ->
@@ -221,7 +221,7 @@ declaration_start(_) -> false.
 %% every declaration of an input is exported; a later input reaches it as it
 %% reaches another module's declaration (§4.3).
 declarations(Decls) ->
-    case [P || #let_decl{owner = undefined, pos = P} <- Decls] of
+    case [P || #let_decl{pos = P} <- Decls] of
         [] -> {decls, [exported(D) || D <- Decls]};
         [_, Second | _] -> {error, one_let(Second)};
         [Pos] -> {error, one_let(Pos)}
@@ -405,7 +405,7 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
             end,
     %% the keys its top-level lets are stored under (report §8.5), which go
     %% when it does
-    Keys = [{Mod, ern_emitter:function_name(O, N)} || #let_decl{owner = O, name = N} <- Typed],
+    Keys = [{Mod, ern_emitter:function_name(undefined, N)} || #let_decl{name = N} <- Typed],
     set_uses(maps:put(Mod, {Ns, lists:usort([M || {M, _, _} <- Imports, session_module(M),
                                                   M =/= Mod] ++ Named), Keys},
                       uses())),
@@ -2214,7 +2214,7 @@ declared_name(#fn_decl{owner = undefined, name = N}) -> {[], N};
 declared_name(#fn_decl{owner = Owner, name = N}) -> {[Owner], N};
 declared_name(#foreign_fn_decl{owner = undefined, name = N}) -> {[], N};
 declared_name(#foreign_fn_decl{owner = Owner, name = N}) -> {[Owner], N};
-declared_name(#let_decl{owner = Owner, name = N}) -> {[Owner], N};
+declared_name(#let_decl{name = N}) -> {[], N};
 declared_name(#type_decl{name = N}) -> {[], N};
 declared_name(#abstract_decl{type = #type_decl{name = N}}) -> {[], N};
 declared_name(#foreign_type_decl{name = N}) -> {[], N}.

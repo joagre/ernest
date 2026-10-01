@@ -287,8 +287,8 @@ decl(#fn_decl{export = E, owner = O, params = Ps, ret = R, effect = F, body = B}
          block -> [sp(), ex(B, X)];
          _ -> {nest, 4, [hardline, ex(B, X)]}
      end];
-decl(#let_decl{export = E, owner = O, ann = A, body = B}, X) ->
-    [export(E), tok('let'), sp(), name(O), ann(A, X), sp(), tok('='), {body, ex(B, X)}];
+decl(#let_decl{export = E, ann = A, body = B}, X) ->
+    [export(E), tok('let'), sp(), tok(), ann(A, X), sp(), tok('='), {body, ex(B, X)}];
 decl(#type_decl{export = E, params = Ps, constructors = Cs}, X) ->
     [export(E), type_decl(Ps, Cs, X)];
 decl(#abstract_decl{export = E, type = #type_decl{params = Ps, constructors = Cs}}, X) ->

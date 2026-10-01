@@ -26,8 +26,8 @@ Template.area(c)
 A stack of shapes, pushed and popped:
 
 ```ernest
-let s = Template.Stack.push(Template.Stack.empty, Template.Dot(Template.Point(x = 1, y = 1)));
-match Template.Stack.pop(s) {
+let s = Template.push(Template.emptyStack, Template.Dot(Template.Point(x = 1, y = 1)));
+match Template.pop(s) {
     Some(#(top, _)) -> Template.area(top)
   | None -> -1
 }
@@ -87,33 +87,33 @@ representation is private.
 ### Examples
 
 ```ernest
-Template.Stack.push(Template.Stack.empty, Template.Dot(Template.Point(x = 0, y = 0)))
+Template.push(Template.emptyStack, Template.Dot(Template.Point(x = 0, y = 0)))
 ```
 
 ### See also
 
 `List` (Appendix E.2), which a stack is a restriction of.
 
-## Template.Stack.empty
+## Template.emptyStack
 
 ```ernest
-Template.Stack.empty : Stack
+Template.emptyStack : Stack
 ```
 
 The stack with nothing on it.
 
-## Template.Stack.push
+## Template.push
 
 ```ernest
-Template.Stack.push : (Stack, Shape) -> Stack
+Template.push : (Stack, Shape) -> Stack
 ```
 
 The stack with the shape on top.
 
-## Template.Stack.pop
+## Template.pop
 
 ```ernest
-Template.Stack.pop : (Stack) -> Optional(#(Shape, Stack))
+Template.pop : (Stack) -> Optional(#(Shape, Stack))
 ```
 
 The top shape and the rest, `None` when the stack is empty.

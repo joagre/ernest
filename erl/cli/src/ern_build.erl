@@ -365,8 +365,6 @@ references(_) -> [].
 %% The members this module's types declare, `T.name` as {[T], name}.
 local_members(Decls) ->
     [{[Owner], Name} || #fn_decl{owner = Owner, name = Name} <- Decls, Owner =/= undefined]
-        ++ [{[Owner], Name} || #let_decl{owner = Owner, name = Name} <- Decls,
-                               Owner =/= undefined]
         ++ [{[Owner], Name} || #foreign_fn_decl{owner = Owner, name = Name} <- Decls,
                                Owner =/= undefined].
 

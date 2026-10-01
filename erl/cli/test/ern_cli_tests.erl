@@ -506,26 +506,30 @@ operators_across_modules_test() ->
                                     "bad.ern:1:35: `-` is not defined on Geo.Vec.Vec\n$")),
     ?assertNot(filelib:is_regular(Dir ++ "/build/bad.erc")).
 
-%% report §4.2, §11.2: a type member of another module is called by its
-%% module path, type, and member, and loads from the module that owns it
+%% report §3.10, §4.2, §11.2: a type member of another module is called by
+%% its module path, type, and member, and loads from the module that owns
+%% it; `<` on the type reaches it there
 type_member_across_modules_test() ->
     Dir = tmp(),
     write(Dir, "src/lib/stack.ern",
           "export abstract type Stack(a) = Stack(List(a))\n"
-          "export let Stack.empty : Stack(a) = Stack([])\n"
-          "export fn Stack.push(x : a, Stack(xs) : Stack(a)) : Stack(a) = Stack(x :: xs)\n"
-          "export fn Stack.size(Stack(xs) : Stack(a)) : Int = List.size(xs)\n"),
+          "export let empty : Stack(a) = Stack([])\n"
+          "export fn push(x : a, Stack(xs) : Stack(a)) : Stack(a) = Stack(x :: xs)\n"
+          "export fn Stack.compare(Stack(xs) : Stack(a), Stack(ys) : Stack(a)) : Ordering =\n"
+          "    Int.compare(List.size(xs), List.size(ys))\n"),
     write(Dir, "src/main.ern",
           "export fn main() : Unit with Never = {\n"
-          "    let s = Lib.Stack.Stack.push(1, Lib.Stack.Stack.empty);\n"
-          "    Io.println(Int.toString(Lib.Stack.Stack.size(s)));\n"
+          "    let s = Lib.Stack.push(1, Lib.Stack.empty);\n"
+          "    let t = Lib.Stack.push(2, s);\n"
+          "    Io.println(Io.show(Lib.Stack.Stack.compare(t, s)));\n"
+          "    Io.println(Io.show(s < t));\n"
           "    let _ = Io.debug(#(s, 2));\n"
           "    Unit\n"
           "}\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     %% report Appendix E.1: an abstract value outside its module
-    ?assertEqual(<<"1\n#(<abstract>, 2)\n">>, iolist_to_binary(?capturedOutput)).
+    ?assertEqual(<<"Greater\ntrue\n#(<abstract>, 2)\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §4.4, Appendix E.1: outside its module an abstract value is shown as
 %% `<abstract>`, and through a type variable by its representation, its
@@ -536,12 +540,12 @@ abstract_through_type_variable_test() ->
     Dir = tmp(),
     write(Dir, "src/lib/stack.ern",
           "export abstract type Stack(a) = Stack(List(a))\n"
-          "export let Stack.one : Stack(Int) = Stack([1])\n"),
+          "export let one : Stack(Int) = Stack([1])\n"),
     write(Dir, "src/main.ern",
           "fn shown(x : a) : String = Io.show(x)\n\n"
           "export fn main() : Unit with Never = {\n"
-          "    Io.println(Io.show(Lib.Stack.Stack.one));\n"
-          "    Io.println(shown(Lib.Stack.Stack.one))\n"
+          "    Io.println(Io.show(Lib.Stack.one));\n"
+          "    Io.println(shown(Lib.Stack.one))\n"
           "}\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
@@ -556,9 +560,9 @@ type_name_shares_a_module_test() ->
     write(Dir, "src/stack.ern", "export fn other() : Int = 7\n"),
     write(Dir, "src/main.ern",
           "type Stack = Stack(List(Int))\n\n"
-          "fn Stack.size(s : Stack) : Int = match s { Stack(xs) -> List.size(xs) }\n\n"
+          "fn Stack.negate(s : Stack) : Int = match s { Stack(xs) -> List.size(xs) }\n\n"
           "export fn main() : Unit with Never =\n"
-          "    Io.println(Int.toString(Stack.other() + Stack.size(Stack([1]))))\n"),
+          "    Io.println(Int.toString(Stack.other() + Stack.negate(Stack([1]))))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
     ?assertEqual(<<"8\n">>, iolist_to_binary(?capturedOutput)).
@@ -685,7 +689,7 @@ abstract_constructor_outside_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern",
           "export abstract type Stack(a) = Stack(List(a))\n"
-          "export let Stack.empty = Stack([])\n" ++ hello()),
+          "export let empty = Stack([])\n" ++ hello()),
     write(Dir, "src/other.ern", "export fn f() : Main.Stack(Int) = Main.Stack([])\n"),
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertMatch({match, _},
@@ -696,8 +700,8 @@ abstract_constructor_outside_test() ->
 %% report §4.2: type names that differ only in case are distinct, and a
 %% type whose name differs only in case from a child module's segment does
 %% not take that module's namespace: `STACK` in main.ern beside
-%% main/stack.ern compiles, `STACK.get` and `Main.STACK.get` are main's own
-%% member, and `Main.Stack.one` is the child module's. A regression test,
+%% main/stack.ern compiles, `STACK.negate` and `Main.STACK.negate` are main's
+%% own member, and `Main.Stack.one` is the child module's. A regression test,
 %% written after the code; single-file mode is not covered.
 case_distinct_names_test() ->
     Dir = tmp(),
@@ -705,9 +709,10 @@ case_distinct_names_test() ->
           "export type STACK = STACK(Int)\n"
           "export type Stack2 = A\n"
           "export type STACK2 = B\n"
-          "export fn STACK.get(s : STACK) : Int = match s { STACK(n) -> n }\n"
+          "export fn STACK.negate(s : STACK) : Int = match s { STACK(n) -> n }\n"
           "export fn main() : Unit with m = Io.println(Int.toString(\n"
-          "    STACK.get(STACK(3)) * 100 + Main.STACK.get(STACK(4)) * 10 + Main.Stack.one()))\n"),
+          "    STACK.negate(STACK(3)) * 100 + Main.STACK.negate(STACK(4)) * 10\n"
+          "    + Main.Stack.one()))\n"),
     write(Dir, "src/main/stack.ern", "export fn one() : Int = 1\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
@@ -719,9 +724,9 @@ abstract_field_outside_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern",
           "export abstract type Box = Box(n : Int)\n"
-          "export let Box.one = Box(n = 1)\n"
+          "export let one = Box(n = 1)\n"
           "export fn inside(b : Box) : Int = b.n\n" ++ hello()),
-    write(Dir, "src/other.ern", "export fn g() : Int = Main.Box.one.n\n"),
+    write(Dir, "src/other.ern", "export fn g() : Int = Main.one.n\n"),
     ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertMatch({match, _},
                  re:run(iolist_to_binary(?capturedOutput),
@@ -1216,9 +1221,12 @@ doc_test() ->
                  "/// A shape.\n"
                  "export type Shape = Dot | At(x : Int, y : Int)\n"
                  "export abstract type Box(a) = Box(List(a))\n"
-                 "export let Box.empty : Box(a) = Box([])\n"
+                 "export let empty : Box(a) = Box([])\n"
                  "/// Put x in the box.\n"
-                 "export fn Box.put(x : a, Box(xs) : Box(a)) : Box(a) = Box(x :: xs)\n"
+                 "export fn put(x : a, Box(xs) : Box(a)) : Box(a) = Box(x :: xs)\n"
+                 "/// By size.\n"
+                 "export fn Box.compare(Box(xs) : Box(a), Box(ys) : Box(a)) : Ordering =\n"
+                 "    Int.compare(List.size(xs), List.size(ys))\n"
                  "export fn same(a, b) = a == b\n"
                  "/// Documented but private.\n"
                  "fn twice(n : Int) : Int = 2 * n\n"
@@ -1229,10 +1237,14 @@ doc_test() ->
     Expect(<<"# Ernest module Shapes\n\n## Shapes.Shape\n\n```ernest\n"
              "type Shape = Dot | At(x : Int, y : Int)\n```\n\nA shape.\n">>),
     Expect(<<"## Shapes.Box\n\n```ernest\nabstract type Box(a)\n```\n">>),
-    Expect(<<"## Shapes.Box.empty\n\n```ernest\nShapes.Box.empty : Box(a)\n```\n">>),
+    Expect(<<"## Shapes.empty\n\n```ernest\nShapes.empty : Box(a)\n```\n">>),
     %% report §3.9: put keeps its element in a List, where a reply may not stand
-    Expect(<<"## Shapes.Box.put\n\n```ernest\nShapes.Box.put : (a!, Box(a!)) -> Box(a!)\n```\n\n"
+    Expect(<<"## Shapes.put\n\n```ernest\nShapes.put : (a!, Box(a!)) -> Box(a!)\n```\n\n"
              "Put x in the box.\n">>),
+    %% report §4.2: a member is shown under its type; §3.9: it drops its
+    %% boxes' elements, and `Box` is no type the restriction looks through
+    Expect(<<"## Shapes.Box.compare\n\n```ernest\n"
+             "Shapes.Box.compare : (Box(a!), Box(a!)) -> Ordering\n```\n\nBy size.\n">>),
     Expect(<<"## Shapes.same\n\n```ernest\nShapes.same : (a=, a=) -> Bool\n```\n">>),
     %% report §11.4: a private declaration is marked
     Expect(<<"## Shapes.twice\n\n```ernest\nShapes.twice : (Int) -> Int\n```\n\n"

@@ -230,10 +230,7 @@ its examples change together (the attack plan's rules of the road): under §7.4'
 on a negative count where the rule says none (E.8); and `Io.Error` carries causes the report
 names as text in `Other` (E.1, E.17, E.18, E.23). Under E.0 shape rule 8's restatement of
 2026-10-01, `Tcp.write`, `Os.write` and `Os.read` take no milliseconds for a wait on another
-party, and `Os.start` takes milliseconds that bound a run and not a request (E.18, E.23). Under §4.5's sentence of
-2026-10-01, the checker accepts `fn T.f` for any operation, and §4.2's *Type members*, §4.4's
-example, the guide's §7.2 and `examples/stack.ern`, `repl.ern`, `template.ern` and
-`webserver.ern` declare members that are not operators; they change together with the refusal. Under E.0's rules of
+party, and `Os.start` takes milliseconds that bound a run and not a request (E.18, E.23). Under E.0's rules of
 2026-10-01, `List.<>` is a shim by §9.6 where a list is the language's; `Terminal`'s
 builders write a published specification, ECMA-48, in a standard library module (E.16);
 `Optional.orElse`, `Either.orElse` and `Char.isAsciiDigit` stand though no rule admits them;
@@ -254,16 +251,14 @@ where it is the library's foreign type `Foreign.Term` of Appendix E.12, which ke
 Appendix D's code and the shims change with it. The read-back of the sixteen sentences
 (2026-10-01, the log's *The Sixteen Sentences Read Back*) adds: `via(f, addr)` takes its
 function before its subject (§9.5, shape rule 1); every `spawn` writes `Local` (§6.2,
-principle 5); §4.6's `let Stack.empty` and §11.2's `let T.name` declare value members;
-the checker refuses `==` on `Foreign` (§3.10); `Fs.readRange` answers `Left` for a negative
+principle 5); the checker refuses `==` on `Foreign` (§3.10); `Fs.readRange` answers `Left` for a negative
 count where §7.4 says none (E.17); `Fs.list` leaves out a name, which E.17 now answers with
 `Left(NotUtf8(name))`, and `Os.environment` a variable, where the seventh family (2026-10-01, the
 log's *The Silence Family's Rules*) makes it a function, `Os.environment(name) : Optional(String)`,
 `None` for no such variable and a fault of the asker for a value that is not UTF-8, the
 environment read once at the start and decoded at the asking, its two callers in the shell
 following; and an `// =>` example whose value's type
-keeps a variable, `Io.debug([])`, needs an annotation once E.1's rule is checked. The second read-back adds Appendix A's `DeclName`, which admits
-`let T.name`, and E.16's and E.1's sections naming their primitives (clarity, K-24, K-39). Under
+keeps a variable, `Io.debug([])`, needs an annotation once E.1's rule is checked. The second read-back adds E.16's and E.1's sections naming their primitives (clarity, K-24, K-39). Under
 §0's *The host*, the first family's round 2 (2026-10-01, the log's *The Host Family's Rules*)
 moves the negative zero's normalization in the emitter from every float operation to the ones
 that can make one, `*`, `/`, negation and the entries, since under round to nearest a sum or a

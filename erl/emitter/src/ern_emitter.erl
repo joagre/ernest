@@ -116,7 +116,7 @@ forms(Ns, Decls, Env, Build) ->
 %% Report §9.3, §11.2: '$tests'/0 lists the module's tests, every top-level
 %% let of type Test, exported or not, for `ern test`.
 tests_fun(Lets) ->
-    Names = [fname(O, N) || #let_decl{owner = O, name = N, type = Scheme} <- Lets,
+    Names = [fname(undefined, N) || #let_decl{name = N, type = Scheme} <- Lets,
                             Scheme#scheme.type =:= {tcon, ['Test'], []}],
     case Names of
         [] -> [];
@@ -192,7 +192,7 @@ top_names(Decls) ->
     maps:from_list([{{O, N}, length(Ps)} || #fn_decl{owner = O, name = N, params = Ps} <- Decls]
                    ++ [{{O, N}, length(Ps)}
                        || #foreign_fn_decl{owner = O, name = N, params = Ps} <- Decls]
-                   ++ [{{O, N}, value} || #let_decl{owner = O, name = N} <- Decls]).
+                   ++ [{{undefined, N}, value} || #let_decl{name = N} <- Decls]).
 
 exported(#fn_decl{export = E}) -> E;
 exported(#let_decl{export = E}) -> E;
@@ -201,7 +201,7 @@ exported(_) -> false.
 
 export(#fn_decl{owner = O, name = N, params = Ps}) -> {fname(O, N), length(Ps)};
 export(#foreign_fn_decl{owner = O, name = N, params = Ps}) -> {fname(O, N), length(Ps)};
-export(#let_decl{owner = O, name = N}) -> {fname(O, N), 0}.
+export(#let_decl{name = N}) -> {fname(undefined, N), 0}.
 
 fname(undefined, N) -> function_atom(N);
 fname(Owner, N) -> list_to_atom(atom_to_list(Owner) ++ "." ++ atom_to_list(N)).
@@ -229,9 +229,9 @@ decl(#fn_decl{pos = Pos, owner = O, name = N, params = Params, body = Body}, Cx)
     {BodyForms, Cx3} = body(Body, Cx2),
     Clause = at(Pos, erl_syntax:clause(Pats, none, BodyForms)),
     {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx3#cx{vars = #{}}};
-decl(#let_decl{pos = Pos, owner = O, name = N}, Cx) ->
+decl(#let_decl{pos = Pos, name = N}, Cx) ->
     %% the getter; the value is computed by '$init'/0 (report §8.5)
-    Name = fname(O, N),
+    Name = fname(undefined, N),
     Get = call_remote(ern_rt, binding, [key(Cx, Name)]),
     Clause = at(Pos, erl_syntax:clause([], none, [Get])),
     {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx};
@@ -290,12 +290,12 @@ init_fun([], Cx) ->
     {[], Cx};
 init_fun(Lets, Cx) ->
     {Stores, Cx1} = lists:mapfoldl(
-                      fun(#let_decl{pos = Pos, owner = O, name = N, body = Body}, C) ->
-                              C0 = C#cx{fname = fname(O, N), vars = #{}, locals = #{}},
+                      fun(#let_decl{pos = Pos, name = N, body = Body}, C) ->
+                              C0 = C#cx{fname = fname(undefined, N), vars = #{}, locals = #{}},
                               Named = call_remote(ern_rt, initializing, [site(Pos, C0)]),
                               {BodyForm, C1} = expr(Body, C0),
                               Store = call_remote(persistent_term, put,
-                                                  [key(C, fname(O, N)), BodyForm]),
+                                                  [key(C, fname(undefined, N)), BodyForm]),
                               {[Named, Store], C1}
                       end, Cx, let_order(Lets, Cx)),
     Clause = erl_syntax:clause([], none, lists:append(Stores) ++ [erl_syntax:atom(ok)]),
@@ -304,7 +304,7 @@ init_fun(Lets, Cx) ->
 %% Report §8.5: the lets in the order the checker found, a let after
 %% those its initializer reaches and otherwise as declared.
 let_order(Lets, #cx{env = Env}) ->
-    ByKey = maps:from_list([{{O, N}, D} || #let_decl{owner = O, name = N} = D <- Lets]),
+    ByKey = maps:from_list([{{undefined, N}, D} || #let_decl{name = N} = D <- Lets]),
     [maps:get(K, ByKey) || K <- ern_typecheck:let_order(Env)].
 
 %%

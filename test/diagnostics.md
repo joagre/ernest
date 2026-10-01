@@ -377,7 +377,7 @@ fn Coin.1() -> Int = 1
 
 ```console
 $ ern build example.ern
-example.ern:3:9: expected a member name or operator after `.` instead of integer 1
+example.ern:3:9: expected an operator, `compare` or `negate` after `.` instead of integer 1
 2 | 
 3 | fn Coin.1() -> Int = 1
   |         ^
@@ -393,10 +393,62 @@ fn Coin() : Int = 1
 
 ```console
 $ ern build example.ern
-example.ern:3:4: expected a name; a type member is written `Coin.name`
+example.ern:3:4: expected a name instead of type name `Coin`
 2 | 
 3 | fn Coin() : Int = 1
   |    ^^^^
+  | = help: a function's name begins with a lowercase letter
+```
+
+### A type's other operation declared as a member (§4.5)
+
+```ernest-rejected
+type Stack = Stack(List(Int))
+
+fn Stack.push(s : Stack, n : Int) : Stack = s
+```
+
+```console
+$ ern build example.ern
+example.ern:3:10: `push` cannot be a member of Stack: a member is an operator, `compare` or `negate`
+2 | 
+3 | fn Stack.push(s : Stack, n : Int) : Stack = s
+  |          ^^^^
+  | = help: a type's other operations are functions of its module: write `fn push`
+```
+
+### A member declared with `let` (§4.5)
+
+```ernest-rejected
+type Stack = Stack(List(Int))
+
+let Stack.empty = Stack([])
+```
+
+```console
+$ ern build example.ern
+example.ern:3:5: a `let` declares no member of Stack
+2 | 
+3 | let Stack.empty = Stack([])
+  |     ^^^^^
+  | = help: a type's values are named in its module, as its functions are: write `let empty`
+```
+
+### An operator declared with `let` (§4.5)
+
+```ernest-rejected
+type Money = Money(Int)
+
+let Money.+ = 1
+```
+
+```console
+$ ern build example.ern
+example.ern:3:5: a `let` declares no member of Money
+2 | 
+3 | let Money.+ = 1
+  |     ^^^^^
+  | = help: a member is declared with `fn`: write `fn Money.+(...)`
 ```
 
 ### A declaration with no name (§4.4)
@@ -1053,30 +1105,14 @@ example.ern:3:1: value n is declared twice
 ### A member of a type the module does not declare (§4.2)
 
 ```ernest-rejected
-fn Colour.name() : String = "red"
+fn Colour.negate(n : Int) : Int = n
 ```
 
 ```console
 $ ern build example.ern
 example.ern:1:1: Colour is not a type declared in this module
-1 | fn Colour.name() : String = "red"
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-```
-
-### An operator declared with `let` (§4.8)
-
-```ernest-rejected
-type Money = Money(Int)
-
-let Money.+ = 1
-```
-
-```console
-$ ern build example.ern
-example.ern:3:1: an operator is declared with `fn`, not `let`
-2 | 
-3 | let Money.+ = 1
-  | ^^^^^^^^^^^^^^^
+1 | fn Colour.negate(n : Int) : Int = n
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### An operator member of the wrong shape (§4.8)
@@ -2008,17 +2044,17 @@ example.ern:4:5: local function g is declared twice in the block
 
 ```ernest-rejected
 fn f() : Int = {
-    fn Int.twice(n : Int) : Int = n;
+    fn Int.negate(n : Int) : Int = n;
     1
 }
 ```
 
 ```console
 $ ern build example.ern
-example.ern:2:5: a type-member name, `fn Int.name`, is a top-level form; a local function has a plain name
+example.ern:2:5: a member, `fn Int.negate`, is a top-level form; a local function has a plain name
 1 | fn f() : Int = {
-2 |     fn Int.twice(n : Int) : Int = n;
-  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2 |     fn Int.negate(n : Int) : Int = n;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
 ### A recursive call at another type than the definition's (§4.5)

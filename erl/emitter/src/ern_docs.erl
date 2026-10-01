@@ -60,8 +60,8 @@ doc_key(#fn_decl{owner = O, name = N, params = Ps}) ->
     {function, ern_emitter:function_name(O, N), length(Ps)};
 doc_key(#foreign_fn_decl{owner = O, name = N, params = Ps}) ->
     {function, ern_emitter:function_name(O, N), length(Ps)};
-doc_key(#let_decl{owner = O, name = N}) ->
-    {function, ern_emitter:function_name(O, N), 0}.
+doc_key(#let_decl{name = N}) ->
+    {function, ern_emitter:function_name(undefined, N), 0}.
 
 doc_signature(D, Prefix, Env) ->
     [unicode:characters_to_binary(L)
@@ -125,8 +125,8 @@ doc_of(#foreign_fn_decl{doc = D}) -> D.
 signature(#fn_decl{owner = O, name = N, type = Scheme}, Prefix, Env) ->
     text([Prefix, atom_to_list(shown_name(O, N)), " : ",
           ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
-signature(#let_decl{owner = O, name = N, type = Scheme}, Prefix, Env) ->
-    text([Prefix, atom_to_list(shown_name(O, N)), " : ",
+signature(#let_decl{name = N, type = Scheme}, Prefix, Env) ->
+    text([Prefix, atom_to_list(N), " : ",
           ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
 signature(#foreign_fn_decl{owner = O, name = N, params = Ps, ret = R, effect = E}, Prefix, _) ->
     Type = #t_fn{params = [T || #param{type = T} <- Ps], ret = R, effect = E},

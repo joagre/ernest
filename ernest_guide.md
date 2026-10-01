@@ -1716,28 +1716,28 @@ $ ern run --main Tools.check build/tools.erc
 
 ### 7.2 Abstract types
 
-An abstract type keeps its representation to its module: every definition in the module may name its constructor, and no other module can. A type's operations are declared with its name before theirs, `fn Stack.push`, and the type is then a namespace inside its module; report §4.8 declares operators on a type the same way, `fn Distance.+`.
+An abstract type keeps its representation to its module: every definition in the module may name its constructor, and no other module can. A type's operations are functions of its module, so a stack is a module of its own, `stack.ern`, whose functions other modules call `Stack.push` and `Stack.pop`. Only an operator, `compare` and `negate` are declared with the type's name before theirs, as report §4.8's `fn Distance.+` is.
 
 ```ernest
-// main.ern  (namespace Main)
+// stack.ern  (namespace Stack)
 export abstract type Stack(a) = Stack(List(a))
 
-export let Stack.empty : Stack(a) = Stack([])
+export let empty : Stack(a) = Stack([])
 
-export fn Stack.push(Stack(xs) : Stack(a), x : a) : Stack(a) =
+export fn push(Stack(xs) : Stack(a), x : a) : Stack(a) =
     Stack(x :: xs)
 
-export fn Stack.pop(Stack(xs) : Stack(a)) : Optional(#(a, Stack(a))) =
+export fn pop(Stack(xs) : Stack(a)) : Optional(#(a, Stack(a))) =
     match xs {
         [] -> None
       | x :: rest -> Some(#(x, Stack(rest)))
     }
 
-export fn Stack.size(Stack(xs) : Stack(a)) : Int =
+export fn size(Stack(xs) : Stack(a)) : Int =
     List.size(xs)
 ```
 
-Inside `main.ern` the operations are `Stack.push` and the rest, and any definition may take a `Stack` apart, a private helper or a test included. Outside, they are `Main.Stack.push`, and `Main.Stack([])` is an error: another module sees the type and the operations, never the constructor.
+Inside `stack.ern` the operations are `push` and the rest, and any definition may take a `Stack` apart, a private helper or a test included. Outside, they are `Stack.push` and the rest, the type is `Stack.Stack`, and `Stack.Stack([])` is an error: another module sees the type and the operations, never the constructor.
 
 An abstract type is exported, since one its module keeps would hide from no module:
 
@@ -2266,7 +2266,7 @@ Four larger programs, each written against the report to try the language on a w
 - [`examples/snake.ern`](examples/snake.ern) — snake game with tick-based updates; `..` record updates, one process per player, `Clock`, `Terminal`, `Random`.
 - [`examples/repl.ern`](examples/repl.ern) — small read-eval-print loop; `<-` for chained parsing, `spawnMonitored` + `kill` for aborting slow evaluation, `Io.readLine`.
 - [`examples/filesync.ern`](examples/filesync.ern) — file sync between two directories, whose two sides run on one node and would run the same on two; mutual-address setup, one process per file operation, `Fs`.
-- [`examples/webserver.ern`](examples/webserver.ern) — HTTP server with sessions in a process that owns a `Map`; request-reply, type members, `Tcp`.
+- [`examples/webserver.ern`](examples/webserver.ern) — HTTP server with sessions in a process that owns a `Map`; request-reply, `Tcp`.
 
 For the language rules themselves, [`ernest_report.md`](ernest_report.md) is the authority. Appendix F glosses every technical term.
 

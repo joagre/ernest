@@ -72,8 +72,8 @@ Code in that layout:
                session : SessionId,
                cookies : List(Cookie),
                body : String) : Bytes with Msg =
-        Response(status = StatusCode.ok, headers = [], body = body)
-            |> withCookie("sid", SessionId.text(session))
+        Response(status = statusOk, headers = [], body = body)
+            |> withCookie("sid", sessionIdText(session))
             |> render
 
 ## Glossary

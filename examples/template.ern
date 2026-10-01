@@ -15,8 +15,8 @@
 /// A stack of shapes, pushed and popped:
 ///
 /// ```ernest
-/// let s = Template.Stack.push(Template.Stack.empty, Template.Dot(Template.Point(x = 1, y = 1)));
-/// match Template.Stack.pop(s) {
+/// let s = Template.push(Template.emptyStack, Template.Dot(Template.Point(x = 1, y = 1)));
+/// match Template.pop(s) {
 ///     Some(#(top, _)) -> Template.area(top)
 ///   | None -> -1
 /// }
@@ -63,7 +63,7 @@ export type Shape =
 /// ### Examples
 ///
 /// ```ernest
-/// Template.Stack.push(Template.Stack.empty, Template.Dot(Template.Point(x = 0, y = 0)))
+/// Template.push(Template.emptyStack, Template.Dot(Template.Point(x = 0, y = 0)))
 /// ```
 ///
 /// ### See also
@@ -72,14 +72,14 @@ export type Shape =
 export abstract type Stack = Stack(List(Shape))
 
 /// The stack with nothing on it.
-export let Stack.empty = Stack([])
+export let emptyStack = Stack([])
 
 /// The stack with the shape on top.
-export fn Stack.push(Stack(ss) : Stack, s : Shape) : Stack =
+export fn push(Stack(ss) : Stack, s : Shape) : Stack =
     Stack(s :: ss)
 
 /// The top shape and the rest, `None` when the stack is empty.
-export fn Stack.pop(Stack(ss) : Stack) : Optional(#(Shape, Stack)) =
+export fn pop(Stack(ss) : Stack) : Optional(#(Shape, Stack)) =
     match ss {
         [] -> None
       | s :: rest -> Some(#(s, Stack(rest)))

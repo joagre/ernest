@@ -144,7 +144,7 @@ declared_types(Decls) ->
     [T || #type_decl{} = T <- Decls] ++ [T || #abstract_decl{type = T} <- Decls].
 
 top_value_name(#fn_decl{owner = undefined, name = N}) -> [N];
-top_value_name(#let_decl{owner = undefined, name = N}) -> [N];
+top_value_name(#let_decl{name = N}) -> [N];
 top_value_name(#foreign_fn_decl{owner = undefined, name = N}) -> [N];
 top_value_name(_) -> [].
 
@@ -221,8 +221,8 @@ decl_names(#foreign_type_decl{pos = Pos, name = N}) ->
     [{type, N, Pos}];
 decl_names(#fn_decl{pos = Pos, owner = O, name = N}) ->
     [{value, {O, N}, Pos}];
-decl_names(#let_decl{pos = Pos, owner = O, name = N}) ->
-    [{value, {O, N}, Pos}];
+decl_names(#let_decl{pos = Pos, name = N}) ->
+    [{value, {undefined, N}, Pos}];
 decl_names(#foreign_fn_decl{pos = Pos, owner = O, name = N}) ->
     [{value, {O, N}, Pos}];
 decl_names(_) ->
@@ -807,7 +807,7 @@ replace_typed(D, Typed) ->
     end.
 
 decl_key(#fn_decl{owner = O, name = N}) -> {O, N};
-decl_key(#let_decl{owner = O, name = N}) -> {O, N};
+decl_key(#let_decl{name = N}) -> {undefined, N};
 decl_key(#foreign_fn_decl{owner = O, name = N}) -> {O, N};
 decl_key(D) -> {other, element(2, D)}.
 
@@ -828,11 +828,6 @@ register_value_name(D, #env{local_values = LV} = Env) ->
     case Declared of
         true -> ok;
         false -> fail(Pos, atom_to_list(Owner) ++ " is not a type declared in this module")
-    end,
-    %% report §4.8: an operator is declared with `fn`
-    case is_record(D, let_decl) andalso is_operator(Name) of
-        true -> fail(Pos, "an operator is declared with `fn`, not `let`");
-        false -> ok
     end,
     Q = value_qname(Env, Owner, Name),
     Lets = case D of
@@ -1193,8 +1188,7 @@ reference_graph(Decls, Env) ->
                   end, Decls),
     G.
 
-let_cycle(#let_decl{pos = Pos, owner = Owner, name = Name, body = Body} = D, G, Fns, Errs,
-          Seen) ->
+let_cycle(#let_decl{pos = Pos, name = Name, body = Body} = D, G, Fns, Errs, Seen) ->
     Key = decl_key(D),
     case lists:member(Key, Seen) of
         true ->
@@ -1204,7 +1198,7 @@ let_cycle(#let_decl{pos = Pos, owner = Owner, name = Name, body = Body} = D, G, 
                 false ->
                     {Errs, Seen};
                 Cycle ->
-                    LetName = local_name(Owner, Name),
+                    LetName = atom_to_list(Name),
                     %% the cycle is [Key, ..., Key], or [Key] where the let
                     %% names itself; what stands between, in the cycle's
                     %% order, and the last of it reads the let
@@ -2645,10 +2639,10 @@ infer_stmts([Last], _Pos, Expect, Env, _Fns, Acc) ->
                            {Ex, Ctx, Or} -> check_expr(Last, Ex, Ctx, Or, Env)
                        end,
     {lists:reverse([Typed | Acc]), T, Env1};
-infer_stmts([#fn_decl{pos = FPos, owner = Owner} | _], _Pos, _Expect, _Env, _Fns, _Acc)
-  when Owner =/= undefined ->
-    fail(FPos, "a type-member name, `fn " ++ atom_to_list(Owner) ++ ".name`, is a top-level"
-               " form; a local function has a plain name");
+infer_stmts([#fn_decl{pos = FPos, owner = Owner, name = Name} | _], _Pos, _Expect, _Env, _Fns,
+            _Acc) when Owner =/= undefined ->
+    fail(FPos, "a member, `fn " ++ local_name(Owner, Name) ++ "`, is a top-level form;"
+               " a local function has a plain name");
 infer_stmts([#fn_decl{name = N} = D | Rest], Pos, Expect, Env, Local, Acc) ->
     V = maps:get(N, maps:get(placeholders, Local)),
     Env1 = Env#env{st = ern_types:enter(Env#env.st)},
@@ -3510,8 +3504,8 @@ exported_type(#foreign_type_decl{export = true, name = N}, Env) -> {true, Env#en
 exported_type(_, _) -> false.
 
 exported_value(#fn_decl{export = true, owner = O, name = N}, Env) -> {true, value_qname(Env, O, N)};
-exported_value(#let_decl{export = true, owner = O, name = N}, Env) ->
-    {true, value_qname(Env, O, N)};
+exported_value(#let_decl{export = true, name = N}, Env) ->
+    {true, value_qname(Env, undefined, N)};
 exported_value(#foreign_fn_decl{export = true, owner = O, name = N}, Env) ->
     {true, value_qname(Env, O, N)};
 exported_value(_, _) -> false.

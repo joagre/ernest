@@ -264,19 +264,49 @@ fn_decl([{fn, Pos} | R], Doc, Export) ->
     w({#fn_decl{pos = Pos, doc = Doc, export = Export, owner = Owner, name = Name,
                 params = Params, ret = Ret, effect = Effect, body = Body}, R4}).
 
+%% Report §4.5, Appendix A's DeclName: a member, declared with `fn`, is an
+%% operator, `compare` or `negate`, what the language resolves by the
+%% operand's type; a type's other operations are functions of its module.
 decl_name([{ident, _, Name} | R]) ->
     {undefined, Name, R};
-decl_name([{typename, _, Owner}, {'.', _}, {ident, _, Name} | R]) ->
+decl_name([{typename, _, Owner}, {'.', _}, {ident, Pos, Name} | R]) ->
+    lists:member(Name, [compare, negate])
+        orelse fail(Pos, "`" ++ atom_to_list(Name) ++ "` cannot be a member of "
+                         ++ atom_to_list(Owner) ++ ": a member is an operator, `compare` or"
+                         " `negate`",
+                    "a type's other operations are functions of its module:"
+                    " write `fn " ++ atom_to_list(Name) ++ "`"),
     {Owner, Name, R};
 decl_name([{typename, _, Owner}, {'.', _}, {Op, _} | R]) when Op =:= '+'; Op =:= '-';
                                                              Op =:= '*'; Op =:= '/';
                                                              Op =:= '%'; Op =:= '<>' ->
     {Owner, Op, R};
 decl_name([{typename, _, _}, {'.', _}, T | _]) ->
-    fail(pos(T), "expected a member name or operator after `.` instead of " ++ describe(T));
-decl_name([{typename, Pos, T} | _]) ->
-    fail(Pos, "expected a name; a type member is written `" ++ atom_to_list(T) ++ ".name`");
+    fail(pos(T), "expected an operator, `compare` or `negate` after `.` instead of "
+                 ++ describe(T));
+decl_name([{typename, _, _} = T | _]) ->
+    fail(pos(T), "expected a name instead of " ++ describe(T),
+         "a function's name begins with a lowercase letter");
 decl_name([T | _]) ->
+    fail(pos(T), "expected a name instead of " ++ describe(T)).
+
+%% Report §4.5, §4.6, Appendix A's LetDecl: a `let` declares no member.
+let_name([{ident, _, Name} | R]) ->
+    {Name, R};
+let_name([{typename, Pos, Owner}, {'.', _}, {ident, _, Name} | _])
+  when Name =/= compare, Name =/= negate ->
+    fail(Pos, "a `let` declares no member of " ++ atom_to_list(Owner),
+         "a type's values are named in its module, as its functions are:"
+         " write `let " ++ atom_to_list(Name) ++ "`");
+let_name([{typename, Pos, Owner}, {'.', _} | _] = Ts) ->
+    {_, Member, _} = decl_name(Ts),
+    fail(Pos, "a `let` declares no member of " ++ atom_to_list(Owner),
+         "a member is declared with `fn`: write `fn " ++ atom_to_list(Owner) ++ "."
+         ++ atom_to_list(Member) ++ "(...)`");
+let_name([{typename, _, _} = T | _]) ->
+    fail(pos(T), "expected a name instead of " ++ describe(T),
+         "a value's name begins with a lowercase letter");
+let_name([T | _]) ->
     fail(pos(T), "expected a name instead of " ++ describe(T)).
 
 params(Ts) ->
@@ -317,7 +347,7 @@ opt_return(Ts) ->
     {undefined, undefined, Ts}.
 
 let_decl([{'let', Pos} | R], Doc, Export) ->
-    {Owner, Name, R1} = decl_name(R),
+    {Name, R1} = let_name(R),
     {Ann, R2} = case R1 of
                     [{':', _} | R1a] -> type(R1a);
                     _ -> {undefined, R1}
@@ -327,8 +357,8 @@ let_decl([{'let', Pos} | R], Doc, Export) ->
              _ -> expect(R2, '=')
          end,
     {Body, R4} = expr(R3),
-    w({#let_decl{pos = Pos, doc = Doc, export = Export, owner = Owner, name = Name, ann = Ann,
-                 body = Body}, R4}).
+    w({#let_decl{pos = Pos, doc = Doc, export = Export, name = Name, ann = Ann, body = Body},
+       R4}).
 
 foreign_decl([{foreign, Pos}, {type, _} | R], Doc, Export) ->
     {Name, R1} = expect_typename(R),

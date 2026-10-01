@@ -648,9 +648,9 @@ let_lambda_does_not_recur_test() ->
 
 %% report §4.5
 local_fn_names_are_plain_test() ->
-    ?assertEqual("a type-member name, `fn T.name`, is a top-level form; a local function has a"
+    ?assertEqual("a member, `fn T.compare`, is a top-level form; a local function has a"
                  " plain name",
-                 err("type T = T\nfn f() = { fn T.g() = 1; 2 }")).
+                 err("type T = T\nfn f() = { fn T.compare(a : T, b : T) : Ordering = Equal; 2 }")).
 
 %% report §5.4, §11.5: an expression that is not a block's last statement
 %% has type Unit, so an Either an error would ride on is not dropped unseen;
@@ -901,12 +901,6 @@ as_in_each_alternative_test() ->
                  " alternative and not by the first", Message),
     ?assertEqual("bind each name in every alternative, as `Some(1) as x or Some(2) as x`", Help).
 
-%% report §4.8: an operator is declared with `fn`
-let_operator_test() ->
-    ?assertEqual("an operator is declared with `fn`, not `let`",
-                 err("type Vec = Vec(Int)\nlet Vec.+ = fn(a : Vec, b : Vec) : Vec = a")),
-    ?assertEqual(ok, ok("type Vec = Vec(Int)\nlet Vec.zero = Vec(0)")).
-
 %% report §8.5
 let_cycle_test() ->
     ?assertEqual("the initializer of a depends on itself, through b",
@@ -960,10 +954,7 @@ let_cycle_help_test() ->
                  " asked for", Reads),
     {error, [#diag{help = Lambda} | _]} =
         check("let h = fn(n : Int) : Int = g(n)\nfn g(n : Int) : Int = h(n)\n"),
-    ?assertEqual("a recursive function is declared with `fn h(...) = ...`", Lambda),
-    {error, [#diag{message = Member} | _]} =
-        check("type Stack = Stack(Int)\nlet Stack.empty : Stack = Stack.empty\n"),
-    ?assertEqual("the initializer of Stack.empty depends on itself", Member).
+    ?assertEqual("a recursive function is declared with `fn h(...) = ...`", Lambda).
 
 %% report §4.6
 toplevel_let_test() ->
@@ -1230,26 +1221,27 @@ reply_test() ->
 %% members too; no lookup step finds it unqualified. A regression test,
 %% written when the report dropped the step the compiler never had
 member_written_qualified_test() ->
-    Box = "type Box = Box(Int)\nlet Box.empty : Box = Box(0)\n",
-    ?assertEqual("unknown name empty", err(Box ++ "fn Box.fresh() : Box = empty")),
-    ?assertEqual(ok, ok(Box ++ "fn Box.fresh() : Box = Box.empty")).
+    Box = "type Box = Box(Int)\nfn Box.compare(a : Box, b : Box) : Ordering = Equal\n",
+    ?assertEqual("unknown name compare",
+                 err(Box ++ "fn Box.negate(b : Box) : Box = match compare(b, b) { _ -> b }")),
+    ?assertEqual(ok, ok(Box ++ "fn Box.negate(b : Box) : Box ="
+                        " match Box.compare(b, b) { _ -> b }")).
 
 %% report §4.2: a dotted name's first segment is the module's own type
 %% where that type has a member of the name, and otherwise the namespace
 %% of that name; `Prelude.T.name` reaches the name of a namespace of the
 %% prelude or the standard library past the module's own member. A
 %% regression test, written with the rule: the standard library's
-%% `List.size` was out of reach there, and its `Io.println` until R-3
+%% `List.size` was out of reach there, and its `Io.println` until R-3; since
+%% a member is an operator, `compare` or `negate` (§4.5), the module's own
+%% `List.<>` stands for both
 first_segment_test() ->
-    Own = "type List = Nil | Cons(Int)\nfn List.size(l : List) : String = \"mine\"\n",
-    ?assertEqual(ok, ok(Own ++ "fn f() : String = List.size(Nil)")),
-    ?assertEqual(ok, ok(Own ++ "fn f() : Int = Prelude.List.size([1])")),
-    OwnIo = "type Io = Io(Int)\nfn Io.println(x : Io) : Int = 1\n",
-    ?assertEqual(ok, ok(OwnIo ++ "fn f() : Int = Io.println(Io(1))")),
-    ?assertEqual(ok, ok(OwnIo ++ "fn f() : Unit with m = Prelude.Io.println(\"x\")")),
+    Own = "type List = Nil | Cons(Int)\nfn List.<>(a : List, b : List) : List = a\n",
+    ?assertEqual(ok, ok(Own ++ "fn f() : List = List.<>(Nil, Nil)")),
+    ?assertEqual(ok, ok(Own ++ "fn f() : Prelude.List(Int) = Prelude.List.<>([1], [2])")),
     ?assertEqual(ok, ok(Own ++ "fn f() : Prelude.List(Int) = List.reverse([1])")),
-    ?assertEqual("the argument does not fit List.size: expected M.List, found List(Int)",
-                 err(Own ++ "fn f() : Int = List.size([1])")).
+    ?assertEqual("the argument does not fit List.<>: expected M.List, found List(Int)",
+                 err(Own ++ "fn f() : Prelude.List(Int) = List.<>([1], [2])")).
 
 %% report §5.5: in `let p : T <- e`, `T` is the type of `p`, the value
 %% inside. A regression test, written after the report said so
@@ -1420,14 +1412,14 @@ base_types_test() ->
 %% report §3.6
 abstract_types_as_types_test() ->
     Stack = "export abstract type Stack(a) = Stack(List(a))\n"
-            "export let Stack.empty = Stack([])\n"
-            "export fn Stack.push(x, Stack(xs)) = Stack(x :: xs)\n",
+            "export let empty = Stack([])\n"
+            "export fn push(x, Stack(xs)) = Stack(x :: xs)\n",
     ?assertEqual("(M.Stack(Int)) -> M.Stack(Int)",
-                 type_of(Stack ++ "export fn f(s : Stack(Int)) = Stack.push(1, s)", f)),
+                 type_of(Stack ++ "export fn f(s : Stack(Int)) = push(1, s)", f)),
     ?assertEqual("() -> M.Stack(String)",
-                 type_of(Stack ++ "export fn f() = Stack.push(\"a\", Stack.empty)", f)),
-    ?assertMatch("the argument does not fit Stack.push: " ++ _,
-                 err(Stack ++ "fn f(s : Stack(Int)) = Stack.push(\"a\", s)")),
+                 type_of(Stack ++ "export fn f() = push(\"a\", empty)", f)),
+    ?assertMatch("the argument does not fit push: " ++ _,
+                 err(Stack ++ "fn f(s : Stack(Int)) = push(\"a\", s)")),
     %% a sum type like any other: structural equality applies
     ?assertEqual("(M.Stack(Int), M.Stack(Int)) -> Bool",
                  type_of(Stack ++ "export fn same(a : Stack(Int), b) = a == b", same)).
@@ -1502,19 +1494,19 @@ prelude_values_test() ->
 %% report §4.4
 abstract_type_test() ->
     Stack = "export abstract type Stack(a) = Stack(List(a))\n"
-            "export let Stack.empty = Stack([])\n"
-            "export fn Stack.push(x, Stack(xs)) = Stack(x :: xs)\n"
-            "export fn Stack.pop(Stack(xs)) = match xs { [] -> None | x :: rest ->"
+            "export let empty = Stack([])\n"
+            "export fn push(x, Stack(xs)) = Stack(x :: xs)\n"
+            "export fn pop(Stack(xs)) = match xs { [] -> None | x :: rest ->"
             " Some(#(x, Stack(rest))) }\n",
     ?assertEqual(ok, ok(Stack)),
     %% report §3.9: push puts its element in a List, where a reply may not stand
     ?assertEqual("(a!, M.Stack(a!)) -> M.Stack(a!)",
-                 type_of(Stack ++ "export fn use(x, s) = Stack.push(x, s)", use)),
+                 type_of(Stack ++ "export fn use(x, s) = push(x, s)", use)),
     %% an abstract type the module keeps private hides from no module
     ?assertEqual("Stack is an abstract type the module keeps private, which hides its"
                  " constructors from no module",
                  err("abstract type Stack(a) = Stack(List(a))")),
-    ?assertEqual("Nope is not a type declared in this module", err("fn Nope.f() = 1")).
+    ?assertEqual("Nope is not a type declared in this module", err("fn Nope.negate(n) = n")).
 
 %% report §6.6: a path on which the prelude's `fault` is called consumes
 %% every obligation open on it, in an `if` and in a `receive`; a returning
@@ -1605,8 +1597,8 @@ reply_lambda_test() ->
 %% names, in any order
 self_qualified_test() ->
     ?assertEqual("() -> Int", type_of("export fn f() = M.g()\nfn g() = 1\n", f)),
-    ?assertEqual("(M.T) -> Int", type_of("export type T = T(Int)\nexport fn f(t) = M.T.n(t)\n"
-                                         "fn T.n(T(n)) = n\n", f)).
+    ?assertEqual("(M.T) -> M.T", type_of("export type T = T(Int)\nexport fn f(t) = M.T.negate(t)\n"
+                                         "fn T.negate(T(n)) = T(-n)\n", f)).
 
 %% report §4.2, §8.5: a local binding does not hide the module's own
 %% qualified name, so the initializer depends on it as on the plain name.
@@ -1624,10 +1616,10 @@ self_qualified_under_a_local_test() ->
 %% another module may not (ern_cli_tests)
 ownership_test() ->
     Stack = "export abstract type Stack(a) = Stack(List(a))\n"
-            "export let Stack.empty = Stack([])\n"
-            "export fn Stack.push(x, Stack(xs)) = Stack(x :: xs)\n",
+            "export let empty = Stack([])\n"
+            "export fn push(x, Stack(xs)) = Stack(x :: xs)\n",
     ?assertEqual(ok, ok(Stack ++ "fn peek(Stack(xs)) = xs")),
-    ?assertEqual(ok, ok(Stack ++ "fn Stack.size(s) = match s { Stack(xs) -> List.size(xs) }")),
+    ?assertEqual(ok, ok(Stack ++ "fn size(s) = match s { Stack(xs) -> List.size(xs) }")),
     ?assertEqual(ok, ok(Stack ++ "fn wrap(xs : List(List(Int))) = List.map(xs, Stack)")),
     ?assertEqual(ok, ok(Stack ++ "fn use() = { fn wrap(y) = Stack([y]); wrap(1) }")).
 
@@ -1697,9 +1689,9 @@ exported_types_test() ->
                         " spawn(Local, fn() = Unit)")),
     %% an abstract type is how a value crosses without its constructors, and
     %% its fields may name a private type, since they do not cross
-    ?assertEqual(ok, ok("export abstract type Box = B(Int)\nexport fn Box.of(n) = B(n)")),
+    ?assertEqual(ok, ok("export abstract type Box = B(Int)\nexport fn box(n) = B(n)")),
     ?assertEqual(ok, ok("type Hidden = Hidden(Int)\nexport abstract type Box = B(Hidden)\n"
-                        "export fn Box.of(n) = B(Hidden(n))")),
+                        "export fn box(n) = B(Hidden(n))")),
     %% the effect names no value: an entry point's mailbox type may be private
     ?assertEqual(ok, ok("type Msg = Ping\nexport fn main() : Unit with Msg ="
                         " receive { Ping -> Unit }")).

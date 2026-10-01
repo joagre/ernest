@@ -256,7 +256,7 @@ qualified(Q) -> lists:flatten(lists:join(".", [atom_to_list(A) || A <- Q])).
 decl_names(#type_decl{name = N}) -> [atom_to_list(N)];
 decl_names(#abstract_decl{type = #type_decl{name = N}}) -> [atom_to_list(N)];
 decl_names(#fn_decl{owner = O, name = N}) -> [owned_name(O, N)];
-decl_names(#let_decl{owner = O, name = N}) -> [owned_name(O, N)];
+decl_names(#let_decl{name = N}) -> [atom_to_list(N)];
 decl_names(#foreign_fn_decl{owner = O, name = N}) -> [owned_name(O, N)];
 decl_names(#foreign_type_decl{name = N}) -> [atom_to_list(N)];
 decl_names(_) -> [].

@@ -91,21 +91,21 @@ fn handler(sessions : Address(SessionMsg), seq : Int, sock : Address(Tcp.SocketM
     match Tcp.read(sock, 5000) {
         Right(bytes) -> match parse(bytes) {
             Left(_) -> {
-                let bad = Response(status = StatusCode.badRequest, headers = [], body = "");
+                let bad = Response(status = statusBadRequest, headers = [], body = "");
                 // the connection is closed whether the far end took it or not
                 let _ = Tcp.write(sock, render(bad));
                 Tcp.close(sock)
             }
           | Right(req) -> {
-                let id = match Optional.andThen(cookie(req, "sid"), SessionId.parse) {
+                let id = match Optional.andThen(cookie(req, "sid"), parseSessionId) {
                     Some(sid) -> sid
-                  | None -> SessionId.fresh(seq)
+                  | None -> freshSessionId(seq)
                 };
                 let visits = Address.callForever(sessions, fn(r) = Visit(id = id, reply = r));
                 let body = "Visit number " <> Int.toString(visits);
                 let bytes =
-                    Response(status = StatusCode.ok, headers = [], body = body)
-                        |> withCookie("sid", SessionId.text(id))
+                    Response(status = statusOk, headers = [], body = body)
+                        |> withCookie("sid", sessionIdText(id))
                         |> render;
                 let _ = Tcp.write(sock, bytes);
                 Tcp.close(sock)
@@ -161,7 +161,7 @@ fn headerPairs(lines : List(String),
 
 fn render(response : Response) : Bytes = {
     let body = String.toUtf8(response.body);
-    let start = "HTTP/1.1 " <> StatusCode.render(response.status);
+    let start = "HTTP/1.1 " <> statusText(response.status);
     let length = "content-length: " <> Int.toString(Bytes.size(body));
     let rest = List.map(response.headers, fn(#(name, value)) = name <> ": " <> value);
     String.toUtf8(String.join(start :: length :: rest, "\r\n") <> "\r\n\r\n") <> body
@@ -196,24 +196,24 @@ fn errorText(e : Io.Error) : String =
     }
 
 //
-// The types' members
+// Status codes and session ids
 //
 
-let StatusCode.ok = StatusCode(200)
+let statusOk = StatusCode(200)
 
-let StatusCode.badRequest = StatusCode(400)
+let statusBadRequest = StatusCode(400)
 
-fn StatusCode.render(StatusCode(n)) =
+fn statusText(StatusCode(n)) =
     if n == 200 then "200 OK" else "400 Bad Request"
 
-fn SessionId.fresh(n) =
+fn freshSessionId(n) =
     SessionId(Int.toString(n)) // good enough on paper
 
-fn SessionId.parse(t) =
+fn parseSessionId(t) =
     if !String.isEmpty(t) && List.all(String.toList(t), Char.isAsciiDigit) then
         Some(SessionId(t))
     else
         None
 
-fn SessionId.text(SessionId(t)) =
+fn sessionIdText(SessionId(t)) =
     t

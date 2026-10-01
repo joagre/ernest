@@ -1,39 +1,36 @@
 -module(ern@stack).
 
 -export([main/0,
-         'Stack.empty'/0,
-         'Stack.push'/2,
-         'Stack.pop'/1,
+         empty/0,
+         push/2,
+         pop/1,
          '$init'/0,
          '$fun'/2]).
 
 main() ->
-    S_1 = 'Stack.push'('Stack.push'('Stack.empty'(), 1), 2),
-    case 'Stack.pop'(S_1) of
+    S_1 = push(push(empty(), 1), 2),
+    case pop(S_1) of
         {'Some', {Top_2, _}} ->
             ern@io:println(<<"top is ",
                              (ern@int:toString(Top_2))/binary>>);
         'None' -> ern@io:println(<<"empty">>)
     end.
 
-'Stack.empty'() ->
-    ern_rt:binding({ern@stack, 'Stack.empty'}).
+empty() -> ern_rt:binding({ern@stack, empty}).
 
-'Stack.push'({'Stack', Xs_3}, X_4) ->
-    {'Stack', [X_4 | Xs_3]}.
+push({'Stack', Xs_3}, X_4) -> {'Stack', [X_4 | Xs_3]}.
 
-'Stack.pop'({'Stack', Xs_5}) ->
+pop({'Stack', Xs_5}) ->
     case Xs_5 of
         [] -> 'None';
         [X_6 | Rest_7] -> {'Some', {X_6, {'Stack', Rest_7}}}
     end.
 
 '$init'() ->
-    ern_rt:initializing(<<"Stack.Stack.empty:22">>),
-    persistent_term:put({ern@stack, 'Stack.empty'},
-                        {'Stack', []}),
+    ern_rt:initializing(<<"Stack.empty:23">>),
+    persistent_term:put({ern@stack, empty}, {'Stack', []}),
     ok.
 
 '$fun'(main, 0) -> fun main/0;
-'$fun'('Stack.push', 2) -> fun 'Stack.push'/2;
-'$fun'('Stack.pop', 1) -> fun 'Stack.pop'/1.
+'$fun'(push, 2) -> fun push/2;
+'$fun'(pop, 1) -> fun pop/1.

@@ -9,7 +9,7 @@
 // terminates must be abortable).
 //
 // Assumptions. Io.readLine is the standard library's (report Appendix E) over
-// standard input (§8.2). ParseError.toString and EvalError.toString are hand-written
+// standard input (§8.2). parseErrorText and evalErrorText are hand-written
 // renderings for stdout. main runs the loop itself so the program keeps
 // running (report §8.6).
 //
@@ -64,7 +64,7 @@ fn repl(env : Map(String, Value), run : Int) : Unit with ReplMsg =
             }
           | Right(ts) -> match parse(ts) {
                 Left(e) -> {
-                    Io.println(ParseError.toString(e));
+                    Io.println(parseErrorText(e));
                     repl(env, run)
                 }
               | Right(e) -> {
@@ -116,18 +116,18 @@ fn show(r : Either(TryError, Value)) : Unit with ReplMsg =
     Io.println(match r {
         Right(N(n)) -> Int.toString(n)
       | Right(Closure()) -> "<fun>"
-      | Left(Eval(e)) -> "error: " <> EvalError.toString(e)
+      | Left(Eval(e)) -> "error: " <> evalErrorText(e)
       | Left(Crashed) -> "crashed"
       | Left(Timeout) -> "aborted after 2 s"
     })
 
-fn ParseError.toString(e : ParseError) : String =
+fn parseErrorText(e : ParseError) : String =
     match e {
-        Unexpected(t) -> "unexpected " <> Token.toString(t)
+        Unexpected(t) -> "unexpected " <> tokenText(t)
       | Eof -> "unexpected end of input"
     }
 
-fn Token.toString(t : Token) : String =
+fn tokenText(t : Token) : String =
     match t {
         Num(n) -> Int.toString(n)
       | Ident(x) -> x
@@ -140,7 +140,7 @@ fn Token.toString(t : Token) : String =
       | Arrow -> "->"
     }
 
-fn EvalError.toString(e : EvalError) : String =
+fn evalErrorText(e : EvalError) : String =
     match e {
         Unbound(x) -> "unbound " <> x
       | DivZero -> "division by zero"

@@ -31,8 +31,8 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 > id : (a) -> a
 > #(1, "a") : #(Int, String)
 > abstract type Stack
-Stack.empty : Stack
-Stack.push : (Stack, Int) -> Stack
+empty : () -> Stack
+push : (Stack, Int) -> Stack
 > <abstract> : Stack
 > input 31:1:1: S is the constructor of an abstract type and is not visible outside the input that declared it
 1 | S([])
@@ -46,15 +46,15 @@ Stack.push : (Stack, Int) -> Stack
   |                  ^
 > type Shape
 abstract type Stack
-Stack.empty : Stack
-Stack.push : (Stack, Int) -> Stack
 area : (Shape) -> Int
 box : Shape
 double : (Int) -> Int
+empty : () -> Stack
 f : (Int) -> Int
 id : (a) -> a
 it : Stack
 plus : (Int) -> Int
+push : (Stack, Int) -> Stack
 x : Int
 zero : () -> Int
 > 1 + 2 : Int
@@ -102,15 +102,15 @@ Examples
 > no documentation for Nope.nope
 > type Shape
 abstract type Stack
-Stack.empty : Stack
-Stack.push : (Stack, Int) -> Stack
 area : (Shape) -> Int
 box : Shape
 double : (Int) -> Int
+empty : () -> Stack
 f : (Int) -> Int
 id : (a) -> a
 it : List(Int)
 plus : (Int) -> Int
+push : (Stack, Int) -> Stack
 zero : () -> Int
 > > the session declares nothing yet
 > Commands, which a prefix of the name selects where it begins no other:

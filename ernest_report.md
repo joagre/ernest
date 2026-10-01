@@ -272,9 +272,9 @@ AbstractDecl  = "abstract" TypeDecl .
 FnDecl      = "fn" DeclName "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 Param       = Pattern [ ":" Type ] .
 Return      = ":" Type [ "with" Type ] .
-LetDecl     = "let" DeclName [ ":" Type ] "=" Expr .
+LetDecl     = "let" ident [ ":" Type ] "=" Expr .
 Binding     = "let" Pattern [ ":" Type ] ( "=" | "<-" ) Expr .
-DeclName    = ident | typename "." ( ident | userop ) .
+DeclName    = ident | typename "." ( userop | "compare" | "negate" ) .
 ```
 
 ### 4.1 Modules
@@ -301,9 +301,9 @@ fn helper(x) =
     ...
 ```
 
-**Type members.** A type `T` declared in a module, concrete or abstract, is a nested namespace. Its members are declared with the single prefix `T.`, as in §4.8's `fn Distance.+` and the `let Stack.empty` below, and are exported at `Module.T.member`. The module of a built-in type is the exception §4.8 states: `export fn Float.+` in `float.ern` declares `Float.+`. The namespace belongs to the file that declares the type. A module namespace may not coincide with it: `main/stack.ern` is an error when `main.ern` declares `Stack`. In `main.ern`, `Main.Stack.push` is therefore its own member where it declares `Stack`, and the module `Main.Stack`'s `push` where it does not. The coincidence is exact: `main.ern` may declare `STACK` beside `main/stack.ern`, and a module may declare two types whose names differ only in case.
+**Type members.** A type `T` declared in a module, concrete or abstract, is a nested namespace. Its members are its operators, its `compare` and its `negate` (§4.5), declared with the single prefix `T.`, as in §4.8's `fn Distance.+`, and exported at `Module.T.member`. The module of a built-in type is the exception §4.8 states: `export fn Float.+` in `float.ern` declares `Float.+`. The namespace belongs to the file that declares the type. A module namespace may not coincide with it: `main/stack.ern` is an error when `main.ern` declares `Stack`. In `main.ern`, `Main.Stack.compare` is therefore its own member where it declares `Stack`, and the module `Main.Stack`'s `compare` where it does not. The coincidence is exact: `main.ern` may declare `STACK` beside `main/stack.ern`, and a module may declare two types whose names differ only in case.
 
-**Unqualified lookup.** An unqualified name in a body is looked up first among the names bound around it, the innermost first: parameters, `let` bindings, pattern and `receive` variables, and local `fn`s. It is then looked up in the module's declarations, exported or not, then in the prelude. A name not found there is written qualified; a type's member is written `T.name`, within the type's own members too. A module may declare a type or constructor with a prelude name, and the name then means the local one throughout the module. A dotted name's first segment is a type the module declares where that type has a member of the name, and otherwise the namespace of that name: in a module that declares `type List` with a member `List.size`, `List.size` is that member, and `List.map` the standard library's. `Prelude` names the prelude's own namespace, so `Prelude.Some` is the prelude's `Some` in a module that declares its own. It is written only where a declaration or a binding of the module hides the name it reaches: `Prelude.Some` in a module that declares no `Some` is an error. It takes one name the prelude declares, or a namespace of the prelude or the standard library and one of its names: `Prelude.List.size` is the standard library's `List.size` past a member `List.size` of the module's own, and `Prelude.Io.println` its `Io.println` past a member `Io.println`. A module of the program's own is reached by its namespace alone, so a member of the module's own type hides that module's name of the same path. No module and no type is named `Prelude`. Within a module, type names are unique and constructor names are unique across its types.
+**Unqualified lookup.** An unqualified name in a body is looked up first among the names bound around it, the innermost first: parameters, `let` bindings, pattern and `receive` variables, and local `fn`s. It is then looked up in the module's declarations, exported or not, then in the prelude. A name not found there is written qualified; a type's member is written `T.name`, within the type's own members too. A module may declare a type or constructor with a prelude name, and the name then means the local one throughout the module. A dotted name's first segment is a type the module declares where that type has a member of the name, and otherwise the namespace of that name: in a module that declares `type List` with a member `List.<>`, `List.<>` is that member, and `List.map` the standard library's. `Prelude` names the prelude's own namespace, so `Prelude.Some` is the prelude's `Some` in a module that declares its own. It is written only where a declaration or a binding of the module hides the name it reaches: `Prelude.Some` in a module that declares no `Some` is an error. It takes one name the prelude declares, or a namespace of the prelude or the standard library and one of its names: `Prelude.List.<>` is the prelude's `List.<>` past a member `List.<>` of the module's own. A module of the program's own is reached by its namespace alone, so a member of the module's own type hides that module's name of the same path. No module and no type is named `Prelude`. Within a module, type names are unique and constructor names are unique across its types.
 
 ### 4.3 Type declarations
 
@@ -314,15 +314,15 @@ fn helper(x) =
 `abstract type T = ...` declares a type whose constructors may appear only in the module that declares it. Every definition of that module may use them, a private one or a test included; another module sees the type and not its constructors. An abstract type is exported: one the module keeps private is an error.
 
 ```ernest
-// main.ern  (namespace Main)
+// stack.ern  (namespace Stack)
 export abstract type Stack(a) = Stack(List(a))
 
-export let Stack.empty = Stack([])
+export let empty = Stack([])
 
-export fn Stack.push(Stack(xs), x) =
+export fn push(Stack(xs), x) =
     Stack(x :: xs)
 
-export fn Stack.pop(Stack(xs)) =
+export fn pop(Stack(xs)) =
     match xs {
         [] -> None
       | x :: rest -> Some(#(x, Stack(rest)))
@@ -332,7 +332,7 @@ export fn size(Stack(xs)) =
     List.size(xs)
 ```
 
-External callers see `Main.Stack`, `Main.Stack.empty`, `Main.Stack.push`, `Main.Stack.pop`, and `Main.size`; `Stack(...)` is refused outside `main.ern`. A module may declare several abstract types. Outside its module, `Io.show` writes a value of an abstract type as `<abstract>` (Appendix E.1).
+External callers see `Stack.Stack`, `Stack.empty`, `Stack.push`, `Stack.pop`, and `Stack.size`; `Stack.Stack(...)` is refused outside `stack.ern`. A module may declare several abstract types. Outside its module, `Io.show` writes a value of an abstract type as `<abstract>` (Appendix E.1).
 
 ### 4.5 Functions
 
@@ -348,7 +348,7 @@ In a block, `let p = e` binds the irrefutable pattern `p` to the value of `e`; `
 
 A block binding's type may hold unresolved type variables; `[]`, `None`, `Map.empty`, and a call that returns a polymorphic value introduce them. A later use of the binding in the block pins such a variable: `let m = Map.empty; Map.put(m, "a", 1)` pins `m` at `Map(String, Int)`. One that reaches the block's result is generalized by the enclosing `fn` or top-level `let`: `fn namedEmpty() = { let xs = []; xs }` has type `() -> List(a)`. An annotation on the binding fixes it. A use pins a variable only where it fixes the variable's type, and a variable that nothing pins stays free: in `{ let xs = []; List.size(xs) }` the element type stays open.
 
-At top level, `let` binds a `DeclName`: an `ident`, optionally prefixed with a type of the same module (§4.2). The left side is a name, not a pattern; `<-` is a block form only. The initializer is a body of mailbox type `Never` (§6.8): it may spawn, send, and call, and it may not receive. The binding generalizes its free type variables: `let Stack.empty : Stack(a) = Stack([])`. A binding whose initializer calls a process-only function (§3.9) is not generalized, and a type variable left in its type is a type error at the binding. The runtime evaluates top-level bindings in dependency order, in the entry process, before `main` runs (§8.5).
+At top level, `let` binds an `ident`. The left side is a name, not a pattern; `<-` is a block form only. The initializer is a body of mailbox type `Never` (§6.8): it may spawn, send, and call, and it may not receive. The binding generalizes its free type variables: `let empty : Stack(a) = Stack([])`. A binding whose initializer calls a process-only function (§3.9) is not generalized, and a type variable left in its type is a type error at the binding. The runtime evaluates top-level bindings in dependency order, in the entry process, before `main` runs (§8.5).
 
 ### 4.7 Foreign declarations
 
@@ -360,7 +360,7 @@ At top level, `let` binds a `DeclName`: an `ident`, optionally prefixed with a t
 
 The arithmetic operators `+`, `-`, `*`, `/`, `%` and `<>` resolve against the operand type, by *operator resolution*. In `a + b`, `+` is `Int.+` when `a : Int` and `Distance.+` when `a : Distance`, for `type Distance = Distance(Int)`. A user type declares its operators in its own module: `export fn Distance.+(Distance(a), Distance(b)) : Distance = Distance(a + b)`. The standard library module of a built-in type declares that type's operators the same way, with the type's name as the prefix: `fn Float.+` in `float.ern` declares `Float.+` (§9.6). In that module the prefix is allowed on an operator only; its other functions are declared unprefixed, `fn abs`. Both operands have one type, which either may determine, and there is no numeric type to generalize over: `fn f(a, b : Int) = a + b` uses `Int.+`. The operand type is determined when its type constructor is known: `xs <> []` is `List.<>`. An operator's result does not determine its operands. An operator is resolved once its definition is inferred, and before the definition is generalized. Its definition is the enclosing `fn` declaration, top-level or local, the enclosing top-level `let`, or a block `let` that binds a lambda, since each is generalized (§3.9, §4.6); any other lambda belongs to the definition it stands in. So `fn add(a, b) = a + b` in a block is a type error, whatever calls it later, and `fn add(a : Int, b : Int) = a + b` is not. An operand type still undetermined then is a type error. A field selection (§3.5) is resolved in the same way, against its operand's type. A member named by an operator has the type `(T, T) -> R` for its type `T`, `T.compare` the type `(T, T) -> Ordering`, and `T.negate` the type `(T) -> R`; each is pure. For a type with parameters, `T` is the type applied to any arguments, the same in each place: `Vec.+` of a type `Vec(a)` has the type `(Vec(a), Vec(a)) -> R`. A member of another shape is an error at its declaration. An operator on a type that declares no member for it, `%` on `Float` or `<>` on `Int`, is a type error.
 
-`!` is negation on `Bool`, the prefix operator beside the logical operators `&&` and `||`, and `Bool.not` (E.7) is the same operation as a function, as `Int.negate` is of prefix `-`. `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, and `||` cannot be defined per type: equality is structural and ordering goes through `compare` (§3.10); `&&` and `||` short-circuit on `Bool`. An operator is declared with `fn`; `let T.op` is an error. `::` is cons (§3.3); `|>` is a syntactic form (§5.7). The operators are the closed set of §2.6, and every other operation is a function. An operator the language resolves against its operand's type is resolved where that type is known, is a type error on a type variable, and carries no hidden argument; `==` compares structurally, or exactly on a foreign type and `Process` (§3.10), and needs none.
+`!` is negation on `Bool`, the prefix operator beside the logical operators `&&` and `||`, and `Bool.not` (E.7) is the same operation as a function, as `Int.negate` is of prefix `-`. `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, and `||` cannot be defined per type: equality is structural and ordering goes through `compare` (§3.10); `&&` and `||` short-circuit on `Bool`. `::` is cons (§3.3); `|>` is a syntactic form (§5.7). The operators are the closed set of §2.6, and every other operation is a function. An operator the language resolves against its operand's type is resolved where that type is known, is a type error on a type variable, and carries no hidden argument; `==` compares structurally, or exactly on a foreign type and `Process` (§3.10), and needs none.
 
 ## 5. Expressions
 
@@ -895,7 +895,7 @@ The toolchain is one command, `ern`, whose first word is its job: `ern build`, `
 
 **The shell.** It is the entry point (§8.1). A file's entry point is spawned beside it, so §8.6 ends the program when the shell ends, not when that entry point returns; `--main` then names the function to spawn. A file without an entry point, and without `--main`, is loaded and nothing is spawned. `--main` without a file is refused. The terminal is the shell's, at a terminal and in line mode alike: `Terminal.subscribe` and `Io.readLine` from any other process fault (§7.4), and the terminal's interrupt reaches the shell as a key rather than ending the program (§8.6). A deadlock is not detected while a shell holds the terminal. The shell ends by `:quit`, by `C-d`, or at the end of its input. In line mode what programs write to standard output and to standard error, and what the shell says, goes to standard output in the order written, as all of it goes to the screen at a terminal.
 
-**Inputs.** Each input is checked, compiled as a module of its own, and run in a process of its own. An input may declare what a module may, and every declaration it makes is the session's, so `export` at the prompt adds nothing, and an `abstract type` there needs none. An `abstract type` keeps its constructors to the input that declares it, since each input is a module of its own (§4.4). A `let` at the prompt binds as a `let` in a block does (§4.6), not as a top-level `let`, and stands alone in its input; `let T.name` declares a member and is a declaration like any other. Its pattern binds each name it contains, as in a block, and `let _ = e` runs `e` and binds nothing. A `let` with `<-` is refused. An input that binds a name whose type the input itself does not settle is refused, with the annotation that would settle it. An input whose value, or whose `let`, is reply-carrying is refused (§6.6). An expression's value is bound to `it`, except where the input does not settle its type, which leaves `it` as it was. The session counts what is entered at the prompt, an input or a command, from 1, and a diagnostic names a typed input as the file `input 3`, its count after the word. Bindings survive a fault or an interruption in an input. A socket or a running program that an input opens is owned by the input's process, which ends with the input, and so ends with it unless the socket is given to a process that lives on (Appendix E.18, E.23). An input that faults answers with `fault: ` and the cause, and one the interrupt ends with `Killed`. An input entered while another runs waits, and runs after it, in the order entered; the interrupt ends the running input alone.
+**Inputs.** Each input is checked, compiled as a module of its own, and run in a process of its own. An input may declare what a module may, and every declaration it makes is the session's, so `export` at the prompt adds nothing, and an `abstract type` there needs none. An `abstract type` keeps its constructors to the input that declares it, since each input is a module of its own (§4.4). A `let` at the prompt binds as a `let` in a block does (§4.6), not as a top-level `let`, and stands alone in its input. Its pattern binds each name it contains, as in a block, and `let _ = e` runs `e` and binds nothing. A `let` with `<-` is refused. An input that binds a name whose type the input itself does not settle is refused, with the annotation that would settle it. An input whose value, or whose `let`, is reply-carrying is refused (§6.6). An expression's value is bound to `it`, except where the input does not settle its type, which leaves `it` as it was. The session counts what is entered at the prompt, an input or a command, from 1, and a diagnostic names a typed input as the file `input 3`, its count after the word. Bindings survive a fault or an interruption in an input. A socket or a running program that an input opens is owned by the input's process, which ends with the input, and so ends with it unless the socket is given to a process that lives on (Appendix E.18, E.23). An input that faults answers with `fault: ` and the cause, and one the interrupt ends with `Killed`. An input entered while another runs waits, and runs after it, in the order entered; the interrupt ends the running input alone.
 
 **Commands.** A command begins with `:` and is not an Ernest function. A command that takes nothing refuses an argument. A command is selected by its name or by a prefix of its name that begins no other command's name; a prefix that begins more than one is refused with the names it begins. The commands, in the alphabetical order the shell's help lists them:
 
@@ -1014,9 +1014,9 @@ AbstractDecl  = "abstract" TypeDecl .
 FnDecl      = "fn" DeclName "(" [ Param { "," Param } ] ")" [ Return ] "=" Expr .
 Param       = Pattern [ ":" Type ] .
 Return      = ":" Type [ "with" Type ] .
-LetDecl     = "let" DeclName [ ":" Type ] "=" Expr .
+LetDecl     = "let" ident [ ":" Type ] "=" Expr .
 Binding     = "let" Pattern [ ":" Type ] ( "=" | "<-" ) Expr .
-DeclName    = ident | typename "." ( ident | userop ) .
+DeclName    = ident | typename "." ( userop | "compare" | "negate" ) .
 
 Type        = TypeAtom | FnType | ParenType .
 TypeAtom    = { typename "." } typename [ "(" Type { "," Type } ")" ] | typevar

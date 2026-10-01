@@ -33,7 +33,7 @@
 -record(param, {pos, pattern, type}).
 %% type: the annotation, or undefined where there is none
 
--record(let_decl, {pos, doc, export = false, owner, name, ann, body, type}).
+-record(let_decl, {pos, doc, export = false, name, ann, body, type}).
 %% ann: the annotation, or undefined; type: the scheme, set by the checker
 
 -record(foreign_type_decl, {pos, doc, export = false, name, params = [], eq = []}).

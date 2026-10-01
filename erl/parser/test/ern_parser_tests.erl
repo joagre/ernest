@@ -28,6 +28,10 @@ help(Text) ->
     {error, #diag{help = Help}} = ern_parser:parse_string(Text),
     Help.
 
+err_help(Text) ->
+    {error, #diag{message = Msg, help = Help}} = ern_parser:parse_string(Text),
+    {Msg, Help}.
+
 help_expr(Text) ->
     {error, #diag{help = Help}} = ern_parser:parse_expr(Text),
     Help.
@@ -466,11 +470,15 @@ fn_decl_test() ->
                  d("fn double(n : Int) : Int = n * 2")),
     ?assertMatch(#fn_decl{name = twice, params = [#param{type = undefined}], ret = undefined},
                  d("fn twice(n) = n + n")),
-    ?assertMatch(#fn_decl{owner = 'Stack', name = push,
+    ?assertMatch(#fn_decl{owner = undefined, name = push,
                           params = [#param{pattern = #p_var{}},
                                     #param{pattern = #p_con{name = 'Stack'},
                                            type = #t_con{name = 'Stack'}}]},
-                 d("fn Stack.push(x : a, Stack(xs) : Stack(a)) : Stack(a) = Stack(x :: xs)")),
+                 d("fn push(x : a, Stack(xs) : Stack(a)) : Stack(a) = Stack(x :: xs)")),
+    ?assertMatch(#fn_decl{owner = 'Stack', name = compare},
+                 d("fn Stack.compare(a : Stack(Int), b : Stack(Int)) : Ordering = Equal")),
+    ?assertMatch(#fn_decl{owner = 'Distance', name = negate},
+                 d("fn Distance.negate(Distance(a)) : Distance = Distance(-a)")),
     ?assertMatch(#fn_decl{owner = 'Distance', name = '+'},
                  d("fn Distance.+(Distance(a), Distance(b)) : Distance = Distance(a + b)")),
     ?assertMatch(#fn_decl{params = [#param{pattern = #p_con{name = 'Snapshot'}}]},
@@ -479,12 +487,12 @@ fn_decl_test() ->
 
 %% report §4.6
 let_decl_test() ->
-    ?assertMatch(#let_decl{export = false, owner = undefined, name = pi,
+    ?assertMatch(#let_decl{export = false, name = pi,
                            ann = #t_con{name = 'Float'}, body = #e_lit{kind = float}},
                  d("let pi : Float = 3.14")),
-    ?assertMatch(#let_decl{export = true, owner = 'Stack', name = empty, ann = #t_con{},
+    ?assertMatch(#let_decl{export = true, name = empty, ann = #t_con{},
                            body = #e_con{name = 'Stack'}},
-                 d("export let Stack.empty : Stack(a) = Stack([])")),
+                 d("export let empty : Stack(a) = Stack([])")),
     ?assertMatch(#let_decl{name = x, ann = undefined}, d("let x = 1")).
 
 %% report §4.7
@@ -635,15 +643,39 @@ operator_grammar_test() ->
     ?assertEqual("expected a name instead of `+`", err("fn +(a, b) = a")),
     ?assertEqual("expected a name after `.` instead of `|>`", err_expr("Int.|>")),
     ?assertEqual("expected a name after `.` instead of `==`", err_expr("Int.==")),
-    ?assertEqual("expected a member name or operator after `.` instead of `|>`",
+    ?assertEqual("expected an operator, `compare` or `negate` after `.` instead of `|>`",
                  err("fn T.|>(a) = a")).
+
+%% report §4.5, §4.6, Appendix A's DeclName and LetDecl: a member is an
+%% operator, `compare` or `negate`, declared with `fn`
+member_names_test() ->
+    ?assertEqual({"`push` cannot be a member of Stack: a member is an operator, `compare` or"
+                  " `negate`",
+                  "a type's other operations are functions of its module: write `fn push`"},
+                 err_help("fn Stack.push(s, x) = s")),
+    ?assertEqual({"`size` cannot be a member of Stack: a member is an operator, `compare` or"
+                  " `negate`",
+                  "a type's other operations are functions of its module: write `fn size`"},
+                 err_help("foreign fn Stack.size(s : Stack) : Int = \"m:f/1\"")),
+    ?assertEqual({"a `let` declares no member of Stack",
+                  "a type's values are named in its module, as its functions are:"
+                  " write `let empty`"},
+                 err_help("let Stack.empty = Stack([])")),
+    ?assertEqual({"a `let` declares no member of Money",
+                  "a member is declared with `fn`: write `fn Money.+(...)`"},
+                 err_help("let Money.+ = 1")),
+    ?assertEqual({"a `let` declares no member of Money",
+                  "a member is declared with `fn`: write `fn Money.compare(...)`"},
+                 err_help("let Money.compare = 1")),
+    ?assertEqual({"expected a name instead of type name `Stack`",
+                  "a value's name begins with a lowercase letter"},
+                 err_help("let Stack = 1")).
 
 %% report Appendix A
 misc_errors_test() ->
     ?assertEqual("`_` is a pattern, not an expression", err_expr("_ + 1")),
     ?assertEqual("empty parentheses after None", err_expr("None()")),
-    ?assertEqual("expected a name; a type member is written `Stack.name`",
-                 err("fn Stack(x) = x")),
+    ?assertEqual("expected a name instead of type name `Stack`", err("fn Stack(x) = x")),
     ?assertEqual("a foreign function declares its result type",
                  err("foreign fn f(x : Int) = \"m:f/1\"")),
     ?assertEqual("expected `)` instead of `;`", err_expr("f(a;")),

@@ -325,7 +325,7 @@ iface_chunk_test() ->
     {ok, #{iface := Read, source_hash := <<"s">>, deps := [{['Net', 'Http'], <<"h">>}]}} =
         ern_iface:read(Beam),
     ?assertEqual(['Stack'], Read#iface.namespace),
-    ?assert(is_map_key(['Stack', 'Stack', push], Read#iface.values)),
+    ?assert(is_map_key(['Stack', push], Read#iface.values)),
     ?assertEqual(ern_iface:hash(Iface), ern_iface:hash(Read)),
     {ok, _, Iface2, _} = ern_typecheck:check_string(Ns, <<"fn f(x) = x\n", Bin/binary>>),
     ?assertEqual(ern_iface:hash(Iface), ern_iface:hash(Iface2)).
@@ -569,21 +569,25 @@ show_test() ->
         "}\n"),
     ?assertEqual(<<"Snap(dir = \"x\", seen = 2)\nSome('a')\n<<1>> <<2, 3>>\n97\n">>, Out).
 
-%% report §4.2, Appendix E.1: a module's own type named Io may have members
-%% show and debug, and a call of them, and each as a value, is the
-%% module's. A regression test: the emitter read the written path, and
-%% called the library's in their place
-own_io_show_test() ->
+%% report §4.2, §4.5: a module's own type named Float may have members
+%% negate and compare, and a call of them, each as a value, and prefix `-`
+%% on the type are the module's. A regression test, rewritten when a member
+%% became an operator, `compare` or `negate`: it held the same of `Io.show`
+%% and `Io.debug`, where the emitter read the written path and called the
+%% library's in their place
+own_member_over_prelude_test() ->
     {ok, Out} = run(
-        "type Io = Io(n : Int)\n"
-        "fn Io.show(x : Io) : String = \"mine \" <> Int.toString(x.n)\n"
-        "fn Io.debug(x : Io) : Io = x\n"
+        "type Float = Float(n : Int)\n"
+        "fn Float.negate(x : Float) : String = \"mine \" <> Int.toString(x.n)\n"
+        "fn Float.compare(a : Float, b : Float) : Ordering = Less\n"
         "export fn main() : Unit with Never = {\n"
-        "    Io.println(Io.show(Io(n = 1)));\n"
-        "    let f = Io.show;\n"
-        "    Io.println(f(Io.debug(Io(n = 2))))\n"
+        "    Io.println(Float.negate(Float(n = 1)));\n"
+        "    let f = Float.negate;\n"
+        "    Io.println(f(Float(n = 2)));\n"
+        "    Io.println(-Float(n = 3));\n"
+        "    Io.println(Io.show(Float.compare(Float(n = 1), Float(n = 1))))\n"
         "}\n"),
-    ?assertEqual(<<"mine 1\nmine 2\n">>, Out).
+    ?assertEqual(<<"mine 1\nmine 2\nmine 3\nLess\n">>, Out).
 
 %% report Appendix E.1: Io.debug writes a String as a literal, with `"`,
 %% `\\`, a line feed and a tab escaped by name, another control character
@@ -1776,11 +1780,11 @@ qualified_own_name_test() ->
         "let base = 3\n"
         "fn two() : Int = 2\n"
         "type Box = Box(Int)\n"
-        "fn Box.open(b : Box) : Int = match b { Box(n) -> n }\n"
+        "fn Box.negate(b : Box) : Int = match b { Box(n) -> n }\n"
         "export fn main() : Unit with Never = {\n"
         "    let f = M.two;\n"
-        "    let g = M.Box.open;\n"
-        "    Io.println(Int.toString(M.two() + f() + M.Box.open(Box(4)) + g(Box(1))));\n"
+        "    let g = M.Box.negate;\n"
+        "    Io.println(Int.toString(M.two() + f() + M.Box.negate(Box(4)) + g(Box(1))));\n"
         "    Io.println(Int.toString(M.total))\n"
         "}\n"),
     ?assertEqual(<<"9\n6\n">>, Out).
@@ -1971,14 +1975,14 @@ initialization_order_test() ->
 %% regression test for the single decision; the order it had was the same.
 lookup_order_test() ->
     {ok, Out} = run("type Box = Box(Int)\n"
-                    "fn Box.value(b : Box) : Int = match b { Box(n) -> n }\n"
-                    "fn value(b : Box) : Int = 100\n"
+                    "fn Box.negate(b : Box) : Int = match b { Box(n) -> n }\n"
+                    "fn negate(b : Box) : Int = 100\n"
                     "fn self() : Int = 5\n"
                     "export fn main() : Unit with Never = {\n"
                     "    let me = Prelude.self();\n"
-                    "    let first = Box.value(Box(1)) + value(Box(1)) + self() + M.self();\n"
-                    "    let value = fn(b : Box) : Int = 1000;\n"
-                    "    Io.println(Int.toString(first + value(Box(1))))\n}\n"),
+                    "    let first = Box.negate(Box(1)) + negate(Box(1)) + self() + M.self();\n"
+                    "    let negate = fn(b : Box) : Int = 1000;\n"
+                    "    Io.println(Int.toString(first + negate(Box(1))))\n}\n"),
     ?assertEqual(<<"1111\n">>, Out).
 
 %% A function may be named `module_info` or `record_info`, which the host
