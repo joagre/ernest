@@ -129,7 +129,7 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    declaration for as a built-in one, which made its equality check pass, but fails as the
    toolchain's own defect. A regression test for each of the three.
 5. **The operations, decided and built**, decided with the user before anything of it is built
-   (language feedback 64, 70 and 71), and then built. Two parts were decided by the
+   (language feedback 64, 70 and 71, which the decision closed on 2026-10-02), and then built. Two parts were decided by the
    principles review on 2026-10-01 (the log's *Members, Operators, and No Hidden Argument*): a
    type's operations are functions of its module, a member only an operator, `compare` or
    `negate`, which decides **when a type's operation is a member and when a module function**
@@ -156,9 +156,9 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    the record. Decided with the user on 2026-10-02, one by one (the log's *MVP 2.99b's
    Questions, One by One*): the record holds the vocabulary; the type is
    `OrderedSet.Set(a)`; §3.10 stands, with no order for tuples, lists, `Optional` and
-   `Either`; and an operations record comes directly after the subjects, before an accumulator
-   and callbacks, a clause of E.0's shape rule 1. The ordered set's representation is the
-   specification's last question.
+   `Either`; an operations record comes directly after the subjects, before an accumulator and
+   callbacks, a clause of E.0's shape rule 1; and the representation is a sorted list, its
+   costs stated in its section.
 
    Once decided, it is built in the report's order. The report first: E.0 shape rule 1's
    clause for a record, E.4's record, §11.5's message naming a selected callee as written,
@@ -265,8 +265,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     refused under a full signature, §2.2's blank line that gives the first doc block to the
     module, and `spawnMonitored` with `Unknown`. Each is decided as item 3 decided the first
     release's fourteen: a report change, a "Later" entry, or a line that it was weighed and
-    left alone, with the user one at a time; about two days, after item 5, whose decision
-    entries 64, 70 and 71 wait on. With it `language_feedback.md` holds no entry and `findings.md`
+    left alone, with the user one at a time; about two days, after item 5's decision, which
+    closed entries 64, 70 and 71 on 2026-10-02. With it `language_feedback.md` holds no entry and `findings.md`
     goes (the log's *Both Lists Close With MVP 2.99b*).
 
 ---
@@ -406,8 +406,9 @@ The milestone is §8.7's identity in full:
 - **The normalized definition, decided first**: the typed tree or the untyped one, and what
   becomes of the effect variables, which are inferred and
   never written. With it, whether a type's identity holds the hash of its `compare`, so that
-  a value ordered under one order is not read under another where versions meet (language
-  feedback 71, which MVP 2.99b decides for the ordered set on one node). Whether `ern_iface:hash/1`, which hashes a canonical interface, grows into
+  a value ordered under one order is not read under another where versions meet (on one
+  node MVP 2.99b's item 5 left it the program's, which names both orders, the log's *MVP
+  2.99b's Questions, One by One*). Whether `ern_iface:hash/1`, which hashes a canonical interface, grows into
   the definition hash or a second scheme stands beside it is part of that decision.
 - Every definition gets a hash of its typed AST; modules are named by hash, with a registry
   per node `{Hash -> Module}`. A function spawned on a peer carries its hash, and a node that
