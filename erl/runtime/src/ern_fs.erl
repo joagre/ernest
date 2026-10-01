@@ -58,17 +58,12 @@ handle({'Stat', Path, Reply}) ->
     answer(Reply, entry(text(Path)));
 handle({'MakeDir', Path, Reply}) ->
     answer(Reply, unit(filelib:ensure_path(text(Path))));
-%% Report Appendix E.17: its owner's alone, the group's and others' bits of
-%% its mode cleared and the owner's kept, as `chmod go-rwx` does.
-handle({'MakePrivate', Path, Reply}) ->
-    Name = text(Path),
-    answer(Reply, case file:read_file_info(Name, [raw]) of
-                      {ok, #file_info{mode = Mode}} ->
-                          unit(file:write_file_info(Name, #file_info{mode = Mode band bnot 8#077},
-                                                    [raw]));
-                      Error ->
-                          Error
-                  end);
+%% Report Appendix E.17: the permission bits as the host writes them; a
+%% mode beyond them is an argument the host cannot take.
+handle({'SetMode', Mode, _Path, Reply}) when Mode < 0; Mode > 8#7777 ->
+    ern_rt:answer(Reply, {'Left', 'Invalid'});
+handle({'SetMode', Mode, Path, Reply}) ->
+    answer(Reply, unit(file:change_mode(text(Path), Mode)));
 %% Report Appendix E.17: a link is removed, not what it leads to.
 handle({'Remove', Path, Reply}) ->
     Name = text(Path),

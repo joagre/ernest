@@ -95,14 +95,15 @@ export fn add(input : String) : Either(Io.Error, Unit) with m =
     }
 
 // Report §11.2: the directory made where it is not there, as before a
-// first session, and its owner's alone, so that no one else reads what was
-// typed, before the file is read, written or trimmed.
+// first session, and its owner's alone to read, write and enter, so that no
+// one else reads what was typed, before the file is read, written or
+// trimmed.
 fn made(path : Path) : Either(Io.Error, Unit) with m =
     match Path.parent(path) {
         None -> Right(Unit)
       | Some(dir) -> {
             let _ <- Fs.makeDir(dir, wait);
-            Fs.makePrivate(dir, wait)
+            Fs.setMode(dir, 0o700, wait)
         }
     }
 

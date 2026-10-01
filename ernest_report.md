@@ -1635,7 +1635,6 @@ Fs.append : (Path, Bytes, Int) -> Either(Io.Error, Unit) with m // creates or ex
 Fs.list : (Path, Int) -> Either(Io.Error, List(Entry)) with m // the entries of a directory but `.` and `..`, in unspecified order, each entry's path the directory's path joined with the entry's name, each described as it is; a name that is not UTF-8 answers `Left(NotUtf8(name))`, the first such in the order of their bytes (§8.2), and an entry gone before it is described is left out
 Fs.stat : (Path, Int) -> Either(Io.Error, Entry) with m // what the path leads to, its links followed
 Fs.makeDir : (Path, Int) -> Either(Io.Error, Unit) with m // with its missing parents; an existing directory is not an error
-Fs.makePrivate : (Path, Int) -> Either(Io.Error, Unit) with m // a file or a directory its owner's alone: no one else may read, write, or enter it, and what its owner may do is kept
 Fs.remove : (Path, Int) -> Either(Io.Error, Unit) with m // a file, a link, or an empty directory
 Fs.rename : (Path, Path, Int) -> Either(Io.Error, Unit) with m // the first to the second
 Fs.copy : (Path, Path, Int) -> Either(Io.Error, Unit) with m // a file, the first to the second; replaces
@@ -1644,6 +1643,7 @@ Fs.readLink : (Path, Int) -> Either(Io.Error, Optional(Path)) with m // the path
 Fs.makeFile : (Path, Bytes, Int) -> Either(Io.Error, Unit) with m // a new file, or none where the path names something
 Fs.removeAll : (Path, Int) -> Either(Io.Error, Unit) with m // a directory and everything under it, or a file or a link; a link is removed, not followed
 Fs.setModified : (Path, Int, Int) -> Either(Io.Error, Unit) with m // the modification time, in milliseconds since the epoch, kept to the second
+Fs.setMode : (Path, Int, Int) -> Either(Io.Error, Unit) with m // the permission bits, as the host writes them, 0o600; a mode outside 0 to 0o7777 is Left(Invalid)
 ```
 
 ### Appendix E.18. `tcp.ern` (namespace `Tcp`)

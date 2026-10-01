@@ -634,10 +634,11 @@ fs_named_pipe_test() ->
     ?assertEqual(lists:duplicate(6, Refused) ++ [{'Right', <<"hi">>}], collect(fs, [])),
     file:del_dir_r(Dir).
 
-%% report Appendix E.17: `makePrivate` makes a file and a directory their
-%% owner's alone, clearing the group's and others' bits and keeping the
-%% owner's, and a path that names nothing is NotFound. Written with the code
-fs_make_private_test() ->
+%% report Appendix E.17: `setMode` sets a file's and a directory's
+%% permission bits to the mode, a path that names nothing is NotFound, and a
+%% mode beyond the bits is Invalid. A regression test of the rule of
+%% 2026-10-01, which replaced `makePrivate` with it
+fs_set_mode_test() ->
     Me = self(),
     Dir = filename:join("/tmp", "ern_private_" ++ os:getpid() ++ "_"
                                    ++ integer_to_list(erlang:unique_integer([positive]))),
@@ -649,11 +650,13 @@ fs_make_private_test() ->
     P = fun(Name) -> {'Path', unicode:characters_to_binary(Name)} end,
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
-                           Me ! {fs, 'ern@fs':makePrivate(P(File), 1000)},
-                           Me ! {fs, 'ern@fs':makePrivate(P(Dir), 1000)},
-                           Me ! {fs, 'ern@fs':makePrivate(P(Dir ++ "/none"), 1000)}
-                       end, <<"fs_make_private_test">>, #{})),
-    ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Left', 'NotFound'}], collect(fs, [])),
+                           Me ! {fs, 'ern@fs':setMode(P(File), 8#600, 1000)},
+                           Me ! {fs, 'ern@fs':setMode(P(Dir), 8#700, 1000)},
+                           Me ! {fs, 'ern@fs':setMode(P(Dir ++ "/none"), 8#700, 1000)},
+                           Me ! {fs, 'ern@fs':setMode(P(File), 8#10000, 1000)}
+                       end, <<"fs_set_mode_test">>, #{})),
+    ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Left', 'NotFound'},
+                  {'Left', 'Invalid'}], collect(fs, [])),
     {ok, FileInfo} = file:read_file_info(File),
     {ok, DirInfo} = file:read_file_info(Dir),
     ?assertEqual({8#600, 8#700}, {element(8, FileInfo) band 8#777, element(8, DirInfo) band 8#777}),

@@ -65,7 +65,6 @@ type Msg =
   | ListDir(path : Path, reply : Reply(Either(Io.Error, List(Entry))))
   | Stat(path : Path, reply : Reply(Either(Io.Error, Entry)))
   | MakeDir(path : Path, reply : Reply(Either(Io.Error, Unit)))
-  | MakePrivate(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | Remove(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | RemoveAll(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | Rename(from : Path, to : Path, reply : Reply(Either(Io.Error, Unit)))
@@ -74,6 +73,7 @@ type Msg =
   | ReadLink(path : Path, reply : Reply(Either(Io.Error, Optional(Path))))
   | MakeFile(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
   | SetModified(path : Path, mtime : Int, reply : Reply(Either(Io.Error, Unit)))
+  | SetMode(path : Path, mode : Int, reply : Reply(Either(Io.Error, Unit)))
 
 // Report §8.2: the system reference, the runtime's address of the file system,
 // bound at each start.
@@ -175,23 +175,6 @@ export fn stat(path : Path, ms : Int) : Either(Io.Error, Entry) with m =
 /// is not an error.
 export fn makeDir(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = MakeDir(path = path, reply = r), ms))
-
-/// Makes a file or a directory its owner's alone: no one else may read,
-/// write, or enter it, and what its owner may do is kept. A directory made
-/// so before a file is written in it keeps the file from others as it is
-/// written.
-///
-/// ### Examples
-///
-/// ```ernest
-/// {
-///     let _ = Fs.makeDir(Path("own"), 5000);
-///     Fs.makePrivate(Path("own"), 5000)
-/// }
-/// // => Right(Unit)
-/// ```
-export fn makePrivate(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference, fn(r) = MakePrivate(path = path, reply = r), ms))
 
 /// Removes a file, a link, or an empty directory; a link is removed, not
 /// what it leads to.
@@ -329,6 +312,27 @@ export fn setModified(path : Path, mtime : Int, ms : Int) : Either(Io.Error, Uni
     answered(Address.call(reference,
                           fn(r) = SetModified(path = path, mtime = mtime, reply = r),
                           ms))
+
+/// Sets the permission bits of a file or a directory to the mode, as the
+/// host writes them: `0o600` is its owner's alone to read and write, and a
+/// directory made `0o700` before a file is written in it keeps the file
+/// from others as it is written.
+///
+/// ### Errors
+///
+/// A mode outside 0 to `0o7777` is `Left(Invalid)`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let _ = Fs.makeDir(Path("own"), 5000);
+///     Fs.setMode(Path("own"), 0o700, 5000)
+/// }
+/// // => Right(Unit)
+/// ```
+export fn setMode(path : Path, mode : Int, ms : Int) : Either(Io.Error, Unit) with m =
+    answered(Address.call(reference, fn(r) = SetMode(path = path, mode = mode, reply = r), ms))
 
 fn answered(answer : Optional(Either(Io.Error, a))) : Either(Io.Error, a) =
     Optional.withDefault(answer, Left(Io.Timeout))
