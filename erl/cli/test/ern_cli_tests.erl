@@ -532,24 +532,28 @@ type_member_across_modules_test() ->
     ?assertEqual(<<"Greater\ntrue\n#(<abstract>, 2)\n">>, iolist_to_binary(?capturedOutput)).
 
 %% report §4.4, Appendix E.1: outside its module an abstract value is shown as
-%% `<abstract>`, and through a type variable by its representation, its
-%% constructor included, until a generic function takes its caller's
-%% description of the type (MVP 2.99b's item 13). A regression test of what
-%% the report states
-abstract_through_type_variable_test() ->
+%% `<abstract>`, and no generic function shows it by its representation,
+%% `Io.show` at a type variable being a type error. A regression test of the
+%% rule of 2026-10-01: through a type variable its constructor was shown
+abstract_shown_outside_its_module_test() ->
     Dir = tmp(),
-    write(Dir, "src/lib/stack.ern",
-          "export abstract type Stack(a) = Stack(List(a))\n"
-          "export let one : Stack(Int) = Stack([1])\n"),
+    Stack = "export abstract type Stack(a) = Stack(List(a))\n"
+            "export let one : Stack(Int) = Stack([1])\n",
+    write(Dir, "src/lib/stack.ern", Stack),
     write(Dir, "src/main.ern",
-          "fn shown(x : a) : String = Io.show(x)\n\n"
-          "export fn main() : Unit with Never = {\n"
-          "    Io.println(Io.show(Lib.Stack.one));\n"
-          "    Io.println(shown(Lib.Stack.one))\n"
-          "}\n"),
+          "export fn main() : Unit with Never = Io.println(Io.show(Lib.Stack.one))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
-    ?assertEqual(<<"<abstract>\nStack([1])\n">>, iolist_to_binary(?capturedOutput)).
+    ?assertEqual(<<"<abstract>\n">>, iolist_to_binary(?capturedOutput)),
+    Refused = tmp(),
+    write(Refused, "src/lib/stack.ern", Stack),
+    write(Refused, "src/main.ern",
+          "fn shown(x : a) : String = Io.show(x)\n\n"
+          "export fn main() : Unit with Never = Io.println(shown(Lib.Stack.one))\n"),
+    ?assertEqual(1, build_err(["--build-root", Refused ++ "/build", Refused ++ "/src"])),
+    ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
+                                    "Io.show writes a value by its type, which is not known"
+                                    " whole here: a!")).
 
 %% report §4.2: `T.name` is the module's own member where its type `T`
 %% declares one of that name, and the module T's `name` otherwise. A

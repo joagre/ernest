@@ -140,9 +140,10 @@ export fn write(b : Bytes) : Unit with m =
 /// The value as Ernest writes it, by its type at the call: a value as its
 /// literal or construction is written, a named constructor's fields in
 /// canonical order (report §3.5), an address as the process behind it,
-/// `<address 84>`, and a function as `<function>`. Inside a generic
-/// function, where the type is a variable, it is written by the runtime's
-/// representation (report §8.4). It is pure.
+/// `<address 84>`, and a function as `<function>`. The type at the call is
+/// known whole, with no type variable in it, so that in a generic function
+/// `Io.show` at the function's type variable is a type error (report
+/// Appendix E.1). It is pure.
 ///
 /// ### Examples
 ///
@@ -155,7 +156,7 @@ export foreign fn show(value : a) : String =
 
 /// The value printed as `Io.show` writes it, with a line feed, and
 /// returned, so it wraps an expression where it stands: `let n =
-/// Io.debug(f(x))`. Inside a generic function, where the type is a
-/// variable, it prints by the runtime's representation (report §8.4).
+/// Io.debug(f(x))`. Its type at the call is known whole, as `Io.show`'s
+/// is.
 export foreign fn debug(value : a) : a with m =
     "ern_io:debug/1"

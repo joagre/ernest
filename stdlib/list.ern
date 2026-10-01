@@ -223,7 +223,8 @@ export fn find(xs : List(a), p : (a) -> Bool with e) : Optional(a) with e =
 /// ### Examples
 ///
 /// ```ernest
-/// #(List.last([1, 2]), List.last([]))
+/// let empty : List(Int) = [];
+/// #(List.last([1, 2]), List.last(empty))
 /// // => #(Some(2), None)
 /// ```
 export fn last(xs : List(a)) : Optional(a) =

@@ -521,14 +521,13 @@ or_pattern_test() ->
     ?assertEqual({fault, <<"division by zero">>}, R).
 
 %% report Appendix E.1: Io.debug prints a value as Ernest writes it, by the
-%% argument's type at the call, and returns it; with a type variable there,
-%% by the runtime's representation
+%% argument's type at the call, known whole there, and returns it; a type
+%% variable there is a type error (ern_typecheck_tests)
 io_debug_test() ->
     {ok, Out} = run(
         "type Shape = Circle(Int) | Dot\n"
         "type Snap = Snap(seen : Int, dir : String)\n"
         "type State = Ready | Busy\n"
-        "fn generic(x) = Io.debug(x)\n"
         "export fn main() : Unit with Never = {\n"
         "    let n = Io.debug(4) + 1;\n"
         "    let _ = Io.debug(n);\n"
@@ -537,37 +536,33 @@ io_debug_test() ->
         "    let _ = Io.debug(Snap(dir = \"x\", seen = 2));\n"
         "    let _ = Io.debug(Map.put(Map.empty, \"k\", [1]));\n"
         "    let _ = Io.debug(Set.fromList([2, 1]));\n"
-        "    let _ = Io.debug(fn(x) = x);\n"
+        "    let _ = Io.debug(fn(x : Int) = x);\n"
         "    let _ = Io.debug(#(true, false));\n"
         "    let _ = Io.debug(\"é中\");\n"
         "    let _ = Io.debug(#('a', '\\'', Some('\\n')));\n"
         "    let _ = Io.debug(#(Ready, 1));\n"
         "    let _ = Io.debug(<<104, 105>>);\n"
         "    let _ = List.map(['x'], Io.debug);\n"
-        "    let _ = generic('a');\n"
         "    Unit\n"
         "}\n"),
     ?assertEqual(<<"4\n5\n[Circle(-3), Dot]\n#(1.5, \"a\\nb\", true, Unit)\n"
                    "Snap(dir = \"x\", seen = 2)\n"
                    "Map.fromList([#(\"k\", [1])])\nSet.fromList([1, 2])\n<function>\n"
                    "#(true, false)\n\"é中\"\n#('a', '\\'', Some('\\n'))\n#(Ready, 1)\n"
-                   "<<104, 105>>\n'x'\n97\n"/utf8>>, Out).
+                   "<<104, 105>>\n'x'\n"/utf8>>, Out).
 
 %% report Appendix E.1: Io.show writes a value by its type at the call, as
-%% a function value too, and pure, and by the runtime's representation
-%% inside a generic function
+%% a function value too, and pure
 show_test() ->
     {ok, Out} = run(
         "type Snap = Snap(seen : Int, dir : String)\n"
-        "fn generic(x : a) : String = Io.show(x)\n"
         "fn pure(c : Char) : String = Io.show(Some(c))\n"
         "export fn main() : Unit with Never = {\n"
         "    Io.println(Io.show(Snap(dir = \"x\", seen = 2)));\n"
         "    Io.println(pure('a'));\n"
-        "    Io.println(String.join(List.map([<<1>>, <<2, 3>>], Io.show), \" \"));\n"
-        "    Io.println(generic('a'))\n"
+        "    Io.println(String.join(List.map([<<1>>, <<2, 3>>], Io.show), \" \"))\n"
         "}\n"),
-    ?assertEqual(<<"Snap(dir = \"x\", seen = 2)\nSome('a')\n<<1>> <<2, 3>>\n97\n">>, Out).
+    ?assertEqual(<<"Snap(dir = \"x\", seen = 2)\nSome('a')\n<<1>> <<2, 3>>\n">>, Out).
 
 %% report §4.2, §4.5: a module's own type named Float may have members
 %% negate and compare, and a call of them, each as a value, and prefix `-`

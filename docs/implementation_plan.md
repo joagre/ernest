@@ -244,9 +244,8 @@ and a process-only variable prints without one, §11.5 saying so and giving no s
 mark's spelling is a decision of this phase's edits, taken with the user before the printer
 and §11.5 change. Under §3.5's declared order of 2026-10-01, the emitter's
 descriptors, `Io.show` and the ABI place named fields in the order of their names (§3.5, §8.4,
-Appendix E.1). Under E.1's sentence of 2026-10-01, the checker accepts `Io.show` on a type
-variable and the runtime then writes the representation (Appendix E.1, §4.4). Under §3.8's sentence of 2026-10-01, `Foreign` is a built-in type of
-§3.7 and the prelude without equality (§3.10, §9.1), with its conversions in Appendix E.12,
+Appendix E.1). Under §3.8's sentence of 2026-10-01, `Foreign` is a built-in type of
+§3.7 and the prelude (§9.1), with its conversions in Appendix E.12,
 where it is the library's foreign type `Foreign.Term` of Appendix E.12, which keeps its section;
 Appendix D's code and the shims change with it. The read-back of the sixteen sentences
 (2026-10-01, the log's *The Sixteen Sentences Read Back*) adds: `via(f, addr)` takes its
@@ -257,8 +256,7 @@ count where §7.4 says none (E.17); `Fs.list` leaves out a name, which E.17 now 
 log's *The Silence Family's Rules*) makes it a function, `Os.environment(name) : Optional(String)`,
 `None` for no such variable and a fault of the asker for a value that is not UTF-8, the
 environment read once at the start and decoded at the asking, its two callers in the shell
-following; and an `// =>` example whose value's type
-keeps a variable, `Io.debug([])`, needs an annotation once E.1's rule is checked. The second read-back adds E.16's and E.1's sections naming their primitives (clarity, K-24, K-39). Under
+following. The second read-back adds E.16's and E.1's sections naming their primitives (clarity, K-24, K-39). Under
 §0's *The host*, the first family's round 2 (2026-10-01, the log's *The Host Family's Rules*)
 moves the negative zero's normalization in the emitter from every float operation to the ones
 that can make one, `*`, `/`, negation and the entries, since under round to nearest a sum or a

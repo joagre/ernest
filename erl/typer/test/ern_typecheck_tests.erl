@@ -23,6 +23,10 @@ err(Text) ->
     {error, [#diag{message = Msg} | _]} = check(Text),
     Msg.
 
+err_help(Text) ->
+    {error, [#diag{message = Msg, help = Help} | _]} = check(Text),
+    {Msg, Help}.
+
 errs(Text) ->
     {error, Errs} = check(Text),
     [Msg || #diag{message = Msg} <- Errs].
@@ -437,6 +441,26 @@ declared_type_equality_test() ->
                         "type Nest(a) = Flat(a) | Deeper(Nest(List(a)))\n"
                         "fn f(t : Tree(Int), n : Nest(String)) = t == t && n == n")),
     ?assertEqual(ok, ok("type Tag(a) = Tag(Int)\nfn f(t : Tag((Int) -> Int)) = t == t")).
+
+%% report Appendix E.1: `Io.show` and `Io.debug` write a value by the type
+%% at which the name is used, as a callee or an argument, known whole once
+%% the definition is inferred; a type variable in it is a type error, and
+%% an effect variable is none, a function being written `<function>`. A
+%% regression test of the rule of 2026-10-01: a type variable wrote the
+%% runtime's representation
+show_needs_a_known_type_test() ->
+    Help = "annotate the value where it is bound; a function generic in the type takes one"
+           " that shows it, `(a) -> String`, from its caller",
+    ?assertEqual({"Io.show writes a value by its type, which is not known whole here: a!", Help},
+                 err_help("fn wrap(x : a) : String = Io.show(x)")),
+    ?assertEqual("Io.show writes a value by its type, which is not known whole here: List(a)",
+                 err("fn f() : String = Io.show([])")),
+    ?assertEqual("Io.debug writes a value by its type, which is not known whole here:"
+                 " Optional(a)",
+                 err("fn f() : Unit with m = { let _ = Io.debug(None); Unit }")),
+    ?assertEqual(ok, ok("fn f() : String = { let xs : List(Int) = []; Io.show(xs) }")),
+    ?assertEqual(ok, ok("fn f() : String = Io.show(fn(n : Int) = n)")),
+    ?assertEqual(ok, ok("fn f(xs : List(Int)) : List(String) = List.map(xs, Io.show)")).
 
 %% report §3.8, §3.10: a `Foreign` value has the runtime's exact equality,
 %% directly or inside another value, whatever term foreign code made, a

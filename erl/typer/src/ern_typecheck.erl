@@ -1474,8 +1474,10 @@ post_checks(none, Env) ->
     Env;
 post_checks({Pos, TypedParams, TypedBody, FnT, Effect, Origin, Rigid, Pending, Deferred},
             Env0) ->
+    {Shown, Resolved} = lists:partition(fun(D) -> element(1, D) =:= shown end, Deferred),
     Env1 = solve_deferred(Env0#env{effect = Effect, effect_origin = Origin, pending = Pending,
-                                   deferred = Deferred}),
+                                   deferred = Resolved}),
+    lists:foreach(fun(S) -> known_whole(S, Env1) end, Shown),
     rigid_annotation_vars(Pos, Rigid, Env1),
     ern_scope:order(TypedBody),
     ern_exhaust:check(TypedBody, Env1),
@@ -1483,6 +1485,36 @@ post_checks({Pos, TypedParams, TypedBody, FnT, Effect, Origin, Rigid, Pending, D
     no_reply_instantiations(Env2),
     Env2#env{effect = Env0#env.effect, effect_origin = Env0#env.effect_origin,
              pending = Env0#env.pending, deferred = Env0#env.deferred}.
+
+%% Report Appendix E.1: `Io.show` and `Io.debug` write a value by the type
+%% at which the name is used, as a callee or an argument, the library's
+%% own uses in io.ern among them; the type is read once the definition is
+%% inferred, as an operator's operand type is (§4.8).
+shown(Pos, Ref, T, #env{ns = Ns}) ->
+    Shows = case Ref of
+                {remote, ['Io'], undefined, Name} -> lists:member(Name, [show, debug]);
+                {own, undefined, Name} -> Ns =:= ['Io'] andalso lists:member(Name, [show, debug]);
+                _ -> false
+            end,
+    case {Shows, T} of
+        {true, {tfn, [Argument], _, _}} -> [{shown, Pos, Ref, Argument}];
+        _ -> []
+    end.
+
+%% It must be known whole, with no type variable in it; an effect variable
+%% changes nothing written, a function being `<function>`.
+known_whole({shown, Pos, Ref, Argument}, #env{st = St}) ->
+    Type = ern_types:zonk(Argument, St),
+    case ern_types:value_vars(Type, St) of
+        [] ->
+            ok;
+        _ ->
+            Name = "Io." ++ atom_to_list(element(tuple_size(Ref), Ref)),
+            fail(Pos, Name ++ " writes a value by its type, which is not known whole here: "
+                      ++ ern_types:format(Type, St), [],
+                 "annotate the value where it is bound; a function generic in the type takes"
+                 " one that shows it, `(a) -> String`, from its caller")
+    end.
 
 %% Report §5.5: `let p <- e` is resolved from the type of e, or from the
 %% block's type, once the definition is inferred. Solving one may resolve
@@ -1959,9 +1991,11 @@ infer(#e_var{pos = Pos, path = Path, name = Name} = E, Env0) ->
               _ -> {format_qname(Path ++ [Name]), ern_types:format_scheme(Scheme, St)}
           end,
     Pending = instance_pending(T, Pos, St, Who),
+    Deferred = shown(Pos, Ref, T, Env) ++ Env#env.deferred,
     %% report §4.2: what the name resolved to is recorded, so that the
     %% emitter reads the decision rather than making it again
-    {E#e_var{type = T, ref = Ref}, T, Env#env{st = St, pending = Pending ++ Env#env.pending}};
+    {E#e_var{type = T, ref = Ref}, T,
+     Env#env{st = St, pending = Pending ++ Env#env.pending, deferred = Deferred}};
 infer(#e_con{pos = Pos, path = Path, name = Name, args = Args} = E, Env) ->
     CI = lookup_con(Pos, Path, Name, Env),
     {CT, St} = ern_types:instantiate(CI#cinfo.scheme, Env#env.st),
