@@ -21,12 +21,12 @@
 ///     let listener <- Tcp.listen("127.0.0.1", 0);
 ///     let port <- Tcp.port(listener);
 ///     let _ = spawn(Local, fn() = match Tcp.accept(listener, 1000) {
-///         Right(peer) -> {
-///             let _ = match Tcp.read(peer, 1000) {
-///                 Right(bytes) -> Tcp.write(peer, bytes)
+///         Right(accepted) -> {
+///             let _ = match Tcp.read(accepted, 1000) {
+///                 Right(bytes) -> Tcp.write(accepted, bytes)
 ///               | Left(e) -> Left(e)
 ///             };
-///             Tcp.close(peer)
+///             Tcp.close(accepted)
 ///         }
 ///       | Left(_) -> Unit
 ///     });
@@ -64,7 +64,7 @@ export abstract type ListenerMsg =
   | CloseListener
 
 /// What a connected socket takes; a program uses `Tcp.read`, `Tcp.write`,
-/// `Tcp.close`, `Tcp.give`, `Tcp.peer`, and `Tcp.local` (report Appendix
+/// `Tcp.close`, `Tcp.give`, `Tcp.remote`, and `Tcp.local` (report Appendix
 /// E.18).
 ///
 /// ### Examples
@@ -229,8 +229,8 @@ export fn give(socket : Address(SockMsg), owner : Process) : Unit with m =
 export fn closeListener(listener : Address(ListenerMsg)) : Unit with m =
     send(listener, CloseListener)
 
-/// The connection's far end, in TCP's sense, not a peer of report §8.3, or
-/// `Left(Io.Closed)` once the connection has closed.
+/// The connection's far end, or `Left(Io.Closed)` once the connection has
+/// closed.
 ///
 /// ### Errors
 ///
@@ -244,14 +244,14 @@ export fn closeListener(listener : Address(ListenerMsg)) : Unit with m =
 ///     let listener <- Tcp.listen("127.0.0.1", 0);
 ///     let port <- Tcp.port(listener);
 ///     let client <- Tcp.connect("127.0.0.1", port, 1000);
-///     let far = Tcp.peer(client);
+///     let far = Tcp.remote(client);
 ///     Tcp.close(client);
 ///     Tcp.closeListener(listener);
 ///     Either.map(far, fn(e) = e.port == port)
 /// }
 /// // => Right(true)
 /// ```
-export fn peer(socket : Address(SockMsg)) : Either(Io.Error, Endpoint) with m =
+export fn remote(socket : Address(SockMsg)) : Either(Io.Error, Endpoint) with m =
     Address.callForever(socket, fn(r) = FarEnd(reply = r))
 
 /// The connection's near end, or `Left(Io.Closed)` once the connection has

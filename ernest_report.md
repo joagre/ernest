@@ -1659,7 +1659,7 @@ Tcp.write : (Address(SockMsg), Bytes) -> Either(Io.Error, Unit) with m
 Tcp.close : (Address(SockMsg)) -> Unit with m
 Tcp.give : (Address(SockMsg), Process) -> Unit with m // makes the process the socket's owner
 Tcp.closeListener : (Address(ListenerMsg)) -> Unit with m // stops listening
-Tcp.peer : (Address(SockMsg)) -> Either(Io.Error, Endpoint) with m // the connection's far end, in TCP's sense, not a peer of §8.3
+Tcp.remote : (Address(SockMsg)) -> Either(Io.Error, Endpoint) with m // the connection's far end
 Tcp.local : (Address(SockMsg)) -> Either(Io.Error, Endpoint) with m // the connection's near end
 ```
 
