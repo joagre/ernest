@@ -1531,7 +1531,6 @@ Float.atan2 : (Float, Float) -> Float // the angle of the point #(x, y), the y f
 Optional.isSome : (Optional(a)) -> Bool
 Optional.isNone : (Optional(a)) -> Bool
 Optional.withDefault : (Optional(a), a) -> a
-Optional.orElse : (Optional(a), Optional(a)) -> Optional(a) // the first that is Some
 Optional.map : (Optional(a), (a) -> b with e) -> Optional(b) with e
 Optional.andThen : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with e
 ```
@@ -1542,7 +1541,6 @@ Optional.andThen : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with 
 Either.isLeft : (Either(e, a)) -> Bool
 Either.isRight : (Either(e, a)) -> Bool
 Either.withDefault : (Either(e, a), a) -> a
-Either.orElse : (Either(e, a), Either(e, a)) -> Either(e, a) // the first that is Right
 Either.map : (Either(e, a), (a) -> b with x) -> Either(e, b) with x
 Either.mapLeft : (Either(e, a), (e) -> b with x) -> Either(b, a) with x
 Either.andThen : (Either(e, a), (a) -> Either(e, b) with x) -> Either(e, b) with x
