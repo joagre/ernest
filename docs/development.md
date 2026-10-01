@@ -13,7 +13,6 @@ The report, [`ernest_report.md`](../ernest_report.md), is the one normative docu
 - **[`release_review.md`](release_review.md)**: what a release runs to be ready.
 - **[`full_review.md`](full_review.md)**: every reader over the whole of its area, run seldom.
 - **[`principles_review.md`](principles_review.md)**: the report and the guide read against §0, and §0 against what it decided.
-- **[`attack_plan.md`](attack_plan.md)**: the order in which the principles review's findings are worked, while they are.
 - **[`style.md`](style.md)**: the style of the Erlang, the C and the Ernest.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.

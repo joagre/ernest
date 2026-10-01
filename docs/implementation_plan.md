@@ -17,12 +17,10 @@ milestone, the standing gaps, and what is done.
 the decision on how code written once works over several representations, which
 [`operations.md`](operations.md) weighs, and running as a service. Its first item makes every
 run of `make test` trusted. Between its items 3 and 4 runs the principles review, the report
-and the guide read against §0 and §0 against what it decided, a milestone of its own below;
-its readers ran on 2026-09-30, on `57b8356`, their findings stand in
-[`findings.md`](findings.md), and [`attack_plan.md`](attack_plan.md) gives the order in which
-they are worked; its phases 1 to 4, the sixteen sentences, MVP 2.99b's items 1 to 3, and the
-defects and disagreements, were done on 2026-10-01, and phase 5's decisions, the families' rules, were decided with the user a
-family at a time the same day, and its edits made, by area; phase 6, the log, was read the same day; phase 7, the closure, is next. Ernest 0.1.0, the
+and the guide read against §0 and §0 against what it decided, a milestone of its own;
+its readers ran on 2026-09-30, on `57b8356`, and it was worked on 2026-10-01 in seven phases
+and closed, its paragraph under "Done" (the log's *The Attack Plan* and *The Principles Review
+Closed*); the release review and Ernest 0.2.0 are next. Ernest 0.1.0, the
 first release, is tagged `v0.1.0` and was published on 2026-09-30 with MVP 2.99, the last
 milestone done; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each
 has its paragraph under "Done".
@@ -208,40 +206,6 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
     and OCaml's `Map.union` pass it (principle 1, E.3), and `Fs.makeHardLink` makes a hard link,
     the host's alone (E.0 rule 1, E.17). Each verdict had rested on a neighbour or a count,
     which phase 6 found (the log's *The Log Read Against Its Reasons*).
-
----
-
-## The principles review (after MVP 2.99b's item 3, before its item 4), about a week
-
-The report and the guide read against §0, and §0 against what it decided, as
-[`principles_review.md`](principles_review.md) says; decided 2026-09-30 (the log's *The
-Principles Review*). It runs after MVP 2.99b's item 3, since its edits lean on the
-tests item 1 makes trusted and item 3's triage is among what reader L weighs, and before item
-4, since the operations decision adds to the type system and is judged under the principles
-the review sharpens. Peers, §3.11, §8.3, §8.7 and what §6.10 says of one, are unbuilt and
-tentative and are not read; what MVP 2.99b proposes, [`operations.md`](operations.md)'s *The
-proposal* and *What changes in Ernest*, and its items 13 and 14, is read as proposed. The
-principles themselves are in its scope: one changes where the readers show it did not
-decide, by a sentence that decides.
-
-The readers ran on 2026-09-30, on `57b8356`, and their findings stand in
-[`findings.md`](findings.md). The order in which the findings are worked is
-[`attack_plan.md`](attack_plan.md)'s, seven phases: the principles' sentences, the sections'
-sentences, MVP 2.99b's items 1 to 3, the defects, the families' rules, the log, and the
-closure, after which the release review runs and Ernest 0.2.0 is tagged (decided 2026-10-01,
-the log's *A Release After the Review*), and MVP 2.99b resumes at item 4. The declarations
-and the modules the edits add to `stdlib/` and `libs/` say `since 0.1.0` until then, `Test` and `Ansi` among them, since no
-`since` may be newer than `VERSION`; the release sets both together, as the release review's
-step 5 says.
-
-**Gaps the sentences opened** were closed by the attack plan's phase 5, each edit a commit of
-2026-10-01 with its rule's code and examples (the attack plan's rules of the road). Under E.0's
-rules of the same day, `Udp`, which waited on a count, is dated by the tenth family to MVP 3.2
-as a module of Appendix E (the log's *`Clock.monotonic` Is In, and `Udp` Is Placed*).
-
-The sentences take the user's time, fifteen questions at the user's pace; the defects about a
-week; the families' rules are bounded by the list the sentences leave, and the estimate is
-revised when they are in.
 
 ---
 
@@ -754,3 +718,19 @@ out at (§8.4); a bitstring literal that does not fit is a compile-time error (�
 `Prelude.T.name` reaches the standard library's namespaces (§4.2). What the review left is
 MVP 2.99b's, its first, third and seventh items, and [`findings.md`](findings.md) holds it
 until they are done.
+
+### The principles review (done 2026-10-01)
+
+The report and the guide read against §0, and §0 against what it decided, as
+[`principles_review.md`](principles_review.md) says; decided 2026-09-30 (the log's *The
+Principles Review*), its readers run that day on `57b8356`, and worked on 2026-10-01 in the
+seven phases the log's *The Attack Plan* gives: the principles' sentences and the sections',
+MVP 2.99b's items 1 to 3, the defects, the families' rules and the edits they asked for, the
+log, and the closure, whose counts and bench are the log's *The Principles Review Closed*.
+Each family is closed by its entry and is not reopened before 1.0 but by a program that shows
+a case it did not. What it leaves is dated: the `since` lines of what it added, written with
+`VERSION` at the release (the release review's step 5); `Udp` to MVP 3.2 (the log's
+*`Clock.monotonic` Is In, and `Udp` Is Placed*); placing work without `Where` to MVP 3.0 (the
+log's *Placing Work Without `Where`*); and the guide's §7.3 to MVP 2.99b's item 16. The
+release review runs next, and Ernest 0.2.0 ships the review's rules as one (the log's *A
+Release After the Review*); MVP 2.99b then resumes at item 4.
