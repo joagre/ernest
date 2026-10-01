@@ -69,10 +69,13 @@ in_module_docs(Ns, Name) ->
             false
     end.
 
-%% report Appendix E.0 rule 1, E.3, E.4, E.5, E.14, E.20: the primitives a
-%% module's section names are the module's `foreign fn`s. An exported one
-%% is named as itself; a private one by the exported declaration that alone
-%% calls it, `slice` for String's `part`, or else by its own name.
+%% report Appendix E.0 rule 1, E.1, E.3, E.4, E.5, E.14, E.16, E.20, E.22:
+%% the primitives a module's section names are the module's `foreign fn`s.
+%% An exported one is named as itself; a private one by the exported
+%% declaration that alone calls it, `slice` for String's `part`; one that
+%% only system references call, a system module's (§8.2), by the exported
+%% functions that reach them, since in a system module a function that
+%% reaches its process is a primitive; or else by its own name.
 primitives_test() ->
     [begin
          {ok, Source} = file:read_file(stdlib_file(Ns)),
@@ -101,12 +104,33 @@ foreign_names(Decls) ->
                       [D || D <- Decls, not is_record(D, foreign_fn_decl),
                             lists:member(Name, ern_ast:free_names(body(D), params(D)))]
               end,
-    [case {Export, Callers(Name)} of
-         {true, _} -> Name;
-         {false, [#fn_decl{export = true, name = Caller}]} -> Caller;
-         {false, [#let_decl{export = true, name = Caller}]} -> Caller;
-         {false, _} -> Name
-     end || #foreign_fn_decl{name = Name, export = Export} <- Decls].
+    lists:append(
+      [case {Export, Callers(Name)} of
+           {true, _} -> [Name];
+           {false, [#fn_decl{export = true, name = Caller}]} -> [Caller];
+           {false, [#let_decl{export = true, name = Caller}]} -> [Caller];
+           {false, [_ | _] = References} ->
+               case [N || #let_decl{export = false, name = N} <- References] of
+                   Names when length(Names) =:= length(References) -> reaching(Names, Decls);
+                   _ -> [Name]
+               end;
+           {false, _} -> [Name]
+       end || #foreign_fn_decl{name = Name, export = Export} <- Decls]).
+
+%% The exported declarations that reach one of the names, directly or
+%% through private ones.
+reaching(Names, Decls) ->
+    Reach = [D || D <- Decls, not is_record(D, foreign_fn_decl),
+                  lists:any(fun(N) -> lists:member(N, ern_ast:free_names(body(D), params(D))) end,
+                            Names)],
+    Exported = [N || D <- Reach, {true, N} <- [export_name(D)]],
+    case [N || D <- Reach, {false, N} <- [export_name(D)]] -- Names of
+        [] -> lists:usort(Exported);
+        Private -> lists:usort(Exported ++ reaching(Names ++ Private, Decls))
+    end.
+
+export_name(#fn_decl{export = Export, name = Name}) -> {Export, Name};
+export_name(#let_decl{export = Export, name = Name}) -> {Export, Name}.
 
 %% The names a function's parameters bind, which are not calls.
 params(#fn_decl{params = Ps}) ->
