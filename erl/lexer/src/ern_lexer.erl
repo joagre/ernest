@@ -236,7 +236,7 @@ block_comment([Ch | R], Depth, L, C, L0, C0, Seen) ->
 
 %%
 %% Numbers, report §2.5: int = decimal | "0x" hexdigit {["_"] hexdigit} |
-%% "0o" ... | "0b" ...; float = decimal "." decimal [exponent]; decimal =
+%% "0o" ... | "0b" ...; float = decimal ("." decimal [exponent] | exponent); decimal =
 %% digit {["_"] digit}. Returns the kind, the value, the rest, and the
 %% column after the text, underscores counted.
 %%
@@ -275,7 +275,14 @@ number(S, L, C) ->
             Text = Int ++ "." ++ Frac ++ Exp,
             {float, float_value(Text, L, C), R3, C + N1 + 1 + N2 + N3};
         _ ->
-            {int, list_to_integer(Int), R1, C + N1}
+            case exponent(R1) of
+                {"", 0, _} ->
+                    {int, list_to_integer(Int), R1, C + N1};
+                %% report §2.5: an exponent alone makes a float, `1e10`;
+                %% the host reads a float only with its point
+                {Exp, N3, R3} ->
+                    {float, float_value(Int ++ ".0" ++ Exp, L, C), R3, C + N1 + N3}
+            end
     end.
 
 %% A float literal's value, rounded to the nearest Float. One that rounds

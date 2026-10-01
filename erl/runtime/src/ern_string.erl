@@ -188,15 +188,16 @@ to_int_base(S, Base) ->
 to_float(S) ->
     case float_form(S) of
         true ->
-            try {'Some', binary_to_float(S) + 0.0}
+            try {'Some', binary_to_float(with_point(S)) + 0.0}
             catch error:badarg -> 'None'
             end;
         false ->
             'None'
     end.
 
-%% Digits, a point, digits, and an exponent that may follow, `e` or `E`,
-%% a sign that may, and digits; a minus may lead.
+%% Digits, then a point, digits and an exponent that may follow, or an
+%% exponent alone, `e` or `E`, a sign that may, and digits; a minus may
+%% lead.
 float_form(<<"-", Rest/binary>>) -> digits(Rest, point);
 float_form(S) -> digits(S, point).
 
@@ -206,12 +207,26 @@ digits(_, _) -> false.
 
 more_digits(<<C, Rest/binary>>, Next) when C >= $0, C =< $9 -> more_digits(Rest, Next);
 more_digits(<<".", Rest/binary>>, point) -> digits(Rest, exponent);
+more_digits(<<E, Sign, Rest/binary>>, point) when (E =:= $e orelse E =:= $E),
+                                                 (Sign =:= $+ orelse Sign =:= $-) ->
+    digits(Rest, done);
+more_digits(<<E, Rest/binary>>, point) when E =:= $e; E =:= $E -> digits(Rest, done);
 more_digits(<<E, Sign, Rest/binary>>, exponent) when (E =:= $e orelse E =:= $E),
                                                     (Sign =:= $+ orelse Sign =:= $-) ->
     digits(Rest, done);
 more_digits(<<E, Rest/binary>>, exponent) when E =:= $e; E =:= $E -> digits(Rest, done);
 more_digits(<<>>, Next) -> Next =/= point;
 more_digits(_, _) -> false.
+
+%% The host reads a float only with its point: `1e5` is read as `1.0e5`.
+with_point(S) ->
+    case binary:match(S, <<".">>) of
+        nomatch ->
+            [Int, Exp] = re:split(S, "(?=[eE])", [{parts, 2}]),
+            <<Int/binary, ".0", Exp/binary>>;
+        _ ->
+            S
+    end.
 
 -spec to_list(binary()) -> [char()].
 to_list(S) -> unicode:characters_to_list(S).

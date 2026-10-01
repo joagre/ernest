@@ -69,6 +69,12 @@ integers_test() ->
     ?assertEqual([{int, 0}, {int, 42}, {int, 123456789012345678901234567890}],
                  toks("0 42 123456789012345678901234567890")).
 
+%% report §2.5: a float has a point or an exponent, `1e10` among them;
+%% `1e` is still an integer an `e` follows (findings.md's P1-23)
+exponent_floats_test() ->
+    ?assertEqual([{float, 1.0e10}, {float, 100.0}, {float, 2.0e-3}], toks("1e10 1E+2 2e-3")),
+    ?assertEqual({1, 2, "e cannot follow a number directly"}, err("1e")).
+
 %% report §4.8: `!` is a symbol of its own, and `!=` stays one token
 not_symbol_test() ->
     ?assertEqual(['!', {ident, ok}], toks("!ok")),

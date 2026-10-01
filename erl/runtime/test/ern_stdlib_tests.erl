@@ -240,7 +240,11 @@ string_test() ->
     ?assertEqual({'Some', -1.5}, S:toFloat(<<"-1.5">>)),
     ?assertEqual({'Some', 1.0e-9}, S:toFloat(<<"1.0e-9">>)),
     ?assertEqual('None', S:toFloat(<<"1">>)),
-    ?assertEqual('None', S:toFloat(<<"1e5">>)),
+    %% report §2.5, Appendix E.5: an exponent alone is a float's literal
+    %% form (findings.md's P1-23)
+    ?assertEqual({'Some', 1.0e5}, S:toFloat(<<"1e5">>)),
+    ?assertEqual({'Some', -2.0e-3}, S:toFloat(<<"-2E-3">>)),
+    ?assertEqual('None', S:toFloat(<<"1e">>)),
     ?assertEqual('None', S:toFloat(<<"1.0e999">>)),
     %% the form read by a scan of its own, which a pattern once checked; a
     %% regression test for the edges of the form
