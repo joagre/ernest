@@ -315,8 +315,10 @@ log's *A Full Review Now and Then*).
 - **Placement by load, in `Peer` and a library** (feedback items 14 and 25, decided in MVP
   2.66; the log's *No Remote Computation in the Language*). `Peer.nodes` answers the nodes
   a program can place work on, the running node first, then each peer of `ernest.conf` in its
-  order; the type a node is answered as, since `Where` left the prelude on 2026-10-01, is this
-  item's decision, made with it. `Peer.runQueue : () -> Int with m` answers how many processes
+  order. How a program places work on the node chosen, since `Where` left the prelude on
+  2026-10-01, is this item's decision, made with the user when it is built; the recommendation
+  is that the library spawn on the node it chooses, `Balancer.spawn(measure, f)`, so that no
+  node type exists (the log's *Placing Work Without `Where`*). `Peer.runQueue : () -> Int with m` answers how many processes
   wait to run on the node that evaluates it. Both are shims by E.0 rule 1, stated in `Peer`'s
   section of Appendix E.
 - **`libs/balancer`**, in Ernest over those two. `Balancer.pick(measure)` draws two nodes at
