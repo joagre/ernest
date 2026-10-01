@@ -255,9 +255,7 @@ moves the negative zero's normalization in the emitter from every float operatio
 that can make one, `*`, `/`, negation and the entries, since under round to nearest a sum or a
 difference of operands that are not negative zero is never one; with a test that `-5.0 + 5.0`
 and `-1.0e-200 * 1.0e-200` show `0.0`. Under §7.4's opening, the third family's round 2 (2026-10-01,
-the log's *The Failure Family's Rules*): a call to a socket or
-a listener the program closed faults with `Fault("callee was closed")`, in §6.6, §7.4 and E.18;
-and `Path.name` answers `Optional(String)`, `None` for the root, its five callers following. Under §6.9's
+the log's *The Failure Family's Rules*): `Path.name` answers `Optional(String)`, `None` for the root, its five callers following. Under §6.9's
 ownership sentence, the eighth family's round 2 (2026-10-01, the log's *The Owner Family's
 Rules*): `Down` gains `process : Process`, declared first, the runtime filling it where it
 builds a `Down`, in §9.3, the prelude's declared types and the twelve tests that match one;

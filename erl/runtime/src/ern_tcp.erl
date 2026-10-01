@@ -169,7 +169,9 @@ listener_loop(Tcp, Socket) ->
                                  end),
             listener_loop(Tcp, Socket);
         'CloseListener' ->
-            gen_tcp:close(Socket)
+            gen_tcp:close(Socket),
+            %% report Appendix E.18: a call after the close faults its caller
+            exit({ern, closed})
     end.
 
 %% The worker owns what it accepts, and hands it to the socket process,
@@ -273,7 +275,9 @@ socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State) ->
         'Close' ->
             _ = closed(Waiting),
             gen_tcp:close(Socket),
-            Writer ! stop;
+            Writer ! stop,
+            %% report Appendix E.18: a call after the close faults its caller
+            exit({ern, closed});
         {'FarEnd', Reply} ->
             ern_rt:answer(Reply, endpoint(State, fun() -> inet:peername(Socket) end)),
             socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State);

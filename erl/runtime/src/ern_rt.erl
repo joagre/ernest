@@ -263,7 +263,7 @@ call_forever(Addr, Mk, Check) ->
                      %% report §8.2: a system process faults the caller it
                      %% answers
                      {Alias, fault, Faulted} -> {fault, Faulted};
-                     {'DOWN', Alias, process, _, Reason} -> {ended, reason(Reason)};
+                     {'DOWN', Alias, process, _, Ended} -> {ended, Ended};
                      %% report §6.9: a restart asked for is taken at a call's
                      %% wait
                      '$ern_restart' -> restart
@@ -274,7 +274,10 @@ call_forever(Addr, Mk, Check) ->
     case Answer of
         {answered, V} -> V;
         {fault, Cause} -> fault(Cause);
-        {ended, How} -> ended(How);
+        %% report §6.6, Appendix E.18: a socket or a listener the program
+        %% closed ended as a function returns, and its caller learns why
+        {ended, {ern, closed}} -> fault(<<"callee was closed">>);
+        {ended, How} -> ended(reason(How));
         restart -> restart_now()
     end.
 
@@ -373,6 +376,9 @@ kill(Addr) ->
 
 -spec reason(term()) -> term().
 reason(normal) -> 'Returned';
+%% report §6.9, Appendix E.18: a socket or a listener the program closed
+%% returned, for a monitor; its caller faults with its own cause
+reason({ern, closed}) -> 'Returned';
 reason({ern, killed}) -> 'Killed';
 reason({ern, program_end}) -> 'ProgramEnd';
 %% report §7.3, §11.2: a process still in a version of a module the shell

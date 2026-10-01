@@ -60,7 +60,11 @@ accept_timeout_test() ->
 %% Appendix E.18 (L3): a socket lives until it is closed: after the far end
 %% closes, what came before is read, then each read, `peer` and `local`
 %% answer `Left(Closed)`; a read after `Tcp.close` faults the reader, as a
-%% callForever on an ended process does (§6.6)
+%% callForever on an ended process does: `callee was closed` where the
+%% close ends the socket while the read waits, and `callee had ended` where
+%% it had ended before (§6.6). The first is a regression test of the rule of
+%% 2026-10-01, before which it said the callee returned; the socket is held
+%% still until both the close and the read wait in its mailbox
 socket_lives_until_closed_test() ->
     {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
     {ok, Port} = inet:port(Listen),
@@ -78,18 +82,26 @@ socket_lives_until_closed_test() ->
                sleep(100),
                Me ! {reads, [read(Socket, 1000), read(Socket, 1000), read(Socket, 1000),
                              peer(Socket), local(Socket)]},
+               Pid = ern_rt:process_of(Socket),
+               erlang:suspend_process(Pid),
                ern_rt:send(Socket, 'Close'),
                %% monitored from its start: a reader that faulted before a
                %% monitor was made would be `Unknown`, as the test once saw
                %% under load
                _ = ern_rt:spawn_monitored('Local', fun() -> read(Socket, 1000) end,
                                          fun(D) -> {down, D} end, <<"reader">>),
-               receive {down, D} -> Me ! {down, D} end
+               ern_rt:in_foreign(fun() -> queued(Pid, 2) end),
+               erlang:resume_process(Pid),
+               receive {down, D} -> Me ! {down, D} end,
+               _ = ern_rt:spawn_monitored('Local', fun() -> read(Socket, 1000) end,
+                                         fun(L) -> {later, L} end, <<"reader">>),
+               receive {later, L} -> Me ! {later, L} end
            end, <<"main">>, quiet()),
     gen_tcp:close(Listen),
     ?assertEqual([{'Right', <<"x">>}, {'Left', 'Closed'}, {'Left', 'Closed'},
                   {'Left', 'Closed'}, {'Left', 'Closed'}], wait(reads)),
-    ?assertMatch({'Down', {'Fault', _}, _}, wait(down)).
+    ?assertMatch({'Down', {'Fault', <<"callee was closed">>}, _}, wait(down)),
+    ?assertMatch({'Down', {'Fault', <<"callee had ended">>}, _}, wait(later)).
 
 %% Appendix E.18: closing a listener answers an accept waiting on it with
 %% `Left(Closed)`, and the listener's process ends. Under load the close
@@ -121,6 +133,26 @@ close_listener_test() ->
            end, <<"main">>, quiet()),
     ?assertEqual({'Left', 'Closed'}, wait(accepted)),
     ?assertEqual(false, wait(alive)).
+
+%% report §6.6, Appendix E.18: an accept that waits as the listener's close
+%% ends it faults with `callee was closed`. A regression test of the rule
+%% of 2026-10-01; the listener is held still until both the close and the
+%% accept wait in its mailbox
+accept_meets_the_close_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(0),
+               Pid = ern_rt:process_of(Listener),
+               erlang:suspend_process(Pid),
+               ern_rt:send(Listener, 'CloseListener'),
+               _ = ern_rt:spawn_monitored('Local', fun() -> accept(Listener, 1000) end,
+                                         fun(D) -> {down, D} end, <<"acceptor">>),
+               ern_rt:in_foreign(fun() -> queued(Pid, 2) end),
+               erlang:resume_process(Pid),
+               receive {down, D} -> Me ! {down, D} end
+           end, <<"main">>, quiet()),
+    ?assertMatch({'Down', {'Fault', <<"callee was closed">>}, _}, wait(down)).
 
 %% report §8.6: a socket killed while a read waits on it holds no source,
 %% so the deadlock of what is left is still found. A regression test for
@@ -267,6 +299,13 @@ quiet() ->
     #{stdout => fun(_) -> ok end}.
 
 %% A wait the deadlock detector counts, as the compiler's timed receive is.
+%% Until the process holds at least Count messages.
+queued(Pid, Count) ->
+    case erlang:process_info(Pid, message_queue_len) of
+        {message_queue_len, N} when N >= Count -> ok;
+        _ -> timer:sleep(5), queued(Pid, Count)
+    end.
+
 sleep(Ms) ->
     ern_rt:timed(),
     timer:sleep(Ms),
