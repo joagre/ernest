@@ -104,8 +104,8 @@ pages: all
 	  printf 'module'"'"'s page and `man ern` the toolchain'"'"'s.\n\n'; \
 	  printf -- '- [The prelude and the standard library](stdlib/README.md)\n'; \
 	  printf -- '- [The libraries under `libs/`](libs/README.md)\n'; \
-	  printf -- '- [`ern`, the toolchain](../ernest_report.md#11-toolchain), '; \
-	  printf 'the report'"'"'s §11\n'; \
+	  printf -- '- [`ern`, the toolchain and its shell](../ernest_report.md#11-toolchain), '; \
+	  printf 'the report'"'"'s §11, whose §11.2 gives the shell'"'"'s commands\n'; \
 	} > man/README.md
 
 # The manual pages (report §11, §11.4): the prelude's and every standard
