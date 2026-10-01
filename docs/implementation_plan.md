@@ -21,8 +21,8 @@ and the guide read against §0 and §0 against what it decided, a milestone of i
 its readers ran on 2026-09-30, on `57b8356`, their findings stand in
 [`findings.md`](findings.md), and [`attack_plan.md`](attack_plan.md) gives the order in which
 they are worked; its phases 1 to 4, the sixteen sentences, MVP 2.99b's items 1 to 3, and the
-defects and disagreements, were done on 2026-10-01, and phase 5, the families' rules, decided
-with the user a family at a time, is next. Ernest 0.1.0, the
+defects and disagreements, were done on 2026-10-01, and phase 5's decisions, the families' rules, were decided with the user a
+family at a time the same day; phase 5's edits, by area, are next. Ernest 0.1.0, the
 first release, is tagged `v0.1.0` and was published on 2026-09-30 with MVP 2.99, the last
 milestone done; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each
 has its paragraph under "Done".
@@ -322,7 +322,15 @@ Rules That Exist for Another*): `spawn(f)` and `spawnMonitored(f, wrap)` lose th
 `Where` leaves §6.2 and §9.3, and §6.7 and §8.3 name a peer's spawn `Peer.spawn(name, f)`, a
 function of the module MVP 3.0 builds; the 102 spawns of the guide, the examples, the library
 and the shell are renamed by a script and read as a diff, with the runtime, the checker's
-prelude table and the tests.
+prelude table and the tests. The guide's pass at the end of the edits (2026-10-01, the log's
+*Where the Guide Works Hard*): `with Never` against `with m` in one sentence (W-2, W-48); a
+`receive` guard's operands corrected (W-7); the warning on field order gone (W-14); the lambda's
+parentheses after `|>` taught once (W-19); the FAQ on names written whole cut (W-20); a pure
+function faulting said once (W-22); the `let` no longer explained away (W-25); the retry and the
+reader process taught once each (W-11, W-12); the worker's wait shortened by the `Down`'s
+process (W-1, W-17); the waiter process gone with the checker's edit (W-5); `Process.fromAddress`
+taught once (W-15, W-35); the pipe's parenthesized target and `Path.join`, `dropLast`, `spawn`
+and the test values as the edits leave them; and §7.3 is item 16's.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is

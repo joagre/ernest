@@ -56,7 +56,7 @@ Found on the way. The review judges rules, and a defect is fixed when found (CLA
 
 ## Where the guide works hard
 
-- round 2 — W-1 to W-30, each with its family above; the rest are the guide's evidence for rules no family holds: W-10, mailboxes unbounded; W-13, `let me = self()` before nine spawns; W-15 and W-35, addresses without equality and `Process.fromAddress` twice; W-19, a lambda after `|>`; W-31, `let _ =` in eleven programs; W-34, a helper process to ask and go on; W-38, results routed through `main` for order; W-52, two record forms for one contract in 110 lines. W-13 and W-31 go to language feedback if their rules are kept.
+- decided 2026-10-01 (the log's *Where the Guide Works Hard*) — W-1 to W-30 by their families; the rest `kept`, each a rule of the report the guide's pass teaches once, `give` taking a `Process` for identity where `kill` takes an address for authority among them (W-15, W-35), and W-52 item 16's; four go to the language feedback, 77 to 80: `let me = self()` (W-13), `let _ = e` (W-31), an ask into the mailbox (W-34), and a `Down`'s order (W-38).
 - dropped — decided before: an `if` without `else` (W-32, the release review's N-C4) and an alarm without a cancel (W-9's rule, N-C1); W-9 stands as the rule's cost.
 
 ## The log
