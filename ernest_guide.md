@@ -52,7 +52,7 @@ $ ern build message.ern
 message.ern:14:13: the argument does not fit send: expected CounterMsg, found String
 13 |     let c = spawn(fn() = counter(0));
 14 |     send(c, "increment")
-   |     ---- send : (Address(a), a) -> Unit with e
+   |     ---- send : (Address(a), a) -> Unit with e+
    |             ^^^^^^^^^^^
 ```
 
@@ -656,7 +656,7 @@ The inferred type is `((a) -> b with e, a) -> b with e`: `apply` has the effect 
 
 An effect variable may stand for a mailbox type or for pure. One that also appears inside `Address`, as in `self : () -> Address(m) with m`, stands for a mailbox type only, since an address needs one. The letters in a printed type mean nothing of their own.
 
-The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, and `kill`, which §4 and §5 teach, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
+The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, and `kill`, which §4 and §5 teach, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9). A printed type marks such an effect variable with `+`: `:type send` prints `send : (Address(a), a) -> Unit with m+`, and so does a function of yours that calls `send`.
 
 ### 3.6 The word counter as functions
 
@@ -732,7 +732,7 @@ fn counter(n : Int) : Unit with CounterMsg =
 $ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type spawn
-spawn : (() -> Unit with n) -> Address(n) with m
+spawn : (() -> Unit with n) -> Address(n) with m+
 > spawn(fn() : Unit = Unit)
 <address 84> : Address(a)
 `it` is unchanged: this input did not determine the type of its value
@@ -799,7 +799,7 @@ Synchronous request-reply, used from the caller side:
 $ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type Address.call
-Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
+Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n+
 ```
 
 `Address.call(c, fn(r) = Get(reply = r), 1000)` makes a fresh `Reply`, gives it to the function that builds the request, sends the request to `c`, and waits up to 1000 ms. It returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6). `Address.callForever` waits without a deadline and returns the answer itself. When the process called ends or restarts before it answers, either call ends at once: `Address.call` returns `None`, and `Address.callForever` faults its caller, with the callee's cause where it faulted, and otherwise with a cause saying it was killed, returned without answering, was restarted by its supervisor, or had ended already. A callee that only waits keeps a `callForever` caller waiting too.
@@ -1167,7 +1167,7 @@ A fault in one process does not affect another, apart from the cases §6.3 lists
 $ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type kill
-kill : (Address(a)) -> Unit with m
+kill : (Address(a)) -> Unit with m+
 ```
 
 `kill(addr)` ends the process at `addr`, and its monitors receive `Down(reason = Killed, ...)`. The process may run a little before it stops. The REPL of [`examples/repl.ern`](examples/repl.ern) kills an evaluation that runs too long.

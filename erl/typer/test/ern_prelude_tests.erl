@@ -206,7 +206,7 @@ libraries_test() ->
 
 %% A printed type without the marks of the inferred restrictions.
 unmarked(Text) ->
-    re:replace(Text, "\\b([a-z][a-z0-9]*)[=!]+", "\\1", [global, {return, list}]).
+    re:replace(Text, "\\b([a-z][a-z0-9]*)[=!+]+", "\\1", [global, {return, list}]).
 
 %% A type text with the names of the value's own module unqualified.
 own(Q, Text) ->

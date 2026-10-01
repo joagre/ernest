@@ -114,12 +114,10 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    ordered element by element, and `Optional` and `Either` by a `compare` in the prelude,
    `None` and `Left` first; `put` keeps the element already in the set; and `foldLeft` is
    written once over `toList`, outside the record. The ordered set's representation is the
-   note's open question. With the ordering restriction's mark, the
-   decision of how a printed type marks every inferred restriction: a process-only effect
-   variable prints unmarked, so that one a callback's type shares prints as an effect-polymorphic
-   function does; and whether a restriction may be written in an annotation, a change to the
-   grammar and a second way beside inference (`findings.md`'s R-23, placed here with the user
-   2026-09-30).
+   note's open question. With the ordering restriction's mark, whether a restriction may be
+   written in an annotation, a change to the grammar and a second way beside inference
+   (`findings.md`'s R-23, placed here with the user 2026-09-30); the process-only mark is
+   `m+` since 2026-10-01 (the log's *The Process-Only Mark*).
 5. **The service's two decisions, with the user**: what an alarm at a time does when the
    host's wall clock jumps, since deadlines use the monotonic clock and a time does not
    (`Clock.alarmAt`, Appendix E.15); and whether a launcher passes a termination or hangup
@@ -234,10 +232,7 @@ step 5 says.
 **Gaps the sentences open**, each dated to the attack plan's phase 5, where the rule's code and
 its examples change together (the attack plan's rules of the road): under E.0's rules of
 2026-10-01, `Udp` waited on a count, dated by the tenth family to MVP 3.2 as a module of Appendix E (the log's *`Clock.monotonic` Is In, and `Udp` Is
-Placed*). Under §3.9's sentence of 2026-10-01, each restriction prints with its mark,
-and a process-only variable prints without one, §11.5 saying so and giving no spelling: the
-mark's spelling is a decision of this phase's edits, taken with the user before the printer
-and §11.5 change. The guide's pass at the end of the edits (2026-10-01, the log's
+Placed*). The guide's pass at the end of the edits (2026-10-01, the log's
 *Where the Guide Works Hard*): `with Never` against `with m` in one sentence (W-2, W-48); a
 `receive` guard's operands corrected (W-7); the warning on field order gone (W-14); the lambda's
 parentheses after `|>` taught once (W-19); the FAQ on names written whole cut (W-20); a pure

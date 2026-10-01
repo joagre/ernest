@@ -1148,7 +1148,7 @@ compile_error_test() ->
                    " expected String, found Int\n"
                    "1 | export fn main() : Unit with Never = Io.println(1)\n"
                    "  |                                      ---------- Io.println : (String) ->"
-                   " Unit with e\n"
+                   " Unit with e+\n"
                    "  |                                                 ^\n\n">>,
                  iolist_to_binary(?capturedOutput)),
     ?assertNot(filelib:is_regular(filename:join(Dir, "bad.erc"))).

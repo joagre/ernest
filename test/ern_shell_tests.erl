@@ -229,7 +229,7 @@ prelude_shown() ->
                              ":doc Prelude.List.size\n"),
     {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
     [?assertMatch({_, _}, binary:match(Out, Text))
-     || Text <- [<<"type Reason\n">>, <<"spawn : (() -> Unit with n) -> Address(n) with m">>,
+     || Text <- [<<"type Reason\n">>, <<"spawn : (() -> Unit with n) -> Address(n) with m+">>,
                  <<"Ernest prelude">>, <<"Starts a process on this node that runs">>,
                  <<"List.size : (List(a!)) -> Int">>]],
     ?assertEqual(nomatch, binary:match(Out, <<"type Fs.Entry">>)),
@@ -1645,10 +1645,10 @@ effect_variable() ->
                              ":type g\n"),
     {0, Out} = sh("../bin/ern shell < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"> 5 : Int\n">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"> h : () -> Unit with e\n> x\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"> h : () -> Unit with e+\n> x\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> f : (Int) -> Int\n> 3 : Int\n">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"> g : () -> Int with e\n"
-                                             "> g : () -> Int with e\n">>)).
+    ?assertMatch({_, _}, binary:match(Out, <<"> g : () -> Int with e+\n"
+                                             "> g : () -> Int with e+\n">>)).
 
 %% report §4.6, §11.2: a lambda bound by `let` at the prompt is generalized
 %% as in a block, its restrictions with it, and another value bound by `let`
@@ -1731,7 +1731,7 @@ non_entry_main() ->
     {1, Refused} = sh("HOME=" ++ Dir ++ " ../bin/ern shell --main Main.main " ++ Erc
                       ++ " < " ++ filename:join(Dir, "in")),
     ?assertMatch({_, _}, binary:match(Refused, <<"Main.main is not an entry point: its type is"
-                                                 " () -> Int with m">>)).
+                                                 " () -> Int with m+">>)).
 
 %% report §11.2: a holder of what an input bound is freed once nothing
 %% reads it, and kept while a declared function reads it; the names it
@@ -1876,10 +1876,10 @@ one_name_type() ->
     ok = file:write_file(In, ":type Io.readLine\n:type spawn\nIo.readLine\n"
                              ":type List.map([1], fn(x) = x)\n"),
     {0, Out} = sh("../bin/ern shell < " ++ In),
-    ?assertMatch({_, _}, binary:match(Out, <<"Io.readLine : () -> Optional(String) with m\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"Io.readLine : () -> Optional(String) with m+\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"spawn : (() -> Unit with n) -> Address(n)"
-                                             " with m\n">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"<function> : () -> Optional(String) with m\n">>)),
+                                             " with m+\n">>)),
+    ?assertMatch({_, _}, binary:match(Out, <<"<function> : () -> Optional(String) with m+\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"List.map([1], fn(x) = x) : List(Int)\n">>)).
 
 %% report §11.2, §11.4: every name that completes after `:doc` has
@@ -1961,7 +1961,7 @@ signature_test() ->
     ?assertEqual({'Some', {<<"List.map(xs : List(a), ">>, <<"f : (a) -> b with e">>,
                            <<") : List(b) with e">>}},
                  ern_shell:signature(<<"List.map([1], ">>)),
-    ?assertEqual({'Some', {<<"send(Address(a), ">>, <<"a">>, <<") -> Unit with m">>}},
+    ?assertEqual({'Some', {<<"send(Address(a), ">>, <<"a">>, <<") -> Unit with m+">>}},
                  ern_shell:signature(<<"send(a, ">>)),
     ?assertEqual('None', ern_shell:signature(<<"1 + ">>)),
     %% a callee that is no function has no signature; a regression test,

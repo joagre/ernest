@@ -311,7 +311,7 @@ operator_member_shape_test() ->
                  err(Vec ++ "export fn Vec.*(a : Int, Vec(b)) : Int = a * b\n")),
     ?assertEqual("Vec.- must have the type (Vec, Vec) -> Vec, not (Vec, Vec) -> Vec with Never",
                  err(Vec ++ "export fn Vec.-(Vec(a), Vec(b)) : Vec with Never = Vec(a - b)\n")),
-    ?assertEqual("Vec.<> must have the type (Vec, Vec) -> Vec, not (Vec, Vec) -> Vec with m",
+    ?assertEqual("Vec.<> must have the type (Vec, Vec) -> Vec, not (Vec, Vec) -> Vec with m+",
                  err(Vec ++ "export fn Vec.<>(Vec(a), Vec(b)) : Vec with m ="
                      " { let _ = receive { n -> n }; Vec(a + b) }\n")),
     {error, [#diag{help = Help} | _]} =
@@ -534,18 +534,18 @@ map_key_equality_test() ->
 %% report §0, §3.9, §6.1: a function that acts through its process names its
 %% mailbox in its type, and one that does not is pure
 effects_test() ->
-    ?assertEqual("() -> Unit with e", type_of("export fn main() = Io.println(\"x\")", main)),
+    ?assertEqual("() -> Unit with e+", type_of("export fn main() = Io.println(\"x\")", main)),
     ?assertEqual("() -> Unit with Never",
                  type_of("export fn main() : Unit with Never = Io.println(\"x\")", main)),
     ?assertEqual("Io.println needs a process, and main is pure",
                  err("fn main() : Unit = Io.println(\"x\")")),
     ?assertEqual("() -> Address(a) with a", type_of("export fn me() = self()", me)),
-    ?assertEqual("(Address(a), a) -> Unit with e",
+    ?assertEqual("(Address(a), a) -> Unit with e+",
                  type_of("export fn wrap(a, v) = send(a, v)", wrap)),
     %% an effect used nowhere else is pure
     ?assertEqual("(List(Int)) -> List(Int)",
                  type_of("export fn inc(xs) = List.map(xs, fn(x) = x + 1)", inc)),
-    ?assertEqual("(List(String)) -> Unit with e",
+    ?assertEqual("(List(String)) -> Unit with e+",
                  type_of("export fn say(xs) = List.foreach(xs, fn(x) = Io.println(x))", say)),
     ?assertEqual(ok, ok("type A = A\ntype B = B\nfn ga() : Unit with A = Unit\n"
                         "fn gb() : Unit with B = Unit\nfn ha() : Unit with A = ga()")),
@@ -566,14 +566,14 @@ receive_and_mailboxes_test() ->
     ?assertEqual(ok, ok("fn f() : Unit with Never = receive { after 1 -> Unit }")),
     %% an after-only receive, inferred, is process-only (a regression case,
     %% added after the checker conformed)
-    ?assertEqual("(Int) -> Unit with e",
+    ?assertEqual("(Int) -> Unit with e+",
                  type_of("export fn sleep(ms : Int) = receive { after ms -> Unit }", sleep)),
     ?assertEqual("sleep needs a process, and p is pure",
                  err("fn sleep(ms : Int) = receive { after ms -> Unit }\n"
                      "fn p() : Unit = sleep(1)")),
     ?assertEqual("f is declared with mailbox Never and cannot receive",
                  err("fn f() : Unit with Never = receive { Unit -> Unit }")),
-    ?assertEqual("(a!) -> Unit with e",
+    ?assertEqual("(a!) -> Unit with e+",
                  type_of("export fn tick(n) = { let m = receive { k -> k }; Unit }", tick)).
 
 %% report §6.2, §4.6
@@ -1482,7 +1482,7 @@ foreign_types_test() ->
             "foreign fn rawNew(name : String) : Table(k, v) with m = \"ets:new/1\"\n",
     ?assertEqual("(M.Table(Int, String)) -> M.Table(Int, String)",
                  type_of(Table ++ "export fn id(t : Table(Int, String)) = t", id)),
-    ?assertEqual("() -> M.Table(a, b) with e",
+    ?assertEqual("() -> M.Table(a, b) with e+",
                  type_of(Table ++ "export fn new() = rawNew(\"t\")", new)),
     %% no constructors: nothing to construct or match on
     ?assertEqual("unknown constructor Table", err(Table ++ "fn f() = Table(1)")),

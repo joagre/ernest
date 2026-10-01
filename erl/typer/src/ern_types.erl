@@ -493,8 +493,12 @@ fmt({tvar, Id}, St, Names) ->
                                          false -> {Given, Names}
                                      end
                              end,
-            Marks = [$= || lists:member(eq, safe_flags(Id, St))]
-                 ++ [$! || lists:member(no_reply, safe_flags(Id, St))],
+            %% report §11.5: a process-only variable is marked where it
+            %% occurs in no value position, since one that does is never pure
+            Flags = safe_flags(Id, St),
+            Marks = [$= || lists:member(eq, Flags)]
+                 ++ [$! || lists:member(no_reply, Flags)]
+                 ++ [$+ || lists:member(process_only, Flags), lists:member(Id, EffectOnly)],
             N = Base ++ Marks,
             {N, Names1#{Id => N, taken => [Base | Taken]}}
     end;
