@@ -210,7 +210,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     none of the shape, `String.<>` and the `compare`s, since the operation is the host's alone
     (Appendix E.0 rule 1). §9.6's sentences that such a body is no recursive call go, and so
     does the checker's case for them; an operator costs what it costs now, which `make bench`
-    measures. After item 13 and before item 15, so that the Ernest is read as it stays.
+    measures. After item 13 and before item 15, so that the Ernest is read as it stays. Kept,
+    decided with the user 2026-10-02 (the log's *MVP 2.99b's Questions, One by One*).
 15. **Names that read, in Ernest**: the standard library, the shell, the libraries and the
     examples, read and renamed as item 7 renames the Erlang, a type, a constructor and a field
     among the names, the glossary corrected as it goes and each name that differs from the
