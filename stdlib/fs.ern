@@ -147,7 +147,7 @@ export fn append(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) 
 /// ```ernest
 /// {
 ///     let _ = Fs.makeDir(Path("kinds"), 5000);
-///     let _ = Fs.makeLink(Path("elsewhere"), Path("kinds/link"), 5000);
+///     let _ = Fs.makeLink(Path("kinds/link"), Path("elsewhere"), 5000);
 ///     Either.map(Fs.list(Path("kinds"), 5000), fn(es) = List.map(es, fn(e) = e.kind))
 /// }
 /// // => Right([Link])
@@ -239,8 +239,8 @@ export fn rename(from : Path, to : Path, ms : Int) : Either(Io.Error, Unit) with
 export fn copy(from : Path, to : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = Copy(from = from, to = to, reply = r), ms))
 
-/// Makes a symbolic link at the second path that leads to the first, which
-/// is kept as it is written and may name nothing. A second path that names
+/// Makes a symbolic link at the first path that leads to the second, which
+/// is kept as it is written and may name nothing. A first path that names
 /// something is `Left(Other("exists"))`.
 ///
 /// ### Examples
@@ -248,12 +248,12 @@ export fn copy(from : Path, to : Path, ms : Int) : Either(Io.Error, Unit) with m
 /// ```ernest
 /// {
 ///     let _ = Fs.write(Path("target.txt"), String.toUtf8("t"), 5000);
-///     let _ = Fs.makeLink(Path("target.txt"), Path("pointer"), 5000);
+///     let _ = Fs.makeLink(Path("pointer"), Path("target.txt"), 5000);
 ///     Either.map(Fs.read(Path("pointer"), 5000), String.fromUtf8)
 /// }
 /// // => Right(Some("t"))
 /// ```
-export fn makeLink(target : Path, path : Path, ms : Int) : Either(Io.Error, Unit) with m =
+export fn makeLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = MakeLink(target = target, path = path, reply = r), ms))
 
 /// The path a symbolic link holds, as it was written, or `None` where the
@@ -264,7 +264,7 @@ export fn makeLink(target : Path, path : Path, ms : Int) : Either(Io.Error, Unit
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.makeLink(Path("somewhere"), Path("sign"), 5000);
+///     let _ = Fs.makeLink(Path("sign"), Path("somewhere"), 5000);
 ///     let _ = Fs.write(Path("plain.txt"), <<>>, 5000);
 ///     #(Fs.readLink(Path("sign"), 5000), Fs.readLink(Path("plain.txt"), 5000))
 /// }

@@ -1636,7 +1636,7 @@ Fs.makePrivate : (Path, Int) -> Either(Io.Error, Unit) with m // a file or a dir
 Fs.remove : (Path, Int) -> Either(Io.Error, Unit) with m // a file, a link, or an empty directory
 Fs.rename : (Path, Path, Int) -> Either(Io.Error, Unit) with m // the first to the second
 Fs.copy : (Path, Path, Int) -> Either(Io.Error, Unit) with m // a file, the first to the second; replaces
-Fs.makeLink : (Path, Path, Int) -> Either(Io.Error, Unit) with m // a symbolic link at the second path to the first, which may name nothing
+Fs.makeLink : (Path, Path, Int) -> Either(Io.Error, Unit) with m // a symbolic link at the first path to the second, which may name nothing
 Fs.readLink : (Path, Int) -> Either(Io.Error, Optional(Path)) with m // the path a symbolic link holds, as it was written
 Fs.create : (Path, Bytes, Int) -> Either(Io.Error, Unit) with m // a new file, or none where the path names something
 Fs.removeAll : (Path, Int) -> Either(Io.Error, Unit) with m // a directory and everything under it, or a file or a link; a link is removed, not followed

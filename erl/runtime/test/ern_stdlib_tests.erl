@@ -677,11 +677,11 @@ fs_links_test() ->
     F = 'ern@fs',
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
-                           Me ! {fs, F:makeLink({'Path', <<"shelf">>}, P("to_shelf"), 1000)},
+                           Me ! {fs, F:makeLink(P("to_shelf"), {'Path', <<"shelf">>}, 1000)},
                            Me ! {fs, F:readLink(P("to_shelf"), 1000)},
                            Me ! {fs, F:stat(P("to_shelf"), 1000)},
                            Me ! {fs, F:list({'Path', list_to_binary(Dir)}, 1000)},
-                           Me ! {fs, F:makeLink(P("elsewhere"), P("to_shelf"), 1000)},
+                           Me ! {fs, F:makeLink(P("to_shelf"), P("elsewhere"), 1000)},
                            Me ! {fs, F:readLink(P("shelf"), 1000)},
                            Me ! {fs, F:remove(P("to_shelf"), 1000)},
                            Me ! {fs, F:list({'Path', list_to_binary(Dir)}, 1000)}
