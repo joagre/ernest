@@ -3129,7 +3129,7 @@ recursive_function_value_test() ->
 %% `Erl.atom` faults as a foreign function that raises does (report §7.4)
 erl_atom_too_long_test() ->
     {Result, _} = run("export fn main() : Unit with Never = {\n"
-                      "    let _ = Erl.atom(String.padStart(\"\", 256, 'a'));\n"
+                      "    let _ = Erl.atom(String.padStart(\"\", 256, \"a\"));\n"
                       "    Unit\n"
                       "}\n"),
     ?assertMatch({fault, <<"foreign function erlang:binary_to_atom/1 raised error:system_limit">>,
