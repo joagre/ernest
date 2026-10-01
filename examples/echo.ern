@@ -45,7 +45,7 @@ fn roundTrips(socket : Address(Tcp.SocketMsg), left : Int) : Either(Io.Error, Un
     if left <= 0 then
         Right(Unit)
     else {
-        let _ <- Tcp.write(socket, String.toUtf8("ping"));
+        let _ <- Tcp.write(socket, String.toUtf8("ping"), 5000);
         let _ <- Tcp.read(socket, 5000);
         roundTrips(socket, left - 1)
     }
@@ -61,7 +61,7 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
 // E.18).
 fn echo(socket : Address(Tcp.SocketMsg)) : Unit with Never =
     match Tcp.read(socket, 5000) {
-        Right(bytes) -> match Tcp.write(socket, bytes) {
+        Right(bytes) -> match Tcp.write(socket, bytes, 5000) {
             Right(_) -> echo(socket)
           | Left(_) -> Tcp.close(socket)
         }

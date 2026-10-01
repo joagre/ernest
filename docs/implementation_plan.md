@@ -224,9 +224,7 @@ closure, after which the release review runs and Ernest 0.2.0 is tagged (decided
 the log's *A Release After the Review*), and MVP 2.99b resumes at item 4.
 
 **Gaps the sentences open**, each dated to the attack plan's phase 5, where the rule's code and
-its examples change together (the attack plan's rules of the road): under E.0 shape rule 8's restatement of
-2026-10-01, `Tcp.write`, `Os.write` and `Os.read` take no milliseconds for a wait on another
-party, and `Os.start` takes milliseconds that bound a run and not a request (E.18, E.23). Under E.0's rules of
+its examples change together (the attack plan's rules of the road): under E.0's rules of
 2026-10-01, `List.<>` is a shim by §9.6 where a list is the language's; `Terminal`'s
 builders write a published specification, ECMA-48, in a standard library module (E.16);
 and `Udp` waited on a count, dated by the tenth family to MVP 3.2 as a module of Appendix E (the log's *`Clock.monotonic` Is In, and `Udp` Is

@@ -23,7 +23,7 @@
 ///     let _ = spawn(Local, fn() = match Tcp.accept(listener, 1000) {
 ///         Right(accepted) -> {
 ///             let _ = match Tcp.read(accepted, 1000) {
-///                 Right(bytes) -> Tcp.write(accepted, bytes)
+///                 Right(bytes) -> Tcp.write(accepted, bytes, 1000)
 ///               | Left(e) -> Left(e)
 ///             };
 ///             Tcp.close(accepted)
@@ -31,7 +31,7 @@
 ///       | Left(_) -> Unit
 ///     });
 ///     let client <- Tcp.connect("127.0.0.1", port, 1000);
-///     let _ <- Tcp.write(client, String.toUtf8("ping"));
+///     let _ <- Tcp.write(client, String.toUtf8("ping"), 1000);
 ///     let answer = Tcp.read(client, 1000);
 ///     Tcp.close(client);
 ///     Tcp.closeListener(listener);
@@ -74,7 +74,7 @@ export abstract type ListenerMsg =
 /// ```
 export abstract type SocketMsg =
     Recv(ms : Int, reply : Reply(Either(Io.Error, Bytes)))
-  | Send(bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
+  | Send(bytes : Bytes, ms : Int, reply : Reply(Either(Io.Error, Unit)))
   | Close
   | Give(owner : Process)
   | FarEnd(reply : Reply(Either(Io.Error, Endpoint)))
@@ -183,18 +183,23 @@ export fn read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) 
     Address.callForever(socket, fn(r) = Recv(ms = ms, reply = r))
 
 /// Writes the bytes to the socket, and answers `Right(Unit)` once the
-/// socket has taken them, waiting while the connection is behind. That the
-/// socket took them does not mean that the far end has them.
+/// socket has taken them, waiting while the connection is behind, at most
+/// `ms` milliseconds. That the socket took them does not mean that the far
+/// end has them.
 ///
 /// ### Errors
 ///
-/// Answers `Left(Closed)` once the connection has closed, from either end
-/// or by a failure, and `Left(Other(text))`, the host's reason, when the
-/// host refuses the bytes for another. A write to a socket that has been
-/// closed with `Tcp.close` faults as `Address.callForever` does on an
-/// ended process.
-export fn write(socket : Address(SocketMsg), bytes : Bytes) : Either(Io.Error, Unit) with m =
-    Address.callForever(socket, fn(r) = Send(bytes = bytes, reply = r))
+/// Answers `Left(Timeout)` when `ms` milliseconds pass first, which does
+/// not undo the write: the bytes may still be sent, after those written
+/// before. Answers `Left(Closed)` once the connection has closed, from
+/// either end or by a failure, and `Left(Other(text))`, the host's reason,
+/// when the host refuses the bytes for another. A write to a socket that
+/// has been closed with `Tcp.close` faults as `Address.callForever` does on
+/// an ended process.
+export fn write(socket : Address(SocketMsg),
+                bytes : Bytes,
+                ms : Int) : Either(Io.Error, Unit) with m =
+    Address.callForever(socket, fn(r) = Send(bytes = bytes, ms = ms, reply = r))
 
 /// Closes the socket, which ends its process.
 export fn close(socket : Address(SocketMsg)) : Unit with m =

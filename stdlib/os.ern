@@ -67,20 +67,17 @@ export type Finished = Finished(status : Int, stdout : Bytes, stderr : Bytes)
 /// ### Examples
 ///
 /// ```ernest
-/// Os.start(Os.Command(program = "cat", arguments = [], input = <<>>), 5000)
+/// Os.start(Os.Command(program = "cat", arguments = [], input = <<>>))
 /// ```
 export abstract type ProgramMsg =
-    Read(reply : Reply(Either(Io.Error, Output)))
-  | Write(bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
+    Read(ms : Int, reply : Reply(Either(Io.Error, Output)))
+  | Write(bytes : Bytes, ms : Int, reply : Reply(Either(Io.Error, Unit)))
   | CloseInput
 
 // What Os's system process takes: a program to start, with the process
 // whose death kills it.
 type Msg =
-    Start(command : Command,
-          ms : Int,
-          owner : Process,
-          reply : Reply(Either(Io.Error, Address(ProgramMsg))))
+    Start(command : Command, owner : Process, reply : Reply(Either(Io.Error, Address(ProgramMsg))))
 
 // Report §8.2: the system reference, the runtime's address of Os's process,
 // bound at each start.
@@ -162,15 +159,14 @@ export foreign fn exit(status : Int) : a with m =
 /// Starts the program and answers its address. The program reads `input`,
 /// then what `Os.write` gives it, until `Os.closeInput` ends its input,
 /// and never the standard input of the program that runs it; it inherits
-/// that program's environment and working directory. When `ms`
-/// milliseconds have passed since the start, a program still running is
-/// killed. It is killed too when its process is killed, and when the
-/// process that called `start` dies, with the processes it started that
-/// are still in its process group. It answers `Left(NotFound)` when the
-/// program is not found, `Left(Denied)` when it may not be run,
-/// `Left(Timeout)` when `ms` milliseconds pass before it has started,
-/// `Left(Invalid)` for a name or an argument no program could be given, and
-/// `Left(Other(text))`, the host's reason, when it cannot start for another.
+/// that program's environment and working directory. It runs until it
+/// exits, until its process is killed, or until the process that called
+/// `start` dies, which kills it with the processes it started that are
+/// still in its process group; a run is bounded as any process is, by an
+/// alarm and `kill`. It answers `Left(NotFound)` when the program is not
+/// found, `Left(Denied)` when it may not be run, `Left(Invalid)` for a
+/// name or an argument no program could be given, and `Left(Other(text))`,
+/// the host's reason, when it cannot start for another.
 /// Where the runtime's helper fails, the caller faults with `Fault("the
 /// runtime's helper ern_exec failed")`, the runtime's own failure.
 ///
@@ -179,17 +175,15 @@ export foreign fn exit(status : Int) : a with m =
 /// ```ernest
 /// {
 ///     let cat <-
-///         Os.start(Os.Command(program = "cat", arguments = [], input = String.toUtf8("hi")),
-///                  5000);
+///         Os.start(Os.Command(program = "cat", arguments = [], input = String.toUtf8("hi")));
 ///     Os.closeInput(cat);
-///     Os.read(cat)
+///     Os.read(cat, 5000)
 /// }
 /// // => Right(Stdout(<<104, 105>>))
 /// ```
-export fn start(command : Command, ms : Int) : Either(Io.Error, Address(ProgramMsg)) with m = {
+export fn start(command : Command) : Either(Io.Error, Address(ProgramMsg)) with m = {
     let owner = Process.fromAddress(self());
-    Address.callForever(reference,
-                        fn(r) = Start(command = command, ms = ms, owner = owner, reply = r))
+    Address.callForever(reference, fn(r) = Start(command = command, owner = owner, reply = r))
 }
 
 /// The next piece of what the program wrote, to its standard output or to
@@ -197,9 +191,10 @@ export fn start(command : Command, ms : Int) : Either(Io.Error, Address(ProgramM
 /// exit status, once it has exited and both have ended. The host takes the
 /// program's output only while a read waits, so a program that no one
 /// reads waits on its output. A status other than 0 is the program's
-/// answer, not a `Left`. It answers `Left(Timeout)` once the program was
-/// killed for its time. The program's process ends once it has answered
-/// the exit status or `Left(Timeout)`.
+/// answer, not a `Left`. It answers `Left(Timeout)` when `ms` milliseconds
+/// pass first, the program running on, and what the program writes meanwhile
+/// is the next read's. The program's process ends once it has answered the
+/// exit status.
 ///
 /// ### Errors
 ///
@@ -213,23 +208,23 @@ export fn start(command : Command, ms : Int) : Either(Io.Error, Address(ProgramM
 ///     let sh <-
 ///         Os.start(Os.Command(program = "sh",
 ///                             arguments = ["-c", "echo no >&2; exit 1"],
-///                             input = <<>>),
-///                  5000);
-///     let first <- Os.read(sh);
-///     let last <- Os.read(sh);
+///                             input = <<>>));
+///     let first <- Os.read(sh, 5000);
+///     let last <- Os.read(sh, 5000);
 ///     Right(#(first, last))
 /// }
 /// // => Right(#(Stderr(<<110, 111, 10>>), Exited(1)))
 /// ```
-export fn read(program : Address(ProgramMsg)) : Either(Io.Error, Output) with m =
-    Address.callForever(program, fn(r) = Read(reply = r))
+export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Output) with m =
+    Address.callForever(program, fn(r) = Read(ms = ms, reply = r))
 
 /// Gives the bytes to the program as its input, after what it was given
 /// before, and answers `Right(Unit)` once the program has taken them,
-/// waiting while it is behind. A program that stops reading its input, as
-/// one whose output no one reads may, holds its writer; a program that both
-/// takes much input and writes much output is written to by one process and
-/// read by another.
+/// waiting while it is behind, at most `ms` milliseconds, and
+/// `Left(Timeout)` when they pass first, which does not undo the write. A
+/// program that stops reading its input, as one whose output no one reads
+/// may, holds its writer; a program that both takes much input and writes
+/// much output is written to by one process and read by another.
 ///
 /// ### Errors
 ///
@@ -243,14 +238,16 @@ export fn read(program : Address(ProgramMsg)) : Either(Io.Error, Output) with m 
 ///
 /// ```ernest
 /// {
-///     let cat <- Os.start(Os.Command(program = "cat", arguments = [], input = <<>>), 5000);
-///     let _ <- Os.write(cat, String.toUtf8("hi"));
-///     Os.read(cat)
+///     let cat <- Os.start(Os.Command(program = "cat", arguments = [], input = <<>>));
+///     let _ <- Os.write(cat, String.toUtf8("hi"), 5000);
+///     Os.read(cat, 5000)
 /// }
 /// // => Right(Stdout(<<104, 105>>))
 /// ```
-export fn write(program : Address(ProgramMsg), bytes : Bytes) : Either(Io.Error, Unit) with m =
-    Address.callForever(program, fn(r) = Write(bytes = bytes, reply = r))
+export fn write(program : Address(ProgramMsg),
+                bytes : Bytes,
+                ms : Int) : Either(Io.Error, Unit) with m =
+    Address.callForever(program, fn(r) = Write(bytes = bytes, ms = ms, reply = r))
 
 /// Ends the program's input once what it was given before is written.
 ///
@@ -258,9 +255,9 @@ export fn write(program : Address(ProgramMsg), bytes : Bytes) : Either(Io.Error,
 ///
 /// ```ernest
 /// {
-///     let wc <- Os.start(Os.Command(program = "wc", arguments = ["-c"], input = <<1, 2>>), 5000);
+///     let wc <- Os.start(Os.Command(program = "wc", arguments = ["-c"], input = <<1, 2>>));
 ///     Os.closeInput(wc);
-///     Either.map(Os.read(wc), fn(o) = match o {
+///     Either.map(Os.read(wc, 5000), fn(o) = match o {
 ///         Os.Stdout(bytes) -> String.trim(Optional.withDefault(String.fromUtf8(bytes), ""))
 ///       | _ -> ""
 ///     })
@@ -276,7 +273,7 @@ export fn closeInput(program : Address(ProgramMsg)) : Unit with m =
 /// output and to its standard error, or why it did not run to its end, as
 /// `Os.start` and `Os.read` answer it: `Left(NotFound)`, `Left(Denied)`,
 /// `Left(Invalid)`, `Left(Other(text))`, and `Left(Timeout)` when the
-/// milliseconds pass first.
+/// milliseconds pass first, the program killed then.
 ///
 /// ### Examples
 ///
@@ -287,24 +284,30 @@ export fn closeInput(program : Address(ProgramMsg)) : Unit with m =
 /// // => Right(Some("hi"))
 /// ```
 export fn run(command : Command, ms : Int) : Either(Io.Error, Finished) with m = {
-    let program <- start(command, ms);
+    let deadline = Clock.monotonic() + ms;
+    let program <- start(command);
     closeInput(program);
-    collect(program, [], [])
+    collect(program, deadline, [], [])
 }
 
-// What the program wrote, read until its exit status, the pieces of each
-// stream kept newest first.
+// What the program wrote, read until its exit status, each read waiting
+// what is left of the time, the pieces of each stream kept newest first.
+// The run's time passing kills the program.
 fn collect(program : Address(ProgramMsg),
+           deadline : Int,
            out : List(Bytes),
-           err : List(Bytes)) : Either(Io.Error, Finished) with m = {
-    let output <- read(program);
-    match output {
-        Stdout(bytes) -> collect(program, bytes :: out, err)
-      | Stderr(bytes) -> collect(program, out, bytes :: err)
-      | Exited(status) ->
+           err : List(Bytes)) : Either(Io.Error, Finished) with m =
+    match read(program, deadline - Clock.monotonic()) {
+        Right(Stdout(bytes)) -> collect(program, deadline, bytes :: out, err)
+      | Right(Stderr(bytes)) -> collect(program, deadline, out, bytes :: err)
+      | Right(Exited(status)) ->
             Right(Finished(status = status, stdout = joined(out), stderr = joined(err)))
+      | Left(Io.Timeout) -> {
+            kill(program);
+            Left(Io.Timeout)
+        }
+      | Left(why) -> Left(why)
     }
-}
 
 fn joined(pieces : List(Bytes)) : Bytes =
     List.foldLeft(List.reverse(pieces), <<>>, fn(all, piece) = all <> piece)

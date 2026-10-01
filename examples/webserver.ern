@@ -93,7 +93,7 @@ fn handler(sessions : Address(SessionMsg), seq : Int, sock : Address(Tcp.SocketM
             Left(_) -> {
                 let bad = Response(status = statusBadRequest, headers = [], body = "");
                 // the connection is closed whether the far end took it or not
-                let _ = Tcp.write(sock, render(bad));
+                let _ = Tcp.write(sock, render(bad), 5000);
                 Tcp.close(sock)
             }
           | Right(req) -> {
@@ -107,7 +107,7 @@ fn handler(sessions : Address(SessionMsg), seq : Int, sock : Address(Tcp.SocketM
                     Response(status = statusOk, headers = [], body = body)
                         |> withCookie("sid", sessionIdText(id))
                         |> render;
-                let _ = Tcp.write(sock, bytes);
+                let _ = Tcp.write(sock, bytes, 5000);
                 Tcp.close(sock)
             }
         }

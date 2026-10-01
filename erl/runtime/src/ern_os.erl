@@ -3,11 +3,11 @@
 %% environment. A program's process owns the port of ern_exec
 %% (c_src/ern_exec.c), the helper that runs the program, and asks the helper
 %% for a piece of the program's output only for a read that waits, so that
-%% a program no one reads waits on its output. Its time limit, fixed when it
-%% starts, kills the program; the program is killed too when its process is
-%% killed, since the port closing ends the helper, and when the process that
-%% started it dies. A running program is a source (report §8.6) from its
-%% start until it has exited or been killed.
+%% a program no one reads waits on its output. A read and a write each wait
+%% their own milliseconds (E.0 shape rule 8); the program runs until it
+%% exits, until its process is killed, since the port closing ends the
+%% helper, or until the process that started it dies. A running program is
+%% a source (report §8.6) from its start until it has exited or been killed.
 -module(ern_os).
 
 -export([loop/0, helper_failed/0, helper/0, environment/0, working_directory/0]).
@@ -23,10 +23,10 @@ loop() ->
 
 serve(Os) ->
     receive
-        {'Start', Command, Ms, Owner, Reply} ->
+        {'Start', Command, Owner, Reply} ->
             Program = erlang:spawn(fun() ->
                                        link(Os),
-                                       receive go -> start(Command, Ms, Owner, Reply) end
+                                       receive go -> start(Command, Owner, Reply) end
                                    end),
             ern_rt:opened(Program, <<"Os.start">>),
             ern_rt:source_begin(Program),
@@ -39,12 +39,7 @@ serve(Os) ->
 
 %% Command is `Command(program, arguments, input)`, its fields in their
 %% canonical order.
-%% Report Appendix E.23: the time runs from the start, armed before the
-%% helper is, so that a time that passes before the program has started is
-%% seen to.
-start({'Command', Arguments, Input, Program}, Ms, Owner, Reply) ->
-    Deadline = ern_rt:deadline(Ms),
-    Timer = arm(Deadline),
+start({'Command', Arguments, Input, Program}, Owner, Reply) ->
     case lists:any(fun(A) -> binary:match(A, <<0>>) =/= nomatch end, [Program | Arguments]) of
         true ->
             answered(Reply, {'Left', 'Invalid'});
@@ -56,7 +51,7 @@ start({'Command', Arguments, Input, Program}, Ms, Owner, Reply) ->
                     %% for the host is the program's failure to start
                     Parts = << <<Part/binary, 0>> || Part <- [Program | Arguments] >>,
                     command(Port, <<"c", Parts/binary>>),
-                    started(Port, Input, {Deadline, Timer}, Owner, Reply)
+                    started(Port, Input, Owner, Reply)
             catch
                 error:_ -> answered(Reply, helper_failed())
             end
@@ -66,16 +61,13 @@ open(Args) ->
     erlang:open_port({spawn_executable, helper()},
                      [{args, Args}, {packet, 4}, binary, exit_status]).
 
-started(Port, Input, {Deadline, Timer}, Owner, Reply) ->
+started(Port, Input, Owner, Reply) ->
     command(Port, <<"i", Input/binary>>),
     Watch = erlang:monitor(process, Owner),
     %% the input given at the start is answered by the helper as a write is,
     %% with no one waiting for it
-    starting(#{port => Port, watch => Watch, deadline => Deadline, timer => Timer,
-               writes => queue:in(none, queue:new())},
-             Reply).
+    starting(#{port => Port, watch => Watch, writes => queue:in(none, queue:new())}, Reply).
 
-%% The Io.Error of a helper that failed, Os's and Fs's alike.
 %% Report §7.4, Appendix E.23: the helper's failure is the runtime's own,
 %% which faults the caller that meets it.
 -spec helper_failed() -> {fault, binary()}.
@@ -90,20 +82,12 @@ helper() ->
 
 %% Until the helper says whether the program started, the Start is
 %% answered by nothing else, and nothing else knows the process. Report
-%% Appendix E.23: a start learned after the time has passed is a time
-%% passed, whichever of the helper's word and the timer's arrived first, so
-%% a time of 0 always answers `Left(Timeout)`, however fast the helper.
-starting(#{port := Port, deadline := Deadline} = Run, Reply) ->
+%% Appendix E.23: a start waits for the helper alone, and is not bounded.
+starting(#{port := Port} = Run, Reply) ->
     receive
         {Port, {data, <<"s">>}} ->
-            case ern_rt:remaining(Deadline) of
-                0 ->
-                    stop(Run),
-                    answered(Reply, {'Left', 'Timeout'});
-                _ ->
-                    ern_rt:answer(Reply, {'Right', erlang:self()}),
-                    running(Run, queue:new())
-            end;
+            ern_rt:answer(Reply, {'Right', erlang:self()}),
+            running(Run, queue:new(), 0, queue:new());
         {Port, {data, <<"f", Name/binary>>}} ->
             stop(Run),
             answered(Reply, {'Left', not_started(Name)});
@@ -111,64 +95,137 @@ starting(#{port := Port, deadline := Deadline} = Run, Reply) ->
             stop(Run),
             answered(Reply, helper_failed());
         {'DOWN', _, process, _, _} ->
-            killed(Run);
-        {timeout, _, deadline} = Tick ->
-            case timed_out(Run, Tick) of
-                {again, Run1} -> starting(Run1, Reply);
-                over -> stop(Run), answered(Reply, {'Left', 'Timeout'})
-            end
+            killed(Run)
     end.
 
-%% Waiting: the replies of the reads that wait, oldest first. The helper
-%% sends one piece of output for each read it was asked for, and the exit
-%% status once the program has exited and both its outputs have ended,
-%% which it can learn only while a read waits; so a read waits for every
-%% piece and for the status. The exit status is the last answer, and the process
-%% returns after it. Report Appendix E.23: a write is answered when the
-%% helper says the program has taken its bytes, `a`, or dropped them, `d`,
-%% one for each input in order, the replies kept in the run's `writes`, so
-%% that a writer waits while the program is behind; what still waits when
-%% the program ends is answered then.
-running(#{port := Port} = Run, Waiting) ->
+%% Waiting: the reads that wait, oldest first, each {Reply, Ref}. Owed: the
+%% pieces the helper owes, one asked for each read that came with nothing
+%% kept. Kept: the answers the helper gave while no read waited, which the
+%% next reads take, in order. The helper sends one piece of output for each
+%% piece it was asked for, and the exit status once the program has exited
+%% and both its outputs have ended, which it can learn only while a piece is
+%% owed. Report Appendix E.23: a read answers `Left(Timeout)` when its
+%% milliseconds pass, the program running on, and the piece asked for it is
+%% the next read's; a write is answered when the helper says the program has
+%% taken its bytes, `a`, or dropped them, `d`, one for each input in order,
+%% the replies kept in the run's `writes`, or `Left(Timeout)` first, which
+%% does not undo it.
+running(#{port := Port} = Run, Waiting, Owed, Kept) ->
     receive
-        {'Read', Reply} ->
-            command(Port, <<"n">>),
-            running(Run, queue:in(Reply, Waiting));
-        {'Write', Bytes, Reply} ->
+        {'Read', Ms, Reply} ->
+            case queue:out(Kept) of
+                {{value, Answer}, Rest} ->
+                    told(Run, Reply, Answer, Waiting, Owed, Rest);
+                {empty, _} ->
+                    Ref = make_ref(),
+                    arm({read, Ref}, ern_rt:deadline(Ms)),
+                    Waiting1 = queue:in({Reply, Ref}, Waiting),
+                    %% a piece owed to a read that has gone is this one's
+                    case Owed > queue:len(Waiting) of
+                        true -> running(Run, Waiting1, Owed, Kept);
+                        false -> command(Port, <<"n">>), running(Run, Waiting1, Owed + 1, Kept)
+                    end
+            end;
+        {'Write', Bytes, Ms, Reply} ->
             command(Port, <<"i", Bytes/binary>>),
-            running(Run#{writes := queue:in(Reply, maps:get(writes, Run))}, Waiting);
+            arm({write, Reply}, ern_rt:deadline(Ms)),
+            running(Run#{writes := queue:in(Reply, maps:get(writes, Run))}, Waiting, Owed, Kept);
         {Port, {data, <<Tag>>}} when Tag =:= $a; Tag =:= $d ->
             {{value, Written}, Rest} = queue:out(maps:get(writes, Run)),
             Written =:= none orelse ern_rt:answer(Written, written(Tag)),
-            running(Run#{writes := Rest}, Waiting);
+            running(Run#{writes := Rest}, Waiting, Owed, Kept);
         'CloseInput' ->
             command(Port, <<"e">>),
-            running(Run, Waiting);
+            running(Run, Waiting, Owed, Kept);
         {Port, {data, <<"x", Status:32>>}} ->
-            {{value, Reply}, _} = queue:out(Waiting),
+            %% the program has exited: what it was written meanwhile is
+            %% dropped, and its exit status is the last answer
             stop(Run),
             unwritten(Run, {'Left', 'Closed'}),
-            answered(Reply, {'Right', {'Exited', Status}});
+            given(Run, {'Right', {'Exited', Status}}, Waiting, Owed - 1, Kept);
         {Port, {data, <<Tag, Bytes/binary>>}} ->
-            {{value, Reply}, Rest} = queue:out(Waiting),
-            ern_rt:answer(Reply, {'Right', piece(Tag, Bytes)}),
-            running(Run, Rest);
+            given(Run, {'Right', piece(Tag, Bytes)}, Waiting, Owed - 1, Kept);
         {Port, {exit_status, _}} ->
             %% the helper ended with no status to send: it failed
             stop(Run),
             unwritten(Run, helper_failed()),
-            over(Waiting, helper_failed());
+            ern_rt:source_end(),
+            [respond(Reply, helper_failed()) || {Reply, _} <- queue:to_list(Waiting)],
+            over(helper_failed());
         {'DOWN', _, process, _, _} ->
             killed(Run);
-        {timeout, _, deadline} = Tick ->
-            case timed_out(Run, Tick) of
-                {again, Run1} -> running(Run1, Waiting);
-                over ->
-                    stop(Run),
-                    unwritten(Run, {'Left', 'Closed'}),
-                    over(Waiting, {'Left', 'Timeout'})
-            end
+        {timeout, _, Timer} ->
+            running(Run, timed_out(Timer, Waiting), Owed, Kept)
     end.
+
+%% An answer of the helper's, to the oldest read that waits, or kept for the
+%% next read where none does.
+given(Run, Answer, Waiting, Owed, Kept) ->
+    case queue:out(Waiting) of
+        {{value, {Reply, _}}, Rest} -> told(Run, Reply, Answer, Rest, Owed, Kept);
+        {empty, _} -> kept(Run, Answer, Waiting, Owed, queue:in(Answer, Kept))
+    end.
+
+%% A read answered; the exit status is the last answer, after which the
+%% process returns.
+told(_Run, Reply, {'Right', {'Exited', _}} = Answer, _Waiting, _Owed, _Kept) ->
+    answered(Reply, Answer);
+told(Run, Reply, Answer, Waiting, Owed, Kept) ->
+    ern_rt:answer(Reply, Answer),
+    running(Run, Waiting, Owed, Kept).
+
+%% Where the exit status waits for a read, the program no longer runs: the
+%% process answers the reads to come from what is kept, and writes as to a
+%% program that has exited.
+kept(_Run, {'Right', {'Exited', _}}, _Waiting, _Owed, Kept) ->
+    ern_rt:source_end(),
+    exited(Kept);
+kept(Run, _Answer, Waiting, Owed, Kept) ->
+    running(Run, Waiting, Owed, Kept).
+
+exited(Kept) ->
+    receive
+        {'Read', _, Reply} ->
+            {{value, Answer}, Rest} = queue:out(Kept),
+            ern_rt:answer(Reply, Answer),
+            case Answer of
+                {'Right', {'Exited', _}} -> ok;
+                _ -> exited(Rest)
+            end;
+        {'Write', _, _, Reply} ->
+            ern_rt:answer(Reply, {'Left', 'Closed'}),
+            exited(Kept);
+        {'DOWN', _, process, _, _} ->
+            %% the process that started it died, and no read is to come
+            exit({ern, killed});
+        _ ->
+            exited(Kept)
+    end.
+
+%% A time passed: a write's answers `Left(Timeout)` at once, any answer of the
+%% helper's after it dropped as a second answer is; a read's, where it still
+%% waits, answers it too and takes it from the reads that wait. A wait
+%% longer than the host's longest timer is armed again until it has passed
+%% (report §6.3).
+timed_out({Kind, Deadline}, Waiting) ->
+    case ern_rt:remaining(Deadline) of
+        0 -> passed(Kind, Waiting);
+        _ -> arm(Kind, Deadline), Waiting
+    end.
+
+passed({write, Reply}, Waiting) ->
+    ern_rt:answer(Reply, {'Left', 'Timeout'}),
+    Waiting;
+passed({read, Ref}, Waiting) ->
+    queue:filter(fun({Reply, R}) when R =:= Ref ->
+                         ern_rt:answer(Reply, {'Left', 'Timeout'}),
+                         false;
+                    (_) ->
+                         true
+                 end, Waiting).
+
+arm(Kind, Deadline) ->
+    erlang:start_timer(ern_rt:remaining(Deadline), erlang:self(), {Kind, Deadline}).
 
 %% A frame for the helper. A port the helper's end has closed has sent its
 %% exit status first, which ends the run, so a frame after it is dropped.
@@ -190,54 +247,20 @@ unwritten(#{writes := Writes}, Answer) ->
 piece($o, Bytes) -> {'Stdout', Bytes};
 piece($r, Bytes) -> {'Stderr', Bytes}.
 
-%% A program killed for its time, or whose helper failed: the first read,
-%% waiting or to come, is answered why, and the process returns; what is
-%% written to it meanwhile is dropped, and answered as unwritable/1 says.
-%% The process that started it may
-%% still die first, which ends this one as it would have ended the program.
-over(Waiting, Answer) ->
-    case queue:out(Waiting) of
-        {{value, Reply}, _} ->
-            answered(Reply, Answer);
-        {empty, _} ->
-            ern_rt:source_end(),
-            over(Answer)
-    end.
-
+%% A program whose helper failed: each read and write to come faults its
+%% caller. The process that started it may still die first, which ends this
+%% one as it would have ended the program.
 over(Answer) ->
     receive
-        {'Read', Reply} -> respond(Reply, Answer);
-        {'Write', _, Written} -> respond(Written, unwritable(Answer)), over(Answer);
-        'CloseInput' -> over(Answer);
-        {'DOWN', _, process, _, _} -> exit({ern, killed})
+        {'Read', _, Reply} -> respond(Reply, Answer), over(Answer);
+        {'Write', _, _, Written} -> respond(Written, Answer), over(Answer);
+        {'DOWN', _, process, _, _} -> exit({ern, killed});
+        _ -> over(Answer)
     end.
 
-%% A write to a program killed for its time finds its input closed; one to
-%% a program the runtime lost is told why, as a read is.
-unwritable({'Left', 'Timeout'}) -> {'Left', 'Closed'};
-unwritable(Answer) -> Answer.
-
-%% The time limit, armed as the host's longest timer allows and armed again
-%% until it has passed (report §6.3).
-arm(Deadline) ->
-    erlang:start_timer(ern_rt:remaining(Deadline), erlang:self(), deadline).
-
-timed_out(#{deadline := Deadline, timer := Timer} = Run, {timeout, Timer, deadline}) ->
-    case ern_rt:remaining(Deadline) of
-        0 -> over;
-        _ -> {again, Run#{timer := arm(Deadline)}}
-    end;
-timed_out(Run, _) ->
-    {again, Run}.
-
-%% The port closed, which ends the helper and kills the program if it runs,
-%% and the time limit cancelled, what its timer already sent taken, so that
-%% this process, which may live on to answer a read, holds no message the
-%% check for a deadlock would read as work (report §8.6). The watch on the
-%% process that started it stays.
-stop(#{port := Port, timer := Timer}) ->
-    _ = erlang:cancel_timer(Timer),
-    receive {timeout, Timer, deadline} -> ok after 0 -> ok end,
+%% The port closed, which ends the helper and kills the program if it runs.
+%% The watch on the process that started it stays.
+stop(#{port := Port}) ->
     try erlang:port_close(Port) catch error:badarg -> closed end.
 
 %% The last answer while the program counts as a source, given before the

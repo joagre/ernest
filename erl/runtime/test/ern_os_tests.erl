@@ -17,9 +17,9 @@ helper_ends_under_a_write_and_a_read_test() ->
                {os_pid, Helper} = erlang:port_info(Port, os_pid),
                erlang:suspend_process(Program),
                Written = alias(),
-               Program ! {'Write', <<"x">>, Written},
+               Program ! {'Write', <<"x">>, 5000, Written},
                Read = alias(),
-               Program ! {'Read', Read},
+               Program ! {'Read', 5000, Read},
                _ = os:cmd("kill -9 " ++ integer_to_list(Helper)),
                closed(Port),
                erlang:resume_process(Program),
@@ -105,15 +105,14 @@ helper_gives_the_hosts_reason_test() ->
     ?assertEqual(0, receive {Port, {exit_status, S}} -> S after 5000 -> none end).
 
 %% report §8.6, Appendix E.23: a program whose helper ended waits for a read
-%% to fault, and holds nothing the check for a deadlock would read as work,
-%% its time limit gone with the helper. A regression test: the time
-%% limit's message came later and stayed, so the process never read as
-%% waiting
+%% to fault, and holds nothing the check for a deadlock would read as work.
+%% A regression test of the run's time limit the program once had, whose
+%% message came later and stayed, so the process never read as waiting
 lost_program_holds_no_timer_test() ->
     Me = self(),
     ok = ern_rt:run_main(
            fun() ->
-               {'Right', Program} = start(<<"sleep">>, [<<"3">>], 300),
+               {'Right', Program} = start(<<"sleep">>, [<<"3">>]),
                [Port] = [P || P <- element(2, process_info(Program, links)), is_port(P)],
                {os_pid, Helper} = erlang:port_info(Port, os_pid),
                _ = os:cmd("kill -9 " ++ integer_to_list(Helper)),
@@ -121,7 +120,7 @@ lost_program_holds_no_timer_test() ->
                sleep(500),
                Me ! {queued, process_info(Program, message_queue_len)},
                Read = alias(),
-               Program ! {'Read', Read},
+               Program ! {'Read', 5000, Read},
                Me ! {read, answer(Read)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({message_queue_len, 0}, wait(queued)),
@@ -138,14 +137,37 @@ argument_too_long_test() ->
                          <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({'Left', {'Other', <<"Argument list too long">>}}, wait(started)).
 
-%% Appendix E.23: a time that passes before the program has started makes
-%% `start` answer `Left(Timeout)`. A regression test, written as the report
-%% came to say so (findings.md's C18)
-start_timeout_test() ->
+%% Appendix E.23, E.0 shape rule 8: a read answers `Left(Timeout)` when its
+%% milliseconds pass, the program running on; the piece asked for it is the
+%% next read's, whether it comes before that read or while it waits, and
+%% the exit status comes last. A regression test of the rule of 2026-10-01,
+%% before which the program's one time limit killed it
+read_times_out_and_the_piece_is_kept_test() ->
     Me = self(),
-    ok = ern_rt:run_main(fun() -> Me ! {started, start(<<"sleep">>, [<<"1">>], 0)} end,
-                         <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({'Left', 'Timeout'}, wait(started)).
+    Echo = [<<"-c">>, <<"sleep 0.3; echo hi; sleep 0.3; echo there">>],
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Program} = start(<<"sh">>, Echo),
+               Me ! {reads, [read(Program, 50), read(Program, 5000), read(Program, 5000),
+                             read(Program, 5000)]}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual([{'Left', 'Timeout'}, {'Right', {'Stdout', <<"hi\n">>}},
+                  {'Right', {'Stdout', <<"there\n">>}}, {'Right', {'Exited', 0}}],
+                 wait(reads)).
+
+%% Appendix E.23, E.0 shape rule 8: a write to a program that takes no input
+%% answers `Left(Timeout)` when its milliseconds pass, more than a pipe holds
+%% being given. A regression test of the rule of 2026-10-01, before which
+%% the write waited without a limit
+write_times_out_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Program} = start(<<"sleep">>, [<<"3">>]),
+               Me ! {written, write(Program, binary:copy(<<"x">>, 400000), 200)},
+               ern_rt:kill(Program)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({'Left', 'Timeout'}, wait(written)).
 
 %% The helper run on a command, as ern_os runs it: the command comes as the
 %% first frame.
@@ -162,12 +184,15 @@ command(Parts) ->
     iolist_to_binary(["c" | [[Part, 0] || Part <- Parts]]).
 
 start(Program, Arguments) ->
-    start(Program, Arguments, 5000).
-
-start(Program, Arguments, Ms) ->
     Self = self(),
     Command = {'Command', Arguments, <<>>, Program},
-    ern_rt:call_forever(ern_rt:sys(os), fun(R) -> {'Start', Command, Ms, Self, R} end).
+    ern_rt:call_forever(ern_rt:sys(os), fun(R) -> {'Start', Command, Self, R} end).
+
+read(Program, Ms) ->
+    ern_rt:call_forever(Program, fun(R) -> {'Read', Ms, R} end).
+
+write(Program, Bytes, Ms) ->
+    ern_rt:call_forever(Program, fun(R) -> {'Write', Bytes, Ms, R} end).
 
 %% The port closes once the host has seen the helper end.
 closed(Port) ->

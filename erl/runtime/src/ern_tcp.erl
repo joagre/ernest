@@ -247,15 +247,24 @@ socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State) ->
                     socket_loop(Socket, Writer, OwnerMonitor, Waiting, <<>>, State)
             end;
         %% report Appendix E.18: a write after the connection has closed
-        {'Send', _, Reply} when State =:= closed ->
+        {'Send', _, _, Reply} when State =:= closed ->
             ern_rt:answer(Reply, {'Left', 'Closed'}),
             socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State);
         %% report Appendix E.18: answered once the socket has taken the
         %% bytes, by the writer, which gen_tcp holds while the connection is
-        %% behind
-        {'Send', _, _} = Send ->
+        %% behind, or `Left(Timeout)` when the milliseconds pass first, which
+        %% does not undo the write: the writer's later answer is dropped as a
+        %% second answer is (E.0 shape rule 8)
+        {'Send', Bytes, Ms, Reply} ->
             ern_rt:source_begin(),
-            Writer ! Send,
+            Writer ! {'Send', Bytes, Reply},
+            write_limit(Reply, ern_rt:deadline(Ms)),
+            socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State);
+        {write_timeout, Reply, Deadline} ->
+            case ern_rt:remaining(Deadline) of
+                0 -> ern_rt:answer(Reply, {'Left', 'Timeout'});
+                _ -> write_limit(Reply, Deadline)
+            end,
             socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State);
         {written, Sent} ->
             ern_rt:source_end(),
@@ -321,6 +330,11 @@ socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State) ->
 
 arm(Ref, Deadline) ->
     erlang:send_after(ern_rt:remaining(Deadline), erlang:self(), {read_timeout, Ref}).
+
+%% A write's limit, armed again until it has passed (report §6.3).
+write_limit(Reply, Deadline) ->
+    erlang:send_after(ern_rt:remaining(Deadline), erlang:self(),
+                      {write_timeout, Reply, Deadline}).
 
 %% Report Appendix E.18: once the connection has closed, each read waiting
 %% answers `Left(Closed)`, and so does each read after, the socket living on

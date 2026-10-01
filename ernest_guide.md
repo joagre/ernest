@@ -535,7 +535,7 @@ The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char
 - **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(Io.Error, Bytes)`. A program says an `Io.Error` to its user in its own words, with a `match` over its constructors; `Io.show` writes it as a value, `Other("address already in use")`.
 - **Pure unless the value lives in a process.** A function carries `with m` only where it reaches a system process or asks the runtime about its processes, as `Process.live` does, and every function that calls a function it takes is as pure as the function it is given (§3.5). One that delivers later, `Clock.alarm` or `Terminal.subscribe`, takes a pure function to make the message and acts through a process anyway.
 - **A `String` is text, not a list.** Its length and positions count what a reader sees as letters, which `String.graphemes` gives one by one; `String.toList` gives its `Char`s.
-- **A system process is used through its module**, never by `send`. A function that waits takes a timeout in milliseconds last and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. There is no time that means no limit: a server that waits for as long as it takes calls `Tcp.accept` or `Tcp.read` again on each `Left(Timeout)`. A read of standard input, and `Os.read`, wait for what they read, and a write waits while its stream is behind; none of them takes a time (report Appendix E.0 shape rule 8). One that delivers later takes a function that makes the message: `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired, and `Clock.now()` is the time now, in milliseconds since the epoch.
+- **A system process is used through its module**, never by `send`. A function that waits takes a timeout in milliseconds last and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. There is no time that means no limit: a server that waits for as long as it takes calls `Tcp.accept` or `Tcp.read` again on each `Left(Timeout)`. A read of standard input and a write to standard output wait without a limit, since those streams are the program's own; a socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8). One that delivers later takes a function that makes the message: `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired, and `Clock.now()` is the time now, in milliseconds since the epoch.
 
 What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it. `:browse Fs` lists a module's types by name and its functions with their types, and `:doc Fs.Entry` shows a type's declaration, its fields among it.
 
@@ -2099,13 +2099,13 @@ fn talk(socket : Address(Tcp.SocketMsg), rest : Bytes) : Unit with Session =
         Arrived(bytes) -> {
             let parts = Bytes.split(rest <> bytes, <<10>>);
             List.foreach(List.dropLast(parts, 1), fn(line) = {
-                let _ = Tcp.write(socket, line <> <<10>>);
+                let _ = Tcp.write(socket, line <> <<10>>, 5000);
                 Unit
             });
             talk(socket, Optional.withDefault(List.last(parts), <<>>))
         }
       | Tick(_) -> {
-            let _ = Tcp.write(socket, String.toUtf8("still here\n"));
+            let _ = Tcp.write(socket, String.toUtf8("still here\n"), 5000);
             Clock.alarm(10000, Tick);
             talk(socket, rest)
         }

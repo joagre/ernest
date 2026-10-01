@@ -839,9 +839,9 @@ tcp_test() ->
                    {'Right', Listener} = T:listen(<<"127.0.0.1">>, 7411),
                    {'Right', Client} = T:connect(<<"127.0.0.1">>, 7411, 1000),
                    {'Right', Server} = T:accept(Listener, 1000),
-                   T:write(Client, <<"ping">>),
+                   T:write(Client, <<"ping">>, 5000),
                    Me ! {tcp, T:read(Server, 1000)},
-                   T:write(Server, <<"pong">>),
+                   T:write(Server, <<"pong">>, 5000),
                    Me ! {tcp, T:read(Client, 1000)},
                    T:close(Client),
                    Me ! {tcp, T:read(Server, 1000)}

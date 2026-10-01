@@ -2895,7 +2895,7 @@ os_run_is_a_source_test() ->
 %% What a program wrote, a line a piece, until its exit status or why not.
 drain() ->
     "fn text(b : Bytes) : String = Optional.withDefault(String.fromUtf8(b), \"?\")\n"
-    "fn drain(p : Address(Os.ProgramMsg)) : Unit with m = match Os.read(p) {\n"
+    "fn drain(p : Address(Os.ProgramMsg)) : Unit with m = match Os.read(p, 5000) {\n"
     "    Right(Os.Stdout(b)) -> { Io.print(\"out \" <> text(b)); drain(p) }\n"
     "  | Right(Os.Stderr(b)) -> { Io.print(\"err \" <> text(b)); drain(p) }\n"
     "  | Right(Os.Exited(s)) -> Io.println(\"exit \" <> Int.toString(s))\n"
@@ -2908,7 +2908,7 @@ os_start_reads_in_order_test() ->
     {ok, Out} = run([drain(),
         "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
         "    arguments = [\"-c\", \"echo a; sleep 0.1; echo b >&2; sleep 0.1; echo c; exit 4\"],\n"
-        "    input = <<>>), 5000) {\n"
+        "    input = <<>>)) {\n"
         "    Right(p) -> drain(p)\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"]),
@@ -2920,7 +2920,7 @@ os_start_reads_in_order_test() ->
 os_start_output_waits_for_a_read_test() ->
     Mark = filename:join(scratch(), "mark"),
     {ok, Out} = run([
-        "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int with m = match Os.read(p) {\n"
+        "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int with m = match Os.read(p, 5000) {\n"
         "    Right(Os.Exited(_)) -> n\n"
         "  | Right(_) -> drain(p, n + 1)\n"
         "  | Left(_) -> -1\n"
@@ -2928,7 +2928,7 @@ os_start_output_waits_for_a_read_test() ->
         "fn marked() : Bool with m = Either.isRight(Fs.stat(Path(\"", Mark, "\"), 1000))\n"
         "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
         "    arguments = [\"-c\", \"head -c 1000000 /dev/zero; touch ", Mark, "\"],\n"
-        "    input = <<>>), 5000) {\n"
+        "    input = <<>>)) {\n"
         "    Right(p) -> {\n"
         "        receive { after 300 -> Unit };\n"
         "        let before = marked();\n"
@@ -2944,16 +2944,17 @@ os_start_output_waits_for_a_read_test() ->
 %% answers Left(Closed)
 os_start_write_then_close_test() ->
     {ok, Out} = run([
-        "fn collect(p : Address(Os.ProgramMsg), got : Bytes) : Bytes with m = match Os.read(p) {\n"
+        "fn collect(p : Address(Os.ProgramMsg), got : Bytes) : Bytes with m =\n"
+        "    match Os.read(p, 5000) {\n"
         "    Right(Os.Stdout(b)) -> collect(p, got <> b)\n"
         "  | _ -> got\n"
         "}\n"
         "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"cat\",\n"
-        "    arguments = [], input = String.toUtf8(\"a\")), 5000) {\n"
+        "    arguments = [], input = String.toUtf8(\"a\"))) {\n"
         "    Right(p) -> {\n"
-        "        let taken = Os.write(p, String.toUtf8(\"b\"));\n"
+        "        let taken = Os.write(p, String.toUtf8(\"b\"), 5000);\n"
         "        Os.closeInput(p);\n"
-        "        let dropped = Os.write(p, String.toUtf8(\"c\"));\n"
+        "        let dropped = Os.write(p, String.toUtf8(\"c\"), 5000);\n"
         "        Io.println(Io.show(#(taken, dropped, String.fromUtf8(collect(p, <<>>)))))\n"
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
@@ -2970,7 +2971,7 @@ os_program_is_a_process_test() ->
         "type Msg = Ended(Down)\n"
         "fn started(script : String) : Address(Os.ProgramMsg) with Msg =\n"
         "    match Os.start(Os.Command(program = \"sh\", arguments = [\"-c\", script],\n"
-        "        input = <<>>), 5000) {\n"
+        "        input = <<>>)) {\n"
         "        Right(p) -> p\n"
         "      | Left(_) -> fault(\"not started\")\n"
         "    }\n"
@@ -2984,7 +2985,7 @@ os_program_is_a_process_test() ->
         "    Io.println(reason());\n"
         "    let quick = started(\"exit 0\");\n"
         "    monitor(quick, Ended);\n"
-        "    let _ = Os.read(quick);\n"
+        "    let _ = Os.read(quick, 5000);\n"
         "    Io.println(reason())\n"
         "}\n"]),
     ?assertEqual(<<"Killed\nReturned\n">>, Out),
@@ -2995,22 +2996,23 @@ os_program_is_a_process_test() ->
          ?assertNotEqual(0, Status)
      end || Pid <- binary:split(Written, [<<" ">>, <<"\n">>], [global, trim_all])].
 
-%% Appendix E.23: after the program's time, a read answers Timeout and the
-%% program's process ends, so the read after it faults as a call to an
-%% ended process does (report §6.6)
-os_start_time_limit_test() ->
-    {Result, Out} = run(
-        "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"sleep\",\n"
-        "    arguments = [\"10\"], input = <<>>), 100) {\n"
+%% Appendix E.23, E.0 shape rule 8: a read whose milliseconds pass answers
+%% Timeout and the program runs on, the next read taking what it wrote. A
+%% regression test of the rule of 2026-10-01, before which the start's time
+%% killed the program
+os_read_time_limit_test() ->
+    {ok, Out} = run(
+        "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
+        "    arguments = [\"-c\", \"sleep 0.3; echo late\"], input = <<>>)) {\n"
         "    Right(p) -> {\n"
-        "        Io.println(Io.show(Os.read(p)));\n"
-        "        receive { after 100 -> Unit };\n"
-        "        Io.println(Io.show(Os.read(p)))\n"
+        "        Io.println(Io.show(Os.read(p, 50)));\n"
+        "        Io.println(Io.show(Os.read(p, 5000)));\n"
+        "        Io.println(Io.show(Os.read(p, 5000)))\n"
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"),
-    ?assertEqual(<<"Left(Timeout)\n">>, Out),
-    ?assertEqual({fault, <<"callee had ended">>}, Result).
+    ?assertEqual(<<"Left(Timeout)\nRight(Stdout(<<108, 97, 116, 101, 10>>))\nRight(Exited(0))\n">>,
+                 Out).
 
 %% Appendix E.23, report §8.6: Os.exit ends the program with its status,
 %% from any process, the output written before it flushed; a status
@@ -3207,16 +3209,16 @@ paced(Setup) ->
 %% reads its output, holds its writer, and a write after its end faults
 os_write_waits_test() ->
     {ok, Out} = paced(
-        "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int with Msg = match Os.read(p) {\n"
+        "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int with Msg = match Os.read(p, 5000) {\n"
         "    Right(Os.Stdout(b)) -> drain(p, n + Bytes.size(b))\n"
         "  | _ -> n\n"
         "}\n"
         "export fn main() : Unit with Msg = match Os.start(Os.Command(program = \"cat\",\n"
-        "    arguments = [], input = <<>>), 30000) {\n"
+        "    arguments = [], input = <<>>)) {\n"
         "    Right(p) -> {\n"
         "        let me = self();\n"
         "        let _ = spawn(Local, fn() : Unit with Never = {\n"
-        "            writes(fn(b) = Os.write(p, b), 64);\n"
+        "            writes(fn(b) = Os.write(p, b, 30000), 64);\n"
         "            Os.closeInput(p);\n"
         "            send(me, Done)\n"
         "        });\n"
@@ -3226,7 +3228,7 @@ os_write_waits_test() ->
         "        receive { Done -> Unit };\n"
         "        Io.println(Io.show(#(early, n)));\n"
         "        let late = fn() : Unit with Never = {\n"
-        "            let _ = Os.write(p, <<1>>);\n"
+        "            let _ = Os.write(p, <<1>>, 5000);\n"
         "            Unit\n"
         "        };\n"
         "        let _ = spawnMonitored(Local, late, Ended);\n"
@@ -3253,7 +3255,10 @@ tcp_write_waits_test() ->
         "            let me = self();\n"
         "            let _ = spawn(Local, fn() : Unit with Never = match\n"
         "                Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
-        "                    Right(c) -> { writes(fn(b) = Tcp.write(c, b), 64); send(me, Done) }\n"
+        "                    Right(c) -> {\n"
+        "                        writes(fn(b) = Tcp.write(c, b, 30000), 64);\n"
+        "                        send(me, Done)\n"
+        "                    }\n"
         "                  | Left(_) -> Unit\n"
         "                });\n"
         "            match Tcp.accept(l, 5000) {\n"
@@ -3266,7 +3271,7 @@ tcp_write_waits_test() ->
         "                    receive { after 50 -> Unit };\n"
         "                    Io.println(Io.show(#(early, n)));\n"
         "                    let late = fn() : Unit with Never = {\n"
-        "                        let _ = Tcp.write(s, <<1>>);\n"
+        "                        let _ = Tcp.write(s, <<1>>, 5000);\n"
         "                        Unit\n"
         "                    };\n"
         "                    let _ = spawnMonitored(Local, late, Ended);\n"
@@ -3476,7 +3481,7 @@ opened_processes_are_live_test() ->
         "                let pc = Process.fromAddress(c);\n"
         "                Io.println(Io.show(#(site(pl), site(pc), listed(pl), listed(pc))));\n"
         "                match Os.start(Os.Command(program = \"cat\", arguments = [],"
-        " input = <<>>), 5000) {\n"
+        " input = <<>>)) {\n"
         "                    Right(p) -> Io.println(site(Process.fromAddress(p)))\n"
         "                  | Left(e) -> Io.println(Io.show(e))\n"
         "                }\n"
@@ -3507,9 +3512,9 @@ tcp_write_answers_closed_test() ->
         "            });\n"
         "            match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
         "                Right(c) -> {\n"
-        "                    let taken = Tcp.write(c, <<1>>);\n"
+        "                    let taken = Tcp.write(c, <<1>>, 5000);\n"
         "                    let ended = Tcp.read(c, 5000);\n"
-        "                    Io.println(Io.show(#(taken, ended, Tcp.write(c, <<2>>))))\n"
+        "                    Io.println(Io.show(#(taken, ended, Tcp.write(c, <<2>>, 5000))))\n"
         "                }\n"
         "              | Left(e) -> Io.println(Io.show(e))\n"
         "            }\n"

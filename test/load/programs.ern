@@ -34,15 +34,10 @@ fn work(left : Int) : Unit with Never =
 fn once() : Unit with Never = {
     let _ = Os.run(Os.Command(program = "cat", arguments = [], input = String.toUtf8("hi")), 5000);
     let _ = Os.run(Os.Command(program = "no-such-program-ern", arguments = [], input = <<>>), 5000);
-    match Os.start(Os.Command(program = "sleep", arguments = ["10"], input = <<>>), 5000) {
+    match Os.start(Os.Command(program = "sleep", arguments = ["10"], input = <<>>)) {
         Right(p) -> kill(p)
       | Left(_) -> Unit
     };
-    match Os.start(Os.Command(program = "sleep", arguments = ["10"], input = <<>>), 1) {
-        Right(p) -> {
-            let _ = Os.read(p);
-            Unit
-        }
-      | Left(_) -> Unit
-    }
+    let _ = Os.run(Os.Command(program = "sleep", arguments = ["10"], input = <<>>), 1);
+    Unit
 }
