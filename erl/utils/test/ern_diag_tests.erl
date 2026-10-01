@@ -52,11 +52,11 @@ short_test() ->
 %% underlined with ^, a label's span with - and its text, and the help line
 format_test() ->
     D = #diag{span = {2, 7, {2, 10}}, message = "expected Int, found String",
-              labels = [{{1, 11, {1, 14}}, "declared to return Int here"}],
+              labels = [{{1, 11, {1, 14}}, "result type Int declared here"}],
               help = "give f an Int"},
     ?assertEqual("main.ern:2:7: expected Int, found String\n"
                  "1 | fn g() : Int =\n"
-                 "  |           --- declared to return Int here\n"
+                 "  |           --- result type Int declared here\n"
                  "2 |     f(\"x\")\n"
                  "  |       ^^^\n"
                  "  | = help: give f an Int\n",

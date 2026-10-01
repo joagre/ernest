@@ -1318,7 +1318,7 @@ check_value(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect, bod
                      deferred = [], ann_vars = AnnVars1, rigid = maps:to_list(AnnVars1),
                      effect_origin = effect_origin(decl_name(D), Ret, Effect, RetT, EffT, St1b)},
     early_compare_shape(D, Ret, FnT, Env2),
-    Context = ret_context(Ret, "the body does not have the declared return type"),
+    Context = ret_context(Ret, "the body does not have the declared result type"),
     {TypedBody, _BodyT, Env4} = check_expr(Body, RetT, Context, ret_origin(Ret, RetT, Env2), Env2),
     Env5 = unify_at(Pos, Placeholder, FnT, Env4, "recursive use does not match the definition"),
     {D#fn_decl{params = TypedParams, body = TypedBody},
@@ -1450,7 +1450,7 @@ ret_context(_Ret, Context) -> Context.
 
 ret_origin(undefined, _RetT, _Env) -> undefined;
 ret_origin(Ret, RetT, Env) ->
-    {node_span(Ret), "declared to return " ++ ern_types:format(RetT, Env#env.st) ++ " here"}.
+    {node_span(Ret), "result type " ++ ern_types:format(RetT, Env#env.st) ++ " declared here"}.
 
 ann_origin(Ann, AnnT, Env) ->
     {node_span(Ann), "declared " ++ ern_types:format(AnnT, Env#env.st) ++ " here"}.

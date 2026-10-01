@@ -426,7 +426,7 @@ example.ern:1:7: `<-` is a block form
   | = help: a top-level `let` uses `=`
 ```
 
-### A foreign function without its return type (§8.4)
+### A foreign function without its result type (§8.4)
 
 ```ernest-rejected
 foreign fn now() = "erlang:monotonic_time/0"
@@ -434,7 +434,7 @@ foreign fn now() = "erlang:monotonic_time/0"
 
 ```console
 $ ern build example.ern
-example.ern:1:18: a foreign function declares its return type
+example.ern:1:18: a foreign function declares its result type
 1 | foreign fn now() = "erlang:monotonic_time/0"
   |                  ^
 ```
@@ -1170,7 +1170,7 @@ example.ern:1:6: the parameter pattern does not fit its annotation: expected Int
   |                --- declared Int here
 ```
 
-### A body that does not have the declared return type (§4.5)
+### A body that does not have the declared result type (§4.5)
 
 ```ernest-rejected
 fn f() : Int = "one"
@@ -1178,9 +1178,9 @@ fn f() : Int = "one"
 
 ```console
 $ ern build example.ern
-example.ern:1:16: the body does not have the declared return type: expected Int, found String
+example.ern:1:16: the body does not have the declared result type: expected Int, found String
 1 | fn f() : Int = "one"
-  |          --- declared to return Int here
+  |          --- result type Int declared here
   |                ^^^^^
 ```
 
@@ -1919,7 +1919,7 @@ fn f() : () -> Int = fn() : Int = "one"
 $ ern build example.ern
 example.ern:1:35: the lambda body does not have the declared type: expected Int, found String
 1 | fn f() : () -> Int = fn() : Int = "one"
-  |                             --- declared to return Int here
+  |                             --- result type Int declared here
   |                                   ^^^^^
 ```
 
@@ -2062,9 +2062,9 @@ fn id(x : a) : a = 1
 
 ```console
 $ ern build example.ern
-example.ern:1:20: the body does not have the declared return type: expected a, found Int
+example.ern:1:20: the body does not have the declared result type: expected a, found Int
 1 | fn id(x : a) : a = 1
-  |                - declared to return a here
+  |                - result type a declared here
   |                    ^
 ```
 
@@ -2076,9 +2076,9 @@ fn f(x : a, y : b) : a = y
 
 ```console
 $ ern build example.ern
-example.ern:1:26: the body does not have the declared return type: expected a, found b
+example.ern:1:26: the body does not have the declared result type: expected a, found b
 1 | fn f(x : a, y : b) : a = y
-  |                      - declared to return a here
+  |                      - result type a declared here
   |                          ^
 ```
 
@@ -2210,7 +2210,7 @@ fn f(o : Optional(Int)) : Either(String, Int) = {
 $ ern build example.ern
 example.ern:2:14: the value of `<-` must have the block's sum type: expected Either(String, Int), found Optional(Int)
 1 | fn f(o : Optional(Int)) : Either(String, Int) = {
-  |                           ------------------- declared to return Either(String, Int) here
+  |                           ------------------- result type Either(String, Int) declared here
 2 |     let x <- o;
   |              ^
 ```

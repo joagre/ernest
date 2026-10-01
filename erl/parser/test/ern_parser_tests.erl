@@ -645,7 +645,7 @@ misc_errors_test() ->
     ?assertEqual("empty parentheses after None", err_expr("None()")),
     ?assertEqual("expected a name; a type member is written `Stack.name`",
                  err("fn Stack(x) = x")),
-    ?assertEqual("a foreign function declares its return type",
+    ?assertEqual("a foreign function declares its result type",
                  err("foreign fn f(x : Int) = \"m:f/1\"")),
     ?assertEqual("expected `)` instead of `;`", err_expr("f(a;")),
     ?assertEqual("expected an expression instead of end of input", err_expr("1 +")),

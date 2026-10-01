@@ -20,8 +20,9 @@ run of `make test` trusted. Between its items 3 and 4 runs the principles review
 and the guide read against §0 and §0 against what it decided, a milestone of its own below;
 its readers ran on 2026-09-30, on `57b8356`, their findings stand in
 [`findings.md`](findings.md), and [`attack_plan.md`](attack_plan.md) gives the order in which
-they are worked; its phases 1 to 3, the sixteen sentences and MVP 2.99b's items 1 to 3, were
-done on 2026-10-01, and phase 4, the defects and disagreements, is next. Ernest 0.1.0, the
+they are worked; its phases 1 to 4, the sixteen sentences, MVP 2.99b's items 1 to 3, and the
+defects and disagreements, were done on 2026-10-01, and phase 5, the families' rules, decided
+with the user a family at a time, is next. Ernest 0.1.0, the
 first release, is tagged `v0.1.0` and was published on 2026-09-30 with MVP 2.99, the last
 milestone done; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each
 has its paragraph under "Done".

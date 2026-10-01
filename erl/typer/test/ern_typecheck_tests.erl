@@ -794,12 +794,12 @@ local_fn_takes_no_variables_name_test() ->
 
 %% report §3.9
 annotations_are_rigid_test() ->
-    ?assertEqual("the body does not have the declared return type: expected a, found Int",
+    ?assertEqual("the body does not have the declared result type: expected a, found Int",
                  err("fn f(x : a) : a = 1")),
-    ?assertEqual("the body does not have the declared return type: expected a, found b",
+    ?assertEqual("the body does not have the declared result type: expected a, found b",
                  err("fn f(x : a, y : b) : a = y")),
     ?assertEqual("(a) -> a", type_of("export fn id(x : a) : a = x", id)),
-    ?assertMatch("the body does not have the declared return type: " ++ _,
+    ?assertMatch("the body does not have the declared result type: " ++ _,
                  err("fn f(x : Int) : String = x")).
 
 %% report §3.9: a local fn's signature shares the enclosing signature's
@@ -817,9 +817,9 @@ local_fn_signature_shares_variables_test() ->
     ?assertEqual("(a) -> a",
                  type_of("export fn outer(x : a) : a ="
                          " { fn id(y : b) : b = y; let _ = id(1); id(x) }", outer)),
-    ?assertEqual("the body does not have the declared return type: expected b, found a",
+    ?assertEqual("the body does not have the declared result type: expected b, found a",
                  err("fn outer(x : a) : a = { fn g(y : b) : b = x; x }")),
-    ?assertEqual("the body does not have the declared return type: expected b, found Int",
+    ?assertEqual("the body does not have the declared result type: expected b, found Int",
                  err("fn outer(x : a) : a = { fn g(y : b) : b = 1; x }")).
 
 %% report §3.9: polymorphic recursion is refused, even under a full
@@ -843,7 +843,7 @@ polymorphic_recursion_is_refused_test() ->
 block_let_annotation_variables_test() ->
     ?assertEqual("the value does not have the declared type: expected a, found Int",
                  err("fn f(x : a) : Int = { let y : a = 1; y }")),
-    ?assertEqual("the body does not have the declared return type: expected Optional(Int),"
+    ?assertEqual("the body does not have the declared result type: expected Optional(Int),"
                  " found Optional(a)",
                  err("fn f(x : Optional(a), n : Int) : Optional(Int) ="
                      " { let y : a <- Some(n); Some(y) }")),
@@ -1455,7 +1455,7 @@ foreign_types_test() ->
 %% as fault has. A regression test, written after the code, which the
 %% review found stated and untested
 never_is_ordinary_test() ->
-    ?assertEqual("the body does not have the declared return type: expected Int, found Never",
+    ?assertEqual("the body does not have the declared result type: expected Int, found Never",
                  err("fn f(x : Never) : Int = x")),
     ?assertEqual(ok, ok("fn f(x : Never) : Never = x")),
     ?assertEqual(ok, ok("fn f() : Int = fault(\"no\")")).
@@ -1913,10 +1913,10 @@ diag(Text) ->
 leaf_placement_test() ->
     %% the else branch of an `if` in a declared body: the span is the literal
     D1 = diag("fn f(b : Bool) : Int =\n    if b then 1 else \"x\"\n"),
-    ?assertEqual("the body does not have the declared return type: expected Int, found String",
+    ?assertEqual("the body does not have the declared result type: expected Int, found String",
                  D1#diag.message),
     ?assertEqual({2, 22, {2, 25}}, D1#diag.span),
-    ?assertEqual([{{1, 18, {1, 21}}, "declared to return Int here"}], D1#diag.labels),
+    ?assertEqual([{{1, 18, {1, 21}}, "result type Int declared here"}], D1#diag.labels),
     %% the last statement of a block
     D2 = diag("fn f() : Int = { let x = 1; \"x\" }\n"),
     ?assertEqual({1, 29, {1, 32}}, D2#diag.span),

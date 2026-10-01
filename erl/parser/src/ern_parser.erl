@@ -348,7 +348,7 @@ foreign_decl([{foreign, Pos}, {fn, _} | R], Doc, Export) ->
     R4 = expect(R3, ')'),
     {Ret, Effect, R5} = case opt_return(R4) of
                             {undefined, _, _} ->
-                                fail(pos(hd(R4)), "a foreign function declares its return type");
+                                fail(pos(hd(R4)), "a foreign function declares its result type");
                             Ok -> Ok
                         end,
     R6 = expect(R5, '='),
