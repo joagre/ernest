@@ -3427,7 +3427,8 @@ answer_before_end_test() ->
 %% the type it went out at, and foreign at another, so that what is sent
 %% through it is checked against the process's own type. A regression test:
 %% the proxy was undone whatever the type it came back at, and a String
-%% reached a process of Int (findings.md's C1-6)
+%% reached a process of Int (findings.md's C1-6). The first target's end is
+%% waited for, so that its line is written before the program ends
 retyped_address_test() ->
     {ok, Out} = run(
         "type Msg = Ended(Down)\n"
@@ -3437,8 +3438,9 @@ retyped_address_test() ->
         "foreign fn same(addresses : List(Address(Int))) : Address(Int) =\n"
         "    \"erlang:hd/1\"\n"
         "export fn main() : Unit with Msg = {\n"
-        "    let kept = spawn(Local, target);\n"
+        "    let kept = spawnMonitored(Local, target, Ended);\n"
         "    send(same([kept]), 5);\n"
+        "    receive { Ended(_) -> Unit };\n"
         "    let wronged = spawnMonitored(Local, target, Ended);\n"
         "    send(retyped([wronged]), \"x\");\n"
         "    receive { Ended(Down(reason = r)) -> Io.println(Io.show(r)) }\n"
