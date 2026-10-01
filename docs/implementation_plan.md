@@ -207,6 +207,10 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
     and OCaml's `Map.union` pass it (principle 1, E.3), and `Fs.makeHardLink` makes a hard link,
     the host's alone (E.0 rule 1, E.17). Each verdict had rested on a neighbour or a count,
     which phase 6 found (the log's *The Log Read Against Its Reasons*).
+19. **`ern test` over a directory** (0.2.0's N-12), a decision with the user: whether `ern test`
+    takes a directory and runs the tests of every module under it, as `ern build` walks a tree
+    (§11.2), the form a newcomer predicted (principle 1). Recommended: yes, about a day, after
+    the release.
 
 ---
 
