@@ -73,7 +73,6 @@ timing off
 Optional.isNone : (Optional(a!)) -> Bool
 Optional.isSome : (Optional(a!)) -> Bool
 Optional.map : (Optional(a), (a) -> b with e) -> Optional(b) with e
-Optional.orElse : (Optional(a!), Optional(a!)) -> Optional(a!)
 Optional.withDefault : (Optional(a!), a!) -> a!
 > String.trim
 

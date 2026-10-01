@@ -228,7 +228,7 @@ fn prefixExpanded(chars : List(Char), col : Int) : List(Char) =
             || c == '+'
             || c == '.'
             || c == ')'
-            || Char.isAsciiDigit(c) -> c :: prefixExpanded(rest, col + 1)
+            || c >= '0' && c <= '9' -> c :: prefixExpanded(rest, col + 1)
       | other -> other
     }
 
@@ -397,7 +397,7 @@ fn markerOf(s : String) : Optional(Marker) =
         c :: rest when c == '-' || c == '*' || c == '+' -> spaced(None, c, 1, rest)
       | chars -> {
             // a list number is ASCII digits, where `Char.isDigit` is any script's
-            let #(digits, rest) = List.span(chars, Char.isAsciiDigit);
+            let #(digits, rest) = List.span(chars, fn(c) = c >= '0' && c <= '9');
             match rest {
                 d :: later when (d == '.' || d == ')') && digits != [] && List.size(digits) <= 9 ->
                     spaced(String.toInt(String.fromList(digits)), d, List.size(digits) + 1, later)
@@ -918,7 +918,7 @@ fn looksAfter(chars : List(Char), open : List(String)) : List(String) =
     match chars {
         [] -> open
       | '\u{1b}' :: '[' :: rest -> {
-            let #(digits, beyond) = List.span(rest, Char.isAsciiDigit);
+            let #(digits, beyond) = List.span(rest, fn(c) = c >= '0' && c <= '9');
             match beyond {
                 'm' :: more -> looksAfter(more, switched(String.fromList(digits), open))
               | _ -> looksAfter(beyond, open)

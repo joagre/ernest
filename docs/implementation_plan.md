@@ -229,7 +229,6 @@ its examples change together (the attack plan's rules of the road): under E.0 sh
 party, and `Os.start` takes milliseconds that bound a run and not a request (E.18, E.23). Under E.0's rules of
 2026-10-01, `List.<>` is a shim by §9.6 where a list is the language's; `Terminal`'s
 builders write a published specification, ECMA-48, in a standard library module (E.16);
-`Char.isAsciiDigit` stands though no rule admits it;
 and `Udp` waited on a count, dated by the tenth family to MVP 3.2 as a module of Appendix E (the log's *`Clock.monotonic` Is In, and `Udp` Is
 Placed*). Under §8.2's *Text from the host* of 2026-10-01, `Os.environment` leaves out a
 variable whose name or value is not UTF-8 (E.23). Under §6.9's ownership sentence of 2026-10-01, a listener belongs to no one
