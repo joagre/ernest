@@ -288,7 +288,11 @@ declaration, is an error, which §2.2 states and the parser does not yet give, a
 comments; and two refusals of a sound program gain a help line in §11.5 and the checker, a
 recursive call at another type than the definition's naming §3.9's rule and a second function,
 and a reply-carrying value where it would be duplicated or discarded naming its three ways out,
-to answer it, to pass it on once, or to match it; `test/diagnostics.md` follows.
+to answer it, to pass it on once, or to match it; `test/diagnostics.md` follows. Under §6.9's
+ownership sentence, the eighth family's round 2 (2026-10-01, the log's *The Owner Family's
+Rules*): `Down` gains `process : Process`, declared first, the runtime filling it where it
+builds a `Down`, in §9.3, the prelude's declared types and the twelve tests that match one;
+the guide's §5.2 wait shrinks in its pass.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is
