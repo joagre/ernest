@@ -239,7 +239,7 @@ library function of its kind answers `Left` with the cause (§6.6, §7.2, §9.5)
 2026-10-01, `List.<>` is a shim by §9.6 where a list is the language's; `Terminal`'s
 builders write a published specification, ECMA-48, in a standard library module (E.16);
 `Optional.orElse`, `Either.orElse` and `Char.isAsciiDigit` stand though no rule admits them;
-and `Udp` waits on a count (Appendix E, the log's *`Clock.monotonic` Is In, and `Udp` Is
+and `Udp` waited on a count, dated by the tenth family to MVP 3.2 as a module of Appendix E (the log's *`Clock.monotonic` Is In, and `Udp` Is
 Placed*). Under §8.2's *Text from the host* of 2026-10-01, `Fs.list` leaves out an
 entry whose name is not UTF-8 and `Os.environment` a variable whose name or value is not
 (E.17, E.23). Under §6.9's ownership sentence of 2026-10-01, a listener belongs to no one
@@ -292,7 +292,13 @@ to answer it, to pass it on once, or to match it; `test/diagnostics.md` follows.
 ownership sentence, the eighth family's round 2 (2026-10-01, the log's *The Owner Family's
 Rules*): `Down` gains `process : Process`, declared first, the runtime filling it where it
 builds a `Down`, in §9.3, the prelude's declared types and the twelve tests that match one;
-the guide's §5.2 wait shrinks in its pass.
+the guide's §5.2 wait shrinks in its pass. Under E.0's rules, the tenth family's round 2
+(2026-10-01, the log's *The Library Family's Rules*): `styled`, the cursor's moves and the two
+erasures leave E.16 for a terminal library under `libs/`, Ernest over ECMA-48, which the shell, `libs/markdown`
+and `examples/snake.ern` take from the load path, `subscribe`, `size` and `columns` staying;
+`Float.pi` enters E.9 by rule 3's constant; `Io.writeError` enters E.1 as `write`'s error-stream
+twin; `List.dropLast` takes a count as `drop` does, its ten callers writing `1`; and
+`String.words`, the parts between runs of White_Space, enters E.5 and rule 2's text vocabulary.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is
