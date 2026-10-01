@@ -180,7 +180,11 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    2.99b's Questions, One by One*), after reading OTP's *Time and Time Correction*: an alarm
    at a time fires when the clock reaches the time, though the clock is set before it fires,
    and the host's monotonic clock may stop while the machine is suspended, both now stated
-   in E.15.
+   in E.15. The second was decided the same day, after a test: no forwarding launcher, since
+   its cost, a second process for every run, would not fall on the signal in the host's
+   first moments alone, as §0's host paragraph asks, and under systemd's default kill mode the
+   host would be signalled directly anyway; the window is the host's limit, stated in §8.6 and
+   §11.8, and taken to OTP's maintainers (*Standing gaps*).
 7. **Names that read, in Erlang**, about a week: every module under `erl/` and `test/` read
    for its names and renamed where a name does not say what its value or its work is, a
    variable, a function, a record and its fields, by the glossary, which it corrects as it
@@ -208,11 +212,14 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    clock process asks the host to be told of each change of its time offset,
    `erlang:monitor(time_offset, clock_service)`, and re-arms its alarms at a time on each, as
    E.15 states since 2026-10-02, where today an alarm at a time fixes its deadline in monotonic
-   time when it is set; a test delivers the host's notice. Beside item 8, in the same code.
+   time when it is set; a test delivers the host's notice. And Ernest's signal handler is
+   installed as the first thing the host runs, which narrows the window in which OTP's own
+   handler ends a program with status 0 (§8.6). Beside item 8, in the same code.
 10. **A service manager's checks**: a systemd unit, start and stop, a stop asked for ending the
     program by its signal, `Restart=on-failure` after a program ends with `Os.exit(1)`, and the
     journal showing fault lines without a doubled time; and a launchd plist on macOS, with the
-    same checks.
+    same checks. A stop asked for in the host's first fraction of a second is the host's limit
+    (§8.6), not a failure of the checks.
 11. **`set.ern` over its record**: joined item 5 on 2026-10-02 (the log's *The Operations
     Decided and Built*).
 12. **`OrderedSet` in the standard library**: joined item 5 on 2026-10-02.
@@ -541,10 +548,13 @@ the terminal). The rest is MVP 3.3's.
 - **§3.11, §6.7 and §8.7 have no citing test**, which `make sections` lists. All three are MVP
   3.0 and 3.1 material and unbuilt, since 2026-10-01 a spawn on a peer being `Peer.spawn`'s,
   which §8.3 introduces and a test of its refusal cites; anything else it lists is a gap.
-- **A termination or hangup that comes while the host starts**, before any of `ern` runs, is
-  dropped by the host, on this machine in the first 0.2 seconds (report §11). A launcher that
-  passes a signal on to the host until the host has taken it would close it, and is decided in
-  MVP 2.99b's item 6 (2026-09-29, placed there 2026-09-30).
+- **A termination or hangup that comes while the host starts**, before the runtime can take
+  signals, is lost, or ends the program with status 0 and a line of OTP's own, `SIGTERM
+  received - shutting down`; on this machine on 2026-10-02 the window was about a quarter of a
+  second. §8.6 and §11.8 state it as the host's limit since 2026-10-02 (MVP 2.99b's item 6,
+  the log's *MVP 2.99b's Questions, One by One*). Its fix is OTP's, a signal held until the
+  host's signal server runs, which the user takes to OTP's maintainers; item 9 installs
+  Ernest's handler as the first thing the host runs, which narrows the second outcome.
 - **A signal that ends the host while it starts a port**, for a host program, for `ern_exec`,
   or for OTP's lookup of the host's name, leaves a line of OTP's helper on standard error,
   `erl_child_setup: failed with error 32 on line 284`, where §8.6 has the runtime print
