@@ -309,7 +309,11 @@ Under E.1's and §3.8's sentences, the fourteenth and fifteenth families' round 
 log's *The Order, Show and Door Families*): `Io.debug` writes to standard error, with item 13's
 rewrite of its shim, E.1 and the tests that read its output changing with it; and `Foreign.toBytes`
 joins E.12's conversions, a host binary that is not UTF-8 having no other way out of a term,
-with `Foreign.Term`'s edit.
+with `Foreign.Term`'s edit. Under shape rule 2 read per kind (2026-10-01, the log's *The Verb
+Per Kind*): `Fs.create` becomes `Fs.makeFile`, beside `makeDir` and `makeLink`; and `Path.join`
+takes `List(String)`, the inverse of `split`, with `Path.<>` declared in `path.ern` as the two-path
+operation, the second under the first and an absolute second standing alone, its eight callers
+following.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is
