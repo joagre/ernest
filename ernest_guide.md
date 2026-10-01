@@ -2051,28 +2051,7 @@ A bitstring's total width is a whole number of bytes, and a value that does not 
 
 A `Bytes` value is read with the `Bytes` module: `Bytes.size`, `Bytes.get` for one octet, `Bytes.slice`, and `Bytes.toList` for all of them. Text crosses with `String.toUtf8` and `String.fromUtf8`.
 
-A stream of bytes, as `Tcp.read` answers it, is scanned with a pattern, which takes the value apart as it goes, and not octet by octet with `Bytes.get`. A chunk may end inside a line, and inside a character, so lines are split off the bytes before they become text:
-
-```ernest
-// The first line of `bytes`, before its line feed, and what follows the
-// line feed; `None` where no line feed has come yet.
-fn firstLine(bytes : Bytes) : Optional(#(Bytes, Bytes)) =
-    match newline(bytes, 0) {
-        Some(at) -> {
-            let rest = Bytes.slice(bytes, at + 1, Bytes.size(bytes));
-            Some(#(Bytes.slice(bytes, 0, at), rest))
-        }
-      | None -> None
-    }
-
-// Where the first line feed of `bytes` is, counting from `at`.
-fn newline(bytes : Bytes, at : Int) : Optional(Int) =
-    match bytes {
-        <<10, _:bytes>> -> Some(at)
-      | <<_, rest:bytes>> -> newline(rest, at + 1)
-      | _ -> None
-    }
-```
+A stream of bytes, as `Tcp.read` answers it, may end inside a line, and inside a character, so lines are split off the bytes before they become text: `Bytes.split(bytes, <<10>>)` gives the lines, the last part being what has come of the next, as the program of §8.7 does. A frame is taken apart with a pattern, as `parseFrame` does, and not octet by octet with `Bytes.get`.
 
 In a pattern, `size(len)` may name a variable bound by an earlier segment. A `match` over bitstrings ends with a clause that takes anything, as `parseFrame` does, since the checker does not decide whether bitstring patterns cover every `Bytes` value.
 

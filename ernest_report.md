@@ -43,7 +43,7 @@ Five principles. Principles 2 to 5 are constructive; when following them yields 
 
 ## 1. Notation
 
-The grammar is Wirth-style EBNF. `=` defines, juxtaposition concatenates, `|` separates alternatives, `[ ]` is optional, `{ }` is zero or more, `( )` groups, `.` ends a rule. Uppercase names are non-terminals, lowercase names lexical categories. Terminals are in double or single quotes. `ident`, `conname`, `typename`, `typevar`, `binop`, and the literals are defined in §2. The complete grammar is Appendix A.
+The grammar is Wirth-style EBNF. `=` defines, juxtaposition concatenates, `|` separates alternatives, `[ ]` is optional, `{ }` is zero or more, `( )` groups, `.` ends a rule. Uppercase names are non-terminals, lowercase names lexical categories. Terminals are in double or single quotes. `ident`, `conname`, `typename`, `typevar`, `binop`, `userop`, and the literals are defined in §2. The complete grammar is Appendix A.
 
 ## 2. Lexical Elements
 
@@ -234,7 +234,7 @@ A foreign value is bound to the node (§8.3) that made it: transporting a value 
 
 Types are inferred according to Hindley-Milner. A `fn` definition, a top-level `let`, and a `let` in a block that binds a name to a lambda are generalized over their free type variables; another `let` in a block is not, nor is a top-level `let` whose initializer calls a process-only function (§4.6). Type variables in a `fn` signature scope over the whole definition, including the annotations of lambdas, of block `let`s, and of local `fn`s within it. A type variable in an annotation means every type and is rigid. One named first in a lambda's annotation or a block `let`'s belongs to that lambda or binding, and only a generalized one may name it: a lambda that is a `let`'s whole value, at top level or in a block. Elsewhere it is a type error: `List.map(xs, fn(x : a) = x)`. A local `fn`'s signature shares the enclosing signature's variables, and a variable named only in it is the local function's own, rigid and generalized with it as a top-level function's is. Recursive and mutually recursive types are allowed; polymorphic recursion is not, even where the whole signature is written: a recursive call is at the definition's own type. Every type variable in a constructor's fields is a parameter of the type.
 
-**Effect polymorphism.** The mailbox effect of a function type may be a type variable, generalized with the others: `fn apply(f, x) = f(x)` has type `((a) -> b with e, a) -> b with e`. At a call site an effect variable binds to a mailbox type or to pure: `apply(fn(x) = send(a, x), 5)` binds `e` to the mailbox of `send`, `apply(fn(x) = x + 1, 5)` binds `e` to pure. Pure is the absence of `with`; it is not a type. A mailbox type bound this way becomes the caller's. A pure function stands wherever a function of the same type with a mailbox type is expected, and a function with a mailbox type never stands where a pure one is expected. So an expression whose type is a function type without `with` takes a fresh effect variable in its place, which the context binds: with `fn done(n : Int) : Unit = Unit`, `Upgrade(migrate = double, next = done)` binds it to `CounterMsg` (§6.10). Only the expression's own function type takes one. A function type inside it or inside another type, a parameter's, a result's, or a field's, keeps its effect until an expression has it as its own type, as a call or a selection does.
+**Effect polymorphism.** The mailbox effect of a function type may be a type variable, generalized with the others: `fn apply(f, x) = f(x)` has type `((a) -> b with e, a) -> b with e`. At a call site an effect variable binds to a mailbox type or to pure: `apply(fn(x) = send(a, x), 5)` binds `e` to the mailbox of `send`, `apply(fn(x) = x + 1, 5)` binds `e` to pure. Pure is the absence of `with`; it is not a type. A mailbox type bound this way becomes the caller's. A pure function stands wherever a function of the same type with a mailbox type is expected, and a function with a mailbox type never stands where a pure one is expected. So an expression whose type is a function type without `with` takes a fresh effect variable in its place, which the context binds: with `fn double(n : Int) : Int = n * 2` and `fn done(n : Int) : Unit = Unit`, `Upgrade(migrate = double, next = done)` binds it to `CounterMsg` (§6.10). Only the expression's own function type takes one. A function type inside it or inside another type, a parameter's, a result's, or a field's, keeps its effect until an expression has it as its own type, as a call or a selection does.
 
 An effect position is the type after `with`. A value position is an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. A type argument of a built-in or foreign type is a value position. A variable that occurs only in effect positions ranges over the mailbox types and pure. A variable that also occurs in a value position ranges over types alone: `m` in `self : () -> Address(m) with m` is never pure. Inference asks for an annotation in four places: an operator whose operand type nothing in the definition fixes (§4.8), a field selection whose operand type nothing fixes (§3.5), a top-level binding that is not generalized whose type keeps a variable nothing resolves (§4.6), and a `<-` whose sum type is still open (§5.5).
 
@@ -242,7 +242,7 @@ The functions of §9.4 and §9.5 whose own effect is a mailbox type, which are a
 
 A function has one mailbox effect or none. A function may take a pure callback beside an effectful one: in `fn callBoth(p : (Int) -> Int, e : (Int) -> Unit with n) : Unit with n`, `p` is pure, `e` has effect `n`, and the function inherits `n`. Two callbacks whose effects are both variables unify to one effect. Two callbacks with different concrete effects are a type error.
 
-**Inferred restrictions.** An annotation gives a function's shape: arity, argument types, result, mailbox effect. Three restrictions are inferred from the body. A restriction is inferred and never written, but on a foreign type's parameter, where no body shows it (§4.7); each prints with its mark (§11.5). The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is inherited by a function whose body calls a process-only function: `fn wrap(a, v) = send(a, v)` cannot be called from pure code. So one annotation can give two behaviours: `fn h(a : Int) : Unit with e = Unit` can be called from pure code, and the same head over `Io.println("")` cannot. Not-reply-carrying (§6.6) falls on a type variable of a parameter's type when the body, read with that variable as a reply-carrying type, would break §6.6, and on a foreign function's as §4.7 says: use such a value twice or not at all, through a `let` or a pattern as much as by the parameter's name, or put it where §6.6 forbids one. So `fn dup(x) = #(x, x)`, `fn discard(x) = Unit`, `fn keep(x) = { let y = x; Unit }`, and `fn forget(b : Box(a)) : Unit = Unit` cannot take a reply, and `fn id(x) = x` can. `Optional.withDefault : (Optional(a!), a!) -> a!` is restricted, `a!` being how a printed type marks the restriction (§11.5). Each is part of the type scheme and travels with the function value through bindings, branches, and compiled interfaces. Each is checked at instantiation, not at definition. The compiler shows them (§11.5).
+**Inferred restrictions.** An annotation gives a function's shape: arity, argument types, result, mailbox effect. Three restrictions are inferred from the body. A restriction is inferred and never written, but on a foreign type's parameter, where no body shows it (§4.7); each prints with its mark (§11.5). The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is inherited by a function whose body calls a process-only function: `fn wrap(a, v) = send(a, v)` cannot be called from pure code. So one annotation can give two behaviours: `fn h(a : Int) : Unit with e = Unit` can be called from pure code, and the same head over `Io.println("")` cannot. Not-reply-carrying (§6.6) falls on a type variable of a parameter's type when the body, read with that variable as a reply-carrying type, would break §6.6, and on a foreign function's as §4.7 says: use such a value twice or not at all, through a `let` or a pattern as much as by the parameter's name, or put it where §6.6 forbids one. So `fn dup(x) = #(x, x)`, `fn discard(x) = Unit`, `fn keep(x) = { let y = x; Unit }`, and, for `type Box(a) = Box(a)`, `fn forget(b : Box(a)) : Unit = Unit` cannot take a reply, and `fn id(x) = x` can. `Optional.withDefault : (Optional(a!), a!) -> a!` is restricted, `a!` being how a printed type marks the restriction (§11.5). Each is part of the type scheme and travels with the function value through bindings, branches, and compiled interfaces. Each is checked at instantiation, not at definition. The compiler shows them (§11.5).
 
 ### 3.10 Equality and ordering
 
@@ -357,7 +357,7 @@ At top level, `let` binds a `DeclName`: an `ident`, optionally prefixed with a t
 
 ### 4.8 Operators
 
-The arithmetic operators `+`, `-`, `*`, `/`, `%` and `<>` resolve against the operand type. In `a + b`, `+` is `Int.+` when `a : Int` and `Distance.+` when `a : Distance`, for `type Distance = Distance(Int)`. A user type declares its operators in its own module: `export fn Distance.+(Distance(a), Distance(b)) : Distance = Distance(a + b)`. The standard library module of a built-in type declares that type's operators the same way, with the type's name as the prefix: `fn Float.+` in `float.ern` declares `Float.+` (§9.6). In that module the prefix is allowed on an operator only; its other functions are declared unprefixed, `fn abs`. Both operands have one type, which either may determine, and there is no numeric type to generalize over: `fn f(a, b : Int) = a + b` uses `Int.+`. The operand type is determined when its type constructor is known: `xs <> []` is `List.<>`. An operator's result does not determine its operands. An operator is resolved once its definition is inferred, and before the definition is generalized. Its definition is the enclosing `fn` declaration, top-level or local, the enclosing top-level `let`, or a block `let` that binds a lambda, since each is generalized (§3.9, §4.6); any other lambda belongs to the definition it stands in. So `fn add(a, b) = a + b` in a block is a type error, whatever calls it later, and `fn add(a : Int, b : Int) = a + b` is not. An operand type still undetermined then is a type error. A field selection (§3.5) is resolved in the same way, against its operand's type. A member named by an operator has the type `(T, T) -> R` for its type `T`, `T.compare` the type `(T, T) -> Ordering`, and `T.negate` the type `(T) -> R`; each is pure. For a type with parameters, `T` is the type applied to any arguments, the same in each place: `Vec.+` of a type `Vec(a)` has the type `(Vec(a), Vec(a)) -> Vec(a)`. A member of another shape is an error at its declaration.
+The arithmetic operators `+`, `-`, `*`, `/`, `%` and `<>` resolve against the operand type, by *operator resolution*. In `a + b`, `+` is `Int.+` when `a : Int` and `Distance.+` when `a : Distance`, for `type Distance = Distance(Int)`. A user type declares its operators in its own module: `export fn Distance.+(Distance(a), Distance(b)) : Distance = Distance(a + b)`. The standard library module of a built-in type declares that type's operators the same way, with the type's name as the prefix: `fn Float.+` in `float.ern` declares `Float.+` (§9.6). In that module the prefix is allowed on an operator only; its other functions are declared unprefixed, `fn abs`. Both operands have one type, which either may determine, and there is no numeric type to generalize over: `fn f(a, b : Int) = a + b` uses `Int.+`. The operand type is determined when its type constructor is known: `xs <> []` is `List.<>`. An operator's result does not determine its operands. An operator is resolved once its definition is inferred, and before the definition is generalized. Its definition is the enclosing `fn` declaration, top-level or local, the enclosing top-level `let`, or a block `let` that binds a lambda, since each is generalized (§3.9, §4.6); any other lambda belongs to the definition it stands in. So `fn add(a, b) = a + b` in a block is a type error, whatever calls it later, and `fn add(a : Int, b : Int) = a + b` is not. An operand type still undetermined then is a type error. A field selection (§3.5) is resolved in the same way, against its operand's type. A member named by an operator has the type `(T, T) -> R` for its type `T`, `T.compare` the type `(T, T) -> Ordering`, and `T.negate` the type `(T) -> R`; each is pure. For a type with parameters, `T` is the type applied to any arguments, the same in each place: `Vec.+` of a type `Vec(a)` has the type `(Vec(a), Vec(a)) -> Vec(a)`. A member of another shape is an error at its declaration.
 
 `!` is negation on `Bool`, the prefix operator beside the logical operators `&&` and `||`, and `Bool.not` (E.7) is the same operation as a function, as `Int.negate` is of prefix `-`. `==`, `!=`, `<`, `<=`, `>`, `>=`, `&&`, and `||` cannot be defined per type: equality is structural and ordering goes through `compare` (§3.10); `&&` and `||` short-circuit on `Bool`. An operator is declared with `fn`; `let T.op` is an error. `::` is cons (§3.3); `|>` is a syntactic form (§5.7). The operators are the closed set of §2.6, and every other operation is a function. An operator the language resolves against its operand's type is resolved where that type is known, is a type error on a type variable, and carries no hidden argument; `==` compares structurally, or exactly on a foreign type and `Process` (§3.10), and needs none.
 
@@ -416,7 +416,7 @@ Strict, left to right, arguments before the call. A callee is evaluated before i
 
 ### 5.3 Lambda
 
-`fn(x) = e` is an anonymous function. Its body is the longest `Expr` at the same nesting level, ending at the first delimiter of the enclosing form: `,`, `;`, `:`, `|`, `->`, `)`, `{`, `}`, `]`, `>>`, `then`, or `else`. A `{` ends the body where the lambda is the value a `match` matches (§5.9), and a `:` where it is a bitstring segment's (§5.11). A `{` that begins the body opens a block (§5.4), which is the body.
+`fn(x) = e` is an anonymous function. Its body is the longest `Expr` at the same nesting level, ending at the first delimiter of the enclosing form: `,`, `;`, `:`, `|`, `->`, `)`, `{`, `}`, `]`, `>>`, `then`, or `else`. A `{` ends the body where the lambda is the value a `match` matches (Appendix A's `MatchExpr`), and a `:` where it is a bitstring segment's (§5.11). A `{` that begins the body opens a block (§5.4), which is the body.
 
 ### 5.4 Blocks
 
@@ -432,7 +432,7 @@ In `let p : T <- e`, `T` is the type of `p`, the value inside. The sum type is d
 
 ### 5.6 Construction
 
-`Some(e)`, `None`, `Snapshot(dir = d, seen = s)`. All fields are given, each once. `Snapshot(..p, seen = s)` takes the unlisted fields from `p`; at least one field follows `..`. `..` is allowed only on a type with one constructor; on any other it is a type error. A constructor is qualified like a function, `Net.Http.Request(...)`.
+`Some(e)`, `None`, `Snapshot(dir = d, seen = s)`. All fields are given, each once. `Snapshot(..p, seen = s)`, a *record update*, takes the unlisted fields from `p`; at least one field follows `..`. `..` is allowed only on a type with one constructor; on any other it is a type error. A constructor is qualified like a function, `Net.Http.Request(...)`.
 
 A nullary constructor is a value. A single-positional constructor is a function value. A named constructor is neither; it appears only in construction syntax. A qualified operator is a function value, `Int.+`.
 
@@ -452,7 +452,7 @@ let words = input |> String.trim |> String.toLower |> String.toList
 
 ### 5.9 `match`
 
-A `match`, like a `receive` (§6.3) and a block, ends at its own `}` and may stand as an operand: `n > 0 && match x { ... }`. `if` and a lambda end in no delimiter of their own, and stand as an operand only in parentheses. The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A clause may list several patterns separated by `or`, and matches when any of them does: for `type Player = Player(alive : Bool, body : List(Int))`, `Player(alive = false) or Player(body = []) -> 0` matches a player that is not alive or has no body. Every alternative binds the same variables at the same types; the guard and the body see them. Alternatives that bind different variables are a type error. The clauses together must cover the type, and a `match` that does not is a type error; guards do not count toward coverage. `true` and `false` together cover `Bool`. A clause, or an alternative of one, is *redundant* when it can match no value the clauses and alternatives before it leave unmatched, and a redundant clause is a type error: `n -> n | 0 -> 1`. A guarded clause leaves every value its pattern matches. For redundancy, a bitstring pattern in an earlier clause is taken to match no value, and one in the clause being judged to match any value. A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise, and is restricted further (§6.3).
+A `match`, like a `receive` (§6.3) and a block, ends at its own `}` and may stand as an operand: `n > 0 && match x { ... }`. `if` and a lambda end in no delimiter of their own, and stand as an operand only in parentheses. The value is matched against the clauses' patterns in order; the first clause whose pattern matches and whose guard holds is evaluated. A clause may list several patterns separated by `or`, an *or-pattern*, and matches when any of them does: for `type Player = Player(alive : Bool, body : List(Int))`, `Player(alive = false) or Player(body = []) -> 0` matches a player that is not alive or has no body. Every alternative binds the same variables at the same types; the guard and the body see them. Alternatives that bind different variables are a type error. The clauses together must cover the type, and a `match` that does not is a type error; guards do not count toward coverage. `true` and `false` together cover `Bool`. A clause, or an alternative of one, is *redundant* when it can match no value the clauses and alternatives before it leave unmatched, and a redundant clause is a type error: `n -> n | 0 -> 1`. A guarded clause leaves every value its pattern matches. For redundancy, a bitstring pattern in an earlier clause is taken to match no value, and one in the clause being judged to match any value. A guard is a `Bool` expression with no mailbox effect that sees the pattern's variables and the enclosing scope. A guard that is `false` falls through to the next clause; a guard that faults faults the process. A `receive` guard falls through likewise, and is restricted further (§6.3).
 
 ### 5.10 Patterns
 
@@ -684,7 +684,7 @@ The runtime starts its system processes when the program starts, whether or not 
 
 **Standard input.** Standard input is read as UTF-8, whatever the host's locale. `stdin` answers each request with the next line, without its line feed and without one carriage return before the line feed, and with `None` at end of input. A last line without a line feed is a line, and keeps a carriage return it ends in. A line that is not UTF-8 faults the process that asked for it with `Fault("the standard input is not UTF-8")` (§7.4). A standard input that cannot be read faults the entry process (§7.4). A request for bytes is answered with what has arrived, at least one byte, and `None` at end of input. A line is read whole however long it is; a program that reads input of a size it does not trust reads bytes. Lines and bytes are read from one stream, each request taking up where the one before it stopped.
 
-**The terminal.** The terminal sends each subscriber an `Event` for every key pressed and for every change of the terminal's size. A process holds one subscription to the terminal: a second `Terminal.subscribe` replaces the first, and its wrap is the one used from then on. A subscription ends when its process dies or restarts (§6.9). Where standard input is not a terminal, a subscription is refused with `Left(NotATerminal)` and claims nothing, whether or not a line or bytes were read before it. The terminal answers a request for the size with the size now, and with `None` where standard output is not a terminal or its size is unknown. The terminal and standard input are one terminal, read as keys or as lines: a subscription that is granted claims it for keys, and a read of a line or of bytes claims it for lines. Keys are read as UTF-8 too, and keys that are not UTF-8 fault the entry process with `Fault("the standard input is not UTF-8")`. The first claim stands, and a claim the other way faults the process that makes it (§7.4). A subscription after a line or bytes were read faults the subscriber with `Fault("the terminal is already read as lines")`. A read of a line or of bytes after a subscription was granted faults the reader with `Fault("the terminal is already read as keys")`.
+**The terminal.** The terminal sends each subscriber an `Event` (Appendix E.16) for every key pressed and for every change of the terminal's size. A process holds one subscription to the terminal: a second `Terminal.subscribe` replaces the first, and its wrap is the one used from then on. A subscription ends when its process dies or restarts (§6.9). Where standard input is not a terminal, a subscription is refused with `Left(NotATerminal)` and claims nothing, whether or not a line or bytes were read before it. The terminal answers a request for the size with the size now, and with `None` where standard output is not a terminal or its size is unknown. The terminal and standard input are one terminal, read as keys or as lines: a subscription that is granted claims it for keys, and a read of a line or of bytes claims it for lines. Keys are read as UTF-8 too, and keys that are not UTF-8 fault the entry process with `Fault("the standard input is not UTF-8")`. The first claim stands, and a claim the other way faults the process that makes it (§7.4). A subscription after a line or bytes were read faults the subscriber with `Fault("the terminal is already read as lines")`. A read of a line or of bytes after a subscription was granted faults the reader with `Fault("the terminal is already read as keys")`.
 
 **Keys.** A subscription is answered once the terminal is in the mode the keys need: nothing typed after `subscribe` returns is echoed. While a program is subscribed, the terminal delivers each key as it is pressed and does not echo it, and the runtime gives the terminal back with the settings the program found when the program ends. A key the terminal sends as one character arrives as `Key` of it, a control character among them: Enter is `Key('\r')`, or `Key('\n')` where the terminal sends a line feed, Backspace `Key('\u{7f}')` or `Key('\u{8}')`, and Tab `Key('\t')`. The escape character begins a sequence: an arrow's arrives as the arrow, and one the runtime does not name as `Escape` and the characters after it. `Escape` is delivered once no escape sequence can still follow it. The terminal applies each subscriber's wrap itself, keeping its keys in order. A wrap that does not finish delays that subscriber's keys and no other's.
 
@@ -1175,7 +1175,7 @@ fn submitter(worker : Address(WorkerMsg)) : Unit with Never = {
 
 ## Appendix D. A Foreign Library
 
-A library over Erlang's `ets`, tables of type `set`, outside the standard library; a program adds its compiled root to the load path (§11.1, §11.2). Raw bindings are module-local, unqualified; the library is ordinary Ernest over them. The values `ets` returns match the ABI of §8.4 without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and `[{K, V}]` is `List(#(k, v))`. An API that answers Erlang's `{ok, V} | {error, R}` needs the helper E.19 describes; the `ets` calls below do not use that convention.
+A library over Erlang's `ets`, tables of type `set`, outside the standard library; a program adds its compiled root to the load path (§11.1, §11.2). Raw bindings are module-local, unqualified; the library is ordinary Ernest over them. The values `ets` returns match the ABI of §8.4 without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and `[{K, V}]` is `List(#(k, v))`. An API that answers Erlang's `{ok, V} | {error, R}` needs an Erlang helper that rewrites the answer, as E.19 says; the `ets` calls below do not use that convention.
 
 ```ernest
 // ets.ern  (namespace Ets)
@@ -1754,6 +1754,7 @@ Os.run : (Command, Int) -> Either(Io.Error, Finished) with m
 Every technical term this report introduces, with a gloss and the section that defines it; the section is normative.
 
 - **abstract type** — a sum type whose constructors are visible only in the module that declares it. §3.6, §4.4.
+- **adapted address** — an address `via` makes, whose function turns what is sent to it into the target's message. §6.5.
 - **address** — `Address(m)`, a reference to a process that receives values of type `m`. §3.7, §6.5.
 - **admission rule** — one of the four rules that decide whether a function enters the standard library. Appendix E.0.
 - **`after`** — the last clause of a `receive`, taken when no message arrives within its time. §6.3.
@@ -1761,16 +1762,20 @@ Every technical term this report introduces, with a gloss and the section that d
 - **`as`** — `p as x`, a pattern that binds `x` to the whole value `p` matches. §5.10.
 - **binding** — a `let` in a block, `let p = e` or `let p <- e`. §4.6, §5.5.
 - **bitstring** — a bit-level value or pattern `<<...>>` that produces or matches a `Bytes` value. §5.11.
+- **block** — `{ s1; s2; e }`, statements separated by `;`, whose value is its last. §5.4.
 - **build root** — the directory a build writes its `.erc` files under, `--build-root`, mirroring the source root. §11.1.
 - **`Bytes`** — the type of an octet sequence. §3.1.
+- **child** — a process of a `Supervisor`'s group, which its supervisor restarts. Appendix E.22.
 - **clause** — one pattern-branch of a `match` or `receive`. §5.9, §6.3.
 - **code replacement** — a running process going on in a new function it received in a message. §6.10.
 - **compare** — the per-type function that produces `Ordering`. §3.10.
+- **compiled interface** — what a compiled module records of what it exports, their types and schemes, against which a module that uses it is checked. §3.9, §11.1.
 - **concat operator** — `<>`, resolved per type. §4.8.
+- **configuration directory** — the directory that holds a node's `ernest.conf`, its private key, and its `startup` file, `./.ernest` unless `--config-dir` names another. §11.2, §11.3.
 - **cons operator** — `::`, list-prepend, right-associative. §3.3, §5.10.
-- **configuration directory** — the directory that holds a node's `ernest.conf`, its private key, and its `startup` file, `./.ernest` unless `--config-dir` names another. §11.3.
 - **constructor** — a case of a sum type; a value, a function, or a construction form. §3.5, §5.6.
 - **consumed** — of a reply-carrying value: answered, or handed on by one of the uses §6.6 lists, exactly once on every path. §6.6.
+- **container** — a type of the kind that holds elements and provides the container operations, a list, a map, a set. Appendix E.0.
 - **content addressing** — naming a definition or type by the hash of its content. §8.7.
 - **deadlock** — no process can progress. §8.6.
 - **doc block** — consecutive `///` lines, read as CommonMark. §2.2.
@@ -1782,9 +1787,13 @@ Every technical term this report introduces, with a gloss and the section that d
 - **equality constraint** — the restriction on a type variable compared with `==`, or on a foreign type's parameter written `k=`. §3.10, §4.7.
 - **fault** — a process death with the reason `Fault(cause)`. §7.3, §7.4.
 - **field selection** — `e.f`, the named field `f` of `e`, where every constructor of the type has it. §3.5.
+- **foreign address** — an address foreign code gave that names no process of the program; what is sent to it crosses into foreign code. §8.4.
 - **foreign function** — declared `foreign fn`; body is a string reference to a runtime implementation. §4.7.
+- **foreign process** — a process foreign code runs, whose messages are checked where they are delivered. §8.4.
 - **foreign type** — declared `foreign type T`; values are made and used only by foreign functions. §3.8, §4.7.
-- **generalization** — quantifying free type variables in a `fn` definition or a top-level `let`. §3.9, §4.6.
+- **generalization** — quantifying free type variables in a `fn` definition, a top-level `let`, or a block `let` that binds a lambda. §3.9, §4.6.
+- **grapheme** — an extended grapheme cluster, what a reader sees as one letter, which `String`'s sizes and indices count. Appendix E.5.
+- **group** — the processes a `Supervisor` restarts together, its children. Appendix E.22.
 - **guard** — a `when` expression on a `match` or `receive` clause. §5.9.
 - **guard expression** — the form of a `receive` guard. §6.3.
 - **Hindley-Milner** — the type system Ernest uses; inference asks for an annotation only where §3.9 says. §3.9.
@@ -1794,6 +1803,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **lambda** — an anonymous function, `fn(x) = e`. §5.3.
 - **line mode** — the shell reading lines and editing none, when its input or output is not a terminal. §11.2.
 - **literal** — a token that stands for an `Int`, `Float`, `Char`, `String`, or `Bool` value. §2.5.
+- **live region** — the shell's rows below what it has written, where the line being typed stands. §11.2.
 - **load path** — the roots a program's modules are found under by their namespaces, the standard library's among them. §11.1, §11.2.
 - **mailbox** — the queue of values a process receives. §6.
 - **mailbox type** — the `M` in `(A) -> B with M`; the type of the process's mailbox. §6.1.
@@ -1808,6 +1818,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **obligation** — a binding of a reply-carrying value, consumed exactly once on every path. §6.6.
 - **operator resolution** — per-type dispatch of arithmetic and `<>` to `Type.<op>`. §4.8.
 - **or-pattern** — patterns joined by `or` in one clause, which matches when any of them does. §5.9.
+- **owner** — the process that opened a resource or was given it, with which the resource ends. §6.9, Appendix E.18.
 - **pattern** — decomposes a value and binds its parts. §5.10.
 - **peer** — another node the runtime knows by name. §6.2, §8.3.
 - **pipe** — the `|>` operator, `x |> f` = `f(x)`. §5.7.
@@ -1821,6 +1832,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **process-only** — a function whose effect variable cannot be pure. §3.9.
 - **pure function** — a function without a mailbox type; result depends only on arguments. §0, §6.1.
 - **qualified name** — a name with a dotted namespace prefix, `Net.Http.parse`. §2.3, §4.2.
+- **raw string** — a `String` literal between backquotes, its text taken as written. §2.5.
 - **`receive`** — a match over the mailbox. §6.3.
 - **record update** — `C(..p, f = v)`, a construction whose unlisted fields are `p`'s. §5.6.
 - **redundant** — of a clause or an alternative: able to match no value those before it leave. §5.9.
@@ -1831,16 +1843,26 @@ Every technical term this report introduces, with a gloss and the section that d
 - **reserved word** — a word the grammar keeps for itself. §2.4.
 - **restart** — `restarting`'s run of its function again after a fault, or when a `Supervisor` asks, in the same process with its address, its mailbox emptied. §6.9.
 - **restart limit** — `RestartLimit(restarts, within)`, how many faults a restarting function or a group takes within a time, or `Unlimited`. §6.9, Appendix E.22.
+- **rigid** — of a type variable an annotation names, which means every type. §3.9.
 - **runtime** — the system that runs Ernest programs. §10.
+- **scrutinee** — the value a `match` matches. §5.9.
+- **segment** — a part of a qualified name between dots (§4.2), of a bitstring (§5.11), or of a path (Appendix E.14).
+- **selector** — `.f` after a value, selecting its field `f`. §3.5.
 - **`self`** — `self()`, the current process's own address. §6.2.
 - **`send`** — `send(a, v)`, places `v` in the mailbox of `a`. §6.2.
+- **sequence** — a container with order and position, a list, whose vocabulary adds `reverse`, `take` and the rest. Appendix E.0.
 - **service** — a top-level binding that holds a process's address. §6.5.
 - **shape rule** — one of the nine rules that give a function of the standard library its shape. Appendix E.0.
+- **shim** — a primitive written as a `foreign fn` over the host or as a request to a system process. Appendix E.0.
 - **source root** — the directory under which a file's path gives its namespace. §4.2, §11.1.
 - **`spawn`** — `spawn(w, f)`, starts a new process; `spawnMonitored(w, f, wrap)` starts one monitored from its start. §6.2.
 - **spawn site** — the top-level declaration and the line a process was spawned at, `Counter.main:19`, which `Down` and a fault report give. §6.9.
 - **standard library** — the modules under `stdlib/`, on the load path by default; not the prelude. §9, Appendix E.
+- **startup file** — a file of the shell's inputs, run when the shell starts. §11.2.
+- **statement** — a part of a block, an expression, a `let`, or a `fn`. §5.4.
+- **strategy** — what a `Supervisor`'s group restarts when a child faults. Appendix E.22.
 - **structural equality** — the meaning of `==`; two values are equal when they are built by the same constructor from equal parts. §3.10.
+- **subscription** — a process's standing request to the terminal for its events or to the runtime for its faults, ended when the process dies or restarts. §8.2, Appendix E.21.
 - **sum type** — a type with one or more constructors. §3.5.
 - **supervisor** — a process that restarts a group of processes, its children, together; the standard library's `Supervisor`. Appendix E.22.
 - **system module** — the standard library module that holds a system reference, through which a program uses it. §8.2, Appendix E.0.
@@ -1851,10 +1873,12 @@ Every technical term this report introduces, with a gloss and the section that d
 - **top-level binding** — a value bound at file scope by a `let`. §4.6, §8.5.
 - **tuple** — a positional product, `#(a, b)`, `#(a, b, c)`, `#(a)`. §3.2.
 - **type member** — a name declared with its type's prefix, `fn Distance.+`, in the type's nested namespace. §4.2.
+- **type scheme** — a type with its quantified variables and their inferred restrictions, as a generalized binding has. §3.9.
 - **type variable** — a lowercase identifier in type position; universally quantified in a `fn` or a top-level `let`. §3.9.
 - **`Unit`** — the type with the single value `Unit`. §3.1, §9.3.
 - **value position** — an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. §3.9.
 - **`via`** — `via(f, addr)` is the address `addr` seen through `f`. §6.5, §9.5.
+- **vocabulary** — the operations a kind of type provides by its structure, named alike in every module that has them. Appendix E.0.
 - **`Where`** — where a spawn starts its process: `Local`, or `Peer(name)` on a peer. §6.2.
 - **wildcard** — the pattern `_`; matches anything, binds nothing. §2.3, §5.10.
 - **`with`** — the mailbox-type marker on a function type, `with M`. §3.4, §6.1.
