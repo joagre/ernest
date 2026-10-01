@@ -116,6 +116,18 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    file, and before the Ernest renaming, which may give a module a name of two words. Moved
    before the operations' decision on 2026-10-01, since it is decided, needs nothing before
    it, and gives that decision a file that exists (the log's *The Namespace Item First*).
+
+   With it, in the same code, a defect found 2026-10-02 (the log's *A Type Reached Through
+   Another Module's Interface*): the build gives the checker the interfaces of the modules a
+   source names, and none of the modules whose types those interfaces name. A program that
+   receives `Boxes.Box`, a type whose field holds a function, from `Maker.make()` without
+   naming `Boxes` compiles `Maker.make() == Maker.make()` and runs it, which §3.10 makes a
+   type error, and selects no field of such a type. §11.1 gains the sentence that a module
+   depends on each module that declares a type named in the interface of a module it depends
+   on; `ern build`, `ern run`'s check, `:load` and the shell give the checker those interfaces
+   and rebuild when they change; and the checker no longer reads a type it has no
+   declaration for as a built-in one, which made its equality check pass, but fails as the
+   toolchain's own defect. A regression test for each of the three.
 5. **The operations, decided and built**, decided with the user before anything of it is built
    (language feedback 64, 70 and 71), and then built. Two parts were decided by the
    principles review on 2026-10-01 (the log's *Members, Operators, and No Hidden Argument*): a
