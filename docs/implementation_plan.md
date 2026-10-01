@@ -22,7 +22,8 @@ its readers ran on 2026-09-30, on `57b8356`, and it was worked on 2026-10-01 in 
 and closed (the log's *The Attack Plan* and *The Principles Review Closed*); the review before
 a release ran the same day, and Ernest 0.2.0, the second release, is tagged `v0.2.0` on
 2026-10-01 (the log's *The Release Review Before 0.2.0*), the last milestone done; MVP 2.99b
-resumes at item 4. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+resumes at item 4, the namespace of two words, and then the operations' decision, item 5.
+Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -71,10 +72,13 @@ moved from MVP 2.7 on 2026-09-27 (the log's *Running as a Service*), from MVP 3.
 2026-09-28, since it needs no peer (the log's *MVP 3.0 Is Distributed Code and the Node
 Protocol*), and from MVP 2.99 on 2026-09-29, so that the first release came first. The items
 run in this order, each needing the ones before it (the log's *MVP 2.99b's Order*): the tests
-trusted, then every decision, then the Erlang renamed, then what is built, then the Ernest
-renamed over it, then the guide, and the soak last. The principles review, a milestone of its
-own below, runs between items 3 and 4, since item 4 is decided under the principles it
-sharpens (decided 2026-09-30, the log's *The Principles Review*).
+trusted, then the namespace of two words, decided already and needing nothing before it, then
+every other decision, then the Erlang renamed, then what is built, then the Ernest renamed
+over it, then the guide, and the soak last; the namespace moved from the tenth item to the
+fourth on 2026-10-01, items 4 to 9 becoming 5 to 10 (the log's *The Namespace Item First*).
+The principles review, a milestone of its own below, ran between items 3 and 4, since the
+operations' decision, item 5, is decided under the principles it sharpens (decided
+2026-09-30, the log's *The Principles Review*).
 
 1. **The host's port helper's intermittent failure**, done 2026-10-01 (the log's *A Port Lost
    While It Starts*). The line `interrupt_test_` met is the child OTP's helper forks for a
@@ -88,7 +92,7 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    *The Glossary Drafted*). [`style.md`](style.md)'s *Glossary* names the concepts several
    modules name, one name each, the report's where it has one; in the six places the code
    departed from the report, the report's word was taken with the user, and the user read the
-   guide and the glossary the same day. Items 6 and 15 correct it as they read the code name by
+   guide and the glossary the same day. Items 7 and 15 correct it as they read the code name by
    name, each area's commit carrying its change. Three diagnostics say "return type" or
    "declared to return" where the report says result type; they are text a user reads, not
    names, and change in the attack plan's phase 4 with the defects, the tests and
@@ -97,7 +101,18 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    Release Review's Harder Places*): of the fourteen lines of [`findings.md`](findings.md)
    marked `2.99b` that are not hardening, two are language feedback 75 and 76, decided in the
    attack plan's phase 5, and twelve are dropped there with their reasons.
-4. **The operations' decision**, taken with the user before anything of it is built (language
+4. **A file's words joined by `_` name one namespace segment** (decided 2026-09-29, the log's
+   *A Namespace From Words Joined by `_`*): `ordered_set.ern` provides `OrderedSet`, each
+   word capitalized and the `_` dropped, a directory's name too, `net/http_client.ern`
+   providing `Net.HttpClient`. §4.2's and §11.1's path shape gain it, a word being a
+   lowercase letter followed by lowercase letters and digits and a `_` standing only between
+   two words, so that no two files name one namespace (language feedback 74, decided with
+   the user 2026-09-30); `ern build`, `:load`, completion, `ern doc` and the manual pages'
+   names follow, the shell finding `ordered_set.ern` for `OrderedSet`. Before item 12's
+   file, and before the Ernest renaming, which may give a module a name of two words. Moved
+   before the operations' decision on 2026-10-01, since it is decided, needs nothing before
+   it, and gives that decision a file that exists (the log's *The Namespace Item First*).
+5. **The operations' decision**, taken with the user before anything of it is built (language
    feedback 64, 69 to 71, and 73). Two parts were decided by the principles review on 2026-10-01
    (the log's *Members, Operators, and No Hidden Argument*): a type's operations are functions
    of its module, a member only an operator, `compare` or `negate`, which decides **when a
@@ -122,21 +137,21 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    2026-09-29 stand: `put` keeps the element already in the set, and `foldLeft` is written
    once over `toList`, outside the record. The ordered set's representation is the note's
    open question.
-5. **The service's two decisions, with the user**: what an alarm at a time does when the
+6. **The service's two decisions, with the user**: what an alarm at a time does when the
    host's wall clock jumps, since deadlines use the monotonic clock and a time does not
    (`Clock.alarmAt`, Appendix E.15); and whether a launcher passes a termination or hangup
    that comes while the host starts, which the host drops (*Standing gaps* below), on to the
    host until the host has taken it, at the price of a second process between a service
    manager and the program.
-6. **Names that read, in Erlang**, about a week: every module under `erl/` and `test/` read
+7. **Names that read, in Erlang**, about a week: every module under `erl/` and `test/` read
    for its names and renamed where a name does not say what its value or its work is, a
    variable, a function, a record and its fields, by the glossary, which it corrects as it
    goes (item 2), each name that differs from the report's brought to the user. Area by area, a commit each that changes names and nothing else, the area's tests green before the next; the code grows
    longer, and the line stays at 100 characters. Before the toolchain's changes below, so that
    they are written in the new names.
-7. **The hardening the code readers found** (C1-5, C1-9, C1-10, C3-26 to C3-31; and 0.2.0's C-1,
+8. **The hardening the code readers found** (C1-5, C1-9, C1-10, C3-26 to C3-31; and 0.2.0's C-1,
    a read's and a write's timers in `Os` and a write's in `Tcp` cancelled when the request is
-   answered, as the socket's read cancels its own), in the new names; `findings.md` goes when this item and items 6, 15, 19 and 20 are done, with MVP 2.99b. With it the shell's and `ern
+   answered, as the socket's read cancels its own), in the new names; `findings.md` goes when this item and items 7, 15, 19 and 20 are done, with MVP 2.99b. With it the shell's and `ern
    test`'s `persistent_term` replaced at each input and each test, each replacement a scan of
    every process by the host (C3-39): what changes per input or per test moves to a table, and
    what a binding's holder keeps, which a read must not copy, is measured against a table and
@@ -147,22 +162,13 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    holds the bytes is found by sampling the reaper's `monitored_by` and its collection's figures
    at such a round, its stack ruled out (nine words), and the measure counts what holds a wait
    and nothing else.
-8. **The runtime's part of running as a service**: what item 5's decisions build, and
+9. **The runtime's part of running as a service**: what item 6's decisions build, and
    standard error on a full or failing disk ending the run with status 141, as §8.2 says;
-   beside item 7, in the same code.
-9. **A service manager's checks**: a systemd unit, start and stop, a stop asked for ending the
-   program by its signal, `Restart=on-failure` after a program ends with `Os.exit(1)`, and the
-   journal showing fault lines without a doubled time; and a launchd plist on macOS, with the
-   same checks.
-10. **A file's words joined by `_` name one namespace segment** (decided 2026-09-29, the log's
-    *A Namespace From Words Joined by `_`*): `ordered_set.ern` provides `OrderedSet`, each
-    word capitalized and the `_` dropped, a directory's name too, `net/http_client.ern`
-    providing `Net.HttpClient`. §4.2's and §11.1's path shape gain it, a word being a
-    lowercase letter followed by lowercase letters and digits and a `_` standing only between
-    two words, so that no two files name one namespace (language feedback 74, decided with
-    the user 2026-09-30); `ern build`, `:load`, completion, `ern doc` and the manual pages'
-    names follow, the shell finding `ordered_set.ern` for `OrderedSet`. Before item 12's
-    file, and before the Ernest renaming, which may give a module a name of two words.
+   beside item 8, in the same code.
+10. **A service manager's checks**: a systemd unit, start and stop, a stop asked for ending the
+    program by its signal, `Restart=on-failure` after a program ends with `Os.exit(1)`, and the
+    journal showing fault lines without a doubled time; and a launchd plist on macOS, with the
+    same checks.
 11. **`set.ern` over its record**: `Set.Operations(s, a)` with `Set`'s six primitives,
     `Set.operations`, the functions written once as functions of the module named with
     `With`, the record after the subjects, and each of `Set`'s own a call of one.
@@ -193,9 +199,9 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
     does the checker's case for them; an operator costs what it costs now, which `make bench`
     measures. After item 13 and before item 15, so that the Ernest is read as it stays.
 15. **Names that read, in Ernest**: the standard library, the shell, the libraries and the
-    examples, read and renamed as item 6 renames the Erlang, a type, a constructor and a field
+    examples, read and renamed as item 7 renames the Erlang, a type, a constructor and a field
     among the names, the glossary corrected as it goes and each name that differs from the
-    report's brought to the user, after items 10 to 14 so that the code they write is read once with the
+    report's brought to the user, after items 11 to 14 so that the code they write is read once with the
     rest. A name the report states, an exported function's or a constructor's, changes only
     through the report. Among it the shell's `obey`, which writes each refusal eight times,
     the editor's names that mean two things, `back`, `from` and `step`, and what
@@ -203,7 +209,7 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
 16. **The guide's §7.3**, over the finished code and its names: it says "operations record"
     and shows code written once, a representation's own functions beside the record's, two
     ordered sets of two orders, two element types, that cannot meet in `union`, and values of
-    several representations in one list, and §7.2 states item 4's rule for a type's operations. Its examples compile and run
+    several representations in one list, and §7.2 states item 5's rule for a type's operations. Its examples compile and run
     under the guide's checks. What Ernest cannot express goes to
     [`language_feedback.md`](language_feedback.md) and is decided with the user before the
     section goes around it. The guide's §7.3 was decided 2026-09-28 (the log's *§7.3 Written
@@ -226,7 +232,7 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
     refused under a full signature, §2.2's blank line that gives the first doc block to the
     module, and `spawnMonitored` with `Unknown`. Each is decided as item 3 decided the first
     release's fourteen: a report change, a "Later" entry, or a line that it was weighed and
-    left alone, with the user one at a time; about two days, after item 4, whose decision
+    left alone, with the user one at a time; about two days, after item 5, whose decision
     entries 64 to 73 wait on. With it `language_feedback.md` holds no entry and `findings.md`
     goes (the log's *Both Lists Close With MVP 2.99b*).
 
@@ -497,7 +503,7 @@ the terminal). The rest is MVP 3.3's.
 - **A termination or hangup that comes while the host starts**, before any of `ern` runs, is
   dropped by the host, on this machine in the first 0.2 seconds (report §11). A launcher that
   passes a signal on to the host until the host has taken it would close it, and is decided in
-  MVP 2.99b's item 5 (2026-09-29, placed there 2026-09-30).
+  MVP 2.99b's item 6 (2026-09-29, placed there 2026-09-30).
 - **A signal that ends the host while it starts a port**, for a host program, for `ern_exec`,
   or for OTP's lookup of the host's name, leaves a line of OTP's helper on standard error,
   `erl_child_setup: failed with error 32 on line 284`, where §8.6 has the runtime print
@@ -740,7 +746,7 @@ second job (E.17); a socket is owned by the process that opened it, and `Tcp.giv
 on (E.18); an address foreign code gives back is the program's own only at the type it went
 out at (§8.4); a bitstring literal that does not fit is a compile-time error (§5.11); and
 `Prelude.T.name` reaches the standard library's namespaces (§4.2). What the review left is
-MVP 2.99b's, its first, third and seventh items, and [`findings.md`](findings.md) holds it
+MVP 2.99b's, its first, third and eighth items, and [`findings.md`](findings.md) holds it
 until they are done.
 
 ### The principles review (done 2026-10-01)
@@ -757,7 +763,8 @@ a case it did not. What it leaves is dated: the `since` lines of what it added, 
 *`Clock.monotonic` Is In, and `Udp` Is Placed*); placing work without `Where` to MVP 3.0 (the
 log's *Placing Work Without `Where`*); and the guide's §7.3 to MVP 2.99b's item 16. The
 release review ran next, and Ernest 0.2.0 shipped the review's rules as one (the log's *A
-Release After the Review*); MVP 2.99b resumes at item 4.
+Release After the Review*); MVP 2.99b resumes at item 4, the namespace of two words, and then the
+operations' decision, item 5.
 
 ### Ernest 0.2.0 — the review's rules shipped as one (done 2026-10-01, tag `v0.2.0`)
 
@@ -769,7 +776,7 @@ the code's over what changed since `691b4d6`, found 55 lines: 33 fixed before th
 defect in what a program computes, and the rest planned, asked, recorded or dropped as
 [`findings.md`](findings.md) says. What a program written for 0.1.0 changes is in the
 release's notes. What the release leaves: the timers `Os` and `Tcp` leave armed after an
-answer, with MVP 2.99b's item 7; the glossary's five names, with items 6 and 15; `ern test`
+answer, with MVP 2.99b's item 8; the glossary's five names, with items 7 and 15; `ern test`
 over a directory, item 19; and four of the six rules that buy little, item 20, the principles review having decided the other two.
 After the tag, `man/` took 0.2.0's pages as CommonMark, which GitHub shows, and each release
 writes them again (`release_review.md`'s step 5; the log's *The Release's Pages in `man/`*).

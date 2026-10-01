@@ -1,6 +1,6 @@
 # Operations records
 
-*The specification of code written once over several representations of one type. MVP 2.99b's item 4 decides it, and items 11 and 12 build it; the log's *Operations Records*, *Members, Operators, and No Hidden Argument*, *The Operations Note Rewritten* and *The Order Bound Once* argue its choices. It was rewritten on 2026-10-01 under two rules the principles review gave the report that day: no operator carries a hidden argument (§4.8), and a member is an operator, `compare` or `negate` (§4.5). The code below was built and run on 2026-10-01 as user modules under other names, since `Set` is a namespace of the standard library; it is written here with the names it has there.*
+*The specification of code written once over several representations of one type. MVP 2.99b's item 5 decides it, and items 11 and 12 build it; the log's *Operations Records*, *Members, Operators, and No Hidden Argument*, *The Operations Note Rewritten* and *The Order Bound Once* argue its choices. It was rewritten on 2026-10-01 under two rules the principles review gave the report that day: no operator carries a hidden argument (§4.8), and a member is an operator, `compare` or `negate` (§4.5). The code below was built and run on 2026-10-01 as user modules under other names, since `Set` is a namespace of the standard library; it is written here with the names it has there.*
 
 Ernest has one set in its standard library, `Set`, a hash set. A second one keeps its elements in order, and generic code, a `fromList` or a `union`, works on both. Java would reach for an interface, Haskell for a type class and ML for a functor. Ernest has no type classes. It writes *operations records*: records of a type's operations that the caller passes explicitly. That is dictionary passing (Wadler and Blott 1989), written by the program instead of by the compiler, with nothing passed that the program did not write. The § numbers cite Ernest's report.
 
@@ -29,7 +29,7 @@ Nothing in the type system changes, and the syntax does not. The rules give the 
 5. **An order belongs to an element type.** The program binds one record for each element type it keeps ordered sets of, over the type's `compare`, or over the function it would have declared as `compare` had the type a module of its own, as a tuple has none. A second order on one type is a second type with its own `compare`, `type Descending = Descending(Int)` with `fn Descending.compare`, as Haskell's `Down` and OCaml's second functor application are. So two sets in different orders have different types, and they cannot meet: `Set.unionWith(up, down, ints)` with `down : OrderedSet.Set(Descending)` is refused, `expected OrderedSet.Set(Int), found OrderedSet.Set(Descending)`. Between two records of one element type, one over `Int.compare` and one over a function that reverses it, the rule is the program's promise, which nothing checks, as `compare`'s laws are not checked.
 6. **`put` keeps the element already there** where `compare` says `Equal`, so that no choice is left unstated.
 7. **A list that mixes representations needs a second record type**, one that hides `s`: its functions close over one set, and its `put` returns another such record (Mitchell and Plotkin 1988). It loses operations on two sets, such as a `union` that reaches both representations (Bruce et al. 1995), and since it holds functions it has no `==`.
-8. **`OrderedSet` joins the standard library in `ordered_set.ern`**, a file whose words joined by `_` name one namespace, which §4.2 and §11.1 gain in MVP 2.99b's item 10. Its type is `OrderedSet.Set(a)`, named for what it is within its module as E.0's shape rule 7 asks, and as Erlang's `gb_sets:set()` and OCaml's `t` are named; inside the file it shadows the prelude's `Set`, and `Set.Operations` still names the library's type, since a dotted name's first segment is the local type only where that type has a member of the name (§4.2). `Map` gets a record only when it gets a second representation.
+8. **`OrderedSet` joins the standard library in `ordered_set.ern`**, a file whose words joined by `_` name one namespace, which §4.2 and §11.1 gain in MVP 2.99b's item 4. Its type is `OrderedSet.Set(a)`, named for what it is within its module as E.0's shape rule 7 asks, and as Erlang's `gb_sets:set()` and OCaml's `t` are named; inside the file it shadows the prelude's `Set`, and `Set.Operations` still names the library's type, since a dotted name's first segment is the local type only where that type has a member of the name (§4.2). `Map` gets a record only when it gets a second representation.
 
 ## The files
 
@@ -220,7 +220,7 @@ And elsewhere:
 
 ## What changes in Ernest
 
-- §4.2 and §11.1: a file name of words joined by `_` names one namespace, MVP 2.99b's item 10, decided.
+- §4.2 and §11.1: a file name of words joined by `_` names one namespace, MVP 2.99b's item 4, decided.
 - E.0, shape rule 1: an operations record stands directly after the subjects.
 - E.4: `Set.Operations(s, a)`, `Set.operations`, the fourteen functions named with `With`, and the sentence that each of `Set`'s own beyond the primitives is a call of one.
 - Appendix E, a section at its end: `ordered_set.ern`, namespace `OrderedSet`, with `abstract type Set(a)`, `operations`, `empty`, `size`, `toList`, `min` and `max`. Its section states the departure principle 1 asks for: an operation that needs the order is a field of the record `operations` builds, since no hidden argument carries it (§4.8), and the rest of the vocabulary E.0's rule 2 asks of a set is `Set`'s `With` functions over that record.
@@ -233,7 +233,7 @@ Nothing in the checker, the emitter or the runtime changes. The files above were
 | Area | Work | Item |
 |---|---|---|
 | Checker, emitter, runtime | none | |
-| `ern build`'s path rule (§11.1), `:load`, completion, `ern doc`, the pages | `_` in a file name | 10 |
+| `ern build`'s path rule (§11.1), `:load`, completion, `ern doc`, the pages | `_` in a file name | 4 |
 | `set.ern` | the record, `operations`, fourteen `With` functions, its own functions as calls, doc blocks and examples | 11 |
 | `ordered_set.ern` | the module, its page, its tests, its section of Appendix E with a test per section | 12 |
 | Report | shape rule 1's clause, E.4, the new section, the departure stated | 11, 12 |
