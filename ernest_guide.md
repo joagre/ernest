@@ -151,7 +151,7 @@ hello, world
 
 `with Never` names the mailbox. A function that sends or receives runs in a process, whose mailbox takes one type of message, and its type says which with `with`. `main` runs in the process the program starts it in, the *entry process*. `Never` is the type with no values, so a process whose mailbox is `Never` receives nothing, which suits a `main` that only sends.
 
-Two ways of writing `with` follow, and the guide's programs use both. A function a process starts with, such as `main`, is written `with Never` when the process never receives. A function that only sends, such as `Io.println`, is written `with m`, a type variable, so that a process with any mailbox may call it. Types may also be left out, and the compiler infers them (§3.3).
+A function a process starts with that never receives, such as `main`, is written `with Never`, and one that only sends, such as `Io.println`, is written `with m`, a type variable, so that a process with any mailbox may call it. Types may also be left out, and the compiler infers them (§3.3).
 
 `Io.println` sends its text to standard output's process, which the runtime provides and `Io` alone reaches. `Io.printlnError` sends to standard error's, so a program whose output another program reads can still report trouble. Sending to a process of the runtime is one of the two ways a program reaches the world; the other is `foreign fn` (§8).
 
@@ -399,7 +399,7 @@ Set.fromList([1, 2, 3]) : Set(Int)
 
 `Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
-Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, and on a value of a foreign type, `Foreign.Term` among them, it is the runtime's exact equality (§8.3), so a map keyed by addresses is a type error at its first operation; key it by `Process.fromAddress(a)` instead (§5.2). In a printed type, a variable that needs equality is marked `=`: `fn equal(a, b) = a == b` prints as `equal : (a=, a=) -> Bool`. An annotation does not write the mark; the compiler infers it from the body.
+Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, and on a value of a foreign type, `Foreign.Term` among them, it is the runtime's exact equality (§8.3), so a map keyed by addresses is a type error at its first operation; key it by the process behind each address instead (§5.5). In a printed type, a variable that needs equality is marked `=`: `fn equal(a, b) = a == b` prints as `equal : (a=, a=) -> Bool`. An annotation does not write the mark; the compiler infers it from the body.
 
 Ordering is separate: `a < b` asks the type's `compare`, which answers `Less`, `Equal`, or `Greater`. `Int`, `Float`, `String`, and `Char` have one, and a type of your own gets one by declaring it in its module. A function named `Money.compare` is a member of the type `Money` (§7.2):
 
@@ -523,7 +523,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 "cba" : String
 ```
 
-`x |> f` is `f(x)`, and `x |> f(a, b)` is `f(x, a, b)`: the pipe inserts the first argument. Parentheses change nothing, so `x |> (f(a))` is `f(x, a)` too. A lambda is parenthesized, `x |> (fn(y) = y + 1)`, and a function a call computes is applied in writing, `adder(3)(x)`.
+`x |> f` is `f(x)`, and `x |> f(a, b)` is `f(x, a, b)`: the pipe inserts the first argument. Parentheses change nothing, so `x |> (f(a))` is `f(x, a)` too. A lambda is parenthesized, `x |> (fn(y) = y + 1)`, since its body would take in a `|>` after it (§3.2), and a function a call computes is applied in writing, `adder(3)(x)`.
 
 ### 2.9 The standard library
 
@@ -535,7 +535,7 @@ The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char
 - **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(Io.Error, Bytes)`. A program says an `Io.Error` to its user in its own words, with a `match` over its constructors; `Io.show` writes it as a value, `Other("address already in use")`.
 - **Pure unless the value lives in a process.** A function carries `with m` only where it reaches a system process or asks the runtime about its processes, as `Process.live` does, and every function that calls a function it takes is as pure as the function it is given (§3.5). One that delivers later, `Clock.alarm` or `Terminal.subscribe`, takes a pure function to make the message and acts through a process anyway.
 - **A `String` is text, not a list.** Its length and positions count what a reader sees as letters, which `String.graphemes` gives one by one; `String.toList` gives its `Char`s.
-- **A system process is used through its module**, never by `send`. A function that waits takes a timeout in milliseconds last and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. There is no time that means no limit: a server that waits for as long as it takes calls `Tcp.accept` or `Tcp.read` again on each `Left(Timeout)`. A read of standard input and a write to standard output wait without a limit, since those streams are the program's own; a socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8). One that delivers later takes a function that makes the message: `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired, and `Clock.now()` is the time now, in milliseconds since the epoch.
+- **A system process is used through its module**, never by `send`. A function that waits takes a timeout in milliseconds last and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. There is no time that means no limit; a server that waits for as long as it takes asks again on each `Left(Timeout)` (§8.7). A read of standard input and a write to standard output wait without a limit, since those streams are the program's own; a socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8). One that delivers later takes a function that makes the message: `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired, and `Clock.now()` is the time now, in milliseconds since the epoch.
 
 What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it. `:browse Fs` lists a module's types by name and its functions with their types, and `:doc Fs.Entry` shows a type's declaration, its fields among it.
 
@@ -787,7 +787,7 @@ fn waitForData() : Optional(Int) with Inbox =
 
 `after 1000` gives up after 1000 milliseconds with no matching message, and `after 0` looks without waiting. Without `after`, the process waits for as long as it takes. A `receive` with only an `after` clause is a timed wait, the one `receive` a process with mailbox `Never` may use.
 
-A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: its operands are the pattern's variables, the variables the function binds but not its top-level names, literals, and nullary constructors; it compares two of them, orders only `Int`, `Float`, `String` and `Char`, tests a `Bool` variable, and joins these with `!`, `&&` and `||`; it calls nothing (report §6.3). For more, receive the message and `match` it.
+A guard in `receive` is narrower than one in `match`, since it chooses a message before taking it: it compares and tests only what is already at hand, the variables in scope, a top-level `let`, literals and nullary constructors, joins these with `!`, `&&` and `||`, and calls nothing (report §6.3). For more, receive the message and `match` it.
 
 If a `Wake` is already in the mailbox, `waitForData` leaves it there and waits for a `Data`; a later `receive` can take the `Wake`.
 
@@ -1113,26 +1113,28 @@ type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 
 `monitor(child, wrap)` puts `wrap(d)` in your mailbox when `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. A process you start yourself is watched from its start with `spawnMonitored(f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `process` says which, as `Process.fromAddress(child)` gives it, its `reason` says how, and its `site` says where it was spawned, the top-level declaration and the line of the spawn, `Counter.main:19`.
 
-`wrap` is a function, so it can carry what you need to tell one death from another. A process that monitors a worker while waiting for its answer gets two messages, the answer and the death, and takes the answer; the death is still in the mailbox when the next worker is monitored. A `Down` does not say which process it is about, so give each worker a number and let the wrap close over it:
+A process that monitors a worker while waiting for its answer gets two messages, the answer and the death, and takes the answer; the death is still in the mailbox when the next worker is monitored. The `Down` names the process it is about, and the worker names itself in its answer, so the wait takes what is about the worker it waits for:
 
 ```ernest
-type MainMsg = Result(run : Int, value : Int) | Died(run : Int, down : Down)
+type MainMsg = Result(from : Process, value : Int) | Died(Down)
 
 fn work(n : Int) : Int =
     n * n
 
+fn worker(parent : Address(MainMsg), run : Int) : Unit with Never =
+    send(parent, Result(from = Process.fromAddress(self()), value = work(run)))
+
 fn runWorker(run : Int) : Optional(Int) with MainMsg = {
     let me = self();
-    let _ = spawnMonitored(fn() = send(me, Result(run = run, value = work(run))),
-                           fn(d) = Died(run = run, down = d));
-    waitFor(run)
+    let child = spawnMonitored(fn() = worker(me, run), Died);
+    waitFor(Process.fromAddress(child))
 }
 
-fn waitFor(run : Int) : Optional(Int) with MainMsg =
+fn waitFor(child : Process) : Optional(Int) with MainMsg =
     receive {
-        Result(run = r, value = v) when r == run -> Some(v)
-      | Died(run = r, down = _) when r == run -> None
-      | Died(run = _, down = _) -> waitFor(run)
+        Result(from = w, value = v) when w == child -> Some(v)
+      | Died(Down(process = p)) when p == child -> None
+      | _ -> waitFor(child)
     }
 
 fn report(run : Int) : Unit with MainMsg =
@@ -1153,7 +1155,7 @@ run 1: 1
 run 2: 4
 ```
 
-A death whose run is not the one being waited for is an earlier worker's, and `waitFor` passes over it. The wrap is where a death says whose it is.
+Anything else is an earlier worker's death, and `waitFor` takes it and passes over it, so that it does not stay in the mailbox.
 
 A `Down` comes from the runtime and not from the process that ended, so it has no order with that process's own messages (§5.1): a worker's last message may arrive after its `Down`. A result that must not be lost to a `Down` comes as the worker's answer to a call (§4.4), which its end does not overtake.
 
@@ -1210,7 +1212,7 @@ fn startWorker() : Unit with GameMsg = {
 
 `me` is taken before the spawn: inside the lambda, `self()` would be the worker's own address. A library is used the same way, written against a message type of its own, so a program never needs one message type for all its processes.
 
-**The system modules deliver so too.** Wherever something arrives later, a system module takes the function that makes your message from its own: `monitor(child, wrap)` (§5.2), `Clock.alarm(ms, wrap)`, which puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, `Terminal.subscribe(wrap)`, which puts every key pressed and every resize in it, and `Process.faults(wrap)`. A read is not such a delivery: `Io.readLine`, `Os.read` and `Tcp.read` wait for what they read and answer it, and a process that must also receive gives the reading to a process of its own (§8.7). A constructor with one positional field is a function value, so `Clock.alarm(100, Tick)` delivers `Tick(t)`. A message that needs no value is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Refresh)` for a constructor `Refresh` without fields.
+**The system modules deliver so too.** Wherever something arrives later, a system module takes the function that makes your message from its own: `monitor(child, wrap)` (§5.2), `Clock.alarm(ms, wrap)`, which puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, `Terminal.subscribe(wrap)`, which puts every key pressed and every resize in it, and `Process.faults(wrap)`. A constructor with one positional field is a function value, so `Clock.alarm(100, Tick)` delivers `Tick(t)`. A message that needs no value is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Refresh)` for a constructor `Refresh` without fields.
 
 **Where the function runs.** A `send` to an adapted address applies the function in the sender, at the `send`, which returns once it has; the sender's messages keep their order through it (§5.1). A wrap has no sender to run in, so the runtime applies it as it delivers the message. Either way, a fault in the function is the fault of the process the message is for, not of the one that sent it (report §6.5, report §6.9), so keep the function to shaping the value:
 
@@ -1257,7 +1259,7 @@ fn talk() : Unit with ChatMsg =
     }
 ```
 
-**One process behind them all.** Addresses have no equality, since an adapted address holds a function. The process behind an address has: `Process.fromAddress(a)` is a `Process`, the same one through every `via`, which can key a `Map` or be kept in a `Set` and to which nothing can be sent. `monitor` and `kill` take any of a process's addresses and act on the process behind it.
+**One process behind them all.** Addresses have no equality, since an adapted address holds a function. The process behind an address has: `Process.fromAddress(a)` is a `Process`, the same one through every `via`, which can key a `Map` or be kept in a `Set` and to which nothing can be sent. `monitor` and `kill` take any of a process's addresses and act on the process behind it. An address is the authority to reach a process, which is why they take one; a `Process` is its identity, which anyone may list, and what `Process.info` and `Tcp.give` take.
 
 ```ernest
 type CountMsg = Counted(Int)
@@ -1461,7 +1463,7 @@ Faults.main:10 faulted: division by zero
 the worker spawned at Faults.main:10 faulted: division by zero
 ```
 
-`average` is pure and still faults. A type says what a function returns when it returns, not that it will. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first line is `ern run`'s own: it writes every fault to standard error as it happens, the spawn site and the cause, whatever the program does about it. Where standard error goes to a file or a pipe, and not to the journal, each line begins with the time of the fault (report §11.2).
+`average` is pure and still faults, as §3.4 says a pure function may. The `site` of a `Down` names the top-level declaration in which the process was spawned and the line of the spawn. The first line is `ern run`'s own: it writes every fault to standard error as it happens, the spawn site and the cause, whatever the program does about it. Where standard error goes to a file or a pipe, and not to the journal, each line begins with the time of the fault (report §11.2).
 
 Some faults reach beyond their process. A fault in the entry process ends the program, and `ern run` exits with status 1, as a fault in an initializer does. A fault in a function that makes a message, an adapted address's (§5.5) or the wrap given to `monitor`, `Clock.alarm`, `Terminal.subscribe` or `Process.faults`, is the fault of the process the message is for. The loss of a peer faults every process on it (report §10). A fault in a process that a `callForever` waits on faults the caller with the same cause (report §6.6). A process that is killed, or that ends with the program, has not faulted. A deadlock is a fault of the entry process (§5.4).
 
@@ -1786,12 +1788,12 @@ export type Operations(s, a) =
     Operations(empty : s, add : (s, a) -> s, has : (s, a) -> Bool, union : (s, s) -> s)
 ```
 
-Each representation depends on the contract and exports an `operations()` that fills it in. What a representation needs goes in through `operations`, here the ordered set's `compare`; `operations` is a function in both, though the hashed set takes nothing, so that the two read alike:
+Each representation depends on the contract and exports the `operations` that fill it in. What a representation needs goes in through them: the ordered set's are a function of its `compare`, and the hashed set's, which need nothing, a `let`:
 
 ```ernest
 // sets/hashed.ern  (namespace Sets.Hashed)
 /// The built-in `Set`, as a `Sets.Operations`.
-export fn operations() : Sets.Operations(Set(a), a) =
+export let operations : Sets.Operations(Set(a), a) =
     Sets.Operations(empty = Set.empty, add = Set.put, has = Set.contains, union = Set.union)
 ```
 
@@ -1838,7 +1840,7 @@ fn fromList(operations : Sets.Operations(s, a), xs : List(a)) : s =
     List.foldLeft(xs, operations.empty, operations.add)
 
 export fn main() : Unit with Never = {
-    Io.println(String.join(dedupe(Sets.Hashed.operations(), ["b", "a", "b", "c"]), " "));
+    Io.println(String.join(dedupe(Sets.Hashed.operations, ["b", "a", "b", "c"]), " "));
     let numbers = Sets.Ordered.operations(Int.compare);
     Io.println(String.join(List.map(dedupe(numbers, [3, 1, 3, 2]), Int.toString), " "));
     let both = numbers.union(fromList(numbers, [3, 1]), fromList(numbers, [2, 3]));
@@ -1856,7 +1858,7 @@ b a c
 
 `fromList` is written once, and what it gives back is of the caller's representation: here a `Sets.Ordered.Sorted(Int)`, which `union` merges with another and `Sets.Ordered.toList` reads. Reach for the first form when values of different representations meet, in one list or one message. Reach for the second when code written once must keep the representation's type, to take two values of it or to give one back.
 
-In both, the types check each record where it is built: `circle` and `Sets.Hashed.operations()` must give every field, each of its type, or the module is refused. The code that takes the record sees only what it lists, never a radius, a `Set` or a sorted list. What a representation needs goes in when it is built, a radius or a `compare`, and what it has beyond the contract, as `Sets.Ordered.toList`, is reached through its module. Equality is inferred, as everywhere (§2.5). The annotation of `Sets.Hashed.operations` does not write it, and its type carries it from `Set.put`: `Sets.Hashed.operations : () -> Sets.Operations(Set(a=!), a=!)`. Nothing checks a module beyond the record it builds: a representation need export nothing else. A service with state is different: two processes of different representations take one message type, and the caller holds an `Address(M)` (§4).
+In both, the types check each record where it is built: `circle` and `Sets.Hashed.operations` must give every field, each of its type, or the module is refused. The code that takes the record sees only what it lists, never a radius, a `Set` or a sorted list. What a representation needs goes in when it is built, a radius or a `compare`, and what it has beyond the contract, as `Sets.Ordered.toList`, is reached through its module. Equality is inferred, as everywhere (§2.5). The annotation of `Sets.Hashed.operations` does not write it, and its type carries it from `Set.put`: `Sets.Hashed.operations : Sets.Operations(Set(a=!), a=!)`. Nothing checks a module beyond the record it builds: a representation need export nothing else. A service with state is different: two processes of different representations take one message type, and the caller holds an `Address(M)` (§4).
 
 ### 7.4 Prediction exercise
 
@@ -2044,7 +2046,7 @@ In a pattern, `size(len)` may name a variable bound by an earlier segment. A `ma
 
 A server is a listener and a process for each connection. `Tcp.listen(host, port)` answers a listener, and `Tcp.accept(listener, ms)` the next connection, a socket, or `Left(Timeout)` when none came within `ms` milliseconds. No time means no limit, so the loop that accepts takes again after a timeout, and that turn is where it looks at anything else it must.
 
-A socket is read by pulling. `Tcp.read(socket, ms)` answers what has arrived, at least one byte, `Left(Timeout)` when nothing did, and `Left(Closed)` once the connection has closed; nothing the socket receives comes to a mailbox. A process waits on one thing at a time, so one that must wait on its socket and on its mailbox gives the socket to a reader of its own, a process that pulls each piece and sends it on. One process may read a socket while another writes to it, and a read that waits answers `Left(Closed)` when the socket is closed. A write returns once the socket has taken its bytes, and waits while the far end is behind taking them; it answers `Left(Closed)` once the far end has gone.
+A socket is read by pulling. `Tcp.read(socket, ms)` answers what has arrived, at least one byte, `Left(Timeout)` when nothing did, and `Left(Closed)` once the connection has closed; nothing the socket receives comes to a mailbox. A process waits on one thing at a time, so one that must wait on its socket and on its mailbox gives the socket to a reader of its own, as §5.5 teaches. One process may read a socket while another writes to it, and a read that waits answers `Left(Closed)` when the socket is closed. A write returns once the socket has taken its bytes, and waits while the far end is behind taking them; it answers `Left(Closed)` once the far end has gone.
 
 Bytes arrive in pieces that need not end where a line ends, so what follows the last line feed waits for the next piece. A server that sends each line back, and says it is still there every ten seconds:
 
@@ -2213,14 +2215,6 @@ Report §0 gives five principles, and the rules of the guide follow from them.
 Principle 3 turns an omission into a statement. Exhaustiveness makes you say what every constructor does; `let _ = e` says a value is dropped on purpose; the reply discipline says where each `Reply` is consumed; `export` says what crosses a module's boundary; `with` says a function acts through a process; a qualified name says which module a name comes from. Several of these tell the compiler nothing it could not work out for itself. What they add is that the decision is written down, where a reader meets it. It is programming on purpose, to borrow P. J. Plauger's phrase for designing deliberately rather than by accident; his subject is software design as a whole, broader than these rules (*Programming on Purpose: Essays on Software Design*, Prentice Hall, 1993).
 
 ## 12. Frequently asked questions
-
-**Why is there no `import`?**
-
-A name from another module is always written in full, `Net.Http.parse`, so a reader sees where it comes from (principle 3), and a module's path says what its names are. An `import` would add a second way to write each of them.
-
-**Why is a lambda after `|>` in parentheses?**
-
-A lambda's body extends as far as the text allows, so `x |> fn(y) = y + 1 |> f` would take `|> f` into the body. The parentheses end it.
 
 **Why `fn(x) = ...` for a lambda, and not `x -> ...`?**
 
