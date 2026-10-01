@@ -299,6 +299,12 @@ and `examples/snake.ern` take from the load path, `subscribe`, `size` and `colum
 `Float.pi` enters E.9 by rule 3's constant; `Io.writeError` enters E.1 as `write`'s error-stream
 twin; `List.dropLast` takes a count as `drop` does, its ten callers writing `1`; and
 `String.words`, the parts between runs of White_Space, enters E.5 and rule 2's text vocabulary.
+Under §9's opening and principle 5's cost sentence, the twelfth family's round 2 (2026-10-01, the
+log's *The Prelude Family's Rules*): `Test` and `TestResult` leave §9.3 for a standard library
+module `Test`, a section added at the end of Appendix E, with the types `Case` and `Result`, `Test.Case(name, run)` and
+`Test.Passed` or `Test.Failed(text)`, which `ern test` finds as it found the prelude's (§11.2);
+the 155 test values of the standard library, the shell, the libraries and the examples are
+renamed by a script and read as a diff, and `examples/filesync.ern` loses its `Prelude.Failed`.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is
