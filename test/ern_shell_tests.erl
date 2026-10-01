@@ -1855,7 +1855,8 @@ prelude_doc() ->
     ok = file:write_file(In, ":doc monitor\n:doc Down\n:doc restarting\n:doc Int.compare\n"),
     {0, Out} = sh("../bin/ern shell < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"> monitor\n\n    monitor : ">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"type Down = Down(reason : Reason">>)),
+    ?assertMatch({_, _},
+                 binary:match(Out, <<"type Down = Down(process : Process, reason : Reason">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> restarting\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"> Int.compare\n">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"no documentation">>)).

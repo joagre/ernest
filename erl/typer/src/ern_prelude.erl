@@ -235,9 +235,9 @@ declared_types() ->
     /// // => Greater
     /// ```
     type Ordering = Less | Equal | Greater
-    /// What `monitor` delivers when a process ends: how it ended, and where
-    /// it was spawned, the top-level declaration and the line of the spawn,
-    /// `Counter.main:19` (report §6.9).
+    /// What `monitor` delivers when a process ends: which process it was,
+    /// how it ended, and where it was spawned, the top-level declaration and
+    /// the line of the spawn, `Counter.main:19` (report §6.9).
     ///
     /// ### Examples
     ///
@@ -248,7 +248,7 @@ declared_types() ->
     ///     receive { Down(reason = r, site = _) -> r }
     /// }
     /// ```
-    type Down = Down(reason : Reason, site : String)
+    type Down = Down(process : Process, reason : Reason, site : String)
     /// How a process ended: its function returned, `kill` ended it, the program
     /// ended while it ran, or it faulted with a cause. Only `Fault` is a fault.
     ///

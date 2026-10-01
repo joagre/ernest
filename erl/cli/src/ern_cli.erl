@@ -904,7 +904,7 @@ run_test({'Test', Name, Run}) ->
                   {Ref, 'Passed'} -> returned(Ref, <<"passed">>);
                   {Ref, {'Failed', Text}} ->
                       returned(Ref, <<"failed: ", (ern_show:controls(Text, line))/binary>>);
-                  {Ref, down, {'Down', Reason, _}} -> <<"faulted: ", (cause(Reason))/binary>>
+                  {Ref, down, {'Down', _, Reason, _}} -> <<"faulted: ", (cause(Reason))/binary>>
               end,
     ok = ern_rt:deadlock_target(none),
     persistent_term:erase({?MODULE, test}),

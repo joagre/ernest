@@ -249,11 +249,7 @@ principle 5). The second read-back adds E.16's and E.1's sections naming their p
 moves the negative zero's normalization in the emitter from every float operation to the ones
 that can make one, `*`, `/`, negation and the entries, since under round to nearest a sum or a
 difference of operands that are not negative zero is never one; with a test that `-5.0 + 5.0`
-and `-1.0e-200 * 1.0e-200` show `0.0`. Under §6.9's
-ownership sentence, the eighth family's round 2 (2026-10-01, the log's *The Owner Family's
-Rules*): `Down` gains `process : Process`, declared first, the runtime filling it where it
-builds a `Down`, in §9.3, the prelude's declared types and the twelve tests that match one;
-the guide's §5.2 wait shrinks in its pass. Under E.0's rules, the tenth family's round 2
+and `-1.0e-200 * 1.0e-200` show `0.0`. Under E.0's rules, the tenth family's round 2
 (2026-10-01, the log's *The Library Family's Rules*): `styled`, the cursor's moves and the two
 erasures leave E.16 for a terminal library under `libs/`, Ernest over ECMA-48, which the shell, `libs/markdown`
 and `examples/snake.ern` take from the load path, `subscribe`, `size` and `columns` staying.

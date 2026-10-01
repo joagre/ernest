@@ -74,7 +74,7 @@ stdin_stream_test() ->
                        end, <<"main">>, #{stdout => fun(_) -> ok end, stdin => Next})),
     ?assertEqual([{'Some', <<"ab">>}, {'Some', <<"cd">>}, {'Some', <<>>}, {'Some', <<"rest">>},
                   {'Some', <<"ok">>}], wait(got)),
-    ?assertMatch({'Down', {'Fault', <<"the standard input is not UTF-8">>}, _}, wait(down)),
+    ?assertMatch({'Down', _, {'Fault', <<"the standard input is not UTF-8">>}, _}, wait(down)),
     ?assertEqual([{'Some', <<"next">>}, 'None', 'None'], wait(after_fault)).
 
 %% report §8.2: one carriage return before a line feed is dropped, and a
@@ -478,8 +478,8 @@ shell_holds_no_deadlock_test() ->
                            receive late -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
-%% report §6.9: Down carries the reason and the spawn site, for a monitor
-%% made while the process runs
+%% report §6.9: Down carries the process, the reason and the spawn site,
+%% for a monitor made while the process runs
 monitor_test() ->
     Me = self(),
     ok = ern_rt:run_main(
@@ -497,11 +497,14 @@ monitor_test() ->
                                      <<"Main.main:7">>),
                ern_rt:monitor(Victim, fun(D) -> {down, D} end),
                ern_rt:kill(Victim),
-               receive {down, D3} -> Me ! {d3, D3} end
+               receive {down, D3} -> Me ! {d3, D3} end,
+               Me ! {pids, [Worker, Faulty, Victim]}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({'Down', 'Returned', <<"Main.main:3">>}, wait(d1)),
-    ?assertEqual({'Down', {'Fault', <<"division by zero">>}, <<"Main.main:5">>}, wait(d2)),
-    ?assertEqual({'Down', 'Killed', <<"Main.main:7">>}, wait(d3)).
+    [Worker, Faulty, Victim] = wait(pids),
+    ?assertEqual({'Down', Worker, 'Returned', <<"Main.main:3">>}, wait(d1)),
+    ?assertEqual({'Down', Faulty, {'Fault', <<"division by zero">>}, <<"Main.main:5">>},
+                 wait(d2)),
+    ?assertEqual({'Down', Victim, 'Killed', <<"Main.main:7">>}, wait(d3)).
 
 %% report §6.9, §8.6: the runtime keeps nothing of a process that has
 %% ended, so a monitor made after its end answers Unknown with no spawn
@@ -519,10 +522,11 @@ ended_rows_test() ->
                [receive {ended, _} -> ok end || _ <- Pids],
                Me ! {row, ets:lookup(ern_processes, lists:last(Pids))},
                ern_rt:monitor(lists:last(Pids), fun(D) -> {down, D} end),
-               receive {down, D} -> Me ! {late, D} end
+               receive {down, D} -> Me ! {late, {lists:last(Pids), D}} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual([], wait(row)),
-    ?assertEqual({'Down', 'Unknown', <<>>}, wait(late)).
+    {Last, Late} = wait(late),
+    ?assertEqual({'Down', Last, 'Unknown', <<>>}, Late).
 
 %% A process body that starts once it is told to, so that a monitor can be
 %% made while it runs.
@@ -545,7 +549,7 @@ runtime_failure_test() ->
                P ! go,
                receive {down, D} -> Me ! {down, D} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({'Down', {'Fault', <<"error:badarg">>}, <<"Main.main:2">>}, wait(down)).
+    ?assertMatch({'Down', _, {'Fault', <<"error:badarg">>}, <<"Main.main:2">>}, wait(down)).
 
 %% report §6.9, §6.5: a monitor's wrap that faults is the fault of the
 %% process it delivers to, and the runtime goes on. A regression test: the
@@ -569,8 +573,8 @@ faulting_wrap_test() ->
                receive {later, D2} -> Me ! {d2, D2} end,
                Watcher
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({'Down', {'Fault', <<"division by zero">>}, <<"Main.main:3">>}, wait(d1)),
-    ?assertEqual({'Down', 'Returned', <<"Main.main:5">>}, wait(d2)).
+    ?assertMatch({'Down', _, {'Fault', <<"division by zero">>}, <<"Main.main:3">>}, wait(d1)),
+    ?assertMatch({'Down', _, 'Returned', <<"Main.main:5">>}, wait(d2)).
 
 %% report §6.5, E.15: an alarm's function that never finishes holds up no
 %% other alarm. A regression test: the clock applied it itself, and froze
@@ -602,7 +606,7 @@ unloaded_code_test() ->
                exit(Old, {ern, code_unloaded}),
                receive {down, D} -> Me ! {d, D} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({'Down', {'Fault', <<"its code was unloaded">>}, <<"Main.main:3">>}, wait(d)).
+    ?assertMatch({'Down', _, {'Fault', <<"its code was unloaded">>}, <<"Main.main:3">>}, wait(d)).
 
 %% report §6.5: via adapts a message on its way to the target
 via_test() ->
@@ -770,7 +774,7 @@ via_fault_test() ->
                receive {down, D} -> Me ! {d, D} end,
                Me ! {sender, alive}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({'Down', {'Fault', <<"division by zero">>}, <<"Main.main:3">>}, wait(d)),
+    ?assertMatch({'Down', _, {'Fault', <<"division by zero">>}, <<"Main.main:3">>}, wait(d)),
     ?assertEqual(alive, wait(sender)).
 
 %% report §6.9: a monitor is the reaper's whoever started the process, so
@@ -789,7 +793,7 @@ monitor_foreign_process_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     {Before, After} = wait(counts2),
     ?assertEqual(Before, After),
-    ?assertEqual({'Down', 'Returned', <<>>}, wait(d)).
+    ?assertMatch({'Down', _, 'Returned', <<>>}, wait(d)).
 
 wait(counts2) ->
     receive {counts, B, A} -> {B, A} after 2000 -> timeout end;

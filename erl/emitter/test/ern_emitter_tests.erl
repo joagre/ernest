@@ -3660,8 +3660,9 @@ peer_unreachable_test() ->
 
 %% report §6.9: kill on a process that has already ended has no effect,
 %% and a monitor placed after the end answers Unknown, with no spawn site,
-%% since the runtime keeps nothing of an ended process. A regression test,
-%% written after the code; it does not cover kill on a system process
+%% since the runtime keeps nothing of an ended process, and names the
+%% process still. A regression test, written after the code; it does not
+%% cover kill on a system process
 kill_dead_test() ->
     {ok, Out} = run(
         "type Msg = Died(Down)\n"
@@ -3672,9 +3673,28 @@ kill_dead_test() ->
         "    receive { Died(_) -> Unit };\n"
         "    kill(w);\n"
         "    monitor(w, Died);\n"
-        "    receive { Died(d) -> { let _ = Io.debug(d); Unit } }\n"
+        "    receive {\n"
+        "        Died(Down(process = p, reason = r, site = s)) ->\n"
+        "            Io.println(Io.show(#(p == Process.fromAddress(w), r, s)))\n"
+        "    }\n"
         "}\n"),
-    ?assertEqual(<<"Down(reason = Unknown, site = \"\")\n">>, Out).
+    ?assertEqual(<<"#(true, Unknown, \"\")\n">>, Out).
+
+%% report §6.9, §9.3: a `Down` names the process behind the address
+%% monitored, through a `via`, as `Process.fromAddress` gives it
+down_names_its_process_test() ->
+    {ok, Out} = run(
+        "type Msg = Died(Down) | Go\n"
+        "export fn main() : Unit with Msg = {\n"
+        "    let w = spawnMonitored(Local, fn() : Unit with Never = Unit, Died);\n"
+        "    let first = receive { Died(d) -> d.process == Process.fromAddress(w) };\n"
+        "    let v = spawn(Local, fn() : Unit with Msg = receive { Go -> Unit });\n"
+        "    monitor(via(v, fn(u : Unit) = Go), Died);\n"
+        "    send(v, Go);\n"
+        "    let second = receive { Died(d) -> d.process == Process.fromAddress(v) };\n"
+        "    Io.println(Io.show(#(first, second)))\n"
+        "}\n"),
+    ?assertEqual(<<"#(true, true)\n">>, Out).
 
 %% report §8.2, §9.7: a system reference is private to its module, and
 %% the prelude binds none, so a program names neither `Io.stdout` nor

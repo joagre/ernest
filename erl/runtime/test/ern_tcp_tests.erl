@@ -100,8 +100,8 @@ socket_lives_until_closed_test() ->
     gen_tcp:close(Listen),
     ?assertEqual([{'Right', <<"x">>}, {'Left', 'Closed'}, {'Left', 'Closed'},
                   {'Left', 'Closed'}, {'Left', 'Closed'}], wait(reads)),
-    ?assertMatch({'Down', {'Fault', <<"callee was closed">>}, _}, wait(down)),
-    ?assertMatch({'Down', {'Fault', <<"callee had ended">>}, _}, wait(later)).
+    ?assertMatch({'Down', _, {'Fault', <<"callee was closed">>}, _}, wait(down)),
+    ?assertMatch({'Down', _, {'Fault', <<"callee had ended">>}, _}, wait(later)).
 
 %% Appendix E.18: closing a listener answers an accept waiting on it with
 %% `Left(Closed)`, and the listener's process ends. Under load the close
@@ -152,7 +152,7 @@ accept_meets_the_close_test() ->
                erlang:resume_process(Pid),
                receive {down, D} -> Me ! {down, D} end
            end, <<"main">>, quiet()),
-    ?assertMatch({'Down', {'Fault', <<"callee was closed">>}, _}, wait(down)).
+    ?assertMatch({'Down', _, {'Fault', <<"callee was closed">>}, _}, wait(down)).
 
 %% report §8.6: a socket killed while a read waits on it holds no source,
 %% so the deadlock of what is left is still found. A regression test for

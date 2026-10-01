@@ -1497,12 +1497,12 @@ initialize(Ns, Mod, Rest) ->
     _ = ern_rt:spawn_monitored('Local', Init, fun(Down) -> {Ref, Down} end, <<"Shell.load">>),
     receive
         {Ref, Result} when Result =:= ok; element(1, Result) =:= fault ->
-            receive {Ref, {'Down', _, _}} -> ok end,
+            receive {Ref, {'Down', _, _, _}} -> ok end,
             case Result of
                 ok -> initialize(Rest);
                 {fault, _, _} = Fault -> Fault
             end;
-        {Ref, {'Down', Reason, _}} ->
+        {Ref, {'Down', _, Reason, _}} ->
             {fault, unicode:characters_to_binary(qname_text(Ns)),
              case Reason of
                  {'Fault', Cause} -> Cause;

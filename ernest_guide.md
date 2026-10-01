@@ -1106,12 +1106,12 @@ spawnMonitored : (Where, () -> Unit with n, (Down) -> m) -> Address(n) with m
 ```
 
 ```ernest-prelude
-type Down = Down(reason : Reason, site : String)
+type Down = Down(process : Process, reason : Reason, site : String)
 
 type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 ```
 
-`monitor(child, wrap)` puts `wrap(d)` in your mailbox when `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. A process you start yourself is watched from its start with `spawnMonitored(Local, f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `reason` says how, and its `site` says where it was spawned, the top-level declaration and the line of the spawn, `Counter.main:19`.
+`monitor(child, wrap)` puts `wrap(d)` in your mailbox when `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. A process you start yourself is watched from its start with `spawnMonitored(Local, f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `process` says which, as `Process.fromAddress(child)` gives it, its `reason` says how, and its `site` says where it was spawned, the top-level declaration and the line of the spawn, `Counter.main:19`.
 
 `wrap` is a function, so it can carry what you need to tell one death from another. A process that monitors a worker while waiting for its answer gets two messages, the answer and the death, and takes the answer; the death is still in the mailbox when the next worker is monitored. A `Down` does not say which process it is about, so give each worker a number and let the wrap close over it:
 

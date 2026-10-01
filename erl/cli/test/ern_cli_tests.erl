@@ -620,7 +620,9 @@ prelude_type_without_members_is_no_namespace_test() ->
     write(Dir, "src/never.ern", "export fn compare(a : Int, b : Int) : Int = a - b\n"),
     write(Dir, "src/main.ern",
           "export fn main() : Unit with Never = {\n"
-          "    Io.println(Down.describe(Down(reason = Killed, site = \"here\")));\n"
+          "    let me = Process.fromAddress(self());\n"
+          "    let down = Down(process = me, reason = Killed, site = \"here\");\n"
+          "    Io.println(Down.describe(down));\n"
           "    Io.println(Int.toString(Test.answer + Never.compare(3, 1)))\n"
           "}\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
