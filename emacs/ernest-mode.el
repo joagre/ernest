@@ -2,7 +2,7 @@
 
 ;;; Commentary:
 
-;; The mode for `.ern' files.  emacs/README.md designs it, and says
+;; The mode for `.ern' files.  docs/emacs_mode.md designs it, and says
 ;; what it does and what it does not do.
 ;;
 ;; A buffer being edited is broken most of the time, so colouring and
@@ -13,28 +13,9 @@
 
 ;;; Installation:
 
-;; `make install' puts this file in `share/emacs/site-lisp' under its
-;; prefix, which an Emacs built for that prefix has on its `load-path'.
-;; Another Emacs, and one that loads the mode from a checkout, is given
-;; the directory that holds it:
-;;
-;;     (add-to-list 'load-path "~/src/ernest/emacs")
-;;
-;; These two lines in your init file load the mode when a `.ern' file is
-;; opened:
-;;
-;;     (autoload 'ernest-mode "ernest-mode" "Major mode for Ernest." t)
-;;     (add-to-list 'auto-mode-alist '("\\.ern\\'" . ernest-mode))
-;;
-;; This line lays out each Ernest buffer as it is saved, with `ern
-;; format':
-;;
-;;     (add-hook 'ernest-mode-hook #'ernest-format-on-save-mode)
-;;
-;; `ern' is looked for on `exec-path', where an Emacs started from a
-;; desktop menu may not have the repository's `bin/'.  This line names it:
-;;
-;;     (setq ernest-format-command (expand-file-name "~/src/ernest/bin/ern"))
+;; emacs/README.md, beside this file in Ernest's repository, gives the
+;; lines an init file needs to load the mode and to lay out a buffer as
+;; it is saved: https://github.com/joagre/ernest/blob/main/emacs/README.md
 
 ;;; Code:
 
