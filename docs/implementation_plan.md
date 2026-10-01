@@ -313,7 +313,11 @@ with `Foreign.Term`'s edit. Under shape rule 2 read per kind (2026-10-01, the lo
 Per Kind*): `Fs.create` becomes `Fs.makeFile`, beside `makeDir` and `makeLink`; and `Path.join`
 takes `List(String)`, the inverse of `split`, with `Path.<>` declared in `path.ern` as the two-path
 operation, the second under the first and an absolute second standing alone, its eight callers
-following.
+following. Among the rules that buy little (2026-10-01, the log's *The Rules That Buy Little*):
+a tuple has two components or more, in Appendix A's `Tuple`, `TupleType` and the tuple pattern,
+§3.2 and the parser, which admit one today; and `Fs.setMode(path, mode, ms)`, the mode the
+host's bits, replaces `Fs.makePrivate` in E.17, `fs.ern` and the shell's history, which writes
+its directory's mode itself.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is
