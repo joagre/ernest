@@ -440,6 +440,8 @@ int_edges_test() ->
 %% report Appendix E.9, §3.1, §7.4, §9.6
 float_test() ->
     F = 'ern@float',
+    %% E.0 rule 3: a constant of the type, the host's own nearest Float
+    ?assertEqual(math:pi(), F:pi()),
     ?assertEqual(3.5, F:'+'(F:'*'(1.5, 2.0), 0.5)),
     ?assertEqual(-1.0, F:'-'(1.0, 2.0)),
     ?assertEqual(0.5, F:'/'(1.0, 2.0)),

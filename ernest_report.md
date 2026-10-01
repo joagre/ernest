@@ -1513,6 +1513,7 @@ Float.sqrt : (Float) -> Optional(Float) // None below zero
 Float.pow : (Float, Float) -> Optional(Float) // None for a negative base with a fractional exponent, and for zero to a negative power; faults beyond the finite range
 Float.exp : (Float) -> Float // faults beyond the finite range
 Float.log : (Float) -> Optional(Float) // the natural logarithm; None at zero and below
+Float.pi : Float // the ratio of a circle's circumference to its diameter, the nearest Float to it
 Float.sin : (Float) -> Float // radians, as the other trigonometric functions
 Float.cos : (Float) -> Float
 Float.tan : (Float) -> Float

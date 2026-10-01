@@ -262,7 +262,7 @@ the guide's §5.2 wait shrinks in its pass. Under E.0's rules, the tenth family'
 (2026-10-01, the log's *The Library Family's Rules*): `styled`, the cursor's moves and the two
 erasures leave E.16 for a terminal library under `libs/`, Ernest over ECMA-48, which the shell, `libs/markdown`
 and `examples/snake.ern` take from the load path, `subscribe`, `size` and `columns` staying;
-`Float.pi` enters E.9 by rule 3's constant; `Io.writeError` enters E.1 as `write`'s error-stream
+`Io.writeError` enters E.1 as `write`'s error-stream
 twin; `List.dropLast` takes a count as `drop` does, its ten callers writing `1`; and
 `String.words`, the parts between runs of White_Space, enters E.5 and rule 2's text vocabulary.
 Under §9's opening and principle 5's cost sentence, the twelfth family's round 2 (2026-10-01, the

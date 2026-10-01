@@ -209,6 +209,17 @@ export fn log(x : Float) : Optional(Float) =
 foreign fn naturalLog(x : Float) : Float =
     "math:log/1"
 
+/// The ratio of a circle's circumference to its diameter, the nearest
+/// `Float` to it, a constant of the type (report Appendix E.0 rule 3).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Float.cos(Float.pi)
+/// // => -1.0
+/// ```
+export let pi : Float = 3.141592653589793
+
 /// The sine of an angle in radians, as the other trigonometric functions
 /// take and give.
 ///
