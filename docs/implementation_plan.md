@@ -315,6 +315,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     `Test.` written on every test kept, with no import and `Test` out of the prelude. Entry 87:
     `Io.NotUtf8` carrying the whole history file kept, as E.1 defines it. Entry 88: one budget
     over several waits computed by the composing function, shape rule 8 bounding each request.
+    The first of 0.2.0's four rules: §2.6's one prefix operator, `-(-x)`, kept as Appendix A has
+    it.
 
 ---
 
