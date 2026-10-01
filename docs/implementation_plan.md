@@ -21,10 +21,10 @@ and the guide read against §0 and §0 against what it decided, a milestone of i
 its readers ran on 2026-09-30, on `57b8356`, their findings stand in
 [`findings.md`](findings.md), and [`attack_plan.md`](attack_plan.md) gives the order in which
 they are worked; its phases 1 and 2, the sixteen sentences, were done on 2026-10-01, and phase
-3, MVP 2.99b's items 1 to 3, is under way, item 1 done on 2026-10-01. Ernest 0.1.0, the first
-release, is tagged `v0.1.0` and was published on 2026-09-30 with MVP 2.99, the last milestone
-done; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its
-paragraph under "Done".
+3, MVP 2.99b's items 1 to 3, is under way, items 1 and 3 done on 2026-10-01. Ernest 0.1.0,
+the first release, is tagged `v0.1.0` and was published on 2026-09-30 with MVP 2.99, the last
+milestone done; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each
+has its paragraph under "Done".
 
 ---
 
@@ -99,12 +99,12 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    can be made before the code is read name by name; items 6 and 15 change it, add to it and
    delete from it as the renaming finds what it missed, and each area's commit carries the
    glossary's change with it.
-3. **The places the language made the review's work harder**, the lines of
-   [`findings.md`](findings.md) marked `2.99b` that are not hardening, each taken to
-   [`language_feedback.md`](language_feedback.md) or dropped with its reason; before item 4,
-   which weighs them.
+3. **The places the language made the review's work harder**, done 2026-10-01 (the log's *The
+   Release Review's Harder Places*): of the fourteen lines of [`findings.md`](findings.md)
+   marked `2.99b` that are not hardening, two are language feedback 75 and 76, decided in the
+   attack plan's phase 5, and twelve are dropped there with their reasons.
 4. **The operations' decision**, taken with the user before anything of it is built (language
-   feedback 64, and 69 to 73). Two parts were decided by the principles review on 2026-10-01
+   feedback 64, 69 to 71, and 73). Two parts were decided by the principles review on 2026-10-01
    (the log's *Members, Operators, and No Hidden Argument*): a type's operations are functions
    of its module, a member only an operator, `compare` or `negate`; and no operator carries a
    hidden argument, so the proposal's ordering restriction is refused and an ordered set takes
