@@ -320,7 +320,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     group the group's types are named in their fields only at type variables that are
     parameters of the type declared, so that `Deeper(Nest(List(a)))`, which no function could
     walk, is refused at its declaration; the type checker's tests of such a type change with
-    it; about half a day.
+    it; about half a day. The third: §2.2's blank line that gives the first doc block to the
+    module kept, OCaml's own rule.
 
 ---
 
