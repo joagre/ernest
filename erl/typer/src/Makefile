@@ -18,6 +18,10 @@ DEPS = $(BEAM:.beam=.Pbeam) $(TEST_BEAM:.beam=.Pbeam)
 
 all: $(BEAM)
 
+# The application and its tests compiled, which make test does once before
+# it runs one application's tests in several hosts at once.
+beams: $(BEAM) $(TEST_BEAM)
+
 $(BEAM) $(TEST_BEAM): ../../../VERSION
 
 # The standard library, and the shell's tree, which holds libs/markdown's
@@ -53,4 +57,4 @@ $(EBIN):
 
 -include $(DEPS)
 
-.PHONY: all test clean
+.PHONY: beams all test clean

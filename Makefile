@@ -131,11 +131,13 @@ unicode:
 # seconds, which the load of the areas that start hosts would take from
 # them. Those areas then run, each its own tests side by side. Make starts
 # the jobs in the order given, so the longest come first. The modules under
-# test/ are compiled first, once. A change may run its own area's target as
-# it is worked on.
+# test/, and the tests of the applications run in parts, are compiled
+# first, once, so that no two parts compile one module at once. A change
+# may run its own area's target as it is worked on.
 JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 test: all
 	@$(MAKE) -s -C test beams
+	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
 	@$(MAKE) -s -j$(JOBS) -O test-guide $(EMACS_JOBS) $(APP_JOBS) test-docs
 	@$(MAKE) -s -j$(JOBS) -O test-shell test-programs
 
