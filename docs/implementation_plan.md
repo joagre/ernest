@@ -109,16 +109,19 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    second way beside inference (the log's *The Reply Discipline Names No Type*), and the
    process-only mark is `m+` (the log's *The Process-Only Mark*).
    [`operations.md`](operations.md) was rewritten under the two rules on 2026-10-01 (the log's
-   *The Operations Note Rewritten*), and what it proposes is this item's decision: the record
-   of `Set`'s primitives in `set.ern`; the code written once as functions of `set.ern` named
-   with `With`, the record after the subjects; `OrderedSet.Set(a)` in `ordered_set.ern`, its
-   order an argument of `operations` and of each of its functions that needs one; an order
-   belonging to an element type, so that a second order is a second type and two sets of
-   different orders cannot meet; and no order for tuples, lists, `Optional` and `Either`,
-   since their `compare` would compare a type variable, which reverses what was decided on
-   2026-09-29 (the log's *Operations Records*). Two parts of 2026-09-29 stand: `put` keeps the
-   element already in the set, and `foldLeft` is written once over `toList`, outside the
-   record. The ordered set's representation is the note's open question.
+   *The Operations Note Rewritten* and *The Order Bound Once*), and what it proposes is this
+   item's decision: the record of `Set`'s primitives in `set.ern`; the code written once as
+   functions of `set.ern` named with `With`, the record after the subjects; `OrderedSet.Set(a)`
+   in `ordered_set.ern`, its order written once, where the program binds its record,
+   `let ints = OrderedSet.operations(Int.compare)`, an operation that needs the order a field
+   of that record and no function of the module taking it, so that nothing past the binding
+   falls on the program; an order belonging to an element type, so that a second order is a
+   second type and two sets of different orders cannot meet; and no order for tuples, lists,
+   `Optional` and `Either`, since their `compare` would compare a type variable, which
+   reverses what was decided on 2026-09-29 (the log's *Operations Records*). Two parts of
+   2026-09-29 stand: `put` keeps the element already in the set, and `foldLeft` is written
+   once over `toList`, outside the record. The ordered set's representation is the note's
+   open question.
 5. **The service's two decisions, with the user**: what an alarm at a time does when the
    host's wall clock jumps, since deadlines use the monotonic clock and a time does not
    (`Clock.alarmAt`, Appendix E.15); and whether a launcher passes a termination or hangup
@@ -165,9 +168,10 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
     `With`, the record after the subjects, and each of `Set`'s own a call of one.
 12. **`OrderedSet` in the standard library**, the record's second representation,
     `OrderedSet.Set(a)` in `ordered_set.ern`, with its tests and its page, in a section of its
-    own at the end of Appendix E; its order an argument of `operations` and of each function
-    that needs it, since the ordering restriction's hidden argument is refused (2026-10-01).
-    `Map` gains a record with a second representation, and not before.
+    own at the end of Appendix E; its order written once, in the record `operations(compare)`
+    builds, whose fields close over it, no function of the module taking it, since the ordering
+    restriction's hidden argument is refused (2026-10-01) and nothing past that binding falls
+    on the program. `Map` gains a record with a second representation, and not before.
 13. **The boundary at a type variable** (`Io.debug` goes through `Io` since 2026-10-01; the shown restriction of
     2026-09-29 was refused on 2026-10-01, the log's *A Value Shows Itself at a Known Type*:
     `Io.show` on a type variable is a type error, as an operator is, and takes no hidden
