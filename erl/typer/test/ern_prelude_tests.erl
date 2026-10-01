@@ -271,7 +271,14 @@ type_text({tcon, Q, Args}, Ns, Names) ->
         _ -> N ++ "(" ++ lists:join(", ", [type_text(A, Ns, Names) || A <- Args]) ++ ")"
     end;
 type_text({ttuple, Es}, Ns, Names) ->
-    "#(" ++ lists:join(", ", [type_text(E, Ns, Names) || E <- Es]) ++ ")".
+    "#(" ++ lists:join(", ", [type_text(E, Ns, Names) || E <- Es]) ++ ")";
+type_text({tfn, Params, Effect, Result}, Ns, Names) ->
+    Arrow = "(" ++ lists:join(", ", [type_text(P, Ns, Names) || P <- Params]) ++ ") -> "
+        ++ type_text(Result, Ns, Names),
+    case Effect of
+        pure -> Arrow;
+        _ -> Arrow ++ " with " ++ type_text(Effect, Ns, Names)
+    end.
 
 %% report §3.1, §9.1, §9.2: the built-in types and their arities
 builtin_types_test() ->

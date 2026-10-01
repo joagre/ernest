@@ -198,12 +198,12 @@ fn errorText(e : Io.Error) : String =
 //
 
 let namesOnly =
-    Test(name = "a peer's path is stored only where it names a file here", run = fn() = {
+    Test.Case(name = "a peer's path is stored only where it names a file here", run = fn() = {
         let names =
             List.map(["notes.txt", "../x", "/etc/x", "a/b", ".", "..", ""],
                      fn(text) = isName(Path(text)));
         if names == [true, false, false, false, false, false, false] then
-            Passed
+            Test.Passed
         else
-            Prelude.Failed(Io.show(names))
+            Test.Failed(Io.show(names))
     })

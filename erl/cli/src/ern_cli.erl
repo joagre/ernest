@@ -847,7 +847,7 @@ run_tests(Ns, Loaded, Err) ->
                            true -> Mod:'$tests'();
                            false -> []
                        end,
-               Names = [Name || {'Test', Name, _} <- Tests],
+               Names = [Name || {'Case', Name, _} <- Tests],
                %% report §11.2: a module without tests says so, and one two
                %% of whose tests have one name is refused before any runs
                case {Tests, Names -- lists:usort(Names)} of
@@ -884,12 +884,12 @@ run_tests(Ns, Loaded, Err) ->
             outcome(Err, Other)
     end.
 
-%% One test, Test(name, run) in canonical field order, in a process of its
+%% One test, Test.Case(name, run) in canonical field order, in a process of its
 %% own, monitored from its start so that a fault is reported, however soon
 %% it comes, and not taken for the run's (report §6.9). A deadlock while it
 %% runs is its fault (§11.2). Its line goes through standard output's
 %% process, after what the test wrote there; whether it passed is returned.
-run_test({'Test', Name, Run}) ->
+run_test({'Case', Name, Run}) ->
     Me = ern_rt:self(),
     Ref = make_ref(),
     Pid = ern_rt:spawn_monitored('Local', fun() -> receive {Ref, go} -> Me ! {Ref, Run()} end end,

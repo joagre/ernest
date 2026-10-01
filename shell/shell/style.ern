@@ -52,49 +52,49 @@ fn paint(colour : Markdown.Output, style : Terminal.Style, text : String) : Stri
 //
 
 let off =
-    Test(name = "without colour the text is unchanged",
-         run = fn() =
-             if fault(Markdown.Plain, "f faulted") == "f faulted"
-                 && named(Markdown.Plain, "a : Int") == "a : Int" then
-                 Passed
-             else
-                 Failed("coloured when off"))
+    Test.Case(name = "without colour the text is unchanged",
+              run = fn() =
+                  if fault(Markdown.Plain, "f faulted") == "f faulted"
+                      && named(Markdown.Plain, "a : Int") == "a : Int" then
+                      Test.Passed
+                  else
+                      Test.Failed("coloured when off"))
 
 let faults =
-    Test(name = "a fault is red",
-         run = fn() = if fault(Markdown.Styled, "x") == "\u{1b}[31mx\u{1b}[39m" then
-             Passed
-         else
-             Failed(fault(Markdown.Styled, "x")))
+    Test.Case(name = "a fault is red",
+              run = fn() = if fault(Markdown.Styled, "x") == "\u{1b}[31mx\u{1b}[39m" then
+                  Test.Passed
+              else
+                  Test.Failed(fault(Markdown.Styled, "x")))
 
 let diagnostics =
-    Test(name = "a diagnostic's first line is red, its source plain",
-         run = fn() =
-             if diagnostic(Markdown.Styled, "a:1:1: bad\n1 | a")
-                 == "\u{1b}[31ma:1:1: bad\u{1b}[39m\n1 | a" then
-                 Passed
-             else
-                 Failed(diagnostic(Markdown.Styled, "a:1:1: bad\n1 | a")))
+    Test.Case(name = "a diagnostic's first line is red, its source plain",
+              run = fn() =
+                  if diagnostic(Markdown.Styled, "a:1:1: bad\n1 | a")
+                      == "\u{1b}[31ma:1:1: bad\u{1b}[39m\n1 | a" then
+                      Test.Passed
+                  else
+                      Test.Failed(diagnostic(Markdown.Styled, "a:1:1: bad\n1 | a")))
 
 let names =
-    Test(name = "a name before its type is bold",
-         run = fn() =
-             if named(Markdown.Styled, "List.map : (a) -> b")
-                 == "\u{1b}[1mList.map\u{1b}[22m : (a) -> b" then
-                 Passed
-             else
-                 Failed(named(Markdown.Styled, "List.map : (a) -> b")))
+    Test.Case(name = "a name before its type is bold",
+              run = fn() =
+                  if named(Markdown.Styled, "List.map : (a) -> b")
+                      == "\u{1b}[1mList.map\u{1b}[22m : (a) -> b" then
+                      Test.Passed
+                  else
+                      Test.Failed(named(Markdown.Styled, "List.map : (a) -> b")))
 
 let marksWithout =
-    Test(name = "without colour the marked parameter is between asterisks",
-         run = fn() = if emphasis(Markdown.Plain, "f : Int") == "*f : Int*" then
-             Passed
-         else
-             Failed(emphasis(Markdown.Plain, "f : Int")))
+    Test.Case(name = "without colour the marked parameter is between asterisks",
+              run = fn() = if emphasis(Markdown.Plain, "f : Int") == "*f : Int*" then
+                  Test.Passed
+              else
+                  Test.Failed(emphasis(Markdown.Plain, "f : Int")))
 
 let empties =
-    Test(name = "an empty text takes no colour",
-         run = fn() = if emphasis(Markdown.Styled, "") == "" then
-             Passed
-         else
-             Failed("coloured nothing"))
+    Test.Case(name = "an empty text takes no colour",
+              run = fn() = if emphasis(Markdown.Styled, "") == "" then
+                  Test.Passed
+              else
+                  Test.Failed("coloured nothing"))

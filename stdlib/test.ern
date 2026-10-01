@@ -1,0 +1,32 @@
+/// Tests that `ern test` runs (report Appendix E.24, §11.2). A test is a
+/// top-level `let` of type `Case`, exported or not: its name, and a
+/// function that answers whether it passed. The module declares the two
+/// types and no function.
+///
+/// ## Examples
+///
+/// ```ernest
+/// Test.Case(name = "adds", run = fn() = if 1 + 1 == 2 then Test.Passed else Test.Failed("not 2"))
+/// ```
+///
+/// since 0.1.0
+
+/// A test: its name, which `ern test` prints, and the function it runs.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Test.Case(name = "the empty list is empty",
+///           run = fn() = if List.isEmpty([]) then Test.Passed else Test.Failed("not empty"))
+/// ```
+export type Case = Case(name : String, run : () -> Result with Never)
+
+/// A test's answer: `Passed`, or `Failed` with what went wrong.
+///
+/// ### Examples
+///
+/// ```ernest
+/// if 1 + 1 == 2 then Test.Passed else Test.Failed("1 + 1 is not 2")
+/// // => Passed
+/// ```
+export type Result = Passed | Failed(String)

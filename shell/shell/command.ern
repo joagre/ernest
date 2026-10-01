@@ -230,31 +230,34 @@ fn count(what : String, text : String, made : (Int) -> Setting) : Either(String,
 //
 
 let prefixes =
-    Test(name = "a prefix that begins one name selects it, two are refused",
-         run = fn() = match #(pick("br"), pick("b"), pick("zz")) {
-             #(Picked(Command(name = "browse")), Ambiguous(["bindings", "browse"]), Unknown) ->
-                 Passed
-           | _ -> Failed("pick")
-         })
+    Test.Case(name = "a prefix that begins one name selects it, two are refused",
+              run = fn() = match #(pick("br"), pick("b"), pick("zz")) {
+                  #(Picked(Command(name = "browse")), Ambiguous(["bindings", "browse"]), Unknown) ->
+                      Test.Passed
+                | _ -> Test.Failed("pick")
+              })
 
-let whole = Test(name = "a whole name selects its command", run = fn() = match pick("set") {
-    Picked(Command(name = "set")) -> Passed
-  | _ -> Failed("set")
+let whole = Test.Case(name = "a whole name selects its command", run = fn() = match pick("set") {
+    Picked(Command(name = "set")) -> Test.Passed
+  | _ -> Test.Failed("set")
 })
 
-let alphabetical = Test(name = "the commands are in alphabetical order", run = fn() = {
+let alphabetical = Test.Case(name = "the commands are in alphabetical order", run = fn() = {
     let names = List.map(commands, fn(c) = c.name);
-    if names == List.sort(names, String.compare) then Passed else Failed(String.join(names, " "))
+    if names == List.sort(names, String.compare) then
+        Test.Passed
+    else
+        Test.Failed(String.join(names, " "))
 })
 
 let lines =
-    Test(name = "a command line is its action and its argument, trimmed",
-         run = fn() = match #(parse(":br  List "), parse(":help")) {
-             #(Right(#(Browse, "List")), Right(#(Help, ""))) -> Passed
-           | _ -> Failed("parse")
-         })
+    Test.Case(name = "a command line is its action and its argument, trimmed",
+              run = fn() = match #(parse(":br  List "), parse(":help")) {
+                  #(Right(#(Browse, "List")), Right(#(Help, ""))) -> Test.Passed
+                | _ -> Test.Failed("parse")
+              })
 
-let refusals = Test(name = "a command line that selects nothing says why", run = fn() = {
+let refusals = Test.Case(name = "a command line that selects nothing says why", run = fn() = {
     let said = List.map([":zz", ":f", ":b", ":type", ":help me"], fn(line) = match parse(line) {
         Left(text) -> text
       | Right(_) -> "accepted"
@@ -265,50 +268,50 @@ let refusals = Test(name = "a command line that selects nothing says why", run =
             ":b is :bindings or :browse",
             ":type takes an expression",
             ":help takes no argument"] then
-        Passed
+        Test.Passed
     else
-        Failed(String.join(said, " | "))
+        Test.Failed(String.join(said, " | "))
 })
 
 let three =
-    Test(name = "three alternatives read as a list",
-         run = fn() = if alternatives(["a", "b", "c"]) == ":a, :b or :c" then
-             Passed
-         else
-             Failed(alternatives(["a", "b", "c"])))
+    Test.Case(name = "three alternatives read as a list",
+              run = fn() = if alternatives(["a", "b", "c"]) == ":a, :b or :c" then
+                  Test.Passed
+              else
+                  Test.Failed(alternatives(["a", "b", "c"])))
 
 let completing =
-    Test(name = "what completes is what the command takes",
-         run = fn() =
-             match #(completes(":load"),
-                     completes(":output"),
-                     completes(":help"),
-                     completes(":zz")) {
-                 #(Some(SourceModules), Some(Paths), None, None) -> Passed
-               | _ -> Failed("completes")
-             })
+    Test.Case(name = "what completes is what the command takes",
+              run = fn() =
+                  match #(completes(":load"),
+                          completes(":output"),
+                          completes(":help"),
+                          completes(":zz")) {
+                      #(Some(SourceModules), Some(Paths), None, None) -> Test.Passed
+                    | _ -> Test.Failed("completes")
+                  })
 
 let helpLines =
-    Test(name = "a help line's prose starts in one column", run = fn() = match pick("browse") {
+    Test.Case(name = "a help line's prose starts in one column", run = fn() = match pick("browse") {
         Picked(c) -> if line(c) == ":browse Module  the exports of Module with their types" then
-            Passed
+            Test.Passed
         else
-            Failed(line(c))
-      | _ -> Failed("browse")
+            Test.Failed(line(c))
+      | _ -> Test.Failed("browse")
     })
 
 let settingsRead =
-    Test(name = "a setting reads its value, and refuses what is not one",
-         run = fn() =
-             match #(setting("depth 3"),
-                     setting("timing on"),
-                     setting("depth -1"),
-                     setting("width 2")) {
-                 #(Right(Depth(3)), Right(Timing(true)), Left(negative), Left(unknown)) ->
-                     if negative == ":set depth takes 0 or more"
-                         && unknown == ":set takes depth, length, output or timing" then
-                         Passed
-                     else
-                         Failed(negative <> " | " <> unknown)
-               | _ -> Failed("setting")
-             })
+    Test.Case(name = "a setting reads its value, and refuses what is not one",
+              run = fn() =
+                  match #(setting("depth 3"),
+                          setting("timing on"),
+                          setting("depth -1"),
+                          setting("width 2")) {
+                      #(Right(Depth(3)), Right(Timing(true)), Left(negative), Left(unknown)) ->
+                          if negative == ":set depth takes 0 or more"
+                              && unknown == ":set takes depth, length, output or timing" then
+                              Test.Passed
+                          else
+                              Test.Failed(negative <> " | " <> unknown)
+                    | _ -> Test.Failed("setting")
+                  })

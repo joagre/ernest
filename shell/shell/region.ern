@@ -431,75 +431,80 @@ fn split(text : String) : #(List(String), String) =
 //
 
 let spansRows =
-    Test(name = "an input takes a row for each of its lines",
-         run = fn() = rowsAre(inputRows(typed("a\nb", 3)), ["> a", "... b"]))
+    Test.Case(name = "an input takes a row for each of its lines",
+              run = fn() = rowsAre(inputRows(typed("a\nb", 3)), ["> a", "... b"]))
 
 let showsTheEmptyRow =
-    Test(name = "a text that ends in a line feed shows its empty row",
-         run = fn() = rowsAre(inputRows(typed("a\n", 2)), ["> a", "... "]))
+    Test.Case(name = "a text that ends in a line feed shows its empty row",
+              run = fn() = rowsAre(inputRows(typed("a\n", 2)), ["> a", "... "]))
 
 let restsWhereTyped =
-    Test(name = "the cursor rests on the row and column it is typed at",
-         run = fn() = at(typed("a\nbc", 4), 1, 7))
+    Test.Case(name = "the cursor rests on the row and column it is typed at",
+              run = fn() = at(typed("a\nbc", 4), 1, 7))
 
 // Report §11.2, §11.5. A regression test: a paste's OSC reached the
 // terminal as itself, and the cursor was placed past what it painted
 let picturesControls =
-    Test(name = "a control character typed or pasted is painted as its picture", run = fn() = {
+    Test.Case(name = "a control character typed or pasted is painted as its picture", run = fn() = {
         let r = typed("x\u{1b}]0;t\u{7}y\u{7f}\u{85}", 10);
         match rowsAre(inputRows(r), ["> x\u{241b}]0;t\u{2407}y\u{2421}\u{fffd}"]) {
-            Passed -> at(r, 0, 13)
+            Test.Passed -> at(r, 0, 13)
           | failed -> failed
         }
     })
 
 let restsOnTheFirstRow =
-    Test(name = "a one-line input rests after its prompt", run = fn() = at(typed("abc", 2), 0, 5))
+    Test.Case(name = "a one-line input rests after its prompt",
+              run = fn() = at(typed("abc", 2), 0, 5))
 
 let wideGlyphs =
-    Test(name = "a wide glyph takes two columns and is never split",
-         run = fn() =
-             rowsAre(wrapped("中中中", 4) <> [clip("a中b", 2)] <> wrapped("中中", 1),
-                     ["中中", "中", "a", "中", "中"]))
+    Test.Case(name = "a wide glyph takes two columns and is never split",
+              run = fn() =
+                  rowsAre(wrapped("中中中", 4) <> [clip("a中b", 2)] <> wrapped("中中", 1),
+                          ["中中", "中", "a", "中", "中"]))
 
 let restsAfterWide =
-    Test(name = "the cursor rests after a wide glyph's two columns",
-         run = fn() = at(typed("中a", 2), 0, 6))
+    Test.Case(name = "the cursor rests after a wide glyph's two columns",
+              run = fn() = at(typed("中a", 2), 0, 6))
 
-let escapesTakeNoColumn = Test(name = "an escape sequence takes no column", run = fn() = {
+let escapesTakeNoColumn = Test.Case(name = "an escape sequence takes no column", run = fn() = {
     let text = "a\u{1b}[36mbc\u{1b}[0md";
-    if Terminal.columns(text) == 4 then Passed else Failed(Int.toString(Terminal.columns(text)))
+    if Terminal.columns(text) == 4 then
+        Test.Passed
+    else
+        Test.Failed(Int.toString(Terminal.columns(text)))
 })
 
 let clipKeepsSequences =
-    Test(name = "a row cut short keeps its sequences and resets",
-         run = fn() = same(clip("ab\u{1b}[36mcdef\u{1b}[0m", 4), "ab\u{1b}[36mcd\u{1b}[0m"))
+    Test.Case(name = "a row cut short keeps its sequences and resets",
+              run = fn() = same(clip("ab\u{1b}[36mcdef\u{1b}[0m", 4), "ab\u{1b}[36mcd\u{1b}[0m"))
 
 let tabsAfterSequences =
-    Test(name = "a tab stop is counted without escape sequences",
-         run = fn() = same(expand("\u{1b}[36ma\u{1b}[0m\tb"), "\u{1b}[36ma\u{1b}[0m       b"))
+    Test.Case(name = "a tab stop is counted without escape sequences",
+              run = fn() = same(expand("\u{1b}[36ma\u{1b}[0m\tb"), "\u{1b}[36ma\u{1b}[0m       b"))
 
 let takenPrompt =
-    Test(name = "a prompt spent on no input goes before the next answer", run = fn() = {
+    Test.Case(name = "a prompt spent on no input goes before the next answer", run = fn() = {
         let r0 = new(Terminal.Size(rows = 24, columns = 80));
         let #(r1, _) = said(r0, "1 : Int\n> ");
         let #(r2, _) = taken(r1);
         let #(_, bytes) = said(r2, "4 : Int\n> ");
         if String.indexOf(bytes, "> 4 : Int") == None
             && String.indexOf(bytes, "4 : Int") != None then
-            Passed
+            Test.Passed
         else
-            Failed(String.replace(bytes, "\u{1b}", "ESC"))
+            Test.Failed(String.replace(bytes, "\u{1b}", "ESC"))
     })
 
 let expandsTabs =
-    Test(name = "a tab is painted to the next stop",
-         run = fn() = rowsAre([expand("> a\tb"), expand("\t.")], ["> a     b", "        ."]))
+    Test.Case(name = "a tab is painted to the next stop",
+              run = fn() = rowsAre([expand("> a\tb"), expand("\t.")], ["> a     b", "        ."]))
 
 let restsAfterATab =
-    Test(name = "the cursor rests where the tab left it", run = fn() = at(typed("a\tb", 2), 0, 9))
+    Test.Case(name = "the cursor rests where the tab left it",
+              run = fn() = at(typed("a\tb", 2), 0, 9))
 
-let paintsTheLine = Test(name = "typing erases the region and paints it again", run = fn() = {
+let paintsTheLine = Test.Case(name = "typing erases the region and paints it again", run = fn() = {
     let #(_, bytes) = typing(prompted(), "hi", 2, []);
     // the region is one row, so nothing is climbed; the cursor is put
     // after the prompt and what is typed
@@ -507,53 +512,54 @@ let paintsTheLine = Test(name = "typing erases the region and paints it again", 
 })
 
 let commitsWhatIsEntered =
-    Test(name = "an input entered joins the transcript, a row a line", run = fn() = {
+    Test.Case(name = "an input entered joins the transcript, a row a line", run = fn() = {
         let #(typed, _) = typing(prompted(), "a\nb", 3, []);
         let #(_, bytes) = entered(typed);
         same(bytes, "\r\u{1b}[1A\u{1b}[J> a\n... b\n\r")
     })
 
 let offersUnderTheInput =
-    Test(name = "what Tab shows stands under the input, the cursor in it", run = fn() = {
+    Test.Case(name = "what Tab shows stands under the input, the cursor in it", run = fn() = {
         let #(r, bytes) = typing(prompted(), "Li", 2, ["List.map : a", "List.size : b"]);
         // three rows painted, and the cursor climbs the two under it
         if rowsOf(r) == ["> Li", "List.map : a", "List.size : b"] && resting(r) == 0 then
             same(bytes, offered)
         else
-            Failed(String.join(rowsOf(r), " | "))
+            Test.Failed(String.join(rowsOf(r), " | "))
     })
 
 // What typing "Li" writes with two rows offered under it.
 let offered = "\r\u{1b}[J> Li\nList.map : a\nList.size : b\u{1b}[2A\r\u{1b}[4C"
 
-let nextKeyTakesItAway = Test(name = "the next key takes away what Tab showed", run = fn() = {
+let nextKeyTakesItAway = Test.Case(name = "the next key takes away what Tab showed", run = fn() = {
     let #(r1, _) = typing(prompted(), "Li", 2, ["List.map : a"]);
     let #(r2, _) = typing(r1, "Lis", 3, []);
     rowsAre(rowsOf(r2), ["> Lis"])
 })
 
-let enteredTakesItAway = Test(name = "an input entered takes away what Tab showed", run = fn() = {
-    let #(r1, _) = typing(prompted(), "Li", 2, ["List.map : a"]);
-    let #(r2, bytes) = entered(r1);
-    if rowsOf(r2) == [""] && String.indexOf(bytes, "List.map") == None then
-        Passed
-    else
-        Failed(String.join(rowsOf(r2), " | "))
-})
+let enteredTakesItAway =
+    Test.Case(name = "an input entered takes away what Tab showed", run = fn() = {
+        let #(r1, _) = typing(prompted(), "Li", 2, ["List.map : a"]);
+        let #(r2, bytes) = entered(r1);
+        if rowsOf(r2) == [""] && String.indexOf(bytes, "List.map") == None then
+            Test.Passed
+        else
+            Test.Failed(String.join(rowsOf(r2), " | "))
+    })
 
-let offerWraps = Test(name = "a row shown under the input wraps at the edge", run = fn() = {
+let offerWraps = Test.Case(name = "a row shown under the input wraps at the edge", run = fn() = {
     let #(r1, _) = said(new(Terminal.Size(rows = 24, columns = 6)), "> ");
     let #(r, _) = typing(r1, "", 0, ["abcdefgh"]);
     rowsAre(rowsOf(r), ["> ", "abcdef", "gh"])
 })
 
 let wrapKeepsColour =
-    Test(name = "a wrapped row is coloured on as it was",
-         run = fn() =
-             rowsAre(wrapped("\u{1b}[1mabcdefgh\u{1b}[0m", 6),
-                     ["\u{1b}[1mabcdef\u{1b}[0m", "\u{1b}[1mgh\u{1b}[0m"]))
+    Test.Case(name = "a wrapped row is coloured on as it was",
+              run = fn() =
+                  rowsAre(wrapped("\u{1b}[1mabcdefgh\u{1b}[0m", 6),
+                          ["\u{1b}[1mabcdef\u{1b}[0m", "\u{1b}[1mgh\u{1b}[0m"]))
 
-let offerCounted = Test(name = "what the screen has no room for is counted", run = fn() = {
+let offerCounted = Test.Case(name = "what the screen has no room for is counted", run = fn() = {
     // six rows: one for the input, four for lines, one for the count
     let r0 = new(Terminal.Size(rows = 6, columns = 80));
     let #(r1, _) = said(r0, "> ");
@@ -561,72 +567,72 @@ let offerCounted = Test(name = "what the screen has no room for is counted", run
     rowsAre(rowsOf(r), ["> ", "a", "b", "c", "d", "and 3 more"])
 })
 
-let enteredEmpty = Test(name = "nothing typed after no prompt leaves no row", run = fn() = {
+let enteredEmpty = Test.Case(name = "nothing typed after no prompt leaves no row", run = fn() = {
     let #(_, bytes) = entered(typed("", 0));
     let #(r, _) = said(new(Terminal.Size(rows = 24, columns = 80)), "");
     let #(_, none) = entered(r);
     // a row committed would end in a line feed
     if String.contains(bytes, "> \n") && !String.contains(none, "\n") then
-        Passed
+        Test.Passed
     else
-        Failed(String.replace(none, "\u{1b}", "ESC"))
+        Test.Failed(String.replace(none, "\u{1b}", "ESC"))
 })
 
 let wrapsTheInput =
-    Test(name = "a line wider than the screen wraps, the cursor after it", run = fn() = {
+    Test.Case(name = "a line wider than the screen wraps, the cursor after it", run = fn() = {
         let #(r0, _) = said(new(Terminal.Size(rows = 24, columns = 10)), "> ");
         let #(r, _) = typing(r0, "abcdefghijkl", 12, []);
         // `> ` and twelve characters are fourteen columns: two rows
         if rowsOf(r) == ["> abcdefgh", "ijkl"] && resting(r) == 1 && column(r) == 5 then
-            Passed
+            Test.Passed
         else
-            Failed(String.join(rowsOf(r), " | ")
-                       <> " at "
-                       <> Int.toString(resting(r))
-                       <> ","
-                       <> Int.toString(column(r)))
+            Test.Failed(String.join(rowsOf(r), " | ")
+                            <> " at "
+                            <> Int.toString(resting(r))
+                            <> ","
+                            <> Int.toString(column(r)))
     })
 
 let fillsTheWidth =
-    Test(name = "a line that fills the width puts the cursor on the next row", run = fn() = {
+    Test.Case(name = "a line that fills the width puts the cursor on the next row", run = fn() = {
         let #(r0, _) = said(new(Terminal.Size(rows = 24, columns = 10)), "> ");
         let #(r, _) = typing(r0, "abcdefgh", 8, []);
         if rowsOf(r) == ["> abcdefgh", ""] && resting(r) == 1 && column(r) == 1 then
-            Passed
+            Test.Passed
         else
-            Failed(String.join(rowsOf(r), " | "))
+            Test.Failed(String.join(rowsOf(r), " | "))
     })
 
 let unendedRows =
-    Test(name = "a line not yet ended gives the tail each row it fills", run = fn() = {
+    Test.Case(name = "a line not yet ended gives the tail each row it fills", run = fn() = {
         let r0 = new(Terminal.Size(rows = 24, columns = 10));
         let #(r1, _) = wrote(r0, "abcdefghijklmnopqrstuvwxy");
         let #(r2, _) = wrote(new(Terminal.Size(rows = 24, columns = 10)), "abcdefg");
         let #(r3, _) = wrote(r2, "hijklm");
         if tailRowsOf(r1) == ["abcdefghij", "klmnopqrst", "uvwxy"]
             && tailRowsOf(r3) == ["abcdefghij", "klm"] then
-            Passed
+            Test.Passed
         else
-            Failed(String.join(tailRowsOf(r1) <> ["/"] <> tailRowsOf(r3), " | "))
+            Test.Failed(String.join(tailRowsOf(r1) <> ["/"] <> tailRowsOf(r3), " | "))
     })
 
 let unendedStyle =
-    Test(name = "a row of a line not yet ended begins with the style in force", run = fn() = {
+    Test.Case(name = "a row of a line not yet ended begins with the style in force", run = fn() = {
         let #(rows, left) = filled("\u{1b}[31mabcdefghijkl", 10);
         let #(reset, tail) = filled("\u{1b}[31mab\u{1b}[0mcdefghijkl", 10);
         if rows == ["\u{1b}[31mabcdefghij"]
             && left == "\u{1b}[31mkl"
             && reset == ["\u{1b}[31mab\u{1b}[0mcdefghij"]
             && tail == "kl" then
-            Passed
+            Test.Passed
         else
-            Failed(String.replace(String.join(rows <> [left] <> reset <> [tail], " | "),
-                                  "\u{1b}",
-                                  "ESC"))
+            Test.Failed(String.replace(String.join(rows <> [left] <> reset <> [tail], " | "),
+                                       "\u{1b}",
+                                       "ESC"))
     })
 
 let unendedHeld =
-    Test(name = "a line that never ends holds a row of the region at most", run = fn() = {
+    Test.Case(name = "a line that never ends holds a row of the region at most", run = fn() = {
         let r =
             List.foldLeft(List.repeat(".", 1000),
                           new(Terminal.Size(rows = 24, columns = 10)),
@@ -635,9 +641,9 @@ let unendedHeld =
                               next
                           });
         if String.size(r.writing) <= 10 then
-            Passed
+            Test.Passed
         else
-            Failed(Int.toString(String.size(r.writing)))
+            Test.Failed(Int.toString(String.size(r.writing)))
     })
 
 // A region with a prompt written, which is where an input is typed.
@@ -653,14 +659,14 @@ fn typed(text : String, at : Int) : Region = {
     r
 }
 
-fn rowsAre(rows : List(String), expected : List(String)) : TestResult =
-    if rows == expected then Passed else Failed(String.join(rows, " | "))
+fn rowsAre(rows : List(String), expected : List(String)) : Test.Result =
+    if rows == expected then Test.Passed else Test.Failed(String.join(rows, " | "))
 
-fn at(r : Region, row : Int, wanted : Int) : TestResult =
+fn at(r : Region, row : Int, wanted : Int) : Test.Result =
     if resting(r) == row && column(r) == wanted then
-        Passed
+        Test.Passed
     else
-        Failed("row " <> Int.toString(resting(r)) <> ", column " <> Int.toString(column(r)))
+        Test.Failed("row " <> Int.toString(resting(r)) <> ", column " <> Int.toString(column(r)))
 
-fn same(bytes : String, expected : String) : TestResult =
-    if bytes == expected then Passed else Failed(String.replace(bytes, "\u{1b}", "ESC"))
+fn same(bytes : String, expected : String) : Test.Result =
+    if bytes == expected then Test.Passed else Test.Failed(String.replace(bytes, "\u{1b}", "ESC"))

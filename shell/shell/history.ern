@@ -137,27 +137,30 @@ fn undo(rest : List(Char), done : List(Char)) : List(Char) =
 //
 
 let plain =
-    Test(name = "an input without a newline is written as it is", run = fn() = same("1 + 2"))
+    Test.Case(name = "an input without a newline is written as it is", run = fn() = same("1 + 2"))
 
 let newlines =
-    Test(name = "a newline is written as an escape and read back",
-         run = fn() = if encode("a\nb") == "a\\nb" then same("a\nb") else Failed(encode("a\nb")))
+    Test.Case(name = "a newline is written as an escape and read back",
+              run = fn() = if encode("a\nb") == "a\\nb" then
+                  same("a\nb")
+              else
+                  Test.Failed(encode("a\nb")))
 
 let backslash =
-    Test(name = "a backslash is doubled, so `\\n` is not a newline",
-         run = fn() = if encode("a\\nb") == "a\\\\nb" then
-             same("a\\nb")
-         else
-             Failed(encode("a\\nb")))
+    Test.Case(name = "a backslash is doubled, so `\\n` is not a newline",
+              run = fn() = if encode("a\\nb") == "a\\\\nb" then
+                  same("a\\nb")
+              else
+                  Test.Failed(encode("a\\nb")))
 
 let both =
-    Test(name = "a backslash before a newline reads back whole",
-         run = fn() = same("let s = \"\\\\\";\nlet t = 2"))
+    Test.Case(name = "a backslash before a newline reads back whole",
+              run = fn() = same("let s = \"\\\\\";\nlet t = 2"))
 
-let empty = Test(name = "an empty input reads back empty", run = fn() = same(""))
+let empty = Test.Case(name = "an empty input reads back empty", run = fn() = same(""))
 
-fn same(input : String) : TestResult =
+fn same(input : String) : Test.Result =
     if decode(encode(input)) == input then
-        Passed
+        Test.Passed
     else
-        Failed("\"" <> encode(input) <> "\" read back as \"" <> decode(encode(input)) <> "\"")
+        Test.Failed("\"" <> encode(input) <> "\" read back as \"" <> decode(encode(input)) <> "\"")

@@ -448,286 +448,298 @@ fn alphanumeric(text : String, i : Int) : Bool =
 //
 
 let typing =
-    Test(name = "typing inserts at the cursor",
-         run = fn() = reads(play(keys("abc") <> [Terminal.ArrowLeft] <> keys("X")), "abXc", 3))
+    Test.Case(name = "typing inserts at the cursor",
+              run = fn() = reads(play(keys("abc") <> [Terminal.ArrowLeft] <> keys("X")), "abXc", 3))
 
 // a regression test: the cursor moved by the Chars a key put in, so a
 // combining mark after a letter left it past the end (findings.md's E6)
 let combining =
-    Test(name = "a mark that joins the letter before it leaves the cursor after both",
-         run = fn() =
-             reads(play(keys("e") <> [Terminal.Key('\u{301}'), Terminal.Key('\u{7f}')]), "", 0))
+    Test.Case(name = "a mark that joins the letter before it leaves the cursor after both",
+              run = fn() =
+                  reads(play(keys("e") <> [Terminal.Key('\u{301}'), Terminal.Key('\u{7f}')]),
+                        "",
+                        0))
 
 let ends =
-    Test(name = "C-a and C-e go to the ends of the line",
-         run = fn() =
-             reads(play(keys("abc") <> [ctrl('a')] <> keys("X") <> [ctrl('e')] <> keys("Y")),
-                   "XabcY",
-                   5))
+    Test.Case(name = "C-a and C-e go to the ends of the line",
+              run = fn() =
+                  reads(play(keys("abc") <> [ctrl('a')] <> keys("X") <> [ctrl('e')] <> keys("Y")),
+                        "XabcY",
+                        5))
 
 let backspace =
-    Test(name = "backspace deletes what is before the cursor",
-         run = fn() = reads(play(keys("abc") <> [Terminal.Key('\u{7f}')]), "ab", 2))
+    Test.Case(name = "backspace deletes what is before the cursor",
+              run = fn() = reads(play(keys("abc") <> [Terminal.Key('\u{7f}')]), "ab", 2))
 
 let forwardDelete =
-    Test(name = "C-d deletes what is under the cursor",
-         run = fn() = reads(play(keys("abc") <> [ctrl('a'), ctrl('d')]), "bc", 0))
+    Test.Case(name = "C-d deletes what is under the cursor",
+              run = fn() = reads(play(keys("abc") <> [ctrl('a'), ctrl('d')]), "bc", 0))
 
 let killAndYank =
-    Test(name = "C-k kills to the end and C-y puts it back",
-         run = fn() =
-             reads(play(keys("abcdef")
-                            <> [Terminal.ArrowLeft,
-                                Terminal.ArrowLeft,
-                                ctrl('k'),
-                                ctrl('a'),
-                                ctrl('y')]),
-                   "efabcd",
-                   2))
+    Test.Case(name = "C-k kills to the end and C-y puts it back",
+              run = fn() =
+                  reads(play(keys("abcdef")
+                                 <> [Terminal.ArrowLeft,
+                                     Terminal.ArrowLeft,
+                                     ctrl('k'),
+                                     ctrl('a'),
+                                     ctrl('y')]),
+                        "efabcd",
+                        2))
 
 let killLine =
-    Test(name = "C-u kills back to the start of the line",
-         run = fn() = reads(play(keys("one two") <> [ctrl('u')]), "", 0))
+    Test.Case(name = "C-u kills back to the start of the line",
+              run = fn() = reads(play(keys("one two") <> [ctrl('u')]), "", 0))
 
 let killWord =
-    Test(name = "C-w kills the word before the cursor",
-         run = fn() = reads(play(keys("one two") <> [ctrl('w')]), "one ", 4))
+    Test.Case(name = "C-w kills the word before the cursor",
+              run = fn() = reads(play(keys("one two") <> [ctrl('w')]), "one ", 4))
 
 let wordsBack =
-    Test(name = "M-b goes to the start of the word before",
-         run = fn() = reads(play(keys("one two") <> [Terminal.Escape] <> keys("b")), "one two", 4))
+    Test.Case(name = "M-b goes to the start of the word before",
+              run = fn() =
+                  reads(play(keys("one two") <> [Terminal.Escape] <> keys("b")), "one two", 4))
 
 let wordsForward =
-    Test(name = "M-f goes to the end of the word after",
-         run = fn() =
-             reads(play(keys("one two") <> [ctrl('a'), Terminal.Escape] <> keys("f")),
-                   "one two",
-                   3))
+    Test.Case(name = "M-f goes to the end of the word after",
+              run = fn() =
+                  reads(play(keys("one two") <> [ctrl('a'), Terminal.Escape] <> keys("f")),
+                        "one two",
+                        3))
 
 let killWordForward =
-    Test(name = "M-d kills the word after the cursor",
-         run = fn() =
-             reads(play(keys("one two") <> [ctrl('a'), Terminal.Escape] <> keys("d")), " two", 0))
+    Test.Case(name = "M-d kills the word after the cursor",
+              run = fn() =
+                  reads(play(keys("one two") <> [ctrl('a'), Terminal.Escape] <> keys("d")),
+                        " two",
+                        0))
 
 // report §11.2: the Meta keys' word is a run of letters and digits, and
 // C-w's runs back to a space. Regression tests: the ones above use "one
 // two", where the two agree, and passed while every key stopped at spaces
 // only. Not covered: a grapheme of several code points inside a word.
 let wordsBackInCode =
-    Test(name = "M-b stops at a letter after punctuation",
-         run = fn() =
-             reads(play(keys("List.map(xs") <> [Terminal.Escape] <> keys("b")), "List.map(xs", 9))
+    Test.Case(name = "M-b stops at a letter after punctuation",
+              run = fn() =
+                  reads(play(keys("List.map(xs") <> [Terminal.Escape] <> keys("b")),
+                        "List.map(xs",
+                        9))
 
 let wordsForwardInCode =
-    Test(name = "M-f stops at the end of letters",
-         run = fn() =
-             reads(play(keys("List.map(xs") <> [ctrl('a'), Terminal.Escape] <> keys("f")),
-                   "List.map(xs",
-                   4))
+    Test.Case(name = "M-f stops at the end of letters",
+              run = fn() =
+                  reads(play(keys("List.map(xs") <> [ctrl('a'), Terminal.Escape] <> keys("f")),
+                        "List.map(xs",
+                        4))
 
 let killWordForwardInCode =
-    Test(name = "M-d kills letters and digits only",
-         run = fn() =
-             reads(play(keys("List.map(xs") <> [ctrl('a'), Terminal.Escape] <> keys("d")),
-                   ".map(xs",
-                   0))
+    Test.Case(name = "M-d kills letters and digits only",
+              run = fn() =
+                  reads(play(keys("List.map(xs") <> [ctrl('a'), Terminal.Escape] <> keys("d")),
+                        ".map(xs",
+                        0))
 
 let killWordBackInCode =
-    Test(name = "M-Backspace kills letters and digits only",
-         run = fn() =
-             reads(play(keys("List.map(xs") <> [Terminal.Escape, Terminal.Key('\u{7f}')]),
-                   "List.map(",
-                   9))
+    Test.Case(name = "M-Backspace kills letters and digits only",
+              run = fn() =
+                  reads(play(keys("List.map(xs") <> [Terminal.Escape, Terminal.Key('\u{7f}')]),
+                        "List.map(",
+                        9))
 
 let killToSpaceInCode =
-    Test(name = "C-w kills back to a space",
-         run = fn() = reads(play(keys("f List.map(xs") <> [ctrl('w')]), "f ", 2))
+    Test.Case(name = "C-w kills back to a space",
+              run = fn() = reads(play(keys("f List.map(xs") <> [ctrl('w')]), "f ", 2))
 
 let submits =
-    Test(name = "Enter submits what was typed",
-         run = fn() = match play(keys("hi") <> [Terminal.Key('\r')]) {
-             Submit(State(text = "hi")) -> Passed
-           | other -> Failed(said(other))
-         })
+    Test.Case(name = "Enter submits what was typed",
+              run = fn() = match play(keys("hi") <> [Terminal.Key('\r')]) {
+                  Submit(State(text = "hi")) -> Test.Passed
+                | other -> Test.Failed(said(other))
+              })
 
 let cancels =
-    Test(name = "C-c abandons the line",
-         run = fn() = match play(keys("hi") <> [Terminal.Interrupt]) {
-             Cancel -> Passed
-           | other -> Failed(said(other))
-         })
+    Test.Case(name = "C-c abandons the line",
+              run = fn() = match play(keys("hi") <> [Terminal.Interrupt]) {
+                  Cancel -> Test.Passed
+                | other -> Test.Failed(said(other))
+              })
 
 let leaves =
-    Test(name = "C-d on an empty line leaves the shell", run = fn() = match play([ctrl('d')]) {
-        Leave -> Passed
-      | other -> Failed(said(other))
+    Test.Case(name = "C-d on an empty line leaves the shell", run = fn() = match play([ctrl('d')]) {
+        Leave -> Test.Passed
+      | other -> Test.Failed(said(other))
     })
 
 let clears =
-    Test(name = "C-l clears the screen and keeps the line",
-         run = fn() = match play(keys("hi") <> [ctrl('l')]) {
-             Clear(State(text = "hi", at = 2)) -> Passed
-           | other -> Failed(said(other))
-         })
+    Test.Case(name = "C-l clears the screen and keeps the line",
+              run = fn() = match play(keys("hi") <> [ctrl('l')]) {
+                  Clear(State(text = "hi", at = 2)) -> Test.Passed
+                | other -> Test.Failed(said(other))
+              })
 
 let addsLine =
-    Test(name = "M-Enter adds a line at the cursor",
-         run = fn() =
-             reads(play(keys("ab") <> [Terminal.Escape, Terminal.Key('\r')] <> keys("c")),
-                   "ab\nc",
-                   4))
+    Test.Case(name = "M-Enter adds a line at the cursor",
+              run = fn() =
+                  reads(play(keys("ab") <> [Terminal.Escape, Terminal.Key('\r')] <> keys("c")),
+                        "ab\nc",
+                        4))
 
 let pastes =
-    Test(name = "a paste goes in at the cursor, line feeds and all",
-         run = fn() =
-             reads(play(keys("ab") <> [Terminal.ArrowLeft, Terminal.Pasted("x\ny")]), "ax\nyb", 4))
+    Test.Case(name = "a paste goes in at the cursor, line feeds and all",
+              run = fn() =
+                  reads(play(keys("ab") <> [Terminal.ArrowLeft, Terminal.Pasted("x\ny")]),
+                        "ax\nyb",
+                        4))
 
 let asksToComplete =
-    Test(name = "Tab asks the reader to complete",
-         run = fn() = match play(keys("Li") <> [Terminal.Key('\t')]) {
-             Completing(State(text = "Li")) -> Passed
-           | other -> Failed(said(other))
-         })
+    Test.Case(name = "Tab asks the reader to complete",
+              run = fn() = match play(keys("Li") <> [Terminal.Key('\t')]) {
+                  Completing(State(text = "Li")) -> Test.Passed
+                | other -> Test.Failed(said(other))
+              })
 
 let asksToDocument =
-    Test(name = "Shift-Tab asks the reader for documentation",
-         run = fn() = match play(keys("List.map") <> [Terminal.Escape] <> keys("[Z")) {
-             Documenting(State(text = "List.map")) -> Passed
-           | other -> Failed(said(other))
-         })
+    Test.Case(name = "Shift-Tab asks the reader for documentation",
+              run = fn() = match play(keys("List.map") <> [Terminal.Escape] <> keys("[Z")) {
+                  Documenting(State(text = "List.map")) -> Test.Passed
+                | other -> Test.Failed(said(other))
+              })
 
 // report §11.2. A regression test: the rest of a sequence but `Shift-Tab`
 // was typed into the line, `a3~` for `Delete`
-let unboundSequences = Test(name = "a sequence that is not bound does nothing", run = fn() = {
+let unboundSequences = Test.Case(name = "a sequence that is not bound does nothing", run = fn() = {
     let sequences = ["[3~", "[H", "[F", "[5~", "[1;5C", "OP", "[15~"];
     let typed = List.flatMap(sequences, fn(s) = [Terminal.Escape] <> keys(s));
     reads(play(keys("a") <> typed <> keys("b")), "ab", 2)
 })
 
 let sequenceEndsUnread =
-    Test(name = "a key that is no part of a sequence ends it and does what it does",
-         run = fn() =
-             reads(play(keys("a")
-                            <> [Terminal.Escape]
-                            <> keys("[1")
-                            <> [Terminal.ArrowLeft]
-                            <> keys("b")),
-                   "ba",
-                   1))
+    Test.Case(name = "a key that is no part of a sequence ends it and does what it does",
+              run = fn() =
+                  reads(play(keys("a")
+                                 <> [Terminal.Escape]
+                                 <> keys("[1")
+                                 <> [Terminal.ArrowLeft]
+                                 <> keys("b")),
+                        "ba",
+                        1))
 
 let walks =
-    Test(name = "the arrows walk back through the inputs",
-         run = fn() =
-             reads(plays(start(["two", "one"]),
-                         [Terminal.ArrowUp, Terminal.ArrowUp, Terminal.ArrowUp]),
-                   "one",
-                   3))
+    Test.Case(name = "the arrows walk back through the inputs",
+              run = fn() =
+                  reads(plays(start(["two", "one"]),
+                              [Terminal.ArrowUp, Terminal.ArrowUp, Terminal.ArrowUp]),
+                        "one",
+                        3))
 
 let walksBack =
-    Test(name = "walking back and returning brings back what was typed",
-         run = fn() =
-             reads(plays(start(["old"]), keys("new") <> [Terminal.ArrowUp, Terminal.ArrowDown]),
-                   "new",
-                   3))
+    Test.Case(name = "walking back and returning brings back what was typed",
+              run = fn() =
+                  reads(plays(start(["old"]),
+                              keys("new") <> [Terminal.ArrowUp, Terminal.ArrowDown]),
+                        "new",
+                        3))
 
 let walksByKey =
-    Test(name = "C-p and C-n walk as the arrows do",
-         run = fn() =
-             reads(plays(start(["two", "one"]), [ctrl('p'), ctrl('p'), ctrl('n')]), "two", 3))
+    Test.Case(name = "C-p and C-n walk as the arrows do",
+              run = fn() =
+                  reads(plays(start(["two", "one"]), [ctrl('p'), ctrl('p'), ctrl('n')]), "two", 3))
 
 let walksToEnds =
-    Test(name = "M-< goes to the oldest input and M-> back to the line",
-         run = fn() =
-             reads(plays(start(["two", "one"]),
-                         [Terminal.Escape] <> keys("<") <> [Terminal.Escape] <> keys(">")),
-                   "",
-                   0))
+    Test.Case(name = "M-< goes to the oldest input and M-> back to the line",
+              run = fn() =
+                  reads(plays(start(["two", "one"]),
+                              [Terminal.Escape] <> keys("<") <> [Terminal.Escape] <> keys(">")),
+                        "",
+                        0))
 
 let searches =
-    Test(name = "C-r finds the newest input holding what is typed",
-         run = fn() =
-             reads(plays(start(["print two", "let x = 1"]), [ctrl('r')] <> keys("two")),
-                   "print two",
-                   6))
+    Test.Case(name = "C-r finds the newest input holding what is typed",
+              run = fn() =
+                  reads(plays(start(["print two", "let x = 1"]), [ctrl('r')] <> keys("two")),
+                        "print two",
+                        6))
 
 let searchesOn =
-    Test(name = "C-r again finds the one before it",
-         run = fn() =
-             reads(plays(start(["print two", "print one"]),
-                         [ctrl('r')] <> keys("print") <> [ctrl('r')]),
-                   "print one",
-                   0))
+    Test.Case(name = "C-r again finds the one before it",
+              run = fn() =
+                  reads(plays(start(["print two", "print one"]),
+                              [ctrl('r')] <> keys("print") <> [ctrl('r')]),
+                        "print one",
+                        0))
 
 let searchShows =
-    Test(name = "a search shows its prompt and what it found",
-         run = fn() =
-             if shows(plays(start(["print two"]), [ctrl('r')] <> keys("two")))
-                 == "(reverse-i-search)`two\': print two" then
-                 Passed
-             else
-                 Failed(shows(plays(start(["print two"]), [ctrl('r')] <> keys("two")))))
+    Test.Case(name = "a search shows its prompt and what it found",
+              run = fn() =
+                  if shows(plays(start(["print two"]), [ctrl('r')] <> keys("two")))
+                      == "(reverse-i-search)`two\': print two" then
+                      Test.Passed
+                  else
+                      Test.Failed(shows(plays(start(["print two"]), [ctrl('r')] <> keys("two")))))
 
 let searchFails =
-    Test(name = "a search that matches nothing says so and keeps the line",
-         run = fn() =
-             if String.startsWith(shows(plays(start(["print two"]), [ctrl('r')] <> keys("zz"))),
-                                  "(failed reverse-i-search)") then
-                 Passed
-             else
-                 Failed(shows(plays(start(["print two"]), [ctrl('r')] <> keys("zz")))))
+    Test.Case(name = "a search that matches nothing says so and keeps the line",
+              run = fn() =
+                  if String.startsWith(shows(plays(start(["print two"]),
+                                                   [ctrl('r')] <> keys("zz"))),
+                                       "(failed reverse-i-search)") then
+                      Test.Passed
+                  else
+                      Test.Failed(shows(plays(start(["print two"]), [ctrl('r')] <> keys("zz")))))
 
 let searchAbandoned =
-    Test(name = "C-g puts back the line the search began from",
-         run = fn() =
-             reads(plays(start(["print two"]),
-                         keys("abc") <> [ctrl('r')] <> keys("two") <> [ctrl('g')]),
-                   "abc",
-                   3))
+    Test.Case(name = "C-g puts back the line the search began from",
+              run = fn() =
+                  reads(plays(start(["print two"]),
+                              keys("abc") <> [ctrl('r')] <> keys("two") <> [ctrl('g')]),
+                        "abc",
+                        3))
 
 let searchAccepted =
-    Test(name = "Enter takes the input the search found",
-         run = fn() =
-             match plays(start(["print two"]), [ctrl('r')] <> keys("two") <> [Terminal.Key('\r')]) {
-                 Submit(State(text = "print two", search = None)) -> Passed
-               | other -> Failed(said(other))
-             })
+    Test.Case(name = "Enter takes the input the search found",
+              run = fn() =
+                  match plays(start(["print two"]),
+                              [ctrl('r')] <> keys("two") <> [Terminal.Key('\r')]) {
+                      Submit(State(text = "print two", search = None)) -> Test.Passed
+                    | other -> Test.Failed(said(other))
+                  })
 
 let searchLeft =
-    Test(name = "a key the search does not use ends it and then does its work",
-         run = fn() =
-             reads(plays(start(["print two"]), [ctrl('r')] <> keys("two") <> [ctrl('a')]),
-                   "print two",
-                   0))
+    Test.Case(name = "a key the search does not use ends it and then does its work",
+              run = fn() =
+                  reads(plays(start(["print two"]), [ctrl('r')] <> keys("two") <> [ctrl('a')]),
+                        "print two",
+                        0))
 
 let kept =
-    Test(name = "the line just taken joins the history",
-         run = fn() = match next(State(..start(["one"]), text = "two")) {
-             State(history = ["two", "one"]) -> Passed
-           | State(history = history) -> Failed(String.join(history, ", "))
-         })
+    Test.Case(name = "the line just taken joins the history",
+              run = fn() = match next(State(..start(["one"]), text = "two")) {
+                  State(history = ["two", "one"]) -> Test.Passed
+                | State(history = history) -> Test.Failed(String.join(history, ", "))
+              })
 
 // Report §11.2: a regression test, written after the code; the session
 // kept every input it was given.
-let lastThousand = Test(name = "the history keeps the last thousand inputs", run = fn() = {
+let lastThousand = Test.Case(name = "the history keeps the last thousand inputs", run = fn() = {
     let full = List.map(List.range(1, Shell.History.kept), Int.toString);
     match next(State(..start(full), text = "new")) {
         State(history = history) ->
             if List.size(history) == Shell.History.kept && List.get(history, 0) == Some("new") then
-                Passed
+                Test.Passed
             else
-                Failed(Int.toString(List.size(history)))
+                Test.Failed(Int.toString(List.size(history)))
     }
 })
 
 let notKept =
-    Test(name = "a blank input and one repeated are not kept",
-         run = fn() =
-             if !keeps(typed(start(["one"]), "  ", 0))
-                 && !keeps(typed(start(["one"]), "one", 0))
-                 && keeps(typed(start(["one"]), "two", 0)) then
-                 Passed
-             else
-                 Failed("the history kept what it should not"))
+    Test.Case(name = "a blank input and one repeated are not kept",
+              run = fn() =
+                  if !keeps(typed(start(["one"]), "  ", 0))
+                      && !keeps(typed(start(["one"]), "one", 0))
+                      && keeps(typed(start(["one"]), "two", 0)) then
+                      Test.Passed
+                  else
+                      Test.Failed("the history kept what it should not"))
 
 // Every event of a text typed a character at a time.
 fn keys(text : String) : List(Terminal.Event) =
@@ -751,13 +763,13 @@ fn plays(from : State, events : List(Terminal.Event)) : Edit =
       | ended -> ended
     })
 
-fn reads(edited : Edit, text : String, at : Int) : TestResult =
+fn reads(edited : Edit, text : String, at : Int) : Test.Result =
     match edited {
         Typing(State(text = typed, at = cursor)) -> if typed == text && cursor == at then
-            Passed
+            Test.Passed
         else
-            Failed("\"" <> typed <> "\" at " <> Int.toString(cursor))
-      | other -> Failed(said(other))
+            Test.Failed("\"" <> typed <> "\" at " <> Int.toString(cursor))
+      | other -> Test.Failed(said(other))
     }
 
 // What the reader would show, which is the line or the search's prompt

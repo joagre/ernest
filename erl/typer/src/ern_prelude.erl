@@ -292,25 +292,6 @@ declared_types() ->
     /// // => Some("a.txt")
     /// ```
     type Path = Path(String)
-    /// A test that `ern test` runs: its name, and a function that answers
-    /// whether it passed (report §9.3, §11.2).
-    ///
-    /// ### Examples
-    ///
-    /// ```ernest
-    /// Test(name = "adds", run = fn() : TestResult with Never =
-    ///     if 1 + 1 == 2 then Passed else Failed("1 + 1 is not 2"))
-    /// ```
-    type Test = Test(name : String, run : () -> TestResult with Never)
-    /// A test's answer: `Passed`, or `Failed` with what went wrong.
-    ///
-    /// ### Examples
-    ///
-    /// ```ernest
-    /// if 1 + 1 == 2 then Passed else Failed("1 + 1 is not 2")
-    /// // => Passed
-    /// ```
-    type TestResult = Passed | Failed(String)
     """.
 
 %% The primitives among values/0 whose effect variables are process-only

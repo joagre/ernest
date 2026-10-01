@@ -217,7 +217,9 @@ coverage(Ns, File) ->
                                is_alpha(N)]
         ++ [owned_name(O, N) || #foreign_fn_decl{export = true, owner = O, name = N} <- Decls,
                                 is_alpha(N)],
-    ?assertNotEqual([], Fns),
+    %% a module exports something: `Test`, Appendix E.24, declares types alone
+    Types = [N || #type_decl{export = true, name = N} <- Decls],
+    ?assertNotEqual([], Fns ++ Types),
     Uncalled = [F || F <- Fns,
                      binary:match(Examples, iolist_to_binary([Prefix, ".", F, "("])) =:= nomatch],
     ?assertEqual([], Uncalled).

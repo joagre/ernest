@@ -1680,15 +1680,15 @@ Directory mode compiles the modules in the order their dependencies need, and a 
 
 **A module's own name hides the prelude's.** A module may declare its own `Local`, which then means its own throughout the module; `Prelude.Local` still names the prelude's (report §4.2).
 
-**Testing a module.** A test is a top-level `let` of the prelude type `Test`, a name and a function returning `Passed` or `Failed(text)`:
+**Testing a module.** A test is a top-level `let` of the type `Test.Case`, a name and a function returning `Test.Passed` or `Test.Failed(text)` (report Appendix E.24):
 
 ```ernest
 fn add(a : Int, b : Int) : Int =
     a + b
 
 let addsTwo =
-    Test(name = "adds two",
-         run = fn() : TestResult with Never = if add(1, 1) == 2 then Passed else Failed("not two"))
+    Test.Case(name = "adds two",
+              run = fn() = if add(1, 1) == 2 then Test.Passed else Test.Failed("not two"))
 ```
 
 ```console

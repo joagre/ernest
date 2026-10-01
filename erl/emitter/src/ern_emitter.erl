@@ -113,11 +113,11 @@ forms(Ns, Decls, Env, Build) ->
         ++ lists:reverse(Cx2#cx.lifted),
     erl_syntax:revert_forms(Attrs ++ Functions).
 
-%% Report §9.3, §11.2: '$tests'/0 lists the module's tests, every top-level
-%% let of type Test, exported or not, for `ern test`.
+%% Report Appendix E.24, §11.2: '$tests'/0 lists the module's tests, every
+%% top-level let of type Test.Case, exported or not, for `ern test`.
 tests_fun(Lets) ->
     Names = [fname(undefined, N) || #let_decl{name = N, type = Scheme} <- Lets,
-                            Scheme#scheme.type =:= {tcon, ['Test'], []}],
+                            Scheme#scheme.type =:= {tcon, ['Test', 'Case'], []}],
     case Names of
         [] -> [];
         _ ->

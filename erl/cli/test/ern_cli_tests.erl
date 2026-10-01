@@ -109,8 +109,9 @@ many_tests_test_() ->
 many_tests() ->
     Dir = tmp(),
     File = write(Dir, "many.ern",
-                 [["let t", integer_to_list(I), " : Test = Test(name = \"t", integer_to_list(I),
-                   "\", run = fn() = Passed)\n"] || I <- lists:seq(1, 1100)]),
+                 [["let t", integer_to_list(I), " : Test.Case =\n",
+                   "    Test.Case(name = \"t", integer_to_list(I),
+                   "\", run = fn() = Test.Passed)\n"] || I <- lists:seq(1, 1100)]),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     ?assertEqual(0, ern_cli:ern(["test", filename:join(Dir, "many.erc")])).
 
@@ -586,8 +587,8 @@ prelude_namespace_test() ->
                                       <<"takes the prelude namespace Prelude">>)).
 
 %% report §4.2: the refusal names whose namespace a file at the source root
-%% takes: `Address`, a prelude type with members, is the prelude's, `Io` the
-%% standard library's. A regression test, written after the code; it does
+%% takes: `Address`, a prelude type with members, is the prelude's, `Io` and
+%% `Test` the standard library's. A regression test, written after the code; it does
 %% not cover a namespace that both take, such as `Int`, which is named as
 %% the prelude's.
 taken_namespace_names_owner_test() ->
@@ -596,12 +597,14 @@ taken_namespace_names_owner_test() ->
               Dir = tmp(),
               write(Dir, "src/" ++ File, "export fn f() : Int = 1\n"),
               ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"]))
-      end, ["address.ern", "io.ern"]),
+      end, ["address.ern", "io.ern", "test.ern"]),
     Out = iolist_to_binary(?capturedOutput),
     ?assertMatch({_, _},
                  binary:match(Out, <<"address.ern takes the prelude namespace Address">>)),
     ?assertMatch({_, _},
                  binary:match(Out, <<"io.ern takes the standard library namespace Io">>)),
+    ?assertMatch({_, _},
+                 binary:match(Out, <<"test.ern takes the standard library namespace Test">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"prelude namespace Io">>)),
     %% report §9.7: the prelude binds no system reference, so `Sys` is free
     Dir = tmp(),
@@ -612,18 +615,18 @@ taken_namespace_names_owner_test() ->
 %% program's modules may be named after it: `Down.describe` is the module's
 %% function, and `Down(...)` still builds the prelude's type. `never.ern`'s
 %% `compare` is its own, not a member of the built-in type. A regression
-%% test: `down.ern`, `test.ern` and `never.ern` were refused
+%% test: `down.ern`, `reason.ern` and `never.ern` were refused
 prelude_type_without_members_is_no_namespace_test() ->
     Dir = tmp(),
     write(Dir, "src/down.ern", "export fn describe(d : Down) : String = d.site\n"),
-    write(Dir, "src/test.ern", "export let answer : Int = 42\n"),
+    write(Dir, "src/reason.ern", "export let answer : Int = 42\n"),
     write(Dir, "src/never.ern", "export fn compare(a : Int, b : Int) : Int = a - b\n"),
     write(Dir, "src/main.ern",
           "export fn main() : Unit with Never = {\n"
           "    let me = Process.fromAddress(self());\n"
           "    let down = Down(process = me, reason = Killed, site = \"here\");\n"
           "    Io.println(Down.describe(down));\n"
-          "    Io.println(Int.toString(Test.answer + Never.compare(3, 1)))\n"
+          "    Io.println(Int.toString(Reason.answer + Never.compare(3, 1)))\n"
           "}\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
@@ -773,26 +776,26 @@ stdlib_file_takes_its_root_test() ->
 test_runner_unicode_test() ->
     Dir = tmp(),
     write(Dir, "src/checks.ern",
-          <<"let dash = Test(name = \"dash\", run = fn() : TestResult with Never =\n"
-            "    Failed(\"a — b\"))\n"/utf8>>),
+          <<"let dash = Test.Case(name = \"dash\", run = fn() =\n"
+            "    Test.Failed(\"a — b\"))\n"/utf8>>),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/checks.erc"])),
     Out = unicode:characters_to_binary(?capturedOutput),
     ?assertMatch({_, _}, binary:match(Out, <<"dash: failed: a — b\n"/utf8>>)).
 
-%% report §9.3, §11.2: ern test runs every top-level let of type Test,
+%% report Appendix E.24, §11.2: ern test runs every top-level let of type Test.Case,
 %% exported or not, each in its own process, reports each, and exits 1
 %% unless every one passed
 test_runner_test() ->
     Dir = tmp(),
     write(Dir, "src/checks.ern",
           "fn add(a : Int, b : Int) : Int = a + b\n"
-          "let addsTwo = Test(name = \"adds two\", run = fn() : TestResult with Never =\n"
-          "    if add(1, 1) == 2 then Passed else Failed(\"not two\"))\n"
-          "export let wrong = Test(name = \"wrong\", run = fn() : TestResult with Never =\n"
-          "    Failed(\"expected 3\"))\n"
-          "let divides = Test(name = \"divides\", run = fn() : TestResult with Never =\n"
-          "    if 1 / (add(1, 1) - 2) == 0 then Passed else Passed)\n"),
+          "let addsTwo = Test.Case(name = \"adds two\", run = fn() =\n"
+          "    if add(1, 1) == 2 then Test.Passed else Test.Failed(\"not two\"))\n"
+          "export let wrong = Test.Case(name = \"wrong\", run = fn() =\n"
+          "    Test.Failed(\"expected 3\"))\n"
+          "let divides = Test.Case(name = \"divides\", run = fn() =\n"
+          "    if 1 / (add(1, 1) - 2) == 0 then Test.Passed else Test.Passed)\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/checks.erc"])),
     Out = iolist_to_binary(?capturedOutput),
@@ -800,7 +803,7 @@ test_runner_test() ->
     ?assertMatch({match, _}, re:run(Out, "wrong: failed: expected 3\n")),
     ?assertMatch({match, _}, re:run(Out, "divides: faulted: division by zero\n")),
     write(Dir, "src2/ok.ern",
-          "let fine = Test(name = \"fine\", run = fn() : TestResult with Never = Passed)\n"),
+          "let fine = Test.Case(name = \"fine\", run = fn() = Test.Passed)\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build2", Dir ++ "/src2"])),
     ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build2/ok.erc"])).
 
@@ -817,15 +820,18 @@ test_runner_streams() ->
     write(Dir, "src/checks.ern",
           "type Msg = Go | Ask(reply : Reply(Int))\n"
           "fn waiter() : Unit with Msg = receive { Go -> Unit }\n"
-          "let first = Test(name = \"first\", run = fn() : TestResult with Never = {\n"
+          "let first = Test.Case(name = \"first\", run = fn() = {\n"
           "    Io.println(\"inside first\");\n"
-          "    Passed\n"
+          "    Test.Passed\n"
           "})\n"
-          "let stuck = Test(name = \"stuck\", run = fn() : TestResult with Never = {\n"
+          "let stuck = Test.Case(name = \"stuck\", run = fn() = {\n"
           "    let w = spawn(Local, waiter);\n"
-          "    if Address.callForever(w, fn(r) = Ask(reply = r)) == 0 then Passed else Passed\n"
+          "    if Address.callForever(w, fn(r) = Ask(reply = r)) == 0 then\n"
+          "        Test.Passed\n"
+          "    else\n"
+          "        Test.Passed\n"
           "})\n"
-          "let last = Test(name = \"last\", run = fn() : TestResult with Never = Passed)\n"),
+          "let last = Test.Case(name = \"last\", run = fn() = Test.Passed)\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_err(["test", Dir ++ "/build/checks.erc"])),
     ?assertEqual(<<"inside first\nfirst: passed\nstuck: faulted: deadlock\nlast: passed\n">>,
@@ -839,10 +845,10 @@ test_runner_streams() ->
 test_runner_os_test() ->
     Dir = tmp(),
     write(Dir, "src/checks.ern",
-          "let none = Test(name = \"none\", run = fn() : TestResult with Never =\n"
-          "    if Os.arguments == [] then Passed else Failed(\"arguments\"))\n"
-          "let exits = Test(name = \"exits\", run = fn() : TestResult with Never = Os.exit(2))\n"
-          "let later = Test(name = \"later\", run = fn() : TestResult with Never = Passed)\n"),
+          "let none = Test.Case(name = \"none\", run = fn() =\n"
+          "    if Os.arguments == [] then Test.Passed else Test.Failed(\"arguments\"))\n"
+          "let exits = Test.Case(name = \"exits\", run = fn() = Os.exit(2))\n"
+          "let later = Test.Case(name = \"later\", run = fn() = Test.Passed)\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(1, ern_err(["test", Dir ++ "/build/checks.erc"])),
     ?assertEqual(<<"none: passed\nexits: faulted: exited with status 2\nlater: passed\n">>,
@@ -868,8 +874,8 @@ build_replaces_a_link_test() ->
 test_name_escaped_test() ->
     Dir = tmp(),
     write(Dir, "src/names.ern",
-          "let t = Test(name = \"red\\u{1b}[31mX\\nsecond\",\n"
-          "             run = fn() : TestResult with Never = Passed)\n"),
+          "let t = Test.Case(name = \"red\\u{1b}[31mX\\nsecond\",\n"
+          "             run = fn() = Test.Passed)\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
     ?assertEqual(0, ern_err(["test", Dir ++ "/build/names.erc"])),
     ?assertEqual(<<"red\\u{1B}[31mX\\nsecond: passed\n">>, iolist_to_binary(?capturedOutput)).
@@ -1556,8 +1562,10 @@ test_names_test() ->
     Dir = tmp(),
     None = write(Dir, "none.ern", "export fn two() : Int =\n    2\n"),
     Twice = write(Dir, "twice.ern",
-                  "let a =\n    Test(name = \"adds two\", run = fn() = Passed)\n\n"
-                  "let b =\n    Test(name = \"adds two\", run = fn() = Failed(\"no\"))\n"),
+                  "let a =\n"
+                  "    Test.Case(name = \"adds two\", run = fn() = Test.Passed)\n\n"
+                  "let b =\n"
+                  "    Test.Case(name = \"adds two\", run = fn() = Test.Failed(\"no\"))\n"),
     Build = fun(File) ->
                 ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
                 filename:rootname(File) ++ ".erc"
@@ -1625,7 +1633,8 @@ faulting_binding_named_test() ->
                                   "let bad : Int = 1 / zero()\n\n"
                                   "export fn main() : Unit with Never ="
                                   " Io.println(Int.toString(bad))\n\n"
-                                  "let t : Test = Test(name = \"one\", run = fn() = Passed)\n"),
+                                  "let t : Test.Case =\n"
+                                  "    Test.Case(name = \"one\", run = fn() = Test.Passed)\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     Erc = filename:join(Dir, "init.erc"),
     ?assertEqual(1, ern_err(["run", Erc])),

@@ -228,7 +228,7 @@ The readers ran on 2026-09-30, on `57b8356`, and their findings stand in
 sentences, MVP 2.99b's items 1 to 3, the defects, the families' rules, the log, and the
 closure, after which the release review runs and Ernest 0.2.0 is tagged (decided 2026-10-01,
 the log's *A Release After the Review*), and MVP 2.99b resumes at item 4. The declarations
-the edits add to `stdlib/` and `libs/` keep their module's `since 0.1.0` until then, since no
+and the modules the edits add to `stdlib/` and `libs/` say `since 0.1.0` until then, `Test` among them, since no
 `since` may be newer than `VERSION`; the release sets both together, as the release review's
 step 5 says.
 
@@ -251,12 +251,6 @@ principle 5). The second read-back adds E.16's and E.1's sections naming their p
 (2026-10-01, the log's *The Library Family's Rules*): `styled`, the cursor's moves and the two
 erasures leave E.16 for a terminal library under `libs/`, Ernest over ECMA-48, which the shell, `libs/markdown`
 and `examples/snake.ern` take from the load path, `subscribe`, `size` and `columns` staying.
-Under §9's opening and principle 5's cost sentence, the twelfth family's round 2 (2026-10-01, the
-log's *The Prelude Family's Rules*): `Test` and `TestResult` leave §9.3 for a standard library
-module `Test`, a section added at the end of Appendix E, with the types `Case` and `Result`, `Test.Case(name, run)` and
-`Test.Passed` or `Test.Failed(text)`, which `ern test` finds as it found the prelude's (§11.2);
-the 155 test values of the standard library, the shell, the libraries and the examples are
-renamed by a script and read as a diff, and `examples/filesync.ern` loses its `Prelude.Failed`.
 Under E.1's and §3.8's sentences, the fourteenth and fifteenth families' round 2 (2026-10-01, the
 log's *The Order, Show and Door Families*): `Io.debug` writes to standard error, with item 13's
 rewrite of its shim, E.1 and the tests that read its output changing with it; and `Foreign.toBytes`
