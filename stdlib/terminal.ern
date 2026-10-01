@@ -35,8 +35,9 @@
 /// ```
 export type Size = Size(rows : Int, columns : Int)
 
-/// What the terminal delivers to its subscriber: a key, an arrow, `Enter`,
-/// `Escape`, the interrupt, a paste, or a new size (report §8.2).
+/// What the terminal delivers to its subscriber: a key, `Enter` and
+/// Backspace among them as their characters, an arrow, `Escape`, the
+/// interrupt, a paste, or a new size (report §8.2).
 ///
 /// ### Examples
 ///
@@ -53,7 +54,6 @@ export type Event =
   | ArrowDown
   | ArrowLeft
   | ArrowRight
-  | Enter
   | Escape
   | Interrupt
   | Pasted(String)

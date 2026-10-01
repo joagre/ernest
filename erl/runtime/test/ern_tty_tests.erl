@@ -4,10 +4,12 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% report Appendix E.16: a character, the arrows, Enter, and Escape
+%% report Appendix E.16, §8.2: a character, Enter's carriage return or line
+%% feed among them, the arrows, and Escape
 decode_test() ->
     ?assertEqual({[{'Key', $a}, {'Key', $b}], []}, ern_tty:decode("ab")),
-    ?assertEqual({['Enter', 'Enter'], []}, ern_tty:decode("\n\r")),
+    ?assertEqual({[{'Key', $\n}, {'Key', $\r}, {'Key', 127}, {'Key', $\t}], []},
+                 ern_tty:decode("\n\r\x7f\t")),
     ?assertEqual({['ArrowUp', 'ArrowDown', 'ArrowRight', 'ArrowLeft'], []},
                  ern_tty:decode("\e[A\e[B\e[C\e[D")),
     ?assertEqual({[{'Key', $x}, 'ArrowUp'], []}, ern_tty:decode("x\e[A")),
@@ -236,7 +238,7 @@ paste_test() ->
     ?assertEqual({[{'Pasted', <<"a\nb">>}], []}, ern_tty:decode("\e[200~a\rb\e[201~")),
     ?assertEqual({[{'Pasted', <<"a\nb">>}], []}, ern_tty:decode("\e[200~a\r\nb\e[201~")),
     %% what follows a paste is read as keys again
-    ?assertEqual({[{'Pasted', <<"x">>}, 'Enter'], []}, ern_tty:decode("\e[200~x\e[201~\r")),
+    ?assertEqual({[{'Pasted', <<"x">>}, {'Key', $\r}], []}, ern_tty:decode("\e[200~x\e[201~\r")),
     %% a read may end anywhere in a paste, so each piece waits, and the
     %% paste is read on from where it stopped, a line ending and its end
     %% split between pieces among them

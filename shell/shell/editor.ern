@@ -169,8 +169,7 @@ fn sequence(state : State, event : Terminal.Event) : Edit =
 
 fn plain(state : State, event : Terminal.Event) : Edit =
     match event {
-        Terminal.Enter -> Submit(state)
-      | Terminal.Interrupt -> Cancel
+        Terminal.Interrupt -> Cancel
       | Terminal.Escape -> Typing(State(..state, pending = Meta))
       | Terminal.ArrowLeft -> Typing(State(..state, at = Int.max(0, state.at - 1)))
       | Terminal.ArrowRight ->
@@ -187,7 +186,8 @@ fn plain(state : State, event : Terminal.Event) : Edit =
 fn character(state : State, c : Char) : Edit = {
     let State(text = text, at = at, kill = kill) = state;
     match c {
-        '\u{1}' -> Typing(State(..state, at = 0)) // C-a
+        '\r' or '\n' -> Submit(state) // Enter
+      | '\u{1}' -> Typing(State(..state, at = 0)) // C-a
       | '\u{5}' -> Typing(State(..state, at = String.size(text))) // C-e
       | '\u{2}' -> Typing(State(..state, at = Int.max(0, at - 1))) // C-b
       | '\u{6}' -> Typing(State(..state, at = Int.min(String.size(text), at + 1))) // C-f
@@ -215,7 +215,7 @@ fn meta(state : State, event : Terminal.Event) : Edit = {
     match event {
         // report §11.2: another line, though the parser could run what
         // is typed
-        Terminal.Enter -> Typing(newline(state))
+        Terminal.Key('\r') or Terminal.Key('\n') -> Typing(newline(state))
       // report §8.2: `Escape [` and `Escape O` begin a sequence
       // `Terminal.Event` does not name (Appendix E.16), of which `Escape [
       // Z` is `Shift-Tab`
@@ -274,7 +274,7 @@ fn search(state : State, forward : Bool) : State =
 
 fn searching(state : State, s : Search, event : Terminal.Event) : Edit =
     match event {
-        Terminal.Enter -> Submit(stop(state))
+        Terminal.Key('\r') or Terminal.Key('\n') -> Submit(stop(state))
       | Terminal.Interrupt -> Cancel
       | Terminal.Resized(_) -> Typing(state)
       | Terminal.Key('\u{12}') -> Typing(seek(state, Search(..s, forward = false), 1)) // C-r
@@ -545,7 +545,7 @@ let killToSpaceInCode =
 
 let submits =
     Test(name = "Enter submits what was typed",
-         run = fn() = match play(keys("hi") <> [Terminal.Enter]) {
+         run = fn() = match play(keys("hi") <> [Terminal.Key('\r')]) {
              Submit(State(text = "hi")) -> Passed
            | other -> Failed(said(other))
          })
@@ -573,7 +573,9 @@ let clears =
 let addsLine =
     Test(name = "M-Enter adds a line at the cursor",
          run = fn() =
-             reads(play(keys("ab") <> [Terminal.Escape, Terminal.Enter] <> keys("c")), "ab\nc", 4))
+             reads(play(keys("ab") <> [Terminal.Escape, Terminal.Key('\r')] <> keys("c")),
+                   "ab\nc",
+                   4))
 
 let pastes =
     Test(name = "a paste goes in at the cursor, line feeds and all",
@@ -685,7 +687,7 @@ let searchAbandoned =
 let searchAccepted =
     Test(name = "Enter takes the input the search found",
          run = fn() =
-             match plays(start(["print two"]), [ctrl('r')] <> keys("two") <> [Terminal.Enter]) {
+             match plays(start(["print two"]), [ctrl('r')] <> keys("two") <> [Terminal.Key('\r')]) {
                  Submit(State(text = "print two", search = None)) -> Passed
                | other -> Failed(said(other))
              })

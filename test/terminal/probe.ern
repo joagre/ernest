@@ -42,10 +42,6 @@ fn loop() : Unit with Msg =
             Io.println("right");
             loop()
         }
-      | E(Terminal.Enter) -> {
-            Io.println("enter");
-            loop()
-        }
       | E(Terminal.Interrupt) -> {
             Io.println("interrupt");
             loop()

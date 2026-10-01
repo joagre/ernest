@@ -431,8 +431,9 @@ more(Pending, Chars) ->
     decode(Pending ++ Chars).
 
 %% Report Appendix E.16: Event = Key(Char) | ArrowUp | ArrowDown | ArrowLeft
-%% | ArrowRight | Enter | Escape | Interrupt | Resized(Size), one list of
-%% what the terminal sent. An escape sequence that is none of those is the
+%% | ArrowRight | Escape | Interrupt | Resized(Size), one list of what the
+%% terminal sent; a key of one character is Key of it, Enter's carriage
+%% return among them (report §8.2). An escape sequence that is none of those is the
 %% Escape key and the characters after it, which is how Meta and Shift-Tab
 %% reach a program (§8.2).
 -spec decode([char()]) -> {[term()], pending()}.
@@ -481,8 +482,6 @@ decode([$\e | Rest] = Chars, Acc) ->
         false -> decode(Rest, ['Escape' | Acc])
     end;
 decode([3 | Rest], Acc) -> decode(Rest, ['Interrupt' | Acc]);
-decode([$\n | Rest], Acc) -> decode(Rest, ['Enter' | Acc]);
-decode([$\r | Rest], Acc) -> decode(Rest, ['Enter' | Acc]);
 decode([C | Rest], Acc) -> decode(Rest, [{'Key', C} | Acc]).
 
 %% The text of a paste, up to the end the terminal puts after it, from its
