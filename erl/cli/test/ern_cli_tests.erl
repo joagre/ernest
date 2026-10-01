@@ -840,7 +840,7 @@ test_runner_streams() ->
           "    Test.Passed\n"
           "})\n"
           "let stuck = Test.Case(name = \"stuck\", run = fn() = {\n"
-          "    let w = spawn(Local, waiter);\n"
+          "    let w = spawn(waiter);\n"
           "    if Address.callForever(w, fn(r) = Ask(reply = r)) == 0 then\n"
           "        Test.Passed\n"
           "    else\n"
@@ -1210,7 +1210,7 @@ worker_faults_test() ->
                  "type Msg = Died(Down)\n"
                  "export fn main() : Unit with Msg = {\n"
                  "    let limit = RestartLimit(restarts = 1, within = 60000);\n"
-                 "    let _ = spawnMonitored(Local, restarting(limit, fn() : Unit with Never =\n"
+                 "    let _ = spawnMonitored(restarting(limit, fn() : Unit with Never =\n"
                  "        Io.println(Int.toString(1 / List.size([])))), Died);\n"
                  "    receive { Died(_) -> Io.println(\"done\") }\n"
                  "}\n"),
@@ -1879,7 +1879,7 @@ killed_entry_test() ->
     File = write(Dir, "main.ern",
                  "export fn main() : Unit with Never = {\n"
                  "    let me = self();\n"
-                 "    let _ = spawn(Local, fn() : Unit with Never = kill(me));\n"
+                 "    let _ = spawn(fn() : Unit with Never = kill(me));\n"
                  "    receive { after 5000 -> Io.println(\"not killed\") }\n"
                  "}\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),

@@ -1136,7 +1136,7 @@ example.ern:3:1: Money.+ must have the type (Money, Money) -> Money, not (Money,
 
 ```ernest-rejected
 let box = {
-    let p : Address(Unit) = spawn(Local, fn() = Unit);
+    let p : Address(Unit) = spawn(fn() = Unit);
     []
 }
 ```
@@ -1312,22 +1312,21 @@ example.ern:2:13: unknown constructor Red
 ### A shadowed prelude constructor where the prelude's is wanted (§4.2)
 
 ```ernest-rejected
-type Place = Local | Remote
+type Outcome = Unknown(Int) | Known
 
-fn start() : Unit with m = {
-    let _ = spawn(Local, fn() : Unit with Never = Unit);
-    Unit
-}
+fn reason() : Reason =
+    Unknown
 ```
 
 ```console
 $ ern build example.ern
-example.ern:4:19: the argument does not fit spawn: expected Where, found Place
-3 | fn start() : Unit with m = {
-4 |     let _ = spawn(Local, fn() : Unit with Never = Unit);
-  |             ----- spawn : (Where, () -> Unit with a) -> Address(a) with e
-  |                   ----- `Local` here is this module's constructor, and the prelude's is `Prelude.Local`
-  |                   ^^^^^
+example.ern:4:5: the body does not have the declared result type: expected Reason, found (Int) -> Outcome
+2 | 
+3 | fn reason() : Reason =
+  |               ------ result type Reason declared here
+4 |     Unknown
+  |     ------- `Unknown` here is this module's constructor, and the prelude's is `Prelude.Unknown`
+  |     ^^^^^^^
 ```
 
 ### `Prelude.` where nothing hides the name (§4.2)

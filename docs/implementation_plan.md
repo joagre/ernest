@@ -241,18 +241,11 @@ and a process-only variable prints without one, §11.5 saying so and giving no s
 mark's spelling is a decision of this phase's edits, taken with the user before the printer
 and §11.5 change. Under §3.5's declared order of 2026-10-01, the emitter's
 descriptors, `Io.show` and the ABI place named fields in the order of their names (§3.5, §8.4,
-Appendix E.1). The read-back of the sixteen sentences
-(2026-10-01, the log's *The Sixteen Sentences Read Back*) adds: every `spawn` writes `Local` (§6.2,
-principle 5). Under E.0's rules, the tenth family's round 2
+Appendix E.1). Under E.0's rules, the tenth family's round 2
 (2026-10-01, the log's *The Library Family's Rules*): `styled`, the cursor's moves and the two
 erasures leave E.16 for a terminal library under `libs/`, Ernest over ECMA-48, which the shell, `libs/markdown`
 and `examples/snake.ern` take from the load path, `subscribe`, `size` and `columns` staying.
-Among the rules that exist for another (2026-10-01, the log's *The
-Rules That Exist for Another*): `spawn(f)` and `spawnMonitored(f, wrap)` lose their placement,
-`Where` leaves §6.2 and §9.3, and §6.7 and §8.3 name a peer's spawn `Peer.spawn(name, f)`, a
-function of the module MVP 3.0 builds; the 102 spawns of the guide, the examples, the library
-and the shell are renamed by a script and read as a diff, with the runtime, the checker's
-prelude table and the tests. The guide's pass at the end of the edits (2026-10-01, the log's
+The guide's pass at the end of the edits (2026-10-01, the log's
 *Where the Guide Works Hard*): `with Never` against `with m` in one sentence (W-2, W-48); a
 `receive` guard's operands corrected (W-7); the warning on field order gone (W-14); the lambda's
 parentheses after `|>` taught once (W-19); the FAQ on names written whole cut (W-20); a pure
@@ -321,8 +314,11 @@ log's *A Full Review Now and Then*).
   hash modules named `ern#<base32>`, and new open questions, the protocol note's 5, 7 to 12
   and 15 to 21, and the distribution note's 8 to 17 (the second read-back, 2026-09-30, placed
   here with the user the same day).
-- `spawn(Peer(name), f)` over the peers in `ernest.conf`, authenticated with the configured
-  keys: the connection is `ssl`, with the peer's public key from `ernest.conf` as the only
+- The module `Peer`, with `Peer.spawn(name, f)` and `Peer.spawnMonitored(name, f, wrap)` (§8.3),
+  in a section added at the end of Appendix E; the checker's refusal of a name of `Peer` goes,
+  and the guide's examples in §8.1 and §8.4 are compiled again (2026-10-01, the log's *The Rules
+  That Exist for Another*). It spawns over the peers in `ernest.conf`, authenticated with the
+  configured keys: the connection is `ssl`, with the peer's public key from `ernest.conf` as the only
   trust, read with `public_key`, inside `ern`; a program never sees either module.
 - Peer loss as §10 says: every process on the lost peer dead with `Fault("peer lost")`, its
   monitors delivered; a peer that reappears is a new instance.
@@ -330,16 +326,17 @@ log's *A Full Review Now and Then*).
   supervisor's node")`, which Appendix E.22 states and no code can reach before peers exist
   (the release review's C1-35, 2026-09-30).
 - **Placement by load, in `Peer` and a library** (feedback items 14 and 25, decided in MVP
-  2.66; the log's *No Remote Computation in the Language*). `Peer.nodes : () -> List(Where)
-  with m` answers the nodes a program can place work on, `Local` first, then each peer of
-  `ernest.conf` in its order. `Peer.runQueue : () -> Int with m` answers how many processes
+  2.66; the log's *No Remote Computation in the Language*). `Peer.nodes` answers the nodes
+  a program can place work on, the running node first, then each peer of `ernest.conf` in its
+  order; the type a node is answered as, since `Where` left the prelude on 2026-10-01, is this
+  item's decision, made with it. `Peer.runQueue : () -> Int with m` answers how many processes
   wait to run on the node that evaluates it. Both are shims by E.0 rule 1, stated in `Peer`'s
   section of Appendix E.
 - **`libs/balancer`**, in Ernest over those two. `Balancer.pick(measure)` draws two nodes at
   random from `Peer.nodes()`, spawns on each a process that evaluates `measure()` there and
   sends the number back, and answers the node with the lower number, the first on a tie. A
-  node lost before it answers is dropped and another drawn; `Local` always answers, and with
-  one node `pick` answers `Local` without measuring. `measure : () -> Int with m`, so the
+  node lost before it answers is dropped and another drawn; the running node always answers,
+  and with one node `pick` answers it without measuring. `measure : () -> Int with m`, so the
   common call is `Balancer.pick(Peer.runQueue)`. Its module page states the cost, two round
   trips per `pick`.
 - **What the protocol note asks of the report**, each decided before it is built: whether

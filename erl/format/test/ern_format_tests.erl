@@ -73,11 +73,11 @@ bracket_test() ->
 %% report §11.6: a last item that opens a brace keeps the items on the
 %% bracket's line, its contents a step in from that line
 hug_test() ->
-    ?assertEqual([<<"let s = spawn(Local, fn() = {">>,
+    ?assertEqual([<<"let s = spawn(fn() = {">>,
                   <<"    tick();">>,
                   <<"    s">>,
                   <<"})">>],
-                 laid(["let s = spawn(Local, fn() = { tick(); s })"])).
+                 laid(["let s = spawn(fn() = { tick(); s })"])).
 
 %% report §11.6: a match, a receive and a block run over lines however
 %% short, an arm a line, a further one led by its bar
@@ -149,10 +149,10 @@ lambda_test() ->
 %% brace or `then`, and otherwise on the next line, a step in
 let_test() ->
     ?assertEqual([<<"let group : Address(Supervisor.Msg) =">>,
-                  <<"    spawn(Local, Supervisor.group(Supervisor.OneForAll,"
+                  <<"    spawn(Supervisor.group(Supervisor.OneForAll,"
                     " RestartLimit(restarts = 3, within = 5000)))">>],
-                 laid(["let group : Address(Supervisor.Msg) = spawn(Local,"
-                       " Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 3,"
+                 laid(["let group : Address(Supervisor.Msg) = spawn("
+                       "Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 3,"
                        " within = 5000)))"])),
     fixed(["let readers = match keys {",
            "    Some(#(reader, _)) -> [Process.fromAddress(reader)]",

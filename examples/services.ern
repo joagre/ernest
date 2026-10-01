@@ -7,7 +7,7 @@
 // binding still names its service, and each answers from its first state.
 //
 // Needs MVP 2.66. The fault line on standard error names the binding,
-// Services.store:26 (report §6.9).
+// Services.store:25 (report §6.9).
 //
 
 type StoreMsg =
@@ -20,10 +20,9 @@ type IdMsg = NextId(reply : Reply(Int))
 type AuditMsg = Record(String) | Entries(reply : Reply(List(String)))
 
 let services : Address(Supervisor.Msg) =
-    spawn(Local,
-          Supervisor.group(Supervisor.RestForOne, RestartLimit(restarts = 3, within = 10000)))
+    spawn(Supervisor.group(Supervisor.RestForOne, RestartLimit(restarts = 3, within = 10000)))
 
-let store : Address(StoreMsg) = spawn(Local, Supervisor.child(services, fn() = storing(Map.empty)))
+let store : Address(StoreMsg) = spawn(Supervisor.child(services, fn() = storing(Map.empty)))
 
 fn storing(items : Map(String, Int)) : Unit with StoreMsg =
     receive {
@@ -35,7 +34,7 @@ fn storing(items : Map(String, Int)) : Unit with StoreMsg =
       | Corrupt -> fault("the store was corrupted")
     }
 
-let ids : Address(IdMsg) = spawn(Local, Supervisor.child(services, fn() = counting(1)))
+let ids : Address(IdMsg) = spawn(Supervisor.child(services, fn() = counting(1)))
 
 fn counting(next : Int) : Unit with IdMsg =
     receive {
@@ -45,7 +44,7 @@ fn counting(next : Int) : Unit with IdMsg =
         }
     }
 
-let audit : Address(AuditMsg) = spawn(Local, Supervisor.child(services, fn() = recording([])))
+let audit : Address(AuditMsg) = spawn(Supervisor.child(services, fn() = recording([])))
 
 fn recording(entries : List(String)) : Unit with AuditMsg =
     receive {

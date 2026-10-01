@@ -22,7 +22,7 @@ export fn main() : Unit with Msg = {
     let a = "ab";
     let b = "cd";
     let bytes = String.toUtf8("abcd");
-    let server = spawn(Local, serve);
+    let server = spawn(serve);
     measure("loop", 10000000, fn(i) = i);
     measure("operator", 10000000, fn(i) = (Point(x = i, y = 1) + p).x);
     measure("equal", 10000000, fn(i) = if Point(x = i, y = 2) == p then 1 else 0);
@@ -44,7 +44,7 @@ export fn main() : Unit with Msg = {
     });
     measure("call", 1000000, fn(i) = Address.callForever(server, fn(r) = Get(reply = r)) + i);
     measure("spawn", 200000, fn(i) = {
-        let _ = spawn(Local, fn() : Unit with Never = Unit);
+        let _ = spawn(fn() : Unit with Never = Unit);
         i
     })
 }

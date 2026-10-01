@@ -15,15 +15,15 @@ let batch = 100
 
 let limit = RestartLimit(restarts = 1000000, within = 1000)
 
-let single : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForOne, limit))
+let single : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne, limit))
 
-let alone : Address(WorkMsg) = spawn(Local, Supervisor.child(single, working))
+let alone : Address(WorkMsg) = spawn(Supervisor.child(single, working))
 
-let all : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForAll, limit))
+let all : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll, limit))
 
-let first : Address(WorkMsg) = spawn(Local, Supervisor.child(all, working))
+let first : Address(WorkMsg) = spawn(Supervisor.child(all, working))
 
-let second : Address(WorkMsg) = spawn(Local, Supervisor.child(all, working))
+let second : Address(WorkMsg) = spawn(Supervisor.child(all, working))
 
 fn working() : Unit with WorkMsg =
     receive {
@@ -57,7 +57,7 @@ fn work(left : Int) : Unit with Never =
 fn once() : Unit with Never = {
     crash(alone);
     crash(second);
-    let _ = spawn(Local, Supervisor.child(single, fn() : Unit with Never = Unit));
+    let _ = spawn(Supervisor.child(single, fn() : Unit with Never = Unit));
     Unit
 }
 

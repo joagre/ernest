@@ -20,7 +20,7 @@
 /// {
 ///     let listener <- Tcp.listen("127.0.0.1", 0);
 ///     let port <- Tcp.port(listener);
-///     let _ = spawn(Local, fn() = match Tcp.accept(listener, 1000) {
+///     let _ = spawn(fn() = match Tcp.accept(listener, 1000) {
 ///         Right(accepted) -> {
 ///             let _ = match Tcp.read(accepted, 1000) {
 ///                 Right(bytes) -> Tcp.write(accepted, bytes, 1000)
@@ -224,7 +224,7 @@ export fn close(socket : Address(SocketMsg)) : Unit with m =
 ///     let listener <- Tcp.listen("127.0.0.1", 0);
 ///     let port <- Tcp.port(listener);
 ///     let client <- Tcp.connect("127.0.0.1", port, 1000);
-///     let keeper = spawn(Local, fn() : Unit with Never = receive {
+///     let keeper = spawn(fn() : Unit with Never = receive {
 ///         after 1000 -> Unit
 ///     });
 ///     Tcp.give(client, Process.fromAddress(keeper));

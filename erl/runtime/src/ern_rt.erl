@@ -36,7 +36,7 @@
 %% opened, each described where it is defined.
 -module(ern_rt).
 
--export([send/2, process_of/1, held/3, is_address/1, spawn/3, spawn_monitored/4, self/0, via/2,
+-export([send/2, process_of/1, held/3, is_address/1, spawn/2, spawn_monitored/3, self/0, via/2,
          call/3, call/4, call_forever/2, call_forever/3, answer/2, refuse/2, monitor/2, kill/1,
          reason/1, live/0, processes/0, info/1, faults/1, proxy_for/3, proxy_forget/2,
          source_begin/0, source_begin/1, source_end/0, opened/2, forget_opened/1, timed/0,
@@ -47,7 +47,7 @@
          signal/1, initializing/1, site/0, binding/1, restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, spawn_order/1, init_stdlib/0, init_modules/1, ordered/1]).
 
--compile({no_auto_import, [spawn/3, self/0, monitor/2]}).
+-compile({no_auto_import, [spawn/2, self/0, monitor/2]}).
 
 -define(UNIT, 'Unit').
 -define(PROCESSES, ern_processes).
@@ -156,20 +156,16 @@ is_address({foreign, Pid, _, _}) -> is_pid(Pid);
 is_address(_) -> false.
 
 %% Site names the spawning function for Down (report §6.9); the compiler
-%% supplies it, so this is spawn/3 where the report's spawn takes two.
--spec spawn('Local' | {'Peer', binary()}, fun(() -> term()), binary()) -> address().
-spawn('Local', Fun, Site) ->
-    spawn_awaited(Fun, Site, []);
-spawn({'Peer', _Name}, _Fun, _Site) ->
-    fault(<<"peer unreachable">>).
+%% supplies it, so this is spawn/2 where the report's spawn takes one.
+-spec spawn(fun(() -> term()), binary()) -> address().
+spawn(Fun, Site) ->
+    spawn_awaited(Fun, Site, []).
 
 %% Report §6.2, §6.9: a process monitored by the caller from its start, the
 %% wait made with the spawn, so that no end comes before it.
--spec spawn_monitored(term(), fun(() -> term()), fun((term()) -> term()), binary()) -> pid().
-spawn_monitored('Local', Fun, Wrap, Site) ->
-    spawn_awaited(Fun, Site, [{erlang:self(), Wrap}]);
-spawn_monitored({'Peer', _Name}, _Fun, _Wrap, _Site) ->
-    fault(<<"peer unreachable">>).
+-spec spawn_monitored(fun(() -> term()), fun((term()) -> term()), binary()) -> pid().
+spawn_monitored(Fun, Wrap, Site) ->
+    spawn_awaited(Fun, Site, [{erlang:self(), Wrap}]).
 
 spawn_awaited(Fun, Site, Awaits) ->
     Ref = make_ref(),

@@ -741,14 +741,14 @@ reply_call(F, Args, T, Cx) ->
 
 %% A prelude name taken as a value: prelude_value(...) -> {Form, Cx}.
 prelude_value(Pos, [spawn], _, Cx) ->
-    %% a closure, since spawn takes the site as a third argument
-    {[W, F], Cx1} = fresh_vars(2, "A", Cx),
-    Args = [erl_syntax:variable(W), erl_syntax:variable(F), site(Pos, Cx)],
-    {lambda([W, F], call_remote(ern_rt, spawn, Args)), Cx1};
+    %% a closure, since spawn takes the site as a second argument
+    {[F], Cx1} = fresh_vars(1, "A", Cx),
+    Args = [erl_syntax:variable(F), site(Pos, Cx)],
+    {lambda([F], call_remote(ern_rt, spawn, Args)), Cx1};
 prelude_value(Pos, [spawnMonitored], _, Cx) ->
-    {[W, F, Wrap], Cx1} = fresh_vars(3, "A", Cx),
-    Args = [erl_syntax:variable(V) || V <- [W, F, Wrap]] ++ [site(Pos, Cx)],
-    {lambda([W, F, Wrap], call_remote(ern_rt, spawn_monitored, Args)), Cx1};
+    {[F, Wrap], Cx1} = fresh_vars(2, "A", Cx),
+    Args = [erl_syntax:variable(V) || V <- [F, Wrap]] ++ [site(Pos, Cx)],
+    {lambda([F, Wrap], call_remote(ern_rt, spawn_monitored, Args)), Cx1};
 prelude_value(Pos, ['Address', Name], T, Cx) when Name =:= call; Name =:= callForever ->
     F = case Name of call -> call; callForever -> call_forever end,
     {Vars, Cx1} = fresh_vars(arity_of(T, Pos), "A", Cx),

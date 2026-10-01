@@ -34,7 +34,7 @@
 -export([main/0, '$fun'/2]).
 
 %% export fn main() : Unit with m = {
-%%     let c = spawn(Local, fn() = counter(0));
+%%     let c = spawn(fn() = counter(0));
 %%     send(c, Inc(5));
 %%     send(c, Inc(3));
 %%     match Address.call(c, fn(r) = Get(reply = r), 1000) {
@@ -43,7 +43,7 @@
 %%     }
 %% }
 main() ->
-    C = ern_rt:spawn('Local', fun() -> counter(0) end, <<"Counter.main:17">>),
+    C = ern_rt:spawn(fun() -> counter(0) end, <<"Counter.main:17">>),
     ern_rt:send(C, {'Inc', 5}),
     ern_rt:send(C, {'Inc', 3}),
     case ern_rt:call(C, fun(R) -> {'Get', R} end, 1000, {int, <<"reply does not match Int">>}) of

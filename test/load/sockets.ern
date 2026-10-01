@@ -15,7 +15,7 @@ export fn main() : Unit with Never =
     match Tcp.listen("127.0.0.1", 0) {
         Right(listener) -> match Tcp.port(listener) {
             Right(port) -> {
-                let _ = spawn(Local, fn() : Unit with Never = serve(listener));
+                let _ = spawn(fn() : Unit with Never = serve(listener));
                 round(port, 1)
             }
           | Left(e) -> Io.println(Io.show(e))
@@ -26,7 +26,7 @@ export fn main() : Unit with Never =
 fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never = {
     match Tcp.accept(listener, 60000) {
         Right(peer) -> {
-            let echoer = spawn(Local, fn() : Unit with Never = echo(peer));
+            let echoer = spawn(fn() : Unit with Never = echo(peer));
             Tcp.give(peer, Process.fromAddress(echoer))
         }
       | Left(_) -> Unit

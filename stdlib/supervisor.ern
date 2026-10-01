@@ -34,10 +34,9 @@
 /// ```ernest
 /// {
 ///     let sup =
-///         spawn(Local,
-///               Supervisor.group(Supervisor.OneForOne,
+///         spawn(Supervisor.group(Supervisor.OneForOne,
 ///                                RestartLimit(restarts = 3, within = 5000)));
-///     let echo = spawn(Local, Supervisor.child(sup, fn() : Unit with Reply(Int) = receive {
+///     let echo = spawn(Supervisor.child(sup, fn() : Unit with Reply(Int) = receive {
 ///         r -> answer(r, 42)
 ///     }));
 ///     let n = Address.callForever(echo, fn(r) = r);
@@ -74,8 +73,7 @@ export type Strategy = OneForOne | OneForAll | RestForOne
 /// ```ernest
 /// {
 ///     let sup : Address(Supervisor.Msg) =
-///         spawn(Local,
-///               Supervisor.group(Supervisor.OneForOne,
+///         spawn(Supervisor.group(Supervisor.OneForOne,
 ///                                RestartLimit(restarts = 3, within = 5000)));
 ///     kill(sup)
 /// }
@@ -146,12 +144,12 @@ type Waiting = Waiting(reply : Reply(Bool), asked : List(Process), next : Waitin
 /// ### Examples
 ///
 /// ```ernest
-/// spawn(Local, Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 5, within = 10000)))
+/// spawn(Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 5, within = 10000)))
 /// ```
 export fn group(strategy : Strategy, limit : RestartLimit) : (() -> Unit with Msg) with m = {
     // the watcher outlives a restart in place, which empties the
     // supervisor's mailbox, so each run finds it here (report §6.9)
-    let watcher = spawn(Local, watch);
+    let watcher = spawn(watch);
     fn() = {
         if runs(watcher, self()) then Unit else fault("a group runs in one process");
         // a supervisor restarted in place restarts its subtree with it; the
@@ -379,10 +377,9 @@ fn stopAll(children : List(Member)) : Unit with Watch =
 /// ```ernest
 /// {
 ///     let sup =
-///         spawn(Local,
-///               Supervisor.group(Supervisor.OneForOne,
+///         spawn(Supervisor.group(Supervisor.OneForOne,
 ///                                RestartLimit(restarts = 3, within = 5000)));
-///     spawn(Local, Supervisor.child(sup, fn() : Unit with Int = receive {
+///     spawn(Supervisor.child(sup, fn() : Unit with Int = receive {
 ///         _ -> Unit
 ///     }))
 /// }

@@ -165,7 +165,7 @@ uses(#e_var{pos = Pos, path = [], name = N}, Linear, _Env) ->
     end;
 uses(#e_call{pos = Pos, returns = false} = Call, Linear, Env) ->
     seq([uses(Call#e_call{returns = true}, Linear, Env), [{'$fault', Pos}]]);
-uses(#e_call{callee = #e_var{ref = {prelude, [Spawn]}}, args = [Where, Arg | Wrap]}, Linear, Env)
+uses(#e_call{callee = #e_var{ref = {prelude, [Spawn]}}, args = [Arg | Wrap]}, Linear, Env)
   when Spawn =:= spawn, Wrap =:= []; Spawn =:= spawnMonitored, length(Wrap) =:= 1 ->
     %% report §6.6: the function argument of spawn or spawnMonitored
     %% consumes a capturing lambda; each is the prelude's as the checker
@@ -179,7 +179,7 @@ uses(#e_call{callee = #e_var{ref = {prelude, [Spawn]}}, args = [Where, Arg | Wra
                       end;
                   _ -> uses(Arg, Linear, Env)
               end,
-    seq([uses(Where, Linear, Env), ArgUses | [uses(W, Linear, Env) || W <- Wrap]]);
+    seq([ArgUses | [uses(W, Linear, Env) || W <- Wrap]]);
 uses(#e_call{pos = Pos, callee = #e_var{path = [], name = F}, args = Args}, Linear, Env) ->
     %% a call consumes a capturing lambda bound by let
     Callee = case lists:member({lambda, F}, Linear) of

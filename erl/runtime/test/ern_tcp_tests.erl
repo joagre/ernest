@@ -88,12 +88,12 @@ socket_lives_until_closed_test() ->
                %% monitored from its start: a reader that faulted before a
                %% monitor was made would be `Unknown`, as the test once saw
                %% under load
-               _ = ern_rt:spawn_monitored('Local', fun() -> read(Socket, 1000) end,
+               _ = ern_rt:spawn_monitored(fun() -> read(Socket, 1000) end,
                                          fun(D) -> {down, D} end, <<"reader">>),
                ern_rt:in_foreign(fun() -> queued(Pid, 2) end),
                erlang:resume_process(Pid),
                receive {down, D} -> Me ! {down, D} end,
-               _ = ern_rt:spawn_monitored('Local', fun() -> read(Socket, 1000) end,
+               _ = ern_rt:spawn_monitored(fun() -> read(Socket, 1000) end,
                                          fun(L) -> {later, L} end, <<"reader">>),
                receive {later, L} -> Me ! {later, L} end
            end, <<"main">>, quiet()),
@@ -146,7 +146,7 @@ accept_meets_the_close_test() ->
                Pid = ern_rt:process_of(Listener),
                erlang:suspend_process(Pid),
                ern_rt:send(Listener, 'CloseListener'),
-               _ = ern_rt:spawn_monitored('Local', fun() -> accept(Listener, 1000) end,
+               _ = ern_rt:spawn_monitored(fun() -> accept(Listener, 1000) end,
                                          fun(D) -> {down, D} end, <<"acceptor">>),
                ern_rt:in_foreign(fun() -> queued(Pid, 2) end),
                erlang:resume_process(Pid),
@@ -164,7 +164,7 @@ killed_socket_test() ->
     Result = ern_rt:run_main(
                fun() ->
                    {'Right', Socket} = connect(Port, 2000),
-                   Reader = ern_rt:spawn('Local', fun() -> read(Socket, 100000) end,
+                   Reader = ern_rt:spawn(fun() -> read(Socket, 100000) end,
                                          <<"reader">>),
                    ern_rt:monitor(Reader, fun(D) -> {down, D} end),
                    sleep(100),
@@ -281,7 +281,7 @@ write_holds_up_no_read() ->
                {'Right', Socket} = connect(Port, 2000),
                %% the host queues one write whole and holds the next back
                Chunk = binary:copy(<<0>>, 1024 * 1024),
-               _ = ern_rt:spawn('Local', fun() ->
+               _ = ern_rt:spawn(fun() ->
                                              [write(Socket, Chunk) || _ <- lists:seq(1, 64)]
                                          end, <<"flood">>),
                sleep(200),

@@ -68,7 +68,7 @@ round_inputs(K) ->
      "type Shape = Circle(Int) | Square(Int)",
      "Circle(" ++ K ++ ")",
      "Io.println(\"line " ++ K ++ "\")",
-     "let _ = spawn(Local, fn() : Unit with Never = Io.println(\"spawned\"))"].
+     "let _ = spawn(fn() : Unit with Never = Io.println(\"spawned\"))"].
 
 %% Called by a load after each round, through a `foreign fn`. What the
 %% round set ending, a killed process or a delivery of its `Down`, is given

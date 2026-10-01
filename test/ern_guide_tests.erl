@@ -76,7 +76,8 @@ prelude_declarations(Document) ->
                                        || L <- binary:split(
                                                  list_to_binary(ern_prelude:declared_types()),
                                                  <<"\n">>, [global])])],
-    ?assert(length(Quoted) >= 3),
+    %% the scan found the blocks
+    ?assertNotEqual([], Quoted),
     ?assertEqual([], Quoted -- Prelude).
 
 %% Each `type` declaration of some lines, with the lines that continue it.

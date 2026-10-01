@@ -55,7 +55,7 @@ export fn main() : Unit with GameMsg = {
     // report §8.2: the keys are the game's input, so the game begins once
     // the player has the terminal's keys, and without them the program
     // ends before it draws
-    let _ = spawn(Local, fn() = match Terminal.subscribe(fn(e) = e) {
+    let _ = spawn(fn() = match Terminal.subscribe(fn(e) = e) {
         Right(_) -> {
             send(me, Joined(1));
             player(1, me)

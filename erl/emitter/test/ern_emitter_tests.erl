@@ -624,7 +624,7 @@ terminal_claim_faults_its_caller_test() ->
                                  "}\n"
                                  "export fn main() : Unit with MainMsg = {\n"
                                  "    let _ = Io.readLine();\n"
-                                 "    let _ = spawnMonitored(Local, watch, Ended);\n"
+                                 "    let _ = spawnMonitored(watch, Ended);\n"
                                  "    receive {\n"
                                  "        Ended(Down(reason = Fault(c), site = _)) ->\n"
                                  "            Io.println(c)\n"
@@ -658,7 +658,7 @@ negative_time_test() ->
                     "export fn main() : Unit with M = {\n"
                     "    receive { Get(reply = r) -> answer(r, 1) | after 0 - 5 ->"
                     " Io.println(\"after\") };\n"
-                    "    let quiet = spawn(Local, fn() : Unit with M = receive { M -> Unit });\n"
+                    "    let quiet = spawn(fn() : Unit with M = receive { M -> Unit });\n"
                     "    let asked = Address.call(quiet, fn(r) = Get(reply = r), 0 - 1);\n"
                     "    Io.println(match asked { Some(_) -> \"some\" | None -> \"none\" });\n"
                     "    Clock.alarm(0 - 10, fn(_) = M);\n"
@@ -685,12 +685,12 @@ long_time_test() ->
         "}\n"
         "export fn main() : Unit with Msg = {\n"
         "    let me = self();\n"
-        "    let _ = spawn(Local, fn() = later(me));\n"
+        "    let _ = spawn(fn() = later(me));\n"
         "    receive {\n"
         "        Ping -> Io.println(\"ping\")\n"
         "      | after 5000000000 -> Io.println(\"after\")\n"
         "    };\n"
-        "    let a = spawn(Local, server);\n"
+        "    let a = spawn(server);\n"
         "    let _ = Io.debug(Address.call(a, fn(r) = Get(reply = r), 5000000000));\n"
         "    match Fs.read(Path(\"../../../VERSION\"), 5000000000) {\n"
         "        Right(_) -> Io.println(\"read\")\n"
@@ -708,7 +708,7 @@ call_forever_deadlock_test() ->
     {R, _} = run("type Req = Get(reply : Reply(Int)) | Other\n"
                  "fn server() : Unit with Req = receive { Other -> Unit }\n"
                  "export fn main() : Unit with m = {\n"
-                 "    let a = spawn(Local, server);\n"
+                 "    let a = spawn(server);\n"
                  "    let _ = Io.debug(Address.callForever(a, fn(r) = Get(reply = r)));\n"
                  "    Unit\n"
                  "}\n"),
@@ -729,7 +729,7 @@ restart_keeps_address_test() ->
         "}\n"
         "export fn main() : Unit with Never = {\n"
         "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
-        "    let s = spawn(Local, restarting(limit, fn() : Unit with Msg = loop(0)));\n"
+        "    let s = spawn(restarting(limit, fn() : Unit with Msg = loop(0)));\n"
         "    send(s, Bump);\n"
         "    send(s, Crash);\n"
         "    receive { after 100 -> Unit };\n"
@@ -759,7 +759,7 @@ restart_limit_test() ->
         ++ ?UP ++
         "export fn main() : Unit with MainMsg = {\n"
         "    let limit = RestartLimit(restarts = " ++ Restarts ++ ", within = 60000);\n"
-        "    let s = spawnMonitored(Local, restarting(limit, count), Died);\n"
+        "    let s = spawnMonitored(restarting(limit, count), Died);\n"
         "    let _ = up(s);\n"
         "    send(s, Crash);\n"
         "    if up(s) then send(s, Crash) else Unit;\n"
@@ -796,7 +796,7 @@ restart_unlimited() ->
         "fn crash(s : Address(Msg), left : Int) : Unit with m =\n"
         "    if left == 0 || !up(s) then Unit else { send(s, Crash); crash(s, left - 1) }\n"
         "export fn main() : Unit with MainMsg = {\n"
-        "    let s = spawnMonitored(Local, restarting(" ++ Limit ++ ", " ++ Body ++ "), Died);\n"
+        "    let s = spawnMonitored(restarting(" ++ Limit ++ ", " ++ Body ++ "), Died);\n"
         "    crash(s, " ++ Crashes ++ ");\n"
         "    if up(s) then send(s, Stop) else Unit;\n"
         "    receive { Died(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
@@ -825,7 +825,7 @@ restart_empties_the_mailbox_test() ->
         "    if Clock.monotonic() >= until then Unit else spin(until)\n"
         "export fn main() : Unit with Never = {\n"
         "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
-        "    let s = spawn(Local, restarting(limit, fn() = count(0)));\n"
+        "    let s = spawn(restarting(limit, fn() = count(0)));\n"
         "    send(s, Busy);\n"
         "    send(s, Plain(5));\n"
         "    Io.println(Io.show(Address.call(s, fn(r) = Add(n = 1, reply = r), 2000)));\n"
@@ -855,8 +855,8 @@ restart_cancels_what_it_asked_for() ->
         ++ ?UP ++
         "export fn main() : Unit with Never = {\n"
         "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
-        "    let s = spawn(Local, restarting(limit, fn() = loop(0)));\n"
-        "    let other = spawn(Local, fn() : Unit with Int = receive { _ -> Unit });\n"
+        "    let s = spawn(restarting(limit, fn() = loop(0)));\n"
+        "    let other = spawn(fn() : Unit with Int = receive { _ -> Unit });\n"
         "    send(s, Ask(other));\n"
         "    send(s, Crash);\n"
         "    let _ = up(s);\n"
@@ -872,7 +872,7 @@ restart_cancels_what_it_asked_for() ->
     %% a subscription to faults, and a fault after the restart
     ?assertEqual({ok, <<"0\n">>},
                  run(Program("Process.faults(fn(_) = Heard)",
-                             "let _ = spawn(Local, fn() : Unit with Never = fault(\"other\"))"))).
+                             "let _ = spawn(fn() : Unit with Never = fault(\"other\"))"))).
 
 %% Appendix E.22, report §6.9: a child's fault is counted by its supervisor
 %% before the child runs again, so a limit of two restarts lets the child
@@ -895,11 +895,11 @@ supervisor_counts_before_the_restart() ->
         "    if n < 6 then fault(\"boom\") else Unit\n"
         "}\n"
         "export fn main() : Unit with MainMsg = {\n"
-        "    let c = spawn(Local, fn() = counter(1));\n"
+        "    let c = spawn(fn() = counter(1));\n"
         "    let limit = " ++ Limit ++ ";\n"
-        "    let sup = spawnMonitored(Local, Supervisor.group(Supervisor.OneForOne, limit),\n"
+        "    let sup = spawnMonitored(Supervisor.group(Supervisor.OneForOne, limit),\n"
         "                             SupDied);\n"
-        "    let _ = spawnMonitored(Local, Supervisor.child(sup, fn() = crash(c)), ChildEnded);\n"
+        "    let _ = spawnMonitored(Supervisor.child(sup, fn() = crash(c)), ChildEnded);\n"
         "    receive {\n"
         "        SupDied(Down(reason = Fault(cause), site = _)) -> Io.println(cause)\n"
         "      | SupDied(_) -> Io.println(\"supervisor ended\")\n"
@@ -942,9 +942,9 @@ supervisor_restarts_whole() ->
         "    }\n"
         "export fn main() : Unit with Never = {\n"
         "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
-        "    let sup = spawn(Local, Supervisor.group(Supervisor.OneForAll, limit));\n"
-        "    let x = spawn(Local, Supervisor.child(sup, a));\n"
-        "    let y = spawn(Local, Supervisor.child(sup, fn() = b(0)));\n"
+        "    let sup = spawn(Supervisor.group(Supervisor.OneForAll, limit));\n"
+        "    let x = spawn(Supervisor.child(sup, a));\n"
+        "    let y = spawn(Supervisor.child(sup, fn() = b(0)));\n"
         "    send(y, Inc);\n"
         "    let _ = Address.callForever(y, fn(r) = Count(reply = r));\n"
         "    let _ = ping(x);\n"
@@ -964,10 +964,10 @@ restart_only_on_fault_test() ->
         "fn waits() : Unit with Msg = receive { Stop -> Unit }\n"
         "export fn main() : Unit with MainMsg = {\n"
         "    let limit = RestartLimit(restarts = 5, within = 60000);\n"
-        "    let a = spawnMonitored(Local, restarting(limit, waits), Died);\n"
+        "    let a = spawnMonitored(restarting(limit, waits), Died);\n"
         "    send(a, Stop);\n"
         "    receive { Died(Down(reason = r, site = _)) -> { let _ = Io.debug(r); Unit } };\n"
-        "    let b = spawnMonitored(Local, restarting(limit, waits), Died);\n"
+        "    let b = spawnMonitored(restarting(limit, waits), Died);\n"
         "    kill(b);\n"
         "    receive { Died(Down(reason = r, site = _)) -> { let _ = Io.debug(r); Unit } };\n"
         "    Unit\n"
@@ -1001,27 +1001,27 @@ call_ends_with_callee() ->
         "}\n"
     end,
     ?assertMatch({{fault, <<"bad request">>}, _},
-                 run(Forever("    let s = spawn(Local, faulty);\n"))),
+                 run(Forever("    let s = spawn(faulty);\n"))),
     ?assertMatch({{fault, <<"callee was killed">>}, _},
-                 run(Forever("    let s = spawn(Local, quiet);\n"
-                             "    let _ = spawn(Local, fn() : Unit with Never =\n"
+                 run(Forever("    let s = spawn(quiet);\n"
+                             "    let _ = spawn(fn() : Unit with Never =\n"
                              "        receive { after 50 -> kill(s) });\n"))),
     ?assertMatch({{fault, <<"callee returned without answering">>}, _},
-                 run(Forever("    let s = spawn(Local, waits);\n"
-                             "    let _ = spawn(Local, fn() : Unit with Never =\n"
+                 run(Forever("    let s = spawn(waits);\n"
+                             "    let _ = spawn(fn() : Unit with Never =\n"
                              "        receive { after 50 -> send(s, Stop) });\n"))),
     ?assertMatch({{fault, <<"callee had ended">>}, _},
-                 run(Forever("    let s = spawnMonitored(Local, fn() : Unit with Msg = Unit,\n"
+                 run(Forever("    let s = spawnMonitored(fn() : Unit with Msg = Unit,\n"
                              "        Died);\n"
                              "    receive { Died(_) -> Unit };\n"))),
     ?assertMatch({{fault, <<"bad request">>}, _},
                  run(Forever("    let limit = RestartLimit(restarts = 5, within = 60000);\n"
-                             "    let s = spawn(Local, restarting(limit, faulty));\n"))),
+                             "    let s = spawn(restarting(limit, faulty));\n"))),
     {ok, Out} = run(Types ++ Faulty ++
                     "export fn main() : Unit with MainMsg = {\n"
                     "    let limit = RestartLimit(restarts = 5, within = 60000);\n"
-                    "    let s = spawn(Local, restarting(limit, faulty));\n"
-                    "    let t = spawn(Local, faulty);\n"
+                    "    let s = spawn(restarting(limit, faulty));\n"
+                    "    let t = spawn(faulty);\n"
                     "    let _ = Io.debug(Address.call(s, " ++ Ask ++ ", 60000));\n"
                     "    let _ = Io.debug(Address.call(t, " ++ Ask ++ ", 60000));\n"
                     "    Unit\n"
@@ -1039,9 +1039,9 @@ service_binding_test() ->
         "  | Crash -> fault(\"crash\")\n"
         "  | Count(reply = r) -> { answer(r, n); logger(n) }\n"
         "}\n"
-        "export let log : Address(LogMsg) = spawn(Local,\n"
-        "    restarting(RestartLimit(restarts = 3, within = 60000),\n"
-        "        fn() : Unit with LogMsg = logger(0)))\n"
+        "export let log : Address(LogMsg) =\n"
+        "    spawn(restarting(RestartLimit(restarts = 3, within = 60000),\n"
+        "                     fn() : Unit with LogMsg = logger(0)))\n"
         "let started = Io.println(\"started\")\n"
         "fn note(s : String) : Unit with m = send(log, Log(s))\n"
         "export fn main() : Unit with Never = {\n"
@@ -1059,7 +1059,7 @@ service_site_test() ->
     {ok, Out} = run(
         "type MainMsg = Died(Down)\n"
         "export let quick : Address(Int) =\n"
-        "    spawn(Local, fn() : Unit with Int = receive { _ -> fault(\"x\") })\n"
+        "    spawn(fn() : Unit with Int = receive { _ -> fault(\"x\") })\n"
         "export fn main() : Unit with MainMsg = {\n"
         "    monitor(quick, Died);\n"
         "    send(quick, 1);\n"
@@ -1106,7 +1106,7 @@ receive_guard_test() ->
         "  | N(_) -> Io.println(Int.toString(acc))\n"
         "}\n"
         "export fn main() : Unit with Never = {\n"
-        "    let p = spawn(Local, fn() = loop(0));\n"
+        "    let p = spawn(fn() = loop(0));\n"
         "    send(p, N(2));\n"
         "    send(p, N(3));\n"
         "    send(p, N(0));\n"
@@ -1436,7 +1436,7 @@ callback_restart_passes_through_test() ->
         "          | _ -> Unit\n"
         "        }\n"
         "    };\n"
-        "    let _ = spawn(Local, restarting(Unlimited, body));\n"
+        "    let _ = spawn(restarting(Unlimited, body));\n"
         "    receive { s -> Io.println(s) };\n"
         "    receive { s -> Io.println(s) }\n"
         "}\n"),
@@ -1660,7 +1660,7 @@ reply_handed_on_test() ->
                  ++ "/1\"\n"
                  "fn serve() : Unit with Ask = receive { Ask(reply = r) -> relay(r) }\n"
                  "export fn main() : Unit with Never = {\n"
-                 "    let n = Address.callForever(spawn(Local, serve), fn(r) = Ask(reply = r));\n"
+                 "    let n = Address.callForever(spawn(serve), fn(r) = Ask(reply = r));\n"
                  "    Io.println(Int.toString(n))\n"
                  "}\n"
              end,
@@ -1678,7 +1678,7 @@ reply_given_back_test() ->
                  "fn serve() : Unit with Ask =\n"
                  "    receive { Ask(reply = r) -> answer(same(r), \"x\") }\n"
                  "export fn main() : Unit with Never = {\n"
-                 "    let n = Address.callForever(spawn(Local, serve), fn(r) = Ask(reply = r));\n"
+                 "    let n = Address.callForever(spawn(serve), fn(r) = Ask(reply = r));\n"
                  "    Io.println(Int.toString(n))\n"
                  "}\n"),
     ?assertEqual({fault, <<"reply does not match Int">>}, R).
@@ -1699,7 +1699,7 @@ answer_to_foreign_reply_test() ->
                  "    receive { Ask(reply = r) -> answer(r, me) }\n"
                  "export fn main() : Unit with Msg = {\n"
                  "    let me = self();\n"
-                 "    ask(spawn(Local, fn() = serve(me)));\n"
+                 "    ask(spawn(fn() = serve(me)));\n"
                  "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
                  "}\n"
              end,
@@ -1828,9 +1828,9 @@ call_as_value_test() ->
         "        Address.call;\n"
         "    let w : (Address(Msg), (Reply(Int)) -> Msg) -> Int with Never =\n"
         "        Address.callForever;\n"
-        "    let asked = c(spawn(Local, serve), fn(r) = Get(reply = r), 1000);\n"
+        "    let asked = c(spawn(serve), fn(r) = Get(reply = r), 1000);\n"
         "    let n = Optional.withDefault(asked, 0);\n"
-        "    Io.println(Int.toString(n + w(spawn(Local, serve), fn(r) = Get(reply = r))))\n"
+        "    Io.println(Int.toString(n + w(spawn(serve), fn(r) = Get(reply = r))))\n"
         "}\n"),
     ?assertEqual(<<"14\n">>, Out),
     {R, _} = run("type Ask = Ask(reply : Reply(Int))\n"
@@ -2159,7 +2159,7 @@ monitor_site_test() ->
         "type Msg = Died(Down)\n"
         "export fn main() : Unit with Msg = {\n"
         "    let z = List.size([]);\n"
-        "    let _ = spawnMonitored(Local, fn() : Unit with Never = { let _ = 1 / z; Unit },"
+        "    let _ = spawnMonitored(fn() : Unit with Never = { let _ = 1 / z; Unit },"
         " Died);\n"
         "    receive {\n"
         "        Died(Down(site = f, reason = Fault(msg))) -> Io.println(f <> \" \" <> msg)\n"
@@ -2181,14 +2181,14 @@ down_site_test() ->
         "    Died(Down(site = f, reason = _)) -> Io.println(f)\n"
         "}\n"
         "fn outer() : Unit with Msg = {\n"
-        "    fn inner() : Address(Never) with Msg = spawn(Local, idle);\n"
+        "    fn inner() : Address(Never) with Msg = spawn(idle);\n"
         "    monitor(inner(), Died);\n"
         "    report();\n"
-        "    let viaLambda = fn() = spawn(Local, idle);\n"
+        "    let viaLambda = fn() = spawn(idle);\n"
         "    monitor(viaLambda(), Died);\n"
         "    report();\n"
         "    let s = spawn;\n"
-        "    monitor(s(Local, idle), Died);\n"
+        "    monitor(s(idle), Died);\n"
         "    report()\n"
         "}\n"
         "export fn main() : Unit with Msg = outer()\n"),
@@ -2201,8 +2201,8 @@ prelude_values_test() ->
         "fn apply2(f : (Int, Int) -> Int, a : Int, b : Int) : Int = f(a, b)\n"
         "fn twice(f : (Int) -> Int, a : Int) : Int = f(f(a))\n"
         "fn join(f : (String, String) -> String) : String = f(\"a\", \"b\")\n"
-        "fn start(s : (Where, () -> Unit with Never) -> Address(Never) with Never)\n"
-        "        : Address(Never) with Never = s(Local, fn() = Unit)\n"
+        "fn start(s : (() -> Unit with Never) -> Address(Never) with Never)\n"
+        "        : Address(Never) with Never = s(fn() = Unit)\n"
         "export fn main() : Unit with Never = {\n"
         "    Io.println(Int.toString(apply2(Int.+, 2, 3)));\n"
         "    Io.println(Int.toString(apply2(Int./, 7, 2)));\n"
@@ -2224,7 +2224,7 @@ stdlib_values_test() ->
         "fn answerer() : Unit with Msg = receive { Ask(r) -> answer(r, 7) }\n"
         "export fn main() : Unit with Never = {\n"
         "    Io.println(Bool.toString(List.all(String.toList(\"123\"), Char.isDigit)));\n"
-        "    let a = spawn(Local, fn() = answerer());\n"
+        "    let a = spawn(fn() = answerer());\n"
         "    match call(Address.call, a, Ask) {\n"
         "        Some(n) -> Io.println(Int.toString(n))\n"
         "      | None -> Io.println(\"none\")\n"
@@ -2303,8 +2303,8 @@ prelude_target(Q, Text) ->
     case Q of
         [self] -> {ern_rt, self, 0};
         [send] -> {ern_rt, send, 2};
-        [spawn] -> {ern_rt, spawn, 3};
-        [spawnMonitored] -> {ern_rt, spawn_monitored, 4};
+        [spawn] -> {ern_rt, spawn, 2};
+        [spawnMonitored] -> {ern_rt, spawn_monitored, 3};
         [via] -> {ern_rt, via, 2};
         [answer] -> {ern_rt, answer, 2};
         [monitor] -> {ern_rt, monitor, 2};
@@ -2325,7 +2325,7 @@ process_functions_test() ->
         "type Msg = Died(Down) | Tick\n"
         "fn idle() : Unit with Never = receive { after 10000 -> Unit }\n"
         "export fn main() : Unit with Msg = {\n"
-        "    let w = spawn(Local, fn() = idle());\n"
+        "    let w = spawn(fn() = idle());\n"
         "    monitor(w, Died);\n"
         "    kill(w);\n"
         "    receive {\n"
@@ -2333,7 +2333,7 @@ process_functions_test() ->
         "      | _ -> Io.println(\"other\")\n"
         "    };\n"
         "    let z = List.size([]);\n"
-        "    let _ = spawnMonitored(Local, fn() : Unit with Never = { let _ = 1 / z; Unit },"
+        "    let _ = spawnMonitored(fn() : Unit with Never = { let _ = 1 / z; Unit },"
         " Died);\n"
         "    receive {\n"
         "        Died(Down(reason = Fault(m), site = _)) -> Io.println(m)\n"
@@ -2351,9 +2351,9 @@ process_functions_test() ->
 
 supervised(Strategy, Limit, Names, Main) ->
     run(["type Msg = Ask(reply : Reply(Int)) | Boom\n"
-         "let sup : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.",
+         "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.",
          Strategy, ", ", Limit, "))\n",
-         [["let ", N, " : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = count(0)))\n"]
+         [["let ", N, " : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"]
           || N <- Names],
          "fn count(n : Int) : Unit with Msg = receive {\n"
          "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
@@ -2409,14 +2409,14 @@ rest_for_one_restarts_later_children_test() ->
 %% examples/services.ern
 rest_for_one_reads_the_order_of_spawns_test() ->
     {ok, Out} = run(["type Msg = Ask(reply : Reply(Int)) | Boom\n"
-                     "let sup : Address(Supervisor.Msg) = spawn(Local, Supervisor.group("
+                     "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group("
                      "Supervisor.RestForOne, ", ?LIMIT, "))\n"
-                     "let a : Address(Msg) = spawn(Local, fn() : Unit with Msg = {\n"
+                     "let a : Address(Msg) = spawn(fn() : Unit with Msg = {\n"
                      "    receive { after 100 -> Unit };\n"
                      "    Supervisor.child(sup, fn() = count(0))()\n"
                      "})\n"
-                     "let b : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = count(0)))\n"
-                     "let c : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = count(0)))\n"
+                     "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
+                     "let c : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
                      "fn count(n : Int) : Unit with Msg = receive {\n"
                      "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
                      "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
@@ -2455,16 +2455,16 @@ restart_asked_for_is_no_fault_test() ->
 call_ends_at_asked_restart_test() ->
     {R, _} = run(
         "type Msg = Slow(reply : Reply(Int)) | Boom\n"
-        "let sup : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForAll,"
+        "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
         " RestartLimit(restarts = 3, within = 5000)))\n"
-        "let a : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = serve()))\n"
-        "let b : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = serve()))\n"
+        "let a : Address(Msg) = spawn(Supervisor.child(sup, fn() = serve()))\n"
+        "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = serve()))\n"
         "fn serve() : Unit with Msg = receive {\n"
         "    Slow(reply = r) -> { receive { after 500 -> Unit }; answer(r, 1); serve() }\n"
         "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
         "}\n"
         "export fn main() : Unit with Never = {\n"
-        "    let _ = spawn(Local, fn() : Unit with Never = {\n"
+        "    let _ = spawn(fn() : Unit with Never = {\n"
         "        receive { after 50 -> Unit };\n"
         "        send(a, Boom)\n"
         "    });\n"
@@ -2511,12 +2511,12 @@ kill_stops_in_reverse_order_test() ->
 nested_group_restarts_in_place_test() ->
     {ok, Out} = run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
-        "let top : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForOne,"
+        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Local, Supervisor.child(top,"
+        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
         " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 0, within = 5000))))\n"
-        "let a : Address(Msg) = spawn(Local, Supervisor.child(sub, fn() = count(0)))\n"
-        "let b : Address(Msg) = spawn(Local, Supervisor.child(sub, fn() = count(0)))\n"
+        "let a : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
+        "let b : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
         "fn count(n : Int) : Unit with Msg = receive {\n"
         "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
         "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
@@ -2537,12 +2537,12 @@ nested_group_restarts_in_place_test() ->
 count_survives_restart_in_place_test() ->
     {ok, Out} = run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
-        "let top : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForOne,"
+        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Local, Supervisor.child(top,"
+        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
         " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 1, within = 1000))))\n"
-        "let a : Address(Msg) = spawn(Local, Supervisor.child(sub, fn() = count(0)))\n"
-        "let b : Address(Msg) = spawn(Local, Supervisor.child(sub, fn() = count(0)))\n"
+        "let a : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
+        "let b : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
         "fn count(n : Int) : Unit with Msg = receive {\n"
         "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
         "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
@@ -2569,7 +2569,7 @@ count_survives_restart_in_place_test() ->
 %% restarted without end
 child_of_ended_supervisor_test() ->
     {R, _} = run(
-        "let sup : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForOne,"
+        "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 3, within = 5000)))\n"
         "export fn main() : Unit with Never = {\n"
         "    kill(sup);\n"
@@ -2609,8 +2609,8 @@ group_runs_in_one_process_test() ->
         "type MainMsg = Died(Down)\n"
         "export fn main() : Unit with MainMsg = {\n"
         "    let g = Supervisor.group(Supervisor.OneForOne, Unlimited);\n"
-        "    let _ = spawnMonitored(Local, g, Died);\n"
-        "    let _ = spawnMonitored(Local, g, Died);\n"
+        "    let _ = spawnMonitored(g, Died);\n"
+        "    let _ = spawnMonitored(g, Died);\n"
         "    receive { Died(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
         "}\n"),
     ?assertEqual(<<"Fault(\"a group runs in one process\")\n">>, Out).
@@ -2624,11 +2624,11 @@ group_runs_once_after_its_end_test() ->
         "type MainMsg = Died(Down)\n"
         "export fn main() : Unit with MainMsg = {\n"
         "    let g = Supervisor.group(Supervisor.OneForOne, Unlimited);\n"
-        "    let first = spawn(Local, g);\n"
+        "    let first = spawn(g);\n"
         "    receive { after 50 -> Unit };\n"
         "    kill(first);\n"
         "    receive { after 50 -> Unit };\n"
-        "    let _ = spawnMonitored(Local, g, Died);\n"
+        "    let _ = spawnMonitored(g, Died);\n"
         "    receive { Died(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
         "}\n"),
     ?assertEqual(<<"Fault(\"a group runs in one process\")\n">>, Out).
@@ -2655,10 +2655,10 @@ crunching(Main) ->
 %% the ask with its mailbox, and the child waited for ever
 sibling_faulting_first_counts_as_restarted_test() ->
     {ok, Out} = crunching(
-        "let sup : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.RestForOne,"
+        "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.RestForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let a : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = count(0)))\n"
-        "let b : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = count(0)))\n"
+        "let a : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
+        "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
         "export fn main() : Unit with Never = {\n"
         "    let _ = ask(a); let _ = ask(b);\n"
         "    send(b, Crash);\n"
@@ -2675,13 +2675,13 @@ sibling_faulting_first_counts_as_restarted_test() ->
 %% supervisor restarted, and it faulted with `callee was restarted`
 child_waits_through_its_supervisors_restart_test() ->
     {ok, Out} = crunching(
-        "let top : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForAll,"
+        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let x : Address(Msg) = spawn(Local, Supervisor.child(top, fn() = count(0)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Local, Supervisor.child(top,"
+        "let x : Address(Msg) = spawn(Supervisor.child(top, fn() = count(0)))\n"
+        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
         " Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 5, within = 5000))))\n"
-        "let a : Address(Msg) = spawn(Local, Supervisor.child(sub, fn() = count(0)))\n"
-        "let b : Address(Msg) = spawn(Local, Supervisor.child(sub, fn() = count(0)))\n"
+        "let a : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
+        "let b : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
         "export fn main() : Unit with Process.FaultReport = {\n"
         "    let _ = ask(a); let _ = ask(b); let _ = ask(x);\n"
         "    Process.faults(fn(f) = f);\n"
@@ -2706,16 +2706,16 @@ held_child_runs_once_test() ->
     {ok, Out} = run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
         "type LogMsg = Started | Count(reply : Reply(Int))\n"
-        "let log : Address(LogMsg) = spawn(Local, fn() = logging(0))\n"
+        "let log : Address(LogMsg) = spawn(fn() = logging(0))\n"
         "fn logging(n : Int) : Unit with LogMsg = receive {\n"
         "    Started -> logging(n + 1)\n"
         "  | Count(reply = r) -> { answer(r, n); logging(n) }\n"
         "}\n"
-        "let top : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForOne,"
+        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Local, Supervisor.child(top,"
+        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
         " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 0, within = 5000))))\n"
-        "let a : Address(Msg) = spawn(Local, Supervisor.child(sub, fn() = {\n"
+        "let a : Address(Msg) = spawn(Supervisor.child(sub, fn() = {\n"
         "    send(log, Started);\n"
         "    count(0)\n"
         "}))\n"
@@ -2739,12 +2739,12 @@ held_child_runs_once_test() ->
 parent_restarts_subtree_test() ->
     {ok, Out} = run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
-        "let top : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForAll,"
+        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let x : Address(Msg) = spawn(Local, Supervisor.child(top, fn() = count(0)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Local, Supervisor.child(top,"
+        "let x : Address(Msg) = spawn(Supervisor.child(top, fn() = count(0)))\n"
+        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
         " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 5, within = 5000))))\n"
-        "let c : Address(Msg) = spawn(Local, Supervisor.child(sub, fn() = count(0)))\n"
+        "let c : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
         "fn count(n : Int) : Unit with Msg = receive {\n"
         "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
         "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
@@ -2770,15 +2770,15 @@ restart_reaches_the_outer_function_test() ->
     {ok, Out} = run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
         "type LogMsg = Started | Count(reply : Reply(Int))\n"
-        "let log : Address(LogMsg) = spawn(Local, fn() = logging(0))\n"
+        "let log : Address(LogMsg) = spawn(fn() = logging(0))\n"
         "fn logging(n : Int) : Unit with LogMsg = receive {\n"
         "    Started -> logging(n + 1)\n"
         "  | Count(reply = r) -> { answer(r, n); logging(n) }\n"
         "}\n"
-        "let sup : Address(Supervisor.Msg) = spawn(Local, Supervisor.group(Supervisor.OneForAll,"
+        "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let a : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = count(0)))\n"
-        "let b : Address(Msg) = spawn(Local, Supervisor.child(sup, fn() = {\n"
+        "let a : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
+        "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = {\n"
         "    send(log, Started);\n"
         "    restarting(RestartLimit(restarts = 5, within = 5000), fn() = count(0))()\n"
         "}))\n"
@@ -2868,7 +2868,7 @@ os_run_dies_with_its_caller_test() ->
     Mark = filename:join(scratch(), "mark"),
     {ok, _} = run(
         "export fn main() : Unit with Never = {\n"
-        "    let w = spawn(Local, fn() : Unit with Never = {\n"
+        "    let w = spawn(fn() : Unit with Never = {\n"
         "        let _ = Os.run(Os.Command(program = \"sh\", arguments = [\"-c\",\n"
         "            \"sleep 1; touch " ++ Mark ++ "\"], input = <<>>), 5000);\n"
         "        Unit\n"
@@ -3032,7 +3032,7 @@ os_exit_test() ->
                      "}\n")),
     ?assertEqual({{exit, 5}, <<>>},
                  run("export fn main() : Unit with Never = {\n"
-                     "    let _ = spawn(Local, fn() : Unit with Never = Os.exit(5));\n"
+                     "    let _ = spawn(fn() : Unit with Never = Os.exit(5));\n"
                      "    receive { after 5000 -> Unit }\n"
                      "}\n")),
     ?assertEqual({{fault, <<"an exit status is from 0 to 255">>}, <<>>},
@@ -3084,17 +3084,17 @@ monitors_let_go_test() ->
         "fn rounds(keeper : Address(Msg), n : Int) : Unit with Msg =\n"
         "    if n == 0 then Unit\n"
         "    else {\n"
-        "        let _ = spawnMonitored(Local, fn() : Unit with Msg = monitor(keeper, Ended),\n"
+        "        let _ = spawnMonitored(fn() : Unit with Msg = monitor(keeper, Ended),\n"
         "            Ended);\n"
         "        receive { Ended(_) -> Unit };\n"
-        "        let w = spawn(Local, fn() : Unit with Msg = receive { Go -> Unit });\n"
+        "        let w = spawn(fn() : Unit with Msg = receive { Go -> Unit });\n"
         "        monitor(w, Ended);\n"
         "        send(w, Go);\n"
         "        receive { Ended(_) -> Unit };\n"
         "        rounds(keeper, n - 1)\n"
         "    }\n"
         "export fn main() : Unit with Msg = {\n"
-        "    let keeper = spawn(Local, fn() : Unit with Msg = receive { Go -> Unit });\n"
+        "    let keeper = spawn(fn() : Unit with Msg = receive { Go -> Unit });\n"
         "    rounds(keeper, 100);\n"
         "    let before = waits();\n"
         "    rounds(keeper, 1000);\n"
@@ -3168,7 +3168,7 @@ work_makes_no_atoms_test_() ->
             "type Msg = Tick(Int) | Ended(Down)\n"
             "foreign fn info(k : Foreign.Term) : Int with m = \"erlang:system_info/1\"\n"
             "fn work() : Unit with Msg = {\n"
-            "    let w = spawn(Local, fn() : Unit with Int = receive { _ -> Unit });\n"
+            "    let w = spawn(fn() : Unit with Int = receive { _ -> Unit });\n"
             "    monitor(w, Ended);\n"
             "    kill(w);\n"
             "    receive { Ended(_) -> Unit };\n"
@@ -3224,7 +3224,7 @@ os_write_waits_test() ->
         "    arguments = [], input = <<>>)) {\n"
         "    Right(p) -> {\n"
         "        let me = self();\n"
-        "        let _ = spawn(Local, fn() : Unit with Never = {\n"
+        "        let _ = spawn(fn() : Unit with Never = {\n"
         "            writes(fn(b) = Os.write(p, b, 30000), 64);\n"
         "            Os.closeInput(p);\n"
         "            send(me, Done)\n"
@@ -3238,7 +3238,7 @@ os_write_waits_test() ->
         "            let _ = Os.write(p, <<1>>, 5000);\n"
         "            Unit\n"
         "        };\n"
-        "        let _ = spawnMonitored(Local, late, Ended);\n"
+        "        let _ = spawnMonitored(late, Ended);\n"
         "        receive { Ended(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
@@ -3260,7 +3260,7 @@ tcp_write_waits_test() ->
         "    Right(l) -> match Tcp.port(l) {\n"
         "        Right(port) -> {\n"
         "            let me = self();\n"
-        "            let _ = spawn(Local, fn() : Unit with Never = match\n"
+        "            let _ = spawn(fn() : Unit with Never = match\n"
         "                Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
         "                    Right(c) -> {\n"
         "                        writes(fn(b) = Tcp.write(c, b, 30000), 64);\n"
@@ -3281,7 +3281,7 @@ tcp_write_waits_test() ->
         "                        let _ = Tcp.write(s, <<1>>, 5000);\n"
         "                        Unit\n"
         "                    };\n"
-        "                    let _ = spawnMonitored(Local, late, Ended);\n"
+        "                    let _ = spawnMonitored(late, Ended);\n"
         "                    receive {\n"
         "                        Ended(Down(reason = r, site = _)) -> Io.println(Io.show(r))\n"
         "                    }\n"
@@ -3383,14 +3383,12 @@ socket_owner_test() ->
         "}\n"
         "fn check(port : Int) : Unit with Msg = {\n"
         "    let me = self();\n"
-        "    let first = spawnMonitored(Local, fn() = opener(port, me), Ended);\n"
+        "    let first = spawnMonitored(fn() = opener(port, me), Ended);\n"
         "    let orphan = opened();\n"
         "    receive { Ended(_) -> Unit };\n"
         "    Io.println(\"opener's: \" <> ends(orphan, 2000));\n"
-        "    let keep = spawn(Local, keeper);\n"
-        "    let _ = spawnMonitored(Local,\n"
-        "                           fn() = giver(port, Process.fromAddress(keep), me),\n"
-        "                           Ended);\n"
+        "    let keep = spawn(keeper);\n"
+        "    let _ = spawnMonitored(fn() = giver(port, Process.fromAddress(keep), me), Ended);\n"
         "    let given = opened();\n"
         "    receive { Ended(_) -> Unit };\n"
         "    Io.println(\"given, giver gone: \" <> ends(given, 300));\n"
@@ -3424,7 +3422,7 @@ answer_before_end_test() ->
         "fn worker() : Unit with Reply(Int) = receive { r -> answer(r, 7) }\n"
         "fn rounds(n : Int, sum : Int) : Int with m =\n"
         "    if n == 0 then sum\n"
-        "    else rounds(n - 1, sum + Address.callForever(spawn(Local, worker), fn(r) = r))\n"
+        "    else rounds(n - 1, sum + Address.callForever(spawn(worker), fn(r) = r))\n"
         "export fn main() : Unit with Never = Io.println(Int.toString(rounds(200, 0)))\n"),
     ?assertEqual(<<"1400\n">>, Out).
 
@@ -3443,10 +3441,10 @@ retyped_address_test() ->
         "foreign fn same(addresses : List(Address(Int))) : Address(Int) =\n"
         "    \"erlang:hd/1\"\n"
         "export fn main() : Unit with Msg = {\n"
-        "    let kept = spawnMonitored(Local, target, Ended);\n"
+        "    let kept = spawnMonitored(target, Ended);\n"
         "    send(same([kept]), 5);\n"
         "    receive { Ended(_) -> Unit };\n"
-        "    let wronged = spawnMonitored(Local, target, Ended);\n"
+        "    let wronged = spawnMonitored(target, Ended);\n"
         "    send(retyped([wronged]), \"x\");\n"
         "    receive { Ended(Down(reason = r)) -> Io.println(Io.show(r)) }\n"
         "}\n"),
@@ -3512,7 +3510,7 @@ tcp_write_answers_closed_test() ->
         "export fn main() : Unit with Never = match Tcp.listen(\"127.0.0.1\", 0) {\n"
         "    Right(l) -> match Tcp.port(l) {\n"
         "        Right(port) -> {\n"
-        "            let _ = spawn(Local, fn() : Unit with Never = match Tcp.accept(l, 5000) {\n"
+        "            let _ = spawn(fn() : Unit with Never = match Tcp.accept(l, 5000) {\n"
         "                Right(s) -> {\n"
         "                    let _ = Tcp.read(s, 5000);\n"
         "                    Tcp.close(s)\n"
@@ -3648,24 +3646,12 @@ preemption_and_precision_test() ->
         "fn spin(n : Int) : Int = spin(n + 1)\n"
         "fn power(b : Int, e : Int) : Int = if e == 0 then 1 else b * power(b, e - 1)\n"
         "export fn main() : Unit with Never = {\n"
-        "    let w = spawn(Local, fn() : Unit with Never = { let _ = spin(0); Unit });\n"
+        "    let w = spawn(fn() : Unit with Never = { let _ = spin(0); Unit });\n"
         "    receive { after 50 -> Unit };\n"
         "    Io.println(Int.toString(power(2, 100)));\n"
         "    kill(w)\n"
         "}\n"),
     ?assertEqual(<<"1267650600228229401496703205376\n">>, Out).
-
-%% report §6.2, §6.7: work on a peer is a process spawned there, and a peer
-%% the node cannot reach faults the caller. A regression test, written
-%% after the code; one node runs until MVP 3.0, so it does not cover a
-%% peer that is reached
-peer_unreachable_test() ->
-    {R, _} = run(
-        "export fn main() : Unit with Never = {\n"
-        "    let _ = spawn(Peer(\"foo\"), fn() : Unit with Never = Unit);\n"
-        "    Io.println(\"spawned\")\n"
-        "}\n"),
-    ?assertEqual({fault, <<"peer unreachable">>}, R).
 
 %% report §6.9: kill on a process that has already ended has no effect,
 %% and a monitor placed after the end answers Unknown, with no spawn site,
@@ -3677,7 +3663,7 @@ kill_dead_test() ->
         "type Msg = Died(Down)\n"
         "export fn main() : Unit with Msg = {\n"
         "    let z = List.size([]);\n"
-        "    let w = spawn(Local, fn() : Unit with Never = { let _ = 1 / z; Unit });\n"
+        "    let w = spawn(fn() : Unit with Never = { let _ = 1 / z; Unit });\n"
         "    monitor(w, Died);\n"
         "    receive { Died(_) -> Unit };\n"
         "    kill(w);\n"
@@ -3695,9 +3681,9 @@ down_names_its_process_test() ->
     {ok, Out} = run(
         "type Msg = Died(Down) | Go\n"
         "export fn main() : Unit with Msg = {\n"
-        "    let w = spawnMonitored(Local, fn() : Unit with Never = Unit, Died);\n"
+        "    let w = spawnMonitored(fn() : Unit with Never = Unit, Died);\n"
         "    let first = receive { Died(d) -> d.process == Process.fromAddress(w) };\n"
-        "    let v = spawn(Local, fn() : Unit with Msg = receive { Go -> Unit });\n"
+        "    let v = spawn(fn() : Unit with Msg = receive { Go -> Unit });\n"
         "    monitor(via(v, fn(u : Unit) = Go), Died);\n"
         "    send(v, Go);\n"
         "    let second = receive { Died(d) -> d.process == Process.fromAddress(v) };\n"

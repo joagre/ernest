@@ -237,7 +237,7 @@ export fn main() : Unit with ShellMsg = {
     let keys = match Terminal.size() {
         Left(_) -> None
       | Right(size) -> {
-            let reader = spawn(Local, fn() = reader(me));
+            let reader = spawn(fn() = reader(me));
             receive {
                 Ready -> Some(#(reader, size))
               | NoKeys -> None
@@ -245,7 +245,7 @@ export fn main() : Unit with ShellMsg = {
         }
     };
     let colour = if Optional.isSome(keys) && colours then Markdown.Styled else Markdown.Plain;
-    let screen = spawn(Local, fn() = match keys {
+    let screen = spawn(fn() = match keys {
         Some(#(_, size)) -> screenLoop(Shell.Region.new(size))
       | None -> plainLoop()
     });

@@ -36,7 +36,7 @@ type SyncMsg =
 
 export fn main() : Unit with SyncMsg = {
     let me = self();
-    let b = spawn(Local, fn() = start(Path("b")));
+    let b = spawn(fn() = start(Path("b")));
     send(b, Link(me));
     send(me, Link(b));
     start(Path("a"))
@@ -60,7 +60,7 @@ fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : Unit wit
     receive {
         Tick -> {
             let me = self();
-            let _ = spawn(Local, fn() : Unit with Never = send(me, Listed(Fs.list(dir, 10000))));
+            let _ = spawn(fn() : Unit with Never = send(me, Listed(Fs.list(dir, 10000))));
             listing(dir, peer, seen)
         }
       | Put(path = p, mtime = m, bytes = bytes, ack = ack) ->
@@ -78,7 +78,7 @@ fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : Unit wi
     receive {
         Listed(Right(entries)) -> {
             List.foreach(diff(seen, entries), fn(c) = {
-                let _ = spawn(Local, fn() = pusher(peer, c));
+                let _ = spawn(fn() = pusher(peer, c));
                 Unit
             });
             tick();
@@ -112,11 +112,11 @@ fn store(dir : Path,
         let here = dir <> p;
         match Map.get(seen, here) {
             Some(mine) when mine > m -> {
-                let _ = spawn(Local, fn() = writer(conflictPath(here), bytes, m, ack, Conflict));
+                let _ = spawn(fn() = writer(conflictPath(here), bytes, m, ack, Conflict));
                 Unit
             }
           | _ -> {
-                let _ = spawn(Local, fn() = writer(here, bytes, m, ack, Stored));
+                let _ = spawn(fn() = writer(here, bytes, m, ack, Stored));
                 Unit
             }
         };

@@ -570,7 +570,7 @@ type T = A
 several_declarations_test() ->
     ?assertMatch([#type_decl{}, #fn_decl{name = main}, #fn_decl{name = counter}],
                  ds("type CounterMsg = Inc(Int) | Get(reply : Reply(Int))\n"
-                    "export fn main() : Unit with m = { let c = spawn(Local, fn() = counter(0));"
+                    "export fn main() : Unit with m = { let c = spawn(fn() = counter(0));"
                     " send(c, Inc(5)) }\n"
                     "fn counter(n : Int) : Unit with CounterMsg = receive {\n"
                     "    Inc(k) -> counter(n + k)\n"

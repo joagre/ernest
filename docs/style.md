@@ -61,7 +61,7 @@ For every Ernest source and every Ernest block of the report and the guide. The 
 Code in that layout:
 
     fn start(keys : Optional(Keys)) : Unit = {
-        let reader = spawn(Local, fn() = match keys {
+        let reader = spawn(fn() = match keys {
             Some(k) -> readLoop(k)
           | None -> plainLoop()
         });
@@ -136,4 +136,4 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **old, new**: what `replace` takes, in every module. Not `from`, `to`.
 - **cause**: as above. Not `why`, `c`, `text`.
 - A **request** constructor is the function it serves, `Read` for `read`; an **event** is in the past tense, `Resized`. Not `Recv`, `Measure`, `FarEnd`, `Resize`.
-- A prelude name, `Where`, `answer`, `kill`, is not bound to another concept.
+- A prelude name, `Down`, `answer`, `kill`, is not bound to another concept.

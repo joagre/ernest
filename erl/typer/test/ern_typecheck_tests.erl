@@ -139,7 +139,7 @@ pure_stands_for_a_mailbox_test() ->
     ?assertEqual(ok, ok(Main("let h = Hook(run = done); let _ = Up(next = h.run)"))),
     ?assertEqual(ok, ok(Main("both(done, fn(x) = send(a, Add(x)))"))),
     ?assertEqual(ok, ok(Main("both(fn(x) = send(a, Add(x)), done)"))),
-    ?assertEqual(ok, ok(Main("let _ = spawn(Local, fn() = done(1))"))),
+    ?assertEqual(ok, ok(Main("let _ = spawn(fn() = done(1))"))),
     ?assertEqual(ok, ok(Types ++ "fn wrap(f : (Int) -> Unit) : Msg = Up(next = f)\n")),
     %% a field selected before its record's type is known, and called in a
     %% process; a regression test: the selection, resolved after the call,
@@ -373,18 +373,26 @@ operator_member_on_demand_test() ->
 %% declaration hides from the prelude labels that use with the prelude's
 %% qualified name; an error elsewhere has no such label. Feedback item 59
 hidden_prelude_name_test() ->
-    Text = "type Msg = Local(reply : Reply(Int)) | Stop\n"
-           "export fn main() : Unit with Never = {\n"
-           "    let _ = spawn(Local, fn() : Unit with Never = Unit);\n"
-           "    Unit\n"
-           "}\n",
+    Text = "type Outcome = Unknown(Int) | Known\n"
+           "fn reason() : Reason = Unknown\n",
     {error, [#diag{labels = Labels}]} = ern_typecheck:check_string(['M'], Text),
-    ?assertEqual(["`Local` here is this module's constructor, and the prelude's is"
-                  " `Prelude.Local`"],
-                 [L || {_, L} <- Labels]),
+    ?assertEqual(["`Unknown` here is this module's constructor, and the prelude's is"
+                  " `Prelude.Unknown`"],
+                 [L || {_, L} <- Labels, string:find(L, "Prelude.") =/= nomatch]),
     {error, [#diag{labels = Others}]} =
-        ern_typecheck:check_string(['M'], "type Msg = Local(Int)\nfn f() : Int = \"x\"\n"),
+        ern_typecheck:check_string(['M'], "type Outcome = Unknown(Int)\nfn f() : Int = \"x\"\n"),
     ?assertEqual([], [L || {_, L} <- Others, string:find(L, "Prelude.") =/= nomatch]).
+
+%% report §6.2, §8.3: a spawn on a peer is the module Peer's, which MVP 3.0
+%% builds; until then a name of it is refused, naming the milestone, and a
+%% module of the program's named Peer is the program's
+peer_module_refused_test() ->
+    ?assertEqual("Peer.spawn is not here yet: the module Peer, which acts on peers,"
+                 " arrives in MVP 3.0",
+                 err("fn f() : Unit with m = {\n"
+                     "    let _ = Peer.spawn(\"foo\", fn() : Unit with Never = Unit);\n"
+                     "    Unit\n"
+                     "}\n")).
 
 %% report §3.10, Appendix E.21: a process has equality and no ordering, and
 %% a comparison of addresses is refused with the process behind each named
@@ -571,14 +579,14 @@ receive_and_mailboxes_test() ->
 %% report §6.2, §4.6
 spawn_test() ->
     ?assertEqual(ok, ok("fn work() : Unit with Never = Unit\n"
-                        "fn main() : Unit with Never = { let _ = spawn(Local, fn() = work());"
+                        "fn main() : Unit with Never = { let _ = spawn(fn() = work());"
                         " Unit }")),
     %% a callback written pure is spawned as any pure function is (report §3.9)
     ?assertEqual(ok, ok("fn main() : Unit with Never = {"
-                        " let _ = spawn(Local, fn() : Unit = Unit); Unit }")),
+                        " let _ = spawn(fn() : Unit = Unit); Unit }")),
     %% an address nothing sends to keeps its mailbox type open (report §4.6)
     ?assertEqual(ok, ok("fn work() = Unit\n"
-                        "fn main() : Unit with Never = { let a = spawn(Local, fn() = work());"
+                        "fn main() : Unit with Never = { let a = spawn(fn() = work());"
                         " Unit }")).
 
 %% report §4.5, §3.9, §11.5: a pure result annotation on an effect-polymorphic
@@ -1005,7 +1013,7 @@ toplevel_let_test() ->
     ?assertEqual("Unit", type_of("export let x = Io.println(\"a\")", x)),
     ?assertEqual("Address(Int)",
                  type_of("export let s : Address(Int) =\n"
-                         "    spawn(Local, fn() : Unit with Int = receive { n -> Unit })", s)),
+                         "    spawn(fn() : Unit with Int = receive { n -> Unit })", s)),
     ?assertEqual("a top-level initializer runs with mailbox Never and cannot receive",
                  err("let x = receive { n -> n }")),
     %% report §3.9, §4.6: one whose initializer calls a process-only function
@@ -1014,7 +1022,7 @@ toplevel_let_test() ->
     ?assertEqual("the type of s is not determined (Address(a)), and a top-level `let` whose"
                  " initializer calls a process-only function is not generalized;"
                  " annotate it",
-                 err("export let s = spawn(Local, fn() = Unit)")),
+                 err("export let s = spawn(fn() = Unit)")),
     ?assertEqual("List(a)", type_of("export let empty = List.reverse([])", empty)).
 
 %% report §3.9, §6.6: a type variable is not-reply-carrying where the body,
@@ -1249,7 +1257,7 @@ reply_test() ->
                  " `let`, or passed directly to spawn or spawnMonitored",
                  err(Msg ++ "fn f(r : Reply(Int)) = List.map([1], fn(x) = answer(r, x))")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) : Unit with Never ="
-                        " { let _ = spawn(Local, fn() : Unit with Never = answer(r, 1)); Unit }")),
+                        " { let _ = spawn(fn() : Unit with Never = answer(r, 1)); Unit }")),
     ?assertEqual({"a reply-carrying value, Reply(Int), passed where dup duplicates or discards"
                   " its argument: dup : (a!) -> #(a!, a!)",
                   "a reply is discharged by answering it, passing it on once, or matching it"
@@ -1512,8 +1520,7 @@ prelude_types_test() ->
     ?assertEqual(ok, ok("fn f(x : Reason) = match x { Returned -> 0 | Killed -> 1 | ProgramEnd -> 2"
                         " | Fault(_) -> 3 | Unknown -> 4 }")),
     ?assertEqual(ok, ok("fn f(x : RestartLimit) = match x {"
-                        " RestartLimit(restarts = n, within = _) -> n | Unlimited -> -1 }")),
-    ?assertEqual(ok, ok("fn f(x : Where) = match x { Local -> 0 | Peer(_) -> 1 }")).
+                        " RestartLimit(restarts = n, within = _) -> n | Unlimited -> -1 }")).
 
 %% report §9.4, §9.5, §9.6, §9.7 and Appendix E: every prelude and stdlib
 %% signature parses, and every name resolves to a value
@@ -1620,7 +1627,7 @@ reply_lambda_restarting_test() ->
                      "fn f(r : Reply(Int)) : Unit with Never = {\n"
                      "    let limit = RestartLimit(restarts = 1, within = 1);\n"
                      "    let g = restarting(limit, fn() : Unit with Never = worker(r));\n"
-                     "    let _ = spawn(Local, g);\n"
+                     "    let _ = spawn(g);\n"
                      "    Unit\n"
                      "}\n")).
 
@@ -1631,13 +1638,13 @@ reply_lambda_test() ->
     Msg = "type Req = Get(reply : Reply(Int)) | Stop\n"
           "fn worker(r : Reply(Int)) : Unit with Never = answer(r, 1)\n",
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
-                        "    let g = fn() = worker(r);\n    let _ = spawn(Local, g);\n    Unit }")),
+                        "    let g = fn() = worker(r);\n    let _ = spawn(g);\n    Unit }")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                         "    let g = fn() = worker(r);\n    g() }")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int)) : Unit with Never = (fn() = worker(r))()")),
     ?assertEqual("the reply-carrying value g is consumed twice",
                  err(Msg ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
-                     "    let g = fn() = worker(r);\n    let _ = spawn(Local, g);\n    g() }")),
+                     "    let g = fn() = worker(r);\n    let _ = spawn(g);\n    g() }")),
     ?assertEqual("the reply-carrying value g is never consumed",
                  err(Msg ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                      "    let g = fn() = worker(r);\n    Unit }")),
@@ -1742,11 +1749,11 @@ typed_ast_test() ->
 exported_types_test() ->
     ?assertEqual("start is exported and its type names Msg, which this module keeps private",
                  err("type Msg = Ping\nexport fn start() : Address(Msg) with m ="
-                     " spawn(Local, fn() = Unit)")),
+                     " spawn(fn() = Unit)")),
     ?assertEqual("Holder is exported and its type names Hidden, which this module keeps private",
                  err("type Hidden = Hidden(Int)\nexport type Holder = Holder(Hidden)")),
     ?assertEqual(ok, ok("export type Msg = Ping\nexport fn start() : Address(Msg) with m ="
-                        " spawn(Local, fn() = Unit)")),
+                        " spawn(fn() = Unit)")),
     %% an abstract type is how a value crosses without its constructors, and
     %% its fields may name a private type, since they do not cross
     ?assertEqual(ok, ok("export abstract type Box = B(Int)\nexport fn box(n) = B(n)")),
@@ -1806,22 +1813,22 @@ local_fn_annotation_before_use_test() ->
 %% type is checked against the prelude's constructors; `Prelude.` takes one
 %% name, and no type takes the name
 prelude_namespace_test() ->
-    Shadow = "type Last = Peer | Tabbed\n"
+    Shadow = "type Last = Fault | Tabbed\n"
              "type RestartLimit = RestartLimit(name : String)\n"
              "fn send(n : Int) : Int = n\n",
-    ?assertEqual("(Where) -> String",
-                 type_of(Shadow ++ "export fn describe(e : Where) = match e {"
-                         " Prelude.Peer(t) -> t | _ -> \"here\" }", describe)),
+    ?assertEqual("(Reason) -> String",
+                 type_of(Shadow ++ "export fn describe(e : Reason) = match e {"
+                         " Prelude.Fault(t) -> t | _ -> \"here\" }", describe)),
     ?assertEqual("(RestartLimit) -> Int",
                  type_of(Shadow ++ "export fn size(e : Prelude.RestartLimit) ="
                          " match e { Prelude.RestartLimit(restarts = n) -> n | Unlimited -> 0 }",
                          size)),
-    ?assertEqual("() -> Where",
-                 type_of(Shadow ++ "export fn other() = Prelude.Peer(\"x\")", other)),
+    ?assertEqual("() -> Reason",
+                 type_of(Shadow ++ "export fn other() = Prelude.Fault(\"x\")", other)),
     ?assertEqual(ok, ok(Shadow ++ "fn f(a : Address(String)) : Unit with m ="
                         " Prelude.send(a, \"x\")")),
     %% the module's own names are untouched
-    ?assertEqual(ok, ok(Shadow ++ "fn g() : Int = send(1)\nfn h() : Last = Peer")),
+    ?assertEqual(ok, ok(Shadow ++ "fn g() : Int = send(1)\nfn h() : Last = Fault")),
     ?assertEqual("Prelude.Io.println is written only where the module hides Io.println",
                  err("fn f() : Unit with m = Prelude.Io.println(\"x\")")),
     ?assertEqual("Prelude.Stack.other: Prelude takes one name the prelude declares, as"
@@ -1844,7 +1851,7 @@ prelude_only_where_hidden_test() ->
                       "Prelude." ++ Name ++ " is written only where the module hides " ++ Hidden
               end,
     ?assertEqual(Refused("Some"), err("fn f() : Optional(Int) = Prelude.Some(1)")),
-    ?assertEqual(Refused("Where"), err("fn f(w : Prelude.Where) : Int = 0")),
+    ?assertEqual(Refused("Reason"), err("fn f(w : Prelude.Reason) : Int = 0")),
     ?assertEqual(Refused("send"),
                  err("fn f(a : Address(Int)) : Unit with m = Prelude.send(a, 1)")),
     ?assertEqual(Refused("List.size"), err("fn f() : Int = Prelude.List.size([1])")),

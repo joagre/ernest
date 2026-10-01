@@ -87,7 +87,7 @@ dead_subscriber_test_() ->
                      ern_rt:run_main(
                        fun() ->
                            Tty = ern_rt:sys(terminal),
-                           Child = ern_rt:spawn('Local', fun() -> subscribe(Tty) end, <<"c">>),
+                           Child = ern_rt:spawn(fun() -> subscribe(Tty) end, <<"c">>),
                            ern_rt:monitor(Child, fun(D) -> {down, D} end),
                            receive {down, _} -> ok end,
                            receive never -> ok end
@@ -161,7 +161,7 @@ couriers_test() ->
            fun() ->
                Tty = ern_rt:sys(terminal),
                Main = self(),
-               Stuck = ern_rt:spawn('Local', fun() ->
+               Stuck = ern_rt:spawn(fun() ->
                                                 subscribe(Tty, fun(E) ->
                                                                    receive after infinity -> E end
                                                                end),
@@ -202,7 +202,7 @@ restart_ends_subscription_test() ->
                                  Main ! {got, Got}
                          end
                      end,
-               _ = ern_rt:spawn('Local', ern_rt:restarting({'RestartLimit', 1, 60000}, Run),
+               _ = ern_rt:spawn(ern_rt:restarting({'RestartLimit', 1, 60000}, Run),
                                 <<"worker">>),
                receive {got, Got} -> Me ! {got, Got} end
            end, <<"main">>,

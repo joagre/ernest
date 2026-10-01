@@ -89,8 +89,7 @@ fn repl(env : Map(String, Value), run : Int) : Unit with ReplMsg =
 fn try(env : Map(String, Value), e : Expr, run : Int) : Either(TryError, Value) with ReplMsg = {
     let me = self(); // not self() inside the lambda: that is the child's
     let child =
-        spawnMonitored(Local,
-                       fn() : Unit with Never = send(me, Result(run = run, value = eval(env, e))),
+        spawnMonitored(fn() : Unit with Never = send(me, Result(run = run, value = eval(env, e))),
                        fn(d) = Died(run = run, down = d));
     await(child, run)
 }

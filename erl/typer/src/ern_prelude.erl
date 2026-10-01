@@ -101,7 +101,7 @@ builtin_types() ->
 
       ```ernest
       {
-          let a : Address(Int) = spawn(Local, fn() = receive { _ -> Unit });
+          let a : Address(Int) = spawn(fn() = receive { _ -> Unit });
           send(a, 1)
       }
       ```
@@ -115,7 +115,7 @@ builtin_types() ->
 
       ```ernest
       {
-          let echo = spawn(Local, fn() = receive { #(n, r) -> answer(r, n) });
+          let echo = spawn(fn() = receive { #(n, r) -> answer(r, n) });
           Address.call(echo, fn(r) = #(7, r), 1000)
       }
       ```
@@ -128,7 +128,7 @@ builtin_types() ->
       ### Examples
 
       ```ernest
-      spawn(Local, fn() : Unit with Never = Io.println("hello"))
+      spawn(fn() : Unit with Never = Io.println("hello"))
       ```
       """/utf8>>},
      {'Process', 0,
@@ -231,7 +231,7 @@ declared_types() ->
     ///
     /// ```ernest
     /// {
-    ///     let worker = spawn(Local, fn() : Unit with Never = Unit);
+    ///     let worker = spawn(fn() : Unit with Never = Unit);
     ///     monitor(worker, fn(d : Down) = d);
     ///     receive { Down(reason = r, site = _) -> r }
     /// }
@@ -250,15 +250,6 @@ declared_types() ->
     /// // => "division by zero"
     /// ```
     type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
-    /// Where `spawn` starts a process: on this node, or on the peer of that name
-    /// in the configuration (report §6.2).
-    ///
-    /// ### Examples
-    ///
-    /// ```ernest
-    /// spawn(Local, fn() : Unit with Never = Unit)
-    /// ```
-    type Where = Local | Peer(String)
     /// How often `restarting` restarts: at most `restarts` times within
     /// `within` milliseconds, the next fault ending the process, or after
     /// every fault where it is `Unlimited` (report §6.9). A count below 0 is
@@ -303,7 +294,7 @@ values() ->
       ```ernest
       {
           let me = self();
-          let _ = spawn(Local, fn() : Unit with Never = send(me, "ready"));
+          let _ = spawn(fn() : Unit with Never = send(me, "ready"));
           receive { s -> s }
       }
       ```
@@ -320,24 +311,18 @@ values() ->
       send(self(), 42)
       ```
       """/utf8>>},
-     {[spawn], "(Where, () -> Unit with n) -> Address(n) with m",
+     {[spawn], "(() -> Unit with n) -> Address(n) with m",
       <<"""
-      Starts a process that runs `f`, on this node or on a peer, and answers
-      its address. The function's mailbox type is the address's (report
-      §6.2).
-
-      ### Errors
-
-      `Fault("peer unreachable")` when the peer is unknown or cannot be
-      reached.
+      Starts a process on this node that runs `f`, and answers its address.
+      The function's mailbox type is the address's (report §6.2).
 
       ### Examples
 
       ```ernest
-      spawn(Local, fn() = receive { n -> Io.println(Int.toString(n)) })
+      spawn(fn() = receive { n -> Io.println(Int.toString(n)) })
       ```
       """/utf8>>},
-     {[spawnMonitored], "(Where, () -> Unit with n, (Down) -> m) -> Address(n) with m",
+     {[spawnMonitored], "(() -> Unit with n, (Down) -> m) -> Address(n) with m",
       <<"""
       Starts a process as `spawn` does, monitored by the caller from its
       start: `wrap(d)` is put in the caller's mailbox when it ends, with its
@@ -351,7 +336,7 @@ values() ->
       ### Examples
 
       ```ernest
-      spawnMonitored(Local, fn() : Unit with Never = Unit, fn(d : Down) = d)
+      spawnMonitored(fn() : Unit with Never = Unit, fn(d : Down) = d)
       ```
       """/utf8>>},
      %% §9.5 process functions
@@ -381,7 +366,7 @@ values() ->
 
       ```ernest
       {
-          let echo = spawn(Local, fn() = receive { #(n, r) -> answer(r, n) });
+          let echo = spawn(fn() = receive { #(n, r) -> answer(r, n) });
           Address.call(echo, fn(r) = #(7, r), 1000)
       }
       ```
@@ -395,7 +380,7 @@ values() ->
 
       ```ernest
       {
-          let echo = spawn(Local, fn() = receive { #(n, r) -> answer(r, n) });
+          let echo = spawn(fn() = receive { #(n, r) -> answer(r, n) });
           Address.callForever(echo, fn(r) = #(7, r))
       }
       ```
@@ -408,7 +393,7 @@ values() ->
       ### Examples
 
       ```ernest
-      spawn(Local, fn() = receive { #(n, r) -> answer(r, n * 2) })
+      spawn(fn() = receive { #(n, r) -> answer(r, n * 2) })
       ```
       """/utf8>>},
      {[restarting], "(RestartLimit, () -> Unit with n) -> () -> Unit with n",
@@ -428,8 +413,7 @@ values() ->
       ### Examples
 
       ```ernest
-      spawn(Local, restarting(RestartLimit(restarts = 3, within = 5000),
-          fn() : Unit with Never = Unit))
+      spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() : Unit with Never = Unit))
       ```
       """/utf8>>},
      {[monitor], "(Address(a), (Down) -> m) -> Unit with m",
@@ -443,7 +427,7 @@ values() ->
 
       ```ernest
       {
-          let worker : Address(Int) = spawn(Local, fn() = receive { _ -> Unit });
+          let worker : Address(Int) = spawn(fn() = receive { _ -> Unit });
           monitor(worker, fn(d : Down) = d)
       }
       ```
@@ -456,7 +440,7 @@ values() ->
       ### Examples
 
       ```ernest
-      kill(spawn(Local, fn() = receive { _ -> Unit }))
+      kill(spawn(fn() = receive { _ -> Unit }))
       ```
       """/utf8>>},
      %% §9.6 operations required by the language, documented by their modules
@@ -566,7 +550,7 @@ prelude_doc() ->
 
     ```ernest
     {
-        let counter = spawn(Local, fn() = receive { n -> Io.println(Int.toString(n)) });
+        let counter = spawn(fn() = receive { n -> Io.println(Int.toString(n)) });
         send(counter, 1)
     }
     ```

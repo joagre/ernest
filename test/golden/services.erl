@@ -88,35 +88,31 @@ stored(Key_22) ->
 '$init'() ->
     ern_rt:initializing(<<"Services.services:22">>),
     persistent_term:put({ern@services, services},
-                        ern_rt:spawn('Local',
-                                     ern@supervisor:group('RestForOne',
+                        ern_rt:spawn(ern@supervisor:group('RestForOne',
                                                           {'RestartLimit',
                                                            3,
                                                            10000}),
                                      <<"Services.services:23">>)),
-    ern_rt:initializing(<<"Services.store:26">>),
+    ern_rt:initializing(<<"Services.store:25">>),
     persistent_term:put({ern@services, store},
-                        ern_rt:spawn('Local',
-                                     ern@supervisor:child(services(),
+                        ern_rt:spawn(ern@supervisor:child(services(),
                                                           fun () ->
                                                                   storing(ern@map:empty())
                                                           end),
-                                     <<"Services.store:26">>)),
-    ern_rt:initializing(<<"Services.ids:38">>),
+                                     <<"Services.store:25">>)),
+    ern_rt:initializing(<<"Services.ids:37">>),
     persistent_term:put({ern@services, ids},
-                        ern_rt:spawn('Local',
-                                     ern@supervisor:child(services(),
+                        ern_rt:spawn(ern@supervisor:child(services(),
                                                           fun () -> counting(1)
                                                           end),
-                                     <<"Services.ids:38">>)),
-    ern_rt:initializing(<<"Services.audit:48">>),
+                                     <<"Services.ids:37">>)),
+    ern_rt:initializing(<<"Services.audit:47">>),
     persistent_term:put({ern@services, audit},
-                        ern_rt:spawn('Local',
-                                     ern@supervisor:child(services(),
+                        ern_rt:spawn(ern@supervisor:child(services(),
                                                           fun () ->
                                                                   recording([])
                                                           end),
-                                     <<"Services.audit:48">>)),
+                                     <<"Services.audit:47">>)),
     ok.
 
 '$fun'(main, 0) -> fun main/0.

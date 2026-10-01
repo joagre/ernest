@@ -86,7 +86,7 @@ program() ->
     case persistent_term:get({?MODULE, loaded}, #{}) of
         #{entry := {Mod, Fn, Site}} ->
             F = ern_emitter:function_atom(Fn),
-            {'Some', ern_rt:spawn('Local', fun() -> Mod:F() end, Site)};
+            {'Some', ern_rt:spawn(fun() -> Mod:F() end, Site)};
         _ ->
             'None'
     end.
@@ -454,7 +454,7 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
                 forget(Ns, Binds, Outcome),
                 ern_rt:send(To, Outcome)
             end,
-    ern_rt:spawn('Local', Input, <<Where/binary, ":", (integer_to_binary(1 + Offset))/binary>>).
+    ern_rt:spawn(Input, <<Where/binary, ":", (integer_to_binary(1 + Offset))/binary>>).
 
 %% An input that declares nothing, an expression or a `let`, is done with
 %% its module once it has its answer, unless what it bound holds one of the
@@ -1494,7 +1494,7 @@ initialize(Ns, Mod, Rest) ->
            end,
     %% watched from its spawn, so that its end is known however soon it
     %% comes (report §6.9)
-    _ = ern_rt:spawn_monitored('Local', Init, fun(Down) -> {Ref, Down} end, <<"Shell.load">>),
+    _ = ern_rt:spawn_monitored(Init, fun(Down) -> {Ref, Down} end, <<"Shell.load">>),
     receive
         {Ref, Result} when Result =:= ok; element(1, Result) =:= fault ->
             receive {Ref, {'Down', _, _, _}} -> ok end,

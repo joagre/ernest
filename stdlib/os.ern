@@ -293,7 +293,7 @@ export fn closeInput(program : Address(ProgramMsg)) : Unit with m =
 /// ```ernest
 /// {
 ///     let sleeper <- Os.start(Os.Command(program = "sleep", arguments = ["1"], input = <<>>));
-///     let keeper = spawn(Local, fn() : Unit with Never = receive {
+///     let keeper = spawn(fn() : Unit with Never = receive {
 ///         after 1000 -> Unit
 ///     });
 ///     Os.give(sleeper, Process.fromAddress(keeper));

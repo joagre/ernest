@@ -44,7 +44,7 @@ type SessionId = SessionId(String)
 //
 
 export fn main() : Unit with Never = {
-    let sessions = spawn(Local, fn() = sessionStore());
+    let sessions = spawn(fn() = sessionStore());
     match Tcp.listen("127.0.0.1", 8080) {
         Right(listener) -> acceptor(sessions, 0, listener)
       | Left(e) -> Io.println("cannot listen: " <> errorText(e))
@@ -78,7 +78,7 @@ fn acceptor(sessions : Address(SessionMsg),
     match Tcp.accept(listener, 60000) {
         Right(sock) -> {
             // the handler owns its connection, which ends with it
-            let worker = spawn(Local, fn() = handler(sessions, seq, sock));
+            let worker = spawn(fn() = handler(sessions, seq, sock));
             Tcp.give(sock, Process.fromAddress(worker));
             acceptor(sessions, seq + 1, listener)
         }

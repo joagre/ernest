@@ -42,7 +42,7 @@ fn counter(n : Int) : Unit with CounterMsg =
     }
 
 export fn main() : Unit with Never = {
-    let c = spawn(Local, fn() = counter(0));
+    let c = spawn(fn() = counter(0));
     send(c, "increment")
 }
 ```
@@ -50,7 +50,7 @@ export fn main() : Unit with Never = {
 ```console
 $ ern build message.ern
 message.ern:14:13: the argument does not fit send: expected CounterMsg, found String
-13 |     let c = spawn(Local, fn() = counter(0));
+13 |     let c = spawn(fn() = counter(0));
 14 |     send(c, "increment")
    |     ---- send : (Address(a), a) -> Unit with e
    |             ^^^^^^^^^^^
@@ -724,7 +724,7 @@ fn counter(n : Int) : Unit with CounterMsg =
 
 `counter` keeps its state in the parameter `n`, and its mailbox takes `CounterMsg`. `receive` waits for a message that matches a clause and evaluates that clause. Both clauses call `counter` again with the new state; a tail call does not grow the stack, so the loop runs for ever.
 
-`let c = spawn(Local, fn() = counter(0))` starts a process that runs the lambda, and `c` is its address, an `Address(CounterMsg)`. `Local` says the process runs on this node, the runtime the program runs in; `Peer(name)` is another node (§8). `send(c, Inc(5))` puts `Inc(5)` in the mailbox of the process at `c` and returns at once, without waiting for it to be received. `self()` is the address of the process that calls it, so a parent that gives a child its own address takes it first: `let me = self(); spawn(Local, fn() = child(me))`.
+`let c = spawn(fn() = counter(0))` starts a process that runs the lambda, and `c` is its address, an `Address(CounterMsg)`. The process runs on this node, the runtime the program runs in; `Peer.spawn(name, f)` starts one on another node (§8). `send(c, Inc(5))` puts `Inc(5)` in the mailbox of the process at `c` and returns at once, without waiting for it to be received. `self()` is the address of the process that calls it, so a parent that gives a child its own address takes it first: `let me = self(); spawn(fn() = child(me))`.
 
 `spawn`'s callback has type `() -> Unit with n`, and the `n` is also the mailbox of the `Address(n)` it returns. A pure function fits wherever one with a mailbox type is expected, so a pure callback is spawned too, and its mailbox is whatever the address is used as. When nothing says, the mailbox stays open until a `send` to the address fixes it, and an address nothing sends to may keep it open. A process that never receives says so with the mailbox `Never`, written on its lambda, `fn() : Unit with Never = ...`, since no `receive` in it settles the type:
 
@@ -732,11 +732,11 @@ fn counter(n : Int) : Unit with CounterMsg =
 $ ern shell
 Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type spawn
-spawn : (Where, () -> Unit with n) -> Address(n) with m
-> spawn(Local, fn() : Unit = Unit)
+spawn : (() -> Unit with n) -> Address(n) with m
+> spawn(fn() : Unit = Unit)
 <address 84> : Address(a)
 `it` is unchanged: this input did not determine the type of its value
-> spawn(Local, fn() : Unit with Never = Unit)
+> spawn(fn() : Unit with Never = Unit)
 <address 87> : Address(Never)
 ```
 
@@ -832,9 +832,9 @@ fn queue(items : List(Int), waiting : List(Reply(Int))) : Unit with QueueMsg =
     }
 
 export fn main() : Unit with MainMsg = {
-    let q = spawn(Local, fn() = queue([], []));
+    let q = spawn(fn() = queue([], []));
     let me = self();
-    let _ = spawn(Local, fn() = send(me, Took(Address.callForever(q, fn(r) = Take(reply = r)))));
+    let _ = spawn(fn() = send(me, Took(Address.callForever(q, fn(r) = Take(reply = r)))));
     send(q, Put(7));
     receive {
         Took(x) -> Io.println("took " <> Int.toString(x))
@@ -883,7 +883,7 @@ fn consume(from : Address(ProducerMsg), taken : Int, sum : Int) : Unit with Cons
 
 export fn main() : Unit with ConsumerMsg = {
     let me = self();
-    let producer = spawn(Local, fn() : Unit with ProducerMsg = produce(me, 1, 100, 0));
+    let producer = spawn(fn() : Unit with ProducerMsg = produce(me, 1, 100, 0));
     send(producer, Credit(10));
     consume(producer, 0, 0)
 }
@@ -915,7 +915,7 @@ fn counter(n : Int) : Unit with CounterMsg =
     }
 
 export fn main() : Unit with Never = {
-    let c = spawn(Local, fn() = counter(0));
+    let c = spawn(fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
@@ -981,7 +981,7 @@ And a `main` that upgrades after the first `Get`:
 ```ernest
 // counter.ern
 export fn main() : Unit with Never = {
-    let c = spawn(Local, fn() = counter(0));
+    let c = spawn(fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
@@ -1030,7 +1030,7 @@ export fn tally(counts : Map(String, Int)) : Unit with TallyMsg =
 $ ern build words.ern
 $ ern shell words.erc
 Ernest 0.1.0. :help for the commands, :quit to leave.
-> let t = spawn(Local, fn() = Words.tally(Map.empty))
+> let t = spawn(fn() = Words.tally(Map.empty))
 t : Address(Words.TallyMsg)
 > send(t, Words.Add(Words.count("the cat and the hat")))
 > send(t, Words.Add(Words.count("the bat")))
@@ -1056,8 +1056,8 @@ type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 type MainMsg = PongDone(Down)
 
 export fn main() : Unit with MainMsg = {
-    let pongAddr = spawnMonitored(Local, fn() = pong(), PongDone);
-    let _ = spawn(Local, fn() = ping(pongAddr, 3));
+    let pongAddr = spawnMonitored(fn() = pong(), PongDone);
+    let _ = spawn(fn() = ping(pongAddr, 3));
     receive {
         PongDone(_) -> Unit
     }
@@ -1102,7 +1102,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 > :type monitor
 monitor : (Address(a), (Down) -> m) -> Unit with m
 > :type spawnMonitored
-spawnMonitored : (Where, () -> Unit with n, (Down) -> m) -> Address(n) with m
+spawnMonitored : (() -> Unit with n, (Down) -> m) -> Address(n) with m
 ```
 
 ```ernest-prelude
@@ -1111,7 +1111,7 @@ type Down = Down(process : Process, reason : Reason, site : String)
 type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 ```
 
-`monitor(child, wrap)` puts `wrap(d)` in your mailbox when `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. A process you start yourself is watched from its start with `spawnMonitored(Local, f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `process` says which, as `Process.fromAddress(child)` gives it, its `reason` says how, and its `site` says where it was spawned, the top-level declaration and the line of the spawn, `Counter.main:19`.
+`monitor(child, wrap)` puts `wrap(d)` in your mailbox when `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. A process you start yourself is watched from its start with `spawnMonitored(f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `process` says which, as `Process.fromAddress(child)` gives it, its `reason` says how, and its `site` says where it was spawned, the top-level declaration and the line of the spawn, `Counter.main:19`.
 
 `wrap` is a function, so it can carry what you need to tell one death from another. A process that monitors a worker while waiting for its answer gets two messages, the answer and the death, and takes the answer; the death is still in the mailbox when the next worker is monitored. A `Down` does not say which process it is about, so give each worker a number and let the wrap close over it:
 
@@ -1123,10 +1123,8 @@ fn work(n : Int) : Int =
 
 fn runWorker(run : Int) : Optional(Int) with MainMsg = {
     let me = self();
-    let _ =
-        spawnMonitored(Local,
-                       fn() = send(me, Result(run = run, value = work(run))),
-                       fn(d) = Died(run = run, down = d));
+    let _ = spawnMonitored(fn() = send(me, Result(run = run, value = work(run))),
+                           fn(d) = Died(run = run, down = d));
     waitFor(run)
 }
 
@@ -1201,7 +1199,7 @@ fn worker(report : Address(Either(String, Int))) : Unit with m =
 
 fn startWorker() : Unit with GameMsg = {
     let me = self();
-    let _ = spawn(Local, fn() = worker(via(me, Done)));
+    let _ = spawn(fn() = worker(via(me, Done)));
     receive {
         Done(Right(n)) -> Io.println("done: " <> Int.toString(n))
       | Done(Left(why)) -> Io.println("failed: " <> why)
@@ -1241,7 +1239,7 @@ fn reader(to : Address(Optional(String))) : Unit with m = {
 
 fn chat() : Unit with ChatMsg = {
     let me = self();
-    let _ = spawn(Local, fn() = reader(via(me, Line)));
+    let _ = spawn(fn() = reader(via(me, Line)));
     talk()
 }
 
@@ -1307,7 +1305,7 @@ Several texts are counted at once, by a worker each, and the tally totals them. 
 type MainMsg = Counted(Map(String, Int)) | Died(Down)
 
 export fn main() : Unit with MainMsg = {
-    let totals = spawn(Local, fn() = tally(Map.empty));
+    let totals = spawn(fn() = tally(Map.empty));
     countAll(totals, ["the cat and the hat", "the bat and the ball", "a cat"]);
     match Address.call(totals, fn(r) = Top(n = 3, reply = r), 1000) {
         Some(best) -> List.foreach(best, fn(#(w, c)) = Io.println(w <> " " <> Int.toString(c)))
@@ -1318,7 +1316,7 @@ export fn main() : Unit with MainMsg = {
 fn countAll(totals : Address(TallyMsg), texts : List(String)) : Unit with MainMsg = {
     let me = self();
     List.foreach(texts, fn(text) = {
-        let _ = spawnMonitored(Local, fn() = send(me, Counted(count(text))), Died);
+        let _ = spawnMonitored(fn() = send(me, Counted(count(text))), Died);
         Unit
     });
     collect(totals, List.size(texts))
@@ -1420,7 +1418,7 @@ fn ask(p : Address(ParserMsg), text : String) : String with m =
     }
 
 export fn main() : Unit with Never = {
-    let p = spawn(Local, fn() = parser());
+    let p = spawn(fn() = parser());
     Io.println(ask(p, "42"));
     Io.println(ask(p, "forty-two"))
 }
@@ -1448,7 +1446,7 @@ fn worker(count : Int) : Unit with Never =
     Io.println(Int.toString(average(100, count)))
 
 export fn main() : Unit with MainMsg = {
-    let _ = spawnMonitored(Local, fn() = worker(0), WorkerDied);
+    let _ = spawnMonitored(fn() = worker(0), WorkerDied);
     receive {
         WorkerDied(Down(reason = Fault(cause), site = site)) ->
             Io.println("the worker spawned at " <> site <> " faulted: " <> cause)
@@ -1479,7 +1477,7 @@ fn supervise(jobs : List(Int)) : Unit with SupMsg =
         [] -> Io.println("all jobs done")
       | job :: rest -> {
             let me = self();
-            let _ = spawnMonitored(Local, fn() = send(me, Result(100 / job)), Ended);
+            let _ = spawnMonitored(fn() = send(me, Result(100 / job)), Ended);
             Io.println(Int.toString(job) <> ": " <> outcome());
             supervise(rest)
         }
@@ -1526,7 +1524,7 @@ export let counter : Address(CounterMsg) = start()
 // A counter, restarted in place after a fault. A test calls it for a
 // counter of its own.
 export fn start() : Address(CounterMsg) with m =
-    spawn(Local, restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
+    spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() = count(0)))
 
 // The counter's loop, which faults on a negative amount.
 fn count(total : Int) : Unit with CounterMsg =
@@ -1572,11 +1570,11 @@ The call that was waiting when the counter faulted ends at once: `Address.call` 
 type CounterMsg = Add(amount : Int, reply : Reply(Int))
 
 let group : Address(Supervisor.Msg) =
-    spawn(Local, Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 3, within = 5000)))
+    spawn(Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 3, within = 5000)))
 
-let visits : Address(CounterMsg) = spawn(Local, Supervisor.child(group, fn() = count(0)))
+let visits : Address(CounterMsg) = spawn(Supervisor.child(group, fn() = count(0)))
 
-let sales : Address(CounterMsg) = spawn(Local, Supervisor.child(group, fn() = count(0)))
+let sales : Address(CounterMsg) = spawn(Supervisor.child(group, fn() = count(0)))
 
 fn count(total : Int) : Unit with CounterMsg =
     receive {
@@ -1610,7 +1608,7 @@ Some(1) Some(1)
 
 The strategy says which siblings restart with the child that faulted. `OneForOne` restarts none. `OneForAll` restarts every other child, so `sales` starts from zero too. `RestForOne` restarts the children spawned after it, for services that use the ones before them; the order is the order of the `spawn`s, not of the joins, which the scheduler decides. A sibling runs on until it next waits, in a `receive` or for a call's answer, and restarts there, with the same address, as a fault restarts a process; a sibling that computes without waiting is not restarted. Its restart is not a fault, so `ern run` reports only the fault of `visits`. A call waiting on a sibling as it restarts ends: `Address.call` answers `None`, and `Address.callForever` faults with `callee was restarted` (report §6.6). So for a moment after a fault, a call to a sibling may be answered from its old state, end, or be answered from its new one. The child that faulted runs again only once each sibling has restarted, so a call to it after its fault is answered by the group restarted whole (report Appendix E.22): `add(visits, 1)` is, and `sales` has restarted before `main` asks it. A client that relies on a service's state after a fault takes the state as lost and asks again.
 
-The limit is the group's. When its children have faulted `restarts` times within `within` milliseconds, the next fault makes the supervisor give up: it faults, with `supervisor restart limit reached`. A supervisor is a child like any other, `spawn(Local, Supervisor.child(parent, Supervisor.group(...)))`, so groups form a tree. A supervisor under a parent restarts in place when it gives up, or when its parent restarts it with a sibling, and asks each of its children to restart; every binding keeps its address, and the fault is the parent's to count. A supervisor at the root that gives up dies. A supervisor and its children run on one node; between nodes, a process watches another with `monitor` (§8).
+The limit is the group's. When its children have faulted `restarts` times within `within` milliseconds, the next fault makes the supervisor give up: it faults, with `supervisor restart limit reached`. A supervisor is a child like any other, `spawn(Supervisor.child(parent, Supervisor.group(...)))`, so groups form a tree. A supervisor under a parent restarts in place when it gives up, or when its parent restarts it with a sibling, and asks each of its children to restart; every binding keeps its address, and the fault is the parent's to count. A supervisor at the root that gives up dies. A supervisor and its children run on one node; between nodes, a process watches another with `monitor` (§8).
 
 When a supervisor dies, given up, killed, or of a defect of its own, its children are killed after it, the last spawned first, each once the one before has ended; so `kill(group)` stops a group. A killed process runs nothing more, so a child that must finish its work, a file to flush, is sent a message of its own protocol first. A child that returns or is killed leaves the group, and a child may join at any time, so one supervisor also holds the children a program starts while it runs, one per connection.
 
@@ -1678,7 +1676,7 @@ Directory mode compiles the modules in the order their dependencies need, and a 
 
 **`export` marks the boundary.** A declaration with `export` is visible from other modules, and one without is the module's own. There is no `import` and no export list. The constructors of an exported type are exported with it; an abstract type's constructors are visible only in its own module (§7.2). An exported declaration's type, and the fields of an exported type that is not abstract, may name only exported types. A function's mailbox type is exempt, so an exported `main` may receive a private message type (report §4.2).
 
-**A module's own name hides the prelude's.** A module may declare its own `Local`, which then means its own throughout the module; `Prelude.Local` still names the prelude's (report §4.2).
+**A module's own name hides the prelude's.** A module may declare its own `Unknown`, which then means its own throughout the module; `Prelude.Unknown` still names the prelude's (report §4.2).
 
 **Testing a module.** A test is a top-level `let` of the type `Test.Case`, a name and a function returning `Test.Passed` or `Test.Failed(text)` (report Appendix E.24):
 
@@ -1868,21 +1866,15 @@ Can a helper in the same file as `Stack`, one that is not declared `Stack.` anyt
 
 A program reaches outside its node's Ernest code in two ways: to peers over the network, and to foreign code on the same node.
 
-Peers are the language's, and the toolchain does not run them yet: [`docs/development.md`](docs/development.md)'s *What the toolchain accepts* says what a program meets until it does. §8.1 and §8.2 describe what peers do.
+Peers are the language's, and the toolchain does not run them yet: [`docs/development.md`](docs/development.md)'s *What the toolchain accepts* says what a program meets until it does. §8.1 and §8.2 describe what peers do, and the examples that spawn on a peer, in §8.1 and §8.4, wait for it.
 
-A node that talks to peers has a configuration, which a node running alone does not need. `ern config` creates it, once, in `./.ernest/`: `ernest.conf`, with this node's network address, its public key and an empty list of peers, and the private key beside it. The command fails if `./.ernest` exists. A peer is added to the list by editing `ernest.conf` (report Appendix C), and its name is what `Peer(name)` refers to.
+A node that talks to peers has a configuration, which a node running alone does not need. `ern config` creates it, once, in `./.ernest/`: `ernest.conf`, with this node's network address, its public key and an empty list of peers, and the private key beside it. The command fails if `./.ernest` exists. A peer is added to the list by editing `ernest.conf` (report Appendix C), and its name is what `Peer.spawn(name, f)` takes.
 
 ### 8.1 Work on a peer
 
-Work runs on a peer in a process spawned there, and its result comes back as a message. `spawn`'s first argument places the process:
+Work runs on a peer in a process spawned there, and its result comes back as a message. `Peer.spawn(name, f)` spawns `f` on the peer of that name as `spawn(f)` spawns it on this node; the program names the peer, and the runtime chooses no node for it (report §6.7, §8.3):
 
-```ernest-prelude
-type Where = Local | Peer(String)
-```
-
-The program names the peer; the runtime chooses no node for it (report §6.7):
-
-```ernest
+```ernest-fragment
 // square.ern
 type Result = Result(Int)
 
@@ -1891,7 +1883,7 @@ fn heavy(a : Int, b : Int) : Int =
 
 export fn main() : Unit with Result = {
     let me = self();
-    let _ = spawn(Peer("foo"), fn() = send(me, Result(heavy(3, 4))));
+    let _ = Peer.spawn("foo", fn() = send(me, Result(heavy(3, 4))));
     receive {
         Result(n) -> Io.println("foo computed " <> Int.toString(n))
     }
@@ -1900,13 +1892,13 @@ export fn main() : Unit with Result = {
 
 With a peer named `foo` in `ernest.conf`, it prints `foo computed 25`. The closure takes `heavy` with it, and `me` still names this process on the peer (§8.2).
 
-A fault in `heavy` is the spawned process's, not the caller's, so a caller that must know spawns with `spawnMonitored` and receives a `Down` (§5.2). Several computations run at once as several such processes, each sending its result back.
+A fault in `heavy` is the spawned process's, not the caller's, so a caller that must know spawns with `Peer.spawnMonitored` and receives a `Down` (§5.2). Several computations run at once as several such processes, each sending its result back.
 
 ### 8.2 Code shipping
 
-Code goes to a peer one way: in a process spawned there. `spawn(Peer(name), f)` takes `f`'s code with it, and the code every function it and its captures use; the peer uses the code it has, and fetches from the sender what it lacks, before the process starts. A failure to find it faults the caller of `spawn`, at the call. Every function and type is known by a hash of its definition, a type's name included, so two nodes agree on a type exactly when they declare it the same way (report §8.7).
+Code goes to a peer one way: in a process spawned there. `Peer.spawn(name, f)` takes `f`'s code with it, and the code every function it and its captures use; the peer uses the code it has, and fetches from the sender what it lacks, before the process starts. A failure to find it faults the caller of `Peer.spawn`, at the call. Every function and type is known by a hash of its definition, a type's name included, so two nodes agree on a type exactly when they declare it the same way (report §8.7).
 
-A message to a peer carries values and no code. A function cannot go to another node, alone or inside a message, and the `send` that would take it there faults with `function cannot cross nodes` (report §3.11). Work that must run on the peer is spawned there. An adapted address of a process on your node may still go to a peer, since its function never leaves your node: what crosses is a reference to the function and the values it captured, and a value the peer sends to it comes back here to be wrapped, on delivery. So `via(Wrap, self())` handed to a peer works. An adapted address around another node's process cannot cross, since its function would have to leave its node (report §6.5).
+A message to a peer carries values and no code. A function cannot go to another node, alone or inside a message, and the `send` that would take it there faults with `function cannot cross nodes` (report §3.11). Work that must run on the peer is spawned there. An adapted address of a process on your node may still go to a peer, since its function never leaves your node: what crosses is a reference to the function and the values it captured, and a value the peer sends to it comes back here to be wrapped, on delivery. So `via(self(), Wrap)` handed to a peer works. An adapted address around another node's process cannot cross, since its function would have to leave its node (report §6.5).
 
 In spawned code a system module's reference is the peer's, so `Io.println` prints on the peer, and so is a top-level binding the code names, so a service binding names the peer's service. An address the function captured still names the process it named on this node.
 
@@ -1936,13 +1928,13 @@ A foreign value belongs to the node that made it, and sending one to another nod
 
 An `Ets.Table` of §8.3 is such a value, a table of the node's runtime: `Ets.new()` makes one, `Ets.put` stores an entry, and `Ets.get`, the function §8.5 builds, looks one up. The closure below captures one, so shipping it to the peer `alice` faults with that cause:
 
-```ernest
+```ernest-fragment
 export fn main() : Unit with Never = {
     let t = Ets.new();
     Ets.put(t, "answer", 42);
     let _ =
-        spawn(Peer("alice"),
-              fn() = Io.println(Int.toString(Optional.withDefault(Ets.get(t, "answer"), 0))));
+        Peer.spawn("alice",
+                   fn() = Io.println(Int.toString(Optional.withDefault(Ets.get(t, "answer"), 0))));
     Unit
 }
 ```
@@ -2068,7 +2060,7 @@ export fn main() : Unit with Never =
 fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
     match Tcp.accept(listener, 60000) {
         Right(socket) -> {
-            let talker = spawn(Local, fn() = session(socket));
+            let talker = spawn(fn() = session(socket));
             Tcp.give(socket, Process.fromAddress(talker));
             serve(listener)
         }
@@ -2079,7 +2071,7 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
 // The session waits on its mailbox, and its reader on the socket.
 fn session(socket : Address(Tcp.SocketMsg)) : Unit with Session = {
     let me = self();
-    let _ = spawn(Local, fn() = reader(socket, me));
+    let _ = spawn(fn() = reader(socket, me));
     Clock.alarm(10000, Tick);
     talk(socket, <<>>)
 }
@@ -2250,7 +2242,7 @@ It begins with `fn`, so a reader and the parser see a lambda begin at its first 
 
 **§7.4.** Yes. The boundary of an abstract type is its module, so every definition in `main.ern` may name the constructor, a helper or a test included; another module sees the type and its operations, never the constructor.
 
-**§8.8.** The `send` faults the sending process, at the call, with `function cannot cross nodes`: a function does not leave its node inside a message. To give the service the function, spawn a process on its node, which takes the function's code with it, and let that process send the message there: `spawn(Peer(name), fn() = send(service, Register(fn(x) = x + 1)))`.
+**§8.8.** The `send` faults the sending process, at the call, with `function cannot cross nodes`: a function does not leave its node inside a message. To give the service the function, spawn a process on its node, which takes the function's code with it, and let that process send the message there: `Peer.spawn(name, fn() = send(service, Register(fn(x) = x + 1)))`.
 
 ## 14. Reading further
 

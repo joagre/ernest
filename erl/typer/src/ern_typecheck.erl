@@ -3438,6 +3438,14 @@ lookup_global(Pos, Path, Name, #env{globals = Gs} = Env) ->
                       false -> other_ref(Path, Name, Env)
                   end,
             {Scheme, Ref, Env};
+        _ when Path =:= ['Peer'] ->
+            %% Report §8.3: a spawn on a peer is the module Peer's, which
+            %% MVP 3.0 builds; a module of the program's may take the name
+            case lists:any(fun(K) -> lists:droplast(K) =:= Path end, maps:keys(Gs)) of
+                true -> fail(Pos, "unknown name " ++ format_qname(Q));
+                false -> fail(Pos, format_qname(Q) ++ " is not here yet: the module Peer, "
+                                   "which acts on peers, arrives in MVP 3.0")
+            end;
         _ ->
             fail(Pos, "unknown name " ++ format_qname(Q))
     end.

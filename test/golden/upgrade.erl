@@ -3,8 +3,7 @@
 -export([main/0, '$fun'/2]).
 
 main() ->
-    C_1 = ern_rt:spawn('Local',
-                       fun () -> counter(0) end,
+    C_1 = ern_rt:spawn(fun () -> counter(0) end,
                        <<"Upgrade.main:17">>),
     ern_rt:send(C_1, {'Inc', 5}),
     ern_rt:send(C_1, {'Inc', 3}),

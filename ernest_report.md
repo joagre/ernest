@@ -229,7 +229,7 @@ A sum type whose constructors may be mentioned only in the module that declares 
 
 A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, §4.7, and can otherwise be held, passed, and sent. Its equality is §3.10's. A host value of no other Ernest type enters Ernest through a foreign type alone, each with the runtime's exact equality: `foreign type T` declared by a module, and the foreign type of any host value, `Foreign.Term` (Appendix E.12).
 
-A foreign value is bound to the node (§8.3) that made it: transporting a value that transitively contains one to another node faults with cause `Fault("foreign value cannot cross nodes")`. Transport is `spawn(Peer(...), f)` and `spawnMonitored(Peer(...), f, wrap)`, `send` to a remote address, the request of a call to one, `answer(r, v)` to a caller on another node, and the captures of a function spawned on a peer. The fault is the transporting process's, at the operation that transports: the caller of `spawn` or `spawnMonitored`, the sender of `send`, the caller of a call, and the process that calls `answer`.
+A foreign value is bound to the node (§8.3) that made it: transporting a value that transitively contains one to another node faults with cause `Fault("foreign value cannot cross nodes")`. Transport is `Peer.spawn(name, f)` and `Peer.spawnMonitored(name, f, wrap)`, `send` to a remote address, the request of a call to one, `answer(r, v)` to a caller on another node, and the captures of a function spawned on a peer. The fault is the transporting process's, at the operation that transports: the caller of `spawn` or `spawnMonitored`, the sender of `send`, the caller of a call, and the process that calls `answer`.
 
 ### 3.9 Type variables and polymorphism
 
@@ -253,7 +253,7 @@ A function that applies `==` to a value of a type variable gives that variable a
 
 ### 3.11 Serialization
 
-A message may be a value of any type, a function included. A function is bound to its node, as a foreign value is (§3.8): transporting a value that transitively contains one to another node faults with cause `Fault("function cannot cross nodes")`, at the operation that transports, in the process that transports. Two kinds of function cross all the same. The function `spawn(Peer(name), f)` or `spawnMonitored(Peer(name), f, wrap)` starts crosses with its code, and so does every function its captured values hold, through data and through other functions' captures alike (§8.7). An adapted address crosses as a reference to its function and the values the function captured, and the function runs only on the node where the address was made (§6.5). A value that holds both a foreign value and a function faults with the foreign value's cause. So a message between nodes is values only, and it needs no code on the node it reaches.
+A message may be a value of any type, a function included. A function is bound to its node, as a foreign value is (§3.8): transporting a value that transitively contains one to another node faults with cause `Fault("function cannot cross nodes")`, at the operation that transports, in the process that transports. Two kinds of function cross all the same. The function `Peer.spawn(name, f)` or `Peer.spawnMonitored(name, f, wrap)` starts crosses with its code, and so does every function its captured values hold, through data and through other functions' captures alike (§8.7). An adapted address crosses as a reference to its function and the values the function captured, and the function runs only on the node where the address was made (§6.5). A value that holds both a foreign value and a function faults with the foreign value's cause. So a message between nodes is values only, and it needs no code on the node it reaches.
 
 ## 4. Declarations and Scope
 
@@ -516,17 +516,15 @@ A pure function that calls a function argument runs it in the caller's process a
 ```
 self           : () -> Address(m) with m
 send           : (Address(a), a) -> Unit with m
-spawn          : (Where, () -> Unit with n) -> Address(n) with m
-spawnMonitored : (Where, () -> Unit with n, (Down) -> m) -> Address(n) with m
-
-type Where = Local | Peer(String)
+spawn          : (() -> Unit with n) -> Address(n) with m
+spawnMonitored : (() -> Unit with n, (Down) -> m) -> Address(n) with m
 ```
 
 `self()` is the process's own address. `send(a, v)` places `v` in the mailbox of `a` and returns at once; sending to a dead process has no effect. A `send` promises the sender nothing. The one silence in the language is an act on what has ended that asks nothing back, which does nothing and says nothing: a message whose receiver has ended or restarts (§6.9), whose request has timed out or been answered, or whose peer is lost is dropped, and a `kill` (§6.9), a close or a `give` of a resource that has ended (Appendix E.18, E.23) does nothing. A program's end keeps no promise (§8.6). Every other failure is a value, a message, or a fault (§7).
 
-`spawn(w, f)` starts a process that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. The effect `n` of `f` appears in `Address(n)` and so is a mailbox type (§3.9). A pure `f` fits, as a pure function fits wherever one with a mailbox type is expected, and `n` is then what the context makes it. A process that never receives is spawned with `fn() : Unit with Never = ...`. A node is one running runtime; a peer is another node it knows by name, §8.3. `w` places the process: `Local` on the running node, `Peer(name)` on that peer. An unknown or unreachable peer is a fault. The captures of `f` are copied to the peer.
+`spawn(f)` starts a process on the running node that runs `f()` and returns its address. `self()` inside `f` is the new process's address; a parent that wants replies binds `let me = self();` before `spawn`. The effect `n` of `f` appears in `Address(n)` and so is a mailbox type (§3.9). A pure `f` fits, as a pure function fits wherever one with a mailbox type is expected, and `n` is then what the context makes it. A process that never receives is spawned with `fn() : Unit with Never = ...`. A node is one running runtime; a peer is another node it knows by name, §8.3. `Peer.spawn(name, f)` and `Peer.spawnMonitored(name, f, wrap)` start the process on the peer named (§8.3). An unknown or unreachable peer is a fault. The captures of `f` are copied to the peer.
 
-`spawnMonitored(w, f, wrap)` starts the process as `spawn(w, f)` does, and the caller monitors it from its start (§6.9): `wrap(d)` is placed in the caller's mailbox when it ends, with its reason, however soon that is.
+`spawnMonitored(f, wrap)` starts the process as `spawn(f)` does, and the caller monitors it from its start (§6.9): `wrap(d)` is placed in the caller's mailbox when it ends, with its reason, however soon that is.
 
 ### 6.3 `receive`
 
@@ -548,7 +546,7 @@ Addresses have no equality (§3.10). The process behind an address is `Process.f
 
 ```ernest-fragment
 export let log : Address(LogMsg) =
-    spawn(Local, restarting(RestartLimit(restarts = 3, within = 5000), logger))
+    spawn(restarting(RestartLimit(restarts = 3, within = 5000), logger))
 ```
 
 `restarting` keeps the service's address across its faults (§6.9). The address is the permission to send, and a service binding grants it to the modules that see the binding (§4.2).
@@ -571,7 +569,7 @@ answer              : (Reply(a), a) -> Unit with m
 - `send` hands it to the `receive` clause that binds the value.
 - Placing it in a constructor field or tuple component of reply-carrying type, or in a list by `::` or a list literal, hands it to the built value.
 - Returning it from a function whose result type is reply-carrying hands it to the caller.
-- Capturing it in a lambda hands it to the lambda, which then carries the obligation by its capture (below). The lambda may be bound by a `let`. It, or the name bound to it, is consumed exactly once, by a call or as the function argument of `spawn` or `spawnMonitored`, and any other use of it is a type error. `let f = fn() = worker(r); spawn(Local, f)` is legal; with `f()` after the `spawn`, `f` is consumed twice. A local `fn` may not capture a reply-carrying value; such a capture is a type error.
+- Capturing it in a lambda hands it to the lambda, which then carries the obligation by its capture (below). The lambda may be bound by a `let`. It, or the name bound to it, is consumed exactly once, by a call or as the function argument of `spawn` or `spawnMonitored`, and any other use of it is a type error. `let f = fn() = worker(r); spawn(f)` is legal; with `f()` after the `spawn`, `f` is consumed twice. A local `fn` may not capture a reply-carrying value; such a capture is a type error.
 
 A value is bound by a parameter, a `let`, a pattern variable, a `receive` variable, a lambda's capture, or the result of a call, and each binding is an *obligation*. The check is per function and crosses no call boundary. It is static: every path makes the consumption, and whether execution reaches it is not checked. A call to a function whose result type is a variable no parameter's type names consumes every obligation open on its path, since the call does not return; `fault` (§7.4) is one. The `mk` callback of `Address.call` is checked by the rule: `r` is consumed by placement in the message `mk` returns, and `Address.call` discharges the message.
 
@@ -598,7 +596,7 @@ fn twice(dst : Address(Request), request : Request) : Unit with m = {
 
 ### 6.7 Remote computation
 
-Work on a peer is a process spawned there, `spawn(Peer(name), f)` (§6.2), and its result reaches another process as a message. The program names the node at the spawn: the runtime chooses no node for it.
+Work on a peer is a process spawned there, `Peer.spawn(name, f)` (§6.2, §8.3), and its result reaches another process as a message. The program names the node at the spawn: the runtime chooses no node for it.
 
 ### 6.8 `Never`
 
@@ -635,7 +633,7 @@ fn counter(n : Int) : Unit with CounterMsg =
     }
 ```
 
-A function does not cross nodes in a message (§3.11), so a process on another node is sent its `Upgrade` by a process spawned on that node, which the spawn gives the new function, as the statement `let _ = spawn(Peer(name), fn() = send(c, Upgrade(migrate = m, next = k)))` does. The language has no other mechanism for code replacement. The shell's reload (§11.2) runs new calls on the new code and never changes the code a running process runs; a process whose code the shell can no longer keep faults with `Fault("its code was unloaded")` (§7.4).
+A function does not cross nodes in a message (§3.11), so a process on another node is sent its `Upgrade` by a process spawned on that node, which the spawn gives the new function, as the statement `let _ = Peer.spawn(name, fn() = send(c, Upgrade(migrate = m, next = k)))` does. The language has no other mechanism for code replacement. The shell's reload (§11.2) runs new calls on the new code and never changes the code a running process runs; a process whose code the shell can no longer keep faults with `Fault("its code was unloaded")` (§7.4).
 
 ## 7. Errors
 
@@ -664,7 +662,7 @@ A function answers a failure as a value: `Optional` where the failure has no cau
 - `Address.callForever` whose callee has ended, or ends or restarts before it answers (§6.6): the callee's cause, `Fault("callee was killed")`, `Fault("callee returned without answering")`, `Fault("callee was closed")`, `Fault("callee was restarted")`, or `Fault("callee had ended")`.
 - Cross-node transport of a foreign value (§3.8): `Fault("foreign value cannot cross nodes")`.
 - Cross-node transport of a function (§3.11), or of an adapted address whose target is on another node than the address (§6.5): `Fault("function cannot cross nodes")`.
-- `spawn(Peer(...), ...)` or `spawnMonitored(Peer(...), ...)` with an unknown or unreachable peer: `Fault("peer unreachable")`. `spawn(Peer(...), ...)` or `spawnMonitored(Peer(...), ...)` with a resolution failure on the peer (§8.7): `Fault("peer resolution failed: ...")`.
+- `Peer.spawn` or `Peer.spawnMonitored` with an unknown or unreachable peer: `Fault("peer unreachable")`. `Peer.spawn` or `Peer.spawnMonitored` with a resolution failure on the peer (§8.7): `Fault("peer resolution failed: ...")`.
 - A foreign function that raises: `Fault("foreign function m:f/n raised ...")`. A function of the program's that foreign code calls faults as it would anywhere, and the foreign function passes the fault on as it is; a restart asked for while it runs is a restart (§6.9). A foreign function's return is checked against its declared type when the function returns, and a reply foreign code gives (§8.4) when `Address.call` or `Address.callForever` returns it, each in the calling process and to the value's whole depth; a function value in it is checked when it is called, its result against its declared result type. A mismatch faults the calling process: `Fault("foreign return does not match T")`, `Fault("reply does not match T")`, and an argument foreign code gives an Ernest function `Fault("foreign argument does not match T")` (§8.4). A message from a foreign process that does not match the mailbox type faults the receiver on delivery (§8.4): `Fault("message does not match M")`. Each names the declared type.
 
 These faults come from no operation of the list above. A failure in the runtime faults the process that meets it with the host's class and reason, as a spawn beyond the host's limit of processes does with `Fault("error:system_limit")`. A fault in a function adapting an address faults the target with its own cause (§6.5). `Os.exit` with a status outside 0 to 255 faults its caller with `Fault("an exit status is from 0 to 255")` (Appendix E.23). In the shell and under `ern test`, `Os.exit` with a status `n` from 0 to 255 faults its caller with `Fault("exited with status n")` (§11.2). A working directory the host can no longer read as the program starts faults the initializer of `Os.workingDirectory` with `Fault("the working directory cannot be read: r")`, `r` the host's reason, and so ends the program before `main` runs (§8.5, Appendix E.23). The loss of a peer faults every process on it with `Fault("peer lost")` (§10). A deadlock faults the entry process with `Fault("deadlock")` (§8.6), and under `ern test` the process of the test that runs (§11.2). The unloading of the code a process runs faults the process with `Fault("its code was unloaded")` (§11.2), and a use of a binding a faulting reload left without a value faults its reader with `Fault("the binding has no value, since one before it faulted")` (§11.2). A subscription to the terminal after it was read as lines faults the subscriber with `Fault("the terminal is already read as lines")`, and a read of a line or of bytes after it was claimed for keys faults the reader with `Fault("the terminal is already read as keys")` (§8.2). While a shell holds the terminal, subscribing to it or reading a line or bytes from any other process faults that process with `Fault("the shell holds the terminal; run the program with ern run to give it the keyboard")` (§11.2). A line of standard input that is not UTF-8 faults the process that asked for it with `Fault("the standard input is not UTF-8")`, and keys that are not UTF-8 fault the entry process with the same cause (§8.2). A standard input that cannot be read faults the entry process with `Fault("the standard input could not be read: ...")`, the host's reason after the colon (§8.2).
@@ -697,7 +695,7 @@ The runtime starts its system processes when the program starts, whether or not 
 
 ### 8.3 Peers
 
-A *node* is one running runtime, and a *peer* is another node this one knows by name. Peers are configured outside the language, §11.3; `Peer(name)` refers to them by the configured name, and nodes authenticate each other.
+A *node* is one running runtime, and a *peer* is another node this one knows by name. Peers are configured outside the language, §11.3, and nodes authenticate each other. The module `Peer` acts on a peer by its configured name: `Peer.spawn(name, f)` and `Peer.spawnMonitored(name, f, wrap)` start a process there as `spawn(f)` and `spawnMonitored(f, wrap)` start one on the running node (§6.2).
 
 ### 8.4 Foreign code
 
@@ -738,7 +736,7 @@ When no forward progress is possible, the entry process faults with `Fault("dead
 
 ### 8.7 Code shipping
 
-Only a spawn on a peer ships code: `spawn(Peer(name), f)` and `spawnMonitored(Peer(name), f, wrap)` ship `f`, the values it captures, and the code that `f` and every function among its captures depend on. A message ships no code (§3.11): it is decoded with the types of the receiving process's mailbox type, which that process's node holds, and a value sent to an adapted address with the types of its function's argument, which the node where the address was made holds. Within a node nothing is shipped.
+Only a spawn on a peer ships code: `Peer.spawn(name, f)` and `Peer.spawnMonitored(name, f, wrap)` ship `f`, the values it captures, and the code that `f` and every function among its captures depend on. A message ships no code (§3.11): it is decoded with the types of the receiving process's mailbox type, which that process's node holds, and a value sent to an adapted address with the types of its function's argument, which the node where the address was made holds. Within a node nothing is shipped.
 
 **Content addressing.** Every function, constructor, and type is identified across nodes by a hash of its normalized definition together with the hashes of what it references. Identical definitions have the same hash on every node. A type's hash includes its qualified name, so two types with the same constructors under different names are different types. A change to a definition that normalization does not undo changes its hash, and transitively the hashes of everything that depends on it. A set of mutually recursive definitions is hashed as a group, internal references by position, and each member's identity derives from the group's hash. Normalization renames local variables, keeps named fields in their declared order (§3.5), preserves the source evaluation order of construction expressions, and preserves the qualified names of external references.
 
@@ -795,8 +793,6 @@ type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 
 type RestartLimit = RestartLimit(restarts : Int, within : Int) | Unlimited // within in milliseconds, §6.9
 
-type Where = Local | Peer(String) // spawn placement, §6.2
-
 type Path = Path(String) // in the runtime's syntax
 ```
 
@@ -805,8 +801,8 @@ type Path = Path(String) // in the runtime's syntax
 ```
 self           : () -> Address(m) with m
 send           : (Address(a), a) -> Unit with m
-spawn          : (Where, () -> Unit with n) -> Address(n) with m
-spawnMonitored : (Where, () -> Unit with n, (Down) -> m) -> Address(n) with m
+spawn          : (() -> Unit with n) -> Address(n) with m
+spawnMonitored : (() -> Unit with n, (Down) -> m) -> Address(n) with m
 Io.show        : (a) -> String // the value as Ernest writes it, at the use's type (Appendix E.1)
 Io.debug       : (a) -> a with m // prints Io.show's text and a line feed to standard error, then returns the value
 ```
@@ -931,7 +927,7 @@ The toolchain is one command, `ern`, whose first word is its job: `ern build`, `
 
 ### 11.3 Configuration setup
 
-The configuration directory is `./.ernest` unless `--config-dir` names another. `ern config [--config-dir dir]` creates it, which only its owner can open, with `ernest.conf` and this node's private key, readable only by its owner, and does nothing else; it fails if the directory exists, empty or not. `ernest.conf` holds this node's network address and public key and the list of peers, each with a name, a network address, and a public key; Appendix C shows one. The names are what `Peer(name)` refers to.
+The configuration directory is `./.ernest` unless `--config-dir` names another. `ern config [--config-dir dir]` creates it, which only its owner can open, with `ernest.conf` and this node's private key, readable only by its owner, and does nothing else; it fails if the directory exists, empty or not. `ernest.conf` holds this node's network address and public key and the list of peers, each with a name, a network address, and a public key; Appendix C shows one. The names are what `Peer.spawn(name, f)` takes (§8.3).
 
 ### 11.4 Documentation extraction
 
@@ -943,7 +939,7 @@ The configuration directory is `./.ernest` unless `--config-dir` names another. 
 
 An error is reported as `file:line:column: message`, then the source. Lines and columns count from 1. A line ends at a line feed, and a column is a code point: a tab is one column, and a letter written as two code points is two. The file is the source's path from the working directory, or its absolute path when it lies outside that directory. The source shows a gutter of line numbers, the line before, the erroneous span underlined with `^`, any second span the message depends on, underlined with `-` and labelled, and at most one `help:` line naming the fix. Where the lines shown are not one after another, a line `...` stands for those passed over. The source shows a tab as a space and a control character as its picture, `␛` for U+001B, one of U+0080 to U+009F as U+FFFD. `--short-errors`, which `ern build`, `ern doc` and `ern format` take, prints the first line alone. The parser reports one error per file; the checker reports every error that does not follow from another. Within a block, an error in a statement that binds nothing, or in a `let` whose annotation fixes its name's type, does not stop the block, and the statements after it are checked; an error in any other binding does, since what follows may use the name.
 
-A type mismatch is reported at the innermost expression whose type is fixed: the last expression of a body or block, a branch or clause after the first, an argument, an operand, an element, or a pattern. The message shows both whole types. The label marks the span that fixed the expectation: an annotation, a callee's type, the first branch, clause, or element, the left operand, or the value matched. The help line names the part in which the types differ. An effect error names the primitive called and the function, `let`, or guard that is pure, and labels the annotation that made it so. An operator whose operand type is not determined (§4.8) is reported with the request to annotate it. A statement whose type is not `Unit` (§5.4) is reported whole, with the help line `let _ =`. `Io.show` or `Io.debug` at a type that is not known whole (Appendix E.1) is reported with the request to annotate it. A recursive call's argument at another type than the definition's own (§3.9) has a help line naming the rule: a call at another type goes to a second function. A reply-carrying value passed where it would be duplicated or discarded (§6.6) has a help line naming the ways to discharge it: answering it, passing it on once, or matching it. A `<-` where the parser expects a delimiter has a help line that names `a < -1` (§2.6). A selector its operand's type lacks is reported at the selector, naming a constructor without the field. An error whose span holds a use of a name the module's own declaration hides from the prelude (§4.2) labels that use with the prelude's qualified name: `Local` here is this module's constructor, and the prelude's is `Prelude.Local`.
+A type mismatch is reported at the innermost expression whose type is fixed: the last expression of a body or block, a branch or clause after the first, an argument, an operand, an element, or a pattern. The message shows both whole types. The label marks the span that fixed the expectation: an annotation, a callee's type, the first branch, clause, or element, the left operand, or the value matched. The help line names the part in which the types differ. An effect error names the primitive called and the function, `let`, or guard that is pure, and labels the annotation that made it so. An operator whose operand type is not determined (§4.8) is reported with the request to annotate it. A statement whose type is not `Unit` (§5.4) is reported whole, with the help line `let _ =`. `Io.show` or `Io.debug` at a type that is not known whole (Appendix E.1) is reported with the request to annotate it. A recursive call's argument at another type than the definition's own (§3.9) has a help line naming the rule: a call at another type goes to a second function. A reply-carrying value passed where it would be duplicated or discarded (§6.6) has a help line naming the ways to discharge it: answering it, passing it on once, or matching it. A `<-` where the parser expects a delimiter has a help line that names `a < -1` (§2.6). A selector its operand's type lacks is reported at the selector, naming a constructor without the field. An error whose span holds a use of a name the module's own declaration hides from the prelude (§4.2) labels that use with the prelude's qualified name: `Unknown` here is this module's constructor, and the prelude's is `Prelude.Unknown`.
 
 A printed type elides an effect variable bound to pure (§3.9). An effect variable that occurs once in a printed type, and is not process-only, is printed as pure: `fn k() : Int with m = 5` prints as `() -> Int`. The compiler shows the three inferred restrictions of §3.9. In a printed type a variable with the equality constraint is `a=` and one that is not reply-carrying `a!`: `equal : (a=, a=) -> Bool`, `discard : (a!) -> Unit`. A printed type is not an annotation, and neither mark can be written in one; `=` is written on a foreign type's parameter alone (§4.7), and §9.2 lists `Map(k=, v)` and `Set(a=)` with the mark, though neither is a foreign type. A process-only effect variable prints unchanged, and its restriction is stated by the message that rejects a pure instantiation. A type name is printed as the module would write it (§4.2). The module's own types and the prelude's are printed unqualified. Other modules' types are printed qualified. A local type that shadows a prelude name is printed qualified. A type variable is printed under its annotation's name; an unnamed one is `a`, `b`, ... for a value variable and `e`, `e1`, ... for an effect variable, avoiding the names in use. An error at a rejected call site names the parameter and the origin of its restriction; `ern doc` prints restrictions the same way.
 
@@ -1073,7 +1069,7 @@ type CounterMsg =
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
 export fn main() : Unit with m = {
-    let c = spawn(Local, fn() = counter(0));
+    let c = spawn(fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
@@ -1101,8 +1097,8 @@ type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 type MainMsg = PongDone(Down)
 
 export fn main() : Unit with MainMsg = {
-    let pongAddr = spawnMonitored(Local, fn() = pong(), PongDone);
-    let _ = spawn(Local, fn() = ping(pongAddr, 3));
+    let pongAddr = spawnMonitored(fn() = pong(), PongDone);
+    let _ = spawn(fn() = ping(pongAddr, 3));
     receive {
         PongDone(_) -> Unit
     }
@@ -1167,7 +1163,7 @@ fn submitter(worker : Address(WorkerMsg)) : Unit with Never = {
 }
 ```
 
-`Peer("foo")` and `Peer("bar")` name these peers in `spawn`, §6.2. The private key is in the same directory, `private-key.pem`, readable only by its owner. A freshly created file has an empty `peers` list.
+`Peer.spawn("foo", f)` and `Peer.spawn("bar", f)` spawn on these peers, §8.3. The private key is in the same directory, `private-key.pem`, readable only by its owner. A freshly created file has an empty `peers` list.
 
 ## Appendix D. A Foreign Library
 
@@ -1868,7 +1864,7 @@ Every technical term this report introduces, with a gloss and the section that d
 - **shim** — a primitive written as a `foreign fn` over the host or as a request to a system process. Appendix E.0.
 - **source root** — the directory under which a file's path gives its namespace. §4.2, §11.1.
 - **span** — a stretch of source a diagnostic underlines, the erroneous one with `^` and one the message depends on with `-` and its label. §11.5.
-- **`spawn`** — `spawn(w, f)`, starts a new process; `spawnMonitored(w, f, wrap)` starts one monitored from its start. §6.2.
+- **`spawn`** — `spawn(f)`, starts a new process; `spawnMonitored(f, wrap)` starts one monitored from its start. §6.2.
 - **spawn site** — the top-level declaration and the line a process was spawned at, `Counter.main:19`, which `Down` and a fault report give. §6.9.
 - **standard library** — the modules under `stdlib/`, on the load path by default; not the prelude. §9, Appendix E.
 - **startup file** — a file of the shell's inputs, run when the shell starts. §11.2.
@@ -1892,7 +1888,6 @@ Every technical term this report introduces, with a gloss and the section that d
 - **value position** — an argument, a result, a tuple component, or a type argument whose parameter occurs in a value position of its type's fields. §3.9.
 - **`via`** — `via(addr, f)` is the address `addr` seen through `f`. §6.5, §9.5.
 - **vocabulary** — the operations a kind of type provides by its structure, named alike in every module that has them. Appendix E.0.
-- **`Where`** — where a spawn starts its process: `Local`, or `Peer(name)` on a peer. §6.2.
 - **wildcard** — the pattern `_`; matches anything, binds nothing. §2.3, §5.10.
 - **`with`** — the mailbox-type marker on a function type, `with M`. §3.4, §6.1.
 

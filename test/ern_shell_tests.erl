@@ -70,7 +70,7 @@ program() ->
                      {expect, "Some(7) : Optional(Int)"},
                      {send, hex(":browse Counter\r")},
                      {expect, "Counter.start : () -> Address(Counter.Msg) with m"},
-                     {send, hex("spawn(Local, fn() = Counter.boom())\r")},
+                     {send, hex("spawn(fn() = Counter.boom())\r")},
                      {expect, "input 5:1 faulted: division by zero"},
                      {send, hex(":processes\r")},
                      {expect, "Counter.start:11"},
@@ -229,8 +229,8 @@ prelude_shown() ->
                              ":doc Prelude.List.size\n"),
     {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
     [?assertMatch({_, _}, binary:match(Out, Text))
-     || Text <- [<<"type Where\n">>, <<"spawn : (Where, () -> Unit with n) -> Address(n) with m">>,
-                 <<"Ernest prelude">>, <<"Starts a process that runs">>,
+     || Text <- [<<"type Reason\n">>, <<"spawn : (() -> Unit with n) -> Address(n) with m">>,
+                 <<"Ernest prelude">>, <<"Starts a process on this node that runs">>,
                  <<"List.size : (List(a!)) -> Int">>]],
     ?assertEqual(nomatch, binary:match(Out, <<"type Fs.Entry">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"no module Prelude">>)),
@@ -387,7 +387,7 @@ fault_line_escaped_test_() ->
 fault_line_escaped() ->
     Dir = fresh_home(),
     In = filename:join(Dir, "session.in"),
-    ok = file:write_file(In, "spawn(Local, fn() = fault(\"a\\u{1b}b\\nforged\"))\n:faults\n"
+    ok = file:write_file(In, "spawn(fn() = fault(\"a\\u{1b}b\\nforged\"))\n:faults\n"
                              "fault(\"c\\u{1b}d\")\n"),
     {0, Out} = sh("HOME=" ++ Dir ++ " ../bin/ern shell < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"input 1:1 faulted: a\\u{1B}b\\nforged">>)),
@@ -429,7 +429,7 @@ live_region_test_() ->
     {timeout, 60, fun live_region/0}.
 
 live_region() ->
-    Print = "spawn(Local, fn() = List.foreach(List.range(1, 12),"
+    Print = "spawn(fn() = List.foreach(List.range(1, 12),"
             " fn(n) = Io.println(\"line \" <> Int.toString(n))))\r",
     Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
@@ -1066,7 +1066,7 @@ tab_mid_row() ->
     ?assertEqual(nomatch, binary:match(Bytes, <<"ArrowDown">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"module Bool\r\nmodule Bytes\r\n">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nzeta : Int">>)),
-    ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nspawn : (Where">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nspawn : (() -> Unit">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map(\r\n">>)).
 
 %% report §11.2: after `:forget`, what completes is a name the session
@@ -1248,7 +1248,7 @@ input_module_unloaded() ->
         Count, [["1 + ", integer_to_list(I), "\n"] || I <- lists:seq(1, 50)], Count,
         "fn(x : Int) : Int = x + 1\n",
         "it(41)\n",
-        "let _ = spawn(Local, fn() : Unit with Never = {"
+        "let _ = spawn(fn() : Unit with Never = {"
         " let _ = receive { after 300 -> Unit }; Io.println(\"late\") })\n",
         "receive { after 600 -> Unit }\n"]),
     {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
@@ -1360,7 +1360,7 @@ expressions_again_leave_no_code_test_() ->
 expressions_again_leave_no_code() ->
     In = filename:join("/tmp", "ern_again_" ++ os:getpid() ++ ".in"),
     Code = "memory(Erl.atom(\"code\"))\n",
-    Spawn = "spawn(Local, fn() = Unit)\n",
+    Spawn = "spawn(fn() = Unit)\n",
     ok = file:write_file(In, ["foreign fn memory(k : Foreign.Term) : Int with m ="
                               " \"erlang:memory/1\"\n",
                               [[lists:duplicate(100, Spawn), Code] || _ <- lists:seq(1, 3)],
@@ -1387,7 +1387,7 @@ declarations_kept_while_reached() ->
                               "let a = A(7)\n",
                               "fn later() : Unit with Never = {"
                               " receive { after 400 -> Unit }; Io.println(\"old code ran\") }\n",
-                              "let _ = spawn(Local, later)\n",
+                              "let _ = spawn(later)\n",
                               "fn f(n : Int) : Int = n * 100\n",
                               "type T = C\n",
                               "fn later() : Unit with Never = Unit\n",
@@ -1491,8 +1491,8 @@ open_binding_test_() ->
 open_binding() ->
     In = filename:join("/tmp", "ern_open_" ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = file:write_file(In,
-                         "let p = spawn(Local, fn() = receive { _ -> Unit })\n"
-                         "let q : Address(Int) = spawn(Local, fn() = receive { _ -> Unit })\n"
+                         "let p = spawn(fn() = receive { _ -> Unit })\n"
+                         "let q : Address(Int) = spawn(fn() = receive { _ -> Unit })\n"
                          "send(q, 1)\n"
                          "kill(q)\n"
                          "1 + 1\n"),
@@ -1765,7 +1765,7 @@ reload_ends() ->
          "fn serve(n : Int) : Unit with Msg =\n",
          "    receive { Get(reply = r) -> { answer(r, n); serve(n) } }\n",
          "export let service : Address(Msg) =\n",
-         "    spawn(Local, fn() : Unit with Msg = serve(", integer_to_list(N), "))\n"]
+         "    spawn(fn() : Unit with Msg = serve(", integer_to_list(N), "))\n"]
     end,
     ok = file:write_file(filename:join(Dir, "counter.ern"), Counter(1)),
     In = filename:join(Dir, "session.in"),
@@ -1816,7 +1816,7 @@ fault_subscriber() ->
                               "let r = restarting(RestartLimit(restarts = 1, within = 60000),"
                               " fn() : Unit with Never = Io.println(Int.toString("
                               "1 / List.size([]))))\n",
-                              "{ let _ = spawnMonitored(Local, r, fn(d) = d);"
+                              "{ let _ = spawnMonitored(r, fn(d) = d);"
                               " receive { d -> d } }\n",
                               ":faults\n",
                               ":load Bad\n"]),
@@ -1875,7 +1875,7 @@ one_name_type() ->
                              ":type List.map([1], fn(x) = x)\n"),
     {0, Out} = sh("../bin/ern shell < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"Io.readLine : () -> Optional(String) with m\n">>)),
-    ?assertMatch({_, _}, binary:match(Out, <<"spawn : (Where, () -> Unit with n) -> Address(n)"
+    ?assertMatch({_, _}, binary:match(Out, <<"spawn : (() -> Unit with n) -> Address(n)"
                                              " with m\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"<function> : () -> Optional(String) with m\n">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"List.map([1], fn(x) = x) : List(Int)\n">>)).
@@ -1941,8 +1941,8 @@ session_names() ->
     In = filename:join("/tmp", "ern_names_" ++ integer_to_list(erlang:unique_integer([positive]))),
     Wait = "receive { n -> Io.println(Int.toString(n)) }",
     ok = file:write_file(In, ["fn main() : Int = 1\n", "main()\n",
-                              "fn start() : Address(Int) with m = spawn(Local, fn() = ", Wait,
-                              ")\n", "start()\n", "spawn(Local, fn() = ", Wait, ")\n",
+                              "fn start() : Address(Int) with m = spawn(fn() = ", Wait,
+                              ")\n", "start()\n", "spawn(fn() = ", Wait, ")\n",
                               ":processes\n"]),
     {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
     ?assertMatch({_, _}, binary:match(Out, <<"> 1 : Int\n">>)),
@@ -2008,7 +2008,7 @@ reload() ->
     ok = file:write_file(In, [":load Demo\n",
                               "Demo.answer()\n",
                               "let g = Demo.answer\n",
-                              "spawn(Local, fn() = Demo.tick())\n",
+                              "spawn(fn() = Demo.tick())\n",
                               write_demo(Dir, 2),
                               ":reload\n",
                               "Demo.answer()\n",
@@ -2104,7 +2104,7 @@ load_evaluates_bindings() ->
          "fn serve(n : Int) : Unit with Msg =\n",
          "    receive { Get(reply = r) -> { answer(r, n); serve(n) } }\n",
          "export let service : Address(Msg) =\n",
-         "    spawn(Local, fn() : Unit with Msg = serve(", integer_to_list(Start), "))\n",
+         "    spawn(fn() : Unit with Msg = serve(", integer_to_list(Start), "))\n",
          "export let base = ", integer_to_list(Start), " * 10\n"]
     end,
     Ask = "Address.callForever(Counter.service, fn(r) = Counter.Get(reply = r))\n",
@@ -2159,7 +2159,7 @@ load_loaded() ->
     Dir = scratch("ern_load_twice_"),
     ok = file:write_file(filename:join(Dir, "demo.ern"), demo(1)),
     In = filename:join(Dir, "session.in"),
-    ok = file:write_file(In, [":load Demo\n", "spawn(Local, fn() = Demo.tick())\n",
+    ok = file:write_file(In, [":load Demo\n", "spawn(fn() = Demo.tick())\n",
                               ":load Demo\n", ":load Demo\n", ":processes\n"]),
     {0, Out} = sh(alone("../bin/ern shell --source-root " ++ Dir) ++ " < " ++ In),
     ?assertEqual(2, count(Out, <<"Demo is loaded already; :reload compiles it again">>)),
@@ -2200,7 +2200,7 @@ failed_load_leaves_nothing_test_() ->
 failed_load_leaves_nothing() ->
     Dir = scratch("ern_failed_load_"),
     ok = file:write_file(filename:join(Dir, "bad.ern"),
-                         ["let worker : Address(Unit) = spawn(Local, fn() = loop())\n",
+                         ["let worker : Address(Unit) = spawn(fn() = loop())\n",
                           "fn loop() : Unit with Unit = receive { _ -> loop() }\n",
                           "export let late : Int = 1 / List.size([])\n"]),
     In = filename:join(Dir, "session.in"),

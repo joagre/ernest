@@ -892,7 +892,7 @@ run_tests(Ns, Loaded, Err) ->
 run_test({'Case', Name, Run}) ->
     Me = ern_rt:self(),
     Ref = make_ref(),
-    Pid = ern_rt:spawn_monitored('Local', fun() -> receive {Ref, go} -> Me ! {Ref, Run()} end end,
+    Pid = ern_rt:spawn_monitored(fun() -> receive {Ref, go} -> Me ! {Ref, Run()} end end,
                                  fun(Down) -> {Ref, down, Down} end, Name),
     ok = ern_rt:deadlock_target(Pid),
     %% the reporter hears of the test's fault before this process does,

@@ -13,8 +13,8 @@ type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
 type MainMsg = PongDone(Down)
 
 export fn main() : Unit with MainMsg = {
-    let pongAddr = spawnMonitored(Local, fn() = pong(), PongDone);
-    let _ = spawn(Local, fn() = ping(pongAddr, 3));
+    let pongAddr = spawnMonitored(fn() = pong(), PongDone);
+    let _ = spawn(fn() = ping(pongAddr, 3));
     receive {
         PongDone(_) -> Unit
     }

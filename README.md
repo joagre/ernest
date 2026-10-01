@@ -22,7 +22,7 @@ fn counter(n : Int) : Unit with CounterMsg =
     }
 
 export fn main() : Unit with Never = {
-    let c = spawn(Local, fn() = counter(0));
+    let c = spawn(fn() = counter(0));
     send(c, Inc(5));
     send(c, Inc(3));
     match Address.call(c, fn(r) = Get(reply = r), 1000) {
@@ -32,7 +32,7 @@ export fn main() : Unit with Never = {
 }
 ```
 
-`main` receives nothing, `with Never`, and spawns the counter on this node, `Local`. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers once with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
+`main` receives nothing, `with Never`, and spawns the counter on this node. `Address.call` gives `Get` a `Reply(Int)` of its own, which the counter answers once with `answer`, and waits for the answer at most 1000 milliseconds: `None` is an answer that did not come.
 
 It is young. The language and its toolchain are complete enough for programs on one node, and programs across nodes come in a later release; where the project stands is "Where we are" in the [plan](docs/implementation_plan.md).
 

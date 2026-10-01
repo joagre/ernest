@@ -67,7 +67,7 @@ stdin_stream_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            Me ! {got, [Line(), Bytes(), Line(), Line(), Line()]},
-                           Asker = ern_rt:spawn('Local', fun() -> Line() end, <<"asker">>),
+                           Asker = ern_rt:spawn(fun() -> Line() end, <<"asker">>),
                            ern_rt:monitor(Asker, fun(D) -> {down, D} end),
                            receive {down, D} -> Me ! {down, D} end,
                            Me ! {after_fault, [Line(), Line(), Bytes()]}
@@ -102,9 +102,9 @@ process_info_test() ->
     Me = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Quiet = ern_rt:spawn('Local', fun() -> receive stop -> ok end end, <<"M.quiet:1">>),
-               Server = ern_rt:spawn('Local', fun() -> receive never -> ok end end, <<"M.s:2">>),
-               Caller = ern_rt:spawn('Local', fun() ->
+               Quiet = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"M.quiet:1">>),
+               Server = ern_rt:spawn(fun() -> receive never -> ok end end, <<"M.s:2">>),
+               Caller = ern_rt:spawn(fun() ->
                                                   ern_rt:call_forever(Server, fun(R) -> R end)
                                               end, <<"M.caller:3">>),
                ern_rt:send(Quiet, first),
@@ -133,12 +133,12 @@ end_takes_late_spawns_test_() ->
 end_takes_late_spawns() ->
     Quiet = #{stdout => fun(_) -> ok end},
     Spawner = fun Spawn() ->
-                  _ = ern_rt:spawn('Local', fun() -> receive never -> ok end end, <<"w">>),
+                  _ = ern_rt:spawn(fun() -> receive never -> ok end end, <<"w">>),
                   Spawn()
               end,
     Run = fun() ->
               ok = ern_rt:run_main(fun() ->
-                                       [ern_rt:spawn('Local', Spawner, <<"s">>)
+                                       [ern_rt:spawn(Spawner, <<"s">>)
                                         || _ <- lists:seq(1, 8)],
                                        nap(20)
                                    end, <<"main">>, Quiet)
@@ -162,8 +162,8 @@ fault_reports_test() ->
                ern_rt:faults(ern_rt:via(ern_rt:self(), fun(R) -> {report, R} end)),
                Limit = {'RestartLimit', 1, 60000},
                Twice = ern_rt:restarting(Limit, fun() -> 1 div zero() end),
-               _ = ern_rt:spawn('Local', Twice, <<"M.twice:4">>),
-               Killed = ern_rt:spawn('Local', fun() -> receive never -> ok end end, <<"M.k:5">>),
+               _ = ern_rt:spawn(Twice, <<"M.twice:4">>),
+               Killed = ern_rt:spawn(fun() -> receive never -> ok end end, <<"M.k:5">>),
                ern_rt:kill(Killed),
                Reports = [receive {report, R} -> R end, receive {report, R2} -> R2 end],
                Me ! {reports, lists:sort([{Site, Cause, Restarted}
@@ -191,7 +191,7 @@ call_leaves_nothing_test() ->
     ok = ern_rt:run_main(
            fun() ->
                Main = ern_rt:self(),
-               Faulting = ern_rt:spawn('Local', fun() ->
+               Faulting = ern_rt:spawn(fun() ->
                                                    receive {ask, R} -> R ! {R, fault, <<"no">>} end,
                                                    receive never -> ok end
                                                end, <<"M.faulting:1">>),
@@ -211,7 +211,7 @@ call_leaves_nothing_test() ->
                                     ern_rt:send(Main, done)
                             end
                         end,
-               _ = ern_rt:spawn('Local', ern_rt:restarting({'RestartLimit', 2, 60000}, Worker),
+               _ = ern_rt:spawn(ern_rt:restarting({'RestartLimit', 2, 60000}, Worker),
                                 <<"M.worker:2">>),
                receive done -> ok end
            end, <<"M.main">>, #{stdout => fun(_) -> ok end, faults => fun(_) -> ok end}),
@@ -236,7 +236,7 @@ idle_check_is_cheap_test() ->
     Quiet = #{stdout => fun(_) -> ok end},
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
-                           [ern_rt:spawn('Local', fun() -> receive never -> ok end end, <<"w">>)
+                           [ern_rt:spawn(fun() -> receive never -> ok end end, <<"w">>)
                             || _ <- lists:seq(1, 2000)],
                            ern_rt:source_begin(),
                            Reaper = persistent_term:get({ern_rt, reaper}),
@@ -309,7 +309,7 @@ call_timeout_test() ->
     Me = self(),
     Result = ern_rt:run_main(
                fun() ->
-                   Silent = ern_rt:spawn('Local', fun() -> receive _ -> ok end end, <<"s">>),
+                   Silent = ern_rt:spawn(fun() -> receive _ -> ok end end, <<"s">>),
                    Me ! {result, ern_rt:call(Silent, fun(R) -> {ask, R} end, 20)}
                end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(ok, Result),
@@ -324,8 +324,7 @@ call_clock_starts_at_the_call_test() ->
     Me = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Callee = ern_rt:spawn('Local',
-                                     fun() ->
+               Callee = ern_rt:spawn(fun() ->
                                          receive {ask, R} -> nap(50), ern_rt:answer(R, done) end
                                      end, <<"callee">>),
                %% the adapting function runs in the caller, and takes 200 ms
@@ -345,7 +344,7 @@ deadlock_test() ->
                  ern_rt:run_main(fun() -> receive never -> ok end end, <<"main">>, Quiet)),
     ?assertEqual({fault, <<"deadlock">>},
                  ern_rt:run_main(fun() ->
-                                     _ = ern_rt:spawn('Local', fun() -> receive x -> ok end end,
+                                     _ = ern_rt:spawn(fun() -> receive x -> ok end end,
                                                       <<"s">>),
                                      receive y -> ok end
                                  end, <<"main">>, Quiet)),
@@ -417,8 +416,7 @@ call_long_time_test() ->
     Me = self(),
     Result = ern_rt:run_main(
                fun() ->
-                   Server = ern_rt:spawn('Local',
-                                         fun() ->
+                   Server = ern_rt:spawn(fun() ->
                                              receive {ask, R} -> ok end,
                                              ern_rt:timed(),
                                              receive after 50 -> ern_rt:untimed() end,
@@ -457,8 +455,7 @@ spawned_row_test() ->
     Me = self(),
     ok = ern_rt:run_main(
            fun() ->
-               [ern_rt:spawn('Local',
-                             fun() -> Me ! {row, ets:lookup(ern_processes, erlang:self())} end,
+               [ern_rt:spawn(fun() -> Me ! {row, ets:lookup(ern_processes, erlang:self())} end,
                              <<"s">>)
                 || _ <- lists:seq(1, 2000)]
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
@@ -484,16 +481,16 @@ monitor_test() ->
     Me = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Worker = ern_rt:spawn('Local', gated(fun() -> ok end), <<"Main.main:3">>),
+               Worker = ern_rt:spawn(gated(fun() -> ok end), <<"Main.main:3">>),
                ern_rt:monitor(Worker, fun(D) -> {down, D} end),
                Worker ! go,
                receive {down, D1} -> Me ! {d1, D1} end,
                Zero = zero(),
-               Faulty = ern_rt:spawn('Local', gated(fun() -> 1 div Zero end), <<"Main.main:5">>),
+               Faulty = ern_rt:spawn(gated(fun() -> 1 div Zero end), <<"Main.main:5">>),
                ern_rt:monitor(Faulty, fun(D) -> {down, D} end),
                Faulty ! go,
                receive {down, D2} -> Me ! {d2, D2} end,
-               Victim = ern_rt:spawn('Local', fun() -> receive never -> ok end end,
+               Victim = ern_rt:spawn(fun() -> receive never -> ok end end,
                                      <<"Main.main:7">>),
                ern_rt:monitor(Victim, fun(D) -> {down, D} end),
                ern_rt:kill(Victim),
@@ -516,7 +513,7 @@ ended_rows_test() ->
     ok = ern_rt:run_main(
            fun() ->
                Zero = zero(),
-               Pids = [ern_rt:spawn('Local', fun() -> 1 div Zero end, <<"Main.main:2">>)
+               Pids = [ern_rt:spawn(fun() -> 1 div Zero end, <<"Main.main:2">>)
                        || _ <- lists:seq(1, 50)],
                [ern_rt:monitor(P, fun(D) -> {ended, D} end) || P <- Pids],
                [receive {ended, _} -> ok end || _ <- Pids],
@@ -544,7 +541,7 @@ runtime_failure_test() ->
                  ern_rt:run_main(Bad, <<"main">>, #{stdout => fun(_) -> ok end})),
     ok = ern_rt:run_main(
            fun() ->
-               P = ern_rt:spawn('Local', gated(Bad), <<"Main.main:2">>),
+               P = ern_rt:spawn(gated(Bad), <<"Main.main:2">>),
                ern_rt:monitor(P, fun(D) -> {down, D} end),
                P ! go,
                receive {down, D} -> Me ! {down, D} end
@@ -561,14 +558,13 @@ faulting_wrap_test() ->
            fun() ->
                Zero = zero(),
                Watcher = ern_rt:spawn_monitored(
-                           'Local',
                            fun() ->
-                               _ = ern_rt:spawn_monitored('Local', fun() -> ok end,
+                               _ = ern_rt:spawn_monitored(fun() -> ok end,
                                                           fun(_) -> 1 div Zero end, <<"w">>),
                                receive never -> ok end
                            end, fun(D) -> {watcher, D} end, <<"Main.main:3">>),
                receive {watcher, D1} -> Me ! {d1, D1} end,
-               _ = ern_rt:spawn_monitored('Local', fun() -> ok end, fun(D) -> {later, D} end,
+               _ = ern_rt:spawn_monitored(fun() -> ok end, fun(D) -> {later, D} end,
                                           <<"Main.main:5">>),
                receive {later, D2} -> Me ! {d2, D2} end,
                Watcher
@@ -600,7 +596,7 @@ unloaded_code_test() ->
     Me = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Old = ern_rt:spawn('Local', fun() -> receive never -> ok end end,
+               Old = ern_rt:spawn(fun() -> receive never -> ok end end,
                                   <<"Main.main:3">>),
                ern_rt:monitor(Old, fun(D) -> {down, D} end),
                exit(Old, {ern, code_unloaded}),
@@ -645,16 +641,16 @@ host_exit_reason_test() ->
     ok = ern_rt:run_main(
            fun() ->
                Zero = zero(),
-               Good = ern_rt:spawn('Local', fun() -> receive go -> ok end end, <<"Main.main:3">>),
+               Good = ern_rt:spawn(fun() -> receive go -> ok end end, <<"Main.main:3">>),
                erlang:monitor(process, Good),
                Good ! go,
                receive {'DOWN', _, process, Good, R1} -> Me ! {r1, R1} end,
-               Bad = ern_rt:spawn('Local', fun() -> receive go -> 1 div Zero end end,
+               Bad = ern_rt:spawn(fun() -> receive go -> 1 div Zero end end,
                                   <<"Main.main:5">>),
                erlang:monitor(process, Bad),
                Bad ! go,
                receive {'DOWN', _, process, Bad, R2} -> Me ! {r2, R2} end,
-               Victim = ern_rt:spawn('Local', fun() -> receive never -> ok end end,
+               Victim = ern_rt:spawn(fun() -> receive never -> ok end end,
                                      <<"Main.main:7">>),
                erlang:monitor(process, Victim),
                ern_rt:kill(Victim),
@@ -667,7 +663,7 @@ host_exit_reason_test() ->
     spawn(fun() ->
               ern_rt:run_main(
                 fun() ->
-                    Me ! {waiter, ern_rt:spawn('Local', fun() -> receive never -> ok end end,
+                    Me ! {waiter, ern_rt:spawn(fun() -> receive never -> ok end end,
                                                <<"Main.main:9">>)},
                     receive after 200 -> ok end
                 end, <<"main">>, #{stdout => fun(_) -> ok end})
@@ -767,7 +763,7 @@ via_fault_test() ->
     ok = ern_rt:run_main(
            fun() ->
                Zero = zero(),
-               Victim = ern_rt:spawn('Local', fun() -> receive never -> ok end end,
+               Victim = ern_rt:spawn(fun() -> receive never -> ok end end,
                                      <<"Main.main:3">>),
                ern_rt:monitor(Victim, fun(D) -> {down, D} end),
                ern_rt:send(ern_rt:via(Victim, fun(_) -> 1 div Zero end), 1),
@@ -825,7 +821,7 @@ ask_restart_test() ->
     Me = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Plain = ern_rt:spawn('Local', fun() -> receive never -> ok end end, <<"M.p:1">>),
+               Plain = ern_rt:spawn(fun() -> receive never -> ok end end, <<"M.p:1">>),
                Once = ern_rt:restarting({'RestartLimit', 0, 5000},
                                         fun() ->
                                             Me ! {started, ern_rt:start_cause()},
@@ -835,7 +831,7 @@ ask_restart_test() ->
                                                 never -> ok
                                             end
                                         end),
-               Child = ern_rt:spawn('Local', Once, <<"M.c:2">>),
+               Child = ern_rt:spawn(Once, <<"M.c:2">>),
                nap(),
                Me ! {asked, [ern_rt:ask_restart(ern_rt:process_of(Plain)),
                              ern_rt:ask_restart(ern_rt:process_of(Child)),
@@ -878,7 +874,7 @@ restart_outlives_a_dead_service_test() ->
                                                  _ -> ok
                                              end
                                          end),
-               Child = ern_rt:spawn('Local', Twice, <<"M.c:1">>),
+               Child = ern_rt:spawn(Twice, <<"M.c:1">>),
                ern_rt:monitor(Child, fun(D) -> {down, D} end),
                receive {down, _} -> ok end
            end, <<"main">>, #{stderr => fun(_) -> ok end}),
