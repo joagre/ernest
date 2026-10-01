@@ -41,7 +41,7 @@ export fn main() : Unit with Msg = {
 }
 
 // The round trips stop at the first write or read that fails.
-fn roundTrips(socket : Address(Tcp.SockMsg), left : Int) : Either(Io.Error, Unit) with m =
+fn roundTrips(socket : Address(Tcp.SocketMsg), left : Int) : Either(Io.Error, Unit) with m =
     if left <= 0 then
         Right(Unit)
     else {
@@ -59,7 +59,7 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
 // A socket lives until it is closed, so the server closes the one whose
 // connection has ended, which a read or a write tells it (report Appendix
 // E.18).
-fn echo(socket : Address(Tcp.SockMsg)) : Unit with Never =
+fn echo(socket : Address(Tcp.SocketMsg)) : Unit with Never =
     match Tcp.read(socket, 5000) {
         Right(bytes) -> match Tcp.write(socket, bytes) {
             Right(_) -> echo(socket)

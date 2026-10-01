@@ -3229,7 +3229,7 @@ os_write_waits_test() ->
 %% and a write to a socket that has been closed faults
 tcp_write_waits_test() ->
     {ok, Out} = paced(
-        "fn drain(s : Address(Tcp.SockMsg), n : Int) : Int with Msg =\n"
+        "fn drain(s : Address(Tcp.SocketMsg), n : Int) : Int with Msg =\n"
         "    if n >= 4194304 then n\n"
         "    else match Tcp.read(s, 5000) {\n"
         "        Right(b) -> drain(s, n + Bytes.size(b))\n"
@@ -3318,7 +3318,7 @@ foreign_type_variables_unchecked_test() ->
 %% (findings.md's C1-2)
 socket_owner_test() ->
     {ok, Out} = run(
-        "type Msg = Opened(Address(Tcp.SockMsg)) | Ended(Down)\n"
+        "type Msg = Opened(Address(Tcp.SocketMsg)) | Ended(Down)\n"
         "fn opener(port : Int, to : Address(Msg)) : Unit with Never =\n"
         "    match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
         "        Right(s) -> send(to, Opened(s))\n"
@@ -3333,8 +3333,8 @@ socket_owner_test() ->
         "        }\n"
         "      | Left(_) -> Unit\n"
         "    }\n"
-        "fn opened() : Address(Tcp.SockMsg) with Msg = receive { Opened(s) -> s }\n"
-        "fn ends(s : Address(Tcp.SockMsg), ms : Int) : String with Msg = {\n"
+        "fn opened() : Address(Tcp.SocketMsg) with Msg = receive { Opened(s) -> s }\n"
+        "fn ends(s : Address(Tcp.SocketMsg), ms : Int) : String with Msg = {\n"
         "    monitor(s, Ended);\n"
         "    receive { Ended(_) -> \"ended\" | after ms -> \"alive\" }\n"
         "}\n"

@@ -34,7 +34,7 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never = {
     serve(listener)
 }
 
-fn echo(peer : Address(Tcp.SockMsg)) : Unit with Never = {
+fn echo(peer : Address(Tcp.SocketMsg)) : Unit with Never = {
     let _ = match Tcp.read(peer, 1000) {
         Right(bytes) -> Tcp.write(peer, bytes)
       | Left(e) -> Left(e)

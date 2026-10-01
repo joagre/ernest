@@ -437,7 +437,7 @@ package story. Written: `libs/ets` and `libs/markdown` (Appendix G; `libs/markdo
   printer.
 - **`libs/base64`**, a shim over `base64`.
 - **`libs/tls`**, a shim over `ssl` and `public_key`: `listen`, `accept`, `connect`. Whether
-  it answers `Tcp`'s `Address(SockMsg)`, its foreign process then speaking an encoding private
+  it answers `Tcp`'s `Address(SocketMsg)`, its foreign process then speaking an encoding private
   to `Tcp` (E.18), or a socket type of its own with its own `read`, `write` and `close`, is
   decided when it is written. Certificate verification is the caller's to ask for.
 - **`libs/http`**, Ernest over `Tcp` and `Tls`: request and response types, their parsing and

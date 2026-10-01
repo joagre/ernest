@@ -2105,14 +2105,14 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
     }
 
 // The session waits on its mailbox, and its reader on the socket.
-fn session(socket : Address(Tcp.SockMsg)) : Unit with Session = {
+fn session(socket : Address(Tcp.SocketMsg)) : Unit with Session = {
     let me = self();
     let _ = spawn(Local, fn() = reader(socket, me));
     Clock.alarm(10000, Tick);
     talk(socket, <<>>)
 }
 
-fn reader(socket : Address(Tcp.SockMsg), session : Address(Session)) : Unit with Never =
+fn reader(socket : Address(Tcp.SocketMsg), session : Address(Session)) : Unit with Never =
     match Tcp.read(socket, 60000) {
         Right(bytes) -> {
             send(session, Arrived(bytes));
@@ -2122,7 +2122,7 @@ fn reader(socket : Address(Tcp.SockMsg), session : Address(Session)) : Unit with
       | Left(_) -> send(session, Gone)
     }
 
-fn talk(socket : Address(Tcp.SockMsg), rest : Bytes) : Unit with Session =
+fn talk(socket : Address(Tcp.SocketMsg), rest : Bytes) : Unit with Session =
     receive {
         Arrived(bytes) -> {
             let parts = Bytes.split(rest <> bytes, <<10>>);

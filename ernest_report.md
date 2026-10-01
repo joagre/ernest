@@ -1649,19 +1649,19 @@ Over TCP's system reference (§8.2). A socket is a process: its address can be s
 
 ```
 abstract type ListenerMsg // what a listener takes
-abstract type SockMsg // what a socket takes
+abstract type SocketMsg // what a socket takes
 type Endpoint = Endpoint(host : String, port : Int)
 Tcp.listen : (String, Int) -> Either(Io.Error, Address(ListenerMsg)) with m // host, port: the interface the host's name or address names, `"127.0.0.1"` the loopback alone and `"0.0.0.0"` or `"::"` every one; port 0 asks the system for a free one
 Tcp.port : (Address(ListenerMsg)) -> Either(Io.Error, Int) with m // the port it listens on
-Tcp.accept : (Address(ListenerMsg), Int) -> Either(Io.Error, Address(SockMsg)) with m
-Tcp.connect : (String, Int, Int) -> Either(Io.Error, Address(SockMsg)) with m // host, port
-Tcp.read : (Address(SockMsg), Int) -> Either(Io.Error, Bytes) with m // what has arrived, at least one byte
-Tcp.write : (Address(SockMsg), Bytes) -> Either(Io.Error, Unit) with m
-Tcp.close : (Address(SockMsg)) -> Unit with m
-Tcp.give : (Address(SockMsg), Process) -> Unit with m // makes the process the socket's owner
+Tcp.accept : (Address(ListenerMsg), Int) -> Either(Io.Error, Address(SocketMsg)) with m
+Tcp.connect : (String, Int, Int) -> Either(Io.Error, Address(SocketMsg)) with m // host, port
+Tcp.read : (Address(SocketMsg), Int) -> Either(Io.Error, Bytes) with m // what has arrived, at least one byte
+Tcp.write : (Address(SocketMsg), Bytes) -> Either(Io.Error, Unit) with m
+Tcp.close : (Address(SocketMsg)) -> Unit with m
+Tcp.give : (Address(SocketMsg), Process) -> Unit with m // makes the process the socket's owner
 Tcp.closeListener : (Address(ListenerMsg)) -> Unit with m // stops listening
-Tcp.remote : (Address(SockMsg)) -> Either(Io.Error, Endpoint) with m // the connection's far end
-Tcp.local : (Address(SockMsg)) -> Either(Io.Error, Endpoint) with m // the connection's near end
+Tcp.remote : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) with m // the connection's far end
+Tcp.local : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) with m // the connection's near end
 ```
 
 ### Appendix E.19. `erl.ern` (namespace `Erl`)

@@ -87,7 +87,7 @@ fn acceptor(sessions : Address(SessionMsg),
     }
 
 // One process per connection: reads a request, writes a response, closes.
-fn handler(sessions : Address(SessionMsg), seq : Int, sock : Address(Tcp.SockMsg)) : Unit with m =
+fn handler(sessions : Address(SessionMsg), seq : Int, sock : Address(Tcp.SocketMsg)) : Unit with m =
     match Tcp.read(sock, 5000) {
         Right(bytes) -> match parse(bytes) {
             Left(_) -> {
