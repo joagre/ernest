@@ -1342,7 +1342,7 @@ List.find : (List(a), (a) -> Bool with e) -> Optional(a) with e // the first tha
 List.last : (List(a)) -> Optional(a)
 List.take : (List(a), Int) -> List(a) // the first n, or all when there are fewer; n below 0 is 0
 List.drop : (List(a), Int) -> List(a) // all but the first n; n below 0 is 0
-List.dropLast : (List(a)) -> List(a) // the empty list stays empty
+List.dropLast : (List(a), Int) -> List(a) // all but the last n; n below 0 is 0
 List.span : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e // the longest prefix that satisfies, and the rest
 List.partition : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e // those that satisfy and those that do not, each in order
 List.unique : (List(a)) -> List(a) // the first occurrence of each, in order

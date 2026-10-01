@@ -422,7 +422,7 @@ fn styled(style : String, s : String) : String =
 fn split(text : String) : #(List(String), String) =
     match String.split(text, "\n") {
         [] -> #([], "")
-      | parts -> #(List.dropLast(parts), Optional.withDefault(List.last(parts), ""))
+      | parts -> #(List.dropLast(parts, 1), Optional.withDefault(List.last(parts), ""))
     }
 
 //

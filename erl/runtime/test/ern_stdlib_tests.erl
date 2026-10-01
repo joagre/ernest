@@ -21,8 +21,13 @@ list_test() ->
     ?assertEqual([3], L:drop([1, 2, 3], 2)),
     ?assertEqual([], L:drop([1, 2, 3], 5)),
     ?assertEqual([1, 2, 3], L:drop([1, 2, 3], -1)),
-    ?assertEqual([1, 2], L:dropLast([1, 2, 3])),
-    ?assertEqual([], L:dropLast([])),
+    ?assertEqual([1, 2], L:dropLast([1, 2, 3], 1)),
+    ?assertEqual([], L:dropLast([], 1)),
+    %% report Appendix E.2: a count, as drop takes one, a regression test of the
+    %% rule of 2026-10-01; one past the length leaves none, one below 0 all
+    ?assertEqual([1], L:dropLast([1, 2, 3], 2)),
+    ?assertEqual([], L:dropLast([1, 2], 5)),
+    ?assertEqual([1, 2], L:dropLast([1, 2], -1)),
     ?assertEqual(true, L:contains([1, 2], 2)),
     ?assertEqual({'Some', 2}, L:find([1, 2, 3], fun(X) -> X > 1 end)),
     ?assertEqual('None', L:find([1], fun(X) -> X > 1 end)),

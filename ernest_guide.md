@@ -2098,7 +2098,7 @@ fn talk(socket : Address(Tcp.SocketMsg), rest : Bytes) : Unit with Session =
     receive {
         Arrived(bytes) -> {
             let parts = Bytes.split(rest <> bytes, <<10>>);
-            List.foreach(List.dropLast(parts), fn(line) = {
+            List.foreach(List.dropLast(parts, 1), fn(line) = {
                 let _ = Tcp.write(socket, line <> <<10>>);
                 Unit
             });

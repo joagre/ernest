@@ -157,7 +157,7 @@ fn argumentNames(kind : Shell.Command.Completes, typed : String) : List(Name) wi
 // name, so that a large root is never walked whole. A directory is a
 // namespace and a `.ern` file a module, each named by §11.1's path shape.
 fn sourceModules(typed : String) : List(Name) with m = {
-    let finished = List.dropLast(String.split(typed, "."));
+    let finished = List.dropLast(String.split(typed, "."), 1);
     let dir =
         List.foldLeft(finished,
                       Path(sourceRoot()),
@@ -370,7 +370,7 @@ fn namespaced(loose : List(Name), typed : String) : String = {
     let spaces =
         List.unique(List.map(loose,
                              fn(name) =
-                                 String.join(List.dropLast(String.split(name.text, ".")), ".")));
+                                 String.join(List.dropLast(String.split(name.text, "."), 1), ".")));
     match #(spaces, List.last(String.split(typed, "."))) {
         #([space], Some(last)) -> if String.isEmpty(space) then "" else space <> "." <> last
       | _ -> ""

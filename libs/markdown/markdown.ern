@@ -620,7 +620,7 @@ fn spanText(chars : List(Char)) : String =
     match chars {
         ' ' :: rest when rest != []
             && List.last(rest) == Some(' ')
-            && List.any(rest, fn(c) = c != ' ') -> String.fromList(List.dropLast(rest))
+            && List.any(rest, fn(c) = c != ' ') -> String.fromList(List.dropLast(rest, 1))
       | _ -> String.fromList(chars)
     }
 

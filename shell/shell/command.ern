@@ -150,7 +150,7 @@ fn words(ws : List(String)) : String =
       | Some(last) -> if List.size(ws) == 1 then
             last
         else
-            String.join(List.dropLast(ws), ", ") <> " or " <> last
+            String.join(List.dropLast(ws, 1), ", ") <> " or " <> last
     }
 
 // A command line: its first word, the command with its `:`, and what

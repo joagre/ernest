@@ -284,7 +284,7 @@ export fn lines(s : String) : List(String) =
     else {
         let parts = List.flatMap(split(s, "\r\n"), fn(part) = split(part, "\n"));
         match List.last(parts) {
-            Some("") -> List.dropLast(parts)
+            Some("") -> List.dropLast(parts, 1)
           | _ -> parts
         }
     }

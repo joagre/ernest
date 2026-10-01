@@ -85,7 +85,7 @@ foreign fn separator() : String =
 /// // => #(Some(Path("a")), Some(Path(".")), None)
 /// ```
 export fn parent(p : Path) : Optional(Path) =
-    match List.dropLast(split(p)) {
+    match List.dropLast(split(p), 1) {
         [] -> None
       | first :: rest -> Some(List.foldLeft(rest, Path(first), fn(up, s) = join(up, Path(s))))
     }

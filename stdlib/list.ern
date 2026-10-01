@@ -260,20 +260,16 @@ export fn drop(xs : List(a), n : Int) : List(a) =
       | _ :: rest -> drop(rest, n - 1)
     }
 
-/// All but the last element; the empty list stays empty.
+/// All but the last `n` elements; `n` below 0 drops none.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// List.dropLast([1, 2, 3])
-/// // => [1, 2]
+/// #(List.dropLast([1, 2, 3], 1), List.dropLast([1, 2, 3], 5))
+/// // => #([1, 2], [])
 /// ```
-export fn dropLast(xs : List(a)) : List(a) =
-    match xs {
-        [] -> []
-      | [_] -> []
-      | y :: rest -> y :: dropLast(rest)
-    }
+export fn dropLast(xs : List(a), n : Int) : List(a) =
+    if n <= 0 then xs else take(xs, size(xs) - n)
 
 /// The longest prefix the predicate holds for, and the rest.
 ///
