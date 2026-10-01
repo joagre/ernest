@@ -316,7 +316,11 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     `Io.NotUtf8` carrying the whole history file kept, as E.1 defines it. Entry 88: one budget
     over several waits computed by the composing function, shape rule 8 bounding each request.
     The first of 0.2.0's four rules: §2.6's one prefix operator, `-(-x)`, kept as Appendix A has
-    it.
+    it. The second: polymorphic recursion stays refused, and §3.9 gains that within a recursive
+    group the group's types are named in their fields only at type variables that are
+    parameters of the type declared, so that `Deeper(Nest(List(a)))`, which no function could
+    walk, is refused at its declaration; the type checker's tests of such a type change with
+    it; about half a day.
 
 ---
 
