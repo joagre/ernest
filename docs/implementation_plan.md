@@ -311,7 +311,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     loops go; about half a day with E.24 and §11.2. Entry 84: E.1's type known whole kept, the
     annotation an example writes being the stated price of the rule. Entry 85:
     `Char.isAsciiDigit : (Char) -> Bool` restored in E.6 by E.0 rule 3, the digits
-    `String.toInt` reads, and the eight hand-written copies use it; about an hour.
+    `String.toInt` reads, and the eight hand-written copies use it; about an hour. Entry 86:
+    `Test.` written on every test kept, with no import and `Test` out of the prelude.
 
 ---
 
