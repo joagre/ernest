@@ -317,7 +317,12 @@ following. Among the rules that buy little (2026-10-01, the log's *The Rules Tha
 a tuple has two components or more, in Appendix A's `Tuple`, `TupleType` and the tuple pattern,
 §3.2 and the parser, which admit one today; and `Fs.setMode(path, mode, ms)`, the mode the
 host's bits, replaces `Fs.makePrivate` in E.17, `fs.ern` and the shell's history, which writes
-its directory's mode itself.
+its directory's mode itself. Among the rules that exist for another (2026-10-01, the log's *The
+Rules That Exist for Another*): `spawn(f)` and `spawnMonitored(f, wrap)` lose their placement,
+`Where` leaves §6.2 and §9.3, and §6.7 and §8.3 name a peer's spawn `Peer.spawn(name, f)`, a
+function of the module MVP 3.0 builds; the 102 spawns of the guide, the examples, the library
+and the shell are renamed by a script and read as a diff, with the runtime, the checker's
+prelude table and the tests.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is

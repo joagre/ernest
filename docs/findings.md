@@ -52,7 +52,7 @@ Found on the way. The review judges rules, and a defect is fixed when found (CLA
 
 ## Rules that exist only for another
 
-- round 2 — For peers, unbuilt: P1-50 to P1-60, eleven places outside §3.11, §8.3 and §8.7 that exist for them, `Local` in every spawn (P1-52) and the canonical field order (P1-50) among them. For something else: P1-61 to P1-72 and P2-76 to P2-93, the terminal's text builders for the shell (P2-81), `Process.info`, `live` and `faults` for the shell and `ern run` (P2-82), and `Fs.makePrivate` for the shell (P2-83) among them.
+- decided 2026-10-01 (the log's *The Rules That Exist for Another*) — For peers: `Local` leaves every spawn, `spawn(f)` and `spawnMonitored(f, wrap)`, `Where` leaving §6.2 and §9.3 and a peer's spawn being `Peer.spawn(name, f)` of MVP 3.0, with its renames in the edits (P1-52); the other peer sentences `kept`, unread, MVP 3.0's to build or cut (P1-50, P1-51, P1-53 to P1-60). For something else: `kept` by the rule that admits each, or decided by its family (P1-61 to P1-72, P2-76 to P2-93).
 
 ## Where the guide works hard
 
