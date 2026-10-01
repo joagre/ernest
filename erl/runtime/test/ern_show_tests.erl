@@ -24,7 +24,8 @@ by_type_test() ->
     ?assertEqual(<<"#(1, true)">>, ern_show:show({tuple, [int, bool]}, {1, true})),
     Snap = {con, [{'Snap', [string, int], [dir, seen]}]},
     ?assertEqual(<<"Snap(dir = \"x\", seen = 2)">>, ern_show:show(Snap, {'Snap', <<"x">>, 2})),
-    ?assertEqual(<<"<abstract>">>, ern_show:show({abstract, {con, []}}, {'Stack', []})).
+    ?assertEqual(<<"<abstract>">>, ern_show:show({abstract, {con, []}}, {'Stack', []})),
+    ?assertEqual(<<"<foreign>">>, ern_show:show(foreign, 1)).
 
 %% report Appendix E.1, E.21: a process by its number, and an address by
 %% the number of the process behind it, through every via

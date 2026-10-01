@@ -6,8 +6,8 @@
 /// ## Examples
 ///
 /// ```ernest
-/// Erl.atom("ready")
-/// // => ready
+/// #(Erl.atom("ready") == Erl.atom("ready"), Foreign.toBool(Erl.atom("true")))
+/// // => #(true, Some(true))
 /// ```
 ///
 /// since 0.1.0

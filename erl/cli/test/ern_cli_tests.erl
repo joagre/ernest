@@ -556,6 +556,22 @@ abstract_shown_outside_its_module_test() ->
                                     "Io.show writes a value by its type, which is not known"
                                     " whole here: a!")).
 
+%% report Appendix E.1, §3.8: a value of a foreign type is shown as
+%% `<foreign>`, `Foreign.Term` and a type a module declares alike, inside
+%% another value too. A regression test: it was shown by its representation
+%% after the rule of 2026-10-01 had said otherwise
+foreign_shown_as_foreign_test() ->
+    Dir = tmp(),
+    write(Dir, "src/main.ern",
+          "foreign type Handle\n\n"
+          "foreign fn handle() : Handle = \"erlang:self/0\"\n\n"
+          "export fn main() : Unit with Never =\n"
+          "    Io.println(Io.show(#(Foreign.from(1), [Erl.atom(\"a\")], handle())))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assertEqual(0, ern_cli:ern(["run", Dir ++ "/build/main.erc"])),
+    ?assertEqual(<<"#(<foreign>, [<foreign>], <foreign>)\n">>,
+                 iolist_to_binary(?capturedOutput)).
+
 %% report §4.2: `T.name` is the module's own member where its type `T`
 %% declares one of that name, and the module T's `name` otherwise. A
 %% regression test: the build left module T out wherever the module

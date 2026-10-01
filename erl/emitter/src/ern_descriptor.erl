@@ -70,7 +70,9 @@ desc({tcon, Q, Args} = T, Seen, #cx{env = Env} = Cx) ->
         _ ->
             case ern_typecheck:lookup_type(Q, Env) of
                 #tinfo{foreign = true} ->
-                    {any, Seen};
+                    %% report §8.4, Appendix E.1: unchecked, as a type
+                    %% variable is, and shown as `<foreign>`
+                    {foreign, Seen};
                 #tinfo{constructors = Cs, abstract = Abstract} ->
                     Id = map_size(Seen) + 1,
                     {ConDs, _} =

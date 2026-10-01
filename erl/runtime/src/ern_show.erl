@@ -43,6 +43,8 @@ parts(Xs, L, F) ->
     [F(X) || X <- Kept] ++ ["..." || Cut].
 
 by_type(any, V, _, L) -> represented(V, L);
+%% report Appendix E.1: a foreign type's value is the host's own term
+by_type(foreign, _, _, _) -> "<foreign>";
 by_type(int, V, _, _) -> integer_to_list(V);
 by_type(float, V, _, _) -> float_text(V);
 by_type(bool, V, _, _) -> atom_to_list(V);

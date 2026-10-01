@@ -184,6 +184,7 @@ zero({ref, Id}, V, B) -> zero(maps:get(Id, B), V, B);
 zero(_, V, _) -> V.
 
 chk(any, _, _) -> true;
+chk(foreign, _, _) -> true;
 chk(int, V, _) -> is_integer(V);
 chk(float, V, _) -> is_float(V);
 chk(bool, V, _) -> is_boolean(V);
@@ -245,7 +246,7 @@ all([D | Ds], [V | Vs], B) -> chk(D, V, B) andalso all(Ds, Vs, B).
 %% a List is a list); an improper one does not match. A list of values a
 %% parameter's type variable names is only walked.
 every(_, [], _) -> true;
-every(any, [_ | Xs], B) -> every(any, Xs, B);
+every(D, [_ | Xs], B) when D =:= any; D =:= foreign -> every(D, Xs, B);
 every(D, [X | Xs], B) -> chk(D, X, B) andalso every(D, Xs, B);
 every(_, _, _) -> false.
 

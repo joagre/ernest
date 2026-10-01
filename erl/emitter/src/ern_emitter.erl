@@ -730,7 +730,7 @@ reply_call(F, Args, T, Cx) ->
     {tfn, [_, {tfn, [ReplyT], _, _} | _], _, _} = resolved(T, Cx),
     {tcon, ['Reply'], [A]} = resolved(ReplyT, Cx),
     {Check, Cx1} = case descriptor(A, Cx) of
-                       any ->
+                       Unchecked when Unchecked =:= any; Unchecked =:= foreign ->
                            {erl_syntax:atom(none), Cx};
                        Desc ->
                            {DescForm, C} = desc_ref(Desc, Cx),
@@ -923,7 +923,7 @@ resolved(T, #cx{env = Env}) ->
 check_form(T, Named, Form, Prefix, Cx) ->
     Text = check_text(Prefix, Named, Cx),
     case descriptor(T, Cx) of
-        any ->
+        Unchecked when Unchecked =:= any; Unchecked =:= foreign ->
             {Form, Cx};
         Word when Word =:= int; Word =:= bool; Word =:= bytes; Word =:= float ->
             {[V], Cx1} = fresh_vars(1, "V", Cx),
