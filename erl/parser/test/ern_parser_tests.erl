@@ -181,7 +181,12 @@ constructors_test() ->
 %% report §3.2, §3.3
 tuples_lists_test() ->
     ?assertMatch(#e_tuple{elems = [#e_lit{}, #e_lit{}]}, e("#(1, 2)")),
-    ?assertMatch(#e_tuple{elems = [#e_lit{}]}, e("#(1)")),
+    %% a tuple has two components or more, as a value, a type and a pattern
+    %% (findings.md's P1-38)
+    ?assertEqual("a tuple has two components or more", err_expr("#(1)")),
+    ?assertEqual("a tuple has two components or more", err("fn f(x : #(Int)) : Int = 1")),
+    ?assertEqual("a tuple has two components or more",
+                 err("fn f(x : Int) : Int = match x { #(y) -> y }")),
     ?assertMatch(#e_list{elems = []}, e("[]")),
     ?assertMatch(#e_list{elems = [#e_lit{}, #e_lit{}, #e_lit{}]}, e("[1, 2, 3]")).
 

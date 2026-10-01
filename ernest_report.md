@@ -161,7 +161,7 @@ Type      = TypeAtom | FnType | ParenType .
 TypeAtom  = { typename "." } typename [ "(" Type { "," Type } ")" ]
           | typevar
           | TupleType .
-TupleType = "#(" Type { "," Type } ")" .
+TupleType = "#(" Type "," Type { "," Type } ")" .
 FnType    = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 ParenType = "(" Type ")" .
 ```
@@ -189,7 +189,7 @@ A Unicode scalar value is a code point other than a surrogate, U+0000 through U+
 
 ### 3.2 Tuples
 
-`#(A, B)` is the type of a tuple and `#(a, b)` its value; tuples of one, two, or more components are all written this way. The tuple is the only positional product type.
+`#(A, B)` is the type of a tuple and `#(a, b)` its value; a tuple has two components or more, all written this way. The tuple is the only positional product type.
 
 ### 3.3 Lists
 
@@ -382,7 +382,7 @@ QName     = { typename "." } ( ident | conname [ "(" ( Expr | Fields ) ")" ] )
           | typename "." { typename "." } userop .
 Fields    = ".." Expr "," FieldSet { "," FieldSet } | FieldSet { "," FieldSet } .
 FieldSet  = ident "=" Expr .
-Tuple     = "#(" Expr { "," Expr } ")" .
+Tuple     = "#(" Expr "," Expr { "," Expr } ")" .
 ListLit   = "[" [ Expr { "," Expr } ] "]" .
 BitExpr   = "<<" [ BitSegE { "," BitSegE } ] ">>" .
 BitSegE   = Expr [ ":" BitSpec { "-" BitSpec } ] .
@@ -392,7 +392,7 @@ Pattern   = ConsPat [ "as" ident ] .
 ConsPat   = AtomPat [ "::" ConsPat ] .
 AtomPat   = "_" | ident | literal | "-" ( int | float )
           | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
-          | "#(" Pattern { "," Pattern } ")"
+          | "#(" Pattern "," Pattern { "," Pattern } ")"
           | "[" [ Pattern { "," Pattern } ] "]"
           | BitPat .
 BitPat    = "<<" [ BitSegP { "," BitSegP } ] ">>" .
@@ -1021,7 +1021,7 @@ DeclName    = ident | typename "." ( ident | userop ) .
 Type        = TypeAtom | FnType | ParenType .
 TypeAtom    = { typename "." } typename [ "(" Type { "," Type } ")" ] | typevar
             | TupleType .
-TupleType   = "#(" Type { "," Type } ")" .
+TupleType   = "#(" Type "," Type { "," Type } ")" .
 FnType      = "(" [ Type { "," Type } ] ")" "->" Type [ "with" Type ] .
 ParenType   = "(" Type ")" .
 
@@ -1042,7 +1042,7 @@ QName       = { typename "." } ( ident | conname [ "(" ( Expr | Fields ) ")" ] )
             | typename "." { typename "." } userop .
 Fields      = ".." Expr "," FieldSet { "," FieldSet } | FieldSet { "," FieldSet } .
 FieldSet    = ident "=" Expr .
-Tuple       = "#(" Expr { "," Expr } ")" .
+Tuple       = "#(" Expr "," Expr { "," Expr } ")" .
 ListLit     = "[" [ Expr { "," Expr } ] "]" .
 BitExpr     = "<<" [ BitSegE { "," BitSegE } ] ">>" .
 BitSegE     = Expr [ ":" BitSpec { "-" BitSpec } ] .
@@ -1053,7 +1053,7 @@ Pattern     = ConsPat [ "as" ident ] .
 ConsPat     = AtomPat [ "::" ConsPat ] .
 AtomPat     = "_" | ident | literal | "-" ( int | float )
             | { typename "." } conname [ "(" ( Pattern | FieldPats ) ")" ]
-            | "#(" Pattern { "," Pattern } ")"
+            | "#(" Pattern "," Pattern { "," Pattern } ")"
             | "[" [ Pattern { "," Pattern } ] "]"
             | BitPat .
 BitPat      = "<<" [ BitSegP { "," BitSegP } ] ">>" .

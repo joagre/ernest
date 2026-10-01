@@ -405,7 +405,7 @@ type([{'(', Pos} | R]) ->
             end
     end;
 type([{'#(', Pos} | R]) ->
-    {Elems, R1} = sep_by(R, ',', fun type/1),
+    {Elems, R1} = components(Pos, sep_by(R, ',', fun type/1)),
     w({#t_tuple{pos = Pos, elems = Elems}, expect(R1, ')')});
 type([{typename, Pos, _} | _] = Ts) ->
     case qualified(Ts) of
@@ -663,7 +663,7 @@ primary([{typename, Pos, _} | _] = Ts) ->
         {{con, Path, Name}, R} -> constructor_expr(Pos, Path, Name, R)
     end;
 primary([{'#(', Pos} | R]) ->
-    {Elems, R1} = sep_by(R, ',', fun expr/1),
+    {Elems, R1} = components(Pos, sep_by(R, ',', fun expr/1)),
     w({#e_tuple{pos = Pos, elems = Elems}, expect(R1, ')')});
 primary([{'[', Pos} | R]) ->
     {Elems, R1} = case R of
@@ -845,7 +845,7 @@ atompat([{typename, Pos, _} | _] = Ts) ->
                  "expected a constructor; a pattern cannot name a function or value")
     end;
 atompat([{'#(', Pos} | R]) ->
-    {Elems, R1} = sep_by(R, ',', fun pattern/1),
+    {Elems, R1} = components(Pos, sep_by(R, ',', fun pattern/1)),
     w({#p_tuple{pos = Pos, elems = Elems}, expect(R1, ')')});
 atompat([{'[', Pos} | R]) ->
     {Elems, R1} = case R of
@@ -1011,6 +1011,14 @@ describe({eof, _}) -> "end of input";
 describe({Sym, _}) -> "`" ++ atom_to_list(Sym) ++ "`".
 
 -spec fail(ern_diag:pos(), iodata()) -> no_return().
+%% Report §3.2: a tuple has two components or more, as a type, a value
+%% and a pattern alike.
+components(Pos, {[_], _}) ->
+    fail(Pos, "a tuple has two components or more",
+         "write the component itself, or add another");
+components(_, Parsed) ->
+    Parsed.
+
 fail(Pos, Message) ->
     fail(Pos, Message, undefined).
 

@@ -312,8 +312,7 @@ Per Kind*): `Fs.create` becomes `Fs.makeFile`, beside `makeDir` and `makeLink`; 
 takes `List(String)`, the inverse of `split`, with `Path.<>` declared in `path.ern` as the two-path
 operation, the second under the first and an absolute second standing alone, its eight callers
 following. Among the rules that buy little (2026-10-01, the log's *The Rules That Buy Little*):
-a tuple has two components or more, in Appendix A's `Tuple`, `TupleType` and the tuple pattern,
-§3.2 and the parser, which admit one today; and `Fs.setMode(path, mode, ms)`, the mode the
+`Fs.setMode(path, mode, ms)`, the mode the
 host's bits, replaces `Fs.makePrivate` in E.17, `fs.ern` and the shell's history, which writes
 its directory's mode itself. Among the rules that exist for another (2026-10-01, the log's *The
 Rules That Exist for Another*): `spawn(f)` and `spawnMonitored(f, wrap)` lose their placement,
