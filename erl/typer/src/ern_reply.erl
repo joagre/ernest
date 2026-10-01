@@ -1,17 +1,18 @@
 %% The reply discipline, report §6.6: Reply(a) is linear. Every variable
 %% bound to a reply-carrying value is used exactly once on every path;
 %% a use is any occurrence, since the type checker already guarantees that
-%% every position such a value can occupy is a consuming one. Also: no
-%% reply-carrying elements in List, Map, or Set; no `as`
+%% every position such a value can occupy is a consuming one. Also: no `as`
 %% on a reply-carrying value; no wildcard or omitted reply-carrying field;
 %% a lambda that captures a linear variable is linear itself: consumed
 %% exactly once, by a call or as spawn's direct argument, bindable by let,
 %% and legal nowhere else. Linear holds a name N for a value and {lambda, N}
 %% for such a lambda bound by let.
 %%
-%% A path on which the prelude's `fault` is called consumes every obligation
-%% open on it (§6.6): its uses carry the mark {'$fault', Pos}, which no name
-%% is, so a branch that faults is left out of the comparison of branches,
+%% A path with a call that does not return, to a function whose result type
+%% is a variable no parameter's type names, `fault` among them, consumes
+%% every obligation open on it (§6.6): its uses carry the mark
+%% {'$fault', Pos}, which no name is, so a branch that faults is left out of
+%% the comparison of branches,
 %% and a name a faulting path leaves unconsumed is not a name never
 %% consumed. The mark does not leave a lambda or a local function, whose
 %% bodies are not on the enclosing path.
@@ -20,26 +21,21 @@
 %% when the body, read with that variable taken for reply-carrying, would
 %% break this discipline: a second use or none, through a `let` or a
 %% pattern as much as by the parameter's own name, a place a reply may not
-%% stand, or a user type that carries one dropped. A variable that is an
-%% element of a container in the function's type is exempt, since no value
-%% of that type can carry a reply there.
+%% stand, or a user type that carries one dropped.
 -module(ern_reply).
 
--export([check/4, elements/2]).
+-export([check/4]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("utils/include/ern_diag.hrl").
-
--define(CONTAINERS, [['List'], ['Map'], ['Set']]).
 
 -spec check([#param{}], tuple(), ern_types:type(), ern_typecheck:env()) ->
           ern_typecheck:env().
 check(Params, Body, FnT, Env) ->
     discipline(Params, Body, Env),
     St = ern_typecheck:type_state(Env),
-    Elements = elements(FnT, St),
-    Vars = lists:usort(param_vars(FnT, St)) -- Elements,
+    Vars = lists:usort(param_vars(FnT, St)),
     lists:foldl(fun(V, E) ->
                     case holds(Params, Body, ern_typecheck:assume_reply_carrying([V], E)) of
                         true -> E;
@@ -85,29 +81,6 @@ value_vars(T, St) ->
         _ -> []
     end.
 
-%% The type variables that are elements of a container in a parameter
-%% type or the result type, directly or through tuples and containers.
-%% No expression of such a container type with a reply-carrying element
-%% is legal, so the variable can never be reply-carrying there.
--spec elements(ern_types:type(), ern_types:st()) -> [ern_types:type()].
-elements(FnT, St) ->
-    case ern_types:resolve(FnT, St) of
-        {tfn, Ps, _, R} -> lists:append([within(T, false, St) || T <- [R | Ps]]);
-        _ -> []
-    end.
-
-within(T, In, St) ->
-    case ern_types:resolve(T, St) of
-        {tvar, _} = V when In -> [V];
-        {tcon, Q, Args} ->
-            case lists:member(Q, ?CONTAINERS) of
-                true -> lists:append([within(A, true, St) || A <- Args]);
-                false -> []
-            end;
-        {ttuple, Es} -> lists:append([within(E, In, St) || E <- Es]);
-        _ -> []
-    end.
-
 %%
 %% Illegal positions and patterns
 %%
@@ -115,10 +88,6 @@ within(T, In, St) ->
 positions(Node, Env) ->
     walk(fun(N) -> position(N, Env) end, Node).
 
-position(#e_list{pos = Pos, type = T}, Env) -> container(Pos, T, Env);
-position(#e_call{pos = Pos, type = T}, Env) -> container(Pos, T, Env);
-position(#e_var{pos = Pos, type = T}, Env) -> container(Pos, T, Env);
-position(#e_con{pos = Pos, type = T}, Env) -> container(Pos, T, Env);
 position(#p_wild{pos = Pos, type = T}, Env) ->
     case ern_typecheck:is_reply_carrying(T, Env) of
         true -> throw({type_error, Pos, "`_` would discard a reply-carrying value"});
@@ -176,29 +145,6 @@ reply_field(Pos, Name, Field, FT, Env) ->
         false -> ok
     end.
 
-%% No container in the type holds a reply-carrying element, read through
-%% tuples and containers as elements/2 reads a function's type, since that
-%% exemption rests on it. A regression: only the outermost type was read,
-%% and `fn pair(x) = #([x], 1)` put a reply in a List.
-container(Pos, T, Env) ->
-    case ern_typecheck:resolve_type(T, Env) of
-        {tcon, Q, Args} ->
-            case lists:member(Q, ?CONTAINERS) of
-                true ->
-                    lists:any(fun(A) -> ern_typecheck:is_reply_carrying(A, Env) end, Args)
-                        andalso throw({type_error, Pos, "a reply-carrying value cannot be an"
-                                                        " element of "
-                                                        ++ atom_to_list(lists:last(Q))}),
-                    lists:foreach(fun(A) -> container(Pos, A, Env) end, Args);
-                false ->
-                    ok
-            end;
-        {ttuple, Es} ->
-            lists:foreach(fun(E) -> container(Pos, E, Env) end, Es);
-        _ ->
-            ok
-    end.
-
 %%
 %% Uses of linear variables, per path
 %%
@@ -217,6 +163,8 @@ uses(#e_var{pos = Pos, path = [], name = N}, Linear, _Env) ->
                 false -> []
             end
     end;
+uses(#e_call{pos = Pos, returns = false} = Call, Linear, Env) ->
+    seq([uses(Call#e_call{returns = true}, Linear, Env), [{'$fault', Pos}]]);
 uses(#e_call{callee = #e_var{ref = {prelude, [Spawn]}}, args = [Where, Arg | Wrap]}, Linear, Env)
   when Spawn =:= spawn, Wrap =:= []; Spawn =:= spawnMonitored, length(Wrap) =:= 1 ->
     %% report §6.6: the function argument of spawn or spawnMonitored
@@ -232,8 +180,6 @@ uses(#e_call{callee = #e_var{ref = {prelude, [Spawn]}}, args = [Where, Arg | Wra
                   _ -> uses(Arg, Linear, Env)
               end,
     seq([uses(Where, Linear, Env), ArgUses | [uses(W, Linear, Env) || W <- Wrap]]);
-uses(#e_call{pos = Pos, callee = #e_var{ref = {prelude, [fault]}}, args = Args}, Linear, Env) ->
-    seq([uses(Args, Linear, Env), [{'$fault', Pos}]]);
 uses(#e_call{pos = Pos, callee = #e_var{path = [], name = F}, args = Args}, Linear, Env) ->
     %% a call consumes a capturing lambda bound by let
     Callee = case lists:member({lambda, F}, Linear) of

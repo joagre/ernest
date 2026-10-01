@@ -239,10 +239,10 @@ Placed*). Under §8.2's *Text from the host* of 2026-10-01, `Fs.list` leaves out
 entry whose name is not UTF-8 and `Os.environment` a variable whose name or value is not
 (E.17, E.23). Under §6.9's ownership sentence of 2026-10-01, a listener belongs to no one
 and lives until the program ends, and a program the runtime started cannot be given (E.18,
-E.23). Under §6.6's and §3.9's sentences of 2026-10-01, the checker refuses a reply as
-an element of `List`, `Map` or `Set` at `[]` and exempts those types' variables from the
-not-reply-carrying restriction, treats the name `fault` alone as a call that does not return,
-and prints a process-only variable without a mark (§11.5). Under §3.5's declared order of 2026-10-01, the emitter's
+E.23). Under §3.9's sentence of 2026-10-01, each restriction prints with its mark,
+and a process-only variable prints without one, §11.5 saying so and giving no spelling: the
+mark's spelling is a decision of this phase's edits, taken with the user before the printer
+and §11.5 change. Under §3.5's declared order of 2026-10-01, the emitter's
 descriptors, `Io.show` and the ABI place named fields in the order of their names (§3.5, §8.4,
 Appendix E.1). Under E.1's sentence of 2026-10-01, the checker accepts `Io.show` on a type
 variable and the runtime then writes the representation (Appendix E.1, §4.4). Under §3.8's sentence of 2026-10-01, `Foreign` is a built-in type of

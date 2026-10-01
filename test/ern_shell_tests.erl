@@ -231,7 +231,7 @@ prelude_shown() ->
     [?assertMatch({_, _}, binary:match(Out, Text))
      || Text <- [<<"type Where\n">>, <<"spawn : (Where, () -> Unit with n) -> Address(n) with m">>,
                  <<"Ernest prelude">>, <<"Starts a process that runs">>,
-                 <<"List.size : (List(a)) -> Int">>]],
+                 <<"List.size : (List(a!)) -> Int">>]],
     ?assertEqual(nomatch, binary:match(Out, <<"type Fs.Entry">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"no module Prelude">>)),
     ?assertEqual(nomatch, binary:match(Out, <<"no documentation">>)).
@@ -792,7 +792,8 @@ completion() ->
     ?assertEqual(nomatch, binary:match(Text, <<"List.filterMap :">>)),
     %% it was painted under the line, the candidates with their types
     Bytes = pty(alone("../bin/ern shell"), Steps, 30, " --size 16x74"),
-    ?assertMatch({_, _}, binary:match(Bytes, <<"> List.filter\r\nList.filter : (List(a)">>)),
+    %% report §3.9: filter gives each element to `keep` and to its result
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> List.filter\r\nList.filter : (List(a!)">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nList.filterMap : (List(a)">>)).
 
 %% report §11.2, §3.5: a field that two constructors give two types is no

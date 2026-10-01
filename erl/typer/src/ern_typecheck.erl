@@ -691,6 +691,9 @@ reply_in(T, Ts, Env) ->
     case ern_types:resolve(T, Env#env.st) of
         {tvar, _} = V -> lists:member(V, Env#env.reply_vars);
         {tcon, ['Reply'], _} -> true;
+        %% report §6.6: `List` is reply-carrying through its elements; a type
+        %% whose operations are the runtime's is not through its arguments
+        {tcon, ['List'], [Element]} -> reply_in(Element, Ts, Env);
         {tcon, Q, Args} ->
             case Ts of
                 #{Q := #tinfo{foreign = true}} -> false;
@@ -1268,16 +1271,12 @@ signature_shape(_, _, Env) ->
 %% code may copy a value it is given or drop it, so a type variable whose
 %% values a parameter holds is not reply-carrying: one the parameter's type
 %% reaches through tuples and type arguments, and not under an address, a
-%% reply or a function type, whose values the parameter does not hold. As
-%% for a function with a body, a variable that is a container's element in
-%% the function's type is exempt, since no container holds a reply. A
+%% reply or a function type, whose values the parameter does not hold. A
 %% regression: `Foreign.from(r)` dropped a reply, and `Ets.put(t, k, r)`
 %% stored one.
-foreign_no_reply({tfn, Params, _, _} = T, St) ->
-    Elements = ern_reply:elements(T, St),
+foreign_no_reply({tfn, Params, _, _}, St) ->
     lists:foldl(fun(Id, S) -> ern_types:add_flag({tvar, Id}, no_reply, S) end, St,
-                [Id || P <- Params, Id <- held_vars(P, St),
-                       not lists:member({tvar, Id}, Elements)]).
+                [Id || P <- Params, Id <- held_vars(P, St)]).
 
 held_vars(T, St) ->
     case ern_types:resolve(T, St) of
@@ -2035,6 +2034,7 @@ infer(#e_call{pos = Pos, callee = Callee, args = Args} = E, Env) ->
                                     [Name, length(Ps), plural(length(Ps)), length(Args)]),
                  [], "a call supplies all the arguments");
         {tfn, Ps, Eff, RetT} ->
+            Returns = returns(Callee, Env1),
             Origin = {node_span(Callee), Name ++ " : " ++ ern_types:format(CalleeT, Env1#env.st)},
             {TypedArgs, Env2} =
                 lists:mapfoldl(fun({Arg, P}, En) ->
@@ -2044,7 +2044,8 @@ infer(#e_call{pos = Pos, callee = Callee, args = Args} = E, Env) ->
                                end, Env1, lists:zip(Args, Ps)),
             Env3 = use_effect(Pos, Name, Eff, Env2),
             {OT, St3} = open_effect(RetT, Env3#env.st),
-            {E#e_call{callee = TypedCallee, args = TypedArgs, type = OT}, OT, Env3#env{st = St3}};
+            {E#e_call{callee = TypedCallee, args = TypedArgs, type = OT, returns = Returns}, OT,
+             Env3#env{st = St3}};
         {tvar, _} ->
             {TypedArgs, ArgTs, Env2} = infer_list(Args, Env1),
             {RetT, St} = ern_types:fresh(Env2#env.st),
@@ -2270,6 +2271,29 @@ infer_list(Es, Env) ->
 
 callee_name(#e_var{path = Path, name = Name}) -> format_qname(Path ++ [Name]);
 callee_name(_) -> "the callee".
+
+%% Report §6.6: a function whose result type is a variable no parameter's
+%% type names does not return, `fault` among them, and a call to it
+%% consumes every obligation open on its path. The variable is the
+%% scheme's own; one the enclosing definition fixes may stand for a type
+%% a value has.
+returns(#e_var{pos = Pos, path = Path, name = Name}, Env) ->
+    {#scheme{vars = Quantified, type = T}, _, _} = lookup_value(Pos, Path, Name, Env),
+    St = Env#env.st,
+    case ern_types:resolve(T, St) of
+        {tfn, Params, _, Result} ->
+            case ern_types:resolve(Result, St) of
+                {tvar, Id} ->
+                    not (lists:keymember(Id, 1, Quantified)
+                         andalso not lists:member(Id, ern_types:free_vars({ttuple, Params}, St)));
+                _ ->
+                    true
+            end;
+        _ ->
+            true
+    end;
+returns(_, _) ->
+    true.
 
 %% A callee's effect: pure constrains nothing; anything else is the
 %% enclosing function's effect.

@@ -1470,7 +1470,8 @@ foreign_result_names_a_variable_twice_test() ->
 
 %% report §7.4, §8.4: a List is a proper list, so an improper one a foreign
 %% function returns faults naming the declared type, whether its elements
-%% are checked or a parameter's type variable names them. A regression test:
+%% are checked or a parameter's type variable names them, that variable
+%% printed with its restriction (§4.7, §11.5). A regression test:
 %% the check raised function_clause instead. It does not cover what a check
 %% costs, which make bench shows.
 foreign_improper_list_test() ->
@@ -1480,7 +1481,7 @@ foreign_improper_list_test() ->
     ?assertEqual({fault, <<"foreign return does not match List(Int)">>}, R1),
     {R2, _} = run("foreign fn improper(x : a) : List(a) = \"ern_emitter_tests:improper/1\"\n"
                   ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
-    ?assertEqual({fault, <<"foreign return does not match List(a)">>}, R2).
+    ?assertEqual({fault, <<"foreign return does not match List(a!)">>}, R2).
 
 %% report §7.4: a function value foreign code returns is checked when it is
 %% called, its result against its declared result type, in the caller, and

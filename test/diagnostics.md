@@ -3118,17 +3118,17 @@ example.ern:5:9: field reply of Get carries a reply and must be bound
   |         ^^^^^^^^^^
 ```
 
-### A reply in a list (§6.6)
+### A list of replies given to a function that drops its elements (§6.6, §3.9)
 
 ```ernest-rejected
-fn keep(r : Reply(Int)) : List(Reply(Int)) = [r]
+fn count(r : Reply(Int), waiting : List(Reply(Int))) : Int = List.size(r :: waiting)
 ```
 
 ```console
 $ ern build example.ern
-example.ern:1:46: a reply-carrying value cannot be an element of List
-1 | fn keep(r : Reply(Int)) : List(Reply(Int)) = [r]
-  |                                              ^^^
+example.ern:1:62: a reply-carrying value, Reply(Int), passed where List.size duplicates or discards its argument: List.size : (List(a!)) -> Int
+1 | fn count(r : Reply(Int), waiting : List(Reply(Int))) : Int = List.size(r :: waiting)
+  |                                                              ^^^^^^^^^
 ```
 
 ### A lambda that captures a reply, bound and passed on (§6.6)

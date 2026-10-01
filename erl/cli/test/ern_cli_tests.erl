@@ -1238,8 +1238,8 @@ doc_test() ->
              "type Shape = Dot | At(x : Int, y : Int)\n```\n\nA shape.\n">>),
     Expect(<<"## Shapes.Box\n\n```ernest\nabstract type Box(a)\n```\n">>),
     Expect(<<"## Shapes.empty\n\n```ernest\nShapes.empty : Box(a)\n```\n">>),
-    %% report §3.9: put keeps its element in a List, where a reply may not stand
-    Expect(<<"## Shapes.put\n\n```ernest\nShapes.put : (a!, Box(a!)) -> Box(a!)\n```\n\n"
+    %% report §3.9, §6.6: put places its element in a list once, so it takes a reply
+    Expect(<<"## Shapes.put\n\n```ernest\nShapes.put : (a, Box(a)) -> Box(a)\n```\n\n"
              "Put x in the box.\n">>),
     %% report §4.2: a member is shown under its type; §3.9: it drops its
     %% boxes' elements, and `Box` is no type the restriction looks through

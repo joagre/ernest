@@ -45,7 +45,8 @@ basic_inference_test() ->
                  type_of("export fn map2(f, x, y) = #(f(x), f(y))", map2)),
     ?assertEqual("() -> List(a)", type_of("export fn namedEmpty() = { let xs = []; xs }",
                                           namedEmpty)),
-    ?assertEqual("(List(a)) -> Int", type_of("export fn len(xs) = List.size(xs)", len)).
+    %% report §3.9: List.size drops its list's elements, so len does
+    ?assertEqual("(List(a!)) -> Int", type_of("export fn len(xs) = List.size(xs)", len)).
 
 %% report §3.9, §11.5
 constraints_are_inferred_and_printed_test() ->
@@ -54,14 +55,18 @@ constraints_are_inferred_and_printed_test() ->
     ?assertEqual("(a!) -> Unit", type_of("export fn discard(x) = Unit", discard)),
     ?assertEqual("(a) -> a", type_of("export fn identity(x) = x", identity)).
 
-%% report §3.9, §6.6: a container's element takes no no-reply restriction,
-%% and an `Optional`'s does, `Optional` being a sum type like any other
-container_elements_are_not_marked_not_reply_carrying_test() ->
+%% report §3.9, §6.6: no type's variable is exempt from the no-reply
+%% restriction; a list's element takes it where the body drops or copies
+%% one, as an `Optional`'s does. A regression test of the rule of
+%% 2026-10-01, which removed the exemption of a container's element
+elements_take_the_restriction_test() ->
     ?assertEqual("(Optional(a!), a!) -> a!",
                  type_of("export fn orElse(o : Optional(a), d : a) : a =\n"
                          "    match o { Some(x) -> x | None -> d }", orElse)),
-    ?assertEqual("(a, List(#(a, b))) -> List(#(a, b))",
+    ?assertEqual("(a!, List(#(a!, b))) -> List(#(a!, b))",
                  type_of("export fn keep(x : a, ys : List(#(a, b))) = ys", keep)),
+    ?assertEqual("(a, List(a)) -> List(a)",
+                 type_of("export fn push(x : a, ys : List(a)) = x :: ys", push)),
     ?assertEqual("(a!, (List(a!)) -> Int) -> Unit",
                  type_of("export fn skip(x : a, f : (List(a)) -> Int) = Unit", skip)).
 
@@ -1197,8 +1202,12 @@ reply_test() ->
     ?assertEqual("`as` on a reply-carrying value would duplicate it",
                  err(Msg ++ "fn f(r : Req) = match r { Get(reply = x) as whole -> answer(x, 1)"
                      " | Stop -> Unit }")),
-    ?assertEqual("a reply-carrying value cannot be an element of List",
-                 err(Msg ++ "fn f(r : Req) = [r]")),
+    %% a list holds a reply as a constructor does, and `[]` binds none
+    ?assertEqual(ok, ok(Msg ++ "fn f(r : Req) = [r]")),
+    ?assertEqual(ok, ok("fn answerAll(rs : List(Reply(Int))) : Unit with m = match rs {\n"
+                        "    [] -> Unit\n  | r :: rest -> { answer(r, 1); answerAll(rest) } }")),
+    ?assertEqual("the reply-carrying value rs is never consumed",
+                 err("fn drop(rs : List(Reply(Int))) = Unit")),
     ?assertEqual("the reply-carrying value r is not consumed on this path",
                  err(Msg ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1) else Unit")),
     ?assertEqual(ok, ok(Msg ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1)"
@@ -1296,23 +1305,23 @@ foreign_no_reply_test() ->
     ?assertEqual("((Int) -> m) -> Unit",
                  type_of("export foreign fn call(f : (Int) -> m) : Unit = \"erlang:hd/1\"", call)).
 
-%% report §6.6, §3.9: no container holds a reply, however deep in a type
-%% it stands, through tuples and containers, since a variable that is a
-%% container's element there takes no no-reply restriction; one elsewhere
-%% in the tuple may hold a reply. A regression test: the check read only
-%% the outermost type, and `pair(r)` put a reply in a List. It does not
-%% cover a container inside a declared type, whose variable takes the
-%% restriction instead.
-reply_in_a_nested_container_test() ->
-    ?assertEqual("a reply-carrying value cannot be an element of List",
-                 err("fn pair(x) = #([x], 1)\n"
-                     "fn f(r : Reply(Int)) = { let _ = pair(r); Unit }")),
-    %% a list inside an `Optional`: the variable is no container's element
-    %% through a sum type, and takes the no-reply restriction instead
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where some duplicates or discards"
-                 " its argument: some : (a!) -> Optional(List(a!))",
-                 err("fn some(x) = Some([x])\n"
-                     "fn f(r : Reply(Int)) = { let _ = some(r); Unit }")),
+%% report §6.6, §3.9: a list holds a reply however deep in a type it
+%% stands, and a function of a list that drops or copies its elements,
+%% `List.size` among them, or a shim of `Map` (§4.7), refuses one at the
+%% call. A regression test of the rule of 2026-10-01: the check read `[]`
+%% alone, so `r :: waiters` compiled and the list's functions could drop
+%% the reply (P1-1)
+reply_in_a_list_test() ->
+    ?assertEqual(ok, ok("fn pair(x) = #([x], 1)\n"
+                        "fn f(r : Reply(Int)) : #(List(Reply(Int)), Int) = pair(r)")),
+    ?assertEqual(ok, ok("fn some(x) = Some([x])\n"
+                        "fn f(r : Reply(Int)) : Optional(List(Reply(Int))) = some(r)")),
+    ?assertEqual("a reply-carrying value, Reply(Int), passed where List.size duplicates or"
+                 " discards its argument: List.size : (List(a!)) -> Int",
+                 err("fn f(r : Reply(Int), waiters : List(Reply(Int))) = List.size(r :: waiters)")),
+    ?assertMatch("a reply-carrying value, Reply(Int), passed where Map.put duplicates or"
+                 " discards its argument" ++ _,
+                 err("fn f(r : Reply(Int)) = Map.put(Map.empty, 1, r)")),
     ?assertEqual(ok, ok("fn pair(x) = #([x], 1)\nfn f(n : Int) = pair(n)")),
     ?assertEqual(ok, ok("fn f(r : Reply(Int)) = { let #(r2, _) = #(r, [1]); answer(r2, 1) }")).
 
@@ -1499,8 +1508,9 @@ abstract_type_test() ->
             "export fn pop(Stack(xs)) = match xs { [] -> None | x :: rest ->"
             " Some(#(x, Stack(rest))) }\n",
     ?assertEqual(ok, ok(Stack)),
-    %% report §3.9: push puts its element in a List, where a reply may not stand
-    ?assertEqual("(a!, M.Stack(a!)) -> M.Stack(a!)",
+    %% report §3.9, §6.6: push places its element in a list once, so a reply may
+    %% be pushed
+    ?assertEqual("(a, M.Stack(a)) -> M.Stack(a)",
                  type_of(Stack ++ "export fn use(x, s) = push(x, s)", use)),
     %% an abstract type the module keeps private hides from no module
     ?assertEqual("Stack is an abstract type the module keeps private, which hides its"
@@ -1508,11 +1518,13 @@ abstract_type_test() ->
                  err("abstract type Stack(a) = Stack(List(a))")),
     ?assertEqual("Nope is not a type declared in this module", err("fn Nope.negate(n) = n")).
 
-%% report §6.6: a path on which the prelude's `fault` is called consumes
-%% every obligation open on it, in an `if` and in a `receive`; a returning
-%% path that does not answer is still refused, and so is a function that
-%% faults for its caller and a fault inside a lambda, neither of which is
-%% the path's own. Feedback item 60
+%% report §6.6: a path with a call to a function whose result type is a
+%% variable no parameter's type names, `fault` among them, consumes every
+%% obligation open on it, in an `if` and in a `receive`; a returning path
+%% that does not answer is still refused, and so is a function whose type
+%% says it returns though it faults, and a fault inside a lambda, neither
+%% of which is the path's own. Feedback item 60; `die` is a regression test
+%% of the rule of 2026-10-01, which named `fault` alone before (P1-12)
 fault_path_test() ->
     Msg = "type M = Add(amount : Int, reply : Reply(Int)) | Stop\n",
     ?assertEqual(ok, ok(Msg ++ "fn serve() : Unit with M = receive {\n"
@@ -1532,6 +1544,19 @@ fault_path_test() ->
                  err(Msg ++ "fn serve() : Unit with M = receive {\n"
                             "    Add(amount = n, reply = r) ->\n"
                             "        if n < 0 then serve() else answer(r, n)\n"
+                            "  | Stop -> Unit\n"
+                            "}\n")),
+    ?assertEqual(ok, ok(Msg ++ "fn die(m : String) : a = fault(m)\n"
+                              "fn serve() : Unit with M = receive {\n"
+                              "    Add(amount = n, reply = r) ->\n"
+                              "        if n < 0 then die(\"negative\") else answer(r, n)\n"
+                              "  | Stop -> Unit\n"
+                              "}\n")),
+    ?assertEqual("the reply-carrying value r is not consumed on this path",
+                 err(Msg ++ "fn same(x : a) : a = x\n"
+                            "fn serve() : Unit with M = receive {\n"
+                            "    Add(amount = n, reply = r) ->\n"
+                            "        if n < 0 then same(Unit) else answer(r, n)\n"
                             "  | Stop -> Unit\n"
                             "}\n")),
     ?assertEqual("the reply-carrying value r is not consumed on this path",
@@ -1819,7 +1844,8 @@ type_names_in_messages_test() ->
 %% an unnamed one gets a fresh name that avoids the names in use; a use
 %% of a value does not inherit the names of its declaration
 variable_names_test() ->
-    ?assertEqual("(Map(k=, v), k=) -> Optional(v)",
+    %% report §4.7: Map.get is a shim, whose variables are not reply-carrying
+    ?assertEqual("(Map(k=!, v!), k=!) -> Optional(v!)",
                  type_of("export fn get(m : Map(k, v), key : k) : Optional(v) = Map.get(m, key)",
                          get)),
     ?assertEqual("(a=, a=) -> Bool",

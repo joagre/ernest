@@ -744,11 +744,11 @@ A `Reply(Int)` is where an answer goes. The process that asks puts one in its re
 
 ### 4.2 A reply is answered once
 
-A `Reply` is an obligation: whoever holds one answers it exactly once, on every path, and the compiler checks it, as §0 showed. The obligation moves with the value. Sending a message that carries a reply, passing it to a function, returning it, or putting it in a constructor hands the obligation on; only `answer(r, v)` answers it. A constructor with no reply-carrying field, `Stop` in a type whose `Get` carries one, has no obligation to hand on. A value that contains a reply is *reply-carrying*, as `CounterMsg` is because of `Get`, and the same rule holds for it.
+A `Reply` is an obligation: whoever holds one answers it exactly once, on every path, and the compiler checks it, as §0 showed. The obligation moves with the value. Sending a message that carries a reply, passing it to a function, returning it, putting it in a constructor or a list, or capturing it in a lambda that is called once or given straight to `spawn` hands the obligation on; only `answer(r, v)` answers it. A constructor with no reply-carrying field, `Stop` in a type whose `Get` carries one, has no obligation to hand on. A value that contains a reply is *reply-carrying*, as `CounterMsg` is because of `Get`, and the same rule holds for it.
 
-The check is on paths, not on time. A path that calls `fault` need not answer, since the fault ends the process and every call waiting on it at once (§6.5). A path that faults inside a function it calls, or waits for ever, must still answer on paper: the compiler cannot see that it will not return, and the caller's deadline covers a wait (§4.4).
+The check is on paths, not on time. A path that calls `fault` need not answer, since the fault ends the process and every call waiting on it at once (§6.5). Nor need a path that calls a function whose result type is a variable no parameter's type names, as `fn die(why : String) : a = fault(why)`, since such a function cannot return. A path that faults inside a function whose type says it returns, or waits for ever, must still answer on paper: the compiler reads the type, and the caller's deadline covers a wait (§4.4).
 
-Since each reply is counted, a reply-carrying value is never copied or dropped. It cannot be an element of a `List`, a `Map`, or a `Set`, nor an operand of `==` or `!=`, and `_` cannot stand for one in a pattern; an `Optional` or an `Either` may hold one, as any sum type may. A server with many requests pending keeps each reply in a process of its own, as the queue of §4.4 does. In a printed type, a variable marked `!` is one that may not hold a reply, as in `dup : (a!) -> #(a!, a!)` for a function that copies its argument. Report §6.6 gives the whole discipline.
+Since each reply is counted, a reply-carrying value is never copied or dropped. A list may hold one, as an `Optional`, an `Either` or any sum type may, and the queue of §4.4 keeps its waiting callers' replies in a list; the pattern `[]` holds none and owes nothing. A function that copies or drops its argument cannot take one, and neither can a `Map` or a `Set`, whose operations are the runtime's. A reply-carrying value is no operand of `==` or `!=`, and `_` cannot stand for one in a pattern. In a printed type, a variable marked `!` is one that may not hold a reply, as in `dup : (a!) -> #(a!, a!)` for a function that copies its argument and `List.size : (List(a!)) -> Int` for one that drops a list's elements. Report §6.6 gives the whole discipline.
 
 Sending a request twice consumes its reply twice:
 
@@ -804,22 +804,20 @@ Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
 
 `Address.call(c, fn(r) = Get(reply = r), 1000)` makes a fresh `Reply`, gives it to the function that builds the request, sends the request to `c`, and waits up to 1000 ms. It returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6). `Address.callForever` waits without a deadline and returns the answer itself. When the process called ends or restarts before it answers, either call ends at once: `Address.call` returns `None`, and `Address.callForever` faults its caller, with the callee's cause where it faulted, and otherwise with a cause saying it was killed, returned without answering, was restarted by its supervisor, or had ended already. A callee that only waits keeps a `callForever` caller waiting too.
 
-A server that cannot answer at once keeps the reply in a small process that answers later, since a reply-carrying value cannot wait in a list (§4.2). A queue answers a `Take` with an item it has, or spawns a waiter that holds the reply until a `Put` brings one:
+A server that cannot answer at once keeps the reply until it can, in a list as well as anywhere else a value waits (§4.2). A queue answers a `Take` with an item it has, or keeps the reply until a `Put` brings one:
 
 ```ernest
 type QueueMsg = Put(Int) | Take(reply : Reply(Int))
 
-type WaiterMsg = Item(Int)
-
 type MainMsg = Took(Int)
 
-// Items no one has asked for yet, and the callers waiting for an item, each
-// a process that holds its caller's reply.
-fn queue(items : List(Int), waiters : List(Address(WaiterMsg))) : Unit with QueueMsg =
+// Items no one has asked for yet, and the replies of the callers waiting for
+// an item.
+fn queue(items : List(Int), waiting : List(Reply(Int))) : Unit with QueueMsg =
     receive {
-        Put(x) -> match waiters {
-            w :: rest -> {
-                send(w, Item(x));
+        Put(x) -> match waiting {
+            r :: rest -> {
+                answer(r, x);
                 queue(items, rest)
             }
           | [] -> queue(items <> [x], [])
@@ -827,14 +825,9 @@ fn queue(items : List(Int), waiters : List(Address(WaiterMsg))) : Unit with Queu
       | Take(reply = r) -> match items {
             x :: rest -> {
                 answer(r, x);
-                queue(rest, waiters)
+                queue(rest, waiting)
             }
-          | [] -> {
-                let w = spawn(Local, fn() : Unit with WaiterMsg = receive {
-                    Item(x) -> answer(r, x)
-                });
-                queue([], waiters <> [w])
-            }
+          | [] -> queue([], waiting <> [r])
         }
     }
 
@@ -854,7 +847,7 @@ $ ern run queue.erc
 took 7
 ```
 
-The waiter's lambda captures `r` and is given straight to `spawn`, which hands the obligation to the new process. The queue keeps the waiters' addresses, which may be in a list.
+Each reply is answered once on every path: a `Put` answers the first caller waiting, and a `Take` answers at once or hands its reply to the list.
 
 **Pacing.** A mailbox has no limit. A process that sends faster than its receiver takes messages fills the receiver's mailbox, and the node's memory with it. A call paces its caller, since the caller waits for each answer before it asks again. A stream of messages is paced by a window of credits: the receiver grants a number of messages, and the sender waits for the next grant when it has sent them.
 

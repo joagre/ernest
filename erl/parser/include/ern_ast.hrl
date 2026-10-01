@@ -78,7 +78,7 @@
 %% stmts: [#fn_decl{} | #binding{} | Expr], the last an Expr
 -record(binding, {pos, pattern, ann, op, expr}).
 %% ann: the annotation, or undefined; op: '=' | '<-'
--record(e_call, {pos, callee, args, pipe = false, type}).
+-record(e_call, {pos, callee, args, pipe = false, returns = true, type}).
 %% pipe: true when `x |> e` wrote it; x is the first argument, evaluated
 %% before a callee that is not a name (report §5.1)
 -record(e_select, {pos, expr, field, field_pos, type}).
