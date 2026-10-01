@@ -67,4 +67,4 @@ A new system module, a new long-lived process, or a new kind of state the shell 
 
 ## What the loads leave out
 
-The terminal's keys, which need a terminal; the shell at a terminal, whose editor and screen the line-mode session does not reach; peers, which MVP 3.0 builds; and a foreign function's checking proxies, which are kept by design. Each is read for instead.
+The terminal's keys, which need a terminal; the shell at a terminal, whose editor and screen the line-mode session does not reach; peers, which MVP 3.0 builds; and a foreign function's checking proxies, which are kept by design. Each is read for instead. Growth with time rather than with work, and the examples' own programs, `examples/webserver.ern`'s session store among them, which forgets its sessions every ten minutes, were measured by a soak of hours until it was removed on 2026-10-02 (the log's *MVP 2.99b Read After the Review*); the web server's path through the runtime is the `sockets` load's. A program that grows over hours brings the soak, or a load, back with that evidence.
