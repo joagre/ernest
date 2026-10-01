@@ -13,7 +13,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-01.** [The Attack Plan](#the-attack-plan-2026-10-01); [The Host Paragraph](#the-host-paragraph-2026-10-01); [The Reader Principle 1 Means](#the-reader-principle-1-means-2026-10-01); [When a Second Spelling Enters](#when-a-second-spelling-enters-2026-10-01); [Compiled, Run, or Silent](#compiled-run-or-silent-2026-10-01); [What Principle 5 Counts](#what-principle-5-counts-2026-10-01); [A Failure's Shape](#a-failures-shape-2026-10-01); [What Waits With a Limit](#what-waits-with-a-limit-2026-10-01); [Members, Operators, and No Hidden Argument](#members-operators-and-no-hidden-argument-2026-10-01); [What the Prelude Holds](#what-the-prelude-holds-2026-10-01); [What the Library Admits](#what-the-library-admits-2026-10-01); [The One Silence](#the-one-silence-2026-10-01); [Who Owns a Process](#who-owns-a-process-2026-10-01); [The Reply Discipline Names No Type](#the-reply-discipline-names-no-type-2026-10-01); [No Canonical Order](#no-canonical-order-2026-10-01); [A Value Shows Itself at a Known Type](#a-value-shows-itself-at-a-known-type-2026-10-01); [One Door for the Host's Values](#one-door-for-the-hosts-values-2026-10-01); [The Language Argued Before Peers](#the-language-argued-before-peers-2026-10-01); [The Sixteen Sentences Read Back](#the-sixteen-sentences-read-back-2026-10-01); [A Release After the Review](#a-release-after-the-review-2026-10-01); [A Port Lost While It Starts](#a-port-lost-while-it-starts-2026-10-01); [The Release Review's Harder Places](#the-release-reviews-harder-places-2026-10-01); [The Glossary Drafted](#the-glossary-drafted-2026-10-01); [A Search Matches Whole Graphemes](#a-search-matches-whole-graphemes-2026-10-01); [Enter Is a Key](#enter-is-a-key-2026-10-01); [The Host Family's Rules](#the-host-familys-rules-2026-10-01); [The Reader Family's Rules](#the-reader-familys-rules-2026-10-01); [The Failure Family's Rules](#the-failure-familys-rules-2026-10-01); [The Waits Family's Rules](#the-waits-familys-rules-2026-10-01); [The Forms Family's Rules](#the-forms-familys-rules-2026-10-01); [The Compiled Family's Rules](#the-compiled-familys-rules-2026-10-01); [The Silence Family's Rules](#the-silence-familys-rules-2026-10-01); [The Owner Family's Rules](#the-owner-familys-rules-2026-10-01); [The Reply Family's Rules](#the-reply-familys-rules-2026-10-01); [The Library Family's Rules](#the-library-familys-rules-2026-10-01); [The Members Family's Rules](#the-members-familys-rules-2026-10-01); [The Prelude Family's Rules](#the-prelude-familys-rules-2026-10-01); [The Order, Show and Door Families](#the-order-show-and-door-families-2026-10-01); [The Verb Per Kind](#the-verb-per-kind-2026-10-01); [The Rules That Buy Little](#the-rules-that-buy-little-2026-10-01); [The Rules That Exist for Another](#the-rules-that-exist-for-another-2026-10-01); [Where the Guide Works Hard](#where-the-guide-works-hard-2026-10-01); [The Process-Only Mark](#the-process-only-mark-2026-10-01); [Placing Work Without `Where`](#placing-work-without-where-2026-10-01).
+**2026-10-01.** [The Attack Plan](#the-attack-plan-2026-10-01); [The Host Paragraph](#the-host-paragraph-2026-10-01); [The Reader Principle 1 Means](#the-reader-principle-1-means-2026-10-01); [When a Second Spelling Enters](#when-a-second-spelling-enters-2026-10-01); [Compiled, Run, or Silent](#compiled-run-or-silent-2026-10-01); [What Principle 5 Counts](#what-principle-5-counts-2026-10-01); [A Failure's Shape](#a-failures-shape-2026-10-01); [What Waits With a Limit](#what-waits-with-a-limit-2026-10-01); [Members, Operators, and No Hidden Argument](#members-operators-and-no-hidden-argument-2026-10-01); [What the Prelude Holds](#what-the-prelude-holds-2026-10-01); [What the Library Admits](#what-the-library-admits-2026-10-01); [The One Silence](#the-one-silence-2026-10-01); [Who Owns a Process](#who-owns-a-process-2026-10-01); [The Reply Discipline Names No Type](#the-reply-discipline-names-no-type-2026-10-01); [No Canonical Order](#no-canonical-order-2026-10-01); [A Value Shows Itself at a Known Type](#a-value-shows-itself-at-a-known-type-2026-10-01); [One Door for the Host's Values](#one-door-for-the-hosts-values-2026-10-01); [The Language Argued Before Peers](#the-language-argued-before-peers-2026-10-01); [The Sixteen Sentences Read Back](#the-sixteen-sentences-read-back-2026-10-01); [A Release After the Review](#a-release-after-the-review-2026-10-01); [A Port Lost While It Starts](#a-port-lost-while-it-starts-2026-10-01); [The Release Review's Harder Places](#the-release-reviews-harder-places-2026-10-01); [The Glossary Drafted](#the-glossary-drafted-2026-10-01); [A Search Matches Whole Graphemes](#a-search-matches-whole-graphemes-2026-10-01); [Enter Is a Key](#enter-is-a-key-2026-10-01); [The Host Family's Rules](#the-host-familys-rules-2026-10-01); [The Reader Family's Rules](#the-reader-familys-rules-2026-10-01); [The Failure Family's Rules](#the-failure-familys-rules-2026-10-01); [The Waits Family's Rules](#the-waits-familys-rules-2026-10-01); [The Forms Family's Rules](#the-forms-familys-rules-2026-10-01); [The Compiled Family's Rules](#the-compiled-familys-rules-2026-10-01); [The Silence Family's Rules](#the-silence-familys-rules-2026-10-01); [The Owner Family's Rules](#the-owner-familys-rules-2026-10-01); [The Reply Family's Rules](#the-reply-familys-rules-2026-10-01); [The Library Family's Rules](#the-library-familys-rules-2026-10-01); [The Members Family's Rules](#the-members-familys-rules-2026-10-01); [The Prelude Family's Rules](#the-prelude-familys-rules-2026-10-01); [The Order, Show and Door Families](#the-order-show-and-door-families-2026-10-01); [The Verb Per Kind](#the-verb-per-kind-2026-10-01); [The Rules That Buy Little](#the-rules-that-buy-little-2026-10-01); [The Rules That Exist for Another](#the-rules-that-exist-for-another-2026-10-01); [Where the Guide Works Hard](#where-the-guide-works-hard-2026-10-01); [The Process-Only Mark](#the-process-only-mark-2026-10-01); [Placing Work Without `Where`](#placing-work-without-where-2026-10-01); [The Log Read Against Its Reasons](#the-log-read-against-its-reasons-2026-10-01).
 
 **2026-09-30.** [The Runtime's Own Is Not Checked](#the-runtimes-own-is-not-checked-2026-09-30); [A Value Is Checked Where It Crosses](#a-value-is-checked-where-it-crosses-2026-09-30); [Supervision Stays in the Reaper](#supervision-stays-in-the-reaper-2026-09-30); [Three Scans on a Value](#three-scans-on-a-value-2026-09-30); [Char Reads the Host's Tables](#char-reads-the-hosts-tables-2026-09-30); [`RestForOne` Reads the Order of Spawns](#restforone-reads-the-order-of-spawns-2026-09-30); [`Clock.monotonic` Is In, and `Udp` Is Placed](#clockmonotonic-is-in-and-udp-is-placed-2026-09-30); [Make Runs `ern build` Every Time](#make-runs-ern-build-every-time-2026-09-30); [A Load Samples a Node at Rest](#a-load-samples-a-node-at-rest-2026-09-30); [A Check at the Boundary Lasts as Long as Its Process](#a-check-at-the-boundary-lasts-as-long-as-its-process-2026-09-30); [Scheduling Hints Are the Host's](#scheduling-hints-are-the-hosts-2026-09-30); [A Library Is Fetched by Its URL](#a-library-is-fetched-by-its-url-2026-09-30); [The Shell's Second Round](#the-shells-second-round-2026-09-30); [A Cycle Through a Function Stays One](#a-cycle-through-a-function-stays-one-2026-09-30); [`kill` and `monitor` Keep the Address](#kill-and-monitor-keep-the-address-2026-09-30); [No Limit Is `Unlimited`](#no-limit-is-unlimited-2026-09-30); [`Other` Says the Host's Words](#other-says-the-hosts-words-2026-09-30); [A Group Restarts Whole](#a-group-restarts-whole-2026-09-30); [`closeListener` Names What It Closes](#closelistener-names-what-it-closes-2026-09-30); [A Restart Begins Afresh](#a-restart-begins-afresh-2026-09-30); [`ern(1)` Has Its Sections](#ern1-has-its-sections-2026-09-30); [The Release Review](#the-release-review-2026-09-30); [The Release Review's Security Lines](#the-release-reviews-security-lines-2026-09-30); [The Release Review's Crashes](#the-release-reviews-crashes-2026-09-30); [Names Are the First Documentation](#names-are-the-first-documentation-2026-09-30); [MVP 2.99b's Order](#mvp-299bs-order-2026-09-30); [The Release Review's Wrong Results](#the-release-reviews-wrong-results-2026-09-30); [The Release Review's Restarts](#the-release-reviews-restarts-2026-09-30); [The Release Review's Documents](#the-release-reviews-documents-2026-09-30); [The Release Review's Questions](#the-release-reviews-questions-2026-09-30); [The Principles Review](#the-principles-review-2026-09-30).
 
@@ -63,7 +63,7 @@ The goal is a language that is minimal in concepts, not in primitives: few thing
 - Parametric polymorphism, sum types, product types.
 - Pattern matching with exhaustiveness checking.
 - The type distinguishes pure code from process code.
-- Structural equality and serialization over all data values. Functions have no equality: `f == g` is a type error, not false. `Address` has none either, since `via(f, a)` is an address with a function inside; identity is part of the protocol, an id in the message or in the `monitor` wrapper.
+- Structural equality and serialization over all data values. Functions have no equality: `f == g` is a type error, not false. `Address` has none either, since `via(a, f)` is an address with a function inside; identity is part of the protocol, an id in the message or in the `monitor` wrapper.
 - Tail calls are guaranteed. Every process loop is a tail call; the last expression of a block, a `match` arm, and a `recv` arm is in tail position. A runtime without the guarantee cannot run the language.
 - Evaluation order: strict, left to right, arguments before the call.
 - Recursive types, mutually recursive types and functions, type constructors with parameters. No polymorphic recursion; that is HM.
@@ -110,6 +110,8 @@ The goal is a language that is minimal in concepts, not in primitives: few thing
 
 The rule that decided most often: no variants. Next: nothing invisible. The rule that stopped it: least surprise, once.
 
+*Superseded in part 2026-09-26 by "The System References Live in Their Modules" and "A `Supervisor` in the Standard Library, and `fault`": a system reference is a binding of its module, bound per node, and a process may fault by its own act; an abstract type's boundary is its module since "An Abstract Type's Boundary Is Its Module" (2026-09-25). Juxtaposition stays out by principle 3, the ML reader being principle 1's own reader since "The Reader Principle 1 Means" (2026-10-01), and `use` by "Names Stay Qualified, Without Import or Alias".*
+
 ## Syntax Revision 3, 2026-09-12
 
 A separate syntax document with numbered decisions (D1 to D44) was tested against the specification and adopted with three changes. What was taken:
@@ -130,6 +132,8 @@ What was changed:
 After the revision the specification was pared down to rules: explanations, "What does not exist," and the notes on the principles moved here; program termination was defined (Go's rule: the program ends when `main` returns, `Deadlock` when nothing can run). 2,700 words became 2,100.
 
 Remaining verification debt from the document: A1, an EBNF with precedence that tests the lambda's extent (D11), is now Appendix A of the report. A2, transferring the examples, is done.
+
+*Superseded in part 2026-09-12 by "Grammar Audit": `let` returned. Reason restated 2026-10-01: `try` stays out by principle 1, OCaml and Erlang both spelling exceptions with it and §7 having none; what every language but Zig does was a neighbour's, which no longer decides.*
 
 ## Grammar Audit, 2026-09-12
 
@@ -164,19 +168,27 @@ What was already clean: mandatory `else` leaves no dangling `else`; the lambda i
 
 Principle 5's first-token dispatch is stretched at exactly one place: after `T(` the parser peeks past the first identifier for `=`, `:`, or otherwise, to decide fields versus expression versus declaration payload. Factoring the grammar to avoid this was considered: a bracket per role (rejected in this same audit — `{` had two roles); a leading marker on named fields, `T(.dir = d)` (adds a character per field, and moves the lookahead to `.` versus `..` for spread — the same peek in a different place, unless spread is also changed, at which point `*p` collides with multiplication in argument position); type-directed parsing (breaks the parser / type-checker separation Ernest deliberately keeps); a leading marker on positional (single-positional constructors are the most common shape and would pay the cost of the exceptional case). Each costs more than the exception. Tolerated deliberately, documented in Appendix A's closing paragraph.
 
+*Superseded in part 2026-09-16 by "`export` Keyword; Declarations Use Local Names": visibility is the word `export`, not the form of a name. Reason restated 2026-10-01: `true` and `false` stand by principle 1, Standard ML's, OCaml's and Erlang's words ("The Reader Family's Rules"); what every other language writes was a neighbour's, which no longer decides.*
+
 ## Distribution, 2026-09-13
 
 The day-two decision, "this is Erlang, where you say which node," was revised into two things, one from each side. A process is placed explicitly: `spawn(Where, f)` with `Where = Local | Peer(name)`, placement visible on the line (principle 3), one function rather than `spawn`, `spawnOn`, `spawnRemote` (principle 2), and `Local` written on every local spawn because running here is a decision too. A remote computation is Unison's: `remote(f)` evaluates a pure `f` on a peer the runtime chooses by load among those configured for it, and returns the value. Three types were tried for `remote` in an hour. First a reply address, `remote(f, reply)`: honest but visible plumbing the developer has no use for. Then `->{Proc(m)}`: the caller waits, so it seemed like process code. Then the observation that every call runs in a process: the context marks use of the process's own mailbox and identity, and `remote` uses neither, so it is pure, `(() -> a) -> Either(RemoteError, a)`, with failure over the boundary in the type. That observation sharpened the definition of the context in section 6, which had been missing. Peers, their names, addresses, keys, and the `remote-peer` flag live in `ernest.conf`, outside the language. Code follows by content hash, MVP 3; peers need not share code. Tools: `ernc` compiles to `.erc`, `ern` runs, as `erl`.
 
+*Superseded 2026-10-01 by "The Rules That Exist for Another": `spawn(f)` places on the running node, `Peer.spawn(name, f)` on a peer, and `Where` is gone; `remote` left by "No Remote Computation in the Language" (2026-09-27) and `ernc` by "One Tool, the Job Its First Word" (2026-09-26).*
+
 ## Toolchain and Guide
 
 The toolchain went into the report as section 11, as a contract rather than a manual: the commands, their arguments, the files they read and write, and nothing about output, exit codes, or the REPL's appearance; it defines what a program is in practice, and section 8's `Sys` and peers need an address. Distributed programming does not go into the report: a report says what holds, and how to build is another genre. It becomes a third document, [`ernest_guide.md`](../ernest_guide.md), with distributed programming as one chapter beside error handling and process design, written from the paper programs once the compiler runs them.
+
+*Superseded in part 2026-09-30 by "`ern(1)` Has Its Sections": §11.8 states every exit status, and §11.2 states the shell's behaviour.*
 
 ## FFI, 2026-09-13
 
 The report said "no FFI": foreign code was a process, the boundary was the mailbox. That is pure and consistent, and heavy: every Erlang library would be a message type plus a process, and ETS, which exists to avoid messages, would get them back. Four approaches were weighed. A, foreign processes with hand-written send and receive. B, foreign processes plus an `Address.call` in the prelude, one line per operation, with the runtime short-circuiting to a direct call; correct, and still a process per library. C, foreign pure functions only, `foreign fn` with a purity promise, direct calls, for hashes and math and JSON; not for anything with state. D, Gleam's `@external`: direct calls to anything, the type declared on the Ernest side, the Erlang side trusted. Gleam can do D without lying because it promises nothing about purity; Ernest does.
 
 Taken: D with the context. A `foreign fn` with `->{Proc(m)}` may do anything, and the context says so; a `foreign fn` without context promises purity, kind 3 if it lies. That widens what `{Proc(m)}` means, from "uses its own mailbox and identity" to "acts through its process", which is what an effect marker means everywhere else and the reading the report's readers had anyway; `remote` stays pure, since its result depends on its argument alone. `foreign type` gives handles for pids, references, ports, and table ids: no constructors, identity equality, usable only through foreign functions, Gleam's external types. A prelude type `Foreign` with `Optional`-returning accessors covers data the program cannot type in advance, Gleam's `Dynamic`. The representation of values is fixed as an ABI in the plan; Erlang functions with `{ok, _} | {error, _}` conventions get a wrapper module, as Gleam's stdlib does. The reason for choosing Gleam's road over the process boundary: a language on BEAM gets a library exactly as fast as wrapping an Erlang module is cheap, and Gleam proved it in a year. `Address.call`, request and reply as a function, stays out of the report and goes under Later; it is the idiom every program wrote by hand. An `Ets.ern` shim is Appendix D of the report. Its first version had six lines of Erlang to adapt conventions; the second has none: raw bindings are file-local `foreign fn`s and the library is Ernest over them, because the representation already matches Erlang's, `{ok, V}` being a constructor tagged `ok`. Renaming is the declaration's name, reordering and reshaping are Ernest functions, and Erlang is needed only to catch exceptions into `Either`. What chafed was nothing in the language and one thing outside it: a table's lifetime follows the creating process, which the type cannot say.
+
+*Superseded in part 2026-10-01 by "One Door for the Host's Values": the host's values enter through foreign types alone and `Foreign` is the library's `Foreign.Term`; `Address.call` entered the prelude by "Request-Reply" (2026-09-13), and `remote` left by "No Remote Computation in the Language" (2026-09-27).*
 
 ## Review, 2026-09-13
 
@@ -186,6 +198,8 @@ Four remarks from a first outside reading, all taken.
 - The namespace in a declaration did not have to match the file, which would have forced the loader to index every unit. Now a file's path is its namespace: `Net/Http.ern` holds `Net.Http.*`, possibly deeper, and the loader is a path lookup. Java's and Go's rule; the prefix in the declaration still carries visibility, so it is not redundant with the path.
 - "Constructs from head and tail" was vague; `x +: xs` is now defined, and `[a, b]` as `a +: b +: []`.
 - The context appeared in section 3 before process, mailbox, and context were defined, and `{Proc(M)}` looked like a set of one. Section 0 now defines the three words in three sentences before types are used, and the syntax is `(A) -> B with M`, `fn counter(n : Int) -> () with CounterMsg`: no braces, no `Proc`, no new word, since there is exactly one kind of context and all it needs to name is the mailbox. `with` gains a second role, after a return type, in a different position from `opaque type ... with { }`. The braces were the last piece of Unison's notation for effect sets, kept for two weeks after the sets were gone.
+
+*Superseded in part 2026-09-16 by "Lowercase Load-Path Segments" and "`export` Keyword; Declarations Use Local Names": paths are lowercase and visibility is `export`; the abstract type's `with { }` went by "An Abstract Type's Boundary Is Its Module" (2026-09-25).*
 
 ## MVP Split, 2026-09-13
 
@@ -207,9 +221,13 @@ The report listed the pattern forms but never said that `let`, `match`, `recv`, 
 
 `p as c` binds the whole of what `p` matches. At top level it is a variant of two `let`s; nested, `Some(Peer(dir = d) as peer)`, nothing else reaches the whole without reconstructing it, which an opaque type forbids. Left out at first since no paper program needed it; taken the same day because the first outside reader reached for it, and Haskell, OCaml, Rust, and Gleam all have it. Sixteen words. Elixir's `^x`, comparing against a bound variable, stays out: sugar for `when`.
 
+*Reason restated 2026-10-01: `as` stands by principle 2's sentence on a second spelling, a nested pattern otherwise rebuilding the value it already holds, and `^x` stays out by the same sentence ("When a Second Spelling Enters"); four languages and one reader's reach were a neighbour's and a count, which no longer decide.*
+
 ## Against Gleam, 2026-09-13
 
 Gleam feature by feature. Two changes: line comments are `//`, since `/* */` was already C's and `--` had a trap, `x--y` lexing as a comment; and `todo : (Text) -> a` in the prelude, a fault the process chose, the second deliberate exception beside division, because every paper program had written `= ...` for the function not yet written. Noted for later, already: byte patterns, string prefix patterns, `Address.call`, doc comments. Deliberately absent: `use` in general, `|>`, labelled arguments, `let assert`, `panic`, field access, `import`, `pub`, type aliases, `case` with several subjects. One disagreement kept: Gleam's `/` on `Int` returns `0` for a zero divisor; Ernest faults.
+
+*Superseded in part 2026-09-26 by "One Way to Fault": `todo` went and `fault` stands; `|>` entered by "Pipe Operator `|>`" (2026-09-14), `export` by "`export` Keyword; Declarations Use Local Names" (2026-09-16) and `e.f` by "Field Selection" (2026-09-25). That every paper program had written `= ...` was a count, which no longer decides.*
 
 ## Request-Reply, 2026-09-13
 
@@ -229,6 +247,8 @@ Why `Reply(a)` is not `Address(a)` with a rule: an `Address(a)` can be stored, a
 
 Spawn-capture. The receive-then-worker-then-reply pattern — a process receives a request, spawns a worker to do the work, the worker answers the caller — captures the `Reply` in the lambda handed to `spawn`. This is the shape file sync's `store`/`writer` reached and the shape any request that offloads to a worker reaches, and the language should let it be written directly rather than routed through an `Ack` wrapper. So spawn-capture is a third form of consumption: from the arm's perspective, capturing a `Reply(a)` in a lambda passed to `spawn` consumes it; the spawned lambda's body must in turn consume the captured `Reply` on every path, checked at the lambda's definition. Higher-order use beyond `spawn` remains a type error, since counting invocations of a callback is not general: `List.map` might call zero, one, or many times, `Optional.map` zero or one, and only `spawn` guarantees exactly one, in a new process. The MVP 1 restriction is narrow and applies only when the spawned lambda captures a `Reply(a)`: in that case the spawn's second argument must be a direct `fn() = ...` expression at the call site, not a lambda bound in a `let` and passed by name, so the check does not have to follow function values. Spawns of non-Reply-capturing lambdas are unaffected.
 
+*Superseded in part 2026-10-01 by "The Reply Discipline Names No Type": a reply stands wherever it is consumed exactly once, in a list as in a constructor, and a lambda that captures one may be bound by `let` since "Reply-Carrying Lambdas" (2026-09-19).*
+
 ## Backpressure, 2026-09-13
 
 The mailbox is unbounded. A fast producer and a slow consumer fill memory until the node dies. In practice this is a corner case — most systems have natural rate limits, most gen_servers are I/O-bound with fast enough consumers — but the failure mode when it happens is severe: a node OOM. Four mechanisms were weighed, plus one variant on `spawn`.
@@ -246,6 +266,8 @@ The mailbox is unbounded. A fast producer and a slow consumer fill memory until 
 Taken: convention. The mailbox is unbounded (§10), and backpressure is application code: a credit protocol where the consumer sends the producer permission to send k messages at a time, and the producer waits for acks before continuing. Roughly ten lines per producer. Nothing in the language, nothing in the runtime. The failure mode without backpressure is a node OOM — noisy in the logs, same as Erlang. The idiom belongs in the guide, not the report.
 
 `Slot(a)` — a language-level answer parallel to `Reply(a)` — is sketched under Later. If a paper program writes the credit protocol three times, revisit.
+
+*Reason restated 2026-10-01: the unbounded mailbox stands as §10 states it, a program's backpressure its own, and `Slot(a)` is judged by principle 5's count of the language's concepts; the trigger of three programs writing the credit protocol was a count, which no longer decides.*
 
 ## No Registry, 2026-09-13
 
@@ -271,6 +293,8 @@ Taken: no registry. The `Link` idiom for mutual references, threaded arguments f
 
 *Revisited 2026-09-26 by "Names, Restarts and Supervision": no registry still, and a service is a top-level binding rather than an argument threaded from `main`.*
 
+*Reason restated 2026-10-01: the receptionist stays out by principle 3, holding an address being the permission to send, and §6.5's services serve what it was for; three programs was a count, which no longer decides.*
+
 ## Remote Ergonomics, 2026-09-13
 
 Two scenarios have been raised as limitations of `remote(f)`.
@@ -291,6 +315,8 @@ Four options weighed.
 
 Taken: the stdlib helper, deferred to Later. Writing the pattern by hand is bounded (ten to fifteen lines) and no paper program has written it three times. `Task(a)` remains available if paper programs demand richer control — cancellation, timeouts per task, interleaved arrivals rather than all-at-once — and `List.parallelRemote` is the smaller answer if what is needed is only parallel-then-join.
 
+*Superseded 2026-09-27 by "No Remote Computation in the Language": `remote` and `parallelRemote` are gone, a computation on a peer being a spawn there, written `Peer.spawn(name, f)` since "The Rules That Exist for Another" (2026-10-01).*
+
 ## Tests, 2026-09-13
 
 Ernest has no test story today. Every language has to answer this eventually; the question is what shape fits.
@@ -308,6 +334,8 @@ Options considered.
 Taken: tests as values. A test is a top-level binding of a specific prelude type; the toolchain discovers them by scanning types. No new keyword, no naming rule, no attribute; consistent with "everything is a value" and with visibility being in the name — a top-level binding is what it is by its type, not by decoration.
 
 The concrete prelude type is deferred to MVP 1 Phase 3, when the toolchain is being written and paper programs can inform the API. Candidate shape: `type Test = Test(name : Text, run : () -> Test.Result)` with `type Test.Result = Passed | Failed(Text)`. Deciding the exact ergonomics without a paper program that writes tests would be the rule not measured in code, principle 1. Deterministic scheduling for tests, which stood briefly in the report as a runtime flag, remains a runtime feature to decide with the runtime, not a language requirement.
+
+*Superseded in part 2026-10-01 by "The Prelude Family's Rules": the test type is `Test.Case` of the standard library's module `Test` (Appendix E.24), not the prelude's.*
 
 ## Packages, 2026-09-13
 
@@ -343,6 +371,8 @@ Growth rule for the standard library: same as the deferrals in Later. When a pap
 
 *Superseded 2026-09-20 by "Nothing Waits for a Program": no rule counts programs, and Appendix E.0's rules decide on the function itself.*
 
+*Superseded further 2026-10-01 by "What the Prelude Holds": the prelude holds what a rule names or what no declaration could give, so `remote`, `RemoteError`, `ClockMsg`, `Int.div`, `todo` and `Foreign` are gone from it, and the library's shims stand by E.0 rule 1.*
+
 ## Ambient Sys, Five Principles, 2026-09-14
 
 `Sys` is no longer a value threaded through the program. The runtime's system processes are exposed as top-level ambient references: `Sys.stdout : Address(Text)` and `Sys.clock : Address(ClockMsg)` in the report's prelude; paper-program runtimes may add `Sys.fs`, `Sys.stdin`, `Sys.keys`, a stderr sink, and the like. `main` takes no arguments: `fn main() -> () with ()`. The `Sys` type declaration is gone.
@@ -371,6 +401,8 @@ Result:
 **Io.ern surface.** The stdlib pairs an ambient form with an explicit-address form. `Io.print` and `Io.println` take just `Text` and send to `Sys.stdout`; `Io.printTo` and `Io.printlnTo` take `(Address(Text), Text)` for a specific sink (a logger, a capture buffer, an alternate stream). Both are useful and neither is a variant of the other — the argument list distinguishes them, the same way `print` and `fprint` differ in C.
 
 **What did not change.** `self()` is still `self()`, a nullary function with parens; it can't become a value because it depends on the current process. `Sys.stdout` is a value because it's node-wide, not per-process. If we ever need per-process ambient stdout (test isolation), we'll pay for it then, likely by giving `Sys.stdout` a call form or by extending `spawn` to accept a per-child ambient override.
+
+*Superseded in part 2026-09-26 by "The System References Live in Their Modules": a system reference is a private binding of its module, used through its functions since "System Modules" (2026-09-18); the trigger of three paper programs was a count, which no longer decides.*
 
 ## Standard Library Baseline, 2026-09-14
 
@@ -401,6 +433,8 @@ Appendix E was audited for naming, argument order, and coverage. The growth rule
 
 *Superseded 2026-09-20 by "Nothing Waits for a Program": no rule counts programs, and Appendix E.0's rules decide on the function itself.*
 
+*Reason restated 2026-10-01: the additions stand by E.0 rule 2's vocabularies, a function being where a reader who knows the type looks for it ("What Principle 5 Counts"); what Elm, Rust and Haskell ship was a neighbour's, which no longer decides.*
+
 ## `parallelRemote` in the Prelude, 2026-09-14
 
 `parallelRemote` is promoted from Later (stdlib) to the report's prelude, alongside `remote`. Signature:
@@ -419,6 +453,8 @@ parallelRemote : (List(() -> a)) -> List(Either(RemoteError, a))
 
 **Growth-rule note.** The three-uses rule applies to promoting stdlib functions; the prelude has a different bar (the report names it). `parallelRemote` earns its slot because it is the second half of the remote-computation story, not because a paper program used it three times. If a paper program written after this decision does not use it, revisit.
 
+*Superseded 2026-09-24 by "One Primitive for Remote Computation": `parallelRemote` left the prelude, and `remote` left by "No Remote Computation in the Language" (2026-09-27); "runtime-optimizable" was speed, and the trigger a count, neither of which decides.*
+
 ## `Address.callForever` in the Prelude, 2026-09-14
 
 `Address.callForever` is added to the prelude alongside `Address.call`:
@@ -436,6 +472,8 @@ Same operation as `Address.call` without the timeout: the caller waits as long a
 **Static-check relationship.** The linearity check on `Reply(a)` is static; the mandatory timeout on `Address.call` compensates for the fact that execution may not reach `answer` at runtime. `Address.callForever` accepts that risk by name — the caller has made the decision explicitly.
 
 **Growth-rule note.** No paper program has needed this yet. Added on consistency-with-`recv`-and-`remote` grounds, not on three-uses. If a paper program written after this decision doesn't reach for it, revisit.
+
+*Reason restated 2026-10-01: `Address.callForever` stands by §9's rule, the runtime alone giving it meaning ("What the Prelude Holds"), and by shape rule 8's named unbounded wait; `remote` is gone, and the trigger was a count.*
 
 ## Against Labeled Function Arguments, 2026-09-14
 
@@ -462,6 +500,8 @@ Ernest chooses the higher-activation-cost path deliberately. The design pressure
 
 **Not adopted alongside**: default parameter values, optional parameters, variadic parameters. All rejected on the same slippery-slope grounds. If a paper program writes a five-parameter signature with two bools three times without wrapping them in a type, revisit.
 
+*Reason restated 2026-10-01: labelled arguments stay out by principles 2 and 5, and a `Bool` that chooses a behaviour by shape rule 9; the slope other languages slid down and the three-programs trigger no longer decide.*
+
 ## Pipe Operator `|>`, 2026-09-14
 
 `|>` is added to the report as a syntactic form: `x |> f` is `f(x)`; `x |> f(a, b)` is `f(x, a, b)`. Left-associative, lowest-precedence (below `||`).
@@ -485,6 +525,8 @@ The type checker validates that `x`'s type matches the target's first argument.
 **Not qualifiable.** `Int.|>` and similar are rejected. `|>` is a syntactic form, not a namespaced function — unlike `Int.+` or `Text.<>` which are ordinary function names an operator lookup resolves to.
 
 **Not adopted from Gleam/Elm at the same time**: labeled function arguments, `use` for arbitrary callbacks, function-capture `f(_, y)`. Waiting for a paper program to write those patterns three times, per the growth rule.
+
+*Reason restated 2026-10-01: `|>` stands by principle 2's sentence on a second spelling and by principle 1, OCaml's reader writing it, and `use` and `f(_, y)` stay out by the same sentence ("When a Second Spelling Enters", "The Reader Principle 1 Means"); what other languages have and the wait for three programs no longer decide.*
 
 ## Bit Arrays in the Report, MVP 2 in the Plan, 2026-09-14
 
@@ -513,6 +555,8 @@ The `Later` entry from 2026-09-13 said "the addition Erlang readers will ask for
 
 **Naming.** Section 5's paragraph title is "Bit arrays" (Gleam's term, cleaner than Erlang's "bit strings" which collides with `Text`).
 
+*Reason restated 2026-10-01: the bitstring stands by principle 1, being Erlang's own form, and builds `Bytes` (§5.11); that Gleam explored it no longer decides. The name became "bitstrings" by "Terminology Sweep" (2026-09-15), and `unit` left by "`unit` Is Gone From Bitstrings" (2026-09-29).*
+
 ## `Sys.stderr`, `Io.eprint`, `Io.eprintln` Removed, 2026-09-14
 
 Same rationale as `Set(a)`. The stderr trio was inherited on "obvious symmetry with stdout" grounds. No paper program sends anything to stderr; no `Io.eprint*` call anywhere. The paper-program preambles that named `Sys.stderr` did so only because the report required it, not because they used it.
@@ -525,6 +569,8 @@ Removed:
 - README and plan updated.
 
 **When it comes back.** When a paper program needs to write a diagnostic to a distinct stream from normal output. A runtime that provides a stderr process can still expose it as `Sys.stderr` under the "paper program names extra assumptions" rule (§8); it doesn't have to be language-required.
+
+*Superseded 2026-09-20 by "`Io` in Ernest, and `Sys.stderr` Restored": standard error is the runtime's again and Appendix E.1 writes to it; that no paper program wrote to it was a count, which no longer decides.*
 
 ## `Set(a)` Removed From the Prelude, 2026-09-14
 
@@ -540,6 +586,8 @@ Removed:
 **When Set comes back.** When a paper program writes the pattern three times — graph work (visited-set traversal), tag membership at scale, deduplication of large streams — Set gets added back with a rationale entry. Until then it stays out. The growth rule cuts both ways: it defends against speculative addition and against retention out of habit.
 
 **A note on cost.** `Set` had cross-node serialization as a runtime-provided type. Bringing it back later means either reasserting that runtime property or accepting `foreign type Set(a)` with the node-local constraint. Neither is expensive to reverse; the removal is not painting a corner.
+
+*Superseded 2026-09-15 by "`Set(a)` Restored": `Set` is the prelude's (§9.2).*
 
 ## Against OTP as a Language Feature, 2026-09-14
 
@@ -563,6 +611,8 @@ Ernest does not adopt OTP's behaviours — `gen_server`, `gen_statem`, `supervis
 - Not a claim that OTP is bad. OTP is the reason Erlang is used in production; its wisdom is real. Ernest's position is that the wisdom lives in patterns programmers can build, not in language mechanisms that constrain everyone. The pattern's shape is Ernest's, the wisdom is inherited.
 - Not a claim that Ernest replaces Erlang. On BEAM, Ernest and Erlang coexist. An Ernest program that needs an Erlang OTP library uses a shim; an Erlang program that needs an Ernest type calls it through the same runtime.
 
+*Superseded in part 2026-09-26 by "A `Supervisor` in the Standard Library, and `fault`": E.22's `Supervisor` offers three strategies and §9.5 has `restarting`, admitted by E.0's rules and §9's, not by three uses.*
+
 ## `Set(a)` Restored, 2026-09-15
 
 `Set(a)` is put back into the prelude and stdlib. This reverses the 2026-09-14 removal (see the *`Set(a)` Removed From the Prelude* entry above).
@@ -579,7 +629,7 @@ The 2026-09-14 removal applied the growth rule ("three uses before promoting to 
 
 **Rule clarification.** The growth rule applies to *stdlib convenience functions*, not to fundamental container types. Adding `List.zipWithIndex` needs three-uses justification. Adding `Set(a)` doesn't, because a reader expects it. This distinction should have been named in the growth-rule entry originally.
 
-*Superseded 2026-09-20 by "Nothing Waits for a Program": no rule counts programs, and Appendix E.0's rules decide on the function itself.*
+*Reason restated 2026-10-01: `Set` stands by §9's rule for a type whose module is named after it and by E.0 rule 2; what every typed functional language ships was a neighbour's, and the growth rule a count, neither of which decides.*
 
 ## Section 0 Rewrite, 2026-09-15
 
@@ -631,6 +681,8 @@ External review kept pushing on `+:` (cons). The `+` character reads as arithmet
 
 **Not renamed.** Everything else in the operator table — `+ - * / % == != < <= > >= && || |>` — is unchanged. Prefix `-` is unchanged.
 
+*Reason restated 2026-10-01: `::` stands by principle 1, being Standard ML's and OCaml's cons, and `<>` as Ernest's one concatenation, a departure §2.6 and §4.8 state ("The Reader Family's Rules"); Gleam's usage and a program's need no longer decide, and `Bytes.<>` is §9.6's.*
+
 ## Section 2 Tightening, 2026-09-15
 
 External review found eight underspecified corners in §2. All eight closed with minimal additions; nothing changed semantically, only made explicit.
@@ -643,6 +695,8 @@ External review found eight underspecified corners in §2. All eight closed with
 6. **Integer literals are decimal only.** No `0x`, `0o`, `0b`. No digit separators (`1_000_000`). Principle 5. The standard library provides base parsing where needed. If bit-protocol paper programs demand hex, revisit; the growth rule applies.
 7. **Prefix `-` precedence stated.** Tighter than any binary operator. Was implicit from Appendix A's `Unary = [ "-" ] Primary { Call }`; now stated in §2's precedence sentence.
 8. **All eight follow the principles.** The additions define what was left undefined (principle 3 — nothing invisible, applied to the spec itself). None introduces new syntax (principle 5). The wildcard resolution and BOM handling reduce surprise for expected users (principle 1). No parser complication (principle 4) — every change is either a lexer constant table (whitespace set), a well-formedness check (Unicode scalar bounds), or a one-line early strip (BOM).
+
+*Superseded in part 2026-09-19 by "Raw Strings, and No Regex Literals", "Integer Literals in Every Common Base" and "Digit Separators": a raw string may span lines, and every base and `_` between digits are literals, which principle 2's literal sentence admits ("When a Second Spelling Enters", 2026-10-01).*
 
 ## `recv` → `receive`, 2026-09-15
 
@@ -698,6 +752,8 @@ Option 2 fixes both warts for the price of one `#` character per tuple site and 
 
 **Bonus.** The decisions-log entry from 2026-09-12 (Grammar Audit) noted that `(A, B) -> C` vs `((A, B)) -> C` was a "remaining fragility" with a compiler suggestion on arity errors. The suggestion becomes unnecessary — the two forms are now clearly different (one uses `#`, the other doesn't).
 
+*Superseded in part 2026-10-01 by "The Rules That Buy Little": a tuple has two components or more, a tuple of one buying nothing its value lacks.*
+
 ## `Text` → `String`, 2026-09-15
 
 External review pointed out that `Text` is Ernest-invented for the concept every mainstream language (Java, C#, JavaScript, Python, Rust, Go, Swift, Kotlin, Gleam, OCaml, SML, F#) calls `String`. The `Text` name comes from Haskell's `Data.Text`, which exists specifically to distinguish an efficient Unicode representation from the older, slower `String = [Char]`. Ernest has no such alternative representation to distinguish from — there is exactly one string type — so the Haskell motivation doesn't apply here.
@@ -715,6 +771,8 @@ Taken: `String`. The Haskell motivation for `Text` doesn't apply — Ernest does
 **Effect.** Type `Text` → `String`. Every reference in the report, guide, four paper programs, and implementation plan updated. Module file `Text.ern` → `String.ern` (Appendix E.5). Every function name that mentioned `Text` (`Int.toText`, `Char.toText`, `Bool.toText`, `String.toUtf8`, etc.) becomes the `String`-suffixed form. Lexical category `text` → `string` in §2's literals block and in `binop`/`literal` composition. Prose "text literal" becomes "string literal"; English uses of "text" (source text, "writes text to stdout") stay as English.
 
 **Not renamed.** `SessionId.text` in the webserver paper program is a domain-specific getter on an abstract type — kept as-is (renaming it would change API meaning, not spelling).
+
+*Reason restated 2026-10-01: `String` stands by principle 1, the type's name in Standard ML and OCaml and the module's in Erlang ("The Reader Family's Rules"); what every mainstream language calls it no longer decides.*
 
 ## `()` → `Void`, 2026-09-15
 
@@ -740,6 +798,8 @@ Taken: `Void`. The name says what the value means (no meaningful return) rather 
 
 **Compared to the tuple `#(...)` decision.** Same aesthetic — reduce parenthesis overloading. Together, the two changes turn `()` from a multi-role symbol back into a single-role one.
 
+*Superseded 2026-09-17 by "`Void` → `Unit`": the one-value type is `Unit`, as "The Reader Principle 1 Means" (2026-10-01) confirms; `with Never` for a root that never receives stands.*
+
 ## `remote` Is Not Pure, 2026-09-15
 
 An external reviewer caught a genuine contradiction: §0 defines *pure* as "result depends only on its arguments, and it affects nothing"; §6.7 claimed `remote` and `parallelRemote` were pure. But `remote(fn() = 42)` can return `Right(42)`, `Left(NoRemotePeer)`, or `Left(PeerLost)` depending on peer configuration and connection state — its result does *not* depend on the argument alone. Two calls at different times can return different values. The report contradicted its own purity definition.
@@ -757,6 +817,8 @@ Taken: the second. `remote` and `parallelRemote` gain `with m`. The argument `f`
 **Downstream.** Guide §11's two `main` functions that called `remote` and `parallelRemote` had been `with Never` after the earlier send-only sweep; both are now `with m` polymorphic. The Never sweep pattern (send-only → Never) still holds for functions that only `send` — but a function that calls `remote` is no longer send-only, so it doesn't fit that pattern.
 
 **Principle 3** carried this decision: the effect was invisible in the type. Now it's visible.
+
+*Superseded 2026-09-27 by "No Remote Computation in the Language": `remote` and `parallelRemote` are gone.*
 
 ## Effect Polymorphism Specified, 2026-09-15
 
@@ -879,6 +941,8 @@ Taken: the third. §3.9 corrected to distinguish top-level from block `let`. §4
 
 **Consequence for paper programs.** All existing `let m = Ets.new()` and similar patterns already work: the subsequent usage (`Ets.insert`, etc.) resolves the free variables within the block. No paper-program change needed.
 
+*Superseded in part 2026-09-29 by "A Block Binding's Open Variable Stays Free" and "A Lambda Bound by `let` Is Generalized": a variable nothing pins stays free and harmless, and a lambda bound by `let` is generalized; a top-level binding declares no member since "Members, Operators, and No Hidden Argument" (2026-10-01).*
+
 ## Top-Level Initialization Specified, 2026-09-15
 
 The reviewer's seventh finding: the report never said what happens between "the runtime loads the modules" and "the runtime calls `main`". Top-level `let` bindings need their initializers evaluated somewhere in there, but the semantics — when, in what order, in what process, with what effects allowed — was silent.
@@ -906,6 +970,8 @@ Taken: the third. It matches the paper programs (none has an effectful top-level
 **Cost.** Small. Adds one subsection, one rule. Rules out one flexibility (effectful init) that no paper program uses.
 
 **Principle 3** carried this decision: the semantics of top-level `let` was genuinely undefined; readers had to guess. Now spelled out.
+
+*Superseded in part 2026-09-26 by "An Initializer Runs as a `Never` Process": an initializer may spawn, send and call and may not receive; that no paper program used an effectful initializer was a count, which no longer decides.*
 
 ## Numeric Semantics and Fault Rules, 2026-09-15
 
@@ -937,6 +1003,8 @@ The reviewer's eighth finding: fault rules and numeric edge cases were inconsist
 
 **Principle 3** again — undefined semantics is invisible in the type system and in the runtime behavior. Every gap surfaced by the reviewer was a real inference problem where a user reading Ernest code could not predict the outcome.
 
+*Superseded in part 2026-09-15 by "Third-Round Review Response: Float Finite-Only, ABI Table, Restriction Propagation, Assorted Repairs": `Float` is finite and a non-finite result faults, and `Int.mod` is `Int.rem` by "`Int.div` and `Int.rem` Are the Library's" (2026-09-29). Reason restated 2026-10-01: division truncates toward zero by Erlang's `div` and `rem` and OCaml's `/` and `mod` ("The Reader Principle 1 Means"); the C-family reader no longer decides.*
+
 ## `Bytes` and Bitstring Alignment, 2026-09-15
 
 The reviewer's ninth finding: `Bytes` is defined as "a sequence of octets" (§3.1), but `<<...>>` syntax allowed arbitrary bit counts and was documented as producing a `Bytes` value. `<<x:size(4)>>` produces 4 bits — not a valid octet sequence. Contradiction.
@@ -961,6 +1029,8 @@ Taken: the third. Ernest's paper programs are byte-aligned; forbidding non-align
 
 **What this rules out.** Bit-level manipulation without byte-alignment (e.g., building a 7-bit-total value) is not expressible in Ernest. If a paper program ever needs it, revisit — either add a `Bitstring` type as sibling to `Bytes`, or lift the alignment restriction.
 
+*Reason restated 2026-10-01: a bitstring builds octets, one type `Bytes` (§3.1, §5.11), and a constant that does not fit is refused when compiled by principle 3 ("Compiled, Run, or Silent"); what the paper programs used was a count, which no longer decides.*
+
 ## Reply Timeout Semantics: Late Answers and Mailbox Isolation, 2026-09-15
 
 The reviewer's tenth finding: §6.6 said `Address.call` has a timeout and that a `Reply(a)`'s fresh identifier isolates it from the caller's mailbox, but never said what happens *after* the timeout. If the recipient answers late — after `Address.call` has returned `None` — where does the value go? Does it land in the mailbox as a stray message? Fault? Silently vanish?
@@ -984,6 +1054,8 @@ Taken: silent discard. Matches BEAM's `gen_server:call` convention, matches Erne
 **Cost.** Two paragraphs. No paper program change; the semantics matches what everyone was implicitly assuming. Now stated.
 
 **Principle 3.** The behavior after timeout was invisible in the type system and undefined in the report. Explicit now.
+
+*Reason restated 2026-10-01: the late answer's drop stands as an instance of §6.2's one silence ("The One Silence"); `gen_server`'s convention and the auxiliary queue's want of a program no longer decide.*
 
 ## Sixth-Round Review Response: Type-Member Ownership, Concrete Operators, Path Rules, 2026-09-16
 
@@ -1032,6 +1104,8 @@ Sixth round flagged six items (NR01–NR06) plus small consistency edits.
 
 **Principle 2 (one way).** The type-member-prefix rule applies uniformly to concrete and abstract types; §4.4 adds a restriction (signature-listed constructor access) on top of the general rule instead of being a separate rule.
 
+*Superseded in part 2026-10-01 by "Members, Operators, and No Hidden Argument": a member is only an operator, `compare` or `negate`, so `Stack.push` and `let Stack.empty` are the module's functions and bindings; a path segment is one word since "One-Word Module Names" (2026-09-17), and an abstract type has no signature since "An Abstract Type's Boundary Is Its Module" (2026-09-25).*
+
 ## `ernc` Directory-Mode Cleans Stale `.erc` Outputs, 2026-09-16
 
 Author asked whether `ernc` should delete `.erc` outputs in `build/` whose source `.ern` no longer exists under `src/`. Real risk: `ern` finds `.erc` files by namespace-to-path mapping on the load path, so a stale `.erc` for a deleted source silently gets loaded and linked against current sources — silent version skew, mysterious runtime errors.
@@ -1052,6 +1126,8 @@ Taken: extension-scoped cleanup. `--no-clean` for the rare "keep stale outputs" 
 **Principle 1 (least surprise).** A user who removes a source file and rebuilds gets a `build/` that mirrors the source. No detective work to figure out why an obsolete function is still being called.
 
 **Principle 3 (nothing invisible).** The compiler's ownership of `.erc` is stated. The user knows exactly what will be removed and what won't.
+
+*Superseded in part 2026-09-28 by "The Sweep Removes What a Build Wrote": each `.erc` records its source and is removed only when that source is gone, and `--no-clean` went by "One Tool, the Job Its First Word" (2026-09-26).*
 
 ## `main` De-Specialization; Source Root; No More "Root Namespace", 2026-09-16
 
@@ -1151,6 +1227,8 @@ Semantics:
 
 **Principle 5 (small).** Reserved word count +1. In exchange, the report loses a whole failure mode (mismatched declaration prefix vs file path) and refactoring becomes proportional to the change.
 
+*Superseded in part 2026-10-01 by "Members, Operators, and No Hidden Argument": `push` is a function of `Stack`'s module, and `fn T.f` is declared only for an operator, `compare` and `negate`.*
+
 ## `ernc` Directory Mode; Output Dir Auto-Creation; Path-Shape Rejection, 2026-09-16
 
 Three toolchain decisions to complete the lowercase-paths story:
@@ -1180,6 +1258,8 @@ Three toolchain decisions to complete the lowercase-paths story:
 **Principle 1 (least surprise).** A macOS or Windows developer opening an Ernest project sees `lib/net/http.ern` consistently. The compiler stops silent variants from creeping in.
 
 **Principle 3 (nothing invisible).** Path shape rejection happens loudly at compile time; no hidden lowercasing, no runtime path-search that might succeed for one filesystem and fail for another.
+
+*Superseded in part 2026-09-17 by "One-Word Module Names": a path segment is a lowercase letter followed by letters and digits, and `ernc` is `ern build` by "One Tool, the Job Its First Word" (2026-09-26).*
 
 ## Lowercase Load-Path Segments, 2026-09-16
 
@@ -1326,6 +1406,8 @@ The reviewer's guide review flagged twelve items (UG01–UG12) plus editorial re
 
 **Related report edit (Appendix D).** Reviewer's UG09 flagged an inherited report inconsistency: Appendix D's intro claimed `{ok, V}` auto-maps to an Ernest sum, contradicting §8.4's quoted-atom rule. Fixed in the same round.
 
+*Superseded in part 2026-10-01 by "The Sixteen Sentences Read Back": `via` takes its address first, `via(addr, f)`, as shape rule 1 puts a subject first.*
+
 ## Fifth-Round Cleanup: Function Hash Preserves Eval Order, Underflow Threshold, Sqrt Removal, 2026-09-15
 
 Fifth-round review closed N01/N02/N03/N04 core issues. Three precise corrections in the changed wording:
@@ -1353,6 +1435,8 @@ The report declares no `sqrt` operation. §§3.1 and 7.4 mentioned it as an exam
 **Cost.** Two sentence rewrites (§3.1, §8.7), two smaller edits (§3.5, §7.4). No new syntax, no new operation.
 
 **Principle 1 (least surprise).** Two definitions of `make()` that would behave differently at runtime now have different hashes, so cached-by-hash execution does not silently substitute one for the other.
+
+*Superseded in part 2026-10-01 by "No Canonical Order": named fields are stored, hashed and shown in declared order, and a zero is `0.0` since "No Negative Zero" (2026-09-19).*
 
 ## Fourth-Round Review Response: Canonical Field Order, Injective Tags, Function-Value Init, Underflow, 2026-09-15
 
@@ -1410,6 +1494,8 @@ Also added `Int.toFloat` overflow contract: faults on out-of-range integers with
 **Principle 1 (least surprise).** Two nodes exchanging a value now have consistent field layout. Two case-differing constructors round-trip distinctly. A local function value used before its captures are initialized is rejected.
 
 **Principle 5 (small).** Canonical order and injective atom mapping are ABI conventions, not new language concepts. The underflow correction removes a spurious fault case.
+
+*Superseded in part 2026-10-01 by "No Canonical Order": the declared order is stored, transported and shown and is part of the type's identity, the option this entry rejected; negative zero is gone by "No Negative Zero" (2026-09-19).*
 
 ## Mint-Condition Audit: Grammar Notes, Main Default, Guide Sync, 2026-09-15
 
@@ -1549,6 +1635,8 @@ The reviewer asked for explicit language: matching a reply-carrying scrutinee tr
 
 - R07 — reviewer's concrete example was addressed. The general early-call rejection rule handles it.
 - Nothing else pending.
+
+*Superseded in part 2026-09-26 by "A Pure Function Stands for One With a Mailbox" and 2026-10-01 by "A Failure's Shape": a pure function fits `spawn` with no `with Never`, and §7.4 opens with the rule by which a function faults. Finite `Float` stands by §0's host paragraph ("The Host Family's Rules"); that no program stressed the non-finite cases no longer decides.*
 
 ## Four "Partly Resolved" Tails: Blocks, Reply Timing, Termination, Deadlock Scope, 2026-09-15
 
@@ -1738,6 +1826,8 @@ Taken: one policy answers all four questions.
 
 **Principle 5 (small).** No new concept added — the simpler answer stays.
 
+*Reason restated 2026-10-01: a lost peer's messages in flight are dropped as §6.2's one silence ("The One Silence"); `remote` and its `Left(PeerLost)` went by "No Remote Computation in the Language" (2026-09-27).*
+
 ## Guards and Bitstring Size Expressions: Pure, No Fault Swallow, 2026-09-15
 
 The reviewer's R10 (open since the earlier round): §5.9 said "a failed guard falls through" but didn't define permitted effects, fault handling, or the scope and evaluation rules for guards. Same gap for bitstring pattern `size(Expr)`.
@@ -1775,6 +1865,8 @@ The "Patterns and construction" paragraph extended:
 **Principle 3 (nothing invisible).** Guard and size-expression faults now visibly propagate rather than being silently swallowed.
 
 **Principle 5 (small).** No new syntax, no new operation, no new fault. Reuses the type checker's existing effect-tracking to enforce purity in guards and size expressions.
+
+*Superseded in part 2026-09-19 by "Receive Guards Are Guard Expressions": a `receive` guard and a bitstring size are guard expressions, which call nothing and cannot fault; a `match` guard's fault still faults the process, not because a guard's fault is rare.*
 
 ## Function-Type Grouping: `ParenType` Overrides Nearest-Arrow, 2026-09-15
 
@@ -1836,6 +1928,8 @@ The opening "Five deliberate exceptions" changed to just "Deliberate exceptions"
 
 **Principle 3 (nothing invisible).** The previously-unlisted faults are now in the report's inventory. Initialization failure was folklore; now stated.
 
+*Superseded in part 2026-10-01 by "A Failure's Shape": §7.4 opens with the rule by which a function faults where a list of deliberate exceptions stood; the paragraphs on initialization stand.*
+
 ## Bitstring `bits` Segments Must Be Byte-Aligned When Binding to `Bytes`, 2026-09-15
 
 The reviewer's U08 flagged a hole in §5.11's alignment story: the earlier fix required the *total* bit count of a construction to be a multiple of 8, but a single `bits` segment could still bind a sub-octet slice to a variable of type `Bytes`:
@@ -1870,6 +1964,8 @@ One paragraph extended, one sentence added:
 **Principle 1 (least surprise).** A reader who trusts `Bytes` is octets can now trust that pattern extraction preserves this — no accidental sub-octet Bytes values leak through the matcher.
 
 **Principle 2 (one way).** One alignment rule covers construction and extraction uniformly.
+
+*Superseded 2026-09-24 by "`bits` and `native` Leave the Bit Syntax": `bits` is gone, a sub-octet field being an `int` segment; no `BitString` type enters since `Bytes` is octets (§3.1), and that no program stressed one no longer decides.*
 
 ## Code Shipping Boundaries: Transport, Failure Channels, Runtime Bindings, 2026-09-15
 
@@ -1910,6 +2006,8 @@ Six focused edits, no new machinery:
 
 **Principle 3 (nothing invisible).** Top-level bindings on peer, captured-value vs name-reference distinction, and the remote-`send` shipping path are all stated rather than left as folklore.
 
+*Superseded 2026-09-27 by "No Remote Computation in the Language": `remote` and `RemoteError` are gone, work on a peer being a process spawned there; a top-level binding is evaluated on the peer, its result free to differ, as "Third-Round Review Response" said the same day.*
+
 ## Content Hashing: Recursive Groups and Abstract-Type Boundaries, 2026-09-15
 
 The reviewer's U06: §8.7's content-hash rule read `H(f) = hash(def(f), H(f))` for a recursive function, which has no finite construction. Related asks: how does normalization treat named-field order, local variable names, qualified references? What about abstract types with identical representations declared independently?
@@ -1940,6 +2038,8 @@ Two new paragraphs, each two-to-four lines:
 **Principle 5 (small).** The report gains one new mechanism concept (SCC-group hashing) and one clarification (abstract-type nominal identity). The alternative — leaving recursion undefined and abstract-type identity implicit — would leave two silent implementation traps.
 
 **Principle 3 (nothing invisible).** Recursive-group identity and abstract-type nominal boundary are now both visible in the report rather than implementation folklore.
+
+*Superseded in part 2026-10-01 by "No Canonical Order": normalization keeps named fields in their declared order, which is part of a type's identity.*
 
 ## Float Semantics: Minimal Reparation, Reject the Bloat, 2026-09-15
 
@@ -1973,6 +2073,8 @@ The reviewer's U05 flagged seven gaps in the Float story: `Float.floor(1.0/0.0)`
 **Principle 5 (small).** The report keeps its Float story to two paragraphs in §3.1 plus one in §3.10. IEEE 754 speaks for the rest.
 
 **Principle 2 (one way).** The two edits keep the existing pattern (Float→Int and Float ordering share the "fault on undefined output" rule; Map/Set constraint applies uniformly to any type that fails reflexivity).
+
+*Superseded 2026-09-15 by "Third-Round Review Response: Float Finite-Only, ABI Table, Restriction Propagation, Assorted Repairs": `Float` is finite and arithmetic beyond the range faults, so NaN and `Float.isNaN` went; that no program stressed the edge cases no longer decides.*
 
 ## Equality Constraints Propagate Through Values, Branches, and Modules, 2026-09-15
 
@@ -2015,6 +2117,8 @@ Two new paragraphs after the instantiation-time explanation:
 **Principle 1 (least surprise).** The old rule said "checked at each call site" without saying what "the type" of a stored function was. A reader would assume the constraint is lost when a function is stored — which would be a surprise once they hit `let f = equal; f(addr1, addr2)`. Now the answer is stated: constraint travels with the value, error at application.
 
 **Principle 3 (nothing invisible).** Printed types and diagnostics show the constraint even though annotations cannot. Two shapes that look the same in a written signature (`(a, a) -> Bool`) but behave differently at runtime would otherwise be indistinguishable — now the tooling makes the difference visible.
+
+*Superseded in part 2026-09-26 by "A Foreign Type States the Equality It Needs": a foreign type's parameter writes the constraint, `Map(k=, v)`, the one place no body shows it, and §11.5 states the mark each restriction prints with.*
 
 ## Block Bindings: Escape Path and Wildcard Rule, 2026-09-15
 
@@ -2062,6 +2166,8 @@ Also stated: type parameters of the enclosing `fn` are not "unresolved" — they
 **Principle 1 (least surprise).** A reader who knows HM predicts that `fn namedEmpty() = { let xs = []; xs }` should be polymorphic just like `fn empty() = []`. The old rule surprised them. Now the two forms behave identically.
 
 **Principle 3 (nothing invisible).** The wildcard `_` was doing invisible work before — its "does not bind a variable" property was implicit. Now it is explicit in the binding rule.
+
+*Superseded in part 2026-09-29 by "A Block Binding's Open Variable Stays Free" and "A Lambda Bound by `let` Is Generalized": a block binding whose variable nothing pins is no error, and a `let` whose value is a lambda is generalized; a `let` of another value stays monomorphic, a departure §4.6 states.*
 
 ## Effect-Variable Kinds: One Kind, Position Controls Admissibility, 2026-09-15
 
@@ -2149,6 +2255,8 @@ The `twice` counterexample and the `Get()` pattern omission are now static error
 **Cost.** One paragraph added (reply-carrying types), two consumption forms added, two pattern rules added, one summary-line update on line 212. Total: about twenty lines of prose in §6.6, one word in §3.9.
 
 **Principle 3 (nothing invisible).** The exactly-once guarantee is now visible in the type — reply-carrying types are recognized by structure, not by ad-hoc "message" convention. The old phrasing had a hidden asymmetry: the discipline followed the *variable name*, so wrapping a Reply in a struct erased the discipline. Now it follows the *type*.
+
+*Superseded in part 2026-09-29 by "`Optional` and `Either` Hold a Reply" and 2026-10-01 by "The Reply Discipline Names No Type": §6.6 names no type, a reply standing in an `Optional`, an `Either` or a list where the rule shows it consumed once. The over-approximation on `Stop` stands as §6.6 states it; that no paper program did otherwise was a count, which no longer decides.*
 
 ## Appendix D (ETS) Fixes: Syntax Sweep and Native Type, 2026-09-15
 
@@ -2317,6 +2425,8 @@ Int.shiftRight : (Int, Int) -> Int // arithmetic (sign-preserving)
 
 **No logical shift-right.** For arbitrary-precision `Int`, logical shift right is not well-defined without a bit width. Programs that need bit-width-specific operations should mask first: `x |> Int.bitAnd(0xffff) |> Int.shiftRight(4)`. If a paper program needs a proper 32-bit or 64-bit logical shift three times, we add a `Bytes`-oriented library or fixed-width Int type at that point.
 
+*Reason restated 2026-10-01: the bit operations stand as `Int`'s functions by E.0 rule 1 and §2.6's closed set of operators ("The Members Family's Rules"); the growth rule's revisit if unused, and the three logical shifts that would bring a fixed-width type, were a count, which no longer decides.*
+
 ## Gleam Feature Pass, 2026-09-14
 
 A systematic survey of Gleam's language features to check what Ernest is missing that its principles would embrace. Recording the conclusions so future work doesn't redo the analysis.
@@ -2362,18 +2472,18 @@ A systematic survey of Gleam's language features to check what Ernest is missing
 
 **Conclusion.** The substantive Gleam pass is done. Future adds should pass through the growth rule (three paper-program uses) or a specific principle-driven argument. Cosmetic imitation of Gleam is not a reason.
 
-*Superseded 2026-09-20 by "Nothing Waits for a Program": no rule counts programs, and Appendix E.0's rules decide on the function itself.*
+*Superseded 2026-09-20 by "Nothing Waits for a Program" and 2026-10-01 by "When a Second Spelling Enters": no rule counts programs; `use`, `f(_, y)` and list spread stay out by principle 2's sentence on a second spelling, and `|>` is in by it; a form is not admitted because Gleam has it.*
 
 ## Reasons Lifted Out of the Report
 
 - `recv` is Erlang's `receive`: selective receive lets a process wait for a specific reply in the middle of a protocol without losing other messages; without it every process becomes a state machine, gen_server turned inside out. `recv` therefore does not require coverage, unlike `match`: the two forms share their syntax but not their semantics, since a `match` that finds no arm is a fault and a `recv` that finds no arm leaves the message in the mailbox. Cost O(n) in the mailbox, and a growing mailbox is not visible in the code, the same cost as in Erlang; the backpressure decision above covers the same problem from the sender's side.
-- Braces and `;`: Gleam is the precedent. `if` is kept because its absence surprises more than its presence (Gleam's choice tried for a day).
+- Braces and `;`: a block ends at its own token and nothing depends on layout, which principle 4's parse asks. `if` is kept, principle 1's reader writing it in OCaml; a day without it was tried.
 - Two positional fields are forbidden because positions are invisible information and names are visible.
-- Signature on opaque types instead of a naming rule: the interface gets a place.
+- An abstract type's boundary is its module: every definition there may use its constructors (§4.4), the signature that once listed its interface having gone on 2026-09-25.
 - `via`: a narrower interface is a function, not a type rule; the adapter can do more than forward.
-- The clock sends `()` because `msg : a` would be an existential type.
+- The clock delivers through a wrap, `Clock.alarm(ms, wrap)`, because a message field `msg : a` would be an existential type.
 - One integer type, `Int`, with arbitrary precision — not `Nat` and `Int`. `Nat` promised non-negativity in the type at the price of a partial `-` returning `Optional`, which the tick game paid for and the grammar audit found also required signed literals to disappear. Totality lives in the prelude, not in a second numeric type.
-- Program termination when `main` returns is Go's rule, least surprise for everyone but Erlang readers; `Deadlock` is free on one node and the best deadlock protection there is.
+- The program ends when its entry process dies (§8.6), a departure from what an Erlang reader predicts, which §8.6 states as principle 1 asks; `Deadlock` is free on one node and the best deadlock protection there is.
 - Foreign values are node-local. A closure capturing a foreign value cannot be shipped to another node; the runtime faults at send with `Fault("foreign value cannot cross nodes")`. The alternative — silent transfer with late-failing operations on the far side, Erlang's shape — hides the error many hops from its cause and fails principle 3. Type-level tracking of "node-local" values was rejected: it would be a large mechanism for a narrow case.
 - "What does not exist," formerly a section of the report: exceptions, macros, type classes, subtyping, effect systems, currying, existential types, mutation, layout, dynamic binding, session types, shared caches (the ETS problem), runtime-driven code replacement, content addressing. FFI was on the list until 13 September; see FFI.
 
@@ -2392,6 +2502,8 @@ A read-through of the whole report applied principle 1 to the report's own vocab
 **Taken:** `Unit`.
 
 **Effect.** `type Unit = Unit` in §9.3; every `Void` in the report, the guide, and `examples/` became `Unit`. §3.1 now says in one sentence that `Unit` is not the empty type. §8.4 lost its special ABI line for the unit value: `Unit` is an ordinary nullary constructor and maps to the quoted atom `'Unit'` like every other, which also removes the contradiction between the old lowercase `void` atom and the constructor rule in the same section. The implementation plan's ABI paragraph was brought in line with §8.4 at the same time.
+
+*Reason restated 2026-10-01: `Unit` stands by principle 1, the ML reader's `unit` ("The Reader Principle 1 Means"); the count of Kotlin's, Swift's, Haskell's and Elixir's readers was a neighbour's, which no longer decides.*
 
 ## Report Read-Through Fixes, 2026-09-17
 
@@ -2443,6 +2555,8 @@ A full read of the report against its own principles, Wirth-report practice, and
 - *Shadowing and uniqueness.* §4.2's lookup order already made local declarations win over the prelude but never said shadowing was legal; the tick game's `type Key = Up | Down | Left | Right` shadows three prelude constructors. §4.2 now says a module may shadow prelude names, that the local one is meant wherever the name is unqualified in that module, and that within a module type names and constructor names must each be unique, because nothing but the name identifies a constructor. Type-directed disambiguation was rejected: it is not first-token, and it costs the checker a case analysis for a convenience nobody asked for.
 - *"empty" → "pure", "non-empty" → "process-only".* The distinguished value an effect variable may take when a function has no mailbox was called *empty*, and the restriction on the process primitives *non-empty*. "Empty" evokes the empty type, which is `Never`. The value is now called *pure*, and the restriction *process-only*, in §3.9, §11.5, and the guide. Entries dated before 2026-09-17 keep the old words.
 
+*Superseded in part 2026-09-18 by "Paring the Report" and 2026-10-01 by "One Door for the Host's Values": the sentences on the restriction left the report in the paring, and `Foreign` left §9.1 as `Foreign.Term`; the vocabulary of readers of other typed languages no longer decides a word of the report.*
+
 ## Five Sentences From the First Implementation, 2026-09-17
 
 The lexer, parser, and type checker were written against the report the same day as the read-through. No rule failed; the grammar's lookahead claims held on every example. Five places were silent and the checker had to choose; the report now says what it chose.
@@ -2453,6 +2567,8 @@ The lexer, parser, and type checker were written against the report the same day
 - *§6.6, passing a reply to a polymorphic parameter.* It is consumption, at that instantiation; the callee's not-reply-carrying restriction (§3.9) rejects a callee that would duplicate or discard it. This is what makes `identity` usable on a reply and `first` not.
 - *§4.5, a type-member name on a block-local fn.* The grammar admits it through `DeclName`; it is now an error, since a local function has no type to be a member of.
 
+*Superseded in part 2026-10-01 by "The Reply Discipline Names No Type": a list of a reply-carrying type is reply-carrying, a list element being a place a reply stands (§6.6).*
+
 ## Warts Audit, 2026-09-17
 
 After the first implementation, the checker was read again for approximations and unstated choices, with the rule now in CLAUDE.md: none may remain. Seven were found. Two needed the report:
@@ -2462,9 +2578,13 @@ After the first implementation, the checker was read again for approximations an
 
 Five were bugs against the report as written: the not-reply-carrying flag was inferred only for bare-variable parameters, so a discarded variable inside a tuple pattern escaped it; an abstract type's signature accepted a member less general than declared, because the signature's variables were not rigid; duplicate field names in a constructor pattern were not rejected; `foreign fn ... with m` did not get the process-only flag of §3.9; and the lexer treated `////` as a plain comment, which the report does not say.
 
+*Superseded in part 2026-09-29 by "A Lambda Bound by `let` Is Generalized": a type variable in an annotation is rigid, and a lambda that is not generalized and names one of its own is refused.*
+
 ## `Down`'s `function` Field and the Already-Dead Reason, 2026-09-17
 
 Writing the runtime needed two things §6.9 had not said. `Down(reason, function)` never defined `function`: the runtime cannot name the function a process ran, since `spawn` takes an arbitrary lambda, but it does know where the lambda was spawned, so `function` is the qualified name of the spawning function with the line of the `spawn` call, `Counter.main:19`, and the entry point's name for the entry process. And a process that died before `monitor` was called reports the cause of its death: the runtime remembers how every process it started ended. The first draft said `Fault("died before monitor")` instead; the first test showed why not: a worker that returns at once is already dead when the next line monitors it, and a fault for a normal return is the surprise principle 1 forbids. Remembering costs one monitor per process and one table row for the program's lifetime.
+
+*Superseded 2026-09-26 by "A Process Is Watched From Its Start": the runtime keeps nothing of an ended process, a late `monitor` answering `Unknown`; the field is `site` since "Everything About a Process in Its Module", and a `Down` names its process since "The Owner Family's Rules" (2026-10-01).*
 
 ## Acyclic Modules and Interface-Based Recompilation, 2026-09-17
 
@@ -2475,6 +2595,8 @@ Two sentences in §11.1, prompted by a reviewer's question about compile times. 
 §11 gets one sentence: options are long, `--name value`. The report had `-I` and `-o` on `ernc` and long names everywhere else; `-I` means "add an include path" in every C-family compiler, which the source root is not, so the least surprising spelling is `--source-root`, and `--out-dir` is what rustc and the TypeScript compiler call the mirrored output directory, matching the report's own "build-dir". Short aliases can be added later without changing anything. `--emit erl` writes the module's Erlang source instead of the `.erc`, in rustc's `--emit` shape, for reading the compiler's output; `--doc` stays its own mode because it writes to stdout, not into the build tree.
 
 `--repl` became `--shell` the same day: it is one more option of `ern`, given with any of the others, and what it adds is a shell process in the running program, as the Erlang shell is a process in a running node, not a loop that replaces the program. A bare `ern --shell` is the special case with nothing loaded.
+
+*Superseded in part 2026-09-26 by "One Tool, the Job Its First Word": `--out-dir` is `--build-root`, `--emit erl` is `--emit-erl`, and the shell is the job `ern shell`; long options stand by §11, and what a C-family compiler, rustc or TypeScript calls an option no longer decides.*
 
 ## Three Sentences From the Toolchain Audit, 2026-09-17
 
@@ -2537,9 +2659,13 @@ The three rules of the morning's entry left two judgments open: "the same few li
 
 *Superseded 2026-09-20 by "Nothing Waits for a Program": no rule counts programs, and Appendix E.0's rules decide on the function itself.*
 
+*Superseded further 2026-09-26 by "A Shim Reaches the Representation": `Random`'s `Seed` is an abstract type over SplitMix64 in Ernest.*
+
 ## Appendix E: Read Back Against Its Own Rules, 2026-09-18
 
 The appendix of the previous entry, read against the rules it opens with, disagreed with them in three places. `Io.printTo` and `Io.printlnTo`: no program writes them, and each is one `send`, so admission rules 3 and 4 both reject them; the argument-order decision above was about two functions the rules exclude, and a reader would have met `send(out, s)` beside `Io.printlnTo(s, out)` in one program. Removed; printing to a sink other than `Sys.stdout` is `send(a, s)`. `List.take`, `drop`, `sort`, `zip`, `flatMap`, `range`, and `last` were admitted by no rule: rule 2 named only the container vocabulary, and a list also has order and position. Rule 2 now lists the sequence vocabulary. `String.any` and `String.all` were an exception to "`String` is not a container" on the rule's first application, and a second way beside `toList |> List.all`. Removed. Also: `String.toBool` came from the inverse clause applied mechanically and no program reads a `Bool` from text; the clause now says "when programs read that type from text", and `toBool` is gone. E.13 states that only the low 64 bits of a seed take part, which the code did and the appendix did not say. The `Char` predicates decide ASCII without the regular expression.
+
+*Superseded in part 2026-09-18 by "System Modules" and 2026-09-20 by "The Corpus Decisions, Re-judged": printing goes through `Io` and never a `send` to a system process, and `String.toBool` is in as `Bool.toString`'s inverse; `Io.printTo` and `String.any` stay out by rule 4, and that no program wrote them no longer decides.*
 
 ## System Modules, 2026-09-18
 
@@ -2554,6 +2680,8 @@ The report had `Sys.stdout` and `Sys.clock` as addresses, `Io.println` over the 
 **Lesson, in CLAUDE.md as a rule.** The drift came from applying the principles to the language only and reading the result back after committing: `send` to system processes, a generator of our own, a reserved word as a function name. The rule is to read the resulting code back as a reader would, before reporting it.
 
 **MVP 1.** `Clock` and `Path` ship now as Erlang modules; the other four references and their modules type-check and `ernc` refuses them with "is not in MVP 1", listed in the README's table, until MVP 2.5 step 4.
+
+*Superseded in part 2026-09-26 by "A Shim Reaches the Representation" and 2026-10-01 by "The Library Family's Rules": `Random` is SplitMix64 in Ernest with an abstract `Seed`, the error type is Appendix E.1's `Io.Error`, and `Udp` is admitted by rule 1 and dated to MVP 3.2, not waiting for a program that needs one.*
 
 ## The Erlang Standard Library, Read for Ernest, 2026-09-18
 
@@ -2572,6 +2700,8 @@ The question that started the day: which of Erlang's modules belong in Ernest's 
 
 *Superseded 2026-09-20 by "Nothing Waits for a Program": no rule counts programs, and Appendix E.0's rules decide on the function itself.*
 
+*Superseded further 2026-09-26 by "A `Supervisor` in the Standard Library, and `fault`": a group's supervisor is the standard library's, Appendix E.22, and not an idiom each program writes.*
+
 ## Gleam's Standard Library, Compared, 2026-09-18
 
 Gleam stdlib v1.0.5, the BEAM library readers call sweet, read module by module against Appendix E. At module level Ernest has Gleam's set under its own names minus `function`, `pair`, `string_tree`, `bytes_tree`, `uri`, and `dynamic/decode`, which are patterns, compositions, or libraries here, and has `Char`, `Random`, `Path`, and the system modules, which are separate packages in Gleam. `Map` and `Set` match `dict` and `set` function for function, with `find`, `any`, `all`, and `filterMap` on top. `Optional` and `Either` are thinner than `option` and `result` because `<-` does what `use` and `result.try` do, and the rest are compositions.
@@ -2579,6 +2709,8 @@ Gleam stdlib v1.0.5, the BEAM library readers call sweet, read module by module 
 At function level `String` had eighteen functions to Gleam's thirty-nine and `List` twenty-three to sixty-two, and the gap held things a reader reaches for without thinking. Admitted, each needing recursion or the runtime and so not a composition: `String.startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, `repeat`; `List.partition`, `unique`, `indexed`, `repeat`, `unzip`, `tryMap`, `tryFold`; `Map.merge`, since `Set` had `union` and `Map` had no way to combine two; `Set.isSubset`, set algebra rule 2 implies. `indexed` is one function where Gleam has `index_map` and `index_fold`, since the pair list feeds `map` and `foldLeft` as they are. `tryMap` and `tryFold` are what `<-` cannot do inside a `map`. The pad functions take a `Char`, one job, where Gleam's take a string. The new verbs, `partition`, `unique`, `indexed`, `repeat`, `unzip`, `tryMap`, `tryFold`, `merge`, `isSubset`, `startsWith`, `endsWith`, `replace`, `slice`, `padStart`, `padEnd`, are in E.0's sequence vocabulary or are one type's algebra.
 
 Not admitted: Gleam's other thirty `list` functions, compositions (`first`, `rest`, `flatten`, `count`, `map2`) or specialities (`permutations`, `window`, `transpose`); `order`, since `Ordering.reverse` is `fn(a, b) = compare(b, a)`; `pair`; `function.identity`; `bool.guard`; `string.inspect`; `bit_array`'s base64, a library. Sent to the plan's bins: `Float.looselyEquals`, the honest float comparison, waiting for a program that compares floats; and stderr, which Gleam's `io` has as `print_error` and `println_error` and Ernest removed on 2026-09-14, restored as `Sys.stderr` with `Io.printError` and `Io.printlnError` at the first command-line program.
+
+*Reason restated 2026-10-01: the functions it admitted stand by E.0 rule 2's vocabularies and rule 4; Gleam's library as the measure of what a reader reaches for was a neighbour's, and `Float.looselyEquals` and standard error waiting for a program were a count, since decided by rule 3 and by rule 4's pair `printError` and `printlnError`.*
 
 ## Path by Its Structure, 2026-09-18
 
@@ -2592,11 +2724,15 @@ Rule 2 now says each kind of type has a vocabulary, lists text's and a path's be
 
 The pattern behind `Path` and `Fs` is that a module admitted by the corpus rule got the corpus's functions and nothing else, and the function-level decisions from reading `filename`, `filelib`, and `timer` had been made in conversation only. The plan's MVP 2.5 step 5 is now a table, one row per user-facing OTP module, with what Appendix E took, what waits and on what trigger, and what is out and why, so that a decision of this kind has a place to be recorded and a place to be found.
 
+*Superseded in part 2026-09-28 by "The Working Directory": `absname` and `expand` were decided with the working directory; `Fs.watch` stays out by E.0 rule 3 as "Later" states, not for want of a program that must not poll.*
+
 ## The Final Pass, 2026-09-18
 
 Appendix E read one last time against E.0 and against `gleam_stdlib` v1.0.5, OTP 27, Elixir's core, and Haskell's `base`, module by module. It holds: every module has its structure's vocabulary, every verb means one thing everywhere, every partial operation returns `Optional`, every contract the type does not state is a comment. `List` has thirty functions to `Data.List`'s hundred, `Enum`'s hundred, and `gleam/list`'s sixty-two, and what is not there is a composition the pipe writes or a speciality. `Optional` and `Either` are thin because `<-` is what the other twenty in `option` and `result` imitate. No type classes, no laziness, no format strings, no registry, no exceptions: positions the report states.
 
 Four things came out. `Map.update`, the counting idiom of get then put, is in snake's `applyInput` and in every word count, a `match` around two calls rather than a pipe of two, so rule 3 admits it and rule 4 does not exclude it; Gleam's `upsert`, Rust's entry. `Char.isUpper`, `isLower`, `toUpper`, `toLower`: `String` had the case operations and `Char` none, against "one verb in every module that has it"; Unicode shims, and a character whose case mapping is several, `ß`, maps to itself. `eunit` had no row in the plan's table, and Ernest will need a `Test` module the day the first test is written in Ernest; the row waits on that. The other OTP applications, `ssl` to `snmp`, `observer` to `parsetools`, got rows as libraries and tooling, so the table has every application and not only the two the question started from.
+
+*Reason restated 2026-10-01: `Map.update` stands by E.0 rule 3, a general operation of a map with no policy buried in it, and rule 4, a `match` around two calls being no pipe; that snake and every word count write it was a count, which no longer decides.*
 
 ## Paring the Report, 2026-09-18
 
@@ -2623,11 +2759,15 @@ What left the report, by section, and lives here now:
 - §8.7: hashing a recursive group by position gives a finite construction; an abstract type's signature is in its hash because the abstraction boundary is part of its identity; a captured address ships as a value because captures capture values, not names.
 - §11.1, §11.2: the path-shape rule validates each path compiled or loaded and does not scan a tree; `--create-config-dir .` does not conflict with `--load-path .`.
 
+*Superseded in part: §3.5's canonical order by "No Canonical Order" (2026-10-01), §5.11's `bits` by "`bits` and `native` Leave the Bit Syntax" (2026-09-24), §6.7's `remote` by "No Remote Computation in the Language" (2026-09-27), and §7.4's `todo` by "One Way to Fault" (2026-09-26); the rest is the rationale of rules that stand.*
+
 ## What the Reply Check Guarantees, 2026-09-18
 
 A reviewer's objection: exactly-once answering cannot be checked statically. Half true, and the report says which half. That `answer` is *reached* cannot be checked by any static system: a fault, a loop, a `receive` that never matches, or a `kill` bypasses it, which is the halting problem, and §6.6 states that the check is static in flow, not in dynamics. The "at least once" half is therefore handled dynamically, by the timeout of `Address.call`, with `callForever` opting out by name. The "at most once" half and "every path consumes" are what linear types check soundly, as Rust checks moves and session types check channels: a second use on any path is a type error, and the positions where a reply could be consumed any number of times, `List`, `Map`, `Set`, `Optional`, `Either`, a lambda called twice, are forbidden. The one hole the checker cannot see is foreign code holding a `Reply` handle, and the runtime closes it: a `Reply` is an alias that deactivates on the first answer, so a second answer is discarded like a late one. §6.6 now says so.
 
 **Why the static half is decidable.** Because the language restricts where a `Reply` may live. A reply-carrying value may be a parameter, a `receive`-bound variable, a constructor field or tuple component, a capture of a lambda handed to `spawn`, or the result of a function typed to return it; it may not be an element of a `List`, `Map`, `Set`, `Optional`, or `Either`, an operand of `==`, or an `as` alias; consumption is one of six syntactic forms. With no aliasing and no collections, "consumed exactly once on every path" is a syntactic property of each function body. The check runs per function and crosses no call: an obligation handed to a callee is discharged by the callee's parameter type, and the callee is checked at its own definition; a polymorphic function that would duplicate or drop its argument gets the not-reply-carrying restriction of §3.9, and instantiating it with a reply is a type error at the call. This is the construction of Rust's move checking, sound for the same reason. The price is expressiveness: a server cannot hold pending replies in a `Map`, it holds each in a process, filesync's one process per write. That is a trade to argue with, not an impossibility. The falsifiable form of the claim: an Ernest program the checker accepts that answers one `Reply` twice, or drops one on a path. If one exists, the check is wrong.
+
+*Superseded in part 2026-10-01 by "The Reply Discipline Names No Type": §6.6 names no type, so a reply stands in a list, an `Optional` or an `Either` where the rule shows it consumed once, and a server may hold its pending replies in a list; the argument for soundness stands.*
 
 ## Diagnostics, 2026-09-18
 
@@ -2661,6 +2801,8 @@ Two rules were added to the report because the runtime cannot do otherwise and t
 
 The limits of the runtime's bit syntax, a unit of 1 to 256, a float of 16, 32, or 64 bits, no size on a utf segment, a sizeless rest last, were first rejected with an error and stated nowhere; on 2026-09-19 they went into §5.11, since a rule the compiler enforces is a rule of the language. The final wildcard clause was weighed against a length analysis of the patterns and against treating one sizeless segment as a wildcard: principles 2 and 5 keep the one sentence, and principle 1 is answered by the error, which names the clause to add. Not taken: a bare integer as a size, `x:16`, which Erlang allows and the grammar does not; a string literal as a segment, since a `String` is not `Bytes` and `String.toUtf8` says what is meant; hexadecimal literals, which §2.5 leaves to the standard library.
 
+*Superseded in part 2026-09-19 by "Integer Literals in Every Common Base" and "Receive Guards Are Guard Expressions": §2.5 writes hexadecimal literals, and a pattern's size is a guard expression by rule rather than until MVP 4.*
+
 ## Receive Guards Are Guard Expressions, 2026-09-19
 
 §5.9 had said a guard is any pure `Bool` expression and that the same holds for `receive`; MVP 1 refused a `receive` guard that was not an Erlang guard expression and the plan lifted it in MVP 4 with a runtime-managed mailbox. The two differ by what a guard does: a `match` guard runs on a value in hand and falls through, while a `receive` guard selects a message without removing it, and the BEAM evaluates only what it can while scanning, since a message taken out and put back would move behind its sender's later messages and break §6.4. Two consistent positions were weighed: keep the promise and buy it with a buffer and a scan on every `receive` in every process, forever, so that a guard may call a function; or make the BEAM's rule the language's. The user chose the second on 2026-09-19. Principle 5 keeps the runtime small, principle 3 puts the rule in the report instead of an error text, principle 1 is met because every BEAM reader expects it, and principle 2 gains a concept used twice, the guard expression, since a `size(...)` in a bitstring pattern is one for the same reason: Erlang evaluates it while matching. A program that needs more receives the message and matches it. The rule admits no arithmetic in a `receive` guard and no `/` or `%` in a size, because a guard that faults must fault the process (§5.9) and the BEAM makes a failing guard false and a failing size a non-match; `+`, `-`, `*` on unbounded `Int` cannot fault, so sizes have them. The MVP 1 refusal, the MVP 2 refusal of general sizes, and MVP 4's "general receive guards" are gone; MVP 4's mailbox keeps its other reason, the message check of §8.4 at the boundary.
@@ -2677,6 +2819,8 @@ The last of the three points. Item 1 had ordered definitions with a reference gr
 
 Five readers went over the report, the guide, the plan, the README, the architecture note, the log, and the examples after a reboot interrupted the operator work; the editorial findings were fixed the same day, and nine needed a decision. The measure: the raise to 8,500 rested on a count made with headings and table rows in; the user removed the limit, and a trim made to get under 8,000 was undone the same hour since it had cost clarity, see "Measure". E.0 rule 8 said every function that waits takes milliseconds; `Clock.now` and `Tcp.listen` are answered at once and `Io.readLine` waits for the user, a REPL that times out on its input being no REPL, so the rule names the three as exceptions rather than the signatures changing. Appendix A admits `let T.op`; a second declaration form for operators buys nothing, so §4.8 makes it an error and the checker refuses it. Pingpong spawns `fn() = ping(...)` with the lambda's effect a free variable that `let _` discards; §4.6 already exempted `let _` from binding and now says no variable in the expression's type must resolve, since a dropped value can harm nothing, and the alternative would have put `with Never` on every fire-and-forget spawn. §4.2 let a module `Main.Stack` and a type `Main.Stack` coexist, which §11.2 could not resolve; the coincidence is now an error, found by `ernc` from either file in either mode. §8.2's "names it in its assumptions" defined nothing and went. Appendix E's header called the whole appendix informative while E.0 gave rules; E.0 is normative and the listing is what it has admitted. Appendix D's prose was rewritten in the register, each rule once. The reply-capture error carried an "MVP 1" tag although §6.6 states the direct-argument rule itself; the tag and the README row went, and MVP 2's item changes §6.6 first when function values become reply-carrying. MVP 4 went the same day: after the runtime mailbox and the general receive guards left it, one speculative optimization remained, and one optimization is not a phase; it sits under the plan's items with no MVP.
 
+*Superseded in part 2026-10-01 by "What Waits With a Limit": shape rule 8 states a criterion, who holds what is waited for, where it named exceptions.*
+
 ## The Paring Read Back, 2026-09-19
 
 The user asked whether the paring of 2026-09-18, made under the 8,000-word limit, had cost content, and then whether it had cost clarity. The report before the paring was read against today's, section by section, by four readers, each cut sentence classified as rationale, restatement, or content. Rationale and restatement were the great majority, about 340 sentences, and the log holds the rationale. Lost content: five rules, that a use of a local `fn` before a `let` it depends on is a compile-time error (§5.4), that the stale-file sweep follows a successful build only (§11.1, which the code had done all along), that a top-level binding referenced by shipped code is evaluated on first use (§8.7), that a process running on a peer for this node counts against `Deadlock` (§8.6), and the definition of a node (§6.2, the glossary had pointed at a sentence that was gone). Twelve sentences the cuts had made ambiguous or wrong, the worst §7.4's opening, which after the cut said the opposite of its meaning, and §3.10's `equal` and `always`, which appeared from nowhere. Thirty worked examples a first reader needs to avoid a likely misreading, the return-annotation `with`, `apply` at two call sites, `Map.empty` pinned by a later use, `let _ = spawn(...)`, the `mk` callback of `Address.call`, `Envelope` and `Box` for reply-carrying, the `Sys.stdout` trio under code shipping, the sweep that leaves `build/main.erc`. All restored, in the register. The same readers then listed 86 sentences that the compression had left hard to read at first pass, a rule, its exception, and its example in one sentence, or a subject elided; each was split into plain sentences with nothing added. Not restored: the rationale, which is here; examples that repeat the grammar; a second example where one carries the rule. The lesson is in "Measure": a limit prices a sentence by its length, and it was the consequences and the examples that paid.
@@ -2684,6 +2828,8 @@ The user asked whether the paring of 2026-09-18, made under the 8,000-word limit
 ## Pattern Alternatives, 2026-09-19
 
 A clause may list several patterns separated by `or`, §5.9 and Appendix A's `Clause`. The corpus had asked for it once, snake's `movePlayer`, where a dead player and an empty body return the same pair; an external reviewer asked for it as well, and a reviewer counts as a program. The design the principles admit: alternatives at the clause level only, so `Pattern`, `let`, and parameters are untouched and irrefutability has no new case; `or` as the separator, the eighteenth reserved word: the first draft used `|`, the symbol OCaml, Rust, and Gleam readers expect, unambiguous to the parser since a clause always ends in `->`, and the user read `North | South -> "vertical" | East | West -> "horizontal"` and called it hell, which is principle 1's verdict, the resulting code deciding against the rule that produced it; a comma, Swift's choice, reads as a list everywhere else in Ernest, and one reserved word is the cheapest addition the language has; one typing rule, every alternative binds the same variables at the same types, checked once the clause's pattern has met the value's type so that the error names the variable and not the pattern; coverage by expanding a clause into one row per alternative. The compiler emits one Erlang clause per alternative, the body once as a fun over the bound variables that each clause calls, in `case` and `receive` alike; a guard is copied per clause, and a `match` guard that can fault keeps the continuation path. Not taken: nested alternatives inside a pattern, which multiply rows and need a second syntax decision for `as`; the comma; desugaring in the parser to duplicated clauses, which would type-check and report the body twice.
+
+*Reason restated 2026-10-01: or-patterns stand by principle 2's sentence on a second spelling, two clauses otherwise repeating one body ("When a Second Spelling Enters"); the corpus asking once, with a reviewer counted as a program, was a count, which no longer decides.*
 
 ## The First Module in Ernest, 2026-09-19
 
@@ -2703,6 +2849,8 @@ The entry on the first module let the toolchain's `VERSION` stand in for the sta
 
 The `Test` type is settled as the entry of 2026-09-13 sketched it, with one choice: `run` is `() -> TestResult with Never`, a process root like an entry point, so a test may spawn, send, and use `Address.call`, and one that needs `receive` spawns a process for it; a test with a mailbox type of its own would make `Test` a parameterized type every user writes the parameter of. `ern --test` finds a module's tests by their type, as that entry decided, through a function the compiler emits, so a test need not be exported; each runs in a process of its own and is monitored, so a fault is the test's and not the run's. `Ets`'s appendix section moved from step 1 to step 4: its signatures in Appendix E would give the namespace to the standard library at once and refuse `examples/ets.ern`, which declares it, until the module moves. Writing `Erl` found E.1's printing sentence wrong: a foreign value is printed by its representation, an Erlang atom as its name, and only a term that reads as nothing Ernest knows prints as `<foreign>`.
 
+*Superseded in part 2026-10-01 by "The Prelude Family's Rules" and "A Value Shows Itself at a Known Type": the test types are `Test.Case` and `Test.Result` of Appendix E.24, and a value of a foreign type prints as `<foreign>` whatever its representation.*
+
 ## Bool's Read-Back, 2026-09-19
 
 Reading `Bool`'s page found its documentation ten times its code, and three rule changes followed, each on principle 2. An example per function repeated what the module's examples already showed, so the obligation is now that every exported function is called by some example on the page, the module's or its own, which a test checks and which leaves no example to repeat another. A `since` line on every declaration said what the module's said, so a declaration has the module's `since` unless it states one that differs, which a later version's additions will. And a heading named a function as the module writes it, `not`, where every reader writes `Bool.not`, so a heading and a synopsis now give the name as a caller writes it, §11.4 changed first; types inside a synopsis keep §11.5's rule, the module's own unqualified, since the page is about that module. The move of the documentation checks had lost the one that every export is documented; it is back.
@@ -2710,6 +2858,8 @@ Reading `Bool`'s page found its documentation ten times its code, and three rule
 ## The Test Type and the Standard Library's Layout, 2026-09-19
 
 The entry of 2026-09-13 decided tests as values, a top-level binding of a prelude type found by its type, and deferred the type to MVP 1 Phase 3; it was never settled, a gap outside the plan that the standard library's rewrite brought to light. It is settled in MVP 2.5 step 1 as that entry sketched it, `Test(name, run)` with `Passed` and `Failed(text)`, in the prelude so a user's program and the standard library test the same way, and `ern --test` runs them. The ABI tests stay in Erlang: they call the modules as `ernest@list:map/2` and cannot tell an Ernest-compiled module from the hand-written one, which is what lets each module be rewritten and its Erlang original deleted with the same tests green. The Erlang halves get an application of their own, `lib/ern_stdlib`, not `lib/stdlib`: `lib/` is on `ERL_LIBS`, and an application named `stdlib` there would shadow OTP's for every `-include_lib("stdlib/...")`. A helper is named `ern_stdlib_list`, since `ernest@list` is the Ernest module's own name.
+
+*Superseded 2026-10-01 by "The Prelude Family's Rules": `Test` and `TestResult` left the prelude for the module `Test`, Appendix E.24, as `Case` and `Result`, a feature costing a program that does not use it nothing (principle 5).*
 
 ## Documentation Inside the Compiled Module, 2026-09-19
 
@@ -2723,11 +2873,15 @@ Three choices were the user's. Multi-line input ends at a blank line, since a ty
 
 Left out, each with its reason: building a pid, since an address is a capability; `regs()` and the records commands, since Ernest has neither; GHCi's `:info` beside `:doc`, and `:kind`, since `:doc` shows the declaration and Ernest exposes no kinds (principle 2); `cd`, `pwd`, `ls`, since `Fs` does it in the language (principle 2); OCaml's custom printers, since a value has one rendering; GHCi's `:def` and `:!`, a second language and a second way; job control and a step debugger, projects of their own, `:trace` being the part of a debugger most used and so a later item; Unison's watch expressions, which belong to an editor. No `:main` or `:run`: a program is started by calling it, as an Erlang user calls `server:start()`.
 
+*Reason restated 2026-10-01: the shell's commands and printing stand as §11.2 states them; that GHCi, utop, Jupyter or a Haskell user has the form was a neighbour's, which no longer decides, and `Io.debug` now writes by the type at its call as the shell does ("A Value Shows Itself at a Known Type").*
+
 ## Raw Strings, and No Regex Literals, 2026-09-19
 
 A raw string, `` `\d+\.\d+` ``, is a `String` taken as written: no escapes, may span lines, a line break a line feed with a carriage return before it dropped so the value does not depend on the file's line endings. Admitted on the principles, the first draft having waited for examples to show the need, which the user rightly called too strict: a reader writing a regular expression, a Windows path, or embedded JSON expects to write it as it is, and every language near Ernest answers so (principle 1); escaped text and verbatim text are two jobs with one form each (principle 2); the backtick is decided by its first character, unused elsewhere, with no escape rule inside (principle 4); one token form, no reserved word (principle 5). The backtick over Rust's `r"..."`, whose `r` makes the lexer look past an identifier, and over Python's prefix likewise. The cost stated: a raw string cannot contain a backtick.
 
 No regex literals, reconsidered once raw strings existed. With raw strings `Regex.compile(`...`)` is the one way to write a pattern and reads as the pattern, so a literal would be a second way (principle 2); `/.../` makes the lexer ask the parser whether `/` is division (principle 4); and a literal's syntax is the report's, so the report would own PCRE's (principle 5). What a literal alone buys is compile-time validation, and a pattern checked once at run time through `Either` is a small, visible price.
+
+*Reason restated 2026-10-01: raw strings stand by principle 2's literal sentence, principle 1's reader having OCaml's quoted strings and Erlang's triple-quoted strings ("The Reader Family's Rules"); every language near Ernest was a neighbour's, which no longer decides.*
 
 ## MVP 2.7, the Fetcher, and No Server, 2026-09-19
 
@@ -2749,21 +2903,31 @@ MVP 2's sixth item. The user asked whether deadlock detection was reasonable at 
 
 MVP 2's fifth item. MVP 1 let a lambda capture a reply-carrying value only as `spawn`'s direct argument, so `let g = fn() = worker(r); spawn(Local, g)` was refused although nothing in it duplicates `r`. §6.6 now says the lambda is reply-carrying itself: it is consumed exactly once, by a call or as `spawn`'s direct argument, may be bound by `let`, and may appear nowhere else. `ern_reply` tracks it as it tracks any linear binding, with one difference: a bare occurrence of the lambda's name is an error rather than a use, since the positions that would accept it, an argument, a field, a return, would take the value beyond the discipline's sight. Not taken: a reply-carrying function type, which would let such a lambda be passed to a function or returned from one; that needs the callee to promise to call its parameter exactly once, Rust's `FnOnce`, a restriction to infer and print beside §3.9's three, and no program has asked. The plan had written the wider sentence; the narrower one is what its two examples need. Local functions keep their rule: they may be called many times, so they may not capture.
 
+*Reason restated 2026-10-01: the design half, a function callable once, stays out as "The Reply Family's Rules" holds it (L2-36); "no program has asked" was a count, which no longer decides.*
+
 ## Documentation Before the Standard Library, 2026-09-19
 
 `ernc --doc` already emitted Markdown, a heading, the type, and the doc block verbatim, but no document said the block was Markdown or which dialect, and nothing said what the output's structure was, so no comment could rely on a fence or link to another declaration. The user's reviewer asked for CommonMark; the user asked what section 3 man pages require and how much to write per module. Read against the man page, most of a page is what Ernest generates: NAME and SYNOPSIS are the heading and the type, RETURN VALUE is the type plus E.0 rule 6's comment, ERRORS is "none" by E.0 rule 4 except where §7.4 speaks. What remains for a human is what Erlang's manual writes, a free paragraph per module with a central example and a sentence and an example per function, and that is the amount, no more, since a module document that restates the report is a restatement without a test. The template is generated from a fictive module and kept equal by a test, the examples in doc blocks are type-checked by a test, and the step is MVP 2.5's first, since a module documented after the shape is decided is documented once. The user then asked for the fictive module at once, to see every heading, so the step was done the same day: rule 6 is the norm, a member of an abstract type documented at its signature entry and inheriting it under its own heading; a doc block above the `|` that leads a constructor documents that constructor, since the style guide puts the `|` first; an abstract type renders without its representation, which is private. Found on the way, since a doc example is written as a user writes it: a module's reference to its own declaration by its qualified name, `Template.area`, was accepted or refused by checking order, the reference graph and the on-demand lookup not knowing it as local, and `ernc` read it as a dependency on itself; §4.2 now says the qualified name appears at use sites in the module itself as well, and both treat it as the local name. The user then agreed that an example should show its result and have it checked, Elixir's doctest and Rust's doc examples being the best of breed: an example ends in `// => v`, rendered as written, and the test runs it and compares `Io.debug`'s rendering with `v`, so a documented result is a tested one and a function whose behaviour changes breaks its own page. See the plan's MVP 2.5, step 0.
+
+*Superseded in part 2026-09-25 by "An Abstract Type's Boundary Is Its Module": an abstract type has no signature to document a member at; and an example's `// =>` is what `Io.show` writes (Appendix E.0 shape rule 6), "The Order, Show and Door Families" (2026-10-01).*
 
 ## Abstract-Type Ownership, 2026-09-19
 
 MVP 2's fourth item, §4.4 as written. The check is syntactic and runs before typing: a constructor of an abstract type, as a value, in a pattern, or as a function value, may appear only inside a `fn T.s` or `let T.s` whose `s` the signature names; a local function inside such a definition is part of it. One error per definition, at the first offending constructor, so a definition that mentions the constructor five times reads one message. From another module the constructor is refused at lookup, the compiled interface already marking the type abstract; the type itself and its members stay visible as §4.4 says. No compiler change, as the plan had concluded: a member lives in the Erlang module of the file that owns the type.
 
+*Superseded 2026-09-25 by "An Abstract Type's Boundary Is Its Module": every definition of the declaring module may use an abstract type's constructors, and the signature is gone.*
+
 ## `Io.debug`, and String Interpolation Considered, 2026-09-19
 
 Developers print during development, and `<>` with `Int.toString` is the wrong tool for it: it needs a `toString` per type and three tokens per value. Gleam's answer fits Ernest exactly and Elixir's does not. `Io.debug : (a) -> a with m` prints any value as Ernest writes it and returns it, so it wraps an expression in place and is one word to add and one to delete; it is admitted by E.0's first rule, since only the runtime can render a value of any type, and it carries `with m` so it cannot hide in pure code. What the runtime cannot know it prints as the representation allows and E.1 says so: a `Char` is an `Int`, a UTF-8 `Bytes` is a `String`, named fields are positional since canonical order drops the names, and a `Set` was a map to `[]`, so a `Map` whose values were all `[]` would have printed as a `Set`. The first draft kept that and said no program had been misled yet; the user's answer became a rule in CLAUDE.md, that the corpus admits features and never excuses a defect, and the `Set` is now the tuple `{set, Map}` at runtime, told apart from a `Map` by its tag, still an opaque handle over a BEAM map as §8.4 says. String interpolation, `"count is ${n}"`, was considered at the same time and is under "Later": Elixir has it through the `String.Chars` protocol, Gleam and Erlang do not, and in Ernest a hole of a type other than `String` would need per-type `toString` resolution as §4.8 resolves `+`, a second way to build a string, and an expression grammar inside a token. It waits for the corpus.
 
+*Superseded in part 2026-10-01 by "A Value Shows Itself at a Known Type", "No Canonical Order" and "The Order, Show and Door Families": a value is written by its type where the type is known, named fields in their declared order, and `Io.debug` writes to standard error. Interpolation stays out as "Later" states; "it waits for the corpus" was a count, which no longer decides.*
+
 ## No Not-Reply-Carrying Mark on a Container Element, 2026-09-19
 
 The first rendered pages in Ernest showed `Optional.withDefault : (Optional(a!), a!) -> a!`. The mark was true and useless: §6.6 already forbids a reply-carrying element of `Optional`, so no call could instantiate `a` with a reply either way. A mark the reader must decode and that adds nothing works against principle 1. §3.9 now skips the restriction on a variable that is an element of `List`, `Map`, `Set`, `Optional`, or `Either` in a parameter type or the result type, through tuples and those types. The walk stops at a function type and at any other named type: a function passed in need not ever hold a value of its parameter's type, and a user type's constructor may not carry its parameter, so an element there does not prove that no reply reaches the variable. Two other options were rejected: keeping the mark everywhere keeps the noise, and dropping the mark from pages alone would make a page disagree with the compiler's messages.
+
+*Superseded 2026-10-01 by "The Reply Discipline Names No Type": the container exemption goes, `Optional` and `Either` having left it on 2026-09-29 ("`Optional` and `Either` Hold a Reply").*
 
 ## A Standard Library File Is Compiled With Its Own Root, 2026-09-19
 
@@ -2775,25 +2939,37 @@ The first rendered pages in Ernest showed `Optional.withDefault : (Optional(a!),
 
 The operators were first shims over an Erlang helper, since the compiler called `Float.+` for `a + b` on floats and the body `a + b` would have called itself. A foreign call pays a result check and a quiescence counter on every operation, so the compiler now emits each float operation inline, as it does for `Int`: the operands are bound first, then the operation's own `badarith` is caught and raised as §7.4's fault, so an `Int` division by zero inside an operand keeps its own cause. `float.ern` then writes `fn Float.+(a, b) = a + b` as `int.ern` does, and E.0 rule 1 no longer lists float arithmetic among the shims. The declarations remain because an operator is also a value, `List.foldLeft(xs, 0.0, Float.+)`, and has a page.
 
+*Superseded in part 2026-09-30 by "The Release Review's Questions": the built-in operators become `foreign fn`s over the host's operation in MVP 2.99b's item 14 (R-27); the cost of a foreign call, never measured, was speed, which no longer decides.*
+
 ## Integer Literals in Every Common Base, 2026-09-19
 
 Integer literals were decimal only, on principle 5, with a note to revisit if programs asked for hexadecimal. Writing `Char.fromInt` in Ernest showed the cost: its limits read `1114111`, `55296`, `57343`, where every reader expects `0x10FFFF`, `0xD800`, `0xDFFF`. Principle 1 decides over principle 2 when the resulting code surprises, and a language without `0x`, `0o`, and `0b` surprises anyone who knows Rust, Go, Python, Gleam, or Elixir. Each base has its own job: code points and masks, file permissions, bit flags. Principles 4 and 5 are barely touched: the grammar already had `hexdigit` for `\u{...}`, and the prefix dispatches on its first two characters. The prefix is lowercase only, so each literal has one spelling. A letter, digit, or `_` right after a number became an error at the same time, since `0b102` and `12px` would otherwise lex as two tokens. Digit separators, `1_000_000`, stay out for now; the error that names `_` leaves room to add them.
+
+*Reason restated 2026-10-01: every base stands by principle 2's literal sentence, principle 1's reader writing `0xFF` in OCaml and `16#FF` in Erlang ("The Reader Principle 1 Means"); what a reader of Rust, Go, Python, Gleam or Elixir expects was a neighbour's, which no longer decides.*
 
 ## The Shims Rule Names Every Conversion, 2026-09-19
 
 Rule 1 of E.0 admitted float arithmetic as a shim. Once float operations were compiled inline, the rule's list no longer covered `Float.toString`, `Float.floor`, `Float.ceil`, `Int.toFloat`, or the conversions between `Char` and `Int`, though Ernest cannot compute any of them: each produces a value of one runtime type from another. The list now names them. `Float.abs`, which Ernest can compute, lost its shim and is written in Ernest.
 
+*Superseded in part 2026-10-01 by "What the Library Admits": rule 1 names no operations, and each module's section names its primitives.*
+
 ## `Io.debug` Prints by Type, 2026-09-19
 
 `Io.debug` printed by the runtime's representation, so `Io.debug('a')` printed `97`, and `#(Ready, 1)` printed as `Ready(1)`. E.1 said it printed a value "as Ernest writes it", and the output said otherwise. The first `Char` page showed the cost: its examples had to wrap each character in `Char.toString` so its page would show characters. That is a workaround in the standard library, and principle 1 rejects it. The compiler knows the argument's type at each call and already describes types for the foreign boundary, so it now passes that description, extended with field names and with abstract types seen from outside their module. The printer, `ern_show`, is also the shell's, so the two cannot drift. Where the type at the call is a variable, the representation is all there is; E.1 says so. Type classes, which would carry a printer through generic code, are refused by principle 5.
+
+*Superseded 2026-10-01 by "A Value Shows Itself at a Known Type": `Io.debug` and `Io.show` are resolved where the type is known whole and are a type error on a variable, with no hidden argument.*
 
 ## Digit Separators, 2026-09-19
 
 Added the same day as the based literals, on the same principle. `1_000_000` and `0xFFFF_FFFF` are how a reader who knows Rust, Python, Gleam, or Java expects a long number to be written, and `1000000` must be counted digit by digit, so principle 1 decides over principle 2. The rule is the narrowest of the languages compared: a single `_` between two digits, in any base and in each part of a float. Rust also accepts `1_`, `1__0`, and `0x_FF`, and each gives one number more than one spelling that the reader must learn to ignore, so those are errors. The lexer cost is one function; the grammar gains the `decimal` rule and an optional `_` in the based ones.
 
+*Reason restated 2026-10-01: digit separators stand by principle 2's literal sentence, OCaml writing `_` between digits and Erlang since OTP 23 ("The Reader Family's Rules"); what a reader of Rust, Python, Gleam or Java expects was a neighbour's, which no longer decides.*
+
 ## No Negative Zero, 2026-09-19
 
 Writing `Float.abs` in Ernest needed `if x <= 0.0 then 0.0 - x else x`, where every reader writes `if x < 0.0 then -x else x`; the natural line returned `-0.0` for `-0.0`. The cause was a value the report never mentioned: `0.0 == -0.0` was false, since `==` is structural, while `Float.compare` said `Equal`, and a `Map` could hold both zeros as keys. Principle 1 rejects all three. Ernest already restricted floats to the finite range, removing the IEEE values a program rarely wants and must always guard against; negative zero is the last of them. A zero is now `0.0` wherever it arises: an operation's result gets `+ 0.0`, which is exact for every other value, negation compiles as `0.0 - x`, and floats entering from foreign code, bytes, and text are normalized at the entry. `==` and `compare` agree, and `Float.abs` is the line a reader predicts. The cost is one addition per float operation. The alternative, keeping `-0.0` and stating the three results in the report, was honest but kept the surprise.
+
+*Superseded in part 2026-10-01 by "The Host Family's Rules": negative zero stays out under §0's host paragraph, for `==` agreeing with `compare`, one key for zero in a `Map`, and `Float.abs`, and the `+ 0.0` goes from `+` and `-`, where none can arise.*
 
 ## Rule 6 Matched to the Agreed Template, 2026-09-19
 
@@ -2811,15 +2987,21 @@ The first module with no shim at all: thirty functions and `List.<>`, each writt
 
 `List` left `Bytes.<>` without the module §9 says provides it, and the plan had `Bytes` waiting for "a program that needs it". That trigger is the corpus rule, which decides nothing: a `Bytes` is a sequence of octets, so E.0 rule 2 gives it the vocabulary its structure implies, program or none. Appendix E.20 is `size`, `isEmpty`, `get`, `slice`, `toList`, `fromList`, and `<>`, with the section saying what it lacks and why: a `Bytes` is not a container, its octets are reached through `toList`, and `<<...>>` builds one, so there is no constructor. The shims are Erlang's `byte_size`, `binary:at`, `binary:part`, `binary_to_list`, and `list_to_binary`, which rule 1 now names; the bounds, the clipping, and the 0-to-255 check are in Ernest.
 
+*Superseded in part 2026-10-01 by "What the Library Admits": a `Bytes` is a container read through `toList`, entered as octets by rule 2, and `size` is its one primitive (Appendix E.20).*
+
 ## Nothing Waits for a Program, 2026-09-20
 
 E.0's third rule read "A program writes it and the hand-written version has no policy choice in it. One program is enough." Read as a sufficient condition it was harmless; in practice it became a gate, and the plan's roadmap table gated fifteen entries on "a program that needs it", which decides nothing and leaves the library with holes a reader trips over. Rule 3 is now a test of the function itself: a general operation of the type, its definition the obvious one, with no policy buried in it, and the preamble says no rule counts programs. The table's trigger column became a schedule: what waits needs a runtime door or a whole MVP, and says which.
 
 Decided the same day by the new rules. In: `Float.sqrt`, `pow`, `exp`, `log`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2` and `truncate` (rule 1 for the arithmetic, rule 2 for the fourth rounding policy); `Int.toStringBase` and `String.toIntBase`, the bases the language's own `0x` literals read; `List.foldRight`; `Optional.orElse` and `Either.orElse`. The partial ones answer `Optional`, by shape rule 4, and `pow` and `exp` fault with §3.1's cause. Out: `List.sum`, `max`, `min`, `first`, `rest`, `flatten`, `count`, `map2`, one pipe each by rule 4; `scan`, `mapFold`, `window`, `chunk`, each a `foldLeft` with an accumulator that hides a choice about the ends; `Float.looselyEquals`, whose tolerance is the program's, and `toPrecision`, which is a format; `array` and `queue`, which `List` and `Map` give; formatting a timestamp.
 
+*Superseded in part 2026-10-01 by "What the Library Admits": `Optional.orElse` and `Either.orElse` go.*
+
 ## `Float`'s Boundary, 2026-09-20
 
 The twelve functions admitted on 2026-09-20 doubled the module, and rule 3 refuses only what carries a policy, so the next request for a mean or a matrix would have had taste to answer it. E.9 now says the module holds the operations of the type itself, and that mathematics over collections of floats, statistics, matrices, and numerical methods, is a library. It is the sentence E.5 has for `String`, which says it is not a container, and it keeps principle 5 in front of a module that attracts additions. The base conversions kept the names E.0's shape rule gives, `Int.toStringBase` and `String.toIntBase`: `Int.toBase` and `String.fromBase` read better but name the base instead of the other type, and `fromBase` reads as building a `String`, while it produces an `Int`.
+
+*Reason restated 2026-10-01: Appendix E.9's boundary stands by E.0 rule 2, a module holding its own type's vocabulary; principle 5 cited for the library's size was a count, which no longer decides ("What Principle 5 Counts").*
 
 ## `String` in Ernest, 2026-09-20
 
@@ -2837,23 +3019,33 @@ Two things had to change first. §3.10 says `Map(k, v)` and `Set(a)` carry the e
 
 The higher-order operations were written in Ernest first, because §3.9 made every `foreign fn` with an effect process-only, and `snake.ern` calls `Map.foldLeft` from pure code. The rule refused a whole class of shims that rule 1 admits, so it was refined the same day: a `foreign fn`'s effect is its own, and process-only, unless its effect variable is also the effect of one of its parameters' function types, where the effect is that callback's and the function is effect-polymorphic. The foreign code still promises purity; what it runs is the caller's. `Map.map`, `filter`, `filterMap`, `foldLeft`, `foreach`, and `Set.filter`, `foldLeft`, `foreach` are shims again, over `maps` and `sets`.
 
+*Superseded in part 2026-09-26 by "A Shim Reaches the Representation": `Map` and `Set` keep six primitives each, which pass data out and never call back, so the higher-order operations are Ernest over `toList`; §3.9's rule for a `foreign fn`'s effect stands.*
+
 ## Shims Where the Runtime Owns the Representation, 2026-09-20
 
 With effect-polymorphic shims possible, the question became which Ernest code should become one. The line is ownership, and E.0 rule 1 now says it: a `Map`, a `Set`, a `String`, a `Bytes`, a `Float` are the runtime's, so their operations are the runtime's; `[]` and `::` are the language's, so `List` is written in Ernest, which is also the proof that the language carries its own core. The exception the rule names is `List.sort`, where Erlang's stable merge sort is the one to trust: 200,000 elements sort in 75 ms rather than 110. `Int.abs`, `min`, `max`, `Float.abs`, `min`, `max`, and `Float.truncate` became shims over the builtins of the same names, since they are float and integer operations the runtime owns. What has no native form stays Ernest: `Optional`, `Either`, `Bool`, `List.tryMap` and `tryFold`, `Map.any`, `all`, `find`, `Set.map`, `Int.div` and `mod`, `Float.round` with its ties to even, and `String.toInt`, whose digit rule is narrower than any Erlang function's.
+
+*Superseded 2026-09-26 by "A Shim Reaches the Representation" and 2026-10-01 by "What the Library Admits": the runtime's are the operations that reach its representation, each section naming them, and `List.sort` is Ernest, speed admitting a primitive only where it is measured as a multiple.*
 
 ## `Path` in Ernest, 2026-09-20
 
 E.14 says a path is in the runtime's syntax, so by rule 1's ownership line the segment work is `filename`'s, through `ern_path`: joining, splitting, the parent, the last segment, the extension, the root name, and whether a path is absolute. Ernest holds what the appendix adds on top: `toString` is the match on `Path(text)`, `parent` answers `None` when `filename` gives the path back or `"."`, `extension` drops the leading dot and answers `None` for a name without one, and `withExtension` removes the extension for an empty string. Nothing in the module needed a language change.
 
+*Superseded 2026-09-26 by "A Shim Reaches the Representation": `Path`'s primitives are the host's separator and `isAbsolute`, and joining, splitting, the name and the extension are Ernest over `String`.*
+
 ## `Foreign` in Ernest, and `Foreign.from`, 2026-09-20
 
 Asking what a value of the runtime is can only be asked of the runtime, so E.12's five questions are shims over `ern_foreign`. Writing the page showed a hole: a program could receive a `Foreign` from a `foreign fn` and ask what it was, but nothing in the language could make one, so no example could show an answer other than `None`, and a shim that must pass a term through had no way to build its argument. `Foreign.from : (a) -> Foreign` fills it, admitted by rule 3: it is the general operation of the type, its definition is the identity, since an Ernest value is already a value of the runtime (§8.4), and no policy hides in it. It is the direction Gleam's `dynamic.from` goes, and the five `toX` functions are its inverses.
+
+*Superseded in part 2026-10-01 by "One Door for the Host's Values": the type is `Foreign.Term`, a foreign type of Appendix E.12, and `from` is shape rule 3's conversion into a foreign type.*
 
 ## `Random` in Ernest, 2026-09-20
 
 `rand` with the exsss algorithm behind a pure interface, as E.13 has it: the state goes in and comes out, so there is no hidden generator and no process. The module declares `foreign type Seed` itself, which empties `ern_prelude`'s table of standard library types and finishes MVP 2.5 step 2: every type the checker knows now comes from §9 or from a compiled interface.
 
 Two things the module found. The mirror test printed a compiled foreign type as `type Seed =`, since it rendered constructors it does not have; it prints `foreign type Seed` now. And `Io.debug` crashed on a seed: `rand`'s state holds an improper list, which the representation printer walked as a list. E.1 says a foreign value prints as `<foreign>` where its representation reads as none of Ernest's forms, and an improper list is such a value, so the printer says that instead of faulting.
+
+*Superseded 2026-09-26 by "A Shim Reaches the Representation": `Random` is SplitMix64 in Ernest over `Int`'s bit operations, and `Seed` is an abstract type that crosses nodes.*
 
 ## `Io` in Ernest, and `Sys.stderr` Restored, 2026-09-20
 
@@ -2862,6 +3054,8 @@ Two things the module found. The mirror test printed a compiled foreign type as 
 `Sys.stderr` came back with it. It was removed on 2026-09-14 because "no paper program sends anything to stderr", which is the corpus rule that was abolished on 2026-09-20. On merit the case is plain: a program whose output is read by something else cannot report an error without corrupting that output, and the operating system gives two streams for exactly this. It is the same shape as stdout, an `Address(String)`, so it adds no concept; §8.2 says it is a second sink, not a level of severity. `Io.printError` and `Io.printlnError` are its two functions.
 
 Two toolchain repairs came out of the same work. `make` rebuilt nothing when the compiler changed without its version changing, so the standard library was silently stale, which cost an hour of confusion; the `stdlib` target now wipes its build when a compiler beam is newer. And the documentation harness captured stdout only, so an example that wrote to stderr leaked into the test output; it captures both.
+
+*Superseded in part 2026-09-26 by "A System Message Is Its Module's to Make" and "The System References Live in Their Modules": standard output and standard error are `Io`'s private bindings speaking `Io`'s own message, and `Io.print` is a primitive, not a `send` a program could write.*
 
 ## The Corpus Decisions, Re-judged, 2026-09-20
 
@@ -2905,6 +3099,8 @@ The third door, and the one the plan called the risk of the step. `ern_keys` ans
 
 §8.2 said keys and lines are the same terminal and a program does one or the other, and said nothing about a program that does both; it now faults, `Fault("the terminal is already read as lines")` or `as keys`, whichever side asked first. The runtime decides it in one place, `ern_rt:own_terminal/1`, and reports it the way `Deadlock` is reported, since neither the stdin process nor the keys process can answer for the other. Which side wins a race between a subscription and a read is not fixed, and need not be: the program has broken the rule either way, and the fault names the side that holds the terminal.
 
+*Superseded in part 2026-09-29 by "A Claim of the Terminal the Other Way Faults Its Caller" and 2026-10-01 by "Enter Is a Key": the second claim faults the process that made it, and a carriage return or a line feed arrives as `Key` of it.*
+
 ## `Tcp`, Measured, and the Refusals Gone, 2026-09-20
 
 The last door. `ern_tcp` is three kinds of process: the one behind `Sys.tcp`, which opens listeners and connections; a listener, which answers each `Accept` in a worker so a slow peer does not hold up the next; and a socket, which owns its port, buffers what arrives, answers a waiting `Recv` as soon as bytes come, and dies with the connection so a monitor learns. `stdlib/tcp.ern` is six functions over them.
@@ -2921,6 +3117,8 @@ Its keys need equality, which §3.10 gave only to `Map` and `Set`. The sentence 
 
 Two things fell out. `examples/ets.ern`, the hand-written copy the tests compiled as a user module, is gone: a user module may not take a standard library namespace, which is the rule working as intended, and the CLI test now uses the real module. And the parser's AST coverage test, which had read only `examples/`, lost its only `foreign` declarations with that file; it reads `stdlib/` too now, which is where they live, and only a bitstring with segments and a bitstring pattern are still unexercised.
 
+*Superseded 2026-09-24 by "Ets Is a Library": a table shared between processes is refused by §10 and E.0 rule 1, and `Ets` is `libs/ets`.*
+
 ## The Sweep After Step 4, 2026-09-20
 
 Two readings again, and this time the report itself was wrong in two places, both from the day's own work. `Ets` gives every function a mailbox effect, which E.0 shape rule 5 forbade by saying only the modules over §8.2's system references carry one; the rule now says a function is pure unless its value lives in a process or in the runtime's own state, and names `Ets`, whose tables belong to the process that made them. And E.21 says an operation on a table that is gone faults, which rule 4 forbade by allowing only §7.4's faults; rule 4 now allows a function's own section to name one. Rule 1's list of shims gained the tables.
@@ -2928,6 +3126,8 @@ Two readings again, and this time the report itself was wrong in two places, bot
 The rest was drift, of one kind: everything that had said "waits", "is refused", or "not compiled by MVP 1" was false after step 4. The guide said the paper programs were type-checked only and pointed at a README table that no longer names them; three example headers said they needed an MVP that had arrived; the plan routed the step's names through machinery that no longer exists and scheduled five things for a step that had closed; the architecture note described the refusal function and a future tense for work that is done; `ern_prelude` held two duplicate entries and a skeleton of comments for modules that had all moved. Each is now what the code says.
 
 One gap was unrecorded rather than stale, and it is the one worth keeping in view: the shell's design note listed four prerequisites against step 4, and step 4 closed with part of one. `Shift-Tab`, `Meta` combinations, and `C-c` as keys, the terminal's width, whether input is a terminal, and a way to learn that another process printed are none of them in the report. They are now an item of MVP 2.6, report first, in the plan and in the design note, since the shell is what needs them and the shell is where their shape will be decided.
+
+*Superseded 2026-09-24 by "Ets Is a Library" and 2026-10-01 by "A Failure's Shape": `Ets` left the standard library, and shape rule 4 names no fault of a section's own, a function faulting only as §7.4 says.*
 
 ## One Token for the Project, 2026-09-20
 
@@ -2980,6 +3180,8 @@ A type's constructors, fields, and signature entries are structured in the entry
 
 `--doc` accepts a `.ern` as before and compiles it first, since a command that worked must keep working. `--no-docs` for lean files is not built; nothing has asked.
 
+*Reason restated 2026-10-01: a module's `.erc` carries its documentation, which `ern doc` and the shell read from it, as §11.1 and §11.4 state; "nothing has asked" for `--no-docs` was a count, which no longer decides.*
+
 ## An Entry's Path Is the Path You Read, 2026-09-20
 
 Running paper program 2 for the first time found the report silent: E.17 said `Fs.list` gives the entries of a directory and not what an `Entry`'s path is, a bare name or the directory's path joined with it. The program had assumed a bare name, joined it with the directory it had just listed, and asked for `a/a/greeting.txt`.
@@ -2995,6 +3197,8 @@ The REPL's was the sharpest. `try` spawns a child, monitors it, and waits for ei
 The syncer's was the report's silence, recorded in its own entry above. The server's six holes were HTTP: a request line, header lines, a response rendering, and cookies, which the report's own types made short.
 
 `snake` is compiled but not run under test. It reads arrow keys from a terminal, which a test has none of, and E.0 rule 6 already allows a page whose examples cannot run; the same reasoning covers a program. It is on the manual list beside the `Keys` page.
+
+*Superseded in part 2026-10-01 by "The Owner Family's Rules": a `Down` names its process, so a program tells its children's deaths apart by it, without a run number in the wrap.*
 
 ## A Signal Says Nothing, 2026-09-20
 
@@ -3013,6 +3217,8 @@ The shell cannot monitor its way to it. There is no registry, and a process is r
 Four rules keep it from becoming a second error mechanism, which principle 2 forbids. Only faults are reported, since a normal return is not news and a program that spawns a process for each connection would scroll the session away. Only the running program's processes, not the shell's own. One line through `Sys.stdout`, so that its order against the program's printing is the order every print has. And the report is the shell's, not the runtime's: a compiled program keeps its silence, and `monitor` remains the one way a program learns.
 
 If a logger is ever wanted it is a library and not Appendix E, by E.0's line: levels, handlers, and formatting are policy, and a namespace with policy inside is a library however useful.
+
+*Superseded in part 2026-09-26 by "Every Fault Reaches Standard Error" and "A Process Is Watched From Its Start": `ern` prints every fault of every process to standard error, and the runtime keeps nothing of a process that has ended.*
 
 ## The Terminal Reads Keys Again, 2026-09-20
 
@@ -3092,6 +3298,8 @@ Against the cut: `tls` and `http` are where Ernest becomes useful for real work,
 
 Two corrections to the entry above, made the same day. The terminal harness had been written down as landing with the shell, which points the dependency the wrong way: the shell is what most needs it, so it is 2.6's first item and the shell's first checkpoint comes after. And the plan now says what gives way if the estimate is wrong, since a milestone that does not say that decides it by accident: the libraries move to 2.7 and the shell stays.
 
+*Reason restated 2026-10-01: where `Time` goes is the plan's to schedule under E.0's rules; that fetch alone wants it was the first program that asks, which no longer decides.*
+
 ## The Shell Alone, and MVP 3 in Halves, 2026-09-20
 
 Two more corrections to the day's planning, both from reading what the milestones actually contain.
@@ -3101,6 +3309,8 @@ MVP 2.6 is the shell and nothing else. Keeping two small libraries in it was a c
 The shell's note gains a checkpoint before its first: expressions only, no bindings, and so no incremental checking at all. It is a calculator over the standard library, and it proves the loop and the terminal harness end to end before the hard part starts. The hard part is now stated as two questions rather than an estimate: how an input sees the bindings before it at the type level, where the checker takes dependency interfaces and the shell has an environment of schemes, and at the value level, where the values live in the shell and the compiled module must receive them somehow. The second is an ABI decision and constrains what follows it, so a spike answers both before checkpoint 1. One thing that had been left to discovery is now a rule: a member of an abstract type is declared with the type, since two inputs are two modules and §4 keeps a type's members in the module that owns it.
 
 MVP 3 splits. Content addressing is not an implementation strategy that could be traded down: §8.7 makes it normative, identity across nodes being a hash of a normalized definition together with the hashes of what it references. What can be staged is the work. 3.0 is peers, three weeks, with code shipping between nodes of the same build, which satisfies §8.7 in its easiest case and refuses the rest with an error naming 3.1, as every deferral here does. 3.1 is identity in full, four weeks, and its first decision is what "normalized" means, since two nodes must agree exactly: the typed tree or the untyped, whether local names are erased, and what becomes of the effect variables, which are inferred and never written. `iface_hash/1` already hashes a canonical interface, and the cheaper answer is that it grows into the definition hash rather than a second scheme standing beside it.
+
+*Superseded in part 2026-09-25 by "A Later Input May Add a Member": a later input may declare a member of a type the session declares, and since 2026-10-01 a member is an operator, `compare` or `negate` alone ("Members, Operators, and No Hidden Argument").*
 
 ## The Shell's Smaller Rules, 2026-09-20
 
@@ -3115,6 +3325,8 @@ An expression of type `Unit` prints nothing, since `Io.println("hi")` would othe
 The atom and module tables grow with a session, each input being a module of its own name and each constructor an atom, and the host reclaims neither. It is a property rather than a defect, and it is written down so that a session of thousands of inputs is understood rather than investigated.
 
 The note gained one thing the decisions had implied without saying: the shell is three processes, a session holding the environment and the queue, a reader that owns the keys and stays live through an evaluation, and a screen that is the only writer, which is what the runner binds the sinks to. Without it an implementer would have had to invent the arrangement, and the redraw is where they would have got it wrong.
+
+*Superseded in part 2026-09-25 by "A Command's Argument, and the Commands' Order": `:f` is refused as ambiguous; a resize became an event ("Two Panes, and One Module for the Terminal"), and an input's module gives its number again since 2026-09-26 ("An Input's Number Is Given Again").*
 
 ## A Terminal for the Tests, 2026-09-20
 
@@ -3208,6 +3420,8 @@ An input may declare what a module may, which is what the shell's note says the 
 
 **The declaration parser's error is the one shown.** An input is parsed as an expression first and as declarations second, and the expression's error was reported whichever the input was: `type Pair = P(Int, Int)` answered "expected an expression instead of `type`" rather than naming the second positional field (§3.5). The input's first token decides which error helps, `fn` counting as a declaration only when a name follows it, since `fn(x) = x` is a lambda.
 
+*Superseded in part 2026-10-01 by "Members, Operators, and No Hidden Argument": a `let` declares no member, and an abstract type's signature went on 2026-09-25 ("An Abstract Type's Boundary Is Its Module").*
+
 ## The Commands That Need No New Door, 2026-09-20
 
 `:type`, `:browse`, `:doc`, `:help`, `:forget`, `:bindings`, `:set` and `:quit`, the eight that ask nothing of the runtime. The four that do, `:load`, `:reload`, `:processes` and `:faults`, are named and refused.
@@ -3223,6 +3437,8 @@ An input may declare what a module may, which is what the shell's note says the 
 **`:bindings` lists what the session declares, not only what it binds.** A `fn`, a type, and a type member are what a person needs listed as much as a `let`; the name is the one an input writes, a member under the type that owns it. `:forget` already took all of them, so the two commands see the same session.
 
 **The documentation renderer moved out of the CLI.** `ernc --doc` and `:doc` render the same thing from the same chunk, a page and one declaration of it, so the rendering is `ern_page`, which both call. It is named `ern_page` and not `ern_doc` because `ern_doc_tests` is already the name of the test that reads the documentation rules over the standard library, and two test modules of one name cannot both exist.
+
+*Superseded in part 2026-09-25 by "A Command's Argument, and the Commands' Order": the commands are listed alphabetically, and a prefix that begins more than one name is refused, so no order decides a prefix.*
 
 ## A File Beside the Prompt, 2026-09-20
 
@@ -3269,6 +3485,8 @@ The shell splits the screen: a small upper pane for what programs print, the res
 
 **Why the three changes are one checkpoint.** Panes need scroll keys, scroll keys need §9.3's `Key` to grow beyond its eight, and a `Key` that grows is the condition recorded earlier for taking OTP 29's `io_ansi:scan` in place of our decoder, whose two costs, `-opost` and `isig`, were measured the same day. Each is the reason for the next, and deciding them apart would decide them three times.
 
+*Superseded in part 2026-09-21 by "The Panes Become a Live Region" and "One Event, and the Page Keys Go": the shell paints a live region and not two panes, and `Key` folded into `Event`.*
+
 ## Every Fault Is Reported, 2026-09-20
 
 The shell prints a line for each process that faults, and `:processes` and `:faults` ride on the same door.
@@ -3282,6 +3500,8 @@ The shell prints a line for each process that faults, and `:processes` and `:fau
 **A false `Deadlock`, and it was ours.** A session with a clock alarm sometimes died with `Deadlock` the moment an input ran. §8.6 requires that no message be in flight, and a message sitting in a system process's mailbox is one: the input sends `After` to the clock and blocks, and until the clock takes it out and counts its source, every Ernest process is waiting and the count is zero. The detector never looked at the system processes, which are not in its table. It now requires each of them, and the reaper's own mailbox, to be waiting and empty, twice around the two snapshots; §8.6's last sentence leaves a foreign process that can deliver to the runtime, and the shell's watcher is counted among them. The report needed no change: the rule was right and the detector did not implement it.
 
 **A golden session must not race the prompt.** The fixture program printed at startup, and whether that line beat the shell's first prompt depended on load, the shell's startup writing several `persistent_term` keys and each write scanning the node. The fixture now prints from a worker at a known moment instead, and the session is the same on every run.
+
+*Superseded 2026-09-26 by "Every Fault Is Delivered to Whoever Subscribes" and "A Process Is Watched From Its Start": the shell subscribes through `Process.faults` and keeps its hundred in its own state, and the runtime keeps nothing of a process that has ended.*
 
 ## Loading and Reloading a Module, 2026-09-20
 
@@ -3325,6 +3545,8 @@ The terminal tests sent their keystrokes at fixed times, and a full `make test` 
 
 **A field order caught the first attempt.** The runtime's clause read `{'Subscribe', Address, Reply}`, and §3.5 stores named fields in canonical order, `reply` before `to`. The rule is the language's and the runtime must follow it; the crash was immediate and the fix one line.
 
+*Superseded in part 2026-10-01 by "No Canonical Order": named fields are stored in their declared order, which the runtime's clauses follow.*
+
 ## The Startup Inputs, Two Files, 2026-09-20
 
 The last of checkpoint 1: the inputs a session runs before its first prompt.
@@ -3357,6 +3579,8 @@ Checkpoint 2's first half: `Keys` became `Terminal`, which answers its size and 
 
 **Two names the repository could not take.** The runtime's module is `ern_tty`, not `ern_terminal`, because `ern_terminal_tests` is the pseudo-terminal suite and two test modules cannot share a name; and the runtime's record of how the terminal is being read moved from the key `terminal` to `reading`, since `Sys.terminal` now needs that one.
 
+*Superseded in part 2026-09-25 by "No OTP in the Toolchain": a resize is noticed through the signal server's handler and not by asking five times a second; `PageUp` and `PageDown` went on 2026-09-21 ("One Event, and the Page Keys Go").*
+
 ## Two Panes, Painted by the Shell, 2026-09-20
 
 Checkpoint 2's second half: the screen keeps two panes and paints them.
@@ -3372,6 +3596,8 @@ Checkpoint 2's second half: the screen keeps two panes and paints them.
 **What the harness had to learn.** A shell that paints writes the same line many times over, so a test that counted writes counted repaints: the greeting appeared thirteen times in a session that started once. The harness renders the writes onto a grid of the terminal's size and hands that back with `--screen`, and the pane tests assert on what a reader would see. It is fifty lines of the cursor moves, the erasures and the text, which is all the shell uses.
 
 **What writing it said about the language.** Ernest has no field selection, so every function that reads two fields of a record opens by destructuring it, and reading one boolean is a function of its own. In the screen, which is six fields carried through a dozen functions, that is the most repetitive thing in the shell. It is not a workaround and nothing is wrong with the code; it was the first place where the absence cost something, and it is the last item of MVP 2.6, a discussion once the shell is built; "Field selection" in Later holds the arguments.
+
+*Superseded 2026-09-21 by "The Panes Become a Live Region": the panes and their buffers went; field selection, left here to a discussion, entered on 2026-09-25 ("Field Selection").*
 
 ## The Panes Become a Live Region, 2026-09-21
 
@@ -3402,6 +3628,8 @@ The split screen was built on 2026-09-20 and is replaced the day after, by the s
 **The page keys.** They entered for the panes, and the live region leaves them without a user. Removing them states the membership rule of `Event` plainly: it holds what a program has needed, and everything else arrives as `Escape` and the characters after it, which is already how `Meta`, `Shift-Tab` and the function keys arrive. They come back the day a program wants them, which is a smaller change than carrying them unused.
 
 **The line that ages out of the tail is committed.** It is written into the transcript as it leaves the live region, so the terminal's scrollback holds every line in arrival order and nothing a program printed is lost. The cost is that program output reaches the transcript a tail's height late, which is one sentence to state; the alternative loses output that a person may have wanted, to save that sentence.
+
+*Reason restated 2026-10-01: `Event`'s membership is Appendix E.16's stated choice under E.0 rule 3, what the runtime decodes whole ("The Library Family's Rules"); what a program has needed or will want was a count, which no longer decides.*
 
 ## What the Live Region Cost to Build, 2026-09-21
 
@@ -3504,6 +3732,8 @@ writes it, which is also what keeps a test run out of the person's own.
 `(reverse-i-search)`; ours shows it after `> `, because the alternative is a second way to
 set the prompt, one for the session and one for the reader, for a difference of two
 characters.
+
+*Reason restated 2026-10-01: the walk stands as §11.2 states it; how rarely a person asks for a kept edit was a count, which no longer decides.*
 
 ## Two Races the Shell's Startup Found, 2026-09-21
 
@@ -3709,9 +3939,13 @@ The webserver kept its sessions in the table. They are now a process that owns a
 
 `remote(f)` returned `Left(PeerLost)` when the peer was lost, when resolution failed on it, and when `f` faulted there. The name was wrong for two of the three, and the third made `remote` a way to catch a fault: run `f` on a peer and a fault comes back as a value, where §7.3 says nothing is caught and principle 2 allows one mechanism for failure. A fault in `f` now faults the caller with the same cause, as `f()` would locally, and a resolution failure faults the caller as it already did for `spawn(Peer(...), ...)`. `PeerLost` means the peer was lost. Adding `Faulted(String)` to `RemoteError` was the other way, and it named things honestly, but it was the catch. Work whose fault should not end its caller runs in a process of its own and is monitored, as everywhere else.
 
+*Superseded 2026-09-27 by "No Remote Computation in the Language": `remote` and `RemoteError` are gone, work on a peer is a process spawned there, and nothing is caught.*
+
 ## `Prelude` Names the Prelude, 2026-09-24
 
 A module may declare a type or constructor with a prelude name, and the name then means the local one throughout the module (§4.2). The prelude had no qualifier, so a shadowed prelude name could not be written at all, and the prelude's vocabulary is large and plain: `Close`, `Send`, `Timeout`, `Other`, `Entry`, `Passed`, `Failed`. The shell met it four times, the last a `Last = Other | ...` that hid `IoError.Other` twenty lines away, and each time the only way out was a rename. `Prelude` now names the prelude's own namespace: `Prelude.Other` is the prelude's constructor where the module declares its own. It is one name for an existing mechanism, qualification, and adds nothing to the grammar. It takes exactly one segment, a name the prelude declares; the standard library is reached by its own namespaces, and `Prelude.Io.println` is refused rather than read as a second way to write `Io.println`. No module and no type takes the name, so `Prelude.X` means one thing. Forbidding the shadowing was the other way out, and it would have taken `Close`, `Timeout` and `Other` from every program. Moving the system message types out of the prelude would reduce the collisions and not end them, since `Some`, `None`, `Left` and `Right` stay; it is a question of its own, about the prelude's size.
+
+*Superseded in part 2026-09-29 by "The Report's Silences": `Prelude.` also takes a namespace of the prelude or the standard library and one of its names, and the system message types left the prelude on 2026-09-26 ("The System References Live in Their Modules").*
 
 ## The Shell's Reload Ends a Process, It Never Changes One, 2026-09-24
 
@@ -3720,6 +3954,8 @@ A module may declare a type or constructor with a prelude name, and the name the
 ## Parentheses After a Pipe Make a Value, 2026-09-24
 
 §5.7 said a parenthesized call is a plain call, so `x |> (f(a))` was `f(x, a)`, while the same section had a parenthesized lambda be a value the pipe applies. Parentheses meant two things at one place, and a function that a call returns could not be piped into at all: `10 |> (adder(3))` was refused for an argument too many. The rule came from the parser, where parentheses produce no node, and the report described it. A parenthesized right-hand side is now a value, applied to the left: `x |> (f(a))` is `f(a)(x)`, and a lambda needs no rule of its own. The parser looks at the tokens for this one case; everywhere else parentheses still produce no node. Keeping the old reading and naming it honestly was the other way, and it kept the two meanings.
+
+*Superseded 2026-10-01 by "The Forms Family's Rules": parentheses change nothing after `|>`, so `x |> (f(a))` is `f(x, a)`, and a function a call computes is applied in writing, `f(a)(x)`.*
 
 ## A Time Below 0 Is 0, 2026-09-24
 
@@ -3733,6 +3969,8 @@ The report did not say what a negative time does, and the runtime answered three
 
 The prelude had `remote(f)` and `parallelRemote(fs)`, and the second is the first run from processes: one local process per function, each calling `remote`, the answers collected in order. This log's own list of idioms already said so, "ten at once are ten local processes each calling `remote`", while the prelude shipped it as a primitive. Principle 2 holds in the prelude, so `parallelRemote` went, and the guide shows the eight lines that replace it. That the runtime could place a batch better than independent calls was the argument for keeping it, and it does not hold: `remote` already lets the runtime choose a peer on each call.
 
+*Superseded 2026-09-27 by "No Remote Computation in the Language": `remote` went too, work on a peer being a process spawned there; `parallelRemote` stays out by §9's rule ("What the Prelude Holds").*
+
 ## `Erl.Result` Goes, 2026-09-24
 
 E.19 declared `Result(v, r) = Ok(v) | Error(r)` for shims over Erlang's `{ok, V}` and `{error, R}`. A shim over such an API needs an Erlang helper whatever the result type, since `{ok, V}` encodes no Ernest constructor (§8.4), and a helper that rewrites can rewrite to `Either`'s `{'Right', V}` and `{'Left', R}` as easily as to `{'Ok', V}`. `Result` was a second success-or-failure type beside `Either` (principle 2), and nothing in the repository used it. E.19 keeps `Erl.atom`, the one thing a shim cannot write, and says what the helper rewrites to.
@@ -3740,6 +3978,8 @@ E.19 declared `Result(v, r) = Ok(v) | Error(r)` for shims over Erlang's `{ok, V}
 ## `bits` and `native` Leave the Bit Syntax, 2026-09-24
 
 Both came from Erlang with the bit syntax. Erlang's `bits` exists for bitstrings that are not whole octets; Ernest's `Bytes` is a sequence of octets (§3.1), §5.11 already required a `bits` segment to be a byte multiple, and `bits` was `bytes` with a unit of one bit, two specifiers for one job (principle 2). Sub-octet fields inside a whole of octets are `int` segments of any size, which cover protocol and format parsing; a stream built bit by bit, as a Huffman or deflate encoder builds one, is an `Int` and a count. `Bytes` stays octets, and `bits` goes; `bytes-unit(1)` writes a width in bits. `native` read the byte order of the node that evaluated it. Formats and protocols state their byte order, so `big` and `little` serve them; data in the host's own order, a dump or a C library's struct, comes through foreign code, which is written in Erlang and converts it at the boundary where host detail belongs. Keeping `native` with a sentence making it node-dependent, as `Sys.*` is in shipped code, was sound, and it was weighed as not useful enough to hold a place in the language.
+
+*Superseded in part 2026-09-29 by "`unit` Is Gone From Bitstrings": a size counts bits, and octets for `bytes`, and `unit` is refused; `native` stays out as §5.11 states, and "not useful enough" was a count, which no longer decides.*
 
 ## A `String` Counts Graphemes, and Says So, 2026-09-24
 
@@ -3749,9 +3989,13 @@ Appendix E.5 called an extended grapheme cluster a "character", §3.1 called a `
 
 Three rules looked like failure out of sight. A `send` to a remote address whose code the peer cannot resolve faults the sender after `send` has returned; that stays, since a fault is unseen by the code by definition and arrives where it arrives, as `kill` does, and the sender's `Down` names it; dropping the message would hide a deployment error, and faulting the receiver would blame the process that did nothing. `Tcp.write` returns `Unit`; that stays too, since a socket is a process and a write is a send, as `Io.println` is. A synchronous write returning `Either` would have made the socket the one process a program calls rather than sends to, at a round trip a write, and would have promised less than its type, the host's own `ok` meaning only that the kernel took the bytes. E.18 now says where the failure shows: the socket's death to a monitor, and `Left(Closed)` from the next read. And a top-level binding is evaluated before `main` at home and on first use on a peer, which no pure initializer can observe except by faulting; §8.7 now says a faulting initializer there faults the process that first uses it, where it had said nothing.
 
+*Superseded in part 2026-09-29 by "A Write to a Socket or a Program Answers Whether It Was Taken": `Tcp.write` answers `Either(Io.Error, Unit)`, and since 2026-10-01 it takes milliseconds ("What Waits With a Limit").*
+
 ## What Makes a Type the Prelude's, 2026-09-24
 
 Twenty-two types are in §9.3 and the rule that put them there was written nowhere. Three rules describe the prelude as it is. A type is the prelude's when the language's rules name it, `Optional` for `<-` and `Down` for `monitor`; when the module of its operations is named after it, `Map` and `Int`, since `Map.Map(String, Int)` in every annotation is the wart the rule avoids; or when a system reference speaks it, `FsMsg` and `IoError`. Any other type a module provides is the module's, `Random.Seed`. Moving the system types into their modules was weighed, for principle 5 and for the constructors they put in every module's scope. It fails on layering: `Sys.fs : Address(FsMsg)` is a prelude value, and a prelude that named `Fs.Msg` would depend on the library above it, so the move would take `Sys.*` out of the prelude too. It would also qualify `Terminal.ArrowUp` and `Fs.Entry` at every use, and since `Prelude.X` a collision costs one qualifier.
+
+*Superseded in part 2026-09-26 by "The System References Live in Their Modules": the system references and their message types moved into their modules, and §9 makes a type the prelude's by a rule that names it or a module named after it.*
 
 ## `Float.pow` Is Partial in Its Type, 2026-09-24
 
@@ -3788,6 +4032,8 @@ E.0 rule 2 ended "A verb not in this list needs an entry in the decisions log", 
 ## `with` Keeps Its Two Uses, 2026-09-24
 
 `with` marks a function's mailbox effect, `(A) -> B with M`, and an abstract type's signature, `abstract type Stack(a) = ... with { ... }`. Weighed and left. The two positions never meet: one follows a function type's result, the other a type declaration's constructors, and the declaration's first token says which. Each reads as English, a function with a mailbox and a type with these operations, and principle 5 prefers a word used twice to a word more. Dropping the keyword before the signature needs no new word, since `abstract` announces the form, but the brace block would then read as belonging to the last constructor; `where` would be a nineteenth reserved word, and suggests local definitions to a Haskell reader. What would reopen it: a position where the two could meet.
+
+*Superseded 2026-09-25 by "An Abstract Type's Boundary Is Its Module": the signature went with the old boundary, and `with` is again only a mailbox's.*
 
 ## An Alarm Carries the Time It Fired, 2026-09-24
 
@@ -3847,6 +4093,8 @@ The last stage is where the language taught its own lesson: a worker that sent i
 
 The log listed supervision among the idioms the guide should teach and the report should not: a link is a monitor and a return, and a supervisor is fifteen lines of spawn, monitor, and receive. §6.4 shows the supervisor as a job runner, a worker per job, because a process per unit of work is the restart the language makes cheapest, and because the state that must survive a fault, the jobs, then plainly lives in the process that does not fault. The example has only the supervisor print: a worker's print and the supervisor's go to one process from two senders, which §6.4 of the report does not order, and a guide example whose output depended on an order the language does not promise would teach the wrong thing. Taking a returned worker's `Down` together with its answer keeps the mailbox clean without a demonitor, since a worker that returned has sent its answer first. The restart of a long-lived service is stated rather than shown: its new address has to be handed out, since §6.5 has no registry, and that question stays with MVP 2.65's list.
 
+*Superseded in part 2026-09-26 by "A `Supervisor` in the Standard Library, and `fault`": a group's supervisor is the standard library's, Appendix E.22, and no longer lines each program writes.*
+
 ## The Guide's Tools Page and Its Word to the Erlang Programmer, 2026-09-24
 
 The options of `ernc` and `ern` were taught where each first mattered, which is right for learning and wrong for looking one up; §9 gathers them, with the shell's commands and keys and the Emacs mode, and points at report §11 for the rest. The README keeps the commands that build and test the repository, which are the repository's and not the language's. Ernest's most likely reader knows Erlang, and for that reader the fastest route is what carries over and what does not, so §10 says it in two lists. Each line was checked against the report: `Address.call` has a timeout but `callForever` does not, and a running program replaces its code by a message while the shell's `:reload` does load a new version of a module, both of which a first draft stated too broadly. Distribution is described as planned, as §0 does.
@@ -3859,6 +4107,8 @@ Two readings, as the working rules ask at the end of a plan step, each by a read
 
 Every check the guide had passed compared it with the report or ran its examples; none asked whether a newcomer learns from it. A reader who knew Python, Java, and a little Erlang, and read only the guide, found where it failed to teach. The largest was a rule taught last: when a function is `with Never` and when `with m` sat in the FAQ, while the examples switched between the two without a word, so the reader met the compiler's errors instead of the rule; it is now in §1.1, with the entry process named, and every `main` is written `with Never`. The others were things used before they were taught, things never shown (a type's own `compare`, the `=` mark, reading input, building a string), a sentence whose "runs as far as it can" meant parsing and read as running, and a server that must hold pending replies, which the guide forbade without showing the way around: a waiter process per reply, whose address the server keeps. Three findings reached past the guide. `:type Io.readLine` prints `with e` where `:browse` prints `with m`, since an instance's variables carry no names; right for an expression and surprising for a name, so `:type` of one name will print its declared type. A program has no command-line arguments; MVP 2.7 had planned `Sys.args` since 2026-09-20, ambient as the other `Sys.*` values are, and now weighs an entry point taking a `List(String)` against it. A type's members cannot be added at the prompt in a later input, which follows from each input being a module and surprises at a prompt; it is feedback item 17.
 
+*Superseded in part 2026-10-01 by "The Reply Discipline Names No Type": a reply may stand in a list, so a server holds its pending replies itself and the waiter process goes; a member in a later input was decided on 2026-09-25 ("A Later Input May Add a Member").*
+
 ## The Plan, the README, and the Architecture Note Brought Level, 2026-09-24
 
 The plan had grown by addition: two finished milestones, 2.9 and 2.61, sat among those to come, the report's review lay inside MVP 2.65 as a list of decisions already made, and checkpoint 4's bullet still called left what had been built. Finished work moved under "Done", and each open item now says only what is left, in order. Two items said one thing: MVP 2.7 had planned `Sys.args` since 2026-09-20, and the cold read's finding had been given a second home in 2.65; it now points at 2.7. A registry, which two sections sent to 2.65's list, got the item they pointed at. `docs/killer_app.md`, a note on a market no document cited, went. `libs/ets/README.md` restated the module's doc block, so it went too, the one thing it added, how a program puts a library on its load path, going to the module's doc block and the README's commands; a library's documentation is its module's. `docs/module_doc_template.md` restated E.0 rule 6 and §11.4 above its generated page, and had drifted from them twice, "one or a few sentences" against rule 6's one, and nothing on what an example prints before `// =>`; the page keeps its purpose, the rules rendered on one module, and points at the rules instead of restating them. One sentence it held and the report did not, that `See also` names declarations and modules in backticks and does not link them, is now E.0 rule 6's.
@@ -3866,6 +4116,8 @@ The plan had grown by addition: two finished milestones, 2.9 and 2.61, sat among
 ## The Prelude Documented, 2026-09-24
 
 The names a program uses most, `spawn`, `send`, `monitor`, `Optional`, were the ones the shell could not explain, since `:doc` read a module's documentation chunk and the prelude is no module. Its documentation now sits beside each entry of `ern_prelude`'s table, the table being the prelude's one source in code and already held equal to §9 by a test: a text beside each built-in type and primitive, a `///` block above each declared type in the Ernest source the table already holds, and `module` on an operation such as `Int.+`, whose module documents it, which a test confirms. A `stdlib/prelude.ern` was weighed again once `foreign fn` and `foreign type` were seen to be able to declare the primitives, and refused again: it would be a second list of the prelude, kept equal to the table and to §9 by a third test. The texts follow E.0 rule 6, as a module's do, with one exception §9 now states: a type the prelude has because a system reference speaks it, `FsMsg` or `IoError`, has no example, since the example would be a `send` to a system reference, which rule 8 forbids. The table builds the same EEP 48 term a module's chunk holds, so one renderer serves `:doc`, `Shift-Tab`, and the page `ernc --doc` writes for the standard library's root. Two defects surfaced on the way: a binary literal without `/utf8` stored `§` as one byte, which the shell's own check of a foreign return caught, and a page's footer decoded its source label byte by byte. The guide's quotes of `Down`, `Reason`, and `RemoteError` were to become `:doc` sessions; a session prints the whole page with its examples, where the guide shows two declarations side by side, so the quotes stay and a test holds them to the table.
+
+*Superseded in part 2026-09-26 by "The System References Live in Their Modules": no prelude type is spoken by a system reference, so §9's exception for one without an example is gone.*
 
 ## Test Areas, 2026-09-24
 
@@ -3915,6 +4167,8 @@ The shell's `:doc` painted a page's first line red, since the colour commit sent
 
 §11.2 gained what the shell did and the report did not say: `it`, the file name `input` in a prompt's diagnostics, and the Readline keys with the history search. The commands themselves stay the shell's `:help` to list, as §11.2's prefix rule already says. The completion of a command's argument was in the design note and never built beyond what an expression completes, which holds the names, modules, and bindings the commands take; `:set`'s four words are not offered, `:set` alone showing them, and the note now says so rather than promising a second vocabulary.
 
+*Superseded in part 2026-09-29 by "A Lambda Bound by `let` Is Generalized": a `let` that binds a lambda is generalized, at the prompt as in a block.*
+
 ## What `Tab` Shows Stands Under the Line, 2026-09-25
 
 The first finding of the session of real use. A second `Tab` committed its listing above the region, as everything the shell says is, and the argument was that the terminal keeps it and the region stays the size it was. Used by hand, the listing landed between the last answer and the prompt, where it read as that answer's output and not as the line's. Principle 1 decides: a reader who knows Erlang's shell, zsh, or fish predicts the listing under the line, and those three paint it there and take it away at the next key. A listing kept in the scrollback is worth little, since it answers a question that is over once the name is chosen, and `:browse` is the listing that stays. The region now holds the rows shown under the input, and a region that grows on `Tab` costs nothing where it is painted from the cursor. `Shift-Tab`'s brief, signature, and page are a listing's kind, a question about the line being typed, and go under it too. The page can be longer than the screen; it is cut to what fits with the count of what is left, and `:doc` prints it whole.
@@ -3922,6 +4176,8 @@ The first finding of the session of real use. A second `Tab` committed its listi
 A row there wraps rather than clips, as a note above the region always did through the terminal; a type or a sentence cut short says less than it did. The forty-line cap went with the commit, since the screen's own height is now the limit.
 
 The second finding came with it: after `:` the first `Tab` did nothing that could be seen, since every command begins with `:` and the candidates share nothing more, and only the second listed. Readline's default asks for the second press; Erlang's shell, zsh, and fish list at once when there is nothing to add. A key that changes nothing and says nothing surprises, by principle 1 again, so a `Tab` that adds nothing to the line lists. A `Tab` that did add something still waits for the second to list, which is what keeps completing a unique prefix quiet.
+
+*Reason restated 2026-10-01: the listing stands under the line as §11.2 states it; what Erlang's shell, zsh and fish do was a neighbour's, which no longer decides.*
 
 ## A Command's Argument, and the Commands' Order, 2026-09-25
 
@@ -4015,6 +4271,8 @@ No process of the toolchain's own is an OTP behaviour, no `gen_server`, `supervi
 
 Feedback item 2, weighed and left as it is: a constructor's name is unique across its module's types (§4.2). It bit three times, all in the shell (`Output2`, the editor's `Typing`, `Clear` and `Cancel`, `Outcome.Failed` beside `TestResult.Failed`), and each time a split module or a better name made the code better. Haskell, Elm and Gleam keep the same rule, so a reader from the family expects it (principle 1), and a bare constructor names one thing its module declares, read without the types (principle 3). The alternatives each cost a principle: constructors under their type, `Shell.Editor.Edit.Typing`, lengthen every qualified use, and allowing both spellings is two ways (principle 2); resolving a bare constructor by the type the checker expects, as OCaml does, hides which one is meant (principle 3) and adds a resolution step (principle 5). What would change it: a module whose types belong together, which a split would make worse, and which needs one constructor name twice.
 
+*Reason restated 2026-10-01: a constructor name unique in its module stands as §4.2's rule, one of Ernest's own the report states ("The Reader Family's Rules"); the reader of Haskell, Elm and Gleam was a neighbour's, which no longer decides.*
+
 ## Names Stay Qualified, Without Import or Alias, 2026-09-25
 
 Feedback item 4, weighed and left as it is: a name from another module is written in full, and there is no import and no alias (§4.2). The weight is one file's: `shell.ern` writes 160 three-segment names on 143 of its 1,040 lines, where every other file of the repository writes two-segment names on at most three. An unqualified import hides where a name comes from (principle 3) and was not a candidate. A module alias, `alias Shell.Command as Command` with `Command.parse` below, keeps every use qualified, but is a declaration of its own (principle 5) and a second spelling of each name it covers (principle 2); relative names for a module's children, `Command.parse` meaning `Shell.Command.parse` undeclared, resolve invisibly (principles 3 and 1). A module that reaches into its children on every screen can move the code that uses them into them. What would change it: the prefixes spreading past a module that composes its own children, until ordinary code is hard to read for them (principle 1); the form would then be the alias, never an import.
@@ -4031,6 +4289,8 @@ Feedback item 43, weighed and left as it is: a declaration is exported or privat
 
 Feedback item 51, and the "Later" entry of the same name, decided: `e.f` reads the named field `f` of `e`, where every constructor of `e`'s type has a named field `f` of one type (§3.5). Principle 1 decided it. Asked to use a state's colour, a reader who knows Ernest writes `state.colour`, and the language had update, `State(..state, colour = c)`, without read, the asymmetry a reader from Gleam, Elm, OCaml, Rust or Haskell meets first. The shell bore it out: fifteen functions opened with a `let` that read one field, and four existed to read one. Principle 2 argued against, a pattern already reading a field; the overlap is a single field, where a pattern also destructures several and chooses among constructors, and Gleam keeps both for that reason. Gleam's totality rule was taken, so a selector exists exactly where it cannot fail (principle 3); Haskell's partial selector and a rule for single-constructor types only were refused, the first failing at run time and the second narrower than it needs to be. The type of `e` is found as an operator's operand type is (§4.8), so one rule, already in the report, serves both, and an abstract type's fields are its module's, as its constructors are (§4.4). A named constructor is a tuple with its fields in canonical order, so a selector is one element where every constructor keeps the field at one place, and a case on the tag where they differ.
 
+*Reason restated 2026-10-01: `e.f` stands by principle 1, OCaml's reader writing a record's field so ("The Reader Principle 1 Means"); Gleam, Elm, Rust and Haskell were neighbours', which no longer decide. Superseded in part 2026-10-01 by "No Canonical Order": the fields stand in their declared order.*
+
 ## No Projection From a Tuple, 2026-09-25
 
 Feedback item 18, weighed and left as it is: a tuple's components are read by a pattern, `let #(_, rest) = List.span(xs, p)`, and there is no `t.0`. Field selection made the question fair, and it answered it: a named field carries its name to the place that reads it, and a tuple component does not. Every tuple the Markdown library takes apart is named where it is read, `spaces`, `beyond`, `tag`, `rest`, `tail`, `closing`; `List.span(xs, p).1` would leave the reader to know which half `span` puts second (principle 3). A tuple has one constructor, so a projection would overlap the pattern entirely (principle 2), and `t.0.1` would need the lexer to read `0.1` after `.` as two indexes, a context rule Rust had to add (principle 4). What would change it: tuples whose parts a pattern cannot name usefully; where the parts need names, the answer is a record, which selection now reads.
@@ -4039,9 +4299,13 @@ Feedback item 18, weighed and left as it is: a tuple's components are read by a 
 
 Feedback item 19. The grammar put `match`, `receive`, `if` and a lambda at the top of an expression, so none stood as an operand without parentheses, and the Markdown library wrapped a `match` three times: `indent(line) < 4 && (match markerOf(s) { ... })`. What sets the four apart is whether the form ends in its own delimiter. A `match` and a `receive` end at their `}`, as a block does, and a block was already a primary, so `a && match x { ... } || b` has one reading; `if c then x else y` and a lambda end in no delimiter, and `a && if c then x else y || b` would leave the `|| b` to either the `else` branch or the `&&`. So `match` and `receive` became primaries (Appendix A, §5.9), and `if` and a lambda keep the parser's request for parentheses. The first token still decides (principle 4), Rust and Gleam take a `match` or a `case` as an operand (principle 1), and nothing is added, since two productions moved (principle 5).
 
+*Reason restated 2026-10-01: `match` and `receive` as operands stand as §5.9 states, a form that ends at its own `}` leaving one reading; Rust's and Gleam's were neighbours', which no longer decide.*
+
 ## Not-Reply-Carrying by What the Body Does, 2026-09-25
 
 The cold read's findings 2.2 and 2.1, and a hole in §6.6's promise. A generic function may not duplicate or discard its argument, since the argument may be a reply, and the checker enforced that only for a parameter whose own name was used other than once. A `let` hid everything from it: `fn dup(x) = { let y = x; #(y, y) }` let a program answer one reply twice, and `fn drop(x) = { let y = x; Unit }` or `fn forget(b : Box(a)) -> Unit = Unit` dropped one, leaving a caller in `Address.callForever` to wait for ever, which is what §6.6 exists to rule out. The rule is now what the body does rather than what the parameter is called: a type variable of a parameter's type is not-reply-carrying when the body, read with that variable taken for a reply, would break §6.6 anywhere, a second use or none through any binding, a place a reply may not stand, or a user type that carries one dropped (§3.9). The checker already had the discipline; it now runs it once more under that assumption for each such variable. What uses its value exactly once, `fn id(x) = x` or `fn keep(x) = { let y = x; y }`, stays open to a reply, and the container-element exemption stays, since no value can hold a reply there. `Stack.push`, which puts its element in a `List`, now reads `(a!, Stack(a!))`, which is the truth: a reply may not live in a list.
+
+*Superseded in part 2026-10-01 by "The Reply Discipline Names No Type": the container exemption is gone and a reply stands in a list where it is consumed once; the rule by what the body does stands.*
 
 ## A Build of the Compiler Is Its Version and Its Code, 2026-09-25
 
@@ -4085,6 +4349,8 @@ The libraries not yet written, `json`, `base64`, `tls`, `http`, `regex`, `crypto
 
 The cold read's 1.1. The report said an effect variable binds to a mailbox type or to pure, and nothing about pure meeting a concrete mailbox, and the checker unified plainly while generalization turned a lone effect variable into pure. So `Up(next = fn(n) = Unit)` was accepted and `Up(next = done)`, with `fn done(n : Int) -> Unit = Unit` above, was refused: whether a program compiled depended on whether a function had a name (principle 3), and a reader from any language with inferred effects expects a function that does nothing to fit anywhere (principle 1). Plain unification throughout, which would refuse the lambda as well and `spawn(Local, fn() = Unit)` with it, was the other consistent reading and was rejected. Subeffecting was taken in the form Koka gives it: an expression whose type is a pure function type takes a fresh effect variable in its outermost arrow, which the context binds, so no subtyping enters the checker, and the order of two arguments that share an effect does not matter. Only the outermost arrow opens; a pure function type inside another, a parameter's or a field's, keeps its effect, since opening there would let a function that sends reach a place that promised pure. The converse stays an error: a function with a mailbox type never stands where a pure one is expected. §11.5 already printed a lone effect variable as pure in a scheme, and now does in every printed type, so an opened type reads as it did. The guide's §3.6, which taught that a pure callback cannot be spawned, now teaches that it can, its mailbox being what the address is used as.
 
+*Reason restated 2026-10-01: a pure function standing for one with a mailbox stands as §6.2 and §3.9 state it; the reader of a language with inferred effects was a neighbour's, which no longer decides.*
+
 ## A Redundant Clause Is an Error, 2026-09-26
 
 The cold read's 2.13. A clause that can match nothing the clauses before it leave was accepted silently, in `match` and `receive` alike: `n -> n | 0 -> 1` compiled, and the zero case its author wrote never ran. A clause the reader believes runs and which never does is the invisible thing principle 3 refuses. Rust, OCaml, Haskell, Gleam and Erlang report it as a warning and Elm as an error; Ernest has no warnings, since a second class of diagnostic that a build may ignore is a concept of its own (principle 5), so the choice was an error or nothing, and it is an error, as Elm's. The friction while editing, a catch-all put in early, is met by `todo` and by removing the clause. A guarded clause covers nothing, as it counts toward no coverage; a bitstring pattern counts as matching nothing among the clauses that cover and anything in the clause judged, so no bitstring clause is called redundant for what its sizes decide. `receive` is exempt from coverage and not from this: a clause after a catch-all selects no message. The checker asks Maranget's usefulness, which it already ran for coverage, of each clause against the unguarded ones above it. No clause in the repository was redundant.
@@ -4101,6 +4367,8 @@ Feedback item 52, weighed and left as it is: Ernest has no interface, signature 
 
 Feedback item 45. `Markdown.render(doc, 80, false)` says colour off only to someone who knows the signature, against principle 3. Labelled arguments stay refused (the log's *Against Labeled Function Arguments*); a type whose constructors name the two choices says it at the call with one declaration and no concept (principle 5), and is what Elm advises and Gleam's libraries do (principle 1). E.0 gains rule 9: an exported function of the standard library takes no `Bool` that chooses between two behaviours, a `Bool` that is the value operated on excepted, and a test holds the library to it; it complied already. `libs/markdown` takes `Style = Plain | Styled` as its own decision, since whether E.0 binds a library is feedback item 38's; the shell makes the `Style` from its colour setting in one place. A program's own modules are not E.0's, and the shell's `Shell.Style.fault(colour, text)` is called with a variable whose name says what it is.
 
+*Reason restated 2026-10-01: shape rule 9 stands as Appendix E.0 states it, kept by "The Rules That Buy Little"; Elm's advice and Gleam's libraries were neighbours', which no longer decide.*
+
 ## Names, Restarts and Supervision, 2026-09-26
 
 Feedback item 53, a direction and not yet a decision; the plan's MVP 2.65 step 5 holds the questions it leaves, and nothing is built before they are decided.
@@ -4113,6 +4381,8 @@ The direction. A process spawned through `restarting(f)` keeps its address and i
 
 This revises two entries. *No Registry* keeps its verdict, no table from names to addresses, and loses "threaded arguments from `main` for the rest". *Against OTP as a Language Feature* loses its first cost, no canonical supervisor, if the standard library gains one, and gains one mechanism in the language, the restart that keeps an address.
 
+*Superseded in part 2026-09-30 by "A Restart Begins Afresh": a restart keeps the address and empties the mailbox.*
+
 ## A Call Ends When Its Callee Faults, 2026-09-26
 
 The first question *Names, Restarts and Supervision* left. A fault loses the message being handled, and a restart resets the loop's state, so every `Reply` the process held is lost with it: the one in the current message, and any it kept, a queue of waiting callers or a lock's waiters. What was open is what the caller learns. Until now, nothing: `Address.callForever` is a bare wait on the reply's alias, so a caller whose callee died waited until a deadlock of the whole program, and `Address.call` until its time ran out. Death at least let a caller that thought of it monitor the callee; a process that restarts never dies, so restart in place would have made a silent wait an unobservable one. Principle 3 refuses a failure the one party waiting on it cannot see.
@@ -4122,6 +4392,8 @@ Delivering the lost message again was refused: a message that faulted the proces
 Taken: when the process a call's request was sent to faults or dies before it answers, `Address.call` returns `None` at once and `Address.callForever` faults the caller with the same cause. It is what `gen_server:call` does through its monitor, and what §6.7 already says of `remote`, a fault faulting the caller with the same cause. It needs no redelivery and no record of who holds a `Reply`: the runtime notes each pending call against the process it was sent to. It closes the wait on a dead callee as well as on a restarted one.
 
 Its costs, accepted. A call whose request was still queued, not lost, ends too; the request runs after the restart and its answer is discarded as late, which is the ambiguity `None` already has after a timeout. A request handed on to a second process under §6.6 is watched only at the first, so a fault in the second leaves the caller to its time limit. And `callForever` to a service that faults faults its caller: a caller that must outlive the service uses `Address.call` with a limit, and now learns at once. A message without a `Reply` is lost silently, as in every system surveyed; the fault itself is made visible by the third question.
+
+*Superseded in part 2026-09-30 by "A Restart Begins Afresh": the mailbox is emptied at a restart, so a call the restart ended is not carried out after it.*
 
 ## A Restart Has a Limit and No Strategy, 2026-09-26
 
@@ -4155,6 +4427,8 @@ The fifth question *Names, Restarts and Supervision* left, and the node protocol
 
 `Peer.find(name, fn() = Log.service)` does it in one call. The composition is three lines of `spawn`, `send` and `receive`, but a lookup is what every program that has peers does, and a named function says what the three lines are for (principle 1). Its function returns an `Address(m)` and nothing else: a function that returned any value would be `remote` aimed at one peer, a second way beside it (principle 2), and whether `remote` stays is feedback item 14's, in MVP 3.0. A lookup can fail, the peer unknown or lost, so it answers a failure rather than faulting; the failure type is decided with item 14, since both evaluate a pure function on a peer. A node that does not share the module, a client in another language, has no binding to name, and is outside what Ernest's peers are.
 
+*Reason restated 2026-10-01: `Peer.find` is MVP 3.0's to build or cut under E.0's rules ("The Rules That Exist for Another"); what every program with peers does was a count, which no longer decides.*
+
 ## A `Supervisor` in the Standard Library, and `fault`, 2026-09-26
 
 The sixth question *Names, Restarts and Supervision* left, and the last. `restarting` restarts one process; a group, strategies across it and the order it stops in were left to a library, and every program would write that library again, a little differently, which is the churn the direction was taken to end. So the standard library has one, where every program looks, and not `libs/`, which is not on the load path by default.
@@ -4165,11 +4439,15 @@ How it restarts a group decided whether it fits the direction. Children as new p
 
 The supervisor's own end, past the group's limit, found a gap: a process cannot fault on purpose, `todo` meaning unfinished, and a supervisor that gave up and returned would look to its watcher like one that finished (principle 3). `fault : (String) -> a` enters the prelude: a deliberate fault with its cause, uncatchable as every fault is, and reported as every fault is. Gleam has `panic` beside `todo`, Erlang `exit` and `error`. The risk is that it is used where `Either` belongs; E.0's rule that a partial operation returns `Optional` or `Either` governs the library, and the guide teaches `fault` for an invariant broken beyond recovery (principle 5 pays one function).
 
+*Reason restated 2026-10-01: `Supervisor` stands by E.0 rule 3, its policy passed as an argument without a default, and its shape is Appendix E.22's stated rule ("The Reader Family's Rules"); OTP's settled definition was a neighbour's, which no longer decides. Superseded in part 2026-09-30 by "A Restart Begins Afresh": the mailbox is emptied at a restart.*
+
 ## A Process's Identity Is a `Process`, 2026-09-26
 
 Feedback item 24. An address had no equality and printed as `<address>`, so `:processes` showed three processes spawned by three inputs as `input:1` three times, and a program that removed a subscriber or kept state per client carried an id in its protocol beside the address it already held, two ways to say which process (principle 2). §3.10 refuses equality on an address because an adapted address holds a function, `{via, F, Target}` in the runtime. Equality as reaching the same process, so `via(f, a) == a`, fails at `Map` and `Set`: their keys use the host's exact term equality, which compares `F`, so a map would hold `a` and `via(f, a)` as two keys while `==` called them equal, and normalizing a key when it is stored would strip its adapter, so that an address read back from the map would deliver without `f`, a wrong message and no error. Exact term equality, `via(f, a) != a`, would answer by how two closures happen to compare (principle 1). No equality on the address itself is sound.
 
 Taken: identity and authority are two types. `Address.process : (Address(m)) -> Process` gives the process behind an address with every adapter removed, which the runtime already computes; a `Process` has equality and no ordering, as `Bool` has, is exact as a host term and so sound in a `Map` or a `Set`, and is not a capability: nothing can be sent to it. §3.10's rule stands, for the reason it gives. `Io.debug` prints a `Process` as `<process 84>` and an address as `<address 84>`, the process behind it, since printing grants nothing; `:processes` and a fault line show the same identity. Across nodes a `Process` names its node, as the node protocol's address does. A reader from Erlang who writes `a == b` gets a type error, and its text names `Address.process` (principle 1). `Down` gains no field, since the wrapper given to `monitor` already says which process died, and a second way is not needed; `Address.process(self())` is a process's own identity.
+
+*Superseded in part 2026-10-01 by "The Owner Family's Rules": a `Down` names its process; `Address.process` became `Process.fromAddress` the same day as this entry ("Everything About a Process in Its Module").*
 
 ## The Live Processes Are a Library Function, 2026-09-26
 
@@ -4178,6 +4456,8 @@ Feedback item 26. The shell's `:processes` called a foreign function of its own,
 Taken: `stdlib/process.ern`, the module of the prelude's `Process`, admitted by E.0 rule 1. `Process.live()` answers the live processes the runtime started, system processes excepted, and carries `with m`, since its answer changes (E.0's fifth shape rule). `Process.site(p)` is where it was spawned, `Down`'s `function` while the process lives, and is pure. `Process.mailboxSize(p)` and `Process.state(p)`, running, waiting in a `receive`, or waiting for the answer to a call, answer `None` once the process is dead. The last two were first weighed out, as a snapshot stale when it is read that would invite a program to decide on it; they are in because they are the first thing debugging a process asks, as `process_info` and the observer are on the BEAM, because the shell would otherwise need its door back to show them (principle 3), and because a program refused them writes a foreign shim for them. Their documentation says each is a snapshot. The runtime marks a process waiting for an answer, which the host's own status does not tell from a `receive`.
 
 Left out: monitoring a `Process`, which would be a second `monitor` (principle 2) and an observation of what one holds no address to; and dead processes, whose record would grow without bound, the table step 8 of MVP 2.65 already names. The shell's `:processes` is `Process.live()` with its own processes removed by identity, in Ernest, and its foreign function goes. A long-running program can show which services are up, and a test can compare the live processes before and after to find one that leaked.
+
+*Superseded in part 2026-09-26 by "One Question About a Process": `site`, `mailboxSize` and `state` are one `Process.info`.*
 
 ## Every Fault Is Delivered to Whoever Subscribes, 2026-09-26
 
@@ -4201,15 +4481,21 @@ An abstract type (§4.4) is the tool, but these types are the prelude's by E.0 r
 
 `Sys.stdout` and `Sys.stderr` took a plain `String`, so no constructor rule reached `send(Sys.stdout, s)`, a second spelling of `Io.print`. They take an `OutMsg`, internal to `Io`, and rule 8 holds without an exception. What that costs is an idiom never taught, `via(Int.toString, Sys.stdout)` as an address that prints numbers; `Io` can offer one as a function if it is wanted.
 
+*Superseded in part 2026-09-26 by "The System References Live in Their Modules": the message types live in their modules under §4.4, and the owner table and its test are gone.*
+
 ## A Listener Says Its Port, 2026-09-26
 
 Feedback item 37. `Tcp.listen(0)` asks the system for a free port, which a test server or a program run twice at once needs, and nothing told the program which port it got, so it could not tell a peer where to connect, and E.18's example used a fixed port. The host knows it, and Ernest cannot compute it, so E.0 rule 1 admits a shim. Answering the port from `listen`, as a pair, would make every caller unpack what it almost always ignores, and makes the port a part of creating the listener rather than a fact of it. Taken: `Tcp.port(listener)` answers `Either(IoError, Int)`, a verb none of the vocabulary's does (E.0's second shape rule), answered at once and so among rule 8's functions that take no milliseconds. A dead listener answers `Left(Closed)`, as a closed socket's read does, since a call to a dead process now ends at once. `ListenerMsg` gains `Port(reply)`, whose constructor only `Tcp` names. E.18's example listens on port 0 and prints the port. A connected socket's own and peer address is the same kind of gap and went to the standard library's third batch in MVP 2.65, what the library lacks.
+
+*Superseded in part 2026-09-26 by "The Report Read Cold After the Pass": `port` on an ended listener faults as a call to an ended process does.*
 
 ## A Subscription Says Whether It Has Keys, 2026-09-26
 
 Feedback item 27, the last of the third theme. The shell chose between painting a region and reading lines through a foreign function of its own, `isTerminal()`, asking the host whether standard input and output were terminals: a fact `Terminal` owns, behind the kind of door *The Live Processes Are a Library Function* closed. E.16 answered half of it, `Terminal.size()` being `None` where output was not a terminal; whether keys could be read, nothing answered. Underneath was a silent case: `Terminal.subscribe` did not look, and with input piped from a file it set the host's raw mode and delivered what came as keys, which the report did not say. A predicate beside it would be two steps that can disagree, and would leave the subscription undefined for a program that did not ask.
 
 Taken: the operation that needs keys says whether it has them (principle 3). `Terminal.subscribe` answers `Either(IoError, Unit)`, and `Left(NotATerminal)` where standard input is not a terminal; `IoError` gains `NotATerminal`, the system's error vocabulary as `Closed` is. A refused subscription does not claim the terminal, so a program refused may read lines, and §8.2's keys-or-lines rule is otherwise unchanged. `Terminal.size`'s `None` is stated for output. The shell asks for the size and subscribes where there is one, painting on `Right` and reading lines on `Left`; `isTerminal()` goes, and with `processes()`, `watchDeaths` and `faults()` gone the shell has no foreign function for a fact a program might want.
+
+*Superseded in part 2026-10-01 by "A Failure's Shape": `Terminal.size` answers `Left(NotATerminal)`, one cause in one shape.*
 
 ## A Shim Reaches the Representation, 2026-09-26
 
@@ -4227,6 +4513,8 @@ Feedback items 40, 41 and 38, the standard library's second batch. E.0's third s
 
 `libs/ets` had `insert`, `lookup`, `member`, `delete`, and `drop` for ending the table, the word `List` uses for dropping a prefix. A library under `libs/` is not admitted by E.0's four rules, being written when it is wanted, but a reader who knows the rest of Ernest predicts its names (principle 1), so E.0's shape rules cover the libraries and its admission rules do not. `Ets` takes `put`, `get`, `contains`, `remove` and `close`, the verb `Tcp.close` gives to ending a resource. Its types still tell the Erlang reader the difference: `Ets.put` answers `Unit`, a table changed in place, where `Map.put` answers a new map.
 
+*Reason restated 2026-10-01: `intersection` stands by principle 1, Erlang's `sets` naming it so ("The Reader Family's Rules"), and `String.contains` as a substring test as Appendix E.5 states; Gleam, Haskell, Elixir and every language a reader comes from were neighbours', which no longer decide.*
+
 ## What the Library Lacked, 2026-09-26
 
 Feedback items 7, 8, 15, 20, 21, 22, 23, 31, 35 and 44, the standard library's third batch, and a socket's addresses, which item 37 placed here; each weighed on E.0's four admission rules.
@@ -4237,11 +4525,15 @@ Admitted. `Map.mergeWith(m, other, f)`, `f` taking the two values as Gleam's `di
 
 Kept. `String.lines` drops the empty last line as `lines` does in Haskell, Rust and Python, and says so; its See also gains `String.split` for an editor's rows (item 7). `String.drop`, `List.dropWhile` and a flatten are `slice` with `size`, the second half of `span`, and `flatMap` of the identity, rule 4 working as written, the last being the case it names, `List.concat` (items 21 and 22); how often each was written is an argument and not the gate. `IoError` gets no text (item 31): what a user reads is the program's wording, which rule 3 refuses to choose, a locale being its own example, and `Io.show` serves a log.
 
+*Superseded in part 2026-10-01 by "What the Library Admits" and "The Library Family's Rules": `Char.isAsciiDigit` is gone, `Io.debug` is a primitive and no pair ("The Sixteen Sentences Read Back"), and `Tcp.peer` is `Tcp.remote` (P2-23). Reason restated 2026-10-01: `lines` dropping a last empty part is Appendix E.5's definition under E.0 rule 2 ("The Reader Family's Rules"); Haskell's, Rust's and Python's `lines` were neighbours'. `Map.mergeWith`'s callback without the key rested on Gleam's `dict.combine` and on "rarely wanted", a neighbour and a count, neither of which decides; both of principle 1's sources pass the key, and the shape is a named decision of MVP 2.99b.*
+
 ## One Tool, the Job Its First Word, 2026-09-26
 
 The toolchain's options, read whole for the first time, in MVP 2.65's fifth theme. They had grown a milestone at a time and mixed three kinds of thing. Five were modes rather than modifiers, `--doc`, `--test`, `--shell`, `--create-config-dir` and halfway `--emit erl`, so two of them together was a combination the tool refused where the syntax did not show it; the toolchains a reader arrives from put the job first, `go build`, `cargo test`, `gleam run`, `mix`, `dune`, where Erlang's `erlc` and `erl` use flags (principle 1), and the job as the first word gives the command line the first-token dispatch principle 4 asks of the grammar, and makes the modes exclusive by construction. With the job first, two tools stopped paying for themselves: `ernc` and `ern` split compiling from running because `erlc` and `erl` do, both took `--source-root` and `--load-path`, and one name with six jobs is one to learn and one `--help` (principle 5). Taken: `ern build`, `ern doc`, `ern run`, `ern test`, `ern shell` and `ern config`, `--help` and `--version` staying options by convention.
 
 The three words for a directory now follow a rule §11 states: `-root` where the directory's layout gives namespaces, `-dir` a plain directory, `-path` a root that may be given more than once. `--out-dir` broke it, the build directory mirroring the source tree, and becomes `--build-root`; `--load-path` keeps the conventional name for a search list. `--create-config-dir dir` created `dir/.ernest` where `--config-dir dir` named the directory itself (the cold read's 3.12); `ern config [--config-dir d]` creates the configuration directory itself, `./.ernest` by default, so one option means one thing. `--no-clean`, the only negative, goes: only its own test used it, a stale module whose source is gone is never wanted, and separate outputs take a separate `--build-root`. `--errors short` and `--emit erl` were value options with one value each, flags in disguise; they are `--short-errors` and `--emit-erl`, and should a second value come, a JSON renderer for an editor say, the flag becomes a value option with it. A refusal of an old spelling names the new one.
+
+*Reason restated 2026-10-01: the job as `ern`'s first word stands as §11's rule ("The Reader Family's Rules"); the toolchains a reader arrives from were neighbours', which no longer decide.*
 
 ## A Word Is Readline's, 2026-09-26
 
@@ -4307,6 +4599,8 @@ MVP 2.65's step 9: the ten findings of the cold read that no theme took. Two had
 
 The rest are rules an implementer had to invent. `compare` on `String` and `Char` orders by code point, which is the order of the UTF-8 bytes; `trim` and its two halves strip graphemes whose first code point is White_Space, as `Char.isSpace` says; case mapping is Unicode's full mapping without the rules that depend on a language or a context, since nothing names a language (1.7; the searches were decided in step 6). The program ends when its entry process dies, whatever the reason; a killed one prints `killed` and exits 1, since it did not fault; a signal from outside exits 128 plus its number and prints nothing, hangup among them, which §8.6 already called the host's termination (2.19). A line of standard input is UTF-8 whatever the host's locale, so invalid UTF-8 is the reader's fault rather than corrupted output later; one carriage return before a line feed goes, and a last line without one is a line (2.24); reading bytes is a gap, feedback item 57. `Float.toString` gives the shortest digits that read back, plain from 0.0001 to below 1.0e16 and `d.ddde±n` beyond (2.26). The shell's commands get a paragraph of §11.2, a sentence each, held equal to the shell's list by a test, reversing the choice to leave them to `:help`, since the report owns what the shell does (2.33). `////` is an ordinary comment, a doc comment being exactly `///` and something other than `/`, as Rust's is (3.17). `ern --test` prints each test's line as it ends, and a deadlock in one test is that test's fault, the run going on (3.30).
 
+*Reason restated 2026-10-01: `////` as an ordinary comment stands as §2.2 states it ("The Rules That Buy Little"); Rust's rule was a neighbour's, which no longer decides.*
+
 ## The System References Live in Their Modules, 2026-09-26
 
 The gate of MVP 2.65's step 10, its finding G13. After item 47 a program could neither send to a system reference nor adapt one, after step 9 it could not kill one, and `Process.live` leaves the system processes out; no program, example or shell source named a `Sys.*` value but in prose. The seven references and their eight message types stayed in the prelude only so that their own modules could reach them, and keeping them there is what forced item 47's table of the module that owns each constructor, with its mirror test. Taken: each reference moves into its system module as a top-level binding the runtime binds, `Clock.reference`, and its message type with it, abstract under §4.4, which does what the owner table did with a rule the language already had (principle 5): eight types, seven values and `OutMsg` leave the prelude, and the table and its test go. A system reference is then what a service is since *Names, Restarts and Supervision*, a binding in its module reached by its name, and it stays ambient: *Ambient Sys, Five Principles* is superseded in its spelling, not in its point. Item 47's decision, that a system message is its module's to make, stands; its means changed. Standard output is still no `Address(String)` a program can hand on, as it was not since item 47; an `Io` function answering an adapted address would give that, and is not added, since it would be a second way to print beside `Io.print` (principle 2). A module's top-level binding bound by the runtime is a `foreign` shim that answers the runtime's address, as the modules' other shims do.
@@ -4323,17 +4617,25 @@ The gate of MVP 2.65's step 10, its finding G9. *The Live Processes Are a Librar
 
 The gate of MVP 2.65's step 10, its finding G2 and the reader's note beside it. The spawn site had three names, `Down.function`, `FaultReport.site` and `Process.Info`'s `site`, for one datum, `Counter.main:19`, a declaration's name and a line rather than a function (principle 1); `Down.function`, the oldest, becomes `Down.site`, a rename that loses nothing and costs least before step 10 writes against the old name. `Address.process` followed neither spelling of step 6's conversion rule, which puts a conversion between a type and one its module builds on in the building module; `process.ern` builds on `Address`, so it is `Process.fromAddress(a)`. And after *The System References Live in Their Modules* the prelude keeps the types the language's own rules name, `Down` for `monitor`, `Reason`, `Where`, `Reply`; nothing in the language names `Process`, so it is `process.ern`'s foreign type, with §3.10's exact equality, beside `Info`, `Activity` and `FaultReport`, which settles where `FaultReport` goes. The prelude's additions of the day lose a type and a function (principle 5).
 
+*Superseded in part 2026-09-26 by "The Report Read Cold After the Pass": `Process` is the prelude's, its module named after it; `Where` left the prelude on 2026-10-01 ("The Rules That Exist for Another").*
+
 ## `trim` Is a Named Pair, 2026-09-26
 
 The gate of MVP 2.65's step 10, its finding G8. Once `String.trimStart` and `trimEnd` were admitted, `String.trim` was one pipe of two functions already there, which E.0 rule 4 refuses. Dropping `trim` would spell the commonest string operation of every language a reader knows as a pipe (principle 1), for a rule meant to stop the library growing rather than to shrink it; dropping the halves would undo what step 6 admitted them for, a line's indentation and a heading's closing `#`s. Taken: all three stay, and rule 4's list of pairs names `trim` beside `Io.debug`, a composition text wants more often than either half. `Map.merge` is `mergeWith` given a function, no pipe of two, and rule 4 does not reach it.
+
+*Superseded 2026-09-30 by "The Release Review's Questions" (R-6): `trim` is text's word in rule 2's vocabulary, admitted whole, and rule 4 no longer names it; every language a reader knows and how often text wants it were a neighbour's and a count, which no longer decide.*
 
 ## A TCP Peer Is TCP's, 2026-09-26
 
 The gate of MVP 2.65's step 10, its finding G7: "peer" names a node (§8.3, `Where.Peer`), MVP 3.0's module `Peer`, and, since step 6, a TCP connection's far end, `Tcp.peer`. Renaming the TCP pair to words Ernest uses nowhere else, one `Tcp.ends` with a `near` and a `far` end, was weighed and left: a reader in `Tcp` is in TCP's context, where `peer` and `local` are the names POSIX gives the two ends and the ones a network programmer looks for, and meets no surprise there (principle 1). E.18's line for `Tcp.peer` says it is the connection's far end, in TCP's sense, not a peer of §8.3.
 
+*Superseded 2026-10-01 in the principles review's phase 4 (P2-23): `Tcp.peer` is `Tcp.remote`, so that "peer" names a node alone.*
+
 ## `Peer.find` Stands, 2026-09-26
 
 The gate of MVP 2.65's step 10, its finding G6: `Peer.find` runs a pure function on a named peer and answers an address, which is `remote` aimed at one peer, and `remote`'s own future, feedback item 14, is decided in MVP 3.0. Taking `Peer.find` out of this batch would have reopened a decision nothing new argues against: finding a service is what every program with peers does, and a named function says what the three lines of `spawn`, `send` and `receive` are for (principle 1). The overlap exists in one of item 14's outcomes only, and the plan's MVP 3.0 says so where item 14 is decided: if `remote` stays and takes a named peer, `Peer.find` is its composition and goes by E.0 rule 4; otherwise it stands. The same place now says what `remote` is for, a synchronous call on the node with the lowest load, and keeps item 25's `spawn(Remote, f)` beside it.
+
+*Reason restated 2026-10-01: `Peer.find` waits for MVP 3.0, which builds or cuts it under E.0's rules ("The Rules That Exist for Another"); what every program with peers does was a count, which no longer decides, and `spawn(Remote, f)` went on 2026-09-27 ("No Remote Computation in the Language").*
 
 ## A Supervisor Is Told by Its Own Children, 2026-09-26
 
@@ -4368,6 +4670,8 @@ L3 of MVP 2.65's step 10 ledger. A socket's process ended with its connection, w
 The socket now lives until `Tcp.close`, as a descriptor does in every host: after its connection closes each read answers `Left(Closed)`, and `Tcp.close` ends the process. A read after the program's own close is a use of a closed resource and faults, as the call rule says. Going back to `Address.call` for reads was weighed and refused: it carries the time limit twice, in the request and in the call, the two racing timers item 50 removed.
 
 The cost is that a socket the program never closes keeps its process until the program ends. That is growth the program causes and can see, a defect in that program by the rule on memory, and never the runtime's; a monitor learns of the socket's end at `Tcp.close` rather than at the hang-up, which the next read reports.
+
+*Superseded 2026-09-30 by "The Release Review's Questions" (C1-2) and 2026-10-01 by "Who Owns a Process": a socket belongs to the process that opened it or was given it, and is killed with it.*
 
 ## The Error of Input and Output, 2026-09-26
 
@@ -4411,6 +4715,8 @@ E.5 named text's conversions to numbers as primitives while rule 1 admitted only
 
 The terminal's interrupt went to "the holder", which several subscribers leave undefined: it goes to every subscriber while the terminal is claimed for keys. Sockets and listeners are foreign processes the runtime starts but no system reference names, so they are not system processes, and `Process.live` and `Process.faults` include them, as the step that kept them killable said.
 
+*Superseded in part 2026-09-30 by "The Release Review's Questions" (R-6): `trim` is text's word in rule 2's vocabulary, not a pair of rule 4.*
+
 ## The Web Server Waits for Its Library, 2026-09-26
 
 Feedback item 55, decided in MVP 2.65's step 10 before its build. `examples/webserver.ern` parses a request line and headers from the bytes it reads and renders a response's status line and headers: a part of HTTP/1.1, RFC 9112, written by hand, which ignores the version and knows no chunked body. A published protocol is a library's work, and a program that finds itself writing one stops and says it waits.
@@ -4426,6 +4732,8 @@ Feedback item 56, decided in MVP 2.65's step 10 before its build. The shell's st
 A library, `libs/ansi`, was weighed and left: `Terminal` already decodes the keys the terminal sends in that vocabulary and, with `columns`, reads its sequences in a string, so a second owner for writing them would split one vocabulary in two, and a reader looking for how to colour text looks where the terminal is (principle 1); `libs/` is also off the default load path, which the snake example would then need.
 
 Taken: E.16 gains `styled` over `Style` and `Colour`, the cursor's four moves and two erasures, each pure and answering text the program writes with `Io.print`, admitted by rule 3, the standard's obvious definitions with nothing chosen for the program; that the terminal speaks ECMA-48 rather than a terminfo entry is the assumption `Terminal` already makes for its keys. Rule 2 gives the whole vocabulary, eight colours and four directions, not only what the four places used. `styled` turns a style off by its own code, the Markdown renderer's convention, so a style inside another leaves the outer on; `Bold` and `Dim` go off together, ECMA-48 having one code for both.
+
+*Superseded 2026-10-01 by "What the Library Admits" and "The Library Family's Rules": ECMA-48 is a published specification and its builders are the library `libs/ansi`, Appendix G.3, the load path being the toolchain's fact.*
 
 ## Standard Input and Output Carry Bytes, 2026-09-26
 
@@ -4509,6 +4817,8 @@ Two warts found at the group's end were fixed before sub-step 7. An address seen
 
 The completion of a value's fields checks the text before the last `.` in a module of its own, as `Shift-Tab` checks its callee, and asks the checker which fields that type selects by the rule selection itself follows, so a chain and an abstract type's privacy are the checker's, and a name the unfinished input binds is out of scope there, as §11.2 says. The shell's commands are held equal to §11.2's list by a test that reads both.
 
+*Reason restated 2026-10-01: `String.graphemes` stands by E.0 rule 1, the segmentation being Unicode's tables as the host has them; "quadratic", unmeasured here, was speed, which no longer decides. `Char.isAsciiDigit` and the terminal's builders are gone since "What the Library Admits".*
+
 ## The Closing of Step 10, 2026-09-26
 
 MVP 2.65's step 10, sub-step 7, before the closing sweep.
@@ -4524,6 +4834,8 @@ Feedback item 60, decided. §6.6's check demanded an answer on a path that ends 
 The closing sweep had two readers who took no part: the guide against the report, and every other document against the report and the code. They found 32 defects and 21 matters of clarity, nearly all text that described the code before steps 5 to 10: the watcher of deaths, the old fault line, a session that never shrinks, `--shell`, `IoError`, and the report's list of causes a callee's end gives. One was code: the shell's refusal of the terminal named `ern` where §7.4 names `ern run`, and its test had checked only the sentence's first half. Two were silences in the report, now sentences: §11.2 says how an input's own fault and its interruption are answered, and §8.5's two sentences on order now agree, the initializers of modules that do not depend on one another printing in no promised order and those of one module in its declaration order. `make sections` had counted a guide citation, `guide §8.3`, as the report's, and now does not.
 
 `ern_shell` was measured again with its doors gone: 1,896 lines, the collection and field completion having come in. By the rule *Where the Toolchain's Modules Split* gives, a part that threads the module's private record stays with it, and `:browse`, `:doc` and completion all read the shell's `#env`; moving them would put the record in an include for three readers. It stays whole.
+
+*Superseded in part 2026-10-01 by "The Reply Discipline Names No Type": a call to any function whose result type is a variable no parameter's type names consumes every obligation open on its path, `fault` being one.*
 
 ## No Remote Computation in the Language, 2026-09-27
 
@@ -4541,9 +4853,13 @@ Feedback item 16, decided: a program could not read its arguments. Two shapes we
 
 `Os.run` joins them: starting a host program is what only the host can do (E.0 rule 1). Erlang's `os:cmd` was the model weighed and not taken. It answers standard output alone, so the exit status and standard error are lost and a command that failed reads as one that printed nothing (principle 3); and it passes one string to `sh -c`, so quoting is the caller's and a name with a space or a `;` in it does what the program did not mean (principle 1). `Os.run` starts the program itself, each argument as it is, and a shell is one program it can start, so there is one way (principle 2). A status other than 0 is the program's answer and not a failure of the call. The output is `Bytes`, as standard input's is since item 57, and the fields are `stdout` and `stderr`, `Io`'s words: §8.2 says standard error is a second sink, not a level of severity, so a name like `errors` would contradict it. The request is a record read by its field names, and the milliseconds are the last argument and the failures `Io.Error`'s, as `Tcp`'s are. A command never reads the terminal, which the terminal's claim for keys or for lines would contest; its standard input is what the request gives.
 
+*Superseded in part 2026-10-01 by "The Silence Family's Rules": `Os.environment` asks by name, and a value that is not UTF-8 faults its asker.*
+
 ## A Program Ends With `Os.exit`, 2026-09-27
 
 The last question of MVP 2.66's opening, decided. A program exited 0 when `main` returned and 1 on a fault, and could say nothing else, where a tool that distinguishes "no match" from an error needs to. An entry point that returns an `Int` would make every entry point return one or give two entry shapes (principle 2), and a status decided deep in the program would be threaded back to `main`, the threading *A Program's Command Line Is `Os`'s* refused. A function that records a status for the end is state any process sets and the last one wins, invisible where the program ends (principle 3). `Os.exit(status)` ends the program where the decision is made, as §8.6 ends it, and its type `a` says it does not return, as `fault`'s does. The default stays for a program that does not call it. A status outside 0 to 255 faults, since the host would keep its low byte without a word. In the shell it ends the input and not the shell, answered `exited with status n` as an interrupted input is answered `Killed`; under `ern test` it fails the test and the run goes on. A reader from Erlang knows `exit` as a process's end, which Ernest spells `kill` or a return, so its module page says in a line that it ends the program.
+
+*Superseded in part 2026-09-27 by "The Environment Read Through the Helper": in the shell and under `ern test`, `Os.exit` faults its caller with `exited with status n`.*
 
 ## A Sibling Restarts at Its Next Wait, 2026-09-27
 
@@ -4554,6 +4870,8 @@ So a sibling is restarted at its next wait. The supervisor sends a priority mess
 Two other shapes were weighed. Children as new processes, as OTP has them, are simple inside the supervisor and leave every service binding holding a dead address; Erlang answers that with a registered name, which §6.5 refuses, and the other answers are a forwarder, a hop on every message, or a handle that `send`, a call, `monitor`, `kill` and `Process.fromAddress` would each look up, the mailbox lost at every restart and a `Down` told of a process whose address still works (principle 1). `OneForOne` alone needs no signal and gives a thin supervisor that stops at one level, since a supervisor restarted as a new process brings its children back at new addresses. The signal is about forty lines in the emitter and the runtime, and nothing about an address changes.
 
 The service binding is also why Ernest needs no registered name in a tree. In Erlang a child registers a name so that its replacement is found; in Ernest the binding is the name, typed, scoped by `export`, with no window in which a send to it fails, and it names the process in a fault line (§6.9's site). Names made at run time, one process per user, are a service holding a `Map`, as *No Registry* decided.
+
+*Reason restated 2026-10-01: a sibling restarting at its next wait stands as §6.9's rule ("The Reader Family's Rules"); the OTP reader was a neighbour's, which no longer decides. Superseded in part 2026-09-30 by "A Restart Begins Afresh": the mailbox is emptied.*
 
 ## The `Supervisor`'s Shape, 2026-09-27
 
@@ -4572,6 +4890,8 @@ MVP 2.66's questions on the module's interface, decided one at a time.
 **A supervisor and its children run on one node.** A child's `Join` carries two closures, its `stop` and its `watch`, which stand for an address whose type the supervisor cannot name, and *Code Travels Only With a Spawn* keeps a function from crossing nodes. A child spawned on another node than its supervisor would fault as it joined, with `function cannot cross nodes`, a cause that names nothing the program wrote. Carrying the child's `Process` with private shims to kill and watch it would have made the join plain data and let supervision cross nodes. It was refused on OTP's reason, which holds more strongly here: a restart in place is a mechanism of one node, since only the runtime that holds a process can interrupt it at its next wait, and across nodes every restart, fault notice and ordered kill would be a network message, so a lost connection would read as the group failing and a partition would count against its limit. When a peer is lost, every process on it faults (§10), which is network failure, not the failure a supervisor exists to restart. Between nodes a process watches another with `monitor`. So each node has its own trees, and `Supervisor.child` faults with `a child runs on its supervisor's node` before it joins, a check MVP 3.0 builds once there are peers, through a private shim that says whether a process is on this node.
 
 **When a restart is over, left as it is.** Feedback item 61, decided: after a fault, a call to a sibling may be answered from its old state, end, or be answered from its new one, and nothing tells a client which, so `examples/services.ern` and the guide's §6.6 wait before they ask again. A `Supervisor.settled(sup)` that answered once no asked restart was pending would not close it: the faulted child's notice and the client's request come from different senders, which §6.4 does not order, so the request can arrive first. The window is what an asynchronous fault is, and OTP has it too. A client that relies on a service's state after a fault takes the state as lost and asks again, with `Address.call`; the example and the guide wait only so that their output is the same on every run, and say so.
+
+*Reason restated 2026-10-01: one limit and a subtree restarted with its root stand as Appendix E.22's stated shape ("The Reader Family's Rules"); the OTP reader was a neighbour's, which no longer decides. Superseded in part 2026-09-30 by "No Limit Is `Unlimited`" and "A Restart Begins Afresh": no limit is `Unlimited`, and the mailbox is emptied at a restart.*
 
 ## Code Travels Only With a Spawn, 2026-09-27
 
@@ -4611,11 +4931,15 @@ The README had grown into a contributor's manual, the layouts, sixteen make targ
 
 `Os.run` waits for a program to end and holds all its output, so a program that does not end or ends late and matters as it goes, `tail -f` or a build that reports its progress, output larger than memory, and a conversation with a program through its input and output are all out of its reach. Those are a command-line language's jobs, and a feature is judged on the principles rather than deferred until a program asks. A running program is a process, as a `Tcp` socket is: `Os.start` answers its address, `Os.read` its next piece from either stream, so that a program filling its standard error while the caller waits on its output cannot hold the two in deadlock, and `Os.write` and `Os.closeInput` feed it; `kill` and `monitor` work on it as on any process, which a reader who knows `Tcp` predicts (principle 1). The time limit bounds the program's life rather than each read: a read with its own milliseconds would leave `Os.run` needing the time elapsed, which Ernest measures only by the wall clock, and with the limit on the life `Os.run` is Ernest over the four, a composition E.0 rule 4 keeps as a named pair wanted more often than its parts, and the one protocol is public rather than a private one beneath a public function. The process ends once it has answered `Exited`, so that no ended program is left for something to forget to close, and a read after the end faults as a call to an ended process does. The helper takes the program's output only while a read waits, holding a program no one reads back, as a socket holds back its far end.
 
+*Superseded in part 2026-10-01 by "What Waits With a Limit": `Os.read` and `Os.write` take milliseconds that bound the one request and `Os.start` takes none; `Os.run` stands, rule 4 refusing only one call or a pipe of two, and "wanted more often than its parts" was a count.*
+
 ## The Environment Read Through the Helper, 2026-09-27
 
 `Os.environment` leaves out a variable that is not UTF-8, which needs the environment's bytes, and the host gives them only in part: in the Unicode mode the emulator runs in where the locale is UTF-8, `os:getenv` decodes a value that is not UTF-8 byte by byte as Latin-1, without a sign, so that `caf\xe9` and `café` come back the same, and the manual says only that variables are expected to be in Unicode. Three ways were weighed. Running the emulator with `+fnl`, whose manual says names, arguments and variables then come as raw bytes, makes both rules exact, but every path the toolchain takes from its own command line or from `$HOME` becomes raw bytes too, and each message that shows one would print `josé` as `josÃ©` unless it decoded it first: a change to every message with a path, for one module. Reading the fallback as the rule builds the contract on what no manual promises and loses what a program would want to tell apart. The third reads the bytes where they are exact: a program the runtime starts inherits the environment as POSIX's `exec` passes it, which the emulator keeps as raw bytes and decodes only when Erlang code reads it, so `ern_exec`, run with no program, writes the environment back, and the runtime checks the UTF-8 itself. It costs one start of the helper when the program starts, and changes nothing outside `Os`. The arguments need nothing of it: in the Unicode mode an argument that is not UTF-8 reaches the toolchain as a recognizable error, and under a Latin-1 locale as raw bytes, so both refuse it exactly. `Fs.list` had the same fault in names, skipping one it could not decode with a warning the host printed itself; it reads them by `file:list_dir_all`, which gives such a name as raw bytes, and leaves it out, as E.17 now says.
 
 Built with it, one rule changed from what was agreed for `Os.exit`: in the shell and under `ern test` it faults its caller with `exited with status n` rather than being answered as an interrupted input is. The shell learns of an input's end only through the input's process, and a fault is the one ending its answers already carry; a third kind of ending would have been a second way to report one.
+
+*Superseded in part 2026-10-01 by "The One Silence" and "The Silence Family's Rules": nothing is left out for its bytes, `Os.environment(name)` faulting its asker and `Fs.list` answering `Left(NotUtf8(name))`; the raw read through the helper stands.*
 
 ## The Formatter Before the Release, 2026-09-27
 
@@ -4632,6 +4956,8 @@ Two things were found wanting beside it, neither a mailbox. The runtime's own wr
 And pacing between processes, which a program writes, was nowhere taught, though the 2026-09-13 entry said the idiom belongs in the guide. Guide §4 now teaches it: a call paces its caller, a window of credits paces a stream, the producer waiting selectively for its next `Credit`, and `Process.info` shows a queue building. A mailbox limit that faults its own process when it is passed, a breaker rather than back pressure, was left out: it slows no sender, and it would be a concept (principle 5) for what `queued` already lets a program watch.
 
 A send with a limit, one that sends only while the receiver's queue is short, was asked for on 2026-09-28 by a reader who wrote a chat server and dropped a client past a thousand queued messages. Decided with the user on 2026-09-30, it is left out too. It is `Process.info` then `send`, a composition (E.0 rule 4), and it needs a `Process` beside the address. The queue it reads may change before the message arrives. And it would make `Process.info`, which is for watching what runs, the way a program paces its messages. A window of credits for each receiver is that limit, written in the program's own protocol, and the guide's §4.4 teaches it for a fan-out: a receiver whose credit stays at nothing has stalled, and a client that stops reading stops its writer's grants, since a write returns only once its stream has taken the bytes.
+
+*Reason restated 2026-10-01: a write that waits for its stream stands by Appendix E.0 shape rule 8, a write to another party bounded by its milliseconds and the program's own streams waited on without a limit ("What Waits With a Limit"); a reader of any language was a neighbour's, which no longer decides.*
 
 ## The Libraries in the Report, 2026-09-27
 
@@ -4683,6 +5009,8 @@ Two rules of E.23 were left silent and are now stated. What `write` gives after 
 
 Three defects of what was there came to light, and each was fixed at its cause. The runtime initialized every `ern@` module on the code path as the standard library's, so the shell's modules, which share the path, were initialized in every program, and before the standard library's, which the first of them to read `Os.environment` showed; the standard library is now what the checker takes it to be, the modules in a `stdlib` directory, and the shell initializes its own as a program's, which §8.5 already required. A `monitor` of a process the runtime did not start, a socket or a running program, was made only when the reaper came to the request, so a `kill` just after it was reported as `Unknown` although the monitor was made while the process ran; `monitor` now returns once the reaper holds it, a round trip in exchange for §6.9's promise kept. And `ern test` recorded the running test only after starting it, so a test that faulted at once was reported twice, once as its line and once on standard error; it now starts once it is recorded.
 
+*Superseded in part 2026-09-29 by "A Write to a Socket or a Program Answers Whether It Was Taken": every write is a call, and one after the input is closed answers `Left(Closed)`.*
+
 ## Layout for the Reader, 2026-09-27
 
 The style guide's layout rules are judged by how the code reads, and a formatter applies them, so what they leave open is settled by the tree and a line's length and never by the writer (principle 2, one way; principle 1, the code that results). A function's body begins on the line after its head, one step in, however short it is. The head then reads as a signature alone, a match or a receive that is a body stands at the same step in every function, and one rule needs no exception for bodies that fit. A `foreign fn`'s string is its body and stands there too. Keeping it on the head's line made long heads break inside their signatures, which read worse than the string on a line of its own. A blank line stands between top-level declarations, with a declaration's comment directly above it, so that no comment stands between two declarations without saying which is its own. A block holds more than one statement, since braces around one expression say nothing.
@@ -4730,6 +5058,8 @@ Two of the guide's rules disagreed with the language. It said that a lambda spaw
 The table of Erlang's standard library had left `absname` and `expand` waiting for the working directory, and `watch` for a program that must not poll, both for MVP 2.7, which had not planned them; closing the milestone found them. The report said nothing of what a relative path is resolved against, so every relative path given to `Fs` leant on a directory a program could neither see nor name. `Os.workingDirectory` is that directory, bound when the program starts beside `Os.arguments` and `Os.environment`: Ernest has no way to change it, so a value read once cannot go stale. E.17 and E.23 now say that a relative path names a file under it (principle 3). `absname` is `Path.join(Os.workingDirectory, p)`, since `join` lets an absolute second path stand alone, so it takes no function of its own (E.0 rule 4). `expand` stays out: removing `..` by the text alone names another directory where a symlink stands before it, which a reader does not predict (principle 1). `watch` stays out too, under *Later*.
 
 Building it found that the host does not boot in a directory whose name is not UTF-8 where its names are UTF-8. Its code server fails as it starts, and `ern` hangs before any of its code runs, deaf to a termination signal. Where the host's names are bytes it boots, and `ern` now refuses such a directory before anything runs, as it refuses an argument that is not UTF-8; §11 states the refusal. Only a launcher that runs before the host can turn the hang into it, and MVP 2.95's installation plans one. A working directory the host can no longer read as the program starts, removed since, faults the binding with the host's reason (§7.4).
+
+*Superseded in part 2026-10-01 by "The Verb Per Kind": `absname` is `Os.workingDirectory <> p`, `Path.join` being `split`'s inverse.*
 
 ## Manual Pages Named `Ernest.List`, 2026-09-28
 
@@ -4979,6 +5309,8 @@ A port out of range made the host raise where it answers an error, so neither `l
 
 A socket's process did its writes itself, so a write the far end held back held up every read of the socket and their time limits (C3). The writes go to a process of the socket's own, in the order they came, and the socket counts each as a source until the writer has answered it, so a socket killed with writes queued leaves no count behind. The host queues one write whole and holds the next back, which is what the regression test has to make.
 
+*Superseded in part 2026-10-01 by "The Failure Family's Rules": a port out of range answers `Left(Invalid)`.*
+
 ## `ern config` Makes Its Directory Its Owner's, 2026-09-28
 
 `ern config` checked that the configuration directory did not exist and then made it with the host's `ensure_path`, which accepts one another made between the two, and it made the key's file beside its place with the host's default mode before it made it its owner's, so that another could open it in that moment and read the key through what it had opened (S9). The directory is now made by one call that fails if anything is there, and is its owner's alone before a file is written in it; since no one else can open a file in it, the moment in which the key's file has another mode no longer matters. §11.3 says both.
@@ -5001,9 +5333,13 @@ E.5 said every search of a `String` matches whole graphemes, and `indexOf` and `
 
 A child ran `f` again at once after a fault, under a `restarting` of no limit of its own, and told its supervisor with a message after it had begun, so a child that faulted at once ran about two hundred times before the supervisor had counted two faults (E2, P15, K10). The child now asks the supervisor, and runs `f` again only once the supervisor has counted the fault and restarted what the strategy restarts; the supervisor that gives up answers the child so before it faults, and the child then waits with the supervisor's watcher, which outlives a restart in place: the group's end kills it there, as it kills the others, and a restart in place, a nested group's, asks it to restart. Waiting on the supervisor itself would have made the child fault of the supervisor's end or restart and report a fault it did not have, and killing itself would have ended a child a nested group restarts. The watcher holds the replies of the children that wait, in a type of its own, and answers them at the supervisor's next run or its end, so that it holds none past the moment it matters. A child that finds its supervisor ended is killed as the others are. The count follows §6.9 as E.22 says it does: a time of 0 sets no limit, since no restart is within the last 0 milliseconds, where the supervisor had counted each fault until an alarm of 0 milliseconds took it back, and a quick run of faults gave up.
 
+*Superseded in part 2026-09-30 by "No Limit Is `Unlimited`": a window below 1 is 1, and no limit is written `Unlimited`.*
+
 ## `Fs.makePrivate`, 2026-09-28
 
 The shell kept what was typed in `$HOME/.ernest/history`, written with `Fs`, which made the file and the directory with the host's default mode, readable by others (S8, language feedback 66, now decided). `Fs.makePrivate(path, ms)` makes a file or a directory its owner's alone, the group's and others' bits of its mode cleared and the owner's kept, and the shell makes `$HOME/.ernest` so before it reads or writes the history. E.0's rule 1 admits it: a file's mode lives in the host, and Ernest cannot set it. Rule 4 does not refuse it, since no function here sets a mode. It is Erlang's `file:write_file_info/3` with the `raw` option over what `file:read_file_info/2` reads, `file:change_mode/2` being the same `chmod` through the host's file server. Making the directory private, and not the file, leaves no moment in which another can open the file, as `ern config` makes its directory. Not taken: files and directories that `Fs` creates its owner's alone by default, which departs from the host's convention and leaves a program that wants others to read no way to say so (principle 1); an access argument to `write`, `append`, `copy` and `makeDir`, four signatures widened for what some programs need; and a mode of the host's bits, `setMode(path, Int)`, which is the host's representation, not the language's.
+
+*Superseded 2026-10-01 by "The Rules That Buy Little": `makePrivate` was one policy, and `Fs.setMode` takes the host's bits, which §0's host paragraph lets the report state.*
 
 ## What `Fs` Holds, 2026-09-28
 
@@ -5018,6 +5354,8 @@ The shell kept what was typed in `$HOME/.ernest/history`, written with `Fs`, whi
 **A file read in parts, decided 2026-09-29 with the user.** A file too large to hold whole could not be read by `Fs` at all. Three shapes were weighed. A file open as a process, as a socket is (E.18), matches `Tcp` and ends with its owner, but brings a handle and its lifetime into `Fs`, a message for every part, and a concept no program here has asked for. A fold over a file's parts is one function, but reads only, from the start only, and holds its caller while it runs. Taken: `readRange(path, offset, count, ms)`, a part read by its path, as every function of `Fs` takes a path, with nothing held open that could outlive its reader (principle 3), and reading from any place in the file (principle 5, one function). Each call opens the file again, which is small beside a part's size, and a file that changes between two calls is not read as one; a program that needs that holds a lock file, which `create` makes. Writing in parts is `append`, which there was.
 
 **Left out.** Mode bits, `change_mode`, and owner and group, `change_owner` and `change_group`: the host's representation and an administrator's operation, where `makePrivate` is the one access a program names. Hard links, `make_link`: a second name for a file beside a link, which few programs need (principle 5). `is_dir`, `is_file`, `is_regular`, `file_size`, `last_modified`: each one call of `stat` (rule 4). `ensure_dir` and `ensure_path`: `makeDir` makes the parents. `wildcard` and `fold_files`: a pattern language, a library's work. `get_cwd` and `set_cwd`: `Os.workingDirectory`, and nothing in Ernest changes the working directory (E.23). `consult`, `script`, `eval` and the `path_` functions: Erlang terms and code, not Ernest's. `sync`, `datasync`, `truncate`, `pread`, `pwrite`, `read_line`, `sendfile`, `allocate` and `advise`: parts of the file read in parts, weighed with it.
+
+*Superseded in part 2026-10-01 by "The Verb Per Kind" and "The Rules That Buy Little": `create` is `Fs.makeFile` and `makePrivate` is `Fs.setMode`. Hard links rested on "few programs need" and on "no program here has asked for", counts, which no longer decide; whether E.0 rule 1 admits them is a named decision of MVP 2.99b.*
 
 ## MVP 3.0 Is Distributed Code and the Node Protocol, 2026-09-28
 
@@ -5055,6 +5393,8 @@ The shell's live region kept what a program had written without a line feed whol
 
 MVP 2.98's first batch settled the report's lines of `docs/findings.md`, and five of them needed a choice. An Ets table is made by `new`, not `empty`: shape rule 2's `empty` is a value, which a second call gives again equal, and a table is made, belongs to a process and ends, so naming it `empty` would promise what it does not keep (principle 1); `new` names an operation none of the vocabulary does, as the rule allows. `Int.toFloat` keeps faulting beyond `Float`'s finite range, and shape rule 4 names it as its exception: §3.1 already had it fault as `*` does beside it, and an `Optional` would put on every conversion a case that only an integer above 10^308 meets. Whether `Float.exp` and `Float.pow` fault in the same way is K25's, in MVP 2.98's second item. An adapted address whose target is on another node faults with a function's cause when it is carried across, since what cannot cross is its function, and a cause of its own would say one fact two ways (principle 2). `NO_COLOR` set to the empty string is unset, as the convention at no-color.org says, and the report now says so. The shell's editor binds a few of Readline's keys, and the report lists them, since "the Emacs keys of GNU Readline" named many it does not bind. The report's third line sent open questions to this log, and a decision still to be made is the plan's, where the user reads it.
 
+*Superseded in part 2026-10-01 by "A Failure's Shape": `Int.toFloat` faults by §7.4's clause for a `Float` the finite range cannot hold, and shape rule 4 names no exception.*
+
 ## A Lambda Is Written `fn(x) = e`, 2026-09-29
 
 The guide's answer to why a lambda is `fn(x) = e` and not `x -> e` had no entry here (U23). A lambda begins with `fn`, so the parser knows at its first token that one begins (principle 4); `x -> e` and `(x, y) -> e` read as a variable and a tuple until the arrow, which a parser can find only by looking past a whole pattern. It is a declaration's form with the name left out, one form for a function wherever it is written (principle 2), and its parameter list shows its arity, which §3.4 makes part of its type. `->` already ends a clause's pattern and a function type's parameters, and a third meaning would be one more for a reader to tell apart (principle 1).
@@ -5083,10 +5423,14 @@ The code readers' lines were defects where the code and the report disagreed, an
 
 The clarity lines that followed changed no behaviour but three. The formatter wrote a block comment against a token the layout puts no space before, `- /* neg */1`; a comment on a line of code is now kept apart from the next token by a space, and the printer joins a space written after a space the layout wrote, since the layout never means two. `Os.start`'s time was taken once the helper had started, so that a time of 0 could lose the race to a helper that started first; it is taken at the call, and armed before the helper is, as E.23's "since the start" says. The shell's module initializer is watched from its spawn, as `spawnMonitored` watches, so that no end comes back as `noproc`. Two lines were kept: the helper wakes every 50 ms once a program has closed its outputs and lives on, which a signal pipe would avoid at the cost of a second way the helper learns of an exit; and `live/0` keeps its catch around a select of a table that may be gone, since the helpers for a missing table read by key and by pattern and a select is neither.
 
+*Superseded in part 2026-10-01 by "What Waits With a Limit": `Os.start` takes no milliseconds, a start being answered at once.*
+
 
 ## The Library's and the Examples' Cheap Lines, 2026-09-29
 
 The Ernest code reader's lines were fixed as the report and the pages said, and six needed a choice. A name's first `.` begins no extension, so `.bashrc` has none and removing its extension no longer leaves an empty path, and the root, which has no name, is left as it is by `withExtension`; E.14 said "after the last `.`", which read `.bashrc` as the extension `bashrc`, and the shell tools a reader knows read it as none (principle 1). `Fs.Entry.mtime` stays whole seconds, which is what the host's file interface gives, and E.17 says so rather than promise milliseconds it cannot keep. An example on a page is checked where a programmer writes it, in a module of its own that uses the documented one, and one on a declaration the module keeps private is checked inside the module, whose own reader it speaks to. The Markdown library read a tag at a line's start as an HTML block and a tab anywhere as four columns; CommonMark's HTML block of a tag needs the tag alone on its line and ends no paragraph, and a tab counts columns only where it decides the structure, so a code block's tabs survive, and the library now does both, with G.2 saying so. filesync never settled, since a stored file took the time of its writing, and it now gives the file the peer's time with `Fs.setModified`, the function MVP 2.98 added. The shell's history is trimmed by writing beside it and renaming, since a file a job writes is written whole or not at all (§11), and a history that is not UTF-8 is reported as unreadable, as a startup file that is not is.
+
+*Reason restated 2026-10-01: `.bashrc` having no extension stands by the host's path syntax, which E.0 rule 1 names ("The Reader Family's Rules"); the shell tools a reader knows were a neighbour's, which no longer decides.*
 
 ## The Pages Line, 2026-09-29
 
@@ -5110,9 +5454,13 @@ How a contract is written, which `contract.md` weighs, is decided in MVP 2.99b, 
 
 The no-reply restriction had the same shape at one place. The reply pass exempts a variable that is a container's element in a function's type, read through tuples and containers, on the ground that no container may hold a reply; but the container check read only an expression's outermost type, so `fn pair(x) = #([x], 1)` put a reply in a `List`. The check now reads a type as the exemption does.
 
+*Superseded in part 2026-10-01 by "The Reply Discipline Names No Type": the container exemption is gone, a reply standing in a list where it is consumed once.*
+
 ## The Report's Silences, 2026-09-29
 
 The cold reader's silent cases were each settled by a sentence, most of them saying what the code already did. Five needed a choice. `Prelude` took one name so that `Prelude.Io.println` would not be a second way to write `Io.println` (*`Prelude` Names the Prelude*); but a type of the module's own named `List` with a member `size` left the standard library's `List.size` out of reach, so `Prelude` now also takes a prelude namespace and one of its names, `Prelude.List.size`, as `Prelude.Some` reaches a shadowed constructor. `Io` is no prelude namespace, and `Prelude.Io.println` stays refused. The runtime initializes the whole standard library before the program's modules, where §8.5 said a module the program does not depend on is not initialized; the report now says what the runtime does, since the standard library's initializers are values and system references, and a working directory that is gone is then a fault of every program, not of those that happen to name `Os`. The layout `ern format` writes moved from `style.md` into §11.6: a conforming formatter is built from the report, and compiler behaviour is §11's. §5.7 listed the forms a pipe's right-hand side takes more narrowly than Appendix A, which makes `|>` a binary operator over any operand; the grammar decides, and an operand that is no function is a type error. `<<-1>>` stays a fault at construction, as §5.11 states of a literal that does not fit, though the compiler could see it.
+
+*Superseded in part 2026-09-30 by "The Release Review's Questions" (R-13): a literal that does not fit a segment of constant width is refused when compiled, as "Compiled, Run, or Silent" states for principle 3.*
 
 ## Operations Records, 2026-09-29
 
@@ -5120,11 +5468,15 @@ The note on code written once over several representations was tightened to be r
 
 Three of the note's open questions were decided with the user before it went to a reader outside the project. Tuples and lists are ordered element by element when their elements are: they have no module in which a program could declare their `compare`, every language the note's reader knows orders them so (principle 1), no first way exists for a second to stand beside (2), §3.10 would state it (3), and it costs one rule where a program ordering pairs wrote a wrapper type (5). `Optional` and `Either` declare a conditional `compare` in the prelude, `None` before `Some` and `Left` before `Right`, since a type's `compare` is declared in its own module and a program cannot add one. Where a `compare` says `Equal` and `==` does not, `put` keeps the element already in the set, as the note's sketch did, so that no choice is left unstated. And `foldLeft` stays out of the record, written once over `toList`, since in the record it would need the rank-2 field the primitives were chosen to avoid. The representation of `OrderedSet` is left to the reader: `==` being structural, a set needs one shape, and which structure gives one with logarithmic operations is the question.
 
+*Superseded in part 2026-10-01 by "Members, Operators, and No Hidden Argument": no operator infers a restriction or passes a hidden `compare`, an ordered set takes its order as an argument, and the order of tuples and lists, argued from a neighbour, waits for the rewritten note.*
+
 ## What a Foreign Function's Variables Carry, 2026-09-29
 
 §3.9 infers a variable's restrictions from a body, and a foreign function has none, so its variables carried nothing: `Foreign.from(r)` dropped a reply, `Io.show(r)` too, and `Ets.put(t, k, r)` stored one where nothing would answer it. Foreign code may copy a value it is given or drop it, and Ernest cannot see which, so each variable whose values a parameter holds is now not reply-carrying. Held means reached through tuples and type arguments; a variable under an address, a reply or a function type is not held, since an `Address(m)` holds no `m` and a callback's result is the caller's, and `Terminal.subscribe` would otherwise refuse a mailbox that carries replies. A variable that is a container's element in the function's type is exempt, as §3.9 exempts one of a function with a body, since no container holds a reply; `Map.put` prints as it did. The cost is that `Io.debug` refuses a value holding a reply.
 
 The equality half: `Foreign.from(f) == Foreign.from(g)` compared two functions, since `Foreign` had the runtime's exact equality. A foreign function cannot carry `a=`, the mark being unwritable in an annotation (§11.5), so either foreign declarations gained a mark, as a foreign type's parameter has `k=`, or `Foreign` lost `==`. It lost it: `Foreign` is a value the language does not inspect (§3.7), and comparing inspects; nothing compared one; and the grammar stays as it is. A value that holds a `Foreign` has no equality, as one that holds a function has none, and comparing an atom from `Erl.atom` goes through a helper that converts it (Appendix E.19).
+
+*Superseded in part 2026-10-01 by "The Reply Discipline Names No Type" and "One Door for the Host's Values": the container exemption is gone, and `Foreign.Term`, a foreign type, has the runtime's exact equality.*
 
 ## A Namespace From Words Joined by `_`, 2026-09-29
 
@@ -5138,13 +5490,19 @@ Running as a service moved out of MVP 2.99 into MVP 2.99c, after the first relea
 
 `Io.show` writes a value by its argument's type at the call, and through a type variable by its representation, so `fn wrap(x) = Io.show(x)` prints `wrap('a')` as `97` where `Io.show('a')` is `'a'`: one text, two outputs, and a type, `(a) -> String`, that hides the dependence (principles 1 and 3). Printing by representation everywhere would make it consistent and lose what it is for, a value shown as it is written; naming the behaviour an exception would keep the surprise. The type's description will travel as the ordering restriction's `compare` does: `Io.show` on a type variable gives it a restriction that shows in the printed type and that every type meets, and a generic function takes its caller's description. It is Haskell's `Show` with a universal instance, built on the machinery the ordering restriction needs, so it is MVP 2.99b's; what E.1 says now stays true until then. On 2026-09-30 a reader of our Ernest code found `Io.debug` a shim for the same reason: a generic `debug` written in Ernest would show its argument by representation, so the shim formats the value itself and writes to standard output past `Io`. Once a generic function takes its caller's description, `Io.debug` is Ernest over `Io.show` and `Io.println`, and the shim goes, as the rule that `foreign` is only what the host alone can do requires.
 
+*Superseded 2026-10-01 by "A Value Shows Itself at a Known Type": `Io.show` on a type variable is a type error and takes no hidden argument, and `Io.debug` is a primitive resolved at its call that writes to standard error ("The Order, Show and Door Families").*
+
 ## A Member Is Written `T.name`, 2026-09-29
 
 §4.2's unqualified lookup had a step, the type-member namespace of the enclosing declaration, that the compiler never had: inside `fn Box.fresh`, `empty` was refused where the report found `Box.empty`. Had the step been built, a module function `describe` declared later would have taken the name from a member `Box.describe` inside `Box`'s own members, a meaning changed at a distance (principle 1). The step went from §4.2 and §11.2: a member is written `T.name` everywhere, as the compiler requires, one way to write it (principle 2). Beside it, §9.6 now says of prefix `-` and `negate` what it says of `<` and `compare`: the runtime's own operation, which the type's module writes its function with. Declaring the operators as one-line shims, `foreign fn Int.+`, would drop that sentence at the price of a second form for the operators the other types declare as members, and was left.
 
+*Superseded in part 2026-09-30 by "The Release Review's Questions" (R-27), which reverses the shims' verdict, and 2026-10-01 by "Members, Operators, and No Hidden Argument", a member being only an operator, `compare` or `negate`.*
+
 ## `Optional` and `Either` Hold a Reply, 2026-09-29
 
 §6.6 refused a reply-carrying value as an element of `Optional` and `Either`, while a user's `type Maybe(a) = Nothing | Just(a)` held one: two types of one shape, two rules (principles 1 and 2). The rule existed for §3.9's exemption, which spared the variables of `Optional`'s and `Either`'s functions the no-reply mark by forbidding replies in them. Both are now sum types like any other: `Some(r)` carries its reply and is used once, a parser may answer `Either(Error, Request)` for a request that carries one, and `Optional.withDefault` prints `(Optional(a!), a!) -> a!`, since it drops one of its values. `List`, `Map` and `Set` keep the rule, as containers copy and drop their elements as a matter of course and a set's elements need an equality a reply has not. The supervisor's watcher, which held its children's replies in a list, keeps its own `Held`.
+
+*Superseded in part 2026-10-01 by "The Reply Discipline Names No Type": §6.6 names no type, a list holding a reply where it is consumed once and `Map` and `Set` refusing one through their foreign variables.*
 
 ## A `receive` Guard Reads a Top-Level `let`, 2026-09-29
 
@@ -5163,6 +5521,8 @@ The counts the principles reader gave on 2026-09-28, against which the next full
 ## The Supervisor's Restart on Request Stays Its Own, 2026-09-29
 
 §6.9 lets a supervisor ask a child to restart where it next waits, and only `Supervisor` asks, through a shim. A reader counted it a language mechanism with no name a program can call, and every `receive` of a child an exit point nobody wrote. It stays as it is. A child restarts where it waits so that it keeps its address, which the processes that hold it need (*A Sibling Restarts at Its Next Wait*); a kill and a fresh spawn would change the address at a sibling's fault. The rule is where a reader looks: the child is spawned by `Supervisor.child`, which names the supervision at the spawn site, and §6.9, E.22 and `Supervisor`'s page say where it restarts. Interrupting a process at its next wait is the runtime's alone, which Appendix E.0 rule 1 admits a shim for, and the child's own restart after a fault is `restarting` itself. Naming it for every program, `Process.restart`, would add an operation easy to misuse for a need nobody has shown; a program that must supervise without `Supervisor` would change the verdict.
+
+*Reason restated 2026-10-01: `Process.restart` stays out as "The Library Family's Rules" judges it under E.0's rules; "a need nobody has shown" was a count, which no longer decides.*
 
 ## The Diagnostics Reader's Lines, 2026-09-29
 
@@ -5185,6 +5545,8 @@ One line stays. A `::` pattern's head whose type is not yet known prints as `a`,
 ## `Int.div` and `Int.rem` Are the Library's, 2026-09-29
 
 §9.6 listed `Int.div` and `Int.mod` among the operations the language requires, though no rule of the language calls them: they are `/` and `%` answering `None` where the operators fault on a zero divisor, the partial operation's shape E.0 shape rule 4 asks of a library. Beside the operators in the prelude they were a second way to divide (principle 2); in the standard library a pair is allowed, so they move to E.8, and since `Int`'s namespace was already `int.ern`'s, which defined them, no program changes for the move. `mod` was a remainder with the sign of `a`, `Int.mod(-7, 3)` being `Some(-1)`, where a reader who knows Haskell, ML or Python expects `2` (principle 1). It is renamed `rem`, keeping its meaning, so that `div` and `rem` are `/` and `%` exactly, the truncating pair Erlang names so. Making the two floor instead was weighed and left: they would then differ from the operators in two ways at once, and a program that wants truncated division without a fault would have nothing. A floored modulus is a function of its own, which nothing has asked for.
+
+*Reason restated 2026-10-01: `div` and `rem` are the library's by §9's rule ("What the Prelude Holds"), and `rem`'s sign is §3.1's, OCaml's `mod` and Erlang's `rem` ("The Reader Family's Rules"); the Haskell, ML or Python reader's 2 was a neighbour's and "nothing has asked for" a count, which no longer decide.*
 
 ## `Address.callForever` Stays Beside `Address.call`, 2026-09-29
 
@@ -5223,6 +5585,8 @@ The principles reader listed rules that buy little, to weigh. Five are kept, eac
 **The 255-character limit on a name stays.** It is the host's limit on an atom. Lifting it would mean mangling long names into atoms and back for the diagnostics and the shell, for names nobody writes. It is a stated limit (§2.3); a host without it would lift it.
 
 **`Path` stays a prelude type.** It follows `List`, `Map` and `Set`, a prelude type beside a standard library module of its name; in `path.ern` it would be `Path.Path` everywhere outside that module (principle 1). Its name is the library module's namespace, not the prelude's, since a prelude type without members takes none (*A Prelude Type Without Members Takes No Namespace*).
+
+*Reason restated 2026-10-01: `true` and `false` stand by principle 1, Standard ML, OCaml and Erlang all writing them so ("The Reader Family's Rules"), and the 255-character limit as the host's rule taken and stated ("The Host Family's Rules"); readers split and names nobody writes were a neighbour's and a count, which no longer decide.*
 
 ## A Module Is Checked Against What It Was Compiled With, 2026-09-29
 
@@ -5303,6 +5667,8 @@ Measuring found three places where the work grew with more than the value asked 
 ## `Clock.monotonic` Is In, and `Udp` Is Placed, 2026-09-30
 
 Both had waited since 2026-09-18 for "a later MVP", with no milestone and no verdict. Judged on E.0, `Clock.monotonic` is admitted by rule 1: the host's monotonic clock lives in the runtime, and Ernest cannot compute it. It passes rule 3, being general and burying no policy, and rule 4, since the difference of two `now`s is not a duration when the clock is set between them. `Clock.now` is the wall clock (E.15), and a program that measures time by it measures wrong once the clock is stepped. Our own `make bench` did, and `Supervisor` counts its faults by alarms for that reason. It is a shim over the host's monotonic time in milliseconds, the unit of every other time in the library, and makes no call to the clock's process, since Erlang reads it without a message. Its value alone means nothing, so it is named for what it is, not `elapsed` or `ticks`. `Udp` is admitted by rule 1 as well, a system module beside `Tcp` over the host's sockets. Nothing we build needs it, so it waits with the libraries that are written as they are wanted (MVP 3.2), as a module of Appendix E and not a library under `libs/`. Its shapes are `Tcp`'s: a socket is an address, a read is pulled and takes a time (E.0 shape rule 8), and a datagram is `Bytes`. What would bring it forward is our own work needing it, or someone asking.
+
+*Reason restated 2026-10-01: `Udp` is admitted by E.0 rule 1 and dated to MVP 3.2 as a module of Appendix E, a schedule and not an admission ("The Library Family's Rules"); our work needing it or someone asking was a count, which no longer decides.*
 
 ## Make Runs `ern build` Every Time, 2026-09-30
 
@@ -5392,6 +5758,8 @@ The words for an error are the program's. A library function that worded every `
 
 `Other(text)` held two kinds of text: a sentence of the runtime's for a case `Io.Error` does not name, `"not a regular file"`, and for every other reason the host's term as printed, a code a program can only pass on. The host has words for its codes, `file:format_error/1` and `inet:format_error/1`, documented, "address already in use" for `eaddrinuse` and "no space left on device" for `enospc`. `Other` now holds them, and a program's `Other(text) -> text` shows words with no change of its own. A reason with no description keeps its printed form: the host answers "unknown POSIX error" for an atom it does not know and raises for a term that is no atom, so the runtime asks only for an atom and takes no answer that begins so. `Other("exists")` stays the runtime's own, since `Fs.create` and `Fs.makeDir` promise it and a program matches on it.
 
+*Superseded in part 2026-10-01 by "The Failure Family's Rules": the runtime's named causes are constructors of `Io.Error`, `Exists` among them, and `Other(text)` holds the host's description alone.*
+
 ## A Group Restarts Whole, 2026-09-30
 
 A reader of our Ernest code found `examples/services.ern` waiting 500 milliseconds after corrupting its store, since nothing told a program that its supervisor's restart had finished; the guide's `pair.ern` waited the same way. Under E.22 a child's fault restarted the child at once, while the siblings its strategy restarts were asked to and restarted at their next wait (*A Sibling Restarts at Its Next Wait*). The group came back a piece at a time, with no moment at which it was whole, where E.22's first sentence says a supervisor restarts its children together. An Erlang reader expects the group whole after the restart, as OTP's supervisor makes it before it does anything else (principle 1). The sleep hid it, and an example may not route around a gap.
@@ -5401,6 +5769,8 @@ Decided with the user, the child that faulted runs again once each sibling its f
 A `Supervisor.settle(sup, ms)` that answered once no restart was pending was weighed. It is a function more, and it races on its own: called before the fault has reached the supervisor, it answers at once, so a program would first need a call that proves the fault happened, the call this rule already answers.
 
 The price is named. A sibling that computes when the fault comes delays the faulted child until it next waits, and one that never waits keeps the faulted child from running again, where before only the sibling missed its restart. A call waiting on the faulted child when it faults still ends (§6.6), so `services.ern` asks its store again when a call ends, as the guide teaches a client to.
+
+*Reason restated 2026-10-01: the group restarting whole stands as Appendix E.22's first sentence ("The Reader Family's Rules"); the OTP reader was a neighbour's, which no longer decides.*
 
 ## `closeListener` Names What It Closes, 2026-09-30
 
@@ -5458,6 +5828,8 @@ After the release, three bodies of work stood in three milestones: what the rele
 
 The tests come first: the host's port helper still fails `interrupt_test_` about once in twenty runs, and a renaming that touches every file leans on every run of `make test`. Every decision comes next, the style guides and the glossary, the language's harder places, the operations' decision and the service's two, since nothing is built before its decision and a decision taken late throws work away. The glossary is the exception that proves the order is no waterfall: it is the best draft that can be made before the code is read name by name, and the two renamings change it, add to it and delete from it as they find what it missed. The Erlang is renamed before the toolchain changes, so that they are written once, in the new names. The hardening and the runtime's part of running as a service follow, together, since they are the same code. The namespace of two words comes before `OrderedSet`, whose file is `ordered_set.ern`, and before the Ernest renaming, which may want such a name. `Set` over its record, `OrderedSet` and `Io.show`'s restriction follow in that order, the last built on the hidden argument the second builds. The Ernest is renamed after them, so that the code they write is read once with the rest, and the guide's §7.3 is written over the finished code and names. The soak comes last, because it measures everything before it.
 
+*Superseded in part 2026-10-01 by "Members, Operators, and No Hidden Argument" and "A Value Shows Itself at a Known Type": no hidden argument is built and `Io.show` has no restriction, so item 13 shrinks.*
+
 ## The Release Review's Wrong Results, 2026-09-30
 
 The review's wrong results are fixed a part at a time, each with a regression test; this entry holds the first part, the compiler's four and the runtime's and library's. The emitter swapped a module's own `Io.show` for the library's, reading the written path where the checker's reference says which it is (C2-1). A foreign result that named a parameter's type variable twice was checked as holding a variable no parameter named, and faulted at every return (C2-2). The pattern `-0.0` was the host's negative zero, which no value is, since §3.1 has none (C2-5). A fault inside a function foreign code called took the foreign function's cause, and a restart asked for there became a fault (C2-6, C1-13): the program's function is now wrapped where foreign code calls it, so that its fault is the one it would be anywhere, and §7.4 says so, the report having been silent. An address `via` made came back from foreign code as the process behind it, its function lost (C1-12). A foreign function's raise in an initializer was reported as the shell's own fault (C1-22).
@@ -5489,6 +5861,8 @@ Of the clarity lines, the report's are fixed but one. Appendix F is in order aga
 The toolchain's clarity lines are comments that said what the code no longer does, a dead clause in the reaper and one in the emitter, and names: `ets_match`, which answered `match_object`'s rows, and two `guarded` that meant two things. Three are more than a comment. The checker found a name declared twice by comparing every pair, and now keeps the names it has seen, so that a module's declarations cost their number and not its square; the reference graph of a module's values is built once where it was built twice. `Markdown.roff` takes its blocks first and the manual second, since the blocks are its subject, as `render`'s are (E.0 shape rule 1, which holds in a library too). An annotated `let` at the prompt was checked as the entry point's result, so a mismatch said "the body does not have the declared return type"; §11.2 says it binds as a `let` in a block does, and it is now checked as one, `{ let x : T = e; x }`, the message a block's (N-B8). A constructor with named fields written without them is told its fields by name, `Point(x = value, y = value)`, where it was told `field = value` (N-B7). The history no longer makes its directory at each input: the session's first read makes it, and an append after that finds it or is reported once (C3-38). The guide says what `:browse` shows and where a type's fields are, when a fault line carries its time, and what its four larger programs are; its `Stack.push`, and the report's and the examples', take the stack first; and the README says what its counter's `with Never`, `Local`, `Reply` and 1000 are.
 
 Four lines are planned and five dropped. The shell's `obey`, which writes each refusal eight times, the editor's names that mean two things, and what completion repeats (C3-35 to C3-37) are MVP 2.99b's reading of every Ernest source, which would read them again after a change now. The shell and `ern test` replace a `persistent_term` at each input and each test, and each replacement makes the host scan every process (C3-39); what a binding's holder keeps is there so that a read does not copy it, so which cost goes is a measure, and it is MVP 2.99b's hardening item with the numbers. Dropped: the README's release named (N-B2), since the plan's "Where we are" owns it and the README points there, and its minimum OTP (N-B3), which it states; a lambda's `if` whose `else` stands under the lambda (N-B13), which is §11.6's layout, the same as a `let`'s, and a change to it is a change to §11.6 that one program does not argue; the descriptor walked at each foreign value to see whether anything in it is armed or made zero (C1-36), since the walk is over the type, which the program fixes, and not over the value; and `bytes.ern`'s wording (C1-37), since the line named no sentence and a reading found none false. That an alarm cannot be cancelled (N-B4) goes into the guide with the answer to N-C1.
+
+*Superseded in part 2026-10-01 by "The Failure Family's Rules": `Path.name` answers `None` for the root.*
 
 ## The Release Review's Questions, 2026-09-30
 
@@ -5539,6 +5913,8 @@ The review's questions, decided with the user one at a time before the tag.
 **`type Word = String` (N-C3).** The newcomer wrote it for an alias and got a type whose one value is a nullary constructor named `String`, and met it first as "expected Word, found String". Ernest has no type aliases: an alias is a second name for one type (principle 2), and the case that asks for one in Elm, a record, is a named-field constructor here; a wrapper, `type Word = Word(String)`, is the way, and a type of its own. Refusing a nullary constructor named as a type would forbid an enumeration of type names, `type Kind = Int | Float | String`. So the mistake is told where it shows: a mismatch between a type whose one constructor is nullary and the type that constructor is named as gains a help line saying there are no aliases and what a wrapper is, and the guide's §2.3 says it.
 
 **The line `C-c` abandons (C3-23).** `C-c` on a line being typed abandons it: it stays in the transcript, runs nothing, and ends an input that runs. The shell keeps it in the history, to recall and mend, and §11.2 did not say so. It stays and §11.2 says it: the usual reason to abandon a long input is a mistake seen in it, and the history gives it back. Dropping it, as Bash and GNU Readline do, was weighed and left, since an abandoned long input would be lost.
+
+*Superseded in part 2026-10-01: R-1, R-2 and C1-4 by "A Value Shows Itself at a Known Type"; R-6 by "What the Library Admits"; R-21 by "One Door for the Host's Values"; R-23 by "The Reply Discipline Names No Type" and "The Process-Only Mark"; R-25 by "What Waits With a Limit"; and C1-2's listener by "Who Owns a Process".*
 
 ## The Principles Review, 2026-09-30
 
@@ -5988,6 +6364,14 @@ Not yet decided; MVP 3.0's placement by load decides it with the user, and this 
 
 The recommendation is the first: one way to spawn here, and the policy a function the program calls and can read (principle 3). It gives up the choice as a value, so a program that wants several processes on one chosen node would need a `pick` answering a peer's name or none beside it, which is the library's to decide when it is written.
 
+## The Log Read Against Its Reasons, 2026-10-01
+
+The attack plan's phase 6. The log was read whole, a quarter by each of four readers, for every entry whose reason the principles review took away: a verdict that cited a reader of a language other than principle 1's two sources, a count of programs, speed without a measurement, or the first program that asks (*The Reader Principle 1 Means*, *What Principle 5 Counts*, *What the Library Admits*); and every verdict a later entry reversed. Each candidate was judged against the report as it stands, and 188 entries now end in a mark. *Superseded*, or *Superseded in part*, names the entry and the date that replaced the verdict, 143 times. *Reason restated* gives the reason that holds where the verdict stands and its old reason does not, 55 times, eight entries carrying both. Where a verdict stands as a rule of Ernest's own that the report states, that is the reason given, as *The Reader Family's Rules* does for its list. A dated entry keeps the spellings of its day, `spawn(Local, f)`, `via(f, addr)` and `Sys.stdout` among them, where they are not its verdict.
+
+The standing sections are current text, and were corrected in place: `via`'s order in *Kept from Unison*; in *Reasons Lifted Out of the Report*, braces argued from principle 4 and not from Gleam, an abstract type's boundary its module, the clock's wrap and the program's end as §8.6 states it; and the table's `absname`, `Test.Case` and `Foreign.Term`.
+
+Two verdicts lost their only reasons, and are decisions now, MVP 2.99b's item 18. `Map.mergeWith`'s callback takes no key, which rested on Gleam's `dict.combine` and on "rarely wanted", while Erlang's `maps:merge_with` and OCaml's `Map.union` both pass it. `Fs` makes no hard link, which rested on "few programs need", while E.0 rule 1 admits what only the host can do. The fixed-width integer that three logical shifts were to bring (*Bit Operators as Stdlib Functions*) needs no decision: the standing reason holds, one integer type, `Int`, of arbitrary precision, which principle 5 counts as one concept. And *The Library Family's Rules* said the measurements behind `String.drop` and `String.graphemes` are in the log: `drop`'s are, in *The Release Review's Wrong Results*, and `graphemes` needs none, standing by rule 1 on Unicode's tables.
+
 ## Erlang's Standard Library, Module by Module
 
 Where each user-facing OTP module stands, first read on 2026-09-18 (*The Erlang Standard Library, Read for Ernest*) and kept current since. What is not a row is OTP's own machinery, which Ernest's concepts or toolchain replace. What a module still waits for, and when, is the plan's.
@@ -6000,7 +6384,7 @@ Where each user-facing OTP module stands, first read on 2026-09-18 (*The Erlang 
 | `sets`, `ordsets`, `gb_sets` | `Set` | E.4 | `symmetric_difference`, `is_disjoint`: compositions |
 | `string`, `unicode` | `String`, `Char` | E.5, E.6 | the list-based half of `string` |
 | `io`, `io_lib` | `Io` | E.1: `print`, `println`, `printError`, `printlnError`, `readLine`, `read`, `write`, `show`, `debug` | `format`: no format strings, `<>` and `toString` are the one way |
-| `file`, `filelib` | `Fs`, and `Os.workingDirectory` | E.17, nine functions; `get_cwd` as E.23's `workingDirectory`, and `absname` as `Path.join` over it | `wildcard`: a glob library. `fold_files`: five lines over `List`. `watch`: the host has none (the log's *Later*). `expand`: `..` read from the text alone is wrong under a symlink (the log's *The Working Directory*) |
+| `file`, `filelib` | `Fs`, and `Os.workingDirectory` | E.17, nine functions; `get_cwd` as E.23's `workingDirectory`, and `absname` as `Path.<>` over it | `wildcard`: a glob library. `fold_files`: five lines over `List`. `watch`: the host has none (the log's *Later*). `expand`: `..` read from the text alone is wrong under a symlink (the log's *The Working Directory*) |
 | `filename` | `Path` | E.14, eight functions | `absname`, `expand`: `Fs`'s, they read the working directory. `nativename`: a `Path` is in the runtime's syntax |
 | `timer` | `Clock` | `now`, `alarm`, `alarmAt` | `send_interval`, `cancel`: E.15's positions. `sleep`: `receive { after ms -> Unit }`. `seconds`, `minutes`: arithmetic |
 | `rand` | `Random` | E.13: `seed`, `next`, `nextFloat` | |
@@ -6011,7 +6395,7 @@ Where each user-facing OTP module stands, first read on 2026-09-18 (*The Erlang 
 | `calendar` | `Time` | | formatting: a format is the program's, rule 3 |
 | `binary` | `Bytes` | E.20, and `<>` | `split`, `match`, `replace`, `encode_unsigned`: `<<...>>` and the `Int` operations |
 | `array`, `queue` | | | `List` and `Map` give both, rule 4; a persistent array is a library |
-| `eunit` | `Test` | §9.3's `Test` and `TestResult`, run by `ern test` (§11.2) | |
+| `eunit` | `Test` | E.24's `Test.Case` and `Test.Result`, run by `ern test` (§11.2) | |
 | `base64`, `json`, `uri_string`, `re`, `crypto`, `zlib`, `dets`, `digraph`, `sofs`, `erl_tar`, `zip`, `disk_log`; the applications `ssl`, `inets`, `xmerl`, `public_key`, `asn1`, `mnesia`, `snmp` | libraries | | each a namespace of its own on Appendix D's pattern, never stdlib |
 | `observer`, `dbg`, `cover`, `debugger`, `dialyzer`, `edoc`, `common_test`, `syntax_tools`, `parsetools`, `argparse`, `escript` | | | tooling: `ern doc`, Ernest's own types, the compiler, `ern`; an argument parser is a library |
 | `gen_*`, `supervisor`, `proc_lib`, `sys`, `logger`, `application`, `code`, `rpc`, `erpc`, `global`, `pg`, `net_kernel`, `persistent_term`, `atomics`, `counters`, `init`, `heart`, `os_mon`, `wx`, `erl_*`, the shell | | | a function with a mailbox type, the standard library's `Supervisor` (MVP 2.66), `send` to a sink, MVP 3's distribution, the runtime's internals, `ern` |
@@ -6019,7 +6403,7 @@ Where each user-facing OTP module stands, first read on 2026-09-18 (*The Erlang 
 Gleam's `gleam_stdlib` v1.0.5, Elixir's core and Haskell's `base` were read the same way, and
 what they have that this table does not take is a position, not a gap: `gleam/order`,
 `gleam/pair` and `gleam/function` (patterns and compositions), `string_tree` (a builder
-BEAM's binary append makes unnecessary), `gleam/uri` (a library), `dynamic/decode` (`Foreign`
+BEAM's binary append makes unnecessary), `gleam/uri` (a library), `dynamic/decode` (`Foreign.Term`
 and a JSON library), `string.inspect` (no universal printer), `bool.guard` (`<-`); Elixir's
 `Stream` (§5.1 is strict, a lazy source is a process) and `Keyword` lists (`Map`); Haskell's
 type classes (`toString` per type, `==` structural, `compare` per type).
@@ -6032,7 +6416,7 @@ Planned or considered, not in the language today.
 - **Content addressing, MVP 3.** Every definition gets a hash, and code follows a process spawned on a node that lacks it (*Code Travels Only With a Spawn*). Not a core concept but the answer to how a node gets code; Erlang's module distribution is Erlang's weak point. Gives `Upgrade` over the network, through a spawn on the process's node, types to nodes that have never seen them, and version mixing as an error at connection instead of undefined at `send`. Names as metadata and the codebase as a database remain outside.
 - **Cross-version message types, MVP 3.** Two nodes with different versions of the same type. Undefined today because MVP 1 and MVP 2 are single-node. Two shapes considered for MVP 3: *reject at send* (each message carries the type hash, receiver refuses unknown hashes, sender gets a `Fault` or `Left` back — simpler runtime, forces version alignment) and *fetch on receipt* (receiver fetches unknown type definitions from the sender, closer to Unison — more flexible, more complex because types have transitive dependencies). Decided for MVP 3: reject at send; fetch on receipt waits for a program that needs it. Closed on 2026-09-27: neither is needed. A type is its hash, an address carries its mailbox type's hash, and a program obtains an address only through `self`, a spawn, a message, or a binding, each typed; a message's type includes the hashes of every type it holds, so by induction every address a program holds carries the hash its code gives it, and two versions of a type never meet in one message (§8.7, *Identity*). Only a foreign function could hand out an address of another hash, and it is trusted as for its type. A frame that breaks the rule comes from a faulty peer, and the protocol tears the connection down.
 - **Local state in pure code.** Unison's `{State}` is not mutation but threading that the handler does for you; `Scope.ref` is real mutation for algorithms on arrays, Haskell's `ST`. Ernest has recursion and accumulators, and state lives in processes. Two reasons to want more: convenience (three counters as arguments), where the answer is to write the argument; performance (update in place), where the answer is persistent data structures, already a requirement. `let mut` is not introduced for either; the tick game confirmed it: three counters became a fold with a tuple accumulator, and when the tuple grows the answer is a named type with `..`. Unison's only real mutation in pure code is `{Scope}` with `Ref` and mutable arrays; it can be removed without losing any capability, only a constant, and a second effect would be abilities back. If a mutable array is needed anyway, it is a process that owns it, Erlang's ETS. To be tested further in the Unison week: an algorithm with three counters without `{State}`.
-- **`Erl` in the stdlib.** Done in MVP 2.5, step 4: `Erl.atom : (String) -> Foreign` in `stdlib/erl.ern`, E.19, admitted by the first rule of Appendix E.0 since an atom's value lives in the runtime. `Erl.Result` went on 2026-09-24; a shim's helper rewrites Erlang's results to `Either`.
+- **`Erl` in the stdlib.** Done in MVP 2.5, step 4: `Erl.atom : (String) -> Foreign.Term` in `stdlib/erl.ern`, E.19, admitted by the first rule of Appendix E.0 since an atom's value lives in the runtime. `Erl.Result` went on 2026-09-24; a shim's helper rewrites Erlang's results to `Either`.
 - **`Slot(a)` for language-level credit.** One-shot capability parallel to `Reply(a)`: a consumer allocates and grants slots to a producer via message, the producer sends by consuming a slot per message through `useSlot(s, v)`, and the consumer refills after processing. Same linearity check as `Reply(a)` — a `Slot` bound in an arm is consumed exactly once on every path. The compiler enforces that a producer does not send without permission. Deferred: only helps producer-consumer patterns, and the credit protocol as convention has not been written three times yet. When it has, this is the shape to reach for; see Backpressure above.
 - **Idioms for the guide, not the report.** Links: `monitor(child, Died)` and returning on `Died` is a link. A supervisor is no longer an idiom: the claim that it is fifteen lines of `spawn`, `monitor`, and `receive` met a restarted child's new address, and the standard library's `Supervisor` answers it (*A `Supervisor` in the Standard Library, and `fault`*). Parallel work on peers: ten computations at once are ten processes spawned on peers, each sending its result back (*No Remote Computation in the Language*).
 - **String interpolation.** `"count is ${n}"` as Elixir's `#{}`. Declined for now on the principles, not for want of programs: it is a second way to build a string beside `<>` (principle 2), a hole of a type other than `String` hides a call to its `toString` (principle 3), and it puts an expression grammar inside a token (principle 4). `Io.debug` covers development output. Reconsidered if a design is found that keeps holes to `String` and adds nothing to the lexer.

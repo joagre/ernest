@@ -22,7 +22,7 @@ its readers ran on 2026-09-30, on `57b8356`, their findings stand in
 [`findings.md`](findings.md), and [`attack_plan.md`](attack_plan.md) gives the order in which
 they are worked; its phases 1 to 4, the sixteen sentences, MVP 2.99b's items 1 to 3, and the
 defects and disagreements, were done on 2026-10-01, and phase 5's decisions, the families' rules, were decided with the user a
-family at a time the same day, and its edits made, by area; phase 6, the log, is next. Ernest 0.1.0, the
+family at a time the same day, and its edits made, by area; phase 6, the log, was read the same day; phase 7, the closure, is next. Ernest 0.1.0, the
 first release, is tagged `v0.1.0` and was published on 2026-09-30 with MVP 2.99, the last
 milestone done; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each
 has its paragraph under "Done".
@@ -203,6 +203,11 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
     Around an Ordered Set*).
 17. **A soak of hours**, last, since it measures all the rest: `examples/webserver.ern` under
     steady requests, measured as [`memory.md`](memory.md) says.
+18. **Two library shapes the log's reasons left open** (the principles review's phase 6,
+    2026-10-01, the log's *The Log Read Against Its Reasons*), each decided with the user before
+    item 15 reads the names: whether `Map.mergeWith`'s callback takes the key, as Erlang's
+    `maps:merge_with` and OCaml's `Map.union` pass it (principle 1); and whether `Fs` makes a
+    hard link, the host's alone (E.0 rule 1). Each verdict rested on a neighbour or a count.
 
 ---
 
