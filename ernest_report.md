@@ -1592,7 +1592,7 @@ Clock.alarmAt : (Int, (Int) -> m) -> Unit with m // at the time, wrap(t) in the 
 
 ### Appendix E.16. `terminal.ern` (namespace `Terminal`)
 
-Over the terminal's system reference (§8.2). The primitives are `subscribe` and `size`, which reach the terminal's process (E.0 rule 1). `columns` is Ernest over a table built from Unicode's East Asian Width, emoji, and general category data, of the version the host's grapheme segmentation follows. It counts a grapheme by its first code point that is no combining mark, format character, or control: two for one East Asian Wide or Fullwidth or of emoji presentation, or an extended pictographic one followed by U+FE0F, and one for any other. A grapheme only of combining marks, format characters, and controls takes none, a tab among them, whose width is the caller's. An escape sequence takes none: `ESC [` to its final byte, or `ESC` and the byte after it. The terminal speaks ECMA-48: `subscribe` decodes its keys from it, `columns` reads its sequences in a string, and `styled`, the cursor's moves, and the two erasures answer its sequences as text a program writes with `Io.print`. `Event` names what the runtime decodes whole, a character, the four arrows, `Escape`, the interrupt, a paste and a resize; every other sequence arrives as `Escape` and its characters, from which a library names the rest. `styled` turns its style off after the text by the style's own code, and a style around it stays on. `Bold` and `Dim` are turned off together, by the one code ECMA-48 has for both.
+Over the terminal's system reference (§8.2). The primitives are `subscribe` and `size`, which reach the terminal's process (E.0 rule 1). `columns` is Ernest over a table built from Unicode's East Asian Width, emoji, and general category data, of the version the host's grapheme segmentation follows. It counts a grapheme by its first code point that is no combining mark, format character, or control: two for one East Asian Wide or Fullwidth or of emoji presentation, or an extended pictographic one followed by U+FE0F, and one for any other. A grapheme only of combining marks, format characters, and controls takes none, a tab among them, whose width is the caller's. An escape sequence takes none: `ESC [` to its final byte, or `ESC` and the byte after it. The terminal speaks ECMA-48: `subscribe` decodes its keys from it, and `columns` reads its sequences in a string; the library `Ansi` writes them (Appendix G.3). `Event` names what the runtime decodes whole, a character, the four arrows, `Escape`, the interrupt, a paste and a resize; every other sequence arrives as `Escape` and its characters, from which a library names the rest.
 
 ```
 type Size = Size(rows : Int, columns : Int)
@@ -1601,15 +1601,6 @@ type Event =
   | Pasted(String) | Resized(Size)
 Terminal.subscribe : ((Event) -> m) -> Either(Io.Error, Unit) with m // every key pressed and every resize from now on, wrapped, in the caller's mailbox; a second call replaces the first; Left(NotATerminal) where standard input is not a terminal
 Terminal.size : () -> Either(Io.Error, Size) with m // the terminal's size now; Left(NotATerminal) where standard output is not a terminal
-type Colour = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
-type Style = Bold | Dim | Italic | Underline | Foreground(Colour)
-Terminal.styled : (String, Style) -> String // the text in the style
-Terminal.up : (Int) -> String // the cursor up n rows; "" for n below 1
-Terminal.down : (Int) -> String // the cursor down n rows; "" for n below 1
-Terminal.left : (Int) -> String // the cursor left n columns; "" for n below 1
-Terminal.right : (Int) -> String // the cursor right n columns; "" for n below 1
-Terminal.clearBelow : String // erases from the cursor to the end of the screen
-Terminal.clearScreen : String // erases the screen and puts the cursor at its top left
 Terminal.columns : (String) -> Int // the columns the text takes at a terminal: an escape sequence none, a wide or emoji grapheme two, a grapheme only of combining marks, format characters and controls none
 ```
 
@@ -1929,4 +1920,20 @@ Markdown.parse : (String) -> List(Block)
 Markdown.render : (List(Block), Int, Output) -> List(String)
 Markdown.roff : (List(Block), Manual) -> List(String)
 Markdown.firstSentence : (List(Block)) -> List(Inline)
+```
+
+### Appendix G.3. `libs/ansi` (namespace `Ansi`)
+
+Text that styles what a program writes to a terminal and moves its cursor, Ernest over ECMA-48, the standard the terminal speaks (Appendix E.16). Each answers its sequences as a string a program writes with `Io.print`. `styled` turns its style off after the text by the style's own code, and a style around it stays on. `Bold` and `Dim` are turned off together, by the one code ECMA-48 has for both. `libs/markdown` styles its output for a terminal with it, and so needs it on the load path.
+
+```
+type Colour = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White
+type Style = Bold | Dim | Italic | Underline | Foreground(Colour)
+Ansi.styled : (String, Style) -> String // the text in the style
+Ansi.up : (Int) -> String // the cursor up n rows; "" for n below 1
+Ansi.down : (Int) -> String // the cursor down n rows; "" for n below 1
+Ansi.left : (Int) -> String // the cursor left n columns; "" for n below 1
+Ansi.right : (Int) -> String // the cursor right n columns; "" for n below 1
+Ansi.clearBelow : String // erases from the cursor to the end of the screen
+Ansi.clearScreen : String // erases the screen and puts the cursor at its top left
 ```

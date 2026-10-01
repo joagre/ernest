@@ -42,26 +42,30 @@ stdlib:
 
 # The libraries (plan, MVP 3.2): each libs/<name>/ is a source root of its
 # own, compiled into build/libs/<name>, which a program adds with
-# --load-path.
+# --load-path. libs/ansi is compiled first, since libs/markdown writes
+# its styles with it (report Appendix G.3).
+LIB_PATH = --load-path build/libs/ansi --load-path build/libs/markdown
 libs: stdlib
-	@for d in libs/*/; do n=$$(basename $$d); \
-	  bin/ern build --source-root $$d --build-root build/libs/$$n $$d || exit 1; done
+	@bin/ern build --source-root libs/ansi --build-root build/libs/ansi libs/ansi
+	@for d in libs/*/; do n=$$(basename $$d); [ $$n = ansi ] && continue; \
+	  bin/ern build --source-root $$d --load-path build/libs/ansi --build-root build/libs/$$n $$d \
+	  || exit 1; done
 
 # The shell, written in Ernest (report §11.2, plan MVP 2.6): shell/ compiled
 # by ern build into build/shell, where `ern shell` finds it on the code path.
-# It renders documentation with libs/markdown, which it is compiled against
-# and which ships beside it. A copy whose module is gone is removed, as the
-# standard library's are.
+# It renders documentation with libs/markdown, and styles it with
+# libs/ansi, which it is compiled against and which ship beside it. A copy
+# whose module is gone is removed, as the standard library's are.
 shell: stdlib libs
-	@bin/ern build --load-path build/libs/markdown --build-root build/shell shell
+	@bin/ern build $(LIB_PATH) --build-root build/shell shell
 	@find build/shell -name '*.erc' | while read f; do \
 	  m=$${f#build/shell/}; b=build/shell/ern@$$(echo $${m%.erc} | tr / @).beam; \
 	  cmp -s $$f $$b || cp $$f $$b; done
-	@cmp -s build/libs/markdown/markdown.erc build/shell/ern@markdown.beam \
-	  || cp build/libs/markdown/markdown.erc build/shell/ern@markdown.beam
+	@for l in ansi markdown; do cmp -s build/libs/$$l/$$l.erc build/shell/ern@$$l.beam \
+	  || cp build/libs/$$l/$$l.erc build/shell/ern@$$l.beam; done
 	@for b in build/shell/ern@*.beam; do m=$${b#build/shell/ern@}; \
-	  [ "$$m" = markdown.beam ] || [ -f build/shell/$$(echo $${m%.beam} | tr @ /).erc ] \
-	  || rm -f $$b; done
+	  [ "$$m" = markdown.beam ] || [ "$$m" = ansi.beam ] \
+	  || [ -f build/shell/$$(echo $${m%.beam} | tr @ /).erc ] || rm -f $$b; done
 
 # The standard library's pages, one per module beside its .erc in
 # build/stdlib, and index.md listing them (report §11.4).
@@ -78,9 +82,10 @@ doc: all
 man: stdlib libs tools
 	@bin/ern doc --man --build-root build/stdlib stdlib
 	@for d in libs/*/; do n=$$(basename $$d); \
-	  bin/ern doc --man --source-root $$d --build-root build/libs/$$n $$d || exit 1; done
+	  bin/ern doc --man --source-root $$d --load-path build/libs/ansi --build-root build/libs/$$n \
+	  $$d || exit 1; done
 	@mkdir -p build/man
-	@bin/ern run --load-path build/libs/markdown build/tools/manual.erc \
+	@bin/ern run $(LIB_PATH) build/tools/manual.erc \
 	  ernest_report.md $$(cat VERSION) build/stdlib > build/man/ern.1.new
 	@mv build/man/ern.1.new build/man/ern.1
 
@@ -111,9 +116,9 @@ release: all
 	@sh tools/install.sh release build/release $$(cat VERSION)
 
 # The programs of the build written in Ernest, tools/*.ern, compiled into
-# build/tools against libs/markdown.
+# build/tools against libs/markdown and libs/ansi, which it writes with.
 tools: libs
-	@bin/ern build --load-path build/libs/markdown --build-root build/tools tools
+	@bin/ern build $(LIB_PATH) --build-root build/tools tools
 
 # Terminal.columns' width table in stdlib/terminal.ern, from the Unicode
 # data of the version the host's grapheme segmentation follows: UC_SPEC is
@@ -241,7 +246,8 @@ dialyzer: all
 	  m=$${f#./}; cp $$d/$$m build/dialyzer/ern@$$(echo $${m%.erc} | tr / @).beam; done; done
 	@dialyzer --plt build/dialyzer.plt $(filter-out %_tests.beam,$(wildcard erl/*/ebin/*.beam)) \
 	  $(wildcard build/stdlib/ern@*.beam) \
-	  $(filter-out build/shell/ern@markdown.beam,$(wildcard build/shell/ern@*.beam)) \
+	  $(filter-out build/shell/ern@markdown.beam build/shell/ern@ansi.beam,\
+	    $(wildcard build/shell/ern@*.beam)) \
 	  build/dialyzer/*.beam
 
 # The helper in C under Clang's static analyzer and under the address and

@@ -9,7 +9,9 @@
 // code through a threaded seed rather than a hidden source.
 //
 // Assumptions. Terminal, Clock, and Random are the standard library's
-// (report Appendix E); Terminal.Event and Terminal.Size are the module's.
+// (report Appendix E), and Ansi is libs/ansi's (Appendix G.3), on the load
+// path where the program is built and run; Terminal.Event and Terminal.Size
+// are the module's.
 // main runs the game loop itself so that the world is one value in one
 // place, and while it runs the program keeps running (report §8.6).
 //
@@ -211,11 +213,7 @@ fn render(world : World) : String = {
             String.fromList(List.map(List.range(0, world.w - 1),
                                      fn(x) = cell(world.players, world.apples, Pos(x = x, y = y))));
     let rows = List.map(List.range(0, world.h - 1), row);
-    Terminal.clearScreen
-        <> String.join(rows, "\n")
-        <> "\n"
-        <> status(world.players, world.tick)
-        <> "\n"
+    Ansi.clearScreen <> String.join(rows, "\n") <> "\n" <> status(world.players, world.tick) <> "\n"
 }
 
 fn cell(ps : Map(Int, Player), apples : List(Pos), pos : Pos) : Char =

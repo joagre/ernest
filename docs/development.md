@@ -55,7 +55,7 @@ shell/             the shell as Ernest source; its README.md guides a reader
                    through the code
 emacs/             ernest-mode.el, the Emacs major mode, and its tests under test/
 libs/              the first-party libraries, each a source root a program adds
-                   with --load-path: ets, markdown
+                   with --load-path: ansi, ets, markdown, which needs ansi
 tools/             the programs of the build: manual.ern writes ern(1) from the
                    report's §11, for make; unicode_width.escript writes Terminal.columns'
                    table, for make unicode; install.sh, with strip.escript, stages,

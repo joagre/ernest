@@ -99,11 +99,11 @@ A line the shell has finished with is committed: written into the terminal, scro
 
 **Drawing.** Each event's bytes are one write, so a redraw is never seen half done, in three parts:
 
-- *erase*: `\r`, up by the row the cursor rests on (`Terminal.up`), and `Terminal.clearBelow`, which clears the region and everything below it;
+- *erase*: `\r`, up by the row the cursor rests on (`Ansi.up`), and `Ansi.clearBelow`, which clears the region and everything below it;
 - *commit*: each line that leaves the region, with its line feed;
 - *paint*: the region's rows joined by line feeds, then up from the last row painted to the row the cursor rests on, `\r`, and right to its column.
 
-The row the cursor rests on is counted from the region's first: the tail's rows, the screen rows of the input's lines before the cursor's, and the rows the cursor's own line wraps onto before it. The next erase climbs by it. Between messages the cursor rests where the caret belongs. Only `C-l` clears the screen: `cleared` writes `Terminal.clearScreen` and paints the region at the top.
+The row the cursor rests on is counted from the region's first: the tail's rows, the screen rows of the input's lines before the cursor's, and the rows the cursor's own line wraps onto before it. The next erase climbs by it. Between messages the cursor rests where the caret belongs. Only `C-l` clears the screen: `cleared` writes `Ansi.clearScreen` and paints the region at the top.
 
 **The events.** `said` commits the tail and then the session's complete lines, so the scrollback reads in the order the lines were written; what is left without a line feed is the prompt the next input is typed after. `noted` commits the tail and the line, and keeps the prompt. `wrote` adds to the tail, and commits a line the tail has no room for as it leaves; a line not yet ended adds each row it fills at the window's width as a line of the tail, a row after the first beginning with the style in force, so the region holds one row of it at most and the terminal's scrollback holds the rest as the rows it would have wrapped it into. `typing` sets the input, the cursor, and the rows under the input. `entered` commits the input, a row a line with the prompt each was typed after, and takes away what was under it; with no prompt and nothing typed, it commits no row. `taken` drops a prompt no input was typed after. `resized` and `output` change the size and the tail's height, and commit what no longer fits.
 

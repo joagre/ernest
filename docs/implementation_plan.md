@@ -227,23 +227,17 @@ The readers ran on 2026-09-30, on `57b8356`, and their findings stand in
 sentences, MVP 2.99b's items 1 to 3, the defects, the families' rules, the log, and the
 closure, after which the release review runs and Ernest 0.2.0 is tagged (decided 2026-10-01,
 the log's *A Release After the Review*), and MVP 2.99b resumes at item 4. The declarations
-and the modules the edits add to `stdlib/` and `libs/` say `since 0.1.0` until then, `Test` among them, since no
+and the modules the edits add to `stdlib/` and `libs/` say `since 0.1.0` until then, `Test` and `Ansi` among them, since no
 `since` may be newer than `VERSION`; the release sets both together, as the release review's
 step 5 says.
 
 **Gaps the sentences open**, each dated to the attack plan's phase 5, where the rule's code and
 its examples change together (the attack plan's rules of the road): under E.0's rules of
-2026-10-01, `Terminal`'s
-builders write a published specification, ECMA-48, in a standard library module (E.16);
-and `Udp` waited on a count, dated by the tenth family to MVP 3.2 as a module of Appendix E (the log's *`Clock.monotonic` Is In, and `Udp` Is
+2026-10-01, `Udp` waited on a count, dated by the tenth family to MVP 3.2 as a module of Appendix E (the log's *`Clock.monotonic` Is In, and `Udp` Is
 Placed*). Under §3.9's sentence of 2026-10-01, each restriction prints with its mark,
 and a process-only variable prints without one, §11.5 saying so and giving no spelling: the
 mark's spelling is a decision of this phase's edits, taken with the user before the printer
-and §11.5 change. Under E.0's rules, the tenth family's round 2
-(2026-10-01, the log's *The Library Family's Rules*): `styled`, the cursor's moves and the two
-erasures leave E.16 for a terminal library under `libs/`, Ernest over ECMA-48, which the shell, `libs/markdown`
-and `examples/snake.ern` take from the load path, `subscribe`, `size` and `columns` staying.
-The guide's pass at the end of the edits (2026-10-01, the log's
+and §11.5 change. The guide's pass at the end of the edits (2026-10-01, the log's
 *Where the Guide Works Hard*): `with Never` against `with m` in one sentence (W-2, W-48); a
 `receive` guard's operands corrected (W-7); the warning on field order gone (W-14); the lambda's
 parentheses after `|>` taught once (W-19); the FAQ on names written whole cut (W-20); a pure

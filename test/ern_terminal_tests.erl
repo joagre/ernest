@@ -155,7 +155,7 @@ snake() ->
     %% ticks to show: the game's own clock is what those sleeps wait for.
     %% It runs the program compiled here, not one another suite left in
     %% build/, which a run of this area alone does not have
-    {0, Screen} = pty("../bin/ern run build/examples/snake.erc",
+    {0, Screen} = pty("../bin/ern run --load-path ../build/libs/ansi build/examples/snake.erc",
                       [{expect, "tick "},
                        {send, "1b5b42"},    % ArrowDown
                        {sleep, 1500},
@@ -184,7 +184,7 @@ snake_interrupt_test_() ->
 
 snake_interrupt() ->
     ok = compile("../examples/snake.ern", "../examples"),
-    {0, _} = pty("../bin/ern run build/examples/snake.erc",
+    {0, _} = pty("../bin/ern run --load-path ../build/libs/ansi build/examples/snake.erc",
                  [{expect, "tick "}, {send, "03"}],
                  15).
 
@@ -195,7 +195,8 @@ head(Frame) ->
                   {X, _} <- [binary:match(Row, <<"@">>)]]).
 
 compile(Source, Root) ->
-    {0, _} = sh("../bin/ern build --source-root " ++ Root ++ " --build-root build/"
+    {0, _} = sh("../bin/ern build --source-root " ++ Root ++ " --load-path ../build/libs/ansi"
+                ++ " --build-root build/"
                 ++ filename:basename(Root) ++ " " ++ Source),
     ok.
 

@@ -8,7 +8,7 @@
 
 /// A fault, or the first line of a diagnostic: what needs the eye.
 export fn fault(colour : Markdown.Output, text : String) : String =
-    paint(colour, Terminal.Foreground(Terminal.Red), text)
+    paint(colour, Ansi.Foreground(Ansi.Red), text)
 
 /// A diagnostic, its first line coloured as a fault, the source under it
 /// plain.
@@ -20,14 +20,14 @@ export fn diagnostic(colour : Markdown.Output, text : String) : String =
 
 /// The type after a printed value, dimmed so that the value stands out.
 export fn quiet(colour : Markdown.Output, text : String) : String =
-    paint(colour, Terminal.Dim, text)
+    paint(colour, Ansi.Dim, text)
 
 /// A name in a listing or a brief, `name : type`, the name bold.
 export fn named(colour : Markdown.Output, text : String) : String =
     match String.indexOf(text, " : ") {
         None -> text
       | Some(at) ->
-            paint(colour, Terminal.Bold, String.slice(text, 0, at))
+            paint(colour, Ansi.Bold, String.slice(text, 0, at))
                 <> String.slice(text, at, String.size(text) - at)
     }
 
@@ -38,12 +38,12 @@ export fn named(colour : Markdown.Output, text : String) : String =
 export fn emphasis(colour : Markdown.Output, text : String) : String =
     match colour {
         Markdown.Plain -> if String.isEmpty(text) then text else "*" <> text <> "*"
-      | Markdown.Styled -> paint(colour, Terminal.Foreground(Terminal.Cyan), text)
+      | Markdown.Styled -> paint(colour, Ansi.Foreground(Ansi.Cyan), text)
     }
 
-fn paint(colour : Markdown.Output, style : Terminal.Style, text : String) : String =
+fn paint(colour : Markdown.Output, style : Ansi.Style, text : String) : String =
     match colour {
-        Markdown.Styled -> if String.isEmpty(text) then text else Terminal.styled(text, style)
+        Markdown.Styled -> if String.isEmpty(text) then text else Ansi.styled(text, style)
       | Markdown.Plain -> text
     }
 

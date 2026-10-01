@@ -1776,11 +1776,18 @@ modules_example_test() ->
 examples_test_() ->
     Files = [F || F <- filelib:wildcard("../../../examples/*.ern"),
                   hd(filename:basename(F)) =/= $.], % editor artifacts, report §11.1
+    %% report §11.1, Appendix G: the libraries' interfaces, as an example
+    %% has them on its load path; snake writes with libs/ansi
+    Libraries = [Iface || L <- filelib:wildcard("../../../build/libs/*/*.erc"),
+                          {ok, Bytes} <- [file:read_file(L)],
+                          {ok, #{iface := Iface}} <- [ern_iface:read(Bytes)]],
+    ?assertNotEqual([], Libraries),
     [{F, fun() ->
               {ok, Bin} = file:read_file(F),
               Base = filename:basename(F, ".ern"),
               Ns = [list_to_atom(string:titlecase(Base))],
-              ?assertMatch({ok, _, _, _}, ern_typecheck:check_string(Ns, Bin))
+              {ok, Decls} = ern_parser:parse_string(Bin),
+              ?assertMatch({ok, _, _, _}, ern_typecheck:check(Ns, Decls, Libraries))
           end} || F <- Files].
 
 %% report §5.4, §4.6: a local fn sees the bindings in force at its

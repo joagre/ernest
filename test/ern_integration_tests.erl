@@ -8,7 +8,8 @@
 -include_lib("kernel/include/file.hrl").
 
 %% Report §11.1: an example compiled into test/build.
--define(BUILD, "--source-root ../examples --build-root build ").
+%% libs/ansi, which snake writes with (report Appendix G.3)
+-define(BUILD, "--source-root ../examples --load-path ../build/libs/ansi --build-root build ").
 
 -define(PROGRAMS, ["hello", "counter", "upgrade", "pingpong", "stack", "patterns",
                    "kvparser", "services"]).
@@ -47,7 +48,8 @@ snake_without_terminal_test_() ->
      fun() ->
              0 = build(?BUILD ++ "../examples/snake.ern"),
              ?assertEqual({1, <<"snake needs a terminal, since its keys are the game's input\n">>},
-                          sh("../bin/ern run build/snake.erc < /dev/null"))
+                          sh("../bin/ern run --load-path ../build/libs/ansi build/snake.erc"
+                             " < /dev/null"))
      end}.
 
 %% Paper program 4 (plan, MVP 2.5): the REPL reads stdin and ends at
@@ -306,9 +308,10 @@ manual_pages() ->
     Pages = ["../build/stdlib/Ernest." ++ string:titlecase(M) ++ ".3ern" || M <- Modules]
         ++ ["../build/stdlib/Ernest.Prelude.3ern"],
     ?assertEqual([], [P || P <- Pages, not filelib:is_regular(P)]),
-    0 = build("--load-path ../build/libs/markdown --build-root build/tools "
-                "../tools"),
-    {0, Out} = sh("../bin/ern run --load-path ../build/libs/markdown build/tools/manual.erc "
+    0 = build("--load-path ../build/libs/markdown --load-path ../build/libs/ansi "
+                "--build-root build/tools ../tools"),
+    {0, Out} = sh("../bin/ern run --load-path ../build/libs/markdown"
+                  " --load-path ../build/libs/ansi build/tools/manual.erc "
                   "../ernest_report.md 9.9.9 ../build/stdlib"),
     ok = file:write_file("build/ern.1", Out),
     Lines = binary:split(Out, <<"\n">>, [global, trim]),

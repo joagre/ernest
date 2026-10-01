@@ -465,9 +465,11 @@ editor() ->
     %% from the day it is written; region's and complete's had not
     Modules = filelib:wildcard("../build/shell/**/*.erc"),
     ?assert(length(Modules) >= 7),
-    %% the shell renders documentation with libs/markdown, which a run of
-    %% its modules puts on the load path as any program using a library does
-    Runs = ["../bin/ern test --load-path ../build/libs/markdown " ++ M || M <- Modules],
+    %% the shell renders documentation with libs/markdown and styles it with
+    %% libs/ansi, which a run of its modules puts on the load path as any
+    %% program using a library does
+    Runs = ["../bin/ern test --load-path ../build/libs/markdown --load-path ../build/libs/ansi "
+            ++ M || M <- Modules],
     {Status, Out} = sh(lists:flatten(lists:join(" && ", Runs))),
     Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
     %% a module without tests says so (report §11.2)

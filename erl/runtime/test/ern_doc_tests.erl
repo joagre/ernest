@@ -64,17 +64,19 @@ check_examples(Ns, Src, Docs) ->
     Blocks = [{split_result(B), Where} || {Doc, Where} <- Docs, B <- fences(Doc)],
     ?assert(Blocks =/= []),
     Numbered = lists:zip(lists:seq(1, length(Blocks)), [B || {B, _} <- Blocks]),
-    {ok, _, Own, _} = ern_typecheck:check_string(Ns, Src),
+    Libraries = libraries(Ns),
+    {ok, _, Own, _} = checked(Ns, Src, Libraries),
     lists:foreach(fun({{N, {Body, _}}, Where}) ->
                       Example = <<"fn docExample", (integer_to_binary(N))/binary,
                                   "() = fn() = {\n", Body/binary, "\n}\n">>,
                       Checked = case Where of
                                     outside ->
                                         {ok, Decls} = ern_parser:parse_string(Example),
-                                        ern_typecheck:check(['Docexample'], Decls, [Own]);
+                                        ern_typecheck:check(['Docexample'], Decls,
+                                                            [Own | Libraries]);
                                     inside ->
-                                        ern_typecheck:check_string(Ns, <<Src/binary, "\n",
-                                                                         Example/binary>>)
+                                        checked(Ns, <<Src/binary, "\n", Example/binary>>,
+                                                Libraries)
                                 end,
                       ?assertMatch({{ok, _, _, _}, _}, {Checked, {Ns, N, Body}})
                   end, lists:zip(Numbered, [W || {_, W} <- Blocks])),
@@ -87,7 +89,7 @@ check_examples(Ns, Src, Docs) ->
                                ".docExample", integer_to_list(N), "()))\n"])
              || {N, _, _} <- WithResult],
     Text = iolist_to_binary([Src, "\n", Fns, Mains]),
-    {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Text),
+    {ok, Typed, Iface, Env} = checked(Ns, Text, Libraries),
     {ok, Mod, Bin} = ern_emitter:compile(Ns, Typed, Iface, Env),
     Original = code:which(Mod),
     {module, Mod} = code:load_binary(Mod, "doc examples", Bin),
@@ -155,6 +157,21 @@ collect(Acc) ->
         {out, B} -> collect([B | Acc])
     after 0 ->
         iolist_to_binary(lists:reverse(Acc))
+    end.
+
+%% Report §11.1, Appendix G: a library's module is checked with the other
+%% libraries' interfaces, as a program has them on its load path; libs/markdown
+%% uses libs/ansi.
+libraries(Ns) ->
+    [Iface || F <- filelib:wildcard(filename:join(?ROOT, "build/libs/*/*.erc")),
+              {ok, Bytes} <- [file:read_file(F)],
+              {ok, #{iface := Iface}} <- [ern_iface:read(Bytes)],
+              Iface#iface.namespace =/= Ns].
+
+checked(Ns, Text, Libraries) ->
+    case ern_parser:parse_string(Text) of
+        {ok, Decls} -> ern_typecheck:check(Ns, Decls, Libraries);
+        {error, E} -> {error, [E]}
     end.
 
 %% An example's body and the value its last line `// => v` promises, or none.

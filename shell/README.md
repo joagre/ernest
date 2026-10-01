@@ -65,8 +65,9 @@ In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault repor
 | `Shell.History` | [`shell/history.ern`](shell/history.ern) | The history file, over `Os` and `Fs`. |
 | `Shell.Style` | [`shell/style.ern`](shell/style.ern) | The colours. Each function is given `Markdown.Styled` or `Markdown.Plain`, as documentation is rendered. |
 | `Markdown` | [`libs/markdown`](../libs/markdown/markdown.ern) | A library, not part of the shell, which renders documentation. |
+| `Ansi` | [`libs/ansi`](../libs/ansi/ansi.ern) | A library, not part of the shell, which writes the terminal's styles and the cursor's moves. |
 
-`Shell` uses all the others. Of the others, two use another: `Shell.Editor` reads the history's length, `Shell.History.kept`, and `Shell.Complete` reads from `Shell.Command` what each command takes and where a command's word ends.
+`Shell` uses all the others but `Ansi`, which `Shell.Region`, `Shell.Style` and `Markdown` write with. Of the others, two use another: `Shell.Editor` reads the history's length, `Shell.History.kept`, and `Shell.Complete` reads from `Shell.Command` what each command takes and where a command's word ends.
 
 Every module but `Shell`, `Shell.History` and `Shell.Complete` is pure, and `Shell.Complete`'s matching is. `Shell.Editor.State` and `Shell.Region.Region` are abstract (§4.4), so the shell reads them through their modules' functions, such as `Shell.Editor.text`. Each pure module is tested by its `Test` values (§9.3). `make test-shell` runs them with the tests of the session and the terminal (the design note's *Testing*).
 
