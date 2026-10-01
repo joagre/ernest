@@ -233,9 +233,7 @@ names as text in `Other` (E.1, E.17, E.18, E.23). Under E.0 shape rule 8's resta
 party, and `Os.start` takes milliseconds that bound a run and not a request (E.18, E.23). Under §4.5's sentence of
 2026-10-01, the checker accepts `fn T.f` for any operation, and §4.2's *Type members*, §4.4's
 example, the guide's §7.2 and `examples/stack.ern`, `repl.ern`, `template.ern` and
-`webserver.ern` declare members that are not operators; they change together with the refusal. Under §9's opening of
-2026-10-01, `Address.call` answers `None` for a timeout and for a callee's end alike, where a
-library function of its kind answers `Left` with the cause (§6.6, §7.2, §9.5). Under E.0's rules of
+`webserver.ern` declare members that are not operators; they change together with the refusal. Under E.0's rules of
 2026-10-01, `List.<>` is a shim by §9.6 where a list is the language's; `Terminal`'s
 builders write a published specification, ECMA-48, in a standard library module (E.16);
 `Optional.orElse`, `Either.orElse` and `Char.isAsciiDigit` stand though no rule admits them;
