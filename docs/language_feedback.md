@@ -2,10 +2,6 @@
 
 What writing Ernest has felt against the principles, and what a reader found that questions a rule of the language rather than showing a defect (CLAUDE.md, *Defects and gaps*). An entry stays until a plan item decides it: a report change, a "Later" entry in the log, a question in the plan, or a line saying it was weighed and left alone. An entry keeps its number, which the plan, the log and the code cite; the next is 89.
 
-81. **A server that watches its client names the client's mailbox** (2026-10-01, the release review's N-L1). `monitor` takes an `Address`, authority over a process, and a constructor cannot hold an `Address(a)` of any `a` (§3.9), so a message type that carries whoever leased an entry becomes `Msg(client)`, and one cache serves one client type; a `Process` names the process but cannot be monitored (the log's *`kill` and `monitor` Keep the Address*). The choices: `monitor` of a `Process`, an address every address converts to, or the parameter as the cost of the rule.
-
-82. **The phantom parameter reaches every holder** (2026-10-01, N-L2). The `Msg(client)` of entry 81 leaves every holder's type open: at the prompt `let c = Cache.start()` is refused until an annotation names a client type the shell never is, while the same `let` in a block keeps its variable open (§4.6).
-
 83. **A test receives nothing** (2026-10-01, N-L3). `Test.Case`'s `run` is `() -> Test.Result with Never`, a process root as an entry point is (the log's *Tests, `Erl`, and `Ets` Moved*), so a test that must see a `Down` kills the process and polls with a timed wait, the polling loop written twice, in the demo and in the tests. The choices: a test that names a mailbox type, or a `Test` function that waits for a message with a deadline.
 
 84. **An example annotates a value for the printer** (2026-10-01, the release review's C-14). `Io.show` writes by a type known whole (Appendix E.1), so a doc example of `Either.map(Right(2), ...)` first binds `let found : Either(String, Int) = Right(2)`, a line that exists for the printer alone, where a reader predicts `Right(2)` to show.

@@ -301,7 +301,10 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     discarded; about a day and a half with §6.6, §9.4 and the guide's §4.4 rewritten without
     its helper. Entry 80: §6.9's `Down` without order kept, since the host's order would need a
     mailbox of the runtime's own under every receive; the guide's §5.6 collects its workers'
-    results with `ask`, with entry 79's build.
+    results with `ask`, with entry 79's build. Entries 81 and 82: `monitor` takes a `Process`,
+    `monitor : (Process, (Down) -> m) -> Unit with m`, replacing the address form, since §6.5's
+    address is the permission to send and watching needs only identity; `kill` keeps the
+    address; about half a day with §6.9, §9.5, the call sites, the tests and the guide.
 
 ---
 
