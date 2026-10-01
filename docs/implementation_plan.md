@@ -309,7 +309,9 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     83: a test may receive, `type Case(m) = Case(name : String, run : () -> Result with m)`, as
     an entry point does (§8.1), each test in a process whose mailbox type is `m`; the polling
     loops go; about half a day with E.24 and §11.2. Entry 84: E.1's type known whole kept, the
-    annotation an example writes being the stated price of the rule.
+    annotation an example writes being the stated price of the rule. Entry 85:
+    `Char.isAsciiDigit : (Char) -> Bool` restored in E.6 by E.0 rule 3, the digits
+    `String.toInt` reads, and the eight hand-written copies use it; about an hour.
 
 ---
 
