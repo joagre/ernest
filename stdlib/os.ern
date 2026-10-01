@@ -84,7 +84,7 @@ type Msg =
 // bound at each start.
 let reference : Address(Msg) = system(Erl.atom("os"))
 
-foreign fn system(name : Foreign) : Address(Msg) with m =
+foreign fn system(name : Foreign.Term) : Address(Msg) with m =
     "ern_rt:sys/1"
 
 /// The words after the module on `ern run`'s command line, whatever they

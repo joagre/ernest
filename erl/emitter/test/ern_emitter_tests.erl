@@ -1323,11 +1323,12 @@ foreign_fn_test() ->
     {ok, Out} = run(
         "foreign type Table\n"
         "foreign fn size(s : String) : Int = \"erlang:byte_size/1\"\n"
-        "foreign fn atom(s : String) : Foreign = \"erlang:binary_to_atom/1\"\n"
-        "foreign fn newTable(n : Foreign, o : List(Foreign)) : Table with m = \"ets:new/2\"\n"
+        "foreign fn atom(s : String) : Foreign.Term = \"erlang:binary_to_atom/1\"\n"
+        "foreign fn newTable(n : Foreign.Term, o : List(Foreign.Term)) : Table with m =\n"
+        "    \"ets:new/2\"\n"
         "foreign fn insert(t : Table, row : #(Int, String)) : Bool with m = \"ets:insert/2\"\n"
         "foreign fn lookup(t : Table, k : Int) : List(#(Int, String)) with m = \"ets:lookup/2\"\n"
-        "foreign fn each(f : (Int) -> Unit with m, xs : List(Int)) : Foreign with m"
+        "foreign fn each(f : (Int) -> Unit with m, xs : List(Int)) : Foreign.Term with m"
         " = \"lists:foreach/2\"\n"
         "export fn main() : Unit with Never = {\n"
         "    let t = newTable(atom(\"t\"), [atom(\"set\")]);\n"
@@ -3161,7 +3162,7 @@ work_makes_no_atoms_test_() ->
         Dir = scratch(),
         {ok, Out} = run([
             "type Msg = Tick(Int) | Ended(Down)\n"
-            "foreign fn info(k : Foreign) : Int with m = \"erlang:system_info/1\"\n"
+            "foreign fn info(k : Foreign.Term) : Int with m = \"erlang:system_info/1\"\n"
             "fn work() : Unit with Msg = {\n"
             "    let w = spawn(Local, fn() : Unit with Int = receive { _ -> Unit });\n"
             "    monitor(w, Ended);\n"
@@ -3458,7 +3459,7 @@ foreign_from_crosses_unchecked_test() ->
            "    receive { _ -> Unit | after 200 -> Unit }\n}\n",
     Typed = "foreign fn rawSend(to : Address(Int), message : String) : String =\n"
             "    \"erlang:send/2\"\n",
-    Untyped = "foreign fn rawSend(to : Foreign, message : String) : String =\n"
+    Untyped = "foreign fn rawSend(to : Foreign.Term, message : String) : String =\n"
               "    \"erlang:send/2\"\n",
     Program = fun(Decl, Call) -> Decl ++ lists:flatten(io_lib:format(Main, [Call])) end,
     {Checked, _} = run(Program(Typed, "rawSend(self(), \"x\")")),

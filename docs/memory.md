@@ -52,7 +52,7 @@ Something may be kept as long as a program holds what it stands for: a socket un
 
 ## Tracing a growth
 
-- **One kind at a time.** At the prompt, the same input a hundred times between two readings of `erlang:system_info(atom_count)`, through `foreign fn info(k : Foreign) : Int with m = "erlang:system_info/1"`, one kind of input a run.
+- **One kind at a time.** At the prompt, the same input a hundred times between two readings of `erlang:system_info(atom_count)`, through `foreign fn info(k : Foreign.Term) : Int with m = "erlang:system_info/1"`, one kind of input a run.
 - **A longer run.** The load edited to forty rounds and run through `ern_cli:ern(["run", ...])`, with the table `ern_load_samples` created by hand, tells settling from growth.
 - **One process's memory.** A column for the process suspected, as `reaper` was added, shows a growth that the node's total hides in its variation.
 - **Every process at each sample.** Each process's memory and heap sizes (`erlang:process_info(P, garbage_collection_info)`) written at each sample, beside the kinds of `erlang:memory()` read at the sample and a moment after: a process whose heap steps between two sizes tells a swing from a growth, and a kind that differs only at the sample tells the host's lag.

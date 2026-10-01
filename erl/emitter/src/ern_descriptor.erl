@@ -53,7 +53,6 @@ desc({tcon, ['Reply'], [A]}, Seen, Cx) ->
     {D, Seen1} = desc(A, Seen, Cx),
     {{reply, D, text_binary("reply does not match ", A, Cx)}, Seen1};
 desc({tcon, ['Process'], []}, Seen, _) -> {process, Seen};
-desc({tcon, ['Foreign'], []}, Seen, _) -> {any, Seen};
 desc({tcon, ['Never'], []}, Seen, _) -> {never, Seen};
 desc({tcon, ['List'], [A]}, Seen, Cx) ->
     {D, Seen1} = desc(A, Seen, Cx),

@@ -242,20 +242,15 @@ and a process-only variable prints without one, §11.5 saying so and giving no s
 mark's spelling is a decision of this phase's edits, taken with the user before the printer
 and §11.5 change. Under §3.5's declared order of 2026-10-01, the emitter's
 descriptors, `Io.show` and the ABI place named fields in the order of their names (§3.5, §8.4,
-Appendix E.1). Under §3.8's sentence of 2026-10-01, `Foreign` is a built-in type of
-§3.7 and the prelude (§9.1), with its conversions in Appendix E.12,
-where it is the library's foreign type `Foreign.Term` of Appendix E.12, which keeps its section;
-Appendix D's code and the shims change with it. The read-back of the sixteen sentences
+Appendix E.1). The read-back of the sixteen sentences
 (2026-10-01, the log's *The Sixteen Sentences Read Back*) adds: every `spawn` writes `Local` (§6.2,
 principle 5). Under E.0's rules, the tenth family's round 2
 (2026-10-01, the log's *The Library Family's Rules*): `styled`, the cursor's moves and the two
 erasures leave E.16 for a terminal library under `libs/`, Ernest over ECMA-48, which the shell, `libs/markdown`
 and `examples/snake.ern` take from the load path, `subscribe`, `size` and `columns` staying.
-Under E.1's and §3.8's sentences, the fourteenth and fifteenth families' round 2 (2026-10-01, the
+Under E.1's sentence, the fourteenth family's round 2 (2026-10-01, the
 log's *The Order, Show and Door Families*): `Io.debug` writes to standard error, with item 13's
-rewrite of its shim, E.1 and the tests that read its output changing with it; and `Foreign.toBytes`
-joins E.12's conversions, a host binary that is not UTF-8 having no other way out of a term,
-with `Foreign.Term`'s edit. Among the rules that exist for another (2026-10-01, the log's *The
+rewrite of its shim, E.1 and the tests that read its output changing with it. Among the rules that exist for another (2026-10-01, the log's *The
 Rules That Exist for Another*): `spawn(f)` and `spawnMonitored(f, wrap)` lose their placement,
 `Where` leaves §6.2 and §9.3, and §6.7 and §8.3 name a peer's spawn `Peer.spawn(name, f)`, a
 function of the module MVP 3.0 builds; the 102 spawns of the guide, the examples, the library

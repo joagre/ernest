@@ -399,7 +399,7 @@ Set.fromList([1, 2, 3]) : Set(Int)
 
 `Map.update` sees the entry as an `Optional`, present or not, and stores what the function returns: the counting idiom in one call.
 
-Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, and on a `Foreign` value it is the runtime's exact equality (§8.3), so a map keyed by addresses is a type error at its first operation; key it by `Process.fromAddress(a)` instead (§5.2). In a printed type, a variable that needs equality is marked `=`: `fn equal(a, b) = a == b` prints as `equal : (a=, a=) -> Bool`. An annotation does not write the mark; the compiler infers it from the body.
+Map keys and set elements need equality. `==` is defined on every type except one that contains a function or an address, and on a value of a foreign type, `Foreign.Term` among them, it is the runtime's exact equality (§8.3), so a map keyed by addresses is a type error at its first operation; key it by `Process.fromAddress(a)` instead (§5.2). In a printed type, a variable that needs equality is marked `=`: `fn equal(a, b) = a == b` prints as `equal : (a=, a=) -> Bool`. An annotation does not write the mark; the compiler infers it from the body.
 
 Ordering is separate: `a < b` asks the type's `compare`, which answers `Less`, `Equal`, or `Greater`. `Int`, `Float`, `String`, and `Char` have one, and a type of your own gets one by declaring it in its module. A function named `Money.compare` is a member of the type `Money` (§7.2):
 
@@ -1928,7 +1928,7 @@ The foreign side promises the declared types. A return value of the wrong shape 
 
 In the other direction, an Ernest process's end is an Erlang exit reason, `normal`, `{ern, fault, Text}`, `{ern, killed}`, or `{ern, program_end}`, which Erlang code that monitors it reads (report §8.4).
 
-A value foreign code made and Ernest does not inspect has the built-in type `Foreign`; `Foreign.toInt` and the rest of Appendix E.12 read it, and `Erl.atom(name)` is how an Erlang atom is passed (report §3.7, Appendix E.19).
+A value foreign code made and Ernest does not inspect has the foreign type `Foreign.Term`; `Foreign.toInt` and the rest of Appendix E.12 read it, and `Erl.atom(name)` is how an Erlang atom is passed (report §3.8, Appendix E.12, Appendix E.19).
 
 ### 8.4 Node-local foreign values
 
@@ -2010,7 +2010,7 @@ $ ern run build/store.erc
 found 42
 ```
 
-A helper converts whatever its Erlang function returns to the declared type; Ernest does not. A `foreign fn` that takes a `Foreign` is given one by `Foreign.from(value)`, and `Erl.atom(name)` makes an atom (report Appendix E.12, report Appendix E.19).
+A helper converts whatever its Erlang function returns to the declared type; Ernest does not. A `foreign fn` that takes a `Foreign.Term` is given one by `Foreign.from(value)`, and `Erl.atom(name)` makes an atom (report Appendix E.12, report Appendix E.19).
 
 `libs/ets` is such a library, report Appendix G.1, which Appendix D shows with a shorter documentation, and a program adds it with `--load-path`. A data format, a protocol and a pattern language each belong to a library outside the standard library (report Appendix E.0 rule 3), and report Appendix G lists the libraries there are.
 

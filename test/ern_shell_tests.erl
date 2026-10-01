@@ -1244,7 +1244,7 @@ input_module_unloaded() ->
     In = filename:join("/tmp", "ern_unload_" ++ os:getpid() ++ ".in"),
     Count = "List.size(loadedModules())\n",
     ok = file:write_file(In, [
-        "foreign fn loadedModules() : List(Foreign) with m = \"code:all_loaded/0\"\n",
+        "foreign fn loadedModules() : List(Foreign.Term) with m = \"code:all_loaded/0\"\n",
         Count, [["1 + ", integer_to_list(I), "\n"] || I <- lists:seq(1, 50)], Count,
         "fn(x : Int) : Int = x + 1\n",
         "it(41)\n",
@@ -1275,7 +1275,7 @@ input_numbers_reused_test_() ->
 input_numbers_reused() ->
     In = filename:join("/tmp", "ern_atoms_" ++ os:getpid() ++ ".in"),
     Info = "info(Erl.atom(\"atom_count\"))\n",
-    ok = file:write_file(In, ["foreign fn info(k : Foreign) : Int with m ="
+    ok = file:write_file(In, ["foreign fn info(k : Foreign.Term) : Int with m ="
                               " \"erlang:system_info/1\"\n", Info,
                               [["1 + ", integer_to_list(I), "\n"] || I <- lists:seq(1, 200)],
                               Info]),
@@ -1296,7 +1296,7 @@ declarations_let_go_test_() ->
 declarations_let_go() ->
     In = filename:join("/tmp", "ern_decls_" ++ os:getpid() ++ ".in"),
     Info = "info(Erl.atom(\"atom_count\"))\n",
-    ok = file:write_file(In, ["foreign fn info(k : Foreign) : Int with m ="
+    ok = file:write_file(In, ["foreign fn info(k : Foreign.Term) : Int with m ="
                               " \"erlang:system_info/1\"\n", Info,
                               [["fn f(n : Int) : Int = n * ", integer_to_list(I), "\n",
                                 "type Shape = Circle(Int) | Square(Int)\n",
@@ -1320,7 +1320,7 @@ expressions_leave_no_code_test_() ->
 expressions_leave_no_code() ->
     In = filename:join("/tmp", "ern_code_" ++ os:getpid() ++ ".in"),
     Code = "memory(Erl.atom(\"code\"))\n",
-    ok = file:write_file(In, ["foreign fn memory(k : Foreign) : Int with m ="
+    ok = file:write_file(In, ["foreign fn memory(k : Foreign.Term) : Int with m ="
                               " \"erlang:memory/1\"\n",
                               [["1 + ", integer_to_list(I), "\n"] || I <- lists:seq(1, 50)],
                               Code,
@@ -1361,7 +1361,7 @@ expressions_again_leave_no_code() ->
     In = filename:join("/tmp", "ern_again_" ++ os:getpid() ++ ".in"),
     Code = "memory(Erl.atom(\"code\"))\n",
     Spawn = "spawn(Local, fn() = Unit)\n",
-    ok = file:write_file(In, ["foreign fn memory(k : Foreign) : Int with m ="
+    ok = file:write_file(In, ["foreign fn memory(k : Foreign.Term) : Int with m ="
                               " \"erlang:memory/1\"\n",
                               [[lists:duplicate(100, Spawn), Code] || _ <- lists:seq(1, 3)],
                               lists:duplicate(200, Spawn), Code]),

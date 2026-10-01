@@ -72,7 +72,7 @@ let stderr : Address(OutMsg) = system(Erl.atom("stderr"))
 
 let stdin : Address(StdinMsg) = system(Erl.atom("stdin"))
 
-foreign fn system(name : Foreign) : Address(a) with m =
+foreign fn system(name : Foreign.Term) : Address(a) with m =
     "ern_rt:sys/1"
 
 /// The string to standard output, as it is, without a line feed.

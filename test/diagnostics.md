@@ -1151,14 +1151,14 @@ example.ern:1:1: the type of box is not determined (List(a)), and a top-level `l
 ### A foreign implementation of the wrong arity (§8.4)
 
 ```ernest-rejected
-foreign fn size(t : Foreign) : Int =
+foreign fn size(t : Foreign.Term) : Int =
     "erlang:tuple_size/2"
 ```
 
 ```console
 $ ern build example.ern
 example.ern:2:5: the implementation names arity 2, and size has 1 parameter
-1 | foreign fn size(t : Foreign) : Int =
+1 | foreign fn size(t : Foreign.Term) : Int =
 2 |     "erlang:tuple_size/2"
   |     ^^^^^^^^^^^^^^^^^^^^^
 ```
@@ -1166,14 +1166,14 @@ example.ern:2:5: the implementation names arity 2, and size has 1 parameter
 ### A foreign implementation that is no `module:function/arity` (§8.4)
 
 ```ernest-rejected
-foreign fn size(t : Foreign) : Int =
+foreign fn size(t : Foreign.Term) : Int =
     "tuple_size"
 ```
 
 ```console
 $ ern build example.ern
 example.ern:2:5: the implementation of size is named module:function/arity, here module:function/1
-1 | foreign fn size(t : Foreign) : Int =
+1 | foreign fn size(t : Foreign.Term) : Int =
 2 |     "tuple_size"
   |     ^^^^^^^^^^^^
 ```

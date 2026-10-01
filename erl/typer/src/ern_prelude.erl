@@ -131,18 +131,6 @@ builtin_types() ->
       spawn(Local, fn() : Unit with Never = Io.println("hello"))
       ```
       """/utf8>>},
-     {'Foreign', 0,
-      <<"""
-      A value foreign code made, which Ernest does not inspect; the `Foreign`
-      module reads it (report Appendix E.12).
-
-      ### Examples
-
-      ```ernest
-      Foreign.toInt(Foreign.from(3))
-      // => Some(3)
-      ```
-      """/utf8>>},
      {'Process', 0,
       <<"""
       The identity of a process, with equality and no ordering; nothing can

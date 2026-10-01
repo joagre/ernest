@@ -20,5 +20,5 @@
 ///
 /// A text longer than 255 characters, which no atom holds, faults as a
 /// foreign function's raise does (report §7.4).
-export foreign fn atom(text : String) : Foreign =
+export foreign fn atom(text : String) : Foreign.Term =
     "erlang:binary_to_atom/1"

@@ -53,7 +53,7 @@ export foreign type Table(k=, v)
 export fn new() : Table(k, v) with m =
     rawNew(Erl.atom("ernest"), [Erl.atom("set"), Erl.atom("public")])
 
-foreign fn rawNew(name : Foreign, options : List(Foreign)) : Table(k, v) with m =
+foreign fn rawNew(name : Foreign.Term, options : List(Foreign.Term)) : Table(k, v) with m =
     "ets:new/2"
 
 /// Puts the value at that key, replacing any entry the key had.
@@ -117,7 +117,7 @@ foreign fn rawDelete(t : Table(k, v), key : k) : Bool with m =
 export fn size(t : Table(k, v)) : Int with m =
     rawInfo(t, Erl.atom("size"))
 
-foreign fn rawInfo(t : Table(k, v), item : Foreign) : Int with m =
+foreign fn rawInfo(t : Table(k, v), item : Foreign.Term) : Int with m =
     "ets:info/2"
 
 /// Removes every entry, leaving the table.

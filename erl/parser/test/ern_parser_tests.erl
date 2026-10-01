@@ -514,7 +514,7 @@ foreign_decl_test() ->
                  d("export foreign fn member(t : Table(k, v), key : k) : Bool with m"
                    " = \"ets:member/2\"")),
     ?assertMatch(#foreign_fn_decl{name = atom, effect = undefined},
-                 d("foreign fn atom(name : String) : Foreign = \"erlang:binary_to_atom/1\"")).
+                 d("foreign fn atom(name : String) : Foreign.Term = \"erlang:binary_to_atom/1\"")).
 
 %% report §2.2
 doc_comments_test() ->

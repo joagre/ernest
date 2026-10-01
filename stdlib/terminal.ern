@@ -68,7 +68,7 @@ type Msg =
 // bound at each start.
 let reference : Address(Msg) = system(Erl.atom("terminal"))
 
-foreign fn system(name : Foreign) : Address(Msg) with m =
+foreign fn system(name : Foreign.Term) : Address(Msg) with m =
     "ern_rt:sys/1"
 
 /// Every key pressed and every resize from now on, wrapped, in the

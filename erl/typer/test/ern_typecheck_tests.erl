@@ -1331,7 +1331,7 @@ smaller_silences_test() ->
 foreign_no_reply_test() ->
     Msg = "type Msg = Get(reply : Reply(Int))\n",
     ?assertEqual("a reply-carrying value, Reply(Int), passed where Foreign.from duplicates or"
-                 " discards its argument: Foreign.from : (a!) -> Foreign",
+                 " discards its argument: Foreign.from : (a!) -> Foreign.Term",
                  err(Msg ++ "fn f(r : Reply(Int)) = { let _ = Foreign.from(r); Unit }")),
     ?assertEqual("(a!) -> M.Held(a!)",
                  type_of("export type Held(a) = Held(a)\n"
@@ -1499,7 +1499,7 @@ never_is_ordinary_test() ->
 %% report §3.7, §9.1, §9.2, §9.3: every built-in and declared type is usable
 %% as a type, and every declared type's constructors cover it
 prelude_types_test() ->
-    ?assertEqual(ok, ok("fn f(a : Address(Int), n : Never, x : Foreign, l : List(Int),"
+    ?assertEqual(ok, ok("fn f(a : Address(Int), n : Never, x : Foreign.Term, l : List(Int),"
                         " m : Map(String, Int), s : Set(Char)) = Unit")),
     %% a Reply parameter must be consumed (§6.6), so it gets its own line
     ?assertEqual(ok, ok("fn f(r : Reply(Int)) : Unit with Never = answer(r, 1)")),

@@ -3,7 +3,7 @@
 %% since an Ernest value is already a value of the runtime (report §8.4).
 -module(ern_foreign).
 
--export([from/1, to_int/1, to_float/1, to_string/1, to_bool/1, to_list/1]).
+-export([from/1, to_int/1, to_float/1, to_string/1, to_bytes/1, to_bool/1, to_list/1]).
 
 -spec from(term()) -> term().
 from(X) -> X.
@@ -24,6 +24,12 @@ to_string(X) when is_binary(X) ->
         _ -> 'None'
     end;
 to_string(_) -> 'None'.
+
+%% report Appendix E.12: any binary, a bitstring of whole bytes; one of
+%% another length is no Bytes
+-spec to_bytes(term()) -> {'Some', binary()} | 'None'.
+to_bytes(X) when is_binary(X) -> {'Some', X};
+to_bytes(_) -> 'None'.
 
 -spec to_bool(term()) -> {'Some', boolean()} | 'None'.
 to_bool(X) when is_boolean(X) -> {'Some', X};

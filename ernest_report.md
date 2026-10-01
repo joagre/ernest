@@ -223,11 +223,11 @@ A sum type whose constructors may be mentioned only in the module that declares 
 
 ### 3.7 Built-in types
 
-`Address(m)` is an address of a process that receives `m`. `Reply(a)` is a one-shot address for the answer to a request, §6.6. `Never` is the type with no values. It is an ordinary type and unifies with itself alone; a function that never returns and may stand at any type has a type variable as its result, as `fault` has (§9.6). `Foreign` is the type of a value foreign code made and Ernest does not inspect, §8.4 and Appendix E.12. The prelude types are listed in §9.
+`Address(m)` is an address of a process that receives `m`. `Reply(a)` is a one-shot address for the answer to a request, §6.6. `Never` is the type with no values. It is an ordinary type and unifies with itself alone; a function that never returns and may stand at any type has a type variable as its result, as `fault` has (§9.6). The prelude types are listed in §9.
 
 ### 3.8 Foreign types
 
-A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, §4.7, and can otherwise be held, passed, and sent. Its equality is §3.10's. A host value of no other Ernest type enters Ernest through a foreign type alone, each with the runtime's exact equality: `foreign type T` declared by a module, and the foreign type of any host value, `Foreign` (§3.7).
+A type declared `foreign type T` has no constructors: its values are made and used only by foreign functions, §4.7, and can otherwise be held, passed, and sent. Its equality is §3.10's. A host value of no other Ernest type enters Ernest through a foreign type alone, each with the runtime's exact equality: `foreign type T` declared by a module, and the foreign type of any host value, `Foreign.Term` (Appendix E.12).
 
 A foreign value is bound to the node (§8.3) that made it: transporting a value that transitively contains one to another node faults with cause `Fault("foreign value cannot cross nodes")`. Transport is `spawn(Peer(...), f)` and `spawnMonitored(Peer(...), f, wrap)`, `send` to a remote address, the request of a call to one, `answer(r, v)` to a caller on another node, and the captures of a function spawned on a peer. The fault is the transporting process's, at the operation that transports: the caller of `spawn` or `spawnMonitored`, the sender of `send`, the caller of a call, and the process that calls `answer`.
 
@@ -247,7 +247,7 @@ A function has one mailbox effect or none. A function may take a pure callback b
 
 ### 3.10 Equality and ordering
 
-`==` and `!=` are structural and defined for all values except those containing functions or addresses, on which they are a type error. On a value of a foreign type, `Foreign` among them (§3.7), or of `Process`, they are the runtime's exact equality on the two representations (§8.4): two references are equal only when they are one reference, and two values that foreign code made as the same term are equal. Ordering is per type, through `compare` in the type's namespace: `Int.compare : (Int, Int) -> Ordering`. For a type a module declares, that is its member `T.compare` (§4.2); a function named `compare` outside the type's namespace gives no ordering. For operand type `T`, `a < b` is `T.compare(a, b) == Less`; `<=`, `>`, and `>=` likewise. They resolve against the operand type as the operators of §4.8 do. A type without `compare` has no ordering, and `<` on it is a type error. The prelude defines `compare` for `Int`, `Float`, `String`, and `Char` (§9.6), and for no other type: `Bool`, `Optional`, and `Path` have no ordering.
+`==` and `!=` are structural and defined for all values except those containing functions or addresses, on which they are a type error. On a value of a foreign type, `Foreign.Term` among them, or of `Process`, they are the runtime's exact equality on the two representations (§8.4): two references are equal only when they are one reference, and two values that foreign code made as the same term are equal. Ordering is per type, through `compare` in the type's namespace: `Int.compare : (Int, Int) -> Ordering`. For a type a module declares, that is its member `T.compare` (§4.2); a function named `compare` outside the type's namespace gives no ordering. For operand type `T`, `a < b` is `T.compare(a, b) == Less`; `<=`, `>`, and `>=` likewise. They resolve against the operand type as the operators of §4.8 do. A type without `compare` has no ordering, and `<` on it is a type error. The prelude defines `compare` for `Int`, `Float`, `String`, and `Char` (§9.6), and for no other type: `Bool`, `Optional`, and `Path` have no ordering.
 
 A function that applies `==` to a value of a type variable gives that variable an *equality constraint*, inferred and never written; instantiating it with a type that contains a function or an address is a type error at that call site. A foreign type's parameter may carry the constraint (§4.7), and `Map(k=, v)` and `Set(a=)` carry it on `k` and `a` (§9.2). A value of such a type over a type without equality is rejected at its first operation; a type that names one, `Map((Int) -> Int, Int)` in an annotation or a field, is not itself an error. A standard library function that compares elements, `List.contains`, propagates the constraint through its parameter. `fn equal(a, b) = a == b` has type `(a, a) -> Bool` with the constraint on `a`. The constraint is part of the type scheme (§3.9). `let f = equal` carries it, and applying `f` to addresses is an error at that application. `if flag then equal else always`, with `always` unconstrained, carries the union of the branches' constraints. A compiled interface carries it across modules. The check is at the concrete application.
 
@@ -701,7 +701,7 @@ A *node* is one running runtime, and a *peer* is another node this one knows by 
 
 ### 8.4 Foreign code
 
-The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them (§8.2). Other foreign code enters through `foreign fn` and `foreign type`, §4.7. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach faults the receiving Ernest process: a bad return value or reply when the call returns, a bad message on delivery. The standard library and the system processes are the runtime's own, and what passes between them and a program is not checked: the return of one of the library's foreign functions, a message from a system process, an address or a `Reply` given to either, and the answer to a call the library makes. Everything else is checked where it crosses. An address that foreign code gives, in a return, a reply, a message, or an argument it calls an Ernest function with, is *foreign* unless it names a process of the program. An address of the program's that foreign code gives back is the program's own at the type it crossed at, and foreign at any other, so that what is sent to it is checked as a message foreign code sends. A message sent to a foreign address, an answer given to a `Reply` foreign code gave, and a foreign function's argument cross into foreign code: a message foreign code sends to an address in one is checked on delivery. That check lasts until the process the address names ends, and there is one for each distinct address that has crossed. An address made by `via` is distinct by its function and by the values its function captured. An answer foreign code gives to a call is checked when `Address.call` or `Address.callForever` returns it. An answer Ernest code gives to a `Reply` foreign code gave crosses into foreign code, as the sentences before say, and no other answer is checked. A type variable of a foreign function's result that no parameter's type names matches no value, since the function was given none of that type: `foreign fn cast(x : Foreign) : a` faults whenever it returns, and a function that does not return, `Os.exit`, may be declared so. The check meets such a variable only at a value of it: an empty container holds none, and a value of a foreign type is not looked into, so a foreign function whose result is `List(a)` and empty, or `Table(k, v)` of a foreign type, returns. A function that crosses into foreign code, a foreign function's argument or one inside it, in a message or in an answer, has each argument foreign code calls it with checked against its parameter's type, and a mismatch faults the calling process with `Fault("foreign argument does not match T")`. A type variable that a parameter's type names matches any value, in a foreign function's result and in an argument foreign code calls a function with, since its type is the caller's: `foreign fn weird(x : a) : a` answering `2` for `weird([1, 2])` is not caught at the boundary. `Foreign.from` gives foreign code its value as the runtime holds it (Appendix E.12), so an address in it crosses without a proxy, and a function without its check.
+The system processes are foreign processes: their message types are declared in Ernest, their implementations live outside the language, and the runtime starts them (§8.2). Other foreign code enters through `foreign fn` and `foreign type`, §4.7. Both boundaries carry the same promise: the foreign side delivers the declared types, and a breach faults the receiving Ernest process: a bad return value or reply when the call returns, a bad message on delivery. The standard library and the system processes are the runtime's own, and what passes between them and a program is not checked: the return of one of the library's foreign functions, a message from a system process, an address or a `Reply` given to either, and the answer to a call the library makes. Everything else is checked where it crosses. An address that foreign code gives, in a return, a reply, a message, or an argument it calls an Ernest function with, is *foreign* unless it names a process of the program. An address of the program's that foreign code gives back is the program's own at the type it crossed at, and foreign at any other, so that what is sent to it is checked as a message foreign code sends. A message sent to a foreign address, an answer given to a `Reply` foreign code gave, and a foreign function's argument cross into foreign code: a message foreign code sends to an address in one is checked on delivery. That check lasts until the process the address names ends, and there is one for each distinct address that has crossed. An address made by `via` is distinct by its function and by the values its function captured. An answer foreign code gives to a call is checked when `Address.call` or `Address.callForever` returns it. An answer Ernest code gives to a `Reply` foreign code gave crosses into foreign code, as the sentences before say, and no other answer is checked. A type variable of a foreign function's result that no parameter's type names matches no value, since the function was given none of that type: `foreign fn cast(x : Foreign.Term) : a` faults whenever it returns, and a function that does not return, `Os.exit`, may be declared so. The check meets such a variable only at a value of it: an empty container holds none, and a value of a foreign type is not looked into, so a foreign function whose result is `List(a)` and empty, or `Table(k, v)` of a foreign type, returns. A function that crosses into foreign code, a foreign function's argument or one inside it, in a message or in an answer, has each argument foreign code calls it with checked against its parameter's type, and a mismatch faults the calling process with `Fault("foreign argument does not match T")`. A type variable that a parameter's type names matches any value, in a foreign function's result and in an argument foreign code calls a function with, since its type is the caller's: `foreign fn weird(x : a) : a` answering `2` for `weird([1, 2])` is not caught at the boundary. `Foreign.from` gives foreign code its value as the runtime holds it (Appendix E.12), so an address in it crosses without a proxy, and a function without its check.
 
 **ABI.** The runtime maps Ernest values to host terms; for the BEAM runtime:
 
@@ -763,7 +763,6 @@ Int, Float, Char, String, Bytes, Bool // §3.1
 Address(m) // an address of a process that receives m
 Reply(a) // a one-shot address, §6.6
 Never // the type with no values
-Foreign // a value the language does not inspect, §3.7
 Process // the identity of a process, Appendix E.21
 ```
 
@@ -1188,7 +1187,7 @@ export foreign type Table(k=, v)
 export fn new() : Table(k, v) with m =
     rawNew(Erl.atom("ernest"), [Erl.atom("set"), Erl.atom("public")])
 
-foreign fn rawNew(name : Foreign, opts : List(Foreign)) : Table(k, v) with m =
+foreign fn rawNew(name : Foreign.Term, opts : List(Foreign.Term)) : Table(k, v) with m =
     "ets:new/2"
 
 /// Insert or replace the entry for key.
@@ -1223,7 +1222,7 @@ foreign fn rawDelete(t : Table(k, v), key : k) : Bool with m =
 export fn size(t : Table(k, v)) : Int with m =
     rawInfo(t, Erl.atom("size"))
 
-foreign fn rawInfo(t : Table(k, v), item : Foreign) : Int with m =
+foreign fn rawInfo(t : Table(k, v), item : Foreign.Term) : Int with m =
     "ets:info/2"
 
 /// Close the table, deleting it. All subsequent operations on it fault.
@@ -1313,7 +1312,7 @@ Io.write : (Bytes) -> Unit with m // the bytes to standard output, as they are
 Io.writeError : (Bytes) -> Unit with m // the bytes to standard error, as they are
 ```
 
-`Io.show` writes a value by the argument's type at the call, each value as its literal or construction is written: a negative number with `-` before it, `-1`, a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in their declared order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements, in an order the values fix, so that equal maps and equal sets print alike: ascending where the keys or the elements are `Int`, `Float`, `Char`, or `String`. An address prints as `<address 84>`, the number naming the process behind it, and a `Process` as `<process 84>` (E.21). A function prints as `<function>`; no reply reaches `Io.show`, whose argument is no reply-carrying type (§6.6). `Io.show` and `Io.debug` write a value by the type at which the name is used, as a callee or an argument, which must be known there whole, with no type variable in it, more than an operator asks (§4.8): on a type variable it is a type error, and neither takes a hidden argument. An effect variable in the type is no matter, since a function is written `<function>`. A value of an abstract type outside its module is written as `<abstract>`, and a value of a foreign type or of `Foreign` as `<foreign>`. `Io.debug` writes `Io.show`'s text to standard output.
+`Io.show` writes a value by the argument's type at the call, each value as its literal or construction is written: a negative number with `-` before it, `-1`, a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in their declared order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements, in an order the values fix, so that equal maps and equal sets print alike: ascending where the keys or the elements are `Int`, `Float`, `Char`, or `String`. An address prints as `<address 84>`, the number naming the process behind it, and a `Process` as `<process 84>` (E.21). A function prints as `<function>`; no reply reaches `Io.show`, whose argument is no reply-carrying type (§6.6). `Io.show` and `Io.debug` write a value by the type at which the name is used, as a callee or an argument, which must be known there whole, with no type variable in it, more than an operator asks (§4.8): on a type variable it is a type error, and neither takes a hidden argument. An effect variable in the type is no matter, since a function is written `<function>`. A value of an abstract type outside its module is written as `<abstract>`, and a value of a foreign type as `<foreign>`. `Io.debug` writes `Io.show`'s text to standard output.
 
 ### Appendix E.2. `list.ern` (namespace `List`)
 
@@ -1544,15 +1543,17 @@ Either.fromOptional : (Optional(a), e) -> Either(e, a)
 
 ### Appendix E.12. `foreign.ern` (namespace `Foreign`)
 
-Its functions are primitives (E.0 rule 1).
+`Term` is the foreign type of any value of the runtime (§3.8). Its functions are primitives (E.0 rule 1).
 
 ```
-Foreign.from : (a) -> Foreign // the value as the runtime holds it (§8.4)
-Foreign.toInt : (Foreign) -> Optional(Int)
-Foreign.toFloat : (Foreign) -> Optional(Float)
-Foreign.toString : (Foreign) -> Optional(String)
-Foreign.toBool : (Foreign) -> Optional(Bool)
-Foreign.toList : (Foreign) -> Optional(List(Foreign))
+foreign type Term
+Foreign.from : (a) -> Term // the value as the runtime holds it (§8.4)
+Foreign.toInt : (Term) -> Optional(Int)
+Foreign.toFloat : (Term) -> Optional(Float)
+Foreign.toString : (Term) -> Optional(String) // a binary that is not UTF-8 is None
+Foreign.toBytes : (Term) -> Optional(Bytes) // any binary
+Foreign.toBool : (Term) -> Optional(Bool)
+Foreign.toList : (Term) -> Optional(List(Term))
 ```
 
 ### Appendix E.13. `random.ern` (namespace `Random`)
@@ -1667,7 +1668,7 @@ Tcp.local : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) with m // the con
 What a shim over an Erlang API needs from Erlang's conventions (rule 1). An API that answers `{ok, V}` or `{error, R}` needs an Erlang helper that rewrites the answer to `Either`'s encoding, `{'Right', V}` or `{'Left', R}` (§8.4). An atom `atom` makes is never freed while the node lives, and a node holds at most a number of atoms its host fixes, so `atom` is given the names a shim needs, never text a program receives. A text longer than 255 characters makes no atom, and `atom` faults as a foreign function that raises does (§7.4).
 
 ```
-Erl.atom : (String) -> Foreign // the Erlang atom of the text
+Erl.atom : (String) -> Foreign.Term // the Erlang atom of the text
 ```
 
 ### Appendix E.20. `bytes.ern` (namespace `Bytes`)
