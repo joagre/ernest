@@ -119,10 +119,9 @@ pipe_rewrite_test() ->
     ?assertMatch(#e_call{callee = #e_call{callee = #e_var{name = f}, args = [#e_var{name = a}]},
                          args = [#e_var{name = x}, #e_var{name = b}]},
                  e("x |> f(a)(b)")),
-    %% a parenthesized right-hand side is a value, applied to the left; a
-    %% call on a parenthesized callee is a call, and the pipe fills its slot
-    ?assertMatch(#e_call{callee = #e_call{callee = #e_var{name = f}, args = [#e_var{name = a}]},
-                         args = [#e_var{name = x}]},
+    %% parentheses change nothing: a parenthesized call is a call the pipe
+    %% fills, and a parenthesized callee is the callee (findings.md's P1-7)
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_var{name = a}]},
                  e("x |> (f(a))")),
     ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_var{name = a}]},
                  e("x |> (f)(a)")),
@@ -136,14 +135,15 @@ pipe_rewrite_test() ->
     ?assertMatch(#e_call{callee = #e_lambda{}, args = [#e_var{name = x}]},
                  e("x |> (fn(y) = y + 1)")).
 
-%% report §5.7: a parenthesized right-hand side is parsed once. A
-%% regression test: the check parsed it twice at every level, so that
-%% nesting took exponential time, two seconds at a depth of 22.
+%% report §5.7: a parenthesized right-hand side is parsed once, and its
+%% parentheses change nothing, so each level's call is filled by the one
+%% outside it. A regression test: the check parsed it twice at every level,
+%% so that nesting took exponential time, two seconds at a depth of 22.
 pipe_nesting_test_() ->
     {timeout, 5, fun() ->
         Source = lists:duplicate(40, "x |> (") ++ "x" ++ lists:duplicate(40, ")"),
-        ?assertMatch(#e_call{callee = #e_call{}, args = [#e_var{name = x}]},
-                     e(lists:flatten(Source)))
+        #e_call{callee = #e_var{name = x}, args = Args} = e(lists:flatten(Source)),
+        ?assertEqual(40, length(Args))
     end}.
 
 %% report §5.1, §5.7: the call a pipe writes is marked, so that x is

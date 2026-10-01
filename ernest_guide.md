@@ -523,7 +523,7 @@ Ernest 0.1.0. :help for the commands, :quit to leave.
 "cba" : String
 ```
 
-`x |> f` is `f(x)`, and `x |> f(a, b)` is `f(x, a, b)`: the pipe inserts the first argument. A parenthesized right-hand side is a value the pipe applies, so `x |> (adder(3))` is `adder(3)(x)`, and a lambda is written the same way, `x |> (fn(y) = y + 1)`.
+`x |> f` is `f(x)`, and `x |> f(a, b)` is `f(x, a, b)`: the pipe inserts the first argument. Parentheses change nothing, so `x |> (f(a))` is `f(x, a)` too. A lambda is parenthesized, `x |> (fn(y) = y + 1)`, and a function a call computes is applied in writing, `adder(3)(x)`.
 
 ### 2.9 The standard library
 

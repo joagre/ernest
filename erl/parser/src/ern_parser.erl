@@ -540,16 +540,10 @@ binexpr_loop(Left, [{Op, Pos} | R] = Ts, Min) ->
     case prec(Op) of
         {P, Assoc} when P >= Min ->
             NextMin = case Assoc of left -> P + 1; right -> P end,
-            {Right, R1, Paren} = right_operand(Op, R, NextMin),
-            Start = start_of(Left, Pos),
-            Combined = case Paren of
-                           %% report §5.7: a parenthesized right-hand side is a
-                           %% value, applied to the left
-                           true -> #e_call{pos = Start, callee = Right, args = [Left],
-                                           pipe = true};
-                           false -> combine(Op, Start, Left, Right)
-                       end,
-            {Node, _} = w({Combined, R1}),
+            {Right, R1} = binexpr(R, NextMin),
+            %% report §5.7: parentheses change nothing, so a parenthesized
+            %% call is a call the pipe fills, as an unparenthesized one is
+            {Node, _} = w({combine(Op, start_of(Left, Pos), Left, Right), R1}),
             binexpr_loop(Node, R1, Min);
         _ ->
             {Left, Ts}
@@ -574,19 +568,6 @@ prec('&&') -> {3, left};
 prec('||') -> {2, left};
 prec('|>') -> {1, left};
 prec(_) -> none.
-
-%% The right operand, and for `|>` whether it is one parenthesized
-%% expression and nothing more: parentheses produce no node, so only the
-%% tokens can say, and the operand is parsed once, the parenthesized
-%% primary first, what follows it after.
-right_operand('|>', [{'(', _} | _] = R, Min) ->
-    {P, R1} = primary(R),
-    {C, R2} = calls(P, R1),
-    {Right, R3} = binexpr_loop(C, R2, Min),
-    {Right, R3, R3 =:= R1};
-right_operand(_, R, Min) ->
-    {Right, R1} = binexpr(R, Min),
-    {Right, R1, false}.
 
 %% `x |> f(a)` is `f(x, a)`; `x |> f` is `f(x)`; either call is marked as
 %% a pipe's, since `x` is evaluated before the callee (report §5.1).

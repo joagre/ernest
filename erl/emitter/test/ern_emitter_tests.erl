@@ -1242,7 +1242,7 @@ no_negative_zero_test() ->
                    "\"guard\"\n0.0\n">>, Out).
 
 %% report §5.1: a callee is evaluated before its arguments; in `x |> e`,
-%% x is evaluated before e, whether e is a call or a parenthesized value
+%% x is evaluated before e, a callee a call computes among it
 evaluation_order_test() ->
     {ok, Out} = run(
         "fn show(s : String, n : Int) : Int with Never = { Io.println(s); n }\n"
@@ -1253,10 +1253,9 @@ evaluation_order_test() ->
         "fn g(a : Int) : ((Int) -> Int) with Never = { Io.println(\"g(1)\"); fn(x) = x + a }\n"
         "export fn main() : Unit with Never = {\n"
         "    Io.println(Int.toString(show(\"x\", 1) |> f(show(\"a\", 2))(show(\"b\", 3))));\n"
-        "    Io.println(Int.toString(g(1)(show(\"h()\", 4))));\n"
-        "    Io.println(Int.toString(show(\"y\", 5) |> (g(1))))\n"
+        "    Io.println(Int.toString(g(1)(show(\"h()\", 4))))\n"
         "}\n"),
-    ?assertEqual(<<"x\na\nf(a)\nb\n6\ng(1)\nh()\n5\ny\ng(1)\n6\n">>, Out).
+    ?assertEqual(<<"x\na\nf(a)\nb\n6\ng(1)\nh()\n5\n">>, Out).
 
 %% report §4.8: `!` negates a Bool, in an expression and in a guard
 not_operator_test() ->
