@@ -275,8 +275,8 @@ a listener the program closed faults with `Fault("callee was closed")`, in §6.6
 and `Path.name` answers `Optional(String)`, `None` for the root, its five callers following. Under
 principle 2's sentences, the fifth family's round 2 (2026-10-01, the log's *The Forms Family's
 Rules*): parentheses after `|>` change nothing, `x |> (f(a))` being `f(x, a)` and a function a call
-computes applied in writing, `f(a)(x)`, in §5.7, the parser and the guide's §2.8; §2.5's float
-literal admits `decimal exponent`, `1e10`, and the lexer follows; and the shell generalizes a
+computes applied in writing, `f(a)(x)`, in §5.7, the parser and the guide's page on the pipe; §2.5's
+float literal admits `decimal exponent`, `1e10`, and the lexer follows; and the shell generalizes a
 lambda bound by `let` at the prompt as §4.6 does, which it refuses as undetermined today.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
