@@ -72,7 +72,7 @@ type Msg =
   | Copy(from : Path, to : Path, reply : Reply(Either(Io.Error, Unit)))
   | MakeLink(target : Path, path : Path, reply : Reply(Either(Io.Error, Unit)))
   | ReadLink(path : Path, reply : Reply(Either(Io.Error, Optional(Path))))
-  | Create(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
+  | MakeFile(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
   | SetModified(path : Path, mtime : Int, reply : Reply(Either(Io.Error, Unit)))
 
 // Report §8.2: the system reference, the runtime's address of the file system,
@@ -282,14 +282,14 @@ export fn readLink(path : Path, ms : Int) : Either(Io.Error, Optional(Path)) wit
 ///
 /// ```ernest
 /// {
-///     let first = Fs.create(Path("claimed.txt"), String.toUtf8("mine"), 5000);
-///     let second = Fs.create(Path("claimed.txt"), String.toUtf8("yours"), 5000);
+///     let first = Fs.makeFile(Path("claimed.txt"), String.toUtf8("mine"), 5000);
+///     let second = Fs.makeFile(Path("claimed.txt"), String.toUtf8("yours"), 5000);
 ///     #(first, second)
 /// }
 /// // => #(Right(Unit), Left(Exists))
 /// ```
-export fn create(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference, fn(r) = Create(path = path, bytes = bytes, reply = r), ms))
+export fn makeFile(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m =
+    answered(Address.call(reference, fn(r) = MakeFile(path = path, bytes = bytes, reply = r), ms))
 
 /// Removes a directory and everything under it, or a file or a link. A link
 /// is removed and not followed, wherever it stands, so what it leads to is

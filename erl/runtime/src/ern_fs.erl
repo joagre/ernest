@@ -100,7 +100,7 @@ handle({'ReadLink', Path, Reply}) ->
                   end);
 %% Report Appendix E.17: a new file, claimed by its name at once, or none:
 %% one whose write fails is removed.
-handle({'Create', Bytes, Path, Reply}) ->
+handle({'MakeFile', Bytes, Path, Reply}) ->
     Name = text(Path),
     answer(Reply, case file:open(Name, [write, exclusive, raw, binary]) of
                       {ok, File} ->

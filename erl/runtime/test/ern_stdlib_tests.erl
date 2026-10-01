@@ -751,7 +751,7 @@ fs_read_range_test() ->
                  collect(fs, [])),
     file:del_dir_r(Dir).
 
-%% report Appendix E.17: `create` makes a new file or none; `removeAll`
+%% report Appendix E.17: `makeFile` makes a new file or none; `removeAll`
 %% removes a tree, a link in it removed and what it leads to kept;
 %% `setModified` sets the time a `stat` then reads, to the second. Written
 %% with the code (MVP 2.98); a write that fails after the file is made is
@@ -769,8 +769,8 @@ fs_create_remove_all_modified_test() ->
     F = 'ern@fs',
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
-                           Me ! {fs, F:create(P("new.txt"), <<"a">>, 1000)},
-                           Me ! {fs, F:create(P("new.txt"), <<"b">>, 1000)},
+                           Me ! {fs, F:makeFile(P("new.txt"), <<"a">>, 1000)},
+                           Me ! {fs, F:makeFile(P("new.txt"), <<"b">>, 1000)},
                            Me ! {fs, F:read(P("new.txt"), 1000)},
                            Me ! {fs, F:removeAll(P("tree"), 1000)},
                            Me ! {fs, F:setModified(P("new.txt"), 86400999, 1000)},

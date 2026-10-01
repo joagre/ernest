@@ -58,10 +58,10 @@ fn trimmed(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) 
 // Report §11: the trimmed file is written beside the history and renamed
 // over it, so that it is written whole or not at all, under a name no other
 // session writes at once: the first of `history.new1`, `history.new2` and
-// on that `create` makes, since it refuses one that exists.
+// on that `makeFile` makes, since it refuses one that exists.
 fn replaced(path : Path, bytes : Bytes, n : Int) : Either(Io.Error, Unit) with m = {
     let beside = Path.withExtension(path, "new" <> Int.toString(n));
-    match Fs.create(beside, bytes, wait) {
+    match Fs.makeFile(beside, bytes, wait) {
         Left(Io.Exists) -> replaced(path, bytes, n + 1)
       | Left(why) -> Left(why)
       | Right(_) -> match Fs.rename(beside, path, wait) {
