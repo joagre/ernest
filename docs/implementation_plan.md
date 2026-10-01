@@ -305,6 +305,11 @@ module `Test`, a section added at the end of Appendix E, with the types `Case` a
 `Test.Passed` or `Test.Failed(text)`, which `ern test` finds as it found the prelude's (§11.2);
 the 155 test values of the standard library, the shell, the libraries and the examples are
 renamed by a script and read as a diff, and `examples/filesync.ern` loses its `Prelude.Failed`.
+Under E.1's and §3.8's sentences, the fourteenth and fifteenth families' round 2 (2026-10-01, the
+log's *The Order, Show and Door Families*): `Io.debug` writes to standard error, with item 13's
+rewrite of its shim, E.1 and the tests that read its output changing with it; and `Foreign.toBytes`
+joins E.12's conversions, a host binary that is not UTF-8 having no other way out of a term,
+with `Foreign.Term`'s edit.
 
 The sentences take the user's time, fifteen questions at the user's pace; the defects about a
 week; the families' rules are bounded by the list the sentences leave, and the estimate is
