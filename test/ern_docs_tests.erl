@@ -205,6 +205,22 @@ template(Cause) ->
              end || W <- binary:split(Cause, <<" ">>, [global])],
     iolist_to_binary(["^", lists:join(" ", Words), "$"]).
 
+%% docs/decisions.md: its index names every section by its title, the
+%% standing ones and the dated entries. A regression test, written after the
+%% index had missed thirty-eight entries (the log's *A Port Lost While It
+%% Starts*); it does not check an anchor, which the reader's renderer makes.
+log_index_names_every_section_test() ->
+    Log = read("docs/decisions.md"),
+    [_, AfterHeading] = binary:split(Log, <<"\n## Index\n">>),
+    [Index, _] = binary:split(AfterHeading, <<"\n## ">>),
+    {match, Named} = re:run(Index, "\\[((?:[^][]|\\[[^]]*\\])+)\\]\\(#",
+                            [global, {capture, all_but_first, binary}]),
+    {match, Heads} = re:run(Log, "^## (.+)$",
+                            [global, multiline, {capture, all_but_first, binary}]),
+    Titles = [hd(binary:split(Head, <<", 2026-">>)) || [Head] <- Heads, Head =/= <<"Index">>],
+    ?assert(length(Titles) > 500),
+    ?assertEqual([], Titles -- [Name || [Name] <- Named]).
+
 %% A copyright in the first lines, an upstream author's header.
 borrowed(Text) ->
     Head = binary:part(Text, 0, min(byte_size(Text), 2000)),

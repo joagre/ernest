@@ -84,9 +84,7 @@ filesync() ->
     ok = file:write_file(Dir ++ "/b/other.txt", <<"only in b\n">>),
     ok = file:write_file(Dir ++ "/a/notes.txt", <<"old note\n">>),
     ok = file:write_file(Dir ++ "/b/notes.txt", <<"new note\n">>),
-    Older = calendar:gregorian_seconds_to_datetime(
-              calendar:datetime_to_gregorian_seconds(calendar:local_time()) - 7200),
-    ok = file:change_time(Dir ++ "/a/notes.txt", Older),
+    ok = make_older(Dir ++ "/a/notes.txt"),
     %% stopped once both directories are as the checks below read them,
     %% since how long a pass takes is the host's
     Synced = "grep -q \"conflict: notes.txt\" run.out && [ -f b/greeting.txt ]"
@@ -114,10 +112,45 @@ filesync() ->
     ?assertEqual(Mtime("/a/greeting.txt"), Mtime("/b/greeting.txt")),
     ?assertEqual(Mtime("/b/other.txt"), Mtime("/a/other.txt")).
 
+%% Paper program 2: a file from the peer is checked against the directory
+%% as its own listing finds it, the first listing too. A regression test,
+%% written after the fix (plan, MVP 2.99b's item 1): b's listing, slowed by
+%% fifty files more, came after a's older notes.txt, which then replaced b's
+%% newer copy with no conflict. It does not cover a file changed here
+%% between two listings, which the program checks against the last one.
+filesync_first_listing_test_() ->
+    {timeout, 60, fun filesync_first_listing/0}.
+
+filesync_first_listing() ->
+    %% a build root of its own, since filesync_test_ builds beside it
+    0 = build("--source-root ../examples --build-root build/first ../examples/filesync.ern"),
+    Dir = "build/filesync_first",
+    ok = reset(Dir),
+    ok = file:write_file(Dir ++ "/a/notes.txt", <<"old note\n">>),
+    ok = file:write_file(Dir ++ "/b/notes.txt", <<"new note\n">>),
+    [ok = file:write_file(Dir ++ "/b/" ++ integer_to_list(N) ++ ".txt", <<"x\n">>)
+     || N <- lists:seq(1, 50)],
+    ok = make_older(Dir ++ "/a/notes.txt"),
+    Synced = "grep -q \"conflict: notes.txt\" run.out && [ -f b/notes.txt.conflict ]"
+             " && grep -q \"new note\" a/notes.txt",
+    {Status, Out} = run_for(Dir, "../../../bin/ern run ../first/filesync.erc", Synced, "TERM"),
+    ?assertEqual(143, Status),
+    ?assert(lists:member(<<"conflict: notes.txt">>, Out)),
+    ?assertEqual({ok, <<"new note\n">>}, file:read_file(Dir ++ "/b/notes.txt")),
+    ?assertEqual({ok, <<"old note\n">>}, file:read_file(Dir ++ "/b/notes.txt.conflict")),
+    ?assertEqual({ok, <<"new note\n">>}, file:read_file(Dir ++ "/a/notes.txt")).
+
 reset(Dir) ->
     ok = del(Dir),
     ok = filelib:ensure_path(Dir ++ "/a"),
     ok = filelib:ensure_path(Dir ++ "/b").
+
+%% The file's modification time set two hours back, so that its copy in the
+%% other directory is the newer.
+make_older(File) ->
+    Older = calendar:gregorian_seconds_to_datetime(
+              calendar:datetime_to_gregorian_seconds(calendar:local_time()) - 7200),
+    file:change_time(File, Older).
 
 del(Dir) ->
     case file:del_dir_r(Dir) of
@@ -162,10 +195,14 @@ hangup() ->
                  run_for(Dir, "../../../bin/ern run waits.erc", "grep -q running run.out",
                          "HUP")).
 
-%% report §8.6, §11.2: the host's interrupt ends a program at once, printing
-%% nothing, with status 128 plus the signal's number. The run is started
-%% from here rather than by a shell, which would start it with the
-%% interrupt ignored. Written after the code, with the sentence of §11.2
+%% report §8.6, §11.2: the host's interrupt ends a running program at once,
+%% printing nothing, with status 128 plus the signal's number. The run is
+%% started from here rather than by a shell, which would start it with the
+%% interrupt ignored, and interrupted once the program shows by a file that
+%% it runs. An interrupt that comes while the host starts a port, as it
+%% does twice before `main`, leaves a line of OTP's helper on standard
+%% error, a gap whose fix and test wait for MVP 2.99b's item 5 (plan,
+%% *Standing gaps*). Written after the code, with the sentence of §11.2
 %% that states the status.
 interrupt_test_() ->
     {timeout, 60, fun interrupt/0}.
@@ -173,17 +210,29 @@ interrupt_test_() ->
 interrupt() ->
     Dir = "build/interrupt",
     ok = filelib:ensure_path(Dir),
+    _ = file:delete(Dir ++ "/running"),
     ok = file:write_file(Dir ++ "/waits.ern",
-                         "export fn main() : Unit with Never =\n"
-                         "    receive { after 60000 -> Io.println(\"late\") }\n"),
+                         "export fn main() : Unit with Never = {\n"
+                         "    let _ = Fs.write(Path(\"running\"), <<>>, 10000);\n"
+                         "    receive { after 60000 -> Io.println(\"late\") }\n"
+                         "}\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
-    Port = open_port({spawn_executable, "../bin/ern"},
-                     [{args, ["run", Dir ++ "/waits.erc"]}, exit_status, stderr_to_stdout,
+    Port = open_port({spawn_executable, filename:absname("../bin/ern")},
+                     [{args, ["run", "waits.erc"]}, {cd, Dir}, exit_status, stderr_to_stdout,
                       binary]),
     {os_pid, Pid} = erlang:port_info(Port, os_pid),
-    timer:sleep(2000),
+    ok = wait_for(Dir ++ "/running", 300),
     _ = os:cmd("kill -INT " ++ integer_to_list(Pid)),
     ?assertEqual({130, <<>>}, collect(Port, [])).
+
+%% Wait until the file exists, a tenth of a second at a time.
+wait_for(_, 0) ->
+    {error, timeout};
+wait_for(File, Tries) ->
+    case filelib:is_regular(File) of
+        true -> ok;
+        false -> timer:sleep(100), wait_for(File, Tries - 1)
+    end.
 
 %% Paper program 1 (plan, MVP 2.5): the server serves until it is
 %% stopped, so the harness starts it, makes two requests over one session,

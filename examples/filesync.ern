@@ -69,7 +69,10 @@ fn syncer(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : Unit wit
       | Link(_) -> syncer(dir, peer, seen) // already connected
     }
 
-// Between the listing's start and Listed: accept Put, but not Tick.
+// Between the listing's start and Listed, a Put waits in the mailbox, so
+// that it is checked against what the listing finds: on the first pass
+// nothing is known yet, and a file stored then would replace a newer one
+// here without a conflict.
 fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : Unit with SyncMsg = {
     let tick = fn() = Clock.alarm(5000, fn(_) = Tick);
     receive {
@@ -86,8 +89,6 @@ fn listing(dir : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : Unit wi
             tick();
             syncer(dir, peer, seen)
         }
-      | Put(path = p, mtime = m, bytes = bytes, ack = ack) ->
-            listing(dir, peer, store(dir, seen, p, m, bytes, ack))
     }
 }
 

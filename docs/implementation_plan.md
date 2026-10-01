@@ -13,7 +13,7 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
-**MVP 2.99b is next**: what the release review left, the code's names read and made to read,
+**MVP 2.99b is under way**: what the release review left, the code's names read and made to read,
 the decision on how code written once works over several representations, which
 [`operations.md`](operations.md) weighs, and running as a service. Its first item makes every
 run of `make test` trusted. Between its items 3 and 4 runs the principles review, the report
@@ -21,9 +21,10 @@ and the guide read against §0 and §0 against what it decided, a milestone of i
 its readers ran on 2026-09-30, on `57b8356`, their findings stand in
 [`findings.md`](findings.md), and [`attack_plan.md`](attack_plan.md) gives the order in which
 they are worked; its phases 1 and 2, the sixteen sentences, were done on 2026-10-01, and phase
-3, MVP 2.99b's items 1 to 3, is next. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was
-published on 2026-09-30 with MVP 2.99, the last milestone done; MVP 2.9, MVP 2.61,
-`libs/markdown` and MVP 2.8 were taken out of order. Each has its paragraph under "Done".
+3, MVP 2.99b's items 1 to 3, is under way, item 1 done on 2026-10-01. Ernest 0.1.0, the first
+release, is tagged `v0.1.0` and was published on 2026-09-30 with MVP 2.99, the last milestone
+done; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its
+paragraph under "Done".
 
 ---
 
@@ -75,16 +76,14 @@ renamed over it, then the guide, and the soak last. The principles review, a mil
 own below, runs between items 3 and 4, since item 4 is decided under the principles it
 sharpens (decided 2026-09-30, the log's *The Principles Review*).
 
-1. **The host's port helper's intermittent failure**: `erl_child_setup`, which once in some
-   twenty runs of `make test` wrote `failed with error` as an interrupt ended the host, where
-   §8.6 has the interrupt end the program printing nothing (`interrupt_test_`, found
-   2026-09-28, not yet diagnosed). Its shape: read the helper's source for what it reports,
-   meet it under load, and end the host so that its helper is not caught mid-write. With it
-   the one failure of `filesync_test_` seen on 2026-09-30, under the whole suite's load and
-   not alone, where the example did not print its conflict within the test's thirty seconds:
-   its shape, run the programs' tests under a load until it comes again, and read what the
-   example was doing when the time ran out. First, so that every run of `make test` the
-   renaming leans on is trusted.
+1. **The host's port helper's intermittent failure**, done 2026-10-01 (the log's *A Port Lost
+   While It Starts*). The line `interrupt_test_` met is the child OTP's helper forks for a
+   port: an interrupt that ends the host while a port starts leaves it waiting for the host's
+   acknowledgement, and it reports that on standard error. Reproduced, and its fix is the third
+   decision of item 5; the test interrupts a program that has started, and the start's case
+   stands in *Standing gaps*. `filesync_test_`'s failure was the example's own race, a peer's
+   file taken before the first listing and stored with no conflict, fixed with
+   `filesync_first_listing_test_`.
 2. **The style guides and the glossary, a decision with the user.** [`style.md`](style.md)
    rests its guides on widely accepted ones, Ericsson's *Programming Rules and Conventions*
    and Inaka's guidelines for Erlang and the *Elm Style Guide* for Ernest, and holds a
@@ -126,12 +125,16 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    function does; and whether a restriction may be written in an annotation, a change to the
    grammar and a second way beside inference (`findings.md`'s R-23, placed here with the user
    2026-09-30).
-5. **The service's two decisions, with the user**: what an alarm at a time does when the
+5. **The service's three decisions, with the user**: what an alarm at a time does when the
    host's wall clock jumps, since deadlines use the monotonic clock and a time does not
-   (`Clock.alarmAt`, Appendix E.15); and whether a launcher passes a termination or hangup
+   (`Clock.alarmAt`, Appendix E.15); whether a launcher passes a termination or hangup
    that comes while the host starts, which the host drops (*Standing gaps* below), on to the
    host until the host has taken it, at the price of a second process between a service
-   manager and the program.
+   manager and the program; and how the line OTP's helper prints for a port lost while it
+   starts is ended (*Standing gaps*, the log's *A Port Lost While It Starts*): the fix at
+   its cause offered to OTP, that launcher passing a signal to the host's process group, or
+   every host program started through one helper started before `main` (placed here
+   2026-10-01).
 6. **Names that read, in Erlang**, about a week: every module under `erl/` and `test/` read
    for its names and renamed where a name does not say what its value or its work is, a
    variable, a function, a record and its fields, by the glossary, which it corrects as it
@@ -534,6 +537,13 @@ the terminal). The rest is MVP 3.3's.
   dropped by the host, on this machine in the first 0.2 seconds (report §11). A launcher that
   passes a signal on to the host until the host has taken it would close it, and is decided in
   MVP 2.99b's item 5 (2026-09-29, placed there 2026-09-30).
+- **A signal that ends the host while it starts a port**, for a host program, for `ern_exec`,
+  or for OTP's lookup of the host's name, leaves a line of OTP's helper on standard error,
+  `erl_child_setup: failed with error 32 on line 284`, where §8.6 has the runtime print
+  nothing (found 2026-10-01). Every run starts two such ports before `main`, and a program
+  that starts host programs meets it while it runs. A port closed while it starts would
+  leave the same line by OTP's source, and was not met in thirty tries. Its fix is decided
+  in MVP 2.99b's item 5.
 
 ---
 
