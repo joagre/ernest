@@ -10,6 +10,11 @@
 
 -export([loop/0]).
 
+%% Report Appendix E.18: a listener's and a socket's loops end only in the
+%% exit that tells a waiting call the socket was closed or its owner died,
+%% so the fun `opened` spawns never returns, which Dialyzer would report.
+-dialyzer({nowarn_function, opened/3}).
+
 %% Report §8.6: every listener and socket is linked to this process, which
 %% the runtime kills when the program ends, so none outlives it; this
 %% process traps the exits, so that one ending takes nothing else with it,
@@ -21,7 +26,7 @@ loop() ->
 
 serve(Tcp) ->
     receive
-        {'Listen', Host, Owner, Port, Reply} ->
+        {'Listen', Host, Port, Owner, Reply} ->
             erlang:spawn(fun() -> listen(Tcp, Host, Owner, Port, Reply) end),
             serve(Tcp);
         {'Connect', Host, Port, Ms, Owner, Reply} ->

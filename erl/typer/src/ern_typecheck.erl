@@ -1496,26 +1496,26 @@ post_checks({Pos, TypedParams, TypedBody, FnT, Effect, Origin, Rigid, Pending, D
 %% own uses in io.ern among them; the type is read once the definition is
 %% inferred, as an operator's operand type is (§4.8).
 shown(Pos, Ref, T, #env{ns = Ns}) ->
-    Shows = case Ref of
-                {remote, ['Io'], undefined, Name} -> lists:member(Name, [show, debug]);
-                {own, undefined, Name} -> Ns =:= ['Io'] andalso lists:member(Name, [show, debug]);
-                _ -> false
-            end,
-    case {Shows, T} of
-        {true, {tfn, [Argument], _, _}} -> [{shown, Pos, Ref, Argument}];
+    Name = case Ref of
+               {remote, ['Io'], undefined, N} -> N;
+               {own, undefined, N} when Ns =:= ['Io'] -> N;
+               _ -> none
+           end,
+    case {lists:member(Name, [show, debug]), T} of
+        {true, {tfn, [Argument], _, _}} -> [{shown, Pos, Name, Argument}];
         _ -> []
     end.
 
 %% It must be known whole, with no type variable in it; an effect variable
 %% changes nothing written, a function being `<function>`.
-known_whole({shown, Pos, Ref, Argument}, #env{st = St}) ->
+known_whole({shown, Pos, Name, Argument}, #env{st = St}) ->
     Type = ern_types:zonk(Argument, St),
     case ern_types:value_vars(Type, St) of
         [] ->
             ok;
         _ ->
-            Name = "Io." ++ atom_to_list(element(tuple_size(Ref), Ref)),
-            fail(Pos, Name ++ " writes a value by its type, which is not known whole here: "
+            fail(Pos, "Io." ++ atom_to_list(Name)
+                      ++ " writes a value by its type, which is not known whole here: "
                       ++ ern_types:format(Type, St), [],
                  "annotate the value where it is bound; a function generic in the type takes"
                  " one that shows it, `(a) -> String`, from its caller")

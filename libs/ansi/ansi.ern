@@ -80,8 +80,8 @@ fn colourCode(colour : Colour) : Int =
 /// Ansi.up(2)
 /// // => "\u{1B}[2A"
 /// ```
-export fn up(n : Int) : String =
-    move(n, "A")
+export fn up(count : Int) : String =
+    move(count, "A")
 
 /// The cursor down that many rows; `""` for a number below 1.
 ///
@@ -91,8 +91,8 @@ export fn up(n : Int) : String =
 /// Ansi.down(0)
 /// // => ""
 /// ```
-export fn down(n : Int) : String =
-    move(n, "B")
+export fn down(count : Int) : String =
+    move(count, "B")
 
 /// The cursor left that many columns; `""` for a number below 1.
 ///
@@ -102,8 +102,8 @@ export fn down(n : Int) : String =
 /// Ansi.left(3)
 /// // => "\u{1B}[3D"
 /// ```
-export fn left(n : Int) : String =
-    move(n, "D")
+export fn left(count : Int) : String =
+    move(count, "D")
 
 /// The cursor right that many columns; `""` for a number below 1.
 ///
@@ -113,11 +113,11 @@ export fn left(n : Int) : String =
 /// Ansi.right(1)
 /// // => "\u{1B}[1C"
 /// ```
-export fn right(n : Int) : String =
-    move(n, "C")
+export fn right(count : Int) : String =
+    move(count, "C")
 
-fn move(n : Int, direction : String) : String =
-    if n < 1 then "" else sequence(Int.toString(n) <> direction)
+fn move(count : Int, direction : String) : String =
+    if count < 1 then "" else sequence(Int.toString(count) <> direction)
 
 /// Erases from the cursor to the end of the screen.
 ///

@@ -126,7 +126,7 @@ Sections 1 to 8 are eight stages: run a program, compute with values, pass behav
 
 ## 1. Run a program
 
-A program is a module that exports a function `main`. Put this line in `hello.ern`:
+A program is a module that exports a function `main`. Put this line in `hello.ern`, a file named by one lowercase word (§7.1):
 
 ```ernest
 export fn main() : Unit with Never =
@@ -535,9 +535,9 @@ The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char
 - **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(Io.Error, Bytes)`. A program says an `Io.Error` to its user in its own words, with a `match` over its constructors; `Io.show` writes it as a value, `Other("address already in use")`.
 - **Pure unless the value lives in a process.** A function carries `with m` only where it reaches a system process or asks the runtime about its processes, as `Process.live` does, and every function that calls a function it takes is as pure as the function it is given (§3.5). One that delivers later, `Clock.alarm` or `Terminal.subscribe`, takes a pure function to make the message and acts through a process anyway.
 - **A `String` is text, not a list.** Its length and positions count what a reader sees as letters, which `String.graphemes` gives one by one; `String.toList` gives its `Char`s.
-- **A system process is used through its module**, never by `send`. A function that waits takes a timeout in milliseconds last and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. There is no time that means no limit; a server that waits for as long as it takes asks again on each `Left(Timeout)` (§8.7). A read of standard input and a write to standard output wait without a limit, since those streams are the program's own; a socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8). One that delivers later takes a function that makes the message: `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired, and `Clock.now()` is the time now, in milliseconds since the epoch.
+- **A system process is used through its module**, never by `send`. A function that waits takes a timeout in milliseconds last and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. There is no time that means no limit; a server that waits for as long as it takes asks again on each `Left(Timeout)` (§8.7). A read of standard input and a write to standard output wait without a limit, since those streams are the program's own; a socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8). One that delivers later takes a function that makes the message: `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired, and `Clock.now()` is the time now, in milliseconds since the epoch. A process that only waits a while writes `receive { after ms -> Unit }` (§4.3); `Clock` has no sleep.
 
-What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it. `:browse Fs` lists a module's types by name and its functions with their types, and `:doc Fs.Entry` shows a type's declaration, its fields among it.
+What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it. `:browse Fs` lists a module's types by name and its functions with their types, and `:doc Fs.Entry` shows a type's declaration, its fields among it. A printed type marks a type variable that needs equality `k=` and one that may not carry a reply `a!` (§2.5, §4.2), and an effect variable that is never pure `m+` (§3.5).
 
 ### 2.10 A word counter, by hand
 
@@ -636,7 +636,7 @@ Without a source that fixes the type, `n + n` is a type error. Once it is fixed,
 
 Other limits worth knowing:
 
-- A `fn` and a top-level `let` are polymorphic; a `let` in a block is not, and neither is a top-level `let` whose initializer calls a process-only function, `spawn`, `send`, `Address.call` or `Io.println` among them, whose type must then be settled, by an annotation where nothing else settles it. After `let xs = []` in a block, the element type of `xs` must be settled by an annotation, by a later use in the block, or by `xs` reaching the block's result.
+- A `fn` and a top-level `let` are polymorphic; a `let` in a block is not, and neither is a top-level `let` whose initializer calls a process-only function, `spawn`, `send`, `Address.call` or `Io.println` among them, whose type must then be settled, by an annotation where nothing else settles it. After `let xs = []` in a block, the element type of `xs` must be settled by an annotation, by a later use in the block, or by `xs` reaching the block's result. A `let` in a block whose variable nothing settles, `let xs = []` with `xs` never read, compiles with the variable left open; it is a top-level `let`, and one at the prompt, that must be settled.
 - A `fn` declared in a block is visible in the whole block, but may be used only after the `let`s it reads (report §5.4).
 
 ### 3.4 Pure functions and functions with a mailbox effect
@@ -726,7 +726,7 @@ fn counter(n : Int) : Unit with CounterMsg =
 
 `let c = spawn(fn() = counter(0))` starts a process that runs the lambda, and `c` is its address, an `Address(CounterMsg)`. The process runs on this node, the runtime the program runs in; `Peer.spawn(name, f)` starts one on another node (§8). `send(c, Inc(5))` puts `Inc(5)` in the mailbox of the process at `c` and returns at once, without waiting for it to be received. `self()` is the address of the process that calls it, so a parent that gives a child its own address takes it first: `let me = self(); spawn(fn() = child(me))`.
 
-`spawn`'s callback has type `() -> Unit with n`, and the `n` is also the mailbox of the `Address(n)` it returns. A pure function fits wherever one with a mailbox type is expected, so a pure callback is spawned too, and its mailbox is whatever the address is used as. When nothing says, the mailbox stays open until a `send` to the address fixes it, and an address nothing sends to may keep it open. A process that never receives says so with the mailbox `Never`, written on its lambda, `fn() : Unit with Never = ...`, since no `receive` in it settles the type:
+`spawn`'s callback has type `() -> Unit with n`, and the `n` is also the mailbox of the `Address(n)` it returns. A pure function fits wherever one with a mailbox type is expected, so a pure callback is spawned too, and its mailbox is whatever the address is used as. When nothing says, the mailbox stays open until a `send` to the address fixes it, and an address nothing sends to may keep it open. A top-level `let`, and one at the prompt, whose address stays open is refused until an annotation settles it (§3.3). A process that never receives says so with the mailbox `Never`, written on its lambda, `fn() : Unit with Never = ...`, since no `receive` in it settles the type:
 
 ```console
 $ ern shell
@@ -1697,7 +1697,7 @@ $ ern test checks.erc
 adds two: passed
 ```
 
-`ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, or faulted with its cause. A test runs in a process, so it may spawn and send, and a test left waiting with nothing to wake it is faulted with `deadlock` while the run goes on (report §11.2).
+`ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, or faulted with its cause. A test's `run` is `() -> Test.Result with Never`: it runs in a process, so it may spawn, send and call, and it receives nothing, so a test that must wait for a message gives the waiting to a process it spawns and calls, or waits a while with `receive { after ms -> Unit }`. A test left waiting with nothing to wake it is faulted with `deadlock` while the run goes on (report §11.2).
 
 **Documenting a module.** A `///` block, on lines of its own, documents the declaration on the line after it, and one first in the file, with a blank line after it, documents the module. The text is CommonMark; `ern doc` renders the module as a page, and the shell's `:doc` shows a declaration's part of it, or a module's head, rendered for the terminal. What a module's documentation contains is report Appendix E.0 shape rule 6, and [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on an example module.
 
@@ -2124,8 +2124,8 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 - `--source-root dir` names the directory a module's namespace is read from, as §7.1 describes. `--load-path dir` adds compiled modules from outside the tree, such as a library, and may be given more than once.
 - `--short-errors` prints the first line of each error only, `file:line:column: message`, for a tool to read.
 - `--emit-erl` writes the Erlang the module compiles to, for reading.
-- `ern doc file.ern` writes the module's documentation as CommonMark. `ern doc src` writes a page for each module under `src` and an `index.md`, and for the standard library's root a `prelude.md` as well. `ern doc --man` writes each page as a manual page instead, `Ernest.List.3ern`, which `man -l` shows, or `man Ernest.List` once it is installed where `man` looks.
-- `ern format file.ern` lays the module out in the one layout report §11.6 states, and `ern format src` every module under `src`; only line breaks and spaces change, and every comment stays where it was. `ern format --check src` names each module not laid out and changes none.
+- `ern doc file.ern` writes the module's documentation to standard output as CommonMark. `ern doc src` writes a page for each module under `src` and an `index.md`, and for the standard library's root a `prelude.md` as well. `ern doc --man` renders a manual page instead, to standard output for one module and, for a directory, as a file beside each module, `Ernest.List.3ern`, which `man -l` shows, or `man Ernest.List` once it is installed where `man` looks.
+- `ern format file.ern` lays the module out in the one layout report §11.6 states, and `ern format src` every module under `src`; only line breaks and spaces change, and every comment stays where it was. `ern format --check src` names each module not laid out and changes none; what it wants is what `ern format` writes, seen by formatting a copy.
 
 ### 9.2 `ern run`, `ern test`, `ern shell` and `ern config`
 

@@ -84,7 +84,7 @@ handle({'Rename', From, To, Reply}) ->
     answer(Reply, unit(file:rename(text(From), text(To))));
 %% Report Appendix E.17: the link at the path, holding the target as it is
 %% written, which may name nothing.
-handle({'MakeLink', Target, Path, Reply}) ->
+handle({'MakeLink', Path, Target, Reply}) ->
     answer(Reply, unit(file:make_symlink(text(Target), text(Path))));
 %% Report Appendix E.17: a second name for a regular file. The target's
 %% own entry is read, no link followed, since the host links a link's
@@ -206,7 +206,6 @@ is_utf8(Bytes) ->
 
 %% The host gives a name decoded where its names are UTF-8, and one that is
 %% not as its bytes; where they are not, it gives every name's bytes.
-
 name_bytes(Name) when is_binary(Name) -> Name;
 name_bytes(Name) ->
     case file:native_name_encoding() of

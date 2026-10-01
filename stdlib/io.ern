@@ -25,15 +25,17 @@
 ///
 /// since 0.1.0
 
-/// Why an operation of a system module found no answer: the file or the
-/// host is not there, access was refused, the connection was refused or
-/// has closed, the time ran out, standard input is not a terminal, a path
-/// names something other than a regular file, or something where nothing
-/// may stand, text is not UTF-8, a name or a link's target among them, its
-/// bytes carried, an argument holds U+0000 or a port is out of range, or
-/// another reason: the host's description of it, `"address already in
-/// use"`, or the reason as the host writes it where the host has no
-/// description (report Appendix E.1).
+/// Why an operation of a system module found no answer: `NotFound`, the
+/// file or the host is not there; `Denied`, access was refused; `Refused`
+/// and `Closed`, the connection was refused or has closed; `Timeout`, the
+/// time ran out; `NotATerminal`, standard input is not a terminal;
+/// `NotAFile`, a path names something other than a regular file; `Exists`,
+/// a path names something where nothing may stand; `NotUtf8(bytes)`, text
+/// that is not UTF-8, a name or a link's target among them, its bytes
+/// carried; `Invalid`, an argument holds U+0000 or a port is out of range;
+/// and `Other(text)`, another reason as the host describes it, `"address
+/// already in use"`, or as the host writes it where it has no description
+/// (report Appendix E.1).
 ///
 /// ### Examples
 ///

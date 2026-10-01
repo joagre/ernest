@@ -93,8 +93,8 @@ export type Endpoint = Endpoint(host : String, port : Int)
 // What TCP's system process takes.
 type Msg =
     Listen(host : String,
-           owner : Process,
            port : Int,
+           owner : Process,
            reply : Reply(Either(Io.Error, Address(ListenerMsg))))
   | Connect(host : String,
             port : Int,

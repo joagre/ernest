@@ -203,7 +203,7 @@ export fn padEnd(text : String, target : Int, pad : String) : String =
 
 fn padding(text : String, target : Int, pad : String) : String = {
     let short = target - size(text);
-    slice(repeat(pad, short), 0, short)
+    if isEmpty(pad) then "" else slice(repeat(pad, (short + size(pad) - 1) / size(pad)), 0, short)
 }
 
 /// The string `n` times; `n` below 0 gives the empty string.

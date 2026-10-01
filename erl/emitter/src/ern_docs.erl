@@ -143,9 +143,16 @@ signature(#foreign_type_decl{name = N, params = Ps, eq = Eq}, _, _) ->
                            false -> P
                        end || P <- Ps])]).
 
+%% Report §11.4, §11.6: the declaration on one line, or, where that line
+%% would pass 100 characters, a constructor a line as `ern format` lays it out.
 type_text(#type_decl{name = N, params = Ps, constructors = Cs}) ->
-    ["type ", atom_to_list(N), params_text(Ps), " = ",
-     lists:join(" | ", [constructor_text(C) || C <- Cs])].
+    Head = ["type ", atom_to_list(N), params_text(Ps), " ="],
+    Texts = [constructor_text(C) || C <- Cs],
+    OneLine = [Head, " ", lists:join(" | ", Texts)],
+    case iolist_size(OneLine) > 100 of
+        false -> OneLine;
+        true -> [Head, "\n    ", lists:join("\n  | ", Texts)]
+    end.
 
 params_text([]) -> "";
 params_text(Ps) -> ["(", lists:join(", ", [atom_to_list(P) || P <- Ps]), ")"].

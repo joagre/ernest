@@ -337,7 +337,7 @@ listen(Port) ->
 listen(Host, Port) ->
     %% report §6.9, Appendix E.18: the caller owns the listener
     Owner = self(),
-    ern_rt:call_forever(ern_rt:sys(tcp), fun(R) -> {'Listen', Host, Owner, Port, R} end).
+    ern_rt:call_forever(ern_rt:sys(tcp), fun(R) -> {'Listen', Host, Port, Owner, R} end).
 
 connect(Port, Ms) ->
     connect(<<"127.0.0.1">>, Port, Ms).

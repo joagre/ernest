@@ -128,8 +128,9 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    goes (item 2), each name that differs from the report's brought to the user. Area by area, a commit each that changes names and nothing else, the area's tests green before the next; the code grows
    longer, and the line stays at 100 characters. Before the toolchain's changes below, so that
    they are written in the new names.
-7. **The hardening the code readers found** (C1-5, C1-9, C1-10, C3-26 to C3-31), in the new
-   names; `findings.md` goes when this item and item 3 are done. With it the shell's and `ern
+7. **The hardening the code readers found** (C1-5, C1-9, C1-10, C3-26 to C3-31; and 0.2.0's C-1,
+   a read's and a write's timers in `Os` and a write's in `Tcp` cancelled when the request is
+   answered, as the socket's read cancels its own), in the new names; `findings.md` goes when this item and item 3 are done. With it the shell's and `ern
    test`'s `persistent_term` replaced at each input and each test, each replacement a scan of
    every process by the host (C3-39): what changes per input or per test moves to a table, and
    what a binding's holder keeps, which a read must not copy, is measured against a table and
@@ -468,8 +469,9 @@ the terminal). The rest is MVP 3.3's.
 
 ## Standing gaps
 
-- **§3.11, §8.3 and §8.7 have no citing test**, which `make sections` lists. All three are MVP
-  3.0 and 3.1 material and unbuilt; anything else it lists is a gap.
+- **§3.11, §6.7 and §8.7 have no citing test**, which `make sections` lists. All three are MVP
+  3.0 and 3.1 material and unbuilt, since 2026-10-01 a spawn on a peer being `Peer.spawn`'s,
+  which §8.3 introduces and a test of its refusal cites; anything else it lists is a gap.
 - **A termination or hangup that comes while the host starts**, before any of `ern` runs, is
   dropped by the host, on this machine in the first 0.2 seconds (report §11). A launcher that
   passes a signal on to the host until the host has taken it would close it, and is decided in

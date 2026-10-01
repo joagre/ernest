@@ -220,9 +220,9 @@ more_digits(_, _) -> false.
 
 %% The host reads a float only with its point: `1e5` is read as `1.0e5`.
 with_point(S) ->
-    case binary:match(S, <<".">>) of
-        nomatch ->
-            [Int, Exp] = re:split(S, "(?=[eE])", [{parts, 2}]),
+    case {binary:match(S, <<".">>), binary:match(S, [<<"e">>, <<"E">>])} of
+        {nomatch, {At, 1}} ->
+            <<Int:At/binary, Exp/binary>> = S,
             <<Int/binary, ".0", Exp/binary>>;
         _ ->
             S

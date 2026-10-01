@@ -177,8 +177,8 @@ export foreign fn exit(status : Int) : a with m =
 /// then what `Os.write` gives it, until `Os.closeInput` ends its input,
 /// and never the standard input of the program that runs it; it inherits
 /// that program's environment and working directory. It runs until it
-/// exits, until its process is killed, or until the process that called
-/// `start` dies, which kills it with the processes it started that are
+/// exits, until its process is killed, or until its owner dies, the process
+/// that started it or was given it (`give`), which kills it with the processes it started that are
 /// still in its process group; a run is bounded as any process is, by an
 /// alarm and `kill`. It answers `Left(NotFound)` when the program is not
 /// found, `Left(Denied)` when it may not be run, `Left(Invalid)` for a
@@ -241,12 +241,12 @@ export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Outpu
 /// `Left(Timeout)` when they pass first, which does not undo the write. A
 /// program that stops reading its input, as one whose output no one reads
 /// may, holds its writer; a program that both takes much input and writes
-/// much output is written to by one process and read by another.
+/// much output is written to by one process and read by another. Bytes
+/// given after `Os.closeInput`, or once the program has closed its input or
+/// has exited, are dropped, and the write answers `Left(Closed)`.
 ///
 /// ### Errors
 ///
-/// Bytes given after `Os.closeInput`, or once the program has closed its
-/// input or has exited, are dropped, and the write answers `Left(Closed)`.
 /// Where the runtime's helper fails, the writer faults, as `Os.start`'s
 /// caller does. A write after the program's process has ended
 /// faults as `Address.callForever` does.

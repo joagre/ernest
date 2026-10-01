@@ -69,7 +69,7 @@ type Msg =
   | RemoveAll(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | Rename(from : Path, to : Path, reply : Reply(Either(Io.Error, Unit)))
   | Copy(from : Path, to : Path, reply : Reply(Either(Io.Error, Unit)))
-  | MakeLink(target : Path, path : Path, reply : Reply(Either(Io.Error, Unit)))
+  | MakeLink(path : Path, target : Path, reply : Reply(Either(Io.Error, Unit)))
   | MakeHardLink(path : Path, target : Path, reply : Reply(Either(Io.Error, Unit)))
   | ReadLink(path : Path, reply : Reply(Either(Io.Error, Optional(Path))))
   | MakeFile(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
@@ -239,7 +239,7 @@ export fn copy(from : Path, to : Path, ms : Int) : Either(Io.Error, Unit) with m
 /// // => Right(Some("t"))
 /// ```
 export fn makeLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference, fn(r) = MakeLink(target = target, path = path, reply = r), ms))
+    answered(Address.call(reference, fn(r) = MakeLink(path = path, target = target, reply = r), ms))
 
 /// Makes a hard link at the first path to the regular file the second
 /// names: a second name for the file, which outlives the first. A first
@@ -338,11 +338,8 @@ export fn setModified(path : Path, mtime : Int, ms : Int) : Either(Io.Error, Uni
 /// Sets the permission bits of a file or a directory to the mode, as the
 /// host writes them: `0o600` is its owner's alone to read and write, and a
 /// directory made `0o700` before a file is written in it keeps the file
-/// from others as it is written.
-///
-/// ### Errors
-///
-/// A mode outside 0 to `0o7777` is `Left(Invalid)`.
+/// from others as it is written. A mode outside 0 to `0o7777` is
+/// `Left(Invalid)`.
 ///
 /// ### Examples
 ///
