@@ -86,6 +86,19 @@ handle({'Rename', From, To, Reply}) ->
 %% written, which may name nothing.
 handle({'MakeLink', Target, Path, Reply}) ->
     answer(Reply, unit(file:make_symlink(text(Target), text(Path))));
+%% Report Appendix E.17: a second name for a regular file. The target's
+%% own entry is read, no link followed, since the host links a link's
+%% name and not the file it leads to.
+handle({'MakeHardLink', Path, Target, Reply}) ->
+    Existing = text(Target),
+    answer(Reply, case file:read_link_info(Existing, [raw]) of
+                      {ok, #file_info{type = regular}} ->
+                          unit(file:make_link(Existing, text(Path)));
+                      {ok, _} ->
+                          {error, not_regular};
+                      Error ->
+                          Error
+                  end);
 %% Report Appendix E.17: None for a path that names anything but a link.
 handle({'ReadLink', Path, Reply}) ->
     answer(Reply, case file:read_link_all(text(Path)) of

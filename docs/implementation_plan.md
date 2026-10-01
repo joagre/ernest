@@ -203,11 +203,11 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
     Around an Ordered Set*).
 17. **A soak of hours**, last, since it measures all the rest: `examples/webserver.ern` under
     steady requests, measured as [`memory.md`](memory.md) says.
-18. **Two library shapes the log's reasons left open** (the principles review's phase 6,
-    2026-10-01, the log's *The Log Read Against Its Reasons*), each decided with the user before
-    item 15 reads the names: whether `Map.mergeWith`'s callback takes the key, as Erlang's
-    `maps:merge_with` and OCaml's `Map.union` pass it (principle 1); and whether `Fs` makes a
-    hard link, the host's alone (E.0 rule 1). Each verdict rested on a neighbour or a count.
+18. **Two library shapes the log's reasons left open**, done 2026-10-01 (the log's *The Key
+    and the Hard Link*): `Map.mergeWith`'s function takes the key, as Erlang's `maps:merge_with`
+    and OCaml's `Map.union` pass it (principle 1, E.3), and `Fs.makeHardLink` makes a hard link,
+    the host's alone (E.0 rule 1, E.17). Each verdict had rested on a neighbour or a count,
+    which phase 6 found (the log's *The Log Read Against Its Reasons*).
 
 ---
 

@@ -725,6 +725,41 @@ fs_links_test() ->
                  [filename:basename(Path) || {'Entry', {'Path', Path}, _, _, _} <- Kept]),
     file:del_dir_r(Dir).
 
+%% report Appendix E.17: a hard link is a second name for a regular file,
+%% which outlives the first; a path that names something is `Exists`, and
+%% a target that is a directory, a link or nothing is `NotAFile` or
+%% `NotFound`. Written with the code
+fs_hard_links_test() ->
+    Me = self(),
+    Dir = filename:join("/tmp", "ern_hard_" ++ os:getpid() ++ "_"
+                                ++ integer_to_list(erlang:unique_integer([positive]))),
+    ok = filelib:ensure_path(filename:join(Dir, "shelf")),
+    ok = file:write_file(filename:join(Dir, "orig"), <<"o">>),
+    ok = file:make_symlink("orig", filename:join(Dir, "to_orig")),
+    P = fun(Name) -> {'Path', list_to_binary(filename:join(Dir, Name))} end,
+    F = 'ern@fs',
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Me ! {fs, F:makeHardLink(P("twin"), P("orig"), 1000)},
+                           Me ! {fs, F:stat(P("twin"), 1000)},
+                           Me ! {fs, F:makeHardLink(P("twin"), P("orig"), 1000)},
+                           Me ! {fs, F:makeHardLink(P("dir"), P("shelf"), 1000)},
+                           Me ! {fs, F:makeHardLink(P("link"), P("to_orig"), 1000)},
+                           Me ! {fs, F:makeHardLink(P("none"), P("missing"), 1000)},
+                           Me ! {fs, F:remove(P("orig"), 1000)},
+                           Me ! {fs, F:read(P("twin"), 1000)}
+                       end, <<"fs_hard_links_test">>, #{})),
+    [Made, Stat, Again, OfDir, OfLink, OfNone, Removed, Read] = collect(fs, []),
+    ?assertEqual({'Right', 'Unit'}, Made),
+    ?assertMatch({'Right', {'Entry', _, _, 1, 'File'}}, Stat),
+    ?assertEqual({'Left', 'Exists'}, Again),
+    ?assertEqual({'Left', 'NotAFile'}, OfDir),
+    ?assertEqual({'Left', 'NotAFile'}, OfLink),
+    ?assertEqual({'Left', 'NotFound'}, OfNone),
+    ?assertEqual({'Right', 'Unit'}, Removed),
+    ?assertEqual({'Right', <<"o">>}, Read),
+    file:del_dir_r(Dir).
+
 %% report Appendix E.17: `readRange` reads a part of a file, fewer bytes at
 %% its end and none past it, a regular file only, and an offset or a count
 %% below 0 is none (§7.4, a regression test of the rule of 2026-10-01, which

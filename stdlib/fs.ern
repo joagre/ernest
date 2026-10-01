@@ -70,6 +70,7 @@ type Msg =
   | Rename(from : Path, to : Path, reply : Reply(Either(Io.Error, Unit)))
   | Copy(from : Path, to : Path, reply : Reply(Either(Io.Error, Unit)))
   | MakeLink(target : Path, path : Path, reply : Reply(Either(Io.Error, Unit)))
+  | MakeHardLink(path : Path, target : Path, reply : Reply(Either(Io.Error, Unit)))
   | ReadLink(path : Path, reply : Reply(Either(Io.Error, Optional(Path))))
   | MakeFile(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
   | SetModified(path : Path, mtime : Int, reply : Reply(Either(Io.Error, Unit)))
@@ -239,6 +240,27 @@ export fn copy(from : Path, to : Path, ms : Int) : Either(Io.Error, Unit) with m
 /// ```
 export fn makeLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(r) = MakeLink(target = target, path = path, reply = r), ms))
+
+/// Makes a hard link at the first path to the regular file the second
+/// names: a second name for the file, which outlives the first. A first
+/// path that names something is `Left(Exists)`, and a second that names
+/// anything but a regular file, a link among them, is `Left(NotAFile)`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let _ = Fs.write(Path("original.txt"), String.toUtf8("o"), 5000);
+///     let _ = Fs.makeHardLink(Path("twin.txt"), Path("original.txt"), 5000);
+///     let _ = Fs.remove(Path("original.txt"), 5000);
+///     Either.map(Fs.read(Path("twin.txt"), 5000), String.fromUtf8)
+/// }
+/// // => Right(Some("o"))
+/// ```
+export fn makeHardLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit) with m =
+    answered(Address.call(reference,
+                          fn(r) = MakeHardLink(path = path, target = target, reply = r),
+                          ms))
 
 /// The path a symbolic link holds, as it was written, or `None` where the
 /// path names something that is not a link. A link whose target is not

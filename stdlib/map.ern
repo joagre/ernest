@@ -186,20 +186,24 @@ export fn find(m : Map(k, v), p : (k, v) -> Bool with e) : Optional(#(k, v)) wit
 export fn merge(m : Map(k, v), other : Map(k, v)) : Map(k, v) =
     List.foldLeft(toList(other), m, fn(acc, #(key, value)) = put(acc, key, value))
 
-/// The entries of both, a shared key given the function of the first's
-/// value and the second's.
+/// The entries of both, a shared key given the function of the key, the
+/// first's value and the second's.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Map.toList(Map.mergeWith(Map.fromList([#("a", 1)]), Map.fromList([#("a", 2)]), Int.+))
-/// // => [#("a", 3)]
+/// Map.toList(Map.mergeWith(Map.fromList([#("a", 1), #("b", 1)]),
+///                          Map.fromList([#("a", 2), #("b", 2)]),
+///                          fn(key, a, b) = if key == "a" then a + b else b))
+/// // => [#("a", 3), #("b", 2)]
 /// ```
-export fn mergeWith(m : Map(k, v), other : Map(k, v), f : (v, v) -> v with e) : Map(k, v) with e =
+export fn mergeWith(m : Map(k, v),
+                    other : Map(k, v),
+                    f : (k, v, v) -> v with e) : Map(k, v) with e =
     List.foldLeft(toList(other),
                   m,
                   fn(acc, #(key, value)) = update(acc, key, fn(mine) = match mine {
-                      Some(first) -> f(first, value)
+                      Some(first) -> f(key, first, value)
                     | None -> value
                   }))
 
