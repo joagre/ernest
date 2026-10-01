@@ -137,7 +137,13 @@ sharpens (decided 2026-09-30, the log's *The Principles Review*).
    test`'s `persistent_term` replaced at each input and each test, each replacement a scan of
    every process by the host (C3-39): what changes per input or per test moves to a table, and
    what a binding's holder keeps, which a read must not copy, is measured against a table and
-   decided with the user with the numbers.
+   decided with the user with the numbers. With it the reaper's sample in `make load`, which on
+   2026-10-01 read 1,472 bytes above its baseline in about one round in twenty-five of the
+   programs and the processes loads, its heap, its queue and its monitors unchanged and the next
+   round back at the baseline, so that a load fails at random when its last round is one: what
+   holds the bytes is found by sampling the reaper's `monitored_by` and its collection's figures
+   at such a round, its stack ruled out (nine words), and the measure counts what holds a wait
+   and nothing else.
 8. **The runtime's part of running as a service**: what item 5's decisions build, and
    standard error on a full or failing disk ending the run with status 141, as §8.2 says;
    beside item 7, in the same code.
