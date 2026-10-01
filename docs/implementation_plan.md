@@ -235,9 +235,7 @@ its examples change together (the attack plan's rules of the road): under E.0's 
 builders write a published specification, ECMA-48, in a standard library module (E.16);
 and `Udp` waited on a count, dated by the tenth family to MVP 3.2 as a module of Appendix E (the log's *`Clock.monotonic` Is In, and `Udp` Is
 Placed*). Under §8.2's *Text from the host* of 2026-10-01, `Os.environment` leaves out a
-variable whose name or value is not UTF-8 (E.23). Under §6.9's ownership sentence of 2026-10-01, a listener belongs to no one
-and lives until the program ends, and a program the runtime started cannot be given (E.18,
-E.23). Under §3.9's sentence of 2026-10-01, each restriction prints with its mark,
+variable whose name or value is not UTF-8 (E.23). Under §3.9's sentence of 2026-10-01, each restriction prints with its mark,
 and a process-only variable prints without one, §11.5 saying so and giving no spelling: the
 mark's spelling is a decision of this phase's edits, taken with the user before the printer
 and §11.5 change. Under §3.5's declared order of 2026-10-01, the emitter's

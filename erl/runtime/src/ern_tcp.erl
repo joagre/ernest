@@ -21,8 +21,8 @@ loop() ->
 
 serve(Tcp) ->
     receive
-        {'Listen', Host, Port, Reply} ->
-            erlang:spawn(fun() -> listen(Tcp, Host, Port, Reply) end),
+        {'Listen', Host, Owner, Port, Reply} ->
+            erlang:spawn(fun() -> listen(Tcp, Host, Owner, Port, Reply) end),
             serve(Tcp);
         {'Connect', Host, Ms, Owner, Port, Reply} ->
             counted(fun() -> connect(Tcp, Host, Port, ern_rt:deadline(Ms), Owner, Reply) end),
@@ -51,7 +51,7 @@ opened(Tcp, Loop, Site) ->
 %% Report Appendix E.18: a listener on the interface the host's name or
 %% address names. Every request is answered: a port out of range, and what
 %% the host refuses by raising, are errors as much as what it answers.
-listen(Tcp, Host, Port, Reply) ->
+listen(Tcp, Host, Owner, Port, Reply) ->
     Answer = case {in_range(Port), address(Host)} of
                  {false, _} ->
                      {'Left', 'Invalid'};
@@ -64,8 +64,13 @@ listen(Tcp, Host, Port, Reply) ->
                                 {ip, Address} | family(Address)],
                      case guarded(fun() -> gen_tcp:listen(Port, Options) end) of
                          {ok, Socket} ->
-                             Listener = opened(Tcp, fun() -> listener_loop(Tcp, Socket) end,
-                                               <<"Tcp.listen">>),
+                             %% report §6.9, Appendix E.18: owned by the
+                             %% process that opened it, with which it ends
+                             Loop = fun() ->
+                                        Watch = erlang:monitor(process, Owner),
+                                        listener_loop(Tcp, Socket, Watch)
+                                    end,
+                             Listener = opened(Tcp, Loop, <<"Tcp.listen">>),
                              gen_tcp:controlling_process(Socket, Listener),
                              {'Right', Listener};
                          {error, Reason} ->
@@ -157,17 +162,21 @@ attempt(Tcp, Try, Deadline, Owner, Reply, Site) ->
 %% A listener answers each Accept by a worker of its own, so that a slow
 %% accept does not hold up the next request, and ends at CloseListener,
 %% whose close of the socket answers each accept still waiting.
-listener_loop(Tcp, Socket) ->
+listener_loop(Tcp, Socket, Watch) ->
     receive
         {'Accept', Ms, Owner, Reply} ->
             counted(fun() -> accept(Tcp, Socket, ern_rt:deadline(Ms), Owner, Reply) end),
-            listener_loop(Tcp, Socket);
+            listener_loop(Tcp, Socket, Watch);
         {'Port', Reply} ->
             ern_rt:answer(Reply, case inet:port(Socket) of
                                      {ok, Port} -> {'Right', Port};
                                      {error, Reason} -> {'Left', io_error(Reason)}
                                  end),
-            listener_loop(Tcp, Socket);
+            listener_loop(Tcp, Socket, Watch);
+        %% report Appendix E.18: its owner has died, and it is killed
+        {'DOWN', Watch, process, _, _} ->
+            gen_tcp:close(Socket),
+            exit({ern, killed});
         'CloseListener' ->
             gen_tcp:close(Socket),
             %% report Appendix E.18: a call after the close faults its caller

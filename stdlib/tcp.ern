@@ -92,7 +92,10 @@ export type Endpoint = Endpoint(host : String, port : Int)
 
 // What TCP's system process takes.
 type Msg =
-    Listen(host : String, port : Int, reply : Reply(Either(Io.Error, Address(ListenerMsg))))
+    Listen(host : String,
+           owner : Process,
+           port : Int,
+           reply : Reply(Either(Io.Error, Address(ListenerMsg))))
   | Connect(host : String,
             port : Int,
             ms : Int,
@@ -109,9 +112,13 @@ foreign fn system(name : Foreign) : Address(Msg) with m =
 /// A listener on the port of the host's interface that the name or the
 /// address names: `"127.0.0.1"` is the loopback alone, `"0.0.0.0"` every
 /// interface of IPv4, and `"::"` every interface of IPv6. Port 0 asks the
-/// system for a free one, which `Tcp.port` tells.
-export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerMsg)) with m =
-    Address.callForever(reference, fn(r) = Listen(host = host, port = port, reply = r))
+/// system for a free one, which `Tcp.port` tells. The listener is owned
+/// by the process that calls `listen`, and is killed when it dies.
+export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerMsg)) with m = {
+    let owner = Process.fromAddress(self());
+    Address.callForever(reference,
+                        fn(r) = Listen(host = host, owner = owner, port = port, reply = r))
+}
 
 /// The port the listener listens on.
 ///

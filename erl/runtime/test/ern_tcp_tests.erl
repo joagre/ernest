@@ -295,6 +295,26 @@ write_holds_up_no_read() ->
     ?assertEqual({'Left', 'Timeout'}, Read),
     ?assert(Took < 2000).
 
+%% report §6.9, Appendix E.18: a listener is owned by the process that
+%% opened it and is killed when that process dies. A regression test of the
+%% rule of 2026-10-01, before which a listener belonged to no one and lived
+%% until the program ended
+listener_ends_with_its_owner_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = self(),
+               _ = erlang:spawn(fun() -> Main ! {opened, listen(0)} end),
+               {'Right', Listener} = ern_rt:in_foreign(fun() -> receive {opened, L} -> L end end),
+               Down = erlang:monitor(process, ern_rt:process_of(Listener)),
+               Me ! {ended, ern_rt:in_foreign(fun() ->
+                                                  receive {'DOWN', Down, _, _, R} -> R
+                                                  after 5000 -> alive
+                                                  end
+                                              end)}
+           end, <<"main">>, quiet()),
+    ?assertEqual({ern, killed}, wait(ended)).
+
 quiet() ->
     #{stdout => fun(_) -> ok end}.
 
@@ -315,7 +335,9 @@ listen(Port) ->
     listen(<<"127.0.0.1">>, Port).
 
 listen(Host, Port) ->
-    ern_rt:call_forever(ern_rt:sys(tcp), fun(R) -> {'Listen', Host, Port, R} end).
+    %% report §6.9, Appendix E.18: the caller owns the listener
+    Owner = self(),
+    ern_rt:call_forever(ern_rt:sys(tcp), fun(R) -> {'Listen', Host, Owner, Port, R} end).
 
 connect(Port, Ms) ->
     connect(<<"127.0.0.1">>, Port, Ms).
@@ -333,7 +355,7 @@ accept(Listener, Ms) ->
     ern_rt:call_forever(Listener, fun(R) -> {'Accept', Ms, Owner, R} end).
 
 write(Socket, Bytes) ->
-    ern_rt:call_forever(Socket, fun(R) -> {'Send', Bytes, R} end).
+    ern_rt:call_forever(Socket, fun(R) -> {'Send', Bytes, 60000, R} end).
 
 read(Socket, Ms) ->
     ern_rt:call_forever(Socket, fun(R) -> {'Recv', Ms, R} end).

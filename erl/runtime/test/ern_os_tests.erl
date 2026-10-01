@@ -169,6 +169,35 @@ write_times_out_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({'Left', 'Timeout'}, wait(written)).
 
+%% report §6.9, Appendix E.23: `give` makes another process a program's
+%% owner, so that it outlives the process that started it and is killed
+%% when its new owner dies. A regression test of the rule of 2026-10-01,
+%% before which a program could not be given
+give_test() ->
+    Me = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Main = self(),
+               Keeper = erlang:spawn(fun() -> receive stop -> ok end end),
+               _ = erlang:spawn(fun() ->
+                                    {'Right', P} = start(<<"sleep">>, [<<"5">>]),
+                                    P ! {'Give', Keeper},
+                                    Main ! {program, P}
+                                end),
+               Program = ern_rt:in_foreign(fun() -> receive {program, P} -> P end end),
+               sleep(200),
+               Me ! {alive, erlang:is_process_alive(Program)},
+               Down = erlang:monitor(process, Program),
+               Keeper ! stop,
+               Me ! {ended, ern_rt:in_foreign(fun() ->
+                                                  receive {'DOWN', Down, _, _, R} -> R
+                                                  after 5000 -> alive
+                                                  end
+                                              end)}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual(true, wait(alive)),
+    ?assertEqual({ern, killed}, wait(ended)).
+
 %% The helper run on a command, as ern_os runs it: the command comes as the
 %% first frame.
 helper(Command) ->

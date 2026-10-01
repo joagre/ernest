@@ -73,6 +73,7 @@ export abstract type ProgramMsg =
     Read(ms : Int, reply : Reply(Either(Io.Error, Output)))
   | Write(bytes : Bytes, ms : Int, reply : Reply(Either(Io.Error, Unit)))
   | CloseInput
+  | Give(owner : Process)
 
 // What Os's system process takes: a program to start, with the process
 // whose death kills it.
@@ -266,6 +267,26 @@ export fn write(program : Address(ProgramMsg),
 /// ```
 export fn closeInput(program : Address(ProgramMsg)) : Unit with m =
     send(program, CloseInput)
+
+/// Makes the process the program's owner, in place of the process that
+/// called `Os.start` or was given it before: the program is killed when its
+/// owner dies, and at once where the process has ended (report §6.9).
+///
+/// ### Examples
+///
+/// ```ernest
+/// {
+///     let sleeper <- Os.start(Os.Command(program = "sleep", arguments = ["1"], input = <<>>));
+///     let keeper = spawn(Local, fn() : Unit with Never = receive {
+///         after 1000 -> Unit
+///     });
+///     Os.give(sleeper, Process.fromAddress(keeper));
+///     kill(sleeper);
+///     Right(Unit)
+/// }
+/// ```
+export fn give(program : Address(ProgramMsg), owner : Process) : Unit with m =
+    send(program, Give(owner = owner))
 
 /// Runs the program to its end: starts it, ends its input after `input`,
 /// and reads it until it has exited, within `ms` milliseconds of its start.
