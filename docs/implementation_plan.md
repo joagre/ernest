@@ -294,7 +294,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     language is built in this item after the decisions, its report sentences with its code.
     Entry 76: a path in a record update, `Pool(..pool, stats.indexed = e)`, admitted by
     principle 2's sequence clause, about a day and a half (§5.6, Appendix A). Entry 77:
-    `let me = self()` before a spawn kept, the guide teaching it once (item 16).
+    `let me = self()` before a spawn kept, the guide teaching it once (item 16). Entry 78:
+    `let _ = e` kept, `foreach`'s callback answering `Unit` (principle 3).
 
 ---
 
