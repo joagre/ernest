@@ -62,7 +62,8 @@ tools/             the programs of the build: manual.ern writes ern(1) from the
                    release/ holds the archive's own Makefile and README.md
 man/               the last release's pages as CommonMark, which make pages writes at the
                    release: the prelude's and the standard library's under stdlib/,
-                   each library's under libs/, an index in each, and index.md over them
+                   each library's under libs/, an index in each and one over them,
+                   each its directory's README.md
 build/             build products, not in git: stdlib/, libs/, shell/, tools/ and man/
                    from make, with the manual pages; the standard library's pages
                    in stdlib/ from make doc; release/ from make release; dialyzer/

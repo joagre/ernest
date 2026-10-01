@@ -59,7 +59,7 @@ Or from a release: download `ern-<version>.tar.gz` from the [releases page](http
 
 - **[The guide](ernest_guide.md)**, *Programming in Ernest*, teaches the language to a programmer who knows another. Start here.
 - **[`examples/`](examples/)** holds complete programs, from `hello.ern` to a game at a terminal, [`snake.ern`](examples/snake.ern), and a small web server, [`webserver.ern`](examples/webserver.ern); guide §14 says what the larger ones show.
-- **[The manual pages](man/index.md)** of the latest release, the prelude's, every standard library module's and every library's, as `man Ernest.List` shows them where Ernest is installed.
+- **[The manual pages](man/)** of the latest release, the prelude's, every standard library module's and every library's, as `man Ernest.List` shows them where Ernest is installed.
 - **[The report](ernest_report.md)** is where the details are: the language's definition, which everything else defers to.
 - **[Working on Ernest](docs/development.md)** is for those who work on the language and its toolchain.
 
