@@ -16,10 +16,12 @@ is_component(Component) ->
     lists:all(fun is_word/1, string:split(Component, "_", all)).
 
 is_word([First | Rest]) when First >= $a, First =< $z ->
-    lists:all(fun(Char) -> (Char >= $a andalso Char =< $z) orelse (Char >= $0 andalso Char =< $9)
-              end, Rest);
+    lists:all(fun is_lower_or_digit/1, Rest);
 is_word(_) ->
     false.
+
+is_lower_or_digit(Char) ->
+    (Char >= $a andalso Char =< $z) orelse (Char >= $0 andalso Char =< $9).
 
 %% The namespace segment a component names, or error where it is no
 %% component.
