@@ -17,7 +17,7 @@
 -spec describe(term(), ern_typecheck:env(), [atom()]) -> term().
 describe(T, Env, Ns) ->
     Cx = #cx{env = Env, ns = Ns},
-    {D, _} = desc(ern_types:zonk(T, ern_typecheck:type_state(Env)), #{}, Cx),
+    {D, _} = desc(ern_types:substitute(T, ern_typecheck:type_state(Env)), #{}, Cx),
     D.
 
 %% Seen maps each user type enclosing the one being described to the id
@@ -69,14 +69,14 @@ desc({tcon, Q, Args} = T, Seen, #cx{env = Env} = Cx) ->
             {{ref, Id}, Seen};
         _ ->
             case ern_typecheck:lookup_type(Q, Env) of
-                #tinfo{foreign = true} ->
+                #type_info{foreign = true} ->
                     %% report §8.4, Appendix E.1: unchecked, as a type
                     %% variable is, and shown as `<foreign>`
                     {foreign, Seen};
-                #tinfo{constructors = Cs, abstract = Abstract} ->
+                #type_info{constructors = Cs, abstract = Abstract} ->
                     Id = map_size(Seen) + 1,
                     {ConDs, _} =
-                        lists:mapfoldl(fun(#cinfo{name = Tag, fields = Spec} = C, S) ->
+                        lists:mapfoldl(fun(#constructor_info{name = Tag, fields = Spec} = C, S) ->
                                            {Ds, S1} = descs(fields(C, Args, Cx), S, Cx),
                                            {con_desc(Tag, Spec, Ds), S1}
                                        end, Seen#{T => Id}, Cs),
@@ -110,7 +110,7 @@ descs(Ts, Seen, Cx) ->
 %% A constructor's field types at the type's arguments: its scheme is
 %% quantified over the type's parameters, which its result type lists in
 %% order as distinct variables once instantiated.
-fields(#cinfo{scheme = Scheme}, Args, #cx{env = Env}) ->
+fields(#constructor_info{scheme = Scheme}, Args, #cx{env = Env}) ->
     {FT, _} = ern_types:instantiate(Scheme, ern_typecheck:type_state(Env)),
     {FieldTs, {tcon, _, Params}} = case FT of
                                        {tfn, Fs, _, R} -> {Fs, R};

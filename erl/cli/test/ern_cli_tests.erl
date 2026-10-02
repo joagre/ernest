@@ -22,6 +22,26 @@ tmp() ->
     ok = filelib:ensure_path(Dir),
     Dir.
 
+%% report §11.1: the standard library's own build takes its namespaces from
+%% its .erc files and not from an installed copy, so a copy that cannot be
+%% read, as one a build of ern in another chunk format wrote, does not stop
+%% the build that replaces it, and the copy's directory returns to the code
+%% path after. A regression test: such a copy stopped `make` until
+%% build/stdlib was removed by hand. Not covered: a copy read while another
+%% root builds, which is the library's and must be readable.
+stdlib_build_sets_its_copy_aside_test() ->
+    Installed = filename:join(tmp(), "stdlib"),
+    ok = filelib:ensure_path(Installed),
+    ok = file:write_file(filename:join(Installed, "ern@unreadable.beam"), <<"not a module">>),
+    true = code:add_pathz(Installed),
+    try
+        ?assertEqual(0, ern_build:compile([{build_root, Installed}], "../../../stdlib",
+                                          standard_error)),
+        ?assert(lists:member(Installed, code:get_path()))
+    after
+        code:del_path(Installed)
+    end.
+
 %% report §11.6: ern format lays out a module in place, every module under
 %% a directory, and with --check names each one not laid out, changing
 %% none, the status 1; a module that does not parse is left as it is, its
@@ -430,7 +450,7 @@ reached_interface_test() ->
     ?assertEqual(0, ern_err(["run", Dir ++ "/build/main.erc"])),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"2\n">>)),
     {ok, Bin} = file:read_file(filename:join(Dir, "build/main.erc")),
-    {ok, #{deps := Deps}} = ern_iface:read(Bin),
+    {ok, #{deps := Deps}} = ern_interface:read(Bin),
     ?assertEqual([['Boxes'], ['Maker']], lists:sort([D || {D, _} <- Deps])),
     write(Dir, "src/boxes.ern", "export type Box = Box(f : Int)\n"),
     write(Dir, "src/maker.ern", "export fn make() : Boxes.Box = Boxes.Box(f = 1)\n"),
@@ -1154,7 +1174,7 @@ sources_follow_no_link_test() ->
     ok = file:make_symlink("..", Dir ++ "/src/loop"),
     ?assertEqual(0, ern_cli:ern(["build", Dir ++ "/src"])),
     {ok, Beam} = file:read_file(Dir ++ "/src/util.erc"),
-    {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
+    {ok, #{interface := #interface{namespace = Ns}}} = ern_interface:read(Beam),
     ?assertEqual(['Util'], Ns).
 
 %% report §11.1: a stale .erc is no module, and a module that uses it is an
@@ -1185,7 +1205,7 @@ recompile_on_moved_source_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/moved"])),
     {ok, After} = file:read_file(Dir ++ "/build/main.erc"),
     ?assertNotEqual(Before, After),
-    {ok, #{source_path := Path}} = ern_iface:read(After),
+    {ok, #{source_path := Path}} = ern_interface:read(After),
     ?assertEqual(<<"../moved/main.ern">>, Path).
 
 %% report §11.1: --emit-erl writes the Erlang source and no .erc

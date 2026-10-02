@@ -4,11 +4,11 @@
 %% ern_parser:parse_type/1 and converted by the checker. An operation a
 %% type's standard library module provides is documented there, and its
 %% entry says `module`. The standard library's own signatures come from its
-%% compiled interfaces, stdlib_ifaces/0.
+%% compiled interfaces, stdlib_interfaces/0.
 -module(ern_prelude).
 
 -export([equality_params/1, builtin_types/0, declared_types/0, process_only/0, values/0,
-         member_types/0, docs/0, stdlib_ifaces/0]).
+         member_types/0, docs/0, stdlib_interfaces/0]).
 
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -485,21 +485,23 @@ values() ->
 %% members takes none.
 -spec member_types() -> [atom()].
 member_types() ->
-    lists:usort([hd(Q) || {Q, _, _} <- values(), length(Q) > 1]).
+    lists:usort([hd(QualifiedName) || {QualifiedName, _, _} <- values(),
+                                      length(QualifiedName) > 1]).
 
 %% Report §9, §11.4: the prelude's documentation, as an EEP 48 chunk of the
 %% shape ern_docs:build/4 builds for a module, so that one renderer serves
 %% both. An operation its type's module documents is not repeated here.
 -spec docs() -> tuple().
 docs() ->
-    {ok, Decls} = ern_parser:parse_string(declared_types()),
+    {ok, Declarations} = ern_parser:parse_string(declared_types()),
     Texts = declaration_texts(declared_types()),
-    Types = [entry({type, N, A}, [type_signature(N, A)], D) || {N, A, D} <- builtin_types()]
-        ++ [entry({type, N, length(Ps)}, maps:get(N, Texts), D)
-            || #type_declaration{name = N, params = Ps, doc = D} <- Decls],
-    Values = [entry({function, dotted(Q), arity(T)}, [iolist_to_binary([dotted_text(Q), " : ", T])],
-                    D)
-              || {Q, T, D} <- values(), D =/= module],
+    Types = [entry({type, Name, Arity}, [type_signature(Name, Arity)], Doc)
+             || {Name, Arity, Doc} <- builtin_types()]
+        ++ [entry({type, Name, length(Params)}, maps:get(Name, Texts), Doc)
+            || #type_declaration{name = Name, params = Params, doc = Doc} <- Declarations],
+    Values = [entry({function, dotted(QualifiedName), arity(Signature)},
+                    [iolist_to_binary([dotted_text(QualifiedName), " : ", Signature])], Doc)
+              || {QualifiedName, Signature, Doc} <- values(), Doc =/= module],
     {docs_v1, erl_anno:new(0), ernest, <<"text/markdown">>, #{<<"en">> => prelude_doc()},
      #{source => <<"the prelude, report §9"/utf8>>}, Types ++ Values}.
 
@@ -510,30 +512,33 @@ entry(Key, Signature, Doc) ->
 type_signature('Address', 1) -> <<"type Address(m)">>;
 type_signature('Map', 2) -> <<"type Map(k=, v)">>;
 type_signature('Set', 1) -> <<"type Set(a=)">>;
-type_signature(N, 1) -> <<"type ", (atom_to_binary(N))/binary, "(a)">>;
-type_signature(N, 0) -> <<"type ", (atom_to_binary(N))/binary>>.
+type_signature(Name, 1) -> <<"type ", (atom_to_binary(Name))/binary, "(a)">>;
+type_signature(Name, 0) -> <<"type ", (atom_to_binary(Name))/binary>>.
 
 %% Each declared type's source lines, without its doc block, by name.
 declaration_texts(Source) ->
-    Lines = [L || L <- string:split(Source, "\n", all), not lists:prefix("///", L), L =/= ""],
+    Lines = [Line || Line <- string:split(Source, "\n", all), not lists:prefix("///", Line),
+                     Line =/= ""],
     group_texts(Lines, #{}).
 
 group_texts([], Acc) ->
     Acc;
-group_texts(["type " ++ Rest = L | Ls], Acc) ->
-    {Cont, Others} = lists:splitwith(fun(C) -> lists:prefix(" ", C) end, Ls),
+group_texts(["type " ++ Rest = Line | Lines], Acc) ->
+    {Continued, Others} = lists:splitwith(fun(Next) -> lists:prefix(" ", Next) end, Lines),
     Key = list_to_atom(hd(string:lexemes(Rest, " ("))),
-    group_texts(Others, Acc#{Key => [unicode:characters_to_binary(X) || X <- [L | Cont]]});
-group_texts([_ | Ls], Acc) ->
-    group_texts(Ls, Acc).
+    Texts = [unicode:characters_to_binary(Text) || Text <- [Line | Continued]],
+    group_texts(Others, Acc#{Key => Texts});
+group_texts([_ | Lines], Acc) ->
+    group_texts(Lines, Acc).
 
-dotted(Q) -> list_to_atom(dotted_text(Q)).
+dotted(QualifiedName) -> list_to_atom(dotted_text(QualifiedName)).
 
-dotted_text(Q) -> lists:flatten(lists:join(".", [atom_to_list(S) || S <- Q])).
+dotted_text(QualifiedName) ->
+    lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- QualifiedName])).
 
 arity(Text) ->
     case ern_parser:parse_type(Text) of
-        {ok, #t_fn{params = Ps}} -> length(Ps);
+        {ok, #t_fn{params = Params}} -> length(Params);
         _ -> 0
     end.
 
@@ -565,19 +570,19 @@ prelude_doc() ->
 %% application's name; taking every ern@ module on the path instead would
 %% make the shell's own module, which lives in `build/shell` and is on the
 %% same path, a standard library namespace (report §4.2, §11.2).
--spec stdlib_ifaces() -> [#iface{}].
-stdlib_ifaces() ->
-    Files = lists:usort(lists:append([filelib:wildcard(filename:join(D, "ern@*.beam"))
-                                      || D <- code:get_path(),
-                                         filename:basename(D) =:= "stdlib"])),
-    lists:append([stdlib_iface(F) || F <- Files]).
+-spec stdlib_interfaces() -> [#interface{}].
+stdlib_interfaces() ->
+    Files = lists:usort(lists:append([filelib:wildcard(filename:join(Dir, "ern@*.beam"))
+                                      || Dir <- code:get_path(),
+                                         filename:basename(Dir) =:= "stdlib"])),
+    lists:append([stdlib_interface(File) || File <- Files]).
 
 %% A standard library module whose interface cannot be read is a broken
 %% build of the toolchain, said as such, never a namespace left out.
-stdlib_iface(File) ->
-    case ern_iface:read(File) of
-        {ok, #{iface := Iface}} ->
-            [Iface];
+stdlib_interface(File) ->
+    case ern_interface:read(File) of
+        {ok, #{interface := Interface}} ->
+            [Interface];
         {error, Reason} ->
             error({broken_standard_library, File, Reason, "rebuild it with make"})
     end.

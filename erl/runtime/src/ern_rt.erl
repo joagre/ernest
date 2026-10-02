@@ -1823,7 +1823,7 @@ init_stdlib() ->
 
 %% The standard library's modules, loaded, in the order their initializers
 %% run: every ern@ module in a `stdlib` directory on the code path, as the
-%% checker finds them (ern_prelude:stdlib_ifaces/0). The shell's modules
+%% checker finds them (ern_prelude:stdlib_interfaces/0). The shell's modules
 %% are on the same path and are not the standard library's; the shell
 %% initializes them as a program's own (init_modules/1).
 stdlib_modules() ->

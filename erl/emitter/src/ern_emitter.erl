@@ -35,7 +35,7 @@
 %% Entry points
 %%
 
--spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env()) -> {ok, atom(), binary()}.
+-spec compile([atom()], [tuple()], #interface{}, ern_typecheck:env()) -> {ok, atom(), binary()}.
 compile(Ns, Decls, Iface, Env) ->
     compile(Ns, Decls, Iface, Env, #{source_hash => <<>>, deps => []}).
 
@@ -49,7 +49,7 @@ compile(Ns, Decls, Iface, Env) ->
 %% been checked: what the emitter cannot emit, or emits and the host does not
 %% compile, is a defect of the toolchain, raised as one, which `ern` reports
 %% as its own failure (report §11).
--spec compile([atom()], [tuple()], #iface{}, ern_typecheck:env(),
+-spec compile([atom()], [tuple()], #interface{}, ern_typecheck:env(),
               #{source_hash := binary(), source_path => binary(),
                 deps := [{[atom()], binary()}], compiler => binary(),
                 stdlib => binary() | none, source => binary(),
@@ -58,9 +58,9 @@ compile(Ns, Decls, Iface, Env) ->
 compile(Ns, Decls, Iface, Env, Build) ->
     Forms = forms(Ns, Decls, Env, Build),
     Meta = maps:without([source, session, standard], Build),
-    Chunk = ern_iface:encode(Meta, Iface),
+    Chunk = ern_interface:encode(Meta, Iface),
     Docs = term_to_binary(ern_docs:build(Ns, Decls, Env, maps:get(source, Build, <<>>))),
-    Chunks = [{ern_iface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs}],
+    Chunks = [{ern_interface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs}],
     case compile:forms(Forms, [return_errors, debug_info, {extra_chunks, Chunks}]) of
         {ok, Mod, Bin} -> {ok, Mod, Bin};
         {error, Errors, _} -> erlang:error({emitted_erlang_does_not_compile, Errors})
@@ -240,7 +240,7 @@ decl(#foreign_fn_declaration{span = Pos, owner = O, name = N, params = Params,
     %% report §4.7, §8.4: the implementation called in place, an exception
     %% it raises turned into a fault, and its return checked
     Name = fname(O, N),
-    {ok, {M, F, _}} = ern_typecheck:foreign_impl(Impl),
+    {ok, {M, F, _}} = ern_typecheck:foreign_implementation(Impl),
     {Vars, Cx1} = fresh_vars(length(Params), "A", Cx#cx{fname = Name}),
     {tfn, ParamTs, Effect, Ret} = Scheme#scheme.type,
     Args = [erl_syntax:variable(V) || V <- Vars],
@@ -889,7 +889,7 @@ negate(_, Form, _) -> erl_syntax:prefix_expr(erl_syntax:operator('-'), Form).
 member_call(Q, Name, Args, #cx{ns = Ns, env = Env}) ->
     Owner = lists:last(Q),
     %% report §11.2: at the prompt a later input may have declared it
-    MQ = ern_typecheck:member_qname(Q, Name, Env),
+    MQ = ern_typecheck:member_qualified_name(Q, Name, Env),
     case lists:droplast(lists:droplast(MQ)) of
         Ns -> erl_syntax:application(erl_syntax:atom(fname(Owner, Name)), Args);
         Mod -> call_remote(module_atom(Mod), fname(Owner, Name), Args)
@@ -1112,9 +1112,9 @@ crosses(_) -> false.
 %% the places differ.
 select(Pos, F, XT, Form, #cx{env = Env} = Cx) ->
     {tcon, Q, _} = ern_typecheck:resolve_type(XT, Env),
-    #tinfo{constructors = Cs} = ern_typecheck:lookup_type(Q, Env),
+    #type_info{constructors = Cs} = ern_typecheck:lookup_type(Q, Env),
     Places = [{C, place(F, Names) + 1, length(Names)}
-              || #cinfo{name = C, fields = {named, Names}} <- Cs],
+              || #constructor_info{name = C, fields = {named, Names}} <- Cs],
     case lists:usort([I || {_, I, _} <- Places]) of
         [I] ->
             {at(Pos, call_remote(erlang, element, [erl_syntax:integer(I), Form])), Cx};
@@ -1134,7 +1134,8 @@ place(F, [F | _]) -> 1;
 place(F, [_ | R]) -> 1 + place(F, R).
 
 con_expr(Pos, Path, Name, Args, Cx) ->
-    #cinfo{fields = Fields} = ern_typecheck:lookup_con(Pos, Path, Name, Cx#cx.env),
+    #constructor_info{fields = Fields} = ern_typecheck:lookup_constructor(Pos, Path, Name,
+                                                                          Cx#cx.env),
     Tag = erl_syntax:atom(Name),
     case {Fields, Args} of
         {none, none} ->
@@ -1483,7 +1484,8 @@ pattern(#p_var{span = Pos, name = N}, Cx) ->
 pattern(#p_literal{span = Pos, kind = Kind, value = V}, Cx) ->
     {at(Pos, literal(Kind, V)), Cx};
 pattern(#p_constructor{span = Pos, path = Path, name = Name, args = Args}, Cx) ->
-    #cinfo{fields = Fields} = ern_typecheck:lookup_con(Pos, Path, Name, Cx#cx.env),
+    #constructor_info{fields = Fields} = ern_typecheck:lookup_constructor(Pos, Path, Name,
+                                                                          Cx#cx.env),
     Tag = erl_syntax:atom(Name),
     case {Fields, Args} of
         {none, _} -> {at(Pos, Tag), Cx};

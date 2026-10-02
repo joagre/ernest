@@ -165,8 +165,8 @@ collect(Acc) ->
 libraries(Ns) ->
     [Iface || F <- filelib:wildcard(filename:join(?ROOT, "build/libs/*/*.erc")),
               {ok, Bytes} <- [file:read_file(F)],
-              {ok, #{iface := Iface}} <- [ern_iface:read(Bytes)],
-              Iface#iface.namespace =/= Ns].
+              {ok, #{interface := Iface}} <- [ern_interface:read(Bytes)],
+              Iface#interface.namespace =/= Ns].
 
 checked(Ns, Text, Libraries) ->
     case ern_parser:parse_string(Text) of
@@ -256,11 +256,13 @@ see_also(File) ->
     {ok, Decls} = ern_parser:parse_string(Src),
     Known = lists:append([decl_names(D) || D <- Decls])
         ++ [atom_to_list(hd(Q)) || {Q, _, _} <- ern_prelude:values(), length(Q) > 1]
-        ++ [atom_to_list(hd(I#iface.namespace)) || I <- ern_prelude:stdlib_ifaces()]
+        ++ [atom_to_list(hd(I#interface.namespace)) || I <- ern_prelude:stdlib_interfaces()]
         ++ [atom_to_list(N) || {N, _, _} <- ern_prelude:builtin_types()]
         ++ [qualified(Q) || {Q, _, _} <- ern_prelude:values()]
-        ++ [qualified(Q) || I <- ern_prelude:stdlib_ifaces(), Q <- maps:keys(I#iface.values)]
-        ++ [qualified(Q) || I <- ern_prelude:stdlib_ifaces(), Q <- maps:keys(I#iface.types)],
+        ++ [qualified(Q) || I <- ern_prelude:stdlib_interfaces(),
+                            Q <- maps:keys(I#interface.values)]
+        ++ [qualified(Q) || I <- ern_prelude:stdlib_interfaces(),
+                            Q <- maps:keys(I#interface.types)],
     Named = [N || Doc <- docs(Decls),
                   {match, Secs} <- [re:run(Doc, "#+ See also\\n\\n(.*?)(?=\\n#|$)",
                                            [global, dotall, {capture, all_but_first, list}])],
@@ -328,14 +330,15 @@ fences(Doc) ->
 %% plan MVP 2.5: every value a compiled standard library interface
 %% declares is exported by its module with the arity of its type
 stdlib_targets_test() ->
-    Missing = [{Q, Ar} || #iface{namespace = Ns, values = Vs} <- ern_prelude:stdlib_ifaces(),
+    Missing = [{Q, Ar}
+               || #interface{namespace = Ns, values = Vs} <- ern_prelude:stdlib_interfaces(),
                           {Q, Scheme} <- maps:to_list(Vs),
                           Ar <- [arity(Scheme)],
                           Mod <- [module_atom(Ns)],
                           code:ensure_loaded(Mod) =/= {module, Mod}
                               orelse not erlang:function_exported(Mod, lists:last(Q), Ar)],
     ?assertEqual([], Missing),
-    ?assertNotEqual([], ern_prelude:stdlib_ifaces()).
+    ?assertNotEqual([], ern_prelude:stdlib_interfaces()).
 
 module_atom(Ns) ->
     list_to_atom("ern@" ++ string:lowercase(lists:join("@", [atom_to_list(A) || A <- Ns]))).

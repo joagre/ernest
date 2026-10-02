@@ -486,7 +486,7 @@ The milestone is §8.7's identity in full:
   never written. With it, whether a type's identity holds the hash of its `compare`, so that
   a value ordered under one order is not read under another where versions meet (on one
   node MVP 2.99b's item 5 left it the program's, which names both orders, the log's *MVP
-  2.99b's Questions, One by One*). Whether `ern_iface:hash/1`, which hashes a canonical interface, grows into
+  2.99b's Questions, One by One*). Whether `ern_interface:hash/1`, which hashes a canonical interface, grows into
   the definition hash or a second scheme stands beside it is part of that decision.
 - Every definition gets a hash of its typed AST; modules are named by hash, with a registry
   per node `{Hash -> Module}`. A function spawned on a peer carries its hash, and a node that

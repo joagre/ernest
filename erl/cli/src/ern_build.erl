@@ -37,6 +37,7 @@ compile(Opts, Path, Err) ->
             end,
     Modules = [module_of(absolute(F), Root) || F <- Files],
     Dirs = [OutDir | load_path(Opts)],
+    SetAside = set_aside_installed_stdlib(Root, OutDir),
     try
         %% report §11.1: a module outside the source root is found under
         %% build-root, then under each --load-path root
@@ -73,6 +74,8 @@ compile(Opts, Path, Err) ->
         end
     catch
         throw:{errors, File, Errors} -> report_errors(Opts, File, Errors, Err)
+    after
+        code:add_pathsa(SetAside)
     end.
 
 %% Report §11.5: each error as ern_diagnostic renders it, the first line alone
@@ -401,6 +404,21 @@ out_dir(Opts, Root) ->
         Dir -> absolute(Dir)
     end.
 
+%% Report §11.1: the standard library's own root takes its namespaces from
+%% this build's .erc files, so its installed copy, which the checker reads
+%% as the library and which a build of ern in another chunk format may have
+%% written, is off the code path while the library builds; the directories
+%% set aside, which return to the path when the build ends.
+set_aside_installed_stdlib(Root, OutDir) ->
+    case is_stdlib_root(Root) of
+        true ->
+            Dirs = [Dir || Dir <- code:get_path(), absolute(Dir) =:= OutDir],
+            lists:foreach(fun code:del_path/1, Dirs),
+            Dirs;
+        false ->
+            []
+    end.
+
 -spec is_stdlib_root(file:filename()) -> boolean().
 is_stdlib_root(Root) ->
     absolute(Root) =:= stdlib_root().
@@ -425,7 +443,7 @@ prelude_only_namespaces() ->
 
 %% The standard library's modules at the top of the hierarchy.
 stdlib_namespaces() ->
-    lists:usort([hd(I#iface.namespace) || I <- ern_prelude:stdlib_ifaces()]).
+    lists:usort([hd(I#interface.namespace) || I <- ern_prelude:stdlib_interfaces()]).
 
 %% Type-check and compile one module against its dependencies'
 %% interfaces, unless its .erc is current (§11.1). Returns the interfaces
@@ -433,7 +451,7 @@ stdlib_namespaces() ->
 build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces, Root,
       [OutDir | _] = Dirs, Emit, Std) ->
     DepIfaces = dep_ifaces(Ns, Deps, Ifaces, Dirs, Root),
-    DepHashes = lists:sort([{D, ern_iface:hash(I)} || {D, I} <- DepIfaces]),
+    DepHashes = lists:sort([{D, ern_interface:hash(I)} || {D, I} <- DepIfaces]),
     SourceHash = crypto:hash(sha256, read(File)),
     SourcePath = path_from(OutDir, File),
     Out = filename:join(OutDir, filename:rootname(Rel)),
@@ -472,7 +490,7 @@ build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
 %% using it failed in the host's loader.
 held_by_another(Erc, Ns) ->
     case read_erc(Erc) of
-        {ok, #{iface := #iface{namespace = Held}}} when Held =/= Ns ->
+        {ok, #{interface := #interface{namespace = Held}}} when Held =/= Ns ->
             fail(shown(Erc) ++ " holds " ++ qname(Held) ++ ", and this build names the module "
                  ++ qname(Ns) ++ "; name its source root with --source-root");
         _ ->
@@ -489,8 +507,8 @@ stdlib_hash(Root) ->
     case is_stdlib_root(Root) of
         true -> none;
         false ->
-            Hashes = lists:sort([{I#iface.namespace, ern_iface:hash(I)}
-                                 || I <- ern_prelude:stdlib_ifaces()]),
+            Hashes = lists:sort([{I#interface.namespace, ern_interface:hash(I)}
+                                 || I <- ern_prelude:stdlib_interfaces()]),
             crypto:hash(sha256, term_to_binary(Hashes))
     end.
 
@@ -505,8 +523,8 @@ stdlib_hash(Root) ->
 %% built, and the order of a build needs nothing more, since a type reaches
 %% an interface only through a module whose declaration reached that
 %% module's checker, which this rule had already put among its dependencies.
--spec dep_ifaces([atom()], [[atom()]], #{[atom()] => #iface{}}, [file:filename(), ...],
-                 file:filename()) -> [{[atom()], #iface{}}].
+-spec dep_ifaces([atom()], [[atom()]], #{[atom()] => #interface{}}, [file:filename(), ...],
+                 file:filename()) -> [{[atom()], #interface{}}].
 dep_ifaces(Ns, Deps, Ifaces, Dirs, Root) ->
     Skip = case is_stdlib_root(Root) of
                true -> [Ns];
@@ -528,7 +546,7 @@ reached(Found, Skip, Ifaces, Dirs, Root) ->
 %% The modules whose types an interface names, in its values' schemes and
 %% its types' constructors: a type's qualified name less its last segment.
 %% A type of one segment is the prelude's or a built-in, and no module's.
-type_modules(#iface{} = I) ->
+type_modules(#interface{} = I) ->
     lists:usort([lists:droplast(Q) || Q <- type_names(I, []), length(Q) >= 2]).
 
 type_names({tcon, Q, Args}, Acc) when is_list(Q) ->
@@ -545,8 +563,8 @@ type_names(_, Acc) ->
 %% Report §11.1: a module outside the source root is found by its namespace
 %% under the build directory, then under each --load-path root in order. A
 %% stale .erc is no module.
--spec dep_iface([atom()], #{[atom()] => #iface{}}, [file:filename(), ...], file:filename()) ->
-          {[atom()], #iface{}}.
+-spec dep_iface([atom()], #{[atom()] => #interface{}}, [file:filename(), ...], file:filename()) ->
+          {[atom()], #interface{}}.
 dep_iface(D, Ifaces, [OutDir | _] = Dirs, Root) ->
     case Ifaces of
         #{D := I} -> {D, I};
@@ -559,7 +577,7 @@ dep_iface(D, Ifaces, [OutDir | _] = Dirs, Root) ->
                              [] -> {OutDir, filename:join(OutDir, module_path(D) ++ ".erc")}
                          end,
             case read_erc(Erc) of
-                {ok, #{iface := I} = Chunk} ->
+                {ok, #{interface := I} = Chunk} ->
                     case gone(Chunk, Dir, Root) of
                         false -> {D, I};
                         Source -> fail("no module " ++ qname(D) ++ ": " ++ shown(Erc)
@@ -592,7 +610,7 @@ load_path(Opts) ->
 current(Erc, SourceHash, SourcePath, DepHashes, Std) ->
     Version = compiler_build(),
     case read_erc(Erc) of
-        {ok, #{iface := Iface, source_hash := SourceHash, source_path := SourcePath,
+        {ok, #{interface := Iface, source_hash := SourceHash, source_path := SourcePath,
                deps := Deps, compiler := Version, stdlib := Std}} ->
             case lists:sort(Deps) =:= DepHashes of
                 true -> {true, Iface};
@@ -606,7 +624,7 @@ current(Erc, SourceHash, SourcePath, DepHashes, Std) ->
 -spec compiler_modules() -> [module()].
 compiler_modules() ->
     [ern_ast, ern_bitspec, ern_descriptor, ern_diagnostic, ern_docs, ern_emitter, ern_exhaust,
-     ern_iface, ern_lexer, ern_namespace, ern_parser, ern_prelude, ern_reply, ern_scope,
+     ern_interface, ern_lexer, ern_namespace, ern_parser, ern_prelude, ern_reply, ern_scope,
      ern_typecheck, ern_types, ern_build].
 
 %% Report §11.1: the build of ern, its version and a hash of the modules
@@ -617,7 +635,7 @@ compiler_build() ->
 
 read_erc(Erc) ->
     case file:read_file(Erc) of
-        {ok, Bin} -> ern_iface:read(Bin);
+        {ok, Bin} -> ern_interface:read(Bin);
         {error, Reason} -> {error, file:format_error(Reason)}
     end.
 
@@ -725,7 +743,7 @@ remove_emptied(Dir, Sub, OutDir) ->
 %% older than it. A refusal is a sentence, and diagnostics come with the
 %% file they are in.
 -spec compile_source(file:filename(), file:filename(), [file:filename(), ...],
-                     #{[atom()] => #iface{}}) ->
+                     #{[atom()] => #interface{}}) ->
           {ok, [atom()], binary(), binary()} | {refused, string()}
           | {error, file:filename(), [ern_diagnostic:diagnostic()]}.
 compile_source(File, Root, Dirs, Ifaces) ->
@@ -733,7 +751,7 @@ compile_source(File, Root, Dirs, Ifaces) ->
         [#mod{ns = Ns, rel = Rel, decls = Decls, deps = Deps}] =
             compile_order([module_of(absolute(File), Root)], Root, Dirs),
         DepIfaces = dep_ifaces(Ns, Deps, Ifaces, Dirs, Root),
-        DepHashes = lists:sort([{D, ern_iface:hash(I)} || {D, I} <- DepIfaces]),
+        DepHashes = lists:sort([{D, ern_interface:hash(I)} || {D, I} <- DepIfaces]),
         Hash = crypto:hash(sha256, read(File)),
         case ern_typecheck:check(Ns, Decls, [I || {_, I} <- DepIfaces]) of
             {ok, Typed, Iface, Env} ->

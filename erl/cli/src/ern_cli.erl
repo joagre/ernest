@@ -705,7 +705,7 @@ journal() ->
 %% host compiled from another language holds no interface, and is none.
 compiled(File) ->
     Bin = ern_build:read(File),
-    case beam_lib:chunks(Bin, [binary_to_list(ern_iface:chunk_name())]) of
+    case beam_lib:chunks(Bin, [binary_to_list(ern_interface:chunk_name())]) of
         {error, beam_lib, _} -> ern_build:fail(File ++ " is not a compiled module");
         {ok, _} -> Bin
     end.
@@ -717,8 +717,8 @@ program(File, Opts) ->
     filename:extension(File) =:= ".erc" orelse ern_build:fail(File ++ " does not end in .erc"),
     Abs = ern_build:absolute(File),
     Bin = compiled(File),
-    Ns = case ern_iface:read(Bin) of
-             {ok, #{iface := #iface{namespace = N}}} -> N;
+    Ns = case ern_interface:read(Bin) of
+             {ok, #{interface := #interface{namespace = N}}} -> N;
              {error, Why} -> ern_build:fail(File ++ ": " ++ Why)
          end,
     %% the root lies as many directories up as the namespace is deep
@@ -746,7 +746,7 @@ host_path(Roots) ->
 ifaces(Loaded) ->
     [{I, H} || Mod <- lists:reverse(Loaded),
                {ok, Bin} <- [file:read_file(code:which(Mod))],
-               {ok, #{iface := I, source_hash := H}} <- [ern_iface:read(Bin)]].
+               {ok, #{interface := I, source_hash := H}} <- [ern_interface:read(Bin)]].
 
 %% Report §11.2: where the startup files are, the person's first and then
 %% the node's; the shell reads them and finds out whether they are there.
@@ -1003,8 +1003,8 @@ qualified_name(_, _) ->
 %% polymorphic mailbox type is to `Never` (report §8.1).
 entry_shape(Mod, Fn) ->
     {ok, Bin} = file:read_file(code:which(Mod)),
-    {ok, #{iface := #iface{namespace = Ns, values = Values, lets = Lets}}} =
-        ern_iface:read(Bin),
+    {ok, #{interface := #interface{namespace = Ns, values = Values, lets = Lets}}} =
+        ern_interface:read(Bin),
     Q = Ns ++ [Fn],
     case maps:find(Q, Values) of
         error ->
@@ -1043,15 +1043,15 @@ load(Ns, Roots, Loaded, Std) ->
                                             ++ " (" ++ Rel ++ ") on the load path")
                    end,
             Bin = ern_build:read(File),
-            {Deps, Chunk} = case ern_iface:read(Bin) of
+            {Deps, Chunk} = case ern_interface:read(Bin) of
                                 {ok, #{deps := Ds} = C} -> {Ds, C};
                                 {error, Why} -> ern_build:fail(File ++ ": " ++ Why)
                             end,
             %% report §11.2: a module is found by its namespace, and a file
             %% there holding another is no module of that name
             case Chunk of
-                #{iface := #iface{namespace = Ns}} -> ok;
-                #{iface := #iface{namespace = Held}} ->
+                #{interface := #interface{namespace = Ns}} -> ok;
+                #{interface := #interface{namespace = Held}} ->
                     ern_build:fail(ern_build:shown(File) ++ " holds " ++ ern_build:qname(Held)
                                    ++ ", not " ++ ern_build:qname(Ns) ++ "; build it again from"
                                    " its source root")
@@ -1075,8 +1075,8 @@ load(Ns, Roots, Loaded, Std) ->
 
 same_interface(Ns, D, Hash) ->
     {ok, Bin} = file:read_file(code:which(ern_emitter:module_atom(D))),
-    {ok, #{iface := I}} = ern_iface:read(Bin),
-    ern_iface:hash(I) =:= Hash
+    {ok, #{interface := I}} = ern_interface:read(Bin),
+    ern_interface:hash(I) =:= Hash
         orelse ern_build:fail(ern_build:qname(Ns) ++ " was compiled against another "
                               ++ ern_build:qname(D) ++ "; build " ++ ern_build:qname(Ns)
                               ++ " again").

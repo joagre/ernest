@@ -14,18 +14,20 @@
 values_test() ->
     Lines = code_lines(section("## 9. Prelude", "## 10. ")) ++
         code_lines(section("## Appendix E.", "## Appendix F")),
-    Report = lists:sort(lists:append([signature(L) || L <- Lines])),
+    Report = lists:sort(lists:append([signature(Line) || Line <- Lines])),
     %% a module written in Ernest gives its signatures by its interface; the
     %% restrictions the compiler infers and prints, `a=` and `a!`, are never
     %% written (report §3.9), so they are left out of the comparison; a
     %% module's section writes its own types unqualified (§4.2)
-    St = ern_typecheck:type_state(ern_typecheck:prelude_env()),
-    Compiled = [{qname(Q), normalize(own(Q, unmarked(ern_types:format_scheme(S, St))))}
-                || I <- ern_prelude:stdlib_ifaces(), {Q, S} <- maps:to_list(element(4, I))],
+    TypeState = ern_typecheck:type_state(ern_typecheck:prelude_env()),
+    Compiled = [{qualified_name_text(QualifiedName), printed(QualifiedName, Scheme, TypeState)}
+                || Interface <- ern_prelude:stdlib_interfaces(),
+                   {QualifiedName, Scheme} <- maps:to_list(element(4, Interface))],
     %% a §9.6 operation is in the table, which types it before any module is
     %% installed, and in its module's interface: it counts once when the two
     %% agree, twice and so unequal to the report when they do not
-    Tables = lists:usort([{qname(Q), normalize(T)} || {Q, T, _} <- ern_prelude:values()]
+    Tables = lists:usort([{qualified_name_text(QualifiedName), normalize(Text)}
+                          || {QualifiedName, Text, _} <- ern_prelude:values()]
                          ++ Compiled),
     same(Report, Tables).
 
@@ -34,37 +36,41 @@ values_test() ->
 %% value it operates on. A regression test: the library complied when the
 %% rule was written
 no_bool_choice_test() ->
-    Choosing = [Q || #iface{namespace = Ns, values = Vs} <- ern_prelude:stdlib_ifaces(),
-                     Ns =/= ['Bool'],
-                     {Q, #scheme{type = {tfn, Ps, _, _}}} <- maps:to_list(Vs),
-                     lists:member({tcon, ['Bool'], []}, Ps)],
+    Choosing = [QualifiedName
+                || #interface{namespace = Namespace, values = Values}
+                       <- ern_prelude:stdlib_interfaces(),
+                   Namespace =/= ['Bool'],
+                   {QualifiedName, #scheme{type = {tfn, ParamTypes, _, _}}} <- maps:to_list(Values),
+                   lists:member({tcon, ['Bool'], []}, ParamTypes)],
     ?assertEqual([], Choosing).
 
 %% report §9, Appendix E.0 rule 6: every prelude name is documented, a type
 %% and a value beside its entry, and an operation marked `module` by its
 %% type's module, whose documentation chunk has the entry
 prelude_documented_test() ->
-    [?assert(is_binary(D) andalso byte_size(D) > 0) || {_, _, D} <- ern_prelude:builtin_types()],
-    {ok, Decls} = ern_parser:parse_string(ern_prelude:declared_types()),
-    Undocumented = [N || #type_declaration{doc = undefined, name = N} <- Decls],
+    [?assert(is_binary(Doc) andalso byte_size(Doc) > 0)
+     || {_, _, Doc} <- ern_prelude:builtin_types()],
+    {ok, Declarations} = ern_parser:parse_string(ern_prelude:declared_types()),
+    Undocumented = [Name || #type_declaration{doc = undefined, name = Name} <- Declarations],
     ?assertEqual([], Undocumented),
-    Own = [Q || {Q, _, D} <- ern_prelude:values(), is_binary(D)],
+    Own = [QualifiedName || {QualifiedName, _, Doc} <- ern_prelude:values(), is_binary(Doc)],
     ?assert(length(Own) >= 12),
-    ModuleOnly = [Q || {Q, _, module} <- ern_prelude:values()],
-    Missing = [Q || [Ns, Name] = Q <- ModuleOnly, not in_module_docs(Ns, Name)],
+    ModuleOnly = [QualifiedName || {QualifiedName, _, module} <- ern_prelude:values()],
+    Missing = [QualifiedName || [Namespace, Name] = QualifiedName <- ModuleOnly,
+                                not in_module_docs(Namespace, Name)],
     ?assertEqual([], Missing),
     %% one entry of the page for every type and every value documented here
     {docs_v1, _, ernest, _, _, _, Entries} = ern_prelude:docs(),
-    ?assertEqual(length(ern_prelude:builtin_types()) + length(Decls) + length(Own),
+    ?assertEqual(length(ern_prelude:builtin_types()) + length(Declarations) + length(Own),
                  length(Entries)).
 
-in_module_docs(Ns, Name) ->
-    Mod = list_to_atom("ern@" ++ string:lowercase(atom_to_list(Ns))),
-    case code:which(Mod) of
+in_module_docs(Namespace, Name) ->
+    ErlangModule = list_to_atom("ern@" ++ string:lowercase(atom_to_list(Namespace))),
+    case code:which(ErlangModule) of
         File when is_list(File) ->
             {ok, {_, [{"Docs", Chunk}]}} = beam_lib:chunks(File, ["Docs"]),
             {docs_v1, _, _, _, _, _, Entries} = binary_to_term(Chunk),
-            lists:any(fun({{_, N, _}, _, _, _, _}) -> N =:= Name end, Entries);
+            lists:any(fun({{_, EntryName, _}, _, _, _, _}) -> EntryName =:= Name end, Entries);
         _ ->
             false
     end.
@@ -78,10 +84,11 @@ in_module_docs(Ns, Name) ->
 %% reaches its process is a primitive; or else by its own name.
 primitives_test() ->
     [begin
-         {ok, Source} = file:read_file(stdlib_file(Ns)),
-         {ok, Decls} = ern_parser:parse_string(Source),
-         ?assertEqual({Ns, lists:sort(Named)}, {Ns, lists:sort(foreign_names(Decls))})
-     end || {Ns, Body} <- namespaces(section("## Appendix E.", "## Appendix F")),
+         {ok, Source} = file:read_file(stdlib_file(Namespace)),
+         {ok, Declarations} = ern_parser:parse_string(Source),
+         ?assertEqual({Namespace, lists:sort(Named)},
+                      {Namespace, lists:sort(foreign_names(Declarations))})
+     end || {Namespace, Body} <- namespaces(section("## Appendix E.", "## Appendix F")),
             Named <- [primitives(Body)], Named =/= []].
 
 %% The names in backticks of a section's sentence "The primitives are ...".
@@ -92,17 +99,18 @@ primitives(Body) ->
         Found ->
             [Sentence | _] = string:split(Found, "(E.0 rule 1)"),
             {match, Names} = re:run(Sentence, "`(\\w+)`", [global, {capture, [1], list}]),
-            [list_to_atom(N) || [N] <- Names]
+            [list_to_atom(Name) || [Name] <- Names]
     end.
 
-stdlib_file([Ns]) ->
-    filename:join("../../../stdlib", string:lowercase(atom_to_list(Ns)) ++ ".ern").
+stdlib_file([Namespace]) ->
+    filename:join("../../../stdlib", string:lowercase(atom_to_list(Namespace)) ++ ".ern").
 
 %% Each foreign fn under the name the report gives it.
-foreign_names(Decls) ->
+foreign_names(Declarations) ->
     Callers = fun(Name) ->
-                      [D || D <- Decls, not is_record(D, foreign_fn_declaration),
-                            lists:member(Name, ern_ast:free_names(body(D), params(D)))]
+                  [Declaration || Declaration <- Declarations,
+                                  not is_record(Declaration, foreign_fn_declaration),
+                                  lists:member(Name, free_names(Declaration))]
               end,
     lists:append(
       [case {Export, Callers(Name)} of
@@ -110,36 +118,43 @@ foreign_names(Decls) ->
            {false, [#fn_declaration{export = true, name = Caller}]} -> [Caller];
            {false, [#let_declaration{export = true, name = Caller}]} -> [Caller];
            {false, [_ | _] = References} ->
-               case [N || #let_declaration{export = false, name = N} <- References] of
-                   Names when length(Names) =:= length(References) -> reaching(Names, Decls);
-                   _ -> [Name]
+               LetNames = [LetName
+                           || #let_declaration{export = false, name = LetName} <- References],
+               case length(LetNames) =:= length(References) of
+                   true -> reaching(LetNames, Declarations);
+                   false -> [Name]
                end;
            {false, _} -> [Name]
-       end || #foreign_fn_declaration{name = Name, export = Export} <- Decls]).
+       end || #foreign_fn_declaration{name = Name, export = Export} <- Declarations]).
 
 %% The exported declarations that reach one of the names, directly or
 %% through private ones.
-reaching(Names, Decls) ->
-    Reach = [D || D <- Decls, not is_record(D, foreign_fn_declaration),
-                  lists:any(fun(N) -> lists:member(N, ern_ast:free_names(body(D), params(D))) end,
-                            Names)],
-    Exported = [N || D <- Reach, {true, N} <- [export_name(D)]],
-    case [N || D <- Reach, {false, N} <- [export_name(D)]] -- Names of
+reaching(Names, Declarations) ->
+    Reach = [Declaration || Declaration <- Declarations,
+                            not is_record(Declaration, foreign_fn_declaration),
+                            lists:any(fun(Name) -> lists:member(Name, free_names(Declaration)) end,
+                                      Names)],
+    Exported = [Name || Declaration <- Reach, {true, Name} <- [export_name(Declaration)]],
+    case [Name || Declaration <- Reach, {false, Name} <- [export_name(Declaration)]] -- Names of
         [] -> lists:usort(Exported);
-        Private -> lists:usort(Exported ++ reaching(Names ++ Private, Decls))
+        Private -> lists:usort(Exported ++ reaching(Names ++ Private, Declarations))
     end.
 
 export_name(#fn_declaration{export = Export, name = Name}) -> {Export, Name};
 export_name(#let_declaration{export = Export, name = Name}) -> {Export, Name}.
 
 %% The names a function's parameters bind, which are not calls.
-params(#fn_declaration{params = Ps}) ->
-    [N || #param{pattern = P} <- Ps, {N, _} <- ern_ast:pattern_bindings(P)];
+params(#fn_declaration{params = Params}) ->
+    [Name || #param{pattern = Pattern} <- Params, {Name, _} <- ern_ast:pattern_bindings(Pattern)];
 params(_) -> [].
 
-body(#fn_declaration{body = B}) -> B;
-body(#let_declaration{body = B}) -> B;
+body(#fn_declaration{body = Body}) -> Body;
+body(#let_declaration{body = Body}) -> Body;
 body(_) -> [].
+
+%% The names a declaration's body refers to, outside its parameters.
+free_names(Declaration) ->
+    ern_ast:free_names(body(Declaration), params(Declaration)).
 
 %% report §9.3: the declared types
 declared_types_test() ->
@@ -154,19 +169,23 @@ declared_types_test() ->
 stdlib_types_test() ->
     Sections = namespaces(section("## Appendix E.", "## Appendix F")),
     Report = lists:sort(lists:append(
-                          [[{Ns, D} || D <- declarations(code_lines(Body))]
-                           || {Ns, Body} <- Sections])),
-    Compiled = [{Ns, rename(compiled_decl(TI, stdlib_file(Ns)))}
-                || I <- ern_prelude:stdlib_ifaces(), Ns <- [element(2, I)],
-                   TI <- maps:values(element(3, I))],
-    same(lists:sort([{Ns, rename(D)} || {Ns, D} <- Report]), lists:sort(Compiled)).
+                          [[{Namespace, Declaration}
+                            || Declaration <- declarations(code_lines(Body))]
+                           || {Namespace, Body} <- Sections])),
+    Compiled = [{Namespace, rename(compiled_declaration(TypeInfo, stdlib_file(Namespace)))}
+                || Interface <- ern_prelude:stdlib_interfaces(),
+                   Namespace <- [element(2, Interface)],
+                   TypeInfo <- maps:values(element(3, Interface))],
+    same(lists:sort([{Namespace, rename(Declaration)} || {Namespace, Declaration} <- Report]),
+         lists:sort(Compiled)).
 
 %% report Appendix E.0 rule 2: the words rule 2 gives a set and a map are
 %% functions of `Set` and `Map`, which rule 4 admits as the vocabulary. A
 %% regression test, written when rule 2 named them (findings.md's R-6)
 set_and_map_words_test() ->
     Rules = lists:flatten(lists:join(" ", section("Four *admission rules*", "Nine *shape rules*"))),
-    Exported = lists:append([maps:keys(element(4, I)) || I <- ern_prelude:stdlib_ifaces()]),
+    Exported = lists:append([maps:keys(element(4, Interface))
+                             || Interface <- ern_prelude:stdlib_interfaces()]),
     lists:foreach(
       fun({Kind, Module}) ->
               {match, [Sentence]} = re:run(Rules, "A " ++ Kind ++ " adds ([^.]*)\\.",
@@ -174,7 +193,7 @@ set_and_map_words_test() ->
               {match, Words} = re:run(Sentence, "`([a-zA-Z]+)`",
                                       [global, {capture, all_but_first, list}]),
               ?assertNotEqual([], Words),
-              [?assert(lists:member([Module, list_to_atom(W)], Exported)) || [W] <- Words]
+              [?assert(lists:member([Module, list_to_atom(Word)], Exported)) || [Word] <- Words]
       end, [{"set", 'Set'}, {"map", 'Map'}]).
 
 %% report Appendix G: every library under libs/ has a section, and each
@@ -184,136 +203,151 @@ libraries_test() ->
     %% Appendix G is the report's last, so its section runs to the report's
     %% end, a heading of Appendix H never being met
     Sections = libraries(section("## Appendix G.", "## Appendix H")),
-    Dirs = [filename:basename(D) || D <- filelib:wildcard("../../../libs/*"), filelib:is_dir(D)],
-    ?assertEqual(lists:sort(Dirs), lists:sort([Lib || {Lib, _, _} <- Sections])),
-    St = ern_typecheck:type_state(ern_typecheck:prelude_env()),
+    Dirs = [filename:basename(Dir) || Dir <- filelib:wildcard("../../../libs/*"),
+                                      filelib:is_dir(Dir)],
+    ?assertEqual(lists:sort(Dirs), lists:sort([Library || {Library, _, _} <- Sections])),
+    TypeState = ern_typecheck:type_state(ern_typecheck:prelude_env()),
     lists:foreach(
-      fun({Lib, Ns, Body}) ->
-              Source = filename:join(["../../../libs", Lib, Lib ++ ".ern"]),
-              {ok, Erc} = file:read_file(filename:join(["../../../build/libs", Lib,
-                                                        Lib ++ ".erc"])),
-              {ok, #{iface := I}} = ern_iface:read(Erc),
-              Ns = element(2, I),
-              Printed = fun(Q, S) -> normalize(own(Q, unmarked(ern_types:format_scheme(S, St))))
-                        end,
-              same(lists:sort(lists:append([signature(L) || L <- code_lines(Body)])),
-                   lists:sort([{qname(Q), Printed(Q, S)}
-                               || {Q, S} <- maps:to_list(element(4, I))])),
-              same(lists:sort([rename(unmarked(D)) || D <- declarations(code_lines(Body))]),
-                   lists:sort([rename(compiled_decl(TI, Source))
-                               || TI <- maps:values(element(3, I))]))
+      fun({Library, Namespace, Body}) ->
+              Source = filename:join(["../../../libs", Library, Library ++ ".ern"]),
+              {ok, Erc} = file:read_file(filename:join(["../../../build/libs", Library,
+                                                        Library ++ ".erc"])),
+              {ok, #{interface := Interface}} = ern_interface:read(Erc),
+              Namespace = element(2, Interface),
+              same(lists:sort(lists:append([signature(Line) || Line <- code_lines(Body)])),
+                   lists:sort([{qualified_name_text(QualifiedName),
+                                printed(QualifiedName, Scheme, TypeState)}
+                               || {QualifiedName, Scheme} <- maps:to_list(element(4, Interface))])),
+              same(lists:sort([rename(unmarked(Declaration))
+                               || Declaration <- declarations(code_lines(Body))]),
+                   lists:sort([rename(compiled_declaration(TypeInfo, Source))
+                               || TypeInfo <- maps:values(element(3, Interface))]))
       end, Sections).
+
+%% A value's type as the report writes it: without the marks of the
+%% inferred restrictions, and its own module's types unqualified.
+printed(QualifiedName, Scheme, TypeState) ->
+    normalize(own(QualifiedName, unmarked(ern_types:format_scheme(Scheme, TypeState)))).
 
 %% A printed type without the marks of the inferred restrictions.
 unmarked(Text) ->
     re:replace(Text, "\\b([a-z][a-z0-9]*)[=!+]+", "\\1", [global, {return, list}]).
 
 %% A type text with the names of the value's own module unqualified.
-own(Q, Text) ->
-    Ns = qname(lists:droplast(Q)),
-    re:replace(Text, "\\b" ++ Ns ++ "\\.(?=[A-Z])", "", [global, {return, list}]).
+own(QualifiedName, Text) ->
+    Prefix = qualified_name_text(lists:droplast(QualifiedName)),
+    re:replace(Text, "\\b" ++ Prefix ++ "\\.(?=[A-Z])", "", [global, {return, list}]).
 
 %% `type T(p, q) = ...` with its parameters renamed a, b, ... in order.
-rename(Decl) ->
-    case re:run(Decl, "^(?:foreign )?type \\w+\\(([^)]*)\\)", [{capture, all_but_first, list}]) of
-        {match, [Ps]} ->
-            Params = [string:trim(P) || P <- string:split(Ps, ",", all)],
-            Fresh = [[C] || C <- lists:seq($a, $a + length(Params) - 1)],
-            lists:foldl(fun({P, F}, D) ->
-                            re:replace(D, "\\b" ++ P ++ "\\b", F,
+rename(Declaration) ->
+    case re:run(Declaration, "^(?:foreign )?type \\w+\\(([^)]*)\\)",
+                [{capture, all_but_first, list}]) of
+        {match, [ParamsText]} ->
+            Params = [string:trim(Param) || Param <- string:split(ParamsText, ",", all)],
+            Fresh = [[Char] || Char <- lists:seq($a, $a + length(Params) - 1)],
+            lists:foldl(fun({Param, FreshName}, Acc) ->
+                            re:replace(Acc, "\\b" ++ Param ++ "\\b", FreshName,
                                        [global, {return, list}])
-                        end, Decl, lists:zip(Params, Fresh));
+                        end, Declaration, lists:zip(Params, Fresh));
         nomatch ->
-            Decl
+            Declaration
     end.
 
 %% A compiled type's declaration, as the appendix writes it, the field
 %% order read from the module's source.
-compiled_decl(TI, _Source) when element(7, TI) ->
+compiled_declaration(TypeInfo, _Source) when element(7, TypeInfo) ->
     %% report §3.8: a foreign type has no constructors, and its parameters
     %% are names rather than variables
-    Q = element(2, TI),
-    Params = element(3, TI),
+    QualifiedName = element(2, TypeInfo),
+    Params = element(3, TypeInfo),
     Head = case Params of
                [] -> "";
-               _ -> "(" ++ lists:join(", ", [atom_to_list(P) || P <- Params]) ++ ")"
+               _ -> "(" ++ lists:join(", ", [atom_to_list(Param) || Param <- Params]) ++ ")"
            end,
-    normalize(lists:flatten(["foreign type ", atom_to_list(lists:last(Q)), Head]));
-compiled_decl(#tinfo{abstract = true, qname = Q, params = []}, _Source) ->
+    normalize(lists:flatten(["foreign type ", atom_to_list(lists:last(QualifiedName)), Head]));
+compiled_declaration(#type_info{abstract = true, qualified_name = QualifiedName, params = []},
+                     _Source) ->
     %% report §4.4: an abstract type is listed without its constructors
-    "abstract type " ++ atom_to_list(lists:last(Q));
-compiled_decl(TI, Source) ->
-    Q = element(2, TI),
-    Ns = lists:droplast(Q),
-    Params = element(3, TI),
+    "abstract type " ++ atom_to_list(lists:last(QualifiedName));
+compiled_declaration(TypeInfo, Source) ->
+    QualifiedName = element(2, TypeInfo),
+    Namespace = lists:droplast(QualifiedName),
+    Params = element(3, TypeInfo),
     Names = maps:from_list(lists:zip([Id || {tvar, Id} <- Params],
-                                     [[C] || C <- lists:seq($a, $a + length(Params) - 1)])),
+                                     [[Char] || Char <- lists:seq($a, $a + length(Params) - 1)])),
     Head = case Params of
                [] -> "";
                _ -> "(" ++ lists:join(", ", [maps:get(Id, Names) || {tvar, Id} <- Params]) ++ ")"
            end,
     Order = declared_fields(Source),
-    Cons = [con_text(C, Ns, Names, Order) || C <- element(4, TI)],
-    normalize(lists:flatten(["type ", atom_to_list(lists:last(Q)), Head, " = ",
-                             lists:join(" | ", Cons)])).
+    Constructors = [constructor_text(ConstructorInfo, Namespace, Names, Order)
+                    || ConstructorInfo <- element(4, TypeInfo)],
+    normalize(lists:flatten(["type ", atom_to_list(lists:last(QualifiedName)), Head, " = ",
+                             lists:join(" | ", Constructors)])).
 
 %% The field names of each constructor of a module's source, in the order
 %% declared, which the interface does not keep (its fields are canonical).
 declared_fields(File) ->
     {ok, Source} = file:read_file(File),
-    {ok, Decls} = ern_parser:parse_string(Source),
-    Types = [T || #type_declaration{} = T <- Decls]
-        ++ [T || #abstract_declaration{declaration = T} <- Decls],
-    maps:from_list([{C, [F || #field{name = F} <- Fields]}
-                    || #type_declaration{constructors = Cs} <- Types,
-                       #constructor{name = C, fields = {named, Fields}} <- Cs]).
+    {ok, Declarations} = ern_parser:parse_string(Source),
+    Types = [TypeDeclaration || #type_declaration{} = TypeDeclaration <- Declarations]
+        ++ [TypeDeclaration
+            || #abstract_declaration{declaration = TypeDeclaration} <- Declarations],
+    maps:from_list([{Constructor, [Field || #field{name = Field} <- Fields]}
+                    || #type_declaration{constructors = Constructors} <- Types,
+                       #constructor{name = Constructor, fields = {named, Fields}} <- Constructors]).
 
-con_text(CI, Ns, Names, Order) ->
-    Name = atom_to_list(element(2, CI)),
-    Fields = case element(7, CI) of
-                 {scheme, _, {tfn, FieldTs, _, _}, _} -> FieldTs;
+constructor_text(ConstructorInfo, Namespace, Names, Order) ->
+    Name = atom_to_list(element(2, ConstructorInfo)),
+    Fields = case element(7, ConstructorInfo) of
+                 {scheme, _, {tfn, FieldTypes, _, _}, _} -> FieldTypes;
                  _ -> []
              end,
-    case {element(5, CI), Fields} of
+    case {element(5, ConstructorInfo), Fields} of
         {none, _} -> Name;
-        {positional, [T]} -> Name ++ "(" ++ type_text(T, Ns, Names) ++ ")";
-        {{named, Fs}, FTs} ->
-            Typed = lists:zip(Fs, FTs),
-            Name ++ "(" ++ lists:join(", ", [atom_to_list(F) ++ " : "
-                                             ++ type_text(proplists:get_value(F, Typed), Ns, Names)
-                                             || F <- maps:get(element(2, CI), Order)]) ++ ")"
+        {positional, [Type]} -> Name ++ "(" ++ type_text(Type, Namespace, Names) ++ ")";
+        {{named, FieldNames}, Types} ->
+            Typed = lists:zip(FieldNames, Types),
+            Declared = maps:get(element(2, ConstructorInfo), Order),
+            FieldText = fun(Field) ->
+                            atom_to_list(Field) ++ " : "
+                                ++ type_text(proplists:get_value(Field, Typed), Namespace, Names)
+                        end,
+            Name ++ "(" ++ lists:join(", ", [FieldText(Field) || Field <- Declared]) ++ ")"
     end.
 
 type_text({tvar, Id}, _, Names) -> maps:get(Id, Names);
-type_text({tcon, Q, Args}, Ns, Names) ->
-    N = case lists:droplast(Q) of
-            Ns -> atom_to_list(lists:last(Q));
-            _ -> qname(Q)
-        end,
+type_text({tcon, QualifiedName, Args}, Namespace, Names) ->
+    Text = case lists:droplast(QualifiedName) of
+               Namespace -> atom_to_list(lists:last(QualifiedName));
+               _ -> qualified_name_text(QualifiedName)
+           end,
     case Args of
-        [] -> N;
-        _ -> N ++ "(" ++ lists:join(", ", [type_text(A, Ns, Names) || A <- Args]) ++ ")"
+        [] -> Text;
+        _ ->
+            Text ++ "(" ++ lists:join(", ", [type_text(Arg, Namespace, Names) || Arg <- Args])
+                ++ ")"
     end;
-type_text({ttuple, Es}, Ns, Names) ->
-    "#(" ++ lists:join(", ", [type_text(E, Ns, Names) || E <- Es]) ++ ")";
-type_text({tfn, Params, Effect, Result}, Ns, Names) ->
-    Arrow = "(" ++ lists:join(", ", [type_text(P, Ns, Names) || P <- Params]) ++ ") -> "
-        ++ type_text(Result, Ns, Names),
+type_text({ttuple, Elements}, Namespace, Names) ->
+    "#(" ++ lists:join(", ", [type_text(Element, Namespace, Names) || Element <- Elements]) ++ ")";
+type_text({tfn, Params, Effect, Result}, Namespace, Names) ->
+    ParamsText = [type_text(Param, Namespace, Names) || Param <- Params],
+    Arrow = "(" ++ lists:join(", ", ParamsText) ++ ") -> " ++ type_text(Result, Namespace, Names),
     case Effect of
         pure -> Arrow;
-        _ -> Arrow ++ " with " ++ type_text(Effect, Ns, Names)
+        _ -> Arrow ++ " with " ++ type_text(Effect, Namespace, Names)
     end.
 
 %% report §3.1, §9.1, §9.2: the built-in types and their arities
 builtin_types_test() ->
-    Base = [{list_to_atom(N), 0}
-            || L <- section("### 3.1", "**Integer arithmetic"),
-               [N] <- [captures(L, "^\\| `([A-Z]\\w*)`")]],
-    Named = [{list_to_atom(N), arity(Ps)}
-             || L <- code_lines(section("### 9.1", "### 9.3")),
-                [N, Ps] <- [captures(L, "^([A-Z]\\w*)(\\([^)]*\\)|) ")]],
+    Base = [{list_to_atom(Name), 0}
+            || Line <- section("### 3.1", "**Integer arithmetic"),
+               [Name] <- [captures(Line, "^\\| `([A-Z]\\w*)`")]],
+    Named = [{list_to_atom(Name), arity(ParamsText)}
+             || Line <- code_lines(section("### 9.1", "### 9.3")),
+                [Name, ParamsText] <- [captures(Line, "^([A-Z]\\w*)(\\([^)]*\\)|) ")]],
     same(lists:sort(Base ++ Named),
-         lists:sort([{N, A} || {N, A, _} <- ern_prelude:builtin_types()])).
+         lists:sort([{Name, Arity} || {Name, Arity, _} <- ern_prelude:builtin_types()])).
 
 %% The report's list and the code's equal, in order; where they are not, the
 %% failure shows first what each has that the other lacks.
@@ -328,50 +362,50 @@ same(Report, Code) ->
 %% The lines from the first line starting with From up to the next line
 %% starting with To.
 section(From, To) ->
-    {ok, Bin} = file:read_file(?REPORT),
-    Lines = string:split(unicode:characters_to_list(Bin), "\n", all),
-    Rest = lists:dropwhile(fun(L) -> not lists:prefix(From, L) end, Lines),
-    lists:takewhile(fun(L) -> not lists:prefix(To, L) end, tl(Rest)).
+    {ok, Contents} = file:read_file(?REPORT),
+    Lines = string:split(unicode:characters_to_list(Contents), "\n", all),
+    Rest = lists:dropwhile(fun(Line) -> not lists:prefix(From, Line) end, Lines),
+    lists:takewhile(fun(Line) -> not lists:prefix(To, Line) end, tl(Rest)).
 
 %% The lines inside ``` fences.
 code_lines(Lines) -> code_lines(Lines, false).
 
 code_lines([], _) -> [];
-code_lines(["```" ++ _ | Ls], In) -> code_lines(Ls, not In);
-code_lines([L | Ls], true) -> [L | code_lines(Ls, true)];
-code_lines([_ | Ls], false) -> code_lines(Ls, false).
+code_lines(["```" ++ _ | Lines], InFence) -> code_lines(Lines, not InFence);
+code_lines([Line | Lines], true) -> [Line | code_lines(Lines, true)];
+code_lines([_ | Lines], false) -> code_lines(Lines, false).
 
 %% Appendix E's sections, each with its namespace from the heading.
 namespaces([]) -> [];
-namespaces([H | Ls]) ->
-    case captures(H, "^### Appendix E\\.\\d+\\. `\\w+\\.ern` \\(namespace `(\\w+)`\\)") of
-        [Ns] ->
-            {Body, Rest} = lists:splitwith(fun(L) -> not lists:prefix("### ", L) end, Ls),
-            [{[list_to_atom(Ns)], Body} | namespaces(Rest)];
-        _ -> namespaces(Ls)
+namespaces([Heading | Lines]) ->
+    case captures(Heading, "^### Appendix E\\.\\d+\\. `\\w+\\.ern` \\(namespace `(\\w+)`\\)") of
+        [Namespace] ->
+            {Body, Rest} = lists:splitwith(fun(Line) -> not lists:prefix("### ", Line) end, Lines),
+            [{[list_to_atom(Namespace)], Body} | namespaces(Rest)];
+        _ -> namespaces(Lines)
     end.
 
 %% Appendix G's sections, each with its library's directory and namespace
 %% from the heading.
 libraries([]) -> [];
-libraries([H | Ls]) ->
-    case captures(H, "^### Appendix G\\.\\d+\\. `libs/(\\w+)` \\(namespace `(\\w+)`\\)") of
-        [Lib, Ns] ->
-            {Body, Rest} = lists:splitwith(fun(L) -> not lists:prefix("### ", L) end, Ls),
-            [{Lib, [list_to_atom(Ns)], Body} | libraries(Rest)];
-        _ -> libraries(Ls)
+libraries([Heading | Lines]) ->
+    case captures(Heading, "^### Appendix G\\.\\d+\\. `libs/(\\w+)` \\(namespace `(\\w+)`\\)") of
+        [Library, Namespace] ->
+            {Body, Rest} = lists:splitwith(fun(Line) -> not lists:prefix("### ", Line) end, Lines),
+            [{Library, [list_to_atom(Namespace)], Body} | libraries(Rest)];
+        _ -> libraries(Lines)
     end.
 
 %% A signature line, `Name, Name : Type // comment`, as {name, type} pairs;
 %% any other line as [].
-signature([C | _] = Line) when C =/= $\s, C =/= $= , C =/= $| ->
+signature([First | _] = Line) when First =/= $\s, First =/= $= , First =/= $| ->
     case re:split(Line, "\\s+:\\s+", [unicode, {return, list}, {parts, 2}]) of
         [Names, TypeAndComment] ->
-            Name = "[A-Za-z][\\w.]*(\\.[-+*/%<>]+)?",
-            case re:run(Names, "^" ++ Name ++ "(,\\s*" ++ Name ++ ")*$", [unicode]) of
+            NamePattern = "[A-Za-z][\\w.]*(\\.[-+*/%<>]+)?",
+            case re:run(Names, "^" ++ NamePattern ++ "(,\\s*" ++ NamePattern ++ ")*$", [unicode]) of
                 {match, _} ->
                     Type = normalize(hd(string:split(TypeAndComment, "//"))),
-                    [{string:trim(N), Type} || N <- string:split(Names, ",", all)];
+                    [{string:trim(Name), Type} || Name <- string:split(Names, ",", all)];
                 nomatch -> []
             end;
         _ -> []
@@ -381,16 +415,16 @@ signature(_) -> [].
 %% Type declarations in the lines, comments stripped, one string each: a
 %% declaration starts at a `type` line and continues over indented lines.
 declarations(Lines) ->
-    Stripped = [string:trim(hd(string:split(L, "//")), trailing) || L <- Lines],
-    lists:sort([normalize(D) || D <- group(Stripped)]).
+    Stripped = [string:trim(hd(string:split(Line, "//")), trailing) || Line <- Lines],
+    lists:sort([normalize(Declaration) || Declaration <- group(Stripped)]).
 
 group([]) -> [];
-group([L | Ls]) ->
-    case is_declaration(L) of
+group([Line | Lines]) ->
+    case is_declaration(Line) of
         true ->
-            {Cont, Rest} = lists:splitwith(fun continuation/1, Ls),
-            [lists:flatten(lists:join(" ", [L | Cont])) | group(Rest)];
-        false -> group(Ls)
+            {Continued, Rest} = lists:splitwith(fun continuation/1, Lines),
+            [lists:flatten(lists:join(" ", [Line | Continued])) | group(Rest)];
+        false -> group(Lines)
     end.
 
 is_declaration("type " ++ _) -> true;
@@ -401,15 +435,16 @@ is_declaration(_) -> false.
 continuation(" " ++ _) -> true;
 continuation(_) -> false.
 
-captures(Line, Re) ->
-    case re:run(Line, Re, [unicode, {capture, all_but_first, list}]) of
-        {match, Cs} -> Cs;
+captures(Line, Pattern) ->
+    case re:run(Line, Pattern, [unicode, {capture, all_but_first, list}]) of
+        {match, Captured} -> Captured;
         nomatch -> nomatch
     end.
 
 arity("") -> 0;
 arity(Params) -> length(string:split(Params, ",", all)).
 
-qname(Q) -> lists:flatten(lists:join(".", [atom_to_list(A) || A <- Q])).
+qualified_name_text(QualifiedName) ->
+    lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- QualifiedName])).
 
-normalize(S) -> re:replace(string:trim(S), "\\s+", " ", [global, unicode, {return, list}]).
+normalize(Text) -> re:replace(string:trim(Text), "\\s+", " ", [global, unicode, {return, list}]).

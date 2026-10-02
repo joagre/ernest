@@ -1,12 +1,12 @@
 %% Report §5.4: the rules for a local fn, read off a definition. Its name
 %% may not be one bound where it is declared (names/1); it may be used only
 %% after the lets of its block it references (order/1); and what its body
-%% refers to among given names (free_refs/3), which the checker's grouping
+%% refers to among given names (free_references/3), which the checker's grouping
 %% of a block's local fns reads too. A breach is thrown as the checker's
 %% type errors are.
 -module(ern_scope).
 
--export([names/1, order/1, free_refs/3]).
+-export([names/1, order/1, free_references/3]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("utils/include/ern_diagnostic.hrl").
@@ -17,149 +17,165 @@
 %% around each local fn, with where each is bound. A local fn of an
 %% enclosing block is no variable, and one of its name may be declared.
 -spec names(tuple()) -> ok.
-names(#fn_declaration{params = Ps, body = B}) -> fn_names(B, param_vars(Ps));
-names(#let_declaration{body = B}) -> fn_names(B, []);
+names(#fn_declaration{params = Params, body = Body}) ->
+    check_fn_names(Body, param_variables(Params));
+names(#let_declaration{body = Body}) -> check_fn_names(Body, []);
 names(_) -> ok.
 
-fn_names(#e_lambda{params = Ps, body = B}, Vars) ->
-    fn_names(B, param_vars(Ps) ++ Vars);
-fn_names(#clause{pattern = P, guard = G, body = B}, Vars) ->
-    Vars1 = pattern_vars(P) ++ Vars,
-    fn_names(G, Vars1),
-    fn_names(B, Vars1);
-fn_names(#e_block{statements = Stmts}, Vars) ->
-    Lets = lists:append([pattern_vars(P) || #binding{pattern = P} <- Stmts]),
-    lists:foldl(fun(#binding{pattern = P, expr = X}, Vs) ->
-                        fn_names(X, Vs),
-                        pattern_vars(P) ++ Vs;
-                   (#fn_declaration{span = Pos, name = N, params = Ps, body = B}, Vs) ->
-                        local_fn_name(Pos, N, Vs, "a variable in scope where it is declared"),
-                        local_fn_name(Pos, N, Lets, "a `let` of its block"),
-                        fn_names(B, param_vars(Ps) ++ Vs),
-                        Vs;
-                   (S, Vs) ->
-                        fn_names(S, Vs),
-                        Vs
-                end, Vars, Stmts),
+check_fn_names(#e_lambda{params = Params, body = Body}, InScope) ->
+    check_fn_names(Body, param_variables(Params) ++ InScope);
+check_fn_names(#clause{pattern = Pattern, guard = Guard, body = Body}, InScope) ->
+    InScope1 = pattern_variables(Pattern) ++ InScope,
+    check_fn_names(Guard, InScope1),
+    check_fn_names(Body, InScope1);
+check_fn_names(#e_block{statements = Statements}, InScope) ->
+    Lets = lists:append([pattern_variables(Pattern) || #binding{pattern = Pattern} <- Statements]),
+    lists:foldl(fun(#binding{pattern = Pattern, expr = Expr}, Acc) ->
+                        check_fn_names(Expr, Acc),
+                        pattern_variables(Pattern) ++ Acc;
+                   (#fn_declaration{span = Span, name = Name, params = Params, body = Body}, Acc) ->
+                        local_fn_name(Span, Name, Acc, "a variable in scope where it is declared"),
+                        local_fn_name(Span, Name, Lets, "a `let` of its block"),
+                        check_fn_names(Body, param_variables(Params) ++ Acc),
+                        Acc;
+                   (Statement, Acc) ->
+                        check_fn_names(Statement, Acc),
+                        Acc
+                end, InScope, Statements),
     ok;
-fn_names(T, Vars) when is_tuple(T) ->
-    fn_names(tl(tuple_to_list(T)), Vars);
-fn_names(L, Vars) when is_list(L) ->
-    lists:foreach(fun(X) -> fn_names(X, Vars) end, L);
-fn_names(_, _) ->
+check_fn_names(Node, InScope) when is_tuple(Node) ->
+    check_fn_names(tl(tuple_to_list(Node)), InScope);
+check_fn_names(Nodes, InScope) when is_list(Nodes) ->
+    lists:foreach(fun(Child) -> check_fn_names(Child, InScope) end, Nodes);
+check_fn_names(_, _) ->
     ok.
 
-local_fn_name(Pos, N, Vars, What) ->
-    case lists:keyfind(N, 1, Vars) of
+local_fn_name(Span, Name, InScope, What) ->
+    case lists:keyfind(Name, 1, InScope) of
         false ->
             ok;
-        {N, At} ->
-            fail(Pos, "local function " ++ atom_to_list(N) ++ " has the name of " ++ What,
-                 [{ern_diagnostic:span(At), atom_to_list(N) ++ " is bound here"}],
+        {Name, BoundSpan} ->
+            fail(Span, "local function " ++ atom_to_list(Name) ++ " has the name of " ++ What,
+                 [{ern_diagnostic:span(BoundSpan), atom_to_list(Name) ++ " is bound here"}],
                  "rename the function or the variable")
     end.
 
-param_vars(Ps) -> lists:append([pattern_vars(P) || #param{pattern = P} <- Ps]).
+param_variables(Params) ->
+    lists:append([pattern_variables(Pattern) || #param{pattern = Pattern} <- Params]).
 
 %% The variables a pattern binds, each with where it is bound.
-pattern_vars(#p_var{span = Pos, name = N}) -> [{N, Pos}];
-pattern_vars(#p_as{span = Pos, pattern = P, name = N}) -> [{N, Pos} | pattern_vars(P)];
-pattern_vars(#p_or{alternatives = [A | _]}) -> pattern_vars(A);
-pattern_vars(P) when is_tuple(P) -> pattern_vars(tl(tuple_to_list(P)));
-pattern_vars(L) when is_list(L) -> lists:append([pattern_vars(X) || X <- L]);
-pattern_vars(_) -> [].
+pattern_variables(#p_var{span = Span, name = Name}) -> [{Name, Span}];
+pattern_variables(#p_as{span = Span, pattern = Pattern, name = Name}) ->
+    [{Name, Span} | pattern_variables(Pattern)];
+pattern_variables(#p_or{alternatives = [First | _]}) -> pattern_variables(First);
+pattern_variables(Pattern) when is_tuple(Pattern) -> pattern_variables(tl(tuple_to_list(Pattern)));
+pattern_variables(Patterns) when is_list(Patterns) ->
+    lists:append([pattern_variables(Element) || Element <- Patterns]);
+pattern_variables(_) -> [].
 
 %% Report §5.4: a local fn may be used only after every `let` of its block
 %% that it references, directly or through other local fns, has been
 %% evaluated. Uses are calls and value references alike.
 -spec order(tuple()) -> ok.
 order(Node) ->
-    ern_ast:walk(fun(#e_block{statements = Stmts}, E) -> block_order(Stmts), E;
-            (_, E) -> E
+    ern_ast:walk(fun(#e_block{statements = Statements}, Acc) -> block_order(Statements), Acc;
+            (_, Acc) -> Acc
          end, Node, ok),
     ok.
 
-block_order(Stmts) ->
-    Fns = [D || #fn_declaration{} = D <- Stmts],
-    FnNames = [N || #fn_declaration{name = N} <- Fns],
-    Indexed = lists:zip(lists:seq(1, length(Stmts)), Stmts),
+block_order(Statements) ->
+    Fns = [Declaration || #fn_declaration{} = Declaration <- Statements],
+    FnNames = [Name || #fn_declaration{name = Name} <- Fns],
+    Indexed = lists:zip(lists:seq(1, length(Statements)), Statements),
     %% every let binding of the block as an instance {Name, Index}
-    Lets = [{N, I} || {I, #binding{pattern = P}} <- Indexed, N <- pattern_names(P)],
-    LetNames = lists:usort([N || {N, _} <- Lets]),
+    Lets = [{Name, LetIndex} || {LetIndex, #binding{pattern = Pattern}} <- Indexed,
+                                Name <- pattern_names(Pattern)],
+    LetNames = lists:usort([Name || {Name, _} <- Lets]),
     %% what each local fn references: its siblings, and the binding of each
     %% let name in force at its declaration (report §5.4, §4.6)
     Direct = maps:from_list(
-               [{N, [R || R <- free_refs(B, Params, LetNames ++ FnNames), lists:member(R, FnNames)]
-                     ++ [{R, I} || R <- free_refs(B, Params, LetNames),
-                                   I <- [in_force(R, D, Lets)], I =/= none]}
-                || {D, #fn_declaration{name = N, params = Params, body = B}} <- Indexed]),
-    Needs = fun(N) -> needed_lets(N, Direct, [], []) end,
+               [{Name,
+                 [Reference || Reference <- free_references(Body, Params, LetNames ++ FnNames),
+                               lists:member(Reference, FnNames)]
+                 ++ [{Reference, LetIndex}
+                     || Reference <- free_references(Body, Params, LetNames),
+                        LetIndex <- [in_force(Reference, FnIndex, Lets)],
+                        LetIndex =/= none]}
+                || {FnIndex, #fn_declaration{name = Name, params = Params, body = Body}}
+                       <- Indexed]),
+    Needs = fun(Name) -> needed_lets(Name, Direct, [], []) end,
     %% where each let instance is bound, for the error's label
-    At = maps:from_list([{{N, I}, Pos} || {I, #binding{pattern = P}} <- Indexed,
-                                          {N, Pos} <- pattern_vars(P)]),
-    lists:foldl(fun({I, #binding{pattern = P, expr = X}}, Bound) ->
-                    check_uses(X, FnNames, Needs, Bound, At),
-                    [{N, I} || N <- pattern_names(P)] ++ Bound;
+    BoundSpans = maps:from_list([{{Name, LetIndex}, Span}
+                                 || {LetIndex, #binding{pattern = Pattern}} <- Indexed,
+                                    {Name, Span} <- pattern_variables(Pattern)]),
+    lists:foldl(fun({LetIndex, #binding{pattern = Pattern, expr = Expr}}, Bound) ->
+                    check_uses(Expr, FnNames, Needs, Bound, BoundSpans),
+                    [{Name, LetIndex} || Name <- pattern_names(Pattern)] ++ Bound;
                    ({_, #fn_declaration{}}, Bound) ->
                     Bound;
-                   ({_, X}, Bound) ->
-                    check_uses(X, FnNames, Needs, Bound, At),
+                   ({_, Expr}, Bound) ->
+                    check_uses(Expr, FnNames, Needs, Bound, BoundSpans),
                     Bound
                 end, [], Indexed).
 
-%% The latest binding of Name before statement D, or none.
-in_force(Name, D, Lets) ->
-    case [I || {N, I} <- Lets, N =:= Name, I < D] of
+%% The latest binding of Name before statement FnIndex, or none.
+in_force(Name, FnIndex, Lets) ->
+    case [LetIndex || {LetName, LetIndex} <- Lets, LetName =:= Name, LetIndex < FnIndex] of
         [] -> none;
-        Is -> lists:max(Is)
+        Indexes -> lists:max(Indexes)
     end.
 
 %% The let instances a local fn needs, following references between local
 %% fns.
-needed_lets(N, Direct, Seen, Acc) ->
-    case lists:member(N, Seen) of
+needed_lets(Name, Direct, Seen, Acc) ->
+    case lists:member(Name, Seen) of
         true -> Acc;
         false ->
-            Refs = maps:get(N, Direct, []),
-            Acc1 = lists:usort(Acc ++ [R || R <- Refs, is_tuple(R)]),
-            lists:foldl(fun(R, A) when is_atom(R) -> needed_lets(R, Direct, [N | Seen], A);
-                           (_, A) -> A
+            Refs = maps:get(Name, Direct, []),
+            Acc1 = lists:usort(Acc ++ [Reference || Reference <- Refs, is_tuple(Reference)]),
+            lists:foldl(fun(Reference, Found) when is_atom(Reference) -> needed_lets(Reference,
+                                                                                     Direct,
+                                                                                     [Name | Seen],
+                                                                                     Found);
+                           (_, Found) -> Found
                         end, Acc1, Refs)
     end.
 
-check_uses(Expr, FnNames, Needs, Bound, At) ->
-    ern_ast:walk(fun(#e_var{span = Pos, path = [], name = N}, E) ->
-                 case lists:member(N, FnNames) of
+check_uses(Expr, FnNames, Needs, Bound, BoundSpans) ->
+    ern_ast:walk(fun(#e_var{span = Span, path = [], name = FnName}, Acc) ->
+                 case lists:member(FnName, FnNames) of
                      true ->
-                         case Needs(N) -- Bound of
-                             [] -> E;
-                             [{L, _} = Let | _] ->
-                                 Name = atom_to_list(L),
-                                 fail(Pos,
-                                      "local function " ++ atom_to_list(N)
-                                      ++ " is used before `let " ++ Name
+                         case Needs(FnName) -- Bound of
+                             [] -> Acc;
+                             [{LetName, _} = Let | _] ->
+                                 LetText = atom_to_list(LetName),
+                                 fail(Span,
+                                      "local function " ++ atom_to_list(FnName)
+                                      ++ " is used before `let " ++ LetText
                                       ++ "`, which it references",
-                                      [{ern_diagnostic:span(maps:get(Let, At)),
-                                        "`let " ++ Name ++ "` is evaluated here"}],
-                                      "use " ++ atom_to_list(N) ++ " after `let "
-                                      ++ Name ++ "`")
+                                      [{ern_diagnostic:span(maps:get(Let, BoundSpans)),
+                                        "`let " ++ LetText ++ "` is evaluated here"}],
+                                      "use " ++ atom_to_list(FnName) ++ " after `let "
+                                      ++ LetText ++ "`")
                          end;
-                     false -> E
+                     false -> Acc
                  end;
-            (_, E) -> E
+            (_, Acc) -> Acc
          end, Expr, ok).
 
 %% Unqualified names of the given set free in a local fn's body: outside
 %% its parameters and the bindings inside the body.
--spec free_refs(term(), [tuple()], [atom()]) -> [atom()].
-free_refs(Body, Params, Names) ->
-    lists:usort([N || N <- ern_ast:free_names(Body, param_names(Params)), lists:member(N, Names)]).
+-spec free_references(term(), [tuple()], [atom()]) -> [atom()].
+free_references(Body, Params, Names) ->
+    lists:usort([Name || Name <- ern_ast:free_names(Body, param_names(Params)),
+                         lists:member(Name, Names)]).
 
-pattern_names(P) -> [N || {N, _} <- ern_ast:pattern_bindings(P)].
+pattern_names(Pattern) -> [Name || {Name, _} <- ern_ast:pattern_bindings(Pattern)].
 
-param_names(Params) -> lists:append([pattern_names(P) || #param{pattern = P} <- Params]).
+param_names(Params) ->
+    lists:append([pattern_names(Pattern) || #param{pattern = Pattern} <- Params]).
 
-fail(Pos, Message, Labels, Help) ->
-    throw({type_error, #diagnostic{span = ern_diagnostic:span(Pos),
+fail(Span, Message, Labels, Help) ->
+    throw({type_error, #diagnostic{span = ern_diagnostic:span(Span),
                                    message = lists:flatten(Message),
                                    labels = Labels, help = Help}}).

@@ -65,7 +65,7 @@ start() ->
     remember(#env{roots = maps:get(roots, What, []),
                   source_root = maps:get(source_root, What, "."),
                   ifaces = [I || {I, _} <- Loaded],
-                  modules = maps:from_list([{I#iface.namespace, H} || {I, H} <- Loaded])}).
+                  modules = maps:from_list([{I#interface.namespace, H} || {I, H} <- Loaded])}).
 
 %% Report §11.2: the session's environment as it stands, which
 %% completion reads. The reader asks for the names while an input runs,
@@ -289,11 +289,13 @@ check_module(#env{ifaces = Ifaces, session = Session} = Env, Ns, From, Input, De
 %% input's entry point's own over its result, the variables it quantifies
 %% kept with their restrictions.
 generalized({lambda, Name}, Typed, TEnv) ->
-    [#scheme{vars = Vars} = Scheme] = [S || #fn_declaration{name = ?ENTRY, scheme = S} <- Typed],
+    [#scheme{quantified = Vars} = Scheme] = [S
+                                             || #fn_declaration{name = ?ENTRY,
+                                                                scheme = S} <- Typed],
     Result = result_type(Scheme),
     St = ern_typecheck:type_state(TEnv),
-    Free = ern_types:free_vars(ern_types:zonk(Result, St), St),
-    {lambda, Name, Scheme#scheme{vars = [V || {Id, _} = V <- Vars, lists:member(Id, Free)],
+    Free = ern_types:free_variables(ern_types:substitute(Result, St), St),
+    {lambda, Name, Scheme#scheme{quantified = [V || {Id, _} = V <- Vars, lists:member(Id, Free)],
                                  type = Result}};
 generalized(Binds, _Typed, _TEnv) ->
     Binds.
@@ -346,7 +348,7 @@ undetermined(_Type, _TEnv, {lambda, _, _}, _Typed) ->
     none;
 undetermined(Type, TEnv, Binds, Typed) ->
     St = ern_typecheck:type_state(TEnv),
-    case ern_types:free_vars(ern_types:zonk(Type, St), St) of
+    case ern_types:free_variables(ern_types:substitute(Type, St), St) of
         [] ->
             none;
         _ ->
@@ -604,7 +606,8 @@ where({field_or_pattern, Path, Con}) ->
 fields_of(Path, Con) ->
     Env = persistent_term:get({?MODULE, env}, #env{}),
     case con_info(Env, Path, Con) of
-        {ok, #cinfo{fields = {named, Fields}, scheme = #scheme{type = {tfn, Ps, _, _}}}} ->
+        {ok,
+         #constructor_info{fields = {named, Fields}, scheme = #scheme{type = {tfn, Ps, _, _}}}} ->
             St = session_state(Env),
             [name('Value', atom_to_list(F), atom_to_list(F) ++ " : " ++ ern_types:format(P, St))
              || {F, P} <- lists:zip(Fields, Ps)];
@@ -628,15 +631,16 @@ names(#env{ifaces = Ifaces, session = S} = Env) ->
         ++ [name('Type', atom_to_list(N), "type " ++ atom_to_list(N))
             || {N, _} <- maps:to_list(maps:get(types, S, #{}))]
         ++ [name('Constructor', atom_to_list(N), con_line(atom_to_list(N), con_scheme(CQ, Env), St))
-            || {N, CQ} <- maps:to_list(maps:get(cons, S, #{}))],
+            || {N, CQ} <- maps:to_list(maps:get(constructors, S, #{}))],
     {TypeQs, _} = ern_typecheck:prelude_names(),
     Prelude = [name('Value', qname_text(Q), qname_text(Q) ++ " : " ++ Type)
                || {Q, Type, _} <- ern_prelude:values()]
         ++ [name('Type', qname_text(Q), "type " ++ qname_text(Q)) || Q <- TypeQs]
         ++ [name('Constructor', qname_text(Q), con_line(qname_text(Q), {ok, Sc}, St))
-            || {Q, #cinfo{scheme = Sc}} <- maps:to_list(ern_typecheck:prelude_cons())],
+            || {Q, #constructor_info{scheme = Sc}}
+                   <- maps:to_list(ern_typecheck:prelude_constructors())],
     Modules = lists:append([module_names(I, St)
-                            || I <- Ifaces ++ ern_prelude:stdlib_ifaces()]),
+                            || I <- Ifaces ++ ern_prelude:stdlib_interfaces()]),
     %% report §11.2: an operator is no name, and does not complete, and
     %% neither does a module the session made, which is spelled as no name
     lists:usort([Name || {'Name', Text, _, _} = Name <- Session ++ Prelude ++ Modules,
@@ -654,8 +658,9 @@ con_line(Text, {ok, Scheme}, St) -> Text ++ " : " ++ ern_types:format_scheme(Sch
 con_line(Text, none, _) -> Text.
 
 con_scheme(CQ, #env{ifaces = Ifaces}) ->
-    case [Sc || #iface{types = Ts} <- Ifaces, {_, #tinfo{constructors = Cs}} <- maps:to_list(Ts),
-                #cinfo{qname = Q, scheme = Sc} <- Cs, Q =:= CQ] of
+    case [Sc || #interface{types = Ts} <- Ifaces,
+                {_, #type_info{constructors = Cs}} <- maps:to_list(Ts),
+                #constructor_info{qualified_name = Q, scheme = Sc} <- Cs, Q =:= CQ] of
         [Sc | _] -> {ok, Sc};
         [] -> none
     end.
@@ -698,7 +703,7 @@ segment(Name) ->
 
 %% A module in scope: the module itself, its exported values and types,
 %% and the constructors of those types, each by the name a person types.
-module_names(#iface{namespace = Ns, types = Ts, values = Vs}, St) ->
+module_names(#interface{namespace = Ns, types = Ts, values = Vs}, St) ->
     [name('Module', qname_text(Ns), "module " ++ qname_text(Ns))]
         ++ [name('Value', qname_text(Q),
                  qname_text(Q) ++ " : " ++ ern_types:format_scheme(Sc, St))
@@ -707,8 +712,8 @@ module_names(#iface{namespace = Ns, types = Ts, values = Vs}, St) ->
              [[name('Type', qname_text(Q), abstract_text(TI) ++ "type " ++ qname_text(Q))
                | [name('Constructor', qname_text(lists:droplast(Q) ++ [CN]),
                        con_line(qname_text(lists:droplast(Q) ++ [CN]), {ok, Sc}, St))
-                  || #cinfo{name = CN, scheme = Sc} <- Cs, not TI#tinfo.abstract]]
-              || {Q, #tinfo{constructors = Cs} = TI} <- maps:to_list(Ts)]).
+                  || #constructor_info{name = CN, scheme = Sc} <- Cs, not TI#type_info.abstract]]
+              || {Q, #type_info{constructors = Cs} = TI} <- maps:to_list(Ts)]).
 
 name(Kind, Text, Shown) ->
     {'Name', unicode:characters_to_binary(Text), Kind, unicode:characters_to_binary(Shown)}.
@@ -720,7 +725,7 @@ scheme_line(Text, Q, Env, St) ->
     end.
 
 tinfo(Q, #env{ifaces = Ifaces}) ->
-    case [TI || #iface{types = Ts} <- Ifaces, #{Q := TI} <- [Ts]] of
+    case [TI || #interface{types = Ts} <- Ifaces, #{Q := TI} <- [Ts]] of
         [] -> none;
         Infos -> lists:last(Infos)
     end.
@@ -729,7 +734,7 @@ name_text({Owner, Name}) -> atom_to_list(Owner) ++ "." ++ atom_to_list(Name);
 name_text(Name) -> atom_to_list(Name).
 
 scheme(Q, #env{ifaces = Ifaces}) ->
-    case [Sc || #iface{values = Vs} <- Ifaces, #{Q := Sc} <- [Vs]] of
+    case [Sc || #interface{values = Vs} <- Ifaces, #{Q := Sc} <- [Vs]] of
         [] -> none;
         Schemes -> {ok, lists:last(Schemes)}
     end.
@@ -751,7 +756,7 @@ forget(Env, <<"*">>) ->
 forget(#env{session = S} = Env, Text) ->
     Values = maps:get(values, S, #{}),
     Types = maps:get(types, S, #{}),
-    Cons = maps:get(cons, S, #{}),
+    Cons = maps:get(constructors, S, #{}),
     case segments(Text) of
         {ok, [Name]} when is_map_key(Name, Values); is_map_key(Name, Types) ->
             Members = [{O, M} || {O, M} <- maps:keys(Values), O =:= Name],
@@ -761,7 +766,7 @@ forget(#env{session = S} = Env, Text) ->
             %% reaches any longer is let go
             Env1 = Env#env{session = S#{values => maps:without([Name | Members], Values),
                                         types => maps:remove(Name, Types),
-                                        cons => maps:without(Gone, Cons)}},
+                                        constructors => maps:without(Gone, Cons)}},
             {'Right', remember(collected(Env1))};
         _ ->
             {'Left', <<"the session declares no ", Text/binary>>}
@@ -772,9 +777,9 @@ forget(#env{session = S} = Env, Text) ->
 constructors(none, _, _) ->
     [];
 constructors(Q, Cons, #env{ifaces = Ifaces}) ->
-    [lists:last(CQ) || #iface{types = Ts} <- Ifaces,
-                       #{Q := #tinfo{constructors = Cs}} <- [Ts],
-                       #cinfo{qname = CQ} <- Cs,
+    [lists:last(CQ) || #interface{types = Ts} <- Ifaces,
+                       #{Q := #type_info{constructors = Cs}} <- [Ts],
+                       #constructor_info{qualified_name = CQ} <- Cs,
                        maps:get(lists:last(CQ), Cons, none) =:= CQ].
 
 %% Report §11.2, §4.2: the exports of a module in scope, its types and then
@@ -801,11 +806,12 @@ prelude_listing() ->
 %% Report §11.5: each name and each type as the session writes it, the
 %% names qualified and another module's types too.
 browse(Text, Ns, #env{ifaces = Ifaces, session = S}) ->
-    case [I || #iface{namespace = N} = I <- Ifaces ++ ern_prelude:stdlib_ifaces(), N =:= Ns] of
+    case [I || #interface{namespace = N} = I <- Ifaces ++ ern_prelude:stdlib_interfaces(),
+               N =:= Ns] of
         [] ->
             {'Left', <<"no module ", Text/binary, " is in scope">>};
         Found ->
-            #iface{types = Ts, values = Vs} = Last = lists:last(Found),
+            #interface{types = Ts, values = Vs} = Last = lists:last(Found),
             St0 = ern_typecheck:scope_state(Ifaces ++ [Last]),
             St = ern_types:set_scope(St0, [], maps:values(maps:get(types, S, #{})), []),
             Types = [unicode:characters_to_binary([abstract_text(TI), "type ", qname_text(Q)])
@@ -816,7 +822,7 @@ browse(Text, Ns, #env{ifaces = Ifaces, session = S}) ->
             {'Right', Types ++ Values}
     end.
 
-abstract_text(#tinfo{abstract = true}) -> "abstract ";
+abstract_text(#type_info{abstract = true}) -> "abstract ";
 abstract_text(_) -> "".
 
 qname_text(Q) -> lists:join(".", [atom_to_list(S) || S <- Q]).
@@ -1009,7 +1015,7 @@ scheme_of(Env, Text) ->
 con_signature(Path, Name, At) ->
     Env = persistent_term:get({?MODULE, env}, #env{}),
     case con_info(Env, Path, Name) of
-        {ok, #cinfo{fields = Fields, scheme = #scheme{type = {tfn, Ps, _, _}} = Sc}} ->
+        {ok, #constructor_info{fields = Fields, scheme = #scheme{type = {tfn, Ps, _, _}} = Sc}} ->
             %% a constructor is declared, so its signature is a head's
             Names = case Fields of
                         {named, Fs} -> Fs;
@@ -1037,16 +1043,17 @@ index(F, Names, Otherwise) ->
 %% A constructor by the name written: the session's, the prelude's, or a
 %% module's.
 con_info(#env{session = S, ifaces = Ifaces}, [], Name) ->
-    case maps:get(Name, maps:get(cons, S, #{}), none) of
-        none -> ern_typecheck:prelude_con(Name);
+    case maps:get(Name, maps:get(constructors, S, #{}), none) of
+        none -> ern_typecheck:prelude_constructor(Name);
         CQ -> cinfo(CQ, Ifaces)
     end;
 con_info(#env{ifaces = Ifaces}, Path, Name) ->
-    cinfo(Path ++ [Name], Ifaces ++ ern_prelude:stdlib_ifaces()).
+    cinfo(Path ++ [Name], Ifaces ++ ern_prelude:stdlib_interfaces()).
 
 cinfo(CQ, Ifaces) ->
-    case [CI || #iface{types = Ts} <- Ifaces, {_, #tinfo{constructors = Cs}} <- maps:to_list(Ts),
-                #cinfo{qname = Q} = CI <- Cs, Q =:= CQ] of
+    case [CI || #interface{types = Ts} <- Ifaces,
+                {_, #type_info{constructors = Cs}} <- maps:to_list(Ts),
+                #constructor_info{qualified_name = Q} = CI <- Cs, Q =:= CQ] of
         [CI | _] -> {ok, CI};
         [] -> none
     end.
@@ -1151,10 +1158,10 @@ first([F | Fs]) ->
 %% documentation is its type's: a session constructor's the session's type,
 %% a module's its module's type, and an unqualified one the prelude's.
 constructor_doc(#env{session = S, beams = Beams} = Env, [Name]) ->
-    case maps:get(Name, maps:get(cons, S, #{}), none) of
+    case maps:get(Name, maps:get(constructors, S, #{}), none) of
         none ->
-            case ern_typecheck:prelude_con(Name) of
-                {ok, #cinfo{type_qname = TQ}} -> prelude_doc(TQ);
+            case ern_typecheck:prelude_constructor(Name) of
+                {ok, #constructor_info{type_qualified_name = TQ}} -> prelude_doc(TQ);
                 none -> none
             end;
         CQ ->
@@ -1177,10 +1184,10 @@ constructor_doc(Env, Segments) ->
 owner(CQ, #env{ifaces = Ifaces}) ->
     Ns = lists:droplast(CQ),
     Con = lists:last(CQ),
-    case [TQ || #iface{types = Ts} <- Ifaces ++ ern_prelude:stdlib_ifaces(),
-                {TQ, #tinfo{constructors = Cs, abstract = false}} <- maps:to_list(Ts),
+    case [TQ || #interface{types = Ts} <- Ifaces ++ ern_prelude:stdlib_interfaces(),
+                {TQ, #type_info{constructors = Cs, abstract = false}} <- maps:to_list(Ts),
                 lists:droplast(TQ) =:= Ns,
-                #cinfo{name = N} <- Cs, N =:= Con] of
+                #constructor_info{name = N} <- Cs, N =:= Con] of
         [TQ | _] -> {ok, TQ};
         [] -> none
     end.
@@ -1312,8 +1319,8 @@ load(#env{modules = Modules} = Env, Text) ->
     case module_name(Text) of
         {ok, Ns} ->
             Name = unicode:characters_to_binary(qname_text(Ns)),
-            case lists:any(fun(#iface{namespace = N}) -> N =:= Ns end,
-                           ern_prelude:stdlib_ifaces()) of
+            case lists:any(fun(#interface{namespace = N}) -> N =:= Ns end,
+                           ern_prelude:stdlib_interfaces()) of
                 %% report §4.2, §11.2: a standard library namespace is taken,
                 %% and the module, in scope since the session began, is one
                 %% the session has loaded, which is refused
@@ -1409,8 +1416,8 @@ with_needed(Env, Modules, Line) ->
 %% library, than the session holds; none, or the refusal.
 refused_compiled(Env, All) ->
     Std = ern_build:stdlib_hash("."),
-    Ifaces = [I || {_, Beam, _} <- All, {ok, #{iface := I}} <- [ern_iface:read(Beam)]]
-        ++ Env#env.ifaces ++ ern_prelude:stdlib_ifaces(),
+    Ifaces = [I || {_, Beam, _} <- All, {ok, #{interface := I}} <- [ern_interface:read(Beam)]]
+        ++ Env#env.ifaces ++ ern_prelude:stdlib_interfaces(),
     Refusals = lists:append([compiled_refusals(Ns, Beam, Ifaces, Std) || {Ns, Beam, _} <- All]),
     case Refusals of
         [] -> none;
@@ -1418,17 +1425,18 @@ refused_compiled(Env, All) ->
     end.
 
 compiled_refusals(Ns, Beam, Ifaces, Std) ->
-    {ok, #{iface := #iface{namespace = Held}, deps := Deps} = Chunk} = ern_iface:read(Beam),
+    {ok,
+     #{interface := #interface{namespace = Held}, deps := Deps} = Chunk} = ern_interface:read(Beam),
     Name = ern_build:qname(Ns),
     [Name ++ "'s compiled file holds " ++ ern_build:qname(Held) ++ "; build it again from its"
      " source root" || Held =/= Ns]
-        ++ [Name ++ " was compiled against another standard library; build " ++ Name
-            ++ " again" || not lists:member(maps:get(stdlib, Chunk, none), [none, Std])]
-        ++ [Name ++ " was compiled against another " ++ ern_build:qname(D) ++ "; build "
-            ++ Name ++ " again"
+     ++ [Name ++ " was compiled against another standard library; build " ++ Name
+     ++ " again" || not lists:member(maps:get(stdlib, Chunk, none), [none, Std])]
+     ++ [Name ++ " was compiled against another " ++ ern_build:qname(D) ++ "; build "
+     ++ Name ++ " again"
             || {D, Hash} <- Deps,
-               [I | _] <- [[I || I <- Ifaces, I#iface.namespace =:= D]],
-               ern_iface:hash(I) =/= Hash].
+               [I | _] <- [[I || I <- Ifaces, I#interface.namespace =:= D]],
+               ern_interface:hash(I) =/= Hash].
 
 %% The modules installed and their bindings evaluated, and `:load`'s answer.
 installed(Env, All, Line) ->
@@ -1537,7 +1545,7 @@ needed(Env, Modules) ->
 needed(_Env, _Beam, {error, _} = Error, _Compiled) ->
     Error;
 needed(#env{modules = Loaded} = Env, Beam, {ok, _} = Found, Compiled) ->
-    {ok, #{deps := Deps}} = ern_iface:read(Beam),
+    {ok, #{deps := Deps}} = ern_interface:read(Beam),
     lists:foldl(fun(_, {error, _} = Error) ->
                         Error;
                    ({Ns, _}, {ok, Acc}) ->
@@ -1655,7 +1663,7 @@ compile_in_order(#env{source_root = Root} = Env, Set) ->
                 lists:mapfoldl(fun(#mod{ns = Ns, file = File}, Ifaces) ->
                                    case compile_source(Env, File, Ifaces) of
                                        {ok, _, Beam, _} = Ok ->
-                                           {ok, #{iface := I}} = ern_iface:read(Beam),
+                                           {ok, #{interface := I}} = ern_interface:read(Beam),
                                            {{Ns, Ok}, Ifaces#{Ns => I}};
                                        Error ->
                                            {{Ns, Error}, Ifaces}
@@ -1679,9 +1687,9 @@ compile_in_order(#env{source_root = Root} = Env, Set) ->
 stale_users(#env{modules = Loaded} = Env, Set, Modules) ->
     Held = loaded_ifaces(Env),
     Changed = [Ns || {Ns, Beam, _} <- Modules,
-                     {ok, #{iface := I}} <- [ern_iface:read(Beam)],
+                     {ok, #{interface := I}} <- [ern_interface:read(Beam)],
                      not is_map_key(Ns, Held)
-                         orelse ern_iface:hash(maps:get(Ns, Held)) =/= ern_iface:hash(I)],
+                         orelse ern_interface:hash(maps:get(Ns, Held)) =/= ern_interface:hash(I)],
     [Ns || Ns <- lists:sort(maps:keys(Loaded)), not lists:keymember(Ns, 1, Set),
            lists:any(fun({D, _}) -> lists:member(D, Changed) end, recorded_deps(Env, Ns))].
 
@@ -1694,13 +1702,13 @@ recorded_deps(#env{beams = Beams}, Ns) ->
                    {ok, B} = file:read_file(code:which(ern_emitter:module_atom(Ns))),
                    B
            end,
-    {ok, #{deps := Deps}} = ern_iface:read(Beam),
+    {ok, #{deps := Deps}} = ern_interface:read(Beam),
     Deps.
 
 %% The interfaces of the modules the session has loaded, by namespace.
 loaded_ifaces(#env{ifaces = Ifaces, modules = Modules}) ->
-    maps:from_list([{I#iface.namespace, I} || I <- Ifaces,
-                                               is_map_key(I#iface.namespace, Modules)]).
+    maps:from_list([{I#interface.namespace, I} || I <- Ifaces,
+                                               is_map_key(I#interface.namespace, Modules)]).
 
 reload_one({Ns, Beam, Hash}, {Env, Lines}) ->
     Mod = ern_emitter:module_atom(Ns),
@@ -1777,8 +1785,8 @@ install(Env, Modules) ->
 install(#env{ifaces = Ifaces, modules = Modules} = Env, Ns, Beam, Hash) ->
     Mod = ern_emitter:module_atom(Ns),
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), Beam),
-    {ok, #{iface := Iface}} = ern_iface:read(Beam),
-    Env#env{ifaces = [I || I <- Ifaces, I#iface.namespace =/= Ns] ++ [Iface],
+    {ok, #{interface := Iface}} = ern_interface:read(Beam),
+    Env#env{ifaces = [I || I <- Ifaces, I#interface.namespace =/= Ns] ++ [Iface],
             modules = Modules#{Ns => Hash},
             beams = maps:put(Ns, Beam, Env#env.beams)}.
 
@@ -1816,7 +1824,7 @@ compiled_of(Env, Ns) ->
     case [F || R <- load_path(Env), F <- [filename:join(R, Rel)], filelib:is_regular(F)] of
         [File | _] ->
             {ok, Bin} = file:read_file(File),
-            case ern_iface:read(Bin) of
+            case ern_interface:read(Bin) of
                 {ok, #{source_hash := Hash}} -> {ok, File, Bin, Hash};
                 {error, _} -> none
             end;
@@ -1961,7 +1969,7 @@ components([], _Value, _Type, _TEnv) ->
 components([Name], Value, Type, _TEnv) ->
     [{Name, Value, Type}];
 components(Names, Value, Type, TEnv) ->
-    {ttuple, Types} = ern_types:zonk(Type, ern_typecheck:type_state(TEnv)),
+    {ttuple, Types} = ern_types:substitute(Type, ern_typecheck:type_state(TEnv)),
     lists:zip3(Names, tuple_to_list(Value), Types).
 
 %% Report §11.2: whether the input's value was left unbound, its type
@@ -1977,7 +1985,7 @@ unbound(#checked{}) -> false.
 %% reach, and `declared/1` says that it was not bound.
 open(Type, TEnv) ->
     St = ern_typecheck:type_state(TEnv),
-    ern_types:free_vars(ern_types:zonk(Type, St), St) =/= [].
+    ern_types:free_variables(ern_types:substitute(Type, St), St) =/= [].
 
 %% The names an input binds, held by one module, a getter for each, which
 %% needs the session's modules whose functions the values hold and whose
@@ -1997,7 +2005,8 @@ bound(#env{holders = N, free_holders = Free} = Env0, Bound, TEnv) ->
     {module, Mod} = code:load_binary(Mod, atom_to_list(Mod), holder(Mod, Names)),
     Values = maps:from_list([{Holder ++ [Name], binding_scheme(Type, St)}
                              || {Name, _, Type} <- Bound]),
-    Iface = #iface{namespace = Holder, values = Values, lets = [Holder ++ [Name] || Name <- Names]},
+    Iface = #interface{namespace = Holder, values = Values,
+                       lets = [Holder ++ [Name] || Name <- Names]},
     Held = lists:foldl(fun({_, Value, _}, Acc) -> fun_modules(Value, Acc) end, [], Bound),
     set_uses(maps:put(Mod, {Holder, lists:usort([M || M <- Held, session_module(M)]
                                                 ++ mentions(Iface, Holder)),
@@ -2007,7 +2016,7 @@ bound(#env{holders = N, free_holders = Free} = Env0, Bound, TEnv) ->
 
 %% A bound name's scheme: a generalized `let`'s own, or its type alone.
 binding_scheme(#scheme{} = Scheme, _St) -> Scheme;
-binding_scheme(Type, St) -> ern_types:mono(ern_types:zonk(Type, St)).
+binding_scheme(Type, St) -> ern_types:monomorphic(ern_types:substitute(Type, St)).
 
 %% Report §11.2: the session after an input has answered, what nothing
 %% reaches any more let go, in the session's own process.
@@ -2053,7 +2062,7 @@ collected(#env{ifaces = Ifaces, session = S, beams = Beams, free_holders = Free,
         set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) ++ InputsPurged),
     set_uses(maps:without([ern_emitter:module_atom(Ns)
                            || Ns <- [[H] || H <- Purged] ++ InputsPurged], Uses)),
-    Env#env{ifaces = [I || #iface{namespace = Ns} = I <- Ifaces, not lists:member(Ns, Dead)],
+    Env#env{ifaces = [I || #interface{namespace = Ns} = I <- Ifaces, not lists:member(Ns, Dead)],
             beams = maps:without(Dead, Beams),
             free_holders = Free ++ [holder_number(H) || H <- Purged],
             draining = Held}.
@@ -2139,8 +2148,8 @@ set_names(Names) ->
 %% input joins the ones the checker is given, and what it declares joins the
 %% scope under the unqualified name, which a later declaration of that name
 %% overwrites.
-session(#env{ifaces = Ifaces, session = S} = Env, #iface{} = Iface) ->
-    #iface{namespace = Ns, types = Ts, values = Vs} = Iface,
+session(#env{ifaces = Ifaces, session = S} = Env, #interface{} = Iface) ->
+    #interface{namespace = Ns, types = Ts, values = Vs} = Iface,
     %% a type declared again starts with no members: the earlier type's
     %% belong to it, and its name now names another
     Declared = [lists:last(Q) || Q <- maps:keys(Ts)],
@@ -2150,12 +2159,12 @@ session(#env{ifaces = Ifaces, session = S} = Env, #iface{} = Iface) ->
     Values = maps:merge(Kept, maps:from_list([{value_key(Ns, Q), Q} || Q <- maps:keys(Vs)])),
     Types = maps:merge(maps:get(types, S, #{}),
                        maps:from_list([{lists:last(Q), Q} || Q <- maps:keys(Ts)])),
-    Cons = maps:merge(maps:get(cons, S, #{}),
+    Cons = maps:merge(maps:get(constructors, S, #{}),
                       maps:from_list([{lists:last(CQ), CQ}
-                                      || #tinfo{constructors = Cs} <- maps:values(Ts),
-                                         #cinfo{qname = CQ} <- Cs])),
+                                      || #type_info{constructors = Cs} <- maps:values(Ts),
+                                         #constructor_info{qualified_name = CQ} <- Cs])),
     Env#env{ifaces = Ifaces ++ [Iface],
-            session = S#{values => Values, types => Types, cons => Cons}}.
+            session = S#{values => Values, types => Types, constructors => Cons}}.
 
 %% A name as an input after this one writes it: a type member under the
 %% type that owns it (report §4.2), anything else under its own name.
@@ -2216,7 +2225,7 @@ declared(#checked{binds = {names, Names}, type = Type, env = TEnv}) ->
     St = ern_typecheck:type_state(TEnv),
     Types = case Names of
                 [_] -> [Type];
-                _ -> element(2, ern_types:zonk(Type, St))
+                _ -> element(2, ern_types:substitute(Type, St))
             end,
     [unicode:characters_to_binary([atom_to_list(N), " : ", ern_types:format(T, St)])
      || {N, T} <- lists:zip(Names, Types)];
@@ -2235,7 +2244,7 @@ kind(#foreign_fn_declaration{}) -> value;
 kind(#let_declaration{}) -> value;
 kind(_) -> other.
 
-line(D, Ns, #iface{values = Vs}, TEnv) ->
+line(D, Ns, #interface{values = Vs}, TEnv) ->
     case kind(D) of
         value ->
             {Owner, Name} = declared_name(D),

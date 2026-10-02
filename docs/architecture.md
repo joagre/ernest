@@ -11,7 +11,7 @@ One Ernest module goes through these stages, each an Erlang application under `e
 | lexer | `ern_lexer` | source text | tokens |
 | parser | `ern_parser`; `ern_ast`, a node's span and the walks later stages share | tokens | AST, records of `ern_ast.hrl` |
 | format | `ern_format` and its printer `ern_pretty`, off the compiler's path (§11.6) | source, tokens with comments, AST | the text laid out |
-| typer | `ern_typecheck`, with `ern_types`, `ern_prelude`, `ern_exhaust`, `ern_reply`, `ern_scope` (§5.4), `ern_bitspec` (§5.11), and `ern_iface`, the interface chunk | AST, dependency interfaces | typed AST, interface, environment |
+| typer | `ern_typecheck`, with `ern_types`, `ern_prelude`, `ern_exhaust`, `ern_reply`, `ern_scope` (§5.4), `ern_bitspec` (§5.11), and `ern_interface`, the interface chunk | AST, dependency interfaces | typed AST, interface, environment |
 | emitter | `ern_emitter`, with `ern_descriptor` (§8.4) and `ern_docs`, the `Docs` chunk | typed AST, environment | Erlang forms, then BEAM with the `ErnI` and `Docs` chunks |
 | runtime | `ern_rt`, `ern_boundary`, `ern_show`, the system processes `ern_fs`, `ern_tty`, `ern_tcp` and `ern_os`, the standard library's shims, `ern_tty_signal`, the terminal's resize handler, and `ern_exec`, the one helper in C | | what compiled code calls |
 | diagnostics | `ern_diagnostic`, in `utils`, beneath every stage | a `#diagnostic{}`, the source | the text of §11.5 |
@@ -34,23 +34,23 @@ Expressions are parsed by one precedence-climbing loop, patterns by a second sma
 
 ## The type checker
 
-`ern_typecheck:check(Ns, Decls, Ifaces)` returns `{ok, Typed, Iface, Env}` or `{error, [#diagnostic{}]}`, `Ifaces` being the `#iface{}` records of the modules referred to. `infer/2` gives an expression its type, and `ern_typecheck:check_expr/5` checks one against an expected type, pushing it through branches, clauses and blocks, which gives a diagnostic §11.5's labels.
+`ern_typecheck:check(Namespace, Declarations, Interfaces)` returns `{ok, Typed, Interface, Env}` or `{error, [#diagnostic{}]}`, `Interfaces` being the `#interface{}` records of the modules referred to. `infer/2` gives an expression its type, and `ern_typecheck:check_expr/5` checks one against an expected type, pushing it through branches, clauses and blocks, which gives a diagnostic §11.5's labels.
 
-Types are the terms of `erl/typer/include/ern_types.hrl`: `{tcon, QName, Args}`, `{tvar, Id}`, `{ttuple, Elems}` and `{tfn, Params, Effect, Result}`, `Effect` being `pure` or a type. Each variable has a `#tv{}` entry with its level, its flags (`eq`, `process_only`, `no_reply`, §3.9) and its annotation's name. `ern_types` owns this state: unification with the effect rules, generalization by levels, instantiation, and the printer that diagnostics and `ern doc` share.
+Types are the terms of `erl/typer/include/ern_types.hrl`: `{tcon, QualifiedName, Args}`, `{tvar, Id}`, `{ttuple, Elements}` and `{tfn, Params, Effect, Result}`, `Effect` being `pure` or a type. Each variable has a `#type_variable{}` entry with its level, its restrictions (`equality`, `process_only`, `not_reply_carrying`, §3.9) and its annotation's name, in a `#type_state{}`. `ern_types` owns this state: unification with the effect rules, generalization by levels, instantiation, and the printer that diagnostics and `ern doc` share.
 
-`ern_prelude` holds §9 as tables, each entry documented: the built-in types, the declared types as Ernest source, the values with their type text, and the process-only values. `ern_typecheck:prelude_env/0` builds the starting environment from them and from the standard library's interfaces, `ern_prelude:stdlib_ifaces/0`. `ern_prelude:docs/0` makes of the tables a `Docs` term, which `ern_page:prelude_page/0` renders for `ern doc` and `ern_page:prelude_declaration/1` for `:doc` and `Shift-Tab`.
+`ern_prelude` holds §9 as tables, each entry documented: the built-in types, the declared types as Ernest source, the values with their type text, and the process-only values. `ern_typecheck:prelude_env/0` builds the starting environment from them and from the standard library's interfaces, `ern_prelude:stdlib_interfaces/0`. `ern_prelude:docs/0` makes of the tables a `Docs` term, which `ern_page:prelude_page/0` renders for `ern doc` and `ern_page:prelude_declaration/1` for `:doc` and `Shift-Tab`.
 
 A module is checked in this order:
 
-1. `declare_types`: every type, its constructors with their fields in declared order (§3.5), reply-carrying computed (§6.6); `mark_abstract` flags an abstract type, whose constructor `lookup_con` refuses elsewhere (§4.4).
+1. `declare_types`: every type, its constructors with their fields in declared order (§3.5), reply-carrying computed (§6.6); `mark_abstract` marks an abstract type, whose constructor `lookup_constructor` refuses elsewhere (§4.4).
 2. `check_values`: the value declarations in dependency groups, from a `digraph` of references by name (§4.2). `run_group` checks a group when the fold reaches it, or when `demand` asks for one of its names during another definition's inference (§4.8). `check_group` gives each member a monomorphic placeholder, unifies the annotations first, infers the bodies in order and generalizes. `alternatives_differ` and `alternatives_agree` check pattern alternatives (§5.9). After each group, `let_cycles` reports a cycle of top-level lets (§8.5).
-3. `post_checks`, per definition: `<-` resolved to `Either` or `Optional` (§5.5); operators left open by `operator_result/4` (§4.8); rigid annotation variables (§3.9); the local-fn use order (§5.4); undetermined block bindings (§4.6); exhaustiveness by `ern_exhaust`, Maranget's algorithm with a witness (§5.9); the reply discipline by `ern_reply` (§6.6); and the no-reply instantiation check.
+3. `post_checks`, per definition: `<-` resolved to `Either` or `Optional` (§5.5); operators left open by `operator_result/4` (§4.8); rigid annotation variables (§3.9); the local-fn use order (§5.4); undetermined block bindings (§4.6); exhaustiveness by `ern_exhaust`, Maranget's algorithm with a witness (§5.9); the reply discipline by `ern_reply` (§6.6); and the restrictions an instantiation carries, `check_pending_restrictions`.
 4. `check_abstract` and `check_exports`: §4.2's and §4.4's visibility rules.
-5. `make_iface`: the exported types and values.
+5. `interface_of`: the exported types and values.
 
 A block's local `fn`s get placeholders from their annotations before any statement is checked, and one is generalized once every later local fn it references is checked (§5.4). An initializer is checked as a body of mailbox type `Never` (§4.6), and one that calls a process-only function, noted in `effectful_lets`, is not generalized. `builtin_operators/2` reads `fn Float.+` in a built-in type's module as that module's `+` (§4.8).
 
-The environment is opaque outside the module. The compiler reads it through functions of its own, `type_state/1`, `resolve_type/2`, `lookup_type/2`, `lookup_con/4`, `node_type/1` and `foreign_impl/1` among them; the shell also through `declared_scheme/3`, `fields/2` and others, and through `ern_ast:pattern_bindings/1` for the names a pattern binds.
+The environment is opaque outside the module. The compiler reads it through functions of its own, `type_state/1`, `resolve_type/2`, `lookup_type/2`, `lookup_constructor/4`, `node_type/1` and `foreign_implementation/1` among them; the shell also through `declared_scheme/3`, `fields/2` and others, and through `ern_ast:pattern_bindings/1` for the names a pattern binds.
 
 ## The compiler
 
@@ -67,7 +67,7 @@ The environment is opaque outside the module. The compiler reads it through func
 - A type's descriptor is a function `$type_N`. A function type's holds a maker (`desc_form/1`), with which `ern_boundary` wraps a function value.
 - A module that exports a function exports `'$fun'/2`, and another module's function as a value is `M:'$fun'(f, N)`, not `fun M:f/N`, so that it keeps its version across a reload (§11.2).
 
-`compile/5` runs `compile:forms` with the chunk `ErnI`: a format number, the canonical interface, and what §11.1's recompile rule compares, the hashes of the source, of each dependency's interface and of the standard library's, and the build of `ern`. `ern_iface` owns the chunk: `encode/2`, `read/1`, which refuses another format, and `hash/1`, which leaves variable names out. `ern_docs:build/4` builds the EEP 48 `Docs` chunk in the same compile, an entry per declaration §11.4 renders, with its signature, its doc block, and, in its metadata, parameter names, constructors and fields; its `BeamLanguage` is `ernest`. `erl_source/4` is `--emit-erl`.
+`compile/5` runs `compile:forms` with the chunk `ErnI`: a format number, the canonical interface, and what §11.1's recompile rule compares, the hashes of the source, of each dependency's interface and of the standard library's, and the build of `ern`. `ern_interface` owns the chunk: `encode/2`, `read/1`, which refuses another format, and `hash/1`, which leaves variable names out. `ern_docs:build/4` builds the EEP 48 `Docs` chunk in the same compile, an entry per declaration §11.4 renders, with its signature, its doc block, and, in its metadata, parameter names, constructors and fields; its `BeamLanguage` is `ernest`. `erl_source/4` is `--emit-erl`.
 
 A module's atom is [`style.md`](style.md)'s `ern@` name, and a type member keeps its prefix, `'Stack.push'/2`. `module_info` and `record_info`, which the host gives every module, compile as `'module_info$'` and `'record_info$'`; `ern_emitter:function_atom/1` is that mapping, and the runner and the shell call through it.
 

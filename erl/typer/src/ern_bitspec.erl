@@ -8,7 +8,7 @@
 -include_lib("parser/include/ern_ast.hrl").
 
 %% Report §5.11: the specifiers of a segment as one map, kind, size
-%% (none, {const, N}, or {expr, E}), unit, endian, sign, with the defaults,
+%% (none, {const, Bits}, or {expr, Expr}), unit, endian, sign, with the defaults,
 %% or the error of a conflict, a sign or byte order the kind does not take,
 %% or an impossible width. The unit is what a size counts, 8 bits for
 %% `bytes` and 1 otherwise; no specifier sets it.
@@ -21,7 +21,7 @@ spec(Specs) ->
         Size = case maps:get(size, Spec, none) of
                    none when Kind =:= int -> {const, 8};
                    none when Kind =:= float -> {const, 64};
-                   S -> S
+                   Given -> Given
                end,
         case {Kind, Spec} of
             {int, _} -> ok;
@@ -42,23 +42,23 @@ spec(Specs) ->
             false -> ok
         end,
         case {Kind, Size} of
-            {float, {const, N}} when N =/= 16, N =/= 32, N =/= 64 ->
+            {float, {const, Bits}} when Bits =/= 16, Bits =/= 32, Bits =/= 64 ->
                 throw("a float segment is 16, 32, or 64 bits");
             _ -> ok
         end,
         {ok, Spec#{kind => Kind, size => Size, unit => Unit,
                    endian => maps:get(endian, Spec, big), sign => maps:get(sign, Spec, unsigned)}}
     catch
-        throw:Msg -> {error, Msg}
+        throw:Message -> {error, Message}
     end.
 
-spec_fold({size, #e_literal{kind = int, value = N}}, Spec) -> once(size, {const, N}, Spec);
-spec_fold({size, E}, Spec) -> once(size, {expr, E}, Spec);
-spec_fold(K, Spec) when K =:= int; K =:= float; K =:= bytes; K =:= utf8; K =:= utf16;
-                        K =:= utf32 ->
-    once(kind, K, Spec);
-spec_fold(E, Spec) when E =:= big; E =:= little -> once(endian, E, Spec);
-spec_fold(S, Spec) when S =:= signed; S =:= unsigned -> once(sign, S, Spec).
+spec_fold({size, #e_literal{kind = int, value = Bits}}, Spec) -> once(size, {const, Bits}, Spec);
+spec_fold({size, Expr}, Spec) -> once(size, {expr, Expr}, Spec);
+spec_fold(Kind, Spec) when Kind =:= int; Kind =:= float; Kind =:= bytes; Kind =:= utf8;
+                           Kind =:= utf16; Kind =:= utf32 ->
+    once(kind, Kind, Spec);
+spec_fold(Endian, Spec) when Endian =:= big; Endian =:= little -> once(endian, Endian, Spec);
+spec_fold(Sign, Spec) when Sign =:= signed; Sign =:= unsigned -> once(sign, Sign, Spec).
 
 once(Key, Value, Spec) ->
     case Spec of
@@ -69,6 +69,6 @@ once(Key, Value, Spec) ->
             Spec#{Key => Value}
     end.
 
-spec_text(size, {const, N}) -> "`size(" ++ integer_to_list(N) ++ ")`";
+spec_text(size, {const, Bits}) -> "`size(" ++ integer_to_list(Bits) ++ ")`";
 spec_text(size, _) -> "`size(...)`";
-spec_text(_, A) -> "`" ++ atom_to_list(A) ++ "`".
+spec_text(_, Value) -> "`" ++ atom_to_list(Value) ++ "`".

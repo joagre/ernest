@@ -15,7 +15,7 @@
 %% documentation chunk and the namespace in its interface chunk (§11.1).
 -spec page(binary() | file:filename()) -> unicode:chardata().
 page(Beam) ->
-    {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
+    {ok, #{interface := #interface{namespace = Ns}}} = ern_interface:read(Beam),
     {ok, Docs} = ern_docs:read(Beam),
     render(["Ernest module ", qname(Ns)], qname(Ns) ++ ".", Docs).
 
@@ -30,7 +30,7 @@ prelude_page() ->
 %% module declares is `:browse`'s to list.
 -spec module_head(binary() | file:filename()) -> unicode:chardata().
 module_head(Beam) ->
-    {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
+    {ok, #{interface := #interface{namespace = Ns}}} = ern_interface:read(Beam),
     {ok, {docs_v1, _, ernest, _, ModDoc, _, _}} = ern_docs:read(Beam),
     head(["Ernest module ", qname(Ns)], ModDoc).
 
@@ -38,7 +38,7 @@ module_head(Beam) ->
 %% `Ernest.Net.Http` in section 3ern.
 -spec manual(binary() | file:filename()) -> unicode:chardata().
 manual(Beam) ->
-    {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
+    {ok, #{interface := #interface{namespace = Ns}}} = ern_interface:read(Beam),
     {ok, Docs} = ern_docs:read(Beam),
     roff("Ernest." ++ qname(Ns), ["Ernest module ", qname(Ns)], qname(Ns) ++ ".", Docs).
 
@@ -148,7 +148,7 @@ since_line(V) -> ["*Since ", V, ".*\n\n"].
 %% it is written, so that no name is made of what a person typed.
 -spec declaration(binary() | file:filename(), binary()) -> {ok, unicode:chardata()} | none.
 declaration(Beam, Name) ->
-    {ok, #{iface := #iface{namespace = Ns}}} = ern_iface:read(Beam),
+    {ok, #{interface := #interface{namespace = Ns}}} = ern_interface:read(Beam),
     {ok, {docs_v1, _, ernest, _, _, _, Entries}} = ern_docs:read(Beam),
     case find(Name, Entries) of
         {ok, E} -> {ok, entry(E, qname(Ns) ++ ".")};
