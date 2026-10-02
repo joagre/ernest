@@ -10,6 +10,7 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
+-include_lib("kernel/include/file.hrl").
 
 %%
 %% Helpers: a fresh directory per test, sources written into it
@@ -93,9 +94,10 @@ format_writes_whole_test() ->
     ?assertEqual(0, ern_err(["format", Link])),
     ?assertEqual({ok, "target.ern"}, file:read_link(Link)),
     ?assertEqual({ok, <<"fn f(x) =\n    x + 1\n">>}, file:read_file(Target)),
-    {ok, Info} = file:read_file_info(Target),
-    ?assertEqual(8#640, element(8, Info) band 8#777),
-    ?assertEqual(["link.ern", "target.ern"], lists:sort(element(2, file:list_dir(Dir)))).
+    {ok, #file_info{mode = Mode}} = file:read_file_info(Target),
+    ?assertEqual(8#640, Mode band 8#777),
+    {ok, Names} = file:list_dir(Dir),
+    ?assertEqual(["link.ern", "target.ern"], lists:sort(Names)).
 
 %% report §11: two jobs writing one file at once each write it whole, and
 %% the file is one of theirs. A regression test: they wrote beside it under
@@ -117,7 +119,8 @@ writes_at_once() ->
                       ?assertEqual(lists:duplicate(8, 0),
                                    [receive {built, Status} -> Status end || _ <- lists:seq(1, 8)])
                   end, lists:seq(1, 5)),
-    ?assertEqual(["twice.erc", "twice.ern"], lists:sort(element(2, file:list_dir(Dir)))).
+    {ok, Names} = file:list_dir(Dir),
+    ?assertEqual(["twice.erc", "twice.ern"], lists:sort(Names)).
 
 %% report §11: `ern test` runs a module of more tests than the host holds
 %% values live at once. A regression test: the list of a module's tests was
@@ -179,11 +182,11 @@ word_not_utf8_test() ->
     ?assertMatch({0, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
                                       <<"ern: a word that is not UTF-8: n\\xFFme.ern\n">>)),
     lists:foreach(fun(Job) ->
-                          ?assertEqual(1, ern_err([Job, Word])),
-                          Line = iolist_to_binary(["ern ", Job,
-                                                   ": a word that is not UTF-8: n\\xFFme.ern\n"]),
-                          ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(
-                                                              ?capturedOutput), Line))
+                      ?assertEqual(1, ern_err([Job, Word])),
+                      Line = iolist_to_binary(["ern ", Job,
+                                               ": a word that is not UTF-8: n\\xFFme.ern\n"]),
+                      ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(
+                                                          ?capturedOutput), Line))
                   end, ["build", "doc", "format", "run", "test", "shell", "config"]).
 
 %% report §11.6: a file named alone is a module when its name ends in
@@ -198,9 +201,9 @@ format_finds_modules_as_build_test() ->
     Upper = write(Dir, "Bad.ern", Text),
     Under = write(Dir, "src/Sub/ok.ern", Text),
     Refused = fun(Args, Said) ->
-                      ?assertEqual(1, ern_err(["format" | Args])),
-                      ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(
-                                                          ?capturedOutput), Said))
+                  ?assertEqual(1, ern_err(["format" | Args])),
+                  ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(
+                                                      ?capturedOutput), Said))
               end,
     Refused([Notes], <<"notes.txt does not end in .ern">>),
     %% the refusal names the file; a regression test, it named only the
@@ -242,8 +245,8 @@ read_only_refused_test() ->
 cannot_read_or_make_test() ->
     Dir = tmp(),
     Said = fun(Text) ->
-                   ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(
-                                                       ?capturedOutput), Text))
+               ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(
+                                                   ?capturedOutput), Text))
            end,
     Source = write(Dir, "closed.ern", "export let x : Int = 1\n"),
     ok = file:change_mode(Source, 8#000),
@@ -701,9 +704,9 @@ prelude_namespace_test() ->
 taken_namespace_names_owner_test() ->
     lists:foreach(
       fun(File) ->
-              Dir = tmp(),
-              write(Dir, "src/" ++ File, "export fn f() : Int = 1\n"),
-              ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"]))
+          Dir = tmp(),
+          write(Dir, "src/" ++ File, "export fn f() : Int = 1\n"),
+          ?assertEqual(1, build_err(["--build-root", Dir ++ "/build", Dir ++ "/src"]))
       end, ["address.ern", "io.ern", "test.ern"]),
     Output = iolist_to_binary(?capturedOutput),
     ?assertMatch({_, _},
@@ -972,8 +975,8 @@ build_replaces_a_link_test() ->
     ok = file:make_symlink("../victim/notes.txt", filename:join(Dir, "src/util.erc")),
     ?assertEqual(0, ern_cli:ern(["build", Dir ++ "/src"])),
     ?assertEqual({ok, <<"mine\n">>}, file:read_file(filename:join(Dir, "victim/notes.txt"))),
-    {ok, Info} = file:read_link_info(filename:join(Dir, "src/util.erc")),
-    ?assertEqual(regular, element(3, Info)).
+    ?assertMatch({ok, #file_info{type = regular}},
+                 file:read_link_info(filename:join(Dir, "src/util.erc"))).
 
 %% report §11.2: `ern test` writes a test's name as it writes a cause, its
 %% control characters escaped. A regression test: the name reached the
@@ -1499,13 +1502,13 @@ doc_sweep_reads_titles_as_text_test() ->
 doc_man_utf8_test_() ->
     {timeout, 120,
      fun() ->
-             BuildRoot = filename:join(tmp(), "build"),
-             ?assertEqual(0, ern_cli:ern(["doc", "--man", "--build-root", BuildRoot,
-                                          "../../../stdlib"])),
-             Pages = filelib:wildcard(filename:join(BuildRoot, "**/*.3ern")),
-             ?assert(lists:member(filename:join(BuildRoot, "Ernest.Prelude.3ern"), Pages)),
-             [?assertMatch({Page, true}, {Page, is_list(unicode:characters_to_list(Bytes))})
-              || Page <- Pages, {ok, Bytes} <- [file:read_file(Page)]]
+         BuildRoot = filename:join(tmp(), "build"),
+         ?assertEqual(0, ern_cli:ern(["doc", "--man", "--build-root", BuildRoot,
+                                      "../../../stdlib"])),
+         Pages = filelib:wildcard(filename:join(BuildRoot, "**/*.3ern")),
+         ?assert(lists:member(filename:join(BuildRoot, "Ernest.Prelude.3ern"), Pages)),
+         [?assertMatch({Page, true}, {Page, is_list(unicode:characters_to_list(Bytes))})
+          || Page <- Pages, {ok, Bytes} <- [file:read_file(Page)]]
      end}.
 
 %% report §11.1: the compiled module carries its documentation as EEP 48's
@@ -1576,9 +1579,9 @@ doc_template_test() ->
     %% module example calls, E.0 rule 6
     Sections = tl(binary:split(Output, <<"\n## ">>, [global])),
     Named = fun(Name) ->
-                    Head = <<Name/binary, "\n">>,
-                    hd([Section || Section <- Sections,
-                                   binary:match(Section, Head) =:= {0, byte_size(Head)}])
+                Head = <<Name/binary, "\n">>,
+                hd([Section || Section <- Sections,
+                               binary:match(Section, Head) =:= {0, byte_size(Head)}])
             end,
     lists:foreach(fun(Name) ->
                       ?assertMatch({_, _}, binary:match(Named(Name), <<"### Examples">>))
@@ -1884,10 +1887,10 @@ main_option_checked_test() ->
 %% `--main`, and a function that is not exported is not found
 entry_point_shape_test() ->
     Launch = fun(Source, Args) ->
-                     Dir = tmp(),
-                     File = write(Dir, "main.ern", Source),
-                     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
-                     ern_err(["run" | Args] ++ [filename:join(Dir, "main.erc")])
+                 Dir = tmp(),
+                 File = write(Dir, "main.ern", Source),
+                 ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+                 ern_err(["run" | Args] ++ [filename:join(Dir, "main.erc")])
              end,
     ?assertEqual(1, Launch("export fn main() : Int = 3\n", [])),
     ?assertEqual(1, Launch("export let main = fn() : Unit with Never = Io.println(\"x\")\n",
@@ -2022,8 +2025,8 @@ create_config_dir_test() ->
                   <<"  \"public-key\": \"-----BEGIN PUBLIC KEY-----", _/binary>>,
                   <<"  \"peers\": []">>, <<"}">>, <<>>],
                  binary:split(Conf, <<"\n">>, [global])),
-    {ok, Info} = file:read_file_info(Dir ++ "/private-key.pem"),
-    ?assertEqual(8#600, element(8, Info) band 8#777),
+    {ok, #file_info{mode = Mode}} = file:read_file_info(Dir ++ "/private-key.pem"),
+    ?assertEqual(8#600, Mode band 8#777),
     {ok, Pem} = file:read_file(Dir ++ "/private-key.pem"),
     ?assertMatch([{'PrivateKeyInfo', _, not_encrypted}], public_key:pem_decode(Pem)),
     ?assertEqual(1, ern_cli:ern(["config", "--config-dir", Dir])).
@@ -2036,8 +2039,8 @@ create_config_dir_test() ->
 config_dir_is_its_owners_test() ->
     Dir = tmp() ++ "/.ernest",
     ?assertEqual(0, ern_cli:ern(["config", "--config-dir", Dir])),
-    {ok, Info} = file:read_file_info(Dir),
-    ?assertEqual(8#700, element(8, Info) band 8#777),
+    {ok, #file_info{mode = Mode}} = file:read_file_info(Dir),
+    ?assertEqual(8#700, Mode band 8#777),
     Made = tmp() ++ "/made",
     ok = file:make_dir(Made),
     ?assertEqual(1, ern_err(["config", "--config-dir", Made])),

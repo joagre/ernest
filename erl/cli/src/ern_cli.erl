@@ -424,14 +424,12 @@ markdown_dir(Modules, Stdlib, BuildRoot) ->
 %% of the standard library's own build root.
 man_dir(Modules, Stdlib, BuildRoot) ->
     lists:foreach(fun(#build_module{namespace = Namespace}) ->
-                          Dir = filename:dirname(filename:join(BuildRoot,
-                                                               ern_build:module_path(Namespace))),
-                          Output = filename:join(Dir, "Ernest."
-                                                      ++ ern_build:qualified_name_text(Namespace)
-                                                   ++ ".3ern"),
-                          Page = unicode:characters_to_binary(ern_page:manual(built(BuildRoot,
-                                                                                    Namespace))),
-                          ok = ern_build:write_output(Output, Page)
+                      Dir = filename:dirname(filename:join(BuildRoot,
+                                                           ern_build:module_path(Namespace))),
+                      Name = "Ernest." ++ ern_build:qualified_name_text(Namespace) ++ ".3ern",
+                      Page = ern_page:manual(built(BuildRoot, Namespace)),
+                      ok = ern_build:write_output(filename:join(Dir, Name),
+                                                  unicode:characters_to_binary(Page))
                   end, lists:sort(Modules)),
     case Stdlib of
         true ->
@@ -857,30 +855,7 @@ init_fun(Loaded) ->
 %% module declares them, each in a process of its own and its line printed
 %% as it ends; status 1 unless every one passed.
 run_tests(Namespace, Loaded, ErrorDevice) ->
-    ErlangModule = ern_emitter:module_atom(Namespace),
-    Self = self(),
-    Entry = fun() ->
-                Tests = case erlang:function_exported(ErlangModule, '$tests', 0) of
-                            true -> ErlangModule:'$tests'();
-                            false -> []
-                        end,
-                Names = [Name || {'Case', Name, _} <- Tests],
-               %% report §11.2: a module without tests says so, and one two
-               %% of whose tests have one name is refused before any runs
-                case {Tests, Names -- lists:usort(Names)} of
-                    {[], _} ->
-                        ern_rt:send(ern_rt:system_process(stdout), <<"no tests\n">>),
-                        Self ! {ern_tests, true};
-                    {_, [Twice | _]} ->
-                        ern_rt:send(ern_rt:system_process(stderr),
-                                    <<"ern test: two tests are named \"",
-                                      (ern_show:controls(Twice, line))/binary, "\"\n">>),
-                        Self ! {ern_tests, false};
-                    {_, []} ->
-                        Passed = [run_test(Test) || Test <- Tests],
-                        Self ! {ern_tests, lists:all(fun(Passed1) -> Passed1 end, Passed)}
-                end
-            end,
+    Entry = tests_entry(ern_emitter:module_atom(Namespace), self()),
     Site = unicode:characters_to_binary(ern_build:qualified_name_text(Namespace) ++ ".$tests"),
     %% report §11.2: a test's own fault is its line, and every other is
     %% reported as `ern run` reports it
@@ -899,6 +874,32 @@ run_tests(Namespace, Loaded, ErrorDevice) ->
             end;
         Other ->
             outcome(ErrorDevice, Other)
+    end.
+
+%% The entry point of a module's tests, which runs them one at a time and
+%% tells Caller whether every one passed.
+tests_entry(ErlangModule, Caller) ->
+    fun() ->
+        Tests = case erlang:function_exported(ErlangModule, '$tests', 0) of
+                    true -> ErlangModule:'$tests'();
+                    false -> []
+                end,
+        Names = [Name || {'Case', Name, _} <- Tests],
+        %% report §11.2: a module without tests says so, and one two of
+        %% whose tests have one name is refused before any runs
+        case {Tests, Names -- lists:usort(Names)} of
+            {[], _} ->
+                ern_rt:send(ern_rt:system_process(stdout), <<"no tests\n">>),
+                Caller ! {ern_tests, true};
+            {_, [Twice | _]} ->
+                ern_rt:send(ern_rt:system_process(stderr),
+                            <<"ern test: two tests are named \"",
+                              (ern_show:controls(Twice, line))/binary, "\"\n">>),
+                Caller ! {ern_tests, false};
+            {_, []} ->
+                Passed = [run_test(Test) || Test <- Tests],
+                Caller ! {ern_tests, not lists:member(false, Passed)}
+        end
     end.
 
 %% One test, Test.Case(name, run) in declared field order, in a process of its
@@ -1040,8 +1041,8 @@ entry_shape(ErlangModule, Function) ->
     end.
 
 entry_site(ErlangModule, Function) ->
-    unicode:characters_to_binary(ern_build:qualified_name_text(entry_namespace(ErlangModule)) ++ "."
-                                 ++ atom_to_list(Function)).
+    Namespace = entry_namespace(ErlangModule),
+    unicode:characters_to_binary(ern_build:qualified_name_text(Namespace ++ [Function])).
 
 entry_namespace(ErlangModule) ->
     "ern@" ++ Path = atom_to_list(ErlangModule),
@@ -1055,34 +1056,12 @@ load(Namespace, LoadPath, Loaded) ->
 load(Namespace, LoadPath, Loaded, StdlibHash) ->
     ErlangModule = ern_emitter:module_atom(Namespace),
     case lists:member(ErlangModule, Loaded) of
-        true -> Loaded;
+        true ->
+            Loaded;
         false ->
-            Relative = ern_build:module_path(Namespace) ++ ".erc",
-            File = case [Found || Dir <- LoadPath, Found <- [filename:join(Dir, Relative)],
-                                  filelib:is_regular(Found)] of
-                       [Found | _] -> Found;
-                       [] ->
-                           ern_build:fail("cannot find module "
-                                          ++ ern_build:qualified_name_text(Namespace)
-                                          ++ " (" ++ Relative ++ ") on the load path")
-                   end,
+            File = compiled_file(Namespace, LoadPath),
             Beam = ern_build:read(File),
-            {Dependencies, Chunk} = case ern_interface:read(Beam) of
-                                        {ok, #{deps := RecordedDependencies} = Read} ->
-                                            {RecordedDependencies, Read};
-                                        {error, Error} -> ern_build:fail(File ++ ": " ++ Error)
-                                    end,
-            %% report §11.2: a module is found by its namespace, and a file
-            %% there holding another is no module of that name
-            case Chunk of
-                #{interface := #interface{namespace = Namespace}} -> ok;
-                #{interface := #interface{namespace = Held}} ->
-                    ern_build:fail(ern_build:shown(File) ++ " holds "
-                                   ++ ern_build:qualified_name_text(Held)
-                                   ++ ", not " ++ ern_build:qualified_name_text(Namespace)
-                                       ++ "; build it again from"
-                                   " its source root")
-            end,
+            #{deps := Dependencies} = Chunk = held_chunk(Namespace, File, Beam),
             Loaded1 = lists:foldl(fun({Dependency, _}, Acc) ->
                                       load(Dependency, LoadPath, Acc, StdlibHash)
                                   end, Loaded, Dependencies),
@@ -1092,12 +1071,7 @@ load(Namespace, LoadPath, Loaded, StdlibHash) ->
             lists:foreach(fun({Dependency, Hash}) ->
                               same_interface(Namespace, Dependency, Hash)
                           end, Dependencies),
-            lists:member(maps:get(stdlib, Chunk, none), [none, StdlibHash])
-                orelse ern_build:fail(ern_build:qualified_name_text(Namespace)
-                                      ++ " was compiled against another"
-                                      " standard library; build "
-                                          ++ ern_build:qualified_name_text(Namespace)
-                                      ++ " again"),
+            same_stdlib(Namespace, Chunk, StdlibHash),
             code:purge(ErlangModule),
             case code:load_binary(ErlangModule, File, Beam) of
                 {module, ErlangModule} -> [ErlangModule | Loaded1];
@@ -1106,15 +1080,49 @@ load(Namespace, LoadPath, Loaded, StdlibHash) ->
             end
     end.
 
+%% Report §11.2: a module's compiled form, found by its namespace on the
+%% load path.
+compiled_file(Namespace, LoadPath) ->
+    Relative = ern_build:module_path(Namespace) ++ ".erc",
+    case [Found || Dir <- LoadPath, Found <- [filename:join(Dir, Relative)],
+                   filelib:is_regular(Found)] of
+        [Found | _] ->
+            Found;
+        [] ->
+            ern_build:fail("cannot find module " ++ ern_build:qualified_name_text(Namespace)
+                           ++ " (" ++ Relative ++ ") on the load path")
+    end.
+
+%% Report §11.2: the interface chunk of a module's compiled form; a file
+%% found by a module's namespace that holds another is no module of that
+%% name.
+held_chunk(Namespace, File, Beam) ->
+    case ern_interface:read(Beam) of
+        {ok, #{interface := #interface{namespace = Namespace}} = Chunk} ->
+            Chunk;
+        {ok, #{interface := #interface{namespace = Held}}} ->
+            ern_build:fail(ern_build:shown(File) ++ " holds "
+                           ++ ern_build:qualified_name_text(Held) ++ ", not "
+                           ++ ern_build:qualified_name_text(Namespace)
+                           ++ "; build it again from its source root");
+        {error, Error} ->
+            ern_build:fail(File ++ ": " ++ Error)
+    end.
+
+same_stdlib(Namespace, Chunk, StdlibHash) ->
+    Name = ern_build:qualified_name_text(Namespace),
+    lists:member(maps:get(stdlib, Chunk, none), [none, StdlibHash])
+        orelse ern_build:fail(Name ++ " was compiled against another standard library; build "
+                              ++ Name ++ " again").
+
 same_interface(Namespace, Dependency, Hash) ->
     {ok, Beam} = file:read_file(code:which(ern_emitter:module_atom(Dependency))),
     {ok, #{interface := Interface}} = ern_interface:read(Beam),
+    Name = ern_build:qualified_name_text(Namespace),
     ern_interface:hash(Interface) =:= Hash
-        orelse ern_build:fail(ern_build:qualified_name_text(Namespace)
-                              ++ " was compiled against another "
+        orelse ern_build:fail(Name ++ " was compiled against another "
                               ++ ern_build:qualified_name_text(Dependency) ++ "; build "
-                                  ++ ern_build:qualified_name_text(Namespace)
-                              ++ " again").
+                              ++ Name ++ " again").
 
 %% Report §11.3, Appendix C: the configuration directory itself, with a
 %% configuration of no peers and this node's key pair; the network address

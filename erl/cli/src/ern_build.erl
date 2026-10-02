@@ -12,10 +12,8 @@
 -export([compile/3, report_errors/4, shown/1, sources/1, bytes_text/1, module_of/2, shape/2,
          segment/1, namespace/1, module_path/1, compile_order/2, compile_order/3, source_root/3,
          build_root/2, is_stdlib_root/1, stdlib_hash/1, dependency_interfaces/5,
-         dependency_interface/4, load_path/1,
-         compiler_modules/0,
-         sweep_pages/5, compile_source/4, absolute/1, relative/2, qualified_name_text/1,
-         write_whole/2,
+         dependency_interface/4, load_path/1, compiler_modules/0, sweep_pages/5,
+         compile_source/4, absolute/1, relative/2, qualified_name_text/1, write_whole/2,
          write_whole/3, write_output/2, read/1, made_dir/1, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -44,48 +42,45 @@ compile(Options, Path, ErrorDevice) ->
         %% report §11.1: a module outside the source root is found under
         %% build-root, then under each --load-path root
         {Parsed, Unparsed} = parse_all(Modules, SourceRoot, SearchPath),
-        Order = order(Parsed),
         StdlibHash = stdlib_hash(SourceRoot),
-        %% report §11.5: every module is built but one that uses a module
-        %% that failed, whose errors would follow from that one's
-        {_, Failed} =
-            lists:foldl(fun(#build_module{dependencies = Dependencies} = Module,
-                            {Interfaces, FailedSoFar}) ->
-                                case [Dependency || Dependency <- Dependencies,
-                                                    lists:keymember(Dependency, 1, FailedSoFar)] of
-                                    [] ->
-                                        try build(Module, Interfaces, SourceRoot, SearchPath, Emit,
-                                                  StdlibHash) of
-                                            Interfaces1 -> {Interfaces1, FailedSoFar}
-                                        catch
-                                            throw:{errors, File, Errors} ->
-                                                {Interfaces, FailedSoFar
-                                                             ++ [{Module#build_module.namespace,
-                                                                  File, Errors}]}
-                                        end;
-                                    _ ->
-                                        {Interfaces, FailedSoFar
-                                                     ++ [{Module#build_module.namespace, none, []}]}
-                                end
-                        end, {#{}, Unparsed}, Order),
+        Build = fun(Module, Interfaces) ->
+                    build(Module, Interfaces, SourceRoot, SearchPath, Emit, StdlibHash)
+                end,
+        Failed = built(order(Parsed), Unparsed, Build),
         case [{File, Errors} || {_, File, Errors} <- Failed, File =/= none] of
             [] ->
-                case DirMode andalso Emit =:= erc of
-                    true -> sweep(absolute(Path), SourceRoot, BuildRoot);
-                    false -> ok
-                end,
+                DirMode andalso Emit =:= erc andalso sweep(absolute(Path), SourceRoot, BuildRoot),
                 0;
             Reported ->
-                lists:foreach(fun({File, Errors}) ->
-                                  report_errors(Options, File, Errors, ErrorDevice)
-                              end,
-                              Reported),
+                [report_errors(Options, File, Errors, ErrorDevice) || {File, Errors} <- Reported],
                 1
         end
     catch
         throw:{errors, File, Errors} -> report_errors(Options, File, Errors, ErrorDevice)
     after
         code:add_pathsa(SetAside)
+    end.
+
+%% Report §11.5: every module built, in order, but one that uses a module
+%% that failed, whose errors would follow from that one's. The modules that
+%% failed, each with its file and its errors, or with none where a module
+%% it uses failed; Unparsed begins them.
+built(Order, Unparsed, Build) ->
+    {_, Failed} = lists:foldl(fun(Module, Acc) -> build_step(Module, Acc, Build) end,
+                              {#{}, Unparsed}, Order),
+    Failed.
+
+build_step(#build_module{namespace = Namespace, dependencies = Dependencies} = Module,
+           {Interfaces, Failed}, Build) ->
+    case [Dependency || Dependency <- Dependencies, lists:keymember(Dependency, 1, Failed)] of
+        [] ->
+            try Build(Module, Interfaces) of
+                Interfaces1 -> {Interfaces1, Failed}
+            catch
+                throw:{errors, File, Errors} -> {Interfaces, Failed ++ [{Namespace, File, Errors}]}
+            end;
+        _ ->
+            {Interfaces, Failed ++ [{Namespace, none, []}]}
     end.
 
 %% Report §11.5: each error as ern_diagnostic renders it, the first line alone
@@ -252,12 +247,12 @@ compile_order(Modules, SourceRoot, LoadPath) ->
 %% build reports them (report §11.5).
 parse_all(Modules, SourceRoot, LoadPath) ->
     lists:foldl(fun(Module, {Parsed, Failed}) ->
-                        try parse_module(Module, SourceRoot, LoadPath) of
-                            ParsedModule -> {Parsed ++ [ParsedModule], Failed}
-                        catch
-                            throw:{errors, File, Errors} ->
-                                {Parsed, Failed ++ [{Module#build_module.namespace, File, Errors}]}
-                        end
+                    try parse_module(Module, SourceRoot, LoadPath) of
+                        ParsedModule -> {Parsed ++ [ParsedModule], Failed}
+                    catch
+                        throw:{errors, File, Errors} ->
+                            {Parsed, Failed ++ [{Module#build_module.namespace, File, Errors}]}
+                    end
                 end, {[], []}, Modules).
 
 %% The parsed modules in an order where each follows those it uses; a
@@ -394,9 +389,9 @@ module_prefix([], _SourceRoot, _SearchPath) ->
     false;
 module_prefix(Path, SourceRoot, SearchPath) ->
     Relative = module_path(Path),
+    Compiled = fun(Dir) -> filelib:is_regular(filename:join(Dir, Relative ++ ".erc")) end,
     case filelib:is_regular(filename:join(SourceRoot, Relative ++ ".ern"))
-        orelse lists:any(fun(Dir) -> filelib:is_regular(filename:join(Dir, Relative ++ ".erc")) end,
-                         SearchPath) of
+        orelse lists:any(Compiled, SearchPath) of
         true -> {true, Path};
         false -> module_prefix(lists:droplast(Path), SourceRoot, SearchPath)
     end.
@@ -475,9 +470,8 @@ stdlib_namespaces() ->
 %% interfaces, unless its .erc is current (§11.1). Returns the interfaces
 %% with this module's added.
 build(#build_module{namespace = Namespace, file = File, relative = Relative,
-                    declarations = Declarations, dependencies = Dependencies}, Interfaces,
-                    SourceRoot,
-      [BuildRoot | _] = SearchPath, Emit, StdlibHash) ->
+                    declarations = Declarations, dependencies = Dependencies},
+      Interfaces, SourceRoot, [BuildRoot | _] = SearchPath, Emit, StdlibHash) ->
     DependencyInterfaces = dependency_interfaces(Namespace, Dependencies, Interfaces, SearchPath,
                                                  SourceRoot),
     DependencyHashes = lists:sort([{Dependency, ern_interface:hash(DependencyInterface)}
@@ -490,17 +484,16 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
         {true, Interface} ->
             Interfaces#{Namespace => Interface};
         false ->
-            case ern_typecheck:check(Namespace, Declarations,
-                                     [DependencyInterface
-                                      || {_, DependencyInterface} <- DependencyInterfaces]) of
+            Given = [DependencyInterface || {_, DependencyInterface} <- DependencyInterfaces],
+            case ern_typecheck:check(Namespace, Declarations, Given) of
                 {ok, Typed, Interface, Env} ->
                     ok = made_dir(Erc),
                     case Emit of
                         erl ->
                             Standard = #{standard => is_stdlib_root(SourceRoot)},
+                            Source = ern_emitter:erl_source(Namespace, Typed, Env, Standard),
                             ErlangSource = ["%% Generated by ern build from ", Relative, "\n",
-                                            ern_emitter:erl_source(Namespace, Typed, Env,
-                                                                   Standard)],
+                                            Source],
                             ok = write_output(OutputBase ++ ".erl",
                                               unicode:characters_to_binary(ErlangSource));
                         erc ->
@@ -509,8 +502,8 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
                                       deps => DependencyHashes, compiler => compiler_build(),
                                       stdlib => StdlibHash, standard => is_stdlib_root(SourceRoot),
                                       source => list_to_binary(filename:basename(Relative))},
-                            {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env,
-                                                                Build),
+                            {ok, _, Beam} =
+                                ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
                             ok = write_output(Erc, Beam)
                     end,
                     Interfaces#{Namespace => Interface};
@@ -613,15 +606,13 @@ dependency_interface(Dependency, Interfaces, [BuildRoot | _] = SearchPath, Sourc
     case Interfaces of
         #{Dependency := Interface} -> {Dependency, Interface};
         _ ->
+            Relative = module_path(Dependency) ++ ".erc",
             Found = [{Dir, Candidate} || Dir <- SearchPath,
-                                 Candidate <- [filename:join(Dir, module_path(Dependency)
-                                                                  ++ ".erc")],
-                                 filelib:is_regular(Candidate)],
+                                         Candidate <- [filename:join(Dir, Relative)],
+                                         filelib:is_regular(Candidate)],
             {Dir, Erc} = case Found of
                              [First | _] -> First;
-                             [] ->
-                                 {BuildRoot,
-                                  filename:join(BuildRoot, module_path(Dependency) ++ ".erc")}
+                             [] -> {BuildRoot, filename:join(BuildRoot, Relative)}
                          end,
             case read_erc(Erc) of
                 {ok, #{interface := Interface} = Chunk} ->
@@ -629,9 +620,8 @@ dependency_interface(Dependency, Interfaces, [BuildRoot | _] = SearchPath, Sourc
                         false -> {Dependency, Interface};
                         Source ->
                             fail("no module " ++ qualified_name_text(Dependency) ++ ": "
-                                 ++ shown(Erc)
-                                       ++ " was compiled from " ++ shown(Source)
-                                       ++ ", which no longer exists")
+                                 ++ shown(Erc) ++ " was compiled from " ++ shown(Source)
+                                 ++ ", which no longer exists")
                     end;
                 {error, Error} ->
                     fail("compile " ++ qualified_name_text(Dependency) ++ " first: " ++ Erc ++ ": "
@@ -805,13 +795,12 @@ compile_source(File, SourceRoot, SearchPath, Interfaces) ->
             compile_order([module_of(absolute(File), SourceRoot)], SourceRoot, SearchPath),
         DependencyInterfaces = dependency_interfaces(Namespace, Dependencies, Interfaces,
                                                      SearchPath, SourceRoot),
-        DependencyHashes = lists:sort([{Dependency, ern_interface:hash(DependencyInterface)}
-                                       || {Dependency,
-                                           DependencyInterface} <- DependencyInterfaces]),
+        DependencyHashes =
+            lists:sort([{Dependency, ern_interface:hash(DependencyInterface)}
+                        || {Dependency, DependencyInterface} <- DependencyInterfaces]),
         Hash = crypto:hash(sha256, read(File)),
-        case ern_typecheck:check(Namespace, Declarations,
-                                 [DependencyInterface
-                                  || {_, DependencyInterface} <- DependencyInterfaces]) of
+        Given = [DependencyInterface || {_, DependencyInterface} <- DependencyInterfaces],
+        case ern_typecheck:check(Namespace, Declarations, Given) of
             {ok, Typed, Interface, Env} ->
                 %% the dependencies are recorded as `ern build` records them, so
                 %% the shell loads them before the module (report §11.2)

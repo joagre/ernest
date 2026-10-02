@@ -50,6 +50,10 @@
 %% pattern binds, `it` for an expression, or `declarations`
 %% A value with the descriptor of its type, so it prints as E.1 prints it.
 -record(value, {term, descriptor}).
+%% Where an input from a startup file came from: the file, the line it
+%% stands on, and the column it begins in (report §11.2); a typed input's
+%% origin is `{typed, Name}`.
+-record(startup_input, {file, first, column}).
 
 %% Report §11.2: what the runner loaded before the shell started, which the
 %% shell begins from: the load path, where a module's source is found, the
@@ -125,7 +129,8 @@ unfinished(_) -> false.
 check(#session{last_input = LastInput} = Session, From, Input) ->
     Origin = case From of
                  {'Prompt', Count} -> {typed, <<"input ", (integer_to_binary(Count))/binary>>};
-                 {'Startup', File, First, Column} -> {file, File, First, Column}
+                 {'Startup', File, First, Column} ->
+                     #startup_input{file = File, first = First, column = Column}
              end,
     %% an input takes the number of one whose module was unloaded, whose
     %% name is an atom already, before a new one (report §2.3)
@@ -267,7 +272,7 @@ let_binds(Name, _) -> Name.
 annotated(_Name, Body, undefined) ->
     Body;
 annotated(Name, Body, Annotation) ->
-    Span = element(2, Body),
+    Span = ern_ast:span(Body),
     #e_block{span = Span,
              statements = [#binding{span = Span, pattern = #p_var{span = Span, name = Name},
                                     annotation = Annotation, operator = '=', expr = Body},
@@ -314,7 +319,7 @@ generalized(Binds, _Typed, _Env) ->
 %% Report §11.2: the name and the line offset a spawn site in the input is
 %% written with, as its diagnostics name and count it.
 site({typed, Name}) -> {Name, 0};
-site({file, File, First, _}) -> {File, First - 1}.
+site(#startup_input{file = File, first = First}) -> {File, First - 1}.
 
 %% Report §11.2: an input is compiled and run on its own, so what it
 %% binds must have a type by the time it runs; a later input cannot
@@ -428,27 +433,14 @@ one_name(Typed) ->
 %% interruption kills.
 -spec run(#session{}, #checked{}, integer(), term()) -> term().
 run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interface, env = Env,
-                      type = Type, binds = Binds, site = {Where, Offset}}, Count, Address) ->
+                      type = Type, binds = Binds, site = {Where, Offset}} = Checked,
+    Count, Address) ->
     Descriptor = ern_descriptor:describe(Type, Env, []),
     Options = #{source_hash => <<>>, deps => [], session => Offset},
     {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Options),
     {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
     set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) -- [Namespace]),
-    %% report §11.2: the session's modules the input calls, and those whose
-    %% types its declarations name, kept while it is (collected/1)
-    {ok, {_, [{imports, Imports}]}} = beam_lib:chunks(Beam, [imports]),
-    Named = case Binds of
-                declarations -> mentions(Interface, Namespace);
-                _ -> []
-            end,
-    %% the keys its top-level lets are stored under (report §8.5), which go
-    %% when it does
-    Keys = [{ErlangModule, ern_emitter:function_name(undefined, Name)}
-            || #let_declaration{name = Name} <- Typed],
-    Calls = [Imported || {Imported, _, _} <- Imports, session_module(Imported),
-                         Imported =/= ErlangModule],
-    set_uses(maps:put(ErlangModule, {Namespace, lists:usort(Calls ++ Named), Keys}, uses())),
-    set_names(maps:put(ErlangModule, Where, names_of_inputs())),
+    record_uses(ErlangModule, Beam, Checked),
     %% report §11.2: an input that declares keeps its module for `:doc`;
     %% an expression's has no documentation, and is not kept
     Session1 = case Binds of
@@ -473,6 +465,26 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
                 ern_rt:send(Address, Outcome)
             end,
     ern_rt:spawn(Input, <<Where/binary, ":", (integer_to_binary(1 + Offset))/binary>>).
+
+%% Report §11.2: what the input's module needs of the session's modules,
+%% kept while it is (collected/1): those its code calls and, where it
+%% declares, those whose types its declarations name; with the keys its
+%% top-level lets are stored under (§8.5), which go when it does, and the
+%% name its spawn sites are written with.
+record_uses(ErlangModule, Beam, #checked{namespace = Namespace, typed = Typed,
+                                         interface = Interface, binds = Binds,
+                                         site = {Where, _}}) ->
+    {ok, {_, [{imports, Imports}]}} = beam_lib:chunks(Beam, [imports]),
+    Calls = [Imported || {Imported, _, _} <- Imports, session_module(Imported),
+                         Imported =/= ErlangModule],
+    Named = case Binds of
+                declarations -> mentions(Interface, Namespace);
+                _ -> []
+            end,
+    Keys = [{ErlangModule, ern_emitter:function_name(undefined, Name)}
+            || #let_declaration{name = Name} <- Typed],
+    set_uses(maps:put(ErlangModule, {Namespace, lists:usort(Calls ++ Named), Keys}, uses())),
+    set_names(maps:put(ErlangModule, Where, names_of_inputs())).
 
 %% An input that declares nothing, an expression or a `let`, is done with
 %% its module once it has its answer, unless what it bound holds one of the
@@ -652,16 +664,16 @@ names(#session{interfaces = Interfaces, scope = Scope} = Session) ->
                                   constructor_scheme(QualifiedName, Session), TypeState))
             || {Name, QualifiedName} <- maps:to_list(maps:get(constructors, Scope, #{}))],
     {PreludeTypes, _} = ern_typecheck:prelude_names(),
-    Prelude = [name('Value', qualified_name_text(QualifiedName),
-                    qualified_name_text(QualifiedName) ++ " : " ++ Type)
-               || {QualifiedName, Type, _} <- ern_prelude:values()]
-        ++ [name('Type', qualified_name_text(QualifiedName),
-                 "type " ++ qualified_name_text(QualifiedName))
-            || QualifiedName <- PreludeTypes]
-        ++ [name('Constructor', qualified_name_text(QualifiedName),
-                 constructor_line(qualified_name_text(QualifiedName), {ok, Scheme}, TypeState))
+    Prelude = [name('Value', Text, Text ++ " : " ++ Type)
+               || {QualifiedName, Type, _} <- ern_prelude:values(),
+                  Text <- [ern_build:qualified_name_text(QualifiedName)]]
+        ++ [name('Type', Text, "type " ++ Text)
+            || QualifiedName <- PreludeTypes,
+               Text <- [ern_build:qualified_name_text(QualifiedName)]]
+        ++ [name('Constructor', Text, constructor_line(Text, {ok, Scheme}, TypeState))
             || {QualifiedName, #constructor_info{scheme = Scheme}}
-                   <- maps:to_list(ern_typecheck:prelude_constructors())],
+                   <- maps:to_list(ern_typecheck:prelude_constructors()),
+               Text <- [ern_build:qualified_name_text(QualifiedName)]],
     Modules = lists:append([module_names(Interface, TypeState)
                             || Interface <- Interfaces ++ ern_prelude:stdlib_interfaces()]),
     %% report §11.2: an operator is no name, and does not complete, and
@@ -734,25 +746,25 @@ segment(Name) ->
 %% A module in scope: the module itself, its exported values and types,
 %% and the constructors of those types, each by the name a person types.
 module_names(#interface{namespace = Namespace, types = Types, values = Values}, TypeState) ->
-    [name('Module', qualified_name_text(Namespace), "module " ++ qualified_name_text(Namespace))]
-        ++ [name('Value', qualified_name_text(QualifiedName),
-                 qualified_name_text(QualifiedName) ++ " : "
-                     ++ ern_types:format_scheme(Scheme, TypeState))
-            || {QualifiedName, Scheme} <- maps:to_list(Values)]
+    ModuleText = ern_build:qualified_name_text(Namespace),
+    [name('Module', ModuleText, "module " ++ ModuleText)]
+        ++ [name('Value', Text, Text ++ " : " ++ ern_types:format_scheme(Scheme, TypeState))
+            || {QualifiedName, Scheme} <- maps:to_list(Values),
+               Text <- [ern_build:qualified_name_text(QualifiedName)]]
         ++ lists:append([type_names(QualifiedName, TypeInfo, TypeState)
                          || {QualifiedName, TypeInfo} <- maps:to_list(Types)]).
 
 %% A type in scope and, unless it is abstract, its constructors, each named
 %% in the type's namespace.
 type_names(QualifiedName, #type_info{constructors = Constructors} = TypeInfo, TypeState) ->
-    Text = qualified_name_text(QualifiedName),
+    Text = ern_build:qualified_name_text(QualifiedName),
     Namespace = lists:droplast(QualifiedName),
     [name('Type', Text, abstract_text(TypeInfo) ++ "type " ++ Text)
-     | [name('Constructor', ConstructorText, constructor_line(ConstructorText, {ok, Scheme},
-                                                              TypeState))
+     | [name('Constructor', ConstructorText,
+             constructor_line(ConstructorText, {ok, Scheme}, TypeState))
         || not TypeInfo#type_info.abstract,
            #constructor_info{name = ConstructorName, scheme = Scheme} <- Constructors,
-           ConstructorText <- [qualified_name_text(Namespace ++ [ConstructorName])]]].
+           ConstructorText <- [ern_build:qualified_name_text(Namespace ++ [ConstructorName])]]].
 
 name(Kind, Text, Shown) ->
     {'Name', unicode:characters_to_binary(Text), Kind, unicode:characters_to_binary(Shown)}.
@@ -841,9 +853,9 @@ prelude_listing() ->
     {Types, _} = ern_typecheck:prelude_names(),
     %% the environment holds the standard library's types too, each under
     %% its module's name; the prelude's own are unqualified
-    [unicode:characters_to_binary(["type ", qualified_name_text(QualifiedName)])
+    [unicode:characters_to_binary(["type ", ern_build:qualified_name_text(QualifiedName)])
      || [_] = QualifiedName <- lists:sort(Types)]
-    ++ [unicode:characters_to_binary([qualified_name_text(QualifiedName), " : ",
+    ++ [unicode:characters_to_binary([ern_build:qualified_name_text(QualifiedName), " : ",
                                       ern_types:format_scheme(Scheme, TypeState)])
         || {QualifiedName, Scheme} <- lists:sort(ern_typecheck:prelude_values())].
 
@@ -860,10 +872,10 @@ browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope}) ->
             TypeState = ern_types:set_scope(ScopeState, [],
                                             maps:values(maps:get(types, Scope, #{})), []),
             Types = [unicode:characters_to_binary([abstract_text(TypeInfo), "type ",
-                                                   qualified_name_text(QualifiedName)])
+                                                   ern_build:qualified_name_text(QualifiedName)])
                      || {QualifiedName, TypeInfo} <- lists:sort(maps:to_list(InterfaceTypes))],
             Values = [unicode:characters_to_binary(
-                        [qualified_name_text(QualifiedName), " : ",
+                        [ern_build:qualified_name_text(QualifiedName), " : ",
                          ern_types:format_scheme(Scheme, TypeState)])
                       || {QualifiedName, Scheme} <- lists:sort(maps:to_list(InterfaceValues))],
             {'Right', Types ++ Values}
@@ -871,9 +883,6 @@ browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope}) ->
 
 abstract_text(#type_info{abstract = true}) -> "abstract ";
 abstract_text(_) -> "".
-
-qualified_name_text(QualifiedName) ->
-    lists:join(".", [atom_to_list(Segment) || Segment <- QualifiedName]).
 
 %% Report §2.3: a name as it is written, its segments between the dots,
 %% or `none` for text that is no name: an empty segment, or one longer than
@@ -1031,7 +1040,7 @@ signature(Before) ->
 
 call_signature(Path, Name, Argument) ->
     Session = persistent_term:get({?MODULE, session}, #session{}),
-    Text = unicode:characters_to_binary(qualified_name_text(Path ++ [Name])),
+    Text = unicode:characters_to_binary(ern_build:qualified_name_text(Path ++ [Name])),
     %% a callee that does not check, a name not in scope, has none, and
     %% neither has one whose declaration the checker does not hold or whose
     %% type is not a function's
@@ -1082,7 +1091,8 @@ constructor_signature(Path, Name, Argument) ->
                      end,
             {Head, This, Rest} = ern_types:format_call(Scheme, Names, Marked,
                                                        session_type_state(Session)),
-            {'Some', {unicode:characters_to_binary([qualified_name_text(Path ++ [Name]), Head]),
+            Text = ern_build:qualified_name_text(Path ++ [Name]),
+            {'Some', {unicode:characters_to_binary([Text, Head]),
                       unicode:characters_to_binary(This), unicode:characters_to_binary(Rest)}};
         _ ->
             'None'
@@ -1197,11 +1207,11 @@ doc_of(Session, Segments) ->
 namespace_doc(_, []) ->
     none;
 namespace_doc(Session, Segments) ->
-    Prefix = unicode:characters_to_binary(qualified_name_text(Segments) ++ "."),
+    Prefix = unicode:characters_to_binary(ern_build:qualified_name_text(Segments) ++ "."),
     case [Shown || {'Name', Text, _, Shown} <- names(Session),
                    binary:match(Text, Prefix) =:= {0, byte_size(Prefix)}] of
         [] -> none;
-        Held -> {ok, ["# namespace ", qualified_name_text(Segments), "\n\n",
+        Held -> {ok, ["# namespace ", ern_build:qualified_name_text(Segments), "\n\n",
                       [["- `", Shown, "`\n"] || Shown <- Held]]}
     end.
 
@@ -1302,7 +1312,7 @@ declaring_beam(QualifiedName, Segments, Beams) ->
 %% The name a documentation entry is under, as it is written: `map`, a
 %% member as `Stack.push`, and a prelude name as `Address.call`.
 entry_name(Segments) ->
-    unicode:characters_to_binary(qualified_name_text(Segments)).
+    unicode:characters_to_binary(ern_build:qualified_name_text(Segments)).
 
 %% A module on the load path, `List.map`, or one of its type's members,
 %% `Net.Http.Request.method`.
@@ -1349,7 +1359,7 @@ entry(Beam, Name) -> ern_page:declaration(Beam, Name).
 diagnostic({typed, Name}, Input, Diagnostics) ->
     unicode:characters_to_binary([ern_diagnostic:format(binary_to_list(Name), Input, Diagnostic)
                                   || Diagnostic <- Diagnostics]);
-diagnostic({file, Path, First, Column}, Input, Diagnostics) ->
+diagnostic(#startup_input{file = Path, first = First, column = Column}, Input, Diagnostics) ->
     Source = case file:read_file(Path) of
                  {ok, Text} -> Text;
                  {error, _} -> Input
@@ -1384,7 +1394,7 @@ moved_column(_, Column, _) -> Column.
 load(#session{modules = Modules} = Session, Text) ->
     case module_name(Text) of
         {ok, Namespace} ->
-            Name = unicode:characters_to_binary(qualified_name_text(Namespace)),
+            Name = unicode:characters_to_binary(ern_build:qualified_name_text(Namespace)),
             Standard = [Held || #interface{namespace = Held} <- ern_prelude:stdlib_interfaces()],
             case lists:member(Namespace, Standard) of
                 %% report §4.2, §11.2: a standard library namespace is taken,
@@ -1418,7 +1428,7 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
                     Sources = with_sources(Session, [{Namespace, File}], []),
                     case compile_in_order(Session, Sources) of
                         {ok, Modules} ->
-                            Lines = [[qualified_name_text(Compiled), ", compiled from ",
+                            Lines = [[ern_build:qualified_name_text(Compiled), ", compiled from ",
                                       relative(Source, Session)]
                                      || {Compiled, Source} <- lists:reverse(Sources)],
                             with_needed(Session, Modules,
@@ -1427,7 +1437,7 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
                             {'Left', iolist_to_binary(Failed)}
                     end;
                 _ ->
-                    {'Left', <<(list_to_binary(qualified_name_text(Declared)))/binary,
+                    {'Left', <<(list_to_binary(ern_build:qualified_name_text(Declared)))/binary,
                                " is declared in ",
                                (list_to_binary(relative(File, Session)))/binary,
                                ", which is not where ", Name/binary, " belongs\n">>}
@@ -1524,8 +1534,7 @@ installed(Session, All, Line) ->
         ok ->
             {'Right', {remember(Session1), Line}};
         {fault, Site, Cause} ->
-            Withdraw = fun({Namespace, _, _}) -> withdraw(ern_emitter:module_atom(Namespace)) end,
-            lists:foreach(Withdraw, All),
+            withdraw_all(All),
             {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was loaded\n">>}
     end.
 
@@ -1536,9 +1545,13 @@ in_order(Modules) ->
     ByErlangModule = maps:from_list(lists:zip(ErlangModules, Modules)),
     [maps:get(ErlangModule, ByErlangModule) || ErlangModule <- ern_rt:ordered(ErlangModules)].
 
-%% Report §11.2: a module a failed `:load` or `:reload` had loaded, gone with
-%% the processes its bindings started, which end as a reload ends those of a
-%% previous version, so that the session is as it was.
+%% Report §11.2: the modules a failed `:load` or `:reload` had loaded, each
+%% gone with the processes its bindings started, which end as a reload ends
+%% those of a previous version, so that the session is as it was.
+withdraw_all(Modules) ->
+    [withdraw(ern_emitter:module_atom(Namespace)) || {Namespace, _, _} <- Modules],
+    ok.
+
 withdraw(ErlangModule) ->
     code:delete(ErlangModule),
     unloaded([Pid || {Pid, _} <- ern_rt:live(), erlang:check_process_code(Pid, ErlangModule)]),
@@ -1588,14 +1601,14 @@ initialize(Namespace, ErlangModule, Rest) ->
     %% comes (report §6.9)
     _ = ern_rt:spawn_monitored(Init, fun(Down) -> {Ref, Down} end, <<"Shell.load">>),
     receive
-        {Ref, Result} when Result =:= ok; element(1, Result) =:= fault ->
+        {Ref, ok} ->
             receive {Ref, {'Down', _, _, _}} -> ok end,
-            case Result of
-                ok -> initialize(Rest);
-                {fault, _, _} = Fault -> Fault
-            end;
+            initialize(Rest);
+        {Ref, {fault, _, _} = Fault} ->
+            receive {Ref, {'Down', _, _, _}} -> ok end,
+            Fault;
         {Ref, {'Down', _, Reason, _}} ->
-            {fault, unicode:characters_to_binary(qualified_name_text(Namespace)),
+            {fault, unicode:characters_to_binary(ern_build:qualified_name_text(Namespace)),
              case Reason of
                  {'Fault', Cause} -> Cause;
                  Other -> atom_to_binary(Other)
@@ -1644,7 +1657,7 @@ needed_one(Session, Namespace, Acc, Compiled) ->
                 Error -> Error
             end;
         none ->
-            Name = unicode:characters_to_binary(qualified_name_text(Namespace)),
+            Name = unicode:characters_to_binary(ern_build:qualified_name_text(Namespace)),
             {error, <<"no module ", Name/binary, " on the load path\n">>}
     end.
 
@@ -1668,31 +1681,26 @@ reload(#session{modules = Modules} = Session) ->
             {'Right', {Session, [<<"no source has changed">> | Sourceless]}};
         _ ->
             case compile_all(Session, Changed) of
-                {ok, Needed, Compiled} ->
-                    %% what the changed modules use and the session had not
-                    %% loaded is loaded as `:load` loads it, first
-                    Session1 = install(Session, Needed),
-                    case initialize(Needed) of
-                        ok ->
-                            {Session2, Lines} =
-                                lists:foldl(fun reload_one/2, {Session1, []}, Compiled),
-                            Faulted = case initialize(in_order(Compiled)) of
-                                          ok -> [];
-                                          {fault, Site, Cause} -> [kept_values(Site, Cause)]
-                                      end,
-                            {'Right', {remember(Session2),
-                                       lists:reverse(Lines) ++ Faulted ++ Sourceless}};
-                        {fault, Site, Cause} ->
-                            Withdraw = fun({Namespace, _, _}) ->
-                                           withdraw(ern_emitter:module_atom(Namespace))
-                                       end,
-                            lists:foreach(Withdraw, Needed),
-                            {'Left', <<(binding_fault(Site, Cause))/binary,
-                                       "; nothing was reloaded\n">>}
-                    end;
-                {error, Text} ->
-                    {'Left', iolist_to_binary([Text, "nothing was reloaded\n"])}
+                {ok, Needed, Compiled} -> reloaded(Session, Needed, Compiled, Sourceless);
+                {error, Text} -> {'Left', iolist_to_binary([Text, "nothing was reloaded\n"])}
             end
+    end.
+
+%% Report §11.2: the changed modules loaded again, after what they use that
+%% the session had not loaded, which is loaded as `:load` loads it.
+reloaded(Session, Needed, Compiled, Sourceless) ->
+    Session1 = install(Session, Needed),
+    case initialize(Needed) of
+        ok ->
+            {Session2, Lines} = lists:foldl(fun reload_one/2, {Session1, []}, Compiled),
+            Faulted = case initialize(in_order(Compiled)) of
+                          ok -> [];
+                          {fault, Site, Cause} -> [kept_values(Site, Cause)]
+                      end,
+            {'Right', {remember(Session2), lists:reverse(Lines) ++ Faulted ++ Sourceless}};
+        {fault, Site, Cause} ->
+            withdraw_all(Needed),
+            {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was reloaded\n">>}
     end.
 
 %% Report §11.2: a loaded module whose source the source root does not
@@ -1700,7 +1708,7 @@ reload(#session{modules = Modules} = Session) ->
 sourceless(_Session, []) ->
     [];
 sourceless(#session{source_root = SourceRoot}, Names) ->
-    Text = lists:join(", ", [qualified_name_text(Namespace) || Namespace <- Names]),
+    Text = lists:join(", ", [ern_build:qualified_name_text(Namespace) || Namespace <- Names]),
     [unicode:characters_to_binary(["the source root ", ern_build:shown(SourceRoot),
                                    " holds no source of ", Text])].
 
@@ -1728,7 +1736,7 @@ compile_all(Session, Changed) ->
                             compile_all(Session, Changed ++ More);
                         Sourceless ->
                             {error, [unicode:characters_to_binary(
-                                       [qualified_name_text(Namespace),
+                                       [ern_build:qualified_name_text(Namespace),
                                         " uses a module whose interface changed,"
                                         " and the source root holds no source of it\n"])
                                      || Namespace <- Sourceless]}
@@ -1805,7 +1813,7 @@ loaded_interfaces(#session{interfaces = Interfaces, modules = Modules}) ->
 
 reload_one({Namespace, Beam, Hash}, {Session, Lines}) ->
     ErlangModule = ern_emitter:module_atom(Namespace),
-    Name = unicode:characters_to_binary(qualified_name_text(Namespace)),
+    Name = unicode:characters_to_binary(ern_build:qualified_name_text(Namespace)),
     {Ended, Session1} = case erlang:check_old_code(ErlangModule) of
                             true -> end_previous(Session, ErlangModule);
                             false -> {[], Session}
@@ -1865,7 +1873,8 @@ value_of(QualifiedName) ->
     persistent_term:get({Holder, lists:last(QualifiedName)}, undefined).
 
 holds_fun(Function, ErlangModule) when is_function(Function) ->
-    element(2, erlang:fun_info(Function, module)) =:= ErlangModule;
+    {module, Held} = erlang:fun_info(Function, module),
+    Held =:= ErlangModule;
 holds_fun([Head | Tail], ErlangModule) ->
     holds_fun(Head, ErlangModule) orelse holds_fun(Tail, ErlangModule);
 holds_fun(Tuple, ErlangModule) when is_tuple(Tuple) ->
@@ -2337,8 +2346,11 @@ declared(#checked{binds = {names, []}}) ->
 declared(#checked{binds = {names, Names}, type = Type, env = Env}) ->
     TypeState = ern_typecheck:type_state(Env),
     Types = case Names of
-                [_] -> [Type];
-                _ -> element(2, ern_types:substitute(Type, TypeState))
+                [_] ->
+                    [Type];
+                _ ->
+                    {ttuple, Components} = ern_types:substitute(Type, TypeState),
+                    Components
             end,
     [unicode:characters_to_binary([atom_to_list(Bound), " : ",
                                    ern_types:format(BoundType, TypeState)])

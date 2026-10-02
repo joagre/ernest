@@ -62,10 +62,10 @@ render(Title, Prefix, {docs_v1, _, ernest, _, ModuleDoc, Meta, Entries}) ->
 %% constructor, whose fields stand in their declared order.
 roff(Name, Title, Prefix, {docs_v1, _, ernest, _, ModuleDoc, Meta, Entries}) ->
     Body = [module_text(ModuleDoc), [entry(Entry, Prefix) || Entry <- Entries]],
-    Prose = case ModuleDoc of
-                none -> <<>>;
-                #{<<"en">> := DocText} -> element(1, split_since(DocText))
-            end,
+    {Prose, _} = case ModuleDoc of
+                     none -> {<<>>, undefined};
+                     #{<<"en">> := DocText} -> split_since(DocText)
+                 end,
     Summary = case 'ern@markdown':firstSentence(markdown(Prose)) of
                   [] -> 'ern@markdown':firstSentence(markdown(Title));
                   Sentence -> Sentence
@@ -211,5 +211,8 @@ since(Beam) ->
     {ok, Docs} = ern_docs:read(Beam),
     module_since(Docs).
 
-module_since({docs_v1, _, _, _, #{<<"en">> := DocText}, _, _}) -> element(2, split_since(DocText));
-module_since(_) -> undefined.
+module_since({docs_v1, _, _, _, #{<<"en">> := DocText}, _, _}) ->
+    {_, Since} = split_since(DocText),
+    Since;
+module_since(_) ->
+    undefined.
