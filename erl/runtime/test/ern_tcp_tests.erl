@@ -113,14 +113,14 @@ close_listener_test() ->
            fun() ->
                {'Right', Listener} = listen(0),
                Pid = ern_rt:process_of(Listener),
-               Main = self(),
+               EntryProcess = self(),
                %% the accept is at the listener before the close is sent, since
                %% it is sent before `sent`; a spawned accept and a pause before
                %% the close raced it, and the close could come first
                _ = erlang:spawn(fun() ->
                                     Reply = erlang:alias(),
                                     Pid ! {'Accept', 5000, self(), Reply},
-                                    Main ! sent,
+                                    EntryProcess ! sent,
                                     Self ! {accepted, receive {Reply, answered, Value} -> Value
                                                       after 5000 -> timeout end}
                                 end),
@@ -195,9 +195,9 @@ port_out_of_range_test() ->
 
 %% Appendix E.18: a host that holds U+0000 names none, `Invalid`, by
 %% `listen` and `connect` alike, and the program is still found deadlocked
-%% after. A
-%% regression test: the host raised an exit the worker did not catch, the
-%% caller waited for good, and no deadlock was found (findings.md's C1-1)
+%% after. A regression test: the host raised an exit the worker did not
+%% catch, the caller waited for good, and no deadlock was found
+%% (findings.md's C1-1)
 host_with_nul_test() ->
     Self = self(),
     Result = ern_rt:run_main(
@@ -303,9 +303,9 @@ listener_ends_with_its_owner_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Main = self(),
+               EntryProcess = self(),
                Owner = erlang:spawn(fun() ->
-                                        Main ! {opened, listen(0)},
+                                        EntryProcess ! {opened, listen(0)},
                                         receive stop -> ok end
                                     end),
                {'Right', Listener} = ern_rt:in_foreign(fun() -> receive {opened, L} -> L end end),
@@ -326,7 +326,6 @@ side({Side, _}) -> Side.
 quiet() ->
     #{stdout => fun(_) -> ok end}.
 
-%% A wait the deadlock detector counts, as the compiler's timed receive is.
 %% Until the process holds at least Count messages.
 queued(Pid, Count) ->
     case erlang:process_info(Pid, message_queue_len) of
@@ -334,6 +333,7 @@ queued(Pid, Count) ->
         _ -> timer:sleep(5), queued(Pid, Count)
     end.
 
+%% A wait the deadlock detector counts, as the compiler's timed receive is.
 sleep(Ms) ->
     ern_rt:timed(),
     timer:sleep(Ms),

@@ -14,18 +14,18 @@ helper_ends_under_a_write_and_a_read_test() ->
            fun() ->
                {'Right', Program} = start(<<"sleep">>, [<<"3">>]),
                {links, Links} = process_info(Program, links),
-               [Port] = [Link || Link <- Links, is_port(Link)],
-               {os_pid, Helper} = erlang:port_info(Port, os_pid),
+               [Helper] = [Link || Link <- Links, is_port(Link)],
+               {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
                erlang:suspend_process(Program),
-               Written = alias(),
-               Program ! {'Write', <<"x">>, 5000, Written},
-               Read = alias(),
-               Program ! {'Read', 5000, Read},
-               _ = os:cmd("kill -9 " ++ integer_to_list(Helper)),
-               closed(Port),
+               WriteReply = alias(),
+               Program ! {'Write', <<"x">>, 5000, WriteReply},
+               ReadReply = alias(),
+               Program ! {'Read', 5000, ReadReply},
+               _ = os:cmd("kill -9 " ++ integer_to_list(OsPid)),
+               closed(Helper),
                erlang:resume_process(Program),
-               Self ! {write, answer(Written)},
-               Self ! {read, answer(Read)}
+               Self ! {write, answer(WriteReply)},
+               Self ! {read, answer(ReadReply)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     Failed = {fault, <<"the runtime's helper ern_exec failed">>},
     ?assertEqual(Failed, wait(write)),
@@ -37,17 +37,17 @@ helper_ends_under_a_write_and_a_read_test() ->
 %% answered at once, ahead of one the program had not taken, which let its
 %% writer go (findings.md's C8)
 helper_answers_input_in_order_test() ->
-    Port = helper(["sleep", "2"]),
-    receive {Port, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
+    Helper = helper(["sleep", "2"]),
+    receive {Helper, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
     %% more than a pipe holds, which `sleep` never reads
-    true = port_command(Port, <<"i", (binary:copy(<<"x">>, 200000))/binary>>),
-    true = port_command(Port, <<"e">>),
-    true = port_command(Port, <<"i", "y">>),
+    true = port_command(Helper, <<"i", (binary:copy(<<"x">>, 200000))/binary>>),
+    true = port_command(Helper, <<"e">>),
+    true = port_command(Helper, <<"i", "y">>),
     ?assertEqual(none, receive
-                           {Port, {data, <<T>>}} when T =:= $a; T =:= $d -> answered
+                           {Helper, {data, <<T>>}} when T =:= $a; T =:= $d -> answered
                        after 300 -> none
                        end),
-    port_close(Port).
+    port_close(Helper).
 
 %% Appendix E.23: an input larger than a pipe holds reaches the program
 %% whole and in order, taken by the program a part at a time. A regression
@@ -56,24 +56,24 @@ helper_answers_input_in_order_test() ->
 %% input: 128 MB took 16 s and takes 3 s now. It checks the bytes, not the
 %% time, which the measure in the log's entry shows
 helper_gives_a_large_input_whole_test() ->
-    Port = helper(["cat"]),
-    receive {Port, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
+    Helper = helper(["cat"]),
+    receive {Helper, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
     Input = << <<(N rem 251)>> || N <- lists:seq(1, 4000000) >>,
-    true = port_command(Port, <<"i", Input/binary>>),
-    true = port_command(Port, <<"i", "more">>),
-    true = port_command(Port, <<"e">>),
-    true = port_command(Port, <<"n">>),
-    ?assert(<<Input/binary, "more">> =:= output(Port, <<>>)).
+    true = port_command(Helper, <<"i", Input/binary>>),
+    true = port_command(Helper, <<"i", "more">>),
+    true = port_command(Helper, <<"e">>),
+    true = port_command(Helper, <<"n">>),
+    ?assert(<<Input/binary, "more">> =:= output(Helper, <<>>)).
 
 %% What the program wrote to its standard output, read a piece at a time,
 %% until the helper's exit status.
-output(Port, Read) ->
+output(Helper, Output) ->
     receive
-        {Port, {data, <<"o", Bytes/binary>>}} ->
-            true = port_command(Port, <<"n">>),
-            output(Port, <<Read/binary, Bytes/binary>>);
-        {Port, {data, <<"x", _/binary>>}} -> Read;
-        {Port, {data, _}} -> output(Port, Read)
+        {Helper, {data, <<"o", Bytes/binary>>}} ->
+            true = port_command(Helper, <<"n">>),
+            output(Helper, <<Output/binary, Bytes/binary>>);
+        {Helper, {data, <<"x", _/binary>>}} -> Output;
+        {Helper, {data, _}} -> output(Helper, Output)
     after 20000 -> timeout
     end.
 
@@ -82,12 +82,12 @@ output(Port, Read) ->
 %% program took. The program closes its input and is given time to, so
 %% that the bytes do not reach the pipe before it is closed
 helper_says_input_was_dropped_test() ->
-    Port = helper(["sh", "-c", "exec 0<&-; sleep 2"]),
-    receive {Port, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
+    Helper = helper(["sh", "-c", "exec 0<&-; sleep 2"]),
+    receive {Helper, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
     receive after 300 -> ok end,
-    true = port_command(Port, <<"i", "x">>),
-    ?assertEqual(<<"d">>, receive {Port, {data, D}} -> D after 5000 -> none end),
-    port_close(Port).
+    true = port_command(Helper, <<"i", "x">>),
+    ?assertEqual(<<"d">>, receive {Helper, {data, D}} -> D after 5000 -> none end),
+    port_close(Helper).
 
 %% Appendix E.23: a program the host cannot start, here for want of a file
 %% descriptor for its pipes, is answered with the host's reason. A
@@ -97,13 +97,13 @@ helper_says_input_was_dropped_test() ->
 %% ends, is off for this run alone; the release review found it starved,
 %% and the helper hung as it failed
 helper_gives_the_hosts_reason_test() ->
-    Port = open_port({spawn, "sh -c \"ulimit -n 7; ASAN_OPTIONS=$ASAN_OPTIONS:detect_leaks=0"
-                      " exec " ++ helper_path() ++ " run\""},
-                     [{packet, 4}, binary, exit_status]),
-    true = port_command(Port, command(["true"])),
+    Helper = open_port({spawn, "sh -c \"ulimit -n 7; ASAN_OPTIONS=$ASAN_OPTIONS:detect_leaks=0"
+                        " exec " ++ helper_path() ++ " run\""},
+                       [{packet, 4}, binary, exit_status]),
+    true = port_command(Helper, command(["true"])),
     ?assertEqual(<<"fToo many open files">>,
-                 receive {Port, {data, D}} -> D after 5000 -> none end),
-    ?assertEqual(0, receive {Port, {exit_status, S}} -> S after 5000 -> none end).
+                 receive {Helper, {data, D}} -> D after 5000 -> none end),
+    ?assertEqual(0, receive {Helper, {exit_status, S}} -> S after 5000 -> none end).
 
 %% report §8.6, Appendix E.23: a program whose helper ended waits for a read
 %% to fault, and holds nothing the check for a deadlock would read as work.
@@ -115,15 +115,15 @@ lost_program_holds_no_timer_test() ->
            fun() ->
                {'Right', Program} = start(<<"sleep">>, [<<"3">>]),
                {links, Links} = process_info(Program, links),
-               [Port] = [Link || Link <- Links, is_port(Link)],
-               {os_pid, Helper} = erlang:port_info(Port, os_pid),
-               _ = os:cmd("kill -9 " ++ integer_to_list(Helper)),
-               closed(Port),
+               [Helper] = [Link || Link <- Links, is_port(Link)],
+               {os_pid, OsPid} = erlang:port_info(Helper, os_pid),
+               _ = os:cmd("kill -9 " ++ integer_to_list(OsPid)),
+               closed(Helper),
                sleep(500),
                Self ! {queued, process_info(Program, message_queue_len)},
-               Read = alias(),
-               Program ! {'Read', 5000, Read},
-               Self ! {read, answer(Read)}
+               ReadReply = alias(),
+               Program ! {'Read', 5000, ReadReply},
+               Self ! {read, answer(ReadReply)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({message_queue_len, 0}, wait(queued)),
     ?assertEqual({fault, <<"the runtime's helper ern_exec failed">>}, wait(read)).
@@ -179,12 +179,12 @@ give_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Main = self(),
+               EntryProcess = self(),
                Keeper = erlang:spawn(fun() -> receive stop -> ok end end),
                _ = erlang:spawn(fun() ->
                                     {'Right', Started} = start(<<"sleep">>, [<<"5">>]),
                                     Started ! {'Give', Keeper},
-                                    Main ! {program, Started}
+                                    EntryProcess ! {program, Started}
                                 end),
                Program = ern_rt:in_foreign(fun() -> receive {program, Started} -> Started end end),
                sleep(200),
@@ -204,10 +204,10 @@ give_test() ->
 %% The helper run on a command, as ern_os runs it: the command comes as the
 %% first frame.
 helper(Command) ->
-    Port = open_port({spawn_executable, helper_path()},
-                     [{args, ["run"]}, {packet, 4}, binary, exit_status]),
-    true = port_command(Port, command(Command)),
-    Port.
+    Helper = open_port({spawn_executable, helper_path()},
+                       [{args, ["run"]}, {packet, 4}, binary, exit_status]),
+    true = port_command(Helper, command(Command)),
+    Helper.
 
 helper_path() ->
     filename:join([filename:dirname(code:which(ern_os)), "..", "priv", "ern_exec"]).
@@ -229,10 +229,10 @@ write(Program, Bytes, Ms) ->
     ern_rt:call_forever(Program, fun(Reply) -> {'Write', Bytes, Ms, Reply} end).
 
 %% The port closes once the host has seen the helper end.
-closed(Port) ->
-    case erlang:port_info(Port) of
+closed(Helper) ->
+    case erlang:port_info(Helper) of
         undefined -> ok;
-        _ -> sleep(10), closed(Port)
+        _ -> sleep(10), closed(Helper)
     end.
 
 %% The answer the runtime's process gives, in Ernest's form (report §8.4).

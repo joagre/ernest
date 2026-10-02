@@ -1,8 +1,8 @@
 %% Report §8.2, Appendix E.18: the process behind Tcp's reference, and the
 %% processes behind a listener and a socket. A socket is a process: it owns
-%% the port and lives until Close, answering each read `Left(Closed)` once
-%% its connection has closed, and its address can be monitored, killed, and
-%% adapted like any other. Each request that waits carries its milliseconds,
+%% the host's socket and lives until Close, answering each read
+%% `Left(Closed)` once its connection has closed, and its address can be
+%% monitored, killed, and adapted like any other. Each request that waits carries its milliseconds,
 %% and the process that owns the stream decides whether time ran out, so
 %% that a request that timed out has taken nothing. A request waiting is a
 %% source (report §8.6), counted from its arrival until its answer.
@@ -18,8 +18,8 @@
 %% A socket's process: the host's socket, the writer that writes to it,
 %% the owner's monitor, the reads with no bytes yet, oldest first, the
 %% bytes no read has taken, and whether the connection is open or closed.
-%% The port is asked for bytes only while a read waits, so a program that
-%% stops reading holds the far end back.
+%% The host's socket is asked for bytes only while a read waits, so a
+%% program that stops reading holds the far end back.
 -record(connection, {socket, writer, monitor_ref, waiting = [], buffer = <<>>, state = open}).
 
 %% A read waiting: its reference, its reply, its deadline and its timer.
@@ -67,16 +67,16 @@ opened(Tcp, Loop, Site) ->
 %% address names. Every request is answered: a port out of range, and what
 %% the host refuses by raising, are errors as much as what it answers.
 listen(Tcp, Host, Owner, Port, Reply) ->
-    Answer = case {in_range(Port), address(Host)} of
+    Answer = case {in_range(Port), ip_address(Host)} of
                  {false, _} ->
                      {'Left', 'Invalid'};
-                 {true, {error, Reason}} ->
-                     {'Left', io_error(Reason)};
+                 {true, {error, Error}} ->
+                     {'Left', io_error(Error)};
                  {true, invalid} ->
                      {'Left', 'Invalid'};
-                 {true, {ok, Address}} ->
+                 {true, {ok, IpAddress}} ->
                      Options = [binary, {active, false}, {reuseaddr, true}, {packet, raw},
-                                {ip, Address} | family(Address)],
+                                {ip, IpAddress} | family(IpAddress)],
                      case guarded(fun() -> gen_tcp:listen(Port, Options) end) of
                          {ok, Socket} ->
                              %% report §6.9, Appendix E.18: owned by the
@@ -88,8 +88,8 @@ listen(Tcp, Host, Owner, Port, Reply) ->
                              Listener = opened(Tcp, Loop, <<"Tcp.listen">>),
                              gen_tcp:controlling_process(Socket, Listener),
                              {'Right', Listener};
-                         {error, Reason} ->
-                             {'Left', io_error(Reason)}
+                         {error, Error} ->
+                             {'Left', io_error(Error)}
                      end
              end,
     ern_rt:answer(Reply, Answer).
@@ -97,9 +97,9 @@ listen(Tcp, Host, Owner, Port, Reply) ->
 in_range(Port) ->
     Port >= 0 andalso Port =< 65535.
 
-%% An address the host's name or address stands for, IPv4's first. Report
-%% Appendix E.18: a host that holds U+0000 names none.
-address(Host) ->
+%% The IP address the host's name or address stands for, IPv4's first.
+%% Report Appendix E.18: a host that holds U+0000 names none.
+ip_address(Host) ->
     case binary:match(Host, <<0>>) of
         nomatch -> named(unicode:characters_to_list(Host));
         _ -> invalid
@@ -107,11 +107,11 @@ address(Host) ->
 
 named(Name) ->
     case inet:parse_address(Name) of
-        {ok, Address} ->
-            {ok, Address};
+        {ok, IpAddress} ->
+            {ok, IpAddress};
         {error, _} ->
             case guarded(fun() -> inet:getaddr(Name, inet) end) of
-                {ok, Address} -> {ok, Address};
+                {ok, IpAddress} -> {ok, IpAddress};
                 {error, _} -> guarded(fun() -> inet:getaddr(Name, inet6) end)
             end
     end.
@@ -123,7 +123,7 @@ family(_) -> [].
 %% whatever the class it raises: a worker that dies of one answers nothing.
 guarded(Call) ->
     try Call()
-    catch _:Reason -> {error, Reason}
+    catch _:Error -> {error, Error}
     end.
 
 %% Report Appendix E.18: a connect that times out takes no connection, since
@@ -132,14 +132,14 @@ guarded(Call) ->
 connect(Tcp, Host, Port, Deadline, Owner, Reply) ->
     Options = [binary, {active, false}, {packet, raw}],
     Try = fun() ->
-              case {in_range(Port), address(Host)} of
+              case {in_range(Port), ip_address(Host)} of
                   {false, _} ->
                       invalid;
-                  {true, {ok, Address}} ->
+                  {true, {ok, IpAddress}} ->
                       %% report Appendix E.18: the address the host names, of
                       %% its own family, IPv6's included
                       guarded(fun() ->
-                                  gen_tcp:connect(Address, Port, Options ++ family(Address),
+                                  gen_tcp:connect(IpAddress, Port, Options ++ family(IpAddress),
                                                   ern_rt:remaining(Deadline))
                               end);
                   {true, Other} ->
@@ -161,8 +161,8 @@ attempt(Tcp, Try, Deadline, Owner, Reply, Site) ->
                          0 -> {'Left', 'Timeout'};
                          _ -> again
                      end;
-                 {error, Reason} ->
-                     {'Left', io_error(Reason)};
+                 {error, Error} ->
+                     {'Left', io_error(Error)};
                  invalid ->
                      {'Left', 'Invalid'}
              end,
@@ -185,7 +185,7 @@ listener_loop(Tcp, Socket, MonitorRef) ->
         {'Port', Reply} ->
             ern_rt:answer(Reply, case inet:port(Socket) of
                                      {ok, Port} -> {'Right', Port};
-                                     {error, Reason} -> {'Left', io_error(Reason)}
+                                     {error, Error} -> {'Left', io_error(Error)}
                                  end),
             listener_loop(Tcp, Socket, MonitorRef);
         %% report Appendix E.18: its owner has died, and it is killed
@@ -235,16 +235,16 @@ socket_process(Tcp, Socket, Owner, Site) ->
 %% source by the socket, which the writer tells when it has answered, and
 %% whether the connection had gone. Report Appendix E.18: the answer says
 %% whether the socket took the bytes, and why not.
-writer(Socket, Owner) ->
+writer(Socket, SocketProcess) ->
     receive
         {'Send', Bytes, Reply} ->
             Sent = gen_tcp:send(Socket, Bytes),
             ern_rt:answer(Reply, case Sent of
                                      ok -> {'Right', 'Unit'};
-                                     {error, Reason} -> {'Left', io_error(Reason)}
+                                     {error, Error} -> {'Left', io_error(Error)}
                                  end),
-            Owner ! {written, Sent},
-            writer(Socket, Owner);
+            SocketProcess ! {written, Sent},
+            writer(Socket, SocketProcess);
         stop ->
             ok
     end.
@@ -318,7 +318,7 @@ write_timed_out(Reply, Deadline) ->
 
 %% Report Appendix E.18: a read is answered the bytes no read has taken, or
 %% `Left(Closed)` once the connection has closed, or else waits, counted as
-%% a source, the port asked for bytes when it is the first to wait.
+%% a source, the host's socket asked for bytes when it is the first to wait.
 read(Ms, Reply, #connection{socket = Socket, waiting = Waiting, buffer = Buffer,
                             state = State} = Connection) ->
     case {Buffer, State} of
@@ -357,8 +357,8 @@ read_timed_out(Ref, #connection{waiting = Waiting} = Connection) ->
             Connection
     end.
 
-%% Bytes that came: the oldest read waiting answered them, the port asked
-%% again while another waits; where none waits, its read timed out as they
+%% Bytes that came: the oldest read waiting answered them, the host's
+%% socket asked again while another waits; where none waits, its read timed out as they
 %% came, and they wait for the next.
 arrived(Bytes, #connection{socket = Socket, waiting = Waiting, buffer = Buffer} = Connection) ->
     case Waiting of
@@ -395,8 +395,8 @@ endpoint(closed, _) ->
     {'Left', 'Closed'};
 endpoint(open, Ask) ->
     case Ask() of
-        {ok, {Address, Port}} ->
-            {'Right', {'Endpoint', unicode:characters_to_binary(inet:ntoa(Address)), Port}};
+        {ok, {IpAddress, Port}} ->
+            {'Right', {'Endpoint', unicode:characters_to_binary(inet:ntoa(IpAddress)), Port}};
         {error, _} ->
             {'Left', 'Closed'}
     end.
@@ -407,4 +407,4 @@ io_error(eperm) -> 'Denied';
 io_error(econnrefused) -> 'Refused';
 io_error(closed) -> 'Closed';
 io_error(etimedout) -> 'Timeout';
-io_error(Reason) -> ern_io:other(Reason, fun inet:format_error/1).
+io_error(Error) -> ern_io:other(Error, fun inet:format_error/1).

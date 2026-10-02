@@ -5,16 +5,16 @@
 %% is its quoted name, Some(v) is {'Some', V}, Down(process, reason, site) is
 %% {'Down', Pid, Reason, Site} in declared field order.
 %%
-%% An Address is a pid, or {via, F, Target} for an address seen through a
-%% function (report §6.5), which send/2 applies in the sender, or
-%% {foreign, Pid, D, B} for an address foreign code gave (report §8.4),
-%% whose messages cross into foreign code. A Reply(a) is the alias of the
-%% call's monitor of its callee, as gen_server's call makes one: it
-%% deactivates when the call is over, which drops a late answer (report
-%% §6.6). Ernest answers {Alias, answered, V} and foreign code {Alias, V},
-%% so that a call checks the second only, as §8.4 says; a Reply foreign code gave
-%% back is {foreign_reply, Alias, D, B}, answered in the second form with
-%% the answer exposed.
+%% An Address is a pid, or {via, Function, Target} for an address seen
+%% through a function (report §6.5), which send/2 applies in the sender, or
+%% {foreign, Pid, Descriptor, Bound} for an address foreign code gave
+%% (report §8.4), whose messages cross into foreign code. A Reply(a) is the
+%% alias of the call's monitor of its callee, as gen_server's call makes
+%% one: it deactivates when the call is over, which drops a late answer
+%% (report §6.6). Ernest answers {Reply, answered, Value} and foreign code
+%% {Reply, Value}, so that a call checks the second only, as §8.4 says; a
+%% Reply foreign code gave back is {foreign_reply, Reply, Descriptor,
+%% Bound}, answered in the second form with the answer exposed.
 %% Every process body runs under run/1, which turns an exception into an
 %% exit reason that Down reports as a Fault. All spawns go through the
 %% reaper process, which spawn_monitors each process; a monitor placed
@@ -52,12 +52,12 @@
 
 -define(UNIT, 'Unit').
 -define(PROCESSES, ern_processes).
-%% report §6.6, §6.9: each pending call, {Caller, Callee, Alias}, so that a
+%% report §6.6, §6.9: each pending call, {Caller, Callee, Reply}, so that a
 %% callee that restarts ends the calls waiting on it; a process makes one
 %% call at a time, since a message's function and via's are pure, so its
 %% row is found and removed by its own pid
 -define(CALLS, ern_calls).
-%% the same calls by callee, {{Callee, Caller}, Alias}, ordered, so that a
+%% the same calls by callee, {{Callee, Caller}, Reply}, ordered, so that a
 %% restart reads its own callers and no other process's calls
 -define(CALLEES, ern_callees).
 %% Appendix E.21: each subscription to faults, {Subscriber, Address}, in a table
@@ -83,7 +83,7 @@
 -type system() :: stdout | stderr | stdin | clock | fs | terminal | tcp | os.
 -type reply() :: reference() | {foreign_reply, reference(), term(), map()}.
 %% What a program's answer from foreign code is checked by: its descriptor
-%% and the fault's text, or none for the runtime's own calls.
+%% and the fault's cause, or none for the runtime's own calls.
 -type check() :: none | {term(), binary()}.
 
 %% The reaper's state. monitors: #{Pid => [{Caller, Wrap}]}, the monitors
@@ -139,8 +139,8 @@ behind(Pid) ->
         _ -> Pid
     end.
 
-%% Report §8.4: an address foreign code gave, whose messages D describes
-%% inside the mu bindings B, as the program holds it: where it names one of
+%% Report §8.4: an address foreign code gave, whose messages Descriptor
+%% describes inside the mu bindings Bound, as the program holds it: where it names one of
 %% the program's processes, the address that went out, the proxy in front
 %% of it undone and a function `via` made kept (§6.5), and otherwise
 %% foreign. A proxy comes back as the address that went out only at the
@@ -268,11 +268,11 @@ call_forever(Address, Mk, Check) ->
                  receive
                      {Reply, answered, Value} -> {answered, Value};
                      {Reply, Value} -> {answered, foreign_answer(Check, Value)};
-                     {Reply, restarted, Restarted} -> {fault, Restarted};
+                     {Reply, restarted, CalleeCause} -> {fault, CalleeCause};
                      %% report §8.2: a system process faults the caller it
                      %% answers
-                     {Reply, fault, Faulted} -> {fault, Faulted};
-                     {'DOWN', Reply, process, _, Ended} -> {ended, Ended};
+                     {Reply, fault, SystemCause} -> {fault, SystemCause};
+                     {'DOWN', Reply, process, _, CalleeExitReason} -> {ended, CalleeExitReason};
                      %% report §6.9: a restart asked for is taken at a call's
                      %% wait
                      '$ern_restart' -> restart
@@ -293,7 +293,7 @@ call_forever(Address, Mk, Check) ->
 %% Report §8.4: an answer foreign code gave, checked against the reply's
 %% type as a foreign function's return is.
 foreign_answer(none, Value) -> Value;
-foreign_answer({Descriptor, Text}, Value) -> ern_boundary:value(Descriptor, Value, Text).
+foreign_answer({Descriptor, Cause}, Value) -> ern_boundary:value(Descriptor, Value, Cause).
 
 %% Report §6.6, §7.4: a callForever whose callee ended faults the caller with
 %% the callee's cause, or says how it ended; with the program the caller
@@ -373,8 +373,8 @@ refuse(Reply, Cause) ->
 -spec monitor(address(), fun((term()) -> term())) -> 'Unit'.
 monitor(Address, Wrap) ->
     Ref = make_ref(),
-    persistent_term:get({?MODULE, reaper}) ! {monitor, process_of(Address), erlang:self(), Wrap,
-                                              Ref},
+    Reaper = persistent_term:get({?MODULE, reaper}),
+    Reaper ! {monitor, process_of(Address), erlang:self(), Wrap, Ref},
     receive {Ref, monitored} -> ?UNIT end.
 
 -spec kill(address()) -> 'Unit'.
@@ -1036,20 +1036,20 @@ stream({fd, Fd}, Name) ->
     process_flag(trap_exit, true),
     port_loop(erlang:open_port({fd, 0, Fd}, [out, binary]), Name);
 stream(Write, _Name) ->
-    stdout_loop(Write).
+    write_loop(Write).
 
-stdout_loop(Write) ->
+write_loop(Write) ->
     receive
         {flush, From, Ref} ->
             From ! {Ref, flushed},
-            stdout_loop(Write);
+            write_loop(Write);
         {'Write', Bytes, Reply} ->
             Write(Bytes),
             answer(Reply, ?UNIT),
-            stdout_loop(Write);
+            write_loop(Write);
         Bytes when is_binary(Bytes) ->
             Write(Bytes),
-            stdout_loop(Write)
+            write_loop(Write)
     end.
 
 port_loop(Port, Name) ->
@@ -1159,9 +1159,9 @@ own_terminal(Kind) ->
 
 %% Report §7.3, §8.2: a system process ends the program with a fault of
 %% the entry process, the runner's to report.
-end_with_fault(Text) ->
+end_with_fault(Cause) ->
     {Runner, Launch} = persistent_term:get({?MODULE, runner}),
-    Runner ! {fault, Launch, Text},
+    Runner ! {fault, Launch, Cause},
     ok.
 
 %% Report §8.2: standard input, read as UTF-8 whatever the host's locale,
@@ -1219,7 +1219,7 @@ read_bytes(Reply, Open, Buffer) ->
     <<>>.
 
 %% The next line and the bytes after it: the bytes before the first line
-%% feed at or after From, reading more while there is none. A last line
+%% feed at or after Offset, reading more while there is none. A last line
 %% without a line feed is a line, `last`.
 line(Open, Buffer, Offset) ->
     case binary:match(Buffer, <<"\n">>, [{scope, {Offset, byte_size(Buffer) - Offset}}]) of
@@ -1282,7 +1282,7 @@ by_input(Cause) ->
     end.
 
 %% The input as it arrives, for one request: at least one byte, eof, or
-%% {error, Reason}. The input is open from the request to its first answer,
+%% {error, Error}. The input is open from the request to its first answer,
 %% and what arrived with that answer is taken with it. An exit from a link
 %% other than the input's own is the end of the process that reads.
 -spec read_input(fun(() -> port() | pid())) -> {data, binary()} | eof | {error, term()}.
@@ -1293,7 +1293,7 @@ read_input(Open) ->
                 {Input, eof} -> eof;
                 {Input, {error, Error}} -> {error, Error};
                 {'EXIT', Input, Error} -> {error, Error};
-                {'EXIT', _, Error} -> close_input(Input), exit(Error)
+                {'EXIT', _, ExitReason} -> close_input(Input), exit(ExitReason)
             end,
     close_input(Input),
     case First of
@@ -1326,7 +1326,7 @@ open_input() ->
     erlang:open_port({fd, 0, 1}, [in, binary, eof, stream]).
 
 %% A test's input: Next is called once for each opening and answers what
-%% arrives then, characters, bytes as they are, eof, or {error, Reason}.
+%% arrives then, characters, bytes as they are, eof, or {error, Error}.
 fed(Next) ->
     fun() ->
         Owner = erlang:self(),
@@ -1338,8 +1338,8 @@ fed_message({error, Error}) -> {error, Error};
 fed_message(Bytes) when is_binary(Bytes) -> {data, Bytes};
 fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 
-%% Clock's messages, report Appendix E.15: After(ms, reply, to), At(at,
-%% reply, to), and Now(reply). Alarms are delivered through the clock
+%% Clock's messages, report Appendix E.15: After(ms, to, reply), At(at,
+%% to, reply), and Now(reply). Alarms are delivered through the clock
 %% itself, so each is counted as a source while it is pending (report
 %% §8.6). Alarms holds each pending alarm by its timer, its deadline, where
 %% it goes and the process behind that, and ByRecipient each process's timers,
@@ -1425,35 +1425,35 @@ armed(Deadline, Address, Alarms, ByRecipient) ->
                  | {initializer_fault, binary(), binary(), binary()}
                  | {exit, 0..255} | {gone, stdout | stderr} | {signal, sigterm | sighup}.
 
-%% Runs Main as the entry process. It returns ok, killed if the entry
-%% process was killed, {fault, Message} if it faulted, a deadlock among the
+%% Runs EntryPoint as the entry process. It returns ok, killed if the entry
+%% process was killed, {fault, Cause} if it faulted, a deadlock among the
 %% faults (report §8.6: the entry process faults with `Fault("deadlock")`),
-%% and {fault, Message, Trace} where the fault was a failure of the runtime
+%% and {fault, Cause, Trace} where the fault was a failure of the runtime
 %% or a foreign function's raise, the host's stack beneath it;
-%% {initializer_fault, Site, Message} if a top-level binding faulted before
-%% Main ran, Site naming the binding (report §8.5), and the host's stack
-%% after them where it faulted so; {exit,
-%% Status} if a process called Os.exit, {gone, Stream} if standard output
-%% or standard error could no longer be written, or {signal, Signal} if the
-%% host's termination or hangup ended the program. Every local process is
-%% then ended with ProgramEnd, and standard output and standard error are
+%% {initializer_fault, Site, Cause} if a top-level binding faulted before
+%% EntryPoint ran, Site naming the binding (report §8.5), and the host's
+%% stack after them where it faulted so; {exit, Status} if a process
+%% called Os.exit, {gone, Stream} if standard output or standard error
+%% could no longer be written, or {signal, Signal} if the host's
+%% termination or hangup ended the program. Every local process is then
+%% ended with ProgramEnd, and standard output and standard error are
 %% flushed, however the run ended.
 %%
-%% Opts: init => a function run in main's process before Main, after the
-%% system references are bound and the standard library's lets evaluated,
-%% for the program's own top-level lets (report §8.5); arguments => the
-%% program's arguments, Os.arguments, none by default; exit => fault, where
-%% Os.exit faults its caller rather than ending the program, as in the
-%% shell and under `ern test` (report §11.2); faults => fun((FaultReport)
-%% -> any()), given every fault as it happens (report §11.2); stdout,
-%% stderr => fun((binary()) -> any()), or {fd, N} to write to the file
-%% descriptor through a port, which learns when the stream has gone (§8.2);
-%% stdin => fun(() -> eof | {error, term()} | unicode:chardata()), called
-%% for each read, and keys => the same for the terminal's keys, for tests
-%% (fed/1). Report §8.2: the standard streams carry bytes for the run,
+%% Options: init => a function run in the entry process before EntryPoint,
+%% after the system references are bound and the standard library's lets
+%% evaluated, for the program's own top-level lets (report §8.5);
+%% arguments => the program's arguments, Os.arguments, none by default;
+%% exit => fault, where Os.exit faults its caller rather than ending the
+%% program, as in the shell and under `ern test` (report §11.2); faults =>
+%% fun((FaultReport) -> any()), given every fault as it happens (report
+%% §11.2); stdout, stderr => fun((binary()) -> any()), or {fd, N} to write
+%% to the file descriptor through a port, which learns when the stream has
+%% gone (§8.2); stdin => fun(() -> eof | {error, term()} |
+%% unicode:chardata()), called for each read, and keys => the same for the
+%% terminal's keys, for tests (fed/1). Report §8.2: the standard streams carry bytes for the run,
 %% whatever the host's locale.
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
-run_main(Main, Site, Options) ->
+run_main(EntryPoint, Site, Options) ->
     make_tables(),
     Launch = launched(Options),
     Reaper = erlang:spawn(fun() -> reaper_loop(#reaper{}) end),
@@ -1461,7 +1461,7 @@ run_main(Main, Site, Options) ->
     Encodings = bytes_out(),
     System = started_system(Options),
     try
-        entry_outcome(Main, Site, Options, Launch)
+        entry_outcome(EntryPoint, Site, Options, Launch)
     after
         end_program(Launch, Reaper, System),
         persistent_term:erase({?MODULE, reporter}),
@@ -1497,14 +1497,14 @@ launched(Options) ->
 started_system(Options) ->
     Stdout = maps:get(stdout, Options, fun(Bytes) -> file:write(standard_io, Bytes) end),
     Stderr = maps:get(stderr, Options, fun(Bytes) -> file:write(standard_error, Bytes) end),
-    Input = input(stdin, Options),
-    Keys = input(keys, Options),
+    OpenStdin = input(stdin, Options),
+    OpenKeys = input(keys, Options),
     KeysCome = maps:is_key(keys, Options) orelse ern_tty:is_terminal(stdin),
     System = [{stdout, erlang:spawn(fun() -> stream(Stdout, stdout) end)},
               {stderr, erlang:spawn(fun() -> stream(Stderr, stderr) end)},
-              {stdin, erlang:spawn(fun() -> stdin_loop(Input) end)},
+              {stdin, erlang:spawn(fun() -> stdin_loop(OpenStdin) end)},
               {fs, erlang:spawn(fun ern_fs:loop/0)},
-              {terminal, erlang:spawn(fun() -> ern_tty:loop(Keys, KeysCome) end)},
+              {terminal, erlang:spawn(fun() -> ern_tty:loop(OpenKeys, KeysCome) end)},
               {tcp, erlang:spawn(fun ern_tcp:loop/0)},
               {os, erlang:spawn(fun ern_os:loop/0)},
               {clock, erlang:spawn(fun() -> clock_loop(#{}, #{}) end)}],
@@ -1519,17 +1519,18 @@ started_system(Options) ->
 %% failure of the runtime (§11.2), reach it however soon the process ends.
 %% Report §8.5, §11.2: an initializer's fault is reported under its
 %% binding, and main's under main's site again once they have run.
-entry_outcome(Main, Site, Options, Launch) ->
+entry_outcome(EntryPoint, Site, Options, Launch) ->
     Stdlib = stdlib_modules(),
     Init = maps:get(init, Options, fun() -> ok end),
     Entry = fun() ->
                 run_inits(Stdlib),
                 Init(),
                 initializing(Site),
-                Main()
+                EntryPoint()
             end,
-    MainPid = spawn_with_monitors(Entry, Site, [{erlang:self(), {raw, {main_down, Launch}}}]),
-    case main_outcome(MainPid, Launch) of
+    EntryProcess = spawn_with_monitors(Entry, Site,
+                                       [{erlang:self(), {raw, {entry_down, Launch}}}]),
+    case entry_end(EntryProcess, Launch) of
         {{fault, Cause}, FaultSite} when FaultSite =/= Site ->
             {initializer_fault, FaultSite, Cause};
         {{fault, Cause, Trace}, FaultSite} when FaultSite =/= Site ->
@@ -1542,9 +1543,9 @@ entry_outcome(Main, Site, Options, Launch) ->
 %% deadlock, and a fault the runtime finds in a system process's work, fault
 %% the entry process, whose end then comes as any process's does, reported
 %% as every fault is (§11.2).
-main_outcome(MainPid, Launch) ->
+entry_end(EntryProcess, Launch) ->
     receive
-        {{main_down, Launch}, Site, ExitReason} ->
+        {{entry_down, Launch}, Site, ExitReason} ->
             {case {reason(ExitReason), ExitReason} of
                  {'Returned', _} -> ok;
                  {'Killed', _} -> killed;
@@ -1553,11 +1554,11 @@ main_outcome(MainPid, Launch) ->
                  {Other, _} -> {fault, format("~p", [Other])}
              end, Site};
         {deadlock, Launch} ->
-            exit(MainPid, {ern, fault, <<"deadlock">>}),
-            main_outcome(MainPid, Launch);
-        {fault, Launch, Text} ->
-            exit(MainPid, {ern, fault, Text}),
-            main_outcome(MainPid, Launch);
+            exit(EntryProcess, {ern, fault, <<"deadlock">>}),
+            entry_end(EntryProcess, Launch);
+        {fault, Launch, Cause} ->
+            exit(EntryProcess, {ern, fault, Cause}),
+            entry_end(EntryProcess, Launch);
         {exit, Launch, Status} ->
             {{exit, Status}, none};
         {gone, Launch, Stream} ->
@@ -1634,9 +1635,9 @@ deadlock_victim(Pid) ->
 -spec signal(sigterm | sighup) -> ok | none.
 signal(Signal) ->
     case persistent_term:get({?MODULE, runner}, none) of
-        {Pid, Launch} ->
-            case erlang:is_process_alive(Pid) of
-                true -> Pid ! {signal, Launch, Signal}, ok;
+        {Runner, Launch} ->
+            case erlang:is_process_alive(Runner) of
+                true -> Runner ! {signal, Launch, Signal}, ok;
                 false -> none
             end;
         none ->
@@ -1756,7 +1757,7 @@ spawn_order(Pid) ->
         _ -> 0
     end.
 
-restarts(F, Limit, Times, Level) ->
+restarts(F, Allowed, Times, Level) ->
     try
         F()
     catch
@@ -1767,12 +1768,12 @@ restarts(F, Limit, Times, Level) ->
             put('$ern_start', 'Asked'),
             fresh_run(),
             restarted(<<"callee was restarted">>),
-            restarts(F, Limit, Times, Level);
+            restarts(F, Allowed, Times, Level);
         throw:'$ern_restart' ->
             throw('$ern_restart');
         Class:Error:Stack ->
             Fault = fault_exit_reason(Class, Error, Stack),
-            case within_limit(Limit, Times) of
+            case within_limit(Allowed, Times) of
                 {true, Recent} ->
                     %% report §11.2: a fault after which the process
                     %% restarts is reported as one
@@ -1780,7 +1781,7 @@ restarts(F, Limit, Times, Level) ->
                     fresh_run(),
                     restarted(fault_cause(Fault)),
                     Level =:= outer andalso put('$ern_start', 'AfterFault'),
-                    restarts(F, Limit, Recent, Level);
+                    restarts(F, Allowed, Recent, Level);
                 false ->
                     %% raised again as the fault it is, for run/1 to end the
                     %% process with, its stack beside it where it had one
@@ -1851,11 +1852,11 @@ restarted(Cause) ->
 %% is flushed, the system processes and the reaper are stopped, and the
 %% terminal goes back as the program found it (§8.2).
 end_program(Launch, Reaper, System) ->
-    Ended = make_ref(),
+    Ref = make_ref(),
     MonitorRef = erlang:monitor(process, Reaper),
-    Reaper ! {end_program, erlang:self(), Ended},
+    Reaper ! {end_program, erlang:self(), Ref},
     receive
-        {Ended, ended} ->
+        {Ref, ended} ->
             ok;
         {'DOWN', MonitorRef, process, _, _} ->
             lists:foreach(fun({Pid, _, _, _, _}) -> exit(Pid, {ern, program_end}) end, live_rows())
@@ -1964,15 +1965,15 @@ dependencies_of(ErlangModule) ->
     end.
 
 stop(Pid) ->
-    Ref = erlang:monitor(process, Pid),
+    MonitorRef = erlang:monitor(process, Pid),
     exit(Pid, kill),
-    receive {'DOWN', Ref, process, Pid, _} -> ok end.
+    receive {'DOWN', MonitorRef, process, Pid, _} -> ok end.
 
 %% What the reaper, the system processes and a signal may still send about
 %% this run after it ended.
 flush_launch(Launch) ->
     receive
-        {{main_down, Launch}, _, _} -> flush_launch(Launch);
+        {{entry_down, Launch}, _, _} -> flush_launch(Launch);
         {deadlock, Launch} -> flush_launch(Launch);
         {fault, Launch, _} -> flush_launch(Launch);
         {exit, Launch, _} -> flush_launch(Launch);

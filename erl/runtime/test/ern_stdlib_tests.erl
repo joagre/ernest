@@ -136,8 +136,8 @@ set_test() ->
     ?assert(Set:fromList([1, 2]) =:= Set:fromList([2, 1])),
     ?assertEqual([2, 4], lists:sort(Set:toList(Set:map(Filled, fun(X) -> X * 2 end)))),
     ?assertEqual([2], Set:toList(Set:filter(Filled, fun(X) -> X > 1 end))),
-    ?assertEqual([20], Set:toList(Set:filterMap(Filled, fun(1) ->
-                                                            'None'; (X) -> {'Some', X * 10}
+    ?assertEqual([20], Set:toList(Set:filterMap(Filled, fun(1) -> 'None';
+                                                           (X) -> {'Some', X * 10}
                                                         end))),
     ?assertEqual('Unit', Set:foreach(Filled, fun(_) -> 'Unit' end)),
     ?assertEqual(3, Set:foldLeft(Filled, 0, fun(A, X) -> A + X end)),
@@ -271,9 +271,8 @@ string_test() ->
     ?assertEqual({'Some', 150.0}, String:toFloat(<<"1.5E+2">>)),
     ?assertEqual({'Some', 0.0}, String:toFloat(<<"-0.0">>)),
     [?assertEqual('None', String:toFloat(Text))
-     || Text <- [<<"1.">>, <<".5">>, <<"1.5e">>, <<"1.5e+">>,
-                                                            <<"1.5.3">>, <<"--1.5">>, <<"+1.5">>,
-                                                            <<"1.5 ">>, <<"-">>, <<>>]],
+     || Text <- [<<"1.">>, <<".5">>, <<"1.5e">>, <<"1.5e+">>, <<"1.5.3">>, <<"--1.5">>,
+                 <<"+1.5">>, <<"1.5 ">>, <<"-">>, <<>>]],
     ?assertEqual(<<"ABC">>, String:toUpper(<<"abC">>)),
     ?assertEqual([$a, $b], String:toList(<<"ab">>)),
     ?assertEqual(<<"ab">>, String:fromList([$a, $b])),
@@ -573,8 +572,7 @@ collect(Tag, Acc) ->
 %% Right or Left(Io.Error), and Left(Timeout) when the wait runs out
 fs_test() ->
     Self = self(),
-    Dir = filename:join("/tmp", "ern_fs_" ++ os:getpid() ++ "_"
-                              ++ integer_to_list(erlang:unique_integer([positive]))),
+    Dir = scratch("ern_fs_"),
     ok = filelib:ensure_path(Dir),
     InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
     Fs = 'ern@fs',
@@ -593,12 +591,12 @@ fs_test() ->
                    Self ! {fs, Fs:read(InDir("c.txt"), 5000)}
                end, <<"fs_test">>, #{}),
     ?assertEqual(ok, Result),
-    [Write, Read, Append, Read2, Stat, Rename, Copy, MakeDir, List, Remove, Gone] =
+    [Write, Read, Append, ReadAppended, Stat, Rename, Copy, MakeDir, List, Remove, Gone] =
         collect(fs, []),
     ?assertEqual({'Right', 'Unit'}, Write),
     ?assertEqual({'Right', <<"hello">>}, Read),
     ?assertEqual({'Right', 'Unit'}, Append),
-    ?assertEqual({'Right', <<"hello!">>}, Read2),
+    ?assertEqual({'Right', <<"hello!">>}, ReadAppended),
     ?assertMatch({'Right', {'Entry', _, _, 6, 'File'}}, Stat),
     ?assertEqual({'Right', 'Unit'}, Rename),
     ?assertEqual({'Right', 'Unit'}, Copy),
@@ -618,8 +616,7 @@ fs_test() ->
 %% after it among them
 fs_named_pipe_test() ->
     Self = self(),
-    Dir = filename:join("/tmp", "ern_fifo_" ++ os:getpid() ++ "_"
-                                ++ integer_to_list(erlang:unique_integer([positive]))),
+    Dir = scratch("ern_fifo_"),
     ok = filelib:ensure_path(Dir),
     "" = os:cmd("mkfifo " ++ filename:join(Dir, "pipe")),
     ok = file:write_file(filename:join(Dir, "plain"), <<"hi">>),
@@ -645,8 +642,7 @@ fs_named_pipe_test() ->
 %% 2026-10-01, which replaced `makePrivate` with it
 fs_set_mode_test() ->
     Self = self(),
-    Dir = filename:join("/tmp", "ern_private_" ++ os:getpid() ++ "_"
-                                   ++ integer_to_list(erlang:unique_integer([positive]))),
+    Dir = scratch("ern_private_"),
     ok = filelib:ensure_path(Dir),
     File = filename:join(Dir, "notes"),
     ok = file:write_file(File, <<"x">>),
@@ -673,8 +669,7 @@ fs_set_mode_test() ->
 %% to nothing failed the list of the whole directory with NotFound
 fs_list_dangling_link_test() ->
     Self = self(),
-    Dir = filename:join("/tmp", "ern_links_" ++ os:getpid() ++ "_"
-                                 ++ integer_to_list(erlang:unique_integer([positive]))),
+    Dir = scratch("ern_links_"),
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(filename:join(Dir, "plain"), <<"four">>),
     ok = file:make_symlink("plain", filename:join(Dir, "to_plain")),
@@ -699,8 +694,7 @@ fs_list_dangling_link_test() ->
 %% covered, since a test cannot make one where the host's names are UTF-8
 fs_links_test() ->
     Self = self(),
-    Dir = filename:join("/tmp", "ern_links_" ++ os:getpid() ++ "_"
-                                 ++ integer_to_list(erlang:unique_integer([positive]))),
+    Dir = scratch("ern_links_"),
     ok = filelib:ensure_path(filename:join(Dir, "shelf")),
     InDir = fun(Name) -> {'Path', list_to_binary(filename:join(Dir, Name))} end,
     Fs = 'ern@fs',
@@ -737,8 +731,7 @@ fs_links_test() ->
 %% `NotFound`. Written with the code
 fs_hard_links_test() ->
     Self = self(),
-    Dir = filename:join("/tmp", "ern_hard_" ++ os:getpid() ++ "_"
-                                ++ integer_to_list(erlang:unique_integer([positive]))),
+    Dir = scratch("ern_hard_"),
     ok = filelib:ensure_path(filename:join(Dir, "shelf")),
     ok = file:write_file(filename:join(Dir, "orig"), <<"o">>),
     ok = file:make_symlink("orig", filename:join(Dir, "to_orig")),
@@ -775,8 +768,7 @@ fs_hard_links_test() ->
 %% memory")` or `Other("invalid argument")`
 fs_read_range_test() ->
     Self = self(),
-    Dir = filename:join("/tmp", "ern_range_" ++ os:getpid() ++ "_"
-                                 ++ integer_to_list(erlang:unique_integer([positive]))),
+    Dir = scratch("ern_range_"),
     ok = filelib:ensure_path(Dir),
     ok = file:write_file(filename:join(Dir, "abc.txt"), <<"abcdef">>),
     InDir = {'Path', list_to_binary(filename:join(Dir, "abc.txt"))},
@@ -785,8 +777,8 @@ fs_read_range_test() ->
                        fun() ->
                            [Self ! {fs, Fs:readRange(InDir, Offset, Count, 1000)}
                             || {Offset, Count} <- [{0, 2}, {4, 9}, {6, 1}, {9, 1}, {1, 0}, {-1, 2},
-                                                   {1, -1},
-                                                   {2, 1 bsl 62}, {3, 1 bsl 80}, {1 bsl 80, 1}]],
+                                                   {1, -1}, {2, 1 bsl 62}, {3, 1 bsl 80},
+                                                   {1 bsl 80, 1}]],
                            Self ! {fs, Fs:readRange({'Path', list_to_binary(Dir)}, 0, 1, 1000)}
                        end, <<"fs_read_range_test">>, #{})),
     ?assertEqual([{'Right', <<"ab">>}, {'Right', <<"ef">>}, {'Right', <<>>}, {'Right', <<>>},
@@ -803,8 +795,7 @@ fs_read_range_test() ->
 %% not covered, since a test cannot make one fail there
 fs_create_remove_all_modified_test() ->
     Self = self(),
-    Dir = filename:join("/tmp", "ern_fs3_" ++ os:getpid() ++ "_"
-                                 ++ integer_to_list(erlang:unique_integer([positive]))),
+    Dir = scratch("ern_fs3_"),
     ok = filelib:ensure_path(filename:join([Dir, "tree", "branch"])),
     ok = filelib:ensure_path(filename:join(Dir, "kept")),
     ok = file:write_file(filename:join([Dir, "kept", "precious.txt"]), <<"keep">>),
@@ -842,8 +833,7 @@ fs_create_remove_all_modified_test() ->
 %% opening each directory refusing a link
 fs_remove_all_by_directories_test() ->
     Self = self(),
-    Dir = filename:join("/tmp", "ern_fs4_" ++ os:getpid() ++ "_"
-                                 ++ integer_to_list(erlang:unique_integer([positive]))),
+    Dir = scratch("ern_fs4_"),
     Kept = filename:join(Dir, "kept"),
     ok = filelib:ensure_path(Kept),
     ok = file:write_file(filename:join(Kept, "precious.txt"), <<"keep">>),
@@ -952,11 +942,12 @@ random_test() ->
     Random = 'ern@random',
     Draw = fun Draw(_, _, 0) -> [];
                Draw(Seed, Bound, Count) ->
-                   {Draw1, Seed1} = Random:next(Seed, Bound),
-                   [Draw1 | Draw(Seed1, Bound, Count - 1)] end,
+                   {Drawn, Seed1} = Random:next(Seed, Bound),
+                   [Drawn | Draw(Seed1, Bound, Count - 1)]
+           end,
     Draws = Draw(Random:seed(42), 5, 200),
     ?assertEqual(Draws, Draw(Random:seed(42), 5, 200)),
-    ?assert(lists:all(fun(Draw1) -> Draw1 >= 0 andalso Draw1 =< 5 end, Draws)),
+    ?assert(lists:all(fun(Drawn) -> Drawn >= 0 andalso Drawn =< 5 end, Draws)),
     ?assertEqual([0, 1, 2, 3, 4, 5], lists:usort(Draws)),
     NegativeDraws = Draw(Random:seed(42), -3, 200),
     ?assertEqual([-3, -2, -1, 0], lists:usort(NegativeDraws)),
@@ -1080,3 +1071,8 @@ path_test() ->
 %% report §7.4: `fault(c)` faults with the cause
 fault_test() ->
     ?assertThrow({ern, fault, <<"x">>}, ern_rt:fault(<<"x">>)).
+
+%% A directory of the test's own under /tmp, named for it and not yet made.
+scratch(Prefix) ->
+    filename:join("/tmp", Prefix ++ os:getpid() ++ "_"
+                          ++ integer_to_list(erlang:unique_integer([positive]))).

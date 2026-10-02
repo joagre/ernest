@@ -113,7 +113,7 @@ run_example(ErlangModule, Number, Expected) ->
     %% runs in a directory of its own, removed afterwards
     {ok, Cwd} = file:get_cwd(),
     Dir = filename:join(["/tmp", "ern_doc_" ++ os:getpid() ++ "_"
-                               ++ integer_to_list(erlang:unique_integer([positive]))]),
+                                 ++ integer_to_list(erlang:unique_integer([positive]))]),
     ok = filelib:ensure_path(Dir),
     ok = file:set_cwd(Dir),
     try

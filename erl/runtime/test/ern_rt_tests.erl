@@ -176,8 +176,8 @@ fault_reports_test() ->
                _ = ern_rt:spawn(Twice, <<"M.twice:4">>),
                Killed = ern_rt:spawn(fun() -> receive never -> ok end end, <<"M.k:5">>),
                ern_rt:kill(Killed),
-               Reports = [receive {report, Report} -> Report end,
-                          receive {report, Report2} -> Report2 end],
+               Reports = [receive {report, First} -> First end,
+                          receive {report, Second} -> Second end],
                Self ! {reports, lists:sort([{Site, Cause, Restarted}
                                             || {'FaultReport', _, Site, Cause, Restarted, <<>>}
                                                    <- Reports])},
@@ -202,7 +202,7 @@ call_leaves_nothing_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Main = ern_rt:self(),
+               EntryProcess = ern_rt:self(),
                Refusing = fun() ->
                               receive {ask, Reply} -> Reply ! {Reply, fault, <<"no">>} end,
                               receive never -> ok end
@@ -221,7 +221,7 @@ call_leaves_nothing_test() ->
                                     {monitors, Monitors} = process_info(self(), monitors),
                                     Self ! {left, {ets:lookup(ern_calls, self()),
                                                    Monitors, Timers}},
-                                    ern_rt:send(Main, done)
+                                    ern_rt:send(EntryProcess, done)
                             end
                         end,
                _ = ern_rt:spawn(ern_rt:restarting({'RestartLimit', 2, 60000}, Worker),
@@ -290,7 +290,7 @@ failed_start_test() ->
     ?assertEqual(ok, ern_rt:run_main(fun() -> ok end, <<"main">>, Quiet)).
 
 %% Compile a hand-written target module from forms, as the compiler will
-%% compile its own output, and run its main under the launcher, collecting
+%% compile its own output, and run its main as the runner does, collecting
 %% what reaches stdout.
 run_target(File) ->
     Path = "../../../test/target/" ++ File,
@@ -338,8 +338,9 @@ call_clock_starts_at_the_call_test() ->
     ok = ern_rt:run_main(
            fun() ->
                Callee = ern_rt:spawn(fun() ->
-                                         receive {ask, Reply} -> nap(50), ern_rt:answer(Reply,
-                                                                                        done) end
+                                         receive
+                                             {ask, Reply} -> nap(50), ern_rt:answer(Reply, done)
+                                         end
                                      end, <<"callee">>),
                %% the adapting function runs in the caller, and takes 200 ms
                Slow = ern_rt:via(Callee, fun(Message) -> nap(200), Message end),
@@ -404,15 +405,15 @@ loading_is_not_deadlock_test() ->
                        receive after 400 -> erlang:resume_process(CodeServer) end
                    end),
     Self = self(),
-    Main = fun() ->
-               %% counted as a timed wait while the holder takes the server
-               ern_rt:timed(),
-               Holder ! {hold, erlang:self()},
-               receive held -> ern_rt:untimed() end,
-               Self ! {loaded, ErlangModule:f()}
-           end,
+    EntryPoint = fun() ->
+                     %% counted as a timed wait while the holder takes the server
+                     ern_rt:timed(),
+                     Holder ! {hold, erlang:self()},
+                     receive held -> ern_rt:untimed() end,
+                     Self ! {loaded, ErlangModule:f()}
+                 end,
     try
-        ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
+        ?assertEqual(ok, ern_rt:run_main(EntryPoint, <<"main">>, #{stdout => fun(_) -> ok end})),
         ?assertEqual(loaded, wait(loaded))
     after
         code:del_path(Dir),
@@ -498,17 +499,17 @@ monitor_test() ->
                Worker = ern_rt:spawn(gated(fun() -> ok end), <<"Main.main:3">>),
                ern_rt:monitor(Worker, fun(Down) -> {down, Down} end),
                Worker ! go,
-               receive {down, Down1} -> Self ! {d1, Down1} end,
+               receive {down, WorkerDown} -> Self ! {d1, WorkerDown} end,
                Zero = zero(),
                Faulty = ern_rt:spawn(gated(fun() -> 1 div Zero end), <<"Main.main:5">>),
                ern_rt:monitor(Faulty, fun(Down) -> {down, Down} end),
                Faulty ! go,
-               receive {down, Down2} -> Self ! {d2, Down2} end,
+               receive {down, FaultyDown} -> Self ! {d2, FaultyDown} end,
                Victim = ern_rt:spawn(fun() -> receive never -> ok end end,
                                      <<"Main.main:7">>),
                ern_rt:monitor(Victim, fun(Down) -> {down, Down} end),
                ern_rt:kill(Victim),
-               receive {down, Down3} -> Self ! {d3, Down3} end,
+               receive {down, VictimDown} -> Self ! {d3, VictimDown} end,
                Self ! {pids, [Worker, Faulty, Victim]}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     [Worker, Faulty, Victim] = wait(pids),
@@ -577,10 +578,10 @@ faulting_wrap_test() ->
                                                           fun(_) -> 1 div Zero end, <<"w">>),
                                receive never -> ok end
                            end, fun(Down) -> {watcher, Down} end, <<"Main.main:3">>),
-               receive {watcher, Down1} -> Self ! {d1, Down1} end,
+               receive {watcher, WatcherDown} -> Self ! {d1, WatcherDown} end,
                _ = ern_rt:spawn_monitored(fun() -> ok end, fun(Down) -> {later, Down} end,
                                           <<"Main.main:5">>),
-               receive {later, Down2} -> Self ! {d2, Down2} end,
+               receive {later, LaterDown} -> Self ! {d2, LaterDown} end,
                Watcher
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertMatch({'Down', _, {'Fault', <<"division by zero">>}, <<"Main.main:3">>}, wait(d1)),
@@ -658,17 +659,17 @@ host_exit_reason_test() ->
                Good = ern_rt:spawn(fun() -> receive go -> ok end end, <<"Main.main:3">>),
                erlang:monitor(process, Good),
                Good ! go,
-               receive {'DOWN', _, process, Good, ExitReason1} -> Self ! {r1, ExitReason1} end,
+               receive {'DOWN', _, process, Good, GoodReason} -> Self ! {r1, GoodReason} end,
                Bad = ern_rt:spawn(fun() -> receive go -> 1 div Zero end end,
                                   <<"Main.main:5">>),
                erlang:monitor(process, Bad),
                Bad ! go,
-               receive {'DOWN', _, process, Bad, ExitReason2} -> Self ! {r2, ExitReason2} end,
+               receive {'DOWN', _, process, Bad, BadReason} -> Self ! {r2, BadReason} end,
                Victim = ern_rt:spawn(fun() -> receive never -> ok end end,
                                      <<"Main.main:7">>),
                erlang:monitor(process, Victim),
                ern_rt:kill(Victim),
-               receive {'DOWN', _, process, Victim, ExitReason3} -> Self ! {r3, ExitReason3} end
+               receive {'DOWN', _, process, Victim, VictimReason} -> Self ! {r3, VictimReason} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(normal, wait(r1)),
     ?assertEqual({ern, fault, <<"division by zero">>}, wait(r2)),
@@ -683,9 +684,10 @@ host_exit_reason_test() ->
                 end, <<"main">>, #{stdout => fun(_) -> ok end})
           end),
     Waiter = wait(waiter),
-    Ref = erlang:monitor(process, Waiter),
-    receive {'DOWN', Ref, process, Waiter, ExitReason4} -> ?assertEqual({ern, program_end},
-                                                                        ExitReason4)
+    MonitorRef = erlang:monitor(process, Waiter),
+    receive
+        {'DOWN', MonitorRef, process, Waiter, ExitReason} ->
+            ?assertEqual({ern, program_end}, ExitReason)
     after 2000 -> error(no_program_end)
     end.
 
@@ -863,7 +865,7 @@ ask_restart_test() ->
     Started = [receive {started, Start} -> Start after 1000 -> timeout end || _ <- [1, 2, 3]],
     ?assertEqual(['First', 'Asked', 'Asked'], Started),
     ?assertEqual(none, receive {started, More} -> More after 200 -> none end),
-    ?assertEqual(true, receive {plain, Plain1} -> Plain1 after 1000 -> timeout end),
+    ?assertEqual(true, receive {plain, IsPlainAlive} -> IsPlainAlive after 1000 -> timeout end),
     %% the answer says whether the process was asked, which the supervisor
     %% counts on (Appendix E.22)
     ?assertEqual([false, true, true], receive {asked, Asked} -> Asked after 1000 -> timeout end),
@@ -905,7 +907,7 @@ nap(Ms) ->
     timer:sleep(Ms),
     ern_rt:untimed().
 
-%% Report Appendix E.15: an alarm as `Clock.alarm` sets one, After(ms,
-%% reply, to) in canonical field order, answered once the clock holds it.
+%% Report Appendix E.15: an alarm as `Clock.alarm` sets one, After(ms, to,
+%% reply) in declared field order, answered once the clock holds it.
 alarm(Clock, Ms, Address) ->
     'Unit' = ern_rt:call_forever(Clock, fun(Reply) -> {'After', Ms, Address, Reply} end).

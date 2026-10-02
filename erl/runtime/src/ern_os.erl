@@ -24,13 +24,13 @@ loop() ->
 serve(Os) ->
     receive
         {'Start', Command, Owner, Reply} ->
-            Program = erlang:spawn(fun() ->
-                                       link(Os),
-                                       receive go -> start(Command, Owner, Reply) end
-                                   end),
-            ern_rt:opened(Program, <<"Os.start">>),
-            ern_rt:source_begin(Program),
-            Program ! go,
+            Pid = erlang:spawn(fun() ->
+                                   link(Os),
+                                   receive go -> start(Command, Owner, Reply) end
+                               end),
+            ern_rt:opened(Pid, <<"Os.start">>),
+            ern_rt:source_begin(Pid),
+            Pid ! go,
             serve(Os);
         {'EXIT', Pid, _} ->
             ern_rt:forget_opened(Pid),
@@ -45,13 +45,13 @@ start({'Command', Program, Arguments, Input}, Owner, Reply) ->
             answered(Reply, {'Left', 'Invalid'});
         false ->
             try open(["run"]) of
-                Port ->
+                Helper ->
                     %% the command comes as the first frame, not on the
                     %% helper's command line, so that an argument too long
                     %% for the host is the program's failure to start
                     Parts = << <<Part/binary, 0>> || Part <- [Program | Arguments] >>,
-                    command(Port, <<"c", Parts/binary>>),
-                    started(Port, Input, Owner, Reply)
+                    command(Helper, <<"c", Parts/binary>>),
+                    started(Helper, Input, Owner, Reply)
             catch
                 error:_ -> answered(Reply, helper_failed())
             end
@@ -61,13 +61,13 @@ open(Args) ->
     erlang:open_port({spawn_executable, helper()},
                      [{args, Args}, {packet, 4}, binary, exit_status]).
 
-started(Port, Input, Owner, Reply) ->
-    command(Port, <<"i", Input/binary>>),
+started(Helper, Input, Owner, Reply) ->
+    command(Helper, <<"i", Input/binary>>),
     MonitorRef = erlang:monitor(process, Owner),
     %% the input given at the start is answered by the helper as a write is,
     %% with no one waiting for it
-    starting(#{port => Port, monitor_ref => MonitorRef, writes => queue:in(none, queue:new())},
-             Reply).
+    Writes = queue:in(none, queue:new()),
+    starting(#{helper => Helper, monitor_ref => MonitorRef, writes => Writes}, Reply).
 
 %% Report §7.4, Appendix E.23: the helper's failure is the runtime's own,
 %% which faults the caller that meets it.
@@ -84,15 +84,15 @@ helper() ->
 %% Until the helper says whether the program started, the Start is
 %% answered by nothing else, and nothing else knows the process. Report
 %% Appendix E.23: a start waits for the helper alone, and is not bounded.
-starting(#{port := Port} = Running, Reply) ->
+starting(#{helper := Helper} = Running, Reply) ->
     receive
-        {Port, {data, <<"s">>}} ->
+        {Helper, {data, <<"s">>}} ->
             ern_rt:answer(Reply, {'Right', erlang:self()}),
             running(Running, queue:new(), 0, queue:new());
-        {Port, {data, <<"f", Name/binary>>}} ->
+        {Helper, {data, <<"f", Name/binary>>}} ->
             stop(Running),
             answered(Reply, {'Left', not_started(Name)});
-        {Port, {exit_status, _}} ->
+        {Helper, {exit_status, _}} ->
             stop(Running),
             answered(Reply, helper_failed());
         {'DOWN', _, process, _, _} ->
@@ -109,46 +109,46 @@ starting(#{port := Port} = Running, Reply) ->
 %% milliseconds pass, the program running on, and the piece asked for it is
 %% the next read's; a write is answered when the helper says the program has
 %% taken its bytes, `a`, or dropped them, `d`, one for each input in order,
-%% the replies kept in the run's `writes`, or `Left(Timeout)` first, which
+%% the replies kept in the program's `writes`, or `Left(Timeout)` first, which
 %% does not undo it.
-running(#{port := Port} = Running, Waiting, Owed, Kept) ->
+running(#{helper := Helper} = Running, Waiting, Owed, Kept) ->
     receive
         {'Read', Ms, Reply} ->
             read(Ms, Reply, Running, Waiting, Owed, Kept);
         {'Write', Bytes, Ms, Reply} ->
-            command(Port, <<"i", Bytes/binary>>),
+            command(Helper, <<"i", Bytes/binary>>),
             arm({write, Reply}, ern_rt:deadline(Ms)),
-            running(Running#{writes := queue:in(Reply, maps:get(writes, Running))}, Waiting, Owed,
-                    Kept);
-        {Port, {data, <<Tag>>}} when Tag =:= $a; Tag =:= $d ->
-            {{value, Written}, Rest} = queue:out(maps:get(writes, Running)),
-            Written =:= none orelse ern_rt:answer(Written, written(Tag)),
+            Writes = queue:in(Reply, maps:get(writes, Running)),
+            running(Running#{writes := Writes}, Waiting, Owed, Kept);
+        {Helper, {data, <<Tag>>}} when Tag =:= $a; Tag =:= $d ->
+            {{value, WriteReply}, Rest} = queue:out(maps:get(writes, Running)),
+            WriteReply =:= none orelse ern_rt:answer(WriteReply, written(Tag)),
             running(Running#{writes := Rest}, Waiting, Owed, Kept);
         'CloseInput' ->
-            command(Port, <<"e">>),
+            command(Helper, <<"e">>),
             running(Running, Waiting, Owed, Kept);
         {'Give', Owner} ->
             running(given_to(Owner, Running), Waiting, Owed, Kept);
-        {Port, {data, <<"x", Status:32>>}} ->
+        {Helper, {data, <<"x", Status:32>>}} ->
             %% the program has exited: what it was written meanwhile is
             %% dropped, and its exit status is the last answer
             stop(Running),
             unwritten(Running, {'Left', 'Closed'}),
             given(Running, {'Right', {'Exited', Status}}, Waiting, Owed - 1, Kept);
-        {Port, {data, <<Tag, Bytes/binary>>}} ->
+        {Helper, {data, <<Tag, Bytes/binary>>}} ->
             given(Running, {'Right', piece(Tag, Bytes)}, Waiting, Owed - 1, Kept);
-        {Port, {exit_status, _}} ->
+        {Helper, {exit_status, _}} ->
             failed(Running, Waiting);
         {'DOWN', MonitorRef, process, _, _} when MonitorRef =:= map_get(monitor_ref, Running) ->
             killed(Running);
-        {timeout, _, Timer} ->
-            running(Running, timed_out(Timer, Waiting), Owed, Kept)
+        {timeout, _, Expired} ->
+            running(Running, timed_out(Expired, Waiting), Owed, Kept)
     end.
 
 %% A read, answered a piece kept for it, or else waiting; the helper is
 %% asked for a piece but where one is owed to a read that has gone, which
 %% is this one's.
-read(Ms, Reply, #{port := Port} = Running, Waiting, Owed, Kept) ->
+read(Ms, Reply, #{helper := Helper} = Running, Waiting, Owed, Kept) ->
     case queue:out(Kept) of
         {{value, Answer}, Rest} ->
             told(Running, Reply, Answer, Waiting, Owed, Rest);
@@ -158,7 +158,7 @@ read(Ms, Reply, #{port := Port} = Running, Waiting, Owed, Kept) ->
             Waiting1 = queue:in({Reply, Ref}, Waiting),
             case Owed > queue:len(Waiting) of
                 true -> running(Running, Waiting1, Owed, Kept);
-                false -> command(Port, <<"n">>), running(Running, Waiting1, Owed + 1, Kept)
+                false -> command(Helper, <<"n">>), running(Running, Waiting1, Owed + 1, Kept)
             end
     end.
 
@@ -181,7 +181,7 @@ given(Running, Answer, Waiting, Owed, Kept) ->
 
 %% A read answered; the exit status is the last answer, after which the
 %% process returns.
-told(_Run, Reply, {'Right', {'Exited', _}} = Answer, _Waiting, _Owed, _Kept) ->
+told(_Running, Reply, {'Right', {'Exited', _}} = Answer, _Waiting, _Owed, _Kept) ->
     answered(Reply, Answer);
 told(Running, Reply, Answer, Waiting, Owed, Kept) ->
     ern_rt:answer(Reply, Answer),
@@ -242,10 +242,10 @@ passed({read, Ref}, Waiting) ->
 arm(Kind, Deadline) ->
     erlang:start_timer(ern_rt:remaining(Deadline), erlang:self(), {Kind, Deadline}).
 
-%% A frame for the helper. A port the helper's end has closed has sent its
-%% exit status first, which ends the run, so a frame after it is dropped.
-command(Port, Frame) ->
-    try erlang:port_command(Port, Frame) catch error:badarg -> closed end.
+%% A frame for the helper. A helper whose end has closed has sent its exit
+%% status first, which ends the program, so a frame after it is dropped.
+command(Helper, Frame) ->
+    try erlang:port_command(Helper, Frame) catch error:badarg -> closed end.
 
 %% Report Appendix E.23: bytes the program took, and bytes dropped, given
 %% after the end of its input or after it closed it.
@@ -268,7 +268,7 @@ piece($r, Bytes) -> {'Stderr', Bytes}.
 over(Answer, #{monitor_ref := MonitorRef} = Running) ->
     receive
         {'Read', _, Reply} -> respond(Reply, Answer), over(Answer, Running);
-        {'Write', _, _, Written} -> respond(Written, Answer), over(Answer, Running);
+        {'Write', _, _, WriteReply} -> respond(WriteReply, Answer), over(Answer, Running);
         {'Give', Owner} -> over(Answer, given_to(Owner, Running));
         {'DOWN', MonitorRef, process, _, _} -> exit({ern, killed});
         _ -> over(Answer, Running)
@@ -281,10 +281,10 @@ given_to(Owner, #{monitor_ref := MonitorRef} = Running) ->
     erlang:demonitor(MonitorRef, [flush]),
     Running#{monitor_ref := erlang:monitor(process, Owner)}.
 
-%% The port closed, which ends the helper and kills the program if it runs.
-%% The monitor of the process that started it stays.
-stop(#{port := Port}) ->
-    try erlang:port_close(Port) catch error:badarg -> closed end.
+%% The helper's port closed, which ends the helper and kills the program if
+%% it runs. The monitor of the process that started it stays.
+stop(#{helper := Helper}) ->
+    try erlang:port_close(Helper) catch error:badarg -> closed end.
 
 %% The last answer while the program counts as a source, given before the
 %% count ends, so that no deadlock is found between the two (report §8.6).
@@ -317,33 +317,33 @@ not_started(Text) -> {'Other', Text}.
 %% Os.environment decodes when it is asked for (report Appendix E.23).
 -spec environment() -> #{binary() => binary()}.
 environment() ->
-    Port = try open([])
-           catch error:_ -> ern_rt:fault(<<"the runtime's helper ern_exec failed">>)
-           end,
-    variables(Port, #{}).
+    Helper = try open([])
+             catch error:_ -> ern_rt:fault(<<"the runtime's helper ern_exec failed">>)
+             end,
+    variables(Helper, #{}).
 
 %% Report Appendix E.23: a name that occurs twice keeps its first value, and
 %% each value is kept as its bytes, decoded when it is asked for. A name that
 %% is not UTF-8 is none a String can ask for, and is not kept.
-variables(Port, Env) ->
+variables(Helper, Environment) ->
     receive
-        {Port, {data, <<"v", Variable/binary>>}} ->
-            variables(Port, variable(binary:split(Variable, <<"=">>), Env));
-        {Port, {data, <<"x", _/binary>>}} ->
+        {Helper, {data, <<"v", Variable/binary>>}} ->
+            variables(Helper, variable(binary:split(Variable, <<"=">>), Environment));
+        {Helper, {data, <<"x", _/binary>>}} ->
             receive
-                {Port, {exit_status, _}} -> Env
+                {Helper, {exit_status, _}} -> Environment
             end;
-        {Port, {exit_status, _}} ->
+        {Helper, {exit_status, _}} ->
             ern_rt:fault(<<"the runtime's helper ern_exec failed">>)
     end.
 
-variable([Name, Value], Env) ->
-    case is_map_key(Name, Env) orelse not utf8(Name) of
-        true -> Env;
-        false -> Env#{Name => Value}
+variable([Name, Value], Environment) ->
+    case is_map_key(Name, Environment) orelse not utf8(Name) of
+        true -> Environment;
+        false -> Environment#{Name => Value}
     end;
-variable([_], Env) ->
-    Env.
+variable([_], Environment) ->
+    Environment.
 
 utf8(Bytes) ->
     is_binary(unicode:characters_to_binary(Bytes, utf8, utf8)).
@@ -357,9 +357,9 @@ utf8(Bytes) ->
 working_directory() ->
     case file:get_cwd() of
         {ok, Dir} -> name(file:native_name_encoding(), Dir);
-        {error, Reason} ->
+        {error, Error} ->
             ern_rt:fault(iolist_to_binary(["the working directory cannot be read: ",
-                                           atom_to_list(Reason)]))
+                                           atom_to_list(Error)]))
     end.
 
 name(latin1, Dir) -> list_to_binary(Dir);

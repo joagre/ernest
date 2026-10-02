@@ -62,12 +62,12 @@ by_type({mu, Id, Descriptor}, Value, Bound, Limits) ->
 by_type({ref, Id}, Value, Bound, Limits) -> by_type(maps:get(Id, Bound), Value, Bound, Limits);
 by_type({con, _}, Value, _, _) when is_atom(Value) -> atom_to_list(Value);
 by_type(_, _, _, #limits{depth = 0}) -> "...";
-by_type({list, Element}, Value, Bound, Limits) ->
-    Show = fun(Item) -> by_type(Element, Item, Bound, deeper(Limits)) end,
+by_type({list, ElementDescriptor}, Value, Bound, Limits) ->
+    Show = fun(Item) -> by_type(ElementDescriptor, Item, Bound, deeper(Limits)) end,
     ["[", join(parts(Value, Limits, Show)), "]"];
-by_type({tuple, Elements}, Value, Bound, Limits) ->
-    Shown = [by_type(Element, Item, Bound, deeper(Limits))
-             || {Element, Item} <- lists:zip(Elements, tuple_to_list(Value))],
+by_type({tuple, ElementDescriptors}, Value, Bound, Limits) ->
+    Shown = [by_type(ElementDescriptor, Item, Bound, deeper(Limits))
+             || {ElementDescriptor, Item} <- lists:zip(ElementDescriptors, tuple_to_list(Value))],
     ["#(", join(Shown), ")"];
 by_type({map, KeyDescriptor, ValueDescriptor}, Value, Bound, Limits) ->
     Pair = fun({Key, Item}) ->
@@ -75,18 +75,19 @@ by_type({map, KeyDescriptor, ValueDescriptor}, Value, Bound, Limits) ->
                 by_type(ValueDescriptor, Item, Bound, deeper(Limits)), ")"]
            end,
     ["Map.fromList([", join(parts(lists:sort(maps:to_list(Value)), Limits, Pair)), "])"];
-by_type({set, Element}, {set, Elements}, Bound, Limits) ->
-    Show = fun(Item) -> by_type(Element, Item, Bound, deeper(Limits)) end,
-    ["Set.fromList([", join(parts(lists:sort(maps:keys(Elements)), Limits, Show)), "])"];
+by_type({set, ElementDescriptor}, {set, Members}, Bound, Limits) ->
+    Show = fun(Item) -> by_type(ElementDescriptor, Item, Bound, deeper(Limits)) end,
+    ["Set.fromList([", join(parts(lists:sort(maps:keys(Members)), Limits, Show)), "])"];
 by_type({con, Constructors}, Value, Bound, Limits) when is_tuple(Value) ->
     [Tag | Fields] = tuple_to_list(Value),
     Parts = case lists:keyfind(Tag, 1, Constructors) of
                 {_, Descriptors} ->
-                    [by_type(Field, Item, Bound, deeper(Limits))
-                     || {Field, Item} <- lists:zip(Descriptors, Fields)];
+                    [by_type(FieldDescriptor, Item, Bound, deeper(Limits))
+                     || {FieldDescriptor, Item} <- lists:zip(Descriptors, Fields)];
                 {_, Descriptors, Names} ->
-                    [[atom_to_list(Name), " = ", by_type(Field, Item, Bound, deeper(Limits))]
-                     || {Name, Field, Item} <- lists:zip3(Names, Descriptors, Fields)]
+                    [[atom_to_list(Name), " = ",
+                      by_type(FieldDescriptor, Item, Bound, deeper(Limits))]
+                     || {Name, FieldDescriptor, Item} <- lists:zip3(Names, Descriptors, Fields)]
             end,
     [atom_to_list(Tag), "(", join(Parts), ")"].
 
@@ -124,9 +125,9 @@ represented(List, Limits) when is_list(List) ->
         false ->
             "<foreign>"
     end;
-represented({set, Elements}, Limits) when is_map(Elements) ->
+represented({set, Members}, Limits) when is_map(Members) ->
     Show = fun(Item) -> represented(Item, deeper(Limits)) end,
-    ["Set.fromList([", join(parts(lists:sort(maps:keys(Elements)), Limits, Show)), "])"];
+    ["Set.fromList([", join(parts(lists:sort(maps:keys(Members)), Limits, Show)), "])"];
 %% an address seen through `via` is the runtime's own term (report §6.5),
 %% and is written as every address is, by the process behind it
 represented({via, Function, _} = Address, _) when is_function(Function, 1) -> address(Address);
@@ -146,8 +147,8 @@ represented(Tuple, Limits) when is_tuple(Tuple) ->
     ["#(", join([represented(Item, deeper(Limits)) || Item <- tuple_to_list(Tuple)]), ")"];
 represented(Map, Limits) when is_map(Map) ->
     Pair = fun({Key, Item}) ->
-               ["#(", represented(Key, deeper(Limits)), ", ", represented(Item, deeper(Limits)),
-                ")"]
+               ["#(", represented(Key, deeper(Limits)), ", ",
+                represented(Item, deeper(Limits)), ")"]
            end,
     ["Map.fromList([", join(parts(lists:sort(maps:to_list(Map)), Limits, Pair)), "])"];
 represented(_, _) -> "<foreign>".

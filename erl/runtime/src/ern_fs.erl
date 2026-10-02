@@ -2,7 +2,7 @@
 %% each of Fs's messages with Either(Io.Error, a), doing the work in a process of its own so
 %% that one slow file does not hold up the rest. The work that opens a file
 %% goes around the host's file server, which does one request at a time:
-%% raw, as the host calls it. A Path is {'Path', Bin} and an Entry's fields
+%% raw, as the host calls it. A Path is {'Path', Bytes} and an Entry's fields
 %% are in declared order (report §3.5): path, mtime, size, kind.
 -module(ern_fs).
 
@@ -50,8 +50,8 @@ handle({'AppendFile', Path, Bytes, Reply}) ->
 handle({'ListDir', Path, Reply}) ->
     Dir = text(Path),
     answer(Reply, case file:list_dir_all(Dir) of
-                      {ok, Names} -> named_entries(Dir, lists:sort(lists:map(fun name_bytes/1,
-                                                                             Names)));
+                      {ok, Names} ->
+                          named_entries(Dir, lists:sort(lists:map(fun name_bytes/1, Names)));
                       Error -> Error
                   end);
 handle({'Stat', Path, Reply}) ->
@@ -80,8 +80,8 @@ handle({'RemoveAll', Path, Reply}) ->
         {fault, Cause} -> ern_rt:refuse(Reply, Cause);
         Answer -> ern_rt:answer(Reply, Answer)
     end;
-handle({'Rename', From, Address, Reply}) ->
-    answer(Reply, unit(file:rename(text(From), text(Address))));
+handle({'Rename', Source, Destination, Reply}) ->
+    answer(Reply, unit(file:rename(text(Source), text(Destination))));
 %% Report Appendix E.17: the link at the path, holding the target as it is
 %% written, which may name nothing.
 handle({'MakeLink', Path, Target, Reply}) ->
@@ -134,10 +134,12 @@ handle({'SetModified', Path, Mtime, Reply}) ->
                       Error ->
                           Error
                   end);
-handle({'Copy', From, Address, Reply}) ->
-    {Source, Target} = {text(From), text(Address)},
+handle({'Copy', SourcePath, DestinationPath, Reply}) ->
+    Source = text(SourcePath),
+    Destination = text(DestinationPath),
     answer(Reply, regular(Source, fun() ->
-                                      regular_or_none(Target, fun() -> copy(Source, Target) end)
+                                      regular_or_none(Destination,
+                                                      fun() -> copy(Source, Destination) end)
                                   end)).
 
 range(Name, Offset, Count) ->
@@ -160,8 +162,8 @@ range(Name, Offset, Count) ->
             Error
     end.
 
-copy(Source, Target) ->
-    case file:copy({Source, [raw]}, {Target, [raw]}) of
+copy(Source, Destination) ->
+    case file:copy({Source, [raw]}, {Destination, [raw]}) of
         {ok, _} -> {ok, 'Unit'};
         Error -> Error
     end.
@@ -185,8 +187,8 @@ regular_or_none(Name, Then) ->
 %% Every answer is Right(v) or Left(Io.Error).
 answer(Reply, {ok, Value}) ->
     ern_rt:answer(Reply, {'Right', Value});
-answer(Reply, {error, Reason}) ->
-    ern_rt:answer(Reply, {'Left', io_error(Reason)}).
+answer(Reply, {error, Error}) ->
+    ern_rt:answer(Reply, {'Left', io_error(Error)}).
 
 unit(ok) -> {ok, 'Unit'};
 unit(Other) -> Other.
@@ -227,7 +229,7 @@ entries(Dir, Names) ->
                         end
                 end, {ok, []}, lists:reverse(Names)).
 
-%% Report Appendix E.17: Fs.Entry(kind, mtime, path, size), mtime in
+%% Report Appendix E.17: Fs.Entry(path, mtime, size, kind), mtime in
 %% milliseconds; stat describes what the path leads to.
 entry(Name) ->
     entry(Name, file:read_file_info(Name, [raw, {time, posix}])).
@@ -265,12 +267,12 @@ floor_div(Dividend, Divisor) -> -((-Dividend + Divisor - 1) div Divisor).
 removed_by_helper(Name) ->
     try erlang:open_port({spawn_executable, ern_os:helper()},
                          [{args, ["remove"]}, {packet, 4}, binary, exit_status]) of
-        Port ->
-            erlang:port_command(Port, <<"p", Name/binary>>),
+        Helper ->
+            erlang:port_command(Helper, <<"p", Name/binary>>),
             receive
-                {Port, {data, <<"d">>}} -> {'Right', 'Unit'};
-                {Port, {data, <<"f", Error/binary>>}} -> {'Left', removal_error(Error)};
-                {Port, {exit_status, _}} -> ern_os:helper_failed()
+                {Helper, {data, <<"d">>}} -> {'Right', 'Unit'};
+                {Helper, {data, <<"f", ErrorName/binary>>}} -> {'Left', removal_error(ErrorName)};
+                {Helper, {exit_status, _}} -> ern_os:helper_failed()
             end
     catch
         error:_ -> ern_os:helper_failed()
@@ -280,7 +282,7 @@ removed_by_helper(Name) ->
 %% are, and its host's words where it has no name.
 removal_error(Name) ->
     try binary_to_existing_atom(Name) of
-        Reason -> io_error(Reason)
+        Error -> io_error(Error)
     catch
         error:badarg -> {'Other', Name}
     end.
@@ -293,4 +295,4 @@ io_error(econnrefused) -> 'Refused';
 io_error(not_regular) -> 'NotAFile';
 io_error(eexist) -> 'Exists';
 io_error({not_utf8, Bytes}) -> {'NotUtf8', Bytes};
-io_error(Reason) -> ern_io:other(Reason, fun file:format_error/1).
+io_error(Error) -> ern_io:other(Error, fun file:format_error/1).

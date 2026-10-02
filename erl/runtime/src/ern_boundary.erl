@@ -9,23 +9,23 @@
 %% sends against the address's mailbox type on delivery and forwards it, or
 %% ends the target with the fault. An address that comes from foreign code
 %% and names no process of the program is held as foreign, {foreign, Pid,
-%% D, B}, D its messages' descriptor, so that what is sent to it is
-%% exposed, and a Reply as {foreign_reply, Alias, D, B}, D its answer's
-%% descriptor, so that its answer is exposed, given in foreign code's form,
-%% and checked. The compiler describes a type as a term this module
-%% interprets:
-%% any | int | float | bool | char | string | bytes | {address, D, Text} | {reply, D, Text}
-%% | process | {'fun', Arity, R, Text, Make, Exposer} | {'fun', Arity, R, Text, Ps, Texts}
+%% Descriptor, Bound}, Descriptor its messages' descriptor, so that what is
+%% sent to it is exposed, and a Reply as {foreign_reply, Reply, Descriptor,
+%% Bound}, Descriptor its answer's descriptor, so that its answer is
+%% exposed, given in foreign code's form, and checked. The compiler
+%% describes a type as a term this module interprets:
+%% any | int | float | bool | char | string | bytes | {address, D, Cause} | {reply, D, Cause}
+%% | process | {'fun', Arity, R, Cause, Make, Exposer} | {'fun', Arity, R, Cause, Ps, Causes}
 %% | never | {list, D} | {tuple, [D]} | {map, K, V} | {set, D}
 %% | {con, [{Tag, [D]} | {Tag, [D], [Name]}]} | {abstract, D} | {mu, Id, D} | {ref, Id},
 %% mu binding Id for the ref inside it, which is how a recursive type is
-%% described once; {address, D, Text} is an address whose messages D
-%% describes, and {reply, D, Text} a Reply whose answer D describes; a
+%% described once; {address, D, Cause} is an address whose messages D
+%% describes, and {reply, D, Cause} a Reply whose answer D describes; a
 %% constructor with named fields carries their names, and an abstract type
 %% seen from outside its module is wrapped, both for printing (ern_show).
 %% A function's R describes its result, and Make wraps a function value,
 %% given R closed over the recursive types around it, so that each call's
-%% result is checked against R, faulting with Text (report §7.4); the
+%% result is checked against R, faulting with Cause (report §7.4); the
 %% descriptors `Io.show` and `Io.debug` print by carry no Make, since
 %% nothing is checked there. A function given to foreign code is
 %% {callback, Make}, Make wrapping it to check each argument foreign code
@@ -69,41 +69,41 @@ called_raised(Class, Error, Stack) ->
 expose(Descriptor, Value) ->
     expose(Descriptor, Value, #{}).
 
-%% The value, or the fault Text (report §7.4), where the descriptor holds
+%% The value, or the fault Cause (report §7.4), where the descriptor holds
 %% no function, no address, no Reply and no float, so that the checked
 %% value is the value itself.
 -spec check(term(), term(), binary()) -> term().
-check(Descriptor, Value, Text) ->
+check(Descriptor, Value, Cause) ->
     case matches(Descriptor, Value, #{}) of
         true -> Value;
-        false -> ern_rt:fault(Text)
+        false -> ern_rt:fault(Cause)
     end.
 
-%% The value, or the fault Text (report §7.4). A descriptor that is a word
+%% The value, or the fault Cause (report §7.4). A descriptor that is a word
 %% describes a value with no function in it and nothing to make zero but a
 %% float itself, so it is checked alone.
 -spec value(term(), term(), binary()) -> term().
-value(Descriptor, Value, Text) when is_atom(Descriptor) ->
+value(Descriptor, Value, Cause) when is_atom(Descriptor) ->
     case matches(Descriptor, Value, #{}) of
         true when Descriptor =:= float -> Value + 0.0;
         true -> Value;
-        false -> ern_rt:fault(Text)
+        false -> ern_rt:fault(Cause)
     end;
-value(Descriptor, Value, Text) ->
+value(Descriptor, Value, Cause) ->
     case matches(Descriptor, Value, #{}) of
         true -> armed(Descriptor, zeroed(Descriptor, Value), #{});
-        false -> ern_rt:fault(Text)
+        false -> ern_rt:fault(Cause)
     end.
 
 %% Report §8.4: an argument foreign code calls a function of the program's
 %% with, where the function stood inside what crossed, the recursive types
 %% around it in Bound: the value as the program holds it, or the fault
-%% Text.
+%% Cause.
 -spec argument(term(), term(), binary(), map()) -> term().
-argument(Descriptor, Value, Text, Bound) ->
+argument(Descriptor, Value, Cause, Bound) ->
     case matches(Descriptor, Value, Bound) of
         true -> armed(Descriptor, zeroed(Descriptor, Value, Bound), Bound);
-        false -> ern_rt:fault(Text)
+        false -> ern_rt:fault(Cause)
     end.
 
 %% Report §7.4, §8.4: a checked value from foreign code as the program
@@ -129,17 +129,19 @@ arm({address, MessageDescriptor, _}, Value, Bound) when is_pid(Value) ->
     ern_rt:held(Value, MessageDescriptor, Bound);
 arm({reply, AnswerDescriptor, _}, Value, Bound) when is_reference(Value) ->
     {foreign_reply, Value, AnswerDescriptor, Bound};
-arm({list, Element}, Value, Bound) -> [arm(Element, Item, Bound) || Item <- Value];
-arm({tuple, Elements}, Value, Bound) ->
-    list_to_tuple([arm(Element, Item, Bound)
-                   || {Element, Item} <- lists:zip(Elements, tuple_to_list(Value))]);
-arm({map, _, Element}, Value, Bound) ->
-    maps:map(fun(_, Item) -> arm(Element, Item, Bound) end, Value);
+arm({list, ElementDescriptor}, Value, Bound) ->
+    [arm(ElementDescriptor, Item, Bound) || Item <- Value];
+arm({tuple, ElementDescriptors}, Value, Bound) ->
+    list_to_tuple([arm(ElementDescriptor, Item, Bound)
+                   || {ElementDescriptor, Item}
+                          <- lists:zip(ElementDescriptors, tuple_to_list(Value))]);
+arm({map, _, ValueDescriptor}, Value, Bound) ->
+    maps:map(fun(_, Item) -> arm(ValueDescriptor, Item, Bound) end, Value);
 arm({con, Constructors}, Value, Bound) when is_tuple(Value) ->
     [Tag | Fields] = tuple_to_list(Value),
     Descriptors = constructor_fields(Tag, Constructors),
-    list_to_tuple([Tag | [arm(Field, Item, Bound)
-                          || {Field, Item} <- lists:zip(Descriptors, Fields)]]);
+    list_to_tuple([Tag | [arm(FieldDescriptor, Item, Bound)
+                          || {FieldDescriptor, Item} <- lists:zip(Descriptors, Fields)]]);
 arm({abstract, Descriptor}, Value, Bound) -> arm(Descriptor, Value, Bound);
 arm({mu, Id, Descriptor}, Value, Bound) -> arm(Descriptor, Value, Bound#{Id => Descriptor});
 arm({ref, Id}, Value, Bound) -> arm(maps:get(Id, Bound), Value, Bound);
@@ -176,20 +178,23 @@ has_float(Parts) when is_list(Parts) -> lists:any(fun has_float/1, Parts);
 has_float(_) -> false.
 
 zero(float, Value, _) -> Value + 0.0;
-zero({list, Element}, Value, Bound) -> [zero(Element, Item, Bound) || Item <- Value];
-zero({tuple, Elements}, Value, Bound) ->
-    list_to_tuple([zero(Element, Item, Bound)
-                   || {Element, Item} <- lists:zip(Elements, tuple_to_list(Value))]);
+zero({list, ElementDescriptor}, Value, Bound) ->
+    [zero(ElementDescriptor, Item, Bound) || Item <- Value];
+zero({tuple, ElementDescriptors}, Value, Bound) ->
+    list_to_tuple([zero(ElementDescriptor, Item, Bound)
+                   || {ElementDescriptor, Item}
+                          <- lists:zip(ElementDescriptors, tuple_to_list(Value))]);
 zero({map, KeyDescriptor, ValueDescriptor}, Value, Bound) ->
     maps:from_list([{zero(KeyDescriptor, Key, Bound), zero(ValueDescriptor, Item, Bound)}
                     || {Key, Item} <- maps:to_list(Value)]);
-zero({set, Element}, {set, Elements}, Bound) ->
-    {set, maps:from_list([{zero(Element, Item, Bound), []} || Item <- maps:keys(Elements)])};
+zero({set, ElementDescriptor}, {set, Members}, Bound) ->
+    {set, maps:from_list([{zero(ElementDescriptor, Item, Bound), []}
+                          || Item <- maps:keys(Members)])};
 zero({con, Constructors}, Value, Bound) when is_tuple(Value) ->
     [Tag | Fields] = tuple_to_list(Value),
     Descriptors = constructor_fields(Tag, Constructors),
-    list_to_tuple([Tag | [zero(Field, Item, Bound)
-                          || {Field, Item} <- lists:zip(Descriptors, Fields)]]);
+    list_to_tuple([Tag | [zero(FieldDescriptor, Item, Bound)
+                          || {FieldDescriptor, Item} <- lists:zip(Descriptors, Fields)]]);
 zero({abstract, Descriptor}, Value, Bound) -> zero(Descriptor, Value, Bound);
 zero({mu, Id, Descriptor}, Value, Bound) -> zero(Descriptor, Value, Bound#{Id => Descriptor});
 zero({ref, Id}, Value, Bound) -> zero(maps:get(Id, Bound), Value, Bound);
@@ -215,11 +220,11 @@ matches({reply, _, _}, _, _) -> false;
 matches(process, Value, _) -> is_pid(Value);
 matches({'fun', Arity, _, _, _, _}, Value, _) -> is_function(Value, Arity);
 matches(never, _, _) -> false;
-matches({list, Element}, Value, Bound) ->
-    is_list(Value) andalso elements_match(Element, Value, Bound);
-matches({tuple, Elements}, Value, Bound) ->
-    is_tuple(Value) andalso tuple_size(Value) =:= length(Elements)
-        andalso pairwise_match(Elements, tuple_to_list(Value), Bound);
+matches({list, ElementDescriptor}, Value, Bound) ->
+    is_list(Value) andalso elements_match(ElementDescriptor, Value, Bound);
+matches({tuple, ElementDescriptors}, Value, Bound) ->
+    is_tuple(Value) andalso tuple_size(Value) =:= length(ElementDescriptors)
+        andalso pairwise_match(ElementDescriptors, tuple_to_list(Value), Bound);
 %% a type variable a parameter names matches any value (report §8.4), so a
 %% map of such keys and values is checked alone, and a put costs what the
 %% host's does
@@ -229,12 +234,12 @@ matches({map, KeyDescriptor, ValueDescriptor}, Value, Bound) ->
                                         Acc andalso matches(KeyDescriptor, Key, Bound)
                                             andalso matches(ValueDescriptor, Item, Bound)
                                     end, true, Value);
-matches({set, Element}, {set, Elements}, Bound) ->
+matches({set, ElementDescriptor}, {set, Members}, Bound) ->
     %% a version 2 set is a map from element to [], tagged (ern@set)
-    is_map(Elements) andalso maps:fold(fun(Item, Mark, Acc) ->
-                                           Acc andalso Mark =:= []
-                                               andalso matches(Element, Item, Bound)
-                                       end, true, Elements);
+    is_map(Members) andalso maps:fold(fun(Item, Mark, Acc) ->
+                                          Acc andalso Mark =:= []
+                                              andalso matches(ElementDescriptor, Item, Bound)
+                                      end, true, Members);
 matches({set, _}, _, _) ->
     false;
 matches({con, Constructors}, Value, _) when is_atom(Value) ->
@@ -266,14 +271,15 @@ pairwise_match([], [], _) -> true;
 pairwise_match([Descriptor | Descriptors], [Value | Values], Bound) ->
     matches(Descriptor, Value, Bound) andalso pairwise_match(Descriptors, Values, Bound).
 
-%% Every element of a list checked against Element, the list proper
+%% Every element of a list checked against ElementDescriptor, the list proper
 %% (report §8.4: a List is a list); an improper one does not match. A list
 %% of values a parameter's type variable names is only walked.
 elements_match(_, [], _) -> true;
-elements_match(Element, [_ | Items], Bound) when Element =:= any; Element =:= foreign ->
-    elements_match(Element, Items, Bound);
-elements_match(Element, [Item | Items], Bound) ->
-    matches(Element, Item, Bound) andalso elements_match(Element, Items, Bound);
+elements_match(ElementDescriptor, [_ | Items], Bound)
+  when ElementDescriptor =:= any; ElementDescriptor =:= foreign ->
+    elements_match(ElementDescriptor, Items, Bound);
+elements_match(ElementDescriptor, [Item | Items], Bound) ->
+    matches(ElementDescriptor, Item, Bound) andalso elements_match(ElementDescriptor, Items, Bound);
 elements_match(_, _, _) -> false.
 
 %% What crosses into foreign code, exposed where mu bindings Bound are in
@@ -287,30 +293,31 @@ elements_match(_, _, _) -> false.
 expose({callback, Make}, Value, _) when is_function(Value) -> Make(Value);
 expose({'fun', _, _, _, _, Exposer}, Value, Bound) when is_function(Value) ->
     Exposer(Value, Bound);
-expose({address, MessageDescriptor, Text}, Value, Bound) when is_pid(Value) ->
-    proxy(Value, MessageDescriptor, Bound, Text);
+expose({address, MessageDescriptor, Cause}, Value, Bound) when is_pid(Value) ->
+    proxy(Value, MessageDescriptor, Bound, Cause);
 %% report §6.5: an address seen through a function is an address too, and
 %% foreign code must reach it through the same checking proxy
-expose({address, MessageDescriptor, Text}, {via, _, _} = Value, Bound) ->
-    proxy(Value, MessageDescriptor, Bound, Text);
+expose({address, MessageDescriptor, Cause}, {via, _, _} = Value, Bound) ->
+    proxy(Value, MessageDescriptor, Bound, Cause);
 %% an address foreign code gave goes back to it as it came
 expose({address, _, _}, {foreign, Pid, _, _}, _) -> Pid;
 %% a Reply foreign code gave goes back to it as it came
 expose({reply, _, _}, {foreign_reply, Reply, _, _}, _) -> Reply;
-expose({list, Element}, Value, Bound) when is_list(Value) ->
-    [expose(Element, Item, Bound) || Item <- Value];
-expose({tuple, Elements}, Value, Bound)
-  when is_tuple(Value), tuple_size(Value) =:= length(Elements) ->
-    list_to_tuple([expose(Element, Item, Bound)
-                   || {Element, Item} <- lists:zip(Elements, tuple_to_list(Value))]);
-expose({map, _, Element}, Value, Bound) when is_map(Value) ->
-    maps:map(fun(_, Item) -> expose(Element, Item, Bound) end, Value);
+expose({list, ElementDescriptor}, Value, Bound) when is_list(Value) ->
+    [expose(ElementDescriptor, Item, Bound) || Item <- Value];
+expose({tuple, ElementDescriptors}, Value, Bound)
+  when is_tuple(Value), tuple_size(Value) =:= length(ElementDescriptors) ->
+    list_to_tuple([expose(ElementDescriptor, Item, Bound)
+                   || {ElementDescriptor, Item}
+                          <- lists:zip(ElementDescriptors, tuple_to_list(Value))]);
+expose({map, _, ValueDescriptor}, Value, Bound) when is_map(Value) ->
+    maps:map(fun(_, Item) -> expose(ValueDescriptor, Item, Bound) end, Value);
 expose({con, Constructors}, Value, Bound) when is_tuple(Value), tuple_size(Value) > 1 ->
     [Tag | Fields] = tuple_to_list(Value),
     case constructor_fields(Tag, Constructors) of
         Descriptors when is_list(Descriptors), length(Descriptors) =:= length(Fields) ->
-            list_to_tuple([Tag | [expose(Field, Item, Bound)
-                                  || {Field, Item} <- lists:zip(Descriptors, Fields)]]);
+            list_to_tuple([Tag | [expose(FieldDescriptor, Item, Bound)
+                                  || {FieldDescriptor, Item} <- lists:zip(Descriptors, Fields)]]);
         _ ->
             Value
     end;
@@ -323,18 +330,18 @@ expose(_, Value, _) -> Value.
 %% one of it per address and mailbox type however often the address is
 %% exposed; a message that does not match ends the process behind the
 %% address with the fault, as its own receive would have.
-proxy(Behind, MessageDescriptor, Bound, Text) ->
+proxy(Behind, MessageDescriptor, Bound, Cause) ->
     Key = {Behind, MessageDescriptor, Bound},
     ern_rt:proxy_for(Key, Behind,
-                     fun() -> start_proxy(Key, Behind, MessageDescriptor, Bound, Text) end).
+                     fun() -> start_proxy(Key, Behind, MessageDescriptor, Bound, Cause) end).
 
-start_proxy(Key, Behind, MessageDescriptor, Bound, Text) ->
+start_proxy(Key, Behind, MessageDescriptor, Bound, Cause) ->
     erlang:spawn(fun() ->
                      MonitorRef = erlang:monitor(process, ern_rt:process_of(Behind)),
-                     proxy_loop(Key, Behind, MonitorRef, MessageDescriptor, Bound, Text)
+                     proxy_loop(Key, Behind, MonitorRef, MessageDescriptor, Bound, Cause)
                  end).
 
-proxy_loop(Key, Behind, MonitorRef, Descriptor, Bound, Text) ->
+proxy_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause) ->
     receive
         {'DOWN', MonitorRef, process, _, _} ->
             ern_rt:proxy_forget(Key, erlang:self()),
@@ -344,7 +351,7 @@ proxy_loop(Key, Behind, MonitorRef, Descriptor, Bound, Text) ->
                 true ->
                     Zeroed = zeroed(Descriptor, Message, Bound),
                     ern_rt:send(Behind, armed(Descriptor, Zeroed, Bound));
-                false -> exit(ern_rt:process_of(Behind), {ern, fault, Text})
+                false -> exit(ern_rt:process_of(Behind), {ern, fault, Cause})
             end,
-            proxy_loop(Key, Behind, MonitorRef, Descriptor, Bound, Text)
+            proxy_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause)
     end.

@@ -48,8 +48,8 @@
 -define(PASTE_BEGIN, "\e[200~").
 -define(PASTE_END, "\e[201~").
 
-%% Open is the input, which ern_rt:read_input/1 reads; Keys says whether
-%% keys can come, standard input being a terminal.
+%% Open is the input, which ern_rt:read_input/1 reads; the boolean says
+%% whether keys can come, standard input being a terminal.
 -spec loop(fun(() -> port() | pid()), boolean()) -> no_return().
 loop(Open, true) ->
     loop([], {unstarted, Open}, [], none);
@@ -136,9 +136,9 @@ resized(Subscribers, Size) ->
     case size_now() of
         Size ->
             Size;
-        Now ->
-            deliver([{'Resized', Now} || Now =/= none], Subscribers),
-            Now
+        NewSize ->
+            deliver([{'Resized', NewSize} || NewSize =/= none], Subscribers),
+            NewSize
     end.
 
 pasting({paste, _, _}) -> true;
@@ -201,10 +201,10 @@ unsubscribe(Pid, Subscribers, Reader) ->
     case lists:keyfind(Pid, 1, Subscribers) of
         {Pid, Courier, MonitorRef} ->
             erlang:demonitor(MonitorRef, [flush]),
-            Ended = erlang:monitor(process, Courier),
+            CourierMonitorRef = erlang:monitor(process, Courier),
             erlang:unlink(Courier),
             exit(Courier, kill),
-            receive {'DOWN', Ended, process, Courier, _} -> ok end;
+            receive {'DOWN', CourierMonitorRef, process, Courier, _} -> ok end;
         false ->
             ok
     end,
@@ -329,15 +329,15 @@ stty(Args) ->
     case terminal() andalso system_stty() of
         false ->
             ok;
-        Stty ->
-            Port = open_port({spawn_executable, Stty},
+        SttyPath ->
+            Stty = open_port({spawn_executable, SttyPath},
                              [{args, Args}, nouse_stdio, exit_status]),
             receive
-                {Port, {exit_status, _}} -> ok
+                {Stty, {exit_status, _}} -> ok
             after 2000 ->
                 %% the port may have closed since, which is the same
-                try port_close(Port) catch error:badarg -> true end,
-                flush_port(Port)
+                try port_close(Stty) catch error:badarg -> true end,
+                flush_port(Stty)
             end
     end.
 
@@ -351,32 +351,32 @@ settings() ->
         false ->
             none;
         true ->
-            Port = open_port({spawn_executable, os:find_executable("sh")},
+            Stty = open_port({spawn_executable, os:find_executable("sh")},
                              [{args, ["-c", "stty -g >&4"]}, nouse_stdio, exit_status,
                               binary]),
-            settings(Port, [])
+            settings(Stty, [])
     end.
 
-settings(Port, Acc) ->
+settings(Stty, Acc) ->
     receive
-        {Port, {data, Bytes}} ->
-            settings(Port, [Acc, Bytes]);
-        {Port, {exit_status, 0}} ->
+        {Stty, {data, Bytes}} ->
+            settings(Stty, [Acc, Bytes]);
+        {Stty, {exit_status, 0}} ->
             case string:trim(binary_to_list(iolist_to_binary(Acc))) of
                 "" -> none;
                 Found -> Found
             end;
-        {Port, {exit_status, _}} ->
+        {Stty, {exit_status, _}} ->
             none
     after 2000 ->
-        try port_close(Port) catch error:badarg -> true end,
-        flush_port(Port),
+        try port_close(Stty) catch error:badarg -> true end,
+        flush_port(Stty),
         none
     end.
 
-flush_port(Port) ->
+flush_port(Stty) ->
     receive
-        {Port, _} -> flush_port(Port)
+        {Stty, _} -> flush_port(Stty)
     after 0 ->
         ok
     end.
@@ -397,31 +397,31 @@ is_terminal(Stream) ->
 %% character may arrive in two reads, and bytes that are not UTF-8 end the
 %% program. The reader traps exits, so that its input's failure is the end
 %% of the keys, and the terminal's process ending is its own end.
-read_loop(Keys, Open) ->
+read_loop(Tty, Open) ->
     erlang:process_flag(trap_exit, true),
-    read_loop(Keys, Open, <<>>).
+    read_loop(Tty, Open, <<>>).
 
-read_loop(Keys, Open, Partial) ->
+read_loop(Tty, Open, Partial) ->
     case ern_rt:read_input(Open) of
         {data, Bytes} ->
             case unicode:characters_to_list(<<Partial/binary, Bytes/binary>>, utf8) of
                 Chars when is_list(Chars) ->
-                    keys(Keys, Chars),
-                    read_loop(Keys, Open, <<>>);
+                    keys(Tty, Chars),
+                    read_loop(Tty, Open, <<>>);
                 {incomplete, Chars, Rest} ->
-                    keys(Keys, Chars),
-                    read_loop(Keys, Open, Rest);
+                    keys(Tty, Chars),
+                    read_loop(Tty, Open, Rest);
                 {error, Chars, _} ->
-                    keys(Keys, Chars),
+                    keys(Tty, Chars),
                     ern_rt:input_not_utf8(),
-                    Keys ! closed
+                    Tty ! closed
             end;
-        eof -> Keys ! closed;
-        {error, _} -> Keys ! closed
+        eof -> Tty ! closed;
+        {error, _} -> Tty ! closed
     end.
 
 keys(_, []) -> ok;
-keys(Keys, Chars) -> Keys ! {chars, Chars}.
+keys(Tty, Chars) -> Tty ! {chars, Chars}.
 
 %% What has arrived after what was pending. A paste under way is read on
 %% from where it stopped, so that each of its characters is read once
@@ -441,11 +441,11 @@ more(Pending, Chars) ->
     decode(Pending ++ Chars).
 
 %% Report Appendix E.16: Event = Key(Char) | ArrowUp | ArrowDown | ArrowLeft
-%% | ArrowRight | Escape | Interrupt | Resized(Size), one list of what the
-%% terminal sent; a key of one character is Key of it, Enter's carriage
-%% return among them (report §8.2). An escape sequence that is none of those is the
-%% Escape key and the characters after it, which is how Meta and Shift-Tab
-%% reach a program (§8.2).
+%% | ArrowRight | Escape | Interrupt | Pasted(String) | Resized(Size), one
+%% list of what the terminal sent; a key of one character is Key of it,
+%% Enter's carriage return among them (report §8.2). An escape sequence
+%% that is none of those is the Escape key and the characters after it,
+%% which is how Meta and Shift-Tab reach a program (§8.2).
 -spec decode([char()]) -> {[term()], pending()}.
 decode(Chars) ->
     decode(Chars, []).
@@ -463,15 +463,14 @@ flush(?PASTE_BEGIN ++ _ = Chars) ->
     {Events, Left} = decode(Chars),
     Events ++ flush(Left);
 flush([$\e | Rest]) ->
-    {Keys, _} = decode(Rest),
-    ['Escape' | Keys];
+    {Events, _} = decode(Rest),
+    ['Escape' | Events];
 flush(Chars) ->
-    {Keys, _} = decode(Chars),
-    Keys.
+    {Events, _} = decode(Chars),
+    Events.
 
 decode([], Acc) ->
     {lists:reverse(Acc), []};
-
 %% report §8.2: a paste is one event, and its line endings are line feeds
 decode(?PASTE_BEGIN ++ Rest, Acc) ->
     case pasted(Rest, []) of
