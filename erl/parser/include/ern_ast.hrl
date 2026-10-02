@@ -70,8 +70,9 @@
 %% another module's, the two of typer/include/ern_types.hrl; {prelude,
 %% QualifiedName}. A qualified function, operator, or value: path is the
 %% typename prefix.
--record(e_constructor, {span, path = [], name, args = none, type}).
-%% args: none | {positional, Expr} | {named, Base | undefined, [#field_set{}]}
+-record(e_constructor, {span, path = [], name, base, args = none, type}).
+%% base: the Expr of a record update's `..`, or undefined (report §5.6);
+%% args: none | {positional, Expr} | {named, [#field_set{}]}
 -record(field_set, {span, name, expr}).
 -record(e_tuple, {span, elements, type}).
 -record(e_list, {span, elements, type}).

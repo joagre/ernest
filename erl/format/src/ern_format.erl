@@ -26,6 +26,11 @@
 %% before, and whether a blank line must come before what comes next.
 -record(cursor, {index = 1, trivia = [], last_line = 0, previous = none, force_blank = false}).
 
+%% A comment or a doc block, which the second pass writes between the code
+%% tokens: its kind, line, block or doc, where it begins, the line it ends
+%% on, and its text, a doc block's as its lines.
+-record(trivium, {kind, line, column, end_line, text}).
+
 %% A module in the layout, or the diagnostic that stopped it.
 -spec format(unicode:chardata()) ->
           {ok, unicode:unicode_binary()} | {error, ern_diagnostic:diagnostic()}.
@@ -139,7 +144,7 @@ strip_cr(Line) ->
 
 %% The code tokens, each told that the code token before it ended where it
 %% did, so that the parser's spans end at code; and the comments and doc
-%% blocks, as {Kind, Line, Column, EndLine, Text}.
+%% blocks, as #trivium{}s.
 split(Tokens, SourceLines) ->
     {CodeTokens, Trivia} = lists:partition(fun(Token) -> not is_trivium(Token) end, Tokens),
     {relink(CodeTokens, {1, 1}), [trivium(Token, SourceLines) || Token <- Trivia]}.
@@ -156,12 +161,13 @@ relink([], _) ->
 
 trivium({comment, {Line, Column, {EndLine, _}, _}, Text}, _SourceLines) ->
     Kind = case Text of <<"/*", _/binary>> -> block; _ -> line end,
-    {Kind, Line, Column, EndLine, Text};
+    #trivium{kind = Kind, line = Line, column = Column, end_line = EndLine, text = Text};
 trivium({doc, {Line, Column, {EndLine, _}, _}, _}, SourceLines) ->
     %% a doc block is kept as written, but for where its lines begin
     Lines = [unicode:characters_to_binary(string:trim(element(Number, SourceLines), leading))
              || Number <- lists:seq(Line, EndLine - 1)],
-    {doc, Line, Column, EndLine - 1, doc_lines(Lines)}.
+    #trivium{kind = doc, line = Line, column = Column, end_line = EndLine - 1,
+             text = doc_lines(Lines)}.
 
 %% A doc block's lines, each Ernest example in it laid out; a line
 %% outside an example, and an example that does not change, as written.
@@ -286,7 +292,7 @@ bare_ending(#e_receive{}, _) -> brace;
 bare_ending(#e_lambda{body = Body}, Code) -> braced(Body, Code);
 bare_ending(#e_call{pipe = false, args = [_ | _] = Args}, Code) -> braced(lists:last(Args), Code);
 bare_ending(#e_constructor{args = {positional, Expr}}, Code) -> braced(Expr, Code);
-bare_ending(#e_constructor{args = {named, _, [_ | _] = FieldSets}}, Code) ->
+bare_ending(#e_constructor{args = {named, [_ | _] = FieldSets}}, Code) ->
     braced((lists:last(FieldSets))#field_set.expr, Code);
 bare_ending(_, _) -> other.
 
@@ -444,7 +450,7 @@ bare_expr(#e_constructor{path = Path, args = none}, _) ->
     [path(Path), token()];
 bare_expr(#e_constructor{path = Path, args = {positional, Expr}}, Code) ->
     [path(Path), token(), bracket(token('('), [expr(Expr, Code)], ')', Expr, Code)];
-bare_expr(#e_constructor{path = Path, args = {named, Base, FieldSets}}, Code) ->
+bare_expr(#e_constructor{path = Path, base = Base, args = {named, FieldSets}}, Code) ->
     Items = [[token('..'), expr(Base, Code)] || Base =/= undefined]
         ++ [[token(), space(), token('='), space(), expr(Expr, Code)]
             || #field_set{expr = Expr} <- FieldSets],
@@ -677,7 +683,7 @@ resolve({token, Expected}, Code, Cursor) ->
 resolve({if_lead, WithLead, Without}, Code, Cursor) ->
     {NextLine, NextColumn, _, _} = position(next_token(Cursor, Code)),
     case Cursor#cursor.trivia of
-        [{_, Line, Column, _, _} | _] when {Line, Column} < {NextLine, NextColumn} ->
+        [#trivium{line = Line, column = Column} | _] when {Line, Column} < {NextLine, NextColumn} ->
             resolve(WithLead, Code, Cursor);
         _ ->
             resolve(Without, Code, Cursor)
@@ -788,7 +794,9 @@ consume(Expected, Code, Cursor) ->
     {Trailing, Cursor3} = trailing(Cursor2, Code, EndLine),
     {[Lead, Blank, element(Cursor#cursor.index, Code#code.texts), Trailing], Cursor3}.
 
-lead_trivia(#cursor{trivia = [{Kind, Line, Column, EndLine, Text} | Rest]} = Cursor, Code) ->
+lead_trivia(#cursor{trivia = [#trivium{kind = Kind, line = Line, column = Column,
+                                       end_line = EndLine, text = Text} | Rest]} = Cursor,
+            Code) ->
     {NextLine, NextColumn, _, _} = position(next_token(Cursor, Code)),
     case {Line, Column} < {NextLine, NextColumn} of
         true ->
@@ -813,7 +821,8 @@ lead_trivia(Cursor, _Code) ->
 
 %% Whether the comments before Next begin on the line after Last, each on
 %% the line after the one before, and a blank line follows them.
-ends_before_gap(Last, [{_, Line, Column, EndLine, _} | Rest], Next, IsFirst)
+ends_before_gap(Last, [#trivium{line = Line, column = Column, end_line = EndLine} | Rest], Next,
+                IsFirst)
   when {Line, Column} < Next ->
     case Line - Last =< 1 of
         true -> ends_before_gap(EndLine, Rest, Next, false);
@@ -827,7 +836,9 @@ ends_before_gap(Last, _, {NextLine, _}, IsFirst) ->
 %% kept apart by a space from a token after it on its line but a closing
 %% bracket or a separator, and from the token before it but an opening
 %% bracket.
-trailing(#cursor{trivia = [{Kind, Line, Column, EndLine, Text} | Rest]} = Cursor, Code, TokenLine)
+trailing(#cursor{trivia = [#trivium{kind = Kind, line = Line, column = Column,
+                                    end_line = EndLine, text = Text} | Rest]} = Cursor,
+         Code, TokenLine)
   when Line =:= TokenLine, Kind =/= doc ->
     Next = next_token(Cursor, Code),
     {NextLine, NextColumn, _, _} = position(Next),

@@ -316,8 +316,8 @@ expr(#e_literal{span = Pos, kind = Kind, value = V}, Cx) ->
 expr(#e_var{span = Pos, path = Path, name = Name, type = T, referent = Referent}, Cx) ->
     {Form, Cx1} = var_ref(Pos, Path, Name, Referent, T, Cx),
     {at(Pos, Form), Cx1};
-expr(#e_constructor{span = Pos, path = Path, name = Name, args = Args}, Cx) ->
-    con_expr(Pos, Path, Name, Args, Cx);
+expr(#e_constructor{span = Pos, path = Path, name = Name, base = Base, args = Args}, Cx) ->
+    con_expr(Pos, Path, Name, Base, Args, Cx);
 expr(#e_tuple{span = Pos, elements = Es}, Cx) ->
     {Forms, Cx1} = exprs(Es, Cx),
     {at(Pos, erl_syntax:tuple(Forms)), Cx1};
@@ -1140,7 +1140,7 @@ select(Pos, F, XT, Form, #cx{env = Env} = Cx) ->
 place(F, [F | _]) -> 1;
 place(F, [_ | R]) -> 1 + place(F, R).
 
-con_expr(Pos, Path, Name, Args, Cx) ->
+con_expr(Pos, Path, Name, Base, Args, Cx) ->
     #constructor_info{fields = Fields} = ern_typecheck:lookup_constructor(Pos, Path, Name,
                                                                           Cx#cx.env),
     Tag = erl_syntax:atom(Name),
@@ -1157,11 +1157,11 @@ con_expr(Pos, Path, Name, Args, Cx) ->
         {positional, {positional, Arg}} ->
             {Form, Cx1} = expr(Arg, Cx),
             {at(Pos, erl_syntax:tuple([Tag, Form])), Cx1};
-        {{named, Names}, {named, undefined, Sets}} ->
+        {{named, Names}, {named, Sets}} when Base =:= undefined ->
             {Binds, Set, Cx1} = field_sets(Names, Sets, Cx),
             Tuple = erl_syntax:tuple([Tag | [maps:get(N, Set) || N <- Names]]),
             {at(Pos, with_binds(Binds, Tuple)), Cx1};
-        {{named, Names}, {named, Base, Sets}} ->
+        {{named, Names}, {named, Sets}} ->
             %% T(..base, f = e): bind the base to a tuple pattern, take the
             %% unlisted fields from it
             {BaseForm, Cx1} = expr(Base, Cx),

@@ -701,7 +701,8 @@ inside(_, _, Parse) ->
 within(Path, Name, Argument, Parse) ->
     try Parse()
     catch throw:{parse_error, #diagnostic{within = undefined} = Diagnostic} ->
-        throw({parse_error, Diagnostic#diagnostic{within = {Path, Name, Argument}}})
+        Enclosing = #enclosing{path = Path, name = Name, argument = Argument},
+        throw({parse_error, Diagnostic#diagnostic{within = Enclosing}})
     end.
 
 primary([{Kind, Position, Value} | Rest]) when Kind =:= int; Kind =:= float; Kind =:= char;
@@ -750,13 +751,13 @@ constructor_expr(Position, Path, Name, [{'(', _} | Rest]) ->
         [{'..', _} | Rest1] ->
             {Base, Rest2} = expr(Rest1),
             {FieldSets, Rest3} = separated(expect(Rest2, ','), ',', field_of(Path, Name)),
-            spanned({#e_constructor{span = Position, path = Path, name = Name,
-                                    args = {named, Base, FieldSets}},
+            spanned({#e_constructor{span = Position, path = Path, name = Name, base = Base,
+                                    args = {named, FieldSets}},
                      expect(Rest3, ')')});
         [{ident, _, _}, {'=', _} | _] ->
             {FieldSets, Rest1} = separated(Rest, ',', field_of(Path, Name)),
             spanned({#e_constructor{span = Position, path = Path, name = Name,
-                                    args = {named, undefined, FieldSets}},
+                                    args = {named, FieldSets}},
                      expect(Rest1, ')')});
         [{')', ParenPosition} | _] ->
             %% report §11.5: the parser does not know the constructor's
@@ -771,8 +772,10 @@ constructor_expr(Position, Path, Name, [{'(', _} | Rest]) ->
             %% name, and only the constructor's type tells which
             Diagnostic = diagnostic(EndPosition, "expected an expression instead of end of input",
                                     undefined),
-            throw({parse_error, Diagnostic#diagnostic{expected = {field_or_value, Path, Name},
-                                                      within = {Path, Name, none}}});
+            Expected = #expected_field{kind = field_or_value, path = Path, constructor = Name},
+            Enclosing = #enclosing{path = Path, name = Name, argument = none},
+            throw({parse_error, Diagnostic#diagnostic{expected = Expected,
+                                                      within = Enclosing}});
         _ ->
             {Expr, Rest1} = within(Path, Name, 0, fun() -> expr(Rest) end),
             spanned({#e_constructor{span = Position, path = Path, name = Name,
@@ -788,10 +791,8 @@ constructor_expr(Position, Path, Name, Tokens) ->
 %% field's name would stand, for `Shift-Tab`.
 field_of(Path, Constructor) ->
     fun(Tokens) ->
-        FieldName = fun() ->
-                        tagging({field, Path, Constructor},
-                                fun() -> expect_ident_position(Tokens) end)
-                    end,
+        Expected = #expected_field{kind = field, path = Path, constructor = Constructor},
+        FieldName = fun() -> tagging(Expected, fun() -> expect_ident_position(Tokens) end) end,
         {Name, Position, Rest} = within(Path, Constructor, none, FieldName),
         {Expr, Rest1} = within(Path, Constructor, {field, Name},
                                fun() -> expr(expect(Rest, '=')) end),
@@ -928,8 +929,8 @@ constructor_pattern(Position, Path, Name, [{'(', _} | Rest]) ->
         [{eof, EndPosition} | _] ->
             %% report §11.2: as in an expression, a field's name or a
             %% pattern may stand here, and the constructor's type tells
-            wanted({field_or_pattern, Path, Name}, EndPosition,
-                   "expected a pattern instead of end of input");
+            wanted(#expected_field{kind = field_or_pattern, path = Path, constructor = Name},
+                   EndPosition, "expected a pattern instead of end of input");
         _ ->
             {Pattern, Rest1} = pattern(Rest),
             spanned({#p_constructor{span = Position, path = Path, name = Name,
@@ -943,8 +944,8 @@ constructor_pattern(Position, Path, Name, Tokens) ->
 %% an expression, so that completion knows which fields may stand there.
 field_pattern_of(Path, Constructor) ->
     fun(Tokens) ->
-        {Name, Position, Rest} = tagging({field, Path, Constructor},
-                                         fun() -> expect_ident_position(Tokens) end),
+        Expected = #expected_field{kind = field, path = Path, constructor = Constructor},
+        {Name, Position, Rest} = tagging(Expected, fun() -> expect_ident_position(Tokens) end),
         {Pattern, Rest1} = pattern(expect(Rest, '=')),
         spanned({#field_pattern{span = Position, name = Name, pattern = Pattern}, Rest1})
     end.

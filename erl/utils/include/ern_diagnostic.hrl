@@ -13,15 +13,21 @@
 %%   takes another line for it (report §11.2), and nothing else reads it.
 %% expected: what the parser wanted where it stopped, for completion to know
 %%   what may stand at the cursor (§11.2): `expression`, `typename`,
-%%   `pattern`, `declaration`, `{field, Path, Con}` where a field's name of
-%%   constructor Con stands, or `{field_or_value, Path, Con}` or
-%%   `{field_or_pattern, Path, Con}` where Con's first argument would stand
-%%   and could be either, Path being the qualifier Con is written with;
-%%   `undefined` for every other failure.
-%% within: the innermost call or constructor the input stops inside, for
-%%   `Shift-Tab` (§11.2). For a call `{Path, Name, N}`, N the index of the
-%%   argument at the cursor; for a constructor `{Path, Name, At}`, At the
-%%   argument's index, `{field, F}` in a named field's value, or `none`
-%%   where a field's name stands; `undefined` outside both.
+%%   `pattern`, `declaration`, or an #expected_field{}; `undefined` for
+%%   every other failure.
+%% within: the innermost call or constructor the input stops inside, an
+%%   #enclosing{}, for `Shift-Tab` (§11.2); `undefined` outside both.
+
+%% Where a constructor's field's name stands, kind `field`; or where its
+%% first argument would stand and could be a field's name or a value,
+%% `field_or_value`, or a field's name or a pattern, `field_or_pattern`.
+%% path is the qualifier the constructor is written with.
+-record(expected_field, {kind, path, constructor}).
+
+%% A call or a constructor the input stops inside, by the path and the
+%% name written. argument: for a call, the index of the argument at the
+%% cursor; for a constructor, that index, `{field, F}` in a named field's
+%% value, or `none` where a field's name stands.
+-record(enclosing, {path, name, argument}).
 
 -endif.

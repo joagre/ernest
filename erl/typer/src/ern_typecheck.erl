@@ -199,7 +199,7 @@ hidden_uses(Declarations, Hidden) ->
                        ++ Walk(Node#t_named.args);
                Walk(#e_constructor{path = [], name = Name, span = Span} = Node) ->
                    [{Span, constructor, Name} || lists:member({constructor, Name}, Hidden)]
-                       ++ Walk(Node#e_constructor.args);
+                       ++ Walk(Node#e_constructor.base) ++ Walk(Node#e_constructor.args);
                Walk(#p_constructor{path = [], name = Name, span = Span} = Node) ->
                    [{Span, constructor, Name} || lists:member({constructor, Name}, Hidden)]
                        ++ Walk(Node#p_constructor.args);
@@ -2318,7 +2318,8 @@ infer(#e_var{span = Span, path = Path, name = Name} = Expr, Env) ->
     %% emitter reads the decision rather than making it again
     {Expr#e_var{type = Type, referent = Referent}, Type,
      Env1#env{type_state = TypeState, pending = Pending ++ Env1#env.pending, deferred = Deferred}};
-infer(#e_constructor{span = Span, path = Path, name = Name, args = Args} = Expr, Env) ->
+infer(#e_constructor{span = Span, path = Path, name = Name, base = Base, args = Args} = Expr,
+      Env) ->
     ConstructorInfo = lookup_constructor(Span, Path, Name, Env),
     {ConstructorType, TypeState} =
         ern_types:instantiate(ConstructorInfo#constructor_info.scheme, Env#env.type_state),
@@ -2339,9 +2340,9 @@ infer(#e_constructor{span = Span, path = Path, name = Name, args = Args} = Expr,
             %% a single-positional constructor is a function value (§5.6)
             {Opened, TypeState1} = open_effect(ConstructorType, TypeState),
             {Expr#e_constructor{type = Opened}, Opened, Env1#env{type_state = TypeState1}};
-        {positional, {named, _, _}} ->
+        {positional, {named, _}} ->
             fail(Span, atom_to_list(Name) ++ " has one positional field, not named fields");
-        {{named, Names}, {named, Base, FieldSets}} ->
+        {{named, Names}, {named, FieldSets}} ->
             {tfn, FieldTypes, pure, Constructed} = ConstructorType,
             Base =:= undefined orelse one_constructor(Span, ConstructorInfo, Env1),
             infer_named(Expr, Names, FieldTypes, Constructed, Base, FieldSets, Env1);
@@ -2785,7 +2786,7 @@ infer_named(#e_constructor{span = Span, name = Name} = Expr, Names, FieldTypes, 
     {TypedBase, Env1} = named_base(Expr, Base, Names -- SetNames, Constructed, Env),
     Check = fun(FieldSet, Acc) -> check_field_set(FieldSet, Expr, Names, FieldTypes, Acc) end,
     {TypedFieldSets, Env2} = lists:mapfoldl(Check, Env1, FieldSets),
-    {Expr#e_constructor{args = {named, TypedBase, TypedFieldSets}, type = Constructed},
+    {Expr#e_constructor{base = TypedBase, args = {named, TypedFieldSets}, type = Constructed},
      Constructed, Env2}.
 
 %% Report §5.6: the base of `..`, of the constructed type, or, where there

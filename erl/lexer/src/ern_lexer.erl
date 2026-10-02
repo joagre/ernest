@@ -60,14 +60,11 @@ tokenize(Source, Options) ->
             try refuse_controls(Text, 1, 1), lex(Text, 1, 1, {1, 1}, [], KeepComments) of
                 Tokens -> {ok, Tokens}
             catch
-                throw:{lex_error, Line, Column, Message, Incomplete} ->
-                    {error, #diagnostic{span = {Line, Column, {Line, Column + 1}},
-                                        message = Message, incomplete = Incomplete}}
+                throw:{lex_error, Diagnostic} -> {error, Diagnostic}
             end;
         {_, Decoded, _} ->
             {Line, Column} = place(without_bom(Decoded), 1, 1),
-            {error, #diagnostic{span = {Line, Column, {Line, Column + 1}},
-                                message = "input is not valid UTF-8"}}
+            {error, diagnostic(Line, Column, "input is not valid UTF-8", false)}
     end.
 
 %% Report §2.1: where the byte after the characters stands, the first that
@@ -88,10 +85,8 @@ refuse_controls([$\n | Rest], Line, _) ->
     refuse_controls(Rest, Line + 1, 1);
 refuse_controls([Char | _], Line, Column) when Char < 16#20, Char =/= $\t, Char =/= $\r;
                                                Char >= 16#7F, Char =< 16#9F ->
-    throw({lex_error, Line, Column,
-           lists:flatten(io_lib:format("control character U+~4.16.0B; a string or a character"
-                                       " literal writes it `\\u{~.16B}`", [Char, Char])),
-           false});
+    error_at(Line, Column, io_lib:format("control character U+~4.16.0B; a string or a character"
+                                         " literal writes it `\\u{~.16B}`", [Char, Char]));
 refuse_controls([_ | Rest], Line, Column) ->
     refuse_controls(Rest, Line, Column + 1).
 
@@ -112,8 +107,8 @@ lex("////" ++ Rest, Line, Column, PreviousEnd, Acc, KeepComments) ->
     lex_line_comment("////", Rest, Line, Column, PreviousEnd, Acc, KeepComments);
 lex("///" ++ Rest, Line, Column, PreviousEnd, Acc, KeepComments) ->
     is_after_token(Acc, Line) andalso
-        throw({lex_error, Line, Column, "a doc comment `///` stands on a line of its own;"
-                                        " a note after code is written `//`", false}),
+        error_at(Line, Column, "a doc comment `///` stands on a line of its own; a note after"
+                               " code is written `//`"),
     {Text, Rest1, EndLine} = doc_block(Rest, Line, []),
     lex(Rest1, EndLine, 1, {EndLine, 1},
         [{doc, {Line, Column, {EndLine, 1}, PreviousEnd}, Text} | Acc], KeepComments);
@@ -493,10 +488,15 @@ symbol(Input, [Symbol | Symbols]) ->
 %%
 
 error_at(Line, Column, Message) ->
-    throw({lex_error, Line, Column, lists:flatten(Message), false}).
+    throw({lex_error, diagnostic(Line, Column, lists:flatten(Message), false)}).
 
 %% Report §11.2, §2.5: a raw string and a block comment may span lines, so
 %% more input can finish one, and the diagnostic says so; a string or a
 %% char literal may not, and an unfinished one is an error whatever follows.
 unfinished_at(Line, Column, Message) ->
-    throw({lex_error, Line, Column, Message, true}).
+    throw({lex_error, diagnostic(Line, Column, Message, true)}).
+
+%% A diagnostic at the character at Line and Column.
+diagnostic(Line, Column, Message, Incomplete) ->
+    #diagnostic{span = {Line, Column, {Line, Column + 1}}, message = Message,
+                incomplete = Incomplete}.

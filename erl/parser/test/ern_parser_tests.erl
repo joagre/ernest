@@ -207,14 +207,12 @@ field_selection_test() ->
 constructors_test() ->
     ?assertMatch(#e_constructor{name = 'Some', args = {positional, #e_literal{value = 5}}},
                  expression("Some(5)")),
-    ?assertMatch(#e_constructor{name = 'Person', args = {named, undefined,
-                                                         [#field_set{name = name,
-                                                                     expr = #e_literal{}},
-                                                          #field_set{name = age,
-                                                                     expr = #e_literal{}}]}},
+    ?assertMatch(#e_constructor{name = 'Person', base = undefined,
+                                args = {named, [#field_set{name = name, expr = #e_literal{}},
+                                                #field_set{name = age, expr = #e_literal{}}]}},
                  expression("Person(name = \"A\", age = 30)")),
-    ?assertMatch(#e_constructor{name = 'Person', args = {named, #e_var{name = p},
-                                                         [#field_set{name = age}]}},
+    ?assertMatch(#e_constructor{name = 'Person', base = #e_var{name = p},
+                                args = {named, [#field_set{name = age}]}},
                  expression("Person(..p, age = 31)")),
     ?assertMatch(#e_constructor{name = 'Some', args = {positional, #e_var{name = x}}},
                  expression("Some(x)")).
@@ -936,10 +934,14 @@ incomplete_test() ->
 %% which argument, the innermost call first, for `Shift-Tab`; `expected`
 %% still says what may stand there, for completion
 within_call_test() ->
-    ?assertEqual({{['List'], map, 1}, expression}, stopped_within(<<"List.map(xs, ">>)),
-    ?assertEqual({{['List'], map, 0}, expression}, stopped_within(<<"List.map(">>)),
-    ?assertEqual({{[], g, 1}, expression}, stopped_within(<<"f(g(1, ">>)),
-    ?assertMatch({{[], f, 1}, _}, stopped_within(<<"f(1, 2">>)),
+    ?assertEqual({#enclosing{path = ['List'], name = map, argument = 1}, expression},
+                 stopped_within(<<"List.map(xs, ">>)),
+    ?assertEqual({#enclosing{path = ['List'], name = map, argument = 0}, expression},
+                 stopped_within(<<"List.map(">>)),
+    ?assertEqual({#enclosing{path = [], name = g, argument = 1}, expression},
+                 stopped_within(<<"f(g(1, ">>)),
+    ?assertMatch({#enclosing{path = [], name = f, argument = 1}, _},
+                 stopped_within(<<"f(1, 2">>)),
     ?assertMatch({undefined, _}, stopped_within(<<"1 + ">>)).
 
 %% erl/parser/src/ern_ast.erl: the one walk visits every node in pre-order,

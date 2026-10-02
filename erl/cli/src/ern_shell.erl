@@ -584,15 +584,16 @@ where(expression) -> 'Expression';
 where(typename) -> 'TypeName';
 where(pattern) -> 'Pattern';
 where(declaration) -> 'Declaration';
-where({field, Path, Con}) -> {'Fields', fields_of(Path, Con)};
+where(#expected_field{kind = field, path = Path, constructor = Con}) ->
+    {'Fields', fields_of(Path, Con)};
 %% the parser could not tell a field's name from a value; the
 %% constructor's type can, and only a named constructor has fields
-where({field_or_value, Path, Con}) ->
+where(#expected_field{kind = field_or_value, path = Path, constructor = Con}) ->
     case fields_of(Path, Con) of
         [] -> 'Expression';
         Fields -> {'Fields', Fields}
     end;
-where({field_or_pattern, Path, Con}) ->
+where(#expected_field{kind = field_or_pattern, path = Path, constructor = Con}) ->
     case fields_of(Path, Con) of
         [] -> 'Pattern';
         Fields -> {'Fields', Fields}
@@ -969,7 +970,7 @@ fields(Typed) ->
 -spec signature(binary()) -> 'None' | {'Some', {binary(), binary(), binary()}}.
 signature(Before) ->
     case within(Before) of
-        {Path, Name, At} ->
+        #enclosing{path = Path, name = Name, argument = At} ->
             %% a constructor's name begins with a capital (report §2.3)
             case not is_integer(At) orelse hd(atom_to_list(Name)) < $a of
                 true -> con_signature(Path, Name, At);

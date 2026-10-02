@@ -349,7 +349,8 @@ deps(Decls, Root, LoadPath) ->
 %% Each qualified reference of a source, its path and its last name; only a
 %% value's lowercase name or operator can be a type's member.
 references(#e_var{path = P, name = N}) -> [{P, N}];
-references(#e_constructor{path = P, name = N, args = A}) -> [{P, N} | references(A)];
+references(#e_constructor{path = P, name = N, base = Base, args = A}) ->
+    [{P, N} | references(Base) ++ references(A)];
 references(#p_constructor{path = P, name = N, args = A}) -> [{P, N} | references(A)];
 references(#t_named{path = P, name = N, args = A}) -> [{P, N} | references(A)];
 references(T) when is_tuple(T) -> lists:append([references(X) || X <- tuple_to_list(T)]);
