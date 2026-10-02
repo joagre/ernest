@@ -15,8 +15,9 @@
 /// in another order is a set of another type, `type Descending =
 /// Descending(Int)` with its own `compare`, and the two cannot meet. The
 /// set is a sorted list: `put`, `contains` and `remove` are linear in
-/// the size, and `union`, `intersection`, `difference` and `isSubset`
-/// linear in the two sizes. Nothing is a primitive: the module is
+/// the size, `fromList` is a sort, `n log n`, and `union`,
+/// `intersection`, `difference` and `isSubset` are linear in the two
+/// sizes. Nothing is a primitive: the module is
 /// written over `List`.
 ///
 /// ## Examples
@@ -52,7 +53,19 @@ export let empty : Set(a) = Set([])
 /// // => ["a", "b"]
 /// ```
 export fn fromList(list : List(a)) : Set(a) needs a.compare =
-    List.foldLeft(list, empty, put)
+    Set(firstOfEach(List.sort(list, a.compare)))
+
+// The first of each run the order calls `Equal` in a sorted list. The sort
+// is stable, so the list's earlier occurrence comes first and is the one
+// kept, as `put` keeps the element already there.
+fn firstOfEach(sorted : List(a)) : List(a) needs a.compare =
+    match sorted {
+        x :: y :: rest -> if a.compare(x, y) == Equal then
+            firstOfEach(x :: rest)
+        else
+            x :: firstOfEach(y :: rest)
+      | _ -> sorted
+    }
 
 /// The number of elements.
 ///

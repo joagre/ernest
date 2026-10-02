@@ -8,7 +8,8 @@
 /// `find`, and the order in which `map`, `filter`, `filterMap`, `any`,
 /// `all` and `mergeWith` meet the entries, is the keys'. The map is a
 /// sorted list of pairs: `get`, `put` and `remove` are linear in the
-/// size, and `merge` linear in the two sizes. Nothing is a primitive:
+/// size, `fromList` is a sort, `n log n`, and `merge` is linear in the
+/// two sizes. Nothing is a primitive:
 /// the module is written over `List`.
 ///
 /// ## Examples
@@ -39,7 +40,19 @@ export let empty : Map(k, v) = Map([])
 /// // => [#(1, "a"), #(2, "c")]
 /// ```
 export fn fromList(pairs : List(#(k, v))) : Map(k, v) needs k.compare =
-    List.foldLeft(pairs, empty, fn(acc, #(key, value)) = put(acc, key, value))
+    Map(lastOfEach(List.sort(pairs, fn(#(key, _), #(other, _)) = k.compare(key, other))))
+
+// The last of each run of pairs whose keys the order calls `Equal`, in a
+// sorted list. The sort is stable, so the list's later pair comes last
+// and is the one kept, as `put` replaces the value already there.
+fn lastOfEach(sorted : List(#(k, v))) : List(#(k, v)) needs k.compare =
+    match sorted {
+        #(key, value) :: #(other, later) :: rest -> if k.compare(key, other) == Equal then
+            lastOfEach(#(other, later) :: rest)
+        else
+            #(key, value) :: lastOfEach(#(other, later) :: rest)
+      | _ -> sorted
+    }
 
 /// The number of entries.
 ///
