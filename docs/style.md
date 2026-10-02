@@ -79,7 +79,7 @@ Code in that layout:
 
 ## Glossary
 
-The names that recur across modules, one for each concept, in every module. A word is spelled as each language spells a name: `Descriptor` an Erlang variable, `descriptor` an Erlang function or field, an Ernest binding or parameter. The report is the authority: a concept it names takes its name. Drafted on 2026-10-01 from a survey of every module (MVP 2.99b's item 2), where the code departed from the report the report's word taken with the user; the renamings, items 7 and 15, corrected it as they read the code name by name. A name not here is the writer's, under the rules above.
+The names that recur across modules, one for each concept, in every module. A word is spelled as each language spells a name: `Descriptor` an Erlang variable, `descriptor` an Erlang function or field, an Ernest binding or parameter. The report is the authority: a concept it names takes its name. Drafted on 2026-10-01 from a survey of every module (MVP 2.99b's item 2), where the code departed from the report the report's word taken with the user; the renamings, items 7 and 15, corrected it as they read the code name by name. It grows as the code does, as CLAUDE.md says. A name not here is the writer's, under the rules above.
 
 **The compiler**
 

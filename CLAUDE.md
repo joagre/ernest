@@ -90,4 +90,6 @@ The rules follow the order of work, and each is stated once.
 
 [`docs/style.md`](docs/style.md) holds the style guides for Erlang, C and Ernest, imported here.
 
+- **The glossary is living.** A name that comes to recur across modules, or a concept the code names in two places, goes into `docs/style.md`'s glossary in the commit that writes it, in the report's word where the report names the concept. A name the glossary holds is used as it stands. Where the code and the glossary differ, the one that is wrong is corrected in the same commit, and a new word that departs from the report's goes to the user first.
+
 @docs/style.md
