@@ -17,7 +17,7 @@
 page(Beam) ->
     {ok, #{interface := #interface{namespace = Namespace}}} = ern_interface:read(Beam),
     {ok, Docs} = ern_docs:read(Beam),
-    Name = ern_build:qualified_name_text(Namespace),
+    Name = ern_namespace:text(Namespace),
     render(["Ernest module ", Name], Name ++ ".", Docs).
 
 %% Report §9, §11.4: the prelude's page, from the documentation its table
@@ -33,7 +33,7 @@ prelude_page() ->
 module_head(Beam) ->
     {ok, #{interface := #interface{namespace = Namespace}}} = ern_interface:read(Beam),
     {ok, {docs_v1, _, ernest, _, ModuleDoc, _, _}} = ern_docs:read(Beam),
-    head(["Ernest module ", ern_build:qualified_name_text(Namespace)], ModuleDoc).
+    head(["Ernest module ", ern_namespace:text(Namespace)], ModuleDoc).
 
 %% Report §11.4: the page of one compiled module as a manual page,
 %% `Ernest.Net.Http` in section 3ern.
@@ -41,7 +41,7 @@ module_head(Beam) ->
 manual(Beam) ->
     {ok, #{interface := #interface{namespace = Namespace}}} = ern_interface:read(Beam),
     {ok, Docs} = ern_docs:read(Beam),
-    Name = ern_build:qualified_name_text(Namespace),
+    Name = ern_namespace:text(Namespace),
     roff("Ernest." ++ Name, ["Ernest module ", Name], Name ++ ".", Docs).
 
 %% Report §9, §11.4: the prelude's page as a manual page, `Ernest.Prelude`.
@@ -154,7 +154,7 @@ declaration(Beam, Name) ->
     {ok, #{interface := #interface{namespace = Namespace}}} = ern_interface:read(Beam),
     {ok, {docs_v1, _, ernest, _, _, _, Entries}} = ern_docs:read(Beam),
     case find(Name, Entries) of
-        {ok, Entry} -> {ok, entry(Entry, ern_build:qualified_name_text(Namespace) ++ ".")};
+        {ok, Entry} -> {ok, entry(Entry, ern_namespace:text(Namespace) ++ ".")};
         none -> none
     end.
 

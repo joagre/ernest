@@ -667,14 +667,14 @@ names(#session{interfaces = Interfaces, scope = Scope} = Session) ->
     {PreludeTypes, _} = ern_typecheck:prelude_names(),
     Prelude = [name('Value', Text, Text ++ " : " ++ Type)
                || {QualifiedName, Type, _} <- ern_prelude:values(),
-                  Text <- [ern_build:qualified_name_text(QualifiedName)]]
+                  Text <- [ern_namespace:text(QualifiedName)]]
         ++ [name('Type', Text, "type " ++ Text)
             || QualifiedName <- PreludeTypes,
-               Text <- [ern_build:qualified_name_text(QualifiedName)]]
+               Text <- [ern_namespace:text(QualifiedName)]]
         ++ [name('Constructor', Text, constructor_line(Text, {ok, Scheme}, TypeState))
             || {QualifiedName, #constructor_info{scheme = Scheme}}
                    <- maps:to_list(ern_typecheck:prelude_constructors()),
-               Text <- [ern_build:qualified_name_text(QualifiedName)]],
+               Text <- [ern_namespace:text(QualifiedName)]],
     Modules = lists:append([module_names(Interface, TypeState)
                             || Interface <- Interfaces ++ ern_prelude:stdlib_interfaces()]),
     %% report §11.2: an operator is no name, and does not complete, and
@@ -747,25 +747,25 @@ segment(Name) ->
 %% A module in scope: the module itself, its exported values and types,
 %% and the constructors of those types, each by the name a person types.
 module_names(#interface{namespace = Namespace, types = Types, values = Values}, TypeState) ->
-    ModuleText = ern_build:qualified_name_text(Namespace),
+    ModuleText = ern_namespace:text(Namespace),
     [name('Module', ModuleText, "module " ++ ModuleText)]
         ++ [name('Value', Text, Text ++ " : " ++ ern_types:format_scheme(Scheme, TypeState))
             || {QualifiedName, Scheme} <- maps:to_list(Values),
-               Text <- [ern_build:qualified_name_text(QualifiedName)]]
+               Text <- [ern_namespace:text(QualifiedName)]]
         ++ lists:append([type_names(QualifiedName, TypeInfo, TypeState)
                          || {QualifiedName, TypeInfo} <- maps:to_list(Types)]).
 
 %% A type in scope and, unless it is abstract, its constructors, each named
 %% in the type's namespace.
 type_names(QualifiedName, #type_info{constructors = Constructors} = TypeInfo, TypeState) ->
-    Text = ern_build:qualified_name_text(QualifiedName),
+    Text = ern_namespace:text(QualifiedName),
     Namespace = lists:droplast(QualifiedName),
     [name('Type', Text, abstract_text(TypeInfo) ++ "type " ++ Text)
      | [name('Constructor', ConstructorText,
              constructor_line(ConstructorText, {ok, Scheme}, TypeState))
         || not TypeInfo#type_info.abstract,
            #constructor_info{name = ConstructorName, scheme = Scheme} <- Constructors,
-           ConstructorText <- [ern_build:qualified_name_text(Namespace ++ [ConstructorName])]]].
+           ConstructorText <- [ern_namespace:text(Namespace ++ [ConstructorName])]]].
 
 name(Kind, Text, Shown) ->
     {'Name', unicode:characters_to_binary(Text), Kind, unicode:characters_to_binary(Shown)}.
@@ -855,9 +855,9 @@ prelude_listing() ->
     {Types, _} = ern_typecheck:prelude_names(),
     %% the environment holds the standard library's types too, each under
     %% its module's name; the prelude's own are unqualified
-    [unicode:characters_to_binary(["type ", ern_build:qualified_name_text(QualifiedName)])
+    [unicode:characters_to_binary(["type ", ern_namespace:text(QualifiedName)])
      || [_] = QualifiedName <- lists:sort(Types)]
-    ++ [unicode:characters_to_binary([ern_build:qualified_name_text(QualifiedName), " : ",
+    ++ [unicode:characters_to_binary([ern_namespace:text(QualifiedName), " : ",
                                       ern_types:format_scheme(Scheme, TypeState)])
         || {QualifiedName, Scheme} <- lists:sort(ern_typecheck:prelude_values())].
 
@@ -874,10 +874,10 @@ browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope}) ->
             TypeState = ern_types:set_scope(ScopeState, [],
                                             maps:values(maps:get(types, Scope, #{})), []),
             Types = [unicode:characters_to_binary([abstract_text(TypeInfo), "type ",
-                                                   ern_build:qualified_name_text(QualifiedName)])
+                                                   ern_namespace:text(QualifiedName)])
                      || {QualifiedName, TypeInfo} <- lists:sort(maps:to_list(InterfaceTypes))],
             Values = [unicode:characters_to_binary(
-                        [ern_build:qualified_name_text(QualifiedName), " : ",
+                        [ern_namespace:text(QualifiedName), " : ",
                          ern_types:format_scheme(Scheme, TypeState)])
                       || {QualifiedName, Scheme} <- lists:sort(maps:to_list(InterfaceValues))],
             {'Right', Types ++ Values}
@@ -1042,7 +1042,7 @@ signature(Before) ->
 
 call_signature(Path, Name, Argument) ->
     Session = persistent_term:get({?MODULE, session}, #session{}),
-    Text = unicode:characters_to_binary(ern_build:qualified_name_text(Path ++ [Name])),
+    Text = unicode:characters_to_binary(ern_namespace:text(Path ++ [Name])),
     %% a callee that does not check, a name not in scope, has none, and
     %% neither has one whose declaration the checker does not hold or whose
     %% type is not a function's
@@ -1093,7 +1093,7 @@ constructor_signature(Path, Name, Argument) ->
                      end,
             {Head, This, Rest} = ern_types:format_call(Scheme, Names, Marked,
                                                        session_type_state(Session)),
-            Text = ern_build:qualified_name_text(Path ++ [Name]),
+            Text = ern_namespace:text(Path ++ [Name]),
             {'Some', {unicode:characters_to_binary([Text, Head]),
                       unicode:characters_to_binary(This), unicode:characters_to_binary(Rest)}};
         _ ->
@@ -1209,11 +1209,11 @@ doc_of(Session, Segments) ->
 namespace_doc(_, []) ->
     none;
 namespace_doc(Session, Segments) ->
-    Prefix = unicode:characters_to_binary(ern_build:qualified_name_text(Segments) ++ "."),
+    Prefix = unicode:characters_to_binary(ern_namespace:text(Segments) ++ "."),
     case [Shown || {'Name', Text, _, Shown} <- names(Session),
                    binary:match(Text, Prefix) =:= {0, byte_size(Prefix)}] of
         [] -> none;
-        Held -> {ok, ["# namespace ", ern_build:qualified_name_text(Segments), "\n\n",
+        Held -> {ok, ["# namespace ", ern_namespace:text(Segments), "\n\n",
                       [["- `", Shown, "`\n"] || Shown <- Held]]}
     end.
 
@@ -1314,7 +1314,7 @@ declaring_beam(QualifiedName, Segments, Beams) ->
 %% The name a documentation entry is under, as it is written: `map`, a
 %% member as `Stack.push`, and a prelude name as `Address.call`.
 entry_name(Segments) ->
-    unicode:characters_to_binary(ern_build:qualified_name_text(Segments)).
+    unicode:characters_to_binary(ern_namespace:text(Segments)).
 
 %% A module on the load path, `List.map`, or one of its type's members,
 %% `Net.Http.Request.method`.
@@ -1396,7 +1396,7 @@ moved_column(_, Column, _) -> Column.
 load(#session{modules = Modules} = Session, Text) ->
     case module_name(Text) of
         {ok, Namespace} ->
-            Name = unicode:characters_to_binary(ern_build:qualified_name_text(Namespace)),
+            Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
             Standard = [Held || #interface{namespace = Held} <- ern_prelude:stdlib_interfaces()],
             case lists:member(Namespace, Standard) of
                 %% report §4.2, §11.2: a standard library namespace is taken,
@@ -1430,7 +1430,7 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
                     Sources = with_sources(Session, [{Namespace, File}], []),
                     case compile_in_order(Session, Sources) of
                         {ok, Modules} ->
-                            Lines = [[ern_build:qualified_name_text(Compiled), ", compiled from ",
+                            Lines = [[ern_namespace:text(Compiled), ", compiled from ",
                                       relative(Source, Session)]
                                      || {Compiled, Source} <- lists:reverse(Sources)],
                             with_needed(Session, Modules,
@@ -1439,7 +1439,7 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
                             {'Left', iolist_to_binary(Failed)}
                     end;
                 _ ->
-                    {'Left', <<(list_to_binary(ern_build:qualified_name_text(Declared)))/binary,
+                    {'Left', <<(list_to_binary(ern_namespace:text(Declared)))/binary,
                                " is declared in ",
                                (list_to_binary(relative(File, Session)))/binary,
                                ", which is not where ", Name/binary, " belongs\n">>}
@@ -1515,12 +1515,12 @@ refused_compiled(Session, All) ->
 compiled_refusals(Namespace, Beam, Interfaces, StdlibHash) ->
     {ok, #{interface := #interface{namespace = Held}, deps := Dependencies} = Chunk} =
         ern_interface:read(Beam),
-    Name = ern_build:qualified_name_text(Namespace),
-    [Name ++ "'s compiled file holds " ++ ern_build:qualified_name_text(Held)
+    Name = ern_namespace:text(Namespace),
+    [Name ++ "'s compiled file holds " ++ ern_namespace:text(Held)
      ++ "; build it again from its source root" || Held =/= Namespace]
         ++ [Name ++ " was compiled against another standard library; build " ++ Name ++ " again"
             || not lists:member(maps:get(stdlib, Chunk, none), [none, StdlibHash])]
-        ++ [Name ++ " was compiled against another " ++ ern_build:qualified_name_text(Dependency)
+        ++ [Name ++ " was compiled against another " ++ ern_namespace:text(Dependency)
             ++ "; build " ++ Name ++ " again"
             || {Dependency, Hash} <- Dependencies,
                [Interface | _] <- [held_interfaces(Dependency, Interfaces)],
@@ -1610,7 +1610,7 @@ initialize(Namespace, ErlangModule, Rest) ->
             receive {Ref, {'Down', _, _, _}} -> ok end,
             Fault;
         {Ref, {'Down', _, Reason, _}} ->
-            {fault, unicode:characters_to_binary(ern_build:qualified_name_text(Namespace)),
+            {fault, unicode:characters_to_binary(ern_namespace:text(Namespace)),
              case Reason of
                  {'Fault', Cause} -> Cause;
                  Other -> atom_to_binary(Other)
@@ -1659,7 +1659,7 @@ needed_one(Session, Namespace, Acc, Compiled) ->
                 Error -> Error
             end;
         none ->
-            Name = unicode:characters_to_binary(ern_build:qualified_name_text(Namespace)),
+            Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
             {error, <<"no module ", Name/binary, " on the load path\n">>}
     end.
 
@@ -1710,7 +1710,7 @@ reloaded(Session, Needed, Compiled, Sourceless) ->
 sourceless(_Session, []) ->
     [];
 sourceless(#session{source_root = SourceRoot}, Names) ->
-    Text = lists:join(", ", [ern_build:qualified_name_text(Namespace) || Namespace <- Names]),
+    Text = lists:join(", ", [ern_namespace:text(Namespace) || Namespace <- Names]),
     [unicode:characters_to_binary(["the source root ", ern_build:shown(SourceRoot),
                                    " holds no source of ", Text])].
 
@@ -1738,7 +1738,7 @@ compile_all(Session, Changed) ->
                             compile_all(Session, Changed ++ More);
                         Sourceless ->
                             {error, [unicode:characters_to_binary(
-                                       [ern_build:qualified_name_text(Namespace),
+                                       [ern_namespace:text(Namespace),
                                         " uses a module whose interface changed,"
                                         " and the source root holds no source of it\n"])
                                      || Namespace <- Sourceless]}
@@ -1815,7 +1815,7 @@ loaded_interfaces(#session{interfaces = Interfaces, modules = Modules}) ->
 
 reload_one({Namespace, Beam, Hash}, {Session, Lines}) ->
     ErlangModule = ern_emitter:erlang_module(Namespace),
-    Name = unicode:characters_to_binary(ern_build:qualified_name_text(Namespace)),
+    Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
     {Ended, Session1} = case erlang:check_old_code(ErlangModule) of
                             true -> end_previous(Session, ErlangModule);
                             false -> {[], Session}

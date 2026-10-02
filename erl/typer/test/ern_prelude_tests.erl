@@ -20,13 +20,13 @@ values_test() ->
     %% written (report §3.9), so they are left out of the comparison; a
     %% module's section writes its own types unqualified (§4.2)
     TypeState = ern_typecheck:type_state(ern_typecheck:prelude_env()),
-    Compiled = [{qualified_name_text(QualifiedName), printed(QualifiedName, Scheme, TypeState)}
+    Compiled = [{ern_namespace:text(QualifiedName), printed(QualifiedName, Scheme, TypeState)}
                 || #interface{values = Values} <- ern_prelude:stdlib_interfaces(),
                    {QualifiedName, Scheme} <- maps:to_list(Values)],
     %% a §9.6 operation is in the table, which types it before any module is
     %% installed, and in its module's interface: it counts once when the two
     %% agree, twice and so unequal to the report when they do not
-    Tables = lists:usort([{qualified_name_text(QualifiedName), normalize(Text)}
+    Tables = lists:usort([{ern_namespace:text(QualifiedName), normalize(Text)}
                           || {QualifiedName, Text, _} <- ern_prelude:values()]
                          ++ Compiled),
     same(Report, Tables).
@@ -209,18 +209,18 @@ libraries_test() ->
     TypeState = ern_typecheck:type_state(ern_typecheck:prelude_env()),
     lists:foreach(
       fun({Library, Namespace, Body}) ->
-          Source = filename:join(["../../../libs", Library, Library ++ ".ern"]),
+          SourceFile = filename:join(["../../../libs", Library, Library ++ ".ern"]),
           {ok, Erc} = file:read_file(filename:join(["../../../build/libs", Library,
                                                     Library ++ ".erc"])),
           {ok, #{interface := #interface{namespace = Namespace, types = Types,
                                          values = Values}}} = ern_interface:read(Erc),
           same(lists:sort(lists:append([signature(Line) || Line <- code_lines(Body)])),
-               lists:sort([{qualified_name_text(QualifiedName),
+               lists:sort([{ern_namespace:text(QualifiedName),
                             printed(QualifiedName, Scheme, TypeState)}
                            || {QualifiedName, Scheme} <- maps:to_list(Values)])),
           same(lists:sort([rename(unmarked(Declaration))
                            || Declaration <- declarations(code_lines(Body))]),
-               lists:sort([rename(compiled_declaration(TypeInfo, Source))
+               lists:sort([rename(compiled_declaration(TypeInfo, SourceFile))
                            || TypeInfo <- maps:values(Types)]))
       end, Sections).
 
@@ -235,7 +235,7 @@ unmarked(Text) ->
 
 %% A type text with the names of the value's own module unqualified.
 own(QualifiedName, Text) ->
-    Prefix = qualified_name_text(lists:droplast(QualifiedName)),
+    Prefix = ern_namespace:text(lists:droplast(QualifiedName)),
     re:replace(Text, "\\b" ++ Prefix ++ "\\.(?=[A-Z])", "", [global, {return, list}]).
 
 %% `type T(p, q) = ...` with its parameters renamed a, b, ... in order.
@@ -257,7 +257,7 @@ rename(Declaration) ->
 %% order read from the module's source.
 compiled_declaration(#type_info{foreign = true, qualified_name = QualifiedName,
                                 params = Params},
-                     _Source) ->
+                     _SourceFile) ->
     %% report §3.8: a foreign type has no constructors, and its parameters
     %% are names rather than variables
     Head = case Params of
@@ -266,12 +266,12 @@ compiled_declaration(#type_info{foreign = true, qualified_name = QualifiedName,
            end,
     normalize(lists:flatten(["foreign type ", atom_to_list(lists:last(QualifiedName)), Head]));
 compiled_declaration(#type_info{abstract = true, qualified_name = QualifiedName, params = []},
-                     _Source) ->
+                     _SourceFile) ->
     %% report §4.4: an abstract type is listed without its constructors
     "abstract type " ++ atom_to_list(lists:last(QualifiedName));
 compiled_declaration(#type_info{qualified_name = QualifiedName, params = Params,
                                 constructors = Constructors},
-                     Source) ->
+                     SourceFile) ->
     Namespace = lists:droplast(QualifiedName),
     Names = maps:from_list(lists:zip([Id || {tvar, Id} <- Params],
                                      [[Char] || Char <- lists:seq($a, $a + length(Params) - 1)])),
@@ -279,7 +279,7 @@ compiled_declaration(#type_info{qualified_name = QualifiedName, params = Params,
                [] -> "";
                _ -> "(" ++ lists:join(", ", [maps:get(Id, Names) || {tvar, Id} <- Params]) ++ ")"
            end,
-    Order = declared_fields(Source),
+    Order = declared_fields(SourceFile),
     ConstructorTexts = [constructor_text(ConstructorInfo, Namespace, Names, Order)
                         || ConstructorInfo <- Constructors],
     normalize(lists:flatten(["type ", atom_to_list(lists:last(QualifiedName)), Head, " = ",
@@ -321,7 +321,7 @@ type_text({tvar, Id}, _, Names) -> maps:get(Id, Names);
 type_text({tcon, QualifiedName, Args}, Namespace, Names) ->
     Text = case lists:droplast(QualifiedName) of
                Namespace -> atom_to_list(lists:last(QualifiedName));
-               _ -> qualified_name_text(QualifiedName)
+               _ -> ern_namespace:text(QualifiedName)
            end,
     case Args of
         [] -> Text;
@@ -444,8 +444,5 @@ captures(Line, Pattern) ->
 
 arity("") -> 0;
 arity(Params) -> length(string:split(Params, ",", all)).
-
-qualified_name_text(QualifiedName) ->
-    lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- QualifiedName])).
 
 normalize(Text) -> re:replace(string:trim(Text), "\\s+", " ", [global, unicode, {return, list}]).

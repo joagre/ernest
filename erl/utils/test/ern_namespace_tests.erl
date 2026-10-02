@@ -52,3 +52,10 @@ namespace_and_path_test() ->
     %% the shell's own modules keep their spelling but for the case of a letter
     ?assertEqual('ern@$input1', ern_namespace:erlang_module(['$Input1'])),
     ?assertEqual(['$Input1'], ern_namespace:namespace(["$Input1"])).
+
+%% report §4.2: a namespace and a qualified name as the source writes them.
+%% A regression test, written as six copies of the function became one.
+text_test() ->
+    ?assertEqual("OrderedSet", ern_namespace:text(['OrderedSet'])),
+    ?assertEqual("Net.Http.get", ern_namespace:text(['Net', 'Http', get])),
+    ?assertEqual("", ern_namespace:text([])).

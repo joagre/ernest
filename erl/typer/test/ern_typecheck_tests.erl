@@ -10,7 +10,8 @@ check(Text) -> ern_typecheck:check_string(['M'], Text).
 ok(Text) ->
     case check(Text) of
         {ok, _, _, _} -> ok;
-        {error, Errors} -> {error, [ern_diagnostic:short("", Diagnostic) || Diagnostic <- Errors]}
+        {error, Diagnostics} ->
+            {error, [ern_diagnostic:short("", Diagnostic) || Diagnostic <- Diagnostics]}
     end.
 
 %% The printed type of the declaration named Name.
@@ -28,8 +29,8 @@ refusal_and_help(Text) ->
     {Message, Help}.
 
 refusals(Text) ->
-    {error, Errors} = check(Text),
-    [Message || #diagnostic{message = Message} <- Errors].
+    {error, Diagnostics} = check(Text),
+    [Message || #diagnostic{message = Message} <- Diagnostics].
 
 %%
 %% Inference
@@ -365,9 +366,9 @@ operator_member_on_demand_test() ->
                          "export fn Vec.+(Vec(a), Vec(b)) : Vec ="
                          " if a == 0 then norm(Vec(b)) else Vec(a + b)\n", norm)),
     %% one error, in the member; its user keeps its own type
-    Errors = refusals(Vec ++ "export fn f(a : Vec, b) = a + b\n"
-                      "export fn Vec.+(Vec(a), Vec(b)) : Vec = Vec(a <> b)\n"),
-    ?assertEqual(["`<>` is not defined on Int"], Errors).
+    Messages = refusals(Vec ++ "export fn f(a : Vec, b) = a + b\n"
+                        "export fn Vec.+(Vec(a), Vec(b)) : Vec = Vec(a <> b)\n"),
+    ?assertEqual(["`<>` is not defined on Int"], Messages).
 
 
 %% report §4.2, §11.5: an error at a use of a name the module's own
@@ -1273,7 +1274,7 @@ reply_test() ->
     ?assertEqual("`as` on a reply-carrying value would duplicate it",
                  refusal(Source
                          ++ "fn f(r : Req) = match r { Get(reply = x) as whole -> answer(x, 1)"
-                         " | Stop -> Unit }")),
+                            " | Stop -> Unit }")),
     %% a list holds a reply as a constructor does, and `[]` binds none
     ?assertEqual(ok, ok(Source ++ "fn f(r : Req) = [r]")),
     ?assertEqual(ok, ok("fn answerAll(rs : List(Reply(Int))) : Unit with m = match rs {\n"
@@ -1300,7 +1301,7 @@ reply_test() ->
     %% the mk callback of Address.call
     ?assertEqual(ok,
                  ok(Source ++ "fn ask(a : Address(Req)) = Address.call(a, fn(r) = Get(reply = r),"
-                        " 1000)")).
+                    " 1000)")).
 
 %% report §4.2: a type's member is written `T.name`, within the type's own
 %% members too; no lookup step finds it unqualified. A regression test,
@@ -1607,52 +1608,52 @@ abstract_type_test() ->
 fault_path_test() ->
     Source = "type M = Add(amount : Int, reply : Reply(Int)) | Stop\n",
     ?assertEqual(ok, ok(Source ++ "fn serve() : Unit with M = receive {\n"
-                              "    Add(amount = n, reply = r) ->\n"
-                              "        if n < 0 then fault(\"negative\")\n"
-                              "        else { answer(r, n); serve() }\n"
-                              "  | Stop -> Unit\n"
-                              "}\n")),
+                        "    Add(amount = n, reply = r) ->\n"
+                        "        if n < 0 then fault(\"negative\")\n"
+                        "        else { answer(r, n); serve() }\n"
+                        "  | Stop -> Unit\n"
+                        "}\n")),
     ?assertEqual(ok, ok(Source ++ "fn serve() : Unit with M = receive {\n"
-                              "    Add(amount = n, reply = r) -> match n {\n"
-                              "        0 -> fault(\"zero\")\n"
-                              "      | _ -> answer(r, n)\n"
-                              "    }\n"
-                              "  | Stop -> Unit\n"
-                              "}\n")),
+                        "    Add(amount = n, reply = r) -> match n {\n"
+                        "        0 -> fault(\"zero\")\n"
+                        "      | _ -> answer(r, n)\n"
+                        "    }\n"
+                        "  | Stop -> Unit\n"
+                        "}\n")),
     ?assertEqual("the reply-carrying value r is not consumed on this path",
                  refusal(Source ++ "fn serve() : Unit with M = receive {\n"
-                                    "    Add(amount = n, reply = r) ->\n"
-                                    "        if n < 0 then serve() else answer(r, n)\n"
-                                    "  | Stop -> Unit\n"
-                                    "}\n")),
+                         "    Add(amount = n, reply = r) ->\n"
+                         "        if n < 0 then serve() else answer(r, n)\n"
+                         "  | Stop -> Unit\n"
+                         "}\n")),
     ?assertEqual(ok, ok(Source ++ "fn die(m : String) : a = fault(m)\n"
-                              "fn serve() : Unit with M = receive {\n"
-                              "    Add(amount = n, reply = r) ->\n"
-                              "        if n < 0 then die(\"negative\") else answer(r, n)\n"
-                              "  | Stop -> Unit\n"
-                              "}\n")),
+                        "fn serve() : Unit with M = receive {\n"
+                        "    Add(amount = n, reply = r) ->\n"
+                        "        if n < 0 then die(\"negative\") else answer(r, n)\n"
+                        "  | Stop -> Unit\n"
+                        "}\n")),
     ?assertEqual("the reply-carrying value r is not consumed on this path",
                  refusal(Source ++ "fn same(x : a) : a = x\n"
-                                    "fn serve() : Unit with M = receive {\n"
-                                    "    Add(amount = n, reply = r) ->\n"
-                                    "        if n < 0 then same(Unit) else answer(r, n)\n"
-                                    "  | Stop -> Unit\n"
-                                    "}\n")),
+                         "fn serve() : Unit with M = receive {\n"
+                         "    Add(amount = n, reply = r) ->\n"
+                         "        if n < 0 then same(Unit) else answer(r, n)\n"
+                         "  | Stop -> Unit\n"
+                         "}\n")),
     ?assertEqual("the reply-carrying value r is not consumed on this path",
                  refusal(Source ++ "fn reject(m : String) : Unit = fault(m)\n"
-                                    "fn serve() : Unit with M = receive {\n"
-                                    "    Add(amount = n, reply = r) ->\n"
-                                    "        if n < 0 then reject(\"negative\") else answer(r, n)\n"
-                                    "  | Stop -> Unit\n"
-                                    "}\n")),
+                         "fn serve() : Unit with M = receive {\n"
+                         "    Add(amount = n, reply = r) ->\n"
+                         "        if n < 0 then reject(\"negative\") else answer(r, n)\n"
+                         "  | Stop -> Unit\n"
+                         "}\n")),
     ?assertEqual("the reply-carrying value r is never consumed",
                  refusal(Source ++ "fn serve() : Unit with M = receive {\n"
-                                    "    Add(amount = n, reply = r) -> {\n"
-                                    "        let later = fn() : Unit = fault(\"later\");\n"
-                                    "        later()\n"
-                                    "    }\n"
-                                    "  | Stop -> Unit\n"
-                                    "}\n")).
+                         "    Add(amount = n, reply = r) -> {\n"
+                         "        let later = fn() : Unit = fault(\"later\");\n"
+                         "        later()\n"
+                         "    }\n"
+                         "  | Stop -> Unit\n"
+                         "}\n")).
 
 %% report §6.6, §6.9: `restarting` may run its function more than once, so a
 %% lambda that captures a reply is refused there, by the rule that lets such
@@ -1673,7 +1674,7 @@ reply_lambda_restarting_test() ->
 %% bindable by let, and legal nowhere else
 reply_lambda_test() ->
     Source = "type Req = Get(reply : Reply(Int)) | Stop\n"
-              "fn worker(r : Reply(Int)) : Unit with Never = answer(r, 1)\n",
+             "fn worker(r : Reply(Int)) : Unit with Never = answer(r, 1)\n",
     ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                         "    let g = fn() = worker(r);\n    let _ = spawn(g);\n    Unit }")),
     ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
@@ -1774,15 +1775,16 @@ interface_test() ->
 undeclared_type_in_interface_test() ->
     {ok, _, Boxes, _} = ern_typecheck:check_string(['Boxes'],
                                                    "export type Box = Box(f : (Int) -> Int)\n"),
-    {ok, MakerDecls} = ern_parser:parse_string(
-                         "export fn make() : Boxes.Box = Boxes.Box(f = fn(n) = n + 1)\n"),
-    {ok, _, Maker, _} = ern_typecheck:check(['Maker'], MakerDecls, [Boxes]),
-    {ok, Main} = ern_parser:parse_string("fn same() : Bool = Maker.make() == Maker.make()\n"),
+    {ok, MakerDeclarations} = ern_parser:parse_string(
+                                "export fn make() : Boxes.Box = Boxes.Box(f = fn(n) = n + 1)\n"),
+    {ok, _, Maker, _} = ern_typecheck:check(['Maker'], MakerDeclarations, [Boxes]),
+    {ok, MainDeclarations} =
+        ern_parser:parse_string("fn same() : Bool = Maker.make() == Maker.make()\n"),
     ?assertMatch({error, [#diagnostic{message = "`==` is not defined on Boxes.Box: it contains a"
-                                          " function or an address"}]},
-                 ern_typecheck:check(['Main'], Main, [Maker, Boxes])),
+                                                " function or an address"}]},
+                 ern_typecheck:check(['Main'], MainDeclarations, [Maker, Boxes])),
     ?assertError({interface_names_undeclared_type, "Boxes.Box"},
-                 ern_typecheck:check(['Main'], Main, [Maker])).
+                 ern_typecheck:check(['Main'], MainDeclarations, [Maker])).
 
 %% report §11.1
 errors_are_collected_test() ->
@@ -1825,8 +1827,8 @@ modules_example_test() ->
     Dir = "../../../examples/modules/",
     {ok, Http} = file:read_file(Dir ++ "net/http.ern"),
     {ok, _, Interface, _} = ern_typecheck:check_string(['Net', 'Http'], Http),
-    {ok, Main} = file:read_file(Dir ++ "main.ern"),
-    {ok, Declarations} = ern_parser:parse_string(Main),
+    {ok, MainSource} = file:read_file(Dir ++ "main.ern"),
+    {ok, Declarations} = ern_parser:parse_string(MainSource),
     ?assertMatch({ok, _, _, _}, ern_typecheck:check(['Main'], Declarations, [Interface])).
 
 %% report Appendix B, examples/
@@ -1835,18 +1837,19 @@ examples_test_() ->
                      hd(filename:basename(File)) =/= $.], % editor artifacts, report §11.1
     %% report §11.1, Appendix G: the libraries' interfaces, as an example
     %% has them on its load path; snake writes with libs/ansi
-    Libraries = [Interface || Path <- filelib:wildcard("../../../build/libs/*/*.erc"),
-                              {ok, Bytes} <- [file:read_file(Path)],
-                              {ok, #{interface := Interface}} <- [ern_interface:read(Bytes)]],
-    ?assertNotEqual([], Libraries),
+    LibraryInterfaces = [Interface
+                         || Path <- filelib:wildcard("../../../build/libs/*/*.erc"),
+                            {ok, Bytes} <- [file:read_file(Path)],
+                            {ok, #{interface := Interface}} <- [ern_interface:read(Bytes)]],
+    ?assertNotEqual([], LibraryInterfaces),
     [{File, fun() ->
-                 {ok, Source} = file:read_file(File),
-                 {ok, Segment} = ern_namespace:segment(filename:basename(File, ".ern")),
-                 Namespace = [list_to_atom(Segment)],
-                 {ok, Declarations} = ern_parser:parse_string(Source),
-                 ?assertMatch({ok, _, _, _},
-                              ern_typecheck:check(Namespace, Declarations, Libraries))
-             end} || File <- Files].
+                {ok, Source} = file:read_file(File),
+                {ok, Segment} = ern_namespace:segment(filename:basename(File, ".ern")),
+                Namespace = [list_to_atom(Segment)],
+                {ok, Declarations} = ern_parser:parse_string(Source),
+                ?assertMatch({ok, _, _, _},
+                             ern_typecheck:check(Namespace, Declarations, LibraryInterfaces))
+            end} || File <- Files].
 
 %% report §5.4, §4.6: a local fn sees the bindings in force at its
 %% declaration, so a use before the binding it sees is an error even when
@@ -2157,12 +2160,12 @@ effect_origin_is_restored_after_a_nested_definition_test() ->
 %% A regression test: the label named `main is declared with Never`, or
 %% `run` pure, where neither annotation had fixed the lambda's mailbox.
 effect_origin_of_an_unannotated_lambda_test() ->
-    Declarations = "fn g() : Unit with String = Unit\nfn h() : Unit with Int = Unit\n",
-    InNever = diagnostic(Declarations ++ "fn main() : Unit with Never ="
+    Helpers = "fn g() : Unit with String = Unit\nfn h() : Unit with Int = Unit\n",
+    InNever = diagnostic(Helpers ++ "fn main() : Unit with Never ="
                          " { let k = fn() = { g(); h() }; Unit }\n"),
     ?assertEqual("h needs mailbox Int, and the mailbox here is String", InNever#diagnostic.message),
     ?assertEqual([], InNever#diagnostic.labels),
-    InPure = diagnostic(Declarations ++ "fn run() : Int = { let k = fn() = { g(); h() }; 1 }\n"),
+    InPure = diagnostic(Helpers ++ "fn run() : Int = { let k = fn() = { g(); h() }; 1 }\n"),
     ?assertEqual([], InPure#diagnostic.labels).
 
 %% report §6.6, §4.2: only the prelude's spawn consumes a capturing lambda

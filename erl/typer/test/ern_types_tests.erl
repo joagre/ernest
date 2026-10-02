@@ -85,8 +85,8 @@ instantiate_copies_restrictions_test() ->
     {A, TypeState1} = ern_types:fresh(TypeState, [equality]),
     TypeState2 = ern_types:leave(TypeState1),
     {Scheme, TypeState3} = ern_types:generalize({tfn, [A, A], pure, bool()}, TypeState2),
-    {{tfn, [{tvar, FirstId}, {tvar, SecondId}], pure, _},
-     TypeState4} = ern_types:instantiate(Scheme, TypeState3),
+    {{tfn, [{tvar, FirstId}, {tvar, SecondId}], pure, _}, TypeState4} =
+        ern_types:instantiate(Scheme, TypeState3),
     ?assertEqual(FirstId, SecondId),
     ?assertEqual([equality], ern_types:restrictions(FirstId, TypeState4)).
 

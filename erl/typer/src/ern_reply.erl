@@ -32,10 +32,10 @@
 
 -spec check([#param{}], tuple(), ern_types:type(), ern_typecheck:env()) ->
           ern_typecheck:env().
-check(Params, Body, FunctionType, Env) ->
+check(Params, Body, Type, Env) ->
     discipline(Params, Body, Env),
     TypeState = ern_typecheck:type_state(Env),
-    Variables = lists:usort(param_variables(FunctionType, TypeState)),
+    Variables = lists:usort(param_variables(Type, TypeState)),
     lists:foldl(fun(Variable, Acc) -> restricted(Variable, Params, Body, Acc) end, Env,
                 Variables).
 
@@ -71,11 +71,11 @@ holds(Params, Body, Env) ->
     end.
 
 %% The type variables of the parameters' types, where values stand: not a
-%% function type's effect.
-param_variables(FunctionType, TypeState) ->
-    case ern_types:resolve(FunctionType, TypeState) of
+%% function type's effect. A let's type has no parameters.
+param_variables(Type, TypeState) ->
+    case ern_types:resolve(Type, TypeState) of
         {tfn, ParamTypes, _, _} ->
-            lists:append([value_variables(Type, TypeState) || Type <- ParamTypes]);
+            lists:append([value_variables(ParamType, TypeState) || ParamType <- ParamTypes]);
         _ -> []
     end.
 

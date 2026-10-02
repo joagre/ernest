@@ -45,7 +45,7 @@ prelude_examples_test_() ->
 
 prelude_called_test() ->
     Fences = iolist_to_binary([Block || Doc <- prelude_docs(), Block <- fences(Doc)]),
-    Functions = [lists:join(".", [atom_to_list(Part) || Part <- QualifiedName])
+    Functions = [ern_namespace:text(QualifiedName)
                  || {QualifiedName, Text, ValueDoc} <- ern_prelude:values(), is_binary(ValueDoc),
                     hd(QualifiedName) =/= 'Sys',
                     lists:prefix("(", Text)],
@@ -87,7 +87,7 @@ check_examples(Namespace, Source, Docs) ->
     WithResult = [{Number, Body, Value} || {Number, {Body, Value}} <- Numbered, Value =/= none],
     Fns = [<<"export fn docExample", (integer_to_binary(Number))/binary, "() = {\n", Body/binary,
              "\n}\n">> || {Number, Body, _} <- WithResult],
-    Qualified = lists:join(".", [atom_to_list(Part) || Part <- Namespace]),
+    Qualified = ern_namespace:text(Namespace),
     Mains = [iolist_to_binary(["export fn docMain", integer_to_list(Number),
                                "() : Unit with Never =\n    Io.println(Io.show(", Qualified,
                                ".docExample", integer_to_list(Number), "()))\n"])
@@ -240,7 +240,7 @@ coverage(Namespace, File) ->
     {ok, Source} = file:read_file(File),
     {ok, Declarations} = ern_parser:parse_string(Source),
     Examples = iolist_to_binary([Block || Doc <- docs(Declarations), Block <- fences(Doc)]),
-    Prefix = lists:join(".", [atom_to_list(Part) || Part <- Namespace]),
+    Prefix = ern_namespace:text(Namespace),
     Fns = [local_name(MemberOf, Name)
            || #fn_declaration{export = true, member_of = MemberOf, name = Name} <- Declarations,
               is_alpha(Name)]
@@ -275,10 +275,10 @@ see_also(File) ->
         ++ [atom_to_list(hd(Interface#interface.namespace))
             || Interface <- ern_prelude:stdlib_interfaces()]
         ++ [atom_to_list(Name) || {Name, _, _} <- ern_prelude:builtin_types()]
-        ++ [qualified(QualifiedName) || {QualifiedName, _, _} <- ern_prelude:values()]
-        ++ [qualified(QualifiedName) || Interface <- ern_prelude:stdlib_interfaces(),
+        ++ [ern_namespace:text(QualifiedName) || {QualifiedName, _, _} <- ern_prelude:values()]
+        ++ [ern_namespace:text(QualifiedName) || Interface <- ern_prelude:stdlib_interfaces(),
                                         QualifiedName <- maps:keys(Interface#interface.values)]
-        ++ [qualified(QualifiedName) || Interface <- ern_prelude:stdlib_interfaces(),
+        ++ [ern_namespace:text(QualifiedName) || Interface <- ern_prelude:stdlib_interfaces(),
                                         QualifiedName <- maps:keys(Interface#interface.types)],
     Named = [Name || Doc <- docs(Declarations),
                      {match, Sections}
@@ -289,9 +289,6 @@ see_also(File) ->
                                                  [global, {capture, all_but_first, list}])],
                      [Name] <- Matches],
     ?assertEqual([], [Name || Name <- Named, not lists:member(Name, Known)]).
-
-qualified(QualifiedName) ->
-    lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- QualifiedName])).
 
 declaration_names(#type_declaration{name = Name}) -> [atom_to_list(Name)];
 declaration_names(#abstract_declaration{declaration = #type_declaration{name = Name}}) ->

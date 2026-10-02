@@ -39,11 +39,15 @@
 %% What the checker knows about a declared type, from this module or a
 %% compiled interface.
 -record(type_info, {qualified_name, params = [], constructors = [], abstract = false,
-                    signature = [], foreign = false, reply_carrying = false, equality = []}).
+                    foreign = false, reply_carrying = false, equality = []}).
+%% params: one for each of the type's parameters, in order: a built-in
+%% type's are 1 to its arity; a foreign type's, and a declared type's until
+%% its constructors are declared, their names; and a declared type's after,
+%% the type variables its constructors' schemes are over
 %% equality: for a foreign or built-in type, whether each parameter requires
 %% equality, as `k=` declares it (report §4.7, §9.2); [] when none does
-%% constructors: [#constructor_info{}]; signature: [{name(), #scheme{}}] for
-%% an abstract type; reply_carrying is computed transitively (report §6.6)
+%% constructors: [#constructor_info{}]; reply_carrying is computed
+%% transitively (report §6.6)
 
 -record(constructor_info, {name, qualified_name, type_qualified_name, fields = none, tag_arity,
                            scheme}).

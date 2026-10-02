@@ -413,7 +413,7 @@ markdown_dir(Modules, Stdlib, BuildRoot) ->
                    ok = ern_build:made_dir(Output),
                    Page = unicode:characters_to_binary(ern_page:page(built(BuildRoot, Namespace))),
                    ok = ern_build:write_output(Output, Page),
-                   ["- [", ern_build:qualified_name_text(Namespace), "](", Relative, ")\n"]
+                   ["- [", ern_namespace:text(Namespace), "](", Relative, ")\n"]
                end || #build_module{namespace = Namespace} <- lists:sort(Modules)],
     Prelude = prelude_page(Stdlib, BuildRoot),
     ok = ern_build:write_output(filename:join(BuildRoot, "index.md"),
@@ -426,7 +426,7 @@ man_dir(Modules, Stdlib, BuildRoot) ->
     lists:foreach(fun(#build_module{namespace = Namespace}) ->
                       Dir = filename:dirname(filename:join(BuildRoot,
                                                            ern_build:module_path(Namespace))),
-                      Name = "Ernest." ++ ern_build:qualified_name_text(Namespace) ++ ".3ern",
+                      Name = "Ernest." ++ ern_namespace:text(Namespace) ++ ".3ern",
                       Page = ern_page:manual(built(BuildRoot, Namespace)),
                       ok = ern_build:write_output(filename:join(Dir, Name),
                                                   unicode:characters_to_binary(Page))
@@ -739,7 +739,7 @@ program(File, Options) ->
     SourceRoot = lists:foldl(fun(_, Dir) -> filename:dirname(Dir) end, Abs, Namespace),
     ern_build:relative(Abs, SourceRoot) =:= ern_build:module_path(Namespace) ++ ".erc" orelse
         ern_build:fail(File ++ " is not at the path of its namespace "
-                       ++ ern_build:qualified_name_text(Namespace)),
+                       ++ ern_namespace:text(Namespace)),
     Components = filename:split(filename:rootname(ern_build:module_path(Namespace))),
     lists:foreach(fun(Component) -> ern_build:shape(File, Component) end, Components),
     LoadPath = [SourceRoot | ern_build:load_path(Options)],
@@ -857,7 +857,7 @@ init_fun(Loaded) ->
 %% as it ends; status 1 unless every one passed.
 run_tests(Namespace, Loaded, ErrorDevice) ->
     Entry = tests_entry(ern_emitter:erlang_module(Namespace), self()),
-    Site = unicode:characters_to_binary(ern_build:qualified_name_text(Namespace) ++ ".$tests"),
+    Site = unicode:characters_to_binary(ern_namespace:text(Namespace) ++ ".$tests"),
     %% report §11.2: a test's own fault is its line, and every other is
     %% reported as `ern run` reports it
     %% report §11.2: Os.exit faults the test that calls it
@@ -980,7 +980,7 @@ entry_point(Options, Namespace, LoadPath, Loaded) ->
                 {ern_emitter:erlang_module(EntryNamespace), Function,
                  load(EntryNamespace, LoadPath, Loaded)}
         end,
-    Name = ern_build:qualified_name_text(entry_namespace(EntryModule) ++ [EntryFunction]),
+    Name = ern_namespace:text(entry_namespace(EntryModule) ++ [EntryFunction]),
     Shape = "; an entry point is an exported fn of type () -> Unit (report §8.1)",
     case entry_shape(EntryModule, EntryFunction) of
         entry -> ok;
@@ -1043,7 +1043,7 @@ entry_shape(ErlangModule, Function) ->
 
 entry_site(ErlangModule, Function) ->
     Namespace = entry_namespace(ErlangModule),
-    unicode:characters_to_binary(ern_build:qualified_name_text(Namespace ++ [Function])).
+    unicode:characters_to_binary(ern_namespace:text(Namespace ++ [Function])).
 
 entry_namespace(ErlangModule) ->
     "ern@" ++ Path = atom_to_list(ErlangModule),
@@ -1090,7 +1090,7 @@ compiled_file(Namespace, LoadPath) ->
         [Found | _] ->
             Found;
         [] ->
-            ern_build:fail("cannot find module " ++ ern_build:qualified_name_text(Namespace)
+            ern_build:fail("cannot find module " ++ ern_namespace:text(Namespace)
                            ++ " (" ++ Relative ++ ") on the load path")
     end.
 
@@ -1103,15 +1103,15 @@ held_chunk(Namespace, File, Beam) ->
             Chunk;
         {ok, #{interface := #interface{namespace = Held}}} ->
             ern_build:fail(ern_build:shown(File) ++ " holds "
-                           ++ ern_build:qualified_name_text(Held) ++ ", not "
-                           ++ ern_build:qualified_name_text(Namespace)
+                           ++ ern_namespace:text(Held) ++ ", not "
+                           ++ ern_namespace:text(Namespace)
                            ++ "; build it again from its source root");
         {error, Error} ->
             ern_build:fail(File ++ ": " ++ Error)
     end.
 
 same_stdlib(Namespace, Chunk, StdlibHash) ->
-    Name = ern_build:qualified_name_text(Namespace),
+    Name = ern_namespace:text(Namespace),
     lists:member(maps:get(stdlib, Chunk, none), [none, StdlibHash])
         orelse ern_build:fail(Name ++ " was compiled against another standard library; build "
                               ++ Name ++ " again").
@@ -1119,10 +1119,10 @@ same_stdlib(Namespace, Chunk, StdlibHash) ->
 same_interface(Namespace, Dependency, Hash) ->
     {ok, Beam} = file:read_file(code:which(ern_emitter:erlang_module(Dependency))),
     {ok, #{interface := Interface}} = ern_interface:read(Beam),
-    Name = ern_build:qualified_name_text(Namespace),
+    Name = ern_namespace:text(Namespace),
     ern_interface:hash(Interface) =:= Hash
         orelse ern_build:fail(Name ++ " was compiled against another "
-                              ++ ern_build:qualified_name_text(Dependency) ++ "; build "
+                              ++ ern_namespace:text(Dependency) ++ "; build "
                               ++ Name ++ " again").
 
 %% Report §11.3, Appendix C: the configuration directory itself, with a

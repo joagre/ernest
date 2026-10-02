@@ -24,14 +24,21 @@
               | {tfn, [type()], effect(), type()}.
 
 -record(type_state, {next = 1, level = 0, substitution = #{}, variables = #{}, namespace = [],
-                     session = [], shadows = [], effect_params = #{}}).
-%% namespace, session, shadows: the module being checked, whose types print
-%% unqualified; the session's types that print so too, each the latest
-%% declaration of its name (report §11.2); and the module's type names that
-%% shadow prelude names, which print qualified (report §11.5)
+                     session_types = [], shadows = [], effect_params = #{}}).
+%% namespace, session_types, shadows: the module being checked, whose
+%% types print unqualified; the session's types that print so too, each
+%% the latest declaration of its name (report §11.2); and the module's
+%% type names that shadow prelude names, which print qualified (§11.5)
 %% effect_params: for each type with a parameter that is no value position
 %% (report §3.9), whether each of its arguments is one
 -opaque type_state() :: #type_state{}.
+
+%% The names a type's variables print with, given as the type is printed
+%% (report §11.5). named: the name given each variable met so far;
+%% effect_only: the variables in no value position, which print as effect
+%% variables; values, effects: how many fresh names of each kind have been
+%% tried; taken: the names in use, without their marks.
+-record(variable_names, {named = #{}, effect_only = [], values = 0, effects = 0, taken = []}).
 
 %%
 %% State and variables
@@ -336,24 +343,24 @@ instantiate(#scheme{quantified = [], type = Type}, TypeState) ->
 %% An instance's variables carry no names: a name belongs to the
 %% annotation that wrote it, not to a use of the value (report §11.5).
 instantiate(#scheme{quantified = Quantified, type = Type}, TypeState) ->
-    Fresh = fun({Id, Restrictions}, {Map, Acc}) ->
+    Fresh = fun({Id, Restrictions}, {Replacements, Acc}) ->
                 {Variable, Acc1} = fresh(Acc, Restrictions),
-                {Map#{Id => Variable}, Acc1}
+                {Replacements#{Id => Variable}, Acc1}
             end,
-    {Map, TypeState1} = lists:foldl(Fresh, {#{}, TypeState}, Quantified),
-    {replace_variables(Type, Map), TypeState1}.
+    {Replacements, TypeState1} = lists:foldl(Fresh, {#{}, TypeState}, Quantified),
+    {replace_variables(Type, Replacements), TypeState1}.
 
-%% The type with each variable the map names replaced by its type.
+%% The type with each variable Replacements names replaced by its type.
 -spec replace_variables(type() | pure, #{id() => type()}) -> type() | pure.
-replace_variables({tvar, Id} = Variable, Map) ->
-    maps:get(Id, Map, Variable);
-replace_variables({tcon, QualifiedName, Args}, Map) ->
-    {tcon, QualifiedName, [replace_variables(Arg, Map) || Arg <- Args]};
-replace_variables({ttuple, Elements}, Map) ->
-    {ttuple, [replace_variables(Element, Map) || Element <- Elements]};
-replace_variables({tfn, Params, Effect, Result}, Map) ->
-    {tfn, [replace_variables(Param, Map) || Param <- Params], replace_variables(Effect, Map),
-     replace_variables(Result, Map)};
+replace_variables({tvar, Id} = Variable, Replacements) ->
+    maps:get(Id, Replacements, Variable);
+replace_variables({tcon, QualifiedName, Args}, Replacements) ->
+    {tcon, QualifiedName, [replace_variables(Arg, Replacements) || Arg <- Args]};
+replace_variables({ttuple, Elements}, Replacements) ->
+    {ttuple, [replace_variables(Element, Replacements) || Element <- Elements]};
+replace_variables({tfn, Params, Effect, Result}, Replacements) ->
+    {tfn, [replace_variables(Param, Replacements) || Param <- Params],
+     replace_variables(Effect, Replacements), replace_variables(Result, Replacements)};
 replace_variables(pure, _) ->
     pure.
 
@@ -400,8 +407,7 @@ format(Type, TypeState) ->
     %% process-only, prints as pure
     Elided = elide_pure_effects(substitute(Type, TypeState), [], TypeState),
     EffectOnly = effect_only_variables(Elided, TypeState),
-    {Text, _} = format_type(Elided, TypeState, #{effect_only => EffectOnly, values => 0,
-                                                 effects => 0, taken => []}),
+    {Text, _} = format_type(Elided, TypeState, #variable_names{effect_only = EffectOnly}),
     lists:flatten(Text).
 
 %% Variables that occur in no value position are named e, e1, ...: those
@@ -411,9 +417,9 @@ format(Type, TypeState) ->
 effect_only_variables(Type, TypeState) ->
     free_variables(Type, TypeState) -- value_variables(Type, TypeState).
 
-%% Variable ids in value positions / in effect positions of a substituted
-%% type. Report §3.9: a type argument is a value position unless the state
-%% says its parameter occurs in no value position of the type's fields.
+%% The variable ids in value positions of a substituted type. Report §3.9:
+%% a type argument is a value position unless the state says its parameter
+%% occurs in no value position of the type's fields.
 -spec value_variables(type() | pure, type_state()) -> [id()].
 value_variables(Type, #type_state{effect_params = EffectParams}) ->
     lists:usort(value_positions(Type, EffectParams, [])).
@@ -427,6 +433,8 @@ value_args(QualifiedName, Args, #type_state{effect_params = EffectParams}) ->
         _ -> Args
     end.
 
+%% The variable ids in effect positions of a substituted type, those after
+%% `with`.
 -spec effect_variables(type() | pure) -> [id()].
 effect_variables(Type) -> lists:usort(effect_positions(Type, [])).
 
@@ -452,8 +460,8 @@ value_positions_list(Types, EffectParams, Acc) ->
 %% The module being checked, the session's types, and the type names that
 %% shadow prelude names, which print qualified (report §11.5).
 -spec set_scope(type_state(), qualified_name(), [qualified_name()], [atom()]) -> type_state().
-set_scope(TypeState, Namespace, Session, Shadows) ->
-    TypeState#type_state{namespace = Namespace, session = Session, shadows = Shadows}.
+set_scope(TypeState, Namespace, SessionTypes, Shadows) ->
+    TypeState#type_state{namespace = Namespace, session_types = SessionTypes, shadows = Shadows}.
 
 %% Report §3.9: the types with a parameter that occurs in no value position
 %% of their fields, each with whether each of its arguments is a value
@@ -465,13 +473,14 @@ set_effect_params(TypeState, EffectParams) ->
 %% Report §11.5: a type name as the module would write it.
 type_name([Name], _TypeState) ->
     atom_to_list(Name);
-type_name(QualifiedName, #type_state{namespace = Namespace, session = Session,
+type_name(QualifiedName, #type_state{namespace = Namespace, session_types = SessionTypes,
                                      shadows = Shadows}) ->
     Name = lists:last(QualifiedName),
-    IsOwn = lists:droplast(QualifiedName) =:= Namespace orelse lists:member(QualifiedName, Session),
+    IsOwn = lists:droplast(QualifiedName) =:= Namespace
+        orelse lists:member(QualifiedName, SessionTypes),
     case IsOwn andalso not lists:member(Name, Shadows) of
         true -> atom_to_list(Name);
-        false -> qualified_name_text(QualifiedName)
+        false -> ern_namespace:text(QualifiedName)
     end.
 
 %% The scheme's own restrictions apply, whatever state it is printed under.
@@ -508,8 +517,7 @@ format_call(#scheme{type = Type} = Scheme, Params, Marked, TypeState) ->
     SchemeState = scheme_state(Scheme, TypeState),
     case elide_pure_effects(substitute(Type, SchemeState), [], SchemeState) of
         {tfn, ParamTypes, Effect, Result} = Elided ->
-            Names = #{effect_only => effect_only_variables(Elided, SchemeState), values => 0,
-                      effects => 0, taken => []},
+            Names = #variable_names{effect_only = effect_only_variables(Elided, SchemeState)},
             {Shown, Names1} = lists:mapfoldl(fun(ParamType, Acc) ->
                                                  format_type(ParamType, SchemeState, Acc)
                                              end, Names, ParamTypes),
@@ -552,13 +560,14 @@ padded(_, Count) -> lists:duplicate(Count, '_').
 
 %% Report §11.5: the annotation's name if the variable has one and it is
 %% not in use for another, else a fresh name that is not in use.
-format_type({tvar, Id}, TypeState, Names) ->
-    case Names of
+format_type({tvar, Id}, TypeState,
+            #variable_names{named = Named, effect_only = EffectOnly, taken = Taken} = Names) ->
+    case Named of
         #{Id := Name} -> {Name, Names};
-        #{effect_only := EffectOnly, taken := Taken} ->
+        _ ->
             Given = annotated_name(Id, TypeState),
             {Base, Names1} = case Given =:= undefined orelse lists:member(Given, Taken) of
-                                 true -> fresh_name(Id, EffectOnly, Names);
+                                 true -> fresh_name(Id, Names);
                                  false -> {Given, Names}
                              end,
             %% report §11.5: a process-only variable is marked where it
@@ -568,7 +577,7 @@ format_type({tvar, Id}, TypeState, Names) ->
                  ++ [$! || lists:member(not_reply_carrying, Restrictions)]
                  ++ [$+ || lists:member(process_only, Restrictions), lists:member(Id, EffectOnly)],
             Name = Base ++ Marks,
-            {Name, Names1#{Id => Name, taken => [Base | Taken]}}
+            {Name, Names1#variable_names{named = Named#{Id => Name}, taken = [Base | Taken]}}
     end;
 format_type({tcon, QualifiedName, []}, TypeState, Names) ->
     {type_name(QualifiedName, TypeState), Names};
@@ -604,18 +613,20 @@ format_list(Types, TypeState, Names) ->
     {lists:join(", ", Texts), Names1}.
 
 %% a, b, c, ... or e, e1, ..., skipping names in use.
-fresh_name(Id, EffectOnly,
-           #{values := ValueCount, effects := EffectCount, taken := Taken} = Names) ->
+fresh_name(Id, #variable_names{effect_only = EffectOnly, values = ValueCount,
+                               effects = EffectCount, taken = Taken} = Names) ->
     case lists:member(Id, EffectOnly) of
         true ->
+            Names1 = Names#variable_names{effects = EffectCount + 1},
             case lists:member(effect_variable_name(EffectCount), Taken) of
-                true -> fresh_name(Id, EffectOnly, Names#{effects => EffectCount + 1});
-                false -> {effect_variable_name(EffectCount), Names#{effects => EffectCount + 1}}
+                true -> fresh_name(Id, Names1);
+                false -> {effect_variable_name(EffectCount), Names1}
             end;
         false ->
+            Names1 = Names#variable_names{values = ValueCount + 1},
             case lists:member(value_variable_name(ValueCount), Taken) of
-                true -> fresh_name(Id, EffectOnly, Names#{values => ValueCount + 1});
-                false -> {value_variable_name(ValueCount), Names#{values => ValueCount + 1}}
+                true -> fresh_name(Id, Names1);
+                false -> {value_variable_name(ValueCount), Names1}
             end
     end.
 
@@ -639,9 +650,6 @@ value_variable_name(Count) ->
 
 effect_variable_name(0) -> "e";
 effect_variable_name(Count) -> "e" ++ integer_to_list(Count).
-
-qualified_name_text(QualifiedName) ->
-    lists:join(".", [atom_to_list(Part) || Part <- QualifiedName]).
 
 -spec format_error(term()) -> string().
 format_error({arity, ExpectedCount, ActualCount}) ->

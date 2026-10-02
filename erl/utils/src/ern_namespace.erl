@@ -5,10 +5,11 @@
 %% word with its first letter uppercased and the `_` dropped. A word begins
 %% with a letter, so a segment's words begin at its uppercase letters and
 %% the mapping is one-to-one: `ordered_set` is `OrderedSet` and nothing else.
+%% Also a qualified name as the source writes it, which every stage prints.
 -module(ern_namespace).
 
 -export([is_component/1, segment/1, component/1, namespace/1, module_path/1, path/1,
-         erlang_module/1]).
+         erlang_module/1, text/1]).
 
 %% Whether a path component has the shape §11.1 asks of a module's file.
 -spec is_component(string()) -> boolean().
@@ -97,3 +98,9 @@ component_or_lowered(Segment) ->
         {ok, Component} -> Component;
         error -> string:lowercase(Segment)
     end.
+
+%% Report §4.2: a namespace or a qualified name as the source writes it,
+%% its segments joined by `.`, `Net.Http.get`.
+-spec text([atom()]) -> string().
+text(QualifiedName) ->
+    lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- QualifiedName])).

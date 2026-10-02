@@ -500,7 +500,8 @@ docs() ->
         ++ [entry({type, Name, length(Params)}, maps:get(Name, Texts), Doc)
             || #type_declaration{name = Name, params = Params, doc = Doc} <- Declarations],
     Values = [entry({function, dotted(QualifiedName), arity(Signature)},
-                    [iolist_to_binary([dotted_text(QualifiedName), " : ", Signature])], Doc)
+                    [iolist_to_binary([ern_namespace:text(QualifiedName), " : ",
+                                       Signature])], Doc)
               || {QualifiedName, Signature, Doc} <- values(), Doc =/= module],
     {docs_v1, erl_anno:new(0), ernest, <<"text/markdown">>, #{<<"en">> => prelude_doc()},
      #{source => <<"the prelude, report §9"/utf8>>}, Types ++ Values}.
@@ -531,10 +532,7 @@ group_texts(["type " ++ Rest = Line | Lines], Acc) ->
 group_texts([_ | Lines], Acc) ->
     group_texts(Lines, Acc).
 
-dotted(QualifiedName) -> list_to_atom(dotted_text(QualifiedName)).
-
-dotted_text(QualifiedName) ->
-    lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- QualifiedName])).
+dotted(QualifiedName) -> list_to_atom(ern_namespace:text(QualifiedName)).
 
 arity(Text) ->
     case ern_parser:parse_type(Text) of

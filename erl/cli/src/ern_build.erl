@@ -13,7 +13,7 @@
          segment/1, namespace/1, module_path/1, compile_order/2, compile_order/3, source_root/3,
          build_root/2, is_stdlib_root/1, stdlib_hash/1, dependency_interfaces/5,
          dependency_interface/4, load_path/1, compiler_modules/0, sweep_pages/5,
-         compile_source/4, absolute/1, relative/2, qualified_name_text/1, write_whole/2,
+         compile_source/4, absolute/1, relative/2, write_whole/2,
          write_whole/3, write_output/2, read/1, made_dir/1, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -286,7 +286,7 @@ topsort(Graph) ->
             [Cycle | _] = digraph_utils:cyclic_strong_components(Graph),
             fail("module cycle: "
                  ++ lists:join(", ",
-                               [qualified_name_text(Namespace) || Namespace <- lists:sort(Cycle)]));
+                               [ern_namespace:text(Namespace) || Namespace <- lists:sort(Cycle)]));
         Sorted ->
             Sorted
     end.
@@ -325,7 +325,7 @@ namespace_clash(#build_module{namespace = Namespace, relative = Relative,
 -spec clash(string(), atom(), string(), [atom()]) -> no_return().
 clash(ChildRelative, Type, ParentRelative, QualifiedName) ->
     fail(ChildRelative ++ " and type " ++ atom_to_list(Type) ++ " in " ++ ParentRelative
-         ++ " share the namespace " ++ qualified_name_text(QualifiedName) ++ " (report §4.2)").
+         ++ " share the namespace " ++ ern_namespace:text(QualifiedName) ++ " (report §4.2)").
 
 %% The types a parsed source declares; none when it is absent or does not parse.
 source_types(File) ->
@@ -520,9 +520,9 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
 held_by_another(Erc, Namespace) ->
     case read_erc(Erc) of
         {ok, #{interface := #interface{namespace = Held}}} when Held =/= Namespace ->
-            fail(shown(Erc) ++ " holds " ++ qualified_name_text(Held)
+            fail(shown(Erc) ++ " holds " ++ ern_namespace:text(Held)
                  ++ ", and this build names the module "
-                 ++ qualified_name_text(Namespace) ++ "; name its source root with --source-root");
+                 ++ ern_namespace:text(Namespace) ++ "; name its source root with --source-root");
         _ ->
             ok
     end.
@@ -620,12 +620,12 @@ dependency_interface(Dependency, Interfaces, [BuildRoot | _] = SearchPath, Sourc
                     case gone(Chunk, Dir, SourceRoot) of
                         false -> {Dependency, Interface};
                         Source ->
-                            fail("no module " ++ qualified_name_text(Dependency) ++ ": "
+                            fail("no module " ++ ern_namespace:text(Dependency) ++ ": "
                                  ++ shown(Erc) ++ " was compiled from " ++ shown(Source)
                                  ++ ", which no longer exists")
                     end;
                 {error, Error} ->
-                    fail("compile " ++ qualified_name_text(Dependency) ++ " first: " ++ Erc ++ ": "
+                    fail("compile " ++ ern_namespace:text(Dependency) ++ " first: " ++ Erc ++ ": "
                          ++ Error)
             end
     end.
@@ -856,10 +856,6 @@ path_from(Base, Path) ->
 
 unshared([Segment | Base], [Segment | Path]) -> unshared(Base, Path);
 unshared(Base, Path) -> filename:join([".." || _ <- Base] ++ Path).
-
--spec qualified_name_text([atom()]) -> string().
-qualified_name_text(Namespace) ->
-    lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- Namespace])).
 
 %% Report §11: a file a job writes is written whole or not at all. It is
 %% written beside its place, under a name that begins with a dot, which no

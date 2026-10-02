@@ -793,7 +793,7 @@ prelude_call(Span, [Namespace | Rest], _, Args, _, Context) when Rest =/= [] ->
     %% a stdlib function: the namespace's module
     {at(Span, call_remote(erlang_module([Namespace]), lists:last(Rest), Args)), Context};
 prelude_call(Span, QualifiedName, _, _, _, _) ->
-    fail(Span, "no emission for " ++ qualified_name_text(QualifiedName)).
+    fail(Span, "no emission for " ++ ern_namespace:text(QualifiedName)).
 
 %% Report §6.6, §8.4: `Address.call` or `Address.callForever`, of type T,
 %% and in a program what an answer from foreign code is checked by, the
@@ -885,12 +885,12 @@ site(Span,
     {Line, _, _} = ern_diagnostic:span(Span),
     case {Session, Function} of
         {false, _} ->
-            text_site([qualified_name_text(Namespace ++ [Function]), ":", integer_to_list(Line)]);
+            text_site([ern_namespace:text(Namespace ++ [Function]), ":", integer_to_list(Line)]);
         {Offset, '$input'} ->
             call_remote(ern_shell, input_site, [erl_syntax:atom(ErlangModule),
                                                  erl_syntax:integer(Line + Offset)]);
         {Offset, _} ->
-            text_site([qualified_name_text([Function]), ":", integer_to_list(Line + Offset)])
+            text_site([ern_namespace:text([Function]), ":", integer_to_list(Line + Offset)])
     end.
 
 text_site(Where) ->
@@ -1791,9 +1791,6 @@ fresh_name(Name, #emit_context{counter = Count} = Context) ->
 at(Span, Form) ->
     {Line, Column, _} = ern_diagnostic:span(Span),
     erl_syntax:set_pos(Form, {Line, Column}).
-
-qualified_name_text(Parts) ->
-    lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- Parts])).
 
 %% A declaration the checker would not have passed: a defect of the
 %% toolchain, not of the program.

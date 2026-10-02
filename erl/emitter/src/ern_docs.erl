@@ -36,7 +36,7 @@ build(Namespace, Declarations, Env, Source) ->
                     [Text | _] -> #{<<"en">> => Text};
                     [] -> none
                 end,
-    Prefix = qualified_name_text(Namespace) ++ ".",
+    Prefix = ern_namespace:text(Namespace) ++ ".",
     {docs_v1, erl_anno:new(0), ernest, <<"text/markdown">>, ModuleDoc, #{source => Source},
      [doc_entry(Declaration, Prefix, Env) || Declaration <- Declarations, documented(Declaration)]}.
 
@@ -173,9 +173,9 @@ constructor_text(#constructor{name = Name, fields = {named, Fields}}) ->
      ")"].
 
 %% A syntactic type as written.
-syntax_text(#t_named{path = Path, name = Name, args = []}) -> qualified_name_text(Path ++ [Name]);
+syntax_text(#t_named{path = Path, name = Name, args = []}) -> ern_namespace:text(Path ++ [Name]);
 syntax_text(#t_named{path = Path, name = Name, args = Args}) ->
-    [qualified_name_text(Path ++ [Name]), "(", lists:join(", ", [syntax_text(Arg) || Arg <- Args]),
+    [ern_namespace:text(Path ++ [Name]), "(", lists:join(", ", [syntax_text(Arg) || Arg <- Args]),
      ")"];
 syntax_text(#t_var{name = Name}) -> atom_to_list(Name);
 syntax_text(#t_tuple{elements = Elements}) ->
@@ -187,6 +187,3 @@ syntax_text(#t_fn{params = Params, result_type = Result, effect = Effect}) ->
 %% The name as the program writes it.
 shown_name(undefined, Name) -> Name;
 shown_name(MemberOf, Name) -> list_to_atom(atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name)).
-
-qualified_name_text(Parts) ->
-    lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- Parts])).
