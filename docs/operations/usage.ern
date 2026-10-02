@@ -1,0 +1,21 @@
+/// A program over both sets. It gives the order where it makes a set and
+/// nowhere else, and has one function written once, `common`, which it
+/// calls with both representations.
+
+fn common(list : List(a), other : List(a), operations : Set.Operations(s, a)) : List(a) =
+    operations.toList(operations.intersection(operations.fromList(list),
+                                              operations.fromList(other)))
+
+export fn main() : Unit with Never = {
+    let small = OrderedSet.fromList([3, 1, 3], Int.compare);
+    let both = OrderedSet.union(small, OrderedSet.fromList([2], Int.compare));
+    Io.println(Io.show(OrderedSet.toList(both)));
+    Io.println(Io.show(OrderedSet.min(both)));
+    let same = OrderedSet.fromList([2, 3, 1], Int.compare);
+    Io.println(Bool.toString(OrderedSet.equal(both, same)));
+    Io.println(Io.show(OrderedSet.toList(OrderedSet.filter(both, fn(n) = n % 2 == 1))));
+    let doubled = OrderedSet.map(both, fn(n) = n * 2);
+    Io.println(Bool.toString(OrderedSet.contains(doubled, 6)));
+    Io.println(Io.show(common([4, 2, 3], [3, 4, 5], OrderedSet.operations(Int.compare))));
+    Io.println(Int.toString(List.size(common([4, 2, 3], [3, 4, 5], Set.operations))))
+}

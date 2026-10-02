@@ -1,0 +1,382 @@
+/// Operations on `Set(a)`, a finite set of elements in the order of a
+/// function the set carries, of type `(a, a) -> Ordering`, given where
+/// the set is made: `empty` and `fromList` take it, and every other
+/// function reads it from its set; `map` and `filterMap` keep the element
+/// type, and a set of another element type is `fromList` of a list. Two
+/// elements the
+/// order calls `Equal` are one element, and `put` keeps the one already
+/// there. A set holds a function, so `==` is not defined on it (report
+/// §3.10): `equal` is its equality, and a set is no key of a `Map`. The
+/// order of `toList`, `foldLeft`, `foreach`, `find`, `min` and `max`,
+/// and the order in which `map`, `filter`, `filterMap`, `any` and `all`
+/// meet the elements, is the set's. A set in another order is a set of
+/// another type, `type Descending = Descending(Int)` with its own
+/// `compare`, and the two cannot meet. Code written once over several
+/// representations of a set takes `Set.Operations(s, a)`, which
+/// `operations` fills for this one. The set is a sorted list: `put`,
+/// `contains` and `remove` are linear in the size, and `union`,
+/// `intersection`, `difference`, `isSubset` and `equal` linear in the two
+/// sizes. Nothing is a primitive: the module is written over `List`.
+///
+/// ## Examples
+///
+/// ```ernest
+/// OrderedSet.toList(OrderedSet.fromList([3, 1, 3], Int.compare))
+/// // => [1, 3]
+/// ```
+///
+/// ```ernest
+/// OrderedSet.min(OrderedSet.put(OrderedSet.empty(Int.compare), 2))
+/// // => Some(2)
+/// ```
+///
+/// ## See also
+///
+/// `Set` for a set with no order, `List.sort` for a list in order.
+///
+/// since 0.3.0
+
+/// A set in the order of the function it carries.
+export abstract type Set(a) = Set(elements : List(a), order : (a, a) -> Ordering)
+
+/// This set's operations over the order, for code written once over
+/// several representations.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.toList(OrderedSet.operations(Int.compare).fromList([2, 1]))
+/// // => [1, 2]
+/// ```
+export fn operations(compare : (a, a) -> Ordering) : Set.Operations(Set(a), a) =
+    Set.Operations(empty = empty(compare),
+                   size = size,
+                   isEmpty = isEmpty,
+                   contains = contains,
+                   put = put,
+                   remove = remove,
+                   fromList = fn(list) = fromList(list, compare),
+                   toList = toList,
+                   union = union,
+                   intersection = intersection,
+                   difference = difference,
+                   isSubset = isSubset)
+
+/// The set with no elements, in that order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.isEmpty(OrderedSet.empty(Int.compare))
+/// // => true
+/// ```
+export fn empty(compare : (a, a) -> Ordering) : Set(a) =
+    Set(elements = [], order = compare)
+
+/// The set of those elements in that order, each once.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.toList(OrderedSet.fromList(["b", "a", "b"], String.compare))
+/// // => ["a", "b"]
+/// ```
+export fn fromList(list : List(a), compare : (a, a) -> Ordering) : Set(a) =
+    List.foldLeft(list, empty(compare), put)
+
+/// The number of elements.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.size(OrderedSet.fromList([1, 1, 2], Int.compare))
+/// // => 2
+/// ```
+export fn size(set : Set(a)) : Int =
+    List.size(set.elements)
+
+/// `true` for the set with no elements.
+export fn isEmpty(set : Set(a)) : Bool =
+    List.isEmpty(set.elements)
+
+/// `true` when an element the order calls `Equal` to it is in the set.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.contains(OrderedSet.fromList([1, 3], Int.compare), 3)
+/// // => true
+/// ```
+export fn contains(set : Set(a), x : a) : Bool =
+    has(set.elements, x, set.order)
+
+fn has(list : List(a), x : a, compare : (a, a) -> Ordering) : Bool =
+    match list {
+        [] -> false
+      | y :: rest -> match compare(x, y) {
+            Less -> false
+          | Equal -> true
+          | Greater -> has(rest, x, compare)
+        }
+    }
+
+/// The set with that element; one already there, by the order, is kept
+/// and the given one dropped.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.toList(OrderedSet.put(OrderedSet.fromList([1, 3], Int.compare), 2))
+/// // => [1, 2, 3]
+/// ```
+export fn put(set : Set(a), x : a) : Set(a) =
+    Set(elements = inserted(set.elements, x, set.order), order = set.order)
+
+fn inserted(list : List(a), x : a, compare : (a, a) -> Ordering) : List(a) =
+    match list {
+        [] -> [x]
+      | y :: rest -> match compare(x, y) {
+            Less -> x :: list
+          | Equal -> list
+          | Greater -> y :: inserted(rest, x, compare)
+        }
+    }
+
+/// The set without the element the order calls `Equal` to it, which need
+/// not be there.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.toList(OrderedSet.remove(OrderedSet.fromList([1, 2], Int.compare), 1))
+/// // => [2]
+/// ```
+export fn remove(set : Set(a), x : a) : Set(a) =
+    Set(elements = List.filter(set.elements, fn(y) = set.order(x, y) != Equal), order = set.order)
+
+/// `true` when the two have the same size and the first's order calls
+/// their elements `Equal` pair by pair.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.equal(OrderedSet.fromList([2, 1], Int.compare),
+///                  OrderedSet.fromList([1, 2], Int.compare))
+/// // => true
+/// ```
+export fn equal(set : Set(a), other : Set(a)) : Bool =
+    isSame(set.elements, other.elements, set.order)
+
+fn isSame(list : List(a), other : List(a), compare : (a, a) -> Ordering) : Bool =
+    match #(list, other) {
+        #([], []) -> true
+      | #(x :: rest, y :: others) -> compare(x, y) == Equal && isSame(rest, others, compare)
+      | _ -> false
+    }
+
+/// The function applied to each element, in order, into a set of the same
+/// order; two results the order calls `Equal` become one, so the result
+/// may be smaller.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.toList(OrderedSet.map(OrderedSet.fromList([2, 1], Int.compare), fn(n) = n * 10))
+/// // => [10, 20]
+/// ```
+export fn map(set : Set(a), f : (a) -> a with e) : Set(a) with e =
+    fromList(List.map(set.elements, f), set.order)
+
+/// The elements the predicate holds for, in the set's order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.toList(OrderedSet.filter(OrderedSet.fromList([1, 2, 3], Int.compare), fn(n) = n > 1))
+/// // => [2, 3]
+/// ```
+export fn filter(set : Set(a), keep : (a) -> Bool with e) : Set(a) with e =
+    Set(elements = List.filter(set.elements, keep), order = set.order)
+
+/// The values of the `Some` results, into a set of the same order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.toList(OrderedSet.filterMap(OrderedSet.fromList([1, 2, 3], Int.compare),
+///                                        fn(n) = if n > 1 then Some(n * 10) else None))
+/// // => [20, 30]
+/// ```
+export fn filterMap(set : Set(a), f : (a) -> Optional(a) with e) : Set(a) with e =
+    fromList(List.filterMap(set.elements, f), set.order)
+
+/// The accumulator after the function has seen each element in order, the
+/// accumulator first.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.foldLeft(OrderedSet.fromList([1, 2], Int.compare), 0, Int.+)
+/// // => 3
+/// ```
+export fn foldLeft(set : Set(a), acc : b, step : (b, a) -> b with e) : b with e =
+    List.foldLeft(set.elements, acc, step)
+
+/// The function applied to each element in order for its effect.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.foreach(OrderedSet.fromList(["a"], String.compare), Io.println)
+/// // => Unit
+/// ```
+export fn foreach(set : Set(a), f : (a) -> Unit with e) : Unit with e =
+    List.foreach(set.elements, f)
+
+/// `true` when the predicate holds for some element.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.any(OrderedSet.fromList([1], Int.compare), fn(n) = n > 0)
+/// // => true
+/// ```
+export fn any(set : Set(a), keep : (a) -> Bool with e) : Bool with e =
+    List.any(set.elements, keep)
+
+/// `true` when the predicate holds for every element, and for the set with
+/// no elements.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.all(OrderedSet.fromList([1], Int.compare), fn(n) = n > 1)
+/// // => false
+/// ```
+export fn all(set : Set(a), keep : (a) -> Bool with e) : Bool with e =
+    List.all(set.elements, keep)
+
+/// The first element in order the predicate holds for.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.find(OrderedSet.fromList([3, 1, 2], Int.compare), fn(n) = n > 1)
+/// // => Some(2)
+/// ```
+export fn find(set : Set(a), keep : (a) -> Bool with e) : Optional(a) with e =
+    List.find(set.elements, keep)
+
+/// The elements, in order.
+export fn toList(set : Set(a)) : List(a) =
+    set.elements
+
+/// The first element in order, or `None` for the set with no elements.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(OrderedSet.min(OrderedSet.fromList([2, 1], Int.compare)),
+///   OrderedSet.max(OrderedSet.empty(Int.compare)))
+/// // => #(Some(1), None)
+/// ```
+export fn min(set : Set(a)) : Optional(a) =
+    List.get(set.elements, 0)
+
+/// The last element in order, or `None` for the set with no elements.
+export fn max(set : Set(a)) : Optional(a) =
+    List.last(set.elements)
+
+/// The elements of both, in the first's order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.toList(OrderedSet.union(OrderedSet.fromList([1], Int.compare),
+///                                    OrderedSet.fromList([2], Int.compare)))
+/// // => [1, 2]
+/// ```
+export fn union(set : Set(a), other : Set(a)) : Set(a) =
+    Set(elements = merged(set.elements, other.elements, set.order), order = set.order)
+
+fn merged(list : List(a), other : List(a), compare : (a, a) -> Ordering) : List(a) =
+    match #(list, other) {
+        #([], _) -> other
+      | #(_, []) -> list
+      | #(x :: rest, y :: others) -> match compare(x, y) {
+            Less -> x :: merged(rest, other, compare)
+          | Equal -> x :: merged(rest, others, compare)
+          | Greater -> y :: merged(list, others, compare)
+        }
+    }
+
+/// The elements in both, in the first's order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.toList(OrderedSet.intersection(OrderedSet.fromList([1, 2], Int.compare),
+///                                           OrderedSet.fromList([2, 3], Int.compare)))
+/// // => [2]
+/// ```
+export fn intersection(set : Set(a), other : Set(a)) : Set(a) =
+    Set(elements = shared(set.elements, other.elements, set.order), order = set.order)
+
+fn shared(list : List(a), other : List(a), compare : (a, a) -> Ordering) : List(a) =
+    match #(list, other) {
+        #([], _) -> []
+      | #(_, []) -> []
+      | #(x :: rest, y :: others) -> match compare(x, y) {
+            Less -> shared(rest, other, compare)
+          | Equal -> x :: shared(rest, others, compare)
+          | Greater -> shared(list, others, compare)
+        }
+    }
+
+/// The elements of the first that are not in the second, in the first's
+/// order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.toList(OrderedSet.difference(OrderedSet.fromList([1, 2], Int.compare),
+///                                         OrderedSet.fromList([2, 3], Int.compare)))
+/// // => [1]
+/// ```
+export fn difference(set : Set(a), other : Set(a)) : Set(a) =
+    Set(elements = remaining(set.elements, other.elements, set.order), order = set.order)
+
+fn remaining(list : List(a), other : List(a), compare : (a, a) -> Ordering) : List(a) =
+    match #(list, other) {
+        #([], _) -> []
+      | #(_, []) -> list
+      | #(x :: rest, y :: others) -> match compare(x, y) {
+            Less -> x :: remaining(rest, other, compare)
+          | Equal -> remaining(rest, others, compare)
+          | Greater -> remaining(list, others, compare)
+        }
+    }
+
+/// `true` when every element of the first is in the second, by the first's
+/// order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedSet.isSubset(OrderedSet.fromList([1], Int.compare),
+///                     OrderedSet.fromList([1, 2], Int.compare))
+/// // => true
+/// ```
+export fn isSubset(set : Set(a), other : Set(a)) : Bool =
+    isWithin(set.elements, other.elements, set.order)
+
+fn isWithin(list : List(a), other : List(a), compare : (a, a) -> Ordering) : Bool =
+    match #(list, other) {
+        #([], _) -> true
+      | #(_, []) -> false
+      | #(x :: rest, y :: others) -> match compare(x, y) {
+            Less -> false
+          | Equal -> isWithin(rest, others, compare)
+          | Greater -> isWithin(list, others, compare)
+        }
+    }
