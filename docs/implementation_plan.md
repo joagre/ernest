@@ -140,7 +140,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    toolchain's own defect. A regression test for each of the three, and the Erlang module a
    source compiles to is named from its path, `ern@ordered_set`.
 5. **The operations, decided and built.** Decided with the user on 2026-10-02, in a day's
-   discussion that the log's entry for it records, written with the report edit below, and
+   discussion (the log's *The Requirement, the Fill and the Set as Data*), written with the
+   report edit below, and
    specified whole in [`operations.md`](operations.md), which is this item's specification,
    rule by rule, with five programs under [`docs/operations/`](operations/) as its examples
    (language feedback 64, 70 and 71, which the decision closed). Two parts the principles
@@ -169,7 +170,10 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    `derives compare` (rule 11); and an ordered map is specified as the set is (rule 12). The
    forms tried and set aside the same day, the record bound once with `ints.put`, the order
    carried in the set with `equal`, and the member as a defaulted parameter, stand in the
-   note's committed history (`eed585a` to `cc03f0f`) for the log's entry.
+   note's committed history (`eed585a` to `cc03f0f`) and in that entry. The note was read as an
+   implementer reads it on 2026-10-02, before the build, and thirteen findings decided with
+   the user, one a soundness hole, an operator member's shape under a requirement, now rule
+   1's (the log's *The Operations Specification Read*).
 
    Once decided, it is built in the report's order. The report first, with everything the
    note introduces, the note's *What changes in Ernest* being the list: §4.8's requirement with
