@@ -70,6 +70,14 @@ export fn isEmpty(Map(pairs) : Map(k, v)) : Bool =
     List.isEmpty(pairs)
 
 /// `true` when a key the order calls `Equal` to it has a value.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(OrderedMap.contains(OrderedMap.fromList([#("a", 1)]), "a"),
+///   OrderedMap.contains(OrderedMap.empty, "a"))
+/// // => #(true, false)
+/// ```
 export fn contains(map : Map(k, v), key : k) : Bool needs k.compare =
     Optional.isSome(get(map, key))
 
@@ -153,6 +161,14 @@ export fn map(Map(pairs) : Map(k, v), f : (k, v) -> w with e) : Map(k, w) with e
     Map(List.map(pairs, fn(#(key, value)) = #(key, f(key, value))))
 
 /// The entries the predicate holds for, in order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedMap.keys(OrderedMap.filter(OrderedMap.fromList([#(1, "a"), #(2, "b")]),
+///                                   fn(key, _) = key > 1))
+/// // => [2]
+/// ```
 export fn filter(Map(pairs) : Map(k, v), keep : (k, v) -> Bool with e) : Map(k, v) with e =
     Map(List.filter(pairs, fn(#(key, value)) = keep(key, value)))
 
@@ -186,6 +202,13 @@ export fn foldLeft(Map(pairs) : Map(k, v), acc : b, step : (b, k, v) -> b with e
     List.foldLeft(pairs, acc, fn(sofar, #(key, value)) = step(sofar, key, value))
 
 /// The function applied to each entry in order for its effect.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedMap.foreach(OrderedMap.fromList([#(1, "a")]), fn(_, value) = Io.println(value))
+/// // => Unit
+/// ```
 export fn foreach(Map(pairs) : Map(k, v), f : (k, v) -> Unit with e) : Unit with e =
     List.foreach(pairs, fn(#(key, value)) = f(key, value))
 
