@@ -25,21 +25,21 @@ export fn main() : Unit with Never =
 
 fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never = {
     match Tcp.accept(listener, 60000) {
-        Right(peer) -> {
-            let echoer = spawn(fn() : Unit with Never = echo(peer));
-            Tcp.give(peer, Process.fromAddress(echoer))
+        Right(socket) -> {
+            let echoer = spawn(fn() : Unit with Never = echo(socket));
+            Tcp.give(socket, Process.fromAddress(echoer))
         }
       | Left(_) -> Unit
     };
     serve(listener)
 }
 
-fn echo(peer : Address(Tcp.SocketMsg)) : Unit with Never = {
-    let _ = match Tcp.read(peer, 1000) {
-        Right(bytes) -> Tcp.write(peer, bytes, 5000)
+fn echo(socket : Address(Tcp.SocketMsg)) : Unit with Never = {
+    let _ = match Tcp.read(socket, 1000) {
+        Right(bytes) -> Tcp.write(socket, bytes, 5000)
       | Left(error) -> Left(error)
     };
-    Tcp.close(peer)
+    Tcp.close(socket)
 }
 
 fn round(port : Int, number : Int) : Unit with Never =

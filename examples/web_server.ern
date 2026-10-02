@@ -73,23 +73,23 @@ fn store(counts : Map(SessionId, Int)) : Unit with SessionMsg =
 
 // The acceptor: one handler process per connection.
 fn acceptor(sessions : Address(SessionMsg),
-            serial : Int,
+            accepted : Int,
             listener : Address(Tcp.ListenerMsg)) : Unit with Never =
     match Tcp.accept(listener, 60000) {
         Right(socket) -> {
             // the handler owns its connection, which ends with it
-            let worker = spawn(fn() = handler(sessions, serial, socket));
-            Tcp.give(socket, Process.fromAddress(worker));
-            acceptor(sessions, serial + 1, listener)
+            let handler = spawn(fn() = handle(sessions, accepted, socket));
+            Tcp.give(socket, Process.fromAddress(handler));
+            acceptor(sessions, accepted + 1, listener)
         }
-      | Left(Io.Timeout) -> acceptor(sessions, serial, listener)
+      | Left(Io.Timeout) -> acceptor(sessions, accepted, listener)
       | Left(error) -> Io.println("cannot accept: " <> errorText(error))
     }
 
 // One process per connection: reads a request, writes a response, closes.
-fn handler(sessions : Address(SessionMsg),
-           serial : Int,
-           socket : Address(Tcp.SocketMsg)) : Unit with m =
+fn handle(sessions : Address(SessionMsg),
+          connection : Int,
+          socket : Address(Tcp.SocketMsg)) : Unit with m =
     match Tcp.read(socket, 5000) {
         Right(bytes) -> match parse(bytes) {
             Left(_) -> {
@@ -101,7 +101,7 @@ fn handler(sessions : Address(SessionMsg),
           | Right(request) -> {
                 let id = match Optional.andThen(cookie(request, "sid"), parseSessionId) {
                     Some(found) -> found
-                  | None -> freshSessionId(serial)
+                  | None -> freshSessionId(connection)
                 };
                 let visits =
                     Address.callForever(sessions, fn(reply) = Visit(id = id, reply = reply));
@@ -164,14 +164,14 @@ fn headerPairs(lines : List(String),
 
 fn render(response : Response) : Bytes = {
     let body = String.toUtf8(response.body);
-    let start = "HTTP/1.1 " <> statusText(response.status);
-    let length = "content-length: " <> Int.toString(Bytes.size(body));
-    let rest = List.map(response.headers, fn(#(name, value)) = name <> ": " <> value);
-    String.toUtf8(String.join(start :: length :: rest, "\r\n") <> "\r\n\r\n") <> body
+    let statusLine = "HTTP/1.1 " <> statusText(response.status);
+    let lengthHeader = "content-length: " <> Int.toString(Bytes.size(body));
+    let headers = List.map(response.headers, fn(#(name, value)) = name <> ": " <> value);
+    String.toUtf8(String.join(statusLine :: lengthHeader :: headers, "\r\n") <> "\r\n\r\n") <> body
 }
 
 fn cookie(request : Request, name : String) : Optional(String) =
-    Optional.andThen(List.find(request.headers, fn(#(header, _)) = header == "cookie"),
+    Optional.andThen(List.find(request.headers, fn(#(field, _)) = field == "cookie"),
                      fn(#(_, value)) = cookieValue(String.split(value, ";"), name))
 
 fn cookieValue(parts : List(String), name : String) : Optional(String) =
@@ -213,8 +213,8 @@ let statusBadRequest = StatusCode(400)
 fn statusText(StatusCode(code)) =
     if code == 200 then "200 OK" else "400 Bad Request"
 
-fn freshSessionId(serial) =
-    SessionId(Int.toString(serial)) // good enough on paper
+fn freshSessionId(connection) =
+    SessionId(Int.toString(connection)) // good enough on paper
 
 fn parseSessionId(text) =
     if !String.isEmpty(text)

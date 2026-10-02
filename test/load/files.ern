@@ -11,10 +11,10 @@ let rounds = 14
 
 let batch = 100
 
-let dir = Path("build/load/files")
+let directory = Path("build/load/files")
 
 export fn main() : Unit with Never = {
-    let _ = Fs.makeDir(dir, 1000);
+    let _ = Fs.makeDir(directory, 1000);
     round(1)
 }
 
@@ -36,14 +36,14 @@ fn work(left : Int) : Unit with Never =
     }
 
 fn once() : Unit with Never = {
-    let fileA = dir <> Path("a");
-    let fileB = dir <> Path("b");
+    let fileA = directory <> Path("a");
+    let fileB = directory <> Path("b");
     let _ = Fs.write(fileA, String.toUtf8("hello"), 1000);
     let _ = Fs.append(fileA, String.toUtf8(", world"), 1000);
     let _ = Fs.read(fileA, 1000);
     let _ = Fs.stat(fileA, 1000);
     let _ = Fs.copy(fileA, fileB, 1000);
-    let _ = Fs.list(dir, 1000);
+    let _ = Fs.list(directory, 1000);
     let _ = Fs.remove(fileB, 1000);
     let _ = Fs.rename(fileA, fileB, 1000);
     let _ = Fs.remove(fileB, 1000);

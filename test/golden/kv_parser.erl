@@ -24,8 +24,8 @@ parse(Line_6) ->
         {'Right', {Key_7, Rest_8}} ->
             case expectEquals(Rest_8, Line_6) of
                 {'Left', E_12} -> {'Left', E_12};
-                {'Right', Digits_9} ->
-                    case number(Digits_9, Line_6) of
+                {'Right', AfterEquals_9} ->
+                    case number(AfterEquals_9, Line_6) of
                         {'Left', E_11} -> {'Left', E_11};
                         {'Right', Value_10} -> {'Right', {Key_7, Value_10}}
                     end

@@ -6,14 +6,14 @@
 
 export fn main() : Unit with Never = {
     Io.println(Optional.withDefault(Io.readLine(), "none"));
-    rest(0)
+    copyRest(0)
 }
 
-fn rest(count : Int) : Unit with Never =
+fn copyRest(count : Int) : Unit with Never =
     match Io.read() {
         None -> Io.println("bytes " <> Int.toString(count))
       | Some(bytes) -> {
             Io.write(bytes);
-            rest(count + Bytes.size(bytes))
+            copyRest(count + Bytes.size(bytes))
         }
     }

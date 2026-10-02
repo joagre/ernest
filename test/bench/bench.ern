@@ -51,14 +51,14 @@ export fn main() : Unit with Msg = {
     })
 }
 
-// The fastest of three runs of n iterations, printed as `key n ms`.
+// The fastest of three timings of `count` iterations, printed as `key count ms`.
 fn measure(key : String, count : Int, operation : (Int) -> Int with m) : Unit with m = {
     let took =
-        Int.min(run(count, operation), Int.min(run(count, operation), run(count, operation)));
+        Int.min(timed(count, operation), Int.min(timed(count, operation), timed(count, operation)));
     Io.println(key <> " " <> Int.toString(count) <> " " <> Int.toString(took))
 }
 
-fn run(count : Int, operation : (Int) -> Int with m) : Int with m = {
+fn timed(count : Int, operation : (Int) -> Int with m) : Int with m = {
     let started = Clock.monotonic();
     let _ = loop(count, operation, 0);
     Clock.monotonic() - started

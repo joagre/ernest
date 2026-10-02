@@ -51,7 +51,7 @@ type EvalError = Unbound(String) | DivisionByZero | NotAFunction | NotANumber
 type TryError = Eval(EvalError) | Crashed | Timeout
 
 type ReplMsg =
-    Answered(serial : Int, value : Either(EvalError, Value))
+    Answered(serial : Int, result : Either(EvalError, Value))
   | Died(serial : Int, down : Down)
 
 //
@@ -112,7 +112,7 @@ fn try(env : Map(String, Value),
     let me = self(); // not self() inside the lambda: that is the child's
     let child =
         spawnMonitored(fn() : Unit with Never =
-                           send(me, Answered(serial = serial, value = eval(env, expression))),
+                           send(me, Answered(serial = serial, result = eval(env, expression))),
                        fn(down) = Died(serial = serial, down = down));
     await(child, serial)
 }
@@ -124,9 +124,9 @@ fn try(env : Map(String, Value),
 // in the message is what tells this child's news from an earlier child's.
 fn await(child : Address(Never), serial : Int) : Either(TryError, Value) with ReplMsg =
     receive {
-        Answered(serial = answered, value = value) when answered == serial ->
-            Either.mapLeft(value, Eval)
-      | Died(serial = died) when died == serial -> Left(Crashed) // a fault in the child
+        Answered(serial = carried, result = result) when carried == serial ->
+            Either.mapLeft(result, Eval)
+      | Died(serial = carried) when carried == serial -> Left(Crashed) // a fault in the child
       | Answered() or Died() -> await(child, serial) // an earlier expression's child
       | after 2000 -> {
             kill(child);
@@ -307,7 +307,7 @@ fn eval(env : Map(String, Value), expression : Expression) : Either(EvalError, V
         }
       | Function(parameter = parameter, body = body) ->
             Right(Closure(parameter = parameter, body = body, env = env))
-      | Let(value = value) -> eval(env, value) // the REPL binds the name, see repl
+      | Let(value = value) -> eval(env, value) // the REPL binds the name, see evaluateLine
       | Binary(operator = operator, left = left, right = right) -> {
             let leftValue <- eval(env, left);
             let rightValue <- eval(env, right);

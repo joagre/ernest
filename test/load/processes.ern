@@ -41,17 +41,17 @@ fn work(left : Int) : Unit with Msg =
 
 fn once() : Unit with Msg = {
     // a call answered, then the callee monitored and killed
-    let asked = spawn(worker);
-    let _ = Address.call(asked, fn(reply) = Ask(reply = reply), 1000);
-    monitor(asked, Ended);
-    kill(asked);
+    let answerer = spawn(worker);
+    let _ = Address.call(answerer, fn(reply) = Ask(reply = reply), 1000);
+    monitor(answerer, Ended);
+    kill(answerer);
     receive {
         Ended(_) -> Unit
     };
     // a call whose answer comes after its time, and one never answered
-    let late = spawn(slow);
-    let _ = Address.call(late, fn(reply) = Ask(reply = reply), 1);
-    send(late, Stop);
+    let laggard = spawn(slow);
+    let _ = Address.call(laggard, fn(reply) = Ask(reply = reply), 1);
+    send(laggard, Stop);
     let mute = spawn(silent);
     let _ = Address.call(mute, fn(reply) = Ask(reply = reply), 0);
     kill(mute);

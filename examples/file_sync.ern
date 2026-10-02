@@ -9,7 +9,8 @@
 // Assumptions. Fs and Clock are the standard library's system modules (report
 // Appendix E) over the file system and the clock (§8.2); Path is the prelude's
 // (§9.3), Fs.Entry and Io.Error the modules'. errorText is a hand-written rendering for stdout.
-// main runs syncer a itself so the program keeps running (report §8.6).
+// main runs directory a's process itself, so the program keeps running
+// (report §8.6).
 //
 // Run under test since 2026-09-20: the harness prepares a and b, runs the
 // program for a few seconds, and reads the directories back, since the
@@ -28,7 +29,7 @@ type SyncMsg =
     Link(Address(SyncMsg))
   | Ticked
   | Listed(Either(Io.Error, List(Fs.Entry)))
-  | Put(path : Path, mtime : Int, bytes : Bytes, ack : Reply(Ack))
+  | Put(path : Path, mtime : Int, bytes : Bytes, reply : Reply(Ack))
 
 //
 // Program
@@ -63,8 +64,8 @@ fn syncer(directory : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : Un
             let _ = spawn(fn() : Unit with Never = send(me, Listed(Fs.list(directory, 10000))));
             listing(directory, peer, seen)
         }
-      | Put(path = path, mtime = mtime, bytes = bytes, ack = ack) ->
-            syncer(directory, peer, store(directory, seen, path, mtime, bytes, ack))
+      | Put(path = path, mtime = mtime, bytes = bytes, reply = reply) ->
+            syncer(directory, peer, store(directory, seen, path, mtime, bytes, reply))
       | Listed(_) -> syncer(directory, peer, seen) // late listing, ignore
       | Link(_) -> syncer(directory, peer, seen) // already connected
     }
@@ -101,22 +102,22 @@ fn store(directory : Path,
          path : Path,
          mtime : Int,
          bytes : Bytes,
-         ack : Reply(Ack)) : Map(Path, Int) with SyncMsg =
+         reply : Reply(Ack)) : Map(Path, Int) with SyncMsg =
     if !isName(path) then {
         // shown as a value, so that no character of it reaches the terminal
         // as a control
         Io.println("refused a path from the peer: " <> Io.show(path));
-        answer(ack, Failed(Io.Denied));
+        answer(reply, Failed(Io.Denied));
         seen
     } else {
         let here = directory <> path;
         match Map.get(seen, here) {
             Some(mine) when mine > mtime -> {
-                let _ = spawn(fn() = writer(conflictPath(here), bytes, mtime, ack, Conflict));
+                let _ = spawn(fn() = writer(conflictPath(here), bytes, mtime, reply, Conflict));
                 Unit
             }
           | _ -> {
-                let _ = spawn(fn() = writer(here, bytes, mtime, ack, Stored));
+                let _ = spawn(fn() = writer(here, bytes, mtime, reply, Stored));
                 Unit
             }
         };
@@ -131,13 +132,17 @@ fn isName(path : Path) : Bool =
       | _ -> false
     }
 
-// One process per write: waits for fs and answers the peer. The file takes
+// One process per write: waits for Fs and answers the peer. The file takes
 // the peer's modification time, which the next listing then finds as it
 // was recorded, so that a file stored is not sent back.
-fn writer(path : Path, bytes : Bytes, mtime : Int, ack : Reply(Ack), success : Ack) : Unit with n =
+fn writer(path : Path,
+          bytes : Bytes,
+          mtime : Int,
+          reply : Reply(Ack),
+          written : Ack) : Unit with n =
     match Either.andThen(Fs.write(path, bytes, 10000), fn(_) = Fs.setModified(path, mtime, 10000)) {
-        Right(Unit) -> answer(ack, success)
-      | Left(error) -> answer(ack, Failed(error))
+        Right(Unit) -> answer(reply, written)
+      | Left(error) -> answer(reply, Failed(error))
     }
 
 // One process per changed file: reads and sends to the peer.
@@ -152,7 +157,7 @@ fn pusher(peer : Address(SyncMsg), Change(path = path, mtime = mtime) : Change) 
 
 fn push(peer : Address(SyncMsg), path : Path, mtime : Int, bytes : Bytes) : Unit with n =
     match Address.call(peer,
-                       fn(reply) = Put(path = path, mtime = mtime, bytes = bytes, ack = reply),
+                       fn(reply) = Put(path = path, mtime = mtime, bytes = bytes, reply = reply),
                        30000) {
         Some(Stored) -> Unit
       | Some(Conflict) -> Io.println("conflict: " <> Path.toString(path))
@@ -165,12 +170,12 @@ fn push(peer : Address(SyncMsg), path : Path, mtime : Int, bytes : Bytes) : Unit
 //
 
 // What has changed since the last snapshot?
-fn diff(old : Map(Path, Int), entries : List(Fs.Entry)) : List(Change) =
-    List.filterMap(entries, fn(entry) = changed(old, entry))
+fn diff(seen : Map(Path, Int), entries : List(Fs.Entry)) : List(Change) =
+    List.filterMap(entries, fn(entry) = changed(seen, entry))
 
-fn changed(old : Map(Path, Int),
+fn changed(seen : Map(Path, Int),
            Fs.Entry(path = path, mtime = mtime) : Fs.Entry) : Optional(Change) =
-    match Map.get(old, path) {
+    match Map.get(seen, path) {
         None -> Some(Change(path = path, mtime = mtime))
       | Some(before) -> if mtime > before then Some(Change(path = path, mtime = mtime)) else None
     }
@@ -202,11 +207,11 @@ fn errorText(error : Io.Error) : String =
 
 let namesOnly =
     Test.Case(name = "a peer's path is stored only where it names a file here", run = fn() = {
-        let names =
+        let accepted =
             List.map(["notes.txt", "../x", "/etc/x", "a/b", ".", "..", ""],
                      fn(text) = isName(Path(text)));
-        if names == [true, false, false, false, false, false, false] then
+        if accepted == [true, false, false, false, false, false, false] then
             Test.Passed
         else
-            Test.Failed(Io.show(names))
+            Test.Failed(Io.show(accepted))
     })

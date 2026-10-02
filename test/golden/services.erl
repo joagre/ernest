@@ -58,7 +58,7 @@ put(Key_11, Value_12) ->
                  <<(ern@int:toString(Id_14))/binary, ": put ",
                    Key_11/binary>>}).
 
-report(Moment_15) ->
+report(Label_15) ->
     Apples_17 = case stored(<<"apples">>) of
                     {'Some', Count_16} -> ern@int:toString(Count_16);
                     'None' -> <<"none">>
@@ -71,7 +71,7 @@ report(Moment_15) ->
     Id_21 = ern_rt:call_forever(ids(),
                                 fun (Reply_20) -> {'NextId', Reply_20} end,
                                 {int, <<"reply does not match Int">>}),
-    ern@io:println(<<Moment_15/binary, ": apples ",
+    ern@io:println(<<Label_15/binary, ": apples ",
                      Apples_17/binary, ", next id ",
                      (ern@int:toString(Id_21))/binary, ", audit [",
                      (ern@string:join(Entries_19, <<"; ">>))/binary, "]">>).

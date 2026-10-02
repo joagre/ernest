@@ -2163,7 +2163,7 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
-systemd keeps both streams in its journal, which stamps every line, and `journalctl -u web` reads them. Where standard error is neither a terminal nor the journal, a file or a pipe, each fault line begins with its time, in UTC: `2026-09-27T14:22:11.836Z WebServer.handler:88 faulted: division by zero`. Without a service manager, `nohup` keeps a program running once its terminal has closed:
+systemd keeps both streams in its journal, which stamps every line, and `journalctl -u web` reads them. Where standard error is neither a terminal nor the journal, a file or a pipe, each fault line begins with its time, in UTC: `2026-09-27T14:22:11.836Z WebServer.acceptor:81 faulted: division by zero`. Without a service manager, `nohup` keeps a program running once its terminal has closed:
 
 ```console
 $ nohup ern run build/web_server.erc >> web.log 2>&1 &

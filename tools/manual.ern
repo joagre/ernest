@@ -34,7 +34,7 @@ fn manual(report : String,
                             "no section 11. Toolchain in " <> report);
     let #(description, rest) = List.span(section, fn(block) = !titled(block, "11.7 Options"));
     let #(options, exitStatus) = List.span(rest, fn(block) = !titled(block, "11.8 Exit status"));
-    let names = List.filterMap(entries, fn(entry) = Path.name(entry.path));
+    let files = List.filterMap(entries, fn(entry) = Path.name(entry.path));
     let blocks =
         [heading("SYNOPSIS")]
             <> List.map(usages(section), usage)
@@ -44,7 +44,7 @@ fn manual(report : String,
             <> List.drop(options, 1)
             <> [heading("EXIT STATUS")]
             <> List.drop(exitStatus, 1)
-            <> seeAlso(names);
+            <> seeAlso(files);
     if List.isEmpty(options) || List.isEmpty(exitStatus) then
         Left("no sections 11.7 Options and 11.8 Exit status in " <> report)
     else

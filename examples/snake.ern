@@ -126,8 +126,9 @@ fn steering(id : Int, game : Address(GameMsg)) : Unit with Terminal.Event =
       | _ -> steering(id, game)
     }
 
-// The board: the window the program was given, a row kept for the status
-// line, and a size to fall back on where there is no terminal.
+// The board: the window the program was given, two rows kept for the
+// status line and the line feed after it, and a size to fall back on
+// where there is no terminal.
 fn board() : #(Int, Int) with m =
     match Terminal.size() {
         Left(_) -> #(40, 20)
@@ -183,15 +184,15 @@ fn collide(players : Map(Int, Player), player : Player) : Player =
 
 fn refill(width : Int,
           height : Int,
-          want : Int,
+          wanted : Int,
           apples : List(Point),
           seed : Random.Seed) : #(List(Point), Random.Seed) =
-    if List.size(apples) >= want then
+    if List.size(apples) >= wanted then
         #(apples, seed)
     else {
         let #(x, seed1) = Random.next(seed, width - 1);
         let #(y, seed2) = Random.next(seed1, height - 1);
-        refill(width, height, want, Point(x = x, y = y) :: apples, seed2)
+        refill(width, height, wanted, Point(x = x, y = y) :: apples, seed2)
     }
 
 fn addPlayer(world : World, id : Int) : World = {

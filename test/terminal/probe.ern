@@ -1,6 +1,6 @@
 //
 // What a terminal delivers, for the terminal tests (report §8.2, Appendix E.16).
-// Each key is printed as it arrives; Escape ends the program.
+// Each event is printed as it arrives; Escape ends the program.
 //
 
 type Msg = Key(Terminal.Event)
