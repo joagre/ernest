@@ -712,7 +712,7 @@ session_names() ->
 session_texts() ->
     #session{scope = Scope} = persistent_term:get({?MODULE, session}, #session{}),
     lists:usort([unicode:characters_to_binary(name_text(Key))
-                 || Which <- [values, types, cons],
+                 || Which <- [values, types, constructors],
                     Key <- maps:keys(maps:get(Which, Scope, #{}))]).
 
 %% Report §11.2: where `:load` finds a module's source, `--source-root`.
@@ -2147,7 +2147,7 @@ collected(#session{interfaces = Interfaces, scope = Scope, beams = Beams, free_h
     Old = [ern_emitter:module_atom(Namespace) || Namespace <- Unpurged]
         ++ [ern_emitter:module_atom([Segment]) || Segment <- Draining],
     Named = [ern_emitter:module_atom([hd(QualifiedName)])
-             || Which <- [values, types, cons],
+             || Which <- [values, types, constructors],
                 QualifiedName <- maps:values(maps:get(Which, Scope, #{})),
                 session_segment(hd(QualifiedName))],
     Live = reached(Named ++ Old, Uses, #{}),

@@ -1071,6 +1071,28 @@ tab_mid_row() ->
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nspawn : (() -> Unit">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map(\r\n">>)).
 
+%% report §11.2: with nothing typed, the candidates are the names the
+%% session declares, its constructors among them. A regression test, found
+%% by a read of the front end in MVP 2.99b's item 7: the session's
+%% constructors were read under a key it does not have, and left out
+session_constructors_listed_test_() ->
+    {timeout, 60, fun session_constructors_listed/0}.
+
+session_constructors_listed() ->
+    Bytes = pty(alone("../bin/ern shell"),
+                [{expect, "> "},
+                 {send, hex("type Coin = Heads | Tails\r")},
+                 %% the declaration's answer is its own echo, so the next
+                 %% input's answer says that it was made
+                 {send, hex("1\r")},
+                 {expect, "1 : Int"},
+                 {send, hex("List.map(") ++ "09"},
+                 {expect, "module Bool"},
+                 {send, "03"},
+                 {send, "04"}],
+                30, " --size 40x80"),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nHeads : Coin">>)).
+
 %% report §11.2: after `:forget`, what completes is a name the session
 %% declares. A regression test: make untested found that no test reached
 %% the session's names for it.
@@ -1402,6 +1424,23 @@ declarations_kept_while_reached() ->
     ?assertMatch({match, _}, re:run(Out, "A\\(7\\) : \\$Input[0-9]+\\.T")),
     ?assertMatch({_, _}, binary:match(Out, <<"> 100 : Int">>)),
     ?assertMatch({_, _}, binary:match(Out, <<"old code ran">>)).
+
+%% report §11.2: a module the session reaches by a constructor alone is
+%% kept, the constructors of a type declared again staying in scope for the
+%% earlier type. A regression test, found by a read of the front end in
+%% MVP 2.99b's item 7: the collection read the session's constructors under
+%% a key it does not have, let the earlier input's module go, and the
+%% checker failed on the constructor's next use
+shadowed_constructor_kept_test_() ->
+    {timeout, 60, fun shadowed_constructor_kept/0}.
+
+shadowed_constructor_kept() ->
+    Dir = fresh_home(),
+    In = filename:join(Dir, "session.in"),
+    ok = file:write_file(In, "type A = X | Y\ntype A = Z\nX\n"),
+    {0, Out} = sh(alone("../bin/ern shell") ++ " < " ++ In),
+    ?assertMatch({match, _}, re:run(Out, "> X : \\$Input1\\.A\n")),
+    ?assertEqual(nomatch, binary:match(Out, <<"fault">>)).
 
 %% report §11.2: every refusal of a command is red, as a diagnostic's first
 %% line is, and an answer is plain. A regression test for a finding of the
