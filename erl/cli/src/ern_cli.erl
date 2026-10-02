@@ -40,26 +40,27 @@ start() ->
                 ["shell" | Rest] -> Rest =:= [] orelse hd(Rest) =/= "--help";
                 _ -> false
             end,
-    Err = case Shell andalso ern_tty:is_terminal(stdout) of
-              true -> standard_error;
-              false -> ern_out:take()
-          end,
+    ErrorDevice = case Shell andalso ern_tty:is_terminal(stdout) of
+                      true -> standard_error;
+                      false -> ern_out:take()
+                  end,
     Status = try
                  persistent_term:put({?MODULE, streams}, fds),
-                 ern(Args, Err)
+                 ern(Args, ErrorDevice)
              catch
                  Class:Reason:Stack ->
                      %% the host's text of the exception, which may end in a
                      %% line break or not, ends the line
                      Text = erl_error:format_exception(Class, Reason, Stack),
-                     io:format(Err, "ern: internal error: ~ts~n", [string:trim(Text, trailing)]),
+                     io:format(ErrorDevice, "ern: internal error: ~ts~n",
+                               [string:trim(Text, trailing)]),
                      70
              end,
     case ern_signals:ended() of
         none -> ok;
         Signal -> ern_signals:die(Signal, Status)
     end,
-    ok = ern_out:finish(Err),
+    ok = ern_out:finish(ErrorDevice),
     halt(Status).
 
 -spec ern([word()]) -> 0..255.
@@ -68,25 +69,26 @@ ern(Args) ->
 
 %% Report §11: the first word is the job, and --help and --version stand
 %% alone; a working directory whose name is not UTF-8 the launcher refused
-%% before the host started. Err is the error device, standard_error for
-%% the launcher; a test passes its own and reads what the user would see.
-%% The status is 0 or 1, or a run's, which Os.exit or a signal may give
-%% (§11.2).
+%% before the host started. ErrorDevice is the error device,
+%% standard_error for the launcher; a test passes its own and reads what
+%% the user would see. The status is 0 or 1, or a run's, which Os.exit or
+%% a signal may give (§11.2).
 -spec ern([word()], io:device()) -> 0..255.
-ern(["--help"], _Err) ->
+ern(["--help"], _ErrorDevice) ->
     usage(standard_io),
     0;
-ern(["--version"], _Err) ->
+ern(["--version"], _ErrorDevice) ->
     io:format("ern ~s~n", [?VERSION]),
     0;
-ern([Word | Args], Err) ->
+ern([Word | Args], ErrorDevice) ->
     case {is_utf8(Word), lists:keyfind(Word, 1, jobs())} of
-        {false, _} -> refuse(not_utf8(Word), Err);
-        {true, {Word, Spec, Positional, Fun}} -> job(Word, Spec, Positional, Args, Fun, Err);
-        {true, false} -> refuse(no_job(Word), Err)
+        {false, _} -> refuse(not_utf8(Word), ErrorDevice);
+        {true, {Word, Spec, Positional, Work}} ->
+            job(Word, Spec, Positional, Args, Work, ErrorDevice);
+        {true, false} -> refuse(no_job(Word), ErrorDevice)
     end;
-ern([], Err) ->
-    refuse("a job is required", Err).
+ern([], ErrorDevice) ->
+    refuse("a job is required", ErrorDevice).
 
 %% The jobs of §11, each with its options, what follows them, and its
 %% function.
@@ -122,11 +124,11 @@ no_such_job(Word) ->
 
 %% An option's whole name, before any `=`.
 option_name(Word) ->
-    lists:takewhile(fun(Ch) -> Ch =/= $= end, Word).
+    lists:takewhile(fun(Char) -> Char =/= $= end, Word).
 
-refuse(Msg, Err) ->
-    io:format(Err, "ern: ~ts~n", [Msg]),
-    usage(Err),
+refuse(Message, ErrorDevice) ->
+    io:format(ErrorDevice, "ern: ~ts~n", [Message]),
+    usage(ErrorDevice),
     1.
 
 usage(Device) ->
@@ -143,39 +145,39 @@ usage(Device) ->
 
 %% Run a job with its options parsed by getopt. --help prints and stops
 %% with status 0; a usage error prints the message and the job's usage on
-%% Err, any other error one line, both with status 1.
-job(Job, Spec, Positional, Args, Fun, Err) ->
+%% ErrorDevice, any other error one line, both with status 1.
+job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
     Name = "ern " ++ Job,
     {Own, Program} = case Job of
                          "run" -> program_words(Spec, Args, []);
                          _ -> {Args, []}
                      end,
     try
-        lists:foreach(fun(A) -> is_utf8(A) orelse ern_build:fail(not_utf8(A)) end, Own),
-        lists:foreach(fun(A) ->
-                          case old_option(A, Spec) of
+        lists:foreach(fun(Word) -> is_utf8(Word) orelse ern_build:fail(not_utf8(Word)) end, Own),
+        lists:foreach(fun(Word) ->
+                          case old_option(Word, Spec) of
                               none -> ok;
-                              Msg -> usage_fail(Msg)
+                              Message -> usage_fail(Message)
                           end
                       end, Own),
-        lists:foreach(fun(A) -> one_spelling(A, Spec) end, Own),
-        {Opts, Rest} = case getopt:parse(Spec, Own) of
-                           {ok, Parsed} -> Parsed;
-                           {error, {Reason, Data}} ->
-                               usage_fail(getopt:format_error(Spec, {Reason, Data}))
-                       end,
-        given_once(Opts, Spec),
-        case lists:member(help, Opts) of
+        lists:foreach(fun(Word) -> one_spelling(Word, Spec) end, Own),
+        {Options, Rest} = case getopt:parse(Spec, Own) of
+                              {ok, Parsed} -> Parsed;
+                              {error, {Reason, Data}} ->
+                                  usage_fail(getopt:format_error(Spec, {Reason, Data}))
+                          end,
+        given_once(Options, Spec),
+        case lists:member(help, Options) of
             true -> job_usage(Spec, Name, Positional, standard_io), 0;
-            false -> Fun(Opts, Rest ++ Program, Err)
+            false -> Work(Options, Rest ++ Program, ErrorDevice)
         end
     catch
-        throw:{cli_usage, Msg2} ->
-            io:format(Err, "~s: ~ts~n", [Name, Msg2]),
-            job_usage(Spec, Name, Positional, Err),
+        throw:{cli_usage, Usage} ->
+            io:format(ErrorDevice, "~s: ~ts~n", [Name, Usage]),
+            job_usage(Spec, Name, Positional, ErrorDevice),
             1;
-        throw:{cli_error, Msg3} ->
-            io:format(Err, "~s: ~ts~n", [Name, Msg3]),
+        throw:{cli_error, Refusal} ->
+            io:format(ErrorDevice, "~s: ~ts~n", [Name, Refusal]),
             1
     end.
 
@@ -184,7 +186,7 @@ job(Job, Spec, Positional, Args, Fun, Err) ->
 %% job does not take is getopt's to refuse.
 one_spelling("--" ++ _ = Word, Spec) ->
     Name = option_name(Word),
-    Known = lists:any(fun({_, _, L, _, _}) -> "--" ++ L =:= Name end, Spec),
+    Known = lists:any(fun({_, _, Long, _, _}) -> "--" ++ Long =:= Name end, Spec),
     case {Name =:= Word, Known, takes_value(Spec, Name)} of
         {true, _, _} -> ok;
         {false, false, _} -> ok;
@@ -199,16 +201,17 @@ one_spelling(_, _) ->
 %% Report §11: only a `-path` option is given more than once, and no option
 %% takes an empty value. A regression: a repeat took the first value, and
 %% an empty directory was accepted.
-given_once(Opts, Spec) ->
-    Keys = [K || {K, _} <- Opts] ++ [K || K <- Opts, is_atom(K)],
-    Name = fun(K) -> hd(["--" ++ L || {Key, _, L, _, _} <- Spec, Key =:= K]) end,
-    case [K || K <- lists:usort(Keys), K =/= load_path, length([X || X <- Keys, X =:= K]) > 1] of
+given_once(Options, Spec) ->
+    Keys = [Option || {Option, _} <- Options] ++ [Option || Option <- Options, is_atom(Option)],
+    Name = fun(Option) -> hd(["--" ++ Long || {Key, _, Long, _, _} <- Spec, Key =:= Option]) end,
+    case [Option || Option <- lists:usort(Keys), Option =/= load_path,
+                    length([Other || Other <- Keys, Other =:= Option]) > 1] of
         [] -> ok;
-        [K | _] -> usage_fail(Name(K) ++ " is given more than once")
+        [Option | _] -> usage_fail(Name(Option) ++ " is given more than once")
     end,
-    case [K || {K, ""} <- Opts] of
+    case [Option || {Option, ""} <- Options] of
         [] -> ok;
-        [E | _] -> usage_fail(Name(E) ++ " is given an empty value")
+        [Empty | _] -> usage_fail(Name(Empty) ++ " is given an empty value")
     end.
 
 %% Report §11: a word of the command line that is not UTF-8 is refused,
@@ -246,7 +249,9 @@ program_words(_Spec, [], Own) ->
     {lists:reverse(Own), []}.
 
 takes_value(Spec, "--" ++ Long) ->
-    lists:any(fun({_, _, L, Type, _}) -> L =:= Long andalso Type =/= undefined end, Spec);
+    lists:any(fun({_, _, Spelled, Type, _}) ->
+                  Spelled =:= Long andalso Type =/= undefined
+              end, Spec);
 takes_value(_Spec, _Short) ->
     false.
 
@@ -256,10 +261,10 @@ takes_value(_Spec, _Short) ->
 %% does not take, refused as any other is.
 old_option(Word, Spec) ->
     case old_spelling(option_name(Word)) of
-        {job, Msg} -> Msg;
-        {Key, Msg} ->
+        {job, Message} -> Message;
+        {Key, Message} ->
             case lists:keymember(Key, 1, Spec) of
-                true -> Msg;
+                true -> Message;
                 false -> none
             end;
         none -> none
@@ -307,9 +312,9 @@ doc_options() ->
     [{man, undefined, "man", undefined, "write manual pages in roff instead of CommonMark"}
      | [Opt || {Key, _, _, _, _} = Opt <- build_options(), Key =/= emit_erl]].
 
-build(Opts, [Path], Err) ->
-    ern_build:compile(Opts, Path, Err);
-build(_Opts, _Rest, _Err) ->
+build(Options, [Path], ErrorDevice) ->
+    ern_build:compile(Options, Path, ErrorDevice);
+build(_Options, _Rest, _ErrorDevice) ->
     usage_fail("one file or directory argument is required").
 
 %% Report §11.4: a file's documentation to stdout, a directory's into the
@@ -317,51 +322,55 @@ build(_Opts, _Rest, _Err) ->
 %% manual page per module and no index. The modules are compiled first, so
 %% every document is of a module that type-checks and every dependency has
 %% an interface.
-doc(Opts, [Path], Err) ->
+doc(Options, [Path], ErrorDevice) ->
     case filelib:is_dir(Path) of
         true ->
-            case ern_build:compile(Opts, Path, Err) of
-                0 -> doc_dir(Opts, Path);
+            case ern_build:compile(Options, Path, ErrorDevice) of
+                0 -> doc_dir(Options, Path);
                 Status -> Status
             end;
         false ->
             filelib:is_regular(Path) orelse ern_build:fail("no such file " ++ Path),
             try
-                io:put_chars(page(Opts, beam_of(Opts, Path))),
+                io:put_chars(page(Options, beam_of(Options, Path))),
                 0
             catch
-                throw:{errors, F, Errors} -> ern_build:report_errors(Opts, F, Errors, Err)
+                throw:{errors, File, Errors} ->
+                    ern_build:report_errors(Options, File, Errors, ErrorDevice)
             end
     end;
-doc(_Opts, _Rest, _Err) ->
+doc(_Options, _Rest, _ErrorDevice) ->
     usage_fail("one file or directory argument is required").
 
 %% Report §11.4: the documentation comes from the compiled module. A `.erc`
 %% is read; a source is compiled first, in memory, so that asking for a page
 %% writes nothing.
-beam_of(Opts, Path) ->
+beam_of(Options, Path) ->
     case filename:extension(Path) of
         ".erc" ->
-            Bin = compiled(Path),
-            case ern_docs:read(Bin) of
-                {ok, _} -> Bin;
-                {error, Why} -> ern_build:fail(Path ++ ": " ++ Why)
+            Compiled = compiled(Path),
+            case ern_docs:read(Compiled) of
+                {ok, _} -> Compiled;
+                {error, Error} -> ern_build:fail(Path ++ ": " ++ Error)
             end;
         _ ->
-            Root = ern_build:source_root(Opts, Path, "."),
-            OutDir = ern_build:out_dir(Opts, Root),
+            SourceRoot = ern_build:source_root(Options, Path, "."),
+            BuildRoot = ern_build:build_root(Options, SourceRoot),
             %% report §11.1: a module outside the source root is found under
             %% build-root, then under each --load-path root
-            Dirs = [OutDir | ern_build:load_path(Opts)],
-            [#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}] =
-                ern_build:compile_order([ern_build:module_of(ern_build:absolute(Path), Root)],
-                                        Root, Dirs),
-            DepIfaces = [I || {_, I} <- ern_build:dep_ifaces(Ns, Deps, #{}, Dirs, Root)],
-            case ern_typecheck:check(Ns, Decls, DepIfaces) of
-                {ok, Typed, Iface, Env} ->
+            SearchPath = [BuildRoot | ern_build:load_path(Options)],
+            Module = ern_build:module_of(ern_build:absolute(Path), SourceRoot),
+            [#build_module{namespace = Namespace, file = File, relative = Relative,
+                           declarations = Declarations, dependencies = Dependencies}] =
+                ern_build:compile_order([Module], SourceRoot, SearchPath),
+            Reached = ern_build:dependency_interfaces(Namespace, Dependencies, #{}, SearchPath,
+                                                      SourceRoot),
+            DependencyInterfaces = [DependencyInterface || {_, DependencyInterface} <- Reached],
+            case ern_typecheck:check(Namespace, Declarations, DependencyInterfaces) of
+                {ok, Typed, Interface, Env} ->
                     Build = #{source_hash => <<>>, deps => [],
-                              source => list_to_binary(filename:basename(Rel))},
-                    {ok, _, Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
+                              source => list_to_binary(filename:basename(Relative))},
+                    {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
                     Beam;
                 {error, Errors} ->
                     throw({errors, File, Errors})
@@ -370,73 +379,78 @@ beam_of(Opts, Path) ->
 
 %% Report §11.4: a module's page, in CommonMark or with --man as a manual
 %% page.
-page(Opts, Beam) ->
-    case lists:member(man, Opts) of
+page(Options, Beam) ->
+    case lists:member(man, Options) of
         true -> ern_page:manual(Beam);
         false -> ern_page:page(Beam)
     end.
 
-doc_dir(Opts, Path) ->
-    Root = ern_build:source_root(Opts, Path, Path),
-    OutDir = ern_build:out_dir(Opts, Root),
+doc_dir(Options, Path) ->
+    SourceRoot = ern_build:source_root(Options, Path, Path),
+    BuildRoot = ern_build:build_root(Options, SourceRoot),
     Files = ern_build:sources(Path),
-    Mods = ern_build:compile_order([ern_build:module_of(ern_build:absolute(F), Root)
-                                    || F <- Files], Root),
-    Stdlib = ern_build:is_stdlib_root(Root),
+    Modules = ern_build:compile_order([ern_build:module_of(ern_build:absolute(File), SourceRoot)
+                                       || File <- Files], SourceRoot),
+    Stdlib = ern_build:is_stdlib_root(SourceRoot),
     %% report §11.4: the page of a module whose source is gone goes, as the
     %% build's sweep takes its .erc
-    Kept = [Ns || #mod{ns = Ns} <- Mods] ++ [['Prelude'] || Stdlib],
-    case lists:member(man, Opts) of
+    Kept = [Namespace || #build_module{namespace = Namespace} <- Modules]
+        ++ [['Prelude'] || Stdlib],
+    case lists:member(man, Options) of
         true ->
-            man_dir(Mods, Stdlib, OutDir),
-            ern_build:sweep_pages(man, Path, Root, OutDir, Kept);
+            man_dir(Modules, Stdlib, BuildRoot),
+            ern_build:sweep_pages(man, Path, SourceRoot, BuildRoot, Kept);
         false ->
-            markdown_dir(Mods, Stdlib, OutDir),
-            ern_build:sweep_pages(markdown, Path, Root, OutDir, Kept)
+            markdown_dir(Modules, Stdlib, BuildRoot),
+            ern_build:sweep_pages(markdown, Path, SourceRoot, BuildRoot, Kept)
     end,
     0.
 
-markdown_dir(Mods, Stdlib, OutDir) ->
+markdown_dir(Modules, Stdlib, BuildRoot) ->
     Entries = [begin
-                   Rel = ern_build:module_path(Ns) ++ ".md",
-                   Out = filename:join(OutDir, Rel),
-                   ok = ern_build:made_dir(Out),
-                   Page = unicode:characters_to_binary(ern_page:page(built(OutDir, Ns))),
-                   ok = ern_build:write_output(Out, Page),
-                   ["- [", ern_build:qname(Ns), "](", Rel, ")\n"]
-               end || #mod{ns = Ns} <- lists:sort(Mods)],
-    Prelude = prelude_page(Stdlib, OutDir),
-    ok = ern_build:write_output(filename:join(OutDir, "index.md"),
+                   Relative = ern_build:module_path(Namespace) ++ ".md",
+                   Output = filename:join(BuildRoot, Relative),
+                   ok = ern_build:made_dir(Output),
+                   Page = unicode:characters_to_binary(ern_page:page(built(BuildRoot, Namespace))),
+                   ok = ern_build:write_output(Output, Page),
+                   ["- [", ern_build:qualified_name_text(Namespace), "](", Relative, ")\n"]
+               end || #build_module{namespace = Namespace} <- lists:sort(Modules)],
+    Prelude = prelude_page(Stdlib, BuildRoot),
+    ok = ern_build:write_output(filename:join(BuildRoot, "index.md"),
                      unicode:characters_to_binary(["# Modules\n\n", Prelude, Entries])).
 
 %% Report §11.4: each manual page beside its module's .erc, in a file named
 %% as `man` finds it, `Ernest.Net.Http.3ern`, and the prelude's at the top
 %% of the standard library's own build root.
-man_dir(Mods, Stdlib, OutDir) ->
-    lists:foreach(fun(#mod{ns = Ns}) ->
-                          Dir = filename:dirname(filename:join(OutDir, ern_build:module_path(Ns))),
-                          Out = filename:join(Dir, "Ernest." ++ ern_build:qname(Ns) ++ ".3ern"),
-                          Page = unicode:characters_to_binary(ern_page:manual(built(OutDir, Ns))),
-                          ok = ern_build:write_output(Out, Page)
-                  end, lists:sort(Mods)),
+man_dir(Modules, Stdlib, BuildRoot) ->
+    lists:foreach(fun(#build_module{namespace = Namespace}) ->
+                          Dir = filename:dirname(filename:join(BuildRoot,
+                                                               ern_build:module_path(Namespace))),
+                          Output = filename:join(Dir, "Ernest."
+                                                      ++ ern_build:qualified_name_text(Namespace)
+                                                   ++ ".3ern"),
+                          Page = unicode:characters_to_binary(ern_page:manual(built(BuildRoot,
+                                                                                    Namespace))),
+                          ok = ern_build:write_output(Output, Page)
+                  end, lists:sort(Modules)),
     case Stdlib of
         true ->
             %% a page is text, written as UTF-8
             Page = unicode:characters_to_binary(ern_page:prelude_manual()),
-            ok = ern_build:write_output(filename:join(OutDir, "Ernest.Prelude.3ern"), Page);
+            ok = ern_build:write_output(filename:join(BuildRoot, "Ernest.Prelude.3ern"), Page);
         false -> ok
     end.
 
-%% A module's compiled form, which the build just wrote under OutDir.
-built(OutDir, Ns) ->
-    ern_build:read(filename:join(OutDir, ern_build:module_path(Ns) ++ ".erc")).
+%% A module's compiled form, which the build just wrote under BuildRoot.
+built(BuildRoot, Namespace) ->
+    ern_build:read(filename:join(BuildRoot, ern_build:module_path(Namespace) ++ ".erc")).
 
 %% Report §11.4: the standard library's own source root also gets the
 %% prelude's page, first in the index.
-prelude_page(false, _OutDir) ->
+prelude_page(false, _BuildRoot) ->
     [];
-prelude_page(true, OutDir) ->
-    ok = ern_build:write_output(filename:join(OutDir, "prelude.md"),
+prelude_page(true, BuildRoot) ->
+    ok = ern_build:write_output(filename:join(BuildRoot, "prelude.md"),
                      unicode:characters_to_binary(ern_page:prelude_page())),
     ["- [Prelude](prelude.md)\n"].
 
@@ -456,24 +470,25 @@ format_options() ->
 %% standard output and none changed, the status 1 when there was one; with
 %% `-`, standard input laid out onto standard output. A module that does
 %% not parse is left as it is and its diagnostic written, the status 1.
-format(Opts, ["-"], Err) ->
+format(Options, ["-"], ErrorDevice) ->
     Text = read_input(open_input(), []),
     case ern_format:format(Text) of
-        {ok, Text} -> format_result(Opts, Text, same);
-        {ok, Out} -> format_result(Opts, Out, changed);
-        {error, D} ->
-            io:format(Err, "~ts~n", [error_text(Opts, "-", Text, D)]),
+        {ok, Text} -> format_result(Options, Text, same);
+        {ok, Output} -> format_result(Options, Output, changed);
+        {error, Diagnostic} ->
+            io:format(ErrorDevice, "~ts~n", [error_text(Options, "-", Text, Diagnostic)]),
             1
     end;
-format(_Opts, [], _Err) ->
+format(_Options, [], _ErrorDevice) ->
     usage_fail("a file, a directory or - is required");
-format(Opts, Paths, Err) ->
-    lists:foreach(fun(P) ->
-                      filelib:is_file(P) orelse ern_build:fail("no such file or directory " ++ P)
+format(Options, Paths, ErrorDevice) ->
+    lists:foreach(fun(Path) ->
+                      filelib:is_file(Path)
+                          orelse ern_build:fail("no such file or directory " ++ Path)
                   end, Paths),
-    Files = lists:append([modules_named(P) || P <- Paths]),
-    Results = [format_file(Opts, F, Err) || F <- Files],
-    case lists:all(fun(R) -> R =:= ok end, Results) of
+    Files = lists:append([modules_named(Path) || Path <- Paths]),
+    Results = [format_file(Options, File, ErrorDevice) || File <- Files],
+    case lists:all(fun(Result) -> Result =:= ok end, Results) of
         true -> 0;
         false -> 1
     end.
@@ -501,31 +516,32 @@ shaped(File, Directory) ->
     lists:foreach(fun(Component) -> ern_build:shape(Relative, Component) end, Components),
     File.
 
-format_result(Opts, Out, Same) ->
-    case {lists:member(check, Opts), Same} of
-        {false, _} -> io:put_chars(Out), 0;
+format_result(Options, Output, Same) ->
+    case {lists:member(check, Options), Same} of
+        {false, _} -> io:put_chars(Output), 0;
         {true, same} -> 0;
         {true, changed} -> io:format("-~n"), 1
     end.
 
-format_file(Opts, File, Err) ->
+format_file(Options, File, ErrorDevice) ->
     Text = ern_build:read(File),
     case ern_format:format(Text) of
         {ok, Text} -> ok;
-        {ok, Out} ->
-            case lists:member(check, Opts) of
+        {ok, Output} ->
+            case lists:member(check, Options) of
                 true -> io:format("~ts~n", [ern_build:shown(File)]), changed;
-                false -> ok = ern_build:write_whole(File, Out)
+                false -> ok = ern_build:write_whole(File, Output)
             end;
-        {error, D} ->
-            io:format(Err, "~ts~n", [error_text(Opts, ern_build:shown(File), Text, D)]),
+        {error, Diagnostic} ->
+            io:format(ErrorDevice, "~ts~n",
+                      [error_text(Options, ern_build:shown(File), Text, Diagnostic)]),
             error
     end.
 
-error_text(Opts, Shown, Source, D) ->
-    case lists:member(short_errors, Opts) of
-        true -> ern_diagnostic:short(Shown, D);
-        false -> ern_diagnostic:format(Shown, Source, D)
+error_text(Options, Shown, Source, Diagnostic) ->
+    case lists:member(short_errors, Options) of
+        true -> ern_diagnostic:short(Shown, Diagnostic);
+        false -> ern_diagnostic:format(Shown, Source, Diagnostic)
     end.
 
 %% Standard input to its end, through a port on its descriptor, since
@@ -574,33 +590,33 @@ shell_options() ->
 config_options() ->
     [config_dir_option("the directory made"), help_option()].
 
-run(Opts, [File | Words], Err) ->
+run(Options, [File | Words], ErrorDevice) ->
     Arguments = program_arguments(Words, 1),
     quiet_signals(),
-    {Ns, Roots, Loaded} = program(File, Opts),
-    run_entry(Opts, Ns, Roots, Loaded, Arguments, Err);
-run(_Opts, [], _Err) ->
+    {Namespace, LoadPath, Loaded} = program(File, Options),
+    run_entry(Options, Namespace, LoadPath, Loaded, Arguments, ErrorDevice);
+run(_Options, [], _ErrorDevice) ->
     usage_fail("one .erc file argument is required").
 
 %% Report §11.2, Appendix E.23: the program's arguments, Os.arguments, as
 %% UTF-8 text, one that is not UTF-8 refused by its position before
 %% anything runs.
-program_arguments([], _N) ->
+program_arguments([], _Position) ->
     [];
-program_arguments([Word | Words], N) ->
-    is_utf8(Word) orelse ern_build:fail(io_lib:format("argument ~B is not UTF-8", [N])),
-    [word_bytes(Word) | program_arguments(Words, N + 1)].
+program_arguments([Word | Words], Position) ->
+    is_utf8(Word) orelse ern_build:fail(io_lib:format("argument ~B is not UTF-8", [Position])),
+    [word_bytes(Word) | program_arguments(Words, Position + 1)].
 
-test(Opts, [File], Err) ->
+test(Options, [File], ErrorDevice) ->
     quiet_signals(),
-    {Ns, _Roots, Loaded} = program(File, Opts),
-    run_tests(Ns, Loaded, Err);
-test(_Opts, _Rest, _Err) ->
+    {Namespace, _LoadPath, Loaded} = program(File, Options),
+    run_tests(Namespace, Loaded, ErrorDevice);
+test(_Options, _Rest, _ErrorDevice) ->
     usage_fail("one .erc file argument is required").
 
-config(Opts, [], _Err) ->
-    create_config_dir(proplists:get_value(config_dir, Opts, ".ernest"));
-config(_Opts, _Rest, _Err) ->
+config(Options, [], _ErrorDevice) ->
+    create_config_dir(proplists:get_value(config_dir, Options, ".ernest"));
+config(_Options, _Rest, _ErrorDevice) ->
     usage_fail("config takes no argument").
 
 %% Report §11.2: the shell is the entry process, and a file's entry point is
@@ -609,11 +625,11 @@ config(_Opts, _Rest, _Err) ->
 %% front end, after it has subscribed to faults (E.21); what the runner does is load
 %% the modules, put their interfaces in the session's scope, and run their
 %% initializers (§8.5) before the shell starts.
-shell(Opts, Rest, Err) ->
+shell(Options, Rest, ErrorDevice) ->
     quiet_signals(),
-    Mod = ern_emitter:module_atom(['Shell']),
-    case code:ensure_loaded(Mod) of
-        {module, Mod} -> ok;
+    ErlangModule = ern_emitter:module_atom(['Shell']),
+    case code:ensure_loaded(ErlangModule) of
+        {module, ErlangModule} -> ok;
         _ -> ern_build:fail("the shell is not built; run make")
     end,
     %% report §8.5: the shell's own modules are initialized as a program's
@@ -621,31 +637,31 @@ shell(Opts, Rest, Err) ->
     Init = case Rest of
                [] ->
                    %% report §11.2: --main names a function of the file
-                   not lists:keymember(main, 1, Opts) orelse usage_fail(no_main_file()),
-                   host_path(ern_build:load_path(Opts)),
-                   ern_shell:loaded(#{roots => ern_build:load_path(Opts),
-                                      source_root => ern_build:source_root(Opts, ".", "."),
-                                      ifaces => [], entry => none,
-                                      startups => startups(Opts)}),
-                   init_fun([Mod]);
+                   not lists:keymember(main, 1, Options) orelse usage_fail(no_main_file()),
+                   host_path(ern_build:load_path(Options)),
+                   ern_shell:loaded(#{load_path => ern_build:load_path(Options),
+                                      source_root => ern_build:source_root(Options, ".", "."),
+                                      interfaces => [], entry => none,
+                                      startups => startups(Options)}),
+                   init_fun([ErlangModule]);
                [File] ->
-                   {Ns, Roots, Loaded} = program(File, Opts),
-                   {Entry, Loaded1} = shell_entry(Opts, Ns, Roots, Loaded),
-                   ern_shell:loaded(#{roots => Roots,
-                                      source_root => ern_build:source_root(Opts, File, "."),
-                                      ifaces => ifaces(Loaded1),
+                   {Namespace, LoadPath, Loaded} = program(File, Options),
+                   {Entry, Loaded1} = shell_entry(Options, Namespace, LoadPath, Loaded),
+                   ern_shell:loaded(#{load_path => LoadPath,
+                                      source_root => ern_build:source_root(Options, File, "."),
+                                      interfaces => interfaces(Loaded1),
                                       entry => Entry,
-                                      startups => startups(Opts)}),
-                   init_fun(Loaded1 ++ [Mod]);
+                                      startups => startups(Options)}),
+                   init_fun(Loaded1 ++ [ErlangModule]);
                _ ->
                    usage_fail("at most one .erc file argument")
            end,
     %% report §11.2: the sinks are the screen's, which the shell names
-    Sink = fun(Bin) -> ern_shell:to_screen(Bin) end,
+    Sink = fun(Bytes) -> ern_shell:to_screen(Bytes) end,
     %% report §11.2: Os.exit faults the process that calls it
-    shell_outcome(Err, ern_rt:run_main(fun() -> Mod:main() end, <<"Shell.main">>,
-                                       #{stdout => Sink, stderr => Sink, init => Init,
-                                         exit => fault})).
+    shell_outcome(ErrorDevice, ern_rt:run_main(fun() -> ErlangModule:main() end, <<"Shell.main">>,
+                                               #{stdout => Sink, stderr => Sink, init => Init,
+                                                 exit => fault})).
 
 no_main_file() ->
     "--main names the function to spawn from the file the shell loads, and no file is given".
@@ -678,15 +694,15 @@ report_fault({'FaultReport', _Process, Site, Cause, Restarted, Trace}, Stamped) 
 %% through ports that learn when a stream has gone (report §8.2), and a
 %% fault line carries its time where standard error is neither a terminal
 %% nor a journal (§11.2); in a test, standard error is the test's device.
-reporting(Opts, Err) ->
+reporting(Options, ErrorDevice) ->
     case persistent_term:get({?MODULE, streams}, device) of
         fds ->
             Stamped = not ern_tty:is_terminal(stderr) andalso not journal(),
-            Opts#{faults => fun(R) -> report_fault(R, Stamped) end,
-                  stdout => {fd, 1}, stderr => {fd, 2}};
+            Options#{faults => fun(FaultReport) -> report_fault(FaultReport, Stamped) end,
+                     stdout => {fd, 1}, stderr => {fd, 2}};
         device ->
-            Opts#{faults => fun(R) -> report_fault(R, false) end,
-                  stderr => fun(Bin) -> file:write(Err, Bin) end}
+            Options#{faults => fun(FaultReport) -> report_fault(FaultReport, false) end,
+                     stderr => fun(Bytes) -> file:write(ErrorDevice, Bytes) end}
     end.
 
 %% Report §11.2: whether standard error is a service manager's journal,
@@ -704,49 +720,50 @@ journal() ->
 %% none, named as the user named it and not by what it holds. A module the
 %% host compiled from another language holds no interface, and is none.
 compiled(File) ->
-    Bin = ern_build:read(File),
-    case beam_lib:chunks(Bin, [binary_to_list(ern_interface:chunk_name())]) of
+    Beam = ern_build:read(File),
+    case beam_lib:chunks(Beam, [binary_to_list(ern_interface:chunk_name())]) of
         {error, beam_lib, _} -> ern_build:fail(File ++ " is not a compiled module");
-        {ok, _} -> Bin
+        {ok, _} -> Beam
     end.
 
 %% The module of a `.erc`, its load path, and every module loaded for it:
 %% the file's own dependencies first (report §11.2, §4.2).
-program(File, Opts) ->
+program(File, Options) ->
     filelib:is_regular(File) orelse ern_build:fail("no such file " ++ File),
     filename:extension(File) =:= ".erc" orelse ern_build:fail(File ++ " does not end in .erc"),
     Abs = ern_build:absolute(File),
-    Bin = compiled(File),
-    Ns = case ern_interface:read(Bin) of
-             {ok, #{interface := #interface{namespace = N}}} -> N;
-             {error, Why} -> ern_build:fail(File ++ ": " ++ Why)
-         end,
+    Beam = compiled(File),
+    Namespace = case ern_interface:read(Beam) of
+                    {ok, #{interface := #interface{namespace = Found}}} -> Found;
+                    {error, Error} -> ern_build:fail(File ++ ": " ++ Error)
+                end,
     %% the root lies as many directories up as the namespace is deep
-    Root = lists:foldl(fun(_, D) -> filename:dirname(D) end, Abs, Ns),
-    ern_build:relative(Abs, Root) =:= ern_build:module_path(Ns) ++ ".erc" orelse
-        ern_build:fail(File ++ " is not at the path of its namespace " ++ ern_build:qname(Ns)),
-    Components = filename:split(filename:rootname(ern_build:module_path(Ns))),
-    lists:foreach(fun(C) -> ern_build:shape(File, C) end, Components),
-    Roots = [Root | ern_build:load_path(Opts)],
-    host_path(Roots),
-    {Ns, Roots, load(Ns, Roots, [])}.
+    SourceRoot = lists:foldl(fun(_, Dir) -> filename:dirname(Dir) end, Abs, Namespace),
+    ern_build:relative(Abs, SourceRoot) =:= ern_build:module_path(Namespace) ++ ".erc" orelse
+        ern_build:fail(File ++ " is not at the path of its namespace "
+                       ++ ern_build:qualified_name_text(Namespace)),
+    Components = filename:split(filename:rootname(ern_build:module_path(Namespace))),
+    lists:foreach(fun(Component) -> ern_build:shape(File, Component) end, Components),
+    LoadPath = [SourceRoot | ern_build:load_path(Options)],
+    host_path(LoadPath),
+    {Namespace, LoadPath, load(Namespace, LoadPath, [])}.
 
 %% Report §11.2: an Erlang module a `foreign fn` names is the host's own or
 %% a `.beam` in a directory of the load path, the host's own found first.
 %% The working directory, which the host puts on its code path, is neither,
 %% unless it is a root of the load path.
-host_path(Roots) ->
+host_path(LoadPath) ->
     _ = code:del_path("."),
-    ok = code:add_pathsz(Roots).
+    ok = code:add_pathsz(LoadPath).
 
 %% Report §11.2: the interfaces of the modules loaded, which the shell puts
 %% in the session's scope, each with the hash of the source it was compiled
 %% from, which `:reload` compares against the source it finds; both are in
 %% the `ErnI` chunk of the `.erc` it came from (§11.1).
-ifaces(Loaded) ->
-    [{I, H} || Mod <- lists:reverse(Loaded),
-               {ok, Bin} <- [file:read_file(code:which(Mod))],
-               {ok, #{interface := I, source_hash := H}} <- [ern_interface:read(Bin)]].
+interfaces(Loaded) ->
+    [{Interface, Hash} || ErlangModule <- lists:reverse(Loaded),
+               {ok, Beam} <- [file:read_file(code:which(ErlangModule))],
+               {ok, #{interface := Interface, source_hash := Hash}} <- [ern_interface:read(Beam)]].
 
 %% Report §11.2: where the startup files are, the person's first and then
 %% the node's; the shell reads them and finds out whether they are there.
@@ -755,7 +772,7 @@ ifaces(Loaded) ->
 %% is wherever the shell was started. A file both paths name is run once.
 %% A HOME that is no absolute path names no person's file, since it would
 %% name one under wherever the shell was started.
-startups(Opts) ->
+startups(Options) ->
     Home = case os:getenv("HOME") of
                false -> [];
                Dir ->
@@ -764,20 +781,20 @@ startups(Opts) ->
                        _ -> []
                    end
            end,
-    Node = case proplists:get_value(config_dir, Opts) of
+    Node = case proplists:get_value(config_dir, Options) of
                undefined -> [];
                Config -> [filename:join(Config, "startup")]
            end,
     case {Home, Node} of
-        {[H], [N]} -> [H | [N || not same_file(H, N)]];
+        {[HomeFile], [NodeFile]} -> [HomeFile | [NodeFile || not same_file(HomeFile, NodeFile)]];
         _ -> Home ++ Node
     end.
 
 %% Two paths to one file: both there, on one device, with one inode.
-same_file(A, B) ->
-    case {file:read_file_info(A), file:read_file_info(B)} of
-        {{ok, #file_info{major_device = D, inode = I}},
-         {ok, #file_info{major_device = D, inode = I}}} -> true;
+same_file(First, Second) ->
+    case {file:read_file_info(First), file:read_file_info(Second)} of
+        {{ok, #file_info{major_device = Device, inode = Inode}},
+         {ok, #file_info{major_device = Device, inode = Inode}}} -> true;
         _ -> false
     end.
 
@@ -796,40 +813,40 @@ quiet_signals() ->
 %% its entry process's end: nothing when it returned, `killed` when it was
 %% killed, its fault, nothing for a signal, whose status is 128 plus its
 %% number, and nothing for Os.exit, whose status is its own.
-outcome(_Err, ok) -> 0;
-outcome(_Err, {exit, Status}) -> Status;
+outcome(_ErrorDevice, ok) -> 0;
+outcome(_ErrorDevice, {exit, Status}) -> Status;
 %% report §8.2, §11.2: a stream that can no longer be written, as a shell
 %% reports a broken pipe
-outcome(_Err, {gone, _Stream}) -> 128 + 13;
-outcome(Err, killed) -> io:format(Err, "killed~n", []), 1;
-outcome(_Err, {signal, Signal}) -> ern_signals:status(Signal);
+outcome(_ErrorDevice, {gone, _Stream}) -> 128 + 13;
+outcome(ErrorDevice, killed) -> io:format(ErrorDevice, "killed~n", []), 1;
+outcome(_ErrorDevice, {signal, Signal}) -> ern_signals:status(Signal);
 %% report §11.2: the entry process's fault has been reported as it happened
-outcome(_Err, _Fault) -> 1.
+outcome(_ErrorDevice, _Fault) -> 1.
 
 %% Report §11.2: the shell reports the faults of the session's processes
 %% itself, as a subscriber, so its own end, which no subscriber of its own
 %% is left to see, is said here, its cause escaped as every fault's is. A
 %% fault of the shell's own is a failure of ern itself, but for one its
 %% standard input gave it (§11.8).
-shell_outcome(Err, {fault, Msg}) ->
-    io:format(Err, "fault: ~ts~n", [ern_show:controls(Msg, line)]),
-    case ern_rt:by_input(Msg) of
+shell_outcome(ErrorDevice, {fault, Cause}) ->
+    io:format(ErrorDevice, "fault: ~ts~n", [ern_show:controls(Cause, line)]),
+    case ern_rt:by_input(Cause) of
         true -> 1;
         false -> 70
     end;
 %% report §8.5, §11.2: a binding that faulted before the shell began
-shell_outcome(Err, {initializer_fault, Site, Msg}) ->
-    io:format(Err, "~ts faulted: ~ts~n", [Site, ern_show:controls(Msg, line)]),
+shell_outcome(ErrorDevice, {initializer_fault, Site, Cause}) ->
+    io:format(ErrorDevice, "~ts faulted: ~ts~n", [Site, ern_show:controls(Cause, line)]),
     1;
-shell_outcome(Err, {initializer_fault, Site, Msg, Trace}) ->
-    io:format(Err, "~ts faulted: ~ts~n~ts",
-              [Site, ern_show:controls(Msg, line), ern_show:controls(Trace, lines)]),
+shell_outcome(ErrorDevice, {initializer_fault, Site, Cause, Trace}) ->
+    io:format(ErrorDevice, "~ts faulted: ~ts~n~ts",
+              [Site, ern_show:controls(Cause, line), ern_show:controls(Trace, lines)]),
     1;
-shell_outcome(Err, {fault, Msg, Trace}) ->
-    io:format(Err, "fault: ~ts~n~ts",
-              [ern_show:controls(Msg, line), ern_show:controls(Trace, lines)]),
+shell_outcome(ErrorDevice, {fault, Cause, Trace}) ->
+    io:format(ErrorDevice, "fault: ~ts~n~ts",
+              [ern_show:controls(Cause, line), ern_show:controls(Trace, lines)]),
     70;
-shell_outcome(Err, Other) -> outcome(Err, Other).
+shell_outcome(ErrorDevice, Other) -> outcome(ErrorDevice, Other).
 
 %% Report §8.5: every top-level let of the loaded modules, dependencies
 %% first, once the runtime has bound the system references.
@@ -839,49 +856,49 @@ init_fun(Loaded) ->
 %% Report §11.2: every test of the module, one at a time in the order the
 %% module declares them, each in a process of its own and its line printed
 %% as it ends; status 1 unless every one passed.
-run_tests(Ns, Loaded, Err) ->
-    Mod = ern_emitter:module_atom(Ns),
-    Me = self(),
-    Main = fun() ->
-               Tests = case erlang:function_exported(Mod, '$tests', 0) of
-                           true -> Mod:'$tests'();
-                           false -> []
-                       end,
-               Names = [Name || {'Case', Name, _} <- Tests],
+run_tests(Namespace, Loaded, ErrorDevice) ->
+    ErlangModule = ern_emitter:module_atom(Namespace),
+    Self = self(),
+    Entry = fun() ->
+                Tests = case erlang:function_exported(ErlangModule, '$tests', 0) of
+                            true -> ErlangModule:'$tests'();
+                            false -> []
+                        end,
+                Names = [Name || {'Case', Name, _} <- Tests],
                %% report §11.2: a module without tests says so, and one two
                %% of whose tests have one name is refused before any runs
-               case {Tests, Names -- lists:usort(Names)} of
-                   {[], _} ->
-                       ern_rt:send(ern_rt:system_process(stdout), <<"no tests\n">>),
-                       Me ! {ern_tests, true};
-                   {_, [Twice | _]} ->
-                       ern_rt:send(ern_rt:system_process(stderr),
-                                   <<"ern test: two tests are named \"",
-                                     (ern_show:controls(Twice, line))/binary, "\"\n">>),
-                       Me ! {ern_tests, false};
-                   {_, []} ->
-                       Passed = [run_test(T) || T <- Tests],
-                       Me ! {ern_tests, lists:all(fun(P) -> P end, Passed)}
-               end
-           end,
-    Site = unicode:characters_to_binary(ern_build:qname(Ns) ++ ".$tests"),
+                case {Tests, Names -- lists:usort(Names)} of
+                    {[], _} ->
+                        ern_rt:send(ern_rt:system_process(stdout), <<"no tests\n">>),
+                        Self ! {ern_tests, true};
+                    {_, [Twice | _]} ->
+                        ern_rt:send(ern_rt:system_process(stderr),
+                                    <<"ern test: two tests are named \"",
+                                      (ern_show:controls(Twice, line))/binary, "\"\n">>),
+                        Self ! {ern_tests, false};
+                    {_, []} ->
+                        Passed = [run_test(Test) || Test <- Tests],
+                        Self ! {ern_tests, lists:all(fun(Passed1) -> Passed1 end, Passed)}
+                end
+            end,
+    Site = unicode:characters_to_binary(ern_build:qualified_name_text(Namespace) ++ ".$tests"),
     %% report §11.2: a test's own fault is its line, and every other is
     %% reported as `ern run` reports it
     %% report §11.2: Os.exit faults the test that calls it
-    Opts = reporting(#{init => init_fun(Loaded), exit => fault}, Err),
-    Report = maps:get(faults, Opts),
-    Reporter = fun({'FaultReport', Process, _, _, _, _} = R) ->
+    Options = reporting(#{init => init_fun(Loaded), exit => fault}, ErrorDevice),
+    Report = maps:get(faults, Options),
+    Reporter = fun({'FaultReport', Process, _, _, _, _} = FaultReport) ->
                    Process =:= persistent_term:get({?MODULE, test}, none)
-                       orelse Report(R)
+                       orelse Report(FaultReport)
                end,
-    case ern_rt:run_main(Main, Site, Opts#{faults => Reporter}) of
+    case ern_rt:run_main(Entry, Site, Options#{faults => Reporter}) of
         ok ->
             receive
                 {ern_tests, true} -> 0;
                 {ern_tests, false} -> 1
             end;
         Other ->
-            outcome(Err, Other)
+            outcome(ErrorDevice, Other)
     end.
 
 %% One test, Test.Case(name, run) in declared field order, in a process of its
@@ -890,9 +907,9 @@ run_tests(Ns, Loaded, Err) ->
 %% runs is its fault (§11.2). Its line goes through standard output's
 %% process, after what the test wrote there; whether it passed is returned.
 run_test({'Case', Name, Run}) ->
-    Me = ern_rt:self(),
+    Self = ern_rt:self(),
     Ref = make_ref(),
-    Pid = ern_rt:spawn_monitored(fun() -> receive {Ref, go} -> Me ! {Ref, Run()} end end,
+    Pid = ern_rt:spawn_monitored(fun() -> receive {Ref, go} -> Self ! {Ref, Run()} end end,
                                  fun(Down) -> {Ref, down, Down} end, Name),
     ok = ern_rt:deadlock_victim(Pid),
     %% the reporter hears of the test's fault before this process does,
@@ -919,48 +936,51 @@ run_test({'Case', Name, Run}) ->
 returned(Ref, Outcome) ->
     receive {Ref, down, _} -> Outcome end.
 
-cause({'Fault', Msg}) -> ern_show:controls(Msg, line);
+cause({'Fault', Cause}) -> ern_show:controls(Cause, line);
 cause(Reason) -> atom_to_binary(Reason).
 
-run_entry(Opts, Ns, Roots, Loaded, Arguments, Err) ->
-    {EntryMod, EntryFn, Loaded1} = entry_point(Opts, Ns, Roots, Loaded),
+run_entry(Options, Namespace, LoadPath, Loaded, Arguments, ErrorDevice) ->
+    {EntryModule, EntryFunction, Loaded1} = entry_point(Options, Namespace, LoadPath, Loaded),
     Init = init_fun(Loaded1),
-    Site = entry_site(EntryMod, EntryFn),
-    Fn = ern_emitter:function_atom(EntryFn),
+    Site = entry_site(EntryModule, EntryFunction),
+    Function = ern_emitter:function_atom(EntryFunction),
     %% report §8.6: a deadlock is the entry process's fault
-    outcome(Err, ern_rt:run_main(fun() -> EntryMod:Fn() end, Site,
-                                 reporting(#{init => Init, arguments => Arguments}, Err))).
+    outcome(ErrorDevice, ern_rt:run_main(fun() -> EntryModule:Function() end, Site,
+                                         reporting(#{init => Init, arguments => Arguments},
+                                                   ErrorDevice))).
 
 %% Report §11.2: the entry point the shell spawns beside it, or none for a
 %% file without one, which is loaded to be tried. A `main` that is not an
 %% entry point (§8.1) leaves the file without one; a function `--main`
 %% names must be one.
-shell_entry(Opts, Ns, Roots, Loaded) ->
-    Mod = ern_emitter:module_atom(Ns),
-    case proplists:get_value(main, Opts) =:= undefined
-         andalso entry_shape(Mod, main) =/= entry of
+shell_entry(Options, Namespace, LoadPath, Loaded) ->
+    ErlangModule = ern_emitter:module_atom(Namespace),
+    case proplists:get_value(main, Options) =:= undefined
+         andalso entry_shape(ErlangModule, main) =/= entry of
         true ->
             {none, Loaded};
         false ->
-            {EntryMod, EntryFn, Loaded1} = entry_point(Opts, Ns, Roots, Loaded),
-            {{EntryMod, EntryFn, entry_site(EntryMod, EntryFn)}, Loaded1}
+            {EntryModule, EntryFunction, Loaded1} = entry_point(Options, Namespace, LoadPath,
+                                                                Loaded),
+            {{EntryModule, EntryFunction, entry_site(EntryModule, EntryFunction)}, Loaded1}
     end.
 
 %% Report §8.1: the entry point, the loaded module's `main` or the function
 %% `--main` names, and every module loaded for it. It is an exported `fn`
 %% of type `() -> Unit`, with a mailbox type or pure; a top-level `let`,
 %% and a function of another shape, is refused.
-entry_point(Opts, Ns, Roots, Loaded) ->
-    {EntryMod, EntryFn, Loaded1} =
-        case proplists:get_value(main, Opts) of
-            undefined -> {ern_emitter:module_atom(Ns), main, Loaded};
-            Q ->
-                {MainNs, Fn} = main_name(Q),
-                {ern_emitter:module_atom(MainNs), Fn, load(MainNs, Roots, Loaded)}
+entry_point(Options, Namespace, LoadPath, Loaded) ->
+    {EntryModule, EntryFunction, Loaded1} =
+        case proplists:get_value(main, Options) of
+            undefined -> {ern_emitter:module_atom(Namespace), main, Loaded};
+            Given ->
+                {EntryNamespace, Function} = main_name(Given),
+                {ern_emitter:module_atom(EntryNamespace), Function,
+                 load(EntryNamespace, LoadPath, Loaded)}
         end,
-    Name = ern_build:qname(entry_ns(EntryMod) ++ [EntryFn]),
+    Name = ern_build:qualified_name_text(entry_namespace(EntryModule) ++ [EntryFunction]),
     Shape = "; an entry point is an exported fn of type () -> Unit (report §8.1)",
-    case entry_shape(EntryMod, EntryFn) of
+    case entry_shape(EntryModule, EntryFunction) of
         entry -> ok;
         missing -> ern_build:fail("no exported function " ++ Name ++ Shape);
         {'let', Type} ->
@@ -968,7 +988,7 @@ entry_point(Opts, Ns, Roots, Loaded) ->
         {other, Type} ->
             ern_build:fail(Name ++ " is not an entry point: its type is " ++ Type ++ Shape)
     end,
-    {EntryMod, EntryFn, Loaded1}.
+    {EntryModule, EntryFunction, Loaded1}.
 
 %% Report §11.2, Appendix A: `--main` names a function by its qualified
 %% name, a typename for each segment of the module's namespace and an
@@ -1001,17 +1021,17 @@ qualified_name(_, _) ->
 %% point, a `let`, a function of another shape, or nothing it exports. A
 %% result type that is a type variable is instantiated to `Unit`, as a
 %% polymorphic mailbox type is to `Never` (report §8.1).
-entry_shape(Mod, Fn) ->
-    {ok, Bin} = file:read_file(code:which(Mod)),
-    {ok, #{interface := #interface{namespace = Ns, values = Values, lets = Lets}}} =
-        ern_interface:read(Bin),
-    Q = Ns ++ [Fn],
-    case maps:find(Q, Values) of
+entry_shape(ErlangModule, Function) ->
+    {ok, Beam} = file:read_file(code:which(ErlangModule)),
+    {ok, #{interface := #interface{namespace = Namespace, values = Values, lets = Lets}}} =
+        ern_interface:read(Beam),
+    QualifiedName = Namespace ++ [Function],
+    case maps:find(QualifiedName, Values) of
         error ->
             missing;
-        {ok, #scheme{type = T} = Scheme} ->
+        {ok, #scheme{type = SchemeType} = Scheme} ->
             Type = ern_types:format_scheme(Scheme, ern_types:new()),
-            case {lists:member(Q, Lets), T} of
+            case {lists:member(QualifiedName, Lets), SchemeType} of
                 {true, _} -> {'let', Type};
                 {false, {tfn, [], _, {tcon, ['Unit'], []}}} -> entry;
                 {false, {tfn, [], _, {tvar, _}}} -> entry;
@@ -1019,66 +1039,81 @@ entry_shape(Mod, Fn) ->
             end
     end.
 
-entry_site(Mod, Fn) ->
-    unicode:characters_to_binary(ern_build:qname(entry_ns(Mod)) ++ "." ++ atom_to_list(Fn)).
+entry_site(ErlangModule, Function) ->
+    unicode:characters_to_binary(ern_build:qualified_name_text(entry_namespace(ErlangModule)) ++ "."
+                                 ++ atom_to_list(Function)).
 
-entry_ns(Mod) ->
-    "ern@" ++ Path = atom_to_list(Mod),
+entry_namespace(ErlangModule) ->
+    "ern@" ++ Path = atom_to_list(ErlangModule),
     ern_build:namespace(string:split(Path, "@", all)).
 
 %% Load a module and, first, its dependencies, each once; the result lists
 %% modules most recently loaded first, so dependencies come last.
-load(Ns, Roots, Loaded) ->
-    load(Ns, Roots, Loaded, ern_build:stdlib_hash(".")).
+load(Namespace, LoadPath, Loaded) ->
+    load(Namespace, LoadPath, Loaded, ern_build:stdlib_hash(".")).
 
-load(Ns, Roots, Loaded, Std) ->
-    Mod = ern_emitter:module_atom(Ns),
-    case lists:member(Mod, Loaded) of
+load(Namespace, LoadPath, Loaded, StdlibHash) ->
+    ErlangModule = ern_emitter:module_atom(Namespace),
+    case lists:member(ErlangModule, Loaded) of
         true -> Loaded;
         false ->
-            Rel = ern_build:module_path(Ns) ++ ".erc",
-            File = case [F || R <- Roots, F <- [filename:join(R, Rel)], filelib:is_regular(F)] of
-                       [F | _] -> F;
-                       [] -> ern_build:fail("cannot find module " ++ ern_build:qname(Ns)
-                                            ++ " (" ++ Rel ++ ") on the load path")
+            Relative = ern_build:module_path(Namespace) ++ ".erc",
+            File = case [Found || Dir <- LoadPath, Found <- [filename:join(Dir, Relative)],
+                                  filelib:is_regular(Found)] of
+                       [Found | _] -> Found;
+                       [] ->
+                           ern_build:fail("cannot find module "
+                                          ++ ern_build:qualified_name_text(Namespace)
+                                          ++ " (" ++ Relative ++ ") on the load path")
                    end,
-            Bin = ern_build:read(File),
-            {Deps, Chunk} = case ern_interface:read(Bin) of
-                                {ok, #{deps := Ds} = C} -> {Ds, C};
-                                {error, Why} -> ern_build:fail(File ++ ": " ++ Why)
-                            end,
+            Beam = ern_build:read(File),
+            {Dependencies, Chunk} = case ern_interface:read(Beam) of
+                                        {ok, #{deps := RecordedDependencies} = Read} ->
+                                            {RecordedDependencies, Read};
+                                        {error, Error} -> ern_build:fail(File ++ ": " ++ Error)
+                                    end,
             %% report §11.2: a module is found by its namespace, and a file
             %% there holding another is no module of that name
             case Chunk of
-                #{interface := #interface{namespace = Ns}} -> ok;
+                #{interface := #interface{namespace = Namespace}} -> ok;
                 #{interface := #interface{namespace = Held}} ->
-                    ern_build:fail(ern_build:shown(File) ++ " holds " ++ ern_build:qname(Held)
-                                   ++ ", not " ++ ern_build:qname(Ns) ++ "; build it again from"
+                    ern_build:fail(ern_build:shown(File) ++ " holds "
+                                   ++ ern_build:qualified_name_text(Held)
+                                   ++ ", not " ++ ern_build:qualified_name_text(Namespace)
+                                       ++ "; build it again from"
                                    " its source root")
             end,
-            Loaded1 = lists:foldl(fun({D, _}, L) -> load(D, Roots, L, Std) end, Loaded, Deps),
+            Loaded1 = lists:foldl(fun({Dependency, _}, Acc) ->
+                                      load(Dependency, LoadPath, Acc, StdlibHash)
+                                  end, Loaded, Dependencies),
             %% report §11.2: a module compiled against another interface of a
             %% module it uses, or of the standard library, is refused, not run
             %% to fault where they differ
-            lists:foreach(fun({D, Hash}) -> same_interface(Ns, D, Hash) end, Deps),
-            lists:member(maps:get(stdlib, Chunk, none), [none, Std])
-                orelse ern_build:fail(ern_build:qname(Ns) ++ " was compiled against another"
-                                      " standard library; build " ++ ern_build:qname(Ns)
+            lists:foreach(fun({Dependency, Hash}) ->
+                              same_interface(Namespace, Dependency, Hash)
+                          end, Dependencies),
+            lists:member(maps:get(stdlib, Chunk, none), [none, StdlibHash])
+                orelse ern_build:fail(ern_build:qualified_name_text(Namespace)
+                                      ++ " was compiled against another"
+                                      " standard library; build "
+                                          ++ ern_build:qualified_name_text(Namespace)
                                       ++ " again"),
-            code:purge(Mod),
-            case code:load_binary(Mod, File, Bin) of
-                {module, Mod} -> [Mod | Loaded1];
+            code:purge(ErlangModule),
+            case code:load_binary(ErlangModule, File, Beam) of
+                {module, ErlangModule} -> [ErlangModule | Loaded1];
                 {error, What} ->
                     ern_build:fail("cannot load " ++ File ++ ": " ++ atom_to_list(What))
             end
     end.
 
-same_interface(Ns, D, Hash) ->
-    {ok, Bin} = file:read_file(code:which(ern_emitter:module_atom(D))),
-    {ok, #{interface := I}} = ern_interface:read(Bin),
-    ern_interface:hash(I) =:= Hash
-        orelse ern_build:fail(ern_build:qname(Ns) ++ " was compiled against another "
-                              ++ ern_build:qname(D) ++ "; build " ++ ern_build:qname(Ns)
+same_interface(Namespace, Dependency, Hash) ->
+    {ok, Beam} = file:read_file(code:which(ern_emitter:module_atom(Dependency))),
+    {ok, #{interface := Interface}} = ern_interface:read(Beam),
+    ern_interface:hash(Interface) =:= Hash
+        orelse ern_build:fail(ern_build:qualified_name_text(Namespace)
+                              ++ " was compiled against another "
+                              ++ ern_build:qualified_name_text(Dependency) ++ "; build "
+                                  ++ ern_build:qualified_name_text(Namespace)
                               ++ " again").
 
 %% Report §11.3, Appendix C: the configuration directory itself, with a
@@ -1115,5 +1150,5 @@ create_config_dir(Given) ->
     ok = ern_build:write_whole(filename:join(Conf, "private-key.pem"), Private, 8#600),
     0.
 
-usage_fail(Msg) ->
-    throw({cli_usage, lists:flatten(Msg)}).
+usage_fail(Message) ->
+    throw({cli_usage, lists:flatten(Message)}).

@@ -9,8 +9,8 @@
 
 -export([install/0, status/1, ended/0, die/2, init/1, handle_event/2, handle_call/2]).
 
-%% Handle the two signals here from now on (report §11). The launcher
-%% installs this handler before its work, since the host's own handler
+%% Handle the two signals here from now on (report §11). The launcher's
+%% entry installs this handler before its work, since the host's own handler
 %% would stop the node only once that work had returned. A run installs it
 %% again, which changes nothing where it is in place and matters where a
 %% test runs the job. A termination the host's handler took as the host
@@ -64,7 +64,7 @@ die(Signal, Status) ->
 init(_) ->
     {ok, []}.
 
-%% A run in progress ends as §8.6 says and its launcher returns the signal;
+%% A run in progress ends as §8.6 says and its runner returns the signal;
 %% outside one there is nothing to end, and `ern` ends by it at once.
 -spec handle_event(term(), []) -> {ok, []}.
 handle_event(Signal, State) when Signal =:= sigterm; Signal =:= sighup ->

@@ -20,7 +20,7 @@ take() ->
 %% The job's streams written out before `ern` ends, standard output's and
 %% the device given; where a reader has gone, `ern` ends there.
 -spec finish(pid() | atom()) -> ok.
-finish(Err) when is_pid(Err) ->
+finish(ErrorDevice) when is_pid(ErrorDevice) ->
     lists:foreach(fun(Device) ->
                       Ref = erlang:monitor(process, Device),
                       Device ! {finish, self(), Ref},
@@ -28,7 +28,7 @@ finish(Err) when is_pid(Err) ->
                           {Ref, finished} -> erlang:demonitor(Ref, [flush]);
                           {'DOWN', Ref, process, _, _} -> ok
                       end
-                  end, [group_leader(), Err]);
+                  end, [group_leader(), ErrorDevice]);
 finish(_) ->
     ok.
 
@@ -42,9 +42,9 @@ device(Fd) ->
 
 loop(Port, Encoding) ->
     receive
-        {io_request, From, ReplyAs, {setopts, Opts}} ->
+        {io_request, From, ReplyAs, {setopts, Options}} ->
             From ! {io_reply, ReplyAs, ok},
-            loop(Port, proplists:get_value(encoding, Opts, Encoding));
+            loop(Port, proplists:get_value(encoding, Options, Encoding));
         {io_request, From, ReplyAs, Request} ->
             From ! {io_reply, ReplyAs, request(Port, Encoding, Request)},
             loop(Port, Encoding);
@@ -67,13 +67,13 @@ drained(Port) ->
 %% The requests io:format and io:put_chars make; nothing reads from here.
 request(Port, Encoding, {put_chars, Given, Chars}) ->
     case unicode:characters_to_binary(Chars, Given, Encoding) of
-        Bin when is_binary(Bin) -> write(Port, Bin);
+        Bytes when is_binary(Bytes) -> write(Port, Bytes);
         _ -> {error, no_translation}
     end;
-request(Port, Encoding, {put_chars, Given, M, F, A}) ->
-    request(Port, Encoding, {put_chars, Given, apply(M, F, A)});
+request(Port, Encoding, {put_chars, Given, Module, Function, Arguments}) ->
+    request(Port, Encoding, {put_chars, Given, apply(Module, Function, Arguments)});
 request(Port, Encoding, {requests, Requests}) ->
-    lists:foldl(fun(R, ok) -> request(Port, Encoding, R);
+    lists:foldl(fun(Request, ok) -> request(Port, Encoding, Request);
                    (_, Error) -> Error
                 end, ok, Requests);
 request(_, Encoding, getopts) ->
@@ -81,8 +81,8 @@ request(_, Encoding, getopts) ->
 request(_, _, _) ->
     {error, enotsup}.
 
-write(Port, Bin) ->
-    try erlang:port_command(Port, Bin) of
+write(Port, Bytes) ->
+    try erlang:port_command(Port, Bytes) of
         true -> ok
     catch
         error:badarg -> gone()

@@ -11,9 +11,11 @@
 
 -export([compile/3, report_errors/4, shown/1, sources/1, bytes_text/1, module_of/2, shape/2,
          segment/1, namespace/1, module_path/1, compile_order/2, compile_order/3, source_root/3,
-         out_dir/2, is_stdlib_root/1, stdlib_hash/1, dep_ifaces/5, dep_iface/4, load_path/1,
+         build_root/2, is_stdlib_root/1, stdlib_hash/1, dependency_interfaces/5,
+         dependency_interface/4, load_path/1,
          compiler_modules/0,
-         sweep_pages/5, compile_source/4, absolute/1, relative/2, qname/1, write_whole/2,
+         sweep_pages/5, compile_source/4, absolute/1, relative/2, qualified_name_text/1,
+         write_whole/2,
          write_whole/3, write_output/2, read/1, made_dir/1, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -22,58 +24,66 @@
 -include("ern_build.hrl").
 
 -spec compile([term()], file:filename(), io:device()) -> 0 | 1.
-compile(Opts, Path, Err) ->
-    Emit = case lists:member(emit_erl, Opts) of
+compile(Options, Path, ErrorDevice) ->
+    Emit = case lists:member(emit_erl, Options) of
                true -> erl;
                false -> erc
            end,
     filelib:is_file(Path) orelse fail("no such file or directory " ++ Path),
     DirMode = filelib:is_dir(Path),
-    Root = source_root(Opts, Path, case DirMode of true -> Path; false -> "." end),
-    OutDir = out_dir(Opts, Root),
+    SourceRoot = source_root(Options, Path, case DirMode of true -> Path; false -> "." end),
+    BuildRoot = build_root(Options, SourceRoot),
     Files = case DirMode of
                 true -> sources(Path);
                 false -> [Path]
             end,
-    Modules = [module_of(absolute(F), Root) || F <- Files],
-    Dirs = [OutDir | load_path(Opts)],
-    SetAside = set_aside_installed_stdlib(Root, OutDir),
+    Modules = [module_of(absolute(Source), SourceRoot) || Source <- Files],
+    SearchPath = [BuildRoot | load_path(Options)],
+    SetAside = set_aside_installed_stdlib(SourceRoot, BuildRoot),
     try
         %% report §11.1: a module outside the source root is found under
         %% build-root, then under each --load-path root
-        {Parsed, Unparsed} = parse_all(Modules, Root, Dirs),
+        {Parsed, Unparsed} = parse_all(Modules, SourceRoot, SearchPath),
         Order = order(Parsed),
-        Std = stdlib_hash(Root),
+        StdlibHash = stdlib_hash(SourceRoot),
         %% report §11.5: every module is built but one that uses a module
         %% that failed, whose errors would follow from that one's
         {_, Failed} =
-            lists:foldl(fun(#mod{deps = Deps} = M, {Ifaces, Failed0}) ->
-                                case [D || D <- Deps, lists:keymember(D, 1, Failed0)] of
+            lists:foldl(fun(#build_module{dependencies = Dependencies} = Module,
+                            {Interfaces, FailedSoFar}) ->
+                                case [Dependency || Dependency <- Dependencies,
+                                                    lists:keymember(Dependency, 1, FailedSoFar)] of
                                     [] ->
-                                        try build(M, Ifaces, Root, Dirs, Emit, Std) of
-                                            Ifaces1 -> {Ifaces1, Failed0}
+                                        try build(Module, Interfaces, SourceRoot, SearchPath, Emit,
+                                                  StdlibHash) of
+                                            Interfaces1 -> {Interfaces1, FailedSoFar}
                                         catch
                                             throw:{errors, File, Errors} ->
-                                                {Ifaces, Failed0 ++ [{M#mod.ns, File, Errors}]}
+                                                {Interfaces, FailedSoFar
+                                                             ++ [{Module#build_module.namespace,
+                                                                  File, Errors}]}
                                         end;
                                     _ ->
-                                        {Ifaces, Failed0 ++ [{M#mod.ns, none, []}]}
+                                        {Interfaces, FailedSoFar
+                                                     ++ [{Module#build_module.namespace, none, []}]}
                                 end
                         end, {#{}, Unparsed}, Order),
         case [{File, Errors} || {_, File, Errors} <- Failed, File =/= none] of
             [] ->
                 case DirMode andalso Emit =:= erc of
-                    true -> sweep(absolute(Path), Root, OutDir);
+                    true -> sweep(absolute(Path), SourceRoot, BuildRoot);
                     false -> ok
                 end,
                 0;
             Reported ->
-                lists:foreach(fun({File, Errors}) -> report_errors(Opts, File, Errors, Err) end,
+                lists:foreach(fun({File, Errors}) ->
+                                  report_errors(Options, File, Errors, ErrorDevice)
+                              end,
                               Reported),
                 1
         end
     catch
-        throw:{errors, File, Errors} -> report_errors(Opts, File, Errors, Err)
+        throw:{errors, File, Errors} -> report_errors(Options, File, Errors, ErrorDevice)
     after
         code:add_pathsa(SetAside)
     end.
@@ -82,19 +92,19 @@ compile(Opts, Path, Err) ->
 %% under --short-errors; status 1. The file is named from the working
 %% directory when it lies under it.
 -spec report_errors([term()], file:filename(), [ern_diagnostic:diagnostic()], io:device()) -> 1.
-report_errors(Opts, File, Errors, Err) ->
-    Short = lists:member(short_errors, Opts),
+report_errors(Options, File, Errors, ErrorDevice) ->
+    Short = lists:member(short_errors, Options),
     Source = case file:read_file(File) of
-                 {ok, Bin} -> Bin;
+                 {ok, Bytes} -> Bytes;
                  _ -> <<>>
              end,
     Shown = shown(File),
-    lists:foreach(fun(D) ->
+    lists:foreach(fun(Diagnostic) ->
                       Text = case Short of
-                                 true -> ern_diagnostic:short(Shown, D);
-                                 false -> ern_diagnostic:format(Shown, Source, D)
+                                 true -> ern_diagnostic:short(Shown, Diagnostic);
+                                 false -> ern_diagnostic:format(Shown, Source, Diagnostic)
                              end,
-                      io:format(Err, "~ts~n", [Text])
+                      io:format(ErrorDevice, "~ts~n", [Text])
                   end, Errors),
     1.
 
@@ -104,7 +114,7 @@ shown(File) ->
     {ok, Cwd} = file:get_cwd(),
     case relative(File, Cwd) of
         outside -> absolute(File);
-        Rel -> Rel
+        Relative -> Relative
     end.
 
 %% Report §11.1: every `.ern` under a directory, passing over each file and
@@ -116,7 +126,7 @@ shown(File) ->
 sources(Dir) ->
     Names = case file:list_dir_all(Dir) of
                 {ok, Found} -> Found;
-                {error, Reason} -> refused(Dir, Reason)
+                {error, Error} -> refused(Dir, Error)
             end,
     lists:append([source(Dir, Name) || Name <- lists:sort(Names), not dot_name(Name)]).
 
@@ -145,10 +155,10 @@ dot_name(_) -> false.
 bytes_text(Name) when is_list(Name) ->
     Name;
 bytes_text(Name) ->
-    lists:append([case B < 16#80 of
-                      true -> [B];
-                      false -> lists:flatten(io_lib:format("\\x~2.16.0B", [B]))
-                  end || <<B>> <= Name]).
+    lists:append([case Byte < 16#80 of
+                      true -> [Byte];
+                      false -> lists:flatten(io_lib:format("\\x~2.16.0B", [Byte]))
+                  end || <<Byte>> <= Name]).
 
 is_link(Path) ->
     case file:read_link_info(Path) of
@@ -158,41 +168,41 @@ is_link(Path) ->
 
 %% A source file as a module: its namespace from its path under the root,
 %% with the path shape rule of §11.1.
--spec module_of(file:filename(), file:filename()) -> #mod{}.
-module_of(File, Root) ->
-    Rel = relative(File, Root),
-    Rel =/= outside orelse fail(File ++ " is not under the source root " ++ Root
-                                ++ "; --source-root names another"),
+-spec module_of(file:filename(), file:filename()) -> #build_module{}.
+module_of(File, SourceRoot) ->
+    Relative = relative(File, SourceRoot),
+    Relative =/= outside orelse fail(File ++ " is not under the source root " ++ SourceRoot
+                                     ++ "; --source-root names another"),
     %% report §4.2: a file of the standard library's own source root is
     %% compiled with that root only
-    case is_stdlib_root(Root) orelse relative(File, stdlib_root()) =:= outside of
+    case is_stdlib_root(SourceRoot) orelse relative(File, stdlib_root()) =:= outside of
         true -> ok;
-        false -> fail(Rel ++ " is in the standard library's source root; omit --source-root")
+        false -> fail(Relative ++ " is in the standard library's source root; omit --source-root")
     end,
-    filename:extension(Rel) =:= ".ern" orelse fail(Rel ++ " does not end in .ern"),
-    Components = filename:split(filename:rootname(Rel)),
-    lists:foreach(fun(C) -> shape(Rel, C) end, Components),
-    Ns = namespace(Components),
+    filename:extension(Relative) =:= ".ern" orelse fail(Relative ++ " does not end in .ern"),
+    Components = filename:split(filename:rootname(Relative)),
+    lists:foreach(fun(Component) -> shape(Relative, Component) end, Components),
+    Namespace = namespace(Components),
     %% report §4.2: a module namespace is never a namespace of the prelude
     %% or the standard library, except in the standard library's own source
     %% root; the message names which of the two takes it, the prelude where
     %% both do
-    case Ns of
+    case Namespace of
         [Single] ->
-            not is_stdlib_root(Root) andalso
+            not is_stdlib_root(SourceRoot) andalso
                 case {lists:member(Single, prelude_only_namespaces()),
                       lists:member(Single, stdlib_namespaces())} of
                     {true, _} ->
-                        fail(Rel ++ " takes the prelude namespace " ++ atom_to_list(Single));
+                        fail(Relative ++ " takes the prelude namespace " ++ atom_to_list(Single));
                     {false, true} ->
-                        fail(Rel ++ " takes the standard library namespace "
+                        fail(Relative ++ " takes the standard library namespace "
                              ++ atom_to_list(Single));
                     {false, false} ->
                         ok
                 end;
         _ -> ok
     end,
-    #mod{ns = Ns, file = File, rel = Rel}.
+    #build_module{namespace = Namespace, file = File, relative = Relative}.
 
 %% Report §11.1: each component of a file's path is words joined by single
 %% `_`, a word a lowercase letter, then lowercase letters and digits
@@ -203,7 +213,7 @@ shape(File, Component) ->
         true -> ok;
         false ->
             Named = File ++ ": path component `" ++ Component ++ "`",
-            case lists:any(fun(C) -> C >= $A andalso C =< $Z end, Component) of
+            case lists:any(fun(Char) -> Char >= $A andalso Char =< $Z end, Component) of
                 true -> fail(Named ++ " must be lowercase");
                 false -> fail(Named ++ " must be words joined by `_`, each a lowercase letter,"
                               " then lowercase letters and digits; a module of several words"
@@ -225,28 +235,28 @@ namespace(Components) ->
 %% Report §11.2: the inverse, a namespace as a relative path without
 %% extension.
 -spec module_path([atom()]) -> string().
-module_path(Ns) ->
-    ern_namespace:module_path(Ns).
+module_path(Namespace) ->
+    ern_namespace:module_path(Namespace).
 
 %% Parse every module, find its dependencies, and order them; a cycle is
 %% an error naming the modules in it (§11.1).
--spec compile_order([#mod{}], file:filename()) -> [#mod{}].
-compile_order(Modules, Root) ->
-    compile_order(Modules, Root, []).
+-spec compile_order([#build_module{}], file:filename()) -> [#build_module{}].
+compile_order(Modules, SourceRoot) ->
+    compile_order(Modules, SourceRoot, []).
 
--spec compile_order([#mod{}], file:filename(), [file:filename()]) -> [#mod{}].
-compile_order(Modules, Root, LoadPath) ->
-    order([parse_module(M, Root, LoadPath) || M <- Modules]).
+-spec compile_order([#build_module{}], file:filename(), [file:filename()]) -> [#build_module{}].
+compile_order(Modules, SourceRoot, LoadPath) ->
+    order([parse_module(Module, SourceRoot, LoadPath) || Module <- Modules]).
 
 %% Every module parsed, and each that does not parse with its errors, as a
 %% build reports them (report §11.5).
-parse_all(Modules, Root, LoadPath) ->
-    lists:foldl(fun(M, {Parsed, Failed}) ->
-                        try parse_module(M, Root, LoadPath) of
-                            P -> {Parsed ++ [P], Failed}
+parse_all(Modules, SourceRoot, LoadPath) ->
+    lists:foldl(fun(Module, {Parsed, Failed}) ->
+                        try parse_module(Module, SourceRoot, LoadPath) of
+                            ParsedModule -> {Parsed ++ [ParsedModule], Failed}
                         catch
                             throw:{errors, File, Errors} ->
-                                {Parsed, Failed ++ [{M#mod.ns, File, Errors}]}
+                                {Parsed, Failed ++ [{Module#build_module.namespace, File, Errors}]}
                         end
                 end, {[], []}, Modules).
 
@@ -255,154 +265,168 @@ parse_all(Modules, Root, LoadPath) ->
 order(Parsed) ->
     %% the graph is tables of this process's, deleted whether or not the
     %% order is found
-    G = digraph:new(),
+    Graph = digraph:new(),
     Order = try
-                lists:foreach(fun(#mod{ns = Ns}) -> digraph:add_vertex(G, Ns) end, Parsed),
-                lists:foreach(fun(#mod{ns = Ns, deps = Deps}) ->
-                                  lists:foreach(fun(D) ->
-                                                    digraph:add_vertex(G, D),
-                                                    digraph:add_edge(G, D, Ns)
-                                                end, Deps)
+                lists:foreach(fun(#build_module{namespace = Namespace}) ->
+                                  digraph:add_vertex(Graph, Namespace)
                               end, Parsed),
-                topsort(G)
+                lists:foreach(fun(#build_module{namespace = Namespace,
+                                                dependencies = Dependencies}) ->
+                                  lists:foreach(fun(Dependency) ->
+                                                    digraph:add_vertex(Graph, Dependency),
+                                                    digraph:add_edge(Graph, Dependency, Namespace)
+                                                end, Dependencies)
+                              end, Parsed),
+                topsort(Graph)
             after
-                digraph:delete(G)
+                digraph:delete(Graph)
             end,
-    ByNs = maps:from_list([{Ns, M} || #mod{ns = Ns} = M <- Parsed]),
-    [maps:get(Ns, ByNs) || Ns <- Order, is_map_key(Ns, ByNs)].
+    ByNamespace = maps:from_list([{Namespace, Module}
+                                  || #build_module{namespace = Namespace} = Module <- Parsed]),
+    [maps:get(Namespace, ByNamespace) || Namespace <- Order, is_map_key(Namespace, ByNamespace)].
 
-topsort(G) ->
-    case digraph_utils:topsort(G) of
+topsort(Graph) ->
+    case digraph_utils:topsort(Graph) of
         false ->
-            [Cycle | _] = digraph_utils:cyclic_strong_components(G),
-            fail("module cycle: " ++ lists:join(", ", [qname(N) || N <- lists:sort(Cycle)]));
+            [Cycle | _] = digraph_utils:cyclic_strong_components(Graph),
+            fail("module cycle: "
+                 ++ lists:join(", ",
+                               [qualified_name_text(Namespace) || Namespace <- lists:sort(Cycle)]));
         Sorted ->
             Sorted
     end.
 
-parse_module(#mod{file = File} = M, Root, LoadPath) ->
+parse_module(#build_module{file = File} = Module, SourceRoot, LoadPath) ->
     case ern_parser:parse_string(read(File)) of
-        {ok, Decls} ->
-            namespace_clash(M#mod{decls = Decls}, Root),
+        {ok, Declarations} ->
+            namespace_clash(Module#build_module{declarations = Declarations}, SourceRoot),
             %% a module naming itself qualified (report §4.2) depends on nothing by it
-            M#mod{decls = Decls, deps = deps(Decls, Root, LoadPath) -- [M#mod.ns]};
-        {error, E} -> throw({errors, File, [E]})
+            Dependencies = dependencies(Declarations, SourceRoot, LoadPath)
+                -- [Module#build_module.namespace],
+            Module#build_module{declarations = Declarations, dependencies = Dependencies};
+        {error, Diagnostic} -> throw({errors, File, [Diagnostic]})
     end.
 
 %% Report §4.2: a module namespace may not coincide with a type namespace
 %% of its parent module. Checked from both files, so either finds it.
-namespace_clash(#mod{ns = Ns, rel = Rel, decls = Decls}, Root) ->
-    case Ns of
+namespace_clash(#build_module{namespace = Namespace, relative = Relative,
+                              declarations = Declarations}, SourceRoot) ->
+    case Namespace of
         [_, _ | _] ->
-            Parent = lists:droplast(Ns),
-            ParentRel = module_path(Parent) ++ ".ern",
-            lists:member(lists:last(Ns), source_types(filename:join(Root, ParentRel)))
-                andalso clash(Rel, lists:last(Ns), ParentRel, Ns);
+            Parent = lists:droplast(Namespace),
+            ParentRelative = module_path(Parent) ++ ".ern",
+            lists:member(lists:last(Namespace),
+                         source_types(filename:join(SourceRoot, ParentRelative)))
+                andalso clash(Relative, lists:last(Namespace), ParentRelative, Namespace);
         _ ->
             ok
     end,
-    lists:foreach(fun(T) ->
-                      ChildRel = module_path(Ns ++ [T]) ++ ".ern",
-                      filelib:is_regular(filename:join(Root, ChildRel))
-                          andalso clash(ChildRel, T, Rel, Ns ++ [T])
-                  end, local_types(Decls)).
+    lists:foreach(fun(Type) ->
+                      ChildRelative = module_path(Namespace ++ [Type]) ++ ".ern",
+                      filelib:is_regular(filename:join(SourceRoot, ChildRelative))
+                          andalso clash(ChildRelative, Type, Relative, Namespace ++ [Type])
+                  end, local_types(Declarations)).
 
 -spec clash(string(), atom(), string(), [atom()]) -> no_return().
-clash(ChildRel, T, ParentRel, Q) ->
-    fail(ChildRel ++ " and type " ++ atom_to_list(T) ++ " in " ++ ParentRel
-         ++ " share the namespace " ++ qname(Q) ++ " (report §4.2)").
+clash(ChildRelative, Type, ParentRelative, QualifiedName) ->
+    fail(ChildRelative ++ " and type " ++ atom_to_list(Type) ++ " in " ++ ParentRelative
+         ++ " share the namespace " ++ qualified_name_text(QualifiedName) ++ " (report §4.2)").
 
 %% The types a parsed source declares; none when it is absent or does not parse.
 source_types(File) ->
     case file:read_file(File) of
-        {ok, Bin} ->
-            case ern_parser:parse_string(Bin) of
-                {ok, Decls} -> local_types(Decls);
+        {ok, Bytes} ->
+            case ern_parser:parse_string(Bytes) of
+                {ok, Declarations} -> local_types(Declarations);
                 {error, _} -> []
             end;
         {error, _} ->
             []
     end.
 
-local_types(Decls) ->
-    [N || #type_declaration{name = N} <- Decls]
-        ++ [N || #abstract_declaration{declaration = #type_declaration{name = N}} <- Decls]
-        ++ [N || #foreign_type_declaration{name = N} <- Decls].
+local_types(Declarations) ->
+    [Name || #type_declaration{name = Name} <- Declarations]
+        ++ [Name
+            || #abstract_declaration{declaration = #type_declaration{name = Name}} <- Declarations]
+        ++ [Name || #foreign_type_declaration{name = Name} <- Declarations].
 
 %% The modules a source refers to: every qualified name that is not a
 %% member of one of this module's types and whose first segment is not a
 %% prelude namespace, and whose longest prefix names an existing .ern under
 %% the root. Report §4.2: `T.name` is the module's own member where its type
 %% `T` declares one of that name, and the namespace T's `name` otherwise.
-deps(Decls, Root, LoadPath) ->
+dependencies(Declarations, SourceRoot, LoadPath) ->
     %% in the standard library's root its own namespaces are dependencies
-    Skip = case is_stdlib_root(Root) of
+    Skip = case is_stdlib_root(SourceRoot) of
                true -> [];
                false -> prelude_namespaces()
            end,
-    Members = local_members(Decls),
-    Paths = lists:usort([P || {P, Name} <- references(Decls), P =/= [],
-                              not lists:member(hd(P), Skip),
-                              not lists:member({P, Name}, Members)]),
-    lists:usort(lists:filtermap(fun(P) -> module_prefix(P, Root, LoadPath) end, Paths)).
+    Members = local_members(Declarations),
+    Paths = lists:usort([Path || {Path, Name} <- references(Declarations), Path =/= [],
+                              not lists:member(hd(Path), Skip),
+                              not lists:member({Path, Name}, Members)]),
+    lists:usort(lists:filtermap(fun(Path) -> module_prefix(Path, SourceRoot, LoadPath) end, Paths)).
 
 %% Each qualified reference of a source, its path and its last name; only a
 %% value's lowercase name or operator can be a type's member.
-references(#e_var{path = P, name = N}) -> [{P, N}];
-references(#e_constructor{path = P, name = N, base = Base, args = A}) ->
-    [{P, N} | references(Base) ++ references(A)];
-references(#p_constructor{path = P, name = N, args = A}) -> [{P, N} | references(A)];
-references(#t_named{path = P, name = N, args = A}) -> [{P, N} | references(A)];
-references(T) when is_tuple(T) -> lists:append([references(X) || X <- tuple_to_list(T)]);
-references(L) when is_list(L) -> lists:append([references(X) || X <- L]);
+references(#e_var{path = Path, name = Name}) -> [{Path, Name}];
+references(#e_constructor{path = Path, name = Name, base = Base, args = Args}) ->
+    [{Path, Name} | references(Base) ++ references(Args)];
+references(#p_constructor{path = Path, name = Name, args = Args}) ->
+    [{Path, Name} | references(Args)];
+references(#t_named{path = Path, name = Name, args = Args}) -> [{Path, Name} | references(Args)];
+references(Node) when is_tuple(Node) ->
+    lists:append([references(Child) || Child <- tuple_to_list(Node)]);
+references(Nodes) when is_list(Nodes) -> lists:append([references(Child) || Child <- Nodes]);
 references(_) -> [].
 
 %% The members this module's types declare, `T.name` as {[T], name}.
-local_members(Decls) ->
-    [{[Owner], Name} || #fn_declaration{owner = Owner, name = Name} <- Decls, Owner =/= undefined]
-        ++ [{[Owner], Name} || #foreign_fn_declaration{owner = Owner, name = Name} <- Decls,
+local_members(Declarations) ->
+    [{[Owner], Name} || #fn_declaration{owner = Owner, name = Name} <- Declarations,
+                        Owner =/= undefined]
+        ++ [{[Owner], Name} || #foreign_fn_declaration{owner = Owner, name = Name} <- Declarations,
                                Owner =/= undefined].
 
 %% Report §11.1: a prefix of a qualified name is a module when the source
-%% root holds its source, or the build root or a --load-path root, Dirs,
-%% its compiled module.
-module_prefix([], _Root, _LoadPath) ->
+%% root holds its source, or the build root or a --load-path root,
+%% SearchPath, its compiled module.
+module_prefix([], _SourceRoot, _SearchPath) ->
     false;
-module_prefix(Path, Root, Dirs) ->
-    Rel = module_path(Path),
-    case filelib:is_regular(filename:join(Root, Rel ++ ".ern"))
-        orelse lists:any(fun(D) -> filelib:is_regular(filename:join(D, Rel ++ ".erc")) end,
-                         Dirs) of
+module_prefix(Path, SourceRoot, SearchPath) ->
+    Relative = module_path(Path),
+    case filelib:is_regular(filename:join(SourceRoot, Relative ++ ".ern"))
+        orelse lists:any(fun(Dir) -> filelib:is_regular(filename:join(Dir, Relative ++ ".erc")) end,
+                         SearchPath) of
         true -> {true, Path};
-        false -> module_prefix(lists:droplast(Path), Root, Dirs)
+        false -> module_prefix(lists:droplast(Path), SourceRoot, SearchPath)
     end.
 
 %% Report §11.1: the source root is --source-root; without it, the standard
 %% library's root for a path under it, else Default.
 -spec source_root([term()], file:filename(), file:filename()) -> file:filename().
-source_root(Opts, Path, Default) ->
-    case proplists:get_value(source_root, Opts) of
+source_root(Options, Path, Default) ->
+    case proplists:get_value(source_root, Options) of
         undefined ->
             case relative(Path, stdlib_root()) of
                 outside -> absolute(Default);
                 _ -> stdlib_root()
             end;
-        Root -> absolute(Root)
+        Given -> absolute(Given)
     end.
 
 %% Report §11.1: the build directory is --build-root; without it, the source
 %% root, and `build/stdlib` for the standard library's own root, where the
 %% Makefile builds it.
--spec out_dir([term()], file:filename()) -> file:filename().
-out_dir(Opts, Root) ->
-    case proplists:get_value(build_root, Opts) of
+-spec build_root([term()], file:filename()) -> file:filename().
+build_root(Options, SourceRoot) ->
+    case proplists:get_value(build_root, Options) of
         undefined ->
-            case is_stdlib_root(Root) of
+            case is_stdlib_root(SourceRoot) of
                 true -> absolute(filename:join([filename:dirname(stdlib_root()), "build",
                                                 "stdlib"]));
-                false -> Root
+                false -> SourceRoot
             end;
-        Dir -> absolute(Dir)
+        Given -> absolute(Given)
     end.
 
 %% Report §11.1: the standard library's own root takes its namespaces from
@@ -410,19 +434,19 @@ out_dir(Opts, Root) ->
 %% as the library and which a build of ern in another chunk format may have
 %% written, is off the code path while the library builds; the directories
 %% set aside, which return to the path when the build ends.
-set_aside_installed_stdlib(Root, OutDir) ->
-    case is_stdlib_root(Root) of
+set_aside_installed_stdlib(SourceRoot, BuildRoot) ->
+    case is_stdlib_root(SourceRoot) of
         true ->
-            Dirs = [Dir || Dir <- code:get_path(), absolute(Dir) =:= OutDir],
-            lists:foreach(fun code:del_path/1, Dirs),
-            Dirs;
+            SetAside = [Dir || Dir <- code:get_path(), absolute(Dir) =:= BuildRoot],
+            lists:foreach(fun code:del_path/1, SetAside),
+            SetAside;
         false ->
             []
     end.
 
 -spec is_stdlib_root(file:filename()) -> boolean().
-is_stdlib_root(Root) ->
-    absolute(Root) =:= stdlib_root().
+is_stdlib_root(SourceRoot) ->
+    absolute(SourceRoot) =:= stdlib_root().
 
 %% Report §4.2: the standard library's source root, `stdlib/` beside the
 %% toolchain's `erl/`, found from where this module was loaded.
@@ -444,42 +468,52 @@ prelude_only_namespaces() ->
 
 %% The standard library's modules at the top of the hierarchy.
 stdlib_namespaces() ->
-    lists:usort([hd(I#interface.namespace) || I <- ern_prelude:stdlib_interfaces()]).
+    lists:usort([hd(Interface#interface.namespace)
+                 || Interface <- ern_prelude:stdlib_interfaces()]).
 
 %% Type-check and compile one module against its dependencies'
 %% interfaces, unless its .erc is current (§11.1). Returns the interfaces
 %% with this module's added.
-build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces, Root,
-      [OutDir | _] = Dirs, Emit, Std) ->
-    DepIfaces = dep_ifaces(Ns, Deps, Ifaces, Dirs, Root),
-    DepHashes = lists:sort([{D, ern_interface:hash(I)} || {D, I} <- DepIfaces]),
+build(#build_module{namespace = Namespace, file = File, relative = Relative,
+                    declarations = Declarations, dependencies = Dependencies}, Interfaces,
+                    SourceRoot,
+      [BuildRoot | _] = SearchPath, Emit, StdlibHash) ->
+    DependencyInterfaces = dependency_interfaces(Namespace, Dependencies, Interfaces, SearchPath,
+                                                 SourceRoot),
+    DependencyHashes = lists:sort([{Dependency, ern_interface:hash(DependencyInterface)}
+                                   || {Dependency, DependencyInterface} <- DependencyInterfaces]),
     SourceHash = crypto:hash(sha256, read(File)),
-    SourcePath = path_from(OutDir, File),
-    Out = filename:join(OutDir, filename:rootname(Rel)),
-    Erc = Out ++ ".erc",
-    case Emit =:= erc andalso current(Erc, SourceHash, SourcePath, DepHashes, Std) of
-        {true, Iface} ->
-            Ifaces#{Ns => Iface};
+    SourcePath = path_from(BuildRoot, File),
+    OutputBase = filename:join(BuildRoot, filename:rootname(Relative)),
+    Erc = OutputBase ++ ".erc",
+    case Emit =:= erc andalso current(Erc, SourceHash, SourcePath, DependencyHashes, StdlibHash) of
+        {true, Interface} ->
+            Interfaces#{Namespace => Interface};
         false ->
-            case ern_typecheck:check(Ns, Decls, [I || {_, I} <- DepIfaces]) of
-                {ok, Typed, Iface, Env} ->
+            case ern_typecheck:check(Namespace, Declarations,
+                                     [DependencyInterface
+                                      || {_, DependencyInterface} <- DependencyInterfaces]) of
+                {ok, Typed, Interface, Env} ->
                     ok = made_dir(Erc),
                     case Emit of
                         erl ->
-                            Src = ["%% Generated by ern build from ", Rel, "\n",
-                                   ern_emitter:erl_source(Ns, Typed, Env,
-                                                          #{standard => is_stdlib_root(Root)})],
-                            ok = write_output(Out ++ ".erl", unicode:characters_to_binary(Src));
+                            Standard = #{standard => is_stdlib_root(SourceRoot)},
+                            ErlangSource = ["%% Generated by ern build from ", Relative, "\n",
+                                            ern_emitter:erl_source(Namespace, Typed, Env,
+                                                                   Standard)],
+                            ok = write_output(OutputBase ++ ".erl",
+                                              unicode:characters_to_binary(ErlangSource));
                         erc ->
-                            held_by_another(Erc, Ns),
+                            held_by_another(Erc, Namespace),
                             Build = #{source_hash => SourceHash, source_path => SourcePath,
-                                      deps => DepHashes, compiler => compiler_build(),
-                                      stdlib => Std, standard => is_stdlib_root(Root),
-                                      source => list_to_binary(filename:basename(Rel))},
-                            {ok, _, Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
+                                      deps => DependencyHashes, compiler => compiler_build(),
+                                      stdlib => StdlibHash, standard => is_stdlib_root(SourceRoot),
+                                      source => list_to_binary(filename:basename(Relative))},
+                            {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env,
+                                                                Build),
                             ok = write_output(Erc, Beam)
                     end,
-                    Ifaces#{Ns => Iface};
+                    Interfaces#{Namespace => Interface};
                 {error, Errors} ->
                     throw({errors, File, Errors})
             end
@@ -489,11 +523,12 @@ build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces,
 %% a single-file build from another source root would: the file is another
 %% module's. A regression: the build replaced it, and a run of a module
 %% using it failed in the host's loader.
-held_by_another(Erc, Ns) ->
+held_by_another(Erc, Namespace) ->
     case read_erc(Erc) of
-        {ok, #{interface := #interface{namespace = Held}}} when Held =/= Ns ->
-            fail(shown(Erc) ++ " holds " ++ qname(Held) ++ ", and this build names the module "
-                 ++ qname(Ns) ++ "; name its source root with --source-root");
+        {ok, #{interface := #interface{namespace = Held}}} when Held =/= Namespace ->
+            fail(shown(Erc) ++ " holds " ++ qualified_name_text(Held)
+                 ++ ", and this build names the module "
+                 ++ qualified_name_text(Namespace) ++ "; name its source root with --source-root");
         _ ->
             ok
     end.
@@ -504,17 +539,17 @@ held_by_another(Erc, Ns) ->
 %% set is hashed. The standard library's own modules depend on each other
 %% as ordinary modules do, and record none.
 -spec stdlib_hash(file:filename()) -> binary() | none.
-stdlib_hash(Root) ->
-    case is_stdlib_root(Root) of
+stdlib_hash(SourceRoot) ->
+    case is_stdlib_root(SourceRoot) of
         true -> none;
         false ->
-            Hashes = lists:sort([{I#interface.namespace, ern_interface:hash(I)}
-                                 || I <- ern_prelude:stdlib_interfaces()]),
+            Hashes = lists:sort([{Interface#interface.namespace, ern_interface:hash(Interface)}
+                                 || Interface <- ern_prelude:stdlib_interfaces()]),
             crypto:hash(sha256, term_to_binary(Hashes))
     end.
 
 %% Report §11.1: the interfaces a module is checked against, which its
-%% `.erc` records: those of the modules its source names, Deps, and of
+%% `.erc` records: those of the modules its source names, Dependencies, and of
 %% each module that declares a type an interface among them names, closed
 %% over. A module of the standard library is left out, every interface of
 %% the library being given to every checker already (ern_typecheck), except
@@ -524,77 +559,92 @@ stdlib_hash(Root) ->
 %% built, and the order of a build needs nothing more, since a type reaches
 %% an interface only through a module whose declaration reached that
 %% module's checker, which this rule had already put among its dependencies.
--spec dep_ifaces([atom()], [[atom()]], #{[atom()] => #interface{}}, [file:filename(), ...],
-                 file:filename()) -> [{[atom()], #interface{}}].
-dep_ifaces(Ns, Deps, Ifaces, Dirs, Root) ->
-    Skip = case is_stdlib_root(Root) of
-               true -> [Ns];
-               false -> [Ns | [[N] || N <- stdlib_namespaces()]]
+-spec dependency_interfaces([atom()], [[atom()]], #{[atom()] => #interface{}},
+                            [file:filename(), ...],
+                            file:filename()) -> [{[atom()], #interface{}}].
+dependency_interfaces(Namespace, Dependencies, Interfaces, SearchPath, SourceRoot) ->
+    Skip = case is_stdlib_root(SourceRoot) of
+               true -> [Namespace];
+               false -> [Namespace | [[Name] || Name <- stdlib_namespaces()]]
            end,
-    reached([dep_iface(D, Ifaces, Dirs, Root) || D <- lists:usort(Deps)], Skip, Ifaces, Dirs,
-            Root).
+    reached([dependency_interface(Dependency, Interfaces, SearchPath, SourceRoot)
+             || Dependency <- lists:usort(Dependencies)], Skip, Interfaces, SearchPath,
+            SourceRoot).
 
-reached(Found, Skip, Ifaces, Dirs, Root) ->
-    Have = [D || {D, _} <- Found],
-    Named = lists:usort([M || {_, I} <- Found, M <- type_modules(I),
-                              not lists:member(M, Skip), not lists:member(M, Have)]),
+reached(Found, Skip, Interfaces, SearchPath, SourceRoot) ->
+    Have = [Dependency || {Dependency, _} <- Found],
+    Named = lists:usort([Namespace || {_, Interface} <- Found, Namespace <- type_modules(Interface),
+                              not lists:member(Namespace, Skip),
+                              not lists:member(Namespace, Have)]),
     case Named of
         [] -> Found;
-        _ -> reached(Found ++ [dep_iface(M, Ifaces, Dirs, Root) || M <- Named],
-                     Skip, Ifaces, Dirs, Root)
+        _ ->
+            reached(Found
+                    ++ [dependency_interface(Namespace, Interfaces, SearchPath, SourceRoot)
+                        || Namespace <- Named],
+                     Skip, Interfaces, SearchPath, SourceRoot)
     end.
 
 %% The modules whose types an interface names, in its values' schemes and
 %% its types' constructors: a type's qualified name less its last segment.
 %% A type of one segment is the prelude's or a built-in, and no module's.
-type_modules(#interface{} = I) ->
-    lists:usort([lists:droplast(Q) || Q <- type_names(I, []), length(Q) >= 2]).
+type_modules(#interface{} = Interface) ->
+    lists:usort([lists:droplast(QualifiedName) || QualifiedName <- type_names(Interface, []),
+                                                  length(QualifiedName) >= 2]).
 
-type_names({tcon, Q, Args}, Acc) when is_list(Q) ->
-    type_names(Args, [Q | Acc]);
+type_names({tcon, QualifiedName, Args}, Acc) when is_list(QualifiedName) ->
+    type_names(Args, [QualifiedName | Acc]);
 type_names(Term, Acc) when is_tuple(Term) ->
     type_names(tuple_to_list(Term), Acc);
 type_names(Term, Acc) when is_map(Term) ->
     type_names(maps:to_list(Term), Acc);
-type_names([H | T], Acc) ->
-    type_names(T, type_names(H, Acc));
+type_names([Head | Tail], Acc) ->
+    type_names(Tail, type_names(Head, Acc));
 type_names(_, Acc) ->
     Acc.
 
 %% Report §11.1: a module outside the source root is found by its namespace
 %% under the build directory, then under each --load-path root in order. A
 %% stale .erc is no module.
--spec dep_iface([atom()], #{[atom()] => #interface{}}, [file:filename(), ...], file:filename()) ->
+-spec dependency_interface([atom()], #{[atom()] => #interface{}}, [file:filename(), ...],
+                           file:filename()) ->
           {[atom()], #interface{}}.
-dep_iface(D, Ifaces, [OutDir | _] = Dirs, Root) ->
-    case Ifaces of
-        #{D := I} -> {D, I};
+dependency_interface(Dependency, Interfaces, [BuildRoot | _] = SearchPath, SourceRoot) ->
+    case Interfaces of
+        #{Dependency := Interface} -> {Dependency, Interface};
         _ ->
-            Found = [{Dir, E} || Dir <- Dirs,
-                                 E <- [filename:join(Dir, module_path(D) ++ ".erc")],
-                                 filelib:is_regular(E)],
+            Found = [{Dir, Candidate} || Dir <- SearchPath,
+                                 Candidate <- [filename:join(Dir, module_path(Dependency)
+                                                                  ++ ".erc")],
+                                 filelib:is_regular(Candidate)],
             {Dir, Erc} = case Found of
                              [First | _] -> First;
-                             [] -> {OutDir, filename:join(OutDir, module_path(D) ++ ".erc")}
+                             [] ->
+                                 {BuildRoot,
+                                  filename:join(BuildRoot, module_path(Dependency) ++ ".erc")}
                          end,
             case read_erc(Erc) of
-                {ok, #{interface := I} = Chunk} ->
-                    case gone(Chunk, Dir, Root) of
-                        false -> {D, I};
-                        Source -> fail("no module " ++ qname(D) ++ ": " ++ shown(Erc)
+                {ok, #{interface := Interface} = Chunk} ->
+                    case gone(Chunk, Dir, SourceRoot) of
+                        false -> {Dependency, Interface};
+                        Source ->
+                            fail("no module " ++ qualified_name_text(Dependency) ++ ": "
+                                 ++ shown(Erc)
                                        ++ " was compiled from " ++ shown(Source)
                                        ++ ", which no longer exists")
                     end;
-                {error, Why} -> fail("compile " ++ qname(D) ++ " first: " ++ Erc ++ ": " ++ Why)
+                {error, Error} ->
+                    fail("compile " ++ qualified_name_text(Dependency) ++ " first: " ++ Erc ++ ": "
+                         ++ Error)
             end
     end.
 
 %% Report §11.1: a .erc under the root Dir is stale when the source it
 %% records, from Dir, lies under the source root and no longer exists; the
 %% source is returned, and false for a .erc that is not.
-gone(#{source_path := Recorded}, Dir, Root) ->
+gone(#{source_path := Recorded}, Dir, SourceRoot) ->
     Source = absolute(filename:join(Dir, unicode:characters_to_list(Recorded))),
-    case relative(Source, Root) =/= outside andalso not filelib:is_regular(Source) of
+    case relative(Source, SourceRoot) =/= outside andalso not filelib:is_regular(Source) of
         true -> Source;
         false -> false
     end;
@@ -602,19 +652,19 @@ gone(_, _, _) ->
     false.
 
 -spec load_path([term()]) -> [file:filename()].
-load_path(Opts) ->
-    [absolute(D) || {load_path, D} <- Opts].
+load_path(Options) ->
+    [absolute(Dir) || {load_path, Dir} <- Options].
 
 %% Report §11.1: current when the source and its path from the build root,
 %% every dependency's interface, the standard library's interfaces, and the
 %% build of the compiler are those the .erc was built from.
-current(Erc, SourceHash, SourcePath, DepHashes, Std) ->
+current(Erc, SourceHash, SourcePath, DependencyHashes, StdlibHash) ->
     Version = compiler_build(),
     case read_erc(Erc) of
-        {ok, #{interface := Iface, source_hash := SourceHash, source_path := SourcePath,
-               deps := Deps, compiler := Version, stdlib := Std}} ->
-            case lists:sort(Deps) =:= DepHashes of
-                true -> {true, Iface};
+        {ok, #{interface := Interface, source_hash := SourceHash, source_path := SourcePath,
+               deps := RecordedHashes, compiler := Version, stdlib := StdlibHash}} ->
+            case lists:sort(RecordedHashes) =:= DependencyHashes of
+                true -> {true, Interface};
                 false -> false
             end;
         _ -> false
@@ -631,41 +681,42 @@ compiler_modules() ->
 %% Report §11.1: the build of ern, its version and a hash of the modules
 %% that compile, so that a compiler changed under one version is another.
 compiler_build() ->
-    Hash = erlang:md5(term_to_binary([M:module_info(md5) || M <- compiler_modules()])),
+    Hash = erlang:md5(term_to_binary([ErlangModule:module_info(md5)
+                                      || ErlangModule <- compiler_modules()])),
     <<(list_to_binary(?VERSION))/binary, $+, (binary:encode_hex(Hash, lowercase))/binary>>.
 
 read_erc(Erc) ->
     case file:read_file(Erc) of
-        {ok, Bin} -> ern_interface:read(Bin);
-        {error, Reason} -> {error, file:format_error(Reason)}
+        {ok, Bytes} -> ern_interface:read(Bytes);
+        {error, Error} -> {error, file:format_error(Error)}
     end.
 
 %% Report §11.1: remove every stale .erc under the mirror of the compiled
 %% subtree, and each directory of the subtree the removals leave empty.
-sweep(Dir, Root, OutDir) ->
-    Sub = absolute(filename:join(OutDir, relative(Dir, Root))),
+sweep(Dir, SourceRoot, BuildRoot) ->
+    Mirror = absolute(filename:join(BuildRoot, relative(Dir, SourceRoot))),
     lists:foreach(fun(Erc) ->
                       ok = deleted(Erc),
-                      remove_emptied(filename:dirname(Erc), Sub, OutDir)
-                  end, [Erc || Erc <- outputs(Sub, ".erc"), stale(Erc, OutDir, Root)]).
+                      remove_emptied(filename:dirname(Erc), Mirror, BuildRoot)
+                  end, [Erc || Erc <- outputs(Mirror, ".erc"), stale(Erc, BuildRoot, SourceRoot)]).
 
 %% A .erc that does not read as this compiler's records nothing, and is kept.
-stale(Erc, OutDir, Root) ->
+stale(Erc, BuildRoot, SourceRoot) ->
     case read_erc(Erc) of
-        {ok, Chunk} -> gone(Chunk, OutDir, Root) =/= false;
+        {ok, Chunk} -> gone(Chunk, BuildRoot, SourceRoot) =/= false;
         {error, _} -> false
     end.
 
 %% Report §11.1: every file of an extension under a directory, passing over
 %% each name that begins with a dot, as sources/1 does, and each symbolic
 %% link.
-outputs(Dir, Ext) ->
+outputs(Dir, Extension) ->
     case file:list_dir(Dir) of
         {ok, Names} ->
             lists:append([case file:read_link_info(Path) of
-                              {ok, #file_info{type = directory}} -> outputs(Path, Ext);
+                              {ok, #file_info{type = directory}} -> outputs(Path, Extension);
                               {ok, #file_info{type = regular}} ->
-                                  [Path || filename:extension(Name) =:= Ext];
+                                  [Path || filename:extension(Name) =:= Extension];
                               _ -> []
                           end || Name <- lists:sort(Names), hd(Name) =/= $.,
                                  Path <- [filename:join(Dir, Name)]]);
@@ -679,29 +730,30 @@ outputs(Dir, Ext) ->
 %% doc`'s, and is kept.
 -spec sweep_pages(markdown | man, file:filename(), file:filename(), file:filename(),
                   [[atom()]]) -> ok.
-sweep_pages(Kind, Dir, Root, OutDir, Kept) ->
-    Sub = absolute(filename:join(OutDir, relative(Dir, Root))),
-    Ext = case Kind of
-              markdown -> ".md";
-              man -> ".3ern"
-          end,
-    Names = [[atom_to_list(S) || S <- Ns] || Ns <- Kept],
+sweep_pages(Kind, Dir, SourceRoot, BuildRoot, Kept) ->
+    Mirror = absolute(filename:join(BuildRoot, relative(Dir, SourceRoot))),
+    Extension = case Kind of
+                    markdown -> ".md";
+                    man -> ".3ern"
+                end,
+    Names = [[atom_to_list(Segment) || Segment <- Namespace] || Namespace <- Kept],
     lists:foreach(fun(Page) ->
                       ok = deleted(Page),
-                      remove_emptied(filename:dirname(Page), Sub, OutDir)
-                  end, [Page || Page <- outputs(Sub, Ext),
-                                {ok, Segments} <- [page_of(Kind, Page, OutDir)],
+                      remove_emptied(filename:dirname(Page), Mirror, BuildRoot)
+                  end, [Page || Page <- outputs(Mirror, Extension),
+                                {ok, Segments} <- [page_of(Kind, Page, BuildRoot)],
                                 not lists:member(Segments, Names)]).
 
 %% The segments of the module a page documents, by its title, where the
 %% page stands at that module's place. A title is no module's name until
 %% the place agrees, so it is read as text.
-page_of(Kind, Page, OutDir) ->
+page_of(Kind, Page, BuildRoot) ->
     Title = case {Kind, binary:split(read(Page), <<"\n">>, [global])} of
-                {markdown, [<<"# Ernest module ", Q/binary>> | _]} -> title(Q);
+                {markdown, [<<"# Ernest module ", QualifiedName/binary>> | _]} ->
+                    title(QualifiedName);
                 {man, [_, <<".TH \"Ernest.", Rest/binary>> | _]} ->
-                    [Q | _] = binary:split(Rest, <<"\"">>),
-                    title(Q);
+                    [QualifiedName | _] = binary:split(Rest, <<"\"">>),
+                    title(QualifiedName);
                 _ -> none
             end,
     case Title of
@@ -713,7 +765,7 @@ page_of(Kind, Page, OutDir) ->
                         markdown -> Path ++ ".md";
                         man -> filename:join(filename:dirname(Path), "Ernest." ++ Title ++ ".3ern")
                     end,
-            case relative(Page, OutDir) =:= Place of
+            case relative(Page, BuildRoot) =:= Place of
                 true -> {ok, Segments};
                 false -> none
             end
@@ -728,40 +780,45 @@ title(Text) ->
 %% A directory the sweep emptied, and each above it that it empties in turn,
 %% up to the top of the swept subtree and never the build root; del_dir
 %% removes a directory only when it is empty.
-remove_emptied(Dir, Sub, OutDir) ->
-    case Dir =/= OutDir andalso relative(Dir, Sub) =/= outside andalso file:del_dir(Dir) of
-        ok -> remove_emptied(filename:dirname(Dir), Sub, OutDir);
+remove_emptied(Dir, Mirror, BuildRoot) ->
+    case Dir =/= BuildRoot andalso relative(Dir, Mirror) =/= outside andalso file:del_dir(Dir) of
+        ok -> remove_emptied(filename:dirname(Dir), Mirror, BuildRoot);
         _ -> ok
     end.
 
-
 %% Report §11.2: a module compiled from its source for the shell, as
 %% `ern build` would compile it but in memory, since `:load` and `:reload`
-%% write nothing. `Root` is the source root and `Dirs` the load path, the
-%% roots a dependency outside the source root is found under by its
-%% namespace, in order (§11.1). A dependency the session has loaded is
-%% compiled against as `Ifaces` holds it, since it has no `.erc` or one
+%% write nothing. SourceRoot is the source root and SearchPath the load
+%% path, the roots a dependency outside the source root is found under by
+%% its namespace, in order (§11.1). A dependency the session has loaded is
+%% compiled against as Interfaces holds it, since it has no `.erc` or one
 %% older than it. A refusal is a sentence, and diagnostics come with the
 %% file they are in.
 -spec compile_source(file:filename(), file:filename(), [file:filename(), ...],
                      #{[atom()] => #interface{}}) ->
           {ok, [atom()], binary(), binary()} | {refused, string()}
           | {error, file:filename(), [ern_diagnostic:diagnostic()]}.
-compile_source(File, Root, Dirs, Ifaces) ->
+compile_source(File, SourceRoot, SearchPath, Interfaces) ->
     try
-        [#mod{ns = Ns, rel = Rel, decls = Decls, deps = Deps}] =
-            compile_order([module_of(absolute(File), Root)], Root, Dirs),
-        DepIfaces = dep_ifaces(Ns, Deps, Ifaces, Dirs, Root),
-        DepHashes = lists:sort([{D, ern_interface:hash(I)} || {D, I} <- DepIfaces]),
+        [#build_module{namespace = Namespace, relative = Relative, declarations = Declarations,
+                       dependencies = Dependencies}] =
+            compile_order([module_of(absolute(File), SourceRoot)], SourceRoot, SearchPath),
+        DependencyInterfaces = dependency_interfaces(Namespace, Dependencies, Interfaces,
+                                                     SearchPath, SourceRoot),
+        DependencyHashes = lists:sort([{Dependency, ern_interface:hash(DependencyInterface)}
+                                       || {Dependency,
+                                           DependencyInterface} <- DependencyInterfaces]),
         Hash = crypto:hash(sha256, read(File)),
-        case ern_typecheck:check(Ns, Decls, [I || {_, I} <- DepIfaces]) of
-            {ok, Typed, Iface, Env} ->
+        case ern_typecheck:check(Namespace, Declarations,
+                                 [DependencyInterface
+                                  || {_, DependencyInterface} <- DependencyInterfaces]) of
+            {ok, Typed, Interface, Env} ->
                 %% the dependencies are recorded as `ern build` records them, so
                 %% the shell loads them before the module (report §11.2)
-                Build = #{source_hash => Hash, deps => DepHashes,
-                          source => list_to_binary(filename:basename(Rel))},
-                {ok, _, Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
-                {ok, Ns, Beam, Hash};
+                Build = #{source_hash => Hash, deps => DependencyHashes,
+                          source => list_to_binary(filename:basename(Relative))},
+                {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+                {ok, Namespace, Beam, Hash};
             {error, Errors} ->
                 {error, File, Errors}
         end
@@ -783,18 +840,18 @@ absolute(Path) ->
     filename:join(normalize(filename:split(filename:absname(Path)), [])).
 
 normalize([], Acc) -> lists:reverse(Acc);
-normalize(["." | R], Acc) -> normalize(R, Acc);
-normalize([".." | R], [_ | Acc]) -> normalize(R, Acc);
-normalize([Seg | R], Acc) -> normalize(R, [Seg | Acc]).
+normalize(["." | Rest], Acc) -> normalize(Rest, Acc);
+normalize([".." | Rest], [_ | Acc]) -> normalize(Rest, Acc);
+normalize([Segment | Rest], Acc) -> normalize(Rest, [Segment | Acc]).
 
-%% Path relative to Root, or outside.
+%% Path relative to Base, or outside.
 -spec relative(file:filename(), file:filename()) -> file:filename() | outside.
-relative(Path, Root) ->
-    P = filename:split(absolute(Path)),
-    R = filename:split(absolute(Root)),
-    case lists:prefix(R, P) of
+relative(Path, Base) ->
+    PathParts = filename:split(absolute(Path)),
+    RootParts = filename:split(absolute(Base)),
+    case lists:prefix(RootParts, PathParts) of
         true ->
-            case lists:nthtail(length(R), P) of
+            case lists:nthtail(length(RootParts), PathParts) of
                 [] -> ".";
                 Rest -> filename:join(Rest)
             end;
@@ -807,12 +864,12 @@ path_from(Base, Path) ->
     unicode:characters_to_binary(unshared(filename:split(absolute(Base)),
                                           filename:split(absolute(Path)))).
 
-unshared([S | Base], [S | Path]) -> unshared(Base, Path);
+unshared([Segment | Base], [Segment | Path]) -> unshared(Base, Path);
 unshared(Base, Path) -> filename:join([".." || _ <- Base] ++ Path).
 
--spec qname([atom()]) -> string().
-qname(Ns) ->
-    lists:flatten(lists:join(".", [atom_to_list(S) || S <- Ns])).
+-spec qualified_name_text([atom()]) -> string().
+qualified_name_text(Namespace) ->
+    lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- Namespace])).
 
 %% Report §11: a file a job writes is written whole or not at all. It is
 %% written beside its place, under a name that begins with a dot, which no
@@ -848,9 +905,9 @@ written(File, Target, Data, Mode) ->
     New = filename:join(filename:dirname(Target),
                         "." ++ filename:basename(Target) ++ "." ++ Own ++ ".new"),
     Kept = case {Mode, file:read_link_info(Target)} of
-               {undefined, {ok, #file_info{type = regular, mode = M}}} -> M band 8#7777;
+               {undefined, {ok, #file_info{type = regular, mode = Given}}} -> Given band 8#7777;
                {undefined, _} -> undefined;
-               {M, _} -> M
+               {Given, _} -> Given
            end,
     Steps = [fun() -> file:write_file(New, <<>>) end]
         ++ [fun() -> file:change_mode(New, Kept) end || Kept =/= undefined]
@@ -858,9 +915,9 @@ written(File, Target, Data, Mode) ->
     case lists:foldl(fun(Step, ok) -> Step(); (_, Failed) -> Failed end, ok, Steps) of
         ok ->
             ok;
-        {error, Reason} ->
+        {error, Error} ->
             _ = file:delete(New),
-            fail(File ++ ": " ++ file:format_error(Reason))
+            fail(File ++ ": " ++ file:format_error(Error))
     end.
 
 %% Report §11.8: a file a job cannot read, a directory it cannot make, and
@@ -869,8 +926,8 @@ written(File, Target, Data, Mode) ->
 -spec read(file:filename_all()) -> binary().
 read(File) ->
     case file:read_file(File) of
-        {ok, Bin} -> Bin;
-        {error, Reason} -> refused(File, Reason)
+        {ok, Bytes} -> Bytes;
+        {error, Error} -> refused(File, Error)
     end.
 
 %% The directories a file is written under.
@@ -878,19 +935,19 @@ read(File) ->
 made_dir(File) ->
     case filelib:ensure_dir(File) of
         ok -> ok;
-        {error, Reason} -> refused(filename:dirname(File), Reason)
+        {error, Error} -> refused(filename:dirname(File), Error)
     end.
 
 deleted(File) ->
     case file:delete(File) of
         ok -> ok;
         {error, enoent} -> ok;
-        {error, Reason} -> refused(File, Reason)
+        {error, Error} -> refused(File, Error)
     end.
 
 -spec refused(file:filename_all(), term()) -> no_return().
-refused(File, Reason) ->
-    fail(bytes_text(File) ++ ": " ++ file:format_error(Reason)).
+refused(File, Error) ->
+    fail(bytes_text(File) ++ ": " ++ file:format_error(Error)).
 
 %% The file a path names, its links followed, as the host follows them, up
 %% to a depth past which the host would refuse the path.
@@ -903,6 +960,6 @@ followed(Path, Depth) ->
     end.
 
 -spec fail(iodata()) -> no_return().
-fail(Msg) ->
-    throw({cli_error, lists:flatten(Msg)}).
+fail(Message) ->
+    throw({cli_error, lists:flatten(Message)}).
 

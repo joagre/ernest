@@ -2397,7 +2397,7 @@ with_loaded(Dir, Modules) ->
 %% set it leaves none behind for the next.
 forget_session() ->
     persistent_term:erase({ern_shell, loaded}),
-    persistent_term:erase({ern_shell, env}),
+    persistent_term:erase({ern_shell, session}),
     ok.
 
 %% report §11.2: on a terminal the shell reads keys, paints what is typed,
