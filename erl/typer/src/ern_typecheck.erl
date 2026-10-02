@@ -187,9 +187,9 @@ declared_types(Declarations) ->
     [Declaration || #type_declaration{} = Declaration <- Declarations]
         ++ [Declaration || #abstract_declaration{declaration = Declaration} <- Declarations].
 
-top_value_name(#fn_declaration{owner = undefined, name = Name}) -> [Name];
+top_value_name(#fn_declaration{member_of = undefined, name = Name}) -> [Name];
 top_value_name(#let_declaration{name = Name}) -> [Name];
-top_value_name(#foreign_fn_declaration{owner = undefined, name = Name}) -> [Name];
+top_value_name(#foreign_fn_declaration{member_of = undefined, name = Name}) -> [Name];
 top_value_name(_) -> [].
 
 %% Each unqualified use of a hidden name, its span and what it names.
@@ -267,16 +267,16 @@ declaration_names(#abstract_declaration{declaration = TypeDeclaration}) ->
     declaration_names(TypeDeclaration);
 declaration_names(#foreign_type_declaration{span = Span, name = Name}) ->
     [{type, Name, Span}];
-declaration_names(#fn_declaration{span = Span, owner = Owner, name = Name}) ->
-    [{value, {Owner, Name}, Span}];
+declaration_names(#fn_declaration{span = Span, member_of = MemberOf, name = Name}) ->
+    [{value, {MemberOf, Name}, Span}];
 declaration_names(#let_declaration{span = Span, name = Name}) ->
     [{value, {undefined, Name}, Span}];
-declaration_names(#foreign_fn_declaration{span = Span, owner = Owner, name = Name}) ->
-    [{value, {Owner, Name}, Span}];
+declaration_names(#foreign_fn_declaration{span = Span, member_of = MemberOf, name = Name}) ->
+    [{value, {MemberOf, Name}, Span}];
 declaration_names(_) ->
     [].
 
-key_text({Owner, Name}) -> local_name(Owner, Name);
+key_text({MemberOf, Name}) -> local_name(MemberOf, Name);
 key_text(Name) -> atom_to_list(Name).
 
 %% Report §4.8: in the standard library module of a built-in type with
@@ -292,14 +292,14 @@ builtin_operators([TypeName], Declarations) ->
 builtin_operators(_, Declarations) ->
     Declarations.
 
-own_operator(TypeName, #fn_declaration{owner = TypeName, name = Name} = Declaration) ->
+own_operator(TypeName, #fn_declaration{member_of = TypeName, name = Name} = Declaration) ->
     case is_operator(Name) of
-        true -> Declaration#fn_declaration{owner = undefined};
+        true -> Declaration#fn_declaration{member_of = undefined};
         false -> Declaration
     end;
-own_operator(TypeName, #foreign_fn_declaration{owner = TypeName, name = Name} = Declaration) ->
+own_operator(TypeName, #foreign_fn_declaration{member_of = TypeName, name = Name} = Declaration) ->
     case is_operator(Name) of
-        true -> Declaration#foreign_fn_declaration{owner = undefined};
+        true -> Declaration#foreign_fn_declaration{member_of = undefined};
         false -> Declaration
     end;
 own_operator(_, Declaration) ->
@@ -901,8 +901,8 @@ let_order(#env{let_order = Order}) ->
     Order.
 
 group_qualified_name(Declaration, Env) ->
-    {Owner, Name} = declaration_key(Declaration),
-    value_qualified_name(Env, Owner, Name).
+    {MemberOf, Name} = declaration_key(Declaration),
+    value_qualified_name(Env, MemberOf, Name).
 
 %% A group is checked once, when the fold reaches it or when a definition
 %% under inference demands one of its names first (report §4.8: an
@@ -968,25 +968,25 @@ replace_typed(Declaration, Typed) ->
         [] -> Declaration
     end.
 
-declaration_key(#fn_declaration{owner = Owner, name = Name}) -> {Owner, Name};
+declaration_key(#fn_declaration{member_of = MemberOf, name = Name}) -> {MemberOf, Name};
 declaration_key(#let_declaration{name = Name}) -> {undefined, Name};
-declaration_key(#foreign_fn_declaration{owner = Owner, name = Name}) -> {Owner, Name};
+declaration_key(#foreign_fn_declaration{member_of = MemberOf, name = Name}) -> {MemberOf, Name};
 declaration_key(Declaration) -> {other, ern_ast:span(Declaration)}.
 
 value_qualified_name(#env{namespace = Namespace}, undefined, Name) -> Namespace ++ [Name];
-value_qualified_name(#env{namespace = Namespace}, Owner, Name) -> Namespace ++ [Owner, Name].
+value_qualified_name(#env{namespace = Namespace}, MemberOf, Name) -> Namespace ++ [MemberOf, Name].
 
 register_value_name(Declaration, #env{local_values = LocalValues} = Env) ->
-    {Owner, Name} = declaration_key(Declaration),
+    {MemberOf, Name} = declaration_key(Declaration),
     Span = ern_ast:span(Declaration),
-    Key = local_key(Owner, Name),
+    Key = local_key(MemberOf, Name),
     not is_map_key(Key, LocalValues)
-        orelse fail(Span, "value " ++ local_name(Owner, Name) ++ " is declared twice"),
+        orelse fail(Span, "value " ++ local_name(MemberOf, Name) ++ " is declared twice"),
     %% report §11.2: at the prompt, a member of a type the session declares
-    Declared = Owner =:= undefined orelse maps:is_key(Owner, Env#env.local_types)
-                   orelse session(types, Owner, Env) =/= error,
-    Declared orelse fail(Span, atom_to_list(Owner) ++ " is not a type declared in this module"),
-    QualifiedName = value_qualified_name(Env, Owner, Name),
+    Declared = MemberOf =:= undefined orelse maps:is_key(MemberOf, Env#env.local_types)
+                   orelse session(types, MemberOf, Env) =/= error,
+    Declared orelse fail(Span, atom_to_list(MemberOf) ++ " is not a type declared in this module"),
+    QualifiedName = value_qualified_name(Env, MemberOf, Name),
     Lets = case Declaration of
                #let_declaration{} -> (Env#env.lets)#{QualifiedName => true};
                _ -> Env#env.lets
@@ -1000,10 +1000,10 @@ is_operator(Name) ->
     end.
 
 local_key(undefined, Name) -> Name;
-local_key(Owner, Name) -> {Owner, Name}.
+local_key(MemberOf, Name) -> {MemberOf, Name}.
 
 local_name(undefined, Name) -> atom_to_list(Name);
-local_name(Owner, Name) -> atom_to_list(Owner) ++ "." ++ atom_to_list(Name).
+local_name(MemberOf, Name) -> atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name).
 
 %% Strongly connected components of the reference graph, in dependency order.
 dependency_groups(Values, Env) ->
@@ -1057,7 +1057,7 @@ references_in(#clause{pattern = Pattern, guard = Guard, body = Body}, Env, Acc, 
 references_in(#e_block{statements = Statements}, Env, Acc, Bound) ->
     %% a local `fn` is in scope for the whole block, a binding from the
     %% statement after it
-    BlockBound = lists:foldl(fun(#fn_declaration{owner = undefined, name = Name}, InScope) ->
+    BlockBound = lists:foldl(fun(#fn_declaration{member_of = undefined, name = Name}, InScope) ->
                                      InScope#{Name => true};
                                 (_, InScope) ->
                                      InScope
@@ -1073,8 +1073,9 @@ references_in(#e_var{path = Namespace, name = Name}, #env{namespace = Namespace}
     %% the module's own qualified name (report §4.2), which a local binding
     %% of the same name does not hide
     [{undefined, Name} | Acc];
-references_in(#e_var{path = [Owner], name = Name}, #env{local_types = LocalTypes}, Acc, _Bound) ->
-    case maps:is_key(Owner, LocalTypes) of true -> [{Owner, Name} | Acc]; false -> Acc end;
+references_in(#e_var{path = [MemberOf], name = Name}, #env{local_types = LocalTypes}, Acc,
+              _Bound) ->
+    case maps:is_key(MemberOf, LocalTypes) of true -> [{MemberOf, Name} | Acc]; false -> Acc end;
 references_in(#e_var{path = Path} = Variable, #env{namespace = Namespace} = Env, Acc, Bound)
   when length(Path) > 1 ->
     case own_type_path(Path, Namespace) of
@@ -1142,9 +1143,10 @@ operator_ref(none, _, _) -> [];
 operator_ref(Member, Operand, #env{namespace = Namespace, local_types = LocalTypes}) ->
     case node_type(Operand) of
         {tcon, QualifiedName, _} ->
-            Owner = lists:last(QualifiedName),
-            case own_type_path(QualifiedName, Namespace) andalso maps:is_key(Owner, LocalTypes) of
-                true -> [{Owner, Member}];
+            MemberOf = lists:last(QualifiedName),
+            case own_type_path(QualifiedName, Namespace)
+            andalso maps:is_key(MemberOf, LocalTypes) of
+                true -> [{MemberOf, Member}];
                 false -> []
             end;
         _ ->
@@ -1160,11 +1162,11 @@ own_type_path(Path, Namespace) ->
 %% groups report their own errors rather than cascades.
 placeholder_group(Group, Env) ->
     lists:foldl(fun(Declaration, Acc) ->
-                    {Owner, Name} = declaration_key(Declaration),
+                    {MemberOf, Name} = declaration_key(Declaration),
                     {Variable, TypeState} = ern_types:fresh(ern_types:enter(Acc#env.type_state)),
                     {Scheme, TypeState1} = ern_types:generalize(Variable,
                                                                 ern_types:leave(TypeState)),
-                    QualifiedName = value_qualified_name(Acc, Owner, Name),
+                    QualifiedName = value_qualified_name(Acc, MemberOf, Name),
                     Acc#env{type_state = TypeState1,
                             globals = maps:put(QualifiedName, Scheme, Acc#env.globals)}
                 end, Env, Group).
@@ -1202,18 +1204,18 @@ check_group(Group, Env) ->
     lists:mapfoldl(Publish, Env5, Typed).
 
 %% A member's placeholder among the globals, its definition under inference.
-declare_placeholder({{Owner, Name}, Variable}, Env) ->
-    QualifiedName = value_qualified_name(Env, Owner, Name),
+declare_placeholder({{MemberOf, Name}, Variable}, Env) ->
+    QualifiedName = value_qualified_name(Env, MemberOf, Name),
     Env#env{globals = maps:put(QualifiedName, ern_types:monomorphic(Variable), Env#env.globals),
             inferring = [{global, QualifiedName} | Env#env.inferring]}.
 
 %% A checked member generalized, its shape as a member checked, and its
 %% scheme published and set on its typed declaration.
 publish(Declaration, Variable, Env) ->
-    {Owner, Name} = declaration_key(Declaration),
+    {MemberOf, Name} = declaration_key(Declaration),
     {Scheme, TypeState} = generalized(Declaration, Variable, Env),
     member_shape(Declaration, Scheme, Env#env{type_state = TypeState}),
-    QualifiedName = value_qualified_name(Env, Owner, Name),
+    QualifiedName = value_qualified_name(Env, MemberOf, Name),
     Env1 = Env#env{type_state = TypeState,
                    globals = maps:put(QualifiedName, Scheme, Env#env.globals)},
     {substitute_ast(set_declaration_scheme(Declaration, Scheme), TypeState), Env1}.
@@ -1285,17 +1287,17 @@ member_shape(_, _, _) ->
 %% negate, or none.
 member_type(Declaration, #env{namespace = Namespace} = Env)
   when is_record(Declaration, fn_declaration); is_record(Declaration, foreign_fn_declaration) ->
-    {Owner, Name} = declaration_key(Declaration),
+    {MemberOf, Name} = declaration_key(Declaration),
     Member = lists:member(Name, [compare, negate | ?ARITH ++ ['<>']]),
     Builtin = case Namespace of
                   [TypeName] -> lists:member(TypeName, ern_prelude:member_types());
                   _ -> false
               end,
-    case {Member, Owner} of
+    case {Member, MemberOf} of
         {false, _} -> none;
         {true, undefined} when Builtin -> {Namespace, Name};
         {true, undefined} -> none;
-        {true, _} -> {owner_qualified_name(Owner, Env), Name}
+        {true, _} -> {member_of_qualified_name(MemberOf, Env), Name}
     end;
 member_type(_, _) ->
     none.
@@ -1325,10 +1327,10 @@ early_compare_shape(Declaration, ResultAnnotation, {tfn, Params, _, ResultType},
 
 %% Report §11.2: the type a member names, the module's own or, at the
 %% prompt, one the session declared.
-owner_qualified_name(Owner, #env{local_types = LocalTypes} = Env) ->
+member_of_qualified_name(MemberOf, #env{local_types = LocalTypes} = Env) ->
     case LocalTypes of
-        #{Owner := QualifiedName} -> QualifiedName;
-        _ -> {ok, QualifiedName} = session(types, Owner, Env), QualifiedName
+        #{MemberOf := QualifiedName} -> QualifiedName;
+        _ -> {ok, QualifiedName} = session(types, MemberOf, Env), QualifiedName
     end.
 
 %% The type TypeQualifiedName over fresh variables, for its parameters.
@@ -1412,8 +1414,8 @@ let_cycle(#let_declaration{span = Span, name = Name, body = Body} = Declaration,
                     Through = case Between of
                                   [] -> "";
                                   _ ->
-                                      Names = [local_name(Owner, ValueName)
-                                               || {Owner, ValueName} <- Between],
+                                      Names = [local_name(MemberOf, ValueName)
+                                               || {MemberOf, ValueName} <- Between],
                                       ", through " ++ lists:join(", ", Names)
                               end,
                     Message = lists:flatten(["the initializer of ", LetName, " depends on itself",
@@ -1432,10 +1434,10 @@ cycle_help(LetName, #e_lambda{}, _, _) ->
 cycle_help(_, _, [], _) ->
     undefined;
 cycle_help(LetName, _, Between, Fns) ->
-    {Owner, Reader} = lists:last(Between),
-    case lists:member({Owner, Reader}, Fns) of
+    {MemberOf, Reader} = lists:last(Between),
+    case lists:member({MemberOf, Reader}, Fns) of
         true ->
-            lists:flatten(["`", local_name(Owner, Reader), "` reads ", LetName,
+            lists:flatten(["`", local_name(MemberOf, Reader), "` reads ", LetName,
                            " when it is called; a `fn ", LetName, "() = ...` builds the value"
                            " when it is asked for"]);
         false ->
@@ -1711,8 +1713,8 @@ effect_origin(Name, _ResultAnnotation, Effect, _ResultType, EffectType, TypeStat
                            ++ "` here"}.
 
 declaration_name(Declaration) ->
-    {Owner, Name} = declaration_key(Declaration),
-    local_name(Owner, Name).
+    {MemberOf, Name} = declaration_key(Declaration),
+    local_name(MemberOf, Name).
 
 
 bind_locals(Bindings, #env{locals = Locals} = Env) ->
@@ -1748,8 +1750,9 @@ post_checks(#post_check{span = Span, params = TypedParams, body = TypedBody,
 %% inferred, as an operator's operand type is (§4.8).
 shown(Span, Referent, Type, #env{namespace = Namespace}) ->
     Name = case Referent of
-               #remote_declaration{namespace = ['Io'], owner = undefined, name = Called} -> Called;
-               #own_declaration{owner = undefined, name = Called} when Namespace =:= ['Io'] ->
+               #remote_declaration{namespace = ['Io'], member_of = undefined, name = Called} ->
+                   Called;
+               #own_declaration{member_of = undefined, name = Called} when Namespace =:= ['Io'] ->
                    Called;
                _ -> none
            end,
@@ -2634,11 +2637,12 @@ guard_operand(Operand, _) ->
          [], "receive the message and `match` it").
 
 %% Whether a name's referent is a top-level `let`, of this module or another.
-top_let(#own_declaration{owner = Owner, name = Name}, #env{namespace = Namespace, lets = Lets}) ->
-    is_map_key(Namespace ++ [Part || Part <- [Owner], Part =/= undefined] ++ [Name], Lets);
-top_let(#remote_declaration{namespace = Namespace, owner = Owner, name = Name},
+top_let(#own_declaration{member_of = MemberOf, name = Name},
+        #env{namespace = Namespace, lets = Lets}) ->
+    is_map_key(Namespace ++ [Part || Part <- [MemberOf], Part =/= undefined] ++ [Name], Lets);
+top_let(#remote_declaration{namespace = Namespace, member_of = MemberOf, name = Name},
         #env{lets = Lets}) ->
-    is_map_key(Namespace ++ [Part || Part <- [Owner], Part =/= undefined] ++ [Name], Lets);
+    is_map_key(Namespace ++ [Part || Part <- [MemberOf], Part =/= undefined] ++ [Name], Lets);
 top_let({prelude, QualifiedName}, #env{lets = Lets}) ->
     is_map_key(QualifiedName, Lets);
 top_let(_, _) ->
@@ -2674,8 +2678,8 @@ argument_context(Name, Callee, #env{inferring = Inferring} = Env) ->
     Recursive = case Callee of
                     #e_var{referent = var, path = [], name = LocalName} ->
                         lists:member({local, LocalName}, Inferring);
-                    #e_var{referent = #own_declaration{owner = Owner, name = LocalName}} ->
-                        lists:member({global, value_qualified_name(Env, Owner, LocalName)},
+                    #e_var{referent = #own_declaration{member_of = MemberOf, name = LocalName}} ->
+                        lists:member({global, value_qualified_name(Env, MemberOf, LocalName)},
                                      Inferring);
                     _ -> false
                 end,
@@ -3122,9 +3126,10 @@ infer_statements([Last], _Span, Expect, Env, _Local, Acc) ->
                                   check_expr(Last, ExpectedType, Context, Origin, Env)
                           end,
     {lists:reverse([Typed | Acc]), Type, Env1};
-infer_statements([#fn_declaration{span = DeclarationSpan, owner = Owner, name = Name} | _],
-                 _Span, _Expect, _Env, _Local, _Acc) when Owner =/= undefined ->
-    fail(DeclarationSpan, "a member, `fn " ++ local_name(Owner, Name) ++ "`, is a top-level form;"
+infer_statements([#fn_declaration{span = DeclarationSpan, member_of = MemberOf, name = Name} | _],
+                 _Span, _Expect, _Env, _Local, _Acc) when MemberOf =/= undefined ->
+    fail(DeclarationSpan, "a member, `fn " ++ local_name(MemberOf, Name)
+                          ++ "`, is a top-level form;"
                           " a local function has a plain name");
 infer_statements([#fn_declaration{name = Name} = Declaration | Rest], Span, Expect, Env, Local,
                  Acc) ->
@@ -3777,11 +3782,11 @@ lookup_value(Span, ['Prelude', TypeName], Name, #env{provided = Provided} = Env)
     lookup_global(Span, [TypeName], Name, Env);
 lookup_value(Span, ['Prelude' | _] = Path, Name, _Env) ->
     prelude_one(Span, Path, Name);
-lookup_value(Span, [Owner] = Path, Name, #env{local_values = LocalValues} = Env) ->
+lookup_value(Span, [MemberOf] = Path, Name, #env{local_values = LocalValues} = Env) ->
     case LocalValues of
-        #{{Owner, Name} := QualifiedName} -> local_global(QualifiedName, Env);
+        #{{MemberOf, Name} := QualifiedName} -> local_global(QualifiedName, Env);
         _ ->
-            case session(values, {Owner, Name}, Env) of
+            case session(values, {MemberOf, Name}, Env) of
                 {ok, QualifiedName} -> session_global(QualifiedName, Name, Env);
                 error -> lookup_global(Span, Path, Name, Env)
             end
@@ -3835,10 +3840,10 @@ prelude_one(Span, Path, Name) ->
                " of the prelude's or the standard library's namespaces, as"
                " `Prelude.Io.println`").
 
-own_member(Owner, Name, #env{local_values = LocalValues} = Env) ->
+own_member(MemberOf, Name, #env{local_values = LocalValues} = Env) ->
     case LocalValues of
-        #{{Owner, Name} := QualifiedName} -> {ok, QualifiedName};
-        _ -> session(values, {Owner, Name}, Env)
+        #{{MemberOf, Name} := QualifiedName} -> {ok, QualifiedName};
+        _ -> session(values, {MemberOf, Name}, Env)
     end.
 
 %% Report §4.4: an abstract type's constructor is its module's alone, and
@@ -3887,13 +3892,13 @@ lookup_outside(Span, Name, Env) ->
         {error, _} -> fail(Span, "unknown name " ++ atom_to_list(Name))
     end.
 
-%% This module's own declaration, QualifiedName being its namespace and the
-%% owner and the name.
+%% This module's own declaration, QualifiedName being its namespace, the
+%% type it is a member of, and the name.
 local_global(QualifiedName, #env{namespace = Namespace} = Env) ->
     Env1 = demand(QualifiedName, Env),
     Referent = case lists:nthtail(length(Namespace), QualifiedName) of
-                   [Name] -> #own_declaration{owner = undefined, name = Name};
-                   [Owner, Name] -> #own_declaration{owner = Owner, name = Name}
+                   [Name] -> #own_declaration{member_of = undefined, name = Name};
+                   [MemberOf, Name] -> #own_declaration{member_of = MemberOf, name = Name}
                end,
     {maps:get(QualifiedName, Env1#env.globals), Referent, Env1}.
 
@@ -3930,13 +3935,13 @@ lookup_global(Span, Path, Name, #env{globals = Globals} = Env) ->
 %% Report §4.2: the declaration a qualified name names, Path its namespace
 %% or its namespace and the type that owns the member.
 qualified_referent(Path, Name, #env{namespace = Namespace} = Env) ->
-    {Declaring, Owner} = case is_member_path(Path, Name, Env) of
-                             true -> {lists:droplast(Path), lists:last(Path)};
-                             false -> {Path, undefined}
-                         end,
+    {Declaring, MemberOf} = case is_member_path(Path, Name, Env) of
+                                true -> {lists:droplast(Path), lists:last(Path)};
+                                false -> {Path, undefined}
+                            end,
     case Declaring =:= Namespace of
-        true -> #own_declaration{owner = Owner, name = Name};
-        false -> #remote_declaration{namespace = Declaring, owner = Owner, name = Name}
+        true -> #own_declaration{member_of = MemberOf, name = Name};
+        false -> #remote_declaration{namespace = Declaring, member_of = MemberOf, name = Name}
     end.
 
 %% A constructor as a name written at Span, `C` or `M.C`, names it (report
@@ -4104,12 +4109,12 @@ exported_type(#foreign_type_declaration{export = true, name = Name}, Env) ->
     {true, Env#env.namespace ++ [Name]};
 exported_type(_, _) -> false.
 
-exported_value(#fn_declaration{export = true, owner = Owner, name = Name}, Env) ->
-    {true, value_qualified_name(Env, Owner, Name)};
+exported_value(#fn_declaration{export = true, member_of = MemberOf, name = Name}, Env) ->
+    {true, value_qualified_name(Env, MemberOf, Name)};
 exported_value(#let_declaration{export = true, name = Name}, Env) ->
     {true, value_qualified_name(Env, undefined, Name)};
-exported_value(#foreign_fn_declaration{export = true, owner = Owner, name = Name}, Env) ->
-    {true, value_qualified_name(Env, Owner, Name)};
+exported_value(#foreign_fn_declaration{export = true, member_of = MemberOf, name = Name}, Env) ->
+    {true, value_qualified_name(Env, MemberOf, Name)};
 exported_value(_, _) -> false.
 
 %%

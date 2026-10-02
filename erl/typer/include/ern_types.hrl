@@ -53,10 +53,10 @@
 %% field types (in canonical order) to the result type
 
 %% The declaration a name refers to, which the checker records in its
-%% #e_var{} for the emitter (report §4.2): this module's, owner a type or
-%% undefined, and another module's, in its namespace.
--record(own_declaration, {owner, name}).
--record(remote_declaration, {namespace, owner, name}).
+%% #e_var{} for the emitter (report §4.2): this module's, member_of a type
+%% or undefined, and another module's, in its namespace.
+-record(own_declaration, {member_of, name}).
+-record(remote_declaration, {namespace, member_of, name}).
 
 %% The compiled interface of a module: what other modules see (report §4.2,
 %% §11.1). Produced by the checker, consumed by the checker of a dependent

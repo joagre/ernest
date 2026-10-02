@@ -195,7 +195,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    ratios unchanged after each area's. It found two defects, fixed with their tests: the
    shell read its scope's constructors under a key the scope does not have, and the stdin
    test's wait raced the file it read. Three names the report or the AST states, and the
-   glossary contradicts, wait for the user in item 15. As it was planned: every module under
+   glossary contradicts, were decided with the user the same day (the log's *Three Names
+   Decided*): the AST's `owner` is `member_of`, renamed at once. As it was planned: every module under
    `erl/` and `test/` read for its names and its form by [`style.md`](style.md), in two
    commits an area. The first renames where a name does not say what its value or its work
    is, a variable, a function, a record and its fields, by the glossary, which it corrects as
@@ -272,14 +273,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     through the report. Among it the shell's `obey`, which writes each refusal eight times,
     the editor's names that mean two things, `back`, `from` and `step`, and what
     `complete.ern` repeats (C3-35 to C3-37), and the shell's `Env`, a `Session` as the front
-    end's record is since item 7. Three names item 7 met are decided with the user before it
-    renames them (the log's *The Erlang Read and Renamed*), each a named decision of this
-    item: **the AST's `owner`**, the type a member belongs to, where the glossary keeps Owner
-    for a resource's process, `member_of` recommended, the Erlang renamed in a commit of its
-    own; **§6.6's `addr` and `mk`**, `address` and `request` recommended, by the glossary's
-    Address and its rule that a callback is named for its role; and **E.24's `run`**, a
-    test's callback, kept as the verb it is, the glossary's Run narrowed to the noun, one run
-    of a restarting function, recommended. A full sweep by [`style.md`](style.md), as item 7
+    end's record is since item 7. E.24's `run` stays, decided with the user 2026-10-02 (the
+    log's *Three Names Decided*). A full sweep by [`style.md`](style.md), as item 7
     is, decided with the user 2026-10-02 (the log's *The Renamings Kept Whole*), and of the
     form too, in a second commit an area, `style.md`'s Ernest rules, the top-down order, a
     block for more than one statement, a blank line that groups, a part of a long expression
@@ -329,10 +324,11 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     principle 2's sequence clause, about a day and a half (§5.6, Appendix A). Entry 77:
     `let me = self()` before a spawn kept, the guide teaching it once (item 16). Entry 78:
     `let _ = e` kept, `foreach`'s callback answering `Unit` (principle 3). Entry 79:
-    `Address.ask(addr, mk, wrap, ms)` admitted to the prelude, `wrap` taking `Optional(a)`,
-    `None` when the milliseconds pass or the callee ends or restarts first, a late answer
-    discarded; about a day and a half with §6.6, §9.5 and the guide's §4.4 rewritten without
-    its helper. Entry 80: §6.9's `Down` without order kept, since the host's order would need a
+    `Address.ask(address, request, wrap, ms)` admitted to the prelude, `wrap` taking
+    `Optional(a)`, `None` when the milliseconds pass or the callee ends or restarts first, a
+    late answer discarded; about a day and a half with §6.6, §9.5 and the guide's §4.4
+    rewritten without its helper, §6.6's `addr` and `mk` becoming `address` and `request` as
+    it is rewritten (the log's *Three Names Decided*). Entry 80: §6.9's `Down` without order kept, since the host's order would need a
     mailbox of the runtime's own under every receive; the guide's §5.6 collects its workers'
     results with `ask`, with entry 79's build. Entries 81 and 82: `monitor` takes a `Process`,
     `monitor : (Process, (Down) -> m) -> Unit with m`, replacing the address form, since §6.5's

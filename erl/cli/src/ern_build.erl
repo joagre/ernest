@@ -377,10 +377,11 @@ references(_) -> [].
 
 %% The members this module's types declare, `T.name` as {[T], name}.
 local_members(Declarations) ->
-    [{[Owner], Name} || #fn_declaration{owner = Owner, name = Name} <- Declarations,
-                        Owner =/= undefined]
-        ++ [{[Owner], Name} || #foreign_fn_declaration{owner = Owner, name = Name} <- Declarations,
-                               Owner =/= undefined].
+    [{[MemberOf], Name} || #fn_declaration{member_of = MemberOf, name = Name} <- Declarations,
+                           MemberOf =/= undefined]
+        ++ [{[MemberOf], Name}
+            || #foreign_fn_declaration{member_of = MemberOf, name = Name} <- Declarations,
+               MemberOf =/= undefined].
 
 %% Report §11.1: a prefix of a qualified name is a module when the source
 %% root holds its source, or the build root or a --load-path root,

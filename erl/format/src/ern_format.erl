@@ -314,9 +314,9 @@ module(Declarations, Code) ->
     lists:join([hardline, force_blank], [declaration(Declaration, Code)
                                          || Declaration <- Declarations]).
 
-declaration(#fn_declaration{export = Export, owner = Owner, params = Params,
+declaration(#fn_declaration{export = Export, member_of = MemberOf, params = Params,
                             result_type = ResultType, effect = Effect, body = Body}, Code) ->
-    [export(Export), token(fn), space(), name(Owner), params(Params, Code),
+    [export(Export), token(fn), space(), name(MemberOf), params(Params, Code),
      result_type(ResultType, Effect, Code), space(), token('='),
      case ending(Body, Code) of
          block -> [space(), expr(Body, Code)];
@@ -341,9 +341,9 @@ declaration(#foreign_type_declaration{export = Export, params = Params, equality
                                          || Param <- Params], ')')
            end,
     [export(Export), token(foreign), space(), token(type), space(), token(), Vars];
-declaration(#foreign_fn_declaration{export = Export, owner = Owner, params = Params,
+declaration(#foreign_fn_declaration{export = Export, member_of = MemberOf, params = Params,
                                     result_type = ResultType, effect = Effect}, Code) ->
-    [export(Export), token(foreign), space(), token(fn), space(), name(Owner),
+    [export(Export), token(foreign), space(), token(fn), space(), name(MemberOf),
      params(Params, Code), result_type(ResultType, Effect, Code), space(), token('='),
      {nest, 4, [hardline, token(string)]}].
 

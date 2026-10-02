@@ -59,10 +59,10 @@ doc_key(#type_declaration{name = Name, params = Params}) -> {type, Name, length(
 doc_key(#abstract_declaration{declaration = #type_declaration{name = Name, params = Params}}) ->
     {type, Name, length(Params)};
 doc_key(#foreign_type_declaration{name = Name, params = Params}) -> {type, Name, length(Params)};
-doc_key(#fn_declaration{owner = Owner, name = Name, params = Params}) ->
-    {function, ern_emitter:function_name(Owner, Name), length(Params)};
-doc_key(#foreign_fn_declaration{owner = Owner, name = Name, params = Params}) ->
-    {function, ern_emitter:function_name(Owner, Name), length(Params)};
+doc_key(#fn_declaration{member_of = MemberOf, name = Name, params = Params}) ->
+    {function, ern_emitter:function_name(MemberOf, Name), length(Params)};
+doc_key(#foreign_fn_declaration{member_of = MemberOf, name = Name, params = Params}) ->
+    {function, ern_emitter:function_name(MemberOf, Name), length(Params)};
 doc_key(#let_declaration{name = Name}) ->
     {function, ern_emitter:function_name(undefined, Name), 0}.
 
@@ -122,18 +122,18 @@ doc_of(#foreign_fn_declaration{doc = Doc}) -> Doc.
 %% The declaration's type: inferred schemes for fn and let, the
 %% declaration itself for the type forms, an abstract type without its
 %% representation.
-signature(#fn_declaration{owner = Owner, name = Name, scheme = Scheme}, Prefix, Env) ->
-    text([Prefix, atom_to_list(shown_name(Owner, Name)), " : ",
+signature(#fn_declaration{member_of = MemberOf, name = Name, scheme = Scheme}, Prefix, Env) ->
+    text([Prefix, atom_to_list(shown_name(MemberOf, Name)), " : ",
           ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
 signature(#let_declaration{name = Name, scheme = Scheme}, Prefix, Env) ->
     text([Prefix, atom_to_list(Name), " : ",
           ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
-signature(#foreign_fn_declaration{owner = Owner, name = Name, params = Params, result_type = Result,
-                                  effect = Effect},
+signature(#foreign_fn_declaration{member_of = MemberOf, name = Name, params = Params,
+                                  result_type = Result, effect = Effect},
           Prefix, _) ->
     Type = #t_fn{params = [Annotation || #param{annotation = Annotation} <- Params],
                  result_type = Result, effect = Effect},
-    text([Prefix, atom_to_list(shown_name(Owner, Name)), " : ", syntax_text(Type)]);
+    text([Prefix, atom_to_list(shown_name(MemberOf, Name)), " : ", syntax_text(Type)]);
 signature(#type_declaration{} = Declaration, _, _) ->
     text(type_text(Declaration));
 signature(#abstract_declaration{declaration = #type_declaration{name = TypeName, params = Params}},
@@ -186,7 +186,7 @@ syntax_text(#t_fn{params = Params, result_type = Result, effect = Effect}) ->
 
 %% The name as the program writes it.
 shown_name(undefined, Name) -> Name;
-shown_name(Owner, Name) -> list_to_atom(atom_to_list(Owner) ++ "." ++ atom_to_list(Name)).
+shown_name(MemberOf, Name) -> list_to_atom(atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name)).
 
 qualified_name_text(Parts) ->
     lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- Parts])).

@@ -19,7 +19,7 @@
 %% Emission context, threaded through everything. variables: Ernest name
 %% => Erlang variable name; locals: local fn name => #local_fn{} (see
 %% Blocks); lifted: module functions produced by lifting, reversed;
-%% top_names: top-level {Owner, Name} => arity | value; descriptors:
+%% top_names: top-level {MemberOf, Name} => arity | value; descriptors:
 %% descriptor term => the name of the module function returning it;
 %% pattern_guards: Erlang guard forms a pattern needs on its clause, a
 %% float segment's zero (report §3.1), taken by the clause that uses them;
@@ -118,8 +118,8 @@ forms(Namespace, Declarations, Env, Build) ->
 %% Each top-level name as the Erlang function it compiles to, a `let` as
 %% its getter of no argument.
 top_functions(TopNames) ->
-    [{function_name(Owner, Name), case Arity of value -> 0; _ -> Arity end}
-     || {Owner, Name} := Arity <- TopNames].
+    [{function_name(MemberOf, Name), case Arity of value -> 0; _ -> Arity end}
+     || {MemberOf, Name} := Arity <- TopNames].
 
 %% Report Appendix E.24, §11.2: '$tests'/0 lists the module's tests, every
 %% top-level let of type Test.Case, exported or not, for `ern test`.
@@ -200,10 +200,11 @@ module_atom(Namespace) ->
 %%
 
 top_names(Declarations) ->
-    maps:from_list([{{Owner, Name}, length(Params)}
-                    || #fn_declaration{owner = Owner, name = Name, params = Params} <- Declarations]
-                   ++ [{{Owner, Name}, length(Params)}
-                       || #foreign_fn_declaration{owner = Owner, name = Name,
+    maps:from_list([{{MemberOf, Name}, length(Params)}
+                    || #fn_declaration{member_of = MemberOf, name = Name,
+                                       params = Params} <- Declarations]
+                   ++ [{{MemberOf, Name}, length(Params)}
+                       || #foreign_fn_declaration{member_of = MemberOf, name = Name,
                                                   params = Params} <- Declarations]
                    ++ [{{undefined, Name}, value}
                        || #let_declaration{name = Name} <- Declarations]).
@@ -213,10 +214,10 @@ exported(#let_declaration{export = Export}) -> Export;
 exported(#foreign_fn_declaration{export = Export}) -> Export;
 exported(_) -> false.
 
-export(#fn_declaration{owner = Owner, name = Name, params = Params}) ->
-    {function_name(Owner, Name), length(Params)};
-export(#foreign_fn_declaration{owner = Owner, name = Name, params = Params}) ->
-    {function_name(Owner, Name), length(Params)};
+export(#fn_declaration{member_of = MemberOf, name = Name, params = Params}) ->
+    {function_name(MemberOf, Name), length(Params)};
+export(#foreign_fn_declaration{member_of = MemberOf, name = Name, params = Params}) ->
+    {function_name(MemberOf, Name), length(Params)};
 export(#let_declaration{name = Name}) -> {function_name(undefined, Name), 0}.
 
 %% The Erlang function a top-level Ernest name compiles to: its own name,
@@ -229,15 +230,16 @@ function_atom(module_info) -> 'module_info$';
 function_atom(record_info) -> 'record_info$';
 function_atom(Name) -> Name.
 
-%% The Erlang function a top-level declaration compiles to, its owner a type
-%% or undefined, which the documentation chunk's keys name too.
+%% The Erlang function a top-level declaration compiles to, the type it is
+%% a member of or undefined, which the documentation chunk's keys name too.
 -spec function_name(atom() | undefined, atom()) -> atom().
 function_name(undefined, Name) -> function_atom(Name);
-function_name(Owner, Name) -> list_to_atom(atom_to_list(Owner) ++ "." ++ atom_to_list(Name)).
+function_name(MemberOf, Name) -> list_to_atom(atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name)).
 
-declaration(#fn_declaration{span = Span, owner = Owner, name = Name, params = Params, body = Body},
+declaration(#fn_declaration{span = Span, member_of = MemberOf, name = Name, params = Params,
+                            body = Body},
             Context) ->
-    FunctionName = function_name(Owner, Name),
+    FunctionName = function_name(MemberOf, Name),
     Context1 = Context#emit_context{function_name = FunctionName, variables = #{}, locals = #{}},
     {Patterns, Context2} = lists:mapfoldl(fun(#param{pattern = Pattern}, Acc) ->
                                               pattern(Pattern, Acc)
@@ -252,11 +254,11 @@ declaration(#let_declaration{span = Span, name = Name}, Context) ->
     Get = call_remote(ern_rt, binding, [key(Context, FunctionName)]),
     Clause = at(Span, erl_syntax:clause([], none, [Get])),
     {[at(Span, erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]))], Context};
-declaration(#foreign_fn_declaration{span = Span, owner = Owner, name = Name, params = Params,
+declaration(#foreign_fn_declaration{span = Span, member_of = MemberOf, name = Name, params = Params,
                                     implementation = Implementation, scheme = Scheme}, Context) ->
     %% report §4.7, §8.4: the implementation called in place, an exception
     %% it raises turned into a fault, and its return checked
-    FunctionName = function_name(Owner, Name),
+    FunctionName = function_name(MemberOf, Name),
     {ok, {HostModule, HostFunction, _}} = ern_typecheck:foreign_implementation(Implementation),
     {Variables, Context1} = fresh_variables(length(Params), "A",
                                             Context#emit_context{function_name = FunctionName}),
@@ -605,34 +607,35 @@ name_form(Span, _, Name, var, Type,
 %% Appendix E.1: the library's Io.show and Io.debug as values too, the
 %% descriptor of the argument's type, named by the checker's referent from
 %% another module and from the library's own, and never by the path
-name_form(Span, _, Name, #remote_declaration{namespace = ['Io'], owner = undefined, name = Name},
+name_form(Span, _, Name,
+          #remote_declaration{namespace = ['Io'], member_of = undefined, name = Name},
           Type, Context)
   when Name =:= show; Name =:= debug ->
     prelude_value(Span, ['Io', Name], Type, Context);
-name_form(Span, _, Name, #own_declaration{owner = undefined, name = Name}, Type,
+name_form(Span, _, Name, #own_declaration{member_of = undefined, name = Name}, Type,
           #emit_context{erlang_module = 'ern@io'} = Context)
   when Name =:= show; Name =:= debug ->
     prelude_value(Span, ['Io', Name], Type, Context);
 name_form(Span, _, _, {prelude, QualifiedName}, Type, Context) ->
     prelude_value(Span, QualifiedName, Type, Context);
-name_form(_, _, _, #own_declaration{owner = Owner, name = Name}, _, Context) ->
-    {own_value(Owner, Name, Context), Context};
-name_form(_, _, _, #remote_declaration{namespace = Declaring, owner = Owner, name = Name}, Type,
-          #emit_context{env = Env} = Context) ->
-    {remote_value(Declaring, Owner, Name, Type, Env), Context}.
+name_form(_, _, _, #own_declaration{member_of = MemberOf, name = Name}, _, Context) ->
+    {own_value(MemberOf, Name, Context), Context};
+name_form(_, _, _, #remote_declaration{namespace = Declaring, member_of = MemberOf, name = Name},
+          Type, #emit_context{env = Env} = Context) ->
+    {remote_value(Declaring, MemberOf, Name, Type, Env), Context}.
 
 %% Report §4.6: a `let` is a value, reached through its getter even where it
 %% holds a function; a `fn` is the function itself.
-own_value(Owner, Name, #emit_context{top_names = TopNames}) ->
-    Local = erl_syntax:atom(function_name(Owner, Name)),
-    case maps:get({Owner, Name}, TopNames) of
+own_value(MemberOf, Name, #emit_context{top_names = TopNames}) ->
+    Local = erl_syntax:atom(function_name(MemberOf, Name)),
+    case maps:get({MemberOf, Name}, TopNames) of
         value -> erl_syntax:application(Local, []);
         Arity -> erl_syntax:implicit_fun(Local, erl_syntax:integer(Arity))
     end.
 
-remote_value(Declaring, Owner, Name, Type, Env) ->
-    {HostModule, HostFunction} = remote_name(Declaring, Owner, Name),
-    case {is_value(Declaring, Owner, Name, Env), Type} of
+remote_value(Declaring, MemberOf, Name, Type, Env) ->
+    {HostModule, HostFunction} = remote_name(Declaring, MemberOf, Name),
+    case {is_value(Declaring, MemberOf, Name, Env), Type} of
         {false, {tfn, Params, _, _}} ->
             %% report §11.2: a function of another module as a value keeps
             %% the version it was taken from
@@ -647,12 +650,12 @@ arity_of(_, Span) -> fail(Span, "a local function used as a value must have a fu
 
 %% Report §4.6: whether another module's declaration is a `let`, which
 %% its interface says (§11.1).
-is_value(Declaring, Owner, Name, Env) ->
-    ern_typecheck:is_value(Declaring ++ [Owner || Owner =/= undefined] ++ [Name], Env).
+is_value(Declaring, MemberOf, Name, Env) ->
+    ern_typecheck:is_value(Declaring ++ [MemberOf || MemberOf =/= undefined] ++ [Name], Env).
 
 %% Another Ernest module's declaration as a function of its Erlang module.
-remote_name(Declaring, Owner, Name) ->
-    {module_atom(Declaring), function_name(Owner, Name)}.
+remote_name(Declaring, MemberOf, Name) ->
+    {module_atom(Declaring), function_name(MemberOf, Name)}.
 
 closure(Lifted, Instances, Arity, Context) ->
     {Params, Context1} = fresh_variables(Arity, "A", Context),
@@ -680,12 +683,12 @@ call(Span, #e_var{referent = var, name = Name}, Args, Context) ->
     end;
 %% Appendix E.1: the library's Io.show and Io.debug, as name_form/6 names
 %% them, written by the argument's type at the call
-call(Span, #e_var{referent = #remote_declaration{namespace = ['Io'], owner = undefined,
+call(Span, #e_var{referent = #remote_declaration{namespace = ['Io'], member_of = undefined,
                                                   name = Name}},
      [Argument], Context)
   when Name =:= show; Name =:= debug ->
     io_call(Span, Name, Argument, Context);
-call(Span, #e_var{referent = #own_declaration{owner = undefined, name = Name}}, [Argument],
+call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = Name}}, [Argument],
      #emit_context{erlang_module = 'ern@io'} = Context)
   when Name =:= show; Name =:= debug ->
     io_call(Span, Name, Argument, Context);
@@ -693,17 +696,18 @@ call(Span, #e_var{referent = {prelude, QualifiedName}} = Callee, Args, Context) 
     %% report §4.2: the prelude's, `Prelude.x` among them
     {ArgForms, Context1} = exprs(Args, Context),
     prelude_call(Span, QualifiedName, Args, ArgForms, Callee, Context1);
-call(Span, #e_var{referent = #own_declaration{owner = Owner, name = Name}}, Args, Context) ->
+call(Span, #e_var{referent = #own_declaration{member_of = MemberOf, name = Name}}, Args, Context) ->
     {ArgForms, Context1} = exprs(Args, Context),
-    {at(Span, own_call(Owner, Name, ArgForms, Context)), Context1};
+    {at(Span, own_call(MemberOf, Name, ArgForms, Context)), Context1};
 call(Span,
-     #e_var{referent = #remote_declaration{namespace = Declaring, owner = Owner, name = Name}},
+     #e_var{referent = #remote_declaration{namespace = Declaring, member_of = MemberOf,
+                                           name = Name}},
      Args, #emit_context{env = Env} = Context) ->
     {ArgForms, Context1} = exprs(Args, Context),
-    {HostModule, HostFunction} = remote_name(Declaring, Owner, Name),
+    {HostModule, HostFunction} = remote_name(Declaring, MemberOf, Name),
     %% report §4.6: calling a `let` applies what its getter answers;
     %% calling a `fn` is the call itself
-    case is_value(Declaring, Owner, Name, Env) of
+    case is_value(Declaring, MemberOf, Name, Env) of
         true ->
             Get = call_remote(HostModule, HostFunction, []),
             {at(Span, erl_syntax:application(Get, ArgForms)), Context1};
@@ -727,9 +731,9 @@ io_call(Span, Name, Argument, Context) ->
 
 %% Report §4.6: a call of the module's own declaration, a `let` through
 %% what its getter answers.
-own_call(Owner, Name, ArgForms, #emit_context{top_names = TopNames}) ->
-    Local = erl_syntax:atom(function_name(Owner, Name)),
-    case maps:get({Owner, Name}, TopNames) of
+own_call(MemberOf, Name, ArgForms, #emit_context{top_names = TopNames}) ->
+    Local = erl_syntax:atom(function_name(MemberOf, Name)),
+    case maps:get({MemberOf, Name}, TopNames) of
         value -> erl_syntax:application(erl_syntax:application(Local, []), ArgForms);
         _ -> erl_syntax:application(Local, ArgForms)
     end.
@@ -976,12 +980,12 @@ negate(_, Form, _) -> erl_syntax:prefix_expr(erl_syntax:operator('-'), Form).
 %% this module's, otherwise a call into the module that owns it (report
 %% §4.2).
 member_call(QualifiedName, Name, Args, #emit_context{namespace = Namespace, env = Env}) ->
-    Owner = lists:last(QualifiedName),
+    MemberOf = lists:last(QualifiedName),
     %% report §11.2: at the prompt a later input may have declared it
     MemberQualifiedName = ern_typecheck:member_qualified_name(QualifiedName, Name, Env),
     case lists:droplast(lists:droplast(MemberQualifiedName)) of
-        Namespace -> erl_syntax:application(erl_syntax:atom(function_name(Owner, Name)), Args);
-        Declaring -> call_remote(module_atom(Declaring), function_name(Owner, Name), Args)
+        Namespace -> erl_syntax:application(erl_syntax:atom(function_name(MemberOf, Name)), Args);
+        Declaring -> call_remote(module_atom(Declaring), function_name(MemberOf, Name), Args)
     end.
 
 %% <<A/binary, B/binary>>, with a string literal as a plain segment and an

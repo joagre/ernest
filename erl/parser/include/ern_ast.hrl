@@ -15,7 +15,7 @@
 %% Declarations
 %%
 
-%% DeclName: name is an ident or a userop atom; owner is the typename prefix
+%% DeclName: name is an ident or a userop atom; member_of is the typename prefix
 %% of a type member (`fn Distance.+`), else undefined.
 
 -record(module_doc, {span, text}). % the module's doc block, first in the list, report §2.2
@@ -28,7 +28,7 @@
 %% declaration: the #type_declaration{} whose constructors its module keeps
 %% (report §4.4)
 
--record(fn_declaration, {span, doc, export = false, owner, name, params, result_type, effect,
+-record(fn_declaration, {span, doc, export = false, member_of, name, params, result_type, effect,
                          body, scheme}).
 %% result_type/effect: the annotation; result_type = undefined means none,
 %% result_type given with effect = undefined means pure. scheme: set by the
@@ -42,7 +42,7 @@
 -record(foreign_type_declaration, {span, doc, export = false, name, params = [],
                                    equality = []}).
 %% equality: the parameters written `k=`, which require equality (report §4.7)
--record(foreign_fn_declaration, {span, doc, export = false, owner, name, params, result_type,
+-record(foreign_fn_declaration, {span, doc, export = false, member_of, name, params, result_type,
                                  effect, implementation, implementation_span, scheme}).
 %% scheme: set by the checker, as on fn_declaration; implementation_span:
 %% where the implementation's string stands, for its diagnostics (report

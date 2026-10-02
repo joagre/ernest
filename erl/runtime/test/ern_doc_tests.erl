@@ -241,11 +241,12 @@ coverage(Namespace, File) ->
     {ok, Declarations} = ern_parser:parse_string(Source),
     Examples = iolist_to_binary([Block || Doc <- docs(Declarations), Block <- fences(Doc)]),
     Prefix = lists:join(".", [atom_to_list(Part) || Part <- Namespace]),
-    Fns = [owned_name(Owner, Name)
-           || #fn_declaration{export = true, owner = Owner, name = Name} <- Declarations,
+    Fns = [local_name(MemberOf, Name)
+           || #fn_declaration{export = true, member_of = MemberOf, name = Name} <- Declarations,
               is_alpha(Name)]
-        ++ [owned_name(Owner, Name)
-            || #foreign_fn_declaration{export = true, owner = Owner, name = Name} <- Declarations,
+        ++ [local_name(MemberOf, Name)
+            || #foreign_fn_declaration{export = true, member_of = MemberOf,
+                                       name = Name} <- Declarations,
                is_alpha(Name)],
     %% a module exports something: `Test`, Appendix E.24, declares types alone
     Types = [Name || #type_declaration{export = true, name = Name} <- Declarations],
@@ -295,14 +296,16 @@ qualified(QualifiedName) ->
 declaration_names(#type_declaration{name = Name}) -> [atom_to_list(Name)];
 declaration_names(#abstract_declaration{declaration = #type_declaration{name = Name}}) ->
     [atom_to_list(Name)];
-declaration_names(#fn_declaration{owner = Owner, name = Name}) -> [owned_name(Owner, Name)];
+declaration_names(#fn_declaration{member_of = MemberOf, name = Name}) ->
+    [local_name(MemberOf, Name)];
 declaration_names(#let_declaration{name = Name}) -> [atom_to_list(Name)];
-declaration_names(#foreign_fn_declaration{owner = Owner, name = Name}) -> [owned_name(Owner, Name)];
+declaration_names(#foreign_fn_declaration{member_of = MemberOf, name = Name}) ->
+    [local_name(MemberOf, Name)];
 declaration_names(#foreign_type_declaration{name = Name}) -> [atom_to_list(Name)];
 declaration_names(_) -> [].
 
-owned_name(undefined, Name) -> atom_to_list(Name);
-owned_name(Owner, Name) -> atom_to_list(Owner) ++ "." ++ atom_to_list(Name).
+local_name(undefined, Name) -> atom_to_list(Name);
+local_name(MemberOf, Name) -> atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name).
 
 %% Whether a top-level declaration is exported; none for anything else.
 exported_declaration(#type_declaration{export = Export}) -> Export;

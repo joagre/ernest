@@ -782,7 +782,7 @@ type_info(QualifiedName, #session{interfaces = Interfaces}) ->
         Infos -> lists:last(Infos)
     end.
 
-name_text({Owner, Name}) -> atom_to_list(Owner) ++ "." ++ atom_to_list(Name);
+name_text({MemberOf, Name}) -> atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name);
 name_text(Name) -> atom_to_list(Name).
 
 scheme(QualifiedName, #session{interfaces = Interfaces}) ->
@@ -812,7 +812,8 @@ forget(#session{scope = Scope} = Session, Text) ->
     Constructors = maps:get(constructors, Scope, #{}),
     case segments(Text) of
         {ok, [Name]} when is_map_key(Name, Values); is_map_key(Name, Types) ->
-            Members = [{Owner, Member} || {Owner, Member} <- maps:keys(Values), Owner =:= Name],
+            Members = [{MemberOf, Member} || {MemberOf, Member} <- maps:keys(Values),
+                                             MemberOf =:= Name],
             Gone = constructors(maps:get(Name, Types, none), Constructors, Session),
             %% remembered, since completion and `Shift-Tab` read the
             %% session from where the front end keeps it; what nothing
@@ -1164,7 +1165,7 @@ parameters(Session, Path, Name) ->
 session_beam(#session{scope = Scope, beams = Beams}, Path, Name) ->
     Key = case Path of
               [] -> Name;
-              [Owner] -> {Owner, Name};
+              [MemberOf] -> {MemberOf, Name};
               _ -> none
           end,
     case maps:get(Key, maps:get(values, Scope, #{}), none) of
@@ -1284,7 +1285,7 @@ prelude_doc(Segments) ->
 session_doc(#session{scope = Scope, beams = Beams} = Session, Segments) ->
     Key = case Segments of
               [Name] -> Name;
-              [Owner, Name] -> {Owner, Name};
+              [MemberOf, Name] -> {MemberOf, Name};
               _ -> none
           end,
     Values = maps:get(values, Scope, #{}),
@@ -1321,9 +1322,9 @@ module_doc(Session, Segments) when length(Segments) >= 2 ->
         {ok, Page} ->
             {ok, Page};
         none when length(Segments) >= 3 ->
-            [Owner, Member] = lists:nthtail(length(Segments) - 2, Segments),
+            [MemberOf, Member] = lists:nthtail(length(Segments) - 2, Segments),
             entry(beam_of(Session, lists:sublist(Segments, length(Segments) - 2)),
-                  entry_name([Owner, Member]));
+                  entry_name([MemberOf, Member]));
         none ->
             none
     end;
@@ -2270,7 +2271,7 @@ joined(#session{interfaces = Interfaces, scope = Scope} = Session, #interface{} 
     %% a type declared again starts with no members: the earlier type's
     %% belong to it, and its name now names another
     Declared = [lists:last(QualifiedName) || QualifiedName <- maps:keys(InterfaceTypes)],
-    Kept = maps:filter(fun({Owner, _}, _) -> not lists:member(Owner, Declared);
+    Kept = maps:filter(fun({MemberOf, _}, _) -> not lists:member(MemberOf, Declared);
                           (_, _) -> true
                        end, maps:get(values, Scope, #{})),
     Values = maps:merge(Kept, maps:from_list([{value_key(Namespace, QualifiedName), QualifiedName}
@@ -2291,7 +2292,7 @@ joined(#session{interfaces = Interfaces, scope = Scope} = Session, #interface{} 
 value_key(Namespace, QualifiedName) ->
     case lists:nthtail(length(Namespace), QualifiedName) of
         [Name] -> Name;
-        [Owner, Name] -> {Owner, Name}
+        [MemberOf, Name] -> {MemberOf, Name}
     end.
 
 %% The getter the emitter emits for a module's own value (§8.5). A binding
@@ -2373,23 +2374,23 @@ kind(_) -> other.
 line(Declaration, Namespace, #interface{values = Values}, Env) ->
     case kind(Declaration) of
         value ->
-            {Owner, Name} = declared_name(Declaration),
-            Scheme = maps:get(Namespace ++ Owner ++ [Name], Values),
+            {MemberOf, Name} = declared_name(Declaration),
+            Scheme = maps:get(Namespace ++ MemberOf ++ [Name], Values),
             Text = ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env)),
-            unicode:characters_to_binary([owned(Owner, Name), " : ", Text]);
+            unicode:characters_to_binary([local_name(MemberOf, Name), " : ", Text]);
         Keyword ->
             {_, Name} = declared_name(Declaration),
             <<Keyword/binary, " ", (atom_to_binary(Name))/binary>>
     end.
 
-declared_name(#fn_declaration{owner = undefined, name = Name}) -> {[], Name};
-declared_name(#fn_declaration{owner = Owner, name = Name}) -> {[Owner], Name};
-declared_name(#foreign_fn_declaration{owner = undefined, name = Name}) -> {[], Name};
-declared_name(#foreign_fn_declaration{owner = Owner, name = Name}) -> {[Owner], Name};
+declared_name(#fn_declaration{member_of = undefined, name = Name}) -> {[], Name};
+declared_name(#fn_declaration{member_of = MemberOf, name = Name}) -> {[MemberOf], Name};
+declared_name(#foreign_fn_declaration{member_of = undefined, name = Name}) -> {[], Name};
+declared_name(#foreign_fn_declaration{member_of = MemberOf, name = Name}) -> {[MemberOf], Name};
 declared_name(#let_declaration{name = Name}) -> {[], Name};
 declared_name(#type_declaration{name = Name}) -> {[], Name};
 declared_name(#abstract_declaration{declaration = #type_declaration{name = Name}}) -> {[], Name};
 declared_name(#foreign_type_declaration{name = Name}) -> {[], Name}.
 
-owned([], Name) -> atom_to_list(Name);
-owned([Owner], Name) -> [atom_to_list(Owner), ".", atom_to_list(Name)].
+local_name([], Name) -> atom_to_list(Name);
+local_name([MemberOf], Name) -> [atom_to_list(MemberOf), ".", atom_to_list(Name)].

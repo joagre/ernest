@@ -520,7 +520,7 @@ abstract_declaration_test() ->
 
 %% report §4.5
 fn_declaration_test() ->
-    ?assertMatch(#fn_declaration{export = true, owner = undefined, name = main, params = [],
+    ?assertMatch(#fn_declaration{export = true, member_of = undefined, name = main, params = [],
                                  result_type = #t_named{name = 'Unit'},
                                  effect = #t_named{name = 'Never'},
                                  body = #e_call{}, doc = undefined},
@@ -533,17 +533,17 @@ fn_declaration_test() ->
     ?assertMatch(#fn_declaration{name = twice, params = [#param{annotation = undefined}],
                                  result_type = undefined},
                  declaration("fn twice(n) = n + n")),
-    ?assertMatch(#fn_declaration{owner = undefined, name = push,
+    ?assertMatch(#fn_declaration{member_of = undefined, name = push,
                                  params = [#param{pattern = #p_var{}},
                                            #param{pattern = #p_constructor{name = 'Stack'},
                                                   annotation = #t_named{name = 'Stack'}}]},
                  declaration("fn push(x : a, Stack(xs) : Stack(a)) : Stack(a) = Stack(x :: xs)")),
-    ?assertMatch(#fn_declaration{owner = 'Stack', name = compare},
+    ?assertMatch(#fn_declaration{member_of = 'Stack', name = compare},
                  declaration("fn Stack.compare(a : Stack(Int), b : Stack(Int)) : Ordering ="
                              " Equal")),
-    ?assertMatch(#fn_declaration{owner = 'Distance', name = negate},
+    ?assertMatch(#fn_declaration{member_of = 'Distance', name = negate},
                  declaration("fn Distance.negate(Distance(a)) : Distance = Distance(-a)")),
-    ?assertMatch(#fn_declaration{owner = 'Distance', name = '+'},
+    ?assertMatch(#fn_declaration{member_of = 'Distance', name = '+'},
                  declaration("fn Distance.+(Distance(a), Distance(b)) : Distance ="
                              " Distance(a + b)")),
     ?assertMatch(#fn_declaration{params = [#param{pattern = #p_constructor{name = 'Snapshot'}}]},

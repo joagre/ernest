@@ -96,6 +96,7 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Annotation**: a type the source writes. Not `Ann`; an AST record's `type` field holds one of the four things it holds today, each named.
 - **Effect**: the `with` part of a function type, a mailbox type or an effect variable (§3.9, §6.1). Not `E`, `Eff`, `EffT`, `MailboxT`.
 - **Constructor**: a constructor (§3.5, §5.6); many are `constructors`. Not `Cs`, `CI`, `cons`; `cons` is `::` alone.
+- **MemberOf**: the type a member belongs to, `Stack` of `fn Stack.push` (§4.8), a declaration's `member_of`. Not `Owner`, which is a resource's process.
 - **Restriction**: §3.9's inferred restriction; the three are `equality`, `process_only` and `not_reply_carrying`. Not `flags`, `add_flag`, `eq`, `no_reply`.
 - **Obligation**: §6.6's obligation. Not `Linear`.
 - **ResultType**: §4.5's result type, and "result type" in every message. Not `ret`, `Ret`, `RetT`, `R`, "return type".
@@ -117,8 +118,8 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Monitor**: §6.9's monitor, in the reaper as elsewhere. Not `await`, `watch`, `Waiters`. The host's reference to one is a `MonitorRef`, not `Watch`, `Mon`, `MRef`, `OwnerMonitor`.
 - **Runner**: §11.2's runner, the process that starts the system processes and the entry point; the launcher is `bin/ern` alone. Not `Launcher`.
 - **SystemProcess**: a system process (§8.2, §8.4). Not `Service`, `sys`; the report's service is §6.5's.
-- **Run**: one execution of a restarting function's `f` (§6.9), and nothing else; a launch, a running program and a test are named as such.
-- **Owner**: the process that opened a resource or was given it (§6.9, E.18), and nothing else.
+- **Run**: one execution of a restarting function's `f` (§6.9), a noun, and nothing else; a launch, a running program and a test are named as such. A test case's `run` (E.24) is the verb, the function the case runs.
+- **Owner**: the process that opened a resource or was given it (§6.9, E.18), and nothing else; the type a member belongs to is its MemberOf.
 - **Port**: E.18's port of a socket. A host port is named for what it runs: `Helper`, `Stty`.
 - **EntryPoint, EntryProcess**: the entry point and its process (§8.1, §8.6). Not `Main`.
 - **LoadPath, SourceRoot, BuildRoot**: the load path, a source root and a build root (§11.1, §11.2). Not `Roots`, `Dirs`, `OutDir`, `Root` alone.

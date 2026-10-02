@@ -150,8 +150,8 @@ program(Tokens, Previous, Acc) ->
     program(Tokens1, Declaration, [Declaration | Acc]).
 
 %% A second consecutive fn with the same name is the Haskell habit.
-refuse_second_clause(#fn_declaration{span = Position, owner = Owner, name = Name},
-                     #fn_declaration{span = First, owner = Owner, name = Name}) ->
+refuse_second_clause(#fn_declaration{span = Position, member_of = MemberOf, name = Name},
+                     #fn_declaration{span = First, member_of = MemberOf, name = Name}) ->
     %% report §11.5: at the second clause, the first labelled
     Diagnostic = diagnostic(Position, "a function has one clause",
                             "write one clause whose body is a `match`"),
@@ -260,11 +260,11 @@ abstract_declaration([{abstract, Position} | Rest], Doc, Export) ->
     end.
 
 fn_declaration([{fn, Position} | Rest], Doc, Export) ->
-    {Owner, Name, Rest1} = declaration_name(Rest),
+    {MemberOf, Name, Rest1} = declaration_name(Rest),
     {Params, Rest2} = params(Rest1),
     {ResultType, Effect, Rest3} = optional_result_type(Rest2),
     {Body, Rest4} = expr(expect(Rest3, '=')),
-    spanned({#fn_declaration{span = Position, doc = Doc, export = Export, owner = Owner,
+    spanned({#fn_declaration{span = Position, doc = Doc, export = Export, member_of = MemberOf,
                              name = Name, params = Params, result_type = ResultType,
                              effect = Effect, body = Body}, Rest4}).
 
@@ -273,18 +273,18 @@ fn_declaration([{fn, Position} | Rest], Doc, Export) ->
 %% operand's type; a type's other operations are functions of its module.
 declaration_name([{ident, _, Name} | Rest]) ->
     {undefined, Name, Rest};
-declaration_name([{typename, _, Owner}, {'.', _}, {ident, Position, Name} | Rest]) ->
+declaration_name([{typename, _, MemberOf}, {'.', _}, {ident, Position, Name} | Rest]) ->
     lists:member(Name, [compare, negate])
         orelse fail(Position, "`" ++ atom_to_list(Name) ++ "` cannot be a member of "
-                              ++ atom_to_list(Owner) ++ ": a member is an operator, `compare` or"
+                              ++ atom_to_list(MemberOf) ++ ": a member is an operator, `compare` or"
                               " `negate`",
                     "a type's other operations are functions of its module:"
                     " write `fn " ++ atom_to_list(Name) ++ "`"),
-    {Owner, Name, Rest};
-declaration_name([{typename, _, Owner}, {'.', _}, {Operator, _} | Rest])
+    {MemberOf, Name, Rest};
+declaration_name([{typename, _, MemberOf}, {'.', _}, {Operator, _} | Rest])
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
        Operator =:= '/'; Operator =:= '%'; Operator =:= '<>' ->
-    {Owner, Operator, Rest};
+    {MemberOf, Operator, Rest};
 declaration_name([{typename, _, _}, {'.', _}, Token | _]) ->
     fail(position(Token), "expected an operator, `compare` or `negate` after `.` instead of "
                           ++ describe(Token));
@@ -297,15 +297,15 @@ declaration_name([Token | _]) ->
 %% Report §4.5, §4.6, Appendix A's LetDecl: a `let` declares no member.
 let_name([{ident, _, Name} | Rest]) ->
     {Name, Rest};
-let_name([{typename, Position, Owner}, {'.', _}, {ident, _, Name} | _])
+let_name([{typename, Position, MemberOf}, {'.', _}, {ident, _, Name} | _])
   when Name =/= compare, Name =/= negate ->
-    fail(Position, "a `let` declares no member of " ++ atom_to_list(Owner),
+    fail(Position, "a `let` declares no member of " ++ atom_to_list(MemberOf),
          "a type's values are named in its module, as its functions are:"
          " write `let " ++ atom_to_list(Name) ++ "`");
-let_name([{typename, Position, Owner}, {'.', _} | _] = Tokens) ->
+let_name([{typename, Position, MemberOf}, {'.', _} | _] = Tokens) ->
     {_, Member, _} = declaration_name(Tokens),
-    fail(Position, "a `let` declares no member of " ++ atom_to_list(Owner),
-         "a member is declared with `fn`: write `fn " ++ atom_to_list(Owner) ++ "."
+    fail(Position, "a `let` declares no member of " ++ atom_to_list(MemberOf),
+         "a member is declared with `fn`: write `fn " ++ atom_to_list(MemberOf) ++ "."
          ++ atom_to_list(Member) ++ "(...)`");
 let_name([{typename, _, _} = Token | _]) ->
     fail(position(Token), "expected a name instead of " ++ describe(Token),
@@ -381,7 +381,7 @@ foreign_declaration([{foreign, Position}, {type, _} | Rest], Doc, Export) ->
                                        equality = [Var || {Var, true} <- Vars]},
              Rest2});
 foreign_declaration([{foreign, Position}, {fn, _} | Rest], Doc, Export) ->
-    {Owner, Name, Rest1} = declaration_name(Rest),
+    {MemberOf, Name, Rest1} = declaration_name(Rest),
     Rest2 = expect(Rest1, '('),
     {Params, Rest3} = case Rest2 of
                           [{')', _} | _] -> {[], Rest2};
@@ -398,7 +398,7 @@ foreign_declaration([{foreign, Position}, {fn, _} | Rest], Doc, Export) ->
     case Rest6 of
         [{string, ImplementationPosition, Implementation} | Rest7] ->
             spanned({#foreign_fn_declaration{span = Position, doc = Doc, export = Export,
-                                             owner = Owner, name = Name, params = Params,
+                                             member_of = MemberOf, name = Name, params = Params,
                                              result_type = ResultType, effect = Effect,
                                              implementation = Implementation,
                                              implementation_span = ImplementationPosition},
