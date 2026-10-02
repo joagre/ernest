@@ -2318,9 +2318,10 @@ system_reference_in_let_test() ->
 %% arity of its type, so no accepted name can reach the runtime as undef
 prelude_targets_test() ->
     Missing = [QualifiedName || {QualifiedName, Text, _} <- ern_prelude:values(),
-                    {HostModule, HostFunction, Arity} <- [prelude_target(QualifiedName, Text)],
-                    code:ensure_loaded(HostModule) =/= {module, HostModule} orelse
-                        not erlang:function_exported(HostModule, HostFunction, Arity)],
+                                {HostModule, HostFunction, Arity}
+                                    <- [prelude_target(QualifiedName, Text)],
+                                code:ensure_loaded(HostModule) =/= {module, HostModule} orelse
+                                    not erlang:function_exported(HostModule, HostFunction, Arity)],
     ?assertEqual([], Missing).
 
 %% The emission of a prelude name, as ern_emitter makes it; inline

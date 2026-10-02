@@ -47,7 +47,7 @@ prelude_called_test() ->
     Fences = iolist_to_binary([Block || Doc <- prelude_docs(), Block <- fences(Doc)]),
     Functions = [lists:join(".", [atom_to_list(Part) || Part <- QualifiedName])
                  || {QualifiedName, Text, ValueDoc} <- ern_prelude:values(), is_binary(ValueDoc),
-                 hd(QualifiedName) =/= 'Sys',
+                    hd(QualifiedName) =/= 'Sys',
                     lists:prefix("(", Text)],
     Uncalled = [Function || Function <- Functions,
                             binary:match(Fences, list_to_binary([Function, "("])) =:= nomatch],
@@ -170,9 +170,9 @@ collect(Acc) ->
 %% uses libs/ansi.
 libraries(Namespace) ->
     [Interface || File <- filelib:wildcard(filename:join(?ROOT, "build/libs/*/*.erc")),
-              {ok, Bytes} <- [file:read_file(File)],
-              {ok, #{interface := Interface}} <- [ern_interface:read(Bytes)],
-              Interface#interface.namespace =/= Namespace].
+                  {ok, Bytes} <- [file:read_file(File)],
+                  {ok, #{interface := Interface}} <- [ern_interface:read(Bytes)],
+                  Interface#interface.namespace =/= Namespace].
 
 checked(Namespace, Text, Libraries) ->
     case ern_parser:parse_string(Text) of
@@ -243,16 +243,16 @@ coverage(Namespace, File) ->
     Prefix = lists:join(".", [atom_to_list(Part) || Part <- Namespace]),
     Fns = [owned_name(Owner, Name)
            || #fn_declaration{export = true, owner = Owner, name = Name} <- Declarations,
-                               is_alpha(Name)]
+              is_alpha(Name)]
         ++ [owned_name(Owner, Name)
             || #foreign_fn_declaration{export = true, owner = Owner, name = Name} <- Declarations,
-            is_alpha(Name)],
+               is_alpha(Name)],
     %% a module exports something: `Test`, Appendix E.24, declares types alone
     Types = [Name || #type_declaration{export = true, name = Name} <- Declarations],
     ?assertNotEqual([], Fns ++ Types),
     Uncalled = [Function || Function <- Fns,
-                     binary:match(Examples,
-                                  iolist_to_binary([Prefix, ".", Function, "("])) =:= nomatch],
+                            binary:match(Examples, iolist_to_binary([Prefix, ".", Function, "("]))
+                                =:= nomatch],
     ?assertEqual([], Uncalled).
 
 is_alpha(Name) ->
@@ -276,16 +276,17 @@ see_also(File) ->
         ++ [atom_to_list(Name) || {Name, _, _} <- ern_prelude:builtin_types()]
         ++ [qualified(QualifiedName) || {QualifiedName, _, _} <- ern_prelude:values()]
         ++ [qualified(QualifiedName) || Interface <- ern_prelude:stdlib_interfaces(),
-                            QualifiedName <- maps:keys(Interface#interface.values)]
+                                        QualifiedName <- maps:keys(Interface#interface.values)]
         ++ [qualified(QualifiedName) || Interface <- ern_prelude:stdlib_interfaces(),
-                            QualifiedName <- maps:keys(Interface#interface.types)],
+                                        QualifiedName <- maps:keys(Interface#interface.types)],
     Named = [Name || Doc <- docs(Declarations),
-                  {match, Sections} <- [re:run(Doc, "#+ See also\\n\\n(.*?)(?=\\n#|$)",
-                                               [global, dotall, {capture, all_but_first, list}])],
-                  [Section] <- Sections,
-                  {match, Matches} <- [re:run(Section, "`([^`]+)`",
-                                              [global, {capture, all_but_first, list}])],
-                  [Name] <- Matches],
+                     {match, Sections}
+                         <- [re:run(Doc, "#+ See also\\n\\n(.*?)(?=\\n#|$)",
+                                    [global, dotall, {capture, all_but_first, list}])],
+                     [Section] <- Sections,
+                     {match, Matches} <- [re:run(Section, "`([^`]+)`",
+                                                 [global, {capture, all_but_first, list}])],
+                     [Name] <- Matches],
     ?assertEqual([], [Name || Name <- Named, not lists:member(Name, Known)]).
 
 qualified(QualifiedName) ->
@@ -357,13 +358,13 @@ stdlib_targets_test() ->
     Missing = [{QualifiedName, Arity}
                || #interface{namespace = Namespace,
                              values = Values} <- ern_prelude:stdlib_interfaces(),
-                          {QualifiedName, Scheme} <- maps:to_list(Values),
-                          Arity <- [arity(Scheme)],
-                          ErlangModule <- [module_atom(Namespace)],
-                          code:ensure_loaded(ErlangModule) =/= {module, ErlangModule}
-                              orelse not erlang:function_exported(ErlangModule,
-                                                                  lists:last(QualifiedName),
-                                                                  Arity)],
+                  {QualifiedName, Scheme} <- maps:to_list(Values),
+                  Arity <- [arity(Scheme)],
+                  ErlangModule <- [module_atom(Namespace)],
+                  code:ensure_loaded(ErlangModule) =/= {module, ErlangModule}
+                      orelse not erlang:function_exported(ErlangModule,
+                                                          lists:last(QualifiedName),
+                                                          Arity)],
     ?assertEqual([], Missing),
     ?assertNotEqual([], ern_prelude:stdlib_interfaces()).
 

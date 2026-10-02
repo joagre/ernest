@@ -2208,7 +2208,7 @@ reached([ErlangModule | Rest], Uses, Live) ->
 %% interface names is such a mention.
 mentions(Term, [Own]) ->
     lists:usort([ern_emitter:module_atom([Atom]) || Atom <- atoms(Term, []), Atom =/= Own,
-                                                 session_segment(Atom)]).
+                                                    session_segment(Atom)]).
 
 atoms(Atom, Acc) when is_atom(Atom) -> [Atom | Acc];
 atoms(Tuple, Acc) when is_tuple(Tuple) -> atoms(tuple_to_list(Tuple), Acc);

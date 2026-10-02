@@ -760,8 +760,9 @@ host_path(LoadPath) ->
 %% the `ErnI` chunk of the `.erc` it came from (§11.1).
 interfaces(Loaded) ->
     [{Interface, Hash} || ErlangModule <- lists:reverse(Loaded),
-               {ok, Beam} <- [file:read_file(code:which(ErlangModule))],
-               {ok, #{interface := Interface, source_hash := Hash}} <- [ern_interface:read(Beam)]].
+                          {ok, Beam} <- [file:read_file(code:which(ErlangModule))],
+                          {ok, #{interface := Interface, source_hash := Hash}}
+                              <- [ern_interface:read(Beam)]].
 
 %% Report §11.2: where the startup files are, the person's first and then
 %% the node's; the shell reads them and finds out whether they are there.

@@ -372,7 +372,7 @@ count(Name, Uses) -> length([x || {UsedName, _} <- Uses, UsedName =:= Name]).
 %% Variables a pattern binds to reply-carrying values.
 obligations_bound(Pattern, Env) ->
     [Name || {Name, Type} <- ern_ast:pattern_bindings(Pattern),
-          ern_typecheck:is_reply_carrying(Type, Env)].
+             ern_typecheck:is_reply_carrying(Type, Env)].
 
 walk(Visit, Node) ->
     ern_ast:walk(fun(Child, ok) -> Visit(Child), ok end, Node, ok).

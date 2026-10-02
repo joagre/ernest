@@ -1810,12 +1810,12 @@ modules_example_test() ->
 %% report Appendix B, examples/
 examples_test_() ->
     Files = [File || File <- filelib:wildcard("../../../examples/*.ern"),
-                  hd(filename:basename(File)) =/= $.], % editor artifacts, report §11.1
+                     hd(filename:basename(File)) =/= $.], % editor artifacts, report §11.1
     %% report §11.1, Appendix G: the libraries' interfaces, as an example
     %% has them on its load path; snake writes with libs/ansi
     Libraries = [Interface || Path <- filelib:wildcard("../../../build/libs/*/*.erc"),
-                          {ok, Bytes} <- [file:read_file(Path)],
-                          {ok, #{interface := Interface}} <- [ern_interface:read(Bytes)]],
+                              {ok, Bytes} <- [file:read_file(Path)],
+                              {ok, #{interface := Interface}} <- [ern_interface:read(Bytes)]],
     ?assertNotEqual([], Libraries),
     [{File, fun() ->
                  {ok, Source} = file:read_file(File),

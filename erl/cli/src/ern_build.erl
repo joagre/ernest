@@ -358,8 +358,8 @@ dependencies(Declarations, SourceRoot, LoadPath) ->
            end,
     Members = local_members(Declarations),
     Paths = lists:usort([Path || {Path, Name} <- references(Declarations), Path =/= [],
-                              not lists:member(hd(Path), Skip),
-                              not lists:member({Path, Name}, Members)]),
+                                 not lists:member(hd(Path), Skip),
+                                 not lists:member({Path, Name}, Members)]),
     lists:usort(lists:filtermap(fun(Path) -> module_prefix(Path, SourceRoot, LoadPath) end, Paths)).
 
 %% Each qualified reference of a source, its path and its last name; only a
@@ -567,8 +567,8 @@ dependency_interfaces(Namespace, Dependencies, Interfaces, SearchPath, SourceRoo
 reached(Found, Skip, Interfaces, SearchPath, SourceRoot) ->
     Have = [Dependency || {Dependency, _} <- Found],
     Named = lists:usort([Namespace || {_, Interface} <- Found, Namespace <- type_modules(Interface),
-                              not lists:member(Namespace, Skip),
-                              not lists:member(Namespace, Have)]),
+                                      not lists:member(Namespace, Skip),
+                                      not lists:member(Namespace, Have)]),
     case Named of
         [] -> Found;
         _ ->

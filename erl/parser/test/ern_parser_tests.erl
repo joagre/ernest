@@ -820,7 +820,7 @@ ast_coverage_test() ->
     Files = [File || File <- filelib:wildcard("../../../examples/**/*.ern")
                       ++ filelib:wildcard("../../../stdlib/*.ern")
                       ++ filelib:wildcard("../../../libs/*/*.ern"),
-                  hd(filename:basename(File)) =/= $.], % editor artifacts, report §11.1
+                     hd(filename:basename(File)) =/= $.], % editor artifacts, report §11.1
     Used = lists:usort(lists:foldl(fun(File, Acc) ->
                                        {ok, Source} = file:read_file(File),
                                        {ok, Declarations} = ern_parser:parse_string(Source),
@@ -845,7 +845,7 @@ examples_parse_test_() ->
     Files = [File || File <- filelib:wildcard("../../../examples/**/*.ern")
                       ++ filelib:wildcard("../../../stdlib/*.ern")
                       ++ filelib:wildcard("../../../libs/*/*.ern"),
-                  hd(filename:basename(File)) =/= $.], % editor artifacts, report §11.1
+                     hd(filename:basename(File)) =/= $.], % editor artifacts, report §11.1
     ?assert(length(Files) >= 12),
     [{File, fun() ->
                  {ok, Source} = file:read_file(File),
@@ -878,7 +878,7 @@ grammar_fragments_test() ->
     ?assert(map_size(InAppendix) > 40),
     ?assertEqual([],
                  [Name || Name := Rule <- InAppendix,
-                  maps:get(Name, InSections, undefined) =/= Rule]).
+                          maps:get(Name, InSections, undefined) =/= Rule]).
 
 %% report §5.11, Appendix A BitExpr, BitPat, BitSpec: segments with
 %% dash-separated specifiers, size with an expression, unit with an integer
