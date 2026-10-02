@@ -12,11 +12,11 @@
 
 -export([tokenize/1, tokenize/2]).
 
--include_lib("utils/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diagnostic.hrl").
 
 -export_type([pos/0, token/0]).
 
--type pos() :: ern_diag:pos().
+-type pos() :: ern_diagnostic:position().
 %% line, column, the end (exclusive) as line and column, and the end of the
 %% previous token, from which the parser sets a node's end (report §11.5)
 -type token() ::
@@ -40,14 +40,15 @@
                   "(", ")", "{", "}", "[", "]", ",", ";", ":", "=", "|", ".",
                   "+", "-", "*", "/", "%", "<", ">", "!"]).
 
--spec tokenize(unicode:chardata()) -> {ok, [token()]} | {error, ern_diag:diag()}.
+-spec tokenize(unicode:chardata()) -> {ok, [token()]} | {error, ern_diagnostic:diagnostic()}.
 tokenize(Data) ->
     tokenize(Data, []).
 
 %% With `comments`, every ordinary comment is a token too, `{comment, Pos,
 %% Text}` with the text as written, for the formatter (report §11.6); it
 %% moves no other token's previous end, so the parser's spans are the same.
--spec tokenize(unicode:chardata(), [comments]) -> {ok, [token()]} | {error, ern_diag:diag()}.
+-spec tokenize(unicode:chardata(), [comments]) ->
+          {ok, [token()]} | {error, ern_diagnostic:diagnostic()}.
 tokenize(Data, Options) ->
     Keep = lists:member(comments, Options),
     case unicode:characters_to_list(Data) of
@@ -57,13 +58,13 @@ tokenize(Data, Options) ->
                 Tokens -> {ok, Tokens}
             catch
                 throw:{lex_error, Line, Col, Message, Incomplete} ->
-                    {error, #diag{span = {Line, Col, {Line, Col + 1}}, message = Message,
-                                  incomplete = Incomplete}}
+                    {error, #diagnostic{span = {Line, Col, {Line, Col + 1}}, message = Message,
+                                        incomplete = Incomplete}}
             end;
         {_, Good, _} ->
             {Line, Col} = place(strip_bom(Good), 1, 1),
-            {error, #diag{span = {Line, Col, {Line, Col + 1}},
-                          message = "input is not valid UTF-8"}}
+            {error, #diagnostic{span = {Line, Col, {Line, Col + 1}},
+                                message = "input is not valid UTF-8"}}
     end.
 
 %% Report §2.1: where the byte after the characters stands, the first that

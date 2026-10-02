@@ -27,7 +27,8 @@
 -record(cur, {i = 1, trivia = [], last = 0, prev = none, force = false}).
 
 %% A module in the layout, or the diagnostic that stopped it.
--spec format(unicode:chardata()) -> {ok, unicode:unicode_binary()} | {error, ern_diag:diag()}.
+-spec format(unicode:chardata()) ->
+          {ok, unicode:unicode_binary()} | {error, ern_diagnostic:diagnostic()}.
 format(Text) ->
     Source = source_lines(Text),
     case ern_lexer:tokenize(Text, [comments]) of

@@ -16,7 +16,7 @@
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
--include_lib("utils/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diagnostic.hrl").
 -include_lib("cli/include/ern_build.hrl").
 
 -define(UNIT, {tcon, ['Unit'], []}).
@@ -108,7 +108,7 @@ startup_files() ->
 needs_more(Text) ->
     unfinished(ern_parser:parse_expr(Text)) orelse unfinished(ern_parser:parse_string(Text)).
 
-unfinished({error, #diag{incomplete = Incomplete}}) -> Incomplete;
+unfinished({error, #diagnostic{incomplete = Incomplete}}) -> Incomplete;
 unfinished(_) -> false.
 
 %% Report §11.2: an input is checked before it is run; a failure is §11.5's
@@ -182,9 +182,9 @@ input(Text) ->
 pattern_let(Text) ->
     case ern_parser:parse_stmt(Text) of
         {ok, #binding{op = '<-', pos = Pos}} ->
-            {error, #diag{span = ern_diag:span(Pos),
-                          message = "a `let` with `<-` at the prompt has no block to end",
-                          help = "write it in a block, `{ let x <- e; ... }`"}};
+            {error, #diagnostic{span = ern_diagnostic:span(Pos),
+                                message = "a `let` with `<-` at the prompt has no block to end",
+                                help = "write it in a block, `{ let x <- e; ... }`"}};
         {ok, #binding{pos = Pos, pattern = P} = B} ->
             Names = [N || {N, _} <- ern_ast:pattern_bindings(P)],
             Vars = [#e_var{pos = Pos, name = N} || N <- Names],
@@ -233,10 +233,10 @@ declarations(Decls) ->
 %% `let`, which §4.6 generalizes and requires to be pure. A `let` that
 %% declares a type member, `let T.name`, is a declaration and not this.
 one_let(Pos) ->
-    #diag{span = ern_diag:span(Pos),
-          message = "a `let` at the prompt is an input of its own",
-          help = "run this `let` on an input of its own, or make it a `let`"
-                 " inside a declaration's body"}.
+    #diagnostic{span = ern_diagnostic:span(Pos),
+                message = "a `let` at the prompt is an input of its own",
+                help = "run this `let` on an input of its own, or make it a `let`"
+                       " inside a declaration's body"}.
 
 exported(#type_decl{} = D) -> D#type_decl{export = true};
 exported(#abstract_decl{} = D) -> D#abstract_decl{export = true};
@@ -324,11 +324,11 @@ carries_reply(Type, TEnv, _Binds, Typed) ->
             none;
         true ->
             St = ern_typecheck:type_state(TEnv),
-            {open, #diag{span = input_span(Typed),
-                         message = "an input's value cannot carry a reply, which is consumed"
-                                   " exactly once; this one is "
-                                   ++ ern_types:format(Type, St),
-                         help = "answer the reply within the input"}}
+            {open, #diagnostic{span = input_span(Typed),
+                               message = "an input's value cannot carry a reply, which is consumed"
+                                         " exactly once; this one is "
+                                         ++ ern_types:format(Type, St),
+                               help = "answer the reply within the input"}}
     end.
 
 undetermined(_Type, _TEnv, decls, _Typed) ->
@@ -349,13 +349,13 @@ undetermined(Type, TEnv, Binds, Typed) ->
             none;
         _ ->
             Text = ern_types:format(Type, St),
-            {open, #diag{span = input_span(Typed),
-                         message = lists:flatten(
-                                     io_lib:format(undetermined_text(Binds),
-                                                   [bound_names(Binds), Text])),
-                         help = "bind it with an annotation that settles the variable,"
-                                " as in `let xs : List(Int) = []`, or declare a function"
-                                " with `fn`"}}
+            {open, #diagnostic{span = input_span(Typed),
+                               message = lists:flatten(
+                                           io_lib:format(undetermined_text(Binds),
+                                                         [bound_names(Binds), Text])),
+                               help = "bind it with an annotation that settles the variable,"
+                                      " as in `let xs : List(Int) = []`, or declare a function"
+                                      " with `fn`"}}
     end.
 
 undetermined_text({names, [_, _ | _]}) ->
@@ -366,7 +366,7 @@ undetermined_text(_) ->
 bound_names({names, Names}) -> lists:join(", ", [atom_to_list(N) || N <- Names]);
 bound_names(Name) -> atom_to_list(Name).
 
-input_span([#fn_decl{pos = Pos} | _]) -> ern_diag:span(Pos);
+input_span([#fn_decl{pos = Pos} | _]) -> ern_diagnostic:span(Pos);
 input_span(_) -> {1, 1, {1, 2}}.
 
 %% An input that declares has no value; report §11.2 prints what it
@@ -573,7 +573,7 @@ context(Before) ->
         [] -> 'Expression'
     end.
 
-wanted({error, #diag{incomplete = Incomplete, expected = What}}) -> {Incomplete, What};
+wanted({error, #diagnostic{incomplete = Incomplete, expected = What}}) -> {Incomplete, What};
 wanted(_) -> {false, undefined}.
 
 where(expression) -> 'Expression';
@@ -1055,7 +1055,7 @@ cinfo(CQ, Ifaces) ->
 within(Before) ->
     case [W || Parse <- [fun ern_parser:parse_expr/1, fun ern_parser:parse_stmt/1,
                          fun ern_parser:parse_string/1],
-               {error, #diag{incomplete = true, within = W}} <- [Parse(Before)],
+               {error, #diagnostic{incomplete = true, within = W}} <- [Parse(Before)],
                W =/= undefined] of
         [W | _] -> W;
         [] -> none
@@ -1272,22 +1272,24 @@ entry(Beam, Name) -> ern_page:declaration(Beam, Name).
 %% there and, on its first line, to the column it begins in, and its lines
 %% quoted from the file.
 diagnostic({typed, Name}, Input, Diags) ->
-    unicode:characters_to_binary([ern_diag:format(binary_to_list(Name), Input, D) || D <- Diags]);
+    unicode:characters_to_binary([ern_diagnostic:format(binary_to_list(Name), Input, D)
+                                  || D <- Diags]);
 diagnostic({file, Path, First, Column}, Input, Diags) ->
     Source = case file:read_file(Path) of
                  {ok, Text} -> Text;
                  {error, _} -> Input
              end,
     unicode:characters_to_binary(
-      [ern_diag:format(ern_build:shown(binary_to_list(Path)), Source,
-                       moved(D, First - 1, Column - 1))
+      [ern_diagnostic:format(ern_build:shown(binary_to_list(Path)), Source,
+                             moved(D, First - 1, Column - 1))
        || D <- Diags]).
 
 %% A diagnostic's positions, a number of lines further down, and on the
 %% input's first line a number of columns further right.
-moved(#diag{span = Span, labels = Labels} = D, Lines, Columns) ->
-    D#diag{span = moved_span(ern_diag:span(Span), Lines, Columns),
-           labels = [{moved_span(ern_diag:span(S), Lines, Columns), T} || {S, T} <- Labels]}.
+moved(#diagnostic{span = Span, labels = Labels} = D, Lines, Columns) ->
+    D#diagnostic{span = moved_span(ern_diagnostic:span(Span), Lines, Columns),
+                 labels = [{moved_span(ern_diagnostic:span(S), Lines, Columns), T}
+                           || {S, T} <- Labels]}.
 
 moved_span({Line, Column, {EndLine, EndColumn}}, Lines, Columns) ->
     {Line + Lines, moved_column(Line, Column, Columns),
@@ -1667,7 +1669,7 @@ compile_in_order(#env{source_root = Root} = Env, Set) ->
         throw:{errors, Failed, Diags} ->
             {ok, Source} = file:read_file(Failed),
             {error, [unicode:characters_to_binary(
-                       [ern_diag:format(ern_build:shown(Failed), Source, D) || D <- Diags])]}
+                       [ern_diagnostic:format(ern_build:shown(Failed), Source, D) || D <- Diags])]}
     end.
 
 %% The loaded modules, outside those compiled, that use a compiled module
@@ -1791,7 +1793,7 @@ compile_source(#env{source_root = Root} = Env, File, Ifaces) ->
             {ok, Source} = file:read_file(Failed),
             %% report §11.5: the file named from the working directory
             {error, unicode:characters_to_binary(
-                      [ern_diag:format(ern_build:shown(Failed), Source, D) || D <- Diags])}
+                      [ern_diagnostic:format(ern_build:shown(Failed), Source, D) || D <- Diags])}
     end.
 
 %% Report §11.2, §11.1: where a compiled module is found by its namespace,

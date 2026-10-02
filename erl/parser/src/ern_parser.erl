@@ -2,7 +2,7 @@
 %% list from ern_lexer, threading {Node, RestTokens}; a precedence-climbing
 %% loop for binary operators, a second one for `::` in patterns. First-token
 %% dispatch; the three bounded lookaheads named in Appendix A; no
-%% backtracking. Errors are thrown and returned as {error, #diag{}}. Every node's
+%% backtracking. Errors are thrown and returned as {error, #diagnostic{}}. Every node's
 %% pos is its span, set by w/1 from the end of the token before the rest.
 -module(ern_parser).
 
@@ -11,9 +11,9 @@
 -export_type([error/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("utils/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diagnostic.hrl").
 
--type error() :: ern_diag:diag().
+-type error() :: ern_diagnostic:diagnostic().
 
 -define(DECL_START, [export, type, abstract, fn, 'let', foreign]).
 -define(SPECS, [bytes, int, float, utf8, utf16, utf32, big, little, signed, unsigned]).
@@ -25,17 +25,17 @@ parse(Tokens) ->
         Decls = program(prune_docs(Tokens1), undefined, []),
         {ok, case ModDoc of undefined -> Decls; _ -> [ModDoc | Decls] end}
     catch
-        throw:{parse_error, #diag{} = D} -> {error, at_end(Tokens, D)}
+        throw:{parse_error, #diagnostic{} = D} -> {error, at_end(Tokens, D)}
     end.
 
 %% Report §11.2: the parser stopped at the end of the input, so more input
 %% could finish it and the shell takes another line. The parser is the one
 %% that knows; no other reader of a diagnostic looks at the flag.
-at_end(Tokens, #diag{span = Span} = D) ->
+at_end(Tokens, #diagnostic{span = Span} = D) ->
     case lists:last(Tokens) of
         {eof, Pos} ->
-            case ern_diag:span(Pos) of
-                Span -> D#diag{incomplete = true};
+            case ern_diagnostic:span(Pos) of
+                Span -> D#diagnostic{incomplete = true};
                 _ -> D
             end;
         _ -> D
@@ -75,7 +75,7 @@ parse_one(Text, Parse) ->
                         fail(pos(T), "expected end of input instead of " ++ describe(T))
                 end
             catch
-                throw:{parse_error, #diag{} = D} -> {error, at_end(Tokens, D)}
+                throw:{parse_error, #diagnostic{} = D} -> {error, at_end(Tokens, D)}
             end;
         {error, _} = E ->
             E
@@ -150,7 +150,7 @@ one_clause(#fn_decl{pos = Pos, owner = O, name = N}, #fn_decl{pos = First, owner
     %% report §11.5: at the second clause, the first labelled
     throw({parse_error, (diag(Pos, "a function has one clause",
                               "write one clause whose body is a `match`"))
-                        #diag{labels = [{ern_diag:span(First), "first clause"}]}});
+                        #diagnostic{labels = [{ern_diagnostic:span(First), "first clause"}]}});
 one_clause(_, _) ->
     ok.
 
@@ -431,7 +431,7 @@ type([{'(', Pos} | R]) ->
                     %% hold the `->`
                     D = diag(Pos, "expected a type inside the parentheses, or `->` after them",
                              "the type whose one value is written () is Unit"),
-                    throw({parse_error, D#diag{incomplete = ended(R2)}});
+                    throw({parse_error, D#diagnostic{incomplete = ended(R2)}});
                 _ -> fail(pos(hd(R2)), "expected `->` after a parameter list instead of "
                                        ++ describe(hd(R2)),
                           "a tuple type is written with `#(`, as #(Int, Int)")
@@ -520,7 +520,7 @@ if_expr(Ts, Pos) ->
             %% hold the `else`, and the shell takes it
             D = diag(Pos, "`if` needs an `else`", "every `if` is an expression; give the"
                      " other branch a value"),
-            throw({parse_error, D#diag{incomplete = ended([Next])}})
+            throw({parse_error, D#diagnostic{incomplete = ended([Next])}})
     end.
 
 match_expr(Ts, Pos) ->
@@ -660,8 +660,8 @@ arguments(Callee, Ts, N) ->
 %% first to catch the error, so it is the one that names itself.
 inside(#e_var{path = Path, name = Name}, N, Parse) ->
     try Parse()
-    catch throw:{parse_error, #diag{within = undefined} = D} ->
-        throw({parse_error, D#diag{within = {Path, Name, N}}})
+    catch throw:{parse_error, #diagnostic{within = undefined} = D} ->
+        throw({parse_error, D#diagnostic{within = {Path, Name, N}}})
     end;
 inside(_, _, Parse) ->
     Parse().
@@ -728,8 +728,8 @@ constructor_expr(Pos, Path, Name, [{'(', _} | R]) ->
             %% decided yet: what may stand here is a value or a field's
             %% name, and only the constructor's type tells which
             D = diag(P, "expected an expression instead of end of input", undefined),
-            throw({parse_error, D#diag{expected = {field_or_value, Path, Name},
-                                       within = {Path, Name, none}}});
+            throw({parse_error, D#diagnostic{expected = {field_or_value, Path, Name},
+                                             within = {Path, Name, none}}});
         _ ->
             {E, R1} = inside_con(Path, Name, 0, fun() -> expr(R) end),
             w({#e_con{pos = Pos, path = Path, name = Name, args = {positional, E}},
@@ -755,8 +755,8 @@ field_of(Path, Con) ->
 %% `inside/3` records a call.
 inside_con(Path, Name, At, Parse) ->
     try Parse()
-    catch throw:{parse_error, #diag{within = undefined} = D} ->
-        throw({parse_error, D#diag{within = {Path, Name, At}}})
+    catch throw:{parse_error, #diagnostic{within = undefined} = D} ->
+        throw({parse_error, D#diagnostic{within = {Path, Name, At}}})
     end.
 
 %%
@@ -975,7 +975,7 @@ expect_typename_pos([{ident, P, N} = T | _]) ->
                Typename -> "a type name begins with an uppercase letter: " ++ Typename
            end,
     throw({parse_error, (diag(P, "expected a type name instead of " ++ describe(T), Help))
-                            #diag{expected = typename}});
+                            #diagnostic{expected = typename}});
 expect_typename_pos([T | _]) ->
     wanted(typename, pos(T), "expected a type name instead of " ++ describe(T)).
 
@@ -1019,7 +1019,7 @@ describe({doc, _, _}) -> "doc comment";
 describe({eof, _}) -> "end of input";
 describe({Sym, _}) -> "`" ++ atom_to_list(Sym) ++ "`".
 
--spec fail(ern_diag:pos(), iodata()) -> no_return().
+-spec fail(ern_diagnostic:position(), iodata()) -> no_return().
 %% Report §3.2: a tuple has two components or more, as a type, a value
 %% and a pattern alike.
 components(Pos, {[_], _}) ->
@@ -1035,20 +1035,20 @@ fail(Pos, Message) ->
 %% completion, which asks what may stand at the cursor. Only the
 %% categories completion acts on are marked; every other failure leaves
 %% the field alone.
--spec wanted(term(), ern_diag:pos(), iodata()) -> no_return().
+-spec wanted(term(), ern_diagnostic:position(), iodata()) -> no_return().
 wanted(What, Pos, Message) ->
-    throw({parse_error, (diag(Pos, Message, undefined))#diag{expected = What}}).
+    throw({parse_error, (diag(Pos, Message, undefined))#diagnostic{expected = What}}).
 
 %% What a failure inside this call wanted, where the caller knows it and
 %% the failing code does not: a field name belongs to its constructor.
 tagging(What, Parse) ->
     try Parse()
-    catch throw:{parse_error, #diag{expected = undefined} = D} ->
-        throw({parse_error, D#diag{expected = What}})
+    catch throw:{parse_error, #diagnostic{expected = undefined} = D} ->
+        throw({parse_error, D#diagnostic{expected = What}})
     end.
 
 %% Report §11.5: the message states the rule, the help line the fix.
--spec fail(ern_diag:pos(), iodata(), string() | undefined) -> no_return().
+-spec fail(ern_diagnostic:position(), iodata(), string() | undefined) -> no_return().
 fail(Pos, Message, Help) ->
     throw({parse_error, diag(Pos, Message, Help)}).
 
@@ -1063,4 +1063,4 @@ ended([{eof, _} | _]) -> true;
 ended(_) -> false.
 
 diag(Pos, Message, Help) ->
-    #diag{span = ern_diag:span(Pos), message = lists:flatten(Message), help = Help}.
+    #diagnostic{span = ern_diagnostic:span(Pos), message = lists:flatten(Message), help = Help}.

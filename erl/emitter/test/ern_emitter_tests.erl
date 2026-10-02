@@ -17,7 +17,7 @@
         "      | None -> Process.info(Process.fromAddress(s)) != None && up(s)\n"
         "    }\n").
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("utils/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diagnostic.hrl").
 -include_lib("typer/include/ern_types.hrl").
 
 %%
@@ -2090,7 +2090,7 @@ fault_test() ->
 
 %% report §9.6: `todo` is no longer the prelude's, `fault` taking its place
 todo_is_unknown_test() ->
-    ?assertMatch({error, [#diag{message = "unknown name todo"} | _]},
+    ?assertMatch({error, [#diagnostic{message = "unknown name todo"} | _]},
                  ern_typecheck:check_string(['M'], "fn later() : Int = todo(\"x\")\n")).
 
 %% report §5.6, §8.4: named fields in canonical order, and update from a
@@ -3706,11 +3706,11 @@ system_reference_private_test() ->
               end,
     %% each refused for the reason the test names, not another; a
     %% regression test of the test, which took any error (findings.md's C39)
-    ?assertMatch({error, [#diag{message = "unknown name Io.stdout"} | _]},
+    ?assertMatch({error, [#diagnostic{message = "unknown name Io.stdout"} | _]},
                  Refused("send(Io.stdout, String.toUtf8(\"hi\"))")),
-    ?assertMatch({error, [#diag{message = "unknown name Sys.stdout"} | _]},
+    ?assertMatch({error, [#diagnostic{message = "unknown name Sys.stdout"} | _]},
                  Refused("send(Sys.stdout, \"hi\")")),
-    ?assertMatch({error, [#diag{message = "unknown constructor Clock.Now"} | _]},
+    ?assertMatch({error, [#diagnostic{message = "unknown constructor Clock.Now"} | _]},
                  Refused("{ let _ = Clock.Now; Unit }")).
 
 

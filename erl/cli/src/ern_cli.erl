@@ -524,8 +524,8 @@ format_file(Opts, File, Err) ->
 
 error_text(Opts, Shown, Source, D) ->
     case lists:member(short_errors, Opts) of
-        true -> ern_diag:short(Shown, D);
-        false -> ern_diag:format(Shown, Source, D)
+        true -> ern_diagnostic:short(Shown, D);
+        false -> ern_diagnostic:format(Shown, Source, D)
     end.
 
 %% Standard input to its end, through a port on its descriptor, since

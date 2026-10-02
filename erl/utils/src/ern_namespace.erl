@@ -16,7 +16,8 @@ is_component(Component) ->
     lists:all(fun is_word/1, string:split(Component, "_", all)).
 
 is_word([First | Rest]) when First >= $a, First =< $z ->
-    lists:all(fun(C) -> (C >= $a andalso C =< $z) orelse (C >= $0 andalso C =< $9) end, Rest);
+    lists:all(fun(Char) -> (Char >= $a andalso Char =< $z) orelse (Char >= $0 andalso Char =< $9)
+              end, Rest);
 is_word(_) ->
     false.
 
@@ -25,7 +26,8 @@ is_word(_) ->
 -spec segment(string()) -> {ok, string()} | error.
 segment(Component) ->
     case is_component(Component) of
-        true -> {ok, lists:append([string:titlecase(W) || W <- string:split(Component, "_", all)])};
+        true -> {ok, lists:append([string:titlecase(Word)
+                                   || Word <- string:split(Component, "_", all)])};
         false -> error
     end.
 
@@ -36,7 +38,7 @@ segment(Component) ->
 component(Segment) ->
     case words(Segment) of
         error -> error;
-        Words -> {ok, lists:flatten(lists:join("_", [string:lowercase(W) || W <- Words]))}
+        Words -> {ok, lists:flatten(lists:join("_", [string:lowercase(Word) || Word <- Words]))}
     end.
 
 %% A segment's words, each begun by an uppercase letter and continued by
@@ -49,10 +51,10 @@ words(_) ->
 
 words([], Word, Acc) ->
     lists:reverse([lists:reverse(Word) | Acc]);
-words([C | Cs], Word, Acc) when C >= $A, C =< $Z ->
-    words(Cs, [C], [lists:reverse(Word) | Acc]);
-words([C | Cs], Word, Acc) when C >= $a, C =< $z; C >= $0, C =< $9 ->
-    words(Cs, [C | Word], Acc);
+words([Char | Rest], Word, Acc) when Char >= $A, Char =< $Z ->
+    words(Rest, [Char], [lists:reverse(Word) | Acc]);
+words([Char | Rest], Word, Acc) when Char >= $a, Char =< $z; Char >= $0, Char =< $9 ->
+    words(Rest, [Char | Word], Acc);
 words(_, _, _) ->
     error.
 
@@ -61,7 +63,7 @@ words(_, _, _) ->
 %% its first letter.
 -spec namespace([string()]) -> [atom()].
 namespace(Components) ->
-    [list_to_atom(segment_or_titled(C)) || C <- Components].
+    [list_to_atom(segment_or_titled(Component)) || Component <- Components].
 
 segment_or_titled(Component) ->
     case segment(Component) of
@@ -72,21 +74,21 @@ segment_or_titled(Component) ->
 %% Report §11.2: a namespace as its module's relative path, without
 %% extension, each segment written as its file's name is.
 -spec module_path([atom()]) -> string().
-module_path(Ns) ->
-    path([atom_to_list(S) || S <- Ns]).
+module_path(Namespace) ->
+    path([atom_to_list(Segment) || Segment <- Namespace]).
 
 %% The same from segments as text, for a name read from a page's title,
 %% which may be no module's and is never made an atom.
 -spec path([string()]) -> string().
 path(Segments) ->
-    filename:join([component_or_lowered(S) || S <- Segments]).
+    filename:join([component_or_lowered(Segment) || Segment <- Segments]).
 
 %% Report §4.2: the Erlang module a namespace compiles to, `ern@` and the
 %% path with `@` for `/`, `ern@ordered_set` and `ern@net@http_client`.
 -spec module_atom([atom()]) -> atom().
-module_atom(Ns) ->
-    list_to_atom(lists:flatten(["ern" | ["@" ++ component_or_lowered(atom_to_list(S))
-                                         || S <- Ns]])).
+module_atom(Namespace) ->
+    list_to_atom(lists:flatten(["ern" | ["@" ++ component_or_lowered(atom_to_list(Segment))
+                                         || Segment <- Namespace]])).
 
 component_or_lowered(Segment) ->
     case component(Segment) of

@@ -1,5 +1,5 @@
 %% Ernest AST, one record per production of report Appendix A. Every node
-%% carries pos :: ern_diag:span(), from its first token to the end of its
+%% carries pos :: ern_diagnostic:span(), from its first token to the end of its
 %% last (report §11.5). Expressions and patterns carry type = undefined,
 %% their last field, which the type checker fills in; declarations carry
 %% doc and the export flag. The parser builds these untyped.

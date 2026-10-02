@@ -14,7 +14,7 @@ One Ernest module goes through these stages, each an Erlang application under `e
 | typer | `ern_typecheck`, with `ern_types`, `ern_prelude`, `ern_exhaust`, `ern_reply`, `ern_scope` (§5.4), `ern_bitspec` (§5.11), and `ern_iface`, the interface chunk | AST, dependency interfaces | typed AST, interface, environment |
 | emitter | `ern_emitter`, with `ern_descriptor` (§8.4) and `ern_docs`, the `Docs` chunk | typed AST, environment | Erlang forms, then BEAM with the `ErnI` and `Docs` chunks |
 | runtime | `ern_rt`, `ern_boundary`, `ern_show`, the system processes `ern_fs`, `ern_tty`, `ern_tcp` and `ern_os`, the standard library's shims, `ern_tty_signal`, the terminal's resize handler, and `ern_exec`, the one helper in C | | what compiled code calls |
-| diagnostics | `ern_diag`, in `utils`, beneath every stage | a `#diag{}`, the source | the text of §11.5 |
+| diagnostics | `ern_diagnostic`, in `utils`, beneath every stage | a `#diagnostic{}`, the source | the text of §11.5 |
 | namespaces | `ern_namespace`, in `utils`, the one mapping between a path's components and a namespace's segments (§4.2, §11.1), which the build, the emitter's module names and the shell's `:load` share | a component or a segment | the other |
 | cli | `ern_cli`; `ern_build`, the build every job reaches; `ern_shell`, the shell's front end; `ern_page`, §11.4's renderer; `ern_signals`, the handler of termination and hangup; `ern_out`, a job's standard output and standard error | command lines, shell inputs | `ern`'s jobs, a session |
 
@@ -24,7 +24,7 @@ The Makefiles pass `VERSION` to `erlc` as a macro, which `ern_cli` prints. The E
 
 ## Tokens and AST
 
-`ern_lexer:tokenize/1` returns `{ok, [Token]}` or `{error, #diag{}}`. A token is `{Category, Pos, Value}` for a literal, an `ident`, a `typename` or a `doc` block, and `{Symbol, Pos}` for an operator, a delimiter or a reserved word. `Pos` is `{Line, Column, End, Before}`, `Before` being the end of the token before. `tokenize/2` with `comments` adds each comment as `{comment, Pos, Text}`, for the formatter.
+`ern_lexer:tokenize/1` returns `{ok, [Token]}` or `{error, #diagnostic{}}`. A token is `{Category, Pos, Value}` for a literal, an `ident`, a `typename` or a `doc` block, and `{Symbol, Pos}` for an operator, a delimiter or a reserved word. `Pos` is `{Line, Column, End, Before}`, `Before` being the end of the token before. `tokenize/2` with `comments` adds each comment as `{comment, Pos, Text}`, for the formatter.
 
 `ern_parser:parse/1` takes tokens; `parse_string/1`, `parse_expr/1`, `parse_type/1` and the shell's `parse_stmt/1` are conveniences. The diagnostic of an unfinished input carries `expected`, which completion reads, and `within`, the innermost call and the argument's index, which `Shift-Tab` reads (§11.2).
 
@@ -34,7 +34,7 @@ Expressions are parsed by one precedence-climbing loop, patterns by a second sma
 
 ## The type checker
 
-`ern_typecheck:check(Ns, Decls, Ifaces)` returns `{ok, Typed, Iface, Env}` or `{error, [#diag{}]}`, `Ifaces` being the `#iface{}` records of the modules referred to. `infer/2` gives an expression its type, and `ern_typecheck:check_expr/5` checks one against an expected type, pushing it through branches, clauses and blocks, which gives a diagnostic §11.5's labels.
+`ern_typecheck:check(Ns, Decls, Ifaces)` returns `{ok, Typed, Iface, Env}` or `{error, [#diagnostic{}]}`, `Ifaces` being the `#iface{}` records of the modules referred to. `infer/2` gives an expression its type, and `ern_typecheck:check_expr/5` checks one against an expected type, pushing it through branches, clauses and blocks, which gives a diagnostic §11.5's labels.
 
 Types are the terms of `erl/typer/include/ern_types.hrl`: `{tcon, QName, Args}`, `{tvar, Id}`, `{ttuple, Elems}` and `{tfn, Params, Effect, Result}`, `Effect` being `pure` or a type. Each variable has a `#tv{}` entry with its level, its flags (`eq`, `process_only`, `no_reply`, §3.9) and its annotation's name. `ern_types` owns this state: unification with the effect rules, generalization by levels, instantiation, and the printer that diagnostics and `ern doc` share.
 

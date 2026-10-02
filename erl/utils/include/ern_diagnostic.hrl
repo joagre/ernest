@@ -1,12 +1,12 @@
-%% A diagnostic, report §11.5: what every stage reports and ern_diag renders.
--ifndef(ERN_DIAG_HRL).
--define(ERN_DIAG_HRL, true).
+%% A diagnostic, report §11.5: what every stage reports and ern_diagnostic renders.
+-ifndef(ERN_DIAGNOSTIC_HRL).
+-define(ERN_DIAGNOSTIC_HRL, true).
 
--record(diag, {span, message, labels = [], help, incomplete = false,
+-record(diagnostic, {span, message, labels = [], help, incomplete = false,
                expected = undefined, within = undefined}).
-%% span: ern_diag:span(), the primary span.
+%% span: ern_diagnostic:span(), the primary span.
 %% message: string(), the first line.
-%% labels: [{ern_diag:span(), string()}], the secondary spans the message
+%% labels: [{ern_diagnostic:span(), string()}], the secondary spans the message
 %%   depends on, each with its label.
 %% help: string() | undefined, the one line naming the fix.
 %% incomplete: true where more input could finish what was read; the shell

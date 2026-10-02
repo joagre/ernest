@@ -9,7 +9,7 @@
 -export([names/1, order/1, free_refs/3]).
 
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("utils/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diagnostic.hrl").
 
 %% Report §5.4: a local fn may not take the name of a parameter or a
 %% variable in scope where it is declared, nor of a `let` of its block.
@@ -55,7 +55,7 @@ local_fn_name(Pos, N, Vars, What) ->
             ok;
         {N, At} ->
             fail(Pos, "local function " ++ atom_to_list(N) ++ " has the name of " ++ What,
-                 [{ern_diag:span(At), atom_to_list(N) ++ " is bound here"}],
+                 [{ern_diagnostic:span(At), atom_to_list(N) ++ " is bound here"}],
                  "rename the function or the variable")
     end.
 
@@ -139,7 +139,7 @@ check_uses(Expr, FnNames, Needs, Bound, At) ->
                                       "local function " ++ atom_to_list(N)
                                       ++ " is used before `let " ++ Name
                                       ++ "`, which it references",
-                                      [{ern_diag:span(maps:get(Let, At)),
+                                      [{ern_diagnostic:span(maps:get(Let, At)),
                                         "`let " ++ Name ++ "` is evaluated here"}],
                                       "use " ++ atom_to_list(N) ++ " after `let "
                                       ++ Name ++ "`")
@@ -160,5 +160,6 @@ pattern_names(P) -> [N || {N, _} <- ern_ast:pattern_bindings(P)].
 param_names(Params) -> lists:append([pattern_names(P) || #param{pattern = P} <- Params]).
 
 fail(Pos, Message, Labels, Help) ->
-    throw({type_error, #diag{span = ern_diag:span(Pos), message = lists:flatten(Message),
-                             labels = Labels, help = Help}}).
+    throw({type_error, #diagnostic{span = ern_diagnostic:span(Pos),
+                                   message = lists:flatten(Message),
+                                   labels = Labels, help = Help}}).

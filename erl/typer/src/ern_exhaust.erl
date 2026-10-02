@@ -9,7 +9,7 @@
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
--include_lib("utils/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diagnostic.hrl").
 
 %% Simplified patterns: wild | {con, key(), [pattern()]}
 %%   key(): {con, QName} | {tuple, N} | nil | cons | {bool, B} | {lit, V}
@@ -72,10 +72,10 @@ judge(A, IsAlternative, Before, Env) ->
                         {yes, _} -> "with those before it, this one matches every value it would"
                     end,
             throw({type_error,
-                   #diag{span = ern_diag:span(element(2, A)),
-                         message = "this " ++ What ++ " can never match",
-                         labels = [{ern_diag:span(element(2, By)), Label}],
-                         help = "remove it, or move it above the patterns that cover it"}})
+                   #diagnostic{span = ern_diagnostic:span(element(2, A)),
+                               message = "this " ++ What ++ " can never match",
+                               labels = [{ern_diagnostic:span(element(2, By)), Label}],
+                               help = "remove it, or move it above the patterns that cover it"}})
     end.
 
 %% The shortest run of rows from the first that leaves Candidate useless:

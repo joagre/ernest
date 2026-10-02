@@ -23,7 +23,7 @@
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
--include_lib("utils/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diagnostic.hrl").
 
 -record(env, {ns = [], types = #{}, cons = #{}, globals = #{}, lets = #{},
               local_types = #{}, local_cons = #{}, local_values = #{}, session = #{},
@@ -62,7 +62,7 @@
 %% what to do; named by an effect error (report §11.5)
 -opaque env() :: #env{}.
 
--type error() :: ern_diag:diag().
+-type error() :: ern_diagnostic:diagnostic().
 -type key() :: atom() | {atom(), atom()}.
 -type session() :: #{values => #{key() => [atom()]}, types => #{atom() => [atom()]},
                      cons => #{atom() => [atom()]}}.
@@ -119,7 +119,7 @@ check(Ns, Decls0, Ifaces, Session) ->
         end
     catch
         throw:{type_error, Pos, Msg} -> {error, hidden_notes(Decls, [diag(Pos, Msg)])};
-        throw:{type_error, #diag{} = D} -> {error, hidden_notes(Decls, [D])};
+        throw:{type_error, #diagnostic{} = D} -> {error, hidden_notes(Decls, [D])};
         throw:{type_errors, Ds} -> {error, hidden_notes(Decls, lists:sort(Ds))}
     end.
 
@@ -173,10 +173,10 @@ hidden_uses(Decls, Hidden) ->
 
 %% A diagnostic whose primary span holds a use of a hidden name gains the
 %% note at that use.
-hidden_note(#diag{span = Span, labels = Labels} = D, Uses) ->
-    Notes = [{ern_diag:span(P), note_text(Kind, N)} || {P, Kind, N} <- Uses,
-                                                        within(ern_diag:span(P), Span)],
-    D#diag{labels = Labels ++ lists:usort(Notes)};
+hidden_note(#diagnostic{span = Span, labels = Labels} = D, Uses) ->
+    Notes = [{ern_diagnostic:span(P), note_text(Kind, N)} || {P, Kind, N} <- Uses,
+                                                        within(ern_diagnostic:span(P), Span)],
+    D#diagnostic{labels = Labels ++ lists:usort(Notes)};
 hidden_note(D, _) ->
     D.
 
@@ -186,7 +186,7 @@ note_text(Kind, N) ->
         ++ ", and the prelude's is `Prelude." ++ Name ++ "`".
 
 %% Whether a position lies inside a span, whose end is past its last
-%% column (ern_diag).
+%% column (ern_diagnostic).
 within({L, C, _}, {SL, SC, {EL, EC}}) ->
     ({L, C} >= {SL, SC}) andalso ({L, C} < {EL, EC});
 within(_, _) ->
@@ -201,7 +201,7 @@ declared_twice(Decls) ->
             ok;
         {{Kind, Key}, First, Second} ->
             fail(Second, atom_to_list(Kind) ++ " " ++ key_text(Key) ++ " is declared twice",
-                 [{ern_diag:span(First), "first declared here"}], undefined)
+                 [{ern_diagnostic:span(First), "first declared here"}], undefined)
     end.
 
 %% The first of Items whose key an earlier one has, with that earlier one's
@@ -269,7 +269,7 @@ check_string(Ns, Text) ->
         {error, E} -> {error, [E]}
     end.
 
-diag(Pos, Message) -> #diag{span = ern_diag:span(Pos), message = Message}.
+diag(Pos, Message) -> #diagnostic{span = ern_diagnostic:span(Pos), message = Message}.
 
 -spec type_state(env()) -> ern_types:st().
 type_state(#env{st = St}) -> St.
@@ -534,7 +534,7 @@ declare_types(Decls, Env0) ->
                                    catch
                                        throw:{type_error, Pos, Msg} ->
                                            {Env, [diag(Pos, Msg) | Errs]};
-                                       throw:{type_error, #diag{} = D} ->
+                                       throw:{type_error, #diagnostic{} = D} ->
                                            {Env, [D | Errs]}
                                    end
                                end, {Env2, []}, TypeDecls),
@@ -680,7 +680,7 @@ constructor_fields({named, Fields}, VarMap, Env) ->
             ok;
         {N, First, Second} ->
             fail(Second, "field " ++ atom_to_list(N) ++ " is declared twice",
-                 [{ern_diag:span(First), "first declared here"}], undefined)
+                 [{ern_diagnostic:span(First), "first declared here"}], undefined)
     end,
     {Types, Env1} = lists:mapfoldl(fun(#field{type = S}, E) -> field_type(S, VarMap, E) end,
                                    Env, Fields),
@@ -801,7 +801,7 @@ run_group(Group, #env{groups = Pending} = Env) ->
                 throw:{type_error, Pos, Msg} ->
                     E = placeholder_group(Group, Env1),
                     E#env{typed = E#env.typed ++ Group, errs = [diag(Pos, Msg) | E#env.errs]};
-                throw:{type_error, #diag{} = D} ->
+                throw:{type_error, #diagnostic{} = D} ->
                     E = placeholder_group(Group, Env1),
                     E#env{typed = E#env.typed ++ Group, errs = [D | E#env.errs]};
                 throw:{type_errors, Ds} ->
@@ -1251,7 +1251,7 @@ let_cycle(#let_decl{pos = Pos, name = Name, body = Body} = D, G, Fns, Errs, Seen
                     Msg = lists:flatten(["the initializer of ", LetName, " depends on itself",
                                          Through]),
                     Help = cycle_help(LetName, Body, Between, Fns),
-                    {[(diag(Pos, Msg))#diag{help = Help} | Errs], Cycle ++ Seen}
+                    {[(diag(Pos, Msg))#diagnostic{help = Help} | Errs], Cycle ++ Seen}
             end
     end.
 
@@ -1679,7 +1679,7 @@ no_reply_instantiations(#env{pending = Pending} = Env) ->
 
 %% Where a pending restriction was needed, as a line and a column.
 place(Pending) ->
-    {Line, Column, _} = ern_diag:span(element(3, Pending)),
+    {Line, Column, _} = ern_diagnostic:span(element(3, Pending)),
     {Line, Column}.
 
 who(undefined, Default) -> Default;
@@ -1942,13 +1942,13 @@ member_declared(Q, Member, Name, FT, #env{ns = Ns, typed = Typed, st = St}) ->
 
 %% A declaration's head, through its return annotation where it has one.
 head_span(#fn_decl{pos = Pos, ret = Ret}) when Ret =/= undefined ->
-    {L, C, _} = ern_diag:span(Pos),
-    {_, _, End} = ern_diag:span(node_span(Ret)),
+    {L, C, _} = ern_diagnostic:span(Pos),
+    {_, _, End} = ern_diagnostic:span(node_span(Ret)),
     {L, C, End};
 head_span(D) ->
     element(2, D).
 
--spec not_defined(ern_diag:pos(), atom(), term(), env()) -> no_return().
+-spec not_defined(ern_diagnostic:position(), atom(), term(), env()) -> no_return().
 not_defined(Pos, Op, T, Env) ->
     fail(Pos, "`" ++ op_text(Op) ++ "` is not defined on " ++ ern_types:format(T, Env#env.st)).
 
@@ -2413,7 +2413,7 @@ use_effect(Pos, Name, Eff, #env{st = St, effect = Have, effect_origin = Origin} 
 
 %% Report §6.8, §4.6: a receive with a pattern clause where the mailbox is
 %% Never, in a function or in a top-level initializer.
--spec never_receives(ern_diag:pos(), term()) -> no_return().
+-spec never_receives(ern_diagnostic:position(), term()) -> no_return().
 never_receives(Pos, {top_let, _, _, Help} = Origin) ->
     fail(Pos, "a top-level initializer runs with mailbox Never and cannot receive",
          labels(Origin), Help);
@@ -2431,8 +2431,8 @@ process_only({tvar, Id}, St) -> lists:member(process_only, ern_types:flags(Id, S
 process_only(_, _) -> true.
 
 labels(undefined) -> [];
-labels({Span, Label}) -> [{ern_diag:span(Span), Label}];
-labels({_What, Span, Label, _Help}) -> [{ern_diag:span(Span), Label}].
+labels({Span, Label}) -> [{ern_diagnostic:span(Span), Label}];
+labels({_What, Span, Label, _Help}) -> [{ern_diagnostic:span(Span), Label}].
 
 what(undefined) -> "this function";
 what({top_let, _, _, _}) -> "a top-level `let`";
@@ -2445,7 +2445,7 @@ twice(Fields, Verb) ->
         none -> ok;
         {N, First, Second} ->
             fail(Second, "field " ++ atom_to_list(N) ++ " is " ++ Verb ++ " twice",
-                 [{ern_diag:span(First), "first " ++ Verb ++ " here"}], undefined)
+                 [{ern_diagnostic:span(First), "first " ++ Verb ++ " here"}], undefined)
     end.
 
 help(undefined) -> "give the function a mailbox type with `with`";
@@ -2488,7 +2488,7 @@ infer_named(#e_con{pos = Pos, name = Name} = E, Names, FTs, RT, Base, Sets, Env)
 %% The span of a construction's written constructor, `Point` or
 %% `Shape.Circle`, which labels what fixed a field's type.
 con_name_span(#e_con{pos = Pos, path = Path, name = Name}) ->
-    {L, C, _} = ern_diag:span(Pos),
+    {L, C, _} = ern_diagnostic:span(Pos),
     {L, C, {L, C + length(format_qname(Path ++ [Name]))}}.
 
 %% Report §5.6: `..` takes the unlisted fields from a value that has them,
@@ -2726,7 +2726,7 @@ one_local_fn([#fn_decl{pos = Pos, name = N} | Rest], Seen) ->
     case lists:keyfind(N, 1, Seen) of
         {N, First} ->
             fail(Pos, "local function " ++ atom_to_list(N) ++ " is declared twice in the block",
-                 [{ern_diag:span(First), "first declared here"}], undefined);
+                 [{ern_diagnostic:span(First), "first declared here"}], undefined);
         false ->
             one_local_fn(Rest, [{N, Pos} | Seen])
     end.
@@ -2912,7 +2912,7 @@ recovered(Error, Rest) ->
     throw({type_errors, diags(Error) ++ Later}).
 
 diags({type_error, Pos, Msg}) -> [diag(Pos, Msg)];
-diags({type_error, #diag{} = D}) -> [D];
+diags({type_error, #diagnostic{} = D}) -> [D];
 diags({type_errors, Ds}) -> Ds.
 
 %% Report §5.4: an expression that is not a block's last statement has type
@@ -2956,7 +2956,7 @@ check_pattern(P, Env) ->
                                            (_, Acc) -> Acc
                                         end, P, [])),
             fail(Second, "variable " ++ atom_to_list(Dup) ++ " appears twice in the pattern",
-                 [{ern_diag:span(First), "first bound here"}], undefined)
+                 [{ern_diagnostic:span(First), "first bound here"}], undefined)
     end,
     {TypedP, T, Bindings, Env1}.
 
@@ -2984,7 +2984,7 @@ binds_at(N, P) ->
                     (_, At) -> At
                  end, P, undefined).
 
--spec alternatives_differ(ern_diag:pos(), [atom()], [atom()]) -> no_return().
+-spec alternatives_differ(ern_diagnostic:position(), [atom()], [atom()]) -> no_return().
 alternatives_differ(Pos, Names, NamesA) ->
     Text = case Names -- NamesA of
                [N | _] -> "`" ++ atom_to_list(N) ++ "` is bound by the first alternative"
@@ -3236,7 +3236,7 @@ sibling_size(#e_var{pos = Pos, name = N}, Bound, Earlier, Env) ->
                 fail(Pos, Name ++ " is bound in the same pattern, and a size names a variable an"
                           " earlier segment of its bitstring binds, or one bound before the"
                           " pattern",
-                     [{ern_diag:span(At), Name ++ " is bound here"}],
+                     [{ern_diagnostic:span(At), Name ++ " is bound here"}],
                      "match the bitstring in a `match` of its own, once " ++ Name ++ " is bound");
         _ ->
             true
@@ -3395,7 +3395,7 @@ hidden(Pos, Name, false) ->
                  [_] -> "the prelude's " ++ Plain;
                  _ -> Plain
              end,
-    {L, C, _} = ern_diag:span(Pos),
+    {L, C, _} = ern_diagnostic:span(Pos),
     fail({L, C, {L, C + length(Written)}},
          Written ++ " is written only where the module hides " ++ Hidden, [],
          "nothing here hides it; write " ++ Plain).
@@ -3403,7 +3403,7 @@ hidden(Pos, Name, false) ->
 %% Report §4.2: `Prelude.` takes one name the prelude declares, or a
 %% namespace of the prelude or the standard library and one of its names;
 %% a module of the program's own is reached by its namespace alone.
--spec prelude_one(ern_diag:pos(), [atom()], atom()) -> no_return().
+-spec prelude_one(ern_diagnostic:position(), [atom()], atom()) -> no_return().
 prelude_one(Pos, Path, Name) ->
     fail(Pos, format_qname(Path ++ [Name]) ++ ": Prelude takes one name the prelude declares,"
               " as `Prelude.Some`, or a name of the prelude's or the standard library's"
@@ -3553,10 +3553,10 @@ con_info(QName, #env{cons = Cs}) -> maps:get(QName, Cs).
 %% An abstract type hides its constructors from every other module, so one
 %% the module keeps private hides nothing.
 check_abstract(Decls) ->
-    [#diag{span = abstract_word(ern_diag:span(Pos)),
-           message = atom_to_list(N) ++ " is an abstract type the module keeps private, which"
-                     " hides its constructors from no module",
-           help = "export it, or declare it `type`"}
+    [#diagnostic{span = abstract_word(ern_diagnostic:span(Pos)),
+                 message = atom_to_list(N) ++ " is an abstract type the module keeps private, which"
+                           " hides its constructors from no module",
+                 help = "export it, or declare it `type`"}
      || #abstract_decl{export = false, pos = Pos, type = #type_decl{name = N}} <- Decls].
 
 %% The word `abstract`, where the declaration begins.
@@ -3601,11 +3601,11 @@ check_exports(Decls, #env{local_types = LT, globals = Gs, types = Ts} = Env) ->
 
 private_type(D, Q) ->
     Name = lists:last(Q),
-    #diag{span = ern_diag:span(element(2, D)),
-          message = declared_text(D) ++ " is exported and its type names "
-                    ++ atom_to_list(Name) ++ ", which this module keeps private",
-          help = "export " ++ atom_to_list(Name) ++ ", or declare it `abstract type` so that"
-                 " its constructors stay private (§4.4)"}.
+    #diagnostic{span = ern_diagnostic:span(element(2, D)),
+                message = declared_text(D) ++ " is exported and its type names "
+                          ++ atom_to_list(Name) ++ ", which this module keeps private",
+                help = "export " ++ atom_to_list(Name) ++ ", or declare it `abstract type` so that"
+                       " its constructors stay private (§4.4)"}.
 
 declared_text(#type_decl{name = N}) -> atom_to_list(N);
 declared_text(#abstract_decl{type = #type_decl{name = N}}) -> atom_to_list(N);
@@ -3770,5 +3770,6 @@ fail(Pos, Message) ->
     throw({type_error, Pos, lists:flatten(Message)}).
 
 fail(Pos, Message, Labels, Help) ->
-    throw({type_error, #diag{span = ern_diag:span(Pos), message = lists:flatten(Message),
-                             labels = Labels, help = Help}}).
+    throw({type_error, #diagnostic{span = ern_diagnostic:span(Pos),
+                                   message = lists:flatten(Message),
+                                   labels = Labels, help = Help}}).

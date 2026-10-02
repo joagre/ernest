@@ -2,7 +2,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
--include_lib("utils/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diagnostic.hrl").
 
 e(Text) ->
     {ok, E} = ern_parser:parse_expr(Text),
@@ -17,23 +17,23 @@ ds(Text) ->
     Ds.
 
 err(Text) ->
-    {error, #diag{message = Msg}} = ern_parser:parse_string(Text),
+    {error, #diagnostic{message = Msg}} = ern_parser:parse_string(Text),
     Msg.
 
 err_expr(Text) ->
-    {error, #diag{message = Msg}} = ern_parser:parse_expr(Text),
+    {error, #diagnostic{message = Msg}} = ern_parser:parse_expr(Text),
     Msg.
 
 help(Text) ->
-    {error, #diag{help = Help}} = ern_parser:parse_string(Text),
+    {error, #diagnostic{help = Help}} = ern_parser:parse_string(Text),
     Help.
 
 err_help(Text) ->
-    {error, #diag{message = Msg, help = Help}} = ern_parser:parse_string(Text),
+    {error, #diagnostic{message = Msg, help = Help}} = ern_parser:parse_string(Text),
     {Msg, Help}.
 
 help_expr(Text) ->
-    {error, #diag{help = Help}} = ern_parser:parse_expr(Text),
+    {error, #diagnostic{help = Help}} = ern_parser:parse_expr(Text),
     Help.
 
 %%
@@ -280,7 +280,7 @@ doc_attachment_test() ->
                                              #constructor{doc = <<"B.">>}]},
                   #abstract_decl{doc = <<"S.">>}],
                  Ds),
-    ?assertMatch({error, #diag{message = "a doc block documents nothing here"}},
+    ?assertMatch({error, #diagnostic{message = "a doc block documents nothing here"}},
                  ern_parser:parse_string(<<"fn f() = {\n    /// stray\n    1\n}\n">>)).
 
 %% report §5.9: a clause lists one or more patterns separated by `or`
@@ -453,7 +453,7 @@ abstract_decl_test() ->
                                 type = #type_decl{name = 'Stack', params = [a],
                                                   constructors = [#constructor{name = 'Stack'}]}},
                  d("export abstract type Stack(a) = Stack(List(a))")),
-    ?assertMatch({error, #diag{message = "an abstract type has no signature: every definition"
+    ?assertMatch({error, #diagnostic{message = "an abstract type has no signature: every definition"
                                          " of its module may use its constructors, so leave"
                                          " out `with { ... }`"}},
                  ern_parser:parse_string("abstract type S = S(Int) with {\n    e : S\n}\n")).
@@ -701,7 +701,7 @@ misc_errors_test() ->
 
 %% report §11.1
 lexer_errors_pass_through_test() ->
-    ?assertMatch({error, #diag{span = {1, 10, _}, message = "unterminated string literal"}},
+    ?assertMatch({error, #diagnostic{span = {1, 10, _}, message = "unterminated string literal"}},
                  ern_parser:parse_string("fn f() = \"abc")).
 
 %% report §11.5: a node's pos is its span, first token to the end of its
@@ -726,8 +726,9 @@ or_pattern_span_test() ->
 
 %% report §11.5: a parse error's span is the offending token
 error_span_test() ->
-    ?assertMatch({error, #diag{span = {1, 8, {1, 9}}}}, ern_parser:parse_string("fn f() ; x\n")),
-    ?assertMatch({error, #diag{span = {1, 6, {1, 11}}}}, ern_parser:parse_expr("f(x) hello")).
+    ?assertMatch({error, #diagnostic{span = {1, 8, {1, 9}}}},
+                 ern_parser:parse_string("fn f() ; x\n")),
+    ?assertMatch({error, #diagnostic{span = {1, 6, {1, 11}}}}, ern_parser:parse_expr("f(x) hello")).
 
 %%
 %% The example programs
@@ -830,8 +831,8 @@ bitstrings_test() ->
 %% comment, both of which may span lines; a string or a char literal may
 %% not, so an unfinished one is an error whatever follows.
 incomplete_test() ->
-    Expr = fun(Text) -> {error, D} = ern_parser:parse_expr(Text), D#diag.incomplete end,
-    Decls = fun(Text) -> {error, D} = ern_parser:parse_string(Text), D#diag.incomplete end,
+    Expr = fun(Text) -> {error, D} = ern_parser:parse_expr(Text), D#diagnostic.incomplete end,
+    Decls = fun(Text) -> {error, D} = ern_parser:parse_string(Text), D#diagnostic.incomplete end,
     ?assert(Expr("1 + ")),
     ?assert(Expr("{ 1")),
     ?assert(Expr("match x {")),
@@ -855,7 +856,7 @@ incomplete_test() ->
 %% still says what may stand there, for completion
 within_call_test() ->
     Within = fun(Text) ->
-                     {error, #diag{incomplete = true, within = W, expected = X}} =
+                     {error, #diagnostic{incomplete = true, within = W, expected = X}} =
                          ern_parser:parse_expr(Text),
                      {W, X}
              end,

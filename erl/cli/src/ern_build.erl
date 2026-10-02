@@ -75,10 +75,10 @@ compile(Opts, Path, Err) ->
         throw:{errors, File, Errors} -> report_errors(Opts, File, Errors, Err)
     end.
 
-%% Report §11.5: each error as ern_diag renders it, the first line alone
+%% Report §11.5: each error as ern_diagnostic renders it, the first line alone
 %% under --short-errors; status 1. The file is named from the working
 %% directory when it lies under it.
--spec report_errors([term()], file:filename(), [ern_diag:diag()], io:device()) -> 1.
+-spec report_errors([term()], file:filename(), [ern_diagnostic:diagnostic()], io:device()) -> 1.
 report_errors(Opts, File, Errors, Err) ->
     Short = lists:member(short_errors, Opts),
     Source = case file:read_file(File) of
@@ -88,8 +88,8 @@ report_errors(Opts, File, Errors, Err) ->
     Shown = shown(File),
     lists:foreach(fun(D) ->
                       Text = case Short of
-                                 true -> ern_diag:short(Shown, D);
-                                 false -> ern_diag:format(Shown, Source, D)
+                                 true -> ern_diagnostic:short(Shown, D);
+                                 false -> ern_diagnostic:format(Shown, Source, D)
                              end,
                       io:format(Err, "~ts~n", [Text])
                   end, Errors),
@@ -605,7 +605,7 @@ current(Erc, SourceHash, SourcePath, DepHashes, Std) ->
 %% and every module of the toolchain they call, which a test holds them to.
 -spec compiler_modules() -> [module()].
 compiler_modules() ->
-    [ern_ast, ern_bitspec, ern_descriptor, ern_diag, ern_docs, ern_emitter, ern_exhaust,
+    [ern_ast, ern_bitspec, ern_descriptor, ern_diagnostic, ern_docs, ern_emitter, ern_exhaust,
      ern_iface, ern_lexer, ern_namespace, ern_parser, ern_prelude, ern_reply, ern_scope,
      ern_typecheck, ern_types, ern_build].
 
@@ -727,7 +727,7 @@ remove_emptied(Dir, Sub, OutDir) ->
 -spec compile_source(file:filename(), file:filename(), [file:filename(), ...],
                      #{[atom()] => #iface{}}) ->
           {ok, [atom()], binary(), binary()} | {refused, string()}
-          | {error, file:filename(), [ern_diag:diag()]}.
+          | {error, file:filename(), [ern_diagnostic:diagnostic()]}.
 compile_source(File, Root, Dirs, Ifaces) ->
     try
         [#mod{ns = Ns, rel = Rel, decls = Decls, deps = Deps}] =

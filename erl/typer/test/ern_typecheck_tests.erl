@@ -3,14 +3,14 @@
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
--include_lib("utils/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diagnostic.hrl").
 
 check(Text) -> ern_typecheck:check_string(['M'], Text).
 
 ok(Text) ->
     case check(Text) of
         {ok, _, _, _} -> ok;
-        {error, Errs} -> {error, [ern_diag:short("", E) || E <- Errs]}
+        {error, Errs} -> {error, [ern_diagnostic:short("", E) || E <- Errs]}
     end.
 
 %% The printed type of the declaration named Name.
@@ -20,16 +20,16 @@ type_of(Text, Name) ->
     ern_types:format_scheme(Scheme, ern_typecheck:type_state(ern_typecheck:prelude_env())).
 
 err(Text) ->
-    {error, [#diag{message = Msg} | _]} = check(Text),
+    {error, [#diagnostic{message = Msg} | _]} = check(Text),
     Msg.
 
 err_help(Text) ->
-    {error, [#diag{message = Msg, help = Help} | _]} = check(Text),
+    {error, [#diagnostic{message = Msg, help = Help} | _]} = check(Text),
     {Msg, Help}.
 
 errs(Text) ->
     {error, Errs} = check(Text),
-    [Msg || #diag{message = Msg} <- Errs].
+    [Msg || #diagnostic{message = Msg} <- Errs].
 
 %%
 %% Inference
@@ -79,7 +79,7 @@ elements_take_the_restriction_test() ->
 foreign_effect_test() ->
     Own = "foreign fn tick(n : Int) : Int with m = \"erlang:abs/1\"\n"
           "export fn pure() : Int = tick(1)\n",
-    {error, [#diag{message = Msg} | _]} = ern_typecheck:check_string(['M'], Own),
+    {error, [#diagnostic{message = Msg} | _]} = ern_typecheck:check_string(['M'], Own),
     ?assertEqual("tick needs a process, and pure is pure", Msg),
     Callback = "foreign fn each(xs : List(a), f : (a) -> Unit with e) : Unit with e ="
                " \"lists:foreach/2\"\n"
@@ -175,12 +175,12 @@ redundant_clause_test() ->
                         " match b { <<x>> -> x | <<x, _>> -> x | _ -> 0 }")),
     {error, [D1 | _]} = check("fn f(x : Int) : Int = match x { n -> n | 0 -> 1 }"),
     ?assertEqual([{{1, 33, {1, 34}}, "this pattern matches every value it would"}],
-                 D1#diag.labels),
+                 D1#diagnostic.labels),
     {error, [D2 | _]} =
         check("fn f(b : Bool) : Int = match b { true -> 1 | false -> 2 | _ -> 3 }"),
     ?assertEqual([{{1, 46, {1, 51}},
                    "with those before it, this one matches every value it would"}],
-                 D2#diag.labels).
+                 D2#diagnostic.labels).
 
 %% report §4.7, §3.10, §9.2: a foreign type's parameter written `k=` puts
 %% the equality constraint on its argument wherever the type is written,
@@ -314,7 +314,7 @@ operator_member_shape_test() ->
     ?assertEqual("Vec.<> must have the type (Vec, Vec) -> Vec, not (Vec, Vec) -> Vec with m+",
                  err(Vec ++ "export fn Vec.<>(Vec(a), Vec(b)) : Vec with m ="
                      " { let _ = receive { n -> n }; Vec(a + b) }\n")),
-    {error, [#diag{help = Help} | _]} =
+    {error, [#diagnostic{help = Help} | _]} =
         check(Vec ++ "export fn Vec.compare(Vec(a), Vec(b)) : Int = a - b\n"),
     ?assertEqual("compare takes two values of its type, returns an Ordering, and is pure", Help),
     %% the type's arguments are any, one in both parameters
@@ -335,7 +335,7 @@ builtin_member_shape_test() ->
     Check = fun(Text) ->
                     case ern_typecheck:check_string(['Int'], Text) of
                         {ok, _, _, _} -> ok;
-                        {error, [#diag{message = M} | _]} -> M
+                        {error, [#diagnostic{message = M} | _]} -> M
                     end
             end,
     ?assertEqual(ok, Check("export fn compare(a : Int, b : Int) : Ordering = Equal\n")),
@@ -375,11 +375,11 @@ operator_member_on_demand_test() ->
 hidden_prelude_name_test() ->
     Text = "type Outcome = Unknown(Int) | Known\n"
            "fn reason() : Reason = Unknown\n",
-    {error, [#diag{labels = Labels}]} = ern_typecheck:check_string(['M'], Text),
+    {error, [#diagnostic{labels = Labels}]} = ern_typecheck:check_string(['M'], Text),
     ?assertEqual(["`Unknown` here is this module's constructor, and the prelude's is"
                   " `Prelude.Unknown`"],
                  [L || {_, L} <- Labels, string:find(L, "Prelude.") =/= nomatch]),
-    {error, [#diag{labels = Others}]} =
+    {error, [#diagnostic{labels = Others}]} =
         ern_typecheck:check_string(['M'], "type Outcome = Unknown(Int)\nfn f() : Int = \"x\"\n"),
     ?assertEqual([], [L || {_, L} <- Others, string:find(L, "Prelude.") =/= nomatch]).
 
@@ -695,7 +695,7 @@ statement_is_unit_test() ->
     ?assertEqual("this statement's value is discarded: expected Unit,"
                  " found Either(String, Int)",
                  err(Check ++ "fn f() = { check(-1); 1 }")),
-    {error, [#diag{help = Help} | _]} = check(Check ++ "fn f() = { check(-1); 1 }"),
+    {error, [#diagnostic{help = Help} | _]} = check(Check ++ "fn f() = { check(-1); 1 }"),
     ?assertEqual("`let _ = ...` discards it on purpose", Help),
     ?assertEqual(ok, ok(Check ++ "fn f() = { let _ = check(-1); 1 }")),
     ?assertEqual(ok, ok("fn f(a : Address(Int)) : Int with m = { send(a, 1); 2 }")),
@@ -819,8 +819,8 @@ local_fn_takes_no_variables_name_test() ->
     ?assertEqual("local function g has the name of a `let` of its block",
                  err("fn f() : Int = { fn g() : Int = 2; let g = 1; g }")),
     D = diag("fn f(g : Int) : Int = { fn g() : Int = 1; g() }"),
-    ?assertEqual([{{1, 6, {1, 7}}, "g is bound here"}], D#diag.labels),
-    ?assertEqual("rename the function or the variable", D#diag.help),
+    ?assertEqual([{{1, 6, {1, 7}}, "g is bound here"}], D#diagnostic.labels),
+    ?assertEqual("rename the function or the variable", D#diagnostic.help),
     ?assertEqual(ok, ok("fn g() : Int = 1\nfn f() : Int = { fn g() : Int = 2; g() }")),
     ?assertEqual(ok, ok("fn f() : Int ="
                         " { let x = { let g = 1; g }; fn g() : Int = 2; g() + x }")),
@@ -940,7 +940,7 @@ or_pattern_test() ->
 as_in_each_alternative_test() ->
     ?assertEqual(ok, ok("fn f(o : Optional(Int)) : Optional(Int) ="
                         " match o { Some(1) as x or Some(2) as x -> x | _ -> None }")),
-    {error, [#diag{message = Message, help = Help} | _]} =
+    {error, [#diagnostic{message = Message, help = Help} | _]} =
         check("fn f(o : Optional(Int)) : Optional(Int) ="
               " match o { Some(1) or Some(2) as x -> x | _ -> None }"),
     ?assertEqual("the alternatives of a clause bind different variables: `x` is bound by this"
@@ -981,11 +981,11 @@ let_cycle_through_a_named_function_test() ->
 %% help; it does not cover a cycle through a function of another module,
 %% which a module cycle refuses first (§4.2)
 let_cycle_help_test() ->
-    {error, [#diag{help = Help} | _]} =
+    {error, [#diagnostic{help = Help} | _]} =
         check("let handlers = [f]\nfn f() : Int = List.size(handlers)\n"),
     ?assertEqual("`f` reads handlers when it is called; a `fn handlers() = ...` builds the"
                  " value when it is asked for", Help),
-    {error, [#diag{help = None} | _]} = check("let a : Int = b\nlet b : Int = a\n"),
+    {error, [#diagnostic{help = None} | _]} = check("let a : Int = b\nlet b : Int = a\n"),
     ?assertEqual(undefined, None),
     %% the function the help names is the one that reads the value, the last
     %% on the cycle, which is listed in its order; a lambda on a longer cycle
@@ -993,12 +993,12 @@ let_cycle_help_test() ->
     %% type. A regression test: the help named the first function, the
     %% cycle was listed sorted, a lambda was told to take no parameters, and
     %% a member was named bare
-    {error, [#diag{message = Order, help = Reads} | _]} =
+    {error, [#diagnostic{message = Order, help = Reads} | _]} =
         check("let a : Int = g()\nfn g() : Int = f()\nfn f() : Int = a\n"),
     ?assertEqual("the initializer of a depends on itself, through g, f", Order),
     ?assertEqual("`f` reads a when it is called; a `fn a() = ...` builds the value when it is"
                  " asked for", Reads),
-    {error, [#diag{help = Lambda} | _]} =
+    {error, [#diagnostic{help = Lambda} | _]} =
         check("let h = fn(n : Int) : Int = g(n)\nfn g(n : Int) : Int = h(n)\n"),
     ?assertEqual("a recursive function is declared with `fn h(...) = ...`", Lambda).
 
@@ -1174,8 +1174,8 @@ update_needs_one_constructor_test() ->
     T = "type T = A(x : Int, y : Int) | B(x : Int, y : Int)\n",
     D = diag(T ++ "fn f(t : T) : T = A(..t, x = 1)\n"),
     ?assertEqual("`..` is allowed only on a type with one constructor, and T has 2",
-                 D#diag.message),
-    ?assertEqual("give every field of A", D#diag.help),
+                 D#diagnostic.message),
+    ?assertEqual("give every field of A", D#diagnostic.help),
     ?assertEqual(ok, ok(T ++ "fn f(t : T) : T = A(x = 1, y = t.y)\n")),
     ?assertEqual(ok, ok("type P(a) = P(x : a, y : Int)\n"
                         "fn f(p : P(String)) : P(String) = P(..p, y = 2)\n")).
@@ -1720,11 +1720,12 @@ interface_test() ->
            "  | None -> Io.println(\"bad request\")\n}",
     {ok, Main1} = ern_parser:parse_string(Main),
     ?assertMatch({ok, _, _, _}, ern_typecheck:check(['Main'], Main1, [Iface])),
-    ?assertMatch({error, [#diag{span = {1, 44, _}, message = "unknown name Net.Http.parse"}]},
+    ?assertMatch({error, [#diagnostic{span = {1, 44, _}, message = "unknown name Net.Http.parse"}]},
                  ern_typecheck:check(['Main'], Main1, [])),
     Private = "fn f() = Net.Http.private()",
     {ok, P1} = ern_parser:parse_string(Private),
-    ?assertMatch({error, [#diag{span = {1, 10, _}, message = "unknown name Net.Http.private"}]},
+    ?assertMatch({error, [#diagnostic{span = {1, 10, _},
+                                      message = "unknown name Net.Http.private"}]},
                  ern_typecheck:check(['Main'], P1, [Iface])).
 
 %% report §11.1: every type the interfaces given name has a declaration
@@ -1739,7 +1740,7 @@ undeclared_type_in_interface_test() ->
                          "export fn make() : Boxes.Box = Boxes.Box(f = fn(n) = n + 1)\n"),
     {ok, _, Maker, _} = ern_typecheck:check(['Maker'], MakerDecls, [Boxes]),
     {ok, Main} = ern_parser:parse_string("fn same() : Bool = Maker.make() == Maker.make()\n"),
-    ?assertMatch({error, [#diag{message = "`==` is not defined on Boxes.Box: it contains a"
+    ?assertMatch({error, [#diagnostic{message = "`==` is not defined on Boxes.Box: it contains a"
                                           " function or an address"}]},
                  ern_typecheck:check(['Main'], Main, [Maker, Boxes])),
     ?assertError({interface_names_undeclared_type, "Boxes.Box"},
@@ -1812,10 +1813,10 @@ examples_test_() ->
 %% declaration, so a use before the binding it sees is an error even when
 %% an earlier binding of the same name exists
 local_fn_shadowed_binding_test() ->
-    ?assertMatch({error, [#diag{message = "local function f is used before `let x`" ++ _}]},
+    ?assertMatch({error, [#diagnostic{message = "local function f is used before `let x`" ++ _}]},
                  check("fn m() : Int = { let x = 1; let y = f(); let x = 2;"
                        " fn f() : Int = x; y }\n")),
-    ?assertMatch({error, [#diag{message = "local function f is used before `let x`" ++ _}]},
+    ?assertMatch({error, [#diagnostic{message = "local function f is used before `let x`" ++ _}]},
                  check("fn m() : Int = { let x = 1; let y = f(); fn f() : Int = g();"
                        " let x = 2; fn g() : Int = x; y }\n")),
     ?assertMatch({ok, _, _, _},
@@ -1888,12 +1889,12 @@ prelude_only_where_hidden_test() ->
 %% the prelude's types bare, another module's qualified, a local type
 %% that shadows a prelude name qualified
 type_names_in_messages_test() ->
-    ?assertMatch({error, [#diag{message =
+    ?assertMatch({error, [#diagnostic{message =
                                   "the argument does not fit f: expected Shape,"
                                   " found Optional(Shape)"}]},
                  check("type Shape = Dot\nfn f(s : Shape) : Int = 1\n"
                        "fn g() : Int = f(Some(Dot))\n")),
-    ?assertMatch({error, [#diag{message =
+    ?assertMatch({error, [#diagnostic{message =
                                   "the argument does not fit f: expected M.Optional,"
                                   " found Optional(Int)"}]},
                  check("type Optional = Nothing\nfn f(o : Optional) : Int = 1\n"
@@ -1902,7 +1903,7 @@ type_names_in_messages_test() ->
     {ok, _, Iface, _} = ern_typecheck:check_string(['Net', 'Http'], Http),
     {ok, Decls} = ern_parser:parse_string("fn f(r : Net.Http.Request) : Int = 1\n"
                                           "fn g() : Int = f(1)\n"),
-    ?assertMatch({error, [#diag{message =
+    ?assertMatch({error, [#diagnostic{message =
                                   "the argument does not fit f: expected Net.Http.Request,"
                                   " found Int"}]},
                  ern_typecheck:check(['Main'], Decls, [Iface])).
@@ -1944,7 +1945,7 @@ local_helper_over_an_operator_test() ->
 %% names no type in the mismatch has no such help. A regression test,
 %% written with the help (findings.md's N-C3)
 not_an_alias_test() ->
-    Help = fun(Source) -> {error, [#diag{help = H} | _]} = check(Source), H end,
+    Help = fun(Source) -> {error, [#diagnostic{help = H} | _]} = check(Source), H end,
     Alias = "`type Word = String` declares a type whose one value is `String`, not another"
             " name for String; there are no type aliases, and a wrapper is"
             " `type Word = Word(String)`",
@@ -1999,97 +2000,98 @@ leaf_placement_test() ->
     %% the else branch of an `if` in a declared body: the span is the literal
     D1 = diag("fn f(b : Bool) : Int =\n    if b then 1 else \"x\"\n"),
     ?assertEqual("the body does not have the declared result type: expected Int, found String",
-                 D1#diag.message),
-    ?assertEqual({2, 22, {2, 25}}, D1#diag.span),
-    ?assertEqual([{{1, 18, {1, 21}}, "result type Int declared here"}], D1#diag.labels),
+                 D1#diagnostic.message),
+    ?assertEqual({2, 22, {2, 25}}, D1#diagnostic.span),
+    ?assertEqual([{{1, 18, {1, 21}}, "result type Int declared here"}], D1#diagnostic.labels),
     %% the last statement of a block
     D2 = diag("fn f() : Int = { let x = 1; \"x\" }\n"),
-    ?assertEqual({1, 29, {1, 32}}, D2#diag.span),
+    ?assertEqual({1, 29, {1, 32}}, D2#diagnostic.span),
     %% a match clause: the second clause against the first
     D3 = diag("fn f(n : Int) = match n { 0 -> 1 | _ -> \"x\" }\n"),
-    ?assertEqual("the clauses must have one type: expected Int, found String", D3#diag.message),
-    ?assertEqual({1, 41, {1, 44}}, D3#diag.span),
-    ?assertEqual([{{1, 32, {1, 33}}, "the first clause has type Int"}], D3#diag.labels),
+    ?assertEqual("the clauses must have one type: expected Int, found String",
+                 D3#diagnostic.message),
+    ?assertEqual({1, 41, {1, 44}}, D3#diagnostic.span),
+    ?assertEqual([{{1, 32, {1, 33}}, "the first clause has type Int"}], D3#diagnostic.labels),
     %% the else branch against the then branch when nothing outside fixed the type
     D4 = diag("fn f(b : Bool) = if b then 1 else \"x\"\n"),
     ?assertEqual("the branches of `if` must have one type: expected Int, found String",
-                 D4#diag.message),
-    ?assertEqual([{{1, 28, {1, 29}}, "the then branch has type Int"}], D4#diag.labels),
+                 D4#diagnostic.message),
+    ?assertEqual([{{1, 28, {1, 29}}, "the then branch has type Int"}], D4#diagnostic.labels),
     %% a call argument, at the argument, labelled with the callee's type
     D5 = diag("fn f(x : Int) = x\nfn g() = f(\"x\")\n"),
-    ?assertEqual("the argument does not fit f: expected Int, found String", D5#diag.message),
-    ?assertEqual({2, 12, {2, 15}}, D5#diag.span),
-    ?assertEqual([{{2, 10, {2, 11}}, "f : (Int) -> Int"}], D5#diag.labels),
+    ?assertEqual("the argument does not fit f: expected Int, found String", D5#diagnostic.message),
+    ?assertEqual({2, 12, {2, 15}}, D5#diagnostic.span),
+    ?assertEqual([{{2, 10, {2, 11}}, "f : (Int) -> Int"}], D5#diagnostic.labels),
     %% a binary operator: the right operand, labelled with the left's type
     D6 = diag("fn f() = 1 + \"x\"\n"),
-    ?assertEqual({1, 14, {1, 17}}, D6#diag.span),
-    ?assertEqual([{{1, 10, {1, 11}}, "the left operand has type Int"}], D6#diag.labels),
+    ?assertEqual({1, 14, {1, 17}}, D6#diagnostic.span),
+    ?assertEqual([{{1, 10, {1, 11}}, "the left operand has type Int"}], D6#diagnostic.labels),
     %% a list element against the first
     D7 = diag("fn f() = [1, \"x\"]\n"),
-    ?assertEqual({1, 14, {1, 17}}, D7#diag.span),
-    ?assertEqual([{{1, 11, {1, 12}}, "the first element has type Int"}], D7#diag.labels),
+    ?assertEqual({1, 14, {1, 17}}, D7#diagnostic.span),
+    ?assertEqual([{{1, 11, {1, 12}}, "the first element has type Int"}], D7#diagnostic.labels),
     %% an annotated `let` in a block: the value, labelled with the annotation
     D8 = diag("fn f() = { let x : Int = \"x\"; x }\n"),
     ?assertEqual("the value does not have the declared type: expected Int, found String",
-                 D8#diag.message),
-    ?assertEqual({1, 26, {1, 29}}, D8#diag.span),
-    ?assertEqual([{{1, 20, {1, 23}}, "declared Int here"}], D8#diag.labels),
+                 D8#diagnostic.message),
+    ?assertEqual({1, 26, {1, 29}}, D8#diagnostic.span),
+    ?assertEqual([{{1, 20, {1, 23}}, "declared Int here"}], D8#diagnostic.labels),
     %% a pattern against the value matched
     D9 = diag("fn f(n : Int) = match n { Some(x) -> x }\n"),
     ?assertEqual("the pattern does not fit the value: expected Int, found Optional(a)",
-                 D9#diag.message),
-    ?assertEqual([{{1, 23, {1, 24}}, "the value matched has type Int"}], D9#diag.labels),
+                 D9#diagnostic.message),
+    ?assertEqual([{{1, 23, {1, 24}}, "the value matched has type Int"}], D9#diagnostic.labels),
     %% a `let` pattern against its value, the value's type expected; a
     %% regression test, the two having been printed the other way round
     %% (findings.md's X4)
     D10 = diag("fn f() : Int = {\n    let #(a, b) = 1;\n    a\n}\n"),
     ?assertEqual("the pattern does not fit the value: expected Int, found #(a, b)",
-                 D10#diag.message),
-    ?assertEqual({2, 9, {2, 16}}, D10#diag.span),
-    ?assertEqual([{{2, 19, {2, 20}}, "the value has type Int"}], D10#diag.labels),
+                 D10#diagnostic.message),
+    ?assertEqual({2, 9, {2, 16}}, D10#diagnostic.span),
+    ?assertEqual([{{2, 19, {2, 20}}, "the value has type Int"}], D10#diagnostic.labels),
     %% a `<-` pattern against the value inside, at the pattern and labelled
     %% at the value; a regression test for X4 too, the error having stood at
     %% the `let`, unlabelled and turned round
     D11 = diag("fn f(o : Optional(Int)) : Optional(Int) = {\n    let #(a, b) <- o;\n"
                "    Some(a)\n}\n"),
     ?assertEqual("the pattern does not fit the value inside the sum type: expected Int,"
-                 " found #(Int, a)", D11#diag.message),
-    ?assertEqual({2, 9, {2, 16}}, D11#diag.span),
-    ?assertEqual([{{2, 20, {2, 21}}, "the value inside has type Int"}], D11#diag.labels).
+                 " found #(Int, a)", D11#diagnostic.message),
+    ?assertEqual({2, 9, {2, 16}}, D11#diagnostic.span),
+    ?assertEqual([{{2, 20, {2, 21}}, "the value inside has type Int"}], D11#diagnostic.labels).
 
 %% report §11.5: the message shows the whole types; when they differ
 %% inside, the help line names the differing part
 differing_part_test() ->
     D = diag("fn f(xs : List(Int)) = xs\nfn g() = f([\"x\"])\n"),
     ?assertEqual("the argument does not fit f: expected List(Int), found List(String)",
-                 D#diag.message),
-    ?assertEqual("the types differ at Int and String", D#diag.help),
-    ?assertEqual(undefined, (diag("fn f() = 1 + \"x\"\n"))#diag.help).
+                 D#diagnostic.message),
+    ?assertEqual("the types differ at Int and String", D#diagnostic.help),
+    ?assertEqual(undefined, (diag("fn f() = 1 + \"x\"\n"))#diagnostic.help).
 
 %% report §11.5, §3.4: an effect error names the callee and what is pure,
 %% labels the annotation that made it pure, and says what to do
 effect_placement_test() ->
     D1 = diag("fn main() : Unit = Io.println(\"x\")\n"),
-    ?assertEqual("Io.println needs a process, and main is pure", D1#diag.message),
-    ?assertEqual({1, 20, {1, 35}}, D1#diag.span),
+    ?assertEqual("Io.println needs a process, and main is pure", D1#diagnostic.message),
+    ?assertEqual({1, 20, {1, 35}}, D1#diagnostic.span),
     ?assertEqual([{{1, 13, {1, 17}}, "`: Unit` with no `with` declares main pure"}],
-                 D1#diag.labels),
-    ?assertEqual("give main a mailbox type with `with`", D1#diag.help),
+                 D1#diagnostic.labels),
+    ?assertEqual("give main a mailbox type with `with`", D1#diagnostic.help),
     D3 = diag("fn f(n : Int) : Int with Never = match n {"
               " k when Io.println(\"x\") == Unit -> 1 | _ -> 0 }\n"),
-    ?assertEqual([{{1, 51, {1, 74}}, "a guard is pure (report §5.9)"}], D3#diag.labels),
-    ?assertEqual("compute the value before the match", D3#diag.help),
+    ?assertEqual([{{1, 51, {1, 74}}, "a guard is pure (report §5.9)"}], D3#diagnostic.labels),
+    ?assertEqual("compute the value before the match", D3#diagnostic.help),
     D4 = diag("fn f() : Unit = receive { after 1 -> Unit }\n"),
-    ?assertEqual("`receive` needs a process, and f is pure", D4#diag.message),
-    ?assertEqual("give f a mailbox type with `with`", D4#diag.help),
+    ?assertEqual("`receive` needs a process, and f is pure", D4#diagnostic.message),
+    ?assertEqual("give f a mailbox type with `with`", D4#diagnostic.help),
     D5 = diag("type Msg = Go\nfn root() : Unit with Never = Io.println(\"x\")\n"
               "fn p() : Unit with Msg = root()\n"),
-    ?assertEqual([{{3, 20, {3, 23}}, "p is declared `with Msg` here"}], D5#diag.labels),
-    ?assertEqual(undefined, D5#diag.help),
+    ?assertEqual([{{3, 20, {3, 23}}, "p is declared `with Msg` here"}], D5#diagnostic.labels),
+    ?assertEqual(undefined, D5#diagnostic.help),
     %% a lambda's own annotation is the origin inside it
     D6 = diag("fn f() : Unit with Never = { let g = fn() : Unit = Io.println(\"x\"); g() }\n"),
-    ?assertEqual("Io.println needs a process, and the lambda is pure", D6#diag.message),
-    ?assertEqual("give the lambda a mailbox type with `with`", D6#diag.help).
+    ?assertEqual("Io.println needs a process, and the lambda is pure", D6#diagnostic.message),
+    ?assertEqual("give the lambda a mailbox type with `with`", D6#diagnostic.help).
 
 %% report §11.5, §3.4: a regression test. After a local fn or an annotated
 %% lambda, an effect error in the enclosing function names that function
@@ -2098,12 +2100,12 @@ effect_placement_test() ->
 %% expression, which effect_placement_test and the bitstring tests reach.
 effect_origin_is_restored_after_a_nested_definition_test() ->
     D1 = diag("fn f() : Unit = { fn g() : Int = 1; receive { after 1 -> Unit } }\n"),
-    ?assertEqual("`receive` needs a process, and f is pure", D1#diag.message),
+    ?assertEqual("`receive` needs a process, and f is pure", D1#diagnostic.message),
     ?assertEqual([{{1, 10, {1, 14}}, "`: Unit` with no `with` declares f pure"}],
-                 D1#diag.labels),
+                 D1#diagnostic.labels),
     D2 = diag("fn f() : Unit = { let g = fn(x : Int) : Int = x; Io.println(\"x\") }\n"),
-    ?assertEqual("Io.println needs a process, and f is pure", D2#diag.message),
-    ?assertEqual("give f a mailbox type with `with`", D2#diag.help).
+    ?assertEqual("Io.println needs a process, and f is pure", D2#diagnostic.message),
+    ?assertEqual("give f a mailbox type with `with`", D2#diagnostic.help).
 
 %% report §11.5: an unannotated lambda's mailbox is its own, so an effect
 %% error inside it labels no annotation, not the enclosing definition's.
@@ -2112,10 +2114,10 @@ effect_origin_is_restored_after_a_nested_definition_test() ->
 effect_origin_of_an_unannotated_lambda_test() ->
     Decls = "fn g() : Unit with String = Unit\nfn h() : Unit with Int = Unit\n",
     D1 = diag(Decls ++ "fn main() : Unit with Never = { let k = fn() = { g(); h() }; Unit }\n"),
-    ?assertEqual("h needs mailbox Int, and the mailbox here is String", D1#diag.message),
-    ?assertEqual([], D1#diag.labels),
+    ?assertEqual("h needs mailbox Int, and the mailbox here is String", D1#diagnostic.message),
+    ?assertEqual([], D1#diagnostic.labels),
     D2 = diag(Decls ++ "fn run() : Int = { let k = fn() = { g(); h() }; 1 }\n"),
-    ?assertEqual([], D2#diag.labels).
+    ?assertEqual([], D2#diagnostic.labels).
 
 %% report §6.6, §4.2: only the prelude's spawn consumes a capturing lambda
 %% as its direct argument; a module's own function named spawn is any
@@ -2127,7 +2129,7 @@ own_spawn_is_no_spawn_test() ->
              "    let f = fn() = answer(r, 1);\n"
              "    spawn(1, f)\n}\n"),
     ?assertEqual("the lambda f captures a reply-carrying value and may only be called or"
-                 " passed directly to spawn or spawnMonitored", D#diag.message).
+                 " passed directly to spawn or spawnMonitored", D#diagnostic.message).
 
 %% report §4.8, §3.4: an operator resolved at the end of its definition,
 %% once its operand type is known, calls its member, which is pure, in a
@@ -2148,9 +2150,9 @@ deferred_operator_calls_a_pure_member_test() ->
 %% is reported at the comparison, which needed the equality. A regression
 %% test: it was reported at the later call, saying it was compared there
 comparison_reported_where_it_stands_test() ->
-    {error, [#diag{span = Span, message = Message} | _]} =
+    {error, [#diagnostic{span = Span, message = Message} | _]} =
         check("fn k(g) = {\n    let _ = g == g;\n    g(1)\n}\n"),
-    ?assertMatch({2, 13, _}, ern_diag:span(Span)),
+    ?assertMatch({2, 13, _}, ern_diagnostic:span(Span)),
     ?assertMatch("(Int) -> a" ++ _, Message),
     ?assertNotEqual(nomatch, string:find(Message, "but it is compared here")).
 
@@ -2159,13 +2161,13 @@ comparison_reported_where_it_stands_test() ->
 %% at the map's last operation, a `Map.size` after the `Map.put` that gave
 %% it the key
 address_key_at_first_operation_test() ->
-    {error, [#diag{span = Span} | _]} =
+    {error, [#diagnostic{span = Span} | _]} =
         check("type Msg = Go\n"
               "fn main() : Unit with Msg = {\n"
               "    let m = Map.put(Map.empty, self(), 1);\n"
               "    Io.println(Int.toString(Map.size(m)))\n"
               "}\n"),
-    ?assertMatch({3, 13, _}, ern_diag:span(Span)).
+    ?assertMatch({3, 13, _}, ern_diagnostic:span(Span)).
 
 %% report §3.10, §4.8: a regression test. An operator resolved at the end
 %% of its definition keeps its member's equality constraint, as one
@@ -2296,8 +2298,8 @@ receive_guard_test() ->
     D = diag(Msg ++ "fn big(k : Int) : Bool = k > 100\n"
              "fn loop() : Unit with Msg = receive { N(k) when big(k) -> Unit | _ -> Unit }"),
     ?assertEqual("a `receive` guard combines `true`, `false`, Bool variables, and comparisons"
-                 " with `!`, `&&`, and `||`, and calls nothing", D#diag.message),
-    ?assertEqual("receive the message and `match` it", D#diag.help).
+                 " with `!`, `&&`, and `||`, and calls nothing", D#diagnostic.message),
+    ?assertEqual("receive the message and `match` it", D#diagnostic.help).
 
 %% report §6.3: each form of a guard expression: `true`, `false`, a Bool
 %% operand, `!` before a guard expression, and a comparison whose operands

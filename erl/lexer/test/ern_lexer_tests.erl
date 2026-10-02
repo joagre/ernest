@@ -1,7 +1,7 @@
 -module(ern_lexer_tests).
 
 -include_lib("eunit/include/eunit.hrl").
--include_lib("utils/include/ern_diag.hrl").
+-include_lib("utils/include/ern_diagnostic.hrl").
 
 %% Token list without positions and without the trailing eof.
 toks(Text) ->
@@ -12,7 +12,7 @@ strip({Cat, _Pos, Value}) -> {Cat, Value};
 strip({Sym, _Pos}) -> Sym.
 
 err(Text) ->
-    {error, #diag{span = {L, C, _}, message = Msg}} = ern_lexer:tokenize(Text),
+    {error, #diagnostic{span = {L, C, _}, message = Msg}} = ern_lexer:tokenize(Text),
     {L, C, Msg}.
 
 %% report §2.1: a control character but tab, line feed and carriage return
