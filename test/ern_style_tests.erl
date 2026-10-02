@@ -332,7 +332,7 @@ vendored(Name) ->
     {ok, Bytes} = file:read_file(filename:join(?ROOT, "THIRD_PARTY_LICENSES")),
     string:find(Bytes, Name ++ ".erl") =/= nomatch.
 
-%% build/stdlib holds the standard library under the name module_atom/1 gives it.
+%% build/stdlib holds the standard library under the name erlang_module/1 gives it.
 compiled_as(Relative) ->
     Namespace = string:replace(filename:rootname(filename:basename(Relative)), "/", "@", all),
     Beam = filename:join([?ROOT, "build", "stdlib", "ern@" ++ lists:flatten(Namespace) ++ ".beam"]),

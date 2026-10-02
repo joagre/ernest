@@ -374,12 +374,12 @@ erl_source_test() ->
     ?assertMatch({_, _}, binary:match(Emitted, <<"-module(ern@hello).">>)).
 
 %% report §4.2: the module atom is ern@ and the path with @ for /
-module_atom_test() ->
-    ?assertEqual('ern@counter', ern_emitter:module_atom(['Counter'])),
-    ?assertEqual('ern@net@http', ern_emitter:module_atom(['Net', 'Http'])),
+erlang_module_test() ->
+    ?assertEqual('ern@counter', ern_emitter:erlang_module(['Counter'])),
+    ?assertEqual('ern@net@http', ern_emitter:erlang_module(['Net', 'Http'])),
     %% a segment of several words is its file's name, joined by `_`
-    ?assertEqual('ern@ordered_set', ern_emitter:module_atom(['OrderedSet'])),
-    ?assertEqual('ern@net@http_client', ern_emitter:module_atom(['Net', 'HttpClient'])).
+    ?assertEqual('ern@ordered_set', ern_emitter:erlang_module(['OrderedSet'])),
+    ?assertEqual('ern@net@http_client', ern_emitter:erlang_module(['Net', 'HttpClient'])).
 
 %%
 %% Blocks, bindings, and local functions
@@ -2349,7 +2349,7 @@ prelude_target(QualifiedName, Text) ->
           when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
                Operator =:= '%'; Operator =:= '<>'; Operator =:= negate ->
             {erlang, is_atom, 1};
-        [Namespace, Function] -> {ern_emitter:module_atom([Namespace]), Function, Arity}
+        [Namespace, Function] -> {ern_emitter:erlang_module([Namespace]), Function, Arity}
     end.
 
 %% report §6.5, §6.9, §7.3, §9.5: kill is a Down with Killed, a fault a

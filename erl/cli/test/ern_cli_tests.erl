@@ -431,7 +431,7 @@ words_name_a_segment_test() ->
     ?assert(filelib:is_regular(filename:join(Dir, "pages/ordered_set.md"))),
     ?assert(filelib:is_regular(filename:join(Dir, "pages/net/http_client.md"))),
     ?assertEqual("ordered_set", ern_build:module_path(['OrderedSet'])),
-    ?assertEqual('ern@net@http_client', ern_emitter:module_atom(['Net', 'HttpClient'])).
+    ?assertEqual('ern@net@http_client', ern_emitter:erlang_module(['Net', 'HttpClient'])).
 
 %% report §11.1, §3.10: a module depends on each module that declares a type
 %% the interface of a module it depends on names, so a type reached through
@@ -1541,7 +1541,7 @@ docs_chunk_test() ->
                  Entries),
     %% Erlang's own documentation reader finds it, as it finds the standard
     %% library's modules installed under build/stdlib
-    ErlangModule = ern_emitter:module_atom(['Shapes']),
+    ErlangModule = ern_emitter:erlang_module(['Shapes']),
     ok = file:write_file(filename:join(BuildRoot, atom_to_list(ErlangModule) ++ ".beam"), Beam),
     true = code:add_patha(BuildRoot),
     {module, ErlangModule} = code:ensure_loaded(ErlangModule),

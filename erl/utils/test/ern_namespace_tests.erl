@@ -47,8 +47,8 @@ namespace_and_path_test() ->
     ?assertEqual(['Net', 'HttpClient'], ern_namespace:namespace(["net", "http_client"])),
     ?assertEqual("net/http_client", ern_namespace:module_path(['Net', 'HttpClient'])),
     ?assertEqual("ordered_set", ern_namespace:module_path(['OrderedSet'])),
-    ?assertEqual('ern@ordered_set', ern_namespace:module_atom(['OrderedSet'])),
-    ?assertEqual('ern@net@http_client', ern_namespace:module_atom(['Net', 'HttpClient'])),
+    ?assertEqual('ern@ordered_set', ern_namespace:erlang_module(['OrderedSet'])),
+    ?assertEqual('ern@net@http_client', ern_namespace:erlang_module(['Net', 'HttpClient'])),
     %% the shell's own modules keep their spelling but for the case of a letter
-    ?assertEqual('ern@$input1', ern_namespace:module_atom(['$Input1'])),
+    ?assertEqual('ern@$input1', ern_namespace:erlang_module(['$Input1'])),
     ?assertEqual(['$Input1'], ern_namespace:namespace(["$Input1"])).

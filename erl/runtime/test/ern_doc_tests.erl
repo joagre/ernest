@@ -363,7 +363,7 @@ stdlib_targets_test() ->
                              values = Values} <- ern_prelude:stdlib_interfaces(),
                   {QualifiedName, Scheme} <- maps:to_list(Values),
                   Arity <- [arity(Scheme)],
-                  ErlangModule <- [module_atom(Namespace)],
+                  ErlangModule <- [erlang_module(Namespace)],
                   code:ensure_loaded(ErlangModule) =/= {module, ErlangModule}
                       orelse not erlang:function_exported(ErlangModule,
                                                           lists:last(QualifiedName),
@@ -371,7 +371,7 @@ stdlib_targets_test() ->
     ?assertEqual([], Missing),
     ?assertNotEqual([], ern_prelude:stdlib_interfaces()).
 
-module_atom(Namespace) ->
+erlang_module(Namespace) ->
     list_to_atom("ern@"
                  ++ string:lowercase(lists:join("@", [atom_to_list(Part) || Part <- Namespace]))).
 

@@ -625,7 +625,7 @@ config(_Options, _Rest, _ErrorDevice) ->
 %% initializers (§8.5) before the shell starts.
 shell(Options, Rest, ErrorDevice) ->
     quiet_signals(),
-    ErlangModule = ern_emitter:module_atom(['Shell']),
+    ErlangModule = ern_emitter:erlang_module(['Shell']),
     case code:ensure_loaded(ErlangModule) of
         {module, ErlangModule} -> ok;
         _ -> ern_build:fail("the shell is not built; run make")
@@ -856,7 +856,7 @@ init_fun(Loaded) ->
 %% module declares them, each in a process of its own and its line printed
 %% as it ends; status 1 unless every one passed.
 run_tests(Namespace, Loaded, ErrorDevice) ->
-    Entry = tests_entry(ern_emitter:module_atom(Namespace), self()),
+    Entry = tests_entry(ern_emitter:erlang_module(Namespace), self()),
     Site = unicode:characters_to_binary(ern_build:qualified_name_text(Namespace) ++ ".$tests"),
     %% report §11.2: a test's own fault is its line, and every other is
     %% reported as `ern run` reports it
@@ -956,7 +956,7 @@ run_entry(Options, Namespace, LoadPath, Loaded, Arguments, ErrorDevice) ->
 %% entry point (§8.1) leaves the file without one; a function `--main`
 %% names must be one.
 shell_entry(Options, Namespace, LoadPath, Loaded) ->
-    ErlangModule = ern_emitter:module_atom(Namespace),
+    ErlangModule = ern_emitter:erlang_module(Namespace),
     case proplists:get_value(main, Options) =:= undefined
          andalso entry_shape(ErlangModule, main) =/= entry of
         true ->
@@ -974,10 +974,10 @@ shell_entry(Options, Namespace, LoadPath, Loaded) ->
 entry_point(Options, Namespace, LoadPath, Loaded) ->
     {EntryModule, EntryFunction, Loaded1} =
         case proplists:get_value(main, Options) of
-            undefined -> {ern_emitter:module_atom(Namespace), main, Loaded};
+            undefined -> {ern_emitter:erlang_module(Namespace), main, Loaded};
             Given ->
                 {EntryNamespace, Function} = main_name(Given),
-                {ern_emitter:module_atom(EntryNamespace), Function,
+                {ern_emitter:erlang_module(EntryNamespace), Function,
                  load(EntryNamespace, LoadPath, Loaded)}
         end,
     Name = ern_build:qualified_name_text(entry_namespace(EntryModule) ++ [EntryFunction]),
@@ -1055,7 +1055,7 @@ load(Namespace, LoadPath, Loaded) ->
     load(Namespace, LoadPath, Loaded, ern_build:stdlib_hash(".")).
 
 load(Namespace, LoadPath, Loaded, StdlibHash) ->
-    ErlangModule = ern_emitter:module_atom(Namespace),
+    ErlangModule = ern_emitter:erlang_module(Namespace),
     case lists:member(ErlangModule, Loaded) of
         true ->
             Loaded;
@@ -1117,7 +1117,7 @@ same_stdlib(Namespace, Chunk, StdlibHash) ->
                               ++ Name ++ " again").
 
 same_interface(Namespace, Dependency, Hash) ->
-    {ok, Beam} = file:read_file(code:which(ern_emitter:module_atom(Dependency))),
+    {ok, Beam} = file:read_file(code:which(ern_emitter:erlang_module(Dependency))),
     {ok, #{interface := Interface}} = ern_interface:read(Beam),
     Name = ern_build:qualified_name_text(Namespace),
     ern_interface:hash(Interface) =:= Hash

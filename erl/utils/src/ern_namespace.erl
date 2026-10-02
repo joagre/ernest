@@ -8,7 +8,7 @@
 -module(ern_namespace).
 
 -export([is_component/1, segment/1, component/1, namespace/1, module_path/1, path/1,
-         module_atom/1]).
+         erlang_module/1]).
 
 %% Whether a path component has the shape §11.1 asks of a module's file.
 -spec is_component(string()) -> boolean().
@@ -87,8 +87,8 @@ path(Segments) ->
 
 %% Report §4.2: the Erlang module a namespace compiles to, `ern@` and the
 %% path with `@` for `/`, `ern@ordered_set` and `ern@net@http_client`.
--spec module_atom([atom()]) -> atom().
-module_atom(Namespace) ->
+-spec erlang_module([atom()]) -> atom().
+erlang_module(Namespace) ->
     list_to_atom(lists:flatten(["ern" | ["@" ++ component_or_lowered(atom_to_list(Segment))
                                          || Segment <- Namespace]])).
 

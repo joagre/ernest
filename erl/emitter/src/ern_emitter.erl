@@ -9,7 +9,7 @@
 %% and `let p <- e` becomes a case (report §5.5).
 -module(ern_emitter).
 
--export([compile/4, compile/5, forms/3, erl_source/3, erl_source/4, module_atom/1,
+-export([compile/4, compile/5, forms/3, erl_source/3, erl_source/4, erlang_module/1,
          function_atom/1, function_name/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -79,7 +79,7 @@ forms(Namespace, Declarations, Env) ->
 %% dependency order without reading a compiled file.
 -spec forms([atom()], [tuple()], ern_typecheck:env(), map()) -> [erl_parse:abstract_form()].
 forms(Namespace, Declarations, Env, Build) ->
-    ErlangModule = module_atom(Namespace),
+    ErlangModule = erlang_module(Namespace),
     Dependencies = [Dependency || {Dependency, _} <- maps:get(deps, Build, [])],
     Context = #emit_context{namespace = Namespace, erlang_module = ErlangModule, env = Env,
                             top_names = top_names(Declarations),
@@ -175,7 +175,7 @@ nameable(#foreign_fn_declaration{name = Name}) -> not lists:member($$, atom_to_l
 dependencies_function([]) ->
     [];
 dependencies_function(Dependencies) ->
-    Modules = erl_syntax:list([erl_syntax:atom(module_atom(Dependency))
+    Modules = erl_syntax:list([erl_syntax:atom(erlang_module(Dependency))
                                || Dependency <- Dependencies]),
     [erl_syntax:function(erl_syntax:atom('$deps'),
                          [erl_syntax:clause([], none, [Modules])])].
@@ -191,9 +191,9 @@ erl_source(Namespace, Declarations, Env, Build) ->
     [erl_prettypr:format(erl_syntax:form_list(Forms)), "\n"].
 
 %% Report §4.2: the path with @ for / and the prefix ern@ (ern_namespace).
--spec module_atom([atom()]) -> atom().
-module_atom(Namespace) ->
-    ern_namespace:module_atom(Namespace).
+-spec erlang_module([atom()]) -> atom().
+erlang_module(Namespace) ->
+    ern_namespace:erlang_module(Namespace).
 
 %%
 %% Declarations
@@ -655,7 +655,7 @@ is_value(Declaring, MemberOf, Name, Env) ->
 
 %% Another Ernest module's declaration as a function of its Erlang module.
 remote_name(Declaring, MemberOf, Name) ->
-    {module_atom(Declaring), function_name(MemberOf, Name)}.
+    {erlang_module(Declaring), function_name(MemberOf, Name)}.
 
 closure(Lifted, Instances, Arity, Context) ->
     {Params, Context1} = fresh_variables(Arity, "A", Context),
@@ -791,7 +791,7 @@ prelude_call(Span, [Namespace, '<>'], [Left | _], [LeftForm, RightForm], _, Cont
     {at(Span, binop('<>', OperandType, LeftForm, RightForm, Context)), Context};
 prelude_call(Span, [Namespace | Rest], _, Args, _, Context) when Rest =/= [] ->
     %% a stdlib function: the namespace's module
-    {at(Span, call_remote(module_atom([Namespace]), lists:last(Rest), Args)), Context};
+    {at(Span, call_remote(erlang_module([Namespace]), lists:last(Rest), Args)), Context};
 prelude_call(Span, QualifiedName, _, _, _, _) ->
     fail(Span, "no emission for " ++ qualified_name_text(QualifiedName)).
 
@@ -860,10 +860,10 @@ prelude_value(Span, [Name], Type, Context) ->
 prelude_value(_, [Namespace | Rest], Type, Context) ->
     Form = case Type of
                {tfn, Params, _, _} ->
-                   remote_fun(module_atom([Namespace]), lists:last(Rest), length(Params));
+                   remote_fun(erlang_module([Namespace]), lists:last(Rest), length(Params));
                _ ->
                    %% a stdlib value: Map.empty, Set.empty
-                   call_remote(module_atom([Namespace]), lists:last(Rest), [])
+                   call_remote(erlang_module([Namespace]), lists:last(Rest), [])
            end,
     {Form, Context}.
 
@@ -918,7 +918,7 @@ binop('<>', {tcon, ['Bytes'], []}, Left, Right, _) -> binary_append(Left, Right)
 binop('<>', {tcon, [Name], _}, Left, Right, #emit_context{namespace = Namespace}) ->
     case Namespace of
         [Name] -> erl_syntax:application(erl_syntax:atom('<>'), [Left, Right]);
-        _ -> call_remote(module_atom([Name]), '<>', [Left, Right])
+        _ -> call_remote(erlang_module([Name]), '<>', [Left, Right])
     end;
 binop('==', _, Left, Right, _) -> erl_syntax:infix_expr(Left, erl_syntax:operator('=:='), Right);
 binop('!=', _, Left, Right, _) -> erl_syntax:infix_expr(Left, erl_syntax:operator('=/='), Right);
@@ -985,7 +985,7 @@ member_call(QualifiedName, Name, Args, #emit_context{namespace = Namespace, env 
     MemberQualifiedName = ern_typecheck:member_qualified_name(QualifiedName, Name, Env),
     case lists:droplast(lists:droplast(MemberQualifiedName)) of
         Namespace -> erl_syntax:application(erl_syntax:atom(function_name(MemberOf, Name)), Args);
-        Declaring -> call_remote(module_atom(Declaring), function_name(MemberOf, Name), Args)
+        Declaring -> call_remote(erlang_module(Declaring), function_name(MemberOf, Name), Args)
     end.
 
 %% <<A/binary, B/binary>>, with a string literal as a plain segment and an
