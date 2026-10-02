@@ -26,9 +26,9 @@ export fn quiet(colour : Markdown.Output, text : String) : String =
 export fn named(colour : Markdown.Output, text : String) : String =
     match String.indexOf(text, " : ") {
         None -> text
-      | Some(at) ->
-            paint(colour, Ansi.Bold, String.slice(text, 0, at))
-                <> String.slice(text, at, String.size(text) - at)
+      | Some(index) ->
+            paint(colour, Ansi.Bold, String.slice(text, 0, index))
+                <> String.slice(text, index, String.size(text) - index)
     }
 
 /// The parameter at the cursor in a signature, in the terminal's cyan, which

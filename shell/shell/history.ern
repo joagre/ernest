@@ -12,14 +12,14 @@
 export let kept = 1000
 
 // How long to wait for the file system, which is a local file.
-let wait = 5000
+let fileMs = 5000
 
 /// The file in the person's home directory, and none where the environment
 /// names no home or one that is no absolute path, which would put the
 /// history under whatever directory the shell starts in (report §11.2).
 export let file : Optional(Path) =
     Optional.andThen(Os.environment("HOME"), fn(home) = match Path(home) {
-        at when Path.isAbsolute(at) -> Some(at <> Path(".ernest/history"))
+        path when Path.isAbsolute(path) -> Some(path <> Path(".ernest/history"))
       | _ -> None
     })
 
@@ -30,13 +30,13 @@ export fn read() : Either(Io.Error, List(String)) with m =
         None -> Right([])
       | Some(path) -> {
             let _ <- made(path);
-            match Fs.read(path, wait) {
+            match Fs.read(path, fileMs) {
                 // no file yet: a first session has no history
                 Left(Io.NotFound) -> Right([])
-              | Left(why) -> Left(why)
+              | Left(error) -> Left(error)
               | Right(bytes) -> {
-                    let read <- inputs(bytes);
-                    trimmed(path, read)
+                    let decoded <- inputs(bytes);
+                    trimmed(path, decoded)
                 }
             }
         }
@@ -59,15 +59,15 @@ fn trimmed(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) 
 // over it, so that it is written whole or not at all, under a name no other
 // session writes at once: the first of `history.new1`, `history.new2` and
 // on that `makeFile` makes, since it refuses one that exists.
-fn replaced(path : Path, bytes : Bytes, n : Int) : Either(Io.Error, Unit) with m = {
-    let beside = Path.withExtension(path, "new" <> Int.toString(n));
-    match Fs.makeFile(beside, bytes, wait) {
-        Left(Io.Exists) -> replaced(path, bytes, n + 1)
-      | Left(why) -> Left(why)
-      | Right(_) -> match Fs.rename(beside, path, wait) {
-            Left(why) -> {
-                let _ = Fs.remove(beside, wait);
-                Left(why)
+fn replaced(path : Path, bytes : Bytes, attempt : Int) : Either(Io.Error, Unit) with m = {
+    let beside = Path.withExtension(path, "new" <> Int.toString(attempt));
+    match Fs.makeFile(beside, bytes, fileMs) {
+        Left(Io.Exists) -> replaced(path, bytes, attempt + 1)
+      | Left(error) -> Left(error)
+      | Right(_) -> match Fs.rename(beside, path, fileMs) {
+            Left(error) -> {
+                let _ = Fs.remove(beside, fileMs);
+                Left(error)
             }
           | Right(_) -> Right(Unit)
         }
@@ -91,7 +91,7 @@ fn text(inputs : List(String)) : String =
 export fn add(input : String) : Either(Io.Error, Unit) with m =
     match file {
         None -> Right(Unit)
-      | Some(path) -> Fs.append(path, String.toUtf8(encode(input) <> "\n"), wait)
+      | Some(path) -> Fs.append(path, String.toUtf8(encode(input) <> "\n"), fileMs)
     }
 
 // Report §11.2: the directory made where it is not there, as before a
@@ -101,9 +101,9 @@ export fn add(input : String) : Either(Io.Error, Unit) with m =
 fn made(path : Path) : Either(Io.Error, Unit) with m =
     match Path.parent(path) {
         None -> Right(Unit)
-      | Some(dir) -> {
-            let _ <- Fs.makeDir(dir, wait);
-            Fs.setMode(dir, 0o700, wait)
+      | Some(directory) -> {
+            let _ <- Fs.makeDir(directory, fileMs);
+            Fs.setMode(directory, 0o700, fileMs)
         }
     }
 
@@ -123,12 +123,12 @@ fn encode(input : String) : String =
 fn decode(line : String) : String =
     String.fromList(List.reverse(undo(String.toList(line), [])))
 
-fn undo(rest : List(Char), done : List(Char)) : List(Char) =
+fn undo(rest : List(Char), acc : List(Char)) : List(Char) =
     match rest {
-        '\\' :: 'n' :: more -> undo(more, '\n' :: done)
-      | '\\' :: '\\' :: more -> undo(more, '\\' :: done)
-      | c :: more -> undo(more, c :: done)
-      | [] -> done
+        '\\' :: 'n' :: more -> undo(more, '\n' :: acc)
+      | '\\' :: '\\' :: more -> undo(more, '\\' :: acc)
+      | char :: more -> undo(more, char :: acc)
+      | [] -> acc
     }
 
 //

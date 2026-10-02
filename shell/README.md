@@ -20,7 +20,7 @@ Then read the modules in any order. A file's path under the source root `shell/`
 The comments on the three mailbox types, `ShellMsg`, `ReaderMsg` and `ScreenMsg`, say who sends each message.
 
 - **The session** is `main`, then `keyLoop`, or `lineLoop` in line mode. It holds the `State` and takes one input at a time. It runs an Ernest input in a new process and waits for the run in `await`.
-- **The reader** is `reader`, then `readLoop`. It passes a change of the terminal's size to the screen as `Resize`. Every other event from the terminal goes through `Shell.Editor.edit`, whose `Edit` says what to do: show the line, submit it, cancel it, clear the screen, complete, document, or leave.
+- **The reader** is `reader`, then `readLoop`. It passes a change of the terminal's size to the screen as `Resized`. Every other event from the terminal goes through `Shell.Editor.edit`, whose `Edit` says what to do: show the line, submit it, cancel it, clear the screen, complete, document, or leave.
 - **The screen** is `screenLoop`, the only process that writes to the terminal. For each message it writes the bytes its `Shell.Region.Region` gives back. In line mode it runs `plainLoop` instead, which writes text as it comes.
 
 What each process holds, and how the session orders and queues its work, is the design note's *Processes*.
@@ -41,11 +41,11 @@ What each process holds, and how the session orders and queues its work, is the 
 
 At a terminal:
 
-1. A key reaches the reader as `K(event)`, and `Shell.Editor.edit` answers `Submit`.
+1. A key reaches the reader as `Key(event)`, and `Shell.Editor.edit` answers `Submit`.
 2. `continues` asks the parser (`needsMore`) whether the input takes another line. It does not, so the reader appends the input to the history (`remember`), sends the screen `Entered` and the session `Typed(text)`, and starts the next line.
 3. `keyLoop` receives `Typed`, sends the screen `Taken`, and calls `taking`. `taking` passes a line that is not blank to `submit`, which sends a `:` line to `perform` and any other to `evaluate`.
 4. A command: `Shell.Command.parse` answers the action and its argument, or a refusal. `obey` carries out the action.
-5. Ernest: `evaluate` calls `run`, which checks the input (`check`) and starts it (`spawnInput`). `await` waits for the run's `Done` and says what it came to. A fault report of the input's own process is its answer too: such a fault is one a signal brought, and no `Done` follows it.
+5. Ernest: `evaluate` calls `execute`, which checks the input (`check`) and starts it (`spawnInput`). `await` waits for the input's `Done` and says what it came to. A fault report of the input's own process is its answer too: such a fault is one a signal brought, and no `Done` follows it.
 6. `say` sends the screen `Said`, and the screen writes the bytes `Shell.Region.said` gives back.
 7. `prompt` drains the screen with a `Flush` call and writes the next `> ` (the design note's *Ordering*).
 
@@ -75,7 +75,7 @@ Every module but `Shell`, `Shell.History` and `Shell.Complete` is pure, and `She
 
 The shell reaches the host as any program does: through the system modules `Terminal`, `Io`, `Fs`, `Os` and `Clock` (§8.2), and through the standard library's `Process` (E.21). Beyond them it declares `foreign fn`s (§4.7). Each declaration's string names the Erlang function that answers it, whose name may differ: `spawnInput` is `ern_shell:run/4`. [`erl/cli/src/ern_shell.erl`](../erl/cli/src/ern_shell.erl) answers every one but `holdTerminal`, which the runtime answers. The design note's *The foreign interface* groups them by what they are for.
 
-`Env`, `Checked` and `Value` are foreign types (§3.8), handles the shell never looks inside. The session keeps the `Env` in its `State` and passes it to `check`, `spawnInput`, and each command's function that needs it. The reader's questions, such as `names` and `documentation`, take no `Env`. They read the front end's own copy of the session, which the design note's *The front end's copy* explains.
+`Session`, `Checked` and `Value` are foreign types (§3.8), handles the shell never looks inside. The session process keeps the `Session` in its `State` and passes it to `check`, `spawnInput`, and each command's function that needs it. The reader's questions, such as `names` and `documentation`, take no `Session`. They read the front end's own copy of the session, which the design note's *The front end's copy* explains.
 
 ## Idioms to notice
 

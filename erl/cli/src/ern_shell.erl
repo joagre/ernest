@@ -8,7 +8,7 @@
 -module(ern_shell).
 
 -export([loaded/1, start/0, program/0, startup_files/0, needs_more/1, check/3,
-         is_unit/1, type_text/1, run/4, show/3, bindings/1, context/1, names/0,
+         is_unit/1, type_text/1, run/4, show/3, bindings/1, slot/1, names/0,
          session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
          documentation/1, fields/1, signature/1, load/2,
          reload/1, version/0, write/1, screen/1, to_screen/1,
@@ -591,34 +591,35 @@ bindings(#session{scope = Scope} = Session) ->
 %% knows and nothing else does: it says what it wanted where it stopped
 %% (§11.5's diagnostic carries the tag). Both readings are tried, as
 %% `input/1` tries them. Completion decides for itself which kinds of
-%% name a context admits; this only answers the context.
--spec context(binary()) -> atom() | {'Fields', [binary()]}.
-context(Before) ->
+%% name a slot admits; this only answers the slot, a `Shell.Complete.Slot`.
+-spec slot(binary()) -> atom() | {'Fields', [binary()]}.
+slot(Before) ->
     case [What || {true, What} <- [wanted(ern_parser:parse_expr(Before)),
                                    wanted(ern_parser:parse_string(Before))],
                   What =/= undefined] of
-        [What | _] -> where(What);
+        [What | _] -> slot_for(What);
         [] -> 'Expression'
     end.
 
 wanted({error, #diagnostic{incomplete = Incomplete, expected = What}}) -> {Incomplete, What};
 wanted(_) -> {false, undefined}.
 
-where(expression) -> 'Expression';
-where(typename) -> 'TypeName';
-where(pattern) -> 'Pattern';
-where(declaration) -> 'Declaration';
-where(#expected_field{kind = field, path = Path, constructor_name = ConstructorName}) ->
+slot_for(expression) -> 'Expression';
+slot_for(typename) -> 'TypeName';
+slot_for(pattern) -> 'Pattern';
+slot_for(declaration) -> 'Declaration';
+slot_for(#expected_field{kind = field, path = Path, constructor_name = ConstructorName}) ->
     {'Fields', fields_of(Path, ConstructorName)};
 %% the parser could not tell a field's name from a value; the
 %% constructor's type can, and only a named constructor has fields
-where(#expected_field{kind = field_or_value, path = Path, constructor_name = ConstructorName}) ->
+slot_for(#expected_field{kind = field_or_value, path = Path,
+                         constructor_name = ConstructorName}) ->
     case fields_of(Path, ConstructorName) of
         [] -> 'Expression';
         Fields -> {'Fields', Fields}
     end;
-where(#expected_field{kind = field_or_pattern, path = Path,
-                      constructor_name = ConstructorName}) ->
+slot_for(#expected_field{kind = field_or_pattern, path = Path,
+                         constructor_name = ConstructorName}) ->
     case fields_of(Path, ConstructorName) of
         [] -> 'Pattern';
         Fields -> {'Fields', Fields}

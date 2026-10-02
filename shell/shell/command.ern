@@ -107,14 +107,15 @@ export let commands =
 /// Report §11.2: a command line, the action its name selects and the
 /// argument after it, or the refusal that says why it selects none.
 export fn parse(line : String) : Either(String, #(Action, String)) = {
-    let #(word, arg) = split(line);
+    let #(word, argument) = split(line);
     match pick(String.slice(word, 1, String.size(word) - 1)) {
         Unknown -> Left("no command " <> word <> "; :help lists them")
       | Ambiguous(names) -> Left(word <> " is " <> alternatives(names))
       | Picked(Command(name = name, action = action, takes = takes)) -> match takes {
-            Needs(what = what) when String.isEmpty(arg) -> Left(":" <> name <> " takes " <> what)
-          | Nothing when !String.isEmpty(arg) -> Left(":" <> name <> " takes no argument")
-          | _ -> Right(#(action, arg))
+            Needs(what = what) when String.isEmpty(argument) ->
+                Left(":" <> name <> " takes " <> what)
+          | Nothing when !String.isEmpty(argument) -> Left(":" <> name <> " takes no argument")
+          | _ -> Right(#(action, argument))
         }
     }
 }
@@ -126,31 +127,31 @@ type Picked = Picked(Command) | Unknown | Ambiguous(List(String))
 // Report §11.2: a name selects its command, and so does a prefix of it that
 // begins no other command's name.
 fn pick(name : String) : Picked = {
-    let begun = List.filter(commands, fn(c) = String.startsWith(c.name, name));
-    match List.filter(begun, fn(c) = c.name == name) {
+    let begun = List.filter(commands, fn(command) = String.startsWith(command.name, name));
+    match List.filter(begun, fn(command) = command.name == name) {
         [whole] -> Picked(whole)
       | _ -> if String.isEmpty(name) then
             Unknown
         else match begun {
             [] -> Unknown
           | [one] -> Picked(one)
-          | many -> Ambiguous(List.map(many, fn(c) = c.name))
+          | many -> Ambiguous(List.map(many, fn(command) = command.name))
         }
     }
 }
 
 // `:bindings or :browse`, and `:a, :b or :c` for three.
 fn alternatives(names : List(String)) : String =
-    words(List.map(names, fn(name) = ":" <> name))
+    choice(List.map(names, fn(name) = ":" <> name))
 
 // `a or b`, and `a, b or c` for three.
-fn words(ws : List(String)) : String =
-    match List.last(ws) {
+fn choice(words : List(String)) : String =
+    match List.last(words) {
         None -> ""
-      | Some(last) -> if List.size(ws) == 1 then
+      | Some(last) -> if List.size(words) == 1 then
             last
         else
-            String.join(List.dropLast(ws, 1), ", ") <> " or " <> last
+            String.join(List.dropLast(words, 1), ", ") <> " or " <> last
     }
 
 // A command line: its first word, the command with its `:`, and what
@@ -169,8 +170,8 @@ export fn wordEnd(line : String) : Int =
 /// anything after it.
 export fn completes(word : String) : Optional(Completes) =
     match pick(String.slice(word, 1, String.size(word) - 1)) {
-        Picked(Command(takes = Needs(completes = k))) -> Some(k)
-      | Picked(Command(takes = Allows(k))) -> Some(k)
+        Picked(Command(takes = Needs(completes = kind))) -> Some(kind)
+      | Picked(Command(takes = Allows(kind))) -> Some(kind)
       | _ -> None
     }
 
@@ -178,14 +179,17 @@ export fn completes(word : String) : Optional(Completes) =
 /// command by the same line.
 export fn help() : List(String) =
     ["Commands, which a prefix of the name selects where it begins no other:"]
-        <> List.map(commands, fn(c) = "  " <> line(c))
+        <> List.map(commands, fn(command) = "  " <> line(command))
         <> ["The value of the last expression is `it`."]
 
 /// A command's line of the help: its name, the word it takes, and what it
 /// does.
-export fn line(c : Command) : String = {
-    let head = if String.isEmpty(c.placeholder) then c.name else c.name <> " " <> c.placeholder;
-    String.padEnd(":" <> head, column, " ") <> c.about
+export fn line(command : Command) : String = {
+    let head = if String.isEmpty(command.placeholder) then
+        command.name
+    else
+        command.name <> " " <> command.placeholder;
+    String.padEnd(":" <> head, column, " ") <> command.about
 }
 
 // The column a help line's prose starts at, past the longest command and
@@ -208,20 +212,23 @@ export type Setting = Depth(Int) | Length(Int) | OutputRows(Int) | Timing(Bool)
 
 /// Report §11.2: what `:set`'s argument sets, or the refusal that says why
 /// it sets nothing.
-export fn setting(arg : String) : Either(String, Setting) =
-    match split(arg) {
+export fn setting(argument : String) : Either(String, Setting) =
+    match split(argument) {
         #("depth", rest) -> count("depth", rest, Depth)
       | #("length", rest) -> count("length", rest, Length)
       | #("output", rest) -> count("output", rest, OutputRows)
       | #("timing", "on") -> Right(Timing(true))
       | #("timing", "off") -> Right(Timing(false))
       | #("timing", _) -> Left(":set timing takes on or off")
-      | _ -> Left(":set takes " <> words(List.map(settings, fn(#(name, _)) = name)))
+      | _ -> Left(":set takes " <> choice(List.map(settings, fn(#(name, _)) = name)))
     }
 
 fn count(what : String, text : String, made : (Int) -> Setting) : Either(String, Setting) =
     match String.toInt(text) {
-        Some(n) -> if n < 0 then Left(":set " <> what <> " takes 0 or more") else Right(made(n))
+        Some(value) -> if value < 0 then
+            Left(":set " <> what <> " takes 0 or more")
+        else
+            Right(made(value))
       | None -> Left(":set " <> what <> " takes a number")
     }
 
@@ -243,7 +250,7 @@ let whole = Test.Case(name = "a whole name selects its command", run = fn() = ma
 })
 
 let alphabetical = Test.Case(name = "the commands are in alphabetical order", run = fn() = {
-    let names = List.map(commands, fn(c) = c.name);
+    let names = List.map(commands, fn(command) = command.name);
     if names == List.sort(names, String.compare) then
         Test.Passed
     else
@@ -293,10 +300,11 @@ let completing =
 
 let helpLines =
     Test.Case(name = "a help line's prose starts in one column", run = fn() = match pick("browse") {
-        Picked(c) -> if line(c) == ":browse Module  the exports of Module with their types" then
-            Test.Passed
-        else
-            Test.Failed(line(c))
+        Picked(command) ->
+            if line(command) == ":browse Module  the exports of Module with their types" then
+                Test.Passed
+            else
+                Test.Failed(line(command))
       | _ -> Test.Failed("browse")
     })
 

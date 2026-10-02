@@ -1474,10 +1474,10 @@ refusal_colour() ->
 %% and the parser is what knows: after `:` a type, inside a named
 %% constructor its fields, and everywhere else the values,
 %% constructors and modules in scope
-context_test_() ->
-    {timeout, 90, fun context/0}.
+slot_test_() ->
+    {timeout, 90, fun slot/0}.
 
-context() ->
+slot() ->
     Screen = screen(alone("../bin/ern shell"),
                     [{expect, "> "},
                      {send, hex("type Zebra = Zebra(width : Int, height : Int)\r")},
@@ -2362,15 +2362,15 @@ fields_by_module_test() ->
             end,
     try
         with_loaded(Dir, [<<"Circles">>, <<"Discs">>]),
-        ?assertEqual([<<"diameter">>, <<"hole">>], Texts(ern_shell:context(<<"Discs.Round(">>))),
-        ?assertEqual([<<"radius">>], Texts(ern_shell:context(<<"Circles.Round(">>))),
+        ?assertEqual([<<"diameter">>, <<"hole">>], Texts(ern_shell:slot(<<"Discs.Round(">>))),
+        ?assertEqual([<<"radius">>], Texts(ern_shell:slot(<<"Circles.Round(">>))),
         ?assertEqual([<<"diameter">>, <<"hole">>],
-                     Texts(ern_shell:context(<<"Discs.Round(hole = true, ">>))),
+                     Texts(ern_shell:slot(<<"Discs.Round(hole = true, ">>))),
         ?assertEqual([<<"diameter">>, <<"hole">>],
-                     Texts(ern_shell:context(<<"match s { Discs.Round(">>))),
-        ?assertEqual([<<"radius">>], Texts(ern_shell:context(<<"match s { Circles.Round(">>))),
+                     Texts(ern_shell:slot(<<"match s { Discs.Round(">>))),
+        ?assertEqual([<<"radius">>], Texts(ern_shell:slot(<<"match s { Circles.Round(">>))),
         %% an unqualified `Round` is neither module's, and has no fields
-        ?assertEqual('Expression', ern_shell:context(<<"Round(">>))
+        ?assertEqual('Expression', ern_shell:slot(<<"Round(">>))
     after
         forget_session()
     end.
