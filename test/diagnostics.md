@@ -1699,6 +1699,77 @@ example.ern:3:27: `..` is allowed only on a type with one constructor, and Shape
   | = help: give every field of Circle
 ```
 
+### A fill that lacks a field (§5.6)
+
+```ernest-rejected
+type Ops(s, a) = Ops(fromList : (List(a)) -> s, min : (s) -> Optional(a))
+
+let hashed : Ops(Set(Int), Int) = Ops(..Set)
+```
+
+```console
+$ ern build example.ern
+example.ern:3:41: Ops(..Set) lacks min: Set has no min
+2 | 
+3 | let hashed : Ops(Set(Int), Int) = Ops(..Set)
+  |                                         ^^^
+```
+
+### A filled field of another type (§5.6)
+
+```ernest-rejected
+type Ops(s) = Ops(size : (s) -> Bool)
+
+let hashed : Ops(Set(Int)) = Ops(..Set)
+```
+
+```console
+$ ern build example.ern
+example.ern:3:36: Ops(..Set) fills size with Set.size: expected (a) -> Bool, found (Set(a=!)) -> Int
+2 | 
+3 | let hashed : Ops(Set(Int)) = Ops(..Set)
+  |                              --- Ops declares size : (a) -> Bool
+  |                                    ^^^
+  | = help: the types differ at Bool and Int
+```
+
+### A fill whose record type leaves a requirement's variable undetermined (§5.6, §4.9)
+
+```ernest-rejected
+type Ops(s, a) = Ops(fromList : (List(a)) -> s)
+
+fn f() : Int = {
+    let ops = Ops(..OrderedSet);
+    1
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:4:21: fromList needs a.compare, and the record's type leaves a undetermined
+3 | fn f() : Int = {
+4 |     let ops = Ops(..OrderedSet);
+  |                     ^^^^^^^^^^
+```
+
+### A record update that gives no field (§5.6)
+
+```ernest-rejected
+type Point = Point(x : Int, y : Int)
+
+fn same(p : Point) : Point =
+    Point(..p)
+```
+
+```console
+$ ern build example.ern
+example.ern:4:5: a record update gives at least one field after its `..`
+3 | fn same(p : Point) : Point =
+4 |     Point(..p)
+  |     ^^^^^^^^^^
+  | = help: give the fields that change; with none, the value after `..` is the record
+```
+
 ## Operators (report §4.8)
 
 ### An operator on operands whose type is not determined (§4.8)
@@ -1880,6 +1951,250 @@ example.ern:3:17: () -> Int does not support equality (it contains a function or
 2 | 
 3 | fn f() : Bool = same(fn() = 1, fn() = 1)
   |                 ^^^^
+```
+
+## Requirements and derived members (report §4.9, §3.5)
+
+### A call that needs a member the function does not declare (§4.9)
+
+```ernest-rejected
+fn unique(list : List(a)) : List(a) =
+    OrderedSet.toList(OrderedSet.fromList(list))
+```
+
+```console
+$ ern build example.ern
+example.ern:2:23: fromList needs a.compare, which unique does not declare; add needs a.compare
+1 | fn unique(list : List(a)) : List(a) =
+2 |     OrderedSet.toList(OrderedSet.fromList(list))
+  |                       ^^^^^^^^^^^^^^^^^^^
+```
+
+### An operator on a type variable no requirement names (§4.8, §4.9)
+
+```ernest-rejected
+fn smaller(x : a, y : a) : a =
+    if x < y then x else y
+```
+
+```console
+$ ern build example.ern
+example.ern:2:8: `<` needs a.compare, which smaller does not declare; add needs a.compare
+1 | fn smaller(x : a, y : a) : a =
+2 |     if x < y then x else y
+  |        ^^^^^
+```
+
+### A member written without its requirement (§4.9)
+
+```ernest-rejected
+fn sum(x : a, y : a) : a needs a.compare =
+    a.+(x, y)
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: sum does not declare a.+; add needs a.+
+1 | fn sum(x : a, y : a) : a needs a.compare =
+2 |     a.+(x, y)
+  |     ^^^
+```
+
+### A top-level `let` that would need a requirement (§4.9)
+
+```ernest-rejected
+let build = OrderedSet.fromList
+```
+
+```console
+$ ern build example.ern
+example.ern:1:13: fromList needs a.compare; a let cannot declare it, so write a fn with the requirement
+1 | let build = OrderedSet.fromList
+  |             ^^^^^^^^^^^^^^^^^^^
+```
+
+### A known type without the member (§4.9)
+
+```ernest-rejected
+fn f() : Int =
+    OrderedSet.size(OrderedSet.fromList([[1], [2]]))
+```
+
+```console
+$ ern build example.ern
+example.ern:2:21: fromList needs List(Int).compare, and List(Int) has no compare
+1 | fn f() : Int =
+2 |     OrderedSet.size(OrderedSet.fromList([[1], [2]]))
+  |                     ^^^^^^^^^^^^^^^^^^^
+```
+
+### A member of another result type (§4.9)
+
+```ernest-rejected
+type Vec = Vec(Float)
+
+fn Vec.+(Vec(a) : Vec, Vec(b) : Vec) : Float =
+    a + b
+
+fn total(list : List(a), zero : a) : a needs a.+ =
+    List.foldLeft(list, zero, a.+)
+
+fn f() : Vec =
+    total([Vec(1.0)], Vec(0.0))
+```
+
+```console
+$ ern build example.ern
+example.ern:10:5: total needs Vec.+ : (Vec, Vec) -> Vec, and Vec.+ answers Float
+ 9 | fn f() : Vec =
+10 |     total([Vec(1.0)], Vec(0.0))
+   |     ^^^^^
+   | = help: a function over an operation of another shape takes it as a parameter
+```
+
+### A requirement that names no member (§4.9)
+
+```ernest-rejected
+fn sum(list : List(a)) : a needs a.zero, a.+ =
+    List.foldLeft(list, a.zero, a.+)
+```
+
+```console
+$ ern build example.ern
+example.ern:1:34: zero is not a member: a requirement names compare, negate, an operator or show (§4.8, E.1)
+1 | fn sum(list : List(a)) : a needs a.zero, a.+ =
+  |                                  ^
+```
+
+### A requirement on no type variable of the signature (§4.9)
+
+```ernest-rejected
+fn f(x : a) : a needs b.compare =
+    x
+```
+
+```console
+$ ern build example.ern
+example.ern:1:23: b is no type variable of the signature
+1 | fn f(x : a) : a needs b.compare =
+  |                       ^^^^^^^^^
+```
+
+### A requirement on an effect variable (§4.9)
+
+```ernest-rejected
+fn f(x : a) : a with e needs e.compare =
+    x
+```
+
+```console
+$ ern build example.ern
+example.ern:1:30: e is no type variable of the signature
+1 | fn f(x : a) : a with e needs e.compare =
+  |                              ^^^^^^^^^
+  | = help: e stands only after `with`, where a mailbox type stands, and a requirement names a type
+```
+
+### A binding named as a type variable of the signature (§4.9)
+
+```ernest-rejected
+fn f(a : a) : a needs a.compare =
+    a
+```
+
+```console
+$ ern build example.ern
+example.ern:1:6: `a` names a type variable of the signature, and a declaration with a requirement binds no name that is one of its type variables
+1 | fn f(a : a) : a needs a.compare =
+  |      ^
+  | = help: rename the binding; a.compare names the member of a's type
+```
+
+### A lambda with a requirement (§4.9)
+
+```ernest-rejected
+let f = fn(x : a) : a needs a.compare = x
+```
+
+```console
+$ ern build example.ern
+example.ern:1:23: a lambda declares no requirement
+1 | let f = fn(x : a) : a needs a.compare = x
+  |                       ^^^^^
+  | = help: declare a `fn` with the requirement and pass it
+```
+
+### `Io.show` at a type variable no requirement names (Appendix E.1, §4.9)
+
+```ernest-rejected
+fn shown(x : a) : String =
+    Io.show(x)
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: Io.show needs a.show, which shown does not declare; add needs a.show
+1 | fn shown(x : a) : String =
+2 |     Io.show(x)
+  |     ^^^^^^^
+```
+
+### A declaration with a requirement as a value at the prompt (§4.9, §11.2)
+
+```console
+$ ern shell
+Ernest 0.2.0. :help for the commands, :quit to leave.
+> OrderedSet.fromList
+input 1:1:1: fromList needs a.compare, at a type variable no requirement can name
+1 | OrderedSet.fromList
+  | ^^^^^^^^^^^^^^^^^^^
+  | = help: apply it at a known type, or declare a `fn` with the requirement
+```
+
+### A derived compare over a field without one (§3.5)
+
+```ernest-rejected
+type Date = Date(year : Int, at : Optional(Int)) derives compare
+```
+
+```console
+$ ern build example.ern
+example.ern:1:35: Date.compare cannot be derived: Optional(Int) has no compare
+1 | type Date = Date(year : Int, at : Optional(Int)) derives compare
+  |                                   ^^^^^^^^^^^^^
+```
+
+### A type that derives compare and declares it (§3.5)
+
+```ernest-rejected
+type Coin = Coin(Int) derives compare
+
+fn Coin.compare(Coin(a) : Coin, Coin(b) : Coin) : Ordering =
+    Int.compare(a, b)
+```
+
+```console
+$ ern build example.ern
+example.ern:1:23: Coin derives compare and declares it too
+1 | type Coin = Coin(Int) derives compare
+  |                       ^^^^^^^^^^^^^^^
+...
+3 | fn Coin.compare(Coin(a) : Coin, Coin(b) : Coin) : Ordering =
+  | ------------------------------------------------------------ declared here
+  | = help: keep the declaration, or `derives compare`
+```
+
+### `derives` of what is not compare (§3.5)
+
+```ernest-rejected
+type Coin = Coin(Int) derives show
+```
+
+```console
+$ ern build example.ern
+example.ern:1:31: `derives` names compare and nothing else, not identifier `show`
+1 | type Coin = Coin(Int) derives show
+  |                               ^^^^
 ```
 
 ## Expressions (report §5)

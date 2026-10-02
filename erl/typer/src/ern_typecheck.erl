@@ -2183,9 +2183,15 @@ derived_members(Declarations, Env) ->
                   Derived),
     Requirements = derived_requirements([TypeDeclaration || {TypeDeclaration, _} <- Derived],
                                         Declarations, Env),
-    Declarations ++ [derived_compare(TypeDeclaration, Export,
-                                     maps:get(Name, Requirements), Env)
-                     || {#type_declaration{name = Name} = TypeDeclaration, Export} <- Derived].
+    %% each after its type, where the page lists it (report §11.4, §3.5)
+    lists:append([case derivable(Declaration) of
+                      {#type_declaration{name = Name, derives = Derives} = TypeDeclaration, Export}
+                        when Derives =/= undefined ->
+                          [Declaration, derived_compare(TypeDeclaration, Export,
+                                                        maps:get(Name, Requirements), Env)];
+                      _ ->
+                          [Declaration]
+                  end || Declaration <- Declarations]).
 
 derivable(#type_declaration{export = Export} = TypeDeclaration) -> {TypeDeclaration, Export};
 derivable(#abstract_declaration{export = Export, declaration = TypeDeclaration}) ->
@@ -2291,9 +2297,14 @@ own_member_requirement(Name, compare, TypeDeclarations, Requirements, _Declarati
 own_member_requirement(Name, Member, _TypeDeclarations, _Requirements, Declarations) ->
     case [Declaration || Declaration <- Declarations,
                          declaration_key(Declaration) =:= {Name, Member}] of
-        [#fn_declaration{params = [#param{annotation = First} | _], requirement = Members}] ->
-            {ok, [{Path, Needed} || #member{member_of = Variable, name = Needed} <- Members,
-                                    Path <- annotation_paths(First, Variable)]};
+        [#fn_declaration{params = Params, requirement = Members}] ->
+            %% the variable's place is read from whichever parameter the
+            %% member annotates; a requirement names a variable the
+            %% signature writes, so one does
+            {ok, lists:usort([{Path, Needed}
+                              || #member{member_of = Variable, name = Needed} <- Members,
+                                 #param{annotation = Annotation} <- Params,
+                                 Path <- annotation_paths(Annotation, Variable)])};
         [_] -> {ok, []};
         [] -> none
     end.
@@ -2696,6 +2707,12 @@ not_in_force(Span, Variable, Member, Need, Env) ->
                     fail(Span, needer_text(Need) ++ " needs " ++ Wanted
                                ++ "; a let cannot declare it, so write a fn with the"
                                " requirement");
+                {fn, [$$ | _]} ->
+                    %% report §11.2: an input at the prompt, named as no
+                    %% program names a function (§2.3), has no signature
+                    fail(Span, needer_text(Need) ++ " needs " ++ Wanted
+                               ++ ", at a type variable no requirement can name", [],
+                         "apply it at a known type, or declare a `fn` with the requirement");
                 _ ->
                     fail(Span, needer_text(Need) ++ " needs " ++ Wanted
                                ++ ", at a type variable no requirement can name", [],

@@ -10,7 +10,7 @@ One Ernest module goes through these stages, each an Erlang application under `e
 |---|---|---|---|
 | lexer | `ern_lexer` | source text | tokens |
 | parser | `ern_parser`; `ern_ast`, a node's span and the walks later stages share | tokens | AST, records of `ern_ast.hrl` |
-| format | `ern_format` and its printer `ern_pretty`, off the compiler's path (§11.6) | source, tokens with comments, AST | the text laid out |
+| format | `ern_format` and its printer `ern_pretty` (§11.6), which `ern_docs` lays a type declaration out with (§11.4) | source, tokens with comments, AST | the text laid out |
 | typer | `ern_typecheck`, with `ern_types`, `ern_prelude`, `ern_exhaust`, `ern_reply`, `ern_scope` (§5.4), `ern_bitspec` (§5.11), and `ern_interface`, the interface chunk | AST, dependency interfaces | typed AST, interface, environment |
 | emitter | `ern_emitter`, with `ern_descriptor` (§8.4) and `ern_docs`, the `Docs` chunk | typed AST, environment | Erlang forms, then BEAM with the `ErnI` and `Docs` chunks |
 | runtime | `ern_rt`, `ern_boundary`, `ern_show`, the system processes `ern_fs`, `ern_tty`, `ern_tcp` and `ern_os`, the standard library's shims, `ern_tty_signal`, the terminal's resize handler, and `ern_exec`, the one helper in C | | what compiled code calls |

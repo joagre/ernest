@@ -834,7 +834,7 @@ supply_form(#shown_type{type = Type}, Context) ->
 supply_form(#known_member{qualified_name = [_] = QualifiedName, member = Member,
                           supplies = []}, Context) ->
     %% report §9.6: a prelude type's member, the runtime's own operation or
-    %% its module's
+    %% its module's; the position is never shown, since no member spawns
     Type = {tcon, QualifiedName, []},
     prelude_value({1, 1, {1, 1}}, QualifiedName ++ [Member],
                   {tfn, lists:duplicate(member_arity(Member), Type), pure, Type}, Context);

@@ -1,6 +1,6 @@
 /// Operations on `Map(k, v)`, a finite map from keys to values in the
 /// order of the keys' type's `compare` (report §3.10). A function that
-/// needs the order says so, `needs k.compare` (report §4.8): `contains`,
+/// needs the order says so, `needs k.compare` (report §4.9): `contains`,
 /// `get`, `put`, `remove`, `update`, `merge`, `mergeWith` and `fromList`;
 /// the rest keep the keys and need none. A map is data: `==` is
 /// structural, a map keys a `Map`, and a map is sent to another node.
