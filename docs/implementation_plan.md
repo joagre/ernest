@@ -176,9 +176,10 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    1's (the log's *The Operations Specification Read*).
 
    Once decided, it is built in the report's order. The report first, with everything the
-   note introduces, the note's *What changes in Ernest* being the list: §4.8's requirement with
-   its limits and its errors, §3.5's fill and `derives`, E.1's `show` under a requirement,
-   Appendix A's three rules, §11.5's errors and the requirement on a page and in the shell, and
+   note introduces, the note's *What changes in Ernest* being the list: the requirement in a
+   new section after §4.8, at the end of chapter 4, where a section goes without renumbering,
+   with its limits and its errors, §4.8 pointing at it, §3.5's `derives` and §5.6's fill,
+   E.1's `show` under a requirement, Appendix A's four rules, §11.5's errors and the requirement on a page and in the shell, and
    two sections at the end of Appendix E, `ordered_set.ern` and `ordered_map.ern`, each
    stating its representation and costs whole. Then the toolchain, the requirement and the fill
    first, built against the five files under `docs/operations/` as they stand until they
@@ -320,8 +321,11 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
 16. **The guide's §7.3**, over the finished code and its names: it says "operations record"
     and shows a generic function with its requirement, a type that derives its order, a
     record the program declares and fills from a namespace, two orders as two types that
-    cannot meet in `union`, an ordered map, and values of several representations in one list. Its examples compile and run under the
-    guide's checks. What Ernest cannot express goes to
+    cannot meet in `union`, an ordered map, and values of several representations in one list.
+    Its example is `ordered_set.ern`, read whole as the module that declares what it needs,
+    with `usage.ern`'s program as the code that relies on it, and `ordered_map.ern` named as
+    its twin, decided with the user 2026-10-02 (the log's *The Operations Specification
+    Read*). Its examples compile and run under the guide's checks. What Ernest cannot express goes to
     [`language_feedback.md`](language_feedback.md) and is decided with the user before the
     section goes around it. The guide's §7.3 was decided 2026-09-28 (the log's *§7.3 Written
     Around an Ordered Set*); §7.2 states the rule for a type's operations since the principles

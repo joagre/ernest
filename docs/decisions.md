@@ -6476,6 +6476,8 @@ The rest were places an implementer would have guessed. Appendix A: a `Primary` 
 
 Found sound and left: the specification stays inside §3.9's typing, a requirement being a declaration's record in the interface and an argument the emitter adds, as the note's *Typing* says, with coherence from a type's one member; and the sorted list with structural `==`.
 
+Two more decisions with the user the same day. The requirement's section of the report is a new one after §4.8, at the end of chapter 4, the one place a section goes without renumbering, with §3.5 gaining `derives` and §5.6 the fill and each pointing at it; a report that states a form of this weight in a section of its own is read as the Wirth reports are, and a sentence added to §4.8 would have made the operators' section carry a second subject. And the guide's §7.3 teaches with `ordered_set.ern`, twenty functions over a sorted list, small enough to read whole and showing both sides, the module that declares what it needs and `usage.ern`'s program that relies on it, with `derives compare` on `Date` and the fill `Ops(..Set)`; `ordered_map.ern` is named as its twin. Not taken: the requirement as sentences of §4.8; and the guide's example a program that uses the forms alone, which shows one side.
+
 ## The Requirement, the Fill and the Set as Data, 2026-10-02
 
 MVP 2.99b's item 5 was decided with the user on 2026-10-02 over five revisions of `operations.md`, `eed585a` to `cc03f0f`, and reached the note's twelve rules through three choices, each tried first in a form the day set aside.
