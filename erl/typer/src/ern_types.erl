@@ -517,8 +517,11 @@ format_call(#scheme{type = Type} = Scheme, Params, Marked, TypeState) ->
                      || {Name, Text} <- lists:zip(padded(Params, length(ParamTypes)), Shown)],
             {ResultText, Names2} = format_result(Result, SchemeState, Names1),
             EffectText = case Effect of
-                             pure -> [];
-                             _ -> [" with ", element(1, format_type(Effect, SchemeState, Names2))]
+                             pure ->
+                                 [];
+                             _ ->
+                                 {EffectShown, _} = format_type(Effect, SchemeState, Names2),
+                                 [" with ", EffectShown]
                          end,
             %% a declaration's head, whatever its parameters, writes its
             %% result after `:`; a function's type alone keeps its arrow
@@ -527,18 +530,19 @@ format_call(#scheme{type = Type} = Scheme, Params, Marked, TypeState) ->
                         none -> ") -> ";
                         _ -> ") : "
                     end,
-            Tail = [Arrow, ResultText, EffectText],
-            case Marked < length(Named) of
-                true ->
-                    {Left, [This | Right]} = lists:split(Marked, Named),
-                    {lists:flatten(["(", [[Param, ", "] || Param <- Left]]), lists:flatten(This),
-                     lists:flatten([[[", ", Param] || Param <- Right], Tail])};
-                false ->
-                    {lists:flatten(["(", lists:join(", ", Named), Tail]), "", ""}
-            end;
+            marked(Named, Marked, [Arrow, ResultText, EffectText]);
         _ ->
             {format_scheme(Scheme, TypeState), "", ""}
     end.
+
+%% The signature in three parts around the parameter at the cursor; past
+%% the last parameter, the whole is the first part.
+marked(Named, Marked, Tail) when Marked < length(Named) ->
+    {Left, [This | Right]} = lists:split(Marked, Named),
+    {lists:flatten(["(", [[Param, ", "] || Param <- Left]]), lists:flatten(This),
+     lists:flatten([[[", ", Param] || Param <- Right], Tail])};
+marked(Named, _Marked, Tail) ->
+    {lists:flatten(["(", lists:join(", ", Named), Tail]), "", ""}.
 
 parameter('_', Type) -> Type;
 parameter(Name, Type) -> [atom_to_list(Name), " : ", Type].
@@ -552,13 +556,10 @@ format_type({tvar, Id}, TypeState, Names) ->
     case Names of
         #{Id := Name} -> {Name, Names};
         #{effect_only := EffectOnly, taken := Taken} ->
-            {Base, Names1} = case annotated_name(Id, TypeState) of
-                                 undefined -> fresh_name(Id, EffectOnly, Names);
-                                 Given ->
-                                     case lists:member(Given, Taken) of
-                                         true -> fresh_name(Id, EffectOnly, Names);
-                                         false -> {Given, Names}
-                                     end
+            Given = annotated_name(Id, TypeState),
+            {Base, Names1} = case Given =:= undefined orelse lists:member(Given, Taken) of
+                                 true -> fresh_name(Id, EffectOnly, Names);
+                                 false -> {Given, Names}
                              end,
             %% report §11.5: a process-only variable is marked where it
             %% occurs in no value position, since one that does is never pure

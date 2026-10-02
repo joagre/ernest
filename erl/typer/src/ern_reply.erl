@@ -11,11 +11,10 @@
 %% A path with a call that does not return, to a function whose result type
 %% is a variable no parameter's type names, `fault` among them, consumes
 %% every obligation open on it (§6.6): its uses carry the mark
-%% {'$fault', Span}, which no name is, so a branch that faults is left out of
-%% the comparison of branches,
-%% and a name a faulting path leaves unconsumed is not a name never
-%% consumed. The mark does not leave a lambda or a local function, whose
-%% bodies are not on the enclosing path.
+%% {'$fault', Span}, which no name is, so a branch that faults is left out
+%% of the comparison of branches, and a name a faulting path leaves
+%% unconsumed is not a name never consumed. The mark does not leave a
+%% lambda or a local function, whose bodies are not on the enclosing path.
 %%
 %% Report §3.9: a type variable of a parameter's type gets the
 %% not_reply_carrying restriction when the body, read with that variable
@@ -37,16 +36,20 @@ check(Params, Body, FunctionType, Env) ->
     discipline(Params, Body, Env),
     TypeState = ern_typecheck:type_state(Env),
     Variables = lists:usort(param_variables(FunctionType, TypeState)),
-    lists:foldl(fun(Variable, Acc) ->
-                    case holds(Params, Body,
-                               ern_typecheck:assume_reply_carrying([Variable], Acc)) of
-                        true -> Acc;
-                        false ->
-                            ern_typecheck:set_type_state(
-                              ern_types:add_restriction(Variable, not_reply_carrying,
-                                                        ern_typecheck:type_state(Acc)), Acc)
-                    end
-                end, Env, Variables).
+    lists:foldl(fun(Variable, Acc) -> restricted(Variable, Params, Body, Acc) end, Env,
+                Variables).
+
+%% Report §3.9: the variable takes the not_reply_carrying restriction where
+%% the body, with it taken for reply-carrying, breaks the discipline.
+restricted(Variable, Params, Body, Env) ->
+    case holds(Params, Body, ern_typecheck:assume_reply_carrying([Variable], Env)) of
+        true ->
+            Env;
+        false ->
+            TypeState = ern_types:add_restriction(Variable, not_reply_carrying,
+                                                  ern_typecheck:type_state(Env)),
+            ern_typecheck:set_type_state(TypeState, Env)
+    end.
 
 %% The whole discipline over one function: its illegal positions, and each
 %% linear parameter consumed exactly once.
@@ -55,7 +58,7 @@ discipline(Params, Body, Env) ->
     positions(Body, Env),
     Obligations = [Name || Param <- Params, Name <- obligations_bound(Param#param.pattern, Env)],
     Uses = uses(Body, Obligations, Env),
-    lists:foreach(fun(Name) -> exactly_once(Name, Uses, element(2, Body)) end, Obligations).
+    lists:foreach(fun(Name) -> exactly_once(Name, Uses, ern_ast:span(Body)) end, Obligations).
 
 %% Would the body keep the discipline under this environment's assumption?
 holds(Params, Body, Env) ->
@@ -95,103 +98,89 @@ positions(Node, Env) ->
     walk(fun(Child) -> position(Child, Env) end, Node).
 
 position(#p_wildcard{span = Span, type = Type}, Env) ->
-    case ern_typecheck:is_reply_carrying(Type, Env) of
-        true -> throw({type_error, Span, "`_` would discard a reply-carrying value"});
-        false -> ok
-    end;
+    not ern_typecheck:is_reply_carrying(Type, Env)
+        orelse throw({type_error, Span, "`_` would discard a reply-carrying value"});
 position(#p_as{span = Span, type = Type}, Env) ->
+    not ern_typecheck:is_reply_carrying(Type, Env)
+        orelse throw({type_error, Span, "`as` on a reply-carrying value would duplicate it"});
+position(#p_constructor{type = Type} = Pattern, Env) ->
     case ern_typecheck:is_reply_carrying(Type, Env) of
-        true -> throw({type_error, Span, "`as` on a reply-carrying value would duplicate it"});
+        true -> reply_fields(Pattern, Env);
         false -> ok
-    end;
-position(#p_constructor{span = Span, path = Path, name = Name, args = Args, type = Type}, Env) ->
-    case ern_typecheck:is_reply_carrying(Type, Env) of
-        false -> ok;
-        true ->
-            #constructor_info{fields = Fields, scheme = Scheme} =
-                ern_typecheck:lookup_constructor(Span, Path, Name, Env),
-            %% instantiate the constructor at the pattern's type to see the
-            %% field types as they are here
-            TypeState = ern_typecheck:type_state(Env),
-            {ConstructorType, TypeState1} = ern_types:instantiate(Scheme, TypeState),
-            {FieldTypes, ResultType} = case ConstructorType of
-                                           {tfn, ParamTypes, _, Result} -> {ParamTypes, Result};
-                                           Result -> {[], Result}
-                                       end,
-            %% the pattern was checked as this constructor, so this unifies
-            {ok, TypeState2} = ern_types:unify(ResultType, Type, TypeState1),
-            Env1 = ern_typecheck:set_type_state(TypeState2, Env),
-            case {Fields, Args} of
-                {positional, {positional, #p_wildcard{}}} ->
-                    wild_field(Span, Name, FieldTypes, Env1);
-                {{named, Names}, {named, FieldPatterns}} ->
-                    lists:foreach(
-                      fun({FieldName, FieldType}) ->
-                              case [Pattern
-                                    || #field_pattern{name = PatternField, pattern = Pattern}
-                                           <- FieldPatterns,
-                                       PatternField =:= FieldName] of
-                                  [#p_wildcard{}] ->
-                                      reply_field(Span, Name, FieldName, FieldType, Env1);
-                                  [] -> reply_field(Span, Name, FieldName, FieldType, Env1);
-                                  _ -> ok
-                              end
-                      end, lists:zip(Names, FieldTypes));
-                _ -> ok
-            end
     end;
 position(_, _) -> ok.
 
+%% Report §6.6: a pattern on a reply-carrying constructor binds each of its
+%% fields that carries a reply, at the field's type where the pattern
+%% stands; `_` and an omitted field bind nothing.
+reply_fields(#p_constructor{span = Span, path = Path, name = Name, args = Args, type = Type},
+             Env) ->
+    #constructor_info{fields = Fields, scheme = Scheme} =
+        ern_typecheck:lookup_constructor(Span, Path, Name, Env),
+    {FieldTypes, Env1} = field_types(Scheme, Type, Env),
+    case {Fields, Args} of
+        {positional, {positional, #p_wildcard{}}} ->
+            wild_field(Span, Name, FieldTypes, Env1);
+        {{named, Names}, {named, FieldPatterns}} ->
+            Bound = [FieldName || #field_pattern{name = FieldName, pattern = Pattern}
+                                      <- FieldPatterns,
+                                  not is_record(Pattern, p_wildcard)],
+            lists:foreach(fun({FieldName, FieldType}) ->
+                              reply_field(Span, Name, FieldName, FieldType, Env1)
+                          end, [Field || {FieldName, _} = Field <- lists:zip(Names, FieldTypes),
+                                         not lists:member(FieldName, Bound)]);
+        _ -> ok
+    end.
+
+%% The constructor's field types at the pattern's type, which unify, since
+%% the pattern was checked as this constructor.
+field_types(Scheme, Type, Env) ->
+    {ConstructorType, TypeState1} = ern_types:instantiate(Scheme, ern_typecheck:type_state(Env)),
+    {FieldTypes, ResultType} = case ConstructorType of
+                                   {tfn, ParamTypes, _, Result} -> {ParamTypes, Result};
+                                   Result -> {[], Result}
+                               end,
+    {ok, TypeState2} = ern_types:unify(ResultType, Type, TypeState1),
+    {FieldTypes, ern_typecheck:set_type_state(TypeState2, Env)}.
+
 wild_field(Span, Name, [FieldType], Env) ->
-    case ern_typecheck:is_reply_carrying(FieldType, Env) of
-        true -> throw({type_error, Span, "the field of " ++ atom_to_list(Name)
-                                         ++ " carries a reply and cannot be `_`"});
-        false -> ok
-    end;
+    not ern_typecheck:is_reply_carrying(FieldType, Env)
+        orelse throw({type_error, Span, "the field of " ++ atom_to_list(Name)
+                                        ++ " carries a reply and cannot be `_`"});
 wild_field(_, _, _, _) -> ok.
 
 reply_field(Span, Name, Field, FieldType, Env) ->
-    case ern_typecheck:is_reply_carrying(FieldType, Env) of
-        true -> throw({type_error, Span, "field " ++ atom_to_list(Field) ++ " of "
-                                         ++ atom_to_list(Name) ++ " carries a reply and must be"
-                                         " bound"});
-        false -> ok
-    end.
+    not ern_typecheck:is_reply_carrying(FieldType, Env)
+        orelse throw({type_error, Span, "field " ++ atom_to_list(Field) ++ " of "
+                                        ++ atom_to_list(Name) ++ " carries a reply and must be"
+                                        " bound"}).
 
 %%
 %% Uses of linear variables, per path
 %%
 
-%% uses(Expr, Obligations, Env) -> [Name], one entry per use on the path; a
-%% variable twice in the list is an error raised where it happens.
+%% uses(Expr, Obligations, Env) -> [{Name, Span}], one entry per use on the
+%% path; a variable twice in the list is an error raised where it happens.
 uses(#e_var{span = Span, path = [], name = Name}, Obligations, _Env) ->
     case lists:member(Name, Obligations) of
-        true -> [{Name, Span}];
+        true ->
+            [{Name, Span}];
         false ->
-            case lists:member({lambda, Name}, Obligations) of
-                true -> throw({type_error, Span, "the lambda " ++ atom_to_list(Name)
-                                                 ++ " captures a reply-carrying value and may only"
-                                                 " be called or passed directly to spawn or"
-                                                 " spawnMonitored"});
-                false -> []
-            end
+            not lists:member({lambda, Name}, Obligations)
+                orelse throw({type_error, Span, "the lambda " ++ atom_to_list(Name)
+                                                ++ " captures a reply-carrying value and may only"
+                                                " be called or passed directly to spawn or"
+                                                " spawnMonitored"}),
+            []
     end;
 uses(#e_call{span = Span, returns = false} = Call, Obligations, Env) ->
     sequence([uses(Call#e_call{returns = true}, Obligations, Env), [{'$fault', Span}]]);
-uses(#e_call{callee = #e_var{ref = {prelude, [Spawn]}}, args = [Arg | Wrap]}, Obligations, Env)
+uses(#e_call{callee = #e_var{referent = {prelude, [Spawn]}}, args = [Arg | Wrap]}, Obligations,
+     Env)
   when Spawn =:= spawn, Wrap =:= []; Spawn =:= spawnMonitored, length(Wrap) =:= 1 ->
-    %% report §6.6: the function argument of spawn or spawnMonitored
-    %% consumes a capturing lambda; each is the prelude's as the checker
-    %% resolved it, not a name spelled so
-    ArgUses = case Arg of
-                  #e_lambda{} -> captures(Arg, Obligations, Env);
-                  #e_var{span = Span, path = [], name = LambdaName} ->
-                      case lists:member({lambda, LambdaName}, Obligations) of
-                          true -> [{LambdaName, Span}];
-                          false -> uses(Arg, Obligations, Env)
-                      end;
-                  _ -> uses(Arg, Obligations, Env)
-              end,
+    %% spawn and spawnMonitored are the prelude's as the checker resolved
+    %% them, not names spelled so
+    ArgUses = spawned(Arg, Obligations, Env),
     sequence([ArgUses | [uses(WrapArg, Obligations, Env) || WrapArg <- Wrap]]);
 uses(#e_call{span = Span, callee = #e_var{path = [], name = LambdaName}, args = Args},
      Obligations, Env) ->
@@ -226,21 +215,21 @@ uses(#fn_declaration{span = Span, body = Body}, Obligations, Env) ->
 uses(#e_if{span = Span, condition = Condition, then_branch = Then, else_branch = Else},
      Obligations, Env) ->
     sequence([uses(Condition, Obligations, Env),
-              branches(Span, [{element(2, Then), uses(Then, Obligations, Env)},
-                              {element(2, Else), uses(Else, Obligations, Env)}])]);
+              branches(Span, [{ern_ast:span(Then), uses(Then, Obligations, Env)},
+                              {ern_ast:span(Else), uses(Else, Obligations, Env)}])]);
 uses(#e_match{span = Span, scrutinee = Scrutinee, clauses = Clauses}, Obligations, Env) ->
     sequence([uses(Scrutinee, Obligations, Env),
-              branches(Span, [{element(2, Body), clause_uses(Clause, Obligations, Env)}
+              branches(Span, [{ern_ast:span(Body), clause_uses(Clause, Obligations, Env)}
                               || #clause{body = Body} = Clause <- Clauses])]);
 uses(#e_receive{span = Span, clauses = Clauses, 'after' = After}, Obligations, Env) ->
     AfterUses = case After of
                     undefined -> [];
                     #after_clause{timeout = Timeout, body = Body} ->
-                        [{element(2, Body),
+                        [{ern_ast:span(Body),
                           sequence([uses(Timeout, Obligations, Env),
                                     uses(Body, Obligations, Env)])}]
                 end,
-    branches(Span, [{element(2, Body), clause_uses(Clause, Obligations, Env)}
+    branches(Span, [{ern_ast:span(Body), clause_uses(Clause, Obligations, Env)}
                     || #clause{body = Body} = Clause <- Clauses] ++ AfterUses);
 uses(#e_block{statements = Statements}, Obligations, Env) ->
     block_uses(Statements, Obligations, Env, []);
@@ -250,6 +239,18 @@ uses(Nodes, Obligations, Env) when is_list(Nodes) ->
     sequence([uses(Child, Obligations, Env) || Child <- Nodes]);
 uses(_, _, _) ->
     [].
+
+%% Report §6.6: the function spawn and spawnMonitored take consumes a
+%% capturing lambda, written there or bound by `let`.
+spawned(#e_lambda{} = Lambda, Obligations, Env) ->
+    captures(Lambda, Obligations, Env);
+spawned(#e_var{span = Span, path = [], name = Name} = Arg, Obligations, Env) ->
+    case lists:member({lambda, Name}, Obligations) of
+        true -> [{Name, Span}];
+        false -> uses(Arg, Obligations, Env)
+    end;
+spawned(Arg, Obligations, Env) ->
+    uses(Arg, Obligations, Env).
 
 clause_uses(#clause{span = Span, pattern = Pattern, guard = Guard, body = Body},
             Obligations, Env) ->
@@ -301,34 +302,29 @@ captures(#e_lambda{span = Span, params = Params, body = Body}, Obligations, Env)
 %% Sequential composition: a second use of a name is an error there.
 sequence(Lists) ->
     lists:foldl(fun(Uses, Acc) ->
-                    lists:foreach(fun({'$fault', _}) ->
-                                      ok;
-                                     ({Name, Span}) ->
-                                      %% report §11.5: at the second use,
-                                      %% the first labelled
-                                      case lists:keyfind(Name, 1, Acc) of
-                                          {Name, First} ->
-                                              throw({type_error,
-                                                     #diagnostic{span = ern_diagnostic:span(Span),
-                                                                 message = "the reply-carrying"
-                                                                           " value "
-                                                                           ++ atom_to_list(Name)
-                                                                           ++ " is consumed twice",
-                                                                 labels =
-                                                                     [{ern_diagnostic:span(First),
-                                                                       "first consumed here"}]}});
-                                          false -> ok
-                                      end
-                                  end, Uses),
+                    lists:foreach(fun(Use) -> check_first_use(Use, Acc) end, Uses),
                     Acc ++ Uses
                 end, [], Lists).
 
-%% Branches must consume the same names, but for a branch that faults.
-%% Where every branch faults, the whole faults.
-%% Branches: each path's span and its uses. A path that faults consumes
-%% every obligation (§6.6), and the others must agree; report §11.5: one
-%% that lacks a use is reported where it stands, the use on another path
+%% Report §11.5: a second use is reported where it stands, the first
 %% labelled.
+check_first_use({'$fault', _}, _Earlier) ->
+    ok;
+check_first_use({Name, Span}, Earlier) ->
+    case lists:keyfind(Name, 1, Earlier) of
+        {Name, First} ->
+            throw({type_error,
+                   #diagnostic{span = ern_diagnostic:span(Span),
+                               message = "the reply-carrying value " ++ atom_to_list(Name)
+                                         ++ " is consumed twice",
+                               labels = [{ern_diagnostic:span(First), "first consumed here"}]}});
+        false ->
+            ok
+    end.
+
+%% Branches, each its path's span and its uses, consume the same names. A
+%% path that faults consumes every obligation (§6.6) and is left out of the
+%% comparison; where every path faults, the whole faults.
 branches(Span, Branches) ->
     case [Branch || {_, BranchUses} = Branch <- Branches,
                     not lists:keymember('$fault', 1, BranchUses)] of
@@ -340,33 +336,35 @@ compared([]) ->
     [];
 compared([{_, First} | _] = Branches) ->
     Names = lists:usort([Name || {_, BranchUses} <- Branches, {Name, _} <- BranchUses]),
-    lists:foreach(fun(Name) ->
-                      case [Span || {Span, BranchUses} <- Branches,
-                                    not lists:keymember(Name, 1, BranchUses)] of
-                          [] ->
-                              ok;
-                          [Lacking | _] ->
-                              [Used | _] = [UseSpan || {_, BranchUses} <- Branches,
-                                                       {UsedName, UseSpan} <- BranchUses,
-                                                       UsedName =:= Name],
-                              throw({type_error,
-                                     #diagnostic{span = ern_diagnostic:span(Lacking),
-                                                 message = "the reply-carrying value "
-                                                           ++ atom_to_list(Name)
-                                                           ++ " is not consumed on this path",
-                                                 labels = [{ern_diagnostic:span(Used),
-                                                            "consumed here, on another path"}]}})
-                      end
-                  end, Names),
+    lists:foreach(fun(Name) -> check_every_path(Name, Branches) end, Names),
     First.
 
+%% Report §11.5: a path that lacks a use is reported where it stands, the
+%% use on another path labelled.
+check_every_path(Name, Branches) ->
+    case [Span || {Span, BranchUses} <- Branches, not lists:keymember(Name, 1, BranchUses)] of
+        [] ->
+            ok;
+        [Lacking | _] ->
+            [Used | _] = [UseSpan || {_, BranchUses} <- Branches,
+                                     {UsedName, UseSpan} <- BranchUses, UsedName =:= Name],
+            throw({type_error,
+                   #diagnostic{span = ern_diagnostic:span(Lacking),
+                               message = "the reply-carrying value " ++ atom_to_list(Name)
+                                         ++ " is not consumed on this path",
+                               labels = [{ern_diagnostic:span(Used),
+                                          "consumed here, on another path"}]}})
+    end.
+
+%% Report §6.6: a name is consumed once on its path, or on none where the
+%% path faults; a second use is sequence/1's to report.
 exactly_once(Name, Uses, Span) ->
     case {count(Name, Uses), lists:keymember('$fault', 1, Uses)} of
-        {1, _} -> ok;
-        {0, true} -> ok;
-        {0, false} -> throw({type_error, Span, "the reply-carrying value " ++ atom_to_list(Name)
+        {0, false} ->
+            throw({type_error, Span, "the reply-carrying value " ++ atom_to_list(Name)
                                      ++ " is never consumed"});
-        {_, _} -> ok  % the second use was reported by seq
+        _ ->
+            ok
     end.
 
 count(Name, Uses) -> length([x || {UsedName, _} <- Uses, UsedName =:= Name]).

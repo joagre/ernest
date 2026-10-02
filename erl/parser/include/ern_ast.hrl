@@ -64,10 +64,10 @@
 
 -record(e_literal, {span, kind, value, type}).
 %% kind: int | float | char | string | bool
--record(e_var, {span, path = [], name, ref, type}).
-%% ref, which the checker sets (report §4.2): var, a name bound around it;
-%% {own, Owner, Name}, this module's declaration, Owner a type or undefined;
-%% {remote, Namespace, Owner, Name}, another module's; {prelude,
+-record(e_var, {span, path = [], name, referent, type}).
+%% referent, which the checker sets (report §4.2): var, a name bound around
+%% it; #own_declaration{}, this module's declaration; #remote_declaration{},
+%% another module's, the two of typer/include/ern_types.hrl; {prelude,
 %% QualifiedName}. A qualified function, operator, or value: path is the
 %% typename prefix.
 -record(e_constructor, {span, path = [], name, args = none, type}).

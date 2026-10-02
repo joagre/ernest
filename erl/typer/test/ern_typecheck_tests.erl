@@ -334,10 +334,10 @@ operator_member_shape_test() ->
 %% conform; it does not cover a foreign fn member.
 builtin_member_shape_test() ->
     Check = fun(Text) ->
-                    case ern_typecheck:check_string(['Int'], Text) of
-                        {ok, _, _, _} -> ok;
-                        {error, [#diagnostic{message = Message} | _]} -> Message
-                    end
+                case ern_typecheck:check_string(['Int'], Text) of
+                    {ok, _, _, _} -> ok;
+                    {error, [#diagnostic{message = Message} | _]} -> Message
+                end
             end,
     ?assertEqual(ok, Check("export fn compare(a : Int, b : Int) : Ordering = Equal\n")),
     ?assertEqual("Int.compare must have the type (Int, Int) -> Ordering, not (Int, Int) -> Int",
@@ -1067,9 +1067,9 @@ reply_carrying_by_the_fields_test() ->
             "export type WH(e) = WH(h : H(e))\n"
             "export type Pair(a) = Pair(#(a, Int))\n",
     Printed = fun(Declaration, Name) ->
-                      {ok, _, #interface{values = Values}, Env} = check(Types ++ Declaration),
-                      ern_types:format_scheme(maps:get(['M', Name], Values),
-                                              ern_typecheck:type_state(Env))
+                  {ok, _, #interface{values = Values}, Env} = check(Types ++ Declaration),
+                  ern_types:format_scheme(maps:get(['M', Name], Values),
+                                          ern_typecheck:type_state(Env))
               end,
     ?assertEqual("(H(e)) -> Unit", Printed("export fn drop(h : H(e)) : Unit = Unit\n", drop)),
     ?assertEqual("(WH(e)) -> Unit",
@@ -1887,11 +1887,11 @@ prelude_namespace_test() ->
 %% to write it. A regression test: `Prelude.Some` was accepted anywhere
 prelude_only_where_hidden_test() ->
     Refused = fun(Name) ->
-                      Hidden = case lists:member($., Name) of
-                                   true -> Name;
-                                   false -> "the prelude's " ++ Name
-                               end,
-                      "Prelude." ++ Name ++ " is written only where the module hides " ++ Hidden
+                  Hidden = case lists:member($., Name) of
+                               true -> Name;
+                               false -> "the prelude's " ++ Name
+                           end,
+                  "Prelude." ++ Name ++ " is written only where the module hides " ++ Hidden
               end,
     ?assertEqual(Refused("Some"), refusal("fn f() : Optional(Int) = Prelude.Some(1)")),
     ?assertEqual(Refused("Reason"), refusal("fn f(w : Prelude.Reason) : Int = 0")),

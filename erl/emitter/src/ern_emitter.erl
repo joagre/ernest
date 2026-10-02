@@ -313,8 +313,8 @@ let_order(Lets, #cx{env = Env}) ->
 
 expr(#e_literal{span = Pos, kind = Kind, value = V}, Cx) ->
     {at(Pos, literal(Kind, V)), Cx};
-expr(#e_var{span = Pos, path = Path, name = Name, type = T, ref = Ref}, Cx) ->
-    {Form, Cx1} = var_ref(Pos, Path, Name, Ref, T, Cx),
+expr(#e_var{span = Pos, path = Path, name = Name, type = T, referent = Referent}, Cx) ->
+    {Form, Cx1} = var_ref(Pos, Path, Name, Referent, T, Cx),
     {at(Pos, Form), Cx1};
 expr(#e_constructor{span = Pos, path = Path, name = Name, args = Args}, Cx) ->
     con_expr(Pos, Path, Name, Args, Cx);
@@ -505,10 +505,10 @@ read_top(#e_not{expr = X} = N, Acc) ->
 read_top(#e_negation{expr = X} = N, Acc) ->
     {X1, Acc1} = read_top(X, Acc),
     {N#e_negation{expr = X1}, Acc1};
-read_top(#e_var{ref = Ref} = V, {Reads, Cx}) when Ref =/= var ->
+read_top(#e_var{referent = Referent} = V, {Reads, Cx}) when Referent =/= var ->
     {Form, Cx1} = expr(V, Cx),
     {[E], Cx2} = fresh_vars(1, "Read", Cx1),
-    {V#e_var{path = [], name = E, ref = var},
+    {V#e_var{path = [], name = E, referent = var},
      {Reads ++ [erl_syntax:match_expr(erl_syntax:variable(E), Form)],
       Cx2#cx{vars = maps:put(E, E, Cx2#cx.vars)}}};
 read_top(X, Acc) ->
@@ -543,7 +543,7 @@ string_binary(Bin) ->
 %%
 
 %% A name used as a value: var_ref(...) -> {Form, Cx}. Report §4.2: what
-%% the name refers to is the checker's `ref`, read and not decided here.
+%% the name refers to is the checker's referent, read and not decided here.
 var_ref(Pos, _, Name, var, T, #cx{vars = Vars, locals = Locals} = Cx) ->
     case Vars of
         #{Name := V} -> {var_form(V), Cx};
@@ -552,19 +552,22 @@ var_ref(Pos, _, Name, var, T, #cx{vars = Vars, locals = Locals} = Cx) ->
             closure(Lifted, instances(Name, Cx), arity_of(T, Pos), Cx)
     end;
 %% Appendix E.1: the library's Io.show and Io.debug as values too, the
-%% descriptor of the argument's type, named by the checker's ref from
+%% descriptor of the argument's type, named by the checker's referent from
 %% another module and from the library's own, and never by the path
-var_ref(Pos, _, Name, {remote, ['Io'], undefined, Name}, T, Cx)
+var_ref(Pos, _, Name, #remote_declaration{namespace = ['Io'], owner = undefined, name = Name}, T,
+        Cx)
   when Name =:= show; Name =:= debug ->
     prelude_value(Pos, ['Io', Name], T, Cx);
-var_ref(Pos, _, Name, {own, undefined, Name}, T, #cx{mod = 'ern@io'} = Cx)
+var_ref(Pos, _, Name, #own_declaration{owner = undefined, name = Name}, T,
+        #cx{mod = 'ern@io'} = Cx)
   when Name =:= show; Name =:= debug ->
     prelude_value(Pos, ['Io', Name], T, Cx);
 var_ref(Pos, _, _, {prelude, Q}, T, Cx) ->
     prelude_value(Pos, Q, T, Cx);
-var_ref(_, _, _, {own, Owner, Name}, _, Cx) ->
+var_ref(_, _, _, #own_declaration{owner = Owner, name = Name}, _, Cx) ->
     {own_value(Owner, Name, Cx), Cx};
-var_ref(_, _, _, {remote, Module, Owner, Name}, T, #cx{env = Env} = Cx) ->
+var_ref(_, _, _, #remote_declaration{namespace = Module, owner = Owner, name = Name}, T,
+        #cx{env = Env} = Cx) ->
     {remote_value(Module, Owner, Name, T, Env), Cx}.
 
 %% Report §4.6: a `let` is a value, reached through its getter even where it
@@ -611,7 +614,7 @@ closure(Lifted, Insts, Arity, Cx) ->
 %% Calls
 %%
 
-call(Pos, #e_var{ref = var, name = Name}, Args, Cx) ->
+call(Pos, #e_var{referent = var, name = Name}, Args, Cx) ->
     #cx{vars = Vars, locals = Locals} = Cx,
     {ArgForms, Cx1} = exprs(Args, Cx),
     case Vars of
@@ -625,20 +628,24 @@ call(Pos, #e_var{ref = var, name = Name}, Args, Cx) ->
     end;
 %% Appendix E.1: the library's Io.show and Io.debug, as var_ref/6 names
 %% them, written by the argument's type at the call
-call(Pos, #e_var{ref = {remote, ['Io'], undefined, Name}}, [A], Cx)
+call(Pos, #e_var{referent = #remote_declaration{namespace = ['Io'], owner = undefined,
+                                                 name = Name}},
+     [A], Cx)
   when Name =:= show; Name =:= debug ->
     io_call(Pos, Name, A, Cx);
-call(Pos, #e_var{ref = {own, undefined, Name}}, [A], #cx{mod = 'ern@io'} = Cx)
+call(Pos, #e_var{referent = #own_declaration{owner = undefined, name = Name}}, [A],
+     #cx{mod = 'ern@io'} = Cx)
   when Name =:= show; Name =:= debug ->
     io_call(Pos, Name, A, Cx);
-call(Pos, #e_var{ref = {prelude, Q}} = Callee, Args, Cx) ->
+call(Pos, #e_var{referent = {prelude, Q}} = Callee, Args, Cx) ->
     %% report §4.2: the prelude's, `Prelude.x` among them
     {ArgForms, Cx1} = exprs(Args, Cx),
     prelude_call(Pos, Q, Args, ArgForms, Callee, Cx1);
-call(Pos, #e_var{ref = {own, Owner, Name}}, Args, Cx) ->
+call(Pos, #e_var{referent = #own_declaration{owner = Owner, name = Name}}, Args, Cx) ->
     {ArgForms, Cx1} = exprs(Args, Cx),
     {at(Pos, own_call(Owner, Name, ArgForms, Cx)), Cx1};
-call(Pos, #e_var{ref = {remote, Module, Owner, Name}}, Args, #cx{env = Env} = Cx) ->
+call(Pos, #e_var{referent = #remote_declaration{namespace = Module, owner = Owner, name = Name}},
+     Args, #cx{env = Env} = Cx) ->
     {ArgForms, Cx1} = exprs(Args, Cx),
     {M, F} = remote_name(Module, Owner, Name),
     %% report §4.6: calling a `let` applies what its getter answers;

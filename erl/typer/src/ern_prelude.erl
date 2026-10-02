@@ -565,11 +565,11 @@ prelude_doc() ->
 
 %% The interfaces of the standard library modules written in Ernest: every
 %% ern@*.beam in a `stdlib` directory on the code path that carries an
-%% interface chunk (report §11.1). The compiled library is build
-%% output, so it is found by where it is installed rather than by an
-%% application's name; taking every ern@ module on the path instead would
-%% make the shell's own module, which lives in `build/shell` and is on the
-%% same path, a standard library namespace (report §4.2, §11.2).
+%% interface chunk (report §11.1). The compiled library is build output,
+%% so it is found by where it is installed rather than by an application's
+%% name; taking every ern@ module on the path instead would make the
+%% shell's own module, which lives in `build/shell` and is on the same
+%% path, a standard library namespace (report §4.2, §11.2).
 -spec stdlib_interfaces() -> [#interface{}].
 stdlib_interfaces() ->
     Files = lists:usort(lists:append([filelib:wildcard(filename:join(Dir, "ern@*.beam"))

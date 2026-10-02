@@ -21,42 +21,49 @@
 check(Node, Env) ->
     walk(fun(#e_match{span = Span, scrutinee = Scrutinee, clauses = Clauses}) ->
                  redundant(Clauses, Env),
-                 Rows = lists:append([alternative_rows(Pattern, Env)
-                                      || #clause{pattern = Pattern, guard = undefined} <- Clauses]),
-                 case useful(Rows, [wild], Env) of
-                     no -> ok;
-                     {yes, [Witness]} ->
-                         Type = ern_typecheck:resolve_type(ern_typecheck:node_type(Scrutinee), Env),
-                         throw({type_error, Span, lists:flatten(
-                                 ["match on ",
-                                  ern_types:format(Type, ern_typecheck:type_state(Env)),
-                                  " is not exhaustive; missing ", show(Witness, Env)])})
-                 end;
+                 exhaustive(Span, Scrutinee, Clauses, Env);
             (#e_receive{clauses = Clauses}) ->
                  redundant(Clauses, Env);
             (_) -> ok
          end, Node).
 
+%% Report §5.9: the unguarded clauses of a `match` cover its scrutinee's
+%% type; where they do not, the message names a value none of them matches.
+exhaustive(Span, Scrutinee, Clauses, Env) ->
+    Rows = lists:append([alternative_rows(Pattern, Env)
+                         || #clause{pattern = Pattern, guard = undefined} <- Clauses]),
+    case useful(Rows, [wild], Env) of
+        no -> ok;
+        {yes, [Witness]} ->
+            Type = ern_typecheck:resolve_type(ern_typecheck:node_type(Scrutinee), Env),
+            Shown = ern_types:format(Type, ern_typecheck:type_state(Env)),
+            throw({type_error, Span, lists:flatten(["match on ", Shown,
+                                                    " is not exhaustive; missing ",
+                                                    show(Witness, Env)])})
+    end.
+
 %% Report §5.9: a clause, or an alternative of one, that can match no value
-%% the clauses before it leave is an error. A guarded clause covers
-%% nothing, since its guard may fail; the alternatives before it in its own
-%% clause cover what they match. The label names the earliest clause with
-%% which the cover is complete.
+%% the clauses before it leave is an error. The label names the earliest
+%% clause with which the cover is complete.
 redundant(Clauses, Env) ->
-    lists:foldl(fun(#clause{pattern = Pattern, guard = Guard}, Earlier) ->
-                        Alternatives = alternatives(Pattern),
-                        Own = lists:foldl(fun(Alternative, Before) ->
-                                              judge(Alternative, length(Alternatives) > 1, Before,
-                                                    Env),
-                                              Before
-                                                  ++ [{[simplify(Alternative, Env)], Alternative}]
-                                          end, Earlier, Alternatives),
-                        case Guard of
-                            undefined -> Own;
-                            _ -> Earlier
-                        end
-                end, [], Clauses),
+    lists:foldl(fun(Clause, Earlier) -> rows_through(Clause, Earlier, Env) end, [], Clauses),
     ok.
+
+%% The rows the clauses before this one cover, and this one's own, each
+%% beside its pattern, once each of its alternatives is judged. A guarded
+%% clause adds none, since its guard may fail; the alternatives before one
+%% in its own clause cover what they match.
+rows_through(#clause{pattern = Pattern, guard = Guard}, Earlier, Env) ->
+    Alternatives = alternatives(Pattern),
+    IsAlternative = length(Alternatives) > 1,
+    Own = lists:foldl(fun(Alternative, Before) ->
+                          judge(Alternative, IsAlternative, Before, Env),
+                          Before ++ [{[simplify(Alternative, Env)], Alternative}]
+                      end, Earlier, Alternatives),
+    case Guard of
+        undefined -> Own;
+        _ -> Earlier
+    end.
 
 alternatives(#p_or{alternatives = Alternatives}) -> Alternatives;
 alternatives(Pattern) -> [Pattern].
@@ -76,9 +83,9 @@ judge(Alternative, IsAlternative, Before, Env) ->
                         {yes, _} -> "with those before it, this one matches every value it would"
                     end,
             throw({type_error,
-                   #diagnostic{span = ern_diagnostic:span(element(2, Alternative)),
+                   #diagnostic{span = ern_diagnostic:span(ern_ast:span(Alternative)),
                                message = "this " ++ What ++ " can never match",
-                               labels = [{ern_diagnostic:span(element(2, Covering)), Label}],
+                               labels = [{ern_diagnostic:span(ern_ast:span(Covering)), Label}],
                                help = "remove it, or move it above the patterns that cover it"}})
     end.
 
@@ -107,9 +114,8 @@ walk(Visit, Node) ->
 %%
 
 %% Report §5.9: a clause with alternatives covers what each alternative covers.
-alternative_rows(#p_or{alternatives = Alternatives}, Env) ->
-    [[simplify(Alternative, Env)] || Alternative <- Alternatives];
-alternative_rows(Pattern, Env) -> [[simplify(Pattern, Env)]].
+alternative_rows(Pattern, Env) ->
+    [[simplify(Alternative, Env)] || Alternative <- alternatives(Pattern)].
 
 simplify(#p_wildcard{}, _) -> wild;
 simplify(#p_var{}, _) -> wild;
@@ -132,16 +138,18 @@ simplify(#p_constructor{span = Span, path = Path, name = Name, args = Args}, Env
                       {positional, {positional, Pattern}} -> [simplify(Pattern, Env)];
                       {{named, Names}, none} -> [wild || _ <- Names];
                       {{named, Names}, {named, FieldPatterns}} ->
-                          [case [Pattern
-                                 || #field_pattern{name = PatternField, pattern = Pattern}
-                                        <- FieldPatterns,
-                                    PatternField =:= FieldName] of
-                               [Pattern] -> simplify(Pattern, Env);
-                               [] -> wild
-                           end || FieldName <- Names]
+                          [field_pattern(FieldName, FieldPatterns, Env) || FieldName <- Names]
                   end,
     {con, {con, QualifiedName}, SubPatterns};
 simplify(#p_bitstring{}, _) -> {con, bits, []}.
+
+%% Report §5.10: a field a pattern omits matches any value.
+field_pattern(FieldName, FieldPatterns, Env) ->
+    case [Pattern || #field_pattern{name = Name, pattern = Pattern} <- FieldPatterns,
+                     Name =:= FieldName] of
+        [Pattern] -> simplify(Pattern, Env);
+        [] -> wild
+    end.
 
 %%
 %% Usefulness with a witness. useful(Rows, Vector) is no when every value

@@ -3,15 +3,15 @@
 %% distinct from the syntactic #t_named{}/#t_fn{} records the parser builds.
 %%
 %%   type() ::
-%%       {tvar, id()}                    a unification variable
-%%     | {tcon, qualified_name(), [type()]}  a named type applied to arguments
-%%     | {ttuple, [type()]}              #(A, B)
-%%     | {tfn, [type()], effect(), type()}  (A, B) -> C with M
+%%       {tvar, id()}                          a unification variable
+%%     | {tcon, qualified_name(), [type()]}    a named type applied to arguments
+%%     | {ttuple, [type()]}                    #(A, B)
+%%     | {tfn, [type()], effect(), type()}     (A, B) -> C with M
 %%
-%%   effect() :: pure | type()           the mailbox slot of an arrow; a type()
-%%                                       here is a mailbox type or a variable
+%%   effect() :: pure | type()     the mailbox slot of an arrow; a type()
+%%                                 here is a mailbox type or a variable
 %%
-%%   qualified_name() :: [atom()]        ['Int'], ['List'], ['Net', 'Http', 'Request']
+%%   qualified_name() :: [atom()]  ['Int'], ['List'], ['Net', 'Http', 'Request']
 %%
 %% Every variable has an entry in the checker's variable table keyed by id().
 %% Its restrictions are the three inferred restrictions of report §3.9:
@@ -51,6 +51,12 @@
 %% scheme: the constructor as a value, quantified over the type's parameters:
 %% the result type for a nullary constructor, else a pure function from the
 %% field types (in canonical order) to the result type
+
+%% The declaration a name refers to, which the checker records in its
+%% #e_var{} for the emitter (report §4.2): this module's, owner a type or
+%% undefined, and another module's, in its namespace.
+-record(own_declaration, {owner, name}).
+-record(remote_declaration, {namespace, owner, name}).
 
 %% The compiled interface of a module: what other modules see (report §4.2,
 %% §11.1). Produced by the checker, consumed by the checker of a dependent

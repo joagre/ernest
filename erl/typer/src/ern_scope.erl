@@ -1,9 +1,9 @@
 %% Report §5.4: the rules for a local fn, read off a definition. Its name
 %% may not be one bound where it is declared (names/1); it may be used only
 %% after the lets of its block it references (order/1); and what its body
-%% refers to among given names (free_references/3), which the checker's grouping
-%% of a block's local fns reads too. A breach is thrown as the checker's
-%% type errors are.
+%% refers to among given names (free_references/3), which the checker's
+%% grouping of a block's local fns reads too. A breach is thrown as the
+%% checker's type errors are.
 -module(ern_scope).
 
 -export([names/1, order/1, free_references/3]).
@@ -79,8 +79,8 @@ pattern_variables(_) -> [].
 -spec order(tuple()) -> ok.
 order(Node) ->
     ern_ast:walk(fun(#e_block{statements = Statements}, Acc) -> block_order(Statements), Acc;
-            (_, Acc) -> Acc
-         end, Node, ok),
+                    (_, Acc) -> Acc
+                 end, Node, ok),
     ok.
 
 block_order(Statements) ->
@@ -90,33 +90,33 @@ block_order(Statements) ->
     %% every let binding of the block as an instance {Name, Index}
     Lets = [{Name, LetIndex} || {LetIndex, #binding{pattern = Pattern}} <- Indexed,
                                 Name <- pattern_names(Pattern)],
-    LetNames = lists:usort([Name || {Name, _} <- Lets]),
-    %% what each local fn references: its siblings, and the binding of each
-    %% let name in force at its declaration (report §5.4, §4.6)
-    Direct = maps:from_list(
-               [{Name,
-                 [Reference || Reference <- free_references(Body, Params, LetNames ++ FnNames),
-                               lists:member(Reference, FnNames)]
-                 ++ [{Reference, LetIndex}
-                     || Reference <- free_references(Body, Params, LetNames),
-                        LetIndex <- [in_force(Reference, FnIndex, Lets)],
-                        LetIndex =/= none]}
-                || {FnIndex, #fn_declaration{name = Name, params = Params, body = Body}}
-                       <- Indexed]),
+    Direct = maps:from_list([{Name, references(Declaration, FnIndex, FnNames, Lets)}
+                             || {FnIndex, #fn_declaration{name = Name} = Declaration} <- Indexed]),
     Needs = fun(Name) -> needed_lets(Name, Direct, [], []) end,
     %% where each let instance is bound, for the error's label
     BoundSpans = maps:from_list([{{Name, LetIndex}, Span}
                                  || {LetIndex, #binding{pattern = Pattern}} <- Indexed,
                                     {Name, Span} <- pattern_variables(Pattern)]),
     lists:foldl(fun({LetIndex, #binding{pattern = Pattern, expr = Expr}}, Bound) ->
-                    check_uses(Expr, FnNames, Needs, Bound, BoundSpans),
-                    [{Name, LetIndex} || Name <- pattern_names(Pattern)] ++ Bound;
+                        check_uses(Expr, FnNames, Needs, Bound, BoundSpans),
+                        [{Name, LetIndex} || Name <- pattern_names(Pattern)] ++ Bound;
                    ({_, #fn_declaration{}}, Bound) ->
-                    Bound;
+                        Bound;
                    ({_, Expr}, Bound) ->
-                    check_uses(Expr, FnNames, Needs, Bound, BoundSpans),
-                    Bound
+                        check_uses(Expr, FnNames, Needs, Bound, BoundSpans),
+                        Bound
                 end, [], Indexed).
+
+%% What a local fn references: its siblings, and the binding of each let
+%% name in force at its declaration (report §5.4, §4.6).
+references(#fn_declaration{params = Params, body = Body}, FnIndex, FnNames, Lets) ->
+    LetNames = lists:usort([Name || {Name, _} <- Lets]),
+    Siblings = [Reference || Reference <- free_references(Body, Params, LetNames ++ FnNames),
+                             lists:member(Reference, FnNames)],
+    InForce = [{Reference, LetIndex} || Reference <- free_references(Body, Params, LetNames),
+                                        LetIndex <- [in_force(Reference, FnIndex, Lets)],
+                                        LetIndex =/= none],
+    Siblings ++ InForce.
 
 %% The latest binding of Name before statement FnIndex, or none.
 in_force(Name, FnIndex, Lets) ->
@@ -131,37 +131,37 @@ needed_lets(Name, Direct, Seen, Acc) ->
     case lists:member(Name, Seen) of
         true -> Acc;
         false ->
-            Refs = maps:get(Name, Direct, []),
-            Acc1 = lists:usort(Acc ++ [Reference || Reference <- Refs, is_tuple(Reference)]),
-            lists:foldl(fun(Reference, Found) when is_atom(Reference) -> needed_lets(Reference,
-                                                                                     Direct,
-                                                                                     [Name | Seen],
-                                                                                     Found);
-                           (_, Found) -> Found
-                        end, Acc1, Refs)
+            References = maps:get(Name, Direct, []),
+            Acc1 = lists:usort(Acc ++ [Reference || Reference <- References, is_tuple(Reference)]),
+            lists:foldl(fun(Reference, Found) when is_atom(Reference) ->
+                                needed_lets(Reference, Direct, [Name | Seen], Found);
+                           (_, Found) ->
+                                Found
+                        end, Acc1, References)
     end.
 
 check_uses(Expr, FnNames, Needs, Bound, BoundSpans) ->
     ern_ast:walk(fun(#e_var{span = Span, path = [], name = FnName}, Acc) ->
-                 case lists:member(FnName, FnNames) of
-                     true ->
-                         case Needs(FnName) -- Bound of
-                             [] -> Acc;
-                             [{LetName, _} = Let | _] ->
-                                 LetText = atom_to_list(LetName),
-                                 fail(Span,
-                                      "local function " ++ atom_to_list(FnName)
-                                      ++ " is used before `let " ++ LetText
-                                      ++ "`, which it references",
-                                      [{ern_diagnostic:span(maps:get(Let, BoundSpans)),
-                                        "`let " ++ LetText ++ "` is evaluated here"}],
-                                      "use " ++ atom_to_list(FnName) ++ " after `let "
-                                      ++ LetText ++ "`")
-                         end;
-                     false -> Acc
-                 end;
-            (_, Acc) -> Acc
-         end, Expr, ok).
+                         case lists:member(FnName, FnNames) of
+                             true -> check_use(Span, FnName, Needs(FnName) -- Bound, BoundSpans);
+                             false -> ok
+                         end,
+                         Acc;
+                    (_, Acc) ->
+                         Acc
+                 end, Expr, ok).
+
+%% Report §5.4: a local fn used where a `let` it references is not yet
+%% evaluated, the first such `let` labelled.
+check_use(_Span, _FnName, [], _BoundSpans) ->
+    ok;
+check_use(Span, FnName, [{LetName, _} = Let | _], BoundSpans) ->
+    LetText = atom_to_list(LetName),
+    fail(Span, "local function " ++ atom_to_list(FnName) ++ " is used before `let " ++ LetText
+               ++ "`, which it references",
+         [{ern_diagnostic:span(maps:get(Let, BoundSpans)),
+           "`let " ++ LetText ++ "` is evaluated here"}],
+         "use " ++ atom_to_list(FnName) ++ " after `let " ++ LetText ++ "`").
 
 %% Unqualified names of the given set free in a local fn's body: outside
 %% its parameters and the bindings inside the body.

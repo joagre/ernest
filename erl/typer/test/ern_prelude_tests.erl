@@ -21,8 +21,8 @@ values_test() ->
     %% module's section writes its own types unqualified (§4.2)
     TypeState = ern_typecheck:type_state(ern_typecheck:prelude_env()),
     Compiled = [{qualified_name_text(QualifiedName), printed(QualifiedName, Scheme, TypeState)}
-                || Interface <- ern_prelude:stdlib_interfaces(),
-                   {QualifiedName, Scheme} <- maps:to_list(element(4, Interface))],
+                || #interface{values = Values} <- ern_prelude:stdlib_interfaces(),
+                   {QualifiedName, Scheme} <- maps:to_list(Values)],
     %% a §9.6 operation is in the table, which types it before any module is
     %% installed, and in its module's interface: it counts once when the two
     %% agree, twice and so unequal to the report when they do not
@@ -173,9 +173,9 @@ stdlib_types_test() ->
                             || Declaration <- declarations(code_lines(Body))]
                            || {Namespace, Body} <- Sections])),
     Compiled = [{Namespace, rename(compiled_declaration(TypeInfo, stdlib_file(Namespace)))}
-                || Interface <- ern_prelude:stdlib_interfaces(),
-                   Namespace <- [element(2, Interface)],
-                   TypeInfo <- maps:values(element(3, Interface))],
+                || #interface{namespace = Namespace, types = Types}
+                       <- ern_prelude:stdlib_interfaces(),
+                   TypeInfo <- maps:values(Types)],
     same(lists:sort([{Namespace, rename(Declaration)} || {Namespace, Declaration} <- Report]),
          lists:sort(Compiled)).
 
@@ -184,16 +184,16 @@ stdlib_types_test() ->
 %% regression test, written when rule 2 named them (findings.md's R-6)
 set_and_map_words_test() ->
     Rules = lists:flatten(lists:join(" ", section("Four *admission rules*", "Nine *shape rules*"))),
-    Exported = lists:append([maps:keys(element(4, Interface))
-                             || Interface <- ern_prelude:stdlib_interfaces()]),
+    Exported = lists:append([maps:keys(Values)
+                             || #interface{values = Values} <- ern_prelude:stdlib_interfaces()]),
     lists:foreach(
       fun({Kind, Module}) ->
-              {match, [Sentence]} = re:run(Rules, "A " ++ Kind ++ " adds ([^.]*)\\.",
-                                           [{capture, all_but_first, list}]),
-              {match, Words} = re:run(Sentence, "`([a-zA-Z]+)`",
-                                      [global, {capture, all_but_first, list}]),
-              ?assertNotEqual([], Words),
-              [?assert(lists:member([Module, list_to_atom(Word)], Exported)) || [Word] <- Words]
+          {match, [Sentence]} = re:run(Rules, "A " ++ Kind ++ " adds ([^.]*)\\.",
+                                       [{capture, all_but_first, list}]),
+          {match, Words} = re:run(Sentence, "`([a-zA-Z]+)`",
+                                  [global, {capture, all_but_first, list}]),
+          ?assertNotEqual([], Words),
+          [?assert(lists:member([Module, list_to_atom(Word)], Exported)) || [Word] <- Words]
       end, [{"set", 'Set'}, {"map", 'Map'}]).
 
 %% report Appendix G: every library under libs/ has a section, and each
@@ -209,19 +209,19 @@ libraries_test() ->
     TypeState = ern_typecheck:type_state(ern_typecheck:prelude_env()),
     lists:foreach(
       fun({Library, Namespace, Body}) ->
-              Source = filename:join(["../../../libs", Library, Library ++ ".ern"]),
-              {ok, Erc} = file:read_file(filename:join(["../../../build/libs", Library,
-                                                        Library ++ ".erc"])),
-              {ok, #{interface := Interface}} = ern_interface:read(Erc),
-              Namespace = element(2, Interface),
-              same(lists:sort(lists:append([signature(Line) || Line <- code_lines(Body)])),
-                   lists:sort([{qualified_name_text(QualifiedName),
-                                printed(QualifiedName, Scheme, TypeState)}
-                               || {QualifiedName, Scheme} <- maps:to_list(element(4, Interface))])),
-              same(lists:sort([rename(unmarked(Declaration))
-                               || Declaration <- declarations(code_lines(Body))]),
-                   lists:sort([rename(compiled_declaration(TypeInfo, Source))
-                               || TypeInfo <- maps:values(element(3, Interface))]))
+          Source = filename:join(["../../../libs", Library, Library ++ ".ern"]),
+          {ok, Erc} = file:read_file(filename:join(["../../../build/libs", Library,
+                                                    Library ++ ".erc"])),
+          {ok, #{interface := #interface{namespace = Namespace, types = Types,
+                                         values = Values}}} = ern_interface:read(Erc),
+          same(lists:sort(lists:append([signature(Line) || Line <- code_lines(Body)])),
+               lists:sort([{qualified_name_text(QualifiedName),
+                            printed(QualifiedName, Scheme, TypeState)}
+                           || {QualifiedName, Scheme} <- maps:to_list(Values)])),
+          same(lists:sort([rename(unmarked(Declaration))
+                           || Declaration <- declarations(code_lines(Body))]),
+               lists:sort([rename(compiled_declaration(TypeInfo, Source))
+                           || TypeInfo <- maps:values(Types)]))
       end, Sections).
 
 %% A value's type as the report writes it: without the marks of the
@@ -255,11 +255,11 @@ rename(Declaration) ->
 
 %% A compiled type's declaration, as the appendix writes it, the field
 %% order read from the module's source.
-compiled_declaration(TypeInfo, _Source) when element(7, TypeInfo) ->
+compiled_declaration(#type_info{foreign = true, qualified_name = QualifiedName,
+                                params = Params},
+                     _Source) ->
     %% report §3.8: a foreign type has no constructors, and its parameters
     %% are names rather than variables
-    QualifiedName = element(2, TypeInfo),
-    Params = element(3, TypeInfo),
     Head = case Params of
                [] -> "";
                _ -> "(" ++ lists:join(", ", [atom_to_list(Param) || Param <- Params]) ++ ")"
@@ -269,10 +269,10 @@ compiled_declaration(#type_info{abstract = true, qualified_name = QualifiedName,
                      _Source) ->
     %% report §4.4: an abstract type is listed without its constructors
     "abstract type " ++ atom_to_list(lists:last(QualifiedName));
-compiled_declaration(TypeInfo, Source) ->
-    QualifiedName = element(2, TypeInfo),
+compiled_declaration(#type_info{qualified_name = QualifiedName, params = Params,
+                                constructors = Constructors},
+                     Source) ->
     Namespace = lists:droplast(QualifiedName),
-    Params = element(3, TypeInfo),
     Names = maps:from_list(lists:zip([Id || {tvar, Id} <- Params],
                                      [[Char] || Char <- lists:seq($a, $a + length(Params) - 1)])),
     Head = case Params of
@@ -280,10 +280,10 @@ compiled_declaration(TypeInfo, Source) ->
                _ -> "(" ++ lists:join(", ", [maps:get(Id, Names) || {tvar, Id} <- Params]) ++ ")"
            end,
     Order = declared_fields(Source),
-    Constructors = [constructor_text(ConstructorInfo, Namespace, Names, Order)
-                    || ConstructorInfo <- element(4, TypeInfo)],
+    ConstructorTexts = [constructor_text(ConstructorInfo, Namespace, Names, Order)
+                        || ConstructorInfo <- Constructors],
     normalize(lists:flatten(["type ", atom_to_list(lists:last(QualifiedName)), Head, " = ",
-                             lists:join(" | ", Constructors)])).
+                             lists:join(" | ", ConstructorTexts)])).
 
 %% The field names of each constructor of a module's source, in the order
 %% declared, which the interface does not keep (its fields are canonical).
@@ -297,18 +297,19 @@ declared_fields(File) ->
                     || #type_declaration{constructors = Constructors} <- Types,
                        #constructor{name = Constructor, fields = {named, Fields}} <- Constructors]).
 
-constructor_text(ConstructorInfo, Namespace, Names, Order) ->
-    Name = atom_to_list(element(2, ConstructorInfo)),
-    Fields = case element(7, ConstructorInfo) of
-                 {scheme, _, {tfn, FieldTypes, _, _}, _} -> FieldTypes;
-                 _ -> []
-             end,
-    case {element(5, ConstructorInfo), Fields} of
+constructor_text(#constructor_info{name = Constructor, fields = Fields, scheme = Scheme},
+                 Namespace, Names, Order) ->
+    Name = atom_to_list(Constructor),
+    FieldTypes = case Scheme of
+                     #scheme{type = {tfn, ParamTypes, _, _}} -> ParamTypes;
+                     _ -> []
+                 end,
+    case {Fields, FieldTypes} of
         {none, _} -> Name;
         {positional, [Type]} -> Name ++ "(" ++ type_text(Type, Namespace, Names) ++ ")";
         {{named, FieldNames}, Types} ->
             Typed = lists:zip(FieldNames, Types),
-            Declared = maps:get(element(2, ConstructorInfo), Order),
+            Declared = maps:get(Constructor, Order),
             FieldText = fun(Field) ->
                             atom_to_list(Field) ++ " : "
                                 ++ type_text(proplists:get_value(Field, Typed), Namespace, Names)

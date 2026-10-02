@@ -7,11 +7,11 @@
 
 -include_lib("parser/include/ern_ast.hrl").
 
-%% Report §5.11: the specifiers of a segment as one map, kind, size
-%% (none, {const, Bits}, or {expr, Expr}), unit, endian, sign, with the defaults,
-%% or the error of a conflict, a sign or byte order the kind does not take,
-%% or an impossible width. The unit is what a size counts, 8 bits for
-%% `bytes` and 1 otherwise; no specifier sets it.
+%% Report §5.11: the specifiers of a segment as one map, kind, size (none,
+%% {const, Bits}, or {expr, Expr}), unit, endian, sign, with the defaults,
+%% or the error of a conflict, a sign or byte order the kind does not
+%% take, or an impossible width. The unit is what a size counts, 8 bits
+%% for `bytes` and 1 otherwise; no specifier sets it.
 -spec spec([term()]) -> {ok, map()} | {error, string()}.
 spec(Specs) ->
     try
@@ -37,10 +37,7 @@ spec(Specs) ->
             _ -> ok
         end,
         Utf = lists:member(Kind, [utf8, utf16, utf32]),
-        case Utf andalso maps:is_key(size, Spec) of
-            true -> throw("a utf segment has no size");
-            false -> ok
-        end,
+        not (Utf andalso maps:is_key(size, Spec)) orelse throw("a utf segment has no size"),
         case {Kind, Size} of
             {float, {const, Bits}} when Bits =/= 16, Bits =/= 32, Bits =/= 64 ->
                 throw("a float segment is 16, 32, or 64 bits");
