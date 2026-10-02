@@ -105,11 +105,10 @@ export fn read(path : Path, ms : Int) : Either(Io.Error, Bytes) with m =
 export fn readRange(path : Path,
                     offset : Int,
                     count : Int,
-                    ms : Int) : Either(Io.Error, Bytes) with m =
-    answered(Address.call(reference,
-                          fn(reply) =
-                              ReadRange(path = path, offset = offset, count = count, reply = reply),
-                          ms))
+                    ms : Int) : Either(Io.Error, Bytes) with m = {
+    let request = fn(reply) = ReadRange(path = path, offset = offset, count = count, reply = reply);
+    answered(Address.call(reference, request, ms))
+}
 
 /// Writes the octets, creating the file or replacing what it held.
 export fn write(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m =
@@ -210,11 +209,10 @@ export fn remove(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
 /// }
 /// // => Right(Some("x"))
 /// ```
-export fn rename(source : Path, destination : Path, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference,
-                          fn(reply) =
-                              Rename(source = source, destination = destination, reply = reply),
-                          ms))
+export fn rename(source : Path, destination : Path, ms : Int) : Either(Io.Error, Unit) with m = {
+    let request = fn(reply) = Rename(source = source, destination = destination, reply = reply);
+    answered(Address.call(reference, request, ms))
+}
 
 /// Copies the file at the first path to the second, replacing what is
 /// there.
@@ -229,11 +227,10 @@ export fn rename(source : Path, destination : Path, ms : Int) : Either(Io.Error,
 /// }
 /// // => Right(Some("y"))
 /// ```
-export fn copy(source : Path, destination : Path, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference,
-                          fn(reply) =
-                              Copy(source = source, destination = destination, reply = reply),
-                          ms))
+export fn copy(source : Path, destination : Path, ms : Int) : Either(Io.Error, Unit) with m = {
+    let request = fn(reply) = Copy(source = source, destination = destination, reply = reply);
+    answered(Address.call(reference, request, ms))
+}
 
 /// Makes a symbolic link at the first path that leads to the second, which
 /// is kept as it is written and may name nothing. A first path that names

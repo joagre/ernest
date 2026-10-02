@@ -62,6 +62,9 @@ fn written(segments : List(String)) : String =
             String.join(segments, separator())
     }
 
+foreign fn separator() : String =
+    "ern_path:separator/0"
+
 /// The segments; an absolute path's first segment is the root.
 ///
 /// ### Examples
@@ -83,9 +86,6 @@ export fn split(path : Path) : List(String) = {
       | _ -> named(text)
     }
 }
-
-foreign fn separator() : String =
-    "ern_path:separator/0"
 
 /// The path without its last segment, or `None` for a bare name and for the
 /// root.

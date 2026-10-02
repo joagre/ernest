@@ -437,17 +437,16 @@ fn counted(supervisor : Address(Msg),
 fn join(supervisor : Address(Msg),
         process : Process,
         stop : () -> Unit with Watch,
-        watch : ((Down) -> Watch) -> Unit with Watch) : Address(Watch) with m =
-    match Address.call(supervisor,
-                       fn(reply) =
-                           Join(process = process, stop = stop, watch = watch, reply = reply),
-                       1000) {
+        watch : ((Down) -> Watch) -> Unit with Watch) : Address(Watch) with m = {
+    let request = fn(reply) = Join(process = process, stop = stop, watch = watch, reply = reply);
+    match Address.call(supervisor, request, 1000) {
         Some(watcher) -> watcher
       | None -> match Process.info(Process.fromAddress(supervisor)) {
             None -> fault("the supervisor has ended")
           | Some(_) -> join(supervisor, process, stop, watch)
         }
     }
+}
 
 // Why the restarting function the caller runs in began.
 foreign fn startCause() : Start with m =

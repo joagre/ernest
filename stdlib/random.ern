@@ -59,23 +59,9 @@ export fn next(seed : Seed, bound : Int) : #(Int, Seed) = {
     if bound < 0 then #(Int.negate(drawn), later) else #(drawn, later)
 }
 
-/// A number above 0.0 and below 1.0, and the seed to draw with next: the
-/// draw's top 52 bits and a half, as a fraction of 2^52.
-///
-/// ### Examples
-///
-/// ```ernest
-/// let #(x, _) = Random.nextFloat(Random.seed(3));
-/// x > 0.0 && x < 1.0
-/// // => true
-/// ```
-export fn nextFloat(seed : Seed) : #(Float, Seed) = {
-    let #(draw, later) = step(seed);
-    #((Int.toFloat(Int.shiftRight(draw, 12)) + 0.5) / 4503599627370496.0, later)
-}
-
-// A number from 0 to below r, from as many 64-bit draws as span r, those
-// at or above the largest multiple of r the draws can reach drawn again.
+// A number from 0 to below `bound`, from as many 64-bit draws as span
+// `bound`, those at or above the largest multiple of `bound` the draws can
+// reach drawn again.
 fn below(seed : Seed, bound : Int) : #(Int, Seed) = {
     let #(value, span, later) = words(seed, bound, 0, 1);
     if value < span - span % bound then #(value % bound, later) else below(later, bound)
@@ -104,5 +90,20 @@ fn step(seed : Seed) : #(Int, Seed) =
             #(Int.bitXor(mixed1, Int.shiftRight(mixed1, 31)), Seed(counter))
         }
     }
+
+/// A number above 0.0 and below 1.0, and the seed to draw with next: the
+/// draw's top 52 bits and a half, as a fraction of 2^52.
+///
+/// ### Examples
+///
+/// ```ernest
+/// let #(x, _) = Random.nextFloat(Random.seed(3));
+/// x > 0.0 && x < 1.0
+/// // => true
+/// ```
+export fn nextFloat(seed : Seed) : #(Float, Seed) = {
+    let #(draw, later) = step(seed);
+    #((Int.toFloat(Int.shiftRight(draw, 12)) + 0.5) / 4503599627370496.0, later)
+}
 
 let mask = 0xFFFF_FFFF_FFFF_FFFF

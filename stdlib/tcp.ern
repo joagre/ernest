@@ -116,8 +116,8 @@ foreign fn system(name : Foreign.Term) : Address(Msg) with m =
 /// by the process that calls `listen`, and is killed when it dies.
 export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerMsg)) with m = {
     let owner = Process.fromAddress(self());
-    Address.callForever(reference,
-                        fn(reply) = Listen(host = host, owner = owner, port = port, reply = reply))
+    let request = fn(reply) = Listen(host = host, port = port, owner = owner, reply = reply);
+    Address.callForever(reference, request)
 }
 
 /// The port the listener listens on.
@@ -173,13 +173,9 @@ export fn connect(host : String,
                   port : Int,
                   ms : Int) : Either(Io.Error, Address(SocketMsg)) with m = {
     let owner = Process.fromAddress(self());
-    Address.callForever(reference,
-                        fn(reply) =
-                            Connect(host = host,
-                                    port = port,
-                                    ms = ms,
-                                    owner = owner,
-                                    reply = reply))
+    let request =
+        fn(reply) = Connect(host = host, port = port, ms = ms, owner = owner, reply = reply);
+    Address.callForever(reference, request)
 }
 
 /// What has arrived, at least one byte, or `Left(Io.Closed)` once the

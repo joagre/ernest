@@ -78,7 +78,7 @@ export fn slice(bytes : Bytes, index : Int, count : Int) : Bytes = {
 export fn toList(bytes : Bytes) : List(Int) =
     List.reverse(octets(bytes, []))
 
-// The octets before the rest of b, the last first.
+// The octets before the rest of `bytes`, the last first.
 fn octets(bytes : Bytes, acc : List(Int)) : List(Int) =
     match bytes {
         <<octet, rest:bytes>> -> octets(rest, octet :: acc)

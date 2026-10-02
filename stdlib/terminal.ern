@@ -64,6 +64,12 @@ type Msg =
     Subscribe(address : Address(Event), reply : Reply(Either(Io.Error, Unit)))
   | ReadSize(reply : Reply(Either(Io.Error, Size)))
 
+// How a code point counts, where the table lists it.
+type Width = Zero | Wide | Pictographic
+
+// The table's ranges as a search tree, built once.
+type Ranges = Empty | Branch(low : Int, high : Int, width : Width, below : Ranges, above : Ranges)
+
 // Report §8.2: the system reference, the runtime's address of the terminal,
 // bound at each start.
 let reference : Address(Msg) = system(Erl.atom("terminal"))
@@ -153,12 +159,6 @@ fn firstWidth(codes : List(Int), emojiPresentation : Bool) : Int =
           | None -> 1
         }
     }
-
-// How a code point counts, where the table lists it.
-type Width = Zero | Wide | Pictographic
-
-// The table's ranges as a search tree, built once.
-type Ranges = Empty | Branch(low : Int, high : Int, width : Width, below : Ranges, above : Ranges)
 
 let widths = tree(widthTable)
 

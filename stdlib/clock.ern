@@ -67,7 +67,8 @@ export foreign fn monotonic() : Int with m =
 /// ```
 export fn alarm(ms : Int, wrap : (Int) -> m) : Unit with m = {
     let address = via(self(), wrap);
-    Address.callForever(reference, fn(reply) = Alarm(ms = ms, address = address, reply = reply))
+    let request = fn(reply) = Alarm(ms = ms, address = address, reply = reply);
+    Address.callForever(reference, request)
 }
 
 /// At that time, `wrap(t)` arrives in the caller's mailbox, `t` the time it
@@ -80,6 +81,6 @@ export fn alarm(ms : Int, wrap : (Int) -> m) : Unit with m = {
 /// ```
 export fn alarmAt(time : Int, wrap : (Int) -> m) : Unit with m = {
     let address = via(self(), wrap);
-    Address.callForever(reference,
-                        fn(reply) = AlarmAt(time = time, address = address, reply = reply))
+    let request = fn(reply) = AlarmAt(time = time, address = address, reply = reply);
+    Address.callForever(reference, request)
 }
