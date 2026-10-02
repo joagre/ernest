@@ -1,6 +1,8 @@
 /// A program over both sets. No line names an order: each set's is its
-/// element type's `compare`. `Ops` is the record `common` needs, declared
-/// here and filled from each representation at the element type.
+/// element type's `compare`, and the one generic function over the
+/// ordered set, `unique`, declares that it needs it. `Ops` is the record
+/// `common` needs, declared here and filled from each representation at
+/// the element type.
 
 type Ops(s, a) =
     Ops(fromList : (List(a)) -> s,
@@ -10,6 +12,9 @@ type Ops(s, a) =
 let hashed : Ops(Set(Int), Int) = Ops(..Set)
 
 let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)
+
+fn unique(list : List(a)) : List(a) needs a.compare =
+    OrderedSet.toList(OrderedSet.fromList(list))
 
 fn common(list : List(a), other : List(a), ops : Ops(s, a)) : List(a) =
     ops.toList(ops.intersection(ops.fromList(list), ops.fromList(other)))
@@ -23,6 +28,7 @@ export fn main() : Unit with Never = {
     Io.println(Io.show(OrderedSet.toList(OrderedSet.filter(both, fn(n) = n % 2 == 1))));
     let doubled = OrderedSet.map(both, fn(n) = n * 2);
     Io.println(Bool.toString(OrderedSet.contains(doubled, 6)));
+    Io.println(Io.show(unique(["b", "a", "b"])));
     Io.println(Io.show(common([4, 2, 3], [3, 4, 5], ordered)));
     Io.println(Int.toString(List.size(common([4, 2, 3], [3, 4, 5], hashed))))
 }

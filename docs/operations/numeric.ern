@@ -1,23 +1,23 @@
-/// Generic numeric functions over a requirement, `add = a.+`, used at
-/// `Int`, at `Float` and at a type with a `+` of its own. `sum` needs a
-/// zero as well, which is no member, so its caller passes one.
+/// Generic numeric functions over a clause, `needs a.+`, used at `Int`, at
+/// `Float` and at a type with a `+` of its own. `sum` needs a zero as
+/// well, which is no member, so its caller passes one.
 
 type Money = Money(Int)
 
 fn Money.+(Money(a) : Money, Money(b) : Money) : Money =
     Money(a + b)
 
-fn total(list : List(a), add = a.+) : Optional(a) =
+fn total(list : List(a)) : Optional(a) needs a.+ =
     match list {
         [] -> None
-      | first :: rest -> Some(List.foldLeft(rest, first, add))
+      | first :: rest -> Some(List.foldLeft(rest, first, a.+))
     }
 
-fn sum(list : List(a), zero : a, add = a.+) : a =
-    List.foldLeft(list, zero, add)
+fn sum(list : List(a), zero : a) : a needs a.+ =
+    List.foldLeft(list, zero, fn(acc, x) = acc + x)
 
-fn doubled(list : List(a), add = a.+) : List(a) =
-    List.map(list, fn(x) = add(x, x))
+fn doubled(list : List(a)) : List(a) needs a.+ =
+    List.map(list, fn(x) = x + x)
 
 export fn main() : Unit with Never = {
     Io.println(Io.show(total([1, 2, 3])));

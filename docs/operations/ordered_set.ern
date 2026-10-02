@@ -1,8 +1,9 @@
 /// Operations on `Set(a)`, a finite set of elements in the order of their
 /// type's `compare` (report §3.10). A function that needs the order says
-/// so, `compare = a.compare` (report §4.8): where the element type is
-/// known the compiler passes its `compare`, and where it is a type
-/// variable the caller passes its own `compare = a.compare` parameter.
+/// so, `needs a.compare` (report §4.8): a call writes nothing for it,
+/// the compiler supplies the element type's `compare` where it is
+/// known, and a generic function that calls one declares the clause
+/// itself.
 /// `fromList`, `contains`, `put`, `remove`, `union`, `intersection`,
 /// `difference` and `isSubset` need it, and `map` and `filterMap` need
 /// their result's; the rest need none. Two elements the order calls
@@ -50,8 +51,8 @@ export let empty : Set(a) = Set([])
 /// OrderedSet.toList(OrderedSet.fromList(["b", "a", "b"]))
 /// // => ["a", "b"]
 /// ```
-export fn fromList(list : List(a), compare = a.compare) : Set(a) =
-    List.foldLeft(list, empty, fn(acc, x) = put(acc, x, compare))
+export fn fromList(list : List(a)) : Set(a) needs a.compare =
+    List.foldLeft(list, empty, put)
 
 /// The number of elements.
 ///
@@ -76,16 +77,16 @@ export fn isEmpty(Set(list) : Set(a)) : Bool =
 /// OrderedSet.contains(OrderedSet.fromList([1, 3]), 3)
 /// // => true
 /// ```
-export fn contains(Set(list) : Set(a), x : a, compare = a.compare) : Bool =
-    has(list, x, compare)
+export fn contains(Set(list) : Set(a), x : a) : Bool needs a.compare =
+    has(list, x)
 
-fn has(list : List(a), x : a, compare : (a, a) -> Ordering) : Bool =
+fn has(list : List(a), x : a) : Bool needs a.compare =
     match list {
         [] -> false
-      | y :: rest -> match compare(x, y) {
+      | y :: rest -> match a.compare(x, y) {
             Less -> false
           | Equal -> true
-          | Greater -> has(rest, x, compare)
+          | Greater -> has(rest, x)
         }
     }
 
@@ -98,16 +99,16 @@ fn has(list : List(a), x : a, compare : (a, a) -> Ordering) : Bool =
 /// OrderedSet.toList(OrderedSet.put(OrderedSet.fromList([1, 3]), 2))
 /// // => [1, 2, 3]
 /// ```
-export fn put(Set(list) : Set(a), x : a, compare = a.compare) : Set(a) =
-    Set(inserted(list, x, compare))
+export fn put(Set(list) : Set(a), x : a) : Set(a) needs a.compare =
+    Set(inserted(list, x))
 
-fn inserted(list : List(a), x : a, compare : (a, a) -> Ordering) : List(a) =
+fn inserted(list : List(a), x : a) : List(a) needs a.compare =
     match list {
         [] -> [x]
-      | y :: rest -> match compare(x, y) {
+      | y :: rest -> match a.compare(x, y) {
             Less -> x :: list
           | Equal -> list
-          | Greater -> y :: inserted(rest, x, compare)
+          | Greater -> y :: inserted(rest, x)
         }
     }
 
@@ -120,8 +121,8 @@ fn inserted(list : List(a), x : a, compare : (a, a) -> Ordering) : List(a) =
 /// OrderedSet.toList(OrderedSet.remove(OrderedSet.fromList([1, 2]), 1))
 /// // => [2]
 /// ```
-export fn remove(Set(list) : Set(a), x : a, compare = a.compare) : Set(a) =
-    Set(List.filter(list, fn(y) = compare(x, y) != Equal))
+export fn remove(Set(list) : Set(a), x : a) : Set(a) needs a.compare =
+    Set(List.filter(list, fn(y) = a.compare(x, y) != Equal))
 
 /// The function applied to each element, in order, into a set of the
 /// results' type; two results that type's order calls `Equal` become one,
@@ -133,8 +134,8 @@ export fn remove(Set(list) : Set(a), x : a, compare = a.compare) : Set(a) =
 /// OrderedSet.toList(OrderedSet.map(OrderedSet.fromList([2, 1]), fn(n) = n * 10))
 /// // => [10, 20]
 /// ```
-export fn map(Set(list) : Set(a), f : (a) -> b with e, compare = b.compare) : Set(b) with e =
-    fromList(List.map(list, f), compare)
+export fn map(Set(list) : Set(a), f : (a) -> b with e) : Set(b) with e needs b.compare =
+    fromList(List.map(list, f))
 
 /// The elements the predicate holds for, in order.
 ///
@@ -156,9 +157,8 @@ export fn filter(Set(list) : Set(a), keep : (a) -> Bool with e) : Set(a) with e 
 /// // => [1]
 /// ```
 export fn filterMap(Set(list) : Set(a),
-                    f : (a) -> Optional(b) with e,
-                    compare = b.compare) : Set(b) with e =
-    fromList(List.filterMap(list, f), compare)
+                    f : (a) -> Optional(b) with e) : Set(b) with e needs b.compare =
+    fromList(List.filterMap(list, f))
 
 /// The accumulator after the function has seen each element in order, the
 /// accumulator first.
@@ -238,17 +238,17 @@ export fn max(Set(list) : Set(a)) : Optional(a) =
 /// OrderedSet.toList(OrderedSet.union(OrderedSet.fromList([1]), OrderedSet.fromList([2])))
 /// // => [1, 2]
 /// ```
-export fn union(Set(list) : Set(a), Set(other) : Set(a), compare = a.compare) : Set(a) =
-    Set(merged(list, other, compare))
+export fn union(Set(list) : Set(a), Set(other) : Set(a)) : Set(a) needs a.compare =
+    Set(merged(list, other))
 
-fn merged(list : List(a), other : List(a), compare : (a, a) -> Ordering) : List(a) =
+fn merged(list : List(a), other : List(a)) : List(a) needs a.compare =
     match #(list, other) {
         #([], _) -> other
       | #(_, []) -> list
-      | #(x :: rest, y :: others) -> match compare(x, y) {
-            Less -> x :: merged(rest, other, compare)
-          | Equal -> x :: merged(rest, others, compare)
-          | Greater -> y :: merged(list, others, compare)
+      | #(x :: rest, y :: others) -> match a.compare(x, y) {
+            Less -> x :: merged(rest, other)
+          | Equal -> x :: merged(rest, others)
+          | Greater -> y :: merged(list, others)
         }
     }
 
@@ -261,17 +261,17 @@ fn merged(list : List(a), other : List(a), compare : (a, a) -> Ordering) : List(
 ///                                           OrderedSet.fromList([2, 3])))
 /// // => [2]
 /// ```
-export fn intersection(Set(list) : Set(a), Set(other) : Set(a), compare = a.compare) : Set(a) =
-    Set(shared(list, other, compare))
+export fn intersection(Set(list) : Set(a), Set(other) : Set(a)) : Set(a) needs a.compare =
+    Set(shared(list, other))
 
-fn shared(list : List(a), other : List(a), compare : (a, a) -> Ordering) : List(a) =
+fn shared(list : List(a), other : List(a)) : List(a) needs a.compare =
     match #(list, other) {
         #([], _) -> []
       | #(_, []) -> []
-      | #(x :: rest, y :: others) -> match compare(x, y) {
-            Less -> shared(rest, other, compare)
-          | Equal -> x :: shared(rest, others, compare)
-          | Greater -> shared(list, others, compare)
+      | #(x :: rest, y :: others) -> match a.compare(x, y) {
+            Less -> shared(rest, other)
+          | Equal -> x :: shared(rest, others)
+          | Greater -> shared(list, others)
         }
     }
 
@@ -284,17 +284,17 @@ fn shared(list : List(a), other : List(a), compare : (a, a) -> Ordering) : List(
 ///                                         OrderedSet.fromList([2, 3])))
 /// // => [1]
 /// ```
-export fn difference(Set(list) : Set(a), Set(other) : Set(a), compare = a.compare) : Set(a) =
-    Set(remaining(list, other, compare))
+export fn difference(Set(list) : Set(a), Set(other) : Set(a)) : Set(a) needs a.compare =
+    Set(remaining(list, other))
 
-fn remaining(list : List(a), other : List(a), compare : (a, a) -> Ordering) : List(a) =
+fn remaining(list : List(a), other : List(a)) : List(a) needs a.compare =
     match #(list, other) {
         #([], _) -> []
       | #(_, []) -> list
-      | #(x :: rest, y :: others) -> match compare(x, y) {
-            Less -> x :: remaining(rest, other, compare)
-          | Equal -> remaining(rest, others, compare)
-          | Greater -> remaining(list, others, compare)
+      | #(x :: rest, y :: others) -> match a.compare(x, y) {
+            Less -> x :: remaining(rest, other)
+          | Equal -> remaining(rest, others)
+          | Greater -> remaining(list, others)
         }
     }
 
@@ -306,16 +306,16 @@ fn remaining(list : List(a), other : List(a), compare : (a, a) -> Ordering) : Li
 /// OrderedSet.isSubset(OrderedSet.fromList([1]), OrderedSet.fromList([1, 2]))
 /// // => true
 /// ```
-export fn isSubset(Set(list) : Set(a), Set(other) : Set(a), compare = a.compare) : Bool =
-    isWithin(list, other, compare)
+export fn isSubset(Set(list) : Set(a), Set(other) : Set(a)) : Bool needs a.compare =
+    isWithin(list, other)
 
-fn isWithin(list : List(a), other : List(a), compare : (a, a) -> Ordering) : Bool =
+fn isWithin(list : List(a), other : List(a)) : Bool needs a.compare =
     match #(list, other) {
         #([], _) -> true
       | #(_, []) -> false
-      | #(x :: rest, y :: others) -> match compare(x, y) {
+      | #(x :: rest, y :: others) -> match a.compare(x, y) {
             Less -> false
-          | Equal -> isWithin(rest, others, compare)
-          | Greater -> isWithin(list, others, compare)
+          | Equal -> isWithin(rest, others)
+          | Greater -> isWithin(list, others)
         }
     }
