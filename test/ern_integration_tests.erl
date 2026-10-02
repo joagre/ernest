@@ -563,12 +563,14 @@ stdin() ->
     %% a read does not wait for more than has arrived: the second byte is
     %% written once the program has said it read the first, so that how long
     %% the host takes to start, about as long as the one second the writer
-    %% had paused, plays no part (it had failed when the start took longer)
+    %% had paused, plays no part (it had failed when the start took longer);
+    %% the wait reads the output quietly, since the program's shell may not
+    %% yet have made the file, and grep's complaint was taken for its output
     ?assertEqual({0, <<"1\n1\nend\n">>},
                  sh("sh -c 'rm -f build/stdin/in build/stdin/out; mkfifo build/stdin/in; "
                     "../bin/ern run build/stdin/chunks.erc < build/stdin/in > build/stdin/out & "
                     "exec 3> build/stdin/in; printf a >&3; n=0; "
-                    "until grep -q 1 build/stdin/out || [ $n -ge 400 ]; "
+                    "until grep -qs 1 build/stdin/out || [ $n -ge 400 ]; "
                     "do sleep 0.05; n=$((n + 1)); done; "
                     "printf b >&3; exec 3>&-; wait; cat build/stdin/out'")).
 
