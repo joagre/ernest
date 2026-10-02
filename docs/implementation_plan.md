@@ -73,8 +73,8 @@ moved from MVP 2.7 on 2026-09-27 (the log's *Running as a Service*), from MVP 3.
 Protocol*), and from MVP 2.99 on 2026-09-29, so that the first release came first. The items
 run in this order, each needing the ones before it (the log's *MVP 2.99b's Order*): the tests
 trusted, then the namespace of two words, decided already and needing nothing before it, then
-every other decision, the operations' with what they build, since that changes no Erlang,
-then the Erlang renamed, then the rest of what is built, then the Ernest renamed over it, then
+every other decision, the operations' with what they build, since that changes no Erlang but
+one diagnostic's text, then the Erlang renamed, then the rest of what is built, then the Ernest renamed over it, then
 the guide last. The namespace moved from the tenth item to the fourth on
 2026-10-01, items 4 to 9 becoming 5 to 10 (the log's *The Namespace Item First*); items 11
 and 12, the operations' build, joined item 5 on 2026-10-02, and their numbers stand (the
@@ -103,8 +103,9 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    `test/diagnostics.md` with them.
 3. **The places the language made the review's work harder**, done 2026-10-01 (the log's *The
    Release Review's Harder Places*): of the fourteen lines of [`findings.md`](findings.md)
-   marked `2.99b` that are not hardening, two are language feedback 75 and 76, decided in the
-   attack plan's phase 5, and twelve are dropped there with their reasons.
+   marked `2.99b` that are not hardening, two are language feedback 75, decided in the attack
+   plan's phase 5, and 76, decided in item 20 on 2026-10-02, and twelve are dropped there with
+   their reasons.
 4. **A file's words joined by `_` name one namespace segment** (decided 2026-09-29, the log's
    *A Namespace From Words Joined by `_`*): `ordered_set.ern` provides `OrderedSet`, each
    word capitalized and the `_` dropped, a directory's name too, `net/http_client.ern`
@@ -167,8 +168,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    E.0 rule 3 admits it as it admitted `Random`, a choice the section states whole. Then `set.ern` gains its record,
    `Set.Operations(s, a)` and `Set.operations`, its functions unchanged. Then `OrderedSet` in
    the standard library, the record's second representation, with its tests and its page. `Map` gains a record with a second representation, and not before. Nothing in
-   the checker, the emitter or the runtime changes (`operations.md`'s *What it costs to
-   build*), so the build does not wait for item 7, which renames the Erlang before the
+   the checker's typing, the emitter or the runtime changes, one diagnostic's text apart
+   (`operations.md`'s *What it costs to build*), so the build does not wait for item 7, which renames the Erlang before the
    toolchain's changes so that they are written once; the code is written in the glossary's
    names. Items 11 and 12, `set.ern` over its record and `OrderedSet`, joined this item on
    2026-10-02 (the log's *The Operations Decided and Built*).
@@ -236,8 +237,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     `Io.debug` writes through `Io`'s stream process to standard error (the log's *A Value Shows
     Itself at a Known Type*).
 14. **The built-in operators as shims** (`findings.md`'s R-27, decided with the user
-    2026-09-30): each operator §9.6 gives `Int`, `Float`, `String` and `Bytes`, their
-    `negate`, and the `compare` of `Int`, `Float`, `String` and `Char` become a `foreign fn`
+    2026-09-30): each operator §9.6 gives `Int`, `Float`, `String` and `Bytes`, `Int`'s and
+    `Float`'s `negate`, and the `compare` of `Int`, `Float`, `String` and `Char` become a `foreign fn`
     over the host's operation, or over a helper in the runtime's Erlang where the host has
     none of the shape, `String.<>` and the `compare`s, since the operation is the host's alone
     (Appendix E.0 rule 1). §9.6's sentences that such a body is no recursive call go, and so
@@ -273,7 +274,7 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     which phase 6 found (the log's *The Log Read Against Its Reasons*).
 19. **`ern test` over a directory** (0.2.0's N-12), a decision with the user: whether `ern test`
     takes a directory and runs the tests of every module under it, as `ern build` walks a tree
-    (§11.2), the form a newcomer predicted (principle 1). Decided with the user 2026-10-02 (the
+    (§11.1), the form a newcomer predicted (principle 1). Decided with the user 2026-10-02 (the
     log's *MVP 2.99b's Questions, One by One*): yes, about a day, each answer as `ern build` or
     today's `ern test` has it. Every `.erc` under the directory, passing over a name that
     begins with a dot and a link to a directory; in the order of their paths; each module as
@@ -299,7 +300,7 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     `let _ = e` kept, `foreach`'s callback answering `Unit` (principle 3). Entry 79:
     `Address.ask(addr, mk, wrap, ms)` admitted to the prelude, `wrap` taking `Optional(a)`,
     `None` when the milliseconds pass or the callee ends or restarts first, a late answer
-    discarded; about a day and a half with §6.6, §9.4 and the guide's §4.4 rewritten without
+    discarded; about a day and a half with §6.6, §9.5 and the guide's §4.4 rewritten without
     its helper. Entry 80: §6.9's `Down` without order kept, since the host's order would need a
     mailbox of the runtime's own under every receive; the guide's §5.6 collects its workers'
     results with `ask`, with entry 79's build. Entries 81 and 82: `monitor` takes a `Process`,
@@ -307,8 +308,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     address is the permission to send and watching needs only identity; `kill` keeps the
     address; about half a day with §6.9, §9.5, the call sites, the tests and the guide. Entry
     83: a test may receive, `type Case(m) = Case(name : String, run : () -> Result with m)`, as
-    an entry point does (§8.1), each test in a process whose mailbox type is `m`; the polling
-    loops go; about half a day with E.24 and §11.2. Entry 84: E.1's type known whole kept, the
+    an entry point does (§8.1), each test in a process whose mailbox type is `m`, an `m` left
+    open being `Never` as §8.1 has it for an entry point; the polling loops go; about half a day with E.24 and §11.2. Entry 84: E.1's type known whole kept, the
     annotation an example writes being the stated price of the rule. Entry 85:
     `Char.isAsciiDigit : (Char) -> Bool` restored in E.6 by E.0 rule 3, the digits
     `String.toInt` reads, and the eight hand-written copies use it; about an hour. Entry 86:
