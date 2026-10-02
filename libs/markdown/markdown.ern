@@ -166,7 +166,7 @@ fn begun(tries : List((String, List(String)) -> Optional(#(Block, List(String)))
          rest : List(String)) : #(Block, List(String)) =
     match tries {
         [] -> paragraph(rest, [unindented(line)])
-      | start :: more -> match start(line, rest) {
+      | opener :: more -> match opener(line, rest) {
             Some(found) -> found
           | None -> begun(more, line, rest)
         }
@@ -368,7 +368,7 @@ fn continues(line : String, before : List(String)) : Bool =
                 && !isBlank(previous)
                 && !interrupts(line)
                 && indent(previous) < 4
-                && paragraphText(unindented(previous))
+                && isParagraphText(unindented(previous))
       | [] -> false
     }
 
@@ -382,12 +382,12 @@ fn interrupts(line : String) : Bool =
                 || fenceOf(text) != None
                 || String.startsWith(text, ">")
                 || htmlOpens(text)
-                || interruptingMarker(text)
+                || markerInterrupts(text)
         }
 
 // A list interrupts a paragraph only with an item that is not empty, and
 // an ordered one only when it starts at 1.
-fn interruptingMarker(line : String) : Bool =
+fn markerInterrupts(line : String) : Bool =
     match markerOf(line) {
         Some(Marker(start = start, width = width)) ->
             !isBlank(String.slice(line, width, String.size(line) - width))
@@ -395,7 +395,7 @@ fn interruptingMarker(line : String) : Bool =
       | None -> false
     }
 
-fn paragraphText(line : String) : Bool =
+fn isParagraphText(line : String) : Bool =
     atx(line) == None && !isRule(line) && fenceOf(line) == None
 
 fn markerOf(line : String) : Optional(Marker) =
@@ -500,7 +500,7 @@ fn itemLines(lines : List(String),
 // with text after it on its line is inline HTML, which stays in the text,
 // and `<` before an address is an autolink and not HTML.
 fn isHtml(line : String) : Bool =
-    htmlOpens(line) || tagAlone(line)
+    htmlOpens(line) || isTagAlone(line)
 
 // What begins an HTML block wherever it stands, and so ends a paragraph: a
 // comment, a declaration, a processing instruction.
@@ -513,7 +513,7 @@ fn htmlOpens(line : String) : Bool =
 
 // A tag alone on its line, `<div>` or `</div>`, which begins an HTML block
 // but does not end a paragraph.
-fn tagAlone(line : String) : Bool =
+fn isTagAlone(line : String) : Bool =
     match String.toList(String.trimEnd(line)) {
         '<' :: first :: rest -> {
             let #(tag, beyond) = List.span(rest, fn(char) = char != '>');
@@ -534,8 +534,8 @@ fn raw(lines : List(String), acc : List(String)) : #(Block, List(String)) =
 // line of `=` or `-` under it makes it a heading.
 fn paragraph(lines : List(String), acc : List(String)) : #(Block, List(String)) =
     match lines {
-        line :: rest when indent(line) < 4 && underline(unindented(line)) > 0 ->
-            #(Heading(level = underline(unindented(line)), text = textOf(acc)), rest)
+        line :: rest when indent(line) < 4 && underlineLevel(unindented(line)) > 0 ->
+            #(Heading(level = underlineLevel(unindented(line)), text = textOf(acc)), rest)
       | line :: rest when !isBlank(line) && !interrupts(line) ->
             paragraph(rest, unindented(line) :: acc)
       | _ -> #(Paragraph(textOf(acc)), lines)
@@ -545,7 +545,7 @@ fn textOf(lines : List(String)) : List(Inline) =
     inlines(String.join(List.reverse(lines), "\n"))
 
 // 1 for a line of `=`, 2 for a line of `-`, 0 for any other.
-fn underline(line : String) : Int =
+fn underlineLevel(line : String) : Int =
     match String.toList(String.trim(line)) {
         char :: rest when (char == '=' || char == '-')
             && List.all(rest, fn(other) = other == char) -> if char == '=' then 1 else 2
@@ -642,12 +642,9 @@ fn spanText(chars : List(Char)) : String =
 fn emphasis(mark : Char, chars : List(Char), pending : List(Char)) : List(Inline) = {
     let #(run, rest) = List.span(chars, fn(char) = char == mark);
     let size = List.size(run);
-    let intraword =
-        mark == '_'
-            && match pending {
-                previous :: _ -> isWordChar(previous)
-              | [] -> false
-            };
+    // what is read so far is held last first, so its head is the character
+    // before the run
+    let intraword = mark == '_' && startsWord(pending);
     let opens = match rest {
         char :: _ -> char != ' ' && char != '\n'
       | [] -> false
@@ -689,15 +686,8 @@ fn closingRun(chars : List(Char),
                 previous :: _ -> previous != ' ' && previous != '\n'
               | [] -> false
             };
-            let closes =
-                List.size(run) == size
-                    && afterText
-                    && !(mark == '_'
-                             && match rest {
-                                 following :: _ -> isWordChar(following)
-                               | [] -> false
-                             });
-            if closes then
+            let intraword = mark == '_' && startsWord(rest);
+            if List.size(run) == size && afterText && !intraword then
                 Some(#(List.reverse(acc), rest))
             else
                 closingRun(rest, mark, size, run <> acc)
@@ -707,6 +697,13 @@ fn closingRun(chars : List(Char),
 
 fn isWordChar(char : Char) : Bool =
     Char.isAlpha(char) || Char.isDigit(char)
+
+// Whether the characters begin with a letter or a digit, as a word's do.
+fn startsWord(chars : List(Char)) : Bool =
+    match chars {
+        char :: _ -> isWordChar(char)
+      | [] -> false
+    }
 
 // A link: its text up to the `]` that balances the `[`, then `(`, the
 // address, an optional title in quotes, and `)`.
@@ -855,7 +852,7 @@ fn labelsOf(start : Optional(Int), items : List(List(Block)), bullet : String) :
             List.map(List.indexed(items), fn(#(index, _)) = Int.toString(number + index) <> ".")
     }
 
-// The columns of the widest label.
+// The characters of the widest label.
 fn widest(labels : List(String)) : Int =
     List.foldLeft(labels, 0, fn(most, label) = Int.max(most, String.size(label)))
 
@@ -897,16 +894,16 @@ fn span(inline : Inline, output : Output) : String =
       | Break -> "\n"
     }
 
-// Text in the terminal's look where the rendering is styled; the terminal
-// turns a look off by its own code, so one inside another leaves the outer
-// one on (report Appendix E.16).
-fn paint(output : Output, look : Ansi.Style, text : String) : String =
-    if output == Styled then Ansi.styled(text, look) else text
+// Text in the terminal's style where the rendering is styled; the terminal
+// turns a style off by its own code, so one inside another leaves the
+// outer one on (report Appendix E.16).
+fn paint(output : Output, style : Ansi.Style, text : String) : String =
+    if output == Styled then Ansi.styled(text, style) else text
 
 // Inline markup: in the terminal's style where there is one, and as it is
 // written where there is none, the only way plain text can show it.
-fn marked(output : Output, look : Ansi.Style, mark : String, text : String) : String =
-    if output == Styled then paint(output, look, text) else mark <> text <> mark
+fn marked(output : Output, style : Ansi.Style, mark : String, text : String) : String =
+    if output == Styled then paint(output, style, text) else mark <> text <> mark
 
 fn plain(inlines : List(Inline)) : String =
     String.join(List.map(inlines, fn(inline) = match inline {
@@ -919,56 +916,58 @@ fn plain(inlines : List(Inline)) : String =
                 }),
                 "")
 
-// Each styled row stands alone: a look a row leaves on is turned off at
+// Each styled row stands alone: a style a row leaves on is turned off at
 // its end and on again at the next row's start, so that a row shown
-// without those after it, as a listing cut short shows it, leaves no look
-// on. The looks are Ansi.styled's, each turned off by a code of its
+// without those after it, as a listing cut short shows it, leaves no
+// style on. The styles are Ansi.styled's, each turned off by a code of its
 // own.
 fn standing(output : Output, rows : List(String)) : List(String) =
     if output == Styled then balanced(rows, []) else rows
 
-// The rows, `open` the looks on as the first begins, the latest first.
-fn balanced(rows : List(String), open : List(String)) : List(String) =
+// The rows, `codes` the styles' codes on as the first begins, the latest
+// first.
+fn balanced(rows : List(String), codes : List(String)) : List(String) =
     match rows {
         [] -> []
       | row :: rest -> {
-            let left = looksAfter(String.toList(row), open);
-            let reopened = String.join(List.map(List.reverse(open), sgr), "");
-            let closed = String.join(List.map(left, fn(on) = sgr(offCode(on))), "");
+            let left = codesAfter(String.toList(row), codes);
+            let reopened = String.join(List.map(List.reverse(codes), sgr), "");
+            let closed = String.join(List.map(left, fn(code) = sgr(offCode(code))), "");
             (reopened <> row <> closed) :: balanced(rest, left)
         }
     }
 
-// The looks on after the characters, given those on before them.
-fn looksAfter(chars : List(Char), open : List(String)) : List(String) =
+// The codes on after the characters, given those on before them.
+fn codesAfter(chars : List(Char), codes : List(String)) : List(String) =
     match chars {
-        [] -> open
+        [] -> codes
       | '\u{1b}' :: '[' :: rest -> {
             let #(digits, beyond) = List.span(rest, fn(char) = char >= '0' && char <= '9');
             match beyond {
-                'm' :: more -> looksAfter(more, switched(String.fromList(digits), open))
-              | _ -> looksAfter(beyond, open)
+                'm' :: more -> codesAfter(more, switched(String.fromList(digits), codes))
+              | _ -> codesAfter(beyond, codes)
             }
         }
-      | _ :: rest -> looksAfter(rest, open)
+      | _ :: rest -> codesAfter(rest, codes)
     }
 
-// A code turns its look on, or turns off every look it ends; `0` ends all.
-fn switched(code : String, open : List(String)) : List(String) =
+// A code turns its style on, or turns off every style it ends; `0` ends
+// all.
+fn switched(code : String, codes : List(String)) : List(String) =
     if code == "0" then
         []
     else if List.contains(["22", "23", "24", "39"], code) then
-        List.filter(open, fn(on) = offCode(on) != code)
+        List.filter(codes, fn(other) = offCode(other) != code)
     else
-        code :: open
+        code :: codes
 
-fn offCode(on : String) : String =
-    match on {
+fn offCode(code : String) : String =
+    match code {
         "1" -> "22"
       | "2" -> "22"
       | "3" -> "23"
       | "4" -> "24"
-      | _ -> if String.startsWith(on, "3") then "39" else "0"
+      | _ -> if String.startsWith(code, "3") then "39" else "0"
     }
 
 fn sgr(code : String) : String =
@@ -1041,60 +1040,27 @@ fn filled(pieces : List(String), width : Int, row : String, rows : List(String))
 ///           4)
 /// // => [".SH NAME", "hello \\- greet", ".SH DESCRIPTION", ".PP", "Says \\fIhello\\fR."]
 /// ```
-export fn roff(blocks : List(Block), page : Manual) : List(String) = {
+export fn roff(blocks : List(Block), manual : Manual) : List(String) = {
     let description = match blocks {
         [] -> []
       | Heading(level = 1) :: _ -> []
       | _ -> [".SH DESCRIPTION"]
     };
-    header(page) <> description <> List.flatMap(blocks, roffed)
+    header(manual) <> description <> List.flatMap(blocks, roffed)
 }
 
 // The header and the NAME line. No word is hyphenated and lines are filled
 // to the left margin alone; groff's macros set the adjustment again from
 // the string AD at each item of a list, so the string says it too.
-fn header(page : Manual) : List(String) = {
-    let fields = [page.name, page.section, "", page.source, page.title];
+fn header(manual : Manual) : List(String) = {
+    let fields = [manual.name, manual.section, "", manual.source, manual.title];
     [".TH " <> String.join(List.map(fields, fn(field) = "\"" <> escaped(field) <> "\""), " "),
      ".nh",
      ".ds AD l",
      ".ad l",
      ".SH NAME",
-     textLine(escaped(page.name) <> " \\- " <> escaped(plain(page.summary)))]
+     textLine(escaped(manual.name) <> " \\- " <> escaped(plain(manual.summary)))]
 }
-
-/// The first sentence of the document: the text of its first paragraph up
-/// to the first period a space follows outside emphasis, code spans, and
-/// links, or all of it where there is none, and nothing where the document
-/// has no paragraph.
-///
-/// ### Examples
-///
-/// ```ernest
-/// Markdown.firstSentence(Markdown.parse("# Title\n\nOne `a`. Two."))
-/// // => [Text("One "), CodeSpan("a"), Text(".")]
-/// ```
-export fn firstSentence(blocks : List(Block)) : List(Inline) =
-    match List.find(blocks, isParagraph) {
-        Some(Paragraph(inlines)) -> upToStop(inlines)
-      | _ -> []
-    }
-
-fn isParagraph(block : Block) : Bool =
-    match block {
-        Paragraph(_) -> true
-      | _ -> false
-    }
-
-fn upToStop(inlines : List(Inline)) : List(Inline) =
-    match inlines {
-        [] -> []
-      | Text(text) :: rest -> match String.indexOf(text, ". ") {
-            Some(index) -> [Text(String.slice(text, 0, index + 1))]
-          | None -> Text(text) :: upToStop(rest)
-        }
-      | inline :: rest -> inline :: upToStop(rest)
-    }
 
 fn roffed(block : Block) : List(String) =
     match block {
@@ -1127,13 +1093,13 @@ fn roffItems(start : Optional(Int), items : List(List(Block))) : List(String) = 
     };
     let width = Int.toString(columns + 1);
     List.flatMap(List.zip(labels, items), fn(#(label, item)) = {
-        let #(first, rest) = match item {
+        let #(opening, others) = match item {
             Paragraph(text) :: more -> #(textLines(roffSpans(text, Roman)), more)
           | _ -> #([], item)
         };
         (".IP " <> label <> " " <> width)
-            :: first
-                <> List.flatMap(rest, fn(block) = (".RS " <> width) :: roffed(block) <> [".RE"])
+            :: opening
+                <> List.flatMap(others, fn(block) = (".RS " <> width) :: roffed(block) <> [".RE"])
     })
 }
 
@@ -1220,6 +1186,43 @@ fn escapedChar(char : Char) : String =
       | '^' -> "\\(ha"
       | '\n' -> " "
       | other -> Char.toString(other)
+    }
+
+//
+// The first sentence
+//
+
+/// The first sentence of the document: the text of its first paragraph up
+/// to the first period a space follows outside emphasis, code spans, and
+/// links, or all of it where there is none, and nothing where the document
+/// has no paragraph.
+///
+/// ### Examples
+///
+/// ```ernest
+/// Markdown.firstSentence(Markdown.parse("# Title\n\nOne `a`. Two."))
+/// // => [Text("One "), CodeSpan("a"), Text(".")]
+/// ```
+export fn firstSentence(blocks : List(Block)) : List(Inline) =
+    match List.find(blocks, isParagraph) {
+        Some(Paragraph(inlines)) -> upToStop(inlines)
+      | _ -> []
+    }
+
+fn isParagraph(block : Block) : Bool =
+    match block {
+        Paragraph(_) -> true
+      | _ -> false
+    }
+
+fn upToStop(inlines : List(Inline)) : List(Inline) =
+    match inlines {
+        [] -> []
+      | Text(text) :: rest -> match String.indexOf(text, ". ") {
+            Some(index) -> [Text(String.slice(text, 0, index + 1))]
+          | None -> Text(text) :: upToStop(rest)
+        }
+      | inline :: rest -> inline :: upToStop(rest)
     }
 
 //

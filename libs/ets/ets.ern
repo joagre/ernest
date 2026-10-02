@@ -1,6 +1,6 @@
 /// Tables of the runtime, keyed by a value of type `k`. A table belongs to
-/// the process that made it and dies with it, or with `close`, and every
-/// operation on a table that is gone faults. Any process on the node that
+/// the process that made it and ends with it, or with `close`, and every
+/// operation on a table that has ended faults. Any process on the node that
 /// holds a table reads and writes it: a table is state that processes share,
 /// which is why this is a library and not the standard library's (report
 /// §10). Keys are compared as the runtime compares its terms. Appendix D of
@@ -67,10 +67,10 @@ export fn put(table : Table(k, v), key : k, value : v) : Unit with m = {
     Unit
 }
 
-foreign fn rawInsert(table : Table(k, v), row : #(k, v)) : Bool with m =
+foreign fn rawInsert(table : Table(k, v), entry : #(k, v)) : Bool with m =
     "ets:insert/2"
 
-/// The value at that key.
+/// The value at that key, or `None` where the table has no entry for it.
 ///
 /// ### Errors
 ///

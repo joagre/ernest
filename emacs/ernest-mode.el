@@ -426,17 +426,17 @@ closed on it, and what it closes began on the line the bracket opened on."
 
 (defun ernest--brace-base (brace)
   "The column the contents of the brace at BRACE step in from.
-That is the line the construct holding the brace began on, past a
-bracket closed before the brace, as a match's scrutinee broken over
-lines, and an arm whose guard is broken over lines, whose body steps in
-from its pattern's line.  A bracket opened on that line whose first item
-holds the brace, and which holds a further item, aligns its items, and
-the brace steps from its first item; one whose last item holds the brace
-hugs it, and the brace steps from the line.  Where nothing follows the
-brace yet it is taken as hugged."
+It is the base of the line the construct holding the brace began on,
+past a bracket closed before the brace, as a match's scrutinee broken
+over lines, and past an arm's guard broken over lines.  A bracket opened
+on that line whose first item holds the brace, and which holds a further
+item, aligns its items, and the brace steps from its first item; one
+whose last item holds the brace hugs it, and the brace steps from the
+line.  Where nothing follows the brace yet it is taken as hugged."
   (save-excursion
     (goto-char brace)
     (let ((open (nth 1 (syntax-ppss brace)))
+          (depth (car (syntax-ppss brace)))
           (inner brace)
           (base nil))
       (ernest--climb open)
@@ -445,17 +445,23 @@ brace yet it is taken as hugged."
             (setq base (ernest--first-item-column open)))
         (setq inner open
               open (nth 1 (syntax-ppss open))))
-      (or base (ernest--anchor-base (ernest--arm-brace-p brace))))))
+      (or base (ernest--anchor-base (ernest--arm-line-p depth))))))
 
-(defun ernest--arm-brace-p (brace)
-  "Whether the brace at BRACE opens an arm's body, after its `->'.
-The arm began on its pattern's line, and its body steps in from there
-however many lines its guard takes, as `ern format' lays it out (report
-section 11.6); a brace an operator opens, `&& {', steps in from its own."
+(defun ernest--arm-line-p (depth)
+  "Whether the line point is on holds a clause's `->' at bracket DEPTH.
+A clause, a match's or a receive's arm or its `after', began on its
+pattern's line, and whatever its body opens steps in from there however
+many lines its guard takes, as `ern format' lays it out (report section
+11.6).  A brace an operator opens, `&& {', steps in from its own line."
   (save-excursion
-    (goto-char brace)
-    (skip-chars-backward " \t")
-    (looking-back "->" (max (point-min) (- (point) 2)))))
+    (let ((found nil)
+          (end (line-end-position)))
+      (beginning-of-line)
+      (while (and (not found) (search-forward "->" end t))
+        (let ((state (save-excursion (syntax-ppss (match-beginning 0)))))
+          (when (and (not (nth 8 state)) (= (car state) depth))
+            (setq found t))))
+      found)))
 
 (defun ernest--first-item-p (open pos)
   "Whether POS lies in the first item of the bracket at OPEN."

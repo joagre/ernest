@@ -1,0 +1,57 @@
+//
+// Layouts the Emacs mode is held to, beside the repository's sources: `ern
+// format` lays this file out, and the mode's corpus tests reindent it
+// unchanged (docs/emacs_mode.md). An arm whose guard spans lines has its
+// body laid out from the arm's first line, whatever the body opens with,
+// and so does an `after` clause (report §11.6).
+//
+
+type Msg = Ping
+
+fn braced(line : String, first : Int) : Int =
+    match line {
+        x when String.size(line) < 4
+            && first == 1
+            && String.size(line) > 100000000000
+            && first == 1 -> {
+            let y = 1;
+            y + first
+        }
+      | _ -> 3
+    }
+
+fn matched(line : String, first : Int) : Int =
+    match line {
+        x when String.size(line) < 4
+            && first == 1
+            && String.size(line) > 100000000000
+            && first == 1 -> match x {
+            "a" -> 1
+          | _ -> 2
+        }
+      | _ -> 3
+    }
+
+fn chosen(line : String, first : Int) : Int =
+    match line {
+        x when String.size(line) < 4
+            && first == 1
+            && String.size(line) > 100000000000
+            && first == 1 -> if first == 1 then {
+            let y = 1;
+            y
+        } else {
+            let z = 2;
+            z
+        }
+      | _ -> 3
+    }
+
+fn waited() : Int with Msg =
+    receive {
+        Ping -> 1
+      | after 2000 -> {
+            let y = 1;
+            y + 1
+        }
+    }
