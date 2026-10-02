@@ -52,13 +52,13 @@
     (goto-char (point-min))
     (search-forward "type State =")
     (push-mark (match-beginning 0) t)
-    (search-forward "fn run(")
+    (search-forward "fn execute(")
     (let ((start (float-time)))
       (ernest-format-buffer)
       (message "format: shell.ern laid out in the buffer in %.2f s" (- (float-time) start)))
     (ernest-format--want "shell.ern without its indentation, laid out"
                          (string= (buffer-string) source) t)
-    (ernest-format--want "point in shell.ern" (looking-back "fn run(" (line-beginning-position))
+    (ernest-format--want "point in shell.ern" (looking-back "fn execute(" (line-beginning-position))
                          t)
     (ernest-format--want "the mark in shell.ern"
                          (save-excursion (goto-char (mark t)) (looking-at-p "type State =")) t)))

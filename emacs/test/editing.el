@@ -25,12 +25,12 @@
   (ernest-mode)
   ;; the declaration point is in, from the middle of a body
   (goto-char (point-min))
-  (search-forward "y :: rest -> if i == 0")
+  (search-forward "head :: rest -> if index == 0")
   (ernest-editing--want "the declaration at the cursor" (ernest-current-defun) "get")
   ;; C-M-a from there lands on its own line
   (ernest-beginning-of-defun)
   (ernest-editing--want "beginning-of-defun"
-                        (buffer-substring (point) (+ (point) 16)) "export fn get(xs")
+                        (buffer-substring (point) (+ (point) 18)) "export fn get(list")
   ;; C-M-a with a negative count moves forward, to the next declaration
   (save-excursion
     (ernest-beginning-of-defun -1)
