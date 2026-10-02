@@ -418,6 +418,8 @@ $ ern run money.erc
 cheaper
 ```
 
+A set in the order of its elements' `compare` is `OrderedSet`, and a map with its keys in order `OrderedMap`; code written once over both kinds of set is §7.3's.
+
 ### 2.6 Patterns and irrefutability
 
 The same patterns appear in `match` clauses, `let` bindings, and function parameters. A `let` and a parameter need an *irrefutable* pattern, one that cannot fail to match: a name, `_`, a tuple of irrefutable patterns, the only constructor of its type with irrefutable fields, or an irrefutable pattern with `as`, which comes below.
@@ -1210,7 +1212,7 @@ fn startWorker() : Unit with GameMsg = {
 }
 ```
 
-`me` is taken before the spawn: inside the lambda, `self()` would be the worker's own address. A library is used the same way, written against a message type of its own, so a program never needs one message type for all its processes.
+A library is used the same way, written against a message type of its own, so a program never needs one message type for all its processes.
 
 **The system modules deliver so too.** Wherever something arrives later, a system module takes the function that makes your message from its own: `monitor(child, wrap)` (§5.2), `Clock.alarm(ms, wrap)`, which puts `wrap(t)` in your mailbox after `ms` milliseconds, `t` the time it fired, `Terminal.subscribe(wrap)`, which puts every key pressed and every resize in it, and `Process.faults(wrap)`. A constructor with one positional field is a function value, so `Clock.alarm(100, Tick)` delivers `Tick(t)`. A message that needs no value is made by a lambda that ignores it, `Clock.alarm(100, fn(_) = Refresh)` for a constructor `Refresh` without fields.
 
@@ -1748,117 +1750,304 @@ hidden.ern:1:1: Stack is an abstract type the module keeps private, which hides 
 
 The representation may change later, a tree for the list, and the modules that use the stack still work, since none of them could name it.
 
-### 7.3 One contract, several representations
+### 7.3 Code written once over several representations
 
-Code is often written once for a kind of thing that has several representations: a shape that is a circle or a square, a set kept in a hash or kept sorted. Ernest writes such a contract as a record of functions, a type whose fields are the operations, in one of two forms.
+Code is often written once for a kind of thing that has several representations: a set kept in a hash and a set kept in order, a sum over `Int` and over `Float`. Ernest has three forms for it, and a module of the standard library shows the first.
 
-**Values that carry their operations.** Each value is a record whose functions close over what it is made of, so a list may hold values of different representations:
+**A module that declares what it needs.** `OrderedSet` keeps a set's elements in the order of their type's `compare`. A function that needs the order says so after its result type, `needs a.compare`, a *requirement* (report §4.9): in its body `a.compare` is the member of the type `a` stands for, and `<` resolves to it, as both would on a known type. Here is the module whole, `stdlib/ordered_set.ern`, with its doc blocks left out, which `:doc OrderedSet` shows:
 
-```ernest
-// shapes.ern  (namespace Shapes)
-/// A shape, whatever it is made of.
-type Shape = Shape(name : String, area : () -> Float)
+```ernest-fragment
+// stdlib/ordered_set.ern  (namespace OrderedSet), its doc blocks left out
+export abstract type Set(a) = Set(List(a))
 
-fn circle(radius : Float) : Shape =
-    Shape(name = "circle", area = fn() = 3.14159 * radius * radius)
+export let empty : Set(a) = Set([])
 
-fn square(side : Float) : Shape =
-    Shape(name = "square", area = fn() = side * side)
+export fn fromList(list : List(a)) : Set(a) needs a.compare =
+    Set(firstOfEach(List.sort(list, a.compare)))
 
-export fn main() : Unit with Never =
-    List.foreach([circle(1.0), square(2.0)],
-                 fn(s) = Io.println(s.name <> " " <> Float.toString(s.area())))
-```
+// The first of each run the order calls `Equal` in a sorted list. The sort
+// is stable, so the list's earlier occurrence comes first and is the one
+// kept, as `put` keeps the element already there.
+fn firstOfEach(sorted : List(a)) : List(a) needs a.compare =
+    match sorted {
+        x :: y :: rest -> if a.compare(x, y) == Equal then
+            firstOfEach(x :: rest)
+        else
+            x :: firstOfEach(y :: rest)
+      | _ -> sorted
+    }
 
-```console
-$ ern build shapes.ern
-$ ern run shapes.erc
-circle 3.14159
-square 4.0
-```
+export fn size(Set(list) : Set(a)) : Int =
+    List.size(list)
 
-`s.area()` runs the function the shape was built with, and the code that takes a `Shape` knows nothing of radii or sides. A function may take two shapes and use what each gives, its `name` and its `area`. It cannot see either shape's radius or side, and it cannot require that the two are of one representation. An operation that needs to see inside two values of one representation, as the union of two sets does, takes the second form.
+export fn isEmpty(Set(list) : Set(a)) : Bool =
+    List.isEmpty(list)
 
-**Operations passed beside the data.** The contract is a type in a module of its own, and the representation is a type parameter, `s`, which the code that uses the contract keeps. `union` takes two values of type `s` and gives a third:
+export fn contains(Set(list) : Set(a), x : a) : Bool needs a.compare =
+    has(list, x)
 
-```ernest
-// sets.ern  (namespace Sets)
-/// What a set is to code written once for every representation.
-export type Operations(s, a) =
-    Operations(empty : s, add : (s, a) -> s, has : (s, a) -> Bool, union : (s, s) -> s)
-```
-
-Each representation depends on the contract and exports the `operations` that fill it in. What a representation needs goes in through them: the ordered set's are a function of its `compare`, and the hashed set's, which need nothing, a `let`:
-
-```ernest
-// sets/hashed.ern  (namespace Sets.Hashed)
-/// The built-in `Set`, as a `Sets.Operations`.
-export let operations : Sets.Operations(Set(a), a) =
-    Sets.Operations(empty = Set.empty, add = Set.put, has = Set.contains, union = Set.union)
-```
-
-```ernest
-// sets/ordered.ern  (namespace Sets.Ordered)
-/// A list kept in the order of a `compare`, as a `Sets.Operations`.
-export abstract type Sorted(a) = Sorted(List(a))
-
-export fn operations(compare : (a, a) -> Ordering) : Sets.Operations(Sorted(a), a) =
-    Sets.Operations(empty = Sorted([]),
-                    add = fn(Sorted(xs), x) = Sorted(merge(xs, [x], compare)),
-                    has = fn(Sorted(xs), x) = List.any(xs, fn(y) = compare(x, y) == Equal),
-                    union = fn(Sorted(xs), Sorted(ys)) = Sorted(merge(xs, ys, compare)))
-
-fn merge(xs : List(a), ys : List(a), compare : (a, a) -> Ordering) : List(a) =
-    match #(xs, ys) {
-        #([], _) -> ys
-      | #(_, []) -> xs
-      | #(x :: xrest, y :: yrest) -> match compare(x, y) {
-            Less -> x :: merge(xrest, ys, compare)
-          | Equal -> x :: merge(xrest, yrest, compare)
-          | Greater -> y :: merge(xs, yrest, compare)
+fn has(list : List(a), x : a) : Bool needs a.compare =
+    match list {
+        [] -> false
+      | y :: rest -> match a.compare(x, y) {
+            Less -> false
+          | Equal -> true
+          | Greater -> has(rest, x)
         }
     }
 
-/// The elements in ascending order, which no other set here gives.
-export fn toList(Sorted(xs) : Sorted(a)) : List(a) =
-    xs
+export fn put(Set(list) : Set(a), x : a) : Set(a) needs a.compare =
+    Set(inserted(list, x))
+
+fn inserted(list : List(a), x : a) : List(a) needs a.compare =
+    match list {
+        [] -> [x]
+      | y :: rest -> match a.compare(x, y) {
+            Less -> x :: list
+          | Equal -> list
+          | Greater -> y :: inserted(rest, x)
+        }
+    }
+
+export fn remove(Set(list) : Set(a), x : a) : Set(a) needs a.compare =
+    Set(List.filter(list, fn(y) = a.compare(x, y) != Equal))
+
+export fn map(Set(list) : Set(a), f : (a) -> b with e) : Set(b) with e needs b.compare =
+    fromList(List.map(list, f))
+
+export fn filter(Set(list) : Set(a), keep : (a) -> Bool with e) : Set(a) with e =
+    Set(List.filter(list, keep))
+
+export fn filterMap(Set(list) : Set(a),
+                    f : (a) -> Optional(b) with e) : Set(b) with e needs b.compare =
+    fromList(List.filterMap(list, f))
+
+export fn foldLeft(Set(list) : Set(a), acc : b, step : (b, a) -> b with e) : b with e =
+    List.foldLeft(list, acc, step)
+
+export fn foreach(Set(list) : Set(a), f : (a) -> Unit with e) : Unit with e =
+    List.foreach(list, f)
+
+export fn any(Set(list) : Set(a), keep : (a) -> Bool with e) : Bool with e =
+    List.any(list, keep)
+
+export fn all(Set(list) : Set(a), keep : (a) -> Bool with e) : Bool with e =
+    List.all(list, keep)
+
+export fn find(Set(list) : Set(a), keep : (a) -> Bool with e) : Optional(a) with e =
+    List.find(list, keep)
+
+export fn toList(Set(list) : Set(a)) : List(a) =
+    list
+
+export fn min(Set(list) : Set(a)) : Optional(a) =
+    List.get(list, 0)
+
+export fn max(Set(list) : Set(a)) : Optional(a) =
+    List.last(list)
+
+export fn union(Set(list) : Set(a), Set(other) : Set(a)) : Set(a) needs a.compare =
+    Set(merged(list, other))
+
+fn merged(list : List(a), other : List(a)) : List(a) needs a.compare =
+    match #(list, other) {
+        #([], _) -> other
+      | #(_, []) -> list
+      | #(x :: rest, y :: others) -> match a.compare(x, y) {
+            Less -> x :: merged(rest, other)
+          | Equal -> x :: merged(rest, others)
+          | Greater -> y :: merged(list, others)
+        }
+    }
+
+export fn intersection(Set(list) : Set(a), Set(other) : Set(a)) : Set(a) needs a.compare =
+    Set(shared(list, other))
+
+fn shared(list : List(a), other : List(a)) : List(a) needs a.compare =
+    match #(list, other) {
+        #([], _) -> []
+      | #(_, []) -> []
+      | #(x :: rest, y :: others) -> match a.compare(x, y) {
+            Less -> shared(rest, other)
+          | Equal -> x :: shared(rest, others)
+          | Greater -> shared(list, others)
+        }
+    }
+
+export fn difference(Set(list) : Set(a), Set(other) : Set(a)) : Set(a) needs a.compare =
+    Set(remaining(list, other))
+
+fn remaining(list : List(a), other : List(a)) : List(a) needs a.compare =
+    match #(list, other) {
+        #([], _) -> []
+      | #(_, []) -> list
+      | #(x :: rest, y :: others) -> match a.compare(x, y) {
+            Less -> x :: remaining(rest, other)
+          | Equal -> remaining(rest, others)
+          | Greater -> remaining(list, others)
+        }
+    }
+
+export fn isSubset(Set(list) : Set(a), Set(other) : Set(a)) : Bool needs a.compare =
+    isWithin(list, other)
+
+fn isWithin(list : List(a), other : List(a)) : Bool needs a.compare =
+    match #(list, other) {
+        #([], _) -> true
+      | #(_, []) -> false
+      | #(x :: rest, y :: others) -> match a.compare(x, y) {
+            Less -> false
+          | Equal -> isWithin(rest, others)
+          | Greater -> isWithin(list, others)
+        }
+    }
 ```
 
-Code written once takes the record, and the caller chooses the representation at the call:
+The set is a sorted list and nothing else, so it is data: two sets built in different orders are `==`, a set keys a `Map`, and a set is sent to another node. Its order is its element type's, `Int.compare` for an `OrderedSet.Set(Int)` and `Money.compare` for a set of `Money` (§2.5), so a set carries no order and a call writes none: `OrderedSet.fromList([3, 1, 3])` is `fromList` with `Int.compare`, which the compiler supplies, since the element type is known there. Where the element type is a type variable, the function that calls declares the requirement itself, as `fromList` does for `firstOfEach`, and the member it was given goes along. `List.sort` takes the member as a parameter instead, `a.compare` written, since a sort may be given any order; a function declares the requirement where the type's own member is meant. `map` needs its result's, `b.compare`, since the set it makes is in the results' order; `size`, `toList`, `filter` and the rest need none. `put`, `contains` and `remove` are linear in the set's size, as a sorted list is, and `fromList` is a sort (report Appendix E.25). The ordered map, `OrderedMap`, is written the same way over its keys (report Appendix E.26).
+
+**A program over it.** No line of this program names an order:
 
 ```ernest
-// main.ern  (namespace Main)
-fn dedupe(operations : Sets.Operations(s, a), xs : List(a)) : List(a) = {
-    let #(_, kept) = List.foldLeft(xs, #(operations.empty, []), fn(acc, x) = {
-        let #(seen, out) = acc;
-        if operations.has(seen, x) then acc else #(operations.add(seen, x), x :: out)
-    });
-    List.reverse(kept)
-}
+// usage.ern  (namespace Usage)
+type Date = Date(year : Int, month : Int, day : Int) derives compare
 
-fn fromList(operations : Sets.Operations(s, a), xs : List(a)) : s =
-    List.foldLeft(xs, operations.empty, operations.add)
+type Ops(s, a) = Ops(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
+
+let hashed : Ops(Set(Int), Int) = Ops(..Set)
+
+let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)
+
+fn unique(list : List(a)) : List(a) needs a.compare =
+    OrderedSet.toList(OrderedSet.fromList(list))
+
+fn shown(list : List(a)) : Unit with m needs a.show =
+    List.foreach(list, fn(x) = Io.println(Io.show(x)))
+
+fn common(list : List(a), other : List(a), ops : Ops(s, a)) : List(a) =
+    ops.toList(ops.intersection(ops.fromList(list), ops.fromList(other)))
 
 export fn main() : Unit with Never = {
-    Io.println(String.join(dedupe(Sets.Hashed.operations, ["b", "a", "b", "c"]), " "));
-    let numbers = Sets.Ordered.operations(Int.compare);
-    Io.println(String.join(List.map(dedupe(numbers, [3, 1, 3, 2]), Int.toString), " "));
-    let both = numbers.union(fromList(numbers, [3, 1]), fromList(numbers, [2, 3]));
-    Io.println(String.join(List.map(Sets.Ordered.toList(both), Int.toString), " "))
+    let small = OrderedSet.fromList([3, 1, 3]);
+    let both = OrderedSet.union(small, OrderedSet.fromList([2]));
+    Io.println(Io.show(OrderedSet.toList(both)));
+    Io.println(Io.show(OrderedSet.min(both)));
+    Io.println(Bool.toString(both == OrderedSet.fromList([2, 3, 1])));
+    Io.println(Io.show(OrderedSet.toList(OrderedSet.filter(both, fn(n) = n % 2 == 1))));
+    let doubled = OrderedSet.map(both, fn(n) = n * 2);
+    Io.println(Bool.toString(OrderedSet.contains(doubled, 6)));
+    Io.println(Io.show(unique(["b", "a", "b"])));
+    let dates =
+        OrderedSet.fromList([Date(year = 2026, month = 10, day = 2),
+                             Date(year = 2025, month = 1, day = 1)]);
+    Io.println(Io.show(OrderedSet.min(dates)));
+    shown(OrderedSet.toList(dates));
+    let ages = OrderedMap.fromList([#("bo", 42), #("al", 7)]);
+    Io.println(Io.show(OrderedMap.keys(ages)));
+    Io.println(Io.show(OrderedMap.get(OrderedMap.put(ages, "cy", 1), "cy")));
+    Io.println(Io.show(common([4, 2, 3], [3, 4, 5], ordered)));
+    Io.println(Int.toString(List.size(common([4, 2, 3], [3, 4, 5], hashed))))
 }
 ```
 
 ```console
-$ ern build --build-root build .
-$ ern run build/main.erc
-b a c
-3 1 2
-1 2 3
+$ ern build usage.ern
+$ ern run usage.erc
+[1, 2, 3]
+Some(1)
+true
+[1, 3]
+true
+["a", "b"]
+Some(Date(year = 2025, month = 1, day = 1))
+Date(year = 2025, month = 1, day = 1)
+Date(year = 2026, month = 10, day = 2)
+["al", "bo"]
+Some(1)
+[3, 4]
+2
 ```
 
-`fromList` is written once, and what it gives back is of the caller's representation: here a `Sets.Ordered.Sorted(Int)`, which `union` merges with another and `Sets.Ordered.toList` reads. Reach for the first form when values of different representations meet, in one list or one message. Reach for the second when code written once must keep the representation's type, to take two values of it or to give one back.
+`unique` is written once for any element type and declares `needs a.compare`; its call writes nothing, and the compiler supplies `String.compare`. Without the requirement the call is refused, naming what to add:
 
-In both, the types check each record where it is built: `circle` and `Sets.Hashed.operations` must give every field, each of its type, or the module is refused. The code that takes the record sees only what it lists, never a radius, a `Set` or a sorted list. What a representation needs goes in when it is built, a radius or a `compare`, and what it has beyond the contract, as `Sets.Ordered.toList`, is reached through its module. Equality is inferred, as everywhere (§2.5). The annotation of `Sets.Hashed.operations` does not write it, and its type carries it from `Set.put`: `Sets.Hashed.operations : Sets.Operations(Set(a=!), a=!)`. Nothing checks a module beyond the record it builds: a representation need export nothing else. A service with state is different: two processes of different representations take one message type, and the caller holds an `Address(M)` (§4).
+```ernest-rejected
+fn unique(list : List(a)) : List(a) =
+    OrderedSet.toList(OrderedSet.fromList(list))
+```
+
+```console
+$ ern build generic.ern
+generic.ern:2:23: fromList needs a.compare, which unique does not declare; add needs a.compare
+1 | fn unique(list : List(a)) : List(a) =
+2 |     OrderedSet.toList(OrderedSet.fromList(list))
+  |                       ^^^^^^^^^^^^^^^^^^^
+```
+
+`shown` declares `needs a.show`. `Io.show` writes a value by its type, which a function generic in that type does not know, so the function names `show` as it would name a member, and each call supplies the type's (report Appendix E.1).
+
+`Date` derives its order: `derives compare` gives the type the member `compare`, which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare`, so the dates print by year, then month, then day. A field whose type has no `compare`, an `Optional(Int)`, is refused at the declaration (report §3.5).
+
+`Ops` is an *operations record*: the record of the operations `common` uses, which the program declares, each field's type over the record's parameters, `s` the representation and `a` the element. `Ops(..Set)` fills it from the namespace `Set`, each field not given beside the namespace being the declaration of its name there, at the field's type, and `Ops(..OrderedSet)` from `OrderedSet`, where `fromList`'s requirement is met with `Int.compare`, since the record's type fixes `a`. A field the namespace lacks, or one of another type, is refused where the record is built (report §5.6). `common` is an ordinary function over the record, `ops.fromList` a field read against the parameter's annotation, written once and called with either record; the caller chooses the representation at each call. The standard library declares no such record: a program declares the one it needs, three fields here, and reaches what a representation has beyond it, `OrderedSet.min`, through its module. `ages` is an `OrderedMap`, its keys in order, filled and read as a `Map` is.
+
+**Two orders cannot meet.** An order belongs to a type, since a type has one `compare`. A second order on `Int` is a second type with a `compare` of its own, and the two sets are of two types:
+
+```ernest-rejected
+type Descending = Descending(Int)
+
+fn Descending.compare(Descending(a) : Descending, Descending(b) : Descending) : Ordering =
+    Int.compare(b, a)
+
+export fn main() : Unit with Never = {
+    let up = OrderedSet.fromList([1]);
+    let down = OrderedSet.fromList([Descending(1)]);
+    Io.println(Int.toString(OrderedSet.size(OrderedSet.union(up, down))))
+}
+```
+
+```console
+$ ern build mixed.ern
+mixed.ern:9:66: the argument does not fit OrderedSet.union: expected OrderedSet.Set(Int), found OrderedSet.Set(Descending)
+8 |     let down = OrderedSet.fromList([Descending(1)]);
+9 |     Io.println(Int.toString(OrderedSet.size(OrderedSet.union(up, down))))
+  |                                             ---------------- OrderedSet.union : (OrderedSet.Set(a!), OrderedSet.Set(a!)) -> OrderedSet.Set(a!) needs a.compare
+  |                                                                  ^^^^
+  | = help: the types differ at Int and Descending
+```
+
+**Values of several representations in one list.** An operations record keeps the representation's type, `s`, so that `common` can take two sets of it and give one back; it also keeps the two representations apart. Where values of different representations are to meet in one list or one message, a record of a second kind hides the representation: its functions close over one set, and `put` answers another such record.
+
+```ernest
+// bag.ern  (namespace Bag)
+/// A set of either representation, which carries its operations and shows
+/// no representation, so that a list may hold both.
+type Bag(a) = Bag(contains : (a) -> Bool, put : (a) -> Bag(a), toList : () -> List(a))
+
+fn ordered(set : OrderedSet.Set(a)) : Bag(a) needs a.compare =
+    Bag(contains = fn(x) = OrderedSet.contains(set, x),
+        put = fn(x) = ordered(OrderedSet.put(set, x)),
+        toList = fn() = OrderedSet.toList(set))
+
+fn hashed(set : Set(a)) : Bag(a) =
+    Bag(contains = fn(x) = Set.contains(set, x),
+        put = fn(x) = hashed(Set.put(set, x)),
+        toList = fn() = Set.toList(set))
+
+export fn main() : Unit with Never =
+    List.foreach([ordered(OrderedSet.empty), hashed(Set.empty)], fn(bag) = {
+        let filled = bag.put(2).put(1).put(2);
+        Io.println(Io.show(#(List.size(filled.toList()), filled.contains(1))))
+    })
+```
+
+```console
+$ ern build bag.ern
+$ ern run bag.erc
+#(2, true)
+#(2, true)
+```
+
+`ordered` declares the requirement, and the lambdas it makes close over the member it was given with the set. What a `Bag` cannot do is what the first kind keeps: nothing can take two bags apart to unite them, and a `Bag` has no `==`, since it holds functions (§2.5). Reach for an operations record where code written once must keep the representation's type, and for a record of closures where values of different representations meet.
+
+In every form the types check what they can: a fill gives every field at its type, a call supplies the member its type has or is refused, and nothing is inferred, since a requirement is written and a member is the type's own, one of each name; a program finds its order where it finds its `+` (report §4.8). A service with state is different: two processes of different representations take one message type, and the caller holds an `Address(M)` (§4).
 
 ### 7.4 Prediction exercise
 
@@ -2215,6 +2404,10 @@ Report §0 gives five principles, and the rules of the guide follow from them.
 Principle 3 turns an omission into a statement. Exhaustiveness makes you say what every constructor does; `let _ = e` says a value is dropped on purpose; the reply discipline says where each `Reply` is consumed; `export` says what crosses a module's boundary; `with` says a function acts through a process; a qualified name says which module a name comes from. Several of these tell the compiler nothing it could not work out for itself. What they add is that the decision is written down, where a reader meets it. It is programming on purpose, to borrow P. J. Plauger's phrase for designing deliberately rather than by accident; his subject is software design as a whole, broader than these rules (*Programming on Purpose: Essays on Software Design*, Prentice Hall, 1993).
 
 ## 12. Frequently asked questions
+
+**Is there a type class, an interface or a trait?**
+
+No. A function that needs an operation of a type it is generic in names the type's member, `needs a.compare`, and a call writes nothing, since a type has one `compare` and the compiler supplies it; code written once over several representations takes a record the program declares and fills from a representation's module, `Ops(..Set)` (§7.3). Nothing is inferred and nothing is declared an instance.
 
 **Why `fn(x) = ...` for a lambda, and not `x -> ...`?**
 

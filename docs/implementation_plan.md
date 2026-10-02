@@ -28,7 +28,7 @@ the same day (the log's *The Erlang Read Again*), and item 15, moved to follow i
 Renamed*) and read again by six readers (the log's *The Ernest Read Again*); item 21, the
 report's and the guide's blocks read the same way, was decided with the user the same day,
 to follow items 16 and 20. Item 5, the operations built, was done on 2026-10-03 (the log's
-*The Requirement Built*). Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+*The Requirement Built*), and item 16, the guide's §7.3 over it, the same day. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -287,19 +287,20 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     block for more than one statement, a blank line that groups, a part of a long expression
     named, a section's banner (the log's *The Sweep Takes the Form Too*); about a week and a
     half.
-16. **The guide's §7.3**, over the finished code and its names: it says "operations record"
-    and shows a generic function with its requirement, a type that derives its order, a
-    record the program declares and fills from a namespace, two orders as two types that
-    cannot meet in `union`, an ordered map, and values of several representations in one list.
-    Its example is `ordered_set.ern`, read whole as the module that declares what it needs,
-    with `usage.ern`'s program as the code that relies on it, and `ordered_map.ern` named as
-    its twin, decided with the user 2026-10-02 (the log's *The Operations Specification
-    Read*). Its examples compile and run under the guide's checks. What Ernest cannot express goes to
-    [`language_feedback.md`](language_feedback.md) and is decided with the user before the
-    section goes around it. The guide's §7.3 was decided 2026-09-28 (the log's *§7.3 Written
-    Around an Ordered Set*); §7.2 states the rule for a type's operations since the principles
-    review's edits. With it, the guide teaches `let me = self()` before a spawn once, where
-    `spawn` is introduced, and drops its two warnings and the explanations that repeat it
+16. **The guide's §7.3**, done 2026-10-03 (the log's *The Guide's §7.3 Over the Finished
+    Code*; decided 2026-09-28 and 2026-10-02, the log's *§7.3 Written Around an Ordered Set*
+    and *The Operations Specification Read*). Retitled *Code written once over several
+    representations*, it reads `stdlib/ordered_set.ern` whole, its doc blocks left out, as the
+    module that declares what it needs, a test holding the guide's block to the file, and
+    `usage.ern`'s program as the code that relies on it, which the guide's checks build and
+    run: a generic function with its requirement, and its refusal without one; `show` under a
+    requirement; a type that derives its order; the operations record a program declares and
+    fills from a namespace; and an ordered map. Then two orders as two types, refused in
+    `union`, and values of several representations in one list through a record that hides
+    the representation, `bag.ern`. `ordered_map.ern` is named as its twin, guide §2.5 points at the
+    section, and guide §12 answers whether there is a type class. With it the guide teaches
+    `let me = self()` once, in guide §4.1 where `spawn` is introduced, and guide §5.5's
+    repeated explanation went
     (language feedback 77, kept 2026-10-02, the log's *MVP 2.99b's Questions, One by One*).
 17. **A soak of hours**: removed on 2026-10-02; `make load` stands for it (the log's *MVP
     2.99b Read After the Review*).

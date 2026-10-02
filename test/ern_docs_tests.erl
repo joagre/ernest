@@ -33,6 +33,24 @@ citations_resolve_test() ->
                not resolves(Citation, guide, ReportSections, GuideSections)],
     ?assertEqual([], Dangling).
 
+%% ernest_guide.md §7.3, report Appendix E.25: the guide shows
+%% stdlib/ordered_set.ern whole but for its doc blocks, a restatement a
+%% teaching document makes, and this holds the two equal
+ordered_set_shown_whole_test() ->
+    Guide = read("ernest_guide.md"),
+    [_, Rest] = binary:split(Guide, <<"```ernest-fragment\n// stdlib/ordered_set.ern">>),
+    [Block | _] = binary:split(Rest, <<"\n```">>),
+    [_Named | Shown] = binary:split(Block, <<"\n">>, [global]),
+    Source = read("stdlib/ordered_set.ern"),
+    Code = [Line || Line <- binary:split(Source, <<"\n">>, [global]),
+                    not lists:prefix("///", binary_to_list(Line))],
+    ?assertEqual(unpadded(Code), unpadded(Shown)).
+
+%% Lines without the blank ones that begin and end them.
+unpadded(Lines) ->
+    Blank = fun(Line) -> Line =:= <<>> end,
+    lists:reverse(lists:dropwhile(Blank, lists:reverse(lists:dropwhile(Blank, Lines)))).
+
 %% ernest_report.md, ernest_guide.md, docs/development.md "Building": a document's
 %% contents list is its top-level sections, its headings of level two, each
 %% linked to its heading, which `make contents` writes
