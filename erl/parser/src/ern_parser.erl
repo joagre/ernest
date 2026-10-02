@@ -89,7 +89,7 @@ parse_one(Text, Parse) ->
 %% after it, is the module's documentation.
 module_doc([{doc, Position, Text}, Next | Rest]) ->
     case line(Next) > doc_end(Position, Text) + 1 of
-        true -> {#module_doc{span = Position, text = Text}, [Next | Rest]};
+        true -> {#module_doc{span = ern_diagnostic:span(Position), text = Text}, [Next | Rest]};
         false -> {undefined, [{doc, Position, Text}, Next | Rest]}
     end;
 module_doc(Tokens) ->
@@ -401,7 +401,8 @@ foreign_declaration([{foreign, Position}, {fn, _} | Rest], Doc, Export) ->
                                              member_of = MemberOf, name = Name, params = Params,
                                              result_type = ResultType, effect = Effect,
                                              implementation = Implementation,
-                                             implementation_span = ImplementationPosition},
+                                             implementation_span =
+                                                 ern_diagnostic:span(ImplementationPosition)},
                      Rest7});
         [Token | _] ->
             fail(position(Token), "expected the implementation name as a string instead of "
@@ -669,7 +670,7 @@ calls(Callee, [{'(', _} | Rest]) ->
 calls(Expr, [{'.', _}, {ident, FieldPosition, Field} | Rest]) ->
     %% report §3.5: a field selected from the value before it
     Unspanned = #e_selection{span = ern_ast:span(Expr), expr = Expr, field = Field,
-                             field_span = FieldPosition},
+                             field_span = ern_diagnostic:span(FieldPosition)},
     {Selection, Rest1} = spanned({Unspanned, Rest}),
     calls(Selection, Rest1);
 calls(Expr, Tokens) ->
@@ -865,7 +866,7 @@ pattern(Tokens) ->
     case Rest of
         [{as, _}, {ident, NamePosition, Name} | Rest1] ->
             spanned({#p_as{span = ern_ast:span(Pattern), pattern = Pattern, name = Name,
-                           name_span = NamePosition}, Rest1});
+                           name_span = ern_diagnostic:span(NamePosition)}, Rest1});
         [{as, _}, Token | _] ->
             fail(position(Token), "expected a name after `as` instead of " ++ describe(Token));
         _ ->

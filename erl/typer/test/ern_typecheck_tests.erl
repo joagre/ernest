@@ -637,6 +637,16 @@ as_binds_twice_test() ->
     ?assertEqual("variable a appears twice in the pattern",
                  refusal("fn g(p : #(Int, Int)) : Int = match p { #(a, b) as a -> a }")).
 
+%% report §5.10, §11.5: a name bound twice, the first time after `as`, is
+%% refused at the second and labels the first. A regression test, found by
+%% the independent read of MVP 2.99b's item 7: the name after `as` kept its
+%% token's position where every other node keeps a span, so the two sorted
+%% the wrong way, and the error stood at the first `b` labelling the second
+as_binds_first_test() ->
+    Diagnostic = diagnostic("fn f(p : #(Int, Int)) : Int = match p { #(a as b, b) -> a }"),
+    ?assertMatch(#diagnostic{span = {1, 51, {1, 52}}, labels = [{{1, 48, {1, 49}}, _}]},
+                 Diagnostic).
+
 %% report §5.10
 patterns_test() ->
     ?assertEqual("variable x appears twice in the pattern",
