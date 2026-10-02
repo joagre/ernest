@@ -15,8 +15,8 @@
 /// indentation, quote marks and list markers reaches to the next multiple
 /// of four columns, and one elsewhere is kept, in a code block's content as
 /// in text. A line may end in a line feed, a carriage return and a line
-/// feed, or a carriage return. A program puts the library on its load path, when it is compiled
-/// and when it is run.
+/// feed, or a carriage return. A program puts the library on its load
+/// path, when it is compiled and when it is run.
 ///
 /// ## Examples
 ///
@@ -117,6 +117,14 @@ export type Output =
 export type Manual =
     Manual(name : String, section : String, summary : List(Inline), source : String, title : String)
 
+// A list item's marker: the number an ordered item carries, the character
+// that makes it, a bullet or the delimiter after the number, and the
+// columns up to the item's text.
+type Marker = Marker(start : Optional(Int), mark : Char, width : Int)
+
+// The font text is set in: roff has one for each of the four.
+type Font = Roman | Bold | Italic | BoldItalic
+
 //
 // Reading the blocks
 //
@@ -187,29 +195,6 @@ fn listStart(line : String, rest : List(String)) : Optional(#(Block, List(String
 
 fn htmlStart(line : String, rest : List(String)) : Optional(#(Block, List(String))) =
     if isHtml(unindented(line)) then Some(raw(line :: rest, [])) else None
-
-// Whether a line begins a block other than a paragraph, and so ends one.
-fn interrupts(line : String) : Bool =
-    indent(line) < 4
-        && {
-            let text = unindented(line);
-            atx(text) != None
-                || isRule(text)
-                || fenceOf(text) != None
-                || String.startsWith(text, ">")
-                || htmlOpens(text)
-                || interruptingMarker(text)
-        }
-
-// A list interrupts a paragraph only with an item that is not empty, and
-// an ordered one only when it starts at 1.
-fn interruptingMarker(line : String) : Bool =
-    match markerOf(line) {
-        Some(Marker(start = start, width = width)) ->
-            !isBlank(String.slice(line, width, String.size(line) - width))
-                && (start == None || start == Some(1))
-      | None -> false
-    }
 
 // A tab stands for the spaces to the next multiple of four columns where
 // it decides a line's structure: in the line's prefix of indentation, quote
@@ -387,13 +372,31 @@ fn continues(line : String, before : List(String)) : Bool =
       | [] -> false
     }
 
+// Whether a line begins a block other than a paragraph, and so ends one.
+fn interrupts(line : String) : Bool =
+    indent(line) < 4
+        && {
+            let text = unindented(line);
+            atx(text) != None
+                || isRule(text)
+                || fenceOf(text) != None
+                || String.startsWith(text, ">")
+                || htmlOpens(text)
+                || interruptingMarker(text)
+        }
+
+// A list interrupts a paragraph only with an item that is not empty, and
+// an ordered one only when it starts at 1.
+fn interruptingMarker(line : String) : Bool =
+    match markerOf(line) {
+        Some(Marker(start = start, width = width)) ->
+            !isBlank(String.slice(line, width, String.size(line) - width))
+                && (start == None || start == Some(1))
+      | None -> false
+    }
+
 fn paragraphText(line : String) : Bool =
     atx(line) == None && !isRule(line) && fenceOf(line) == None
-
-// A list item's marker: the number an ordered item carries, the character
-// that makes it, a bullet or the delimiter after the number, and the
-// columns up to the item's text.
-type Marker = Marker(start : Optional(Int), mark : Char, width : Int)
 
 fn markerOf(line : String) : Optional(Marker) =
     match String.toList(line) {
@@ -836,25 +839,37 @@ fn itemRows(start : Optional(Int),
             items : List(List(Block)),
             width : Int,
             output : Output) : List(String) = {
-    let labels = match start {
-        None -> List.map(items, fn(_) = "•")
+    let labels = labelsOf(start, items, "•");
+    let labelWidth = widest(labels) + 1;
+    List.flatMap(List.zip(labels, items), fn(#(label, item)) = {
+        let rows = render(item, width - labelWidth, output);
+        labelled(rows, label, labelWidth)
+    })
+}
+
+// Each item's label: the bullet, or its number and a period.
+fn labelsOf(start : Optional(Int), items : List(List(Block)), bullet : String) : List(String) =
+    match start {
+        None -> List.map(items, fn(_) = bullet)
       | Some(number) ->
             List.map(List.indexed(items), fn(#(index, _)) = Int.toString(number + index) <> ".")
-    };
-    let labelWidth = List.foldLeft(labels, 0, fn(most, label) = Int.max(most, String.size(label)))
-        + 1;
-    List.flatMap(List.zip(labels, items),
-                 fn(#(label, item)) = match render(item, width - labelWidth, output) {
-                     [] -> [label]
-                   | first :: rest ->
-                         (String.padEnd(label, labelWidth, " ") <> first)
-                             :: List.map(rest,
-                                         fn(row) = if String.isEmpty(row) then
-                                             row
-                                         else
-                                             String.repeat(" ", labelWidth) <> row)
-                 })
-}
+    }
+
+// The columns of the widest label.
+fn widest(labels : List(String)) : Int =
+    List.foldLeft(labels, 0, fn(most, label) = Int.max(most, String.size(label)))
+
+// An item's rows after its label, those after the first under its text.
+fn labelled(rows : List(String), label : String, labelWidth : Int) : List(String) =
+    match rows {
+        [] -> [label]
+      | first :: rest -> {
+            let margin = String.repeat(" ", labelWidth);
+            let under =
+                List.map(rest, fn(row) = if String.isEmpty(row) then row else margin <> row);
+            (String.padEnd(label, labelWidth, " ") <> first) :: under
+        }
+    }
 
 // A heading is bold already, so strong emphasis inside it is its text; its
 // own bold would end the heading's where it ends.
@@ -1081,9 +1096,6 @@ fn upToStop(inlines : List(Inline)) : List(Inline) =
       | inline :: rest -> inline :: upToStop(rest)
     }
 
-// The font text is set in: roff has one for each of the four.
-type Font = Roman | Bold | Italic | BoldItalic
-
 fn roffed(block : Block) : List(String) =
     match block {
         Heading(level = 1, text = text) -> [".SH", textLine(heading(text))]
@@ -1107,16 +1119,13 @@ fn heading(text : List(Inline)) : String =
 // widest label and a space; a paragraph that begins the item follows its
 // label, and every other block of the item stands under the item's text.
 fn roffItems(start : Optional(Int), items : List(List(Block))) : List(String) = {
-    let labels = match start {
-        None -> List.map(items, fn(_) = "\\(bu")
-      | Some(number) ->
-            List.map(List.indexed(items), fn(#(index, _)) = Int.toString(number + index) <> ".")
-    };
-    let widest = match start {
+    let labels = labelsOf(start, items, "\\(bu");
+    // the bullet is one column, though roff writes it in four characters
+    let columns = match start {
         None -> 1
-      | Some(_) -> List.foldLeft(labels, 0, fn(most, label) = Int.max(most, String.size(label)))
+      | Some(_) -> widest(labels)
     };
-    let width = Int.toString(widest + 1);
+    let width = Int.toString(columns + 1);
     List.flatMap(List.zip(labels, items), fn(#(label, item)) = {
         let #(first, rest) = match item {
             Paragraph(text) :: more -> #(textLines(roffSpans(text, Roman)), more)
