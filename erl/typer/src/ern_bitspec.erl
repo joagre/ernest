@@ -36,8 +36,8 @@ spec(Specs) ->
                       " or `utf32` segment, not a `" ++ atom_to_list(Kind) ++ "` one");
             _ -> ok
         end,
-        Utf = lists:member(Kind, [utf8, utf16, utf32]),
-        not (Utf andalso maps:is_key(size, Spec)) orelse throw("a utf segment has no size"),
+        IsUtf = lists:member(Kind, [utf8, utf16, utf32]),
+        not (IsUtf andalso maps:is_key(size, Spec)) orelse throw("a utf segment has no size"),
         case {Kind, Size} of
             {float, {const, Bits}} when Bits =/= 16, Bits =/= 32, Bits =/= 64 ->
                 throw("a float segment is 16, 32, or 64 bits");

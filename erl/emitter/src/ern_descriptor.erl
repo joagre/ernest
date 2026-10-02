@@ -47,25 +47,26 @@ descriptor({tcon, ['Bool'], []}, Seen, _) -> {bool, Seen};
 descriptor({tcon, ['Char'], []}, Seen, _) -> {char, Seen};
 descriptor({tcon, ['String'], []}, Seen, _) -> {string, Seen};
 descriptor({tcon, ['Bytes'], []}, Seen, _) -> {bytes, Seen};
-descriptor({tcon, ['Address'], [Message]}, Seen, Scope) ->
+descriptor({tcon, ['Address'], [MessageType]}, Seen, Scope) ->
     %% the address's messages, for the proxy that exposes it (report §8.4)
-    {MessageDescriptor, Seen1} = descriptor(Message, Seen, Scope),
-    {{address, MessageDescriptor, text_binary("message does not match ", Message, Scope)}, Seen1};
-descriptor({tcon, ['Reply'], [Answer]}, Seen, Scope) ->
+    {MessageDescriptor, Seen1} = descriptor(MessageType, Seen, Scope),
+    {{address, MessageDescriptor, text_binary("message does not match ", MessageType, Scope)},
+     Seen1};
+descriptor({tcon, ['Reply'], [AnswerType]}, Seen, Scope) ->
     %% the answer's, which a reply that crosses into foreign code is
     %% checked against (report §8.4)
-    {AnswerDescriptor, Seen1} = descriptor(Answer, Seen, Scope),
-    {{reply, AnswerDescriptor, text_binary("reply does not match ", Answer, Scope)}, Seen1};
+    {AnswerDescriptor, Seen1} = descriptor(AnswerType, Seen, Scope),
+    {{reply, AnswerDescriptor, text_binary("reply does not match ", AnswerType, Scope)}, Seen1};
 descriptor({tcon, ['Process'], []}, Seen, _) -> {process, Seen};
 descriptor({tcon, ['Never'], []}, Seen, _) -> {never, Seen};
-descriptor({tcon, ['List'], [Element]}, Seen, Scope) ->
-    {ElementDescriptor, Seen1} = descriptor(Element, Seen, Scope),
+descriptor({tcon, ['List'], [ElementType]}, Seen, Scope) ->
+    {ElementDescriptor, Seen1} = descriptor(ElementType, Seen, Scope),
     {{list, ElementDescriptor}, Seen1};
-descriptor({tcon, ['Map'], [Key, Value]}, Seen, Scope) ->
-    {[KeyDescriptor, ValueDescriptor], Seen1} = descriptors([Key, Value], Seen, Scope),
+descriptor({tcon, ['Map'], [KeyType, ValueType]}, Seen, Scope) ->
+    {[KeyDescriptor, ValueDescriptor], Seen1} = descriptors([KeyType, ValueType], Seen, Scope),
     {{map, KeyDescriptor, ValueDescriptor}, Seen1};
-descriptor({tcon, ['Set'], [Element]}, Seen, Scope) ->
-    {ElementDescriptor, Seen1} = descriptor(Element, Seen, Scope),
+descriptor({tcon, ['Set'], [ElementType]}, Seen, Scope) ->
+    {ElementDescriptor, Seen1} = descriptor(ElementType, Seen, Scope),
     {{set, ElementDescriptor}, Seen1};
 descriptor({tcon, QualifiedName, Args} = Type, Seen, #scope{env = Env} = Scope) ->
     case Seen of

@@ -436,8 +436,8 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
                       type = Type, binds = Binds, site = {Where, Offset}} = Checked,
     Count, Address) ->
     Descriptor = ern_descriptor:describe(Type, Env, []),
-    Options = #{source_hash => <<>>, deps => [], session => Offset},
-    {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Options),
+    Build = #{source_hash => <<>>, deps => [], session_offset => Offset},
+    {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
     {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
     set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) -- [Namespace]),
     record_uses(ErlangModule, Beam, Checked),

@@ -23,15 +23,15 @@
 %% descriptor term => the name of the module function returning it;
 %% pattern_guards: Erlang guard forms a pattern needs on its clause, a
 %% float segment's zero (report §3.1), taken by the clause that uses them;
-%% session: where the module is an input of the shell's session (report
-%% §11.2), the lines before its first in its file, since its spawn sites
-%% are written as the session writes names; else false.
+%% session_offset: where the module is an input of the shell's session
+%% (report §11.2), the lines before its first in its file, since its spawn
+%% sites are written as the session writes names; else false.
 -record(emit_context, {namespace, erlang_module, env, function_name, variables = #{},
                        counter = 0, locals = #{}, lifted = [], top_names = #{},
-                       descriptors = #{}, pattern_guards = [], session = false,
+                       descriptors = #{}, pattern_guards = [], session_offset = false,
                        standard = false}).
 %% A local fn of a block (see Blocks).
--record(local_fn, {lifted, own, extra, references, snapshot = pending}).
+-record(local_fn, {lifted_name, own, extra, references, snapshot = pending}).
 
 %%
 %% Entry points
@@ -43,10 +43,10 @@ compile(Namespace, Declarations, Interface, Env) ->
 
 %% Build: the source's hash and its path from the build root, and the
 %% dependencies' interface hashes, go into the chunk beside the interface
-%% (report §11.1); `source` goes to the documentation; `session` marks an
-%% input of the shell, which is compiled and not written, and is not kept,
-%% with the line offset its spawn sites are written with; `standard` marks a
-%% module of the standard library's own source root.
+%% (report §11.1); `source` goes to the documentation; `session_offset`
+%% marks an input of the shell, which is compiled and not written, and is
+%% not kept, with the line offset its spawn sites are written with;
+%% `standard` marks a module of the standard library's own source root.
 %% The declarations are the checker's, so every rule a program can break has
 %% been checked: what the emitter cannot emit, or emits and the host does not
 %% compile, is a defect of the toolchain, raised as one, which `ern` reports
@@ -55,12 +55,12 @@ compile(Namespace, Declarations, Interface, Env) ->
               #{source_hash := binary(), source_path => binary(),
                 deps := [{[atom()], binary()}], compiler => binary(),
                 stdlib => binary() | none, source => binary(),
-                session => non_neg_integer(), standard => boolean()}) ->
+                session_offset => non_neg_integer(), standard => boolean()}) ->
           {ok, atom(), binary()}.
 compile(Namespace, Declarations, Interface, Env, Build) ->
     Forms = forms(Namespace, Declarations, Env, Build),
-    Meta = maps:without([source, session, standard], Build),
-    Chunk = ern_interface:encode(Meta, Interface),
+    Facts = maps:without([source, session_offset, standard], Build),
+    Chunk = ern_interface:encode(Facts, Interface),
     Docs = term_to_binary(ern_docs:build(Namespace, Declarations, Env,
                                          maps:get(source, Build, <<>>))),
     Chunks = [{ern_interface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs}],
@@ -83,17 +83,17 @@ forms(Namespace, Declarations, Env, Build) ->
     Dependencies = [Dependency || {Dependency, _} <- maps:get(deps, Build, [])],
     Context = #emit_context{namespace = Namespace, erlang_module = ErlangModule, env = Env,
                             top_names = top_names(Declarations),
-                            session = maps:get(session, Build, false),
+                            session_offset = maps:get(session_offset, Build, false),
                             standard = maps:get(standard, Build, false)},
-    {Funs, Context1} = lists:mapfoldl(fun declaration/2, Context, Declarations),
+    {DeclarationFunctions, Context1} = lists:mapfoldl(fun declaration/2, Context, Declarations),
     Lets = [Declaration || #let_declaration{} = Declaration <- Declarations],
-    {Init, Context2} = init_function(Lets, Context1),
-    Tests = tests_function(Lets),
-    DepsFun = dependencies_function(Dependencies),
-    FunFun = fun_function(Declarations),
+    {InitFunction, Context2} = init_function(Lets, Context1),
+    TestsFunction = tests_function(Lets),
+    DependenciesFunction = dependencies_function(Dependencies),
+    FunFunction = fun_function(Declarations),
     Exports = [export(Declaration) || Declaration <- Declarations, exported(Declaration)]
-        ++ [{'$init', 0} || Lets =/= []] ++ [{'$tests', 0} || Tests =/= []]
-        ++ [{'$deps', 0} || DepsFun =/= []] ++ [{'$fun', 2} || FunFun =/= []],
+        ++ [{'$init', 0} || Lets =/= []] ++ [{'$tests', 0} || TestsFunction =/= []]
+        ++ [{'$deps', 0} || DependenciesFunction =/= []] ++ [{'$fun', 2} || FunFunction =/= []],
     %% an Ernest function named like an auto-imported BIF, `size`, `max`,
     %% is called by its own name: the auto-import is switched off for it
     Clashes = [{Function, Arity}
@@ -105,14 +105,14 @@ forms(Namespace, Declarations, Env, Build) ->
                                               [erl_syntax:abstract({no_auto_import, Clashes})])]
                end,
     Attrs = [erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(ErlangModule)])]
-            ++ NoImport
-            ++ [erl_syntax:attribute(erl_syntax:atom(export),
-                                     [erl_syntax:list([erl_syntax:arity_qualifier(
-                                                         erl_syntax:atom(Function),
-                                                         erl_syntax:integer(Arity))
-                                                       || {Function, Arity} <- Exports])])],
-    Functions = lists:append(Funs) ++ Init ++ Tests ++ DepsFun ++ FunFun
-        ++ lists:reverse(Context2#emit_context.lifted),
+        ++ NoImport
+        ++ [erl_syntax:attribute(erl_syntax:atom(export),
+                                 [erl_syntax:list([erl_syntax:arity_qualifier(
+                                                     erl_syntax:atom(Function),
+                                                     erl_syntax:integer(Arity))
+                                                   || {Function, Arity} <- Exports])])],
+    Functions = lists:append(DeclarationFunctions) ++ InitFunction ++ TestsFunction
+        ++ DependenciesFunction ++ FunFunction ++ lists:reverse(Context2#emit_context.lifted),
     erl_syntax:revert_forms(Attrs ++ Functions).
 
 %% Each top-level name as the Erlang function it compiles to, a `let` as
@@ -280,21 +280,21 @@ declaration(_, Context) ->
 %% it is counted while it runs; a standard library function without a
 %% mailbox type waits on no process, and is not.
 foreign_call(Call, HostModule, HostFunction, Arity, Effect, Context) ->
-    Run = case Context#emit_context.standard andalso Effect =:= pure of
-              true -> Call;
-              false -> call_remote(ern_rt, in_foreign,
-                                   [erl_syntax:fun_expr([erl_syntax:clause([], none, [Call])])])
-          end,
-    {[Class, Reason, Stack], Context1} = fresh_variables(3, "E", Context),
+    Counted = case Context#emit_context.standard andalso Effect =:= pure of
+                  true -> Call;
+                  false -> call_remote(ern_rt, in_foreign,
+                                       [erl_syntax:fun_expr([erl_syntax:clause([], none, [Call])])])
+              end,
+    {[Class, Error, Trace], Context1} = fresh_variables(3, "E", Context),
     Raised = call_remote(ern_boundary, raised,
                          [erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
                           erl_syntax:integer(Arity)
-                          | [erl_syntax:variable(Variable) || Variable <- [Class, Reason, Stack]]]),
+                          | [erl_syntax:variable(Variable) || Variable <- [Class, Error, Trace]]]),
     Handler = erl_syntax:clause([erl_syntax:class_qualifier(erl_syntax:variable(Class),
-                                                            erl_syntax:variable(Reason),
-                                                            erl_syntax:variable(Stack))],
+                                                            erl_syntax:variable(Error),
+                                                            erl_syntax:variable(Trace))],
                                 none, [Raised]),
-    {erl_syntax:try_expr([Run], [Handler]), Context1}.
+    {erl_syntax:try_expr([Counted], [Handler]), Context1}.
 
 %% Report §8.4: the foreign call's return checked. The standard library's
 %% is the runtime's own, and not checked; a type variable of the result
@@ -446,19 +446,20 @@ expr(#e_match{span = Span, scrutinee = ScrutineeExpr, clauses = Written}, Contex
             {Form, Context3} = match_clauses(ScrutineeForm, Clauses, Context2),
             {at(Span, Form), Context3};
         {Clauses, {Reads, Context2}} ->
-            {[Scrutinee], Context3} = fresh_variables(1, "Scrutinee", Context2),
-            Evaluated = erl_syntax:match_expr(erl_syntax:variable(Scrutinee), ScrutineeForm),
-            {Form, Context4} = match_clauses(erl_syntax:variable(Scrutinee), Clauses, Context3),
+            {[ScrutineeName], Context3} = fresh_variables(1, "Scrutinee", Context2),
+            Scrutinee = erl_syntax:variable(ScrutineeName),
+            Evaluated = erl_syntax:match_expr(Scrutinee, ScrutineeForm),
+            {Form, Context4} = match_clauses(Scrutinee, Clauses, Context3),
             {at(Span, with_bindings([Evaluated | Reads], Form)), Context4}
     end;
-expr(#e_receive{span = Span, clauses = Written, 'after' = After}, Before) ->
+expr(#e_receive{span = Span, clauses = Written, 'after' = After}, Context) ->
     %% report §6.3: a receive guard is a guard expression, which the
     %% checker holds it to, so it is an Erlang guard here, a top-level `let`
     %% it names, or a pattern's size names (§5.11), read into a variable
     %% before the receive; a message from a foreign process was checked by
     %% the proxy that delivered it (§8.4)
-    {Clauses, {Reads, Context}} = lists:mapfoldl(fun read_before/2, {[], Before}, Written),
-    {Parts, Context1} = lists:mapfoldl(fun simple_clauses/2, Context, Clauses),
+    {Clauses, {Reads, Context1}} = lists:mapfoldl(fun read_before/2, {[], Context}, Written),
+    {Parts, Context2} = lists:mapfoldl(fun simple_clauses/2, Context1, Clauses),
     {OwnBindings, OwnForms} = join_parts(Parts),
     Bindings = Reads ++ OwnBindings,
     %% report §6.9: a restart a supervisor asks for arrives before every
@@ -468,10 +469,10 @@ expr(#e_receive{span = Span, clauses = Written, 'after' = After}, Before) ->
                    | OwnForms],
     case After of
         undefined ->
-            {at(Span, with_bindings(Bindings, erl_syntax:receive_expr(ClauseForms))), Context1};
+            {at(Span, with_bindings(Bindings, erl_syntax:receive_expr(ClauseForms))), Context2};
         #after_clause{timeout = Timeout, body = AfterBody} ->
-            {Enter, Wait, Context2} = timed_receive(ClauseForms, Timeout, AfterBody, Context1),
-            {at(Span, with_bindings(Bindings ++ Enter, Wait)), Context2}
+            {Enter, Wait, Context3} = timed_receive(ClauseForms, Timeout, AfterBody, Context2),
+            {at(Span, with_bindings(Bindings ++ Enter, Wait)), Context3}
     end.
 
 %% A receive with an `after`: the bindings that enter it, and the call
@@ -553,10 +554,10 @@ read_top(#e_not{expr = Expr} = Node, Acc) ->
 read_top(#e_negation{expr = Expr} = Node, Acc) ->
     {Expr1, Acc1} = read_top(Expr, Acc),
     {Node#e_negation{expr = Expr1}, Acc1};
-read_top(#e_var{referent = Referent} = Variable, {Reads, Context}) when Referent =/= var ->
-    {Form, Context1} = expr(Variable, Context),
+read_top(#e_var{referent = Referent} = Reference, {Reads, Context}) when Referent =/= var ->
+    {Form, Context1} = expr(Reference, Context),
     {[ReadName], Context2} = fresh_variables(1, "Read", Context1),
-    {Variable#e_var{path = [], name = ReadName, referent = var},
+    {Reference#e_var{path = [], name = ReadName, referent = var},
      {Reads ++ [erl_syntax:match_expr(erl_syntax:variable(ReadName), Form)],
       Context2#emit_context{variables = maps:put(ReadName, ReadName,
                                                  Context2#emit_context.variables)}}};
@@ -601,8 +602,8 @@ name_form(Span, _, Name, var, Type,
     case Variables of
         #{Name := Variable} -> {variable_form(Variable), Context};
         _ ->
-            #{Name := #local_fn{lifted = Lifted}} = Locals,
-            closure(Lifted, instances(Name, Context), arity_of(Type, Span), Context)
+            #{Name := #local_fn{lifted_name = LiftedName}} = Locals,
+            closure(LiftedName, instances(Name, Context), arity_of(Type, Span), Context)
     end;
 %% Appendix E.1: the library's Io.show and Io.debug as values too, the
 %% descriptor of the argument's type, named by the checker's referent from
@@ -657,10 +658,10 @@ is_value(Declaring, MemberOf, Name, Env) ->
 remote_name(Declaring, MemberOf, Name) ->
     {erlang_module(Declaring), function_name(MemberOf, Name)}.
 
-closure(Lifted, Instances, Arity, Context) ->
+closure(LiftedName, Instances, Arity, Context) ->
     {Params, Context1} = fresh_variables(Arity, "A", Context),
     Args = [erl_syntax:variable(Variable) || Variable <- Instances ++ Params],
-    Body = erl_syntax:application(erl_syntax:atom(Lifted), Args),
+    Body = erl_syntax:application(erl_syntax:atom(LiftedName), Args),
     {erl_syntax:fun_expr([erl_syntax:clause([erl_syntax:variable(Param) || Param <- Params], none,
                                             [Body])]),
      Context1}.
@@ -676,15 +677,16 @@ call(Span, #e_var{referent = var, name = Name}, Args, Context) ->
         #{Name := Variable} ->
             {at(Span, erl_syntax:application(variable_form(Variable), ArgForms)), Context1};
         _ ->
-            #{Name := #local_fn{lifted = Lifted}} = Locals,
+            #{Name := #local_fn{lifted_name = LiftedName}} = Locals,
             Instances = [erl_syntax:variable(Variable) || Variable <- instances(Name, Context)],
-            Application = erl_syntax:application(erl_syntax:atom(Lifted), Instances ++ ArgForms),
+            Application = erl_syntax:application(erl_syntax:atom(LiftedName),
+                                                 Instances ++ ArgForms),
             {at(Span, Application), Context1}
     end;
 %% Appendix E.1: the library's Io.show and Io.debug, as name_form/6 names
 %% them, written by the argument's type at the call
 call(Span, #e_var{referent = #remote_declaration{namespace = ['Io'], member_of = undefined,
-                                                  name = Name}},
+                                                 name = Name}},
      [Argument], Context)
   when Name =:= show; Name =:= debug ->
     io_call(Span, Name, Argument, Context);
@@ -726,8 +728,8 @@ call(Span, Callee, Args, Context) ->
 
 io_call(Span, Name, Argument, Context) ->
     {[ArgumentForm], Context1} = exprs([Argument], Context),
-    Descriptor = erl_syntax:abstract(descriptor(ern_typecheck:node_type(Argument), Context)),
-    {at(Span, call_remote(ern_io, Name, [ArgumentForm, Descriptor])), Context1}.
+    DescriptorForm = erl_syntax:abstract(descriptor(ern_typecheck:node_type(Argument), Context)),
+    {at(Span, call_remote(ern_io, Name, [ArgumentForm, DescriptorForm])), Context1}.
 
 %% Report §4.6: a call of the module's own declaration, a `let` through
 %% what its getter answers.
@@ -754,30 +756,30 @@ call_remote(HostModule, HostFunction, Args) ->
 
 prelude_call(Span, [self], [], [], _, Context) ->
     {at(Span, call_remote(ern_rt, self, [])), Context};
-prelude_call(Span, [send], _, Args, _, Context) ->
-    {at(Span, call_remote(ern_rt, send, Args)), Context};
-prelude_call(Span, [answer], _, Args, _, Context) ->
-    {at(Span, call_remote(ern_rt, answer, Args)), Context};
-prelude_call(Span, [via], _, Args, _, Context) ->
-    {at(Span, call_remote(ern_rt, via, Args)), Context};
-prelude_call(Span, [monitor], _, Args, _, Context) ->
-    {at(Span, call_remote(ern_rt, monitor, Args)), Context};
-prelude_call(Span, [kill], _, Args, _, Context) ->
-    {at(Span, call_remote(ern_rt, kill, Args)), Context};
-prelude_call(Span, [spawn], _, Args, _, Context) ->
-    {at(Span, call_remote(ern_rt, spawn, Args ++ [site(Span, Context)])), Context};
-prelude_call(Span, [spawnMonitored], _, Args, _, Context) ->
-    {at(Span, call_remote(ern_rt, spawn_monitored, Args ++ [site(Span, Context)])), Context};
-prelude_call(Span, ['Address', call], _, Args, #e_var{type = Type}, Context) ->
-    {Form, Context1} = reply_call(call, Args, Type, Context),
+prelude_call(Span, [send], _, ArgForms, _, Context) ->
+    {at(Span, call_remote(ern_rt, send, ArgForms)), Context};
+prelude_call(Span, [answer], _, ArgForms, _, Context) ->
+    {at(Span, call_remote(ern_rt, answer, ArgForms)), Context};
+prelude_call(Span, [via], _, ArgForms, _, Context) ->
+    {at(Span, call_remote(ern_rt, via, ArgForms)), Context};
+prelude_call(Span, [monitor], _, ArgForms, _, Context) ->
+    {at(Span, call_remote(ern_rt, monitor, ArgForms)), Context};
+prelude_call(Span, [kill], _, ArgForms, _, Context) ->
+    {at(Span, call_remote(ern_rt, kill, ArgForms)), Context};
+prelude_call(Span, [spawn], _, ArgForms, _, Context) ->
+    {at(Span, call_remote(ern_rt, spawn, ArgForms ++ [site(Span, Context)])), Context};
+prelude_call(Span, [spawnMonitored], _, ArgForms, _, Context) ->
+    {at(Span, call_remote(ern_rt, spawn_monitored, ArgForms ++ [site(Span, Context)])), Context};
+prelude_call(Span, ['Address', call], _, ArgForms, #e_var{type = Type}, Context) ->
+    {Form, Context1} = reply_call(call, ArgForms, Type, Context),
     {at(Span, Form), Context1};
-prelude_call(Span, ['Address', callForever], _, Args, #e_var{type = Type}, Context) ->
-    {Form, Context1} = reply_call(call_forever, Args, Type, Context),
+prelude_call(Span, ['Address', callForever], _, ArgForms, #e_var{type = Type}, Context) ->
+    {Form, Context1} = reply_call(call_forever, ArgForms, Type, Context),
     {at(Span, Form), Context1};
-prelude_call(Span, [restarting], _, Args, _, Context) ->
-    {at(Span, call_remote(ern_rt, restarting, Args)), Context};
-prelude_call(Span, [fault], _, [Message], _, Context) ->
-    {at(Span, call_remote(ern_rt, fault, [Message])), Context};
+prelude_call(Span, [restarting], _, ArgForms, _, Context) ->
+    {at(Span, call_remote(ern_rt, restarting, ArgForms)), Context};
+prelude_call(Span, [fault], _, [CauseForm], _, Context) ->
+    {at(Span, call_remote(ern_rt, fault, [CauseForm])), Context};
 prelude_call(Span, ['Int', Operator], [Left | _], [LeftForm, RightForm], _, Context)
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
        Operator =:= '%' ->
@@ -785,13 +787,13 @@ prelude_call(Span, ['Int', Operator], [Left | _], [LeftForm, RightForm], _, Cont
     {at(Span, binop(Operator, OperandType, LeftForm, RightForm, Context)), Context};
 prelude_call(Span, ['Int', negate], _, [OperandForm], _, Context) ->
     {at(Span, erl_syntax:prefix_expr(erl_syntax:operator('-'), OperandForm)), Context};
-prelude_call(Span, [Namespace, '<>'], [Left | _], [LeftForm, RightForm], _, Context)
-  when Namespace =:= 'String'; Namespace =:= 'List'; Namespace =:= 'Bytes' ->
+prelude_call(Span, [TypeName, '<>'], [Left | _], [LeftForm, RightForm], _, Context)
+  when TypeName =:= 'String'; TypeName =:= 'List'; TypeName =:= 'Bytes' ->
     OperandType = resolved(ern_typecheck:node_type(Left), Context),
     {at(Span, binop('<>', OperandType, LeftForm, RightForm, Context)), Context};
-prelude_call(Span, [Namespace | Rest], _, Args, _, Context) when Rest =/= [] ->
+prelude_call(Span, [Namespace | Rest], _, ArgForms, _, Context) when Rest =/= [] ->
     %% a stdlib function: the namespace's module
-    {at(Span, call_remote(erlang_module([Namespace]), lists:last(Rest), Args)), Context};
+    {at(Span, call_remote(erlang_module([Namespace]), lists:last(Rest), ArgForms)), Context};
 prelude_call(Span, QualifiedName, _, _, _, _) ->
     fail(Span, "no emission for " ++ ern_namespace:text(QualifiedName)).
 
@@ -799,36 +801,37 @@ prelude_call(Span, QualifiedName, _, _, _, _) ->
 %% and in a program what an answer from foreign code is checked by, the
 %% Reply's type, as a foreign function's return is; a call the standard
 %% library makes is the runtime's own, and checks nothing.
-reply_call(Function, Args, _, #emit_context{standard = true} = Context) ->
-    {call_remote(ern_rt, Function, Args), Context};
-reply_call(Function, Args, Type, Context) ->
+reply_call(Function, ArgForms, _, #emit_context{standard = true} = Context) ->
+    {call_remote(ern_rt, Function, ArgForms), Context};
+reply_call(Function, ArgForms, Type, Context) ->
     {tfn, [_, {tfn, [ReplyType], _, _} | _], _, _} = resolved(Type, Context),
-    {tcon, ['Reply'], [Answer]} = resolved(ReplyType, Context),
-    {Check, Context1} = case descriptor(Answer, Context) of
+    {tcon, ['Reply'], [AnswerType]} = resolved(ReplyType, Context),
+    {Check, Context1} = case descriptor(AnswerType, Context) of
                             Unchecked when Unchecked =:= any; Unchecked =:= foreign ->
                                 {erl_syntax:atom(none), Context};
                             Descriptor ->
                                 {DescriptorForm, Described} = descriptor_form(Descriptor, Context),
-                                Text = check_text("reply does not match ", Answer, Context),
+                                Text = check_text("reply does not match ", AnswerType, Context),
                                 {erl_syntax:tuple([DescriptorForm, Text]), Described}
                         end,
-    {call_remote(ern_rt, Function, Args ++ [Check]), Context1}.
+    {call_remote(ern_rt, Function, ArgForms ++ [Check]), Context1}.
 
 %% A prelude name taken as a value: prelude_value(...) -> {Form, Context}.
 prelude_value(Span, [spawn], _, Context) ->
     %% a closure, since spawn takes the site as a second argument
     {[Function], Context1} = fresh_variables(1, "A", Context),
-    Args = [erl_syntax:variable(Function), site(Span, Context)],
-    {lambda([Function], call_remote(ern_rt, spawn, Args)), Context1};
+    ArgForms = [erl_syntax:variable(Function), site(Span, Context)],
+    {lambda([Function], call_remote(ern_rt, spawn, ArgForms)), Context1};
 prelude_value(Span, [spawnMonitored], _, Context) ->
     {[Function, Wrap], Context1} = fresh_variables(2, "A", Context),
-    Args = [erl_syntax:variable(Variable) || Variable <- [Function, Wrap]] ++ [site(Span, Context)],
-    {lambda([Function, Wrap], call_remote(ern_rt, spawn_monitored, Args)), Context1};
+    ArgForms = [erl_syntax:variable(Variable) || Variable <- [Function, Wrap]]
+        ++ [site(Span, Context)],
+    {lambda([Function, Wrap], call_remote(ern_rt, spawn_monitored, ArgForms)), Context1};
 prelude_value(Span, ['Address', Name], Type, Context) when Name =:= call; Name =:= callForever ->
     Function = case Name of call -> call; callForever -> call_forever end,
     {Variables, Context1} = fresh_variables(arity_of(Type, Span), "A", Context),
-    Args = [erl_syntax:variable(Variable) || Variable <- Variables],
-    {Body, Context2} = reply_call(Function, Args, Type, Context1),
+    ArgForms = [erl_syntax:variable(Variable) || Variable <- Variables],
+    {Body, Context2} = reply_call(Function, ArgForms, Type, Context1),
     {lambda(Variables, Body), Context2};
 prelude_value(_, ['Int', Operator], _, Context)
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
@@ -849,8 +852,8 @@ prelude_value(_, [_, '<>'], {tfn, [ParamType | _], _, _}, Context) ->
 prelude_value(_, ['Io', Name], {tfn, [ParamType], _, _}, Context)
   when Name =:= show; Name =:= debug ->
     {[Value], Context1} = fresh_variables(1, "A", Context),
-    Descriptor = erl_syntax:abstract(descriptor(ParamType, Context)),
-    {lambda([Value], call_remote(ern_io, Name, [erl_syntax:variable(Value), Descriptor])),
+    DescriptorForm = erl_syntax:abstract(descriptor(ParamType, Context)),
+    {lambda([Value], call_remote(ern_io, Name, [erl_syntax:variable(Value), DescriptorForm])),
      Context1};
 prelude_value(Span, [Name], Type, Context) ->
     case lists:member(Name, [self, send, answer, via, monitor, kill, fault, restarting]) of
@@ -881,20 +884,20 @@ lambda(Variables, Body) ->
 %% (docs/memory.md).
 site(Span,
      #emit_context{namespace = Namespace, erlang_module = ErlangModule, function_name = Function,
-                   session = Session}) ->
+                   session_offset = SessionOffset}) ->
     {Line, _, _} = ern_diagnostic:span(Span),
-    case {Session, Function} of
+    case {SessionOffset, Function} of
         {false, _} ->
             text_site([ern_namespace:text(Namespace ++ [Function]), ":", integer_to_list(Line)]);
         {Offset, '$input'} ->
             call_remote(ern_shell, input_site, [erl_syntax:atom(ErlangModule),
-                                                 erl_syntax:integer(Line + Offset)]);
+                                                erl_syntax:integer(Line + Offset)]);
         {Offset, _} ->
             text_site([ern_namespace:text([Function]), ":", integer_to_list(Line + Offset)])
     end.
 
-text_site(Where) ->
-    string_binary(unicode:characters_to_binary(Where)).
+text_site(SiteParts) ->
+    string_binary(unicode:characters_to_binary(SiteParts)).
 
 %%
 %% Operators, report §4.8
@@ -1107,27 +1110,25 @@ callback_descriptor_form(Params, Context) ->
                      [text_binary("foreign argument does not match ", Param, Context)
                       || Param <- Params]}, Context).
 
-%% A descriptor as a form: a literal when it is a word, else a call of a
-%% module function that returns it, one per distinct descriptor.
+%% A type's descriptor as a form.
 type_descriptor_form(Type, Context) ->
     descriptor_form(descriptor(Type, Context), Context).
 
-descriptor_form(Given, Context) ->
-    case Given of
-        Descriptor when is_atom(Descriptor) ->
-            {erl_syntax:abstract(Descriptor), Context};
-        Descriptor ->
-            case Context#emit_context.descriptors of
-                #{Descriptor := Name} ->
-                    {erl_syntax:application(erl_syntax:atom(Name), []), Context};
-                Descriptors ->
-                    Name = list_to_atom("$type_" ++ integer_to_list(map_size(Descriptors) + 1)),
-                    Clause = erl_syntax:clause([], none, [built_descriptor(Descriptor)]),
-                    Function = erl_syntax:function(erl_syntax:atom(Name), [Clause]),
-                    {erl_syntax:application(erl_syntax:atom(Name), []),
-                     Context#emit_context{descriptors = Descriptors#{Descriptor => Name},
-                                          lifted = [Function | Context#emit_context.lifted]}}
-            end
+%% A descriptor as a form: a literal when it is a word, else a call of a
+%% module function that returns it, one per distinct descriptor.
+descriptor_form(Descriptor, Context) when is_atom(Descriptor) ->
+    {erl_syntax:abstract(Descriptor), Context};
+descriptor_form(Descriptor, Context) ->
+    case Context#emit_context.descriptors of
+        #{Descriptor := Name} ->
+            {erl_syntax:application(erl_syntax:atom(Name), []), Context};
+        Descriptors ->
+            Name = list_to_atom("$type_" ++ integer_to_list(map_size(Descriptors) + 1)),
+            Clause = erl_syntax:clause([], none, [built_descriptor(Descriptor)]),
+            Function = erl_syntax:function(erl_syntax:atom(Name), [Clause]),
+            {erl_syntax:application(erl_syntax:atom(Name), []),
+             Context#emit_context{descriptors = Descriptors#{Descriptor => Name},
+                                  lifted = [Function | Context#emit_context.lifted]}}
     end.
 
 %% A descriptor as the form that builds it. A function's descriptor also
@@ -1143,7 +1144,7 @@ built_descriptor({callback, Arity, ArgumentDescriptors, Texts}) ->
                                                  erl_syntax:abstract(Text)])
                || {Descriptor, Argument, Text} <- lists:zip3(ArgumentDescriptors, Args, Texts)],
     Wrapper = erl_syntax:fun_expr([erl_syntax:clause(Args, none,
-                                                      [called(Function, Checked)])]),
+                                                     [called(Function, Checked)])]),
     Maker = erl_syntax:fun_expr([erl_syntax:clause([Function], none, [Wrapper])]),
     erl_syntax:tuple([erl_syntax:atom(callback), Maker]);
 built_descriptor({'fun', Arity, ResultDescriptor, Text, ParamDescriptors, ParamTexts}) ->
@@ -1179,9 +1180,9 @@ built_descriptor(Other) ->
 %% Report §7.4: the program's Function where foreign code calls it, an
 %% exception it raises the fault it would be anywhere (called_raised/3).
 called(Function, Arguments) ->
-    [Class, Reason, Stack] = Raised = [erl_syntax:variable(Name)
-                                       || Name <- ['Class', 'Reason', 'Stack']],
-    Handler = erl_syntax:clause([erl_syntax:class_qualifier(Class, Reason, Stack)], none,
+    [Class, Error, Trace] = Raised = [erl_syntax:variable(Name)
+                                      || Name <- ['Class', 'Error', 'Trace']],
+    Handler = erl_syntax:clause([erl_syntax:class_qualifier(Class, Error, Trace)], none,
                                 [call_remote(ern_boundary, called_raised, Raised)]),
     erl_syntax:try_expr([erl_syntax:application(Function, Arguments)], [Handler]).
 
@@ -1213,32 +1214,33 @@ crosses(_) -> false.
 %% its fields in declared order, so the field is one element of the tuple
 %% where every constructor has it at one place, and a case on the tag where
 %% the places differ.
-select(Span, Field, ExprType, Form, #emit_context{env = Env} = Context) ->
-    {tcon, QualifiedName, _} = ern_typecheck:resolve_type(ExprType, Env),
+select(Span, Field, OperandType, Form, #emit_context{env = Env} = Context) ->
+    {tcon, QualifiedName, _} = ern_typecheck:resolve_type(OperandType, Env),
     #type_info{constructors = Constructors} = ern_typecheck:lookup_type(QualifiedName, Env),
-    Places = [{Constructor, place(Field, Names) + 1, length(Names)}
-              || #constructor_info{name = Constructor, fields = {named, Names}} <- Constructors],
+    Places = [{ConstructorName, place(Field, Names) + 1, length(Names)}
+              || #constructor_info{name = ConstructorName, fields = {named, Names}}
+                     <- Constructors],
     case lists:usort([Index || {_, Index, _} <- Places]) of
         [Index] ->
             {at(Span, call_remote(erlang, element, [erl_syntax:integer(Index), Form])), Context};
         _ ->
             {[Variable], Context1} = fresh_variables(1, "F", Context),
             VariableForm = erl_syntax:variable(Variable),
-            Clauses = [erl_syntax:clause([selecting_pattern(Constructor, Index, Count,
+            Clauses = [erl_syntax:clause([selecting_pattern(ConstructorName, Index, Count,
                                                             VariableForm)],
                                          none, [VariableForm])
-                       || {Constructor, Index, Count} <- Places],
+                       || {ConstructorName, Index, Count} <- Places],
             {at(Span, erl_syntax:case_expr(Form, Clauses)), Context1}
     end.
 
 %% A named constructor's tuple as a pattern, the field at Index bound to the
 %% variable and the others `_`.
-selecting_pattern(Constructor, Index, Count, VariableForm) ->
+selecting_pattern(ConstructorName, Index, Count, VariableForm) ->
     Fields = [case Place of
                   Index -> VariableForm;
                   _ -> erl_syntax:underscore()
               end || Place <- lists:seq(2, Count + 1)],
-    erl_syntax:tuple([erl_syntax:atom(Constructor) | Fields]).
+    erl_syntax:tuple([erl_syntax:atom(ConstructorName) | Fields]).
 
 place(Field, [Field | _]) -> 1;
 place(Field, [_ | Rest]) -> 1 + place(Field, Rest).
@@ -1275,8 +1277,8 @@ constructor_expr(Span, Path, Name, Base, Args, #emit_context{env = Env} = Contex
             Bind = erl_syntax:match_expr(BasePattern, BaseForm),
             {at(Span, with_bindings([Bind | Bindings], erl_syntax:tuple([Tag | Forms]))), Context3};
         _ ->
-            fail(Span, "constructor " ++ atom_to_list(Name) ++ " used with the wrong field shape;"
-                       " T is the type checker's job")
+            fail(Span, "constructor " ++ atom_to_list(Name) ++ " used with the wrong field shape,"
+                       " which the checker refuses")
     end.
 
 %% Report §3.5, §5.1: named fields are stored in declared order and
@@ -1310,7 +1312,8 @@ field_sets(Names, FieldSets, Context) ->
 %% resolves against the variables in force at the use, which §5.4 makes
 %% the same ones. Bodies are emitted when the block ends, every
 %% declaration passed.
-%% own: free names bound by the enclosing scopes or this block's lets;
+%% lifted_name: the module function's name; own: free names bound by the
+%% enclosing scopes or this block's lets;
 %% extra: variables of enclosing blocks' local fns it references;
 %% references: local fns of this block it references; snapshot: the
 %% variables in force at the declaration, once passed
@@ -1387,8 +1390,8 @@ declared_local(#fn_declaration{name = Name, params = Params, body = Body}, Names
     Extra = lists:append([instances(FreeName, Context)
                           || FreeName <- Free, not lists:member(FreeName, Names),
                              not lists:member(FreeName, Own), is_map_key(FreeName, Locals)]),
-    {Lifted, Acc1} = fresh_name(Name, Acc),
-    Local = #local_fn{lifted = Lifted, own = Own, extra = lists:usort(Extra),
+    {LiftedName, Acc1} = fresh_name(Name, Acc),
+    Local = #local_fn{lifted_name = LiftedName, own = Own, extra = lists:usort(Extra),
                       references = References},
     {{Name, Local}, Acc1}.
 
@@ -1416,7 +1419,7 @@ emit_locals(Fns, Context) ->
 
 emit_local(#fn_declaration{span = Span, name = Name, params = Params, body = Body},
            #emit_context{variables = Variables, locals = Locals} = Context) ->
-    #local_fn{lifted = Lifted, own = Own, snapshot = Snapshot} = maps:get(Name, Locals),
+    #local_fn{lifted_name = LiftedName, own = Own, snapshot = Snapshot} = maps:get(Name, Locals),
     Instances = instances(Name, Context),
     OwnVariables = maps:from_list([{OwnName, maps:get(OwnName, Snapshot)} || OwnName <- Own]),
     {Patterns, Context1} = lists:mapfoldl(fun(#param{pattern = Pattern}, Acc) ->
@@ -1426,7 +1429,7 @@ emit_local(#fn_declaration{span = Span, name = Name, params = Params, body = Bod
     {BodyForms, Context2} = body(Body, Context1),
     Head = [erl_syntax:variable(Variable) || Variable <- Instances] ++ Patterns,
     Clause = at(Span, erl_syntax:clause(Head, none, BodyForms)),
-    Function = at(Span, erl_syntax:function(erl_syntax:atom(Lifted), [Clause])),
+    Function = at(Span, erl_syntax:function(erl_syntax:atom(LiftedName), [Clause])),
     Context2#emit_context{variables = Variables,
                           lifted = [Function | Context2#emit_context.lifted]}.
 
@@ -1441,11 +1444,11 @@ pattern_names(Pattern) -> [Name || {Name, _} <- ern_ast:pattern_bindings(Pattern
 %% a continuation over the remaining clauses (report §5.9).
 match_clauses(ScrutineeForm, Clauses, Context) ->
     InScope = maps:keys(Context#emit_context.variables),
-    Erlang = fun(#clause{guard = undefined}) -> true;
-                (#clause{pattern = Pattern, guard = Guard}) ->
-                     erlang_guard(Guard, pattern_names(Pattern) ++ InScope, Context)
-             end,
-    case lists:all(Erlang, Clauses) of
+    HasErlangGuard = fun(#clause{guard = undefined}) -> true;
+                        (#clause{pattern = Pattern, guard = Guard}) ->
+                             erlang_guard(Guard, pattern_names(Pattern) ++ InScope, Context)
+                     end,
+    case lists:all(HasErlangGuard, Clauses) of
         true ->
             {Parts, Context1} = lists:mapfoldl(fun simple_clauses/2, Context, Clauses),
             {Bindings, Forms} = join_parts(Parts),
@@ -1461,7 +1464,7 @@ match_clauses(ScrutineeForm, Clauses, Context) ->
 general_clauses(Scrutinee, [#clause{pattern = #p_or{}} = Clause | Rest], Context) ->
     {RestBind, Fallthrough, Context1} = rest_fun(Scrutinee, Rest, Context),
     MakeClause = fun(Span, PatternForm, Guard, Call, Acc) ->
-                     {PatternGuard, _} = take_pattern_guards(none, Acc),
+                     PatternGuard = joined_guard(none, Acc),
                      case Guard of
                          undefined ->
                              {at(Span, erl_syntax:clause([PatternForm], PatternGuard, Call)), Acc};
@@ -1480,7 +1483,7 @@ general_clauses(Scrutinee, [#clause{pattern = #p_or{}} = Clause | Rest], Context
 general_clauses(Scrutinee, [#clause{pattern = Pattern, guard = undefined, body = ClauseBody}],
                 #emit_context{variables = Variables, pattern_guards = Guards} = Context) ->
     {PatternForm, Context1} = pattern(Pattern, Context#emit_context{pattern_guards = []}),
-    {PatternGuard, _} = take_pattern_guards(none, Context1),
+    PatternGuard = joined_guard(none, Context1),
     {BodyForms, Context2} = body(ClauseBody, Context1#emit_context{pattern_guards = Guards}),
     Clause = erl_syntax:clause([PatternForm], PatternGuard, BodyForms),
     {erl_syntax:case_expr(Scrutinee, [Clause]), Context2#emit_context{variables = Variables}};
@@ -1488,7 +1491,7 @@ general_clauses(Scrutinee, [#clause{pattern = Pattern, guard = Guard, body = Cla
                 #emit_context{variables = Variables} = Context) ->
     {Bind, Fallthrough, Context1} = rest_fun(Scrutinee, Rest, Context),
     {PatternForm, PatternContext} = pattern(Pattern, Context1#emit_context{pattern_guards = []}),
-    {PatternGuard, _} = take_pattern_guards(none, PatternContext),
+    PatternGuard = joined_guard(none, PatternContext),
     Context2 = PatternContext#emit_context{pattern_guards = Context1#emit_context.pattern_guards},
     {Body, Context3} = case Guard of
                            undefined ->
@@ -1531,20 +1534,20 @@ simple_clause(#clause{span = Span, pattern = Pattern, guard = Guard, body = Clau
                                undefined -> {none, Context1};
                                _ -> expr(Guard, Context1)
                            end,
-    {GuardForm, _} = take_pattern_guards(OwnGuard, Context2),
+    GuardForm = joined_guard(OwnGuard, Context2),
     {BodyForms, Context3} = body(ClauseBody, Context2#emit_context{pattern_guards = Guards}),
     {at(Span, erl_syntax:clause([PatternForm], GuardForm, BodyForms)),
      Context3#emit_context{variables = Variables}}.
 
 %% The Erlang clauses of one Ernest clause and the bindings they need.
 simple_clauses(#clause{pattern = #p_or{}} = Clause, Context) ->
-    MakeClause = fun(Span, PatternForm, Guard, Call, Acc1) ->
-                     {OwnGuard, Acc2} = case Guard of
-                                            undefined -> {none, Acc1};
-                                            _ -> expr(Guard, Acc1)
+    MakeClause = fun(Span, PatternForm, Guard, Call, Acc) ->
+                     {OwnGuard, Acc1} = case Guard of
+                                            undefined -> {none, Acc};
+                                            _ -> expr(Guard, Acc)
                                         end,
-                     {GuardForm, _} = take_pattern_guards(OwnGuard, Acc2),
-                     {at(Span, erl_syntax:clause([PatternForm], GuardForm, Call)), Acc2}
+                     GuardForm = joined_guard(OwnGuard, Acc1),
+                     {at(Span, erl_syntax:clause([PatternForm], GuardForm, Call)), Acc1}
                  end,
     alternatives(Clause, MakeClause, Context);
 simple_clauses(Clause, Context) ->
@@ -1604,11 +1607,11 @@ erlang_guard(#e_binop{operator = Operator, left = Left, right = Right}, Bound, _
 erlang_guard(#e_binop{operator = Operator, left = Left, right = Right}, Bound, Context)
   when Operator =:= '<'; Operator =:= '<='; Operator =:= '>'; Operator =:= '>=' ->
     %% an ordering through T.compare is a call (report §3.10)
-    Prelude = case resolved(ern_typecheck:node_type(Left), Context) of
-                  {tcon, [_], []} -> true;
-                  _ -> false
-              end,
-    Prelude andalso guard_operand(Left, Bound) andalso guard_operand(Right, Bound);
+    IsPreludeType = case resolved(ern_typecheck:node_type(Left), Context) of
+                        {tcon, [_], []} -> true;
+                        _ -> false
+                    end,
+    IsPreludeType andalso guard_operand(Left, Bound) andalso guard_operand(Right, Bound);
 erlang_guard(#e_not{expr = Expr}, Bound, Context) -> erlang_guard(Expr, Bound, Context);
 erlang_guard(#e_literal{kind = bool}, _, _) -> true;
 erlang_guard(#e_var{path = [], name = Name}, Bound, _) -> lists:member(Name, Bound);
@@ -1643,8 +1646,9 @@ pattern(#p_constructor{span = Span, path = Path, name = Name, args = Args},
             {PatternForm, Context1} = pattern(SubPattern, Context),
             {at(Span, erl_syntax:tuple([Tag, PatternForm])), Context1};
         {{named, Names}, {named, FieldPatterns}} ->
-            {Forms, Context1} = lists:mapfoldl(fun(Field, Acc) ->
-                                                   named_field_pattern(Field, FieldPatterns, Acc)
+            {Forms, Context1} = lists:mapfoldl(fun(FieldName, Acc) ->
+                                                   named_field_pattern(FieldName, FieldPatterns,
+                                                                       Acc)
                                                end, Context, Names),
             {at(Span, erl_syntax:tuple([Tag | Forms])), Context1}
     end;
@@ -1676,9 +1680,9 @@ pattern(#p_bitstring{span = Span, segments = Segments}, Context) ->
     {at(Span, erl_syntax:binary(Fields)), Context1}.
 
 %% Report §5.10: a field the pattern omits matches any value.
-named_field_pattern(Field, FieldPatterns, Context) ->
+named_field_pattern(FieldName, FieldPatterns, Context) ->
     case [SubPattern || #field_pattern{name = Name, pattern = SubPattern} <- FieldPatterns,
-                        Name =:= Field] of
+                        Name =:= FieldName] of
         [SubPattern] -> pattern(SubPattern, Context);
         [] -> {erl_syntax:underscore(), Context}
     end.
@@ -1698,14 +1702,14 @@ bits_pattern_value(#{kind := float}, #p_literal{span = Span, value = Zero}, Cont
 bits_pattern_value(_, Pattern, Context) ->
     pattern(Pattern, Context).
 
-%% The clause guards a pattern asked for, joined to the clause's own.
-take_pattern_guards(GuardForm, #emit_context{pattern_guards = []}) -> {GuardForm, GuardForm};
-take_pattern_guards(GuardForm, #emit_context{pattern_guards = Guards}) ->
+%% A clause's guard: the guards its pattern asked for, joined to its own.
+joined_guard(GuardForm, #emit_context{pattern_guards = []}) -> GuardForm;
+joined_guard(GuardForm, #emit_context{pattern_guards = Guards}) ->
     All = case GuardForm of none -> Guards; _ -> Guards ++ [GuardForm] end,
     Joined = lists:foldl(fun(Guard, Acc) ->
                              erl_syntax:infix_expr(Acc, erl_syntax:operator('andalso'), Guard)
                          end, hd(All), tl(All)),
-    {Joined, GuardForm}.
+    Joined.
 
 %%
 %% Bitstring segments, report §5.11
@@ -1739,20 +1743,21 @@ type_specs(#{kind := Kind, unit := Unit, endian := Endian, sign := Sign, size :=
     Type = case Kind of
                int -> integer; bytes -> binary; Other -> Other
            end,
-    Utf = lists:member(Kind, [utf8, utf16, utf32]),
+    IsUtf = lists:member(Kind, [utf8, utf16, utf32]),
     [erl_syntax:atom(Type)]
-    ++ [erl_syntax:atom(Endian) || not Utf orelse Endian =/= big]
-    ++ [erl_syntax:atom(Sign) || Kind =:= int]
-    ++ [erl_syntax:size_qualifier(erl_syntax:atom(unit), erl_syntax:integer(Unit))
-        || not Utf, Size =/= none].
+        ++ [erl_syntax:atom(Endian) || not IsUtf orelse Endian =/= big]
+        ++ [erl_syntax:atom(Sign) || Kind =:= int]
+        ++ [erl_syntax:size_qualifier(erl_syntax:atom(unit), erl_syntax:integer(Unit))
+            || not IsUtf, Size =/= none].
 
 %%
 %% Variables: every Ernest binding gets a fresh Erlang variable
 %%
 
-bind(Name, #emit_context{variables = Variables, counter = Count} = Context) ->
-    Variable = erlang_variable(Name, Count + 1),
-    {Variable, Context#emit_context{variables = Variables#{Name => Variable}, counter = Count + 1}}.
+bind(Name, #emit_context{variables = Variables, counter = Counter} = Context) ->
+    Variable = erlang_variable(Name, Counter + 1),
+    {Variable,
+     Context#emit_context{variables = Variables#{Name => Variable}, counter = Counter + 1}}.
 
 %% Report §3.1: a variable a float segment bound may hold the runtime's
 %% negative zero, so the map holds {zero, V} and each read is V + 0.0,
@@ -1767,22 +1772,22 @@ variable_form(Variable) ->
 variable_atom({zero, Variable}) -> Variable;
 variable_atom(Variable) -> Variable.
 
-erlang_variable(Name, Count) ->
+erlang_variable(Name, Number) ->
     Text = atom_to_list(Name),
     Base = case Text of
                [$_ | Rest] -> "V_" ++ Rest;
                [First | Rest] -> [string:to_upper(First) | Rest]
            end,
-    list_to_atom(Base ++ "_" ++ integer_to_list(Count)).
+    list_to_atom(Base ++ "_" ++ integer_to_list(Number)).
 
 fresh_variables(Count, Prefix, #emit_context{counter = Counter} = Context) ->
     Variables = [list_to_atom(Prefix ++ "_" ++ integer_to_list(Counter + Index))
                  || Index <- lists:seq(1, Count)],
     {Variables, Context#emit_context{counter = Counter + Count}}.
 
-fresh_name(Name, #emit_context{counter = Count} = Context) ->
-    {list_to_atom(atom_to_list(Name) ++ "$" ++ integer_to_list(Count + 1)),
-     Context#emit_context{counter = Count + 1}}.
+fresh_name(Name, #emit_context{counter = Counter} = Context) ->
+    {list_to_atom(atom_to_list(Name) ++ "$" ++ integer_to_list(Counter + 1)),
+     Context#emit_context{counter = Counter + 1}}.
 
 %%
 %% Helpers

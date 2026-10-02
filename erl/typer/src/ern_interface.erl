@@ -55,21 +55,22 @@ hash(Interface) ->
     crypto:hash(sha256, term_to_binary(canonical(Interface, strip))).
 
 %% Quantified variables renumbered and maps as sorted lists, so that equal
-%% interfaces have equal bytes (report §11.1). The hash leaves the variables'
-%% names out: a renamed annotation changes no dependent.
+%% interfaces have equal bytes (report §11.1). VariableNames, keep or
+%% strip: the hash leaves the variables' names out, since a renamed
+%% annotation changes no dependent.
 canonical(#interface{namespace = Namespace, types = Types, values = Values, lets = Lets},
-          Names) ->
+          VariableNames) ->
     {interface, Namespace, lists:sort(maps:to_list(Types)),
-     lists:sort([{QualifiedName, canonical_scheme(Scheme, Names)}
+     lists:sort([{QualifiedName, canonical_scheme(Scheme, VariableNames)}
                  || {QualifiedName, Scheme} <- maps:to_list(Values)]),
      lists:sort(Lets)}.
 
-canonical_scheme(#scheme{quantified = Quantified, type = Type, names = Names}, Keep) ->
+canonical_scheme(#scheme{quantified = Quantified, type = Type, names = Names}, VariableNames) ->
     Numbers = maps:from_list([{Id, Number} || {Number, {Id, _}} <- lists:enumerate(Quantified)]),
     #scheme{quantified = [{maps:get(Id, Numbers), Restrictions}
                           || {Id, Restrictions} <- Quantified],
             type = renumber(Type, Numbers),
-            names = case Keep of
+            names = case VariableNames of
                         keep -> maps:from_list([{maps:get(Id, Numbers), Name}
                                                 || {Id, Name} <- maps:to_list(Names)]);
                         strip -> #{}

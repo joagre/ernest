@@ -13,7 +13,7 @@
 
 %% Simplified patterns: wild | {con, key(), [pattern()]}
 %%   key(): {con, QualifiedName} | {tuple, Size} | nil | cons | {bool, Bool}
-%%        | {lit, Value}
+%%        | {lit, Value} | bits
 %% QualifiedName is the constructor's, as the checker keeps it, so a
 %% constructor is read back by it with no name to resolve (report §4.2).
 
@@ -90,11 +90,11 @@ judge(Alternative, IsAlternative, Before, Env) ->
     end.
 
 %% The shortest run of rows from the first that leaves Candidate useless:
-%% the rows from the last of them on.
-cover([Row | Rest], Candidate, Taken, Env) ->
-    Taken1 = Taken ++ [Row],
+%% the entries, each a row and its pattern, from the last of them on.
+cover([Entry | Rest], Candidate, Taken, Env) ->
+    Taken1 = Taken ++ [Entry],
     case useful([TakenRow || {TakenRow, _} <- Taken1], Candidate, Env) of
-        no -> [Row | Rest];
+        no -> [Entry | Rest];
         {yes, _} -> cover(Rest, Candidate, Taken1, Env)
     end.
 
@@ -152,8 +152,9 @@ field_pattern(FieldName, FieldPatterns, Env) ->
     end.
 
 %%
-%% Usefulness with a witness. useful(Rows, Vector) is no when every value
-%% matching Vector is matched by some row, else {yes, Witness}.
+%% Usefulness with a witness. useful(Rows, Vector, Env) is no when every
+%% value matching Vector is matched by some row, else {yes, Witness}, a
+%% pattern for each column of a value no row matches.
 %%
 
 useful([], Vector, _Env) ->

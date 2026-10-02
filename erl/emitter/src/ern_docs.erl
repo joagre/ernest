@@ -32,16 +32,17 @@ read(Beam) ->
 %% Report §11.1, EEP 48: the module's documentation, read by `ern doc`
 %% (§11.4) and by the host's own tools. One entry per declaration §11.4
 %% renders, in source order: its signature as the page shows it, its doc
-%% block verbatim, and, for a type, its constructors, fields, and signature
-%% entries in the metadata, so a reader of the chunk needs no markdown.
+%% block verbatim, and, for a type, its constructors and their fields in
+%% the metadata, and for a function its parameters' names, so a reader of
+%% the chunk needs no markdown. SourceName is the source file's name.
 -spec build([atom()], [tuple()], ern_typecheck:env(), binary()) -> tuple().
-build(Namespace, Declarations, Env, Source) ->
+build(Namespace, Declarations, Env, SourceName) ->
     ModuleDoc = case [Text || #module_doc{text = Text} <- Declarations] of
                     [Text | _] -> #{<<"en">> => Text};
                     [] -> none
                 end,
     Prefix = ern_namespace:text(Namespace) ++ ".",
-    {docs_v1, erl_anno:new(0), ernest, <<"text/markdown">>, ModuleDoc, #{source => Source},
+    {docs_v1, erl_anno:new(0), ernest, <<"text/markdown">>, ModuleDoc, #{source => SourceName},
      [doc_entry(Declaration, Prefix, Env) || Declaration <- Declarations, documented(Declaration)]}.
 
 doc_entry(Declaration, Prefix, Env) ->
@@ -91,9 +92,9 @@ param_names(Params) ->
 
 constructor_item(#constructor{doc = Doc, name = Name, fields = Fields}) ->
     #{kind => constructor, name => Name, doc => doc_or_none(Doc),
-      fields => [#{name => Field, type => text(syntax_text(Annotation)),
+      fields => [#{name => FieldName, type => text(syntax_text(Annotation)),
                    doc => doc_or_none(FieldDoc)}
-                 || #field{doc = FieldDoc, name = Field,
+                 || #field{doc = FieldDoc, name = FieldName,
                            annotation = Annotation} <- named_fields(Fields)]}.
 
 doc_or_none(undefined) -> none;
@@ -172,8 +173,8 @@ constructor_text(#constructor{name = Name, fields = {positional, Annotation}}) -
 constructor_text(#constructor{name = Name, fields = {named, Fields}}) ->
     [atom_to_list(Name), "(",
      lists:join(", ",
-                [[atom_to_list(Field), " : ", syntax_text(Annotation)]
-                 || #field{name = Field, annotation = Annotation} <- Fields]),
+                [[atom_to_list(FieldName), " : ", syntax_text(Annotation)]
+                 || #field{name = FieldName, annotation = Annotation} <- Fields]),
      ")"].
 
 %% A syntactic type as written.

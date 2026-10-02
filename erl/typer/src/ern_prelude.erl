@@ -581,6 +581,6 @@ stdlib_interface(File) ->
     case ern_interface:read(File) of
         {ok, #{interface := Interface}} ->
             [Interface];
-        {error, Reason} ->
-            error({broken_standard_library, File, Reason, "rebuild it with make"})
+        {error, Error} ->
+            error({broken_standard_library, File, Error, "rebuild it with make"})
     end.

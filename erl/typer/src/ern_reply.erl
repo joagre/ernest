@@ -149,9 +149,9 @@ wild_field(Span, Name, [FieldType], Env) ->
                                         ++ " carries a reply and cannot be `_`"});
 wild_field(_, _, _, _) -> ok.
 
-reply_field(Span, Name, Field, FieldType, Env) ->
+reply_field(Span, Name, FieldName, FieldType, Env) ->
     not ern_typecheck:is_reply_carrying(FieldType, Env)
-        orelse throw({type_error, Span, "field " ++ atom_to_list(Field) ++ " of "
+        orelse throw({type_error, Span, "field " ++ atom_to_list(FieldName) ++ " of "
                                         ++ atom_to_list(Name) ++ " carries a reply and must be"
                                         " bound"}).
 
@@ -175,13 +175,13 @@ uses(#e_var{span = Span, path = [], name = Name}, Obligations, _Env) ->
     end;
 uses(#e_call{span = Span, returns = false} = Call, Obligations, Env) ->
     sequence([uses(Call#e_call{returns = true}, Obligations, Env), [{'$fault', Span}]]);
-uses(#e_call{callee = #e_var{referent = {prelude, [Spawn]}}, args = [Arg | Wrap]}, Obligations,
-     Env)
-  when Spawn =:= spawn, Wrap =:= []; Spawn =:= spawnMonitored, length(Wrap) =:= 1 ->
+uses(#e_call{callee = #e_var{referent = {prelude, [Spawn]}}, args = [Arg | WrapArgs]},
+     Obligations, Env)
+  when Spawn =:= spawn, WrapArgs =:= []; Spawn =:= spawnMonitored, length(WrapArgs) =:= 1 ->
     %% spawn and spawnMonitored are the prelude's as the checker resolved
     %% them, not names spelled so
     ArgUses = spawned(Arg, Obligations, Env),
-    sequence([ArgUses | [uses(WrapArg, Obligations, Env) || WrapArg <- Wrap]]);
+    sequence([ArgUses | [uses(WrapArg, Obligations, Env) || WrapArg <- WrapArgs]]);
 uses(#e_call{span = Span, callee = #e_var{path = [], name = LambdaName}, args = Args},
      Obligations, Env) ->
     %% a call consumes a capturing lambda bound by let
