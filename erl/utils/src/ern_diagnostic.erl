@@ -20,7 +20,7 @@
 
 %% A span from a token position or from a node position, which is one.
 -spec span(position() | span()) -> span().
-span({Line, Column, End, _Before}) -> {Line, Column, End};
+span({Line, Column, End, _PreviousEnd}) -> {Line, Column, End};
 span({_, _, _} = Span) -> Span.
 
 %% The first line alone: what a tool parses.

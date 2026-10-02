@@ -11,8 +11,8 @@
 
 %% The lines a text of lines is laid out as.
 laid(Lines) ->
-    {ok, Out} = ern_format:format(iolist_to_binary(lists:join("\n", Lines))),
-    binary:split(string:trim(Out, trailing, "\n"), <<"\n">>, [global]).
+    {ok, Formatted} = ern_format:format(iolist_to_binary(lists:join("\n", Lines))),
+    binary:split(string:trim(Formatted, trailing, "\n"), <<"\n">>, [global]).
 
 %% A text laid out is laid out already.
 fixed(Lines) ->
@@ -292,11 +292,11 @@ not_parsed_test() ->
 %% report §11.6: in a CommonMark text, an Ernest block that parses as a
 %% module or as a function's body is laid out, and any other is left
 markdown_test() ->
-    In = <<"Text.\n\n```ernest\nfn f() = { a; b }\n```\n\n```ernest\n1 +\n```\n\n"
+    Markdown = <<"Text.\n\n```ernest\nfn f() = { a; b }\n```\n\n```ernest\n1 +\n```\n\n"
            "```ernest-rejected\nlet x = match y { A -> 1 }\n```\n">>,
     ?assertEqual(<<"Text.\n\n```ernest\nfn f() = {\n    a;\n    b\n}\n```\n\n```ernest\n1 +\n"
                    "```\n\n```ernest-rejected\nlet x = match y {\n    A -> 1\n}\n```\n">>,
-                 ern_format:markdown(In)).
+                 ern_format:markdown(Markdown)).
 
 %% report §11.6: a doc block is kept as written, the spaces that end a line
 %% among them, and so is a raw string in one of its examples. A regression
@@ -328,8 +328,8 @@ comment_under_declaration_test() ->
 %% is left as it is, the indentation of its lines too. A regression test:
 %% an indented one was re-indented (findings C26)
 markdown_unparsed_indented_test() ->
-    In = <<"- an item\n\n   ```ernest\n   let  = (\n  x\n   ```\n">>,
-    ?assertEqual(In, ern_format:markdown(In)).
+    Markdown = <<"- an item\n\n   ```ernest\n   let  = (\n  x\n   ```\n">>,
+    ?assertEqual(Markdown, ern_format:markdown(Markdown)).
 
 %% report §2.2, §11.6: a `///` after code is an error, and the module is
 %% left as it is. A regression test: the formatter stopped with an

@@ -1,12 +1,12 @@
 %% The printer of report §11.6's layout: each part of the algebra on a
-%% small doc. Regression tests, written with the printer; ern_format_tests
+%% small layout. Regression tests, written with the printer; ern_format_tests
 %% has the layouts the style guide asks for.
 -module(ern_pretty_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 
-words(N) ->
-    lists:join(line, [<<"word">> || _ <- lists:seq(1, N)]).
+words(Count) ->
+    lists:join(line, [<<"word">> || _ <- lists:seq(1, Count)]).
 
 %% report §11.6: a group on one line when it fits in 100 columns, and
 %% every break of it taken when it does not
@@ -15,7 +15,7 @@ group_test() ->
     Long = ern_pretty:render({group, words(30)}),
     ?assertEqual(30, length(binary:split(string:trim(Long), <<"\n">>, [global]))).
 
-%% report §11.6: an aligned doc's breaks indent to the column it began at,
+%% report §11.6: an aligned layout's breaks indent to the column it began at,
 %% a nested one's a step further
 align_and_nest_test() ->
     ?assertEqual(<<"f(a,\n  b)\n">>,
