@@ -1,0 +1,29 @@
+/// Generic numeric functions over a requirement, `add = a.+`, used at
+/// `Int`, at `Float` and at a type with a `+` of its own. `sum` needs a
+/// zero as well, which is no member, so its caller passes one.
+
+type Money = Money(Int)
+
+fn Money.+(Money(a) : Money, Money(b) : Money) : Money =
+    Money(a + b)
+
+fn total(list : List(a), add = a.+) : Optional(a) =
+    match list {
+        [] -> None
+      | first :: rest -> Some(List.foldLeft(rest, first, add))
+    }
+
+fn sum(list : List(a), zero : a, add = a.+) : a =
+    List.foldLeft(list, zero, add)
+
+fn doubled(list : List(a), add = a.+) : List(a) =
+    List.map(list, fn(x) = add(x, x))
+
+export fn main() : Unit with Never = {
+    Io.println(Io.show(total([1, 2, 3])));
+    Io.println(Io.show(total([1.5, 2.5])));
+    Io.println(Io.show(total([Money(1), Money(2)])));
+    Io.println(Int.toString(sum([1, 2, 3], 0)));
+    Io.println(Io.show(doubled([Money(2)])));
+    Io.println(Io.show(total(doubled([1, 2]))))
+}

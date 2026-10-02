@@ -1,0 +1,28 @@
+/// A program over a record a numeric type fills by hand, `Num`: `zero` and
+/// `one` are no members and `+` is no field name, so no fill applies, and
+/// each type is one line.
+
+type Num(a) =
+    Num(zero : a,
+        one : a,
+        add : (a, a) -> a,
+        mul : (a, a) -> a)
+
+let ints : Num(Int) = Num(zero = 0, one = 1, add = Int.+, mul = Int.*)
+
+let floats : Num(Float) = Num(zero = 0.0, one = 1.0, add = Float.+, mul = Float.*)
+
+fn sum(list : List(a), num : Num(a)) : a =
+    List.foldLeft(list, num.zero, num.add)
+
+fn product(list : List(a), num : Num(a)) : a =
+    List.foldLeft(list, num.one, num.mul)
+
+fn sumOfSquares(list : List(a), num : Num(a)) : a =
+    sum(List.map(list, fn(x) = num.mul(x, x)), num)
+
+export fn main() : Unit with Never = {
+    Io.println(Int.toString(sum([1, 2, 3], ints)));
+    Io.println(Io.show(product([1.5, 2.0], floats)));
+    Io.println(Int.toString(sumOfSquares([1, 2, 3], ints)))
+}
