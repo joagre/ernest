@@ -1,0 +1,257 @@
+/// Operations on `Map(k, v)`, a finite map from keys to values in the
+/// order of the keys' type's `compare` (report §3.10). A function that
+/// needs the order says so, `needs k.compare` (report §4.8): `contains`,
+/// `get`, `put`, `remove`, `update`, `merge`, `mergeWith` and `fromList`;
+/// the rest keep the keys and need none. A map is data: `==` is
+/// structural, a map keys a `Map`, and a map is sent to another node.
+/// The order of `keys`, `values`, `toList`, `foldLeft`, `foreach` and
+/// `find`, and the order in which `map`, `filter`, `filterMap`, `any`,
+/// `all` and `mergeWith` meet the entries, is the keys'. The map is a
+/// sorted list of pairs: `get`, `put` and `remove` are linear in the
+/// size, and `merge` linear in the two sizes. Nothing is a primitive:
+/// the module is written over `List`.
+///
+/// ## Examples
+///
+/// ```ernest
+/// OrderedMap.keys(OrderedMap.fromList([#("b", 2), #("a", 1)]))
+/// // => ["a", "b"]
+/// ```
+///
+/// ## See also
+///
+/// `Map` for keys in no order, `OrderedSet` for elements in order.
+///
+/// since 0.3.0
+
+/// A map in the order of its key type.
+export abstract type Map(k, v) = Map(List(#(k, v)))
+
+/// The map with no entries.
+export let empty : Map(k, v) = Map([])
+
+/// The map of those pairs; at one key, the last pair's value.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedMap.toList(OrderedMap.fromList([#(2, "b"), #(1, "a"), #(2, "c")]))
+/// // => [#(1, "a"), #(2, "c")]
+/// ```
+export fn fromList(pairs : List(#(k, v))) : Map(k, v) needs k.compare =
+    List.foldLeft(pairs, empty, fn(acc, #(key, value)) = put(acc, key, value))
+
+/// The number of entries.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(OrderedMap.size(OrderedMap.fromList([#(1, "a")])), OrderedMap.isEmpty(OrderedMap.empty))
+/// // => #(1, true)
+/// ```
+export fn size(Map(pairs) : Map(k, v)) : Int =
+    List.size(pairs)
+
+/// `true` for the map with no entries.
+export fn isEmpty(Map(pairs) : Map(k, v)) : Bool =
+    List.isEmpty(pairs)
+
+/// `true` when a key the order calls `Equal` to it has a value.
+export fn contains(map : Map(k, v), key : k) : Bool needs k.compare =
+    Optional.isSome(get(map, key))
+
+/// The value at the key the order calls `Equal` to it, if any.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedMap.get(OrderedMap.fromList([#("a", 1)]), "a")
+/// // => Some(1)
+/// ```
+export fn get(Map(pairs) : Map(k, v), key : k) : Optional(v) needs k.compare =
+    found(pairs, key)
+
+fn found(pairs : List(#(k, v)), key : k) : Optional(v) needs k.compare =
+    match pairs {
+        [] -> None
+      | #(other, value) :: rest -> match k.compare(key, other) {
+            Less -> None
+          | Equal -> Some(value)
+          | Greater -> found(rest, key)
+        }
+    }
+
+/// The map with that value at that key, replacing one already there.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedMap.toList(OrderedMap.put(OrderedMap.fromList([#(2, "b")]), 1, "a"))
+/// // => [#(1, "a"), #(2, "b")]
+/// ```
+export fn put(Map(pairs) : Map(k, v), key : k, value : v) : Map(k, v) needs k.compare =
+    Map(inserted(pairs, key, value))
+
+fn inserted(pairs : List(#(k, v)), key : k, value : v) : List(#(k, v)) needs k.compare =
+    match pairs {
+        [] -> [#(key, value)]
+      | #(other, kept) :: rest -> match k.compare(key, other) {
+            Less -> #(key, value) :: pairs
+          | Equal -> #(key, value) :: rest
+          | Greater -> #(other, kept) :: inserted(rest, key, value)
+        }
+    }
+
+/// The map without the entry at that key, which need not be there.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedMap.keys(OrderedMap.remove(OrderedMap.fromList([#(1, "a"), #(2, "b")]), 1))
+/// // => [2]
+/// ```
+export fn remove(Map(pairs) : Map(k, v), key : k) : Map(k, v) needs k.compare =
+    Map(List.filter(pairs, fn(#(other, _)) = k.compare(key, other) != Equal))
+
+/// The map with the function's value at that key, the function given the
+/// value there, if any.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedMap.get(OrderedMap.update(OrderedMap.empty, "n", fn(o) = Optional.withDefault(o, 0) + 1),
+///                "n")
+/// // => Some(1)
+/// ```
+export fn update(map : Map(k, v),
+                 key : k,
+                 f : (Optional(v)) -> v with e) : Map(k, v) with e needs k.compare =
+    put(map, key, f(get(map, key)))
+
+/// Each value replaced by the function's, the key beside it, in order.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedMap.values(OrderedMap.map(OrderedMap.fromList([#(1, 10)]), fn(key, value) = key + value))
+/// // => [11]
+/// ```
+export fn map(Map(pairs) : Map(k, v), f : (k, v) -> w with e) : Map(k, w) with e =
+    Map(List.map(pairs, fn(#(key, value)) = #(key, f(key, value))))
+
+/// The entries the predicate holds for, in order.
+export fn filter(Map(pairs) : Map(k, v), keep : (k, v) -> Bool with e) : Map(k, v) with e =
+    Map(List.filter(pairs, fn(#(key, value)) = keep(key, value)))
+
+/// The entries whose value the function maps to `Some`, with that value.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedMap.toList(OrderedMap.filterMap(OrderedMap.fromList([#(1, "1"), #(2, "x")]),
+///                                        fn(_, value) = String.toInt(value)))
+/// // => [#(1, 1)]
+/// ```
+export fn filterMap(Map(pairs) : Map(k, v), f : (k, v) -> Optional(w) with e) : Map(k, w) with e =
+    Map(List.filterMap(pairs, fn(#(key, value)) = match f(key, value) {
+        Some(result) -> Some(#(key, result))
+      | None -> None
+    }))
+
+/// The accumulator after the function has seen each entry in order, the
+/// accumulator first.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedMap.foldLeft(OrderedMap.fromList([#(1, 2), #(3, 4)]),
+///                     0,
+///                     fn(acc, key, value) = acc + key * value)
+/// // => 14
+/// ```
+export fn foldLeft(Map(pairs) : Map(k, v), acc : b, step : (b, k, v) -> b with e) : b with e =
+    List.foldLeft(pairs, acc, fn(sofar, #(key, value)) = step(sofar, key, value))
+
+/// The function applied to each entry in order for its effect.
+export fn foreach(Map(pairs) : Map(k, v), f : (k, v) -> Unit with e) : Unit with e =
+    List.foreach(pairs, fn(#(key, value)) = f(key, value))
+
+/// `true` when the predicate holds for some entry.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(OrderedMap.any(OrderedMap.fromList([#(1, 1)]), fn(key, value) = key == value),
+///   OrderedMap.all(OrderedMap.fromList([#(1, 2)]), fn(key, value) = key == value))
+/// // => #(true, false)
+/// ```
+export fn any(Map(pairs) : Map(k, v), keep : (k, v) -> Bool with e) : Bool with e =
+    List.any(pairs, fn(#(key, value)) = keep(key, value))
+
+/// `true` when the predicate holds for every entry, and for the map with
+/// no entries.
+export fn all(Map(pairs) : Map(k, v), keep : (k, v) -> Bool with e) : Bool with e =
+    List.all(pairs, fn(#(key, value)) = keep(key, value))
+
+/// The first entry in order the predicate holds for.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedMap.find(OrderedMap.fromList([#(2, "b"), #(1, "a")]), fn(key, _) = key > 1)
+/// // => Some(#(2, "b"))
+/// ```
+export fn find(Map(pairs) : Map(k, v), keep : (k, v) -> Bool with e) : Optional(#(k, v)) with e =
+    List.find(pairs, fn(#(key, value)) = keep(key, value))
+
+/// The entries of both; at one key, the second's value.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedMap.toList(OrderedMap.merge(OrderedMap.fromList([#(1, "a")]),
+///                                    OrderedMap.fromList([#(1, "b")])))
+/// // => [#(1, "b")]
+/// ```
+export fn merge(map : Map(k, v), other : Map(k, v)) : Map(k, v) needs k.compare =
+    mergeWith(map, other, fn(_, _, value) = value)
+
+/// The entries of both; at one key, the function's value from the two.
+///
+/// ### Examples
+///
+/// ```ernest
+/// OrderedMap.toList(OrderedMap.mergeWith(OrderedMap.fromList([#(1, 1)]),
+///                                        OrderedMap.fromList([#(1, 2), #(3, 3)]),
+///                                        fn(_, mine, theirs) = mine + theirs))
+/// // => [#(1, 3), #(3, 3)]
+/// ```
+export fn mergeWith(Map(pairs) : Map(k, v),
+                    Map(others) : Map(k, v),
+                    f : (k, v, v) -> v with e) : Map(k, v) with e needs k.compare =
+    Map(mergedWith(pairs, others, f))
+
+fn mergedWith(pairs : List(#(k, v)),
+              others : List(#(k, v)),
+              f : (k, v, v) -> v with e) : List(#(k, v)) with e needs k.compare =
+    match #(pairs, others) {
+        #([], _) -> others
+      | #(_, []) -> pairs
+      | #(#(key, mine) :: rest, #(theirs, value) :: more) -> match k.compare(key, theirs) {
+            Less -> #(key, mine) :: mergedWith(rest, others, f)
+          | Equal -> #(key, f(key, mine, value)) :: mergedWith(rest, more, f)
+          | Greater -> #(theirs, value) :: mergedWith(pairs, more, f)
+        }
+    }
+
+/// The entries, in order.
+export fn toList(Map(pairs) : Map(k, v)) : List(#(k, v)) =
+    pairs
+
+/// The keys, in order.
+export fn keys(Map(pairs) : Map(k, v)) : List(k) =
+    List.map(pairs, fn(#(key, _)) = key)
+
+/// The values, in the keys' order.
+export fn values(Map(pairs) : Map(k, v)) : List(v) =
+    List.map(pairs, fn(#(_, value)) = value)

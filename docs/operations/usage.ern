@@ -1,8 +1,11 @@
-/// A program over both sets. No line names an order: each set's is its
-/// element type's `compare`, and the one generic function over the
-/// ordered set, `unique`, declares that it needs it. `Ops` is the record
-/// `common` needs, declared here and filled from each representation at
-/// the element type.
+/// A program over both sets, a derived order, a map in order, and printing
+/// in generic code. No line names an order: each set's is its element
+/// type's `compare`, which `Date` derives from its declaration. The two
+/// generic functions declare what they need, `unique` the order and
+/// `shown` the printing. `Ops` is the record `common` needs, declared
+/// here and filled from each representation at the element type.
+
+type Date = Date(year : Int, month : Int, day : Int) derives compare
 
 type Ops(s, a) =
     Ops(fromList : (List(a)) -> s,
@@ -15,6 +18,9 @@ let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)
 
 fn unique(list : List(a)) : List(a) needs a.compare =
     OrderedSet.toList(OrderedSet.fromList(list))
+
+fn shown(list : List(a)) : Unit needs a.show =
+    List.foreach(list, fn(x) = Io.println(Io.show(x)))
 
 fn common(list : List(a), other : List(a), ops : Ops(s, a)) : List(a) =
     ops.toList(ops.intersection(ops.fromList(list), ops.fromList(other)))
@@ -29,6 +35,12 @@ export fn main() : Unit with Never = {
     let doubled = OrderedSet.map(both, fn(n) = n * 2);
     Io.println(Bool.toString(OrderedSet.contains(doubled, 6)));
     Io.println(Io.show(unique(["b", "a", "b"])));
+    let dates = OrderedSet.fromList([Date(2026, 10, 2), Date(2025, 1, 1)]);
+    Io.println(Io.show(OrderedSet.min(dates)));
+    shown(OrderedSet.toList(dates));
+    let ages = OrderedMap.fromList([#("bo", 42), #("al", 7)]);
+    Io.println(Io.show(OrderedMap.keys(ages)));
+    Io.println(Io.show(OrderedMap.get(OrderedMap.put(ages, "cy", 1), "cy")));
     Io.println(Io.show(common([4, 2, 3], [3, 4, 5], ordered)));
     Io.println(Int.toString(List.size(common([4, 2, 3], [3, 4, 5], hashed))))
 }
