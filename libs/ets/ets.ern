@@ -12,19 +12,19 @@
 ///
 /// ```ernest
 /// {
-///     let t = Ets.new();
-///     Ets.put(t, "a", 1);
-///     Ets.get(t, "a")
+///     let table = Ets.new();
+///     Ets.put(table, "a", 1);
+///     Ets.get(table, "a")
 /// }
 /// // => Some(1)
 /// ```
 ///
 /// ```ernest
 /// {
-///     let t = Ets.new();
-///     Ets.put(t, 1, "one");
-///     Ets.remove(t, 1);
-///     #(Ets.contains(t, 1), Ets.size(t))
+///     let table = Ets.new();
+///     Ets.put(table, 1, "one");
+///     Ets.remove(table, 1);
+///     #(Ets.contains(table, 1), Ets.size(table))
 /// }
 /// // => #(false, 0)
 /// ```
@@ -42,8 +42,8 @@
 ///
 /// ```ernest
 /// {
-///     let t : Ets.Table(String, Int) = Ets.new();
-///     Ets.size(t)
+///     let table : Ets.Table(String, Int) = Ets.new();
+///     Ets.size(table)
 /// }
 /// // => 0
 /// ```
@@ -62,12 +62,12 @@ foreign fn rawNew(name : Foreign.Term, options : List(Foreign.Term)) : Table(k, 
 ///
 /// On a table that has ended, faults as a foreign function that raises
 /// does (report §7.4).
-export fn put(t : Table(k, v), key : k, value : v) : Unit with m = {
-    let _ = rawInsert(t, #(key, value));
+export fn put(table : Table(k, v), key : k, value : v) : Unit with m = {
+    let _ = rawInsert(table, #(key, value));
     Unit
 }
 
-foreign fn rawInsert(t : Table(k, v), row : #(k, v)) : Bool with m =
+foreign fn rawInsert(table : Table(k, v), row : #(k, v)) : Bool with m =
     "ets:insert/2"
 
 /// The value at that key.
@@ -76,13 +76,13 @@ foreign fn rawInsert(t : Table(k, v), row : #(k, v)) : Bool with m =
 ///
 /// On a table that has ended, faults as a foreign function that raises
 /// does (report §7.4).
-export fn get(t : Table(k, v), key : k) : Optional(v) with m =
-    match rawLookup(t, key) {
+export fn get(table : Table(k, v), key : k) : Optional(v) with m =
+    match rawLookup(table, key) {
         [#(_, value)] -> Some(value)
       | _ -> None
     }
 
-foreign fn rawLookup(t : Table(k, v), key : k) : List(#(k, v)) with m =
+foreign fn rawLookup(table : Table(k, v), key : k) : List(#(k, v)) with m =
     "ets:lookup/2"
 
 /// `true` when the table has an entry with that key.
@@ -91,7 +91,7 @@ foreign fn rawLookup(t : Table(k, v), key : k) : List(#(k, v)) with m =
 ///
 /// On a table that has ended, faults as a foreign function that raises
 /// does (report §7.4).
-export foreign fn contains(t : Table(k, v), key : k) : Bool with m =
+export foreign fn contains(table : Table(k, v), key : k) : Bool with m =
     "ets:member/2"
 
 /// Removes the entry at that key, which need not be there.
@@ -100,12 +100,12 @@ export foreign fn contains(t : Table(k, v), key : k) : Bool with m =
 ///
 /// On a table that has ended, faults as a foreign function that raises
 /// does (report §7.4).
-export fn remove(t : Table(k, v), key : k) : Unit with m = {
-    let _ = rawDelete(t, key);
+export fn remove(table : Table(k, v), key : k) : Unit with m = {
+    let _ = rawDelete(table, key);
     Unit
 }
 
-foreign fn rawDelete(t : Table(k, v), key : k) : Bool with m =
+foreign fn rawDelete(table : Table(k, v), key : k) : Bool with m =
     "ets:delete/2"
 
 /// The number of entries.
@@ -114,10 +114,10 @@ foreign fn rawDelete(t : Table(k, v), key : k) : Bool with m =
 ///
 /// On a table that has ended, faults as a foreign function that raises
 /// does (report §7.4).
-export fn size(t : Table(k, v)) : Int with m =
-    rawInfo(t, Erl.atom("size"))
+export fn size(table : Table(k, v)) : Int with m =
+    rawInfo(table, Erl.atom("size"))
 
-foreign fn rawInfo(t : Table(k, v), item : Foreign.Term) : Int with m =
+foreign fn rawInfo(table : Table(k, v), item : Foreign.Term) : Int with m =
     "ets:info/2"
 
 /// Removes every entry, leaving the table.
@@ -131,19 +131,19 @@ foreign fn rawInfo(t : Table(k, v), item : Foreign.Term) : Int with m =
 ///
 /// ```ernest
 /// {
-///     let t = Ets.new();
-///     Ets.put(t, "k", "v");
-///     Ets.clear(t);
-///     Ets.toList(t)
+///     let table = Ets.new();
+///     Ets.put(table, "k", "v");
+///     Ets.clear(table);
+///     Ets.toList(table)
 /// }
 /// // => []
 /// ```
-export fn clear(t : Table(k, v)) : Unit with m = {
-    let _ = rawClear(t);
+export fn clear(table : Table(k, v)) : Unit with m = {
+    let _ = rawClear(table);
     Unit
 }
 
-foreign fn rawClear(t : Table(k, v)) : Bool with m =
+foreign fn rawClear(table : Table(k, v)) : Bool with m =
     "ets:delete_all_objects/1"
 
 /// Closes the table, deleting it; every operation on it after this faults.
@@ -157,19 +157,19 @@ foreign fn rawClear(t : Table(k, v)) : Bool with m =
 ///
 /// ```ernest
 /// {
-///     let t = Ets.new();
-///     Ets.put(t, "k", "v");
-///     Ets.close(t);
+///     let table = Ets.new();
+///     Ets.put(table, "k", "v");
+///     Ets.close(table);
 ///     "closed"
 /// }
 /// // => "closed"
 /// ```
-export fn close(t : Table(k, v)) : Unit with m = {
-    let _ = rawClose(t);
+export fn close(table : Table(k, v)) : Unit with m = {
+    let _ = rawClose(table);
     Unit
 }
 
-foreign fn rawClose(t : Table(k, v)) : Bool with m =
+foreign fn rawClose(table : Table(k, v)) : Bool with m =
     "ets:delete/1"
 
 /// The entries as pairs, in unspecified order.
@@ -178,5 +178,5 @@ foreign fn rawClose(t : Table(k, v)) : Bool with m =
 ///
 /// On a table that has ended, faults as a foreign function that raises
 /// does (report §7.4).
-export foreign fn toList(t : Table(k, v)) : List(#(k, v)) with m =
+export foreign fn toList(table : Table(k, v)) : List(#(k, v)) with m =
     "ets:tab2list/1"

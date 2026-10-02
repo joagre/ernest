@@ -1183,85 +1183,85 @@ export foreign type Table(k=, v)
 export fn new() : Table(k, v) with m =
     rawNew(Erl.atom("ernest"), [Erl.atom("set"), Erl.atom("public")])
 
-foreign fn rawNew(name : Foreign.Term, opts : List(Foreign.Term)) : Table(k, v) with m =
+foreign fn rawNew(name : Foreign.Term, options : List(Foreign.Term)) : Table(k, v) with m =
     "ets:new/2"
 
 /// Insert or replace the entry for key.
-export fn put(t : Table(k, v), key : k, value : v) : Unit with m = {
-    let _ = rawInsert(t, #(key, value));
+export fn put(table : Table(k, v), key : k, value : v) : Unit with m = {
+    let _ = rawInsert(table, #(key, value));
     Unit
 }
 
-foreign fn rawInsert(t : Table(k, v), row : #(k, v)) : Bool with m =
+foreign fn rawInsert(table : Table(k, v), row : #(k, v)) : Bool with m =
     "ets:insert/2"
 
 /// The value for key, or None if absent.
-export fn get(t : Table(k, v), key : k) : Optional(v) with m =
-    match rawLookup(t, key) {
-        [#(_, v)] -> Some(v)
+export fn get(table : Table(k, v), key : k) : Optional(v) with m =
+    match rawLookup(table, key) {
+        [#(_, value)] -> Some(value)
       | _ -> None
     }
 
-foreign fn rawLookup(t : Table(k, v), key : k) : List(#(k, v)) with m =
+foreign fn rawLookup(table : Table(k, v), key : k) : List(#(k, v)) with m =
     "ets:lookup/2"
 
 /// Remove key. A key not present is not an error.
-export fn remove(t : Table(k, v), key : k) : Unit with m = {
-    let _ = rawDelete(t, key);
+export fn remove(table : Table(k, v), key : k) : Unit with m = {
+    let _ = rawDelete(table, key);
     Unit
 }
 
-foreign fn rawDelete(t : Table(k, v), key : k) : Bool with m =
+foreign fn rawDelete(table : Table(k, v), key : k) : Bool with m =
     "ets:delete/2"
 
 /// The number of entries in the table.
-export fn size(t : Table(k, v)) : Int with m =
-    rawInfo(t, Erl.atom("size"))
+export fn size(table : Table(k, v)) : Int with m =
+    rawInfo(table, Erl.atom("size"))
 
-foreign fn rawInfo(t : Table(k, v), item : Foreign.Term) : Int with m =
+foreign fn rawInfo(table : Table(k, v), item : Foreign.Term) : Int with m =
     "ets:info/2"
 
 /// Close the table, deleting it. All subsequent operations on it fault.
-export fn close(t : Table(k, v)) : Unit with m = {
-    let _ = rawClose(t);
+export fn close(table : Table(k, v)) : Unit with m = {
+    let _ = rawClose(table);
     Unit
 }
 
-foreign fn rawClose(t : Table(k, v)) : Bool with m =
+foreign fn rawClose(table : Table(k, v)) : Bool with m =
     "ets:delete/1"
 
 /// Remove all entries, leaving the table empty.
-export fn clear(t : Table(k, v)) : Unit with m = {
-    let _ = rawClear(t);
+export fn clear(table : Table(k, v)) : Unit with m = {
+    let _ = rawClear(table);
     Unit
 }
 
-foreign fn rawClear(t : Table(k, v)) : Bool with m =
+foreign fn rawClear(table : Table(k, v)) : Bool with m =
     "ets:delete_all_objects/1"
 
-/// True if key is present in t.
-export foreign fn contains(t : Table(k, v), key : k) : Bool with m =
+/// True if key is present in table.
+export foreign fn contains(table : Table(k, v), key : k) : Bool with m =
     "ets:member/2"
 
 /// All key-value pairs currently in the table, in unspecified order.
-export foreign fn toList(t : Table(k, v)) : List(#(k, v)) with m =
+export foreign fn toList(table : Table(k, v)) : List(#(k, v)) with m =
     "ets:tab2list/1"
 ```
 
 ```ernest
 export fn main() : Unit with Never = {
-    let t = Ets.new();
-    Ets.put(t, "a", 1);
-    Ets.put(t, "b", 2);
-    match Ets.get(t, "a") {
-        Some(n) -> Io.println(Int.toString(n))
+    let table = Ets.new();
+    Ets.put(table, "a", 1);
+    Ets.put(table, "b", 2);
+    match Ets.get(table, "a") {
+        Some(value) -> Io.println(Int.toString(value))
       | None -> Io.println("missing")
     };
-    Ets.close(t)
+    Ets.close(table)
 }
 ```
 
-`Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.put(t, "a", 1)` fixes `t` to `Ets.Table(String, Int)`, and a `put` with other types on the next line is a type error. Every operation has a mailbox type, `size` and `contains` included. A table is state that every process holding it reads and writes.
+`Ets.Table(k, v)` has type parameters the implementation never sees: `Ets.put(table, "a", 1)` fixes `t` to `Ets.Table(String, Int)`, and a `put` with other types on the next line is a type error. Every operation has a mailbox type, `size` and `contains` included. A table is state that every process holding it reads and writes.
 
 ## Appendix E. Standard Library
 
