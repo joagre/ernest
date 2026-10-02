@@ -11,14 +11,14 @@
 %% beyond, the exponent's sign only when negative. `Io.debug` and the shell
 %% print a Float the same way (ern_show).
 -spec to_string(float()) -> binary().
-to_string(F) -> list_to_binary(text(F)).
+to_string(Float) -> list_to_binary(text(Float)).
 
 -spec text(float()) -> string().
-text(F) when F < 0 -> [$- | text(-F)];
-text(F) when F == 0 -> "0.0";
-text(F) ->
-    {Digits, Point} = digits(float_to_list(F, [short])),
-    case F >= 1.0e-4 andalso F < 1.0e16 of
+text(Float) when Float < 0 -> [$- | text(-Float)];
+text(Float) when Float == 0 -> "0.0";
+text(Float) ->
+    {Digits, Point} = digits(float_to_list(Float, [short])),
+    case Float >= 1.0e-4 andalso Float < 1.0e16 of
         true -> plain(Digits, Point);
         false -> scientific(Digits, Point)
     end.
@@ -27,13 +27,13 @@ text(F) ->
 %% them: the value is 0.Digits times ten to Point.
 digits(Short) ->
     {Mantissa, Exponent} = case string:split(Short, "e") of
-                               [M, E] -> {M, list_to_integer(E)};
-                               [M] -> {M, 0}
+                               [Before, After] -> {Before, list_to_integer(After)};
+                               [Before] -> {Before, 0}
                            end,
     [Whole, Fraction] = string:split(Mantissa, "."),
     All = Whole ++ Fraction,
-    Leading = length(lists:takewhile(fun(C) -> C =:= $0 end, All)),
-    Digits = lists:reverse(lists:dropwhile(fun(C) -> C =:= $0 end,
+    Leading = length(lists:takewhile(fun(Char) -> Char =:= $0 end, All)),
+    Digits = lists:reverse(lists:dropwhile(fun(Char) -> Char =:= $0 end,
                                            lists:reverse(lists:nthtail(Leading, All)))),
     {Digits, length(Whole) - Leading + Exponent}.
 
@@ -45,8 +45,8 @@ plain(Digits, Point) ->
     {Whole, Fraction} = lists:split(Point, Digits),
     Whole ++ "." ++ Fraction.
 
-scientific([D | Rest], Point) ->
-    [D, $. | case Rest of [] -> "0"; _ -> Rest end] ++ "e" ++ integer_to_list(Point - 1).
+scientific([First | Rest], Point) ->
+    [First, $. | case Rest of [] -> "0"; _ -> Rest end] ++ "e" ++ integer_to_list(Point - 1).
 
 %% Report §3.1: a result the finite range cannot hold is the float fault,
 %% not Erlang's badarith; Float.pow keeps the domain out before it gets here
@@ -54,9 +54,9 @@ scientific([D | Rest], Point) ->
 pow(Base, Exponent) -> arith(fun() -> math:pow(Base, Exponent) end).
 
 -spec exp(float()) -> float().
-exp(X) -> arith(fun() -> math:exp(X) end).
+exp(Power) -> arith(fun() -> math:exp(Power) end).
 
-arith(F) ->
-    try F()
+arith(Compute) ->
+    try Compute()
     catch error:badarith -> ern_rt:fault(<<"float arithmetic error">>)
     end.

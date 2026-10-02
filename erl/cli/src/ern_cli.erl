@@ -669,7 +669,7 @@ report_fault({'FaultReport', _Process, Site, Cause, Restarted, Trace}, Stamped) 
                         " "];
                false -> []
            end,
-    ern_rt:send(ern_rt:sys(stderr),
+    ern_rt:send(ern_rt:system_process(stderr),
                 iolist_to_binary([Time, Site, Faulted, ern_show:controls(Cause, line), "\n",
                                   ern_show:controls(iolist_to_binary(Trace), lines)])).
 
@@ -852,10 +852,10 @@ run_tests(Ns, Loaded, Err) ->
                %% of whose tests have one name is refused before any runs
                case {Tests, Names -- lists:usort(Names)} of
                    {[], _} ->
-                       ern_rt:send(ern_rt:sys(stdout), <<"no tests\n">>),
+                       ern_rt:send(ern_rt:system_process(stdout), <<"no tests\n">>),
                        Me ! {ern_tests, true};
                    {_, [Twice | _]} ->
-                       ern_rt:send(ern_rt:sys(stderr),
+                       ern_rt:send(ern_rt:system_process(stderr),
                                    <<"ern test: two tests are named \"",
                                      (ern_show:controls(Twice, line))/binary, "\"\n">>),
                        Me ! {ern_tests, false};
@@ -894,7 +894,7 @@ run_test({'Case', Name, Run}) ->
     Ref = make_ref(),
     Pid = ern_rt:spawn_monitored(fun() -> receive {Ref, go} -> Me ! {Ref, Run()} end end,
                                  fun(Down) -> {Ref, down, Down} end, Name),
-    ok = ern_rt:deadlock_target(Pid),
+    ok = ern_rt:deadlock_victim(Pid),
     %% the reporter hears of the test's fault before this process does,
     %% so the test is known before it runs and forgotten only once its end
     %% is here
@@ -906,11 +906,11 @@ run_test({'Case', Name, Run}) ->
                       returned(Ref, <<"failed: ", (ern_show:controls(Text, line))/binary>>);
                   {Ref, down, {'Down', _, Reason, _}} -> <<"faulted: ", (cause(Reason))/binary>>
               end,
-    ok = ern_rt:deadlock_target(none),
+    ok = ern_rt:deadlock_victim(none),
     persistent_term:erase({?MODULE, test}),
     %% report §11.2: a test's name is written as a cause is, its controls
     %% escaped
-    ern_rt:send(ern_rt:sys(stdout),
+    ern_rt:send(ern_rt:system_process(stdout),
                 <<(ern_show:controls(Name, line))/binary, ": ", Outcome/binary, "\n">>),
     Outcome =:= <<"passed">>.
 

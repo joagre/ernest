@@ -81,7 +81,7 @@ type Msg =
 let reference : Address(Msg) = system(Erl.atom("fs"))
 
 foreign fn system(name : Foreign.Term) : Address(Msg) with m =
-    "ern_rt:sys/1"
+    "ern_rt:system_process/1"
 
 /// The file's octets.
 export fn read(path : Path, ms : Int) : Either(Io.Error, Bytes) with m =

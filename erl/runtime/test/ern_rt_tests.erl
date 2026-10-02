@@ -18,18 +18,19 @@ own_terminal_test() ->
 %% proving it
 own_terminal_race_test() ->
     ets:new(ern_processes, [named_table, public, set]),
-    Me = self(),
-    Kinds = [case I rem 2 of 0 -> keys; 1 -> lines end || I <- lists:seq(1, 64)],
+    Self = self(),
+    Kinds = [case Number rem 2 of 0 -> keys; 1 -> lines end || Number <- lists:seq(1, 64)],
     Askers = [spawn(fun() ->
                         receive go -> ok end,
-                        Me ! {owned, K, ern_rt:own_terminal(K)}
-                    end) || K <- Kinds],
-    [A ! go || A <- Askers],
-    Owned = [receive {owned, K, R} -> {K, R} after 1000 -> timeout end || _ <- Kinds],
+                        Self ! {owned, Kind, ern_rt:own_terminal(Kind)}
+                    end) || Kind <- Kinds],
+    [Asker ! go || Asker <- Askers],
+    Owned = [receive {owned, Kind, Result} -> {Kind, Result} after 1000 -> timeout end
+             || _ <- Kinds],
     ets:delete(ern_processes),
-    [Winner] = lists:usort([K || {K, ok} <- Owned]),
+    [Winner] = lists:usort([Kind || {Kind, ok} <- Owned]),
     Cause = <<"the terminal is already read as ", (atom_to_binary(Winner))/binary>>,
-    ?assertEqual([], [R || {_, R} <- Owned, R =/= ok, R =/= {taken, Cause}]).
+    ?assertEqual([], [Result || {_, Result} <- Owned, Result =/= ok, Result =/= {taken, Cause}]).
 
 %% report §8.2, §7.3: a read of the standard input that fails is a failure
 %% of the runtime, which ends the program with a fault that names it, and an
@@ -37,14 +38,14 @@ own_terminal_race_test() ->
 %% process behind Io's stdin, and the caller waited for ever
 stdin_failure_test() ->
     Ask = fun() ->
-              Stdin = ern_rt:sys(stdin),
-              ern_rt:call_forever(Stdin, fun(R) -> {'ReadLine', R} end)
+              Stdin = ern_rt:system_process(stdin),
+              ern_rt:call_forever(Stdin, fun(Reply) -> {'ReadLine', Reply} end)
           end,
-    Me = self(),
+    Self = self(),
     Quiet = #{stdout => fun(_) -> ok end},
     ?assertEqual({fault, <<"the standard input could not be read: eio">>},
                  ern_rt:run_main(Ask, <<"main">>, Quiet#{stdin => fun() -> {error, eio} end})),
-    ?assertEqual(ok, ern_rt:run_main(fun() -> Me ! {line, Ask()} end, <<"main">>,
+    ?assertEqual(ok, ern_rt:run_main(fun() -> Self ! {line, Ask()} end, <<"main">>,
                                      Quiet#{stdin => fun() -> "\n" end})),
     ?assertEqual({'Some', <<>>}, wait(line)).
 
@@ -57,20 +58,26 @@ stdin_stream_test() ->
     ets:insert(Tab, {queue, [<<"ab\r\ncd">>, <<"\nrest\n">>, <<"ok\n", 255, "\nnext">>]}),
     Next = fun() ->
                    case ets:lookup(Tab, queue) of
-                       [{_, [C | Rest]}] -> ets:insert(Tab, {queue, Rest}), C;
+                       [{_, [Chunk | Rest]}] -> ets:insert(Tab, {queue, Rest}), Chunk;
                        _ -> eof
                    end
            end,
-    Line = fun() -> ern_rt:call_forever(ern_rt:sys(stdin), fun(R) -> {'ReadLine', R} end) end,
-    Bytes = fun() -> ern_rt:call_forever(ern_rt:sys(stdin), fun(R) -> {'Read', R} end) end,
-    Me = self(),
+    Line = fun() ->
+               ern_rt:call_forever(ern_rt:system_process(stdin), fun(Reply) ->
+                                                                     {'ReadLine', Reply}
+                                                                 end)
+           end,
+    Bytes = fun() ->
+                ern_rt:call_forever(ern_rt:system_process(stdin), fun(Reply) -> {'Read', Reply} end)
+            end,
+    Self = self(),
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
-                           Me ! {got, [Line(), Bytes(), Line(), Line(), Line()]},
+                           Self ! {got, [Line(), Bytes(), Line(), Line(), Line()]},
                            Asker = ern_rt:spawn(fun() -> Line() end, <<"asker">>),
-                           ern_rt:monitor(Asker, fun(D) -> {down, D} end),
-                           receive {down, D} -> Me ! {down, D} end,
-                           Me ! {after_fault, [Line(), Line(), Bytes()]}
+                           ern_rt:monitor(Asker, fun(Down) -> {down, Down} end),
+                           receive {down, Down} -> Self ! {down, Down} end,
+                           Self ! {after_fault, [Line(), Line(), Bytes()]}
                        end, <<"main">>, #{stdout => fun(_) -> ok end, stdin => Next})),
     ?assertEqual([{'Some', <<"ab">>}, {'Some', <<"cd">>}, {'Some', <<>>}, {'Some', <<"rest">>},
                   {'Some', <<"ok">>}], wait(got)),
@@ -85,13 +92,17 @@ stdin_last_line_test() ->
     ets:insert(Tab, {queue, [<<"a\r\nb\r">>]}),
     Next = fun() ->
                    case ets:lookup(Tab, queue) of
-                       [{_, [C | Rest]}] -> ets:insert(Tab, {queue, Rest}), C;
+                       [{_, [Chunk | Rest]}] -> ets:insert(Tab, {queue, Rest}), Chunk;
                        _ -> eof
                    end
            end,
-    Line = fun() -> ern_rt:call_forever(ern_rt:sys(stdin), fun(R) -> {'ReadLine', R} end) end,
-    Me = self(),
-    ?assertEqual(ok, ern_rt:run_main(fun() -> Me ! {got, [Line(), Line(), Line()]} end,
+    Line = fun() ->
+               ern_rt:call_forever(ern_rt:system_process(stdin), fun(Reply) ->
+                                                                     {'ReadLine', Reply}
+                                                                 end)
+           end,
+    Self = self(),
+    ?assertEqual(ok, ern_rt:run_main(fun() -> Self ! {got, [Line(), Line(), Line()]} end,
                                      <<"main">>, #{stdout => fun(_) -> ok end, stdin => Next})),
     ?assertEqual([{'Some', <<"a">>}, {'Some', <<"b\r">>}, 'None'], wait(got)).
 
@@ -99,22 +110,25 @@ stdin_last_line_test() ->
 %% wait in a receive told from a wait for a call's answer, and nothing of
 %% one that has ended; the live processes are those the runtime started
 process_info_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Quiet = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"M.quiet:1">>),
                Server = ern_rt:spawn(fun() -> receive never -> ok end end, <<"M.s:2">>),
                Caller = ern_rt:spawn(fun() ->
-                                                  ern_rt:call_forever(Server, fun(R) -> R end)
+                                                  ern_rt:call_forever(Server, fun(Reply) ->
+                                                                                  Reply
+                                                                              end)
                                               end, <<"M.caller:3">>),
                ern_rt:send(Quiet, first),
                nap(),
-               Me ! {infos, [ern_rt:info(ern_rt:process_of(A)) || A <- [Quiet, Caller]]},
-               Me ! {live, lists:sort(ern_rt:processes())
-                               =:= lists:sort([self(), Quiet, Server, Caller])},
+               Self ! {infos,
+                       [ern_rt:info(ern_rt:process_of(Address)) || Address <- [Quiet, Caller]]},
+               Self ! {live, lists:sort(ern_rt:processes())
+                                 =:= lists:sort([self(), Quiet, Server, Caller])},
                ern_rt:kill(Quiet),
                nap(),
-               Me ! {gone, ern_rt:info(Quiet)},
+               Self ! {gone, ern_rt:info(Quiet)},
                ern_rt:kill(Caller),
                ern_rt:kill(Server)
            end, <<"M.main">>, #{stdout => fun(_) -> ok end}),
@@ -136,17 +150,17 @@ end_takes_late_spawns() ->
                   _ = ern_rt:spawn(fun() -> receive never -> ok end end, <<"w">>),
                   Spawn()
               end,
-    Run = fun() ->
-              ok = ern_rt:run_main(fun() ->
-                                       [ern_rt:spawn(Spawner, <<"s">>)
-                                        || _ <- lists:seq(1, 8)],
-                                       nap(20)
-                                   end, <<"main">>, Quiet)
-          end,
-    Run(),
+    RunProgram = fun() ->
+                     ok = ern_rt:run_main(fun() ->
+                                              [ern_rt:spawn(Spawner, <<"s">>)
+                                               || _ <- lists:seq(1, 8)],
+                                              nap(20)
+                                          end, <<"main">>, Quiet)
+                 end,
+    RunProgram(),
     timer:sleep(100),
     Before = length(erlang:processes()),
-    [Run() || _ <- lists:seq(1, 5)],
+    [RunProgram() || _ <- lists:seq(1, 5)],
     timer:sleep(100),
     ?assertEqual(Before, length(erlang:processes())).
 
@@ -154,32 +168,33 @@ end_takes_late_spawns() ->
 %% FaultReport, a restart among them, and the runtime's reporter as it
 %% happens; a second subscription replaces the first; a kill is no fault
 fault_reports_test() ->
-    Me = self(),
-    Reporter = fun(Report) -> Me ! {reported, Report} end,
+    Self = self(),
+    Reporter = fun(Report) -> Self ! {reported, Report} end,
     ok = ern_rt:run_main(
            fun() ->
-               ern_rt:faults(ern_rt:via(ern_rt:self(), fun(R) -> {first, R} end)),
-               ern_rt:faults(ern_rt:via(ern_rt:self(), fun(R) -> {report, R} end)),
+               ern_rt:faults(ern_rt:via(ern_rt:self(), fun(Report) -> {first, Report} end)),
+               ern_rt:faults(ern_rt:via(ern_rt:self(), fun(Report) -> {report, Report} end)),
                Limit = {'RestartLimit', 1, 60000},
                Twice = ern_rt:restarting(Limit, fun() -> 1 div zero() end),
                _ = ern_rt:spawn(Twice, <<"M.twice:4">>),
                Killed = ern_rt:spawn(fun() -> receive never -> ok end end, <<"M.k:5">>),
                ern_rt:kill(Killed),
-               Reports = [receive {report, R} -> R end, receive {report, R2} -> R2 end],
-               Me ! {reports, lists:sort([{Site, Cause, Restarted}
-                                          || {'FaultReport', _, Site, Cause, Restarted, <<>>}
-                                                 <- Reports])},
+               Reports = [receive {report, Report} -> Report end,
+                          receive {report, Report2} -> Report2 end],
+               Self ! {reports, lists:sort([{Site, Cause, Restarted}
+                                            || {'FaultReport', _, Site, Cause, Restarted, <<>>}
+                                                   <- Reports])},
                nap(100),
-               Me ! {first, receive {first, _} -> true after 0 -> false end}
+               Self ! {first, receive {first, _} -> true after 0 -> false end}
            end, <<"M.main">>, #{stdout => fun(_) -> ok end, faults => Reporter}),
     ?assertEqual([{<<"M.twice:4">>, <<"division by zero">>, false},
                   {<<"M.twice:4">>, <<"division by zero">>, true}], wait(reports)),
     ?assertEqual(false, wait(first)),
-    Reported = [R || {reported, R} <- flush()],
+    Reported = [Report || {reported, Report} <- flush()],
     ?assertEqual(2, length(Reported)).
 
 flush() ->
-    receive M -> [M | flush()] after 0 -> [] end.
+    receive Message -> [Message | flush()] after 0 -> [] end.
 
 %% report §6.6, §6.9: a call ends with the row, the monitor and the alias
 %% it made, and the timed wait it counted, however it ends: its message's
@@ -187,12 +202,13 @@ flush() ->
 %% process does. A regression test: in a process restarted in place they
 %% were left behind (findings C7)
 call_leaves_nothing_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Main = ern_rt:self(),
                Faulting = ern_rt:spawn(fun() ->
-                                                   receive {ask, R} -> R ! {R, fault, <<"no">>} end,
+                                                   receive {ask, Reply} -> Reply ! {Reply, fault,
+                                                                                    <<"no">>} end,
                                                    receive never -> ok end
                                                end, <<"M.faulting:1">>),
                Worker = fun() ->
@@ -202,12 +218,12 @@ call_leaves_nothing_test() ->
                                     ern_rt:call(Faulting, fun(_) -> 1 div zero() end, 1000);
                                 1 ->
                                     put(runs, 2),
-                                    ern_rt:call(Faulting, fun(R) -> {ask, R} end, 1000);
+                                    ern_rt:call(Faulting, fun(Reply) -> {ask, Reply} end, 1000);
                                 2 ->
                                     [{_, _, Timers, _, _}] = ets:lookup(ern_processes, self()),
                                     {monitors, Monitors} = process_info(self(), monitors),
-                                    Me ! {left, {ets:lookup(ern_calls, self()),
-                                                 Monitors, Timers}},
+                                    Self ! {left, {ets:lookup(ern_calls, self()),
+                                                   Monitors, Timers}},
                                     ern_rt:send(Main, done)
                             end
                         end,
@@ -223,7 +239,7 @@ call_leaves_nothing_test() ->
 dead_system_process_test() ->
     ?assertEqual({fault, <<"deadlock">>},
                  ern_rt:run_main(fun() ->
-                                     exit(ern_rt:sys(clock), kill),
+                                     exit(ern_rt:system_process(clock), kill),
                                      receive never -> ok end
                                  end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
@@ -257,12 +273,12 @@ failed_start_test() ->
     %% the standard library is what a `stdlib` directory on the path holds
     Dir = filename:join([filename:basedir(user_cache, "ern_rt_tests"), "failed_start", "stdlib"]),
     ok = filelib:ensure_path(Dir),
-    Mod = 'ern@zz_failed_start',
-    Forms = [{attribute, 1, module, Mod}, {attribute, 1, export, [{'$init', 0}]},
+    ErlangModule = 'ern@zz_failed_start',
+    Forms = [{attribute, 1, module, ErlangModule}, {attribute, 1, export, [{'$init', 0}]},
              {function, 1, '$init', 0,
               [{clause, 1, [], [], [{call, 1, {atom, 1, error}, [{atom, 1, boom}]}]}]}],
-    {ok, Mod, Bin} = compile:forms(Forms),
-    ok = file:write_file(filename:join(Dir, atom_to_list(Mod) ++ ".beam"), Bin),
+    {ok, ErlangModule, Beam} = compile:forms(Forms),
+    ok = file:write_file(filename:join(Dir, atom_to_list(ErlangModule) ++ ".beam"), Beam),
     true = code:add_patha(Dir),
     Quiet = #{stdout => fun(_) -> ok end},
     try
@@ -270,9 +286,9 @@ failed_start_test() ->
         ?assertMatch({fault, _, _}, ern_rt:run_main(fun() -> ok end, <<"main">>, Quiet))
     after
         code:del_path(Dir),
-        code:purge(Mod),
-        code:delete(Mod),
-        file:delete(filename:join(Dir, atom_to_list(Mod) ++ ".beam"))
+        code:purge(ErlangModule),
+        code:delete(ErlangModule),
+        file:delete(filename:join(Dir, atom_to_list(ErlangModule) ++ ".beam"))
     end,
     ?assertEqual(ok, ern_rt:run_main(fun() -> ok end, <<"main">>, Quiet)).
 
@@ -282,16 +298,16 @@ failed_start_test() ->
 run_target(File) ->
     Path = "../../../test/target/" ++ File,
     {ok, Forms} = epp:parse_file(Path, []),
-    {ok, Mod, Bin} = compile:forms(Forms, [return_errors]),
-    {module, Mod} = code:load_binary(Mod, Path, Bin),
-    Me = self(),
-    Result = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
-                             #{stdout => fun(B) -> Me ! {out, B} end}),
+    {ok, ErlangModule, Beam} = compile:forms(Forms, [return_errors]),
+    {module, ErlangModule} = code:load_binary(ErlangModule, Path, Beam),
+    Self = self(),
+    Result = ern_rt:run_main(fun() -> ErlangModule:main() end, <<"main">>,
+                             #{stdout => fun(Bytes) -> Self ! {out, Bytes} end}),
     {Result, collect([])}.
 
 collect(Acc) ->
     receive
-        {out, B} -> collect([B | Acc])
+        {out, Bytes} -> collect([Bytes | Acc])
     after 0 ->
         iolist_to_binary(lists:reverse(Acc))
     end.
@@ -306,14 +322,14 @@ counter_target_test() ->
 
 %% report §6.6: an unanswered call times out, a late answer is dropped
 call_timeout_test() ->
-    Me = self(),
+    Self = self(),
     Result = ern_rt:run_main(
                fun() ->
                    Silent = ern_rt:spawn(fun() -> receive _ -> ok end end, <<"s">>),
-                   Me ! {result, ern_rt:call(Silent, fun(R) -> {ask, R} end, 20)}
+                   Self ! {result, ern_rt:call(Silent, fun(Reply) -> {ask, Reply} end, 20)}
                end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(ok, Result),
-    receive {result, R} -> ?assertEqual('None', R) after 1000 -> ?assert(false) end.
+    receive {result, Answer} -> ?assertEqual('None', Answer) after 1000 -> ?assert(false) end.
 
 %% report §6.6: the clock of a call starts at the call, so a request whose
 %% delivery takes longer than the call's time is answered None, though the
@@ -321,17 +337,18 @@ call_timeout_test() ->
 %% after the delivery, and the call waited its whole time again
 %% (findings.md's C22)
 call_clock_starts_at_the_call_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Callee = ern_rt:spawn(fun() ->
-                                         receive {ask, R} -> nap(50), ern_rt:answer(R, done) end
+                                         receive {ask, Reply} -> nap(50), ern_rt:answer(Reply,
+                                                                                        done) end
                                      end, <<"callee">>),
                %% the adapting function runs in the caller, and takes 200 ms
-               Slow = ern_rt:via(Callee, fun(M) -> nap(200), M end),
-               Me ! {result, ern_rt:call(Slow, fun(R) -> {ask, R} end, 100)}
+               Slow = ern_rt:via(Callee, fun(Message) -> nap(200), Message end),
+               Self ! {result, ern_rt:call(Slow, fun(Reply) -> {ask, Reply} end, 100)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    receive {result, R} -> ?assertEqual('None', R) after 2000 -> ?assert(false) end.
+    receive {result, Answer} -> ?assertEqual('None', Answer) after 2000 -> ?assert(false) end.
 
 %% report §8.6: every live process blocked in an untimed receive, with no
 %% timed receive, clock alarm, or foreign call pending, is a deadlock, the
@@ -355,9 +372,9 @@ deadlock_test() ->
                                          end
                                      end, <<"main">>, Quiet)),
     ?assertEqual(ok, ern_rt:run_main(fun() ->
-                                         Clock = ern_rt:sys(clock),
+                                         Clock = ern_rt:system_process(clock),
                                          alarm(Clock, 250, ern_rt:self()),
-                                         receive At when is_integer(At) -> ok end
+                                         receive Time when is_integer(Time) -> ok end
                                      end, <<"main">>, Quiet)),
     ?assertEqual(ok, ern_rt:run_main(fun() ->
                                          ern_rt:in_foreign(fun() -> receive after 250 -> ok end end)
@@ -375,12 +392,12 @@ deadlock_test() ->
 loading_is_not_deadlock_test() ->
     Dir = filename:join(filename:basedir(user_cache, "ern_rt_tests"), "loading"),
     ok = filelib:ensure_path(Dir),
-    Mod = ern_zz_loading,
-    Forms = [{attribute, 1, module, Mod}, {attribute, 1, export, [{f, 0}]},
+    ErlangModule = ern_zz_loading,
+    Forms = [{attribute, 1, module, ErlangModule}, {attribute, 1, export, [{f, 0}]},
              {function, 1, f, 0, [{clause, 1, [], [], [{atom, 1, loaded}]}]}],
-    {ok, Mod, Bin} = compile:forms(Forms),
-    Beam = filename:join(Dir, atom_to_list(Mod) ++ ".beam"),
-    ok = file:write_file(Beam, Bin),
+    {ok, ErlangModule, Binary} = compile:forms(Forms),
+    BeamFile = filename:join(Dir, atom_to_list(ErlangModule) ++ ".beam"),
+    ok = file:write_file(BeamFile, Binary),
     true = code:add_patha(Dir),
     CodeServer = whereis(code_server),
     Holder = spawn(fun() ->
@@ -389,22 +406,22 @@ loading_is_not_deadlock_test() ->
                        From ! held,
                        receive after 400 -> erlang:resume_process(CodeServer) end
                    end),
-    Me = self(),
+    Self = self(),
     Main = fun() ->
                %% counted as a timed wait while the holder takes the server
                ern_rt:timed(),
                Holder ! {hold, erlang:self()},
                receive held -> ern_rt:untimed() end,
-               Me ! {loaded, Mod:f()}
+               Self ! {loaded, ErlangModule:f()}
            end,
     try
         ?assertEqual(ok, ern_rt:run_main(Main, <<"main">>, #{stdout => fun(_) -> ok end})),
         ?assertEqual(loaded, wait(loaded))
     after
         code:del_path(Dir),
-        code:purge(Mod),
-        code:delete(Mod),
-        file:delete(Beam)
+        code:purge(ErlangModule),
+        code:delete(ErlangModule),
+        file:delete(BeamFile)
     end.
 
 %% report §6.6, Appendix E.0 rule 8: a time has no upper bound; a call
@@ -413,16 +430,16 @@ loading_is_not_deadlock_test() ->
 %% the call faulted with timeout_value. It does not cover a wait that
 %% actually outlasts one slice of 2^32 - 1 ms
 call_long_time_test() ->
-    Me = self(),
+    Self = self(),
     Result = ern_rt:run_main(
                fun() ->
                    Server = ern_rt:spawn(fun() ->
-                                             receive {ask, R} -> ok end,
+                                             receive {ask, Reply} -> ok end,
                                              ern_rt:timed(),
                                              receive after 50 -> ern_rt:untimed() end,
-                                             ern_rt:answer(R, 7)
+                                             ern_rt:answer(Reply, 7)
                                          end, <<"s">>),
-                   Me ! {result, ern_rt:call(Server, fun(R) -> {ask, R} end, 5000000000)}
+                   Self ! {result, ern_rt:call(Server, fun(Reply) -> {ask, Reply} end, 5000000000)}
                end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(ok, Result),
     ?assertEqual({'Some', 7}, wait(result)).
@@ -434,14 +451,14 @@ call_long_time_test() ->
 %% does not cover an alarm that actually outlasts one slice
 clock_long_time_test() ->
     Quiet = #{stdout => fun(_) -> ok end},
-    Me = self(),
+    Self = self(),
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
-                           Clock = ern_rt:sys(clock),
+                           Clock = ern_rt:system_process(clock),
                            alarm(Clock, 10000000000000, ern_rt:self()),
                            alarm(Clock, 10, ern_rt:self()),
-                           receive At when is_integer(At) -> ok end,
-                           Me ! {alive, erlang:is_process_alive(Clock)}
+                           receive Time when is_integer(Time) -> ok end,
+                           Self ! {alive, erlang:is_process_alive(Clock)}
                        end, <<"main">>, Quiet)),
     ?assertEqual(true, wait(alive)).
 
@@ -452,15 +469,15 @@ clock_long_time_test() ->
 %% some did not find it. A race can be won by luck, so a pass confirms the
 %% order rather than proving it
 spawned_row_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               [ern_rt:spawn(fun() -> Me ! {row, ets:lookup(ern_processes, erlang:self())} end,
+               [ern_rt:spawn(fun() -> Self ! {row, ets:lookup(ern_processes, erlang:self())} end,
                              <<"s">>)
                 || _ <- lists:seq(1, 2000)]
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     Rows = [wait(row) || _ <- lists:seq(1, 2000)],
-    ?assertEqual([], [R || R <- Rows, R =:= []]).
+    ?assertEqual([], [Row || Row <- Rows, Row =:= []]).
 
 %% report §11.2: while a shell holds the terminal no deadlock is detected;
 %% here a message the runtime cannot see coming arrives after the detector
@@ -470,32 +487,32 @@ shell_holds_no_deadlock_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            ern_rt:hold_terminal(ern_rt:self()),
-                           Me = ern_rt:self(),
-                           erlang:spawn(fun() -> timer:sleep(500), Me ! late end),
+                           Self = ern_rt:self(),
+                           erlang:spawn(fun() -> timer:sleep(500), Self ! late end),
                            receive late -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end})).
 
 %% report §6.9: Down carries the process, the reason and the spawn site,
 %% for a monitor made while the process runs
 monitor_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Worker = ern_rt:spawn(gated(fun() -> ok end), <<"Main.main:3">>),
-               ern_rt:monitor(Worker, fun(D) -> {down, D} end),
+               ern_rt:monitor(Worker, fun(Down) -> {down, Down} end),
                Worker ! go,
-               receive {down, D1} -> Me ! {d1, D1} end,
+               receive {down, Down1} -> Self ! {d1, Down1} end,
                Zero = zero(),
                Faulty = ern_rt:spawn(gated(fun() -> 1 div Zero end), <<"Main.main:5">>),
-               ern_rt:monitor(Faulty, fun(D) -> {down, D} end),
+               ern_rt:monitor(Faulty, fun(Down) -> {down, Down} end),
                Faulty ! go,
-               receive {down, D2} -> Me ! {d2, D2} end,
+               receive {down, Down2} -> Self ! {d2, Down2} end,
                Victim = ern_rt:spawn(fun() -> receive never -> ok end end,
                                      <<"Main.main:7">>),
-               ern_rt:monitor(Victim, fun(D) -> {down, D} end),
+               ern_rt:monitor(Victim, fun(Down) -> {down, Down} end),
                ern_rt:kill(Victim),
-               receive {down, D3} -> Me ! {d3, D3} end,
-               Me ! {pids, [Worker, Faulty, Victim]}
+               receive {down, Down3} -> Self ! {d3, Down3} end,
+               Self ! {pids, [Worker, Faulty, Victim]}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     [Worker, Faulty, Victim] = wait(pids),
     ?assertEqual({'Down', Worker, 'Returned', <<"Main.main:3">>}, wait(d1)),
@@ -509,17 +526,17 @@ monitor_test() ->
 %% had ever ended, which a server spawning a process per request grew
 %% without bound, and the idle deadlock check once copied them all.
 ended_rows_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Zero = zero(),
                Pids = [ern_rt:spawn(fun() -> 1 div Zero end, <<"Main.main:2">>)
                        || _ <- lists:seq(1, 50)],
-               [ern_rt:monitor(P, fun(D) -> {ended, D} end) || P <- Pids],
+               [ern_rt:monitor(Pid, fun(Down) -> {ended, Down} end) || Pid <- Pids],
                [receive {ended, _} -> ok end || _ <- Pids],
-               Me ! {row, ets:lookup(ern_processes, lists:last(Pids))},
-               ern_rt:monitor(lists:last(Pids), fun(D) -> {down, D} end),
-               receive {down, D} -> Me ! {late, {lists:last(Pids), D}} end
+               Self ! {row, ets:lookup(ern_processes, lists:last(Pids))},
+               ern_rt:monitor(lists:last(Pids), fun(Down) -> {down, Down} end),
+               receive {down, Down} -> Self ! {late, {lists:last(Pids), Down}} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual([], wait(row)),
     {Last, Late} = wait(late),
@@ -527,24 +544,24 @@ ended_rows_test() ->
 
 %% A process body that starts once it is told to, so that a monitor can be
 %% made while it runs.
-gated(Fun) ->
-    fun() -> receive go -> Fun() end end.
+gated(Function) ->
+    fun() -> receive go -> Function() end end.
 
 %% report §7.3, §6.9, §11.2: a failure of the runtime is the host's class
 %% and reason, the entry process's fault carries the host's stack beside
 %% it, and a monitor's Down carries the text alone. A regression test: the
 %% stack was dropped.
 runtime_failure_test() ->
-    Me = self(),
+    Self = self(),
     Bad = fun() -> binary_to_integer(atom_to_binary(zero_text())) end,
     ?assertMatch({fault, <<"error:badarg">>, <<"    erlang:binary_to_integer/1", _/binary>>},
                  ern_rt:run_main(Bad, <<"main">>, #{stdout => fun(_) -> ok end})),
     ok = ern_rt:run_main(
            fun() ->
-               P = ern_rt:spawn(gated(Bad), <<"Main.main:2">>),
-               ern_rt:monitor(P, fun(D) -> {down, D} end),
-               P ! go,
-               receive {down, D} -> Me ! {down, D} end
+               Pid = ern_rt:spawn(gated(Bad), <<"Main.main:2">>),
+               ern_rt:monitor(Pid, fun(Down) -> {down, Down} end),
+               Pid ! go,
+               receive {down, Down} -> Self ! {down, Down} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertMatch({'Down', _, {'Fault', <<"error:badarg">>}, <<"Main.main:2">>}, wait(down)).
 
@@ -553,7 +570,7 @@ runtime_failure_test() ->
 %% wrap ran in the runtime's reaper, whose death left every later spawn
 %% waiting for ever.
 faulting_wrap_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Zero = zero(),
@@ -562,11 +579,11 @@ faulting_wrap_test() ->
                                _ = ern_rt:spawn_monitored(fun() -> ok end,
                                                           fun(_) -> 1 div Zero end, <<"w">>),
                                receive never -> ok end
-                           end, fun(D) -> {watcher, D} end, <<"Main.main:3">>),
-               receive {watcher, D1} -> Me ! {d1, D1} end,
-               _ = ern_rt:spawn_monitored(fun() -> ok end, fun(D) -> {later, D} end,
+                           end, fun(Down) -> {watcher, Down} end, <<"Main.main:3">>),
+               receive {watcher, Down1} -> Self ! {d1, Down1} end,
+               _ = ern_rt:spawn_monitored(fun() -> ok end, fun(Down) -> {later, Down} end,
                                           <<"Main.main:5">>),
-               receive {later, D2} -> Me ! {d2, D2} end,
+               receive {later, Down2} -> Self ! {d2, Down2} end,
                Watcher
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertMatch({'Down', _, {'Fault', <<"division by zero">>}, <<"Main.main:3">>}, wait(d1)),
@@ -576,14 +593,14 @@ faulting_wrap_test() ->
 %% other alarm. A regression test: the clock applied it itself, and froze
 %% for every process.
 endless_alarm_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Clock = ern_rt:sys(clock),
-               Endless = fun Endless(X) -> Endless(X) end,
+               Clock = ern_rt:system_process(clock),
+               Endless = fun Endless(Argument) -> Endless(Argument) end,
                alarm(Clock, 10, ern_rt:via(ern_rt:self(), Endless)),
                alarm(Clock, 50, ern_rt:via(ern_rt:self(), fun(_) -> tick end)),
-               receive tick -> Me ! ticked end
+               receive tick -> Self ! ticked end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(ticked, wait_atom(ticked)).
 
@@ -593,25 +610,25 @@ zero_text() -> list_to_atom("zero").
 %% report §7.3, §7.4, §11.2: a process whose code the shell unloads dies
 %% with the fault that says so; the shell ends it as `exit/2` does here
 unloaded_code_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Old = ern_rt:spawn(fun() -> receive never -> ok end end,
                                   <<"Main.main:3">>),
-               ern_rt:monitor(Old, fun(D) -> {down, D} end),
+               ern_rt:monitor(Old, fun(Down) -> {down, Down} end),
                exit(Old, {ern, code_unloaded}),
-               receive {down, D} -> Me ! {d, D} end
+               receive {down, Down} -> Self ! {d, Down} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertMatch({'Down', _, {'Fault', <<"its code was unloaded">>}, <<"Main.main:3">>}, wait(d)).
 
 %% report §6.5: via adapts a message on its way to the target
 via_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Adapted = ern_rt:via(ern_rt:self(), fun(N) -> {tick, N} end),
+               Adapted = ern_rt:via(ern_rt:self(), fun(Number) -> {tick, Number} end),
                ern_rt:send(Adapted, 7),
-               receive {tick, 7} -> Me ! via_ok end
+               receive {tick, 7} -> Self ! via_ok end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(via_ok, wait_atom(via_ok)).
 
@@ -623,38 +640,38 @@ main_fault_test() ->
 
 %% report §8.2, Appendix E.15: the clock answers Now and fires After
 clock_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Clock = ern_rt:sys(clock),
-               {'Some', T} = ern_rt:call(Clock, fun(R) -> {'Now', R} end, 1000),
+               Clock = ern_rt:system_process(clock),
+               {'Some', Now} = ern_rt:call(Clock, fun(Reply) -> {'Now', Reply} end, 1000),
                alarm(Clock, 5, ern_rt:self()),
                %% Appendix E.15: the alarm carries the time it fired
-               receive Fired when is_integer(Fired) -> Me ! {clock_ok, Fired >= T} end
+               receive Fired when is_integer(Fired) -> Self ! {clock_ok, Fired >= Now} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(true, wait(clock_ok)).
 
 %% report §8.4: a process's end is a host term, since foreign code may
 %% observe it: normal, {ern, fault, Text}, {ern, killed}, {ern, program_end}
 host_exit_reason_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Zero = zero(),
                Good = ern_rt:spawn(fun() -> receive go -> ok end end, <<"Main.main:3">>),
                erlang:monitor(process, Good),
                Good ! go,
-               receive {'DOWN', _, process, Good, R1} -> Me ! {r1, R1} end,
+               receive {'DOWN', _, process, Good, ExitReason1} -> Self ! {r1, ExitReason1} end,
                Bad = ern_rt:spawn(fun() -> receive go -> 1 div Zero end end,
                                   <<"Main.main:5">>),
                erlang:monitor(process, Bad),
                Bad ! go,
-               receive {'DOWN', _, process, Bad, R2} -> Me ! {r2, R2} end,
+               receive {'DOWN', _, process, Bad, ExitReason2} -> Self ! {r2, ExitReason2} end,
                Victim = ern_rt:spawn(fun() -> receive never -> ok end end,
                                      <<"Main.main:7">>),
                erlang:monitor(process, Victim),
                ern_rt:kill(Victim),
-               receive {'DOWN', _, process, Victim, R3} -> Me ! {r3, R3} end
+               receive {'DOWN', _, process, Victim, ExitReason3} -> Self ! {r3, ExitReason3} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(normal, wait(r1)),
     ?assertEqual({ern, fault, <<"division by zero">>}, wait(r2)),
@@ -663,14 +680,15 @@ host_exit_reason_test() ->
     spawn(fun() ->
               ern_rt:run_main(
                 fun() ->
-                    Me ! {waiter, ern_rt:spawn(fun() -> receive never -> ok end end,
-                                               <<"Main.main:9">>)},
+                    Self ! {waiter, ern_rt:spawn(fun() -> receive never -> ok end end,
+                                                 <<"Main.main:9">>)},
                     receive after 200 -> ok end
                 end, <<"main">>, #{stdout => fun(_) -> ok end})
           end),
     Waiter = wait(waiter),
     Ref = erlang:monitor(process, Waiter),
-    receive {'DOWN', Ref, process, Waiter, R4} -> ?assertEqual({ern, program_end}, R4)
+    receive {'DOWN', Ref, process, Waiter, ExitReason4} -> ?assertEqual({ern, program_end},
+                                                                        ExitReason4)
     after 2000 -> error(no_program_end)
     end.
 
@@ -682,16 +700,16 @@ sources_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
                            %% report §8.2: the subscription is answered once the mode is set
-                           subscribe(ern_rt:sys(terminal)),
+                           subscribe(ern_rt:system_process(terminal)),
                            receive _ -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end, keys => Key})),
     %% a line that takes as long to arrive
     Slow = fun() -> timer:sleep(500), "hello\n" end,
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
-                           Stdin = ern_rt:sys(stdin),
+                           Stdin = ern_rt:system_process(stdin),
                            {'Some', {'Some', <<"hello">>}} =
-                               ern_rt:call(Stdin, fun(R) -> {'ReadLine', R} end, 5000),
+                               ern_rt:call(Stdin, fun(Reply) -> {'ReadLine', Reply} end, 5000),
                            ok
                        end, <<"main">>, #{stdout => fun(_) -> ok end, stdin => Slow})).
 
@@ -700,7 +718,7 @@ sources_test() ->
 via_in_flight_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
-                           Clock = ern_rt:sys(clock),
+                           Clock = ern_rt:system_process(clock),
                            alarm(Clock, 400, ern_rt:via(ern_rt:self(), fun(_) -> tick end)),
                            receive tick -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end})).
@@ -711,17 +729,17 @@ via_in_flight_test() ->
 %% so the count is read once those have ended; it was read at once, and
 %% failed when one had delivered and not yet ended
 via_is_not_a_process_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Before = erlang:system_info(process_count),
-               Clock = ern_rt:sys(clock),
+               Clock = ern_rt:system_process(clock),
                Mine = ern_rt:self(),
                lists:foreach(fun(_) ->
                                  alarm(Clock, 1, ern_rt:via(Mine, fun(_) -> tick end))
                              end, lists:seq(1, 100)),
                lists:foreach(fun(_) -> receive tick -> ok end end, lists:seq(1, 100)),
-               Me ! {counts, Before, settled(Before, 100)}
+               Self ! {counts, Before, settled(Before, 100)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     {Before, After} = wait(counts2),
     ?assertEqual(Before, After).
@@ -744,13 +762,13 @@ settled(Before, Tries) ->
 %% the runtime holds of a process, its terminal (§11.2) among it, is the
 %% process and not the proxy
 proxy_names_its_process_test() ->
-    Me = self(),
-    Desc = {address, string, <<"a String">>},
+    Self = self(),
+    Descriptor = {address, string, <<"a String">>},
     ok = ern_rt:run_main(
            fun() ->
                Mine = ern_rt:self(),
-               [Proxy] = ern_boundary:expose({list, Desc}, [Mine]),
-               Me ! {proxy, {Proxy, ern_rt:process_of(Proxy), Mine}}
+               [Proxy] = ern_boundary:expose({list, Descriptor}, [Mine]),
+               Self ! {proxy, {Proxy, ern_rt:process_of(Proxy), Mine}}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     {Proxy, Behind, Mine} = wait(proxy),
     ?assertNotEqual(Mine, Proxy),
@@ -759,16 +777,16 @@ proxy_names_its_process_test() ->
 %% report §6.5, §7.4: a fault in the function is the target's, and the
 %% process that sent the message goes on
 via_fault_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Zero = zero(),
                Victim = ern_rt:spawn(fun() -> receive never -> ok end end,
                                      <<"Main.main:3">>),
-               ern_rt:monitor(Victim, fun(D) -> {down, D} end),
+               ern_rt:monitor(Victim, fun(Down) -> {down, Down} end),
                ern_rt:send(ern_rt:via(Victim, fun(_) -> 1 div Zero end), 1),
-               receive {down, D} -> Me ! {d, D} end,
-               Me ! {sender, alive}
+               receive {down, Down} -> Self ! {d, Down} end,
+               Self ! {sender, alive}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertMatch({'Down', _, {'Fault', <<"division by zero">>}, <<"Main.main:3">>}, wait(d)),
     ?assertEqual(alive, wait(sender)).
@@ -776,25 +794,25 @@ via_fault_test() ->
 %% report §6.9: a monitor is the reaper's whoever started the process, so
 %% watching one the runtime did not start costs no process either
 monitor_foreign_process_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                %% it outlives the monitors, which are asked for asynchronously
                Other = erlang:spawn(fun() -> timer:sleep(300) end),
                Before = erlang:system_info(process_count),
-               lists:foreach(fun(_) -> ern_rt:monitor(Other, fun(D) -> {down, D} end) end,
+               lists:foreach(fun(_) -> ern_rt:monitor(Other, fun(Down) -> {down, Down} end) end,
                              lists:seq(1, 20)),
-               Me ! {counts, Before, erlang:system_info(process_count)},
-               receive {down, D} -> Me ! {d, D} end
+               Self ! {counts, Before, erlang:system_info(process_count)},
+               receive {down, Down} -> Self ! {d, Down} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     {Before, After} = wait(counts2),
     ?assertEqual(Before, After),
     ?assertMatch({'Down', _, 'Returned', <<>>}, wait(d)).
 
 wait(counts2) ->
-    receive {counts, B, A} -> {B, A} after 2000 -> timeout end;
+    receive {counts, Before, After} -> {Before, After} after 2000 -> timeout end;
 wait(Tag) ->
-    receive {Tag, V} -> V after 1000 -> timeout end.
+    receive {Tag, Value} -> Value after 1000 -> timeout end.
 
 wait_atom(Atom) ->
     receive Atom -> Atom after 1000 -> timeout end.
@@ -806,8 +824,8 @@ zero() ->
 %% Report §8.2: `Subscribe` carries a reply, answered once the terminal is
 %% in the mode the keys need.
 subscribe(Tty) ->
-    Me = ern_rt:self(),
-    ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Me, Reply} end, 5000).
+    Self = ern_rt:self(),
+    ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Self, Reply} end, 5000).
 
 %% report §6.9, Appendix E.22: a process that is not restarting is never
 %% asked, nor is one that has ended; a restarting one restarts at its wait,
@@ -818,13 +836,13 @@ subscribe(Tty) ->
 %% not cover a process that computes without waiting, which is never
 %% restarted and so shows nothing to wait for
 ask_restart_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Plain = ern_rt:spawn(fun() -> receive never -> ok end end, <<"M.p:1">>),
                Once = ern_rt:restarting({'RestartLimit', 0, 5000},
                                         fun() ->
-                                            Me ! {started, ern_rt:start_cause()},
+                                            Self ! {started, ern_rt:start_cause()},
                                             %% the clause the emitter gives every receive
                                             receive
                                                 '$ern_restart' -> ern_rt:restart_now();
@@ -833,53 +851,53 @@ ask_restart_test() ->
                                         end),
                Child = ern_rt:spawn(Once, <<"M.c:2">>),
                nap(),
-               Me ! {asked, [ern_rt:ask_restart(ern_rt:process_of(Plain)),
-                             ern_rt:ask_restart(ern_rt:process_of(Child)),
-                             ern_rt:ask_restart(ern_rt:process_of(Child))]},
+               Self ! {asked, [ern_rt:ask_restart(ern_rt:process_of(Plain)),
+                               ern_rt:ask_restart(ern_rt:process_of(Child)),
+                               ern_rt:ask_restart(ern_rt:process_of(Child))]},
                nap(),
                ern_rt:ask_restart(ern_rt:process_of(Child)),
                nap(),
-               Me ! {plain, ern_rt:info(ern_rt:process_of(Plain)) =/= 'None'},
+               Self ! {plain, ern_rt:info(ern_rt:process_of(Plain)) =/= 'None'},
                ern_rt:kill(Child),
                nap(),
-               Me ! {ended, ern_rt:ask_restart(ern_rt:process_of(Child))},
+               Self ! {ended, ern_rt:ask_restart(ern_rt:process_of(Child))},
                ern_rt:kill(Plain)
            end, <<"main">>, #{}),
-    Started = [receive {started, S} -> S after 1000 -> timeout end || _ <- [1, 2, 3]],
+    Started = [receive {started, Start} -> Start after 1000 -> timeout end || _ <- [1, 2, 3]],
     ?assertEqual(['First', 'Asked', 'Asked'], Started),
     ?assertEqual(none, receive {started, More} -> More after 200 -> none end),
-    ?assertEqual(true, receive {plain, P} -> P after 1000 -> timeout end),
+    ?assertEqual(true, receive {plain, Plain1} -> Plain1 after 1000 -> timeout end),
     %% the answer says whether the process was asked, which the supervisor
     %% counts on (Appendix E.22)
-    ?assertEqual([false, true, true], receive {asked, A} -> A after 1000 -> timeout end),
-    ?assertEqual(false, receive {ended, E} -> E after 1000 -> timeout end).
+    ?assertEqual([false, true, true], receive {asked, Asked} -> Asked after 1000 -> timeout end),
+    ?assertEqual(false, receive {ended, Ended} -> Ended after 1000 -> timeout end).
 
-%% report §6.9: a restart asks the services that hold what the process
-%% asked for at once, and one that has died holds up no restart. A
+%% report §6.9: a restart asks the system processes that hold what the
+%% process asked for at once, and one that has died holds up no restart. A
 %% regression test: a restart waited on each in turn, with no monitor, and
 %% a dead clock held every restart for ever
-restart_outlives_a_dead_service_test() ->
-    Me = self(),
+restart_outlives_a_dead_system_process_test() ->
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Clock = ern_rt:sys(clock),
-               Watch = erlang:monitor(process, Clock),
+               Clock = ern_rt:system_process(clock),
+               MonitorRef = erlang:monitor(process, Clock),
                exit(Clock, kill),
-               receive {'DOWN', Watch, process, _, _} -> ok end,
+               receive {'DOWN', MonitorRef, process, _, _} -> ok end,
                Twice = ern_rt:restarting({'RestartLimit', 1, 5000},
                                          fun() ->
-                                             Me ! {started, ern_rt:start_cause()},
+                                             Self ! {started, ern_rt:start_cause()},
                                              case ern_rt:start_cause() of
                                                  'First' -> error(once);
                                                  _ -> ok
                                              end
                                          end),
                Child = ern_rt:spawn(Twice, <<"M.c:1">>),
-               ern_rt:monitor(Child, fun(D) -> {down, D} end),
+               ern_rt:monitor(Child, fun(Down) -> {down, Down} end),
                receive {down, _} -> ok end
            end, <<"main">>, #{stderr => fun(_) -> ok end}),
     ?assertEqual(['First', 'AfterFault'],
-                 [receive {started, S} -> S after 2000 -> timeout end || _ <- [1, 2]]).
+                 [receive {started, Start} -> Start after 2000 -> timeout end || _ <- [1, 2]]).
 
 %% A pause that the check for a deadlock counts as a timed wait (§8.6).
 nap() ->
@@ -892,5 +910,5 @@ nap(Ms) ->
 
 %% Report Appendix E.15: an alarm as `Clock.alarm` sets one, After(ms,
 %% reply, to) in canonical field order, answered once the clock holds it.
-alarm(Clock, Ms, To) ->
-    'Unit' = ern_rt:call_forever(Clock, fun(R) -> {'After', Ms, To, R} end).
+alarm(Clock, Ms, Address) ->
+    'Unit' = ern_rt:call_forever(Clock, fun(Reply) -> {'After', Ms, Address, Reply} end).

@@ -11,156 +11,170 @@
 
 %% The depth left, and how many elements of a list, map, or set are
 %% printed; `unbounded` is neither.
--record(lim, {depth = unbounded, length = unbounded}).
+-record(limits, {depth = unbounded, length = unbounded}).
 
 -spec show(term(), term()) -> binary().
-show(D, V) ->
-    show(D, V, unbounded, unbounded).
+show(Descriptor, Value) ->
+    show(Descriptor, Value, unbounded, unbounded).
 
 -spec show(term(), term(), non_neg_integer() | unbounded,
            non_neg_integer() | unbounded) -> binary().
-show(D, V, Depth, Length) ->
-    unicode:characters_to_binary(by_type(D, V, #{}, #lim{depth = Depth, length = Length})).
+show(Descriptor, Value, Depth, Length) ->
+    Limits = #limits{depth = Depth, length = Length},
+    unicode:characters_to_binary(by_type(Descriptor, Value, #{}, Limits)).
 
 %% Report §11.2: below the depth a value is `...`, whatever it is. A value
 %% written without nesting, a number or a string, is not below it: depth
 %% counts the brackets a reader would have to open, and a depth of 0 is
 %% where by_type/4 and represented/2 stop at the first bracket.
-deeper(#lim{depth = unbounded} = L) -> L;
-deeper(#lim{depth = N} = L) -> L#lim{depth = N - 1}.
+deeper(#limits{depth = unbounded} = Limits) -> Limits;
+deeper(#limits{depth = Depth} = Limits) -> Limits#limits{depth = Depth - 1}.
 
-%% The elements the length allows, and whether any were left.
-limited(Xs, #lim{length = unbounded}) -> {Xs, false};
-limited(Xs, #lim{length = N}) ->
-    case length(Xs) > N of
-        true -> {lists:sublist(Xs, N), true};
-        false -> {Xs, false}
+%% The items the length allows, and whether any were left.
+limited(Items, #limits{length = unbounded}) -> {Items, false};
+limited(Items, #limits{length = Length}) ->
+    case length(Items) > Length of
+        true -> {lists:sublist(Items, Length), true};
+        false -> {Items, false}
     end.
 
-%% The parts, with `...` last when something was cut.
-parts(Xs, L, F) ->
-    {Kept, Cut} = limited(Xs, L),
-    [F(X) || X <- Kept] ++ ["..." || Cut].
+%% The items each shown, with `...` last when something was cut.
+parts(Items, Limits, Show) ->
+    {Kept, Cut} = limited(Items, Limits),
+    [Show(Item) || Item <- Kept] ++ ["..." || Cut].
 
-by_type(any, V, _, L) -> represented(V, L);
+by_type(any, Value, _, Limits) -> represented(Value, Limits);
 %% report Appendix E.1: a foreign type's value is the host's own term
 by_type(foreign, _, _, _) -> "<foreign>";
-by_type(int, V, _, _) -> integer_to_list(V);
-by_type(float, V, _, _) -> float_text(V);
-by_type(bool, V, _, _) -> atom_to_list(V);
-by_type(char, V, _, _) -> [$', char_body(V), $'];
-by_type(string, V, _, _) -> string(V);
-by_type(bytes, V, _, L) -> bytes(V, L);
-by_type({address, _, _}, V, _, _) -> address(V);
-by_type(process, V, _, _) -> ["<process ", number(V), ">"];
+by_type(int, Value, _, _) -> integer_to_list(Value);
+by_type(float, Value, _, _) -> float_text(Value);
+by_type(bool, Value, _, _) -> atom_to_list(Value);
+by_type(char, Value, _, _) -> [$', char_body(Value), $'];
+by_type(string, Value, _, _) -> string(Value);
+by_type(bytes, Value, _, Limits) -> bytes(Value, Limits);
+by_type({address, _, _}, Value, _, _) -> address(Value);
+by_type(process, Value, _, _) -> ["<process ", number(Value), ">"];
 by_type({reply, _, _}, _, _, _) -> "<reply>";
 by_type({'fun', _, _, _, _, _}, _, _, _) -> "<function>";
 by_type({abstract, _}, _, _, _) -> "<abstract>";
-by_type({mu, Id, D}, V, B, L) -> by_type(D, V, B#{Id => D}, L);
-by_type({ref, Id}, V, B, L) -> by_type(maps:get(Id, B), V, B, L);
-by_type({con, _}, V, _, _) when is_atom(V) -> atom_to_list(V);
-by_type(_, _, _, #lim{depth = 0}) -> "...";
-by_type({list, D}, V, B, L) ->
-    ["[", join(parts(V, L, fun(X) -> by_type(D, X, B, deeper(L)) end)), "]"];
-by_type({tuple, Ds}, V, B, L) ->
-    Es = lists:zip(Ds, tuple_to_list(V)),
-    ["#(", join([by_type(D, X, B, deeper(L)) || {D, X} <- Es]), ")"];
-by_type({map, K, D}, V, B, L) ->
-    Pair = fun({Key, X}) ->
-               ["#(", by_type(K, Key, B, deeper(L)), ", ", by_type(D, X, B, deeper(L)), ")"]
+by_type({mu, Id, Descriptor}, Value, Bound, Limits) ->
+    by_type(Descriptor, Value, Bound#{Id => Descriptor}, Limits);
+by_type({ref, Id}, Value, Bound, Limits) -> by_type(maps:get(Id, Bound), Value, Bound, Limits);
+by_type({con, _}, Value, _, _) when is_atom(Value) -> atom_to_list(Value);
+by_type(_, _, _, #limits{depth = 0}) -> "...";
+by_type({list, Element}, Value, Bound, Limits) ->
+    Show = fun(Item) -> by_type(Element, Item, Bound, deeper(Limits)) end,
+    ["[", join(parts(Value, Limits, Show)), "]"];
+by_type({tuple, Elements}, Value, Bound, Limits) ->
+    Shown = [by_type(Element, Item, Bound, deeper(Limits))
+             || {Element, Item} <- lists:zip(Elements, tuple_to_list(Value))],
+    ["#(", join(Shown), ")"];
+by_type({map, KeyDescriptor, ValueDescriptor}, Value, Bound, Limits) ->
+    Pair = fun({Key, Item}) ->
+               ["#(", by_type(KeyDescriptor, Key, Bound, deeper(Limits)), ", ",
+                by_type(ValueDescriptor, Item, Bound, deeper(Limits)), ")"]
            end,
-    ["Map.fromList([", join(parts(lists:sort(maps:to_list(V)), L, Pair)), "])"];
-by_type({set, D}, {set, S}, B, L) ->
-    Elem = fun(X) -> by_type(D, X, B, deeper(L)) end,
-    ["Set.fromList([", join(parts(lists:sort(maps:keys(S)), L, Elem)), "])"];
-by_type({con, Cs}, V, B, L) when is_tuple(V) ->
-    [Tag | Fields] = tuple_to_list(V),
-    Parts = case lists:keyfind(Tag, 1, Cs) of
-                {_, Ds} ->
-                    [by_type(D, X, B, deeper(L)) || {D, X} <- lists:zip(Ds, Fields)];
-                {_, Ds, Names} ->
-                    [[atom_to_list(N), " = ", by_type(D, X, B, deeper(L))]
-                     || {N, D, X} <- lists:zip3(Names, Ds, Fields)]
+    ["Map.fromList([", join(parts(lists:sort(maps:to_list(Value)), Limits, Pair)), "])"];
+by_type({set, Element}, {set, Elements}, Bound, Limits) ->
+    Show = fun(Item) -> by_type(Element, Item, Bound, deeper(Limits)) end,
+    ["Set.fromList([", join(parts(lists:sort(maps:keys(Elements)), Limits, Show)), "])"];
+by_type({con, Constructors}, Value, Bound, Limits) when is_tuple(Value) ->
+    [Tag | Fields] = tuple_to_list(Value),
+    Parts = case lists:keyfind(Tag, 1, Constructors) of
+                {_, Descriptors} ->
+                    [by_type(Field, Item, Bound, deeper(Limits))
+                     || {Field, Item} <- lists:zip(Descriptors, Fields)];
+                {_, Descriptors, Names} ->
+                    [[atom_to_list(Name), " = ", by_type(Field, Item, Bound, deeper(Limits))]
+                     || {Name, Field, Item} <- lists:zip3(Names, Descriptors, Fields)]
             end,
     [atom_to_list(Tag), "(", join(Parts), ")"].
 
 %% Report Appendix E.1: an address by the process behind it, which grants
 %% nothing, and a process by the number the host gives it.
-address(A) ->
-    ["<address ", number(ern_rt:process_of(A)), ">"].
+address(Address) ->
+    ["<address ", number(ern_rt:process_of(Address)), ">"].
 
 number(Pid) ->
-    [_, N, _] = string:split(string:trim(pid_to_list(Pid), both, "<>"), ".", all),
-    N.
+    [_, Number, _] = string:split(string:trim(pid_to_list(Pid), both, "<>"), ".", all),
+    Number.
 
 %% By the runtime's representation alone.
-represented(V, _) when is_integer(V) -> integer_to_list(V);
-represented(V, _) when is_float(V) -> float_text(V);
-represented(A, _) when is_atom(A) -> atom_to_list(A);
-represented(Bin, L) when is_binary(Bin) ->
-    case unicode:characters_to_list(Bin) of
-        Chars when is_list(Chars) -> string(Bin);
-        _ -> bytes(Bin, L)
+represented(Value, _) when is_integer(Value) -> integer_to_list(Value);
+represented(Value, _) when is_float(Value) -> float_text(Value);
+represented(Value, _) when is_atom(Value) -> atom_to_list(Value);
+represented(Value, Limits) when is_binary(Value) ->
+    case unicode:characters_to_list(Value) of
+        Chars when is_list(Chars) -> string(Value);
+        _ -> bytes(Value, Limits)
     end;
-represented(P, _) when is_pid(P) -> address(P);
+represented(Pid, _) when is_pid(Pid) -> address(Pid);
 %% a Reply and an address foreign code gave (ern_rt)
-represented({foreign_reply, R, _, _}, _) when is_reference(R) -> "<reply>";
-represented({foreign, P, _, _} = A, _) when is_pid(P) -> address(A);
-represented(F, _) when is_function(F) -> "<function>";
-represented(V, #lim{depth = 0}) when is_list(V); is_tuple(V); is_map(V) ->
+represented({foreign_reply, Reply, _, _}, _) when is_reference(Reply) -> "<reply>";
+represented({foreign, Pid, _, _} = Address, _) when is_pid(Pid) -> address(Address);
+represented(Function, _) when is_function(Function) -> "<function>";
+represented(Value, #limits{depth = 0}) when is_list(Value); is_tuple(Value); is_map(Value) ->
     "...";
-represented(V, L) when is_list(V) ->
+represented(List, Limits) when is_list(List) ->
     %% a foreign value may be an improper list, which Ernest has no form for
-    case proper(V) of
-        true -> ["[", join(parts(V, L, fun(X) -> represented(X, deeper(L)) end)), "]"];
-        false -> "<foreign>"
+    case proper(List) of
+        true ->
+            Show = fun(Item) -> represented(Item, deeper(Limits)) end,
+            ["[", join(parts(List, Limits, Show)), "]"];
+        false ->
+            "<foreign>"
     end;
-represented({set, S}, L) when is_map(S) ->
-    Elems = parts(lists:sort(maps:keys(S)), L, fun(K) -> represented(K, deeper(L)) end),
-    ["Set.fromList([", join(Elems), "])"];
+represented({set, Elements}, Limits) when is_map(Elements) ->
+    Show = fun(Item) -> represented(Item, deeper(Limits)) end,
+    ["Set.fromList([", join(parts(lists:sort(maps:keys(Elements)), Limits, Show)), "])"];
 %% an address seen through `via` is the runtime's own term (report §6.5),
 %% and is written as every address is, by the process behind it
-represented({via, F, _} = A, _) when is_function(F, 1) -> address(A);
-represented(T, L) when is_tuple(T), tuple_size(T) > 0, is_atom(element(1, T)) ->
+represented({via, Function, _} = Address, _) when is_function(Function, 1) -> address(Address);
+represented(Tuple, Limits) when is_tuple(Tuple), tuple_size(Tuple) > 0,
+                                is_atom(element(1, Tuple)) ->
     %% report §8.4: a constructor's atom is its source spelling, capitalized;
     %% any other first atom, `true` among them, begins a tuple
-    [Tag | Fields] = tuple_to_list(T),
+    [Tag | Fields] = tuple_to_list(Tuple),
     case atom_to_list(Tag) of
-        [C | _] when C >= $A, C =< $Z ->
-            [atom_to_list(Tag), "(", join([represented(F, deeper(L)) || F <- Fields]), ")"];
+        [First | _] when First >= $A, First =< $Z ->
+            [atom_to_list(Tag), "(",
+             join([represented(Field, deeper(Limits)) || Field <- Fields]), ")"];
         _ ->
-            ["#(", join([represented(F, deeper(L)) || F <- tuple_to_list(T)]), ")"]
+            ["#(", join([represented(Item, deeper(Limits)) || Item <- tuple_to_list(Tuple)]), ")"]
     end;
-represented(T, L) when is_tuple(T) ->
-    ["#(", join([represented(F, deeper(L)) || F <- tuple_to_list(T)]), ")"];
-represented(M, L) when is_map(M) ->
-    Pair = fun({K, V}) -> ["#(", represented(K, deeper(L)), ", ", represented(V, deeper(L)), ")"]
+represented(Tuple, Limits) when is_tuple(Tuple) ->
+    ["#(", join([represented(Item, deeper(Limits)) || Item <- tuple_to_list(Tuple)]), ")"];
+represented(Map, Limits) when is_map(Map) ->
+    Pair = fun({Key, Item}) ->
+               ["#(", represented(Key, deeper(Limits)), ", ", represented(Item, deeper(Limits)),
+                ")"]
            end,
-    ["Map.fromList([", join(parts(lists:sort(maps:to_list(M)), L, Pair)), "])"];
+    ["Map.fromList([", join(parts(lists:sort(maps:to_list(Map)), Limits, Pair)), "])"];
 represented(_, _) -> "<foreign>".
 
 proper([]) -> true;
-proper([_ | T]) -> proper(T);
+proper([_ | Tail]) -> proper(Tail);
 proper(_) -> false.
 
-float_text(F) -> ern_float:text(F).
+float_text(Float) -> ern_float:text(Float).
 
-string(Bin) -> [$", [escape(C, $") || C <- unicode:characters_to_list(Bin)], $"].
+string(Text) -> [$", [escape(Char, $") || Char <- unicode:characters_to_list(Text)], $"].
 
-bytes(Bin, L) ->
-    Bytes = parts([X || <<X>> <= Bin], L, fun integer_to_list/1),
-    ["<<", join(Bytes), ">>"].
+bytes(Bytes, Limits) ->
+    Shown = parts([Byte || <<Byte>> <= Bytes], Limits, fun integer_to_list/1),
+    ["<<", join(Shown), ">>"].
 
-char_body(C) -> escape(C, $').
+char_body(Char) -> escape(Char, $').
 
 %% Report §2.5: the escapes a literal needs, the quote being the literal's own.
-escape(Q, Q) -> [$\\, Q];
+escape(Quote, Quote) -> [$\\, Quote];
 escape($\\, _) -> "\\\\";
 escape($\n, _) -> "\\n";
 escape($\t, _) -> "\\t";
 escape($\r, _) -> "\\r";
-escape(C, _) when C < 16#20; C >= 16#7F, C =< 16#9F -> ["\\u{", integer_to_list(C, 16), "}"];
-escape(C, _) -> [C].
+escape(Char, _) when Char < 16#20; Char >= 16#7F, Char =< 16#9F ->
+    ["\\u{", integer_to_list(Char, 16), "}"];
+escape(Char, _) -> [Char].
 
 %% Report §11.2: a text the toolchain writes on a line of its own, a fault's
 %% cause, with each control character as the escape a literal writes for
@@ -169,10 +183,10 @@ escape(C, _) -> [C].
 %% `line`, it is `\n`, so that a fault is one line.
 -spec controls(unicode:unicode_binary(), line | lines) -> unicode:unicode_binary().
 controls(Text, Keep) ->
-    unicode:characters_to_binary([control(C, Keep) || C <- unicode:characters_to_list(Text)]).
+    unicode:characters_to_binary([control(Char, Keep) || Char <- unicode:characters_to_list(Text)]).
 
 control($\n, lines) -> $\n;
-control(C, _) when C < 16#20; C >= 16#7F, C =< 16#9F -> escape(C, none);
-control(C, _) -> C.
+control(Char, _) when Char < 16#20; Char >= 16#7F, Char =< 16#9F -> escape(Char, none);
+control(Char, _) -> Char.
 
 join(Parts) -> lists:join(", ", Parts).

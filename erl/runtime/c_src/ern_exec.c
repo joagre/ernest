@@ -83,16 +83,16 @@ static void kill_program(void)
 static void write_all(int fd, const unsigned char *data, size_t size)
 {
     while (size > 0) {
-        ssize_t n = write(fd, data, size);
-        if (n < 0 && errno == EINTR)
+        ssize_t written = write(fd, data, size);
+        if (written < 0 && errno == EINTR)
             continue;
-        if (n <= 0) {
+        if (written <= 0) {
             /* the runtime is gone: nothing is left to answer */
             kill_program();
             _exit(1);
         }
-        data += n;
-        size -= (size_t)n;
+        data += written;
+        size -= (size_t)written;
     }
 }
 
@@ -142,14 +142,14 @@ static size_t pending_start = 0, pending_size = 0, pending_capacity = 0;
    the end of the input; taken is how many the program has taken, accepted
    how many were given. */
 struct end {
-    uint64_t at;
+    uint64_t offset;
     int dropped;
 };
 static struct end *ends = NULL;
 static size_t ends_count = 0, ends_capacity = 0;
 static uint64_t accepted = 0, taken = 0;
 
-static void push_end(uint64_t at, int dropped)
+static void push_end(uint64_t offset, int dropped)
 {
     if (ends_count == ends_capacity) {
         size_t capacity = ends_capacity ? 2 * ends_capacity : 64;
@@ -161,7 +161,7 @@ static void push_end(uint64_t at, int dropped)
         ends = grown;
         ends_capacity = capacity;
     }
-    ends[ends_count].at = at;
+    ends[ends_count].offset = offset;
     ends[ends_count].dropped = dropped;
     ends_count++;
 }
@@ -171,14 +171,14 @@ static void push_end(uint64_t at, int dropped)
    and, where its input is gone, a 'd' for every other 'i' still waiting. */
 static void acknowledge(int gone)
 {
-    size_t n = 0;
-    while (n < ends_count && (gone || ends[n].at <= taken)) {
-        frame(ends[n].at <= taken && !ends[n].dropped ? 'a' : 'd', NULL, 0);
-        n++;
+    size_t answered = 0;
+    while (answered < ends_count && (gone || ends[answered].offset <= taken)) {
+        frame(ends[answered].offset <= taken && !ends[answered].dropped ? 'a' : 'd', NULL, 0);
+        answered++;
     }
-    if (n > 0) {
-        memmove(ends, ends + n, (ends_count - n) * sizeof *ends);
-        ends_count -= n;
+    if (answered > 0) {
+        memmove(ends, ends + answered, (ends_count - answered) * sizeof *ends);
+        ends_count -= answered;
     }
 }
 
@@ -212,13 +212,13 @@ static void add_pending(const unsigned char *data, size_t size)
 static int read_all(unsigned char *data, size_t size)
 {
     while (size > 0) {
-        ssize_t n = read(0, data, size);
-        if (n < 0 && errno == EINTR)
+        ssize_t received = read(0, data, size);
+        if (received < 0 && errno == EINTR)
             continue;
-        if (n <= 0)
+        if (received <= 0)
             return 0;
-        data += n;
-        size -= (size_t)n;
+        data += received;
+        size -= (size_t)received;
     }
     return 1;
 }
@@ -497,12 +497,12 @@ int main(int argc, char **argv)
 
     {
         int error;
-        ssize_t n;
+        ssize_t received;
         do
-            n = read(failed[0], &error, sizeof error);
-        while (n < 0 && errno == EINTR);
+            received = read(failed[0], &error, sizeof error);
+        while (received < 0 && errno == EINTR);
         close(failed[0]);
-        if (n == (ssize_t)sizeof error) {
+        if (received == (ssize_t)sizeof error) {
             while (waitpid(program, NULL, 0) < 0 && errno == EINTR)
                 ;
             program = -1;
@@ -526,20 +526,20 @@ int main(int argc, char **argv)
 
         while (program_out >= 0 || program_err >= 0) {
             struct pollfd fds[4];
-            int n = 0, i_runtime = -1, i_out = -1, i_err = -1, i_in = -1;
+            int polled = 0, runtime_slot = -1, out_slot = -1, err_slot = -1, in_slot = -1;
 
-            fds[n].fd = 0; fds[n].events = POLLIN; i_runtime = n++;
+            fds[polled].fd = 0; fds[polled].events = POLLIN; runtime_slot = polled++;
             /* the program's output is taken only while the runtime asks */
             if (program_out >= 0 && wanted > 0) {
-                fds[n].fd = program_out; fds[n].events = POLLIN; i_out = n++;
+                fds[polled].fd = program_out; fds[polled].events = POLLIN; out_slot = polled++;
             }
             if (program_err >= 0 && wanted > 0) {
-                fds[n].fd = program_err; fds[n].events = POLLIN; i_err = n++;
+                fds[polled].fd = program_err; fds[polled].events = POLLIN; err_slot = polled++;
             }
             if (program_in >= 0 && pending_size > 0) {
-                fds[n].fd = program_in; fds[n].events = POLLOUT; i_in = n++;
+                fds[polled].fd = program_in; fds[polled].events = POLLOUT; in_slot = polled++;
             }
-            if (poll(fds, (nfds_t)n, -1) < 0) {
+            if (poll(fds, (nfds_t)polled, -1) < 0) {
                 if (errno == EINTR)
                     continue;
                 free(body);
@@ -547,7 +547,7 @@ int main(int argc, char **argv)
                 return 1;
             }
 
-            if (i_runtime >= 0 && fds[i_runtime].revents) {
+            if (runtime_slot >= 0 && fds[runtime_slot].revents) {
                 ssize_t got;
                 if (head_got < sizeof head)
                     got = read(0, head + head_got, sizeof head - head_got);
@@ -602,7 +602,7 @@ int main(int argc, char **argv)
                 }
             }
 
-            if (i_in >= 0 && fds[i_in].revents) {
+            if (in_slot >= 0 && fds[in_slot].revents) {
                 ssize_t wrote = write(program_in, pending + pending_start, pending_size);
                 if (wrote > 0) {
                     pending_start += (size_t)wrote;
@@ -625,7 +625,7 @@ int main(int argc, char **argv)
                 program_in = -1;
             }
 
-            if (i_out >= 0 && fds[i_out].revents) {
+            if (out_slot >= 0 && fds[out_slot].revents) {
                 ssize_t got = read(program_out, buffer, sizeof buffer);
                 if (got > 0) {
                     frame('o', buffer, (size_t)got);
@@ -636,7 +636,7 @@ int main(int argc, char **argv)
                     program_out = -1;
                 }
             }
-            if (i_err >= 0 && fds[i_err].revents && wanted > 0) {
+            if (err_slot >= 0 && fds[err_slot].revents && wanted > 0) {
                 ssize_t got = read(program_err, buffer, sizeof buffer);
                 if (got > 0) {
                     frame('r', buffer, (size_t)got);

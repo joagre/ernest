@@ -8,34 +8,34 @@
 -export([show/1, show/2, debug/1, debug/2, other/2]).
 
 -spec show(term()) -> binary().
-show(V) -> show(V, any).
+show(Value) -> show(Value, any).
 
 -spec show(term(), term()) -> binary().
-show(V, Desc) -> ern_show:show(Desc, V).
+show(Value, Descriptor) -> ern_show:show(Descriptor, Value).
 
 -spec debug(term()) -> term().
-debug(V) -> debug(V, any).
+debug(Value) -> debug(Value, any).
 
 -spec debug(term(), term()) -> term().
-debug(V, Desc) ->
-    Line = <<(show(V, Desc))/binary, "\n">>,
+debug(Value, Descriptor) ->
+    Line = <<(show(Value, Descriptor))/binary, "\n">>,
     %% report §8.2, Appendix E.1: to standard error, as Io.OutMsg's
     %% Write(bytes, reply), answered once written
-    ern_rt:call_forever(ern_rt:sys(stderr), fun(Reply) -> {'Write', Line, Reply} end),
-    V.
+    ern_rt:call_forever(ern_rt:system_process(stderr), fun(Reply) -> {'Write', Line, Reply} end),
+    Value.
 
 %% Report Appendix E.1: Io.Error's Other for a reason of the host's that no
 %% constructor names. It is the host's description, which Describe, the
 %% module's format_error, gives for a POSIX code, "address already in use";
 %% and the reason as the host prints it where there is none.
 -spec other(term(), fun((atom()) -> string())) -> {'Other', binary()}.
-other(Reason, Describe) when is_atom(Reason) ->
-    case Describe(Reason) of
-        "unknown POSIX error" ++ _ -> printed(Reason);
+other(Error, Describe) when is_atom(Error) ->
+    case Describe(Error) of
+        "unknown POSIX error" ++ _ -> printed(Error);
         Text -> {'Other', unicode:characters_to_binary(Text)}
     end;
-other(Reason, _) ->
-    printed(Reason).
+other(Error, _) ->
+    printed(Error).
 
-printed(Reason) ->
-    {'Other', unicode:characters_to_binary(io_lib:format("~p", [Reason]))}.
+printed(Error) ->
+    {'Other', unicode:characters_to_binary(io_lib:format("~p", [Error]))}.

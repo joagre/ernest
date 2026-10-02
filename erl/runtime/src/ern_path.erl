@@ -16,4 +16,4 @@ separator() ->
 %% A Path is Path(String), {'Path', Text} (report §8.4); filename:pathtype/1
 %% answers absolute for a path that starts at a root.
 -spec is_absolute({'Path', binary()}) -> boolean().
-is_absolute({'Path', P}) -> filename:pathtype(P) =:= absolute.
+is_absolute({'Path', Path}) -> filename:pathtype(Path) =:= absolute.

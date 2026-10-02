@@ -10,7 +10,7 @@
 read_after_timeout_test() ->
     {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
     {ok, Port} = inet:port(Listen),
-    Me = self(),
+    Self = self(),
     Peer = spawn(fun() ->
                      {ok, Conn} = gen_tcp:accept(Listen),
                      receive go -> ok end,
@@ -24,8 +24,8 @@ read_after_timeout_test() ->
                {'Right', Socket} = connect(Port, 2000),
                {'Left', 'Timeout'} = read(Socket, 20),
                Peer ! go,
-               Me ! {read, read(Socket, 2000)},
-               Me ! {read, read(Socket, 2000)},
+               Self ! {read, read(Socket, 2000)},
+               Self ! {read, read(Socket, 2000)},
                Peer ! done
            end, <<"main">>, quiet()),
     gen_tcp:close(Listen),
@@ -38,19 +38,19 @@ read_after_timeout_test() ->
 %% so the connection made after it is the next accept's; a program waiting
 %% in an accept is not deadlocked; `port` tells the port `listen(0)` found
 accept_timeout_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Listener} = listen(0),
                {'Right', Port} = port(Listener),
-               Me ! {port, Port},
-               Me ! {first, accept(Listener, 300)},
+               Self ! {port, Port},
+               Self ! {first, accept(Listener, 300)},
                %% a foreign call, which the deadlock detector counts
                {ok, Conn} = ern_rt:in_foreign(fun() ->
                                                   gen_tcp:connect("127.0.0.1", Port,
                                                                   [binary, {active, false}])
                                               end),
-               Me ! {second, element(1, accept(Listener, 2000))},
+               Self ! {second, element(1, accept(Listener, 2000))},
                gen_tcp:close(Conn)
            end, <<"main">>, quiet()),
     ?assert(wait(port) > 0),
@@ -73,15 +73,15 @@ socket_lives_until_closed_test() ->
               ok = gen_tcp:send(Conn, <<"x">>),
               gen_tcp:close(Conn)
           end),
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Socket} = connect(Port, 2000),
                {'Right', {'Endpoint', <<"127.0.0.1">>, Port}} = peer(Socket),
                {'Right', {'Endpoint', <<"127.0.0.1">>, _}} = local(Socket),
                sleep(100),
-               Me ! {reads, [read(Socket, 1000), read(Socket, 1000), read(Socket, 1000),
-                             peer(Socket), local(Socket)]},
+               Self ! {reads, [read(Socket, 1000), read(Socket, 1000), read(Socket, 1000),
+                               peer(Socket), local(Socket)]},
                Pid = ern_rt:process_of(Socket),
                erlang:suspend_process(Pid),
                ern_rt:send(Socket, 'Close'),
@@ -89,13 +89,13 @@ socket_lives_until_closed_test() ->
                %% monitor was made would be `Unknown`, as the test once saw
                %% under load
                _ = ern_rt:spawn_monitored(fun() -> read(Socket, 1000) end,
-                                         fun(D) -> {down, D} end, <<"reader">>),
+                                         fun(Down) -> {down, Down} end, <<"reader">>),
                ern_rt:in_foreign(fun() -> queued(Pid, 2) end),
                erlang:resume_process(Pid),
-               receive {down, D} -> Me ! {down, D} end,
+               receive {down, Down} -> Self ! {down, Down} end,
                _ = ern_rt:spawn_monitored(fun() -> read(Socket, 1000) end,
                                          fun(L) -> {later, L} end, <<"reader">>),
-               receive {later, L} -> Me ! {later, L} end
+               receive {later, L} -> Self ! {later, L} end
            end, <<"main">>, quiet()),
     gen_tcp:close(Listen),
     ?assertEqual([{'Right', <<"x">>}, {'Left', 'Closed'}, {'Left', 'Closed'},
@@ -108,7 +108,7 @@ socket_lives_until_closed_test() ->
 %% could come before the accept's worker began, and the host's `einval`
 %% was answered `Other("invalid argument")`; that race is not forced here
 close_listener_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Listener} = listen(0),
@@ -118,18 +118,18 @@ close_listener_test() ->
                %% it is sent before `sent`; a spawned accept and a pause before
                %% the close raced it, and the close could come first
                _ = erlang:spawn(fun() ->
-                                    Alias = erlang:alias(),
-                                    Pid ! {'Accept', 5000, self(), Alias},
+                                    Reply = erlang:alias(),
+                                    Pid ! {'Accept', 5000, self(), Reply},
                                     Main ! sent,
-                                    Me ! {accepted, receive {Alias, answered, V} -> V
-                                                    after 5000 -> timeout end}
+                                    Self ! {accepted, receive {Reply, answered, Value} -> Value
+                                                      after 5000 -> timeout end}
                                 end),
                %% foreign calls, which the deadlock detector counts
                ern_rt:in_foreign(fun() -> receive sent -> ok end end),
-               Down = erlang:monitor(process, Pid),
+               MonitorRef = erlang:monitor(process, Pid),
                ern_rt:send(Listener, 'CloseListener'),
-               ern_rt:in_foreign(fun() -> receive {'DOWN', Down, _, _, _} -> ok end end),
-               Me ! {alive, erlang:is_process_alive(Pid)}
+               ern_rt:in_foreign(fun() -> receive {'DOWN', MonitorRef, _, _, _} -> ok end end),
+               Self ! {alive, erlang:is_process_alive(Pid)}
            end, <<"main">>, quiet()),
     ?assertEqual({'Left', 'Closed'}, wait(accepted)),
     ?assertEqual(false, wait(alive)).
@@ -139,7 +139,7 @@ close_listener_test() ->
 %% of 2026-10-01; the listener is held still until both the close and the
 %% accept wait in its mailbox
 accept_meets_the_close_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Listener} = listen(0),
@@ -147,10 +147,10 @@ accept_meets_the_close_test() ->
                erlang:suspend_process(Pid),
                ern_rt:send(Listener, 'CloseListener'),
                _ = ern_rt:spawn_monitored(fun() -> accept(Listener, 1000) end,
-                                         fun(D) -> {down, D} end, <<"acceptor">>),
+                                         fun(Down) -> {down, Down} end, <<"acceptor">>),
                ern_rt:in_foreign(fun() -> queued(Pid, 2) end),
                erlang:resume_process(Pid),
-               receive {down, D} -> Me ! {down, D} end
+               receive {down, Down} -> Self ! {down, Down} end
            end, <<"main">>, quiet()),
     ?assertMatch({'Down', _, {'Fault', <<"callee was closed">>}, _}, wait(down)).
 
@@ -166,7 +166,7 @@ killed_socket_test() ->
                    {'Right', Socket} = connect(Port, 2000),
                    Reader = ern_rt:spawn(fun() -> read(Socket, 100000) end,
                                          <<"reader">>),
-                   ern_rt:monitor(Reader, fun(D) -> {down, D} end),
+                   ern_rt:monitor(Reader, fun(Down) -> {down, Down} end),
                    sleep(100),
                    ern_rt:kill(Socket),
                    receive {down, _} -> ok end,
@@ -181,11 +181,11 @@ killed_socket_test() ->
 %% never answered, and a connect left its wait counted for good, so no
 %% deadlock was found again
 port_out_of_range_test() ->
-    Me = self(),
+    Self = self(),
     Result = ern_rt:run_main(
                fun() ->
-                   Me ! {listened, listen(70000)},
-                   Me ! {connected, connect(70000, 1000)},
+                   Self ! {listened, listen(70000)},
+                   Self ! {connected, connect(70000, 1000)},
                    receive never -> ok end
                end, <<"main">>, quiet()),
     Refused = {'Left', 'Invalid'},
@@ -199,11 +199,11 @@ port_out_of_range_test() ->
 %% regression test: the host raised an exit the worker did not catch, the
 %% caller waited for good, and no deadlock was found (findings.md's C1-1)
 host_with_nul_test() ->
-    Me = self(),
+    Self = self(),
     Result = ern_rt:run_main(
                fun() ->
-                   Me ! {listened, listen(<<"127.0.0.1", 0, "evil">>, 0)},
-                   Me ! {connected, connect(<<"127.0.0.1", 0, "evil">>, 1, 1000)},
+                   Self ! {listened, listen(<<"127.0.0.1", 0, "evil">>, 0)},
+                   Self ! {connected, connect(<<"127.0.0.1", 0, "evil">>, 1, 1000)},
                    receive never -> ok end
                end, <<"main">>, quiet()),
     Refused = {'Left', 'Invalid'},
@@ -216,12 +216,12 @@ host_with_nul_test() ->
 %% family, and `::1` was answered `Other("non-existing domain")`
 %% (findings.md's C1-24)
 connect_ipv6_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Listener} = listen(<<"::1">>, 0),
                {'Right', Port} = port(Listener),
-               Me ! {connected, element(1, connect(<<"::1">>, Port, 2000))}
+               Self ! {connected, element(1, connect(<<"::1">>, Port, 2000))}
            end, <<"main">>, quiet()),
     ?assertEqual('Right', wait(connected)).
 
@@ -233,8 +233,8 @@ connect_ipv6_test() ->
 port_in_use_test() ->
     {ok, Taken} = gen_tcp:listen(0, [binary, {active, false}, {ip, {127, 0, 0, 1}}]),
     {ok, Port} = inet:port(Taken),
-    Me = self(),
-    ok = ern_rt:run_main(fun() -> Me ! {listened, listen(Port)} end, <<"main">>, quiet()),
+    Self = self(),
+    ok = ern_rt:run_main(fun() -> Self ! {listened, listen(Port)} end, <<"main">>, quiet()),
     gen_tcp:close(Taken),
     ?assertEqual({'Left', {'Other', <<"address already in use">>}}, wait(listened)).
 
@@ -242,14 +242,14 @@ port_in_use_test() ->
 %% loopback alone for "127.0.0.1". A regression test: `listen` took the
 %% port alone and listened on every interface, 127.0.0.2's among them
 listen_on_the_named_interface_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Listener} = listen(<<"127.0.0.1">>, 0),
                {'Right', Port} = port(Listener),
                %% foreign calls, which the deadlock detector counts
-               Me ! {loopback, ern_rt:in_foreign(fun() -> reach("127.0.0.1", Port) end)},
-               Me ! {other, ern_rt:in_foreign(fun() -> reach("127.0.0.2", Port) end)}
+               Self ! {loopback, ern_rt:in_foreign(fun() -> reach("127.0.0.1", Port) end)},
+               Self ! {other, ern_rt:in_foreign(fun() -> reach("127.0.0.2", Port) end)}
            end, <<"main">>, quiet()),
     ?assertEqual(ok, wait(loopback)),
     ?assertMatch({error, _}, wait(other)).
@@ -270,7 +270,7 @@ write_holds_up_no_read_test_() ->
 write_holds_up_no_read() ->
     {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
     {ok, Port} = inet:port(Listen),
-    Me = self(),
+    Self = self(),
     %% the far end accepts and never reads
     Peer = spawn(fun() ->
                      {ok, Conn} = gen_tcp:accept(Listen),
@@ -287,11 +287,11 @@ write_holds_up_no_read() ->
                sleep(200),
                Before = erlang:monotonic_time(millisecond),
                Read = read(Socket, 300),
-               Me ! {read, Read, erlang:monotonic_time(millisecond) - Before}
+               Self ! {read, Read, erlang:monotonic_time(millisecond) - Before}
            end, <<"main">>, quiet()),
     Peer ! done,
     gen_tcp:close(Listen),
-    {read, Read, Took} = receive {read, _, _} = M -> M after 10000 -> timeout end,
+    {read, Read, Took} = receive {read, _, _} = Message -> Message after 10000 -> timeout end,
     ?assertEqual({'Left', 'Timeout'}, Read),
     ?assert(Took < 2000).
 
@@ -300,18 +300,19 @@ write_holds_up_no_read() ->
 %% rule of 2026-10-01, before which a listener belonged to no one and lived
 %% until the program ended
 listener_ends_with_its_owner_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Main = self(),
                _ = erlang:spawn(fun() -> Main ! {opened, listen(0)} end),
                {'Right', Listener} = ern_rt:in_foreign(fun() -> receive {opened, L} -> L end end),
-               Down = erlang:monitor(process, ern_rt:process_of(Listener)),
-               Me ! {ended, ern_rt:in_foreign(fun() ->
-                                                  receive {'DOWN', Down, _, _, R} -> R
-                                                  after 5000 -> alive
-                                                  end
-                                              end)}
+               MonitorRef = erlang:monitor(process, ern_rt:process_of(Listener)),
+               Ended = fun() ->
+                           receive {'DOWN', MonitorRef, _, _, ExitReason} -> ExitReason
+                           after 5000 -> alive
+                           end
+                       end,
+               Self ! {ended, ern_rt:in_foreign(Ended)}
            end, <<"main">>, quiet()),
     ?assertEqual({ern, killed}, wait(ended)).
 
@@ -337,7 +338,9 @@ listen(Port) ->
 listen(Host, Port) ->
     %% report §6.9, Appendix E.18: the caller owns the listener
     Owner = self(),
-    ern_rt:call_forever(ern_rt:sys(tcp), fun(R) -> {'Listen', Host, Port, Owner, R} end).
+    ern_rt:call_forever(ern_rt:system_process(tcp), fun(Reply) ->
+                                                        {'Listen', Host, Port, Owner, Reply}
+                                                    end).
 
 connect(Port, Ms) ->
     connect(<<"127.0.0.1">>, Port, Ms).
@@ -345,26 +348,28 @@ connect(Port, Ms) ->
 connect(Host, Port, Ms) ->
     %% report Appendix E.18: the caller owns the socket
     Owner = self(),
-    ern_rt:call_forever(ern_rt:sys(tcp), fun(R) -> {'Connect', Host, Port, Ms, Owner, R} end).
+    ern_rt:call_forever(ern_rt:system_process(tcp), fun(Reply) ->
+                                                        {'Connect', Host, Port, Ms, Owner, Reply}
+                                                    end).
 
 port(Listener) ->
-    ern_rt:call_forever(Listener, fun(R) -> {'Port', R} end).
+    ern_rt:call_forever(Listener, fun(Reply) -> {'Port', Reply} end).
 
 accept(Listener, Ms) ->
     Owner = self(),
-    ern_rt:call_forever(Listener, fun(R) -> {'Accept', Ms, Owner, R} end).
+    ern_rt:call_forever(Listener, fun(Reply) -> {'Accept', Ms, Owner, Reply} end).
 
 write(Socket, Bytes) ->
-    ern_rt:call_forever(Socket, fun(R) -> {'Send', Bytes, 60000, R} end).
+    ern_rt:call_forever(Socket, fun(Reply) -> {'Send', Bytes, 60000, Reply} end).
 
 read(Socket, Ms) ->
-    ern_rt:call_forever(Socket, fun(R) -> {'Recv', Ms, R} end).
+    ern_rt:call_forever(Socket, fun(Reply) -> {'Recv', Ms, Reply} end).
 
 peer(Socket) ->
-    ern_rt:call_forever(Socket, fun(R) -> {'FarEnd', R} end).
+    ern_rt:call_forever(Socket, fun(Reply) -> {'FarEnd', Reply} end).
 
 local(Socket) ->
-    ern_rt:call_forever(Socket, fun(R) -> {'NearEnd', R} end).
+    ern_rt:call_forever(Socket, fun(Reply) -> {'NearEnd', Reply} end).
 
 wait(Tag) ->
-    receive {Tag, V} -> V after 5000 -> timeout end.
+    receive {Tag, Value} -> Value after 5000 -> timeout end.

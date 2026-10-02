@@ -13,7 +13,8 @@
 %% them, extended grapheme clusters by the host's Unicode data, the same
 %% `string:length/1` counts; each is a code point or a list of them.
 -spec graphemes(binary()) -> [binary()].
-graphemes(S) -> [unicode:characters_to_binary([G]) || G <- string:to_graphemes(S)].
+graphemes(Text) ->
+    [unicode:characters_to_binary([Grapheme]) || Grapheme <- string:to_graphemes(Text)].
 
 %% Appendix E.5: where the part begins as whole graphemes, beginning and
 %% ending where the string's own graphemes do, counted in graphemes as
@@ -25,101 +26,104 @@ graphemes(S) -> [unicode:characters_to_binary([G]) || G <- string:to_graphemes(S
 -spec index_of(binary(), binary()) -> 'None' | {'Some', integer()}.
 index_of(_, <<>>) ->
     {'Some', 0};
-index_of(S, Part) ->
-    case next_match(S, Part, 0, 0) of
-        {I, _} -> {'Some', I};
+index_of(Text, Part) ->
+    case next_match(Text, Part, 0, 0) of
+        {Index, _} -> {'Some', Index};
         none -> 'None'
     end.
 
 %% Appendix E.5: the last occurrence, and the string's size for an empty
 %% part; each match is found from the grapheme after the one before.
 -spec last_index_of(binary(), binary()) -> 'None' | {'Some', integer()}.
-last_index_of(S, <<>>) ->
-    {'Some', string:length(S)};
-last_index_of(S, Part) ->
-    last_match(S, Part, 0, 0, 'None').
+last_index_of(Text, <<>>) ->
+    {'Some', string:length(Text)};
+last_index_of(Text, Part) ->
+    last_match(Text, Part, 0, 0, 'None').
 
-last_match(S, Part, B, I, Last) ->
-    case next_match(S, Part, B, I) of
-        {At, C} ->
-            {B1, I1} = step(S, C, At),
-            last_match(S, Part, B1, I1, {'Some', At});
+last_match(Text, Part, Boundary, Index, Last) ->
+    case next_match(Text, Part, Boundary, Index) of
+        {MatchIndex, MatchOffset} ->
+            {Boundary1, Index1} = step(Text, MatchOffset, MatchIndex),
+            last_match(Text, Part, Boundary1, Index1, {'Some', MatchIndex});
         none ->
             Last
     end.
 
-%% The first match at or after the boundary B, which I graphemes precede:
-%% the graphemes before it and its byte offset, or none.
-next_match(S, Part, B, I) ->
-    case binary:match(S, Part, [{scope, {B, byte_size(S) - B}}]) of
+%% The first match at or after the grapheme boundary Boundary, which Index
+%% graphemes precede: the graphemes before it and its byte offset, or none.
+next_match(Text, Part, Boundary, Index) ->
+    case binary:match(Text, Part, [{scope, {Boundary, byte_size(Text) - Boundary}}]) of
         nomatch ->
             none;
-        {C, N} ->
-            case walk(S, B, I, C) of
-                {C, At} ->
-                    case walk(S, C, At, C + N) of
-                        {End, _} when End =:= C + N -> {At, C};
-                        _ -> next_after(S, Part, C, At)
+        {Offset, Length} ->
+            case walk(Text, Boundary, Index, Offset) of
+                {Offset, MatchIndex} ->
+                    case walk(Text, Offset, MatchIndex, Offset + Length) of
+                        {End, _} when End =:= Offset + Length -> {MatchIndex, Offset};
+                        _ -> next_after(Text, Part, Offset, MatchIndex)
                     end;
-                {B1, I1} ->
-                    %% the candidate began inside a grapheme, which ends at B1
-                    next_match(S, Part, B1, I1)
+                {Boundary1, Index1} ->
+                    %% the candidate began inside a grapheme, which ends at
+                    %% Boundary1
+                    next_match(Text, Part, Boundary1, Index1)
             end
     end.
 
-next_after(S, Part, C, At) ->
-    case step(S, C, At) of
-        {C, _} -> none;
-        {B1, I1} -> next_match(S, Part, B1, I1)
+next_after(Text, Part, Offset, MatchIndex) ->
+    case step(Text, Offset, MatchIndex) of
+        {Offset, _} -> none;
+        {Boundary1, Index1} -> next_match(Text, Part, Boundary1, Index1)
     end.
 
-%% From the boundary B, which I graphemes precede, to the first boundary at
-%% or past the offset: that boundary and the graphemes before it.
-walk(_, B, I, Offset) when B >= Offset ->
-    {B, I};
-walk(S, B, I, Offset) ->
-    case step(S, B, I) of
-        {B, I} -> {B, I};
-        {B1, I1} -> walk(S, B1, I1, Offset)
+%% From the grapheme boundary Boundary, which Index graphemes precede, to
+%% the first boundary at or past Offset: that boundary and the graphemes
+%% before it.
+walk(_, Boundary, Index, Offset) when Boundary >= Offset ->
+    {Boundary, Index};
+walk(Text, Boundary, Index, Offset) ->
+    case step(Text, Boundary, Index) of
+        {Boundary, Index} -> {Boundary, Index};
+        {Boundary1, Index1} -> walk(Text, Boundary1, Index1, Offset)
     end.
 
-%% Past the grapheme at the boundary B; at the end, B itself.
-step(S, B, I) ->
-    case string:next_grapheme(binary:part(S, B, byte_size(S) - B)) of
-        [G | _] -> {B + byte_size(unicode:characters_to_binary([G])), I + 1};
-        [] -> {B, I}
+%% Past the grapheme at the boundary; at the end, the boundary itself.
+step(Text, Boundary, Index) ->
+    case string:next_grapheme(binary:part(Text, Boundary, byte_size(Text) - Boundary)) of
+        [Grapheme | _] ->
+            {Boundary + byte_size(unicode:characters_to_binary([Grapheme])), Index + 1};
+        [] -> {Boundary, Index}
     end.
 
 -spec slice(binary(), integer(), integer()) -> binary().
-slice(S, From, Count) -> unicode:characters_to_binary(string:slice(S, From, Count)).
+slice(Text, Index, Count) -> unicode:characters_to_binary(string:slice(Text, Index, Count)).
 
 %% Appendix E.5: the string after its first Count graphemes, found by
 %% walking only those, so that `split` costs what it reads; what is after
 %% begins at a grapheme of valid UTF-8, and is the string's own bytes.
 -spec drop(binary(), integer()) -> binary().
-drop(String, Count) ->
-    Boundary = past(String, 0, Count),
-    binary:part(String, Boundary, byte_size(String) - Boundary).
+drop(Text, Count) ->
+    Boundary = past(Text, 0, Count),
+    binary:part(Text, Boundary, byte_size(Text) - Boundary).
 
 %% The boundary Count graphemes past Boundary, or the string's end.
 past(_, Boundary, Count) when Count =< 0 ->
     Boundary;
-past(String, Boundary, Count) ->
-    case step(String, Boundary, 0) of
+past(Text, Boundary, Count) ->
+    case step(Text, Boundary, 0) of
         {Boundary, _} -> Boundary;
-        {Next, _} -> past(String, Next, Count - 1)
+        {Next, _} -> past(Text, Next, Count - 1)
     end.
 
 %% Appendix E.5: without the leading graphemes whose first code point is
 %% White_Space, as Char.isSpace says. string:next_grapheme/1 answers the
 %% first grapheme cluster, a code point or a list of them, and the rest.
 -spec trim_start(binary()) -> binary().
-trim_start(S) ->
-    case string:next_grapheme(S) of
-        [G | Rest] ->
-            case ern_char:is_space(first(G)) of
+trim_start(Text) ->
+    case string:next_grapheme(Text) of
+        [Grapheme | Rest] ->
+            case ern_char:is_space(first(Grapheme)) of
                 true -> trim_start(Rest);
-                false -> S
+                false -> Text
             end;
         [] ->
             <<>>
@@ -128,10 +132,11 @@ trim_start(S) ->
 %% Appendix E.5: without the trailing graphemes whose first code point is
 %% White_Space.
 -spec trim_end(binary()) -> binary().
-trim_end(S) ->
-    From = word_byte(S, byte_size(S) - 1),
-    <<_:From/binary, Tail/binary>> = S,
-    binary:part(S, 0, byte_size(S) - dropped(lists:reverse(string:to_graphemes(Tail)), 0)).
+trim_end(Text) ->
+    Offset = word_byte(Text, byte_size(Text) - 1),
+    <<_:Offset/binary, Tail/binary>> = Text,
+    Trailing = dropped(lists:reverse(string:to_graphemes(Tail)), 0),
+    binary:part(Text, 0, byte_size(Text) - Trailing).
 
 %% The offset of the last ASCII byte that is not White_Space, or 0. No
 %% ASCII code point extends a grapheme or is prepended to one, so the
@@ -139,56 +144,56 @@ trim_end(S) ->
 %% are the host's graphemes of the tail from it: only the tail is split.
 word_byte(_, -1) ->
     0;
-word_byte(S, I) ->
-    case binary:at(S, I) of
-        C when C < 16#80 ->
-            case ern_char:is_space(C) of
-                true -> word_byte(S, I - 1);
-                false -> I
+word_byte(Text, Offset) ->
+    case binary:at(Text, Offset) of
+        Byte when Byte < 16#80 ->
+            case ern_char:is_space(Byte) of
+                true -> word_byte(Text, Offset - 1);
+                false -> Offset
             end;
         _ ->
-            word_byte(S, I - 1)
+            word_byte(Text, Offset - 1)
     end.
 
 %% The octets of the graphemes, last first, that begin with White_Space.
-dropped([G | Gs], N) ->
-    case ern_char:is_space(first(G)) of
-        true -> dropped(Gs, N + octets(G));
-        false -> N
+dropped([Grapheme | Graphemes], Count) ->
+    case ern_char:is_space(first(Grapheme)) of
+        true -> dropped(Graphemes, Count + octets(Grapheme));
+        false -> Count
     end;
-dropped([], N) ->
-    N.
+dropped([], Count) ->
+    Count.
 
 %% A grapheme's length in UTF-8, a code point or a list of them.
-octets(Cs) when is_list(Cs) -> lists:sum([octets(C) || C <- Cs]);
-octets(C) when C < 16#80 -> 1;
-octets(C) when C < 16#800 -> 2;
-octets(C) when C < 16#10000 -> 3;
+octets(Chars) when is_list(Chars) -> lists:sum([octets(Char) || Char <- Chars]);
+octets(Char) when Char < 16#80 -> 1;
+octets(Char) when Char < 16#800 -> 2;
+octets(Char) when Char < 16#10000 -> 3;
 octets(_) -> 4.
 
-first([C | _]) -> C;
-first(C) -> C.
+first([Char | _]) -> Char;
+first(Char) -> Char.
 
 -spec to_lower(binary()) -> binary().
-to_lower(S) -> unicode:characters_to_binary(string:lowercase(S)).
+to_lower(Text) -> unicode:characters_to_binary(string:lowercase(Text)).
 
 -spec to_upper(binary()) -> binary().
-to_upper(S) -> unicode:characters_to_binary(string:uppercase(S)).
+to_upper(Text) -> unicode:characters_to_binary(string:uppercase(Text)).
 
 %% report Appendix E.5: in that base, its digits and letters in either case
 -spec to_int_base(binary(), integer()) -> {'Some', integer()} | 'None'.
-to_int_base(S, Base) ->
-    try {'Some', binary_to_integer(S, Base)}
+to_int_base(Text, Base) ->
+    try {'Some', binary_to_integer(Text, Base)}
     catch error:badarg -> 'None'
     end.
 
 %% report §2.5: the float literal form, with an optional leading minus;
 %% §3.1: "-0.0" reads as 0.0
 -spec to_float(binary()) -> {'Some', float()} | 'None'.
-to_float(S) ->
-    case float_form(S) of
+to_float(Text) ->
+    case float_form(Text) of
         true ->
-            try {'Some', binary_to_float(with_point(S)) + 0.0}
+            try {'Some', binary_to_float(with_point(Text)) + 0.0}
             catch error:badarg -> 'None'
             end;
         false ->
@@ -199,47 +204,47 @@ to_float(S) ->
 %% exponent alone, `e` or `E`, a sign that may, and digits; a minus may
 %% lead.
 float_form(<<"-", Rest/binary>>) -> digits(Rest, point);
-float_form(S) -> digits(S, point).
+float_form(Text) -> digits(Text, point).
 
 %% At least one digit, then Next: the point, the exponent, or the end.
-digits(<<C, Rest/binary>>, Next) when C >= $0, C =< $9 -> more_digits(Rest, Next);
+digits(<<Digit, Rest/binary>>, Next) when Digit >= $0, Digit =< $9 -> more_digits(Rest, Next);
 digits(_, _) -> false.
 
-more_digits(<<C, Rest/binary>>, Next) when C >= $0, C =< $9 -> more_digits(Rest, Next);
+more_digits(<<Digit, Rest/binary>>, Next) when Digit >= $0, Digit =< $9 -> more_digits(Rest, Next);
 more_digits(<<".", Rest/binary>>, point) -> digits(Rest, exponent);
-more_digits(<<E, Sign, Rest/binary>>, point) when (E =:= $e orelse E =:= $E),
-                                                 (Sign =:= $+ orelse Sign =:= $-) ->
-    digits(Rest, done);
-more_digits(<<E, Rest/binary>>, point) when E =:= $e; E =:= $E -> digits(Rest, done);
-more_digits(<<E, Sign, Rest/binary>>, exponent) when (E =:= $e orelse E =:= $E),
+more_digits(<<Mark, Sign, Rest/binary>>, point) when (Mark =:= $e orelse Mark =:= $E),
                                                     (Sign =:= $+ orelse Sign =:= $-) ->
     digits(Rest, done);
-more_digits(<<E, Rest/binary>>, exponent) when E =:= $e; E =:= $E -> digits(Rest, done);
+more_digits(<<Mark, Rest/binary>>, point) when Mark =:= $e; Mark =:= $E -> digits(Rest, done);
+more_digits(<<Mark, Sign, Rest/binary>>, exponent) when (Mark =:= $e orelse Mark =:= $E),
+                                                       (Sign =:= $+ orelse Sign =:= $-) ->
+    digits(Rest, done);
+more_digits(<<Mark, Rest/binary>>, exponent) when Mark =:= $e; Mark =:= $E -> digits(Rest, done);
 more_digits(<<>>, Next) -> Next =/= point;
 more_digits(_, _) -> false.
 
 %% The host reads a float only with its point: `1e5` is read as `1.0e5`.
-with_point(S) ->
-    case {binary:match(S, <<".">>), binary:match(S, [<<"e">>, <<"E">>])} of
-        {nomatch, {At, 1}} ->
-            <<Int:At/binary, Exp/binary>> = S,
-            <<Int/binary, ".0", Exp/binary>>;
+with_point(Text) ->
+    case {binary:match(Text, <<".">>), binary:match(Text, [<<"e">>, <<"E">>])} of
+        {nomatch, {Offset, 1}} ->
+            <<Whole:Offset/binary, Exponent/binary>> = Text,
+            <<Whole/binary, ".0", Exponent/binary>>;
         _ ->
-            S
+            Text
     end.
 
 -spec to_list(binary()) -> [char()].
-to_list(S) -> unicode:characters_to_list(S).
+to_list(Text) -> unicode:characters_to_list(Text).
 
 -spec from_list([char()]) -> binary().
-from_list(Cs) -> unicode:characters_to_binary(Cs).
+from_list(Chars) -> unicode:characters_to_binary(Chars).
 
 -spec from_utf8(binary()) -> {'Some', binary()} | 'None'.
-from_utf8(B) ->
-    case unicode:characters_to_binary(B, utf8, utf8) of
-        S when is_binary(S) -> {'Some', S};
+from_utf8(Bytes) ->
+    case unicode:characters_to_binary(Bytes, utf8, utf8) of
+        Text when is_binary(Text) -> {'Some', Text};
         _ -> 'None'
     end.
 
 -spec to_utf8(binary()) -> binary().
-to_utf8(S) -> S.
+to_utf8(Text) -> Text.

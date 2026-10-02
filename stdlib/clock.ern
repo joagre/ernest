@@ -32,7 +32,7 @@ type Msg =
 let reference : Address(Msg) = system(Erl.atom("clock"))
 
 foreign fn system(name : Foreign.Term) : Address(Msg) with m =
-    "ern_rt:sys/1"
+    "ern_rt:system_process/1"
 
 /// The time now.
 export fn now() : Int with m =

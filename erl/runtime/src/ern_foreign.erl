@@ -6,21 +6,21 @@
 -export([from/1, to_int/1, to_float/1, to_string/1, to_bytes/1, to_bool/1, to_list/1]).
 
 -spec from(term()) -> term().
-from(X) -> X.
+from(Value) -> Value.
 
 -spec to_int(term()) -> {'Some', integer()} | 'None'.
-to_int(X) when is_integer(X) -> {'Some', X};
+to_int(Value) when is_integer(Value) -> {'Some', Value};
 to_int(_) -> 'None'.
 
 %% report §3.1: the language has no negative zero
 -spec to_float(term()) -> {'Some', float()} | 'None'.
-to_float(X) when is_float(X) -> {'Some', X + 0.0};
+to_float(Value) when is_float(Value) -> {'Some', Value + 0.0};
 to_float(_) -> 'None'.
 
 -spec to_string(term()) -> {'Some', binary()} | 'None'.
-to_string(X) when is_binary(X) ->
-    case unicode:characters_to_binary(X, utf8, utf8) of
-        X -> {'Some', X};
+to_string(Value) when is_binary(Value) ->
+    case unicode:characters_to_binary(Value, utf8, utf8) of
+        Value -> {'Some', Value};
         _ -> 'None'
     end;
 to_string(_) -> 'None'.
@@ -28,15 +28,15 @@ to_string(_) -> 'None'.
 %% report Appendix E.12: any binary, a bitstring of whole bytes; one of
 %% another length is no Bytes
 -spec to_bytes(term()) -> {'Some', binary()} | 'None'.
-to_bytes(X) when is_binary(X) -> {'Some', X};
+to_bytes(Value) when is_binary(Value) -> {'Some', Value};
 to_bytes(_) -> 'None'.
 
 -spec to_bool(term()) -> {'Some', boolean()} | 'None'.
-to_bool(X) when is_boolean(X) -> {'Some', X};
+to_bool(Value) when is_boolean(Value) -> {'Some', Value};
 to_bool(_) -> 'None'.
 
 %% report §8.4, Appendix E.12: a List is a proper list, so an improper one
 %% is none; the guard's length fails on one
 -spec to_list(term()) -> {'Some', [term()]} | 'None'.
-to_list(X) when is_list(X), length(X) >= 0 -> {'Some', X};
+to_list(Value) when is_list(Value), length(Value) >= 0 -> {'Some', Value};
 to_list(_) -> 'None'.

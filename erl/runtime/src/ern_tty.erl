@@ -181,18 +181,18 @@ subscribe(Address, Subscribers, Before, After) ->
             Courier ! {to, Address},
             Subscribers;
         false ->
-            Watch = erlang:monitor(process, Pid),
+            MonitorRef = erlang:monitor(process, Pid),
             Subscribers =:= [] andalso running(Before) andalso After =/= closed
                 andalso ern_rt:source_begin(),
-            [{Pid, erlang:spawn_link(fun() -> courier(Address) end), Watch} | Subscribers]
+            [{Pid, erlang:spawn_link(fun() -> courier(Address) end), MonitorRef} | Subscribers]
     end.
 
 %% The subscription of Pid, its courier ended and waited for, so that no
-%% key it carried arrives after, and its watch of Pid with it.
+%% key it carried arrives after, and its monitor of Pid with it.
 unsubscribe(Pid, Subscribers, Reader) ->
     case lists:keyfind(Pid, 1, Subscribers) of
-        {Pid, Courier, Watch} ->
-            erlang:demonitor(Watch, [flush]),
+        {Pid, Courier, MonitorRef} ->
+            erlang:demonitor(MonitorRef, [flush]),
             Ended = erlang:monitor(process, Courier),
             erlang:unlink(Courier),
             exit(Courier, kill),
@@ -304,8 +304,8 @@ write(Text) ->
     end.
 
 system_stty() ->
-    case [P || P <- ["/bin/stty", "/usr/bin/stty"], filelib:is_regular(P)] of
-        [P | _] -> P;
+    case [Path || Path <- ["/bin/stty", "/usr/bin/stty"], filelib:is_regular(Path)] of
+        [Path | _] -> Path;
         [] -> false
     end.
 
@@ -395,8 +395,8 @@ read_loop(Keys, Open) ->
 
 read_loop(Keys, Open, Partial) ->
     case ern_rt:read_input(Open) of
-        {data, Bin} ->
-            case unicode:characters_to_list(<<Partial/binary, Bin/binary>>, utf8) of
+        {data, Bytes} ->
+            case unicode:characters_to_list(<<Partial/binary, Bytes/binary>>, utf8) of
                 Chars when is_list(Chars) ->
                     keys(Keys, Chars),
                     read_loop(Keys, Open, <<>>);
@@ -449,7 +449,8 @@ decode(Chars) ->
 flush({paste, Text, Tail}) ->
     %% report §8.2: a paste whose end did not come, what it held back as
     %% the start of an end being its text too
-    [{'Pasted', unicode:characters_to_binary(lists:reverse(Text, [line_feed(C) || C <- Tail]))}];
+    Pasted = lists:reverse(Text, [line_feed(Char) || Char <- Tail]),
+    [{'Pasted', unicode:characters_to_binary(Pasted)}];
 flush(?PASTE_BEGIN ++ _ = Chars) ->
     {Events, Left} = decode(Chars),
     Events ++ flush(Left);
@@ -484,7 +485,7 @@ decode([$\e | Rest] = Chars, Acc) ->
         false -> decode(Rest, ['Escape' | Acc])
     end;
 decode([3 | Rest], Acc) -> decode(Rest, ['Interrupt' | Acc]);
-decode([C | Rest], Acc) -> decode(Rest, [{'Key', C} | Acc]).
+decode([Char | Rest], Acc) -> decode(Rest, [{'Key', Char} | Acc]).
 
 %% The text of a paste, up to the end the terminal puts after it, from its
 %% text so far, reversed, and what has arrived since. A terminal sends the
@@ -501,8 +502,8 @@ pasted([$\e | Rest] = Chars, Text) ->
         true -> {more, Text, Chars};
         false -> pasted(Rest, [$\e | Text])
     end;
-pasted([C | Rest], Text) -> pasted(Rest, [C | Text]);
+pasted([Char | Rest], Text) -> pasted(Rest, [Char | Text]);
 pasted([], Text) -> {more, Text, []}.
 
 line_feed($\r) -> $\n;
-line_feed(C) -> C.
+line_feed(Char) -> Char.

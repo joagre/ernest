@@ -13,20 +13,20 @@
 -spec loop() -> no_return().
 loop() ->
     receive
-        Msg ->
-            erlang:spawn(fun() -> serve(Msg) end),
+        Message ->
+            erlang:spawn(fun() -> serve(Message) end),
             loop()
     end.
 
 %% Report Appendix E.17: a path that holds U+0000 names no file, and the
 %% request is answered so before any work.
-serve(Msg) ->
-    Fields = tuple_to_list(Msg),
-    case [B || {'Path', B} <- Fields, binary:match(B, <<0>>) =/= nomatch] of
+serve(Message) ->
+    Fields = tuple_to_list(Message),
+    case [Bytes || {'Path', Bytes} <- Fields, binary:match(Bytes, <<0>>) =/= nomatch] of
         [] ->
-            handle(Msg);
+            handle(Message);
         _ ->
-            [Reply] = [R || R <- Fields, is_reference(R)],
+            [Reply] = [Field || Field <- Fields, is_reference(Field)],
             ern_rt:answer(Reply, {'Left', 'Invalid'})
     end.
 
@@ -80,8 +80,8 @@ handle({'RemoveAll', Path, Reply}) ->
         {fault, Cause} -> ern_rt:refuse(Reply, Cause);
         Answer -> ern_rt:answer(Reply, Answer)
     end;
-handle({'Rename', From, To, Reply}) ->
-    answer(Reply, unit(file:rename(text(From), text(To))));
+handle({'Rename', From, Address, Reply}) ->
+    answer(Reply, unit(file:rename(text(From), text(Address))));
 %% Report Appendix E.17: the link at the path, holding the target as it is
 %% written, which may name nothing.
 handle({'MakeLink', Path, Target, Reply}) ->
@@ -134,8 +134,8 @@ handle({'SetModified', Path, Mtime, Reply}) ->
                       Error ->
                           Error
                   end);
-handle({'Copy', From, To, Reply}) ->
-    {Source, Target} = {text(From), text(To)},
+handle({'Copy', From, Address, Reply}) ->
+    {Source, Target} = {text(From), text(Address)},
     answer(Reply, regular(Source, fun() ->
                                       regular_or_none(Target, fun() -> copy(Source, Target) end)
                                   end)).
@@ -191,7 +191,7 @@ answer(Reply, {error, Reason}) ->
 unit(ok) -> {ok, 'Unit'};
 unit(Other) -> Other.
 
-text({'Path', Bin}) -> Bin.
+text({'Path', Bytes}) -> Bytes.
 
 %% Report Appendix E.17, §8.2: a name that is not UTF-8 is no Path, so the
 %% list answers NotUtf8 with the first such, in the order of their bytes.
@@ -256,8 +256,8 @@ gone(Name, Error) ->
     Error.
 
 %% Seconds from milliseconds, rounded down, a time before the epoch too.
-floor_div(A, B) when A >= 0 -> A div B;
-floor_div(A, B) -> -((-A + B - 1) div B).
+floor_div(Dividend, Divisor) when Dividend >= 0 -> Dividend div Divisor;
+floor_div(Dividend, Divisor) -> -((-Dividend + Divisor - 1) div Divisor).
 
 %% The helper's job `remove` run on the path: Right(Unit) once it is gone,
 %% and the runtime's own failure, which faults the caller, where the helper

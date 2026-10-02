@@ -5,7 +5,7 @@
 -export([to_float/1]).
 
 -spec to_float(integer()) -> float().
-to_float(N) ->
-    try float(N)
+to_float(Integer) ->
+    try float(Integer)
     catch error:badarg -> ern_rt:fault(<<"Int out of Float range">>)
     end.

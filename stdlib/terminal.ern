@@ -69,7 +69,7 @@ type Msg =
 let reference : Address(Msg) = system(Erl.atom("terminal"))
 
 foreign fn system(name : Foreign.Term) : Address(Msg) with m =
-    "ern_rt:sys/1"
+    "ern_rt:system_process/1"
 
 /// Every key pressed and every resize from now on, wrapped, in the
 /// caller's mailbox. It answers once the terminal is in the mode the keys

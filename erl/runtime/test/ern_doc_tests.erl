@@ -14,8 +14,8 @@
 %% library's top module under libs/.
 modules() ->
     [{['Template'], filename:join(?ROOT, "examples/template.ern")}
-     | [{[list_to_atom(string:titlecase(filename:basename(F, ".ern")))], F}
-        || F <- filelib:wildcard(filename:join(?ROOT, "stdlib/*.ern"))
+     | [{[list_to_atom(string:titlecase(filename:basename(File, ".ern")))], File}
+        || File <- filelib:wildcard(filename:join(?ROOT, "stdlib/*.ern"))
                ++ filelib:wildcard(filename:join(?ROOT, "libs/*/*.ern"))]].
 
 %% Appendix E.0 rule 6: the standard library is checked, not only the template
@@ -27,31 +27,35 @@ stdlib_present_test() ->
 %% one that ends in `// => v` is run and its Io.show rendering compared
 %% with v, so an example cannot rot
 doc_examples_test_() ->
-    [{atom_to_list(hd(Ns)), fun() -> examples(Ns, File) end} || {Ns, File} <- modules()].
+    [{atom_to_list(hd(Namespace)), fun() ->
+                                       examples(Namespace, File)
+                                   end} || {Namespace, File} <- modules()].
 
-examples(Ns, File) ->
-    {ok, Src} = file:read_file(File),
-    {ok, Decls} = ern_parser:parse_string(Src),
-    check_examples(Ns, Src, docs(Decls, outside, [])).
+examples(Namespace, File) ->
+    {ok, Source} = file:read_file(File),
+    {ok, Declarations} = ern_parser:parse_string(Source),
+    check_examples(Namespace, Source, docs(Declarations, outside, [])).
 
 %% report §9, Appendix E.0 rule 6: the prelude's page is documented as a
 %% module's is, so its examples type-check and those with `// => v` run,
 %% and every function it documents is called by one of them
 prelude_examples_test_() ->
     {timeout, 60,
-     fun() -> check_examples(['Docprelude'], <<>>, [{D, outside} || D <- prelude_docs()]) end}.
+     fun() -> check_examples(['Docprelude'], <<>>, [{Doc, outside} || Doc <- prelude_docs()]) end}.
 
 prelude_called_test() ->
-    Fences = iolist_to_binary([B || Doc <- prelude_docs(), B <- fences(Doc)]),
-    Functions = [lists:join(".", [atom_to_list(A) || A <- Q])
-                 || {Q, T, D} <- ern_prelude:values(), is_binary(D), hd(Q) =/= 'Sys',
-                    lists:prefix("(", T)],
-    Uncalled = [F || F <- Functions, binary:match(Fences, list_to_binary([F, "("])) =:= nomatch],
+    Fences = iolist_to_binary([Block || Doc <- prelude_docs(), Block <- fences(Doc)]),
+    Functions = [lists:join(".", [atom_to_list(Part) || Part <- QualifiedName])
+                 || {QualifiedName, Text, ValueDoc} <- ern_prelude:values(), is_binary(ValueDoc),
+                 hd(QualifiedName) =/= 'Sys',
+                    lists:prefix("(", Text)],
+    Uncalled = [Function || Function <- Functions,
+                            binary:match(Fences, list_to_binary([Function, "("])) =:= nomatch],
     ?assertEqual([], Uncalled).
 
 prelude_docs() ->
-    {docs_v1, _, _, _, #{<<"en">> := Mod}, _, Entries} = ern_prelude:docs(),
-    [Mod | [D || {_, _, _, #{<<"en">> := D}, _} <- Entries]].
+    {docs_v1, _, _, _, #{<<"en">> := ModuleDoc}, _, Entries} = ern_prelude:docs(),
+    [ModuleDoc | [Doc || {_, _, _, #{<<"en">> := Doc}, _} <- Entries]].
 
 %% Appendix E.0 rule 6: each example type-checks where a programmer writes
 %% it, in a module of its own that uses the documented one, so that a name
@@ -60,49 +64,51 @@ prelude_docs() ->
 %% reader, and is checked inside it. A regression test: every example was
 %% checked inside the module, where `Terminal.size`'s `Size` passed
 %% (findings.md's E15)
-check_examples(Ns, Src, Docs) ->
-    Blocks = [{split_result(B), Where} || {Doc, Where} <- Docs, B <- fences(Doc)],
+check_examples(Namespace, Source, Docs) ->
+    Blocks = [{split_result(Block), Where} || {Doc, Where} <- Docs, Block <- fences(Doc)],
     ?assert(Blocks =/= []),
-    Numbered = lists:zip(lists:seq(1, length(Blocks)), [B || {B, _} <- Blocks]),
-    Libraries = libraries(Ns),
-    {ok, _, Own, _} = checked(Ns, Src, Libraries),
-    lists:foreach(fun({{N, {Body, _}}, Where}) ->
-                      Example = <<"fn docExample", (integer_to_binary(N))/binary,
+    Numbered = lists:zip(lists:seq(1, length(Blocks)), [Block || {Block, _} <- Blocks]),
+    Libraries = libraries(Namespace),
+    {ok, _, Own, _} = checked(Namespace, Source, Libraries),
+    lists:foreach(fun({{Number, {Body, _}}, Where}) ->
+                      Example = <<"fn docExample", (integer_to_binary(Number))/binary,
                                   "() = fn() = {\n", Body/binary, "\n}\n">>,
                       Checked = case Where of
                                     outside ->
-                                        {ok, Decls} = ern_parser:parse_string(Example),
-                                        ern_typecheck:check(['Docexample'], Decls,
+                                        {ok, Declarations} = ern_parser:parse_string(Example),
+                                        ern_typecheck:check(['Docexample'], Declarations,
                                                             [Own | Libraries]);
                                     inside ->
-                                        checked(Ns, <<Src/binary, "\n", Example/binary>>,
+                                        checked(Namespace, <<Source/binary, "\n", Example/binary>>,
                                                 Libraries)
                                 end,
-                      ?assertMatch({{ok, _, _, _}, _}, {Checked, {Ns, N, Body}})
-                  end, lists:zip(Numbered, [W || {_, W} <- Blocks])),
-    WithResult = [{N, Body, V} || {N, {Body, V}} <- Numbered, V =/= none],
-    Fns = [<<"export fn docExample", (integer_to_binary(N))/binary, "() = {\n", Body/binary,
-             "\n}\n">> || {N, Body, _} <- WithResult],
-    Q = lists:join(".", [atom_to_list(A) || A <- Ns]),
-    Mains = [iolist_to_binary(["export fn docMain", integer_to_list(N),
-                               "() : Unit with Never =\n    Io.println(Io.show(", Q,
-                               ".docExample", integer_to_list(N), "()))\n"])
-             || {N, _, _} <- WithResult],
-    Text = iolist_to_binary([Src, "\n", Fns, Mains]),
-    {ok, Typed, Iface, Env} = checked(Ns, Text, Libraries),
-    {ok, Mod, Bin} = ern_emitter:compile(Ns, Typed, Iface, Env),
-    Original = code:which(Mod),
-    {module, Mod} = code:load_binary(Mod, "doc examples", Bin),
+                      ?assertMatch({{ok, _, _, _}, _}, {Checked, {Namespace, Number, Body}})
+                  end, lists:zip(Numbered, [Where || {_, Where} <- Blocks])),
+    WithResult = [{Number, Body, Value} || {Number, {Body, Value}} <- Numbered, Value =/= none],
+    Fns = [<<"export fn docExample", (integer_to_binary(Number))/binary, "() = {\n", Body/binary,
+             "\n}\n">> || {Number, Body, _} <- WithResult],
+    Qualified = lists:join(".", [atom_to_list(Part) || Part <- Namespace]),
+    Mains = [iolist_to_binary(["export fn docMain", integer_to_list(Number),
+                               "() : Unit with Never =\n    Io.println(Io.show(", Qualified,
+                               ".docExample", integer_to_list(Number), "()))\n"])
+             || {Number, _, _} <- WithResult],
+    Text = iolist_to_binary([Source, "\n", Fns, Mains]),
+    {ok, Typed, Interface, Env} = checked(Namespace, Text, Libraries),
+    {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env),
+    Original = code:which(ErlangModule),
+    {module, ErlangModule} = code:load_binary(ErlangModule, "doc examples", Beam),
     try
         %% Appendix E.0 rule 6: each example runs on its own, and the value
         %% it ends with is the last line it prints; what it prints itself,
         %% as an example of `foreach` does, comes before and is not compared
-        lists:foreach(fun({N, _, V}) -> run_example(Mod, N, V) end, WithResult)
+        lists:foreach(fun({Number, _, Value}) ->
+                          run_example(ErlangModule, Number, Value)
+                      end, WithResult)
     after
-        restore(Mod, Original)
+        restore(ErlangModule, Original)
     end.
 
-run_example(Mod, N, Expected) ->
+run_example(ErlangModule, Number, Expected) ->
     %% Appendix E.0 rule 6: an example may touch the file system, so each
     %% runs in a directory of its own, removed afterwards
     {ok, Cwd} = file:get_cwd(),
@@ -111,50 +117,50 @@ run_example(Mod, N, Expected) ->
     ok = filelib:ensure_path(Dir),
     ok = file:set_cwd(Dir),
     try
-        run_example(Mod, N, Expected, Cwd)
+        run_example(ErlangModule, Number, Expected, Cwd)
     after
         file:set_cwd(Cwd),
         file:del_dir_r(Dir)
     end.
 
-run_example(Mod, N, Expected, _Cwd) ->
-    Main = list_to_atom("docMain" ++ integer_to_list(N)),
-    Me = self(),
+run_example(ErlangModule, Number, Expected, _Cwd) ->
+    Main = list_to_atom("docMain" ++ integer_to_list(Number)),
+    Self = self(),
     _ = collect([]),
-    Init = fun() -> case erlang:function_exported(Mod, '$init', 0) of
-                        true -> Mod:'$init'();
+    Init = fun() -> case erlang:function_exported(ErlangModule, '$init', 0) of
+                        true -> ErlangModule:'$init'();
                         false -> ok
                     end
            end,
     %% the value goes to stdout, what the example prints itself may go to
     %% either sink, and the two are separate processes, so only stdout's
     %% last line is the value
-    Result = ern_rt:run_main(fun() -> Mod:Main() end, atom_to_binary(Main),
-                             #{init => Init, stdout => fun(B) -> Me ! {out, B} end,
-                               stderr => fun(B) -> Me ! {err, B} end}),
+    Result = ern_rt:run_main(fun() -> ErlangModule:Main() end, atom_to_binary(Main),
+                             #{init => Init, stdout => fun(Bytes) -> Self ! {out, Bytes} end,
+                               stderr => fun(Bytes) -> Self ! {err, Bytes} end}),
     ?assertEqual(ok, Result),
     Lines = binary:split(collect([]), <<"\n">>, [global, trim]),
     _ = collect(err, []),
     ?assertEqual(iolist_to_binary(Expected), lists:last(Lines)).
 
 collect(Tag, Acc) ->
-    receive {Tag, Bin} -> collect(Tag, [Bin | Acc])
+    receive {Tag, Bytes} -> collect(Tag, [Bytes | Acc])
     after 0 -> lists:reverse(Acc)
     end.
 
 %% A standard library module's own beam comes back after its examples ran.
-restore(Mod, Original) when is_list(Original) ->
-    code:purge(Mod),
-    {module, Mod} = code:load_abs(filename:rootname(Original)),
-    code:purge(Mod);
-restore(Mod, _) ->
-    code:purge(Mod),
-    code:delete(Mod),
-    code:purge(Mod).
+restore(ErlangModule, Original) when is_list(Original) ->
+    code:purge(ErlangModule),
+    {module, ErlangModule} = code:load_abs(filename:rootname(Original)),
+    code:purge(ErlangModule);
+restore(ErlangModule, _) ->
+    code:purge(ErlangModule),
+    code:delete(ErlangModule),
+    code:purge(ErlangModule).
 
 collect(Acc) ->
     receive
-        {out, B} -> collect([B | Acc])
+        {out, Bytes} -> collect([Bytes | Acc])
     after 0 ->
         iolist_to_binary(lists:reverse(Acc))
     end.
@@ -162,189 +168,209 @@ collect(Acc) ->
 %% Report §11.1, Appendix G: a library's module is checked with the other
 %% libraries' interfaces, as a program has them on its load path; libs/markdown
 %% uses libs/ansi.
-libraries(Ns) ->
-    [Iface || F <- filelib:wildcard(filename:join(?ROOT, "build/libs/*/*.erc")),
-              {ok, Bytes} <- [file:read_file(F)],
-              {ok, #{interface := Iface}} <- [ern_interface:read(Bytes)],
-              Iface#interface.namespace =/= Ns].
+libraries(Namespace) ->
+    [Interface || File <- filelib:wildcard(filename:join(?ROOT, "build/libs/*/*.erc")),
+              {ok, Bytes} <- [file:read_file(File)],
+              {ok, #{interface := Interface}} <- [ern_interface:read(Bytes)],
+              Interface#interface.namespace =/= Namespace].
 
-checked(Ns, Text, Libraries) ->
+checked(Namespace, Text, Libraries) ->
     case ern_parser:parse_string(Text) of
-        {ok, Decls} -> ern_typecheck:check(Ns, Decls, Libraries);
-        {error, E} -> {error, [E]}
+        {ok, Declarations} -> ern_typecheck:check(Namespace, Declarations, Libraries);
+        {error, Diagnostic} -> {error, [Diagnostic]}
     end.
 
 %% An example's body and the value its last line `// => v` promises, or none.
 split_result(Block) ->
     Lines = binary:split(Block, <<"\n">>, [global]),
     case lists:last(Lines) of
-        <<"// => ", V/binary>> ->
-            {iolist_to_binary(lists:join(<<"\n">>, lists:droplast(Lines))), V};
+        <<"// => ", Value/binary>> ->
+            {iolist_to_binary(lists:join(<<"\n">>, lists:droplast(Lines))), Value};
         _ -> {Block, none}
     end.
 
 %% Appendix E.0 rule 6: the module's doc block ends with `since v`; a
 %% declaration may state its own; every one is no newer than VERSION
 doc_since_test_() ->
-    [{atom_to_list(hd(Ns)), fun() -> since(File) end} || {Ns, File} <- modules()].
+    [{atom_to_list(hd(Namespace)), fun() -> since(File) end} || {Namespace, File} <- modules()].
 
 since(File) ->
-    {ok, V} = file:read_file(filename:join(?ROOT, "VERSION")),
-    Current = version(V),
-    {ok, Src} = file:read_file(File),
-    {ok, Decls} = ern_parser:parse_string(Src),
-    ModDocs = [T || #module_doc{text = T} <- Decls],
-    ?assertMatch([_], ModDocs),
-    ?assertNotEqual(none, since_of(hd(ModDocs))),
-    Stated = [S || B <- docs(Decls), S <- [since_of(B)], S =/= none],
-    ?assertEqual([], [S || S <- Stated, version(S) > Current]).
+    {ok, VersionText} = file:read_file(filename:join(?ROOT, "VERSION")),
+    Current = version(VersionText),
+    {ok, Source} = file:read_file(File),
+    {ok, Declarations} = ern_parser:parse_string(Source),
+    ModuleDocs = [Text || #module_doc{text = Text} <- Declarations],
+    ?assertMatch([_], ModuleDocs),
+    ?assertNotEqual(none, since_of(hd(ModuleDocs))),
+    Stated = [Since || Doc <- docs(Declarations), Since <- [since_of(Doc)], Since =/= none],
+    ?assertEqual([], [Since || Since <- Stated, version(Since) > Current]).
 
 since_of(Doc) ->
     case re:run(Doc, "(?m)^since ([0-9][0-9.]*)\\s*$", [{capture, all_but_first, binary}]) of
-        {match, [S]} -> S;
+        {match, [Since]} -> Since;
         nomatch -> none
     end.
 
 version(Text) ->
     Trimmed = string:trim(unicode:characters_to_list(Text)),
-    [list_to_integer(P) || P <- string:split(Trimmed, ".", all)].
+    [list_to_integer(Part) || Part <- string:split(Trimmed, ".", all)].
 
 %% Appendix E.0 rule 6: every exported declaration has a doc block
 doc_exported_documented_test_() ->
-    [{atom_to_list(hd(Ns)), fun() -> documented(File) end} || {Ns, File} <- modules()].
+    [{atom_to_list(hd(Namespace)), fun() ->
+                                       documented(File)
+                                   end} || {Namespace, File} <- modules()].
 
 documented(File) ->
-    {ok, Src} = file:read_file(File),
-    {ok, Decls} = ern_parser:parse_string(Src),
-    ?assertEqual([], [decl_names(D) || D <- Decls, exported_decl(D),
-                                       doc_field(D) =:= undefined]).
+    {ok, Source} = file:read_file(File),
+    {ok, Declarations} = ern_parser:parse_string(Source),
+    ?assertEqual([],
+                 [declaration_names(Declaration) || Declaration <- Declarations,
+                                                    exported_declaration(Declaration),
+                                       doc_field(Declaration) =:= undefined]).
 
 %% Appendix E.0 rule 6: every exported function is called by an example on
 %% the page, the module's or its own; an operator member, used infix, is
 %% not a call and is not looked for
 doc_coverage_test_() ->
-    [{atom_to_list(hd(Ns)), fun() -> coverage(Ns, File) end} || {Ns, File} <- modules()].
+    [{atom_to_list(hd(Namespace)), fun() ->
+                                       coverage(Namespace, File)
+                                   end} || {Namespace, File} <- modules()].
 
-coverage(Ns, File) ->
-    {ok, Src} = file:read_file(File),
-    {ok, Decls} = ern_parser:parse_string(Src),
-    Examples = iolist_to_binary([B || Doc <- docs(Decls), B <- fences(Doc)]),
-    Prefix = lists:join(".", [atom_to_list(A) || A <- Ns]),
-    Fns = [owned_name(O, N) || #fn_declaration{export = true, owner = O, name = N} <- Decls,
-                               is_alpha(N)]
-        ++ [owned_name(O, N)
-            || #foreign_fn_declaration{export = true, owner = O, name = N} <- Decls, is_alpha(N)],
+coverage(Namespace, File) ->
+    {ok, Source} = file:read_file(File),
+    {ok, Declarations} = ern_parser:parse_string(Source),
+    Examples = iolist_to_binary([Block || Doc <- docs(Declarations), Block <- fences(Doc)]),
+    Prefix = lists:join(".", [atom_to_list(Part) || Part <- Namespace]),
+    Fns = [owned_name(Owner, Name)
+           || #fn_declaration{export = true, owner = Owner, name = Name} <- Declarations,
+                               is_alpha(Name)]
+        ++ [owned_name(Owner, Name)
+            || #foreign_fn_declaration{export = true, owner = Owner, name = Name} <- Declarations,
+            is_alpha(Name)],
     %% a module exports something: `Test`, Appendix E.24, declares types alone
-    Types = [N || #type_declaration{export = true, name = N} <- Decls],
+    Types = [Name || #type_declaration{export = true, name = Name} <- Declarations],
     ?assertNotEqual([], Fns ++ Types),
-    Uncalled = [F || F <- Fns,
-                     binary:match(Examples, iolist_to_binary([Prefix, ".", F, "("])) =:= nomatch],
+    Uncalled = [Function || Function <- Fns,
+                     binary:match(Examples,
+                                  iolist_to_binary([Prefix, ".", Function, "("])) =:= nomatch],
     ?assertEqual([], Uncalled).
 
-is_alpha(N) ->
-    [C | _] = atom_to_list(N),
-    C >= $a andalso C =< $z.
+is_alpha(Name) ->
+    [First | _] = atom_to_list(Name),
+    First >= $a andalso First =< $z.
 
 %% Appendix E.0 rule 6: every backticked name under `See also` is a
 %% declaration of the module, a prelude or standard library namespace or
 %% value, or a prelude type
 doc_see_also_test_() ->
-    [{atom_to_list(hd(Ns)), fun() -> see_also(File) end} || {Ns, File} <- modules()].
+    [{atom_to_list(hd(Namespace)), fun() -> see_also(File) end} || {Namespace, File} <- modules()].
 
 see_also(File) ->
-    {ok, Src} = file:read_file(File),
-    {ok, Decls} = ern_parser:parse_string(Src),
-    Known = lists:append([decl_names(D) || D <- Decls])
-        ++ [atom_to_list(hd(Q)) || {Q, _, _} <- ern_prelude:values(), length(Q) > 1]
-        ++ [atom_to_list(hd(I#interface.namespace)) || I <- ern_prelude:stdlib_interfaces()]
-        ++ [atom_to_list(N) || {N, _, _} <- ern_prelude:builtin_types()]
-        ++ [qualified(Q) || {Q, _, _} <- ern_prelude:values()]
-        ++ [qualified(Q) || I <- ern_prelude:stdlib_interfaces(),
-                            Q <- maps:keys(I#interface.values)]
-        ++ [qualified(Q) || I <- ern_prelude:stdlib_interfaces(),
-                            Q <- maps:keys(I#interface.types)],
-    Named = [N || Doc <- docs(Decls),
-                  {match, Secs} <- [re:run(Doc, "#+ See also\\n\\n(.*?)(?=\\n#|$)",
-                                           [global, dotall, {capture, all_but_first, list}])],
-                  [Sec] <- Secs,
-                  {match, Ns} <- [re:run(Sec, "`([^`]+)`",
-                                         [global, {capture, all_but_first, list}])],
-                  [N] <- Ns],
-    ?assertEqual([], [N || N <- Named, not lists:member(N, Known)]).
+    {ok, Source} = file:read_file(File),
+    {ok, Declarations} = ern_parser:parse_string(Source),
+    Known = lists:append([declaration_names(Declaration) || Declaration <- Declarations])
+        ++ [atom_to_list(hd(QualifiedName)) || {QualifiedName, _, _} <- ern_prelude:values(),
+                                               length(QualifiedName) > 1]
+        ++ [atom_to_list(hd(Interface#interface.namespace))
+            || Interface <- ern_prelude:stdlib_interfaces()]
+        ++ [atom_to_list(Name) || {Name, _, _} <- ern_prelude:builtin_types()]
+        ++ [qualified(QualifiedName) || {QualifiedName, _, _} <- ern_prelude:values()]
+        ++ [qualified(QualifiedName) || Interface <- ern_prelude:stdlib_interfaces(),
+                            QualifiedName <- maps:keys(Interface#interface.values)]
+        ++ [qualified(QualifiedName) || Interface <- ern_prelude:stdlib_interfaces(),
+                            QualifiedName <- maps:keys(Interface#interface.types)],
+    Named = [Name || Doc <- docs(Declarations),
+                  {match, Sections} <- [re:run(Doc, "#+ See also\\n\\n(.*?)(?=\\n#|$)",
+                                               [global, dotall, {capture, all_but_first, list}])],
+                  [Section] <- Sections,
+                  {match, Matches} <- [re:run(Section, "`([^`]+)`",
+                                              [global, {capture, all_but_first, list}])],
+                  [Name] <- Matches],
+    ?assertEqual([], [Name || Name <- Named, not lists:member(Name, Known)]).
 
-qualified(Q) -> lists:flatten(lists:join(".", [atom_to_list(A) || A <- Q])).
+qualified(QualifiedName) ->
+    lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- QualifiedName])).
 
-decl_names(#type_declaration{name = N}) -> [atom_to_list(N)];
-decl_names(#abstract_declaration{declaration = #type_declaration{name = N}}) -> [atom_to_list(N)];
-decl_names(#fn_declaration{owner = O, name = N}) -> [owned_name(O, N)];
-decl_names(#let_declaration{name = N}) -> [atom_to_list(N)];
-decl_names(#foreign_fn_declaration{owner = O, name = N}) -> [owned_name(O, N)];
-decl_names(#foreign_type_declaration{name = N}) -> [atom_to_list(N)];
-decl_names(_) -> [].
+declaration_names(#type_declaration{name = Name}) -> [atom_to_list(Name)];
+declaration_names(#abstract_declaration{declaration = #type_declaration{name = Name}}) ->
+    [atom_to_list(Name)];
+declaration_names(#fn_declaration{owner = Owner, name = Name}) -> [owned_name(Owner, Name)];
+declaration_names(#let_declaration{name = Name}) -> [atom_to_list(Name)];
+declaration_names(#foreign_fn_declaration{owner = Owner, name = Name}) -> [owned_name(Owner, Name)];
+declaration_names(#foreign_type_declaration{name = Name}) -> [atom_to_list(Name)];
+declaration_names(_) -> [].
 
-owned_name(undefined, N) -> atom_to_list(N);
-owned_name(O, N) -> atom_to_list(O) ++ "." ++ atom_to_list(N).
+owned_name(undefined, Name) -> atom_to_list(Name);
+owned_name(Owner, Name) -> atom_to_list(Owner) ++ "." ++ atom_to_list(Name).
 
-exported_decl(D) when is_tuple(D), tuple_size(D) >= 4, element(1, D) =/= module_doc ->
-    element(4, D) =:= true;
-exported_decl(_) -> false.
+exported_declaration(Declaration)
+  when is_tuple(Declaration), tuple_size(Declaration) >= 4,
+  element(1, Declaration) =/= module_doc ->
+    element(4, Declaration) =:= true;
+exported_declaration(_) -> false.
 
-doc_field(D) -> element(3, D).
+doc_field(Declaration) -> element(3, Declaration).
 
 %% Every doc text in an AST.
-docs(T) ->
-    [D || {D, _} <- docs(T, outside, [])].
+docs(Node) ->
+    [Doc || {Doc, _} <- docs(Node, outside, [])].
 
 %% Every doc text in an AST, the third element of the records that carry
 %% one, with where its examples are checked: outside the module, or inside
 %% it within a declaration the module keeps private, the fourth element of
 %% a top-level declaration saying whether it is exported.
-docs(T, Where, Acc) when is_tuple(T), tuple_size(T) >= 3 ->
-    Private = lists:member(element(1, T), [type_declaration, abstract_declaration,
-                                           fn_declaration, let_declaration,
-                                           foreign_type_declaration, foreign_fn_declaration])
-        andalso element(4, T) =:= false,
+docs(Node, Where, Acc) when is_tuple(Node), tuple_size(Node) >= 3 ->
+    Private = lists:member(element(1, Node), [type_declaration, abstract_declaration,
+                                              fn_declaration, let_declaration,
+                                              foreign_type_declaration, foreign_fn_declaration])
+        andalso element(4, Node) =:= false,
     Where1 = case Private of
                  true -> inside;
                  false -> Where
              end,
-    Acc1 = case lists:member(element(1, T), [module_doc, type_declaration, abstract_declaration,
-                                              fn_declaration, let_declaration,
-                                              foreign_type_declaration, foreign_fn_declaration,
-                                              constructor, field, signature])
-                    andalso is_binary(element(3, T)) of
-               true -> [{element(3, T), Where1} | Acc];
+    Acc1 = case lists:member(element(1, Node), [module_doc, type_declaration, abstract_declaration,
+                                                 fn_declaration, let_declaration,
+                                                 foreign_type_declaration, foreign_fn_declaration,
+                                                 constructor, field, signature])
+                    andalso is_binary(element(3, Node)) of
+               true -> [{element(3, Node), Where1} | Acc];
                false -> Acc
            end,
-    lists:foldl(fun(E, A) -> docs(E, Where1, A) end, Acc1, tuple_to_list(T));
-docs(L, Where, Acc) when is_list(L) -> lists:foldl(fun(E, A) -> docs(E, Where, A) end, Acc, L);
+    lists:foldl(fun(Child, Found) -> docs(Child, Where1, Found) end, Acc1, tuple_to_list(Node));
+docs(Nodes, Where, Acc) when is_list(Nodes) ->
+    lists:foldl(fun(Child, Found) -> docs(Child, Where, Found) end, Acc, Nodes);
 docs(_, _Where, Acc) -> Acc.
 
 fences(Doc) ->
     case re:run(Doc, "```ernest\\n(.*?)\\n```",
                 [global, dotall, {capture, all_but_first, binary}]) of
-        {match, Ms} -> [B || [B] <- Ms];
+        {match, Matches} -> [Block || [Block] <- Matches];
         nomatch -> []
     end.
 
 %% plan MVP 2.5: every value a compiled standard library interface
 %% declares is exported by its module with the arity of its type
 stdlib_targets_test() ->
-    Missing = [{Q, Ar}
-               || #interface{namespace = Ns, values = Vs} <- ern_prelude:stdlib_interfaces(),
-                          {Q, Scheme} <- maps:to_list(Vs),
-                          Ar <- [arity(Scheme)],
-                          Mod <- [module_atom(Ns)],
-                          code:ensure_loaded(Mod) =/= {module, Mod}
-                              orelse not erlang:function_exported(Mod, lists:last(Q), Ar)],
+    Missing = [{QualifiedName, Arity}
+               || #interface{namespace = Namespace,
+                             values = Values} <- ern_prelude:stdlib_interfaces(),
+                          {QualifiedName, Scheme} <- maps:to_list(Values),
+                          Arity <- [arity(Scheme)],
+                          ErlangModule <- [module_atom(Namespace)],
+                          code:ensure_loaded(ErlangModule) =/= {module, ErlangModule}
+                              orelse not erlang:function_exported(ErlangModule,
+                                                                  lists:last(QualifiedName),
+                                                                  Arity)],
     ?assertEqual([], Missing),
     ?assertNotEqual([], ern_prelude:stdlib_interfaces()).
 
-module_atom(Ns) ->
-    list_to_atom("ern@" ++ string:lowercase(lists:join("@", [atom_to_list(A) || A <- Ns]))).
+module_atom(Namespace) ->
+    list_to_atom("ern@"
+                 ++ string:lowercase(lists:join("@", [atom_to_list(Part) || Part <- Namespace]))).
 
 arity(Scheme) ->
     case element(3, Scheme) of
-        {tfn, Ps, _, _} -> length(Ps);
+        {tfn, Params, _, _} -> length(Params);
         _ -> 0
     end.

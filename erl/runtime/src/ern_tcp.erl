@@ -72,8 +72,8 @@ listen(Tcp, Host, Owner, Port, Reply) ->
                              %% report §6.9, Appendix E.18: owned by the
                              %% process that opened it, with which it ends
                              Loop = fun() ->
-                                        Watch = erlang:monitor(process, Owner),
-                                        listener_loop(Tcp, Socket, Watch)
+                                        MonitorRef = erlang:monitor(process, Owner),
+                                        listener_loop(Tcp, Socket, MonitorRef)
                                     end,
                              Listener = opened(Tcp, Loop, <<"Tcp.listen">>),
                              gen_tcp:controlling_process(Socket, Listener),
@@ -167,19 +167,19 @@ attempt(Tcp, Try, Deadline, Owner, Reply, Site) ->
 %% A listener answers each Accept by a worker of its own, so that a slow
 %% accept does not hold up the next request, and ends at CloseListener,
 %% whose close of the socket answers each accept still waiting.
-listener_loop(Tcp, Socket, Watch) ->
+listener_loop(Tcp, Socket, MonitorRef) ->
     receive
         {'Accept', Ms, Owner, Reply} ->
             counted(fun() -> accept(Tcp, Socket, ern_rt:deadline(Ms), Owner, Reply) end),
-            listener_loop(Tcp, Socket, Watch);
+            listener_loop(Tcp, Socket, MonitorRef);
         {'Port', Reply} ->
             ern_rt:answer(Reply, case inet:port(Socket) of
                                      {ok, Port} -> {'Right', Port};
                                      {error, Reason} -> {'Left', io_error(Reason)}
                                  end),
-            listener_loop(Tcp, Socket, Watch);
+            listener_loop(Tcp, Socket, MonitorRef);
         %% report Appendix E.18: its owner has died, and it is killed
-        {'DOWN', Watch, process, _, _} ->
+        {'DOWN', MonitorRef, process, _, _} ->
             gen_tcp:close(Socket),
             exit({ern, killed});
         'CloseListener' ->

@@ -1,5 +1,5 @@
 %% The Ernest runtime, report sections 6, 7, 8, and 10, for one node. What
-%% generated code calls, and the launcher.
+%% generated code calls, and the runner.
 %%
 %% Values follow the ABI of report §8.4: Unit is 'Unit', a nullary constructor
 %% is its quoted name, Some(v) is {'Some', V}, Down(process, reason, site) is
@@ -29,7 +29,7 @@
 %% adopted, where Timers counts the timed receives the process is in,
 %% Foreign its foreign calls, and Spawned its place in the order of spawns,
 %% and beside them the way the terminal is read, `reading`, the process
-%% deadlock faults, `deadlock_target`, and a row per restart a process may
+%% deadlock faults, `deadlock_victim`, and a row per restart a process may
 %% be asked, and per checking proxy of §8.4 and what it stands for.
 %% `ern_calls` holds the pending calls, `ern_faults` the subscriptions to
 %% faults, and `ern_held` the sources and the processes the system modules
@@ -41,9 +41,10 @@
          reason/1, live/0, processes/0, info/1, faults/1, proxy_for/3, proxy_forget/2,
          source_begin/0, source_begin/1, source_end/0, opened/2, forget_opened/1, timed/0,
          untimed/0, deadline/1, remaining/1, monotonic/0, in_foreign/1,
-         undefined_function/3, undefined_lambda/3, fault_reason/3, fault/1, fault/2, trace/1, sys/1,
+         undefined_function/3, undefined_lambda/3, fault_exit_reason/3, fault/1, fault/2, trace/1,
+         system_process/1,
          hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1, input_not_utf8/0,
-         by_input/1, read_input/1, run_main/3, arguments/0, exit_program/1, deadlock_target/1,
+         by_input/1, read_input/1, run_main/3, arguments/0, exit_program/1, deadlock_victim/1,
          signal/1, initializing/1, site/0, binding/1, restarting/2, restart_now/0, ask_restart/1,
          start_cause/0, spawn_order/1, init_stdlib/0, init_modules/1, ordered/1]).
 
@@ -59,7 +60,7 @@
 %% the same calls by callee, {{Callee, Caller}, Alias}, ordered, so that a
 %% restart reads its own callers and no other process's calls
 -define(CALLEES, ern_callees).
-%% Appendix E.21: each subscription to faults, {Subscriber, To}, in a table
+%% Appendix E.21: each subscription to faults, {Subscriber, Address}, in a table
 %% of its own, so that a fault reads the subscriptions and not every
 %% process's row
 -define(FAULTS, ern_faults).
@@ -68,9 +69,9 @@
 %% processes the system modules opened, {{opened, Pid}}: few rows, so that
 %% the deadlock check reads them without reading every process's
 -define(HELD, ern_held).
-%% report §6.9: each delivery a process started to a target, {{Target,
-%% Starter, Pid}}, ordered, so that a restart of the target reads its own
-%% deliveries and no other process's
+%% report §6.9: each delivery a process started to a recipient,
+%% {{Recipient, Starter, Pid}}, ordered, so that a restart of the recipient
+%% reads its own deliveries and no other process's
 -define(DELIVERIES, ern_deliveries).
 %% The longest wait the host's `receive ... after` takes, in milliseconds.
 -define(SLICE, 16#FFFFFFFF).
@@ -90,8 +91,8 @@
 %%
 
 -spec send(address(), term()) -> 'Unit'.
-send(Addr, Msg) ->
-    deliver(Addr, Msg),
+send(Address, Message) ->
+    deliver(Address, Message),
     ?UNIT.
 
 %% Report §6.5: an address seen through a function is the target and the
@@ -99,17 +100,17 @@ send(Addr, Msg) ->
 %% and the message goes straight into the target's mailbox. A fault in the
 %% function is the target's, since the function is part of the protocol the
 %% target's own via(self(), wrap) built.
-deliver({via, F, Target}, Msg) ->
-    try F(Msg) of
+deliver({via, Function, Target}, Message) ->
+    try Function(Message) of
         Adapted -> deliver(Target, Adapted)
     catch
-        Class:Reason:Stack -> exit(process_of(Target), fault_reason(Class, Reason, Stack))
+        Class:Error:Stack -> exit(process_of(Target), fault_exit_reason(Class, Error, Stack))
     end;
 %% report §8.4: a message to a foreign address crosses into foreign code
-deliver({foreign, Pid, D, B}, Msg) ->
-    Pid ! ern_boundary:expose(D, Msg, B);
-deliver(Pid, Msg) ->
-    Pid ! Msg.
+deliver({foreign, Pid, Descriptor, Bound}, Message) ->
+    Pid ! ern_boundary:expose(Descriptor, Message, Bound);
+deliver(Pid, Message) ->
+    Pid ! Message.
 
 %% The process an address names, through any number of adaptations and
 %% through the checking proxy of §8.4: an address that has crossed into
@@ -135,41 +136,42 @@ behind(Pid) ->
 %% type it went out at; at another it stays foreign, so that what is sent
 %% through it is checked against the process's own type.
 -spec held(pid(), term(), map()) -> address().
-held(Pid, D, B) ->
+held(Pid, Descriptor, Bound) ->
     case ets_lookup(?PROCESSES, {behind, Pid}) of
-        [{_, Real, Exposed, {_, D, B}}] -> own_or_foreign(Real, Exposed, Pid, D, B);
-        [{_, _, _, _}] -> {foreign, Pid, D, B};
-        _ -> own_or_foreign(Pid, Pid, Pid, D, B)
+        [{_, Real, Exposed, {_, Descriptor, Bound}}] ->
+            own_or_foreign(Real, Exposed, Pid, Descriptor, Bound);
+        [{_, _, _, _}] -> {foreign, Pid, Descriptor, Bound};
+        _ -> own_or_foreign(Pid, Pid, Pid, Descriptor, Bound)
     end.
 
-own_or_foreign(Real, Address, Pid, D, B) ->
+own_or_foreign(Real, Address, Pid, Descriptor, Bound) ->
     case ets_lookup(?PROCESSES, Real) of
         [_] -> Address;
-        [] -> {foreign, Pid, D, B}
+        [] -> {foreign, Pid, Descriptor, Bound}
     end.
 
 %% Whether a term is an address in one of the forms the runtime holds.
 -spec is_address(term()) -> boolean().
 is_address(Pid) when is_pid(Pid) -> true;
-is_address({via, F, Target}) when is_function(F, 1) -> is_address(Target);
+is_address({via, Function, Target}) when is_function(Function, 1) -> is_address(Target);
 is_address({foreign, Pid, _, _}) -> is_pid(Pid);
 is_address(_) -> false.
 
 %% Site names the spawning function for Down (report §6.9); the compiler
 %% supplies it, so this is spawn/2 where the report's spawn takes one.
 -spec spawn(fun(() -> term()), binary()) -> address().
-spawn(Fun, Site) ->
-    spawn_awaited(Fun, Site, []).
+spawn(Function, Site) ->
+    spawn_with_monitors(Function, Site, []).
 
 %% Report §6.2, §6.9: a process monitored by the caller from its start, the
 %% wait made with the spawn, so that no end comes before it.
 -spec spawn_monitored(fun(() -> term()), fun((term()) -> term()), binary()) -> pid().
-spawn_monitored(Fun, Wrap, Site) ->
-    spawn_awaited(Fun, Site, [{erlang:self(), Wrap}]).
+spawn_monitored(Function, Wrap, Site) ->
+    spawn_with_monitors(Function, Site, [{erlang:self(), Wrap}]).
 
-spawn_awaited(Fun, Site, Awaits) ->
+spawn_with_monitors(Function, Site, Monitors) ->
     Ref = make_ref(),
-    persistent_term:get({?MODULE, reaper}) ! {spawn, erlang:self(), Ref, Fun, Site, Awaits},
+    persistent_term:get({?MODULE, reaper}) ! {spawn, erlang:self(), Ref, Function, Site, Monitors},
     receive
         {Ref, Pid} -> Pid
     end.
@@ -183,8 +185,8 @@ self() ->
 %%
 
 -spec via(address(), fun((term()) -> term())) -> address().
-via(Target, F) ->
-    {via, F, Target}.
+via(Target, Function) ->
+    {via, Function, Target}.
 
 %%
 %% Report §6.6
@@ -192,28 +194,28 @@ via(Target, F) ->
 
 %% Report §6.6: the runtime's own call, whose answer is not checked (§8.4).
 -spec call(address(), fun((reply()) -> term()), integer()) -> 'None' | {'Some', term()}.
-call(Addr, Mk, Ms) ->
-    call(Addr, Mk, Ms, none).
+call(Address, Mk, Ms) ->
+    call(Address, Mk, Ms, none).
 
 %% Report §6.6, §8.4: a program's call, whose answer from foreign code is
 %% checked by Check.
 -spec call(address(), fun((reply()) -> term()), integer(), check()) ->
           'None' | {'Some', term()}.
-call(Addr, Mk, Ms, Check) ->
+call(Address, Mk, Ms, Check) ->
     %% report §6.6: the clock starts at the call, before the request is
     %% made and delivered
     Deadline = deadline(Ms),
-    line_guard(Addr),
-    Alias = pending(Addr),
+    line_guard(Address),
+    Reply = pending(Address),
     %% settled however the call ends, a fault of the message's function or
     %% of the callee among the ways, which a process restarted in place
     %% outlives (§6.9)
     Answer = try
-                 deliver(Addr, Mk(Alias)),
+                 deliver(Address, Mk(Reply)),
                  timed(),
-                 try await(Alias, Deadline, Check) after untimed() end
+                 try waited_answer(Reply, Deadline, Check) after untimed() end
              after
-                 settled(Alias)
+                 settled(Reply)
              end,
     case Answer of
         %% report §6.9: a restart asked for is taken at a call's wait
@@ -223,64 +225,64 @@ call(Addr, Mk, Ms, Check) ->
 
 %% Report §6.6: the answer, or None after the deadline, or at once when the
 %% callee ends or restarts before it answers.
-await(Alias, Deadline, Check) ->
+waited_answer(Reply, Deadline, Check) ->
     receive
-        {Alias, answered, V} -> {'Some', V};
-        {Alias, V} -> {'Some', foreign_answer(Check, V)};
-        {Alias, restarted, _} -> 'None';
-        {Alias, fault, Cause} -> fault(Cause);
-        {'DOWN', Alias, process, _, _} -> 'None';
+        {Reply, answered, Value} -> {'Some', Value};
+        {Reply, Value} -> {'Some', foreign_answer(Check, Value)};
+        {Reply, restarted, _} -> 'None';
+        {Reply, fault, Cause} -> fault(Cause);
+        {'DOWN', Reply, process, _, _} -> 'None';
         '$ern_restart' -> '$ern_restart'
     after remaining(Deadline) ->
         case remaining(Deadline) of
             0 -> 'None';
-            _ -> await(Alias, Deadline, Check)
+            _ -> waited_answer(Reply, Deadline, Check)
         end
     end.
 
 %% Report §6.6: the runtime's own callForever (§8.4).
 -spec call_forever(address(), fun((reply()) -> term())) -> term().
-call_forever(Addr, Mk) ->
-    call_forever(Addr, Mk, none).
+call_forever(Address, Mk) ->
+    call_forever(Address, Mk, none).
 
 %% Report §6.6, §8.4: a program's callForever, whose answer from foreign
 %% code is checked by Check.
 -spec call_forever(address(), fun((reply()) -> term()), check()) -> term().
-call_forever(Addr, Mk, Check) ->
-    line_guard(Addr),
-    Alias = pending(Addr),
+call_forever(Address, Mk, Check) ->
+    line_guard(Address),
+    Reply = pending(Address),
     %% settled however the call ends, as call/4's is
     Answer = try
-                 deliver(Addr, Mk(Alias)),
+                 deliver(Address, Mk(Reply)),
                  receive
-                     {Alias, answered, Value} -> {answered, Value};
-                     {Alias, Value} -> {answered, foreign_answer(Check, Value)};
-                     {Alias, restarted, Restarted} -> {fault, Restarted};
+                     {Reply, answered, Value} -> {answered, Value};
+                     {Reply, Value} -> {answered, foreign_answer(Check, Value)};
+                     {Reply, restarted, Restarted} -> {fault, Restarted};
                      %% report §8.2: a system process faults the caller it
                      %% answers
-                     {Alias, fault, Faulted} -> {fault, Faulted};
-                     {'DOWN', Alias, process, _, Ended} -> {ended, Ended};
+                     {Reply, fault, Faulted} -> {fault, Faulted};
+                     {'DOWN', Reply, process, _, Ended} -> {ended, Ended};
                      %% report §6.9: a restart asked for is taken at a call's
                      %% wait
                      '$ern_restart' -> restart
                  end
              after
-                 settled(Alias)
+                 settled(Reply)
              end,
     case Answer of
-        {answered, V} -> V;
+        {answered, Answered} -> Answered;
         {fault, Cause} -> fault(Cause);
         %% report §6.6, Appendix E.18: a socket or a listener the program
         %% closed ended as a function returns, and its caller learns why
         {ended, {ern, closed}} -> fault(<<"callee was closed">>);
-        {ended, How} -> ended(reason(How));
+        {ended, ExitReason} -> ended(reason(ExitReason));
         restart -> restart_now()
     end.
 
 %% Report §8.4: an answer foreign code gave, checked against the reply's
 %% type as a foreign function's return is.
-foreign_answer(none, V) -> V;
-foreign_answer({D, Text}, V) -> ern_boundary:value(D, V, Text).
+foreign_answer(none, Value) -> Value;
+foreign_answer({Descriptor, Text}, Value) -> ern_boundary:value(Descriptor, Value, Text).
 
 %% Report §6.6, §7.4: a callForever whose callee ended faults the caller with
 %% the callee's cause, or says how it ended; with the program the caller
@@ -298,20 +300,20 @@ ended('ProgramEnd') ->
 %% A call's monitor of the process behind the address, whose alias is the
 %% reply's, and the call noted against that process, so that its restart
 %% ends the call.
-pending(Addr) ->
-    Callee = process_of(Addr),
-    Alias = erlang:monitor(process, Callee, [{alias, demonitor}]),
-    ets:insert(?CALLS, {erlang:self(), Callee, Alias}),
-    ets:insert(?CALLEES, {{Callee, erlang:self()}, Alias}),
-    Alias.
+pending(Address) ->
+    Callee = process_of(Address),
+    Reply = erlang:monitor(process, Callee, [{alias, demonitor}]),
+    ets:insert(?CALLS, {erlang:self(), Callee, Reply}),
+    ets:insert(?CALLEES, {{Callee, erlang:self()}, Reply}),
+    Reply.
 
 %% The call is over: its rows go, its monitor and with it the alias go, and
 %% every answer that came before them, after a restart's word, say, is not
 %% left in the caller's mailbox.
-settled(Alias) ->
+settled(Reply) ->
     uncalled(erlang:self()),
-    erlang:demonitor(Alias, [flush]),
-    flushed(Alias).
+    erlang:demonitor(Reply, [flush]),
+    flushed(Reply).
 
 %% The pending call of Caller, gone from both tables.
 uncalled(Caller) ->
@@ -320,10 +322,10 @@ uncalled(Caller) ->
         [] -> true
     end.
 
-flushed(Alias) ->
+flushed(Reply) ->
     receive
-        {Alias, _} -> flushed(Alias);
-        {Alias, _, _} -> flushed(Alias)
+        {Reply, _} -> flushed(Reply);
+        {Reply, _, _} -> flushed(Reply)
     after 0 ->
         ok
     end.
@@ -332,19 +334,19 @@ flushed(Alias) ->
 %% Reply foreign code gave back, which the caller checks and which crosses
 %% into foreign code.
 -spec answer(reply(), term()) -> 'Unit'.
-answer({foreign_reply, Alias, D, B}, V) ->
-    Alias ! {Alias, ern_boundary:expose(D, V, B)},
+answer({foreign_reply, Reply, Descriptor, Bound}, Value) ->
+    Reply ! {Reply, ern_boundary:expose(Descriptor, Value, Bound)},
     ?UNIT;
-answer(Alias, V) ->
-    Alias ! {Alias, answered, V},
+answer(Reply, Value) ->
+    Reply ! {Reply, answered, Value},
     ?UNIT.
 
 %% Report §8.2, §7.4: a system process faults the caller it answers.
 -spec refuse(reply(), binary()) -> 'Unit'.
-refuse({foreign_reply, Alias, _, _}, Cause) ->
-    refuse(Alias, Cause);
-refuse(Alias, Cause) ->
-    Alias ! {Alias, fault, Cause},
+refuse({foreign_reply, Reply, _, _}, Cause) ->
+    refuse(Reply, Cause);
+refuse(Reply, Cause) ->
+    Reply ! {Reply, fault, Cause},
     ?UNIT.
 
 %%
@@ -353,21 +355,22 @@ refuse(Alias, Cause) ->
 
 %% Every monitor is the reaper's: it holds the wrap and delivers the cause,
 %% at once if the process is already dead. A process the runtime did not
-%% start, a system process, a socket or a running program, is watched from
+%% start, a system process, a socket or a running program, is monitored from
 %% there too, so a monitor costs no process of its own (report §6.9). The
 %% monitor is made when the reaper says so, so that a process killed just
 %% after it is seen to die rather than found already ended.
 -spec monitor(address(), fun((term()) -> term())) -> 'Unit'.
-monitor(Addr, Wrap) ->
+monitor(Address, Wrap) ->
     Ref = make_ref(),
-    persistent_term:get({?MODULE, reaper}) ! {await, process_of(Addr), erlang:self(), Wrap, Ref},
-    receive {Ref, watched} -> ?UNIT end.
+    persistent_term:get({?MODULE, reaper}) ! {monitor, process_of(Address), erlang:self(), Wrap,
+                                              Ref},
+    receive {Ref, monitored} -> ?UNIT end.
 
 -spec kill(address()) -> 'Unit'.
-kill(Addr) ->
+kill(Address) ->
     %% report §8.2: no program can name a system process, whose reference is
     %% private to its module, so any address given here is a program's
-    exit(process_of(Addr), {ern, killed}),
+    exit(process_of(Address), {ern, killed}),
     ?UNIT.
 
 -spec reason(term()) -> term().
@@ -380,127 +383,133 @@ reason({ern, program_end}) -> 'ProgramEnd';
 %% report §7.3, §11.2: a process still in a version of a module the shell
 %% has replaced twice
 reason({ern, code_unloaded}) -> {'Fault', <<"its code was unloaded">>};
-reason({ern, fault, Msg}) -> {'Fault', Msg};
+reason({ern, fault, Cause}) -> {'Fault', Cause};
 %% report §6.9, §11.2: the host's stack is the report's, never the cause's
-reason({ern, fault, Msg, _Trace}) -> {'Fault', Msg};
+reason({ern, fault, Cause, _Trace}) -> {'Fault', Cause};
 %% report §6.9: a monitor made after the end cannot say how it ended
 reason(noproc) -> 'Unknown';
 reason(Other) -> {'Fault', format("~p", [Other])}.
 
-%% The reaper: spawns on request with a monitor, keeps each live process's
-%% row, and tells whoever awaits a process how it ended. Report §6.9: of a
-%% process that has ended it keeps nothing, so a monitor made after the end
-%% answers Unknown. Waiters: #{Pid => [{To, Wrap}]}; Wrap(Down) is sent to
-%% To, or for the launcher, whose wait is made with the spawn so that no
-%% race can take the entry process's cause, {raw, Tag}: {Tag, Site, Reason}.
-%% Watching: #{To => [Pid]}, the processes each waiter awaits, so that a
-%% waiter's death takes its waits with it: nothing is left to deliver them
-%% to. Watched: #{Pid => MRef}, a process the runtime did not start, watched
-%% here only while someone awaits it.
-reaper_loop(Waiters, Watching, Watched) ->
+%% The reaper: spawns on request with a monitor of its own, keeps each live
+%% process's row, and tells each process that monitors another how it
+%% ended. Report §6.9: of a process that has ended it keeps nothing, so a
+%% monitor made after the end answers Unknown. Monitors: #{Pid => [{Caller,
+%% Wrap}]}, the monitors of each process and the process that made each;
+%% Wrap(Down) is sent to Caller, or for the runner, whose monitor is made
+%% with the spawn so that no race can take the entry process's cause,
+%% {raw, Tag}: {Tag, Site, ExitReason}. Monitoring: #{Caller => [Pid]}, the
+%% processes each caller monitors, so that a caller's death takes its
+%% monitors with it: nothing is left to deliver them to. MonitorRefs: #{Pid
+%% => MonitorRef}, a process the runtime did not start, monitored here only
+%% while a monitor of it stands.
+reaper_loop(Monitors, Monitoring, MonitorRefs) ->
     receive
-        {spawn, From, Ref, Fun, Site, Awaits} ->
+        {spawn, From, Ref, Function, Site, SpawnMonitors} ->
             %% the process starts once its row is in the table, since a
             %% timed receive it enters first counts itself there (§8.6)
-            {Pid, _MRef} = erlang:spawn_monitor(fun() -> receive Ref -> run(Fun) end end),
+            Started = fun() -> receive Ref -> run(Function) end end,
+            {Pid, _MonitorRef} = erlang:spawn_monitor(Started),
             ets:insert(?PROCESSES, {Pid, Site, 0, 0, spawn_number()}),
             Pid ! Ref,
             From ! {Ref, Pid},
-            %% a wait made with the spawn, spawnMonitored's, is watched as
-            %% monitor's is
-            Watching1 = lists:foldl(fun({To, _}, W) ->
-                                        maps:update_with(To, fun(L) -> [Pid | L] end, [Pid], W)
-                                    end, Watching, Awaits),
-            reaper_loop(case Awaits of [] -> Waiters; _ -> Waiters#{Pid => Awaits} end,
-                        Watching1, Watched);
+            %% a monitor made with the spawn, spawnMonitored's, stands as
+            %% monitor's does
+            Monitoring1 = lists:foldl(fun({Caller, _}, Acc) -> added(Caller, Pid, Acc) end,
+                                      Monitoring, SpawnMonitors),
+            Monitors1 = case SpawnMonitors of
+                            [] -> Monitors;
+                            _ -> Monitors#{Pid => SpawnMonitors}
+                        end,
+            reaper_loop(Monitors1, Monitoring1, MonitorRefs);
         {adopt, Pid, Site, From, Ref} ->
             %% report Appendix E.18, E.23: a listener, a socket or a running
             %% program, which its system process starts, is a process of the
-            %% program's as one spawned is, watched here and listed
+            %% program's as one spawned is, monitored here and listed
             _ = erlang:monitor(process, Pid),
             ets:insert(?PROCESSES, {Pid, Site, 0, 0, spawn_number()}),
             From ! {Ref, adopted},
-            reaper_loop(Waiters, Watching, Watched);
-        {await, Pid, To, Wrap, Ref} ->
-            Watched1 = case ets:lookup(?PROCESSES, Pid) of
-                           [] when not is_map_key(Pid, Watched) ->
-                               %% not one the runtime started, so it is watched
-                               %% from here; report §8.6: its death would deliver
-                               %% a message, which is a source while it is awaited
-                               source_begin(),
-                               Watched#{Pid => erlang:monitor(process, Pid)};
-                           _ ->
-                               Watched
-                       end,
-            To ! {Ref, watched},
-            reaper_loop(maps:update_with(Pid, fun(L) -> [{To, Wrap} | L] end, [{To, Wrap}],
-                                         Waiters),
-                        maps:update_with(To, fun(L) -> [Pid | L] end, [Pid], Watching),
-                        Watched1);
+            reaper_loop(Monitors, Monitoring, MonitorRefs);
+        {monitor, Pid, Caller, Wrap, Ref} ->
+            MonitorRefs1 = case ets:lookup(?PROCESSES, Pid) of
+                               [] when not is_map_key(Pid, MonitorRefs) ->
+                                   %% not one the runtime started, so it is
+                                   %% monitored from here; report §8.6: its
+                                   %% death would deliver a message, which is
+                                   %% a source while a monitor of it stands
+                                   source_begin(),
+                                   MonitorRefs#{Pid => erlang:monitor(process, Pid)};
+                               _ ->
+                                   MonitorRefs
+                           end,
+            Caller ! {Ref, monitored},
+            reaper_loop(added(Pid, {Caller, Wrap}, Monitors), added(Caller, Pid, Monitoring),
+                        MonitorRefs1);
         {report, Pid, Site, Fault} ->
             report(Pid, Site, Fault, true),
-            reaper_loop(Waiters, Watching, Watched);
+            reaper_loop(Monitors, Monitoring, MonitorRefs);
         {new_run, Pid, Ref} ->
-            %% report §6.9: a restarted process's waits and its subscription
-            %% to faults are cancelled, with what is on its way to it; the
-            %% waits on it stand, since a restart is not a death
+            %% report §6.9: a restarted process's monitors and its
+            %% subscription to faults are cancelled, with what is on its way
+            %% to it; the monitors of it stand, since a restart is not a death
             ets:delete(?FAULTS, Pid),
-            {Waiters1, Watched1} = unwatched(Pid, maps:get(Pid, Watching, []), Waiters, Watched),
+            {Monitors1, MonitorRefs1} = unmonitored(Pid, maps:get(Pid, Monitoring, []), Monitors,
+                                                    MonitorRefs),
             cancelled(Pid),
             Pid ! {Ref, fresh},
-            reaper_loop(Waiters1, maps:remove(Pid, Watching), Watched1);
+            reaper_loop(Monitors1, maps:remove(Pid, Monitoring), MonitorRefs1);
         {end_program, From, Ref} ->
             ended_program(From, Ref);
-        {'DOWN', _MRef, process, Pid, Reason} ->
+        {'DOWN', _MonitorRef, process, Pid, ExitReason} ->
             case ets:take(?PROCESSES, Pid) of
                 [{_, Site, _, _, _}] ->
                     %% its pending call, which a process killed while it
                     %% waited leaves; a caller learns of a callee's end by
                     %% its own monitor, and removes its own
                     uncalled(Pid),
-                    died(Pid, Site, Reason),
-                    lists:foreach(fun({To, {raw, Tag}}) -> To ! {Tag, Site, Reason};
-                                     ({To, Wrap}) ->
-                                          wrapped(To, Wrap, {'Down', Pid, reason(Reason), Site})
-                                  end, maps:get(Pid, Waiters, []));
+                    died(Pid, Site, ExitReason),
+                    Down = {'Down', Pid, reason(ExitReason), Site},
+                    lists:foreach(fun({Caller, {raw, Tag}}) -> Caller ! {Tag, Site, ExitReason};
+                                     ({Caller, Wrap}) -> wrapped(Caller, Wrap, Down)
+                                  end, maps:get(Pid, Monitors, []));
                 [] ->
                     %% report §6.9: the spawn site of a process the runtime
                     %% did not start, or of one that had ended, is not known
-                    lists:foreach(fun({To, Wrap}) ->
-                                      wrapped(To, Wrap, {'Down', Pid, reason(Reason), <<>>})
-                                  end, maps:get(Pid, Waiters, [])),
-                    is_map_key(Pid, Watched) andalso source_end()
+                    Down = {'Down', Pid, reason(ExitReason), <<>>},
+                    lists:foreach(fun({Caller, Wrap}) -> wrapped(Caller, Wrap, Down) end,
+                                  maps:get(Pid, Monitors, [])),
+                    is_map_key(Pid, MonitorRefs) andalso source_end()
             end,
-            case is_map_key(Pid, Waiters) orelse is_map_key(Pid, Watching)
-                orelse is_map_key(Pid, Watched) of
+            case is_map_key(Pid, Monitors) orelse is_map_key(Pid, Monitoring)
+                orelse is_map_key(Pid, MonitorRefs) of
                 false ->
-                    %% nothing awaited it, and it awaited nothing
-                    reaper_loop(Waiters, Watching, Watched);
+                    %% nothing monitored it, and it monitored nothing
+                    reaper_loop(Monitors, Monitoring, MonitorRefs);
                 true ->
-                    %% its waiters no longer await it, and its own waits go
-                    Watching1 = lists:foldl(fun({To, _}, W) -> forgotten(To, Pid, W) end,
-                                            maps:remove(Pid, Watching),
-                                            maps:get(Pid, Waiters, [])),
-                    {Waiters1, Watched1} = unwatched(Pid, maps:get(Pid, Watching, []),
-                                                     maps:remove(Pid, Waiters),
-                                                     maps:remove(Pid, Watched)),
-                    reaper_loop(Waiters1, Watching1, Watched1)
+                    %% the monitors of it go, and its own go
+                    Monitoring1 = lists:foldl(fun({Caller, _}, Acc) ->
+                                                  forgotten(Caller, Pid, Acc)
+                                              end, maps:remove(Pid, Monitoring),
+                                              maps:get(Pid, Monitors, [])),
+                    {Monitors1, MonitorRefs1} = unmonitored(Pid, maps:get(Pid, Monitoring, []),
+                                                            maps:remove(Pid, Monitors),
+                                                            maps:remove(Pid, MonitorRefs)),
+                    reaper_loop(Monitors1, Monitoring1, MonitorRefs1)
             end
     after 100 ->
         case deadlocked() of
             true ->
                 %% report §8.6, §11.2: the entry process's fault, or under
                 %% `ern test` the fault of the test that runs
-                case ets:take(?PROCESSES, deadlock_target) of
-                    [{_, Target}] ->
-                        exit(Target, {ern, fault, <<"deadlock">>});
+                case ets:take(?PROCESSES, deadlock_victim) of
+                    [{_, Victim}] ->
+                        exit(Victim, {ern, fault, <<"deadlock">>});
                     [] ->
-                        {Launcher, Run} = persistent_term:get({?MODULE, launcher}),
-                        Launcher ! {deadlock, Run}
+                        {Runner, Launch} = persistent_term:get({?MODULE, runner}),
+                        Runner ! {deadlock, Launch}
                 end;
             false -> ok
         end,
-        reaper_loop(Waiters, Watching, Watched)
+        reaper_loop(Monitors, Monitoring, MonitorRefs)
     end.
 
 %% Appendix E.22: a number that grows with each process the reaper starts
@@ -520,30 +529,36 @@ ended_program(From, Ref) ->
 ended_program() ->
     receive _ -> ended_program() end.
 
-%% A process a waiter awaited, taken from what the waiter watches once the
-%% process has ended; and the clock's timer that fired, taken from its
-%% target's. A key left with none goes.
-forgotten(To, Pid, Watching) ->
-    case maps:get(To, Watching, []) -- [Pid] of
-        [] -> maps:remove(To, Watching);
-        Left -> Watching#{To => Left}
+%% Lists, a map to lists, with Value added to Key's list.
+added(Key, Value, Lists) ->
+    maps:update_with(Key, fun(Values) -> [Value | Values] end, [Value], Lists).
+
+%% Lists, a map to lists, with Gone taken from Key's list, and Key gone with
+%% the list's last: a process that ended, from the processes its caller
+%% monitors; the clock's timer that fired, from its recipient's.
+forgotten(Key, Gone, Lists) ->
+    case maps:get(Key, Lists, []) -- [Gone] of
+        [] -> maps:remove(Key, Lists);
+        Left -> Lists#{Key => Left}
     end.
 
-%% The waits of a waiter that died, taken from the processes it awaited. A
-%% process the runtime did not start that no one awaits any longer is no
-%% longer watched, and no longer a source (report §8.6).
-unwatched(_To, [], Waiters, Watched) ->
-    {Waiters, Watched};
-unwatched(To, [Pid | Rest], Waiters, Watched) ->
-    case [W || {By, _} = W <- maps:get(Pid, Waiters, []), By =/= To] of
-        [] when is_map_key(Pid, Watched) ->
-            erlang:demonitor(maps:get(Pid, Watched), [flush]),
+%% The monitors of a caller that died, taken from the processes it
+%% monitored. A process the runtime did not start that no monitor stands of
+%% any longer is no longer monitored, and no longer a source (report
+%% §8.6).
+unmonitored(_Caller, [], Monitors, MonitorRefs) ->
+    {Monitors, MonitorRefs};
+unmonitored(Caller, [Pid | Rest], Monitors, MonitorRefs) ->
+    case [Monitor || {OtherCaller, _} = Monitor <- maps:get(Pid, Monitors, []),
+                     OtherCaller =/= Caller] of
+        [] when is_map_key(Pid, MonitorRefs) ->
+            erlang:demonitor(maps:get(Pid, MonitorRefs), [flush]),
             source_end(),
-            unwatched(To, Rest, maps:remove(Pid, Waiters), maps:remove(Pid, Watched));
+            unmonitored(Caller, Rest, maps:remove(Pid, Monitors), maps:remove(Pid, MonitorRefs));
         [] ->
-            unwatched(To, Rest, maps:remove(Pid, Waiters), Watched);
+            unmonitored(Caller, Rest, maps:remove(Pid, Monitors), MonitorRefs);
         Left ->
-            unwatched(To, Rest, Waiters#{Pid => Left}, Watched)
+            unmonitored(Caller, Rest, Monitors#{Pid => Left}, MonitorRefs)
     end.
 
 %% Report §6.9, §6.5: a monitor's wrap is applied as `via`'s function is, a
@@ -551,41 +566,43 @@ unwatched(To, [Pid | Rest], Waiters, Watched) ->
 %% process of its own, so that a wrap that does not finish holds up no
 %% other delivery. The message counts as a source until it is delivered
 %% (§8.6). Linked, so that one that never finishes ends with the program.
-wrapped(To, Wrap, Msg) ->
-    counted_link(To, fun() -> deliver({via, Wrap, To}, Msg) end).
+wrapped(Caller, Wrap, Down) ->
+    counted_link(Caller, fun() -> deliver({via, Wrap, Caller}, Down) end).
 
 %% Report §8.6: a process that will deliver a message to the process behind
-%% To, counted as a source from before it starts until its work is done,
+%% Address, counted as a source from before it starts until its work is done,
 %% and linked, so that one that never finishes ends with the process that
-%% started it. Report §6.9: it is noted against its target and the process
-%% that started it, which ends it when the target restarts (cancelled/1).
-counted_link(To, Work) ->
-    Target = process_of(To),
+%% started it. Report §6.9: it is noted against its recipient and the
+%% process that started it, which ends it when the recipient restarts
+%% (cancelled/1).
+counted_link(Address, Work) ->
+    Recipient = process_of(Address),
     Starter = erlang:self(),
     Pid = erlang:spawn_link(fun() ->
-                                receive go -> Work(), delivered(Target, Starter) end
+                                receive go -> Work(), delivered(Recipient, Starter) end
                             end),
-    try ets:insert(?DELIVERIES, {{Target, Starter, Pid}}) catch _:_ -> true end,
+    try ets:insert(?DELIVERIES, {{Recipient, Starter, Pid}}) catch _:_ -> true end,
     source_begin(Pid),
     Pid ! go.
 
-delivered(Target, Starter) ->
-    try ets:delete(?DELIVERIES, {Target, Starter, erlang:self()}) catch _:_ -> true end,
+delivered(Recipient, Starter) ->
+    try ets:delete(?DELIVERIES, {Recipient, Starter, erlang:self()}) catch _:_ -> true end,
     source_end().
 
-%% Report §6.9: the deliveries this process started to Target, ended when
-%% Target restarts, each waited for, so that none reaches the new run.
-cancelled(Target) ->
+%% Report §6.9: the deliveries this process started to Recipient, ended
+%% when Recipient restarts, each waited for, so that none reaches the new
+%% run.
+cancelled(Recipient) ->
     Starter = erlang:self(),
-    Mine = try ets:select(?DELIVERIES, [{{{Target, Starter, '$1'}}, [], ['$1']}])
+    Mine = try ets:select(?DELIVERIES, [{{{Recipient, Starter, '$1'}}, [], ['$1']}])
            catch _:_ -> []
            end,
     lists:foreach(fun(Pid) ->
-                      MRef = erlang:monitor(process, Pid),
+                      MonitorRef = erlang:monitor(process, Pid),
                       erlang:unlink(Pid),
                       exit(Pid, kill),
-                      receive {'DOWN', MRef, process, Pid, _} -> ok end,
-                      ets:delete(?DELIVERIES, {Target, Starter, Pid}),
+                      receive {'DOWN', MonitorRef, process, Pid, _} -> ok end,
+                      ets:delete(?DELIVERIES, {Recipient, Starter, Pid}),
                       ets:delete(?HELD, {source, Pid})
                   end, Mine).
 
@@ -635,12 +652,12 @@ matching_rows(Table, Pattern) ->
     try ets:match_object(Table, Pattern) catch _:_ -> [] end.
 
 %% Appendix E.21: Process.faults, the caller subscribed to every fault of
-%% every process the runtime started, To being the caller seen through its
+%% every process the runtime started, Address being the caller seen through its
 %% wrap. A process holds one subscription, the latest, which ends when it
 %% dies (the reaper's DOWN).
 -spec faults(address()) -> 'Unit'.
-faults(To) ->
-    try ets:insert(?FAULTS, {process_of(To), To}) catch _:_ -> true end,
+faults(Address) ->
+    try ets:insert(?FAULTS, {process_of(Address), Address}) catch _:_ -> true end,
     ?UNIT.
 
 %% Report §11.2, Appendix E.21: a fault, which each subscriber is sent as a
@@ -652,8 +669,8 @@ faults(To) ->
 %% as long as the run; a process that restarts sends it its fault.
 report(Pid, Site, Fault, Restarted) ->
     {Cause, Trace} = case Fault of
-                         {ern, fault, Msg, Text} -> {Msg, Text};
-                         {ern, fault, Msg} -> {Msg, <<>>};
+                         {ern, fault, FaultCause, FaultTrace} -> {FaultCause, FaultTrace};
+                         {ern, fault, FaultCause} -> {FaultCause, <<>>};
                          _ -> {element(2, reason(Fault)), <<>>}
                      end,
     Report = {'FaultReport', Pid, Site, Cause, Restarted, Trace},
@@ -661,8 +678,10 @@ report(Pid, Site, Fault, Restarted) ->
         undefined -> ok;
         Reporter -> Reporter(Report)
     end,
-    Subscribers = [To || {_, To} <- matching_rows(?FAULTS, '_')],
-    lists:foreach(fun(To) -> counted_link(To, fun() -> deliver(To, Report) end) end, Subscribers).
+    Subscribers = [Address || {_, Address} <- matching_rows(?FAULTS, '_')],
+    lists:foreach(fun(Address) ->
+                      counted_link(Address, fun() -> deliver(Address, Report) end)
+                  end, Subscribers).
 
 %% The live processes' rows, each its pid, its spawn site, the counts of its
 %% timed waits and of its foreign calls in progress, and its spawn number.
@@ -671,11 +690,11 @@ live_rows() ->
 
 %% Report §6.9, §11.2: a process that ended faulting is reported, and a
 %% subscription to faults it held ends with it.
-died(Pid, Site, Reason) ->
+died(Pid, Site, ExitReason) ->
     ets:delete(?FAULTS, Pid),
     ets:delete(?PROCESSES, {restart, Pid}),
-    case reason(Reason) of
-        {'Fault', _} -> report(Pid, Site, Reason, false);
+    case reason(ExitReason) of
+        {'Fault', _} -> report(Pid, Site, ExitReason, false);
         _ -> ok
     end.
 
@@ -707,7 +726,7 @@ deadlocked() ->
                     Pids = [Pid || {Pid, _, _, _, _} <- live_rows()],
                     First = snapshot(Pids),
                     Pids =/= []
-                        andalso lists:all(fun({_, S, _}) -> S =:= waiting end, First)
+                        andalso lists:all(fun({_, Status, _}) -> Status =:= waiting end, First)
                         andalso nothing_delivers()
                         andalso snapshot(Pids) =:= First
                 end.
@@ -752,7 +771,7 @@ quiet(Pid) ->
 
 snapshot(Pids) ->
     [case erlang:process_info(Pid, [status, reductions]) of
-         [{status, S}, {reductions, R}] -> {Pid, S, R};
+         [{status, Status}, {reductions, Reductions}] -> {Pid, Status, Reductions};
          undefined -> {Pid, dead, 0}
      end || Pid <- Pids].
 
@@ -820,7 +839,7 @@ source_end() ->
 
 sources() ->
     try
-        lists:sum([N || [N] <- ets:match(?HELD, {{source, '_'}, '$1'})])
+        lists:sum([Count || [Count] <- ets:match(?HELD, {{source, '_'}, '$1'})])
     catch _:_ ->
         1
     end.
@@ -889,9 +908,9 @@ monotonic() ->
 
 %% Report §8.4, §8.6: a process inside foreign code is not waiting.
 -spec in_foreign(fun(() -> term())) -> term().
-in_foreign(Fun) ->
+in_foreign(Function) ->
     count(4, 1),
-    try Fun() after count(4, -1) end.
+    try Function() after count(4, -1) end.
 
 %% Report §8.6: the host loads a module at the first call into it, and the
 %% caller waits on the code server meanwhile, which is the host's work and
@@ -899,20 +918,20 @@ in_foreign(Fun) ->
 %% module as its error handler (run/1), which counts the load as a foreign
 %% call is counted and leaves the call itself to the host's handler.
 -spec undefined_function(module(), atom(), [term()]) -> term().
-undefined_function(Mod, F, Args) ->
-    load(Mod),
-    error_handler:undefined_function(Mod, F, Args).
+undefined_function(ErlangModule, Function, Args) ->
+    load(ErlangModule),
+    error_handler:undefined_function(ErlangModule, Function, Args).
 
 -spec undefined_lambda(module(), fun(), [term()]) -> term().
-undefined_lambda(Mod, Fun, Args) ->
-    load(Mod),
-    error_handler:undefined_lambda(Mod, Fun, Args).
+undefined_lambda(ErlangModule, Function, Args) ->
+    load(ErlangModule),
+    error_handler:undefined_lambda(ErlangModule, Function, Args).
 
-load(Mod) ->
-    in_foreign(fun() -> code:ensure_loaded(Mod) end).
+load(ErlangModule) ->
+    in_foreign(fun() -> code:ensure_loaded(ErlangModule) end).
 
-count(Pos, D) ->
-    try ets:update_counter(?PROCESSES, erlang:self(), {Pos, D}) of
+count(Field, Increment) ->
+    try ets:update_counter(?PROCESSES, erlang:self(), {Field, Increment}) of
         _ -> ok
     catch
         error:badarg -> ok
@@ -922,46 +941,46 @@ count(Pos, D) ->
 %% Report §7: a process body; an exception is a fault
 %%
 
-run(Fun) ->
+run(Function) ->
     erlang:process_flag(error_handler, ?MODULE),
     try
-        Fun()
+        Function()
     catch
-        Class:Reason:Stack -> exit(fault_reason(Class, Reason, Stack))
+        Class:Error:Stack -> exit(fault_exit_reason(Class, Error, Stack))
     end.
 
 %% Report §7.3, §7.4: what a host error is as an Ernest fault. A failure of
 %% the runtime is the host's class and reason, and carries the host's stack
 %% beside it for the report a person reads (§11.2).
--spec fault_reason(error | exit | throw, term(), list()) -> tuple().
-fault_reason(error, badarith, _) -> {ern, fault, <<"division by zero">>};
-fault_reason(throw, {ern, fault, Msg}, _) -> {ern, fault, Msg};
-fault_reason(throw, {ern, fault, Msg, Trace}, _) -> {ern, fault, Msg, Trace};
-fault_reason(Class, Reason, Stack) ->
-    {ern, fault, format("~p:~p", [Class, Reason]), trace(Stack)}.
+-spec fault_exit_reason(error | exit | throw, term(), list()) -> tuple().
+fault_exit_reason(error, badarith, _) -> {ern, fault, <<"division by zero">>};
+fault_exit_reason(throw, {ern, fault, Cause}, _) -> {ern, fault, Cause};
+fault_exit_reason(throw, {ern, fault, Cause, Trace}, _) -> {ern, fault, Cause, Trace};
+fault_exit_reason(Class, Error, Stack) ->
+    {ern, fault, format("~p:~p", [Class, Error]), trace(Stack)}.
 
 %% Report §7.4, §9.6: a fault with the cause given, the prelude's `fault`
 %% and every fault the runtime raises.
 -spec fault(binary()) -> no_return().
-fault(Msg) ->
-    throw({ern, fault, Msg}).
+fault(Cause) ->
+    throw({ern, fault, Cause}).
 
 %% A fault with the host's stack beside its cause, a foreign function's
 %% raise (§7.4).
 -spec fault(binary(), binary()) -> no_return().
-fault(Msg, Trace) ->
-    throw({ern, fault, Msg, Trace}).
+fault(Cause, Trace) ->
+    throw({ern, fault, Cause, Trace}).
 
 %% Report §11.2: the host's stack as lines to print beneath a fault, the
 %% innermost first, each a function and where in its source it was.
 -spec trace([tuple()]) -> binary().
 trace(Stack) ->
     unicode:characters_to_binary(
-      [io_lib:format("    ~p:~p/~p~ts~n", [M, F, arity(A), place(Info)])
-       || {M, F, A, Info} <- lists:sublist(Stack, 12)]).
+      [io_lib:format("    ~p:~p/~p~ts~n", [ErlangModule, Function, arity(Arguments), place(Info)])
+       || {ErlangModule, Function, Arguments, Info} <- lists:sublist(Stack, 12)]).
 
-arity(A) when is_list(A) -> length(A);
-arity(A) -> A.
+arity(Arguments) when is_list(Arguments) -> length(Arguments);
+arity(Arguments) -> Arguments.
 
 place(Info) ->
     case {proplists:get_value(file, Info), proplists:get_value(line, Info)} of
@@ -974,8 +993,8 @@ place(Info) ->
 %% Report §8.2, §9.7: system references
 %%
 
--spec sys(system()) -> address().
-sys(Name) ->
+-spec system_process(system()) -> address().
+system_process(Name) ->
     persistent_term:get({?MODULE, Name}).
 
 %% Report §8.2: stdout and stderr each write what they receive, as bytes,
@@ -989,21 +1008,21 @@ sys(Name) ->
 stream({fd, Fd}, Name) ->
     process_flag(trap_exit, true),
     port_loop(erlang:open_port({fd, 0, Fd}, [out, binary]), Name);
-stream(Out, _Name) ->
-    stdout_loop(Out).
+stream(Write, _Name) ->
+    stdout_loop(Write).
 
-stdout_loop(Out) ->
+stdout_loop(Write) ->
     receive
         {flush, From, Ref} ->
             From ! {Ref, flushed},
-            stdout_loop(Out);
-        {'Write', Bin, Reply} ->
-            Out(Bin),
+            stdout_loop(Write);
+        {'Write', Bytes, Reply} ->
+            Write(Bytes),
             answer(Reply, ?UNIT),
-            stdout_loop(Out);
-        Bin when is_binary(Bin) ->
-            Out(Bin),
-            stdout_loop(Out)
+            stdout_loop(Write);
+        Bytes when is_binary(Bytes) ->
+            Write(Bytes),
+            stdout_loop(Write)
     end.
 
 port_loop(Port, Name) ->
@@ -1013,13 +1032,13 @@ port_loop(Port, Name) ->
                 ok -> From ! {Ref, flushed}, port_loop(Port, Name);
                 gone -> gone(Name)
             end;
-        {'Write', Bin, Reply} ->
-            case written(Port, Bin) of
+        {'Write', Bytes, Reply} ->
+            case written(Port, Bytes) of
                 ok -> answer(Reply, ?UNIT), port_loop(Port, Name);
                 gone -> gone(Name)
             end;
-        Bin when is_binary(Bin) ->
-            case written(Port, Bin) of
+        Bytes when is_binary(Bytes) ->
+            case written(Port, Bytes) of
                 ok -> port_loop(Port, Name);
                 gone -> gone(Name)
             end;
@@ -1027,8 +1046,8 @@ port_loop(Port, Name) ->
             gone(Name)
     end.
 
-written(Port, Bin) ->
-    try erlang:port_command(Port, Bin) of
+written(Port, Bytes) ->
+    try erlang:port_command(Port, Bytes) of
         true -> ok
     catch
         error:badarg -> gone
@@ -1043,8 +1062,8 @@ drained(Port) ->
     end.
 
 gone(Name) ->
-    {Launcher, Run} = persistent_term:get({?MODULE, launcher}),
-    Launcher ! {gone, Run, Name},
+    {Runner, Launch} = persistent_term:get({?MODULE, runner}),
+    Runner ! {gone, Launch, Name},
     dropping().
 
 %% Report §11: a stream that has gone writes nothing more, and the program
@@ -1065,8 +1084,8 @@ dropping() ->
 %% for the shell is recorded as its holder; §8.2's case then faults anything
 %% else that asks for keys. The shell claims it before it runs any input.
 -spec hold_terminal(address()) -> 'Unit'.
-hold_terminal(Addr) ->
-    persistent_term:put({?MODULE, holder}, process_of(Addr)),
+hold_terminal(Address) ->
+    persistent_term:put({?MODULE, holder}, process_of(Address)),
     ?UNIT.
 
 -spec terminal_holder() -> pid() | undefined.
@@ -1082,12 +1101,12 @@ shell_holds() ->
 %% Report §11.2: while a shell holds the terminal, a line is read by the
 %% holder alone. Anything else that asks faults, in its own process, before
 %% the request reaches stdin, where it would take the shell's next line.
-line_guard(Addr) ->
+line_guard(Address) ->
     case terminal_holder() of
         undefined -> ok;
         Holder ->
             Stdin = persistent_term:get({?MODULE, stdin}, undefined),
-            case process_of(Addr) =:= Stdin andalso erlang:self() =/= Holder of
+            case process_of(Address) =:= Stdin andalso erlang:self() =/= Holder of
                 true -> fault(shell_holds());
                 false -> ok
             end
@@ -1112,10 +1131,10 @@ own_terminal(Kind) ->
     end.
 
 %% Report §7.3, §8.2: a system process ends the program with a fault of
-%% the entry process, the launcher's to report.
+%% the entry process, the runner's to report.
 end_with_fault(Text) ->
-    {Launcher, Run} = persistent_term:get({?MODULE, launcher}),
-    Launcher ! {fault, Run, Text},
+    {Runner, Launch} = persistent_term:get({?MODULE, runner}),
+    Runner ! {fault, Launch, Text},
     ok.
 
 %% Report §8.2: standard input, read as UTF-8 whatever the host's locale,
@@ -1144,8 +1163,8 @@ stdin_loop(Open, Buffer) ->
                                    answer_line(Reply, without_return(Line)), Left;
                                {{last, Line}, Left} ->
                                    answer_line(Reply, Line), Left;
-                               {{error, Reason}, Left} ->
-                                   unreadable(Reason), Left
+                               {{error, Error}, Left} ->
+                                   unreadable(Error), Left
                            end,
                     source_end(),
                     stdin_loop(Open, Rest);
@@ -1175,17 +1194,17 @@ stdin_loop(Open, Buffer) ->
 %% The next line and the bytes after it: the bytes before the first line
 %% feed at or after From, reading more while there is none. A last line
 %% without a line feed is a line, `last`.
-line(Open, Buffer, From) ->
-    case binary:match(Buffer, <<"\n">>, [{scope, {From, byte_size(Buffer) - From}}]) of
-        {At, 1} ->
-            <<Line:At/binary, $\n, Rest/binary>> = Buffer,
+line(Open, Buffer, Offset) ->
+    case binary:match(Buffer, <<"\n">>, [{scope, {Offset, byte_size(Buffer) - Offset}}]) of
+        {Index, 1} ->
+            <<Line:Index/binary, $\n, Rest/binary>> = Buffer,
             {{line, Line}, Rest};
         nomatch ->
             case read_input(Open) of
-                {data, Bin} -> line(Open, <<Buffer/binary, Bin/binary>>, byte_size(Buffer));
+                {data, Bytes} -> line(Open, <<Buffer/binary, Bytes/binary>>, byte_size(Buffer));
                 eof when Buffer =:= <<>> -> {eof, <<>>};
                 eof -> {{last, Buffer}, <<>>};
-                {error, Reason} -> {{error, Reason}, Buffer}
+                {error, Error} -> {{error, Error}, Buffer}
             end
     end.
 
@@ -1206,12 +1225,12 @@ answer_line(Reply, Text) ->
     end.
 
 %% Report §8.2: what has arrived, at least one byte, or None at the end.
-bytes(Reply, {data, Bin}) -> answer(Reply, {'Some', Bin});
+bytes(Reply, {data, Bytes}) -> answer(Reply, {'Some', Bytes});
 bytes(Reply, eof) -> answer(Reply, 'None');
-bytes(_, {error, Reason}) -> unreadable(Reason).
+bytes(_, {error, Error}) -> unreadable(Error).
 
-unreadable(Reason) ->
-    end_with_fault(<<(unreadable())/binary, (format("~p", [Reason]))/binary>>).
+unreadable(Error) ->
+    end_with_fault(<<(unreadable())/binary, (format("~p", [Error]))/binary>>).
 
 unreadable() ->
     <<"the standard input could not be read: ">>.
@@ -1243,11 +1262,11 @@ by_input(Cause) ->
 read_input(Open) ->
     Input = Open(),
     First = receive
-                {Input, {data, Bin}} -> {data, Bin};
+                {Input, {data, Bytes}} -> {data, Bytes};
                 {Input, eof} -> eof;
-                {Input, {error, Reason}} -> {error, Reason};
-                {'EXIT', Input, Reason} -> {error, Reason};
-                {'EXIT', _, Reason} -> close_input(Input), exit(Reason)
+                {Input, {error, Error}} -> {error, Error};
+                {'EXIT', Input, Error} -> {error, Error};
+                {'EXIT', _, Error} -> close_input(Input), exit(Error)
             end,
     close_input(Input),
     case First of
@@ -1257,7 +1276,7 @@ read_input(Open) ->
 
 arrived(Input, Acc) ->
     receive
-        {Input, {data, Bin}} -> arrived(Input, <<Acc/binary, Bin/binary>>)
+        {Input, {data, Bytes}} -> arrived(Input, <<Acc/binary, Bytes/binary>>)
     after 0 ->
         Acc
     end.
@@ -1288,82 +1307,83 @@ fed(Next) ->
     end.
 
 fed_message(eof) -> eof;
-fed_message({error, Reason}) -> {error, Reason};
-fed_message(Bin) when is_binary(Bin) -> {data, Bin};
+fed_message({error, Error}) -> {error, Error};
+fed_message(Bytes) when is_binary(Bytes) -> {data, Bytes};
 fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 
 %% Clock's messages, report Appendix E.15: After(ms, reply, to), At(at,
 %% reply, to), and Now(reply). Alarms are delivered through the clock
 %% itself, so each is counted as a source while it is pending (report
 %% §8.6). Alarms holds each pending alarm by its timer, its deadline, where
-%% it goes and the process behind that, and Targets each process's timers,
+%% it goes and the process behind that, and ByRecipient each process's timers,
 %% so that a restart of that process cancels its own and reads no other's
 %% (report §6.9).
-clock_loop(Alarms, Targets) ->
+clock_loop(Alarms, ByRecipient) ->
     receive
         %% an alarm is answered once it is counted, so that the caller
         %% goes on waiting only on what is counted (report §8.6)
-        {'After', Ms, To, Reply} ->
+        {'After', Ms, Address, Reply} ->
             source_begin(),
-            {Alarms1, Targets1} = armed(deadline(Ms), To, Alarms, Targets),
+            {Alarms1, ByRecipient1} = armed(deadline(Ms), Address, Alarms, ByRecipient),
             answer(Reply, ?UNIT),
-            clock_loop(Alarms1, Targets1);
-        {'At', At, To, Reply} ->
+            clock_loop(Alarms1, ByRecipient1);
+        {'At', Time, Address, Reply} ->
             source_begin(),
-            {Alarms1, Targets1} = armed(deadline(At - erlang:system_time(millisecond)), To,
-                                        Alarms, Targets),
+            {Alarms1, ByRecipient1} = armed(deadline(Time - erlang:system_time(millisecond)),
+                                            Address,
+                                            Alarms, ByRecipient),
             answer(Reply, ?UNIT),
-            clock_loop(Alarms1, Targets1);
+            clock_loop(Alarms1, ByRecipient1);
         {timeout, Timer, fire} ->
             case maps:take(Timer, Alarms) of
-                {{Deadline, To, Target}, Rest} ->
-                    Left = forgotten(Target, Timer, Targets),
+                {{Deadline, Address, Recipient}, Rest} ->
+                    Left = forgotten(Recipient, Timer, ByRecipient),
                     case remaining(Deadline) of
                         0 ->
-                            %% report §6.5, E.15: the alarm's target may be an
+                            %% report §6.5, E.15: the alarm's address may be an
                             %% address seen through a function, and it is sent
                             %% the time it fired, from a process of its own, so
                             %% that a function that does not finish holds up no
                             %% other alarm; the alarm is a source until it is
                             %% delivered
                             Now = erlang:system_time(millisecond),
-                            counted_link(To, fun() -> deliver(To, Now) end),
+                            counted_link(Address, fun() -> deliver(Address, Now) end),
                             source_end(),
                             clock_loop(Rest, Left);
                         _ ->
-                            {Alarms1, Targets1} = armed(Deadline, To, Rest, Left),
-                            clock_loop(Alarms1, Targets1)
+                            {Alarms1, ByRecipient1} = armed(Deadline, Address, Rest, Left),
+                            clock_loop(Alarms1, ByRecipient1)
                     end;
                 error ->
                     %% cancelled by a restart as it fired
-                    clock_loop(Alarms, Targets)
+                    clock_loop(Alarms, ByRecipient)
             end;
         {'Now', Reply} ->
             answer(Reply, erlang:system_time(millisecond)),
-            clock_loop(Alarms, Targets);
+            clock_loop(Alarms, ByRecipient);
         {new_run, Pid, Ref} ->
             %% report §6.9: a restart cancels the process's alarms, and those
             %% on their way to it
-            {Timers, Targets1} = case maps:take(Pid, Targets) of
-                                     {Own, Others} -> {Own, Others};
-                                     error -> {[], Targets}
-                                 end,
+            {Timers, ByRecipient1} = case maps:take(Pid, ByRecipient) of
+                                         {Own, Others} -> {Own, Others};
+                                         error -> {[], ByRecipient}
+                                     end,
             lists:foreach(fun(Timer) -> erlang:cancel_timer(Timer), source_end() end, Timers),
             cancelled(Pid),
             Pid ! {Ref, fresh},
-            clock_loop(maps:without(Timers, Alarms), Targets1)
+            clock_loop(maps:without(Timers, Alarms), ByRecipient1)
     end.
 
 %% Appendix E.0 rule 8: a time has no upper bound, and the host's timers
 %% have one, so an alarm is set again until its deadline has passed.
-armed(Deadline, To, Alarms, Targets) ->
+armed(Deadline, Address, Alarms, ByRecipient) ->
     Timer = erlang:start_timer(remaining(Deadline), erlang:self(), fire),
-    Target = process_of(To),
-    {Alarms#{Timer => {Deadline, To, Target}},
-     maps:update_with(Target, fun(Timers) -> [Timer | Timers] end, [Timer], Targets)}.
+    Recipient = process_of(Address),
+    {Alarms#{Timer => {Deadline, Address, Recipient}},
+     added(Recipient, Timer, ByRecipient)}.
 
 %%
-%% Report §8.1, §8.6: the launcher
+%% Report §8.1, §8.6: the runner
 %%
 
 -type outcome() :: ok | killed | {fault, binary()} | {fault, binary(), binary()}
@@ -1399,7 +1419,7 @@ armed(Deadline, To, Alarms, Targets) ->
 %% (fed/1). Report §8.2: the standard streams carry bytes for the run,
 %% whatever the host's locale.
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
-run_main(Main, Site, Opts) ->
+run_main(Main, Site, Options) ->
     ets:new(?PROCESSES, [named_table, public, set]),
     ets:new(?CALLS, [named_table, public, set]),
     ets:new(?CALLEES, [named_table, public, ordered_set]),
@@ -1409,26 +1429,26 @@ run_main(Main, Site, Opts) ->
     persistent_term:erase({?MODULE, holder}),
     %% report §11.2: `ern run` reports every fault, the runtime's own
     %% subscriber, given here as a function
-    case Opts of
+    case Options of
         #{faults := Reporter} -> persistent_term:put({?MODULE, reporter}, Reporter);
         _ -> persistent_term:erase({?MODULE, reporter})
     end,
-    Run = make_ref(),
-    persistent_term:put({?MODULE, launcher}, {erlang:self(), Run}),
-    persistent_term:put({?MODULE, arguments}, maps:get(arguments, Opts, [])),
-    persistent_term:put({?MODULE, exit}, maps:get(exit, Opts, program)),
+    Launch = make_ref(),
+    persistent_term:put({?MODULE, runner}, {erlang:self(), Launch}),
+    persistent_term:put({?MODULE, arguments}, maps:get(arguments, Options, [])),
+    persistent_term:put({?MODULE, exit}, maps:get(exit, Options, program)),
     Reaper = erlang:spawn(fun() -> reaper_loop(#{}, #{}, #{}) end),
     persistent_term:put({?MODULE, reaper}, Reaper),
     Encodings = bytes_out(),
-    Out = maps:get(stdout, Opts, fun(Bin) -> file:write(standard_io, Bin) end),
-    Err = maps:get(stderr, Opts, fun(Bin) -> file:write(standard_error, Bin) end),
-    Input = input(stdin, Opts),
-    Keys = input(keys, Opts),
+    Stdout = maps:get(stdout, Options, fun(Bytes) -> file:write(standard_io, Bytes) end),
+    Stderr = maps:get(stderr, Options, fun(Bytes) -> file:write(standard_error, Bytes) end),
+    Input = input(stdin, Options),
+    Keys = input(keys, Options),
     %% report §8.2: keys come where standard input is a terminal, and from
     %% a test's keys
-    KeysCome = maps:is_key(keys, Opts) orelse ern_tty:is_terminal(stdin),
-    System = [{stdout, erlang:spawn(fun() -> stream(Out, stdout) end)},
-              {stderr, erlang:spawn(fun() -> stream(Err, stderr) end)},
+    KeysCome = maps:is_key(keys, Options) orelse ern_tty:is_terminal(stdin),
+    System = [{stdout, erlang:spawn(fun() -> stream(Stdout, stdout) end)},
+              {stderr, erlang:spawn(fun() -> stream(Stderr, stderr) end)},
               {stdin, erlang:spawn(fun() -> stdin_loop(Input) end)},
               {fs, erlang:spawn(fun ern_fs:loop/0)},
               {terminal, erlang:spawn(fun() -> ern_tty:loop(Keys, KeysCome) end)},
@@ -1441,26 +1461,28 @@ run_main(Main, Site, Opts) ->
         %% in main's process, so one that faults is the program's fault; its
         %% modules are loaded here, where their order is read from them
         Stdlib = stdlib_modules(),
-        Init = maps:get(init, Opts, fun() -> ok end),
-        %% report §6.9: the launcher's wait is made with the spawn, so the
+        Init = maps:get(init, Options, fun() -> ok end),
+        %% report §6.9: the runner's monitor is made with the spawn, so the
         %% entry process's cause, and the host's stack beside a failure of
         %% the runtime (§11.2), reach it however soon the process ends
         %% report §8.5, §11.2: an initializer's fault is reported under its
         %% binding, and main's under main's site again once they have run
-        MainPid = spawn_awaited(fun() ->
-                                        run_inits(Stdlib),
-                                        Init(),
-                                        initializing(Site),
-                                        Main()
-                                end, Site,
-                                [{erlang:self(), {raw, {main_down, Run}}}]),
-        case await_main(MainPid, Run) of
-            {{fault, Msg}, At} when At =/= Site -> {initializer_fault, At, Msg};
-            {{fault, Msg, Trace}, At} when At =/= Site -> {initializer_fault, At, Msg, Trace};
+        MainPid = spawn_with_monitors(fun() ->
+                                              run_inits(Stdlib),
+                                              Init(),
+                                              initializing(Site),
+                                              Main()
+                                      end, Site,
+                                      [{erlang:self(), {raw, {main_down, Launch}}}]),
+        case main_outcome(MainPid, Launch) of
+            {{fault, Cause}, FaultSite} when FaultSite =/= Site ->
+                {initializer_fault, FaultSite, Cause};
+            {{fault, Cause, Trace}, FaultSite} when FaultSite =/= Site ->
+                {initializer_fault, FaultSite, Cause, Trace};
             {Outcome, _} -> Outcome
         end
     after
-        end_program(Run, Reaper, System),
+        end_program(Launch, Reaper, System),
         persistent_term:erase({?MODULE, reporter}),
         restore_encodings(Encodings)
     end.
@@ -1469,39 +1491,39 @@ run_main(Main, Site, Opts) ->
 %% deadlock, and a fault the runtime finds in a system process's work, fault
 %% the entry process, whose end then comes as any process's does, reported
 %% as every fault is (§11.2).
-await_main(MainPid, Run) ->
+main_outcome(MainPid, Launch) ->
     receive
-        {{main_down, Run}, At, Raw} ->
-            {case {reason(Raw), Raw} of
+        {{main_down, Launch}, Site, ExitReason} ->
+            {case {reason(ExitReason), ExitReason} of
                  {'Returned', _} -> ok;
                  {'Killed', _} -> killed;
-                 {{'Fault', Msg}, {ern, fault, _, Trace}} -> {fault, Msg, Trace};
-                 {{'Fault', Msg}, _} -> {fault, Msg};
+                 {{'Fault', Cause}, {ern, fault, _, Trace}} -> {fault, Cause, Trace};
+                 {{'Fault', Cause}, _} -> {fault, Cause};
                  {Other, _} -> {fault, format("~p", [Other])}
-             end, At};
-        {deadlock, Run} ->
+             end, Site};
+        {deadlock, Launch} ->
             exit(MainPid, {ern, fault, <<"deadlock">>}),
-            await_main(MainPid, Run);
-        {fault, Run, Text} ->
+            main_outcome(MainPid, Launch);
+        {fault, Launch, Text} ->
             exit(MainPid, {ern, fault, Text}),
-            await_main(MainPid, Run);
-        {exit, Run, Status} ->
+            main_outcome(MainPid, Launch);
+        {exit, Launch, Status} ->
             {{exit, Status}, none};
-        {gone, Run, Stream} ->
+        {gone, Launch, Stream} ->
             {{gone, Stream}, none};
-        {signal, Run, Signal} ->
+        {signal, Launch, Signal} ->
             {{signal, Signal}, none}
     end.
 
 %% Report Appendix E.23: the words after the module on `ern run`'s command
-%% line, which the launcher was given; none in the shell and under `ern
+%% line, which the runner was given; none in the shell and under `ern
 %% test` (§11.2).
 -spec arguments() -> [binary()].
 arguments() ->
     persistent_term:get({?MODULE, arguments}, []).
 
 %% Report §8.6, Appendix E.23: Os.exit ends the program with its status,
-%% the launcher ending every process as it does at the entry process's end;
+%% the runner ending every process as it does at the entry process's end;
 %% the caller waits for its own end there. In the shell and under `ern test`
 %% it faults the caller instead (§11.2).
 -spec exit_program(integer()) -> no_return().
@@ -1511,13 +1533,13 @@ exit_program(Status) ->
         fault ->
             fault(format("exited with status ~B", [Status]));
         program ->
-            {Launcher, Run} = persistent_term:get({?MODULE, launcher}),
-            Launcher ! {exit, Run, Status},
+            {Runner, Launch} = persistent_term:get({?MODULE, runner}),
+            Runner ! {exit, Launch, Status},
             receive after infinity -> ok end
     end.
 
-input(Key, Opts) ->
-    case maps:find(Key, Opts) of
+input(Key, Options) ->
+    case maps:find(Key, Options) of
         {ok, Next} -> fed(Next);
         error -> fun open_input/0
     end.
@@ -1548,22 +1570,22 @@ restore_encodings(Encodings) ->
 
 %% Report §11.2: under `ern test` a deadlock is the fault of the test that
 %% runs, not of the entry process; none after the test has ended.
--spec deadlock_target(pid() | none) -> ok.
-deadlock_target(none) ->
-    ets:delete(?PROCESSES, deadlock_target),
+-spec deadlock_victim(pid() | none) -> ok.
+deadlock_victim(none) ->
+    ets:delete(?PROCESSES, deadlock_victim),
     ok;
-deadlock_target(Pid) ->
-    ets:insert(?PROCESSES, {deadlock_target, Pid}),
+deadlock_victim(Pid) ->
+    ets:insert(?PROCESSES, {deadlock_victim, Pid}),
     ok.
 
 %% Report §8.6: the host's termination or hangup ends the run in progress
 %% as the end of its entry process does; none when no run is in progress.
 -spec signal(sigterm | sighup) -> ok | none.
 signal(Signal) ->
-    case persistent_term:get({?MODULE, launcher}, none) of
-        {Pid, Run} ->
+    case persistent_term:get({?MODULE, runner}, none) of
+        {Pid, Launch} ->
             case erlang:is_process_alive(Pid) of
-                true -> Pid ! {signal, Run, Signal}, ok;
+                true -> Pid ! {signal, Launch, Signal}, ok;
                 false -> none
             end;
         none ->
@@ -1609,14 +1631,14 @@ binding(Key) ->
 -spec restarting({'RestartLimit', integer(), integer()} | 'Unlimited', fun(() -> term())) ->
           fun(() -> term()).
 restarting(Limit, F) ->
-    Kept = case Limit of
-               'Unlimited' -> unlimited;
-               {'RestartLimit', Restarts, Within} -> {max(Restarts, 0), max(Within, 1)}
-           end,
+    Allowed = case Limit of
+                  'Unlimited' -> unlimited;
+                  {'RestartLimit', Restarts, Within} -> {max(Restarts, 0), max(Within, 1)}
+              end,
     fun() ->
         Level = restartable(),
         try
-            restarts(F, Kept, [], Level)
+            restarts(F, Allowed, [], Level)
         after
             Level =:= outer andalso unrestartable()
         end
@@ -1679,7 +1701,7 @@ start_cause() ->
 -spec spawn_order(pid()) -> non_neg_integer().
 spawn_order(Pid) ->
     case ets_lookup(?PROCESSES, Pid) of
-        [{_, _, _, _, N}] -> N;
+        [{_, _, _, _, Number}] -> Number;
         _ -> 0
     end.
 
@@ -1697,8 +1719,8 @@ restarts(F, Limit, Times, Level) ->
             restarts(F, Limit, Times, Level);
         throw:'$ern_restart' ->
             throw('$ern_restart');
-        Class:Reason:Stack ->
-            Fault = fault_reason(Class, Reason, Stack),
+        Class:Error:Stack ->
+            Fault = fault_exit_reason(Class, Error, Stack),
             case within_limit(Limit, Times) of
                 {true, Recent} ->
                     %% report §11.2: a fault after which the process
@@ -1717,24 +1739,24 @@ restarts(F, Limit, Times, Level) ->
 
 %% Report §6.9: a restart begins a new run with nothing of the old. What
 %% the process asked the runtime for is cancelled, with what is on its way
-%% to it: its waits and its subscription to faults by the reaper, its
+%% to it: its monitors and its subscription to faults by the reaper, its
 %% alarms by the clock, its keys by the terminal; then its mailbox is
 %% emptied, before the calls waiting on it are told they have ended, so
 %% that the request of an ended call is not taken by the new run.
-%% The three are asked at once, and each is watched, so that one that has
+%% The three are asked at once, and each is monitored, so that one that has
 %% died holds up no restart.
 fresh_run() ->
     Self = erlang:self(),
     Asked = [begin
-                 Watch = erlang:monitor(process, Service),
-                 Service ! {new_run, Self, Watch},
-                 Watch
-             end || Service <- [persistent_term:get({?MODULE, reaper}), sys(clock),
-                                sys(terminal)]],
-    lists:foreach(fun(Watch) ->
+                 MonitorRef = erlang:monitor(process, Pid),
+                 Pid ! {new_run, Self, MonitorRef},
+                 MonitorRef
+             end || Pid <- [persistent_term:get({?MODULE, reaper}), system_process(clock),
+                            system_process(terminal)]],
+    lists:foreach(fun(MonitorRef) ->
                       receive
-                          {Watch, fresh} -> erlang:demonitor(Watch, [flush]);
-                          {'DOWN', Watch, process, _, _} -> ok
+                          {MonitorRef, fresh} -> erlang:demonitor(MonitorRef, [flush]);
+                          {'DOWN', MonitorRef, process, _, _} -> ok
                       end
                   end, Asked),
     emptied().
@@ -1751,7 +1773,7 @@ within_limit(unlimited, _) ->
     {true, []};
 within_limit({Restarts, Within}, Times) ->
     Now = erlang:monotonic_time(millisecond),
-    Recent = [T || T <- Times, Now - T < Within],
+    Recent = [Time || Time <- Times, Now - Time < Within],
     case length(Recent) < Restarts of
         true -> {true, [Now | Recent]};
         false -> false
@@ -1764,38 +1786,38 @@ restarted(Cause) ->
     Callers = try ets:select(?CALLEES, [{{{Self, '$1'}, '$2'}, [], [{{'$1', '$2'}}]}])
               catch _:_ -> []
               end,
-    lists:foreach(fun({Caller, Alias}) ->
+    lists:foreach(fun({Caller, Reply}) ->
                       ets:delete(?CALLEES, {Self, Caller}),
-                      ets:delete_object(?CALLS, {Caller, Self, Alias}),
-                      Alias ! {Alias, restarted, Cause}
+                      ets:delete_object(?CALLS, {Caller, Self, Reply}),
+                      Reply ! {Reply, restarted, Cause}
                   end, Callers).
 
 %% Report §8.6: every local process ends with ProgramEnd, the sinks' output
 %% is flushed, the system processes and the reaper are stopped, and the
 %% terminal goes back as the program found it (§8.2).
-end_program(Run, Reaper, System) ->
+end_program(Launch, Reaper, System) ->
     Ended = make_ref(),
-    Watch = erlang:monitor(process, Reaper),
+    MonitorRef = erlang:monitor(process, Reaper),
     Reaper ! {end_program, erlang:self(), Ended},
     receive
         {Ended, ended} ->
             ok;
-        {'DOWN', Watch, process, _, _} ->
+        {'DOWN', MonitorRef, process, _, _} ->
             lists:foreach(fun({Pid, _, _, _, _}) -> exit(Pid, {ern, program_end}) end, live_rows())
     end,
-    erlang:demonitor(Watch, [flush]),
+    erlang:demonitor(MonitorRef, [flush]),
     lists:foreach(fun(Sink) ->
                       FlushRef = make_ref(),
-                      Mon = erlang:monitor(process, Sink),
+                      SinkMonitorRef = erlang:monitor(process, Sink),
                       Sink ! {flush, erlang:self(), FlushRef},
                       %% a sink that died has nothing left to flush, and
                       %% waiting for it would hold the program open
                       receive
                           {FlushRef, flushed} -> ok;
-                          {'DOWN', Mon, process, _, _} -> ok
+                          {'DOWN', SinkMonitorRef, process, _, _} -> ok
                       end,
-                      erlang:demonitor(Mon, [flush])
-                  end, [proplists:get_value(K, System) || K <- [stdout, stderr]]),
+                      erlang:demonitor(SinkMonitorRef, [flush])
+                  end, [proplists:get_value(Name, System) || Name <- [stdout, stderr]]),
     %% each ended before the table goes, which the reaper reads
     lists:foreach(fun stop/1, [Pid || {_, Pid} <- System] ++ [Reaper]),
     case ets:lookup(?PROCESSES, reading) of
@@ -1809,8 +1831,8 @@ end_program(Run, Reaper, System) ->
     ets:delete(?HELD),
     ets:delete(?DELIVERIES),
     %% a signal after the run has nothing to end (signal/1)
-    persistent_term:erase({?MODULE, launcher}),
-    flush_run(Run).
+    persistent_term:erase({?MODULE, runner}),
+    flush_launch(Launch).
 
 %% Report §8.5: a standard library module's top-level lets, `Map.empty`
 %% among them, are evaluated once at program start like any other module's;
@@ -1827,54 +1849,62 @@ init_stdlib() ->
 %% are on the same path and are not the standard library's; the shell
 %% initializes them as a program's own (init_modules/1).
 stdlib_modules() ->
-    Files = lists:usort(lists:append([filelib:wildcard(filename:join(D, "ern@*.beam"))
-                                      || D <- code:get_path(),
-                                         filename:basename(D) =:= "stdlib"])),
-    Mods = [list_to_atom(filename:basename(File, ".beam")) || File <- Files],
-    lists:foreach(fun(Mod) -> code:ensure_loaded(Mod) end, Mods),
-    ordered(Mods).
+    Files = lists:usort(lists:append([filelib:wildcard(filename:join(Dir, "ern@*.beam"))
+                                      || Dir <- code:get_path(),
+                                         filename:basename(Dir) =:= "stdlib"])),
+    ErlangModules = [list_to_atom(filename:basename(File, ".beam")) || File <- Files],
+    lists:foreach(fun(ErlangModule) -> code:ensure_loaded(ErlangModule) end, ErlangModules),
+    ordered(ErlangModules).
 
 %% Report §8.5: the top-level lets of the modules given and of the modules
 %% they depend on through `'$deps'/0`, dependencies first, each module once;
 %% the order of the list is kept where no dependency decides it.
 -spec init_modules([module()]) -> ok.
-init_modules(Mods) ->
-    {Order, _} = lists:foldl(fun(Mod, Acc) -> visit(Mod, all, Acc) end, {[], #{}}, Mods),
+init_modules(ErlangModules) ->
+    {Order, _} = lists:foldl(fun(ErlangModule, Acc) ->
+                                 visit(ErlangModule, all, Acc)
+                             end, {[], #{}}, ErlangModules),
     run_inits(lists:reverse(Order)).
 
-run_inits(Mods) ->
-    lists:foreach(fun(Mod) ->
-                      case erlang:function_exported(Mod, '$init', 0) of
-                          true -> Mod:'$init'();
+run_inits(ErlangModules) ->
+    lists:foreach(fun(ErlangModule) ->
+                      case erlang:function_exported(ErlangModule, '$init', 0) of
+                          true -> ErlangModule:'$init'();
                           false -> ok
                       end
-                  end, Mods).
+                  end, ErlangModules).
 
 %% Report §8.5: dependency order, which each compiled module declares as
 %% `'$deps'/0`; the order within an independent set is unspecified, and
 %% is the alphabetical one the code path gives.
 -spec ordered([module()]) -> [module()].
-ordered(Mods) ->
-    {Order, _} = lists:foldl(fun(Mod, Acc) -> visit(Mod, Mods, Acc) end, {[], #{}}, Mods),
+ordered(ErlangModules) ->
+    {Order, _} = lists:foldl(fun(ErlangModule, Acc) ->
+                                 visit(ErlangModule, ErlangModules, Acc)
+                             end, {[], #{}}, ErlangModules),
     lists:reverse(Order).
 
-visit(Mod, Mods, {Order, Seen}) ->
+visit(ErlangModule, ErlangModules, {Order, Seen}) ->
     case Seen of
-        #{Mod := _} ->
+        #{ErlangModule := _} ->
             {Order, Seen};
         _ ->
-            Deps = [D || D <- deps_of(Mod), Mods =:= all orelse lists:member(D, Mods)],
-            {Order1, Seen1} = lists:foldl(fun(D, Acc) -> visit(D, Mods, Acc) end,
-                                          {Order, Seen#{Mod => true}}, Deps),
-            {[Mod | Order1], Seen1}
+            Dependencies = [Dependency || Dependency <- dependencies_of(ErlangModule),
+                                          ErlangModules =:= all
+                                              orelse lists:member(Dependency, ErlangModules)],
+            {Order1, Seen1} = lists:foldl(fun(Dependency, Acc) ->
+                                              visit(Dependency, ErlangModules, Acc)
+                                          end,
+                                          {Order, Seen#{ErlangModule => true}}, Dependencies),
+            {[ErlangModule | Order1], Seen1}
     end.
 
 %% A module is loaded as the error handler loads one, counted as a foreign
 %% call, since init_modules/1 runs in the entry process (report §8.6).
-deps_of(Mod) ->
-    load(Mod),
-    case erlang:function_exported(Mod, '$deps', 0) of
-        true -> Mod:'$deps'();
+dependencies_of(ErlangModule) ->
+    load(ErlangModule),
+    case erlang:function_exported(ErlangModule, '$deps', 0) of
+        true -> ErlangModule:'$deps'();
         false -> []
     end.
 
@@ -1885,17 +1915,17 @@ stop(Pid) ->
 
 %% What the reaper, the system processes and a signal may still send about
 %% this run after it ended.
-flush_run(Run) ->
+flush_launch(Launch) ->
     receive
-        {{main_down, Run}, _, _} -> flush_run(Run);
-        {deadlock, Run} -> flush_run(Run);
-        {fault, Run, _} -> flush_run(Run);
-        {exit, Run, _} -> flush_run(Run);
-        {gone, Run, _} -> flush_run(Run);
-        {signal, Run, _} -> flush_run(Run)
+        {{main_down, Launch}, _, _} -> flush_launch(Launch);
+        {deadlock, Launch} -> flush_launch(Launch);
+        {fault, Launch, _} -> flush_launch(Launch);
+        {exit, Launch, _} -> flush_launch(Launch);
+        {gone, Launch, _} -> flush_launch(Launch);
+        {signal, Launch, _} -> flush_launch(Launch)
     after 0 ->
         ok
     end.
 
-format(Fmt, Args) ->
-    unicode:characters_to_binary(io_lib:format(Fmt, Args)).
+format(Format, Args) ->
+    unicode:characters_to_binary(io_lib:format(Format, Args)).

@@ -10,21 +10,21 @@
 empty() -> wrap(sets:new([{version, 2}])).
 
 -spec size({set, sets:set()}) -> non_neg_integer().
-size({set, S}) -> sets:size(S).
+size({set, Set}) -> sets:size(Set).
 
 -spec contains({set, sets:set()}, term()) -> boolean().
-contains({set, S}, X) -> sets:is_element(X, S).
+contains({set, Set}, Element) -> sets:is_element(Element, Set).
 
 %% sets:add_element/2 answers the set unchanged for an element it has.
 -spec put({set, sets:set()}, term()) -> {set, sets:set()}.
-put({set, S}, X) -> wrap(sets:add_element(X, S)).
+put({set, Set}, Element) -> wrap(sets:add_element(Element, Set)).
 
 %% sets:del_element/2 answers the set unchanged for an element it lacks.
 -spec remove({set, sets:set()}, term()) -> {set, sets:set()}.
-remove({set, S}, X) -> wrap(sets:del_element(X, S)).
+remove({set, Set}, Element) -> wrap(sets:del_element(Element, Set)).
 
 %% sets:to_list/1: the elements in an order the set does not promise.
 -spec to_list({set, sets:set()}) -> [term()].
-to_list({set, S}) -> sets:to_list(S).
+to_list({set, Set}) -> sets:to_list(Set).
 
-wrap(S) -> {set, S}.
+wrap(Set) -> {set, Set}.

@@ -41,17 +41,17 @@ flush_test() ->
 %% `Event`, a lone Escape after the pause
 %% and an arrow at once; ern_rt:send needs a run, so this one has one
 escape_pause_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Tty = ern_rt:sys(terminal),
+               Tty = ern_rt:system_process(terminal),
                %% report §8.2: the subscription is answered once the mode is set
                subscribe(Tty),
                %% as the reader sends them: the arrow whole, the escape alone
                Tty ! {chars, "\e[A"},
-               receive K1 -> Me ! {k1, K1} end,
+               receive Key1 -> Self ! {k1, Key1} end,
                Tty ! {chars, "\e"},
-               receive K2 -> Me ! {k2, K2} end
+               receive Key2 -> Self ! {k2, Key2} end
            end, <<"main">>, #{stdout => fun(_) -> ok end, keys => fun silent/0}),
     ?assertEqual('ArrowUp', wait(k1)),
     ?assertEqual('Escape', wait(k2)).
@@ -60,19 +60,19 @@ escape_pause_test() ->
 %% the first, its wrap from then on. A regression test: each call added the
 %% address again, and every key arrived once for each.
 second_subscription_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Tty = ern_rt:sys(terminal),
+               Tty = ern_rt:system_process(terminal),
                subscribe(Tty),
-               Wrapped = ern_rt:via(ern_rt:self(), fun(E) -> {again, E} end),
+               Wrapped = ern_rt:via(ern_rt:self(), fun(Event) -> {again, Event} end),
                ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Wrapped, Reply} end, 5000),
                %% a key delivered twice would come before the second key
                Tty ! {chars, "a"},
-               First = receive M1 -> M1 end,
+               First = receive Message1 -> Message1 end,
                Tty ! {chars, "b"},
-               Second = receive M2 -> M2 end,
-               Me ! {got, [First, Second]}
+               Second = receive Message2 -> Message2 end,
+               Self ! {got, [First, Second]}
            end, <<"main">>, #{stdout => fun(_) -> ok end, keys => fun silent/0}),
     ?assertEqual([{again, {'Key', $a}}, {again, {'Key', $b}}], wait(got)).
 
@@ -86,38 +86,38 @@ dead_subscriber_test_() ->
         ?assertEqual({fault, <<"deadlock">>},
                      ern_rt:run_main(
                        fun() ->
-                           Tty = ern_rt:sys(terminal),
+                           Tty = ern_rt:system_process(terminal),
                            Child = ern_rt:spawn(fun() -> subscribe(Tty) end, <<"c">>),
-                           ern_rt:monitor(Child, fun(D) -> {down, D} end),
+                           ern_rt:monitor(Child, fun(Down) -> {down, Down} end),
                            receive {down, _} -> ok end,
                            receive never -> ok end
                        end, <<"main">>, #{stdout => fun(_) -> ok end, keys => Never}))
     end}.
 
 wait(Tag) ->
-    receive {Tag, V} -> V after 2000 -> timeout end.
+    receive {Tag, Value} -> Value after 2000 -> timeout end.
 
 %% report §8.2: the keys are UTF-8 whatever the host's locale, a
 %% character cut across two reads is one key, and keys that are not UTF-8
 %% end the program with its entry process's fault
 utf8_keys_test() ->
-    Me = self(),
+    Self = self(),
     Tab = ets:new(chunks, [public]),
     ets:insert(Tab, {queue, [<<195>>, <<169>>]}),
     Cut = fun() ->
                   case ets:lookup(Tab, queue) of
-                      [{_, [C | Rest]}] -> ets:insert(Tab, {queue, Rest}), C;
+                      [{_, [Char | Rest]}] -> ets:insert(Tab, {queue, Rest}), Char;
                       _ -> silent()
                   end
           end,
     ok = ern_rt:run_main(fun() ->
-                                 subscribe(ern_rt:sys(terminal)),
-                                 receive K -> Me ! {key, K} end
+                                 subscribe(ern_rt:system_process(terminal)),
+                                 receive Key -> Self ! {key, Key} end
                          end, <<"main">>, #{stdout => fun(_) -> ok end, keys => Cut}),
     ?assertEqual({'Key', 16#e9}, wait(key)),
     ?assertEqual({fault, <<"the standard input is not UTF-8">>},
                  ern_rt:run_main(fun() ->
-                                         subscribe(ern_rt:sys(terminal)),
+                                         subscribe(ern_rt:system_process(terminal)),
                                          receive never -> ok end
                                  end, <<"main">>,
                                  #{stdout => fun(_) -> ok end, keys => fun() -> <<"a", 255>> end})).
@@ -126,14 +126,18 @@ utf8_keys_test() ->
 %% subscription is refused with Left(NotATerminal) and claims nothing, so
 %% a line can still be read, and the size is still asked of the output
 not_a_terminal_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                %% the terminal's process as the runtime starts it where no
                %% keys can come
                Tty = erlang:spawn(fun() -> ern_tty:loop(fun silent/0, false) end),
-               Me ! {answer, ern_rt:call_forever(Tty, fun(R) -> {'Subscribe', Me, R} end)},
-               Me ! {line, ern_rt:call_forever(ern_rt:sys(stdin), fun(R) -> {'ReadLine', R} end)},
+               Self ! {answer, ern_rt:call_forever(Tty, fun(Reply) ->
+                                                            {'Subscribe', Self, Reply}
+                                                        end)},
+               Self ! {line, ern_rt:call_forever(ern_rt:system_process(stdin), fun(Reply) ->
+                                                                                 {'ReadLine', Reply}
+                                                                             end)},
                exit(Tty, kill)
            end, <<"main">>, #{stdout => fun(_) -> ok end, stdin => fun() -> "line\n" end}),
     ?assertEqual({'Left', 'NotATerminal'}, wait(answer)),
@@ -147,7 +151,7 @@ not_a_terminal_test() ->
 keys_at_end_of_input_test() ->
     ?assertEqual({fault, <<"deadlock">>},
                  ern_rt:run_main(fun() ->
-                                         subscribe(ern_rt:sys(terminal)),
+                                         subscribe(ern_rt:system_process(terminal)),
                                          receive never -> ok end
                                  end, <<"main">>,
                                  #{stdout => fun(_) -> ok end, keys => fun() -> eof end})).
@@ -156,23 +160,22 @@ keys_at_end_of_input_test() ->
 %% order, so a wrap that does not finish delays that subscriber's keys and
 %% no other's
 couriers_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Tty = ern_rt:sys(terminal),
+               Tty = ern_rt:system_process(terminal),
                Main = self(),
+               Endless = fun(Event) -> receive after infinity -> Event end end,
                Stuck = ern_rt:spawn(fun() ->
-                                                subscribe(Tty, fun(E) ->
-                                                                   receive after infinity -> E end
-                                                               end),
-                                                Main ! stuck_subscribed,
-                                                receive never -> ok end
-                                            end, <<"stuck">>),
+                                        subscribe(Tty, Endless),
+                                        Main ! stuck_subscribed,
+                                        receive never -> ok end
+                                    end, <<"stuck">>),
                wait_atom(stuck_subscribed),
-               subscribe(Tty, fun(E) -> {key, E} end),
+               subscribe(Tty, fun(Event) -> {key, Event} end),
                Tty ! {chars, "ab"},
-               Keys = [receive {key, K1} -> K1 end, receive {key, K2} -> K2 end],
-               Me ! {keys, Keys},
+               Keys = [receive {key, Key1} -> Key1 end, receive {key, Key2} -> Key2 end],
+               Self ! {keys, Keys},
                ern_rt:kill(Stuck)
            end, <<"main">>, #{stdout => fun(_) -> ok end, keys => fun silent/0}),
     ?assertEqual([{'Key', $a}, {'Key', $b}], wait(keys)).
@@ -183,28 +186,28 @@ couriers_test() ->
 %% terminal, so a key typed in the new run does not reach it. A regression
 %% test: the subscription stood, and the key arrived
 restart_ends_subscription_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
-               Tty = ern_rt:sys(terminal),
+               Tty = ern_rt:system_process(terminal),
                Main = erlang:self(),
-               Run = fun() ->
-                         case get(ran) of
-                             undefined ->
-                                 put(ran, true),
-                                 Me ! {subscribed, subscribe(Tty)},
-                                 error(crash);
-                             true ->
-                                 Tty ! {chars, "a"},
-                                 ern_rt:timed(),
-                                 Got = receive K -> K after 300 -> none end,
-                                 ern_rt:untimed(),
-                                 Main ! {got, Got}
-                         end
-                     end,
-               _ = ern_rt:spawn(ern_rt:restarting({'RestartLimit', 1, 60000}, Run),
+               Restarted = fun() ->
+                               case get(ran) of
+                                   undefined ->
+                                       put(ran, true),
+                                       Self ! {subscribed, subscribe(Tty)},
+                                       error(crash);
+                                   true ->
+                                       Tty ! {chars, "a"},
+                                       ern_rt:timed(),
+                                       Got = receive Key -> Key after 300 -> none end,
+                                       ern_rt:untimed(),
+                                       Main ! {got, Got}
+                               end
+                           end,
+               _ = ern_rt:spawn(ern_rt:restarting({'RestartLimit', 1, 60000}, Restarted),
                                 <<"worker">>),
-               receive {got, Got} -> Me ! {got, Got} end
+               receive {got, Got} -> Self ! {got, Got} end
            end, <<"main">>,
            #{stdout => fun(_) -> ok end, stderr => fun(_) -> ok end, keys => fun silent/0}),
     %% the subscription was granted, so the key it no longer gets is the
@@ -219,12 +222,12 @@ silent() ->
 %% Report §8.2: `Subscribe` carries a reply, answered once the terminal is
 %% in the mode the keys need.
 subscribe(Tty) ->
-    Me = ern_rt:self(),
-    ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Me, Reply} end, 5000).
+    Self = ern_rt:self(),
+    ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Self, Reply} end, 5000).
 
 subscribe(Tty, Wrap) ->
-    To = ern_rt:via(ern_rt:self(), Wrap),
-    ern_rt:call(Tty, fun(Reply) -> {'Subscribe', To, Reply} end, 5000).
+    Address = ern_rt:via(ern_rt:self(), Wrap),
+    ern_rt:call(Tty, fun(Reply) -> {'Subscribe', Address, Reply} end, 5000).
 
 wait_atom(Atom) ->
     receive Atom -> Atom after 2000 -> error({no, Atom}) end.
@@ -242,8 +245,8 @@ paste_test() ->
     %% a read may end anywhere in a paste, so each piece waits, and the
     %% paste is read on from where it stopped, a line ending and its end
     %% split between pieces among them
-    Pending = lists:foldl(fun(C, Buffer) ->
-                              {[], Left} = ern_tty:more(Buffer, [C]),
+    Pending = lists:foldl(fun(Char, Buffer) ->
+                              {[], Left} = ern_tty:more(Buffer, [Char]),
                               Left
                           end, [], "\e[200~h\r\ni\e[20"),
     ?assertEqual({[{'Pasted', <<"h\ni">>}, {'Key', $x}], []},

@@ -8,24 +8,28 @@
 -export([int/3, float/2, bytes/2, aligned/1, overflow/0]).
 
 -spec int(integer(), integer(), signed | unsigned) -> integer().
-int(V, Bits, unsigned) when is_integer(V), V >= 0, V bsr Bits =:= 0 -> V;
-int(V, Bits, signed) when is_integer(V), V >= -(1 bsl (Bits - 1)), V < 1 bsl (Bits - 1) -> V;
+int(Value, Bits, unsigned) when is_integer(Value), Value >= 0, Value bsr Bits =:= 0 -> Value;
+int(Value, Bits, signed)
+  when is_integer(Value), Value >= -(1 bsl (Bits - 1)), Value < 1 bsl (Bits - 1) ->
+    Value;
 int(_, _, _) -> overflow().
 
 -spec float(float(), integer()) -> float().
-float(V, 64) when is_float(V) -> V;
-float(V, 32) when is_float(V), V >= -3.4028234663852886e38, V =< 3.4028234663852886e38 -> V;
-float(V, 16) when is_float(V), V >= -65504.0, V =< 65504.0 -> V;
+float(Value, 64) when is_float(Value) -> Value;
+float(Value, 32)
+  when is_float(Value), Value >= -3.4028234663852886e38, Value =< 3.4028234663852886e38 ->
+    Value;
+float(Value, 16) when is_float(Value), Value >= -65504.0, Value =< 65504.0 -> Value;
 float(_, _) -> overflow().
 
 %% A bytes segment of a given width, a whole number of octets, holds a value
 %% of exactly that size (report §5.11).
 -spec bytes(binary(), integer()) -> binary().
-bytes(V, Bits) when is_binary(V), bit_size(V) =:= Bits -> V;
+bytes(Value, Bits) when is_binary(Value), bit_size(Value) =:= Bits -> Value;
 bytes(_, _) -> overflow().
 
 -spec aligned(bitstring()) -> binary().
-aligned(B) when is_binary(B) -> B;
+aligned(Bitstring) when is_binary(Bitstring) -> Bitstring;
 aligned(_) -> ern_rt:fault(<<"bitstring not byte-aligned">>).
 
 -spec overflow() -> no_return().

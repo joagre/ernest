@@ -107,7 +107,7 @@ type Msg =
 let reference : Address(Msg) = system(Erl.atom("tcp"))
 
 foreign fn system(name : Foreign.Term) : Address(Msg) with m =
-    "ern_rt:sys/1"
+    "ern_rt:system_process/1"
 
 /// A listener on the port of the host's interface that the name or the
 /// address names: `"127.0.0.1"` is the loopback alone, `"0.0.0.0"` every

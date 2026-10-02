@@ -9,7 +9,7 @@
 %% crashed with badarg (findings C9); and of the rule of 2026-10-01, before
 %% which they were answered `Left(Other(...))`
 helper_ends_under_a_write_and_a_read_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Program} = start(<<"sleep">>, [<<"3">>]),
@@ -23,8 +23,8 @@ helper_ends_under_a_write_and_a_read_test() ->
                _ = os:cmd("kill -9 " ++ integer_to_list(Helper)),
                closed(Port),
                erlang:resume_process(Program),
-               Me ! {write, answer(Written)},
-               Me ! {read, answer(Read)}
+               Self ! {write, answer(Written)},
+               Self ! {read, answer(Read)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     Failed = {fault, <<"the runtime's helper ern_exec failed">>},
     ?assertEqual(Failed, wait(write)),
@@ -109,7 +109,7 @@ helper_gives_the_hosts_reason_test() ->
 %% A regression test of the run's time limit the program once had, whose
 %% message came later and stayed, so the process never read as waiting
 lost_program_holds_no_timer_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Program} = start(<<"sleep">>, [<<"3">>]),
@@ -118,10 +118,10 @@ lost_program_holds_no_timer_test() ->
                _ = os:cmd("kill -9 " ++ integer_to_list(Helper)),
                closed(Port),
                sleep(500),
-               Me ! {queued, process_info(Program, message_queue_len)},
+               Self ! {queued, process_info(Program, message_queue_len)},
                Read = alias(),
                Program ! {'Read', 5000, Read},
-               Me ! {read, answer(Read)}
+               Self ! {read, answer(Read)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({message_queue_len, 0}, wait(queued)),
     ?assertEqual({fault, <<"the runtime's helper ern_exec failed">>}, wait(read)).
@@ -131,9 +131,9 @@ lost_program_holds_no_timer_test() ->
 %% arguments were the helper's own, which the host would not start, and
 %% `start` answered that the helper failed
 argument_too_long_test() ->
-    Me = self(),
+    Self = self(),
     Long = binary:copy(<<"x">>, 200000),
-    ok = ern_rt:run_main(fun() -> Me ! {started, start(<<"echo">>, [Long])} end,
+    ok = ern_rt:run_main(fun() -> Self ! {started, start(<<"echo">>, [Long])} end,
                          <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({'Left', {'Other', <<"Argument list too long">>}}, wait(started)).
 
@@ -143,13 +143,13 @@ argument_too_long_test() ->
 %% the exit status comes last. A regression test of the rule of 2026-10-01,
 %% before which the program's one time limit killed it
 read_times_out_and_the_piece_is_kept_test() ->
-    Me = self(),
+    Self = self(),
     Echo = [<<"-c">>, <<"sleep 0.3; echo hi; sleep 0.3; echo there">>],
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Program} = start(<<"sh">>, Echo),
-               Me ! {reads, [read(Program, 50), read(Program, 5000), read(Program, 5000),
-                             read(Program, 5000)]}
+               Self ! {reads, [read(Program, 50), read(Program, 5000), read(Program, 5000),
+                               read(Program, 5000)]}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual([{'Left', 'Timeout'}, {'Right', {'Stdout', <<"hi\n">>}},
                   {'Right', {'Stdout', <<"there\n">>}}, {'Right', {'Exited', 0}}],
@@ -160,11 +160,11 @@ read_times_out_and_the_piece_is_kept_test() ->
 %% being given. A regression test of the rule of 2026-10-01, before which
 %% the write waited without a limit
 write_times_out_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Program} = start(<<"sleep">>, [<<"3">>]),
-               Me ! {written, write(Program, binary:copy(<<"x">>, 400000), 200)},
+               Self ! {written, write(Program, binary:copy(<<"x">>, 400000), 200)},
                ern_rt:kill(Program)
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({'Left', 'Timeout'}, wait(written)).
@@ -174,26 +174,27 @@ write_times_out_test() ->
 %% when its new owner dies. A regression test of the rule of 2026-10-01,
 %% before which a program could not be given
 give_test() ->
-    Me = self(),
+    Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Main = self(),
                Keeper = erlang:spawn(fun() -> receive stop -> ok end end),
                _ = erlang:spawn(fun() ->
-                                    {'Right', P} = start(<<"sleep">>, [<<"5">>]),
-                                    P ! {'Give', Keeper},
-                                    Main ! {program, P}
+                                    {'Right', Started} = start(<<"sleep">>, [<<"5">>]),
+                                    Started ! {'Give', Keeper},
+                                    Main ! {program, Started}
                                 end),
-               Program = ern_rt:in_foreign(fun() -> receive {program, P} -> P end end),
+               Program = ern_rt:in_foreign(fun() -> receive {program, Started} -> Started end end),
                sleep(200),
-               Me ! {alive, erlang:is_process_alive(Program)},
-               Down = erlang:monitor(process, Program),
+               Self ! {alive, erlang:is_process_alive(Program)},
+               MonitorRef = erlang:monitor(process, Program),
                Keeper ! stop,
-               Me ! {ended, ern_rt:in_foreign(fun() ->
-                                                  receive {'DOWN', Down, _, _, R} -> R
-                                                  after 5000 -> alive
-                                                  end
-                                              end)}
+               Ended = fun() ->
+                           receive {'DOWN', MonitorRef, _, _, ExitReason} -> ExitReason
+                           after 5000 -> alive
+                           end
+                       end,
+               Self ! {ended, ern_rt:in_foreign(Ended)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(true, wait(alive)),
     ?assertEqual({ern, killed}, wait(ended)).
@@ -215,13 +216,15 @@ command(Parts) ->
 start(Program, Arguments) ->
     Self = self(),
     Command = {'Command', Program, Arguments, <<>>},
-    ern_rt:call_forever(ern_rt:sys(os), fun(R) -> {'Start', Command, Self, R} end).
+    ern_rt:call_forever(ern_rt:system_process(os), fun(Reply) ->
+                                                       {'Start', Command, Self, Reply}
+                                                   end).
 
 read(Program, Ms) ->
-    ern_rt:call_forever(Program, fun(R) -> {'Read', Ms, R} end).
+    ern_rt:call_forever(Program, fun(Reply) -> {'Read', Ms, Reply} end).
 
 write(Program, Bytes, Ms) ->
-    ern_rt:call_forever(Program, fun(R) -> {'Write', Bytes, Ms, R} end).
+    ern_rt:call_forever(Program, fun(Reply) -> {'Write', Bytes, Ms, Reply} end).
 
 %% The port closes once the host has seen the helper end.
 closed(Port) ->
@@ -231,11 +234,11 @@ closed(Port) ->
     end.
 
 %% The answer the runtime's process gives, in Ernest's form (report §8.4).
-answer(Alias) ->
+answer(Reply) ->
     ern_rt:timed(),
     receive
-        {Alias, answered, V} -> ern_rt:untimed(), V;
-        {Alias, fault, Cause} -> ern_rt:untimed(), {fault, Cause}
+        {Reply, answered, Value} -> ern_rt:untimed(), Value;
+        {Reply, fault, Cause} -> ern_rt:untimed(), {fault, Cause}
     after 5000 -> ern_rt:untimed(), timeout
     end.
 
@@ -246,4 +249,4 @@ sleep(Ms) ->
     ern_rt:untimed().
 
 wait(Tag) ->
-    receive {Tag, V} -> V after 5000 -> timeout end.
+    receive {Tag, Value} -> Value after 5000 -> timeout end.

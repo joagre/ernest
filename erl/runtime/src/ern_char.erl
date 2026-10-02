@@ -11,41 +11,42 @@
          to_string/1, to_int/1, from_int/1]).
 
 -spec is_digit(char()) -> boolean().
-is_digit(C) when C < 16#80 -> C >= $0 andalso C =< $9;
-is_digit(C) -> unicode_util:category(C) =:= {number, decimal}.
+is_digit(Char) when Char < 16#80 -> Char >= $0 andalso Char =< $9;
+is_digit(Char) -> unicode_util:category(Char) =:= {number, decimal}.
 
 -spec is_alpha(char()) -> boolean().
-is_alpha(C) when C < 16#80 -> (C >= $a andalso C =< $z) orelse (C >= $A andalso C =< $Z);
-is_alpha(C) -> element(1, unicode_util:category(C)) =:= letter.
+is_alpha(Char) when Char < 16#80 ->
+    (Char >= $a andalso Char =< $z) orelse (Char >= $A andalso Char =< $Z);
+is_alpha(Char) -> element(1, unicode_util:category(Char)) =:= letter.
 
 %% White_Space: the ASCII controls 9 to 13 and space, U+0085, and the
 %% separators of category Z
 -spec is_space(char()) -> boolean().
-is_space(C) -> unicode_util:is_whitespace(C).
+is_space(Char) -> unicode_util:is_whitespace(Char).
 
 -spec is_upper(char()) -> boolean().
-is_upper(C) when C < 16#80 -> C >= $A andalso C =< $Z;
-is_upper(C) -> unicode_util:category(C) =:= {letter, uppercase}.
+is_upper(Char) when Char < 16#80 -> Char >= $A andalso Char =< $Z;
+is_upper(Char) -> unicode_util:category(Char) =:= {letter, uppercase}.
 
 -spec is_lower(char()) -> boolean().
-is_lower(C) when C < 16#80 -> C >= $a andalso C =< $z;
-is_lower(C) -> unicode_util:category(C) =:= {letter, lowercase}.
+is_lower(Char) when Char < 16#80 -> Char >= $a andalso Char =< $z;
+is_lower(Char) -> unicode_util:category(Char) =:= {letter, lowercase}.
 
 -spec to_upper(char()) -> char().
-to_upper(C) -> single(string:uppercase([C]), C).
+to_upper(Char) -> single(string:uppercase([Char]), Char).
 
 -spec to_lower(char()) -> char().
-to_lower(C) -> single(string:lowercase([C]), C).
+to_lower(Char) -> single(string:lowercase([Char]), Char).
 
 -spec to_string(char()) -> binary().
-to_string(C) -> unicode:characters_to_binary([C]).
+to_string(Char) -> unicode:characters_to_binary([Char]).
 
 -spec to_int(char()) -> integer().
-to_int(C) -> C.
+to_int(Char) -> Char.
 
 %% Char.fromInt has checked the range
 -spec from_int(char()) -> char().
-from_int(N) -> N.
+from_int(Code) -> Code.
 
-single([U], _) -> U;
-single(_, C) -> C.
+single([Changed], _) -> Changed;
+single(_, Char) -> Char.

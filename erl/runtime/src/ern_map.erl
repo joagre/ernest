@@ -10,23 +10,23 @@
 empty() -> #{}.
 
 -spec size(map()) -> non_neg_integer().
-size(M) -> map_size(M).
+size(Map) -> map_size(Map).
 
 -spec get(map(), term()) -> {'Some', term()} | 'None'.
-get(M, K) ->
-    case M of
-        #{K := V} -> {'Some', V};
+get(Map, Key) ->
+    case Map of
+        #{Key := Value} -> {'Some', Value};
         _ -> 'None'
     end.
 
 -spec put(map(), term(), term()) -> map().
-put(M, K, V) -> M#{K => V}.
+put(Map, Key, Value) -> Map#{Key => Value}.
 
 %% maps:remove/2 answers the map unchanged for a key it lacks.
 -spec remove(map(), term()) -> map().
-remove(M, K) -> maps:remove(K, M).
+remove(Map, Key) -> maps:remove(Key, Map).
 
 %% maps:to_list/1: the pairs in an order the map does not promise, each
 %% the tuple that is Ernest's #(k, v) (report §8.4).
 -spec to_list(map()) -> [{term(), term()}].
-to_list(M) -> maps:to_list(M).
+to_list(Map) -> maps:to_list(Map).
