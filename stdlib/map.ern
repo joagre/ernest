@@ -40,12 +40,12 @@ foreign fn emptyMap() : Map(k, v) =
 /// #(Map.size(Map.fromList([#("a", 1)])), Map.isEmpty(Map.empty))
 /// // => #(1, true)
 /// ```
-export foreign fn size(m : Map(k, v)) : Int =
+export foreign fn size(map : Map(k, v)) : Int =
     "ern_map:size/1"
 
 /// `true` for the map with no entries.
-export fn isEmpty(m : Map(k, v)) : Bool =
-    size(m) == 0
+export fn isEmpty(map : Map(k, v)) : Bool =
+    size(map) == 0
 
 /// `true` when the map has an entry with that key.
 ///
@@ -55,18 +55,18 @@ export fn isEmpty(m : Map(k, v)) : Bool =
 /// #(Map.contains(Map.fromList([#("a", 1)]), "a"), Map.contains(Map.empty, "a"))
 /// // => #(true, false)
 /// ```
-export fn contains(m : Map(k, v), key : k) : Bool =
-    match get(m, key) {
+export fn contains(map : Map(k, v), key : k) : Bool =
+    match get(map, key) {
         Some(_) -> true
       | None -> false
     }
 
 /// The value at that key.
-export foreign fn get(m : Map(k, v), key : k) : Optional(v) =
+export foreign fn get(map : Map(k, v), key : k) : Optional(v) =
     "ern_map:get/2"
 
 /// The map with that entry, replacing any entry with the same key.
-export foreign fn put(m : Map(k, v), key : k, value : v) : Map(k, v) =
+export foreign fn put(map : Map(k, v), key : k, value : v) : Map(k, v) =
     "ern_map:put/3"
 
 /// The map without that key, which need not be present.
@@ -77,7 +77,7 @@ export foreign fn put(m : Map(k, v), key : k, value : v) : Map(k, v) =
 /// Map.toList(Map.remove(Map.fromList([#("a", 1)]), "a"))
 /// // => []
 /// ```
-export foreign fn remove(m : Map(k, v), key : k) : Map(k, v) =
+export foreign fn remove(map : Map(k, v), key : k) : Map(k, v) =
     "ern_map:remove/2"
 
 /// The map with the entry at that key replaced by the function's value; the
@@ -89,12 +89,12 @@ export foreign fn remove(m : Map(k, v), key : k) : Map(k, v) =
 /// Map.get(Map.update(Map.empty, "n", fn(o) = Optional.withDefault(o, 0) + 1), "n")
 /// // => Some(1)
 /// ```
-export fn update(m : Map(k, v), key : k, f : (Optional(v)) -> v with e) : Map(k, v) with e =
-    put(m, key, f(get(m, key)))
+export fn update(map : Map(k, v), key : k, f : (Optional(v)) -> v with e) : Map(k, v) with e =
+    put(map, key, f(get(map, key)))
 
 /// Each value replaced by the function's, the key beside it.
-export fn map(m : Map(k, v), f : (k, v) -> w with e) : Map(k, w) with e =
-    List.foldLeft(toList(m), empty, fn(acc, #(key, value)) = put(acc, key, f(key, value)))
+export fn map(map : Map(k, v), f : (k, v) -> w with e) : Map(k, w) with e =
+    List.foldLeft(toList(map), empty, fn(acc, #(key, value)) = put(acc, key, f(key, value)))
 
 /// The entries the predicate holds for.
 ///
@@ -104,10 +104,10 @@ export fn map(m : Map(k, v), f : (k, v) -> w with e) : Map(k, w) with e =
 /// Map.toList(Map.filter(Map.fromList([#("a", 1), #("b", 2)]), fn(_, n) = n > 1))
 /// // => [#("b", 2)]
 /// ```
-export fn filter(m : Map(k, v), p : (k, v) -> Bool with e) : Map(k, v) with e =
-    List.foldLeft(toList(m),
-                  m,
-                  fn(acc, #(key, value)) = if p(key, value) then acc else remove(acc, key))
+export fn filter(map : Map(k, v), keep : (k, v) -> Bool with e) : Map(k, v) with e =
+    List.foldLeft(toList(map),
+                  map,
+                  fn(acc, #(key, value)) = if keep(key, value) then acc else remove(acc, key))
 
 /// The entries whose value the function answers `Some` for, that value in
 /// their place.
@@ -118,9 +118,9 @@ export fn filter(m : Map(k, v), p : (k, v) -> Bool with e) : Map(k, v) with e =
 /// Map.toList(Map.filterMap(Map.fromList([#("a", "1"), #("b", "x")]), fn(_, s) = String.toInt(s)))
 /// // => [#("a", 1)]
 /// ```
-export fn filterMap(m : Map(k, v), f : (k, v) -> Optional(w) with e) : Map(k, w) with e =
-    List.foldLeft(toList(m), empty, fn(acc, #(key, value)) = match f(key, value) {
-        Some(w) -> put(acc, key, w)
+export fn filterMap(map : Map(k, v), f : (k, v) -> Optional(w) with e) : Map(k, w) with e =
+    List.foldLeft(toList(map), empty, fn(acc, #(key, value)) = match f(key, value) {
+        Some(mapped) -> put(acc, key, mapped)
       | None -> acc
     })
 
@@ -133,8 +133,8 @@ export fn filterMap(m : Map(k, v), f : (k, v) -> Optional(w) with e) : Map(k, w)
 /// Map.foldLeft(Map.fromList([#("a", 1), #("b", 2)]), 0, fn(acc, key, n) = acc + n)
 /// // => 3
 /// ```
-export fn foldLeft(m : Map(k, v), acc : b, f : (b, k, v) -> b with e) : b with e =
-    List.foldLeft(toList(m), acc, fn(a, #(key, value)) = f(a, key, value))
+export fn foldLeft(map : Map(k, v), acc : b, step : (b, k, v) -> b with e) : b with e =
+    List.foldLeft(toList(map), acc, fn(folded, #(key, value)) = step(folded, key, value))
 
 /// The function applied to each entry for its effect.
 ///
@@ -144,8 +144,8 @@ export fn foldLeft(m : Map(k, v), acc : b, f : (b, k, v) -> b with e) : b with e
 /// Map.foreach(Map.fromList([#("a", 1)]), fn(key, _) = Io.println(key))
 /// // => Unit
 /// ```
-export fn foreach(m : Map(k, v), f : (k, v) -> Unit with e) : Unit with e =
-    List.foreach(toList(m), fn(#(key, value)) = f(key, value))
+export fn foreach(map : Map(k, v), f : (k, v) -> Unit with e) : Unit with e =
+    List.foreach(toList(map), fn(#(key, value)) = f(key, value))
 
 /// `true` when the predicate holds for some entry.
 ///
@@ -156,13 +156,13 @@ export fn foreach(m : Map(k, v), f : (k, v) -> Unit with e) : Unit with e =
 ///   Map.all(Map.fromList([#("a", 1)]), fn(_, n) = n > 1))
 /// // => #(true, false)
 /// ```
-export fn any(m : Map(k, v), p : (k, v) -> Bool with e) : Bool with e =
-    List.any(toList(m), fn(#(key, value)) = p(key, value))
+export fn any(map : Map(k, v), test : (k, v) -> Bool with e) : Bool with e =
+    List.any(toList(map), fn(#(key, value)) = test(key, value))
 
 /// `true` when the predicate holds for every entry, and for the map with no
 /// entries.
-export fn all(m : Map(k, v), p : (k, v) -> Bool with e) : Bool with e =
-    List.all(toList(m), fn(#(key, value)) = p(key, value))
+export fn all(map : Map(k, v), test : (k, v) -> Bool with e) : Bool with e =
+    List.all(toList(map), fn(#(key, value)) = test(key, value))
 
 /// Some entry the predicate holds for.
 ///
@@ -172,8 +172,8 @@ export fn all(m : Map(k, v), p : (k, v) -> Bool with e) : Bool with e =
 /// Map.find(Map.fromList([#("a", 1)]), fn(_, n) = n == 1)
 /// // => Some(#("a", 1))
 /// ```
-export fn find(m : Map(k, v), p : (k, v) -> Bool with e) : Optional(#(k, v)) with e =
-    List.find(toList(m), fn(#(key, value)) = p(key, value))
+export fn find(map : Map(k, v), test : (k, v) -> Bool with e) : Optional(#(k, v)) with e =
+    List.find(toList(map), fn(#(key, value)) = test(key, value))
 
 /// The entries of both, the second winning a shared key.
 ///
@@ -183,8 +183,8 @@ export fn find(m : Map(k, v), p : (k, v) -> Bool with e) : Optional(#(k, v)) wit
 /// Map.toList(Map.merge(Map.fromList([#("a", 1)]), Map.fromList([#("a", 2)])))
 /// // => [#("a", 2)]
 /// ```
-export fn merge(m : Map(k, v), other : Map(k, v)) : Map(k, v) =
-    List.foldLeft(toList(other), m, fn(acc, #(key, value)) = put(acc, key, value))
+export fn merge(map : Map(k, v), other : Map(k, v)) : Map(k, v) =
+    List.foldLeft(toList(other), map, fn(acc, #(key, value)) = put(acc, key, value))
 
 /// The entries of both, a shared key given the function of the key, the
 /// first's value and the second's.
@@ -197,13 +197,13 @@ export fn merge(m : Map(k, v), other : Map(k, v)) : Map(k, v) =
 ///                          fn(key, a, b) = if key == "a" then a + b else b))
 /// // => [#("a", 3), #("b", 2)]
 /// ```
-export fn mergeWith(m : Map(k, v),
+export fn mergeWith(map : Map(k, v),
                     other : Map(k, v),
                     f : (k, v, v) -> v with e) : Map(k, v) with e =
     List.foldLeft(toList(other),
-                  m,
+                  map,
                   fn(acc, #(key, value)) = update(acc, key, fn(mine) = match mine {
-                      Some(first) -> f(key, first, value)
+                      Some(existing) -> f(key, existing, value)
                     | None -> value
                   }))
 
@@ -212,7 +212,7 @@ export fn fromList(pairs : List(#(k, v))) : Map(k, v) =
     List.foldLeft(pairs, empty, fn(acc, #(key, value)) = put(acc, key, value))
 
 /// The entries as pairs, in unspecified order.
-export foreign fn toList(m : Map(k, v)) : List(#(k, v)) =
+export foreign fn toList(map : Map(k, v)) : List(#(k, v)) =
     "ern_map:to_list/1"
 
 /// The keys, in unspecified order.
@@ -223,9 +223,9 @@ export foreign fn toList(m : Map(k, v)) : List(#(k, v)) =
 /// #(Map.keys(Map.fromList([#("a", 1)])), Map.values(Map.fromList([#("a", 1)])))
 /// // => #(["a"], [1])
 /// ```
-export fn keys(m : Map(k, v)) : List(k) =
-    List.map(toList(m), fn(#(key, _)) = key)
+export fn keys(map : Map(k, v)) : List(k) =
+    List.map(toList(map), fn(#(key, _)) = key)
 
 /// The values, in unspecified order.
-export fn values(m : Map(k, v)) : List(v) =
-    List.map(toList(m), fn(#(_, value)) = value)
+export fn values(map : Map(k, v)) : List(v) =
+    List.map(toList(map), fn(#(_, value)) = value)

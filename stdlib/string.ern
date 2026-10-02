@@ -36,8 +36,8 @@
 /// since 0.1.0
 
 /// The first, then the second.
-export fn String.<>(a : String, b : String) : String =
-    a <> b
+export fn String.<>(left : String, right : String) : String =
+    left <> right
 
 /// The number of graphemes, extended grapheme clusters, which is neither
 /// the number of octets nor the number of `Char`s: `e` with a combining
@@ -54,7 +54,7 @@ export fn String.<>(a : String, b : String) : String =
 /// #(String.size("e\u{301}"), List.size(String.toList("e\u{301}")))
 /// // => #(1, 2)
 /// ```
-export foreign fn size(s : String) : Int =
+export foreign fn size(text : String) : Int =
     "string:length/1"
 
 /// The graphemes in order, each a `String`: what a reader sees as one
@@ -71,12 +71,12 @@ export foreign fn size(s : String) : Int =
 /// #(List.size(String.graphemes("e\u{301}")), List.size(String.toList("e\u{301}")))
 /// // => #(1, 2)
 /// ```
-export foreign fn graphemes(s : String) : List(String) =
+export foreign fn graphemes(text : String) : List(String) =
     "ern_string:graphemes/1"
 
 /// `true` for the empty string.
-export fn isEmpty(s : String) : Bool =
-    s == ""
+export fn isEmpty(text : String) : Bool =
+    text == ""
 
 /// The order of the code points, which `<` and the other comparisons use.
 ///
@@ -86,8 +86,8 @@ export fn isEmpty(s : String) : Bool =
 /// String.compare("a", "b")
 /// // => Less
 /// ```
-export fn compare(a : String, b : String) : Ordering =
-    if a < b then Less else if a > b then Greater else Equal
+export fn compare(left : String, right : String) : Ordering =
+    if left < right then Less else if left > right then Greater else Equal
 
 /// `true` when the second is somewhere in the first, as whole graphemes; an
 /// empty second is always there.
@@ -103,8 +103,8 @@ export fn compare(a : String, b : String) : Ordering =
 /// String.contains("e\u{301}", "e")
 /// // => false
 /// ```
-export fn contains(s : String, part : String) : Bool =
-    indexOf(s, part) != None
+export fn contains(text : String, part : String) : Bool =
+    indexOf(text, part) != None
 
 /// Where the second begins in the first, and `None` where it is not
 /// there. An empty second is at 0.
@@ -115,7 +115,7 @@ export fn contains(s : String, part : String) : Bool =
 /// #(String.indexOf("hello", "ll"), String.indexOf("hello", "x"))
 /// // => #(Some(2), None)
 /// ```
-export foreign fn indexOf(s : String, part : String) : Optional(Int) =
+export foreign fn indexOf(text : String, part : String) : Optional(Int) =
     "ern_string:index_of/2"
 
 /// Where the second begins last in the first, and `None` where it is not
@@ -127,7 +127,7 @@ export foreign fn indexOf(s : String, part : String) : Optional(Int) =
 /// #(String.lastIndexOf("hello", "l"), String.lastIndexOf("hello", "x"))
 /// // => #(Some(3), None)
 /// ```
-export foreign fn lastIndexOf(s : String, part : String) : Optional(Int) =
+export foreign fn lastIndexOf(text : String, part : String) : Optional(Int) =
     "ern_string:last_index_of/2"
 
 /// `true` when the string begins with the second, as whole graphemes, and
@@ -139,14 +139,14 @@ export foreign fn lastIndexOf(s : String, part : String) : Optional(Int) =
 /// #(String.startsWith("hello", "he"), String.endsWith("hello", "lo"))
 /// // => #(true, true)
 /// ```
-export fn startsWith(s : String, prefix : String) : Bool =
-    slice(s, 0, size(prefix)) == prefix
+export fn startsWith(text : String, prefix : String) : Bool =
+    slice(text, 0, size(prefix)) == prefix
 
 /// `true` when the string ends with the second, as whole graphemes, and for
 /// an empty second.
-export fn endsWith(s : String, suffix : String) : Bool = {
-    let n = size(suffix);
-    size(s) >= n && slice(s, size(s) - n, n) == suffix
+export fn endsWith(text : String, suffix : String) : Bool = {
+    let count = size(suffix);
+    size(text) >= count && slice(text, size(text) - count, count) == suffix
 }
 
 /// Every occurrence of the second replaced by the third; an empty second
@@ -158,8 +158,8 @@ export fn endsWith(s : String, suffix : String) : Bool = {
 /// String.replace("a-b-c", "-", "+")
 /// // => "a+b+c"
 /// ```
-export fn replace(s : String, from : String, to : String) : String =
-    if isEmpty(from) then s else join(split(s, from), to)
+export fn replace(text : String, old : String, new : String) : String =
+    if isEmpty(old) then text else join(split(text, old), new)
 
 /// From the index, that many graphemes, clipped to what is there; a
 /// negative index starts at the beginning, and a negative count gives the
@@ -171,10 +171,10 @@ export fn replace(s : String, from : String, to : String) : String =
 /// #(String.slice("hello", -1, 3), String.slice("hello", 3, 9))
 /// // => #("hel", "lo")
 /// ```
-export fn slice(s : String, from : Int, count : Int) : String =
-    if count <= 0 then "" else part(s, Int.max(from, 0), count)
+export fn slice(text : String, index : Int, count : Int) : String =
+    if count <= 0 then "" else part(text, Int.max(index, 0), count)
 
-foreign fn part(s : String, from : Int, count : Int) : String =
+foreign fn part(text : String, index : Int, count : Int) : String =
     "ern_string:slice/3"
 
 /// The pad's copies in front until the text has that many graphemes, the
@@ -206,7 +206,7 @@ fn padding(text : String, target : Int, pad : String) : String = {
     if isEmpty(pad) then "" else slice(repeat(pad, (short + size(pad) - 1) / size(pad)), 0, short)
 }
 
-/// The string `n` times; `n` below 0 gives the empty string.
+/// The string `count` times; `count` below 0 gives the empty string.
 ///
 /// ### Examples
 ///
@@ -214,11 +214,11 @@ fn padding(text : String, target : Int, pad : String) : String = {
 /// String.repeat("ab", 3)
 /// // => "ababab"
 /// ```
-export fn repeat(s : String, n : Int) : String =
-    copies(s, n, "")
+export fn repeat(text : String, count : Int) : String =
+    copies(text, count, "")
 
-fn copies(s : String, n : Int, done : String) : String =
-    if n <= 0 then done else copies(s, n - 1, done <> s)
+fn copies(text : String, count : Int, acc : String) : String =
+    if count <= 0 then acc else copies(text, count - 1, acc <> text)
 
 /// Without leading and trailing whitespace: the graphemes whose first code
 /// point is White_Space, as `Char.isSpace` says. It is `trimStart` then
@@ -235,8 +235,8 @@ fn copies(s : String, n : Int, done : String) : String =
 /// String.trim("\u{a0}a\u{3000}")
 /// // => "a"
 /// ```
-export fn trim(s : String) : String =
-    trimEnd(trimStart(s))
+export fn trim(text : String) : String =
+    trimEnd(trimStart(text))
 
 /// Without leading whitespace, as `trim` has it.
 ///
@@ -246,11 +246,11 @@ export fn trim(s : String) : String =
 /// #(String.trimStart("  a "), String.trimEnd("  a "))
 /// // => #("a ", "  a")
 /// ```
-export foreign fn trimStart(s : String) : String =
+export foreign fn trimStart(text : String) : String =
     "ern_string:trim_start/1"
 
 /// Without trailing whitespace, as `trim` has it.
-export foreign fn trimEnd(s : String) : String =
+export foreign fn trimEnd(text : String) : String =
     "ern_string:trim_end/1"
 
 /// The lower-case form, by Unicode.
@@ -261,11 +261,11 @@ export foreign fn trimEnd(s : String) : String =
 /// #(String.toLower("ÉH"), String.toUpper("éh"))
 /// // => #("éh", "ÉH")
 /// ```
-export foreign fn toLower(s : String) : String =
+export foreign fn toLower(text : String) : String =
     "ern_string:to_lower/1"
 
 /// The upper-case form, by Unicode.
-export foreign fn toUpper(s : String) : String =
+export foreign fn toUpper(text : String) : String =
     "ern_string:to_upper/1"
 
 /// The lines, split at each line feed and at each carriage return with a
@@ -278,11 +278,11 @@ export foreign fn toUpper(s : String) : String =
 /// #(String.lines("a\nb\n"), String.lines("a\r\nb"))
 /// // => #(["a", "b"], ["a", "b"])
 /// ```
-export fn lines(s : String) : List(String) =
-    if isEmpty(s) then
+export fn lines(text : String) : List(String) =
+    if isEmpty(text) then
         []
     else {
-        let parts = List.flatMap(split(s, "\r\n"), fn(part) = split(part, "\n"));
+        let parts = List.flatMap(split(text, "\r\n"), fn(part) = split(part, "\n"));
         match List.last(parts) {
             Some("") -> List.dropLast(parts, 1)
           | _ -> parts
@@ -300,16 +300,16 @@ export fn lines(s : String) : List(String) =
 /// ```
 ///
 /// since 0.2.0
-export fn words(s : String) : List(String) =
-    List.reverse(wordsFrom(toList(s), [], []))
+export fn words(text : String) : List(String) =
+    List.reverse(wordsFrom(toList(text), [], []))
 
 // The words before the characters, in reverse, the one being read's
 // characters in reverse too.
 fn wordsFrom(chars : List(Char), word : List(Char), acc : List(String)) : List(String) =
     match chars {
         [] -> ended(word, acc)
-      | c :: rest when Char.isSpace(c) -> wordsFrom(rest, [], ended(word, acc))
-      | c :: rest -> wordsFrom(rest, c :: word, acc)
+      | char :: rest when Char.isSpace(char) -> wordsFrom(rest, [], ended(word, acc))
+      | char :: rest -> wordsFrom(rest, char :: word, acc)
     }
 
 fn ended(word : List(Char), acc : List(String)) : List(String) =
@@ -327,20 +327,21 @@ fn ended(word : List(Char), acc : List(String)) : List(String) =
 /// String.split("a,,b", ",")
 /// // => ["a", "", "b"]
 /// ```
-export fn split(s : String, separator : String) : List(String) =
-    if isEmpty(separator) then [s] else List.reverse(parts(s, separator, size(separator), []))
+export fn split(text : String, separator : String) : List(String) =
+    if isEmpty(separator) then [text] else List.reverse(parts(text, separator, size(separator), []))
 
 // The parts found so far, the last first, and the rest of the string, each
 // step reading only as far as the next separator.
-fn parts(s : String, separator : String, width : Int, done : List(String)) : List(String) =
-    match indexOf(s, separator) {
-        None -> s :: done
-      | Some(at) -> parts(drop(s, at + width), separator, width, slice(s, 0, at) :: done)
+fn parts(text : String, separator : String, width : Int, acc : List(String)) : List(String) =
+    match indexOf(text, separator) {
+        None -> text :: acc
+      | Some(index) ->
+            parts(drop(text, index + width), separator, width, slice(text, 0, index) :: acc)
     }
 
 // Report Appendix E.5: the string after that many graphemes, walking only
 // those, a primitive since graphemes are the host's.
-foreign fn drop(s : String, count : Int) : String =
+foreign fn drop(text : String, count : Int) : String =
     "ern_string:drop/2"
 
 /// The parts with the second between them.
@@ -354,7 +355,7 @@ foreign fn drop(s : String, count : Int) : String =
 export fn join(parts : List(String), separator : String) : String =
     match parts {
         [] -> ""
-      | first :: rest -> List.foldLeft(rest, first, fn(acc, s) = acc <> separator <> s)
+      | first :: rest -> List.foldLeft(rest, first, fn(acc, part) = acc <> separator <> part)
     }
 
 /// The digits 0 to 9 as an `Int`, with an optional leading `-`, or `None`
@@ -366,8 +367,8 @@ export fn join(parts : List(String), separator : String) : String =
 /// #(String.toInt("12"), String.toInt("1x"))
 /// // => #(Some(12), None)
 /// ```
-export fn toInt(s : String) : Optional(Int) =
-    match toList(s) {
+export fn toInt(text : String) : Optional(Int) =
+    match toList(text) {
         [] -> None
       | '-' :: rest -> Optional.map(digits(rest), Int.negate)
       | chars -> digits(chars)
@@ -376,7 +377,7 @@ export fn toInt(s : String) : Optional(Int) =
 fn digits(chars : List(Char)) : Optional(Int) =
     if List.isEmpty(chars) then
         None
-    else if List.all(chars, fn(c) = c >= '0' && c <= '9') then
+    else if List.all(chars, fn(char) = char >= '0' && char <= '9') then
         toIntBase(fromList(chars), 10)
     else
         None
@@ -391,10 +392,10 @@ fn digits(chars : List(Char)) : Optional(Int) =
 /// #(String.toIntBase("ff", 16), String.toIntBase("fg", 16))
 /// // => #(Some(255), None)
 /// ```
-export fn toIntBase(s : String, base : Int) : Optional(Int) =
-    if base < 2 || base > 36 || startsWith(s, "+") then None else inBase(s, base)
+export fn toIntBase(text : String, base : Int) : Optional(Int) =
+    if base < 2 || base > 36 || startsWith(text, "+") then None else inBase(text, base)
 
-foreign fn inBase(s : String, base : Int) : Optional(Int) =
+foreign fn inBase(text : String, base : Int) : Optional(Int) =
     "ern_string:to_int_base/2"
 
 /// `true` for `"true"` and `false` for `"false"`, or `None` for anything
@@ -406,8 +407,8 @@ foreign fn inBase(s : String, base : Int) : Optional(Int) =
 /// #(String.toBool("true"), String.toBool("yes"))
 /// // => #(Some(true), None)
 /// ```
-export fn toBool(s : String) : Optional(Bool) =
-    if s == "true" then Some(true) else if s == "false" then Some(false) else None
+export fn toBool(text : String) : Optional(Bool) =
+    if text == "true" then Some(true) else if text == "false" then Some(false) else None
 
 /// The float literal form of report §2.5 without `_`, with an optional
 /// leading `-`, as a `Float`, or `None` for anything else and for a value
@@ -420,7 +421,7 @@ export fn toBool(s : String) : Optional(Bool) =
 /// #(String.toFloat("1.5"), String.toFloat("1"))
 /// // => #(Some(1.5), None)
 /// ```
-export foreign fn toFloat(s : String) : Optional(Float) =
+export foreign fn toFloat(text : String) : Optional(Float) =
     "ern_string:to_float/1"
 
 /// The code points, in order.
@@ -431,7 +432,7 @@ export foreign fn toFloat(s : String) : Optional(Float) =
 /// String.fromList(List.filter(String.toList("a1b"), Char.isAlpha))
 /// // => "ab"
 /// ```
-export foreign fn toList(s : String) : List(Char) =
+export foreign fn toList(text : String) : List(Char) =
     "ern_string:to_list/1"
 
 /// The string of those code points.
@@ -446,9 +447,9 @@ export foreign fn fromList(chars : List(Char)) : String =
 /// #(String.toUtf8("hi"), String.fromUtf8(<<104, 105>>))
 /// // => #(<<104, 105>>, Some("hi"))
 /// ```
-export foreign fn toUtf8(s : String) : Bytes =
+export foreign fn toUtf8(text : String) : Bytes =
     "ern_string:to_utf8/1"
 
 /// The string those octets spell, or `None` when they are not UTF-8.
-export foreign fn fromUtf8(b : Bytes) : Optional(String) =
+export foreign fn fromUtf8(bytes : Bytes) : Optional(String) =
     "ern_string:from_utf8/1"

@@ -367,16 +367,16 @@ accept(Listener, Ms) ->
     ern_rt:call_forever(Listener, fun(Reply) -> {'Accept', Ms, Owner, Reply} end).
 
 write(Socket, Bytes) ->
-    ern_rt:call_forever(Socket, fun(Reply) -> {'Send', Bytes, 60000, Reply} end).
+    ern_rt:call_forever(Socket, fun(Reply) -> {'Write', Bytes, 60000, Reply} end).
 
 read(Socket, Ms) ->
-    ern_rt:call_forever(Socket, fun(Reply) -> {'Recv', Ms, Reply} end).
+    ern_rt:call_forever(Socket, fun(Reply) -> {'Read', Ms, Reply} end).
 
 peer(Socket) ->
-    ern_rt:call_forever(Socket, fun(Reply) -> {'FarEnd', Reply} end).
+    ern_rt:call_forever(Socket, fun(Reply) -> {'Remote', Reply} end).
 
 local(Socket) ->
-    ern_rt:call_forever(Socket, fun(Reply) -> {'NearEnd', Reply} end).
+    ern_rt:call_forever(Socket, fun(Reply) -> {'Local', Reply} end).
 
 wait(Tag) ->
     receive {Tag, Value} -> Value after 5000 -> timeout end.

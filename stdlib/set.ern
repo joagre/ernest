@@ -39,19 +39,19 @@ foreign fn emptySet() : Set(a) =
 /// #(Set.size(Set.fromList([1, 1, 2])), Set.isEmpty(Set.empty))
 /// // => #(2, true)
 /// ```
-export foreign fn size(s : Set(a)) : Int =
+export foreign fn size(set : Set(a)) : Int =
     "ern_set:size/1"
 
 /// `true` for the set with no elements.
-export fn isEmpty(s : Set(a)) : Bool =
-    size(s) == 0
+export fn isEmpty(set : Set(a)) : Bool =
+    size(set) == 0
 
 /// `true` when the element is in the set.
-export foreign fn contains(s : Set(a), x : a) : Bool =
+export foreign fn contains(set : Set(a), element : a) : Bool =
     "ern_set:contains/2"
 
 /// The set with that element, which may already be there.
-export foreign fn put(s : Set(a), x : a) : Set(a) =
+export foreign fn put(set : Set(a), element : a) : Set(a) =
     "ern_set:put/2"
 
 /// The set without that element, which need not be there.
@@ -62,7 +62,7 @@ export foreign fn put(s : Set(a), x : a) : Set(a) =
 /// Set.toList(Set.remove(Set.fromList([1, 2]), 2))
 /// // => [1]
 /// ```
-export foreign fn remove(s : Set(a), x : a) : Set(a) =
+export foreign fn remove(set : Set(a), element : a) : Set(a) =
     "ern_set:remove/2"
 
 /// The function applied to each element; two elements it maps together
@@ -74,8 +74,8 @@ export foreign fn remove(s : Set(a), x : a) : Set(a) =
 /// List.sort(Set.toList(Set.map(Set.fromList([1, 2]), fn(n) = n * 10)), Int.compare)
 /// // => [10, 20]
 /// ```
-export fn map(s : Set(a), f : (a) -> b with e) : Set(b) with e =
-    fromList(List.map(toList(s), f))
+export fn map(set : Set(a), f : (a) -> b with e) : Set(b) with e =
+    fromList(List.map(toList(set), f))
 
 /// The elements the predicate holds for.
 ///
@@ -85,8 +85,10 @@ export fn map(s : Set(a), f : (a) -> b with e) : Set(b) with e =
 /// Set.toList(Set.filter(Set.fromList([1, 2, 3]), fn(n) = n > 2))
 /// // => [3]
 /// ```
-export fn filter(s : Set(a), p : (a) -> Bool with e) : Set(a) with e =
-    List.foldLeft(toList(s), s, fn(acc, x) = if p(x) then acc else remove(acc, x))
+export fn filter(set : Set(a), keep : (a) -> Bool with e) : Set(a) with e =
+    List.foldLeft(toList(set),
+                  set,
+                  fn(acc, element) = if keep(element) then acc else remove(acc, element))
 
 /// The values of the `Some` results.
 ///
@@ -96,8 +98,8 @@ export fn filter(s : Set(a), p : (a) -> Bool with e) : Set(a) with e =
 /// Set.toList(Set.filterMap(Set.fromList(["1", "x"]), String.toInt))
 /// // => [1]
 /// ```
-export fn filterMap(s : Set(a), f : (a) -> Optional(b) with e) : Set(b) with e =
-    fromList(List.filterMap(toList(s), f))
+export fn filterMap(set : Set(a), f : (a) -> Optional(b) with e) : Set(b) with e =
+    fromList(List.filterMap(toList(set), f))
 
 /// The accumulator after the function has seen each element, the
 /// accumulator first.
@@ -108,8 +110,8 @@ export fn filterMap(s : Set(a), f : (a) -> Optional(b) with e) : Set(b) with e =
 /// Set.foldLeft(Set.fromList([1, 2]), 0, Int.+)
 /// // => 3
 /// ```
-export fn foldLeft(s : Set(a), acc : b, f : (b, a) -> b with e) : b with e =
-    List.foldLeft(toList(s), acc, f)
+export fn foldLeft(set : Set(a), acc : b, step : (b, a) -> b with e) : b with e =
+    List.foldLeft(toList(set), acc, step)
 
 /// The function applied to each element for its effect.
 ///
@@ -119,8 +121,8 @@ export fn foldLeft(s : Set(a), acc : b, f : (b, a) -> b with e) : b with e =
 /// Set.foreach(Set.fromList(["a"]), Io.println)
 /// // => Unit
 /// ```
-export fn foreach(s : Set(a), f : (a) -> Unit with e) : Unit with e =
-    List.foreach(toList(s), f)
+export fn foreach(set : Set(a), f : (a) -> Unit with e) : Unit with e =
+    List.foreach(toList(set), f)
 
 /// `true` when the predicate holds for some element.
 ///
@@ -130,13 +132,13 @@ export fn foreach(s : Set(a), f : (a) -> Unit with e) : Unit with e =
 /// #(Set.any(Set.fromList([1]), fn(n) = n > 0), Set.all(Set.fromList([1]), fn(n) = n > 1))
 /// // => #(true, false)
 /// ```
-export fn any(s : Set(a), p : (a) -> Bool with e) : Bool with e =
-    List.any(toList(s), p)
+export fn any(set : Set(a), test : (a) -> Bool with e) : Bool with e =
+    List.any(toList(set), test)
 
 /// `true` when the predicate holds for every element, and for the set with
 /// no elements.
-export fn all(s : Set(a), p : (a) -> Bool with e) : Bool with e =
-    List.all(toList(s), p)
+export fn all(set : Set(a), test : (a) -> Bool with e) : Bool with e =
+    List.all(toList(set), test)
 
 /// Some element the predicate holds for.
 ///
@@ -146,15 +148,15 @@ export fn all(s : Set(a), p : (a) -> Bool with e) : Bool with e =
 /// Set.find(Set.fromList([1, 2]), fn(n) = n > 1)
 /// // => Some(2)
 /// ```
-export fn find(s : Set(a), p : (a) -> Bool with e) : Optional(a) with e =
-    List.find(toList(s), p)
+export fn find(set : Set(a), test : (a) -> Bool with e) : Optional(a) with e =
+    List.find(toList(set), test)
 
 /// The set of those elements, each once.
-export fn fromList(xs : List(a)) : Set(a) =
-    List.foldLeft(xs, empty, put)
+export fn fromList(list : List(a)) : Set(a) =
+    List.foldLeft(list, empty, put)
 
 /// The elements, in unspecified order.
-export foreign fn toList(s : Set(a)) : List(a) =
+export foreign fn toList(set : Set(a)) : List(a) =
     "ern_set:to_list/1"
 
 /// The elements of both.
@@ -165,8 +167,8 @@ export foreign fn toList(s : Set(a)) : List(a) =
 /// List.sort(Set.toList(Set.union(Set.fromList([1]), Set.fromList([2]))), Int.compare)
 /// // => [1, 2]
 /// ```
-export fn union(s : Set(a), other : Set(a)) : Set(a) =
-    List.foldLeft(toList(other), s, put)
+export fn union(set : Set(a), other : Set(a)) : Set(a) =
+    List.foldLeft(toList(other), set, put)
 
 /// The elements in both.
 ///
@@ -176,12 +178,12 @@ export fn union(s : Set(a), other : Set(a)) : Set(a) =
 /// Set.toList(Set.intersection(Set.fromList([1, 2]), Set.fromList([2, 3])))
 /// // => [2]
 /// ```
-export fn intersection(s : Set(a), other : Set(a)) : Set(a) =
-    filter(s, fn(x) = contains(other, x))
+export fn intersection(set : Set(a), other : Set(a)) : Set(a) =
+    filter(set, fn(element) = contains(other, element))
 
 /// The elements of the first that are not in the second.
-export fn difference(s : Set(a), other : Set(a)) : Set(a) =
-    filter(s, fn(x) = !contains(other, x))
+export fn difference(set : Set(a), other : Set(a)) : Set(a) =
+    filter(set, fn(element) = !contains(other, element))
 
 /// `true` when every element of the first is in the second.
 ///
@@ -191,5 +193,5 @@ export fn difference(s : Set(a), other : Set(a)) : Set(a) =
 /// Set.isSubset(Set.fromList([1]), Set.fromList([1, 2]))
 /// // => true
 /// ```
-export fn isSubset(s : Set(a), other : Set(a)) : Bool =
-    List.all(toList(s), fn(x) = contains(other, x))
+export fn isSubset(set : Set(a), other : Set(a)) : Bool =
+    List.all(toList(set), fn(element) = contains(other, element))

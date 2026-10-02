@@ -115,5 +115,5 @@ export foreign fn live() : List(Process) with m =
 export fn faults(wrap : (FaultReport) -> m) : Unit with m =
     subscribe(via(self(), wrap))
 
-foreign fn subscribe(to : Address(FaultReport)) : Unit with m =
+foreign fn subscribe(address : Address(FaultReport)) : Unit with m =
     "ern_rt:faults/1"

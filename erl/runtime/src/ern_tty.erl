@@ -65,7 +65,7 @@ refusing() ->
                 true -> exit(ern_rt:process_of(Address), {ern, fault, ern_rt:shell_holds()});
                 false -> ern_rt:answer(Reply, {'Left', 'NotATerminal'})
             end;
-        {'Measure', Reply} ->
+        {'ReadSize', Reply} ->
             ern_rt:answer(Reply, measured(size_now()));
         {new_run, Pid, Ref} ->
             %% report §6.9: where nothing is subscribed, a restart ends nothing
@@ -89,7 +89,7 @@ loop(Subscribers, Reader, Pending, Size) ->
             Left = unsubscribe(Pid, Subscribers, Reader),
             Pid ! {Ref, fresh},
             loop(Left, Reader, Pending, Size);
-        {'Measure', Reply} ->
+        {'ReadSize', Reply} ->
             ern_rt:answer(Reply, measured(size_now())),
             loop(Subscribers, Reader, Pending, Size);
         {chars, Chars} ->

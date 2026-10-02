@@ -907,7 +907,8 @@ nap(Ms) ->
     timer:sleep(Ms),
     ern_rt:untimed().
 
-%% Report Appendix E.15: an alarm as `Clock.alarm` sets one, After(ms, to,
-%% reply) in declared field order, answered once the clock holds it.
+%% Report Appendix E.15: an alarm as `Clock.alarm` sets one, Alarm(ms,
+%% address, reply) in declared field order, answered once the clock holds
+%% it.
 alarm(Clock, Ms, Address) ->
-    'Unit' = ern_rt:call_forever(Clock, fun(Reply) -> {'After', Ms, Address, Reply} end).
+    'Unit' = ern_rt:call_forever(Clock, fun(Reply) -> {'Alarm', Ms, Address, Reply} end).

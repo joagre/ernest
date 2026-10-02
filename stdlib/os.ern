@@ -200,7 +200,8 @@ export foreign fn exit(status : Int) : a with m =
 /// ```
 export fn start(command : Command) : Either(Io.Error, Address(ProgramMsg)) with m = {
     let owner = Process.fromAddress(self());
-    Address.callForever(reference, fn(r) = Start(command = command, owner = owner, reply = r))
+    Address.callForever(reference,
+                        fn(reply) = Start(command = command, owner = owner, reply = reply))
 }
 
 /// The next piece of what the program wrote, to its standard output or to
@@ -233,7 +234,7 @@ export fn start(command : Command) : Either(Io.Error, Address(ProgramMsg)) with 
 /// // => Right(#(Stderr(<<110, 111, 10>>), Exited(1)))
 /// ```
 export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Output) with m =
-    Address.callForever(program, fn(r) = Read(ms = ms, reply = r))
+    Address.callForever(program, fn(reply) = Read(ms = ms, reply = reply))
 
 /// Gives the bytes to the program as its input, after what it was given
 /// before, and answers `Right(Unit)` once the program has taken them,
@@ -264,7 +265,7 @@ export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Outpu
 export fn write(program : Address(ProgramMsg),
                 bytes : Bytes,
                 ms : Int) : Either(Io.Error, Unit) with m =
-    Address.callForever(program, fn(r) = Write(bytes = bytes, ms = ms, reply = r))
+    Address.callForever(program, fn(reply) = Write(bytes = bytes, ms = ms, reply = reply))
 
 /// Ends the program's input once what it was given before is written.
 ///
@@ -331,22 +332,24 @@ export fn run(command : Command, ms : Int) : Either(Io.Error, Finished) with m =
 
 // What the program wrote, read until its exit status, each read waiting
 // what is left of the time, the pieces of each stream kept newest first.
-// The run's time passing kills the program.
+// The milliseconds `run` was given passing kill the program.
 fn collect(program : Address(ProgramMsg),
            deadline : Int,
-           out : List(Bytes),
-           err : List(Bytes)) : Either(Io.Error, Finished) with m =
+           stdoutPieces : List(Bytes),
+           stderrPieces : List(Bytes)) : Either(Io.Error, Finished) with m =
     match read(program, deadline - Clock.monotonic()) {
-        Right(Stdout(bytes)) -> collect(program, deadline, bytes :: out, err)
-      | Right(Stderr(bytes)) -> collect(program, deadline, out, bytes :: err)
+        Right(Stdout(bytes)) -> collect(program, deadline, bytes :: stdoutPieces, stderrPieces)
+      | Right(Stderr(bytes)) -> collect(program, deadline, stdoutPieces, bytes :: stderrPieces)
       | Right(Exited(status)) ->
-            Right(Finished(status = status, stdout = joined(out), stderr = joined(err)))
+            Right(Finished(status = status,
+                           stdout = joined(stdoutPieces),
+                           stderr = joined(stderrPieces)))
       | Left(Io.Timeout) -> {
             kill(program);
             Left(Io.Timeout)
         }
-      | Left(why) -> Left(why)
+      | Left(error) -> Left(error)
     }
 
 fn joined(pieces : List(Bytes)) : Bytes =
-    List.foldLeft(List.reverse(pieces), <<>>, fn(all, piece) = all <> piece)
+    List.foldLeft(List.reverse(pieces), <<>>, fn(acc, piece) = acc <> piece)

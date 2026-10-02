@@ -73,12 +73,12 @@ export abstract type ListenerMsg =
 /// Tcp.connect("127.0.0.1", 7000, 1000)
 /// ```
 export abstract type SocketMsg =
-    Recv(ms : Int, reply : Reply(Either(Io.Error, Bytes)))
-  | Send(bytes : Bytes, ms : Int, reply : Reply(Either(Io.Error, Unit)))
+    Read(ms : Int, reply : Reply(Either(Io.Error, Bytes)))
+  | Write(bytes : Bytes, ms : Int, reply : Reply(Either(Io.Error, Unit)))
   | Close
   | Give(owner : Process)
-  | FarEnd(reply : Reply(Either(Io.Error, Endpoint)))
-  | NearEnd(reply : Reply(Either(Io.Error, Endpoint)))
+  | Remote(reply : Reply(Either(Io.Error, Endpoint)))
+  | Local(reply : Reply(Either(Io.Error, Endpoint)))
 
 /// An end of a connection: the host's address as text, and the port.
 ///
@@ -117,7 +117,7 @@ foreign fn system(name : Foreign.Term) : Address(Msg) with m =
 export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerMsg)) with m = {
     let owner = Process.fromAddress(self());
     Address.callForever(reference,
-                        fn(r) = Listen(host = host, owner = owner, port = port, reply = r))
+                        fn(reply) = Listen(host = host, owner = owner, port = port, reply = reply))
 }
 
 /// The port the listener listens on.
@@ -139,7 +139,7 @@ export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerM
 /// // => Right(true)
 /// ```
 export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) with m =
-    Address.callForever(listener, fn(r) = Port(reply = r))
+    Address.callForever(listener, fn(reply) = Port(reply = reply))
 
 /// The next connection to the listener, owned by the caller, or
 /// `Left(Io.Timeout)` when none comes in time, having taken none;
@@ -163,7 +163,7 @@ export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) with m =
 export fn accept(listener : Address(ListenerMsg),
                  ms : Int) : Either(Io.Error, Address(SocketMsg)) with m = {
     let owner = Process.fromAddress(self());
-    Address.callForever(listener, fn(r) = Accept(ms = ms, owner = owner, reply = r))
+    Address.callForever(listener, fn(reply) = Accept(ms = ms, owner = owner, reply = reply))
 }
 
 /// A connection to that host and port, owned by the caller, or
@@ -174,8 +174,12 @@ export fn connect(host : String,
                   ms : Int) : Either(Io.Error, Address(SocketMsg)) with m = {
     let owner = Process.fromAddress(self());
     Address.callForever(reference,
-                        fn(r) =
-                            Connect(host = host, port = port, ms = ms, owner = owner, reply = r))
+                        fn(reply) =
+                            Connect(host = host,
+                                    port = port,
+                                    ms = ms,
+                                    owner = owner,
+                                    reply = reply))
 }
 
 /// What has arrived, at least one byte, or `Left(Io.Closed)` once the
@@ -187,7 +191,7 @@ export fn connect(host : String,
 /// On a socket that has ended, closed or killed, faults as
 /// `Address.callForever` does on an ended process.
 export fn read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) with m =
-    Address.callForever(socket, fn(r) = Recv(ms = ms, reply = r))
+    Address.callForever(socket, fn(reply) = Read(ms = ms, reply = reply))
 
 /// Writes the bytes to the socket, and answers `Right(Unit)` once the
 /// socket has taken them, waiting while the connection is behind, at most
@@ -206,7 +210,7 @@ export fn read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) 
 export fn write(socket : Address(SocketMsg),
                 bytes : Bytes,
                 ms : Int) : Either(Io.Error, Unit) with m =
-    Address.callForever(socket, fn(r) = Send(bytes = bytes, ms = ms, reply = r))
+    Address.callForever(socket, fn(reply) = Write(bytes = bytes, ms = ms, reply = reply))
 
 /// Closes the socket, which ends its process.
 export fn close(socket : Address(SocketMsg)) : Unit with m =
@@ -264,7 +268,7 @@ export fn closeListener(listener : Address(ListenerMsg)) : Unit with m =
 /// // => Right(true)
 /// ```
 export fn remote(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) with m =
-    Address.callForever(socket, fn(r) = FarEnd(reply = r))
+    Address.callForever(socket, fn(reply) = Remote(reply = reply))
 
 /// The connection's near end, or `Left(Io.Closed)` once the connection has
 /// closed.
@@ -289,4 +293,4 @@ export fn remote(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) with 
 /// // => Right("127.0.0.1")
 /// ```
 export fn local(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) with m =
-    Address.callForever(socket, fn(r) = NearEnd(reply = r))
+    Address.callForever(socket, fn(reply) = Local(reply = reply))

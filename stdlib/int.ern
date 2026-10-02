@@ -21,32 +21,32 @@
 /// since 0.1.0
 
 /// The sum.
-export fn Int.+(a : Int, b : Int) : Int =
-    a + b
+export fn Int.+(left : Int, right : Int) : Int =
+    left + right
 
 /// The difference.
-export fn Int.-(a : Int, b : Int) : Int =
-    a - b
+export fn Int.-(left : Int, right : Int) : Int =
+    left - right
 
 /// The product.
-export fn Int.*(a : Int, b : Int) : Int =
-    a * b
+export fn Int.*(left : Int, right : Int) : Int =
+    left * right
 
 /// The quotient, truncated toward zero: `-7 / 3` is `-2`.
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("division by zero")` when `b` is `0`; `Int.div` does not.
-export fn Int./(a : Int, b : Int) : Int =
-    a / b
+/// Faults with `Fault("division by zero")` when `divisor` is `0`; `Int.div` does not.
+export fn Int./(dividend : Int, divisor : Int) : Int =
+    dividend / divisor
 
-/// The remainder of `/`, with the sign of `a`: `-7 % 3` is `-1`.
+/// The remainder of `/`, with the sign of `dividend`: `-7 % 3` is `-1`.
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("division by zero")` when `b` is `0`; `Int.rem` does not.
-export fn Int.%(a : Int, b : Int) : Int =
-    a % b
+/// Faults with `Fault("division by zero")` when `divisor` is `0`; `Int.rem` does not.
+export fn Int.%(dividend : Int, divisor : Int) : Int =
+    dividend % divisor
 
 /// `-n`, which prefix `-` calls.
 ///
@@ -56,16 +56,18 @@ export fn Int.%(a : Int, b : Int) : Int =
 /// Int.negate(5)
 /// // => -5
 /// ```
-export fn negate(n : Int) : Int =
-    -n
+export fn negate(int : Int) : Int =
+    -int
 
-/// `a / b`, truncated toward zero, or `None` when `b` is `0`.
-export fn div(a : Int, b : Int) : Optional(Int) =
-    if b == 0 then None else Some(a / b)
+/// `dividend / divisor`, truncated toward zero, or `None` when `divisor` is
+/// `0`.
+export fn div(dividend : Int, divisor : Int) : Optional(Int) =
+    if divisor == 0 then None else Some(dividend / divisor)
 
-/// `a % b`, the remainder with the sign of `a`, or `None` when `b` is `0`.
-export fn rem(a : Int, b : Int) : Optional(Int) =
-    if b == 0 then None else Some(a % b)
+/// `dividend % divisor`, the remainder with the sign of `dividend`, or
+/// `None` when `divisor` is `0`.
+export fn rem(dividend : Int, divisor : Int) : Optional(Int) =
+    if divisor == 0 then None else Some(dividend % divisor)
 
 /// The numeric order, which `<` and the other comparisons use.
 ///
@@ -75,12 +77,12 @@ export fn rem(a : Int, b : Int) : Optional(Int) =
 /// Int.compare(1, 2)
 /// // => Less
 /// ```
-export fn compare(a : Int, b : Int) : Ordering =
-    if a < b then Less else if a > b then Greater else Equal
+export fn compare(left : Int, right : Int) : Ordering =
+    if left < right then Less else if left > right then Greater else Equal
 
 /// The magnitude.
-export fn abs(n : Int) : Int =
-    if n < 0 then -n else n
+export fn abs(int : Int) : Int =
+    if int < 0 then -int else int
 
 /// The smaller.
 ///
@@ -90,12 +92,12 @@ export fn abs(n : Int) : Int =
 /// Int.min(1, 2)
 /// // => 1
 /// ```
-export fn min(a : Int, b : Int) : Int =
-    if a < b then a else b
+export fn min(left : Int, right : Int) : Int =
+    if left < right then left else right
 
 /// The larger.
-export fn max(a : Int, b : Int) : Int =
-    if a > b then a else b
+export fn max(left : Int, right : Int) : Int =
+    if left > right then left else right
 
 /// Bitwise and, on the two's complement form.
 ///
@@ -105,22 +107,22 @@ export fn max(a : Int, b : Int) : Int =
 /// #(Int.bitAnd(6, 3), Int.bitOr(6, 3), Int.bitXor(6, 3), Int.bitNot(6))
 /// // => #(2, 7, 5, -7)
 /// ```
-export foreign fn bitAnd(a : Int, b : Int) : Int =
+export foreign fn bitAnd(left : Int, right : Int) : Int =
     "erlang:band/2"
 
 /// Bitwise or, on the two's complement form.
-export foreign fn bitOr(a : Int, b : Int) : Int =
+export foreign fn bitOr(left : Int, right : Int) : Int =
     "erlang:bor/2"
 
 /// Bitwise exclusive or, on the two's complement form.
-export foreign fn bitXor(a : Int, b : Int) : Int =
+export foreign fn bitXor(left : Int, right : Int) : Int =
     "erlang:bxor/2"
 
 /// Bitwise complement, `-n - 1`.
-export foreign fn bitNot(n : Int) : Int =
+export foreign fn bitNot(int : Int) : Int =
     "erlang:bnot/1"
 
-/// `n` shifted left by `count` bits: `n` times two to the power `count`; a
+/// `int` shifted left by `count` bits: `int` times two to the power `count`; a
 /// count below 0 is none (report §7.4).
 ///
 /// ### Examples
@@ -129,23 +131,23 @@ export foreign fn bitNot(n : Int) : Int =
 /// #(Int.shiftLeft(3, 2), Int.shiftRight(-7, 2), Int.shiftLeft(3, -1))
 /// // => #(12, -2, 3)
 /// ```
-export fn shiftLeft(n : Int, count : Int) : Int =
-    shiftedLeft(n, max(count, 0))
+export fn shiftLeft(int : Int, count : Int) : Int =
+    shiftedLeft(int, max(count, 0))
 
-foreign fn shiftedLeft(n : Int, count : Int) : Int =
+foreign fn shiftedLeft(int : Int, count : Int) : Int =
     "erlang:bsl/2"
 
-/// `n` shifted right by `count` bits, the sign kept: `n` divided by two to
+/// `int` shifted right by `count` bits, the sign kept: `int` divided by two to
 /// the power `count`, rounded toward negative infinity; a count below 0 is
 /// none.
-export fn shiftRight(n : Int, count : Int) : Int =
-    shiftedRight(n, max(count, 0))
+export fn shiftRight(int : Int, count : Int) : Int =
+    shiftedRight(int, max(count, 0))
 
-foreign fn shiftedRight(n : Int, count : Int) : Int =
+foreign fn shiftedRight(int : Int, count : Int) : Int =
     "erlang:bsr/2"
 
 /// The decimal form, with a leading `-` when negative.
-export foreign fn toString(n : Int) : String =
+export foreign fn toString(int : Int) : String =
     "erlang:integer_to_binary/1"
 
 /// `base` raised to `exponent`, exactly, or `None` when the exponent is
@@ -168,7 +170,7 @@ fn power(base : Int, exponent : Int, acc : Int) : Int =
     else
         power(base * base, exponent / 2, acc)
 
-/// The digits of `n` in that base, 2 to 36, letters upper case, with a
+/// The digits of `int` in that base, 2 to 36, letters upper case, with a
 /// leading `-` when negative; `None` outside those bases.
 ///
 /// ### Examples
@@ -177,10 +179,10 @@ fn power(base : Int, exponent : Int, acc : Int) : Int =
 /// #(Int.toStringBase(255, 16), Int.toStringBase(5, 1))
 /// // => #(Some("FF"), None)
 /// ```
-export fn toStringBase(n : Int, base : Int) : Optional(String) =
-    if base < 2 || base > 36 then None else Some(inBase(n, base))
+export fn toStringBase(int : Int, base : Int) : Optional(String) =
+    if base < 2 || base > 36 then None else Some(inBase(int, base))
 
-foreign fn inBase(n : Int, base : Int) : String =
+foreign fn inBase(int : Int, base : Int) : String =
     "erlang:integer_to_binary/2"
 
 /// The nearest `Float`, ties to even.
@@ -196,5 +198,5 @@ foreign fn inBase(n : Int, base : Int) : String =
 /// Int.toFloat(7)
 /// // => 7.0
 /// ```
-export foreign fn toFloat(n : Int) : Float =
+export foreign fn toFloat(int : Int) : Float =
     "ern_int:to_float/1"

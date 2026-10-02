@@ -894,7 +894,7 @@ shift_tab() ->
                  {expect, "    List.map : (List(a)"},
                  {send, "03"},
                  {send, hex("List.map([1], ") ++ ShiftTab},
-                 {expect, "xs : List(a)"},
+                 {expect, "list : List(a)"},
                  {send, "03"},
                  %% the whole name the cursor stands in, two to its left
                  {send, hex("List.map") ++ "1b5b441b5b44" ++ ShiftTab},
@@ -919,7 +919,7 @@ shift_tab() ->
                                                "    List.map : (List(a)">>)),
     ?assertEqual(nomatch, binary:match(Bytes, <<"```">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map([1], \r\n"
-                                               "List.map(xs : List(a), f : (a) -> b with e)"
+                                               "List.map(list : List(a), f : (a) -> b with e)"
                                                " : List(b) with e">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :browse">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\n:faults         the faults reported since"
@@ -1010,7 +1010,7 @@ shift_tab_colour() ->
     Raw = raw(alone("../bin/ern shell"),
               [{expect, "> "},
                {send, hex("List.map([1], ") ++ "1b5b5a"},
-               {expect, "xs : List(a)"},
+               {expect, "list : List(a)"},
                {send, "03"},
                %% report §11.2: the call is found in a `let`, a declaration's
                %% body, and a command's argument, and a constructor shows its
@@ -1036,12 +1036,14 @@ shift_tab_colour() ->
                {send, "03"},
                {send, "04"}],
               30),
-    ?assertMatch({_, _}, binary:match(Raw, <<"xs : List(a), \e[36mf : (a) -> b with e\e[39m)">>)),
+    ?assertMatch({_, _}, binary:match(Raw, <<"list : List(a), \e[36mf : (a) -> b with e\e[39m)">>)),
     %% the first argument marked after `let` and `:type`, the second in the
     %% declaration's body; a repaint may write a row twice, so each is looked
     %% for, not counted
-    ?assertMatch({_, _}, binary:match(Raw, <<"List.foldLeft(\e[36mxs : List(a)\e[39m, acc : b">>)),
-    ?assertMatch({_, _}, binary:match(Raw, <<"List.foldLeft(xs : List(a), \e[36macc : b\e[39m">>)),
+    ?assertMatch({_, _},
+                 binary:match(Raw, <<"List.foldLeft(\e[36mlist : List(a)\e[39m, acc : b">>)),
+    ?assertMatch({_, _},
+                 binary:match(Raw, <<"List.foldLeft(list : List(a), \e[36macc : b\e[39m">>)),
     ?assertMatch({_, _}, binary:match(Raw, <<"Point(x : Int, \e[36myval : Int\e[39m) : Point">>)).
 
 %% report §11.2: `Tab` indents only where spaces alone stand before the
@@ -1989,7 +1991,7 @@ session_names() ->
 %% names it does not declare; nothing outside a call. On a name, its page
 %% with the version it appeared in, its own or its module's
 signature_test() ->
-    ?assertEqual({'Some', {<<"List.map(xs : List(a), ">>, <<"f : (a) -> b with e">>,
+    ?assertEqual({'Some', {<<"List.map(list : List(a), ">>, <<"f : (a) -> b with e">>,
                            <<") : List(b) with e">>}},
                  ern_shell:signature(<<"List.map([1], ">>)),
     ?assertEqual({'Some', {<<"send(Address(a), ">>, <<"a">>, <<") -> Unit with m+">>}},

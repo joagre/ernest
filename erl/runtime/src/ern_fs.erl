@@ -30,7 +30,7 @@ serve(Message) ->
             ern_rt:answer(Reply, {'Left', 'Invalid'})
     end.
 
-handle({'ReadFile', Path, Reply}) ->
+handle({'Read', Path, Reply}) ->
     Name = text(Path),
     answer(Reply, regular(Name, fun() -> file:read_file(Name, [raw]) end));
 %% Report Appendix E.17: a part of a file, read where it lies, without
@@ -39,15 +39,15 @@ handle({'ReadFile', Path, Reply}) ->
 handle({'ReadRange', Path, Offset, Count, Reply}) ->
     Name = text(Path),
     answer(Reply, regular(Name, fun() -> range(Name, max(Offset, 0), max(Count, 0)) end));
-handle({'WriteFile', Path, Bytes, Reply}) ->
+handle({'Write', Path, Bytes, Reply}) ->
     Name = text(Path),
     answer(Reply, regular_or_none(Name, fun() -> unit(file:write_file(Name, Bytes, [raw])) end));
-handle({'AppendFile', Path, Bytes, Reply}) ->
+handle({'Append', Path, Bytes, Reply}) ->
     Name = text(Path),
     answer(Reply, regular_or_none(Name, fun() ->
                                             unit(file:write_file(Name, Bytes, [raw, append]))
                                         end));
-handle({'ListDir', Path, Reply}) ->
+handle({'List', Path, Reply}) ->
     Dir = text(Path),
     answer(Reply, case file:list_dir_all(Dir) of
                       {ok, Names} ->

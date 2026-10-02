@@ -1,6 +1,6 @@
 /// A supervisor restarts a group of processes, its children, together
 /// (report Appendix E.22). `group(strategy, limit)` is the function a
-/// supervisor runs and `child(sup, f)` the function a child runs. The
+/// supervisor runs and `child(supervisor, f)` the function a child runs. The
 /// caller spawns each, as it spawns what `restarting` answers, so a fault
 /// line names the binding that holds the process (report §6.9) and a
 /// service binding reaches it (report §6.5).
@@ -13,7 +13,7 @@
 /// that is itself a child restarts in place, and asks each of its own
 /// children to restart. When a supervisor dies, its children are killed
 /// after it, the last spawned first, each once the one before has ended, by
-/// a watcher the module spawns beside it; so `kill(sup)` stops a group. A
+/// a watcher the module spawns beside it; so `kill(supervisor)` stops a group. A
 /// child that must finish its work first is sent a message of its own
 /// protocol before, since a killed process runs nothing more.
 ///
@@ -33,14 +33,14 @@
 ///
 /// ```ernest
 /// {
-///     let sup =
+///     let supervisor =
 ///         spawn(Supervisor.group(Supervisor.OneForOne,
 ///                                RestartLimit(restarts = 3, within = 5000)));
-///     let echo = spawn(Supervisor.child(sup, fn() : Unit with Reply(Int) = receive {
+///     let echo = spawn(Supervisor.child(supervisor, fn() : Unit with Reply(Int) = receive {
 ///         r -> answer(r, 42)
 ///     }));
 ///     let n = Address.callForever(echo, fn(r) = r);
-///     kill(sup);
+///     kill(supervisor);
 ///     n
 /// }
 /// // => 42
@@ -72,10 +72,10 @@ export type Strategy = OneForOne | OneForAll | RestForOne
 ///
 /// ```ernest
 /// {
-///     let sup : Address(Supervisor.Msg) =
+///     let supervisor : Address(Supervisor.Msg) =
 ///         spawn(Supervisor.group(Supervisor.OneForOne,
 ///                                RestartLimit(restarts = 3, within = 5000)));
-///     kill(sup)
+///     kill(supervisor)
 /// }
 /// // => Unit
 /// ```
@@ -96,7 +96,7 @@ export abstract type Msg =
 type Watch =
     Add(Member)
   | Members(reply : Reply(List(Process)))
-  | Run(sup : Address(Msg), reply : Reply(Bool))
+  | Run(supervisor : Address(Msg), reply : Reply(Bool))
   | Release
   | Report(process : Process, reply : Reply(Bool))
   | Gone(Process)
@@ -158,8 +158,8 @@ export fn group(strategy : Strategy, limit : RestartLimit) : (() -> Unit with Ms
         match startCause() {
             First -> Unit
           | _ -> {
-                List.foreach(members(watcher), fn(p) = {
-                    let _ = askRestart(p);
+                List.foreach(members(watcher), fn(process) = {
+                    let _ = askRestart(process);
                     Unit
                 });
                 send(watcher, Release)
@@ -172,12 +172,12 @@ export fn group(strategy : Strategy, limit : RestartLimit) : (() -> Unit with Ms
 // Whether this process runs the group. The watcher answers at once, so a
 // call it has not answered is made again while it lives; one that has
 // ended ended with the group's first supervisor.
-fn runs(watcher : Address(Watch), sup : Address(Msg)) : Bool with Msg =
-    match Address.call(watcher, fn(r) = Run(sup = sup, reply = r), 1000) {
+fn runs(watcher : Address(Watch), supervisor : Address(Msg)) : Bool with Msg =
+    match Address.call(watcher, fn(reply) = Run(supervisor = supervisor, reply = reply), 1000) {
         Some(answer) -> answer
       | None -> match Process.info(Process.fromAddress(watcher)) {
             None -> false
-          | Some(_) -> runs(watcher, sup)
+          | Some(_) -> runs(watcher, supervisor)
         }
     }
 
@@ -190,30 +190,34 @@ fn runs(watcher : Address(Watch), sup : Address(Msg)) : Bool with Msg =
 // supervisor faults, so that the child waits with the watcher for the
 // group's end or its restart in place, rather than fault of the
 // supervisor's end.
-fn supervise(g : Group, recent : Int, waiting : Waiting) : Unit with Msg =
+fn supervise(group : Group, recent : Int, waiting : Waiting) : Unit with Msg =
     receive {
-        Join(process = p, stop = s, watch = w, reply = r) -> {
-            send(g.watcher, Add(Member(process = p, spawned = spawnOrder(p), stop = s, watch = w)));
-            answer(r, g.watcher);
-            supervise(g, recent, waiting)
+        Join(process = process, stop = stop, watch = watch, reply = reply) -> {
+            send(group.watcher,
+                 Add(Member(process = process,
+                            spawned = spawnOrder(process),
+                            stop = stop,
+                            watch = watch)));
+            answer(reply, group.watcher);
+            supervise(group, recent, waiting)
         }
       // a child that faults has restarted as its faulted siblings wait for
       // it to, whether or not it had taken the restart they asked of it
-      | Faulted(process = p, reply = r) -> {
-            let left = settled(waiting, p);
-            match g.limit {
-                Unlimited -> restarted(g, p, r, recent, left)
-              | RestartLimit(restarts = n, within = t) -> if recent < n then {
-                    Clock.alarm(Int.max(t, 1), fn(_) = Expired);
-                    restarted(g, p, r, recent + 1, left)
+      | Faulted(process = process, reply = reply) -> {
+            let left = settled(waiting, process);
+            match group.limit {
+                Unlimited -> restarted(group, process, reply, recent, left)
+              | RestartLimit(restarts = restarts, within = within) -> if recent < restarts then {
+                    Clock.alarm(Int.max(within, 1), fn(_) = Expired);
+                    restarted(group, process, reply, recent + 1, left)
                 } else {
-                    answer(r, true);
+                    answer(reply, true);
                     fault("supervisor restart limit reached")
                 }
             }
         }
-      | Expired -> supervise(g, recent - 1, waiting)
-      | Settled(q) -> supervise(g, recent, settled(waiting, q))
+      | Expired -> supervise(group, recent - 1, waiting)
+      | Settled(child) -> supervise(group, recent, settled(waiting, child))
     }
 
 // Appendix E.22: a child's fault that the group restarts. The siblings its
@@ -221,17 +225,17 @@ fn supervise(g : Group, recent : Int, waiting : Waiting) : Unit with Msg =
 // of them it could ask has restarted or ended, so that a call to it after
 // its fault is answered by the group restarted whole. A sibling that has
 // not yet begun its first run is not asked, and not waited for.
-fn restarted(g : Group,
-             p : Process,
-             r : Reply(Bool),
+fn restarted(group : Group,
+             faulted : Process,
+             reply : Reply(Bool),
              recent : Int,
              waiting : Waiting) : Unit with Msg = {
-    let asked = List.filter(siblings(g.strategy, p, g.watcher), askRestart);
+    let asked = List.filter(siblings(group.strategy, faulted, group.watcher), askRestart);
     if List.isEmpty(asked) then {
-        answer(r, false);
-        supervise(g, recent, waiting)
+        answer(reply, false);
+        supervise(group, recent, waiting)
     } else
-        supervise(g, recent, Waiting(reply = r, asked = asked, next = waiting))
+        supervise(group, recent, Waiting(reply = reply, asked = asked, next = waiting))
 }
 
 fn siblings(strategy : Strategy,
@@ -239,34 +243,34 @@ fn siblings(strategy : Strategy,
             watcher : Address(Watch)) : List(Process) with Msg =
     match strategy {
         OneForOne -> []
-      | OneForAll -> List.filter(members(watcher), fn(q) = q != faulted)
+      | OneForAll -> List.filter(members(watcher), fn(child) = child != faulted)
       | RestForOne -> spawnedAfter(members(watcher), faulted)
     }
 
-// The children that wait with `q` no longer among the siblings they wait
+// The children that wait with `child` no longer among the siblings they wait
 // for; one that waits for none now runs again.
-fn settled(waiting : Waiting, q : Process) : Waiting with Msg =
+fn settled(waiting : Waiting, child : Process) : Waiting with Msg =
     match waiting {
         NoOne -> NoOne
-      | Waiting(reply = r, asked = asked, next = rest) -> {
-            let left = List.filter(asked, fn(x) = x != q);
+      | Waiting(reply = reply, asked = asked, next = rest) -> {
+            let left = List.filter(asked, fn(sibling) = sibling != child);
             if List.isEmpty(left) then {
-                answer(r, false);
-                settled(rest, q)
+                answer(reply, false);
+                settled(rest, child)
             } else
-                Waiting(reply = r, asked = left, next = settled(rest, q))
+                Waiting(reply = reply, asked = left, next = settled(rest, child))
         }
     }
 
-// The children spawned after `p`, which the watcher holds in that order.
-fn spawnedAfter(children : List(Process), p : Process) : List(Process) =
+// The children spawned after `child`, which the watcher holds in that order.
+fn spawnedAfter(children : List(Process), child : Process) : List(Process) =
     match children {
         [] -> []
-      | q :: rest -> if q == p then rest else spawnedAfter(rest, p)
+      | head :: rest -> if head == child then rest else spawnedAfter(rest, child)
     }
 
 fn members(watcher : Address(Watch)) : List(Process) with Msg =
-    Address.callForever(watcher, fn(r) = Members(reply = r))
+    Address.callForever(watcher, fn(reply) = Members(reply = reply))
 
 // Report §6.9: the child restarts at its next wait, and the answer says
 // whether it was asked; one that has ended, or has not yet begun to run
@@ -276,7 +280,7 @@ foreign fn askRestart(child : Process) : Bool with m =
 
 // Where a process stands in the order the runtime spawned its processes,
 // which `RestForOne` reads and the watcher keeps its children in.
-foreign fn spawnOrder(p : Process) : Int with m =
+foreign fn spawnOrder(process : Process) : Int with m =
     "ern_rt:spawn_order/1"
 
 // The watcher: it holds the children in the order they were spawned,
@@ -286,46 +290,46 @@ foreign fn spawnOrder(p : Process) : Int with m =
 // first run makes itself known.
 fn watch() : Unit with Watch =
     receive {
-        Run(sup = sup, reply = r) -> {
-            monitor(sup, fn(_) = SupervisorDied);
-            answer(r, true);
-            watching(sup, [], Nobody)
+        Run(supervisor = supervisor, reply = reply) -> {
+            monitor(supervisor, fn(_) = SupervisorDied);
+            answer(reply, true);
+            watching(supervisor, [], Nobody)
         }
     }
 
-fn watching(sup : Address(Msg), children : List(Member), held : Held) : Unit with Watch =
+fn watching(supervisor : Address(Msg), children : List(Member), held : Held) : Unit with Watch =
     receive {
-        Add(m) -> if List.any(children, fn(c) = c.process == m.process) then
-            watching(sup, children, held)
+        Add(member) -> if List.any(children, fn(child) = child.process == member.process) then
+            watching(supervisor, children, held)
         else {
-            let Member(process = p, spawned = _, stop = _, watch = w) = m;
-            w(fn(_) = Gone(p));
-            watching(sup, inOrder(children, m), held)
+            let Member(process = process, spawned = _, stop = _, watch = watch) = member;
+            watch(fn(_) = Gone(process));
+            watching(supervisor, inOrder(children, member), held)
         }
-      | Members(reply = r) -> {
-            answer(r, List.map(children, fn(c) = c.process));
-            watching(sup, children, held)
+      | Members(reply = reply) -> {
+            answer(reply, List.map(children, fn(child) = child.process));
+            watching(supervisor, children, held)
         }
-      | Run(sup = other, reply = r) -> {
-            answer(r, Process.fromAddress(other) == Process.fromAddress(sup));
-            watching(sup, children, held)
+      | Run(supervisor = other, reply = reply) -> {
+            answer(reply, Process.fromAddress(other) == Process.fromAddress(supervisor));
+            watching(supervisor, children, held)
         }
       | Release -> {
             released(held);
-            watching(sup, children, Nobody)
+            watching(supervisor, children, Nobody)
         }
       // the child's reply goes with it, and the supervisor answers it; a
       // restart of the supervisor in place loses the fault and leaves the
       // child's call waiting here, where the new run's ask restarts it
-      | Report(process = p, reply = r) -> {
-            send(sup, Faulted(process = p, reply = r));
-            watching(sup, children, held)
+      | Report(process = process, reply = reply) -> {
+            send(supervisor, Faulted(process = process, reply = reply));
+            watching(supervisor, children, held)
         }
-      | Gone(p) -> {
-            send(sup, Settled(p));
-            watching(sup, List.filter(children, fn(c) = c.process != p), held)
+      | Gone(process) -> {
+            send(supervisor, Settled(process));
+            watching(supervisor, List.filter(children, fn(child) = child.process != process), held)
         }
-      | Hold(reply = r) -> watching(sup, children, Holding(reply = r, next = held))
+      | Hold(reply = reply) -> watching(supervisor, children, Holding(reply = reply, next = held))
       | SupervisorDied -> {
             stopAll(List.reverse(children));
             released(held)
@@ -337,65 +341,69 @@ fn watching(sup : Address(Msg), children : List(Member), held : Held) : Unit wit
 fn released(held : Held) : Unit with Watch =
     match held {
         Nobody -> Unit
-      | Holding(reply = r, next = rest) -> {
-            answer(r, Unit);
+      | Holding(reply = reply, next = rest) -> {
+            answer(reply, Unit);
             released(rest)
         }
     }
 
 // The children with a new one among them, in the order they were spawned.
-fn inOrder(children : List(Member), m : Member) : List(Member) =
+fn inOrder(children : List(Member), member : Member) : List(Member) =
     match children {
-        [] -> [m]
-      | c :: rest -> if m.spawned < c.spawned then m :: children else c :: inOrder(rest, m)
+        [] -> [member]
+      | head :: rest -> if member.spawned < head.spawned then
+            member :: children
+        else
+            head :: inOrder(rest, member)
     }
 
 fn stopAll(children : List(Member)) : Unit with Watch =
     match children {
         [] -> Unit
-      | Member(process = p, spawned = _, stop = stop, watch = _) :: rest -> {
+      | Member(process = process, spawned = _, stop = stop, watch = _) :: rest -> {
             stop();
             receive {
-                Gone(q) when q == p -> Unit
+                Gone(gone) when gone == process -> Unit
             };
             stopAll(rest)
         }
     }
 
-/// The function a child runs, which the caller spawns. It joins `sup`'s
+/// The function a child runs, which the caller spawns. It joins `supervisor`'s
 /// group, waiting until the supervisor has it, and runs `f`; after a fault
 /// it runs `f` again in place until the group gives up. A child that
 /// returns or is killed leaves the group.
 ///
 /// ### Errors
 ///
-/// `Fault("the supervisor has ended")` when `sup` has ended before the
+/// `Fault("the supervisor has ended")` when `supervisor` has ended before the
 /// child joins.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// {
-///     let sup =
+///     let supervisor =
 ///         spawn(Supervisor.group(Supervisor.OneForOne,
 ///                                RestartLimit(restarts = 3, within = 5000)));
-///     spawn(Supervisor.child(sup, fn() : Unit with Int = receive {
+///     spawn(Supervisor.child(supervisor, fn() : Unit with Int = receive {
 ///         _ -> Unit
 ///     }))
 /// }
 /// ```
-export fn child(sup : Address(Msg), f : () -> Unit with m) : () -> Unit with m =
+export fn child(supervisor : Address(Msg), f : () -> Unit with m) : () -> Unit with m =
     fn() = {
-        let me = self();
-        let p = Process.fromAddress(me);
-        let watcher = join(sup, p, fn() = kill(me), fn(wrap) = monitor(me, wrap));
+        let address = self();
+        let process = Process.fromAddress(address);
+        let watcher =
+            join(supervisor, process, fn() = kill(address), fn(wrap) = monitor(address, wrap));
         // the group's limit decides when a child stops, so its own is none
         restarting(Unlimited, fn() = match startCause() {
             First -> f()
-          | AfterFault -> counted(sup, watcher, p, f)
+          | AfterFault -> counted(supervisor, watcher, process, f)
           | Asked -> {
                 // the child that faulted waits for this one (Appendix E.22)
-                send(sup, Settled(p));
+                send(supervisor, Settled(process));
                 f()
             }
         })()
@@ -406,15 +414,16 @@ export fn child(sup : Address(Msg), f : () -> Unit with m) : () -> Unit with m =
 // it, the child waits with the watcher: the group's end kills it there, and
 // a restart in place asks it to restart. A child whose supervisor has
 // ended is killed as the others are.
-fn counted(sup : Address(Msg),
+fn counted(supervisor : Address(Msg),
            watcher : Address(Watch),
-           p : Process,
+           process : Process,
            f : () -> Unit with m) : Unit with m =
-    match Process.info(Process.fromAddress(sup)) {
+    match Process.info(Process.fromAddress(supervisor)) {
         None -> kill(self())
       | Some(_) -> {
-            if Address.callForever(watcher, fn(r) = Report(process = p, reply = r)) then
-                Address.callForever(watcher, fn(r) = Hold(reply = r))
+            if Address.callForever(watcher,
+                                   fn(reply) = Report(process = process, reply = reply)) then
+                Address.callForever(watcher, fn(reply) = Hold(reply = reply))
             else
                 Unit;
             f()
@@ -425,15 +434,18 @@ fn counted(sup : Address(Msg),
 // with the group's watcher. A call that ends unanswered was made as the
 // supervisor restarted, and is made again; one made twice is joined once,
 // since the watcher keeps a child once.
-fn join(sup : Address(Msg),
-        p : Process,
-        s : () -> Unit with Watch,
-        w : ((Down) -> Watch) -> Unit with Watch) : Address(Watch) with m =
-    match Address.call(sup, fn(r) = Join(process = p, stop = s, watch = w, reply = r), 1000) {
+fn join(supervisor : Address(Msg),
+        process : Process,
+        stop : () -> Unit with Watch,
+        watch : ((Down) -> Watch) -> Unit with Watch) : Address(Watch) with m =
+    match Address.call(supervisor,
+                       fn(reply) =
+                           Join(process = process, stop = stop, watch = watch, reply = reply),
+                       1000) {
         Some(watcher) -> watcher
-      | None -> match Process.info(Process.fromAddress(sup)) {
+      | None -> match Process.info(Process.fromAddress(supervisor)) {
             None -> fault("the supervisor has ended")
-          | Some(_) -> join(sup, p, s, w)
+          | Some(_) -> join(supervisor, process, stop, watch)
         }
     }
 

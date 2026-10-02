@@ -58,17 +58,17 @@ export type Entry = Entry(path : Path, mtime : Int, size : Int, kind : Kind)
 
 // What the file system takes.
 type Msg =
-    ReadFile(path : Path, reply : Reply(Either(Io.Error, Bytes)))
+    Read(path : Path, reply : Reply(Either(Io.Error, Bytes)))
   | ReadRange(path : Path, offset : Int, count : Int, reply : Reply(Either(Io.Error, Bytes)))
-  | WriteFile(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
-  | AppendFile(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
-  | ListDir(path : Path, reply : Reply(Either(Io.Error, List(Entry))))
+  | Write(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
+  | Append(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
+  | List(path : Path, reply : Reply(Either(Io.Error, List(Entry))))
   | Stat(path : Path, reply : Reply(Either(Io.Error, Entry)))
   | MakeDir(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | Remove(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | RemoveAll(path : Path, reply : Reply(Either(Io.Error, Unit)))
-  | Rename(from : Path, to : Path, reply : Reply(Either(Io.Error, Unit)))
-  | Copy(from : Path, to : Path, reply : Reply(Either(Io.Error, Unit)))
+  | Rename(source : Path, destination : Path, reply : Reply(Either(Io.Error, Unit)))
+  | Copy(source : Path, destination : Path, reply : Reply(Either(Io.Error, Unit)))
   | MakeLink(path : Path, target : Path, reply : Reply(Either(Io.Error, Unit)))
   | MakeHardLink(path : Path, target : Path, reply : Reply(Either(Io.Error, Unit)))
   | ReadLink(path : Path, reply : Reply(Either(Io.Error, Optional(Path))))
@@ -85,7 +85,7 @@ foreign fn system(name : Foreign.Term) : Address(Msg) with m =
 
 /// The file's octets.
 export fn read(path : Path, ms : Int) : Either(Io.Error, Bytes) with m =
-    answered(Address.call(reference, fn(r) = ReadFile(path = path, reply = r), ms))
+    answered(Address.call(reference, fn(reply) = Read(path = path, reply = reply), ms))
 
 /// Up to `count` octets of the file from `offset`, fewer at its end and
 /// none past it, the rest of the file never held: how a file too large to
@@ -107,12 +107,15 @@ export fn readRange(path : Path,
                     count : Int,
                     ms : Int) : Either(Io.Error, Bytes) with m =
     answered(Address.call(reference,
-                          fn(r) = ReadRange(path = path, offset = offset, count = count, reply = r),
+                          fn(reply) =
+                              ReadRange(path = path, offset = offset, count = count, reply = reply),
                           ms))
 
 /// Writes the octets, creating the file or replacing what it held.
 export fn write(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference, fn(r) = WriteFile(path = path, bytes = bytes, reply = r), ms))
+    answered(Address.call(reference,
+                          fn(reply) = Write(path = path, bytes = bytes, reply = reply),
+                          ms))
 
 /// Writes the octets after what the file holds, creating it when it is not
 /// there.
@@ -128,7 +131,9 @@ export fn write(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) w
 /// // => Right(Some("ab"))
 /// ```
 export fn append(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference, fn(r) = AppendFile(path = path, bytes = bytes, reply = r), ms))
+    answered(Address.call(reference,
+                          fn(reply) = Append(path = path, bytes = bytes, reply = reply),
+                          ms))
 
 /// The entries of the directory, in unspecified order, each path the
 /// directory's joined with the entry's name, and each described as it is:
@@ -155,7 +160,7 @@ export fn append(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) 
 /// // => Right([Link])
 /// ```
 export fn list(path : Path, ms : Int) : Either(Io.Error, List(Entry)) with m =
-    answered(Address.call(reference, fn(r) = ListDir(path = path, reply = r), ms))
+    answered(Address.call(reference, fn(reply) = List(path = path, reply = reply), ms))
 
 /// What the path leads to, its links followed: its size, its modification
 /// time, and its kind.
@@ -170,12 +175,12 @@ export fn list(path : Path, ms : Int) : Either(Io.Error, List(Entry)) with m =
 /// // => Right(3)
 /// ```
 export fn stat(path : Path, ms : Int) : Either(Io.Error, Entry) with m =
-    answered(Address.call(reference, fn(r) = Stat(path = path, reply = r), ms))
+    answered(Address.call(reference, fn(reply) = Stat(path = path, reply = reply), ms))
 
 /// Makes the directory and any parent it needs; a directory already there
 /// is not an error.
 export fn makeDir(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference, fn(r) = MakeDir(path = path, reply = r), ms))
+    answered(Address.call(reference, fn(reply) = MakeDir(path = path, reply = reply), ms))
 
 /// Removes a file, a link, or an empty directory; a link is removed, not
 /// what it leads to.
@@ -191,7 +196,7 @@ export fn makeDir(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
 /// // => Left(NotFound)
 /// ```
 export fn remove(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference, fn(r) = Remove(path = path, reply = r), ms))
+    answered(Address.call(reference, fn(reply) = Remove(path = path, reply = reply), ms))
 
 /// Renames the first path to the second.
 ///
@@ -205,8 +210,11 @@ export fn remove(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
 /// }
 /// // => Right(Some("x"))
 /// ```
-export fn rename(from : Path, to : Path, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference, fn(r) = Rename(from = from, to = to, reply = r), ms))
+export fn rename(source : Path, destination : Path, ms : Int) : Either(Io.Error, Unit) with m =
+    answered(Address.call(reference,
+                          fn(reply) =
+                              Rename(source = source, destination = destination, reply = reply),
+                          ms))
 
 /// Copies the file at the first path to the second, replacing what is
 /// there.
@@ -221,8 +229,11 @@ export fn rename(from : Path, to : Path, ms : Int) : Either(Io.Error, Unit) with
 /// }
 /// // => Right(Some("y"))
 /// ```
-export fn copy(from : Path, to : Path, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference, fn(r) = Copy(from = from, to = to, reply = r), ms))
+export fn copy(source : Path, destination : Path, ms : Int) : Either(Io.Error, Unit) with m =
+    answered(Address.call(reference,
+                          fn(reply) =
+                              Copy(source = source, destination = destination, reply = reply),
+                          ms))
 
 /// Makes a symbolic link at the first path that leads to the second, which
 /// is kept as it is written and may name nothing. A first path that names
@@ -239,7 +250,9 @@ export fn copy(from : Path, to : Path, ms : Int) : Either(Io.Error, Unit) with m
 /// // => Right(Some("t"))
 /// ```
 export fn makeLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference, fn(r) = MakeLink(path = path, target = target, reply = r), ms))
+    answered(Address.call(reference,
+                          fn(reply) = MakeLink(path = path, target = target, reply = reply),
+                          ms))
 
 /// Makes a hard link at the first path to the regular file the second
 /// names: a second name for the file, which outlives the first. A first
@@ -261,7 +274,7 @@ export fn makeLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit
 /// since 0.2.0
 export fn makeHardLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference,
-                          fn(r) = MakeHardLink(path = path, target = target, reply = r),
+                          fn(reply) = MakeHardLink(path = path, target = target, reply = reply),
                           ms))
 
 /// The path a symbolic link holds, as it was written, or `None` where the
@@ -279,7 +292,7 @@ export fn makeHardLink(path : Path, target : Path, ms : Int) : Either(Io.Error, 
 /// // => #(Right(Some(Path("somewhere"))), Right(None))
 /// ```
 export fn readLink(path : Path, ms : Int) : Either(Io.Error, Optional(Path)) with m =
-    answered(Address.call(reference, fn(r) = ReadLink(path = path, reply = r), ms))
+    answered(Address.call(reference, fn(reply) = ReadLink(path = path, reply = reply), ms))
 
 /// Writes a new file, or none where the path names something already,
 /// which is `Left(Exists)`: the one way to claim a name, as a lock
@@ -296,7 +309,9 @@ export fn readLink(path : Path, ms : Int) : Either(Io.Error, Optional(Path)) wit
 /// // => #(Right(Unit), Left(Exists))
 /// ```
 export fn makeFile(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference, fn(r) = MakeFile(path = path, bytes = bytes, reply = r), ms))
+    answered(Address.call(reference,
+                          fn(reply) = MakeFile(path = path, bytes = bytes, reply = reply),
+                          ms))
 
 /// Removes a directory and everything under it, or a file or a link. A link
 /// is removed and not followed, wherever it stands, so what it leads to is
@@ -317,7 +332,7 @@ export fn makeFile(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit
 /// // => true
 /// ```
 export fn removeAll(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference, fn(r) = RemoveAll(path = path, reply = r), ms))
+    answered(Address.call(reference, fn(reply) = RemoveAll(path = path, reply = reply), ms))
 
 /// Sets the modification time, in milliseconds since the epoch as
 /// `Clock.now` gives it, kept to the second as the file system keeps it.
@@ -334,7 +349,7 @@ export fn removeAll(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
 /// ```
 export fn setModified(path : Path, mtime : Int, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference,
-                          fn(r) = SetModified(path = path, mtime = mtime, reply = r),
+                          fn(reply) = SetModified(path = path, mtime = mtime, reply = reply),
                           ms))
 
 /// Sets the permission bits of a file or a directory to the mode, as the
@@ -355,7 +370,9 @@ export fn setModified(path : Path, mtime : Int, ms : Int) : Either(Io.Error, Uni
 ///
 /// since 0.2.0
 export fn setMode(path : Path, mode : Int, ms : Int) : Either(Io.Error, Unit) with m =
-    answered(Address.call(reference, fn(r) = SetMode(path = path, mode = mode, reply = r), ms))
+    answered(Address.call(reference,
+                          fn(reply) = SetMode(path = path, mode = mode, reply = reply),
+                          ms))
 
 fn answered(answer : Optional(Either(Io.Error, a))) : Either(Io.Error, a) =
     Optional.withDefault(answer, Left(Io.Timeout))

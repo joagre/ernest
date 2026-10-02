@@ -36,8 +36,8 @@
 /// ```
 ///
 /// since 0.2.0
-export fn Path.<>(p : Path, under : Path) : Path =
-    if isAbsolute(under) then under else join(split(p) <> split(under))
+export fn Path.<>(path : Path, under : Path) : Path =
+    if isAbsolute(under) then under else join(split(path) <> split(under))
 
 /// The segments as a path, the inverse of `split`: a root first stays a
 /// root, and one separator stands between the others.
@@ -70,13 +70,15 @@ fn written(segments : List(String)) : String =
 /// Path.split(Path("/etc/hosts"))
 /// // => ["/", "etc", "hosts"]
 /// ```
-export fn split(p : Path) : List(String) = {
-    let text = toString(p);
-    let named = fn(t) = List.filter(String.split(t, separator()), fn(s) = !String.isEmpty(s));
+export fn split(path : Path) : List(String) = {
+    let text = toString(path);
+    let named =
+        fn(part) =
+            List.filter(String.split(part, separator()), fn(segment) = !String.isEmpty(segment));
     match String.indexOf(text, separator()) {
-        Some(at) when isAbsolute(p) -> {
-            let root = String.slice(text, 0, at + 1);
-            root :: named(String.slice(text, at + 1, String.size(text)))
+        Some(index) when isAbsolute(path) -> {
+            let root = String.slice(text, 0, index + 1);
+            root :: named(String.slice(text, index + 1, String.size(text)))
         }
       | _ -> named(text)
     }
@@ -99,8 +101,8 @@ foreign fn separator() : String =
 /// #(Path.parent(Path("a/b/")), Path.parent(Path("./x")), Path.parent(Path("/")))
 /// // => #(Some(Path("a")), Some(Path(".")), None)
 /// ```
-export fn parent(p : Path) : Optional(Path) =
-    match List.dropLast(split(p), 1) {
+export fn parent(path : Path) : Optional(Path) =
+    match List.dropLast(split(path), 1) {
         [] -> None
       | segments -> Some(join(segments))
     }
@@ -123,11 +125,11 @@ export fn name(path : Path) : Optional(String) =
 /// What follows the last `.` of the name, without the dot, or `None` when
 /// the name has none. The dots that begin the name begin no extension, so
 /// `.bashrc`, `.` and `..` have none.
-export fn extension(p : Path) : Optional(String) = {
-    let named <- name(p);
+export fn extension(path : Path) : Optional(String) = {
+    let named <- name(path);
     let bare = withoutLeadingDots(named);
     match String.lastIndexOf(bare, ".") {
-        Some(at) -> Some(String.slice(bare, at + 1, String.size(bare)))
+        Some(index) -> Some(String.slice(bare, index + 1, String.size(bare)))
       | None -> None
     }
 }
@@ -150,8 +152,11 @@ fn withoutLeadingDots(name : String) : String =
 ///   Path.toString(Path.withExtension(Path("a/b"), "")))
 /// // => #("a/b.md", "a/b.")
 /// ```
-export fn withExtension(p : Path, ext : String) : Path =
-    if List.contains([None, Some("."), Some("..")], name(p)) then p else extended(p, "." <> ext)
+export fn withExtension(path : Path, extension : String) : Path =
+    if List.contains([None, Some("."), Some("..")], name(path)) then
+        path
+    else
+        extended(path, "." <> extension)
 
 /// The path without its extension, the rest as it was written. The root,
 /// `.` and `..` have no name to shorten, and are left as they are.
@@ -170,11 +175,11 @@ export fn withoutExtension(path : Path) : Path =
 
 // The name's extension replaced by the suffix where the name ends, before
 // any separators after it.
-fn extended(p : Path, suffix : String) : Path = {
-    let text = toString(p);
+fn extended(path : Path, suffix : String) : Path = {
+    let text = toString(path);
     let head = withoutTrailingSeparators(text);
     let tail = String.slice(text, String.size(head), String.size(text));
-    let stem = match extension(p) {
+    let stem = match extension(path) {
         Some(old) -> String.slice(head, 0, String.size(head) - String.size(old) - 1)
       | None -> head
     };
@@ -196,11 +201,11 @@ fn withoutTrailingSeparators(text : String) : String =
 /// #(Path.isAbsolute(Path("/etc")), Path.isAbsolute(Path("etc")))
 /// // => #(true, false)
 /// ```
-export foreign fn isAbsolute(p : Path) : Bool =
+export foreign fn isAbsolute(path : Path) : Bool =
     "ern_path:is_absolute/1"
 
 /// The path as text, as it was written.
-export fn toString(p : Path) : String =
-    match p {
+export fn toString(path : Path) : String =
+    match path {
         Path(text) -> text
     }

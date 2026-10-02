@@ -21,11 +21,11 @@
 /// since 0.1.0
 
 /// `true` for a decimal digit in any script, general category Nd.
-export foreign fn isDigit(c : Char) : Bool =
+export foreign fn isDigit(char : Char) : Bool =
     "ern_char:is_digit/1"
 
 /// `true` for a letter in any script, general category L.
-export foreign fn isAlpha(c : Char) : Bool =
+export foreign fn isAlpha(char : Char) : Bool =
     "ern_char:is_alpha/1"
 
 /// `true` for white space, the White_Space property: `' '`, `'\n'`, and the
@@ -37,7 +37,7 @@ export foreign fn isAlpha(c : Char) : Bool =
 /// #(Char.isSpace('\n'), Char.isSpace('a'))
 /// // => #(true, false)
 /// ```
-export foreign fn isSpace(c : Char) : Bool =
+export foreign fn isSpace(char : Char) : Bool =
     "ern_char:is_space/1"
 
 /// `true` for an upper-case letter, general category Lu.
@@ -48,19 +48,19 @@ export foreign fn isSpace(c : Char) : Bool =
 /// #(Char.isUpper('A'), Char.isLower('A'))
 /// // => #(true, false)
 /// ```
-export foreign fn isUpper(c : Char) : Bool =
+export foreign fn isUpper(char : Char) : Bool =
     "ern_char:is_upper/1"
 
 /// `true` for a lower-case letter, general category Ll.
-export foreign fn isLower(c : Char) : Bool =
+export foreign fn isLower(char : Char) : Bool =
     "ern_char:is_lower/1"
 
-/// The upper-case form, or `c` itself when it has no single upper-case
+/// The upper-case form, or `char` itself when it has no single upper-case
 /// form: `'ß'` stays `'ß'`.
-export foreign fn toUpper(c : Char) : Char =
+export foreign fn toUpper(char : Char) : Char =
     "ern_char:to_upper/1"
 
-/// The lower-case form, or `c` itself when it has no single lower-case form.
+/// The lower-case form, or `char` itself when it has no single lower-case form.
 ///
 /// ### Examples
 ///
@@ -68,7 +68,7 @@ export foreign fn toUpper(c : Char) : Char =
 /// Char.toLower('A')
 /// // => 'a'
 /// ```
-export foreign fn toLower(c : Char) : Char =
+export foreign fn toLower(char : Char) : Char =
     "ern_char:to_lower/1"
 
 /// The one-character string.
@@ -79,19 +79,22 @@ export foreign fn toLower(c : Char) : Char =
 /// Char.toString('é')
 /// // => "é"
 /// ```
-export foreign fn toString(c : Char) : String =
+export foreign fn toString(char : Char) : String =
     "ern_char:to_string/1"
 
 /// The code point.
-export foreign fn toInt(c : Char) : Int =
+export foreign fn toInt(char : Char) : Int =
     "ern_char:to_int/1"
 
-/// The character with code point `n`, or `None` outside U+0000 to U+10FFFF
+/// The character with code point `code`, or `None` outside U+0000 to U+10FFFF
 /// or for a surrogate, U+D800 to U+DFFF.
-export fn fromInt(n : Int) : Optional(Char) =
-    if n < 0 || n > 0x10FFFF || (n >= 0xD800 && n <= 0xDFFF) then None else Some(fromCode(n))
+export fn fromInt(code : Int) : Optional(Char) =
+    if code < 0 || code > 0x10FFFF || (code >= 0xD800 && code <= 0xDFFF) then
+        None
+    else
+        Some(fromCode(code))
 
-foreign fn fromCode(n : Int) : Char =
+foreign fn fromCode(code : Int) : Char =
     "ern_char:from_int/1"
 
 /// The order of the code points, which `<` and the other comparisons use.
@@ -102,5 +105,5 @@ foreign fn fromCode(n : Int) : Char =
 /// Char.compare('b', 'a')
 /// // => Greater
 /// ```
-export fn compare(a : Char, b : Char) : Ordering =
-    if a < b then Less else if a > b then Greater else Equal
+export fn compare(left : Char, right : Char) : Ordering =
+    if left < right then Less else if left > right then Greater else Equal

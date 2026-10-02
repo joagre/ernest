@@ -20,11 +20,11 @@
 /// since 0.1.0
 
 // What the clock takes: times in milliseconds, the time an alarm fires
-// sent to its `to`. An alarm is answered once the clock holds it, so that
+// sent to its `address`. An alarm is answered once the clock holds it, so that
 // the caller goes on only when it is counted as pending (report §8.6).
 type Msg =
-    After(ms : Int, to : Address(Int), reply : Reply(Unit))
-  | At(at : Int, to : Address(Int), reply : Reply(Unit))
+    Alarm(ms : Int, address : Address(Int), reply : Reply(Unit))
+  | AlarmAt(time : Int, address : Address(Int), reply : Reply(Unit))
   | Now(reply : Reply(Int))
 
 // Report §8.2: the system reference, the runtime's address of the clock,
@@ -36,7 +36,7 @@ foreign fn system(name : Foreign.Term) : Address(Msg) with m =
 
 /// The time now.
 export fn now() : Int with m =
-    Address.callForever(reference, fn(r) = Now(reply = r))
+    Address.callForever(reference, fn(reply) = Now(reply = reply))
 
 /// Milliseconds since a moment the runtime chose, which never go back, so
 /// that the difference of two readings is the time the host ran between
@@ -66,8 +66,8 @@ export foreign fn monotonic() : Int with m =
 /// Clock.alarm(10, fn(_) = Unit)
 /// ```
 export fn alarm(ms : Int, wrap : (Int) -> m) : Unit with m = {
-    let to = via(self(), wrap);
-    Address.callForever(reference, fn(r) = After(ms = ms, to = to, reply = r))
+    let address = via(self(), wrap);
+    Address.callForever(reference, fn(reply) = Alarm(ms = ms, address = address, reply = reply))
 }
 
 /// At that time, `wrap(t)` arrives in the caller's mailbox, `t` the time it
@@ -78,7 +78,8 @@ export fn alarm(ms : Int, wrap : (Int) -> m) : Unit with m = {
 /// ```ernest
 /// Clock.alarmAt(Clock.now() + 10, fn(_) = Unit)
 /// ```
-export fn alarmAt(at : Int, wrap : (Int) -> m) : Unit with m = {
-    let to = via(self(), wrap);
-    Address.callForever(reference, fn(r) = At(at = at, to = to, reply = r))
+export fn alarmAt(time : Int, wrap : (Int) -> m) : Unit with m = {
+    let address = via(self(), wrap);
+    Address.callForever(reference,
+                        fn(reply) = AlarmAt(time = time, address = address, reply = reply))
 }

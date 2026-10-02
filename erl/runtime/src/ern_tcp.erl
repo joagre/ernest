@@ -237,7 +237,7 @@ socket_process(Tcp, Socket, Owner, Site) ->
 %% whether the socket took the bytes, and why not.
 writer(Socket, SocketProcess) ->
     receive
-        {'Send', Bytes, Reply} ->
+        {'Write', Bytes, Reply} ->
             Sent = gen_tcp:send(Socket, Bytes),
             ern_rt:answer(Reply, case Sent of
                                      ok -> {'Right', 'Unit'};
@@ -252,13 +252,13 @@ writer(Socket, SocketProcess) ->
 socket_loop(#connection{socket = Socket, writer = Writer, monitor_ref = MonitorRef,
                         state = State} = Connection) ->
     receive
-        {'Recv', Ms, Reply} ->
+        {'Read', Ms, Reply} ->
             socket_loop(read(Ms, Reply, Connection));
         %% report Appendix E.18: a write after the connection has closed
-        {'Send', _, _, Reply} when State =:= closed ->
+        {'Write', _, _, Reply} when State =:= closed ->
             ern_rt:answer(Reply, {'Left', 'Closed'}),
             socket_loop(Connection);
-        {'Send', Bytes, Ms, Reply} ->
+        {'Write', Bytes, Ms, Reply} ->
             send(Writer, Bytes, Ms, Reply),
             socket_loop(Connection);
         {write_timeout, Reply, Deadline} ->
@@ -284,10 +284,10 @@ socket_loop(#connection{socket = Socket, writer = Writer, monitor_ref = MonitorR
             Writer ! stop,
             %% report Appendix E.18: a call after the close faults its caller
             exit({ern, closed});
-        {'FarEnd', Reply} ->
+        {'Remote', Reply} ->
             ern_rt:answer(Reply, endpoint(State, fun() -> inet:peername(Socket) end)),
             socket_loop(Connection);
-        {'NearEnd', Reply} ->
+        {'Local', Reply} ->
             ern_rt:answer(Reply, endpoint(State, fun() -> inet:sockname(Socket) end)),
             socket_loop(Connection);
         {read_timeout, Ref} ->
@@ -307,7 +307,7 @@ socket_loop(#connection{socket = Socket, writer = Writer, monitor_ref = MonitorR
 %% answer is (E.0 shape rule 8).
 send(Writer, Bytes, Ms, Reply) ->
     ern_rt:source_begin(),
-    Writer ! {'Send', Bytes, Reply},
+    Writer ! {'Write', Bytes, Reply},
     write_limit(Reply, ern_rt:deadline(Ms)).
 
 write_timed_out(Reply, Deadline) ->

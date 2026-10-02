@@ -1338,19 +1338,19 @@ fed_message({error, Error}) -> {error, Error};
 fed_message(Bytes) when is_binary(Bytes) -> {data, Bytes};
 fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 
-%% Clock's messages, report Appendix E.15: After(ms, to, reply), At(at,
-%% to, reply), and Now(reply). Alarms are delivered through the clock
-%% itself, so each is counted as a source while it is pending (report
-%% §8.6). Alarms holds each pending alarm by its timer, its deadline, where
-%% it goes and the process behind that, and ByRecipient each process's timers,
-%% so that a restart of that process cancels its own and reads no other's
-%% (report §6.9).
+%% Clock's messages, clock.ern's (report Appendix E.15): Alarm(ms,
+%% address, reply), AlarmAt(time, address, reply), and Now(reply). Alarms
+%% are delivered through the clock itself, so each is counted as a source
+%% while it is pending (report §8.6). Alarms holds each pending alarm by
+%% its timer, its deadline, where it goes and the process behind that, and
+%% ByRecipient each process's timers, so that a restart of that process
+%% cancels its own and reads no other's (report §6.9).
 clock_loop(Alarms, ByRecipient) ->
     receive
-        {'After', Ms, Address, Reply} ->
+        {'Alarm', Ms, Address, Reply} ->
             {Alarms1, ByRecipient1} = alarm(deadline(Ms), Address, Reply, Alarms, ByRecipient),
             clock_loop(Alarms1, ByRecipient1);
-        {'At', Time, Address, Reply} ->
+        {'AlarmAt', Time, Address, Reply} ->
             Deadline = deadline(Time - erlang:system_time(millisecond)),
             {Alarms1, ByRecipient1} = alarm(Deadline, Address, Reply, Alarms, ByRecipient),
             clock_loop(Alarms1, ByRecipient1);
