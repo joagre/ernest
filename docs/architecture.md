@@ -9,7 +9,7 @@ One Ernest module goes through these stages, each an Erlang application under `e
 | Stage | Modules | In | Out |
 |---|---|---|---|
 | lexer | `ern_lexer` | source text | tokens |
-| parser | `ern_parser`; `ern_ast`, the walks later stages share | tokens | AST, records of `ern_ast.hrl` |
+| parser | `ern_parser`; `ern_ast`, a node's span and the walks later stages share | tokens | AST, records of `ern_ast.hrl` |
 | format | `ern_format` and its printer `ern_pretty`, off the compiler's path (§11.6) | source, tokens with comments, AST | the text laid out |
 | typer | `ern_typecheck`, with `ern_types`, `ern_prelude`, `ern_exhaust`, `ern_reply`, `ern_scope` (§5.4), `ern_bitspec` (§5.11), and `ern_iface`, the interface chunk | AST, dependency interfaces | typed AST, interface, environment |
 | emitter | `ern_emitter`, with `ern_descriptor` (§8.4) and `ern_docs`, the `Docs` chunk | typed AST, environment | Erlang forms, then BEAM with the `ErnI` and `Docs` chunks |
@@ -28,7 +28,7 @@ The Makefiles pass `VERSION` to `erlc` as a macro, which `ern_cli` prints. The E
 
 `ern_parser:parse/1` takes tokens; `parse_string/1`, `parse_expr/1`, `parse_type/1` and the shell's `parse_statement/1` are conveniences. The diagnostic of an unfinished input carries `expected`, which completion reads, and `within`, the innermost call and the argument's index, which `Shift-Tab` reads (§11.2).
 
-Every node is a record of `erl/parser/include/ern_ast.hrl`, one per production of Appendix A, `span` first. Expressions and patterns end in a `type` field the checker fills. A name, `#e_var{}`, carries a `ref`, what §4.2's lookup resolved: `var`, `{own, Owner, Name}`, `{remote, Namespace, Owner, Name}` or `{prelude, QualifiedName}`. The emitter reads it and never resolves a name again, as it reads the order of the top-level lets from `ern_typecheck:let_order/1` (§8.5). Declarations carry `doc` and `export`. The parser rewrites twice: parentheses make no node, and `x |> f(a)` is the call `f(x, a)` with its `pipe` flag set, so that `x` is evaluated before a callee that is not a name (§5.1). A clause's `or` alternatives are one `#p_or{}` (§5.9). `prune_docs` keeps a doc block only where §2.2 attaches it, and the module's is `#module_doc{}`, first in the list.
+Every node is a record of `erl/parser/include/ern_ast.hrl`, one per production of Appendix A, `span` first, which `ern_ast:span/1` reads. Expressions and patterns end in a `type` field the checker fills. A name, `#e_var{}`, carries a `ref`, what §4.2's lookup resolved: `var`, `{own, Owner, Name}`, `{remote, Namespace, Owner, Name}` or `{prelude, QualifiedName}`. The emitter reads it and never resolves a name again, as it reads the order of the top-level lets from `ern_typecheck:let_order/1` (§8.5). Declarations carry `doc` and `export`. The parser rewrites twice: parentheses make no node, and `x |> f(a)` is the call `f(x, a)` with its `pipe` flag set, so that `x` is evaluated before a callee that is not a name (§5.1). A clause's `or` alternatives are one `#p_or{}` (§5.9). `prune_docs` keeps a doc block only where §2.2 attaches it, and the module's is `#module_doc{}`, first in the list.
 
 Expressions are parsed by one precedence-climbing loop, patterns by a second small one, and declarations by recursive descent. Nothing backtracks: where the first token does not decide, the parser reads the later token that Appendix A's last paragraph names.
 

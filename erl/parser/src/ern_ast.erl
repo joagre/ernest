@@ -1,13 +1,20 @@
-%% The walks over the AST the parser builds that more than one stage needs,
-%% typed or not: every node in pre-order; what a pattern binds; and the
-%% unqualified names free in an expression. The checker, the reply check,
-%% the exhaustiveness check and the emitter each use them rather than a
-%% copy of their own, since copies of one rule drift.
+%% What more than one stage reads of the AST the parser builds, typed or
+%% not: a node's span; every node in pre-order; what a pattern binds; and
+%% the unqualified names free in an expression. The parser, the formatter,
+%% the checker, the reply check, the exhaustiveness check and the emitter
+%% each use them rather than a copy of their own, since copies of one rule
+%% drift.
 -module(ern_ast).
 
--export([walk/3, pattern_bindings/1, free_names/2]).
+-export([span/1, walk/3, pattern_bindings/1, free_names/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
+
+%% Report §11.5: a node's span, its first field, which a node fresh from
+%% its token holds as the token's position until the parser spans it.
+-spec span(tuple()) -> ern_diagnostic:span() | ern_diagnostic:position().
+span(Node) ->
+    element(2, Node).
 
 %% Every node in pre-order, a node being a tuple whose first element is
 %% its record's name, with an accumulator threaded through.

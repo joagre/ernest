@@ -37,19 +37,22 @@ format(Text) ->
             {CodeTokens, Trivia} = split(Tokens, SourceLines),
             case ern_parser:parse(CodeTokens) of
                 {error, _} = Error -> Error;
-                {ok, Declarations} ->
-                    Code = code(CodeTokens, SourceLines),
-                    Template = module(Declarations, Code),
-                    {Layout, Cursor} = resolve(Template, Code, #cursor{trivia = Trivia}),
-                    {Tail, Cursor1} = lead_trivia(Cursor, Code),
-                    case {tuple_size(Code#code.tokens) =:= Cursor1#cursor.index,
-                          Cursor1#cursor.trivia} of
-                        {true, []} -> ok;
-                        _ -> error({not_all_written, Cursor1#cursor.index, Cursor1#cursor.trivia})
-                    end,
-                    {ok, ern_pretty:render([Layout, Tail])}
+                {ok, Declarations} -> {ok, laid_out(Declarations, CodeTokens, Trivia, SourceLines)}
             end
     end.
+
+%% The module's text in the layout: its template, resolved over every
+%% code token and every comment, each written once.
+laid_out(Declarations, CodeTokens, Trivia, SourceLines) ->
+    Code = code(CodeTokens, SourceLines),
+    Template = module(Declarations, Code),
+    {Layout, Cursor} = resolve(Template, Code, #cursor{trivia = Trivia}),
+    {Tail, Cursor1} = lead_trivia(Cursor, Code),
+    case {tuple_size(Code#code.tokens) =:= Cursor1#cursor.index, Cursor1#cursor.trivia} of
+        {true, []} -> ok;
+        _ -> error({not_all_written, Cursor1#cursor.index, Cursor1#cursor.trivia})
+    end,
+    ern_pretty:render([Layout, Tail]).
 
 %% A CommonMark text with each Ernest block in the layout: one that
 %% parses as a module is laid out as one, one that parses as a function's
@@ -66,21 +69,24 @@ fences([Line | Rest]) ->
     Trimmed = string:trim(Line, leading),
     case string:prefix(Trimmed, <<"```ernest">>) of
         nomatch -> [Line | fences(Rest)];
-        _ ->
-            Indent = byte_size(Line) - byte_size(Trimmed),
-            IsInside = fun(BodyLine) -> string:trim(BodyLine) =/= <<"```">> end,
-            case lists:splitwith(IsInside, Rest) of
-                {Body, [Close | After]} ->
-                    Dedented = [dedent(BodyLine, Indent) || BodyLine <- Body],
-                    Pad = binary:copy(<<" ">>, Indent),
-                    Laid = case fence(Dedented) of
-                               Dedented -> Body;
-                               Formatted ->
-                                   [indent(Pad, FormattedLine) || FormattedLine <- Formatted]
-                           end,
-                    [Line] ++ Laid ++ [Close | fences(After)];
-                {_, []} -> [Line | Rest]
-            end
+        _ -> fenced(Line, byte_size(Line) - byte_size(Trimmed), Rest)
+    end.
+
+%% The Ernest block Opening opens, its lines indented by Indent, laid out,
+%% and the text after it; an unclosed block as it is.
+fenced(Opening, Indent, Rest) ->
+    IsInside = fun(BodyLine) -> string:trim(BodyLine) =/= <<"```">> end,
+    case lists:splitwith(IsInside, Rest) of
+        {Body, [Close | After]} ->
+            Dedented = [dedent(BodyLine, Indent) || BodyLine <- Body],
+            Pad = binary:copy(<<" ">>, Indent),
+            Laid = case fence(Dedented) of
+                       Dedented -> Body;
+                       Formatted -> [indent(Pad, FormattedLine) || FormattedLine <- Formatted]
+                   end,
+            [Opening] ++ Laid ++ [Close | fences(After)];
+        {_, []} ->
+            [Opening | Rest]
     end.
 
 fence(Lines) ->
@@ -143,7 +149,7 @@ is_trivium({doc, _, _}) -> true;
 is_trivium(_) -> false.
 
 relink([Token | Tokens], PreviousEnd) ->
-    {Line, Column, End, _} = element(2, Token),
+    {Line, Column, End, _} = position(Token),
     [setelement(2, Token, {Line, Column, End, PreviousEnd}) | relink(Tokens, End)];
 relink([], _) ->
     [].
@@ -164,18 +170,23 @@ doc_lines([]) ->
 doc_lines([Line | Rest]) ->
     case string:prefix(doc_content(Line), <<"```ernest">>) of
         nomatch -> [Line | doc_lines(Rest)];
-        _ ->
-            IsInside = fun(DocLine) -> string:trim(doc_content(DocLine)) =/= <<"```">> end,
-            case lists:splitwith(IsInside, Rest) of
-                {Body, [Close | After]} ->
-                    Content = [doc_content(BodyLine) || BodyLine <- Body],
-                    Laid = case fence(Content) of
-                               Content -> Body;
-                               Formatted -> [doc_line(FormattedLine) || FormattedLine <- Formatted]
-                           end,
-                    [Line] ++ Laid ++ [Close | doc_lines(After)];
-                {_, []} -> [Line | Rest]
-            end
+        _ -> doc_fenced(Line, Rest)
+    end.
+
+%% The example Opening opens in a doc block, laid out, and the lines after
+%% it; an unclosed example as it is.
+doc_fenced(Opening, Rest) ->
+    IsInside = fun(DocLine) -> string:trim(doc_content(DocLine)) =/= <<"```">> end,
+    case lists:splitwith(IsInside, Rest) of
+        {Body, [Close | After]} ->
+            Content = [doc_content(BodyLine) || BodyLine <- Body],
+            Laid = case fence(Content) of
+                       Content -> Body;
+                       Formatted -> [doc_line(FormattedLine) || FormattedLine <- Formatted]
+                   end,
+            [Opening] ++ Laid ++ [Close | doc_lines(After)];
+        {_, []} ->
+            [Opening | Rest]
     end.
 
 doc_content(<<"/// ", Rest/binary>>) -> Rest;
@@ -190,17 +201,17 @@ code(CodeTokens, SourceLines) ->
           texts = list_to_tuple([text(Token, SourceLines) || Token <- CodeTokens]),
           starts = maps:from_list([{{Line, Column}, Index}
                                    || {Index, Token} <- Indexed,
-                                      {Line, Column, _, _} <- [element(2, Token)]]),
+                                      {Line, Column, _, _} <- [position(Token)]]),
           ends = maps:from_list([{End, Index} || {Index, Token} <- Indexed,
-                                                 element(1, Token) =/= eof,
-                                                 {_, _, End, _} <- [element(2, Token)]]),
+                                                 symbol(Token) =/= eof,
+                                                 {_, _, End, _} <- [position(Token)]]),
           pairs = pairs(Indexed, [], #{})}.
 
 %% A token's text as written.
 text({eof, _}, _SourceLines) ->
     <<>>;
 text(Token, SourceLines) ->
-    {Line, Column, {EndLine, EndColumn}, _} = element(2, Token),
+    {Line, Column, {EndLine, EndColumn}, _} = position(Token),
     Chars = case Line =:= EndLine of
                 true -> lists:sublist(element(Line, SourceLines), Column, EndColumn - Column);
                 false ->
@@ -215,7 +226,7 @@ text(Token, SourceLines) ->
 pairs([], _Open, Acc) ->
     Acc;
 pairs([{Index, Token} | Rest], Open, Acc) ->
-    case element(1, Token) of
+    case symbol(Token) of
         Symbol when Symbol =:= '('; Symbol =:= '#('; Symbol =:= '['; Symbol =:= '{';
                     Symbol =:= '<<' ->
             pairs(Rest, [Index | Open], Acc);
@@ -229,7 +240,13 @@ pairs([{Index, Token} | Rest], Open, Acc) ->
 %% Nodes and their tokens
 %%
 
+%% A token is {Symbol, Position} or {Symbol, Position, Value}, as the
+%% lexer gives it.
 symbol(Token) -> element(1, Token).
+position(Token) -> element(2, Token).
+
+%% The code token the cursor stands at.
+next_token(#cursor{index = Index}, Code) -> element(Index, Code#code.tokens).
 
 %% Where a node's first token is: a call, an operator and a selection
 %% begin with what they apply to.
@@ -237,12 +254,14 @@ start(#e_call{pipe = true, args = [Piped | _]}) -> start(Piped);
 start(#e_call{callee = Callee}) -> start(Callee);
 start(#e_binop{left = Left}) -> start(Left);
 start(#e_selection{expr = Expr}) -> start(Expr);
-start(Node) -> {Line, Column, _} = element(2, Node), {Line, Column}.
+start(Node) ->
+    {Line, Column, _} = ern_ast:span(Node),
+    {Line, Column}.
 
 first_index(Node, Code) -> maps:get(start(Node), Code#code.starts).
 
 last_index(Node, Code) ->
-    {_, _, End} = element(2, Node),
+    {_, _, End} = ern_ast:span(Node),
     maps:get(End, Code#code.ends).
 
 %% Whether parentheses stand around a node: its span ends at the closing
@@ -656,7 +675,7 @@ resolve({group, Template}, Code, Cursor) ->
 resolve({token, Expected}, Code, Cursor) ->
     consume(Expected, Code, Cursor);
 resolve({if_lead, WithLead, Without}, Code, Cursor) ->
-    {NextLine, NextColumn, _, _} = element(2, element(Cursor#cursor.index, Code#code.tokens)),
+    {NextLine, NextColumn, _, _} = position(next_token(Cursor, Code)),
     case Cursor#cursor.trivia of
         [{_, Line, Column, _, _} | _] when {Line, Column} < {NextLine, NextColumn} ->
             resolve(WithLead, Code, Cursor);
@@ -703,8 +722,9 @@ parens(Node, Template, Code, Cursor) ->
     end.
 
 opens(Last, Code, #cursor{index = Index} = Cursor, Acc) ->
-    case symbol(element(Index, Code#code.tokens)) =:= '('
-        andalso maps:get(Index, Code#code.pairs) =:= Last of
+    IsOwn = symbol(next_token(Cursor, Code)) =:= '('
+        andalso maps:get(Index, Code#code.pairs) =:= Last,
+    case IsOwn of
         true ->
             {Layout, Cursor1} = consume('(', Code, Cursor),
             opens(Last - 1, Code, Cursor1, [Layout | Acc]);
@@ -721,18 +741,15 @@ items(Open, [], Close, _Hug, Code, Cursor) ->
     {CloseLayout, Cursor3} = consume(Close, Code, Cursor2),
     {[OpenLayout, Lead, CloseLayout], Cursor3};
 items(Open, [First | Rest], Close, Hug, Code, Cursor) ->
-    {Before, Cursor0} = lead_trivia(Cursor, Code),
-    {OpenLayout, Cursor1} = resolve(Open, Code, Cursor0),
-    {Above, Cursor1a} = lead_trivia(Cursor1, Code),
-    {FirstLayout0, Cursor2} = resolve(First, Code, Cursor1a),
-    FirstLayout = [Above, FirstLayout0],
-    {Pairs, Cursor3} = lists:mapfoldl(fun(Item, Acc) ->
-                                          {Comma, Acc1} = consume(',', Code, Acc),
-                                          {Layout, Acc2} = resolve(Item, Code, Acc1),
-                                          {{Comma, Layout}, Acc2}
-                                      end, Cursor2, Rest),
-    {Lead, Cursor4} = lead_trivia(Cursor3, Code),
-    {CloseLayout, Cursor5} = consume(Close, Code, Cursor4),
+    {Before, Cursor1} = lead_trivia(Cursor, Code),
+    {OpenLayout, Cursor2} = resolve(Open, Code, Cursor1),
+    {Above, Cursor3} = lead_trivia(Cursor2, Code),
+    {FirstItem, Cursor4} = resolve(First, Code, Cursor3),
+    FirstLayout = [Above, FirstItem],
+    {Pairs, Cursor5} = lists:mapfoldl(fun(Item, Acc) -> comma_and_item(Item, Code, Acc) end,
+                                      Cursor4, Rest),
+    {Lead, Cursor6} = lead_trivia(Cursor5, Code),
+    {CloseLayout, Cursor7} = consume(Close, Code, Cursor6),
     Items = [FirstLayout, [[Comma, line, Layout] || {Comma, Layout} <- Pairs], Lead],
     Broken = {bracket, [OpenLayout, {align, Items}, CloseLayout]},
     Laid = case {Pairs, Hug} of
@@ -747,18 +764,24 @@ items(Open, [First | Rest], Close, Hug, Code, Cursor) ->
                                   [[Comma, space(), Layout] || {Comma, Layout} <- Pairs], Lead,
                                   CloseLayout], Broken}
            end,
-    {[Before, Laid], Cursor5}.
+    {[Before, Laid], Cursor7}.
+
+%% An item after the first, with the comma before it.
+comma_and_item(Item, Code, Cursor) ->
+    {Comma, Cursor1} = consume(',', Code, Cursor),
+    {Layout, Cursor2} = resolve(Item, Code, Cursor1),
+    {{Comma, Layout}, Cursor2}.
 
 %% The next code token, with the comments on lines of their own before
 %% it and those after it on its line. A blank line in the source before a
 %% token or a comment is kept, but not after an opening bracket or before
 %% a closing one, and one comes before a declaration after the first.
 consume(Expected, Code, Cursor) ->
-    Token = element(Cursor#cursor.index, Code#code.tokens),
+    Token = next_token(Cursor, Code),
     Expected =:= any orelse symbol(Token) =:= Expected
         orelse error({formatter_expected, Expected, Token}),
     {Lead, Cursor1} = lead_trivia(Cursor, Code),
-    {Line, _, {EndLine, _}, _} = element(2, Token),
+    {Line, _, {EndLine, _}, _} = position(Token),
     Blank = blank_before(Cursor1, Line, symbol(Token)),
     Cursor2 = Cursor1#cursor{index = Cursor1#cursor.index + 1, last_line = EndLine,
                              previous = symbol(Token), force_blank = false},
@@ -766,7 +789,7 @@ consume(Expected, Code, Cursor) ->
     {[Lead, Blank, element(Cursor#cursor.index, Code#code.texts), Trailing], Cursor3}.
 
 lead_trivia(#cursor{trivia = [{Kind, Line, Column, EndLine, Text} | Rest]} = Cursor, Code) ->
-    {NextLine, NextColumn, _, _} = element(2, element(Cursor#cursor.index, Code#code.tokens)),
+    {NextLine, NextColumn, _, _} = position(next_token(Cursor, Code)),
     case {Line, Column} < {NextLine, NextColumn} of
         true ->
             %% comments directly under a declaration, with a blank line after
@@ -806,12 +829,12 @@ ends_before_gap(Last, _, {NextLine, _}, IsFirst) ->
 %% bracket.
 trailing(#cursor{trivia = [{Kind, Line, Column, EndLine, Text} | Rest]} = Cursor, Code, TokenLine)
   when Line =:= TokenLine, Kind =/= doc ->
-    Next = element(Cursor#cursor.index, Code#code.tokens),
-    {NextLine, NextColumn, _, _} = element(2, Next),
+    Next = next_token(Cursor, Code),
+    {NextLine, NextColumn, _, _} = position(Next),
     case {Line, Column} < {NextLine, NextColumn} of
         true ->
             Apart = NextLine =:= EndLine
-                andalso not lists:member(element(1, Next), [')', ']', '}', '>>', ',', ';']),
+                andalso not lists:member(symbol(Next), [')', ']', '}', '>>', ',', ';']),
             Opened = lists:member(Cursor#cursor.previous, ['(', '[', '{', '#(', '<<']),
             %% the space after a block comment is one with a space the
             %% layout puts there (ern_pretty)

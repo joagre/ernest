@@ -327,10 +327,10 @@ param(Tokens) ->
     case Rest of
         [{':', _} | Rest1] ->
             {Type, Rest2} = type(Rest1),
-            spanned({#param{span = node_span(Pattern), pattern = Pattern, annotation = Type},
+            spanned({#param{span = ern_ast:span(Pattern), pattern = Pattern, annotation = Type},
                      Rest2});
         _ ->
-            spanned({#param{span = node_span(Pattern), pattern = Pattern}, Rest})
+            spanned({#param{span = ern_ast:span(Pattern), pattern = Pattern}, Rest})
     end.
 
 %% Report §4.5, Appendix A's Return: a result annotation is written `: T`,
@@ -578,7 +578,7 @@ clause(Tokens) ->
     {Alternatives, Rest} = separated(Tokens, 'or', fun pattern/1),
     {Pattern, _} = case Alternatives of
                        [Single] -> {Single, Rest};
-                       [First | _] -> spanned({#p_or{span = node_span(First),
+                       [First | _] -> spanned({#p_or{span = ern_ast:span(First),
                                                      alternatives = Alternatives}, Rest})
                    end,
     {Guard, Rest1} = case Rest of
@@ -586,7 +586,7 @@ clause(Tokens) ->
                          _ -> {undefined, Rest}
                      end,
     {Body, Rest2} = expr(expect(Rest1, '->')),
-    spanned({#clause{span = node_span(Pattern), pattern = Pattern, guard = Guard, body = Body},
+    spanned({#clause{span = ern_ast:span(Pattern), pattern = Pattern, guard = Guard, body = Body},
              Rest2}).
 
 %% Precedence climbing. Higher binds tighter; report §2.6 numbers the levels
@@ -640,7 +640,7 @@ combine(Operator, Position, Left, Right) ->
 
 %% An operator expression spans from its left operand (report §11.5).
 from_left_operand(Left, {_, _, End, PreviousEnd}) ->
-    {Line, Column, _} = ern_diagnostic:span(node_span(Left)),
+    {Line, Column, _} = ern_diagnostic:span(ern_ast:span(Left)),
     {Line, Column, End, PreviousEnd}.
 
 unary([{'-', Position} | Rest]) ->
@@ -663,13 +663,14 @@ calls(Callee, [{'(', _} | Rest]) ->
                         _ -> arguments(Callee, Rest, 0)
                     end,
     Closed = inside(Callee, max(0, length(Args) - 1), fun() -> expect(Rest1, ')') end),
-    {Call, Rest2} = spanned({#e_call{span = node_span(Callee), callee = Callee, args = Args},
+    {Call, Rest2} = spanned({#e_call{span = ern_ast:span(Callee), callee = Callee, args = Args},
                              Closed}),
     calls(Call, Rest2);
 calls(Expr, [{'.', _}, {ident, FieldPosition, Field} | Rest]) ->
     %% report §3.5: a field selected from the value before it
-    {Selection, Rest1} = spanned({#e_selection{span = node_span(Expr), expr = Expr, field = Field,
-                                               field_span = FieldPosition}, Rest}),
+    Unspanned = #e_selection{span = ern_ast:span(Expr), expr = Expr, field = Field,
+                             field_span = FieldPosition},
+    {Selection, Rest1} = spanned({Unspanned, Rest}),
     calls(Selection, Rest1);
 calls(Expr, Tokens) ->
     {Expr, Tokens}.
@@ -862,7 +863,7 @@ pattern(Tokens) ->
     {Pattern, Rest} = conspat(Tokens),
     case Rest of
         [{as, _}, {ident, NamePosition, Name} | Rest1] ->
-            spanned({#p_as{span = node_span(Pattern), pattern = Pattern, name = Name,
+            spanned({#p_as{span = ern_ast:span(Pattern), pattern = Pattern, name = Name,
                            name_span = NamePosition}, Rest1});
         [{as, _}, Token | _] ->
             fail(position(Token), "expected a name after `as` instead of " ++ describe(Token));
@@ -964,9 +965,10 @@ bit_segment(Tokens, Parse) ->
     case Rest of
         [{':', _} | Rest1] ->
             {Specs, Rest2} = separated(Rest1, '-', fun bit_spec/1),
-            spanned({#bit_segment{span = node_span(Value), value = Value, specs = Specs}, Rest2});
+            spanned({#bit_segment{span = ern_ast:span(Value), value = Value, specs = Specs},
+                     Rest2});
         _ ->
-            spanned({#bit_segment{span = node_span(Value), value = Value}, Rest})
+            spanned({#bit_segment{span = ern_ast:span(Value), value = Value}, Rest})
     end.
 
 bit_spec([{ident, _, size}, {'(', _} | Rest]) ->
@@ -1046,10 +1048,9 @@ meant_typename(Identifier) ->
     end.
 
 %% A token is {Symbol, Position} or {Symbol, Position, Value}, as the
-%% lexer gives it; a node's span is its first field.
+%% lexer gives it.
 symbol(Token) -> element(1, Token).
 position(Token) -> element(2, Token).
-node_span(Node) -> element(2, Node).
 
 line(Token) ->
     {Line, _, _, _} = position(Token),
@@ -1064,11 +1065,11 @@ span_through({Line, Column, _, PreviousEnd}, Tokens, Rest) ->
 %% Report §11.5: a node's span, from the node's first token to the end of
 %% the token before the rest, which every token carries.
 spanned({Node, [Next | _] = Rest}) ->
-    {Line, Column, _} = ern_diagnostic:span(node_span(Node)),
+    {Line, Column, _} = ern_diagnostic:span(ern_ast:span(Node)),
     {_, _, _, End} = position(Next),
     {setelement(2, Node, {Line, Column, End}), Rest};
 spanned({Node, []}) ->
-    {setelement(2, Node, ern_diagnostic:span(node_span(Node))), []}.
+    {setelement(2, Node, ern_diagnostic:span(ern_ast:span(Node))), []}.
 
 describe({ident, _, Name}) -> "identifier `" ++ atom_to_list(Name) ++ "`";
 describe({typename, _, Name}) -> "type name `" ++ atom_to_list(Name) ++ "`";
