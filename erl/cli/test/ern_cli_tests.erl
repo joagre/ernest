@@ -412,25 +412,27 @@ path_shape_test() ->
                       ?assertNot(filelib:is_regular(filename:join(WrongDir, Name ++ ".erc")))
                   end, ["http_2", "_http", "http_", "ordered__set"]).
 
-%% report §4.2, §11.2: `ordered_set.ern` provides `OrderedSet`, which another
+%% report §4.2, §11.2: `word_count.ern` provides `WordCount`, which another
 %% module names, `ern run` finds by its namespace, and `ern doc` writes at
-%% its path; the compiled module is `ern@ordered_set`, the path with `@`
+%% its path; the compiled module is `ern@word_count`, the path with `@`.
+%% `ordered_set.ern` was the example until the standard library took
+%% `OrderedSet` (Appendix E.25)
 words_name_a_segment_test() ->
     Dir = tmp(),
-    write(Dir, "src/ordered_set.ern", "export fn size() : Int = 2\n"),
+    write(Dir, "src/word_count.ern", "export fn size() : Int = 2\n"),
     write(Dir, "src/net/http_client.ern", "export fn port() : Int = 80\n"),
     write(Dir, "src/main.ern",
           "export fn main() : Unit with Never =\n"
-          "    Io.println(Int.toString(OrderedSet.size() + Net.HttpClient.port()))\n"),
+          "    Io.println(Int.toString(WordCount.size() + Net.HttpClient.port()))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
-    ?assert(filelib:is_regular(filename:join(Dir, "build/ordered_set.erc"))),
+    ?assert(filelib:is_regular(filename:join(Dir, "build/word_count.erc"))),
     ?assert(filelib:is_regular(filename:join(Dir, "build/net/http_client.erc"))),
     ?assertEqual(0, ern_err(["run", Dir ++ "/build/main.erc"])),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"82\n">>)),
     ?assertEqual(0, ern_cli:ern(["doc", "--build-root", Dir ++ "/pages", Dir ++ "/src"])),
-    ?assert(filelib:is_regular(filename:join(Dir, "pages/ordered_set.md"))),
+    ?assert(filelib:is_regular(filename:join(Dir, "pages/word_count.md"))),
     ?assert(filelib:is_regular(filename:join(Dir, "pages/net/http_client.md"))),
-    ?assertEqual("ordered_set", ern_build:module_path(['OrderedSet'])),
+    ?assertEqual("word_count", ern_build:module_path(['WordCount'])),
     ?assertEqual('ern@net@http_client', ern_emitter:erlang_module(['Net', 'HttpClient'])).
 
 %% report §11.1, §3.10: a module depends on each module that declares a type
@@ -631,10 +633,11 @@ type_member_across_modules_test() ->
     %% report Appendix E.1: an abstract value outside its module
     ?assertEqual(<<"Greater\ntrue\n#(<abstract>, 2)\n">>, iolist_to_binary(?capturedOutput)).
 
-%% report §4.4, Appendix E.1: outside its module an abstract value is shown as
-%% `<abstract>`, and no generic function shows it by its representation,
-%% `Io.show` at a type variable being a type error. A regression test of the
-%% rule of 2026-10-01: through a type variable its constructor was shown
+%% report §4.4, Appendix E.1, §4.9: outside its module an abstract value is
+%% shown as `<abstract>`, and no generic function shows it by its
+%% representation, `Io.show` at a type variable no requirement names being a
+%% type error. A regression test of the rule of 2026-10-01: through a type
+%% variable its constructor was shown
 abstract_shown_outside_its_module_test() ->
     Dir = tmp(),
     Stack = "export abstract type Stack(a) = Stack(List(a))\n"
@@ -652,8 +655,8 @@ abstract_shown_outside_its_module_test() ->
           "export fn main() : Unit with Never = Io.println(shown(Lib.Stack.one))\n"),
     ?assertEqual(1, build_err(["--build-root", Refused ++ "/build", Refused ++ "/src"])),
     ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
-                                    "Io.show writes a value by its type, which is not known"
-                                    " whole here: a!")).
+                                    "Io.show needs a.show, which shown does not declare; add"
+                                    " needs a.show")).
 
 %% report Appendix E.1, §3.8: a value of a foreign type is shown as
 %% `<foreign>`, `Foreign.Term` and a type a module declares alike, inside

@@ -1309,19 +1309,24 @@ input_numbers_reused() ->
 %% a function once nothing holds it, give their modules and numbers back,
 %% so they cost no atoms of their own. A regression test, written after the
 %% code: every declaration kept its module for the rest of the session.
-%% The bound allows what the session makes on its own.
+%% The bound allows what the session makes on its own; the count begins
+%% after one round, since the first of each kind of input loads the code
+%% that compiles it, the formatter's among it, which `ern doc`'s layout of a
+%% type declaration uses (report §11.4).
 declarations_let_go_test_() ->
     {timeout, 120, fun declarations_let_go/0}.
 
 declarations_let_go() ->
     InputFile = scratch_file("ern_decls_"),
     Info = "info(Erl.atom(\"atom_count\"))\n",
+    Round = fun(Index) ->
+                ["fn f(n : Int) : Int = n * ", integer_to_list(Index), "\n",
+                 "type Shape = Circle(Int) | Square(Int)\n",
+                 "fn(n : Int) : Int = n + ", integer_to_list(Index), "\n"]
+            end,
     ok = file:write_file(InputFile, ["foreign fn info(k : Foreign.Term) : Int with m ="
-                                     " \"erlang:system_info/1\"\n", Info,
-                                     [["fn f(n : Int) : Int = n * ", integer_to_list(Index), "\n",
-                                       "type Shape = Circle(Int) | Square(Int)\n",
-                                       "fn(n : Int) : Int = n + ", integer_to_list(Index), "\n"]
-                                      || Index <- lists:seq(1, 100)],
+                                     " \"erlang:system_info/1\"\n", Round(0), Info,
+                                     [Round(Index) || Index <- lists:seq(1, 100)],
                                      Info]),
     {0, Output} = sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     [Before, After] = answers(Output, 5),
@@ -2420,19 +2425,19 @@ not_a_name_test() ->
         forget_session()
     end.
 
-%% report §4.2, §11.2: `:load OrderedSet` finds `ordered_set.ern` under the
+%% report §4.2, §11.2: `:load WordCount` finds `word_count.ern` under the
 %% source root, a name that is not words beginning with a capital is
 %% refused, and completion names the segment from the file
 load_words_segment_test() ->
     Dir = scratch("ern_words_"),
-    ok = file:write_file(filename:join(Dir, "ordered_set.ern"), "export fn size() : Int = 2\n"),
+    ok = file:write_file(filename:join(Dir, "word_count.ern"), "export fn size() : Int = 2\n"),
     try
-        Session = with_loaded(Dir, [<<"OrderedSet">>]),
-        ?assertMatch({'Left', <<"Ordered_Set is not a module name", _/binary>>},
-                     ern_shell:load(Session, <<"Ordered_Set">>)),
-        ?assertMatch({'Left', <<"orderedSet is not a module name", _/binary>>},
-                     ern_shell:load(Session, <<"orderedSet">>)),
-        ?assertEqual({'Some', <<"OrderedSet">>}, ern_shell:segment(<<"ordered_set">>))
+        Session = with_loaded(Dir, [<<"WordCount">>]),
+        ?assertMatch({'Left', <<"Word_Count is not a module name", _/binary>>},
+                     ern_shell:load(Session, <<"Word_Count">>)),
+        ?assertMatch({'Left', <<"wordCount is not a module name", _/binary>>},
+                     ern_shell:load(Session, <<"wordCount">>)),
+        ?assertEqual({'Some', <<"WordCount">>}, ern_shell:segment(<<"word_count">>))
     after
         forget_session()
     end.

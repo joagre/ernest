@@ -615,17 +615,9 @@ fn obey(state : State,
             [] -> answered(state, screen, ["the session declares nothing yet"])
           | lines -> answered(state, screen, lines)
         }
-      | Shell.Command.Type -> match check(session, origin(state, column), argument) {
-            Left(text) -> diagnosed(state, screen, text)
-          | Right(#(session1, checked)) -> if isExpression(checked) then
-                answered(State(..state, session = session1),
-                         screen,
-                         [argument <> " : " <> typeText(checked)])
-            else
-                // report §11.2: `:type` takes an expression
-                refused(state,
-                        screen,
-                        ":type takes an expression, and a `let` or a declaration is not one")
+      | Shell.Command.Type -> match declaredType(session, argument) {
+            Some(text) -> answered(state, screen, [argument <> " : " <> text])
+          | None -> typeOf(state, screen, argument, column)
         }
       | Shell.Command.Forget -> match forget(session, argument) {
             Left(text) -> refused(state, screen, text)
@@ -666,6 +658,25 @@ fn obey(state : State,
         }
     }
 }
+
+// Report §11.2: `:type` of an expression that is not one name, checked
+// as an input is and not run.
+fn typeOf(state : State,
+          screen : Address(ScreenMsg),
+          argument : String,
+          column : Int) : Next with m =
+    match check(state.session, origin(state, column), argument) {
+        Left(text) -> diagnosed(state, screen, text)
+      | Right(#(session, checked)) -> if isExpression(checked) then
+            answered(State(..state, session = session),
+                     screen,
+                     [argument <> " : " <> typeText(checked)])
+        else
+            // report §11.2: `:type` takes an expression
+            refused(state,
+                    screen,
+                    ":type takes an expression, and a `let` or a declaration is not one")
+    }
 
 // What a command answers, a line each, and the session after it.
 fn answered(state : State, screen : Address(ScreenMsg), lines : List(String)) : Next with m = {
@@ -1192,6 +1203,12 @@ foreign fn startupFiles() : List(String) with m =
 
 foreign fn typeText(checked : Checked) : String =
     "ern_shell:type_text/1"
+
+// Report §11.2, §4.9: the type of an input that is one name, as its
+// declaration writes it, its requirement among it; none for any other
+// input, which is checked.
+foreign fn declaredType(session : Session, input : String) : Optional(String) with m =
+    "ern_shell:declared_type/2"
 
 // Report §11.2: a value of type `Unit` prints nothing.
 foreign fn isUnit(checked : Checked) : Bool =

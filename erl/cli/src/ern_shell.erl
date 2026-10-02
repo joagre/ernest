@@ -10,7 +10,7 @@
 -export([loaded/1, start/0, program/0, startup_files/0, needs_more/1, check/3,
          is_unit/1, type_text/1, run/4, show/3, bindings/1, slot/1, names/0,
          session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
-         documentation/1, fields/1, signature/1, load/2,
+         documentation/1, fields/1, signature/1, declared_type/2, load/2,
          reload/1, version/0, write/1, screen/1, to_screen/1,
          output/1, unbound/1, collect/1, input_site/2, is_expression/1, declared/1]).
 
@@ -1056,18 +1056,34 @@ call_signature(Path, Name, Argument) ->
             'None'
     end.
 
-%% The declared type of a name, checked as an input of that one name in a
-%% module of its own that does not enter the session.
+%% The declared type of a function's name, for its signature.
 scheme_of(Session, Text) ->
+    case declared_scheme(Session, Text) of
+        {ok, #scheme{type = {tfn, _, _, _}}, _} = Found -> Found;
+        _ -> none
+    end.
+
+%% Report §11.2, §4.9: the type of an input that is one name, as its
+%% declaration writes it, which `:type` shows; any other input is checked.
+-spec declared_type(#session{}, binary()) -> {'Some', binary()} | 'None'.
+declared_type(Session, Input) ->
+    case declared_scheme(Session, Input) of
+        {ok, Scheme, Env} ->
+            Text = ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env)),
+            {'Some', unicode:characters_to_binary(Text)};
+        none ->
+            'None'
+    end.
+
+%% The declared scheme of an input that is one name, read in the session's
+%% scope in a module of its own that does not enter the session, and not
+%% taken as a value, which a declaration with a requirement is not without
+%% a type for its variable (report §4.9).
+declared_scheme(#session{interfaces = Interfaces, scope = Scope}, Text) ->
     maybe
-        {ok, Binds, Expr} ?= input(Text),
-        {'Right', {_, #checked{typed = Typed, env = Env}}} ?=
-            check_module(Session#session{last_input = Session#session.last_input + 1},
-                         ['$Signature'], {typed, <<"signature">>}, Text, input_entry(Expr),
-                         Binds),
-        {Path, Name} ?= one_name(Typed),
-        {ok, #scheme{type = {tfn, _, _, _}} = Scheme} ?=
-            ern_typecheck:declared_scheme(Env, Path, Name),
+        {ok, it, #e_var{path = Path, name = Name}} ?= input(Text),
+        {ok, _, _, Env} ?= ern_typecheck:check(['$Signature'], [], Interfaces, Scope),
+        {ok, Scheme} ?= ern_typecheck:declared_scheme(Env, Path, Name),
         {ok, Scheme, Env}
     else
         _ -> none

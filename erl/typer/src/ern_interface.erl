@@ -12,7 +12,7 @@
 -include_lib("typer/include/ern_types.hrl").
 
 -define(CHUNK, <<"ErnI">>).
--define(FORMAT, 3).
+-define(FORMAT, 4).
 
 -type chunk() :: #{format := pos_integer(), interface := #interface{}, source_hash := binary(),
                    deps := [{[atom()], binary()}], compiler => binary(),
@@ -65,11 +65,15 @@ canonical(#interface{namespace = Namespace, types = Types, values = Values, lets
                  || {QualifiedName, Scheme} <- maps:to_list(Values)]),
      lists:sort(Lets)}.
 
-canonical_scheme(#scheme{quantified = Quantified, type = Type, names = Names}, VariableNames) ->
+canonical_scheme(#scheme{quantified = Quantified, type = Type, names = Names,
+                         requirement = Requirement}, VariableNames) ->
     Numbers = maps:from_list([{Id, Number} || {Number, {Id, _}} <- lists:enumerate(Quantified)]),
     #scheme{quantified = [{maps:get(Id, Numbers), Restrictions}
                           || {Id, Restrictions} <- Quantified],
             type = renumber(Type, Numbers),
+            %% report §4.9, §11.1: a declaration's requirement is in its
+            %% interface, over the scheme's own variables
+            requirement = [{maps:get(Id, Numbers), Member} || {Id, Member} <- Requirement],
             names = case VariableNames of
                         keep -> maps:from_list([{maps:get(Id, Numbers), Name}
                                                 || {Id, Name} <- maps:to_list(Names)]);

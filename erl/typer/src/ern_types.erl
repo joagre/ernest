@@ -6,10 +6,11 @@
 -export([new/0, fresh/1, fresh/2, fresh_named/2, fresh_effect/1, restrictions/2,
          add_restriction/3, enter/1, leave/1,
          resolve/2, substitute/2, unify/3, free_variables/2,
-         monomorphic/1, generalize/2, generalize/3, instantiate/2, replace_variables/2,
+         monomorphic/1, generalize/2, generalize/3, instantiate/2, instance/2,
+         replace_variables/2,
          mismatch_pair/3, format/2, value_variables/2, value_args/3, effect_variables/1,
          set_scope/4, set_effect_params/2,
-         format_scheme/2, format_call/4, format_error/1]).
+         format_scheme/2, format_needs/3, format_call/4, format_error/1]).
 
 -export_type([type_state/0, type/0, effect/0, qualified_name/0, id/0, restrictions/0]).
 
@@ -350,6 +351,21 @@ instantiate(#scheme{quantified = Quantified, type = Type}, TypeState) ->
     {Replacements, TypeState1} = lists:foldl(Fresh, {#{}, TypeState}, Quantified),
     {replace_variables(Type, Replacements), TypeState1}.
 
+%% Report §4.9: an instance of a declaration's scheme, and its requirement
+%% at that instance, each member with the type its variable stands for
+%% there. A monomorphic scheme's variables are its own, so its requirement
+%% names them as they are.
+-spec instance(#scheme{}, type_state()) -> {type(), [{type(), atom()}], type_state()}.
+instance(#scheme{quantified = Quantified, type = Type, requirement = Requirement}, TypeState) ->
+    Fresh = fun({Id, Restrictions}, {Replacements, Acc}) ->
+                {Variable, Acc1} = fresh(Acc, Restrictions),
+                {Replacements#{Id => Variable}, Acc1}
+            end,
+    {Replacements, TypeState1} = lists:foldl(Fresh, {#{}, TypeState}, Quantified),
+    {replace_variables(Type, Replacements),
+     [{maps:get(Id, Replacements, {tvar, Id}), Member} || {Id, Member} <- Requirement],
+     TypeState1}.
+
 %% The type with each variable Replacements names replaced by its type.
 -spec replace_variables(type() | pure, #{id() => type()}) -> type() | pure.
 replace_variables({tvar, Id} = Variable, Replacements) ->
@@ -394,12 +410,20 @@ differing({tfn, ExpectedParams, ExpectedEffect, ExpectedResult} = Expected,
 differing(Expected, Actual) ->
     {Expected, Actual}.
 
+%% A part where either side is a variable does not differ, since the
+%% variable takes the other; the first part that does is named. A
+%% regression: the help named a variable against the type it would take,
+%% `a` and `Set(a)`, where the results differed.
 first_differing(ExpectedParts, ActualParts, Whole) ->
     case [{Expected, Actual} || {Expected, Actual} <- lists:zip(ExpectedParts, ActualParts),
-                                Expected =/= Actual] of
+                                Expected =/= Actual, not is_variable(Expected),
+                                not is_variable(Actual)] of
         [{Expected, Actual} | _] -> differing(Expected, Actual);
         [] -> Whole
     end.
+
+is_variable({tvar, _}) -> true;
+is_variable(_) -> false.
 
 -spec format(type() | pure, type_state()) -> string().
 format(Type, TypeState) ->
@@ -484,9 +508,41 @@ type_name(QualifiedName, #type_state{namespace = Namespace, session_types = Sess
     end.
 
 %% The scheme's own restrictions apply, whatever state it is printed under.
+%% Report §11.5: a declaration's type ends in its requirement as declared.
 -spec format_scheme(#scheme{}, type_state()) -> string().
-format_scheme(#scheme{type = Type} = Scheme, TypeState) ->
-    format(Type, scheme_state(Scheme, TypeState)).
+format_scheme(#scheme{type = Type, requirement = Requirement} = Scheme, TypeState) ->
+    SchemeState = scheme_state(Scheme, TypeState),
+    Elided = elide_pure_effects(substitute(Type, SchemeState), [], SchemeState),
+    EffectOnly = effect_only_variables(Elided, SchemeState),
+    {Text, Names} = format_type(Elided, SchemeState, #variable_names{effect_only = EffectOnly}),
+    lists:flatten([Text | requirement_text(Requirement, SchemeState, Names)]).
+
+%% Report §4.9, §11.5: an instance of a declaration's type, the type at a
+%% use, ending in its requirement at that use, each member at its type.
+-spec format_needs(type(), [{type(), atom()}], type_state()) -> string().
+format_needs(Type, Requirement, TypeState) ->
+    Elided = elide_pure_effects(substitute(Type, TypeState), [], TypeState),
+    EffectOnly = effect_only_variables(Elided, TypeState),
+    {Text, Names} = format_type(Elided, TypeState, #variable_names{effect_only = EffectOnly}),
+    lists:flatten([Text | requirement_text([{substitute(Instance, TypeState), Member}
+                                            || {Instance, Member} <- Requirement],
+                                           TypeState, Names)]).
+
+%% Report §4.9, §11.5: ` needs a.compare, b.+`, each variable under the
+%% name the type printed it with, without its marks.
+requirement_text([], _TypeState, _Names) ->
+    [];
+requirement_text(Requirement, TypeState, Names) ->
+    {Members, _} = lists:mapfoldl(fun({Id, Member}, Acc) when is_integer(Id) ->
+                                          member_text({tvar, Id}, Member, TypeState, Acc);
+                                     ({Type, Member}, Acc) ->
+                                          member_text(Type, Member, TypeState, Acc)
+                                  end, Names, Requirement),
+    [" needs ", lists:join(", ", Members)].
+
+member_text(Type, Member, TypeState, Names) ->
+    {Text, Names1} = format_type(Type, TypeState, Names),
+    {[string:trim(lists:flatten(Text), trailing, "=!+"), ".", atom_to_list(Member)], Names1}.
 
 %% The state with a scheme's variables named as its declaration names them.
 %% They are the scheme's own, bound by it, so the state's substitution does
@@ -538,7 +594,8 @@ format_call(#scheme{type = Type} = Scheme, Params, MarkedIndex, TypeState) ->
                         none -> ") -> ";
                         _ -> ") : "
                     end,
-            marked(Named, MarkedIndex, [Arrow, ResultText, EffectText]);
+            Needs = requirement_text(Scheme#scheme.requirement, SchemeState, Names2),
+            marked(Named, MarkedIndex, [Arrow, ResultText, EffectText, Needs]);
         _ ->
             {format_scheme(Scheme, TypeState), "", ""}
     end.

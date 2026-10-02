@@ -1076,3 +1076,70 @@ fault_test() ->
 scratch(Prefix) ->
     filename:join("/tmp", Prefix ++ os:getpid() ++ "_"
                           ++ integer_to_list(erlang:unique_integer([positive]))).
+
+%% report Appendix E.25, §4.9: the ordered set, a sorted list, each function
+%% that needs the order taking it after the arguments the program writes, as
+%% the compiler supplies it; `put` and `fromList` keep the element already
+%% there; written after the code
+ordered_set_test() ->
+    Set = 'ern@ordered_set',
+    Compare = fun 'ern@int':compare/2,
+    Small = Set:fromList([3, 1, 3], Compare),
+    ?assertEqual([1, 3], Set:toList(Small)),
+    ?assertEqual({2, false, true}, {Set:size(Small), Set:isEmpty(Small), Set:isEmpty(Set:empty())}),
+    ?assertEqual({true, false}, {Set:contains(Small, 3, Compare), Set:contains(Small, 2, Compare)}),
+    ?assertEqual([1, 2, 3], Set:toList(Set:put(Small, 2, Compare))),
+    ?assertEqual([3], Set:toList(Set:remove(Small, 1, Compare))),
+    ?assertEqual([1, 3], Set:toList(Set:remove(Small, 2, Compare))),
+    Other = Set:fromList([2, 3], Compare),
+    ?assertEqual([1, 2, 3], Set:toList(Set:union(Small, Other, Compare))),
+    ?assertEqual([3], Set:toList(Set:intersection(Small, Other, Compare))),
+    ?assertEqual([1], Set:toList(Set:difference(Small, Other, Compare))),
+    ?assertEqual({true, false}, {Set:isSubset(Set:fromList([3], Compare), Small, Compare),
+                                 Set:isSubset(Other, Small, Compare)}),
+    ?assertEqual({{'Some', 1}, {'Some', 3}, 'None'}, {Set:min(Small), Set:max(Small),
+                                                      Set:min(Set:empty())}),
+    %% map and filterMap take the result's order
+    ?assertEqual([0, 1], Set:toList(Set:map(Small, fun(X) -> X div 2 end, Compare))),
+    Tens = fun(1) -> 'None'; (X) -> {'Some', X * 10} end,
+    ?assertEqual([30], Set:toList(Set:filterMap(Small, Tens, Compare))),
+    ?assertEqual([3], Set:toList(Set:filter(Small, fun(X) -> X > 1 end))),
+    ?assertEqual(4, Set:foldLeft(Small, 0, fun(Acc, X) -> Acc + X end)),
+    ?assertEqual({true, false, {'Some', 3}},
+                 {Set:any(Small, fun(X) -> X > 2 end), Set:all(Small, fun(X) -> X > 2 end),
+                  Set:find(Small, fun(X) -> X > 1 end)}),
+    %% two elements the order calls Equal are one, the first kept
+    ByKey = fun({Key, _}, {Other1, _}) -> 'ern@int':compare(Key, Other1) end,
+    Kept = Set:fromList([{1, first}, {1, second}], ByKey),
+    ?assertEqual([{1, first}], Set:toList(Kept)),
+    ?assertEqual([{1, first}], Set:toList(Set:put(Kept, {1, third}, ByKey))).
+
+%% report Appendix E.26, §4.9: the ordered map, a sorted list of pairs, each
+%% function that needs the keys' order taking it after the arguments the
+%% program writes; `put` and `fromList` keep the later value; written after
+%% the code
+ordered_map_test() ->
+    Map = 'ern@ordered_map',
+    Compare = fun 'ern@int':compare/2,
+    Ages = Map:fromList([{2, b}, {1, a}, {2, c}], Compare),
+    ?assertEqual([{1, a}, {2, c}], Map:toList(Ages)),
+    ?assertEqual({[1, 2], [a, c]}, {Map:keys(Ages), Map:values(Ages)}),
+    ?assertEqual({2, false, true}, {Map:size(Ages), Map:isEmpty(Ages), Map:isEmpty(Map:empty())}),
+    ?assertEqual({{'Some', a}, 'None'}, {Map:get(Ages, 1, Compare), Map:get(Ages, 3, Compare)}),
+    ?assertEqual({true, false}, {Map:contains(Ages, 2, Compare), Map:contains(Ages, 3, Compare)}),
+    ?assertEqual([{1, z}, {2, c}], Map:toList(Map:put(Ages, 1, z, Compare))),
+    ?assertEqual([{2, c}], Map:toList(Map:remove(Ages, 1, Compare))),
+    Counted = Map:update(Map:empty(), 7, fun('None') -> 1; ({'Some', N}) -> N + 1 end, Compare),
+    ?assertEqual([{7, 1}], Map:toList(Counted)),
+    ?assertEqual([{1, b}, {3, d}],
+                 Map:toList(Map:merge(Map:fromList([{1, a}], Compare),
+                                      Map:fromList([{1, b}, {3, d}], Compare), Compare))),
+    ?assertEqual([{1, 3}],
+                 Map:toList(Map:mergeWith(Map:fromList([{1, 1}], Compare),
+                                          Map:fromList([{1, 2}], Compare),
+                                          fun(_, Mine, Theirs) -> Mine + Theirs end, Compare))),
+    ?assertEqual([{1, 1}, {2, 2}],
+                 Map:toList(Map:map(Ages, fun(Key, _) -> Key end))),
+    ?assertEqual([{2, c}], Map:toList(Map:filter(Ages, fun(Key, _) -> Key > 1 end))),
+    ?assertEqual(3, Map:foldLeft(Ages, 0, fun(Acc, Key, _) -> Acc + Key end)),
+    ?assertEqual({'Some', {2, c}}, Map:find(Ages, fun(Key, _) -> Key > 1 end)).

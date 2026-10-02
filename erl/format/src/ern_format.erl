@@ -315,9 +315,10 @@ module(Declarations, Code) ->
                                          || Declaration <- Declarations]).
 
 declaration(#fn_declaration{export = Export, member_of = MemberOf, params = Params,
-                            result_type = ResultType, effect = Effect, body = Body}, Code) ->
+                            result_type = ResultType, effect = Effect, requirement = Requirement,
+                            body = Body}, Code) ->
     [export(Export), token(fn), space(), name(MemberOf), params(Params, Code),
-     result_type(ResultType, Effect, Code), space(), token('='),
+     result_type(ResultType, Effect, Code), requirement(Requirement), space(), token('='),
      case ending(Body, Code) of
          block -> [space(), expr(Body, Code)];
          _ -> {nest, 4, [hardline, expr(Body, Code)]}
@@ -325,14 +326,17 @@ declaration(#fn_declaration{export = Export, member_of = MemberOf, params = Para
 declaration(#let_declaration{export = Export, annotation = Annotation, body = Body}, Code) ->
     [export(Export), token('let'), space(), token(), annotation(Annotation, Code), space(),
      token('='), {body, expr(Body, Code)}];
-declaration(#type_declaration{export = Export, params = Params, constructors = Constructors},
+declaration(#type_declaration{export = Export, params = Params, constructors = Constructors,
+                              derives = Derives},
             Code) ->
-    [export(Export), type_declaration(Params, Constructors, Code)];
+    [export(Export), type_declaration(Params, Constructors, Code), derives(Derives)];
 declaration(#abstract_declaration{export = Export,
                                   declaration = #type_declaration{params = Params,
-                                                                  constructors = Constructors}},
+                                                                  constructors = Constructors,
+                                                                  derives = Derives}},
             Code) ->
-    [export(Export), token(abstract), space(), type_declaration(Params, Constructors, Code)];
+    [export(Export), token(abstract), space(), type_declaration(Params, Constructors, Code),
+     derives(Derives)];
 declaration(#foreign_type_declaration{export = Export, params = Params, equality = Equality},
             _Code) ->
     ParamsTemplate = case Params of
@@ -377,6 +381,18 @@ result_type(Symbol, ResultType, Effect, Code) ->
 
 annotation(undefined, _) -> [];
 annotation(Annotation, Code) -> [space(), token(':'), space(), type(Annotation, Code)].
+
+%% Report §11.6: a requirement follows the result type on its line, its
+%% members a comma and a space apart.
+requirement([]) ->
+    [];
+requirement(Members) ->
+    [space(), token(needs), space(),
+     lists:join([token(','), space()], [[token(), token('.'), token()] || _ <- Members])].
+
+%% Report §11.6: `derives compare` follows the last constructor on its line.
+derives(undefined) -> [];
+derives(_) -> [space(), token(derives), space(), token()].
 
 type_declaration(Params, Constructors, Code) ->
     ParamsTemplate = case Params of
@@ -473,6 +489,9 @@ bare_expr(#e_call{pipe = true} = Call, Code) ->
     {group, [expr(Base, Code),
              {nest, 4, [[line, token('|>'), space(), expr(Callee, Code), Args]
                         || {Callee, Args} <- Stages]}]};
+bare_expr(#e_member{}, _) ->
+    %% report §4.9: `a.compare`, `a.+`
+    [token(), token('.'), token()];
 bare_expr(#e_selection{expr = Expr}, Code) ->
     [expr(Expr, Code), token('.'), token()];
 bare_expr(#e_negation{expr = Expr}, Code) ->

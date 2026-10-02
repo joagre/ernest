@@ -23,7 +23,7 @@
 ///
 /// `Map` for keys in no order, `OrderedSet` for elements in order.
 ///
-/// since 0.3.0
+/// since 0.2.0
 
 /// A map in the order of its key type.
 export abstract type Map(k, v) = Map(List(#(k, v)))

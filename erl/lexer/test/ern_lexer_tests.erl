@@ -30,10 +30,10 @@ control_character_test() ->
 
 %% report §2.4
 reserved_words_test() ->
-    ?assertEqual([type, abstract, with, foreign, match, 'when', 'receive', 'after', as,
-                  'if', then, 'else', fn, 'let', export],
-                 tokens("type abstract with foreign match when receive after as "
-                        "if then else fn let export")).
+    ?assertEqual([type, abstract, with, foreign, derives, match, 'when', 'receive', 'after',
+                  as, 'if', then, 'else', fn, 'let', needs, export],
+                 tokens("type abstract with foreign derives match when receive after as "
+                        "if then else fn let needs export")).
 
 %% report §2.4, §2.5
 literals_true_false_test() ->

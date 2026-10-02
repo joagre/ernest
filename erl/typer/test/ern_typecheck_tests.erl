@@ -20,6 +20,12 @@ type_of(Text, Name) ->
     Scheme = maps:get(['M', Name], Values),
     ern_types:format_scheme(Scheme, ern_typecheck:type_state(ern_typecheck:prelude_env())).
 
+%% The printed type of the member Name of the type MemberOf.
+member_type_of(Text, MemberOf, Name) ->
+    {ok, _, #interface{values = Values}, _} = check(Text),
+    Scheme = maps:get(['M', MemberOf, Name], Values),
+    ern_types:format_scheme(Scheme, ern_typecheck:type_state(ern_typecheck:prelude_env())).
+
 refusal(Text) ->
     {error, [#diagnostic{message = Message} | _]} = check(Text),
     Message.
@@ -452,6 +458,23 @@ declared_type_equality_test() ->
                         "fn f(t : Tree(Int), n : Nest(String)) = t == t && n == n")),
     ?assertEqual(ok, ok("type Tag(a) = Tag(Int)\nfn f(t : Tag((Int) -> Int)) = t == t")).
 
+%% report §4.9, Appendix E.1, §11.5: at a type variable of the signature,
+%% Io.show writes by the requirement's show, which a call supplies; one the
+%% requirement does not name is a call that needs it
+show_under_a_requirement_test() ->
+    ?assertEqual(ok, ok("fn wrap(x : a) : String needs a.show = Io.show(x)")),
+    ?assertEqual(ok, ok("fn wrap(x : a) : String needs a.show = Io.show(x)\n"
+                        "fn f() : String = wrap(1)")),
+    ?assertEqual({"Io.show needs a.show, which wrap does not declare; add needs a.show",
+                  undefined},
+                 refusal_and_help("fn wrap(x : a) : String = Io.show(x)")),
+    ?assertEqual("Io.show writes a value by its type, which is not known whole here: List(a)",
+                 refusal("fn wrap(xs : List(a)) : String needs a.show = Io.show(xs)")),
+    ?assertEqual("wrap needs List(b).show, and Io.show writes a type known whole, or a"
+                 " requirement's type variable",
+                 refusal("fn wrap(x : a) : String needs a.show = Io.show(x)\n"
+                         "fn f(xs : List(b)) : String needs b.show = wrap(xs)")).
+
 %% report Appendix E.1: `Io.show` and `Io.debug` write a value by the type
 %% at which the name is used, as a callee or an argument, known whole once
 %% the definition is inferred; a type variable in it is a type error, and
@@ -459,12 +482,11 @@ declared_type_equality_test() ->
 %% regression test of the rule of 2026-10-01: a type variable wrote the
 %% runtime's representation
 show_needs_a_known_type_test() ->
-    Help = "annotate the value where it is bound; a function generic in the type takes one"
-           " that shows it, `(a) -> String`, from its caller",
-    ?assertEqual({"Io.show writes a value by its type, which is not known whole here: a!", Help},
-                 refusal_and_help("fn wrap(x : a) : String = Io.show(x)")),
-    ?assertEqual("Io.show writes a value by its type, which is not known whole here: List(a)",
-                 refusal("fn f() : String = Io.show([])")),
+    Help = "annotate the value where it is bound; at a type variable of the signature, a"
+           " requirement `needs a.show` lets it write the value",
+    ?assertEqual({"Io.show writes a value by its type, which is not known whole here: List(a)",
+                  Help},
+                 refusal_and_help("fn f() : String = Io.show([])")),
     ?assertEqual("Io.debug writes a value by its type, which is not known whole here:"
                  " Optional(a)",
                  refusal("fn f() : Unit with m = { let _ = Io.debug(None); Unit }")),
@@ -2473,3 +2495,178 @@ shadowed_name_is_no_reference_test() ->
     %% a real cycle is still a cycle
     ?assertEqual("the initializer of a depends on itself, through b",
                  refusal("let a = b()\nfn b() : Int = a\n")).
+
+%%
+%% Requirements (report §4.9), derived members (§3.5) and the fill (§5.6)
+%%
+
+%% report §4.9: a requirement names members of the signature's type
+%% variables, which the body applies, and which an operator on the
+%% variable resolves to; it ends the declaration's printed type (§11.5);
+%% written after the code
+requirement_in_the_body_test() ->
+    ?assertEqual("(List(a!)) -> List(a!) needs a.compare",
+                 type_of("export fn f(list : List(a)) : List(a) needs a.compare =\n"
+                         "    List.sort(list, a.compare)\n", f)),
+    ?assertEqual("(a, a) -> Bool needs a.compare",
+                 type_of("export fn f(x : a, y : a) : Bool needs a.compare = x < y\n", f)),
+    ?assertEqual("(a) -> a needs a.negate",
+                 type_of("export fn f(x : a) : a needs a.negate = -x\n", f)),
+    ?assertEqual("(a!, a!) -> a! needs a.+, a.*",
+                 type_of("export fn f(x : a, y : a) : a needs a.+, a.* = x * y + a.+(x, y)\n", f)).
+
+%% report §4.9: a requirement's variable stands in a value position of the
+%% signature; written after the code
+requirement_variable_test() ->
+    ?assertEqual("b is no type variable of the signature",
+                 refusal("fn f(x : a) : a needs b.compare = x")),
+    ?assertEqual({"e is no type variable of the signature",
+                  "e stands only after `with`, where a mailbox type stands, and a requirement"
+                  " names a type"},
+                 refusal_and_help("fn f(x : a) : a with e needs e.compare = x")),
+    ?assertEqual(ok, ok("fn f() : List(a) needs a.compare = []")).
+
+%% report §4.9, §4.8: a member the requirement does not name is a type
+%% error, written, by an operator, or by its type variable without a
+%% requirement; written after the code
+member_not_declared_test() ->
+    ?assertEqual("f does not declare a.+; add needs a.+",
+                 refusal("fn f(x : a, y : a) : a needs a.compare = a.+(x, y)")),
+    ?assertEqual("`<` needs a.compare, which f does not declare; add needs a.compare",
+                 refusal("fn f(x : a, y : a) : Bool = x < y")),
+    ?assertEqual("`-` needs a.negate, which f does not declare; add needs a.negate",
+                 refusal("fn f(x : a) : a = -x")),
+    ?assertEqual({"unknown name a",
+                  "a is a type variable of the signature; its member, as a.compare, is named"
+                  " under a requirement, needs a.compare"},
+                 refusal_and_help("fn f(x : a, y : a) : Ordering = a.compare(x, y)")).
+
+%% report §4.9: a call writes nothing for a requirement: at a known type
+%% the compiler supplies the type's member, at a type variable the
+%% enclosing requirement does, and otherwise the call is refused; written
+%% after the code
+requirement_supplied_test() ->
+    ?assertEqual(ok, ok("fn f() : List(Int) = OrderedSet.toList(OrderedSet.fromList([3, 1]))")),
+    ?assertEqual(ok, ok("fn unique(list : List(a)) : List(a) needs a.compare =\n"
+                        "    OrderedSet.toList(OrderedSet.fromList(list))")),
+    ?assertEqual("fromList needs a.compare, which unique does not declare; add needs a.compare",
+                 refusal("fn unique(list : List(a)) : List(a) =\n"
+                         "    OrderedSet.toList(OrderedSet.fromList(list))")),
+    ?assertEqual("fromList needs List(Int).compare, and List(Int) has no compare",
+                 refusal("fn f() : Int = OrderedSet.size(OrderedSet.fromList([[1]]))")),
+    %% the member's shape, its result the type itself
+    ?assertEqual({"total needs Vec.+ : (Vec, Vec) -> Vec, and Vec.+ answers Float",
+                  "a function over an operation of another shape takes it as a parameter"},
+                 refusal_and_help("type Vec = Vec(Float)\n"
+                                  "fn Vec.+(Vec(a) : Vec, Vec(b) : Vec) : Float = a + b\n"
+                                  "fn total(list : List(a), zero : a) : a needs a.+ =\n"
+                                  "    List.foldLeft(list, zero, a.+)\n"
+                                  "fn f() : Vec = total([Vec(1.0)], Vec(0.0))")),
+    %% a top-level let declares no requirement
+    ?assertEqual("fromList needs a.compare; a let cannot declare it, so write a fn with the"
+                 " requirement",
+                 refusal("let f = OrderedSet.fromList")).
+
+%% report §4.9: the requirement in force is the enclosing `fn` declaration's,
+%% in a lambda and in a block fn that shares its variables; a let-bound
+%% lambda's own variable is generalized before a call ties it to the
+%% signature's, and a block fn declares its own; written after the code
+requirement_reach_test() ->
+    ?assertEqual(ok, ok("fn f(list : List(a)) : List(List(a)) needs a.compare =\n"
+                        "    List.map(list, fn(x) = OrderedSet.toList(OrderedSet.fromList([x])))")),
+    ?assertEqual(ok, ok("fn f(list : List(a)) : Optional(a) needs a.compare = {\n"
+                        "    fn larger(x : a, y : a) : a = if x < y then y else x;\n"
+                        "    List.find(list, fn(x) = larger(x, x) == x)\n}")),
+    ?assertEqual(ok, ok("fn f(list : List(a)) : List(a) needs a.compare = {\n"
+                        "    fn sorted(xs : List(b)) : List(b) needs b.compare =\n"
+                        "        OrderedSet.toList(OrderedSet.fromList(xs));\n"
+                        "    sorted(list)\n}")),
+    ?assertEqual({"fromList needs a.compare, at a type variable no requirement can name",
+                  "annotate it with a type variable of f's signature, and add the requirement"
+                  " there"},
+                 refusal_and_help("fn f(list : List(Int)) : Int = {\n"
+                                  "    let build = fn(xs) = OrderedSet.fromList(xs);\n"
+                                  "    OrderedSet.size(build(list))\n}")).
+
+%% report §4.9: a declaration with a requirement taken as a value is the
+%% function with its members supplied; written after the code
+requirement_as_a_value_test() ->
+    ?assertEqual(ok, ok("fn putAll(list : List(a)) : OrderedSet.Set(a) needs a.compare =\n"
+                        "    List.foldLeft(list, OrderedSet.empty, OrderedSet.put)")),
+    ?assertEqual(ok, ok("fn f() : (OrderedSet.Set(Int), Int) -> OrderedSet.Set(Int) ="
+                        " OrderedSet.put")).
+
+%% report §3.5, §4.9: a type that derives compare gains the member, ordered by
+%% constructor then field, with the requirement its comparison reaches; an
+%% operator on it resolves to it, and members supply members; written after
+%% the code
+derives_test() ->
+    Types = "export type Date = Date(year : Int, month : Int, day : Int) derives compare\n"
+            "export type Pair(a, b) = Pair(first : a, second : b) derives compare\n"
+            "export type Tree(a) = Leaf | Node(left : Tree(a), value : a, right : Tree(a))"
+            " derives compare\n",
+    ?assertEqual("(M.Date, M.Date) -> Ordering", member_type_of(Types, 'Date', compare)),
+    ?assertEqual("(M.Pair(a, b!), M.Pair(a, b!)) -> Ordering needs a.compare, b.compare",
+                 member_type_of(Types, 'Pair', compare)),
+    ?assertEqual("(M.Tree(a!), M.Tree(a!)) -> Ordering needs a.compare",
+                 member_type_of(Types, 'Tree', compare)),
+    ?assertEqual(ok, ok(Types ++ "fn earlier(x : Date, y : Date) : Bool = x < y\n"
+                        "fn f(x : Pair(Int, String)) : Bool = x > x\n"
+                        "fn g(x : Pair(a, b)) : Bool needs a.compare, b.compare = x <= x\n")),
+    ?assertEqual("fromList needs Pair(List(Int), Int).compare, and List(Int) has no compare",
+                 refusal(Types ++ "fn f(x : Pair(List(Int), Int)) : Int =\n"
+                         "    OrderedSet.size(OrderedSet.fromList([x]))\n")),
+    %% a parameter the comparison does not reach is not required
+    ?assertEqual("(M.Holder(a), M.Holder(a)) -> Ordering",
+                 member_type_of("export type Wrap(a) = Wrap(Int)\n"
+                                "export fn Wrap.compare(Wrap(x) : Wrap(a), Wrap(y) : Wrap(a))"
+                                " : Ordering =\n"
+                                "    Int.compare(x, y)\n"
+                                "export type Holder(a) = Holder(Wrap(a)) derives compare\n",
+                                'Holder', compare)).
+
+%% report §3.5: a field whose type has no compare is an error at the
+%% declaration, and a type derives no compare it declares; written after the
+%% code
+derives_refused_test() ->
+    ?assertEqual("Date.compare cannot be derived: Optional(Int) has no compare",
+                 refusal("type Date = Date(year : Int, at : Optional(Int)) derives compare")),
+    ?assertEqual("T.compare cannot be derived: #(Int, Int) has no compare",
+                 refusal("type T = T(#(Int, Int)) derives compare")),
+    ?assertEqual("T derives compare and declares it too",
+                 refusal("type T = T(Int) derives compare\n"
+                         "fn T.compare(x : T, y : T) : Ordering = Equal")).
+
+%% report §5.6: a record is filled from a namespace, each field not given
+%% the declaration of its name there at the field's type, a requirement's
+%% members supplied where the record's type fixes them; written after the
+%% code
+fill_test() ->
+    Ops = "type Ops(s, a) = Ops(fromList : (List(a)) -> s, toList : (s) -> List(a))\n",
+    ?assertEqual(ok, ok(Ops ++ "let hashed : Ops(Set(Int), Int) = Ops(..Set)\n"
+                        "let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)\n"
+                        "let mine : Ops(Set(Int), Int) = Ops(..Set, toList = Set.toList)\n")),
+    ?assertEqual(ok, ok(Ops ++ "fn f(list : List(a)) : List(a) needs a.compare = {\n"
+                        "    let ops : Ops(OrderedSet.Set(a), a) = Ops(..OrderedSet);\n"
+                        "    ops.toList(ops.fromList(list))\n}\n")),
+    ?assertEqual("Ops(..Set) lacks min: Set has no min",
+                 refusal("type Ops(s, a) = Ops(min : (s) -> Optional(a))\n"
+                         "let hashed : Ops(Set(Int), Int) = Ops(..Set)")),
+    ?assertEqual("fromList needs a.compare, and the record's type leaves a undetermined",
+                 refusal(Ops ++ "fn f() : Int = { let ops = Ops(..OrderedSet); 1 }")),
+    %% the help names the part that differs, past a variable on either
+    %% side; a regression: it said "the types differ at a=! and a=!"
+    ?assertEqual({"Ops(..Set) fills size with Set.size: expected (a) -> Bool, found"
+                  " (Set(a=!)) -> Int", "the types differ at Bool and Int"},
+                 refusal_and_help("type Ops(s) = Ops(size : (s) -> Bool)\n"
+                                  "fn f() : Ops(Set(Int)) = Ops(..Set)")),
+    %% an expression after `..` keeps the record update's rule
+    ?assertEqual("a record update gives at least one field after its `..`",
+                 refusal(Ops ++ "fn f(o : Ops(Set(Int), Int)) : Ops(Set(Int), Int) = Ops(..o)")).
+
+%% report §11.5: a selected field called is named as written where its
+%% argument does not fit; written after the code
+selected_callee_named_test() ->
+    ?assertEqual("the argument does not fit ops.toList: expected Set(Int), found Int",
+                 refusal("type Ops = Ops(toList : (Set(Int)) -> List(Int))\n"
+                         "fn f(ops : Ops) : List(Int) = ops.toList(1)")).

@@ -940,3 +940,79 @@ ast_walk_test() ->
     Names = ern_ast:walk(fun(#e_var{name = Name}, Acc) -> [Name | Acc]; (_, Acc) -> Acc end,
                          expression("f(a, g(b), [c])"), []),
     ?assertEqual([f, a, g, b, c], lists:reverse(Names)).
+
+%%
+%% Requirements, derived members and the fill
+%%
+
+%% report §4.9, Appendix A's Requirement and Member: a requirement follows
+%% the result type, its members a type variable's compare, negate, operator
+%% or show; written after the code
+requirement_test() ->
+    #fn_declaration{requirement = [#member{member_of = a, name = compare},
+                                   #member{member_of = b, name = '+'},
+                                   #member{member_of = a, name = show}]} =
+        declaration("fn f(x : a, y : b) : a with m needs a.compare, b.+, a.show = x"),
+    #fn_declaration{requirement = []} = declaration("fn f(x : a) : a = x"),
+    ?assertEqual("zero is not a member: a requirement names compare, negate, an operator or show"
+                 " (§4.8, E.1)",
+                 refusal("fn f(x : a) : a needs a.zero = x")),
+    ?assertEqual({"expected `.` after a instead of `,`",
+                  "a requirement names a member of a type variable, as needs a.compare"},
+                 refusal_and_help("fn f(x : a) : a needs a, a.+ = x")),
+    ?assertEqual("a lambda declares no requirement",
+                 expression_refusal("fn(x : a) : a needs a.compare = x")).
+
+%% report §4.9, §3.5, Appendix A: in a declaration with a requirement,
+%% `a.compare` and `a.negate` of a type variable of the signature are its
+%% members, and select nothing; `a.+` is a member wherever it stands; written
+%% after the code
+member_test() ->
+    #fn_declaration{body = #e_call{callee = #e_member{member_of = a, name = compare}}} =
+        declaration("fn f(x : a, y : a) : Ordering needs a.compare = a.compare(x, y)"),
+    #fn_declaration{body = #e_member{member_of = a, name = negate}} =
+        declaration("fn f(x : a) : (a) -> a needs a.negate = a.negate"),
+    %% without a requirement, a selection
+    #fn_declaration{body = #e_call{callee = #e_selection{field = compare}}} =
+        declaration("fn f(x : a, y : a) : Ordering = a.compare(x, y)"),
+    %% a name that is no type variable of the signature selects
+    #fn_declaration{body = #e_selection{expr = #e_var{name = p}, field = compare}} =
+        declaration("fn f(p : a) : a needs a.compare = p.compare"),
+    #e_member{member_of = a, name = '+'} = expression("a.+"),
+    #e_call{callee = #e_member{member_of = t, name = '<>'}} = expression("t.<>(x, y)").
+
+%% report §4.9: a declaration with a requirement binds no name that is one
+%% of its type variables, a parameter, a pattern's, a let's, a local fn's,
+%% in a lambda too; written after the code
+requirement_binds_no_type_variable_test() ->
+    Message = "`a` names a type variable of the signature, and a declaration with a requirement"
+              " binds no name that is one of its type variables",
+    ?assertEqual({Message, "rename the binding; a.compare names the member of a's type"},
+                 refusal_and_help("fn f(a : a) : a needs a.compare = a")),
+    ?assertEqual(Message, refusal("fn f(x : a) : a needs a.compare = { let a = x; a }")),
+    ?assertEqual(Message, refusal("fn f(x : a) : a needs a.compare = match x { a -> a }")),
+    ?assertEqual(Message, refusal("fn f(x : a) : a needs a.compare = (fn(a) = a)(x)")),
+    ?assertEqual(Message, refusal("fn f(x : a) : a needs a.compare = { fn a() = x; a() }")),
+    %% without a requirement, a name may be one
+    #fn_declaration{} = declaration("fn f(a : a) : a = a").
+
+%% report §3.5, Appendix A's TypeDecl: `derives compare` after a type's
+%% constructors, and nothing else derived; written after the code
+derives_test() ->
+    #type_declaration{derives = {1, 17, _}} = declaration("type T = T(Int) derives compare"),
+    #type_declaration{derives = undefined} = declaration("type T = T(Int)"),
+    #abstract_declaration{declaration = #type_declaration{derives = {_, _, _}}} =
+        declaration("export abstract type T = A | B(Int) derives compare"),
+    ?assertEqual("`derives` names compare and nothing else, not identifier `order`",
+                 refusal("type T = T derives order")).
+
+%% report §5.6, Appendix A's Fields: the fields after `..` may be left out,
+%% where the name after it is a namespace, which the checker decides;
+%% written after the code
+fill_test() ->
+    #e_constructor{name = 'Ops', base = #e_constructor{path = [], name = 'Set', args = none},
+                   args = {named, []}} = expression("Ops(..Set)"),
+    #e_constructor{base = #e_constructor{path = ['Net'], name = 'Http'},
+                   args = {named, [#field_set{name = parse}]}} =
+        expression("Ops(..Net.Http, parse = mine)"),
+    #e_constructor{base = #e_var{name = p}, args = {named, []}} = expression("Ops(..p)").

@@ -2,11 +2,7 @@
 /// `one` are no members and `+` is no field name, so no fill applies, and
 /// each type is one line.
 
-type Num(a) =
-    Num(zero : a,
-        one : a,
-        add : (a, a) -> a,
-        mul : (a, a) -> a)
+type Num(a) = Num(zero : a, one : a, add : (a, a) -> a, mul : (a, a) -> a)
 
 let ints : Num(Int) = Num(zero = 0, one = 1, add = Int.+, mul = Int.*)
 

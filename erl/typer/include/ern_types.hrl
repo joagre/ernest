@@ -31,10 +31,29 @@
 %% level: the let-nesting depth at creation, for generalization; name: the
 %% annotation's name for the variable, if any (report §11.5)
 
--record(scheme, {quantified = [], type, names = #{}}).
+-record(scheme, {quantified = [], type, names = #{}, requirement = []}).
 %% quantified: [{id(), restrictions()}]; a monomorphic type is a scheme with
 %% quantified = []; names: #{id() => atom()}, the annotation's names of
-%% quantified variables
+%% quantified variables; requirement: a declaration's requirement (report
+%% §4.9), [{id(), Member}] over its variables, which travels with its name
+%% and no further: it is no part of the type, an instance has none, and a
+%% value bound from the declaration has none
+
+%% What a requirement is supplied with (report §4.9), which the checker
+%% resolves once the enclosing definition is inferred and records in the
+%% typed AST, and the emitter writes as an argument the program does not
+%% write:
+-record(known_member, {qualified_name, member, supplies = []}).
+%% the member of a known type, `Int.compare`, its own requirement supplied
+%% in turn (members supplying members)
+-record(required_member, {variable, member}).
+%% the member the enclosing declaration's requirement names at the type
+%% variable, which the declaration was given
+-record(shown_type, {type}).
+%% `show` at a type known whole, written by its descriptor (Appendix E.1)
+-record(pending_member, {span, type, member, need}).
+%% before the enclosing definition ends: the member at the type, and what
+%% needs it, for the error that names it (report §11.5)
 
 %% What the checker knows about a declared type, from this module or a
 %% compiled interface.

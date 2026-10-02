@@ -152,16 +152,15 @@ signature(#foreign_type_declaration{name = Name, params = Params, equality = Equ
                            false -> Param
                        end || Param <- Params])]).
 
-%% Report §11.4, §11.6: the declaration on one line, or, where that line
-%% would pass 100 characters, a constructor a line as `ern format` lays it out.
-type_text(#type_declaration{name = Name, params = Params, constructors = Constructors}) ->
-    Head = ["type ", atom_to_list(Name), params_text(Params), " ="],
-    Texts = [constructor_text(Constructor) || Constructor <- Constructors],
-    OneLine = [Head, " ", lists:join(" | ", Texts)],
-    case iolist_size(OneLine) > 100 of
-        false -> OneLine;
-        true -> [Head, "\n    ", lists:join("\n  | ", Texts)]
-    end.
+%% Report §11.4, §11.6: the declaration whole, `derives compare` among it,
+%% as `ern format` lays it out.
+type_text(#type_declaration{name = Name, params = Params, constructors = Constructors,
+                            derives = Derives}) ->
+    Source = ["type ", atom_to_list(Name), params_text(Params), " = ",
+              lists:join(" | ", [constructor_text(Constructor) || Constructor <- Constructors]),
+              [" derives compare" || Derives =/= undefined]],
+    {ok, Laid} = ern_format:format(unicode:characters_to_binary(Source)),
+    string:trim(Laid, trailing, "\n").
 
 params_text([]) -> "";
 params_text(Params) -> ["(", lists:join(", ", [atom_to_list(Param) || Param <- Params]), ")"].

@@ -1,6 +1,6 @@
 # Ernest: Language Report
 
-Revision of 2 October 2026. Rationale and rejected alternatives are in [`decisions.md`](docs/decisions.md), and the decisions still to be made in [`implementation_plan.md`](docs/implementation_plan.md).
+Revision of 3 October 2026. Rationale and rejected alternatives are in [`decisions.md`](docs/decisions.md), and the decisions still to be made in [`implementation_plan.md`](docs/implementation_plan.md).
 
 **Contents**
 <!-- contents -->
@@ -215,7 +215,7 @@ type Snapshot = Snapshot(dir : Path, seen : Map(Path, Int))
 
 Field names are unique within a constructor. Their declaration order is the order in which a value's fields are stored, transported (§8.4), and shown (Appendix E.1), and is part of the type's identity (§8.7); a construction and a pattern may give them in any order, and field expressions are evaluated in source order (§5.1). There is no canonical order. Positional and named fields are told apart by `:` after the first identifier in a declaration and by `=` in construction and patterns.
 
-A type declaration may end in `derives compare`: `type Date = Date(year : Int, month : Int, day : Int) derives compare`. The type then has the member `compare` (§4.5), which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare` (§3.10). A field whose type has no `compare` is an error at the declaration: `Date.compare cannot be derived: Optional(Int) has no compare`. For a type with parameters, the member has the requirement (§4.9) `needs` of each parameter the comparison reaches: `type Pair(a, b) = Pair(a, b) derives compare` gives `Pair.compare` the requirement `needs a.compare, b.compare`. `derives` names `compare` and nothing else.
+A type declaration may end in `derives compare`: `type Date = Date(year : Int, month : Int, day : Int) derives compare`. The type then has the member `compare` (§4.5), which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare` (§3.10). A field whose type has no `compare` is an error at the declaration: `Date.compare cannot be derived: Optional(Int) has no compare`. For a type with parameters, the member has the requirement (§4.9) `needs` of each parameter the comparison reaches: `type Pair(a, b) = Pair(first : a, second : b) derives compare` gives `Pair.compare` the requirement `needs a.compare, b.compare`. `derives` names `compare` and nothing else.
 
 A named field is *selected* with `e.f`: the field `f` of the value `e`, `snapshot.seen`. A type has the selector `f` when every one of its constructors has a named field `f`, and they have one type once the operand type's arguments stand for its parameters, which is the selector's; on any other type `e.f` is a type error. A positional field has no selector. Outside the module that declares an abstract type, its fields have no selectors, as its constructors are not visible there (§4.4). The type of `e` is found as an operator's operand type is (§4.8). In the body of a `fn` declaration that has a requirement (§4.9), `a.compare` and `a.negate`, where `a` is a type variable of its signature, name the members of the type `a` stands for and select nothing; such a declaration binds no name that is one of its type variables.
 
@@ -378,13 +378,10 @@ The requirement in force in a body is the enclosing `fn` declaration's, for the 
 
 Code written once over several representations of a type takes an *operations record*: a record the program declares of the operations it uses, each field's type naming only the record's parameters (§3.9), filled from each representation's namespace (§5.6) and passed as an argument. Selecting a field of it is §3.5's selection, resolved against the parameter's annotated type (§4.8). The standard library declares no such record and no function over one (Appendix E.0 rule 4).
 
-```ernest-fragment
+```ernest
 type Date = Date(year : Int, month : Int, day : Int) derives compare
 
-type Ops(s, a) =
-    Ops(fromList : (List(a)) -> s,
-        intersection : (s, s) -> s,
-        toList : (s) -> List(a))
+type Ops(s, a) = Ops(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
 
 let hashed : Ops(Set(Int), Int) = Ops(..Set)
 
@@ -397,7 +394,7 @@ fn common(list : List(a), other : List(a), ops : Ops(s, a)) : List(a) =
     ops.toList(ops.intersection(ops.fromList(list), ops.fromList(other)))
 ```
 
-`unique(["b", "a", "b"])` is `["a", "b"]`; `common([4, 2, 3], [3, 4, 5], ordered)` is `[3, 4]`, and with `hashed` the same elements in the hash set's order; `OrderedSet.fromList([Date(2026, 10, 2), Date(2025, 1, 1)])` is ordered by year, then month, then day.
+`unique(["b", "a", "b"])` is `["a", "b"]`; `common([4, 2, 3], [3, 4, 5], ordered)` is `[3, 4]`, and with `hashed` the same elements in the hash set's order; `OrderedSet.fromList([Date(year = 2026, month = 10, day = 2), Date(year = 2025, month = 1, day = 1)])` is ordered by year, then month, then day.
 
 ## 5. Expressions
 
@@ -976,7 +973,7 @@ The configuration directory is `./.ernest` unless `--config-dir` names another. 
 
 An error is reported as `file:line:column: message`, then the source. Lines and columns count from 1. A line ends at a line feed, and a column is a code point: a tab is one column, and a letter written as two code points is two. The file is the source's path from the working directory, or its absolute path when it lies outside that directory. The source shows a gutter of line numbers, the line before, the erroneous span underlined with `^`, any second span the message depends on, underlined with `-` and labelled, and at most one `help:` line naming the fix. Where the lines shown are not one after another, a line `...` stands for those passed over. The source shows a tab as a space and a control character as its picture, `␛` for U+001B, one of U+0080 to U+009F as U+FFFD. `--short-errors`, which `ern build`, `ern doc` and `ern format` take, prints the first line alone. The parser reports one error per file; the checker reports every error that does not follow from another. Within a block, an error in a statement that binds nothing, or in a `let` whose annotation fixes its name's type, does not stop the block, and the statements after it are checked; an error in any other binding does, since what follows may use the name.
 
-A type mismatch is reported at the innermost expression whose type is fixed: the last expression of a body or block, a branch or clause after the first, an argument, an operand, an element, or a pattern. The message shows both whole types. The label marks the span that fixed the expectation: an annotation, a callee's type, the first branch, clause, or element, the left operand, or the value matched. The help line names the part in which the types differ. An effect error names the primitive called and the function, `let`, or guard that is pure, and labels the annotation that made it so. An operator whose operand type is not determined (§4.8) is reported with the request to annotate it. A statement whose type is not `Unit` (§5.4) is reported whole, with the help line `let _ =`. `Io.show` or `Io.debug` at a type that is not known whole and that no requirement names (Appendix E.1, §4.9) is reported with the request to annotate it. A call whose requirement the enclosing declaration must supply and does not (§4.9) is reported at the call, naming the callee, the member and the enclosing function, with the help line that adds the requirement, or, under a top-level `let`, that a `fn` declares it; a type whose member answers another type, and a known type without the member, are reported at the call naming both. A requirement that names what is no member, or a variable that is not the signature's, is reported at the requirement. A fill (§5.6) that lacks a field, or whose type leaves a requirement's variable undetermined, is reported at the construction, naming the field and the namespace or the variable. A call of a selected field, `ops.intersection(...)`, names the field as written where a message would say `the callee`. A recursive call's argument at another type than the definition's own (§3.9) has a help line naming the rule: a call at another type goes to a second function. A reply-carrying value passed where it would be duplicated or discarded (§6.6) has a help line naming the ways to discharge it: answering it, passing it on once, or matching it. A `<-` where the parser expects a delimiter has a help line that names `a < -1` (§2.6). A selector its operand's type lacks is reported at the selector, naming a constructor without the field. An error whose span holds a use of a name the module's own declaration hides from the prelude (§4.2) labels that use with the prelude's qualified name: `Unknown` here is this module's constructor, and the prelude's is `Prelude.Unknown`.
+A type mismatch is reported at the innermost expression whose type is fixed: the last expression of a body or block, a branch or clause after the first, an argument, an operand, an element, or a pattern. The message shows both whole types. The label marks the span that fixed the expectation: an annotation, a callee's type, the first branch, clause, or element, the left operand, or the value matched. The help line names the part in which the types differ. An effect error names the primitive called and the function, `let`, or guard that is pure, and labels the annotation that made it so. An operator whose operand type is not determined (§4.8) is reported with the request to annotate it. A statement whose type is not `Unit` (§5.4) is reported whole, with the help line `let _ =`. `Io.show` or `Io.debug` at a type variable of the signature that the requirement does not name is reported as a call that needs its `show` (§4.9), and at any other type that is not known whole (Appendix E.1) with the request to annotate it. A call whose requirement the enclosing declaration must supply and does not (§4.9) is reported at the call, naming the callee, the member and the enclosing function, with the help line that adds the requirement, or, under a top-level `let`, that a `fn` declares it; a type whose member answers another type, and a known type without the member, are reported at the call naming both. A requirement that names what is no member, or a variable that is not the signature's, is reported at the requirement. A fill (§5.6) that lacks a field, or whose type leaves a requirement's variable undetermined, is reported at the construction, naming the field and the namespace or the variable. A call of a selected field, `ops.intersection(...)`, names the field as written where a message would say `the callee`. A recursive call's argument at another type than the definition's own (§3.9) has a help line naming the rule: a call at another type goes to a second function. A reply-carrying value passed where it would be duplicated or discarded (§6.6) has a help line naming the ways to discharge it: answering it, passing it on once, or matching it. A `<-` where the parser expects a delimiter has a help line that names `a < -1` (§2.6). A selector its operand's type lacks is reported at the selector, naming a constructor without the field. An error whose span holds a use of a name the module's own declaration hides from the prelude (§4.2) labels that use with the prelude's qualified name: `Unknown` here is this module's constructor, and the prelude's is `Prelude.Unknown`.
 
 A printed type elides an effect variable bound to pure (§3.9). An effect variable that occurs once in a printed type, and is not process-only, is printed as pure: `fn k() : Int with m = 5` prints as `() -> Int`. The compiler shows the three inferred restrictions of §3.9. In a printed type a variable with the equality constraint is `a=`, one that is not reply-carrying `a!`, and a process-only effect variable that occurs in no value position `m+`: `equal : (a=, a=) -> Bool`, `discard : (a!) -> Unit`, `send : (Address(a), a) -> Unit with m+`. One that occurs in a value position is never pure, and is not marked: `self : () -> Address(m) with m`. A printed type is not an annotation, and no mark can be written in one; `=` is written on a foreign type's parameter alone (§4.7), and §9.2 lists `Map(k=, v)` and `Set(a=)` with the mark, though neither is a foreign type. A type name is printed as the module would write it (§4.2). The module's own types and the prelude's are printed unqualified. Other modules' types are printed qualified. A local type that shadows a prelude name is printed qualified. A type variable is printed under its annotation's name; an unnamed one is `a`, `b`, ... for a value variable and `e`, `e1`, ... for an effect variable, avoiding the names in use. An error at a rejected call site names the parameter and the origin of its restriction; `ern doc` prints restrictions the same way. A declaration's printed type ends in its requirement as declared, `(List(a)) -> OrderedSet.Set(a) needs a.compare`, in a diagnostic, in `ern doc` (§11.4), and in the shell's `:type` and its completion listing (§11.2) alike.
 
@@ -1791,28 +1788,28 @@ A set in the order of its element type's `compare` (§3.10). `Set(a)` is an abst
 
 ```
 abstract type Set(a)
-OrderedSet.empty : OrderedSet.Set(a)
-OrderedSet.size : (OrderedSet.Set(a)) -> Int
-OrderedSet.isEmpty : (OrderedSet.Set(a)) -> Bool
-OrderedSet.contains : (OrderedSet.Set(a), a) -> Bool needs a.compare
-OrderedSet.put : (OrderedSet.Set(a), a) -> OrderedSet.Set(a) needs a.compare // an element already there is kept
-OrderedSet.remove : (OrderedSet.Set(a), a) -> OrderedSet.Set(a) needs a.compare // an element not present is not an error
-OrderedSet.map : (OrderedSet.Set(a), (a) -> b with e) -> OrderedSet.Set(b) with e needs b.compare
-OrderedSet.filter : (OrderedSet.Set(a), (a) -> Bool with e) -> OrderedSet.Set(a) with e
-OrderedSet.filterMap : (OrderedSet.Set(a), (a) -> Optional(b) with e) -> OrderedSet.Set(b) with e needs b.compare
-OrderedSet.foldLeft : (OrderedSet.Set(a), b, (b, a) -> b with e) -> b with e
-OrderedSet.foreach : (OrderedSet.Set(a), (a) -> Unit with e) -> Unit with e
-OrderedSet.any : (OrderedSet.Set(a), (a) -> Bool with e) -> Bool with e
-OrderedSet.all : (OrderedSet.Set(a), (a) -> Bool with e) -> Bool with e
-OrderedSet.find : (OrderedSet.Set(a), (a) -> Bool with e) -> Optional(a) with e // the first in order that satisfies
-OrderedSet.fromList : (List(a)) -> OrderedSet.Set(a) needs a.compare
-OrderedSet.toList : (OrderedSet.Set(a)) -> List(a) // in order
-OrderedSet.min : (OrderedSet.Set(a)) -> Optional(a) // the first in order
-OrderedSet.max : (OrderedSet.Set(a)) -> Optional(a) // the last in order
-OrderedSet.union : (OrderedSet.Set(a), OrderedSet.Set(a)) -> OrderedSet.Set(a) needs a.compare
-OrderedSet.intersection : (OrderedSet.Set(a), OrderedSet.Set(a)) -> OrderedSet.Set(a) needs a.compare
-OrderedSet.difference : (OrderedSet.Set(a), OrderedSet.Set(a)) -> OrderedSet.Set(a) needs a.compare // the elements of the first not in the second
-OrderedSet.isSubset : (OrderedSet.Set(a), OrderedSet.Set(a)) -> Bool needs a.compare // every element of the first is in the second
+OrderedSet.empty : Set(a)
+OrderedSet.size : (Set(a)) -> Int
+OrderedSet.isEmpty : (Set(a)) -> Bool
+OrderedSet.contains : (Set(a), a) -> Bool needs a.compare
+OrderedSet.put : (Set(a), a) -> Set(a) needs a.compare // an element already there is kept
+OrderedSet.remove : (Set(a), a) -> Set(a) needs a.compare // an element not present is not an error
+OrderedSet.map : (Set(a), (a) -> b with e) -> Set(b) with e needs b.compare
+OrderedSet.filter : (Set(a), (a) -> Bool with e) -> Set(a) with e
+OrderedSet.filterMap : (Set(a), (a) -> Optional(b) with e) -> Set(b) with e needs b.compare
+OrderedSet.foldLeft : (Set(a), b, (b, a) -> b with e) -> b with e
+OrderedSet.foreach : (Set(a), (a) -> Unit with e) -> Unit with e
+OrderedSet.any : (Set(a), (a) -> Bool with e) -> Bool with e
+OrderedSet.all : (Set(a), (a) -> Bool with e) -> Bool with e
+OrderedSet.find : (Set(a), (a) -> Bool with e) -> Optional(a) with e // the first in order that satisfies
+OrderedSet.fromList : (List(a)) -> Set(a) needs a.compare
+OrderedSet.toList : (Set(a)) -> List(a) // in order
+OrderedSet.min : (Set(a)) -> Optional(a) // the first in order
+OrderedSet.max : (Set(a)) -> Optional(a) // the last in order
+OrderedSet.union : (Set(a), Set(a)) -> Set(a) needs a.compare
+OrderedSet.intersection : (Set(a), Set(a)) -> Set(a) needs a.compare
+OrderedSet.difference : (Set(a), Set(a)) -> Set(a) needs a.compare // the elements of the first not in the second
+OrderedSet.isSubset : (Set(a), Set(a)) -> Bool needs a.compare // every element of the first is in the second
 ```
 
 ### Appendix E.26. `ordered_map.ern` (namespace `OrderedMap`)
@@ -1821,28 +1818,28 @@ A map from keys to values in the order of the key type's `compare` (§3.10), wit
 
 ```
 abstract type Map(k, v)
-OrderedMap.empty : OrderedMap.Map(k, v)
-OrderedMap.size : (OrderedMap.Map(k, v)) -> Int
-OrderedMap.isEmpty : (OrderedMap.Map(k, v)) -> Bool
-OrderedMap.contains : (OrderedMap.Map(k, v), k) -> Bool needs k.compare
-OrderedMap.get : (OrderedMap.Map(k, v), k) -> Optional(v) needs k.compare
-OrderedMap.put : (OrderedMap.Map(k, v), k, v) -> OrderedMap.Map(k, v) needs k.compare // replaces an entry with that key
-OrderedMap.remove : (OrderedMap.Map(k, v), k) -> OrderedMap.Map(k, v) needs k.compare // a key not present is not an error
-OrderedMap.update : (OrderedMap.Map(k, v), k, (Optional(v)) -> v with e) -> OrderedMap.Map(k, v) with e needs k.compare // the entry, present or not, replaced by the function's value
-OrderedMap.map : (OrderedMap.Map(k, v), (k, v) -> w with e) -> OrderedMap.Map(k, w) with e
-OrderedMap.filter : (OrderedMap.Map(k, v), (k, v) -> Bool with e) -> OrderedMap.Map(k, v) with e
-OrderedMap.filterMap : (OrderedMap.Map(k, v), (k, v) -> Optional(w) with e) -> OrderedMap.Map(k, w) with e
-OrderedMap.foldLeft : (OrderedMap.Map(k, v), b, (b, k, v) -> b with e) -> b with e
-OrderedMap.foreach : (OrderedMap.Map(k, v), (k, v) -> Unit with e) -> Unit with e
-OrderedMap.any : (OrderedMap.Map(k, v), (k, v) -> Bool with e) -> Bool with e
-OrderedMap.all : (OrderedMap.Map(k, v), (k, v) -> Bool with e) -> Bool with e
-OrderedMap.find : (OrderedMap.Map(k, v), (k, v) -> Bool with e) -> Optional(#(k, v)) with e // the first in order that satisfies
-OrderedMap.merge : (OrderedMap.Map(k, v), OrderedMap.Map(k, v)) -> OrderedMap.Map(k, v) needs k.compare // the second wins for a shared key
-OrderedMap.mergeWith : (OrderedMap.Map(k, v), OrderedMap.Map(k, v), (k, v, v) -> v with e) -> OrderedMap.Map(k, v) with e needs k.compare // for a shared key, the function of the key, the first's value and the second's
-OrderedMap.fromList : (List(#(k, v))) -> OrderedMap.Map(k, v) needs k.compare // a later pair wins
-OrderedMap.toList : (OrderedMap.Map(k, v)) -> List(#(k, v)) // in order
-OrderedMap.keys : (OrderedMap.Map(k, v)) -> List(k) // in order
-OrderedMap.values : (OrderedMap.Map(k, v)) -> List(v) // in the keys' order
+OrderedMap.empty : Map(k, v)
+OrderedMap.size : (Map(k, v)) -> Int
+OrderedMap.isEmpty : (Map(k, v)) -> Bool
+OrderedMap.contains : (Map(k, v), k) -> Bool needs k.compare
+OrderedMap.get : (Map(k, v), k) -> Optional(v) needs k.compare
+OrderedMap.put : (Map(k, v), k, v) -> Map(k, v) needs k.compare // replaces an entry with that key
+OrderedMap.remove : (Map(k, v), k) -> Map(k, v) needs k.compare // a key not present is not an error
+OrderedMap.update : (Map(k, v), k, (Optional(v)) -> v with e) -> Map(k, v) with e needs k.compare // the entry, present or not, replaced by the function's value
+OrderedMap.map : (Map(k, v), (k, v) -> w with e) -> Map(k, w) with e
+OrderedMap.filter : (Map(k, v), (k, v) -> Bool with e) -> Map(k, v) with e
+OrderedMap.filterMap : (Map(k, v), (k, v) -> Optional(w) with e) -> Map(k, w) with e
+OrderedMap.foldLeft : (Map(k, v), b, (b, k, v) -> b with e) -> b with e
+OrderedMap.foreach : (Map(k, v), (k, v) -> Unit with e) -> Unit with e
+OrderedMap.any : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
+OrderedMap.all : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
+OrderedMap.find : (Map(k, v), (k, v) -> Bool with e) -> Optional(#(k, v)) with e // the first in order that satisfies
+OrderedMap.merge : (Map(k, v), Map(k, v)) -> Map(k, v) needs k.compare // the second wins for a shared key
+OrderedMap.mergeWith : (Map(k, v), Map(k, v), (k, v, v) -> v with e) -> Map(k, v) with e needs k.compare // for a shared key, the function of the key, the first's value and the second's
+OrderedMap.fromList : (List(#(k, v))) -> Map(k, v) needs k.compare // a later pair wins
+OrderedMap.toList : (Map(k, v)) -> List(#(k, v)) // in order
+OrderedMap.keys : (Map(k, v)) -> List(k) // in order
+OrderedMap.values : (Map(k, v)) -> List(v) // in the keys' order
 ```
 
 ## Appendix F. Glossary

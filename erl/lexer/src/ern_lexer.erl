@@ -33,8 +33,8 @@
   | {comment, position(), unicode:unicode_binary()}
   | {atom(), position()}.
 
--define(RESERVED, [type, abstract, with, foreign, match, 'when', 'receive', 'after', 'or',
-                   as, 'if', then, 'else', fn, 'let', export]).
+-define(RESERVED, [type, abstract, with, foreign, derives, match, 'when', 'receive', 'after',
+                   'or', as, 'if', then, 'else', fn, 'let', needs, export]).
 
 %% Longest first, so max-munch is clause order.
 -define(SYMBOLS, ["#(", "<<", ">>", "<-", "->", "==", "!=", "<=", ">=", "&&",

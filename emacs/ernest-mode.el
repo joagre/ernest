@@ -64,8 +64,8 @@
 ;;; checks them against the lexer's.
 
 (defconst ernest-reserved-words
-  '("type" "abstract" "with" "foreign" "match" "when" "receive" "after" "or"
-    "as" "if" "then" "else" "fn" "let" "export")
+  '("type" "abstract" "with" "foreign" "derives" "match" "when" "receive" "after"
+    "or" "as" "if" "then" "else" "fn" "let" "needs" "export")
   "Ernest's reserved words, report §2.4, but `true' and `false'.")
 
 (defconst ernest-operators

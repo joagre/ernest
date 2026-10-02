@@ -93,11 +93,15 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Namespace**: §4.2's namespace. Not `Ns`, `Prefix`, nor `Module` for a namespace.
 - **Module**: an Ernest module (§4.1); the Erlang module it compiles to is its `ErlangModule`, `ern@io`, and a build's record of one a `#build_module{}`. Not `Mod`.
 - **Interface**: a compiled module's interface (§11.1), `#interface{}`. Not `Iface`, `I`.
-- **Scheme**: a type scheme (§3.9), as the code has it.
+- **Scheme**: a type scheme (§3.9), as the code has it, and beside it a declaration's requirement (§4.9), which no instance has.
 - **Annotation**: a type the source writes. Not `Ann`; an AST record's `type` field holds one of the four things it holds today, each named.
 - **Effect**: the `with` part of a function type, a mailbox type or an effect variable (§3.9, §6.1). Not `E`, `Eff`, `EffT`, `MailboxT`.
 - **Constructor**: a constructor (§3.5, §5.6); many are `constructors`. Not `Cs`, `CI`, `cons`; `cons` is `::` alone.
-- **MemberOf**: the type a member belongs to, `Stack` of `fn Stack.push` (§4.8), a declaration's `member_of`. Not `Owner`, which is a resource's process.
+- **MemberOf**: the type a member belongs to, `Stack` of `fn Stack.push` (§4.8), a declaration's `member_of`; of `a.compare` (§4.9), the type variable `a`. Not `Owner`, which is a resource's process.
+- **Member**: a type's member (§4.5), `compare`, `negate` or an operator; one a requirement names is a `#member{}`, and one a body writes an `#e_member{}`. Not `Method`, `Op`.
+- **Requirement**: §4.9's requirement, a `fn` declaration's `needs`, its `#member{}`s; the enclosing declarations' in force are the checker's `requirement`. Not `Needs`, `Bounds`, `Constraint`, which is §3.10's equality constraint.
+- **Supply**: what a requirement's member is supplied with at a use (§4.9), a `#known_member{}`, a `#required_member{}` or a `#shown_type{}`, a `#pending_member{}` until the definition ends; many are `supplies`. Not `Witness`, `Dictionary`, `Instance`.
+- **Derives**: §3.5's `derives compare`, a type declaration's `derives`.
 - **Restriction**: §3.9's inferred restriction; the three are `equality`, `process_only` and `not_reply_carrying`. Not `flags`, `add_flag`, `eq`, `no_reply`.
 - **Obligation**: §6.6's obligation. Not `Linear`.
 - **ResultType**: §4.5's result type, and "result type" in every message. Not `ret`, `Ret`, `RetT`, `R`, "return type".

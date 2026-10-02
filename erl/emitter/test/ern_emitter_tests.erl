@@ -3787,3 +3787,80 @@ shadowed_name_in_init_order_test() ->
                  run("let three = pick([3])\n"
                      "fn pick(xs : List(Int)) : Int = match xs { [three] -> three | _ -> 0 }\n"
                      "export fn main() : Unit with m = Io.println(Int.toString(three))\n")).
+
+%%
+%% Requirements (report §4.9), derived members (§3.5) and the fill (§5.6)
+%%
+
+%% report §4.9: a requirement's members are arguments the program does not
+%% write: a known type's member supplied at a call, a requirement's passed
+%% along, through a block fn that shares it and one with its own, a lambda,
+%% a declaration taken as a value, an operator, prefix `-`, and `show`;
+%% written after the code
+requirement_supplied_test() ->
+    {ok, Output} =
+        run("type Money = Money(Int)\n"
+            "fn Money.+(Money(a) : Money, Money(b) : Money) : Money =\n    Money(a + b)\n"
+            "fn Money.negate(Money(a) : Money) : Money =\n    Money(0 - a)\n"
+            "fn total(list : List(a), zero : a) : a needs a.+ =\n"
+            "    List.foldLeft(list, zero, a.+)\n"
+            "fn opposite(x : a) : a needs a.negate =\n    -x\n"
+            "fn largest(list : List(a)) : Optional(a) needs a.compare = {\n"
+            "    fn larger(x : a, y : a) : a =\n        if x < y then y else x;\n"
+            "    match list {\n        [] -> None\n"
+            "      | first :: rest -> Some(List.foldLeft(rest, first, larger))\n    }\n}\n"
+            "fn sorted(list : List(a)) : List(a) needs a.compare = {\n"
+            "    fn into(set : OrderedSet.Set(b), x : b) : OrderedSet.Set(b) needs b.compare =\n"
+            "        OrderedSet.put(set, x);\n"
+            "    OrderedSet.toList(List.foldLeft(list, OrderedSet.empty, into))\n}\n"
+            "fn shown(list : List(a)) : String needs a.show =\n"
+            "    String.join(List.map(list, fn(x) = Io.show(x)), \" \")\n"
+            "fn putAll(list : List(a)) : OrderedSet.Set(a) needs a.compare =\n"
+            "    List.foldLeft(list, OrderedSet.empty, OrderedSet.put)\n"
+            "export fn main() : Unit with Never = {\n"
+            "    Io.println(Io.show(total([Money(1), Money(2)], Money(0))));\n"
+            "    Io.println(Io.show(opposite(Money(3))));\n"
+            "    Io.println(Io.show(largest([3, 9, 4])));\n"
+            "    Io.println(Io.show(sorted([\"c\", \"a\", \"b\"])));\n"
+            "    Io.println(shown([1, 2]));\n"
+            "    Io.println(Io.show(OrderedSet.toList(putAll([2, 1, 2]))))\n}\n"),
+    ?assertEqual(<<"Money(3)\nMoney(-3)\nSome(9)\n[\"a\", \"b\", \"c\"]\n1 2\n[1, 2]\n">>,
+                 Output).
+
+%% report §3.5, §4.9: a derived compare orders by constructor in declaration
+%% order, then field by field from the left, its parameters' members
+%% supplied where it is used. Written after the code, it found a defect:
+%% the member an operator resolves to supplied its own requirement as the
+%% operator's, Int's compare as the runtime's own operation, and so none
+derived_compare_test() ->
+    {ok, Output} =
+        run("type Shape = Dot | Circle(Int) | Rect(w : Int, h : Int) derives compare\n"
+            "type Pair(a, b) = Pair(first : a, second : b) derives compare\n"
+            "type Tree(a) = Leaf | Node(left : Tree(a), value : a, right : Tree(a))"
+            " derives compare\n"
+            "export fn main() : Unit with Never = {\n"
+            "    let shapes =\n"
+            "        [Rect(w = 1, h = 2), Dot, Circle(3), Rect(w = 1, h = 1), Circle(2)];\n"
+            "    Io.println(Io.show(OrderedSet.toList(OrderedSet.fromList(shapes))));\n"
+            "    let one = Pair(first = 1, second = \"b\");\n"
+            "    Io.println(Io.show(one < Pair(first = 1, second = \"c\")));\n"
+            "    let leaf = Node(left = Leaf, value = 2, right = Leaf);\n"
+            "    Io.println(Io.show(leaf > Node(left = Leaf, value = 1, right = Leaf)));\n"
+            "    Io.println(Io.show(Pair.compare(one, one)))\n}\n"),
+    ?assertEqual(<<"[Dot, Circle(2), Circle(3), Rect(w = 1, h = 1), Rect(w = 1, h = 2)]\n"
+                   "true\ntrue\nEqual\n">>, Output).
+
+%% report §5.6, §4.9: a record filled from a namespace holds its
+%% declarations, a requirement's members supplied at the record's type;
+%% written after the code
+fill_test() ->
+    {ok, Output} =
+        run("type Ops(s, a) = Ops(fromList : (List(a)) -> s, toList : (s) -> List(a))\n"
+            "let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)\n"
+            "let hashed : Ops(Set(Int), Int) = Ops(..Set, toList = Set.toList)\n"
+            "fn roundTrip(list : List(a), ops : Ops(s, a)) : List(a) =\n"
+            "    ops.toList(ops.fromList(list))\n"
+            "export fn main() : Unit with Never = {\n"
+            "    Io.println(Io.show(roundTrip([3, 1, 3], ordered)));\n"
+            "    Io.println(Io.show(List.size(roundTrip([3, 1, 3], hashed))))\n}\n"),
+    ?assertEqual(<<"[1, 3]\n2\n">>, Output).

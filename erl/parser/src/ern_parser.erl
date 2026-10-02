@@ -182,8 +182,20 @@ type_declaration([{type, Position} | Rest], Doc, Export) ->
     {Params, Rest2} = optional_typevars(Rest1),
     Rest3 = expect(Rest2, '='),
     {Constructors, Rest4} = constructors(Rest3),
+    {Derives, Rest5} = optional_derives(Rest4),
     spanned({#type_declaration{span = Position, doc = Doc, export = Export, name = Name,
-                               params = Params, constructors = Constructors}, Rest4}).
+                               params = Params, constructors = Constructors, derives = Derives},
+             Rest5}).
+
+%% Report §3.5, Appendix A's TypeDecl: `derives compare` after the
+%% constructors, its span kept for the errors of the member it derives.
+optional_derives([{derives, {Line, Column, _, PreviousEnd}}, {ident, {_, _, End, _}, compare}
+                  | Rest]) ->
+    {ern_diagnostic:span({Line, Column, End, PreviousEnd}), Rest};
+optional_derives([{derives, _}, Token | _]) ->
+    fail(position(Token), "`derives` names compare and nothing else, not " ++ describe(Token));
+optional_derives(Tokens) ->
+    {undefined, Tokens}.
 
 optional_typevars([{'(', _} | Rest]) ->
     {Vars, Rest1} = separated(Rest, ',', fun expect_ident/1),
@@ -259,10 +271,119 @@ fn_declaration([{fn, Position} | Rest], Doc, Export) ->
     {MemberOf, Name, Rest1} = declaration_name(Rest),
     {Params, Rest2} = params(Rest1),
     {ResultType, Effect, Rest3} = optional_result_type(Rest2),
-    {Body, Rest4} = expr(expect(Rest3, '=')),
-    spanned({#fn_declaration{span = Position, doc = Doc, export = Export, member_of = MemberOf,
-                             name = Name, params = Params, result_type = ResultType,
-                             effect = Effect, body = Body}, Rest4}).
+    {Requirement, Rest4} = optional_requirement(Rest3),
+    {Body, Rest5} = expr(expect(Rest4, '=')),
+    Declaration = #fn_declaration{span = Position, doc = Doc, export = Export,
+                                  member_of = MemberOf, name = Name, params = Params,
+                                  result_type = ResultType, effect = Effect,
+                                  requirement = Requirement, body = Body},
+    spanned({members_named(Declaration), Rest5}).
+
+%% Report §4.9, Appendix A's Requirement: `needs` and the members it names,
+%% after the result type.
+optional_requirement([{needs, _} | Rest]) ->
+    separated(Rest, ',', fun member/1);
+optional_requirement(Tokens) ->
+    {[], Tokens}.
+
+%% Appendix A's Member: a type variable, `.`, and compare, negate, an
+%% operator or show (report §4.9, §4.8, E.1).
+member([{ident, Position, Variable}, {'.', _}, {Operator, _} | Rest])
+  when Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
+       Operator =:= '/'; Operator =:= '%'; Operator =:= '<>' ->
+    spanned({#member{span = Position, member_of = Variable, name = Operator}, Rest});
+member([{ident, Position, Variable}, {'.', _}, {ident, _, Name} | Rest]) ->
+    lists:member(Name, [compare, negate, show])
+        orelse fail(Position, atom_to_list(Name) ++ " is not a member: a requirement names"
+                                  " compare, negate, an operator or show (§4.8, E.1)"),
+    spanned({#member{span = Position, member_of = Variable, name = Name}, Rest});
+member([{ident, _, _}, {'.', _}, Token | _]) ->
+    fail(position(Token), "expected compare, negate, an operator or show after `.` instead of "
+                          ++ describe(Token));
+member([{ident, _, Variable}, Token | _]) ->
+    fail(position(Token), "expected `.` after " ++ atom_to_list(Variable) ++ " instead of "
+                          ++ describe(Token),
+         "a requirement names a member of a type variable, as needs a.compare");
+member([Token | _]) ->
+    fail(position(Token), "expected a type variable instead of " ++ describe(Token),
+         "a requirement names a member of a type variable, as needs a.compare").
+
+%% Appendix A, report §3.5, §4.9: in a declaration with a requirement,
+%% `a.compare` and `a.negate`, where `a` is a type variable of its
+%% signature, name the members of a's type and select nothing; the
+%% declaration binds no name that is one of its type variables, so the two
+%% readings never meet.
+members_named(#fn_declaration{requirement = []} = Declaration) ->
+    Declaration;
+members_named(#fn_declaration{params = Params, result_type = ResultType, effect = Effect,
+                              body = Body} = Declaration) ->
+    Variables = lists:usort(signature_variables([ResultType, Effect]
+                                                ++ [Annotation
+                                                    || #param{annotation = Annotation} <- Params])),
+    lists:foreach(fun(#param{pattern = Pattern}) -> no_binding_named(Pattern, Variables) end,
+                  Params),
+    Declaration#fn_declaration{body = named_members(Body, Variables)}.
+
+%% The type variables a signature's annotations name.
+signature_variables(#t_var{name = Name}) -> [Name];
+signature_variables(Node) when is_tuple(Node) -> signature_variables(tuple_to_list(Node));
+signature_variables(Nodes) when is_list(Nodes) -> lists:append([signature_variables(Node)
+                                                               || Node <- Nodes]);
+signature_variables(_) -> [].
+
+%% The body with each selection of a member from a type variable named
+%% Variables made that member, and every binding checked against them.
+named_members(#e_selection{span = Span, expr = #e_var{path = [], name = Name},
+                           field = Field} = Selection, Variables)
+  when Field =:= compare; Field =:= negate ->
+    case lists:member(Name, Variables) of
+        true -> #e_member{span = Span, member_of = Name, name = Field};
+        false -> Selection
+    end;
+named_members(#e_lambda{params = Params} = Lambda, Variables) ->
+    lists:foreach(fun(#param{pattern = Pattern}) -> no_binding_named(Pattern, Variables) end,
+                  Params),
+    list_to_tuple([named_members(Child, Variables) || Child <- tuple_to_list(Lambda)]);
+named_members(#binding{pattern = Pattern} = Binding, Variables) ->
+    no_binding_named(Pattern, Variables),
+    list_to_tuple([named_members(Child, Variables) || Child <- tuple_to_list(Binding)]);
+named_members(#clause{pattern = Pattern} = Clause, Variables) ->
+    no_binding_named(Pattern, Variables),
+    list_to_tuple([named_members(Child, Variables) || Child <- tuple_to_list(Clause)]);
+named_members(#fn_declaration{span = Span, name = Name, params = Params} = Local, Variables) ->
+    lists:member(Name, Variables) andalso binding_named(Span, Name),
+    lists:foreach(fun(#param{pattern = Pattern}) -> no_binding_named(Pattern, Variables) end,
+                  Params),
+    list_to_tuple([named_members(Child, Variables) || Child <- tuple_to_list(Local)]);
+named_members(Node, Variables) when is_tuple(Node), is_atom(element(1, Node)) ->
+    list_to_tuple([element(1, Node) | [named_members(Child, Variables)
+                                       || Child <- tl(tuple_to_list(Node))]]);
+named_members(Nodes, Variables) when is_list(Nodes) ->
+    [named_members(Node, Variables) || Node <- Nodes];
+named_members(Leaf, _) ->
+    Leaf.
+
+no_binding_named(Pattern, Variables) ->
+    lists:foreach(fun({Name, _}) ->
+                      case lists:member(Name, Variables) of
+                          true -> binding_named(pattern_span(Pattern, Name), Name);
+                          false -> ok
+                      end
+                  end, ern_ast:pattern_bindings(Pattern)).
+
+%% Where a pattern binds Name, for the error.
+pattern_span(Pattern, Name) ->
+    ern_ast:walk(fun(#p_var{span = Span, name = Bound}, _) when Bound =:= Name -> Span;
+                    (#p_as{name_span = Span, name = Bound}, _) when Bound =:= Name -> Span;
+                    (_, Found) -> Found
+                 end, Pattern, ern_ast:span(Pattern)).
+
+-spec binding_named(ern_diagnostic:span(), atom()) -> no_return().
+binding_named(Span, Name) ->
+    Text = atom_to_list(Name),
+    fail(Span, "`" ++ Text ++ "` names a type variable of the signature, and a declaration with a"
+               " requirement binds no name that is one of its type variables",
+         "rename the binding; " ++ Text ++ ".compare names the member of " ++ Text ++ "'s type").
 
 %% Report §4.5, Appendix A's DeclName: a member, declared with `fn`, is an
 %% operator, `compare` or `negate`, what the language resolves by the
@@ -524,6 +645,13 @@ refuse_juxtaposition([Token | _]) ->
 lambda(Tokens, Position) ->
     {Params, Rest1} = params(Tokens),
     {ResultType, Effect, Rest2} = optional_result_type(Rest1),
+    case Rest2 of
+        [{needs, NeedsPosition} | _] ->
+            %% report §4.9: a requirement is a `fn` declaration's
+            fail(NeedsPosition, "a lambda declares no requirement",
+                 "declare a `fn` with the requirement and pass it");
+        _ -> ok
+    end,
     {Body, Rest3} = expr(expect(Rest2, '=')),
     spanned({#e_lambda{span = Position, params = Params, result_type = ResultType, effect = Effect,
                        body = Body}, Rest3}).
@@ -705,6 +833,13 @@ within(Path, Name, Argument, Parse) ->
 primary([{Kind, Position, Value} | Rest]) when Kind =:= int; Kind =:= float; Kind =:= char;
                                                Kind =:= string; Kind =:= bool ->
     spanned({#e_literal{span = Position, kind = Kind, value = Value}, Rest});
+primary([{ident, Position, Name}, {'.', _}, {Operator, _} | Rest])
+  when Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
+       Operator =:= '/'; Operator =:= '%'; Operator =:= '<>' ->
+    %% report §4.9, Appendix A: a type variable's member named by an
+    %% operator, `a.+`; `a.compare` is a selection until its declaration's
+    %% requirement makes it a member (members_named/1)
+    spanned({#e_member{span = Position, member_of = Name, name = Operator}, Rest});
 primary([{ident, Position, Name} | Rest]) ->
     spanned({#e_var{span = Position, name = Name}, Rest});
 primary([{typename, Position, _} | _] = Tokens) ->
@@ -746,8 +881,14 @@ primary([Token | _]) ->
 constructor_expr(Position, Path, Name, [{'(', _} | Rest]) ->
     case Rest of
         [{'..', _} | Rest1] ->
+            %% report §5.6, Appendix A's Fields: a namespace after `..` may
+            %% stand alone, which the checker decides
             {Base, Rest2} = expr(Rest1),
-            {FieldSets, Rest3} = separated(expect(Rest2, ','), ',', field_of(Path, Name)),
+            {FieldSets, Rest3} = case Rest2 of
+                                     [{',', _} | Rest4] -> separated(Rest4, ',',
+                                                                     field_of(Path, Name));
+                                     _ -> {[], Rest2}
+                                 end,
             spanned({#e_constructor{span = Position, path = Path, name = Name, base = Base,
                                     args = {named, FieldSets}},
                      expect(Rest3, ')')});

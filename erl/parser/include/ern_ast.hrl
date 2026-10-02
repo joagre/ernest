@@ -19,7 +19,10 @@
 %% of a type member (`fn Distance.+`), else undefined.
 
 -record(module_doc, {span, text}). % the module's doc block, first in the list, report §2.2
--record(type_declaration, {span, doc, export = false, name, params = [], constructors}).
+-record(type_declaration, {span, doc, export = false, name, params = [], constructors,
+                           derives}).
+%% derives: undefined, or the span of `derives compare`, which gives the type
+%% the member compare (report §3.5)
 -record(constructor, {span, doc, name, fields = none}).
 %% fields: none | {positional, Type} | {named, [#field{}]}
 -record(field, {span, doc, name, annotation}).
@@ -29,10 +32,16 @@
 %% (report §4.4)
 
 -record(fn_declaration, {span, doc, export = false, member_of, name, params, result_type, effect,
-                         body, scheme}).
+                         requirement = [], body, scheme}).
 %% result_type/effect: the annotation; result_type = undefined means none,
-%% result_type given with effect = undefined means pure. scheme: set by the
-%% checker.
+%% result_type given with effect = undefined means pure. requirement: the
+%% #member{}s its `needs` names, report §4.9, [] where it has none. scheme:
+%% set by the checker.
+-record(member, {span, member_of, name, type}).
+%% A member a requirement names, Appendix A's Member, `a.compare`:
+%% member_of, the type variable's name; name, compare, negate, an operator
+%% or show; type, set by the checker: the type variable the name stands for
+%% in the signature.
 -record(param, {span, pattern, annotation}).
 %% annotation: the type written, or undefined where there is none
 
@@ -64,12 +73,14 @@
 
 -record(e_literal, {span, kind, value, type}).
 %% kind: int | float | char | string | bool
--record(e_var, {span, path = [], name, referent, type}).
+-record(e_var, {span, path = [], name, referent, supplies = [], type}).
 %% referent, which the checker sets (report §4.2): var, a name bound around
 %% it; #own_declaration{}, this module's declaration; #remote_declaration{},
 %% another module's, the two of typer/include/ern_types.hrl; {prelude,
 %% QualifiedName}. A qualified function, operator, or value: path is the
-%% typename prefix.
+%% typename prefix. supplies, which the checker sets: what the declaration's
+%% requirement is supplied with at this use (report §4.9), and Io.show's or
+%% Io.debug's descriptor (Appendix E.1), each a supply of ern_types.hrl.
 -record(e_constructor, {span, path = [], name, base, args = none, type}).
 %% base: the Expr of a record update's `..`, or undefined (report §5.6);
 %% args: none | {positional, Expr} | {named, [#field_set{}]}
@@ -93,9 +104,20 @@
 -record(e_selection, {span, expr, field, field_span, type}).
 %% expr.field, report §3.5; field_span: where the selector stands, where
 %% its errors are reported (report §11.5)
--record(e_negation, {span, expr, type}).
+-record(e_negation, {span, expr, member, type}).
+%% member, which the checker sets: the supply of the `negate` an operand of
+%% a type with members resolves to (report §5.1, §4.9), undefined for Int
+%% and Float
 -record(e_not, {span, expr, type}).
--record(e_binop, {span, operator, left, right, type}).
+-record(e_binop, {span, operator, left, right, member, type}).
+%% member, which the checker sets: the supply of the member an arithmetic
+%% or ordering operator resolves to (report §4.8, §4.9), undefined where the
+%% operation is the runtime's own
+-record(e_member, {span, member_of, name, supply, type}).
+%% Report §4.9, Appendix A: `a.compare`, `a.negate` or `a.+`, the member of
+%% the type variable member_of under a requirement; a derived compare
+%% (§3.5) names a field's type, a #t_named{}, as member_of. supply: set by
+%% the checker
 -record(e_lambda, {span, params, result_type, effect, body, type}).
 %% result_type/effect: as on fn_declaration
 -record(e_if, {span, condition, then_branch, else_branch, type}).

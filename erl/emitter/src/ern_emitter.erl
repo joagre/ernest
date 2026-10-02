@@ -25,13 +25,17 @@
 %% float segment's zero (report §3.1), taken by the clause that uses them;
 %% session_offset: where the module is an input of the shell's session
 %% (report §11.2), the lines before its first in its file, since its spawn
-%% sites are written as the session writes names; else false.
+%% sites are written as the session writes names; else false. members:
+%% {TypeVariableId, Member} => the Erlang variable of a member the
+%% enclosing declarations' requirements name (report §4.9), each a
+%% parameter the program does not write.
 -record(emit_context, {namespace, erlang_module, env, function_name, variables = #{},
                        counter = 0, locals = #{}, lifted = [], top_names = #{},
                        descriptors = #{}, pattern_guards = [], session_offset = false,
-                       standard = false}).
-%% A local fn of a block (see Blocks).
--record(local_fn, {lifted_name, own, extra, references, snapshot = pending}).
+                       standard = false, members = #{}}).
+%% A local fn of a block (see Blocks). members: the Erlang variables of the
+%% enclosing requirements' members its body uses, which it closes over.
+-record(local_fn, {lifted_name, own, extra, references, members = [], snapshot = pending}).
 
 %%
 %% Entry points
@@ -200,9 +204,9 @@ erlang_module(Namespace) ->
 %%
 
 top_names(Declarations) ->
-    maps:from_list([{{MemberOf, Name}, length(Params)}
-                    || #fn_declaration{member_of = MemberOf, name = Name,
-                                       params = Params} <- Declarations]
+    maps:from_list([{{MemberOf, Name}, length(Params) + length(Requirement)}
+                    || #fn_declaration{member_of = MemberOf, name = Name, params = Params,
+                                       requirement = Requirement} <- Declarations]
                    ++ [{{MemberOf, Name}, length(Params)}
                        || #foreign_fn_declaration{member_of = MemberOf, name = Name,
                                                   params = Params} <- Declarations]
@@ -214,8 +218,9 @@ exported(#let_declaration{export = Export}) -> Export;
 exported(#foreign_fn_declaration{export = Export}) -> Export;
 exported(_) -> false.
 
-export(#fn_declaration{member_of = MemberOf, name = Name, params = Params}) ->
-    {function_name(MemberOf, Name), length(Params)};
+export(#fn_declaration{member_of = MemberOf, name = Name, params = Params,
+                       requirement = Requirement}) ->
+    {function_name(MemberOf, Name), length(Params) + length(Requirement)};
 export(#foreign_fn_declaration{member_of = MemberOf, name = Name, params = Params}) ->
     {function_name(MemberOf, Name), length(Params)};
 export(#let_declaration{name = Name}) -> {function_name(undefined, Name), 0}.
@@ -237,17 +242,19 @@ function_name(undefined, Name) -> function_atom(Name);
 function_name(MemberOf, Name) -> list_to_atom(atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name)).
 
 declaration(#fn_declaration{span = Span, member_of = MemberOf, name = Name, params = Params,
-                            body = Body},
+                            requirement = Requirement, body = Body},
             Context) ->
     FunctionName = function_name(MemberOf, Name),
-    Context1 = Context#emit_context{function_name = FunctionName, variables = #{}, locals = #{}},
+    Context1 = Context#emit_context{function_name = FunctionName, variables = #{}, locals = #{},
+                                    members = #{}},
     {Patterns, Context2} = lists:mapfoldl(fun(#param{pattern = Pattern}, Acc) ->
                                               pattern(Pattern, Acc)
                                           end, Context1, Params),
-    {BodyForms, Context3} = body(Body, Context2),
-    Clause = at(Span, erl_syntax:clause(Patterns, none, BodyForms)),
+    {Members, Context3} = members_taken(Requirement, Context2),
+    {BodyForms, Context4} = body(Body, Context3),
+    Clause = at(Span, erl_syntax:clause(Patterns ++ Members, none, BodyForms)),
     {[at(Span, erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]))],
-     Context3#emit_context{variables = #{}}};
+     Context4#emit_context{variables = #{}, members = #{}}};
 declaration(#let_declaration{span = Span, name = Name}, Context) ->
     %% the getter; the value is computed by '$init'/0 (report §8.5)
     FunctionName = function_name(undefined, Name),
@@ -274,6 +281,17 @@ declaration(#foreign_fn_declaration{span = Span, member_of = MemberOf, name = Na
     {[at(Span, erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]))], Context4};
 declaration(_, Context) ->
     {[], Context}.
+
+%% Report §4.9: the members a requirement names, each a parameter after the
+%% written ones, in the order the requirement writes them.
+members_taken(Requirement, Context) ->
+    lists:mapfoldl(fun(#member{type = Variable, name = Member}, Acc) ->
+                       {tvar, Id} = resolved(Variable, Acc),
+                       {[Erlang], Acc1} = fresh_variables(1, "Member", Acc),
+                       Members = Acc1#emit_context.members,
+                       {erl_syntax:variable(Erlang),
+                        Acc1#emit_context{members = Members#{{Id, Member} => Erlang}}}
+                   end, Context, Requirement).
 
 %% Report §4.7, §7.4: the foreign call, an exception it raises turned into
 %% a fault. Report §8.6: a foreign call in progress can still deliver, so
@@ -346,8 +364,9 @@ let_order(Lets, #emit_context{env = Env}) ->
 
 expr(#e_literal{span = Span, kind = Kind, value = Value}, Context) ->
     {at(Span, literal(Kind, Value)), Context};
-expr(#e_var{span = Span, path = Path, name = Name, type = Type, referent = Referent}, Context) ->
-    {Form, Context1} = name_form(Span, Path, Name, Referent, Type, Context),
+expr(#e_var{span = Span, path = Path, name = Name, type = Type, referent = Referent,
+            supplies = Supplies}, Context) ->
+    {Form, Context1} = name_form(Span, Path, Name, Referent, Type, Supplies, Context),
     {at(Span, Form), Context1};
 expr(#e_constructor{span = Span, path = Path, name = Name, base = Base, args = Args}, Context) ->
     constructor_expr(Span, Path, Name, Base, Args, Context);
@@ -406,9 +425,25 @@ expr(#e_not{span = Span, expr = Expr}, Context) ->
 expr(#e_selection{span = Span, expr = Expr, field = Field}, Context) ->
     {Form, Context1} = expr(Expr, Context),
     select(Span, Field, ern_typecheck:node_type(Expr), Form, Context1);
-expr(#e_negation{span = Span, expr = Expr}, Context) ->
+expr(#e_negation{span = Span, expr = Expr, member = undefined}, Context) ->
     {Form, Context1} = expr(Expr, Context),
     {at(Span, negate(resolved(ern_typecheck:node_type(Expr), Context), Form, Context)), Context1};
+expr(#e_negation{span = Span, expr = Expr, member = Member}, Context) ->
+    %% report §5.1, §4.9: `negate` in the operand type's namespace, or the
+    %% member a requirement names
+    {Form, Context1} = expr(Expr, Context),
+    {Applied, Context2} = member_applied(Member, [Form], Context1),
+    {at(Span, Applied), Context2};
+expr(#e_binop{span = Span, operator = Operator, left = Left, right = Right, member = Member},
+     Context)
+  when is_record(Member, required_member);
+       is_record(Member, known_member), Member#known_member.supplies =/= [] ->
+    %% report §4.8, §4.9: an operator resolved to a member a requirement
+    %% names, or to a member whose own requirement is supplied
+    {LeftForm, Context1} = expr(Left, Context),
+    {RightForm, Context2} = expr(Right, Context1),
+    {Applied, Context3} = member_applied(Member, [LeftForm, RightForm], Context2),
+    {at(Span, ordered(Operator, Applied)), Context3};
 expr(#e_binop{span = Span, operator = Operator, left = Left, right = Right}, Context) ->
     {LeftForm, Context1} = expr(Left, Context),
     {RightForm, Context2} = expr(Right, Context1),
@@ -421,6 +456,10 @@ expr(#e_binop{span = Span, operator = Operator, left = Left, right = Right}, Con
         Type ->
             {at(Span, binop(Operator, Type, LeftForm, RightForm, Context)), Context2}
     end;
+expr(#e_member{span = Span, supply = Supply}, Context) ->
+    %% report §4.9: a member as a value
+    {Form, Context1} = supply_form(Supply, Context),
+    {at(Span, Form), Context1};
 expr(#e_lambda{span = Span, params = Params, body = Body}, Context) ->
     {Patterns, Context1} = lists:mapfoldl(fun(#param{pattern = Pattern}, Acc) ->
                                               pattern(Pattern, Acc)
@@ -597,7 +636,7 @@ string_binary(Text) ->
 %% A name used as a value: name_form(...) -> {Form, Context}. Report §4.2:
 %% what the name refers to is the checker's referent, read and not decided
 %% here.
-name_form(Span, _, Name, var, Type,
+name_form(Span, _, Name, var, Type, [],
           #emit_context{variables = Variables, locals = Locals} = Context) ->
     case Variables of
         #{Name := Variable} -> {variable_form(Variable), Context};
@@ -605,25 +644,47 @@ name_form(Span, _, Name, var, Type,
             #{Name := #local_fn{lifted_name = LiftedName}} = Locals,
             closure(LiftedName, instances(Name, Context), arity_of(Type, Span), Context)
     end;
-%% Appendix E.1: the library's Io.show and Io.debug as values too, the
-%% descriptor of the argument's type, named by the checker's referent from
-%% another module and from the library's own, and never by the path
+%% Appendix E.1: the library's Io.show and Io.debug as values too, by
+%% what the checker supplied for the argument's type, named by the checker's
+%% referent from another module and from the library's own, and never by
+%% the path
 name_form(Span, _, Name,
           #remote_declaration{namespace = ['Io'], member_of = undefined, name = Name},
-          Type, Context)
+          Type, [Shown], Context)
   when Name =:= show; Name =:= debug ->
-    prelude_value(Span, ['Io', Name], Type, Context);
-name_form(Span, _, Name, #own_declaration{member_of = undefined, name = Name}, Type,
+    io_value(Span, Name, Type, Shown, Context);
+name_form(Span, _, Name, #own_declaration{member_of = undefined, name = Name}, Type, [Shown],
           #emit_context{erlang_module = 'ern@io'} = Context)
   when Name =:= show; Name =:= debug ->
-    prelude_value(Span, ['Io', Name], Type, Context);
-name_form(Span, _, _, {prelude, QualifiedName}, Type, Context) ->
+    io_value(Span, Name, Type, Shown, Context);
+name_form(Span, _, _, {prelude, QualifiedName}, Type, [], Context) ->
     prelude_value(Span, QualifiedName, Type, Context);
-name_form(_, _, _, #own_declaration{member_of = MemberOf, name = Name}, _, Context) ->
+name_form(_, _, _, #own_declaration{member_of = MemberOf, name = Name}, _, [], Context) ->
     {own_value(MemberOf, Name, Context), Context};
 name_form(_, _, _, #remote_declaration{namespace = Declaring, member_of = MemberOf, name = Name},
-          Type, #emit_context{env = Env} = Context) ->
-    {remote_value(Declaring, MemberOf, Name, Type, Env), Context}.
+          Type, [], #emit_context{env = Env} = Context) ->
+    {remote_value(Declaring, MemberOf, Name, Type, Env), Context};
+%% Report §4.9: a declaration with a requirement taken as a value is the
+%% function with its members supplied
+name_form(Span, Path, Name, Referent, Type, Supplies, Context) ->
+    Arity = arity_of(Type, Span),
+    {Function, Context1} = name_form(Span, Path, Name, Referent, widened(Type, Supplies), [],
+                                     Context),
+    {SupplyForms, Context2} = supply_forms(Supplies, Context1),
+    {Params, Context3} = fresh_variables(Arity, "A", Context2),
+    {Bound, Context4} = fresh_variables(length(SupplyForms) + 1, "S", Context3),
+    [FunctionVariable | SupplyVariables] = Bound,
+    Matches = [erl_syntax:match_expr(erl_syntax:variable(Variable), Form)
+               || {Variable, Form} <- lists:zip(Bound, [Function | SupplyForms])],
+    Applied = erl_syntax:application(erl_syntax:variable(FunctionVariable),
+                                     [erl_syntax:variable(Variable)
+                                      || Variable <- Params ++ SupplyVariables]),
+    {erl_syntax:block_expr(Matches ++ [lambda(Params, Applied)]), Context4}.
+
+%% A function type with a parameter for each member supplied, which the
+%% declaration's Erlang function takes after its written ones.
+widened({tfn, Params, Effect, Result}, Supplies) ->
+    {tfn, Params ++ [{tcon, ['Unit'], []} || _ <- Supplies], Effect, Result}.
 
 %% Report §4.6: a `let` is a value, reached through its getter even where it
 %% holds a function; a `fn` is the function itself.
@@ -670,7 +731,7 @@ closure(LiftedName, Instances, Arity, Context) ->
 %% Calls
 %%
 
-call(Span, #e_var{referent = var, name = Name}, Args, Context) ->
+call(Span, #e_var{referent = var, name = Name, supplies = Supplies}, Args, Context) ->
     #emit_context{variables = Variables, locals = Locals} = Context,
     {ArgForms, Context1} = exprs(Args, Context),
     case Variables of
@@ -679,33 +740,49 @@ call(Span, #e_var{referent = var, name = Name}, Args, Context) ->
         _ ->
             #{Name := #local_fn{lifted_name = LiftedName}} = Locals,
             Instances = [erl_syntax:variable(Variable) || Variable <- instances(Name, Context)],
+            {SupplyForms, Context2} = supply_forms(Supplies, Context1),
             Application = erl_syntax:application(erl_syntax:atom(LiftedName),
-                                                 Instances ++ ArgForms),
-            {at(Span, Application), Context1}
+                                                 Instances ++ ArgForms ++ SupplyForms),
+            {at(Span, Application), Context2}
     end;
-%% Appendix E.1: the library's Io.show and Io.debug, as name_form/6 names
-%% them, written by the argument's type at the call
+%% Appendix E.1: the library's Io.show and Io.debug, as name_form/7 names
+%% them, written by what the checker supplied for the argument's type
 call(Span, #e_var{referent = #remote_declaration{namespace = ['Io'], member_of = undefined,
-                                                 name = Name}},
+                                                 name = Name},
+                  supplies = [Shown]},
      [Argument], Context)
   when Name =:= show; Name =:= debug ->
-    io_call(Span, Name, Argument, Context);
-call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = Name}}, [Argument],
+    io_call(Span, Name, Argument, Shown, Context);
+call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = Name},
+                  supplies = [Shown]}, [Argument],
      #emit_context{erlang_module = 'ern@io'} = Context)
   when Name =:= show; Name =:= debug ->
-    io_call(Span, Name, Argument, Context);
+    io_call(Span, Name, Argument, Shown, Context);
 call(Span, #e_var{referent = {prelude, QualifiedName}} = Callee, Args, Context) ->
     %% report §4.2: the prelude's, `Prelude.x` among them
     {ArgForms, Context1} = exprs(Args, Context),
     prelude_call(Span, QualifiedName, Args, ArgForms, Callee, Context1);
-call(Span, #e_var{referent = #own_declaration{member_of = MemberOf, name = Name}}, Args, Context) ->
+call(Span, #e_var{referent = #own_declaration{member_of = MemberOf, name = Name},
+                  supplies = Supplies}, Args, Context) ->
     {ArgForms, Context1} = exprs(Args, Context),
-    {at(Span, own_call(MemberOf, Name, ArgForms, Context)), Context1};
+    {SupplyForms, Context2} = supply_forms(Supplies, Context1),
+    {at(Span, own_call(MemberOf, Name, ArgForms ++ SupplyForms, Context)), Context2};
+%% report §4.9: a member called directly, `a.compare(x, y)` or a derived
+%% compare's field
+call(Span, #e_member{supply = #known_member{qualified_name = QualifiedName, member = Member,
+                                            supplies = Supplies}},
+     Args, Context) ->
+    {ArgForms, Context1} = exprs(Args, Context),
+    {SupplyForms, Context2} = supply_forms(Supplies, Context1),
+    {at(Span, member_call(QualifiedName, Member, ArgForms ++ SupplyForms, Context)), Context2};
 call(Span,
      #e_var{referent = #remote_declaration{namespace = Declaring, member_of = MemberOf,
-                                           name = Name}},
+                                           name = Name},
+            supplies = Supplies},
      Args, #emit_context{env = Env} = Context) ->
-    {ArgForms, Context1} = exprs(Args, Context),
+    {WrittenForms, Context0} = exprs(Args, Context),
+    {SupplyForms, Context1} = supply_forms(Supplies, Context0),
+    ArgForms = WrittenForms ++ SupplyForms,
     {HostModule, HostFunction} = remote_name(Declaring, MemberOf, Name),
     %% report §4.6: calling a `let` applies what its getter answers;
     %% calling a `fn` is the call itself
@@ -726,10 +803,78 @@ call(Span, Callee, Args, Context) ->
     {ArgForms, Context2} = exprs(Args, Context1),
     {at(Span, erl_syntax:application(CalleeForm, ArgForms)), Context2}.
 
-io_call(Span, Name, Argument, Context) ->
+io_call(Span, Name, Argument, Shown, Context) ->
     {[ArgumentForm], Context1} = exprs([Argument], Context),
-    DescriptorForm = erl_syntax:abstract(descriptor(ern_typecheck:node_type(Argument), Context)),
-    {at(Span, call_remote(ern_io, Name, [ArgumentForm, DescriptorForm])), Context1}.
+    {DescriptorForm, Context2} = supply_form(Shown, Context1),
+    {at(Span, call_remote(ern_io, Name, [ArgumentForm, DescriptorForm])), Context2}.
+
+%% Appendix E.1: Io.show or Io.debug as a value, the descriptor it writes
+%% by supplied.
+io_value(_Span, Name, {tfn, [_], _, _}, Shown, Context) ->
+    {[Value], Context1} = fresh_variables(1, "A", Context),
+    {DescriptorForm, Context2} = supply_form(Shown, Context1),
+    {lambda([Value], call_remote(ern_io, Name, [erl_syntax:variable(Value), DescriptorForm])),
+     Context2}.
+
+%%
+%% Supplies, report §4.9: what the checker resolved a requirement's members
+%% to, each an argument the program does not write
+%%
+
+supply_forms(Supplies, Context) ->
+    lists:mapfoldl(fun supply_form/2, Context, Supplies).
+
+%% A member the enclosing requirement names is the parameter it came in;
+%% `show` at a known type is the type's descriptor; a known type's member
+%% is that member as a function, its own requirement supplied.
+supply_form(#required_member{variable = Variable, member = Member}, Context) ->
+    {erl_syntax:variable(member_variable(Variable, Member, Context)), Context};
+supply_form(#shown_type{type = Type}, Context) ->
+    {erl_syntax:abstract(descriptor(Type, Context)), Context};
+supply_form(#known_member{qualified_name = [_] = QualifiedName, member = Member,
+                          supplies = []}, Context) ->
+    %% report §9.6: a prelude type's member, the runtime's own operation or
+    %% its module's
+    Type = {tcon, QualifiedName, []},
+    prelude_value({1, 1, {1, 1}}, QualifiedName ++ [Member],
+                  {tfn, lists:duplicate(member_arity(Member), Type), pure, Type}, Context);
+supply_form(#known_member{qualified_name = QualifiedName, member = Member, supplies = Supplies},
+            Context) ->
+    {SupplyForms, Context1} = supply_forms(Supplies, Context),
+    Arity = member_arity(Member),
+    {Params, Context2} = fresh_variables(Arity, "A", Context1),
+    case SupplyForms of
+        [] ->
+            {member_value(QualifiedName, Member, Arity, Context2), Context2};
+        _ ->
+            {Bound, Context3} = fresh_variables(length(SupplyForms), "S", Context2),
+            Matches = [erl_syntax:match_expr(erl_syntax:variable(Variable), Form)
+                       || {Variable, Form} <- lists:zip(Bound, SupplyForms)],
+            Args = [erl_syntax:variable(Variable) || Variable <- Params ++ Bound],
+            Applied = member_call(QualifiedName, Member, Args, Context3),
+            {erl_syntax:block_expr(Matches ++ [lambda(Params, Applied)]), Context3}
+    end.
+
+%% The parameter a requirement's member came in, in the declaration being
+%% emitted or one that encloses it.
+member_variable(Variable, Member, #emit_context{members = Members} = Context) ->
+    {tvar, Id} = resolved(Variable, Context),
+    maps:get({Id, Member}, Members).
+
+member_arity(negate) -> 1;
+member_arity(_) -> 2.
+
+%% A member of a declared type as a function value: a local function of
+%% this module's, or another module's as it was taken (report §11.2).
+member_value(QualifiedName, Member, Arity, #emit_context{namespace = Namespace, env = Env}) ->
+    MemberOf = lists:last(QualifiedName),
+    MemberQualifiedName = ern_typecheck:member_qualified_name(QualifiedName, Member, Env),
+    Function = erl_syntax:atom(function_name(MemberOf, Member)),
+    case lists:droplast(lists:droplast(MemberQualifiedName)) of
+        Namespace -> erl_syntax:implicit_fun(Function, erl_syntax:integer(Arity));
+        Declaring -> call_remote(erlang_module(Declaring), '$fun',
+                                 [Function, erl_syntax:integer(Arity)])
+    end.
 
 %% Report §4.6: a call of the module's own declaration, a `let` through
 %% what its getter answers.
@@ -849,12 +994,6 @@ prelude_value(_, [_, '<>'], {tfn, [ParamType | _], _, _}, Context) ->
     Body = binop('<>', resolved(ParamType, Context), erl_syntax:variable(Left),
                  erl_syntax:variable(Right), Context),
     {lambda([Left, Right], Body), Context1};
-prelude_value(_, ['Io', Name], {tfn, [ParamType], _, _}, Context)
-  when Name =:= show; Name =:= debug ->
-    {[Value], Context1} = fresh_variables(1, "A", Context),
-    DescriptorForm = erl_syntax:abstract(descriptor(ParamType, Context)),
-    {lambda([Value], call_remote(ern_io, Name, [erl_syntax:variable(Value), DescriptorForm])),
-     Context1};
 prelude_value(Span, [Name], Type, Context) ->
     case lists:member(Name, [self, send, answer, via, monitor, kill, fault, restarting]) of
         true -> {remote_fun(ern_rt, Name, arity_of(Type, Span)), Context};
@@ -979,9 +1118,41 @@ negate({tcon, QualifiedName, _}, Form, Context) when length(QualifiedName) > 1 -
     member_call(QualifiedName, negate, [Form], Context);
 negate(_, Form, _) -> erl_syntax:prefix_expr(erl_syntax:operator('-'), Form).
 
+%% Report §4.9: a member applied to its operands, the parameter a
+%% requirement's member came in, or a known type's member with its own
+%% requirement supplied.
+member_applied(#required_member{variable = Variable, member = Member}, Args, Context) ->
+    Function = erl_syntax:variable(member_variable(Variable, Member, Context)),
+    {erl_syntax:application(Function, Args), Context};
+member_applied(#known_member{qualified_name = QualifiedName, member = Member,
+                             supplies = Supplies}, Args, Context) ->
+    {SupplyForms, Context1} = supply_forms(Supplies, Context),
+    {member_call(QualifiedName, Member, Args ++ SupplyForms, Context1), Context1}.
+
+%% Report §3.10: an ordering is its compare against Less or Greater; any
+%% other operator is the member's own result.
+ordered(Operator, Compared) ->
+    case Operator of
+        '<' -> erl_syntax:infix_expr(Compared, erl_syntax:operator('=:='), erl_syntax:atom('Less'));
+        '>' -> erl_syntax:infix_expr(Compared, erl_syntax:operator('=:='),
+                                     erl_syntax:atom('Greater'));
+        '<=' -> erl_syntax:infix_expr(Compared, erl_syntax:operator('=/='),
+                                      erl_syntax:atom('Greater'));
+        '>=' -> erl_syntax:infix_expr(Compared, erl_syntax:operator('=/='),
+                                      erl_syntax:atom('Less'));
+        _ -> Compared
+    end.
+
 %% A member of the type QualifiedName: a local function when the type is
 %% this module's, otherwise a call into the module that owns it (report
 %% §4.2).
+member_call([_] = QualifiedName, Name, Args, #emit_context{namespace = Namespace}) ->
+    %% report §9.6: a prelude type's member is its module's, which exports
+    %% the runtime's own operation as a function
+    case Namespace of
+        QualifiedName -> erl_syntax:application(erl_syntax:atom(function_atom(Name)), Args);
+        _ -> call_remote(erlang_module(QualifiedName), function_atom(Name), Args)
+    end;
 member_call(QualifiedName, Name, Args, #emit_context{namespace = Namespace, env = Env}) ->
     MemberOf = lists:last(QualifiedName),
     %% report §11.2: at the prompt a later input may have declared it
@@ -1377,7 +1548,8 @@ declare_locals(Fns, Statements, #emit_context{locals = Locals} = Context) ->
 
 %% A local fn of the block named Names, as its #local_fn{} under a fresh
 %% name, from the scope the block opens in, Context.
-declared_local(#fn_declaration{name = Name, params = Params, body = Body}, Names, BlockLets,
+declared_local(#fn_declaration{name = Name, params = Params, requirement = Requirement,
+                               body = Body}, Names, BlockLets,
                #emit_context{variables = Variables, locals = Locals,
                              top_names = TopNames} = Context,
                Acc) ->
@@ -1392,8 +1564,23 @@ declared_local(#fn_declaration{name = Name, params = Params, body = Body}, Names
                              not lists:member(FreeName, Own), is_map_key(FreeName, Locals)]),
     {LiftedName, Acc1} = fresh_name(Name, Acc),
     Local = #local_fn{lifted_name = LiftedName, own = Own, extra = lists:usort(Extra),
-                      references = References},
+                      references = References,
+                      members = enclosing_members(Body, Requirement, Context)},
     {{Name, Local}, Acc1}.
+
+%% Report §4.9: the parameters of the enclosing requirements' members a
+%% local fn's body uses, which it closes over, its own requirement's aside.
+enclosing_members(Body, Requirement, #emit_context{members = Members} = Context) ->
+    Own = [{Id, Member} || #member{type = Variable, name = Member} <- Requirement,
+                           {tvar, Id} <- [resolved(Variable, Context)]],
+    Used = ern_ast:walk(fun(#required_member{variable = Variable, member = Member}, Found) ->
+                                {tvar, Id} = resolved(Variable, Context),
+                                [{Id, Member} | Found];
+                           (_, Found) ->
+                                Found
+                        end, Body, []),
+    lists:usort([maps:get(Key, Members) || Key <- Used, not lists:member(Key, Own),
+                                           is_map_key(Key, Members)]).
 
 %% The variables a local fn closes over, in order, each once.
 instances(Name, #emit_context{locals = Locals, variables = Variables}) ->
@@ -1406,10 +1593,11 @@ instances([Name | Rest], Locals, Variables, Seen, Acc) ->
         true ->
             instances(Rest, Locals, Variables, Seen, Acc);
         false ->
-            #local_fn{own = Own, extra = Extra, references = References,
+            #local_fn{own = Own, extra = Extra, references = References, members = Members,
                       snapshot = Snapshot} = maps:get(Name, Locals),
             Scope = case Snapshot of pending -> Variables; _ -> Snapshot end,
-            Found = [variable_atom(maps:get(OwnName, Scope)) || OwnName <- Own] ++ Extra,
+            Found = [variable_atom(maps:get(OwnName, Scope)) || OwnName <- Own] ++ Extra
+                ++ Members,
             instances(References ++ Rest, Locals, Variables, [Name | Seen], Found ++ Acc)
     end.
 
@@ -1417,8 +1605,9 @@ instances([Name | Rest], Locals, Variables, Seen, Acc) ->
 emit_locals(Fns, Context) ->
     lists:foldl(fun emit_local/2, Context, Fns).
 
-emit_local(#fn_declaration{span = Span, name = Name, params = Params, body = Body},
-           #emit_context{variables = Variables, locals = Locals} = Context) ->
+emit_local(#fn_declaration{span = Span, name = Name, params = Params, requirement = Requirement,
+                           body = Body},
+           #emit_context{variables = Variables, locals = Locals, members = Members} = Context) ->
     #local_fn{lifted_name = LiftedName, own = Own, snapshot = Snapshot} = maps:get(Name, Locals),
     Instances = instances(Name, Context),
     OwnVariables = maps:from_list([{OwnName, maps:get(OwnName, Snapshot)} || OwnName <- Own]),
@@ -1426,12 +1615,13 @@ emit_local(#fn_declaration{span = Span, name = Name, params = Params, body = Bod
                                               pattern(Pattern, Acc)
                                           end, Context#emit_context{variables = OwnVariables},
                                           Params),
-    {BodyForms, Context2} = body(Body, Context1),
-    Head = [erl_syntax:variable(Variable) || Variable <- Instances] ++ Patterns,
+    {OwnMembers, Context2} = members_taken(Requirement, Context1),
+    {BodyForms, Context3} = body(Body, Context2),
+    Head = [erl_syntax:variable(Variable) || Variable <- Instances] ++ Patterns ++ OwnMembers,
     Clause = at(Span, erl_syntax:clause(Head, none, BodyForms)),
     Function = at(Span, erl_syntax:function(erl_syntax:atom(LiftedName), [Clause])),
-    Context2#emit_context{variables = Variables,
-                          lifted = [Function | Context2#emit_context.lifted]}.
+    Context3#emit_context{variables = Variables, members = Members,
+                          lifted = [Function | Context3#emit_context.lifted]}.
 
 %% The names a pattern binds.
 pattern_names(Pattern) -> [Name || {Name, _} <- ern_ast:pattern_bindings(Pattern)].

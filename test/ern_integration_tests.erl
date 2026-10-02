@@ -308,7 +308,8 @@ manual_pages_test_() ->
 manual_pages() ->
     {0, _} = sh("../bin/ern doc --man --build-root ../build/stdlib ../stdlib"),
     Modules = [filename:basename(File, ".ern") || File <- filelib:wildcard("../stdlib/*.ern")],
-    Pages = ["../build/stdlib/Ernest." ++ string:titlecase(Module) ++ ".3ern" || Module <- Modules]
+    Pages = ["../build/stdlib/Ernest." ++ ern_namespace:text(ern_namespace:namespace([Module]))
+             ++ ".3ern" || Module <- Modules]
         ++ ["../build/stdlib/Ernest.Prelude.3ern"],
     ?assertEqual([], [Page || Page <- Pages, not filelib:is_regular(Page)]),
     0 = build("--load-path ../build/libs/markdown --load-path ../build/libs/ansi "
@@ -342,7 +343,9 @@ manual_pages() ->
     ?assertMatch({_, _}, binary:match(Output, <<".SH\nSEE ALSO\n.PP\n\\fBErnest.Prelude\\fR(3ern), "
                                                 "\\fBErnest.Bool\\fR(3ern), ">>)),
     SeeAlso = fun(Module) ->
-                  iolist_to_binary(["\\fBErnest.", string:titlecase(Module), "\\fR(3ern)"])
+                  iolist_to_binary(["\\fBErnest.",
+                                    ern_namespace:text(ern_namespace:namespace([Module])),
+                                    "\\fR(3ern)"])
               end,
     ?assertEqual([], [Module || Module <- Modules,
                                 binary:match(Output, SeeAlso(Module)) =:= nomatch]),
@@ -901,6 +904,26 @@ modules() ->
     {0, _} = sh("../bin/ern build --build-root build/modules ../examples/modules"),
     {0, Output} = sh("../bin/ern run build/modules/main.erc"),
     ?assertEqual(expected("modules"), lines(Output)).
+
+%% report §4.9, §3.5, §5.6, Appendix E.25, E.26, docs/operations.md: the
+%% note's three programs, its directory built as a source root over the
+%% standard library's ordered set and map, each print what the note says, in
+%% order. Written after the code, which they were built against first.
+-define(OPERATIONS, ["usage", "numeric", "num"]).
+
+operations_test_() ->
+    {timeout, 120, fun operations/0}.
+
+operations() ->
+    {0, _} = sh("../bin/ern build --build-root build/operations ../docs/operations"),
+    lists:foreach(fun(Name) ->
+                      {0, Output} = sh("../bin/ern run build/operations/" ++ Name ++ ".erc"),
+                      {ok, Expected} = file:read_file("expected/operations/" ++ Name ++ ".out"),
+                      ?assertEqual({Name, in_order(Expected)}, {Name, in_order(Output)})
+                  end, ?OPERATIONS).
+
+in_order(Bytes) ->
+    binary:split(Bytes, <<"\n">>, [global, trim]).
 
 %% report §11.6: `ern format -` lays out standard input onto standard
 %% output; with --check it names `-` if the module is not laid out; a

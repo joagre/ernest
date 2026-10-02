@@ -7,10 +7,7 @@
 
 type Date = Date(year : Int, month : Int, day : Int) derives compare
 
-type Ops(s, a) =
-    Ops(fromList : (List(a)) -> s,
-        intersection : (s, s) -> s,
-        toList : (s) -> List(a))
+type Ops(s, a) = Ops(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
 
 let hashed : Ops(Set(Int), Int) = Ops(..Set)
 
@@ -19,7 +16,7 @@ let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)
 fn unique(list : List(a)) : List(a) needs a.compare =
     OrderedSet.toList(OrderedSet.fromList(list))
 
-fn shown(list : List(a)) : Unit needs a.show =
+fn shown(list : List(a)) : Unit with m needs a.show =
     List.foreach(list, fn(x) = Io.println(Io.show(x)))
 
 fn common(list : List(a), other : List(a), ops : Ops(s, a)) : List(a) =
@@ -35,7 +32,9 @@ export fn main() : Unit with Never = {
     let doubled = OrderedSet.map(both, fn(n) = n * 2);
     Io.println(Bool.toString(OrderedSet.contains(doubled, 6)));
     Io.println(Io.show(unique(["b", "a", "b"])));
-    let dates = OrderedSet.fromList([Date(2026, 10, 2), Date(2025, 1, 1)]);
+    let dates =
+        OrderedSet.fromList([Date(year = 2026, month = 10, day = 2),
+                             Date(year = 2025, month = 1, day = 1)]);
     Io.println(Io.show(OrderedSet.min(dates)));
     shown(OrderedSet.toList(dates));
     let ages = OrderedMap.fromList([#("bo", 42), #("al", 7)]);

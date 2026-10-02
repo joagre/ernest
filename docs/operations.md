@@ -1,6 +1,6 @@
 # Operations records
 
-*The specification of code written once over several representations of one type. MVP 2.99b's item 5 builds it. The log's *Operations Records*, *Members, Operators, and No Hidden Argument*, *The Operations Note Rewritten*, *The Order Bound Once* and *MVP 2.99b's Questions, One by One* argue its earlier choices, *The Requirement, the Fill and the Set as Data* the three that made these rules, and *The Operations Specification Read* the read before the build. Revised 2026-10-02. The report states the forms since the same day, the requirement in §4.9, `derives` in §3.5 and the fill in §5.6, and the two modules in E.25 and E.26; where this note and the report differ, the report holds. The five files are whole under [`docs/operations/`](operations/), with their doc blocks, until item 5 moves the ordered set and the ordered map into the standard library. Four use the requirement or the fill, forms the toolchain does not have, so they do not build, and what they print and refuse is stated as expected; `num.ern`, which uses neither, builds and prints what the note says; an earlier form of the ordered set, carrying its order, was built, run, formatted and rendered by `ern doc` on 2026-10-02 under stand-in names, with every doc example checked. The code here is excerpted from the files.*
+*The specification of code written once over several representations of one type. MVP 2.99b's item 5 builds it. The log's *Operations Records*, *Members, Operators, and No Hidden Argument*, *The Operations Note Rewritten*, *The Order Bound Once* and *MVP 2.99b's Questions, One by One* argue its earlier choices, *The Requirement, the Fill and the Set as Data* the three that made these rules, and *The Operations Specification Read* the read before the build. Revised 2026-10-03. The report states the forms since 2026-10-02, the requirement in §4.9, `derives` in §3.5 and the fill in §5.6, and the two modules in E.25 and E.26; where this note and the report differ, the report holds. Item 5 built them on 2026-10-03 (the log's *The Requirement Built*): the ordered set and the ordered map are the standard library's, [`ordered_set.ern`](../stdlib/ordered_set.ern) and [`ordered_map.ern`](../stdlib/ordered_map.ern), and the three programs stand under [`docs/operations/`](operations/), where the integration tests build them and hold what they print to what this note says. The code here is excerpted from the files.*
 
 Ernest has one set in its standard library, `Set`, a hash set. A second, `OrderedSet`, keeps its elements in the order of their type's `compare`. Code written once works on both through an *operations record*, a record the program declares of the operations it needs, filled from each representation's namespace. The § numbers cite Ernest's report.
 
@@ -27,12 +27,12 @@ Three forms enter the language, a requirement that names a member of a type, a r
 8. **`OrderedSet` is `ordered_set.ern`** in the standard library, a file whose words joined by `_` name one namespace (§4.2, §11.1). Its type is `OrderedSet.Set(a)` (E.0 shape rule 7), which inside the file shadows the prelude's `Set` (§4.2). A set carried into another representation goes through that representation's `fromList` of its `toList`. `Set` does not change.
 9. **The representation is a sorted list**, one shape per set, so that `==` is structural. `put`, `contains` and `remove` are linear in the set's size; `fromList` is a stable sort and one pass, `n log n`, and `map` and `filterMap` are its cost beside the function's; `union`, `intersection`, `difference` and `isSubset` are linear in the two sizes. A representation of another shape needs one shape per set as well, and replaces the list when a program's measurement shows the linear cost matters, with no change a program can see.
 10. **A list that mixes representations needs a second record type**, one that hides `s`: its functions close over one set, and its `put` returns another such record. It has no operation on two sets and no `==`.
-11. **A type asks for the structural order.** A type declaration may end in `derives compare`: `type Date = Date(year : Int, month : Int, day : Int) derives compare`. The type gains the member `compare` (§4.8), which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare`. A field whose type has no `compare` is an error at the declaration: `Date.compare cannot be derived: Optional(Int) has no compare`. The member is written on the type's page as any member. For a type with parameters it declares `needs` for each parameter the comparison reaches: `type Pair(a, b) = Pair(a, b) derives compare` gives `Pair.compare` the requirement `needs a.compare, b.compare`. `derives` names `compare` and nothing else.
-12. **An ordered map is specified as the ordered set is.** `ordered_map.ern`, namespace `OrderedMap`, type `OrderedMap.Map(k, v)`, keeps its keys in the order of their type's `compare`, with E.0 rule 2's vocabulary for a map. Each function that needs the keys' order declares `needs k.compare`; the map is data, a sorted list of pairs with one shape per map, and `==` is structural. The file is [`ordered_map.ern`](operations/ordered_map.ern).
+11. **A type asks for the structural order.** A type declaration may end in `derives compare`: `type Date = Date(year : Int, month : Int, day : Int) derives compare`. The type gains the member `compare` (§4.8), which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare`. A field whose type has no `compare` is an error at the declaration: `Date.compare cannot be derived: Optional(Int) has no compare`. The member is written on the type's page as any member. For a type with parameters it declares `needs` for each parameter the comparison reaches: `type Pair(a, b) = Pair(first : a, second : b) derives compare` gives `Pair.compare` the requirement `needs a.compare, b.compare`. `derives` names `compare` and nothing else.
+12. **An ordered map is specified as the ordered set is.** `ordered_map.ern`, namespace `OrderedMap`, type `OrderedMap.Map(k, v)`, keeps its keys in the order of their type's `compare`, with E.0 rule 2's vocabulary for a map. Each function that needs the keys' order declares `needs k.compare`; the map is data, a sorted list of pairs with one shape per map, and `==` is structural. The file is [`ordered_map.ern`](../stdlib/ordered_map.ern).
 
 ## The files
 
-[`ordered_set.ern`](operations/ordered_set.ern) is the ordered set. Shown are its type, `empty`, `fromList` with its pass, `contains`, `put`, `map`, `filter` and `union`; the rest of the vocabulary is written as these are, and the file holds it whole.
+[`ordered_set.ern`](../stdlib/ordered_set.ern) is the ordered set. Shown are its type, `empty`, `fromList` with its pass, `contains`, `put`, `map`, `filter` and `union`; the rest of the vocabulary is written as these are, and the file holds it whole.
 
 ```ernest
 export abstract type Set(a) = Set(List(a))
@@ -106,10 +106,7 @@ fn merged(list : List(a), other : List(a)) : List(a) needs a.compare =
 ```ernest
 type Date = Date(year : Int, month : Int, day : Int) derives compare
 
-type Ops(s, a) =
-    Ops(fromList : (List(a)) -> s,
-        intersection : (s, s) -> s,
-        toList : (s) -> List(a))
+type Ops(s, a) = Ops(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
 
 let hashed : Ops(Set(Int), Int) = Ops(..Set)
 
@@ -118,7 +115,7 @@ let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)
 fn unique(list : List(a)) : List(a) needs a.compare =
     OrderedSet.toList(OrderedSet.fromList(list))
 
-fn shown(list : List(a)) : Unit needs a.show =
+fn shown(list : List(a)) : Unit with m needs a.show =
     List.foreach(list, fn(x) = Io.println(Io.show(x)))
 
 fn common(list : List(a), other : List(a), ops : Ops(s, a)) : List(a) =
@@ -134,7 +131,9 @@ export fn main() : Unit with Never = {
     let doubled = OrderedSet.map(both, fn(n) = n * 2);
     Io.println(Bool.toString(OrderedSet.contains(doubled, 6)));
     Io.println(Io.show(unique(["b", "a", "b"])));
-    let dates = OrderedSet.fromList([Date(2026, 10, 2), Date(2025, 1, 1)]);
+    let dates =
+        OrderedSet.fromList([Date(year = 2026, month = 10, day = 2),
+                             Date(year = 2025, month = 1, day = 1)]);
     Io.println(Io.show(OrderedSet.min(dates)));
     shown(OrderedSet.toList(dates));
     let ages = OrderedMap.fromList([#("bo", 42), #("al", 7)]);
@@ -210,11 +209,7 @@ numeric.ern:16:34: zero is not a member: a requirement names compare, negate, an
 [`num.ern`](operations/num.ern) writes the same functions over a record the program fills by hand, `Num`, since `zero` and `one` are no members and `+` is no field name, so no fill applies; each type is one line, and generic code passes the record.
 
 ```ernest
-type Num(a) =
-    Num(zero : a,
-        one : a,
-        add : (a, a) -> a,
-        mul : (a, a) -> a)
+type Num(a) = Num(zero : a, one : a, add : (a, a) -> a, mul : (a, a) -> a)
 
 let ints : Num(Int) = Num(zero = 0, one = 1, add = Int.+, mul = Int.*)
 
@@ -227,7 +222,7 @@ fn sumOfSquares(list : List(a), num : Num(a)) : a =
 
 Its `main` prints `6`, `3.0` and `14`.
 
-[`ordered_map.ern`](operations/ordered_map.ern) is the ordered map of rule 12. Shown are its type, `empty`, `fromList`, `get`, `put`, `map`, which keeps the keys and needs nothing, `merge` and `mergeWith`; the rest of the vocabulary is written as these are, and the file holds it whole.
+[`ordered_map.ern`](../stdlib/ordered_map.ern) is the ordered map of rule 12. Shown are its type, `empty`, `fromList`, `get`, `put`, `map`, which keeps the keys and needs nothing, `merge` and `mergeWith`; the rest of the vocabulary is written as these are, and the file holds it whole.
 
 ```ernest
 export abstract type Map(k, v) = Map(List(#(k, v)))

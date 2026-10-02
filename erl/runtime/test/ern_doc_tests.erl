@@ -14,7 +14,7 @@
 %% library's top module under libs/.
 modules() ->
     [{['Template'], filename:join(?ROOT, "examples/template.ern")}
-     | [{[list_to_atom(string:titlecase(filename:basename(File, ".ern")))], File}
+     | [{ern_namespace:namespace([filename:basename(File, ".ern")]), File}
         || File <- filelib:wildcard(filename:join(?ROOT, "stdlib/*.ern"))
                ++ filelib:wildcard(filename:join(?ROOT, "libs/*/*.ern"))]].
 
@@ -353,7 +353,8 @@ fences(Doc) ->
     end.
 
 %% plan MVP 2.5: every value a compiled standard library interface
-%% declares is exported by its module with the arity of its type
+%% declares is exported by its module with the arity of its type and its
+%% requirement (report §4.9)
 stdlib_targets_test() ->
     Missing = [{QualifiedName, Arity}
                || #interface{namespace = Namespace,
@@ -369,8 +370,10 @@ stdlib_targets_test() ->
     ?assertNotEqual([], ern_prelude:stdlib_interfaces()).
 
 erlang_module(Namespace) ->
-    list_to_atom("ern@"
-                 ++ string:lowercase(lists:join("@", [atom_to_list(Part) || Part <- Namespace]))).
+    ern_namespace:erlang_module(Namespace).
 
-arity(#scheme{type = {tfn, Params, _, _}}) -> length(Params);
+%% Report §4.9: a function's arity, and a parameter for each member its
+%% requirement names.
+arity(#scheme{type = {tfn, Params, _, _}, requirement = Requirement}) ->
+    length(Params) + length(Requirement);
 arity(_) -> 0.

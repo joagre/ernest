@@ -14,8 +14,8 @@ milestone, the standing gaps, and what is done.
 ## Where we are
 
 **MVP 2.99b is under way**: what the release review left, the code's names read and made to read,
-the decision on how code written once works over several representations, decided
-2026-10-02, specified by [`operations.md`](operations.md) and written into the report the same day, next to build, and running as a service. Its first item makes every
+how code written once works over several representations, decided 2026-10-02 and built
+2026-10-03 over what [`operations.md`](operations.md) specifies, and running as a service. Its first item makes every
 run of `make test` trusted. Between its items 3 and 4 runs the principles review, the report
 and the guide read against §0 and §0 against what it decided, a milestone of its own;
 its readers ran on 2026-09-30, on `57b8356`, and it was worked on 2026-10-01 in seven phases
@@ -27,7 +27,8 @@ the same day (the log's *The Erlang Read Again*), and item 15, moved to follow i
 *The Ernest Renamed Next*), the Ernest read and renamed (the log's *The Ernest Read and
 Renamed*) and read again by six readers (the log's *The Ernest Read Again*); item 21, the
 report's and the guide's blocks read the same way, was decided with the user the same day,
-to follow items 16 and 20. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+to follow items 16 and 20. Item 5, the operations built, was done on 2026-10-03 (the log's
+*The Requirement Built*). Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -139,65 +140,30 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    declaration for as a built-in one, which made its equality check pass, but fails as the
    toolchain's own defect. A regression test for each of the three, and the Erlang module a
    source compiles to is named from its path, `ern@ordered_set`.
-5. **The operations, decided and built.** Decided with the user on 2026-10-02, in a day's
-   discussion (the log's *The Requirement, the Fill and the Set as Data*), written with the
-   report edit below, and
-   specified whole in [`operations.md`](operations.md), which is this item's specification,
-   rule by rule, with five programs under [`docs/operations/`](operations/) as its examples
-   (language feedback 64, 70 and 71, which the decision closed). Two parts the principles
-   review decided on 2026-10-01 stand (the log's *Members, Operators, and No Hidden
-   Argument*): a type's operations are functions of its module, and a member is only an
-   operator, `compare` or `negate`, which decides **when a type's operation is a member and
-   when a module function** (`findings.md`'s U8, moved here 2026-09-29); and no operator
-   carries a hidden argument. Whether a restriction may be written in an annotation
-   (`findings.md`'s R-23) was decided the same day: no second way beside inference (the log's
-   *The Reply Discipline Names No Type*), and the process-only mark is `m+` (the log's *The
-   Process-Only Mark*). What was decided on 2026-10-02 is the note's twelve rules: a
-   function that needs a member of a type says so in a requirement after its result type, `needs
-   a.compare`; a call writes nothing for it, the compiler supplies the member where the type
-   is known and passes the enclosing requirement's along where it is a variable, and a body under
-   the requirement may write `a.compare` and operators on `a` (rule 1); a requirement names a member of
-   §4.8 or `show` and nothing else, is never inferred, and a program declares no member
-   beyond §4.8's (rule 2); an ordered set is data, `OrderedSet.Set(a)` holding its elements
-   and nothing else, with structural `==` (rule 3); an order belongs to an element type, so
-   that a second order is a second type and two sets of different orders cannot meet (rule
-   4); `put` keeps the element already there (rule 5); the record is the program's, declared
-   with the fields it uses, the library declaring no record and no generic function over one
-   (rule 6); a record is filled from a namespace, `Ops(..Set)` (rule 7); `OrderedSet` is
-   `ordered_set.ern` (rule 8); the representation is a sorted list, its costs stated, another
-   shape replacing it only when a measurement asks (rule 9); a list of mixed representations
-   needs a second record type (rule 10); a type derives its order from its declaration,
-   `derives compare` (rule 11); and an ordered map is specified as the set is (rule 12). The
-   forms tried and set aside the same day, the record bound once with `ints.put`, the order
-   carried in the set with `equal`, and the member as a defaulted parameter, stand in the
-   note's committed history (`eed585a` to `cc03f0f`) and in that entry. The note was read as an
-   implementer reads it on 2026-10-02, before the build, and thirteen findings decided with
-   the user, one a soundness hole, an operator member's shape under a requirement, now rule
-   1's (the log's *The Operations Specification Read*).
-
-   Once decided, it is built in the report's order. The report first, with everything the
-   note introduces, the note's *What changes in Ernest* being the list: the requirement in a
-   new section after §4.8, at the end of chapter 4, where a section goes without renumbering,
-   with its limits and its errors, §4.8 pointing at it, §3.5's `derives` and §5.6's fill,
-   E.1's `show` under a requirement, Appendix A's four rules, §11.5's errors and the requirement on a page and in the shell, and
-   two sections at the end of Appendix E, `ordered_set.ern` and `ordered_map.ern`, each
-   stating its representation and costs whole: written on 2026-10-02, §4.9 the requirement and
-   E.25 and E.26 the modules (the log's *The Requirement Written into the Report*), §4.9's
-   example a fragment block until the forms parse, when the build marks it `ernest` so that the
-   guide's checks compile it. Then the toolchain, the requirement and the fill
-   first, built against the five files under `docs/operations/` as they stand until they
-   build and print what the note says, since the files are the specification's test suite
-   before any test exists: the requirement's resolution pass, its errors, the requirement carried in
-   the `.erc` across §11.1's recompilation, the emitter's hidden parameters, and `derives`
-   and the fill as desugarings once the requirement works. Then the two modules in the standard
-   library with their pages, tests and sections, `ern doc` writing a requirement as declared and
-   a record type's constructor one field per line, and the formatter and the shell showing
-   a requirement; the session that builds this half starts by running the five files. Nothing in
-   §3.9's typing changes: a requirement adds nothing to a scheme, and the resolution pass is the
-   operator's and `Io.show`'s, extended to a parameter (`operations.md`'s *Typing* and *What
-   it costs to build*). The code is written in the glossary's names. About two weeks. Items
-   11 and 12, `set.ern` over its record and `OrderedSet`, joined this item on 2026-10-02
-   (the log's *The Operations Decided and Built*); `set.ern` no longer changes.
+5. **The operations, decided and built**, done 2026-10-03 (the log's *The Requirement
+   Built*; decided 2026-10-02, the log's *The Requirement, the Fill and the Set as Data*, *The
+   Operations Specification Read* and *The Requirement Written into the Report*).
+   [`operations.md`](operations.md) specified it rule by rule and stays its record. The
+   report states the three forms, the requirement in §4.9, `derives compare` in §3.5 and the
+   fill from a namespace in §5.6, and the two modules, `ordered_set.ern` in Appendix E.25 and
+   `ordered_map.ern` in E.26. The toolchain builds them: `needs` and `derives` reserved; a
+   requirement carried on its declaration's scheme into the compiled interface, supplied at
+   each use once the enclosing definition is inferred, members supplying members, with the
+   errors §4.9 names; its members parameters the program does not write; `derives compare`
+   and the fill read as the declaration and the construction they stand for; the two modules
+   in the standard library with their pages and tests; and `ern doc`, the shell's `:type`,
+   its completion and its signatures writing a requirement as declared, `ern doc` laying a
+   type declaration out as `ern format` does. It was built first against the five files
+   under `docs/operations/`, which found three constructions in them that §3.5 and §4.5
+   refuse, corrected in the note and the report; `usage.ern`, `numeric.ern` and `num.ern`
+   stay there as the note's programs, which `operations_test_` builds and runs. The two
+   decisions of the principles review of 2026-10-01 stand (the log's *Members, Operators, and
+   No Hidden Argument*): a type's operations are functions of its module, a member being only
+   an operator, `compare` or `negate` (`findings.md`'s U8), and no operator carries an
+   argument the program has not declared. A restriction is not written in an annotation
+   (`findings.md`'s R-23, the log's *The Reply Discipline Names No Type*). Items 11 and 12,
+   `set.ern` over its record and `OrderedSet`, joined it on 2026-10-02 (the log's *The
+   Operations Decided and Built*). The guide's §7.3 over the finished code is item 16.
 6. **The service's two decisions, with the user**, done 2026-10-02: what an alarm at a time does when the
    host's wall clock jumps, since deadlines use the monotonic clock and a time does not
    (`Clock.alarmAt`, Appendix E.15); and whether a launcher passes a termination or hangup
@@ -354,7 +320,9 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     form when it is built.
 20. **The feedback the reviews left** ([`language_feedback.md`](language_feedback.md)'s entries
     76 to 88: the first release review's N-C8, the principles review's W-13, W-31, W-34 and
-    W-38, and 0.2.0's review's L-1 to L-3 and C-14 to C-18), and four of 0.2.0's rules that
+    W-38, and 0.2.0's review's L-1 to L-3 and C-14 to C-18; and entry 89, a record type laid
+    on one line where it fits, which item 5's build found on 2026-10-03, decided with the user
+    as the others are), and four of 0.2.0's rules that
     buy little ([`findings.md`](findings.md)): §2.6's `-(-x)`, §3.9's polymorphic recursion
     refused under a full signature, §2.2's blank line that gives the first doc block to the
     module, and `spawnMonitored` with `Unknown`. Each is decided as item 3 decided the first
@@ -941,7 +909,7 @@ a case it did not. What it leaves is dated: the `since` lines of what it added, 
 log's *Placing Work Without `Where`*); and the guide's §7.3 to MVP 2.99b's item 16. The
 release review ran next, and Ernest 0.2.0 shipped the review's rules as one (the log's *A
 Release After the Review*); MVP 2.99b resumed at item 7, done on 2026-10-02 with items 4 and 6,
-and item 5 follows it at the user's choice.
+and item 5 followed it, done on 2026-10-03.
 
 ### Ernest 0.2.0 — the review's rules shipped as one (done 2026-10-01, tag `v0.2.0`)
 

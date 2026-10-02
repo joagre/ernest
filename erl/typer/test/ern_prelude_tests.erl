@@ -102,8 +102,8 @@ primitives(Body) ->
             [list_to_atom(Name) || [Name] <- Names]
     end.
 
-stdlib_file([Namespace]) ->
-    filename:join("../../../stdlib", string:lowercase(atom_to_list(Namespace)) ++ ".ern").
+stdlib_file(Namespace) ->
+    filename:join("../../../stdlib", ern_namespace:module_path(Namespace) ++ ".ern").
 
 %% Each foreign fn under the name the report gives it.
 foreign_names(Declarations) ->
@@ -240,7 +240,7 @@ own(QualifiedName, Text) ->
 
 %% `type T(p, q) = ...` with its parameters renamed a, b, ... in order.
 rename(Declaration) ->
-    case re:run(Declaration, "^(?:foreign )?type \\w+\\(([^)]*)\\)",
+    case re:run(Declaration, "^(?:foreign |abstract )?type \\w+\\(([^)]*)\\)",
                 [{capture, all_but_first, list}]) of
         {match, [ParamsText]} ->
             Params = [string:trim(Param) || Param <- string:split(ParamsText, ",", all)],
@@ -265,10 +265,16 @@ compiled_declaration(#type_info{foreign = true, qualified_name = QualifiedName,
                _ -> "(" ++ lists:join(", ", [atom_to_list(Param) || Param <- Params]) ++ ")"
            end,
     normalize(lists:flatten(["foreign type ", atom_to_list(lists:last(QualifiedName)), Head]));
-compiled_declaration(#type_info{abstract = true, qualified_name = QualifiedName, params = []},
+compiled_declaration(#type_info{abstract = true, qualified_name = QualifiedName, params = Params},
                      _SourceFile) ->
-    %% report §4.4: an abstract type is listed without its constructors
-    "abstract type " ++ atom_to_list(lists:last(QualifiedName));
+    %% report §4.4: an abstract type is listed without its constructors, its
+    %% parameters named in order
+    Letters = [[Char] || Char <- lists:seq($a, $a + length(Params) - 1)],
+    Head = case Params of
+               [] -> "";
+               _ -> "(" ++ lists:join(", ", Letters) ++ ")"
+           end,
+    lists:flatten(["abstract type ", atom_to_list(lists:last(QualifiedName)), Head]);
 compiled_declaration(#type_info{qualified_name = QualifiedName, params = Params,
                                 constructors = Constructors},
                      SourceFile) ->

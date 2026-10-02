@@ -37,7 +37,7 @@
 /// The prelude's `Set` for a set with no order, `List.sort` for a list in
 /// order.
 ///
-/// since 0.3.0
+/// since 0.2.0
 
 /// A set in the order of its element type.
 export abstract type Set(a) = Set(List(a))
@@ -234,8 +234,8 @@ export fn toList(Set(list) : Set(a)) : List(a) =
 /// ### Examples
 ///
 /// ```ernest
-/// #(OrderedSet.min(OrderedSet.fromList([2, 1])), OrderedSet.max(OrderedSet.empty))
-/// // => #(Some(1), None)
+/// #(OrderedSet.min(OrderedSet.fromList([2, 1])), OrderedSet.max(OrderedSet.fromList([2, 1])))
+/// // => #(Some(1), Some(2))
 /// ```
 export fn min(Set(list) : Set(a)) : Optional(a) =
     List.get(list, 0)
