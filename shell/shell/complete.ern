@@ -72,12 +72,19 @@ fn offered(typed : String) : List(Name) with m = {
     }
 }
 
-/// `true` when the completion has one candidate.
-export fn lone(completion : Completion) : Bool =
-    match completion {
-        Completion(candidates = [_]) -> true
-      | _ -> false
-    }
+fn commandWord(typed : String, line : String) : Completion = {
+    let completion = complete(typed, commandNames(), Anything);
+    withSpace(completion,
+              Shell.Command.wordEnd(line) == String.size(line)
+                  && Shell.Command.completes(completion.word) != None)
+}
+
+fn commandNames() : List(Name) =
+    List.map(Shell.Command.commands,
+             fn(command) =
+                 Name(text = ":" <> command.name,
+                      kind = Value,
+                      shown = Shell.Command.line(command)))
 
 // Report §11.2: a lone candidate is completed as far as it goes, so one
 // that takes a value after it, a command with an argument or a setting,
@@ -91,13 +98,6 @@ fn withSpace(completion : Completion, takes : Bool) : Completion =
       | _ -> completion
     }
 
-fn commandWord(typed : String, line : String) : Completion = {
-    let completion = complete(typed, commandNames(), Anything);
-    withSpace(completion,
-              Shell.Command.wordEnd(line) == String.size(line)
-                  && Shell.Command.completes(completion.word) != None)
-}
-
 // Report §11.2: after a command, what completes is what the command
 // takes, and after another command nothing. An expression's names are
 // the parser's to choose, as at the start of a line; anything else is
@@ -110,15 +110,14 @@ fn argument(line : String, cursor : Int, typed : String) : Completion with m = {
         Some(Shell.Command.Expressions) -> complete(typed, offered(typed), slot(before))
       // every setting takes a value after it, and `timing`'s is a word
       | Some(Shell.Command.SettingWords) -> match String.trim(before) {
-            "" ->
-                withSpace(complete(typed,
-                                   argumentNames(Shell.Command.SettingWords, typed),
-                                   Anything),
-                          cursor == String.size(line))
+            "" -> {
+                let names = argumentNames(Shell.Command.SettingWords, typed);
+                withSpace(complete(typed, names, Anything), cursor == String.size(line))
+            }
           | "timing" -> {
                 let timingWords =
                     List.map(["on", "off"],
-                             fn(word) = Name(text = word, kind = Value, shown = word));
+                             fn(value) = Name(text = value, kind = Value, shown = value));
                 complete(typed, timingWords, Anything)
             }
           | _ -> nothing
@@ -187,13 +186,6 @@ fn sourceModule(prefix : String, entry : Fs.Entry) : Optional(Name) =
         }
     }
 
-fn commandNames() : List(Name) =
-    List.map(Shell.Command.commands,
-             fn(command) =
-                 Name(text = ":" <> command.name,
-                      kind = Value,
-                      shown = Shell.Command.line(command)))
-
 // How long `:load`'s listing of a directory of the source root may take.
 let listMs = 5000
 
@@ -231,6 +223,13 @@ foreign fn fields(typed : String) : List(Name) with m =
 foreign fn segment(name : String) : Optional(String) =
     "ern_shell:segment/1"
 
+/// `true` when the completion has one candidate.
+export fn lone(completion : Completion) : Bool =
+    match completion {
+        Completion(candidates = [_]) -> true
+      | _ -> false
+    }
+
 /// Report §11.2: the word before the cursor completes against the names
 /// in scope, segment by segment, so `Li` gives `List.` and `List.ma`
 /// gives `List.map`. Nothing typed reaches every name admitted there,
@@ -250,68 +249,6 @@ export fn complete(typed : String, names : List(Name), slot : Slot) : Completion
             let completed = if String.size(shared) >= String.size(typed) then shared else "";
             Completion(word = completed, candidates = exact <> loose)
         }
-    }
-
-/// Report §11.2: every namespace the names are in, offered as a module is,
-/// completing with its dot: a type with members, `Address` for
-/// `Address.call` (§4.8), and a directory of modules, `Net` for
-/// `Net.Http`, are namespaces though they are no modules, and a listing
-/// says so, as it says `module List`.
-export fn withNamespaces(names : List(Name)) : List(Name) = {
-    let texts = List.map(names, fn(name) = name.text);
-    let prefixes = List.flatMap(texts, fn(text) = {
-        let segments = String.split(text, ".");
-        List.map(List.range(1, List.size(segments) - 1),
-                 fn(count) = String.join(List.take(segments, count), "."))
-    });
-    let known = List.filterMap(names, fn(name) = match name {
-        Name(text = text, kind = Module) -> Some(text)
-      | _ -> None
-    });
-    let fresh = List.filter(List.unique(prefixes), fn(prefix) = !List.contains(known, prefix));
-    names
-        <> List.map(fresh,
-                    fn(prefix) = Name(text = prefix, kind = Module, shown = "namespace " <> prefix))
-}
-
-/// Report §11.2: the whole name the cursor stands in, what is before it
-/// and what goes on after it, for `Shift-Tab`.
-export fn wordAt(line : String, cursor : Int) : String = {
-    let following = String.toList(String.slice(line, cursor, String.size(line) - cursor));
-    let #(rest, _) = List.span(following, fn(char) = inName(Char.toString(char)));
-    word(String.slice(line, 0, cursor)) <> String.fromList(rest)
-}
-
-/// The word being completed: the qualified name the cursor stands at the
-/// end of. A name is letters, digits, `_`, and the `.` between segments.
-export fn word(before : String) : String = {
-    let size = String.size(before);
-    let first = wordStart(before, size);
-    String.slice(before, first, size - first)
-}
-
-// Where the name that ends at `index` begins.
-fn wordStart(before : String, index : Int) : Int =
-    if index <= 0 then
-        0
-    else if inName(String.slice(before, index - 1, 1)) then
-        wordStart(before, index - 1)
-    else
-        index
-
-fn inName(grapheme : String) : Bool =
-    match String.toList(grapheme) {
-        ['.'] or ['_'] -> true
-      | [char] -> Char.isAlpha(char) || Char.isDigit(char)
-      | _ -> false
-    }
-
-// A module completes to its name and a dot, since the next `Tab`
-// completes inside it; everything else to its name.
-fn whole(name : Name) : String =
-    match name {
-        Name(text = text, kind = Module) -> text <> "."
-      | Name(text = text) -> text
     }
 
 // Report §11.2: what a slot admits. An expression takes values,
@@ -345,6 +282,68 @@ fn held(names : List(Name), keep : (Name) -> Bool) : List(Name) =
 fn isKind(name : Name, kind : Kind) : Bool =
     name.kind == kind
 
+// A module completes to its name and a dot, since the next `Tab`
+// completes inside it; everything else to its name.
+fn whole(name : Name) : String =
+    match name {
+        Name(text = text, kind = Module) -> text <> "."
+      | Name(text = text) -> text
+    }
+
+/// Report §11.2: every namespace the names are in, offered as a module is,
+/// completing with its dot: a type with members, `Address` for
+/// `Address.call` (§4.8), and a directory of modules, `Net` for
+/// `Net.Http`, are namespaces though they are no modules, and a listing
+/// says so, as it says `module List`.
+export fn withNamespaces(names : List(Name)) : List(Name) = {
+    let texts = List.map(names, fn(name) = name.text);
+    let prefixes = List.flatMap(texts, fn(text) = {
+        let segments = String.split(text, ".");
+        List.map(List.range(1, List.size(segments) - 1),
+                 fn(count) = String.join(List.take(segments, count), "."))
+    });
+    let known = List.filterMap(names, fn(name) = match name {
+        Name(text = text, kind = Module) -> Some(text)
+      | _ -> None
+    });
+    let fresh = List.filter(List.unique(prefixes), fn(prefix) = !List.contains(known, prefix));
+    names
+        <> List.map(fresh,
+                    fn(prefix) = Name(text = prefix, kind = Module, shown = "namespace " <> prefix))
+}
+
+/// Report §11.2: the whole name the cursor stands in, what is before it
+/// and what goes on after it, for `Shift-Tab`.
+export fn wordAt(line : String, cursor : Int) : String = {
+    let following = String.toList(String.slice(line, cursor, String.size(line) - cursor));
+    let #(rest, _) = List.span(following, fn(char) = inName(Char.toString(char)));
+    word(String.slice(line, 0, cursor)) <> String.fromList(rest)
+}
+
+fn inName(grapheme : String) : Bool =
+    match String.toList(grapheme) {
+        ['.'] or ['_'] -> true
+      | [char] -> Char.isAlpha(char) || Char.isDigit(char)
+      | _ -> false
+    }
+
+/// The word being completed: the qualified name the cursor stands at the
+/// end of. A name is letters, digits, `_`, and the `.` between segments.
+export fn word(before : String) : String = {
+    let size = String.size(before);
+    let first = wordStart(before, size);
+    String.slice(before, first, size - first)
+}
+
+// Where the name that ends at `index` begins.
+fn wordStart(before : String, index : Int) : Int =
+    if index <= 0 then
+        0
+    else if inName(String.slice(before, index - 1, 1)) then
+        wordStart(before, index - 1)
+    else
+        index
+
 /// The line a completion leaves, and where the cursor lands in it: the
 /// word before the cursor is replaced, since an abbreviation is no
 /// prefix of what it reaches.
@@ -368,24 +367,6 @@ export fn applied(text : String,
 // segment by segment. `List.fm` and `L.fM` both reach `List.filterMap`;
 // a prefix is the better match and is listed first.
 //
-
-// Report §11.2: names reached by abbreviation alone share no text that
-// keeps what was typed, `fM` reaching `filterMap` and `flatMap`, so the
-// namespace they are all in is completed and the last segment is kept as
-// typed: `L.fM` gives `List.fM`. With no namespace, or several, nothing is.
-fn namespaced(loose : List(Name), typed : String) : String = {
-    let namespaces =
-        List.unique(List.map(loose,
-                             fn(name) =
-                                 String.join(List.dropLast(String.split(name.text, "."), 1), ".")));
-    match #(namespaces, List.last(String.split(typed, "."))) {
-        #([namespace], Some(last)) -> if String.isEmpty(namespace) then
-            ""
-        else
-            namespace <> "." <> last
-      | _ -> ""
-    }
-}
 
 // The names reached by prefix, and those reached by abbreviation alone,
 // each alphabetical.
@@ -448,6 +429,26 @@ fn abbreviates(part : List(Char), segment : List(Char), atStart : Bool) : Bool =
             else
                 abbreviates(part, rest, false)
     }
+
+// Report §11.2: names reached by abbreviation alone share no text that
+// keeps what was typed, `fM` reaching `filterMap` and `flatMap`, so the
+// namespace they are all in is completed and the last segment is kept as
+// typed: `L.fM` gives `List.fM`. With no namespace, or several, nothing is.
+fn namespaced(loose : List(Name), typed : String) : String = {
+    let namespaces = List.unique(List.map(loose, fn(name) = namespaceOf(name.text)));
+    match #(namespaces, List.last(String.split(typed, "."))) {
+        #([namespace], Some(last)) -> if String.isEmpty(namespace) then
+            ""
+        else
+            namespace <> "." <> last
+      | _ -> ""
+    }
+}
+
+// The namespace a qualified name is in, and nothing for a name of one
+// segment.
+fn namespaceOf(text : String) : String =
+    String.join(List.dropLast(String.split(text, "."), 1), ".")
 
 // The longest text every candidate begins with, which a first `Tab`
 // puts in even where the name is still ambiguous.

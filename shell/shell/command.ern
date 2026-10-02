@@ -40,6 +40,13 @@ export type Takes = Nothing | Needs(what : String, completes : Completes) | Allo
 export type Command =
     Command(name : String, action : Action, takes : Takes, placeholder : String, about : String)
 
+// What a command's name selects: one command, none, or several, which
+// report §11.2 refuses with their names.
+type Picked = Picked(Command) | Unknown | Ambiguous(List(String))
+
+/// What one `:set` sets.
+export type Setting = Depth(Int) | Length(Int) | OutputRows(Int) | Timing(Bool)
+
 /// Report §11.2: the commands, in the alphabetical order the help lists them.
 export let commands =
     [Command(name = "bindings",
@@ -119,10 +126,6 @@ export fn parse(line : String) : Either(String, #(Action, String)) = {
         }
     }
 }
-
-// What a command's name selects: one command, none, or several, which
-// report §11.2 refuses with their names.
-type Picked = Picked(Command) | Unknown | Ambiguous(List(String))
 
 // Report §11.2: a name selects its command, and so does a prefix of it that
 // begins no other command's name.
@@ -206,9 +209,6 @@ export let settings =
 
 let settingsAbout = String.join(List.map(settings, fn(#(name, value)) = name <> " " <> value), ", ")
     <> "; :set alone shows them"
-
-/// What one `:set` sets.
-export type Setting = Depth(Int) | Length(Int) | OutputRows(Int) | Timing(Bool)
 
 /// Report §11.2: what `:set`'s argument sets, or the refusal that says why
 /// it sets nothing.

@@ -6,12 +6,12 @@ The Ernest shell is an Ernest program: `Shell` in [`shell.ern`](shell.ern), six 
 
 Start at `main` in `shell.ern`. The file reads top to bottom, in six parts:
 
-1. **The front end**: the foreign types and functions through which the shell reaches the host.
-2. **The session**: the types of all three processes, `main`, and the session's own functions.
-3. **Commands**: what a `:` line does.
-4. **The screen**: the one process that writes to the terminal.
-5. **The reader**: the keys, completion, and documentation.
-6. **Line mode**: `lineLoop`, where the shell reads lines rather than keys (§11.2 *Editing*).
+1. **The session**: the types of all three processes and the front end's handles, `main`, and the session's own functions.
+2. **Commands**: what a `:` line does.
+3. **The screen**: the one process that writes to the terminal.
+4. **The reader**: the keys, completion, and documentation.
+5. **Line mode**: `lineLoop`, where the shell reads lines rather than keys (§11.2 *Editing*).
+6. **The front end**: the foreign functions through which the shell reaches the host.
 
 Then read the modules in any order. A file's path under the source root `shell/` gives its module's name: `shell/command.ern` there, `shell/shell/command.ern` in the repository, is `Shell.Command`. Each module but `Shell` has its tests at the foot of its file.
 
@@ -19,7 +19,7 @@ Then read the modules in any order. A file's path under the source root `shell/`
 
 The comments on the three mailbox types, `ShellMsg`, `ReaderMsg` and `ScreenMsg`, say who sends each message.
 
-- **The session** is `main`, then `keyLoop`, or `lineLoop` in line mode. It holds the `State` and takes one input at a time. It runs an Ernest input in a new process and waits for the run in `await`.
+- **The session** is `main`, then `keyLoop`, or `lineLoop` in line mode. It holds the `State` and takes one input at a time. It runs an Ernest input in a new process and waits for it in `await`.
 - **The reader** is `reader`, then `readLoop`. It passes a change of the terminal's size to the screen as `Resized`. Every other event from the terminal goes through `Shell.Editor.edit`, whose `Edit` says what to do: show the line, submit it, cancel it, clear the screen, complete, document, or leave.
 - **The screen** is `screenLoop`, the only process that writes to the terminal. For each message it writes the bytes its `Shell.Region.Region` gives back. In line mode it runs `plainLoop` instead, which writes text as it comes.
 

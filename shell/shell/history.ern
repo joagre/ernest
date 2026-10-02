@@ -42,6 +42,29 @@ export fn read() : Either(Io.Error, List(String)) with m =
         }
     }
 
+// Report §11.2: the directory made where it is not there, as before a
+// first session, and its owner's alone to read, write and enter, so that no
+// one else reads what was typed, before the file is read, written or
+// trimmed.
+fn made(path : Path) : Either(Io.Error, Unit) with m =
+    match Path.parent(path) {
+        None -> Right(Unit)
+      | Some(directory) -> {
+            let _ <- Fs.makeDir(directory, fileMs);
+            Fs.setMode(directory, 0o700, fileMs)
+        }
+    }
+
+// A history that is not UTF-8 is not one the shell wrote, and is not read.
+fn inputs(bytes : Bytes) : Either(Io.Error, List(String)) =
+    match String.fromUtf8(bytes) {
+        Some(text) -> {
+            let lines = List.filter(String.lines(text), fn(line) = !String.isEmpty(line));
+            Right(List.map(lines, decode))
+        }
+      | None -> Left(Io.NotUtf8(bytes))
+    }
+
 // Newest first is the order the editor walks; the file is oldest first,
 // as a person reading it expects.
 fn trimmed(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) with m = {
@@ -74,15 +97,6 @@ fn replaced(path : Path, bytes : Bytes, attempt : Int) : Either(Io.Error, Unit) 
     }
 }
 
-// A history that is not UTF-8 is not one the shell wrote, and is not read.
-fn inputs(bytes : Bytes) : Either(Io.Error, List(String)) =
-    match String.fromUtf8(bytes) {
-        Some(text) ->
-            Right(List.map(List.filter(String.lines(text), fn(line) = !String.isEmpty(line)),
-                           decode))
-      | None -> Left(Io.NotUtf8(bytes))
-    }
-
 fn text(inputs : List(String)) : String =
     String.join(List.map(inputs, fn(input) = encode(input) <> "\n"), "")
 
@@ -92,19 +106,6 @@ export fn add(input : String) : Either(Io.Error, Unit) with m =
     match file {
         None -> Right(Unit)
       | Some(path) -> Fs.append(path, String.toUtf8(encode(input) <> "\n"), fileMs)
-    }
-
-// Report §11.2: the directory made where it is not there, as before a
-// first session, and its owner's alone to read, write and enter, so that no
-// one else reads what was typed, before the file is read, written or
-// trimmed.
-fn made(path : Path) : Either(Io.Error, Unit) with m =
-    match Path.parent(path) {
-        None -> Right(Unit)
-      | Some(directory) -> {
-            let _ <- Fs.makeDir(directory, fileMs);
-            Fs.setMode(directory, 0o700, fileMs)
-        }
     }
 
 //
