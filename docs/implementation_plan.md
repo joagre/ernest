@@ -22,8 +22,9 @@ its readers ran on 2026-09-30, on `57b8356`, and it was worked on 2026-10-01 in 
 and closed (the log's *The Attack Plan* and *The Principles Review Closed*); the review before
 a release ran the same day, and Ernest 0.2.0, the second release, is tagged `v0.2.0` on
 2026-10-01 (the log's *The Release Review Before 0.2.0*), the last milestone done; MVP 2.99b
-resumes at item 5, the operations, decided and built, item 4 having been done on 2026-10-02.
-Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+resumes at item 7, the Erlang renamed, items 4 and 6 having been done on 2026-10-02 and item
+5, the operations' build, waiting at the user's choice to follow item 7, which needs nothing of
+it. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -175,7 +176,7 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    toolchain's changes so that they are written once; the code is written in the glossary's
    names. Items 11 and 12, `set.ern` over its record and `OrderedSet`, joined this item on
    2026-10-02 (the log's *The Operations Decided and Built*).
-6. **The service's two decisions, with the user**: what an alarm at a time does when the
+6. **The service's two decisions, with the user**, done 2026-10-02: what an alarm at a time does when the
    host's wall clock jumps, since deadlines use the monotonic clock and a time does not
    (`Clock.alarmAt`, Appendix E.15); and whether a launcher passes a termination or hangup
    that comes while the host starts, which the host drops (*Standing gaps* below), on to the
@@ -862,8 +863,8 @@ a case it did not. What it leaves is dated: the `since` lines of what it added, 
 *`Clock.monotonic` Is In, and `Udp` Is Placed*); placing work without `Where` to MVP 3.0 (the
 log's *Placing Work Without `Where`*); and the guide's §7.3 to MVP 2.99b's item 16. The
 release review ran next, and Ernest 0.2.0 shipped the review's rules as one (the log's *A
-Release After the Review*); MVP 2.99b resumes at item 5, the operations, decided and built, item 4
-having been done on 2026-10-02.
+Release After the Review*); MVP 2.99b resumes at item 7, items 4 and 6 done on 2026-10-02 and item 5
+waiting at the user's choice to follow it.
 
 ### Ernest 0.2.0 — the review's rules shipped as one (done 2026-10-01, tag `v0.2.0`)
 
