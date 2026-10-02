@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-03.** [The Guide's §7.3 Over the Finished Code](#the-guides-73-over-the-finished-code-2026-10-03); [The Requirement Built](#the-requirement-built-2026-10-03).
+**2026-10-03.** [A Record Type That Fits Stays on One Line](#a-record-type-that-fits-stays-on-one-line-2026-10-03); [The Guide's §7.3 Over the Finished Code](#the-guides-73-over-the-finished-code-2026-10-03); [The Requirement Built](#the-requirement-built-2026-10-03).
 
 **2026-10-02.** [The Requirement Written into the Report](#the-requirement-written-into-the-report-2026-10-02); [The Operations Specification Read](#the-operations-specification-read-2026-10-02); [The Requirement, the Fill and the Set as Data](#the-requirement-the-fill-and-the-set-as-data-2026-10-02); [The Ernest Read Again](#the-ernest-read-again-2026-10-02); [The Ernest Read and Renamed](#the-ernest-read-and-renamed-2026-10-02); [The Erlang Read Again](#the-erlang-read-again-2026-10-02); [The Ernest Renamed Next](#the-ernest-renamed-next-2026-10-02); [Three Names Decided](#three-names-decided-2026-10-02); [The Erlang Read and Renamed](#the-erlang-read-and-renamed-2026-10-02); [The Operations Decided and Built](#the-operations-decided-and-built-2026-10-02); [MVP 2.99b Read After the Review](#mvp-299b-read-after-the-review-2026-10-02); [The Renamings Kept Whole](#the-renamings-kept-whole-2026-10-02); [MVP 2.99b's Questions, One by One](#mvp-299bs-questions-one-by-one-2026-10-02); [A Type Reached Through Another Module's Interface](#a-type-reached-through-another-modules-interface-2026-10-02); [The Namespace of Words and the Reached Interfaces, Built](#the-namespace-of-words-and-the-reached-interfaces-built-2026-10-02); [The Sweep Takes the Form Too](#the-sweep-takes-the-form-too-2026-10-02).
 
@@ -6467,6 +6467,14 @@ MVP 2.99b's tenth item, a file's words joined by `_` naming one namespace, moves
 The documents that cite the milestone's items by number follow, the plan, CLAUDE.md, `development.md`, `operations.md`, `language_feedback.md` and `findings.md`; an entry of this log that stands before this one keeps the numbers of its day, which the note under the index says.
 
 Not taken: leaving it tenth, where a decided, independent item waited on what does not need it.
+
+## A Record Type That Fits Stays on One Line, 2026-10-03
+
+Language feedback 89, found as item 5 built the operations records: §11.6 keeps a bracket on one line where the line fits, so a record type of three operations is one line of ninety-nine columns, where the note had written it a field a line. Decided with the user: kept, with no report change.
+
+§11.6 has two kinds of construct. A bracket's items, a call's arguments, a tuple's, a constructor's fields, stay on one line where they fit; a sequence read top-down, a block's statements, a match's arms, a sum type's alternatives, a function's body, runs over lines however short. A constructor's named fields are a bracket's items, and `Date(year : Int, month : Int, day : Int)` reads as one, as a tuple does. Rust's rule, every named constructor one field a line, would move the report's `Snapshot` and `Request` to four lines each; Go's, the writer's breaks kept, gives one declaration two layouts, which the formatter exists to remove; a count of fields would be the first number in §11.6, with nothing behind it. The record a reader must take in field by field is one whose fields each deserve a sentence, and §11.6 already breaks a bracket whose first item has a doc block: one doc line lays the record out a field a line. Gleam's and OCaml's formatters, which principle 1's readers know, break only where a line does not fit.
+
+Not taken: Rust's rule; Go's rule; a threshold of fields; and a narrower width for type declarations.
 
 ## The Guide's §7.3 Over the Finished Code, 2026-10-03
 

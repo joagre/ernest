@@ -322,8 +322,9 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
 20. **The feedback the reviews left** ([`language_feedback.md`](language_feedback.md)'s entries
     76 to 88: the first release review's N-C8, the principles review's W-13, W-31, W-34 and
     W-38, and 0.2.0's review's L-1 to L-3 and C-14 to C-18; and entry 89, a record type laid
-    on one line where it fits, which item 5's build found on 2026-10-03, decided with the user
-    as the others are), and four of 0.2.0's rules that
+    on one line where it fits, which item 5's build found on 2026-10-03 and the user kept the
+    same day, a doc block on a field being the way to a record read a field a line, the log's
+    *A Record Type That Fits Stays on One Line*), and four of 0.2.0's rules that
     buy little ([`findings.md`](findings.md)): §2.6's `-(-x)`, §3.9's polymorphic recursion
     refused under a full signature, §2.2's blank line that gives the first doc block to the
     module, and `spawnMonitored` with `Unknown`. Each is decided as item 3 decided the first
