@@ -14,8 +14,8 @@ milestone, the standing gaps, and what is done.
 ## Where we are
 
 **MVP 2.99b is under way**: what the release review left, the code's names read and made to read,
-the decision on how code written once works over several representations, which
-[`operations.md`](operations.md) weighs, and running as a service. Its first item makes every
+the decision on how code written once works over several representations, decided
+2026-10-02 and specified by [`operations.md`](operations.md), next to build, and running as a service. Its first item makes every
 run of `make test` trusted. Between its items 3 and 4 runs the principles review, the report
 and the guide read against §0 and §0 against what it decided, a milestone of its own;
 its readers ran on 2026-09-30, on `57b8356`, and it was worked on 2026-10-01 in seven phases
@@ -49,7 +49,7 @@ order. Each has its paragraph under "Done".
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
-| MVP 2.99b | what the release review left, names that read among it; operations records: `Set`'s record and an ordered set; running as a service | the decisions before anything is built (`operations.md`) |
+| MVP 2.99b | what the release review left, names that read among it; operations records: the `needs` clause, a record filled from a namespace, an ordered set and an ordered map; running as a service | decided 2026-10-02, `operations.md` the specification; about five weeks |
 | The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01 |
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines | moved from MVP 3.9 on 2026-10-01 |
@@ -61,22 +61,21 @@ order. Each has its paragraph under "Done".
 
 ---
 
-## MVP 2.99b (what the release review left, operations records, and running as a service), about three and a half weeks
+## MVP 2.99b (what the release review left, operations records, and running as a service), about five weeks
 
 What the release review left, the naming of all the code among it, moved here from MVP 2.99d
 on 2026-09-30 so that it comes before anything is built on the released code (the log's
 *Names Are the First Documentation*); how code written once works over several
 representations of one thing, decided here, after the first release (the log's *The
 Contract's Decision After the First Release*), over what [`operations.md`](operations.md)
-proposes and compares with type classes; and a program on one node run under a
+specifies, decided 2026-10-02; and a program on one node run under a
 service manager, which was MVP 2.99c until the two milestones became one on 2026-09-30. It had
 moved from MVP 2.7 on 2026-09-27 (the log's *Running as a Service*), from MVP 3.0 on
 2026-09-28, since it needs no peer (the log's *MVP 3.0 Is Distributed Code and the Node
 Protocol*), and from MVP 2.99 on 2026-09-29, so that the first release came first. The items
 run in this order, each needing the ones before it (the log's *MVP 2.99b's Order*): the tests
 trusted, then the namespace of two words, decided already and needing nothing before it, then
-every other decision, the operations' with what they build, since that changes no Erlang but
-one diagnostic's text, then the Erlang renamed, then the rest of what is built, then the Ernest renamed over it, then
+every other decision, the operations' with what they build, then the Erlang renamed, then the rest of what is built, then the Ernest renamed over it, then
 the guide last. The namespace moved from the tenth item to the fourth on
 2026-10-01, items 4 to 9 becoming 5 to 10 (the log's *The Namespace Item First*); items 11
 and 12, the operations' build, joined item 5 on 2026-10-02, and their numbers stand (the
@@ -135,50 +134,57 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    declaration for as a built-in one, which made its equality check pass, but fails as the
    toolchain's own defect. A regression test for each of the three, and the Erlang module a
    source compiles to is named from its path, `ern@ordered_set`.
-5. **The operations, decided and built**, decided with the user before anything of it is built
-   (language feedback 64, 70 and 71, which the decision closed on 2026-10-02), and then built. Two parts were decided by the
-   principles review on 2026-10-01 (the log's *Members, Operators, and No Hidden Argument*): a
-   type's operations are functions of its module, a member only an operator, `compare` or
-   `negate`, which decides **when a type's operation is a member and when a module function**
-   (`findings.md`'s U8, moved here 2026-09-29); and no operator carries a hidden argument, so
-   the proposal's ordering restriction, inferred on a type variable as the equality restriction
-   is, is out, and an ordered set takes its order visibly. Whether a restriction may be written
-   in an annotation (`findings.md`'s R-23, placed here with the user 2026-09-30) was decided
-   the same day: no second way beside inference (the log's *The Reply Discipline Names No
-   Type*), and the process-only mark is `m+` (the log's *The Process-Only Mark*).
-   [`operations.md`](operations.md) was rewritten under the two rules on 2026-10-01 (the log's
-   *The Operations Note Rewritten* and *The Order Bound Once*), and again on 2026-10-02 (the
-   log's *MVP 2.99b's Questions, One by One*), and what it specifies is this item's decision:
-   the record in `set.ern` holding the twelve operations of a set's vocabulary whose types name
-   only its parameters, with no generic function in the library, code written once being the
-   program's; `OrderedSet.Set(a)` in `ordered_set.ern`, its order written once, where the
-   program binds its record, `let ints = OrderedSet.operations(Int.compare)`, an operation
-   that needs the order a field of that record and no function of the module taking it, so
-   that nothing past the binding falls on the program, its `map` and `filterMap` taking the
-   result's record; an order belonging to an element type, so that a second order is a
-   second type and two sets of different orders cannot meet; and no order for tuples, lists,
-   `Optional` and `Either`, since their `compare` would compare a type variable, which
-   reverses what was decided on 2026-09-29 (the log's *Operations Records*). Two parts of
-   2026-09-29 stand: `put` keeps the element already in the set, and `foldLeft` stays out of
-   the record. Decided with the user on 2026-10-02, one by one (the log's *MVP 2.99b's
-   Questions, One by One*): the record holds the vocabulary; the type is
-   `OrderedSet.Set(a)`; §3.10 stands, with no order for tuples, lists, `Optional` and
-   `Either`; an operations record comes directly after the subjects, before an accumulator and
-   callbacks, a clause of E.0's shape rule 1; and the representation is a sorted list, its
-   costs stated in its section.
+5. **The operations, decided and built.** Decided with the user on 2026-10-02, in a day's
+   discussion that the log's entry for it records, written with the report edit below, and
+   specified whole in [`operations.md`](operations.md), which is this item's specification,
+   rule by rule, with five programs under [`docs/operations/`](operations/) as its examples
+   (language feedback 64, 70 and 71, which the decision closed). Two parts the principles
+   review decided on 2026-10-01 stand (the log's *Members, Operators, and No Hidden
+   Argument*): a type's operations are functions of its module, and a member is only an
+   operator, `compare` or `negate`, which decides **when a type's operation is a member and
+   when a module function** (`findings.md`'s U8, moved here 2026-09-29); and no operator
+   carries a hidden argument. Whether a restriction may be written in an annotation
+   (`findings.md`'s R-23) was decided the same day: no second way beside inference (the log's
+   *The Reply Discipline Names No Type*), and the process-only mark is `m+` (the log's *The
+   Process-Only Mark*). What was decided on 2026-10-02 is the note's twelve rules: a
+   function that needs a member of a type says so in a clause after its result type, `needs
+   a.compare`; a call writes nothing for it, the compiler supplies the member where the type
+   is known and passes the enclosing clause's along where it is a variable, and a body under
+   the clause may write `a.compare` and operators on `a` (rule 1); a clause names a member of
+   §4.8 or `show` and nothing else, is never inferred, and a program declares no member
+   beyond §4.8's (rule 2); an ordered set is data, `OrderedSet.Set(a)` holding its elements
+   and nothing else, with structural `==` (rule 3); an order belongs to an element type, so
+   that a second order is a second type and two sets of different orders cannot meet (rule
+   4); `put` keeps the element already there (rule 5); the record is the program's, declared
+   with the fields it uses, the library declaring no record and no generic function over one
+   (rule 6); a record is filled from a namespace, `Ops(..Set)` (rule 7); `OrderedSet` is
+   `ordered_set.ern` (rule 8); the representation is a sorted list, its costs stated, another
+   shape replacing it only when a measurement asks (rule 9); a list of mixed representations
+   needs a second record type (rule 10); a type derives its order from its declaration,
+   `derives compare` (rule 11); and an ordered map is specified as the set is (rule 12). The
+   forms tried and set aside the same day, the record bound once with `ints.put`, the order
+   carried in the set with `equal`, and the member as a defaulted parameter, stand in the
+   note's committed history (`eed585a` to `cc03f0f`) for the log's entry.
 
-   Once decided, it is built in the report's order. The report first: E.0 shape rule 1's
-   clause for a record, E.4's record, §11.5's message naming a selected callee as written,
-   `ints.union`, and a section of its own at the end of Appendix E for `ordered_set.ern`, which
-   states the departure principle 1 asks for, and its representation and costs whole, since
-   E.0 rule 3 admits it as it admitted `Random`, a choice the section states whole. Then `set.ern` gains its record,
-   `Set.Operations(s, a)` and `Set.operations`, its functions unchanged. Then `OrderedSet` in
-   the standard library, the record's second representation, with its tests and its page. `Map` gains a record with a second representation, and not before. Nothing in
-   the checker's typing, the emitter or the runtime changes, one diagnostic's text apart
-   (`operations.md`'s *What it costs to build*), so the build does not wait for item 7, which renames the Erlang before the
-   toolchain's changes so that they are written once; the code is written in the glossary's
-   names. Items 11 and 12, `set.ern` over its record and `OrderedSet`, joined this item on
-   2026-10-02 (the log's *The Operations Decided and Built*).
+   Once decided, it is built in the report's order. The report first, with everything the
+   note introduces, the note's *What changes in Ernest* being the list: §4.8's clause with
+   its limits and its errors, §3.5's fill and `derives`, E.1's `show` under a clause,
+   Appendix A's three rules, §11.5's errors and the clause on a page and in the shell, and
+   two sections at the end of Appendix E, `ordered_set.ern` and `ordered_map.ern`, each
+   stating its representation and costs whole. Then the toolchain, the clause and the fill
+   first, built against the five files under `docs/operations/` as they stand until they
+   build and print what the note says, since the files are the specification's test suite
+   before any test exists: the clause's resolution pass, its errors, the clause carried in
+   the `.erc` across §11.1's recompilation, the emitter's hidden parameters, and `derives`
+   and the fill as desugarings once the clause works. Then the two modules in the standard
+   library with their pages, tests and sections, `ern doc` writing a clause as declared and
+   a record type's constructor one field per line, and the formatter and the shell showing
+   a clause; the session that builds this half starts by running the five files. Nothing in
+   §3.9's typing changes: a clause adds nothing to a scheme, and the resolution pass is the
+   operator's and `Io.show`'s, extended to a parameter (`operations.md`'s *Typing* and *What
+   it costs to build*). The code is written in the glossary's names. About two weeks. Items
+   11 and 12, `set.ern` over its record and `OrderedSet`, joined this item on 2026-10-02
+   (the log's *The Operations Decided and Built*); `set.ern` no longer changes.
 6. **The service's two decisions, with the user**, done 2026-10-02: what an alarm at a time does when the
    host's wall clock jumps, since deadlines use the monotonic clock and a time does not
    (`Clock.alarmAt`, Appendix E.15); and whether a launcher passes a termination or hangup
@@ -290,9 +296,9 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     named, a section's banner (the log's *The Sweep Takes the Form Too*); about a week and a
     half.
 16. **The guide's §7.3**, over the finished code and its names: it says "operations record"
-    and shows code written once, a representation's own functions beside the record's, two
-    ordered sets of two orders, two element types, that cannot meet in a record's `union`, and
-    values of several representations in one list. Its examples compile and run under the
+    and shows a generic function with its `needs` clause, a type that derives its order, a
+    record the program declares and fills from a namespace, two orders as two types that
+    cannot meet in `union`, an ordered map, and values of several representations in one list. Its examples compile and run under the
     guide's checks. What Ernest cannot express goes to
     [`language_feedback.md`](language_feedback.md) and is decided with the user before the
     section goes around it. The guide's §7.3 was decided 2026-09-28 (the log's *§7.3 Written
@@ -503,8 +509,9 @@ The milestone is §8.7's identity in full:
   becomes of the effect variables, which are inferred and
   never written. With it, whether a type's identity holds the hash of its `compare`, so that
   a value ordered under one order is not read under another where versions meet (on one
-  node MVP 2.99b's item 5 left it the program's, which names both orders, the log's *MVP
-  2.99b's Questions, One by One*). Whether `ern_interface:hash/1`, which hashes a canonical interface, grows into
+  node MVP 2.99b's item 5 made it the type's `compare`, supplied by the compiler, so that a
+  set built before an `Upgrade` of its `compare` is misordered after it, `operations.md`'s
+  *Typing*). Whether `ern_interface:hash/1`, which hashes a canonical interface, grows into
   the definition hash or a second scheme stands beside it is part of that decision.
 - Every definition gets a hash of its typed AST; modules are named by hash, with a registry
   per node `{Hash -> Module}`. A function spawned on a peer carries its hash, and a node that
