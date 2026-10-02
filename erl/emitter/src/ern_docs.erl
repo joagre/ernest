@@ -41,7 +41,8 @@ build(Namespace, Declarations, Env, Source) ->
      [doc_entry(Declaration, Prefix, Env) || Declaration <- Declarations, documented(Declaration)]}.
 
 doc_entry(Declaration, Prefix, Env) ->
-    {doc_key(Declaration), erl_anno:new(element(1, doc_span(Declaration))),
+    {Line, _, _} = ern_diagnostic:span(ern_ast:span(Declaration)),
+    {doc_key(Declaration), erl_anno:new(Line),
      doc_signature(Declaration, Prefix, Env),
      case doc_of(Declaration) of
          undefined -> none;
@@ -103,13 +104,6 @@ text(IoList) -> unicode:characters_to_binary(IoList).
 %% doc block.
 documented(#module_doc{}) -> false;
 documented(Declaration) -> doc_exported(Declaration) orelse doc_of(Declaration) =/= undefined.
-
-doc_span(#type_declaration{span = Span}) -> Span;
-doc_span(#abstract_declaration{span = Span}) -> Span;
-doc_span(#foreign_type_declaration{span = Span}) -> Span;
-doc_span(#fn_declaration{span = Span}) -> Span;
-doc_span(#foreign_fn_declaration{span = Span}) -> Span;
-doc_span(#let_declaration{span = Span}) -> Span.
 
 doc_exported(#type_declaration{export = Export}) -> Export;
 doc_exported(#abstract_declaration{export = Export}) -> Export;

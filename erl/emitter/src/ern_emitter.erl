@@ -265,40 +265,48 @@ declaration(#foreign_fn_declaration{span = Span, owner = Owner, name = Name, par
     {Exposed, Context2} = lists:mapfoldl(fun exposed/2, Context1, lists:zip(ParamTypes, Args)),
     Call = erl_syntax:application(erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
                                   Exposed),
-    %% report §8.6: a foreign call in progress can still deliver, so it is
-    %% counted while it runs; a standard library function without a mailbox
-    %% type waits on no process, and is not
+    {Try, Context3} = foreign_call(Call, HostModule, HostFunction, length(Params), Effect,
+                                   Context2),
+    {Body, Context4} = foreign_return(Try, ParamTypes, ResultType, Context3),
+    Clause = at(Span, erl_syntax:clause(Args, none, [Body])),
+    {[at(Span, erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]))], Context4};
+declaration(_, Context) ->
+    {[], Context}.
+
+%% Report §4.7, §7.4: the foreign call, an exception it raises turned into
+%% a fault. Report §8.6: a foreign call in progress can still deliver, so
+%% it is counted while it runs; a standard library function without a
+%% mailbox type waits on no process, and is not.
+foreign_call(Call, HostModule, HostFunction, Arity, Effect, Context) ->
     Run = case Context#emit_context.standard andalso Effect =:= pure of
               true -> Call;
               false -> call_remote(ern_rt, in_foreign,
                                    [erl_syntax:fun_expr([erl_syntax:clause([], none, [Call])])])
           end,
-    {[Class, Reason, Stack], Context3} = fresh_variables(3, "E", Context2),
+    {[Class, Reason, Stack], Context1} = fresh_variables(3, "E", Context),
     Raised = call_remote(ern_boundary, raised,
                          [erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
-                          erl_syntax:integer(length(Params))
+                          erl_syntax:integer(Arity)
                           | [erl_syntax:variable(Variable) || Variable <- [Class, Reason, Stack]]]),
     Handler = erl_syntax:clause([erl_syntax:class_qualifier(erl_syntax:variable(Class),
                                                             erl_syntax:variable(Reason),
                                                             erl_syntax:variable(Stack))],
                                 none, [Raised]),
-    Try = erl_syntax:try_expr([Run], [Handler]),
-    %% report §8.4: the standard library's return is the runtime's own, and
-    %% not checked; a type variable of the result that no parameter names
-    %% stands for no value the function could have been given, so it
-    %% matches none, and the return faults where it holds one
+    {erl_syntax:try_expr([Run], [Handler]), Context1}.
+
+%% Report §8.4: the foreign call's return checked. The standard library's
+%% is the runtime's own, and not checked; a type variable of the result
+%% that no parameter names stands for no value the function could have
+%% been given, so it matches none, and the return faults where it holds
+%% one.
+foreign_return(Try, _ParamTypes, _ResultType, #emit_context{standard = true} = Context) ->
+    {Try, Context};
+foreign_return(Try, ParamTypes, ResultType, Context) ->
     Named = lists:append([type_variables(ParamType) || ParamType <- ParamTypes]),
     Unnamed = [Variable || Variable <- lists:usort(type_variables(ResultType)),
                            not lists:member(Variable, Named)],
-    {Body, Context4} = case Context#emit_context.standard of
-                           true -> {Try, Context3};
-                           false -> check_form(as_never(Unnamed, ResultType), ResultType, Try,
-                                               "foreign return does not match ", Context3)
-                       end,
-    Clause = at(Span, erl_syntax:clause(Args, none, [Body])),
-    {[at(Span, erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]))], Context4};
-declaration(_, Context) ->
-    {[], Context}.
+    check_form(as_never(Unnamed, ResultType), ResultType, Try, "foreign return does not match ",
+               Context).
 
 key(#emit_context{erlang_module = ErlangModule}, Name) ->
     erl_syntax:tuple([erl_syntax:atom(ErlangModule), erl_syntax:atom(Name)]).
@@ -460,34 +468,39 @@ expr(#e_receive{span = Span, clauses = Written, 'after' = After}, Before) ->
         undefined ->
             {at(Span, with_bindings(Bindings, erl_syntax:receive_expr(ClauseForms))), Context1};
         #after_clause{timeout = Timeout, body = AfterBody} ->
-            %% report §8.6: a timed receive counts itself in before, and out
-            %% first in every body, so the reaper knows it is not waiting
-            {TimeoutForm, Context2} = expr(Timeout, Context1),
-            {AfterForms, Context3} = body(AfterBody, Context2),
-            %% report §6.3: a time below 0 is 0, and none is too long; the
-            %% host waits at most 2^32 - 1 ms at once, so the receive is
-            %% entered again until the deadline has passed (ern_rt:deadline/1)
-            {[DeadlineName], Context4} = fresh_variables(1, "Deadline", Context3),
-            {[WaitName], Context5} = fresh_variables(1, "Wait", Context4),
-            Deadline = erl_syntax:variable(DeadlineName),
-            Remaining = call_remote(ern_rt, remaining, [Deadline]),
-            Untimed = call_remote(ern_rt, untimed, []),
-            Timed = [erl_syntax:clause(erl_syntax:clause_patterns(ClauseForm),
-                                       erl_syntax:clause_guard(ClauseForm),
-                                       [Untimed | erl_syntax:clause_body(ClauseForm)])
-                     || ClauseForm <- ClauseForms],
-            WaitAgain = erl_syntax:application(erl_syntax:variable(WaitName), []),
-            Due = erl_syntax:case_expr(
-                    Remaining,
-                    [erl_syntax:clause([erl_syntax:integer(0)], none, [Untimed | AfterForms]),
-                     erl_syntax:clause([erl_syntax:underscore()], none, [WaitAgain])]),
-            Receive = erl_syntax:receive_expr(Timed, Remaining, [Due]),
-            Wait = erl_syntax:named_fun_expr(erl_syntax:variable(WaitName),
-                                             [erl_syntax:clause([], none, [Receive])]),
-            Enter = [erl_syntax:match_expr(Deadline, call_remote(ern_rt, deadline, [TimeoutForm])),
-                     call_remote(ern_rt, timed, [])],
-            {at(Span, with_bindings(Bindings ++ Enter, erl_syntax:application(Wait, []))), Context5}
+            {Enter, Wait, Context2} = timed_receive(ClauseForms, Timeout, AfterBody, Context1),
+            {at(Span, with_bindings(Bindings ++ Enter, Wait)), Context2}
     end.
+
+%% A receive with an `after`: the bindings that enter it, and the call
+%% that waits. Report §8.6: a timed receive counts itself in before, and
+%% out first in every body, so the reaper knows it is not waiting. Report
+%% §6.3: a time below 0 is 0, and none is too long; the host waits at most
+%% 2^32 - 1 ms at once, so the receive is entered again until the deadline
+%% has passed (ern_rt:deadline/1).
+timed_receive(ClauseForms, Timeout, AfterBody, Context) ->
+    {TimeoutForm, Context1} = expr(Timeout, Context),
+    {AfterForms, Context2} = body(AfterBody, Context1),
+    {[DeadlineName], Context3} = fresh_variables(1, "Deadline", Context2),
+    {[WaitName], Context4} = fresh_variables(1, "Wait", Context3),
+    Deadline = erl_syntax:variable(DeadlineName),
+    Remaining = call_remote(ern_rt, remaining, [Deadline]),
+    Untimed = call_remote(ern_rt, untimed, []),
+    Timed = [erl_syntax:clause(erl_syntax:clause_patterns(ClauseForm),
+                               erl_syntax:clause_guard(ClauseForm),
+                               [Untimed | erl_syntax:clause_body(ClauseForm)])
+             || ClauseForm <- ClauseForms],
+    WaitAgain = erl_syntax:application(erl_syntax:variable(WaitName), []),
+    Due = erl_syntax:case_expr(
+            Remaining,
+            [erl_syntax:clause([erl_syntax:integer(0)], none, [Untimed | AfterForms]),
+             erl_syntax:clause([erl_syntax:underscore()], none, [WaitAgain])]),
+    Receive = erl_syntax:receive_expr(Timed, Remaining, [Due]),
+    Wait = erl_syntax:named_fun_expr(erl_syntax:variable(WaitName),
+                                     [erl_syntax:clause([], none, [Receive])]),
+    Enter = [erl_syntax:match_expr(Deadline, call_remote(ern_rt, deadline, [TimeoutForm])),
+             call_remote(ern_rt, timed, [])],
+    {Enter, erl_syntax:application(Wait, []), Context4}.
 
 exprs(Exprs, Context) ->
     lists:mapfoldl(fun expr/2, Context, Exprs).
@@ -865,7 +878,7 @@ lambda(Variables, Body) ->
 site(Span,
      #emit_context{namespace = Namespace, erlang_module = ErlangModule, function_name = Function,
                    session = Session}) ->
-    Line = element(1, Span),
+    {Line, _, _} = ern_diagnostic:span(Span),
     case {Session, Function} of
         {false, _} ->
             text_site([qualified_name_text(Namespace ++ [Function]), ":", integer_to_list(Line)]);
@@ -1037,7 +1050,7 @@ word_test(float) -> is_float.
 plain(float) -> false;
 plain({address, _, _}) -> false;
 plain({reply, _, _}) -> false;
-plain(Part) when is_tuple(Part), element(1, Part) =:= 'fun' -> false;
+plain({'fun', _, _, _, _, _}) -> false;
 plain(Part) when is_tuple(Part) -> lists:all(fun plain/1, tuple_to_list(Part));
 plain(Parts) when is_list(Parts) -> lists:all(fun plain/1, Parts);
 plain(_) -> true.
@@ -1183,7 +1196,7 @@ descriptor(Type, #emit_context{env = Env, namespace = Namespace}) ->
 %% address, a Reply, or a function.
 crosses({address, _, _}) -> true;
 crosses({reply, _, _}) -> true;
-crosses(Part) when is_tuple(Part), element(1, Part) =:= 'fun' -> true;
+crosses({'fun', _, _, _, _, _}) -> true;
 crosses(Part) when is_tuple(Part) -> lists:any(fun crosses/1, tuple_to_list(Part));
 crosses(Parts) when is_list(Parts) -> lists:any(fun crosses/1, Parts);
 crosses(_) -> false.
@@ -1772,7 +1785,8 @@ fresh_name(Name, #emit_context{counter = Count} = Context) ->
 %%
 
 at(Span, Form) ->
-    erl_syntax:set_pos(Form, {element(1, Span), element(2, Span)}).
+    {Line, Column, _} = ern_diagnostic:span(Span),
+    erl_syntax:set_pos(Form, {Line, Column}).
 
 qualified_name_text(Parts) ->
     lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- Parts])).

@@ -82,6 +82,11 @@ init(ErlangModule) ->
         false -> ok
     end.
 
+%% What a run ended with, its output left aside.
+outcome(Text) ->
+    {Result, _} = run(Text),
+    Result.
+
 collect(Acc) ->
     receive
         {out, Text} -> collect([Text | Acc])
@@ -104,14 +109,20 @@ example_forms(Base) ->
 
 target_forms(File) ->
     {ok, Forms} = epp:parse_file("../../../test/target/" ++ File, []),
-    normalize([Form || Form <- Forms, element(1, Form) =/= eof, not is_file_attr(Form)]).
+    normalize([Form || Form <- Forms, not is_eof(Form), not is_file_attribute(Form)]).
 
-is_file_attr({attribute, _, file, _}) -> true;
-is_file_attr(_) -> false.
+is_eof({eof, _}) -> true;
+is_eof(_) -> false.
+
+is_file_attribute({attribute, _, file, _}) -> true;
+is_file_attribute(_) -> false.
 
 normalize(Forms) ->
-    [erl_parse:map_anno(fun(_) -> 0 end, erl_syntax:revert(element(1, rename(Form, {#{}, 0}))))
-     || Form <- Forms].
+    [normalized(Form) || Form <- Forms].
+
+normalized(Form) ->
+    {Renamed, _} = rename(Form, {#{}, 0}),
+    erl_parse:map_anno(fun(_) -> 0 end, erl_syntax:revert(Renamed)).
 
 %% State: {Name => New, Counter}.
 rename(Node, {Names, Counter} = State) ->
@@ -245,17 +256,17 @@ emitted(Namespace, Typed, Env) ->
 %% golden file holds; a difference is written beside it as .new
 golden_test_() ->
     [{Name, fun() ->
-                 File = ?GOLDEN ++ Name ++ ".erl",
-                 Actual = golden_source(Name),
-                 case file:read_file(File) of
-                     {ok, Actual} ->
-                         ok;
-                     _ ->
-                         ok = file:write_file(File ++ ".new", Actual),
-                         ?assert(false, "golden file differs; see " ++ File ++ ".new,"
-                                        " or run make golden")
-                 end
-             end} || Name <- golden_names()].
+                File = ?GOLDEN ++ Name ++ ".erl",
+                Actual = golden_source(Name),
+                case file:read_file(File) of
+                    {ok, Actual} ->
+                        ok;
+                    _ ->
+                        ok = file:write_file(File ++ ".new", Actual),
+                        ?assert(false, "golden file differs; see " ++ File ++ ".new,"
+                                       " or run make golden")
+                end
+            end} || Name <- golden_names()].
 
 %% make golden: rewrite the golden files from the current emitter.
 write_golden() ->
@@ -283,9 +294,9 @@ examples_test_() ->
                 {"services", <<"before: apples 3, next id 3, audit [1: put apples; 2: put pears]\n"
                                "after the restart: apples none, next id 1, audit []\n">>}],
     [{Base, fun() ->
-                 {Namespace, Source} = example(Base),
-                 ?assertEqual({ok, Expected1}, run(Namespace, Source))
-             end} || {Base, Expected1} <- Expected].
+                {Namespace, Source} = example(Base),
+                ?assertEqual({ok, Output}, run(Namespace, Source))
+            end} || {Base, Output} <- Expected].
 
 %% report §11.1: the documentation travels in the BEAM chunk Docs, EEP 48's,
 %% and a type's parts are structured in its entry rather than rendered
@@ -1644,7 +1655,7 @@ nested_function_checked_test() ->
                  "    Io.println(Int.toString(call(#(4, fn(n) = n * 2))))\n"
              end,
     ?assertEqual({fault, <<"foreign argument does not match Int">>},
-                 element(1, run(Source("call_nested_bad")))),
+                 outcome(Source("call_nested_bad"))),
     ?assertEqual({ok, <<"8\n">>}, run(Source("call_nested_good"))).
 
 %% report §8.4: an address sent in a message to a foreign address crosses
@@ -1663,7 +1674,7 @@ foreign_address_message_test() ->
                  "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
                  "}\n"
              end,
-    ?assertEqual({fault, <<"message does not match Msg">>}, element(1, run(Source("hello_junk")))),
+    ?assertEqual({fault, <<"message does not match Msg">>}, outcome(Source("hello_junk"))),
     ?assertEqual({ok, <<"1\n">>}, run(Source("hello_good"))).
 
 %% report §8.4: foreign code answers a Reply an Ernest process hands on to it
@@ -1679,7 +1690,7 @@ reply_handed_on_test() ->
                  "    Io.println(Int.toString(n))\n"
                  "}\n"
              end,
-    ?assertEqual({fault, <<"reply does not match Int">>}, element(1, run(Source("relay_junk")))),
+    ?assertEqual({fault, <<"reply does not match Int">>}, outcome(Source("relay_junk"))),
     ?assertEqual({ok, <<"5\n">>}, run(Source("relay_good"))).
 
 %% report §8.4: a Reply foreign code gives back is held as foreign, so an
@@ -1718,7 +1729,7 @@ answer_to_foreign_reply_test() ->
                  "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
                  "}\n"
              end,
-    ?assertEqual({fault, <<"message does not match Msg">>}, element(1, run(Source("ask_junk")))),
+    ?assertEqual({fault, <<"message does not match Msg">>}, outcome(Source("ask_junk"))),
     ?assertEqual({ok, <<"1\n">>}, run(Source("ask_good"))).
 
 %% report §8.4: the standard library is the runtime's own, so the return of
@@ -1735,7 +1746,7 @@ standard_library_unchecked_test() ->
            "    Io.println(\"unchecked\")\n"
            "}\n",
     ?assertEqual({ok, <<"unchecked\n">>}, run(['M'], Text, #{standard => true})),
-    ?assertEqual({fault, <<"foreign return does not match Int">>}, element(1, run(Text))).
+    ?assertEqual({fault, <<"foreign return does not match Int">>}, outcome(Text)).
 
 %% The foreign side of the tests above.
 pair() -> {1, 2}.
@@ -3130,7 +3141,8 @@ reaper_words() ->
     timer:sleep(100),
     Reaper = persistent_term:get({ern_rt, reaper}),
     erlang:garbage_collect(Reaper),
-    element(2, erlang:process_info(Reaper, total_heap_size)).
+    {total_heap_size, Words} = erlang:process_info(Reaper, total_heap_size),
+    Words.
 
 %% report §8.6: a program waiting only on alarms it has set is in no
 %% deadlock, however its waits and the clock's work interleave. A
@@ -3345,9 +3357,9 @@ nested_restarting_test() ->
 %% the foreign type's case was written after the code (findings.md's K-8)
 foreign_casts_and_callbacks_test() ->
     Run = fun(Declaration, Body) ->
-                  {Result, _} = run(Declaration ++ "export fn main() : Unit with Never = {\n"
-                                    "    let _ = " ++ Body ++ ";\n    Unit\n}\n"),
-                  Result
+              {Result, _} = run(Declaration ++ "export fn main() : Unit with Never = {\n"
+                                "    let _ = " ++ Body ++ ";\n    Unit\n}\n"),
+              Result
           end,
     ?assertEqual({fault, <<"foreign return does not match a">>},
                  Run("foreign fn cast(n : Int) : a =\n    \"erlang:abs/1\"\n", "cast(1) + 1")),
@@ -3367,9 +3379,9 @@ foreign_casts_and_callbacks_test() ->
 %% the report states
 foreign_type_variables_unchecked_test() ->
     Run = fun(Declaration, Body) ->
-                  {Result, _} = run(Declaration ++ "export fn main() : Unit with Never = {\n"
-                                    "    let _ = " ++ Body ++ ";\n    Unit\n}\n"),
-                  Result
+              {Result, _} = run(Declaration ++ "export fn main() : Unit with Never = {\n"
+                                "    let _ = " ++ Body ++ ";\n    Unit\n}\n"),
+              Result
           end,
     ?assertEqual(ok, Run("foreign fn weird(x : a) : a =\n    \"erlang:length/1\"\n",
                          "weird([1, 2])")),
@@ -3657,13 +3669,13 @@ tail_calls_through_operators_test() ->
     {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
     Self = self(),
     Run = fun(Function) ->
-                  {_, Ref} = spawn_opt(fun() -> Self ! {ran, Function()} end,
-                                       [monitor, {max_heap_size, #{size => 100000, kill => true,
-                                                                    error_logger => false}}]),
-                  receive
-                      {ran, Value} -> Value;
-                      {'DOWN', Ref, process, _, ExitReason} -> {died, ExitReason}
-                  end
+              {_, Ref} = spawn_opt(fun() -> Self ! {ran, Function()} end,
+                                   [monitor, {max_heap_size, #{size => 100000, kill => true,
+                                                                error_logger => false}}]),
+              receive
+                  {ran, Value} -> Value;
+                  {'DOWN', Ref, process, _, ExitReason} -> {died, ExitReason}
+              end
           end,
     ?assertEqual(true, Run(fun() -> ErlangModule:all(10000000) end)),
     ?assertEqual(0, Run(fun() -> ErlangModule:down(10000000) end)).
@@ -3726,9 +3738,9 @@ down_names_its_process_test() ->
 %% `Sys.stdout`, and a system module's message is not a program's to make
 system_reference_private_test() ->
     Refused = fun(Main) ->
-                      ern_typecheck:check_string(['M'],
-                                                 "export fn main() : Unit with Never = "
-                                                 ++ Main ++ "\n")
+                  ern_typecheck:check_string(['M'],
+                                             "export fn main() : Unit with Never = "
+                                             ++ Main ++ "\n")
               end,
     %% each refused for the reason the test names, not another; a
     %% regression test of the test, which took any error (findings.md's C39)
