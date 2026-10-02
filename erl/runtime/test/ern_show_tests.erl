@@ -32,9 +32,9 @@ by_type_test() ->
 identity_test() ->
     Pid = list_to_pid("<0.84.0>"),
     ?assertEqual(<<"<process 84>">>, ern_show:show(process, Pid)),
-    ?assertEqual(<<"<address 84>">>, ern_show:show({pid, any, <<>>}, Pid)),
+    ?assertEqual(<<"<address 84>">>, ern_show:show({address, any, <<>>}, Pid)),
     ?assertEqual(<<"<address 84>">>,
-                 ern_show:show({pid, any, <<>>}, {via, fun(X) -> X end, Pid})),
+                 ern_show:show({address, any, <<>>}, {via, fun(X) -> X end, Pid})),
     %% and where the type is a variable, by the representation. A
     %% regression test: an adapted address read as a tuple,
     %% `#(via, <function>, <address 84>)`

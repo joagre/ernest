@@ -745,7 +745,7 @@ settled(Before, Tries) ->
 %% process and not the proxy
 proxy_names_its_process_test() ->
     Me = self(),
-    Desc = {pid, string, <<"a String">>},
+    Desc = {address, string, <<"a String">>},
     ok = ern_rt:run_main(
            fun() ->
                Mine = ern_rt:self(),

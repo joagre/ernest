@@ -51,7 +51,7 @@ by_type(bool, V, _, _) -> atom_to_list(V);
 by_type(char, V, _, _) -> [$', char_body(V), $'];
 by_type(string, V, _, _) -> string(V);
 by_type(bytes, V, _, L) -> bytes(V, L);
-by_type({pid, _, _}, V, _, _) -> address(V);
+by_type({address, _, _}, V, _, _) -> address(V);
 by_type(process, V, _, _) -> ["<process ", number(V), ">"];
 by_type({reply, _, _}, _, _, _) -> "<reply>";
 by_type({'fun', _, _, _, _, _}, _, _, _) -> "<function>";

@@ -54,7 +54,7 @@ The environment is opaque outside the module. The compiler reads it through func
 
 ## The compiler
 
-`ern_emitter:forms(Ns, Typed, Env)` builds Erlang forms with `erl_syntax` in one traversal, threading a record `#cx{}`: the namespace, the variable map, a counter, the local-fn table and the lifted functions. It has a clause for each record of the AST, and a value's representation is §8.4's ABI.
+`ern_emitter:forms(Namespace, Typed, Env)` builds Erlang forms with `erl_syntax` in one traversal, threading a record `#emit_context{}`: the namespace, the variable map, a counter, the local-fn table and the lifted functions. It has a clause for each record of the AST, and a value's representation is §8.4's ABI.
 
 - Every binding is a fresh Erlang variable `Name_N`.
 - A local `fn` is lifted to a module function `'name$N'`, whose leading parameters are the variables it closes over, its own and those of the local fns it references (§5.4). A call passes them; a use as a value is a closure.
@@ -63,8 +63,8 @@ The environment is opaque outside the module. The compiler reads it through func
 - A clause with alternatives is one Erlang clause per alternative, each calling a fun that holds the body (`alternatives/3`). A guard that is not an Erlang guard falls through by a continuation.
 - A top-level `let` is a getter over `persistent_term`, filled by `'$init'/0`. A module lists its dependencies in `'$deps'/0` and its tests in `'$tests'/0`.
 - `spawn` passes its site as a third argument (§6.9).
-- A `Float` operation is inline (`float_op/5`): it adds `0.0`, so that a negative zero is `0.0` (§3.1), and makes its own `badarith` §7.4's fault. A float segment's variable is `{zero, V}` in the variable map, read as `V + 0.0` (`var_form/1`).
-- A type's descriptor is a function `$type_N`. A function type's holds a maker (`desc_form/1`), with which `ern_boundary` wraps a function value.
+- A `Float` operation is inline (`float_operation/5`): it adds `0.0`, so that a negative zero is `0.0` (§3.1), and makes its own `badarith` §7.4's fault. A float segment's variable is `{zero, V}` in the variable map, read as `V + 0.0` (`variable_form/1`).
+- A type's descriptor is a function `$type_N`. A function type's holds a maker (`built_descriptor/1`), with which `ern_boundary` wraps a function value.
 - A module that exports a function exports `'$fun'/2`, and another module's function as a value is `M:'$fun'(f, N)`, not `fun M:f/N`, so that it keeps its version across a reload (§11.2).
 
 `compile/5` runs `compile:forms` with the chunk `ErnI`: a format number, the canonical interface, and what §11.1's recompile rule compares, the hashes of the source, of each dependency's interface and of the standard library's, and the build of `ern`. `ern_interface` owns the chunk: `encode/2`, `read/1`, which refuses another format, and `hash/1`, which leaves variable names out. `ern_docs:build/4` builds the EEP 48 `Docs` chunk in the same compile, an entry per declaration §11.4 renders, with its signature, its doc block, and, in its metadata, parameter names, constructors and fields; its `BeamLanguage` is `ernest`. `erl_source/4` is `--emit-erl`.

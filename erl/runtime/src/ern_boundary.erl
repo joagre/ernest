@@ -14,21 +14,22 @@
 %% descriptor, so that its answer is exposed, given in foreign code's form,
 %% and checked. The compiler describes a type as a term this module
 %% interprets:
-%% any | int | float | bool | char | string | bytes | {pid, D, Text} | {reply, D, Text} | process
-%% | {'fun', Arity, R, Text, Make, Exposer} | {'fun', Arity, R, Text, Ps, Texts} | never | {list, D}
-%% | {tuple, [D]} | {map, K, V} | {set, D} | {con, [{Tag, [D]} | {Tag, [D], [Name]}]}
-%% | {abstract, D} | {mu, Id, D} | {ref, Id}, mu binding Id for the ref inside it, which is
-%% how a recursive type is described once; {pid, D, Text} is an address
-%% whose messages D describes, and {reply, D, Text} a Reply whose answer D
-%% describes; a constructor with named fields carries
-%% their names, and an abstract type seen from outside its module is
-%% wrapped, both for printing (ern_show). A function's R describes its
-%% result, and Make wraps a function value, given R closed over the
-%% recursive types around it, so that each call's result is checked against
-%% R, faulting with Text (report §7.4); the descriptors `Io.show` and
-%% `Io.debug` print by carry no Make, since nothing is checked there. A
-%% function given to foreign code is {callback, Make}, Make wrapping it to
-%% check each argument foreign code calls it with (report §8.4).
+%% any | int | float | bool | char | string | bytes | {address, D, Text} | {reply, D, Text}
+%% | process | {'fun', Arity, R, Text, Make, Exposer} | {'fun', Arity, R, Text, Ps, Texts}
+%% | never | {list, D} | {tuple, [D]} | {map, K, V} | {set, D}
+%% | {con, [{Tag, [D]} | {Tag, [D], [Name]}]} | {abstract, D} | {mu, Id, D} | {ref, Id},
+%% mu binding Id for the ref inside it, which is how a recursive type is
+%% described once; {address, D, Text} is an address whose messages D
+%% describes, and {reply, D, Text} a Reply whose answer D describes; a
+%% constructor with named fields carries their names, and an abstract type
+%% seen from outside its module is wrapped, both for printing (ern_show).
+%% A function's R describes its result, and Make wraps a function value,
+%% given R closed over the recursive types around it, so that each call's
+%% result is checked against R, faulting with Text (report §7.4); the
+%% descriptors `Io.show` and `Io.debug` print by carry no Make, since
+%% nothing is checked there. A function given to foreign code is
+%% {callback, Make}, Make wrapping it to check each argument foreign code
+%% calls it with (report §8.4).
 -module(ern_boundary).
 
 -export([raised/6, called_raised/3, expose/2, check/3, value/3, argument/4, expose/3]).
@@ -115,14 +116,14 @@ armed(D, V, B) ->
     end.
 
 arms({'fun', _, _, _, _, _}) -> true;
-arms({pid, _, _}) -> true;
+arms({address, _, _}) -> true;
 arms({reply, _, _}) -> true;
 arms(T) when is_tuple(T) -> lists:any(fun arms/1, tuple_to_list(T));
 arms(L) when is_list(L) -> lists:any(fun arms/1, L);
 arms(_) -> false.
 
 arm({'fun', _, R, _, Make, _}, V, B) -> Make(V, closed(R, B));
-arm({pid, D, _}, V, B) when is_pid(V) -> ern_rt:held(V, D, B);
+arm({address, D, _}, V, B) when is_pid(V) -> ern_rt:held(V, D, B);
 arm({reply, D, _}, V, B) when is_reference(V) -> {foreign_reply, V, D, B};
 arm({list, D}, V, B) -> [arm(D, X, B) || X <- V];
 arm({tuple, Ds}, V, B) ->
@@ -194,7 +195,7 @@ chk(string, V, _) -> is_binary(V) andalso unicode:characters_to_binary(V) =:= V;
 chk(bytes, V, _) -> is_binary(V);
 %% an answer checked because its Reply crossed may be Ernest's own, which
 %% holds an address in any of its forms
-chk({pid, _, _}, V, _) -> ern_rt:is_address(V);
+chk({address, _, _}, V, _) -> ern_rt:is_address(V);
 chk({reply, _, _}, V, _) when is_reference(V) -> true;
 chk({reply, _, _}, {foreign_reply, V, _, _}, _) -> is_reference(V);
 chk({reply, _, _}, _, _) -> false;
@@ -260,12 +261,12 @@ every(_, _, _) -> false.
 %% or in an answer
 expose({callback, Make}, V, _) when is_function(V) -> Make(V);
 expose({'fun', _, _, _, _, Exposer}, V, B) when is_function(V) -> Exposer(V, B);
-expose({pid, D, Text}, V, B) when is_pid(V) -> proxy(V, D, B, Text);
+expose({address, D, Text}, V, B) when is_pid(V) -> proxy(V, D, B, Text);
 %% report §6.5: an address seen through a function is an address too, and
 %% foreign code must reach it through the same checking proxy
-expose({pid, D, Text}, {via, _, _} = V, B) -> proxy(V, D, B, Text);
+expose({address, D, Text}, {via, _, _} = V, B) -> proxy(V, D, B, Text);
 %% an address foreign code gave goes back to it as it came
-expose({pid, _, _}, {foreign, Pid, _, _}, _) -> Pid;
+expose({address, _, _}, {foreign, Pid, _, _}, _) -> Pid;
 %% a Reply foreign code gave goes back to it as it came
 expose({reply, _, _}, {foreign_reply, Alias, _, _}, _) -> Alias;
 expose({list, D}, V, B) when is_list(V) -> [expose(D, X, B) || X <- V];

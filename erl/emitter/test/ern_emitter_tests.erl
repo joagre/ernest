@@ -30,26 +30,26 @@
 run(Text) ->
     run(['M'], Text).
 
-run(Ns, Text) ->
-    run(Ns, Text, #{}).
+run(Namespace, Text) ->
+    run(Namespace, Text, #{}).
 
 %% The same with keys that can come, as at a terminal, of which none does.
 run_at_terminal(Text) ->
     run(['M'], Text, #{keys => fun() -> receive after infinity -> eof end end}).
 
 %% `standard => true` compiles the module as the standard library's own.
-run(Ns, Text, Opts) ->
-    {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Text),
-    Build = #{source_hash => <<>>, deps => [], standard => maps:get(standard, Opts, false)},
-    {ok, Mod, Bin} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
-    {module, Mod} = code:load_binary(Mod, "test", Bin),
-    Me = self(),
+run(Namespace, Text, Options) ->
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Text),
+    Build = #{source_hash => <<>>, deps => [], standard => maps:get(standard, Options, false)},
+    {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+    Self = self(),
     %% standard error is read with standard output, where `Io.debug` writes
     %% (Appendix E.1), unless the test reads it apart
-    Out = fun(B) -> Me ! {out, B} end,
-    Result = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
-                             (maps:merge(#{stderr => Out}, maps:remove(standard, Opts)))
-                                 #{init => fun() -> init(Mod) end, stdout => Out,
+    Collect = fun(Written) -> Self ! {out, Written} end,
+    Result = ern_rt:run_main(fun() -> ErlangModule:main() end, <<"main">>,
+                             (maps:merge(#{stderr => Collect}, maps:remove(standard, Options)))
+                                 #{init => fun() -> init(ErlangModule) end, stdout => Collect,
                                    stdin => fun() -> eof end}),
     {Result, collect([])}.
 
@@ -60,89 +60,92 @@ run(Ns, Text, Opts) ->
 %% as no program can write it. A regression test: the emitter answered a
 %% diagnostic, which `make untested` found no test ever reached.
 emitter_defect_test() ->
-    {ok, Typed, Iface, Env} =
+    {ok, Typed, Interface, Env} =
         ern_typecheck:check_string(['M'], "fn f() : Int = {\n    let x = 1;\n    x\n}\n"),
     Broken = without_last_statement(Typed),
     ?assertError({emitter_defect, _, "a block ends with a `let`"},
-                 ern_emitter:compile(['M'], Broken, Iface, Env)).
+                 ern_emitter:compile(['M'], Broken, Interface, Env)).
 
-without_last_statement(#e_block{statements = Stmts} = B) ->
-    B#e_block{statements = lists:droplast(Stmts)};
-without_last_statement(T) when is_tuple(T) ->
-    list_to_tuple([without_last_statement(E) || E <- tuple_to_list(T)]);
-without_last_statement(L) when is_list(L) ->
-    [without_last_statement(E) || E <- L];
-without_last_statement(X) ->
-    X.
+without_last_statement(#e_block{statements = Statements} = Block) ->
+    Block#e_block{statements = lists:droplast(Statements)};
+without_last_statement(Node) when is_tuple(Node) ->
+    list_to_tuple([without_last_statement(Element) || Element <- tuple_to_list(Node)]);
+without_last_statement(Nodes) when is_list(Nodes) ->
+    [without_last_statement(Element) || Element <- Nodes];
+without_last_statement(Other) ->
+    Other.
 
 %% The launcher's job (report §8.5): top-level lets before main.
-init(Mod) ->
-    case erlang:function_exported(Mod, '$init', 0) of
-        true -> Mod:'$init'();
+init(ErlangModule) ->
+    case erlang:function_exported(ErlangModule, '$init', 0) of
+        true -> ErlangModule:'$init'();
         false -> ok
     end.
 
 collect(Acc) ->
     receive
-        {out, B} -> collect([B | Acc])
+        {out, Text} -> collect([Text | Acc])
     after 0 ->
         iolist_to_binary(lists:reverse(Acc))
     end.
 
 example(Base) ->
-    {ok, Bin} = file:read_file("../../../examples/" ++ Base ++ ".ern"),
-    {[list_to_atom(string:titlecase(Base))], Bin}.
+    {ok, Source} = file:read_file("../../../examples/" ++ Base ++ ".ern"),
+    {[list_to_atom(string:titlecase(Base))], Source}.
 
 %% The forms of an example and of a target file, made comparable: no
 %% annotations, and variables renamed in order of first occurrence, each
 %% clause's pattern variables fresh in that clause, so that a hand-written
 %% target may reuse a name across clauses where the emitter does not.
 example_forms(Base) ->
-    {Ns, Bin} = example(Base),
-    {ok, Typed, _, Env} = ern_typecheck:check_string(Ns, Bin),
-    normalize(ern_emitter:forms(Ns, Typed, Env)).
+    {Namespace, Source} = example(Base),
+    {ok, Typed, _, Env} = ern_typecheck:check_string(Namespace, Source),
+    normalize(ern_emitter:forms(Namespace, Typed, Env)).
 
 target_forms(File) ->
     {ok, Forms} = epp:parse_file("../../../test/target/" ++ File, []),
-    normalize([F || F <- Forms, element(1, F) =/= eof, not is_file_attr(F)]).
+    normalize([Form || Form <- Forms, element(1, Form) =/= eof, not is_file_attr(Form)]).
 
 is_file_attr({attribute, _, file, _}) -> true;
 is_file_attr(_) -> false.
 
 normalize(Forms) ->
-    [erl_parse:map_anno(fun(_) -> 0 end, erl_syntax:revert(element(1, rename(F, {#{}, 0}))))
-     || F <- Forms].
+    [erl_parse:map_anno(fun(_) -> 0 end, erl_syntax:revert(element(1, rename(Form, {#{}, 0}))))
+     || Form <- Forms].
 
 %% State: {Name => New, Counter}.
-rename(Node, {Map, N} = St) ->
+rename(Node, {Names, Counter} = State) ->
     case erl_syntax:type(Node) of
         variable ->
             Name = erl_syntax:variable_name(Node),
-            case Map of
-                #{Name := New} -> {erl_syntax:variable(New), St};
+            case Names of
+                #{Name := New} -> {erl_syntax:variable(New), State};
                 _ ->
-                    New = list_to_atom("V" ++ integer_to_list(N)),
-                    {erl_syntax:variable(New), {Map#{Name => New}, N + 1}}
+                    New = list_to_atom("V" ++ integer_to_list(Counter)),
+                    {erl_syntax:variable(New), {Names#{Name => New}, Counter + 1}}
             end;
         clause ->
-            Pats = erl_syntax:clause_patterns(Node),
-            PatVars = lists:append([sets:to_list(erl_syntax_lib:variables(P)) || P <- Pats]),
-            Inner = {maps:without(PatVars, Map), N},
-            {Pats1, St1} = lists:mapfoldl(fun rename/2, Inner, Pats),
-            {Guard, St2} = case erl_syntax:clause_guard(Node) of
-                               none -> {none, St1};
-                               G -> rename(G, St1)
-                           end,
-            {Body, {_, N3}} = lists:mapfoldl(fun rename/2, St2, erl_syntax:clause_body(Node)),
-            {erl_syntax:clause(Pats1, Guard, Body), {Map, N3}};
+            Patterns = erl_syntax:clause_patterns(Node),
+            PatternVariables = lists:append([sets:to_list(erl_syntax_lib:variables(Pattern))
+                                             || Pattern <- Patterns]),
+            Inner = {maps:without(PatternVariables, Names), Counter},
+            {Patterns1, State1} = lists:mapfoldl(fun rename/2, Inner, Patterns),
+            {Guard, State2} = case erl_syntax:clause_guard(Node) of
+                                  none -> {none, State1};
+                                  GuardNode -> rename(GuardNode, State1)
+                              end,
+            {Body, {_, Next}} = lists:mapfoldl(fun rename/2, State2, erl_syntax:clause_body(Node)),
+            {erl_syntax:clause(Patterns1, Guard, Body), {Names, Next}};
         _ ->
             case erl_syntax:subtrees(Node) of
-                [] -> {Node, St};
+                [] -> {Node, State};
                 Groups ->
-                    {Groups1, St1} = lists:mapfoldl(
-                                       fun(Group, S) -> lists:mapfoldl(fun rename/2, S, Group) end,
-                                       St, Groups),
-                    {erl_syntax:update_tree(Node, Groups1), St1}
+                    {Groups1, State1} = lists:mapfoldl(
+                                       fun(Group, Acc) ->
+                                           lists:mapfoldl(fun rename/2, Acc, Group)
+                                       end,
+                                       State, Groups),
+                    {erl_syntax:update_tree(Node, Groups1), State1}
             end
     end.
 
@@ -175,29 +178,31 @@ golden_names() ->
 %% `fn` of the same type is called directly. The interface says which of
 %% the two a name is.
 let_of_function_type_test() ->
-    {_, Out} = run("let g = fn() = 1\n"
-                   "let h = fn(x : Int) = x + 1\n"
-                   "fn twice(f : (Int) -> Int, n : Int) : Int = f(f(n))\n"
-                   "export fn main() : Unit with m = {\n"
-                   "    Io.println(Int.toString(g()));\n"
-                   "    Io.println(Int.toString(h(2)));\n"
-                   "    Io.println(Int.toString(twice(h, 0)))\n"
-                   "}\n"),
-    ?assertEqual(<<"1\n3\n2\n">>, Out).
+    {_, Output} = run("let g = fn() = 1\n"
+                      "let h = fn(x : Int) = x + 1\n"
+                      "fn twice(f : (Int) -> Int, n : Int) : Int = f(f(n))\n"
+                      "export fn main() : Unit with m = {\n"
+                      "    Io.println(Int.toString(g()));\n"
+                      "    Io.println(Int.toString(h(2)));\n"
+                      "    Io.println(Int.toString(twice(h, 0)))\n"
+                      "}\n"),
+    ?assertEqual(<<"1\n3\n2\n">>, Output).
 
 %% report §4.6, §11.1: the same across modules, where the interface is all
 %% the emitter has to tell a `let` from a `fn`
 let_of_function_type_remote_test() ->
-    {ok, MTyped, MIface, MEnv} =
+    {ok, DependencyTyped, DependencyInterface, DependencyEnv} =
         ern_typecheck:check_string(['M'], "export let g = fn() = 1\n"
                                           "export let h = fn(x : Int) = x + 1\n"
                                           "export fn f(x : Int) : Int = x * 2\n"),
-    {ok, MMod, MBin} = ern_emitter:compile(['M'], MTyped, MIface, MEnv),
-    {module, MMod} = code:load_binary(MMod, "test", MBin),
+    {ok, DependencyModule, DependencyBeam} = ern_emitter:compile(['M'], DependencyTyped,
+                                                                 DependencyInterface,
+                                                                 DependencyEnv),
+    {module, DependencyModule} = code:load_binary(DependencyModule, "test", DependencyBeam),
     %% the interface the dependent is checked against is the compiled one
-    {ok, #{interface := Iface}} = ern_interface:read(MBin),
-    ?assertEqual([['M', g], ['M', h]], lists:sort(Iface#interface.lets)),
-    {ok, Decls} = ern_parser:parse_string(
+    {ok, #{interface := Interface}} = ern_interface:read(DependencyBeam),
+    ?assertEqual([['M', g], ['M', h]], lists:sort(Interface#interface.lets)),
+    {ok, Declarations} = ern_parser:parse_string(
                     "export fn main() : Unit with m = {\n"
                     "    Io.println(Int.toString(M.g()));\n"
                     "    Io.println(Int.toString(M.h(2)));\n"
@@ -205,36 +210,36 @@ let_of_function_type_remote_test() ->
                     "    Io.println(Int.toString(M.f(3)))\n"
                     "}\n"
                     "fn twice(f : (Int) -> Int, n : Int) : Int = f(f(n))\n"),
-    {ok, Typed, Iface2, Env} = ern_typecheck:check(['Main'], Decls, [Iface]),
-    {ok, Mod, Bin} = ern_emitter:compile(['Main'], Typed, Iface2, Env),
-    {module, Mod} = code:load_binary(Mod, "test", Bin),
-    Me = self(),
-    ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
-                    #{init => fun() -> init(MMod), init(Mod) end,
-                      stdout => fun(B) -> Me ! {out, B} end}),
+    {ok, Typed, Interface2, Env} = ern_typecheck:check(['Main'], Declarations, [Interface]),
+    {ok, ErlangModule, Beam} = ern_emitter:compile(['Main'], Typed, Interface2, Env),
+    {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+    Self = self(),
+    ern_rt:run_main(fun() -> ErlangModule:main() end, <<"main">>,
+                    #{init => fun() -> init(DependencyModule), init(ErlangModule) end,
+                      stdout => fun(Text) -> Self ! {out, Text} end}),
     ?assertEqual(<<"1\n3\n2\n6\n">>, collect([])).
 
 %% The source the compiler emits for an example; the modules pair is
 %% checked in dependency order, main against http's interface.
 golden_source("modules/" ++ _ = Name) ->
-    {ok, HttpBin} = file:read_file("../../../examples/modules/net/http.ern"),
-    {ok, HttpTyped, HttpIface, HttpEnv} = ern_typecheck:check_string(['Net', 'Http'], HttpBin),
+    {ok, HttpSource} = file:read_file("../../../examples/modules/net/http.ern"),
+    {ok, HttpTyped, HttpIface, HttpEnv} = ern_typecheck:check_string(['Net', 'Http'], HttpSource),
     case Name of
         "modules/net/http" ->
             emitted(['Net', 'Http'], HttpTyped, HttpEnv);
         "modules/main" ->
-            {ok, MainBin} = file:read_file("../../../examples/modules/main.ern"),
-            {ok, Decls} = ern_parser:parse_string(MainBin),
-            {ok, Typed, _, Env} = ern_typecheck:check(['Main'], Decls, [HttpIface]),
+            {ok, MainSource} = file:read_file("../../../examples/modules/main.ern"),
+            {ok, Declarations} = ern_parser:parse_string(MainSource),
+            {ok, Typed, _, Env} = ern_typecheck:check(['Main'], Declarations, [HttpIface]),
             emitted(['Main'], Typed, Env)
     end;
 golden_source(Name) ->
-    {Ns, Bin} = example(Name),
-    {ok, Typed, _, Env} = ern_typecheck:check_string(Ns, Bin),
-    emitted(Ns, Typed, Env).
+    {Namespace, Source} = example(Name),
+    {ok, Typed, _, Env} = ern_typecheck:check_string(Namespace, Source),
+    emitted(Namespace, Typed, Env).
 
-emitted(Ns, Typed, Env) ->
-    unicode:characters_to_binary(ern_emitter:erl_source(Ns, Typed, Env)).
+emitted(Namespace, Typed, Env) ->
+    unicode:characters_to_binary(ern_emitter:erl_source(Namespace, Typed, Env)).
 
 %% report §11.1: the emitted source of every example is what the
 %% golden file holds; a difference is written beside it as .new
@@ -278,32 +283,32 @@ examples_test_() ->
                 {"services", <<"before: apples 3, next id 3, audit [1: put apples; 2: put pears]\n"
                                "after the restart: apples none, next id 1, audit []\n">>}],
     [{Base, fun() ->
-                 {Ns, Bin} = example(Base),
-                 ?assertEqual({ok, Out}, run(Ns, Bin))
-             end} || {Base, Out} <- Expected].
+                 {Namespace, Source} = example(Base),
+                 ?assertEqual({ok, Expected1}, run(Namespace, Source))
+             end} || {Base, Expected1} <- Expected].
 
 %% report §11.1: the documentation travels in the BEAM chunk Docs, EEP 48's,
 %% and a type's parts are structured in its entry rather than rendered
 docs_chunk_test() ->
-    Ns = ['Shapes'],
-    Src = <<"/// The module.\n\n"
-            "/// A shape.\n"
-            "export type Shape = Dot\n"
-            "    /// somewhere\n"
-            "    | At(\n"
-            "        /// across\n"
-            "        x : Int,\n"
-            "        y : Int)\n"
-            "export fn area(shape : Shape) : Int = 0\n">>,
-    {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Src),
+    Namespace = ['Shapes'],
+    Source = <<"/// The module.\n\n"
+               "/// A shape.\n"
+               "export type Shape = Dot\n"
+               "    /// somewhere\n"
+               "    | At(\n"
+               "        /// across\n"
+               "        x : Int,\n"
+               "        y : Int)\n"
+               "export fn area(shape : Shape) : Int = 0\n">>,
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Source),
     Build = #{source_hash => <<>>, deps => [], source => <<"shapes.ern">>},
-    {ok, 'ern@shapes', Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
-    {ok, {docs_v1, _, ernest, <<"text/markdown">>, ModDoc, Meta, Entries}} =
+    {ok, 'ern@shapes', Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
+    {ok, {docs_v1, _, ernest, <<"text/markdown">>, ModuleDoc, Meta, Entries}} =
         ern_docs:read(Beam),
-    ?assertEqual(#{<<"en">> => <<"The module.">>}, ModDoc),
+    ?assertEqual(#{<<"en">> => <<"The module.">>}, ModuleDoc),
     ?assertEqual(<<"shapes.ern">>, maps:get(source, Meta)),
     [{{type, 'Shape', 0}, _, Signature, Doc, TypeMeta},
-     {{function, area, 1}, _, _, _, FnMeta}] = Entries,
+     {{function, area, 1}, _, _, _, FunctionMeta}] = Entries,
     ?assertEqual([<<"type Shape = Dot | At(x : Int, y : Int)">>], Signature),
     ?assertEqual(#{<<"en">> => <<"A shape.">>}, Doc),
     ?assertEqual([#{kind => constructor, name => 'Dot', doc => none, fields => []},
@@ -311,7 +316,7 @@ docs_chunk_test() ->
                     fields => [#{name => x, type => <<"Int">>, doc => <<"across">>},
                                #{name => y, type => <<"Int">>, doc => none}]}],
                  maps:get(items, TypeMeta)),
-    ?assertEqual([shape], maps:get(params, FnMeta)),
+    ?assertEqual([shape], maps:get(params, FunctionMeta)),
     %% the interface chunk keeps its own shape, the source name being the
     %% documentation's
     {ok, Read} = ern_interface:read(Beam),
@@ -320,41 +325,42 @@ docs_chunk_test() ->
 %% report §11.1: the interface travels in the BEAM chunk ErnI
 %% with the source hash and the dependencies' interface hashes, and its
 %% hash does not depend on the numbering of type variables
-iface_chunk_test() ->
-    {Ns, Bin} = example("stack"),
-    {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Bin),
+interface_chunk_test() ->
+    {Namespace, Source} = example("stack"),
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Source),
     Build = #{source_hash => <<"s">>, deps => [{['Net', 'Http'], <<"h">>}]},
-    {ok, 'ern@stack', Beam} = ern_emitter:compile(Ns, Typed, Iface, Env, Build),
+    {ok, 'ern@stack', Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
     {ok, #{interface := Read, source_hash := <<"s">>, deps := [{['Net', 'Http'], <<"h">>}]}} =
         ern_interface:read(Beam),
     ?assertEqual(['Stack'], Read#interface.namespace),
     ?assert(is_map_key(['Stack', push], Read#interface.values)),
-    ?assertEqual(ern_interface:hash(Iface), ern_interface:hash(Read)),
-    {ok, _, Iface2, _} = ern_typecheck:check_string(Ns, <<"fn f(x) = x\n", Bin/binary>>),
-    ?assertEqual(ern_interface:hash(Iface), ern_interface:hash(Iface2)).
+    ?assertEqual(ern_interface:hash(Interface), ern_interface:hash(Read)),
+    {ok, _, Interface2, _} = ern_typecheck:check_string(Namespace,
+                                                        <<"fn f(x) = x\n", Source/binary>>),
+    ?assertEqual(ern_interface:hash(Interface), ern_interface:hash(Interface2)).
 
 %% report §11.1: a chunk of another compiler version reads as an error,
 %% so the module counts as stale; and the interface hash ignores the names
 %% of type variables
 stale_chunk_test() ->
-    {Ns, Bin} = example("stack"),
-    {ok, Typed, Iface, Env} = ern_typecheck:check_string(Ns, Bin),
-    {ok, _, Beam} = ern_emitter:compile(Ns, Typed, Iface, Env),
+    {Namespace, Source} = example("stack"),
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Source),
+    {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env),
     {ok, {_, [{"ErnI", Chunk}]}} = beam_lib:chunks(Beam, ["ErnI"]),
     Old = term_to_binary((binary_to_term(Chunk))#{format => 0}),
     {ok, _, Stale} = compile:forms([{attribute, 1, module, x}],
                                    [binary, {extra_chunks, [{<<"ErnI">>, Old}]}]),
     ?assertMatch({error, _}, ern_interface:read(Stale)),
-    {ok, _, IfaceA, _} = ern_typecheck:check_string(['M'], "export fn id(x : a) : a = x\n"),
-    {ok, _, IfaceT, _} = ern_typecheck:check_string(['M'], "export fn id(x : t) : t = x\n"),
-    ?assertEqual(ern_interface:hash(IfaceA), ern_interface:hash(IfaceT)).
+    {ok, _, InterfaceA, _} = ern_typecheck:check_string(['M'], "export fn id(x : a) : a = x\n"),
+    {ok, _, InterfaceT, _} = ern_typecheck:check_string(['M'], "export fn id(x : t) : t = x\n"),
+    ?assertEqual(ern_interface:hash(InterfaceA), ern_interface:hash(InterfaceT)).
 
 %% report §11.1: --emit-erl gives the module as Erlang source
 erl_source_test() ->
-    {Ns, Bin} = example("hello"),
-    {ok, Typed, _, Env} = ern_typecheck:check_string(Ns, Bin),
-    Src = unicode:characters_to_binary(ern_emitter:erl_source(Ns, Typed, Env)),
-    ?assertMatch({_, _}, binary:match(Src, <<"-module(ern@hello).">>)).
+    {Namespace, Source} = example("hello"),
+    {ok, Typed, _, Env} = ern_typecheck:check_string(Namespace, Source),
+    Emitted = unicode:characters_to_binary(ern_emitter:erl_source(Namespace, Typed, Env)),
+    ?assertMatch({_, _}, binary:match(Emitted, <<"-module(ern@hello).">>)).
 
 %% report §4.2: the module atom is ern@ and the path with @ for /
 module_atom_test() ->
@@ -371,7 +377,7 @@ module_atom_test() ->
 %% report §4.6, §5.4: a local fn closes over earlier bindings and calls
 %% itself; used as a value it becomes a closure
 local_fn_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "export fn main() : Unit with Never = {\n"
         "    let base = 10;\n"
         "    fn add(x : Int) : Int = base + x;\n"
@@ -380,13 +386,13 @@ local_fn_test() ->
         "    Io.println(Int.toString(List.foldLeft(ys, 0, fn(a, b) = a + b)));\n"
         "    Io.println(Int.toString(count(3)))\n"
         "}\n"),
-    ?assertEqual(<<"23\n3\n">>, Out).
+    ?assertEqual(<<"23\n3\n">>, Output).
 
 %% report §4.6, §5.4: a local fn sees the bindings in force at its
 %% declaration, whatever is rebound after it, and through the local fns it
 %% references, theirs; it may be used before its declaration
 local_fn_bindings_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "export fn main() : Unit with Never = {\n"
         "    let x = 1;\n"
         "    fn f() : Int = x;\n"
@@ -406,23 +412,23 @@ local_fn_bindings_test() ->
         "    let r = { fn twice(n : Int) : Int = add(add(n)); twice(1) };\n"
         "    Io.println(Int.toString(r))\n"
         "}\n"),
-    ?assertEqual(<<"12\n2\n6\n21\n">>, Out).
+    ?assertEqual(<<"12\n2\n6\n21\n">>, Output).
 
 %% report §4.6: shadowing rebinds; each binding is its own variable
 shadowing_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "export fn main() : Unit with Never = {\n"
         "    let x = 1;\n"
         "    let x = x + 1;\n"
         "    let #(x, y) = #(x * 10, x);\n"
         "    Io.println(Int.toString(x + y))\n"
         "}\n"),
-    ?assertEqual(<<"22\n">>, Out).
+    ?assertEqual(<<"22\n">>, Output).
 
 %% report §5.5, §7.1: a value error is an Either or Optional; `<-` on Either
 %% returns the Left, on Optional the None
 bind_arrow_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "fn half(n : Int) : Either(String, Int) =\n"
         "    if n % 2 == 0 then Right(n / 2) else Left(\"odd\")\n"
         "fn quarter(n : Int) : Either(String, Int) = {\n"
@@ -445,19 +451,19 @@ bind_arrow_test() ->
         "    Io.println(Int.toString(Optional.withDefault(both(Some(1), Some(2)), -1)));\n"
         "    Io.println(Int.toString(Optional.withDefault(both(Some(1), None), -1)))\n"
         "}\n"),
-    ?assertEqual(<<"2\nodd\n3\n-1\n">>, Out).
+    ?assertEqual(<<"2\nodd\n3\n-1\n">>, Output).
 
 %% report §4.6, §8.5: top-level lets are evaluated before main, in
 %% dependency order whatever their textual order, a dependency through a
 %% called function included
 top_level_let_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "let total = base * 2\n"
         "let base = count()\n"
         "fn count() : Int = List.size(items)\n"
         "let items = [1, 2, 3]\n"
         "export fn main() : Unit with Never = Io.println(Int.toString(total))\n"),
-    ?assertEqual(<<"6\n">>, Out).
+    ?assertEqual(<<"6\n">>, Output).
 
 %%
 %% Expressions
@@ -466,7 +472,7 @@ top_level_let_test() ->
 %% report §5.9, §5.10: a guard that is not an Erlang guard falls through
 %% to the next clause
 match_general_guard_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "fn small(n : Int) : Bool = n < 3\n"
         "fn name(n : Int) : String = match n {\n"
         "    k when small(k) -> \"small\"\n"
@@ -478,15 +484,15 @@ match_general_guard_test() ->
         "    Io.println(name(4));\n"
         "    Io.println(name(5))\n"
         "}\n"),
-    ?assertEqual(<<"small\neven\nodd\n">>, Out).
+    ?assertEqual(<<"small\neven\nodd\n">>, Output).
 
 %% report §5.9: a guard that faults faults the process; it never becomes a
 %% silent `false` as an Erlang guard would, since only comparisons that
 %% cannot fault are emitted as Erlang guards and every other guard runs as
 %% an expression that falls through on `false` alone
 match_guard_faults_test() ->
-    {R, _} = run(
-        "fn name(n : Int) : String = match n {\n"
+    {Result, _} = run(
+             "fn name(n : Int) : String = match n {\n"
         "    k when k == 7 -> \"seven\"\n"
         "  | k when 10 / k == 5 -> \"half\"\n"
         "  | _ -> \"other\"\n"
@@ -496,7 +502,7 @@ match_guard_faults_test() ->
         "    Io.println(name(2));\n"
         "    Io.println(name(0))\n"
         "}\n"),
-    ?assertEqual({fault, <<"division by zero">>}, R).
+    ?assertEqual({fault, <<"division by zero">>}, Result).
 
 %% report §5.9: a clause with alternatives runs one body for whichever
 %% alternative matched, with that alternative's variables; a guard applies to
@@ -508,7 +514,7 @@ or_pattern_test() ->
            "    Circle(n) or Square(n) when 10 / n > 0 -> \"sized\"\n"
            "  | _ -> \"dot\"\n"
            "}\n",
-    {ok, Out} = run(Shape ++ Kind ++
+    {ok, Output} = run(Shape ++ Kind ++
         "fn area(s : Shape) : Int = match s {\n"
         "    Circle(n) or Square(n) when n > 1 -> n * 10\n"
         "  | Circle(n) or Square(n) -> n\n"
@@ -521,16 +527,16 @@ or_pattern_test() ->
         "    Io.println(kind(Square(5)));\n"
         "    Io.println(kind(Dot))\n"
         "}\n"),
-    ?assertEqual(<<"1\n20\n0\nsized\ndot\n">>, Out),
-    {R, _} = run(Shape ++ Kind ++
-        "export fn main() : Unit with Never = Io.println(kind(Circle(0)))\n"),
-    ?assertEqual({fault, <<"division by zero">>}, R).
+    ?assertEqual(<<"1\n20\n0\nsized\ndot\n">>, Output),
+    {Result, _} = run(Shape ++ Kind ++
+             "export fn main() : Unit with Never = Io.println(kind(Circle(0)))\n"),
+    ?assertEqual({fault, <<"division by zero">>}, Result).
 
 %% report Appendix E.1: Io.debug prints a value as Ernest writes it, by the
 %% argument's type at the call, known whole there, and returns it; a type
 %% variable there is a type error (ern_typecheck_tests)
 io_debug_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Shape = Circle(Int) | Dot\n"
         "type Snap = Snap(seen : Int, dir : String)\n"
         "type State = Ready | Busy\n"
@@ -555,12 +561,12 @@ io_debug_test() ->
                    "Snap(seen = 2, dir = \"x\")\n"
                    "Map.fromList([#(\"k\", [1])])\nSet.fromList([1, 2])\n<function>\n"
                    "#(true, false)\n\"é中\"\n#('a', '\\'', Some('\\n'))\n#(Ready, 1)\n"
-                   "<<104, 105>>\n'x'\n"/utf8>>, Out).
+                   "<<104, 105>>\n'x'\n"/utf8>>, Output).
 
 %% report Appendix E.1: Io.show writes a value by its type at the call, as
 %% a function value too, and pure
 show_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Snap = Snap(seen : Int, dir : String)\n"
         "fn pure(c : Char) : String = Io.show(Some(c))\n"
         "export fn main() : Unit with Never = {\n"
@@ -568,7 +574,7 @@ show_test() ->
         "    Io.println(pure('a'));\n"
         "    Io.println(String.join(List.map([<<1>>, <<2, 3>>], Io.show), \" \"))\n"
         "}\n"),
-    ?assertEqual(<<"Snap(seen = 2, dir = \"x\")\nSome('a')\n<<1>> <<2, 3>>\n">>, Out).
+    ?assertEqual(<<"Snap(seen = 2, dir = \"x\")\nSome('a')\n<<1>> <<2, 3>>\n">>, Output).
 
 %% report §4.2, §4.5: a module's own type named Float may have members
 %% negate and compare, and a call of them, each as a value, and prefix `-`
@@ -577,7 +583,7 @@ show_test() ->
 %% and `Io.debug`, where the emitter read the written path and called the
 %% library's in their place
 own_member_over_prelude_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Float = Float(n : Int)\n"
         "fn Float.negate(x : Float) : String = \"mine \" <> Int.toString(x.n)\n"
         "fn Float.compare(a : Float, b : Float) : Ordering = Less\n"
@@ -588,7 +594,7 @@ own_member_over_prelude_test() ->
         "    Io.println(-Float(n = 3));\n"
         "    Io.println(Io.show(Float.compare(Float(n = 1), Float(n = 1))))\n"
         "}\n"),
-    ?assertEqual(<<"mine 1\nmine 2\nmine 3\nLess\n">>, Out).
+    ?assertEqual(<<"mine 1\nmine 2\nmine 3\nLess\n">>, Output).
 
 %% report Appendix E.1: Io.debug writes a String as a literal, with `"`,
 %% `\\`, a line feed and a tab escaped by name, another control character
@@ -596,22 +602,22 @@ own_member_over_prelude_test() ->
 %% test, written after the code; it does not cover a character outside
 %% the Basic Multilingual Plane
 io_debug_escapes_test() ->
-    {ok, Out} = run("export fn main() : Unit with Never = {\n"
-                    "    let _ = Io.debug(\"a\\\"b\\\\c\\n\\t\\u{1}\\u{7F}é\");\n"
-                    "    Unit\n"
-                    "}\n"),
-    ?assertEqual(<<"\"a\\\"b\\\\c\\n\\t\\u{1}\\u{7F}é\"\n"/utf8>>, Out).
+    {ok, Output} = run("export fn main() : Unit with Never = {\n"
+                       "    let _ = Io.debug(\"a\\\"b\\\\c\\n\\t\\u{1}\\u{7F}é\");\n"
+                       "    Unit\n"
+                       "}\n"),
+    ?assertEqual(<<"\"a\\\"b\\\\c\\n\\t\\u{1}\\u{7F}é\"\n"/utf8>>, Output).
 
 %% report §8.2: keys and lines are the same terminal, so the process that
 %% claims it the other way faults, naming the side that holds it
 terminal_is_lines_or_keys_test() ->
-    {R1, _} = run_at_terminal("type Msg = Pressed(Terminal.Event)\n"
+    {Result1, _} = run_at_terminal("type Msg = Pressed(Terminal.Event)\n"
                   "export fn main() : Unit with Msg = {\n"
                   "    let _ = Io.readLine();\n"
                   "    let _ = Terminal.subscribe(Pressed);\n"
                   "    receive { Pressed(_) -> Unit }\n"
                   "}\n"),
-    ?assertEqual({fault, <<"the terminal is already read as lines">>}, R1).
+    ?assertEqual({fault, <<"the terminal is already read as lines">>}, Result1).
 
 %% report §8.2, §7.4: a claim of the terminal the other way faults the
 %% process that makes it, and the first claim stands: a worker that
@@ -641,33 +647,34 @@ terminal_claim_faults_its_caller_test() ->
 %% with the entry process's fault, `deadlock`; a timed receive is a source
 %% and ends by itself
 deadlock_test() ->
-    {R1, _} = run("type Msg = Ping\n"
-                  "export fn main() : Unit with Msg = receive { Ping -> Unit }\n"),
-    ?assertEqual({fault, <<"deadlock">>}, R1),
-    {R2, Out} = run("type Msg = Ping\n"
-                    "export fn main() : Unit with Msg = receive {\n"
-                    "    Ping -> Unit\n"
-                    "  | after 100 -> Io.println(\"timeout\")\n"
-                    "}\n"),
-    ?assertEqual({ok, <<"timeout\n">>}, {R2, Out}).
+    {Result1, _} = run("type Msg = Ping\n"
+                       "export fn main() : Unit with Msg = receive { Ping -> Unit }\n"),
+    ?assertEqual({fault, <<"deadlock">>}, Result1),
+    {Result2, Output} = run("type Msg = Ping\n"
+                            "export fn main() : Unit with Msg = receive {\n"
+                            "    Ping -> Unit\n"
+                            "  | after 100 -> Io.println(\"timeout\")\n"
+                            "}\n"),
+    ?assertEqual({ok, <<"timeout\n">>}, {Result2, Output}).
 
 %% report §6.3, §6.6, Appendix E.0 rule 8: a time below 0 is 0, in `after`,
 %% in `Address.call`, and in `Clock.alarm`. A regression test: the first two
 %% faulted with the host's `timeout_value`, and the alarm crashed the clock,
 %% which left the program waiting for ever
 negative_time_test() ->
-    {ok, Out} = run("type M = M | Get(reply : Reply(Int))
+    {ok, Output} = run("type M = M | Get(reply : Reply(Int))
 "
-                    "export fn main() : Unit with M = {\n"
-                    "    receive { Get(reply = r) -> answer(r, 1) | after 0 - 5 ->"
-                    " Io.println(\"after\") };\n"
-                    "    let quiet = spawn(fn() : Unit with M = receive { M -> Unit });\n"
-                    "    let asked = Address.call(quiet, fn(r) = Get(reply = r), 0 - 1);\n"
-                    "    Io.println(match asked { Some(_) -> \"some\" | None -> \"none\" });\n"
-                    "    Clock.alarm(0 - 10, fn(_) = M);\n"
-                    "    receive { M -> Io.println(\"alarm\") | Get(reply = r) -> answer(r, 0) }\n"
-                    "}\n"),
-    ?assertEqual(<<"after\nnone\nalarm\n">>, Out).
+                       "export fn main() : Unit with M = {\n"
+                       "    receive { Get(reply = r) -> answer(r, 1) | after 0 - 5 ->"
+                       " Io.println(\"after\") };\n"
+                       "    let quiet = spawn(fn() : Unit with M = receive { M -> Unit });\n"
+                       "    let asked = Address.call(quiet, fn(r) = Get(reply = r), 0 - 1);\n"
+                       "    Io.println(match asked { Some(_) -> \"some\" | None -> \"none\" });\n"
+                       "    Clock.alarm(0 - 10, fn(_) = M);\n"
+                       "    receive { M -> Io.println(\"alarm\") | Get(reply = r) -> answer(r, 0)"
+                       " }\n"
+                       "}\n"),
+    ?assertEqual(<<"after\nnone\nalarm\n">>, Output).
 
 %% report §6.3, §6.6, Appendix E.0 rule 8: a time has no upper bound, so a
 %% time beyond the host's longest wait, 2^32 - 1 ms, waits as any other: a
@@ -676,7 +683,7 @@ negative_time_test() ->
 %% timeout_value. It does not cover a wait that outlasts one slice of
 %% 2^32 - 1 ms, nor an alarm, which ern_rt_tests covers
 long_time_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Ping | Get(reply : Reply(Int))\n"
         "fn later(to : Address(Msg)) : Unit with Never = {\n"
         "    receive { after 50 -> Unit };\n"
@@ -700,7 +707,7 @@ long_time_test() ->
         "      | Left(_) -> Io.println(\"not read\")\n"
         "    }\n"
         "}\n"),
-    ?assertEqual(<<"ping\nSome(7)\nread\n">>, Out).
+    ?assertEqual(<<"ping\nSome(7)\nread\n">>, Output).
 
 %% report §8.6: a process blocked in Address.callForever waits without a
 %% limit, as an untimed receive does, so a call to a server that waits in
@@ -708,14 +715,14 @@ long_time_test() ->
 %% written after the code; a callForever to a process that has ended is
 %% call_ends_with_callee_test_'s
 call_forever_deadlock_test() ->
-    {R, _} = run("type Req = Get(reply : Reply(Int)) | Other\n"
-                 "fn server() : Unit with Req = receive { Other -> Unit }\n"
-                 "export fn main() : Unit with m = {\n"
-                 "    let a = spawn(server);\n"
-                 "    let _ = Io.debug(Address.callForever(a, fn(r) = Get(reply = r)));\n"
-                 "    Unit\n"
-                 "}\n"),
-    ?assertEqual({fault, <<"deadlock">>}, R).
+    {Result, _} = run("type Req = Get(reply : Reply(Int)) | Other\n"
+                      "fn server() : Unit with Req = receive { Other -> Unit }\n"
+                      "export fn main() : Unit with m = {\n"
+                      "    let a = spawn(server);\n"
+                      "    let _ = Io.debug(Address.callForever(a, fn(r) = Get(reply = r)));\n"
+                      "    Unit\n"
+                      "}\n"),
+    ?assertEqual({fault, <<"deadlock">>}, Result).
 
 %% report §6.9, §9.5: a process whose function is `restarting`'s runs it
 %% again after a fault, keeping its address and its mailbox, the message
@@ -723,7 +730,7 @@ call_forever_deadlock_test() ->
 %% made once the crash has been handled, since a call pending at a restart
 %% ends with it (call_ends_with_callee_test_)
 restart_keeps_address_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Bump | Crash | Get(reply : Reply(Int))\n"
         "fn loop(n : Int) : Unit with Msg = receive {\n"
         "    Bump -> loop(n + 1)\n"
@@ -739,7 +746,7 @@ restart_keeps_address_test() ->
         "    send(s, Bump);\n"
         "    Io.println(Int.toString(Address.callForever(s, fn(r) = Get(reply = r))))\n"
         "}\n"),
-    ?assertEqual(<<"1\n">>, Out).
+    ?assertEqual(<<"1\n">>, Output).
 
 %% report §6.9: past the limit the next fault ends the process with its
 %% cause, which is its one death a monitor is told of; a restart is none,
@@ -814,7 +821,7 @@ restart_unlimited() ->
 %% process faulted, are not taken by the new run: the ended call was not
 %% done. A regression test: the new run took both, and the total was 6
 restart_empties_the_mailbox_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Add(n : Int, reply : Reply(Int)) | Total(reply : Reply(Int)) | Plain(Int)"
         " | Busy\n"
         "fn count(total : Int) : Unit with Msg =\n"
@@ -834,7 +841,7 @@ restart_empties_the_mailbox_test() ->
         "    Io.println(Io.show(Address.call(s, fn(r) = Add(n = 1, reply = r), 2000)));\n"
         "    Io.println(Int.toString(Address.callForever(s, fn(r) = Total(reply = r))))\n"
         "}\n"),
-    ?assertEqual(<<"None\n0\n">>, Out).
+    ?assertEqual(<<"None\n0\n">>, Output).
 
 %% report §6.9, Appendix E.15, E.21: a restart cancels the process's alarm,
 %% its monitor and its subscription to faults, so the new run hears nothing
@@ -925,7 +932,7 @@ supervisor_restarts_whole_test_() ->
     {timeout, 30, fun supervisor_restarts_whole/0}.
 
 supervisor_restarts_whole() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type AMsg = Crash | Ping(reply : Reply(Int))\n"
         "type BMsg = Inc | Busy | Count(reply : Reply(Int))\n"
         "fn a() : Unit with AMsg =\n"
@@ -956,12 +963,12 @@ supervisor_restarts_whole() ->
         "    let _ = ping(x);\n"
         "    Io.println(Io.show(Address.call(y, fn(r) = Count(reply = r), 2000)))\n"
         "}\n"),
-    ?assertEqual(<<"Some(0)\n">>, Out).
+    ?assertEqual(<<"Some(0)\n">>, Output).
 
 %% report §6.9: returning and a kill end a restarting process as they end
 %% any; only a fault restarts
 restart_only_on_fault_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Stop\n"
         "type MainMsg = Died(Down)\n"
         "fn waits() : Unit with Msg = receive { Stop -> Unit }\n"
@@ -975,7 +982,7 @@ restart_only_on_fault_test() ->
         "    receive { Died(Down(reason = r, site = _)) -> { let _ = Io.debug(r); Unit } };\n"
         "    Unit\n"
         "}\n"),
-    ?assertEqual(<<"Returned\nKilled\n">>, Out).
+    ?assertEqual(<<"Returned\nKilled\n">>, Output).
 
 %% report §6.6, §7.4: a call ends at once when its callee faults, is
 %% killed, returns, or had ended, before it answers: Address.call answers
@@ -1020,22 +1027,22 @@ call_ends_with_callee() ->
     ?assertMatch({{fault, <<"bad request">>}, _},
                  run(Forever("    let limit = RestartLimit(restarts = 5, within = 60000);\n"
                              "    let s = spawn(restarting(limit, faulty));\n"))),
-    {ok, Out} = run(Types ++ Faulty ++
-                    "export fn main() : Unit with MainMsg = {\n"
-                    "    let limit = RestartLimit(restarts = 5, within = 60000);\n"
-                    "    let s = spawn(restarting(limit, faulty));\n"
-                    "    let t = spawn(faulty);\n"
-                    "    let _ = Io.debug(Address.call(s, " ++ Ask ++ ", 60000));\n"
-                    "    let _ = Io.debug(Address.call(t, " ++ Ask ++ ", 60000));\n"
-                    "    Unit\n"
-                    "}\n"),
-    ?assertEqual(<<"None\nNone\n">>, Out).
+    {ok, Output} = run(Types ++ Faulty ++
+                       "export fn main() : Unit with MainMsg = {\n"
+                       "    let limit = RestartLimit(restarts = 5, within = 60000);\n"
+                       "    let s = spawn(restarting(limit, faulty));\n"
+                       "    let t = spawn(faulty);\n"
+                       "    let _ = Io.debug(Address.call(s, " ++ Ask ++ ", 60000));\n"
+                       "    let _ = Io.debug(Address.call(t, " ++ Ask ++ ", 60000));\n"
+                       "    Unit\n"
+                       "}\n"),
+    ?assertEqual(<<"None\nNone\n">>, Output).
 
 %% report §4.6, §6.5, §8.5: a service is a top-level binding whose
 %% initializer spawns the process, before main, in the entry process;
 %% functions reach it by its name, and a restarting one keeps its address
 service_binding_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "export type LogMsg = Log(String) | Crash | Count(reply : Reply(Int))\n"
         "fn logger(n : Int) : Unit with LogMsg = receive {\n"
         "    Log(_) -> logger(n + 1)\n"
@@ -1054,12 +1061,12 @@ service_binding_test() ->
         "    note(\"b\");\n"
         "    Io.println(Int.toString(Address.callForever(log, fn(r) = Count(reply = r))))\n"
         "}\n"),
-    ?assertEqual(<<"started\n1\n">>, Out).
+    ?assertEqual(<<"started\n1\n">>, Output).
 
 %% report §6.9, §8.5: a process a top-level initializer spawns names that
 %% binding's declaration as its spawn site
 service_site_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type MainMsg = Died(Down)\n"
         "export let quick : Address(Int) =\n"
         "    spawn(fn() : Unit with Int = receive { _ -> fault(\"x\") })\n"
@@ -1068,23 +1075,23 @@ service_site_test() ->
         "    send(quick, 1);\n"
         "    receive { Died(Down(reason = _, site = s)) -> Io.println(s) }\n"
         "}\n"),
-    ?assertEqual(<<"M.quick:3\n">>, Out).
+    ?assertEqual(<<"M.quick:3\n">>, Output).
 
 %% Appendix E.15, §5.6: an alarm carries the time it fired, so a
 %% single-positional constructor passes as its wrap, as `Died` does to
 %% `monitor`
 alarm_time_test() ->
-    {ok, Out} = run("type Msg = Tick(Int)\n"
-                    "export fn main() : Unit with Msg = {\n"
-                    "    let before = Clock.now();\n"
-                    "    Clock.alarm(5, Tick);\n"
-                    "    receive { Tick(at) -> Io.println(Bool.toString(at >= before)) }\n"
-                    "}\n"),
-    ?assertEqual(<<"true\n">>, Out).
+    {ok, Output} = run("type Msg = Tick(Int)\n"
+                       "export fn main() : Unit with Msg = {\n"
+                       "    let before = Clock.now();\n"
+                       "    Clock.alarm(5, Tick);\n"
+                       "    receive { Tick(at) -> Io.println(Bool.toString(at >= before)) }\n"
+                       "}\n"),
+    ?assertEqual(<<"true\n">>, Output).
 
 %% report §5.9, §6.3: alternatives in a receive clause select either message
 receive_or_pattern_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Inc(Int) | Dec(Int) | Stop\n"
         "fn loop(n : Int) : Int with Msg = receive {\n"
         "    Inc(k) or Dec(k) -> loop(n + k)\n"
@@ -1097,12 +1104,12 @@ receive_or_pattern_test() ->
         "    send(me, Stop);\n"
         "    Io.println(Int.toString(loop(0)))\n"
         "}\n"),
-    ?assertEqual(<<"5\n">>, Out).
+    ?assertEqual(<<"5\n">>, Output).
 
 %% report §6.3: a receive guard is a guard expression, emitted as an Erlang
 %% guard, tested while the message stays in the mailbox
 receive_guard_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = N(Int)\n"
         "fn loop(acc : Int) : Unit with Msg = receive {\n"
         "    N(k) when k > 0 -> loop(acc + k)\n"
@@ -1115,12 +1122,12 @@ receive_guard_test() ->
         "    send(p, N(0));\n"
         "    receive { after 100 -> Unit }\n"
         "}\n"),
-    ?assertEqual(<<"5\n">>, Out).
+    ?assertEqual(<<"5\n">>, Output).
 
 %% report §6.3: a compound guard expression; a message the guard rejects
 %% stays in the mailbox
 receive_guard_compound_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = N(Int) | Stop\n"
         "fn loop(limit : Int) : Unit with Msg = receive {\n"
         "    N(k) when k > limit && k != 7 -> { Io.println(Int.toString(k)); loop(limit) }\n"
@@ -1133,13 +1140,13 @@ receive_guard_compound_test() ->
         "    send(self(), Stop);\n"
         "    loop(5)\n"
         "}\n"),
-    ?assertEqual(<<"9\n">>, Out).
+    ?assertEqual(<<"9\n">>, Output).
 
 %% report §6.3: `!` before a guard expression and a negative literal in a
 %% receive guard, emitted as an Erlang guard; the messages the guard
 %% rejects stay in the mailbox
 receive_guard_not_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = N(Int) | Stop\n"
         "fn take(flag : Bool) : Int with Msg = receive {\n"
         "    N(k) when !flag && !(k > 5) && k > -3 -> k\n"
@@ -1155,24 +1162,24 @@ receive_guard_not_test() ->
         "    Io.println(Int.toString(take(true)));\n"
         "    Io.println(Int.toString(negative()))\n"
         "}\n"),
-    ?assertEqual(<<"2\n100\n-4\n">>, Out).
+    ?assertEqual(<<"2\n100\n-4\n">>, Output).
 
 %% report §5.9, §4.6: a match guard may read a top-level `let`, which is
 %% read through its getter, so the guard is not compiled as an Erlang guard
 match_guard_top_level_let_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "let limit = 5\n"
         "fn size(n : Int) : String = match n { m when m > limit -> \"big\" | _ -> \"small\" }\n"
         "export fn main() : Unit with Never = {\n"
         "    Io.println(size(9));\n"
         "    Io.println(size(1))\n"
         "}\n"),
-    ?assertEqual(<<"big\nsmall\n">>, Out).
+    ?assertEqual(<<"big\nsmall\n">>, Output).
 
 %% report §3.1, §4.8, §9.6: Int arithmetic, comparison, and the Boolean
 %% operators
 operators_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "export fn main() : Unit with Never = {\n"
         "    Io.println(Int.toString(-7 / 3));\n"
         "    Io.println(Int.toString(-7 % 3));\n"
@@ -1182,12 +1189,12 @@ operators_test() ->
         "    Io.println(Bool.toString(\"a\" < \"b\"));\n"
         "    Io.println(Int.toString(List.size(1 :: [2] <> [3])))\n"
         "}\n"),
-    ?assertEqual(<<"-2\n-1\n13\ntrue\ntrue\ntrue\n3\n">>, Out).
+    ?assertEqual(<<"-2\n-1\n13\ntrue\ntrue\ntrue\n3\n">>, Output).
 
 %% report §3.1, §5.1, §9.6, Appendix E.9: Float arithmetic, negation, and
 %% ordering; the Float functions of E.9
 float_operators_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "export fn main() : Unit with Never = {\n"
         "    Io.println(Float.toString(1.5 + 2.25 * 2.0 - 1.0 / 4.0));\n"
         "    Io.println(Float.toString(-(1.0e-9)));\n"
@@ -1196,36 +1203,37 @@ float_operators_test() ->
         " + Float.ceil(0.5)));\n"
         "    Io.println(Float.toString(Int.toFloat(3)))\n"
         "}\n"),
-    ?assertEqual(<<"5.75\n-1.0e-9\ntrue\n6\n3.0\n">>, Out).
+    ?assertEqual(<<"5.75\n-1.0e-9\ntrue\n6\n3.0\n">>, Output).
 
 %% report §3.1, §7.4: a Float result outside the finite range faults with
 %% its own cause, distinct from the Int zero divisor
 float_fault_test() ->
     Zero = "fn zero() : Float = Int.toFloat(List.size([]))\n",
-    {R1, _} = run(Zero ++ "export fn main() : Unit with Never = "
-                  "Io.println(Float.toString(1.0 / zero()))\n"),
-    ?assertEqual({fault, <<"float arithmetic error">>}, R1),
-    {R2, _} = run(Zero ++ "export fn main() : Unit with Never = "
-                  "Io.println(Float.toString((zero() + 1.0e308) * 10.0))\n"),
-    ?assertEqual({fault, <<"float arithmetic error">>}, R2),
-    {R3, _} = run(Zero ++ "export fn main() : Unit with Never = "
-                  "Io.println(Float.toString(zero() / zero()))\n"),
-    ?assertEqual({fault, <<"float arithmetic error">>}, R3),
+    {Result1, _} = run(Zero ++ "export fn main() : Unit with Never = "
+                       "Io.println(Float.toString(1.0 / zero()))\n"),
+    ?assertEqual({fault, <<"float arithmetic error">>}, Result1),
+    {Result2, _} = run(Zero ++ "export fn main() : Unit with Never = "
+                       "Io.println(Float.toString((zero() + 1.0e308) * 10.0))\n"),
+    ?assertEqual({fault, <<"float arithmetic error">>}, Result2),
+    {Result3, _} = run(Zero ++ "export fn main() : Unit with Never = "
+                       "Io.println(Float.toString(zero() / zero()))\n"),
+    ?assertEqual({fault, <<"float arithmetic error">>}, Result3),
     %% an Int zero divisor inside a Float operand keeps its own cause
-    {R4, _} = run("fn n() : Int = List.size([])\n"
-                  "export fn main() : Unit with Never = "
-                  "Io.println(Float.toString(Int.toFloat(1 / n()) + 1.0))\n"),
-    ?assertEqual({fault, <<"division by zero">>}, R4),
+    {Result4, _} = run("fn n() : Int = List.size([])\n"
+                       "export fn main() : Unit with Never = "
+                       "Io.println(Float.toString(Int.toFloat(1 / n()) + 1.0))\n"),
+    ?assertEqual({fault, <<"division by zero">>}, Result4),
     %% Float.+ taken as a value faults the same way
-    {R5, _} = run("export fn main() : Unit with Never = "
-                  "Io.println(Float.toString(List.foldLeft([1.0e308, 1.0e308], 0.0, Float.+)))\n"),
-    ?assertEqual({fault, <<"float arithmetic error">>}, R5).
+    {Result5, _} = run("export fn main() : Unit with Never = "
+                       "Io.println(Float.toString(List.foldLeft([1.0e308, 1.0e308], 0.0,"
+                       " Float.+)))\n"),
+    ?assertEqual({fault, <<"float arithmetic error">>}, Result5).
 
 %% report §3.1: there is no negative zero; an operation, a negation, a
 %% float segment, parsed text, and a foreign value give 0.0. A sum or a
 %% difference is not normalized, and gives 0.0 all the same
 no_negative_zero_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "foreign fn parse(s : String) : Float = \"erlang:binary_to_float/1\"\n"
         "fn tiny() : Float = 1.0e-300\n"
         "export fn main() : Unit with Never = {\n"
@@ -1246,12 +1254,12 @@ no_negative_zero_test() ->
         "    Unit\n"
         "}\n"),
     ?assertEqual(<<"#(0.0, 0.0, 0.0, 0.0)\n#(0.0, 0.0, 0.0, 0.0)\ntrue\n1\n0.0\n\"zero\"\n"
-                   "Some(0.0)\n0.0\n\"guard\"\n0.0\n">>, Out).
+                   "Some(0.0)\n0.0\n\"guard\"\n0.0\n">>, Output).
 
 %% report §5.1: a callee is evaluated before its arguments; in `x |> e`,
 %% x is evaluated before e, a callee a call computes among it
 evaluation_order_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "fn show(s : String, n : Int) : Int with Never = { Io.println(s); n }\n"
         "fn f(a : Int) : ((Int, Int) -> Int) with Never = {\n"
         "    Io.println(\"f(a)\");\n"
@@ -1262,11 +1270,11 @@ evaluation_order_test() ->
         "    Io.println(Int.toString(show(\"x\", 1) |> f(show(\"a\", 2))(show(\"b\", 3))));\n"
         "    Io.println(Int.toString(g(1)(show(\"h()\", 4))))\n"
         "}\n"),
-    ?assertEqual(<<"x\na\nf(a)\nb\n6\ng(1)\nh()\n5\n">>, Out).
+    ?assertEqual(<<"x\na\nf(a)\nb\n6\ng(1)\nh()\n5\n">>, Output).
 
 %% report §4.8: `!` negates a Bool, in an expression and in a guard
 not_operator_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "fn small(n : Int) : String = match n { m when !(m > 5) -> \"small\" | _ -> \"big\" }\n"
         "export fn main() : Unit with Never = {\n"
         "    let _ = Io.debug(!true);\n"
@@ -1274,7 +1282,7 @@ not_operator_test() ->
         "    let _ = Io.debug(small(3));\n"
         "    Unit\n"
         "}\n"),
-    ?assertEqual(<<"false\n[2, 4]\n\"small\"\n">>, Out).
+    ?assertEqual(<<"false\n[2, 4]\n\"small\"\n">>, Output).
 
 %% report §4.8, §3.10, §5.1: a user type's operator is its member, its
 %% ordering goes through its compare, prefix - through its negate; in a receive guard
@@ -1286,7 +1294,7 @@ user_operators_test() ->
           "export fn Vec.compare(Vec(a), Vec(b)) : Ordering = Int.compare(b, a)\n"
           "export fn Vec.negate(Vec(a)) : Vec = Vec(-a)\n"
           "fn show(Vec(n)) : String = Int.toString(n)\n",
-    {ok, Out} = run(Vec ++
+    {ok, Output} = run(Vec ++
         "export fn main() : Unit with Never = {\n"
         "    let a = Vec(1);\n"
         "    let b = Vec(2);\n"
@@ -1295,38 +1303,38 @@ user_operators_test() ->
         "    Io.println(Bool.toString(a < b));\n"
         "    Io.println(Bool.toString(a >= b && b <= a && a > b))\n"
         "}\n"),
-    ?assertEqual(<<"-3\n2.5\nfalse\ntrue\n">>, Out).
+    ?assertEqual(<<"-3\n2.5\nfalse\ntrue\n">>, Output).
 
 %% report §8.5: a top-level let evaluated through an operator's member
 %% comes after the lets that member reads
 let_order_through_operator_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "export type Vec = Vec(Int)\n"
         "let sum = Vec(1) + Vec(2)\n"
         "export fn Vec.+(Vec(a), Vec(b)) : Vec = Vec((a + b) * scale)\n"
         "let scale = 10\n"
         "fn show(Vec(n)) : String = Int.toString(n)\n"
         "export fn main() : Unit with Never = Io.println(show(sum))\n"),
-    ?assertEqual(<<"30\n">>, Out).
+    ?assertEqual(<<"30\n">>, Output).
 
 %% report §8.5: a top-level let is evaluated after the lets it depends
 %% on, and otherwise in the order the module declares it. A regression
 %% test: the order of independent lets was the digraph's, which moved with
 %% unrelated changes, and `:reload` kept an unpredictable set of values
 let_order_declared_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "let a = { Io.println(\"a\"); 1 }\n"
         "let c = { Io.println(\"c\"); b + 1 }\n"
         "let b = { Io.println(\"b\"); 2 }\n"
         "let d = { Io.println(\"d\"); 4 }\n"
         "export fn main() : Unit with Never = Io.println(Int.toString(a + c + d))\n"),
-    ?assertEqual(<<"a\nb\nc\nd\n8\n">>, Out).
+    ?assertEqual(<<"a\nb\nc\nd\n8\n">>, Output).
 
 %% report §4.7, §8.4: a foreign fn calls its implementation with the
 %% arguments as the ABI maps them, and a foreign type's values pass through
 %% unchecked
 foreign_fn_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "foreign type Table\n"
         "foreign fn size(s : String) : Int = \"erlang:byte_size/1\"\n"
         "foreign fn atom(s : String) : Foreign.Term = \"erlang:binary_to_atom/1\"\n"
@@ -1345,19 +1353,19 @@ foreign_fn_test() ->
         "    let f = size;\n"
         "    Io.println(Int.toString(List.foldLeft(List.map([\"a\", \"bb\"], f), 0, Int.+)))\n"
         "}\n"),
-    ?assertEqual(<<"one\n3\n1\n2\n3\n">>, Out).
+    ?assertEqual(<<"one\n3\n1\n2\n3\n">>, Output).
 
 %% report §4.7, §8.4: a foreign return whose type holds the same user type
 %% twice, side by side, is checked; each is described in full
 foreign_sibling_types_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "foreign fn pair(xs : List(Optional(Int))) : #(Optional(Int), Optional(Int))"
         " = \"erlang:list_to_tuple/1\"\n"
         "export fn main() : Unit with Never = {\n"
         "    let _ = Io.debug(pair([Some(1), None]));\n"
         "    Unit\n"
         "}\n"),
-    ?assertEqual(<<"#(Some(1), None)\n">>, Out).
+    ?assertEqual(<<"#(Some(1), None)\n">>, Output).
 
 %% report §4.7, §7.4, §8.4: a return of another shape faults on first
 %% observation, naming the declared type; a nested breach is found; an
@@ -1365,42 +1373,44 @@ foreign_sibling_types_test() ->
 %% inside foreign code passes through as itself
 foreign_faults_test() ->
     Main = "export fn main() : Unit with Never = ",
-    {R1, _} = run("foreign fn bad() : Int = \"erlang:node/0\"\n"
-                  ++ Main ++ "Io.println(Int.toString(bad()))\n"),
-    ?assertEqual({fault, <<"foreign return does not match Int">>}, R1),
-    {R2, _} = run("foreign fn pair() : #(Int, String) = \"ern_emitter_tests:pair/0\"\n"
-                  ++ Main ++ "{ let #(_, s) = pair(); Io.println(s) }\n"),
-    ?assertEqual({fault, <<"foreign return does not match #(Int, String)">>}, R2),
-    {R3, _} = run("foreign fn opt(k : Int) : Optional(Int) = \"ern_emitter_tests:opt/1\"\n"
-                  ++ Main ++ "match opt(1) { Some(n) -> Io.println(Int.toString(n))"
-                  " | None -> Io.println(\"none\") }\n"),
-    ?assertEqual({fault, <<"foreign return does not match Optional(Int)">>}, R3),
-    {ok, Out} = run("foreign fn opt(k : Int) : Optional(Int) = \"ern_emitter_tests:opt/1\"\n"
-                    ++ Main ++ "match opt(0) { Some(n) -> Io.println(Int.toString(n))"
-                    " | None -> Io.println(\"none\") }\n"),
-    ?assertEqual(<<"3\n">>, Out),
-    {R4, _} = run("foreign fn boom(x : Int) : Int = \"erlang:error/1\"\n"
-                  ++ Main ++ "Io.println(Int.toString(boom(7)))\n"),
+    {Result1, _} = run("foreign fn bad() : Int = \"erlang:node/0\"\n"
+                       ++ Main ++ "Io.println(Int.toString(bad()))\n"),
+    ?assertEqual({fault, <<"foreign return does not match Int">>}, Result1),
+    {Result2, _} = run("foreign fn pair() : #(Int, String) = \"ern_emitter_tests:pair/0\"\n"
+                       ++ Main ++ "{ let #(_, s) = pair(); Io.println(s) }\n"),
+    ?assertEqual({fault, <<"foreign return does not match #(Int, String)">>}, Result2),
+    {Result3, _} = run("foreign fn opt(k : Int) : Optional(Int) = \"ern_emitter_tests:opt/1\"\n"
+                       ++ Main ++ "match opt(1) { Some(n) -> Io.println(Int.toString(n))"
+                       " | None -> Io.println(\"none\") }\n"),
+    ?assertEqual({fault, <<"foreign return does not match Optional(Int)">>}, Result3),
+    {ok, Output} = run("foreign fn opt(k : Int) : Optional(Int) = \"ern_emitter_tests:opt/1\"\n"
+                       ++ Main ++ "match opt(0) { Some(n) -> Io.println(Int.toString(n))"
+                       " | None -> Io.println(\"none\") }\n"),
+    ?assertEqual(<<"3\n">>, Output),
+    {Result4, _} = run("foreign fn boom(x : Int) : Int = \"erlang:error/1\"\n"
+                       ++ Main ++ "Io.println(Int.toString(boom(7)))\n"),
     %% report §11.2: the raise carries the host's stack beside its cause
-    ?assertMatch({fault, <<"foreign function erlang:error/1 raised error:7">>, <<_/binary>>}, R4),
-    {R5, _} = run("foreign fn each(f : (Int) -> Unit with m, xs : List(Int)) : Unit with m"
-                  " = \"lists:foreach/2\"\n"
-                  ++ Main ++ "each(fn(n : Int) : Unit with Never = fault(\"later\"), [1])\n"),
-    ?assertEqual({fault, <<"later">>}, R5).
+    ?assertMatch({fault, <<"foreign function erlang:error/1 raised error:7">>, <<_/binary>>},
+                 Result4),
+    {Result5, _} = run("foreign fn each(f : (Int) -> Unit with m, xs : List(Int)) : Unit with m"
+                       " = \"lists:foreach/2\"\n"
+                       ++ Main ++ "each(fn(n : Int) : Unit with Never = fault(\"later\"), [1])\n"),
+    ?assertEqual({fault, <<"later">>}, Result5).
 
 %% report §6.5, §8.4: an address `via` made, given to foreign code and given
 %% back, is the address that went out, its function kept. A regression
 %% test: the program got the process behind it, and a message sent to it
 %% arrived without the function applied, not of the mailbox type
 via_address_round_trip_test() ->
-    {ok, Out} = run("type Msg = Wrapped(Int)\n"
-                    "foreign fn first(xs : List(Address(Int))) : Address(Int) = \"erlang:hd/1\"\n"
-                    "export fn main() : Unit with Msg = {\n"
-                    "    let back = first([via(self(), Wrapped)]);\n"
-                    "    send(back, 7);\n"
-                    "    receive { Wrapped(n) -> Io.println(Int.toString(n)) }\n"
-                    "}\n"),
-    ?assertEqual(<<"7\n">>, Out).
+    {ok, Output} = run("type Msg = Wrapped(Int)\n"
+                       "foreign fn first(xs : List(Address(Int))) : Address(Int) ="
+                       " \"erlang:hd/1\"\n"
+                       "export fn main() : Unit with Msg = {\n"
+                       "    let back = first([via(self(), Wrapped)]);\n"
+                       "    send(back, 7);\n"
+                       "    receive { Wrapped(n) -> Io.println(Int.toString(n)) }\n"
+                       "}\n"),
+    ?assertEqual(<<"7\n">>, Output).
 
 %% report §7.4, §8.4: a fault of the program's own function where foreign
 %% code calls it passes through as the fault it would be anywhere, with no
@@ -1408,19 +1418,20 @@ via_address_round_trip_test() ->
 %% function's cause, `foreign function lists:foreach/2 raised
 %% error:badarith`
 callback_fault_passes_through_test() ->
-    {R, Out} = run("foreign fn each(f : (a) -> Unit with m, xs : List(a)) : Unit with m ="
-                   " \"lists:foreach/2\"\n"
-                   "export fn main() : Unit with Never =\n"
-                   "    each(fn(n : Int) : Unit with Never = Io.println(Int.toString(10 / n)),"
-                   " [2, 0])\n"),
-    ?assertEqual({{fault, <<"division by zero">>}, <<"5\n">>}, {R, Out}).
+    {Result, Output} = run("foreign fn each(f : (a) -> Unit with m, xs : List(a)) : Unit with m ="
+                           " \"lists:foreach/2\"\n"
+                           "export fn main() : Unit with Never =\n"
+                           "    each(fn(n : Int) : Unit with Never = Io.println(Int.toString(10 /"
+                           " n)),"
+                           " [2, 0])\n"),
+    ?assertEqual({{fault, <<"division by zero">>}, <<"5\n">>}, {Result, Output}).
 
 %% report §6.9, §8.4: a restart asked for while foreign code calls the
 %% program's function is a restart, the cause of the new start `Asked`. A
 %% regression test: it was a fault of the foreign function, and the process
 %% restarted after a fault
 callback_restart_passes_through_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Start = First | Asked | AfterFault\n"
         "foreign fn startCause() : Start with m = \"ern_rt:start_cause/0\"\n"
         "foreign fn askRestart(child : Process) : Bool with m = \"ern_rt:ask_restart/1\"\n"
@@ -1443,45 +1454,45 @@ callback_restart_passes_through_test() ->
         "    receive { s -> Io.println(s) };\n"
         "    receive { s -> Io.println(s) }\n"
         "}\n"),
-    ?assertEqual(<<"First\nAsked\n">>, Out).
+    ?assertEqual(<<"First\nAsked\n">>, Output).
 
 %% report §3.1, §5.10: there is no negative zero, so the pattern `-0.0`
 %% matches the zero, however it was made. A regression test: the pattern
 %% was the host's negative zero, which no value matched
 negative_zero_pattern_test() ->
-    {ok, Out} = run("fn kind(x : Float) : String = match x {\n"
-                    "    -0.0 -> \"zero\"\n"
-                    "  | _ -> \"other\"\n"
-                    "}\n"
-                    "export fn main() : Unit with Never = {\n"
-                    "    Io.println(kind(0.0));\n"
-                    "    Io.println(kind(-0.0));\n"
-                    "    Io.println(kind(0.0 * -1.0))\n"
-                    "}\n"),
-    ?assertEqual(<<"zero\nzero\nzero\n">>, Out).
+    {ok, Output} = run("fn kind(x : Float) : String = match x {\n"
+                       "    -0.0 -> \"zero\"\n"
+                       "  | _ -> \"other\"\n"
+                       "}\n"
+                       "export fn main() : Unit with Never = {\n"
+                       "    Io.println(kind(0.0));\n"
+                       "    Io.println(kind(-0.0));\n"
+                       "    Io.println(kind(0.0 * -1.0))\n"
+                       "}\n"),
+    ?assertEqual(<<"zero\nzero\nzero\n">>, Output).
 
 %% report §8.4: a type variable a parameter names may stand in the result
 %% more than once. A regression test: only its first place was taken as
 %% named, the second was checked as matching no value, and every return
 %% faulted
 foreign_result_names_a_variable_twice_test() ->
-    {ok, Out} = run("foreign fn pair(n : Int, x : a) : #(a, a) = \"erlang:make_tuple/2\"\n"
-                    "export fn main() : Unit with Never = {\n"
-                    "    let _ = Io.debug(pair(2, \"x\"));\n"
-                    "    Unit\n"
-                    "}\n"),
-    ?assertEqual(<<"#(\"x\", \"x\")\n">>, Out).
+    {ok, Output} = run("foreign fn pair(n : Int, x : a) : #(a, a) = \"erlang:make_tuple/2\"\n"
+                       "export fn main() : Unit with Never = {\n"
+                       "    let _ = Io.debug(pair(2, \"x\"));\n"
+                       "    Unit\n"
+                       "}\n"),
+    ?assertEqual(<<"#(\"x\", \"x\")\n">>, Output).
 
 %% report §3.8, §3.10: two `Foreign` values are equal where foreign code
 %% made them as the same term, the runtime's exact equality. A regression
 %% test of the rule of 2026-10-01, which the checker refused
 foreign_exact_equality_test() ->
-    {ok, Out} = run("export fn main() : Unit with Never = {\n"
-                    "    Io.println(Io.show(Foreign.from(1) == Foreign.from(1)));\n"
-                    "    Io.println(Io.show(Foreign.from(1) == Foreign.from(1.0)));\n"
-                    "    Io.println(Io.show([Foreign.from(\"a\")] != [Foreign.from(\"b\")]))\n"
-                    "}\n"),
-    ?assertEqual(<<"true\nfalse\ntrue\n">>, Out).
+    {ok, Output} = run("export fn main() : Unit with Never = {\n"
+                       "    Io.println(Io.show(Foreign.from(1) == Foreign.from(1)));\n"
+                       "    Io.println(Io.show(Foreign.from(1) == Foreign.from(1.0)));\n"
+                       "    Io.println(Io.show([Foreign.from(\"a\")] != [Foreign.from(\"b\")]))\n"
+                       "}\n"),
+    ?assertEqual(<<"true\nfalse\ntrue\n">>, Output).
 
 %% report §7.4, §8.4: a List is a proper list, so an improper one a foreign
 %% function returns faults naming the declared type, whether its elements
@@ -1491,12 +1502,13 @@ foreign_exact_equality_test() ->
 %% costs, which make bench shows.
 foreign_improper_list_test() ->
     Main = "export fn main() : Unit with Never = ",
-    {R1, _} = run("foreign fn improper(x : Int) : List(Int) = \"ern_emitter_tests:improper/1\"\n"
-                  ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
-    ?assertEqual({fault, <<"foreign return does not match List(Int)">>}, R1),
-    {R2, _} = run("foreign fn improper(x : a) : List(a) = \"ern_emitter_tests:improper/1\"\n"
-                  ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
-    ?assertEqual({fault, <<"foreign return does not match List(a!)">>}, R2).
+    {Result1,
+     _} = run("foreign fn improper(x : Int) : List(Int) = \"ern_emitter_tests:improper/1\"\n"
+                       ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
+    ?assertEqual({fault, <<"foreign return does not match List(Int)">>}, Result1),
+    {Result2, _} = run("foreign fn improper(x : a) : List(a) = \"ern_emitter_tests:improper/1\"\n"
+                       ++ Main ++ "Io.println(Int.toString(List.size(improper(1))))\n"),
+    ?assertEqual({fault, <<"foreign return does not match List(a!)">>}, Result2).
 
 %% report §7.4: a function value foreign code returns is checked when it is
 %% called, its result against its declared result type, in the caller, and
@@ -1517,15 +1529,15 @@ foreign_function_value_test() ->
 %% and mailbox type, so exposing the same address twice gives the same one
 foreign_proxy_is_one_test() ->
     persistent_term:erase({?MODULE, proxy_seen}),
-    {ok, Out} = run("type Msg = Go(Int)\n"
-                    "foreign fn remember(a : Address(Msg)) : Bool with m ="
-                    " \"ern_emitter_tests:remember/1\"\n"
-                    "export fn main() : Unit with Msg = {\n"
-                    "    let _ = remember(self());\n"
-                    "    let again = remember(self());\n"
-                    "    Io.println(if again then \"same\" else \"another\")\n"
-                    "}\n"),
-    ?assertEqual(<<"same\n">>, Out),
+    {ok, Output} = run("type Msg = Go(Int)\n"
+                       "foreign fn remember(a : Address(Msg)) : Bool with m ="
+                       " \"ern_emitter_tests:remember/1\"\n"
+                       "export fn main() : Unit with Msg = {\n"
+                       "    let _ = remember(self());\n"
+                       "    let again = remember(self());\n"
+                       "    Io.println(if again then \"same\" else \"another\")\n"
+                       "}\n"),
+    ?assertEqual(<<"same\n">>, Output),
     persistent_term:erase({?MODULE, proxy_seen}).
 
 %% report §3.10, §3.8: a foreign type's equality is the host's, of the
@@ -1534,7 +1546,7 @@ foreign_proxy_is_one_test() ->
 %% tests hold. A regression test, written after the code; it does not
 %% cover a foreign value that holds a function
 foreign_equality_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "foreign type Ref\n"
         "foreign fn makeRef() : Ref with m = \"erlang:make_ref/0\"\n"
         "foreign fn same(x : Int) : Ref = \"erlang:abs/1\"\n"
@@ -1544,13 +1556,13 @@ foreign_equality_test() ->
         "    let _ = Io.debug(#(a == a, a == b, same(1) == same(-1), same(1) == same(2)));\n"
         "    Unit\n"
         "}\n"),
-    ?assertEqual(<<"#(true, false, true, false)\n">>, Out).
+    ?assertEqual(<<"#(true, false, true, false)\n">>, Output).
 
 %% report §6.3: a receive guard reads a top-level `let`, in a receive with
 %% and without an `after`, the value read before the receive waits. A
 %% regression test, written with the rule
 receive_guard_reads_top_level_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Tick(Int)\n"
         "let limit = 10\n"
         "fn first() : Int with Msg = receive { Tick(k) when k > limit -> k }\n"
@@ -1567,7 +1579,7 @@ receive_guard_reads_top_level_test() ->
         "    let _ = Io.debug(#(first(), timed()));\n"
         "    Unit\n"
         "}\n"),
-    ?assertEqual(<<"#(20, 30)\n">>, Out).
+    ?assertEqual(<<"#(20, 30)\n">>, Output).
 
 %% report §8.4, §7.4: an address given to foreign code is a proxy that
 %% checks each message on delivery, a bad one faulting the target even
@@ -1575,30 +1587,30 @@ receive_guard_reads_top_level_test() ->
 %% list; a reply is checked by the call that observes it
 foreign_messages_test() ->
     Junk = "foreign fn junk(a : Address(Msg)) : Unit with m = \"ern_emitter_tests:junk/1\"\n",
-    {R1, _} = run("type Msg = Go(Int)\n" ++ Junk ++
-                  "export fn main() : Unit with Msg = {\n"
-                  "    junk(self());\n"
-                  "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
-                  "}\n"),
-    ?assertEqual({fault, <<"message does not match Msg">>}, R1),
-    {R0, _} = run("type Msg = Go(Int) | Stop\n" ++ Junk ++
-                  "export fn main() : Unit with Msg = {\n"
-                  "    junk(self());\n"
-                  "    receive { Stop -> Unit }\n"
-                  "}\n"),
-    ?assertEqual({fault, <<"message does not match Msg">>}, R0),
-    {ok, Out} = run("type Msg = Go(Int)\n"
-                    "foreign fn good(a : Address(Msg)) : Unit with m ="
-                    " \"ern_emitter_tests:good/1\"\n"
-                    "foreign fn tell(targets : List(Address(Msg))) : Unit with m"
-                    " = \"ern_emitter_tests:tell/1\"\n"
-                    "export fn main() : Unit with Msg = {\n"
-                    "    good(self());\n"
-                    "    receive { Go(n) -> Io.println(Int.toString(n)) };\n"
-                    "    tell([self()]);\n"
-                    "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
-                    "}\n"),
-    ?assertEqual(<<"1\n2\n">>, Out),
+    {Result1, _} = run("type Msg = Go(Int)\n" ++ Junk ++
+                       "export fn main() : Unit with Msg = {\n"
+                       "    junk(self());\n"
+                       "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
+                       "}\n"),
+    ?assertEqual({fault, <<"message does not match Msg">>}, Result1),
+    {WithStop, _} = run("type Msg = Go(Int) | Stop\n" ++ Junk ++
+                        "export fn main() : Unit with Msg = {\n"
+                        "    junk(self());\n"
+                        "    receive { Stop -> Unit }\n"
+                        "}\n"),
+    ?assertEqual({fault, <<"message does not match Msg">>}, WithStop),
+    {ok, Output} = run("type Msg = Go(Int)\n"
+                       "foreign fn good(a : Address(Msg)) : Unit with m ="
+                       " \"ern_emitter_tests:good/1\"\n"
+                       "foreign fn tell(targets : List(Address(Msg))) : Unit with m"
+                       " = \"ern_emitter_tests:tell/1\"\n"
+                       "export fn main() : Unit with Msg = {\n"
+                       "    good(self());\n"
+                       "    receive { Go(n) -> Io.println(Int.toString(n)) };\n"
+                       "    tell([self()]);\n"
+                       "    receive { Go(n) -> Io.println(Int.toString(n)) }\n"
+                       "}\n"),
+    ?assertEqual(<<"1\n2\n">>, Output),
     %% report §6.5, §8.4: an adapted address reaches foreign code through
     %% the same proxy, and the wrap is applied on the way back
     {ok, Wrapped} = run("type Msg = Wrapped(Int)\n"
@@ -1610,14 +1622,14 @@ foreign_messages_test() ->
                         "    receive { Wrapped(n) -> Io.println(Int.toString(n)) }\n"
                         "}\n"),
     ?assertEqual(<<"1\n">>, Wrapped),
-    {R2, _} = run("type Ask = Ask(reply : Reply(Int))\n"
-                  "foreign fn server() : Address(Ask) with m ="
-                  " \"ern_emitter_tests:junk_server/0\"\n"
-                  "export fn main() : Unit with Never = {\n"
-                  "    let n = Address.callForever(server(), fn(r) = Ask(reply = r));\n"
-                  "    Io.println(Int.toString(n))\n"
-                  "}\n"),
-    ?assertEqual({fault, <<"reply does not match Int">>}, R2).
+    {Result2, _} = run("type Ask = Ask(reply : Reply(Int))\n"
+                       "foreign fn server() : Address(Ask) with m ="
+                       " \"ern_emitter_tests:junk_server/0\"\n"
+                       "export fn main() : Unit with Never = {\n"
+                       "    let n = Address.callForever(server(), fn(r) = Ask(reply = r));\n"
+                       "    Io.println(Int.toString(n))\n"
+                       "}\n"),
+    ?assertEqual({fault, <<"reply does not match Int">>}, Result2).
 
 %% report §8.4: a function that stands inside a foreign function's argument
 %% crosses as one given alone does, each argument foreign code calls it with
@@ -1675,16 +1687,16 @@ reply_handed_on_test() ->
 %% Reply handed back with another type declared cannot carry an answer of
 %% that type to a caller that waits for its own
 reply_given_back_test() ->
-    {R, _} = run("type Ask = Ask(reply : Reply(Int))\n"
-                 "foreign fn same(r : Reply(Int)) : Reply(String) with m ="
-                 " \"ern_emitter_tests:same/1\"\n"
-                 "fn serve() : Unit with Ask =\n"
-                 "    receive { Ask(reply = r) -> answer(same(r), \"x\") }\n"
-                 "export fn main() : Unit with Never = {\n"
-                 "    let n = Address.callForever(spawn(serve), fn(r) = Ask(reply = r));\n"
-                 "    Io.println(Int.toString(n))\n"
-                 "}\n"),
-    ?assertEqual({fault, <<"reply does not match Int">>}, R).
+    {Result, _} = run("type Ask = Ask(reply : Reply(Int))\n"
+                      "foreign fn same(r : Reply(Int)) : Reply(String) with m ="
+                      " \"ern_emitter_tests:same/1\"\n"
+                      "fn serve() : Unit with Ask =\n"
+                      "    receive { Ask(reply = r) -> answer(same(r), \"x\") }\n"
+                      "export fn main() : Unit with Never = {\n"
+                      "    let n = Address.callForever(spawn(serve), fn(r) = Ask(reply = r));\n"
+                      "    Io.println(Int.toString(n))\n"
+                      "}\n"),
+    ?assertEqual({fault, <<"reply does not match Int">>}, Result).
 
 %% report §8.4: an answer given to a Reply foreign code gave crosses into
 %% foreign code, so an address in it reaches foreign code through the
@@ -1730,7 +1742,7 @@ pair() -> {1, 2}.
 funs() -> [fun(X) -> X + 1 end, fun(_) -> not_an_int end].
 opt(0) -> {'Some', 3};
 opt(_) -> {'Some', <<"x">>}.
-improper(X) -> [X | X].
+improper(Element) -> [Element | Element].
 %% report §8.4: remembers the first address it is given and says whether
 %% the next is the same one
 remember(Pid) ->
@@ -1748,42 +1760,42 @@ junk_server() ->
 %% report §8.4: a foreign process that answers a Hello with a message to the
 %% address it holds, of another type or of the declared one
 hello_junk() ->
-    spawn(fun() -> receive {'Hello', P} -> P ! {'Go', <<"x">>} end end).
+    spawn(fun() -> receive {'Hello', Address} -> Address ! {'Go', <<"x">>} end end).
 hello_good() ->
-    spawn(fun() -> receive {'Hello', P} -> P ! {'Go', 1} end end).
+    spawn(fun() -> receive {'Hello', Address} -> Address ! {'Go', 1} end end).
 %% report §8.4: foreign code given a Reply answers it as the ABI says
 relay_junk(Alias) -> Alias ! {Alias, <<"x">>}, 'Unit'.
 relay_good(Alias) -> Alias ! {Alias, 5}, 'Unit'.
 %% report §8.4: a Reply handed back as it was given, its type declared anew
-same(R) -> R.
+same(Reply) -> Reply.
 %% report §8.4: foreign code that calls the function inside its argument
 %% with a value of another type, or of the declared one
-call_nested_bad({_, F}) -> F(<<"bad">>).
-call_nested_good({N, F}) -> F(N).
+call_nested_bad({_, Function}) -> Function(<<"bad">>).
+call_nested_good({Number, Function}) -> Function(Number).
 %% report §8.4: foreign code that asks an Ernest server with a Reply of its
 %% own, and sends the address it is answered a message of another type or
 %% of the declared one
 ask_junk(Server) -> ask(Server, <<"x">>).
 ask_good(Server) -> ask(Server, 1).
-ask(Server, N) ->
+ask(Server, Value) ->
     spawn(fun() ->
               Alias = erlang:alias(),
               Server ! {'Ask', Alias},
-              receive {Alias, P} -> P ! {'Go', N} end
+              receive {Alias, Address} -> Address ! {'Go', Value} end
           end),
     'Unit'.
 
 %% report §4.5: an Ernest function named like an auto-imported
 %% Erlang BIF, `size`, `max`, is called by its own name
 bif_names_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "fn max(a : Int, b : Int) : Int = if a > b then a else b\n"
         "fn size(xs : List(Int)) : Int = List.size(xs) * 10\n"
         "export fn main() : Unit with Never = {\n"
         "    Io.println(Int.toString(max(1, 2)));\n"
         "    Io.println(Int.toString(size([1])))\n"
         "}\n"),
-    ?assertEqual(<<"2\n10\n">>, Out).
+    ?assertEqual(<<"2\n10\n">>, Output).
 
 %% report §4.2, §4.6, §8.5: a module names its own declarations qualified
 %% as well, a private function, a `let`, and a type's member, called and
@@ -1791,7 +1803,7 @@ bif_names_test() ->
 %% reads. A regression test: each was a remote call, undefined for a
 %% private function, and the `let` was not seen as a dependency
 qualified_own_name_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "let total = M.base * 2\n"
         "let base = 3\n"
         "fn two() : Int = 2\n"
@@ -1803,27 +1815,27 @@ qualified_own_name_test() ->
         "    Io.println(Int.toString(M.two() + f() + M.Box.negate(Box(4)) + g(Box(1))));\n"
         "    Io.println(Int.toString(M.total))\n"
         "}\n"),
-    ?assertEqual(<<"9\n6\n">>, Out).
+    ?assertEqual(<<"9\n6\n">>, Output).
 
 %% report §6.3, §4.5: a timed receive's time below 0 is 0 whatever the
 %% module calls `max`. A regression test: the emitted `max(0, t)` called
 %% the module's own `max/2`, here a difference, which gave a negative time
 qualified_max_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "fn max(a : Int, b : Int) : Int = a - b\n"
         "type Msg = Ping\n"
         "export fn main() : Unit with Msg = {\n"
         "    Io.println(Int.toString(max(1, 2)));\n"
         "    receive { Ping -> Unit | after 10 -> Io.println(\"after\") }\n"
         "}\n"),
-    ?assertEqual(<<"-1\nafter\n">>, Out).
+    ?assertEqual(<<"-1\nafter\n">>, Output).
 
 %% report §6.6, §8.4: `Address.call` and `Address.callForever` taken as
 %% values answer as the calls do, and check a reply whose Reply crossed into
 %% foreign code as the calls do. A regression test: as values they once
 %% left the reply unchecked
 call_as_value_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Get(reply : Reply(Int))\n"
         "fn serve() : Unit with Msg = receive { Get(reply = r) -> answer(r, 7) }\n"
         "export fn main() : Unit with Never = {\n"
@@ -1835,21 +1847,22 @@ call_as_value_test() ->
         "    let n = Optional.withDefault(asked, 0);\n"
         "    Io.println(Int.toString(n + w(spawn(serve), fn(r) = Get(reply = r))))\n"
         "}\n"),
-    ?assertEqual(<<"14\n">>, Out),
-    {R, _} = run("type Ask = Ask(reply : Reply(Int))\n"
-                 "foreign fn server() : Address(Ask) with m = \"ern_emitter_tests:junk_server/0\"\n"
-                 "export fn main() : Unit with Never = {\n"
-                 "    let w : (Address(Ask), (Reply(Int)) -> Ask) -> Int with Never =\n"
-                 "        Address.callForever;\n"
-                 "    Io.println(Int.toString(w(server(), fn(r) = Ask(reply = r))))\n"
-                 "}\n"),
-    ?assertEqual({fault, <<"reply does not match Int">>}, R).
+    ?assertEqual(<<"14\n">>, Output),
+    {Result, _} = run("type Ask = Ask(reply : Reply(Int))\n"
+                      "foreign fn server() : Address(Ask) with m ="
+                      " \"ern_emitter_tests:junk_server/0\"\n"
+                      "export fn main() : Unit with Never = {\n"
+                      "    let w : (Address(Ask), (Reply(Int)) -> Ask) -> Int with Never =\n"
+                      "        Address.callForever;\n"
+                      "    Io.println(Int.toString(w(server(), fn(r) = Ask(reply = r))))\n"
+                      "}\n"),
+    ?assertEqual({fault, <<"reply does not match Int">>}, Result).
 
 %% report §5.11, §6.3: a pattern's size names a top-level `let`, which the
 %% `match` or the `receive` reads before it begins. A regression test: the
 %% checker refused it, the host's pattern showing through
 bitstring_size_reads_a_top_level_let_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Packet(Bytes)\n"
         "let headerSize = 2\n"
         "fn header(b : Bytes) : Optional(Bytes) = match b {\n"
@@ -1865,7 +1878,7 @@ bitstring_size_reads_a_top_level_let_test() ->
         "    send(self(), Packet(<<1, 2, 3, 4, 5>>));\n"
         "    Io.println(Io.show(take()))\n"
         "}\n"),
-    ?assertEqual(<<"#(Some(<<1, 2>>), None)\nSome(<<1, 2, 3, 4>>)\n">>, Out).
+    ?assertEqual(<<"#(Some(<<1, 2>>), None)\nSome(<<1, 2, 3, 4>>)\n">>, Output).
 
 %% report §5.1, §5.11: a match evaluates its scrutinee before it reads a
 %% top-level `let` a pattern's size names. The module runs without its
@@ -1882,14 +1895,16 @@ size_read_after_scrutinee_test() ->
            "    let _ = first(<<7, 8>>);\n"
            "    Unit\n"
            "}\n",
-    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'], Text),
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'], Text),
     Build = #{source_hash => <<>>, deps => [], standard => false},
-    {ok, Mod, Bin} = ern_emitter:compile(['M'], Typed, Iface, Env, Build),
-    {module, Mod} = code:load_binary(Mod, "test", Bin),
-    Me = self(),
+    {ok, ErlangModule, Beam} = ern_emitter:compile(['M'], Typed, Interface, Env, Build),
+    {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+    Self = self(),
     %% Io.debug writes to standard error (Appendix E.1)
-    Result = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
-                             #{init => fun() -> ok end, stderr => fun(B) -> Me ! {out, B} end,
+    Result = ern_rt:run_main(fun() -> ErlangModule:main() end, <<"main">>,
+                             #{init => fun() ->
+                                           ok
+                                       end, stderr => fun(Written) -> Self ! {out, Written} end,
                                stdin => fun() -> eof end}),
     ?assertNotEqual(ok, Result),
     ?assertEqual(<<"<<7, 8>>\n">>, collect([])).
@@ -1898,7 +1913,7 @@ size_read_after_scrutinee_test() ->
 %% float and signed and little segments, a dynamic size in a pattern, and
 %% an unaligned rest that fails the match
 bitstrings_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "fn frame(len : Int, body : Bytes) : Bytes = <<len:size(16)-big, body:bytes>>\n"
         "fn parseFrame(bytes : Bytes) : Optional(#(Int, Bytes, Bytes)) = match bytes {\n"
         "    <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some(#(len, body, rest))\n"
@@ -1936,7 +1951,7 @@ bitstrings_test() ->
         "    Io.println(show(<<(String.toUtf8(\"hi\")):bytes, 3:size(4), 4:size(4)>>))\n"
         "}\n"),
     ?assertEqual(<<"0 1 65 66 \n1: 65 | 66 \nnone\né\n1:15 2:10 \n63 192 0 0 255 2 1 \n2 \nno\n"
-                   "104 105 52 \n"/utf8>>, Out).
+                   "104 105 52 \n"/utf8>>, Output).
 
 %% report §7.4, §5.11: a computed value that does not fit its width faults
 %% with segment overflow, an Int, a Float, a Bytes of another size; a
@@ -1950,8 +1965,8 @@ bitstring_faults_test() ->
               {"<<(<<1, 2, 3>>):size(2)-bytes>>", <<"segment overflow">>},
               {"<<7:size(three())>>", <<"bitstring not byte-aligned">>}],
     lists:foreach(fun({Bits, Cause}) ->
-                      {R, _} = run(Three ++ Main ++ "{ let _ = " ++ Bits ++ "; Unit }\n"),
-                      ?assertEqual({fault, Cause}, R)
+                      {Result, _} = run(Three ++ Main ++ "{ let _ = " ++ Bits ++ "; Unit }\n"),
+                      ?assertEqual({fault, Cause}, Result)
                   end, Faults).
 
 %% report §5.11: a bare segment is an unsigned big-endian int of size 8;
@@ -1963,26 +1978,27 @@ bitstring_defaults_test() ->
            "    <<x, rest:bytes>> -> Int.toString(x) <> \" \" <> show(rest)\n"
            "  | _ -> \"\"\n"
            "}\n",
-    {ok, Out} = run(Show ++
+    {ok, Output} = run(Show ++
         "export fn main() : Unit with Never = {\n"
         "    Io.println(show(<<258:size(16)>>));\n"
         "    Io.println(match <<255>> { <<x>> -> Int.toString(x) | _ -> \"no\" });\n"
         "    Io.println(show(<<-1:signed>>))\n"
         "}\n"),
-    ?assertEqual(<<"1 2 \n255\n255 \n">>, Out),
-    {R, _} = run("export fn main() : Unit with Never = { let n = 0 - 1; let _ = <<n>>; Unit }\n"),
-    ?assertEqual({fault, <<"segment overflow">>}, R).
+    ?assertEqual(<<"1 2 \n255\n255 \n">>, Output),
+    {Result,
+     _} = run("export fn main() : Unit with Never = { let n = 0 - 1; let _ = <<n>>; Unit }\n"),
+    ?assertEqual({fault, <<"segment overflow">>}, Result).
 
 %% report §8.5: top-level lets run in the order the checker found, a let
 %% after every let it reaches through the functions it names, whatever the
 %% order they are declared in. A regression test for the order the emitter
 %% now reads rather than computing again; the order it had was the same.
 initialization_order_test() ->
-    {ok, Out} = run("let total = twice() + 1\n"
-                    "fn twice() : Int = base * 2\n"
-                    "let base = 10\n"
-                    "export fn main() : Unit with Never = Io.println(Int.toString(total))\n"),
-    ?assertEqual(<<"21\n">>, Out).
+    {ok, Output} = run("let total = twice() + 1\n"
+                       "fn twice() : Int = base * 2\n"
+                       "let base = 10\n"
+                       "export fn main() : Unit with Never = Io.println(Int.toString(total))\n"),
+    ?assertEqual(<<"21\n">>, Output).
 
 %% report §4.2: a name shadowed at each step of the lookup order compiles
 %% to the declaration the checker resolved it to, which the emitter reads
@@ -1991,16 +2007,16 @@ initialization_order_test() ->
 %% qualified, `Prelude.self`, and a local binding over them all. A
 %% regression test for the single decision; the order it had was the same.
 lookup_order_test() ->
-    {ok, Out} = run("type Box = Box(Int)\n"
-                    "fn Box.negate(b : Box) : Int = match b { Box(n) -> n }\n"
-                    "fn negate(b : Box) : Int = 100\n"
-                    "fn self() : Int = 5\n"
-                    "export fn main() : Unit with Never = {\n"
-                    "    let me = Prelude.self();\n"
-                    "    let first = Box.negate(Box(1)) + negate(Box(1)) + self() + M.self();\n"
-                    "    let negate = fn(b : Box) : Int = 1000;\n"
-                    "    Io.println(Int.toString(first + negate(Box(1))))\n}\n"),
-    ?assertEqual(<<"1111\n">>, Out).
+    {ok, Output} = run("type Box = Box(Int)\n"
+                       "fn Box.negate(b : Box) : Int = match b { Box(n) -> n }\n"
+                       "fn negate(b : Box) : Int = 100\n"
+                       "fn self() : Int = 5\n"
+                       "export fn main() : Unit with Never = {\n"
+                       "    let me = Prelude.self();\n"
+                       "    let first = Box.negate(Box(1)) + negate(Box(1)) + self() + M.self();\n"
+                       "    let negate = fn(b : Box) : Int = 1000;\n"
+                       "    Io.println(Int.toString(first + negate(Box(1))))\n}\n"),
+    ?assertEqual(<<"1111\n">>, Output).
 
 %% A function may be named `module_info` or `record_info`, which the host
 %% gives every module: the emitter compiles them under names no Ernest name
@@ -2008,14 +2024,14 @@ lookup_order_test() ->
 %% module_info/0 already defined", and the shell faulted. Not covered here:
 %% a call from another module, which the shell test reaches.
 host_reserved_names_test() ->
-    {ok, Out} = run("export fn module_info() : Int = 7\n"
-                    "fn record_info(x : Int) : Int = x + 1\n"
-                    "export let total = module_info() + record_info(1)\n"
-                    "export fn main() : Unit with Never = {\n"
-                    "    Io.println(Int.toString(total));\n"
-                    "    Io.println(Int.toString(List.foldLeft(List.map([1, 2], record_info), 0,"
-                    " fn(a, b) = a + b)))\n}\n"),
-    ?assertEqual(<<"9\n5\n">>, Out).
+    {ok, Output} = run("export fn module_info() : Int = 7\n"
+                       "fn record_info(x : Int) : Int = x + 1\n"
+                       "export let total = module_info() + record_info(1)\n"
+                       "export fn main() : Unit with Never = {\n"
+                       "    Io.println(Int.toString(total));\n"
+                       "    Io.println(Int.toString(List.foldLeft(List.map([1, 2], record_info), 0,"
+                       " fn(a, b) = a + b)))\n}\n"),
+    ?assertEqual(<<"9\n5\n">>, Output).
 
 %% report §5.11, §5.4: a variable a bitstring pattern binds is the
 %% pattern's own, not a use of an outer name. A regression test: a local
@@ -2045,10 +2061,10 @@ bitstring_edges_test() ->
     Faults = ["<<(<<1>>):size(2)-bytes>>", "<<1:size(neg())>>", "<<(<<1>>):size(neg())-bytes>>",
               "<<(65519.0 * 1.0):size(16)-float>>"],
     lists:foreach(fun(Bits) ->
-                      {R, _} = run(Neg ++ Main ++ "{ let _ = " ++ Bits ++ "; Unit }\n"),
-                      ?assertEqual({Bits, {fault, <<"segment overflow">>}}, {Bits, R})
+                      {Result, _} = run(Neg ++ Main ++ "{ let _ = " ++ Bits ++ "; Unit }\n"),
+                      ?assertEqual({Bits, {fault, <<"segment overflow">>}}, {Bits, Result})
                   end, Faults),
-    {ok, Out} = run(
+    {ok, Output} = run(
         "fn half(b : Bytes) : String = match b {\n"
         "    <<f:size(16)-float>> -> Float.toString(f)\n"
         "  | _ -> \"no\"\n"
@@ -2072,7 +2088,7 @@ bitstring_edges_test() ->
         "    Io.println(tail(8, <<1, 2>>));\n"
         "    Io.println(tail(4, <<1, 2>>))\n"
         "}\n"),
-    ?assertEqual(<<"3.140625\n0.0\n65504.0\nno\nno\nno\nno\n1\nno\n">>, Out).
+    ?assertEqual(<<"3.140625\n0.0\n65504.0\nno\nno\nno\nno\n1\nno\n">>, Output).
 
 %% report §7.4: a zero divisor faults main with its cause
 division_fault_test() ->
@@ -2096,7 +2112,7 @@ todo_is_unknown_test() ->
 %% report §5.6, §8.4: named fields in canonical order, and update from a
 %% base value
 constructors_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Point = Point(y : Int, x : Int)\n"
         "type Shape = Dot | At(Point)\n"
         "fn show(s : Shape) : String = match s {\n"
@@ -2110,13 +2126,13 @@ constructors_test() ->
         "    let wrapped = List.map([p], At);\n"
         "    Io.println(Int.toString(List.size(wrapped)))\n"
         "}\n"),
-    ?assertEqual(<<"5,2\ndot\n1\n">>, Out).
+    ?assertEqual(<<"5,2\ndot\n1\n">>, Output).
 
 %% report §3.5, §8.4: a selected field, one element of the tuple where every
 %% constructor holds it at one place and a case on the tag where the places
 %% differ, its operand evaluated once
 field_selection_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Pair = Left(a : Int, name : String) | Right(name : String, z : Int)\n"
         "type Point = Point(x : Int, y : Int)\n"
         "fn v(p : Pair) : Pair with Never = { Io.println(\"once\"); p }\n"
@@ -2124,7 +2140,7 @@ field_selection_test() ->
         "    Io.println(v(Left(a = 1, name = \"l\")).name <> Right(name = \"r\", z = 2).name);\n"
         "    Io.println(Int.toString(Point(x = 3, y = 4).y))\n"
         "}\n"),
-    ?assertEqual(<<"once\nlr\n4\n">>, Out).
+    ?assertEqual(<<"once\nlr\n4\n">>, Output).
 
 %% report §3.5, §5.1: named fields are stored and shown in their declared
 %% order and evaluated in the order written, in a construction and in an
@@ -2133,7 +2149,7 @@ field_selection_test() ->
 %% stored so. It does not cover a positional constructor, whose one field
 %% has no order
 field_order_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Snap = Snap(z : Int, a : Int, m : Int)\n"
         "fn v(s : String, n : Int) : Int with Never = { Io.println(s); n }\n"
         "export fn main() : Unit with Never = {\n"
@@ -2143,23 +2159,23 @@ field_order_test() ->
         "    Unit\n"
         "}\n"),
     ?assertEqual(<<"m\nz\na\nbase\nm\na\n"
-                   "#(Snap(z = 1, a = 2, m = 3), Snap(z = 1, a = 5, m = 4))\n">>, Out).
+                   "#(Snap(z = 1, a = 2, m = 3), Snap(z = 1, a = 5, m = 4))\n">>, Output).
 
 %% report §5.3, §5.8: lambdas capture, if is an expression
 lambda_if_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "export fn main() : Unit with Never = {\n"
         "    let k = 3;\n"
         "    let f = fn(x : Int) = if x > k then \"big\" else \"small\";\n"
         "    Io.println(f(5));\n"
         "    Io.println(f(1))\n"
         "}\n"),
-    ?assertEqual(<<"big\nsmall\n">>, Out).
+    ?assertEqual(<<"big\nsmall\n">>, Output).
 
 %% report §6.2, §6.9: a process monitored from its start that faults
 %% reports its spawn site and its cause, however soon it faults
 monitor_site_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Died(Down)\n"
         "export fn main() : Unit with Msg = {\n"
         "    let z = List.size([]);\n"
@@ -2170,7 +2186,7 @@ monitor_site_test() ->
         "      | Died(_) -> Io.println(\"other\")\n"
         "    }\n"
         "}\n"),
-    ?assertEqual(<<"M.main:4 division by zero\n">>, Out).
+    ?assertEqual(<<"M.main:4 division by zero\n">>, Output).
 
 %% report §6.9: a Down's function is the top-level declaration the spawn
 %% is written in: one inside a local fn or a lambda counts as written in
@@ -2178,7 +2194,7 @@ monitor_site_test() ->
 %% its name is written. A regression test, written after the code; it does
 %% not cover a spawn in a top-level `let`'s initializer
 down_site_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Died(Down)\n"
         "fn idle() : Unit with Never = receive { after 100 -> Unit }\n"
         "fn report() : Unit with Msg = receive {\n"
@@ -2196,12 +2212,12 @@ down_site_test() ->
         "    report()\n"
         "}\n"
         "export fn main() : Unit with Msg = outer()\n"),
-    ?assertEqual(<<"M.outer:7\nM.outer:10\nM.outer:13\n">>, Out).
+    ?assertEqual(<<"M.outer:7\nM.outer:10\nM.outer:13\n">>, Output).
 
 %% report §9.4, §9.6: spawn, the Int operators, and <> are functions and
 %% may be passed as values
 prelude_values_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "fn apply2(f : (Int, Int) -> Int, a : Int, b : Int) : Int = f(a, b)\n"
         "fn twice(f : (Int) -> Int, a : Int) : Int = f(f(a))\n"
         "fn join(f : (String, String) -> String) : String = f(\"a\", \"b\")\n"
@@ -2216,12 +2232,12 @@ prelude_values_test() ->
         "    let _ = start(spawn);\n"
         "    Unit\n"
         "}\n"),
-    ?assertEqual(<<"5\n3\n1\n5\nab\n">>, Out).
+    ?assertEqual(<<"5\n3\n1\n5\nab\n">>, Output).
 
 %% report Appendix E, §5.2: a stdlib function and an Address function
 %% passed as values
 stdlib_values_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "fn call(f : (Address(m), (Reply(Int)) -> m, Int) -> Optional(Int) with n,"
         " a : Address(m), mk : (Reply(Int)) -> m) : Optional(Int) with n = f(a, mk, 100)\n"
         "type Msg = Ask(Reply(Int))\n"
@@ -2234,12 +2250,12 @@ stdlib_values_test() ->
         "      | None -> Io.println(\"none\")\n"
         "    }\n"
         "}\n"),
-    ?assertEqual(<<"true\n7\n">>, Out).
+    ?assertEqual(<<"true\n7\n">>, Output).
 
 %% report Appendix E.3, E.4, §3.10: Map and Set end to end, with
 %% structural equality
 maps_sets_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "export fn main() : Unit with Never = {\n"
         "    let m = Map.put(Map.put(Map.empty, \"a\", 1), \"b\", 2);\n"
         "    let s = Set.put(Set.fromList([1, 2]), 3);\n"
@@ -2249,12 +2265,12 @@ maps_sets_test() ->
         "    Io.println(Int.toString(Set.size(Set.union(s, Set.fromList([3, 4])))));\n"
         "    Io.println(Bool.toString(Set.fromList([1, 2]) == Set.fromList([2, 1])))\n"
         "}\n"),
-    ?assertEqual(<<"2\n3\ntrue\n4\ntrue\n">>, Out).
+    ?assertEqual(<<"2\n3\ntrue\n4\ntrue\n">>, Output).
 
 %% report Appendix E.13, §4.2, §3.8: a standard library foreign type in its
 %% namespace, and every draw within its bounds
 random_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "fn draw(s : Random.Seed, n : Int) : List(Int) = if n == 0 then [] else {\n"
         "    let #(x, s1) = Random.next(s, 5);\n"
         "    x :: draw(s1, n - 1)\n"
@@ -2263,12 +2279,12 @@ random_test() ->
         "    let xs = draw(Random.seed(42), 50);\n"
         "    Io.println(Bool.toString(List.all(xs, fn(x) = x >= 0 && x <= 5)))\n"
         "}\n"),
-    ?assertEqual(<<"true\n">>, Out).
+    ?assertEqual(<<"true\n">>, Output).
 
 %% report Appendix E.15, E.14, §9.3: Clock.alarm delivers the wrapped Unit to
 %% the caller, Clock.now is a time, Path is the prelude's
 clock_path_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Tick\n"
         "export fn main() : Unit with Msg = {\n"
         "    let t0 = Clock.now();\n"
@@ -2277,34 +2293,34 @@ clock_path_test() ->
         "    Io.println(Bool.toString(Clock.now() >= t0 + 10));\n"
         "    Io.println(Path.toString(Path(\"a\") <> Path(\"b\")))\n"
         "}\n"),
-    ?assertEqual(<<"true\na/b\n">>, Out).
+    ?assertEqual(<<"true\na/b\n">>, Output).
 
 %% report §8.5, §8.2: a system module's reference is bound before the
 %% program's own top-level lets are evaluated, so an initializer may print
 system_reference_in_let_test() ->
-    {ok, Out} = run("let greeting = Io.println(\"from a let\")\n"
-                    "export fn main() : Unit with Never = Io.println(\"from main\")\n"),
-    ?assertEqual(<<"from a let\nfrom main\n">>, Out).
+    {ok, Output} = run("let greeting = Io.println(\"from a let\")\n"
+                       "export fn main() : Unit with Never = Io.println(\"from main\")\n"),
+    ?assertEqual(<<"from a let\nfrom main\n">>, Output).
 
 %% report §9, Appendix E: every prelude value the
 %% checker knows is emitted as a call to a function that exists, with the
 %% arity of its type, so no accepted name can reach the runtime as undef
 prelude_targets_test() ->
-    Missing = [Q || {Q, Text, _} <- ern_prelude:values(),
-                    {M, F, A} <- [prelude_target(Q, Text)],
-                    code:ensure_loaded(M) =/= {module, M} orelse
-                        not erlang:function_exported(M, F, A)],
+    Missing = [QualifiedName || {QualifiedName, Text, _} <- ern_prelude:values(),
+                    {HostModule, HostFunction, Arity} <- [prelude_target(QualifiedName, Text)],
+                    code:ensure_loaded(HostModule) =/= {module, HostModule} orelse
+                        not erlang:function_exported(HostModule, HostFunction, Arity)],
     ?assertEqual([], Missing).
 
 %% The emission of a prelude name, as ern_emitter makes it; inline
 %% operators have no target.
-prelude_target(Q, Text) ->
+prelude_target(QualifiedName, Text) ->
     {ok, Syntax} = ern_parser:parse_type(Text),
     Arity = case Syntax of
-                #t_fn{params = Ps} -> length(Ps);
+                #t_fn{params = Params} -> length(Params);
                 _ -> 0
             end,
-    case Q of
+    case QualifiedName of
         [self] -> {ern_rt, self, 0};
         [send] -> {ern_rt, send, 2};
         [spawn] -> {ern_rt, spawn, 2};
@@ -2317,15 +2333,17 @@ prelude_target(Q, Text) ->
         [fault] -> {ern_rt, fault, 1};
         ['Address', call] -> {ern_rt, call, 3};
         ['Address', callForever] -> {ern_rt, call_forever, 2};
-        [_, Op] when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/'; Op =:= '%'; Op =:= '<>';
-                     Op =:= negate -> {erlang, is_atom, 1};
-        [Ns, F] -> {ern_emitter:module_atom([Ns]), F, Arity}
+        [_, Operator]
+          when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
+               Operator =:= '%'; Operator =:= '<>'; Operator =:= negate ->
+            {erlang, is_atom, 1};
+        [Namespace, Function] -> {ern_emitter:module_atom([Namespace]), Function, Arity}
     end.
 
 %% report §6.5, §6.9, §7.3, §9.5: kill is a Down with Killed, a fault a
 %% Down with its cause, and via adapts a message, all through compiled code
 process_functions_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Died(Down) | Tick\n"
         "fn idle() : Unit with Never = receive { after 10000 -> Unit }\n"
         "export fn main() : Unit with Msg = {\n"
@@ -2346,7 +2364,7 @@ process_functions_test() ->
         "    send(via(self(), fn(u : Unit) = Tick), Unit);\n"
         "    receive { Tick -> Io.println(\"tick\") | _ -> Io.println(\"other\") }\n"
         "}\n"),
-    ?assertEqual(<<"killed\ndivision by zero\ntick\n">>, Out).
+    ?assertEqual(<<"killed\ndivision by zero\ntick\n">>, Output).
 
 %%
 %% Report §6.9 and Appendix E.22: a supervisor's group. Each child is a
@@ -2357,8 +2375,8 @@ supervised(Strategy, Limit, Names, Main) ->
     run(["type Msg = Ask(reply : Reply(Int)) | Boom\n"
          "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.",
          Strategy, ", ", Limit, "))\n",
-         [["let ", N, " : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"]
-          || N <- Names],
+         [["let ", Name, " : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"]
+          || Name <- Names],
          "fn count(n : Int) : Unit with Msg = receive {\n"
          "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
          "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
@@ -2373,38 +2391,38 @@ supervised(Strategy, Limit, Names, Main) ->
 %% report §6.9, Appendix E.22: under OneForAll a fault restarts every
 %% sibling in place, at its next wait, its address kept
 one_for_all_restarts_siblings_test() ->
-    {ok, Out} = supervised("OneForAll", ?LIMIT, ["a", "b"],
+    {ok, Output} = supervised("OneForAll", ?LIMIT, ["a", "b"],
         "export fn main() : Unit with Never = {\n"
         "    let _ = ask(a); let _ = ask(b);\n"
         "    send(a, Boom);\n"
         "    pause();\n"
         "    Io.println(show(a) <> \" \" <> show(b))\n"
         "}\n"),
-    ?assertEqual(<<"0 0\n">>, Out).
+    ?assertEqual(<<"0 0\n">>, Output).
 
 %% Appendix E.22: under OneForOne a fault restarts only the child that
 %% faulted
 one_for_one_restarts_the_child_alone_test() ->
-    {ok, Out} = supervised("OneForOne", ?LIMIT, ["a", "b"],
+    {ok, Output} = supervised("OneForOne", ?LIMIT, ["a", "b"],
         "export fn main() : Unit with Never = {\n"
         "    let _ = ask(a); let _ = ask(b);\n"
         "    send(a, Boom);\n"
         "    pause();\n"
         "    Io.println(show(a) <> \" \" <> show(b))\n"
         "}\n"),
-    ?assertEqual(<<"0 1\n">>, Out).
+    ?assertEqual(<<"0 1\n">>, Output).
 
 %% Appendix E.22: under RestForOne a fault restarts the children spawned
 %% after the one that faulted, and not those before it
 rest_for_one_restarts_later_children_test() ->
-    {ok, Out} = supervised("RestForOne", ?LIMIT, ["a", "b", "c"],
+    {ok, Output} = supervised("RestForOne", ?LIMIT, ["a", "b", "c"],
         "export fn main() : Unit with Never = {\n"
         "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
         "    send(b, Boom);\n"
         "    pause();\n"
         "    Io.println(show(a) <> \" \" <> show(b) <> \" \" <> show(c))\n"
         "}\n"),
-    ?assertEqual(<<"1 0 0\n">>, Out).
+    ?assertEqual(<<"1 0 0\n">>, Output).
 
 %% Appendix E.22: RestForOne reads the order the children were spawned in,
 %% whatever order they joined in: `a`, spawned first, joins last, and its
@@ -2412,36 +2430,36 @@ rest_for_one_restarts_later_children_test() ->
 %% the order of joins, which the scheduler decides, and a race of it failed
 %% examples/services.ern
 rest_for_one_reads_the_order_of_spawns_test() ->
-    {ok, Out} = run(["type Msg = Ask(reply : Reply(Int)) | Boom\n"
-                     "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group("
-                     "Supervisor.RestForOne, ", ?LIMIT, "))\n"
-                     "let a : Address(Msg) = spawn(fn() : Unit with Msg = {\n"
-                     "    receive { after 100 -> Unit };\n"
-                     "    Supervisor.child(sup, fn() = count(0))()\n"
-                     "})\n"
-                     "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
-                     "let c : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
-                     "fn count(n : Int) : Unit with Msg = receive {\n"
-                     "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
-                     "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
-                     "}\n"
-                     "fn ask(c : Address(Msg)) : Int with m ="
-                     " Address.callForever(c, fn(r) = Ask(reply = r))\n"
-                     "fn show(c : Address(Msg)) : String with m = Int.toString(ask(c))\n"
-                     "fn pause() : Unit with m = receive { after 100 -> Unit }\n"
-                     "export fn main() : Unit with Never = {\n"
-                     "    pause(); pause();\n"
-                     "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
-                     "    send(a, Boom);\n"
-                     "    pause();\n"
-                     "    Io.println(show(a) <> \" \" <> show(b) <> \" \" <> show(c))\n"
-                     "}\n"]),
-    ?assertEqual(<<"0 0 0\n">>, Out).
+    {ok, Output} = run(["type Msg = Ask(reply : Reply(Int)) | Boom\n"
+                        "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group("
+                        "Supervisor.RestForOne, ", ?LIMIT, "))\n"
+                        "let a : Address(Msg) = spawn(fn() : Unit with Msg = {\n"
+                        "    receive { after 100 -> Unit };\n"
+                        "    Supervisor.child(sup, fn() = count(0))()\n"
+                        "})\n"
+                        "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
+                        "let c : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
+                        "fn count(n : Int) : Unit with Msg = receive {\n"
+                        "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
+                        "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
+                        "}\n"
+                        "fn ask(c : Address(Msg)) : Int with m ="
+                        " Address.callForever(c, fn(r) = Ask(reply = r))\n"
+                        "fn show(c : Address(Msg)) : String with m = Int.toString(ask(c))\n"
+                        "fn pause() : Unit with m = receive { after 100 -> Unit }\n"
+                        "export fn main() : Unit with Never = {\n"
+                        "    pause(); pause();\n"
+                        "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
+                        "    send(a, Boom);\n"
+                        "    pause();\n"
+                        "    Io.println(show(a) <> \" \" <> show(b) <> \" \" <> show(c))\n"
+                        "}\n"]),
+    ?assertEqual(<<"0 0 0\n">>, Output).
 
 %% report §6.9: a restart asked for is no fault, and no fault is reported
 %% for it; only the child that faulted is
 restart_asked_for_is_no_fault_test() ->
-    {ok, Out} = supervised("OneForAll", ?LIMIT, ["a", "b", "c"],
+    {ok, Output} = supervised("OneForAll", ?LIMIT, ["a", "b", "c"],
         "export fn main() : Unit with Process.FaultReport = {\n"
         "    Process.faults(fn(f) = f);\n"
         "    send(a, Boom);\n"
@@ -2451,14 +2469,14 @@ restart_asked_for_is_no_fault_test() ->
         "}\n"
         "fn reports(n : Int) : Int with Process.FaultReport ="
         " receive { _ -> reports(n + 1) | after 100 -> n }\n"),
-    ?assertEqual(<<"1\n">>, Out).
+    ?assertEqual(<<"1\n">>, Output).
 
 %% report §6.6, §6.9: a call waiting on a child when its supervisor
 %% restarts it ends, and callForever faults with the cause that says so;
 %% the child restarts at the wait inside its handling of the request
 call_ends_at_asked_restart_test() ->
-    {R, _} = run(
-        "type Msg = Slow(reply : Reply(Int)) | Boom\n"
+    {Result, _} = run(
+             "type Msg = Slow(reply : Reply(Int)) | Boom\n"
         "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
         " RestartLimit(restarts = 3, within = 5000)))\n"
         "let a : Address(Msg) = spawn(Supervisor.child(sup, fn() = serve()))\n"
@@ -2475,12 +2493,12 @@ call_ends_at_asked_restart_test() ->
         "    let _ = Address.callForever(b, fn(r) = Slow(reply = r));\n"
         "    Io.println(\"answered\")\n"
         "}\n"),
-    ?assertEqual({fault, <<"callee was restarted">>}, R).
+    ?assertEqual({fault, <<"callee was restarted">>}, Result).
 
 %% Appendix E.22: past its limit a group faults; at the root it dies, and
 %% its watcher kills its children
 limit_ends_the_group_test() ->
-    {ok, Out} = supervised("OneForOne", "RestartLimit(restarts = 1, within = 5000)", ["a"],
+    {ok, Output} = supervised("OneForOne", "RestartLimit(restarts = 1, within = 5000)", ["a"],
         "type Seen = Died(Down)\n"
         "export fn main() : Unit with Seen = {\n"
         "    monitor(a, Died);\n"
@@ -2492,12 +2510,12 @@ limit_ends_the_group_test() ->
         "      | Died(_) -> Io.println(\"other\")\n"
         "    }\n"
         "}\n"),
-    ?assertEqual(<<"killed\n">>, Out).
+    ?assertEqual(<<"killed\n">>, Output).
 
 %% Appendix E.22: kill(sup) stops the group, the children killed in the
 %% reverse of the order they joined, each once the one before has ended
 kill_stops_in_reverse_order_test() ->
-    {ok, Out} = supervised("OneForOne", ?LIMIT, ["a", "b", "c"],
+    {ok, Output} = supervised("OneForOne", ?LIMIT, ["a", "b", "c"],
         "type Seen = Died(String)\n"
         "export fn main() : Unit with Seen = {\n"
         "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
@@ -2508,12 +2526,12 @@ kill_stops_in_reverse_order_test() ->
         "    Io.println(String.join([next(), next(), next()], \" \"))\n"
         "}\n"
         "fn next() : String with Seen = receive { Died(n) -> n }\n"),
-    ?assertEqual(<<"c b a\n">>, Out).
+    ?assertEqual(<<"c b a\n">>, Output).
 
 %% Appendix E.22: a supervisor that is a child restarts in place past its
 %% limit, its children restarted with it, their addresses kept
 nested_group_restarts_in_place_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
         "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
@@ -2532,14 +2550,14 @@ nested_group_restarts_in_place_test() ->
         "    receive { after 100 -> Unit };\n"
         "    Io.println(Int.toString(ask(a)) <> \" \" <> Int.toString(ask(b)))\n"
         "}\n"),
-    ?assertEqual(<<"0 0\n">>, Out).
+    ?assertEqual(<<"0 0\n">>, Output).
 
 %% Appendix E.22: a supervisor restarted in place counts its limit afresh,
 %% and a fault it counted before the restart does not expire from the new
 %% count. A regression test for alarms of an earlier run lowering the
 %% count; the gaps around the old alarm, at 1000 ms, are 150 ms and more
 count_survives_restart_in_place_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
         "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
@@ -2565,15 +2583,15 @@ count_survives_restart_in_place_test() ->
         "    wait(100);\n"
         "    Io.println(Int.toString(ask(b)))\n"
         "}\n"),
-    ?assertEqual(<<"0\n">>, Out).
+    ?assertEqual(<<"0\n">>, Output).
 
 %% Appendix E.22: a child that starts after its supervisor has ended
 %% faults once with a cause that says so, and does not restart. A
 %% regression test for a child that joined inside its restart loop and
 %% restarted without end
 child_of_ended_supervisor_test() ->
-    {R, _} = run(
-        "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
+    {Result, _} = run(
+             "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
         " RestartLimit(restarts = 3, within = 5000)))\n"
         "export fn main() : Unit with Never = {\n"
         "    kill(sup);\n"
@@ -2581,14 +2599,14 @@ child_of_ended_supervisor_test() ->
         "    let c = Supervisor.child(sup, fn() : Unit with Never = Unit);\n"
         "    c()\n"
         "}\n"),
-    ?assertEqual({fault, <<"the supervisor has ended">>}, R).
+    ?assertEqual({fault, <<"the supervisor has ended">>}, Result).
 
 %% report §6.9, Appendix E.22: a root group past its limit faults, and its
 %% children are killed; none reports a fault it did not have. A regression
 %% test for children that, asked to restart, rejoined the dead supervisor
 %% and reported that as their own fault
 limit_reports_only_real_faults_test() ->
-    {ok, Out} = supervised("OneForOne", "RestartLimit(restarts = 1, within = 5000)",
+    {ok, Output} = supervised("OneForOne", "RestartLimit(restarts = 1, within = 5000)",
         ["a", "b", "c"],
         "export fn main() : Unit with Process.FaultReport = {\n"
         "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
@@ -2603,13 +2621,13 @@ limit_reports_only_real_faults_test() ->
         "  | after 300 -> seen\n"
         "}\n"),
     ?assertEqual(<<"division by zero; division by zero; supervisor restart limit reached\n">>,
-                 Out).
+                 Output).
 
 %% Appendix E.22: one process runs a group's function, and a second that
 %% runs it faults, since the process that keeps the group's children is
 %% the function's. Written with the rule (report §6.9's emptied mailbox)
 group_runs_in_one_process_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type MainMsg = Died(Down)\n"
         "export fn main() : Unit with MainMsg = {\n"
         "    let g = Supervisor.group(Supervisor.OneForOne, Unlimited);\n"
@@ -2617,14 +2635,14 @@ group_runs_in_one_process_test() ->
         "    let _ = spawnMonitored(g, Died);\n"
         "    receive { Died(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
         "}\n"),
-    ?assertEqual(<<"Fault(\"a group runs in one process\")\n">>, Out).
+    ?assertEqual(<<"Fault(\"a group runs in one process\")\n">>, Output).
 
 %% Appendix E.22: a group's first supervisor is the one, and a process that
 %% runs the group after it has ended faults as a second does while it
 %% runs. A regression test: the second was told the watcher had returned
 %% without answering
 group_runs_once_after_its_end_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type MainMsg = Died(Down)\n"
         "export fn main() : Unit with MainMsg = {\n"
         "    let g = Supervisor.group(Supervisor.OneForOne, Unlimited);\n"
@@ -2635,7 +2653,7 @@ group_runs_once_after_its_end_test() ->
         "    let _ = spawnMonitored(g, Died);\n"
         "    receive { Died(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
         "}\n"),
-    ?assertEqual(<<"Fault(\"a group runs in one process\")\n">>, Out).
+    ?assertEqual(<<"Fault(\"a group runs in one process\")\n">>, Output).
 
 %% A group whose children count, fault on Boom, and on Crunch compute for a
 %% while without waiting, so that a restart asked of one then waits; on
@@ -2658,7 +2676,7 @@ crunching(Main) ->
 %% nothing of the child. A regression test: the sibling's fault emptied
 %% the ask with its mailbox, and the child waited for ever
 sibling_faulting_first_counts_as_restarted_test() ->
-    {ok, Out} = crunching(
+    {ok, Output} = crunching(
         "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.RestForOne,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
         "let a : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
@@ -2671,14 +2689,14 @@ sibling_faulting_first_counts_as_restarted_test() ->
         "    wait(1000);\n"
         "    Io.println(Int.toString(ask(a)))\n"
         "}\n"),
-    ?assertEqual(<<"0\n">>, Out).
+    ?assertEqual(<<"0\n">>, Output).
 
 %% Appendix E.22: a child that waits for its fault to be counted when its
 %% supervisor restarts in place is restarted as asked, and reports no fault
 %% of its own. A regression test: its call to the supervisor ended as the
 %% supervisor restarted, and it faulted with `callee was restarted`
 child_waits_through_its_supervisors_restart_test() ->
-    {ok, Out} = crunching(
+    {ok, Output} = crunching(
         "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
         "let x : Address(Msg) = spawn(Supervisor.child(top, fn() = count(0)))\n"
@@ -2700,14 +2718,14 @@ child_waits_through_its_supervisors_restart_test() ->
         "    f -> causes(seen <> [f.cause])\n"
         "  | after 1000 -> seen\n"
         "}\n"),
-    ?assertEqual(<<"division by zero; division by zero\n">>, Out).
+    ?assertEqual(<<"division by zero; division by zero\n">>, Output).
 
 %% Appendix E.22: a child at whose fault a nested group gave up runs its
 %% function once when the group, restarted in place, restarts it. A
 %% regression test: the watcher let it go on before the supervisor asked
 %% it to restart, and it ran its function twice
 held_child_runs_once_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
         "type LogMsg = Started | Count(reply : Reply(Int))\n"
         "let log : Address(LogMsg) = spawn(fn() = logging(0))\n"
@@ -2735,13 +2753,13 @@ held_child_runs_once_test() ->
         "    let _ = ask(a);\n"
         "    Io.println(Int.toString(Address.callForever(log, fn(r) = Count(reply = r))))\n"
         "}\n"),
-    ?assertEqual(<<"2\n">>, Out).
+    ?assertEqual(<<"2\n">>, Output).
 
 %% Appendix E.22: a supervisor that its parent restarts asks its own
 %% children to restart, so a subtree restarts with its root. A regression
 %% test for a supervisor restarted in place that left its children running
 parent_restarts_subtree_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
         "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
         " RestartLimit(restarts = 5, within = 5000)))\n"
@@ -2760,7 +2778,7 @@ parent_restarts_subtree_test() ->
         "    receive { after 100 -> Unit };\n"
         "    Io.println(Int.toString(ask(c)))\n"
         "}\n"),
-    ?assertEqual(<<"0\n">>, Out).
+    ?assertEqual(<<"0\n">>, Output).
 
 %% report §6.9: a restart asked for runs the child's own function again,
 %% even where that function runs a restarting function of its own. A
@@ -2771,7 +2789,7 @@ parent_restarts_subtree_test() ->
 %% how soon either happens is the host's. Sent at once, with a wait of
 %% 100 ms, the fault came first under the host's modified timing
 restart_reaches_the_outer_function_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Ask(reply : Reply(Int)) | Boom\n"
         "type LogMsg = Started | Count(reply : Reply(Int))\n"
         "let log : Address(LogMsg) = spawn(fn() = logging(0))\n"
@@ -2802,7 +2820,7 @@ restart_reaches_the_outer_function_test() ->
         "    send(a, Boom);\n"
         "    Io.println(Int.toString(starts(2, 1000)))\n"
         "}\n"),
-    ?assertEqual(<<"2\n">>, Out).
+    ?assertEqual(<<"2\n">>, Output).
 
 %%
 %% Report Appendix E.23: Os.run, each program run through ern_exec.
@@ -2830,25 +2848,25 @@ scratch() ->
 
 %% Appendix E.23: the exit status, the output and the standard error, apart
 os_run_status_and_streams_test() ->
-    {ok, Out} = os_run("\"sh\"", "[\"-c\", \"echo out; echo err >&2; exit 2\"]", "<<>>", "5000"),
-    ?assertEqual(<<"2|Some(\"out\\n\")|Some(\"err\\n\")\n">>, Out).
+    {ok, Output} = os_run("\"sh\"", "[\"-c\", \"echo out; echo err >&2; exit 2\"]", "<<>>", "5000"),
+    ?assertEqual(<<"2|Some(\"out\\n\")|Some(\"err\\n\")\n">>, Output).
 
 %% Appendix E.23: the program reads its input and then the end of it, so
 %% one that reads to the end, as sort does, ends
 os_run_input_then_end_test() ->
-    {ok, Out} = os_run("\"sort\"", "[]", "String.toUtf8(\"b\\na\\n\")", "5000"),
-    ?assertEqual(<<"0|Some(\"a\\nb\\n\")|Some(\"\")\n">>, Out).
+    {ok, Output} = os_run("\"sort\"", "[]", "String.toUtf8(\"b\\na\\n\")", "5000"),
+    ?assertEqual(<<"0|Some(\"a\\nb\\n\")|Some(\"\")\n">>, Output).
 
 %% Appendix E.23: each argument reaches the program as it is, no shell
 %% between, so a space or a `;` is part of the argument
 os_run_arguments_as_they_are_test() ->
-    {ok, Out} = os_run("\"printf\"", "[\"%s|\", \"a b\", \"c;d\", \"$HOME\"]", "<<>>", "5000"),
-    ?assertEqual(<<"0|Some(\"a b|c;d|$HOME|\")|Some(\"\")\n">>, Out).
+    {ok, Output} = os_run("\"printf\"", "[\"%s|\", \"a b\", \"c;d\", \"$HOME\"]", "<<>>", "5000"),
+    ?assertEqual(<<"0|Some(\"a b|c;d|$HOME|\")|Some(\"\")\n">>, Output).
 
 %% Appendix E.23: a program a signal ended has 128 and the signal's number
 os_run_signal_status_test() ->
-    {ok, Out} = os_run("\"sh\"", "[\"-c\", \"kill -TERM $$\"]", "<<>>", "5000"),
-    ?assertEqual(<<"143|Some(\"\")|Some(\"\")\n">>, Out).
+    {ok, Output} = os_run("\"sh\"", "[\"-c\", \"kill -TERM $$\"]", "<<>>", "5000"),
+    ?assertEqual(<<"143|Some(\"\")|Some(\"\")\n">>, Output).
 
 %% Appendix E.23: NotFound for a program not found, Denied for one that may
 %% not be run, and Invalid for an argument no program could be given
@@ -2862,8 +2880,8 @@ os_run_refusals_test() ->
 %% still running, killed, so the mark it would leave is never made
 os_run_timeout_kills_test() ->
     Mark = filename:join(scratch(), "mark"),
-    {ok, Out} = os_run("\"sh\"", "[\"-c\", \"sleep 1; touch " ++ Mark ++ "\"]", "<<>>", "200"),
-    ?assertEqual(<<"Timeout\n">>, Out),
+    {ok, Output} = os_run("\"sh\"", "[\"-c\", \"sleep 1; touch " ++ Mark ++ "\"]", "<<>>", "200"),
+    ?assertEqual(<<"Timeout\n">>, Output),
     timer:sleep(1500),
     ?assertNot(filelib:is_file(Mark)).
 
@@ -2886,9 +2904,9 @@ os_run_dies_with_its_caller_test() ->
 %% Appendix E.17: a path that holds U+0000 names no file, `Invalid`. A
 %% regression test for the host's own term, badarg, answered as the cause
 fs_path_with_nul_test() ->
-    {ok, Out} = run("export fn main() : Unit with Never =\n"
-                    "    Io.println(Io.show(Fs.read(Path(\"a\\u{0}b\"), 1000)))\n"),
-    ?assertEqual(<<"Left(Invalid)\n">>, Out).
+    {ok, Output} = run("export fn main() : Unit with Never =\n"
+                       "    Io.println(Io.show(Fs.read(Path(\"a\\u{0}b\"), 1000)))\n"),
+    ?assertEqual(<<"Left(Invalid)\n">>, Output).
 
 %% report §8.6, Appendix E.23: a program running is a source, so a caller
 %% that only waits for it is in no deadlock
@@ -2916,21 +2934,21 @@ drain() ->
 %% Appendix E.23: each read answers the next piece from either stream, in
 %% the order the host delivered them, and last the exit status
 os_start_reads_in_order_test() ->
-    {ok, Out} = run([drain(),
+    {ok, Output} = run([drain(),
         "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
         "    arguments = [\"-c\", \"echo a; sleep 0.1; echo b >&2; sleep 0.1; echo c; exit 4\"],\n"
         "    input = <<>>)) {\n"
         "    Right(p) -> drain(p)\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"]),
-    ?assertEqual(<<"out a\nerr b\nout c\nexit 4\n">>, Out).
+    ?assertEqual(<<"out a\nerr b\nout c\nexit 4\n">>, Output).
 
 %% Appendix E.23: the host takes the program's output only while a read
 %% waits, so a program that writes more than a pipe holds, and that no one
 %% reads, waits on its output and has not gone on to leave its mark
 os_start_output_waits_for_a_read_test() ->
     Mark = filename:join(scratch(), "mark"),
-    {ok, Out} = run([
+    {ok, Output} = run([
         "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int with m = match Os.read(p, 5000) {\n"
         "    Right(Os.Exited(_)) -> n\n"
         "  | Right(_) -> drain(p, n + 1)\n"
@@ -2948,13 +2966,13 @@ os_start_output_waits_for_a_read_test() ->
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"]),
-    ?assertEqual(<<"#(false, true, true)\n">>, Out).
+    ?assertEqual(<<"#(false, true, true)\n">>, Output).
 
 %% Appendix E.23: the program reads `input`, then what write gives it,
 %% until closeInput; what is written after that is dropped, and the write
 %% answers Left(Closed)
 os_start_write_then_close_test() ->
-    {ok, Out} = run([
+    {ok, Output} = run([
         "fn collect(p : Address(Os.ProgramMsg), got : Bytes) : Bytes with m =\n"
         "    match Os.read(p, 5000) {\n"
         "    Right(Os.Stdout(b)) -> collect(p, got <> b)\n"
@@ -2970,7 +2988,7 @@ os_start_write_then_close_test() ->
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"]),
-    ?assertEqual(<<"#(Right(Unit), Left(Closed), Some(\"ab\"))\n">>, Out).
+    ?assertEqual(<<"#(Right(Unit), Left(Closed), Some(\"ab\"))\n">>, Output).
 
 %% Appendix E.23, report §6.9: a running program is a process, which
 %% `monitor` watches and `kill` stops, the program and its process group
@@ -2978,7 +2996,7 @@ os_start_write_then_close_test() ->
 os_program_is_a_process_test() ->
     Dir = scratch(),
     Pids = filename:join(Dir, "pids"),
-    {ok, Out} = run([
+    {ok, Output} = run([
         "type Msg = Ended(Down)\n"
         "fn started(script : String) : Address(Os.ProgramMsg) with Msg =\n"
         "    match Os.start(Os.Command(program = \"sh\", arguments = [\"-c\", script],\n"
@@ -2999,7 +3017,7 @@ os_program_is_a_process_test() ->
         "    let _ = Os.read(quick, 5000);\n"
         "    Io.println(reason())\n"
         "}\n"]),
-    ?assertEqual(<<"Killed\nReturned\n">>, Out),
+    ?assertEqual(<<"Killed\nReturned\n">>, Output),
     timer:sleep(200),
     {ok, Written} = file:read_file(Pids),
     [begin
@@ -3012,7 +3030,7 @@ os_program_is_a_process_test() ->
 %% regression test of the rule of 2026-10-01, before which the start's time
 %% killed the program
 os_read_time_limit_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
         "    arguments = [\"-c\", \"sleep 0.3; echo late\"], input = <<>>)) {\n"
         "    Right(p) -> {\n"
@@ -3023,7 +3041,7 @@ os_read_time_limit_test() ->
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"),
     ?assertEqual(<<"Left(Timeout)\nRight(Stdout(<<108, 97, 116, 101, 10>>))\nRight(Exited(0))\n">>,
-                 Out).
+                 Output).
 
 %% Appendix E.23, report §8.6: Os.exit ends the program with its status,
 %% from any process, the output written before it flushed; a status
@@ -3065,13 +3083,13 @@ fs_list_names_a_name_not_utf8_test() ->
     Dir = scratch(),
     ok = file:write_file(<<(list_to_binary(Dir))/binary, "/caf", 16#e9>>, <<>>),
     ok = file:write_file(filename:join(Dir, "ok"), <<>>),
-    {ok, Out} = run(["export fn main() : Unit with Never = match Fs.list(Path(\"", Dir,
-                     "\"), 1000) {\n"
-                     "    Right(entries) -> Io.println(Io.show(List.map(entries,\n"
-                     "        fn(e) = Path.name(e.path))))\n"
-                     "  | Left(e) -> Io.println(Io.show(e))\n"
-                     "}\n"]),
-    ?assertEqual(<<"NotUtf8(<<99, 97, 102, 233>>)\n">>, Out).
+    {ok, Output} = run(["export fn main() : Unit with Never = match Fs.list(Path(\"", Dir,
+                        "\"), 1000) {\n"
+                        "    Right(entries) -> Io.println(Io.show(List.map(entries,\n"
+                        "        fn(e) = Path.name(e.path))))\n"
+                        "  | Left(e) -> Io.println(Io.show(e))\n"
+                        "}\n"]),
+    ?assertEqual(<<"NotUtf8(<<99, 97, 102, 233>>)\n">>, Output).
 
 %% report §6.9: a wait on a process is kept while its waiter lives: a
 %% watcher that ends takes its waits with it, and a process that ends
@@ -3082,7 +3100,7 @@ fs_list_names_a_name_not_utf8_test() ->
 %% monitor. The runtime's memory for waits is read after 100 of each and
 %% after 1,100.
 monitors_let_go_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Ended(Down) | Go\n"
         "foreign fn waits() : Int with m = \"ern_emitter_tests:reaper_words/0\"\n"
         "fn rounds(keeper : Address(Msg), n : Int) : Unit with Msg =\n"
@@ -3104,7 +3122,7 @@ monitors_let_go_test() ->
         "    rounds(keeper, 1000);\n"
         "    Io.println(Io.show(waits() == before))\n"
         "}\n"),
-    ?assertEqual(<<"true\n">>, Out).
+    ?assertEqual(<<"true\n">>, Output).
 
 %% The words of the runtime's reaper, which holds every wait, after the
 %% deliveries in flight have ended and its garbage is collected.
@@ -3168,7 +3186,7 @@ erl_atom_too_long_test() ->
 work_makes_no_atoms_test_() ->
     {timeout, 60, fun() ->
         Dir = scratch(),
-        {ok, Out} = run([
+        {ok, Output} = run([
             "type Msg = Tick(Int) | Ended(Down)\n"
             "foreign fn info(k : Foreign.Term) : Int with m = \"erlang:system_info/1\"\n"
             "fn work() : Unit with Msg = {\n"
@@ -3194,7 +3212,7 @@ work_makes_no_atoms_test_() ->
             "    work();\n"
             "    Io.println(Io.show(info(Erl.atom(\"atom_count\")) - before))\n"
             "}\n"]),
-        ?assertEqual(<<"0\n">>, Out)
+        ?assertEqual(<<"0\n">>, Output)
     end}.
 
 %%
@@ -3219,7 +3237,7 @@ paced(Setup) ->
 %% Appendix E.23: a program that stops reading its input, since no one
 %% reads its output, holds its writer, and a write after its end faults
 os_write_waits_test() ->
-    {ok, Out} = paced(
+    {ok, Output} = paced(
         "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int with Msg = match Os.read(p, 5000) {\n"
         "    Right(Os.Stdout(b)) -> drain(p, n + Bytes.size(b))\n"
         "  | _ -> n\n"
@@ -3247,13 +3265,13 @@ os_write_waits_test() ->
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"),
-    ?assertMatch({match, _}, re:run(Out, "^#\\(false, 4194304\\)\nFault\\(\"callee (had ended|"
-                                         "returned without answering)\"\\)\n$")).
+    ?assertMatch({match, _}, re:run(Output, "^#\\(false, 4194304\\)\nFault\\(\"callee (had ended|"
+                                            "returned without answering)\"\\)\n$")).
 
 %% Appendix E.18: a socket whose far end does not read holds its writer,
 %% and a write to a socket that has been closed faults
 tcp_write_waits_test() ->
-    {ok, Out} = paced(
+    {ok, Output} = paced(
         "fn drain(s : Address(Tcp.SocketMsg), n : Int) : Int with Msg =\n"
         "    if n >= 4194304 then n\n"
         "    else match Tcp.read(s, 5000) {\n"
@@ -3297,7 +3315,7 @@ tcp_write_waits_test() ->
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"),
-    ?assertEqual(<<"#(false, 4194304)\nFault(\"callee had ended\")\n">>, Out).
+    ?assertEqual(<<"#(false, 4194304)\nFault(\"callee had ended\")\n">>, Output).
 
 %% report §6.9: where restarting functions are nested, a fault restarts the
 %% innermost, which counts it against its own limit; one whose limit is
@@ -3306,7 +3324,7 @@ tcp_write_waits_test() ->
 %% test, written after the code (findings.md's K-13); it does not cover a
 %% restart a supervisor asks for, which §6.9 gives to the outer function
 nested_restarting_test() ->
-    {Result, Out} = run(
+    {Result, Output} = run(
         "export fn main() : Unit with Never =\n"
         "    restarting(RestartLimit(restarts = 1, within = 60000), fn() = {\n"
         "        Io.println(\"outer\");\n"
@@ -3316,7 +3334,7 @@ nested_restarting_test() ->
         "        })()\n"
         "    })()\n"),
     ?assertMatch({fault, <<"boom">>}, Result),
-    ?assertEqual(<<"outer\ninner\ninner\nouter\ninner\ninner\n">>, Out).
+    ?assertEqual(<<"outer\ninner\ninner\nouter\ninner\ninner\n">>, Output).
 
 %% report §8.4, §7.4: a type variable of a foreign function's result that no
 %% parameter names matches no value, so a return that holds one faults, and
@@ -3326,10 +3344,10 @@ nested_restarting_test() ->
 %% an unchecked cast, and the second let any value in (findings.md's S-H);
 %% the foreign type's case was written after the code (findings.md's K-8)
 foreign_casts_and_callbacks_test() ->
-    Run = fun(Decl, Body) ->
-                  {R, _} = run(Decl ++ "export fn main() : Unit with Never = {\n"
-                               "    let _ = " ++ Body ++ ";\n    Unit\n}\n"),
-                  R
+    Run = fun(Declaration, Body) ->
+                  {Result, _} = run(Declaration ++ "export fn main() : Unit with Never = {\n"
+                                    "    let _ = " ++ Body ++ ";\n    Unit\n}\n"),
+                  Result
           end,
     ?assertEqual({fault, <<"foreign return does not match a">>},
                  Run("foreign fn cast(n : Int) : a =\n    \"erlang:abs/1\"\n", "cast(1) + 1")),
@@ -3348,10 +3366,10 @@ foreign_casts_and_callbacks_test() ->
 %% description of the type (MVP 2.99b's item 13). A regression test of what
 %% the report states
 foreign_type_variables_unchecked_test() ->
-    Run = fun(Decl, Body) ->
-                  {R, _} = run(Decl ++ "export fn main() : Unit with Never = {\n"
-                               "    let _ = " ++ Body ++ ";\n    Unit\n}\n"),
-                  R
+    Run = fun(Declaration, Body) ->
+                  {Result, _} = run(Declaration ++ "export fn main() : Unit with Never = {\n"
+                                    "    let _ = " ++ Body ++ ";\n    Unit\n}\n"),
+                  Result
           end,
     ?assertEqual(ok, Run("foreign fn weird(x : a) : a =\n    \"erlang:length/1\"\n",
                          "weird([1, 2])")),
@@ -3364,7 +3382,7 @@ foreign_type_variables_unchecked_test() ->
 %% a socket outlived a handler that faulted, one leaked connection each
 %% (findings.md's C1-2)
 socket_owner_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Opened(Address(Tcp.SocketMsg)) | Ended(Down)\n"
         "fn opener(port : Int, to : Address(Msg)) : Unit with Never =\n"
         "    match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
@@ -3414,7 +3432,7 @@ socket_owner_test() ->
         "  | Left(_) -> Unit\n"
         "}\n"),
     ?assertEqual(<<"opener's: ended\ngiven, giver gone: alive\ngiven, keeper gone: ended\n"
-                   "given to the dead: ended\n">>, Out).
+                   "given to the dead: ended\n">>, Output).
 
 %% report §6.9, §6.6: a callee's own answer to a call is not overtaken by
 %% its end, so a worker that answers and returns at once is answered, every
@@ -3422,13 +3440,13 @@ socket_owner_test() ->
 %% the order of a `Down` and the ended process's own messages is not
 %% promised, and so not tested
 answer_before_end_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "fn worker() : Unit with Reply(Int) = receive { r -> answer(r, 7) }\n"
         "fn rounds(n : Int, sum : Int) : Int with m =\n"
         "    if n == 0 then sum\n"
         "    else rounds(n - 1, sum + Address.callForever(spawn(worker), fn(r) = r))\n"
         "export fn main() : Unit with Never = Io.println(Int.toString(rounds(200, 0)))\n"),
-    ?assertEqual(<<"1400\n">>, Out).
+    ?assertEqual(<<"1400\n">>, Output).
 
 %% report §8.4: an address foreign code gives back is the program's own at
 %% the type it went out at, and foreign at another, so that what is sent
@@ -3437,7 +3455,7 @@ answer_before_end_test() ->
 %% reached a process of Int (findings.md's C1-6). The first target's end is
 %% waited for, so that its line is written before the program ends
 retyped_address_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Ended(Down)\n"
         "fn target() : Unit with Int = receive { n -> Io.println(\"got \" <> Int.toString(n)) }\n"
         "foreign fn retyped(addresses : List(Address(Int))) : Address(String) =\n"
@@ -3452,7 +3470,7 @@ retyped_address_test() ->
         "    send(retyped([wronged]), \"x\");\n"
         "    receive { Ended(Down(reason = r)) -> Io.println(Io.show(r)) }\n"
         "}\n"),
-    ?assertEqual(<<"got 5\nFault(\"message does not match Int\")\n">>, Out).
+    ?assertEqual(<<"got 5\nFault(\"message does not match Int\")\n">>, Output).
 
 %% report §8.4, Appendix E.12: an address given to foreign code in an
 %% argument of its type crosses behind a proxy, which faults its process on
@@ -3467,7 +3485,9 @@ foreign_from_crosses_unchecked_test() ->
             "    \"erlang:send/2\"\n",
     Untyped = "foreign fn rawSend(to : Foreign.Term, message : String) : String =\n"
               "    \"erlang:send/2\"\n",
-    Program = fun(Decl, Call) -> Decl ++ lists:flatten(io_lib:format(Main, [Call])) end,
+    Program = fun(Declaration, Call) ->
+                  Declaration ++ lists:flatten(io_lib:format(Main, [Call]))
+              end,
     {Checked, _} = run(Program(Typed, "rawSend(self(), \"x\")")),
     ?assertMatch({fault, _}, Checked),
     {Unchecked, _} = run(Program(Untyped, "rawSend(Foreign.from(self()), \"x\")")),
@@ -3478,7 +3498,7 @@ foreign_from_crosses_unchecked_test() ->
 %% gives the function that opened each as its site. A regression test: the
 %% runtime did not know them (findings.md's C10)
 opened_processes_are_live_test() ->
-    {ok, Out} = run([
+    {ok, Output} = run([
         "fn site(p : Process) : String with m = match Process.info(p) {\n"
         "    Some(Process.Info(site = s, queued = _, activity = _)) -> s\n"
         "  | None -> \"none\"\n"
@@ -3503,14 +3523,14 @@ opened_processes_are_live_test() ->
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"]),
-    ?assertEqual(<<"#(\"Tcp.listen\", \"Tcp.connect\", true, true)\nOs.start\n">>, Out).
+    ?assertEqual(<<"#(\"Tcp.listen\", \"Tcp.connect\", true, true)\nOs.start\n">>, Output).
 
 %% Appendix E.18: a write answers Right(Unit) once the socket has taken the
 %% bytes, and Left(Closed) once the connection has closed; the far end's
 %% close is learned here by a read, so that the answer does not depend on
 %% when the host reports it
 tcp_write_answers_closed_test() ->
-    {ok, Out} = run([
+    {ok, Output} = run([
         "export fn main() : Unit with Never = match Tcp.listen(\"127.0.0.1\", 0) {\n"
         "    Right(l) -> match Tcp.port(l) {\n"
         "        Right(port) -> {\n"
@@ -3534,58 +3554,58 @@ tcp_write_answers_closed_test() ->
         "    }\n"
         "  | Left(e) -> Io.println(Io.show(e))\n"
         "}\n"]),
-    ?assertEqual(<<"#(Right(Unit), Left(Closed), Left(Closed))\n">>, Out).
+    ?assertEqual(<<"#(Right(Unit), Left(Closed), Left(Closed))\n">>, Output).
 
 %% report §8.2: a write to standard output returns once the stream has taken
 %% it, so a program writing to a slow stream goes at its pace
 io_write_waits_test() ->
-    Me = self(),
-    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'],
+    Self = self(),
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'],
         "export fn main() : Unit with Never = {\n"
         "    let before = Clock.now();\n"
         "    List.foreach(List.range(1, 10), fn(n) = Io.println(Int.toString(n)));\n"
         "    Io.printlnError(Int.toString(Clock.now() - before))\n"
         "}\n"),
-    {ok, Mod, Bin} = ern_emitter:compile(['M'], Typed, Iface, Env),
-    {module, Mod} = code:load_binary(Mod, "test", Bin),
-    ok = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
+    {ok, ErlangModule, Beam} = ern_emitter:compile(['M'], Typed, Interface, Env),
+    {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+    ok = ern_rt:run_main(fun() -> ErlangModule:main() end, <<"main">>,
                          #{stdout => fun(_) -> timer:sleep(50) end,
-                           stderr => fun(B) -> Me ! {err, B} end}),
-    Elapsed = receive {err, B} -> binary_to_integer(string:trim(B)) after 5000 -> none end,
+                           stderr => fun(Text) -> Self ! {err, Text} end}),
+    Elapsed = receive {err, Text} -> binary_to_integer(string:trim(Text)) after 5000 -> none end,
     ?assert(Elapsed >= 450).
 
 %% report Appendix E.1: Io.writeError writes its bytes to standard error as
 %% they are, a byte that is not UTF-8 among them, and nothing to standard
 %% output. Written with the code, of 2026-10-01
 io_write_error_test() ->
-    Me = self(),
-    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'],
+    Self = self(),
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'],
         "export fn main() : Unit with Never = Io.writeError(<<104, 105, 255>>)\n"),
-    {ok, Mod, Bin} = ern_emitter:compile(['M'], Typed, Iface, Env),
-    {module, Mod} = code:load_binary(Mod, "test", Bin),
-    ok = ern_rt:run_main(fun() -> Mod:main() end, <<"main">>,
-                         #{stdout => fun(B) -> Me ! {out, B} end,
-                           stderr => fun(B) -> Me ! {err, B} end}),
-    ?assertEqual(<<104, 105, 255>>, receive {err, B} -> B after 5000 -> none end),
-    ?assertEqual(none, receive {out, O} -> O after 0 -> none end).
+    {ok, ErlangModule, Beam} = ern_emitter:compile(['M'], Typed, Interface, Env),
+    {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+    ok = ern_rt:run_main(fun() -> ErlangModule:main() end, <<"main">>,
+                         #{stdout => fun(Text) -> Self ! {out, Text} end,
+                           stderr => fun(Text) -> Self ! {err, Text} end}),
+    ?assertEqual(<<104, 105, 255>>, receive {err, Text} -> Text after 5000 -> none end),
+    ?assertEqual(none, receive {out, Written} -> Written after 0 -> none end).
 
 %% report §8.5: a module the program does not depend on is not initialized,
 %% though it is on the code path; a regression test for the shell's modules,
 %% which every run initialized, before the standard library's
 unrelated_module_not_initialized_test() ->
-    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['Aside'],
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['Aside'],
         "let noisy = Io.debug(\"initialized\")\n"),
-    {ok, Mod, Bin} = ern_emitter:compile(['Aside'], Typed, Iface, Env),
+    {ok, ErlangModule, Beam} = ern_emitter:compile(['Aside'], Typed, Interface, Env),
     Dir = scratch(),
-    ok = file:write_file(filename:join(Dir, atom_to_list(Mod) ++ ".beam"), Bin),
+    ok = file:write_file(filename:join(Dir, atom_to_list(ErlangModule) ++ ".beam"), Beam),
     true = code:add_patha(Dir),
     try
         ?assertEqual({ok, <<"ran\n">>},
                      run("export fn main() : Unit with Never = Io.println(\"ran\")\n"))
     after
         code:del_path(Dir),
-        code:purge(Mod),
-        code:delete(Mod)
+        code:purge(ErlangModule),
+        code:delete(ErlangModule)
     end.
 
 sh(Cmd) ->
@@ -3594,8 +3614,8 @@ sh(Cmd) ->
 
 sh_collect(Port, Acc) ->
     receive
-        {Port, {data, D}} -> sh_collect(Port, [D | Acc]);
-        {Port, {exit_status, S}} -> {S, iolist_to_binary(lists:reverse(Acc))}
+        {Port, {data, Data}} -> sh_collect(Port, [Data | Acc]);
+        {Port, {exit_status, Status}} -> {Status, iolist_to_binary(lists:reverse(Acc))}
     end.
 
 %% report §10: a tail call takes constant stack space, through the branches
@@ -3603,20 +3623,23 @@ sh_collect(Port, Acc) ->
 %% ten million calls run in a process whose heap, its stack counted, may not
 %% pass a hundred thousand words
 tail_calls_constant_stack_test() ->
-    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'],
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'],
         "export fn count(n : Int, acc : Int) : Int =\n"
         "    if n == 0 then acc\n"
         "    else match n % 2 {\n"
         "        0 -> { let next = acc + 1; count(n - 1, next) }\n"
         "      | _ -> count(n - 1, acc + 1)\n"
         "    }\n"),
-    {ok, Mod, Bin} = ern_emitter:compile(['M'], Typed, Iface, Env),
-    {module, Mod} = code:load_binary(Mod, "test", Bin),
-    Me = self(),
-    {_, Ref} = spawn_opt(fun() -> Me ! {counted, Mod:count(10000000, 0)} end,
+    {ok, ErlangModule, Beam} = ern_emitter:compile(['M'], Typed, Interface, Env),
+    {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+    Self = self(),
+    {_, Ref} = spawn_opt(fun() -> Self ! {counted, ErlangModule:count(10000000, 0)} end,
                          [monitor, {max_heap_size, #{size => 100000, kill => true,
                                                       error_logger => false}}]),
-    Result = receive {counted, N} -> N; {'DOWN', Ref, process, _, Why} -> {died, Why} end,
+    Result = receive
+                 {counted, Count} -> Count;
+                 {'DOWN', Ref, process, _, ExitReason} -> {died, ExitReason}
+             end,
     ?assertEqual(10000000, Result).
 
 %% report §10: the right operand of `&&` and `||`, and the call a pipe
@@ -3625,28 +3648,31 @@ tail_calls_constant_stack_test() ->
 %% after the report stated it: the emitter gave these the host's own tail
 %% calls from the start
 tail_calls_through_operators_test() ->
-    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'],
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'],
         "export fn all(n : Int) : Bool =\n"
         "    n == 0 || (n > 0 && all(n - 1))\n"
         "export fn down(n : Int) : Int =\n"
         "    if n == 0 then 0 else n - 1 |> down\n"),
-    {ok, Mod, Bin} = ern_emitter:compile(['M'], Typed, Iface, Env),
-    {module, Mod} = code:load_binary(Mod, "test", Bin),
-    Me = self(),
-    Run = fun(F) ->
-                  {_, Ref} = spawn_opt(fun() -> Me ! {ran, F()} end,
+    {ok, ErlangModule, Beam} = ern_emitter:compile(['M'], Typed, Interface, Env),
+    {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+    Self = self(),
+    Run = fun(Function) ->
+                  {_, Ref} = spawn_opt(fun() -> Self ! {ran, Function()} end,
                                        [monitor, {max_heap_size, #{size => 100000, kill => true,
                                                                     error_logger => false}}]),
-                  receive {ran, V} -> V; {'DOWN', Ref, process, _, Why} -> {died, Why} end
+                  receive
+                      {ran, Value} -> Value;
+                      {'DOWN', Ref, process, _, ExitReason} -> {died, ExitReason}
+                  end
           end,
-    ?assertEqual(true, Run(fun() -> Mod:all(10000000) end)),
-    ?assertEqual(0, Run(fun() -> Mod:down(10000000) end)).
+    ?assertEqual(true, Run(fun() -> ErlangModule:all(10000000) end)),
+    ?assertEqual(0, Run(fun() -> ErlangModule:down(10000000) end)).
 
 %% report §10: processes are scheduled preemptively, so one that computes
 %% for ever does not keep another from running; and Int has arbitrary
 %% precision
 preemption_and_precision_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "fn spin(n : Int) : Int = spin(n + 1)\n"
         "fn power(b : Int, e : Int) : Int = if e == 0 then 1 else b * power(b, e - 1)\n"
         "export fn main() : Unit with Never = {\n"
@@ -3655,7 +3681,7 @@ preemption_and_precision_test() ->
         "    Io.println(Int.toString(power(2, 100)));\n"
         "    kill(w)\n"
         "}\n"),
-    ?assertEqual(<<"1267650600228229401496703205376\n">>, Out).
+    ?assertEqual(<<"1267650600228229401496703205376\n">>, Output).
 
 %% report §6.9: kill on a process that has already ended has no effect,
 %% and a monitor placed after the end answers Unknown, with no spawn site,
@@ -3663,7 +3689,7 @@ preemption_and_precision_test() ->
 %% process still. A regression test, written after the code; it does not
 %% cover kill on a system process
 kill_dead_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Died(Down)\n"
         "export fn main() : Unit with Msg = {\n"
         "    let z = List.size([]);\n"
@@ -3677,12 +3703,12 @@ kill_dead_test() ->
         "            Io.println(Io.show(#(p == Process.fromAddress(w), r, s)))\n"
         "    }\n"
         "}\n"),
-    ?assertEqual(<<"#(true, Unknown, \"\")\n">>, Out).
+    ?assertEqual(<<"#(true, Unknown, \"\")\n">>, Output).
 
 %% report §6.9, §9.3: a `Down` names the process behind the address
 %% monitored, through a `via`, as `Process.fromAddress` gives it
 down_names_its_process_test() ->
-    {ok, Out} = run(
+    {ok, Output} = run(
         "type Msg = Died(Down) | Go\n"
         "export fn main() : Unit with Msg = {\n"
         "    let w = spawnMonitored(fn() : Unit with Never = Unit, Died);\n"
@@ -3693,7 +3719,7 @@ down_names_its_process_test() ->
         "    let second = receive { Died(d) -> d.process == Process.fromAddress(v) };\n"
         "    Io.println(Io.show(#(first, second)))\n"
         "}\n"),
-    ?assertEqual(<<"#(true, true)\n">>, Out).
+    ?assertEqual(<<"#(true, true)\n">>, Output).
 
 %% report §8.2, §9.7: a system reference is private to its module, and
 %% the prelude binds none, so a program names neither `Io.stdout` nor
@@ -3719,16 +3745,16 @@ system_reference_private_test() ->
 %% dependency order without reading a compiled file; a module that
 %% depends on none declares none
 deps_test() ->
-    {ok, Typed, Iface, Env} = ern_typecheck:check_string(['M'], "export let one = 1\n"),
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(['M'], "export let one = 1\n"),
     Build = #{source_hash => <<>>, deps => [{['Net', 'Http'], <<"hash">>}]},
-    {ok, Mod, Bin} = ern_emitter:compile(['M'], Typed, Iface, Env, Build),
-    {module, Mod} = code:load_binary(Mod, "test", Bin),
-    ?assert(erlang:function_exported(Mod, '$deps', 0)),
-    ?assertEqual(['ern@net@http'], Mod:'$deps'()),
-    {ok, Typed2, Iface2, Env2} = ern_typecheck:check_string(['N'], "export let one = 1\n"),
-    {ok, Mod2, Bin2} = ern_emitter:compile(['N'], Typed2, Iface2, Env2),
-    {module, Mod2} = code:load_binary(Mod2, "test", Bin2),
-    ?assertNot(erlang:function_exported(Mod2, '$deps', 0)).
+    {ok, ErlangModule, Beam} = ern_emitter:compile(['M'], Typed, Interface, Env, Build),
+    {module, ErlangModule} = code:load_binary(ErlangModule, "test", Beam),
+    ?assert(erlang:function_exported(ErlangModule, '$deps', 0)),
+    ?assertEqual(['ern@net@http'], ErlangModule:'$deps'()),
+    {ok, Typed2, Interface2, Env2} = ern_typecheck:check_string(['N'], "export let one = 1\n"),
+    {ok, ErlangModule2, Beam2} = ern_emitter:compile(['N'], Typed2, Interface2, Env2),
+    {module, ErlangModule2} = code:load_binary(ErlangModule2, "test", Beam2),
+    ?assertNot(erlang:function_exported(ErlangModule2, '$deps', 0)).
 
 %% report §8.5: the emitter orders the top-level lets by what they
 %% reference, and a name bound inside a function body is not one of

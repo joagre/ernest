@@ -16,28 +16,30 @@
 -include_lib("typer/include/ern_types.hrl").
 
 
-%% Emission context, threaded through everything. vars: Ernest name =>
-%% Erlang variable name; locals: local fn name => #local{} (see Blocks);
-%% lifted: module functions produced by lifting, reversed; tops: top-level
-%% {Owner, Name} => arity | value; descs: descriptor term => the name of
-%% the module function returning it; pat_guards: Erlang guard forms a
-%% pattern needs on its clause, a float segment's zero (report §3.1),
-%% taken by the clause that uses them; session: where the module is an
-%% input of the shell's session (report §11.2), the lines before its first
-%% in its file, since its spawn sites are written as the session writes
-%% names; else false.
--record(cx, {ns, mod, env, fname, vars = #{}, counter = 0, locals = #{}, lifted = [],
-             tops = #{}, descs = #{}, pat_guards = [], session = false, standard = false}).
+%% Emission context, threaded through everything. variables: Ernest name
+%% => Erlang variable name; locals: local fn name => #local_fn{} (see
+%% Blocks); lifted: module functions produced by lifting, reversed;
+%% top_names: top-level {Owner, Name} => arity | value; descriptors:
+%% descriptor term => the name of the module function returning it;
+%% pattern_guards: Erlang guard forms a pattern needs on its clause, a
+%% float segment's zero (report §3.1), taken by the clause that uses them;
+%% session: where the module is an input of the shell's session (report
+%% §11.2), the lines before its first in its file, since its spawn sites
+%% are written as the session writes names; else false.
+-record(emit_context, {namespace, erlang_module, env, function_name, variables = #{},
+                       counter = 0, locals = #{}, lifted = [], top_names = #{},
+                       descriptors = #{}, pattern_guards = [], session = false,
+                       standard = false}).
 %% A local fn of a block (see Blocks).
--record(local, {lifted, own, extra, refs, snap = pending}).
+-record(local_fn, {lifted, own, extra, references, snapshot = pending}).
 
 %%
 %% Entry points
 %%
 
 -spec compile([atom()], [tuple()], #interface{}, ern_typecheck:env()) -> {ok, atom(), binary()}.
-compile(Ns, Decls, Iface, Env) ->
-    compile(Ns, Decls, Iface, Env, #{source_hash => <<>>, deps => []}).
+compile(Namespace, Declarations, Interface, Env) ->
+    compile(Namespace, Declarations, Interface, Env, #{source_hash => <<>>, deps => []}).
 
 %% Build: the source's hash and its path from the build root, and the
 %% dependencies' interface hashes, go into the chunk beside the interface
@@ -55,69 +57,76 @@ compile(Ns, Decls, Iface, Env) ->
                 stdlib => binary() | none, source => binary(),
                 session => non_neg_integer(), standard => boolean()}) ->
           {ok, atom(), binary()}.
-compile(Ns, Decls, Iface, Env, Build) ->
-    Forms = forms(Ns, Decls, Env, Build),
+compile(Namespace, Declarations, Interface, Env, Build) ->
+    Forms = forms(Namespace, Declarations, Env, Build),
     Meta = maps:without([source, session, standard], Build),
-    Chunk = ern_interface:encode(Meta, Iface),
-    Docs = term_to_binary(ern_docs:build(Ns, Decls, Env, maps:get(source, Build, <<>>))),
+    Chunk = ern_interface:encode(Meta, Interface),
+    Docs = term_to_binary(ern_docs:build(Namespace, Declarations, Env,
+                                         maps:get(source, Build, <<>>))),
     Chunks = [{ern_interface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs}],
     case compile:forms(Forms, [return_errors, debug_info, {extra_chunks, Chunks}]) of
-        {ok, Mod, Bin} -> {ok, Mod, Bin};
+        {ok, ErlangModule, Beam} -> {ok, ErlangModule, Beam};
         {error, Errors, _} -> erlang:error({emitted_erlang_does_not_compile, Errors})
     end.
 
 %% The abstract forms, for the golden tests and erl_prettypr.
 -spec forms([atom()], [tuple()], ern_typecheck:env()) -> [erl_parse:abstract_form()].
-forms(Ns, Decls, Env) ->
-    forms(Ns, Decls, Env, #{}).
+forms(Namespace, Declarations, Env) ->
+    forms(Namespace, Declarations, Env, #{}).
 
 %% Report §8.5: with the modules this one depends on, which it declares
 %% as `'$deps'/0` so that the runtime can evaluate top-level bindings in
 %% dependency order without reading a compiled file.
 -spec forms([atom()], [tuple()], ern_typecheck:env(), map()) -> [erl_parse:abstract_form()].
-forms(Ns, Decls, Env, Build) ->
-    Mod = module_atom(Ns),
-    Deps = [D || {D, _} <- maps:get(deps, Build, [])],
-    Cx0 = #cx{ns = Ns, mod = Mod, env = Env, tops = top_names(Decls),
-              session = maps:get(session, Build, false),
-              standard = maps:get(standard, Build, false)},
-    {Funs, Cx1} = lists:mapfoldl(fun decl/2, Cx0, Decls),
-    Lets = [D || #let_declaration{} = D <- Decls],
-    {Init, Cx2} = init_fun(Lets, Cx1),
-    Tests = tests_fun(Lets),
-    DepsFun = deps_fun(Deps),
-    FunFun = fun_fun(Decls),
-    Exports = [export(D) || D <- Decls, exported(D)] ++ [{'$init', 0} || Lets =/= []]
-        ++ [{'$tests', 0} || Tests =/= []] ++ [{'$deps', 0} || DepsFun =/= []]
-        ++ [{'$fun', 2} || FunFun =/= []],
+forms(Namespace, Declarations, Env, Build) ->
+    ErlangModule = module_atom(Namespace),
+    Dependencies = [Dependency || {Dependency, _} <- maps:get(deps, Build, [])],
+    Context = #emit_context{namespace = Namespace, erlang_module = ErlangModule, env = Env,
+                            top_names = top_names(Declarations),
+                            session = maps:get(session, Build, false),
+                            standard = maps:get(standard, Build, false)},
+    {Funs, Context1} = lists:mapfoldl(fun declaration/2, Context, Declarations),
+    Lets = [Declaration || #let_declaration{} = Declaration <- Declarations],
+    {Init, Context2} = init_function(Lets, Context1),
+    Tests = tests_function(Lets),
+    DepsFun = dependencies_function(Dependencies),
+    FunFun = fun_function(Declarations),
+    Exports = [export(Declaration) || Declaration <- Declarations, exported(Declaration)]
+        ++ [{'$init', 0} || Lets =/= []] ++ [{'$tests', 0} || Tests =/= []]
+        ++ [{'$deps', 0} || DepsFun =/= []] ++ [{'$fun', 2} || FunFun =/= []],
     %% an Ernest function named like an auto-imported BIF, `size`, `max`,
     %% is called by its own name: the auto-import is switched off for it
-    Clashes = [{F, A} || {F, A} <- maps:fold(fun({O, N}, Arity, Acc) when is_integer(Arity) ->
-                                                    [{fname(O, N), Arity} | Acc];
-                                                ({O, N}, value, Acc) ->
-                                                    [{fname(O, N), 0} | Acc]
-                                             end, [], Cx0#cx.tops),
-                         erl_internal:bif(F, A)],
+    Clashes = [{Function, Arity}
+               || {Function, Arity} <- top_functions(Context#emit_context.top_names),
+                  erl_internal:bif(Function, Arity)],
     NoImport = case Clashes of
                    [] -> [];
                    _ -> [erl_syntax:attribute(erl_syntax:atom(compile),
                                               [erl_syntax:abstract({no_auto_import, Clashes})])]
                end,
-    Attrs = [erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(Mod)])]
+    Attrs = [erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(ErlangModule)])]
             ++ NoImport
             ++ [erl_syntax:attribute(erl_syntax:atom(export),
                                      [erl_syntax:list([erl_syntax:arity_qualifier(
-                                                         erl_syntax:atom(F), erl_syntax:integer(A))
-                                                       || {F, A} <- Exports])])],
+                                                         erl_syntax:atom(Function),
+                                                         erl_syntax:integer(Arity))
+                                                       || {Function, Arity} <- Exports])])],
     Functions = lists:append(Funs) ++ Init ++ Tests ++ DepsFun ++ FunFun
-        ++ lists:reverse(Cx2#cx.lifted),
+        ++ lists:reverse(Context2#emit_context.lifted),
     erl_syntax:revert_forms(Attrs ++ Functions).
+
+%% Each top-level name as the Erlang function it compiles to, a `let` as
+%% its getter of no argument.
+top_functions(TopNames) ->
+    [{function_name(Owner, Name), case Arity of value -> 0; _ -> Arity end}
+     || {Owner, Name} := Arity <- TopNames].
 
 %% Report Appendix E.24, §11.2: '$tests'/0 lists the module's tests, every
 %% top-level let of type Test.Case, exported or not, for `ern test`.
-tests_fun(Lets) ->
-    Names = [fname(undefined, N) || #let_declaration{name = N, scheme = Scheme} <- Lets,
-                            Scheme#scheme.type =:= {tcon, ['Test', 'Case'], []}],
+tests_function(Lets) ->
+    Names = [function_name(undefined, Name)
+             || #let_declaration{name = Name, scheme = Scheme} <- Lets,
+                Scheme#scheme.type =:= {tcon, ['Test', 'Case'], []}],
     case Names of
         [] -> [];
         _ ->
@@ -125,12 +134,13 @@ tests_fun(Lets) ->
             %% more than the list so far is live at a call: a list of every
             %% call at once passes the host's limit of live values
             {Matches, List} =
-                lists:foldl(fun(F, {Acc, Tail}) ->
-                                    V = erl_syntax:variable(
-                                          list_to_atom("T" ++ integer_to_list(length(Acc)))),
-                                    Head = erl_syntax:application(erl_syntax:atom(F), []),
-                                    {[erl_syntax:match_expr(V, erl_syntax:cons(Head, Tail)) | Acc],
-                                     V}
+                lists:foldl(fun(Function, {Acc, Tail}) ->
+                                Name = list_to_atom("T" ++ integer_to_list(length(Acc))),
+                                Variable = erl_syntax:variable(Name),
+                                Head = erl_syntax:application(erl_syntax:atom(Function), []),
+                                Extended = erl_syntax:cons(Head, Tail),
+                                Match = erl_syntax:match_expr(Variable, Extended),
+                                {[Match | Acc], Variable}
                             end, {[], erl_syntax:nil()}, lists:reverse(Names)),
             [erl_syntax:function(erl_syntax:atom('$tests'),
                                  [erl_syntax:clause([], none, lists:reverse(Matches) ++ [List])])]
@@ -140,12 +150,13 @@ tests_fun(Lets) ->
 %% module as a fun of the version that answers, so that a function value
 %% another module takes from this one keeps the code it was taken from when
 %% the module is loaded again; an external fun would reach the newest.
-fun_fun(Decls) ->
-    Clauses = [erl_syntax:clause([erl_syntax:atom(F), erl_syntax:integer(A)], none,
-                                 [erl_syntax:implicit_fun(erl_syntax:atom(F),
-                                                          erl_syntax:integer(A))])
-               || D <- Decls, exported(D), not is_record(D, let_declaration), nameable(D),
-                  {F, A} <- [export(D)]],
+fun_function(Declarations) ->
+    Clauses = [erl_syntax:clause([erl_syntax:atom(Function), erl_syntax:integer(Arity)], none,
+                                 [erl_syntax:implicit_fun(erl_syntax:atom(Function),
+                                                          erl_syntax:integer(Arity))])
+               || Declaration <- Declarations, exported(Declaration),
+                  not is_record(Declaration, let_declaration), nameable(Declaration),
+                  {Function, Arity} <- [export(Declaration)]],
     case Clauses of
         [] -> [];
         _ -> [erl_syntax:function(erl_syntax:atom('$fun'), Clauses)]
@@ -156,55 +167,57 @@ fun_fun(Decls) ->
 %% value. It has no clause: each clause is a function the host keeps an
 %% entry for as long as the node lives, for every version of the module it
 %% loads.
-nameable(#fn_declaration{name = N}) -> not lists:member($$, atom_to_list(N));
-nameable(#foreign_fn_declaration{name = N}) -> not lists:member($$, atom_to_list(N)).
+nameable(#fn_declaration{name = Name}) -> not lists:member($$, atom_to_list(Name));
+nameable(#foreign_fn_declaration{name = Name}) -> not lists:member($$, atom_to_list(Name)).
 
 %% Report §8.5: the modules this one depends on, whose top-level
 %% bindings are evaluated before its own.
-deps_fun([]) ->
+dependencies_function([]) ->
     [];
-deps_fun(Deps) ->
-    Mods = erl_syntax:list([erl_syntax:atom(module_atom(D)) || D <- Deps]),
+dependencies_function(Dependencies) ->
+    Modules = erl_syntax:list([erl_syntax:atom(module_atom(Dependency))
+                               || Dependency <- Dependencies]),
     [erl_syntax:function(erl_syntax:atom('$deps'),
-                         [erl_syntax:clause([], none, [Mods])])].
+                         [erl_syntax:clause([], none, [Modules])])].
 
 %% The module as Erlang source, for --emit-erl (report §11.1).
 -spec erl_source([atom()], [tuple()], ern_typecheck:env()) -> unicode:chardata().
-erl_source(Ns, Decls, Env) ->
-    erl_source(Ns, Decls, Env, #{}).
+erl_source(Namespace, Declarations, Env) ->
+    erl_source(Namespace, Declarations, Env, #{}).
 
 -spec erl_source([atom()], [tuple()], ern_typecheck:env(), map()) -> unicode:chardata().
-erl_source(Ns, Decls, Env, Build) ->
-    Forms = forms(Ns, Decls, Env, Build),
+erl_source(Namespace, Declarations, Env, Build) ->
+    Forms = forms(Namespace, Declarations, Env, Build),
     [erl_prettypr:format(erl_syntax:form_list(Forms)), "\n"].
 
 %% Report §4.2: the path with @ for / and the prefix ern@ (ern_namespace).
 -spec module_atom([atom()]) -> atom().
-module_atom(Ns) ->
-    ern_namespace:module_atom(Ns).
+module_atom(Namespace) ->
+    ern_namespace:module_atom(Namespace).
 
 %%
 %% Declarations
 %%
 
-top_names(Decls) ->
-    maps:from_list([{{O, N}, length(Ps)}
-                    || #fn_declaration{owner = O, name = N, params = Ps} <- Decls]
-                   ++ [{{O, N}, length(Ps)}
-                       || #foreign_fn_declaration{owner = O, name = N, params = Ps} <- Decls]
-                   ++ [{{undefined, N}, value} || #let_declaration{name = N} <- Decls]).
+top_names(Declarations) ->
+    maps:from_list([{{Owner, Name}, length(Params)}
+                    || #fn_declaration{owner = Owner, name = Name, params = Params} <- Declarations]
+                   ++ [{{Owner, Name}, length(Params)}
+                       || #foreign_fn_declaration{owner = Owner, name = Name,
+                                                  params = Params} <- Declarations]
+                   ++ [{{undefined, Name}, value}
+                       || #let_declaration{name = Name} <- Declarations]).
 
-exported(#fn_declaration{export = E}) -> E;
-exported(#let_declaration{export = E}) -> E;
-exported(#foreign_fn_declaration{export = E}) -> E;
+exported(#fn_declaration{export = Export}) -> Export;
+exported(#let_declaration{export = Export}) -> Export;
+exported(#foreign_fn_declaration{export = Export}) -> Export;
 exported(_) -> false.
 
-export(#fn_declaration{owner = O, name = N, params = Ps}) -> {fname(O, N), length(Ps)};
-export(#foreign_fn_declaration{owner = O, name = N, params = Ps}) -> {fname(O, N), length(Ps)};
-export(#let_declaration{name = N}) -> {fname(undefined, N), 0}.
-
-fname(undefined, N) -> function_atom(N);
-fname(Owner, N) -> list_to_atom(atom_to_list(Owner) ++ "." ++ atom_to_list(N)).
+export(#fn_declaration{owner = Owner, name = Name, params = Params}) ->
+    {function_name(Owner, Name), length(Params)};
+export(#foreign_fn_declaration{owner = Owner, name = Name, params = Params}) ->
+    {function_name(Owner, Name), length(Params)};
+export(#let_declaration{name = Name}) -> {function_name(undefined, Name), 0}.
 
 %% The Erlang function a top-level Ernest name compiles to: its own name,
 %% but for the names the host gives every module, `module_info/0,1` and the
@@ -214,51 +227,57 @@ fname(Owner, N) -> list_to_atom(atom_to_list(Owner) ++ "." ++ atom_to_list(N)).
 -spec function_atom(atom()) -> atom().
 function_atom(module_info) -> 'module_info$';
 function_atom(record_info) -> 'record_info$';
-function_atom(N) -> N.
+function_atom(Name) -> Name.
 
 %% The Erlang function a top-level declaration compiles to, its owner a type
-%% or undefined, for the documentation chunk's keys.
+%% or undefined, which the documentation chunk's keys name too.
 -spec function_name(atom() | undefined, atom()) -> atom().
-function_name(Owner, Name) ->
-    fname(Owner, Name).
+function_name(undefined, Name) -> function_atom(Name);
+function_name(Owner, Name) -> list_to_atom(atom_to_list(Owner) ++ "." ++ atom_to_list(Name)).
 
-decl(#fn_declaration{span = Pos, owner = O, name = N, params = Params, body = Body}, Cx) ->
-    Name = fname(O, N),
-    Cx1 = Cx#cx{fname = Name, vars = #{}, locals = #{}},
-    {Pats, Cx2} = lists:mapfoldl(fun(#param{pattern = P}, C) -> pattern(P, C) end, Cx1, Params),
-    {BodyForms, Cx3} = body(Body, Cx2),
-    Clause = at(Pos, erl_syntax:clause(Pats, none, BodyForms)),
-    {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx3#cx{vars = #{}}};
-decl(#let_declaration{span = Pos, name = N}, Cx) ->
+declaration(#fn_declaration{span = Span, owner = Owner, name = Name, params = Params, body = Body},
+            Context) ->
+    FunctionName = function_name(Owner, Name),
+    Context1 = Context#emit_context{function_name = FunctionName, variables = #{}, locals = #{}},
+    {Patterns, Context2} = lists:mapfoldl(fun(#param{pattern = Pattern}, Acc) ->
+                                              pattern(Pattern, Acc)
+                                          end, Context1, Params),
+    {BodyForms, Context3} = body(Body, Context2),
+    Clause = at(Span, erl_syntax:clause(Patterns, none, BodyForms)),
+    {[at(Span, erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]))],
+     Context3#emit_context{variables = #{}}};
+declaration(#let_declaration{span = Span, name = Name}, Context) ->
     %% the getter; the value is computed by '$init'/0 (report §8.5)
-    Name = fname(undefined, N),
-    Get = call_remote(ern_rt, binding, [key(Cx, Name)]),
-    Clause = at(Pos, erl_syntax:clause([], none, [Get])),
-    {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx};
-decl(#foreign_fn_declaration{span = Pos, owner = O, name = N, params = Params,
-                             implementation = Impl, scheme = Scheme}, Cx) ->
+    FunctionName = function_name(undefined, Name),
+    Get = call_remote(ern_rt, binding, [key(Context, FunctionName)]),
+    Clause = at(Span, erl_syntax:clause([], none, [Get])),
+    {[at(Span, erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]))], Context};
+declaration(#foreign_fn_declaration{span = Span, owner = Owner, name = Name, params = Params,
+                                    implementation = Implementation, scheme = Scheme}, Context) ->
     %% report §4.7, §8.4: the implementation called in place, an exception
     %% it raises turned into a fault, and its return checked
-    Name = fname(O, N),
-    {ok, {M, F, _}} = ern_typecheck:foreign_implementation(Impl),
-    {Vars, Cx1} = fresh_vars(length(Params), "A", Cx#cx{fname = Name}),
-    {tfn, ParamTs, Effect, Ret} = Scheme#scheme.type,
-    Args = [erl_syntax:variable(V) || V <- Vars],
-    {Exposed, Cx2} = lists:mapfoldl(fun exposed/2, Cx1, lists:zip(ParamTs, Args)),
-    Call = erl_syntax:application(erl_syntax:atom(M), erl_syntax:atom(F), Exposed),
+    FunctionName = function_name(Owner, Name),
+    {ok, {HostModule, HostFunction, _}} = ern_typecheck:foreign_implementation(Implementation),
+    {Variables, Context1} = fresh_variables(length(Params), "A",
+                                            Context#emit_context{function_name = FunctionName}),
+    {tfn, ParamTypes, Effect, ResultType} = Scheme#scheme.type,
+    Args = [erl_syntax:variable(Variable) || Variable <- Variables],
+    {Exposed, Context2} = lists:mapfoldl(fun exposed/2, Context1, lists:zip(ParamTypes, Args)),
+    Call = erl_syntax:application(erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
+                                  Exposed),
     %% report §8.6: a foreign call in progress can still deliver, so it is
     %% counted while it runs; a standard library function without a mailbox
     %% type waits on no process, and is not
-    Run = case Cx#cx.standard andalso Effect =:= pure of
+    Run = case Context#emit_context.standard andalso Effect =:= pure of
               true -> Call;
               false -> call_remote(ern_rt, in_foreign,
                                    [erl_syntax:fun_expr([erl_syntax:clause([], none, [Call])])])
           end,
-    {[Class, Reason, Stack], Cx3} = fresh_vars(3, "E", Cx2),
+    {[Class, Reason, Stack], Context3} = fresh_variables(3, "E", Context2),
     Raised = call_remote(ern_boundary, raised,
-                         [erl_syntax:atom(M), erl_syntax:atom(F),
-                          erl_syntax:integer(length(Params)) | [erl_syntax:variable(V)
-                                                                 || V <- [Class, Reason, Stack]]]),
+                         [erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
+                          erl_syntax:integer(length(Params))
+                          | [erl_syntax:variable(Variable) || Variable <- [Class, Reason, Stack]]]),
     Handler = erl_syntax:clause([erl_syntax:class_qualifier(erl_syntax:variable(Class),
                                                             erl_syntax:variable(Reason),
                                                             erl_syntax:variable(Stack))],
@@ -268,76 +287,80 @@ decl(#foreign_fn_declaration{span = Pos, owner = O, name = N, params = Params,
     %% not checked; a type variable of the result that no parameter names
     %% stands for no value the function could have been given, so it
     %% matches none, and the return faults where it holds one
-    Named = lists:append([type_vars(P) || P <- ParamTs]),
-    Unnamed = [V || V <- lists:usort(type_vars(Ret)), not lists:member(V, Named)],
-    {Body, Cx4} = case Cx#cx.standard of
-                      true -> {Try, Cx3};
-                      false -> check_form(as_never(Unnamed, Ret), Ret, Try,
-                                          "foreign return does not match ", Cx3)
-                  end,
-    Clause = at(Pos, erl_syntax:clause(Args, none, [Body])),
-    {[at(Pos, erl_syntax:function(erl_syntax:atom(Name), [Clause]))], Cx4};
-decl(_, Cx) ->
-    {[], Cx}.
+    Named = lists:append([type_variables(ParamType) || ParamType <- ParamTypes]),
+    Unnamed = [Variable || Variable <- lists:usort(type_variables(ResultType)),
+                           not lists:member(Variable, Named)],
+    {Body, Context4} = case Context#emit_context.standard of
+                           true -> {Try, Context3};
+                           false -> check_form(as_never(Unnamed, ResultType), ResultType, Try,
+                                               "foreign return does not match ", Context3)
+                       end,
+    Clause = at(Span, erl_syntax:clause(Args, none, [Body])),
+    {[at(Span, erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]))], Context4};
+declaration(_, Context) ->
+    {[], Context}.
 
-key(#cx{mod = Mod}, Name) ->
-    erl_syntax:tuple([erl_syntax:atom(Mod), erl_syntax:atom(Name)]).
+key(#emit_context{erlang_module = ErlangModule}, Name) ->
+    erl_syntax:tuple([erl_syntax:atom(ErlangModule), erl_syntax:atom(Name)]).
 
 %% '$init'/0 evaluates the top-level lets once, in dependency order, each
 %% named as the process's site while it runs, so that its fault is reported
 %% under it (report §8.5, §11.2).
-init_fun([], Cx) ->
-    {[], Cx};
-init_fun(Lets, Cx) ->
-    {Stores, Cx1} = lists:mapfoldl(
-                      fun(#let_declaration{span = Pos, name = N, body = Body}, C) ->
-                              C0 = C#cx{fname = fname(undefined, N), vars = #{}, locals = #{}},
-                              Named = call_remote(ern_rt, initializing, [site(Pos, C0)]),
-                              {BodyForm, C1} = expr(Body, C0),
-                              Store = call_remote(persistent_term, put,
-                                                  [key(C, fname(undefined, N)), BodyForm]),
-                              {[Named, Store], C1}
-                      end, Cx, let_order(Lets, Cx)),
+init_function([], Context) ->
+    {[], Context};
+init_function(Lets, Context) ->
+    {Stores, Context1} =
+        lists:mapfoldl(fun(#let_declaration{span = Span, name = Name, body = Body}, Acc) ->
+                           FunctionName = function_name(undefined, Name),
+                           Acc1 = Acc#emit_context{function_name = FunctionName, variables = #{},
+                                                   locals = #{}},
+                           Named = call_remote(ern_rt, initializing, [site(Span, Acc1)]),
+                           {BodyForm, Acc2} = expr(Body, Acc1),
+                           Store = call_remote(persistent_term, put,
+                                               [key(Acc, FunctionName), BodyForm]),
+                           {[Named, Store], Acc2}
+                       end, Context, let_order(Lets, Context)),
     Clause = erl_syntax:clause([], none, lists:append(Stores) ++ [erl_syntax:atom(ok)]),
-    {[erl_syntax:function(erl_syntax:atom('$init'), [Clause])], Cx1}.
+    {[erl_syntax:function(erl_syntax:atom('$init'), [Clause])], Context1}.
 
 %% Report §8.5: the lets in the order the checker found, a let after
 %% those its initializer reaches and otherwise as declared.
-let_order(Lets, #cx{env = Env}) ->
-    ByKey = maps:from_list([{{undefined, N}, D} || #let_declaration{name = N} = D <- Lets]),
-    [maps:get(K, ByKey) || K <- ern_typecheck:let_order(Env)].
+let_order(Lets, #emit_context{env = Env}) ->
+    ByKey = maps:from_list([{{undefined, Name}, Declaration}
+                            || #let_declaration{name = Name} = Declaration <- Lets]),
+    [maps:get(Key, ByKey) || Key <- ern_typecheck:let_order(Env)].
 
 %%
-%% Expressions: expr(E, Cx) -> {Form, Cx}
+%% Expressions: expr(Expr, Context) -> {Form, Context}
 %%
 
-expr(#e_literal{span = Pos, kind = Kind, value = V}, Cx) ->
-    {at(Pos, literal(Kind, V)), Cx};
-expr(#e_var{span = Pos, path = Path, name = Name, type = T, referent = Referent}, Cx) ->
-    {Form, Cx1} = var_ref(Pos, Path, Name, Referent, T, Cx),
-    {at(Pos, Form), Cx1};
-expr(#e_constructor{span = Pos, path = Path, name = Name, base = Base, args = Args}, Cx) ->
-    con_expr(Pos, Path, Name, Base, Args, Cx);
-expr(#e_tuple{span = Pos, elements = Es}, Cx) ->
-    {Forms, Cx1} = exprs(Es, Cx),
-    {at(Pos, erl_syntax:tuple(Forms)), Cx1};
-expr(#e_list{span = Pos, elements = Es}, Cx) ->
-    {Forms, Cx1} = exprs(Es, Cx),
-    {at(Pos, erl_syntax:list(Forms)), Cx1};
-expr(#e_bitstring{span = Pos, segments = Segs}, Cx) ->
+expr(#e_literal{span = Span, kind = Kind, value = Value}, Context) ->
+    {at(Span, literal(Kind, Value)), Context};
+expr(#e_var{span = Span, path = Path, name = Name, type = Type, referent = Referent}, Context) ->
+    {Form, Context1} = name_form(Span, Path, Name, Referent, Type, Context),
+    {at(Span, Form), Context1};
+expr(#e_constructor{span = Span, path = Path, name = Name, base = Base, args = Args}, Context) ->
+    constructor_expr(Span, Path, Name, Base, Args, Context);
+expr(#e_tuple{span = Span, elements = Elements}, Context) ->
+    {Forms, Context1} = exprs(Elements, Context),
+    {at(Span, erl_syntax:tuple(Forms)), Context1};
+expr(#e_list{span = Span, elements = Elements}, Context) ->
+    {Forms, Context1} = exprs(Elements, Context),
+    {at(Span, erl_syntax:list(Forms)), Context1};
+expr(#e_bitstring{span = Span, segments = Segments}, Context) ->
     %% report §5.11, §7.4: the runtime's bit syntax, each segment's value
     %% checked for its width by ern_bits, a badarg the segment overflow
     %% fault, and the result checked for alignment when a dynamic size
     %% leaves the bit count open
-    {Fields, {Cx1, Open}} =
-        lists:mapfoldl(fun(#bit_segment{value = V, specs = Specs}, {C, O}) ->
+    {Fields, {Context1, Open}} =
+        lists:mapfoldl(fun(#bit_segment{value = Value, specs = Specs}, {Acc, OpenSoFar}) ->
                            {ok, Spec} = ern_bitspec:spec(Specs),
-                           {VF, C1} = expr(V, C),
-                           {SizeF, C2} = size_form(Spec, C1),
-                           Checked = segment_value(Spec, VF, SizeF),
-                           {erl_syntax:binary_field(Checked, SizeF, type_specs(Spec)),
-                            {C2, O orelse open(Spec)}}
-                       end, {Cx, false}, Segs),
+                           {ValueForm, Acc1} = expr(Value, Acc),
+                           {SizeForm, Acc2} = size_form(Spec, Acc1),
+                           Checked = segment_value(Spec, ValueForm, SizeForm),
+                           {erl_syntax:binary_field(Checked, SizeForm, type_specs(Spec)),
+                            {Acc2, OpenSoFar orelse open(Spec)}}
+                       end, {Context, false}, Segments),
     Handler = erl_syntax:clause([erl_syntax:class_qualifier(erl_syntax:atom(error),
                                                             erl_syntax:atom(badarg))],
                                 none, [call_remote(ern_bits, overflow, [])]),
@@ -346,80 +369,88 @@ expr(#e_bitstring{span = Pos, segments = Segs}, Cx) ->
                true -> call_remote(ern_bits, aligned, [Built]);
                false -> Built
            end,
-    {at(Pos, Form), Cx1};
-expr(#e_block{span = Pos, statements = Stmts}, Cx) ->
-    {Forms, Cx1} = block(Stmts, Cx),
-    {at(Pos, erl_syntax:block_expr(Forms)), Cx1#cx{vars = Cx#cx.vars, locals = Cx#cx.locals}};
-expr(#e_call{span = Pos, callee = Callee, args = [X | Rest], pipe = true}, Cx)
+    {at(Span, Form), Context1};
+expr(#e_block{span = Span, statements = Statements}, Context) ->
+    {Forms, Context1} = block(Statements, Context),
+    {at(Span, erl_syntax:block_expr(Forms)),
+     Context1#emit_context{variables = Context#emit_context.variables,
+                           locals = Context#emit_context.locals}};
+expr(#e_call{span = Span, callee = Callee, args = [Expr | Rest], pipe = true}, Context)
   when not is_record(Callee, e_var), not is_record(Callee, e_constructor),
        not is_record(Callee, e_lambda) ->
     %% report §5.1: in `x |> e`, x is evaluated before a callee that is
     %% evaluated at all, and the other arguments after it
-    {XF, Cx1} = expr(X, Cx),
-    {[V], Cx2} = fresh_vars(1, "Piped", Cx1),
-    {CalleeForm, Cx3} = expr(Callee, Cx2),
-    {RestForms, Cx4} = exprs(Rest, Cx3),
-    Var = erl_syntax:variable(V),
-    App = erl_syntax:application(CalleeForm, [Var | RestForms]),
-    {at(Pos, erl_syntax:block_expr([erl_syntax:match_expr(Var, XF), App])), Cx4};
-expr(#e_call{span = Pos, callee = Callee, args = Args}, Cx) ->
-    call(Pos, Callee, Args, Cx);
-expr(#e_not{span = Pos, expr = X}, Cx) ->
-    {Form, Cx1} = expr(X, Cx),
-    {at(Pos, erl_syntax:prefix_expr(erl_syntax:operator('not'), Form)), Cx1};
-expr(#e_selection{span = Pos, expr = X, field = F}, Cx) ->
-    {Form, Cx1} = expr(X, Cx),
-    select(Pos, F, ern_typecheck:node_type(X), Form, Cx1);
-expr(#e_negation{span = Pos, expr = X}, Cx) ->
-    {Form, Cx1} = expr(X, Cx),
-    {at(Pos, negate(resolved(ern_typecheck:node_type(X), Cx), Form, Cx)), Cx1};
-expr(#e_binop{span = Pos, operator = Op, left = L, right = R}, Cx) ->
-    {LF, Cx1} = expr(L, Cx),
-    {RF, Cx2} = expr(R, Cx1),
-    case resolved(ern_typecheck:node_type(L), Cx) of
-        {tcon, ['Float'], []} when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/' ->
-            {[A, B], Cx3} = fresh_vars(2, "F", Cx2),
-            {at(Pos, float_op(Op, LF, RF, A, B)), Cx3};
-        T ->
-            {at(Pos, binop(Op, T, LF, RF, Cx)), Cx2}
+    {ExprForm, Context1} = expr(Expr, Context),
+    {[PipedName], Context2} = fresh_variables(1, "Piped", Context1),
+    {CalleeForm, Context3} = expr(Callee, Context2),
+    {RestForms, Context4} = exprs(Rest, Context3),
+    Piped = erl_syntax:variable(PipedName),
+    Application = erl_syntax:application(CalleeForm, [Piped | RestForms]),
+    {at(Span, erl_syntax:block_expr([erl_syntax:match_expr(Piped, ExprForm), Application])),
+     Context4};
+expr(#e_call{span = Span, callee = Callee, args = Args}, Context) ->
+    call(Span, Callee, Args, Context);
+expr(#e_not{span = Span, expr = Expr}, Context) ->
+    {Form, Context1} = expr(Expr, Context),
+    {at(Span, erl_syntax:prefix_expr(erl_syntax:operator('not'), Form)), Context1};
+expr(#e_selection{span = Span, expr = Expr, field = Field}, Context) ->
+    {Form, Context1} = expr(Expr, Context),
+    select(Span, Field, ern_typecheck:node_type(Expr), Form, Context1);
+expr(#e_negation{span = Span, expr = Expr}, Context) ->
+    {Form, Context1} = expr(Expr, Context),
+    {at(Span, negate(resolved(ern_typecheck:node_type(Expr), Context), Form, Context)), Context1};
+expr(#e_binop{span = Span, operator = Operator, left = Left, right = Right}, Context) ->
+    {LeftForm, Context1} = expr(Left, Context),
+    {RightForm, Context2} = expr(Right, Context1),
+    case resolved(ern_typecheck:node_type(Left), Context) of
+        {tcon, ['Float'], []}
+          when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/' ->
+            {[LeftName, RightName], Context3} = fresh_variables(2, "F", Context2),
+            {at(Span, float_operation(Operator, LeftForm, RightForm, LeftName, RightName)),
+             Context3};
+        Type ->
+            {at(Span, binop(Operator, Type, LeftForm, RightForm, Context)), Context2}
     end;
-expr(#e_lambda{span = Pos, params = Params, body = Body}, Cx) ->
-    {Pats, Cx1} = lists:mapfoldl(fun(#param{pattern = P}, C) -> pattern(P, C) end, Cx, Params),
-    {BodyForms, Cx2} = body(Body, Cx1),
-    Clause = erl_syntax:clause(Pats, none, BodyForms),
-    {at(Pos, erl_syntax:fun_expr([Clause])), Cx2#cx{vars = Cx#cx.vars}};
-expr(#e_if{span = Pos, condition = C, then_branch = T, else_branch = E}, Cx) ->
-    {CF, Cx1} = expr(C, Cx),
-    {TF, Cx2} = body(T, Cx1),
-    {EF, Cx3} = body(E, Cx2),
-    {at(Pos, erl_syntax:case_expr(CF, [erl_syntax:clause([erl_syntax:atom(true)], none, TF),
-                                       erl_syntax:clause([erl_syntax:atom(false)], none, EF)])),
-     Cx3};
-expr(#e_match{span = Pos, scrutinee = S, clauses = Clauses0}, Cx) ->
-    {SF, Cx1} = expr(S, Cx),
+expr(#e_lambda{span = Span, params = Params, body = Body}, Context) ->
+    {Patterns, Context1} = lists:mapfoldl(fun(#param{pattern = Pattern}, Acc) ->
+                                              pattern(Pattern, Acc)
+                                          end, Context, Params),
+    {BodyForms, Context2} = body(Body, Context1),
+    Clause = erl_syntax:clause(Patterns, none, BodyForms),
+    {at(Span, erl_syntax:fun_expr([Clause])),
+     Context2#emit_context{variables = Context#emit_context.variables}};
+expr(#e_if{span = Span, condition = Condition, then_branch = Then, else_branch = Else}, Context) ->
+    {ConditionForm, Context1} = expr(Condition, Context),
+    {ThenForms, Context2} = body(Then, Context1),
+    {ElseForms, Context3} = body(Else, Context2),
+    Clauses = [erl_syntax:clause([erl_syntax:atom(true)], none, ThenForms),
+               erl_syntax:clause([erl_syntax:atom(false)], none, ElseForms)],
+    {at(Span, erl_syntax:case_expr(ConditionForm, Clauses)), Context3};
+expr(#e_match{span = Span, scrutinee = ScrutineeExpr, clauses = Written}, Context) ->
+    {ScrutineeForm, Context1} = expr(ScrutineeExpr, Context),
     %% report §5.11: a top-level `let` a pattern's size names is read into a
     %% variable when the match begins, after its scrutinee (§5.1: left to
     %% right), which is then matched from a variable of its own
-    case lists:mapfoldl(fun read_sizes/2, {[], Cx1}, Clauses0) of
-        {Clauses, {[], Cx2}} ->
-            {Form, Cx3} = match_clauses(SF, Clauses, Cx2),
-            {at(Pos, Form), Cx3};
-        {Clauses, {Reads, Cx2}} ->
-            {[Scrutinee], Cx3} = fresh_vars(1, "Scrutinee", Cx2),
-            Evaluated = erl_syntax:match_expr(erl_syntax:variable(Scrutinee), SF),
-            {Form, Cx4} = match_clauses(erl_syntax:variable(Scrutinee), Clauses, Cx3),
-            {at(Pos, with_binds([Evaluated | Reads], Form)), Cx4}
+    case lists:mapfoldl(fun read_sizes/2, {[], Context1}, Written) of
+        {Clauses, {[], Context2}} ->
+            {Form, Context3} = match_clauses(ScrutineeForm, Clauses, Context2),
+            {at(Span, Form), Context3};
+        {Clauses, {Reads, Context2}} ->
+            {[Scrutinee], Context3} = fresh_variables(1, "Scrutinee", Context2),
+            Evaluated = erl_syntax:match_expr(erl_syntax:variable(Scrutinee), ScrutineeForm),
+            {Form, Context4} = match_clauses(erl_syntax:variable(Scrutinee), Clauses, Context3),
+            {at(Span, with_bindings([Evaluated | Reads], Form)), Context4}
     end;
-expr(#e_receive{span = Pos, clauses = Clauses0, 'after' = After}, Cx0) ->
+expr(#e_receive{span = Span, clauses = Written, 'after' = After}, Before) ->
     %% report §6.3: a receive guard is a guard expression, which the
     %% checker holds it to, so it is an Erlang guard here, a top-level `let`
     %% it names, or a pattern's size names (§5.11), read into a variable
     %% before the receive; a message from a foreign process was checked by
     %% the proxy that delivered it (§8.4)
-    {Clauses, {Reads, Cx}} = lists:mapfoldl(fun read_before/2, {[], Cx0}, Clauses0),
-    {Parts, Cx1} = lists:mapfoldl(fun simple_clauses/2, Cx, Clauses),
-    {Binds0, OwnForms} = join_parts(Parts),
-    Binds = Reads ++ Binds0,
+    {Clauses, {Reads, Context}} = lists:mapfoldl(fun read_before/2, {[], Before}, Written),
+    {Parts, Context1} = lists:mapfoldl(fun simple_clauses/2, Context, Clauses),
+    {OwnBindings, OwnForms} = join_parts(Parts),
+    Bindings = Reads ++ OwnBindings,
     %% report §6.9: a restart a supervisor asks for arrives before every
     %% other message and is taken here, first
     ClauseForms = [erl_syntax:clause([erl_syntax:atom('$ern_restart')], none,
@@ -427,114 +458,119 @@ expr(#e_receive{span = Pos, clauses = Clauses0, 'after' = After}, Cx0) ->
                    | OwnForms],
     case After of
         undefined ->
-            {at(Pos, with_binds(Binds, erl_syntax:receive_expr(ClauseForms))), Cx1};
-        #after_clause{timeout = T, body = B} ->
+            {at(Span, with_bindings(Bindings, erl_syntax:receive_expr(ClauseForms))), Context1};
+        #after_clause{timeout = Timeout, body = AfterBody} ->
             %% report §8.6: a timed receive counts itself in before, and out
             %% first in every body, so the reaper knows it is not waiting
-            {TF, Cx2} = expr(T, Cx1),
-            {BF, Cx3} = body(B, Cx2),
+            {TimeoutForm, Context2} = expr(Timeout, Context1),
+            {AfterForms, Context3} = body(AfterBody, Context2),
             %% report §6.3: a time below 0 is 0, and none is too long; the
             %% host waits at most 2^32 - 1 ms at once, so the receive is
             %% entered again until the deadline has passed (ern_rt:deadline/1)
-            {[D], Cx4} = fresh_vars(1, "Deadline", Cx3),
-            {[W], Cx5} = fresh_vars(1, "Wait", Cx4),
-            Deadline = erl_syntax:variable(D),
+            {[DeadlineName], Context4} = fresh_variables(1, "Deadline", Context3),
+            {[WaitName], Context5} = fresh_variables(1, "Wait", Context4),
+            Deadline = erl_syntax:variable(DeadlineName),
             Remaining = call_remote(ern_rt, remaining, [Deadline]),
             Untimed = call_remote(ern_rt, untimed, []),
-            Timed = [erl_syntax:clause(erl_syntax:clause_patterns(C), erl_syntax:clause_guard(C),
-                                       [Untimed | erl_syntax:clause_body(C)])
-                     || C <- ClauseForms],
+            Timed = [erl_syntax:clause(erl_syntax:clause_patterns(ClauseForm),
+                                       erl_syntax:clause_guard(ClauseForm),
+                                       [Untimed | erl_syntax:clause_body(ClauseForm)])
+                     || ClauseForm <- ClauseForms],
+            WaitAgain = erl_syntax:application(erl_syntax:variable(WaitName), []),
             Due = erl_syntax:case_expr(
                     Remaining,
-                    [erl_syntax:clause([erl_syntax:integer(0)], none, [Untimed | BF]),
-                     erl_syntax:clause([erl_syntax:underscore()], none,
-                                       [erl_syntax:application(erl_syntax:variable(W), [])])]),
-            Recv = erl_syntax:receive_expr(Timed, Remaining, [Due]),
-            Wait = erl_syntax:named_fun_expr(erl_syntax:variable(W),
-                                             [erl_syntax:clause([], none, [Recv])]),
-            Enter = [erl_syntax:match_expr(Deadline, call_remote(ern_rt, deadline, [TF])),
+                    [erl_syntax:clause([erl_syntax:integer(0)], none, [Untimed | AfterForms]),
+                     erl_syntax:clause([erl_syntax:underscore()], none, [WaitAgain])]),
+            Receive = erl_syntax:receive_expr(Timed, Remaining, [Due]),
+            Wait = erl_syntax:named_fun_expr(erl_syntax:variable(WaitName),
+                                             [erl_syntax:clause([], none, [Receive])]),
+            Enter = [erl_syntax:match_expr(Deadline, call_remote(ern_rt, deadline, [TimeoutForm])),
                      call_remote(ern_rt, timed, [])],
-            {at(Pos, with_binds(Binds ++ Enter, erl_syntax:application(Wait, []))), Cx5}
+            {at(Span, with_bindings(Bindings ++ Enter, erl_syntax:application(Wait, []))), Context5}
     end.
 
-exprs(Es, Cx) ->
-    lists:mapfoldl(fun expr/2, Cx, Es).
+exprs(Exprs, Context) ->
+    lists:mapfoldl(fun expr/2, Context, Exprs).
 
 %% Report §6.3, §5.11: each top-level `let` a receive clause's guard or its
 %% pattern's sizes name, read into a fresh variable that names it in its
 %% place.
-read_before(C, Acc) ->
-    {C1, Acc1} = read_sizes(C, Acc),
-    read_guard(C1, Acc1).
+read_before(Clause, Acc) ->
+    {Clause1, Acc1} = read_sizes(Clause, Acc),
+    read_guard(Clause1, Acc1).
 
-read_guard(#clause{guard = undefined} = C, Acc) ->
-    {C, Acc};
-read_guard(#clause{guard = G} = C, Acc) ->
-    {G1, Acc1} = read_top(G, Acc),
-    {C#clause{guard = G1}, Acc1}.
+read_guard(#clause{guard = undefined} = Clause, Acc) ->
+    {Clause, Acc};
+read_guard(#clause{guard = Guard} = Clause, Acc) ->
+    {Guard1, Acc1} = read_top(Guard, Acc),
+    {Clause#clause{guard = Guard1}, Acc1}.
 
 %% Report §5.11: each top-level `let` a clause's pattern names in a size.
-read_sizes(#clause{pattern = P} = C, Acc) ->
-    {P1, Acc1} = sizes_read(P, Acc),
-    {C#clause{pattern = P1}, Acc1}.
+read_sizes(#clause{pattern = Pattern} = Clause, Acc) ->
+    {Pattern1, Acc1} = read_pattern_sizes(Pattern, Acc),
+    {Clause#clause{pattern = Pattern1}, Acc1}.
 
-sizes_read(#bit_segment{specs = Specs} = S, Acc) ->
-    {Specs1, Acc1} = lists:mapfoldl(fun({size, E}, A) ->
-                                            {E1, A1} = read_top(E, A),
-                                            {{size, E1}, A1};
-                                       (Spec, A) ->
-                                            {Spec, A}
+read_pattern_sizes(#bit_segment{specs = Specs} = Segment, Acc) ->
+    {Specs1, Acc1} = lists:mapfoldl(fun({size, SizeExpr}, SpecAcc) ->
+                                            {SizeExpr1, SpecAcc1} = read_top(SizeExpr, SpecAcc),
+                                            {{size, SizeExpr1}, SpecAcc1};
+                                       (Spec, SpecAcc) ->
+                                            {Spec, SpecAcc}
                                     end, Acc, Specs),
-    {S#bit_segment{specs = Specs1}, Acc1};
-sizes_read(T, Acc) when is_tuple(T), tuple_size(T) > 0, is_atom(element(1, T)) ->
-    [Tag | Fields] = tuple_to_list(T),
-    {Fields1, Acc1} = lists:mapfoldl(fun sizes_read/2, Acc, Fields),
+    {Segment#bit_segment{specs = Specs1}, Acc1};
+read_pattern_sizes(Node, Acc)
+  when is_tuple(Node), tuple_size(Node) > 0, is_atom(element(1, Node)) ->
+    [Tag | Fields] = tuple_to_list(Node),
+    {Fields1, Acc1} = lists:mapfoldl(fun read_pattern_sizes/2, Acc, Fields),
     {list_to_tuple([Tag | Fields1]), Acc1};
-sizes_read(L, Acc) when is_list(L) ->
-    lists:mapfoldl(fun sizes_read/2, Acc, L);
-sizes_read(X, Acc) ->
-    {X, Acc}.
+read_pattern_sizes(Nodes, Acc) when is_list(Nodes) ->
+    lists:mapfoldl(fun read_pattern_sizes/2, Acc, Nodes);
+read_pattern_sizes(Other, Acc) ->
+    {Other, Acc}.
 
-read_top(#e_binop{left = L, right = R} = B, Acc) ->
-    {L1, Acc1} = read_top(L, Acc),
-    {R1, Acc2} = read_top(R, Acc1),
-    {B#e_binop{left = L1, right = R1}, Acc2};
-read_top(#e_not{expr = X} = N, Acc) ->
-    {X1, Acc1} = read_top(X, Acc),
-    {N#e_not{expr = X1}, Acc1};
-read_top(#e_negation{expr = X} = N, Acc) ->
-    {X1, Acc1} = read_top(X, Acc),
-    {N#e_negation{expr = X1}, Acc1};
-read_top(#e_var{referent = Referent} = V, {Reads, Cx}) when Referent =/= var ->
-    {Form, Cx1} = expr(V, Cx),
-    {[E], Cx2} = fresh_vars(1, "Read", Cx1),
-    {V#e_var{path = [], name = E, referent = var},
-     {Reads ++ [erl_syntax:match_expr(erl_syntax:variable(E), Form)],
-      Cx2#cx{vars = maps:put(E, E, Cx2#cx.vars)}}};
-read_top(X, Acc) ->
-    {X, Acc}.
+read_top(#e_binop{left = Left, right = Right} = Binop, Acc) ->
+    {Left1, Acc1} = read_top(Left, Acc),
+    {Right1, Acc2} = read_top(Right, Acc1),
+    {Binop#e_binop{left = Left1, right = Right1}, Acc2};
+read_top(#e_not{expr = Expr} = Node, Acc) ->
+    {Expr1, Acc1} = read_top(Expr, Acc),
+    {Node#e_not{expr = Expr1}, Acc1};
+read_top(#e_negation{expr = Expr} = Node, Acc) ->
+    {Expr1, Acc1} = read_top(Expr, Acc),
+    {Node#e_negation{expr = Expr1}, Acc1};
+read_top(#e_var{referent = Referent} = Variable, {Reads, Context}) when Referent =/= var ->
+    {Form, Context1} = expr(Variable, Context),
+    {[ReadName], Context2} = fresh_variables(1, "Read", Context1),
+    {Variable#e_var{path = [], name = ReadName, referent = var},
+     {Reads ++ [erl_syntax:match_expr(erl_syntax:variable(ReadName), Form)],
+      Context2#emit_context{variables = maps:put(ReadName, ReadName,
+                                                 Context2#emit_context.variables)}}};
+read_top(Expr, Acc) ->
+    {Expr, Acc}.
 
 %% A body: a block's statements spliced into the clause, else one expression.
-body(#e_block{statements = Stmts}, Cx) ->
-    {Forms, Cx1} = block(Stmts, Cx),
-    {Forms, Cx1#cx{vars = Cx#cx.vars, locals = Cx#cx.locals}};
-body(E, Cx) ->
-    {Form, Cx1} = expr(E, Cx),
-    {[Form], Cx1}.
+body(#e_block{statements = Statements}, Context) ->
+    {Forms, Context1} = block(Statements, Context),
+    {Forms,
+     Context1#emit_context{variables = Context#emit_context.variables,
+                           locals = Context#emit_context.locals}};
+body(Expr, Context) ->
+    {Form, Context1} = expr(Expr, Context),
+    {[Form], Context1}.
 
-literal(int, V) -> erl_syntax:integer(V);
-literal(float, V) -> erl_syntax:float(V);
-literal(char, V) -> erl_syntax:char(V);
-literal(string, V) -> string_binary(V);
-literal(bool, V) -> erl_syntax:atom(V).
+literal(int, Value) -> erl_syntax:integer(Value);
+literal(float, Value) -> erl_syntax:float(Value);
+literal(char, Value) -> erl_syntax:char(Value);
+literal(string, Value) -> string_binary(Value);
+literal(bool, Value) -> erl_syntax:atom(Value).
 
 %% <<"text">>, with /utf8 only when a character is outside ASCII.
-string_binary(Bin) ->
-    Chars = unicode:characters_to_list(Bin),
-    Str = erl_syntax:string(Chars),
-    Field = case lists:all(fun(C) -> C < 128 end, Chars) of
-                true -> erl_syntax:binary_field(Str);
-                false -> erl_syntax:binary_field(Str, [erl_syntax:atom(utf8)])
+string_binary(Text) ->
+    Chars = unicode:characters_to_list(Text),
+    String = erl_syntax:string(Chars),
+    Field = case lists:all(fun(Char) -> Char < 128 end, Chars) of
+                true -> erl_syntax:binary_field(String);
+                false -> erl_syntax:binary_field(String, [erl_syntax:atom(utf8)])
             end,
     erl_syntax:binary([Field]).
 
@@ -542,257 +578,281 @@ string_binary(Bin) ->
 %% Names
 %%
 
-%% A name used as a value: var_ref(...) -> {Form, Cx}. Report §4.2: what
-%% the name refers to is the checker's referent, read and not decided here.
-var_ref(Pos, _, Name, var, T, #cx{vars = Vars, locals = Locals} = Cx) ->
-    case Vars of
-        #{Name := V} -> {var_form(V), Cx};
+%% A name used as a value: name_form(...) -> {Form, Context}. Report §4.2:
+%% what the name refers to is the checker's referent, read and not decided
+%% here.
+name_form(Span, _, Name, var, Type,
+          #emit_context{variables = Variables, locals = Locals} = Context) ->
+    case Variables of
+        #{Name := Variable} -> {variable_form(Variable), Context};
         _ ->
-            #{Name := #local{lifted = Lifted}} = Locals,
-            closure(Lifted, instances(Name, Cx), arity_of(T, Pos), Cx)
+            #{Name := #local_fn{lifted = Lifted}} = Locals,
+            closure(Lifted, instances(Name, Context), arity_of(Type, Span), Context)
     end;
 %% Appendix E.1: the library's Io.show and Io.debug as values too, the
 %% descriptor of the argument's type, named by the checker's referent from
 %% another module and from the library's own, and never by the path
-var_ref(Pos, _, Name, #remote_declaration{namespace = ['Io'], owner = undefined, name = Name}, T,
-        Cx)
+name_form(Span, _, Name, #remote_declaration{namespace = ['Io'], owner = undefined, name = Name},
+          Type, Context)
   when Name =:= show; Name =:= debug ->
-    prelude_value(Pos, ['Io', Name], T, Cx);
-var_ref(Pos, _, Name, #own_declaration{owner = undefined, name = Name}, T,
-        #cx{mod = 'ern@io'} = Cx)
+    prelude_value(Span, ['Io', Name], Type, Context);
+name_form(Span, _, Name, #own_declaration{owner = undefined, name = Name}, Type,
+          #emit_context{erlang_module = 'ern@io'} = Context)
   when Name =:= show; Name =:= debug ->
-    prelude_value(Pos, ['Io', Name], T, Cx);
-var_ref(Pos, _, _, {prelude, Q}, T, Cx) ->
-    prelude_value(Pos, Q, T, Cx);
-var_ref(_, _, _, #own_declaration{owner = Owner, name = Name}, _, Cx) ->
-    {own_value(Owner, Name, Cx), Cx};
-var_ref(_, _, _, #remote_declaration{namespace = Module, owner = Owner, name = Name}, T,
-        #cx{env = Env} = Cx) ->
-    {remote_value(Module, Owner, Name, T, Env), Cx}.
+    prelude_value(Span, ['Io', Name], Type, Context);
+name_form(Span, _, _, {prelude, QualifiedName}, Type, Context) ->
+    prelude_value(Span, QualifiedName, Type, Context);
+name_form(_, _, _, #own_declaration{owner = Owner, name = Name}, _, Context) ->
+    {own_value(Owner, Name, Context), Context};
+name_form(_, _, _, #remote_declaration{namespace = Declaring, owner = Owner, name = Name}, Type,
+          #emit_context{env = Env} = Context) ->
+    {remote_value(Declaring, Owner, Name, Type, Env), Context}.
 
 %% Report §4.6: a `let` is a value, reached through its getter even where it
 %% holds a function; a `fn` is the function itself.
-own_value(Owner, Name, #cx{tops = Tops}) ->
-    Local = erl_syntax:atom(fname(Owner, Name)),
-    case maps:get({Owner, Name}, Tops) of
+own_value(Owner, Name, #emit_context{top_names = TopNames}) ->
+    Local = erl_syntax:atom(function_name(Owner, Name)),
+    case maps:get({Owner, Name}, TopNames) of
         value -> erl_syntax:application(Local, []);
         Arity -> erl_syntax:implicit_fun(Local, erl_syntax:integer(Arity))
     end.
 
-remote_value(Module, Owner, Name, T, Env) ->
-    {M, F} = remote_name(Module, Owner, Name),
-    case {is_value(Module, Owner, Name, Env), T} of
-        {false, {tfn, Ps, _, _}} ->
+remote_value(Declaring, Owner, Name, Type, Env) ->
+    {HostModule, HostFunction} = remote_name(Declaring, Owner, Name),
+    case {is_value(Declaring, Owner, Name, Env), Type} of
+        {false, {tfn, Params, _, _}} ->
             %% report §11.2: a function of another module as a value keeps
             %% the version it was taken from
-            call_remote(M, '$fun', [erl_syntax:atom(F), erl_syntax:integer(length(Ps))]);
+            call_remote(HostModule, '$fun',
+                        [erl_syntax:atom(HostFunction), erl_syntax:integer(length(Params))]);
         _ ->
-            call_remote(M, F, [])
+            call_remote(HostModule, HostFunction, [])
     end.
 
-arity_of({tfn, Ps, _, _}, _) -> length(Ps);
-arity_of(_, Pos) -> fail(Pos, "a local function used as a value must have a function type").
+arity_of({tfn, Params, _, _}, _) -> length(Params);
+arity_of(_, Span) -> fail(Span, "a local function used as a value must have a function type").
 
 %% Report §4.6: whether another module's declaration is a `let`, which
 %% its interface says (§11.1).
-is_value(Module, Owner, Name, Env) ->
-    ern_typecheck:is_value(Module ++ [Owner || Owner =/= undefined] ++ [Name], Env).
+is_value(Declaring, Owner, Name, Env) ->
+    ern_typecheck:is_value(Declaring ++ [Owner || Owner =/= undefined] ++ [Name], Env).
 
 %% Another Ernest module's declaration as a function of its Erlang module.
-remote_name(Module, Owner, Name) ->
-    {module_atom(Module), fname(Owner, Name)}.
+remote_name(Declaring, Owner, Name) ->
+    {module_atom(Declaring), function_name(Owner, Name)}.
 
-closure(Lifted, Insts, Arity, Cx) ->
-    {Params, Cx1} = fresh_vars(Arity, "A", Cx),
-    Args = [erl_syntax:variable(V) || V <- Insts ++ Params],
+closure(Lifted, Instances, Arity, Context) ->
+    {Params, Context1} = fresh_variables(Arity, "A", Context),
+    Args = [erl_syntax:variable(Variable) || Variable <- Instances ++ Params],
     Body = erl_syntax:application(erl_syntax:atom(Lifted), Args),
-    {erl_syntax:fun_expr([erl_syntax:clause([erl_syntax:variable(P) || P <- Params], none,
+    {erl_syntax:fun_expr([erl_syntax:clause([erl_syntax:variable(Param) || Param <- Params], none,
                                             [Body])]),
-     Cx1}.
+     Context1}.
 
 %%
 %% Calls
 %%
 
-call(Pos, #e_var{referent = var, name = Name}, Args, Cx) ->
-    #cx{vars = Vars, locals = Locals} = Cx,
-    {ArgForms, Cx1} = exprs(Args, Cx),
-    case Vars of
-        #{Name := V} ->
-            {at(Pos, erl_syntax:application(var_form(V), ArgForms)), Cx1};
+call(Span, #e_var{referent = var, name = Name}, Args, Context) ->
+    #emit_context{variables = Variables, locals = Locals} = Context,
+    {ArgForms, Context1} = exprs(Args, Context),
+    case Variables of
+        #{Name := Variable} ->
+            {at(Span, erl_syntax:application(variable_form(Variable), ArgForms)), Context1};
         _ ->
-            #{Name := #local{lifted = Lifted}} = Locals,
-            Insts = [erl_syntax:variable(V) || V <- instances(Name, Cx)],
-            App = erl_syntax:application(erl_syntax:atom(Lifted), Insts ++ ArgForms),
-            {at(Pos, App), Cx1}
+            #{Name := #local_fn{lifted = Lifted}} = Locals,
+            Instances = [erl_syntax:variable(Variable) || Variable <- instances(Name, Context)],
+            Application = erl_syntax:application(erl_syntax:atom(Lifted), Instances ++ ArgForms),
+            {at(Span, Application), Context1}
     end;
-%% Appendix E.1: the library's Io.show and Io.debug, as var_ref/6 names
+%% Appendix E.1: the library's Io.show and Io.debug, as name_form/6 names
 %% them, written by the argument's type at the call
-call(Pos, #e_var{referent = #remote_declaration{namespace = ['Io'], owner = undefined,
-                                                 name = Name}},
-     [A], Cx)
+call(Span, #e_var{referent = #remote_declaration{namespace = ['Io'], owner = undefined,
+                                                  name = Name}},
+     [Argument], Context)
   when Name =:= show; Name =:= debug ->
-    io_call(Pos, Name, A, Cx);
-call(Pos, #e_var{referent = #own_declaration{owner = undefined, name = Name}}, [A],
-     #cx{mod = 'ern@io'} = Cx)
+    io_call(Span, Name, Argument, Context);
+call(Span, #e_var{referent = #own_declaration{owner = undefined, name = Name}}, [Argument],
+     #emit_context{erlang_module = 'ern@io'} = Context)
   when Name =:= show; Name =:= debug ->
-    io_call(Pos, Name, A, Cx);
-call(Pos, #e_var{referent = {prelude, Q}} = Callee, Args, Cx) ->
+    io_call(Span, Name, Argument, Context);
+call(Span, #e_var{referent = {prelude, QualifiedName}} = Callee, Args, Context) ->
     %% report §4.2: the prelude's, `Prelude.x` among them
-    {ArgForms, Cx1} = exprs(Args, Cx),
-    prelude_call(Pos, Q, Args, ArgForms, Callee, Cx1);
-call(Pos, #e_var{referent = #own_declaration{owner = Owner, name = Name}}, Args, Cx) ->
-    {ArgForms, Cx1} = exprs(Args, Cx),
-    {at(Pos, own_call(Owner, Name, ArgForms, Cx)), Cx1};
-call(Pos, #e_var{referent = #remote_declaration{namespace = Module, owner = Owner, name = Name}},
-     Args, #cx{env = Env} = Cx) ->
-    {ArgForms, Cx1} = exprs(Args, Cx),
-    {M, F} = remote_name(Module, Owner, Name),
+    {ArgForms, Context1} = exprs(Args, Context),
+    prelude_call(Span, QualifiedName, Args, ArgForms, Callee, Context1);
+call(Span, #e_var{referent = #own_declaration{owner = Owner, name = Name}}, Args, Context) ->
+    {ArgForms, Context1} = exprs(Args, Context),
+    {at(Span, own_call(Owner, Name, ArgForms, Context)), Context1};
+call(Span,
+     #e_var{referent = #remote_declaration{namespace = Declaring, owner = Owner, name = Name}},
+     Args, #emit_context{env = Env} = Context) ->
+    {ArgForms, Context1} = exprs(Args, Context),
+    {HostModule, HostFunction} = remote_name(Declaring, Owner, Name),
     %% report §4.6: calling a `let` applies what its getter answers;
     %% calling a `fn` is the call itself
-    case is_value(Module, Owner, Name, Env) of
+    case is_value(Declaring, Owner, Name, Env) of
         true ->
-            Get = call_remote(M, F, []),
-            {at(Pos, erl_syntax:application(Get, ArgForms)), Cx1};
+            Get = call_remote(HostModule, HostFunction, []),
+            {at(Span, erl_syntax:application(Get, ArgForms)), Context1};
         false ->
-            {at(Pos, call_remote(M, F, ArgForms)), Cx1}
+            {at(Span, call_remote(HostModule, HostFunction, ArgForms)), Context1}
     end;
-call(Pos, #e_constructor{} = Con, Args, Cx) ->
+call(Span, #e_constructor{} = Constructor, Args, Context) ->
     %% a single-positional constructor called as a function
-    {ConForm, Cx1} = expr(Con, Cx),
-    {ArgForms, Cx2} = exprs(Args, Cx1),
-    {at(Pos, erl_syntax:application(ConForm, ArgForms)), Cx2};
-call(Pos, Callee, Args, Cx) ->
-    {CalleeForm, Cx1} = expr(Callee, Cx),
-    {ArgForms, Cx2} = exprs(Args, Cx1),
-    {at(Pos, erl_syntax:application(CalleeForm, ArgForms)), Cx2}.
+    {ConstructorForm, Context1} = expr(Constructor, Context),
+    {ArgForms, Context2} = exprs(Args, Context1),
+    {at(Span, erl_syntax:application(ConstructorForm, ArgForms)), Context2};
+call(Span, Callee, Args, Context) ->
+    {CalleeForm, Context1} = expr(Callee, Context),
+    {ArgForms, Context2} = exprs(Args, Context1),
+    {at(Span, erl_syntax:application(CalleeForm, ArgForms)), Context2}.
 
-io_call(Pos, Name, Argument, Cx) ->
-    {[ArgumentForm], Cx1} = exprs([Argument], Cx),
-    Descriptor = erl_syntax:abstract(descriptor(ern_typecheck:node_type(Argument), Cx)),
-    {at(Pos, call_remote(ern_io, Name, [ArgumentForm, Descriptor])), Cx1}.
+io_call(Span, Name, Argument, Context) ->
+    {[ArgumentForm], Context1} = exprs([Argument], Context),
+    Descriptor = erl_syntax:abstract(descriptor(ern_typecheck:node_type(Argument), Context)),
+    {at(Span, call_remote(ern_io, Name, [ArgumentForm, Descriptor])), Context1}.
 
 %% Report §4.6: a call of the module's own declaration, a `let` through
 %% what its getter answers.
-own_call(Owner, Name, ArgForms, #cx{tops = Tops}) ->
-    Local = erl_syntax:atom(fname(Owner, Name)),
-    case maps:get({Owner, Name}, Tops) of
+own_call(Owner, Name, ArgForms, #emit_context{top_names = TopNames}) ->
+    Local = erl_syntax:atom(function_name(Owner, Name)),
+    case maps:get({Owner, Name}, TopNames) of
         value -> erl_syntax:application(erl_syntax:application(Local, []), ArgForms);
         _ -> erl_syntax:application(Local, ArgForms)
     end.
 
 %% fun M:F/A
-remote_fun(M, F, Arity) ->
-    erl_syntax:implicit_fun(erl_syntax:atom(M), erl_syntax:atom(F), erl_syntax:integer(Arity)).
+remote_fun(HostModule, HostFunction, Arity) ->
+    erl_syntax:implicit_fun(erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
+                            erl_syntax:integer(Arity)).
 
-call_remote(M, F, Args) ->
-    erl_syntax:application(erl_syntax:module_qualifier(erl_syntax:atom(M), erl_syntax:atom(F)),
+call_remote(HostModule, HostFunction, Args) ->
+    erl_syntax:application(erl_syntax:module_qualifier(erl_syntax:atom(HostModule),
+                                                       erl_syntax:atom(HostFunction)),
                            Args).
 
 %%
 %% The prelude, report §9
 %%
 
-prelude_call(Pos, [self], [], [], _, Cx) -> {at(Pos, call_remote(ern_rt, self, [])), Cx};
-prelude_call(Pos, [send], _, Args, _, Cx) -> {at(Pos, call_remote(ern_rt, send, Args)), Cx};
-prelude_call(Pos, [answer], _, Args, _, Cx) -> {at(Pos, call_remote(ern_rt, answer, Args)), Cx};
-prelude_call(Pos, [via], _, Args, _, Cx) -> {at(Pos, call_remote(ern_rt, via, Args)), Cx};
-prelude_call(Pos, [monitor], _, Args, _, Cx) -> {at(Pos, call_remote(ern_rt, monitor, Args)), Cx};
-prelude_call(Pos, [kill], _, Args, _, Cx) -> {at(Pos, call_remote(ern_rt, kill, Args)), Cx};
-prelude_call(Pos, [spawn], _, Args, _, Cx) ->
-    {at(Pos, call_remote(ern_rt, spawn, Args ++ [site(Pos, Cx)])), Cx};
-prelude_call(Pos, [spawnMonitored], _, Args, _, Cx) ->
-    {at(Pos, call_remote(ern_rt, spawn_monitored, Args ++ [site(Pos, Cx)])), Cx};
-prelude_call(Pos, ['Address', call], _, Args, #e_var{type = T}, Cx) ->
-    {Form, Cx1} = reply_call(call, Args, T, Cx),
-    {at(Pos, Form), Cx1};
-prelude_call(Pos, ['Address', callForever], _, Args, #e_var{type = T}, Cx) ->
-    {Form, Cx1} = reply_call(call_forever, Args, T, Cx),
-    {at(Pos, Form), Cx1};
-prelude_call(Pos, [restarting], _, Args, _, Cx) ->
-    {at(Pos, call_remote(ern_rt, restarting, Args)), Cx};
-prelude_call(Pos, [fault], _, [Msg], _, Cx) ->
-    {at(Pos, call_remote(ern_rt, fault, [Msg])), Cx};
-prelude_call(Pos, ['Int', Op], [L | _], [LF, RF], _, Cx) when Op =:= '+'; Op =:= '-'; Op =:= '*';
-                                                             Op =:= '/'; Op =:= '%' ->
-    {at(Pos, binop(Op, resolved(ern_typecheck:node_type(L), Cx), LF, RF, Cx)), Cx};
-prelude_call(Pos, ['Int', negate], _, [F], _, Cx) ->
-    {at(Pos, erl_syntax:prefix_expr(erl_syntax:operator('-'), F)), Cx};
-prelude_call(Pos, [Ns, '<>'], [L | _], [LF, RF], _, Cx) when Ns =:= 'String'; Ns =:= 'List';
-                                                            Ns =:= 'Bytes' ->
-    {at(Pos, binop('<>', resolved(ern_typecheck:node_type(L), Cx), LF, RF, Cx)), Cx};
-prelude_call(Pos, [Ns | Rest], _, Args, _, Cx) when Rest =/= [] ->
+prelude_call(Span, [self], [], [], _, Context) ->
+    {at(Span, call_remote(ern_rt, self, [])), Context};
+prelude_call(Span, [send], _, Args, _, Context) ->
+    {at(Span, call_remote(ern_rt, send, Args)), Context};
+prelude_call(Span, [answer], _, Args, _, Context) ->
+    {at(Span, call_remote(ern_rt, answer, Args)), Context};
+prelude_call(Span, [via], _, Args, _, Context) ->
+    {at(Span, call_remote(ern_rt, via, Args)), Context};
+prelude_call(Span, [monitor], _, Args, _, Context) ->
+    {at(Span, call_remote(ern_rt, monitor, Args)), Context};
+prelude_call(Span, [kill], _, Args, _, Context) ->
+    {at(Span, call_remote(ern_rt, kill, Args)), Context};
+prelude_call(Span, [spawn], _, Args, _, Context) ->
+    {at(Span, call_remote(ern_rt, spawn, Args ++ [site(Span, Context)])), Context};
+prelude_call(Span, [spawnMonitored], _, Args, _, Context) ->
+    {at(Span, call_remote(ern_rt, spawn_monitored, Args ++ [site(Span, Context)])), Context};
+prelude_call(Span, ['Address', call], _, Args, #e_var{type = Type}, Context) ->
+    {Form, Context1} = reply_call(call, Args, Type, Context),
+    {at(Span, Form), Context1};
+prelude_call(Span, ['Address', callForever], _, Args, #e_var{type = Type}, Context) ->
+    {Form, Context1} = reply_call(call_forever, Args, Type, Context),
+    {at(Span, Form), Context1};
+prelude_call(Span, [restarting], _, Args, _, Context) ->
+    {at(Span, call_remote(ern_rt, restarting, Args)), Context};
+prelude_call(Span, [fault], _, [Message], _, Context) ->
+    {at(Span, call_remote(ern_rt, fault, [Message])), Context};
+prelude_call(Span, ['Int', Operator], [Left | _], [LeftForm, RightForm], _, Context)
+  when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
+       Operator =:= '%' ->
+    OperandType = resolved(ern_typecheck:node_type(Left), Context),
+    {at(Span, binop(Operator, OperandType, LeftForm, RightForm, Context)), Context};
+prelude_call(Span, ['Int', negate], _, [OperandForm], _, Context) ->
+    {at(Span, erl_syntax:prefix_expr(erl_syntax:operator('-'), OperandForm)), Context};
+prelude_call(Span, [Namespace, '<>'], [Left | _], [LeftForm, RightForm], _, Context)
+  when Namespace =:= 'String'; Namespace =:= 'List'; Namespace =:= 'Bytes' ->
+    OperandType = resolved(ern_typecheck:node_type(Left), Context),
+    {at(Span, binop('<>', OperandType, LeftForm, RightForm, Context)), Context};
+prelude_call(Span, [Namespace | Rest], _, Args, _, Context) when Rest =/= [] ->
     %% a stdlib function: the namespace's module
-    {at(Pos, call_remote(module_atom([Ns]), lists:last(Rest), Args)), Cx};
-prelude_call(Pos, QName, _, _, _, _) ->
-    fail(Pos, "no emission for " ++ qname(QName)).
+    {at(Span, call_remote(module_atom([Namespace]), lists:last(Rest), Args)), Context};
+prelude_call(Span, QualifiedName, _, _, _, _) ->
+    fail(Span, "no emission for " ++ qualified_name_text(QualifiedName)).
 
 %% Report §6.6, §8.4: `Address.call` or `Address.callForever`, of type T,
 %% and in a program what an answer from foreign code is checked by, the
 %% Reply's type, as a foreign function's return is; a call the standard
 %% library makes is the runtime's own, and checks nothing.
-reply_call(F, Args, _, #cx{standard = true} = Cx) ->
-    {call_remote(ern_rt, F, Args), Cx};
-reply_call(F, Args, T, Cx) ->
-    {tfn, [_, {tfn, [ReplyT], _, _} | _], _, _} = resolved(T, Cx),
-    {tcon, ['Reply'], [A]} = resolved(ReplyT, Cx),
-    {Check, Cx1} = case descriptor(A, Cx) of
-                       Unchecked when Unchecked =:= any; Unchecked =:= foreign ->
-                           {erl_syntax:atom(none), Cx};
-                       Desc ->
-                           {DescForm, C} = desc_ref(Desc, Cx),
-                           {erl_syntax:tuple([DescForm,
-                                              check_text("reply does not match ", A, Cx)]), C}
-                   end,
-    {call_remote(ern_rt, F, Args ++ [Check]), Cx1}.
+reply_call(Function, Args, _, #emit_context{standard = true} = Context) ->
+    {call_remote(ern_rt, Function, Args), Context};
+reply_call(Function, Args, Type, Context) ->
+    {tfn, [_, {tfn, [ReplyType], _, _} | _], _, _} = resolved(Type, Context),
+    {tcon, ['Reply'], [Answer]} = resolved(ReplyType, Context),
+    {Check, Context1} = case descriptor(Answer, Context) of
+                            Unchecked when Unchecked =:= any; Unchecked =:= foreign ->
+                                {erl_syntax:atom(none), Context};
+                            Descriptor ->
+                                {DescriptorForm, Described} = descriptor_form(Descriptor, Context),
+                                Text = check_text("reply does not match ", Answer, Context),
+                                {erl_syntax:tuple([DescriptorForm, Text]), Described}
+                        end,
+    {call_remote(ern_rt, Function, Args ++ [Check]), Context1}.
 
-%% A prelude name taken as a value: prelude_value(...) -> {Form, Cx}.
-prelude_value(Pos, [spawn], _, Cx) ->
+%% A prelude name taken as a value: prelude_value(...) -> {Form, Context}.
+prelude_value(Span, [spawn], _, Context) ->
     %% a closure, since spawn takes the site as a second argument
-    {[F], Cx1} = fresh_vars(1, "A", Cx),
-    Args = [erl_syntax:variable(F), site(Pos, Cx)],
-    {lambda([F], call_remote(ern_rt, spawn, Args)), Cx1};
-prelude_value(Pos, [spawnMonitored], _, Cx) ->
-    {[F, Wrap], Cx1} = fresh_vars(2, "A", Cx),
-    Args = [erl_syntax:variable(V) || V <- [F, Wrap]] ++ [site(Pos, Cx)],
-    {lambda([F, Wrap], call_remote(ern_rt, spawn_monitored, Args)), Cx1};
-prelude_value(Pos, ['Address', Name], T, Cx) when Name =:= call; Name =:= callForever ->
-    F = case Name of call -> call; callForever -> call_forever end,
-    {Vars, Cx1} = fresh_vars(arity_of(T, Pos), "A", Cx),
-    {Body, Cx2} = reply_call(F, [erl_syntax:variable(V) || V <- Vars], T, Cx1),
-    {lambda(Vars, Body), Cx2};
-prelude_value(_, ['Int', Op], _, Cx) when Op =:= '+'; Op =:= '-'; Op =:= '*'; Op =:= '/';
-                                          Op =:= '%' ->
-    {[A, B], Cx1} = fresh_vars(2, "A", Cx),
-    Body = binop(Op, {tcon, ['Int'], []}, erl_syntax:variable(A), erl_syntax:variable(B), Cx),
-    {lambda([A, B], Body), Cx1};
-prelude_value(_, ['Int', negate], _, Cx) ->
-    {[A], Cx1} = fresh_vars(1, "A", Cx),
-    {lambda([A], erl_syntax:prefix_expr(erl_syntax:operator('-'), erl_syntax:variable(A))), Cx1};
-prelude_value(_, [_, '<>'], {tfn, [P | _], _, _}, Cx) ->
-    {[A, B], Cx1} = fresh_vars(2, "A", Cx),
-    Body = binop('<>', resolved(P, Cx), erl_syntax:variable(A), erl_syntax:variable(B), Cx),
-    {lambda([A, B], Body), Cx1};
-prelude_value(_, ['Io', Name], {tfn, [P], _, _}, Cx) when Name =:= show; Name =:= debug ->
-    {[A], Cx1} = fresh_vars(1, "A", Cx),
-    Desc = erl_syntax:abstract(descriptor(P, Cx)),
-    {lambda([A], call_remote(ern_io, Name, [erl_syntax:variable(A), Desc])), Cx1};
-prelude_value(Pos, [Name], T, Cx) ->
+    {[Function], Context1} = fresh_variables(1, "A", Context),
+    Args = [erl_syntax:variable(Function), site(Span, Context)],
+    {lambda([Function], call_remote(ern_rt, spawn, Args)), Context1};
+prelude_value(Span, [spawnMonitored], _, Context) ->
+    {[Function, Wrap], Context1} = fresh_variables(2, "A", Context),
+    Args = [erl_syntax:variable(Variable) || Variable <- [Function, Wrap]] ++ [site(Span, Context)],
+    {lambda([Function, Wrap], call_remote(ern_rt, spawn_monitored, Args)), Context1};
+prelude_value(Span, ['Address', Name], Type, Context) when Name =:= call; Name =:= callForever ->
+    Function = case Name of call -> call; callForever -> call_forever end,
+    {Variables, Context1} = fresh_variables(arity_of(Type, Span), "A", Context),
+    Args = [erl_syntax:variable(Variable) || Variable <- Variables],
+    {Body, Context2} = reply_call(Function, Args, Type, Context1),
+    {lambda(Variables, Body), Context2};
+prelude_value(_, ['Int', Operator], _, Context)
+  when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
+       Operator =:= '%' ->
+    {[Left, Right], Context1} = fresh_variables(2, "A", Context),
+    Body = binop(Operator, {tcon, ['Int'], []}, erl_syntax:variable(Left),
+                 erl_syntax:variable(Right), Context),
+    {lambda([Left, Right], Body), Context1};
+prelude_value(_, ['Int', negate], _, Context) ->
+    {[Operand], Context1} = fresh_variables(1, "A", Context),
+    Negated = erl_syntax:prefix_expr(erl_syntax:operator('-'), erl_syntax:variable(Operand)),
+    {lambda([Operand], Negated), Context1};
+prelude_value(_, [_, '<>'], {tfn, [ParamType | _], _, _}, Context) ->
+    {[Left, Right], Context1} = fresh_variables(2, "A", Context),
+    Body = binop('<>', resolved(ParamType, Context), erl_syntax:variable(Left),
+                 erl_syntax:variable(Right), Context),
+    {lambda([Left, Right], Body), Context1};
+prelude_value(_, ['Io', Name], {tfn, [ParamType], _, _}, Context)
+  when Name =:= show; Name =:= debug ->
+    {[Value], Context1} = fresh_variables(1, "A", Context),
+    Descriptor = erl_syntax:abstract(descriptor(ParamType, Context)),
+    {lambda([Value], call_remote(ern_io, Name, [erl_syntax:variable(Value), Descriptor])),
+     Context1};
+prelude_value(Span, [Name], Type, Context) ->
     case lists:member(Name, [self, send, answer, via, monitor, kill, fault, restarting]) of
-        true -> {remote_fun(ern_rt, Name, arity_of(T, Pos)), Cx};
-        false -> fail(Pos, "no emission for " ++ atom_to_list(Name))
+        true -> {remote_fun(ern_rt, Name, arity_of(Type, Span)), Context};
+        false -> fail(Span, "no emission for " ++ atom_to_list(Name))
     end;
-prelude_value(_, [Ns | Rest], T, Cx) ->
-    Form = case T of
-               {tfn, Ps, _, _} -> remote_fun(module_atom([Ns]), lists:last(Rest), length(Ps));
+prelude_value(_, [Namespace | Rest], Type, Context) ->
+    Form = case Type of
+               {tfn, Params, _, _} ->
+                   remote_fun(module_atom([Namespace]), lists:last(Rest), length(Params));
                _ ->
                    %% a stdlib value: Map.empty, Set.empty
-                   call_remote(module_atom([Ns]), lists:last(Rest), [])
+                   call_remote(module_atom([Namespace]), lists:last(Rest), [])
            end,
-    {Form, Cx}.
+    {Form, Context}.
 
-lambda(Vars, Body) ->
-    erl_syntax:fun_expr([erl_syntax:clause([erl_syntax:variable(V) || V <- Vars], none, [Body])]).
+lambda(Variables, Body) ->
+    erl_syntax:fun_expr([erl_syntax:clause([erl_syntax:variable(Variable) || Variable <- Variables],
+                                           none, [Body])]).
 
 %% Report §6.9: the function that called `spawn`, qualified, and the line.
 %% Report §11.2: in the session, as the session writes names: a function an
@@ -802,16 +862,18 @@ lambda(Vars, Body) ->
 %% code: an input typed again then compiles to the code it did before, and
 %% the host keeps an entry for each lambda of each version it loads
 %% (docs/memory.md).
-site(Pos, #cx{ns = Ns, mod = Mod, fname = F, session = Session}) ->
-    Line = element(1, Pos),
-    case {Session, F} of
+site(Span,
+     #emit_context{namespace = Namespace, erlang_module = ErlangModule, function_name = Function,
+                   session = Session}) ->
+    Line = element(1, Span),
+    case {Session, Function} of
         {false, _} ->
-            text_site([qname(Ns ++ [F]), ":", integer_to_list(Line)]);
+            text_site([qualified_name_text(Namespace ++ [Function]), ":", integer_to_list(Line)]);
         {Offset, '$input'} ->
-            call_remote(ern_shell, input_site, [erl_syntax:atom(Mod),
+            call_remote(ern_shell, input_site, [erl_syntax:atom(ErlangModule),
                                                  erl_syntax:integer(Line + Offset)]);
         {Offset, _} ->
-            text_site([qname([F]), ":", integer_to_list(Line + Offset)])
+            text_site([qualified_name_text([Function]), ":", integer_to_list(Line + Offset)])
     end.
 
 text_site(Where) ->
@@ -823,89 +885,96 @@ text_site(Where) ->
 
 %% Report §4.8, §3.10, §5.1: by the operand type. Int and the four
 %% ordered prelude types are Erlang's operators; Float's arithmetic is
-%% float_op/5; a user type's operator is its member, and its ordering is
-%% `T.compare(a, b)` against Less or Greater.
-binop(Op, {tcon, ['Int'], []}, L, R, _) when Op =:= '+'; Op =:= '-'; Op =:= '*' ->
-    erl_syntax:infix_expr(L, erl_syntax:operator(Op), R);
-binop('/', {tcon, ['Int'], []}, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('div'), R);
-binop('%', {tcon, ['Int'], []}, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('rem'), R);
-binop('<>', {tcon, ['String'], []}, L, R, _) -> binary_append(L, R);
-binop('<>', {tcon, ['Bytes'], []}, L, R, _) -> binary_append(L, R);
+%% float_operation/5; a user type's operator is its member, and its
+%% ordering is `T.compare(a, b)` against Less or Greater.
+binop(Operator, {tcon, ['Int'], []}, Left, Right, _)
+  when Operator =:= '+'; Operator =:= '-'; Operator =:= '*' ->
+    erl_syntax:infix_expr(Left, erl_syntax:operator(Operator), Right);
+binop('/', {tcon, ['Int'], []}, Left, Right, _) ->
+    erl_syntax:infix_expr(Left, erl_syntax:operator('div'), Right);
+binop('%', {tcon, ['Int'], []}, Left, Right, _) ->
+    erl_syntax:infix_expr(Left, erl_syntax:operator('rem'), Right);
+binop('<>', {tcon, ['String'], []}, Left, Right, _) -> binary_append(Left, Right);
+binop('<>', {tcon, ['Bytes'], []}, Left, Right, _) -> binary_append(Left, Right);
 %% Report §9.6: `<>` on a prelude type whose module provides it in Ernest,
 %% `List.<>` and `Path.<>`, a call of that module's, and a local call within it
-binop('<>', {tcon, [Name], _}, L, R, #cx{ns = Ns}) ->
-    case Ns of
-        [Name] -> erl_syntax:application(erl_syntax:atom('<>'), [L, R]);
-        _ -> call_remote(module_atom([Name]), '<>', [L, R])
+binop('<>', {tcon, [Name], _}, Left, Right, #emit_context{namespace = Namespace}) ->
+    case Namespace of
+        [Name] -> erl_syntax:application(erl_syntax:atom('<>'), [Left, Right]);
+        _ -> call_remote(module_atom([Name]), '<>', [Left, Right])
     end;
-binop('==', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('=:='), R);
-binop('!=', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('=/='), R);
-binop('&&', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('andalso'), R);
-binop('||', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('orelse'), R);
-binop('::', _, L, R, _) -> erl_syntax:cons(L, R);
-binop(Op, {tcon, Q, _}, L, R, Cx) when length(Q) > 1 ->
-    case lists:member(Op, ['<', '<=', '>', '>=']) of
+binop('==', _, Left, Right, _) -> erl_syntax:infix_expr(Left, erl_syntax:operator('=:='), Right);
+binop('!=', _, Left, Right, _) -> erl_syntax:infix_expr(Left, erl_syntax:operator('=/='), Right);
+binop('&&', _, Left, Right, _) ->
+    erl_syntax:infix_expr(Left, erl_syntax:operator('andalso'), Right);
+binop('||', _, Left, Right, _) -> erl_syntax:infix_expr(Left, erl_syntax:operator('orelse'), Right);
+binop('::', _, Left, Right, _) -> erl_syntax:cons(Left, Right);
+binop(Operator, {tcon, QualifiedName, _}, Left, Right, Context) when length(QualifiedName) > 1 ->
+    case lists:member(Operator, ['<', '<=', '>', '>=']) of
         true ->
-            {Erl, Side} = case Op of
-                              '<' -> {'=:=', 'Less'};
-                              '>' -> {'=:=', 'Greater'};
-                              '<=' -> {'=/=', 'Greater'};
-                              '>=' -> {'=/=', 'Less'}
-                          end,
-            erl_syntax:infix_expr(member_call(Q, compare, [L, R], Cx), erl_syntax:operator(Erl),
+            {HostOperator, Side} = case Operator of
+                                       '<' -> {'=:=', 'Less'};
+                                       '>' -> {'=:=', 'Greater'};
+                                       '<=' -> {'=/=', 'Greater'};
+                                       '>=' -> {'=/=', 'Less'}
+                                   end,
+            erl_syntax:infix_expr(member_call(QualifiedName, compare, [Left, Right], Context),
+                                  erl_syntax:operator(HostOperator),
                                   erl_syntax:atom(Side));
         false ->
-            member_call(Q, Op, [L, R], Cx)
+            member_call(QualifiedName, Operator, [Left, Right], Context)
     end;
-binop('<=', _, L, R, _) -> erl_syntax:infix_expr(L, erl_syntax:operator('=<'), R);
-binop(Op, _, L, R, _) when Op =:= '<'; Op =:= '>'; Op =:= '>=' ->
-    erl_syntax:infix_expr(L, erl_syntax:operator(Op), R).
+binop('<=', _, Left, Right, _) -> erl_syntax:infix_expr(Left, erl_syntax:operator('=<'), Right);
+binop(Operator, _, Left, Right, _) when Operator =:= '<'; Operator =:= '>'; Operator =:= '>=' ->
+    erl_syntax:infix_expr(Left, erl_syntax:operator(Operator), Right).
 
 %% Report §3.1, §7.4: a Float operation inline, its operands bound first so
 %% that only its own badarith becomes the float fault; an Int division by
 %% zero inside an operand stays that fault.
-float_op(Op, L, R, A, B) ->
+float_operation(Operator, Left, Right, LeftName, RightName) ->
     Cause = erl_syntax:string("float arithmetic error"),
     Text = erl_syntax:binary([erl_syntax:binary_field(Cause)]),
     Badarith = erl_syntax:class_qualifier(erl_syntax:atom(error), erl_syntax:atom(badarith)),
     Handler = erl_syntax:clause([Badarith], none, [call_remote(ern_rt, fault, [Text])]),
-    Plain = erl_syntax:infix_expr(erl_syntax:variable(A), erl_syntax:operator(Op),
-                                  erl_syntax:variable(B)),
+    Plain = erl_syntax:infix_expr(erl_syntax:variable(LeftName), erl_syntax:operator(Operator),
+                                  erl_syntax:variable(RightName)),
     %% report §3.1: under round to nearest a sum or a difference of operands
     %% that are not negative zero is never one, and no operand is; a product
     %% or a quotient may be, and + 0.0 turns it into 0.0 and keeps any other
-    Operation = case Op of
-                    _ when Op =:= '*'; Op =:= '/' ->
+    Operation = case Operator of
+                    _ when Operator =:= '*'; Operator =:= '/' ->
                         erl_syntax:infix_expr(Plain, erl_syntax:operator('+'),
                                               erl_syntax:float(0.0));
                     _ ->
                         Plain
                 end,
-    erl_syntax:block_expr([erl_syntax:match_expr(erl_syntax:variable(A), L),
-                           erl_syntax:match_expr(erl_syntax:variable(B), R),
+    erl_syntax:block_expr([erl_syntax:match_expr(erl_syntax:variable(LeftName), Left),
+                           erl_syntax:match_expr(erl_syntax:variable(RightName), Right),
                            erl_syntax:try_expr([Operation], [Handler])]).
 
 negate({tcon, ['Float'], []}, Form, _) ->
     %% report §3.1: 0.0 - x, so that negating 0.0 gives 0.0
     erl_syntax:infix_expr(erl_syntax:float(0.0), erl_syntax:operator('-'), Form);
-negate({tcon, Q, _}, Form, Cx) when length(Q) > 1 -> member_call(Q, negate, [Form], Cx);
+negate({tcon, QualifiedName, _}, Form, Context) when length(QualifiedName) > 1 ->
+    member_call(QualifiedName, negate, [Form], Context);
 negate(_, Form, _) -> erl_syntax:prefix_expr(erl_syntax:operator('-'), Form).
 
-%% A member of the type Q: a local function when Q is this module's type,
-%% otherwise a call into the module that owns it (report §4.2).
-member_call(Q, Name, Args, #cx{ns = Ns, env = Env}) ->
-    Owner = lists:last(Q),
+%% A member of the type QualifiedName: a local function when the type is
+%% this module's, otherwise a call into the module that owns it (report
+%% §4.2).
+member_call(QualifiedName, Name, Args, #emit_context{namespace = Namespace, env = Env}) ->
+    Owner = lists:last(QualifiedName),
     %% report §11.2: at the prompt a later input may have declared it
-    MQ = ern_typecheck:member_qualified_name(Q, Name, Env),
-    case lists:droplast(lists:droplast(MQ)) of
-        Ns -> erl_syntax:application(erl_syntax:atom(fname(Owner, Name)), Args);
-        Mod -> call_remote(module_atom(Mod), fname(Owner, Name), Args)
+    MemberQualifiedName = ern_typecheck:member_qualified_name(QualifiedName, Name, Env),
+    case lists:droplast(lists:droplast(MemberQualifiedName)) of
+        Namespace -> erl_syntax:application(erl_syntax:atom(function_name(Owner, Name)), Args);
+        Declaring -> call_remote(module_atom(Declaring), function_name(Owner, Name), Args)
     end.
 
 %% <<A/binary, B/binary>>, with a string literal as a plain segment and an
 %% inner append flattened, so "a" <> f(x) <> "b" is one binary.
-binary_append(L, R) ->
-    erl_syntax:binary(segments(L) ++ segments(R)).
+binary_append(Left, Right) ->
+    erl_syntax:binary(segments(Left) ++ segments(Right)).
 
 segments(Form) ->
     case erl_syntax:type(Form) of
@@ -914,47 +983,47 @@ segments(Form) ->
         _ -> [erl_syntax:binary_field(Form, [erl_syntax:atom(binary)])]
     end.
 
-resolved(T, #cx{env = Env}) ->
-    ern_typecheck:resolve_type(T, Env).
+resolved(Type, #emit_context{env = Env}) ->
+    ern_typecheck:resolve_type(Type, Env).
 
 %%
 %% The foreign boundary, report §8.4: a declared type as the term
 %% ern_boundary interprets
 %%
 
-%% Form's value checked against T and the fault's text naming Named (report
-%% §7.4, §8.4). A word's check is written in place; a value that holds no
-%% function, address or Reply to arm and no float to make the language's is
-%% checked alone (ern_boundary:check/3); a type variable a parameter names matches any
-%% value, and is not checked.
-check_form(T, Named, Form, Prefix, Cx) ->
-    Text = check_text(Prefix, Named, Cx),
-    case descriptor(T, Cx) of
+%% Form's value checked against Type and the fault's text naming Named
+%% (report §7.4, §8.4). A word's check is written in place; a value that
+%% holds no function, address or Reply to arm and no float to make the
+%% language's is checked alone (ern_boundary:check/3); a type variable a
+%% parameter names matches any value, and is not checked.
+check_form(Type, Named, Form, Prefix, Context) ->
+    Text = check_text(Prefix, Named, Context),
+    case descriptor(Type, Context) of
         Unchecked when Unchecked =:= any; Unchecked =:= foreign ->
-            {Form, Cx};
+            {Form, Context};
         Word when Word =:= int; Word =:= bool; Word =:= bytes; Word =:= float ->
-            {[V], Cx1} = fresh_vars(1, "V", Cx),
-            Var = erl_syntax:variable(V),
-            Test = erl_syntax:application(erl_syntax:atom(word_test(Word)), [Var]),
+            {[Variable], Context1} = fresh_variables(1, "V", Context),
+            VariableForm = erl_syntax:variable(Variable),
+            Test = erl_syntax:application(erl_syntax:atom(word_test(Word)), [VariableForm]),
             %% report §3.1: X + 0.0 is 0.0 for either zero, and X otherwise
             Value = case Word of
-                        float -> erl_syntax:infix_expr(Var, erl_syntax:operator('+'),
+                        float -> erl_syntax:infix_expr(VariableForm, erl_syntax:operator('+'),
                                                        erl_syntax:float(0.0));
-                        _ -> Var
+                        _ -> VariableForm
                     end,
             Fault = call_remote(ern_rt, fault, [Text]),
-            {erl_syntax:case_expr(Form, [erl_syntax:clause([Var], Test, [Value]),
+            {erl_syntax:case_expr(Form, [erl_syntax:clause([VariableForm], Test, [Value]),
                                          erl_syntax:clause([erl_syntax:underscore()], none,
-                                                           [Fault])]), Cx1};
+                                                           [Fault])]), Context1};
         Word when is_atom(Word) ->
-            {call_remote(ern_boundary, value, [erl_syntax:abstract(Word), Form, Text]), Cx};
-        Desc ->
-            {DescForm, Cx1} = desc_ref(Desc, Cx),
-            Check = case plain(Desc) of
+            {call_remote(ern_boundary, value, [erl_syntax:abstract(Word), Form, Text]), Context};
+        Descriptor ->
+            {DescriptorForm, Context1} = descriptor_form(Descriptor, Context),
+            Check = case plain(Descriptor) of
                         true -> check;
                         false -> value
                     end,
-            {call_remote(ern_boundary, Check, [DescForm, Form, Text]), Cx1}
+            {call_remote(ern_boundary, Check, [DescriptorForm, Form, Text]), Context1}
     end.
 
 word_test(int) -> is_integer;
@@ -966,11 +1035,11 @@ word_test(float) -> is_float.
 %% float, as ern_boundary reads one: a checked value of it is the value
 %% itself.
 plain(float) -> false;
-plain({pid, _, _}) -> false;
+plain({address, _, _}) -> false;
 plain({reply, _, _}) -> false;
-plain(T) when is_tuple(T), element(1, T) =:= 'fun' -> false;
-plain(T) when is_tuple(T) -> lists:all(fun plain/1, tuple_to_list(T));
-plain(L) when is_list(L) -> lists:all(fun plain/1, L);
+plain(Part) when is_tuple(Part), element(1, Part) =:= 'fun' -> false;
+plain(Part) when is_tuple(Part) -> lists:all(fun plain/1, tuple_to_list(Part));
+plain(Parts) when is_list(Parts) -> lists:all(fun plain/1, Parts);
 plain(_) -> true.
 
 %% An argument of a foreign function as it is given (§8.4): one with an
@@ -978,63 +1047,69 @@ plain(_) -> true.
 %% it, and a Reply foreign code gave back as it gave it; a function,
 %% wrapped to check the arguments foreign code calls it with; any other,
 %% and every argument of the standard library's own, as it is.
-exposed({_, Arg}, #cx{standard = true} = Cx) ->
-    {Arg, Cx};
-exposed({{tfn, Ps, _, _}, Arg}, Cx) ->
-    {Ref, Cx1} = callback_ref(Ps, Cx),
-    {call_remote(ern_boundary, expose, [Ref, Arg]), Cx1};
-exposed({T, Arg}, Cx) ->
-    case crosses(descriptor(T, Cx)) of
+exposed({_, Arg}, #emit_context{standard = true} = Context) ->
+    {Arg, Context};
+exposed({{tfn, Params, _, _}, Arg}, Context) ->
+    {DescriptorForm, Context1} = callback_descriptor_form(Params, Context),
+    {call_remote(ern_boundary, expose, [DescriptorForm, Arg]), Context1};
+exposed({Type, Arg}, Context) ->
+    case crosses(descriptor(Type, Context)) of
         true ->
-            {Ref, Cx1} = descriptor_ref(T, Cx),
-            {call_remote(ern_boundary, expose, [Ref, Arg]), Cx1};
+            {DescriptorForm, Context1} = type_descriptor_form(Type, Context),
+            {call_remote(ern_boundary, expose, [DescriptorForm, Arg]), Context1};
         false ->
-            {Arg, Cx}
+            {Arg, Context}
     end.
 
 %% The type variables a type holds.
-type_vars({tvar, _} = V) -> [V];
-type_vars(T) when is_tuple(T) -> lists:append([type_vars(E) || E <- tuple_to_list(T)]);
-type_vars(L) when is_list(L) -> lists:append([type_vars(E) || E <- L]);
-type_vars(_) -> [].
+type_variables({tvar, _} = Variable) -> [Variable];
+type_variables(Type) when is_tuple(Type) ->
+    lists:append([type_variables(Element) || Element <- tuple_to_list(Type)]);
+type_variables(Types) when is_list(Types) ->
+    lists:append([type_variables(Element) || Element <- Types]);
+type_variables(_) -> [].
 
-%% The type with each of the variables Vars as `Never`.
-as_never([], T) -> T;
-as_never(Vars, {tvar, _} = V) ->
-    case lists:member(V, Vars) of
+%% The type with each of Variables as `Never`.
+as_never([], Type) -> Type;
+as_never(Variables, {tvar, _} = Variable) ->
+    case lists:member(Variable, Variables) of
         true -> {tcon, ['Never'], []};
-        false -> V
+        false -> Variable
     end;
-as_never(Vars, T) when is_tuple(T) -> list_to_tuple([as_never(Vars, E) || E <- tuple_to_list(T)]);
-as_never(Vars, L) when is_list(L) -> [as_never(Vars, E) || E <- L];
-as_never(_, T) -> T.
+as_never(Variables, Type) when is_tuple(Type) ->
+    list_to_tuple([as_never(Variables, Element) || Element <- tuple_to_list(Type)]);
+as_never(Variables, Types) when is_list(Types) ->
+    [as_never(Variables, Element) || Element <- Types];
+as_never(_, Type) -> Type.
 
 %% Report §8.4: the checks of a function an Ernest program gives a foreign
 %% function, each argument against its parameter's type when foreign code
 %% calls it.
-callback_ref(Ps, Cx) ->
-    desc_ref({callback, length(Ps), [descriptor(P, Cx) || P <- Ps],
-              [text_binary("foreign argument does not match ", P, Cx) || P <- Ps]}, Cx).
+callback_descriptor_form(Params, Context) ->
+    descriptor_form({callback, length(Params), [descriptor(Param, Context) || Param <- Params],
+                     [text_binary("foreign argument does not match ", Param, Context)
+                      || Param <- Params]}, Context).
 
 %% A descriptor as a form: a literal when it is a word, else a call of a
 %% module function that returns it, one per distinct descriptor.
-descriptor_ref(T, Cx) ->
-    desc_ref(descriptor(T, Cx), Cx).
+type_descriptor_form(Type, Context) ->
+    descriptor_form(descriptor(Type, Context), Context).
 
-desc_ref(Desc0, Cx) ->
-    case Desc0 of
-        Desc when is_atom(Desc) ->
-            {erl_syntax:abstract(Desc), Cx};
-        Desc ->
-            case Cx#cx.descs of
-                #{Desc := Name} ->
-                    {erl_syntax:application(erl_syntax:atom(Name), []), Cx};
-                Descs ->
-                    Name = list_to_atom("$type_" ++ integer_to_list(map_size(Descs) + 1)),
-                    Fun = erl_syntax:function(erl_syntax:atom(Name),
-                                              [erl_syntax:clause([], none, [desc_form(Desc)])]),
+descriptor_form(Given, Context) ->
+    case Given of
+        Descriptor when is_atom(Descriptor) ->
+            {erl_syntax:abstract(Descriptor), Context};
+        Descriptor ->
+            case Context#emit_context.descriptors of
+                #{Descriptor := Name} ->
+                    {erl_syntax:application(erl_syntax:atom(Name), []), Context};
+                Descriptors ->
+                    Name = list_to_atom("$type_" ++ integer_to_list(map_size(Descriptors) + 1)),
+                    Clause = erl_syntax:clause([], none, [built_descriptor(Descriptor)]),
+                    Function = erl_syntax:function(erl_syntax:atom(Name), [Clause]),
                     {erl_syntax:application(erl_syntax:atom(Name), []),
-                     Cx#cx{descs = Descs#{Desc => Name}, lifted = [Fun | Cx#cx.lifted]}}
+                     Context#emit_context{descriptors = Descriptors#{Descriptor => Name},
+                                          lifted = [Function | Context#emit_context.lifted]}}
             end
     end.
 
@@ -1043,44 +1118,48 @@ desc_ref(Desc0, Cx) ->
 %% each result (report §7.4), which only generated code can spell for every
 %% arity; ern_boundary applies it to a function value foreign code gives,
 %% and to the result's descriptor closed over the recursive types around it.
-desc_form({callback, N, Ds, Texts}) ->
-    F = erl_syntax:variable('F'),
-    Args = [erl_syntax:variable(list_to_atom("A" ++ integer_to_list(I)))
-            || I <- lists:seq(1, N)],
-    Checked = [call_remote(ern_boundary, value, [desc_form(D), A, erl_syntax:abstract(T)])
-               || {D, A, T} <- lists:zip3(Ds, Args, Texts)],
+built_descriptor({callback, Arity, ArgumentDescriptors, Texts}) ->
+    Function = erl_syntax:variable('F'),
+    Args = [erl_syntax:variable(list_to_atom("A" ++ integer_to_list(Index)))
+            || Index <- lists:seq(1, Arity)],
+    Checked = [call_remote(ern_boundary, value, [built_descriptor(Descriptor), Argument,
+                                                 erl_syntax:abstract(Text)])
+               || {Descriptor, Argument, Text} <- lists:zip3(ArgumentDescriptors, Args, Texts)],
     Wrapper = erl_syntax:fun_expr([erl_syntax:clause(Args, none,
-                                                      [called(F, Checked)])]),
-    Maker = erl_syntax:fun_expr([erl_syntax:clause([F], none, [Wrapper])]),
+                                                      [called(Function, Checked)])]),
+    Maker = erl_syntax:fun_expr([erl_syntax:clause([Function], none, [Wrapper])]),
     erl_syntax:tuple([erl_syntax:atom(callback), Maker]);
-desc_form({'fun', N, R, Text, Ps, PTexts}) ->
-    F = erl_syntax:variable('F'),
+built_descriptor({'fun', Arity, ResultDescriptor, Text, ParamDescriptors, ParamTexts}) ->
+    Function = erl_syntax:variable('F'),
     Result = erl_syntax:variable('R'),
     Bound = erl_syntax:variable('B'),
-    Args = [erl_syntax:variable(list_to_atom("A" ++ integer_to_list(I)))
-            || I <- lists:seq(1, N)],
+    Args = [erl_syntax:variable(list_to_atom("A" ++ integer_to_list(Index)))
+            || Index <- lists:seq(1, Arity)],
     Check = call_remote(ern_boundary, value,
-                        [Result, erl_syntax:application(F, Args), erl_syntax:abstract(Text)]),
+                        [Result, erl_syntax:application(Function, Args),
+                         erl_syntax:abstract(Text)]),
     Wrapper = erl_syntax:fun_expr([erl_syntax:clause(Args, none, [Check])]),
-    Maker = erl_syntax:fun_expr([erl_syntax:clause([F, Result], none, [Wrapper])]),
+    Maker = erl_syntax:fun_expr([erl_syntax:clause([Function, Result], none, [Wrapper])]),
     %% report §8.4: the same function crossing into foreign code, wherever
     %% it stands in what crosses, each argument checked against its
     %% parameter's type, the recursive types around it in B
-    Checked = [call_remote(ern_boundary, argument,
-                           [desc_form(P), A, erl_syntax:abstract(T), Bound])
-               || {P, A, T} <- lists:zip3(Ps, Args, PTexts)],
-    Exposed = erl_syntax:fun_expr([erl_syntax:clause(Args, none, [called(F, Checked)])]),
-    Exposer = erl_syntax:fun_expr([erl_syntax:clause([F, Bound], none, [Exposed])]),
-    erl_syntax:tuple([erl_syntax:atom('fun'), erl_syntax:integer(N), desc_form(R),
+    Checked = [call_remote(ern_boundary, argument, [built_descriptor(Descriptor), Argument,
+                                                    erl_syntax:abstract(ParamText), Bound])
+               || {Descriptor, Argument, ParamText}
+                      <- lists:zip3(ParamDescriptors, Args, ParamTexts)],
+    Exposed = erl_syntax:fun_expr([erl_syntax:clause(Args, none, [called(Function, Checked)])]),
+    Exposer = erl_syntax:fun_expr([erl_syntax:clause([Function, Bound], none, [Exposed])]),
+    erl_syntax:tuple([erl_syntax:atom('fun'), erl_syntax:integer(Arity),
+                      built_descriptor(ResultDescriptor),
                       erl_syntax:abstract(Text), Maker, Exposer]);
-desc_form(T) when is_tuple(T) ->
-    erl_syntax:tuple([desc_form(E) || E <- tuple_to_list(T)]);
-desc_form(L) when is_list(L) ->
-    erl_syntax:list([desc_form(E) || E <- L]);
-desc_form(Other) ->
+built_descriptor(Tuple) when is_tuple(Tuple) ->
+    erl_syntax:tuple([built_descriptor(Element) || Element <- tuple_to_list(Tuple)]);
+built_descriptor(Elements) when is_list(Elements) ->
+    erl_syntax:list([built_descriptor(Element) || Element <- Elements]);
+built_descriptor(Other) ->
     erl_syntax:abstract(Other).
 
-%% Report §7.4: the program's function F where foreign code calls it, an
+%% Report §7.4: the program's Function where foreign code calls it, an
 %% exception it raises the fault it would be anywhere (called_raised/3).
 called(Function, Arguments) ->
     [Class, Reason, Stack] = Raised = [erl_syntax:variable(Name)
@@ -1089,24 +1168,24 @@ called(Function, Arguments) ->
                                 [call_remote(ern_boundary, called_raised, Raised)]),
     erl_syntax:try_expr([erl_syntax:application(Function, Arguments)], [Handler]).
 
-check_text(Prefix, T, Cx) ->
-    string_binary(text_binary(Prefix, T, Cx)).
+check_text(Prefix, Type, Context) ->
+    string_binary(text_binary(Prefix, Type, Context)).
 
-text_binary(Prefix, T, #cx{env = Env}) ->
-    unicode:characters_to_binary(Prefix ++ ern_types:format(T, ern_typecheck:type_state(Env))).
+text_binary(Prefix, Type, #emit_context{env = Env}) ->
+    unicode:characters_to_binary(Prefix ++ ern_types:format(Type, ern_typecheck:type_state(Env))).
 
 %% Appendix E.1, §8.4: the descriptor of a type, which ern_descriptor
 %% makes, an abstract type seen from this module.
-descriptor(T, #cx{env = Env, ns = Ns}) ->
-    ern_descriptor:describe(T, Env, Ns).
+descriptor(Type, #emit_context{env = Env, namespace = Namespace}) ->
+    ern_descriptor:describe(Type, Env, Namespace).
 
 %% Whether a descriptor holds what crossing into foreign code changes: an
 %% address, a Reply, or a function.
-crosses({pid, _, _}) -> true;
+crosses({address, _, _}) -> true;
 crosses({reply, _, _}) -> true;
-crosses(T) when is_tuple(T), element(1, T) =:= 'fun' -> true;
-crosses(T) when is_tuple(T) -> lists:any(fun crosses/1, tuple_to_list(T));
-crosses(L) when is_list(L) -> lists:any(fun crosses/1, L);
+crosses(Part) when is_tuple(Part), element(1, Part) =:= 'fun' -> true;
+crosses(Part) when is_tuple(Part) -> lists:any(fun crosses/1, tuple_to_list(Part));
+crosses(Parts) when is_list(Parts) -> lists:any(fun crosses/1, Parts);
 crosses(_) -> false.
 
 %%
@@ -1117,81 +1196,90 @@ crosses(_) -> false.
 %% its fields in declared order, so the field is one element of the tuple
 %% where every constructor has it at one place, and a case on the tag where
 %% the places differ.
-select(Pos, F, XT, Form, #cx{env = Env} = Cx) ->
-    {tcon, Q, _} = ern_typecheck:resolve_type(XT, Env),
-    #type_info{constructors = Cs} = ern_typecheck:lookup_type(Q, Env),
-    Places = [{C, place(F, Names) + 1, length(Names)}
-              || #constructor_info{name = C, fields = {named, Names}} <- Cs],
-    case lists:usort([I || {_, I, _} <- Places]) of
-        [I] ->
-            {at(Pos, call_remote(erlang, element, [erl_syntax:integer(I), Form])), Cx};
+select(Span, Field, ExprType, Form, #emit_context{env = Env} = Context) ->
+    {tcon, QualifiedName, _} = ern_typecheck:resolve_type(ExprType, Env),
+    #type_info{constructors = Constructors} = ern_typecheck:lookup_type(QualifiedName, Env),
+    Places = [{Constructor, place(Field, Names) + 1, length(Names)}
+              || #constructor_info{name = Constructor, fields = {named, Names}} <- Constructors],
+    case lists:usort([Index || {_, Index, _} <- Places]) of
+        [Index] ->
+            {at(Span, call_remote(erlang, element, [erl_syntax:integer(Index), Form])), Context};
         _ ->
-            {[V], Cx1} = fresh_vars(1, "F", Cx),
-            Var = erl_syntax:variable(V),
-            Clauses = [erl_syntax:clause(
-                         [erl_syntax:tuple([erl_syntax:atom(C)
-                                            | [case J of I -> Var; _ -> erl_syntax:underscore() end
-                                               || J <- lists:seq(2, N + 1)]])],
-                         none, [Var])
-                       || {C, I, N} <- Places],
-            {at(Pos, erl_syntax:case_expr(Form, Clauses)), Cx1}
+            {[Variable], Context1} = fresh_variables(1, "F", Context),
+            VariableForm = erl_syntax:variable(Variable),
+            Clauses = [erl_syntax:clause([selecting_pattern(Constructor, Index, Count,
+                                                            VariableForm)],
+                                         none, [VariableForm])
+                       || {Constructor, Index, Count} <- Places],
+            {at(Span, erl_syntax:case_expr(Form, Clauses)), Context1}
     end.
 
-place(F, [F | _]) -> 1;
-place(F, [_ | R]) -> 1 + place(F, R).
+%% A named constructor's tuple as a pattern, the field at Index bound to the
+%% variable and the others `_`.
+selecting_pattern(Constructor, Index, Count, VariableForm) ->
+    Fields = [case Place of
+                  Index -> VariableForm;
+                  _ -> erl_syntax:underscore()
+              end || Place <- lists:seq(2, Count + 1)],
+    erl_syntax:tuple([erl_syntax:atom(Constructor) | Fields]).
 
-con_expr(Pos, Path, Name, Base, Args, Cx) ->
-    #constructor_info{fields = Fields} = ern_typecheck:lookup_constructor(Pos, Path, Name,
-                                                                          Cx#cx.env),
+place(Field, [Field | _]) -> 1;
+place(Field, [_ | Rest]) -> 1 + place(Field, Rest).
+
+constructor_expr(Span, Path, Name, Base, Args, #emit_context{env = Env} = Context) ->
+    #constructor_info{fields = Fields} = ern_typecheck:lookup_constructor(Span, Path, Name, Env),
     Tag = erl_syntax:atom(Name),
     case {Fields, Args} of
         {none, none} ->
-            {at(Pos, Tag), Cx};
+            {at(Span, Tag), Context};
         {positional, none} ->
             %% as a function value
-            {[V], Cx1} = fresh_vars(1, "V", Cx),
-            Var = erl_syntax:variable(V),
-            {at(Pos, erl_syntax:fun_expr([erl_syntax:clause([Var], none,
-                                                            [erl_syntax:tuple([Tag, Var])])])),
-             Cx1};
+            {[Variable], Context1} = fresh_variables(1, "V", Context),
+            VariableForm = erl_syntax:variable(Variable),
+            Wrap = erl_syntax:clause([VariableForm], none, [erl_syntax:tuple([Tag, VariableForm])]),
+            {at(Span, erl_syntax:fun_expr([Wrap])), Context1};
         {positional, {positional, Arg}} ->
-            {Form, Cx1} = expr(Arg, Cx),
-            {at(Pos, erl_syntax:tuple([Tag, Form])), Cx1};
-        {{named, Names}, {named, Sets}} when Base =:= undefined ->
-            {Binds, Set, Cx1} = field_sets(Names, Sets, Cx),
-            Tuple = erl_syntax:tuple([Tag | [maps:get(N, Set) || N <- Names]]),
-            {at(Pos, with_binds(Binds, Tuple)), Cx1};
-        {{named, Names}, {named, Sets}} ->
+            {Form, Context1} = expr(Arg, Context),
+            {at(Span, erl_syntax:tuple([Tag, Form])), Context1};
+        {{named, Names}, {named, FieldSets}} when Base =:= undefined ->
+            {Bindings, ByName, Context1} = field_sets(Names, FieldSets, Context),
+            Tuple = erl_syntax:tuple([Tag | [maps:get(FieldName, ByName) || FieldName <- Names]]),
+            {at(Span, with_bindings(Bindings, Tuple)), Context1};
+        {{named, Names}, {named, FieldSets}} ->
             %% T(..base, f = e): bind the base to a tuple pattern, take the
             %% unlisted fields from it
-            {BaseForm, Cx1} = expr(Base, Cx),
-            {Vars, Cx2} = fresh_vars(length(Names), "B", Cx1),
-            BasePat = erl_syntax:tuple([Tag | [erl_syntax:variable(V) || V <- Vars]]),
-            {Binds, Set, Cx3} = field_sets(Names, Sets, Cx2),
-            Forms = [maps:get(N, Set, erl_syntax:variable(V)) || {N, V} <- lists:zip(Names, Vars)],
-            Bind = erl_syntax:match_expr(BasePat, BaseForm),
-            {at(Pos, with_binds([Bind | Binds], erl_syntax:tuple([Tag | Forms]))), Cx3};
+            {BaseForm, Context1} = expr(Base, Context),
+            {Variables, Context2} = fresh_variables(length(Names), "B", Context1),
+            BasePattern = erl_syntax:tuple([Tag | [erl_syntax:variable(Variable)
+                                                   || Variable <- Variables]]),
+            {Bindings, ByName, Context3} = field_sets(Names, FieldSets, Context2),
+            Forms = [maps:get(FieldName, ByName, erl_syntax:variable(Variable))
+                     || {FieldName, Variable} <- lists:zip(Names, Variables)],
+            Bind = erl_syntax:match_expr(BasePattern, BaseForm),
+            {at(Span, with_bindings([Bind | Bindings], erl_syntax:tuple([Tag | Forms]))), Context3};
         _ ->
-            fail(Pos, "constructor " ++ atom_to_list(Name) ++ " used with the wrong field shape;"
-                      " T is the type checker's job")
+            fail(Span, "constructor " ++ atom_to_list(Name) ++ " used with the wrong field shape;"
+                       " T is the type checker's job")
     end.
 
 %% Report §3.5, §5.1: named fields are stored in declared order and
 %% evaluated in the order written. Where the two differ, each field is
 %% bound to a variable first, as written. The field forms by name, and
 %% the bindings that go before the tuple.
-field_sets(Names, Sets, Cx) ->
-    {Forms, Cx1} = lists:mapfoldl(fun(#field_set{expr = X}, C) -> expr(X, C) end, Cx, Sets),
-    Written = [N || #field_set{name = N} <- Sets],
-    case [N || N <- Names, lists:member(N, Written)] of
+field_sets(Names, FieldSets, Context) ->
+    {Forms, Context1} = lists:mapfoldl(fun(#field_set{expr = Expr}, Acc) ->
+                                           expr(Expr, Acc)
+                                       end, Context, FieldSets),
+    Written = [Name || #field_set{name = Name} <- FieldSets],
+    case [Name || Name <- Names, lists:member(Name, Written)] of
         Written ->
-            {[], maps:from_list(lists:zip(Written, Forms)), Cx1};
+            {[], maps:from_list(lists:zip(Written, Forms)), Context1};
         _ ->
-            {Vars, Cx2} = fresh_vars(length(Sets), "F", Cx1),
-            Binds = [erl_syntax:match_expr(erl_syntax:variable(V), F)
-                     || {V, F} <- lists:zip(Vars, Forms)],
-            {Binds, maps:from_list(lists:zip(Written, [erl_syntax:variable(V) || V <- Vars])),
-             Cx2}
+            {Variables, Context2} = fresh_variables(length(FieldSets), "F", Context1),
+            VariableForms = [erl_syntax:variable(Variable) || Variable <- Variables],
+            Bindings = [erl_syntax:match_expr(VariableForm, Form)
+                        || {VariableForm, Form} <- lists:zip(VariableForms, Forms)],
+            {Bindings, maps:from_list(lists:zip(Written, VariableForms)), Context2}
     end.
 
 %%
@@ -1206,112 +1294,127 @@ field_sets(Names, Sets, Cx) ->
 %% the same ones. Bodies are emitted when the block ends, every
 %% declaration passed.
 %% own: free names bound by the enclosing scopes or this block's lets;
-%% extra: variables of enclosing blocks' local fns it references; refs:
-%% local fns of this block it references; snap: the variables in force at
-%% the declaration, once passed
+%% extra: variables of enclosing blocks' local fns it references;
+%% references: local fns of this block it references; snapshot: the
+%% variables in force at the declaration, once passed
 
-block(Stmts, Cx) ->
-    Fns = [D || #fn_declaration{} = D <- Stmts],
-    Cx1 = declare_locals(Fns, Stmts, Cx),
-    {Forms, Cx2} = stmts(Stmts, Cx1, []),
-    {Forms, emit_locals(Fns, Cx2)}.
+block(Statements, Context) ->
+    Fns = [Declaration || #fn_declaration{} = Declaration <- Statements],
+    Context1 = declare_locals(Fns, Statements, Context),
+    {Forms, Context2} = statements(Statements, Context1, []),
+    {Forms, emit_locals(Fns, Context2)}.
 
-stmts([#binding{span = Pos, operator = '='}], _Cx, _Acc) ->
-    fail(Pos, "a block ends with a `let`");
-stmts([Last], Cx, Acc) ->
-    {Form, Cx1} = expr(Last, Cx),
-    {lists:reverse([Form | Acc]), Cx1};
-stmts([#fn_declaration{name = N} | Rest], #cx{locals = Locals, vars = Vars} = Cx, Acc) ->
-    Local = maps:get(N, Locals),
-    stmts(Rest, Cx#cx{locals = Locals#{N => Local#local{snap = Vars}}}, Acc);
-stmts([#binding{span = Pos, pattern = P, operator = '=', expr = X} | Rest], Cx, Acc) ->
-    {XF, Cx1} = expr(X, Cx),
-    {PF, Cx2} = pattern(P, Cx1),
-    stmts(Rest, Cx2, [at(Pos, erl_syntax:match_expr(PF, XF)) | Acc]);
-stmts([#binding{span = Pos, pattern = P, operator = '<-', expr = X} | Rest], Cx, Acc) ->
+statements([#binding{span = Span, operator = '='}], _Context, _Acc) ->
+    fail(Span, "a block ends with a `let`");
+statements([Last], Context, Acc) ->
+    {Form, Context1} = expr(Last, Context),
+    {lists:reverse([Form | Acc]), Context1};
+statements([#fn_declaration{name = Name} | Rest],
+           #emit_context{locals = Locals, variables = Variables} = Context, Acc) ->
+    Local = (maps:get(Name, Locals))#local_fn{snapshot = Variables},
+    statements(Rest, Context#emit_context{locals = Locals#{Name => Local}}, Acc);
+statements([#binding{span = Span, pattern = Pattern, operator = '=', expr = Expr} | Rest],
+           Context, Acc) ->
+    {ExprForm, Context1} = expr(Expr, Context),
+    {PatternForm, Context2} = pattern(Pattern, Context1),
+    statements(Rest, Context2, [at(Span, erl_syntax:match_expr(PatternForm, ExprForm)) | Acc]);
+statements([#binding{span = Span, pattern = Pattern, operator = '<-', expr = Expr} | Rest],
+           Context, Acc) ->
     %% report §5.5
-    {XF, Cx1} = expr(X, Cx),
-    {PF, Cx2} = pattern(P, Cx1),
-    {RestForms, Cx3} = stmts(Rest, Cx2, []),
-    {[E], Cx4} = fresh_vars(1, "E", Cx3),
-    Err = erl_syntax:variable(E),
-    Clauses = case resolved(ern_typecheck:node_type(X), Cx) of
+    {ExprForm, Context1} = expr(Expr, Context),
+    {PatternForm, Context2} = pattern(Pattern, Context1),
+    {RestForms, Context3} = statements(Rest, Context2, []),
+    {[LeftName], Context4} = fresh_variables(1, "E", Context3),
+    LeftValue = erl_syntax:variable(LeftName),
+    Clauses = case resolved(ern_typecheck:node_type(Expr), Context) of
                   {tcon, ['Either'], _} ->
-                      [erl_syntax:clause([erl_syntax:tuple([erl_syntax:atom('Left'), Err])], none,
-                                         [erl_syntax:tuple([erl_syntax:atom('Left'), Err])]),
-                       erl_syntax:clause([erl_syntax:tuple([erl_syntax:atom('Right'), PF])], none,
-                                         RestForms)];
+                      Left = erl_syntax:tuple([erl_syntax:atom('Left'), LeftValue]),
+                      Right = erl_syntax:tuple([erl_syntax:atom('Right'), PatternForm]),
+                      [erl_syntax:clause([Left], none, [Left]),
+                       erl_syntax:clause([Right], none, RestForms)];
                   {tcon, ['Optional'], _} ->
-                      [erl_syntax:clause([erl_syntax:atom('None')], none,
-                                         [erl_syntax:atom('None')]),
-                       erl_syntax:clause([erl_syntax:tuple([erl_syntax:atom('Some'), PF])], none,
-                                         RestForms)];
+                      None = erl_syntax:atom('None'),
+                      Some = erl_syntax:tuple([erl_syntax:atom('Some'), PatternForm]),
+                      [erl_syntax:clause([None], none, [None]),
+                       erl_syntax:clause([Some], none, RestForms)];
                   _ ->
-                      fail(Pos, "`<-` on a value that is neither Either nor Optional")
+                      fail(Span, "`<-` on a value that is neither Either nor Optional")
               end,
-    {lists:reverse([at(Pos, erl_syntax:case_expr(XF, Clauses)) | Acc]), Cx4};
-stmts([X | Rest], Cx, Acc) ->
-    {Form, Cx1} = expr(X, Cx),
-    stmts(Rest, Cx1, [Form | Acc]).
+    {lists:reverse([at(Span, erl_syntax:case_expr(ExprForm, Clauses)) | Acc]), Context4};
+statements([Expr | Rest], Context, Acc) ->
+    {Form, Context1} = expr(Expr, Context),
+    statements(Rest, Context1, [Form | Acc]).
 
-declare_locals([], _Stmts, Cx) ->
-    Cx;
-declare_locals(Fns, Stmts, #cx{vars = Vars, locals = Locals, tops = Tops} = Cx) ->
-    Names = [N || #fn_declaration{name = N} <- Fns],
-    BlockLets = lists:append([pattern_names(P) || #binding{pattern = P} <- Stmts]),
-    {Declared, Cx1} =
-        lists:mapfoldl(
-          fun(#fn_declaration{name = N, params = Params, body = Body}, C) ->
-                  Bound = lists:append([pattern_names(P) || #param{pattern = P} <- Params]),
-                  Free = [F || F <- lists:usort(ern_ast:free_names(Body, Bound)),
-                               not is_map_key({undefined, F}, Tops)],
-                  Refs = [F || F <- Free, lists:member(F, Names)],
-                  Own = [F || F <- Free, not lists:member(F, Names),
-                              is_map_key(F, Vars) orelse lists:member(F, BlockLets)],
-                  Extra = lists:append([instances(F, Cx) || F <- Free, not lists:member(F, Names),
-                                                            not lists:member(F, Own),
-                                                            is_map_key(F, Locals)]),
-                  {Lifted, C1} = fresh_name(N, C),
-                  {{N, #local{lifted = Lifted, own = Own, extra = lists:usort(Extra), refs = Refs}},
-                   C1}
-          end, Cx, Fns),
-    Cx1#cx{locals = maps:merge(Locals, maps:from_list(Declared))}.
+declare_locals([], _Statements, Context) ->
+    Context;
+declare_locals(Fns, Statements, #emit_context{locals = Locals} = Context) ->
+    Names = [Name || #fn_declaration{name = Name} <- Fns],
+    BlockLets = lists:append([pattern_names(Pattern) || #binding{pattern = Pattern} <- Statements]),
+    {Declared, Context1} =
+        lists:mapfoldl(fun(Fn, Acc) -> declared_local(Fn, Names, BlockLets, Context, Acc) end,
+                       Context, Fns),
+    Context1#emit_context{locals = maps:merge(Locals, maps:from_list(Declared))}.
+
+%% A local fn of the block named Names, as its #local_fn{} under a fresh
+%% name, from the scope the block opens in, Context.
+declared_local(#fn_declaration{name = Name, params = Params, body = Body}, Names, BlockLets,
+               #emit_context{variables = Variables, locals = Locals,
+                             top_names = TopNames} = Context,
+               Acc) ->
+    Bound = lists:append([pattern_names(Pattern) || #param{pattern = Pattern} <- Params]),
+    Free = [FreeName || FreeName <- lists:usort(ern_ast:free_names(Body, Bound)),
+                        not is_map_key({undefined, FreeName}, TopNames)],
+    References = [FreeName || FreeName <- Free, lists:member(FreeName, Names)],
+    Own = [FreeName || FreeName <- Free, not lists:member(FreeName, Names),
+                       is_map_key(FreeName, Variables) orelse lists:member(FreeName, BlockLets)],
+    Extra = lists:append([instances(FreeName, Context)
+                          || FreeName <- Free, not lists:member(FreeName, Names),
+                             not lists:member(FreeName, Own), is_map_key(FreeName, Locals)]),
+    {Lifted, Acc1} = fresh_name(Name, Acc),
+    Local = #local_fn{lifted = Lifted, own = Own, extra = lists:usort(Extra),
+                      references = References},
+    {{Name, Local}, Acc1}.
 
 %% The variables a local fn closes over, in order, each once.
-instances(Name, #cx{locals = Locals, vars = Vars}) ->
-    lists:usort(instances([Name], Locals, Vars, [], [])).
+instances(Name, #emit_context{locals = Locals, variables = Variables}) ->
+    lists:usort(instances([Name], Locals, Variables, [], [])).
 
-instances([], _Locals, _Vars, _Seen, Acc) ->
+instances([], _Locals, _Variables, _Seen, Acc) ->
     Acc;
-instances([N | Rest], Locals, Vars, Seen, Acc) ->
-    case lists:member(N, Seen) of
+instances([Name | Rest], Locals, Variables, Seen, Acc) ->
+    case lists:member(Name, Seen) of
         true ->
-            instances(Rest, Locals, Vars, Seen, Acc);
+            instances(Rest, Locals, Variables, Seen, Acc);
         false ->
-            #local{own = Own, extra = Extra, refs = Refs, snap = Snap} = maps:get(N, Locals),
-            Scope = case Snap of pending -> Vars; _ -> Snap end,
-            Vs = [var_atom(maps:get(O, Scope)) || O <- Own] ++ Extra,
-            instances(Refs ++ Rest, Locals, Vars, [N | Seen], Vs ++ Acc)
+            #local_fn{own = Own, extra = Extra, references = References,
+                      snapshot = Snapshot} = maps:get(Name, Locals),
+            Scope = case Snapshot of pending -> Variables; _ -> Snapshot end,
+            Found = [variable_atom(maps:get(OwnName, Scope)) || OwnName <- Own] ++ Extra,
+            instances(References ++ Rest, Locals, Variables, [Name | Seen], Found ++ Acc)
     end.
 
 %% The lifted functions of a block, once every declaration has passed.
-emit_locals(Fns, Cx) ->
-    lists:foldl(
-      fun(#fn_declaration{span = Pos, name = N, params = Params, body = Body}, C) ->
-              #local{lifted = Lifted, own = Own, snap = Snap} = maps:get(N, C#cx.locals),
-              Insts = instances(N, C),
-              OwnVars = maps:from_list([{O, maps:get(O, Snap)} || O <- Own]),
-              {Pats, C1} = lists:mapfoldl(fun(#param{pattern = P}, Cc) -> pattern(P, Cc) end,
-                                          C#cx{vars = OwnVars}, Params),
-              {BodyForms, C2} = body(Body, C1),
-              Head = [erl_syntax:variable(V) || V <- Insts] ++ Pats,
-              Clause = at(Pos, erl_syntax:clause(Head, none, BodyForms)),
-              Fun = at(Pos, erl_syntax:function(erl_syntax:atom(Lifted), [Clause])),
-              C2#cx{vars = C#cx.vars, lifted = [Fun | C2#cx.lifted]}
-      end, Cx, Fns).
+emit_locals(Fns, Context) ->
+    lists:foldl(fun emit_local/2, Context, Fns).
+
+emit_local(#fn_declaration{span = Span, name = Name, params = Params, body = Body},
+           #emit_context{variables = Variables, locals = Locals} = Context) ->
+    #local_fn{lifted = Lifted, own = Own, snapshot = Snapshot} = maps:get(Name, Locals),
+    Instances = instances(Name, Context),
+    OwnVariables = maps:from_list([{OwnName, maps:get(OwnName, Snapshot)} || OwnName <- Own]),
+    {Patterns, Context1} = lists:mapfoldl(fun(#param{pattern = Pattern}, Acc) ->
+                                              pattern(Pattern, Acc)
+                                          end, Context#emit_context{variables = OwnVariables},
+                                          Params),
+    {BodyForms, Context2} = body(Body, Context1),
+    Head = [erl_syntax:variable(Variable) || Variable <- Instances] ++ Patterns,
+    Clause = at(Span, erl_syntax:clause(Head, none, BodyForms)),
+    Function = at(Span, erl_syntax:function(erl_syntax:atom(Lifted), [Clause])),
+    Context2#emit_context{variables = Variables,
+                          lifted = [Function | Context2#emit_context.lifted]}.
 
 %% The names a pattern binds.
-pattern_names(P) -> [N || {N, _} <- ern_ast:pattern_bindings(P)].
+pattern_names(Pattern) -> [Name || {Name, _} <- ern_ast:pattern_bindings(Pattern)].
 
 %%
 %% match and receive clauses
@@ -1319,267 +1422,296 @@ pattern_names(P) -> [N || {N, _} <- ern_ast:pattern_bindings(P)].
 
 %% A clause whose guard is not an Erlang guard expression falls through by
 %% a continuation over the remaining clauses (report §5.9).
-match_clauses(SF, Clauses, Cx) ->
+match_clauses(ScrutineeForm, Clauses, Context) ->
+    InScope = maps:keys(Context#emit_context.variables),
     Erlang = fun(#clause{guard = undefined}) -> true;
-                (#clause{pattern = P, guard = G}) ->
-                     erlang_guard(G, pattern_names(P) ++ maps:keys(Cx#cx.vars), Cx)
+                (#clause{pattern = Pattern, guard = Guard}) ->
+                     erlang_guard(Guard, pattern_names(Pattern) ++ InScope, Context)
              end,
     case lists:all(Erlang, Clauses) of
         true ->
-            {Parts, Cx1} = lists:mapfoldl(fun simple_clauses/2, Cx, Clauses),
-            {Binds, Forms} = join_parts(Parts),
-            {with_binds(Binds, erl_syntax:case_expr(SF, Forms)), Cx1};
+            {Parts, Context1} = lists:mapfoldl(fun simple_clauses/2, Context, Clauses),
+            {Bindings, Forms} = join_parts(Parts),
+            {with_bindings(Bindings, erl_syntax:case_expr(ScrutineeForm, Forms)), Context1};
         false ->
-            {[S], Cx1} = fresh_vars(1, "S", Cx),
-            SVar = erl_syntax:variable(S),
-            {Body, Cx2} = general_clauses(SVar, Clauses, Cx1),
-            {erl_syntax:block_expr([erl_syntax:match_expr(SVar, SF), Body]), Cx2}
+            {[ScrutineeName], Context1} = fresh_variables(1, "S", Context),
+            Scrutinee = erl_syntax:variable(ScrutineeName),
+            {Body, Context2} = general_clauses(Scrutinee, Clauses, Context1),
+            {erl_syntax:block_expr([erl_syntax:match_expr(Scrutinee, ScrutineeForm), Body]),
+             Context2}
     end.
 
-general_clauses(SVar, [#clause{pattern = #p_or{}} = C | Rest], Cx) ->
-    {RestBind, Fallthrough, Cx2} = rest_fun(SVar, Rest, Cx),
-    Mk = fun(Pos, PF, G, Call, C1) ->
-             {PG, _} = take_pat_guards(none, C1),
-             case G of
-                 undefined ->
-                     {at(Pos, erl_syntax:clause([PF], PG, Call)), C1};
-                 _ ->
-                     {GF, C2} = expr(G, C1),
-                     Test = erl_syntax:case_expr(
-                              GF, [erl_syntax:clause([erl_syntax:atom(true)], none, Call),
-                                   erl_syntax:clause([erl_syntax:atom(false)], none,
-                                                     [Fallthrough])]),
-                     {at(Pos, erl_syntax:clause([PF], PG, [Test])), C2}
-             end
-         end,
-    {{Binds, Forms}, Cx3} = alternatives(C, Mk, Cx2),
-    Case = erl_syntax:case_expr(SVar, Forms ++ [erl_syntax:clause([erl_syntax:underscore()], none,
-                                                                  [Fallthrough])]),
-    {erl_syntax:block_expr([RestBind | Binds] ++ [Case]), Cx3#cx{vars = Cx#cx.vars}};
-general_clauses(SVar, [#clause{pattern = P, guard = G, body = B}], Cx) when
-      G =:= undefined ->
-    {PF, Cx1} = pattern(P, Cx#cx{pat_guards = []}),
-    {PG, _} = take_pat_guards(none, Cx1),
-    {BF, Cx2} = body(B, Cx1#cx{pat_guards = Cx#cx.pat_guards}),
-    {erl_syntax:case_expr(SVar, [erl_syntax:clause([PF], PG, BF)]), Cx2#cx{vars = Cx#cx.vars}};
-general_clauses(SVar, [#clause{pattern = P, guard = G, body = B} | Rest], Cx) ->
-    {Bind, Fallthrough, Cx2} = rest_fun(SVar, Rest, Cx),
-    {PF, CxP} = pattern(P, Cx2#cx{pat_guards = []}),
-    {PG, _} = take_pat_guards(none, CxP),
-    Cx3 = CxP#cx{pat_guards = Cx2#cx.pat_guards},
-    {Body, Cx4} = case G of
-                      undefined -> body(B, Cx3);
-                      _ ->
-                          {GF, CxG} = expr(G, Cx3),
-                          {BF, CxB} = body(B, CxG),
-                          {[erl_syntax:case_expr(
-                              GF, [erl_syntax:clause([erl_syntax:atom(true)], none, BF),
-                                   erl_syntax:clause([erl_syntax:atom(false)], none,
-                                                     [Fallthrough])])],
-                           CxB}
-                  end,
-    Case = erl_syntax:case_expr(SVar, [erl_syntax:clause([PF], PG, Body),
-                                       erl_syntax:clause([erl_syntax:underscore()], none,
-                                                         [Fallthrough])]),
-    {erl_syntax:block_expr([Bind, Case]), Cx4#cx{vars = Cx#cx.vars}}.
+general_clauses(Scrutinee, [#clause{pattern = #p_or{}} = Clause | Rest], Context) ->
+    {RestBind, Fallthrough, Context1} = rest_fun(Scrutinee, Rest, Context),
+    MakeClause = fun(Span, PatternForm, Guard, Call, Acc) ->
+                     {PatternGuard, _} = take_pattern_guards(none, Acc),
+                     case Guard of
+                         undefined ->
+                             {at(Span, erl_syntax:clause([PatternForm], PatternGuard, Call)), Acc};
+                         _ ->
+                             {GuardForm, Acc1} = expr(Guard, Acc),
+                             Test = guard_test(GuardForm, Call, Fallthrough),
+                             {at(Span, erl_syntax:clause([PatternForm], PatternGuard, [Test])),
+                              Acc1}
+                     end
+                 end,
+    {{Bindings, Forms}, Context2} = alternatives(Clause, MakeClause, Context1),
+    Otherwise = erl_syntax:clause([erl_syntax:underscore()], none, [Fallthrough]),
+    Case = erl_syntax:case_expr(Scrutinee, Forms ++ [Otherwise]),
+    {erl_syntax:block_expr([RestBind | Bindings] ++ [Case]),
+     Context2#emit_context{variables = Context#emit_context.variables}};
+general_clauses(Scrutinee, [#clause{pattern = Pattern, guard = undefined, body = ClauseBody}],
+                #emit_context{variables = Variables, pattern_guards = Guards} = Context) ->
+    {PatternForm, Context1} = pattern(Pattern, Context#emit_context{pattern_guards = []}),
+    {PatternGuard, _} = take_pattern_guards(none, Context1),
+    {BodyForms, Context2} = body(ClauseBody, Context1#emit_context{pattern_guards = Guards}),
+    Clause = erl_syntax:clause([PatternForm], PatternGuard, BodyForms),
+    {erl_syntax:case_expr(Scrutinee, [Clause]), Context2#emit_context{variables = Variables}};
+general_clauses(Scrutinee, [#clause{pattern = Pattern, guard = Guard, body = ClauseBody} | Rest],
+                #emit_context{variables = Variables} = Context) ->
+    {Bind, Fallthrough, Context1} = rest_fun(Scrutinee, Rest, Context),
+    {PatternForm, PatternContext} = pattern(Pattern, Context1#emit_context{pattern_guards = []}),
+    {PatternGuard, _} = take_pattern_guards(none, PatternContext),
+    Context2 = PatternContext#emit_context{pattern_guards = Context1#emit_context.pattern_guards},
+    {Body, Context3} = case Guard of
+                           undefined ->
+                               body(ClauseBody, Context2);
+                           _ ->
+                               {GuardForm, GuardContext} = expr(Guard, Context2),
+                               {BodyForms, BodyContext} = body(ClauseBody, GuardContext),
+                               {[guard_test(GuardForm, BodyForms, Fallthrough)], BodyContext}
+                       end,
+    Otherwise = erl_syntax:clause([erl_syntax:underscore()], none, [Fallthrough]),
+    Case = erl_syntax:case_expr(Scrutinee, [erl_syntax:clause([PatternForm], PatternGuard, Body),
+                                            Otherwise]),
+    {erl_syntax:block_expr([Bind, Case]), Context3#emit_context{variables = Variables}}.
+
+%% A guard that is no Erlang guard, as a test inside its clause: the body
+%% where it holds, the clauses after it where it does not.
+guard_test(GuardForm, Body, Fallthrough) ->
+    erl_syntax:case_expr(GuardForm, [erl_syntax:clause([erl_syntax:atom(true)], none, Body),
+                                     erl_syntax:clause([erl_syntax:atom(false)], none,
+                                                       [Fallthrough])]).
 
 %% The clauses after the one being compiled, bound as Rest = fun() -> ...
 %% end, and the call Rest() by which a guard falls through to them.
-rest_fun(SVar, Rest, Cx) ->
-    {[R], Cx1} = fresh_vars(1, "Rest", Cx),
-    RVar = erl_syntax:variable(R),
-    {RestBody, Cx2} = case Rest of
-                          [] -> {call_remote(erlang, error, [erl_syntax:atom(no_match)]), Cx1};
-                          _ -> general_clauses(SVar, Rest, Cx1)
-                      end,
-    Bind = erl_syntax:match_expr(RVar, erl_syntax:fun_expr([erl_syntax:clause([], none,
-                                                                              [RestBody])])),
-    {Bind, erl_syntax:application(RVar, []), Cx2}.
+rest_fun(Scrutinee, Rest, Context) ->
+    {[RestName], Context1} = fresh_variables(1, "Rest", Context),
+    RestVariable = erl_syntax:variable(RestName),
+    {RestBody, Context2} =
+        case Rest of
+            [] -> {call_remote(erlang, error, [erl_syntax:atom(no_match)]), Context1};
+            _ -> general_clauses(Scrutinee, Rest, Context1)
+        end,
+    RestFun = erl_syntax:fun_expr([erl_syntax:clause([], none, [RestBody])]),
+    {erl_syntax:match_expr(RestVariable, RestFun), erl_syntax:application(RestVariable, []),
+     Context2}.
 
-simple_clause(#clause{span = Pos, pattern = P, guard = G, body = B}, Cx) ->
-    {PF, Cx1} = pattern(P, Cx#cx{pat_guards = []}),
-    {GF0, Cx2} = case G of
-                     undefined -> {none, Cx1};
-                     _ -> expr(G, Cx1)
-                 end,
-    {GF, _} = take_pat_guards(GF0, Cx2),
-    {BF, Cx3} = body(B, Cx2#cx{pat_guards = Cx#cx.pat_guards}),
-    {at(Pos, erl_syntax:clause([PF], GF, BF)), Cx3#cx{vars = Cx#cx.vars}}.
+simple_clause(#clause{span = Span, pattern = Pattern, guard = Guard, body = ClauseBody},
+              #emit_context{variables = Variables, pattern_guards = Guards} = Context) ->
+    {PatternForm, Context1} = pattern(Pattern, Context#emit_context{pattern_guards = []}),
+    {OwnGuard, Context2} = case Guard of
+                               undefined -> {none, Context1};
+                               _ -> expr(Guard, Context1)
+                           end,
+    {GuardForm, _} = take_pattern_guards(OwnGuard, Context2),
+    {BodyForms, Context3} = body(ClauseBody, Context2#emit_context{pattern_guards = Guards}),
+    {at(Span, erl_syntax:clause([PatternForm], GuardForm, BodyForms)),
+     Context3#emit_context{variables = Variables}}.
 
 %% The Erlang clauses of one Ernest clause and the bindings they need.
-simple_clauses(#clause{pattern = #p_or{}} = C, Cx) ->
-    Mk = fun(Pos, PF, G, Call, C1) ->
-             {GF0, C2} = case G of
-                             undefined -> {none, C1};
-                             _ -> expr(G, C1)
-                         end,
-             {GF, _} = take_pat_guards(GF0, C2),
-             {at(Pos, erl_syntax:clause([PF], GF, Call)), C2}
-         end,
-    alternatives(C, Mk, Cx);
-simple_clauses(C, Cx) ->
-    {Form, Cx1} = simple_clause(C, Cx),
-    {{[], [Form]}, Cx1}.
+simple_clauses(#clause{pattern = #p_or{}} = Clause, Context) ->
+    MakeClause = fun(Span, PatternForm, Guard, Call, Acc1) ->
+                     {OwnGuard, Acc2} = case Guard of
+                                            undefined -> {none, Acc1};
+                                            _ -> expr(Guard, Acc1)
+                                        end,
+                     {GuardForm, _} = take_pattern_guards(OwnGuard, Acc2),
+                     {at(Span, erl_syntax:clause([PatternForm], GuardForm, Call)), Acc2}
+                 end,
+    alternatives(Clause, MakeClause, Context);
+simple_clauses(Clause, Context) ->
+    {Form, Context1} = simple_clause(Clause, Context),
+    {{[], [Form]}, Context1}.
 
 join_parts(Parts) ->
-    {lists:append([B || {B, _} <- Parts]), lists:append([F || {_, F} <- Parts])}.
+    {lists:append([PartBindings || {PartBindings, _} <- Parts]),
+     lists:append([PartForms || {_, PartForms} <- Parts])}.
 
-with_binds([], Form) -> Form;
-with_binds(Binds, Form) -> erl_syntax:block_expr(Binds ++ [Form]).
+with_bindings([], Form) -> Form;
+with_bindings(Bindings, Form) -> erl_syntax:block_expr(Bindings ++ [Form]).
 
 %% Report §5.9: a clause with pattern alternatives is one Erlang clause per
 %% alternative. The body is compiled once, into a fun over the variables
-%% every alternative binds, and each clause calls it; Mk builds a clause
-%% from the clause's span, the pattern form, the Ernest guard, and that call.
-alternatives(#clause{span = Pos, pattern = #p_or{alternatives = [First | _] = Alts}, guard = G,
-                     body = B}, Mk, Cx) ->
+%% every alternative binds, and each clause calls it; MakeClause builds a
+%% clause from the clause's span, the pattern form, the Ernest guard, and
+%% that call.
+alternatives(#clause{span = Span, pattern = #p_or{alternatives = [First | _] = Alternatives},
+                     guard = Guard, body = ClauseBody},
+             MakeClause, Context) ->
     Names = pattern_names(First),
-    {[F], Cx0} = fresh_vars(1, "Body", Cx),
-    FVar = erl_syntax:variable(F),
-    {_, CxP} = pattern(First, Cx0#cx{pat_guards = []}),
-    Params = [erl_syntax:variable(var_atom(maps:get(N, CxP#cx.vars))) || N <- Names],
-    {BF, CxB} = body(B, CxP#cx{pat_guards = Cx0#cx.pat_guards}),
-    Bind = erl_syntax:match_expr(FVar, erl_syntax:fun_expr([erl_syntax:clause(Params, none, BF)])),
-    {Forms, CxN} =
-        lists:mapfoldl(fun(A, C0) ->
-                           {PF, C1} = pattern(A, C0#cx{pat_guards = []}),
-                           Args = [erl_syntax:variable(var_atom(maps:get(N, C1#cx.vars)))
-                                   || N <- Names],
-                           Call = [at(Pos, erl_syntax:application(FVar, Args))],
-                           {Form, C2} = Mk(Pos, PF, G, Call, C1),
-                           {Form, C2#cx{vars = C0#cx.vars, pat_guards = C0#cx.pat_guards}}
-                       end, CxB#cx{vars = Cx0#cx.vars}, Alts),
-    {{[Bind], Forms}, CxN}.
+    {[BodyName], Context1} = fresh_variables(1, "Body", Context),
+    #emit_context{variables = Variables, pattern_guards = Guards} = Context1,
+    BodyFunction = erl_syntax:variable(BodyName),
+    {_, PatternContext} = pattern(First, Context1#emit_context{pattern_guards = []}),
+    Params = bound_variables(Names, PatternContext),
+    {BodyForms, BodyContext} = body(ClauseBody,
+                                    PatternContext#emit_context{pattern_guards = Guards}),
+    Bind = erl_syntax:match_expr(BodyFunction,
+                                 erl_syntax:fun_expr([erl_syntax:clause(Params, none, BodyForms)])),
+    {Forms, Context2} =
+        lists:mapfoldl(fun(Alternative, Acc) ->
+                           {PatternForm, Acc1} =
+                               pattern(Alternative, Acc#emit_context{pattern_guards = []}),
+                           Args = bound_variables(Names, Acc1),
+                           Call = [at(Span, erl_syntax:application(BodyFunction, Args))],
+                           {Form, Acc2} = MakeClause(Span, PatternForm, Guard, Call, Acc1),
+                           #emit_context{variables = Before, pattern_guards = Kept} = Acc,
+                           {Form, Acc2#emit_context{variables = Before, pattern_guards = Kept}}
+                       end, BodyContext#emit_context{variables = Variables}, Alternatives),
+    {{[Bind], Forms}, Context2}.
+
+%% The Erlang variables of the names a pattern bound.
+bound_variables(Names, #emit_context{variables = Variables}) ->
+    [erl_syntax:variable(variable_atom(maps:get(Name, Variables))) || Name <- Names].
 
 %% Report §6.3's guard expression over the variables in Bound, the
 %% clause's and the enclosing function's: it is an Erlang guard. A name
 %% bound at top level is read through its getter, a call, so it is not one.
-erlang_guard(#e_binop{operator = Op, left = L, right = R}, Bound, Cx)
-  when Op =:= '&&'; Op =:= '||' ->
-    erlang_guard(L, Bound, Cx) andalso erlang_guard(R, Bound, Cx);
-erlang_guard(#e_binop{operator = Op, left = L, right = R}, Bound, _)
-  when Op =:= '=='; Op =:= '!=' ->
-    guard_operand(L, Bound) andalso guard_operand(R, Bound);
-erlang_guard(#e_binop{operator = Op, left = L, right = R}, Bound, Cx) when Op =:= '<'; Op =:= '<=';
-                                                                  Op =:= '>'; Op =:= '>=' ->
+erlang_guard(#e_binop{operator = Operator, left = Left, right = Right}, Bound, Context)
+  when Operator =:= '&&'; Operator =:= '||' ->
+    erlang_guard(Left, Bound, Context) andalso erlang_guard(Right, Bound, Context);
+erlang_guard(#e_binop{operator = Operator, left = Left, right = Right}, Bound, _)
+  when Operator =:= '=='; Operator =:= '!=' ->
+    guard_operand(Left, Bound) andalso guard_operand(Right, Bound);
+erlang_guard(#e_binop{operator = Operator, left = Left, right = Right}, Bound, Context)
+  when Operator =:= '<'; Operator =:= '<='; Operator =:= '>'; Operator =:= '>=' ->
     %% an ordering through T.compare is a call (report §3.10)
-    Prelude = case resolved(ern_typecheck:node_type(L), Cx) of
+    Prelude = case resolved(ern_typecheck:node_type(Left), Context) of
                   {tcon, [_], []} -> true;
                   _ -> false
               end,
-    Prelude andalso guard_operand(L, Bound) andalso guard_operand(R, Bound);
-erlang_guard(#e_not{expr = X}, Bound, Cx) -> erlang_guard(X, Bound, Cx);
+    Prelude andalso guard_operand(Left, Bound) andalso guard_operand(Right, Bound);
+erlang_guard(#e_not{expr = Expr}, Bound, Context) -> erlang_guard(Expr, Bound, Context);
 erlang_guard(#e_literal{kind = bool}, _, _) -> true;
-erlang_guard(#e_var{path = [], name = N}, Bound, _) -> lists:member(N, Bound);
+erlang_guard(#e_var{path = [], name = Name}, Bound, _) -> lists:member(Name, Bound);
 erlang_guard(_, _, _) -> false.
 
 guard_operand(#e_literal{}, _) -> true;
-guard_operand(#e_negation{expr = #e_literal{kind = K}}, _) when K =:= int; K =:= float -> true;
-guard_operand(#e_var{path = [], name = N}, Bound) -> lists:member(N, Bound);
+guard_operand(#e_negation{expr = #e_literal{kind = Kind}}, _) when Kind =:= int; Kind =:= float ->
+    true;
+guard_operand(#e_var{path = [], name = Name}, Bound) -> lists:member(Name, Bound);
 guard_operand(#e_constructor{args = none}, _) -> true;
 guard_operand(_, _) -> false.
 
 %%
-%% Patterns: pattern(P, Cx) -> {Form, Cx} with the variables bound
+%% Patterns: pattern(Pattern, Context) -> {Form, Context} with the
+%% variables bound
 %%
 
-pattern(#p_wildcard{span = Pos}, Cx) ->
-    {at(Pos, erl_syntax:underscore()), Cx};
-pattern(#p_var{span = Pos, name = N}, Cx) ->
-    {V, Cx1} = bind(N, Cx),
-    {at(Pos, erl_syntax:variable(V)), Cx1};
-pattern(#p_literal{span = Pos, kind = Kind, value = V}, Cx) ->
-    {at(Pos, literal(Kind, V)), Cx};
-pattern(#p_constructor{span = Pos, path = Path, name = Name, args = Args}, Cx) ->
-    #constructor_info{fields = Fields} = ern_typecheck:lookup_constructor(Pos, Path, Name,
-                                                                          Cx#cx.env),
+pattern(#p_wildcard{span = Span}, Context) ->
+    {at(Span, erl_syntax:underscore()), Context};
+pattern(#p_var{span = Span, name = Name}, Context) ->
+    {Variable, Context1} = bind(Name, Context),
+    {at(Span, erl_syntax:variable(Variable)), Context1};
+pattern(#p_literal{span = Span, kind = Kind, value = Value}, Context) ->
+    {at(Span, literal(Kind, Value)), Context};
+pattern(#p_constructor{span = Span, path = Path, name = Name, args = Args},
+        #emit_context{env = Env} = Context) ->
+    #constructor_info{fields = Fields} = ern_typecheck:lookup_constructor(Span, Path, Name, Env),
     Tag = erl_syntax:atom(Name),
     case {Fields, Args} of
-        {none, _} -> {at(Pos, Tag), Cx};
-        {positional, {positional, P}} ->
-            {PF, Cx1} = pattern(P, Cx),
-            {at(Pos, erl_syntax:tuple([Tag, PF])), Cx1};
-        {{named, Names}, {named, FPs}} ->
-            {Forms, Cx1} = lists:mapfoldl(fun(N, C) ->
-                                              case [P || #field_pattern{name = FN, pattern = P}
-                                                             <- FPs,
-                                                         FN =:= N] of
-                                                  [P] -> pattern(P, C);
-                                                  [] -> {erl_syntax:underscore(), C}
-                                              end
-                                          end, Cx, Names),
-            {at(Pos, erl_syntax:tuple([Tag | Forms])), Cx1}
+        {none, _} -> {at(Span, Tag), Context};
+        {positional, {positional, SubPattern}} ->
+            {PatternForm, Context1} = pattern(SubPattern, Context),
+            {at(Span, erl_syntax:tuple([Tag, PatternForm])), Context1};
+        {{named, Names}, {named, FieldPatterns}} ->
+            {Forms, Context1} = lists:mapfoldl(fun(Field, Acc) ->
+                                                   named_field_pattern(Field, FieldPatterns, Acc)
+                                               end, Context, Names),
+            {at(Span, erl_syntax:tuple([Tag | Forms])), Context1}
     end;
-pattern(#p_tuple{span = Pos, elements = Es}, Cx) ->
-    {Forms, Cx1} = lists:mapfoldl(fun pattern/2, Cx, Es),
-    {at(Pos, erl_syntax:tuple(Forms)), Cx1};
-pattern(#p_list{span = Pos, elements = Es}, Cx) ->
-    {Forms, Cx1} = lists:mapfoldl(fun pattern/2, Cx, Es),
-    {at(Pos, erl_syntax:list(Forms)), Cx1};
-pattern(#p_cons{span = Pos, head = H, tail = T}, Cx) ->
-    {HF, Cx1} = pattern(H, Cx),
-    {TF, Cx2} = pattern(T, Cx1),
-    {at(Pos, erl_syntax:cons(HF, TF)), Cx2};
-pattern(#p_as{span = Pos, pattern = P, name = N}, Cx) ->
-    {PF, Cx1} = pattern(P, Cx),
-    {V, Cx2} = bind(N, Cx1),
-    {at(Pos, erl_syntax:match_expr(erl_syntax:variable(V), PF)), Cx2};
-pattern(#p_bitstring{span = Pos, segments = Segs}, Cx) ->
+pattern(#p_tuple{span = Span, elements = Elements}, Context) ->
+    {Forms, Context1} = lists:mapfoldl(fun pattern/2, Context, Elements),
+    {at(Span, erl_syntax:tuple(Forms)), Context1};
+pattern(#p_list{span = Span, elements = Elements}, Context) ->
+    {Forms, Context1} = lists:mapfoldl(fun pattern/2, Context, Elements),
+    {at(Span, erl_syntax:list(Forms)), Context1};
+pattern(#p_cons{span = Span, head = Head, tail = Tail}, Context) ->
+    {HeadForm, Context1} = pattern(Head, Context),
+    {TailForm, Context2} = pattern(Tail, Context1),
+    {at(Span, erl_syntax:cons(HeadForm, TailForm)), Context2};
+pattern(#p_as{span = Span, pattern = SubPattern, name = Name}, Context) ->
+    {PatternForm, Context1} = pattern(SubPattern, Context),
+    {Variable, Context2} = bind(Name, Context1),
+    {at(Span, erl_syntax:match_expr(erl_syntax:variable(Variable), PatternForm)), Context2};
+pattern(#p_bitstring{span = Span, segments = Segments}, Context) ->
     %% report §5.11: a size expression must be an Erlang guard expression
     %% here; a `bytes` segment is Erlang's `binary`, so an unaligned rest
     %% fails the match
-    {Fields, Cx1} =
-        lists:mapfoldl(fun(#bit_segment{value = V, specs = Specs}, C) ->
+    {Fields, Context1} =
+        lists:mapfoldl(fun(#bit_segment{value = ValuePattern, specs = Specs}, Acc) ->
                            {ok, Spec} = ern_bitspec:spec(Specs),
-                           {SizeF, C1} = size_form(Spec, C),
-                           {VF, C2} = bits_pattern_value(Spec, V, C1),
-                           {erl_syntax:binary_field(VF, SizeF, type_specs(Spec)), C2}
-                       end, Cx, Segs),
-    {at(Pos, erl_syntax:binary(Fields)), Cx1}.
+                           {SizeForm, Acc1} = size_form(Spec, Acc),
+                           {ValueForm, Acc2} = bits_pattern_value(Spec, ValuePattern, Acc1),
+                           {erl_syntax:binary_field(ValueForm, SizeForm, type_specs(Spec)), Acc2}
+                       end, Context, Segments),
+    {at(Span, erl_syntax:binary(Fields)), Context1}.
 
-bits_pattern_value(#{kind := float}, #p_var{span = Pos, name = Name}, Cx) ->
-    {V, Cx1} = bind(Name, Cx),
-    {at(Pos, erl_syntax:variable(V)), Cx1#cx{vars = (Cx1#cx.vars)#{Name => {zero, V}}}};
-bits_pattern_value(#{kind := float}, #p_literal{span = Pos, value = Zero}, Cx) when Zero == 0.0 ->
+%% Report §5.10: a field the pattern omits matches any value.
+named_field_pattern(Field, FieldPatterns, Context) ->
+    case [SubPattern || #field_pattern{name = Name, pattern = SubPattern} <- FieldPatterns,
+                        Name =:= Field] of
+        [SubPattern] -> pattern(SubPattern, Context);
+        [] -> {erl_syntax:underscore(), Context}
+    end.
+
+bits_pattern_value(#{kind := float}, #p_var{span = Span, name = Name}, Context) ->
+    {Variable, Context1} = bind(Name, Context),
+    Variables = (Context1#emit_context.variables)#{Name => {zero, Variable}},
+    {at(Span, erl_syntax:variable(Variable)), Context1#emit_context{variables = Variables}};
+bits_pattern_value(#{kind := float}, #p_literal{span = Span, value = Zero}, Context)
+  when Zero == 0.0 ->
     %% report §3.1: the literal 0.0 matches the bytes of either zero
-    {[T], Cx1} = fresh_vars(1, "Z", Cx),
-    Guard = erl_syntax:infix_expr(erl_syntax:variable(T), erl_syntax:operator('=='),
+    {[ZeroName], Context1} = fresh_variables(1, "Z", Context),
+    Guard = erl_syntax:infix_expr(erl_syntax:variable(ZeroName), erl_syntax:operator('=='),
                                   erl_syntax:float(0.0)),
-    {at(Pos, erl_syntax:variable(T)), Cx1#cx{pat_guards = Cx1#cx.pat_guards ++ [Guard]}};
-bits_pattern_value(_, V, Cx) ->
-    pattern(V, Cx).
+    Guards = Context1#emit_context.pattern_guards ++ [Guard],
+    {at(Span, erl_syntax:variable(ZeroName)), Context1#emit_context{pattern_guards = Guards}};
+bits_pattern_value(_, Pattern, Context) ->
+    pattern(Pattern, Context).
 
 %% The clause guards a pattern asked for, joined to the clause's own.
-take_pat_guards(GF, #cx{pat_guards = []}) -> {GF, GF};
-take_pat_guards(GF, #cx{pat_guards = Gs}) ->
-    All = case GF of none -> Gs; _ -> Gs ++ [GF] end,
-    Joined = lists:foldl(fun(G, Acc) -> erl_syntax:infix_expr(Acc, erl_syntax:operator('andalso'),
-                                                              G) end,
-                         hd(All), tl(All)),
-    {Joined, GF}.
+take_pattern_guards(GuardForm, #emit_context{pattern_guards = []}) -> {GuardForm, GuardForm};
+take_pattern_guards(GuardForm, #emit_context{pattern_guards = Guards}) ->
+    All = case GuardForm of none -> Guards; _ -> Guards ++ [GuardForm] end,
+    Joined = lists:foldl(fun(Guard, Acc) ->
+                             erl_syntax:infix_expr(Acc, erl_syntax:operator('andalso'), Guard)
+                         end, hd(All), tl(All)),
+    {Joined, GuardForm}.
 
 %%
 %% Bitstring segments, report §5.11
 %%
 
-size_form(#{size := none}, Cx) -> {none, Cx};
-size_form(#{size := {const, N}}, Cx) -> {erl_syntax:integer(N), Cx};
-size_form(#{size := {expr, E}}, Cx) -> expr(E, Cx).
+size_form(#{size := none}, Context) -> {none, Context};
+size_form(#{size := {const, Size}}, Context) -> {erl_syntax:integer(Size), Context};
+size_form(#{size := {expr, SizeExpr}}, Context) -> expr(SizeExpr, Context).
 
 %% The width in bits as a form: size times unit.
-bits_form(#{size := {const, N}, unit := U}, _) -> erl_syntax:integer(N * U);
-bits_form(#{unit := 1}, SizeF) -> SizeF;
-bits_form(#{unit := U}, SizeF) ->
-    erl_syntax:infix_expr(SizeF, erl_syntax:operator('*'), erl_syntax:integer(U)).
+bits_form(#{size := {const, Size}, unit := Unit}, _) -> erl_syntax:integer(Size * Unit);
+bits_form(#{unit := 1}, SizeForm) -> SizeForm;
+bits_form(#{unit := Unit}, SizeForm) ->
+    erl_syntax:infix_expr(SizeForm, erl_syntax:operator('*'), erl_syntax:integer(Unit)).
 
-segment_value(#{kind := int, sign := Sign} = Spec, VF, SizeF) ->
-    call_remote(ern_bits, int, [VF, bits_form(Spec, SizeF), erl_syntax:atom(Sign)]);
-segment_value(#{kind := float} = Spec, VF, SizeF) ->
-    call_remote(ern_bits, float, [VF, bits_form(Spec, SizeF)]);
-segment_value(#{kind := bytes, size := none}, VF, _) -> VF;
-segment_value(#{kind := bytes} = Spec, VF, SizeF) ->
-    call_remote(ern_bits, bytes, [VF, bits_form(Spec, SizeF)]);
-segment_value(_, VF, _) -> VF.
+segment_value(#{kind := int, sign := Sign} = Spec, ValueForm, SizeForm) ->
+    call_remote(ern_bits, int, [ValueForm, bits_form(Spec, SizeForm), erl_syntax:atom(Sign)]);
+segment_value(#{kind := float} = Spec, ValueForm, SizeForm) ->
+    call_remote(ern_bits, float, [ValueForm, bits_form(Spec, SizeForm)]);
+segment_value(#{kind := bytes, size := none}, ValueForm, _) -> ValueForm;
+segment_value(#{kind := bytes} = Spec, ValueForm, SizeForm) ->
+    call_remote(ern_bits, bytes, [ValueForm, bits_form(Spec, SizeForm)]);
+segment_value(_, ValueForm, _) -> ValueForm.
 
 %% A dynamic size counted in bits, a unit of 1, leaves the bit count open;
 %% the built value is then checked for alignment.
@@ -1588,7 +1720,7 @@ open(_) -> false.
 
 type_specs(#{kind := Kind, unit := Unit, endian := Endian, sign := Sign, size := Size}) ->
     Type = case Kind of
-               int -> integer; bytes -> binary; K -> K
+               int -> integer; bytes -> binary; Other -> Other
            end,
     Utf = lists:member(Kind, [utf8, utf16, utf32]),
     [erl_syntax:atom(Type)]
@@ -1601,50 +1733,52 @@ type_specs(#{kind := Kind, unit := Unit, endian := Endian, sign := Sign, size :=
 %% Variables: every Ernest binding gets a fresh Erlang variable
 %%
 
-bind(Name, #cx{vars = Vars, counter = N} = Cx) ->
-    V = erlang_var(Name, N + 1),
-    {V, Cx#cx{vars = Vars#{Name => V}, counter = N + 1}}.
+bind(Name, #emit_context{variables = Variables, counter = Count} = Context) ->
+    Variable = erlang_variable(Name, Count + 1),
+    {Variable, Context#emit_context{variables = Variables#{Name => Variable}, counter = Count + 1}}.
 
 %% Report §3.1: a variable a float segment bound may hold the runtime's
 %% negative zero, so the map holds {zero, V} and each read is V + 0.0,
 %% which is 0.0 for either zero and V otherwise; a capture passes V itself,
 %% and the reads inside normalize it the same way.
-var_form({zero, V}) ->
-    erl_syntax:infix_expr(erl_syntax:variable(V), erl_syntax:operator('+'),
+variable_form({zero, Variable}) ->
+    erl_syntax:infix_expr(erl_syntax:variable(Variable), erl_syntax:operator('+'),
                           erl_syntax:float(0.0));
-var_form(V) ->
-    erl_syntax:variable(V).
+variable_form(Variable) ->
+    erl_syntax:variable(Variable).
 
-var_atom({zero, V}) -> V;
-var_atom(V) -> V.
+variable_atom({zero, Variable}) -> Variable;
+variable_atom(Variable) -> Variable.
 
-erlang_var(Name, N) ->
-    S = atom_to_list(Name),
-    Base = case S of
+erlang_variable(Name, Count) ->
+    Text = atom_to_list(Name),
+    Base = case Text of
                [$_ | Rest] -> "V_" ++ Rest;
-               [C | Rest] -> [string:to_upper(C) | Rest]
+               [First | Rest] -> [string:to_upper(First) | Rest]
            end,
-    list_to_atom(Base ++ "_" ++ integer_to_list(N)).
+    list_to_atom(Base ++ "_" ++ integer_to_list(Count)).
 
-fresh_vars(Count, Prefix, #cx{counter = N} = Cx) ->
-    Vars = [list_to_atom(Prefix ++ "_" ++ integer_to_list(N + I)) || I <- lists:seq(1, Count)],
-    {Vars, Cx#cx{counter = N + Count}}.
+fresh_variables(Count, Prefix, #emit_context{counter = Counter} = Context) ->
+    Variables = [list_to_atom(Prefix ++ "_" ++ integer_to_list(Counter + Index))
+                 || Index <- lists:seq(1, Count)],
+    {Variables, Context#emit_context{counter = Counter + Count}}.
 
-fresh_name(Name, #cx{counter = N} = Cx) ->
-    {list_to_atom(atom_to_list(Name) ++ "$" ++ integer_to_list(N + 1)), Cx#cx{counter = N + 1}}.
+fresh_name(Name, #emit_context{counter = Count} = Context) ->
+    {list_to_atom(atom_to_list(Name) ++ "$" ++ integer_to_list(Count + 1)),
+     Context#emit_context{counter = Count + 1}}.
 
 %%
 %% Helpers
 %%
 
-at(Pos, Form) ->
-    erl_syntax:set_pos(Form, {element(1, Pos), element(2, Pos)}).
+at(Span, Form) ->
+    erl_syntax:set_pos(Form, {element(1, Span), element(2, Span)}).
 
-qname(Parts) ->
-    lists:flatten(lists:join(".", [atom_to_list(P) || P <- Parts])).
+qualified_name_text(Parts) ->
+    lists:flatten(lists:join(".", [atom_to_list(Part) || Part <- Parts])).
 
 %% A declaration the checker would not have passed: a defect of the
 %% toolchain, not of the program.
 -spec fail(term(), iodata()) -> no_return().
-fail(Pos, Message) ->
-    erlang:error({emitter_defect, Pos, lists:flatten(Message)}).
+fail(Span, Message) ->
+    erlang:error({emitter_defect, Span, lists:flatten(Message)}).
