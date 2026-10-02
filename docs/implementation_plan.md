@@ -22,8 +22,10 @@ its readers ran on 2026-09-30, on `57b8356`, and it was worked on 2026-10-01 in 
 and closed (the log's *The Attack Plan* and *The Principles Review Closed*); the review before
 a release ran the same day, and Ernest 0.2.0, the second release, is tagged `v0.2.0` on
 2026-10-01 (the log's *The Release Review Before 0.2.0*), the last milestone done; MVP 2.99b
-resumes at item 15, the Ernest renamed, items 4, 6 and 7 having been done on 2026-10-02;
-item 15 was moved to follow item 7 the same day (the log's *The Ernest Renamed Next*). Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+resumes at item 15, the Ernest renamed, items 4, 6 and 7 having been done on 2026-10-02,
+and item 7's code read again by six readers the same day (the log's *The Erlang Read
+Again*); item 15 was moved to follow item 7 the same day (the log's *The Ernest Renamed
+Next*). Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -198,7 +200,10 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    shell read its scope's constructors under a key the scope does not have, and the stdin
    test's wait raced the file it read. Three names the report or the AST states, and the
    glossary contradicts, were decided with the user the same day (the log's *Three Names
-   Decided*): the AST's `owner` is `member_of`, renamed at once. As it was planned: every module under
+   Decided*): the AST's `owner` is `member_of`, renamed at once. Six readers read the code
+   again the same day and found three defects, fixed with their tests, and names that compile
+   but mislead, renamed area by area (the log's *The Erlang Read Again*). As it was planned:
+   every module under
    `erl/` and `test/` read for its names and its form by [`style.md`](style.md), in two
    commits an area. The first renames where a name does not say what its value or its work
    is, a variable, a function, a record and its fields, by the glossary, which it corrects as
@@ -275,8 +280,9 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     its names. A name the report states, an exported function's or a constructor's, changes only
     through the report. Among it the shell's `obey`, which writes each refusal eight times,
     the editor's names that mean two things, `back`, `from` and `step`, and what
-    `complete.ern` repeats (C3-35 to C3-37), and the shell's `Env`, a `Session` as the front
-    end's record is since item 7. E.24's `run` stays, decided with the user 2026-10-02 (the
+    `complete.ern` repeats (C3-35 to C3-37), the shell's `Env`, a `Session` as the front
+    end's record is since item 7, and its `Outcome`'s `run`, an input's serial, `Serial` in
+    the Erlang since item 7's second read. E.24's `run` stays, decided with the user 2026-10-02 (the
     log's *Three Names Decided*). A full sweep by [`style.md`](style.md), as item 7
     is, decided with the user 2026-10-02 (the log's *The Renamings Kept Whole*), and of the
     form too, in a second commit an area, `style.md`'s Ernest rules, the top-down order, a

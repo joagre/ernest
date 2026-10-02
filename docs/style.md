@@ -36,7 +36,7 @@ For the toolchain under `erl/`.
 - **One `-export` list at the top**, in the order the functions appear *(tested)*.
 - **`-spec` on every exported function** *(tested)*; a type shared between modules is a `-type` of its owner.
 - **A shared record lives in `include/*.hrl`**, any other in its module. The only macros are the few constants that need a name.
-- **Tokens and AST nodes are plain data**, records and tuples, never closures or ETS state. A value of more than three parts is a record, and so is a tuple of more than two that crosses modules: a positional tuple makes its reader count.
+- **Tokens and AST nodes are plain data**, records and tuples, never closures or ETS state. A value of more than three parts is a record, and so is a tuple of more than two that crosses modules: a positional tuple makes its reader count. A map whose keys are fixed is such a value, counted by its keys.
 - **A precondition is `Cond orelse fail(...)` on one line**; two or more conditions are a `case`.
 - **No OTP behaviour for the toolchain's own processes, and no rebar3**; a callback module one of OTP's servers calls, a signal handler, is no such process. The log's *No OTP in the Toolchain* says why.
 - **`make` compiles with `+debug_info -Werror`**: a warning is an error.
