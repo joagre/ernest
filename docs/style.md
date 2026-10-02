@@ -109,7 +109,7 @@ The names that recur across modules, one for each concept, in every module. A wo
 
 **The runtime and the command line**
 
-- **Address**: §6.5's address. Not `Addr`, `To`, `A`; an IP address is an `IpAddress`, and `Target` is `via`'s target alone (§6.5).
+- **Address**: §6.5's address. Not `Addr`, `To`, `A`; an IP address is an `IpAddress`, and `Target` is `via`'s target (§6.5) and a link's (E.17) alone.
 - **Pid**: the host's process; the Ernest value is a `Process` (E.21).
 - **Reply**: §6.6's reply. Not `Alias`, `Written`, `R`.
 - **Cause**: a fault's cause (§7.3). Not `Msg`, `Text`; the host's stack beside it is a `Trace`.
