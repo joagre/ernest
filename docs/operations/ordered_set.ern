@@ -40,7 +40,8 @@
 export abstract type Set(a) = Set(elements : List(a), order : (a, a) -> Ordering)
 
 /// This set's operations over the order, for code written once over
-/// several representations.
+/// several representations: each field is the module's function of its
+/// name, but `empty` and `fromList`, which close over the order.
 ///
 /// ### Examples
 ///
@@ -49,18 +50,9 @@ export abstract type Set(a) = Set(elements : List(a), order : (a, a) -> Ordering
 /// // => [1, 2]
 /// ```
 export fn operations(compare : (a, a) -> Ordering) : Set.Operations(Set(a), a) =
-    Set.Operations(empty = empty(compare),
-                   size = size,
-                   isEmpty = isEmpty,
-                   contains = contains,
-                   put = put,
-                   remove = remove,
-                   fromList = fn(list) = fromList(list, compare),
-                   toList = toList,
-                   union = union,
-                   intersection = intersection,
-                   difference = difference,
-                   isSubset = isSubset)
+    Set.Operations(..OrderedSet,
+                   empty = empty(compare),
+                   fromList = fn(list) = fromList(list, compare))
 
 /// The set with no elements, in that order.
 ///
@@ -130,7 +122,10 @@ fn has(list : List(a), x : a, compare : (a, a) -> Ordering) : Bool =
 /// // => [1, 2, 3]
 /// ```
 export fn put(set : Set(a), x : a) : Set(a) =
-    Set(elements = inserted(set.elements, x, set.order), order = set.order)
+    withElements(set, inserted(set.elements, x, set.order))
+
+fn withElements(set : Set(a), elements : List(a)) : Set(a) =
+    Set(elements = elements, order = set.order)
 
 fn inserted(list : List(a), x : a, compare : (a, a) -> Ordering) : List(a) =
     match list {
@@ -152,7 +147,7 @@ fn inserted(list : List(a), x : a, compare : (a, a) -> Ordering) : List(a) =
 /// // => [2]
 /// ```
 export fn remove(set : Set(a), x : a) : Set(a) =
-    Set(elements = List.filter(set.elements, fn(y) = set.order(x, y) != Equal), order = set.order)
+    withElements(set, List.filter(set.elements, fn(y) = set.order(x, y) != Equal))
 
 /// `true` when the two have the same size and the first's order calls
 /// their elements `Equal` pair by pair.
@@ -196,7 +191,7 @@ export fn map(set : Set(a), f : (a) -> a with e) : Set(a) with e =
 /// // => [2, 3]
 /// ```
 export fn filter(set : Set(a), keep : (a) -> Bool with e) : Set(a) with e =
-    Set(elements = List.filter(set.elements, keep), order = set.order)
+    withElements(set, List.filter(set.elements, keep))
 
 /// The values of the `Some` results, into a set of the same order.
 ///
@@ -297,7 +292,7 @@ export fn max(set : Set(a)) : Optional(a) =
 /// // => [1, 2]
 /// ```
 export fn union(set : Set(a), other : Set(a)) : Set(a) =
-    Set(elements = merged(set.elements, other.elements, set.order), order = set.order)
+    withElements(set, merged(set.elements, other.elements, set.order))
 
 fn merged(list : List(a), other : List(a), compare : (a, a) -> Ordering) : List(a) =
     match #(list, other) {
@@ -320,7 +315,7 @@ fn merged(list : List(a), other : List(a), compare : (a, a) -> Ordering) : List(
 /// // => [2]
 /// ```
 export fn intersection(set : Set(a), other : Set(a)) : Set(a) =
-    Set(elements = shared(set.elements, other.elements, set.order), order = set.order)
+    withElements(set, shared(set.elements, other.elements, set.order))
 
 fn shared(list : List(a), other : List(a), compare : (a, a) -> Ordering) : List(a) =
     match #(list, other) {
@@ -344,7 +339,7 @@ fn shared(list : List(a), other : List(a), compare : (a, a) -> Ordering) : List(
 /// // => [1]
 /// ```
 export fn difference(set : Set(a), other : Set(a)) : Set(a) =
-    Set(elements = remaining(set.elements, other.elements, set.order), order = set.order)
+    withElements(set, remaining(set.elements, other.elements, set.order))
 
 fn remaining(list : List(a), other : List(a), compare : (a, a) -> Ordering) : List(a) =
     match #(list, other) {

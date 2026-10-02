@@ -1,6 +1,6 @@
 # Operations records
 
-*The specification of code written once over several representations of one type. MVP 2.99b's item 5 builds it. The log's *Operations Records*, *Members, Operators, and No Hidden Argument*, *The Operations Note Rewritten*, *The Order Bound Once* and *MVP 2.99b's Questions, One by One* argue its choices; the entry for the order carried in the set is item 5's to write. Revised 2026-10-02. The three files are whole under [`docs/operations/`](operations/), with their doc blocks, until item 5 moves them into the standard library. They were built, run, formatted and rendered by `ern doc` on 2026-10-02 as user modules under other names, since `Set` is a namespace of the standard library; `mixed.ern` is not built, and what it refuses is stated as expected. The code here is excerpted from the files, with the names they have in the standard library.*
+*The specification of code written once over several representations of one type. MVP 2.99b's item 5 builds it. The log's *Operations Records*, *Members, Operators, and No Hidden Argument*, *The Operations Note Rewritten*, *The Order Bound Once* and *MVP 2.99b's Questions, One by One* argue its choices; the entry for the order carried in the set is item 5's to write. Revised 2026-10-02. The three files are whole under [`docs/operations/`](operations/), with their doc blocks, until item 5 moves them into the standard library. They fill their records from a namespace, rule 11, a form the toolchain does not have, so they do not build; before the fill replaced the two record literals they were built, run, formatted and rendered by `ern doc` on 2026-10-02 as user modules under other names, since `Set` is a namespace of the standard library, with every doc example checked against its value. `mixed.ern` is not built, and what it refuses is stated as expected. The code here is excerpted from the files, with the names they have in the standard library.*
 
 Ernest has one set in its standard library, `Set`, a hash set. A second, `OrderedSet`, keeps its elements in order. Code written once works on both through an *operations record*, a record of a representation's operations that the caller passes. The § numbers cite Ernest's report.
 
@@ -21,12 +21,13 @@ Nothing in the type system changes, and the syntax does not. The rules give the 
 2. **`==` is not defined on an ordered set.** Its value holds a function (§3.10). `OrderedSet.equal(set, other)` is `true` where the two have the same size and `compare` says `Equal` pair by pair in order, by the first's order. An ordered set is neither a key of a `Map` nor an element of a `Set`; a program that needs one keys by `toList`.
 3. **A record holds the set's vocabulary whose types name only its parameters.** `Set.Operations(s, a)` holds twelve operations of E.0 rule 2's vocabulary for a container and a set: `empty`, `size`, `isEmpty`, `contains`, `put`, `remove`, `fromList`, `toList`, `union`, `intersection`, `difference` and `isSubset`, each of a type that names nothing but `s` and `a`. The record is an ordinary type (§3.5), and selecting a field is ordinary selection, resolved against the parameter's type (§4.8). The vocabulary's other eight, `map`, `filter`, `filterMap`, `foldLeft`, `foreach`, `any`, `all` and `find`, take a callback with an effect variable, or an accumulator of its own type, and are functions of each representation's module. A restriction a field's function carries travels with the record: binding the record's `a` to `Set`'s functions passes the equality restriction (§3.10), so `Set.operations` has the type `Set.Operations(Set(a=!), a=!)`, and `Set.operations.fromList([f])` with a function `f` is refused, naming `Set`'s element.
 4. **Code written once is the program's.** Generic code is an ordinary function that the caller gives a record, written over the record's fields: `fn common(list, other, operations) = operations.toList(operations.intersection(operations.fromList(list), operations.fromList(other)))`. The library writes no generic function over the record (E.0 rule 4). Generic code that needs a callback folds over the record's `toList` with `List`'s functions, and sorts with `List.sort` and a function the caller gives it.
-5. **A representation exports its record as `operations`**: `Set.operations`, a `let` whose fields are `Set`'s functions, and `OrderedSet.operations(compare)`, a function of the order whose `empty` and `fromList` close over it and whose other fields are the module's functions. A representation fills each field itself. A type may meet several records, and a record may hold another as a field: a second ordered representation would bring `OrderedSet.Operations(s, a)`, holding `set : Set.Operations(s, a)` beside `min` and `max`. Any module can build a record from the operations another module exports.
+5. **A representation exports its record as `operations`**: `Set.operations`, a `let` filled from `Set`'s functions, `Operations(..Set)`, and `OrderedSet.operations(compare)`, a function of the order, filled from `OrderedSet`'s functions but `empty` and `fromList`, which close over it (rule 11). A representation fills each field itself. A type may meet several records, and a record may hold another as a field: a second ordered representation would bring `OrderedSet.Operations(s, a)`, holding `set : Set.Operations(s, a)` beside `min` and `max`. Any module can build a record from the operations another module exports.
 6. **An order belongs to an element type.** A program gives one order for each element type it keeps ordered sets of: the type's `compare`, or the function it would declare as `compare` had the type a module of its own. A second order on one type is a second type with its own `compare`: `type Descending = Descending(Int)` with `fn Descending.compare`. Two sets in different orders have different types and cannot meet: `OrderedSet.union(up, down)` with `down : OrderedSet.Set(Descending)` is refused. Two sets of one element type made over two functions are the program's promise, which nothing checks; an operation on both reads the first's order.
 7. **`put` keeps the element already there** where `compare` says `Equal`.
 8. **A list that mixes representations needs a second record type**, one that hides `s`: its functions close over one set, and its `put` returns another such record. It has no operation on two sets and no `==`.
 9. **`OrderedSet` is `ordered_set.ern`** in the standard library, a file whose words joined by `_` name one namespace (§4.2, §11.1). Its type is `OrderedSet.Set(a)` (E.0 shape rule 7). Inside the file it shadows the prelude's `Set`, and `Set.Operations` names the library's type (§4.2). A set carried into another representation goes through that representation's `fromList` of its `toList`. `Map` gets a record when it gets a second representation.
 10. **The representation is a sorted list carrying its order.** `put`, `contains` and `remove` are linear in the set's size; `union`, `intersection`, `difference`, `isSubset` and `equal` are linear in the two sizes. No program can see the shape. A balanced tree may replace the list, with no change beyond the costs its section states.
+11. **A record is filled from a namespace.** In a record construction, `..` may name a namespace in place of an expression: `Operations(..Set)` fills each field not given beside it from the declaration of its name that the use site may name (§4.2), and `Set.Operations(..OrderedSet, empty = empty(compare), fromList = fn(list) = fromList(list, compare))` takes the two fields given and fills the rest. The name after `..` is an expression where a binding or a constructor of that name is in scope, and a namespace otherwise. A field with no declaration of its name in the namespace, or one whose type does not fit the field's, is an error naming the field and the namespace: `Operations(..Set) lacks isSubset: Set has no isSubset`.
 
 ## The files
 
@@ -48,18 +49,7 @@ export type Operations(s, a) =
                isSubset : (s, s) -> Bool)
 
 export let operations : Operations(Set(a), a) =
-    Operations(empty = empty,
-               size = size,
-               isEmpty = isEmpty,
-               contains = contains,
-               put = put,
-               remove = remove,
-               fromList = fromList,
-               toList = toList,
-               union = union,
-               intersection = intersection,
-               difference = difference,
-               isSubset = isSubset)
+    Operations(..Set)
 ```
 
 [`ordered_set.ern`](operations/ordered_set.ern) is the ordered set. Shown are its type, its record, the two functions that take an order, and `contains`, `put`, `equal`, `map`, `filter` and `union`; the rest of the vocabulary is written as these are, and the file holds it whole.
@@ -68,18 +58,9 @@ export let operations : Operations(Set(a), a) =
 export abstract type Set(a) = Set(elements : List(a), order : (a, a) -> Ordering)
 
 export fn operations(compare : (a, a) -> Ordering) : Set.Operations(Set(a), a) =
-    Set.Operations(empty = empty(compare),
-                   size = size,
-                   isEmpty = isEmpty,
-                   contains = contains,
-                   put = put,
-                   remove = remove,
-                   fromList = fn(list) = fromList(list, compare),
-                   toList = toList,
-                   union = union,
-                   intersection = intersection,
-                   difference = difference,
-                   isSubset = isSubset)
+    Set.Operations(..OrderedSet,
+                   empty = empty(compare),
+                   fromList = fn(list) = fromList(list, compare))
 
 export fn empty(compare : (a, a) -> Ordering) : Set(a) =
     Set(elements = [], order = compare)
@@ -101,7 +82,10 @@ fn has(list : List(a), x : a, compare : (a, a) -> Ordering) : Bool =
     }
 
 export fn put(set : Set(a), x : a) : Set(a) =
-    Set(elements = inserted(set.elements, x, set.order), order = set.order)
+    withElements(set, inserted(set.elements, x, set.order))
+
+fn withElements(set : Set(a), elements : List(a)) : Set(a) =
+    Set(elements = elements, order = set.order)
 
 fn inserted(list : List(a), x : a, compare : (a, a) -> Ordering) : List(a) =
     match list {
@@ -127,10 +111,10 @@ export fn map(set : Set(a), f : (a) -> a with e) : Set(a) with e =
     fromList(List.map(set.elements, f), set.order)
 
 export fn filter(set : Set(a), keep : (a) -> Bool with e) : Set(a) with e =
-    Set(elements = List.filter(set.elements, keep), order = set.order)
+    withElements(set, List.filter(set.elements, keep))
 
 export fn union(set : Set(a), other : Set(a)) : Set(a) =
-    Set(elements = merged(set.elements, other.elements, set.order), order = set.order)
+    withElements(set, merged(set.elements, other.elements, set.order))
 
 fn merged(list : List(a), other : List(a), compare : (a, a) -> Ordering) : List(a) =
     match #(list, other) {
@@ -195,6 +179,7 @@ Every construct above is one the report specifies and the checker of Ernest 0.2.
 - **Selection.** `operations.put` in `common` is §3.5's selector, resolved as an operator's operand type is (§4.8): the operand's type constructor must be known when the enclosing definition is inferred. A record parameter is annotated. An unannotated one is refused with `the type whose field put is read is not determined; annotate it`.
 - **Code written once.** `common` is a let-polymorphic function over the record, inferred and generalized as any `fn` is, with a principal type, and instantiated at each representation.
 - **The records.** `Set.operations` is a top-level `let` of type `Operations(Set(a), a)` for every `a`, generalized by §4.6. `OrderedSet.operations` is a function that returns a record whose `empty` and `fromList` are closures over `compare` and whose other fields are the module's functions.
+- **The fill.** `Operations(..Set)` is checked as the record literal it stands for: each field not given is the declaration of its name, at a fresh instance of its scheme (§3.9), unified with the field's type, so `s` is `Set(a)` from `empty` and every function must agree. The restrictions travel as from a literal, `=` from `Set`'s functions among them.
 - **The set.** `OrderedSet.Set(a)` is an abstract type with two named fields, `elements` and `order` (§3.5, §4.4), which its functions select. `OrderedSet.fromList([1], Int.compare)` has a type with no variable in it; a top-level `let` of it is an initializer (§8.5), a pure call, and in a block the binding is monomorphic (§4.6).
 - **The restrictions.** The three of §3.9 travel through the record as through any type. When the record is built, unifying its `a` with the variables of the functions that fill it passes their marks to it: `=` by §3.10's rule that binding a variable with the equality restriction restricts the variables in value positions of the type it is bound to, `!` by §4.7's rule for a foreign function's variables. Each is a flag on a type variable, checked at instantiation and printed (§11.5). So `Set.operations : Set.Operations(Set(a=!), a=!)`, and `Set.operations.fromList([f])` fails the check, `(Int) -> Int does not support equality, and a Set's element needs it`. `OrderedSet.Set(a)` holds a function and does not support equality: `==` on two ordered sets, `Map.put` keyed by one and `Set.put` of one are refused at the application, `OrderedSet.Set(Int) does not support equality`.
 - **Requirement 4.** `OrderedSet.Set(Int)` and `OrderedSet.Set(Descending)` do not unify, since two declared types are distinct by name (§8.7).
@@ -210,6 +195,7 @@ Two versions of a `compare` can meet. After an `Upgrade` (§6.10) and across `:r
 
 - §4.2 and §11.1: a file name of words joined by `_` names one namespace, MVP 2.99b's item 4, done 2026-10-02.
 - E.0, rule 2: `map` and `filterMap` of an ordered container keep the element type, `(a) -> a` and `(a) -> Optional(a)`.
+- §3.5 and Appendix A: in a record construction, `..` may name a namespace, which fills the fields not given from the declarations of their names (rule 11). `Fields = ".." ( Expr | Namespace ) [ "," FieldSet { "," FieldSet } ] | FieldSet { "," FieldSet }`.
 - E.4: `Set.Operations(s, a)` and `Set.operations`.
 - Appendix E, a section at its end: `ordered_set.ern`, namespace `OrderedSet`, with `abstract type Set(a)`, `operations`, `empty`, `fromList`, `equal`, and E.0 rule 2's vocabulary. `empty` and `fromList` take the order, and every other function reads it from its set; `map` and `filterMap` keep the element type. `==` is not defined on the type (§3.10), and `equal` is its equality.
 - §11.5: a call of a selected field names it as written, `operations.union`, where its message says "the callee", as requirement 5 asks.
@@ -222,6 +208,7 @@ Nothing in the checker's typing, the emitter or the runtime changes. The work fa
 | Area | Work | Item |
 |---|---|---|
 | Checker, emitter, runtime | none; the defect the first build found was item 4's, fixed 2026-10-02 | 4 |
+| Parser, checker | `..` naming a namespace in a record construction (§3.5), its error, its test | 5 |
 | `set.ern` | the record type, `operations`, their doc blocks and examples | 5 |
 | `ordered_set.ern` | the module, its page, its tests, its section of Appendix E with a test per section | 5 |
 | §11.5's message for a selected callee | the field named as written | 5 |

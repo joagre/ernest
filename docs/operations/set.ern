@@ -50,7 +50,7 @@ export type Operations(s, a) =
                isSubset : (s, s) -> Bool)
 
 /// This set's operations, for code written once over several
-/// representations.
+/// representations: each field is `Set`'s function of its name.
 ///
 /// ### Examples
 ///
@@ -61,18 +61,7 @@ export type Operations(s, a) =
 ///
 /// since 0.3.0
 export let operations : Operations(Set(a), a) =
-    Operations(empty = empty,
-               size = size,
-               isEmpty = isEmpty,
-               contains = contains,
-               put = put,
-               remove = remove,
-               fromList = fromList,
-               toList = toList,
-               union = union,
-               intersection = intersection,
-               difference = difference,
-               isSubset = isSubset)
+    Operations(..Set)
 
 /// The set with no elements.
 export let empty : Set(a) = emptySet()
