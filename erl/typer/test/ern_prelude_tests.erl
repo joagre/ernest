@@ -46,7 +46,7 @@ no_bool_choice_test() ->
 prelude_documented_test() ->
     [?assert(is_binary(D) andalso byte_size(D) > 0) || {_, _, D} <- ern_prelude:builtin_types()],
     {ok, Decls} = ern_parser:parse_string(ern_prelude:declared_types()),
-    Undocumented = [N || #type_decl{doc = undefined, name = N} <- Decls],
+    Undocumented = [N || #type_declaration{doc = undefined, name = N} <- Decls],
     ?assertEqual([], Undocumented),
     Own = [Q || {Q, _, D} <- ern_prelude:values(), is_binary(D)],
     ?assert(length(Own) >= 12),
@@ -101,26 +101,26 @@ stdlib_file([Ns]) ->
 %% Each foreign fn under the name the report gives it.
 foreign_names(Decls) ->
     Callers = fun(Name) ->
-                      [D || D <- Decls, not is_record(D, foreign_fn_decl),
+                      [D || D <- Decls, not is_record(D, foreign_fn_declaration),
                             lists:member(Name, ern_ast:free_names(body(D), params(D)))]
               end,
     lists:append(
       [case {Export, Callers(Name)} of
            {true, _} -> [Name];
-           {false, [#fn_decl{export = true, name = Caller}]} -> [Caller];
-           {false, [#let_decl{export = true, name = Caller}]} -> [Caller];
+           {false, [#fn_declaration{export = true, name = Caller}]} -> [Caller];
+           {false, [#let_declaration{export = true, name = Caller}]} -> [Caller];
            {false, [_ | _] = References} ->
-               case [N || #let_decl{export = false, name = N} <- References] of
+               case [N || #let_declaration{export = false, name = N} <- References] of
                    Names when length(Names) =:= length(References) -> reaching(Names, Decls);
                    _ -> [Name]
                end;
            {false, _} -> [Name]
-       end || #foreign_fn_decl{name = Name, export = Export} <- Decls]).
+       end || #foreign_fn_declaration{name = Name, export = Export} <- Decls]).
 
 %% The exported declarations that reach one of the names, directly or
 %% through private ones.
 reaching(Names, Decls) ->
-    Reach = [D || D <- Decls, not is_record(D, foreign_fn_decl),
+    Reach = [D || D <- Decls, not is_record(D, foreign_fn_declaration),
                   lists:any(fun(N) -> lists:member(N, ern_ast:free_names(body(D), params(D))) end,
                             Names)],
     Exported = [N || D <- Reach, {true, N} <- [export_name(D)]],
@@ -129,16 +129,16 @@ reaching(Names, Decls) ->
         Private -> lists:usort(Exported ++ reaching(Names ++ Private, Decls))
     end.
 
-export_name(#fn_decl{export = Export, name = Name}) -> {Export, Name};
-export_name(#let_decl{export = Export, name = Name}) -> {Export, Name}.
+export_name(#fn_declaration{export = Export, name = Name}) -> {Export, Name};
+export_name(#let_declaration{export = Export, name = Name}) -> {Export, Name}.
 
 %% The names a function's parameters bind, which are not calls.
-params(#fn_decl{params = Ps}) ->
+params(#fn_declaration{params = Ps}) ->
     [N || #param{pattern = P} <- Ps, {N, _} <- ern_ast:pattern_bindings(P)];
 params(_) -> [].
 
-body(#fn_decl{body = B}) -> B;
-body(#let_decl{body = B}) -> B;
+body(#fn_declaration{body = B}) -> B;
+body(#let_declaration{body = B}) -> B;
 body(_) -> [].
 
 %% report §9.3: the declared types
@@ -262,10 +262,10 @@ compiled_decl(TI, Source) ->
 declared_fields(File) ->
     {ok, Source} = file:read_file(File),
     {ok, Decls} = ern_parser:parse_string(Source),
-    Types = [T || #type_decl{} = T <- Decls]
-        ++ [T || #abstract_decl{type = T} <- Decls],
+    Types = [T || #type_declaration{} = T <- Decls]
+        ++ [T || #abstract_declaration{declaration = T} <- Decls],
     maps:from_list([{C, [F || #field{name = F} <- Fields]}
-                    || #type_decl{constructors = Cs} <- Types,
+                    || #type_declaration{constructors = Cs} <- Types,
                        #constructor{name = C, fields = {named, Fields}} <- Cs]).
 
 con_text(CI, Ns, Names, Order) ->

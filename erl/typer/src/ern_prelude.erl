@@ -496,7 +496,7 @@ docs() ->
     Texts = declaration_texts(declared_types()),
     Types = [entry({type, N, A}, [type_signature(N, A)], D) || {N, A, D} <- builtin_types()]
         ++ [entry({type, N, length(Ps)}, maps:get(N, Texts), D)
-            || #type_decl{name = N, params = Ps, doc = D} <- Decls],
+            || #type_declaration{name = N, params = Ps, doc = D} <- Decls],
     Values = [entry({function, dotted(Q), arity(T)}, [iolist_to_binary([dotted_text(Q), " : ", T])],
                     D)
               || {Q, T, D} <- values(), D =/= module],

@@ -18,7 +18,7 @@
 
 -spec check(tuple(), ern_typecheck:env()) -> ok.
 check(Node, Env) ->
-    walk(fun(#e_match{pos = Pos, scrutinee = S, clauses = Clauses}) ->
+    walk(fun(#e_match{span = Pos, scrutinee = S, clauses = Clauses}) ->
                  redundant(Clauses, Env),
                  Rows = lists:append([alt_rows(P, Env)
                                       || #clause{pattern = P, guard = undefined} <- Clauses]),
@@ -54,7 +54,7 @@ redundant(Clauses, Env) ->
                 end, [], Clauses),
     ok.
 
-alternatives(#p_or{alts = Alts}) -> Alts;
+alternatives(#p_or{alternatives = Alts}) -> Alts;
 alternatives(P) -> [P].
 
 judge(A, IsAlternative, Before, Env) ->
@@ -103,20 +103,20 @@ walk(F, Node) ->
 %%
 
 %% Report §5.9: a clause with alternatives covers what each alternative covers.
-alt_rows(#p_or{alts = Alts}, Env) -> [[simplify(A, Env)] || A <- Alts];
+alt_rows(#p_or{alternatives = Alts}, Env) -> [[simplify(A, Env)] || A <- Alts];
 alt_rows(P, Env) -> [[simplify(P, Env)]].
 
-simplify(#p_wild{}, _) -> wild;
+simplify(#p_wildcard{}, _) -> wild;
 simplify(#p_var{}, _) -> wild;
 simplify(#p_as{pattern = P}, Env) -> simplify(P, Env);
-simplify(#p_lit{kind = bool, value = V}, _) -> {con, {bool, V}, []};
-simplify(#p_lit{value = V}, _) -> {con, {lit, V}, []};
-simplify(#p_tuple{elems = Es}, Env) -> {con, {tuple, length(Es)}, [simplify(E, Env) || E <- Es]};
-simplify(#p_list{elems = []}, _) -> {con, nil, []};
-simplify(#p_list{elems = [E | Es]} = P, Env) ->
-    {con, cons, [simplify(E, Env), simplify(P#p_list{elems = Es}, Env)]};
+simplify(#p_literal{kind = bool, value = V}, _) -> {con, {bool, V}, []};
+simplify(#p_literal{value = V}, _) -> {con, {lit, V}, []};
+simplify(#p_tuple{elements = Es}, Env) -> {con, {tuple, length(Es)}, [simplify(E, Env) || E <- Es]};
+simplify(#p_list{elements = []}, _) -> {con, nil, []};
+simplify(#p_list{elements = [E | Es]} = P, Env) ->
+    {con, cons, [simplify(E, Env), simplify(P#p_list{elements = Es}, Env)]};
 simplify(#p_cons{head = H, tail = T}, Env) -> {con, cons, [simplify(H, Env), simplify(T, Env)]};
-simplify(#p_con{pos = Pos, path = Path, name = Name, args = Args}, Env) ->
+simplify(#p_constructor{span = Pos, path = Path, name = Name, args = Args}, Env) ->
     #cinfo{qname = Q, fields = Fields} = ern_typecheck:lookup_con(Pos, Path, Name, Env),
     Subs = case {Fields, Args} of
                {none, _} -> [];
@@ -124,13 +124,13 @@ simplify(#p_con{pos = Pos, path = Path, name = Name, args = Args}, Env) ->
                {positional, {positional, P}} -> [simplify(P, Env)];
                {{named, Names}, none} -> [wild || _ <- Names];
                {{named, Names}, {named, FPs}} ->
-                   [case [P || #field_pat{name = FN, pattern = P} <- FPs, FN =:= N] of
+                   [case [P || #field_pattern{name = FN, pattern = P} <- FPs, FN =:= N] of
                         [P] -> simplify(P, Env);
                         [] -> wild
                     end || N <- Names]
            end,
     {con, {con, Q}, Subs};
-simplify(#p_bits{}, _) -> {con, bits, []}.
+simplify(#p_bitstring{}, _) -> {con, bits, []}.
 
 %%
 %% Usefulness with a witness. useful(Rows, Vector) is no when every value

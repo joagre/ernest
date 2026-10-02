@@ -322,9 +322,9 @@ source_types(File) ->
     end.
 
 local_types(Decls) ->
-    [N || #type_decl{name = N} <- Decls]
-        ++ [N || #abstract_decl{type = #type_decl{name = N}} <- Decls]
-        ++ [N || #foreign_type_decl{name = N} <- Decls].
+    [N || #type_declaration{name = N} <- Decls]
+        ++ [N || #abstract_declaration{declaration = #type_declaration{name = N}} <- Decls]
+        ++ [N || #foreign_type_declaration{name = N} <- Decls].
 
 %% The modules a source refers to: every qualified name that is not a
 %% member of one of this module's types and whose first segment is not a
@@ -346,17 +346,17 @@ deps(Decls, Root, LoadPath) ->
 %% Each qualified reference of a source, its path and its last name; only a
 %% value's lowercase name or operator can be a type's member.
 references(#e_var{path = P, name = N}) -> [{P, N}];
-references(#e_con{path = P, name = N, args = A}) -> [{P, N} | references(A)];
-references(#p_con{path = P, name = N, args = A}) -> [{P, N} | references(A)];
-references(#t_con{path = P, name = N, args = A}) -> [{P, N} | references(A)];
+references(#e_constructor{path = P, name = N, args = A}) -> [{P, N} | references(A)];
+references(#p_constructor{path = P, name = N, args = A}) -> [{P, N} | references(A)];
+references(#t_named{path = P, name = N, args = A}) -> [{P, N} | references(A)];
 references(T) when is_tuple(T) -> lists:append([references(X) || X <- tuple_to_list(T)]);
 references(L) when is_list(L) -> lists:append([references(X) || X <- L]);
 references(_) -> [].
 
 %% The members this module's types declare, `T.name` as {[T], name}.
 local_members(Decls) ->
-    [{[Owner], Name} || #fn_decl{owner = Owner, name = Name} <- Decls, Owner =/= undefined]
-        ++ [{[Owner], Name} || #foreign_fn_decl{owner = Owner, name = Name} <- Decls,
+    [{[Owner], Name} || #fn_declaration{owner = Owner, name = Name} <- Decls, Owner =/= undefined]
+        ++ [{[Owner], Name} || #foreign_fn_declaration{owner = Owner, name = Name} <- Decls,
                                Owner =/= undefined].
 
 %% Report §11.1: a prefix of a qualified name is a module when the source

@@ -4,35 +4,35 @@
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("utils/include/ern_diagnostic.hrl").
 
-e(Text) ->
-    {ok, E} = ern_parser:parse_expr(Text),
-    E.
+expression(Text) ->
+    {ok, Expr} = ern_parser:parse_expr(Text),
+    Expr.
 
-d(Text) ->
-    {ok, [D]} = ern_parser:parse_string(Text),
-    D.
+declaration(Text) ->
+    {ok, [Declaration]} = ern_parser:parse_string(Text),
+    Declaration.
 
-ds(Text) ->
-    {ok, Ds} = ern_parser:parse_string(Text),
-    Ds.
+declarations(Text) ->
+    {ok, Declarations} = ern_parser:parse_string(Text),
+    Declarations.
 
-err(Text) ->
-    {error, #diagnostic{message = Msg}} = ern_parser:parse_string(Text),
-    Msg.
+refusal(Text) ->
+    {error, #diagnostic{message = Message}} = ern_parser:parse_string(Text),
+    Message.
 
-err_expr(Text) ->
-    {error, #diagnostic{message = Msg}} = ern_parser:parse_expr(Text),
-    Msg.
+expression_refusal(Text) ->
+    {error, #diagnostic{message = Message}} = ern_parser:parse_expr(Text),
+    Message.
 
 help(Text) ->
     {error, #diagnostic{help = Help}} = ern_parser:parse_string(Text),
     Help.
 
-err_help(Text) ->
-    {error, #diagnostic{message = Msg, help = Help}} = ern_parser:parse_string(Text),
-    {Msg, Help}.
+refusal_and_help(Text) ->
+    {error, #diagnostic{message = Message, help = Help}} = ern_parser:parse_string(Text),
+    {Message, Help}.
 
-help_expr(Text) ->
+expression_help(Text) ->
     {error, #diagnostic{help = Help}} = ern_parser:parse_expr(Text),
     Help.
 
@@ -42,102 +42,108 @@ help_expr(Text) ->
 
 %% report §2.5
 literals_test() ->
-    ?assertMatch(#e_lit{kind = int, value = 42}, e("42")),
-    ?assertMatch(#e_lit{kind = float, value = 1.5}, e("1.5")),
-    ?assertMatch(#e_lit{kind = char, value = $a}, e("'a'")),
-    ?assertMatch(#e_lit{kind = string, value = <<"hi">>}, e("\"hi\"")),
-    ?assertMatch(#e_lit{kind = bool, value = true}, e("true")).
+    ?assertMatch(#e_literal{kind = int, value = 42}, expression("42")),
+    ?assertMatch(#e_literal{kind = float, value = 1.5}, expression("1.5")),
+    ?assertMatch(#e_literal{kind = char, value = $a}, expression("'a'")),
+    ?assertMatch(#e_literal{kind = string, value = <<"hi">>}, expression("\"hi\"")),
+    ?assertMatch(#e_literal{kind = bool, value = true}, expression("true")).
 
 %% report §2.3, §4.2
 names_test() ->
-    ?assertMatch(#e_var{path = [], name = x}, e("x")),
-    ?assertMatch(#e_var{path = ['Net', 'Http'], name = parse}, e("Net.Http.parse")),
-    ?assertMatch(#e_var{path = ['Int'], name = '+'}, e("Int.+")),
-    ?assertMatch(#e_con{path = [], name = 'None', args = none}, e("None")),
-    ?assertMatch(#e_con{path = ['Net', 'Http'], name = 'Request', args = {positional, _}},
-                 e("Net.Http.Request(x)")).
+    ?assertMatch(#e_var{path = [], name = x}, expression("x")),
+    ?assertMatch(#e_var{path = ['Net', 'Http'], name = parse}, expression("Net.Http.parse")),
+    ?assertMatch(#e_var{path = ['Int'], name = '+'}, expression("Int.+")),
+    ?assertMatch(#e_constructor{path = [], name = 'None', args = none}, expression("None")),
+    ?assertMatch(#e_constructor{path = ['Net', 'Http'], name = 'Request', args = {positional, _}},
+                 expression("Net.Http.Request(x)")).
 
 %% report §2.6
 precedence_test() ->
-    ?assertMatch(#e_binop{op = '+', left = #e_lit{value = 1},
-                          right = #e_binop{op = '*', left = #e_lit{value = 2},
-                                           right = #e_lit{value = 3}}},
-                 e("1 + 2 * 3")),
-    ?assertMatch(#e_binop{op = '-', left = #e_binop{op = '-', left = #e_var{name = a},
-                                                    right = #e_var{name = b}},
+    ?assertMatch(#e_binop{operator = '+', left = #e_literal{value = 1},
+                          right = #e_binop{operator = '*', left = #e_literal{value = 2},
+                                           right = #e_literal{value = 3}}},
+                 expression("1 + 2 * 3")),
+    ?assertMatch(#e_binop{operator = '-', left = #e_binop{operator = '-', left = #e_var{name = a},
+                                                          right = #e_var{name = b}},
                           right = #e_var{name = c}},
-                 e("a - b - c")),
-    ?assertMatch(#e_binop{op = '::', left = #e_var{name = a},
-                          right = #e_binop{op = '::', left = #e_var{name = b},
+                 expression("a - b - c")),
+    ?assertMatch(#e_binop{operator = '::', left = #e_var{name = a},
+                          right = #e_binop{operator = '::', left = #e_var{name = b},
                                            right = #e_var{name = c}}},
-                 e("a :: b :: c")),
-    ?assertMatch(#e_binop{op = '||', left = #e_binop{op = '&&',
-                                                     left = #e_binop{op = '=='},
-                                                     right = #e_var{name = c}},
+                 expression("a :: b :: c")),
+    ?assertMatch(#e_binop{operator = '||', left = #e_binop{operator = '&&',
+                                                           left = #e_binop{operator = '=='},
+                                                           right = #e_var{name = c}},
                           right = #e_var{name = d}},
-                 e("a == b && c || d")),
-    ?assertMatch(#e_binop{op = '::', left = #e_binop{op = '+'}, right = #e_var{name = xs}},
-                 e("1 + 2 :: xs")),
-    ?assertMatch(#e_binop{op = '<>', left = #e_lit{}, right = #e_call{}},
-                 e("\"a\" <> Int.toString(n)")).
+                 expression("a == b && c || d")),
+    ?assertMatch(#e_binop{operator = '::', left = #e_binop{operator = '+'},
+                          right = #e_var{name = xs}},
+                 expression("1 + 2 :: xs")),
+    ?assertMatch(#e_binop{operator = '<>', left = #e_literal{}, right = #e_call{}},
+                 expression("\"a\" <> Int.toString(n)")).
 
 %% report §2.6, §5.1
 unary_minus_test() ->
-    ?assertMatch(#e_neg{expr = #e_lit{value = 1}}, e("-1")),
-    ?assertMatch(#e_neg{expr = #e_call{callee = #e_var{name = f}}}, e("-f(x)")),
-    ?assertMatch(#e_binop{op = '*', left = #e_neg{}, right = #e_lit{value = 3}}, e("-2 * 3")),
-    ?assertMatch(#e_binop{op = '-', left = #e_var{name = a}, right = #e_neg{}}, e("a - -b")).
+    ?assertMatch(#e_negation{expr = #e_literal{value = 1}}, expression("-1")),
+    ?assertMatch(#e_negation{expr = #e_call{callee = #e_var{name = f}}}, expression("-f(x)")),
+    ?assertMatch(#e_binop{operator = '*', left = #e_negation{}, right = #e_literal{value = 3}},
+                 expression("-2 * 3")),
+    ?assertMatch(#e_binop{operator = '-', left = #e_var{name = a}, right = #e_negation{}},
+                 expression("a - -b")).
 
 %% report §4.8: `!` is prefix negation, and binds like prefix `-`
 unary_not_test() ->
-    ?assertMatch(#e_not{expr = #e_lit{value = true}}, e("!true")),
-    ?assertMatch(#e_not{expr = #e_call{callee = #e_var{name = f}}}, e("!f(x)")),
-    ?assertMatch(#e_not{expr = #e_binop{op = '&&'}}, e("!(a && b)")),
-    ?assertMatch(#e_binop{op = '&&', left = #e_not{}, right = #e_var{name = b}}, e("!a && b")).
+    ?assertMatch(#e_not{expr = #e_literal{value = true}}, expression("!true")),
+    ?assertMatch(#e_not{expr = #e_call{callee = #e_var{name = f}}}, expression("!f(x)")),
+    ?assertMatch(#e_not{expr = #e_binop{operator = '&&'}}, expression("!(a && b)")),
+    ?assertMatch(#e_binop{operator = '&&', left = #e_not{}, right = #e_var{name = b}},
+                 expression("!a && b")).
 
 %% report §5.2
 calls_test() ->
-    ?assertMatch(#e_call{callee = #e_var{name = f}, args = []}, e("f()")),
-    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_lit{}]},
-                 e("f(x, 1)")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = []}, expression("f()")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_literal{}]},
+                 expression("f(x, 1)")),
     ?assertMatch(#e_call{callee = #e_call{callee = #e_var{name = f}, args = [_]}, args = [_]},
-                 e("f(a)(b)")),
+                 expression("f(a)(b)")),
     ?assertMatch(#e_call{callee = #e_var{path = ['Address'], name = call}},
-                 e("Address.call(c, fn(r) = Get(reply = r), 1000)")).
+                 expression("Address.call(c, fn(r) = Get(reply = r), 1000)")).
 
 %% report §5.7: the pipe binds loosest, below ||, and takes a
 %% parenthesized lambda
 pipe_precedence_test() ->
-    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_binop{op = '+'}]}, e("a + b |> f")),
-    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_binop{op = '||'}]},
-                 e("a || b |> f")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_binop{operator = '+'}]},
+                 expression("a + b |> f")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_binop{operator = '||'}]},
+                 expression("a || b |> f")),
     ?assertMatch(#e_call{callee = #e_lambda{}, args = [#e_var{name = x}]},
-                 e("x |> (fn(y) = y + 1)")).
+                 expression("x |> (fn(y) = y + 1)")).
 
 %% report §5.7
 pipe_rewrite_test() ->
-    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}]}, e("x |> f")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}]},
+                 expression("x |> f")),
     ?assertMatch(#e_call{callee = #e_var{name = f},
                          args = [#e_var{name = x}, #e_var{name = a}, #e_var{name = b}]},
-                 e("x |> f(a, b)")),
+                 expression("x |> f(a, b)")),
     ?assertMatch(#e_call{callee = #e_call{callee = #e_var{name = f}, args = [#e_var{name = a}]},
                          args = [#e_var{name = x}, #e_var{name = b}]},
-                 e("x |> f(a)(b)")),
+                 expression("x |> f(a)(b)")),
     %% parentheses change nothing: a parenthesized call is a call the pipe
     %% fills, and a parenthesized callee is the callee (findings.md's P1-7)
     ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_var{name = a}]},
-                 e("x |> (f(a))")),
+                 expression("x |> (f(a))")),
     ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_var{name = a}]},
-                 e("x |> (f)(a)")),
+                 expression("x |> (f)(a)")),
     ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}]},
-                 e("x |> (f)")),
+                 expression("x |> (f)")),
     ?assertMatch(#e_call{callee = #e_var{name = c},
                          args = [#e_call{callee = #e_var{name = b}, args = [#e_var{name = a}]}]},
-                 e("a |> b |> c")),
-    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_binop{op = '+'}]},
-                 e("a + b |> f")),
+                 expression("a |> b |> c")),
+    ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_binop{operator = '+'}]},
+                 expression("a + b |> f")),
     ?assertMatch(#e_call{callee = #e_lambda{}, args = [#e_var{name = x}]},
-                 e("x |> (fn(y) = y + 1)")).
+                 expression("x |> (fn(y) = y + 1)")).
 
 %% report §5.7: a parenthesized right-hand side is parsed once, and its
 %% parentheses change nothing, so each level's call is filled by the one
@@ -146,184 +152,202 @@ pipe_rewrite_test() ->
 pipe_nesting_test_() ->
     {timeout, 5, fun() ->
         Source = lists:duplicate(40, "x |> (") ++ "x" ++ lists:duplicate(40, ")"),
-        #e_call{callee = #e_var{name = x}, args = Args} = e(lists:flatten(Source)),
+        #e_call{callee = #e_var{name = x}, args = Args} = expression(lists:flatten(Source)),
         ?assertEqual(40, length(Args))
     end}.
 
 %% report §5.1, §5.7: the call a pipe writes is marked, so that x is
 %% evaluated before a computed callee; a written call is not
 pipe_marks_call_test() ->
-    ?assertMatch(#e_call{pipe = true, callee = #e_call{pipe = false}}, e("x |> f(a)(b)")),
-    ?assertMatch(#e_call{pipe = true}, e("x |> (f(a))")),
-    ?assertMatch(#e_call{pipe = true}, e("x |> f")),
-    ?assertMatch(#e_call{pipe = false}, e("f(x, a)")).
+    ?assertMatch(#e_call{pipe = true, callee = #e_call{pipe = false}}, expression("x |> f(a)(b)")),
+    ?assertMatch(#e_call{pipe = true}, expression("x |> (f(a))")),
+    ?assertMatch(#e_call{pipe = true}, expression("x |> f")),
+    ?assertMatch(#e_call{pipe = false}, expression("f(x, a)")).
 
 %% report §3.5, Appendix A: `.` and an ident after a primary select a
 %% field, chained and after a call; an uppercase first segment still
 %% begins a qualified name
 field_selection_test() ->
-    ?assertMatch(#e_select{expr = #e_var{name = s}, field = upper}, e("s.upper")),
-    ?assertMatch(#e_select{expr = #e_select{expr = #e_var{name = s}, field = at}, field = x},
-                 e("s.at.x")),
-    ?assertMatch(#e_select{expr = #e_call{}, field = y}, e("f(1).y")),
-    ?assertMatch(#e_select{expr = #e_var{path = ['Stack'], name = empty}, field = items},
-                 e("Stack.empty.items")),
-    ?assertMatch(#e_binop{op = '+', left = #e_select{}, right = #e_select{}}, e("p.x + p.y")).
+    ?assertMatch(#e_selection{expr = #e_var{name = s}, field = upper}, expression("s.upper")),
+    ?assertMatch(#e_selection{expr = #e_selection{expr = #e_var{name = s}, field = at}, field = x},
+                 expression("s.at.x")),
+    ?assertMatch(#e_selection{expr = #e_call{}, field = y}, expression("f(1).y")),
+    ?assertMatch(#e_selection{expr = #e_var{path = ['Stack'], name = empty}, field = items},
+                 expression("Stack.empty.items")),
+    ?assertMatch(#e_binop{operator = '+', left = #e_selection{}, right = #e_selection{}},
+                 expression("p.x + p.y")).
 
 %% report §5.6
 constructors_test() ->
-    ?assertMatch(#e_con{name = 'Some', args = {positional, #e_lit{value = 5}}}, e("Some(5)")),
-    ?assertMatch(#e_con{name = 'Person', args = {named, undefined,
-                                                 [#field_set{name = name, expr = #e_lit{}},
-                                                  #field_set{name = age, expr = #e_lit{}}]}},
-                 e("Person(name = \"A\", age = 30)")),
-    ?assertMatch(#e_con{name = 'Person', args = {named, #e_var{name = p},
-                                                 [#field_set{name = age}]}},
-                 e("Person(..p, age = 31)")),
-    ?assertMatch(#e_con{name = 'Some', args = {positional, #e_var{name = x}}}, e("Some(x)")).
+    ?assertMatch(#e_constructor{name = 'Some', args = {positional, #e_literal{value = 5}}},
+                 expression("Some(5)")),
+    ?assertMatch(#e_constructor{name = 'Person', args = {named, undefined,
+                                                         [#field_set{name = name,
+                                                                     expr = #e_literal{}},
+                                                          #field_set{name = age,
+                                                                     expr = #e_literal{}}]}},
+                 expression("Person(name = \"A\", age = 30)")),
+    ?assertMatch(#e_constructor{name = 'Person', args = {named, #e_var{name = p},
+                                                         [#field_set{name = age}]}},
+                 expression("Person(..p, age = 31)")),
+    ?assertMatch(#e_constructor{name = 'Some', args = {positional, #e_var{name = x}}},
+                 expression("Some(x)")).
 
 %% report §3.2, §3.3
 tuples_lists_test() ->
-    ?assertMatch(#e_tuple{elems = [#e_lit{}, #e_lit{}]}, e("#(1, 2)")),
+    ?assertMatch(#e_tuple{elements = [#e_literal{}, #e_literal{}]}, expression("#(1, 2)")),
     %% a tuple has two components or more, as a value, a type and a pattern
     %% (findings.md's P1-38)
-    ?assertEqual("a tuple has two components or more", err_expr("#(1)")),
-    ?assertEqual("a tuple has two components or more", err("fn f(x : #(Int)) : Int = 1")),
+    ?assertEqual("a tuple has two components or more", expression_refusal("#(1)")),
+    ?assertEqual("a tuple has two components or more", refusal("fn f(x : #(Int)) : Int = 1")),
     ?assertEqual("a tuple has two components or more",
-                 err("fn f(x : Int) : Int = match x { #(y) -> y }")),
-    ?assertMatch(#e_list{elems = []}, e("[]")),
-    ?assertMatch(#e_list{elems = [#e_lit{}, #e_lit{}, #e_lit{}]}, e("[1, 2, 3]")).
+                 refusal("fn f(x : Int) : Int = match x { #(y) -> y }")),
+    ?assertMatch(#e_list{elements = []}, expression("[]")),
+    ?assertMatch(#e_list{elements = [#e_literal{}, #e_literal{}, #e_literal{}]},
+                 expression("[1, 2, 3]")).
 
 %% report Appendix A
 parens_produce_no_node_test() ->
-    ?assertMatch(#e_binop{op = '*', left = #e_binop{op = '+'}, right = #e_lit{}},
-                 e("(1 + 2) * 3")),
-    ?assertMatch(#e_var{name = x}, e("((x))")).
+    ?assertMatch(#e_binop{operator = '*', left = #e_binop{operator = '+'}, right = #e_literal{}},
+                 expression("(1 + 2) * 3")),
+    ?assertMatch(#e_var{name = x}, expression("((x))")).
 
 %% report §5.4
 block_test() ->
-    ?assertMatch(#e_block{stmts = [#binding{pattern = #p_var{name = x}, op = '=',
-                                            expr = #e_lit{value = 5}},
-                                   #binding{pattern = #p_tuple{}, op = '<-', ann = undefined},
-                                   #binding{pattern = #p_var{name = m},
-                                            ann = #t_con{name = 'Map'}},
-                                   #fn_decl{name = helper, params = [_]},
-                                   #e_call{}]},
-                 e("{ let x = 5; let #(a, b) <- f(x); let m : Map(String, Int) = Map.empty;"
-                   " fn helper(y) = y; helper(x) }")),
-    ?assertMatch(#e_block{stmts = [#e_lambda{}, #e_var{}]}, e("{ fn(x) = x; y }")).
+    ?assertMatch(#e_block{statements = [#binding{pattern = #p_var{name = x}, operator = '=',
+                                                 expr = #e_literal{value = 5}},
+                                        #binding{pattern = #p_tuple{}, operator = '<-',
+                                                 annotation = undefined},
+                                        #binding{pattern = #p_var{name = m},
+                                                 annotation = #t_named{name = 'Map'}},
+                                        #fn_declaration{name = helper, params = [_]},
+                                        #e_call{}]},
+                 expression("{ let x = 5; let #(a, b) <- f(x);"
+                            " let m : Map(String, Int) = Map.empty;"
+                            " fn helper(y) = y; helper(x) }")),
+    ?assertMatch(#e_block{statements = [#e_lambda{}, #e_var{}]},
+                 expression("{ fn(x) = x; y }")).
 
 %% report §4.5, Appendix A's Return: a result annotation is written `: T`
 %% in a declaration, a foreign one and a lambda, and `->` after the
 %% parameters is refused with the spelling that replaces it (§11); a
 %% function type keeps its arrow, and a `with` after one is the type's
 result_annotation_test() ->
-    ?assertMatch([#fn_decl{ret = #t_con{name = 'Int'}}], ds("fn f(x : Int) : Int = x")),
-    ?assertMatch([#foreign_fn_decl{ret = #t_con{name = 'Int'}}],
-                 ds("foreign fn g() : Int = \"m:g/0\"")),
-    ?assertMatch(#e_lambda{ret = #t_con{name = 'Int'}}, e("fn(x) : Int = x")),
+    ?assertMatch([#fn_declaration{result_type = #t_named{name = 'Int'}}],
+                 declarations("fn f(x : Int) : Int = x")),
+    ?assertMatch([#foreign_fn_declaration{result_type = #t_named{name = 'Int'}}],
+                 declarations("foreign fn g() : Int = \"m:g/0\"")),
+    ?assertMatch(#e_lambda{result_type = #t_named{name = 'Int'}}, expression("fn(x) : Int = x")),
     Said = "a function's result is annotated with `:`, not `->`",
-    ?assertEqual(Said, err("fn f(x : Int) -> Int = x")),
-    ?assertEqual(Said, err("foreign fn g() -> Int = \"m:g/0\"")),
-    ?assertEqual(Said, err_expr("fn(x) -> Int = x")),
-    ?assertMatch([#fn_decl{ret = #t_fn{effect = #t_con{name = 'M'}}, effect = undefined}],
-                 ds("fn f() : (Int) -> Int with M = g")),
-    ?assertMatch([#fn_decl{ret = #t_fn{effect = undefined}, effect = #t_con{name = 'M'}}],
-                 ds("fn f() : ((Int) -> Int) with M = g")).
+    ?assertEqual(Said, refusal("fn f(x : Int) -> Int = x")),
+    ?assertEqual(Said, refusal("foreign fn g() -> Int = \"m:g/0\"")),
+    ?assertEqual(Said, expression_refusal("fn(x) -> Int = x")),
+    ?assertMatch([#fn_declaration{result_type = #t_fn{effect = #t_named{name = 'M'}},
+                                  effect = undefined}],
+                 declarations("fn f() : (Int) -> Int with M = g")),
+    ?assertMatch([#fn_declaration{result_type = #t_fn{effect = undefined},
+                                  effect = #t_named{name = 'M'}}],
+                 declarations("fn f() : ((Int) -> Int) with M = g")).
 
 %% report §5.3
 lambda_test() ->
-    ?assertMatch(#e_lambda{params = [#param{pattern = #p_var{name = x}, type = undefined}],
-                           ret = undefined, effect = undefined,
-                           body = #e_binop{op = '+'}},
-                 e("fn(x) = x + 1")),
-    ?assertMatch(#e_lambda{params = [], ret = #t_con{name = 'Unit'},
-                           effect = #t_con{name = 'Never'}, body = #e_con{name = 'Unit'}},
-                 e("fn() : Unit with Never = Unit")),
+    ?assertMatch(#e_lambda{params = [#param{pattern = #p_var{name = x}, annotation = undefined}],
+                           result_type = undefined, effect = undefined,
+                           body = #e_binop{operator = '+'}},
+                 expression("fn(x) = x + 1")),
+    ?assertMatch(#e_lambda{params = [], result_type = #t_named{name = 'Unit'},
+                           effect = #t_named{name = 'Never'}, body = #e_constructor{name = 'Unit'}},
+                 expression("fn() : Unit with Never = Unit")),
     %% the body extends to the enclosing delimiter
-    ?assertMatch(#e_call{args = [#e_var{}, #e_lambda{body = #e_binop{op = '+'}}]},
-                 e("List.map(xs, fn(x) = x + 1)")),
-    ?assertMatch(#e_call{args = [#e_var{}, #e_lambda{body = #e_call{}}, #e_lit{}]},
-                 e("f(a, fn(r) = g(r), 1)")).
+    ?assertMatch(#e_call{args = [#e_var{}, #e_lambda{body = #e_binop{operator = '+'}}]},
+                 expression("List.map(xs, fn(x) = x + 1)")),
+    ?assertMatch(#e_call{args = [#e_var{}, #e_lambda{body = #e_call{}}, #e_literal{}]},
+                 expression("f(a, fn(r) = g(r), 1)")).
 
 %% report §5.8
 if_test() ->
-    ?assertMatch(#e_if{condition = #e_binop{op = '=='}, then_branch = #e_lit{},
-                       else_branch = #e_binop{op = '+'}},
-                 e("if n == 0 then 1 else n + 1")),
-    ?assertMatch(#e_if{else_branch = #e_block{}}, e("if c then a else { b }")).
+    ?assertMatch(#e_if{condition = #e_binop{operator = '=='}, then_branch = #e_literal{},
+                       else_branch = #e_binop{operator = '+'}},
+                 expression("if n == 0 then 1 else n + 1")),
+    ?assertMatch(#e_if{else_branch = #e_block{}}, expression("if c then a else { b }")).
 
 %% report §5.9
 match_test() ->
     ?assertMatch(#e_match{scrutinee = #e_var{name = xs},
-                          clauses = [#clause{pattern = #p_list{elems = []}, guard = undefined,
-                                             body = #e_lit{}},
-                                     #clause{pattern = #p_cons{}, guard = #e_binop{op = '>'},
+                          clauses = [#clause{pattern = #p_list{elements = []}, guard = undefined,
+                                             body = #e_literal{}},
+                                     #clause{pattern = #p_cons{}, guard = #e_binop{operator = '>'},
                                              body = #e_var{}},
-                                     #clause{pattern = #p_wild{}}]},
-                 e("match xs { [] -> 0 | h :: _ when h > 0 -> h | _ -> 1 }")),
+                                     #clause{pattern = #p_wildcard{}}]},
+                 expression("match xs { [] -> 0 | h :: _ when h > 0 -> h | _ -> 1 }")),
     ?assertMatch(#e_match{clauses = [#clause{body = #e_match{}}, #clause{}]},
-                 e("match a { Some(b) -> match b { 1 -> x | _ -> y } | None -> z }")).
+                 expression("match a { Some(b) -> match b { 1 -> x | _ -> y } | None -> z }")).
 
 %% report §2.2: a doc block attaches to a declaration, to a constructor
 %% above it or above its `|`, to a field, to a signature entry, or, with a
 %% blank line after it, to the module; elsewhere it is a comment
 doc_attachment_test() ->
-    {ok, Ds} = ern_parser:parse_string(
+    {ok, Declarations} = ern_parser:parse_string(
                  <<"/// The module.\n\n/// T.\ntype T =\n    /// A.\n    A(\n    /// f.\n"
                    "    x : Int)\n    /// B.\n  | B\n/// S.\nabstract type S = S(Int)\n">>),
     ?assertMatch([#module_doc{text = <<"The module.">>},
-                  #type_decl{doc = <<"T.">>,
-                             constructors = [#constructor{doc = <<"A.">>,
-                                                          fields = {named,
-                                                                    [#field{doc = <<"f.">>}]}},
-                                             #constructor{doc = <<"B.">>}]},
-                  #abstract_decl{doc = <<"S.">>}],
-                 Ds),
+                  #type_declaration{doc = <<"T.">>,
+                                    constructors =
+                                        [#constructor{doc = <<"A.">>,
+                                                      fields = {named, [#field{doc = <<"f.">>}]}},
+                                         #constructor{doc = <<"B.">>}]},
+                  #abstract_declaration{doc = <<"S.">>}],
+                 Declarations),
     ?assertMatch({error, #diagnostic{message = "a doc block documents nothing here"}},
                  ern_parser:parse_string(<<"fn f() = {\n    /// stray\n    1\n}\n">>)).
 
 %% report §5.9: a clause lists one or more patterns separated by `or`
 or_pattern_test() ->
-    ?assertMatch(#e_match{clauses = [#clause{pattern = #p_or{alts = [#p_con{name = 'A'},
-                                                                     #p_con{name = 'B'}]},
-                                             body = #e_lit{}},
-                                     #clause{pattern = #p_con{name = 'C'}, guard = #e_lit{}}]},
-                 e("match x { A or B -> 1 | C when true -> 2 }")),
-    ?assertMatch(#e_receive{clauses = [#clause{pattern = #p_or{alts = [_, _, _]}}]},
-                 e("receive { A or B or C -> 1 }")).
+    ?assertMatch(#e_match{clauses = [#clause{pattern =
+                                                 #p_or{alternatives =
+                                                           [#p_constructor{name = 'A'},
+                                                            #p_constructor{name = 'B'}]},
+                                             body = #e_literal{}},
+                                     #clause{pattern = #p_constructor{name = 'C'},
+                                             guard = #e_literal{}}]},
+                 expression("match x { A or B -> 1 | C when true -> 2 }")),
+    ?assertMatch(#e_receive{clauses = [#clause{pattern = #p_or{alternatives = [_, _, _]}}]},
+                 expression("receive { A or B or C -> 1 }")).
 
 %% report §6.3
 receive_test() ->
-    ?assertMatch(#e_receive{clauses = [#clause{pattern = #p_con{name = 'Inc'}},
-                                       #clause{pattern = #p_con{name = 'Get'}}],
+    ?assertMatch(#e_receive{clauses = [#clause{pattern = #p_constructor{name = 'Inc'}},
+                                       #clause{pattern = #p_constructor{name = 'Get'}}],
                             'after' = undefined},
-                 e("receive { Inc(k) -> counter(n + k) | Get(reply = r) -> counter(n) }")),
+                 expression("receive { Inc(k) -> counter(n + k) | Get(reply = r) -> counter(n) }")),
     ?assertMatch(#e_receive{clauses = [#clause{}],
-                            'after' = #after_clause{timeout = #e_lit{value = 1000},
-                                                    body = #e_con{name = 'None'}}},
-                 e("receive { Data(n) -> Some(n) | after 1000 -> None }")),
-    ?assertMatch(#e_receive{clauses = [], 'after' = #after_clause{timeout = #e_lit{value = 0}}},
-                 e("receive { after 0 -> world }")).
+                            'after' = #after_clause{timeout = #e_literal{value = 1000},
+                                                    body = #e_constructor{name = 'None'}}},
+                 expression("receive { Data(n) -> Some(n) | after 1000 -> None }")),
+    ?assertMatch(#e_receive{clauses = [], 'after' = #after_clause{timeout = #e_literal{value = 0}}},
+                 expression("receive { after 0 -> world }")).
 
 %% report §5.11
 bitstring_expr_test() ->
-    ?assertMatch(#e_bits{segments = []}, e("<<>>")),
-    ?assertMatch(#e_bits{segments = [#bit_seg{value = #e_lit{value = 0}, specs = []},
-                                     #bit_seg{value = #e_lit{value = 1}}]},
-                 e("<<0, 1>>")),
-    ?assertMatch(#e_bits{segments = [#bit_seg{value = #e_var{name = len},
-                                              specs = [{size, #e_lit{value = 16}}, big]},
-                                     #bit_seg{value = #e_var{name = body}, specs = [bytes]}]},
-                 e("<<len:size(16)-big, body:bytes>>")),
-    ?assertMatch(#e_bits{segments = [#bit_seg{specs = [{size, #e_var{}}, little, signed]}]},
-                 e("<<x:size(n)-little-signed>>")).
+    ?assertMatch(#e_bitstring{segments = []}, expression("<<>>")),
+    ?assertMatch(#e_bitstring{segments = [#bit_segment{value = #e_literal{value = 0}, specs = []},
+                                          #bit_segment{value = #e_literal{value = 1}}]},
+                 expression("<<0, 1>>")),
+    ?assertMatch(#e_bitstring{segments = [#bit_segment{value = #e_var{name = len},
+                                                       specs = [{size, #e_literal{value = 16}},
+                                                                big]},
+                                          #bit_segment{value = #e_var{name = body},
+                                                       specs = [bytes]}]},
+                 expression("<<len:size(16)-big, body:bytes>>")),
+    ?assertMatch(#e_bitstring{segments = [#bit_segment{specs = [{size, #e_var{}}, little,
+                                                                signed]}]},
+                 expression("<<x:size(n)-little-signed>>")).
 
 %% report §5.11: there is no `unit`; a size counts bits, and octets for
 %% `bytes`, and the error says to write it so. A regression test: `unit`
 %% was a second way to scale a size
 no_unit_specifier_test() ->
-    ?assertEqual("there is no `unit` specifier", err_expr("<<x:size(n)-unit(8)>>")).
+    ?assertEqual("there is no `unit` specifier", expression_refusal("<<x:size(n)-unit(8)>>")).
 
 %% report §5.11: a specifier's name is an ordinary identifier outside a
 %% specifier list, so a segment's value, a size's expression and a pattern's
@@ -331,15 +355,15 @@ no_unit_specifier_test() ->
 %% parser conformed before it was written; the checker's half is in
 %% ern_typecheck_tests.
 specifier_names_are_identifiers_test() ->
-    ?assertMatch(#e_bits{segments = [#bit_seg{value = #e_var{name = size},
-                                              specs = [{size, #e_var{name = int}}, big]}]},
-                 e("<<size:size(int)-big>>")),
-    #e_match{clauses = [#clause{pattern = P}]} =
-        e("match b { <<size:size(16), little:bytes>> -> size }"),
-    ?assertMatch(#p_bits{segments = [#bit_seg{value = #p_var{name = size},
-                                              specs = [{size, #e_lit{value = 16}}]},
-                                     #bit_seg{value = #p_var{name = little},
-                                              specs = [bytes]}]}, P).
+    ?assertMatch(#e_bitstring{segments = [#bit_segment{value = #e_var{name = size},
+                                                       specs = [{size, #e_var{name = int}}, big]}]},
+                 expression("<<size:size(int)-big>>")),
+    #e_match{clauses = [#clause{pattern = Pattern}]} =
+        expression("match b { <<size:size(16), little:bytes>> -> size }"),
+    ?assertMatch(#p_bitstring{segments = [#bit_segment{value = #p_var{name = size},
+                                                       specs = [{size, #e_literal{value = 16}}]},
+                                          #bit_segment{value = #p_var{name = little},
+                                                       specs = [bytes]}]}, Pattern).
 
 %%
 %% Patterns
@@ -347,46 +371,56 @@ specifier_names_are_identifiers_test() ->
 
 %% report §5.10
 patterns_test() ->
-    Pat = fun(Text) -> #e_match{clauses = [#clause{pattern = P}]} = e("match x { " ++ Text
-                                                                      ++ " -> 0 }"), P end,
-    ?assertMatch(#p_wild{}, Pat("_")),
-    ?assertMatch(#p_var{name = '_x'}, Pat("_x")),
-    ?assertMatch(#p_var{name = y}, Pat("y")),
-    ?assertMatch(#p_lit{kind = int, value = 1}, Pat("1")),
-    ?assertMatch(#p_lit{kind = int, value = -1}, Pat("-1")),
-    ?assertMatch(#p_lit{kind = float, value = -2.5}, Pat("-2.5")),
+    PatternOf = fun(Text) ->
+                        #e_match{clauses = [#clause{pattern = Pattern}]} =
+                            expression("match x { " ++ Text ++ " -> 0 }"),
+                        Pattern
+                end,
+    ?assertMatch(#p_wildcard{}, PatternOf("_")),
+    ?assertMatch(#p_var{name = '_x'}, PatternOf("_x")),
+    ?assertMatch(#p_var{name = y}, PatternOf("y")),
+    ?assertMatch(#p_literal{kind = int, value = 1}, PatternOf("1")),
+    ?assertMatch(#p_literal{kind = int, value = -1}, PatternOf("-1")),
+    ?assertMatch(#p_literal{kind = float, value = -2.5}, PatternOf("-2.5")),
     %% report §3.1: no negative zero, so `-0.0` is the zero; a regression
     %% test, it was the host's negative zero, which no value matched
-    ?assertMatch(#p_lit{kind = float, value = +0.0}, Pat("-0.0")),
-    ?assertMatch(#p_lit{kind = string, value = <<"let">>}, Pat("\"let\"")),
-    ?assertMatch(#p_lit{kind = char, value = $-}, Pat("'-'")),
-    ?assertMatch(#p_lit{kind = bool, value = false}, Pat("false")),
-    ?assertMatch(#p_con{name = 'None', args = none}, Pat("None")),
-    ?assertMatch(#p_con{name = 'Some', args = {positional, #p_var{name = v}}}, Pat("Some(v)")),
-    ?assertMatch(#p_con{name = 'Get', args = {named, [#field_pat{name = reply,
-                                                                 pattern = #p_var{name = r}}]}},
-                 Pat("Get(reply = r)")),
-    ?assertMatch(#p_con{name = 'Get', args = {named, []}}, Pat("Get()")),
-    ?assertMatch(#p_con{name = 'Player', args = {named, [#field_pat{pattern = #p_lit{}}]}},
-                 Pat("Player(alive = false)")),
-    ?assertMatch(#p_con{path = ['Net', 'Http'], name = 'Request', args = {named, [_, _]}},
-                 Pat("Net.Http.Request(method = m, path = p)")),
-    ?assertMatch(#p_tuple{elems = [#p_var{}, #p_con{}]}, Pat("#(x, Some(y))")),
-    ?assertMatch(#p_list{elems = []}, Pat("[]")),
-    ?assertMatch(#p_list{elems = [#p_tuple{elems = [#p_wild{}, #p_var{}]}]}, Pat("[#(_, v)]")),
-    ?assertMatch(#p_cons{head = #p_var{name = h}, tail = #p_var{name = t}}, Pat("h :: t")),
-    ?assertMatch(#p_cons{head = #p_lit{value = $-}, tail = #p_cons{head = #p_lit{value = $>}}},
-                 Pat("'-' :: '>' :: r")),
-    ?assertMatch(#p_as{pattern = #p_cons{}, name = all}, Pat("x :: rest as all")),
-    ?assertMatch(#p_con{args = {positional, #p_as{pattern = #p_con{name = 'Snapshot'},
-                                                  name = snap}}},
-                 Pat("Some(Snapshot(dir = d) as snap)")),
-    ?assertMatch(#p_bits{segments = [#bit_seg{value = #p_var{name = len},
-                                              specs = [{size, #e_lit{}}, big]},
-                                     #bit_seg{value = #p_var{name = body},
-                                              specs = [{size, #e_var{name = len}}, bytes]},
-                                     #bit_seg{value = #p_var{name = rest}, specs = [bytes]}]},
-                 Pat("<<len:size(16)-big, body:size(len)-bytes, rest:bytes>>")).
+    ?assertMatch(#p_literal{kind = float, value = +0.0}, PatternOf("-0.0")),
+    ?assertMatch(#p_literal{kind = string, value = <<"let">>}, PatternOf("\"let\"")),
+    ?assertMatch(#p_literal{kind = char, value = $-}, PatternOf("'-'")),
+    ?assertMatch(#p_literal{kind = bool, value = false}, PatternOf("false")),
+    ?assertMatch(#p_constructor{name = 'None', args = none}, PatternOf("None")),
+    ?assertMatch(#p_constructor{name = 'Some', args = {positional, #p_var{name = v}}},
+                 PatternOf("Some(v)")),
+    ?assertMatch(#p_constructor{name = 'Get',
+                                args = {named, [#field_pattern{name = reply,
+                                                               pattern = #p_var{name = r}}]}},
+                 PatternOf("Get(reply = r)")),
+    ?assertMatch(#p_constructor{name = 'Get', args = {named, []}}, PatternOf("Get()")),
+    ?assertMatch(#p_constructor{name = 'Player',
+                                args = {named, [#field_pattern{pattern = #p_literal{}}]}},
+                 PatternOf("Player(alive = false)")),
+    ?assertMatch(#p_constructor{path = ['Net', 'Http'], name = 'Request', args = {named, [_, _]}},
+                 PatternOf("Net.Http.Request(method = m, path = p)")),
+    ?assertMatch(#p_tuple{elements = [#p_var{}, #p_constructor{}]}, PatternOf("#(x, Some(y))")),
+    ?assertMatch(#p_list{elements = []}, PatternOf("[]")),
+    ?assertMatch(#p_list{elements = [#p_tuple{elements = [#p_wildcard{}, #p_var{}]}]},
+                 PatternOf("[#(_, v)]")),
+    ?assertMatch(#p_cons{head = #p_var{name = h}, tail = #p_var{name = t}}, PatternOf("h :: t")),
+    ?assertMatch(#p_cons{head = #p_literal{value = $-},
+                         tail = #p_cons{head = #p_literal{value = $>}}},
+                 PatternOf("'-' :: '>' :: r")),
+    ?assertMatch(#p_as{pattern = #p_cons{}, name = all}, PatternOf("x :: rest as all")),
+    ?assertMatch(#p_constructor{args = {positional,
+                                        #p_as{pattern = #p_constructor{name = 'Snapshot'},
+                                                          name = snap}}},
+                 PatternOf("Some(Snapshot(dir = d) as snap)")),
+    ?assertMatch(#p_bitstring{segments = [#bit_segment{value = #p_var{name = len},
+                                                       specs = [{size, #e_literal{}}, big]},
+                                          #bit_segment{value = #p_var{name = body},
+                                                       specs = [{size, #e_var{name = len}}, bytes]},
+                                          #bit_segment{value = #p_var{name = rest},
+                                                       specs = [bytes]}]},
+                 PatternOf("<<len:size(16)-big, body:size(len)-bytes, rest:bytes>>")).
 
 %%
 %% Types
@@ -394,153 +428,168 @@ patterns_test() ->
 
 %% report §3, §3.4
 types_test() ->
-    T = fun(Text) -> #let_decl{ann = A} = d("let x : " ++ Text ++ " = y"), A end,
-    ?assertMatch(#t_con{path = [], name = 'Int', args = []}, T("Int")),
-    ?assertMatch(#t_var{name = a}, T("a")),
-    ?assertMatch(#t_con{name = 'Map', args = [#t_con{name = 'String'}, #t_var{name = v}]},
-                 T("Map(String, v)")),
-    ?assertMatch(#t_con{path = ['Ets'], name = 'Table', args = [_, _]}, T("Ets.Table(k, v)")),
-    ?assertMatch(#t_tuple{elems = [#t_con{name = 'Int'}, #t_con{name = 'Bool'}]},
-                 T("#(Int, Bool)")),
-    ?assertMatch(#t_fn{params = [], ret = #t_con{name = 'Unit'}, effect = undefined},
-                 T("() -> Unit")),
-    ?assertMatch(#t_fn{params = [#t_con{name = 'A'}, #t_con{name = 'B'}],
-                       ret = #t_con{name = 'C'}, effect = #t_con{name = 'M'}},
-                 T("(A, B) -> C with M")),
-    ?assertMatch(#t_con{name = 'Int'}, T("(Int)")),
+    TypeOf = fun(Text) ->
+                     #let_declaration{annotation = Annotation} =
+                         declaration("let x : " ++ Text ++ " = y"),
+                     Annotation
+             end,
+    ?assertMatch(#t_named{path = [], name = 'Int', args = []}, TypeOf("Int")),
+    ?assertMatch(#t_var{name = a}, TypeOf("a")),
+    ?assertMatch(#t_named{name = 'Map', args = [#t_named{name = 'String'}, #t_var{name = v}]},
+                 TypeOf("Map(String, v)")),
+    ?assertMatch(#t_named{path = ['Ets'], name = 'Table', args = [_, _]},
+                 TypeOf("Ets.Table(k, v)")),
+    ?assertMatch(#t_tuple{elements = [#t_named{name = 'Int'}, #t_named{name = 'Bool'}]},
+                 TypeOf("#(Int, Bool)")),
+    ?assertMatch(#t_fn{params = [], result_type = #t_named{name = 'Unit'}, effect = undefined},
+                 TypeOf("() -> Unit")),
+    ?assertMatch(#t_fn{params = [#t_named{name = 'A'}, #t_named{name = 'B'}],
+                       result_type = #t_named{name = 'C'}, effect = #t_named{name = 'M'}},
+                 TypeOf("(A, B) -> C with M")),
+    ?assertMatch(#t_named{name = 'Int'}, TypeOf("(Int)")),
     %% with binds to the nearest arrow
-    ?assertMatch(#t_fn{ret = #t_fn{effect = #t_con{name = 'M'}}, effect = undefined},
-                 T("(A) -> (B) -> C with M")),
-    ?assertMatch(#t_fn{ret = #t_fn{effect = undefined}, effect = #t_con{name = 'M'}},
-                 T("(A) -> ((B) -> C) with M")),
-    ?assertMatch(#t_fn{params = [#t_fn{params = [#t_var{name = a}], ret = #t_var{name = b},
+    ?assertMatch(#t_fn{result_type = #t_fn{effect = #t_named{name = 'M'}}, effect = undefined},
+                 TypeOf("(A) -> (B) -> C with M")),
+    ?assertMatch(#t_fn{result_type = #t_fn{effect = undefined}, effect = #t_named{name = 'M'}},
+                 TypeOf("(A) -> ((B) -> C) with M")),
+    ?assertMatch(#t_fn{params = [#t_fn{params = [#t_var{name = a}], result_type = #t_var{name = b},
                                        effect = #t_var{name = e}}, #t_var{name = a}]},
-                 T("((a) -> b with e, a) -> b with e")).
+                 TypeOf("((a) -> b with e, a) -> b with e")).
 
 %%
 %% Declarations
 %%
 
 %% report §3.5, §4.3
-type_decl_test() ->
-    ?assertMatch(#type_decl{export = false, name = 'Direction', params = [],
-                            constructors = [#constructor{name = 'North', fields = none},
-                                            #constructor{name = 'South'}]},
-                 d("type Direction = North | South")),
-    ?assertMatch(#type_decl{export = true, name = 'Optional', params = [a],
-                            constructors = [#constructor{name = 'None'},
-                                            #constructor{name = 'Some',
-                                                         fields = {positional, #t_var{name = a}}}]},
-                 d("export type Optional(a) = None | Some(a)")),
-    ?assertMatch(#type_decl{constructors = [#constructor{
-                                                name = 'Snapshot',
-                                                fields = {named, [#field{name = dir,
-                                                                         type = #t_con{}},
+type_declaration_test() ->
+    ?assertMatch(#type_declaration{export = false, name = 'Direction', params = [],
+                                   constructors = [#constructor{name = 'North', fields = none},
+                                                   #constructor{name = 'South'}]},
+                 declaration("type Direction = North | South")),
+    ?assertMatch(#type_declaration{export = true, name = 'Optional', params = [a],
+                                   constructors = [#constructor{name = 'None'},
+                                                   #constructor{name = 'Some',
+                                                                fields = {positional,
+                                                                          #t_var{name = a}}}]},
+                 declaration("export type Optional(a) = None | Some(a)")),
+    ?assertMatch(#type_declaration{constructors = [#constructor{
+                                                       name = 'Snapshot',
+                                                       fields = {named,
+                                                                 [#field{name = dir,
+                                                                         annotation = #t_named{}},
                                                                   #field{name = seen}]}}]},
-                 d("type Snapshot = Snapshot(dir : Path, seen : Map(Path, Int))")),
-    ?assertMatch(#type_decl{constructors = [#constructor{
-                                                name = 'Upgrade',
-                                                fields = {named,
-                                                          [#field{type = #t_fn{}},
-                                                           #field{type = #t_fn{effect =
-                                                                                   #t_con{}}}]}}]},
-                 d("type M = Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with M)")).
+                 declaration("type Snapshot = Snapshot(dir : Path, seen : Map(Path, Int))")),
+    #type_declaration{constructors = [#constructor{name = 'Upgrade', fields = {named, Fields}}]} =
+        declaration("type M = Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with M)"),
+    ?assertMatch([#field{annotation = #t_fn{}}, #field{annotation = #t_fn{effect = #t_named{}}}],
+                 Fields).
 
 %% report §4.4: an abstract type is a type declaration marked `abstract`, and
 %% has no signature
-abstract_decl_test() ->
-    ?assertMatch(#abstract_decl{export = true,
-                                type = #type_decl{name = 'Stack', params = [a],
-                                                  constructors = [#constructor{name = 'Stack'}]}},
-                 d("export abstract type Stack(a) = Stack(List(a))")),
+abstract_declaration_test() ->
+    ?assertMatch(#abstract_declaration{export = true,
+                                       declaration =
+                                           #type_declaration{name = 'Stack', params = [a],
+                                                             constructors =
+                                                                 [#constructor{name = 'Stack'}]}},
+                 declaration("export abstract type Stack(a) = Stack(List(a))")),
     ?assertMatch({error, #diagnostic{message = "an abstract type has no signature: every definition"
                                          " of its module may use its constructors, so leave"
                                          " out `with { ... }`"}},
                  ern_parser:parse_string("abstract type S = S(Int) with {\n    e : S\n}\n")).
 
 %% report §4.5
-fn_decl_test() ->
-    ?assertMatch(#fn_decl{export = true, owner = undefined, name = main, params = [],
-                          ret = #t_con{name = 'Unit'}, effect = #t_con{name = 'Never'},
-                          body = #e_call{}, doc = undefined},
-                 d("export fn main() : Unit with Never = Io.println(\"hi\")")),
-    ?assertMatch(#fn_decl{name = double, params = [#param{pattern = #p_var{name = n},
-                                                          type = #t_con{name = 'Int'}}],
-                          ret = #t_con{name = 'Int'}, effect = undefined},
-                 d("fn double(n : Int) : Int = n * 2")),
-    ?assertMatch(#fn_decl{name = twice, params = [#param{type = undefined}], ret = undefined},
-                 d("fn twice(n) = n + n")),
-    ?assertMatch(#fn_decl{owner = undefined, name = push,
-                          params = [#param{pattern = #p_var{}},
-                                    #param{pattern = #p_con{name = 'Stack'},
-                                           type = #t_con{name = 'Stack'}}]},
-                 d("fn push(x : a, Stack(xs) : Stack(a)) : Stack(a) = Stack(x :: xs)")),
-    ?assertMatch(#fn_decl{owner = 'Stack', name = compare},
-                 d("fn Stack.compare(a : Stack(Int), b : Stack(Int)) : Ordering = Equal")),
-    ?assertMatch(#fn_decl{owner = 'Distance', name = negate},
-                 d("fn Distance.negate(Distance(a)) : Distance = Distance(-a)")),
-    ?assertMatch(#fn_decl{owner = 'Distance', name = '+'},
-                 d("fn Distance.+(Distance(a), Distance(b)) : Distance = Distance(a + b)")),
-    ?assertMatch(#fn_decl{params = [#param{pattern = #p_con{name = 'Snapshot'}}]},
-                 d("fn seenCount(Snapshot(seen = entries) : Snapshot) : Int ="
-                   " Map.size(entries)")).
+fn_declaration_test() ->
+    ?assertMatch(#fn_declaration{export = true, owner = undefined, name = main, params = [],
+                                 result_type = #t_named{name = 'Unit'},
+                                 effect = #t_named{name = 'Never'},
+                                 body = #e_call{}, doc = undefined},
+                 declaration("export fn main() : Unit with Never = Io.println(\"hi\")")),
+    ?assertMatch(#fn_declaration{name = double,
+                                 params = [#param{pattern = #p_var{name = n},
+                                                  annotation = #t_named{name = 'Int'}}],
+                                 result_type = #t_named{name = 'Int'}, effect = undefined},
+                 declaration("fn double(n : Int) : Int = n * 2")),
+    ?assertMatch(#fn_declaration{name = twice, params = [#param{annotation = undefined}],
+                                 result_type = undefined},
+                 declaration("fn twice(n) = n + n")),
+    ?assertMatch(#fn_declaration{owner = undefined, name = push,
+                                 params = [#param{pattern = #p_var{}},
+                                           #param{pattern = #p_constructor{name = 'Stack'},
+                                                  annotation = #t_named{name = 'Stack'}}]},
+                 declaration("fn push(x : a, Stack(xs) : Stack(a)) : Stack(a) = Stack(x :: xs)")),
+    ?assertMatch(#fn_declaration{owner = 'Stack', name = compare},
+                 declaration("fn Stack.compare(a : Stack(Int), b : Stack(Int)) : Ordering ="
+                             " Equal")),
+    ?assertMatch(#fn_declaration{owner = 'Distance', name = negate},
+                 declaration("fn Distance.negate(Distance(a)) : Distance = Distance(-a)")),
+    ?assertMatch(#fn_declaration{owner = 'Distance', name = '+'},
+                 declaration("fn Distance.+(Distance(a), Distance(b)) : Distance ="
+                             " Distance(a + b)")),
+    ?assertMatch(#fn_declaration{params = [#param{pattern = #p_constructor{name = 'Snapshot'}}]},
+                 declaration("fn seenCount(Snapshot(seen = entries) : Snapshot) : Int ="
+                             " Map.size(entries)")).
 
 %% report §4.6
-let_decl_test() ->
-    ?assertMatch(#let_decl{export = false, name = pi,
-                           ann = #t_con{name = 'Float'}, body = #e_lit{kind = float}},
-                 d("let pi : Float = 3.14")),
-    ?assertMatch(#let_decl{export = true, name = empty, ann = #t_con{},
-                           body = #e_con{name = 'Stack'}},
-                 d("export let empty : Stack(a) = Stack([])")),
-    ?assertMatch(#let_decl{name = x, ann = undefined}, d("let x = 1")).
+let_declaration_test() ->
+    ?assertMatch(#let_declaration{export = false, name = pi,
+                                  annotation = #t_named{name = 'Float'},
+                                  body = #e_literal{kind = float}},
+                 declaration("let pi : Float = 3.14")),
+    ?assertMatch(#let_declaration{export = true, name = empty, annotation = #t_named{},
+                                  body = #e_constructor{name = 'Stack'}},
+                 declaration("export let empty : Stack(a) = Stack([])")),
+    ?assertMatch(#let_declaration{name = x, annotation = undefined}, declaration("let x = 1")).
 
 %% report §4.7
-foreign_decl_test() ->
-    ?assertMatch(#foreign_type_decl{export = true, name = 'Table', params = [k, v]},
-                 d("export foreign type Table(k, v)")),
-    ?assertMatch(#foreign_type_decl{export = false, name = 'Handle', params = []},
-                 d("foreign type Handle")),
+foreign_declaration_test() ->
+    ?assertMatch(#foreign_type_declaration{export = true, name = 'Table', params = [k, v]},
+                 declaration("export foreign type Table(k, v)")),
+    ?assertMatch(#foreign_type_declaration{export = false, name = 'Handle', params = []},
+                 declaration("foreign type Handle")),
     %% a parameter that requires equality, Appendix A's ForeignVar
-    ?assertMatch(#foreign_type_decl{params = [k, v], eq = [k]},
-                 d("export foreign type Table(k=, v)")),
+    ?assertMatch(#foreign_type_declaration{params = [k, v], equality = [k]},
+                 declaration("export foreign type Table(k=, v)")),
     ?assertMatch({error, _}, ern_parser:parse_string("type T(a=) = T(a)")),
-    ?assertMatch(#foreign_fn_decl{export = true, name = member,
-                                  params = [#param{pattern = #p_var{name = t}, type = #t_con{}},
-                                            #param{pattern = #p_var{name = key},
-                                                   type = #t_var{name = k}}],
-                                  ret = #t_con{name = 'Bool'}, effect = #t_var{name = m},
-                                  impl = <<"ets:member/2">>},
-                 d("export foreign fn member(t : Table(k, v), key : k) : Bool with m"
-                   " = \"ets:member/2\"")),
-    ?assertMatch(#foreign_fn_decl{name = atom, effect = undefined},
-                 d("foreign fn atom(name : String) : Foreign.Term = \"erlang:binary_to_atom/1\"")).
+    ?assertMatch(#foreign_fn_declaration{export = true, name = member,
+                                         params = [#param{pattern = #p_var{name = t},
+                                                          annotation = #t_named{}},
+                                                   #param{pattern = #p_var{name = key},
+                                                          annotation = #t_var{name = k}}],
+                                         result_type = #t_named{name = 'Bool'},
+                                         effect = #t_var{name = m},
+                                         implementation = <<"ets:member/2">>},
+                 declaration("export foreign fn member(t : Table(k, v), key : k) : Bool with m"
+                             " = \"ets:member/2\"")),
+    ?assertMatch(#foreign_fn_declaration{name = atom, effect = undefined},
+                 declaration("foreign fn atom(name : String) : Foreign.Term ="
+                             " \"erlang:binary_to_atom/1\"")).
 
 %% report §2.2
 doc_comments_test() ->
-    ?assertMatch([#fn_decl{doc = <<"Adds one.\nReally.">>}],
-                 ds("/// Adds one.\n/// Really.\nfn inc(n) = n + 1")),
-    ?assertMatch([#type_decl{doc = <<"A table">>}],
-                 ds("/// A table\nexport type T = T")),
+    ?assertMatch([#fn_declaration{doc = <<"Adds one.\nReally.">>}],
+                 declarations("/// Adds one.\n/// Really.\nfn inc(n) = n + 1")),
+    ?assertMatch([#type_declaration{doc = <<"A table">>}],
+                 declarations("/// A table\nexport type T = T")),
     %% a blank line breaks the attachment; first in the file, the block is then
     %% the module's documentation, and anywhere else it documents nothing and
     %% is an error: after a blank line, inside an expression, above a `fn` in
     %% a block, or second before the first declaration (findings.md's P1-19,
     %% K-11, K-17)
-    ?assertMatch([#module_doc{text = <<"first">>}, #fn_decl{doc = undefined}],
-                 ds("/// first\n\nfn inc(n) = n + 1")),
+    ?assertMatch([#module_doc{text = <<"first">>}, #fn_declaration{doc = undefined}],
+                 declarations("/// first\n\nfn inc(n) = n + 1")),
     Nothing = "a doc block documents nothing here",
-    ?assertEqual(Nothing, err("fn a() = 1\n/// lost\n\nfn inc(n) = n + 1")),
-    ?assertEqual(Nothing, err("fn f() = {\n    /// not a doc\n    1\n}")),
-    ?assertEqual(Nothing, err("fn f() = {\n    /// not a doc\n    fn g() = 1;\n    g()\n}")),
-    ?assertEqual(Nothing, err("/// first\n\n/// second\n\nfn inc(n) = n + 1")),
-    ?assertEqual(Nothing, err("fn inc(n) = n + 1\n/// at the end\n")),
+    ?assertEqual(Nothing, refusal("fn a() = 1\n/// lost\n\nfn inc(n) = n + 1")),
+    ?assertEqual(Nothing, refusal("fn f() = {\n    /// not a doc\n    1\n}")),
+    ?assertEqual(Nothing, refusal("fn f() = {\n    /// not a doc\n    fn g() = 1;\n    g()\n}")),
+    ?assertEqual(Nothing, refusal("/// first\n\n/// second\n\nfn inc(n) = n + 1")),
+    ?assertEqual(Nothing, refusal("fn inc(n) = n + 1\n/// at the end\n")),
     %% and so is one above a lambda, which `fn` before a bracket opens and
     %% no declaration; it had failed as an expression expected (regression
     %% test)
-    ?assertEqual(Nothing, err("let f =\n    /// not a doc\n    fn(x) = x")),
-    ?assertEqual(Nothing, err("fn g() =\n    List.map(xs,\n             /// not a doc\n"
-                              "             fn(x) = x)")).
+    ?assertEqual(Nothing, refusal("let f =\n    /// not a doc\n    fn(x) = x")),
+    ?assertEqual(Nothing, refusal("fn g() =\n    List.map(xs,\n             /// not a doc\n"
+                                  "             fn(x) = x)")).
 
 %% report §2.2: a tuple's `#(` opens a bracket as `(` does, so a
 %% declaration after a type that holds a tuple type still ends the type,
@@ -550,14 +599,14 @@ doc_comments_test() ->
 %% as a doc token the expression could not parse.
 doc_after_tuple_type_test() ->
     Nothing = "a doc block documents nothing here",
-    ?assertEqual(Nothing, err("type T = A(#(Int, Int)) | B
+    ?assertEqual(Nothing, refusal("type T = A(#(Int, Int)) | B
 
 "
                     "fn g(x : Int) : Int =
     /// not a doc
     x
 ")),
-    ?assertEqual(Nothing, err("fn f() = #(1, 2)
+    ?assertEqual(Nothing, refusal("fn f() = #(1, 2)
 type T = A
 
 "
@@ -568,13 +617,14 @@ type T = A
 
 %% report Appendix B
 several_declarations_test() ->
-    ?assertMatch([#type_decl{}, #fn_decl{name = main}, #fn_decl{name = counter}],
-                 ds("type CounterMsg = Inc(Int) | Get(reply : Reply(Int))\n"
-                    "export fn main() : Unit with m = { let c = spawn(fn() = counter(0));"
-                    " send(c, Inc(5)) }\n"
-                    "fn counter(n : Int) : Unit with CounterMsg = receive {\n"
-                    "    Inc(k) -> counter(n + k)\n"
-                    "  | Get(reply = r) -> { answer(r, n); counter(n) }\n}")).
+    ?assertMatch([#type_declaration{}, #fn_declaration{name = main},
+                  #fn_declaration{name = counter}],
+                 declarations("type CounterMsg = Inc(Int) | Get(reply : Reply(Int))\n"
+                              "export fn main() : Unit with m = { let c = spawn(fn() = counter(0));"
+                              " send(c, Inc(5)) }\n"
+                              "fn counter(n : Int) : Unit with CounterMsg = receive {\n"
+                              "    Inc(k) -> counter(n + k)\n"
+                              "  | Get(reply = r) -> { answer(r, n); counter(n) }\n}")).
 
 %%
 %% Errors, including the mandated diagnostics
@@ -582,29 +632,32 @@ several_declarations_test() ->
 
 %% report §4.5
 two_clause_function_test() ->
-    ?assertEqual("a function has one clause", err("fn f(0) = 1\nfn f(n) = n")),
-    ?assertEqual("a function has one clause", err_expr("{ fn f(0) = 1; fn f(n) = n; f(1) }")),
+    ?assertEqual("a function has one clause", refusal("fn f(0) = 1\nfn f(n) = n")),
+    ?assertEqual("a function has one clause",
+                 expression_refusal("{ fn f(0) = 1; fn f(n) = n; f(1) }")),
     ?assertEqual("write one clause whose body is a `match`", help("fn f(0) = 1\nfn f(n) = n")).
 
 %% report §5.2
 juxtaposition_test() ->
-    ?assertEqual("unexpected identifier `x` after an expression", err("fn g() = f x")),
+    ?assertEqual("unexpected identifier `x` after an expression", refusal("fn g() = f x")),
     ?assertEqual("a call is written f(x), and statements are separated by `;`",
                  help("fn g() = f x")),
-    ?assertEqual("unexpected integer 1 after an expression", err_expr("{ let a = f 1; a }")).
+    ?assertEqual("unexpected integer 1 after an expression",
+                 expression_refusal("{ let a = f 1; a }")).
 
 %% report §5.4
 trailing_semicolon_test() ->
-    ?assertEqual("a block ends with an expression", err_expr("{ let x = 1; x; }")),
-    ?assertEqual("remove the trailing `;`", help_expr("{ let x = 1; x; }")),
-    ?assertEqual("a block ends with an expression, not a `let`", err_expr("{ let x = 1 }")),
-    ?assertEqual("a block needs at least one expression", err_expr("{}")).
+    ?assertEqual("a block ends with an expression", expression_refusal("{ let x = 1; x; }")),
+    ?assertEqual("remove the trailing `;`", expression_help("{ let x = 1; x; }")),
+    ?assertEqual("a block ends with an expression, not a `let`",
+                 expression_refusal("{ let x = 1 }")),
+    ?assertEqual("a block needs at least one expression", expression_refusal("{}")).
 
 %% report §5.8
 if_without_else_test() ->
-    ?assertEqual("`if` needs an `else`", err_expr("if c then a")),
+    ?assertEqual("`if` needs an `else`", expression_refusal("if c then a")),
     ?assertEqual("every `if` is an expression; give the other branch a value",
-                 help_expr("if c then a")).
+                 expression_help("if c then a")).
 
 %% report §11.5: a help line says what is true of the input whatever the
 %% parser cannot know. A regression test: `Io.println` as a type was told
@@ -616,35 +669,35 @@ help_lines_hold_test() ->
     ?assertEqual("a type name begins with an uppercase letter: P", help("type _p = A")),
     ?assertEqual("a type name begins with an uppercase letter", help("type _1 = A")),
     ?assertEqual("a constructor without fields is written without parentheses, Circle; one"
-                 " with fields has its fields inside them", help_expr("Circle()")).
+                 " with fields has its fields inside them", expression_help("Circle()")).
 
 %% report §4.6
 toplevel_bind_arrow_test() ->
-    ?assertEqual("`<-` is a block form", err("let x <- f()")),
+    ?assertEqual("`<-` is a block form", refusal("let x <- f()")),
     ?assertEqual("a top-level `let` uses `=`", help("let x <- f()")).
 
 %% report §5, §5.9: `if` and a lambda stand as an operand only in
 %% parentheses; a `match` and a `receive`, ending at their own `}`, stand
 %% as one as a block does
 non_operand_forms_test() ->
-    ?assertEqual("`if` is not an operand", err_expr("1 + if c then a else b")),
-    ?assertEqual("parenthesize it", help_expr("1 + if c then a else b")),
-    ?assertEqual("`fn` is not an operand", err_expr("x |> fn(y) = y")),
-    ?assertMatch(#e_binop{op = '+', right = #e_if{}}, e("1 + (if c then a else b)")),
-    ?assertMatch(#e_neg{expr = #e_match{}}, e("-match x { _ -> 1 }")),
-    ?assertMatch(#e_binop{op = '||', left = #e_binop{op = '&&', right = #e_match{}}},
-                 e("a && match x { _ -> true } || b")),
-    ?assertMatch(#e_binop{op = '+', left = #e_receive{}},
-                 e("receive { after 0 -> 1 } + 2")).
+    ?assertEqual("`if` is not an operand", expression_refusal("1 + if c then a else b")),
+    ?assertEqual("parenthesize it", expression_help("1 + if c then a else b")),
+    ?assertEqual("`fn` is not an operand", expression_refusal("x |> fn(y) = y")),
+    ?assertMatch(#e_binop{operator = '+', right = #e_if{}}, expression("1 + (if c then a else b)")),
+    ?assertMatch(#e_negation{expr = #e_match{}}, expression("-match x { _ -> 1 }")),
+    ?assertMatch(#e_binop{operator = '||', left = #e_binop{operator = '&&', right = #e_match{}}},
+                 expression("a && match x { _ -> true } || b")),
+    ?assertMatch(#e_binop{operator = '+', left = #e_receive{}},
+                 expression("receive { after 0 -> 1 } + 2")).
 
 %% report §2.6, §4.8
 operator_grammar_test() ->
-    ?assertEqual("expected an expression instead of `+`", err_expr("f(+)")),
-    ?assertEqual("expected a name instead of `+`", err("fn +(a, b) = a")),
-    ?assertEqual("expected a name after `.` instead of `|>`", err_expr("Int.|>")),
-    ?assertEqual("expected a name after `.` instead of `==`", err_expr("Int.==")),
+    ?assertEqual("expected an expression instead of `+`", expression_refusal("f(+)")),
+    ?assertEqual("expected a name instead of `+`", refusal("fn +(a, b) = a")),
+    ?assertEqual("expected a name after `.` instead of `|>`", expression_refusal("Int.|>")),
+    ?assertEqual("expected a name after `.` instead of `==`", expression_refusal("Int.==")),
     ?assertEqual("expected an operator, `compare` or `negate` after `.` instead of `|>`",
-                 err("fn T.|>(a) = a")).
+                 refusal("fn T.|>(a) = a")).
 
 %% report §4.5, §4.6, Appendix A's DeclName and LetDecl: a member is an
 %% operator, `compare` or `negate`, declared with `fn`
@@ -652,52 +705,53 @@ member_names_test() ->
     ?assertEqual({"`push` cannot be a member of Stack: a member is an operator, `compare` or"
                   " `negate`",
                   "a type's other operations are functions of its module: write `fn push`"},
-                 err_help("fn Stack.push(s, x) = s")),
+                 refusal_and_help("fn Stack.push(s, x) = s")),
     ?assertEqual({"`size` cannot be a member of Stack: a member is an operator, `compare` or"
                   " `negate`",
                   "a type's other operations are functions of its module: write `fn size`"},
-                 err_help("foreign fn Stack.size(s : Stack) : Int = \"m:f/1\"")),
+                 refusal_and_help("foreign fn Stack.size(s : Stack) : Int = \"m:f/1\"")),
     ?assertEqual({"a `let` declares no member of Stack",
                   "a type's values are named in its module, as its functions are:"
                   " write `let empty`"},
-                 err_help("let Stack.empty = Stack([])")),
+                 refusal_and_help("let Stack.empty = Stack([])")),
     ?assertEqual({"a `let` declares no member of Money",
                   "a member is declared with `fn`: write `fn Money.+(...)`"},
-                 err_help("let Money.+ = 1")),
+                 refusal_and_help("let Money.+ = 1")),
     ?assertEqual({"a `let` declares no member of Money",
                   "a member is declared with `fn`: write `fn Money.compare(...)`"},
-                 err_help("let Money.compare = 1")),
+                 refusal_and_help("let Money.compare = 1")),
     ?assertEqual({"expected a name instead of type name `Stack`",
                   "a value's name begins with a lowercase letter"},
-                 err_help("let Stack = 1")).
+                 refusal_and_help("let Stack = 1")).
 
 %% report Appendix A
 misc_errors_test() ->
-    ?assertEqual("`_` is a pattern, not an expression", err_expr("_ + 1")),
-    ?assertEqual("empty parentheses after None", err_expr("None()")),
-    ?assertEqual("expected a name instead of type name `Stack`", err("fn Stack(x) = x")),
+    ?assertEqual("`_` is a pattern, not an expression", expression_refusal("_ + 1")),
+    ?assertEqual("empty parentheses after None", expression_refusal("None()")),
+    ?assertEqual("expected a name instead of type name `Stack`", refusal("fn Stack(x) = x")),
     ?assertEqual("a foreign function declares its result type",
-                 err("foreign fn f(x : Int) = \"m:f/1\"")),
-    ?assertEqual("expected `)` instead of `;`", err_expr("f(a;")),
-    ?assertEqual("expected an expression instead of end of input", err_expr("1 +")),
+                 refusal("foreign fn f(x : Int) = \"m:f/1\"")),
+    ?assertEqual("expected `)` instead of `;`", expression_refusal("f(a;")),
+    ?assertEqual("expected an expression instead of end of input", expression_refusal("1 +")),
     ?assertEqual("expected a declaration (type, abstract, fn, let, foreign) instead of `}`",
-                 err("}")),
+                 refusal("}")),
     ?assertEqual("expected `->` after a parameter list instead of `=`",
-                 err("let f : (A, B) = x")),
-    ?assertEqual("unknown bitstring specifier `bogus`", err_expr("<<x:bogus>>")),
+                 refusal("let f : (A, B) = x")),
+    ?assertEqual("unknown bitstring specifier `bogus`", expression_refusal("<<x:bogus>>")),
     %% report §2.6, §11.5: max-munch reads `a<-1` as a binding arrow, and the
     %% error says how to write the comparison
-    ?assertEqual("expected `then` instead of `<-`", err_expr("if a<-1 then 1 else 2")),
+    ?assertEqual("expected `then` instead of `<-`", expression_refusal("if a<-1 then 1 else 2")),
     ?assertEqual("`<-` is one token; write `a < -1` to compare with a negative number",
-                 help_expr("if a<-1 then 1 else 2")),
+                 expression_help("if a<-1 then 1 else 2")),
     %% report §5.11: `bits` and `native` are Erlang's, not Ernest's
-    ?assertEqual("unknown bitstring specifier `bits`", err_expr("<<x:bits>>")),
-    ?assertEqual("unknown bitstring specifier `native`", err_expr("<<x:size(32)-native>>")),
+    ?assertEqual("unknown bitstring specifier `bits`", expression_refusal("<<x:bits>>")),
+    ?assertEqual("unknown bitstring specifier `native`",
+                 expression_refusal("<<x:size(32)-native>>")),
     ?assertEqual("expected a number after `-` in a pattern instead of identifier `x`",
-                 err_expr("match y { -x -> 1 }")),
+                 expression_refusal("match y { -x -> 1 }")),
     ?assertEqual("expected a type name; a qualified type ends in an uppercase name",
-                 err("let x : Int.foo = 1")),
-    ?assertEqual("expected end of input instead of `)`", err_expr("1)")).
+                 refusal("let x : Int.foo = 1")),
+    ?assertEqual("expected end of input instead of `)`", expression_refusal("1)")).
 
 %% report §11.1
 lexer_errors_pass_through_test() ->
@@ -708,20 +762,20 @@ lexer_errors_pass_through_test() ->
 %% last, so a call includes its closing paren, an operator expression its
 %% right operand, a block its closing brace, and a declaration its body
 spans_test() ->
-    {ok, #e_call{pos = {1, 1, {1, 8}}}} = ern_parser:parse_expr("f(x, y)"),
-    {ok, #e_binop{pos = {1, 1, {1, 9}}, left = #e_var{pos = {1, 1, {1, 2}}}}} =
+    {ok, #e_call{span = {1, 1, {1, 8}}}} = ern_parser:parse_expr("f(x, y)"),
+    {ok, #e_binop{span = {1, 1, {1, 9}}, left = #e_var{span = {1, 1, {1, 2}}}}} =
         ern_parser:parse_expr("a + g(b)"),
-    {ok, #e_block{pos = {1, 1, {2, 6}}}} = ern_parser:parse_expr("{ x;\n  y }"),
-    {ok, [#fn_decl{pos = {1, 1, {1, 14}}, body = #e_lit{pos = {1, 11, {1, 14}}}}]} =
+    {ok, #e_block{span = {1, 1, {2, 6}}}} = ern_parser:parse_expr("{ x;\n  y }"),
+    {ok, [#fn_declaration{span = {1, 1, {1, 14}}, body = #e_literal{span = {1, 11, {1, 14}}}}]} =
         ern_parser:parse_string("fn f(x) = 123\n"),
-    {ok, #e_lit{pos = {1, 1, {1, 5}}}} = ern_parser:parse_expr("\"ab\"\n"),
+    {ok, #e_literal{span = {1, 1, {1, 5}}}} = ern_parser:parse_expr("\"ab\"\n"),
     ok.
 
 %% report §11.5, §5.9: an or-pattern spans its alternatives, from the
 %% first to the end of the last. A regression test: its span was the first
 %% alternative's alone, so a diagnostic on it underlined too little.
 or_pattern_span_test() ->
-    {ok, #e_match{clauses = [#clause{pattern = #p_or{pos = {1, 11, {1, 23}}}}, _]}} =
+    {ok, #e_match{clauses = [#clause{pattern = #p_or{span = {1, 11, {1, 23}}}}, _]}} =
         ern_parser:parse_expr("match x { 1 or 2 or 33 -> 0 | _ -> 1 }").
 
 %% report §11.5: a parse error's span is the offending token
@@ -737,29 +791,30 @@ error_span_test() ->
 %% report Appendix A: the examples, the standard library and the
 %% libraries exercise every AST record the emitter must handle
 ast_coverage_test() ->
-    {ok, Hrl} = file:read_file("../include/ern_ast.hrl"),
-    {match, M} = re:run(Hrl, "-record\\(([a-z_]+),", [global, {capture, all_but_first, list}]),
-    Declared = lists:usort([list_to_atom(N) || [N] <- M]),
+    {ok, Header} = file:read_file("../include/ern_ast.hrl"),
+    {match, Matches} = re:run(Header, "-record\\(([a-z_]+),",
+                              [global, {capture, all_but_first, list}]),
+    Declared = lists:usort([list_to_atom(Name) || [Name] <- Matches]),
     %% the examples, the standard library and the libraries together: all
     %% are Ernest we own, and the libraries are where a foreign type lives
-    Files = [F || F <- filelib:wildcard("../../../examples/**/*.ern")
+    Files = [File || File <- filelib:wildcard("../../../examples/**/*.ern")
                       ++ filelib:wildcard("../../../stdlib/*.ern")
                       ++ filelib:wildcard("../../../libs/*/*.ern"),
-                  hd(filename:basename(F)) =/= $.], % editor artifacts, report §11.1
-    Used = lists:usort(lists:foldl(fun(F, Acc) ->
-                                       {ok, Bin} = file:read_file(F),
-                                       {ok, Ds} = ern_parser:parse_string(Bin),
-                                       tags(Ds, Acc)
+                  hd(filename:basename(File)) =/= $.], % editor artifacts, report §11.1
+    Used = lists:usort(lists:foldl(fun(File, Acc) ->
+                                       {ok, Source} = file:read_file(File),
+                                       {ok, Declarations} = ern_parser:parse_string(Source),
+                                       tags(Declarations, Acc)
                                    end, [], Files)),
     %% Bytes, written with the bit syntax since MVP 2.65, gives a bitstring
     %% with segments and a bitstring pattern their first use outside the
     %% parser's own tests
     ?assertEqual([], Declared -- Used).
 
-tags(T, Acc) when is_tuple(T), is_atom(element(1, T)) ->
-    lists:foldl(fun tags/2, [element(1, T) | Acc], tl(tuple_to_list(T)));
-tags(L, Acc) when is_list(L) ->
-    lists:foldl(fun tags/2, Acc, L);
+tags(Node, Acc) when is_tuple(Node), is_atom(element(1, Node)) ->
+    lists:foldl(fun tags/2, [element(1, Node) | Acc], tl(tuple_to_list(Node)));
+tags(Nodes, Acc) when is_list(Nodes) ->
+    lists:foldl(fun tags/2, Acc, Nodes);
 tags(_, Acc) ->
     Acc.
 
@@ -767,63 +822,69 @@ tags(_, Acc) ->
 examples_parse_test_() ->
     %% the examples, the standard library and the libraries together: all
     %% are Ernest we own, and the libraries are where a foreign type lives
-    Files = [F || F <- filelib:wildcard("../../../examples/**/*.ern")
+    Files = [File || File <- filelib:wildcard("../../../examples/**/*.ern")
                       ++ filelib:wildcard("../../../stdlib/*.ern")
                       ++ filelib:wildcard("../../../libs/*/*.ern"),
-                  hd(filename:basename(F)) =/= $.], % editor artifacts, report §11.1
+                  hd(filename:basename(File)) =/= $.], % editor artifacts, report §11.1
     ?assert(length(Files) >= 12),
-    [{F, fun() ->
-              {ok, Bin} = file:read_file(F),
-              ?assertMatch({ok, [_ | _]}, ern_parser:parse_string(Bin))
-          end} || F <- Files].
+    [{File, fun() ->
+                 {ok, Source} = file:read_file(File),
+                 ?assertMatch({ok, [_ | _]}, ern_parser:parse_string(Source))
+             end} || File <- Files].
 
 %% report §1, Appendix A: the grammar fragments in the sections are Appendix
 %% A's rules; Appendix A is the truth and this test keeps the fragments equal
 %% to it. The grammar stands in the bare fences; an ```ernest fence is code.
 grammar_fragments_test() ->
-    {ok, Bin} = file:read_file("../../../ernest_report.md"),
-    Text = unicode:characters_to_list(Bin),
-    [Body, Appendix0] = string:split(Text, "## Appendix A. Grammar"),
-    [Appendix | _] = string:split(Appendix0, "## Appendix B"),
-    All = fun(Subject, Re, Opts) ->
-              case re:run(Subject, Re, [global, unicode, {capture, all_but_first, list} | Opts]) of
-                  {match, Ms} -> Ms;
+    {ok, Source} = file:read_file("../../../ernest_report.md"),
+    Text = unicode:characters_to_list(Source),
+    [Body, FromAppendix] = string:split(Text, "## Appendix A. Grammar"),
+    [Appendix | _] = string:split(FromAppendix, "## Appendix B"),
+    All = fun(Subject, Regex, Options) ->
+              case re:run(Subject, Regex,
+                          [global, unicode, {capture, all_but_first, list} | Options]) of
+                  {match, Matches} -> Matches;
                   nomatch -> []
               end
           end,
-    Rules = fun(T) ->
+    Rules = fun(Section) ->
                 maps:from_list(
-                  [{N, re:replace(R, "\\s+", " ", [global, unicode, {return, list}])}
-                   || ["", B] <- All(T, "```([\\w-]*)\n([\\s\\S]*?)```", []),
-                      [R, N] <- All(B, "^((\\w+)\\s*=[\\s\\S]*?\\s\\.)$", [multiline])])
+                  [{Name, re:replace(Rule, "\\s+", " ", [global, unicode, {return, list}])}
+                   || ["", Block] <- All(Section, "```([\\w-]*)\n([\\s\\S]*?)```", []),
+                      [Rule, Name] <- All(Block, "^((\\w+)\\s*=[\\s\\S]*?\\s\\.)$", [multiline])])
             end,
     InAppendix = Rules(Appendix),
     InSections = Rules(Body),
     ?assert(map_size(InAppendix) > 40),
-    ?assertEqual([], [N || N := R <- InAppendix, maps:get(N, InSections, undefined) =/= R]).
+    ?assertEqual([],
+                 [Name || Name := Rule <- InAppendix,
+                  maps:get(Name, InSections, undefined) =/= Rule]).
 
 %% report §5.11, Appendix A BitExpr, BitPat, BitSpec: segments with
 %% dash-separated specifiers, size with an expression, unit with an integer
 bitstrings_test() ->
-    ?assertMatch(#e_bits{segments = []}, e("<<>>")),
-    ?assertMatch(#e_bits{segments = [#bit_seg{value = #e_lit{value = 1}, specs = []},
-                                     #bit_seg{value = #e_var{name = x},
-                                              specs = [{size, #e_binop{op = '+'}}, big,
-                                                       signed]},
-                                     #bit_seg{value = #e_var{name = b}, specs = [bytes]}]},
-                 e("<<1, x:size(n + 1)-big-signed, b:bytes>>")),
-    ?assertMatch(#e_match{clauses = [#clause{pattern = #p_bits{segments =
-                                                   [#bit_seg{value = #p_var{name = len},
-                                                             specs = [{size, _}, big]},
-                                                    #bit_seg{value = #p_var{name = body},
-                                                             specs = [{size, #e_var{name = len}},
-                                                                      bytes]},
-                                                    #bit_seg{value = #p_wild{}, specs = [utf8]}]}}
+    ?assertMatch(#e_bitstring{segments = []}, expression("<<>>")),
+    ?assertMatch(#e_bitstring{segments = [#bit_segment{value = #e_literal{value = 1}, specs = []},
+                                          #bit_segment{value = #e_var{name = x},
+                                                       specs = [{size, #e_binop{operator = '+'}},
+                                                                big,
+                                                                signed]},
+                                          #bit_segment{value = #e_var{name = b}, specs = [bytes]}]},
+                 expression("<<1, x:size(n + 1)-big-signed, b:bytes>>")),
+    ?assertMatch(#e_match{clauses = [#clause{pattern = #p_bitstring{segments =
+                                                   [#bit_segment{value = #p_var{name = len},
+                                                                 specs = [{size, _}, big]},
+                                                    #bit_segment{value = #p_var{name = body},
+                                                                 specs = [{size,
+                                                                           #e_var{name = len}},
+                                                                          bytes]},
+                                                    #bit_segment{value = #p_wildcard{},
+                                                                 specs = [utf8]}]}}
                                      | _]},
-                 e("match b { <<len:size(16)-big, body:size(len)-bytes, _:utf8>> -> len"
-                   " | _ -> 0 }")),
-    ?assertEqual("unknown bitstring specifier `word`", err_expr("<<1:word>>")),
-    ?assertEqual("there is no `unit` specifier", err_expr("<<1:unit>>")).
+                 expression("match b { <<len:size(16)-big, body:size(len)-bytes, _:utf8>> -> len"
+                            " | _ -> 0 }")),
+    ?assertEqual("unknown bitstring specifier `word`", expression_refusal("<<1:word>>")),
+    ?assertEqual("there is no `unit` specifier", expression_refusal("<<1:unit>>")).
 
 %% report §11.2, §2.5: an input the parser cannot finish is marked, so
 %% that the shell takes another line for it. It ran out of tokens where
@@ -831,34 +892,40 @@ bitstrings_test() ->
 %% comment, both of which may span lines; a string or a char literal may
 %% not, so an unfinished one is an error whatever follows.
 incomplete_test() ->
-    Expr = fun(Text) -> {error, D} = ern_parser:parse_expr(Text), D#diagnostic.incomplete end,
-    Decls = fun(Text) -> {error, D} = ern_parser:parse_string(Text), D#diagnostic.incomplete end,
-    ?assert(Expr("1 + ")),
-    ?assert(Expr("{ 1")),
-    ?assert(Expr("match x {")),
-    ?assert(Expr("`a raw string")),
-    ?assertNot(Expr("1 + * 2")),
-    ?assertNot(Expr("\"a string")),
-    ?assertNot(Expr("'c")),
-    ?assert(Decls("fn f() =")),
-    ?assert(Decls("type T = A | ")),
-    ?assert(Decls("/* a comment")),
+    ExpressionIncomplete = fun(Text) ->
+                                   {error, Diagnostic} = ern_parser:parse_expr(Text),
+                                   Diagnostic#diagnostic.incomplete
+                           end,
+    DeclarationsIncomplete = fun(Text) ->
+                                     {error, Diagnostic} = ern_parser:parse_string(Text),
+                                     Diagnostic#diagnostic.incomplete
+                             end,
+    ?assert(ExpressionIncomplete("1 + ")),
+    ?assert(ExpressionIncomplete("{ 1")),
+    ?assert(ExpressionIncomplete("match x {")),
+    ?assert(ExpressionIncomplete("`a raw string")),
+    ?assertNot(ExpressionIncomplete("1 + * 2")),
+    ?assertNot(ExpressionIncomplete("\"a string")),
+    ?assertNot(ExpressionIncomplete("'c")),
+    ?assert(DeclarationsIncomplete("fn f() =")),
+    ?assert(DeclarationsIncomplete("type T = A | ")),
+    ?assert(DeclarationsIncomplete("/* a comment")),
     ?assertMatch({ok, _}, ern_parser:parse_string("fn f() = 1")),
     %% an `if` whose `else` is still to come, and a parameter list whose
     %% `->` is; a regression test: the error stood at the `if` or the
     %% bracket, and the input was refused (findings.md's C2-4)
-    ?assert(Expr("if c then a")),
-    ?assertNot(Expr("if c then a )")),
-    ?assert(Decls("fn f(g : ()")).
+    ?assert(ExpressionIncomplete("if c then a")),
+    ?assertNot(ExpressionIncomplete("if c then a )")),
+    ?assert(DeclarationsIncomplete("fn f(g : ()")).
 
 %% report §11.2: an input that stops inside a call says which call and
 %% which argument, the innermost call first, for `Shift-Tab`; `expected`
 %% still says what may stand there, for completion
 within_call_test() ->
     Within = fun(Text) ->
-                     {error, #diagnostic{incomplete = true, within = W, expected = X}} =
+                     {error, #diagnostic{incomplete = true, within = Within, expected = Expected}} =
                          ern_parser:parse_expr(Text),
-                     {W, X}
+                     {Within, Expected}
              end,
     ?assertEqual({{['List'], map, 1}, expression}, Within(<<"List.map(xs, ">>)),
     ?assertEqual({{['List'], map, 0}, expression}, Within(<<"List.map(">>)),
@@ -871,6 +938,6 @@ within_call_test() ->
 %% test for the walk the checker, the reply check and the exhaustiveness
 %% check had each copied.
 ast_walk_test() ->
-    Names = ern_ast:walk(fun(#e_var{name = N}, Acc) -> [N | Acc]; (_, Acc) -> Acc end,
-                         e("f(a, g(b), [c])"), []),
+    Names = ern_ast:walk(fun(#e_var{name = Name}, Acc) -> [Name | Acc]; (_, Acc) -> Acc end,
+                         expression("f(a, g(b), [c])"), []),
     ?assertEqual([f, a, g, b, c], lists:reverse(Names)).

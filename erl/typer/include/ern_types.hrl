@@ -1,6 +1,6 @@
 %% Semantic types for the Ernest type checker, report §3 and §6.1. These are
 %% what inference computes and what the compiler reads off the AST; they are
-%% distinct from the syntactic #t_con{}/#t_fn{} records the parser builds.
+%% distinct from the syntactic #t_named{}/#t_fn{} records the parser builds.
 %%
 %%   type() ::
 %%       {tvar, id()}                    a unification variable

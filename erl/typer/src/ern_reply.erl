@@ -88,17 +88,17 @@ value_vars(T, St) ->
 positions(Node, Env) ->
     walk(fun(N) -> position(N, Env) end, Node).
 
-position(#p_wild{pos = Pos, type = T}, Env) ->
+position(#p_wildcard{span = Pos, type = T}, Env) ->
     case ern_typecheck:is_reply_carrying(T, Env) of
         true -> throw({type_error, Pos, "`_` would discard a reply-carrying value"});
         false -> ok
     end;
-position(#p_as{pos = Pos, type = T}, Env) ->
+position(#p_as{span = Pos, type = T}, Env) ->
     case ern_typecheck:is_reply_carrying(T, Env) of
         true -> throw({type_error, Pos, "`as` on a reply-carrying value would duplicate it"});
         false -> ok
     end;
-position(#p_con{pos = Pos, path = Path, name = Name, args = Args, type = T}, Env) ->
+position(#p_constructor{span = Pos, path = Path, name = Name, args = Args, type = T}, Env) ->
     case ern_typecheck:is_reply_carrying(T, Env) of
         false -> ok;
         true ->
@@ -113,13 +113,13 @@ position(#p_con{pos = Pos, path = Path, name = Name, args = Args, type = T}, Env
             {ok, St2} = ern_types:unify(ResT, T, St1),
             Env1 = ern_typecheck:set_type_state(St2, Env),
             case {Fields, Args} of
-                {positional, {positional, #p_wild{}}} ->
+                {positional, {positional, #p_wildcard{}}} ->
                     wild_field(Pos, Name, FieldTs, Env1);
                 {{named, Names}, {named, FPs}} ->
                     lists:foreach(
                       fun({N, FT}) ->
-                              case [P || #field_pat{name = FN, pattern = P} <- FPs, FN =:= N] of
-                                  [#p_wild{}] -> reply_field(Pos, Name, N, FT, Env1);
+                              case [P || #field_pattern{name = FN, pattern = P} <- FPs, FN =:= N] of
+                                  [#p_wildcard{}] -> reply_field(Pos, Name, N, FT, Env1);
                                   [] -> reply_field(Pos, Name, N, FT, Env1);
                                   _ -> ok
                               end
@@ -151,7 +151,7 @@ reply_field(Pos, Name, Field, FT, Env) ->
 
 %% uses(Expr, Linear, Env) -> [Name], one entry per use on the path; a
 %% variable twice in the list is an error raised where it happens.
-uses(#e_var{pos = Pos, path = [], name = N}, Linear, _Env) ->
+uses(#e_var{span = Pos, path = [], name = N}, Linear, _Env) ->
     case lists:member(N, Linear) of
         true -> [{N, Pos}];
         false ->
@@ -163,7 +163,7 @@ uses(#e_var{pos = Pos, path = [], name = N}, Linear, _Env) ->
                 false -> []
             end
     end;
-uses(#e_call{pos = Pos, returns = false} = Call, Linear, Env) ->
+uses(#e_call{span = Pos, returns = false} = Call, Linear, Env) ->
     seq([uses(Call#e_call{returns = true}, Linear, Env), [{'$fault', Pos}]]);
 uses(#e_call{callee = #e_var{ref = {prelude, [Spawn]}}, args = [Arg | Wrap]}, Linear, Env)
   when Spawn =:= spawn, Wrap =:= []; Spawn =:= spawnMonitored, length(Wrap) =:= 1 ->
@@ -172,7 +172,7 @@ uses(#e_call{callee = #e_var{ref = {prelude, [Spawn]}}, args = [Arg | Wrap]}, Li
     %% resolved it, not a name spelled so
     ArgUses = case Arg of
                   #e_lambda{} -> captures(Arg, Linear, Env);
-                  #e_var{pos = Pos, path = [], name = F} ->
+                  #e_var{span = Pos, path = [], name = F} ->
                       case lists:member({lambda, F}, Linear) of
                           true -> [{F, Pos}];
                           false -> uses(Arg, Linear, Env)
@@ -180,7 +180,7 @@ uses(#e_call{callee = #e_var{ref = {prelude, [Spawn]}}, args = [Arg | Wrap]}, Li
                   _ -> uses(Arg, Linear, Env)
               end,
     seq([ArgUses | [uses(W, Linear, Env) || W <- Wrap]]);
-uses(#e_call{pos = Pos, callee = #e_var{path = [], name = F}, args = Args}, Linear, Env) ->
+uses(#e_call{span = Pos, callee = #e_var{path = [], name = F}, args = Args}, Linear, Env) ->
     %% a call consumes a capturing lambda bound by let
     Callee = case lists:member({lambda, F}, Linear) of
                  true -> [{F, Pos}];
@@ -190,7 +190,7 @@ uses(#e_call{pos = Pos, callee = #e_var{path = [], name = F}, args = Args}, Line
 uses(#e_call{callee = #e_lambda{} = L, args = Args}, Linear, Env) ->
     %% a call consumes the lambda's captures
     seq([captures(L, Linear, Env), uses(Args, Linear, Env)]);
-uses(#e_lambda{pos = Pos} = L, Linear, Env) ->
+uses(#e_lambda{span = Pos} = L, Linear, Env) ->
     case captures(L, Linear, Env) of
         [] -> [];
         [{N, _} | _] -> throw({type_error, Pos, "the reply-carrying value " ++ atom_to_list(N)
@@ -198,7 +198,7 @@ uses(#e_lambda{pos = Pos} = L, Linear, Env) ->
                                                 " bound by `let`, or passed directly to spawn or"
                                                 " spawnMonitored"})
     end;
-uses(#fn_decl{pos = Pos, body = Body}, Linear, Env) ->
+uses(#fn_declaration{span = Pos, body = Body}, Linear, Env) ->
     case [N || {N, _} <- uses(Body, Linear, Env), N =/= '$fault'] of
         [] -> [];
         [N | _] -> throw({type_error,
@@ -208,13 +208,13 @@ uses(#fn_decl{pos = Pos, body = Body}, Linear, Env) ->
                                       help = "a local fn may be called many times; pass "
                                              ++ atom_to_list(N) ++ " to it as a parameter"}})
     end;
-uses(#e_if{pos = Pos, condition = C, then_branch = T, else_branch = E}, Linear, Env) ->
+uses(#e_if{span = Pos, condition = C, then_branch = T, else_branch = E}, Linear, Env) ->
     seq([uses(C, Linear, Env), branches(Pos, [{element(2, T), uses(T, Linear, Env)},
                                               {element(2, E), uses(E, Linear, Env)}])]);
-uses(#e_match{pos = Pos, scrutinee = S, clauses = Clauses}, Linear, Env) ->
+uses(#e_match{span = Pos, scrutinee = S, clauses = Clauses}, Linear, Env) ->
     seq([uses(S, Linear, Env), branches(Pos, [{element(2, B), clause_uses(C, Linear, Env)}
                                               || #clause{body = B} = C <- Clauses])]);
-uses(#e_receive{pos = Pos, clauses = Clauses, 'after' = After}, Linear, Env) ->
+uses(#e_receive{span = Pos, clauses = Clauses, 'after' = After}, Linear, Env) ->
     AfterUses = case After of
                     undefined -> [];
                     #after_clause{timeout = T, body = B} ->
@@ -222,7 +222,7 @@ uses(#e_receive{pos = Pos, clauses = Clauses, 'after' = After}, Linear, Env) ->
                 end,
     branches(Pos, [{element(2, B), clause_uses(C, Linear, Env)} || #clause{body = B} = C <- Clauses]
                   ++ AfterUses);
-uses(#e_block{stmts = Stmts}, Linear, Env) ->
+uses(#e_block{statements = Stmts}, Linear, Env) ->
     block_uses(Stmts, Linear, Env, []);
 uses(Node, Linear, Env) when is_tuple(Node) ->
     seq([uses(X, Linear, Env) || X <- tl(tuple_to_list(Node))]);
@@ -231,7 +231,7 @@ uses(L, Linear, Env) when is_list(L) ->
 uses(_, _, _) ->
     [].
 
-clause_uses(#clause{pos = Pos, pattern = P, guard = G, body = B}, Linear, Env) ->
+clause_uses(#clause{span = Pos, pattern = P, guard = G, body = B}, Linear, Env) ->
     Inner = linear_bindings(P, Env),
     GuardUses = case G of undefined -> []; _ -> uses(G, Linear ++ Inner, Env) end,
     All = seq([GuardUses, uses(B, Linear ++ Inner, Env)]),
@@ -240,7 +240,7 @@ clause_uses(#clause{pos = Pos, pattern = P, guard = G, body = B}, Linear, Env) -
 
 block_uses([], _Linear, _Env, Acc) ->
     seq(lists:reverse(Acc));
-block_uses([#binding{pos = Pos, pattern = #p_var{name = F}, expr = #e_lambda{} = L} = B | Rest],
+block_uses([#binding{span = Pos, pattern = #p_var{name = F}, expr = #e_lambda{} = L} = B | Rest],
            Linear, Env, Acc) ->
     %% a let bound to a capturing lambda is a linear binding of the lambda
     case captures(L, Linear, Env) of
@@ -259,7 +259,7 @@ block_uses([S | Rest], Linear, Env, Acc) ->
 
 %% A `let`: each linear name its pattern binds is consumed once by the rest
 %% of the block.
-binding_uses(#binding{pos = Pos, pattern = P, expr = X}, Rest, Linear, Env, Acc) ->
+binding_uses(#binding{span = Pos, pattern = P, expr = X}, Rest, Linear, Env, Acc) ->
     XUses = uses(X, Linear, Env),
     Inner = linear_bindings(P, Env),
     RestUses = block_uses(Rest, Linear ++ Inner, Env, []),
@@ -270,7 +270,7 @@ binding_uses(#binding{pos = Pos, pattern = P, expr = X}, Rest, Linear, Env, Acc)
 %% The uses a lambda's body makes of the enclosing linear names: its
 %% captures, each consumed once by the capture. The lambda's own linear
 %% parameters are checked here.
-captures(#e_lambda{pos = Pos, params = Params, body = Body}, Linear, Env) ->
+captures(#e_lambda{span = Pos, params = Params, body = Body}, Linear, Env) ->
     Inner = [N || P <- Params, N <- linear_bindings(P#param.pattern, Env)],
     BodyUses = uses(Body, Linear ++ Inner, Env),
     lists:foreach(fun(N) -> exactly_once(N, BodyUses, Pos) end, Inner),

@@ -164,7 +164,7 @@ input(Text) ->
             {ok, it, Expr};
         {error, Diag} ->
             case ern_parser:parse_string(Text) of
-                {ok, [#let_decl{name = Name, body = Body, ann = Ann}]} ->
+                {ok, [#let_declaration{name = Name, body = Body, annotation = Ann}]} ->
                     {ok, let_binds(Name, Body), annotated(Name, Body, Ann)};
                 {ok, Decls} -> declarations(Decls);
                 {error, DeclDiag} ->
@@ -180,20 +180,20 @@ input(Text) ->
 %% holds the names in the order the pattern has them; `let _ = e` binds
 %% none, and `<-` is refused, since no block follows it for it to end.
 pattern_let(Text) ->
-    case ern_parser:parse_stmt(Text) of
-        {ok, #binding{op = '<-', pos = Pos}} ->
+    case ern_parser:parse_statement(Text) of
+        {ok, #binding{operator = '<-', span = Pos}} ->
             {error, #diagnostic{span = ern_diagnostic:span(Pos),
                                 message = "a `let` with `<-` at the prompt has no block to end",
                                 help = "write it in a block, `{ let x <- e; ... }`"}};
-        {ok, #binding{pos = Pos, pattern = P} = B} ->
+        {ok, #binding{span = Pos, pattern = P} = B} ->
             Names = [N || {N, _} <- ern_ast:pattern_bindings(P)],
-            Vars = [#e_var{pos = Pos, name = N} || N <- Names],
+            Vars = [#e_var{span = Pos, name = N} || N <- Names],
             Last = case Vars of
-                       [] -> #e_con{pos = Pos, name = 'Unit'};
+                       [] -> #e_constructor{span = Pos, name = 'Unit'};
                        [V] -> V;
-                       _ -> #e_tuple{pos = Pos, elems = Vars}
+                       _ -> #e_tuple{span = Pos, elements = Vars}
                    end,
-            {ok, {names, Names}, #e_block{pos = Pos, stmts = [B, Last]}};
+            {ok, {names, Names}, #e_block{span = Pos, statements = [B, Last]}};
         _ ->
             none
     end.
@@ -222,7 +222,7 @@ declaration_start(_) -> false.
 %% every declaration of an input is exported; a later input reaches it as it
 %% reaches another module's declaration (§4.3).
 declarations(Decls) ->
-    case [P || #let_decl{pos = P} <- Decls] of
+    case [P || #let_declaration{span = P} <- Decls] of
         [] -> {decls, [exported(D) || D <- Decls]};
         [_, Second | _] -> {error, one_let(Second)};
         [Pos] -> {error, one_let(Pos)}
@@ -238,12 +238,12 @@ one_let(Pos) ->
                 help = "run this `let` on an input of its own, or make it a `let`"
                        " inside a declaration's body"}.
 
-exported(#type_decl{} = D) -> D#type_decl{export = true};
-exported(#abstract_decl{} = D) -> D#abstract_decl{export = true};
-exported(#foreign_type_decl{} = D) -> D#foreign_type_decl{export = true};
-exported(#fn_decl{} = D) -> D#fn_decl{export = true};
-exported(#let_decl{} = D) -> D#let_decl{export = true};
-exported(#foreign_fn_decl{} = D) -> D#foreign_fn_decl{export = true};
+exported(#type_declaration{} = D) -> D#type_declaration{export = true};
+exported(#abstract_declaration{} = D) -> D#abstract_declaration{export = true};
+exported(#foreign_type_declaration{} = D) -> D#foreign_type_declaration{export = true};
+exported(#fn_declaration{} = D) -> D#fn_declaration{export = true};
+exported(#let_declaration{} = D) -> D#let_declaration{export = true};
+exported(#foreign_fn_declaration{} = D) -> D#foreign_fn_declaration{export = true};
 exported(D) -> D.
 
 %% Report §11.2: a `let` at the prompt may carry an annotation, which the
@@ -258,13 +258,15 @@ annotated(_Name, Body, undefined) ->
     Body;
 annotated(Name, Body, Ann) ->
     Pos = element(2, Body),
-    #e_block{pos = Pos, stmts = [#binding{pos = Pos, pattern = #p_var{pos = Pos, name = Name},
-                                          ann = Ann, op = '=', expr = Body},
-                                 #e_var{pos = Pos, name = Name}]}.
+    #e_block{span = Pos,
+             statements = [#binding{span = Pos, pattern = #p_var{span = Pos, name = Name},
+                                    annotation = Ann, operator = '=', expr = Body},
+                           #e_var{span = Pos, name = Name}]}.
 
 %% `export fn '$input'() = <the input>`, the entry point of §8.1.
 input_entry(Expr) ->
-    [#fn_decl{pos = {1, 1, {1, 1}}, export = true, name = ?ENTRY, params = [], body = Expr}].
+    [#fn_declaration{span = {1, 1, {1, 1}}, export = true, name = ?ENTRY, params = [],
+                     body = Expr}].
 
 check_module(#env{ifaces = Ifaces, session = Session} = Env, Ns, From, Input, Decls, Binds) ->
     case ern_typecheck:check(Ns, Decls, Ifaces, Session) of
@@ -287,7 +289,7 @@ check_module(#env{ifaces = Ifaces, session = Session} = Env, Ns, From, Input, De
 %% input's entry point's own over its result, the variables it quantifies
 %% kept with their restrictions.
 generalized({lambda, Name}, Typed, TEnv) ->
-    [#scheme{vars = Vars} = Scheme] = [S || #fn_decl{name = ?ENTRY, type = S} <- Typed],
+    [#scheme{vars = Vars} = Scheme] = [S || #fn_declaration{name = ?ENTRY, scheme = S} <- Typed],
     Result = result_type(Scheme),
     St = ern_typecheck:type_state(TEnv),
     Free = ern_types:free_vars(ern_types:zonk(Result, St), St),
@@ -366,7 +368,7 @@ undetermined_text(_) ->
 bound_names({names, Names}) -> lists:join(", ", [atom_to_list(N) || N <- Names]);
 bound_names(Name) -> atom_to_list(Name).
 
-input_span([#fn_decl{pos = Pos} | _]) -> ern_diagnostic:span(Pos);
+input_span([#fn_declaration{span = Pos} | _]) -> ern_diagnostic:span(Pos);
 input_span(_) -> {1, 1, {1, 2}}.
 
 %% An input that declares has no value; report §11.2 prints what it
@@ -374,7 +376,7 @@ input_span(_) -> {1, 1, {1, 2}}.
 input_type(_Typed, decls) ->
     ?UNIT;
 input_type(Typed, _Binds) ->
-    [#fn_decl{type = Scheme}] = [D || #fn_decl{name = ?ENTRY} = D <- Typed],
+    [#fn_declaration{scheme = Scheme}] = [D || #fn_declaration{name = ?ENTRY} = D <- Typed],
     result_type(Scheme).
 
 result_type(#scheme{type = {tfn, [], _, Result}}) -> Result;
@@ -403,7 +405,7 @@ type_text(#checked{typed = Typed, type = T, env = Env}) ->
 %% Report §11.2: an input that is one name is printed with the name's
 %% declared type, its variables named as the declaration names them.
 one_name(Typed) ->
-    case [B || #fn_decl{name = ?ENTRY, body = B} <- Typed] of
+    case [B || #fn_declaration{name = ?ENTRY, body = B} <- Typed] of
         [#e_var{path = Path, name = Name}] -> {Path, Name};
         _ -> none
     end.
@@ -428,7 +430,7 @@ run(Env, #checked{ns = Ns, typed = Typed, iface = Iface, env = TEnv, type = T,
             end,
     %% the keys its top-level lets are stored under (report §8.5), which go
     %% when it does
-    Keys = [{Mod, ern_emitter:function_name(undefined, N)} || #let_decl{name = N} <- Typed],
+    Keys = [{Mod, ern_emitter:function_name(undefined, N)} || #let_declaration{name = N} <- Typed],
     set_uses(maps:put(Mod, {Ns, lists:usort([M || {M, _, _} <- Imports, session_module(M),
                                                   M =/= Mod] ++ Named), Keys},
                       uses())),
@@ -1053,7 +1055,7 @@ cinfo(CQ, Ifaces) ->
 %% is read as an expression, as a block's statement, a `let`, and as
 %% declarations, the first that stops inside a call answering.
 within(Before) ->
-    case [W || Parse <- [fun ern_parser:parse_expr/1, fun ern_parser:parse_stmt/1,
+    case [W || Parse <- [fun ern_parser:parse_expr/1, fun ern_parser:parse_statement/1,
                          fun ern_parser:parse_string/1],
                {error, #diagnostic{incomplete = true, within = W}} <- [Parse(Before)],
                W =/= undefined] of
@@ -2225,12 +2227,12 @@ declared(#checked{binds = {lambda, Name, Scheme}, env = TEnv}) ->
 declared(#checked{binds = Name} = C) ->
     [<<(atom_to_binary(Name))/binary, " : ", (type_text(C))/binary>>].
 
-kind(#type_decl{}) -> <<"type">>;
-kind(#abstract_decl{}) -> <<"abstract type">>;
-kind(#foreign_type_decl{}) -> <<"foreign type">>;
-kind(#fn_decl{}) -> value;
-kind(#foreign_fn_decl{}) -> value;
-kind(#let_decl{}) -> value;
+kind(#type_declaration{}) -> <<"type">>;
+kind(#abstract_declaration{}) -> <<"abstract type">>;
+kind(#foreign_type_declaration{}) -> <<"foreign type">>;
+kind(#fn_declaration{}) -> value;
+kind(#foreign_fn_declaration{}) -> value;
+kind(#let_declaration{}) -> value;
 kind(_) -> other.
 
 line(D, Ns, #iface{values = Vs}, TEnv) ->
@@ -2245,14 +2247,14 @@ line(D, Ns, #iface{values = Vs}, TEnv) ->
             <<Keyword/binary, " ", (atom_to_binary(Name))/binary>>
     end.
 
-declared_name(#fn_decl{owner = undefined, name = N}) -> {[], N};
-declared_name(#fn_decl{owner = Owner, name = N}) -> {[Owner], N};
-declared_name(#foreign_fn_decl{owner = undefined, name = N}) -> {[], N};
-declared_name(#foreign_fn_decl{owner = Owner, name = N}) -> {[Owner], N};
-declared_name(#let_decl{name = N}) -> {[], N};
-declared_name(#type_decl{name = N}) -> {[], N};
-declared_name(#abstract_decl{type = #type_decl{name = N}}) -> {[], N};
-declared_name(#foreign_type_decl{name = N}) -> {[], N}.
+declared_name(#fn_declaration{owner = undefined, name = N}) -> {[], N};
+declared_name(#fn_declaration{owner = Owner, name = N}) -> {[Owner], N};
+declared_name(#foreign_fn_declaration{owner = undefined, name = N}) -> {[], N};
+declared_name(#foreign_fn_declaration{owner = Owner, name = N}) -> {[Owner], N};
+declared_name(#let_declaration{name = N}) -> {[], N};
+declared_name(#type_declaration{name = N}) -> {[], N};
+declared_name(#abstract_declaration{declaration = #type_declaration{name = N}}) -> {[], N};
+declared_name(#foreign_type_declaration{name = N}) -> {[], N}.
 
 owned([], Name) -> atom_to_list(Name);
 owned([Owner], Name) -> [atom_to_list(Owner), ".", atom_to_list(Name)].

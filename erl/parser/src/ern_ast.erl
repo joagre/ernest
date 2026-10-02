@@ -12,11 +12,12 @@
 %% Every node in pre-order, a node being a tuple whose first element is
 %% its record's name, with an accumulator threaded through.
 -spec walk(fun((tuple(), Acc) -> Acc), term(), Acc) -> Acc.
-walk(F, Node, Acc) when is_tuple(Node), is_atom(element(1, Node)) ->
-    Acc1 = F(Node, Acc),
-    lists:foldl(fun(X, A) -> walk(F, X, A) end, Acc1, tl(tuple_to_list(Node)));
-walk(F, L, Acc) when is_list(L) ->
-    lists:foldl(fun(X, A) -> walk(F, X, A) end, Acc, L);
+walk(Visit, Node, Acc) when is_tuple(Node), is_atom(element(1, Node)) ->
+    Acc1 = Visit(Node, Acc),
+    lists:foldl(fun(Child, ChildAcc) -> walk(Visit, Child, ChildAcc) end, Acc1,
+                tl(tuple_to_list(Node)));
+walk(Visit, Nodes, Acc) when is_list(Nodes) ->
+    lists:foldl(fun(Node, NodeAcc) -> walk(Visit, Node, NodeAcc) end, Acc, Nodes);
 walk(_, _, Acc) ->
     Acc.
 
@@ -24,48 +25,59 @@ walk(_, _, Acc) ->
 %% the type its node holds, undefined before the pattern is checked. The
 %% alternatives of a clause bind the same names (§5.9), so the first says.
 -spec pattern_bindings(tuple()) -> [{atom(), term()}].
-pattern_bindings(#p_var{name = N, type = T}) -> [{N, T}];
-pattern_bindings(#p_as{name = N, type = T, pattern = P}) -> pattern_bindings(P) ++ [{N, T}];
-pattern_bindings(#p_con{args = {positional, P}}) -> pattern_bindings(P);
-pattern_bindings(#p_con{args = {named, Fs}}) ->
-    lists:append([pattern_bindings(P) || #field_pat{pattern = P} <- Fs]);
-pattern_bindings(#p_tuple{elems = Es}) -> lists:append([pattern_bindings(E) || E <- Es]);
-pattern_bindings(#p_list{elems = Es}) -> lists:append([pattern_bindings(E) || E <- Es]);
-pattern_bindings(#p_cons{head = H, tail = T}) -> pattern_bindings(H) ++ pattern_bindings(T);
-pattern_bindings(#p_or{alts = [A | _]}) -> pattern_bindings(A);
-pattern_bindings(#p_bits{segments = Segs}) ->
+pattern_bindings(#p_var{name = Name, type = Type}) ->
+    [{Name, Type}];
+pattern_bindings(#p_as{name = Name, type = Type, pattern = Pattern}) ->
+    pattern_bindings(Pattern) ++ [{Name, Type}];
+pattern_bindings(#p_constructor{args = {positional, Pattern}}) ->
+    pattern_bindings(Pattern);
+pattern_bindings(#p_constructor{args = {named, FieldPatterns}}) ->
+    lists:append([pattern_bindings(Pattern) || #field_pattern{pattern = Pattern} <- FieldPatterns]);
+pattern_bindings(#p_tuple{elements = Elements}) ->
+    lists:append([pattern_bindings(Element) || Element <- Elements]);
+pattern_bindings(#p_list{elements = Elements}) ->
+    lists:append([pattern_bindings(Element) || Element <- Elements]);
+pattern_bindings(#p_cons{head = Head, tail = Tail}) ->
+    pattern_bindings(Head) ++ pattern_bindings(Tail);
+pattern_bindings(#p_or{alternatives = [First | _]}) ->
+    pattern_bindings(First);
+pattern_bindings(#p_bitstring{segments = Segments}) ->
     %% report §5.11: a segment's value is a variable, a literal or `_`
-    lists:append([pattern_bindings(V) || #bit_seg{value = V} <- Segs]);
-pattern_bindings(_) -> [].
+    lists:append([pattern_bindings(Value) || #bit_segment{value = Value} <- Segments]);
+pattern_bindings(_) ->
+    [].
 
 %% Report §5.4: the unqualified names free in an expression, outside the
 %% names Bound around it, once for each use. A lambda's parameters, a
 %% clause's pattern, a block's bindings from the statement after them and
 %% a local fn's name for the rest of its block and its own body bind.
 -spec free_names(term(), [atom()]) -> [atom()].
-free_names(#e_var{path = [], name = N}, Bound) ->
-    case lists:member(N, Bound) of true -> []; false -> [N] end;
-free_names(#e_lambda{params = Ps, body = B}, Bound) ->
-    free_names(B, param_names(Ps) ++ Bound);
-free_names(#e_block{stmts = Stmts}, Bound) ->
-    {Free, _} = lists:mapfoldl(fun(#binding{pattern = P, expr = X}, Bd) ->
-                                       {free_names(X, Bd), names(P) ++ Bd};
-                                  (#fn_decl{name = N, params = Ps, body = B}, Bd) ->
-                                       {free_names(B, [N | param_names(Ps)] ++ Bd), [N | Bd]};
-                                  (S, Bd) ->
-                                       {free_names(S, Bd), Bd}
-                               end, Bound, Stmts),
+free_names(#e_var{path = [], name = Name}, Bound) ->
+    case lists:member(Name, Bound) of true -> []; false -> [Name] end;
+free_names(#e_lambda{params = Params, body = Body}, Bound) ->
+    free_names(Body, param_names(Params) ++ Bound);
+free_names(#e_block{statements = Statements}, Bound) ->
+    {Free, _} = lists:mapfoldl(fun statement_free_names/2, Bound, Statements),
     lists:append(Free);
-free_names(#clause{pattern = P, guard = G, body = B}, Bound) ->
-    Bd = names(P) ++ Bound,
-    free_names(G, Bd) ++ free_names(B, Bd);
-free_names(T, Bound) when is_tuple(T) ->
-    lists:append([free_names(X, Bound) || X <- tl(tuple_to_list(T))]);
-free_names(L, Bound) when is_list(L) ->
-    lists:append([free_names(X, Bound) || X <- L]);
+free_names(#clause{pattern = Pattern, guard = Guard, body = Body}, Bound) ->
+    Bound1 = bound_names(Pattern) ++ Bound,
+    free_names(Guard, Bound1) ++ free_names(Body, Bound1);
+free_names(Node, Bound) when is_tuple(Node) ->
+    lists:append([free_names(Child, Bound) || Child <- tl(tuple_to_list(Node))]);
+free_names(Nodes, Bound) when is_list(Nodes) ->
+    lists:append([free_names(Node, Bound) || Node <- Nodes]);
 free_names(_, _) ->
     [].
 
-names(P) -> [N || {N, _} <- pattern_bindings(P)].
+%% A block's statement: its free names, and the names bound from the next
+%% statement on.
+statement_free_names(#binding{pattern = Pattern, expr = Expr}, Bound) ->
+    {free_names(Expr, Bound), bound_names(Pattern) ++ Bound};
+statement_free_names(#fn_declaration{name = Name, params = Params, body = Body}, Bound) ->
+    {free_names(Body, [Name | param_names(Params)] ++ Bound), [Name | Bound]};
+statement_free_names(Statement, Bound) ->
+    {free_names(Statement, Bound), Bound}.
 
-param_names(Params) -> lists:append([names(P) || #param{pattern = P} <- Params]).
+bound_names(Pattern) -> [Name || {Name, _} <- pattern_bindings(Pattern)].
+
+param_names(Params) -> lists:append([bound_names(Pattern) || #param{pattern = Pattern} <- Params]).

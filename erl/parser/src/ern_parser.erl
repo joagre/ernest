@@ -2,11 +2,12 @@
 %% list from ern_lexer, threading {Node, RestTokens}; a precedence-climbing
 %% loop for binary operators, a second one for `::` in patterns. First-token
 %% dispatch; the three bounded lookaheads named in Appendix A; no
-%% backtracking. Errors are thrown and returned as {error, #diagnostic{}}. Every node's
-%% pos is its span, set by w/1 from the end of the token before the rest.
+%% backtracking. Errors are thrown and returned as {error, #diagnostic{}}.
+%% Every node's span runs from its first token to the end of the token
+%% before the rest, set by spanned/1.
 -module(ern_parser).
 
--export([parse/1, parse_string/1, parse_expr/1, parse_stmt/1, parse_type/1]).
+-export([parse/1, parse_string/1, parse_expr/1, parse_statement/1, parse_type/1]).
 
 -export_type([error/0]).
 
@@ -21,31 +22,32 @@
 -spec parse([ern_lexer:token()]) -> {ok, [tuple()]} | {error, error()}.
 parse(Tokens) ->
     try
-        {ModDoc, Tokens1} = module_doc(Tokens),
+        {ModuleDoc, Tokens1} = module_doc(Tokens),
         Decls = program(prune_docs(Tokens1), undefined, []),
-        {ok, case ModDoc of undefined -> Decls; _ -> [ModDoc | Decls] end}
+        {ok, case ModuleDoc of undefined -> Decls; _ -> [ModuleDoc | Decls] end}
     catch
-        throw:{parse_error, #diagnostic{} = D} -> {error, at_end(Tokens, D)}
+        throw:{parse_error, #diagnostic{} = Diagnostic} -> {error,
+                                                            incomplete_at_end(Tokens, Diagnostic)}
     end.
 
 %% Report §11.2: the parser stopped at the end of the input, so more input
 %% could finish it and the shell takes another line. The parser is the one
 %% that knows; no other reader of a diagnostic looks at the flag.
-at_end(Tokens, #diagnostic{span = Span} = D) ->
+incomplete_at_end(Tokens, #diagnostic{span = Span} = Diagnostic) ->
     case lists:last(Tokens) of
-        {eof, Pos} ->
-            case ern_diagnostic:span(Pos) of
-                Span -> D#diagnostic{incomplete = true};
-                _ -> D
+        {eof, Position} ->
+            case ern_diagnostic:span(Position) of
+                Span -> Diagnostic#diagnostic{incomplete = true};
+                _ -> Diagnostic
             end;
-        _ -> D
+        _ -> Diagnostic
     end.
 
 -spec parse_string(unicode:chardata()) -> {ok, [tuple()]} | {error, error()}.
 parse_string(Text) ->
     case ern_lexer:tokenize(Text) of
         {ok, Tokens} -> parse(Tokens);
-        {error, _} = E -> E
+        {error, _} = Error -> Error
     end.
 
 %% One expression, for tests and the shell.
@@ -55,9 +57,9 @@ parse_expr(Text) ->
 
 %% One statement of a block, for the shell: report §11.2, a `let` at the
 %% prompt is a block `let`.
--spec parse_stmt(unicode:chardata()) -> {ok, tuple()} | {error, error()}.
-parse_stmt(Text) ->
-    parse_one(Text, fun(Tokens) -> stmt(prune_docs(Tokens)) end).
+-spec parse_statement(unicode:chardata()) -> {ok, tuple()} | {error, error()}.
+parse_statement(Text) ->
+    parse_one(Text, fun(Tokens) -> statement(prune_docs(Tokens)) end).
 
 %% One type, for the prelude tables and tests.
 -spec parse_type(unicode:chardata()) -> {ok, tuple()} | {error, error()}.
@@ -71,28 +73,31 @@ parse_one(Text, Parse) ->
             try
                 case Parse(Tokens) of
                     {Node, [{eof, _}]} -> {ok, Node};
-                    {_, [T | _]} ->
-                        fail(pos(T), "expected end of input instead of " ++ describe(T))
+                    {_, [Token | _]} ->
+                        fail(position(Token),
+                             "expected end of input instead of " ++ describe(Token))
                 end
             catch
-                throw:{parse_error, #diagnostic{} = D} -> {error, at_end(Tokens, D)}
+                throw:{parse_error, #diagnostic{} = Diagnostic} -> {error,
+                                                                    incomplete_at_end(Tokens,
+                                                                                      Diagnostic)}
             end;
-        {error, _} = E ->
-            E
+        {error, _} = Error ->
+            Error
     end.
 
 %% Report §2.2: a doc block before the first declaration, with a blank line
 %% after it, is the module's documentation.
-module_doc([{doc, Pos, Text}, Next | R]) ->
-    case line(Next) > doc_end(Pos, Text) + 1 of
-        true -> {#module_doc{pos = Pos, text = Text}, [Next | R]};
-        false -> {undefined, [{doc, Pos, Text}, Next | R]}
+module_doc([{doc, Position, Text}, Next | Rest]) ->
+    case line(Next) > doc_end(Position, Text) + 1 of
+        true -> {#module_doc{span = Position, text = Text}, [Next | Rest]};
+        false -> {undefined, [{doc, Position, Text}, Next | Rest]}
     end;
-module_doc(Ts) ->
-    {undefined, Ts}.
+module_doc(Tokens) ->
+    {undefined, Tokens}.
 
-doc_end(Pos, Text) ->
-    element(1, Pos) + length([Ch || <<Ch>> <= Text, Ch =:= $\n]).
+doc_end(Position, Text) ->
+    element(1, Position) + length([Char || <<Char>> <= Text, Char =:= $\n]).
 
 %% A doc token stands only where report §2.2 attaches it: on the line
 %% before a top-level declaration, or, inside a type declaration, before a
@@ -100,39 +105,39 @@ doc_end(Pos, Text) ->
 %% error. InType is true inside a type or abstract type declaration, where
 %% no expression can occur. Depth counts the open brackets, so that only a
 %% declaration keyword outside every bracket is top-level, or ends a type.
-prune_docs(Ts) ->
-    prune_docs(Ts, false, 0).
+prune_docs(Tokens) ->
+    prune_docs(Tokens, false, 0).
 
-prune_docs([{doc, Pos, Text} = D, Next | R], InType, Depth) ->
-    Adjacent = line(Next) =:= doc_end(Pos, Text) + 1,
-    Keep = Adjacent andalso
-           ((Depth =:= 0 andalso declaration_start(Next, R))
-            orelse (InType andalso lists:member(sym(Next), [typename, ident, '|']))),
-    case Keep of
+prune_docs([{doc, Position, Text} = DocToken, Next | Rest], InType, Depth) ->
+    Adjacent = line(Next) =:= doc_end(Position, Text) + 1,
+    Attached = Adjacent andalso
+           ((Depth =:= 0 andalso is_declaration_start(Next, Rest))
+            orelse (InType andalso lists:member(symbol(Next), [typename, ident, '|']))),
+    case Attached of
         true ->
-            [D | prune_docs([Next | R], InType, Depth)];
+            [DocToken | prune_docs([Next | Rest], InType, Depth)];
         false ->
-            fail(Pos, "a doc block documents nothing here",
+            fail(Position, "a doc block documents nothing here",
                  "a doc block stands directly above a top-level declaration, a constructor"
                  " or a named field; a comment is written `//`")
     end;
-prune_docs([T | R], InType, Depth) ->
+prune_docs([Token | Rest], InType, Depth) ->
     {InType1, Depth1} =
-        case sym(T) of
+        case symbol(Token) of
             type -> {true, Depth};
-            S when S =:= '('; S =:= '#('; S =:= '{' -> {InType, Depth + 1};
-            S when S =:= ')'; S =:= '}' -> {InType, Depth - 1};
-            S when Depth =:= 0 ->
-                {InType andalso not lists:member(S, ?DECL_START), Depth};
+            Symbol when Symbol =:= '('; Symbol =:= '#('; Symbol =:= '{' -> {InType, Depth + 1};
+            Symbol when Symbol =:= ')'; Symbol =:= '}' -> {InType, Depth - 1};
+            Symbol when Depth =:= 0 ->
+                {InType andalso not lists:member(Symbol, ?DECL_START), Depth};
             _ -> {InType, Depth}
         end,
-    [T | prune_docs(R, InType1, Depth1)];
+    [Token | prune_docs(Rest, InType1, Depth1)];
 prune_docs([], _, _) ->
     [].
 
 %% `fn` before a bracket opens a lambda, not a declaration.
-declaration_start({fn, _}, [{'(', _} | _]) -> false;
-declaration_start(T, _) -> lists:member(sym(T), ?DECL_START).
+is_declaration_start({fn, _}, [{'(', _} | _]) -> false;
+is_declaration_start(Token, _) -> lists:member(symbol(Token), ?DECL_START).
 
 %%
 %% Program and declarations
@@ -140,917 +145,973 @@ declaration_start(T, _) -> lists:member(sym(T), ?DECL_START).
 
 program([{eof, _}], _Prev, Acc) ->
     lists:reverse(Acc);
-program(Ts, Prev, Acc) ->
-    {D, Ts1} = declaration(Ts),
-    one_clause(D, Prev),
-    program(Ts1, D, [D | Acc]).
+program(Tokens, Previous, Acc) ->
+    {Declaration, Tokens1} = declaration(Tokens),
+    refuse_second_clause(Declaration, Previous),
+    program(Tokens1, Declaration, [Declaration | Acc]).
 
 %% A second consecutive fn with the same name is the Haskell habit.
-one_clause(#fn_decl{pos = Pos, owner = O, name = N}, #fn_decl{pos = First, owner = O, name = N}) ->
+refuse_second_clause(#fn_declaration{span = Position, owner = Owner, name = Name},
+                     #fn_declaration{span = First, owner = Owner, name = Name}) ->
     %% report §11.5: at the second clause, the first labelled
-    throw({parse_error, (diag(Pos, "a function has one clause",
-                              "write one clause whose body is a `match`"))
+    throw({parse_error, (diagnostic(Position, "a function has one clause",
+                                    "write one clause whose body is a `match`"))
                         #diagnostic{labels = [{ern_diagnostic:span(First), "first clause"}]}});
-one_clause(_, _) ->
+refuse_second_clause(_, _) ->
     ok.
 
-declaration(Ts) ->
-    {Doc, Ts1} = doc(Ts),
-    {Export, Ts2} = case Ts1 of
-                        [{export, _} | R] -> {true, R};
-                        _ -> {false, Ts1}
-                    end,
-    case Ts2 of
-        [{type, _} | _] -> type_decl(Ts2, Doc, Export);
-        [{abstract, _} | _] -> abstract_decl(Ts2, Doc, Export);
-        [{fn, _} | _] -> fn_decl(Ts2, Doc, Export);
-        [{'let', _} | _] -> let_decl(Ts2, Doc, Export);
-        [{foreign, _} | _] -> foreign_decl(Ts2, Doc, Export);
-        [T | _] -> wanted(declaration, pos(T),
-                          "expected a declaration (type, abstract, fn, let, foreign)"
-                                " instead of " ++ describe(T))
+declaration(Tokens) ->
+    {Doc, Tokens1} = doc(Tokens),
+    {Export, Tokens2} = case Tokens1 of
+                            [{export, _} | Rest] -> {true, Rest};
+                            _ -> {false, Tokens1}
+                        end,
+    case Tokens2 of
+        [{type, _} | _] -> type_declaration(Tokens2, Doc, Export);
+        [{abstract, _} | _] -> abstract_declaration(Tokens2, Doc, Export);
+        [{fn, _} | _] -> fn_declaration(Tokens2, Doc, Export);
+        [{'let', _} | _] -> let_declaration(Tokens2, Doc, Export);
+        [{foreign, _} | _] -> foreign_declaration(Tokens2, Doc, Export);
+        [Token | _] -> wanted(declaration, position(Token),
+                              "expected a declaration (type, abstract, fn, let, foreign)"
+                                    " instead of " ++ describe(Token))
     end.
 
-doc([{doc, _, Text} | R]) -> {Text, R};
-doc(Ts) -> {undefined, Ts}.
+doc([{doc, _, Text} | Rest]) -> {Text, Rest};
+doc(Tokens) -> {undefined, Tokens}.
 
-type_decl([{type, Pos} | R], Doc, Export) ->
-    {Name, R1} = expect_typename(R),
-    {Params, R2} = opt_typevars(R1),
-    R3 = expect(R2, '='),
-    {Cons, R4} = constructors(R3),
-    w({#type_decl{pos = Pos, doc = Doc, export = Export, name = Name, params = Params,
-                  constructors = Cons}, R4}).
+type_declaration([{type, Position} | Rest], Doc, Export) ->
+    {Name, Rest1} = expect_typename(Rest),
+    {Params, Rest2} = optional_typevars(Rest1),
+    Rest3 = expect(Rest2, '='),
+    {Constructors, Rest4} = constructors(Rest3),
+    spanned({#type_declaration{span = Position, doc = Doc, export = Export, name = Name,
+                               params = Params,
+                               constructors = Constructors}, Rest4}).
 
 %% Report §4.7, Appendix A: ForeignVar = typevar [ "=" ].
-foreign_var(Ts) ->
-    {V, R} = expect_ident(Ts),
-    case R of
-        [{'=', _} | R1] -> {{V, true}, R1};
-        _ -> {{V, false}, R}
+foreign_var(Tokens) ->
+    {Name, Rest} = expect_ident(Tokens),
+    case Rest of
+        [{'=', _} | Rest1] -> {{Name, true}, Rest1};
+        _ -> {{Name, false}, Rest}
     end.
 
-opt_typevars([{'(', _} | R]) ->
-    {Vars, R1} = sep_by(R, ',', fun expect_ident/1),
-    {Vars, expect(R1, ')')};
-opt_typevars(Ts) ->
-    {[], Ts}.
+optional_typevars([{'(', _} | Rest]) ->
+    {Vars, Rest1} = sep_by(Rest, ',', fun expect_ident/1),
+    {Vars, expect(Rest1, ')')};
+optional_typevars(Tokens) ->
+    {[], Tokens}.
 
 %% Report §2.2: a doc block before a constructor documents it, on the line
 %% above the constructor or above the `|` that leads it.
-constructors(Ts) ->
-    {C, R} = constructor(Ts),
-    constructors_rest(R, [C]).
+constructors(Tokens) ->
+    {Constructor, Rest} = constructor(Tokens),
+    constructors_rest(Rest, [Constructor]).
 
-constructors_rest([{doc, _, Text}, {'|', _} | R], Acc) ->
-    {C, R1} = constructor(R, Text),
-    constructors_rest(R1, [C | Acc]);
-constructors_rest([{'|', _} | R], Acc) ->
-    {C, R1} = constructor(R),
-    constructors_rest(R1, [C | Acc]);
-constructors_rest(R, Acc) ->
-    {lists:reverse(Acc), R}.
+constructors_rest([{doc, _, Text}, {'|', _} | Rest], Acc) ->
+    {Constructor, Rest1} = constructor(Rest, Text),
+    constructors_rest(Rest1, [Constructor | Acc]);
+constructors_rest([{'|', _} | Rest], Acc) ->
+    {Constructor, Rest1} = constructor(Rest),
+    constructors_rest(Rest1, [Constructor | Acc]);
+constructors_rest(Rest, Acc) ->
+    {lists:reverse(Acc), Rest}.
 
-constructor(Ts) ->
-    {Doc, Ts1} = doc(Ts),
-    constructor(Ts1, Doc).
+constructor(Tokens) ->
+    {Doc, Tokens1} = doc(Tokens),
+    constructor(Tokens1, Doc).
 
-constructor(Ts, Doc) ->
-    {Name, Pos, R} = expect_typename_pos(Ts),
-    Named = case R of
+constructor(Tokens, Doc) ->
+    {Name, Position, Rest} = expect_typename_position(Tokens),
+    Named = case Rest of
                 [{'(', _}, {ident, _, _}, {':', _} | _] -> true;
                 [{'(', _}, {doc, _, _}, {ident, _, _}, {':', _} | _] -> true;
                 _ -> false
             end,
-    case R of
-        [{'(', _} | R1] when Named ->
-            {Fields, R2} = sep_by(R1, ',', fun field/1),
-            w({#constructor{pos = Pos, doc = Doc, name = Name, fields = {named, Fields}},
-               expect(R2, ')')});
-        [{'(', _} | R1] ->
-            {T, R2} = type(R1),
-            w({#constructor{pos = Pos, doc = Doc, name = Name, fields = {positional, T}},
-               expect(R2, ')')});
+    case Rest of
+        [{'(', _} | Rest1] when Named ->
+            {Fields, Rest2} = sep_by(Rest1, ',', fun field/1),
+            spanned({#constructor{span = Position, doc = Doc, name = Name,
+                                  fields = {named, Fields}},
+                     expect(Rest2, ')')});
+        [{'(', _} | Rest1] ->
+            {Type, Rest2} = type(Rest1),
+            spanned({#constructor{span = Position, doc = Doc, name = Name,
+                                  fields = {positional, Type}},
+                     expect(Rest2, ')')});
         _ ->
-            w({#constructor{pos = Pos, doc = Doc, name = Name}, R})
+            spanned({#constructor{span = Position, doc = Doc, name = Name}, Rest})
     end.
 
-field(Ts) ->
-    {Doc, Ts1} = doc(Ts),
-    {Name, Pos, R} = expect_ident_pos(Ts1),
-    {T, R1} = type(expect(R, ':')),
-    w({#field{pos = Pos, doc = Doc, name = Name, type = T}, R1}).
+field(Tokens) ->
+    {Doc, Tokens1} = doc(Tokens),
+    {Name, Position, Rest} = expect_ident_position(Tokens1),
+    {Type, Rest1} = type(expect(Rest, ':')),
+    spanned({#field{span = Position, doc = Doc, name = Name, annotation = Type}, Rest1}).
 
-abstract_decl([{abstract, Pos} | R], Doc, Export) ->
-    {TD, R1} = case R of
-                   [{type, _} | _] -> type_decl(R, undefined, false);
-                   [T | _] -> fail(pos(T), "expected `type` after `abstract`")
-               end,
-    case R1 of
-        [{with, WPos} | _] ->
+abstract_declaration([{abstract, Position} | Rest], Doc, Export) ->
+    {TypeDeclaration, Rest1} = case Rest of
+                                   [{type, _} | _] -> type_declaration(Rest, undefined, false);
+                                   [Token | _] -> fail(position(Token),
+                                                       "expected `type` after `abstract`")
+                               end,
+    case Rest1 of
+        [{with, WithPosition} | _] ->
             %% report §4.4: the module is an abstract type's boundary, so
             %% there is no list of the definitions that may see inside it
-            fail(WPos, "an abstract type has no signature: every definition of its module"
+            fail(WithPosition, "an abstract type has no signature: every definition of its module"
                        " may use its constructors, so leave out `with { ... }`");
         _ ->
-            w({#abstract_decl{pos = Pos, doc = Doc, export = Export, type = TD}, R1})
+            spanned({#abstract_declaration{span = Position, doc = Doc, export = Export,
+                                           declaration = TypeDeclaration}, Rest1})
     end.
 
-fn_decl([{fn, Pos} | R], Doc, Export) ->
-    {Owner, Name, R1} = decl_name(R),
-    {Params, R2} = params(R1),
-    {Ret, Effect, R3} = opt_return(R2),
-    {Body, R4} = expr(expect(R3, '=')),
-    w({#fn_decl{pos = Pos, doc = Doc, export = Export, owner = Owner, name = Name,
-                params = Params, ret = Ret, effect = Effect, body = Body}, R4}).
+fn_declaration([{fn, Position} | Rest], Doc, Export) ->
+    {Owner, Name, Rest1} = declaration_name(Rest),
+    {Params, Rest2} = params(Rest1),
+    {ResultType, Effect, Rest3} = optional_result_type(Rest2),
+    {Body, Rest4} = expr(expect(Rest3, '=')),
+    spanned({#fn_declaration{span = Position, doc = Doc, export = Export, owner = Owner,
+                             name = Name, params = Params, result_type = ResultType,
+                             effect = Effect, body = Body}, Rest4}).
 
 %% Report §4.5, Appendix A's DeclName: a member, declared with `fn`, is an
 %% operator, `compare` or `negate`, what the language resolves by the
 %% operand's type; a type's other operations are functions of its module.
-decl_name([{ident, _, Name} | R]) ->
-    {undefined, Name, R};
-decl_name([{typename, _, Owner}, {'.', _}, {ident, Pos, Name} | R]) ->
+declaration_name([{ident, _, Name} | Rest]) ->
+    {undefined, Name, Rest};
+declaration_name([{typename, _, Owner}, {'.', _}, {ident, Position, Name} | Rest]) ->
     lists:member(Name, [compare, negate])
-        orelse fail(Pos, "`" ++ atom_to_list(Name) ++ "` cannot be a member of "
+        orelse fail(Position, "`" ++ atom_to_list(Name) ++ "` cannot be a member of "
                          ++ atom_to_list(Owner) ++ ": a member is an operator, `compare` or"
                          " `negate`",
                     "a type's other operations are functions of its module:"
                     " write `fn " ++ atom_to_list(Name) ++ "`"),
-    {Owner, Name, R};
-decl_name([{typename, _, Owner}, {'.', _}, {Op, _} | R]) when Op =:= '+'; Op =:= '-';
-                                                             Op =:= '*'; Op =:= '/';
-                                                             Op =:= '%'; Op =:= '<>' ->
-    {Owner, Op, R};
-decl_name([{typename, _, _}, {'.', _}, T | _]) ->
-    fail(pos(T), "expected an operator, `compare` or `negate` after `.` instead of "
-                 ++ describe(T));
-decl_name([{typename, _, _} = T | _]) ->
-    fail(pos(T), "expected a name instead of " ++ describe(T),
+    {Owner, Name, Rest};
+declaration_name([{typename, _, Owner}, {'.', _},
+                  {Operator, _} | Rest]) when Operator =:= '+'; Operator =:= '-';
+                                                             Operator =:= '*'; Operator =:= '/';
+                                                             Operator =:= '%'; Operator =:= '<>' ->
+    {Owner, Operator, Rest};
+declaration_name([{typename, _, _}, {'.', _}, Token | _]) ->
+    fail(position(Token), "expected an operator, `compare` or `negate` after `.` instead of "
+                 ++ describe(Token));
+declaration_name([{typename, _, _} = Token | _]) ->
+    fail(position(Token), "expected a name instead of " ++ describe(Token),
          "a function's name begins with a lowercase letter");
-decl_name([T | _]) ->
-    fail(pos(T), "expected a name instead of " ++ describe(T)).
+declaration_name([Token | _]) ->
+    fail(position(Token), "expected a name instead of " ++ describe(Token)).
 
 %% Report §4.5, §4.6, Appendix A's LetDecl: a `let` declares no member.
-let_name([{ident, _, Name} | R]) ->
-    {Name, R};
-let_name([{typename, Pos, Owner}, {'.', _}, {ident, _, Name} | _])
+let_name([{ident, _, Name} | Rest]) ->
+    {Name, Rest};
+let_name([{typename, Position, Owner}, {'.', _}, {ident, _, Name} | _])
   when Name =/= compare, Name =/= negate ->
-    fail(Pos, "a `let` declares no member of " ++ atom_to_list(Owner),
+    fail(Position, "a `let` declares no member of " ++ atom_to_list(Owner),
          "a type's values are named in its module, as its functions are:"
          " write `let " ++ atom_to_list(Name) ++ "`");
-let_name([{typename, Pos, Owner}, {'.', _} | _] = Ts) ->
-    {_, Member, _} = decl_name(Ts),
-    fail(Pos, "a `let` declares no member of " ++ atom_to_list(Owner),
+let_name([{typename, Position, Owner}, {'.', _} | _] = Tokens) ->
+    {_, Member, _} = declaration_name(Tokens),
+    fail(Position, "a `let` declares no member of " ++ atom_to_list(Owner),
          "a member is declared with `fn`: write `fn " ++ atom_to_list(Owner) ++ "."
          ++ atom_to_list(Member) ++ "(...)`");
-let_name([{typename, _, _} = T | _]) ->
-    fail(pos(T), "expected a name instead of " ++ describe(T),
+let_name([{typename, _, _} = Token | _]) ->
+    fail(position(Token), "expected a name instead of " ++ describe(Token),
          "a value's name begins with a lowercase letter");
-let_name([T | _]) ->
-    fail(pos(T), "expected a name instead of " ++ describe(T)).
+let_name([Token | _]) ->
+    fail(position(Token), "expected a name instead of " ++ describe(Token)).
 
-params(Ts) ->
-    R = expect(Ts, '('),
-    case R of
-        [{')', _} | R1] -> {[], R1};
+params(Tokens) ->
+    Rest = expect(Tokens, '('),
+    case Rest of
+        [{')', _} | Rest1] -> {[], Rest1};
         _ ->
-            {Ps, R1} = sep_by(R, ',', fun param/1),
-            {Ps, expect(R1, ')')}
+            {Params, Rest1} = sep_by(Rest, ',', fun param/1),
+            {Params, expect(Rest1, ')')}
     end.
 
-param(Ts) ->
-    {P, R} = pattern(Ts),
-    case R of
-        [{':', _} | R1] ->
-            {T, R2} = type(R1),
-            w({#param{pos = node_pos(P), pattern = P, type = T}, R2});
+param(Tokens) ->
+    {Pattern, Rest} = pattern(Tokens),
+    case Rest of
+        [{':', _} | Rest1] ->
+            {Type, Rest2} = type(Rest1),
+            spanned({#param{span = node_span(Pattern), pattern = Pattern, annotation = Type},
+                     Rest2});
         _ ->
-            w({#param{pos = node_pos(P), pattern = P}, R})
+            spanned({#param{span = node_span(Pattern), pattern = Pattern}, Rest})
     end.
 
 %% Report §4.5, Appendix A's Return: a result annotation is written `: T`,
 %% as a parameter's is; `->` after the parameters is an earlier version's
 %% spelling, refused with the one that replaces it (§11).
-opt_return([{'->', Pos} | _]) ->
-    fail(Pos, "a function's result is annotated with `:`, not `->`",
+optional_result_type([{'->', Position} | _]) ->
+    fail(Position, "a function's result is annotated with `:`, not `->`",
          "write `: T` after the parameters, as a parameter's type is written");
-opt_return([{':', _} | R]) ->
-    {T, R1} = type(R),
-    case R1 of
-        [{with, _} | R2] ->
-            {E, R3} = type(R2),
-            {T, E, R3};
+optional_result_type([{':', _} | Rest]) ->
+    {Type, Rest1} = type(Rest),
+    case Rest1 of
+        [{with, _} | Rest2] ->
+            {Effect, Rest3} = type(Rest2),
+            {Type, Effect, Rest3};
         _ ->
-            {T, undefined, R1}
+            {Type, undefined, Rest1}
     end;
-opt_return(Ts) ->
-    {undefined, undefined, Ts}.
+optional_result_type(Tokens) ->
+    {undefined, undefined, Tokens}.
 
-let_decl([{'let', Pos} | R], Doc, Export) ->
-    {Name, R1} = let_name(R),
-    {Ann, R2} = case R1 of
-                    [{':', _} | R1a] -> type(R1a);
-                    _ -> {undefined, R1}
-                end,
-    R3 = case R2 of
-             [{'<-', P} | _] -> fail(P, "`<-` is a block form", "a top-level `let` uses `=`");
-             _ -> expect(R2, '=')
-         end,
-    {Body, R4} = expr(R3),
-    w({#let_decl{pos = Pos, doc = Doc, export = Export, name = Name, ann = Ann, body = Body},
-       R4}).
+let_declaration([{'let', Position} | Rest], Doc, Export) ->
+    {Name, Rest1} = let_name(Rest),
+    {Annotation, Rest2} = case Rest1 of
+                              [{':', _} | AfterColon] -> type(AfterColon);
+                              _ -> {undefined, Rest1}
+                          end,
+    Rest3 = case Rest2 of
+                [{'<-', ArrowPosition} | _] -> fail(ArrowPosition, "`<-` is a block form",
+                                                    "a top-level `let` uses `=`");
+                _ -> expect(Rest2, '=')
+            end,
+    {Body, Rest4} = expr(Rest3),
+    spanned({#let_declaration{span = Position, doc = Doc, export = Export, name = Name,
+                              annotation = Annotation, body = Body},
+             Rest4}).
 
-foreign_decl([{foreign, Pos}, {type, _} | R], Doc, Export) ->
-    {Name, R1} = expect_typename(R),
-    {Vars, R2} = case R1 of
-                     [{'(', _} | R1a] ->
-                         {Vs, R1b} = sep_by(R1a, ',', fun foreign_var/1),
-                         {Vs, expect(R1b, ')')};
-                     _ -> {[], R1}
-                 end,
-    w({#foreign_type_decl{pos = Pos, doc = Doc, export = Export, name = Name,
-                          params = [V || {V, _} <- Vars], eq = [V || {V, true} <- Vars]},
-       R2});
-foreign_decl([{foreign, Pos}, {fn, _} | R], Doc, Export) ->
-    {Owner, Name, R1} = decl_name(R),
-    R2 = expect(R1, '('),
-    {Params, R3} = case R2 of
-                       [{')', _} | _] -> {[], R2};
-                       _ -> sep_by(R2, ',', fun foreign_param/1)
-                   end,
-    R4 = expect(R3, ')'),
-    {Ret, Effect, R5} = case opt_return(R4) of
-                            {undefined, _, _} ->
-                                fail(pos(hd(R4)), "a foreign function declares its result type");
-                            Ok -> Ok
-                        end,
-    R6 = expect(R5, '='),
-    case R6 of
-        [{string, IPos, Impl} | R7] ->
-            w({#foreign_fn_decl{pos = Pos, doc = Doc, export = Export, owner = Owner,
-                                name = Name, params = Params, ret = Ret, effect = Effect,
-                                impl = Impl, impl_pos = IPos}, R7});
-        [T | _] ->
-            fail(pos(T), "expected the implementation name as a string instead of "
-                         ++ describe(T))
+foreign_declaration([{foreign, Position}, {type, _} | Rest], Doc, Export) ->
+    {Name, Rest1} = expect_typename(Rest),
+    {Vars, Rest2} = case Rest1 of
+                        [{'(', _} | AfterParen] ->
+                            {ForeignVars, AfterVars} = sep_by(AfterParen, ',', fun foreign_var/1),
+                            {ForeignVars, expect(AfterVars, ')')};
+                        _ -> {[], Rest1}
+                    end,
+    spanned({#foreign_type_declaration{span = Position, doc = Doc, export = Export, name = Name,
+                                       params = [Var || {Var, _} <- Vars],
+                                       equality = [Var || {Var, true} <- Vars]},
+             Rest2});
+foreign_declaration([{foreign, Position}, {fn, _} | Rest], Doc, Export) ->
+    {Owner, Name, Rest1} = declaration_name(Rest),
+    Rest2 = expect(Rest1, '('),
+    {Params, Rest3} = case Rest2 of
+                          [{')', _} | _] -> {[], Rest2};
+                          _ -> sep_by(Rest2, ',', fun foreign_param/1)
+                      end,
+    Rest4 = expect(Rest3, ')'),
+    {ResultType, Effect, Rest5} = case optional_result_type(Rest4) of
+                                      {undefined, _, _} ->
+                                          fail(position(hd(Rest4)),
+                                               "a foreign function declares its result type");
+                                      Ok -> Ok
+                                  end,
+    Rest6 = expect(Rest5, '='),
+    case Rest6 of
+        [{string, ImplementationPosition, Implementation} | Rest7] ->
+            spanned({#foreign_fn_declaration{span = Position, doc = Doc, export = Export,
+                                             owner = Owner, name = Name, params = Params,
+                                             result_type = ResultType, effect = Effect,
+                                             implementation = Implementation,
+                                             implementation_span = ImplementationPosition},
+                     Rest7});
+        [Token | _] ->
+            fail(position(Token), "expected the implementation name as a string instead of "
+                         ++ describe(Token))
     end;
-foreign_decl([{foreign, _}, T | _], _Doc, _Export) ->
-    fail(pos(T), "expected `type` or `fn` after `foreign` instead of " ++ describe(T)).
+foreign_declaration([{foreign, _}, Token | _], _Doc, _Export) ->
+    fail(position(Token), "expected `type` or `fn` after `foreign` instead of " ++ describe(Token)).
 
-foreign_param(Ts) ->
-    {Name, Pos, R} = expect_ident_pos(Ts),
-    {PV, _} = w({#p_var{pos = Pos, name = Name}, R}),
-    {T, R1} = type(expect(R, ':')),
-    w({#param{pos = Pos, pattern = PV, type = T}, R1}).
+foreign_param(Tokens) ->
+    {Name, Position, Rest} = expect_ident_position(Tokens),
+    {Variable, _} = spanned({#p_var{span = Position, name = Name}, Rest}),
+    {Type, Rest1} = type(expect(Rest, ':')),
+    spanned({#param{span = Position, pattern = Variable, annotation = Type}, Rest1}).
 
 %%
 %% Types
 %%
 
-type([{'(', Pos} | R]) ->
-    {Elems, R1} = case R of
-                      [{')', _} | _] -> {[], R};
-                      _ -> sep_by(R, ',', fun type/1)
-                  end,
-    R2 = expect(R1, ')'),
-    case R2 of
-        [{'->', _} | R3] ->
-            {Ret, R4} = type(R3),
-            case R4 of
-                [{with, _} | R5] ->
-                    {Eff, R6} = type(R5),
-                    w({#t_fn{pos = Pos, params = Elems, ret = Ret, effect = Eff}, R6});
+type([{'(', Position} | Rest]) ->
+    {Elements, Rest1} = case Rest of
+                            [{')', _} | _] -> {[], Rest};
+                            _ -> sep_by(Rest, ',', fun type/1)
+                        end,
+    Rest2 = expect(Rest1, ')'),
+    case Rest2 of
+        [{'->', _} | Rest3] ->
+            {ResultType, Rest4} = type(Rest3),
+            case Rest4 of
+                [{with, _} | Rest5] ->
+                    {Effect, Rest6} = type(Rest5),
+                    spanned({#t_fn{span = Position, params = Elements, result_type = ResultType,
+                                   effect = Effect}, Rest6});
                 _ ->
-                    w({#t_fn{pos = Pos, params = Elems, ret = Ret}, R4})
+                    spanned({#t_fn{span = Position, params = Elements, result_type = ResultType},
+                             Rest4})
             end;
         _ ->
-            case Elems of
-                [T] -> w({T, R2});
+            case Elements of
+                [Type] -> spanned({Type, Rest2});
                 [] ->
                     %% report §11.2: at the input's end a further line may
                     %% hold the `->`
-                    D = diag(Pos, "expected a type inside the parentheses, or `->` after them",
-                             "the type whose one value is written () is Unit"),
-                    throw({parse_error, D#diagnostic{incomplete = ended(R2)}});
-                _ -> fail(pos(hd(R2)), "expected `->` after a parameter list instead of "
-                                       ++ describe(hd(R2)),
+                    Diagnostic = diagnostic(Position, "expected a type inside the parentheses,"
+                                            " or `->` after them",
+                                            "the type whose one value is written () is Unit"),
+                    throw({parse_error, Diagnostic#diagnostic{incomplete = is_at_end(Rest2)}});
+                _ -> fail(position(hd(Rest2)), "expected `->` after a parameter list instead of "
+                                       ++ describe(hd(Rest2)),
                           "a tuple type is written with `#(`, as #(Int, Int)")
             end
     end;
-type([{'#(', Pos} | R]) ->
-    {Elems, R1} = components(Pos, sep_by(R, ',', fun type/1)),
-    w({#t_tuple{pos = Pos, elems = Elems}, expect(R1, ')')});
-type([{typename, Pos, _} | _] = Ts) ->
-    case qualified(Ts) of
-        {{con, Path, Name}, [{'(', _} | R]} ->
-            {Args, R1} = sep_by(R, ',', fun type/1),
-            w({#t_con{pos = Pos, path = Path, name = Name, args = Args}, expect(R1, ')')});
-        {{con, Path, Name}, R} ->
-            w({#t_con{pos = Pos, path = Path, name = Name}, R});
-        {{value, _, _}, R} ->
+type([{'#(', Position} | Rest]) ->
+    {Elements, Rest1} = components(Position, sep_by(Rest, ',', fun type/1)),
+    spanned({#t_tuple{span = Position, elements = Elements}, expect(Rest1, ')')});
+type([{typename, Position, _} | _] = Tokens) ->
+    case qualified(Tokens) of
+        {{con, Path, Name}, [{'(', _} | Rest]} ->
+            {Args, Rest1} = sep_by(Rest, ',', fun type/1),
+            spanned({#t_named{span = Position, path = Path, name = Name, args = Args},
+                     expect(Rest1, ')')});
+        {{con, Path, Name}, Rest} ->
+            spanned({#t_named{span = Position, path = Path, name = Name}, Rest});
+        {{value, _, _}, Rest} ->
             %% report §11.5: over the whole name, with how an argument is
             %% written, which is true whether the name was meant as a type's
             %% argument, `List.a`, or is a value's, `Io.println`
-            fail(through(Pos, Ts, R),
+            fail(span_through(Position, Tokens, Rest),
                  "expected a type name; a qualified type ends in an uppercase name",
                  "a type's arguments are written in parentheses, as List(a), and a lowercase"
                  " name after `.` names a value")
     end;
-type([{ident, Pos, Name} | R]) ->
-    w({#t_var{pos = Pos, name = Name}, R});
-type([T | _]) ->
-    wanted(typename, pos(T), "expected a type instead of " ++ describe(T)).
+type([{ident, Position, Name} | Rest]) ->
+    spanned({#t_var{span = Position, name = Name}, Rest});
+type([Token | _]) ->
+    wanted(typename, position(Token), "expected a type instead of " ++ describe(Token)).
 
 %% {typename "."} followed by a final segment. Returns {con, Path, Name} for
 %% an uppercase final, {value, Path, Name} for an ident or userop final.
-qualified([{typename, _, T} | R]) ->
-    qualified(R, [], T).
+qualified([{typename, _, Token} | Rest]) ->
+    qualified(Rest, [], Token).
 
-qualified([{'.', _}, {typename, _, T2} | R], Path, Cur) ->
-    qualified(R, Path ++ [Cur], T2);
-qualified([{'.', _}, {ident, _, N} | R], Path, Cur) ->
-    {{value, Path ++ [Cur], N}, R};
-qualified([{'.', _}, {Op, _} | R], Path, Cur) when Op =:= '+'; Op =:= '-'; Op =:= '*';
-                                                  Op =:= '/'; Op =:= '%'; Op =:= '<>' ->
-    {{value, Path ++ [Cur], Op}, R};
-qualified([{'.', _}, T | _], _Path, _Cur) ->
-    fail(pos(T), "expected a name after `.` instead of " ++ describe(T));
-qualified(R, Path, Cur) ->
-    {{con, Path, Cur}, R}.
+qualified([{'.', _}, {typename, _, Next} | Rest], Path, Current) ->
+    qualified(Rest, Path ++ [Current], Next);
+qualified([{'.', _}, {ident, _, Name} | Rest], Path, Current) ->
+    {{value, Path ++ [Current], Name}, Rest};
+qualified([{'.', _}, {Operator, _} | Rest], Path, Current)
+  when Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
+       Operator =:= '/'; Operator =:= '%'; Operator =:= '<>' ->
+    {{value, Path ++ [Current], Operator}, Rest};
+qualified([{'.', _}, Token | _], _Path, _Current) ->
+    fail(position(Token), "expected a name after `.` instead of " ++ describe(Token));
+qualified(Rest, Path, Current) ->
+    {{con, Path, Current}, Rest}.
 
 %%
 %% Expressions
 %%
 
-expr(Ts) ->
-    {E, R} = case Ts of
-                 [{fn, Pos} | R0] -> lambda(R0, Pos);
-                 [{'if', Pos} | R0] -> if_expr(R0, Pos);
-                 _ -> binexpr(Ts, 0)
-             end,
-    juxtaposition(R),
-    {E, R}.
+expr(Tokens) ->
+    {Expr, Rest} = case Tokens of
+                       [{fn, Position} | AfterKeyword] -> lambda(AfterKeyword, Position);
+                       [{'if', Position} | AfterKeyword] -> if_expr(AfterKeyword, Position);
+                       _ -> binexpr(Tokens, 0)
+                   end,
+    refuse_juxtaposition(Rest),
+    {Expr, Rest}.
 
 %% `f x` where `f(x)` was meant: an operand directly after an expression.
-juxtaposition([T | _]) when element(1, T) =:= ident; element(1, T) =:= typename;
-                            element(1, T) =:= int; element(1, T) =:= float;
-                            element(1, T) =:= char; element(1, T) =:= string;
-                            element(1, T) =:= bool ->
-    fail(pos(T), "unexpected " ++ describe(T) ++ " after an expression",
+refuse_juxtaposition([Token | _]) when element(1, Token) =:= ident; element(1, Token) =:= typename;
+                            element(1, Token) =:= int; element(1, Token) =:= float;
+                            element(1, Token) =:= char; element(1, Token) =:= string;
+                            element(1, Token) =:= bool ->
+    fail(position(Token), "unexpected " ++ describe(Token) ++ " after an expression",
          "a call is written f(x), and statements are separated by `;`");
-juxtaposition(_) ->
+refuse_juxtaposition(_) ->
     ok.
 
-lambda(Ts, Pos) ->
-    {Params, R1} = params(Ts),
-    {Ret, Effect, R2} = opt_return(R1),
-    {Body, R3} = expr(expect(R2, '=')),
-    w({#e_lambda{pos = Pos, params = Params, ret = Ret, effect = Effect, body = Body}, R3}).
+lambda(Tokens, Position) ->
+    {Params, Rest1} = params(Tokens),
+    {ResultType, Effect, Rest2} = optional_result_type(Rest1),
+    {Body, Rest3} = expr(expect(Rest2, '=')),
+    spanned({#e_lambda{span = Position, params = Params, result_type = ResultType, effect = Effect,
+                       body = Body}, Rest3}).
 
-if_expr(Ts, Pos) ->
-    {Cond, R1} = expr(Ts),
-    {Then, R2} = expr(expect(R1, then)),
-    case R2 of
-        [{'else', _} | R3] ->
-            {Else, R4} = expr(R3),
-            w({#e_if{pos = Pos, condition = Cond, then_branch = Then, else_branch = Else}, R4});
+if_expr(Tokens, Position) ->
+    {Condition, Rest1} = expr(Tokens),
+    {Then, Rest2} = expr(expect(Rest1, then)),
+    case Rest2 of
+        [{'else', _} | Rest3] ->
+            {Else, Rest4} = expr(Rest3),
+            spanned({#e_if{span = Position, condition = Condition, then_branch = Then,
+                           else_branch = Else}, Rest4});
         [Next | _] ->
             %% report §11.5: at the `if`, which the next line need not show;
             %% report §11.2: where the input ended there, a further line may
             %% hold the `else`, and the shell takes it
-            D = diag(Pos, "`if` needs an `else`", "every `if` is an expression; give the"
-                     " other branch a value"),
-            throw({parse_error, D#diagnostic{incomplete = ended([Next])}})
+            Diagnostic = diagnostic(Position, "`if` needs an `else`",
+                                    "every `if` is an expression; give the"
+                                    " other branch a value"),
+            throw({parse_error, Diagnostic#diagnostic{incomplete = is_at_end([Next])}})
     end.
 
-match_expr(Ts, Pos) ->
-    {Scrutinee, R1} = expr(Ts),
-    R2 = expect(R1, '{'),
-    {Clauses, R3} = sep_by(R2, '|', fun clause/1),
-    w({#e_match{pos = Pos, scrutinee = Scrutinee, clauses = Clauses}, expect(R3, '}')}).
+match_expr(Tokens, Position) ->
+    {Scrutinee, Rest1} = expr(Tokens),
+    Rest2 = expect(Rest1, '{'),
+    {Clauses, Rest3} = sep_by(Rest2, '|', fun clause/1),
+    spanned({#e_match{span = Position, scrutinee = Scrutinee, clauses = Clauses},
+             expect(Rest3, '}')}).
 
-receive_expr(Ts, Pos) ->
-    R = expect(Ts, '{'),
-    {Clauses, After, R1} = receive_clauses(R, []),
-    w({#e_receive{pos = Pos, clauses = Clauses, 'after' = After}, expect(R1, '}')}).
+receive_expr(Tokens, Position) ->
+    Rest = expect(Tokens, '{'),
+    {Clauses, After, Rest1} = receive_clauses(Rest, []),
+    spanned({#e_receive{span = Position, clauses = Clauses, 'after' = After}, expect(Rest1, '}')}).
 
-receive_clauses([{'after', Pos} | R], Acc) ->
-    {Timeout, R1} = expr(R),
-    {Body, R2} = expr(expect(R1, '->')),
-    {After, _} = w({#after_clause{pos = Pos, timeout = Timeout, body = Body}, R2}),
-    {lists:reverse(Acc), After, R2};
-receive_clauses(Ts, Acc) ->
-    {C, R} = clause(Ts),
-    case R of
-        [{'|', _} | R1] -> receive_clauses(R1, [C | Acc]);
-        _ -> {lists:reverse([C | Acc]), undefined, R}
+receive_clauses([{'after', Position} | Rest], Acc) ->
+    {Timeout, Rest1} = expr(Rest),
+    {Body, Rest2} = expr(expect(Rest1, '->')),
+    {After, _} = spanned({#after_clause{span = Position, timeout = Timeout, body = Body}, Rest2}),
+    {lists:reverse(Acc), After, Rest2};
+receive_clauses(Tokens, Acc) ->
+    {Clause, Rest} = clause(Tokens),
+    case Rest of
+        [{'|', _} | Rest1] -> receive_clauses(Rest1, [Clause | Acc]);
+        _ -> {lists:reverse([Clause | Acc]), undefined, Rest}
     end.
 
 %% Report §5.9: a clause lists one or more patterns separated by `or`.
-clause(Ts) ->
-    {Alts, R} = sep_by(Ts, 'or', fun pattern/1),
-    {P, _} = case Alts of
-                 [Single] -> {Single, R};
-                 [First | _] -> w({#p_or{pos = node_pos(First), alts = Alts}, R})
-             end,
-    {Guard, R1} = case R of
-                      [{'when', _} | R0] -> expr(R0);
-                      _ -> {undefined, R}
-                  end,
-    {Body, R2} = expr(expect(R1, '->')),
-    w({#clause{pos = node_pos(P), pattern = P, guard = Guard, body = Body}, R2}).
+clause(Tokens) ->
+    {Alternatives, Rest} = sep_by(Tokens, 'or', fun pattern/1),
+    {Pattern, _} = case Alternatives of
+                       [Single] -> {Single, Rest};
+                       [First | _] -> spanned({#p_or{span = node_span(First),
+                                                     alternatives = Alternatives}, Rest})
+                   end,
+    {Guard, Rest1} = case Rest of
+                         [{'when', _} | AfterWhen] -> expr(AfterWhen);
+                         _ -> {undefined, Rest}
+                     end,
+    {Body, Rest2} = expr(expect(Rest1, '->')),
+    spanned({#clause{span = node_span(Pattern), pattern = Pattern, guard = Guard, body = Body},
+             Rest2}).
 
 %% Precedence climbing. Higher binds tighter; report §2.6 numbers the levels
 %% the other way round.
-binexpr(Ts, Min) ->
-    {Left, R} = unary(Ts),
-    binexpr_loop(Left, R, Min).
+binexpr(Tokens, Min) ->
+    {Left, Rest} = unary(Tokens),
+    binexpr_loop(Left, Rest, Min).
 
-binexpr_loop(Left, [{Op, Pos} | R] = Ts, Min) ->
-    case prec(Op) of
-        {P, Assoc} when P >= Min ->
-            NextMin = case Assoc of left -> P + 1; right -> P end,
-            {Right, R1} = binexpr(R, NextMin),
+binexpr_loop(Left, [{Operator, Position} | Rest] = Tokens, Min) ->
+    case precedence(Operator) of
+        {Precedence, Associativity} when Precedence >= Min ->
+            NextMin = case Associativity of left -> Precedence + 1; right -> Precedence end,
+            {Right, Rest1} = binexpr(Rest, NextMin),
             %% report §5.7: parentheses change nothing, so a parenthesized
             %% call is a call the pipe fills, as an unparenthesized one is
-            {Node, _} = w({combine(Op, start_of(Left, Pos), Left, Right), R1}),
-            binexpr_loop(Node, R1, Min);
+            {Node,
+             _} = spanned({combine(Operator, from_left_operand(Left, Position), Left, Right),
+                           Rest1}),
+            binexpr_loop(Node, Rest1, Min);
         _ ->
-            {Left, Ts}
+            {Left, Tokens}
     end;
-binexpr_loop(Left, Ts, _Min) ->
-    {Left, Ts}.
+binexpr_loop(Left, Tokens, _Min) ->
+    {Left, Tokens}.
 
-prec('*') -> {7, left};
-prec('/') -> {7, left};
-prec('%') -> {7, left};
-prec('+') -> {6, left};
-prec('-') -> {6, left};
-prec('<>') -> {6, left};
-prec('::') -> {5, right};
-prec('==') -> {4, left};
-prec('!=') -> {4, left};
-prec('<') -> {4, left};
-prec('<=') -> {4, left};
-prec('>') -> {4, left};
-prec('>=') -> {4, left};
-prec('&&') -> {3, left};
-prec('||') -> {2, left};
-prec('|>') -> {1, left};
-prec(_) -> none.
+precedence('*') -> {7, left};
+precedence('/') -> {7, left};
+precedence('%') -> {7, left};
+precedence('+') -> {6, left};
+precedence('-') -> {6, left};
+precedence('<>') -> {6, left};
+precedence('::') -> {5, right};
+precedence('==') -> {4, left};
+precedence('!=') -> {4, left};
+precedence('<') -> {4, left};
+precedence('<=') -> {4, left};
+precedence('>') -> {4, left};
+precedence('>=') -> {4, left};
+precedence('&&') -> {3, left};
+precedence('||') -> {2, left};
+precedence('|>') -> {1, left};
+precedence(_) -> none.
 
 %% `x |> f(a)` is `f(x, a)`; `x |> f` is `f(x)`; either call is marked as
 %% a pipe's, since `x` is evaluated before the callee (report §5.1).
-combine('|>', Pos, X, #e_call{callee = C, args = A}) ->
-    #e_call{pos = Pos, callee = C, args = [X | A], pipe = true};
-combine('|>', Pos, X, F) ->
-    #e_call{pos = Pos, callee = F, args = [X], pipe = true};
-combine(Op, Pos, L, R) ->
-    #e_binop{pos = Pos, op = Op, left = L, right = R}.
+combine('|>', Position, Piped, #e_call{callee = Callee, args = Args}) ->
+    #e_call{span = Position, callee = Callee, args = [Piped | Args], pipe = true};
+combine('|>', Position, Piped, Callee) ->
+    #e_call{span = Position, callee = Callee, args = [Piped], pipe = true};
+combine(Operator, Position, Left, Right) ->
+    #e_binop{span = Position, operator = Operator, left = Left, right = Right}.
 
 %% An operator expression spans from its left operand (report §11.5).
-start_of(Left, OpPos) ->
-    LPos = element(2, Left),
-    {element(1, LPos), element(2, LPos), element(3, OpPos), element(4, OpPos)}.
+from_left_operand(Left, OperatorPosition) ->
+    LeftSpan = element(2, Left),
+    {element(1, LeftSpan), element(2, LeftSpan), element(3, OperatorPosition),
+     element(4, OperatorPosition)}.
 
-unary([{'-', Pos} | R]) ->
-    {E, R1} = postfix(R),
-    w({#e_neg{pos = Pos, expr = E}, R1});
-unary([{'!', Pos} | R]) ->
+unary([{'-', Position} | Rest]) ->
+    {Expr, Rest1} = postfix(Rest),
+    spanned({#e_negation{span = Position, expr = Expr}, Rest1});
+unary([{'!', Position} | Rest]) ->
     %% report §4.8: prefix negation on Bool
-    {E, R1} = postfix(R),
-    w({#e_not{pos = Pos, expr = E}, R1});
-unary(Ts) ->
-    postfix(Ts).
+    {Expr, Rest1} = postfix(Rest),
+    spanned({#e_not{span = Position, expr = Expr}, Rest1});
+unary(Tokens) ->
+    postfix(Tokens).
 
-postfix(Ts) ->
-    {P, R} = primary(Ts),
-    calls(P, R).
+postfix(Tokens) ->
+    {Primary, Rest} = primary(Tokens),
+    calls(Primary, Rest).
 
-calls(Callee, [{'(', _} | R]) ->
-    {Args, R1} = case R of
-                     [{')', _} | _] -> {[], R};
-                     _ -> arguments(Callee, R, 0)
-                 end,
-    Closed = inside(Callee, max(0, length(Args) - 1), fun() -> expect(R1, ')') end),
-    {Call, R2} = w({#e_call{pos = node_pos(Callee), callee = Callee, args = Args}, Closed}),
-    calls(Call, R2);
-calls(E, [{'.', _}, {ident, FPos, Field} | R]) ->
+calls(Callee, [{'(', _} | Rest]) ->
+    {Args, Rest1} = case Rest of
+                        [{')', _} | _] -> {[], Rest};
+                        _ -> arguments(Callee, Rest, 0)
+                    end,
+    Closed = inside(Callee, max(0, length(Args) - 1), fun() -> expect(Rest1, ')') end),
+    {Call,
+     Rest2} = spanned({#e_call{span = node_span(Callee), callee = Callee, args = Args}, Closed}),
+    calls(Call, Rest2);
+calls(Expr, [{'.', _}, {ident, FieldPosition, Field} | Rest]) ->
     %% report §3.5: a field selected from the value before it
-    {Select, R1} = w({#e_select{pos = node_pos(E), expr = E, field = Field, field_pos = FPos},
-                      R}),
-    calls(Select, R1);
-calls(E, Ts) ->
-    {E, Ts}.
+    {Selection,
+     Rest1} = spanned({#e_selection{span = node_span(Expr), expr = Expr, field = Field,
+                                    field_span = FieldPosition},
+                                  Rest}),
+    calls(Selection, Rest1);
+calls(Expr, Tokens) ->
+    {Expr, Tokens}.
 
 %% A call's arguments, each parsed as the argument it is, so that an input
 %% that stops inside one says which.
-arguments(Callee, Ts, N) ->
-    {X, R} = inside(Callee, N, fun() -> expr(Ts) end),
-    case R of
-        [{',', _} | R1] ->
-            {Xs, R2} = arguments(Callee, R1, N + 1),
-            {[X | Xs], R2};
+arguments(Callee, Tokens, Index) ->
+    {Argument, Rest} = inside(Callee, Index, fun() -> expr(Tokens) end),
+    case Rest of
+        [{',', _} | Rest1] ->
+            {Arguments, Rest2} = arguments(Callee, Rest1, Index + 1),
+            {[Argument | Arguments], Rest2};
         _ ->
-            {[X], R}
+            {[Argument], Rest}
     end.
 
 %% Report §11.2: the call an unfinished input stops inside, its callee and
 %% the argument at the cursor, for `Shift-Tab`. The innermost call is the
 %% first to catch the error, so it is the one that names itself.
-inside(#e_var{path = Path, name = Name}, N, Parse) ->
+inside(#e_var{path = Path, name = Name}, Index, Parse) ->
     try Parse()
-    catch throw:{parse_error, #diagnostic{within = undefined} = D} ->
-        throw({parse_error, D#diagnostic{within = {Path, Name, N}}})
+    catch throw:{parse_error, #diagnostic{within = undefined} = Diagnostic} ->
+        throw({parse_error, Diagnostic#diagnostic{within = {Path, Name, Index}}})
     end;
 inside(_, _, Parse) ->
     Parse().
 
-primary([{Kind, Pos, V} | R]) when Kind =:= int; Kind =:= float; Kind =:= char;
+primary([{Kind, Position, Value} | Rest]) when Kind =:= int; Kind =:= float; Kind =:= char;
                                    Kind =:= string; Kind =:= bool ->
-    w({#e_lit{pos = Pos, kind = Kind, value = V}, R});
-primary([{ident, Pos, Name} | R]) ->
-    w({#e_var{pos = Pos, name = Name}, R});
-primary([{typename, Pos, _} | _] = Ts) ->
-    case qualified(Ts) of
-        {{value, Path, Name}, R} -> w({#e_var{pos = Pos, path = Path, name = Name}, R});
-        {{con, Path, Name}, R} -> constructor_expr(Pos, Path, Name, R)
+    spanned({#e_literal{span = Position, kind = Kind, value = Value}, Rest});
+primary([{ident, Position, Name} | Rest]) ->
+    spanned({#e_var{span = Position, name = Name}, Rest});
+primary([{typename, Position, _} | _] = Tokens) ->
+    case qualified(Tokens) of
+        {{value, Path, Name},
+         Rest} -> spanned({#e_var{span = Position, path = Path, name = Name}, Rest});
+        {{con, Path, Name}, Rest} -> constructor_expr(Position, Path, Name, Rest)
     end;
-primary([{'#(', Pos} | R]) ->
-    {Elems, R1} = components(Pos, sep_by(R, ',', fun expr/1)),
-    w({#e_tuple{pos = Pos, elems = Elems}, expect(R1, ')')});
-primary([{'[', Pos} | R]) ->
-    {Elems, R1} = case R of
-                      [{']', _} | _] -> {[], R};
-                      _ -> sep_by(R, ',', fun expr/1)
-                  end,
-    w({#e_list{pos = Pos, elems = Elems}, expect(R1, ']')});
-primary([{'<<', Pos} | R]) ->
-    {Segs, R1} = bit_segments(R, fun expr/1),
-    w({#e_bits{pos = Pos, segments = Segs}, R1});
-primary([{'{', Pos} | R]) ->
-    block(R, Pos);
-primary([{match, Pos} | R]) ->
+primary([{'#(', Position} | Rest]) ->
+    {Elements, Rest1} = components(Position, sep_by(Rest, ',', fun expr/1)),
+    spanned({#e_tuple{span = Position, elements = Elements}, expect(Rest1, ')')});
+primary([{'[', Position} | Rest]) ->
+    {Elements, Rest1} = case Rest of
+                            [{']', _} | _] -> {[], Rest};
+                            _ -> sep_by(Rest, ',', fun expr/1)
+                        end,
+    spanned({#e_list{span = Position, elements = Elements}, expect(Rest1, ']')});
+primary([{'<<', Position} | Rest]) ->
+    {Segments, Rest1} = bit_segments(Rest, fun expr/1),
+    spanned({#e_bitstring{span = Position, segments = Segments}, Rest1});
+primary([{'{', Position} | Rest]) ->
+    block(Rest, Position);
+primary([{match, Position} | Rest]) ->
     %% report §5.9: it ends at its own `}`, as a block does
-    match_expr(R, Pos);
-primary([{'receive', Pos} | R]) ->
-    receive_expr(R, Pos);
-primary([{'(', _} | R]) ->
-    {E, R1} = expr(R),
-    w({E, expect(R1, ')')});
-primary([{'_', Pos} | _]) ->
-    fail(Pos, "`_` is a pattern, not an expression");
-primary([{Kw, Pos} | _]) when Kw =:= 'if'; Kw =:= fn ->
-    fail(Pos, "`" ++ atom_to_list(Kw) ++ "` is not an operand", "parenthesize it");
-primary([T | _]) ->
-    wanted(expression, pos(T), "expected an expression instead of " ++ describe(T)).
+    match_expr(Rest, Position);
+primary([{'receive', Position} | Rest]) ->
+    receive_expr(Rest, Position);
+primary([{'(', _} | Rest]) ->
+    {Expr, Rest1} = expr(Rest),
+    spanned({Expr, expect(Rest1, ')')});
+primary([{'_', Position} | _]) ->
+    fail(Position, "`_` is a pattern, not an expression");
+primary([{Keyword, Position} | _]) when Keyword =:= 'if'; Keyword =:= fn ->
+    fail(Position, "`" ++ atom_to_list(Keyword) ++ "` is not an operand", "parenthesize it");
+primary([Token | _]) ->
+    wanted(expression, position(Token), "expected an expression instead of " ++ describe(Token)).
 
-constructor_expr(Pos, Path, Name, [{'(', _} | R]) ->
-    case R of
-        [{'..', _} | R1] ->
-            {Base, R2} = expr(R1),
-            {Sets, R3} = sep_by(expect(R2, ','), ',', field_of(Path, Name)),
-            w({#e_con{pos = Pos, path = Path, name = Name, args = {named, Base, Sets}},
-               expect(R3, ')')});
+constructor_expr(Position, Path, Name, [{'(', _} | Rest]) ->
+    case Rest of
+        [{'..', _} | Rest1] ->
+            {Base, Rest2} = expr(Rest1),
+            {FieldSets, Rest3} = sep_by(expect(Rest2, ','), ',', field_of(Path, Name)),
+            spanned({#e_constructor{span = Position, path = Path, name = Name,
+                                    args = {named, Base, FieldSets}},
+                     expect(Rest3, ')')});
         [{ident, _, _}, {'=', _} | _] ->
-            {Sets, R1} = sep_by(R, ',', field_of(Path, Name)),
-            w({#e_con{pos = Pos, path = Path, name = Name, args = {named, undefined, Sets}},
-               expect(R1, ')')});
-        [{')', P} | _] ->
+            {FieldSets, Rest1} = sep_by(Rest, ',', field_of(Path, Name)),
+            spanned({#e_constructor{span = Position, path = Path, name = Name,
+                                    args = {named, undefined, FieldSets}},
+                     expect(Rest1, ')')});
+        [{')', ParenPosition} | _] ->
             %% report §11.5: the parser does not know the constructor's
             %% fields, so the help gives both forms
-            fail(P, "empty parentheses after " ++ atom_to_list(Name),
+            fail(ParenPosition, "empty parentheses after " ++ atom_to_list(Name),
                  "a constructor without fields is written without parentheses, "
                  ++ atom_to_list(Name) ++ "; one with fields has its fields inside them");
-        [{eof, P} | _] ->
+        [{eof, EndPosition} | _] ->
             %% report §11.2: the input ends where the constructor's first
             %% argument would stand, and positional or named is not
             %% decided yet: what may stand here is a value or a field's
             %% name, and only the constructor's type tells which
-            D = diag(P, "expected an expression instead of end of input", undefined),
-            throw({parse_error, D#diagnostic{expected = {field_or_value, Path, Name},
-                                             within = {Path, Name, none}}});
+            Diagnostic = diagnostic(EndPosition, "expected an expression instead of end of input",
+                                    undefined),
+            throw({parse_error, Diagnostic#diagnostic{expected = {field_or_value, Path, Name},
+                                                      within = {Path, Name, none}}});
         _ ->
-            {E, R1} = inside_con(Path, Name, 0, fun() -> expr(R) end),
-            w({#e_con{pos = Pos, path = Path, name = Name, args = {positional, E}},
-               expect(R1, ')')})
+            {Expr, Rest1} = inside_constructor(Path, Name, 0, fun() -> expr(Rest) end),
+            spanned({#e_constructor{span = Position, path = Path, name = Name,
+                                    args = {positional, Expr}},
+                     expect(Rest1, ')')})
     end;
-constructor_expr(Pos, Path, Name, Ts) ->
-    w({#e_con{pos = Pos, path = Path, name = Name}, Ts}).
+constructor_expr(Position, Path, Name, Tokens) ->
+    spanned({#e_constructor{span = Position, path = Path, name = Name}, Tokens}).
 
 %% Report §11.2: a field of this constructor, which the tag names, so
 %% that completion knows which fields may stand at the cursor; and where
 %% the input stops, which field's value it stops in, or `none` where a
 %% field's name would stand, for `Shift-Tab`.
-field_of(Path, Con) ->
-    fun(Ts) ->
-        {Name, Pos, R} = inside_con(Path, Con, none, fun() ->
-                             tagging({field, Path, Con}, fun() -> expect_ident_pos(Ts) end)
+field_of(Path, Constructor) ->
+    fun(Tokens) ->
+        {Name, Position, Rest} = inside_constructor(Path, Constructor, none, fun() ->
+                             tagging({field, Path, Constructor},
+                                     fun() -> expect_ident_position(Tokens) end)
                          end),
-        {E, R1} = inside_con(Path, Con, {field, Name}, fun() -> expr(expect(R, '=')) end),
-        w({#field_set{pos = Pos, name = Name, expr = E}, R1})
+        {Expr, Rest1} = inside_constructor(Path, Constructor, {field, Name},
+                                           fun() -> expr(expect(Rest, '=')) end),
+        spanned({#field_set{span = Position, name = Name, expr = Expr}, Rest1})
     end.
 
 %% Report §11.2: the constructor an unfinished input stops inside, as
 %% `inside/3` records a call.
-inside_con(Path, Name, At, Parse) ->
+inside_constructor(Path, Name, Argument, Parse) ->
     try Parse()
-    catch throw:{parse_error, #diagnostic{within = undefined} = D} ->
-        throw({parse_error, D#diagnostic{within = {Path, Name, At}}})
+    catch throw:{parse_error, #diagnostic{within = undefined} = Diagnostic} ->
+        throw({parse_error, Diagnostic#diagnostic{within = {Path, Name, Argument}}})
     end.
 
 %%
 %% Blocks
 %%
 
-block([{'}', Pos} | _], _BlockPos) ->
-    fail(Pos, "a block needs at least one expression");
-block(Ts, Pos) ->
-    {Stmts, R} = stmts(Ts, undefined, []),
-    w({#e_block{pos = Pos, stmts = Stmts}, R}).
+block([{'}', Position} | _], _BlockPosition) ->
+    fail(Position, "a block needs at least one expression");
+block(Tokens, Position) ->
+    {Statements, Rest} = statements(Tokens, undefined, []),
+    spanned({#e_block{span = Position, statements = Statements}, Rest}).
 
-stmts(Ts, Prev, Acc) ->
-    {S, R} = stmt(Ts),
-    one_clause(S, Prev),
-    case R of
-        [{';', P}, {'}', _} | _] ->
+statements(Tokens, Previous, Acc) ->
+    {Statement, Rest} = statement(Tokens),
+    refuse_second_clause(Statement, Previous),
+    case Rest of
+        [{';', SemicolonPosition}, {'}', _} | _] ->
             %% report §11.5: at the `;` the help says to remove
-            fail(P, "a block ends with an expression", "remove the trailing `;`");
-        [{';', _} | R1] ->
-            stmts(R1, S, [S | Acc]);
-        [{'}', P} | R1] ->
-            case S of
-                #binding{} -> fail(P, "a block ends with an expression, not a `let`",
+            fail(SemicolonPosition, "a block ends with an expression", "remove the trailing `;`");
+        [{';', _} | Rest1] ->
+            statements(Rest1, Statement, [Statement | Acc]);
+        [{'}', BracePosition} | Rest1] ->
+            case Statement of
+                #binding{} -> fail(BracePosition, "a block ends with an expression, not a `let`",
                                     "add the expression the block is worth after it");
-                #fn_decl{} -> fail(P, "a block ends with an expression, not a `fn`",
-                                    "add the expression the block is worth after it");
-                _ -> {lists:reverse([S | Acc]), R1}
+                #fn_declaration{} -> fail(BracePosition,
+                                          "a block ends with an expression, not a `fn`",
+                                           "add the expression the block is worth after it");
+                _ -> {lists:reverse([Statement | Acc]), Rest1}
             end;
-        [T | _] ->
-            fail(pos(T), "expected `;` or `}` instead of " ++ describe(T))
+        [Token | _] ->
+            fail(position(Token), "expected `;` or `}` instead of " ++ describe(Token))
     end.
 
-stmt([{'let', Pos} | R]) ->
-    {P, R1} = pattern(R),
-    {Ann, R2} = case R1 of
-                    [{':', _} | R1a] -> type(R1a);
-                    _ -> {undefined, R1}
-                end,
-    {Op, R3} = case R2 of
-                   [{'=', _} | R2a] -> {'=', R2a};
-                   [{'<-', _} | R2a] -> {'<-', R2a};
-                   [T | _] -> fail(pos(T), "expected `=` or `<-` instead of " ++ describe(T))
-               end,
-    {E, R4} = expr(R3),
-    w({#binding{pos = Pos, pattern = P, ann = Ann, op = Op, expr = E}, R4});
-stmt([{fn, _}, {'(', _} | _] = Ts) ->
-    expr(Ts);
-stmt([{fn, _} | _] = Ts) ->
-    fn_decl(Ts, undefined, false);
-stmt(Ts) ->
-    expr(Ts).
+statement([{'let', Position} | Rest]) ->
+    {Pattern, Rest1} = pattern(Rest),
+    {Annotation, Rest2} = case Rest1 of
+                              [{':', _} | AfterColon] -> type(AfterColon);
+                              _ -> {undefined, Rest1}
+                          end,
+    {Operator, Rest3} = case Rest2 of
+                            [{'=', _} | AfterOperator] -> {'=', AfterOperator};
+                            [{'<-', _} | AfterOperator] -> {'<-', AfterOperator};
+                            [Token | _] ->
+                                fail(position(Token),
+                                     "expected `=` or `<-` instead of " ++ describe(Token))
+                        end,
+    {Expr, Rest4} = expr(Rest3),
+    spanned({#binding{span = Position, pattern = Pattern, annotation = Annotation,
+                      operator = Operator, expr = Expr}, Rest4});
+statement([{fn, _}, {'(', _} | _] = Tokens) ->
+    expr(Tokens);
+statement([{fn, _} | _] = Tokens) ->
+    fn_declaration(Tokens, undefined, false);
+statement(Tokens) ->
+    expr(Tokens).
 
 %%
 %% Patterns
 %%
 
-pattern(Ts) ->
-    {P, R} = conspat(Ts),
-    case R of
-        [{as, _}, {ident, NamePos, Name} | R1] ->
-            w({#p_as{pos = node_pos(P), pattern = P, name = Name, name_pos = NamePos}, R1});
-        [{as, _}, T | _] ->
-            fail(pos(T), "expected a name after `as` instead of " ++ describe(T));
+pattern(Tokens) ->
+    {Pattern, Rest} = conspat(Tokens),
+    case Rest of
+        [{as, _}, {ident, NamePosition, Name} | Rest1] ->
+            spanned({#p_as{span = node_span(Pattern), pattern = Pattern, name = Name,
+                           name_span = NamePosition}, Rest1});
+        [{as, _}, Token | _] ->
+            fail(position(Token), "expected a name after `as` instead of " ++ describe(Token));
         _ ->
-            {P, R}
+            {Pattern, Rest}
     end.
 
-conspat(Ts) ->
-    {Head, R} = atompat(Ts),
-    case R of
-        [{'::', Pos} | R1] ->
-            {Tail, R2} = conspat(R1),
-            w({#p_cons{pos = Pos, head = Head, tail = Tail}, R2});
+conspat(Tokens) ->
+    {Head, Rest} = atompat(Tokens),
+    case Rest of
+        [{'::', Position} | Rest1] ->
+            {Tail, Rest2} = conspat(Rest1),
+            spanned({#p_cons{span = Position, head = Head, tail = Tail}, Rest2});
         _ ->
-            {Head, R}
+            {Head, Rest}
     end.
 
-atompat([{'_', Pos} | R]) ->
-    w({#p_wild{pos = Pos}, R});
-atompat([{ident, Pos, Name} | R]) ->
-    w({#p_var{pos = Pos, name = Name}, R});
-atompat([{Kind, Pos, V} | R]) when Kind =:= int; Kind =:= float; Kind =:= char;
+atompat([{'_', Position} | Rest]) ->
+    spanned({#p_wildcard{span = Position}, Rest});
+atompat([{ident, Position, Name} | Rest]) ->
+    spanned({#p_var{span = Position, name = Name}, Rest});
+atompat([{Kind, Position, Value} | Rest]) when Kind =:= int; Kind =:= float; Kind =:= char;
                                    Kind =:= string; Kind =:= bool ->
-    w({#p_lit{pos = Pos, kind = Kind, value = V}, R});
-atompat([{'-', Pos}, {Kind, _, V} | R]) when Kind =:= int; Kind =:= float ->
-    w({#p_lit{pos = Pos, kind = Kind, value = negated(V)}, R});
-atompat([{'-', _}, T | _]) ->
-    fail(pos(T), "expected a number after `-` in a pattern instead of " ++ describe(T));
-atompat([{typename, Pos, _} | _] = Ts) ->
-    case qualified(Ts) of
-        {{con, Path, Name}, R} -> constructor_pat(Pos, Path, Name, R);
-        {{value, _, _}, R} ->
-            fail(through(Pos, Ts, R),
+    spanned({#p_literal{span = Position, kind = Kind, value = Value}, Rest});
+atompat([{'-', Position}, {Kind, _, Value} | Rest]) when Kind =:= int; Kind =:= float ->
+    spanned({#p_literal{span = Position, kind = Kind, value = negated(Value)}, Rest});
+atompat([{'-', _}, Token | _]) ->
+    fail(position(Token),
+         "expected a number after `-` in a pattern instead of " ++ describe(Token));
+atompat([{typename, Position, _} | _] = Tokens) ->
+    case qualified(Tokens) of
+        {{con, Path, Name}, Rest} -> constructor_pattern(Position, Path, Name, Rest);
+        {{value, _, _}, Rest} ->
+            fail(span_through(Position, Tokens, Rest),
                  "expected a constructor; a pattern cannot name a function or value")
     end;
-atompat([{'#(', Pos} | R]) ->
-    {Elems, R1} = components(Pos, sep_by(R, ',', fun pattern/1)),
-    w({#p_tuple{pos = Pos, elems = Elems}, expect(R1, ')')});
-atompat([{'[', Pos} | R]) ->
-    {Elems, R1} = case R of
-                      [{']', _} | _] -> {[], R};
-                      _ -> sep_by(R, ',', fun pattern/1)
-                  end,
-    w({#p_list{pos = Pos, elems = Elems}, expect(R1, ']')});
-atompat([{'<<', Pos} | R]) ->
-    {Segs, R1} = bit_segments(R, fun pattern/1),
-    w({#p_bits{pos = Pos, segments = Segs}, R1});
-atompat([T | _]) ->
-    wanted(pattern, pos(T), "expected a pattern instead of " ++ describe(T)).
+atompat([{'#(', Position} | Rest]) ->
+    {Elements, Rest1} = components(Position, sep_by(Rest, ',', fun pattern/1)),
+    spanned({#p_tuple{span = Position, elements = Elements}, expect(Rest1, ')')});
+atompat([{'[', Position} | Rest]) ->
+    {Elements, Rest1} = case Rest of
+                            [{']', _} | _] -> {[], Rest};
+                            _ -> sep_by(Rest, ',', fun pattern/1)
+                        end,
+    spanned({#p_list{span = Position, elements = Elements}, expect(Rest1, ']')});
+atompat([{'<<', Position} | Rest]) ->
+    {Segments, Rest1} = bit_segments(Rest, fun pattern/1),
+    spanned({#p_bitstring{span = Position, segments = Segments}, Rest1});
+atompat([Token | _]) ->
+    wanted(pattern, position(Token), "expected a pattern instead of " ++ describe(Token)).
 
-constructor_pat(Pos, Path, Name, [{'(', _} | R]) ->
-    case R of
-        [{')', _} | R1] ->
-            w({#p_con{pos = Pos, path = Path, name = Name, args = {named, []}}, R1});
+constructor_pattern(Position, Path, Name, [{'(', _} | Rest]) ->
+    case Rest of
+        [{')', _} | Rest1] ->
+            spanned({#p_constructor{span = Position, path = Path, name = Name, args = {named, []}},
+                     Rest1});
         [{ident, _, _}, {'=', _} | _] ->
-            {Fields, R1} = sep_by(R, ',', field_pat_of(Path, Name)),
-            w({#p_con{pos = Pos, path = Path, name = Name, args = {named, Fields}},
-               expect(R1, ')')});
-        [{eof, P} | _] ->
+            {Fields, Rest1} = sep_by(Rest, ',', field_pattern_of(Path, Name)),
+            spanned({#p_constructor{span = Position, path = Path, name = Name,
+                                    args = {named, Fields}},
+                     expect(Rest1, ')')});
+        [{eof, EndPosition} | _] ->
             %% report §11.2: as in an expression, a field's name or a
             %% pattern may stand here, and the constructor's type tells
-            wanted({field_or_pattern, Path, Name}, P, "expected a pattern instead of end of input");
+            wanted({field_or_pattern, Path, Name}, EndPosition,
+                   "expected a pattern instead of end of input");
         _ ->
-            {P, R1} = pattern(R),
-            w({#p_con{pos = Pos, path = Path, name = Name, args = {positional, P}},
-               expect(R1, ')')})
+            {Pattern, Rest1} = pattern(Rest),
+            spanned({#p_constructor{span = Position, path = Path, name = Name,
+                                    args = {positional, Pattern}},
+                     expect(Rest1, ')')})
     end;
-constructor_pat(Pos, Path, Name, Ts) ->
-    w({#p_con{pos = Pos, path = Path, name = Name}, Ts}).
+constructor_pattern(Position, Path, Name, Tokens) ->
+    spanned({#p_constructor{span = Position, path = Path, name = Name}, Tokens}).
 
 %% Report §11.2: a field of this constructor in a pattern, tagged as in
 %% an expression, so that completion knows which fields may stand there.
-field_pat_of(Path, Con) ->
-    fun(Ts) ->
-        {Name, Pos, R} = tagging({field, Path, Con}, fun() -> expect_ident_pos(Ts) end),
-        {P, R1} = pattern(expect(R, '=')),
-        w({#field_pat{pos = Pos, name = Name, pattern = P}, R1})
+field_pattern_of(Path, Constructor) ->
+    fun(Tokens) ->
+        {Name, Position, Rest} = tagging({field, Path, Constructor},
+                                         fun() -> expect_ident_position(Tokens) end),
+        {Pattern, Rest1} = pattern(expect(Rest, '=')),
+        spanned({#field_pattern{span = Position, name = Name, pattern = Pattern}, Rest1})
     end.
 
 %%
 %% Bitstrings. Value is parsed by Parse (an expression or a pattern).
 %%
 
-bit_segments([{'>>', _} | R], _Parse) ->
-    {[], R};
-bit_segments(Ts, Parse) ->
-    {Segs, R} = sep_by(Ts, ',', fun(T) -> bit_segment(T, Parse) end),
-    {Segs, expect(R, '>>')}.
+bit_segments([{'>>', _} | Rest], _Parse) ->
+    {[], Rest};
+bit_segments(Tokens, Parse) ->
+    {Segments, Rest} = sep_by(Tokens, ',',
+                              fun(SegmentTokens) -> bit_segment(SegmentTokens, Parse) end),
+    {Segments, expect(Rest, '>>')}.
 
-bit_segment(Ts, Parse) ->
-    {V, R} = Parse(Ts),
-    case R of
-        [{':', _} | R1] ->
-            {Specs, R2} = sep_by(R1, '-', fun bit_spec/1),
-            w({#bit_seg{pos = node_pos(V), value = V, specs = Specs}, R2});
+bit_segment(Tokens, Parse) ->
+    {Value, Rest} = Parse(Tokens),
+    case Rest of
+        [{':', _} | Rest1] ->
+            {Specs, Rest2} = sep_by(Rest1, '-', fun bit_spec/1),
+            spanned({#bit_segment{span = node_span(Value), value = Value, specs = Specs}, Rest2});
         _ ->
-            w({#bit_seg{pos = node_pos(V), value = V}, R})
+            spanned({#bit_segment{span = node_span(Value), value = Value}, Rest})
     end.
 
-bit_spec([{ident, _, size}, {'(', _} | R]) ->
-    {E, R1} = expr(R),
-    {{size, E}, expect(R1, ')')};
-bit_spec([{ident, Pos, unit} | _]) ->
+bit_spec([{ident, _, size}, {'(', _} | Rest]) ->
+    {Expr, Rest1} = expr(Rest),
+    {{size, Expr}, expect(Rest1, ')')};
+bit_spec([{ident, Position, unit} | _]) ->
     %% report §5.11: a size counts bits, and octets for `bytes`, so no
     %% specifier scales it
-    fail(Pos, "there is no `unit` specifier",
+    fail(Position, "there is no `unit` specifier",
          "a size counts bits, and octets for `bytes`: write `size(n * 8)`");
-bit_spec([{ident, Pos, Name} | R]) ->
+bit_spec([{ident, Position, Name} | Rest]) ->
     case lists:member(Name, ?SPECS) of
-        true -> {Name, R};
-        false -> fail(Pos, "unknown bitstring specifier `" ++ atom_to_list(Name) ++ "`")
+        true -> {Name, Rest};
+        false -> fail(Position, "unknown bitstring specifier `" ++ atom_to_list(Name) ++ "`")
     end;
-bit_spec([T | _]) ->
-    fail(pos(T), "expected a bitstring specifier instead of " ++ describe(T)).
+bit_spec([Token | _]) ->
+    fail(position(Token), "expected a bitstring specifier instead of " ++ describe(Token)).
 
 %%
 %% Token helpers
 %%
 
-sep_by(Ts, Sep, Parse) ->
-    {X, R} = Parse(Ts),
-    case R of
-        [{Sep, _} | R1] ->
-            {Xs, R2} = sep_by(R1, Sep, Parse),
-            {[X | Xs], R2};
+sep_by(Tokens, Separator, Parse) ->
+    {Item, Rest} = Parse(Tokens),
+    case Rest of
+        [{Separator, _} | Rest1] ->
+            {Items, Rest2} = sep_by(Rest1, Separator, Parse),
+            {[Item | Items], Rest2};
         _ ->
-            {[X], R}
+            {[Item], Rest}
     end.
 
-expect([{Sym, _} | R], Sym) ->
-    R;
-expect([{'<-', _} = T | _], Sym) ->
+expect([{Symbol, _} | Rest], Symbol) ->
+    Rest;
+expect([{'<-', _} = Token | _], Symbol) ->
     %% report §2.6, §11.5: max-munch makes `a<-1` a binding arrow, which a
     %% comparison with a negative number was meant as
-    fail(pos(T), "expected `" ++ atom_to_list(Sym) ++ "` instead of " ++ describe(T),
+    fail(position(Token),
+         "expected `" ++ atom_to_list(Symbol) ++ "` instead of " ++ describe(Token),
          "`<-` is one token; write `a < -1` to compare with a negative number");
-expect([T | _], Sym) ->
-    fail(pos(T), "expected `" ++ atom_to_list(Sym) ++ "` instead of " ++ describe(T)).
+expect([Token | _], Symbol) ->
+    fail(position(Token),
+         "expected `" ++ atom_to_list(Symbol) ++ "` instead of " ++ describe(Token)).
 
-expect_ident(Ts) ->
-    {Name, _, R} = expect_ident_pos(Ts),
-    {Name, R}.
+expect_ident(Tokens) ->
+    {Name, _, Rest} = expect_ident_position(Tokens),
+    {Name, Rest}.
 
-expect_ident_pos([{ident, Pos, Name} | R]) -> {Name, Pos, R};
-expect_ident_pos([T | _]) -> fail(pos(T), "expected a name instead of " ++ describe(T)).
+expect_ident_position([{ident, Position, Name} | Rest]) -> {Name, Position, Rest};
+expect_ident_position([Token | _]) -> fail(position(Token),
+                                           "expected a name instead of " ++ describe(Token)).
 
-expect_typename(Ts) ->
-    {Name, _, R} = expect_typename_pos(Ts),
-    {Name, R}.
+expect_typename(Tokens) ->
+    {Name, _, Rest} = expect_typename_position(Tokens),
+    {Name, Rest}.
 
-expect_typename_pos([{typename, Pos, Name} | R]) -> {Name, Pos, R};
-expect_typename_pos([{ident, P, N} = T | _]) ->
-    Help = case meant_typename(atom_to_list(N)) of
+expect_typename_position([{typename, Position, Name} | Rest]) -> {Name, Position, Rest};
+expect_typename_position([{ident, IdentPosition, Name} = Token | _]) ->
+    Help = case meant_typename(atom_to_list(Name)) of
                none -> "a type name begins with an uppercase letter";
                Typename -> "a type name begins with an uppercase letter: " ++ Typename
            end,
-    throw({parse_error, (diag(P, "expected a type name instead of " ++ describe(T), Help))
+    throw({parse_error,
+           (diagnostic(IdentPosition, "expected a type name instead of " ++ describe(Token), Help))
                             #diagnostic{expected = typename}});
-expect_typename_pos([T | _]) ->
-    wanted(typename, pos(T), "expected a type name instead of " ++ describe(T)).
+expect_typename_position([Token | _]) ->
+    wanted(typename, position(Token), "expected a type name instead of " ++ describe(Token)).
 
 %% The type name an identifier was meant as, its leading `_` gone and its
 %% first letter uppercase, or none where no letter begins what is left.
 meant_typename(Identifier) ->
-    case lists:dropwhile(fun(Ch) -> Ch =:= $_ end, Identifier) of
+    case lists:dropwhile(fun(Char) -> Char =:= $_ end, Identifier) of
         [First | Rest] when First >= $a, First =< $z -> [First - $a + $A | Rest];
         _ -> none
     end.
 
-sym(T) -> element(1, T).
-pos(T) -> element(2, T).
-line(T) -> element(1, pos(T)).
-node_pos(Node) -> element(2, Node).
+symbol(Token) -> element(1, Token).
+position(Token) -> element(2, Token).
+line(Token) -> element(1, position(Token)).
+node_span(Node) -> element(2, Node).
 
 %% Report §11.5: the span from Pos to the end of the last token Ts gave
 %% before Rest, so an error covers a qualified name whole.
-through(Pos, Ts, Rest) ->
-    Last = lists:nth(length(Ts) - length(Rest), Ts),
-    setelement(3, Pos, element(3, pos(Last))).
+span_through(Position, Tokens, Rest) ->
+    Last = lists:nth(length(Tokens) - length(Rest), Tokens),
+    setelement(3, Position, element(3, position(Last))).
 
-%% Report §11.5: a node's pos is its span, from the node's first token to
+%% Report §11.5: a node's span, from the node's first token to
 %% the end of the token before the rest, which every token carries.
-w({Node, R}) ->
-    Pos = element(2, Node),
-    End = case R of
+spanned({Node, Rest}) ->
+    Position = element(2, Node),
+    End = case Rest of
               [Next | _] -> element(4, element(2, Next));
-              [] -> element(3, Pos)
+              [] -> element(3, Position)
           end,
-    {setelement(2, Node, {element(1, Pos), element(2, Pos), End}), R}.
+    {setelement(2, Node, {element(1, Position), element(2, Position), End}), Rest}.
 
-describe({ident, _, N}) -> "identifier `" ++ atom_to_list(N) ++ "`";
-describe({typename, _, N}) -> "type name `" ++ atom_to_list(N) ++ "`";
-describe({int, _, V}) -> "integer " ++ integer_to_list(V);
-describe({float, _, V}) -> "float " ++ float_to_list(V, [short]);
+describe({ident, _, Name}) -> "identifier `" ++ atom_to_list(Name) ++ "`";
+describe({typename, _, Name}) -> "type name `" ++ atom_to_list(Name) ++ "`";
+describe({int, _, Value}) -> "integer " ++ integer_to_list(Value);
+describe({float, _, Value}) -> "float " ++ float_to_list(Value, [short]);
 describe({char, _, _}) -> "char literal";
 describe({string, _, _}) -> "string literal";
-describe({bool, _, V}) -> "`" ++ atom_to_list(V) ++ "`";
+describe({bool, _, Value}) -> "`" ++ atom_to_list(Value) ++ "`";
 describe({doc, _, _}) -> "doc comment";
 describe({eof, _}) -> "end of input";
-describe({Sym, _}) -> "`" ++ atom_to_list(Sym) ++ "`".
+describe({Symbol, _}) -> "`" ++ atom_to_list(Symbol) ++ "`".
 
 -spec fail(ern_diagnostic:position(), iodata()) -> no_return().
 %% Report §3.2: a tuple has two components or more, as a type, a value
 %% and a pattern alike.
-components(Pos, {[_], _}) ->
-    fail(Pos, "a tuple has two components or more",
+components(Position, {[_], _}) ->
+    fail(Position, "a tuple has two components or more",
          "write the component itself, or add another");
 components(_, Parsed) ->
     Parsed.
 
-fail(Pos, Message) ->
-    fail(Pos, Message, undefined).
+fail(Position, Message) ->
+    fail(Position, Message, undefined).
 
 %% Report §11.2: what the parser wanted here, for the shell's
 %% completion, which asks what may stand at the cursor. Only the
 %% categories completion acts on are marked; every other failure leaves
 %% the field alone.
 -spec wanted(term(), ern_diagnostic:position(), iodata()) -> no_return().
-wanted(What, Pos, Message) ->
-    throw({parse_error, (diag(Pos, Message, undefined))#diagnostic{expected = What}}).
+wanted(What, Position, Message) ->
+    throw({parse_error, (diagnostic(Position, Message, undefined))#diagnostic{expected = What}}).
 
 %% What a failure inside this call wanted, where the caller knows it and
 %% the failing code does not: a field name belongs to its constructor.
 tagging(What, Parse) ->
     try Parse()
-    catch throw:{parse_error, #diagnostic{expected = undefined} = D} ->
-        throw({parse_error, D#diagnostic{expected = What}})
+    catch throw:{parse_error, #diagnostic{expected = undefined} = Diagnostic} ->
+        throw({parse_error, Diagnostic#diagnostic{expected = What}})
     end.
 
 %% Report §11.5: the message states the rule, the help line the fix.
 -spec fail(ern_diagnostic:position(), iodata(), string() | undefined) -> no_return().
-fail(Pos, Message, Help) ->
-    throw({parse_error, diag(Pos, Message, Help)}).
+fail(Position, Message, Help) ->
+    throw({parse_error, diagnostic(Position, Message, Help)}).
 
 %% Report §3.1: a negated literal, and no negative zero, so `-0.0` is the
 %% zero.
@@ -1059,8 +1120,9 @@ negated(Number) -> -Number.
 
 %% Whether what is left is the input's end, where a further line may finish
 %% what the parser was reading (report §11.2).
-ended([{eof, _} | _]) -> true;
-ended(_) -> false.
+is_at_end([{eof, _} | _]) -> true;
+is_at_end(_) -> false.
 
-diag(Pos, Message, Help) ->
-    #diagnostic{span = ern_diagnostic:span(Pos), message = lists:flatten(Message), help = Help}.
+diagnostic(Position, Message, Help) ->
+    #diagnostic{span = ern_diagnostic:span(Position), message = lists:flatten(Message),
+                help = Help}.

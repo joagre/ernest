@@ -230,7 +230,7 @@ sym(T) -> element(1, T).
 first(#e_call{pipe = true, args = [X | _]}) -> first(X);
 first(#e_call{callee = F}) -> first(F);
 first(#e_binop{left = L}) -> first(L);
-first(#e_select{expr = E}) -> first(E);
+first(#e_selection{expr = E}) -> first(E);
 first(N) -> {L, C, _} = element(2, N), {L, C}.
 
 first_index(N, X) -> maps:get(first(N), X#ctx.starts).
@@ -260,8 +260,8 @@ kind_(#e_match{}, _) -> brace;
 kind_(#e_receive{}, _) -> brace;
 kind_(#e_lambda{body = B}, X) -> braced(B, X);
 kind_(#e_call{pipe = false, args = [_ | _] = As}, X) -> braced(lists:last(As), X);
-kind_(#e_con{args = {positional, E}}, X) -> braced(E, X);
-kind_(#e_con{args = {named, _, [_ | _] = Sets}}, X) ->
+kind_(#e_constructor{args = {positional, E}}, X) -> braced(E, X);
+kind_(#e_constructor{args = {named, _, [_ | _] = Sets}}, X) ->
     braced((lists:last(Sets))#field_set.expr, X);
 kind_(_, _) -> other.
 
@@ -282,26 +282,28 @@ sp() -> <<" ">>.
 module(Decls, X) ->
     lists:join([hardline, force_blank], [decl(D, X) || D <- Decls]).
 
-decl(#fn_decl{export = E, owner = O, params = Ps, ret = R, effect = F, body = B}, X) ->
+decl(#fn_declaration{export = E, owner = O, params = Ps, result_type = R, effect = F,
+                     body = B}, X) ->
     [export(E), tok(fn), sp(), name(O), params(Ps, X), ret(R, F, X), sp(), tok('='),
      case kind(B, X) of
          block -> [sp(), ex(B, X)];
          _ -> {nest, 4, [hardline, ex(B, X)]}
      end];
-decl(#let_decl{export = E, ann = A, body = B}, X) ->
+decl(#let_declaration{export = E, annotation = A, body = B}, X) ->
     [export(E), tok('let'), sp(), tok(), ann(A, X), sp(), tok('='), {body, ex(B, X)}];
-decl(#type_decl{export = E, params = Ps, constructors = Cs}, X) ->
+decl(#type_declaration{export = E, params = Ps, constructors = Cs}, X) ->
     [export(E), type_decl(Ps, Cs, X)];
-decl(#abstract_decl{export = E, type = #type_decl{params = Ps, constructors = Cs}}, X) ->
+decl(#abstract_declaration{export = E,
+                           declaration = #type_declaration{params = Ps, constructors = Cs}}, X) ->
     [export(E), tok(abstract), sp(), type_decl(Ps, Cs, X)];
-decl(#foreign_type_decl{export = E, params = Ps, eq = Eq}, _X) ->
+decl(#foreign_type_declaration{export = E, params = Ps, equality = Eq}, _X) ->
     Vars = case Ps of
                [] -> [];
                _ -> bracket(tok('('), [[tok() | [tok('=') || lists:member(P, Eq)]] || P <- Ps],
                             ')')
            end,
     [export(E), tok(foreign), sp(), tok(type), sp(), tok(), Vars];
-decl(#foreign_fn_decl{export = E, owner = O, params = Ps, ret = R, effect = F}, X) ->
+decl(#foreign_fn_declaration{export = E, owner = O, params = Ps, result_type = R, effect = F}, X) ->
     [export(E), tok(foreign), sp(), tok(fn), sp(), name(O), params(Ps, X), ret(R, F, X), sp(),
      tok('='), {nest, 4, [hardline, tok(string)]}].
 
@@ -314,8 +316,8 @@ name(_Owner) -> [tok(), tok('.'), tok()].
 params(Ps, X) ->
     bracket(tok('('), [param(P, X) || P <- Ps], ')').
 
-param(#param{pattern = P, type = undefined}, X) -> pat(P, X);
-param(#param{pattern = P, type = T}, X) -> [pat(P, X), sp(), tok(':'), sp(), ty(T, X)].
+param(#param{pattern = P, annotation = undefined}, X) -> pat(P, X);
+param(#param{pattern = P, annotation = T}, X) -> [pat(P, X), sp(), tok(':'), sp(), ty(T, X)].
 
 %% A head's result annotation is written `: T`, and a function type's
 %% result after `->` (report §3.4, §4.5).
@@ -351,8 +353,9 @@ alternatives([C | Cs], X) ->
 con(#constructor{fields = none}, _) -> tok();
 con(#constructor{fields = {positional, T}}, X) -> [tok(), bracket(tok('('), [ty(T, X)], ')')];
 con(#constructor{fields = {named, Fs}}, X) ->
-    [tok(), bracket(tok('('), [[tok(), sp(), tok(':'), sp(), ty(T, X)] || #field{type = T} <- Fs],
-                    ')')].
+    [tok(),
+     bracket(tok('('), [[tok(), sp(), tok(':'), sp(), ty(T, X)] || #field{annotation = T} <- Fs],
+             ')')].
 
 %% A bracket and its items, which the second pass lays out on one line or
 %% one a line, aligned; Hug when its last item may stay on the bracket's
@@ -370,12 +373,12 @@ last(Xs) -> lists:last(Xs).
 
 ty(T, X) -> {node, T, ty_(T, X)}.
 
-ty_(#t_con{path = P, args = []}, _) -> [path(P), tok()];
-ty_(#t_con{path = P, args = As}, X) ->
+ty_(#t_named{path = P, args = []}, _) -> [path(P), tok()];
+ty_(#t_named{path = P, args = As}, X) ->
     [path(P), tok(), bracket(tok('('), [ty(A, X) || A <- As], ')')];
 ty_(#t_var{}, _) -> tok();
-ty_(#t_tuple{elems = Es}, X) -> bracket(tok('#('), [ty(E, X) || E <- Es], ')');
-ty_(#t_fn{params = Ps, ret = R, effect = F}, X) ->
+ty_(#t_tuple{elements = Es}, X) -> bracket(tok('#('), [ty(E, X) || E <- Es], ')');
+ty_(#t_fn{params = Ps, result_type = R, effect = F}, X) ->
     [bracket(tok('('), [ty(P, X) || P <- Ps], ')'), ret('->', R, F, X)].
 
 path(P) -> [[tok(), tok('.')] || _ <- P].
@@ -384,31 +387,31 @@ path(P) -> [[tok(), tok('.')] || _ <- P].
 
 ex(E, X) -> {node, E, ex_(E, X)}.
 
-ex_(#e_lit{}, _) -> tok();
+ex_(#e_literal{}, _) -> tok();
 ex_(#e_var{path = P}, _) -> [path(P), tok()];
-ex_(#e_con{path = P, args = none}, _) -> [path(P), tok()];
-ex_(#e_con{path = P, args = {positional, E}}, X) ->
+ex_(#e_constructor{path = P, args = none}, _) -> [path(P), tok()];
+ex_(#e_constructor{path = P, args = {positional, E}}, X) ->
     [path(P), tok(), bracket(tok('('), [ex(E, X)], ')', E, X)];
-ex_(#e_con{path = P, args = {named, Base, Sets}}, X) ->
+ex_(#e_constructor{path = P, args = {named, Base, Sets}}, X) ->
     Items = [[tok('..'), ex(Base, X)] || Base =/= undefined]
         ++ [[tok(), sp(), tok('='), sp(), ex(E, X)] || #field_set{expr = E} <- Sets],
     [path(P), tok(), bracket(tok('('), Items, ')', last([E || #field_set{expr = E} <- Sets]), X)];
-ex_(#e_tuple{elems = Es}, X) -> bracket(tok('#('), [ex(E, X) || E <- Es], ')', last(Es), X);
-ex_(#e_list{elems = Es}, X) -> bracket(tok('['), [ex(E, X) || E <- Es], ']', last(Es), X);
-ex_(#e_bits{segments = Ss}, X) -> bracket(tok('<<'), [seg(S, X, fun ex/2) || S <- Ss], '>>');
-ex_(#e_block{stmts = Ss}, X) -> braces([stmts(Ss, X), lead_trivia]);
+ex_(#e_tuple{elements = Es}, X) -> bracket(tok('#('), [ex(E, X) || E <- Es], ')', last(Es), X);
+ex_(#e_list{elements = Es}, X) -> bracket(tok('['), [ex(E, X) || E <- Es], ']', last(Es), X);
+ex_(#e_bitstring{segments = Ss}, X) -> bracket(tok('<<'), [seg(S, X, fun ex/2) || S <- Ss], '>>');
+ex_(#e_block{statements = Ss}, X) -> braces([stmts(Ss, X), lead_trivia]);
 ex_(#e_call{pipe = false, callee = F, args = As}, X) -> [ex(F, X), args(As, X)];
 ex_(#e_call{pipe = true} = Call, X) ->
     {Base, Segments} = pipe_chain(Call, X, []),
     {group, [ex(Base, X),
              {nest, 4, [[line, tok('|>'), sp(), ex(F, X), Args] || {F, Args} <- Segments]}]};
-ex_(#e_select{expr = E}, X) -> [ex(E, X), tok('.'), tok()];
-ex_(#e_neg{expr = E}, X) -> [tok('-'), ex(E, X)];
+ex_(#e_selection{expr = E}, X) -> [ex(E, X), tok('.'), tok()];
+ex_(#e_negation{expr = E}, X) -> [tok('-'), ex(E, X)];
 ex_(#e_not{expr = E}, X) -> [tok('!'), ex(E, X)];
 ex_(#e_binop{} = B, X) ->
     [First | Rest] = operands(B, X),
     {group, [ex(First, X), {nest, 4, [[line, tok(Op), sp(), ex(N, X)] || {Op, N} <- Rest]}]};
-ex_(#e_lambda{params = Ps, ret = R, effect = F, body = B}, X) ->
+ex_(#e_lambda{params = Ps, result_type = R, effect = F, body = B}, X) ->
     [tok(fn), params(Ps, X), ret(R, F, X), sp(), tok('='), {body, ex(B, X)}];
 ex_(#e_if{} = If, X) ->
     {group, ladder(If, X)};
@@ -431,14 +434,14 @@ braces(Inside) ->
 stmts(Ss, X) ->
     lists:join([tok(';'), hardline], [stmt(S, X) || S <- Ss]).
 
-stmt(#binding{pattern = P, ann = A, expr = E}, X) ->
+stmt(#binding{pattern = P, annotation = A, expr = E}, X) ->
     [tok('let'), sp(), pat(P, X), ann(A, X), sp(), tok(), {body, ex(E, X)}];
-stmt(#fn_decl{} = F, X) -> decl(F, X);
+stmt(#fn_declaration{} = F, X) -> decl(F, X);
 stmt(E, X) -> ex(E, X).
 
-seg(#bit_seg{value = V, specs = []}, X, Value) ->
+seg(#bit_segment{value = V, specs = []}, X, Value) ->
     Value(V, X);
-seg(#bit_seg{value = V, specs = Ss}, X, Value) ->
+seg(#bit_segment{value = V, specs = Ss}, X, Value) ->
     [Value(V, X), tok(':'), lists:join(tok('-'), [spec(S, X) || S <- Ss])].
 
 spec({size, E}, X) -> [tok(), tok('('), ex(E, X), tok(')')];
@@ -467,12 +470,12 @@ bracketed(Call, F, X) ->
 
 %% A chain of one operator, written as one: `a <> b <> c` breaks before
 %% every `<>` or none. `::` groups to the right, every other to the left.
-operands(#e_binop{op = '::', left = L, right = R}, X) ->
+operands(#e_binop{operator = '::', left = L, right = R}, X) ->
     [L | right_chain(R, X)];
-operands(#e_binop{op = Op, left = L, right = R}, X) ->
+operands(#e_binop{operator = Op, left = L, right = R}, X) ->
     left_chain(L, Op, X) ++ [{Op, R}].
 
-left_chain(#e_binop{op = Op, left = L, right = R} = N, Op, X) ->
+left_chain(#e_binop{operator = Op, left = L, right = R} = N, Op, X) ->
     case paren(N, X) of
         false -> left_chain(L, Op, X) ++ [{Op, R}];
         true -> [N]
@@ -480,7 +483,7 @@ left_chain(#e_binop{op = Op, left = L, right = R} = N, Op, X) ->
 left_chain(N, _, _) ->
     [N].
 
-right_chain(#e_binop{op = '::', left = L, right = R} = N, X) ->
+right_chain(#e_binop{operator = '::', left = L, right = R} = N, X) ->
     case paren(N, X) of
         false -> [{'::', L} | right_chain(R, X)];
         true -> [{'::', N}]
@@ -531,26 +534,26 @@ after_clause(#after_clause{timeout = T, body = B}, X) ->
 
 %% Patterns, which have no parentheses
 
-pat(#p_wild{}, _) -> tok();
+pat(#p_wildcard{}, _) -> tok();
 pat(#p_var{}, _) -> tok();
-pat(#p_lit{} = P, X) ->
+pat(#p_literal{} = P, X) ->
     case sym(element(first_index(P, X), X#ctx.toks)) of
         '-' -> [tok('-'), tok()];
         _ -> tok()
     end;
-pat(#p_con{path = Pa, args = none}, _) -> [path(Pa), tok()];
-pat(#p_con{path = Pa, args = {named, []}}, _) -> [path(Pa), tok(), tok('('), tok(')')];
-pat(#p_con{path = Pa, args = {named, Fs}}, X) ->
+pat(#p_constructor{path = Pa, args = none}, _) -> [path(Pa), tok()];
+pat(#p_constructor{path = Pa, args = {named, []}}, _) -> [path(Pa), tok(), tok('('), tok(')')];
+pat(#p_constructor{path = Pa, args = {named, Fs}}, X) ->
     [path(Pa), tok(), bracket(tok('('), [[tok(), sp(), tok('='), sp(), pat(P, X)]
-                                         || #field_pat{pattern = P} <- Fs], ')')];
-pat(#p_con{path = Pa, args = {positional, P}}, X) ->
+                                         || #field_pattern{pattern = P} <- Fs], ')')];
+pat(#p_constructor{path = Pa, args = {positional, P}}, X) ->
     [path(Pa), tok(), bracket(tok('('), [pat(P, X)], ')')];
-pat(#p_tuple{elems = Es}, X) -> bracket(tok('#('), [pat(E, X) || E <- Es], ')');
-pat(#p_list{elems = Es}, X) -> bracket(tok('['), [pat(E, X) || E <- Es], ']');
+pat(#p_tuple{elements = Es}, X) -> bracket(tok('#('), [pat(E, X) || E <- Es], ')');
+pat(#p_list{elements = Es}, X) -> bracket(tok('['), [pat(E, X) || E <- Es], ']');
 pat(#p_cons{head = H, tail = T}, X) -> [pat(H, X), sp(), tok('::'), sp(), pat(T, X)];
 pat(#p_as{pattern = P}, X) -> [pat(P, X), sp(), tok(as), sp(), tok()];
-pat(#p_or{alts = As}, X) -> lists:join([sp(), tok('or'), sp()], [pat(A, X) || A <- As]);
-pat(#p_bits{segments = Ss}, X) -> bracket(tok('<<'), [seg(S, X, fun pat/2) || S <- Ss], '>>').
+pat(#p_or{alternatives = As}, X) -> lists:join([sp(), tok('or'), sp()], [pat(A, X) || A <- As]);
+pat(#p_bitstring{segments = Ss}, X) -> bracket(tok('<<'), [seg(S, X, fun pat/2) || S <- Ss], '>>').
 
 %%
 %% The second pass: the template in source order, with the tokens' text

@@ -230,12 +230,12 @@ coverage(Ns, File) ->
     {ok, Decls} = ern_parser:parse_string(Src),
     Examples = iolist_to_binary([B || Doc <- docs(Decls), B <- fences(Doc)]),
     Prefix = lists:join(".", [atom_to_list(A) || A <- Ns]),
-    Fns = [owned_name(O, N) || #fn_decl{export = true, owner = O, name = N} <- Decls,
+    Fns = [owned_name(O, N) || #fn_declaration{export = true, owner = O, name = N} <- Decls,
                                is_alpha(N)]
-        ++ [owned_name(O, N) || #foreign_fn_decl{export = true, owner = O, name = N} <- Decls,
-                                is_alpha(N)],
+        ++ [owned_name(O, N)
+            || #foreign_fn_declaration{export = true, owner = O, name = N} <- Decls, is_alpha(N)],
     %% a module exports something: `Test`, Appendix E.24, declares types alone
-    Types = [N || #type_decl{export = true, name = N} <- Decls],
+    Types = [N || #type_declaration{export = true, name = N} <- Decls],
     ?assertNotEqual([], Fns ++ Types),
     Uncalled = [F || F <- Fns,
                      binary:match(Examples, iolist_to_binary([Prefix, ".", F, "("])) =:= nomatch],
@@ -272,12 +272,12 @@ see_also(File) ->
 
 qualified(Q) -> lists:flatten(lists:join(".", [atom_to_list(A) || A <- Q])).
 
-decl_names(#type_decl{name = N}) -> [atom_to_list(N)];
-decl_names(#abstract_decl{type = #type_decl{name = N}}) -> [atom_to_list(N)];
-decl_names(#fn_decl{owner = O, name = N}) -> [owned_name(O, N)];
-decl_names(#let_decl{name = N}) -> [atom_to_list(N)];
-decl_names(#foreign_fn_decl{owner = O, name = N}) -> [owned_name(O, N)];
-decl_names(#foreign_type_decl{name = N}) -> [atom_to_list(N)];
+decl_names(#type_declaration{name = N}) -> [atom_to_list(N)];
+decl_names(#abstract_declaration{declaration = #type_declaration{name = N}}) -> [atom_to_list(N)];
+decl_names(#fn_declaration{owner = O, name = N}) -> [owned_name(O, N)];
+decl_names(#let_declaration{name = N}) -> [atom_to_list(N)];
+decl_names(#foreign_fn_declaration{owner = O, name = N}) -> [owned_name(O, N)];
+decl_names(#foreign_type_declaration{name = N}) -> [atom_to_list(N)];
 decl_names(_) -> [].
 
 owned_name(undefined, N) -> atom_to_list(N);
@@ -298,15 +298,17 @@ docs(T) ->
 %% it within a declaration the module keeps private, the fourth element of
 %% a top-level declaration saying whether it is exported.
 docs(T, Where, Acc) when is_tuple(T), tuple_size(T) >= 3 ->
-    Private = lists:member(element(1, T), [type_decl, abstract_decl, fn_decl, let_decl,
-                                           foreign_type_decl, foreign_fn_decl])
+    Private = lists:member(element(1, T), [type_declaration, abstract_declaration,
+                                           fn_declaration, let_declaration,
+                                           foreign_type_declaration, foreign_fn_declaration])
         andalso element(4, T) =:= false,
     Where1 = case Private of
                  true -> inside;
                  false -> Where
              end,
-    Acc1 = case lists:member(element(1, T), [module_doc, type_decl, abstract_decl, fn_decl,
-                                              let_decl, foreign_type_decl, foreign_fn_decl,
+    Acc1 = case lists:member(element(1, T), [module_doc, type_declaration, abstract_declaration,
+                                              fn_declaration, let_declaration,
+                                              foreign_type_declaration, foreign_fn_declaration,
                                               constructor, field, signature])
                     andalso is_binary(element(3, T)) of
                true -> [{element(3, T), Where1} | Acc];

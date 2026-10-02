@@ -130,8 +130,8 @@ check(Ns, Decls0, Ifaces, Session) ->
 hidden_notes(Decls, Errs) ->
     {PreludeTypes, PreludeCons} = prelude_names(),
     PreludeValues = [Q || {[_] = Q, _, _} <- ern_prelude:values()],
-    Types = [T || #type_decl{name = T} <- declared_types(Decls)],
-    Cons = [C || #type_decl{constructors = Cs} <- declared_types(Decls),
+    Types = [T || #type_declaration{name = T} <- declared_types(Decls)],
+    Cons = [C || #type_declaration{constructors = Cs} <- declared_types(Decls),
                  #constructor{name = C} <- Cs],
     Values = [N || D <- Decls, N <- top_value_name(D)],
     Hidden = [{type, N} || N <- Types, lists:member([N], PreludeTypes)]
@@ -145,25 +145,26 @@ hidden_notes(Decls, Errs) ->
     end.
 
 declared_types(Decls) ->
-    [T || #type_decl{} = T <- Decls] ++ [T || #abstract_decl{type = T} <- Decls].
+    [T || #type_declaration{} = T <- Decls]
+        ++ [T || #abstract_declaration{declaration = T} <- Decls].
 
-top_value_name(#fn_decl{owner = undefined, name = N}) -> [N];
-top_value_name(#let_decl{name = N}) -> [N];
-top_value_name(#foreign_fn_decl{owner = undefined, name = N}) -> [N];
+top_value_name(#fn_declaration{owner = undefined, name = N}) -> [N];
+top_value_name(#let_declaration{name = N}) -> [N];
+top_value_name(#foreign_fn_declaration{owner = undefined, name = N}) -> [N];
 top_value_name(_) -> [].
 
 %% Each unqualified use of a hidden name, its span and what it names.
 hidden_uses(Decls, Hidden) ->
-    Uses = fun Walk(#t_con{path = [], name = N, pos = P} = T) ->
+    Uses = fun Walk(#t_named{path = [], name = N, span = P} = T) ->
                    [{P, type, N} || lists:member({type, N}, Hidden)]
-                       ++ Walk(T#t_con.args);
-               Walk(#e_con{path = [], name = N, pos = P} = E) ->
+                       ++ Walk(T#t_named.args);
+               Walk(#e_constructor{path = [], name = N, span = P} = E) ->
                    [{P, constructor, N} || lists:member({constructor, N}, Hidden)]
-                       ++ Walk(E#e_con.args);
-               Walk(#p_con{path = [], name = N, pos = P} = E) ->
+                       ++ Walk(E#e_constructor.args);
+               Walk(#p_constructor{path = [], name = N, span = P} = E) ->
                    [{P, constructor, N} || lists:member({constructor, N}, Hidden)]
-                       ++ Walk(E#p_con.args);
-               Walk(#e_var{path = [], name = N, pos = P}) ->
+                       ++ Walk(E#p_constructor.args);
+               Walk(#e_var{path = [], name = N, span = P}) ->
                    [{P, value, N} || lists:member({value, N}, Hidden)];
                Walk(T) when is_tuple(T) -> lists:append([Walk(X) || X <- tuple_to_list(T)]);
                Walk(L) when is_list(L) -> lists:append([Walk(X) || X <- L]);
@@ -217,17 +218,17 @@ repeated([{Key, Value} | Rest], Seen) ->
         _ -> repeated(Rest, Seen#{Key => Value})
     end.
 
-decl_names(#type_decl{pos = Pos, name = N, constructors = Cs}) ->
-    [{type, N, Pos} | [{constructor, C, CPos} || #constructor{pos = CPos, name = C} <- Cs]];
-decl_names(#abstract_decl{type = TD}) ->
+decl_names(#type_declaration{span = Pos, name = N, constructors = Cs}) ->
+    [{type, N, Pos} | [{constructor, C, CPos} || #constructor{span = CPos, name = C} <- Cs]];
+decl_names(#abstract_declaration{declaration = TD}) ->
     decl_names(TD);
-decl_names(#foreign_type_decl{pos = Pos, name = N}) ->
+decl_names(#foreign_type_declaration{span = Pos, name = N}) ->
     [{type, N, Pos}];
-decl_names(#fn_decl{pos = Pos, owner = O, name = N}) ->
+decl_names(#fn_declaration{span = Pos, owner = O, name = N}) ->
     [{value, {O, N}, Pos}];
-decl_names(#let_decl{pos = Pos, name = N}) ->
+decl_names(#let_declaration{span = Pos, name = N}) ->
     [{value, {undefined, N}, Pos}];
-decl_names(#foreign_fn_decl{pos = Pos, owner = O, name = N}) ->
+decl_names(#foreign_fn_declaration{span = Pos, owner = O, name = N}) ->
     [{value, {O, N}, Pos}];
 decl_names(_) ->
     [].
@@ -248,14 +249,14 @@ builtin_operators([T], Decls) ->
 builtin_operators(_, Decls) ->
     Decls.
 
-own_operator(T, #fn_decl{owner = T, name = N} = D) ->
+own_operator(T, #fn_declaration{owner = T, name = N} = D) ->
     case is_operator(N) of
-        true -> D#fn_decl{owner = undefined};
+        true -> D#fn_declaration{owner = undefined};
         false -> D
     end;
-own_operator(T, #foreign_fn_decl{owner = T, name = N} = D) ->
+own_operator(T, #foreign_fn_declaration{owner = T, name = N} = D) ->
     case is_operator(N) of
-        true -> D#foreign_fn_decl{owner = undefined};
+        true -> D#foreign_fn_declaration{owner = undefined};
         false -> D
     end;
 own_operator(_, D) ->
@@ -373,11 +374,11 @@ type_names(_, Acc) ->
 %% Report §4.4: the type's info, and so the compiled interface, marks an
 %% abstract type; lookup_con refuses its constructor from another module.
 mark_abstract(Decls, #env{local_types = LT, types = Ts} = Env) ->
-    Env#env{types = lists:foldl(fun(#abstract_decl{type = #type_decl{name = N}}, Acc) ->
-                                    maps:update_with(maps:get(N, LT),
-                                                     fun(TI) -> TI#tinfo{abstract = true} end, Acc);
-                                   (_, Acc) -> Acc
-                                end, Ts, Decls)}.
+    Mark = fun(#abstract_declaration{declaration = #type_declaration{name = N}}, Acc) ->
+                   maps:update_with(maps:get(N, LT), fun(TI) -> TI#tinfo{abstract = true} end, Acc);
+              (_, Acc) -> Acc
+           end,
+    Env#env{types = lists:foldl(Mark, Ts, Decls)}.
 
 add_iface(#iface{types = Ts, values = Vs, lets = Lets}, #env{types = ET, globals = EG} = Env) ->
     Cons = maps:fold(fun(_, #tinfo{constructors = Cs}, Acc) ->
@@ -418,7 +419,7 @@ ann(#t_var{name = Name}, VarMap, Env) ->
             {V, St} = ern_types:fresh_named(Name, Env#env.st),
             {V, VarMap#{Name => V}, St}
     end;
-ann(#t_con{pos = Pos, path = Path, name = Name, args = Args}, VarMap, Env) ->
+ann(#t_named{span = Pos, path = Path, name = Name, args = Args}, VarMap, Env) ->
     {QName, Arity} = lookup_type_name(Pos, Path, Name, Env),
     length(Args) =:= Arity orelse
         fail(Pos, io_lib:format("~s takes ~B type argument~s, not ~B",
@@ -436,10 +437,10 @@ ann(#t_con{pos = Pos, path = Path, name = Name, args = Args}, VarMap, Env) ->
                       [{tvar, Id} || K <- Keys, lacks_equality(K, Env#env{st = St}) =:= false,
                                      Id <- ern_types:free_vars(K, St)]),
     {{tcon, QName, ArgTs}, VarMap1, St1};
-ann(#t_tuple{elems = Es}, VarMap, Env) ->
+ann(#t_tuple{elements = Es}, VarMap, Env) ->
     {Ts, VarMap1, St} = ann_list(Es, VarMap, Env),
     {{ttuple, Ts}, VarMap1, St};
-ann(#t_fn{params = Ps, ret = R, effect = E}, VarMap, Env) ->
+ann(#t_fn{params = Ps, result_type = R, effect = E}, VarMap, Env) ->
     {PTs, VarMap1, St1} = ann_list(Ps, VarMap, Env),
     {RT, VarMap2, St2} = ann(R, VarMap1, Env#env{st = St1}),
     {ET, VarMap3, St3} = ann(E, VarMap2, Env#env{st = St2}),
@@ -509,14 +510,14 @@ member_qname(Q, Member, Env) ->
 declare_types(Decls, Env0) ->
     TypeDecls = [TD || D <- Decls, TD <- type_decl_of(D)],
     %% pass one: names and arities, so recursive references resolve
-    Env1 = lists:foldl(fun(#type_decl{pos = Pos, name = Name, params = Params}, Env) ->
+    Env1 = lists:foldl(fun(#type_declaration{span = Pos, name = Name, params = Params}, Env) ->
                            check_unique_type(Pos, Name, Env),
                            Q = Env#env.ns ++ [Name],
                            Env2 = add_type(Env, #tinfo{qname = Q, params = Params}),
                            Env2#env{local_types = maps:put(Name, Q, Env2#env.local_types)}
                        end, Env0, TypeDecls),
-    Env2 = lists:foldl(fun(#foreign_type_decl{pos = Pos, name = Name, params = Params,
-                                              eq = Eq}, Env) ->
+    Env2 = lists:foldl(fun(#foreign_type_declaration{span = Pos, name = Name, params = Params,
+                                                     equality = Eq}, Env) ->
                            check_unique_type(Pos, Name, Env),
                            Q = Env#env.ns ++ [Name],
                            EqFlags = case Eq of
@@ -526,7 +527,7 @@ declare_types(Decls, Env0) ->
                            Env3 = add_type(Env, #tinfo{qname = Q, params = Params,
                                                        foreign = true, eq = EqFlags}),
                            Env3#env{local_types = maps:put(Name, Q, Env3#env.local_types)}
-                       end, Env1, [D || #foreign_type_decl{} = D <- Decls]),
+                       end, Env1, [D || #foreign_type_declaration{} = D <- Decls]),
     %% pass two: constructors
     {Env3, Errs} = lists:foldl(fun(TD, {Env, Errs}) ->
                                    try
@@ -615,8 +616,8 @@ in_reply(Id, {ttuple, Es}, Flags) ->
 in_reply(_, _, _) ->
     false.
 
-type_decl_of(#type_decl{} = TD) -> [TD];
-type_decl_of(#abstract_decl{type = TD}) -> [TD];
+type_decl_of(#type_declaration{} = TD) -> [TD];
+type_decl_of(#abstract_declaration{declaration = TD}) -> [TD];
 type_decl_of(_) -> [].
 
 check_unique_type(Pos, 'Prelude', _Env) ->
@@ -628,7 +629,7 @@ check_unique_type(Pos, Name, #env{local_types = LT}) ->
         _ -> ok
     end.
 
-declare_constructors(#type_decl{name = Name, params = Params, constructors = Cons}, Env) ->
+declare_constructors(#type_declaration{name = Name, params = Params, constructors = Cons}, Env) ->
     Q = maps:get(Name, Env#env.local_types),
     %% one type variable per parameter, shared by all constructors
     {VarMap, St1} = lists:foldl(fun(P, {M, S}) ->
@@ -641,7 +642,7 @@ declare_constructors(#type_decl{name = Name, params = Params, constructors = Con
     Env1 = Env#env{st = St1},
     {CInfos, Env2} =
         lists:mapfoldl(
-          fun(#constructor{pos = Pos, name = CName, fields = Fields}, E) ->
+          fun(#constructor{span = Pos, name = CName, fields = Fields}, E) ->
                   check_unique_con(Pos, CName, E),
                   CQ = E#env.ns ++ [CName],
                   {FieldSpec, FieldTypes, E1} = constructor_fields(Fields, VarMap, E),
@@ -675,14 +676,14 @@ constructor_fields({named, Fields}, VarMap, Env) ->
     %% report §3.5: the fields in the order the declaration writes them
     Names = [N || #field{name = N} <- Fields],
     %% report §11.5: at the second, named, the first labelled
-    case repeated([{N, Pos} || #field{name = N, pos = Pos} <- Fields]) of
+    case repeated([{N, Pos} || #field{name = N, span = Pos} <- Fields]) of
         none ->
             ok;
         {N, First, Second} ->
             fail(Second, "field " ++ atom_to_list(N) ++ " is declared twice",
                  [{ern_diagnostic:span(First), "first declared here"}], undefined)
     end,
-    {Types, Env1} = lists:mapfoldl(fun(#field{type = S}, E) -> field_type(S, VarMap, E) end,
+    {Types, Env1} = lists:mapfoldl(fun(#field{annotation = S}, E) -> field_type(S, VarMap, E) end,
                                    Env, Fields),
     {{named, Names}, Types, Env1}.
 
@@ -830,9 +831,9 @@ restore_scope(Checked, Env) ->
                 effect_origin = Env#env.effect_origin, effectful = Env#env.effectful,
                 inferring = Env#env.inferring}.
 
-is_value_decl(#fn_decl{}) -> true;
-is_value_decl(#let_decl{}) -> true;
-is_value_decl(#foreign_fn_decl{}) -> true;
+is_value_decl(#fn_declaration{}) -> true;
+is_value_decl(#let_declaration{}) -> true;
+is_value_decl(#foreign_fn_declaration{}) -> true;
 is_value_decl(_) -> false.
 
 replace_typed(D, Typed) ->
@@ -842,9 +843,9 @@ replace_typed(D, Typed) ->
         [] -> D
     end.
 
-decl_key(#fn_decl{owner = O, name = N}) -> {O, N};
-decl_key(#let_decl{name = N}) -> {undefined, N};
-decl_key(#foreign_fn_decl{owner = O, name = N}) -> {O, N};
+decl_key(#fn_declaration{owner = O, name = N}) -> {O, N};
+decl_key(#let_declaration{name = N}) -> {undefined, N};
+decl_key(#foreign_fn_declaration{owner = O, name = N}) -> {O, N};
 decl_key(D) -> {other, element(2, D)}.
 
 value_qname(#env{ns = Ns}, undefined, Name) -> Ns ++ [Name];
@@ -867,7 +868,7 @@ register_value_name(D, #env{local_values = LV} = Env) ->
     end,
     Q = value_qname(Env, Owner, Name),
     Lets = case D of
-               #let_decl{} -> (Env#env.lets)#{Q => true};
+               #let_declaration{} -> (Env#env.lets)#{Q => true};
                _ -> Env#env.lets
            end,
     Env#env{local_values = LV#{Key => Q}, lets = Lets}.
@@ -912,13 +913,13 @@ dependency_groups(Values, Env) ->
 %% so the graph that orders the groups holds names only and a member is
 %% checked on demand (run_group); after it, the typed AST names every
 %% member, which the §8.5 cycle rule reads.
-references(#fn_decl{params = Ps} = D, Env) ->
+references(#fn_declaration{params = Ps} = D, Env) ->
     lists:usort(refs(body_of(D), Env, [], binds_params(Ps, #{})));
 references(D, Env) ->
     lists:usort(refs(body_of(D), Env, [], #{})).
 
-body_of(#fn_decl{body = B}) -> B;
-body_of(#let_decl{body = B}) -> B;
+body_of(#fn_declaration{body = B}) -> B;
+body_of(#let_declaration{body = B}) -> B;
 body_of(_) -> undefined.
 
 %% Report §8.5: what a definition refers to, with the names bound inside
@@ -931,15 +932,15 @@ refs(#e_lambda{params = Ps, body = Body}, Env, Acc, B) ->
 refs(#clause{pattern = P, guard = G, body = Body}, Env, Acc, B) ->
     B1 = binds(P, B),
     refs(Body, Env, refs(G, Env, refs_in_pattern(P, Env, Acc, B), B1), B1);
-refs(#e_block{stmts = Stmts}, Env, Acc, B) ->
+refs(#e_block{statements = Stmts}, Env, Acc, B) ->
     %% a local `fn` is in scope for the whole block, a binding from the
     %% statement after it
-    B0 = lists:foldl(fun(#fn_decl{owner = undefined, name = N}, Bs) -> Bs#{N => true};
+    B0 = lists:foldl(fun(#fn_declaration{owner = undefined, name = N}, Bs) -> Bs#{N => true};
                         (_, Bs) -> Bs
                      end, B, Stmts),
     {Acc1, _} = lists:foldl(fun(#binding{pattern = P, expr = E}, {A, Bs}) ->
                                 {refs(E, Env, A, Bs), binds(P, Bs)};
-                               (#fn_decl{params = Ps, body = Body}, {A, Bs}) ->
+                               (#fn_declaration{params = Ps, body = Body}, {A, Bs}) ->
                                 {refs(Body, Env, A, binds_params(Ps, Bs)), Bs};
                                (Stmt, {A, Bs}) ->
                                 {refs(Stmt, Env, A, Bs), Bs}
@@ -958,7 +959,7 @@ refs(#e_var{path = P} = V, #env{ns = Ns} = Env, Acc, B) when length(P) > 1 ->
         true -> refs(V#e_var{path = [lists:last(P)]}, Env, Acc, B);
         false -> Acc
     end;
-refs(#e_binop{op = Op, left = L, right = R}, Env, Acc, B) when is_atom(Op) ->
+refs(#e_binop{operator = Op, left = L, right = R}, Env, Acc, B) when is_atom(Op) ->
     Member = case lists:member(Op, ?ORDER) of
                  true -> compare;
                  false -> case lists:member(Op, ?ARITH) orelse Op =:= '<>' of
@@ -969,7 +970,7 @@ refs(#e_binop{op = Op, left = L, right = R}, Env, Acc, B) when is_atom(Op) ->
     refs(R, Env, refs(L, Env, operator_ref(Member, L, Env) ++ Acc, B), B);
 refs(#e_not{expr = X}, Env, Acc, B) ->
     refs(X, Env, Acc, B);
-refs(#e_neg{expr = X}, Env, Acc, B) ->
+refs(#e_negation{expr = X}, Env, Acc, B) ->
     refs(X, Env, operator_ref(negate, X, Env) ++ Acc, B);
 refs(T, Env, Acc, B) when is_tuple(T) ->
     lists:foldl(fun(X, A) -> refs(X, Env, A, B) end, Acc, tl(tuple_to_list(T)));
@@ -987,7 +988,7 @@ binds_params(Ps, B) ->
 
 refs_in_pattern(P, Env, Acc, B) ->
     case P of
-        #bit_seg{specs = Specs} -> refs(Specs, Env, Acc, B);
+        #bit_segment{specs = Specs} -> refs(Specs, Env, Acc, B);
         _ when is_tuple(P) ->
             lists:foldl(fun(X, A) -> refs_in_pattern(X, Env, A, B) end, Acc,
                         tl(tuple_to_list(P)));
@@ -1069,7 +1070,7 @@ check_group(Group, Env0) ->
 %% Report §3.9, §4.6: a definition's scheme, generalized over its free
 %% variables, except a top-level let whose initializer calls a process-only
 %% function, which is not, and whose type may keep no variable.
-generalized(#let_decl{pos = Pos, name = Name} = D, V, #env{st = St} = Env) ->
+generalized(#let_declaration{span = Pos, name = Name} = D, V, #env{st = St} = Env) ->
     case lists:member(decl_key(D), Env#env.effectful_lets) of
         false ->
             ern_types:generalize(V, St);
@@ -1127,7 +1128,8 @@ member_shape(_, _, _) ->
 
 %% The type and the member a declaration names by an operator, compare, or
 %% negate, or none.
-member_type(D, #env{ns = Ns} = Env) when is_record(D, fn_decl); is_record(D, foreign_fn_decl) ->
+member_type(D, #env{ns = Ns} = Env)
+  when is_record(D, fn_declaration); is_record(D, foreign_fn_declaration) ->
     {Owner, Name} = decl_key(D),
     Member = lists:member(Name, [compare, negate | ?ARITH ++ ['<>']]),
     Builtin = case Ns of
@@ -1190,8 +1192,8 @@ zonk_ast(X, _) -> X.
 %% declarations, since an operator names its member only once typed; one
 %% error per cycle, at its first let.
 let_cycles(Decls, Graph) ->
-    Lets = lists:keysort(2, [D || #let_decl{} = D <- Decls]),
-    Fns = [decl_key(F) || #fn_decl{} = F <- Decls],
+    Lets = lists:keysort(2, [D || #let_declaration{} = D <- Decls]),
+    Fns = [decl_key(F) || #fn_declaration{} = F <- Decls],
     {Errs, _} = lists:foldl(fun(D, {Acc, Seen}) -> let_cycle(D, Graph, Fns, Acc, Seen) end,
                             {[], []}, Lets),
     lists:reverse(Errs).
@@ -1199,7 +1201,7 @@ let_cycles(Decls, Graph) ->
 %% Report §8.5: the lets of Decls, which are in declaration order, each
 %% after every let its initializer reaches and otherwise as declared.
 initialization_order(Decls, Graph) ->
-    Lets = [decl_key(D) || #let_decl{} = D <- Decls],
+    Lets = [decl_key(D) || #let_declaration{} = D <- Decls],
     Needs = maps:from_list([{K, [R || R <- digraph_utils:reachable_neighbours([K], Graph),
                                       R =/= K, lists:member(R, Lets)]}
                             || K <- Lets]),
@@ -1225,7 +1227,7 @@ reference_graph(Decls, Env) ->
                   end, Decls),
     G.
 
-let_cycle(#let_decl{pos = Pos, name = Name, body = Body} = D, G, Fns, Errs, Seen) ->
+let_cycle(#let_declaration{span = Pos, name = Name, body = Body} = D, G, Fns, Errs, Seen) ->
     Key = decl_key(D),
     case lists:member(Key, Seen) of
         true ->
@@ -1277,11 +1279,11 @@ cycle_help(LetName, _, Between, Fns) ->
 %% Unify a placeholder with what the annotations say, before any body. A
 %% local fn's annotations name the enclosing definition's variables where
 %% they share a name (report §3.9).
-signature_shape(#fn_decl{params = Params, ret = Ret, effect = Effect}, V, Env) ->
-    {PTs, {AnnVars, St1}} = lists:mapfoldl(fun(#param{type = undefined}, {AV, St}) ->
+signature_shape(#fn_declaration{params = Params, result_type = Ret, effect = Effect}, V, Env) ->
+    {PTs, {AnnVars, St1}} = lists:mapfoldl(fun(#param{annotation = undefined}, {AV, St}) ->
                                                    {T, St0} = ern_types:fresh(St),
                                                    {T, {AV, St0}};
-                                              (#param{type = Syntax}, {AV, St}) ->
+                                              (#param{annotation = Syntax}, {AV, St}) ->
                                                    {T, AV1, St0} = ann(Syntax, AV,
                                                                        Env#env{st = St}),
                                                    {T, {AV1, St0}}
@@ -1289,12 +1291,13 @@ signature_shape(#fn_decl{params = Params, ret = Ret, effect = Effect}, V, Env) -
     {RetT, EffT, _, St2} = return_annotation(Ret, Effect, AnnVars, Env#env{st = St1}),
     FnT = {tfn, PTs, EffT, RetT},
     bound(V, FnT, Env#env{st = mark_process_only(FnT, St2)});
-signature_shape(#let_decl{ann = Ann}, V, Env) when Ann =/= undefined ->
+signature_shape(#let_declaration{annotation = Ann}, V, Env) when Ann =/= undefined ->
     {T, _, St} = ann(Ann, #{}, Env),
     bound(V, T, Env#env{st = St});
-signature_shape(#foreign_fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect}, V,
-                Env) ->
-    Syntax = #t_fn{pos = Pos, params = [T || #param{type = T} <- Params], ret = Ret,
+signature_shape(#foreign_fn_declaration{span = Pos, params = Params, result_type = Ret,
+                                        effect = Effect},
+                V, Env) ->
+    Syntax = #t_fn{span = Pos, params = [T || #param{annotation = T} <- Params], result_type = Ret,
                    effect = Effect},
     {T, _, St} = ann(Syntax, #{}, Env),
     bound(V, T, Env#env{st = foreign_no_reply(T, foreign_effect(T, St))});
@@ -1323,12 +1326,13 @@ held_vars(T, St) ->
         _ -> []
     end.
 
-set_decl_type(#fn_decl{} = D, S) -> D#fn_decl{type = S};
-set_decl_type(#let_decl{} = D, S) -> D#let_decl{type = S};
-set_decl_type(#foreign_fn_decl{} = D, S) -> D#foreign_fn_decl{type = S};
+set_decl_type(#fn_declaration{} = D, S) -> D#fn_declaration{scheme = S};
+set_decl_type(#let_declaration{} = D, S) -> D#let_declaration{scheme = S};
+set_decl_type(#foreign_fn_declaration{} = D, S) -> D#foreign_fn_declaration{scheme = S};
 set_decl_type(D, _) -> D.
 
-check_value(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect, body = Body} = D,
+check_value(#fn_declaration{span = Pos, params = Params, result_type = Ret, effect = Effect,
+                            body = Body} = D,
             Placeholder, Env) ->
     %% report §3.9: a local fn's signature shares the enclosing one's
     %% variables; at top level there are none
@@ -1348,9 +1352,9 @@ check_value(#fn_decl{pos = Pos, params = Params, ret = Ret, effect = Effect, bod
     Context = ret_context(Ret, "the body does not have the declared result type"),
     {TypedBody, _BodyT, Env4} = check_expr(Body, RetT, Context, ret_origin(Ret, RetT, Env2), Env2),
     Env5 = unify_at(Pos, Placeholder, FnT, Env4, "recursive use does not match the definition"),
-    {D#fn_decl{params = TypedParams, body = TypedBody},
+    {D#fn_declaration{params = TypedParams, body = TypedBody},
      post(Pos, TypedParams, TypedBody, FnT, Env5), restore_scope(Env5, Env)};
-check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) ->
+check_value(#let_declaration{span = Pos, annotation = Ann, body = Body} = D, Placeholder, Env) ->
     {AnnT, AnnVars, St} = case Ann of
                               undefined -> {undefined, #{}, Env#env.st};
                               _ -> {T, VM, S} = ann(Ann, #{}, Env), {T, VM, S}
@@ -1377,9 +1381,10 @@ check_value(#let_decl{pos = Pos, ann = Ann, body = Body} = D, Placeholder, Env) 
                     true -> [decl_key(D) | Env#env.effectful_lets];
                     false -> Env#env.effectful_lets
                 end,
-    {D#let_decl{body = TypedBody}, post(Pos, [], TypedBody, BodyT, Env3),
+    {D#let_declaration{body = TypedBody}, post(Pos, [], TypedBody, BodyT, Env3),
      (restore_scope(Env3, Env))#env{effectful_lets = Effectful}};
-check_value(#foreign_fn_decl{pos = Pos, params = Params, impl = Impl, impl_pos = IPos} = D,
+check_value(#foreign_fn_declaration{span = Pos, params = Params, implementation = Impl,
+                                    implementation_span = IPos} = D,
             _Placeholder, Env) ->
     %% report §8.4: the implementation is module:function/arity; report
     %% §11.5: the error stands at the string
@@ -1437,7 +1442,7 @@ bind_params(Params, Env, AnnVars) ->
     {TypedParams, Ts} = lists:unzip(Typed),
     {TypedParams, Ts, Env1, AnnVars1}.
 
-bind_param(#param{pos = Pos, pattern = P, type = Ann} = Param, {Env, AnnVars}) ->
+bind_param(#param{span = Pos, pattern = P, annotation = Ann} = Param, {Env, AnnVars}) ->
     {TypedP, PT, Bindings, Env1} = check_pattern(P, Env),
     irrefutable(P, Env1) orelse fail(Pos, "a parameter pattern must be irrefutable", [],
                                      "take the value whole, and match on it in the body"),
@@ -1941,7 +1946,7 @@ member_declared(Q, Member, Name, FT, #env{ns = Ns, typed = Typed, st = St}) ->
     end.
 
 %% A declaration's head, through its return annotation where it has one.
-head_span(#fn_decl{pos = Pos, ret = Ret}) when Ret =/= undefined ->
+head_span(#fn_declaration{span = Pos, result_type = Ret}) when Ret =/= undefined ->
     {L, C, _} = ern_diagnostic:span(Pos),
     {_, _, End} = ern_diagnostic:span(node_span(Ret)),
     {L, C, End};
@@ -2020,10 +2025,10 @@ open_effect(T, St) ->
         _ -> {T, St}
     end.
 
-infer(#e_lit{kind = Kind} = E, Env) ->
+infer(#e_literal{kind = Kind} = E, Env) ->
     T = lit_type(Kind),
-    {E#e_lit{type = T}, T, Env};
-infer(#e_var{pos = Pos, path = Path, name = Name} = E, Env0) ->
+    {E#e_literal{type = T}, T, Env};
+infer(#e_var{span = Pos, path = Path, name = Name} = E, Env0) ->
     %% report §11.2: a name the session declared resolves to the input that
     %% declared it, which its `ref` records; its path stays as written
     {Scheme, Ref, Env} = lookup_value(Pos, Path, Name, Env0),
@@ -2039,24 +2044,24 @@ infer(#e_var{pos = Pos, path = Path, name = Name} = E, Env0) ->
     %% emitter reads the decision rather than making it again
     {E#e_var{type = T, ref = Ref}, T,
      Env#env{st = St, pending = Pending ++ Env#env.pending, deferred = Deferred}};
-infer(#e_con{pos = Pos, path = Path, name = Name, args = Args} = E, Env) ->
+infer(#e_constructor{span = Pos, path = Path, name = Name, args = Args} = E, Env) ->
     CI = lookup_con(Pos, Path, Name, Env),
     {CT, St} = ern_types:instantiate(CI#cinfo.scheme, Env#env.st),
     Env1 = Env#env{st = St},
     case {CI#cinfo.fields, Args} of
         {none, none} ->
-            {E#e_con{type = CT}, CT, Env1};
+            {E#e_constructor{type = CT}, CT, Env1};
         {none, _} ->
             fail(Pos, atom_to_list(Name) ++ " takes no fields");
         {positional, {positional, Arg}} ->
             {tfn, [FT], pure, RT} = CT,
             {TypedArg, _AT, Env3} = check_expr(Arg, FT, "the field of " ++ atom_to_list(Name),
                                                undefined, Env1),
-            {E#e_con{args = {positional, TypedArg}, type = RT}, RT, Env3};
+            {E#e_constructor{args = {positional, TypedArg}, type = RT}, RT, Env3};
         {positional, none} ->
             %% a single-positional constructor is a function value (§5.6)
             {OT, St1} = open_effect(CT, St),
-            {E#e_con{type = OT}, OT, Env1#env{st = St1}};
+            {E#e_constructor{type = OT}, OT, Env1#env{st = St1}};
         {positional, {named, _, _}} ->
             fail(Pos, atom_to_list(Name) ++ " has one positional field, not named fields");
         {{named, Names}, {named, Base, Sets}} ->
@@ -2067,11 +2072,11 @@ infer(#e_con{pos = Pos, path = Path, name = Name, args = Args} = E, Env) ->
             fail(Pos, atom_to_list(Name) ++ " has named fields; write "
                       ++ named_form(Name, Names, "value"))
     end;
-infer(#e_tuple{elems = Es} = E, Env) ->
+infer(#e_tuple{elements = Es} = E, Env) ->
     {TypedEs, Ts, Env1} = infer_list(Es, Env),
     T = {ttuple, Ts},
-    {E#e_tuple{elems = TypedEs, type = T}, T, Env1};
-infer(#e_list{elems = Es} = E, Env) ->
+    {E#e_tuple{elements = TypedEs, type = T}, T, Env1};
+infer(#e_list{elements = Es} = E, Env) ->
     {ElemT, St} = ern_types:fresh(Env#env.st),
     {TypedEs, {Env1, _}} =
         lists:mapfoldl(fun(X, {En, Origin}) ->
@@ -2086,23 +2091,23 @@ infer(#e_list{elems = Es} = E, Env) ->
                            {TX, {En1, Origin1}}
                        end, {Env#env{st = St}, undefined}, Es),
     T = {tcon, ['List'], [ElemT]},
-    {E#e_list{elems = TypedEs, type = T}, T, Env1};
-infer(#e_bits{pos = Pos, segments = Segs} = E, Env) ->
+    {E#e_list{elements = TypedEs, type = T}, T, Env1};
+infer(#e_bitstring{span = Pos, segments = Segs} = E, Env) ->
     %% report §5.11
     {TypedSegs, Env1} = lists:mapfoldl(fun(S, En) -> bit_segment(S, construct, En) end, Env,
                                        Segs),
     alignment(Pos, TypedSegs, "the bitstring"),
-    {E#e_bits{segments = TypedSegs, type = ?BYTES}, ?BYTES, Env1};
-infer(#e_block{pos = Pos, stmts = Stmts} = E, Env) ->
+    {E#e_bitstring{segments = TypedSegs, type = ?BYTES}, ?BYTES, Env1};
+infer(#e_block{span = Pos, statements = Stmts} = E, Env) ->
     {TypedStmts, T, Env1} = infer_block(Stmts, Pos, undefined, Env),
-    {E#e_block{stmts = TypedStmts, type = T}, T, Env1#env{vars = Env#env.vars}};
-infer(#e_call{pipe = true, callee = #e_con{pos = ConPos, args = ConArgs}}, _Env)
+    {E#e_block{statements = TypedStmts, type = T}, T, Env1#env{vars = Env#env.vars}};
+infer(#e_call{pipe = true, callee = #e_constructor{span = ConPos, args = ConArgs}}, _Env)
   when ConArgs =/= none ->
     %% report §5.7, Appendix A: a construction is a value of its type, never
     %% a function, which the pipe applies and does not fill
     fail(ConPos, "a construction is a value, not a call, and `|>` does not fill it", [],
          "put the piped value in the construction itself");
-infer(#e_call{pos = Pos, callee = Callee, args = Args} = E, Env) ->
+infer(#e_call{span = Pos, callee = Callee, args = Args} = E, Env) ->
     {TypedCallee, CalleeT, Env1} = infer(Callee, Env),
     Name = callee_name(Callee),
     case ern_types:resolve(CalleeT, Env1#env.st) of
@@ -2135,12 +2140,12 @@ infer(#e_call{pos = Pos, callee = Callee, args = Args} = E, Env) ->
             fail(Pos, Name ++ " is not a function; it has type "
                       ++ ern_types:format(Other, Env1#env.st))
     end;
-infer(#e_not{pos = Pos, expr = X} = E, Env) ->
+infer(#e_not{span = Pos, expr = X} = E, Env) ->
     %% report §4.8: `!` is Bool's, as `&&` and `||` are
     {TypedX, XT, Env1} = infer(X, Env),
     Env2 = unify_at(Pos, ?BOOL, XT, Env1, "the operand of `!`"),
     {E#e_not{expr = TypedX, type = ?BOOL}, ?BOOL, Env2};
-infer(#e_select{pos = Pos, expr = X, field = F, field_pos = FPos} = E, Env) ->
+infer(#e_selection{span = Pos, expr = X, field = F, field_span = FPos} = E, Env) ->
     {TypedX, XT, Env1} = infer(X, Env),
     %% report §11.5: a selection's error stands at the selector
     At = case FPos of
@@ -2149,19 +2154,19 @@ infer(#e_select{pos = Pos, expr = X, field = F, field_pos = FPos} = E, Env) ->
          end,
     {T0, Env2} = select_result(At, F, XT, Env1),
     {T, St} = open_effect(T0, Env2#env.st),
-    {E#e_select{expr = TypedX, type = T}, T, Env2#env{st = St}};
-infer(#e_neg{pos = Pos, expr = X} = E, Env) ->
+    {E#e_selection{expr = TypedX, type = T}, T, Env2#env{st = St}};
+infer(#e_negation{span = Pos, expr = X} = E, Env) ->
     {TypedX, XT, Env1} = infer(X, Env),
     {T0, Env2} = operator_result(Pos, negate, XT, Env1),
     {T, St} = open_effect(T0, Env2#env.st),
-    {E#e_neg{expr = TypedX, type = T}, T, Env2#env{st = St}};
-infer(#e_binop{pos = Pos, op = Op, left = L, right = R} = E, Env) ->
+    {E#e_negation{expr = TypedX, type = T}, T, Env2#env{st = St}};
+infer(#e_binop{span = Pos, operator = Op, left = L, right = R} = E, Env) ->
     {TypedL, LT, Env1} = infer(L, Env),
     {TypedR, RT, Env2} = infer(R, Env1),
     {T0, Env3} = binop_type(Pos, Op, L, LT, R, RT, Env2),
     {T, St} = open_effect(T0, Env3#env.st),
     {E#e_binop{left = TypedL, right = TypedR, type = T}, T, Env3#env{st = St}};
-infer(#e_lambda{pos = LPos, params = Params, ret = Ret, effect = Effect, body = Body} = E,
+infer(#e_lambda{span = LPos, params = Params, result_type = Ret, effect = Effect, body = Body} = E,
       Env) ->
     {TypedParams, ParamTypes, Env1, AnnVars} = bind_params(Params, Env, Env#env.ann_vars),
     {RetT, EffT, AnnVars1, St} = return_annotation(Ret, Effect, AnnVars, Env1),
@@ -2219,7 +2224,7 @@ check_expr(#e_match{scrutinee = S, clauses = Clauses} = E, Expected, Context, Or
     {TypedClauses, Env2} = check_clauses(match, Clauses, ST, ScrutOrigin, Expected, Context, Origin,
                                          "the clauses must have one type", Env1),
     {E#e_match{scrutinee = TypedS, clauses = TypedClauses, type = Expected}, Expected, Env2};
-check_expr(#e_receive{pos = Pos, clauses = Clauses, 'after' = After} = E, Expected, Context,
+check_expr(#e_receive{span = Pos, clauses = Clauses, 'after' = After} = E, Expected, Context,
            Origin, Env) ->
     {MailboxT, Env1} = mailbox_type(Pos, Env),
     case Clauses =/= [] andalso ern_types:resolve(MailboxT, Env1#env.st) =:= ?NEVER of
@@ -2245,9 +2250,9 @@ check_expr(#e_receive{pos = Pos, clauses = Clauses, 'after' = After} = E, Expect
                 {A#after_clause{timeout = TypedTimeout, body = TypedBody}, En3}
         end,
     {E#e_receive{clauses = TypedClauses, 'after' = TypedAfter, type = Expected}, Expected, Env3};
-check_expr(#e_block{pos = Pos, stmts = Stmts} = E, Expected, Context, Origin, Env) ->
+check_expr(#e_block{span = Pos, statements = Stmts} = E, Expected, Context, Origin, Env) ->
     {TypedStmts, T, Env1} = infer_block(Stmts, Pos, {Expected, Context, Origin}, Env),
-    {E#e_block{stmts = TypedStmts, type = T}, T, Env1#env{vars = Env#env.vars}};
+    {E#e_block{statements = TypedStmts, type = T}, T, Env1#env{vars = Env#env.vars}};
 check_expr(E, Expected, undefined, _Origin, Env) ->
     %% the first branch where nothing fixed the type: the expectation is a
     %% fresh variable, which the branch fixes
@@ -2274,13 +2279,13 @@ expecting(T, Origin, #env{deferred = Deferred} = Env) ->
 %% message without removing it: `true`, `false`, a Bool operand, or a
 %% comparison of two operands, under `!`, `&&`, and `||`. The guard is
 %% already a Bool, so a bare operand is a Bool one.
-receive_guard(#e_binop{op = Op, left = L, right = R}, Env) when Op =:= '&&'; Op =:= '||' ->
+receive_guard(#e_binop{operator = Op, left = L, right = R}, Env) when Op =:= '&&'; Op =:= '||' ->
     receive_guard(L, Env),
     receive_guard(R, Env);
-receive_guard(#e_binop{op = Op, left = L, right = R}, Env) when Op =:= '=='; Op =:= '!=' ->
+receive_guard(#e_binop{operator = Op, left = L, right = R}, Env) when Op =:= '=='; Op =:= '!=' ->
     guard_operand(L, Env),
     guard_operand(R, Env);
-receive_guard(#e_binop{pos = Pos, op = Op, left = L, right = R}, Env)
+receive_guard(#e_binop{span = Pos, operator = Op, left = L, right = R}, Env)
   when Op =:= '<'; Op =:= '<='; Op =:= '>'; Op =:= '>=' ->
     case ern_types:resolve(node_type(L), Env#env.st) of
         T when T =:= ?INT; T =:= ?FLOAT; T =:= ?STRING; T =:= ?CHAR -> ok;
@@ -2290,7 +2295,7 @@ receive_guard(#e_binop{pos = Pos, op = Op, left = L, right = R}, Env)
     guard_operand(L, Env),
     guard_operand(R, Env);
 receive_guard(#e_not{expr = X}, Env) -> receive_guard(X, Env);
-receive_guard(#e_lit{kind = bool}, _) -> ok;
+receive_guard(#e_literal{kind = bool}, _) -> ok;
 receive_guard(#e_var{} = V, Env) -> guard_operand(V, Env);
 receive_guard(G, _) ->
     fail(node_span(G), "a `receive` guard combines `true`, `false`, Bool variables, and"
@@ -2301,9 +2306,9 @@ receive_guard(G, _) ->
 %% top-level `let`, which the `receive` reads before it waits, a literal, a
 %% negative numeric literal, or a nullary constructor. A regression: a
 %% top-level binding was refused, the host's guard showing through.
-guard_operand(#e_lit{}, _) -> ok;
-guard_operand(#e_neg{expr = #e_lit{kind = K}}, _) when K =:= int; K =:= float -> ok;
-guard_operand(#e_con{args = none}, _) -> ok;
+guard_operand(#e_literal{}, _) -> ok;
+guard_operand(#e_negation{expr = #e_literal{kind = K}}, _) when K =:= int; K =:= float -> ok;
+guard_operand(#e_constructor{args = none}, _) -> ok;
 guard_operand(#e_var{path = [], name = N}, #env{vars = Vs}) when is_map_key(N, Vs) -> ok;
 guard_operand(#e_var{ref = Ref} = V, Env) ->
     case top_let(Ref, Env) of
@@ -2371,7 +2376,7 @@ argument_context(Name, Callee, #env{inferring = Inferring} = Env) ->
 %% consumes every obligation open on its path. The variable is the
 %% scheme's own; one the enclosing definition fixes may stand for a type
 %% a value has.
-returns(#e_var{pos = Pos, path = Path, name = Name}, Env) ->
+returns(#e_var{span = Pos, path = Path, name = Name}, Env) ->
     {#scheme{vars = Quantified, type = T}, _, _} = lookup_value(Pos, Path, Name, Env),
     St = Env#env.st,
     case ern_types:resolve(T, St) of
@@ -2451,9 +2456,9 @@ twice(Fields, Verb) ->
 help(undefined) -> "give the function a mailbox type with `with`";
 help({_, _, _, Help}) -> Help.
 
-infer_named(#e_con{pos = Pos, name = Name} = E, Names, FTs, RT, Base, Sets, Env) ->
+infer_named(#e_constructor{span = Pos, name = Name} = E, Names, FTs, RT, Base, Sets, Env) ->
     SetNames = [N || #field_set{name = N} <- Sets],
-    twice([{N, P} || #field_set{pos = P, name = N} <- Sets], "given"),
+    twice([{N, P} || #field_set{span = P, name = N} <- Sets], "given"),
     lists:foreach(fun(N) ->
                       lists:member(N, Names) orelse
                           fail(Pos, atom_to_list(Name) ++ " has no field " ++ atom_to_list(N))
@@ -2483,11 +2488,11 @@ infer_named(#e_con{pos = Pos, name = Name} = E, Names, FTs, RT, Base, Sets, Env)
                             unify_at(node_span(X), FT, XT, En1, "field " ++ atom_to_list(N),
                                      {con_name_span(E), Declares})}
                        end, Env1, Sets),
-    {E#e_con{args = {named, TypedBase, TypedSets}, type = RT}, RT, Env2}.
+    {E#e_constructor{args = {named, TypedBase, TypedSets}, type = RT}, RT, Env2}.
 
 %% The span of a construction's written constructor, `Point` or
 %% `Shape.Circle`, which labels what fixed a field's type.
-con_name_span(#e_con{pos = Pos, path = Path, name = Name}) ->
+con_name_span(#e_constructor{span = Pos, path = Path, name = Name}) ->
     {L, C, _} = ern_diagnostic:span(Pos),
     {L, C, {L, C + length(format_qname(Path ++ [Name]))}}.
 
@@ -2689,11 +2694,11 @@ check_clauses(Kind, Clauses, ScrutT, ScrutOrigin, Expected, Context, Origin, Sib
 %% recursive reference is. Generalizing earlier would close its scheme over
 %% variables the later fn still has to pin.
 infer_block(Stmts, Pos, Expect, Env) ->
-    Fns = [S || #fn_decl{} = S <- Stmts],
-    FnNames = [N || #fn_decl{name = N} <- Fns],
+    Fns = [S || #fn_declaration{} = S <- Stmts],
+    FnNames = [N || #fn_declaration{name = N} <- Fns],
     one_local_fn(Fns, []),
     St0 = ern_types:enter(Env#env.st),
-    {Placeholders, St1} = lists:mapfoldl(fun(#fn_decl{name = N}, S) ->
+    {Placeholders, St1} = lists:mapfoldl(fun(#fn_declaration{name = N}, S) ->
                                              {V, S1} = ern_types:fresh(S),
                                              {{N, V}, S1}
                                          end, St0, Fns),
@@ -2707,13 +2712,14 @@ infer_block(Stmts, Pos, Expect, Env) ->
                         lists:zip(Fns, Placeholders)),
     Env1a = Env1s#env{st = ern_types:leave(Env1s#env.st)},
     Deps = maps:from_list([{N, ern_scope:free_refs(B, Params, FnNames) -- [N]}
-                           || #fn_decl{name = N, params = Params, body = B} <- Fns]),
+                           || #fn_declaration{name = N, params = Params, body = B} <- Fns]),
     Local = #{placeholders => maps:from_list(Placeholders), deps => Deps,
               checked => [], waiting => []},
     {Typed, T, Env2} = infer_stmts(Stmts, Pos, Expect, Env1a, Local, []),
     %% every fn is generalized by now; put the schemes on the nodes
     Typed1 = [case S of
-                  #fn_decl{name = N} -> S#fn_decl{type = maps:get(N, Env2#env.vars)};
+                  #fn_declaration{name = N} ->
+                      S#fn_declaration{scheme = maps:get(N, Env2#env.vars)};
                   _ -> S
               end || S <- Typed],
     {Typed1, T, Env2}.
@@ -2722,7 +2728,7 @@ infer_block(Stmts, Pos, Expect, Env) ->
 %% module declares each top-level name once.
 one_local_fn([], _Seen) ->
     ok;
-one_local_fn([#fn_decl{pos = Pos, name = N} | Rest], Seen) ->
+one_local_fn([#fn_declaration{span = Pos, name = N} | Rest], Seen) ->
     case lists:keyfind(N, 1, Seen) of
         {N, First} ->
             fail(Pos, "local function " ++ atom_to_list(N) ++ " is declared twice in the block",
@@ -2760,11 +2766,11 @@ infer_stmts([Last], _Pos, Expect, Env, _Fns, Acc) ->
                            {Ex, Ctx, Or} -> check_expr(Last, Ex, Ctx, Or, Env)
                        end,
     {lists:reverse([Typed | Acc]), T, Env1};
-infer_stmts([#fn_decl{pos = FPos, owner = Owner, name = Name} | _], _Pos, _Expect, _Env, _Fns,
-            _Acc) when Owner =/= undefined ->
+infer_stmts([#fn_declaration{span = FPos, owner = Owner, name = Name} | _], _Pos, _Expect, _Env,
+            _Fns, _Acc) when Owner =/= undefined ->
     fail(FPos, "a member, `fn " ++ local_name(Owner, Name) ++ "`, is a top-level form;"
                " a local function has a plain name");
-infer_stmts([#fn_decl{name = N} = D | Rest], Pos, Expect, Env, Local, Acc) ->
+infer_stmts([#fn_declaration{name = N} = D | Rest], Pos, Expect, Env, Local, Acc) ->
     V = maps:get(N, maps:get(placeholders, Local)),
     Env1 = Env#env{st = ern_types:enter(Env#env.st)},
     {TypedD, Post, Env2a} = check_value(D, V, Env1),
@@ -2774,7 +2780,7 @@ infer_stmts([#fn_decl{name = N} = D | Rest], Pos, Expect, Env, Local, Acc) ->
                     waiting => [N | maps:get(waiting, Local)]},
     {Env4, Local2} = release(Env3, Local1),
     infer_stmts(Rest, Pos, Expect, Env4, Local2, [TypedD | Acc]);
-infer_stmts([#binding{op = '='} = B | Rest], Pos, Expect, Env, Fns, Acc) ->
+infer_stmts([#binding{operator = '='} = B | Rest], Pos, Expect, Env, Fns, Acc) ->
     Continue = fun(En, Typed) -> infer_stmts(Rest, Pos, Expect, En, Fns, Typed ++ Acc) end,
     case annotated_fallback(B, Env) of
         none ->
@@ -2791,7 +2797,8 @@ infer_stmts([#binding{op = '='} = B | Rest], Pos, Expect, Env, Fns, Acc) ->
                 throw:{type_errors, _} = E -> recovered(E, fun() -> Continue(Fallback, []) end)
             end
     end;
-infer_stmts([#binding{pos = BPos, pattern = P, ann = Ann, op = '<-', expr = X} = B | Rest],
+infer_stmts([#binding{span = BPos, pattern = P, annotation = Ann, operator = '<-',
+                      expr = X} = B | Rest],
             Pos, Expect, Env, Fns, Acc) ->
     %% report §5.5: e : Either(err, a) binds p : a; the rest is Either(err, _).
     %% Which sum type is decided at the end of the definition (solve_deferred).
@@ -2835,7 +2842,7 @@ infer_stmts([X | Rest], Pos, Expect, Env, Fns, Acc) ->
 
 %% Report §4.6: a block's `let p = e` checked: the binding as typed, and the
 %% environment with its names bound.
-let_binding(#binding{pos = BPos, pattern = P, ann = Ann, expr = X} = B, Env) ->
+let_binding(#binding{span = BPos, pattern = P, annotation = Ann, expr = X} = B, Env) ->
     %% report §4.6: a `let` of a lambda to a name is generalized, as a local
     %% `fn` is; any other block binding is not
     Generalize = is_record(P, p_var) andalso is_record(X, e_lambda),
@@ -2884,7 +2891,7 @@ let_binding(#binding{pos = BPos, pattern = P, ann = Ann, expr = X} = B, Env) ->
 %% rest of its block is checked with x at T; any other binding's error may
 %% be the cause of one after it, and the block stops there. A lambda's
 %% annotation may name variables of its own, and is not taken so.
-annotated_fallback(#binding{pattern = #p_var{name = N}, ann = Ann, expr = X}, Env)
+annotated_fallback(#binding{pattern = #p_var{name = N}, annotation = Ann, expr = X}, Env)
   when Ann =/= undefined, not is_record(X, e_lambda) ->
     try ann(Ann, Env#env.ann_vars, Env) of
         {AT, AnnVars, St} when map_size(AnnVars) =:= map_size(Env#env.ann_vars) ->
@@ -2949,9 +2956,9 @@ check_pattern(P, Env) ->
             %% report §11.5: at the second, the first labelled; a name
             %% after `as` binds as a variable does
             [First, Second | _] =
-                lists:sort(ern_ast:walk(fun(#p_var{pos = VPos, name = V}, Acc)
+                lists:sort(ern_ast:walk(fun(#p_var{span = VPos, name = V}, Acc)
                                               when V =:= Dup -> [VPos | Acc];
-                                           (#p_as{name_pos = NPos, name = V}, Acc)
+                                           (#p_as{name_span = NPos, name = V}, Acc)
                                               when V =:= Dup -> [NPos | Acc];
                                            (_, Acc) -> Acc
                                         end, P, [])),
@@ -2962,7 +2969,7 @@ check_pattern(P, Env) ->
 
 %% Report §5.9: the alternatives bind each variable at one type, checked
 %% once the clause's pattern has met the value's type.
-alternatives_agree(#p_or{alts = [First | Rest]}, Env) ->
+alternatives_agree(#p_or{alternatives = [First | Rest]}, Env) ->
     Bindings = ern_ast:pattern_bindings(First),
     lists:foldl(fun(A, En) ->
                     lists:foldl(fun({N, TN}, E) ->
@@ -2979,8 +2986,8 @@ alternatives_agree(_, Env) ->
 
 %% Where a pattern binds the variable N.
 binds_at(N, P) ->
-    ern_ast:walk(fun(#p_var{pos = Pos, name = M}, undefined) when M =:= N -> Pos;
-                    (#p_as{pos = Pos, name = M}, undefined) when M =:= N -> Pos;
+    ern_ast:walk(fun(#p_var{span = Pos, name = M}, undefined) when M =:= N -> Pos;
+                    (#p_as{span = Pos, name = M}, undefined) when M =:= N -> Pos;
                     (_, At) -> At
                  end, P, undefined).
 
@@ -2998,48 +3005,48 @@ alternatives_differ(Pos, Names, NamesA) ->
     fail(Pos, "the alternatives of a clause bind different variables: " ++ Text, [],
          "bind each name in every alternative, as `Some(1) as x or Some(2) as x`").
 
-pat(#p_wild{} = P, Env) ->
+pat(#p_wildcard{} = P, Env) ->
     {T, St} = ern_types:fresh(Env#env.st),
-    {P#p_wild{type = T}, T, [], Env#env{st = St}};
+    {P#p_wildcard{type = T}, T, [], Env#env{st = St}};
 pat(#p_var{name = N} = P, Env) ->
     {T, St} = ern_types:fresh(Env#env.st),
     {P#p_var{type = T}, T, [{N, T}], Env#env{st = St}};
-pat(#p_lit{kind = Kind} = P, Env) ->
+pat(#p_literal{kind = Kind} = P, Env) ->
     T = lit_type(Kind),
-    {P#p_lit{type = T}, T, [], Env};
-pat(#p_con{pos = Pos, path = Path, name = Name, args = Args} = P, Env) ->
+    {P#p_literal{type = T}, T, [], Env};
+pat(#p_constructor{span = Pos, path = Path, name = Name, args = Args} = P, Env) ->
     CI = lookup_con(Pos, Path, Name, Env),
     {CT, St} = ern_types:instantiate(CI#cinfo.scheme, Env#env.st),
     Env1 = Env#env{st = St},
     case {CI#cinfo.fields, Args} of
         {none, none} ->
-            {P#p_con{type = CT}, CT, [], Env1};
+            {P#p_constructor{type = CT}, CT, [], Env1};
         {none, _} ->
             fail(Pos, atom_to_list(Name) ++ " takes no fields");
         {positional, {positional, Sub}} ->
             {tfn, [FT], pure, RT} = CT,
             {TypedSub, SubT, Bs, Env2} = pat(Sub, Env1),
             Env3 = unify_at(Pos, FT, SubT, Env2, "the field of " ++ atom_to_list(Name)),
-            {P#p_con{args = {positional, TypedSub}, type = RT}, RT, Bs, Env3};
+            {P#p_constructor{args = {positional, TypedSub}, type = RT}, RT, Bs, Env3};
         {positional, _} ->
             fail(Pos, atom_to_list(Name) ++ " has one positional field; write "
                       ++ atom_to_list(Name) ++ "(p)");
         {{named, Names}, {named, FieldPats}} ->
             {tfn, FTs, pure, RT} = CT,
-            twice([{N, FP} || #field_pat{pos = FP, name = N} <- FieldPats], "matched"),
+            twice([{N, FP} || #field_pattern{span = FP, name = N} <- FieldPats], "matched"),
             {Typed, Env2} =
                 lists:mapfoldl(
-                  fun(#field_pat{pos = FPos, name = N, pattern = Sub} = FP, En) ->
+                  fun(#field_pattern{span = FPos, name = N, pattern = Sub} = FP, En) ->
                           lists:member(N, Names) orelse
                               fail(FPos, atom_to_list(Name) ++ " has no field "
                                          ++ atom_to_list(N)),
                           FT = lists:nth(index_of(N, Names), FTs),
                           {TypedSub, SubT, SubBs, En1} = pat(Sub, En),
                           En2 = unify_at(FPos, FT, SubT, En1, "field " ++ atom_to_list(N)),
-                          {{FP#field_pat{pattern = TypedSub}, SubBs}, En2}
+                          {{FP#field_pattern{pattern = TypedSub}, SubBs}, En2}
                   end, Env1, FieldPats),
             {TypedFPs, Bs} = lists:unzip(Typed),
-            {P#p_con{args = {named, TypedFPs}, type = RT}, RT, lists:append(Bs), Env2};
+            {P#p_constructor{args = {named, TypedFPs}, type = RT}, RT, lists:append(Bs), Env2};
         {{named, _}, none} ->
             %% report §5.10: a constructor with named fields is written with
             %% its parentheses, `C()` matching any value of it
@@ -3049,15 +3056,15 @@ pat(#p_con{pos = Pos, path = Path, name = Name, args = Args} = P, Env) ->
             fail(Pos, atom_to_list(Name) ++ " has named fields; write "
                       ++ named_form(Name, Names, "p"))
     end;
-pat(#p_tuple{elems = Es} = P, Env) ->
+pat(#p_tuple{elements = Es} = P, Env) ->
     {Typed, Env1} = lists:mapfoldl(fun(E, En) ->
                                        {TE, T, B, En1} = pat(E, En),
                                        {{TE, T, B}, En1}
                                    end, Env, Es),
     {TypedEs, Ts, Bs} = lists:unzip3(Typed),
     T = {ttuple, Ts},
-    {P#p_tuple{elems = TypedEs, type = T}, T, lists:append(Bs), Env1};
-pat(#p_list{elems = Es} = P, Env) ->
+    {P#p_tuple{elements = TypedEs, type = T}, T, lists:append(Bs), Env1};
+pat(#p_list{elements = Es} = P, Env) ->
     {ElemT, St} = ern_types:fresh(Env#env.st),
     {Typed, {Env1, _}} =
         lists:mapfoldl(fun(E, {En, Origin}) ->
@@ -3076,7 +3083,7 @@ pat(#p_list{elems = Es} = P, Env) ->
                        end, {Env#env{st = St}, undefined}, Es),
     {TypedEs, Bs} = lists:unzip(Typed),
     T = {tcon, ['List'], [ElemT]},
-    {P#p_list{elems = TypedEs, type = T}, T, lists:append(Bs), Env1};
+    {P#p_list{elements = TypedEs, type = T}, T, lists:append(Bs), Env1};
 pat(#p_cons{head = H, tail = Tl} = P, Env) ->
     {TypedH, HT, HBs, Env1} = pat(H, Env),
     {TypedTl, TlT, TlBs, Env2} = pat(Tl, Env1),
@@ -3088,7 +3095,7 @@ pat(#p_cons{head = H, tail = Tl} = P, Env) ->
 pat(#p_as{pattern = Sub, name = N} = P, Env) ->
     {TypedSub, T, Bs, Env1} = pat(Sub, Env),
     {P#p_as{pattern = TypedSub, type = T}, T, Bs ++ [{N, T}], Env1};
-pat(#p_or{alts = [First | Rest]} = P, Env) ->
+pat(#p_or{alternatives = [First | Rest]} = P, Env) ->
     %% report §5.9: every alternative binds the same variables at the same types
     {TypedFirst, T, Bindings, Env1} = check_pattern(First, Env),
     Names = lists:sort([N || {N, _} <- Bindings]),
@@ -3104,8 +3111,8 @@ pat(#p_or{alts = [First | Rest]} = P, Env) ->
                   NamesA =:= Names orelse alternatives_differ(element(2, A), Names, NamesA),
                   {TA, En2}
           end, Env1, Rest),
-    {P#p_or{alts = [TypedFirst | TypedRest], type = T}, T, Bindings, Env2};
-pat(#p_bits{pos = Pos, segments = Segs} = P, Env) ->
+    {P#p_or{alternatives = [TypedFirst | TypedRest], type = T}, T, Bindings, Env2};
+pat(#p_bitstring{span = Pos, segments = Segs} = P, Env) ->
     %% report §5.11: each segment pattern in turn, the size expressions in
     %% the scope of the earlier segments' variables
     {TypedSegs, {Bindings, Env1}} =
@@ -3115,27 +3122,28 @@ pat(#p_bits{pos = Pos, segments = Segs} = P, Env) ->
                        end, {[], Env}, Segs),
     alignment(Pos, TypedSegs, "the pattern"),
     last_sizeless(TypedSegs),
-    {P#p_bits{segments = TypedSegs, type = ?BYTES}, ?BYTES, Bindings, Env1}.
+    {P#p_bitstring{segments = TypedSegs, type = ?BYTES}, ?BYTES, Bindings, Env1}.
 
 %% Report §5.11: a segment's value against its specifiers' type.
-bit_segment(#bit_seg{pos = Pos, value = V, specs = Specs} = S, construct, Env) ->
+bit_segment(#bit_segment{span = Pos, value = V, specs = Specs} = S, construct, Env) ->
     Spec = spec_of(Pos, Specs),
     case V of
-        #e_lit{kind = Kind, value = Value} -> literal_fits(V, Kind, Value, Spec);
-        #e_neg{expr = #e_lit{kind = Kind, value = Value}} -> literal_fits(V, Kind, -Value, Spec);
+        #e_literal{kind = Kind, value = Value} -> literal_fits(V, Kind, Value, Spec);
+        #e_negation{expr = #e_literal{kind = Kind, value = Value}} ->
+            literal_fits(V, Kind, -Value, Spec);
         _ -> ok
     end,
     {TypedSpecs, Env1} = size_expr(Specs, Env),
     {TypedV, _, Env2} = check_expr(V, segment_type(Spec), segment_context(Spec), undefined,
                                    Env1),
-    {S#bit_seg{value = TypedV, specs = TypedSpecs}, Env2}.
+    {S#bit_segment{value = TypedV, specs = TypedSpecs}, Env2}.
 
-bit_pattern(#bit_seg{pos = Pos, value = V, specs = Specs} = S, Bindings, Env) ->
+bit_pattern(#bit_segment{span = Pos, value = V, specs = Specs} = S, Bindings, Env) ->
     Spec = spec_of(Pos, Specs),
     case V of
         #p_var{} -> ok;
-        #p_wild{} -> ok;
-        #p_lit{kind = Kind, value = Value} -> literal_fits(V, Kind, Value, Spec);
+        #p_wildcard{} -> ok;
+        #p_literal{kind = Kind, value = Value} -> literal_fits(V, Kind, Value, Spec);
         _ -> fail(element(2, V), "a segment pattern is a variable, `_`, or a literal")
     end,
     %% a size expression is pure and sees the earlier segments (report §5.11)
@@ -3149,7 +3157,7 @@ bit_pattern(#bit_seg{pos = Pos, value = V, specs = Specs} = S, Bindings, Env) ->
                        effect_origin = Env#env.effect_origin},
     {TypedV, VT, Bs, Env2} = pat(V, Env1),
     Env3 = unify_at(element(2, V), segment_type(Spec), VT, Env2, segment_context(Spec)),
-    {S#bit_seg{value = TypedV, specs = TypedSpecs}, Bs, Env3}.
+    {S#bit_segment{value = TypedV, specs = TypedSpecs}, Bs, Env3}.
 
 %% Report §5.11: a literal the compiler sees not fitting a segment of
 %% constant width is a compile-time error, in a construction and in a
@@ -3195,11 +3203,11 @@ size_shape(E, Env) ->
         fail(node_span(E), "a size in a pattern is a variable, a top-level `let`, an Int"
                            " literal, or `+`, `-`, `*` of them").
 
-size_expression(#e_lit{kind = int}, _) -> true;
+size_expression(#e_literal{kind = int}, _) -> true;
 size_expression(#e_var{path = [], name = N}, #env{vars = Vs}) when is_map_key(N, Vs) -> true;
 size_expression(#e_var{ref = Ref}, Env) -> top_let(Ref, Env);
-size_expression(#e_neg{expr = E}, Env) -> size_expression(E, Env);
-size_expression(#e_binop{op = Op, left = L, right = R}, Env) when Op =:= '+'; Op =:= '-';
+size_expression(#e_negation{expr = E}, Env) -> size_expression(E, Env);
+size_expression(#e_binop{operator = Op, left = L, right = R}, Env) when Op =:= '+'; Op =:= '-';
                                                                 Op =:= '*' ->
     size_expression(L, Env) andalso size_expression(R, Env);
 size_expression(_, _) -> false.
@@ -3209,12 +3217,12 @@ size_expression(_, _) -> false.
 %% binds; a size that names one is refused as such, where it would
 %% otherwise be an unknown name.
 sizes_see_no_sibling(P, Env) ->
-    Bound = ern_ast:walk(fun(#p_var{pos = Pos, name = N}, Acc) -> Acc ++ [{N, Pos}];
-                            (#p_as{pos = Pos, name = N}, Acc) -> Acc ++ [{N, Pos}];
+    Bound = ern_ast:walk(fun(#p_var{span = Pos, name = N}, Acc) -> Acc ++ [{N, Pos}];
+                            (#p_as{span = Pos, name = N}, Acc) -> Acc ++ [{N, Pos}];
                             (_, Acc) -> Acc
                          end, P, []),
-    ern_ast:walk(fun(#p_bits{segments = Segs}, ok) ->
-                         lists:foldl(fun(#bit_seg{value = V, specs = Specs}, Earlier) ->
+    ern_ast:walk(fun(#p_bitstring{segments = Segs}, ok) ->
+                         lists:foldl(fun(#bit_segment{value = V, specs = Specs}, Earlier) ->
                                          [sibling_size(X, Bound, Earlier, Env)
                                           || {size, S} <- Specs,
                                              X <- ern_ast:walk(fun size_vars/2, S, [])],
@@ -3228,7 +3236,7 @@ sizes_see_no_sibling(P, Env) ->
 size_vars(#e_var{path = [], name = _} = V, Acc) -> Acc ++ [V];
 size_vars(_, Acc) -> Acc.
 
-sibling_size(#e_var{pos = Pos, name = N}, Bound, Earlier, Env) ->
+sibling_size(#e_var{span = Pos, name = N}, Bound, Earlier, Env) ->
     case lists:keyfind(N, 1, Bound) of
         {N, At} when not is_map_key(N, Earlier) ->
             Name = atom_to_list(N),
@@ -3266,7 +3274,7 @@ spec_of(Pos, Specs) ->
 %% an error. A segment with a dynamic size counted in bits, an `int` or a
 %% `float` one, leaves the count open; one in octets keeps it.
 alignment(Pos, Segs, What) ->
-    {Bits, Open} = lists:foldl(fun(#bit_seg{specs = Specs}, {B, O}) ->
+    {Bits, Open} = lists:foldl(fun(#bit_segment{specs = Specs}, {B, O}) ->
                                    {ok, #{size := Size, unit := Unit}} = ern_bitspec:spec(Specs),
                                    case Size of
                                        {const, N} -> {B + N * Unit, O};
@@ -3283,7 +3291,7 @@ alignment(Pos, Segs, What) ->
 %% A `bytes` segment without a size takes the rest, so it is last.
 last_sizeless([]) -> ok;
 last_sizeless([_]) -> ok;
-last_sizeless([#bit_seg{pos = Pos, specs = Specs} | Rest]) ->
+last_sizeless([#bit_segment{span = Pos, specs = Specs} | Rest]) ->
     case ern_bitspec:spec(Specs) of
         {ok, #{kind := bytes, size := none}} ->
             fail(Pos, "a `bytes` segment without a size takes the rest, so it is the last"
@@ -3292,18 +3300,18 @@ last_sizeless([#bit_seg{pos = Pos, specs = Specs} | Rest]) ->
     end.
 
 %% Report §5.10.
-irrefutable(#p_wild{}, _) -> true;
+irrefutable(#p_wildcard{}, _) -> true;
 irrefutable(#p_var{}, _) -> true;
 irrefutable(#p_as{pattern = P}, Env) -> irrefutable(P, Env);
-irrefutable(#p_tuple{elems = Es}, Env) -> lists:all(fun(E) -> irrefutable(E, Env) end, Es);
-irrefutable(#p_con{pos = Pos, path = Path, name = Name, args = Args}, Env) ->
+irrefutable(#p_tuple{elements = Es}, Env) -> lists:all(fun(E) -> irrefutable(E, Env) end, Es);
+irrefutable(#p_constructor{span = Pos, path = Path, name = Name, args = Args}, Env) ->
     CI = lookup_con(Pos, Path, Name, Env),
     #tinfo{constructors = Cs} = maps:get(CI#cinfo.type_qname, Env#env.types),
     length(Cs) =:= 1 andalso
         case Args of
             none -> true;
             {positional, P} -> irrefutable(P, Env);
-            {named, FPs} -> lists:all(fun(#field_pat{pattern = P}) -> irrefutable(P, Env) end,
+            {named, FPs} -> lists:all(fun(#field_pattern{pattern = P}) -> irrefutable(P, Env) end,
                                       FPs)
         end;
 irrefutable(_, _) -> false.
@@ -3557,7 +3565,8 @@ check_abstract(Decls) ->
                  message = atom_to_list(N) ++ " is an abstract type the module keeps private, which"
                            " hides its constructors from no module",
                  help = "export it, or declare it `type`"}
-     || #abstract_decl{export = false, pos = Pos, type = #type_decl{name = N}} <- Decls].
+     || #abstract_declaration{export = false, span = Pos,
+                              declaration = #type_declaration{name = N}} <- Decls].
 
 %% The word `abstract`, where the declaration begins.
 abstract_word({L, C, _}) -> {L, C, {L, C + length("abstract")}}.
@@ -3573,7 +3582,7 @@ make_iface(Decls, #env{ns = Ns, types = Ts, globals = Gs} = Env) ->
                                      || D <- Decls, {true, Q} <- [exported_value(D, Env)]]),
     %% report §4.6: a `let` is a value, and the emitter reaches it through
     %% its getter even where its type is a function
-    Lets = [Q || #let_decl{} = D <- Decls, {true, Q} <- [exported_value(D, Env)]],
+    Lets = [Q || #let_declaration{} = D <- Decls, {true, Q} <- [exported_value(D, Env)]],
     #iface{namespace = Ns, types = ExportedTypes, values = ExportedValues, lets = Lets}.
 
 %% Report §4.2: an exported declaration is made of the types that cross the
@@ -3591,7 +3600,7 @@ check_exports(Decls, #env{local_types = LT, globals = Gs, types = Ts} = Env) ->
                        {{true, Q}, _} -> tcons(scheme_type(maps:get(Q, Gs, undefined), Env));
                        %% report §4.2: an abstract type's constructors do not
                        %% cross, so its fields may name a private type
-                       {false, {true, _}} when is_record(D, abstract_decl) -> [];
+                       {false, {true, _}} when is_record(D, abstract_declaration) -> [];
                        {false, {true, TQ}} ->
                            constructor_tcons(maps:get(TQ, Ts, undefined), Env);
                        {false, false} -> []
@@ -3607,9 +3616,9 @@ private_type(D, Q) ->
                 help = "export " ++ atom_to_list(Name) ++ ", or declare it `abstract type` so that"
                        " its constructors stay private (§4.4)"}.
 
-declared_text(#type_decl{name = N}) -> atom_to_list(N);
-declared_text(#abstract_decl{type = #type_decl{name = N}}) -> atom_to_list(N);
-declared_text(#foreign_type_decl{name = N}) -> atom_to_list(N);
+declared_text(#type_declaration{name = N}) -> atom_to_list(N);
+declared_text(#abstract_declaration{declaration = #type_declaration{name = N}}) -> atom_to_list(N);
+declared_text(#foreign_type_declaration{name = N}) -> atom_to_list(N);
 declared_text(D) -> decl_name(D).
 
 scheme_type(#scheme{type = T}, Env) -> resolve_type(T, Env);
@@ -3626,16 +3635,18 @@ tcons({ttuple, Es}) -> lists:append([tcons(E) || E <- Es]);
 tcons({tfn, Ps, _Effect, R}) -> lists:append([tcons(T) || T <- Ps ++ [R]]);
 tcons(_) -> [].
 
-exported_type(#type_decl{export = true, name = N}, Env) -> {true, Env#env.ns ++ [N]};
-exported_type(#abstract_decl{export = true, type = #type_decl{name = N}}, Env) ->
+exported_type(#type_declaration{export = true, name = N}, Env) -> {true, Env#env.ns ++ [N]};
+exported_type(#abstract_declaration{export = true, declaration = #type_declaration{name = N}},
+              Env) ->
     {true, Env#env.ns ++ [N]};
-exported_type(#foreign_type_decl{export = true, name = N}, Env) -> {true, Env#env.ns ++ [N]};
+exported_type(#foreign_type_declaration{export = true, name = N}, Env) -> {true, Env#env.ns ++ [N]};
 exported_type(_, _) -> false.
 
-exported_value(#fn_decl{export = true, owner = O, name = N}, Env) -> {true, value_qname(Env, O, N)};
-exported_value(#let_decl{export = true, name = N}, Env) ->
+exported_value(#fn_declaration{export = true, owner = O, name = N}, Env) ->
+    {true, value_qname(Env, O, N)};
+exported_value(#let_declaration{export = true, name = N}, Env) ->
     {true, value_qname(Env, undefined, N)};
-exported_value(#foreign_fn_decl{export = true, owner = O, name = N}, Env) ->
+exported_value(#foreign_fn_declaration{export = true, owner = O, name = N}, Env) ->
     {true, value_qname(Env, O, N)};
 exported_value(_, _) -> false.
 

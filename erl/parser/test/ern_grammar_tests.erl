@@ -15,8 +15,8 @@
 %% uses each one it defines but the start
 defined_and_used_test() ->
     Rules = rules(),
-    Defined = [N || {N, _} <- Rules],
-    Used = lists:usort([N || {_, E} <- Rules, N <- nonterminals(E)]),
+    Defined = [Name || {Name, _} <- Rules],
+    Used = lists:usort([Name || {_, Expr} <- Rules, Name <- nonterminals(Expr)]),
     ?assertEqual([], Used -- Defined),
     ?assertEqual([], Defined -- ['Program' | Used]).
 
@@ -27,14 +27,16 @@ first_sets_test() ->
     Grammar = maps:from_list(Rules),
     First = first_sets(Grammar),
     Follow = follow_sets(Rules, First),
-    Conflicts = lists:usort(lists:append([conflicts(N, E, maps:get(N, Follow), First)
-                                          || {N, E} <- Rules])),
+    Conflicts = lists:usort(lists:append([conflicts(Rule, Expr, maps:get(Rule, Follow), First)
+                                          || {Rule, Expr} <- Rules])),
     Prose = prose(),
-    Named = [{R, T} || {R, T, Phrase} <- decided(), string:find(Prose, Phrase) =/= nomatch],
-    ?assertEqual([], [C || C <- Conflicts, not lists:member(C, Named)]),
+    Named = [{Rule, Token} || {Rule, Token, Phrase} <- decided(),
+                              string:find(Prose, Phrase) =/= nomatch],
+    ?assertEqual([], [Conflict || Conflict <- Conflicts, not lists:member(Conflict, Named)]),
     %% a decision below that no conflict needs, or whose phrase is gone
-    Stale = [{R, T} || {R, T, _} <- decided(),
-                       not lists:member({R, T}, Named) orelse not lists:member({R, T}, Conflicts)],
+    Stale = [{Rule, Token} || {Rule, Token, _} <- decided(),
+                              not lists:member({Rule, Token}, Named)
+                                  orelse not lists:member({Rule, Token}, Conflicts)],
     ?assertEqual([], Stale).
 
 %% The choices the next token does not decide, each the rule it is in, the
@@ -58,68 +60,73 @@ decided() ->
 %%
 
 %% Appendix A's rules, each its name and its expression: {seq, Items},
-%% {alt, Branches}, {opt, E}, {rep, E}, {nt, Name} or {t, Token}.
+%% {alt, Branches}, {opt, Expr}, {rep, Expr}, {nt, Name} or {t, Token}.
 rules() ->
-    {ok, Bin} = file:read_file(?REPORT),
-    Text = unicode:characters_to_list(Bin),
-    [_, Appendix0] = string:split(Text, "## Appendix A. Grammar"),
-    [Appendix | _] = string:split(Appendix0, "## Appendix B"),
+    {ok, Report} = file:read_file(?REPORT),
+    Text = unicode:characters_to_list(Report),
+    [_, FromAppendix] = string:split(Text, "## Appendix A. Grammar"),
+    [Appendix | _] = string:split(FromAppendix, "## Appendix B"),
     [_, Rest] = string:split(Appendix, "```\n"),
     [Grammar | _] = string:split(Rest, "```"),
     parse(tokens(Grammar)).
 
 %% The paragraph after the grammar, which names the tokens past the first.
 prose() ->
-    {ok, Bin} = file:read_file(?REPORT),
-    Text = unicode:characters_to_list(Bin),
-    [_, Appendix0] = string:split(Text, "## Appendix A. Grammar"),
-    [Appendix | _] = string:split(Appendix0, "## Appendix B"),
+    {ok, Report} = file:read_file(?REPORT),
+    Text = unicode:characters_to_list(Report),
+    [_, FromAppendix] = string:split(Text, "## Appendix A. Grammar"),
+    [Appendix | _] = string:split(FromAppendix, "## Appendix B"),
     lists:last(string:split(Appendix, "```", all)).
 
 tokens([]) -> [];
-tokens([C | Rest]) when C =:= $\s; C =:= $\n -> tokens(Rest);
-tokens([$" | Rest]) -> {T, [$" | After]} = lists:splitwith(fun(C) -> C =/= $" end, Rest),
-                       [{t, T} | tokens(After)];
-tokens([C | Rest]) when C >= $A, C =< $Z; C >= $a, C =< $z ->
-    {W, After} = lists:splitwith(fun(D) -> D >= $A andalso D =< $Z orelse D >= $a andalso D =< $z
-                                           orelse D >= $0 andalso D =< $9 end, [C | Rest]),
-    [{name, W} | tokens(After)];
-tokens([C | Rest]) -> [{punct, C} | tokens(Rest)].
+tokens([Char | Rest]) when Char =:= $\s; Char =:= $\n -> tokens(Rest);
+tokens([$" | Rest]) ->
+    {Quoted, [$" | After]} = lists:splitwith(fun(Char) -> Char =/= $" end, Rest),
+    [{t, Quoted} | tokens(After)];
+tokens([Letter | Rest]) when Letter >= $A, Letter =< $Z; Letter >= $a, Letter =< $z ->
+    {Word, After} = lists:splitwith(fun(Char) -> Char >= $A andalso Char =< $Z
+                                                     orelse Char >= $a andalso Char =< $z
+                                                     orelse Char >= $0 andalso Char =< $9
+                                    end, [Letter | Rest]),
+    [{name, Word} | tokens(After)];
+tokens([Char | Rest]) -> [{punct, Char} | tokens(Rest)].
 
 parse([]) -> [];
-parse([{name, N}, {punct, $=} | Rest]) ->
-    {E, [{punct, $.} | After]} = expr(Rest),
-    [{list_to_atom(N), E} | parse(After)].
+parse([{name, Name}, {punct, $=} | Rest]) ->
+    {Expr, [{punct, $.} | After]} = expr(Rest),
+    [{list_to_atom(Name), Expr} | parse(After)].
 
-expr(Ts) ->
-    {T, Rest} = term(Ts),
-    alts(Rest, [T]).
+expr(Tokens) ->
+    {Term, Rest} = term(Tokens),
+    alternatives(Rest, [Term]).
 
-alts([{punct, $|} | Ts], Acc) ->
-    {T, Rest} = term(Ts),
-    alts(Rest, [T | Acc]);
-alts(Ts, [One]) -> {One, Ts};
-alts(Ts, Acc) -> {{alt, lists:reverse(Acc)}, Ts}.
+alternatives([{punct, $|} | Tokens], Terms) ->
+    {Term, Rest} = term(Tokens),
+    alternatives(Rest, [Term | Terms]);
+alternatives(Tokens, [One]) -> {One, Tokens};
+alternatives(Tokens, Terms) -> {{alt, lists:reverse(Terms)}, Tokens}.
 
-term(Ts) -> term(Ts, []).
+term(Tokens) -> term(Tokens, []).
 
-term([{punct, C} | _] = Ts, Acc) when C =:= $|; C =:= $.; C =:= $); C =:= $]; C =:= $} ->
-    {seq(lists:reverse(Acc)), Ts};
-term(Ts, Acc) ->
-    {F, Rest} = factor(Ts),
-    term(Rest, [F | Acc]).
+term([{punct, Char} | _] = Tokens, Factors)
+  when Char =:= $|; Char =:= $.; Char =:= $); Char =:= $]; Char =:= $} ->
+    {seq(lists:reverse(Factors)), Tokens};
+term(Tokens, Factors) ->
+    {Factor, Rest} = factor(Tokens),
+    term(Rest, [Factor | Factors]).
 
 seq([One]) -> One;
 seq(Items) -> {seq, Items}.
 
-factor([{t, T} | Rest]) -> {{t, T}, Rest};
-factor([{name, [C | _] = N} | Rest]) when C >= $A, C =< $Z -> {{nt, list_to_atom(N)}, Rest};
-factor([{name, N} | Rest]) -> {lexical(N), Rest};
-factor([{punct, $(} | Rest]) -> close(expr(Rest), $), fun(E) -> E end);
-factor([{punct, $[} | Rest]) -> close(expr(Rest), $], fun(E) -> {opt, E} end);
-factor([{punct, ${} | Rest]) -> close(expr(Rest), $}, fun(E) -> {rep, E} end).
+factor([{t, Token} | Rest]) -> {{t, Token}, Rest};
+factor([{name, [Initial | _] = Name} | Rest]) when Initial >= $A, Initial =< $Z ->
+    {{nt, list_to_atom(Name)}, Rest};
+factor([{name, Name} | Rest]) -> {lexical(Name), Rest};
+factor([{punct, $(} | Rest]) -> close(expr(Rest), $), fun(Expr) -> Expr end);
+factor([{punct, $[} | Rest]) -> close(expr(Rest), $], fun(Expr) -> {opt, Expr} end);
+factor([{punct, ${} | Rest]) -> close(expr(Rest), $}, fun(Expr) -> {rep, Expr} end).
 
-close({E, [{punct, C} | Rest]}, C, Wrap) -> {Wrap(E), Rest}.
+close({Expr, [{punct, Closer} | Rest]}, Closer, Wrap) -> {Wrap(Expr), Rest}.
 
 %% §2's categories as the tokens the lexer gives.
 lexical("conname") -> {t, typename};
@@ -127,17 +134,18 @@ lexical("typename") -> {t, typename};
 lexical("typevar") -> {t, ident};
 lexical("literal") -> {alt, [{t, int}, {t, float}, {t, char}, {t, string}, {t, "true"},
                              {t, "false"}]};
-lexical("binop") -> {alt, [{t, Op} || Op <- ["*", "/", "%", "+", "-", "<>", "::", "==", "!=",
-                                               "<", "<=", ">", ">=", "&&", "||", "|>"]]};
-lexical("userop") -> {alt, [{t, Op} || Op <- ["+", "-", "*", "/", "%", "<>"]]};
-lexical(N) -> {t, list_to_atom(N)}.
+lexical("binop") -> {alt, [{t, Operator} || Operator <- ["*", "/", "%", "+", "-", "<>", "::",
+                                                         "==", "!=", "<", "<=", ">", ">=", "&&",
+                                                         "||", "|>"]]};
+lexical("userop") -> {alt, [{t, Operator} || Operator <- ["+", "-", "*", "/", "%", "<>"]]};
+lexical(Name) -> {t, list_to_atom(Name)}.
 
-nonterminals({nt, N}) -> [N];
+nonterminals({nt, Name}) -> [Name];
 nonterminals({t, _}) -> [];
-nonterminals({seq, Es}) -> lists:append([nonterminals(E) || E <- Es]);
-nonterminals({alt, Es}) -> lists:append([nonterminals(E) || E <- Es]);
-nonterminals({opt, E}) -> nonterminals(E);
-nonterminals({rep, E}) -> nonterminals(E).
+nonterminals({seq, Items}) -> lists:append([nonterminals(Item) || Item <- Items]);
+nonterminals({alt, Branches}) -> lists:append([nonterminals(Branch) || Branch <- Branches]);
+nonterminals({opt, Expr}) -> nonterminals(Expr);
+nonterminals({rep, Expr}) -> nonterminals(Expr).
 
 %%
 %% FIRST and FOLLOW
@@ -146,75 +154,83 @@ nonterminals({rep, E}) -> nonterminals(E).
 %% Each nonterminal's FIRST set, with `empty` where it derives nothing,
 %% to their fixed point.
 first_sets(Grammar) ->
-    fix(fun(First) -> maps:map(fun(_, E) -> first(E, First) end, Grammar) end,
+    fix(fun(First) -> maps:map(fun(_, Expr) -> first(Expr, First) end, Grammar) end,
         maps:map(fun(_, _) -> [] end, Grammar)).
 
-fix(F, X) ->
-    case F(X) of
-        X -> X;
-        Y -> fix(F, Y)
+fix(Step, Value) ->
+    case Step(Value) of
+        Value -> Value;
+        Next -> fix(Step, Next)
     end.
 
-first({t, T}, _) -> [T];
-first({nt, N}, First) -> maps:get(N, First);
-first({alt, Es}, First) -> lists:usort(lists:append([first(E, First) || E <- Es]));
-first({opt, E}, First) -> lists:usort([empty | first(E, First)]);
-first({rep, E}, First) -> lists:usort([empty | first(E, First)]);
+first({t, Token}, _) -> [Token];
+first({nt, Name}, First) -> maps:get(Name, First);
+first({alt, Branches}, First) ->
+    lists:usort(lists:append([first(Branch, First) || Branch <- Branches]));
+first({opt, Expr}, First) -> lists:usort([empty | first(Expr, First)]);
+first({rep, Expr}, First) -> lists:usort([empty | first(Expr, First)]);
 first({seq, []}, _) -> [empty];
-first({seq, [E | Es]}, First) ->
-    F = first(E, First),
-    case lists:member(empty, F) of
-        true -> lists:usort((F -- [empty]) ++ first({seq, Es}, First));
-        false -> F
+first({seq, [Item | Items]}, First) ->
+    FirstSet = first(Item, First),
+    case lists:member(empty, FirstSet) of
+        true -> lists:usort((FirstSet -- [empty]) ++ first({seq, Items}, First));
+        false -> FirstSet
     end.
 
 %% Each nonterminal's FOLLOW set, `eof` after the start.
 follow_sets(Rules, First) ->
-    Start = maps:from_list([{N, case N of 'Program' -> [eof]; _ -> [] end} || {N, _} <- Rules]),
+    Initial = maps:from_list([{Name, case Name of 'Program' -> [eof]; _ -> [] end}
+                              || {Name, _} <- Rules]),
     fix(fun(Follow) ->
-            lists:foldl(fun({N, E}, Acc) -> follows(E, maps:get(N, Follow), First, Acc) end,
-                        Follow, Rules)
-        end, Start).
+            lists:foldl(fun({Name, Expr}, Acc) ->
+                                follows(Expr, maps:get(Name, Follow), First, Acc)
+                        end, Follow, Rules)
+        end, Initial).
 
-follows({nt, N}, After, _, Acc) -> Acc#{N => lists:usort(maps:get(N, Acc) ++ After)};
+follows({nt, Name}, After, _, Acc) -> Acc#{Name => lists:usort(maps:get(Name, Acc) ++ After)};
 follows({t, _}, _, _, Acc) -> Acc;
-follows({alt, Es}, After, First, Acc) ->
-    lists:foldl(fun(E, A) -> follows(E, After, First, A) end, Acc, Es);
-follows({opt, E}, After, First, Acc) -> follows(E, After, First, Acc);
-follows({rep, E}, After, First, Acc) -> follows(E, then(first(E, First), After), First, Acc);
-follows({seq, Es}, After, First, Acc) ->
-    {_, Acc1} = lists:foldr(fun(E, {A, Acc0}) ->
-                                    {then(first(E, First), A), follows(E, A, First, Acc0)}
-                            end, {After, Acc}, Es),
-    Acc1.
+follows({alt, Branches}, After, First, Acc) ->
+    lists:foldl(fun(Branch, BranchAcc) -> follows(Branch, After, First, BranchAcc) end, Acc,
+                Branches);
+follows({opt, Expr}, After, First, Acc) -> follows(Expr, After, First, Acc);
+follows({rep, Expr}, After, First, Acc) ->
+    follows(Expr, then(first(Expr, First), After), First, Acc);
+follows({seq, Items}, After, First, Acc) ->
+    Step = fun(Item, {ItemAfter, ItemAcc}) ->
+                   {then(first(Item, First), ItemAfter), follows(Item, ItemAfter, First, ItemAcc)}
+           end,
+    {_, Follows} = lists:foldr(Step, {After, Acc}, Items),
+    Follows.
 
 %% What may come first where a FIRST set stands before what may follow.
-then(F, After) ->
-    case lists:member(empty, F) of
-        true -> lists:usort((F -- [empty]) ++ After);
-        false -> F
+then(FirstSet, After) ->
+    case lists:member(empty, FirstSet) of
+        true -> lists:usort((FirstSet -- [empty]) ++ After);
+        false -> FirstSet
     end.
 
 %% Each choice of the rule that the next token does not decide, as the
 %% rule and a token its branches share: two branches of a `|`, or an
 %% optional or repeated part and what may follow it.
-conflicts(N, {alt, Es}, After, First) ->
-    Sets = [then(first(E, First), After) || E <- Es],
-    Shared = [T || {I, S} <- lists:zip(lists:seq(1, length(Sets)), Sets),
-                   {J, S2} <- lists:zip(lists:seq(1, length(Sets)), Sets), I < J,
-                   T <- S, lists:member(T, S2)],
-    [{N, T} || T <- lists:usort(Shared)]
-        ++ lists:append([conflicts(N, E, After, First) || E <- Es]);
-conflicts(N, {opt, E}, After, First) ->
-    [{N, T} || T <- first(E, First) -- [empty], lists:member(T, After)]
-        ++ conflicts(N, E, After, First);
-conflicts(N, {rep, E}, After, First) ->
-    [{N, T} || T <- first(E, First) -- [empty], lists:member(T, After)]
-        ++ conflicts(N, E, then(first(E, First), After), First);
-conflicts(N, {seq, Es}, After, First) ->
-    {_, Found} = lists:foldr(fun(E, {A, Acc}) ->
-                                     {then(first(E, First), A), conflicts(N, E, A, First) ++ Acc}
-                             end, {After, []}, Es),
+conflicts(Rule, {alt, Branches}, After, First) ->
+    Sets = [then(first(Branch, First), After) || Branch <- Branches],
+    Numbered = lists:zip(lists:seq(1, length(Sets)), Sets),
+    Shared = [Token || {Index, Set} <- Numbered, {OtherIndex, OtherSet} <- Numbered,
+                       Index < OtherIndex, Token <- Set, lists:member(Token, OtherSet)],
+    [{Rule, Token} || Token <- lists:usort(Shared)]
+        ++ lists:append([conflicts(Rule, Branch, After, First) || Branch <- Branches]);
+conflicts(Rule, {opt, Expr}, After, First) ->
+    [{Rule, Token} || Token <- first(Expr, First) -- [empty], lists:member(Token, After)]
+        ++ conflicts(Rule, Expr, After, First);
+conflicts(Rule, {rep, Expr}, After, First) ->
+    [{Rule, Token} || Token <- first(Expr, First) -- [empty], lists:member(Token, After)]
+        ++ conflicts(Rule, Expr, then(first(Expr, First), After), First);
+conflicts(Rule, {seq, Items}, After, First) ->
+    Step = fun(Item, {ItemAfter, ItemAcc}) ->
+                   {then(first(Item, First), ItemAfter),
+                    conflicts(Rule, Item, ItemAfter, First) ++ ItemAcc}
+           end,
+    {_, Found} = lists:foldr(Step, {After, []}, Items),
     Found;
 conflicts(_, _, _, _) ->
     [].

@@ -52,7 +52,7 @@ spec(Specs) ->
         throw:Msg -> {error, Msg}
     end.
 
-spec_fold({size, #e_lit{kind = int, value = N}}, Spec) -> once(size, {const, N}, Spec);
+spec_fold({size, #e_literal{kind = int, value = N}}, Spec) -> once(size, {const, N}, Spec);
 spec_fold({size, E}, Spec) -> once(size, {expr, E}, Spec);
 spec_fold(K, Spec) when K =:= int; K =:= float; K =:= bytes; K =:= utf8; K =:= utf16;
                         K =:= utf32 ->

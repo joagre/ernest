@@ -1753,7 +1753,7 @@ errors_are_collected_test() ->
 
 %% report §3.9, §11.1: every expression of the checked AST carries its type
 typed_ast_test() ->
-    {ok, [#fn_decl{body = #e_binop{type = T, left = #e_var{type = LT}}}], _, _} =
+    {ok, [#fn_declaration{body = #e_binop{type = T, left = #e_var{type = LT}}}], _, _} =
         check("fn double(n : Int) = n * 2"),
     ?assertEqual({tcon, ['Int'], []}, T),
     ?assertEqual({tcon, ['Int'], []}, LT).

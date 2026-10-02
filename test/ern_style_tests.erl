@@ -258,7 +258,7 @@ emacs_mode_mirrors_the_lexer_test() ->
 emacs_mode_mirrors_the_parser_test() ->
     Parser = read("erl/parser/src/ern_parser.erl"),
     Mode = read("emacs/ernest-mode.el"),
-    {match, InParser} = re:run(Parser, "^prec\\('([^']+)'\\) -> \\{([0-9]+),",
+    {match, InParser} = re:run(Parser, "^precedence\\('([^']+)'\\) -> \\{([0-9]+),",
                                [global, multiline, {capture, all_but_first, list}]),
     {match, InMode} = re:run(body(Mode, "(defconst ernest--precedence"),
                              "\\(\"([^\"]+)\" \\. ([0-9]+)\\)",

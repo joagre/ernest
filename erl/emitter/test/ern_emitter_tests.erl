@@ -66,8 +66,8 @@ emitter_defect_test() ->
     ?assertError({emitter_defect, _, "a block ends with a `let`"},
                  ern_emitter:compile(['M'], Broken, Iface, Env)).
 
-without_last_statement(#e_block{stmts = Stmts} = B) ->
-    B#e_block{stmts = lists:droplast(Stmts)};
+without_last_statement(#e_block{statements = Stmts} = B) ->
+    B#e_block{statements = lists:droplast(Stmts)};
 without_last_statement(T) when is_tuple(T) ->
     list_to_tuple([without_last_statement(E) || E <- tuple_to_list(T)]);
 without_last_statement(L) when is_list(L) ->
