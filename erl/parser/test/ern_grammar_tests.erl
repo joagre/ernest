@@ -50,6 +50,7 @@ decided() ->
      {'QName', typename, "of a value in `QName`"},
      {'AtomPat', typename, "of a constructor in `AtomPat`"},
      {'QName', "(", "the parser consumes that argument in the constructor branch of `QName`"},
+     {'Primary', ident, "are a type variable's member"},
      {'QName', ident, "whether `=` or `:` follows the first identifier"},
      {'AtomPat', ident, "whether `=` or `:` follows the first identifier"},
      {'Constructor', ident, "whether `=` or `:` follows the first identifier"},

@@ -15,7 +15,7 @@ milestone, the standing gaps, and what is done.
 
 **MVP 2.99b is under way**: what the release review left, the code's names read and made to read,
 the decision on how code written once works over several representations, decided
-2026-10-02 and specified by [`operations.md`](operations.md), next to build, and running as a service. Its first item makes every
+2026-10-02, specified by [`operations.md`](operations.md) and written into the report the same day, next to build, and running as a service. Its first item makes every
 run of `make test` trusted. Between its items 3 and 4 runs the principles review, the report
 and the guide read against §0 and §0 against what it decided, a milestone of its own;
 its readers ran on 2026-09-30, on `57b8356`, and it was worked on 2026-10-01 in seven phases
@@ -181,7 +181,10 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    with its limits and its errors, §4.8 pointing at it, §3.5's `derives` and §5.6's fill,
    E.1's `show` under a requirement, Appendix A's four rules, §11.5's errors and the requirement on a page and in the shell, and
    two sections at the end of Appendix E, `ordered_set.ern` and `ordered_map.ern`, each
-   stating its representation and costs whole. Then the toolchain, the requirement and the fill
+   stating its representation and costs whole: written on 2026-10-02, §4.9 the requirement and
+   E.25 and E.26 the modules (the log's *The Requirement Written into the Report*), §4.9's
+   example a fragment block until the forms parse, when the build marks it `ernest` so that the
+   guide's checks compile it. Then the toolchain, the requirement and the fill
    first, built against the five files under `docs/operations/` as they stand until they
    build and print what the note says, since the files are the specification's test suite
    before any test exists: the requirement's resolution pass, its errors, the requirement carried in
