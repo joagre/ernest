@@ -44,7 +44,7 @@
 %% written, the trailing comments waiting for the line's end, and, in a
 %% choice's trial, whether its mark was reached.
 -record(printer, {column = 0, pending = none, line = [], lines = [], started = false,
-                  suffix = [], trial = false, marked = false}).
+                  suffixes = [], trial = false, marked = false}).
 
 %% The text a layout lays out, each line without the spaces the layout
 %% wrote at its end, ending in a line feed.
@@ -88,7 +88,7 @@ print([{Indent, Mode, Layout} | Rest], Printer) ->
                 true -> print([{Indent, break, First} | Rest], Printer);
                 false -> print([{Indent, break, Second} | Rest], Printer)
             end;
-        {suffix, Text} -> print(Rest, Printer#printer{suffix = [Text | Printer#printer.suffix]})
+        {suffix, Text} -> print(Rest, Printer#printer{suffixes = [Text | Printer#printer.suffixes]})
     end.
 
 %%
@@ -101,7 +101,7 @@ column(#printer{column = Column}) -> Column.
 %% Spaces that would begin a line are dropped: indentation is the
 %% printer's. A trailing comment ends its line, so code after one on the
 %% same line starts a new line first.
-text(Text, Indent, #printer{suffix = [_ | _], pending = none} = Printer) ->
+text(Text, Indent, #printer{suffixes = [_ | _], pending = none} = Printer) ->
     case is_space(Text) of
         true -> Printer;
         false -> text(Text, Indent, newline(Indent, Printer))
@@ -114,7 +114,7 @@ text(Text, _Indent, #printer{pending = {BreakIndent, Blank}} = Printer) ->
                         true -> [<<>>, finish_line(Printer) | Printer#printer.lines];
                         false -> [finish_line(Printer) | Printer#printer.lines]
                     end,
-            Printer1 = Printer#printer{pending = none, lines = Lines, suffix = [],
+            Printer1 = Printer#printer{pending = none, lines = Lines, suffixes = [],
                                        line = [binary:copy(<<" ">>, BreakIndent)],
                                        column = BreakIndent},
             append(Text, Printer1)
@@ -157,15 +157,16 @@ blank(Printer) -> Printer.
 
 %% The spaces the layout wrote at a line's end are dropped; a text keeps
 %% the spaces it was written with, as a doc line does (report §11.6).
-finish_line(#printer{line = Line, suffix = Suffix}) ->
-    unicode:characters_to_binary([lists:reverse(laid_spaces(Line)), lists:reverse(Suffix)]).
+finish_line(#printer{line = Line, suffixes = Suffixes}) ->
+    unicode:characters_to_binary([lists:reverse(without_laid_spaces(Line)),
+                                  lists:reverse(Suffixes)]).
 
-laid_spaces([Text | Rest] = Line) ->
+without_laid_spaces([Text | Rest] = Line) ->
     case is_space(Text) of
-        true -> laid_spaces(Rest);
+        true -> without_laid_spaces(Rest);
         false -> Line
     end;
-laid_spaces([]) ->
+without_laid_spaces([]) ->
     [].
 
 is_space(Text) ->
@@ -231,7 +232,7 @@ accept(Kind, Stack, Printer) ->
                     Printer#printer{line = []}
             end,
     Trial = Start#printer{trial = true, marked = false},
-    Tried = try print(Stack, Trial) catch throw:{first_line, FirstLine} -> FirstLine end,
+    Tried = try print(Stack, Trial) catch throw:{first_line, Stopped} -> Stopped end,
     Written = string:trim(unicode:characters_to_binary(lists:reverse(Tried#printer.line)),
                           trailing, " "),
     Tried#printer.column =< ?WIDTH andalso

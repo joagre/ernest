@@ -8,7 +8,7 @@ tokens(Text) ->
     {ok, Tokens} = ern_lexer:tokenize(Text),
     [without_position(Token) || Token <- Tokens, element(1, Token) =/= eof].
 
-without_position({Category, _Position, Value}) -> {Category, Value};
+without_position({Kind, _Position, Value}) -> {Kind, Value};
 without_position({Symbol, _Position}) -> Symbol.
 
 %% Where the lexer refuses a text, and what it says.
@@ -33,7 +33,7 @@ reserved_words_test() ->
     ?assertEqual([type, abstract, with, foreign, match, 'when', 'receive', 'after', as,
                   'if', then, 'else', fn, 'let', export],
                  tokens("type abstract with foreign match when receive after as "
-                      "if then else fn let export")).
+                        "if then else fn let export")).
 
 %% report §2.4, §2.5
 literals_true_false_test() ->
@@ -272,7 +272,7 @@ errors_test() ->
     ?assertEqual({2, 3, "illegal character '@'"}, refusal("a\n  @")),
     ?assertEqual({1, 1, "illegal character 'é'"}, refusal(<<"é"/utf8>>)).
 
-%% report §11.5: a token's pos is its line, column, end, and the end of the
+%% report §11.5: a token's position is its line, column, end, and the end of the
 %% token before it
 token_spans_test() ->
     {ok, Tokens} = ern_lexer:tokenize("ab  +\n\"cd\" 12"),

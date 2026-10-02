@@ -39,8 +39,8 @@ segment_and_component_test() ->
     ?assertEqual(error, ern_namespace:component("Http.Parser")),
     ?assertEqual(error, ern_namespace:component("")),
     Components = ["http", "httpv2", "http_v2", "ordered_set", "h_t_t_p", "a1_b2"],
-    [?assertEqual({ok, C}, ern_namespace:component(S))
-     || C <- Components, {ok, S} <- [ern_namespace:segment(C)]].
+    [?assertEqual({ok, Component}, ern_namespace:component(Segment))
+     || Component <- Components, {ok, Segment} <- [ern_namespace:segment(Component)]].
 
 %% report §4.2, §11.2: a namespace from a path and the path from a namespace
 namespace_and_path_test() ->

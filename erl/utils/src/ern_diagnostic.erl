@@ -18,7 +18,7 @@
 -type position() :: {pos_integer(), pos_integer(), {pos_integer(), pos_integer()},
                      {pos_integer(), pos_integer()}}.
 
-%% A span from a token position or from a node position, which is one.
+%% A span from a token's position, or a span as it is.
 -spec span(position() | span()) -> span().
 span({Line, Column, End, _PreviousEnd}) -> {Line, Column, End};
 span({_, _, _} = Span) -> Span.
@@ -33,8 +33,8 @@ short(File, #diagnostic{span = {Line, Column, _}, message = Message}) ->
 -spec format(string(), unicode:chardata(), diagnostic()) -> string().
 format(File, Source, #diagnostic{span = Span, labels = Labels, help = Help} = Diagnostic) ->
     Lines = lines(Source),
-    Marks = lists:sort([{Span, "^", ""}
-                        | [{LabelSpan, "-", Label} || {LabelSpan, Label} <- Labels]]),
+    Marks = lists:sort([{Span, $^, ""}
+                        | [{LabelSpan, $-, Label} || {LabelSpan, Label} <- Labels]]),
     Width = length(integer_to_list(lists:max([Line || {{Line, _, _}, _, _} <- Marks]))),
     Body = marks(Marks, Lines, Width, 0),
     HelpLine = case Help of
@@ -49,19 +49,19 @@ format(File, Source, #diagnostic{span = Span, labels = Labels, help = Help} = Di
 %% the underline.
 marks([], _, _, _) ->
     [];
-marks([{{Line, Column, End}, UnderlineChar, Label} | Rest], Lines, Width, Printed) ->
-    LineBefore = case Printed =:= 0 andalso Line > 1 of
+marks([{{Line, Column, End}, Mark, Label} | Rest], Lines, Width, LastPrinted) ->
+    LineBefore = case LastPrinted =:= 0 andalso Line > 1 of
                      true -> source_line(Line - 1, Lines, Width);
-                     false when Printed > 0, Line > Printed + 1 -> "...\n";
+                     false when LastPrinted > 0, Line > LastPrinted + 1 -> "...\n";
                      false -> []
                  end,
-    SourceLine = case Line =:= Printed of
+    SourceLine = case Line =:= LastPrinted of
                      true -> [];
                      false -> source_line(Line, Lines, Width)
                  end,
     Suffix = case Label of "" -> ""; _ -> " " ++ Label end,
     Underline = [gutter(Width), lists:duplicate(Column - 1, $\s),
-                 lists:duplicate(width(Line, Column, End, Lines), hd(UnderlineChar)), Suffix,
+                 lists:duplicate(width(Line, Column, End, Lines), Mark), Suffix,
                  "\n"],
     [LineBefore, SourceLine, Underline | marks(Rest, Lines, Width, Line)].
 

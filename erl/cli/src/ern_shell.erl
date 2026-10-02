@@ -610,17 +610,18 @@ where(expression) -> 'Expression';
 where(typename) -> 'TypeName';
 where(pattern) -> 'Pattern';
 where(declaration) -> 'Declaration';
-where(#expected_field{kind = field, path = Path, constructor = Constructor}) ->
-    {'Fields', fields_of(Path, Constructor)};
+where(#expected_field{kind = field, path = Path, constructor_name = ConstructorName}) ->
+    {'Fields', fields_of(Path, ConstructorName)};
 %% the parser could not tell a field's name from a value; the
 %% constructor's type can, and only a named constructor has fields
-where(#expected_field{kind = field_or_value, path = Path, constructor = Constructor}) ->
-    case fields_of(Path, Constructor) of
+where(#expected_field{kind = field_or_value, path = Path, constructor_name = ConstructorName}) ->
+    case fields_of(Path, ConstructorName) of
         [] -> 'Expression';
         Fields -> {'Fields', Fields}
     end;
-where(#expected_field{kind = field_or_pattern, path = Path, constructor = Constructor}) ->
-    case fields_of(Path, Constructor) of
+where(#expected_field{kind = field_or_pattern, path = Path,
+                      constructor_name = ConstructorName}) ->
+    case fields_of(Path, ConstructorName) of
         [] -> 'Pattern';
         Fields -> {'Fields', Fields}
     end.
@@ -630,9 +631,9 @@ where(#expected_field{kind = field_or_pattern, path = Path, constructor = Constr
 %% qualified, its module's.
 %% Report §11.2: each as a `Shell.Complete.Name`, listed with its type, the
 %% constructor's parameter in the field's place, both in declared order.
-fields_of(Path, Constructor) ->
+fields_of(Path, ConstructorName) ->
     Session = persistent_term:get({?MODULE, session}, #session{}),
-    case named_constructor(Session, Path, Constructor) of
+    case named_constructor(Session, Path, ConstructorName) of
         {ok, #constructor_info{fields = {named, Fields},
                                scheme = #scheme{type = {tfn, Params, _, _}}}} ->
             TypeState = session_type_state(Session),

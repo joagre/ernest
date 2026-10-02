@@ -87,7 +87,9 @@
 %% annotation: the type written, or undefined; operator: '=' | '<-'
 -record(e_call, {span, callee, args, pipe = false, returns = true, type}).
 %% pipe: true when `x |> e` wrote it; x is the first argument, evaluated
-%% before a callee that is not a name (report §5.1)
+%% before a callee that is not a name (report §5.1); returns: set by the
+%% checker, false where the callee never returns, which the reply check
+%% reads (report §6.6)
 -record(e_selection, {span, expr, field, field_span, type}).
 %% expr.field, report §3.5; field_span: where the selector stands, where
 %% its errors are reported (report §11.5)
@@ -118,7 +120,7 @@
 -record(p_list, {span, elements, type}).
 -record(p_cons, {span, head, tail, type}).
 %% name_span is where the name after `as` stands, span where the pattern does
--record(p_as, {span, pattern, name, type, name_span}).
+-record(p_as, {span, pattern, name, name_span, type}).
 -record(p_or, {span, alternatives, type}). % alternatives of a clause, report §5.9
 -record(p_bitstring, {span, segments, type}).
 

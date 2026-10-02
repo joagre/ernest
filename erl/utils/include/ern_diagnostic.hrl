@@ -3,7 +3,7 @@
 -define(ERN_DIAGNOSTIC_HRL, true).
 
 -record(diagnostic, {span, message, labels = [], help, incomplete = false,
-               expected = undefined, within = undefined}).
+                     expected = undefined, within = undefined}).
 %% span: ern_diagnostic:span(), the primary span.
 %% message: string(), the first line.
 %% labels: [{ern_diagnostic:span(), string()}], the secondary spans the message
@@ -21,8 +21,9 @@
 %% Where a constructor's field's name stands, kind `field`; or where its
 %% first argument would stand and could be a field's name or a value,
 %% `field_or_value`, or a field's name or a pattern, `field_or_pattern`.
-%% path is the qualifier the constructor is written with.
--record(expected_field, {kind, path, constructor}).
+%% path is the qualifier the constructor is written with, and
+%% constructor_name the name it is written with.
+-record(expected_field, {kind, path, constructor_name}).
 
 %% A call or a constructor the input stops inside, by the path and the
 %% name written. argument: for a call, the index of the argument at the

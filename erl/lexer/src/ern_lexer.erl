@@ -172,14 +172,14 @@ lex(Input, Line, Column, PreviousEnd, Acc, KeepComments) ->
 lex_line_comment(Opener, Input, Line, Column, PreviousEnd, Acc, KeepComments) ->
     {Body, Rest} = line(Input),
     Text = Opener ++ Body,
-    End = Column + length(Text),
-    lex(Rest, Line, End, PreviousEnd,
-        with_comment(KeepComments, Text, {Line, Column, {Line, End}, PreviousEnd}, Acc),
+    EndColumn = Column + length(Text),
+    lex(Rest, Line, EndColumn, PreviousEnd,
+        with_comment(KeepComments, Text, {Line, Column, {Line, EndColumn}, PreviousEnd}, Acc),
         KeepComments).
 
 %% Report §2.2: whether a token stands before this point on the line.
-is_after_token([{Kind, _, _} | Acc], Line) when Kind =:= comment; Kind =:= doc ->
-    is_after_token(Acc, Line);
+is_after_token([{Kind, _, _} | Before], Line) when Kind =:= comment; Kind =:= doc ->
+    is_after_token(Before, Line);
 is_after_token([Token | _], Line) ->
     {_, _, {EndLine, _}, _} = element(2, Token),
     EndLine =:= Line;
@@ -262,17 +262,17 @@ number([$0, Prefix | Rest], Line, Column) when Prefix =:= $x; Prefix =:= $o; Pre
         {[], _} -> error_at(Line, Column, [$0, Prefix] ++ " needs a " ++ Name ++ " digit");
         _ -> ok
     end,
-    End = Column + 2 + Consumed,
+    EndColumn = Column + 2 + Consumed,
     case Rest1 of
         [Char | _] when Char =/= $_ ->
             case is_word_char(Char) of
-                true -> error_at(Line, End, [Char] ++ " is not a " ++ Name ++ " digit");
+                true -> error_at(Line, EndColumn, [Char] ++ " is not a " ++ Name ++ " digit");
                 false -> ok
             end;
         _ ->
             ok
     end,
-    {int, list_to_integer(Digits, Base), Rest1, End};
+    {int, list_to_integer(Digits, Base), Rest1, EndColumn};
 number([$0, Prefix | _], Line, Column) when Prefix =:= $X; Prefix =:= $O; Prefix =:= $B ->
     error_at(Line, Column, "a base prefix is lowercase: 0" ++ [Prefix + 32]);
 number(Input, Line, Column) ->
@@ -400,9 +400,9 @@ char_body([Char | Rest], Line, Column) ->
 char_body([], Line, Column) ->
     error_at(Line, Column, "unterminated char literal").
 
-closed_char(Char, [$' | Rest], _Line, _StartColumn, EndColumn) ->
-    {Char, Rest, EndColumn + 1};
-closed_char(_Char, Rest, Line, StartColumn, _EndColumn) ->
+closed_char(Char, [$' | Rest], _Line, _StartColumn, QuoteColumn) ->
+    {Char, Rest, QuoteColumn + 1};
+closed_char(_Char, Rest, Line, StartColumn, _QuoteColumn) ->
     case is_closed_on_line(Rest) of
         true -> error_at(Line, StartColumn, "a char literal holds one code point; a string is"
                                             " written between double quotes");

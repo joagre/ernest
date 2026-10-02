@@ -1,30 +1,27 @@
 %% Parser for Ernest, report Appendix A. Recursive descent over the token
 %% list from ern_lexer, threading {Node, Rest}; a precedence-climbing
-%% loop for binary operators, a second one for `::` in patterns. First-token
-%% dispatch; the three bounded lookaheads named in Appendix A; no
-%% backtracking. Errors are thrown and returned as {error, #diagnostic{}}.
+%% loop for binary operators, and right recursion for `::` in patterns.
+%% First-token dispatch; the bounded lookaheads the paragraph after
+%% Appendix A's grammar decides; no backtracking. Errors are thrown and
+%% returned as {error, #diagnostic{}}.
 %% Every node's span runs from its first token to the end of the token
 %% before the rest, set by spanned/1.
 -module(ern_parser).
 
 -export([parse/1, parse_string/1, parse_expr/1, parse_statement/1, parse_type/1]).
 
--export_type([error/0]).
-
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("utils/include/ern_diagnostic.hrl").
-
--type error() :: ern_diagnostic:diagnostic().
 
 -define(DECLARATION_START, [export, type, abstract, fn, 'let', foreign]).
 -define(SPECS, [bytes, int, float, utf8, utf16, utf32, big, little, signed, unsigned]).
 
--spec parse([ern_lexer:token()]) -> {ok, [tuple()]} | {error, error()}.
+-spec parse([ern_lexer:token()]) -> {ok, [tuple()]} | {error, ern_diagnostic:diagnostic()}.
 parse(Tokens) ->
     try
         {ModuleDoc, Tokens1} = module_doc(Tokens),
-        Decls = program(prune_docs(Tokens1), undefined, []),
-        {ok, case ModuleDoc of undefined -> Decls; _ -> [ModuleDoc | Decls] end}
+        Declarations = program(prune_docs(Tokens1), undefined, []),
+        {ok, case ModuleDoc of undefined -> Declarations; _ -> [ModuleDoc | Declarations] end}
     catch
         throw:{parse_error, #diagnostic{} = Diagnostic} ->
             {error, incomplete_at_end(Tokens, Diagnostic)}
@@ -43,7 +40,7 @@ incomplete_at_end(Tokens, #diagnostic{span = Span} = Diagnostic) ->
         _ -> Diagnostic
     end.
 
--spec parse_string(unicode:chardata()) -> {ok, [tuple()]} | {error, error()}.
+-spec parse_string(unicode:chardata()) -> {ok, [tuple()]} | {error, ern_diagnostic:diagnostic()}.
 parse_string(Text) ->
     case ern_lexer:tokenize(Text) of
         {ok, Tokens} -> parse(Tokens);
@@ -51,18 +48,18 @@ parse_string(Text) ->
     end.
 
 %% One expression, for tests and the shell.
--spec parse_expr(unicode:chardata()) -> {ok, tuple()} | {error, error()}.
+-spec parse_expr(unicode:chardata()) -> {ok, tuple()} | {error, ern_diagnostic:diagnostic()}.
 parse_expr(Text) ->
     parse_one(Text, fun(Tokens) -> expr(prune_docs(Tokens)) end).
 
 %% One statement of a block, for the shell: report §11.2, a `let` at the
 %% prompt is a block `let`.
--spec parse_statement(unicode:chardata()) -> {ok, tuple()} | {error, error()}.
+-spec parse_statement(unicode:chardata()) -> {ok, tuple()} | {error, ern_diagnostic:diagnostic()}.
 parse_statement(Text) ->
     parse_one(Text, fun(Tokens) -> statement(prune_docs(Tokens)) end).
 
 %% One type, for the prelude tables and tests.
--spec parse_type(unicode:chardata()) -> {ok, tuple()} | {error, error()}.
+-spec parse_type(unicode:chardata()) -> {ok, tuple()} | {error, ern_diagnostic:diagnostic()}.
 parse_type(Text) ->
     parse_one(Text, fun type/1).
 
@@ -150,13 +147,12 @@ program(Tokens, Previous, Acc) ->
     program(Tokens1, Declaration, [Declaration | Acc]).
 
 %% A second consecutive fn with the same name is the Haskell habit.
-refuse_second_clause(#fn_declaration{span = Position, member_of = MemberOf, name = Name},
-                     #fn_declaration{span = First, member_of = MemberOf, name = Name}) ->
+refuse_second_clause(#fn_declaration{span = Span, member_of = MemberOf, name = Name},
+                     #fn_declaration{span = FirstSpan, member_of = MemberOf, name = Name}) ->
     %% report §11.5: at the second clause, the first labelled
-    Diagnostic = diagnostic(Position, "a function has one clause",
+    Diagnostic = diagnostic(Span, "a function has one clause",
                             "write one clause whose body is a `match`"),
-    throw({parse_error,
-           Diagnostic#diagnostic{labels = [{ern_diagnostic:span(First), "first clause"}]}});
+    throw({parse_error, Diagnostic#diagnostic{labels = [{FirstSpan, "first clause"}]}});
 refuse_second_clause(_, _) ->
     ok.
 
@@ -486,8 +482,8 @@ parenthesized(_, _, [Token | _]) ->
 
 %% {typename "."} followed by a final segment. Returns {con, Path, Name} for
 %% an uppercase final, {value, Path, Name} for an ident or userop final.
-qualified([{typename, _, Token} | Rest]) ->
-    qualified(Rest, [], Token).
+qualified([{typename, _, First} | Rest]) ->
+    qualified(Rest, [], First).
 
 qualified([{'.', _}, {typename, _, Next} | Rest], Path, Current) ->
     qualified(Rest, Path ++ [Current], Next);
@@ -773,7 +769,7 @@ constructor_expr(Position, Path, Name, [{'(', _} | Rest]) ->
             %% name, and only the constructor's type tells which
             Diagnostic = diagnostic(EndPosition, "expected an expression instead of end of input",
                                     undefined),
-            Expected = #expected_field{kind = field_or_value, path = Path, constructor = Name},
+            Expected = #expected_field{kind = field_or_value, path = Path, constructor_name = Name},
             Enclosing = #enclosing{path = Path, name = Name, argument = none},
             throw({parse_error, Diagnostic#diagnostic{expected = Expected,
                                                       within = Enclosing}});
@@ -790,12 +786,14 @@ constructor_expr(Position, Path, Name, Tokens) ->
 %% that completion knows which fields may stand at the cursor; and where
 %% the input stops, which field's value it stops in, or `none` where a
 %% field's name would stand, for `Shift-Tab`.
-field_of(Path, Constructor) ->
+field_of(Path, ConstructorName) ->
     fun(Tokens) ->
-        Expected = #expected_field{kind = field, path = Path, constructor = Constructor},
-        FieldName = fun() -> tagging(Expected, fun() -> expect_ident_position(Tokens) end) end,
-        {Name, Position, Rest} = within(Path, Constructor, none, FieldName),
-        {Expr, Rest1} = within(Path, Constructor, {field, Name},
+        Expected = #expected_field{kind = field, path = Path, constructor_name = ConstructorName},
+        ParseFieldName = fun() ->
+                             tagging(Expected, fun() -> expect_ident_position(Tokens) end)
+                         end,
+        {Name, Position, Rest} = within(Path, ConstructorName, none, ParseFieldName),
+        {Expr, Rest1} = within(Path, ConstructorName, {field, Name},
                                fun() -> expr(expect(Rest, '=')) end),
         spanned({#field_set{span = Position, name = Name, expr = Expr}, Rest1})
     end.
@@ -930,7 +928,7 @@ constructor_pattern(Position, Path, Name, [{'(', _} | Rest]) ->
         [{eof, EndPosition} | _] ->
             %% report §11.2: as in an expression, a field's name or a
             %% pattern may stand here, and the constructor's type tells
-            wanted(#expected_field{kind = field_or_pattern, path = Path, constructor = Name},
+            wanted(#expected_field{kind = field_or_pattern, path = Path, constructor_name = Name},
                    EndPosition, "expected a pattern instead of end of input");
         _ ->
             {Pattern, Rest1} = pattern(Rest),
@@ -943,9 +941,9 @@ constructor_pattern(Position, Path, Name, Tokens) ->
 
 %% Report §11.2: a field of this constructor in a pattern, tagged as in
 %% an expression, so that completion knows which fields may stand there.
-field_pattern_of(Path, Constructor) ->
+field_pattern_of(Path, ConstructorName) ->
     fun(Tokens) ->
-        Expected = #expected_field{kind = field, path = Path, constructor = Constructor},
+        Expected = #expected_field{kind = field, path = Path, constructor_name = ConstructorName},
         {Name, Position, Rest} = tagging(Expected, fun() -> expect_ident_position(Tokens) end),
         {Pattern, Rest1} = pattern(expect(Rest, '=')),
         spanned({#field_pattern{span = Position, name = Name, pattern = Pattern}, Rest1})

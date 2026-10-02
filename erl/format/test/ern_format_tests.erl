@@ -293,7 +293,7 @@ not_parsed_test() ->
 %% module or as a function's body is laid out, and any other is left
 markdown_test() ->
     Markdown = <<"Text.\n\n```ernest\nfn f() = { a; b }\n```\n\n```ernest\n1 +\n```\n\n"
-           "```ernest-rejected\nlet x = match y { A -> 1 }\n```\n">>,
+                 "```ernest-rejected\nlet x = match y { A -> 1 }\n```\n">>,
     ?assertEqual(<<"Text.\n\n```ernest\nfn f() = {\n    a;\n    b\n}\n```\n\n```ernest\n1 +\n"
                    "```\n\n```ernest-rejected\nlet x = match y {\n    A -> 1\n}\n```\n">>,
                  ern_format:markdown(Markdown)).

@@ -176,11 +176,12 @@ pipe_rewrite_test() ->
 %% outside it. A regression test: the check parsed it twice at every level,
 %% so that nesting took exponential time, two seconds at a depth of 22.
 pipe_nesting_test_() ->
-    {timeout, 5, fun() ->
-        Source = lists:duplicate(40, "x |> (") ++ "x" ++ lists:duplicate(40, ")"),
-        #e_call{callee = #e_var{name = x}, args = Args} = expression(lists:flatten(Source)),
-        ?assertEqual(40, length(Args))
-    end}.
+    {timeout, 5,
+     fun() ->
+         Source = lists:duplicate(40, "x |> (") ++ "x" ++ lists:duplicate(40, ")"),
+         #e_call{callee = #e_var{name = x}, args = Args} = expression(lists:flatten(Source)),
+         ?assertEqual(40, length(Args))
+     end}.
 
 %% report §5.1, §5.7: the call a pipe writes is marked, so that x is
 %% evaluated before a computed callee; a written call is not
@@ -308,12 +309,12 @@ match_test() ->
                  expression("match a { Some(b) -> match b { 1 -> x | _ -> y } | None -> z }")).
 
 %% report §2.2: a doc block attaches to a declaration, to a constructor
-%% above it or above its `|`, to a field, to a signature entry, or, with a
-%% blank line after it, to the module; elsewhere it is a comment
+%% above it or above its `|`, to a field, or, with a blank line after it,
+%% to the module; elsewhere it is a comment
 doc_attachment_test() ->
-    {ok, Declarations} = ern_parser:parse_string(
-                 <<"/// The module.\n\n/// T.\ntype T =\n    /// A.\n    A(\n    /// f.\n"
-                   "    x : Int)\n    /// B.\n  | B\n/// S.\nabstract type S = S(Int)\n">>),
+    Source = <<"/// The module.\n\n/// T.\ntype T =\n    /// A.\n    A(\n    /// f.\n"
+               "    x : Int)\n    /// B.\n  | B\n/// S.\nabstract type S = S(Int)\n">>,
+    {ok, Declarations} = ern_parser:parse_string(Source),
     ?assertMatch([#module_doc{text = <<"The module.">>},
                   #type_declaration{doc = <<"T.">>,
                                     constructors =
@@ -619,21 +620,10 @@ doc_comments_test() ->
 %% as a doc token the expression could not parse.
 doc_after_tuple_type_test() ->
     Nothing = "a doc block documents nothing here",
-    ?assertEqual(Nothing, refusal("type T = A(#(Int, Int)) | B
-
-"
-                    "fn g(x : Int) : Int =
-    /// not a doc
-    x
-")),
-    ?assertEqual(Nothing, refusal("fn f() = #(1, 2)
-type T = A
-
-"
-                    "fn g(x : Int) : Int =
-    /// not a doc
-    x
-")).
+    ?assertEqual(Nothing, refusal("type T = A(#(Int, Int)) | B\n\n"
+                                  "fn g(x : Int) : Int =\n    /// not a doc\n    x\n")),
+    ?assertEqual(Nothing, refusal("fn f() = #(1, 2)\ntype T = A\n\n"
+                                  "fn g(x : Int) : Int =\n    /// not a doc\n    x\n")).
 
 %% report Appendix B
 several_declarations_test() ->
@@ -778,7 +768,7 @@ lexer_errors_pass_through_test() ->
     ?assertMatch({error, #diagnostic{span = {1, 10, _}, message = "unterminated string literal"}},
                  ern_parser:parse_string("fn f() = \"abc")).
 
-%% report §11.5: a node's pos is its span, first token to the end of its
+%% report §11.5: a node's span runs from its first token to the end of its
 %% last, so a call includes its closing paren, an operator expression its
 %% right operand, a block its closing brace, and a declaration its body
 spans_test() ->
@@ -815,17 +805,11 @@ ast_coverage_test() ->
     {match, Matches} = re:run(Header, "-record\\(([a-z_]+),",
                               [global, {capture, all_but_first, list}]),
     Declared = lists:usort([list_to_atom(Name) || [Name] <- Matches]),
-    %% the examples, the standard library and the libraries together: all
-    %% are Ernest we own, and the libraries are where a foreign type lives
-    Files = [File || File <- filelib:wildcard("../../../examples/**/*.ern")
-                      ++ filelib:wildcard("../../../stdlib/*.ern")
-                      ++ filelib:wildcard("../../../libs/*/*.ern"),
-                     hd(filename:basename(File)) =/= $.], % editor artifacts, report §11.1
     Used = lists:usort(lists:foldl(fun(File, Acc) ->
                                        {ok, Source} = file:read_file(File),
                                        {ok, Declarations} = ern_parser:parse_string(Source),
                                        tags(Declarations, Acc)
-                                   end, [], Files)),
+                                   end, [], ernest_files())),
     %% Bytes, written with the bit syntax since MVP 2.65, gives a bitstring
     %% with segments and a bitstring pattern their first use outside the
     %% parser's own tests
@@ -840,17 +824,21 @@ tags(_, Acc) ->
 
 %% report Appendix B, examples/
 examples_parse_test_() ->
-    %% the examples, the standard library and the libraries together: all
-    %% are Ernest we own, and the libraries are where a foreign type lives
-    Files = [File || File <- filelib:wildcard("../../../examples/**/*.ern")
-                      ++ filelib:wildcard("../../../stdlib/*.ern")
-                      ++ filelib:wildcard("../../../libs/*/*.ern"),
-                     hd(filename:basename(File)) =/= $.], % editor artifacts, report §11.1
+    Files = ernest_files(),
     ?assert(length(Files) >= 12),
     [{File, fun() ->
-                 {ok, Source} = file:read_file(File),
-                 ?assertMatch({ok, [_ | _]}, ern_parser:parse_string(Source))
-             end} || File <- Files].
+                {ok, Source} = file:read_file(File),
+                ?assertMatch({ok, [_ | _]}, ern_parser:parse_string(Source))
+            end} || File <- Files].
+
+%% The examples, the standard library and the libraries together: all are
+%% Ernest we own, and the libraries are where a foreign type lives. A name
+%% that begins with a dot is an editor's artifact and no module (report
+%% §11.1).
+ernest_files() ->
+    Found = filelib:wildcard("../../../examples/**/*.ern")
+        ++ filelib:wildcard("../../../stdlib/*.ern") ++ filelib:wildcard("../../../libs/*/*.ern"),
+    [File || File <- Found, hd(filename:basename(File)) =/= $.].
 
 %% report §1, Appendix A: the grammar fragments in the sections are Appendix
 %% A's rules; Appendix A is the truth and this test keeps the fragments equal
@@ -881,7 +869,7 @@ grammar_fragments_test() ->
                           maps:get(Name, InSections, undefined) =/= Rule]).
 
 %% report §5.11, Appendix A BitExpr, BitPat, BitSpec: segments with
-%% dash-separated specifiers, size with an expression, unit with an integer
+%% dash-separated specifiers, size with an expression, and no `unit`
 bitstrings_test() ->
     ?assertMatch(#e_bitstring{segments = []}, expression("<<>>")),
     ?assertMatch(#e_bitstring{segments = [#bit_segment{value = #e_literal{value = 1}, specs = []},

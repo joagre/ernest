@@ -134,9 +134,9 @@ source_lines(Text) ->
                 Decoded when is_list(Decoded) -> Decoded;
                 _ -> []
             end,
-    list_to_tuple([strip_cr(Line) || Line <- string:split(Chars, "\n", all)]).
+    list_to_tuple([without_return(Line) || Line <- string:split(Chars, "\n", all)]).
 
-strip_cr(Line) ->
+without_return(Line) ->
     case lists:reverse(Line) of
         [$\r | Reversed] -> lists:reverse(Reversed);
         _ -> Line
@@ -335,12 +335,13 @@ declaration(#abstract_declaration{export = Export,
     [export(Export), token(abstract), space(), type_declaration(Params, Constructors, Code)];
 declaration(#foreign_type_declaration{export = Export, params = Params, equality = Equality},
             _Code) ->
-    Vars = case Params of
-               [] -> [];
-               _ -> bracket(token('('), [[token() | [token('=') || lists:member(Param, Equality)]]
-                                         || Param <- Params], ')')
-           end,
-    [export(Export), token(foreign), space(), token(type), space(), token(), Vars];
+    ParamsTemplate = case Params of
+                         [] -> [];
+                         _ -> bracket(token('('),
+                                      [[token() | [token('=') || lists:member(Param, Equality)]]
+                                       || Param <- Params], ')')
+                     end,
+    [export(Export), token(foreign), space(), token(type), space(), token(), ParamsTemplate];
 declaration(#foreign_fn_declaration{export = Export, member_of = MemberOf, params = Params,
                                     result_type = ResultType, effect = Effect}, Code) ->
     [export(Export), token(foreign), space(), token(fn), space(), name(MemberOf),
@@ -351,7 +352,7 @@ export(true) -> [token(export), space()];
 export(false) -> [].
 
 name(undefined) -> token();
-name(_Owner) -> [token(), token('.'), token()].
+name(_MemberOf) -> [token(), token('.'), token()].
 
 params(Params, Code) ->
     bracket(token('('), [param(Param, Code) || Param <- Params], ')').
@@ -378,11 +379,12 @@ annotation(undefined, _) -> [];
 annotation(Annotation, Code) -> [space(), token(':'), space(), type(Annotation, Code)].
 
 type_declaration(Params, Constructors, Code) ->
-    Vars = case Params of
-               [] -> [];
-               _ -> bracket(token('('), [token() || _ <- Params], ')')
-           end,
-    [token(type), space(), token(), Vars, space(), token('='), alternatives(Constructors, Code)].
+    ParamsTemplate = case Params of
+                         [] -> [];
+                         _ -> bracket(token('('), [token() || _ <- Params], ')')
+                     end,
+    [token(type), space(), token(), ParamsTemplate, space(), token('='),
+     alternatives(Constructors, Code)].
 
 %% A type of one alternative keeps it on its line; alternatives that run
 %% past the line break after the `=` and stand one a line, each further
@@ -517,10 +519,10 @@ statement(#fn_declaration{} = Declaration, Code) ->
 statement(Expr, Code) ->
     expr(Expr, Code).
 
-segment(#bit_segment{value = Value, specs = []}, Code, Template) ->
-    Template(Value, Code);
-segment(#bit_segment{value = Value, specs = Specs}, Code, Template) ->
-    [Template(Value, Code), token(':'),
+segment(#bit_segment{value = Value, specs = []}, Code, TemplateOf) ->
+    TemplateOf(Value, Code);
+segment(#bit_segment{value = Value, specs = Specs}, Code, TemplateOf) ->
+    [TemplateOf(Value, Code), token(':'),
      lists:join(token('-'), [spec(Spec, Code) || Spec <- Specs])].
 
 spec({size, Expr}, Code) -> [token(), token('('), expr(Expr, Code), token(')')];
