@@ -34,7 +34,8 @@
 ///
 /// ## See also
 ///
-/// `Set` for a set with no order, `List.sort` for a list in order.
+/// The prelude's `Set` for a set with no order, `List.sort` for a list in
+/// order.
 ///
 /// since 0.3.0
 

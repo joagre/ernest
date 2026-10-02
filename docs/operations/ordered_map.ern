@@ -199,7 +199,7 @@ export fn filterMap(Map(pairs) : Map(k, v), f : (k, v) -> Optional(w) with e) : 
 /// // => 14
 /// ```
 export fn foldLeft(Map(pairs) : Map(k, v), acc : b, step : (b, k, v) -> b with e) : b with e =
-    List.foldLeft(pairs, acc, fn(sofar, #(key, value)) = step(sofar, key, value))
+    List.foldLeft(pairs, acc, fn(acc, #(key, value)) = step(acc, key, value))
 
 /// The function applied to each entry in order for its effect.
 ///
