@@ -15,6 +15,16 @@
 %% so the fun `opened` spawns never returns, which Dialyzer would report.
 -dialyzer({nowarn_function, opened/3}).
 
+%% A socket's process: the host's socket, the writer that writes to it,
+%% the owner's monitor, the reads with no bytes yet, oldest first, the
+%% bytes no read has taken, and whether the connection is open or closed.
+%% The port is asked for bytes only while a read waits, so a program that
+%% stops reading holds the far end back.
+-record(connection, {socket, writer, monitor_ref, waiting = [], buffer = <<>>, state = open}).
+
+%% A read waiting: its reference, its reply, its deadline and its timer.
+-record(read, {ref, reply, deadline, timer}).
+
 %% Report §8.6: every listener and socket is linked to this process, which
 %% the runtime kills when the program ends, so none outlives it; this
 %% process traps the exits, so that one ending takes nothing else with it,
@@ -212,8 +222,9 @@ socket_process(Tcp, Socket, Owner, Site) ->
     Pid = opened(Tcp, fun() ->
                           Self = erlang:self(),
                           Writer = erlang:spawn_link(fun() -> writer(Socket, Self) end),
-                          OwnerMonitor = erlang:monitor(process, Owner),
-                          socket_loop(Socket, Writer, OwnerMonitor, [], <<>>, open)
+                          MonitorRef = erlang:monitor(process, Owner),
+                          socket_loop(#connection{socket = Socket, writer = Writer,
+                                                  monitor_ref = MonitorRef})
                       end, Site),
     gen_tcp:controlling_process(Socket, Pid),
     Pid.
@@ -238,108 +249,127 @@ writer(Socket, Owner) ->
             ok
     end.
 
-%% Waiting: the reads with no bytes yet, oldest first, each {Ref, Reply,
-%% Deadline, Timer}. Buffer: the bytes no read has taken. The port is asked for
-%% bytes only while a read waits, so a program that stops reading holds the
-%% far end back. State: open, or closed once the connection has closed.
-socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State) ->
+socket_loop(#connection{socket = Socket, writer = Writer, monitor_ref = MonitorRef,
+                        state = State} = Connection) ->
     receive
         {'Recv', Ms, Reply} ->
-            case {Buffer, State} of
-                {<<>>, open} ->
-                    ern_rt:source_begin(),
-                    Ref = make_ref(),
-                    Deadline = ern_rt:deadline(Ms),
-                    Waiting =/= [] orelse inet:setopts(Socket, [{active, once}]),
-                    Read = {Ref, Reply, Deadline, arm(Ref, Deadline)},
-                    socket_loop(Socket, Writer, OwnerMonitor, Waiting ++ [Read], <<>>, State);
-                {<<>>, closed} ->
-                    ern_rt:answer(Reply, {'Left', 'Closed'}),
-                    socket_loop(Socket, Writer, OwnerMonitor, Waiting, <<>>, State);
-                _ ->
-                    ern_rt:answer(Reply, {'Right', Buffer}),
-                    socket_loop(Socket, Writer, OwnerMonitor, Waiting, <<>>, State)
-            end;
+            socket_loop(read(Ms, Reply, Connection));
         %% report Appendix E.18: a write after the connection has closed
         {'Send', _, _, Reply} when State =:= closed ->
             ern_rt:answer(Reply, {'Left', 'Closed'}),
-            socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State);
-        %% report Appendix E.18: answered once the socket has taken the
-        %% bytes, by the writer, which gen_tcp holds while the connection is
-        %% behind, or `Left(Timeout)` when the milliseconds pass first, which
-        %% does not undo the write: the writer's later answer is dropped as a
-        %% second answer is (E.0 shape rule 8)
+            socket_loop(Connection);
         {'Send', Bytes, Ms, Reply} ->
-            ern_rt:source_begin(),
-            Writer ! {'Send', Bytes, Reply},
-            write_limit(Reply, ern_rt:deadline(Ms)),
-            socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State);
+            send(Writer, Bytes, Ms, Reply),
+            socket_loop(Connection);
         {write_timeout, Reply, Deadline} ->
-            case ern_rt:remaining(Deadline) of
-                0 -> ern_rt:answer(Reply, {'Left', 'Timeout'});
-                _ -> write_limit(Reply, Deadline)
-            end,
-            socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State);
+            write_timed_out(Reply, Deadline),
+            socket_loop(Connection);
         {written, Sent} ->
             ern_rt:source_end(),
             case Sent of
-                {error, _} ->
-                    socket_loop(Socket, Writer, OwnerMonitor, closed(Waiting), Buffer, closed);
-                ok -> socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State)
+                {error, _} -> socket_loop(closed(Connection));
+                ok -> socket_loop(Connection)
             end;
         %% report Appendix E.18: another process owns the socket from now on
         {'Give', Owner} ->
-            erlang:demonitor(OwnerMonitor, [flush]),
-            socket_loop(Socket, Writer, erlang:monitor(process, Owner), Waiting, Buffer, State);
+            erlang:demonitor(MonitorRef, [flush]),
+            socket_loop(Connection#connection{monitor_ref = erlang:monitor(process, Owner)});
         %% report Appendix E.18: its owner has died, and it is killed
-        {'DOWN', OwnerMonitor, process, _, _} ->
+        {'DOWN', MonitorRef, process, _, _} ->
             gen_tcp:close(Socket),
             exit({ern, killed});
         'Close' ->
-            _ = closed(Waiting),
+            _ = closed(Connection),
             gen_tcp:close(Socket),
             Writer ! stop,
             %% report Appendix E.18: a call after the close faults its caller
             exit({ern, closed});
         {'FarEnd', Reply} ->
             ern_rt:answer(Reply, endpoint(State, fun() -> inet:peername(Socket) end)),
-            socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State);
+            socket_loop(Connection);
         {'NearEnd', Reply} ->
             ern_rt:answer(Reply, endpoint(State, fun() -> inet:sockname(Socket) end)),
-            socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State);
+            socket_loop(Connection);
         {read_timeout, Ref} ->
-            case lists:keytake(Ref, 1, Waiting) of
-                {value, {Ref, Reply, Deadline, _}, Rest} ->
-                    case ern_rt:remaining(Deadline) of
-                        0 ->
-                            ern_rt:answer(Reply, {'Left', 'Timeout'}),
-                            ern_rt:source_end(),
-                            socket_loop(Socket, Writer, OwnerMonitor, Rest, Buffer, State);
-                        _ ->
-                            Again = {Ref, Reply, Deadline, arm(Ref, Deadline)},
-                            socket_loop(Socket, Writer, OwnerMonitor,
-                                        lists:keystore(Ref, 1, Waiting, Again), Buffer, State)
-                    end;
-                false ->
-                    socket_loop(Socket, Writer, OwnerMonitor, Waiting, Buffer, State)
-            end;
+            socket_loop(read_timed_out(Ref, Connection));
         {tcp, Socket, Bytes} ->
-            case Waiting of
-                [{_, Reply, _, Timer} | Rest] ->
-                    erlang:cancel_timer(Timer, [{async, true}, {info, false}]),
-                    ern_rt:answer(Reply, {'Right', Bytes}),
-                    ern_rt:source_end(),
-                    Rest =/= [] andalso inet:setopts(Socket, [{active, once}]),
-                    socket_loop(Socket, Writer, OwnerMonitor, Rest, Buffer, State);
-                [] ->
-                    %% the read it was asked for timed out as it came
-                    socket_loop(Socket, Writer, OwnerMonitor, [], <<Buffer/binary, Bytes/binary>>,
-                                State)
-            end;
+            socket_loop(arrived(Bytes, Connection));
         {tcp_closed, Socket} ->
-            socket_loop(Socket, Writer, OwnerMonitor, closed(Waiting), Buffer, closed);
+            socket_loop(closed(Connection));
         {tcp_error, Socket, _} ->
-            socket_loop(Socket, Writer, OwnerMonitor, closed(Waiting), Buffer, closed)
+            socket_loop(closed(Connection))
+    end.
+
+%% Report Appendix E.18: a write is answered once the socket has taken the
+%% bytes, by the writer, which gen_tcp holds while the connection is
+%% behind, or `Left(Timeout)` when the milliseconds pass first, which does
+%% not undo the write: the writer's later answer is dropped as a second
+%% answer is (E.0 shape rule 8).
+send(Writer, Bytes, Ms, Reply) ->
+    ern_rt:source_begin(),
+    Writer ! {'Send', Bytes, Reply},
+    write_limit(Reply, ern_rt:deadline(Ms)).
+
+write_timed_out(Reply, Deadline) ->
+    case ern_rt:remaining(Deadline) of
+        0 -> ern_rt:answer(Reply, {'Left', 'Timeout'});
+        _ -> write_limit(Reply, Deadline)
+    end.
+
+%% Report Appendix E.18: a read is answered the bytes no read has taken, or
+%% `Left(Closed)` once the connection has closed, or else waits, counted as
+%% a source, the port asked for bytes when it is the first to wait.
+read(Ms, Reply, #connection{socket = Socket, waiting = Waiting, buffer = Buffer,
+                            state = State} = Connection) ->
+    case {Buffer, State} of
+        {<<>>, open} ->
+            ern_rt:source_begin(),
+            Ref = make_ref(),
+            Deadline = ern_rt:deadline(Ms),
+            Waiting =/= [] orelse inet:setopts(Socket, [{active, once}]),
+            Read = #read{ref = Ref, reply = Reply, deadline = Deadline,
+                         timer = arm(Ref, Deadline)},
+            Connection#connection{waiting = Waiting ++ [Read]};
+        {<<>>, closed} ->
+            ern_rt:answer(Reply, {'Left', 'Closed'}),
+            Connection;
+        _ ->
+            ern_rt:answer(Reply, {'Right', Buffer}),
+            Connection#connection{buffer = <<>>}
+    end.
+
+%% A read's time has passed: answered `Left(Timeout)`, or armed again where
+%% the deadline is past the host's longest timer; one answered as it came
+%% is gone.
+read_timed_out(Ref, #connection{waiting = Waiting} = Connection) ->
+    case lists:keytake(Ref, #read.ref, Waiting) of
+        {value, #read{reply = Reply, deadline = Deadline} = Read, Rest} ->
+            case ern_rt:remaining(Deadline) of
+                0 ->
+                    ern_rt:answer(Reply, {'Left', 'Timeout'}),
+                    ern_rt:source_end(),
+                    Connection#connection{waiting = Rest};
+                _ ->
+                    Again = Read#read{timer = arm(Ref, Deadline)},
+                    Connection#connection{waiting = lists:keystore(Ref, #read.ref, Waiting, Again)}
+            end;
+        false ->
+            Connection
+    end.
+
+%% Bytes that came: the oldest read waiting answered them, the port asked
+%% again while another waits; where none waits, its read timed out as they
+%% came, and they wait for the next.
+arrived(Bytes, #connection{socket = Socket, waiting = Waiting, buffer = Buffer} = Connection) ->
+    case Waiting of
+        [#read{reply = Reply, timer = Timer} | Rest] ->
+            erlang:cancel_timer(Timer, [{async, true}, {info, false}]),
+            ern_rt:answer(Reply, {'Right', Bytes}),
+            ern_rt:source_end(),
+            Rest =/= [] andalso inet:setopts(Socket, [{active, once}]),
+            Connection#connection{waiting = Rest};
+        [] ->
+            Connection#connection{buffer = <<Buffer/binary, Bytes/binary>>}
     end.
 
 arm(Ref, Deadline) ->
@@ -353,13 +383,13 @@ write_limit(Reply, Deadline) ->
 %% Report Appendix E.18: once the connection has closed, each read waiting
 %% answers `Left(Closed)`, and so does each read after, the socket living on
 %% until Close.
-closed(Waiting) ->
-    lists:foreach(fun({_, Reply, _, Timer}) ->
-                          erlang:cancel_timer(Timer, [{async, true}, {info, false}]),
-                          ern_rt:answer(Reply, {'Left', 'Closed'}),
-                          ern_rt:source_end()
+closed(#connection{waiting = Waiting} = Connection) ->
+    lists:foreach(fun(#read{reply = Reply, timer = Timer}) ->
+                      erlang:cancel_timer(Timer, [{async, true}, {info, false}]),
+                      ern_rt:answer(Reply, {'Left', 'Closed'}),
+                      ern_rt:source_end()
                   end, Waiting),
-    [].
+    Connection#connection{waiting = [], state = closed}.
 
 endpoint(closed, _) ->
     {'Left', 'Closed'};

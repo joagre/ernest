@@ -57,10 +57,10 @@ stdin_stream_test() ->
     Tab = ets:new(chunks, [public]),
     ets:insert(Tab, {queue, [<<"ab\r\ncd">>, <<"\nrest\n">>, <<"ok\n", 255, "\nnext">>]}),
     Next = fun() ->
-                   case ets:lookup(Tab, queue) of
-                       [{_, [Chunk | Rest]}] -> ets:insert(Tab, {queue, Rest}), Chunk;
-                       _ -> eof
-                   end
+               case ets:lookup(Tab, queue) of
+                   [{_, [Chunk | Rest]}] -> ets:insert(Tab, {queue, Rest}), Chunk;
+                   _ -> eof
+               end
            end,
     Line = fun() ->
                ern_rt:call_forever(ern_rt:system_process(stdin), fun(Reply) ->
@@ -91,10 +91,10 @@ stdin_last_line_test() ->
     Tab = ets:new(chunks, [public]),
     ets:insert(Tab, {queue, [<<"a\r\nb\r">>]}),
     Next = fun() ->
-                   case ets:lookup(Tab, queue) of
-                       [{_, [Chunk | Rest]}] -> ets:insert(Tab, {queue, Rest}), Chunk;
-                       _ -> eof
-                   end
+               case ets:lookup(Tab, queue) of
+                   [{_, [Chunk | Rest]}] -> ets:insert(Tab, {queue, Rest}), Chunk;
+                   _ -> eof
+               end
            end,
     Line = fun() ->
                ern_rt:call_forever(ern_rt:system_process(stdin), fun(Reply) ->
@@ -115,11 +115,8 @@ process_info_test() ->
            fun() ->
                Quiet = ern_rt:spawn(fun() -> receive stop -> ok end end, <<"M.quiet:1">>),
                Server = ern_rt:spawn(fun() -> receive never -> ok end end, <<"M.s:2">>),
-               Caller = ern_rt:spawn(fun() ->
-                                                  ern_rt:call_forever(Server, fun(Reply) ->
-                                                                                  Reply
-                                                                              end)
-                                              end, <<"M.caller:3">>),
+               Calling = fun() -> ern_rt:call_forever(Server, fun(Reply) -> Reply end) end,
+               Caller = ern_rt:spawn(Calling, <<"M.caller:3">>),
                ern_rt:send(Quiet, first),
                nap(),
                Self ! {infos,
@@ -206,11 +203,11 @@ call_leaves_nothing_test() ->
     ok = ern_rt:run_main(
            fun() ->
                Main = ern_rt:self(),
-               Faulting = ern_rt:spawn(fun() ->
-                                                   receive {ask, Reply} -> Reply ! {Reply, fault,
-                                                                                    <<"no">>} end,
-                                                   receive never -> ok end
-                                               end, <<"M.faulting:1">>),
+               Refusing = fun() ->
+                              receive {ask, Reply} -> Reply ! {Reply, fault, <<"no">>} end,
+                              receive never -> ok end
+                          end,
+               Faulting = ern_rt:spawn(Refusing, <<"M.faulting:1">>),
                Worker = fun() ->
                             case get(runs) of
                                 undefined ->

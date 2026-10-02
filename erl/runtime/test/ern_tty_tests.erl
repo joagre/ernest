@@ -105,20 +105,20 @@ utf8_keys_test() ->
     Tab = ets:new(chunks, [public]),
     ets:insert(Tab, {queue, [<<195>>, <<169>>]}),
     Cut = fun() ->
-                  case ets:lookup(Tab, queue) of
-                      [{_, [Char | Rest]}] -> ets:insert(Tab, {queue, Rest}), Char;
-                      _ -> silent()
-                  end
+              case ets:lookup(Tab, queue) of
+                  [{_, [Char | Rest]}] -> ets:insert(Tab, {queue, Rest}), Char;
+                  _ -> silent()
+              end
           end,
     ok = ern_rt:run_main(fun() ->
-                                 subscribe(ern_rt:system_process(terminal)),
-                                 receive Key -> Self ! {key, Key} end
+                             subscribe(ern_rt:system_process(terminal)),
+                             receive Key -> Self ! {key, Key} end
                          end, <<"main">>, #{stdout => fun(_) -> ok end, keys => Cut}),
     ?assertEqual({'Key', 16#e9}, wait(key)),
     ?assertEqual({fault, <<"the standard input is not UTF-8">>},
                  ern_rt:run_main(fun() ->
-                                         subscribe(ern_rt:system_process(terminal)),
-                                         receive never -> ok end
+                                     subscribe(ern_rt:system_process(terminal)),
+                                     receive never -> ok end
                                  end, <<"main">>,
                                  #{stdout => fun(_) -> ok end, keys => fun() -> <<"a", 255>> end})).
 
@@ -132,12 +132,10 @@ not_a_terminal_test() ->
                %% the terminal's process as the runtime starts it where no
                %% keys can come
                Tty = erlang:spawn(fun() -> ern_tty:loop(fun silent/0, false) end),
-               Self ! {answer, ern_rt:call_forever(Tty, fun(Reply) ->
-                                                            {'Subscribe', Self, Reply}
-                                                        end)},
-               Self ! {line, ern_rt:call_forever(ern_rt:system_process(stdin), fun(Reply) ->
-                                                                                 {'ReadLine', Reply}
-                                                                             end)},
+               Subscribe = fun(Reply) -> {'Subscribe', Self, Reply} end,
+               Self ! {answer, ern_rt:call_forever(Tty, Subscribe)},
+               ReadLine = fun(Reply) -> {'ReadLine', Reply} end,
+               Self ! {line, ern_rt:call_forever(ern_rt:system_process(stdin), ReadLine)},
                exit(Tty, kill)
            end, <<"main">>, #{stdout => fun(_) -> ok end, stdin => fun() -> "line\n" end}),
     ?assertEqual({'Left', 'NotATerminal'}, wait(answer)),
@@ -151,8 +149,8 @@ not_a_terminal_test() ->
 keys_at_end_of_input_test() ->
     ?assertEqual({fault, <<"deadlock">>},
                  ern_rt:run_main(fun() ->
-                                         subscribe(ern_rt:system_process(terminal)),
-                                         receive never -> ok end
+                                     subscribe(ern_rt:system_process(terminal)),
+                                     receive never -> ok end
                                  end, <<"main">>,
                                  #{stdout => fun(_) -> ok end, keys => fun() -> eof end})).
 

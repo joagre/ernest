@@ -17,7 +17,11 @@ is_digit(Char) -> unicode_util:category(Char) =:= {number, decimal}.
 -spec is_alpha(char()) -> boolean().
 is_alpha(Char) when Char < 16#80 ->
     (Char >= $a andalso Char =< $z) orelse (Char >= $A andalso Char =< $Z);
-is_alpha(Char) -> element(1, unicode_util:category(Char)) =:= letter.
+is_alpha(Char) ->
+    case unicode_util:category(Char) of
+        {letter, _} -> true;
+        _ -> false
+    end.
 
 %% White_Space: the ASCII controls 9 to 13 and space, U+0085, and the
 %% separators of category Z

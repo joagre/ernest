@@ -3,6 +3,7 @@
 -module(ern_stdlib_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("kernel/include/file.hrl").
 
 %% report Appendix E.2
 list_test() ->
@@ -663,7 +664,8 @@ fs_set_mode_test() ->
                   {'Left', 'Invalid'}], collect(fs, [])),
     {ok, FileInfo} = file:read_file_info(File),
     {ok, DirInfo} = file:read_file_info(Dir),
-    ?assertEqual({8#600, 8#700}, {element(8, FileInfo) band 8#777, element(8, DirInfo) band 8#777}),
+    ?assertEqual({8#600, 8#700}, {FileInfo#file_info.mode band 8#777,
+                                  DirInfo#file_info.mode band 8#777}),
     file:del_dir_r(Dir).
 
 %% report Appendix E.17: `list` describes each entry as it is, a link as
@@ -900,7 +902,10 @@ tcp_test() ->
 tcp_ends_with_program_test() ->
     Self = self(),
     Tcp = 'ern@tcp',
-    Listen = fun() -> Self ! {listened, element(1, Tcp:listen(<<"127.0.0.1">>, 7412))} end,
+    Listen = fun() ->
+                 {Side, _} = Tcp:listen(<<"127.0.0.1">>, 7412),
+                 Self ! {listened, Side}
+             end,
     ?assertEqual(ok, ern_rt:run_main(Listen, <<"first">>, #{})),
     ?assertEqual(ok, ern_rt:run_main(Listen, <<"second">>, #{})),
     ?assertEqual(['Right', 'Right'], collect(listened, [])).

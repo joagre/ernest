@@ -224,10 +224,9 @@ doc_exported_documented_test_() ->
 documented(File) ->
     {ok, Source} = file:read_file(File),
     {ok, Declarations} = ern_parser:parse_string(Source),
-    ?assertEqual([],
-                 [declaration_names(Declaration) || Declaration <- Declarations,
-                                                    exported_declaration(Declaration),
-                                       doc_field(Declaration) =:= undefined]).
+    ?assertEqual([], [declaration_names(Declaration) || Declaration <- Declarations,
+                                                        exported_declaration(Declaration) =:= true,
+                                                        doc_of(Declaration) =:= undefined]).
 
 %% Appendix E.0 rule 6: every exported function is called by an example on
 %% the page, the module's or its own; an operator member, used infix, is
@@ -304,38 +303,41 @@ declaration_names(_) -> [].
 owned_name(undefined, Name) -> atom_to_list(Name);
 owned_name(Owner, Name) -> atom_to_list(Owner) ++ "." ++ atom_to_list(Name).
 
-exported_declaration(Declaration)
-  when is_tuple(Declaration), tuple_size(Declaration) >= 4,
-  element(1, Declaration) =/= module_doc ->
-    element(4, Declaration) =:= true;
-exported_declaration(_) -> false.
+%% Whether a top-level declaration is exported; none for anything else.
+exported_declaration(#type_declaration{export = Export}) -> Export;
+exported_declaration(#abstract_declaration{export = Export}) -> Export;
+exported_declaration(#fn_declaration{export = Export}) -> Export;
+exported_declaration(#let_declaration{export = Export}) -> Export;
+exported_declaration(#foreign_type_declaration{export = Export}) -> Export;
+exported_declaration(#foreign_fn_declaration{export = Export}) -> Export;
+exported_declaration(_) -> none.
 
-doc_field(Declaration) -> element(3, Declaration).
+%% A node's doc block, or none where it carries no doc.
+doc_of(#module_doc{text = Doc}) -> Doc;
+doc_of(#type_declaration{doc = Doc}) -> Doc;
+doc_of(#abstract_declaration{doc = Doc}) -> Doc;
+doc_of(#fn_declaration{doc = Doc}) -> Doc;
+doc_of(#let_declaration{doc = Doc}) -> Doc;
+doc_of(#foreign_type_declaration{doc = Doc}) -> Doc;
+doc_of(#foreign_fn_declaration{doc = Doc}) -> Doc;
+doc_of(#constructor{doc = Doc}) -> Doc;
+doc_of(#field{doc = Doc}) -> Doc;
+doc_of(_) -> none.
 
 %% Every doc text in an AST.
 docs(Node) ->
     [Doc || {Doc, _} <- docs(Node, outside, [])].
 
-%% Every doc text in an AST, the third element of the records that carry
-%% one, with where its examples are checked: outside the module, or inside
-%% it within a declaration the module keeps private, the fourth element of
-%% a top-level declaration saying whether it is exported.
-docs(Node, Where, Acc) when is_tuple(Node), tuple_size(Node) >= 3 ->
-    Private = lists:member(element(1, Node), [type_declaration, abstract_declaration,
-                                              fn_declaration, let_declaration,
-                                              foreign_type_declaration, foreign_fn_declaration])
-        andalso element(4, Node) =:= false,
-    Where1 = case Private of
-                 true -> inside;
-                 false -> Where
+%% Every doc text in an AST, with where its examples are checked: outside
+%% the module, or inside it within a declaration the module keeps private.
+docs(Node, Where, Acc) when is_tuple(Node) ->
+    Where1 = case exported_declaration(Node) of
+                 false -> inside;
+                 _ -> Where
              end,
-    Acc1 = case lists:member(element(1, Node), [module_doc, type_declaration, abstract_declaration,
-                                                 fn_declaration, let_declaration,
-                                                 foreign_type_declaration, foreign_fn_declaration,
-                                                 constructor, field, signature])
-                    andalso is_binary(element(3, Node)) of
-               true -> [{element(3, Node), Where1} | Acc];
-               false -> Acc
+    Acc1 = case doc_of(Node) of
+               Doc when is_binary(Doc) -> [{Doc, Where1} | Acc];
+               _ -> Acc
            end,
     lists:foldl(fun(Child, Found) -> docs(Child, Where1, Found) end, Acc1, tuple_to_list(Node));
 docs(Nodes, Where, Acc) when is_list(Nodes) ->
@@ -369,8 +371,5 @@ module_atom(Namespace) ->
     list_to_atom("ern@"
                  ++ string:lowercase(lists:join("@", [atom_to_list(Part) || Part <- Namespace]))).
 
-arity(Scheme) ->
-    case element(3, Scheme) of
-        {tfn, Params, _, _} -> length(Params);
-        _ -> 0
-    end.
+arity(#scheme{type = {tfn, Params, _, _}}) -> length(Params);
+arity(_) -> 0.

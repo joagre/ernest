@@ -13,7 +13,8 @@ helper_ends_under_a_write_and_a_read_test() ->
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Program} = start(<<"sleep">>, [<<"3">>]),
-               [Port] = [P || P <- element(2, process_info(Program, links)), is_port(P)],
+               {links, Links} = process_info(Program, links),
+               [Port] = [Link || Link <- Links, is_port(Link)],
                {os_pid, Helper} = erlang:port_info(Port, os_pid),
                erlang:suspend_process(Program),
                Written = alias(),
@@ -113,7 +114,8 @@ lost_program_holds_no_timer_test() ->
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Program} = start(<<"sleep">>, [<<"3">>]),
-               [Port] = [P || P <- element(2, process_info(Program, links)), is_port(P)],
+               {links, Links} = process_info(Program, links),
+               [Port] = [Link || Link <- Links, is_port(Link)],
                {os_pid, Helper} = erlang:port_info(Port, os_pid),
                _ = os:cmd("kill -9 " ++ integer_to_list(Helper)),
                closed(Port),

@@ -78,25 +78,9 @@ loop(Subscribers, Reader, Pending, Size) ->
     receive
         %% report §3.5: the fields are in declared order, `to` before `reply`
         {'Subscribe', Address, Reply} ->
-            case held_by_another(Address) of
-                true ->
-                    %% report §11.2: the terminal is the shell's
-                    exit(ern_rt:process_of(Address), {ern, fault, ern_rt:shell_holds()}),
-                    loop(Subscribers, Reader, Pending, Size);
-                false ->
-                    case start_reader(Reader) of
-                        {ok, Reader1} ->
-                            %% report §8.2: the mode is set before the caller
-                            %% goes on, so that nothing it types then is echoed
-                            ern_rt:answer(Reply, {'Right', 'Unit'}),
-                            loop(subscribe(Address, Subscribers, Reader, Reader1), Reader1,
-                                 Pending, size_now());
-                        {taken, Cause} ->
-                            %% report §8.2: the terminal is read as lines
-                            ern_rt:refuse(Reply, Cause),
-                            loop(Subscribers, Reader, Pending, Size)
-                    end
-            end;
+            {Subscribers1, Reader1, Size1} =
+                subscription(Address, Reply, Subscribers, Reader, Size),
+            loop(Subscribers1, Reader1, Pending, Size1);
         {'DOWN', _, process, Pid, _} ->
             %% report §8.2: a subscription ends when its process dies
             loop(unsubscribe(Pid, Subscribers, Reader), Reader, Pending, Size);
@@ -118,19 +102,43 @@ loop(Subscribers, Reader, Pending, Size) ->
             Subscribers =/= [] andalso ern_rt:source_end(),
             loop(Subscribers, closed, Pending, Size);
         resized ->
-            %% report §8.2: a size that has changed is news to every subscriber
-            case size_now() of
-                Size -> loop(Subscribers, Reader, Pending, Size);
-                Now ->
-                    deliver([{'Resized', Now} || Now =/= none], Subscribers),
-                    loop(Subscribers, Reader, Pending, Now)
-            end
+            loop(Subscribers, Reader, Pending, resized(Subscribers, Size))
     after Pause ->
         %% report §8.2: a paste may take longer to arrive than an escape
         %% sequence, and one whose end has not come ends when no more of it
         %% arrives, what came of it being the paste
         deliver(flush(Pending), Subscribers),
         loop(Subscribers, Reader, [], Size)
+    end.
+
+%% A subscription asked for: refused where the shell holds the terminal
+%% (report §11.2) or reads it as lines (§8.2), and otherwise granted once
+%% the mode is set, before the caller goes on, so that nothing it types
+%% then is echoed (§8.2). The subscribers, the reader and the size then.
+subscription(Address, Reply, Subscribers, Reader, Size) ->
+    case held_by_another(Address) of
+        true ->
+            exit(ern_rt:process_of(Address), {ern, fault, ern_rt:shell_holds()}),
+            {Subscribers, Reader, Size};
+        false ->
+            case start_reader(Reader) of
+                {ok, Reader1} ->
+                    ern_rt:answer(Reply, {'Right', 'Unit'}),
+                    {subscribe(Address, Subscribers, Reader, Reader1), Reader1, size_now()};
+                {taken, Cause} ->
+                    ern_rt:refuse(Reply, Cause),
+                    {Subscribers, Reader, Size}
+            end
+    end.
+
+%% Report §8.2: a size that has changed is news to every subscriber.
+resized(Subscribers, Size) ->
+    case size_now() of
+        Size ->
+            Size;
+        Now ->
+            deliver([{'Resized', Now} || Now =/= none], Subscribers),
+            Now
     end.
 
 pasting({paste, _, _}) -> true;

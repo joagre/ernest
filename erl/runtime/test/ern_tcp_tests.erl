@@ -50,7 +50,7 @@ accept_timeout_test() ->
                                                   gen_tcp:connect("127.0.0.1", Port,
                                                                   [binary, {active, false}])
                                               end),
-               Self ! {second, element(1, accept(Listener, 2000))},
+               Self ! {second, side(accept(Listener, 2000))},
                gen_tcp:close(Conn)
            end, <<"main">>, quiet()),
     ?assert(wait(port) > 0),
@@ -221,7 +221,7 @@ connect_ipv6_test() ->
            fun() ->
                {'Right', Listener} = listen(<<"::1">>, 0),
                {'Right', Port} = port(Listener),
-               Self ! {connected, element(1, connect(<<"::1">>, Port, 2000))}
+               Self ! {connected, side(connect(<<"::1">>, Port, 2000))}
            end, <<"main">>, quiet()),
     ?assertEqual('Right', wait(connected)).
 
@@ -281,9 +281,8 @@ write_holds_up_no_read() ->
                {'Right', Socket} = connect(Port, 2000),
                %% the host queues one write whole and holds the next back
                Chunk = binary:copy(<<0>>, 1024 * 1024),
-               _ = ern_rt:spawn(fun() ->
-                                             [write(Socket, Chunk) || _ <- lists:seq(1, 64)]
-                                         end, <<"flood">>),
+               Flood = fun() -> [write(Socket, Chunk) || _ <- lists:seq(1, 64)] end,
+               _ = ern_rt:spawn(Flood, <<"flood">>),
                sleep(200),
                Before = erlang:monotonic_time(millisecond),
                Read = read(Socket, 300),
@@ -315,6 +314,9 @@ listener_ends_with_its_owner_test() ->
                Self ! {ended, ern_rt:in_foreign(Ended)}
            end, <<"main">>, quiet()),
     ?assertEqual({ern, killed}, wait(ended)).
+
+%% Which side of an Either a result is, Left or Right.
+side({Side, _}) -> Side.
 
 quiet() ->
     #{stdout => fun(_) -> ok end}.

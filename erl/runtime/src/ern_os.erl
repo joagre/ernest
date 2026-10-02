@@ -114,19 +114,7 @@ starting(#{port := Port} = Running, Reply) ->
 running(#{port := Port} = Running, Waiting, Owed, Kept) ->
     receive
         {'Read', Ms, Reply} ->
-            case queue:out(Kept) of
-                {{value, Answer}, Rest} ->
-                    told(Running, Reply, Answer, Waiting, Owed, Rest);
-                {empty, _} ->
-                    Ref = make_ref(),
-                    arm({read, Ref}, ern_rt:deadline(Ms)),
-                    Waiting1 = queue:in({Reply, Ref}, Waiting),
-                    %% a piece owed to a read that has gone is this one's
-                    case Owed > queue:len(Waiting) of
-                        true -> running(Running, Waiting1, Owed, Kept);
-                        false -> command(Port, <<"n">>), running(Running, Waiting1, Owed + 1, Kept)
-                    end
-            end;
+            read(Ms, Reply, Running, Waiting, Owed, Kept);
         {'Write', Bytes, Ms, Reply} ->
             command(Port, <<"i", Bytes/binary>>),
             arm({write, Reply}, ern_rt:deadline(Ms)),
@@ -150,17 +138,38 @@ running(#{port := Port} = Running, Waiting, Owed, Kept) ->
         {Port, {data, <<Tag, Bytes/binary>>}} ->
             given(Running, {'Right', piece(Tag, Bytes)}, Waiting, Owed - 1, Kept);
         {Port, {exit_status, _}} ->
-            %% the helper ended with no status to send: it failed
-            stop(Running),
-            unwritten(Running, helper_failed()),
-            ern_rt:source_end(),
-            [respond(Reply, helper_failed()) || {Reply, _} <- queue:to_list(Waiting)],
-            over(helper_failed(), Running);
+            failed(Running, Waiting);
         {'DOWN', MonitorRef, process, _, _} when MonitorRef =:= map_get(monitor_ref, Running) ->
             killed(Running);
         {timeout, _, Timer} ->
             running(Running, timed_out(Timer, Waiting), Owed, Kept)
     end.
+
+%% A read, answered a piece kept for it, or else waiting; the helper is
+%% asked for a piece but where one is owed to a read that has gone, which
+%% is this one's.
+read(Ms, Reply, #{port := Port} = Running, Waiting, Owed, Kept) ->
+    case queue:out(Kept) of
+        {{value, Answer}, Rest} ->
+            told(Running, Reply, Answer, Waiting, Owed, Rest);
+        {empty, _} ->
+            Ref = make_ref(),
+            arm({read, Ref}, ern_rt:deadline(Ms)),
+            Waiting1 = queue:in({Reply, Ref}, Waiting),
+            case Owed > queue:len(Waiting) of
+                true -> running(Running, Waiting1, Owed, Kept);
+                false -> command(Port, <<"n">>), running(Running, Waiting1, Owed + 1, Kept)
+            end
+    end.
+
+%% The helper ended with no status to send: it failed, and each write and
+%% each read waiting is answered so.
+failed(Running, Waiting) ->
+    stop(Running),
+    unwritten(Running, helper_failed()),
+    ern_rt:source_end(),
+    [respond(Reply, helper_failed()) || {Reply, _} <- queue:to_list(Waiting)],
+    over(helper_failed(), Running).
 
 %% An answer of the helper's, to the oldest read that waits, or kept for the
 %% next read where none does.
