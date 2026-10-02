@@ -214,14 +214,14 @@ fn taken(world : World, point : Point) : Bool =
 // The whole screen every tick: the terminal is cleared and drawn from the top,
 // so a tick's picture replaces the one before it.
 fn render(world : World) : String = {
-    let row =
-        fn(y) =
-            String.fromList(List.map(List.range(0, world.width - 1),
-                                     fn(x) =
-                                         cell(world.players, world.apples, Point(x = x, y = y))));
-    let rows = List.map(List.range(0, world.height - 1), row);
+    let rows = List.map(List.range(0, world.height - 1), fn(y) = row(world, y));
     Ansi.clearScreen <> String.join(rows, "\n") <> "\n" <> status(world.players, world.tick) <> "\n"
 }
+
+// A row of the board, a character for each of its cells.
+fn row(world : World, y : Int) : String =
+    String.fromList(List.map(List.range(0, world.width - 1),
+                             fn(x) = cell(world.players, world.apples, Point(x = x, y = y))))
 
 fn cell(players : Map(Int, Player), apples : List(Point), point : Point) : Char =
     if List.any(Map.values(players), fn(player) = headOf(player) == Some(point)) then

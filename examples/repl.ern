@@ -68,31 +68,37 @@ export fn main() : Unit with ReplMsg =
 fn repl(env : Map(String, Value), serial : Int) : Unit with ReplMsg =
     match Io.readLine() {
         None -> Unit // end of input
-      | Some(text) -> match tokenize(text) {
-            Left(BadChar(char = char, index = index)) -> {
-                Io.println("illegal character "
-                               <> Char.toString(char)
-                               <> " at "
-                               <> Int.toString(index));
-                repl(env, serial)
+      | Some(text) -> {
+            let #(env1, serial1) = evaluateLine(env, serial, text);
+            repl(env1, serial1)
+        }
+    }
+
+// A line read: its tokens, its expression, and the value it came to,
+// shown; then the environment, which a `let` adds its name to, and the
+// serial of the last expression tried.
+fn evaluateLine(env : Map(String, Value),
+                serial : Int,
+                text : String) : #(Map(String, Value), Int) with ReplMsg =
+    match tokenize(text) {
+        Left(BadChar(char = char, index = index)) -> {
+            Io.println("illegal character "
+                           <> Char.toString(char)
+                           <> " at "
+                           <> Int.toString(index));
+            #(env, serial)
+        }
+      | Right(tokens) -> match parse(tokens) {
+            Left(error) -> {
+                Io.println(parseErrorText(error));
+                #(env, serial)
             }
-          | Right(tokens) -> match parse(tokens) {
-                Left(error) -> {
-                    Io.println(parseErrorText(error));
-                    repl(env, serial)
-                }
-              | Right(expression) -> {
-                    let result = try(env, expression, serial + 1);
-                    match #(expression, result) {
-                        #(Let(name = name), Right(value)) -> {
-                            show(Right(value));
-                            repl(Map.put(env, name, value), serial + 1)
-                        }
-                      | #(_, other) -> {
-                            show(other);
-                            repl(env, serial + 1)
-                        }
-                    }
+          | Right(expression) -> {
+                let result = try(env, expression, serial + 1);
+                show(result);
+                match #(expression, result) {
+                    #(Let(name = name), Right(value)) -> #(Map.put(env, name, value), serial + 1)
+                  | _ -> #(env, serial + 1)
                 }
             }
         }
