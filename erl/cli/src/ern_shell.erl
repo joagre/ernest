@@ -839,12 +839,13 @@ without_dot(Text) ->
     end.
 
 %% Report §4.2: a module is named by its namespace, each segment of which
-%% begins with a capital letter, `Http.Parser` for `http/parser.ern`; a
-%% name that is not one is refused rather than looked for.
+%% is words each beginning with a capital letter, `Http.Parser` for
+%% `http/parser.ern` and `OrderedSet` for `ordered_set.ern`; a name that
+%% is not one is refused rather than looked for.
 module_name(Text) ->
     case segments(Text) of
         {ok, Ns} ->
-            case lists:all(fun capital/1, Ns) of
+            case lists:all(fun is_segment/1, Ns) of
                 true -> {ok, Ns};
                 false -> not_module(Text)
             end;
@@ -852,13 +853,12 @@ module_name(Text) ->
             not_module(Text)
     end.
 
-capital(Segment) ->
-    [C | _] = atom_to_list(Segment),
-    C >= $A andalso C =< $Z.
+is_segment(Segment) ->
+    ern_namespace:component(atom_to_list(Segment)) =/= error.
 
 not_module(Text) ->
-    {error, <<Text/binary, " is not a module name: each segment of one begins with a capital"
-              " letter, as in Http.Parser">>}.
+    {error, <<Text/binary, " is not a module name: each segment of one is words beginning with"
+              " a capital letter, as in Http.Parser or OrderedSet">>}.
 
 %% Report §11.2, §11.4: the documentation of one declaration, as
 %% `ern doc` renders it, read from the module that declares it: an input

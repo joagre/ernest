@@ -11,7 +11,8 @@
 
 -export([compile/3, report_errors/4, shown/1, sources/1, bytes_text/1, module_of/2, shape/2,
          segment/1, namespace/1, module_path/1, compile_order/2, compile_order/3, source_root/3,
-         out_dir/2, is_stdlib_root/1, stdlib_hash/1, dep_iface/4, load_path/1, compiler_modules/0,
+         out_dir/2, is_stdlib_root/1, stdlib_hash/1, dep_ifaces/5, dep_iface/4, load_path/1,
+         compiler_modules/0,
          sweep_pages/5, compile_source/4, absolute/1, relative/2, qname/1, write_whole/2,
          write_whole/3, write_output/2, read/1, made_dir/1, fail/1]).
 
@@ -190,49 +191,39 @@ module_of(File, Root) ->
     end,
     #mod{ns = Ns, file = File, rel = Rel}.
 
-%% Report §11.1: each component of a file's path is one word, a lowercase
-%% letter, then lowercase letters and digits. The refusal names the file.
+%% Report §11.1: each component of a file's path is words joined by single
+%% `_`, a word a lowercase letter, then lowercase letters and digits
+%% (ern_namespace). The refusal names the file.
 -spec shape(file:filename(), string()) -> ok.
 shape(File, Component) ->
-    case word(Component) of
+    case ern_namespace:is_component(Component) of
         true -> ok;
         false ->
             Named = File ++ ": path component `" ++ Component ++ "`",
             case lists:any(fun(C) -> C >= $A andalso C =< $Z end, Component) of
                 true -> fail(Named ++ " must be lowercase");
-                false -> fail(Named ++ " must be one word: a lowercase letter, then lowercase"
-                              " letters and digits; a multi-word module is a directory")
+                false -> fail(Named ++ " must be words joined by `_`, each a lowercase letter,"
+                              " then lowercase letters and digits; a module of several words"
+                              " is `ordered_set.ern` or a directory")
             end
     end.
 
-word([C | Cs]) when C >= $a, C =< $z ->
-    lists:all(fun(D) -> (D >= $a andalso D =< $z) orelse (D >= $0 andalso D =< $9) end, Cs);
-word(_) ->
-    false.
-
 %% Report §11.1, §4.2: the namespace segment a path component names, where
-%% it is one word; the shell's `:load` completion asks here, so that the
-%% rule has one owner.
+%% it is one; the shell's `:load` completion asks here.
 -spec segment(string()) -> {ok, string()} | error.
 segment(Component) ->
-    case word(Component) of
-        true -> {ok, string:titlecase(Component)};
-        false -> error
-    end.
+    ern_namespace:segment(Component).
 
-%% Report §4.2: the canonical typename form of each path segment.
+%% Report §4.2: the namespace the components of a path name.
 -spec namespace([string()]) -> [atom()].
 namespace(Components) ->
-    [list_to_atom(string:titlecase(C)) || C <- Components].
+    ern_namespace:namespace(Components).
 
-%% The inverse: a namespace as a relative path without extension.
+%% Report §11.2: the inverse, a namespace as a relative path without
+%% extension.
 -spec module_path([atom()]) -> string().
 module_path(Ns) ->
-    segments_path([atom_to_list(S) || S <- Ns]).
-
-segments_path(Segments) ->
-    filename:join([string:lowercase(string:slice(S, 0, 1)) ++ string:slice(S, 1)
-                   || S <- Segments]).
+    ern_namespace:module_path(Ns).
 
 %% Parse every module, find its dependencies, and order them; a cycle is
 %% an error naming the modules in it (§11.1).
@@ -441,7 +432,7 @@ stdlib_namespaces() ->
 %% with this module's added.
 build(#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}, Ifaces, Root,
       [OutDir | _] = Dirs, Emit, Std) ->
-    DepIfaces = [dep_iface(D, Ifaces, Dirs, Root) || D <- Deps],
+    DepIfaces = dep_ifaces(Ns, Deps, Ifaces, Dirs, Root),
     DepHashes = lists:sort([{D, ern_iface:hash(I)} || {D, I} <- DepIfaces]),
     SourceHash = crypto:hash(sha256, read(File)),
     SourcePath = path_from(OutDir, File),
@@ -502,6 +493,54 @@ stdlib_hash(Root) ->
                                  || I <- ern_prelude:stdlib_ifaces()]),
             crypto:hash(sha256, term_to_binary(Hashes))
     end.
+
+%% Report §11.1: the interfaces a module is checked against, which its
+%% `.erc` records: those of the modules its source names, Deps, and of
+%% each module that declares a type an interface among them names, closed
+%% over. A module of the standard library is left out, every interface of
+%% the library being given to every checker already (ern_typecheck), except
+%% in the library's own source root, where they are ordinary modules. The
+%% closure is taken here, once the dependencies are compiled, and not when
+%% the source is parsed: an interface exists only once its module is
+%% built, and the order of a build needs nothing more, since a type reaches
+%% an interface only through a module whose declaration reached that
+%% module's checker, which this rule had already put among its dependencies.
+-spec dep_ifaces([atom()], [[atom()]], #{[atom()] => #iface{}}, [file:filename(), ...],
+                 file:filename()) -> [{[atom()], #iface{}}].
+dep_ifaces(Ns, Deps, Ifaces, Dirs, Root) ->
+    Skip = case is_stdlib_root(Root) of
+               true -> [Ns];
+               false -> [Ns | [[N] || N <- stdlib_namespaces()]]
+           end,
+    reached([dep_iface(D, Ifaces, Dirs, Root) || D <- lists:usort(Deps)], Skip, Ifaces, Dirs,
+            Root).
+
+reached(Found, Skip, Ifaces, Dirs, Root) ->
+    Have = [D || {D, _} <- Found],
+    Named = lists:usort([M || {_, I} <- Found, M <- type_modules(I),
+                              not lists:member(M, Skip), not lists:member(M, Have)]),
+    case Named of
+        [] -> Found;
+        _ -> reached(Found ++ [dep_iface(M, Ifaces, Dirs, Root) || M <- Named],
+                     Skip, Ifaces, Dirs, Root)
+    end.
+
+%% The modules whose types an interface names, in its values' schemes and
+%% its types' constructors: a type's qualified name less its last segment.
+%% A type of one segment is the prelude's or a built-in, and no module's.
+type_modules(#iface{} = I) ->
+    lists:usort([lists:droplast(Q) || Q <- type_names(I, []), length(Q) >= 2]).
+
+type_names({tcon, Q, Args}, Acc) when is_list(Q) ->
+    type_names(Args, [Q | Acc]);
+type_names(Term, Acc) when is_tuple(Term) ->
+    type_names(tuple_to_list(Term), Acc);
+type_names(Term, Acc) when is_map(Term) ->
+    type_names(maps:to_list(Term), Acc);
+type_names([H | T], Acc) ->
+    type_names(T, type_names(H, Acc));
+type_names(_, Acc) ->
+    Acc.
 
 %% Report §11.1: a module outside the source root is found by its namespace
 %% under the build directory, then under each --load-path root in order. A
@@ -567,8 +606,8 @@ current(Erc, SourceHash, SourcePath, DepHashes, Std) ->
 -spec compiler_modules() -> [module()].
 compiler_modules() ->
     [ern_ast, ern_bitspec, ern_descriptor, ern_diag, ern_docs, ern_emitter, ern_exhaust,
-     ern_iface, ern_lexer, ern_parser, ern_prelude, ern_reply, ern_scope, ern_typecheck,
-     ern_types, ern_build].
+     ern_iface, ern_lexer, ern_namespace, ern_parser, ern_prelude, ern_reply, ern_scope,
+     ern_typecheck, ern_types, ern_build].
 
 %% Report §11.1: the build of ern, its version and a hash of the modules
 %% that compile, so that a compiler changed under one version is another.
@@ -650,10 +689,10 @@ page_of(Kind, Page, OutDir) ->
         none -> none;
         _ ->
             Segments = string:split(Title, ".", all),
+            Path = ern_namespace:path(Segments),
             Place = case Kind of
-                        markdown -> segments_path(Segments) ++ ".md";
-                        man -> filename:join(filename:dirname(segments_path(Segments)),
-                                             "Ernest." ++ Title ++ ".3ern")
+                        markdown -> Path ++ ".md";
+                        man -> filename:join(filename:dirname(Path), "Ernest." ++ Title ++ ".3ern")
                     end,
             case relative(Page, OutDir) =:= Place of
                 true -> {ok, Segments};
@@ -693,7 +732,7 @@ compile_source(File, Root, Dirs, Ifaces) ->
     try
         [#mod{ns = Ns, rel = Rel, decls = Decls, deps = Deps}] =
             compile_order([module_of(absolute(File), Root)], Root, Dirs),
-        DepIfaces = [dep_iface(D, Ifaces, Dirs, Root) || D <- Deps],
+        DepIfaces = dep_ifaces(Ns, Deps, Ifaces, Dirs, Root),
         DepHashes = lists:sort([{D, ern_iface:hash(I)} || {D, I} <- DepIfaces]),
         Hash = crypto:hash(sha256, read(File)),
         case ern_typecheck:check(Ns, Decls, [I || {_, I} <- DepIfaces]) of

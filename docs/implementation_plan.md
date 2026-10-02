@@ -22,8 +22,8 @@ its readers ran on 2026-09-30, on `57b8356`, and it was worked on 2026-10-01 in 
 and closed (the log's *The Attack Plan* and *The Principles Review Closed*); the review before
 a release ran the same day, and Ernest 0.2.0, the second release, is tagged `v0.2.0` on
 2026-10-01 (the log's *The Release Review Before 0.2.0*), the last milestone done; MVP 2.99b
-resumes at item 4, the namespace of two words, and then the operations, decided and built,
-item 5. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+resumes at item 5, the operations, decided and built, item 4 having been done on 2026-10-02.
+Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -106,7 +106,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    marked `2.99b` that are not hardening, two are language feedback 75, decided in the attack
    plan's phase 5, and 76, decided in item 20 on 2026-10-02, and twelve are dropped there with
    their reasons.
-4. **A file's words joined by `_` name one namespace segment** (decided 2026-09-29, the log's
+4. **A file's words joined by `_` name one namespace segment**, done 2026-10-02 (the log's
+   *The Namespace of Words and the Reached Interfaces, Built*; decided 2026-09-29, the log's
    *A Namespace From Words Joined by `_`*): `ordered_set.ern` provides `OrderedSet`, each
    word capitalized and the `_` dropped, a directory's name too, `net/http_client.ern`
    providing `Net.HttpClient`. §4.2's and §11.1's path shape gain it, a word being a
@@ -118,9 +119,9 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    before the operations' decision on 2026-10-01, since it is decided, needs nothing before
    it, and gives that decision a file that exists (the log's *The Namespace Item First*).
 
-   With it, in the same code, a defect found 2026-10-02 (the log's *A Type Reached Through
-   Another Module's Interface*): the build gives the checker the interfaces of the modules a
-   source names, and none of the modules whose types those interfaces name. A program that
+   With it, in the same code, a defect found and fixed 2026-10-02 (the log's *A Type Reached
+   Through Another Module's Interface*): the build gave the checker the interfaces of the
+   modules a source names, and none of the modules whose types those interfaces name. A program that
    receives `Boxes.Box`, a type whose field holds a function, from `Maker.make()` without
    naming `Boxes` compiles `Maker.make() == Maker.make()` and runs it, which §3.10 makes a
    type error, and selects no field of such a type. §11.1 gains the sentence that a module
@@ -128,7 +129,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    on; `ern build`, `ern run`'s check, `:load` and the shell give the checker those interfaces
    and rebuild when they change; and the checker no longer reads a type it has no
    declaration for as a built-in one, which made its equality check pass, but fails as the
-   toolchain's own defect. A regression test for each of the three.
+   toolchain's own defect. A regression test for each of the three, and the Erlang module a
+   source compiles to is named from its path, `ern@ordered_set`.
 5. **The operations, decided and built**, decided with the user before anything of it is built
    (language feedback 64, 70 and 71, which the decision closed on 2026-10-02), and then built. Two parts were decided by the
    principles review on 2026-10-01 (the log's *Members, Operators, and No Hidden Argument*): a
@@ -860,8 +862,8 @@ a case it did not. What it leaves is dated: the `since` lines of what it added, 
 *`Clock.monotonic` Is In, and `Udp` Is Placed*); placing work without `Where` to MVP 3.0 (the
 log's *Placing Work Without `Where`*); and the guide's §7.3 to MVP 2.99b's item 16. The
 release review ran next, and Ernest 0.2.0 shipped the review's rules as one (the log's *A
-Release After the Review*); MVP 2.99b resumes at item 4, the namespace of two words, and then the
-operations, decided and built, item 5.
+Release After the Review*); MVP 2.99b resumes at item 5, the operations, decided and built, item 4
+having been done on 2026-10-02.
 
 ### Ernest 0.2.0 — the review's rules shipped as one (done 2026-10-01, tag `v0.2.0`)
 

@@ -178,11 +178,10 @@ erl_source(Ns, Decls, Env, Build) ->
     Forms = forms(Ns, Decls, Env, Build),
     [erl_prettypr:format(erl_syntax:form_list(Forms)), "\n"].
 
-%% Report §4.2: the path with @ for / and the prefix ern@.
+%% Report §4.2: the path with @ for / and the prefix ern@ (ern_namespace).
 -spec module_atom([atom()]) -> atom().
 module_atom(Ns) ->
-    list_to_atom(lists:flatten(["ern" | ["@" ++ string:lowercase(atom_to_list(P))
-                                         || P <- Ns]])).
+    ern_namespace:module_atom(Ns).
 
 %%
 %% Declarations

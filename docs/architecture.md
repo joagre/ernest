@@ -15,6 +15,7 @@ One Ernest module goes through these stages, each an Erlang application under `e
 | emitter | `ern_emitter`, with `ern_descriptor` (§8.4) and `ern_docs`, the `Docs` chunk | typed AST, environment | Erlang forms, then BEAM with the `ErnI` and `Docs` chunks |
 | runtime | `ern_rt`, `ern_boundary`, `ern_show`, the system processes `ern_fs`, `ern_tty`, `ern_tcp` and `ern_os`, the standard library's shims, `ern_tty_signal`, the terminal's resize handler, and `ern_exec`, the one helper in C | | what compiled code calls |
 | diagnostics | `ern_diag`, in `utils`, beneath every stage | a `#diag{}`, the source | the text of §11.5 |
+| namespaces | `ern_namespace`, in `utils`, the one mapping between a path's components and a namespace's segments (§4.2, §11.1), which the build, the emitter's module names and the shell's `:load` share | a component or a segment | the other |
 | cli | `ern_cli`; `ern_build`, the build every job reaches; `ern_shell`, the shell's front end; `ern_page`, §11.4's renderer; `ern_signals`, the handler of termination and hangup; `ern_out`, a job's standard output and standard error | command lines, shell inputs | `ern`'s jobs, a session |
 
 The Makefiles pass `VERSION` to `erlc` as a macro, which `ern_cli` prints. The Emacs mode calls the toolchain only as `ern format -` ([`emacs_mode.md`](emacs_mode.md)).

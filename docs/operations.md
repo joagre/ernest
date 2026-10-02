@@ -29,7 +29,7 @@ Nothing in the type system changes, and the syntax does not. The rules give the 
 5. **An order belongs to an element type.** The program binds one record for each element type it keeps ordered sets of, over the type's `compare`, or over the function it would have declared as `compare` had the type a module of its own, as a tuple has none. A second order on one type is a second type with its own `compare`, `type Descending = Descending(Int)` with `fn Descending.compare`, as Haskell's `Down` and OCaml's second functor application are. So two sets in different orders have different types, and they cannot meet: `ints.union(up, down)` with `down : OrderedSet.Set(Descending)` is refused. Between two records of one element type, one over `Int.compare` and one over a function that reverses it, the rule is the program's promise, which nothing checks, as `compare`'s laws are not checked.
 6. **`put` keeps the element already there** where `compare` says `Equal`, so that no choice is left unstated.
 7. **A list that mixes representations needs a second record type**, one that hides `s`: its functions close over one set, and its `put` returns another such record (Mitchell and Plotkin 1988). It loses operations on two sets, such as a `union` that reaches both representations (Bruce et al. 1995), and since it holds functions it has no `==`.
-8. **`OrderedSet` joins the standard library in `ordered_set.ern`**, a file whose words joined by `_` name one namespace, which §4.2 and §11.1 gain in MVP 2.99b's item 4. Its type is `OrderedSet.Set(a)`, named for what it is within its module as E.0's shape rule 7 asks, and as Erlang's `gb_sets:set()` and OCaml's `t` are named; inside the file it shadows the prelude's `Set`, and `Set.Operations` still names the library's type, since a dotted name's first segment is the local type only where that type has a member of the name (§4.2). Its `map` and `filterMap` need the order of their result, and take the result's record between the set and the callback: `OrderedSet.map(set, operations, f)`, into any representation. `Map` gets a record only when it gets a second representation.
+8. **`OrderedSet` joins the standard library in `ordered_set.ern`**, a file whose words joined by `_` name one namespace, as §4.2 and §11.1 state since MVP 2.99b's item 4 (2026-10-02). Its type is `OrderedSet.Set(a)`, named for what it is within its module as E.0's shape rule 7 asks, and as Erlang's `gb_sets:set()` and OCaml's `t` are named; inside the file it shadows the prelude's `Set`, and `Set.Operations` still names the library's type, since a dotted name's first segment is the local type only where that type has a member of the name (§4.2). Its `map` and `filterMap` need the order of their result, and take the result's record between the set and the callback: `OrderedSet.map(set, operations, f)`, into any representation. `Map` gets a record only when it gets a second representation.
 
 ## The files
 
@@ -205,7 +205,7 @@ $ ern build --short-errors mixed.ern
 mixed.ern:13:57: the argument does not fit the callee: expected OrderedSet.Set(Int), found OrderedSet.Set(Descending)
 ```
 
-That is the refusal where the checker can see the record's type, which it could on 2026-10-02 only in a program that names `Set`; `mixed.ern` does not, and the toolchain of that day refused it for the wrong reason, a defect MVP 2.99b's item 4 fixes (*Typing*, *Evidence*). Its message says "the callee" where requirement 5 asks for `ints.union`, which item 5's build changes.
+That is the refusal where the checker can see the record's type, which it could on 2026-10-02 only in a program that names `Set`; `mixed.ern` does not, and the toolchain of that day refused it for the wrong reason, a defect MVP 2.99b's item 4 fixed the same day (*Typing*, *Evidence*). Its message says "the callee" where requirement 5 asks for `ints.union`, which item 5's build changes.
 
 Types print as `ern doc` writes them: `OrderedSet.operations : ((a!, a!) -> Ordering) -> Set.Operations(OrderedSet.Set(a!), a!)`, the `!` saying that no reply can be an element, since `put` may drop one (§6.6), and `Set.operations : Set.Operations(Set(a=!), a=!)`, the `=` the equality `Set`'s element needs.
 
@@ -230,7 +230,7 @@ Two versions of a `compare` can meet one set: at a node whose `T.compare` differ
 
 `compare` is assumed to be a total order, and where the element type has `==`, to say `Equal` only where `==` holds, as Haskell's `Ord` laws are stated over `Eq`. Nothing checks either, just as Haskell checks neither. Where the element type has no `==`, because its values hold a function, an ordered set holds one element per class of `compare`'s `Equal`, and `put` keeps the element already there (rule 6). An unlawful `compare` voids the rest. One that is not transitive breaks the order itself, so `contains` answers wrongly and duplicates stay. One that says `Equal` where `==` does not makes `==` on two sets depend on the order of insertion.
 
-**Evidence.** The guide's §7.3 compiles and runs this shape under `make test` today: a record of operations, a `let` record for the hashed set, a function of a compare returning closures, and generic code over the record. The files above were built and run on 2026-10-02 under stand-in names; `usage.ern` prints what this document says, `ern format --check` accepts every file as written, and `Set.operations.fromList([f])` is refused naming `Set`'s element, as requirement 5 asks. The build found a defect of the checker, not of the specification: the checker is given the interfaces of the modules a program names, and none of those whose types they name, so `mixed.ern`, which names `OrderedSet` and not `Set`, selected no field of the record, and a program that receives a type through another module's function compared two of its values that hold functions, which §3.10 refuses. MVP 2.99b's item 4 fixes it, with the sentence §11.1 lacks (the log's *A Type Reached Through Another Module's Interface*). Neither the checker nor the emitter needs any other change.
+**Evidence.** The guide's §7.3 compiles and runs this shape under `make test` today: a record of operations, a `let` record for the hashed set, a function of a compare returning closures, and generic code over the record. The files above were built and run on 2026-10-02 under stand-in names; `usage.ern` prints what this document says, `ern format --check` accepts every file as written, and `Set.operations.fromList([f])` is refused naming `Set`'s element, as requirement 5 asks. The build found a defect of the checker, not of the specification: the checker is given the interfaces of the modules a program names, and none of those whose types they name, so `mixed.ern`, which names `OrderedSet` and not `Set`, selected no field of the record, and a program that receives a type through another module's function compared two of its values that hold functions, which §3.10 refuses. MVP 2.99b's item 4 fixed it the same day, with the sentence §11.1 lacked (the log's *A Type Reached Through Another Module's Interface*): a module depends on each module that declares a type an interface it depends on names, and the checker fails as the toolchain's own defect on a type no interface declares. Neither the checker nor the emitter needs any other change for the specification.
 
 ## What it buys and what it costs
 
@@ -263,7 +263,7 @@ And elsewhere:
 
 ## What changes in Ernest
 
-- §4.2 and §11.1: a file name of words joined by `_` names one namespace, MVP 2.99b's item 4, decided.
+- §4.2 and §11.1: a file name of words joined by `_` names one namespace, MVP 2.99b's item 4, done 2026-10-02.
 - E.0, shape rule 1: an operations record stands directly after the subjects, before a callback, as `OrderedSet.map(set, operations, f)` has it.
 - E.4: `Set.Operations(s, a)` and `Set.operations`.
 - Appendix E, a section at its end: `ordered_set.ern`, namespace `OrderedSet`, with `abstract type Set(a)`, `operations`, `empty`, `size`, `isEmpty`, `toList`, `min`, `max`, and the vocabulary's functions that take a callback. Its section states the departure principle 1 asks for: an operation that needs the order is a field of the record `operations` builds, since no hidden argument carries it (§4.8), and says which of E.0 rule 2's vocabulary are fields and which functions.
@@ -276,7 +276,7 @@ Nothing in the checker's typing, the emitter or the runtime changes. The files a
 
 | Area | Work | Item |
 |---|---|---|
-| Checker, emitter, runtime | none for the specification; the defect the sketch found, item 4's | 4 |
+| Checker, emitter, runtime | none for the specification; the defect the sketch found, fixed in item 4 | 4 |
 | `ern build`'s path rule (§11.1), `:load`, completion, `ern doc`, the pages | `_` in a file name | 4 |
 | `set.ern` | the record type, `operations`, their doc blocks and examples | 5 |
 | `ordered_set.ern` | the module, its page, its tests, its section of Appendix E with a test per section | 5 |

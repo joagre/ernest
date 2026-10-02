@@ -261,7 +261,7 @@ nested_name_not_utf8_test() ->
                                       <<"/b\\xFF/d\\xFE.ern">>)).
 
 %% report §11.1: a path component outside Latin-1 is refused by the shape
-%% rule, as any other that is not one word. A regression test: the rule's
+%% rule, as any other that is not words. A regression test: the rule's
 %% test could not read such a component, and the build ended as a failure
 %% of ern itself
 component_outside_latin1_test() ->
@@ -269,7 +269,7 @@ component_outside_latin1_test() ->
     File = write(Dir, "\x{3b1}\x{3b2}.ern", "export let x : Int = 1\n"),
     ?assertEqual(1, build_err(["--source-root", Dir, File])),
     ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
-                                      <<"must be one word">>)),
+                                      <<"must be words joined by `_`">>)),
     Upper = write(Dir, "sub/\x{3b1}B.ern", "export let x : Int = 1\n"),
     ?assertEqual(1, build_err(["--source-root", Dir, Upper])),
     ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
@@ -358,7 +358,8 @@ dependency_not_built_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir ++ "/src",
                                  "--build-root", Dir ++ "/build", Dir ++ "/src/main.ern"])).
 
-%% report §11.1: path components below the root are one lowercase word each
+%% report §11.1: path components below the root are words joined by single
+%% `_`, each a lowercase letter then lowercase letters and digits
 path_shape_test() ->
     Dir = tmp(),
     File = write(Dir, "Net/http.ern", hello()),
@@ -367,9 +368,75 @@ path_shape_test() ->
     Dir2 = tmp(),
     ?assertEqual(1, ern_cli:ern(["build", "--source-root", Dir2, write(Dir2, "9x.ern", hello())])),
     Dir3 = tmp(),
-    ?assertEqual(1, ern_cli:ern(["build", "--source-root", Dir3,
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir3,
                                  write(Dir3, "http_server.ern", hello())])),
-    ?assertNot(filelib:is_regular(filename:join(Dir3, "http_server.erc"))).
+    ?assert(filelib:is_regular(filename:join(Dir3, "http_server.erc"))),
+    %% a word begins with a letter, and a `_` stands between two words
+    lists:foreach(fun(Name) ->
+                      D = tmp(),
+                      ?assertEqual(1, ern_err(["build", "--source-root", D,
+                                               write(D, Name ++ ".ern", hello())])),
+                      ?assertMatch({_, _},
+                                   binary:match(unicode:characters_to_binary(?capturedOutput),
+                                                <<"must be words joined by `_`">>)),
+                      ?assertNot(filelib:is_regular(filename:join(D, Name ++ ".erc")))
+                  end, ["http_2", "_http", "http_", "ordered__set"]).
+
+%% report §4.2, §11.2: `ordered_set.ern` provides `OrderedSet`, which another
+%% module names, `ern run` finds by its namespace, and `ern doc` writes at
+%% its path; the compiled module is `ern@ordered_set`, the path with `@`
+words_name_a_segment_test() ->
+    Dir = tmp(),
+    write(Dir, "src/ordered_set.ern", "export fn size() : Int = 2\n"),
+    write(Dir, "src/net/http_client.ern", "export fn port() : Int = 80\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit with Never =\n"
+          "    Io.println(Int.toString(OrderedSet.size() + Net.HttpClient.port()))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
+    ?assert(filelib:is_regular(filename:join(Dir, "build/ordered_set.erc"))),
+    ?assert(filelib:is_regular(filename:join(Dir, "build/net/http_client.erc"))),
+    ?assertEqual(0, ern_err(["run", Dir ++ "/build/main.erc"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"82\n">>)),
+    ?assertEqual(0, ern_cli:ern(["doc", "--build-root", Dir ++ "/pages", Dir ++ "/src"])),
+    ?assert(filelib:is_regular(filename:join(Dir, "pages/ordered_set.md"))),
+    ?assert(filelib:is_regular(filename:join(Dir, "pages/net/http_client.md"))),
+    ?assertEqual("ordered_set", ern_build:module_path(['OrderedSet'])),
+    ?assertEqual('ern@net@http_client', ern_emitter:module_atom(['Net', 'HttpClient'])).
+
+%% report §11.1, §3.10: a module depends on each module that declares a type
+%% the interface of a module it depends on names, so a type reached through
+%% another module's function is declared where it is used: `==` on a value
+%% holding a function is refused, a field of it selects, the `.erc` records
+%% the declaring module, and a change to that module's interface compiles
+%% the dependent again. A regression test: the checker was given the
+%% interfaces of the modules a source named alone, read a type it had no
+%% declaration for as a built-in one, and let `==` through (the log's *A
+%% Type Reached Through Another Module's Interface*)
+reached_interface_test() ->
+    Dir = tmp(),
+    write(Dir, "src/boxes.ern", "export type Box = Box(f : (Int) -> Int)\n"),
+    write(Dir, "src/maker.ern", "export fn make() : Boxes.Box = Boxes.Box(f = fn(n) = n + 1)\n"),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit with Never =\n"
+          "    Io.println(Bool.toString(Maker.make() == Maker.make()))\n"),
+    Build = ["build", "--build-root", Dir ++ "/build", Dir ++ "/src"],
+    ?assertEqual(1, ern_err(Build)),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"`==` is not defined on Boxes.Box">>)),
+    write(Dir, "src/main.ern",
+          "export fn main() : Unit with Never =\n"
+          "    Io.println(Int.toString(Maker.make().f(1)))\n"),
+    ?assertEqual(0, ern_cli:ern(Build)),
+    ?assertEqual(0, ern_err(["run", Dir ++ "/build/main.erc"])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput), <<"2\n">>)),
+    {ok, Bin} = file:read_file(filename:join(Dir, "build/main.erc")),
+    {ok, #{deps := Deps}} = ern_iface:read(Bin),
+    ?assertEqual([['Boxes'], ['Maker']], lists:sort([D || {D, _} <- Deps])),
+    write(Dir, "src/boxes.ern", "export type Box = Box(f : Int)\n"),
+    write(Dir, "src/maker.ern", "export fn make() : Boxes.Box = Boxes.Box(f = 1)\n"),
+    ?assertEqual(1, ern_err(Build)),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"main.ern:2:">>)).
 
 %% report §11.1: directory mode passes over a file or directory whose name
 %% begins with a dot, as Emacs's lock file, a dangling link named `.#` and
@@ -391,10 +458,12 @@ dot_names_passed_over_test() ->
 segment_test() ->
     ?assertEqual({ok, "Http"}, ern_build:segment("http")),
     ?assertEqual({ok, "V2"}, ern_build:segment("v2")),
+    ?assertEqual({ok, "HttpServer"}, ern_build:segment("http_server")),
     ?assertEqual(error, ern_build:segment("Net")),
     ?assertEqual(error, ern_build:segment("9x")),
-    ?assertEqual(error, ern_build:segment("http_server")),
+    ?assertEqual(error, ern_build:segment("http_2")),
     ?assertEqual({'Some', <<"Http">>}, ern_shell:segment(<<"http">>)),
+    ?assertEqual({'Some', <<"OrderedSet">>}, ern_shell:segment(<<"ordered_set">>)),
     ?assertEqual('None', ern_shell:segment(<<"Bad">>)).
 
 %% report §11.1: single-file mode with no --source-root uses the current

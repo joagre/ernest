@@ -1727,6 +1727,24 @@ interface_test() ->
     ?assertMatch({error, [#diag{span = {1, 10, _}, message = "unknown name Net.Http.private"}]},
                  ern_typecheck:check(['Main'], P1, [Iface])).
 
+%% report §11.1: every type the interfaces given name has a declaration
+%% among them; the checker fails as the toolchain's own defect where one
+%% has none, rather than read it as a built-in type with no fields. A
+%% regression test: `==` on such a type was accepted (the log's *A Type
+%% Reached Through Another Module's Interface*)
+undeclared_type_in_interface_test() ->
+    {ok, _, Boxes, _} = ern_typecheck:check_string(['Boxes'],
+                                                   "export type Box = Box(f : (Int) -> Int)\n"),
+    {ok, MakerDecls} = ern_parser:parse_string(
+                         "export fn make() : Boxes.Box = Boxes.Box(f = fn(n) = n + 1)\n"),
+    {ok, _, Maker, _} = ern_typecheck:check(['Maker'], MakerDecls, [Boxes]),
+    {ok, Main} = ern_parser:parse_string("fn same() : Bool = Maker.make() == Maker.make()\n"),
+    ?assertMatch({error, [#diag{message = "`==` is not defined on Boxes.Box: it contains a"
+                                          " function or an address"}]},
+                 ern_typecheck:check(['Main'], Main, [Maker, Boxes])),
+    ?assertError({interface_names_undeclared_type, "Boxes.Box"},
+                 ern_typecheck:check(['Main'], Main, [Maker])).
+
 %% report §11.1
 errors_are_collected_test() ->
     ?assertEqual(["unknown name a", "unknown name b"],
@@ -1784,8 +1802,8 @@ examples_test_() ->
     ?assertNotEqual([], Libraries),
     [{F, fun() ->
               {ok, Bin} = file:read_file(F),
-              Base = filename:basename(F, ".ern"),
-              Ns = [list_to_atom(string:titlecase(Base))],
+              {ok, Segment} = ern_namespace:segment(filename:basename(F, ".ern")),
+              Ns = [list_to_atom(Segment)],
               {ok, Decls} = ern_parser:parse_string(Bin),
               ?assertMatch({ok, _, _, _}, ern_typecheck:check(Ns, Decls, Libraries))
           end} || F <- Files].

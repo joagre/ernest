@@ -98,6 +98,7 @@ check(Ns, Decls0, Ifaces) ->
 check(Ns, Decls0, Ifaces, Session) ->
     Decls = builtin_operators(Ns, Decls0),
     Seeded = lists:foldl(fun add_iface/2, (prelude_env())#env{ns = Ns}, Ifaces),
+    every_type_declared(Ifaces, Seeded),
     Env0 = Seeded#env{session = Session},
     try
         declared_twice(Decls),
@@ -340,6 +341,34 @@ prelude_env() ->
     Provided = lists:usort(ern_prelude:member_types()
                            ++ [hd(I#iface.namespace) || I <- Stdlib]),
     lists:foldl(fun add_iface/2, Env3#env{provided = Provided}, Stdlib).
+
+%% Report §11.1: every type the interfaces given name, in a value's scheme
+%% or a constructor's, has a declaration among them or the prelude's, but
+%% for a type of the interface's own module, which may be private, a
+%% mailbox type an exported function receives (§4.2). One that has none is
+%% the toolchain's own defect, since a module depends on each module that
+%% declares a type an interface it depends on names, so the check fails
+%% closed rather than read such a type as a built-in one.
+every_type_declared(Ifaces, #env{types = Types}) ->
+    Undeclared = [Q || #iface{namespace = N, types = Ts, values = Vs} <- Ifaces,
+                       Q <- lists:usort(type_names({maps:values(Vs), maps:values(Ts)}, [])),
+                       lists:droplast(Q) =/= N,
+                       not is_map_key(Q, Types)],
+    case Undeclared of
+        [] -> ok;
+        [Q | _] -> erlang:error({interface_names_undeclared_type, format_qname(Q)})
+    end.
+
+type_names({tcon, Q, Args}, Acc) when is_list(Q) ->
+    type_names(Args, [Q | Acc]);
+type_names(Term, Acc) when is_tuple(Term) ->
+    type_names(tuple_to_list(Term), Acc);
+type_names(Term, Acc) when is_map(Term) ->
+    type_names(maps:to_list(Term), Acc);
+type_names([H | T], Acc) ->
+    type_names(T, type_names(H, Acc));
+type_names(_, Acc) ->
+    Acc.
 
 %% Report §4.4: the type's info, and so the compiled interface, marks an
 %% abstract type; lookup_con refuses its constructor from another module.
@@ -1787,8 +1816,12 @@ resolve_select(Pos, F, XT, #env{st = St, types = Types, local_types = LT} = Env)
                     fail(Pos, Shown ++ " is abstract, and its fields are its module's alone");
                 #tinfo{constructors = [_ | _] = Cs} ->
                     field_type(Pos, F, T, Cs, Env);
-                _ ->
-                    fail(Pos, Shown ++ " has no field " ++ Field)
+                #tinfo{} ->
+                    fail(Pos, Shown ++ " has no field " ++ Field);
+                undefined ->
+                    %% report §11.1: a type no interface declares is the
+                    %% toolchain's own defect, not a type without fields
+                    erlang:error({undeclared_type, format_qname(Q)})
             end;
         _ ->
             fail(Pos, Shown ++ " has no field " ++ Field)
@@ -2580,7 +2613,9 @@ first_lack(Lacks, [T | Ts]) ->
     end.
 
 %% The field types of a declared type's constructors, its arguments in
-%% place of its parameters; none for a built-in or a foreign type.
+%% place of its parameters; none for a built-in or a foreign type. A type
+%% with no declaration at all is the toolchain's own defect (report §11.1),
+%% and the check fails closed rather than read it as a built-in one.
 declared_fields(Q, Args, Env) ->
     case lookup_type(Q, Env) of
         #tinfo{foreign = false, params = Ps, constructors = [_ | _] = Cs}
@@ -2588,8 +2623,10 @@ declared_fields(Q, Args, Env) ->
             Map = maps:from_list([{Id, A} || {{tvar, Id}, A} <- lists:zip(Ps, Args)]),
             {ok, [ern_types:substitute(F, Map)
                   || #cinfo{scheme = #scheme{type = {tfn, Fs, _, _}}} <- Cs, F <- Fs]};
-        _ ->
-            none
+        #tinfo{} ->
+            none;
+        undefined ->
+            erlang:error({undeclared_type, format_qname(Q)})
     end.
 
 %% The enclosing function's effect must be a mailbox type here.

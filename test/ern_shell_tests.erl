@@ -2367,6 +2367,23 @@ not_a_name_test() ->
         forget_session()
     end.
 
+%% report §4.2, §11.2: `:load OrderedSet` finds `ordered_set.ern` under the
+%% source root, a name that is not words beginning with a capital is
+%% refused, and completion names the segment from the file
+load_words_segment_test() ->
+    Dir = scratch("ern_words_"),
+    ok = file:write_file(filename:join(Dir, "ordered_set.ern"), "export fn size() : Int = 2\n"),
+    try
+        Env = with_loaded(Dir, [<<"OrderedSet">>]),
+        ?assertMatch({'Left', <<"Ordered_Set is not a module name", _/binary>>},
+                     ern_shell:load(Env, <<"Ordered_Set">>)),
+        ?assertMatch({'Left', <<"orderedSet is not a module name", _/binary>>},
+                     ern_shell:load(Env, <<"orderedSet">>)),
+        ?assertEqual({'Some', <<"OrderedSet">>}, ern_shell:segment(<<"ordered_set">>))
+    after
+        forget_session()
+    end.
+
 %% A session begun with the modules of Dir loaded by `:load`, one after
 %% the other, kept where completion reads it.
 with_loaded(Dir, Modules) ->

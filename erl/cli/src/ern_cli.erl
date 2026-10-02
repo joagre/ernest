@@ -356,7 +356,7 @@ beam_of(Opts, Path) ->
             [#mod{ns = Ns, file = File, rel = Rel, decls = Decls, deps = Deps}] =
                 ern_build:compile_order([ern_build:module_of(ern_build:absolute(Path), Root)],
                                         Root, Dirs),
-            DepIfaces = [I || D <- Deps, {_, I} <- [ern_build:dep_iface(D, #{}, Dirs, Root)]],
+            DepIfaces = [I || {_, I} <- ern_build:dep_ifaces(Ns, Deps, #{}, Dirs, Root)],
             case ern_typecheck:check(Ns, Decls, DepIfaces) of
                 {ok, Typed, Iface, Env} ->
                     Build = #{source_hash => <<>>, deps => [],

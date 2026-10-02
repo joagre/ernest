@@ -359,7 +359,10 @@ erl_source_test() ->
 %% report §4.2: the module atom is ern@ and the path with @ for /
 module_atom_test() ->
     ?assertEqual('ern@counter', ern_emitter:module_atom(['Counter'])),
-    ?assertEqual('ern@net@http', ern_emitter:module_atom(['Net', 'Http'])).
+    ?assertEqual('ern@net@http', ern_emitter:module_atom(['Net', 'Http'])),
+    %% a segment of several words is its file's name, joined by `_`
+    ?assertEqual('ern@ordered_set', ern_emitter:module_atom(['OrderedSet'])),
+    ?assertEqual('ern@net@http_client', ern_emitter:module_atom(['Net', 'HttpClient'])).
 
 %%
 %% Blocks, bindings, and local functions
