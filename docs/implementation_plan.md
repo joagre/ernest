@@ -51,7 +51,7 @@ order. Each has its paragraph under "Done".
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
-| MVP 2.99b | what the release review left, names that read among it; operations records: the `needs` clause, a record filled from a namespace, an ordered set and an ordered map; running as a service | decided 2026-10-02, `operations.md` the specification; about five weeks |
+| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | decided 2026-10-02, `operations.md` the specification; about five weeks |
 | The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01 |
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines | moved from MVP 3.9 on 2026-10-01 |
@@ -152,10 +152,10 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    (`findings.md`'s R-23) was decided the same day: no second way beside inference (the log's
    *The Reply Discipline Names No Type*), and the process-only mark is `m+` (the log's *The
    Process-Only Mark*). What was decided on 2026-10-02 is the note's twelve rules: a
-   function that needs a member of a type says so in a clause after its result type, `needs
+   function that needs a member of a type says so in a requirement after its result type, `needs
    a.compare`; a call writes nothing for it, the compiler supplies the member where the type
-   is known and passes the enclosing clause's along where it is a variable, and a body under
-   the clause may write `a.compare` and operators on `a` (rule 1); a clause names a member of
+   is known and passes the enclosing requirement's along where it is a variable, and a body under
+   the requirement may write `a.compare` and operators on `a` (rule 1); a requirement names a member of
    §4.8 or `show` and nothing else, is never inferred, and a program declares no member
    beyond §4.8's (rule 2); an ordered set is data, `OrderedSet.Set(a)` holding its elements
    and nothing else, with structural `==` (rule 3); an order belongs to an element type, so
@@ -172,20 +172,20 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    note's committed history (`eed585a` to `cc03f0f`) for the log's entry.
 
    Once decided, it is built in the report's order. The report first, with everything the
-   note introduces, the note's *What changes in Ernest* being the list: §4.8's clause with
-   its limits and its errors, §3.5's fill and `derives`, E.1's `show` under a clause,
-   Appendix A's three rules, §11.5's errors and the clause on a page and in the shell, and
+   note introduces, the note's *What changes in Ernest* being the list: §4.8's requirement with
+   its limits and its errors, §3.5's fill and `derives`, E.1's `show` under a requirement,
+   Appendix A's three rules, §11.5's errors and the requirement on a page and in the shell, and
    two sections at the end of Appendix E, `ordered_set.ern` and `ordered_map.ern`, each
-   stating its representation and costs whole. Then the toolchain, the clause and the fill
+   stating its representation and costs whole. Then the toolchain, the requirement and the fill
    first, built against the five files under `docs/operations/` as they stand until they
    build and print what the note says, since the files are the specification's test suite
-   before any test exists: the clause's resolution pass, its errors, the clause carried in
+   before any test exists: the requirement's resolution pass, its errors, the requirement carried in
    the `.erc` across §11.1's recompilation, the emitter's hidden parameters, and `derives`
-   and the fill as desugarings once the clause works. Then the two modules in the standard
-   library with their pages, tests and sections, `ern doc` writing a clause as declared and
+   and the fill as desugarings once the requirement works. Then the two modules in the standard
+   library with their pages, tests and sections, `ern doc` writing a requirement as declared and
    a record type's constructor one field per line, and the formatter and the shell showing
-   a clause; the session that builds this half starts by running the five files. Nothing in
-   §3.9's typing changes: a clause adds nothing to a scheme, and the resolution pass is the
+   a requirement; the session that builds this half starts by running the five files. Nothing in
+   §3.9's typing changes: a requirement adds nothing to a scheme, and the resolution pass is the
    operator's and `Io.show`'s, extended to a parameter (`operations.md`'s *Typing* and *What
    it costs to build*). The code is written in the glossary's names. About two weeks. Items
    11 and 12, `set.ern` over its record and `OrderedSet`, joined this item on 2026-10-02
@@ -314,7 +314,7 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     named, a section's banner (the log's *The Sweep Takes the Form Too*); about a week and a
     half.
 16. **The guide's §7.3**, over the finished code and its names: it says "operations record"
-    and shows a generic function with its `needs` clause, a type that derives its order, a
+    and shows a generic function with its requirement, a type that derives its order, a
     record the program declares and fills from a namespace, two orders as two types that
     cannot meet in `union`, an ordered map, and values of several representations in one list. Its examples compile and run under the
     guide's checks. What Ernest cannot express goes to

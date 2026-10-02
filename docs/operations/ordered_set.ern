@@ -2,8 +2,8 @@
 /// type's `compare` (report §3.10). A function that needs the order says
 /// so, `needs a.compare` (report §4.8): a call writes nothing for it,
 /// the compiler supplies the element type's `compare` where it is
-/// known, and a generic function that calls one declares the clause
-/// itself.
+/// known, and a generic function that calls one declares the
+/// requirement itself.
 /// `fromList`, `contains`, `put`, `remove`, `union`, `intersection`,
 /// `difference` and `isSubset` need it, and `map` and `filterMap` need
 /// their result's; the rest need none. Two elements the order calls

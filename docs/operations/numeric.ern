@@ -1,4 +1,4 @@
-/// Generic numeric functions over a clause, `needs a.+`, used at `Int`, at
+/// Generic numeric functions over a requirement, `needs a.+`, used at `Int`,
 /// `Float` and at a type with a `+` of its own. `sum` needs a zero as
 /// well, which is no member, so its caller passes one.
 
