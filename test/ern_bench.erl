@@ -18,12 +18,12 @@ main([File]) ->
     Operations = operations(Server),
     io:format("~-40s ~9s ~9s ~7s~n", ["ns an iteration", "Ernest", "Erlang", "ratio"]),
     lists:foreach(fun([Key, Iterations, Ms]) ->
-                          {Name, Operation} = maps:get(Key, Operations),
-                          Count = list_to_integer(Iterations),
-                          Ernest = list_to_integer(Ms) * 1.0e6 / Count,
-                          Erlang = fastest(Count, Operation),
-                          io:format("~-40s ~9.1f ~9.1f ~7.1f~n",
-                                    [Name, Ernest, Erlang, Ernest / Erlang])
+                      {Name, Operation} = maps:get(Key, Operations),
+                      Count = list_to_integer(Iterations),
+                      Ernest = list_to_integer(Ms) * 1.0e6 / Count,
+                      Erlang = fastest(Count, Operation),
+                      io:format("~-40s ~9.1f ~9.1f ~7.1f~n",
+                                [Name, Ernest, Erlang, Ernest / Erlang])
                   end, Lines),
     halt(0).
 
@@ -37,7 +37,10 @@ operations(Server) ->
     Bytes = <<"abcd">>,
     #{"loop" => {"the loop alone", fun(Iteration) -> Iteration end},
       "operator" => {"a record added by a function",
-                     fun(Iteration) -> element(2, add({'Point', Iteration, 1}, Point)) end},
+                     fun(Iteration) ->
+                         {'Point', SumX, _} = add({'Point', Iteration, 1}, Point),
+                         SumX
+                     end},
       "equal" => {"two records compared",
                   fun(Iteration) ->
                       case {'Point', Iteration, 2} =:= Point of

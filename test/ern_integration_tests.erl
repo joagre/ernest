@@ -46,10 +46,10 @@ compiles(Name) ->
 snake_without_terminal_test_() ->
     {timeout, 60,
      fun() ->
-             0 = build(?BUILD ++ "../examples/snake.ern"),
-             ?assertEqual({1, <<"snake needs a terminal, since its keys are the game's input\n">>},
-                          sh("../bin/ern run --load-path ../build/libs/ansi build/snake.erc"
-                             " < /dev/null"))
+         0 = build(?BUILD ++ "../examples/snake.ern"),
+         ?assertEqual({1, <<"snake needs a terminal, since its keys are the game's input\n">>},
+                      sh("../bin/ern run --load-path ../build/libs/ansi build/snake.erc"
+                         " < /dev/null"))
      end}.
 
 %% Paper program 4 (plan, MVP 2.5): the REPL reads stdin and ends at
@@ -544,8 +544,8 @@ stdin() ->
     [0 = build("--source-root stdin --build-root build/stdin stdin/"
                  ++ Program ++ ".ern") || Program <- ["lines", "stream", "chunks"]],
     Launch = fun(Input, Program) ->
-                     sh("printf '" ++ Input ++ "' | LANG=C ../bin/ern run build/stdin/"
-                        ++ Program ++ ".erc")
+                 sh("printf '" ++ Input ++ "' | LANG=C ../bin/ern run build/stdin/"
+                    ++ Program ++ ".erc")
              end,
     ?assertEqual({0, <<"[h", 16#e9/utf8, "] 2\n[zw", 16#4e2d/utf8, "] 3\n[] 0\n[last] 4\nend\n">>},
                  Launch("h\\303\\251\\r\\nzw\\344\\270\\255\\n\\nlast", "lines")),
@@ -604,20 +604,20 @@ os() ->
     0 = build("--source-root build/os/src --build-root build/os build/os/src"),
     lists:foreach(
       fun(Locale) ->
-              Launch = "env LC_ALL=" ++ Locale ++ " ../bin/ern run build/os/",
-              ?assertEqual({2, <<"[\"a b\", \"--x\"]\n">>}, sh(Launch ++ "args.erc 'a b' --x")),
-              ?assertEqual({1, <<"ern run: argument 2 is not UTF-8\n">>},
-                           sh(Launch ++ "args.erc ok \"$(printf '\\377')\"")),
-              ?assertEqual({1, <<"ern build: a word that is not UTF-8: n\\xFFme.ern\n">>},
-                           sh("env LC_ALL=" ++ Locale
-                              ++ " ../bin/ern build \"$(printf 'n\\377me.ern')\"")),
-              {Status, Output} = sh("env ERN_OK=\"$(printf 'caf\\303\\251')\" "
-                                    "ERN_BAD=\"$(printf 'caf\\351')\" " ++ Launch ++ "env.erc"),
-              ?assertNotEqual(0, Status),
-              ?assertMatch({0, _}, binary:match(Output, <<"#(Some(\"caf", 16#e9/utf8,
-                                                          "\"), None)\n">>)),
-              ?assertMatch({_, _}, binary:match(Output, <<"faulted: the environment variable"
-                                                          " ERN_BAD is not UTF-8">>))
+          Launch = "env LC_ALL=" ++ Locale ++ " ../bin/ern run build/os/",
+          ?assertEqual({2, <<"[\"a b\", \"--x\"]\n">>}, sh(Launch ++ "args.erc 'a b' --x")),
+          ?assertEqual({1, <<"ern run: argument 2 is not UTF-8\n">>},
+                       sh(Launch ++ "args.erc ok \"$(printf '\\377')\"")),
+          ?assertEqual({1, <<"ern build: a word that is not UTF-8: n\\xFFme.ern\n">>},
+                       sh("env LC_ALL=" ++ Locale
+                          ++ " ../bin/ern build \"$(printf 'n\\377me.ern')\"")),
+          {Status, Output} = sh("env ERN_OK=\"$(printf 'caf\\303\\251')\" "
+                                "ERN_BAD=\"$(printf 'caf\\351')\" " ++ Launch ++ "env.erc"),
+          ?assertNotEqual(0, Status),
+          ?assertMatch({0, _}, binary:match(Output, <<"#(Some(\"caf", 16#e9/utf8,
+                                                      "\"), None)\n">>)),
+          ?assertMatch({_, _}, binary:match(Output, <<"faulted: the environment variable"
+                                                      " ERN_BAD is not UTF-8">>))
       end, ["C.UTF-8", "C"]).
 
 %% report §11, Appendix E.23, E.17: Os.workingDirectory is the absolute
@@ -647,9 +647,9 @@ working_directory() ->
     [ok = make_dir(Path) || Path <- [Cafe, <<"build/cwd/bad", 16#e9>>]],
     ok = file:write_file(<<Cafe/binary, "/notes.txt">>, <<"buy milk">>),
     Launch = fun(Glob, Locale) ->
-                     sh("sh -c 'cd build/cwd/" ++ Glob ++ " && env LC_ALL=" ++ Locale ++ " "
-                        ++ filename:absname("../bin/ern") ++ " run "
-                        ++ filename:absname("build/cwd/here.erc") ++ "'")
+                 sh("sh -c 'cd build/cwd/" ++ Glob ++ " && env LC_ALL=" ++ Locale ++ " "
+                    ++ filename:absname("../bin/ern") ++ " run "
+                    ++ filename:absname("build/cwd/here.erc") ++ "'")
              end,
     Here = <<(list_to_binary(filename:absname("build/cwd")))/binary, "/caf", 16#c3, 16#a9>>,
     [?assertEqual({0, <<Here/binary, "\nSome(\"buy milk\")\n">>}, Launch("caf*", Locale))

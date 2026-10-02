@@ -98,8 +98,8 @@ sample(Round) ->
     timer:sleep(100),
     Reaper = reaper_memory(),
     Unused = lists:sum([unused(Pid) || Pid <- Others]),
-    Own = ets:info(ern_load_samples, memory) * erlang:system_info(wordsize)
-          + element(2, erlang:process_info(Sampler, memory)),
+    {memory, SamplerMemory} = erlang:process_info(Sampler, memory),
+    Own = ets:info(ern_load_samples, memory) * erlang:system_info(wordsize) + SamplerMemory,
     [{processes_used, Processes}, {system, System}] = erlang:memory([processes_used, system]),
     #{round => Round,
       memory => Processes + System - Own - Unused,
@@ -136,7 +136,8 @@ reaper_memory() ->
             0;
         Pid ->
             erlang:garbage_collect(Pid),
-            element(2, erlang:process_info(Pid, memory)) - unused(Pid)
+            {memory, Memory} = erlang:process_info(Pid, memory),
+            Memory - unused(Pid)
     end.
 
 rows(Table) ->

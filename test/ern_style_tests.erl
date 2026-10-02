@@ -170,8 +170,7 @@ ernest_texts() ->
 tokens(File, [{First, _} | _] = Lines) ->
     case ern_lexer:tokenize(lists:join("\n", [Line || {_, Line} <- Lines])) of
         {ok, Tokens} ->
-            [setelement(2, Token, setelement(1, element(2, Token), line(Token) + First - 1))
-             || Token <- Tokens];
+            [moved(Token, First - 1) || Token <- Tokens];
         {error, _} ->
             error({not_lexed, File, First})
     end.
@@ -206,7 +205,16 @@ depth({Kind, _}) ->
     end;
 depth(_) -> 0.
 
-line(Token) -> element(1, element(2, Token)).
+%% A token's line, the first of its position, which ern_parser reads so too.
+line(Token) ->
+    {Line, _, _, _} = element(2, Token),
+    Line.
+
+%% A token whose line is a number of lines further down; only its line is
+%% read here.
+moved(Token, Lines) ->
+    {Line, Column, End, Previous} = element(2, Token),
+    setelement(2, Token, {Line + Lines, Column, End, Previous}).
 
 %% docs/style.md: every Erlang module is ern_<thing>, unique across the
 %% repository, and a module compiled from an Ernest source is ern@<namespace>;

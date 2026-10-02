@@ -5,6 +5,7 @@
 -module(ern_shell_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("kernel/include/file.hrl").
 
 %% report §11.2, §11.5: an expression prints its value and its type, one of
 %% type Unit prints nothing, an input that does not check shows the error
@@ -103,9 +104,8 @@ startup_test_() ->
     {timeout, 60, fun startup/0}.
 
 startup() ->
-    Unique = integer_to_list(erlang:unique_integer([positive])),
-    Home = filename:join("/tmp", "ern_home_" ++ Unique),
-    Node = filename:join("/tmp", "ern_node_" ++ Unique),
+    Home = scratch("ern_home_"),
+    Node = scratch("ern_node_"),
     ok = filelib:ensure_path(filename:join(Home, ".ernest")),
     ok = filelib:ensure_path(filename:join(Node, ".ernest")),
     ok = file:write_file(filename:join([Home, ".ernest", "startup"]),
@@ -280,8 +280,8 @@ load_and_reload_dependents() ->
                          "export fn main() : Unit with Never =\n"
                          "    Io.println(Int.toString(Geo.Shape.area(3)))\n"),
     Write = fun(Text) ->
-                    ["let _ = Fs.write(Path(\"src/geo/shape.ern\"), String.toUtf8(\"", Text,
-                     "\\n\"), 1000)\n"]
+                ["let _ = Fs.write(Path(\"src/geo/shape.ern\"), String.toUtf8(\"", Text,
+                 "\\n\"), 1000)\n"]
             end,
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile, [":load Main\nMain.main()\n",
@@ -409,17 +409,17 @@ history_is_private() ->
     Dir = filename:join(Home, ".ernest"),
     _ = pty("HOME=" ++ Home ++ " ../bin/ern shell",
             [{expect, "> "}, {send, hex("1 + 1\r")}, {expect, "2 : Int"}, {send, "04"}], 20),
-    {ok, Made} = file:read_file_info(Dir),
-    ?assertEqual(0, element(8, Made) band 8#077),
+    {ok, #file_info{mode = Made}} = file:read_file_info(Dir),
+    ?assertEqual(0, Made band 8#077),
     ok = file:change_mode(Dir, 8#755),
     _ = pty("HOME=" ++ Home ++ " ../bin/ern shell", [{expect, "> "}, {send, "04"}], 20),
-    {ok, Read} = file:read_file_info(Dir),
-    ?assertEqual(0, element(8, Read) band 8#077),
+    {ok, #file_info{mode = Read}} = file:read_file_info(Dir),
+    ?assertEqual(0, Read band 8#077),
     ok = file:change_mode(Dir, 8#755),
     ok = file:change_mode(filename:join(Dir, "history"), 8#000),
     _ = pty("HOME=" ++ Home ++ " ../bin/ern shell", [{expect, "> "}, {send, "04"}], 20),
-    {ok, Unreadable} = file:read_file_info(Dir),
-    ?assertEqual(0, element(8, Unreadable) band 8#077).
+    {ok, #file_info{mode = Unreadable}} = file:read_file_info(Dir),
+    ?assertEqual(0, Unreadable band 8#077).
 
 %% report §11.2: on a terminal the shell commits its transcript to the
 %% terminal and paints only the live region, the tail of what programs
@@ -939,8 +939,7 @@ command_argument_test_() ->
     {timeout, 60, fun command_argument/0}.
 
 command_argument() ->
-    SourceRoot = filename:join("/tmp", "ern_root_" ++ os:getpid() ++ "_"
-                               ++ integer_to_list(erlang:unique_integer([positive]))),
+    SourceRoot = scratch("ern_root_"),
     ok = filelib:ensure_path(filename:join(SourceRoot, "http")),
     ok = file:write_file(filename:join([SourceRoot, "http", "parser.ern"]), "export let one = 1\n"),
     ok = file:write_file(filename:join(SourceRoot, "demo.ern"), "export let two = 2\n"),
@@ -1187,9 +1186,7 @@ load_unreadable_test_() ->
     {timeout, 60, fun load_unreadable/0}.
 
 load_unreadable() ->
-    Dir = filename:join("/tmp", "ern_bad_" ++ os:getpid() ++ "_"
-                        ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
+    Dir = scratch("ern_bad_"),
     ok = file:write_file(filename:join(Dir, "bad.ern"), "export fn f() : Int = 1 \\ 2\n"),
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(filename:join(Dir, "garbled.ern"), <<"export let x : Int = ", 16#FF>>),
@@ -1226,9 +1223,7 @@ load_unreadable_dependency_test_() ->
     {timeout, 60, fun load_unreadable_dependency/0}.
 
 load_unreadable_dependency() ->
-    Dir = filename:join("/tmp", "ern_dep_" ++ os:getpid() ++ "_"
-                        ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
+    Dir = scratch("ern_dep_"),
     ok = file:write_file(filename:join(Dir, "top.ern"), "export fn g() : Int = Dep.f()\n"),
     ok = file:write_file(filename:join(Dir, "dep.erc"), "not a module\n"),
     InputFile = filename:join(Dir, "session.in"),
@@ -1246,7 +1241,7 @@ host_reserved_names_test_() ->
     {timeout, 60, fun host_reserved_names/0}.
 
 host_reserved_names() ->
-    InputFile = filename:join("/tmp", "ern_reserved_" ++ os:getpid() ++ ".in"),
+    InputFile = scratch_file("ern_reserved_"),
     ok = file:write_file(InputFile, ["let module_info = 1\n", "fn record_info(x : Int) : Int = x\n",
                                      "module_info + record_info(2)\n", "let f = record_info\n",
                                      "f(5)\n"]),
@@ -1266,7 +1261,7 @@ input_module_unloaded_test_() ->
     {timeout, 60, fun input_module_unloaded/0}.
 
 input_module_unloaded() ->
-    InputFile = filename:join("/tmp", "ern_unload_" ++ os:getpid() ++ ".in"),
+    InputFile = scratch_file("ern_unload_"),
     Count = "List.size(loadedModules())\n",
     ok = file:write_file(InputFile, [
         "foreign fn loadedModules() : List(Foreign.Term) with m = \"code:all_loaded/0\"\n",
@@ -1277,10 +1272,7 @@ input_module_unloaded() ->
         " let _ = receive { after 300 -> Unit }; Io.println(\"late\") })\n",
         "receive { after 600 -> Unit }\n"]),
     {0, Output} = sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
-    [Before, After] = [binary_to_integer(Digits) || {match, [Digits]} <-
-                           [re:run(Line, "^> ([0-9]+) : Int$", [{capture, all_but_first, binary}])
-                            || Line <- binary:split(Output, <<"\n">>, [global])],
-                       binary_to_integer(Digits) > 100],
+    [Before, After] = [Answer || Answer <- answers(Output, 1), Answer > 100],
     %% each expression leaves its holder of `it` loaded, and its own module
     %% not
     ?assert(After - Before =< 50 + 5),
@@ -1298,7 +1290,7 @@ input_numbers_reused_test_() ->
     {timeout, 120, fun input_numbers_reused/0}.
 
 input_numbers_reused() ->
-    InputFile = filename:join("/tmp", "ern_atoms_" ++ os:getpid() ++ ".in"),
+    InputFile = scratch_file("ern_atoms_"),
     Info = "info(Erl.atom(\"atom_count\"))\n",
     ok = file:write_file(InputFile, ["foreign fn info(k : Foreign.Term) : Int with m ="
                                      " \"erlang:system_info/1\"\n", Info,
@@ -1306,10 +1298,7 @@ input_numbers_reused() ->
                                       || Index <- lists:seq(1, 200)],
                                      Info]),
     {0, Output} = sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
-    [Before, After] = [binary_to_integer(Digits) || {match, [Digits]} <-
-                           [re:run(Line, "^> ([0-9]{5,}) : Int$",
-                                   [{capture, all_but_first, binary}])
-                            || Line <- binary:split(Output, <<"\n">>, [global])]],
+    [Before, After] = answers(Output, 5),
     ?assert(After - Before =< 3 * 200).
 
 %% report §2.3, §11.2: a declaration made again, and an input whose value is
@@ -1321,7 +1310,7 @@ declarations_let_go_test_() ->
     {timeout, 120, fun declarations_let_go/0}.
 
 declarations_let_go() ->
-    InputFile = filename:join("/tmp", "ern_decls_" ++ os:getpid() ++ ".in"),
+    InputFile = scratch_file("ern_decls_"),
     Info = "info(Erl.atom(\"atom_count\"))\n",
     ok = file:write_file(InputFile, ["foreign fn info(k : Foreign.Term) : Int with m ="
                                      " \"erlang:system_info/1\"\n", Info,
@@ -1331,10 +1320,7 @@ declarations_let_go() ->
                                       || Index <- lists:seq(1, 100)],
                                      Info]),
     {0, Output} = sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
-    [Before, After] = [binary_to_integer(Digits) || {match, [Digits]} <-
-                           [re:run(Line, "^> ([0-9]{5,}) : Int$",
-                                   [{capture, all_but_first, binary}])
-                            || Line <- binary:split(Output, <<"\n">>, [global])]],
+    [Before, After] = answers(Output, 5),
     ?assert(After - Before =< 60).
 
 %% report §2.3, §11.2: an expression at the prompt leaves no code behind,
@@ -1346,7 +1332,7 @@ expressions_leave_no_code_test_() ->
     {timeout, 120, fun expressions_leave_no_code/0}.
 
 expressions_leave_no_code() ->
-    InputFile = filename:join("/tmp", "ern_code_" ++ os:getpid() ++ ".in"),
+    InputFile = scratch_file("ern_code_"),
     Code = "memory(Erl.atom(\"code\"))\n",
     ok = file:write_file(InputFile, ["foreign fn memory(k : Foreign.Term) : Int with m ="
                                      " \"erlang:memory/1\"\n",
@@ -1357,10 +1343,7 @@ expressions_leave_no_code() ->
                                       || Index <- lists:seq(51, 250)],
                                      Code]),
     {0, Output} = sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
-    [Before, After] = [binary_to_integer(Digits) || {match, [Digits]} <-
-                           [re:run(Line, "^> ([0-9]{7,}) : Int$",
-                                   [{capture, all_but_first, binary}])
-                            || Line <- binary:split(Output, <<"\n">>, [global])]],
+    [Before, After] = answers(Output, 7),
     ?assert(After - Before < 2000).
 
 %% report §11.2, §4.4: an `abstract type` at the prompt keeps its
@@ -1370,7 +1353,7 @@ abstract_at_the_prompt_test_() ->
     {timeout, 60, fun abstract_at_the_prompt/0}.
 
 abstract_at_the_prompt() ->
-    InputFile = filename:join("/tmp", "ern_abstract_" ++ os:getpid() ++ ".in"),
+    InputFile = scratch_file("ern_abstract_"),
     ok = file:write_file(InputFile, ["abstract type T = T(Int)\n", "T(1)\n"]),
     {0, Output} = sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     ?assertMatch({_, _},
@@ -1390,7 +1373,7 @@ expressions_again_leave_no_code_test_() ->
     {timeout, 120, fun expressions_again_leave_no_code/0}.
 
 expressions_again_leave_no_code() ->
-    InputFile = filename:join("/tmp", "ern_again_" ++ os:getpid() ++ ".in"),
+    InputFile = scratch_file("ern_again_"),
     Code = "memory(Erl.atom(\"code\"))\n",
     Spawn = "spawn(fn() = Unit)\n",
     ok = file:write_file(InputFile, ["foreign fn memory(k : Foreign.Term) : Int with m ="
@@ -1398,10 +1381,7 @@ expressions_again_leave_no_code() ->
                                      [[lists:duplicate(100, Spawn), Code] || _ <- lists:seq(1, 3)],
                                      lists:duplicate(200, Spawn), Code]),
     {0, Output} = sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
-    [_, _, Before, After] = [binary_to_integer(Digits) || {match, [Digits]} <-
-                           [re:run(Line, "^> ([0-9]{7,}) : Int$",
-                                   [{capture, all_but_first, binary}])
-                            || Line <- binary:split(Output, <<"\n">>, [global])]],
+    [_, _, Before, After] = answers(Output, 7),
     ?assert(After - Before < 2000).
 
 %% report §11.2, §6.10: a declaration made again is let go only when
@@ -1412,7 +1392,7 @@ declarations_kept_while_reached_test_() ->
     {timeout, 120, fun declarations_kept_while_reached/0}.
 
 declarations_kept_while_reached() ->
-    InputFile = filename:join("/tmp", "ern_reached_" ++ os:getpid() ++ ".in"),
+    InputFile = scratch_file("ern_reached_"),
     ok = file:write_file(InputFile, ["fn f(n : Int) : Int = n\n",
                                      "fn g(n : Int) : Int = f(n) + 1\n",
                                      "let h = f\n",
@@ -1541,8 +1521,7 @@ open_binding_test_() ->
     {timeout, 60, fun open_binding/0}.
 
 open_binding() ->
-    InputFile = filename:join("/tmp", "ern_open_"
-                                      ++ integer_to_list(erlang:unique_integer([positive]))),
+    InputFile = scratch_file("ern_open_"),
     ok = file:write_file(InputFile,
                          "let p = spawn(fn() = receive { _ -> Unit })\n"
                          "let q : Address(Int) = spawn(fn() = receive { _ -> Unit })\n"
@@ -1568,8 +1547,7 @@ annotated_let_test_() ->
     {timeout, 60, fun annotated_let/0}.
 
 annotated_let() ->
-    InputFile = filename:join("/tmp", "ern_let_"
-                                      ++ integer_to_list(erlang:unique_integer([positive]))),
+    InputFile = scratch_file("ern_let_"),
     ok = file:write_file(InputFile, "let w : Int = \"x\"\nlet n : Int = 2\nn + 1\n"),
     {0, Output} = sh("../bin/ern shell < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"the value does not have the declared type:"
@@ -1590,8 +1568,7 @@ later_member_test_() ->
     {timeout, 60, fun later_member/0}.
 
 later_member() ->
-    InputFile = filename:join("/tmp", "ern_member_"
-                                      ++ integer_to_list(erlang:unique_integer([positive]))),
+    InputFile = scratch_file("ern_member_"),
     ok = file:write_file(InputFile, "type Coin = Coin(Int)\n"
                                     "fn Coin.+(Coin(a), Coin(b)) = Coin(a + b)\n"
                              "Coin(1) + Coin(2)\n"
@@ -1611,8 +1588,7 @@ input_reads_line_test_() ->
     {timeout, 60, fun input_reads_line/0}.
 
 input_reads_line() ->
-    InputFile = filename:join("/tmp", "ern_read_"
-                                      ++ integer_to_list(erlang:unique_integer([positive]))),
+    InputFile = scratch_file("ern_read_"),
     ok = file:write_file(InputFile, "Io.readLine()\n1 + 1\n"),
     {0, Output} = sh("../bin/ern shell < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"the shell holds the terminal; run the program with"
@@ -1637,8 +1613,7 @@ reply_input_test_() ->
     {timeout, 60, fun reply_input/0}.
 
 reply_input() ->
-    InputFile = filename:join("/tmp", "ern_reply_"
-                                      ++ integer_to_list(erlang:unique_integer([positive]))),
+    InputFile = scratch_file("ern_reply_"),
     Take = "receive { Get(reply = r) -> Get(reply = r) | Stop -> Stop | after 0 -> Stop }",
     ok = file:write_file(InputFile, ["type Req = Get(reply : Reply(Int)) | Stop\n",
                                      Take, "\n",
@@ -1659,8 +1634,7 @@ pattern_let_test_() ->
     {timeout, 60, fun pattern_let/0}.
 
 pattern_let() ->
-    InputFile = filename:join("/tmp", "ern_plet_"
-                                      ++ integer_to_list(erlang:unique_integer([positive]))),
+    InputFile = scratch_file("ern_plet_"),
     ok = file:write_file(InputFile, "let #(a, b) = #(1, \"two\")\n"
                                     "a + 1\n"
                              "type P = P(name : String, age : Int)\n"
@@ -1691,8 +1665,7 @@ effect_variable_test_() ->
     {timeout, 60, fun effect_variable/0}.
 
 effect_variable() ->
-    InputFile = filename:join("/tmp", "ern_eff_"
-                                      ++ integer_to_list(erlang:unique_integer([positive]))),
+    InputFile = scratch_file("ern_eff_"),
     ok = file:write_file(InputFile, "receive { after 300 -> 5 }\n"
                                     "let h = fn() = Io.println(\"x\")\n"
                              "h()\n"
@@ -1715,8 +1688,7 @@ lambda_let_test_() ->
     {timeout, 60, fun lambda_let/0}.
 
 lambda_let() ->
-    InputFile = filename:join("/tmp", "ern_lam_"
-                                      ++ integer_to_list(erlang:unique_integer([positive]))),
+    InputFile = scratch_file("ern_lam_"),
     ok = file:write_file(InputFile, "let id = fn(x) = x\n"
                                     "#(id(1), id(\"a\"))\n"
                              "let same = fn(a, b) = a == b\n"
@@ -1737,8 +1709,7 @@ library_file_test_() ->
     {timeout, 60, fun library_file/0}.
 
 library_file() ->
-    Dir = filename:join("/tmp", "ern_lib_" ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
+    Dir = scratch("ern_lib_"),
     ok = file:write_file(filename:join(Dir, "twice.ern"), "export fn of(n : Int) : Int = 2 * n\n"),
     ok = file:write_file(filename:join(Dir, "in"), "Twice.of(21)\n"),
     {0, _} = sh("../bin/ern build --source-root " ++ Dir ++ " --build-root " ++ Dir ++ " "
@@ -1755,8 +1726,7 @@ shell_os_test_() ->
     {timeout, 60, fun shell_os/0}.
 
 shell_os() ->
-    Dir = filename:join("/tmp", "ern_os_" ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
+    Dir = scratch("ern_os_"),
     ok = file:write_file(filename:join(Dir, "in"),
                          "Os.arguments\nOs.exit(2)\nOs.environment(\"ERN_SEEN\")\n"),
     {0, Output} = sh("HOME=" ++ Dir ++ " ERN_SEEN=yes ../bin/ern shell < "
@@ -1774,8 +1744,7 @@ non_entry_main_test_() ->
     {timeout, 60, fun non_entry_main/0}.
 
 non_entry_main() ->
-    Dir = filename:join("/tmp", "ern_main_" ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Dir),
+    Dir = scratch("ern_main_"),
     ok = file:write_file(filename:join(Dir, "main.ern"),
                          "export fn main() : Int with m = { Io.println(\"spawned\"); 3 }\n"),
     ok = file:write_file(filename:join(Dir, "in"), "1 + 1\n"),
@@ -1800,8 +1769,7 @@ holders_freed_test_() ->
     {timeout, 60, fun holders_freed/0}.
 
 holders_freed() ->
-    InputFile = filename:join("/tmp", "ern_holders_"
-                              ++ integer_to_list(erlang:unique_integer([positive]))),
+    InputFile = scratch_file("ern_holders_"),
     ok = file:write_file(InputFile, ["40 + 2\n", "fn f() : Int = it + 1\n", "let x = 7\n",
                                      [[integer_to_list(Index), "\n"] || Index <- lists:seq(1, 30)],
                                      "f()\n", "x\n", "it\n"]),
@@ -1897,8 +1865,7 @@ shown_bytes_test_() ->
     {timeout, 60, fun shown_bytes/0}.
 
 shown_bytes() ->
-    InputFile = filename:join("/tmp", "ern_bytes_"
-                                      ++ integer_to_list(erlang:unique_integer([positive]))),
+    InputFile = scratch_file("ern_bytes_"),
     ok = file:write_file(InputFile, "Io.write(<<104, 255, 105, 10>>)\nIo.write(<<195>>)\n"
                          "Io.write(<<169, 10>>)\nIo.println(\"h\\u{e9}\")\n"),
     {0, Output} = sh("LANG=C ../bin/ern shell < " ++ InputFile),
@@ -1914,8 +1881,7 @@ prelude_doc_test_() ->
     {timeout, 60, fun prelude_doc/0}.
 
 prelude_doc() ->
-    InputFile = filename:join("/tmp", "ern_pdoc_"
-                                      ++ integer_to_list(erlang:unique_integer([positive]))),
+    InputFile = scratch_file("ern_pdoc_"),
     ok = file:write_file(InputFile, ":doc monitor\n:doc Down\n:doc restarting\n:doc Int.compare\n"),
     {0, Output} = sh("../bin/ern shell < " ++ InputFile),
     ?assertMatch({_, _}, binary:match(Output, <<"> monitor\n\n    monitor : ">>)),
@@ -1934,8 +1900,7 @@ one_name_type_test_() ->
     {timeout, 60, fun one_name_type/0}.
 
 one_name_type() ->
-    InputFile = filename:join("/tmp", "ern_name_"
-                                      ++ integer_to_list(erlang:unique_integer([positive]))),
+    InputFile = scratch_file("ern_name_"),
     ok = file:write_file(InputFile, ":type Io.readLine\n:type spawn\nIo.readLine\n"
                                     ":type List.map([1], fn(x) = x)\n"),
     {0, Output} = sh("../bin/ern shell < " ++ InputFile),
@@ -1959,9 +1924,7 @@ doc_every_name_test_() ->
     {timeout, 60, fun doc_every_name/0}.
 
 doc_every_name() ->
-    SourceRoot = filename:join("/tmp", "ern_docroot_" ++ os:getpid() ++ "_"
-                               ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(SourceRoot),
+    SourceRoot = scratch("ern_docroot_"),
     ok = file:write_file(filename:join(SourceRoot, "m.ern"),
                          "/// A little module.\n///\n/// since 0.1.0\n\n"
                          "/// A colour.\nexport type Colour = Red | Green\n"),
@@ -2006,8 +1969,7 @@ session_names_test_() ->
     {timeout, 60, fun session_names/0}.
 
 session_names() ->
-    InputFile = filename:join("/tmp", "ern_names_"
-                                      ++ integer_to_list(erlang:unique_integer([positive]))),
+    InputFile = scratch_file("ern_names_"),
     Wait = "receive { n -> Io.println(Int.toString(n)) }",
     ok = file:write_file(InputFile, ["fn main() : Int = 1\n", "main()\n",
                                      "fn start() : Address(Int) with m = spawn(fn() = ", Wait,
@@ -2069,9 +2031,7 @@ reload_test_() ->
     {timeout, 60, fun reload/0}.
 
 reload() ->
-    Unique = integer_to_list(erlang:unique_integer([positive])),
-    Dir = filename:join("/tmp", "ern_reload_" ++ Unique),
-    ok = filelib:ensure_path(Dir),
+    Dir = scratch("ern_reload_"),
     ok = file:write_file(filename:join(Dir, "demo.ern"), demo(1)),
     InputFile = filename:join(Dir, "session.in"),
     ok = file:write_file(InputFile, [":load Demo\n",
@@ -2212,12 +2172,30 @@ load_evaluates_bindings() ->
     ?assertMatch({_, _}, binary:match(Output, <<"the binding has no value, since one before it"
                                                 " faulted">>)).
 
-%% A directory of its own under /tmp, for a test's sources.
+%% A directory of its own under /tmp, for a test's sources or a home. The
+%% operating system's pid as well as the counter: the counter starts again
+%% in every run, so a name made by it alone could be one an earlier run
+%% left, and a session would read what it holds, a history, as its own.
 scratch(Prefix) ->
-    Dir = filename:join("/tmp", Prefix ++ os:getpid() ++ "_"
-                        ++ integer_to_list(erlang:unique_integer([positive]))),
+    Dir = scratch_name(Prefix),
     ok = filelib:ensure_path(Dir),
     Dir.
+
+%% The integers a session answered with, `> n : Int`, each of at least
+%% Digits digits, in the order it answered them.
+answers(Output, Digits) ->
+    Pattern = "^> ([0-9]{" ++ integer_to_list(Digits) ++ ",}) : Int$",
+    [binary_to_integer(Number)
+     || Line <- binary:split(Output, <<"\n">>, [global]),
+        {match, [Number]} <- [re:run(Line, Pattern, [{capture, all_but_first, binary}])]].
+
+%% A file of its own under /tmp, for a session's inputs.
+scratch_file(Prefix) ->
+    scratch_name(Prefix) ++ ".in".
+
+scratch_name(Prefix) ->
+    filename:join("/tmp", Prefix ++ os:getpid() ++ "_"
+                  ++ integer_to_list(erlang:unique_integer([positive]))).
 
 %% report §11.2: `:load` of a module the session has loaded is refused and
 %% names `:reload`, which is what compiles a loaded module again; a process
@@ -2347,8 +2325,8 @@ load_refuses_stale_compiled() ->
     ok = file:write_file(filename:join(Library, "user.ern"),
                          "export fn twice() : Int = Dep.answer() * 2\n"),
     Compile = fun(Path) ->
-                      {0, _} = sh("../bin/ern build --source-root " ++ Library ++ " --build-root "
-                                  ++ Build ++ " " ++ Path)
+                  {0, _} = sh("../bin/ern build --source-root " ++ Library ++ " --build-root "
+                              ++ Build ++ " " ++ Path)
               end,
     Compile(Library),
     %% Dep's interface changes, and Dep alone is built again
@@ -2460,8 +2438,8 @@ load_words_segment_test() ->
 with_loaded(Dir, Modules) ->
     ern_shell:loaded(#{source_root => Dir}),
     lists:foldl(fun(Module, Session) ->
-                        {'Right', {Session1, _}} = ern_shell:load(Session, Module),
-                        Session1
+                    {'Right', {Session1, _}} = ern_shell:load(Session, Module),
+                    Session1
                 end, ern_shell:start(), Modules).
 
 %% The front end keeps the session where completion reads it; a test that
@@ -2527,14 +2505,9 @@ no_home() ->
 alone(Command) ->
     "HOME=" ++ fresh_home() ++ " " ++ Command.
 
-%% The operating system's pid as well as the counter: the counter starts
-%% again in every run, so a home named by it alone would hold the history
-%% an earlier run left, and a session would read it as its own.
+%% A home of its own, which holds no history but the session's.
 fresh_home() ->
-    Home = filename:join("/tmp", "ern_home_" ++ os:getpid() ++ "_"
-                         ++ integer_to_list(erlang:unique_integer([positive]))),
-    ok = filelib:ensure_path(Home),
-    Home.
+    scratch("ern_home_").
 
 hex(Text) ->
     lists:flatten([io_lib:format("~2.16.0b", [Char]) || Char <- Text]).
