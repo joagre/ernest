@@ -29,8 +29,13 @@ tmp() ->
 %% the build that replaces it, and the copy's directory returns to the code
 %% path after. A regression test: such a copy stopped `make` until
 %% build/stdlib was removed by hand. Not covered: a copy read while another
-%% root builds, which is the library's and must be readable.
-stdlib_build_sets_its_copy_aside_test() ->
+%% root builds, which is the library's and must be readable. A build of the
+%% whole library, about a second and a half alone, runs beside every other
+%% suite under `make test`, past eunit's five seconds once
+stdlib_build_sets_its_copy_aside_test_() ->
+    {timeout, 60, fun stdlib_build_sets_its_copy_aside/0}.
+
+stdlib_build_sets_its_copy_aside() ->
     Installed = filename:join(tmp(), "stdlib"),
     ok = filelib:ensure_path(Installed),
     ok = file:write_file(filename:join(Installed, "ern@unreadable.beam"), <<"not a module">>),
