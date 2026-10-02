@@ -6,6 +6,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/file.hrl").
+-include_lib("cli/include/ern_build.hrl").
 
 %% report §11.2, §11.5: an expression prints its value and its type, one of
 %% type Unit prints nothing, an input that does not check shows the error
@@ -2398,7 +2399,7 @@ browse_effect_parameter_test() ->
 not_a_name_test() ->
     Long = list_to_binary(lists:duplicate(300, $a)),
     try
-        ern_shell:loaded(#{}),
+        ern_shell:loaded(#loaded{}),
         Session = ern_shell:start(),
         ?assertMatch({'Left', <<". is not a module name", _/binary>>},
                      ern_shell:load(Session, <<".">>)),
@@ -2436,7 +2437,7 @@ load_words_segment_test() ->
 %% A session begun with the modules of Dir loaded by `:load`, one after
 %% the other, kept where completion reads it.
 with_loaded(Dir, Modules) ->
-    ern_shell:loaded(#{source_root => Dir}),
+    ern_shell:loaded(#loaded{source_root = Dir}),
     lists:foldl(fun(Module, Session) ->
                     {'Right', {Session1, _}} = ern_shell:load(Session, Module),
                     Session1

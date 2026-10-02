@@ -56,22 +56,19 @@
 -record(startup_input, {file, line, column}).
 
 %% Report §11.2: what the runner loaded before the shell started, which the
-%% shell begins from: the load path, where a module's source is found, the
-%% interfaces of the loaded modules, and the entry point to spawn beside the
-%% prompt.
--spec loaded(map()) -> ok.
-loaded(What) ->
-    persistent_term:put({?MODULE, loaded}, What).
+%% shell begins from.
+-spec loaded(#loaded{}) -> ok.
+loaded(Loaded) ->
+    persistent_term:put({?MODULE, loaded}, Loaded).
 
 -spec start() -> #session{}.
 start() ->
-    What = persistent_term:get({?MODULE, loaded}, #{}),
-    Loaded = maps:get(interfaces, What, []),
-    remember(#session{load_path = maps:get(load_path, What, []),
-                      source_root = maps:get(source_root, What, "."),
-                      interfaces = [Interface || {Interface, _} <- Loaded],
+    #loaded{load_path = LoadPath, source_root = SourceRoot, interfaces = Interfaces} =
+        persistent_term:get({?MODULE, loaded}, #loaded{}),
+    remember(#session{load_path = LoadPath, source_root = SourceRoot,
+                      interfaces = [Interface || {Interface, _} <- Interfaces],
                       modules = maps:from_list([{Interface#interface.namespace, Hash}
-                                                || {Interface, Hash} <- Loaded])}).
+                                                || {Interface, Hash} <- Interfaces])}).
 
 %% Report §11.2: the session as it stands, which completion reads. The
 %% reader asks for the names while an input runs, when the session is busy
@@ -89,9 +86,9 @@ remember(Session) ->
 %% session subscribed before (E.21).
 -spec program() -> {'Some', pid()} | 'None'.
 program() ->
-    case persistent_term:get({?MODULE, loaded}, #{}) of
-        #{entry := #entry_point{erlang_module = ErlangModule, function = Function,
-                                site = Site}} ->
+    case persistent_term:get({?MODULE, loaded}, #loaded{}) of
+        #loaded{entry = #entry_point{erlang_module = ErlangModule, function = Function,
+                                     site = Site}} ->
             ErlangFunction = ern_emitter:function_atom(Function),
             {'Some', ern_rt:spawn(fun() -> ErlangModule:ErlangFunction() end, Site)};
         _ ->
@@ -104,8 +101,8 @@ program() ->
 %% are is the host's to say.
 -spec startup_files() -> [binary()].
 startup_files() ->
-    What = persistent_term:get({?MODULE, loaded}, #{}),
-    [unicode:characters_to_binary(ern_build:shown(File)) || File <- maps:get(startups, What, [])].
+    #loaded{startups = Startups} = persistent_term:get({?MODULE, loaded}, #loaded{}),
+    [unicode:characters_to_binary(ern_build:shown(File)) || File <- Startups].
 
 %% Report §11.2: at a terminal the shell takes another line where the
 %% parser cannot finish the input. Both readings are tried, the expression

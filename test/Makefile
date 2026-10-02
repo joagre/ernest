@@ -102,8 +102,11 @@ bench: $(EBIN)/ern_bench.beam prepare
 clean:
 	rm -rf $(EBIN) build
 
+# ERL_LIBS lets -include_lib("app/include/x.hrl") find the applications
+# under erl/; it is the compiler's alone, so that no program a test runs
+# finds the toolchain's modules through it.
 $(EBIN)/%.beam: %.erl | $(EBIN)
-	erlc $(ERLC_FLAGS) -o $(EBIN) $<
+	ERL_LIBS=$(abspath ../erl) erlc $(ERLC_FLAGS) -o $(EBIN) $<
 
 $(EBIN):
 	mkdir -p $(EBIN)

@@ -637,19 +637,18 @@ shell(Options, Rest, ErrorDevice) ->
                    %% report §11.2: --main names a function of the file
                    not lists:keymember(main, 1, Options) orelse usage_fail(no_main_file()),
                    host_path(ern_build:load_path(Options)),
-                   ern_shell:loaded(#{load_path => ern_build:load_path(Options),
-                                      source_root => ern_build:source_root(Options, ".", "."),
-                                      interfaces => [], entry => none,
-                                      startups => startups(Options)}),
+                   ern_shell:loaded(#loaded{load_path = ern_build:load_path(Options),
+                                            source_root = ern_build:source_root(Options, ".", "."),
+                                            startups = startups(Options)}),
                    init_fun([ErlangModule]);
                [File] ->
                    {Namespace, LoadPath, Loaded} = program(File, Options),
                    {Entry, Loaded1} = shell_entry(Options, Namespace, LoadPath, Loaded),
-                   ern_shell:loaded(#{load_path => LoadPath,
-                                      source_root => ern_build:source_root(Options, File, "."),
-                                      interfaces => interfaces(Loaded1),
-                                      entry => Entry,
-                                      startups => startups(Options)}),
+                   ern_shell:loaded(#loaded{load_path = LoadPath,
+                                            source_root = ern_build:source_root(Options, File,
+                                                                                "."),
+                                            interfaces = interfaces(Loaded1), entry = Entry,
+                                            startups = startups(Options)}),
                    init_fun(Loaded1 ++ [ErlangModule]);
                _ ->
                    usage_fail("at most one .erc file argument")
