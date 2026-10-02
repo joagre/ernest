@@ -22,8 +22,8 @@ its readers ran on 2026-09-30, on `57b8356`, and it was worked on 2026-10-01 in 
 and closed (the log's *The Attack Plan* and *The Principles Review Closed*); the review before
 a release ran the same day, and Ernest 0.2.0, the second release, is tagged `v0.2.0` on
 2026-10-01 (the log's *The Release Review Before 0.2.0*), the last milestone done; MVP 2.99b
-resumes at item 5, the operations' build, at the user's choice, items 4, 6 and 7 having been
-done on 2026-10-02. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+resumes at item 15, the Ernest renamed, items 4, 6 and 7 having been done on 2026-10-02;
+item 15 was moved to follow item 7 the same day (the log's *The Ernest Renamed Next*). Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -79,7 +79,9 @@ the guide last. The namespace moved from the tenth item to the fourth on
 2026-10-01, items 4 to 9 becoming 5 to 10 (the log's *The Namespace Item First*); items 11
 and 12, the operations' build, joined item 5 on 2026-10-02, and their numbers stand (the
 log's *The Operations Decided and Built*); item 17, the soak, was removed the same day,
-`make load` standing for it (the log's *MVP 2.99b Read After the Review*).
+`make load` standing for it (the log's *MVP 2.99b Read After the Review*); item 15, the
+Ernest renamed, moved to follow item 7 the same day, so that the Ernest every later item
+writes is written in its names (the log's *The Ernest Renamed Next*).
 The principles review, a milestone of its own below, ran between items 3 and 4, since the
 operations' decision, item 5, is decided under the principles it sharpens (decided
 2026-09-30, the log's *The Principles Review*).
@@ -263,13 +265,14 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     none of the shape, `String.<>` and the `compare`s, since the operation is the host's alone
     (Appendix E.0 rule 1). §9.6's sentences that such a body is no recursive call go, and so
     does the checker's case for them; an operator costs what it costs now, which `make bench`
-    measures. After item 13 and before item 15, so that the Ernest is read as it stays. Kept,
+    measures. After item 15, so that its declarations are written in item 15's names. Kept,
     decided with the user 2026-10-02 (the log's *MVP 2.99b's Questions, One by One*).
 15. **Names that read, in Ernest**: the standard library, the shell, the libraries and the
     examples, read and renamed as item 7 renames the Erlang, a type, a constructor and a field
     among the names, the glossary corrected as it goes and each name that differs from the
-    report's brought to the user, after items 5, 13 and 14 so that the code they write is read once
-    with the rest. A name the report states, an exported function's or a constructor's, changes only
+    report's brought to the user. It follows item 7, moved there on 2026-10-02 (the log's
+    *The Ernest Renamed Next*), so that the Ernest items 5, 14, 16 and 20 write is written in
+    its names. A name the report states, an exported function's or a constructor's, changes only
     through the report. Among it the shell's `obey`, which writes each refusal eight times,
     the editor's names that mean two things, `back`, `from` and `step`, and what
     `complete.ern` repeats (C3-35 to C3-37), and the shell's `Env`, a `Session` as the front
