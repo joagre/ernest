@@ -306,7 +306,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     results with `ask`, with entry 79's build. Entries 81 and 82: `monitor` takes a `Process`,
     `monitor : (Process, (Down) -> m) -> Unit with m`, replacing the address form, since §6.5's
     address is the permission to send and watching needs only identity; `kill` keeps the
-    address; about half a day with §6.9, §9.5, the call sites, the tests and the guide. Entry
+    address; about half a day with §6.9, §9.5, Appendix F's *monitor*, E.18's sentence that a
+    socket's address can be monitored, the call sites, the tests and the guide. Entry
     83: a test may receive, `type Case(m) = Case(name : String, run : () -> Result with m)`, as
     an entry point does (§8.1), each test in a process whose mailbox type is `m`, an `m` left
     open being `Never` as §8.1 has it for an entry point; the polling loops go; about half a day with E.24 and §11.2. Entry 84: E.1's type known whole kept, the
