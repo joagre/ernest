@@ -190,13 +190,24 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    first moments alone, as §0's host paragraph asks, and under systemd's default kill mode the
    host would be signalled directly anyway; the window is the host's limit, stated in §8.6 and
    §11.8, and taken to OTP's maintainers (*Standing gaps*).
-7. **Names that read, in Erlang**, about a week: every module under `erl/` and `test/` read
-   for its names and renamed where a name does not say what its value or its work is, a
-   variable, a function, a record and its fields, by the glossary, which it corrects as it
-   goes (item 2), each name that differs from the report's brought to the user. Area by area, a commit each that changes names and nothing else, the area's tests green before the next; the code grows
-   longer, and the line stays at 100 characters. Before the toolchain's changes below, so that
-   they are written in the new names. A full sweep by [`style.md`](style.md), every name read,
-   decided with the user 2026-10-02 (the log's *The Renamings Kept Whole*).
+7. **Names and form that read, in Erlang**, about a week and a half: every module under
+   `erl/` and `test/` read for its names and its form by [`style.md`](style.md), in two
+   commits an area. The first renames where a name does not say what its value or its work
+   is, a variable, a function, a record and its fields, by the glossary, which it corrects as
+   it goes (item 2), each name that differs from the report's brought to the user; it changes
+   names and nothing else, so that the compiler and a diff verify it. The second applies the
+   rules no test checks: a function that reads on one screen, nesting bounded by the line, a
+   value of more than three parts and a tuple of more than two that crosses modules as
+   records, a precondition on one line, a module with one job and a first comment that says
+   it, a comment that says why and cites its section; where a rule would make the code read
+   worse, judgment goes first, as `style.md` says, and no comment marks the departure. A
+   tuple that crosses the foreign boundary or stands in a `.erc` chunk is §8.4's or §11.1's
+   shape and not the sweep's. The area's tests are green before the next, `make load` runs
+   after the runtime's form and `make bench` after each area's; the code grows longer, and the
+   line stays at 100 characters. Before the toolchain's changes below, so that they are
+   written in the new names. A full sweep by `style.md`, every name read, decided with the
+   user 2026-10-02 (the log's *The Renamings Kept Whole*), and widened to the form the same
+   day (the log's *The Sweep Takes the Form Too*).
 8. **The hardening the code readers found** (C1-5, C1-9, C1-10, C3-26 to C3-31; and 0.2.0's C-1,
    a read's and a write's timers in `Os` and a write's in `Tcp` cancelled when the request is
    answered, as the socket's read cancels its own), in the new names; `findings.md` goes when this item and items 7, 15, 19 and 20 are done, with MVP 2.99b. With it the shell's and `ern
@@ -256,7 +267,11 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     through the report. Among it the shell's `obey`, which writes each refusal eight times,
     the editor's names that mean two things, `back`, `from` and `step`, and what
     `complete.ern` repeats (C3-35 to C3-37). A full sweep by [`style.md`](style.md), as item 7
-    is, decided with the user 2026-10-02 (the log's *The Renamings Kept Whole*).
+    is, decided with the user 2026-10-02 (the log's *The Renamings Kept Whole*), and of the
+    form too, in a second commit an area, `style.md`'s Ernest rules, the top-down order, a
+    block for more than one statement, a blank line that groups, a part of a long expression
+    named, a section's banner (the log's *The Sweep Takes the Form Too*); about a week and a
+    half.
 16. **The guide's §7.3**, over the finished code and its names: it says "operations record"
     and shows code written once, a representation's own functions beside the record's, two
     ordered sets of two orders, two element types, that cannot meet in a record's `union`, and
