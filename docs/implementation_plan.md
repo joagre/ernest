@@ -21,11 +21,12 @@ and the guide read against §0 and §0 against what it decided, a milestone of i
 its readers ran on 2026-09-30, on `57b8356`, and it was worked on 2026-10-01 in seven phases
 and closed (the log's *The Attack Plan* and *The Principles Review Closed*); the review before
 a release ran the same day, and Ernest 0.2.0, the second release, is tagged `v0.2.0` on
-2026-10-01 (the log's *The Release Review Before 0.2.0*), the last milestone done; MVP 2.99b
-resumes at item 15, the Ernest renamed, items 4, 6 and 7 having been done on 2026-10-02,
-and item 7's code read again by six readers the same day (the log's *The Erlang Read
-Again*); item 15 was moved to follow item 7 the same day (the log's *The Ernest Renamed
-Next*). Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+2026-10-01 (the log's *The Release Review Before 0.2.0*), the last milestone done. In MVP
+2.99b items 4, 6, 7 and 15 were done on 2026-10-02: item 7's code read again by six readers
+the same day (the log's *The Erlang Read Again*), and item 15, moved to follow it (the log's
+*The Ernest Renamed Next*), the Ernest read and renamed (the log's *The Ernest Read and
+Renamed*); item 21 asks the user whether the report's and the guide's blocks are read the
+same way. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -82,7 +83,9 @@ and 12, the operations' build, joined item 5 on 2026-10-02, and their numbers st
 log's *The Operations Decided and Built*); item 17, the soak, was removed the same day,
 `make load` standing for it (the log's *MVP 2.99b Read After the Review*); item 15, the
 Ernest renamed, moved to follow item 7 the same day, so that the Ernest every later item
-writes is written in its names (the log's *The Ernest Renamed Next*).
+writes is written in its names (the log's *The Ernest Renamed Next*); item 21, whether the
+report's and the guide's blocks are read as item 15 read the rest, was added when item 15
+closed, after the guide's items (the log's *The Ernest Read and Renamed*).
 The principles review, a milestone of its own below, ran between items 3 and 4, since the
 operations' decision, item 5, is decided under the principles it sharpens (decided
 2026-09-30, the log's *The Principles Review*).
@@ -278,7 +281,18 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     does the checker's case for them; an operator costs what it costs now, which `make bench`
     measures. After item 15, so that its declarations are written in item 15's names. Kept,
     decided with the user 2026-10-02 (the log's *MVP 2.99b's Questions, One by One*).
-15. **Names that read, in Ernest**: the standard library, the shell, the libraries and the
+15. **Names that read, in Ernest**, done 2026-10-02 (the log's *The Ernest Read and
+    Renamed*): the standard library, the shell, `libs/`, `examples/`, `tools/` and the
+    programs under `test/` read, two commits an area, the names and then the form, the
+    glossary given `test`, `char`, `error`, `cursor` and `serial`. The shell's `obey`, the
+    editor's `back`, `from` and `step`, and what `complete.ern` repeated (C3-35 to C3-37) were
+    fixed where they stood; the shell's `Env` is a `Session`, an input's number its serial, and
+    a module of two words a file of the words joined by `_`, `kv_parser`, `file_sync` and
+    `web_server`. No name the report states changed; Appendix D's block took `libs/ets`'s
+    names. It found one defect, fixed with its test: the Emacs mode laid an arm's braced body
+    out from its guard's last line where the guard spans lines, and `ern format` from the
+    arm's first. The examples that copy the report's or the guide's blocks keep theirs, which item
+    21 decides. As it was planned: the standard library, the shell, the libraries and the
     examples, read and renamed as item 7 renames the Erlang, a type, a constructor and a field
     among the names, the glossary corrected as it goes and each name that differs from the
     report's brought to the user. It follows item 7, moved there on 2026-10-02 (the log's
@@ -370,6 +384,14 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     and `language_feedback.md` holds no entry; what remains is to build what the decisions
     admitted, entries 76, 79, 81 and 82, 83 and 85 and the rule for a recursive type, about
     five days, its report sentences with its code.
+21. **The report's and the guide's Ernest blocks by `style.md`**, a decision with the user:
+    `style.md` binds every Ernest block of the report and the guide, and item 15 read every
+    Ernest source but those (the log's *The Ernest Read and Renamed*). Their blocks hold
+    one-letter names the glossary rules out, `c` for the counter's address, `n`, `r` and `k`,
+    and `pongAddr`, and six examples copy them, `counter`, `pingpong`, `hello`, `stack`,
+    `upgrade` and `modules`. Recommended: read them after items 16 and 20 rewrite parts of the
+    guide, so that each block is read once, the guide's sentences that cite a name changing
+    with it and the copies following; about a day.
 
 ---
 

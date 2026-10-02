@@ -57,6 +57,7 @@ For every Ernest source and every Ernest block of the report and the guide. The 
 - **A section's banner** is a line `//`, lines `// text`, and a line `//`, with a blank line before and after. A module with a doc block has no banner for the file; its `///` block is its header (report §2.2).
 - **An exported function's parameters are named for their role**, since the shell and `ern doc` show the signature: `List.filter(list, keep)`; `xs` and `f` only where nothing more can be said.
 - **A message type's constructors**: a request in the imperative, `Subscribe`; an event in the past tense, `Resized`.
+- **A module of two words or more is a file of those words joined by `_`** (report §4.2): `kv_parser.ern` for `KvParser`, not `kvparser.ern`, which is the one word `Kvparser`.
 
 Code in that layout:
 
@@ -78,7 +79,7 @@ Code in that layout:
 
 ## Glossary
 
-The names that recur across modules, one for each concept, in every module. A word is spelled as each language spells a name: `Descriptor` an Erlang variable, `descriptor` an Erlang function or field, an Ernest binding or parameter. The report is the authority: a concept it names takes its name. Drafted on 2026-10-01 from a survey of every module (MVP 2.99b's item 2), where the code departed from the report the report's word taken with the user; the renamings, items 6 and 15, correct it as they read the code name by name. A name not here is the writer's, under the rules above.
+The names that recur across modules, one for each concept, in every module. A word is spelled as each language spells a name: `Descriptor` an Erlang variable, `descriptor` an Erlang function or field, an Ernest binding or parameter. The report is the authority: a concept it names takes its name. Drafted on 2026-10-01 from a survey of every module (MVP 2.99b's item 2), where the code departed from the report the report's word taken with the user; the renamings, items 7 and 15, corrected it as they read the code name by name. A name not here is the writer's, under the rules above.
 
 **The compiler**
 
@@ -128,13 +129,17 @@ The names that recur across modules, one for each concept, in every module. A wo
 **Ernest**
 
 - A function's **subject** is named for its type, `list`, `text`, `map`, `set`, `bytes`, `path`, `table`, `process`. Not `xs`, `s`, `m`, `b`, `r`, `t`, `p`.
-- A **callback** is named for its role: `keep` for a predicate that keeps, `step` for a fold's or a try's (E.0 rule 2), `wrap` for what delivers a message (E.0 shape rule 8); `f` only where nothing more can be said. Not `p`, `g`.
-- **acc**: what a fold carries. Not `done`.
+- A **callback** is named for its role: `keep` for a predicate that keeps, `test` for one asked of each element, as `any`, `all`, `find`, `span` and `partition` ask it, `step` for a fold's or a try's (E.0 rule 2), `wrap` for what delivers a message (E.0 shape rule 8); `f` only where nothing more can be said. Not `p`, `g`.
+- **acc**: what a fold or a recursion carries. Not `done`.
 - **reply**: a `Reply`. Not `r`.
 - **index**: a position in a sequence (E.2, E.5); a place in a file is an `offset` (E.17). Not `at`, `i`, `from`, `start`.
 - **count**: how many. Not `n`, `length`.
 - **ms**: milliseconds (E.23); a moment is a `time`. Not `wait`, `t`.
 - **old, new**: what `replace` takes, in every module. Not `from`, `to`.
 - **cause**: as above. Not `why`, `c`, `text`.
+- **error**: an error a function answers, an `Io.Error` among them. Not `e`, `why`.
+- **char**: a `Char`. Not `c`, `ch`.
+- **cursor**: the place in the line being typed, in the shell's editor, region and completion. Not `at`.
+- **serial**: the number the shell gives an input, which its outcome carries, `Serial` in the Erlang. Not `run`, `n`.
 - A **request** constructor is the function it serves, `Read` for `read`; an **event** is in the past tense, `Resized`. Not `Recv`, `Measure`, `FarEnd`, `Resize`.
 - A prelude name, `Down`, `answer`, `kill`, is not bound to another concept.
