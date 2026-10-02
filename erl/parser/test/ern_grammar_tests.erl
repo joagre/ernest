@@ -62,21 +62,20 @@ decided() ->
 %% Appendix A's rules, each its name and its expression: {seq, Items},
 %% {alt, Branches}, {opt, Expr}, {rep, Expr}, {nt, Name} or {t, Token}.
 rules() ->
-    {ok, Report} = file:read_file(?REPORT),
-    Text = unicode:characters_to_list(Report),
-    [_, FromAppendix] = string:split(Text, "## Appendix A. Grammar"),
-    [Appendix | _] = string:split(FromAppendix, "## Appendix B"),
-    [_, Rest] = string:split(Appendix, "```\n"),
+    [_, Rest] = string:split(appendix(), "```\n"),
     [Grammar | _] = string:split(Rest, "```"),
     parse(tokens(Grammar)).
 
 %% The paragraph after the grammar, which names the tokens past the first.
 prose() ->
+    lists:last(string:split(appendix(), "```", all)).
+
+appendix() ->
     {ok, Report} = file:read_file(?REPORT),
     Text = unicode:characters_to_list(Report),
     [_, FromAppendix] = string:split(Text, "## Appendix A. Grammar"),
     [Appendix | _] = string:split(FromAppendix, "## Appendix B"),
-    lists:last(string:split(Appendix, "```", all)).
+    Appendix.
 
 tokens([]) -> [];
 tokens([Char | Rest]) when Char =:= $\s; Char =:= $\n -> tokens(Rest);
@@ -84,12 +83,13 @@ tokens([$" | Rest]) ->
     {Quoted, [$" | After]} = lists:splitwith(fun(Char) -> Char =/= $" end, Rest),
     [{t, Quoted} | tokens(After)];
 tokens([Letter | Rest]) when Letter >= $A, Letter =< $Z; Letter >= $a, Letter =< $z ->
-    {Word, After} = lists:splitwith(fun(Char) -> Char >= $A andalso Char =< $Z
-                                                     orelse Char >= $a andalso Char =< $z
-                                                     orelse Char >= $0 andalso Char =< $9
-                                    end, [Letter | Rest]),
+    {Word, After} = lists:splitwith(fun is_word_char/1, [Letter | Rest]),
     [{name, Word} | tokens(After)];
 tokens([Char | Rest]) -> [{punct, Char} | tokens(Rest)].
+
+is_word_char(Char) ->
+    Char >= $A andalso Char =< $Z orelse Char >= $a andalso Char =< $z
+        orelse Char >= $0 andalso Char =< $9.
 
 parse([]) -> [];
 parse([{name, Name}, {punct, $=} | Rest]) ->
@@ -183,7 +183,7 @@ follow_sets(Rules, First) ->
                               || {Name, _} <- Rules]),
     fix(fun(Follow) ->
             lists:foldl(fun({Name, Expr}, Acc) ->
-                                follows(Expr, maps:get(Name, Follow), First, Acc)
+                            follows(Expr, maps:get(Name, Follow), First, Acc)
                         end, Follow, Rules)
         end, Initial).
 
@@ -197,7 +197,7 @@ follows({rep, Expr}, After, First, Acc) ->
     follows(Expr, then(first(Expr, First), After), First, Acc);
 follows({seq, Items}, After, First, Acc) ->
     Step = fun(Item, {ItemAfter, ItemAcc}) ->
-                   {then(first(Item, First), ItemAfter), follows(Item, ItemAfter, First, ItemAcc)}
+               {then(first(Item, First), ItemAfter), follows(Item, ItemAfter, First, ItemAcc)}
            end,
     {_, Follows} = lists:foldr(Step, {After, Acc}, Items),
     Follows.
@@ -214,7 +214,7 @@ then(FirstSet, After) ->
 %% optional or repeated part and what may follow it.
 conflicts(Rule, {alt, Branches}, After, First) ->
     Sets = [then(first(Branch, First), After) || Branch <- Branches],
-    Numbered = lists:zip(lists:seq(1, length(Sets)), Sets),
+    Numbered = lists:enumerate(Sets),
     Shared = [Token || {Index, Set} <- Numbered, {OtherIndex, OtherSet} <- Numbered,
                        Index < OtherIndex, Token <- Set, lists:member(Token, OtherSet)],
     [{Rule, Token} || Token <- lists:usort(Shared)]
@@ -227,8 +227,8 @@ conflicts(Rule, {rep, Expr}, After, First) ->
         ++ conflicts(Rule, Expr, then(first(Expr, First), After), First);
 conflicts(Rule, {seq, Items}, After, First) ->
     Step = fun(Item, {ItemAfter, ItemAcc}) ->
-                   {then(first(Item, First), ItemAfter),
-                    conflicts(Rule, Item, ItemAfter, First) ++ ItemAcc}
+               {then(first(Item, First), ItemAfter),
+                conflicts(Rule, Item, ItemAfter, First) ++ ItemAcc}
            end,
     {_, Found} = lists:foldr(Step, {After, []}, Items),
     Found;

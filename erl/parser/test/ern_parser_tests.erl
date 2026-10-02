@@ -36,6 +36,32 @@ expression_help(Text) ->
     {error, #diagnostic{help = Help}} = ern_parser:parse_expr(Text),
     Help.
 
+%% The pattern of a match's one clause.
+pattern_of(Text) ->
+    #e_match{clauses = [#clause{pattern = Pattern}]} =
+        expression("match x { " ++ Text ++ " -> 0 }"),
+    Pattern.
+
+%% The type a `let` is annotated with.
+type_of(Text) ->
+    #let_declaration{annotation = Annotation} = declaration("let x : " ++ Text ++ " = y"),
+    Annotation.
+
+is_incomplete_expression(Text) ->
+    {error, #diagnostic{incomplete = Incomplete}} = ern_parser:parse_expr(Text),
+    Incomplete.
+
+is_incomplete_program(Text) ->
+    {error, #diagnostic{incomplete = Incomplete}} = ern_parser:parse_string(Text),
+    Incomplete.
+
+%% Where an unfinished expression stopped: the call it stopped within, and
+%% what may stand there.
+stopped_within(Text) ->
+    {error, #diagnostic{incomplete = true, within = Within, expected = Expected}} =
+        ern_parser:parse_expr(Text),
+    {Within, Expected}.
+
 %%
 %% Expressions
 %%
@@ -371,56 +397,57 @@ specifier_names_are_identifiers_test() ->
 
 %% report §5.10
 patterns_test() ->
-    PatternOf = fun(Text) ->
-                        #e_match{clauses = [#clause{pattern = Pattern}]} =
-                            expression("match x { " ++ Text ++ " -> 0 }"),
-                        Pattern
-                end,
-    ?assertMatch(#p_wildcard{}, PatternOf("_")),
-    ?assertMatch(#p_var{name = '_x'}, PatternOf("_x")),
-    ?assertMatch(#p_var{name = y}, PatternOf("y")),
-    ?assertMatch(#p_literal{kind = int, value = 1}, PatternOf("1")),
-    ?assertMatch(#p_literal{kind = int, value = -1}, PatternOf("-1")),
-    ?assertMatch(#p_literal{kind = float, value = -2.5}, PatternOf("-2.5")),
+    ?assertMatch(#p_wildcard{}, pattern_of("_")),
+    ?assertMatch(#p_var{name = '_x'}, pattern_of("_x")),
+    ?assertMatch(#p_var{name = y}, pattern_of("y")),
+    ?assertMatch(#p_literal{kind = int, value = 1}, pattern_of("1")),
+    ?assertMatch(#p_literal{kind = int, value = -1}, pattern_of("-1")),
+    ?assertMatch(#p_literal{kind = float, value = -2.5}, pattern_of("-2.5")),
     %% report §3.1: no negative zero, so `-0.0` is the zero; a regression
     %% test, it was the host's negative zero, which no value matched
-    ?assertMatch(#p_literal{kind = float, value = +0.0}, PatternOf("-0.0")),
-    ?assertMatch(#p_literal{kind = string, value = <<"let">>}, PatternOf("\"let\"")),
-    ?assertMatch(#p_literal{kind = char, value = $-}, PatternOf("'-'")),
-    ?assertMatch(#p_literal{kind = bool, value = false}, PatternOf("false")),
-    ?assertMatch(#p_constructor{name = 'None', args = none}, PatternOf("None")),
+    ?assertMatch(#p_literal{kind = float, value = +0.0}, pattern_of("-0.0")),
+    ?assertMatch(#p_literal{kind = string, value = <<"let">>}, pattern_of("\"let\"")),
+    ?assertMatch(#p_literal{kind = char, value = $-}, pattern_of("'-'")),
+    ?assertMatch(#p_literal{kind = bool, value = false}, pattern_of("false")).
+
+%% report §5.10
+constructor_patterns_test() ->
+    ?assertMatch(#p_constructor{name = 'None', args = none}, pattern_of("None")),
     ?assertMatch(#p_constructor{name = 'Some', args = {positional, #p_var{name = v}}},
-                 PatternOf("Some(v)")),
+                 pattern_of("Some(v)")),
     ?assertMatch(#p_constructor{name = 'Get',
                                 args = {named, [#field_pattern{name = reply,
                                                                pattern = #p_var{name = r}}]}},
-                 PatternOf("Get(reply = r)")),
-    ?assertMatch(#p_constructor{name = 'Get', args = {named, []}}, PatternOf("Get()")),
+                 pattern_of("Get(reply = r)")),
+    ?assertMatch(#p_constructor{name = 'Get', args = {named, []}}, pattern_of("Get()")),
     ?assertMatch(#p_constructor{name = 'Player',
                                 args = {named, [#field_pattern{pattern = #p_literal{}}]}},
-                 PatternOf("Player(alive = false)")),
+                 pattern_of("Player(alive = false)")),
     ?assertMatch(#p_constructor{path = ['Net', 'Http'], name = 'Request', args = {named, [_, _]}},
-                 PatternOf("Net.Http.Request(method = m, path = p)")),
-    ?assertMatch(#p_tuple{elements = [#p_var{}, #p_constructor{}]}, PatternOf("#(x, Some(y))")),
-    ?assertMatch(#p_list{elements = []}, PatternOf("[]")),
-    ?assertMatch(#p_list{elements = [#p_tuple{elements = [#p_wildcard{}, #p_var{}]}]},
-                 PatternOf("[#(_, v)]")),
-    ?assertMatch(#p_cons{head = #p_var{name = h}, tail = #p_var{name = t}}, PatternOf("h :: t")),
-    ?assertMatch(#p_cons{head = #p_literal{value = $-},
-                         tail = #p_cons{head = #p_literal{value = $>}}},
-                 PatternOf("'-' :: '>' :: r")),
-    ?assertMatch(#p_as{pattern = #p_cons{}, name = all}, PatternOf("x :: rest as all")),
+                 pattern_of("Net.Http.Request(method = m, path = p)")),
     ?assertMatch(#p_constructor{args = {positional,
                                         #p_as{pattern = #p_constructor{name = 'Snapshot'},
-                                                          name = snap}}},
-                 PatternOf("Some(Snapshot(dir = d) as snap)")),
+                                              name = snap}}},
+                 pattern_of("Some(Snapshot(dir = d) as snap)")).
+
+%% report §5.10
+compound_patterns_test() ->
+    ?assertMatch(#p_tuple{elements = [#p_var{}, #p_constructor{}]}, pattern_of("#(x, Some(y))")),
+    ?assertMatch(#p_list{elements = []}, pattern_of("[]")),
+    ?assertMatch(#p_list{elements = [#p_tuple{elements = [#p_wildcard{}, #p_var{}]}]},
+                 pattern_of("[#(_, v)]")),
+    ?assertMatch(#p_cons{head = #p_var{name = h}, tail = #p_var{name = t}}, pattern_of("h :: t")),
+    ?assertMatch(#p_cons{head = #p_literal{value = $-},
+                         tail = #p_cons{head = #p_literal{value = $>}}},
+                 pattern_of("'-' :: '>' :: r")),
+    ?assertMatch(#p_as{pattern = #p_cons{}, name = all}, pattern_of("x :: rest as all")),
     ?assertMatch(#p_bitstring{segments = [#bit_segment{value = #p_var{name = len},
                                                        specs = [{size, #e_literal{}}, big]},
                                           #bit_segment{value = #p_var{name = body},
                                                        specs = [{size, #e_var{name = len}}, bytes]},
                                           #bit_segment{value = #p_var{name = rest},
                                                        specs = [bytes]}]},
-                 PatternOf("<<len:size(16)-big, body:size(len)-bytes, rest:bytes>>")).
+                 pattern_of("<<len:size(16)-big, body:size(len)-bytes, rest:bytes>>")).
 
 %%
 %% Types
@@ -428,33 +455,28 @@ patterns_test() ->
 
 %% report §3, §3.4
 types_test() ->
-    TypeOf = fun(Text) ->
-                     #let_declaration{annotation = Annotation} =
-                         declaration("let x : " ++ Text ++ " = y"),
-                     Annotation
-             end,
-    ?assertMatch(#t_named{path = [], name = 'Int', args = []}, TypeOf("Int")),
-    ?assertMatch(#t_var{name = a}, TypeOf("a")),
+    ?assertMatch(#t_named{path = [], name = 'Int', args = []}, type_of("Int")),
+    ?assertMatch(#t_var{name = a}, type_of("a")),
     ?assertMatch(#t_named{name = 'Map', args = [#t_named{name = 'String'}, #t_var{name = v}]},
-                 TypeOf("Map(String, v)")),
+                 type_of("Map(String, v)")),
     ?assertMatch(#t_named{path = ['Ets'], name = 'Table', args = [_, _]},
-                 TypeOf("Ets.Table(k, v)")),
+                 type_of("Ets.Table(k, v)")),
     ?assertMatch(#t_tuple{elements = [#t_named{name = 'Int'}, #t_named{name = 'Bool'}]},
-                 TypeOf("#(Int, Bool)")),
+                 type_of("#(Int, Bool)")),
     ?assertMatch(#t_fn{params = [], result_type = #t_named{name = 'Unit'}, effect = undefined},
-                 TypeOf("() -> Unit")),
+                 type_of("() -> Unit")),
     ?assertMatch(#t_fn{params = [#t_named{name = 'A'}, #t_named{name = 'B'}],
                        result_type = #t_named{name = 'C'}, effect = #t_named{name = 'M'}},
-                 TypeOf("(A, B) -> C with M")),
-    ?assertMatch(#t_named{name = 'Int'}, TypeOf("(Int)")),
+                 type_of("(A, B) -> C with M")),
+    ?assertMatch(#t_named{name = 'Int'}, type_of("(Int)")),
     %% with binds to the nearest arrow
     ?assertMatch(#t_fn{result_type = #t_fn{effect = #t_named{name = 'M'}}, effect = undefined},
-                 TypeOf("(A) -> (B) -> C with M")),
+                 type_of("(A) -> (B) -> C with M")),
     ?assertMatch(#t_fn{result_type = #t_fn{effect = undefined}, effect = #t_named{name = 'M'}},
-                 TypeOf("(A) -> ((B) -> C) with M")),
+                 type_of("(A) -> ((B) -> C) with M")),
     ?assertMatch(#t_fn{params = [#t_fn{params = [#t_var{name = a}], result_type = #t_var{name = b},
                                        effect = #t_var{name = e}}, #t_var{name = a}]},
-                 TypeOf("((a) -> b with e, a) -> b with e")).
+                 type_of("((a) -> b with e, a) -> b with e")).
 
 %%
 %% Declarations
@@ -892,46 +914,33 @@ bitstrings_test() ->
 %% comment, both of which may span lines; a string or a char literal may
 %% not, so an unfinished one is an error whatever follows.
 incomplete_test() ->
-    ExpressionIncomplete = fun(Text) ->
-                                   {error, Diagnostic} = ern_parser:parse_expr(Text),
-                                   Diagnostic#diagnostic.incomplete
-                           end,
-    DeclarationsIncomplete = fun(Text) ->
-                                     {error, Diagnostic} = ern_parser:parse_string(Text),
-                                     Diagnostic#diagnostic.incomplete
-                             end,
-    ?assert(ExpressionIncomplete("1 + ")),
-    ?assert(ExpressionIncomplete("{ 1")),
-    ?assert(ExpressionIncomplete("match x {")),
-    ?assert(ExpressionIncomplete("`a raw string")),
-    ?assertNot(ExpressionIncomplete("1 + * 2")),
-    ?assertNot(ExpressionIncomplete("\"a string")),
-    ?assertNot(ExpressionIncomplete("'c")),
-    ?assert(DeclarationsIncomplete("fn f() =")),
-    ?assert(DeclarationsIncomplete("type T = A | ")),
-    ?assert(DeclarationsIncomplete("/* a comment")),
+    ?assert(is_incomplete_expression("1 + ")),
+    ?assert(is_incomplete_expression("{ 1")),
+    ?assert(is_incomplete_expression("match x {")),
+    ?assert(is_incomplete_expression("`a raw string")),
+    ?assertNot(is_incomplete_expression("1 + * 2")),
+    ?assertNot(is_incomplete_expression("\"a string")),
+    ?assertNot(is_incomplete_expression("'c")),
+    ?assert(is_incomplete_program("fn f() =")),
+    ?assert(is_incomplete_program("type T = A | ")),
+    ?assert(is_incomplete_program("/* a comment")),
     ?assertMatch({ok, _}, ern_parser:parse_string("fn f() = 1")),
     %% an `if` whose `else` is still to come, and a parameter list whose
     %% `->` is; a regression test: the error stood at the `if` or the
     %% bracket, and the input was refused (findings.md's C2-4)
-    ?assert(ExpressionIncomplete("if c then a")),
-    ?assertNot(ExpressionIncomplete("if c then a )")),
-    ?assert(DeclarationsIncomplete("fn f(g : ()")).
+    ?assert(is_incomplete_expression("if c then a")),
+    ?assertNot(is_incomplete_expression("if c then a )")),
+    ?assert(is_incomplete_program("fn f(g : ()")).
 
 %% report §11.2: an input that stops inside a call says which call and
 %% which argument, the innermost call first, for `Shift-Tab`; `expected`
 %% still says what may stand there, for completion
 within_call_test() ->
-    Within = fun(Text) ->
-                     {error, #diagnostic{incomplete = true, within = Within, expected = Expected}} =
-                         ern_parser:parse_expr(Text),
-                     {Within, Expected}
-             end,
-    ?assertEqual({{['List'], map, 1}, expression}, Within(<<"List.map(xs, ">>)),
-    ?assertEqual({{['List'], map, 0}, expression}, Within(<<"List.map(">>)),
-    ?assertEqual({{[], g, 1}, expression}, Within(<<"f(g(1, ">>)),
-    ?assertMatch({{[], f, 1}, _}, Within(<<"f(1, 2">>)),
-    ?assertMatch({undefined, _}, Within(<<"1 + ">>)).
+    ?assertEqual({{['List'], map, 1}, expression}, stopped_within(<<"List.map(xs, ">>)),
+    ?assertEqual({{['List'], map, 0}, expression}, stopped_within(<<"List.map(">>)),
+    ?assertEqual({{[], g, 1}, expression}, stopped_within(<<"f(g(1, ">>)),
+    ?assertMatch({{[], f, 1}, _}, stopped_within(<<"f(1, 2">>)),
+    ?assertMatch({undefined, _}, stopped_within(<<"1 + ">>)).
 
 %% erl/parser/src/ern_ast.erl: the one walk visits every node in pre-order,
 %% into lists and nested records, threading its accumulator. A regression

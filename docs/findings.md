@@ -168,7 +168,7 @@ C2-17 (unverified) emitter :398-403 a match's size-let reads run before its scru
 B. Clarity/specs/comments
 - ern_emitter :1250 stale comment above pattern_names/1; :1436 unreachable clause {{named,Names},none}; :120 use #scheme record; :1521 + ern_bitspec :20 unit key now only 8/1.
 - typecheck :3187 -spec prelude_one separated from its function; :632 filter N =/= none never false; :1897 declared_scheme/3 catches only {type_error,_,_} (lookup_value throws {type_error,#diag{}}) -> catch throw:_; :1149-1186 reference_graph built twice; declared_twice/first_repeat/twice quadratic.
-- parser :418 help deep list vs fail/3 spec string(); :964 span_through/3 placement.
+- parser :418 help deep list vs fail/3 spec string(); :964 through/3 placement.
 - ern_prelude :455 restarting's "### Errors" untrue under Unlimited, doc never mentions Unlimited; :608 comment cites "(plan, MVP 2.5)".
 - ern_pretty :216-219 accept/3 comment omits `alternative`; header "style guide" vs §11.6.
 - ern_format :342-344 confusing comment about the parameters' bracket.
