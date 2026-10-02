@@ -53,7 +53,7 @@
 %% Where an input from a startup file came from: the file, the line it
 %% stands on, and the column it begins in (report §11.2); a typed input's
 %% origin is `{typed, Name}`.
--record(startup_input, {file, first, column}).
+-record(startup_input, {file, line, column}).
 
 %% Report §11.2: what the runner loaded before the shell started, which the
 %% shell begins from: the load path, where a module's source is found, the
@@ -90,7 +90,8 @@ remember(Session) ->
 -spec program() -> {'Some', pid()} | 'None'.
 program() ->
     case persistent_term:get({?MODULE, loaded}, #{}) of
-        #{entry := {ErlangModule, Function, Site}} ->
+        #{entry := #entry_point{erlang_module = ErlangModule, function = Function,
+                                site = Site}} ->
             ErlangFunction = ern_emitter:function_atom(Function),
             {'Some', ern_rt:spawn(fun() -> ErlangModule:ErlangFunction() end, Site)};
         _ ->
@@ -128,9 +129,9 @@ unfinished(_) -> false.
           {'Left', binary()} | {'Right', {#session{}, #checked{}}}.
 check(#session{last_input = LastInput} = Session, From, Input) ->
     Origin = case From of
-                 {'Prompt', Count} -> {typed, <<"input ", (integer_to_binary(Count))/binary>>};
-                 {'Startup', File, First, Column} ->
-                     #startup_input{file = File, first = First, column = Column}
+                 {'Prompt', Number} -> {typed, <<"input ", (integer_to_binary(Number))/binary>>};
+                 {'Startup', File, Line, Column} ->
+                     #startup_input{file = File, line = Line, column = Column}
              end,
     %% an input takes the number of one whose module was unloaded, whose
     %% name is an atom already, before a new one (report §2.3)
@@ -178,7 +179,7 @@ input(Text) ->
                 {error, DeclarationDiagnostic} ->
                     case pattern_let(Text) of
                         none -> {error, which(Text, Diagnostic, DeclarationDiagnostic)};
-                        Input -> Input
+                        Parsed -> Parsed
                     end
             end
     end.
@@ -261,14 +262,14 @@ exported(#foreign_fn_declaration{} = Declaration) ->
 exported(Declaration) ->
     Declaration.
 
-%% Report §11.2: a `let` at the prompt may carry an annotation, which the
-%% checker holds its value to as it holds a `let` in a block's: the input
-%% is `{ let x : T = e; x }`.
 %% Report §4.6, §11.2: a `let` that binds a name to a lambda is generalized,
 %% as in a block; its scheme is known once the input is checked.
 let_binds(Name, #e_lambda{}) -> {lambda, Name};
 let_binds(Name, _) -> Name.
 
+%% Report §11.2: a `let` at the prompt may carry an annotation, which the
+%% checker holds its value to as it holds a `let` in a block's: the input
+%% is `{ let x : T = e; x }`.
 annotated(_Name, Body, undefined) ->
     Body;
 annotated(Name, Body, Annotation) ->
@@ -283,7 +284,7 @@ input_entry(Expr) ->
     [#fn_declaration{span = {1, 1, {1, 1}}, export = true, name = ?ENTRY, params = [],
                      body = Expr}].
 
-check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespace, From, Input,
+check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespace, Origin, Input,
              Declarations, Binds) ->
     case ern_typecheck:check(Namespace, Declarations, Interfaces, Scope) of
         {ok, Typed, Interface, Env} ->
@@ -293,13 +294,13 @@ check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespa
                 none ->
                     Checked = #checked{namespace = Namespace, typed = Typed,
                                        declarations = Declarations, interface = Interface,
-                                       env = Env, type = Type, binds = Binds1, site = site(From)},
+                                       env = Env, type = Type, binds = Binds1, site = site(Origin)},
                     {'Right', {Session, Checked}};
-                {open, Diagnostic} ->
-                    {'Left', diagnostic(From, Input, [Diagnostic])}
+                {refused, Diagnostic} ->
+                    {'Left', diagnostic(Origin, Input, [Diagnostic])}
             end;
         {error, Diagnostics} ->
-            {'Left', diagnostic(From, Input, Diagnostics)}
+            {'Left', diagnostic(Origin, Input, Diagnostics)}
     end.
 
 %% Report §4.6: the scheme a `let` of a lambda binds its name to, the
@@ -319,7 +320,7 @@ generalized(Binds, _Typed, _Env) ->
 %% Report §11.2: the name and the line offset a spawn site in the input is
 %% written with, as its diagnostics name and count it.
 site({typed, Name}) -> {Name, 0};
-site(#startup_input{file = File, first = First}) -> {File, First - 1}.
+site(#startup_input{file = File, line = Line}) -> {File, Line - 1}.
 
 %% Report §11.2: an input is compiled and run on its own, so what it
 %% binds must have a type by the time it runs; a later input cannot
@@ -344,11 +345,11 @@ carries_reply(Type, Env, _Binds, Typed) ->
             none;
         true ->
             TypeState = ern_typecheck:type_state(Env),
-            {open, #diagnostic{span = input_span(Typed),
-                               message = "an input's value cannot carry a reply, which is consumed"
-                                         " exactly once; this one is "
-                                         ++ ern_types:format(Type, TypeState),
-                               help = "answer the reply within the input"}}
+            {refused, #diagnostic{span = input_span(Typed),
+                                  message = "an input's value cannot carry a reply, which is"
+                                            " consumed exactly once; this one is "
+                                            ++ ern_types:format(Type, TypeState),
+                                  help = "answer the reply within the input"}}
     end.
 
 undetermined(_Type, _Env, declarations, _Typed) ->
@@ -369,13 +370,13 @@ undetermined(Type, Env, Binds, Typed) ->
             none;
         _ ->
             Text = ern_types:format(Type, TypeState),
-            {open, #diagnostic{span = input_span(Typed),
-                               message = lists:flatten(
-                                           io_lib:format(undetermined_text(Binds),
-                                                         [bound_names(Binds), Text])),
-                               help = "bind it with an annotation that settles the variable,"
-                                      " as in `let xs : List(Int) = []`, or declare a function"
-                                      " with `fn`"}}
+            {refused, #diagnostic{span = input_span(Typed),
+                                  message = lists:flatten(
+                                              io_lib:format(undetermined_text(Binds),
+                                                            [bound_names(Binds), Text])),
+                                  help = "bind it with an annotation that settles the variable,"
+                                         " as in `let xs : List(Int) = []`, or declare a function"
+                                         " with `fn`"}}
     end.
 
 undetermined_text({names, [_, _ | _]}) ->
@@ -433,8 +434,8 @@ one_name(Typed) ->
 %% interruption kills.
 -spec run(#session{}, #checked{}, integer(), term()) -> term().
 run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interface, env = Env,
-                      type = Type, binds = Binds, site = {Where, Offset}} = Checked,
-    Count, Address) ->
+                      type = Type, binds = Binds, site = {InputName, Offset}} = Checked,
+    Serial, Address) ->
     Descriptor = ern_descriptor:describe(Type, Env, []),
     Build = #{source_hash => <<>>, deps => [], session_offset => Offset},
     {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
@@ -448,23 +449,23 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
                        Session#session{beams = maps:put(Namespace, Beam, Session#session.beams)};
                    _ -> Session
                end,
-    Input = fun() ->
-                %% report §11.2: the input's own fault is its answer, caught
-                %% here, so that its process does not end with a fault
-                Outcome = try
-                              Value = value(ErlangModule, Binds),
-                              Bound = bind(Session1, Binds, Namespace, Value, Type, Env, Interface),
-                              {'Ok', remember(Bound), Count,
-                               #value{term = Value, descriptor = Descriptor}}
-                          catch
-                              throw:{ern, fault, Cause} -> {'Faulted', Cause, Count};
-                              throw:{ern, fault, Cause, _} -> {'Faulted', Cause, Count};
-                              Class:Error -> {'Faulted', fault_text(Class, Error), Count}
-                          end,
-                release(Namespace, Binds, Outcome),
-                ern_rt:send(Address, Outcome)
-            end,
-    ern_rt:spawn(Input, <<Where/binary, ":", (integer_to_binary(1 + Offset))/binary>>).
+    Body = fun() ->
+               %% report §11.2: the input's own fault is its answer, caught
+               %% here, so that its process does not end with a fault
+               Outcome = try
+                             Value = value(ErlangModule, Binds),
+                             Bound = bind(Session1, Binds, Namespace, Value, Type, Env, Interface),
+                             {'Ok', remember(Bound), Serial,
+                              #value{term = Value, descriptor = Descriptor}}
+                         catch
+                             throw:{ern, fault, Cause} -> {'Faulted', Cause, Serial};
+                             throw:{ern, fault, Cause, _} -> {'Faulted', Cause, Serial};
+                             Class:Error -> {'Faulted', fault_text(Class, Error), Serial}
+                         end,
+               release(Namespace, Binds, Outcome),
+               ern_rt:send(Address, Outcome)
+           end,
+    ern_rt:spawn(Body, <<InputName/binary, ":", (integer_to_binary(1 + Offset))/binary>>).
 
 %% Report §11.2: what the input's module needs of the session's modules,
 %% kept while it is (collected/1): those its code calls and, where it
@@ -473,7 +474,7 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
 %% name its spawn sites are written with.
 record_uses(ErlangModule, Beam, #checked{namespace = Namespace, typed = Typed,
                                          interface = Interface, binds = Binds,
-                                         site = {Where, _}}) ->
+                                         site = {InputName, _}}) ->
     {ok, {_, [{imports, Imports}]}} = beam_lib:chunks(Beam, [imports]),
     Calls = [Imported || {Imported, _, _} <- Imports, session_module(Imported),
                          Imported =/= ErlangModule],
@@ -484,7 +485,7 @@ record_uses(ErlangModule, Beam, #checked{namespace = Namespace, typed = Typed,
     Keys = [{ErlangModule, ern_emitter:function_name(undefined, Name)}
             || #let_declaration{name = Name} <- Typed],
     set_uses(maps:put(ErlangModule, {Namespace, lists:usort(Calls ++ Named), Keys}, uses())),
-    set_names(maps:put(ErlangModule, Where, names_of_inputs())).
+    set_names(maps:put(ErlangModule, InputName, names_of_inputs())).
 
 %% An input that declares nothing, an expression or a `let`, is done with
 %% its module once it has its answer, unless what it bound holds one of the
@@ -496,7 +497,7 @@ record_uses(ErlangModule, Beam, #checked{namespace = Namespace, typed = Typed,
 release(Namespace, Binds, Outcome) ->
     ErlangModule = ern_emitter:erlang_module(Namespace),
     Pending = persistent_term:get({?MODULE, unpurged}, []),
-    Purgeable = fun(Input) -> code:soft_purge(ern_emitter:erlang_module(Input)) end,
+    Purgeable = fun(Unpurged) -> code:soft_purge(ern_emitter:erlang_module(Unpurged)) end,
     {Purged, Unpurged} = lists:partition(Purgeable, Pending),
     Now = case {Binds, Outcome} of
               {declarations, _} -> kept;
@@ -518,7 +519,7 @@ release(Namespace, Binds, Outcome) ->
     Freed =/= [] andalso
         set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) ++ Freed),
     %% report §11.2: an input purged reads no holder again
-    set_uses(maps:without([ern_emitter:erlang_module(Input) || Input <- Freed], uses())),
+    set_uses(maps:without([ern_emitter:erlang_module(FreedInput) || FreedInput <- Freed], uses())),
     ok.
 
 set_free_inputs(Free) ->
@@ -780,7 +781,7 @@ type_info(QualifiedName, #session{interfaces = Interfaces}) ->
     case [TypeInfo || #interface{types = Types} <- Interfaces,
                       #{QualifiedName := TypeInfo} <- [Types]] of
         [] -> none;
-        Infos -> lists:last(Infos)
+        TypeInfos -> lists:last(TypeInfos)
     end.
 
 name_text({MemberOf, Name}) -> atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name);
@@ -857,9 +858,9 @@ prelude_listing() ->
     %% its module's name; the prelude's own are unqualified
     [unicode:characters_to_binary(["type ", ern_namespace:text(QualifiedName)])
      || [_] = QualifiedName <- lists:sort(Types)]
-    ++ [unicode:characters_to_binary([ern_namespace:text(QualifiedName), " : ",
-                                      ern_types:format_scheme(Scheme, TypeState)])
-        || {QualifiedName, Scheme} <- lists:sort(ern_typecheck:prelude_values())].
+        ++ [unicode:characters_to_binary([ern_namespace:text(QualifiedName), " : ",
+                                          ern_types:format_scheme(Scheme, TypeState)])
+            || {QualifiedName, Scheme} <- lists:sort(ern_typecheck:prelude_values())].
 
 %% Report §11.5: each name and each type as the session writes it, the
 %% names qualified and another module's types too.
@@ -998,9 +999,9 @@ prelude_or_none(Segments) ->
 %% not in scope; the fields its type selects are then the checker's too,
 %% each listed with its type. A namespace checks as no value and has none.
 -spec fields(binary()) -> [{'Name', binary(), 'Value', binary()}].
-fields(Typed) ->
+fields(Before) ->
     Session = persistent_term:get({?MODULE, session}, #session{}),
-    case string:split(Typed, ".", trailing) of
+    case string:split(Before, ".", trailing) of
         [Head, _] when Head =/= <<>> ->
             maybe
                 {ok, Binds, Expr} ?= input(Head),
@@ -1086,16 +1087,16 @@ constructor_signature(Path, Name, Argument) ->
                         {named, Named} -> Named;
                         _ -> lists:duplicate(length(Params), '_')
                     end,
-            Marked = case Argument of
-                         {field, Field} -> field_index(Field, Names, length(Params));
-                         none -> length(Params);
-                         Index -> Index
-                     end,
-            {Head, This, Rest} = ern_types:format_call(Scheme, Names, Marked,
-                                                       session_type_state(Session)),
+            MarkedIndex = case Argument of
+                              {field, Field} -> field_index(Field, Names, length(Params));
+                              none -> length(Params);
+                              Index -> Index
+                          end,
+            {Head, Marked, Rest} = ern_types:format_call(Scheme, Names, MarkedIndex,
+                                                         session_type_state(Session)),
             Text = ern_namespace:text(Path ++ [Name]),
             {'Some', {unicode:characters_to_binary([Text, Head]),
-                      unicode:characters_to_binary(This), unicode:characters_to_binary(Rest)}};
+                      unicode:characters_to_binary(Marked), unicode:characters_to_binary(Rest)}};
         _ ->
             'None'
     end.
@@ -1361,14 +1362,14 @@ entry(Beam, Name) -> ern_page:declaration(Beam, Name).
 diagnostic({typed, Name}, Input, Diagnostics) ->
     unicode:characters_to_binary([ern_diagnostic:format(binary_to_list(Name), Input, Diagnostic)
                                   || Diagnostic <- Diagnostics]);
-diagnostic(#startup_input{file = Path, first = First, column = Column}, Input, Diagnostics) ->
-    Source = case file:read_file(Path) of
+diagnostic(#startup_input{file = File, line = Line, column = Column}, Input, Diagnostics) ->
+    Source = case file:read_file(File) of
                  {ok, Text} -> Text;
                  {error, _} -> Input
              end,
     unicode:characters_to_binary(
-      [ern_diagnostic:format(ern_build:shown(binary_to_list(Path)), Source,
-                             moved(Diagnostic, First - 1, Column - 1))
+      [ern_diagnostic:format(ern_build:shown(binary_to_list(File)), Source,
+                             moved(Diagnostic, Line - 1, Column - 1))
        || Diagnostic <- Diagnostics]).
 
 %% A diagnostic's positions, a number of lines further down, and on the
@@ -1484,12 +1485,12 @@ with_sources(#session{source_root = SourceRoot, modules = Loaded} = Session,
 
 %% The modules loaded, after what they use that the session has not
 %% loaded, and `:load`'s answer.
-with_needed(Session, Modules, Line) ->
+with_needed(Session, Modules, Answer) ->
     case needed(Session, Modules) of
         {ok, Needed} ->
             All = Needed ++ Modules,
             case refused_compiled(Session, All) of
-                none -> installed(Session, All, Line);
+                none -> installed(Session, All, Answer);
                 Refusal -> {'Left', <<(unicode:characters_to_binary(Refusal))/binary, "\n">>}
             end;
         {error, Text} ->
@@ -1513,7 +1514,7 @@ refused_compiled(Session, All) ->
     end.
 
 compiled_refusals(Namespace, Beam, Interfaces, StdlibHash) ->
-    {ok, #{interface := #interface{namespace = Held}, deps := Dependencies} = Chunk} =
+    {ok, #{interface := #interface{namespace = Held}, deps := DependencyHashes} = Chunk} =
         ern_interface:read(Beam),
     Name = ern_namespace:text(Namespace),
     [Name ++ "'s compiled file holds " ++ ern_namespace:text(Held)
@@ -1522,7 +1523,7 @@ compiled_refusals(Namespace, Beam, Interfaces, StdlibHash) ->
             || not lists:member(maps:get(stdlib, Chunk, none), [none, StdlibHash])]
         ++ [Name ++ " was compiled against another " ++ ern_namespace:text(Dependency)
             ++ "; build " ++ Name ++ " again"
-            || {Dependency, Hash} <- Dependencies,
+            || {Dependency, Hash} <- DependencyHashes,
                [Interface | _] <- [held_interfaces(Dependency, Interfaces)],
                ern_interface:hash(Interface) =/= Hash].
 
@@ -1530,11 +1531,11 @@ held_interfaces(Namespace, Interfaces) ->
     [Interface || #interface{namespace = Held} = Interface <- Interfaces, Held =:= Namespace].
 
 %% The modules installed and their bindings evaluated, and `:load`'s answer.
-installed(Session, All, Line) ->
+installed(Session, All, Answer) ->
     Session1 = install(Session, All),
     case initialize(in_order(All)) of
         ok ->
-            {'Right', {remember(Session1), Line}};
+            {'Right', {remember(Session1), Answer}};
         {fault, Site, Cause} ->
             withdraw_all(All),
             {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was loaded\n">>}
@@ -1556,17 +1557,17 @@ withdraw_all(Modules) ->
 
 withdraw(ErlangModule) ->
     code:delete(ErlangModule),
-    unloaded([Pid || {Pid, _} <- ern_rt:live(), erlang:check_process_code(Pid, ErlangModule)]),
+    end_unloaded([Pid || {Pid, _} <- ern_rt:live(), erlang:check_process_code(Pid, ErlangModule)]),
     code:purge(ErlangModule).
 
 %% Report §7.3, §11.2: each process ends with its code unloaded, and is
 %% waited for before its code is purged, since the purge kills one that has
 %% not yet taken the signal, which would end `Killed`.
-unloaded(Pids) ->
-    Monitors = [erlang:monitor(process, Pid) || Pid <- Pids],
+end_unloaded(Pids) ->
+    MonitorRefs = [erlang:monitor(process, Pid) || Pid <- Pids],
     lists:foreach(fun(Pid) -> exit(Pid, {ern, code_unloaded}) end, Pids),
-    lists:foreach(fun(Monitor) -> receive {'DOWN', Monitor, process, _, _} -> ok end end,
-                  Monitors).
+    lists:foreach(fun(MonitorRef) -> receive {'DOWN', MonitorRef, process, _, _} -> ok end end,
+                  MonitorRefs).
 
 %% Report §11.2, §8.5: the top-level bindings of each module, dependencies
 %% first, each module's evaluated in a process of the shell's own, whose
@@ -1599,7 +1600,7 @@ initialize(Namespace, ErlangModule, Rest) ->
                         end,
                Self ! {Ref, Result}
            end,
-    %% watched from its spawn, so that its end is known however soon it
+    %% monitored from its spawn, so that its end is known however soon it
     %% comes (report §6.9)
     _ = ern_rt:spawn_monitored(Init, fun(Down) -> {Ref, Down} end, <<"Shell.load">>),
     receive
@@ -1626,7 +1627,6 @@ kept_values(Site, Cause) ->
 binding_fault(Site, Cause) ->
     <<Site/binary, " faulted: ", (ern_show:controls(Cause, line))/binary>>.
 
-
 %% Report §11.2: what the modules use that the session has not loaded,
 %% each found as the runner finds it, by namespace on the load path, and
 %% loaded before them, the modules it uses first.
@@ -1640,7 +1640,7 @@ needed(Session, Modules) ->
 needed(_Session, _Beam, {error, _} = Error, _Compiled) ->
     Error;
 needed(#session{modules = Loaded} = Session, Beam, {ok, _} = Found, Compiled) ->
-    {ok, #{deps := Dependencies}} = ern_interface:read(Beam),
+    {ok, #{deps := DependencyHashes}} = ern_interface:read(Beam),
     lists:foldl(fun(_, {error, _} = Error) ->
                         Error;
                    ({Namespace, _}, {ok, Acc}) ->
@@ -1649,7 +1649,7 @@ needed(#session{modules = Loaded} = Session, Beam, {ok, _} = Found, Compiled) ->
                             true -> {ok, Acc};
                             false -> needed_one(Session, Namespace, Acc, Compiled)
                         end
-                end, Found, Dependencies).
+                end, Found, DependencyHashes).
 
 needed_one(Session, Namespace, Acc, Compiled) ->
     case compiled_of(Session, Namespace) of
@@ -1671,12 +1671,12 @@ needed_one(Session, Namespace, Acc, Compiled) ->
 %% none is, so the session goes on with every module as it was.
 -spec reload(#session{}) -> {'Left', binary()} | {'Right', {#session{}, [binary()]}}.
 reload(#session{modules = Modules} = Session) ->
-    Sources = [{Namespace, Loaded, source_of(Session, Namespace)}
-               || {Namespace, Loaded} <- lists:sort(maps:to_list(Modules))],
+    Sources = [{Namespace, LoadedHash, source_of(Session, Namespace)}
+               || {Namespace, LoadedHash} <- lists:sort(maps:to_list(Modules))],
     Changed = [{Namespace, File}
-               || {Namespace, Loaded, {ok, File}} <- Sources,
+               || {Namespace, LoadedHash, {ok, File}} <- Sources,
                   {ok, Hash} <- [source_hash(File)],
-                  Hash =/= Loaded],
+                  Hash =/= LoadedHash],
     Sourceless = sourceless(Session, [Namespace || {Namespace, _, none} <- Sources]),
     case Changed of
         [] ->
@@ -1767,15 +1767,15 @@ compile_in_order(#session{source_root = SourceRoot} = Session, Set) ->
             case [Text || {_, {error, Text}} <- Compiled] of
                 [] ->
                     {ok, [{Namespace, Beam, Hash} || {Namespace, {ok, _, Beam, Hash}} <- Compiled]};
-                Failed -> {error, Failed}
+                Texts -> {error, Texts}
             end
     catch
         throw:{cli_error, Message} ->
             {error, [unicode:characters_to_binary([Message, "\n"])]};
-        throw:{errors, Failed, Diagnostics} ->
-            {ok, Source} = file:read_file(Failed),
+        throw:{errors, FailedFile, Diagnostics} ->
+            {ok, Source} = file:read_file(FailedFile),
             {error, [unicode:characters_to_binary(
-                       [ern_diagnostic:format(ern_build:shown(Failed), Source, Diagnostic)
+                       [ern_diagnostic:format(ern_build:shown(FailedFile), Source, Diagnostic)
                         || Diagnostic <- Diagnostics])]}
     end.
 
@@ -1790,22 +1790,23 @@ stale_users(#session{modules = Loaded} = Session, Set, Modules) ->
                                        =/= ern_interface:hash(Interface)],
     UsesChanged = fun(Namespace) ->
                       lists:any(fun({Dependency, _}) -> lists:member(Dependency, Changed) end,
-                                recorded_dependencies(Session, Namespace))
+                                dependency_hashes(Session, Namespace))
                   end,
     [Namespace || Namespace <- lists:sort(maps:keys(Loaded)),
                   not lists:keymember(Namespace, 1, Set), UsesChanged(Namespace)].
 
-%% The dependencies a loaded module was compiled against, as its compiled
-%% form records them: the session's, or the file it was loaded from.
-recorded_dependencies(#session{beams = Beams}, Namespace) ->
+%% The dependencies a loaded module was compiled against, with their
+%% interfaces' hashes, as its compiled form records them: the session's, or
+%% the file it was loaded from.
+dependency_hashes(#session{beams = Beams}, Namespace) ->
     Beam = case Beams of
                #{Namespace := Found} -> Found;
                _ ->
                    {ok, Found} = file:read_file(code:which(ern_emitter:erlang_module(Namespace))),
                    Found
            end,
-    {ok, #{deps := Dependencies}} = ern_interface:read(Beam),
-    Dependencies.
+    {ok, #{deps := DependencyHashes}} = ern_interface:read(Beam),
+    DependencyHashes.
 
 %% The interfaces of the modules the session has loaded, by namespace.
 loaded_interfaces(#session{interfaces = Interfaces, modules = Modules}) ->
@@ -1854,7 +1855,7 @@ in_previous(Session, ErlangModule) ->
 end_previous(#session{scope = Scope} = Session, ErlangModule) ->
     Processes = [{Pid, Site} || {Pid, Site} <- ern_rt:live(),
                                 erlang:check_process_code(Pid, ErlangModule)],
-    unloaded([Pid || {Pid, _} <- Processes]),
+    end_unloaded([Pid || {Pid, _} <- Processes]),
     Bindings = bindings_of(Session, ErlangModule),
     Values = maps:without([Key || {_, Key} <- Bindings], maps:get(values, Scope, #{})),
     {[<<Site/binary, ", a process">> || {_, Site} <- Processes]
@@ -1871,8 +1872,8 @@ name_atom({_, Name}) -> Name;
 name_atom(Name) -> Name.
 
 value_of(QualifiedName) ->
-    Holder = ern_emitter:erlang_module(lists:droplast(QualifiedName)),
-    persistent_term:get({Holder, lists:last(QualifiedName)}, undefined).
+    ErlangModule = ern_emitter:erlang_module(lists:droplast(QualifiedName)),
+    persistent_term:get({ErlangModule, lists:last(QualifiedName)}, undefined).
 
 holds_fun(Function, ErlangModule) when is_function(Function) ->
     {module, Held} = erlang:fun_info(Function, module),
@@ -1909,11 +1910,11 @@ compile_source(#session{source_root = SourceRoot} = Session, File, Interfaces) -
             {ok, Namespace, Beam, Hash};
         {refused, Text} ->
             {error, unicode:characters_to_binary([Text, "\n"])};
-        {error, Failed, Diagnostics} ->
-            {ok, Source} = file:read_file(Failed),
+        {error, FailedFile, Diagnostics} ->
+            {ok, Source} = file:read_file(FailedFile),
             %% report §11.5: the file named from the working directory
             {error, unicode:characters_to_binary(
-                      [ern_diagnostic:format(ern_build:shown(Failed), Source, Diagnostic)
+                      [ern_diagnostic:format(ern_build:shown(FailedFile), Source, Diagnostic)
                        || Diagnostic <- Diagnostics])}
     end.
 
@@ -2110,22 +2111,22 @@ bound(#session{last_holder = LastHolder, free_holders = Free} = Session, Bound, 
                              [Freed | Rest] -> {Freed, Session#session{free_holders = Rest}};
                              [] -> {LastHolder + 1, Session#session{last_holder = LastHolder + 1}}
                          end,
-    Holder = [list_to_atom("$Bindings" ++ integer_to_list(Number))],
-    ErlangModule = ern_emitter:erlang_module(Holder),
+    HolderNamespace = [list_to_atom("$Bindings" ++ integer_to_list(Number))],
+    ErlangModule = ern_emitter:erlang_module(HolderNamespace),
     TypeState = ern_typecheck:type_state(Env),
     [persistent_term:put({ErlangModule, Name}, Value) || {Name, Value, _} <- Bound],
     Names = [Name || {Name, _, _} <- Bound],
     {module, ErlangModule} =
         code:load_binary(ErlangModule, atom_to_list(ErlangModule), holder(ErlangModule, Names)),
-    Values = maps:from_list([{Holder ++ [Name], binding_scheme(Type, TypeState)}
+    Values = maps:from_list([{HolderNamespace ++ [Name], binding_scheme(Type, TypeState)}
                              || {Name, _, Type} <- Bound]),
-    Interface = #interface{namespace = Holder, values = Values,
-                           lets = [Holder ++ [Name] || Name <- Names]},
+    Interface = #interface{namespace = HolderNamespace, values = Values,
+                           lets = [HolderNamespace ++ [Name] || Name <- Names]},
     Held = lists:foldl(fun({_, Value, _}, Acc) -> fun_modules(Value, Acc) end, [], Bound),
     Needs = [HeldModule || HeldModule <- Held, session_module(HeldModule)]
-        ++ mentions(Interface, Holder),
+        ++ mentions(Interface, HolderNamespace),
     Keys = [{ErlangModule, Name} || Name <- Names],
-    set_uses(maps:put(ErlangModule, {Holder, lists:usort(Needs), Keys}, uses())),
+    set_uses(maps:put(ErlangModule, {HolderNamespace, lists:usort(Needs), Keys}, uses())),
     joined(Session1, Interface).
 
 %% A bound name's scheme: a generalized `let`'s own, or its type alone.
@@ -2225,8 +2226,7 @@ holder_number(Segment) ->
         _ -> none
     end.
 
-%% Whether a namespace segment, or a module, is one the session made
-%% (report §2.3).
+%% Whether a namespace segment is one the session made (report §2.3).
 session_segment(Segment) ->
     case atom_to_list(Segment) of
         "$Bindings" ++ _ -> true;
@@ -2327,15 +2327,15 @@ holder_beam(ErlangModule, Names) ->
     {ok, _, Beam} = compile:forms([erl_syntax:revert(Form) || Form <- Forms], [return_errors]),
     Beam.
 
-%% Report §11.2: what an input declares, a line for each, in the order they
-%% were written. A value is its name and its type, a type its keyword and
-%% its name.
 %% Report §11.2: whether the input is an expression, which binds `it`, and
 %% not a `let` or declarations, which `:type` refuses.
 -spec is_expression(#checked{}) -> boolean().
 is_expression(#checked{binds = Binds}) ->
     Binds =:= it.
 
+%% Report §11.2: what an input declares, a line for each, in the order they
+%% were written. A value is its name and its type, a type its keyword and
+%% its name.
 -spec declared(#checked{}) -> [binary()].
 declared(#checked{binds = it}) ->
     [];

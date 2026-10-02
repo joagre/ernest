@@ -11,8 +11,8 @@
 
 %% Handle the two signals here from now on (report §11). The launcher's
 %% entry installs this handler before its work, since the host's own handler
-%% would stop the node only once that work had returned. A run installs it
-%% again, which changes nothing where it is in place and matters where a
+%% would stop the node only once that work had returned. A launch installs
+%% it again, which changes nothing where it is in place and matters where a
 %% test runs the job. A termination the host's handler took as the host
 %% started has asked the host to stop, which it would do only after the
 %% work, so `ern` ends by that signal here, before this handler is asked:
@@ -42,7 +42,7 @@ install() ->
 status(sigterm) -> 128 + 15;
 status(sighup) -> 128 + 1.
 
-%% The signal that ended the run, or none.
+%% The signal that ended the running program, or none.
 -spec ended() -> sigterm | sighup | none.
 ended() ->
     persistent_term:get({?MODULE, ended}, none).
@@ -64,7 +64,7 @@ die(Signal, Status) ->
 init(_) ->
     {ok, []}.
 
-%% A run in progress ends as §8.6 says and its runner returns the signal;
+%% A running program ends as §8.6 says and its runner returns the signal;
 %% outside one there is nothing to end, and `ern` ends by it at once.
 -spec handle_event(term(), []) -> {ok, []}.
 handle_event(Signal, State) when Signal =:= sigterm; Signal =:= sighup ->

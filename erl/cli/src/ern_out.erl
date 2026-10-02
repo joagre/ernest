@@ -5,7 +5,8 @@
 %% nothing, with the status 141 that shells give a process a closed pipe
 %% ended. `ern run` and `ern test` write through the runtime, which learns
 %% the same of its own streams (report §8.2); `ern shell` writes here where
-%% its output is no terminal, and takes the bytes a run writes as they are.
+%% its output is no terminal, and takes the bytes a program writes as they
+%% are.
 -module(ern_out).
 
 -export([take/0, finish/1]).
@@ -49,19 +50,19 @@ loop(Port, Encoding) ->
             From ! {io_reply, ReplyAs, request(Port, Encoding, Request)},
             loop(Port, Encoding);
         {finish, From, Ref} ->
-            drained(Port),
+            drain(Port),
             From ! {Ref, finished},
             loop(Port, Encoding);
         {'EXIT', Port, _} ->
-            gone()
+            end_job()
     end.
 
-%% What the port was given is written, or the reader has gone.
-drained(Port) ->
+%% Waits until what the port was given is written, or the reader has gone.
+drain(Port) ->
     case erlang:port_info(Port, queue_size) of
         {queue_size, 0} -> ok;
-        {queue_size, _} -> receive {'EXIT', Port, _} -> gone() after 1 -> drained(Port) end;
-        undefined -> gone()
+        {queue_size, _} -> receive {'EXIT', Port, _} -> end_job() after 1 -> drain(Port) end;
+        undefined -> end_job()
     end.
 
 %% The requests io:format and io:put_chars make; nothing reads from here.
@@ -85,8 +86,10 @@ write(Port, Bytes) ->
     try erlang:port_command(Port, Bytes) of
         true -> ok
     catch
-        error:badarg -> gone()
+        error:badarg -> end_job()
     end.
 
-gone() ->
+%% The reader has gone: the job ends at once, as a closed pipe ends a
+%% process, status 141.
+end_job() ->
     erlang:halt(141).

@@ -14,7 +14,7 @@
          build_root/2, is_stdlib_root/1, stdlib_hash/1, dependency_interfaces/5,
          dependency_interface/4, load_path/1, compiler_modules/0, sweep_pages/5,
          compile_source/4, absolute/1, relative/2, write_whole/2,
-         write_whole/3, write_output/2, read/1, made_dir/1, fail/1]).
+         write_whole/3, write_output/2, read/1, make_dirs/1, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -43,20 +43,21 @@ compile(Options, Path, ErrorDevice) ->
         %% build-root, then under each --load-path root
         {Parsed, Unparsed} = parse_all(Modules, SourceRoot, SearchPath),
         StdlibHash = stdlib_hash(SourceRoot),
-        Build = fun(Module, Interfaces) ->
-                    build(Module, Interfaces, SourceRoot, SearchPath, Emit, StdlibHash)
-                end,
-        Failed = built(order(Parsed), Unparsed, Build),
-        case [{File, Errors} || {_, File, Errors} <- Failed, File =/= none] of
+        BuildModule = fun(Module, Interfaces) ->
+                          build(Module, Interfaces, SourceRoot, SearchPath, Emit, StdlibHash)
+                      end,
+        Failed = built(order(Parsed), Unparsed, BuildModule),
+        case [{File, Diagnostics} || {_, File, Diagnostics} <- Failed, File =/= none] of
             [] ->
                 DirMode andalso Emit =:= erc andalso sweep(absolute(Path), SourceRoot, BuildRoot),
                 0;
             Reported ->
-                [report_errors(Options, File, Errors, ErrorDevice) || {File, Errors} <- Reported],
+                [report_errors(Options, File, Diagnostics, ErrorDevice)
+                 || {File, Diagnostics} <- Reported],
                 1
         end
     catch
-        throw:{errors, File, Errors} -> report_errors(Options, File, Errors, ErrorDevice)
+        throw:{errors, File, Diagnostics} -> report_errors(Options, File, Diagnostics, ErrorDevice)
     after
         code:add_pathsa(SetAside)
     end.
@@ -65,19 +66,20 @@ compile(Options, Path, ErrorDevice) ->
 %% that failed, whose errors would follow from that one's. The modules that
 %% failed, each with its file and its errors, or with none where a module
 %% it uses failed; Unparsed begins them.
-built(Order, Unparsed, Build) ->
-    {_, Failed} = lists:foldl(fun(Module, Acc) -> build_step(Module, Acc, Build) end,
+built(Order, Unparsed, BuildModule) ->
+    {_, Failed} = lists:foldl(fun(Module, Acc) -> build_step(Module, Acc, BuildModule) end,
                               {#{}, Unparsed}, Order),
     Failed.
 
 build_step(#build_module{namespace = Namespace, dependencies = Dependencies} = Module,
-           {Interfaces, Failed}, Build) ->
+           {Interfaces, Failed}, BuildModule) ->
     case [Dependency || Dependency <- Dependencies, lists:keymember(Dependency, 1, Failed)] of
         [] ->
-            try Build(Module, Interfaces) of
+            try BuildModule(Module, Interfaces) of
                 Interfaces1 -> {Interfaces1, Failed}
             catch
-                throw:{errors, File, Errors} -> {Interfaces, Failed ++ [{Namespace, File, Errors}]}
+                throw:{errors, File, Diagnostics} ->
+                    {Interfaces, Failed ++ [{Namespace, File, Diagnostics}]}
             end;
         _ ->
             {Interfaces, Failed ++ [{Namespace, none, []}]}
@@ -87,7 +89,7 @@ build_step(#build_module{namespace = Namespace, dependencies = Dependencies} = M
 %% under --short-errors; status 1. The file is named from the working
 %% directory when it lies under it.
 -spec report_errors([term()], file:filename(), [ern_diagnostic:diagnostic()], io:device()) -> 1.
-report_errors(Options, File, Errors, ErrorDevice) ->
+report_errors(Options, File, Diagnostics, ErrorDevice) ->
     Short = lists:member(short_errors, Options),
     Source = case file:read_file(File) of
                  {ok, Bytes} -> Bytes;
@@ -100,7 +102,7 @@ report_errors(Options, File, Errors, ErrorDevice) ->
                                  false -> ern_diagnostic:format(Shown, Source, Diagnostic)
                              end,
                       io:format(ErrorDevice, "~ts~n", [Text])
-                  end, Errors),
+                  end, Diagnostics),
     1.
 
 %% A file named from the working directory where it lies under it.
@@ -127,9 +129,9 @@ sources(Dir) ->
 
 source(Dir, Name) when is_binary(Name) ->
     Path = filename:join(Dir, Name),
-    Module = filename:extension(Name) =:= <<".ern">>
+    IsModule = filename:extension(Name) =:= <<".ern">>
         orelse (filelib:is_dir(Path) andalso not is_link(Path) andalso sources(Path) =/= []),
-    Module andalso fail("a name that is not UTF-8: " ++ bytes_text(Path)),
+    IsModule andalso fail("a name that is not UTF-8: " ++ bytes_text(Path)),
     [];
 source(Dir, Name) ->
     Path = filename:join(Dir, Name),
@@ -240,18 +242,18 @@ compile_order(Modules, SourceRoot) ->
     compile_order(Modules, SourceRoot, []).
 
 -spec compile_order([#build_module{}], file:filename(), [file:filename()]) -> [#build_module{}].
-compile_order(Modules, SourceRoot, LoadPath) ->
-    order([parse_module(Module, SourceRoot, LoadPath) || Module <- Modules]).
+compile_order(Modules, SourceRoot, SearchPath) ->
+    order([parse_module(Module, SourceRoot, SearchPath) || Module <- Modules]).
 
 %% Every module parsed, and each that does not parse with its errors, as a
 %% build reports them (report §11.5).
-parse_all(Modules, SourceRoot, LoadPath) ->
+parse_all(Modules, SourceRoot, SearchPath) ->
     lists:foldl(fun(Module, {Parsed, Failed}) ->
-                    try parse_module(Module, SourceRoot, LoadPath) of
+                    try parse_module(Module, SourceRoot, SearchPath) of
                         ParsedModule -> {Parsed ++ [ParsedModule], Failed}
                     catch
-                        throw:{errors, File, Errors} ->
-                            {Parsed, Failed ++ [{Module#build_module.namespace, File, Errors}]}
+                        throw:{errors, File, Diagnostics} ->
+                            {Parsed, Failed ++ [{Module#build_module.namespace, File, Diagnostics}]}
                     end
                 end, {[], []}, Modules).
 
@@ -291,12 +293,12 @@ topsort(Graph) ->
             Sorted
     end.
 
-parse_module(#build_module{file = File} = Module, SourceRoot, LoadPath) ->
+parse_module(#build_module{file = File} = Module, SourceRoot, SearchPath) ->
     case ern_parser:parse_string(read(File)) of
         {ok, Declarations} ->
             namespace_clash(Module#build_module{declarations = Declarations}, SourceRoot),
             %% a module naming itself qualified (report §4.2) depends on nothing by it
-            Dependencies = dependencies(Declarations, SourceRoot, LoadPath)
+            Dependencies = dependencies(Declarations, SourceRoot, SearchPath)
                 -- [Module#build_module.namespace],
             Module#build_module{declarations = Declarations, dependencies = Dependencies};
         {error, Diagnostic} -> throw({errors, File, [Diagnostic]})
@@ -323,9 +325,9 @@ namespace_clash(#build_module{namespace = Namespace, relative = Relative,
                   end, local_types(Declarations)).
 
 -spec clash(string(), atom(), string(), [atom()]) -> no_return().
-clash(ChildRelative, Type, ParentRelative, QualifiedName) ->
+clash(ChildRelative, Type, ParentRelative, Namespace) ->
     fail(ChildRelative ++ " and type " ++ atom_to_list(Type) ++ " in " ++ ParentRelative
-         ++ " share the namespace " ++ ern_namespace:text(QualifiedName) ++ " (report §4.2)").
+         ++ " share the namespace " ++ ern_namespace:text(Namespace) ++ " (report §4.2)").
 
 %% The types a parsed source declares; none when it is absent or does not parse.
 source_types(File) ->
@@ -350,7 +352,7 @@ local_types(Declarations) ->
 %% prelude namespace, and whose longest prefix names an existing .ern under
 %% the root. Report §4.2: `T.name` is the module's own member where its type
 %% `T` declares one of that name, and the namespace T's `name` otherwise.
-dependencies(Declarations, SourceRoot, LoadPath) ->
+dependencies(Declarations, SourceRoot, SearchPath) ->
     %% in the standard library's root its own namespaces are dependencies
     Skip = case is_stdlib_root(SourceRoot) of
                true -> [];
@@ -360,7 +362,8 @@ dependencies(Declarations, SourceRoot, LoadPath) ->
     Paths = lists:usort([Path || {Path, Name} <- references(Declarations), Path =/= [],
                                  not lists:member(hd(Path), Skip),
                                  not lists:member({Path, Name}, Members)]),
-    lists:usort(lists:filtermap(fun(Path) -> module_prefix(Path, SourceRoot, LoadPath) end, Paths)).
+    lists:usort(lists:filtermap(fun(Path) -> module_prefix(Path, SourceRoot, SearchPath) end,
+                                Paths)).
 
 %% Each qualified reference of a source, its path and its last name; only a
 %% value's lowercase name or operator can be a type's member.
@@ -390,9 +393,9 @@ module_prefix([], _SourceRoot, _SearchPath) ->
     false;
 module_prefix(Path, SourceRoot, SearchPath) ->
     Relative = module_path(Path),
-    Compiled = fun(Dir) -> filelib:is_regular(filename:join(Dir, Relative ++ ".erc")) end,
+    HoldsCompiled = fun(Dir) -> filelib:is_regular(filename:join(Dir, Relative ++ ".erc")) end,
     case filelib:is_regular(filename:join(SourceRoot, Relative ++ ".ern"))
-        orelse lists:any(Compiled, SearchPath) of
+        orelse lists:any(HoldsCompiled, SearchPath) of
         true -> {true, Path};
         false -> module_prefix(lists:droplast(Path), SourceRoot, SearchPath)
     end.
@@ -488,11 +491,11 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
             Given = [DependencyInterface || {_, DependencyInterface} <- DependencyInterfaces],
             case ern_typecheck:check(Namespace, Declarations, Given) of
                 {ok, Typed, Interface, Env} ->
-                    ok = made_dir(Erc),
+                    ok = make_dirs(Erc),
                     case Emit of
                         erl ->
-                            Standard = #{standard => is_stdlib_root(SourceRoot)},
-                            Source = ern_emitter:erl_source(Namespace, Typed, Env, Standard),
+                            Build = #{standard => is_stdlib_root(SourceRoot)},
+                            Source = ern_emitter:erl_source(Namespace, Typed, Env, Build),
                             ErlangSource = ["%% Generated by ern build from ", Relative, "\n",
                                             Source],
                             ok = write_output(OutputBase ++ ".erl",
@@ -508,8 +511,8 @@ build(#build_module{namespace = Namespace, file = File, relative = Relative,
                             ok = write_output(Erc, Beam)
                     end,
                     Interfaces#{Namespace => Interface};
-                {error, Errors} ->
-                    throw({errors, File, Errors})
+                {error, Diagnostics} ->
+                    throw({errors, File, Diagnostics})
             end
     end.
 
@@ -576,7 +579,7 @@ reached(Found, Skip, Interfaces, SearchPath, SourceRoot) ->
             reached(Found
                     ++ [dependency_interface(Namespace, Interfaces, SearchPath, SourceRoot)
                         || Namespace <- Named],
-                     Skip, Interfaces, SearchPath, SourceRoot)
+                    Skip, Interfaces, SearchPath, SourceRoot)
     end.
 
 %% The modules whose types an interface names, in its values' schemes and
@@ -650,10 +653,10 @@ load_path(Options) ->
 %% every dependency's interface, the standard library's interfaces, and the
 %% build of the compiler are those the .erc was built from.
 current(Erc, SourceHash, SourcePath, DependencyHashes, StdlibHash) ->
-    Version = compiler_build(),
+    CompilerBuild = compiler_build(),
     case read_erc(Erc) of
         {ok, #{interface := Interface, source_hash := SourceHash, source_path := SourcePath,
-               deps := RecordedHashes, compiler := Version, stdlib := StdlibHash}} ->
+               deps := RecordedHashes, compiler := CompilerBuild, stdlib := StdlibHash}} ->
             case lists:sort(RecordedHashes) =:= DependencyHashes of
                 true -> {true, Interface};
                 false -> false
@@ -687,7 +690,7 @@ read_erc(Erc) ->
 sweep(Dir, SourceRoot, BuildRoot) ->
     Mirror = absolute(filename:join(BuildRoot, relative(Dir, SourceRoot))),
     lists:foreach(fun(Erc) ->
-                      ok = deleted(Erc),
+                      ok = delete(Erc),
                       remove_emptied(filename:dirname(Erc), Mirror, BuildRoot)
                   end, [Erc || Erc <- outputs(Mirror, ".erc"), stale(Erc, BuildRoot, SourceRoot)]).
 
@@ -729,7 +732,7 @@ sweep_pages(Kind, Dir, SourceRoot, BuildRoot, Kept) ->
                 end,
     Names = [[atom_to_list(Segment) || Segment <- Namespace] || Namespace <- Kept],
     lists:foreach(fun(Page) ->
-                      ok = deleted(Page),
+                      ok = delete(Page),
                       remove_emptied(filename:dirname(Page), Mirror, BuildRoot)
                   end, [Page || Page <- outputs(Mirror, Extension),
                                 {ok, Segments} <- [page_of(Kind, Page, BuildRoot)],
@@ -740,11 +743,11 @@ sweep_pages(Kind, Dir, SourceRoot, BuildRoot, Kept) ->
 %% the place agrees, so it is read as text.
 page_of(Kind, Page, BuildRoot) ->
     Title = case {Kind, binary:split(read(Page), <<"\n">>, [global])} of
-                {markdown, [<<"# Ernest module ", QualifiedName/binary>> | _]} ->
-                    title(QualifiedName);
+                {markdown, [<<"# Ernest module ", NamespaceText/binary>> | _]} ->
+                    title(NamespaceText);
                 {man, [_, <<".TH \"Ernest.", Rest/binary>> | _]} ->
-                    [QualifiedName | _] = binary:split(Rest, <<"\"">>),
-                    title(QualifiedName);
+                    [NamespaceText | _] = binary:split(Rest, <<"\"">>),
+                    title(NamespaceText);
                 _ -> none
             end,
     case Title of
@@ -809,14 +812,14 @@ compile_source(File, SourceRoot, SearchPath, Interfaces) ->
                           source => list_to_binary(filename:basename(Relative))},
                 {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
                 {ok, Namespace, Beam, Hash};
-            {error, Errors} ->
-                {error, File, Errors}
+            {error, Diagnostics} ->
+                {error, File, Diagnostics}
         end
     catch
         throw:{cli_error, Message} -> {refused, Message};
         %% a source that does not lex or parse is refused as one that does
         %% not check is, its diagnostics given back and not raised
-        throw:{errors, Failed, Unread} -> {error, Failed, Unread}
+        throw:{errors, FailedFile, ParseDiagnostics} -> {error, FailedFile, ParseDiagnostics}
     end.
 
 %%
@@ -868,18 +871,19 @@ write_whole(File, Data) ->
 
 -spec write_whole(file:filename(), iodata(), non_neg_integer() | undefined) -> ok.
 write_whole(File, Data, Mode) ->
-    written(File, followed(File, 0), Data, Mode).
+    write_at(File, followed(File, 0), Data, Mode).
 
 %% Report §11: what a build or `ern doc` writes, whole, as write_whole/2
 %% writes it, but in its place: a link there is replaced, not followed, so
 %% that a link planted in a build tree names nothing the build writes.
 -spec write_output(file:filename(), iodata()) -> ok.
 write_output(File, Data) ->
-    written(File, File, Data, undefined).
+    write_at(File, File, Data, undefined).
 
-written(File, Target, Data, Mode) ->
+%% File's data written at Place, the file itself or where its links lead.
+write_at(File, Place, Data, Mode) ->
     %% report §11: a file its owner may not write is refused, not replaced
-    case file:read_link_info(Target) of
+    case file:read_link_info(Place) of
         {ok, #file_info{access = Access}} when Access =:= read; Access =:= none ->
             fail(File ++ ": " ++ file:format_error(eacces));
         _ ->
@@ -888,16 +892,17 @@ written(File, Target, Data, Mode) ->
     %% a name of this writer's own, so that two jobs writing one file at
     %% once each write theirs whole and the last rename wins (report §11)
     Own = os:getpid() ++ "." ++ integer_to_list(erlang:unique_integer([positive])),
-    New = filename:join(filename:dirname(Target),
-                        "." ++ filename:basename(Target) ++ "." ++ Own ++ ".new"),
-    Kept = case {Mode, file:read_link_info(Target)} of
-               {undefined, {ok, #file_info{type = regular, mode = Given}}} -> Given band 8#7777;
+    New = filename:join(filename:dirname(Place),
+                        "." ++ filename:basename(Place) ++ "." ++ Own ++ ".new"),
+    Kept = case {Mode, file:read_link_info(Place)} of
+               {undefined, {ok, #file_info{type = regular, mode = Existing}}} ->
+                   Existing band 8#7777;
                {undefined, _} -> undefined;
                {Given, _} -> Given
            end,
     Steps = [fun() -> file:write_file(New, <<>>) end]
         ++ [fun() -> file:change_mode(New, Kept) end || Kept =/= undefined]
-        ++ [fun() -> file:write_file(New, Data) end, fun() -> file:rename(New, Target) end],
+        ++ [fun() -> file:write_file(New, Data) end, fun() -> file:rename(New, Place) end],
     case lists:foldl(fun(Step, ok) -> Step(); (_, Failed) -> Failed end, ok, Steps) of
         ok ->
             ok;
@@ -916,15 +921,15 @@ read(File) ->
         {error, Error} -> refused(File, Error)
     end.
 
-%% The directories a file is written under.
--spec made_dir(file:filename()) -> ok.
-made_dir(File) ->
+%% Makes the directories a file is written under.
+-spec make_dirs(file:filename()) -> ok.
+make_dirs(File) ->
     case filelib:ensure_dir(File) of
         ok -> ok;
         {error, Error} -> refused(filename:dirname(File), Error)
     end.
 
-deleted(File) ->
+delete(File) ->
     case file:delete(File) of
         ok -> ok;
         {error, enoent} -> ok;

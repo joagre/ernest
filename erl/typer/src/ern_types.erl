@@ -513,7 +513,7 @@ scheme_state(#scheme{quantified = Quantified, names = Names},
 %% type.
 -spec format_call(#scheme{}, [atom()] | none, non_neg_integer(), type_state()) ->
           {string(), string(), string()}.
-format_call(#scheme{type = Type} = Scheme, Params, Marked, TypeState) ->
+format_call(#scheme{type = Type} = Scheme, Params, MarkedIndex, TypeState) ->
     SchemeState = scheme_state(Scheme, TypeState),
     case elide_pure_effects(substitute(Type, SchemeState), [], SchemeState) of
         {tfn, ParamTypes, Effect, Result} = Elided ->
@@ -538,15 +538,15 @@ format_call(#scheme{type = Type} = Scheme, Params, Marked, TypeState) ->
                         none -> ") -> ";
                         _ -> ") : "
                     end,
-            marked(Named, Marked, [Arrow, ResultText, EffectText]);
+            marked(Named, MarkedIndex, [Arrow, ResultText, EffectText]);
         _ ->
             {format_scheme(Scheme, TypeState), "", ""}
     end.
 
 %% The signature in three parts around the parameter at the cursor; past
 %% the last parameter, the whole is the first part.
-marked(Named, Marked, Tail) when Marked < length(Named) ->
-    {Left, [This | Right]} = lists:split(Marked, Named),
+marked(Named, MarkedIndex, Tail) when MarkedIndex < length(Named) ->
+    {Left, [This | Right]} = lists:split(MarkedIndex, Named),
     {lists:flatten(["(", [[Param, ", "] || Param <- Left]]), lists:flatten(This),
      lists:flatten([[[", ", Param] || Param <- Right], Tail])};
 marked(Named, _Marked, Tail) ->
