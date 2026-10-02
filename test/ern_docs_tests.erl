@@ -165,7 +165,7 @@ described() ->
 %% and a wildcard stands for a set, so neither names one file.
 paths(Bin) ->
     Tops = ["erl/", "docs/", "test/", "bin/", "stdlib/", "examples/", "build/", "shell/",
-            "libs/", "tools/", "emacs/"],
+            "libs/", "tools/", "emacs/", "assets/"],
     Quoted = [B || B <- binary:split(Bin, <<"`">>, [global])],
     [binary_to_list(P) || {I, P} <- lists:zip(lists:seq(1, length(Quoted)), Quoted),
                           I rem 2 =:= 0,

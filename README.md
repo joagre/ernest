@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/ernest.svg" alt="Ernest" width="500">
+</p>
+
 # Ernest
 
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. A program is pure functions, whose types the compiler infers, and processes that talk through typed mailboxes. Most of its parts come from elsewhere: the Erlang runtime's processes, Gleam's static types on that runtime, and Unison's code known by the hash of its definition, which is what lets a message be checked across nodes. What Ernest adds is where the parts meet:
