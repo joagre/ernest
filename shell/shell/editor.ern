@@ -33,7 +33,7 @@ type Pending = Plain | Meta | Bracket | Parameters
 // An incremental search: what has been typed to search for, where in the
 // history the match is, where the walk stood and what was being typed
 // when the search began, and its direction.
-type Search = Search(query : String, back : Int, origin : Int, before : String, forward : Bool)
+type Search = Search(query : String, back : Int, origin : Int, saved : String, forward : Bool)
 
 /// What the reader does after a key: go on with what is being edited,
 /// submit the line, cancel it, clear the screen, complete, show
@@ -88,7 +88,7 @@ export fn newline(state : State) : State =
 /// The line and the cursor a completion left, which the reader puts
 /// back; the editor knows no names and does no completing of its own. The
 /// cursor is kept inside the line, whatever it is given.
-export fn typed(state : State, text : String, cursor : Int) : State =
+export fn withLine(state : State, text : String, cursor : Int) : State =
     State(..state, text = text, cursor = Int.max(0, Int.min(String.size(text), cursor)))
 
 /// The line being edited, a search aside.
@@ -125,9 +125,14 @@ export fn shownCursor(state : State) : Int =
     }
 
 fn asked(search : Search, text : String) : String =
-    "(" <> missing(search.query, text) <> direction(search.forward) <> ")`" <> search.query <> "': "
+    "("
+        <> failedMark(search.query, text)
+        <> direction(search.forward)
+        <> ")`"
+        <> search.query
+        <> "': "
 
-fn missing(query : String, text : String) : String =
+fn failedMark(query : String, text : String) : String =
     if String.isEmpty(query) || String.indexOf(text, query) != None then "" else "failed "
 
 fn direction(forward : Bool) : String =
@@ -195,9 +200,9 @@ fn character(state : State, char : Char) : Edit = {
       | '\u{4}' -> // C-d, and on an empty line it leaves
             if String.isEmpty(text) then Leave else Typing(deleteAt(state, cursor))
       | '\u{8}' or '\u{7f}' -> Typing(deleteBefore(state)) // Backspace and C-h
-      | '\u{b}' -> Typing(killFrom(state, String.size(text))) // C-k
-      | '\u{15}' -> Typing(killTo(state, 0)) // C-u
-      | '\u{17}' -> Typing(killTo(state, wordLeft(text, cursor, unspaced))) // C-w
+      | '\u{b}' -> Typing(killForwardTo(state, String.size(text))) // C-k
+      | '\u{15}' -> Typing(killBackTo(state, 0)) // C-u
+      | '\u{17}' -> Typing(killBackTo(state, wordLeft(text, cursor, unspaced))) // C-w
       | '\u{19}' -> Typing(insert(state, kill)) // C-y
       | '\u{c}' -> Clear(state) // C-l
       | '\t' -> Completing(state) // the reader has the names to complete against
@@ -226,9 +231,9 @@ fn meta(state : State, event : Terminal.Event) : Edit = {
       | Terminal.Key('>') -> Typing(walkTo(state, 0))
       | Terminal.Key('b') -> Typing(State(..state, cursor = wordLeft(text, cursor, alphanumeric)))
       | Terminal.Key('f') -> Typing(State(..state, cursor = wordRight(text, cursor, alphanumeric)))
-      | Terminal.Key('d') -> Typing(killFrom(state, wordRight(text, cursor, alphanumeric)))
+      | Terminal.Key('d') -> Typing(killForwardTo(state, wordRight(text, cursor, alphanumeric)))
       | Terminal.Key('\u{8}') or Terminal.Key('\u{7f}') ->
-            Typing(killTo(state, wordLeft(text, cursor, alphanumeric)))
+            Typing(killBackTo(state, wordLeft(text, cursor, alphanumeric)))
       | Terminal.Key(_) -> Typing(state) // an unbound Meta key does nothing
       // every other key does what it does, `Escape` before it or not
       | other -> plain(state, other)
@@ -270,7 +275,7 @@ fn search(state : State, forward : Bool) : State =
           search = Some(Search(query = "",
                                back = state.back,
                                origin = state.back,
-                               before = state.text,
+                               saved = state.text,
                                forward = forward)))
 
 fn searching(state : State, search : Search, event : Terminal.Event) : Edit =
@@ -314,26 +319,26 @@ fn narrow(state : State, search : Search, char : Char) : State = {
 // again from where it started, so that a shorter query may match a
 // nearer input.
 fn shorten(state : State, search : Search) : State = {
-    let Search(query = query, origin = origin, before = before) = search;
+    let Search(query = query, origin = origin, saved = saved) = search;
     let shorter = String.slice(query, 0, Int.max(0, String.size(query) - 1));
-    let narrower = Search(..search, query = shorter, back = origin);
+    let shortened = Search(..search, query = shorter, back = origin);
     if String.isEmpty(shorter) then
         State(..state,
-              text = before,
-              cursor = String.size(before),
+              text = saved,
+              cursor = String.size(saved),
               back = origin,
-              search = Some(narrower))
+              search = Some(shortened))
     else match find(state.history, shorter, origin + stride(search), stride(search)) {
-        Some(found) -> matched(state, narrower, found)
-      | None -> State(..state, search = Some(narrower))
+        Some(found) -> matched(state, shortened, found)
+      | None -> State(..state, search = Some(shortened))
     }
 }
 
 // `C-g`: the line the search began from comes back.
 fn abandon(state : State, search : Search) : State =
     State(..state,
-          text = search.before,
-          cursor = String.size(search.before),
+          text = search.saved,
+          cursor = String.size(search.saved),
           back = search.origin,
           search = None)
 
@@ -397,7 +402,7 @@ fn deleteAt(state : State, index : Int) : State = {
 }
 
 // Kill back to `index`, keeping what was killed for `C-y`.
-fn killTo(state : State, index : Int) : State = {
+fn killBackTo(state : State, index : Int) : State = {
     let State(text = text, cursor = cursor) = state;
     State(..state,
           text = String.slice(text, 0, index) <> suffix(text, cursor),
@@ -406,7 +411,7 @@ fn killTo(state : State, index : Int) : State = {
 }
 
 // Kill forward to `index`.
-fn killFrom(state : State, index : Int) : State = {
+fn killForwardTo(state : State, index : Int) : State = {
     let State(text = text, cursor = cursor) = state;
     State(..state,
           text = String.slice(text, 0, cursor) <> suffix(text, index),
@@ -429,7 +434,7 @@ fn wordRight(text : String, cursor : Int, inWord : (String, Int) -> Bool) : Int 
 
 // From `index`, `stride` at a time, while the character stepped over `holds`.
 fn over(text : String, index : Int, stride : Int, holds : (String, Int) -> Bool) : Int =
-    if beyond(text, index, stride) then
+    if isBeyond(text, index, stride) then
         index
     else if holds(text, index + Int.min(stride, 0)) then
         over(text, index + stride, stride, holds)
@@ -438,7 +443,7 @@ fn over(text : String, index : Int, stride : Int, holds : (String, Int) -> Bool)
 
 // The character a step away is off the line, so the walk over the word
 // stops there.
-fn beyond(text : String, index : Int, stride : Int) : Bool =
+fn isBeyond(text : String, index : Int, stride : Int) : Bool =
     index + Int.min(stride, 0) < 0 || index + Int.max(stride, 0) > String.size(text)
 
 fn unspaced(text : String, index : Int) : Bool =
@@ -722,7 +727,7 @@ let searchLeft =
                         "print two",
                         0))
 
-let kept =
+let joinsHistory =
     Test.Case(name = "the line just taken joins the history",
               run = fn() = match next(State(..start(["one"]), text = "two")) {
                   State(history = ["two", "one"]) -> Test.Passed
@@ -745,9 +750,9 @@ let lastThousand = Test.Case(name = "the history keeps the last thousand inputs"
 let notKept =
     Test.Case(name = "a blank input and one repeated are not kept",
               run = fn() =
-                  if !keeps(typed(start(["one"]), "  ", 0))
-                      && !keeps(typed(start(["one"]), "one", 0))
-                      && keeps(typed(start(["one"]), "two", 0)) then
+                  if !keeps(withLine(start(["one"]), "  ", 0))
+                      && !keeps(withLine(start(["one"]), "one", 0))
+                      && keeps(withLine(start(["one"]), "two", 0)) then
                       Test.Passed
                   else
                       Test.Failed("the history kept what it should not"))

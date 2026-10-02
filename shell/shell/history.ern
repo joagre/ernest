@@ -29,7 +29,7 @@ export fn read() : Either(Io.Error, List(String)) with m =
     match file {
         None -> Right([])
       | Some(path) -> {
-            let _ <- made(path);
+            let _ <- makeDirectory(path);
             match Fs.read(path, fileMs) {
                 // no file yet: a first session has no history
                 Left(Io.NotFound) -> Right([])
@@ -46,7 +46,7 @@ export fn read() : Either(Io.Error, List(String)) with m =
 // first session, and its owner's alone to read, write and enter, so that no
 // one else reads what was typed, before the file is read, written or
 // trimmed.
-fn made(path : Path) : Either(Io.Error, Unit) with m =
+fn makeDirectory(path : Path) : Either(Io.Error, Unit) with m =
     match Path.parent(path) {
         None -> Right(Unit)
       | Some(directory) -> {
@@ -73,7 +73,7 @@ fn trimmed(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) 
         Right(List.reverse(inputs))
     else {
         let last = List.drop(inputs, extra);
-        let _ <- replaced(path, String.toUtf8(text(last)), 1);
+        let _ <- replace(path, String.toUtf8(text(last)), 1);
         Right(List.reverse(last))
     }
 }
@@ -82,10 +82,10 @@ fn trimmed(path : Path, inputs : List(String)) : Either(Io.Error, List(String)) 
 // over it, so that it is written whole or not at all, under a name no other
 // session writes at once: the first of `history.new1`, `history.new2` and
 // on that `makeFile` makes, since it refuses one that exists.
-fn replaced(path : Path, bytes : Bytes, attempt : Int) : Either(Io.Error, Unit) with m = {
+fn replace(path : Path, bytes : Bytes, attempt : Int) : Either(Io.Error, Unit) with m = {
     let beside = Path.withExtension(path, "new" <> Int.toString(attempt));
     match Fs.makeFile(beside, bytes, fileMs) {
-        Left(Io.Exists) -> replaced(path, bytes, attempt + 1)
+        Left(Io.Exists) -> replace(path, bytes, attempt + 1)
       | Left(error) -> Left(error)
       | Right(_) -> match Fs.rename(beside, path, fileMs) {
             Left(error) -> {

@@ -51,7 +51,7 @@ At a terminal:
 
 An input typed while another runs waits in the session's mailbox, and `C-c` kills the run (the design note's *Queueing*).
 
-In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault reports that waited (`pending`), writes the prompt, reads a line with `Io.readLine`, with the lines after it that `moreLines` takes while the parser cannot finish the input, and passes it to `submit` (the design note's *Line mode*).
+In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault reports that waited (`reportPending`), writes the prompt, reads a line with `Io.readLine`, with the lines after it that `moreLines` takes while the parser cannot finish the input, and passes it to `submit` (the design note's *Line mode*).
 
 ## The modules
 

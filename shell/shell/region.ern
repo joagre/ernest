@@ -30,7 +30,7 @@ export abstract type Region =
            cursor : Int,
            offered : List(String),
            resting : Int,
-           output : Int,
+           outputRows : Int,
            size : Terminal.Size)
 
 /// Report §11.2: the tail's rows to begin with, which `:set output n`
@@ -53,7 +53,7 @@ export fn new(size : Terminal.Size) : Region =
            cursor = 0,
            offered = [],
            resting = 0,
-           output = tailRows,
+           outputRows = tailRows,
            size = size)
 
 /// What the session says is committed as it is produced; what it leaves
@@ -125,7 +125,7 @@ export fn resized(region : Region, size : Terminal.Size) : #(Region, String) =
 /// Report §11.2: `:set output n` gives the tail n rows, and 0 takes the
 /// tail away, which interleaves what programs write with the transcript.
 export fn output(region : Region, rows : Int) : #(Region, String) =
-    aged(Region(..region, output = Int.max(0, rows)), [])
+    aged(Region(..region, outputRows = Int.max(0, rows)), [])
 
 /// Report §11.2: `C-l` gives a clean screen. What is committed stays in
 /// the terminal's scrollback; the region is painted again at the top.
@@ -203,8 +203,8 @@ fn offeredRows(region : Region) : List(String) = {
         []
     else {
         let shown = fitting(lines, room - 1);
-        let left = List.size(lines) - List.size(shown);
-        List.flatMap(shown, fn(rows) = rows) <> ["and " <> Int.toString(left) <> " more"]
+        let more = List.size(lines) - List.size(shown);
+        List.flatMap(shown, fn(rows) = rows) <> ["and " <> Int.toString(more) <> " more"]
     }
 }
 
@@ -241,7 +241,7 @@ fn past(graphemes : List(String),
         sequences : String,
         taken : Bool) : #(String, List(String)) =
     match sequence(graphemes) {
-        Some(#(escape, tail)) -> past(tail, left, sequences <> escape, taken)
+        Some(#(escape, remaining)) -> past(remaining, left, sequences <> escape, taken)
       | None -> match graphemes {
             grapheme :: rest when fits(grapheme, left, taken) ->
                 past(rest, left - Terminal.columns(grapheme), sequences, true)
@@ -260,9 +260,9 @@ fn fits(grapheme : String, left : Int, taken : Bool) : Bool = {
 fn sequence(graphemes : List(String)) : Optional(#(String, List(String))) =
     match graphemes {
         "\u{1b}" :: "[" :: rest -> {
-            let tail = afterSequence(rest);
-            let taken = List.take(graphemes, List.size(graphemes) - List.size(tail));
-            Some(#(String.join(taken, ""), tail))
+            let remaining = afterSequence(rest);
+            let escape = List.take(graphemes, List.size(graphemes) - List.size(remaining));
+            Some(#(String.join(escape, ""), remaining))
         }
       | _ -> None
     }
@@ -270,11 +270,11 @@ fn sequence(graphemes : List(String)) : Optional(#(String, List(String))) =
 fn afterSequence(graphemes : List(String)) : List(String) =
     match graphemes {
         [] -> []
-      | grapheme :: rest -> if final(grapheme) then rest else afterSequence(rest)
+      | grapheme :: rest -> if isFinal(grapheme) then rest else afterSequence(rest)
     }
 
 // The character that ends a sequence, `m` among them.
-fn final(grapheme : String) : Bool =
+fn isFinal(grapheme : String) : Bool =
     match String.toList(grapheme) {
         [char] -> Char.toInt(char) >= 0x40 && Char.toInt(char) <= 0x7E
       | _ -> false
@@ -322,30 +322,30 @@ fn picture(char : Char) : String = {
 // The tail's height: what `:set output` asks for, and never more than
 // the screen has room for, the input having the last word.
 fn height(region : Region) : Int =
-    Int.min(region.output, Int.max(0, region.size.rows / 2 - 1))
+    Int.min(region.outputRows, Int.max(0, region.size.rows / 2 - 1))
 
 // The row of the region the cursor rests on: the tail's rows, the screen
 // rows of the input's lines before the cursor's, and the rows the cursor's
 // own line wraps onto before it.
 fn resting(region : Region) : Int = {
-    let line = List.size(String.split(String.slice(region.typed, 0, region.cursor), "\n")) - 1;
+    let lineIndex = List.size(String.split(String.slice(region.typed, 0, region.cursor), "\n")) - 1;
     let earlier =
-        List.flatMap(List.take(inputRows(region), line),
+        List.flatMap(List.take(inputRows(region), lineIndex),
                      fn(row) = onScreen(expand(row), region.size.columns));
     List.size(tailRowsOf(region))
         + List.size(earlier)
-        + offset(region) / Int.max(1, region.size.columns)
+        + columnsBefore(region) / Int.max(1, region.size.columns)
 }
 
 // The column the cursor rests in, on the row its line wraps onto: what the
 // line holds before the cursor, tabs and all, is as many columns as it
 // paints.
 fn column(region : Region) : Int =
-    offset(region) % Int.max(1, region.size.columns) + 1
+    columnsBefore(region) % Int.max(1, region.size.columns) + 1
 
 // The columns before the cursor on its line, the prompt or `... ` among
 // them.
-fn offset(region : Region) : Int = {
+fn columnsBefore(region : Region) : Int = {
     let before = String.slice(region.typed, 0, region.cursor);
     let head = match String.lastIndexOf(before, "\n") {
         None -> region.prompt <> pictured(before)
@@ -384,14 +384,14 @@ fn clip(line : String, width : Int) : String =
 fn clipping(graphemes : List(String),
             left : Int,
             acc : String,
-            styled : Bool,
+            inStyle : Bool,
             taken : Bool) : String =
     match sequence(graphemes) {
-        Some(#(escape, tail)) -> clipping(tail, left, acc <> escape, true, taken)
+        Some(#(escape, remaining)) -> clipping(remaining, left, acc <> escape, true, taken)
       | None -> match graphemes {
             grapheme :: rest when fits(grapheme, left, taken) ->
-                clipping(rest, left - Terminal.columns(grapheme), acc <> grapheme, styled, true)
-          | _ -> if styled then acc <> "\u{1b}[0m" else acc
+                clipping(rest, left - Terminal.columns(grapheme), acc <> grapheme, inStyle, true)
+          | _ -> if inStyle then acc <> "\u{1b}[0m" else acc
         }
     }
 
@@ -411,8 +411,8 @@ fn filling(graphemes : List(String),
            style : String,
            rows : List(String)) : #(List(String), String) =
     match sequence(graphemes) {
-        Some(#(escape, tail)) ->
-            filling(tail, width, used, row <> escape, styled(style, escape), rows)
+        Some(#(escape, remaining)) ->
+            filling(remaining, width, used, row <> escape, styled(style, escape), rows)
       | None -> match graphemes {
             [] -> #(List.reverse(rows), row)
           | grapheme :: rest -> {
@@ -503,7 +503,7 @@ let tabsAfterSequences =
               run = fn() = same(expand("\u{1b}[36ma\u{1b}[0m\tb"), "\u{1b}[36ma\u{1b}[0m       b"))
 
 let takenPrompt =
-    Test.Case(name = "a prompt spent on no input goes before the next answer", run = fn() = {
+    Test.Case(name = "a prompt spent on no input is dropped before the next answer", run = fn() = {
         let region = new(Terminal.Size(rows = 24, columns = 80));
         let #(region1, _) = said(region, "1 : Int\n> ");
         let #(region2, _) = taken(region1);
@@ -542,13 +542,13 @@ let offersUnderTheInput =
         let #(region, bytes) = typing(prompted(), "Li", 2, ["List.map : a", "List.size : b"]);
         // three rows painted, and the cursor climbs the two under it
         if rowsOf(region) == ["> Li", "List.map : a", "List.size : b"] && resting(region) == 0 then
-            same(bytes, offered)
+            same(bytes, offeredBytes)
         else
             Test.Failed(String.join(rowsOf(region), " | "))
     })
 
 // What typing "Li" writes with two rows offered under it.
-let offered = "\r\u{1b}[J> Li\nList.map : a\nList.size : b\u{1b}[2A\r\u{1b}[4C"
+let offeredBytes = "\r\u{1b}[J> Li\nList.map : a\nList.size : b\u{1b}[2A\r\u{1b}[4C"
 
 let nextKeyTakesItAway = Test.Case(name = "the next key takes away what Tab showed", run = fn() = {
     let #(region, _) = typing(prompted(), "Li", 2, ["List.map : a"]);
@@ -642,14 +642,15 @@ let unendedRows =
 let unendedStyle =
     Test.Case(name = "a row of a line not yet ended begins with the style in force", run = fn() = {
         let #(rows, left) = filled("\u{1b}[31mabcdefghijkl", 10);
-        let #(reset, tail) = filled("\u{1b}[31mab\u{1b}[0mcdefghijkl", 10);
+        let #(resetRows, resetLeft) = filled("\u{1b}[31mab\u{1b}[0mcdefghijkl", 10);
         if rows == ["\u{1b}[31mabcdefghij"]
             && left == "\u{1b}[31mkl"
-            && reset == ["\u{1b}[31mab\u{1b}[0mcdefghij"]
-            && tail == "kl" then
+            && resetRows == ["\u{1b}[31mab\u{1b}[0mcdefghij"]
+            && resetLeft == "kl" then
             Test.Passed
         else
-            Test.Failed(String.replace(String.join(rows <> [left] <> reset <> [tail], " | "),
+            Test.Failed(String.replace(String.join(rows <> [left] <> resetRows <> [resetLeft],
+                                                   " | "),
                                        "\u{1b}",
                                        "ESC"))
     })

@@ -29,7 +29,7 @@ The runner, `ern_cli`, loads the file and its dependencies and runs their initia
 
 `main` is ordered by what each step needs from the one before:
 
-1. Where `Terminal.size()` answers a size, it spawns the reader and waits for `Ready` or `NoKeys`. The reader answers once its subscription is granted, and so once the terminal no longer echoes (§8.2 *Keys*); what was typed at a prompt written earlier would be echoed and read as a line.
+1. Where `Terminal.size()` answers a size, it spawns the reader and waits for `Subscribed` or `SubscriptionRefused`. The reader answers once its subscription is granted, and so once the terminal no longer echoes (§8.2 *Keys*); what was typed at a prompt written earlier would be echoed and read as a line.
 2. It spawns the screen, binds the sinks to it with `setScreen(via(screen, Wrote))`, and says the greeting, the version and where the commands are.
 3. It subscribes to `Process.faults(Reported)`, and only then spawns the file's entry point (`program`), so that a fault in the entry point is reported.
 4. At a terminal it reads the history, sends the reader `Start` with the screen, the history, whether the history file takes what is typed, which it does not where it could not be read, and whether to colour, and monitors the reader: the reader's end is the session's.
@@ -43,21 +43,21 @@ Where standard output has no size, or the reader's subscription is refused becau
 
 ## The front end
 
-`erl/cli/src/ern_shell.erl` answers every foreign function the shell declares but `holdTerminal`, which the runtime answers (`ern_rt:hold_terminal/1`). The shell's own declarations stand at the top of `shell/shell.ern`, and those `Shell.Complete` asks at the foot of `shell/shell/complete.ern`, each naming its Erlang function.
+`erl/cli/src/ern_shell.erl` answers every foreign function the shell declares but `holdTerminal`, which the runtime answers (`ern_rt:hold_terminal/1`). The shell's foreign functions stand at the foot of `shell/shell.ern`, and those `Shell.Complete` asks before its matching in `shell/shell/complete.ern`, each naming its Erlang function.
 
 ### The foreign interface
 
 The front end's values reach the shell as handles of three foreign types, `Session`, `Checked` and `Value`, so the shell cannot pass one kind where another is expected. The shell never looks inside them, and types reach it as text.
 
-- **The session.** `start` makes the first `Session`. `check` answers §11.5's text for an input that does not check, and otherwise the next `Session` with a `Checked`; its `Origin` names where the input came from, `Prompt(n)` for the `n`th thing entered at the prompt, which the session's `State` counts in `entered`, and `Startup(file, line)` for a line of a startup file. `spawnInput` runs a `Checked`, and its outcome carries the `Session` after it. `load`, `reload` and `forget` answer the `Session` they made, and `collect` the `Session` with what nothing reaches let go.
-- **A result.** `typeText`, `isUnit`, `declared` and `unbound` read a `Checked`: the type printed, whether the value is printed at all, what a declaration prints, and whether `it` was left as it was. `show` prints a `Value` to a depth and a length.
+- **The session.** `start` makes the first `Session`. `check` answers §11.5's text for an input that does not check, and otherwise the next `Session` with a `Checked`; its `Origin` names where the input came from, `Prompt(n)` for the `n`th thing entered at the prompt, which the session's `State` counts in `entered`, and `Startup(file, line, column)` for a line of a startup file and the column the input begins in. `spawnInput` runs a `Checked`, and its outcome carries the `Session` after it. `load`, `reload` and `forget` answer the `Session` they made, and `collect` the `Session` with what nothing reaches let go.
+- **A result.** `typeText`, `isUnit`, `isExpression`, `declared` and `unbound` read a `Checked`: the type printed, whether the value is printed at all, whether `:type` takes the input, what a declaration prints, and whether `it` was left as it was. `show` prints a `Value` to a depth and a length.
 - **The commands** that reach past the shell: `bindings`, `browse`, `doc` and `output`.
 - **The questions the reader and `Shell.Complete` ask**: `names`, `sessionNames`, `sessionTexts`, `sourceRoot`, `slot`, `needsMore`, `fields`, `documentation`, `signature` and `segment`. None takes a `Session`; those that read the session read the front end's copy.
 - **The host's alone**: `version`, `startupFiles`, `program`, `write`, `setScreen` and `holdTerminal`.
 
 `spawnInput` takes an address, `via(self(), Done)`, and not the wrap E.0 shape rule 8 gives a function that delivers later: foreign code may pass a function value back but not call it (§8.4), so the shell wraps at its end and the front end only sends. `NO_COLOR`, and `HOME` for the history, are read in Ernest, with `Os.environment`, and what runs and what faulted through `Process` (E.21), as any program reads them.
 
-**The front end's copy.** The front end keeps the latest `Session` of its own (`remember`), besides the one the session holds. The reader completes and documents while an input runs, when the session waits in `await` and answers nothing, so the reader's questions cannot be messages to the session. The copy is set when an input is checked and again when it has run, since what an input declares joins the session when it has run.
+**The front end's copy.** The front end keeps the latest `Session` of its own (`keep_session`), besides the one the session holds. The reader completes and documents while an input runs, when the session waits in `await` and answers nothing, so the reader's questions cannot be messages to the session. The copy is set when an input is checked and again when it has run, since what an input declares joins the session when it has run.
 
 ### An input as a module
 
@@ -113,7 +113,7 @@ The row the cursor rests on is counted from the region's first: the tail's rows,
 
 ## The editor
 
-`Shell.Editor` is a pure function, `edit(State, Terminal.Event) -> Edit`, whose answer tells the reader what to do. It writes nothing and knows no names; the reader completes and documents, and puts the line back with `typed`. The state is abstract (§4.4), so the editor alone keeps the cursor inside the line and a search inside the history. Its one kill outlives the line: `next` carries it to the next. Which of Readline's keys are bound is `plain`, `character` and `meta`.
+`Shell.Editor` is a pure function, `edit(State, Terminal.Event) -> Edit`, whose answer tells the reader what to do. It writes nothing and knows no names; the reader completes and documents, and puts the line back with `withLine`. The state is abstract (§4.4), so the editor alone keeps the cursor inside the line and a search inside the history. Its one kill outlives the line: `next` carries it to the next. Which of Readline's keys are bound is `plain`, `character` and `meta`.
 
 - **Sequences.** §8.2 delivers a sequence it does not name as `Escape` and its characters. So `Escape` and a key is that key's Meta binding, and `Escape [` begins the rest of a sequence, of which `Escape [ Z` is `Shift-Tab`. The reader keeps its record of the key before while a sequence is begun, so that `Shift-Tab` twice is two presses and not six keys.
 - **History.** The walk at 0 is the line being typed, kept while the walk is away from it. A search keeps its query, its match, where the walk stood and what was typed when it began, and its direction; `shown` and `shownCursor` give Readline's search prompt with the match after it, which the reader sends in place of the line.
@@ -127,7 +127,7 @@ The row the cursor rests on is counted from the region's first: the tail's rows,
 
 - **Format.** One input a line, oldest first, a newline in an input written `\n` and a backslash `\\`. Decoding reads left to right, since `\\n` is a backslash and an `n`, which two passes of `String.replace` would read as a newline. An empty line is passed over.
 - **Reading.** `read` answers the inputs newest first, the order the editor walks. A file that holds more than `kept`, a thousand, is rewritten to the last thousand as it is read.
-- **Writing.** `made` makes the directory, its owner's alone, before the file is read or written, and `add` appends a line. The reader calls it as it takes an input and as `C-c` abandons one, where `Shell.Editor.keeps` says the input is kept. A write that fails is said once, and the reader keeps no more.
+- **Writing.** `makeDirectory` makes the directory, its owner's alone, before the file is read or written, and `add` appends a line. The reader calls it as it takes an input and as `C-c` abandons one, where `Shell.Editor.keeps` says the input is kept. A write that fails is said once, and the reader keeps no more.
 
 The session reads the file in `main` and hands the inputs to the reader in `Start`; the editor's history is those inputs and each input taken since, at most `kept` of them.
 
@@ -146,7 +146,7 @@ The names come from the front end, which `Shell.Complete` asks, as `Shell.Histor
 
 `Shift-Tab` is `documenting`. The whole name the cursor stands in (`Shell.Complete.wordAt`) is asked of `documentation`, which answers the page `:doc` shows, with its module's *Since* line added where the page has none of its own. A first press shows `brief`, read from the parsed page: the first line of its first code block, the first sentence of its prose (`Markdown.firstSentence`), and its *Since* line. A second press shows the whole page.
 
-Where the name has no page, `signature` answers the call or constructor the input stops inside, in three parts: before the parameter at the cursor, the parameter, and after it. The parser records the innermost call on its diagnostic, `#diag.within`, and the text is tried as an expression, a statement, and declarations, so a `let` and a `fn` body find it; the reader cuts a command's word off before it asks, so a command's argument finds it too. A function callee is checked as a one-name input in `$Signature`, and `ern_types:format_call/4` prints its declared type with the parameter names its documentation carries; the shell styles the middle part with `Shell.Style.emphasis`. Pages are rendered by `libs/markdown`, which the shell is built against, at the screen's width, or 80 columns where there is no terminal.
+Where the name has no page, `signature` answers the call or constructor the input stops inside, in three parts: before the parameter at the cursor, the parameter, and after it. The parser records the innermost call on its diagnostic, `#diagnostic.within`, and the text is tried as an expression, a statement, and declarations, so a `let` and a `fn` body find it; the reader cuts a command's word off before it asks, so a command's argument finds it too. A function callee is checked as a one-name input in `$Signature`, and `ern_types:format_call/4` prints its declared type with the parameter names its documentation carries; the shell styles the middle part with `Shell.Style.emphasis`. Pages are rendered by `libs/markdown`, which the shell is built against, at the screen's width, or 80 columns where there is no terminal.
 
 ## Commands
 
@@ -158,7 +158,7 @@ The session learns of every fault as a subscriber of `Process.faults` (E.21), an
 
 An input's process catches its own fault and answers it as its outcome, so no report of it comes but for a fault a signal brought, and `await` takes that report as the input's answer. `:load`'s initializing processes catch theirs likewise. So an input's fault is reported once.
 
-A spawn site in an input's module is written as §11.2 *Faults* says. The emitter, told that it compiles an input and given the line offset its diagnostics use (`session => 0`, or the lines before a startup input), writes a site in a declared function by the function's name. A site in `'$input'` is a call of `ern_shell:input_site/2`, which reads the name `run/3` recorded for the input, `input 3` or the startup file's path. Each line is moved by the offset.
+A spawn site in an input's module is written as §11.2 *Faults* says. The emitter, told that it compiles an input and given the line offset its diagnostics use (`session_offset => 0`, or the lines before a startup input), writes a site in a declared function by the function's name. A site in `'$input'` is a call of `ern_shell:input_site/2`, which reads the name recorded for the input, `input 3` or the startup file's path. Each line is moved by the offset.
 
 ## Startup files
 

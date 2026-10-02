@@ -42,7 +42,7 @@ export type Command =
 
 // What a command's name selects: one command, none, or several, which
 // report §11.2 refuses with their names.
-type Picked = Picked(Command) | Unknown | Ambiguous(List(String))
+type Selection = Picked(Command) | Unknown | Ambiguous(List(String))
 
 /// What one `:set` sets.
 export type Setting = Depth(Int) | Length(Int) | OutputRows(Int) | Timing(Bool)
@@ -129,7 +129,7 @@ export fn parse(line : String) : Either(String, #(Action, String)) = {
 
 // Report §11.2: a name selects its command, and so does a prefix of it that
 // begins no other command's name.
-fn pick(name : String) : Picked = {
+fn pick(name : String) : Selection = {
     let begun = List.filter(commands, fn(command) = String.startsWith(command.name, name));
     match List.filter(begun, fn(command) = command.name == name) {
         [whole] -> Picked(whole)
@@ -173,8 +173,8 @@ export fn wordEnd(line : String) : Int =
 /// anything after it.
 export fn completes(word : String) : Optional(Completes) =
     match pick(String.slice(word, 1, String.size(word) - 1)) {
-        Picked(Command(takes = Needs(completes = kind))) -> Some(kind)
-      | Picked(Command(takes = Allows(kind))) -> Some(kind)
+        Picked(Command(takes = Needs(completes = completes))) -> Some(completes)
+      | Picked(Command(takes = Allows(completes))) -> Some(completes)
       | _ -> None
     }
 
@@ -207,23 +207,24 @@ let column = 16
 export let settings =
     [#("depth", "n"), #("length", "n"), #("output", "n"), #("timing", "on or off")]
 
-let settingsAbout = String.join(List.map(settings, fn(#(name, value)) = name <> " " <> value), ", ")
+let settingsAbout = String.join(List.map(settings, fn(#(setting, value)) = setting <> " " <> value),
+                                ", ")
     <> "; :set alone shows them"
 
 /// Report §11.2: what `:set`'s argument sets, or the refusal that says why
 /// it sets nothing.
 export fn setting(argument : String) : Either(String, Setting) =
     match split(argument) {
-        #("depth", rest) -> count("depth", rest, Depth)
-      | #("length", rest) -> count("length", rest, Length)
-      | #("output", rest) -> count("output", rest, OutputRows)
+        #("depth", rest) -> counted("depth", rest, Depth)
+      | #("length", rest) -> counted("length", rest, Length)
+      | #("output", rest) -> counted("output", rest, OutputRows)
       | #("timing", "on") -> Right(Timing(true))
       | #("timing", "off") -> Right(Timing(false))
       | #("timing", _) -> Left(":set timing takes on or off")
-      | _ -> Left(":set takes " <> choice(List.map(settings, fn(#(name, _)) = name)))
+      | _ -> Left(":set takes " <> choice(List.map(settings, fn(#(setting, _)) = setting)))
     }
 
-fn count(what : String, text : String, made : (Int) -> Setting) : Either(String, Setting) =
+fn counted(what : String, text : String, made : (Int) -> Setting) : Either(String, Setting) =
     match String.toInt(text) {
         Some(value) -> if value < 0 then
             Left(":set " <> what <> " takes 0 or more")

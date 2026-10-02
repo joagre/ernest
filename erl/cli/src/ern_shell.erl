@@ -65,10 +65,10 @@ loaded(Loaded) ->
 start() ->
     #loaded{load_path = LoadPath, source_root = SourceRoot, interfaces = Interfaces} =
         persistent_term:get({?MODULE, loaded}, #loaded{}),
-    remember(#session{load_path = LoadPath, source_root = SourceRoot,
-                      interfaces = [Interface || {Interface, _} <- Interfaces],
-                      modules = maps:from_list([{Interface#interface.namespace, Hash}
-                                                || {Interface, Hash} <- Interfaces])}).
+    keep_session(#session{load_path = LoadPath, source_root = SourceRoot,
+                          interfaces = [Interface || {Interface, _} <- Interfaces],
+                          modules = maps:from_list([{Interface#interface.namespace, Hash}
+                                                    || {Interface, Hash} <- Interfaces])}).
 
 %% Report §11.2: the session as it stands, which completion reads. The
 %% reader asks for the names while an input runs, when the session is busy
@@ -76,7 +76,7 @@ start() ->
 %% end keeps the latest, as it keeps what the runner loaded. An input's
 %% declarations join the session when it has run, not when it is checked,
 %% so this is set in both places.
-remember(Session) ->
+keep_session(Session) ->
     persistent_term:put({?MODULE, session}, Session),
     Session.
 
@@ -124,8 +124,8 @@ unfinished(_) -> false.
 -spec check(#session{}, {'Prompt', pos_integer()}
                         | {'Startup', binary(), pos_integer(), pos_integer()}, binary()) ->
           {'Left', binary()} | {'Right', {#session{}, #checked{}}}.
-check(#session{last_input = LastInput} = Session, From, Input) ->
-    Origin = case From of
+check(#session{last_input = LastInput} = Session, Origin, Input) ->
+    Source = case Origin of
                  {'Prompt', Number} -> {typed, <<"input ", (integer_to_binary(Number))/binary>>};
                  {'Startup', File, Line, Column} ->
                      #startup_input{file = File, line = Line, column = Column}
@@ -139,11 +139,11 @@ check(#session{last_input = LastInput} = Session, From, Input) ->
     Numbered = Session#session{last_input = LastInput1},
     case input(Input) of
         {ok, Binds, Expr} ->
-            checked(check_module(Numbered, Namespace, Origin, Input, input_entry(Expr), Binds));
+            checked(check_module(Numbered, Namespace, Source, Input, input_entry(Expr), Binds));
         {declarations, Declarations} ->
-            checked(check_module(Numbered, Namespace, Origin, Input, Declarations, declarations));
+            checked(check_module(Numbered, Namespace, Source, Input, Declarations, declarations));
         {error, Diagnostic} ->
-            {'Left', diagnostic(Origin, Input, [Diagnostic])}
+            {'Left', diagnostic(Source, Input, [Diagnostic])}
     end.
 
 %% Report §2.3: the modules the session makes are named as no Ernest name
@@ -156,7 +156,7 @@ input_namespace(Number) ->
     [list_to_atom("$Input" ++ integer_to_list(Number))].
 
 checked({'Right', {Session, Checked}}) ->
-    {'Right', {remember(Session), Checked}};
+    {'Right', {keep_session(Session), Checked}};
 checked(Other) ->
     Other.
 
@@ -281,7 +281,7 @@ input_entry(Expr) ->
     [#fn_declaration{span = {1, 1, {1, 1}}, export = true, name = ?ENTRY, params = [],
                      body = Expr}].
 
-check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespace, Origin, Input,
+check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespace, Source, Input,
              Declarations, Binds) ->
     case ern_typecheck:check(Namespace, Declarations, Interfaces, Scope) of
         {ok, Typed, Interface, Env} ->
@@ -291,13 +291,13 @@ check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespa
                 none ->
                     Checked = #checked{namespace = Namespace, typed = Typed,
                                        declarations = Declarations, interface = Interface,
-                                       env = Env, type = Type, binds = Binds1, site = site(Origin)},
+                                       env = Env, type = Type, binds = Binds1, site = site(Source)},
                     {'Right', {Session, Checked}};
                 {refused, Diagnostic} ->
-                    {'Left', diagnostic(Origin, Input, [Diagnostic])}
+                    {'Left', diagnostic(Source, Input, [Diagnostic])}
             end;
         {error, Diagnostics} ->
-            {'Left', diagnostic(Origin, Input, Diagnostics)}
+            {'Left', diagnostic(Source, Input, Diagnostics)}
     end.
 
 %% Report §4.6: the scheme a `let` of a lambda binds its name to, the
@@ -452,7 +452,7 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
                Outcome = try
                              Value = value(ErlangModule, Binds),
                              Bound = bind(Session1, Binds, Namespace, Value, Type, Env, Interface),
-                             {'Ok', remember(Bound), Serial,
+                             {'Ok', keep_session(Bound), Serial,
                               #value{term = Value, descriptor = Descriptor}}
                          catch
                              throw:{ern, fault, Cause} -> {'Faulted', Cause, Serial};
@@ -805,7 +805,7 @@ session_type_state(#session{scope = Scope, interfaces = Interfaces}) ->
 %% of its type while it is reached.
 -spec forget(#session{}, binary()) -> {'Left', binary()} | {'Right', #session{}}.
 forget(Session, <<"*">>) ->
-    {'Right', remember(collected(Session#session{scope = #{}}))};
+    {'Right', keep_session(collected(Session#session{scope = #{}}))};
 forget(#session{scope = Scope} = Session, Text) ->
     Values = maps:get(values, Scope, #{}),
     Types = maps:get(types, Scope, #{}),
@@ -821,7 +821,7 @@ forget(#session{scope = Scope} = Session, Text) ->
             Scope1 = Scope#{values => maps:without([Name | Members], Values),
                             types => maps:remove(Name, Types),
                             constructors => maps:without(Gone, Constructors)},
-            {'Right', remember(collected(Session#session{scope = Scope1}))};
+            {'Right', keep_session(collected(Session#session{scope = Scope1}))};
         _ ->
             {'Left', <<"the session declares no ", Text/binary>>}
     end.
@@ -1415,7 +1415,7 @@ load(#session{modules = Modules} = Session, Text) ->
     end.
 
 %% A refusal ends in a line feed, as a diagnostic the compiler gives does,
-%% since the shell prints both alike. What is loaded is remembered, since
+%% since the shell prints both alike. What is loaded is kept, since
 %% completion and `Shift-Tab` read the session from where it is kept.
 load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
     case source_of(Session, Namespace) of
@@ -1533,7 +1533,7 @@ installed(Session, All, Answer) ->
     Session1 = install(Session, All),
     case initialize(in_order(All)) of
         ok ->
-            {'Right', {remember(Session1), Answer}};
+            {'Right', {keep_session(Session1), Answer}};
         {fault, Site, Cause} ->
             withdraw_all(All),
             {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was loaded\n">>}
@@ -1697,7 +1697,7 @@ reloaded(Session, Needed, Compiled, Sourceless) ->
                           ok -> [];
                           {fault, Site, Cause} -> [kept_values(Site, Cause)]
                       end,
-            {'Right', {remember(Session2), lists:reverse(Lines) ++ Faulted ++ Sourceless}};
+            {'Right', {keep_session(Session2), lists:reverse(Lines) ++ Faulted ++ Sourceless}};
         {fault, Site, Cause} ->
             withdraw_all(Needed),
             {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was reloaded\n">>}
@@ -2135,7 +2135,7 @@ binding_scheme(Type, TypeState) -> ern_types:monomorphic(ern_types:substitute(Ty
 %% reaches any more let go, in the session's own process.
 -spec collect(#session{}) -> #session{}.
 collect(Session) ->
-    remember(collected(Session)).
+    keep_session(collected(Session)).
 
 %% Report §11.2: the session's modules are the holders of what inputs
 %% bound, the inputs that declared, and the inputs whose value holds one of
