@@ -647,6 +647,18 @@ as_binds_first_test() ->
     ?assertMatch(#diagnostic{span = {1, 51, {1, 52}}, labels = [{{1, 48, {1, 49}}, _}]},
                  Diagnostic).
 
+%% report §3.4, §11.5: a function of the wrong arity is named with its own
+%% count first and the expected one after. A regression test, found by the
+%% independent read of MVP 2.99b's item 7: the two counts were printed the
+%% other way round, a function of one argument passed where two were
+%% expected reading "a function of 2 arguments where one of 1 was expected"
+arity_mismatch_named_test() ->
+    Diagnostic = diagnostic("fn apply2(f : (Int, Int) -> Int) : Int = f(1, 2)\n"
+                            "fn one(x : Int) : Int = x\n"
+                            "fn main() : Int = apply2(one)\n"),
+    ?assertNotEqual(nomatch, string:find(Diagnostic#diagnostic.message,
+                                         "a function of 1 argument where one of 2 was expected")).
+
 %% report §5.10
 patterns_test() ->
     ?assertEqual("variable x appears twice in the pattern",

@@ -164,7 +164,7 @@ format_call_test() ->
 
 %% report §11.5
 format_error_test() ->
-    ?assertEqual("a function of 1 argument where one of 2 was expected",
+    ?assertEqual("a function of 2 arguments where one of 1 was expected",
                  ern_types:format_error({arity, 1, 2})),
     ?assertEqual("a pure function where one that runs in a process is needed",
                  ern_types:format_error(pure_where_process_needed)),

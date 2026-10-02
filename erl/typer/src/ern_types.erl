@@ -644,9 +644,9 @@ qualified_name_text(QualifiedName) ->
     lists:join(".", [atom_to_list(Part) || Part <- QualifiedName]).
 
 -spec format_error(term()) -> string().
-format_error({arity, Count, OtherCount}) ->
+format_error({arity, ExpectedCount, ActualCount}) ->
     lists:flatten(io_lib:format("a function of ~B argument~s where one of ~B was expected",
-                                [Count, plural(Count), OtherCount]));
+                                [ActualCount, plural(ActualCount), ExpectedCount]));
 format_error({pure_vs_effect, _}) ->
     "a pure function where a function with a mailbox effect was expected, or the reverse";
 format_error(pure_where_process_needed) ->
