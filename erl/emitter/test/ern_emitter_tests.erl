@@ -298,6 +298,13 @@ examples_test_() ->
                 ?assertEqual({ok, Output}, run(Namespace, Source))
             end} || {Base, Output} <- Expected].
 
+%% report §11.1, §11.4: a compiled module without the Docs chunk reads as
+%% an error that names the chunk and quotes no bytes. A regression test:
+%% the host's text of the error was given, and it quotes the whole module.
+docs_chunk_missing_test() ->
+    {ok, _, Beam} = compile:forms([{attribute, 1, module, nodocs}], [binary]),
+    ?assertEqual({error, "the module has no documentation chunk"}, ern_docs:read(Beam)).
+
 %% report §11.1: the documentation travels in the BEAM chunk Docs, EEP 48's,
 %% and a type's parts are structured in its entry rather than rendered
 docs_chunk_test() ->

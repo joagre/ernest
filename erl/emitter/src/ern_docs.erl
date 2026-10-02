@@ -11,11 +11,9 @@
 chunk_name() ->
     <<"Docs">>.
 
-%% Report §11.1, EEP 48: the module's documentation, read by `ern doc`
-%% (§11.4) and by the host's own tools. One entry per declaration §11.4
-%% renders, in source order: its signature as the page shows it, its doc
-%% block verbatim, and, for a type, its constructors, fields, and signature
-%% entries in the metadata, so a reader of the chunk needs no markdown.
+%% A compiled module's documentation. A chunk of another format, from
+%% another version of the compiler, reads as an error, and so does a module
+%% without the chunk.
 -spec read(binary() | file:filename()) -> {ok, tuple()} | {error, string()}.
 read(Beam) ->
     case beam_lib:chunks(Beam, [binary_to_list(chunk_name())]) of
@@ -26,10 +24,16 @@ read(Beam) ->
             catch _:_ ->
                 {error, "the documentation chunk is of another compiler version"}
             end;
-        {error, beam_lib, Reason} ->
-            {error, lists:flatten(beam_lib:format_error(Reason))}
+        %% the host's text of the error quotes the bytes it was given
+        {error, beam_lib, _} ->
+            {error, "the module has no documentation chunk"}
     end.
 
+%% Report §11.1, EEP 48: the module's documentation, read by `ern doc`
+%% (§11.4) and by the host's own tools. One entry per declaration §11.4
+%% renders, in source order: its signature as the page shows it, its doc
+%% block verbatim, and, for a type, its constructors, fields, and signature
+%% entries in the metadata, so a reader of the chunk needs no markdown.
 -spec build([atom()], [tuple()], ern_typecheck:env(), binary()) -> tuple().
 build(Namespace, Declarations, Env, Source) ->
     ModuleDoc = case [Text || #module_doc{text = Text} <- Declarations] of
