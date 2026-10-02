@@ -59,7 +59,7 @@ export fn Float.*(left : Float, right : Float) : Float =
 export fn Float./(dividend : Float, divisor : Float) : Float =
     dividend / divisor
 
-/// `-x`, which prefix `-` calls.
+/// `-float`, which prefix `-` calls.
 ///
 /// ### Examples
 ///

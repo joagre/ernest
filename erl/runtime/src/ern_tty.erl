@@ -3,7 +3,7 @@
 %% terminal, claiming nothing, and otherwise by remembering the address;
 %% it sends every key pressed to each subscriber as a Terminal.Event,
 %% through a courier of the subscriber's own that applies its wrap, answers
-%% Measure with the terminal's size, and sends Resized when that size changes.
+%% ReadSize with the terminal's size, and sends Resized when that size changes.
 %% The terminal is put in the mode the keys need when the first subscriber
 %% arrives, since keys and lines are the same terminal and a program does
 %% one or the other, and restore/0 puts it back when the program ends
@@ -76,7 +76,7 @@ refusing() ->
 loop(Subscribers, Reader, Pending, Size) ->
     Pause = pause(Pending),
     receive
-        %% report §3.5: the fields are in declared order, `to` before `reply`
+        %% report §3.5: the fields are in declared order, `address` before `reply`
         {'Subscribe', Address, Reply} ->
             {Subscribers1, Reader1, Size1} =
                 subscription(Address, Reply, Subscribers, Reader, Size),

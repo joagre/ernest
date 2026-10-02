@@ -237,7 +237,7 @@ socket_process(Tcp, Socket, Owner, Site) ->
 %% whether the socket took the bytes, and why not.
 writer(Socket, SocketProcess) ->
     receive
-        {'Write', Bytes, Reply} ->
+        {write, Bytes, Reply} ->
             Sent = gen_tcp:send(Socket, Bytes),
             ern_rt:answer(Reply, case Sent of
                                      ok -> {'Right', 'Unit'};
@@ -307,7 +307,7 @@ socket_loop(#connection{socket = Socket, writer = Writer, monitor_ref = MonitorR
 %% answer is (E.0 shape rule 8).
 send(Writer, Bytes, Ms, Reply) ->
     ern_rt:source_begin(),
-    Writer ! {'Write', Bytes, Reply},
+    Writer ! {write, Bytes, Reply},
     write_limit(Reply, ern_rt:deadline(Ms)).
 
 write_timed_out(Reply, Deadline) ->

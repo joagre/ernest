@@ -56,8 +56,8 @@ export fn now() : Int with m =
 export foreign fn monotonic() : Int with m =
     "ern_rt:monotonic/0"
 
-/// After that many milliseconds, `wrap(t)` arrives in the caller's mailbox,
-/// `t` the time it fired. A single-positional constructor passes as
+/// After that many milliseconds, `wrap(time)` arrives in the caller's
+/// mailbox, `time` the time it fired. A single-positional constructor passes as
 /// `wrap` directly, `Clock.alarm(100, Tick)` for `Tick(Int)`.
 ///
 /// ### Examples
@@ -71,8 +71,8 @@ export fn alarm(ms : Int, wrap : (Int) -> m) : Unit with m = {
     Address.callForever(reference, request)
 }
 
-/// At that time, `wrap(t)` arrives in the caller's mailbox, `t` the time it
-/// fired; a time already past arrives at once.
+/// At that time, `wrap(time)` arrives in the caller's mailbox, `time` the
+/// time it fired; a time already past arrives at once.
 ///
 /// ### Examples
 ///

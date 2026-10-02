@@ -134,7 +134,7 @@ export fn filterMap(map : Map(k, v), f : (k, v) -> Optional(w) with e) : Map(k, 
 /// // => 3
 /// ```
 export fn foldLeft(map : Map(k, v), acc : b, step : (b, k, v) -> b with e) : b with e =
-    List.foldLeft(toList(map), acc, fn(folded, #(key, value)) = step(folded, key, value))
+    List.foldLeft(toList(map), acc, fn(acc, #(key, value)) = step(acc, key, value))
 
 /// The function applied to each entry for its effect.
 ///
@@ -202,7 +202,7 @@ export fn mergeWith(map : Map(k, v),
                     f : (k, v, v) -> v with e) : Map(k, v) with e =
     List.foldLeft(toList(other),
                   map,
-                  fn(acc, #(key, value)) = update(acc, key, fn(mine) = match mine {
+                  fn(acc, #(key, value)) = update(acc, key, fn(found) = match found {
                       Some(existing) -> f(key, existing, value)
                     | None -> value
                   }))

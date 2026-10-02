@@ -29,7 +29,7 @@
 /// ### Examples
 ///
 /// ```ernest
-/// Optional.map(Process.info(Process.fromAddress(self())), fn(i) = i.activity)
+/// Optional.map(Process.info(Process.fromAddress(self())), fn(info) = info.activity)
 /// // => Some(Running)
 /// ```
 export type Info = Info(site : String, queued : Int, activity : Activity)

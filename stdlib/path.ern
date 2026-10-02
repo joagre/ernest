@@ -75,15 +75,15 @@ foreign fn separator() : String =
 /// ```
 export fn split(path : Path) : List(String) = {
     let text = toString(path);
-    let named =
+    let segmentsOf =
         fn(part) =
             List.filter(String.split(part, separator()), fn(segment) = !String.isEmpty(segment));
     match String.indexOf(text, separator()) {
         Some(index) when isAbsolute(path) -> {
             let root = String.slice(text, 0, index + 1);
-            root :: named(String.slice(text, index + 1, String.size(text)))
+            root :: segmentsOf(String.slice(text, index + 1, String.size(text)))
         }
-      | _ -> named(text)
+      | _ -> segmentsOf(text)
     }
 }
 
@@ -134,11 +134,11 @@ export fn extension(path : Path) : Optional(String) = {
     }
 }
 
-fn withoutLeadingDots(name : String) : String =
-    if String.startsWith(name, ".") then
-        withoutLeadingDots(String.slice(name, 1, String.size(name)))
+fn withoutLeadingDots(named : String) : String =
+    if String.startsWith(named, ".") then
+        withoutLeadingDots(String.slice(named, 1, String.size(named)))
     else
-        name
+        named
 
 /// The path with that extension in place of any it had, after a dot; an
 /// empty one leaves the dot. The rest of the path stays as it was written.
@@ -177,13 +177,13 @@ export fn withoutExtension(path : Path) : Path =
 // any separators after it.
 fn extended(path : Path, suffix : String) : Path = {
     let text = toString(path);
-    let head = withoutTrailingSeparators(text);
-    let tail = String.slice(text, String.size(head), String.size(text));
+    let trimmed = withoutTrailingSeparators(text);
+    let trailing = String.slice(text, String.size(trimmed), String.size(text));
     let stem = match extension(path) {
-        Some(old) -> String.slice(head, 0, String.size(head) - String.size(old) - 1)
-      | None -> head
+        Some(old) -> String.slice(trimmed, 0, String.size(trimmed) - String.size(old) - 1)
+      | None -> trimmed
     };
-    Path(stem <> suffix <> tail)
+    Path(stem <> suffix <> trailing)
 }
 
 fn withoutTrailingSeparators(text : String) : String =

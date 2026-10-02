@@ -293,8 +293,8 @@ export fn span(list : List(a), test : (a) -> Bool with e) : #(List(a), List(a)) 
     match list {
         [] -> #([], [])
       | head :: rest -> if test(head) then {
-            let #(prefix, tail) = span(rest, test);
-            #(head :: prefix, tail)
+            let #(prefix, suffix) = span(rest, test);
+            #(head :: prefix, suffix)
         } else
             #([], list)
     }

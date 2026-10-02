@@ -13,7 +13,7 @@
 ///
 /// ```ernest
 /// Either.map(Os.run(Os.Command(program = "sh", arguments = ["-c", "exit 3"], input = <<>>), 5000),
-///            fn(f) = f.status)
+///            fn(finished) = finished.status)
 /// // => Right(3)
 /// ```
 ///
@@ -61,8 +61,8 @@ export type Output = Stdout(Bytes) | Stderr(Bytes) | Exited(Int)
 /// ```
 export type Finished = Finished(status : Int, stdout : Bytes, stderr : Bytes)
 
-/// What a running program takes; a program uses `Os.read`, `Os.write`, and
-/// `Os.closeInput` (report Appendix E.23).
+/// What a running program takes; a program uses `Os.read`, `Os.write`,
+/// `Os.closeInput`, and `Os.give` (report Appendix E.23).
 ///
 /// ### Examples
 ///
@@ -275,7 +275,7 @@ export fn write(program : Address(ProgramMsg),
 /// {
 ///     let wc <- Os.start(Os.Command(program = "wc", arguments = ["-c"], input = <<1, 2>>));
 ///     Os.closeInput(wc);
-///     Either.map(Os.read(wc, 5000), fn(o) = match o {
+///     Either.map(Os.read(wc, 5000), fn(output) = match output {
 ///         Os.Stdout(bytes) -> String.trim(Optional.withDefault(String.fromUtf8(bytes), ""))
 ///       | _ -> ""
 ///     })
@@ -320,7 +320,7 @@ export fn give(program : Address(ProgramMsg), owner : Process) : Unit with m =
 /// ```ernest
 /// Either.map(Os.run(Os.Command(program = "cat", arguments = [], input = String.toUtf8("hi")),
 ///                   5000),
-///            fn(f) = String.fromUtf8(f.stdout))
+///            fn(finished) = String.fromUtf8(finished.stdout))
 /// // => Right(Some("hi"))
 /// ```
 export fn run(command : Command, ms : Int) : Either(Io.Error, Finished) with m = {

@@ -1,5 +1,5 @@
 /// Operations on `Bytes`, a sequence of octets (report §3.1). A `Bytes` is
-/// not a container: its octets are reached through `toList`, each an `Int`
+/// a container read through `toList`, which gives its octets, each an `Int`
 /// from 0 to 255, and `<<...>>` builds and matches one at the bit level
 /// (report §5.11), so there is no constructor here. The primitive is
 /// `size`, the runtime's; the rest is written over it and with the bit
@@ -66,10 +66,10 @@ export fn get(bytes : Bytes, index : Int) : Optional(Int) =
 /// // => #(<<2, 3>>, <<1, 2>>)
 /// ```
 export fn slice(bytes : Bytes, index : Int, count : Int) : Bytes = {
-    let first = Int.max(index, 0);
-    let taken = Int.max(Int.min(count, size(bytes) - first), 0);
+    let clipped = Int.max(index, 0);
+    let taken = Int.max(Int.min(count, size(bytes) - clipped), 0);
     match bytes {
-        <<_:size(first)-bytes, part:size(taken)-bytes, _:bytes>> -> part
+        <<_:size(clipped)-bytes, sliced:size(taken)-bytes, _:bytes>> -> sliced
       | _ -> <<>>
     }
 }
@@ -120,16 +120,16 @@ export fn contains(bytes : Bytes, part : Bytes) : Bool =
 /// // => #(Some(0), None)
 /// ```
 export fn indexOf(bytes : Bytes, part : Bytes) : Optional(Int) =
-    seek(bytes, part, 0)
+    indexFrom(bytes, part, 0)
 
 // The first place from the index where the part begins.
-fn seek(bytes : Bytes, part : Bytes, index : Int) : Optional(Int) =
+fn indexFrom(bytes : Bytes, part : Bytes, index : Int) : Optional(Int) =
     if index + size(part) > size(bytes) then
         None
     else if slice(bytes, index, size(part)) == part then
         Some(index)
     else
-        seek(bytes, part, index + 1)
+        indexFrom(bytes, part, index + 1)
 
 /// Where the second begins in the first, the last place it does, and
 /// `None` where it is not there. An empty second is at the end.
@@ -141,16 +141,16 @@ fn seek(bytes : Bytes, part : Bytes, index : Int) : Optional(Int) =
 /// // => #(Some(2), None)
 /// ```
 export fn lastIndexOf(bytes : Bytes, part : Bytes) : Optional(Int) =
-    seekBack(bytes, part, size(bytes) - size(part))
+    lastIndexFrom(bytes, part, size(bytes) - size(part))
 
 // The last place at or before the index where the part begins.
-fn seekBack(bytes : Bytes, part : Bytes, index : Int) : Optional(Int) =
+fn lastIndexFrom(bytes : Bytes, part : Bytes, index : Int) : Optional(Int) =
     if index < 0 then
         None
     else if slice(bytes, index, size(part)) == part then
         Some(index)
     else
-        seekBack(bytes, part, index - 1)
+        lastIndexFrom(bytes, part, index - 1)
 
 /// `true` when the first begins with the second, and for an empty second.
 ///
@@ -193,8 +193,10 @@ fn parts(bytes : Bytes, separator : Bytes, acc : List(Bytes)) : List(Bytes) =
     match indexOf(bytes, separator) {
         None -> bytes :: acc
       | Some(index) -> {
-            let next = index + size(separator);
-            parts(slice(bytes, next, size(bytes) - next), separator, slice(bytes, 0, index) :: acc)
+            let beyond = index + size(separator);
+            parts(slice(bytes, beyond, size(bytes) - beyond),
+                  separator,
+                  slice(bytes, 0, index) :: acc)
         }
     }
 

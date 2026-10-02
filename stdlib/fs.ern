@@ -39,7 +39,7 @@
 /// ### Examples
 ///
 /// ```ernest
-/// Either.map(Fs.stat(Path("."), 5000), fn(e) = e.kind == Fs.Directory)
+/// Either.map(Fs.stat(Path("."), 5000), fn(entry) = entry.kind == Fs.Directory)
 /// // => Right(true)
 /// ```
 export type Kind = File | Directory | Link | Other
@@ -145,7 +145,7 @@ export fn append(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) 
 ///     let _ = Fs.makeDir(Path("shelf"), 5000);
 ///     let _ = Fs.write(Path("shelf/one.txt"), <<>>, 5000);
 ///     Either.map(Fs.list(Path("shelf"), 5000),
-///                fn(es) = List.filterMap(es, fn(e) = Path.name(e.path)))
+///                fn(entries) = List.filterMap(entries, fn(entry) = Path.name(entry.path)))
 /// }
 /// // => Right(["one.txt"])
 /// ```
@@ -154,7 +154,8 @@ export fn append(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) 
 /// {
 ///     let _ = Fs.makeDir(Path("kinds"), 5000);
 ///     let _ = Fs.makeLink(Path("kinds/link"), Path("elsewhere"), 5000);
-///     Either.map(Fs.list(Path("kinds"), 5000), fn(es) = List.map(es, fn(e) = e.kind))
+///     Either.map(Fs.list(Path("kinds"), 5000),
+///                fn(entries) = List.map(entries, fn(entry) = entry.kind))
 /// }
 /// // => Right([Link])
 /// ```
@@ -169,7 +170,7 @@ export fn list(path : Path, ms : Int) : Either(Io.Error, List(Entry)) with m =
 /// ```ernest
 /// {
 ///     let _ = Fs.write(Path("three.txt"), String.toUtf8("abc"), 5000);
-///     Either.map(Fs.stat(Path("three.txt"), 5000), fn(e) = e.size)
+///     Either.map(Fs.stat(Path("three.txt"), 5000), fn(entry) = entry.size)
 /// }
 /// // => Right(3)
 /// ```
@@ -340,7 +341,7 @@ export fn removeAll(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
 /// {
 ///     let _ = Fs.write(Path("dated.txt"), <<>>, 5000);
 ///     let _ = Fs.setModified(Path("dated.txt"), 86400000, 5000);
-///     Either.map(Fs.stat(Path("dated.txt"), 5000), fn(e) = e.mtime)
+///     Either.map(Fs.stat(Path("dated.txt"), 5000), fn(entry) = entry.mtime)
 /// }
 /// // => Right(86400000)
 /// ```

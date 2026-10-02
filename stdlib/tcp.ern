@@ -24,7 +24,7 @@
 ///         Right(accepted) -> {
 ///             let _ = match Tcp.read(accepted, 1000) {
 ///                 Right(bytes) -> Tcp.write(accepted, bytes, 1000)
-///               | Left(e) -> Left(e)
+///               | Left(error) -> Left(error)
 ///             };
 ///             Tcp.close(accepted)
 ///         }
@@ -259,7 +259,7 @@ export fn closeListener(listener : Address(ListenerMsg)) : Unit with m =
 ///     let far = Tcp.remote(client);
 ///     Tcp.close(client);
 ///     Tcp.closeListener(listener);
-///     Either.map(far, fn(e) = e.port == port)
+///     Either.map(far, fn(endpoint) = endpoint.port == port)
 /// }
 /// // => Right(true)
 /// ```
@@ -284,7 +284,7 @@ export fn remote(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) with 
 ///     let near = Tcp.local(client);
 ///     Tcp.close(client);
 ///     Tcp.closeListener(listener);
-///     Either.map(near, fn(e) = e.host)
+///     Either.map(near, fn(endpoint) = endpoint.host)
 /// }
 /// // => Right("127.0.0.1")
 /// ```

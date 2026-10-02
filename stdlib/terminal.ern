@@ -43,7 +43,7 @@ export type Size = Size(rows : Int, columns : Int)
 ///
 /// ```ernest
 /// match Terminal.Key('q') {
-///     Terminal.Key(c) -> c == 'q'
+///     Terminal.Key(char) -> char == 'q'
 ///   | _ -> false
 /// }
 /// // => true
@@ -128,7 +128,7 @@ fn counted(graphemes : List(String), count : Int) : Int =
         [] -> count
       | "\u{1b}" :: "[" :: rest -> counted(afterSequence(rest), count)
       | "\u{1b}" :: _ :: rest -> counted(rest, count)
-      | grapheme :: rest -> counted(rest, count + width(grapheme))
+      | grapheme :: rest -> counted(rest, count + graphemeColumns(grapheme))
     }
 
 // A control sequence's parameters and intermediates, to its final byte,
@@ -142,18 +142,19 @@ fn afterSequence(graphemes : List(String)) : List(String) =
         }
     }
 
-// A grapheme by its first code point that counts; a pictograph is wide
-// where the grapheme asks for its emoji presentation, U+FE0F.
-fn width(grapheme : String) : Int = {
+// The columns of a grapheme, by its first code point that counts; a
+// pictograph is wide where the grapheme asks for its emoji presentation,
+// U+FE0F.
+fn graphemeColumns(grapheme : String) : Int = {
     let codes = List.map(String.toList(grapheme), Char.toInt);
-    firstWidth(codes, List.contains(codes, 0xFE0F))
+    firstColumns(codes, List.contains(codes, 0xFE0F))
 }
 
-fn firstWidth(codes : List(Int), emojiPresentation : Bool) : Int =
+fn firstColumns(codes : List(Int), emojiPresentation : Bool) : Int =
     match codes {
         [] -> 0
       | code :: rest -> match widthOf(code, widths) {
-            Some(Zero) -> firstWidth(rest, emojiPresentation)
+            Some(Zero) -> firstColumns(rest, emojiPresentation)
           | Some(Wide) -> 2
           | Some(Pictographic) -> if emojiPresentation then 2 else 1
           | None -> 1

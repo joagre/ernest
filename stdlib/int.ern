@@ -48,7 +48,7 @@ export fn Int./(dividend : Int, divisor : Int) : Int =
 export fn Int.%(dividend : Int, divisor : Int) : Int =
     dividend % divisor
 
-/// `-n`, which prefix `-` calls.
+/// `-int`, which prefix `-` calls.
 ///
 /// ### Examples
 ///
@@ -118,7 +118,7 @@ export foreign fn bitOr(left : Int, right : Int) : Int =
 export foreign fn bitXor(left : Int, right : Int) : Int =
     "erlang:bxor/2"
 
-/// Bitwise complement, `-n - 1`.
+/// Bitwise complement, `-int - 1`.
 export foreign fn bitNot(int : Int) : Int =
     "erlang:bnot/1"
 

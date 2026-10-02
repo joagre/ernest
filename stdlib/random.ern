@@ -55,29 +55,29 @@ export fn seed(int : Int) : Seed =
 /// // => true
 /// ```
 export fn next(seed : Seed, bound : Int) : #(Int, Seed) = {
-    let #(drawn, later) = below(seed, Int.abs(bound) + 1);
-    if bound < 0 then #(Int.negate(drawn), later) else #(drawn, later)
+    let #(drawn, seed1) = below(seed, Int.abs(bound) + 1);
+    if bound < 0 then #(Int.negate(drawn), seed1) else #(drawn, seed1)
 }
 
 // A number from 0 to below `bound`, from as many 64-bit draws as span
 // `bound`, those at or above the largest multiple of `bound` the draws can
 // reach drawn again.
 fn below(seed : Seed, bound : Int) : #(Int, Seed) = {
-    let #(value, span, later) = words(seed, bound, 0, 1);
-    if value < span - span % bound then #(value % bound, later) else below(later, bound)
+    let #(value, span, seed1) = words(seed, bound, 0, 1);
+    if value < span - span % bound then #(value % bound, seed1) else below(seed1, bound)
 }
 
 fn words(seed : Seed, bound : Int, value : Int, span : Int) : #(Int, Int, Seed) =
     if span >= bound && span > 1 then
         #(value, span, seed)
     else {
-        let #(draw, later) = step(seed);
-        words(later, bound, value * 18446744073709551616 + draw, span * 18446744073709551616)
+        let #(draw, seed1) = splitMix(seed);
+        words(seed1, bound, value * 18446744073709551616 + draw, span * 18446744073709551616)
     }
 
 // SplitMix64: the counter advanced by the golden gamma, and its new value
 // mixed into the draw.
-fn step(seed : Seed) : #(Int, Seed) =
+fn splitMix(seed : Seed) : #(Int, Seed) =
     match seed {
         Seed(state) -> {
             let counter = Int.bitAnd(state + 0x9E37_79B9_7F4A_7C15, mask);
@@ -102,8 +102,8 @@ fn step(seed : Seed) : #(Int, Seed) =
 /// // => true
 /// ```
 export fn nextFloat(seed : Seed) : #(Float, Seed) = {
-    let #(draw, later) = step(seed);
-    #((Int.toFloat(Int.shiftRight(draw, 12)) + 0.5) / 4503599627370496.0, later)
+    let #(draw, seed1) = splitMix(seed);
+    #((Int.toFloat(Int.shiftRight(draw, 12)) + 0.5) / 4503599627370496.0, seed1)
 }
 
 let mask = 0xFFFF_FFFF_FFFF_FFFF

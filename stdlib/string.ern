@@ -1,15 +1,16 @@
 /// Operations on `String`, a Unicode string (report §3.1). A `String` is
-/// not a container: its `Char`s are reached through `toList`. `size`,
+/// a container read through `toList`, which gives its `Char`s. `size`,
 /// `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and
 /// index in graphemes, extended grapheme clusters, each what a reader sees
 /// as one letter; `toList` and `fromList` are `Char`s, one scalar value
 /// each. The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`,
-/// `slice`, and the private `drop`, the operations that need Unicode's
-/// tables, `trimStart`, `trimEnd`, `toLower`, and `toUpper`, and the
-/// conversions `toIntBase`, `toFloat`,
-/// `toList`, `fromList`, `toUtf8`, and `fromUtf8`, the runtime's; the rest
-/// is written over them, so every search matches whole graphemes (report
-/// Appendix E.0 rule 1).
+/// and the slice `slice` makes once it has clipped its index and count,
+/// the operations that need Unicode's tables, with the private `drop`,
+/// `trimStart`, `trimEnd`, `toLower`, and `toUpper`, the conversions
+/// `toFloat`, `toList`, `fromList`, `toUtf8`, and `fromUtf8`, and the
+/// reading in a base that `toIntBase` makes once it has checked the base
+/// and the sign, the runtime's; the rest is written over them, so every
+/// search matches whole graphemes (report Appendix E.0 rule 1).
 ///
 /// ## Examples
 ///
@@ -172,9 +173,9 @@ export fn replace(text : String, old : String, new : String) : String =
 /// // => #("hel", "lo")
 /// ```
 export fn slice(text : String, index : Int, count : Int) : String =
-    if count <= 0 then "" else part(text, Int.max(index, 0), count)
+    if count <= 0 then "" else sliced(text, Int.max(index, 0), count)
 
-foreign fn part(text : String, index : Int, count : Int) : String =
+foreign fn sliced(text : String, index : Int, count : Int) : String =
     "ern_string:slice/3"
 
 /// The pad's copies in front until the text has that many graphemes, the
@@ -193,17 +194,20 @@ foreign fn part(text : String, index : Int, count : Int) : String =
 /// String.size(String.padStart("ab", 4, "\u{301}"))
 /// // => 3
 /// ```
-export fn padStart(text : String, target : Int, pad : String) : String =
-    padding(text, target, pad) <> text
+export fn padStart(text : String, count : Int, pad : String) : String =
+    padding(text, count, pad) <> text
 
 /// The pad's copies at the end until the text has that many graphemes, as
 /// `padStart` puts them in front.
-export fn padEnd(text : String, target : Int, pad : String) : String =
-    text <> padding(text, target, pad)
+export fn padEnd(text : String, count : Int, pad : String) : String =
+    text <> padding(text, count, pad)
 
-fn padding(text : String, target : Int, pad : String) : String = {
-    let short = target - size(text);
-    if isEmpty(pad) then "" else slice(repeat(pad, (short + size(pad) - 1) / size(pad)), 0, short)
+fn padding(text : String, count : Int, pad : String) : String = {
+    let missing = count - size(text);
+    if isEmpty(pad) then
+        ""
+    else
+        slice(repeat(pad, (missing + size(pad) - 1) / size(pad)), 0, missing)
 }
 
 /// The string `count` times; `count` below 0 gives the empty string.
@@ -307,12 +311,12 @@ export fn words(text : String) : List(String) =
 // characters in reverse too.
 fn wordsFrom(chars : List(Char), word : List(Char), acc : List(String)) : List(String) =
     match chars {
-        [] -> ended(word, acc)
-      | char :: rest when Char.isSpace(char) -> wordsFrom(rest, [], ended(word, acc))
+        [] -> withWord(word, acc)
+      | char :: rest when Char.isSpace(char) -> wordsFrom(rest, [], withWord(word, acc))
       | char :: rest -> wordsFrom(rest, char :: word, acc)
     }
 
-fn ended(word : List(Char), acc : List(String)) : List(String) =
+fn withWord(word : List(Char), acc : List(String)) : List(String) =
     match word {
         [] -> acc
       | _ -> fromList(List.reverse(word)) :: acc
@@ -332,11 +336,17 @@ export fn split(text : String, separator : String) : List(String) =
 
 // The parts found so far, the last first, and the rest of the string, each
 // step reading only as far as the next separator.
-fn parts(text : String, separator : String, width : Int, acc : List(String)) : List(String) =
+fn parts(text : String,
+         separator : String,
+         separatorSize : Int,
+         acc : List(String)) : List(String) =
     match indexOf(text, separator) {
         None -> text :: acc
       | Some(index) ->
-            parts(drop(text, index + width), separator, width, slice(text, 0, index) :: acc)
+            parts(drop(text, index + separatorSize),
+                  separator,
+                  separatorSize,
+                  slice(text, 0, index) :: acc)
     }
 
 // Report Appendix E.5: the string after that many graphemes, walking only
@@ -370,11 +380,12 @@ export fn join(parts : List(String), separator : String) : String =
 export fn toInt(text : String) : Optional(Int) =
     match toList(text) {
         [] -> None
-      | '-' :: rest -> Optional.map(digits(rest), Int.negate)
-      | chars -> digits(chars)
+      | '-' :: rest -> Optional.map(decimal(rest), Int.negate)
+      | chars -> decimal(chars)
     }
 
-fn digits(chars : List(Char)) : Optional(Int) =
+// The number the decimal digits spell.
+fn decimal(chars : List(Char)) : Optional(Int) =
     if List.isEmpty(chars) then
         None
     else if List.all(chars, fn(char) = char >= '0' && char <= '9') then
@@ -393,9 +404,9 @@ fn digits(chars : List(Char)) : Optional(Int) =
 /// // => #(Some(255), None)
 /// ```
 export fn toIntBase(text : String, base : Int) : Optional(Int) =
-    if base < 2 || base > 36 || startsWith(text, "+") then None else inBase(text, base)
+    if base < 2 || base > 36 || startsWith(text, "+") then None else valueInBase(text, base)
 
-foreign fn inBase(text : String, base : Int) : Optional(Int) =
+foreign fn valueInBase(text : String, base : Int) : Optional(Int) =
     "ern_string:to_int_base/2"
 
 /// `true` for `"true"` and `false` for `"false"`, or `None` for anything
