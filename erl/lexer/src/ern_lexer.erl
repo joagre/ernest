@@ -128,18 +128,7 @@ lex("/*" ++ Rest, Line, Column, PreviousEnd, Acc, KeepComments) ->
 lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, KeepComments)
   when Char >= $0, Char =< $9 ->
     {Kind, Value, Rest, EndColumn} = number(Input, Line, Column),
-    %% report §2.5: nothing word-like directly after a number
-    case Rest of
-        [$_ | _] ->
-            error_at(Line, EndColumn, "_ must stand between two digits");
-        [Next | _] ->
-            case is_word_char(Next) of
-                true -> error_at(Line, EndColumn, [Next] ++ " cannot follow a number directly");
-                false -> ok
-            end;
-        [] ->
-            ok
-    end,
+    refuse_word_after_number(Rest, Line, EndColumn),
     lex(Rest, Line, EndColumn, {Line, EndColumn},
         [{Kind, {Line, Column, {Line, EndColumn}, PreviousEnd}, Value} | Acc], KeepComments);
 lex([$" | Rest], Line, Column, PreviousEnd, Acc, KeepComments) ->
@@ -311,6 +300,17 @@ number(Input, Line, Column) ->
                      Column + WholeWidth + ExponentWidth}
             end
     end.
+
+%% Report §2.5: nothing word-like directly after a number.
+refuse_word_after_number([$_ | _], Line, Column) ->
+    error_at(Line, Column, "_ must stand between two digits");
+refuse_word_after_number([Next | _], Line, Column) ->
+    case is_word_char(Next) of
+        true -> error_at(Line, Column, [Next] ++ " cannot follow a number directly");
+        false -> ok
+    end;
+refuse_word_after_number([], _, _) ->
+    ok.
 
 %% A float literal's value, rounded to the nearest Float. One that rounds
 %% beyond the largest finite Float is an error at the literal (report §2.5);
