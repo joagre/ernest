@@ -165,16 +165,18 @@ snake() ->
                       15),
     %% the frames that show the board, however many the game drew between
     %% the keys: under the host's modified timing, fewer
-    Boards = [F || F <- binary:split(Screen, ?CLEAR, [global]),
-                   binary:match(F, <<"@">>) =/= nomatch],
+    Boards = [Frame || Frame <- binary:split(Screen, ?CLEAR, [global]),
+                       binary:match(Frame, <<"@">>) =/= nomatch],
     ?assertMatch({_, _}, binary:match(hd(Boards), <<"\r\n">>)),
     ?assertMatch({_, _}, binary:match(hd(Boards), <<"tick ">>)),
     %% down first, then left: the head's row changes, and after that its
     %% column shrinks
-    Heads = [head(B) || B <- Boards],
-    {_, Y0} = hd(Heads),
-    {_, [{Turned, _} | After]} = lists:splitwith(fun({_, Y}) -> Y =:= Y0 end, Heads),
-    ?assert(lists:any(fun({X, _}) -> X < Turned end, After)).
+    Heads = [head(Board) || Board <- Boards],
+    {_, StartRow} = hd(Heads),
+    {_, [{Turned, _} | After]} = lists:splitwith(fun({_, RowIndex}) ->
+                                                     RowIndex =:= StartRow
+                                                 end, Heads),
+    ?assert(lists:any(fun({Column, _}) -> Column < Turned end, After)).
 
 %% report §8.2: C-c, which the terminal delivers as `Interrupt` while a
 %% subscriber claims it, leaves the game as `Escape` does. A regression
@@ -191,13 +193,13 @@ snake_interrupt() ->
 %% The head's column and row in a frame.
 head(Frame) ->
     Rows = binary:split(Frame, <<"\r\n">>, [global]),
-    hd([{X, Y} || {Y, Row} <- lists:zip(lists:seq(0, length(Rows) - 1), Rows),
-                  {X, _} <- [binary:match(Row, <<"@">>)]]).
+    hd([{Column, RowIndex} || {RowIndex, Row} <- lists:zip(lists:seq(0, length(Rows) - 1), Rows),
+                              {Column, _} <- [binary:match(Row, <<"@">>)]]).
 
-compile(Source, Root) ->
-    {0, _} = sh("../bin/ern build --source-root " ++ Root ++ " --load-path ../build/libs/ansi"
+compile(Source, SourceRoot) ->
+    {0, _} = sh("../bin/ern build --source-root " ++ SourceRoot ++ " --load-path ../build/libs/ansi"
                 ++ " --build-root build/"
-                ++ filename:basename(Root) ++ " " ++ Source),
+                ++ filename:basename(SourceRoot) ++ " " ++ Source),
     ok.
 
 %% A command with a terminal of its own: {exit status, the screen}. The
@@ -209,14 +211,14 @@ compile(Source, Root) ->
 pty(Command, Steps, Seconds) ->
     nomatch = binary:match(list_to_binary(Command), <<"'">>),
     File = steps_file(Steps),
-    {0, Out} = sh("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ " --steps " ++ File
-                  ++ " -- '" ++ Command ++ "'"),
-    Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
+    {0, Output} = sh("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ " --steps " ++ File
+                     ++ " -- '" ++ Command ++ "'"),
+    Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
     %% a step the harness could not meet is a failure of the test, not a
     %% screen to assert against
-    ?assertEqual([], [L || <<"unmet ", _/binary>> = L <- Lines]),
-    [<<"status ", Status/binary>>] = [L || <<"status ", _/binary>> = L <- Lines],
-    [<<"data ", Data/binary>>] = [L || <<"data ", _/binary>> = L <- Lines],
+    ?assertEqual([], [Line || <<"unmet ", _/binary>> = Line <- Lines]),
+    [<<"status ", Status/binary>>] = [Line || <<"status ", _/binary>> = Line <- Lines],
+    [<<"data ", Data/binary>>] = [Line || <<"data ", _/binary>> = Line <- Lines],
     {status(Status), base64:decode(Data)}.
 
 %% The steps go in a file: one holds whatever the program prints, and a
@@ -224,7 +226,7 @@ pty(Command, Steps, Seconds) ->
 steps_file(Steps) ->
     File = "build/steps-" ++ integer_to_list(erlang:unique_integer([positive])),
     ok = filelib:ensure_dir(File),
-    ok = file:write_file(File, [[step(S), "\n"] || S <- Steps]),
+    ok = file:write_file(File, [[step(Step), "\n"] || Step <- Steps]),
     File.
 
 step({expect, Text}) -> "expect:" ++ Text;
@@ -233,10 +235,10 @@ step({send, Hex}) -> "send:" ++ Hex;
 step({sleep, Ms}) -> "sleep:" ++ integer_to_list(Ms).
 
 status(<<"timeout">>) -> timeout;
-status(Bin) -> binary_to_integer(Bin).
+status(Text) -> binary_to_integer(Text).
 
 lines(Screen) ->
-    [L || L <- binary:split(modeless(Screen), <<"\r\n">>, [global]), L =/= <<>>].
+    [Line || Line <- binary:split(modeless(Screen), <<"\r\n">>, [global]), Line =/= <<>>].
 
 %% Report §8.2: what the runtime says to the terminal itself, the
 %% bracketed-paste mode, which a terminal takes and shows nothing of.
@@ -246,12 +248,12 @@ modeless(Screen) ->
 count(Haystack, Needle) ->
     length(binary:matches(Haystack, Needle)).
 
-sh(Cmd) ->
-    Port = open_port({spawn, Cmd}, [exit_status, stderr_to_stdout, binary]),
+sh(Command) ->
+    Port = open_port({spawn, Command}, [exit_status, stderr_to_stdout, binary]),
     collect(Port, []).
 
 collect(Port, Acc) ->
     receive
-        {Port, {data, D}} -> collect(Port, [D | Acc]);
-        {Port, {exit_status, S}} -> {S, iolist_to_binary(lists:reverse(Acc))}
+        {Port, {data, Data}} -> collect(Port, [Data | Acc]);
+        {Port, {exit_status, Status}} -> {Status, iolist_to_binary(lists:reverse(Acc))}
     end.

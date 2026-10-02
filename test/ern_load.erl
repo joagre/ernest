@@ -32,7 +32,7 @@ main(["inputs", File]) ->
 main([Name]) ->
     ets:new(ern_load_samples, [named_table, public, ordered_set]),
     Status = run(Name),
-    Samples = [S || {_, S} <- ets:tab2list(ern_load_samples)],
+    Samples = [Sample || {_, Sample} <- ets:tab2list(ern_load_samples)],
     Verdict = case {Status, verdict(Samples)} of
                   {0, []} -> [Name, ": flat\n"];
                   {_, Grown} -> io_lib:format("~s: status ~p, grew: ~p~n", [Name, Status, Grown])
@@ -55,19 +55,20 @@ run(Name) ->
 %% the documentation, each round ending in a mark.
 inputs() ->
     ["foreign fn mark(round : Int) : Unit with m = \"ern_load:mark/1\"\n",
-     [[[[[I, "\n"] || I <- round_inputs(integer_to_list(K))] || K <- lists:seq(1, 12)],
+     [[[[[Input, "\n"] || Input <- round_inputs(integer_to_list(Step))]
+        || Step <- lists:seq(1, 12)],
        ":type f\n:bindings\n:doc List.map\n:faults\n",
-       "mark(", integer_to_list(R), ")\n"]
-      || R <- lists:seq(1, 14)]].
+       "mark(", integer_to_list(Round), ")\n"]
+      || Round <- lists:seq(1, 14)]].
 
-round_inputs(K) ->
-    ["1 + " ++ K,
-     "let x = [" ++ K ++ ", " ++ K ++ " + 1]",
-     "fn f(n : Int) : Int = n * " ++ K,
+round_inputs(Step) ->
+    ["1 + " ++ Step,
+     "let x = [" ++ Step ++ ", " ++ Step ++ " + 1]",
+     "fn f(n : Int) : Int = n * " ++ Step,
      "List.map(x, f)",
      "type Shape = Circle(Int) | Square(Int)",
-     "Circle(" ++ K ++ ")",
-     "Io.println(\"line " ++ K ++ "\")",
+     "Circle(" ++ Step ++ ")",
+     "Io.println(\"line " ++ Step ++ "\")",
      "let _ = spawn(fn() : Unit with Never = Io.println(\"spawned\"))"].
 
 %% Called by a load after each round, through a `foreign fn`. What the
@@ -92,11 +93,11 @@ mark(Round) ->
 %% the sampler, and the words of every heap that hold nothing.
 sample(Round) ->
     Sampler = self(),
-    Others = [P || P <- erlang:processes(), P =/= Sampler],
-    [erlang:garbage_collect(P) || P <- Others],
+    Others = [Pid || Pid <- erlang:processes(), Pid =/= Sampler],
+    [erlang:garbage_collect(Pid) || Pid <- Others],
     timer:sleep(100),
     Reaper = reaper_memory(),
-    Unused = lists:sum([unused(P) || P <- Others]),
+    Unused = lists:sum([unused(Pid) || Pid <- Others]),
     Own = ets:info(ern_load_samples, memory) * erlang:system_info(wordsize)
           + element(2, erlang:process_info(Sampler, memory)),
     [{processes_used, Processes}, {system, System}] = erlang:memory([processes_used, system]),
@@ -141,7 +142,7 @@ reaper_memory() ->
 rows(Table) ->
     case ets:info(Table, size) of
         undefined -> 0;
-        N -> N
+        Size -> Size
     end.
 
 %% What grew between the samples after the warm-up and the last ones:
@@ -152,19 +153,20 @@ verdict(Samples) ->
     Settled = lists:nthtail(?WARM, Samples),
     First = hd(Settled),
     Last = lists:last(Samples),
-    Counts = [{K, maps:get(K, Last) - maps:get(K, First)}
-              || K <- [code, atoms, processes, ports, rows, terms, reaper],
-                 maps:get(K, Last) > maps:get(K, First)],
+    Counts = [{Key, maps:get(Key, Last) - maps:get(Key, First)}
+              || Key <- [code, atoms, processes, ports, rows, terms, reaper],
+                 maps:get(Key, Last) > maps:get(Key, First)],
     Grown = mean(lists:nthtail(length(Settled) - 3, Settled)) - mean(lists:sublist(Settled, 3)),
     Counts ++ [{memory, Grown} || Grown > ?NOISE_BYTES].
 
 mean(Samples) ->
-    lists:sum([M || #{memory := M} <- Samples]) div length(Samples).
+    lists:sum([Memory || #{memory := Memory} <- Samples]) div length(Samples).
 
 table(Name, Samples) ->
     [io_lib:format("~s~n~6s ~10s ~10s ~7s ~7s ~6s ~5s ~5s ~6s~n",
                    [Name, "round", "memory", "code", "reaper", "atoms", "procs", "ports", "rows",
                     "terms"])
-     | [io_lib:format("~6B ~10B ~10B ~7B ~7B ~6B ~5B ~5B ~6B~n", [R, M, C, E, A, P, O, W, T])
-        || #{round := R, memory := M, code := C, reaper := E, atoms := A, processes := P,
-             ports := O, rows := W, terms := T} <- Samples]].
+     | [io_lib:format("~6B ~10B ~10B ~7B ~7B ~6B ~5B ~5B ~6B~n",
+                      [Round, Memory, Code, Reaper, Atoms, Processes, Ports, Rows, Terms])
+        || #{round := Round, memory := Memory, code := Code, reaper := Reaper, atoms := Atoms,
+             processes := Processes, ports := Ports, rows := Rows, terms := Terms} <- Samples]].

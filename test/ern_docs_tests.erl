@@ -26,51 +26,53 @@ citations_resolve_test() ->
     %% review's findings are done
     Live = (documents() -- ["docs/findings.md"]) ++ examples() ++ stdlib() ++ shell() ++ tools(),
     Dangling =
-        [{F, C} || F <- Live, C <- cites(read(F)), not resolves(C, report, ReportHeads, GuideHeads)]
-        ++ [{"ernest_guide.md", C} || C <- cites(Guide),
-                                      not resolves(C, guide, ReportHeads, GuideHeads)],
+        [{File, Citation} || File <- Live, Citation <- cites(read(File)),
+                             not resolves(Citation, report, ReportHeads, GuideHeads)]
+        ++ [{"ernest_guide.md", Citation}
+            || Citation <- cites(Guide), not resolves(Citation, guide, ReportHeads, GuideHeads)],
     ?assertEqual([], Dangling).
 
 %% ernest_report.md, ernest_guide.md, docs/development.md "Building": a document's
 %% contents list is its top-level sections, its headings of level two, each
 %% linked to its heading, which `make contents` writes
 contents_test() ->
-    [?assertEqual({F, contents(Bin)}, {F, listed(Bin)}) || F <- ?CONTENTS, Bin <- [read(F)]].
+    [?assertEqual({File, contents(Document)}, {File, listed(Document)})
+     || File <- ?CONTENTS, Document <- [read(File)]].
 
 %% Rewrite the contents list of every document that has one.
 -spec write_contents() -> ok.
 write_contents() ->
-    lists:foreach(fun(F) ->
-                      Bin = read(F),
-                      [Before, Rest] = binary:split(Bin, ?BEGIN),
+    lists:foreach(fun(File) ->
+                      Document = read(File),
+                      [Before, Rest] = binary:split(Document, ?BEGIN),
                       [_, After] = binary:split(Rest, ?END),
-                      ok = file:write_file(filename:join(?ROOT, F),
-                                           [Before, ?BEGIN, contents(Bin), ?END, After])
+                      ok = file:write_file(filename:join(?ROOT, File),
+                                           [Before, ?BEGIN, contents(Document), ?END, After])
                   end, ?CONTENTS).
 
-listed(Bin) ->
-    [_, Rest] = binary:split(Bin, ?BEGIN),
+listed(Document) ->
+    [_, Rest] = binary:split(Document, ?BEGIN),
     [List, _] = binary:split(Rest, ?END),
     List.
 
 %% The list: a line per heading of level two, linked by the anchor a
 %% renderer gives it; the anchors are counted over every heading, since a
 %% renderer numbers a repeated one whatever its level.
-contents(Bin) ->
+contents(Document) ->
     Entries = [["- [", Text, "](#", Anchor, ")\n"]
-               || {2, Text, Anchor} <- anchored(heads(Bin))],
+               || {2, Text, Anchor} <- anchored(heads(Document))],
     iolist_to_binary(["\n", Entries]).
 
 %% Every heading outside a fenced block, with its level and its text.
-heads(Bin) ->
-    heads(binary:split(Bin, <<"\n">>, [global]), false, []).
+heads(Document) ->
+    heads(binary:split(Document, <<"\n">>, [global]), false, []).
 
 heads([], _, Acc) ->
     lists:reverse(Acc);
 heads([<<"```", _/binary>> | Rest], Fenced, Acc) ->
     heads(Rest, not Fenced, Acc);
-heads([L | Rest], false, Acc) ->
-    case re:run(L, "^(#{1,6}) +(.*?) *$", [{capture, all_but_first, binary}, unicode]) of
+heads([Line | Rest], false, Acc) ->
+    case re:run(Line, "^(#{1,6}) +(.*?) *$", [{capture, all_but_first, binary}, unicode]) of
         {match, [Hashes, Text]} -> heads(Rest, false, [{byte_size(Hashes), Text} | Acc]);
         nomatch -> heads(Rest, false, Acc)
     end;
@@ -88,12 +90,12 @@ anchored(Heads) ->
               Kept = re:replace(Lower, "[^\\p{L}\\p{M}\\p{N}_ \\-]", "",
                                 [global, unicode, ucp, {return, binary}]),
               Base = binary:replace(Kept, <<" ">>, <<"-">>, [global]),
-              N = maps:get(Base, Seen, 0),
-              Anchor = case N of
+              Count = maps:get(Base, Seen, 0),
+              Anchor = case Count of
                            0 -> Base;
-                           _ -> <<Base/binary, "-", (integer_to_binary(N))/binary>>
+                           _ -> <<Base/binary, "-", (integer_to_binary(Count))/binary>>
                        end,
-              {{Level, Text, Anchor}, Seen#{Base => N + 1}}
+              {{Level, Text, Anchor}, Seen#{Base => Count + 1}}
           end, #{}, Heads),
     Anchored.
 
@@ -103,8 +105,8 @@ anchored(Heads) ->
 what_ernest_adds_test() ->
     ?assertEqual(adds(read("ernest_guide.md")), adds(read("README.md"))).
 
-adds(Bin) ->
-    [_, Rest] = binary:split(Bin, <<"What Ernest adds is where the parts meet:\n\n">>),
+adds(Document) ->
+    [_, Rest] = binary:split(Document, <<"What Ernest adds is where the parts meet:\n\n">>),
     [List | _] = binary:split(Rest, <<"\n\n">>),
     List.
 
@@ -115,8 +117,8 @@ adds(Bin) ->
 %% paths not yet written, and the findings' lists the paths of the tree
 %% their readers read, so every other document is checked.
 document_paths_test() ->
-    Missing = [{F, P} || F <- described(), P <- paths(read(F)),
-                         not exists(P), not exists(filename:join(filename:dirname(F), P))],
+    Missing = [{File, Path} || File <- described(), Path <- paths(read(File)), not exists(Path),
+                               not exists(filename:join(filename:dirname(File), Path))],
     ?assertEqual([], Missing).
 
 %% docs/release_review.md, step 5: man/ holds the pages of the release
@@ -128,21 +130,22 @@ document_paths_test() ->
 release_pages_test() ->
     Version = string:trim(read("VERSION")),
     Files = filelib:wildcard("man/**/*.md", ?ROOT),
-    Indexes = [F || F <- Files, filename:basename(F) =:= "README.md"],
+    Indexes = [File || File <- Files, filename:basename(File) =:= "README.md"],
     Pages = Files -- Indexes,
     ?assert(length(Pages) > 25),
     ?assertMatch(<<"# Ernest ", Version:(byte_size(Version))/binary, "\n", _/binary>>,
                  read("man/README.md")),
     Written = <<"Generated by ern ", Version/binary, " from ">>,
-    ?assertEqual([], [P || P <- Pages, binary:match(read(P), Written) =:= nomatch]),
-    Linked = [filename:join(filename:dirname(I), L) || I <- Indexes, L <- page_links(read(I))],
+    ?assertEqual([], [Page || Page <- Pages, binary:match(read(Page), Written) =:= nomatch]),
+    Linked = [filename:join(filename:dirname(Index), Link) || Index <- Indexes,
+                                                              Link <- page_links(read(Index))],
     ?assertEqual(lists:sort(Files -- ["man/README.md"]), lists:sort(Linked)).
 
 %% An index's links to pages within man/.
 page_links(Index) ->
     {match, Links} = re:run(Index, "\\]\\(([^)]+\\.md)\\)",
                             [global, {capture, all_but_first, list}]),
-    [L || [L] <- Links, not lists:prefix("../", L)].
+    [Link || [Link] <- Links, not lists:prefix("../", Link)].
 
 %% Every document the repository tracks, the guide aside, whose citations
 %% are its own sections, and the log, whose entries say what was; man/'s
@@ -151,8 +154,9 @@ page_links(Index) ->
 %% and four directories (findings.md's D4)
 documents() ->
     Tracked = string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files '*.md'"), "\n"),
-    Found = [F || F <- Tracked, not lists:member(F, ["ernest_guide.md", "docs/decisions.md"]),
-                  not lists:prefix("man/", F)],
+    Found = [File || File <- Tracked,
+                     not lists:member(File, ["ernest_guide.md", "docs/decisions.md"]),
+                     not lists:prefix("man/", File)],
     ?assert(length(Found) > 15),
     Found.
 
@@ -163,41 +167,44 @@ described() ->
 %% A backticked path under one of the repository's own directories. A
 %% metavariable is written `<name>`, as docs/style.md writes `ern_<thing>`,
 %% and a wildcard stands for a set, so neither names one file.
-paths(Bin) ->
+paths(Document) ->
     Tops = ["erl/", "docs/", "test/", "bin/", "stdlib/", "examples/", "build/", "shell/",
             "libs/", "tools/", "emacs/", "assets/"],
-    Quoted = [B || B <- binary:split(Bin, <<"`">>, [global])],
-    [binary_to_list(P) || {I, P} <- lists:zip(lists:seq(1, length(Quoted)), Quoted),
-                          I rem 2 =:= 0,
-                          lists:any(fun(T) -> lists:prefix(T, binary_to_list(P)) end, Tops),
-                          binary:match(P, [<<"*">>, <<"<">>]) =:= nomatch,
-                          binary:last(P) =/= $/].
+    Quoted = [Piece || Piece <- binary:split(Document, <<"`">>, [global])],
+    [binary_to_list(Piece) || {Index, Piece} <- lists:zip(lists:seq(1, length(Quoted)), Quoted),
+                              Index rem 2 =:= 0,
+                              lists:any(fun(Top) -> lists:prefix(Top, binary_to_list(Piece)) end,
+                                        Tops),
+                              binary:match(Piece, [<<"*">>, <<"<">>]) =:= nomatch,
+                              binary:last(Piece) =/= $/].
 
-exists(Rel) ->
-    filelib:is_file(filename:join(?ROOT, Rel)).
+exists(Relative) ->
+    filelib:is_file(filename:join(?ROOT, Relative)).
 
 %% THIRD_PARTY_LICENSES: every tracked file that
 %% carries an upstream author's copyright, and every file that holds a
 %% table a tool generated, is an entry's path; and every entry names a
 %% file that is there, and its licence
 third_party_test() ->
-    Entries = [E || E <- binary:split(read("THIRD_PARTY_LICENSES"), <<"\n----">>, [global]),
-                    binary:match(E, <<"  Path:">>) =/= nomatch],
-    Listed = [path(E) || E <- Entries],
-    Tracked = [F || F <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files"), "\n"),
-                    not lists:member(F, ["LICENSE", "THIRD_PARTY_LICENSES"])],
-    Owed = [F || F <- Tracked, filelib:is_regular(filename:join(?ROOT, F)),
-                 borrowed(read(F)) orelse generated(read(F))],
+    Entries = [Entry || Entry <- binary:split(read("THIRD_PARTY_LICENSES"), <<"\n----">>, [global]),
+                        binary:match(Entry, <<"  Path:">>) =/= nomatch],
+    Listed = [path(Entry) || Entry <- Entries],
+    Tracked = [File || File <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files"), "\n"),
+                       not lists:member(File, ["LICENSE", "THIRD_PARTY_LICENSES"])],
+    Owed = [File || File <- Tracked, filelib:is_regular(filename:join(?ROOT, File)),
+                    borrowed(read(File)) orelse generated(read(File))],
     ?assert(length(Owed) >= 2),
     ?assertEqual([], Owed -- Listed),
-    ?assertEqual([], [P || P <- Listed, not filelib:is_regular(filename:join(?ROOT, P))]),
-    ?assertEqual([], [path(E) || E <- Entries, binary:match(E, <<"  License:">>) =:= nomatch]).
+    ?assertEqual([], [Path || Path <- Listed, not filelib:is_regular(filename:join(?ROOT, Path))]),
+    ?assertEqual([],
+                 [path(Entry) || Entry <- Entries,
+                                 binary:match(Entry, <<"  License:">>) =:= nomatch]).
 
 %% An entry's path, the first word after its `Path:`.
 path(Entry) ->
-    {match, [P]} = re:run(Entry, "^  Path: +([^ ,\n]+)",
-                          [multiline, {capture, all_but_first, list}]),
-    P.
+    {match, [Path]} = re:run(Entry, "^  Path: +([^ ,\n]+)",
+                             [multiline, {capture, all_but_first, list}]),
+    Path.
 
 %% report §7.4: a cause of a fault quoted in sections
 %% 0 to 11 outside §7.4 is one §7.4 lists, since §7.4 holds the causes
@@ -209,27 +216,29 @@ fault_causes_test() ->
     [Before, Rest] = binary:split(Report, <<"### 7.4 Causes of faults">>),
     [Own, After] = binary:split(Rest, <<"\n## 8. Programs">>),
     [Body, _] = binary:split(After, <<"\n## Appendix A">>),
-    Templates = [template(C) || C <- causes(Own)],
+    Templates = [template(Cause) || Cause <- causes(Own)],
     ?assert(length(Templates) > 20),
-    ?assertEqual([], [C || C <- causes(Before) ++ causes(Body),
-                           not lists:any(fun(T) -> re:run(C, T) =/= nomatch end, Templates)]).
+    ?assertEqual([], [Cause || Cause <- causes(Before) ++ causes(Body),
+                               not lists:any(fun(Template) ->
+                                                 re:run(Cause, Template) =/= nomatch
+                                             end, Templates)]).
 
-causes(Bin) ->
-    case re:run(Bin, "Fault\\(\"([^\"]*)\"\\)", [global, {capture, all_but_first, binary}]) of
-        {match, Found} -> [C || [C] <- Found];
+causes(Document) ->
+    case re:run(Document, "Fault\\(\"([^\"]*)\"\\)", [global, {capture, all_but_first, binary}]) of
+        {match, Found} -> [Cause || [Cause] <- Found];
         nomatch -> []
     end.
 
 %% A cause as a pattern: its text, with `...`, `m:f/n` and a word of one
 %% letter matching any text.
 template(Cause) ->
-    Words = [case W of
+    Words = [case Word of
                  <<"...">> -> <<".*">>;
                  <<"m:f/n">> -> <<".+">>;
-                 <<_>> when W =/= <<"a">> -> <<".+">>;
-                 _ -> re:replace(W, "[.^$*+?()\\[\\]{}|\\\\]", "\\\\&",
+                 <<_>> when Word =/= <<"a">> -> <<".+">>;
+                 _ -> re:replace(Word, "[.^$*+?()\\[\\]{}|\\\\]", "\\\\&",
                                  [global, {return, binary}])
-             end || W <- binary:split(Cause, <<" ">>, [global])],
+             end || Word <- binary:split(Cause, <<" ">>, [global])],
     iolist_to_binary(["^", lists:join(" ", Words), "$"]).
 
 %% docs/decisions.md: its index names every section by its title, the
@@ -257,80 +266,82 @@ borrowed(Text) ->
 generated(Text) ->
     re:run(Text, "^// Generated by tools/", [multiline]) =/= nomatch.
 
-read(Rel) ->
-    {ok, Bin} = file:read_file(filename:join(?ROOT, Rel)),
-    Bin.
+read(Relative) ->
+    {ok, Bytes} = file:read_file(filename:join(?ROOT, Relative)),
+    Bytes.
 
 %% A name that begins with a dot is no module (report §11.1's path shape),
 %% and an editor's lock file, `.#main.ern`, is one that may not be readable.
 examples() ->
-    [filename:join("examples", F)
-     || F <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "examples")),
-        not editor_file(F)].
+    [filename:join("examples", File)
+     || File <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "examples")),
+        not editor_file(File)].
 
 %% The shell's Ernest source, whose comments cite the report as the
 %% standard library's do.
 shell() ->
-    [filename:join("shell", F)
-     || F <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "shell")),
-        not editor_file(F)].
+    [filename:join("shell", File)
+     || File <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "shell")),
+        not editor_file(File)].
 
 %% The programs of the build written in Ernest, whose comments cite the
 %% report too.
 tools() ->
-    [filename:join("tools", F)
-     || F <- filelib:wildcard("*.ern", filename:join(?ROOT, "tools")), not editor_file(F)].
+    [filename:join("tools", File)
+     || File <- filelib:wildcard("*.ern", filename:join(?ROOT, "tools")), not editor_file(File)].
 
 stdlib() ->
-    [filename:join("stdlib", F)
-     || F <- filelib:wildcard("*.ern", filename:join(?ROOT, "stdlib")), not editor_file(F)]
-    ++ [filename:join("libs", F)
-        || F <- filelib:wildcard("*/*.ern", filename:join(?ROOT, "libs")), not editor_file(F)].
+    [filename:join("stdlib", File)
+     || File <- filelib:wildcard("*.ern", filename:join(?ROOT, "stdlib")), not editor_file(File)]
+    ++ [filename:join("libs", File)
+        || File <- filelib:wildcard("*/*.ern", filename:join(?ROOT, "libs")),
+           not editor_file(File)].
 
 %% An editor's lock file, `.#editor.ern`, a link to nothing while the file
 %% is open, and its auto-save file, `#editor.ern#`: neither is a module.
-editor_file(F) ->
-    lists:member(hd(filename:basename(F)), ".#").
+editor_file(File) ->
+    lists:member(hd(filename:basename(File)), ".#").
 
 %% "3.9", "3", "Appendix A", "E.12" for the headings of a document.
-headings(Bin) ->
-    Lines = binary:split(Bin, <<"\n">>, [global]),
-    lists:append([heading(L) || L <- Lines]).
+headings(Document) ->
+    Lines = binary:split(Document, <<"\n">>, [global]),
+    lists:append([heading(Line) || Line <- Lines]).
 
-heading(L) ->
-    case re:run(L, "^#{1,3} (?:([0-9]+(?:\\.[0-9]+)?)\\.? |Appendix ([A-Z])(?:\\.([0-9]+))?\\.)",
+heading(Line) ->
+    case re:run(Line, "^#{1,3} (?:([0-9]+(?:\\.[0-9]+)?)\\.? |Appendix ([A-Z])(?:\\.([0-9]+))?\\.)",
                 [{capture, all_but_first, list}]) of
-        {match, [N]} -> [N];
-        {match, [[], A]} -> ["Appendix " ++ A];
-        {match, [[], A, E]} -> ["Appendix " ++ A, A ++ "." ++ E];
+        {match, [Number]} -> [Number];
+        {match, [[], Letter]} -> ["Appendix " ++ Letter];
+        {match, [[], Letter, Section]} -> ["Appendix " ++ Letter, Letter ++ "." ++ Section];
         nomatch -> []
     end.
 
 %% Every citation in a document: {Kind, Target} with Kind report, guide,
 %% or bare, the bare ones resolved by the document's own convention.
-cites(Bin) ->
-    Sec = case re:run(Bin, "([Rr]eport|[Gg]uide)?,? ?§([0-9]+(?:\\.[0-9]+)?)",
-                      [global, unicode, {capture, all_but_first, list}]) of
-              {match, Ms} -> [{kind(W), N} || [W, N] <- Ms];
-              nomatch -> []
-          end,
-    App = case re:run(Bin, "Appendix ([A-Z])(?:\\.([0-9]+))?",
-                      [global, {capture, all_but_first, list}]) of
-              {match, As} -> lists:append([case A of [X] -> [{report, "Appendix " ++ X}];
-                                                     [X, E] -> [{report, X ++ "." ++ E}]
-                                           end || A <- As]);
-              nomatch -> []
-          end,
-    E0 = case re:run(Bin, "\\bE\\.([0-9]+)\\b", [global, {capture, all_but_first, list}]) of
-             {match, Es} -> [{report, "E." ++ E} || [E] <- Es];
-             nomatch -> []
-         end,
-    lists:usort(Sec ++ App ++ E0).
+cites(Document) ->
+    SectionCites = [{kind(Word), Number}
+                    || [Word, Number] <- matches(Document, "([Rr]eport|[Gg]uide)?,? ?"
+                                                           "§([0-9]+(?:\\.[0-9]+)?)")],
+    AppendixCites = [case Appendix of
+                         [Letter] -> {report, "Appendix " ++ Letter};
+                         [Letter, Section] -> {report, Letter ++ "." ++ Section}
+                     end
+                     || Appendix <- matches(Document, "Appendix ([A-Z])(?:\\.([0-9]+))?")],
+    LibraryCites = [{report, "E." ++ Section}
+                    || [Section] <- matches(Document, "\\bE\\.([0-9]+)\\b")],
+    lists:usort(SectionCites ++ AppendixCites ++ LibraryCites).
+
+%% Every match of a pattern in a document, each its captured groups.
+matches(Document, Pattern) ->
+    case re:run(Document, Pattern, [global, unicode, {capture, all_but_first, list}]) of
+        {match, Found} -> Found;
+        nomatch -> []
+    end.
 
 kind([]) -> bare;
-kind(W) -> list_to_atom(string:lowercase(W)).
+kind(Word) -> list_to_atom(string:lowercase(Word)).
 
-resolves({report, T}, _, ReportHeads, _) -> lists:member(T, ReportHeads);
-resolves({guide, T}, _, _, GuideHeads) -> lists:member(T, GuideHeads);
-resolves({bare, T}, report, ReportHeads, _) -> lists:member(T, ReportHeads);
-resolves({bare, T}, guide, _, GuideHeads) -> lists:member(T, GuideHeads).
+resolves({report, Target}, _, ReportHeads, _) -> lists:member(Target, ReportHeads);
+resolves({guide, Target}, _, _, GuideHeads) -> lists:member(Target, GuideHeads);
+resolves({bare, Target}, report, ReportHeads, _) -> lists:member(Target, ReportHeads);
+resolves({bare, Target}, guide, _, GuideHeads) -> lists:member(Target, GuideHeads).

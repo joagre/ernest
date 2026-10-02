@@ -44,14 +44,14 @@
 %% ernest_guide.md, plan MVP 2.61: the guide marks enough of its examples
 %% for the check to hold something
 guide_has_checked_examples_test() ->
-    {Modules, Rejected} = lists:partition(fun({K, _}) -> K =/= rejected end, units(?GUIDE)),
+    {Modules, Rejected} = lists:partition(fun({Kind, _}) -> Kind =/= rejected end, units(?GUIDE)),
     ?assert(length(Modules) >= 15),
     ?assert(length(Rejected) >= 5).
 
 %% report Appendix B: the report marks its examples,
 %% its programs and a rejected one among them
 report_has_checked_examples_test() ->
-    {Modules, Rejected} = lists:partition(fun({K, _}) -> K =/= rejected end, units(?REPORT)),
+    {Modules, Rejected} = lists:partition(fun({Kind, _}) -> Kind =/= rejected end, units(?REPORT)),
     ?assert(length(Modules) >= 8),
     ?assert(length(Rejected) >= 1).
 
@@ -67,27 +67,28 @@ report_prelude_declarations_test() ->
 prelude_declarations(Document) ->
     {ok, Text} = file:read_file(Document),
     Lines = binary:split(Text, <<"\n">>, [global]),
-    Quoted = [normalize(D)
-              || {_, <<"ernest-prelude">>, _, Code} <- blocks(lists:zip(lists:seq(1, length(Lines)),
-                                                                        Lines), none, []),
-                 D <- declarations([uncommented(L) || L <- Code])],
-    Prelude = [normalize(D) || D <- declarations(
-                                      [uncommented(L)
-                                       || L <- binary:split(
-                                                 list_to_binary(ern_prelude:declared_types()),
-                                                 <<"\n">>, [global])])],
+    Numbered = lists:zip(lists:seq(1, length(Lines)), Lines),
+    Quoted = [normalize(Declaration)
+              || {_, <<"ernest-prelude">>, _, Code} <- blocks(Numbered, none, []),
+                 Declaration <- declarations([uncommented(Line) || Line <- Code])],
+    PreludeLines = binary:split(list_to_binary(ern_prelude:declared_types()), <<"\n">>, [global]),
+    Prelude = [normalize(Declaration)
+               || Declaration <- declarations([uncommented(Line) || Line <- PreludeLines])],
     %% the scan found the blocks
     ?assertNotEqual([], Quoted),
     ?assertEqual([], Quoted -- Prelude).
 
 %% Each `type` declaration of some lines, with the lines that continue it.
 declarations([]) -> [];
-declarations([<<"type ", _/binary>> = L | Ls]) ->
-    {Cont, Rest} = lists:splitwith(fun(C) -> binary:first(<<C/binary, "x">>) =:= $\s end, Ls),
-    [iolist_to_binary(lists:join(" ", [L | Cont])) | declarations(Rest)];
-declarations([_ | Ls]) -> declarations(Ls).
+declarations([<<"type ", _/binary>> = Line | Lines]) ->
+    {Continued, Rest} = lists:splitwith(fun(Next) ->
+                                            binary:first(<<Next/binary, "x">>) =:= $\s
+                                        end, Lines),
+    [iolist_to_binary(lists:join(" ", [Line | Continued])) | declarations(Rest)];
+declarations([_ | Lines]) -> declarations(Lines).
 
-normalize(D) -> re:replace(string:trim(D), "\\s+", " ", [global, {return, binary}]).
+normalize(Declaration) ->
+    re:replace(string:trim(Declaration), "\\s+", " ", [global, {return, binary}]).
 
 %% A line without its comment, which is no part of a declaration.
 uncommented(Line) ->
@@ -122,94 +123,97 @@ diagnostics_test_() ->
     examples(?DIAGNOSTICS, "diagnostics").
 
 examples(Document, Kind) ->
-    Units = [catalogued(Kind, U) || U <- units(Document)],
-    Named = [{label(Kind, N, U), U} || {N, U} <- lists:zip(lists:seq(1, length(Units)), Units)],
-    {Apart, Here} = lists:partition(fun({_, U}) -> loads_nothing(U) end, Named),
+    Units = [catalogued(Kind, Unit) || Unit <- units(Document)],
+    Named = [{label(Kind, Number, Unit), Unit}
+             || {Number, Unit} <- lists:zip(lists:seq(1, length(Units)), Units)],
+    {Apart, Here} = lists:partition(fun({_, Unit}) -> loads_nothing(Unit) end, Named),
     [{inparallel, erlang:system_info(schedulers_online),
-      [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Apart]}
-     | [{Name, {timeout, 60, fun() -> check(U) end}} || {Name, U} <- Here]].
+      [{Name, {timeout, 60, fun() -> check(Unit) end}} || {Name, Unit} <- Apart]}
+     | [{Name, {timeout, 60, fun() -> check(Unit) end}} || {Name, Unit} <- Here]].
 
 %% The catalogue's errors may be the parser's or an unknown name's.
-catalogued("diagnostics", {rejected, U}) -> {rejected, U#{any_reason => true}};
+catalogued("diagnostics", {rejected, Unit}) -> {rejected, Unit#{any_reason => true}};
 catalogued(_, Unit) -> Unit.
 
-loads_nothing({modules, #{run := {Flags, _, _, Inputs, _}}}) ->
+loads_nothing({modules, #{launch := {Flags, _, _, Inputs, _}}}) ->
     Flags =:= "shell " orelse Inputs =/= [];
 loads_nothing({modules, _}) -> false;
 loads_nothing(_) -> true.
 
-label(Kind, N, {_, #{line := Line}}) ->
-    Kind ++ " example " ++ integer_to_list(N) ++ " at line " ++ integer_to_list(Line).
+label(Kind, Number, {_, #{line := Line}}) ->
+    Kind ++ " example " ++ integer_to_list(Number) ++ " at line " ++ integer_to_list(Line).
 
-check({modules, #{files := Files, run := Run}}) ->
+check({modules, #{files := Files, launch := Launch}}) ->
     Dir = tmp(),
-    [ok = write(filename:join(Dir, F), Code) || {F, Code} <- Files],
+    [ok = write(filename:join(Dir, Name), Code) || {Name, Code} <- Files],
     Build = filename:join(Dir, "build"),
     ok = filelib:ensure_path(Build),
-    [{0, <<>>} = sh("erlc -o " ++ Build ++ " " ++ filename:join(Dir, F))
-     || {F, _} <- Files, filename:extension(F) =:= ".erl"],
+    [{0, <<>>} = sh("erlc -o " ++ Build ++ " " ++ filename:join(Dir, Name))
+     || {Name, _} <- Files, filename:extension(Name) =:= ".erl"],
     %% guide §8.3: a program that uses a library under libs/ has it on its
     %% load path, as every example here may
-    Libs = lists:append([["--load-path", filename:absname(L)]
-                         || L <- filelib:wildcard("../build/libs/*"), filelib:is_dir(L)]),
+    Libraries = lists:append([["--load-path", filename:absname(Library)]
+                              || Library <- filelib:wildcard("../build/libs/*"),
+                                 filelib:is_dir(Library)]),
     ?assertEqual(0, ern_cli:ern(["build", "--short-errors", "--source-root", Dir,
-                                 "--build-root", Build | Libs] ++ [Dir], group_leader())),
+                                 "--build-root", Build | Libraries] ++ [Dir], group_leader())),
     ?assertEqual(<<>>, iolist_to_binary(?capturedOutput)),
-    case Run of
+    case Launch of
         none ->
             ok;
         {Flags, Module, Words, [], Expected} when Flags =/= "shell " ->
             %% in this node: the program's output is what the test captures
             Args = string:lexemes(Flags, " ") ++ [filename:join(Build, Module) | Words],
             ErrFile = filename:join(Dir, "stderr"),
-            {ok, Err} = file:open(ErrFile, [write]),
-            ?assertEqual(0, ern_cli:ern(Args, Err)),
-            ok = file:close(Err),
+            {ok, ErrorDevice} = file:open(ErrFile, [write]),
+            ?assertEqual(0, ern_cli:ern(Args, ErrorDevice)),
+            ok = file:close(ErrorDevice),
             {ok, Errors} = file:read_file(ErrFile),
             same_streams(Expected, iolist_to_binary(?capturedOutput), Errors);
         {Flags, Module, Words, Inputs, Expected} ->
-            In = filename:join(Dir, "inputs"),
-            ok = write(In, [[I, <<"\n">>] || I <- Inputs]),
+            InputFile = filename:join(Dir, "inputs"),
+            ok = write(InputFile, [[Input, <<"\n">>] || Input <- Inputs]),
             ErrFile = filename:join(Dir, "stderr"),
             {0, Printed} = sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " "
                               ++ filename:absname("../bin/ern") ++ " " ++ Flags
-                              ++ filename:join(Build, Module) ++ [[" ", W] || W <- Words]
-                              ++ " < " ++ In
+                              ++ filename:join(Build, Module) ++ [[" ", Word] || Word <- Words]
+                              ++ " < " ++ InputFile
                               ++ " 2> " ++ ErrFile),
             {ok, Errors} = file:read_file(ErrFile),
             same_streams(Expected, session_end(Printed), Errors)
     end;
-check({rejected, #{files := [{F, Code}], shown := Shown} = Unit}) ->
+check({rejected, #{files := [{Name, Code}], shown := Shown} = Unit}) ->
     Dir = tmp(),
-    File = filename:join(Dir, F),
+    File = filename:join(Dir, Name),
     ok = write(File, Code),
     %% built in this node, the file named as a build started in Dir names it
     Status = ern_cli:ern(["build", "--source-root", Dir, File], group_leader()),
-    Out = binary:replace(unicode:characters_to_binary(?capturedOutput),
-                         list_to_binary(Dir ++ "/"), <<>>, [global]),
-    ?assertMatch({1, _}, {Status, Out}),
+    Output = binary:replace(unicode:characters_to_binary(?capturedOutput),
+                            list_to_binary(Dir ++ "/"), <<>>, [global]),
+    ?assertMatch({1, _}, {Status, Output}),
     %% rejected for its own reason, not for a slip in the example
     maps:get(any_reason, Unit, false) orelse
-        ?assertEqual(nomatch, re:run(Out, "^[^:\\s]+:[0-9]+:[0-9]+: (expected |unknown name)",
+        ?assertEqual(nomatch, re:run(Output, "^[^:\\s]+:[0-9]+:[0-9]+: (expected |unknown name)",
                                      [multiline])),
     %% on the line the block marks, where it marks one
-    Marked = [N || {N, L} <- lists:zip(lists:seq(1, length(lines(Code))), lines(Code)),
-                   binary:match(L, <<"// rejected">>) =/= nomatch],
+    Marked = [Number
+              || {Number, Line} <- lists:zip(lists:seq(1, length(lines(Code))), lines(Code)),
+                 binary:match(Line, <<"// rejected">>) =/= nomatch],
     case Marked of
         [] -> ok;
-        [Line | _] -> ?assertEqual({ok, Line}, error_line(Out))
+        [Line | _] -> ?assertEqual({ok, Line}, error_line(Output))
     end,
     case Shown of
         none -> ok;
-        Expected -> ?assertEqual(trim(Expected), trim(Out))
+        Expected -> ?assertEqual(trim(Expected), trim(Output))
     end;
 check({session, #{inputs := Inputs, shown := Expected}}) ->
     Dir = tmp(),
-    In = filename:join(Dir, "inputs"),
-    ok = write(In, [[I, <<"\n">>] || I <- Inputs]),
-    {0, Out} = sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " " ++ filename:absname("../bin/ern")
-                  ++ " shell < " ++ In),
-    ?assertEqual(trim(Expected), session_end(Out)).
+    InputFile = filename:join(Dir, "inputs"),
+    ok = write(InputFile, [[Input, <<"\n">>] || Input <- Inputs]),
+    {0, Output} = sh("cd " ++ Dir ++ " && HOME=" ++ Dir ++ " " ++ filename:absname("../bin/ern")
+                     ++ " shell < " ++ InputFile),
+    ?assertEqual(trim(Expected), session_end(Output)).
 
 %% A session not at a terminal echoes no input, and ends at the last
 %% prompt, which a program's output does not end in.
@@ -217,9 +221,9 @@ check({session, #{inputs := Inputs, shown := Expected}}) ->
 %% terminal does, but two processes write them and nothing orders one
 %% against the other, so each stream is held to its own order: its lines
 %% are the console's, the other stream's taken out, in order.
-same_streams(Expected, Out, Errors) ->
+same_streams(Expected, Output, Errors) ->
     Shown = lines(trim(Expected)),
-    Written = lines(trim(Out)),
+    Written = lines(trim(Output)),
     Said = lines(trim(Errors)),
     ?assertEqual(Shown -- Said, Written),
     ?assertEqual(Shown -- Written, Said).
@@ -227,8 +231,8 @@ same_streams(Expected, Out, Errors) ->
 lines(<<>>) -> [];
 lines(Text) -> binary:split(Text, <<"\n">>, [global]).
 
-session_end(Out) ->
-    trim(string:trim(trim(Out), trailing, ">")).
+session_end(Output) ->
+    trim(string:trim(trim(Output), trailing, ">")).
 
 %% The checked units of the guide, in order: {modules, Unit} for one module
 %% or a heading's source tree, {rejected, Unit} for an example that must
@@ -242,11 +246,11 @@ units(Document) ->
 %% Every fenced block: {Line, Info, Heading, CodeLines}.
 blocks([], _, Acc) ->
     lists:reverse(Acc);
-blocks([{_, <<"#", _/binary>> = H} | Rest], _, Acc) ->
-    blocks(Rest, H, Acc);
-blocks([{N, <<"```", Info/binary>>} | Rest], Heading, Acc) ->
-    {Code, [_ | After]} = lists:splitwith(fun({_, L}) -> not fence(L) end, Rest),
-    blocks(After, Heading, [{N, Info, Heading, [L || {_, L} <- Code]} | Acc]);
+blocks([{_, <<"#", _/binary>> = Heading} | Rest], _, Acc) ->
+    blocks(Rest, Heading, Acc);
+blocks([{Number, <<"```", Info/binary>>} | Rest], Heading, Acc) ->
+    {Code, [_ | After]} = lists:splitwith(fun({_, Line}) -> not fence(Line) end, Rest),
+    blocks(After, Heading, [{Number, Info, Heading, [Line || {_, Line} <- Code]} | Acc]);
 blocks([_ | Rest], Heading, Acc) ->
     blocks(Rest, Heading, Acc).
 
@@ -259,39 +263,42 @@ fence(_) -> false.
 %% Seen: each named file as it stands so far, for a block that continues it.
 group([], _Seen) ->
     [];
-group([{N, <<"ernest-rejected">>, _, Code} | Rest], Seen) ->
+group([{Number, <<"ernest-rejected">>, _, Code} | Rest], Seen) ->
     {File, Shown} = case compiled(Rest) of
-                        {F, Text} -> {F, Text};
+                        {Name, Text} -> {Name, Text};
                         none -> {file_of(Code), none}
                     end,
-    [{rejected, #{line => N, files => [{File, join(Code)}], shown => Shown}} | group(Rest, Seen)];
-group([{N, <<"console">>, _, [<<"$ ern shell">> | Lines]} | Rest], Seen) ->
-    [{session, #{line => N, inputs => inputs(Lines), shown => session_shown(Lines)}}
+    Unit = #{line => Number, files => [{File, join(Code)}], shown => Shown},
+    [{rejected, Unit} | group(Rest, Seen)];
+group([{Number, <<"console">>, _, [<<"$ ern shell">> | Lines]} | Rest], Seen) ->
+    [{session, #{line => Number, inputs => inputs(Lines), shown => session_shown(Lines)}}
      | group(Rest, Seen)];
-group([{N, Info, Heading, Code} = B | Rest], Seen) when Info =:= <<"ernest">>;
-                                                        Info =:= <<"erlang">> ->
+group([{Number, Info, Heading, Code} = Block | Rest], Seen) when Info =:= <<"ernest">>;
+                                                                 Info =:= <<"erlang">> ->
     case named(Code) of
         none when Info =:= <<"erlang">> ->
             %% Erlang without a module line is a fragment
             group(Rest, Seen);
         none ->
             %% a module the console runs is the file the console names
-            Run = run(Rest),
-            File = case Run of
+            Launch = launch(Rest),
+            File = case Launch of
                        {_, Module, _, _, _} -> filename:rootname(Module) ++ ".ern";
                        none -> "example.ern"
                    end,
-            [{modules, #{line => N, files => [{File, join(Code)}], run => Run}}
+            [{modules, #{line => Number, files => [{File, join(Code)}], launch => Launch}}
              | group(Rest, Seen)];
         _ ->
-            {Same, Others} = lists:splitwith(
-                               fun({_, I, H, C}) -> lists:member(I, [<<"ernest">>, <<"erlang">>])
-                                                        andalso H =:= Heading
-                                                        andalso named(C) =/= none end, Rest),
-            Tree = [B | Same],
-            Files = parts([{named(C), C} || {_, _, _, C} <- Tree], Seen),
+            InTree = fun({_, BlockInfo, BlockHeading, BlockCode}) ->
+                         lists:member(BlockInfo, [<<"ernest">>, <<"erlang">>])
+                             andalso BlockHeading =:= Heading andalso named(BlockCode) =/= none
+                     end,
+            {Same, Others} = lists:splitwith(InTree, Rest),
+            Tree = [Block | Same],
+            Files = parts([{named(BlockCode), BlockCode} || {_, _, _, BlockCode} <- Tree], Seen),
             Seen1 = maps:merge(Seen, maps:from_list(Files)),
-            [{modules, #{line => N, files => Files, run => run(Others)}} | group(Others, Seen1)]
+            Unit = #{line => Number, files => Files, launch => launch(Others)},
+            [{modules, Unit} | group(Others, Seen1)]
     end;
 group([_ | Rest], Seen) ->
     group(Rest, Seen).
@@ -299,14 +306,15 @@ group([_ | Rest], Seen) ->
 %% The files of a source tree, each the blocks that name it joined in order,
 %% after the file as it stood when its first block here continues it.
 parts(Named, Seen) ->
-    Files = lists:usort([F || {F, _} <- Named]),
-    [{F, iolist_to_binary([before(F, Named, Seen)
-                           | [join(C) || {G, C} <- Named, G =:= F]])} || F <- Files].
+    Files = lists:usort([Name || {Name, _} <- Named]),
+    [{Name, iolist_to_binary([before(Name, Named, Seen)
+                              | [join(Code) || {BlockName, Code} <- Named, BlockName =:= Name]])}
+     || Name <- Files].
 
-before(F, Named, Seen) ->
-    [First | _] = [C || {G, C} <- Named, G =:= F],
+before(Name, Named, Seen) ->
+    [First | _] = [Code || {BlockName, Code} <- Named, BlockName =:= Name],
     case re:run(hd(First), "^// [a-z0-9/]+\\.ern, continued") of
-        {match, _} -> maps:get(F, Seen);
+        {match, _} -> maps:get(Name, Seen);
         nomatch -> <<>>
     end.
 
@@ -318,7 +326,7 @@ named([First | _]) ->
             Path;
         nomatch ->
             case re:run(First, "^-module\\(([a-z0-9_]+)\\)\\.", [{capture, all_but_first, list}]) of
-                {match, [Mod]} -> Mod ++ ".erl";
+                {match, [Module]} -> Module ++ ".erl";
                 nomatch -> none
             end
     end;
@@ -334,26 +342,26 @@ file_of(Code) ->
 %% The next fenced block, when it is a console: the job, its options, the
 %% module its `$ ern run`, `test` or `shell` line runs and the words after
 %% it, and the lines it shows that are not commands.
-run([{_, <<"console">>, _, Lines} | _]) ->
-    Commands = [L || <<"$ ", _/binary>> = L <- Lines],
-    Output = [L || L <- Lines, not lists:member(L, Commands)],
-    Runs = [{Piped, Job ++ " " ++ Flags, M, string:lexemes(Words, " ")}
-            || C <- Commands,
-               {match, [Piped, Job, Flags, M, Words]}
-                   <- [re:run(C, "^\\$ (?:printf '([^']*)' \\| )?ern (run|test|shell) "
-                                 "((?:--[a-z]+ \\S+ )*)(?:\\S*/)?([a-z0-9]+\\.erc)"
+launch([{_, <<"console">>, _, Lines} | _]) ->
+    Commands = [Line || <<"$ ", _/binary>> = Line <- Lines],
+    Output = [Line || Line <- Lines, not lists:member(Line, Commands)],
+    Runs = [{Piped, Job ++ " " ++ Flags, Erc, string:lexemes(Words, " ")}
+            || Command <- Commands,
+               {match, [Piped, Job, Flags, Erc, Words]}
+                   <- [re:run(Command, "^\\$ (?:printf '([^']*)' \\| )?ern (run|test|shell) "
+                                       "((?:--[a-z]+ \\S+ )*)(?:\\S*/)?([a-z0-9]+\\.erc)"
                                  "((?: +[^#\\s]\\S*)*) *(?:#.*)?$",
                               [{capture, all_but_first, list}])]],
     case Runs of
         [{_, "shell " = Flags, Module, Words} | _] ->
             {Flags, Module, Words, inputs(Output), session_shown(Output)};
         [{Piped, Flags, Module, Words} | _] ->
-            Stdin = [L || L <- string:split(Piped, "\\n", all), L =/= ""],
+            Stdin = [Line || Line <- string:split(Piped, "\\n", all), Line =/= ""],
             {Flags, Module, Words, Stdin, join(Output)};
         [] ->
             none
     end;
-run(_) ->
+launch(_) ->
     none.
 
 %% The next fenced block, when it is a console whose command is `$ ern build`:
@@ -369,13 +377,13 @@ compiled(_) ->
 
 %% A session's inputs are its `> ` lines.
 inputs(Lines) ->
-    [I || <<"> ", I/binary>> <- Lines].
+    [Input || <<"> ", Input/binary>> <- Lines].
 
 %% What a session prints not at a terminal: the prompt stays, and the input
 %% after it, which is the terminal's echo, goes.
 session_shown(Lines) ->
-    iolist_to_binary([case L of <<"> ", _/binary>> -> <<"> ">>; _ -> [L, <<"\n">>] end
-                      || L <- Lines]).
+    iolist_to_binary([case Line of <<"> ", _/binary>> -> <<"> ">>; _ -> [Line, <<"\n">>] end
+                      || Line <- Lines]).
 
 %% The text without its trailing blanks, and with the number the host gives
 %% a process masked in `<process 84>` and `<address 84>`, since it is the
@@ -385,12 +393,12 @@ trim(Text) ->
                [global, unicode, {return, binary}]).
 
 join(Lines) ->
-    iolist_to_binary([[L, <<"\n">>] || L <- Lines]).
+    iolist_to_binary([[Line, <<"\n">>] || Line <- Lines]).
 
 %% The line of the first error a compilation reports.
-error_line(Out) ->
-    case re:run(Out, "^[^:\\s]+:([0-9]+):", [{capture, all_but_first, list}]) of
-        {match, [L]} -> {ok, list_to_integer(L)};
+error_line(Output) ->
+    case re:run(Output, "^[^:\\s]+:([0-9]+):", [{capture, all_but_first, list}]) of
+        {match, [Digits]} -> {ok, list_to_integer(Digits)};
         nomatch -> none
     end.
 
@@ -404,18 +412,18 @@ write_diagnostics() ->
     ok = file:write_file(?DIAGNOSTICS, lists:join(<<"\n">>, rewrite(Lines))).
 
 rewrite([<<"```ernest-rejected">> = Open | Rest]) ->
-    {Code, [Close | After]} = lists:splitwith(fun(L) -> not fence(L) end, Rest),
+    {Code, [Close | After]} = lists:splitwith(fun(Line) -> not fence(Line) end, Rest),
     Console = [<<"```console">>, <<"$ ern build example.ern">>
                | lines(string:trim(printed(join(Code)), trailing))] ++ [<<"```">>],
     [Open | Code] ++ [Close | consoled(After, Console)];
-rewrite([L | Rest]) ->
-    [L | rewrite(Rest)];
+rewrite([Line | Rest]) ->
+    [Line | rewrite(Rest)];
 rewrite([]) ->
     [].
 
 %% The program's console, in place of the one after it or where none is.
 consoled([<<>>, <<"```console">> | Rest], Console) ->
-    {_, [_ | After]} = lists:splitwith(fun(L) -> not fence(L) end, Rest),
+    {_, [_ | After]} = lists:splitwith(fun(Line) -> not fence(Line) end, Rest),
     [<<>> | Console] ++ rewrite(After);
 consoled(After, Console) ->
     [<<>> | Console] ++ rewrite(After).
@@ -424,9 +432,9 @@ consoled(After, Console) ->
 printed(Code) ->
     Dir = tmp(),
     ok = write(filename:join(Dir, "example.ern"), Code),
-    {_, Out} = sh("cd " ++ Dir ++ " && " ++ filename:absname("../bin/ern")
-                  ++ " build example.ern"),
-    Out.
+    {_, Output} = sh("cd " ++ Dir ++ " && " ++ filename:absname("../bin/ern")
+                     ++ " build example.ern"),
+    Output.
 
 %% A fresh directory: the counter restarts with each run, so one left by an
 %% earlier run is removed first.
@@ -441,15 +449,15 @@ write(Path, Code) ->
     ok = filelib:ensure_dir(Path),
     file:write_file(Path, Code).
 
-sh(Cmd) ->
+sh(Command) ->
     Port = open_port({spawn_executable, "/bin/sh"},
-                     [{args, ["-c", Cmd]}, exit_status, stderr_to_stdout, binary]),
+                     [{args, ["-c", Command]}, exit_status, stderr_to_stdout, binary]),
     collect(Port, []).
 
 collect(Port, Acc) ->
     receive
-        {Port, {data, D}} -> collect(Port, [D | Acc]);
-        {Port, {exit_status, S}} -> {S, iolist_to_binary(lists:reverse(Acc))}
+        {Port, {data, Data}} -> collect(Port, [Data | Acc]);
+        {Port, {exit_status, Status}} -> {Status, iolist_to_binary(lists:reverse(Acc))}
     end.
 
 captured_output() ->

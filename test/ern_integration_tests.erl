@@ -25,8 +25,8 @@ programs_test_() ->
 program(Name) ->
     0 = build(?BUILD ++ "../examples/" ++ Name
                 ++ ".ern"),
-    {0, Out} = sh("../bin/ern run build/" ++ Name ++ ".erc"),
-    ?assertEqual(expected(Name), unstamped(lines(Out))).
+    {0, Output} = sh("../bin/ern run build/" ++ Name ++ ".erc"),
+    ?assertEqual(expected(Name), unstamped(lines(Output))).
 
 %% Plan, MVP 2.5: the paper programs that the doors of step 4 opened.
 %% snake waits for a terminal, so it is only compiled here and ern_terminal_tests
@@ -62,8 +62,8 @@ repl_test_() ->
 
 repl() ->
     0 = build(?BUILD ++ "../examples/repl.ern"),
-    {0, Out} = sh("../bin/ern run build/repl.erc < input/repl.in"),
-    ?assertEqual(expected("repl"), lines(Out)).
+    {0, Output} = sh("../bin/ern run build/repl.erc < input/repl.in"),
+    ?assertEqual(expected("repl"), lines(Output)).
 
 %% Paper program 2 (plan, MVP 2.5): the syncer runs until it is
 %% stopped, so the harness gives it two prepared directories, lets it run,
@@ -92,13 +92,16 @@ filesync() ->
     Synced = "grep -q \"conflict: notes.txt\" run.out && [ -f b/greeting.txt ]"
              " && [ -f a/other.txt ] && [ -f b/notes.txt.conflict ]"
              " && grep -q \"new note\" a/notes.txt",
-    {Status, Out} = run_for(Dir, "../../../bin/ern run ../../build/filesync.erc", Synced, "TERM"),
+    {Status, Output} = run_for(Dir, "../../../bin/ern run ../../build/filesync.erc", Synced,
+                               "TERM"),
     %% report §8.6, §11.2: the signal ends the program as returning from main
     %% does, so what was written is there and the runtime says nothing of its
     %% own, and the status is 128 plus the signal's number
     ?assertEqual(143, Status),
-    ?assert(lists:member(<<"conflict: notes.txt">>, Out)),
-    ?assertEqual([], [L || L <- Out, binary:match(L, <<"conflict: notes.txt">>) =:= nomatch]),
+    ?assert(lists:member(<<"conflict: notes.txt">>, Output)),
+    ?assertEqual([],
+                 [Line || Line <- Output,
+                          binary:match(Line, <<"conflict: notes.txt">>) =:= nomatch]),
     ?assertEqual({ok, <<"hello from a\n">>}, file:read_file(Dir ++ "/b/greeting.txt")),
     ?assertEqual({ok, <<"only in b\n">>}, file:read_file(Dir ++ "/a/other.txt")),
     %% b's copy is the newer one, so a takes it and b keeps its own beside the conflict
@@ -107,9 +110,10 @@ filesync() ->
     %% a file stored takes its source's time, so that the next pass finds it
     %% as it was recorded and does not send it back; a regression test, the
     %% two sides rewrote each other every pass (findings.md's E7)
-    Mtime = fun(F) ->
-                {ok, #file_info{mtime = M}} = file:read_file_info(Dir ++ F, [{time, posix}]),
-                M
+    Mtime = fun(Relative) ->
+                {ok, #file_info{mtime = Seconds}} = file:read_file_info(Dir ++ Relative,
+                                                                        [{time, posix}]),
+                Seconds
             end,
     ?assertEqual(Mtime("/a/greeting.txt"), Mtime("/b/greeting.txt")),
     ?assertEqual(Mtime("/b/other.txt"), Mtime("/a/other.txt")).
@@ -130,14 +134,14 @@ filesync_first_listing() ->
     ok = reset(Dir),
     ok = file:write_file(Dir ++ "/a/notes.txt", <<"old note\n">>),
     ok = file:write_file(Dir ++ "/b/notes.txt", <<"new note\n">>),
-    [ok = file:write_file(Dir ++ "/b/" ++ integer_to_list(N) ++ ".txt", <<"x\n">>)
-     || N <- lists:seq(1, 50)],
+    [ok = file:write_file(Dir ++ "/b/" ++ integer_to_list(Number) ++ ".txt", <<"x\n">>)
+     || Number <- lists:seq(1, 50)],
     ok = make_older(Dir ++ "/a/notes.txt"),
     Synced = "grep -q \"conflict: notes.txt\" run.out && [ -f b/notes.txt.conflict ]"
              " && grep -q \"new note\" a/notes.txt",
-    {Status, Out} = run_for(Dir, "../../../bin/ern run ../first/filesync.erc", Synced, "TERM"),
+    {Status, Output} = run_for(Dir, "../../../bin/ern run ../first/filesync.erc", Synced, "TERM"),
     ?assertEqual(143, Status),
-    ?assert(lists:member(<<"conflict: notes.txt">>, Out)),
+    ?assert(lists:member(<<"conflict: notes.txt">>, Output)),
     ?assertEqual({ok, <<"new note\n">>}, file:read_file(Dir ++ "/b/notes.txt")),
     ?assertEqual({ok, <<"old note\n">>}, file:read_file(Dir ++ "/b/notes.txt.conflict")),
     ?assertEqual({ok, <<"new note\n">>}, file:read_file(Dir ++ "/a/notes.txt")).
@@ -164,18 +168,18 @@ del(Dir) ->
 %% the signal named once the shell condition Until holds, or after thirty
 %% seconds. Its status and its output are returned, standard error with
 %% standard output, and not the shell's own report of a job a signal ended.
-run_for(Dir, Cmd, Until, Signal) ->
+run_for(Dir, Command, Until, Signal) ->
     %% sh -c, since open_port runs the command with exec and `cd` is a builtin
     %% an earlier run's output goes first, since the command empties the
     %% file only once it has started, and Until may read it before then
-    {_, Status} = sh("sh -c 'cd " ++ Dir ++ " && { rm -f run.out; " ++ Cmd
+    {_, Status} = sh("sh -c 'cd " ++ Dir ++ " && { rm -f run.out; " ++ Command
                      ++ " > run.out 2>&1 & p=$!; "
                      "i=0; until " ++ Until ++ " || [ $i -ge 300 ]; do sleep 0.1; i=$((i + 1)); "
                      "done; kill -" ++ Signal
                      ++ " $p 2>/dev/null; wait $p; echo status $?; }' 2>/dev/null"),
-    <<"status ", S/binary>> = string:trim(Status),
-    {ok, Out} = file:read_file(filename:join(Dir, "run.out")),
-    {binary_to_integer(S), lines(Out)}.
+    <<"status ", Digits/binary>> = string:trim(Status),
+    {ok, Output} = file:read_file(filename:join(Dir, "run.out")),
+    {binary_to_integer(Digits), lines(Output)}.
 
 %% report §8.6, §11.2: the host's hangup ends a program as its termination
 %% does, printing nothing, with status 128 plus the signal's number. A
@@ -222,9 +226,9 @@ interrupt() ->
     Port = open_port({spawn_executable, filename:absname("../bin/ern")},
                      [{args, ["run", "waits.erc"]}, {cd, Dir}, exit_status, stderr_to_stdout,
                       binary]),
-    {os_pid, Pid} = erlang:port_info(Port, os_pid),
+    {os_pid, OsPid} = erlang:port_info(Port, os_pid),
     ok = wait_for(Dir ++ "/running", 300),
-    _ = os:cmd("kill -INT " ++ integer_to_list(Pid)),
+    _ = os:cmd("kill -INT " ++ integer_to_list(OsPid)),
     ?assertEqual({130, <<>>}, collect(Port, [])).
 
 %% Wait until the file exists, a tenth of a second at a time.
@@ -248,18 +252,18 @@ webserver() ->
     0 = build(?BUILD ++ "../examples/webserver.ern"),
     Port = open_port({spawn, "../bin/ern run build/webserver.erc"},
                      [exit_status, stderr_to_stdout, binary]),
-    {os_pid, Pid} = erlang:port_info(Port, os_pid),
+    {os_pid, OsPid} = erlang:port_info(Port, os_pid),
     try
         ?assertEqual(ok, listening(8080, 100)),
         First = request([]),
         ?assertMatch({_, _}, binary:match(First, <<"HTTP/1.1 200 OK">>)),
         ?assertMatch({_, _}, binary:match(First, <<"set-cookie: sid=">>)),
         ?assertMatch({_, _}, binary:match(First, <<"Visit number 1">>)),
-        Sid = cookie_of(First),
-        Second = request([<<"cookie: sid=", Sid/binary, "\r\n">>]),
+        SessionId = cookie_of(First),
+        Second = request([<<"cookie: sid=", SessionId/binary, "\r\n">>]),
         ?assertMatch({_, _}, binary:match(Second, <<"Visit number 2">>))
     after
-        os:cmd("kill " ++ integer_to_list(Pid)),
+        os:cmd("kill " ++ integer_to_list(OsPid)),
         try port_close(Port) catch _:_ -> true end
     end.
 
@@ -268,27 +272,27 @@ listening(_, 0) ->
     {error, not_listening};
 listening(TcpPort, Tries) ->
     case gen_tcp:connect("127.0.0.1", TcpPort, [binary, {active, false}], 100) of
-        {ok, Sock} -> gen_tcp:close(Sock), ok;
+        {ok, Socket} -> gen_tcp:close(Socket), ok;
         {error, _} -> timer:sleep(100), listening(TcpPort, Tries - 1)
     end.
 
 request(Headers) ->
-    {ok, Sock} = gen_tcp:connect("127.0.0.1", 8080, [binary, {active, false}], 1000),
-    ok = gen_tcp:send(Sock, [<<"GET / HTTP/1.1\r\nhost: localhost\r\n">>, Headers, <<"\r\n">>]),
-    Answer = recv_all(Sock, []),
-    gen_tcp:close(Sock),
+    {ok, Socket} = gen_tcp:connect("127.0.0.1", 8080, [binary, {active, false}], 1000),
+    ok = gen_tcp:send(Socket, [<<"GET / HTTP/1.1\r\nhost: localhost\r\n">>, Headers, <<"\r\n">>]),
+    Answer = recv_all(Socket, []),
+    gen_tcp:close(Socket),
     Answer.
 
-recv_all(Sock, Acc) ->
-    case gen_tcp:recv(Sock, 0, 5000) of
-        {ok, Bin} -> recv_all(Sock, [Bin | Acc]);
+recv_all(Socket, Acc) ->
+    case gen_tcp:recv(Socket, 0, 5000) of
+        {ok, Bytes} -> recv_all(Socket, [Bytes | Acc]);
         {error, _} -> iolist_to_binary(lists:reverse(Acc))
     end.
 
 cookie_of(Answer) ->
     [_, After] = binary:split(Answer, <<"set-cookie: sid=">>),
-    [Sid | _] = binary:split(After, <<";">>),
-    Sid.
+    [SessionId | _] = binary:split(After, <<";">>),
+    SessionId.
 
 %% report §11, §11.4: the manual pages `make man` writes. `ern doc --man`
 %% writes the prelude's page and each standard library module's beside its
@@ -304,17 +308,17 @@ manual_pages_test_() ->
 
 manual_pages() ->
     {0, _} = sh("../bin/ern doc --man --build-root ../build/stdlib ../stdlib"),
-    Modules = [filename:basename(F, ".ern") || F <- filelib:wildcard("../stdlib/*.ern")],
-    Pages = ["../build/stdlib/Ernest." ++ string:titlecase(M) ++ ".3ern" || M <- Modules]
+    Modules = [filename:basename(File, ".ern") || File <- filelib:wildcard("../stdlib/*.ern")],
+    Pages = ["../build/stdlib/Ernest." ++ string:titlecase(Module) ++ ".3ern" || Module <- Modules]
         ++ ["../build/stdlib/Ernest.Prelude.3ern"],
-    ?assertEqual([], [P || P <- Pages, not filelib:is_regular(P)]),
+    ?assertEqual([], [Page || Page <- Pages, not filelib:is_regular(Page)]),
     0 = build("--load-path ../build/libs/markdown --load-path ../build/libs/ansi "
                 "--build-root build/tools ../tools"),
-    {0, Out} = sh("../bin/ern run --load-path ../build/libs/markdown"
-                  " --load-path ../build/libs/ansi build/tools/manual.erc "
-                  "../ernest_report.md 9.9.9 ../build/stdlib"),
-    ok = file:write_file("build/ern.1", Out),
-    Lines = binary:split(Out, <<"\n">>, [global, trim]),
+    {0, Output} = sh("../bin/ern run --load-path ../build/libs/markdown"
+                     " --load-path ../build/libs/ansi build/tools/manual.erc "
+                     "../ernest_report.md 9.9.9 ../build/stdlib"),
+    ok = file:write_file("build/ern.1", Output),
+    Lines = binary:split(Output, <<"\n">>, [global, trim]),
     ?assertMatch([<<".\\\" Generated by tools/manual.ern from ../ernest_report.md.">>,
                   <<".TH \"ern\" \"1\" \"\" \"Ernest 9.9.9\" \"Ernest Manual\"">>,
                   <<".nh">>, <<".ds AD l">>, <<".ad l">>,
@@ -324,23 +328,25 @@ manual_pages() ->
     %% man-pages(7)'s sections, in its order
     ?assertEqual([<<"SYNOPSIS">>, <<"DESCRIPTION">>, <<"OPTIONS">>, <<"EXIT STATUS">>,
                   <<"SEE ALSO">>],
-                 [S || {<<".SH">>, S} <- Pairs]),
-    [_, Synopsis | _] = binary:split(Out, [<<"SYNOPSIS">>, <<"DESCRIPTION">>], [global]),
-    ?assertEqual([], [J || J <- ["build", "run", "test", "shell", "config", "doc", "format"],
-                           binary:match(Synopsis, iolist_to_binary(["\\fBern ", J, " ["]))
-                               =:= nomatch]),
-    ?assertMatch({_, _}, binary:match(Out, <<".SH\nDESCRIPTION\n.PP\n"
-                                              "The toolchain is one command, \\fBern\\fR, ">>)),
+                 [Section || {<<".SH">>, Section} <- Pairs]),
+    [_, Synopsis | _] = binary:split(Output, [<<"SYNOPSIS">>, <<"DESCRIPTION">>], [global]),
+    ?assertEqual([], [Job || Job <- ["build", "run", "test", "shell", "config", "doc", "format"],
+                             binary:match(Synopsis, iolist_to_binary(["\\fBern ", Job, " ["]))
+                                 =:= nomatch]),
+    ?assertMatch({_, _}, binary:match(Output, <<".SH\nDESCRIPTION\n.PP\n"
+                                                 "The toolchain is one command, \\fBern\\fR, ">>)),
     {ok, Report} = file:read_file("../ernest_report.md"),
     {match, Sections} = re:run(Report, "^### (11\\.[0-6] .*)$",
                                [multiline, global, {capture, all_but_first, binary}]),
-    ?assertEqual([binary:replace(S, <<"`">>, <<>>, [global]) || [S] <- Sections],
-                 [S || {<<".SS">>, S} <- Pairs]),
-    ?assertMatch({_, _}, binary:match(Out, <<".SH\nSEE ALSO\n.PP\n\\fBErnest.Prelude\\fR(3ern), "
-                                              "\\fBErnest.Bool\\fR(3ern), ">>)),
-    ?assertEqual([], [M || M <- Modules,
-                           binary:match(Out, iolist_to_binary(["\\fBErnest.", string:titlecase(M),
-                                                               "\\fR(3ern)"])) =:= nomatch]),
+    ?assertEqual([binary:replace(Section, <<"`">>, <<>>, [global]) || [Section] <- Sections],
+                 [Section || {<<".SS">>, Section} <- Pairs]),
+    ?assertMatch({_, _}, binary:match(Output, <<".SH\nSEE ALSO\n.PP\n\\fBErnest.Prelude\\fR(3ern), "
+                                                 "\\fBErnest.Bool\\fR(3ern), ">>)),
+    SeeAlso = fun(Module) ->
+                  iolist_to_binary(["\\fBErnest.", string:titlecase(Module), "\\fR(3ern)"])
+              end,
+    ?assertEqual([], [Module || Module <- Modules,
+                                binary:match(Output, SeeAlso(Module)) =:= nomatch]),
     rendered(["build/ern.1" | Pages]).
 
 rendered(Pages) ->
@@ -349,13 +355,15 @@ rendered(Pages) ->
             io:format(user, "  groff and mandoc not installed; the manual pages' rendering "
                             "was not checked.~n", []);
         {false, _} ->
-            ?assertEqual([], [{P, R} || P <- Pages,
-                                        {S, _} = R <- [sh("mandoc -Tlint -W error " ++ P)],
-                                        S =/= 0]);
+            ?assertEqual([], [{Page, Result}
+                              || Page <- Pages,
+                                 {Status, _} = Result <- [sh("mandoc -Tlint -W error " ++ Page)],
+                                 Status =/= 0]);
         _ ->
-            ?assertEqual([], [{P, R} || P <- Pages,
-                                        R <- [sh("groff -k -man -Tutf8 -ww -z " ++ P)],
-                                        R =/= {0, <<>>}])
+            ?assertEqual([], [{Page, Result}
+                              || Page <- Pages,
+                                 Result <- [sh("groff -k -man -Tutf8 -ww -z " ++ Page)],
+                                 Result =/= {0, <<>>}])
     end.
 
 %% The installation and the archive, each made by make, one after the other,
@@ -382,21 +390,21 @@ install() ->
     ?assertEqual([], debug_information(Base ++ "/a")),
     ok = file:rename(Base ++ "/a", Base ++ "/b"),
     Ern = Base ++ "/b/bin/ern",
-    In = fun(Cmd) -> sh(Cmd, [{cd, Base ++ "/work"}]) end,
-    ?assertEqual({0, <<"ern 0.2.0\n">>}, In(Ern ++ " --version")),
+    InWork = fun(Command) -> sh(Command, [{cd, Base ++ "/work"}]) end,
+    ?assertEqual({0, <<"ern 0.2.0\n">>}, InWork(Ern ++ " --version")),
     ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
-    {0, _} = In(Ern ++ " build hi.ern"),
-    ?assertEqual({0, <<"hi\n">>}, In(Ern ++ " run hi.erc")),
-    {0, Shell} = In("printf '1 + 1\\n' | " ++ Ern ++ " shell"),
+    {0, _} = InWork(Ern ++ " build hi.ern"),
+    ?assertEqual({0, <<"hi\n">>}, InWork(Ern ++ " run hi.erc")),
+    {0, Shell} = InWork("printf '1 + 1\\n' | " ++ Ern ++ " shell"),
     ?assertMatch({_, _}, binary:match(Shell, <<"> 2 : Int\n">>)),
-    ?assertMatch({0, <<".\\\" Generated by ern ", _/binary>>}, In(Ern ++ " doc --man hi.ern")),
+    ?assertMatch({0, <<".\\\" Generated by ern ", _/binary>>}, InWork(Ern ++ " doc --man hi.ern")),
     case os:find_executable("man") of
         false ->
             io:format(user, "  man not installed; the installed pages were not looked up.~n", []);
         _ ->
-            Man = Base ++ "/b/share/man/",
-            ?assertEqual({0, iolist_to_binary([Man, "man1/ern.1\n", Man,
-                                               "man3/Ernest.List.3ern\n", Man,
+            ManPath = Base ++ "/b/share/man/",
+            ?assertEqual({0, iolist_to_binary([ManPath, "man1/ern.1\n", ManPath,
+                                               "man3/Ernest.List.3ern\n", ManPath,
                                                "man3/Ernest.Markdown.3ern\n"])},
                          sh("env -u MANPATH PATH=" ++ Base ++ "/b/bin:/usr/bin:/bin "
                             "man -w ern Ernest.List Ernest.Markdown"))
@@ -404,13 +412,14 @@ install() ->
     ok = file:write_file(Base ++ "/b/share/man/man3/Mine.3", <<"mine\n">>),
     {0, _} = sh("make -s -C .. uninstall PREFIX=" ++ Base ++ "/b"),
     ?assertEqual([Base ++ "/b/share/man/man3/Mine.3"],
-                 [F || F <- filelib:wildcard(Base ++ "/b/**/*"), not filelib:is_dir(F)]),
+                 [File || File <- filelib:wildcard(Base ++ "/b/**/*"), not filelib:is_dir(File)]),
     ?assertMatch({2, _}, sh("make -s -C .. uninstall PREFIX=" ++ Base ++ "/b")),
     Stage = Base ++ "/stage",
     {0, _} = sh("make -s -C .. install DESTDIR=" ++ Stage ++ " PREFIX=/opt/ernest"),
-    ?assertEqual({0, <<"ern 0.2.0\n">>}, In(Stage ++ "/opt/ernest/bin/ern --version")),
+    ?assertEqual({0, <<"ern 0.2.0\n">>}, InWork(Stage ++ "/opt/ernest/bin/ern --version")),
     {0, _} = sh("make -s -C .. uninstall DESTDIR=" ++ Stage ++ " PREFIX=/opt/ernest"),
-    ?assertEqual([], [F || F <- filelib:wildcard(Stage ++ "/**/*"), not filelib:is_dir(F)]),
+    ?assertEqual([],
+                 [File || File <- filelib:wildcard(Stage ++ "/**/*"), not filelib:is_dir(File)]),
     case sh("id -u") of
         {0, <<"0\n">>} ->
             io:format(user, "  run as root; a prefix that cannot be written was not tried.~n", []);
@@ -438,9 +447,9 @@ release() ->
     Archive = "../build/release/" ++ Name ++ ".tar.gz",
     {0, Listing} = sh("tar -tzf " ++ Archive),
     Entries = binary:split(Listing, <<"\n">>, [global, trim]),
-    [?assert(lists:member(list_to_binary(Name ++ "/" ++ F), Entries))
-     || F <- ["Makefile", "README.md", "install.sh", "ern_exec.c", "bin/ern",
-              "lib/ernest/bin/ern", "lib/ernest/installed", "share/man/man1/ern.1"]],
+    [?assert(lists:member(list_to_binary(Name ++ "/" ++ File), Entries))
+     || File <- ["Makefile", "README.md", "install.sh", "ern_exec.c", "bin/ern",
+                 "lib/ernest/bin/ern", "lib/ernest/installed", "share/man/man1/ern.1"]],
     ?assertNot(lists:member(list_to_binary(Name ++ "/lib/ernest/erl/runtime/priv/ern_exec"),
                             Entries)),
     {0, _} = sh("tar -xzf " ++ filename:absname(Archive), [{cd, Base}]),
@@ -452,7 +461,8 @@ release() ->
     {0, _} = sh(Ern ++ " build hi.ern", [{cd, Base ++ "/work"}]),
     ?assertEqual({0, <<"hi\n">>}, sh(Ern ++ " run hi.erc", [{cd, Base ++ "/work"}])),
     {0, _} = sh("make -s uninstall PREFIX=" ++ Base ++ "/p", [{cd, Unpacked}]),
-    ?assertEqual([], [F || F <- filelib:wildcard(Base ++ "/p/**/*"), not filelib:is_dir(F)]).
+    ?assertEqual([],
+                 [File || File <- filelib:wildcard(Base ++ "/p/**/*"), not filelib:is_dir(File)]).
 
 %% A program that runs another through the runtime's helper (Appendix E.23).
 runs_echo() ->
@@ -465,12 +475,12 @@ runs_echo() ->
 
 %% The modules under a directory that carry the host's debug information.
 debug_information(Dir) ->
-    [F || F <- filelib:wildcard(Dir ++ "/**/*.{beam,erc}"),
-          begin
-              {ok, Beam} = file:read_file(F),
-              {ok, _, Chunks} = beam_lib:all_chunks(Beam),
-              lists:keymember("Dbgi", 1, Chunks)
-          end].
+    [File || File <- filelib:wildcard(Dir ++ "/**/*.{beam,erc}"),
+             begin
+                 {ok, Beam} = file:read_file(File),
+                 {ok, _, Chunks} = beam_lib:all_chunks(Beam),
+                 lists:keymember("Dbgi", 1, Chunks)
+             end].
 
 %% report §9.3, Appendix G.2, plan MVP 3.2: every library's own tests, run
 %% by `ern test` over its compiled modules, as the shell's are: the
@@ -480,13 +490,13 @@ libs_test_() ->
 
 libs() ->
     Modules = filelib:wildcard("../build/libs/*/**/*.erc"),
-    ?assert(lists:any(fun(M) -> filename:basename(M) =:= "markdown.erc" end, Modules)),
-    Runs = ["../bin/ern test " ++ M || M <- Modules],
-    {Status, Out} = sh(lists:flatten(lists:join(" && ", Runs))),
-    Lines = [L || L <- binary:split(Out, <<"\n">>, [global]), L =/= <<>>],
+    ?assert(lists:any(fun(Module) -> filename:basename(Module) =:= "markdown.erc" end, Modules)),
+    Runs = ["../bin/ern test " ++ Module || Module <- Modules],
+    {Status, Output} = sh(lists:flatten(lists:join(" && ", Runs))),
+    Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
     %% a module without tests says so (report §11.2)
-    ?assertEqual([], [L || L <- Lines, binary:match(L, <<": passed">>) =:= nomatch,
-                           L =/= <<"no tests">>]),
+    ?assertEqual([], [Line || Line <- Lines, binary:match(Line, <<": passed">>) =:= nomatch,
+                              Line =/= <<"no tests">>]),
     ?assertEqual(0, Status).
 
 %% report Appendix G.1, §7.4: a table replaces a key's entry, a removal of
@@ -515,9 +525,9 @@ ets() ->
                          "}\n"),
     0 = build("--source-root " ++ Dir ++ " --load-path ../build/libs/ets --build-root "
               ++ Dir ++ " " ++ Dir ++ "/tables.ern"),
-    {1, Out} = sh("../bin/ern run --load-path ../build/libs/ets " ++ Dir ++ "/tables.erc"),
+    {1, Output} = sh("../bin/ern run --load-path ../build/libs/ets " ++ Dir ++ "/tables.erc"),
     %% what the program prints and the fault's line come on two streams
-    Lines = unstamped(binary:split(Out, <<"\n">>, [global, trim])),
+    Lines = unstamped(binary:split(Output, <<"\n">>, [global, trim])),
     ?assert(lists:member(<<"#(Some(2), 1, false)">>, Lines)),
     ?assert(lists:member(<<"[]">>, Lines)),
     ?assert(lists:member(<<"Tables.main faulted: foreign function ets:insert/2 raised "
@@ -532,24 +542,24 @@ stdin_test_() ->
 
 stdin() ->
     [0 = build("--source-root stdin --build-root build/stdin stdin/"
-                 ++ P ++ ".ern") || P <- ["lines", "stream", "chunks"]],
-    Run = fun(Input, Program) ->
-                  sh("printf '" ++ Input ++ "' | LANG=C ../bin/ern run build/stdin/"
-                     ++ Program ++ ".erc")
-          end,
+                 ++ Program ++ ".ern") || Program <- ["lines", "stream", "chunks"]],
+    Launch = fun(Input, Program) ->
+                     sh("printf '" ++ Input ++ "' | LANG=C ../bin/ern run build/stdin/"
+                        ++ Program ++ ".erc")
+             end,
     ?assertEqual({0, <<"[h", 16#e9/utf8, "] 2\n[zw", 16#4e2d/utf8, "] 3\n[] 0\n[last] 4\nend\n">>},
-                 Run("h\\303\\251\\r\\nzw\\344\\270\\255\\n\\nlast", "lines")),
+                 Launch("h\\303\\251\\r\\nzw\\344\\270\\255\\n\\nlast", "lines")),
     %% standard output and standard error are two streams, which nothing
     %% orders against each other, so each is compared alone
-    Err = "build/stdin/stderr",
+    ErrorFile = "build/stdin/stderr",
     ?assertEqual({1, <<"[ok] 2\n">>},
                  sh("printf 'ok\\n\\377\\nnext\\n' | LANG=C ../bin/ern run build/stdin/lines.erc 2>"
-                    ++ Err)),
-    {ok, Said} = file:read_file(Err),
+                    ++ ErrorFile)),
+    {ok, Said} = file:read_file(ErrorFile),
     ?assertEqual([<<"Lines.main faulted: the standard input is not UTF-8">>],
                  unstamped(lines(Said))),
     ?assertEqual({0, <<"head\n", 255, 16#e9/utf8, "tail\nbytes 8\n">>},
-                 Run("head\\n\\377\\303\\251tail\\n", "stream")),
+                 Launch("head\\n\\377\\303\\251tail\\n", "stream")),
     %% a read does not wait for more than has arrived: the second byte is
     %% written once the program has said it read the first, so that how long
     %% the host takes to start, about as long as the one second the writer
@@ -576,14 +586,14 @@ os_test_() ->
     {timeout, 60, fun os/0}.
 
 os() ->
-    Src = "build/os/src",
-    ok = filelib:ensure_path(Src),
-    ok = file:write_file(Src ++ "/args.ern",
+    SourceRoot = "build/os/src",
+    ok = filelib:ensure_path(SourceRoot),
+    ok = file:write_file(SourceRoot ++ "/args.ern",
                          "export fn main() : Unit with Never = {\n"
                          "    Io.println(Io.show(Os.arguments));\n"
                          "    Os.exit(List.size(Os.arguments))\n"
                          "}\n"),
-    ok = file:write_file(Src ++ "/env.ern",
+    ok = file:write_file(SourceRoot ++ "/env.ern",
                          "export fn main() : Unit with Never = {\n"
                          "    Io.println(Io.show(#(Os.environment(\"ERN_OK\"),\n"
                          "                         Os.environment(\"ERN_NONE\"))));\n"
@@ -592,20 +602,20 @@ os() ->
     0 = build("--source-root build/os/src --build-root build/os build/os/src"),
     lists:foreach(
       fun(Locale) ->
-              Run = "env LC_ALL=" ++ Locale ++ " ../bin/ern run build/os/",
-              ?assertEqual({2, <<"[\"a b\", \"--x\"]\n">>}, sh(Run ++ "args.erc 'a b' --x")),
+              Launch = "env LC_ALL=" ++ Locale ++ " ../bin/ern run build/os/",
+              ?assertEqual({2, <<"[\"a b\", \"--x\"]\n">>}, sh(Launch ++ "args.erc 'a b' --x")),
               ?assertEqual({1, <<"ern run: argument 2 is not UTF-8\n">>},
-                           sh(Run ++ "args.erc ok \"$(printf '\\377')\"")),
+                           sh(Launch ++ "args.erc ok \"$(printf '\\377')\"")),
               ?assertEqual({1, <<"ern build: a word that is not UTF-8: n\\xFFme.ern\n">>},
                            sh("env LC_ALL=" ++ Locale
                               ++ " ../bin/ern build \"$(printf 'n\\377me.ern')\"")),
-              {Status, Out} = sh("env ERN_OK=\"$(printf 'caf\\303\\251')\" "
-                                 "ERN_BAD=\"$(printf 'caf\\351')\" " ++ Run ++ "env.erc"),
+              {Status, Output} = sh("env ERN_OK=\"$(printf 'caf\\303\\251')\" "
+                                    "ERN_BAD=\"$(printf 'caf\\351')\" " ++ Launch ++ "env.erc"),
               ?assertNotEqual(0, Status),
-              ?assertMatch({0, _}, binary:match(Out, <<"#(Some(\"caf", 16#e9/utf8,
-                                                       "\"), None)\n">>)),
-              ?assertMatch({_, _}, binary:match(Out, <<"faulted: the environment variable"
-                                                       " ERN_BAD is not UTF-8">>))
+              ?assertMatch({0, _}, binary:match(Output, <<"#(Some(\"caf", 16#e9/utf8,
+                                                          "\"), None)\n">>)),
+              ?assertMatch({_, _}, binary:match(Output, <<"faulted: the environment variable"
+                                                          " ERN_BAD is not UTF-8">>))
       end, ["C.UTF-8", "C"]).
 
 %% report §11, Appendix E.23, E.17: Os.workingDirectory is the absolute
@@ -632,17 +642,18 @@ working_directory() ->
     0 = build("--source-root build/cwd/src --build-root build/cwd "
                 "build/cwd/src"),
     Cafe = <<"build/cwd/caf", 16#c3, 16#a9>>,
-    [ok = make_dir(D) || D <- [Cafe, <<"build/cwd/bad", 16#e9>>]],
+    [ok = make_dir(Path) || Path <- [Cafe, <<"build/cwd/bad", 16#e9>>]],
     ok = file:write_file(<<Cafe/binary, "/notes.txt">>, <<"buy milk">>),
-    Run = fun(Glob, Locale) ->
-                  sh("sh -c 'cd build/cwd/" ++ Glob ++ " && env LC_ALL=" ++ Locale ++ " "
-                     ++ filename:absname("../bin/ern") ++ " run "
-                     ++ filename:absname("build/cwd/here.erc") ++ "'")
-          end,
+    Launch = fun(Glob, Locale) ->
+                     sh("sh -c 'cd build/cwd/" ++ Glob ++ " && env LC_ALL=" ++ Locale ++ " "
+                        ++ filename:absname("../bin/ern") ++ " run "
+                        ++ filename:absname("build/cwd/here.erc") ++ "'")
+             end,
     Here = <<(list_to_binary(filename:absname("build/cwd")))/binary, "/caf", 16#c3, 16#a9>>,
-    [?assertEqual({0, <<Here/binary, "\nSome(\"buy milk\")\n">>}, Run("caf*", Locale))
+    [?assertEqual({0, <<Here/binary, "\nSome(\"buy milk\")\n">>}, Launch("caf*", Locale))
      || Locale <- ["C.UTF-8", "C"]],
-    [?assertEqual({1, <<"ern: the working directory's name is not UTF-8\n">>}, Run("bad*", Locale))
+    [?assertEqual({1, <<"ern: the working directory's name is not UTF-8\n">>},
+                  Launch("bad*", Locale))
      || Locale <- ["C.UTF-8", "C"]],
     %% the name other tests' wildcards cannot read, which the host warns of
     ok = file:del_dir(<<"build/cwd/bad", 16#e9>>).
@@ -670,9 +681,9 @@ stream_gone() ->
                          "    else { Io.println(\"line\"); loop(n - 1) }\n"
                          "export fn main() : Unit with Never = loop(100000000)\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/chatty.ern"),
-    {0, Out} = sh("sh -c '{ ../bin/ern run " ++ Dir ++ "/chatty.erc 2> " ++ Dir
-                  ++ "/err; echo $? > " ++ Dir ++ "/status; } | head -1'"),
-    ?assertEqual(<<"line\n">>, Out),
+    {0, Output} = sh("sh -c '{ ../bin/ern run " ++ Dir ++ "/chatty.erc 2> " ++ Dir
+                     ++ "/err; echo $? > " ++ Dir ++ "/status; } | head -1'"),
+    ?assertEqual(<<"line\n">>, Output),
     ?assertEqual({ok, <<"141\n">>}, file:read_file(Dir ++ "/status")),
     ?assertEqual({ok, <<>>}, file:read_file(Dir ++ "/err")).
 
@@ -697,10 +708,10 @@ paced_output() ->
                          "export fn main() : Unit with Never = loop(2000000)\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/flood.ern"),
     Reader = "{ sleep 4; head -c 1 > /dev/null; }",
-    {0, Out} = sh("sh -c '../bin/ern run " ++ Dir ++ "/flood.erc | " ++ Reader ++ " & "
-                  "sleep 3; ps -eo rss,comm,args | grep \"beam.smp.*[f]lood.erc\" | head -1; "
-                  "wait'"),
-    [Rss | _] = string:lexemes(binary_to_list(Out), " \n"),
+    {0, Output} = sh("sh -c '../bin/ern run " ++ Dir ++ "/flood.erc | " ++ Reader ++ " & "
+                     "sleep 3; ps -eo rss,comm,args | grep \"beam.smp.*[f]lood.erc\" | head -1; "
+                     "wait'"),
+    [Rss | _] = string:lexemes(binary_to_list(Output), " \n"),
     ?assert(list_to_integer(Rss) < 250000).
 
 %% report §11.2: a module a `foreign fn` names is the host's own or one on
@@ -715,11 +726,11 @@ foreign_module() ->
     Dir = filename:absname("build/foreign"),
     ok = del(Dir),
     Ern = filename:absname("../bin/ern"),
-    Probe = fun(Where, N) ->
+    Probe = fun(Where, Number) ->
                 ok = filelib:ensure_path(Where),
                 ok = file:write_file(Where ++ "/ern_probe.erl",
                                      "-module(ern_probe).\n-export([n/0]).\nn() -> "
-                                     ++ integer_to_list(N) ++ ".\n"),
+                                     ++ integer_to_list(Number) ++ ".\n"),
                 {0, _} = sh("erlc -o " ++ Where ++ " " ++ Where ++ "/ern_probe.erl")
             end,
     Probe(Dir ++ "/prog", 1),
@@ -747,8 +758,8 @@ closed_pipe() ->
     Status = fun(Job) ->
                  {0, _} = sh("sh -c 'cd " ++ Dir ++ " && ( sleep 0.3; " ++ Ern ++ " " ++ Job
                              ++ " 2>&1; echo $? > status ) | true'"),
-                 {ok, S} = file:read_file(Dir ++ "/status"),
-                 string:trim(S)
+                 {ok, Text} = file:read_file(Dir ++ "/status"),
+                 string:trim(Text)
              end,
     [?assertEqual({Job, <<"141">>}, {Job, Status(Job)})
      || Job <- ["--version", "--help", "build missing.ern", "run missing.erc", "test --help",
@@ -786,9 +797,9 @@ fault_line_escaped() ->
                          "export fn main() : Unit with Never =\n"
                          "    fault(\"a\\u{1b}[31m\\nX.main faulted: forged\")\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/forged.ern"),
-    Err = Dir ++ "/err",
-    {1, _} = sh("../bin/ern run " ++ Dir ++ "/forged.erc 2> " ++ Err),
-    {ok, Text} = file:read_file(Err),
+    ErrorFile = Dir ++ "/err",
+    {1, _} = sh("../bin/ern run " ++ Dir ++ "/forged.erc 2> " ++ ErrorFile),
+    {ok, Text} = file:read_file(ErrorFile),
     ?assertMatch({_, _}, binary:match(Text, <<"Forged.main faulted: a\\u{1B}[31m\\nX.main"
                                                " faulted: forged\n">>)),
     ?assertEqual(1, length(binary:matches(Text, <<"\n">>))).
@@ -810,17 +821,17 @@ stamped() ->
                          "    Unit\n"
                          "}\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/faulty.ern"),
-    Err = Dir ++ "/err",
-    {1, _} = sh("../bin/ern run " ++ Dir ++ "/faulty.erc 2> " ++ Err),
-    {ok, Stamped} = file:read_file(Err),
+    ErrorFile = Dir ++ "/err",
+    {1, _} = sh("../bin/ern run " ++ Dir ++ "/faulty.erc 2> " ++ ErrorFile),
+    {ok, Stamped} = file:read_file(ErrorFile),
     ?assertMatch({match, _}, re:run(Stamped, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:"
                                               "[0-9]{2}\\.[0-9]{3}Z Faulty\\.main faulted: "
                                               "division by zero\n$")),
-    ok = file:write_file(Err, <<>>),
-    {ok, #file_info{major_device = Device, inode = Inode}} = file:read_file_info(Err),
+    ok = file:write_file(ErrorFile, <<>>),
+    {ok, #file_info{major_device = Device, inode = Inode}} = file:read_file_info(ErrorFile),
     {1, _} = sh("env JOURNAL_STREAM=" ++ integer_to_list(Device) ++ ":" ++ integer_to_list(Inode)
-                ++ " ../bin/ern run " ++ Dir ++ "/faulty.erc 2> " ++ Err),
-    ?assertEqual({ok, <<"Faulty.main faulted: division by zero\n">>}, file:read_file(Err)).
+                ++ " ../bin/ern run " ++ Dir ++ "/faulty.erc 2> " ++ ErrorFile),
+    ?assertEqual({ok, <<"Faulty.main faulted: division by zero\n">>}, file:read_file(ErrorFile)).
 
 %% report §8.6, §11.2: the host's termination and hangup end `ern run` by the
 %% signal itself once its output is flushed, so that the process that started
@@ -866,9 +877,9 @@ job_signal_end() ->
     Dir = "build/job_signal_end",
     ok = del(Dir),
     ok = filelib:ensure_path(Dir ++ "/tree"),
-    [ok = file:write_file(Dir ++ "/tree/m" ++ integer_to_list(N) ++ ".ern",
-                          "export fn f(n : Int) : Int = n + " ++ integer_to_list(N) ++ "\n")
-     || N <- lists:seq(1, 100)],
+    [ok = file:write_file(Dir ++ "/tree/m" ++ integer_to_list(Number) ++ ".ern",
+                          "export fn f(n : Int) : Int = n + " ++ integer_to_list(Number) ++ "\n")
+     || Number <- lists:seq(1, 100)],
     Python = "import subprocess, signal, os, time\n"
              "out = '" ++ Dir ++ "/out'\n"
              "p = subprocess.Popen(['../bin/ern', 'build', '--build-root', out,"
@@ -888,8 +899,8 @@ modules_test_() ->
 
 modules() ->
     {0, _} = sh("../bin/ern build --build-root build/modules ../examples/modules"),
-    {0, Out} = sh("../bin/ern run build/modules/main.erc"),
-    ?assertEqual(expected("modules"), lines(Out)).
+    {0, Output} = sh("../bin/ern run build/modules/main.erc"),
+    ?assertEqual(expected("modules"), lines(Output)).
 
 %% report §11.6: `ern format -` lays out standard input onto standard
 %% output; with --check it names `-` if the module is not laid out; a
@@ -918,22 +929,22 @@ locale() ->
     ok = file:write_file(File, Source),
     ?assertEqual({0, Source}, sh("sh -c 'LC_ALL=C LANG=C ../bin/ern format - < " ++ File ++ "'")),
     ok = file:write_file(File, <<"let s : Int = \"caf", 16#C3, 16#A9, "\"\n">>),
-    {1, Out} = sh("sh -c 'LC_ALL=C LANG=C ../bin/ern build --source-root build " ++ File ++ "'"),
-    ?assertMatch({_, _}, binary:match(Out, <<"1 | let s : Int = \"caf", 16#C3, 16#A9, "\"">>)).
+    {1, Output} = sh("sh -c 'LC_ALL=C LANG=C ../bin/ern build --source-root build " ++ File ++ "'"),
+    ?assertMatch({_, _}, binary:match(Output, <<"1 | let s : Int = \"caf", 16#C3, 16#A9, "\"">>)).
 
 expected(Name) ->
-    {ok, Bin} = file:read_file("expected/" ++ Name ++ ".out"),
-    lines(Bin).
+    {ok, Bytes} = file:read_file("expected/" ++ Name ++ ".out"),
+    lines(Bytes).
 
-lines(Bin) ->
-    lists:sort(binary:split(Bin, <<"\n">>, [global, trim])).
+lines(Bytes) ->
+    lists:sort(binary:split(Bytes, <<"\n">>, [global, trim])).
 
 %% Report §11.2: `ern run`'s fault lines as a terminal shows them, without
 %% the time a line begins with where standard error is a file or a pipe,
 %% as it is here; stamped_test_ checks the time itself.
 unstamped(Lines) ->
-    lists:sort([re:replace(L, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z ", "", [{return, binary}])
-                || L <- Lines]).
+    lists:sort([re:replace(Line, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z ", "", [{return, binary}])
+                || Line <- Lines]).
 
 %% A build in this node, as `ern build` does it: a launch of `ern` costs
 %% the start of a host, which the builds here, which only ready what a test
@@ -942,15 +953,15 @@ unstamped(Lines) ->
 build(Args) ->
     ern_cli:ern(["build" | string:lexemes(Args, " ")], group_leader()).
 
-sh(Cmd) ->
-    sh(Cmd, []).
+sh(Command) ->
+    sh(Command, []).
 
-sh(Cmd, Options) ->
-    Port = open_port({spawn, Cmd}, [exit_status, stderr_to_stdout, binary | Options]),
+sh(Command, Options) ->
+    Port = open_port({spawn, Command}, [exit_status, stderr_to_stdout, binary | Options]),
     collect(Port, []).
 
 collect(Port, Acc) ->
     receive
-        {Port, {data, D}} -> collect(Port, [D | Acc]);
-        {Port, {exit_status, S}} -> {S, iolist_to_binary(lists:reverse(Acc))}
+        {Port, {data, Data}} -> collect(Port, [Data | Acc]);
+        {Port, {exit_status, Status}} -> {Status, iolist_to_binary(lists:reverse(Acc))}
     end.

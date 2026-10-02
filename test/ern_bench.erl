@@ -13,15 +13,15 @@
 -spec main([string()]) -> no_return().
 main([File]) ->
     {ok, Text} = file:read_file(File),
-    Lines = [string:lexemes(L, " ") || L <- string:lexemes(binary_to_list(Text), "\n")],
+    Lines = [string:lexemes(Line, " ") || Line <- string:lexemes(binary_to_list(Text), "\n")],
     Server = spawn(fun serve/0),
-    Ops = operations(Server),
+    Operations = operations(Server),
     io:format("~-40s ~9s ~9s ~7s~n", ["ns an iteration", "Ernest", "Erlang", "ratio"]),
-    lists:foreach(fun([Key, N, Ms]) ->
-                          {Name, F} = maps:get(Key, Ops),
-                          Count = list_to_integer(N),
+    lists:foreach(fun([Key, Iterations, Ms]) ->
+                          {Name, Operation} = maps:get(Key, Operations),
+                          Count = list_to_integer(Iterations),
                           Ernest = list_to_integer(Ms) * 1.0e6 / Count,
-                          Erlang = fastest(Count, F),
+                          Erlang = fastest(Count, Operation),
                           io:format("~-40s ~9.1f ~9.1f ~7.1f~n",
                                     [Name, Ernest, Erlang, Ernest / Erlang])
                   end, Lines),
@@ -29,61 +29,71 @@ main([File]) ->
 
 %% Each key of bench.ern, what it measures, and the operation in Erlang.
 operations(Server) ->
-    P = {'Point', 1, 2},
-    M = #{1 => 2, 3 => 4},
-    Xs = lists:seq(1, 100),
-    A = <<"ab">>,
-    B = <<"cd">>,
+    Point = {'Point', 1, 2},
+    Map = #{1 => 2, 3 => 4},
+    Numbers = lists:seq(1, 100),
+    Left = <<"ab">>,
+    Right = <<"cd">>,
     Bytes = <<"abcd">>,
-    #{"loop" => {"the loop alone", fun(I) -> I end},
+    #{"loop" => {"the loop alone", fun(Iteration) -> Iteration end},
       "operator" => {"a record added by a function",
-                     fun(I) -> element(2, add({'Point', I, 1}, P)) end},
+                     fun(Iteration) -> element(2, add({'Point', Iteration, 1}, Point)) end},
       "equal" => {"two records compared",
-                  fun(I) ->
-                          case {'Point', I, 2} =:= P of
-                              true -> 1;
-                              false -> 0
-                          end
+                  fun(Iteration) ->
+                      case {'Point', Iteration, 2} =:= Point of
+                          true -> 1;
+                          false -> 0
+                      end
                   end},
       "map_get" => {"Map.get, maps:find",
-                    fun(I) ->
-                            case maps:find(I rem 4, M) of
-                                {ok, V} -> V;
-                                error -> 0
-                            end
+                    fun(Iteration) ->
+                        case maps:find(Iteration rem 4, Map) of
+                            {ok, Value} -> Value;
+                            error -> 0
+                        end
                     end},
-      "map_put" => {"Map.put, maps:put", fun(I) -> map_size(maps:put(I rem 8, I, M)) end},
+      "map_put" => {"Map.put, maps:put",
+                    fun(Iteration) -> map_size(maps:put(Iteration rem 8, Iteration, Map)) end},
       "list_map" => {"List.map over 100, lists:map",
-                     fun(I) -> hd(lists:map(fun(X) -> X + I end, Xs)) end},
-      "list_size" => {"List.size of 100, length", fun(I) -> length(Xs) + I end},
-      "string_size" => {"String.size, string:length", fun(I) -> string:length(A) + I end},
+                     fun(Iteration) ->
+                         hd(lists:map(fun(Number) -> Number + Iteration end, Numbers))
+                     end},
+      "list_size" => {"List.size of 100, length",
+                      fun(Iteration) -> length(Numbers) + Iteration end},
+      "string_size" => {"String.size, string:length",
+                        fun(Iteration) -> string:length(Left) + Iteration end},
       "string_append" => {"<> and String.size",
-                          fun(I) -> string:length(<<A/binary, B/binary>>) + I end},
-      "bytes_size" => {"Bytes.size, byte_size", fun(I) -> byte_size(Bytes) + I end},
+                          fun(Iteration) ->
+                              string:length(<<Left/binary, Right/binary>>) + Iteration
+                          end},
+      "bytes_size" => {"Bytes.size, byte_size",
+                       fun(Iteration) -> byte_size(Bytes) + Iteration end},
       "send" => {"send and receive to self",
-                 fun(I) ->
-                         self() ! {'Ping', I},
-                         receive
-                             {'Ping', K} -> K
-                         end
+                 fun(Iteration) ->
+                     self() ! {'Ping', Iteration},
+                     receive
+                         {'Ping', Echo} -> Echo
+                     end
                  end},
-      "call" => {"a call answered, as gen_server's", fun(I) -> call(Server) + I end},
+      "call" => {"a call answered, as gen_server's",
+                 fun(Iteration) -> call(Server) + Iteration end},
       "spawn" => {"spawn a process that returns",
-                  fun(I) ->
-                          spawn(fun() -> ok end),
-                          I
+                  fun(Iteration) ->
+                      spawn(fun() -> ok end),
+                      Iteration
                   end}}.
 
-add({'Point', X1, Y1}, {'Point', X2, Y2}) -> {'Point', X1 + X2, Y1 + Y2}.
+add({'Point', LeftX, LeftY}, {'Point', RightX, RightY}) ->
+    {'Point', LeftX + RightX, LeftY + RightY}.
 
 %% A call as gen:do_call/4 makes one: a monitor that is the reply's alias.
 call(Server) ->
     Ref = erlang:monitor(process, Server, [{alias, demonitor}]),
     Server ! {get, Ref},
     receive
-        {Ref, V} ->
+        {Ref, Value} ->
             erlang:demonitor(Ref, [flush]),
-            V;
+            Value;
         {'DOWN', Ref, _, _, Reason} ->
             exit(Reason)
     end.
@@ -96,13 +106,13 @@ serve() ->
     end.
 
 %% The fastest of three runs of N iterations, in nanoseconds an iteration.
-fastest(N, F) ->
-    lists:min([run(N, F) || _ <- [1, 2, 3]]) / N.
+fastest(Count, Operation) ->
+    lists:min([run(Count, Operation) || _ <- [1, 2, 3]]) / Count.
 
-run(N, F) ->
+run(Count, Operation) ->
     Start = erlang:monotonic_time(nanosecond),
-    _ = loop(N, F, 0),
+    _ = loop(Count, Operation, 0),
     erlang:monotonic_time(nanosecond) - Start.
 
 loop(0, _, Acc) -> Acc;
-loop(N, F, Acc) -> loop(N - 1, F, Acc + F(N)).
+loop(Count, Operation, Acc) -> loop(Count - 1, Operation, Acc + Operation(Count)).
