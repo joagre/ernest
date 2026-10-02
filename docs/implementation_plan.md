@@ -22,9 +22,8 @@ its readers ran on 2026-09-30, on `57b8356`, and it was worked on 2026-10-01 in 
 and closed (the log's *The Attack Plan* and *The Principles Review Closed*); the review before
 a release ran the same day, and Ernest 0.2.0, the second release, is tagged `v0.2.0` on
 2026-10-01 (the log's *The Release Review Before 0.2.0*), the last milestone done; MVP 2.99b
-resumes at item 7, the Erlang renamed, items 4 and 6 having been done on 2026-10-02 and item
-5, the operations' build, waiting at the user's choice to follow item 7, which needs nothing of
-it. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+resumes at item 5, the operations' build, at the user's choice, items 4, 6 and 7 having been
+done on 2026-10-02. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -190,7 +189,13 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    first moments alone, as §0's host paragraph asks, and under systemd's default kill mode the
    host would be signalled directly anyway; the window is the host's limit, stated in §8.6 and
    §11.8, and taken to OTP's maintainers (*Standing gaps*).
-7. **Names and form that read, in Erlang**, about a week and a half: every module under
+7. **Names and form that read, in Erlang**, done 2026-10-02 (the log's *The Erlang Read and
+   Renamed*): every area read, two commits each, the glossary's names through each and the
+   rules no test checks applied, `make load` flat after the runtime's form and `make bench`'s
+   ratios unchanged after each area's. It found two defects, fixed with their tests: the
+   shell read its scope's constructors under a key the scope does not have, and the stdin
+   test's wait raced the file it read. Three names the report or the AST states, and the
+   glossary contradicts, wait for the user in item 15. As it was planned: every module under
    `erl/` and `test/` read for its names and its form by [`style.md`](style.md), in two
    commits an area. The first renames where a name does not say what its value or its work
    is, a variable, a function, a record and its fields, by the glossary, which it corrects as
@@ -266,7 +271,15 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     with the rest. A name the report states, an exported function's or a constructor's, changes only
     through the report. Among it the shell's `obey`, which writes each refusal eight times,
     the editor's names that mean two things, `back`, `from` and `step`, and what
-    `complete.ern` repeats (C3-35 to C3-37). A full sweep by [`style.md`](style.md), as item 7
+    `complete.ern` repeats (C3-35 to C3-37), and the shell's `Env`, a `Session` as the front
+    end's record is since item 7. Three names item 7 met are decided with the user before it
+    renames them (the log's *The Erlang Read and Renamed*), each a named decision of this
+    item: **the AST's `owner`**, the type a member belongs to, where the glossary keeps Owner
+    for a resource's process, `member_of` recommended, the Erlang renamed in a commit of its
+    own; **§6.6's `addr` and `mk`**, `address` and `request` recommended, by the glossary's
+    Address and its rule that a callback is named for its role; and **E.24's `run`**, a
+    test's callback, kept as the verb it is, the glossary's Run narrowed to the noun, one run
+    of a restarting function, recommended. A full sweep by [`style.md`](style.md), as item 7
     is, decided with the user 2026-10-02 (the log's *The Renamings Kept Whole*), and of the
     form too, in a second commit an area, `style.md`'s Ernest rules, the top-down order, a
     block for more than one statement, a blank line that groups, a part of a long expression
@@ -878,8 +891,8 @@ a case it did not. What it leaves is dated: the `since` lines of what it added, 
 *`Clock.monotonic` Is In, and `Udp` Is Placed*); placing work without `Where` to MVP 3.0 (the
 log's *Placing Work Without `Where`*); and the guide's §7.3 to MVP 2.99b's item 16. The
 release review ran next, and Ernest 0.2.0 shipped the review's rules as one (the log's *A
-Release After the Review*); MVP 2.99b resumes at item 7, items 4 and 6 done on 2026-10-02 and item 5
-waiting at the user's choice to follow it.
+Release After the Review*); MVP 2.99b resumed at item 7, done on 2026-10-02 with items 4 and 6,
+and item 5 follows it at the user's choice.
 
 ### Ernest 0.2.0 — the review's rules shipped as one (done 2026-10-01, tag `v0.2.0`)
 
