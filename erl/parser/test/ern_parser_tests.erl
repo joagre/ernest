@@ -515,8 +515,8 @@ abstract_declaration_test() ->
                                                                  [#constructor{name = 'Stack'}]}},
                  declaration("export abstract type Stack(a) = Stack(List(a))")),
     ?assertMatch({error, #diagnostic{message = "an abstract type has no signature: every definition"
-                                         " of its module may use its constructors, so leave"
-                                         " out `with { ... }`"}},
+                                               " of its module may use its constructors, so leave"
+                                               " out `with { ... }`"}},
                  ern_parser:parse_string("abstract type S = S(Int) with {\n    e : S\n}\n")).
 
 %% report §4.5

@@ -24,7 +24,7 @@ line_length_test() ->
     Files = [File || Pattern <- Patterns, File <- filelib:wildcard(Pattern, ?ROOT),
                      filename:basename(File) =/= "getopt.erl",
                      not lists:prefix("test/build/", File),
-                     not editor_artifact(filename:basename(File))],
+                     not is_editor_file(filename:basename(File))],
     ?assert(length(Files) > 20),
     Long = [{File, Number} || File <- Files,
                               {Number, Line} <- numbered(File),
@@ -43,7 +43,7 @@ no_tab_test() ->
     Files = [File || Pattern <- Patterns, File <- filelib:wildcard(Pattern, ?ROOT),
                      filename:basename(File) =/= "getopt.erl",
                      not lists:prefix("test/build/", File),
-                     not editor_artifact(filename:basename(File))],
+                     not is_editor_file(filename:basename(File))],
     ?assert(length(Files) > 20),
     ?assertEqual([], [{File, Number} || File <- Files, {Number, Line} <- numbered(File),
                                         lists:member($\t, Line)]).
@@ -56,7 +56,7 @@ no_tab_test() ->
 exports_test() ->
     Files = [File || File <- filelib:wildcard("erl/*/src/*.erl", ?ROOT),
                      filename:basename(File) =/= "getopt.erl",
-                     not editor_artifact(filename:basename(File))],
+                     not is_editor_file(filename:basename(File))],
     ?assert(length(Files) > 20),
     ?assertEqual([],
                  [{File, Fault} || File <- Files,
@@ -123,7 +123,7 @@ modules() ->
                                    "libs/**/*.ern", "tools/*.ern", "test/**/*.ern"],
                        File <- filelib:wildcard(Pattern, ?ROOT),
                        not lists:prefix("test/build/", File),
-                       not editor_artifact(filename:basename(File))],
+                       not is_editor_file(filename:basename(File))],
     ?assert(length(Modules) > 20),
     Modules.
 
@@ -212,9 +212,9 @@ line(Token) ->
 
 %% A token whose line is a number of lines further down; only its line is
 %% read here.
-moved(Token, Lines) ->
+moved(Token, Offset) ->
     {Line, Column, End, Previous} = element(2, Token),
-    setelement(2, Token, {Line + Lines, Column, End, Previous}).
+    setelement(2, Token, {Line + Offset, Column, End, Previous}).
 
 %% docs/style.md: every Erlang module is ern_<thing>, unique across the
 %% repository, and a module compiled from an Ernest source is ern@<namespace>;
@@ -222,7 +222,7 @@ moved(Token, Lines) ->
 module_name_test() ->
     ErlangFiles = [File || Pattern <- ["erl/*/src/*.erl", "erl/*/test/*.erl", "test/*.erl"],
                            File <- filelib:wildcard(Pattern, ?ROOT),
-                           not editor_artifact(filename:basename(File))],
+                           not is_editor_file(filename:basename(File))],
     ?assert(length(ErlangFiles) > 20),
     Names = [filename:basename(File, ".erl") || File <- ErlangFiles],
     ?assertEqual([], [Name || Name <- Names, string:prefix(Name, "ern_") =:= nomatch,
@@ -342,7 +342,7 @@ has_line(Relative, Line) ->
     lists:member(Line, [Text || {_, Text} <- numbered(Relative)]).
 
 %% Emacs lock files, `.#name`, and auto-save files, `#name#` (report §11.1).
-editor_artifact([Char | _]) -> Char =:= $. orelse Char =:= $#.
+is_editor_file([Char | _]) -> Char =:= $. orelse Char =:= $#.
 
 numbered(Relative) ->
     {ok, Bytes} = file:read_file(filename:join(?ROOT, Relative)),

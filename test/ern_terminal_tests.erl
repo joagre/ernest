@@ -19,7 +19,7 @@ keys_test_() ->
     {timeout, 60, fun keys/0}.
 
 keys() ->
-    ok = compile("terminal/probe.ern", "terminal"),
+    ok = build("terminal/probe.ern", "terminal"),
     {0, Screen} = pty("../bin/ern run build/terminal/probe.erc",
                       [{expect, "ready"},
                        {send, "78"},        % x
@@ -38,12 +38,11 @@ keys() ->
                       15),
     Lines = lines(Screen),
     %% report Appendix E.16: the size the program was given, its keys, and the new
-    %% size when the window changed
+    %% size when the window changed; nothing was echoed, since an echoed key
+    %% would stand in a line of its own or before the line the program
+    %% printed, and these are all the lines
     ?assertEqual([<<"ready 24x80">>, <<"char x">>, <<"up">>, <<"down">>,
                   <<"resized 30x100">>, <<"pasted a|b">>, <<"escape">>], Lines),
-    %% nothing was echoed: an echoed key would stand in a line of its own
-    %% or before the line the program printed, and the lines above are all
-    %% of them
     %% an arrow is not split: no Escape arrived before the one that was sent
     ?assertEqual(1, count(Screen, <<"escape">>)).
 
@@ -55,7 +54,7 @@ unended_paste_test_() ->
     {timeout, 60, fun unended_paste/0}.
 
 unended_paste() ->
-    ok = compile("terminal/probe.ern", "terminal"),
+    ok = build("terminal/probe.ern", "terminal"),
     {0, Screen} = pty("../bin/ern run build/terminal/probe.erc",
                       [{expect, "ready"},
                        {send, "1b5b3230307e6869"},    % a paste's start, and `hi`
@@ -77,7 +76,7 @@ not_a_terminal_test_() ->
     {timeout, 60, fun not_a_terminal/0}.
 
 not_a_terminal() ->
-    ok = compile("terminal/probe.ern", "terminal"),
+    ok = build("terminal/probe.ern", "terminal"),
     ?assertEqual({0, <<"no terminal, no size\n">>},
                  sh("echo x | ../bin/ern run build/terminal/probe.erc")).
 
@@ -87,7 +86,7 @@ unstamped_at_a_terminal_test_() ->
     {timeout, 60, fun unstamped_at_a_terminal/0}.
 
 unstamped_at_a_terminal() ->
-    ok = compile("terminal/faulty.ern", "terminal"),
+    ok = build("terminal/faulty.ern", "terminal"),
     {1, Screen} = pty("../bin/ern run build/terminal/faulty.erc",
                       [{expect, "division by zero"}], 30),
     ?assertMatch({match, _}, re:run(Screen, "^Faulty\\.main faulted: division by zero",
@@ -101,7 +100,7 @@ utf8_key_interrupt_test_() ->
     {timeout, 60, fun utf8_key_interrupt/0}.
 
 utf8_key_interrupt() ->
-    ok = compile("terminal/probe.ern", "terminal"),
+    ok = build("terminal/probe.ern", "terminal"),
     {Status, Screen} = pty("LANG=C ../bin/ern run build/terminal/probe.erc",
                            [{expect, "ready"},
                             {send, "c3a9"},     % é, two bytes
@@ -119,7 +118,7 @@ terminal_restored_test_() ->
     {timeout, 60, fun terminal_restored/0}.
 
 terminal_restored() ->
-    ok = compile("terminal/probe.ern", "terminal"),
+    ok = build("terminal/probe.ern", "terminal"),
     {_, Screen} = pty("stty -a; ../bin/ern run build/terminal/probe.erc; stty -a",
                       [{expect, "ready"}, {send, "1b"}], 15),
     %% the terminal is described before and after, and is never left without
@@ -137,7 +136,7 @@ settings_kept_test_() ->
     {timeout, 60, fun settings_kept/0}.
 
 settings_kept() ->
-    ok = compile("terminal/probe.ern", "terminal"),
+    ok = build("terminal/probe.ern", "terminal"),
     {_, Screen} = pty("stty tostop; ../bin/ern run build/terminal/probe.erc | cat; stty -a",
                       [{expect, "ready"}, {send, "1b"}], 15),
     ?assertMatch({match, _}, re:run(Screen, "(^|[ \t])tostop([ \t;\r\n]|$)")),
@@ -150,7 +149,7 @@ snake_test_() ->
     {timeout, 60, fun snake/0}.
 
 snake() ->
-    ok = compile("../examples/snake.ern", "../examples"),
+    ok = build("../examples/snake.ern", "../examples"),
     %% the board is drawn before the first key, and a move is given a few
     %% ticks to show: the game's own clock is what those sleeps wait for.
     %% It runs the program compiled here, not one another suite left in
@@ -185,7 +184,7 @@ snake_interrupt_test_() ->
     {timeout, 60, fun snake_interrupt/0}.
 
 snake_interrupt() ->
-    ok = compile("../examples/snake.ern", "../examples"),
+    ok = build("../examples/snake.ern", "../examples"),
     {0, _} = pty("../bin/ern run --load-path ../build/libs/ansi build/examples/snake.erc",
                  [{expect, "tick "}, {send, "03"}],
                  15).
@@ -196,7 +195,7 @@ head(Frame) ->
     hd([{Column, RowIndex} || {RowIndex, Row} <- lists:zip(lists:seq(0, length(Rows) - 1), Rows),
                               {Column, _} <- [binary:match(Row, <<"@">>)]]).
 
-compile(Source, SourceRoot) ->
+build(Source, SourceRoot) ->
     {0, _} = sh("../bin/ern build --source-root " ++ SourceRoot ++ " --load-path ../build/libs/ansi"
                 ++ " --build-root build/"
                 ++ filename:basename(SourceRoot) ++ " " ++ Source),
@@ -249,11 +248,11 @@ count(Haystack, Needle) ->
     length(binary:matches(Haystack, Needle)).
 
 sh(Command) ->
-    Port = open_port({spawn, Command}, [exit_status, stderr_to_stdout, binary]),
-    collect(Port, []).
+    Shell = open_port({spawn, Command}, [exit_status, stderr_to_stdout, binary]),
+    collect(Shell, []).
 
-collect(Port, Acc) ->
+collect(Shell, Acc) ->
     receive
-        {Port, {data, Data}} -> collect(Port, [Data | Acc]);
-        {Port, {exit_status, Status}} -> {Status, iolist_to_binary(lists:reverse(Acc))}
+        {Shell, {data, Data}} -> collect(Shell, [Data | Acc]);
+        {Shell, {exit_status, Status}} -> {Status, iolist_to_binary(lists:reverse(Acc))}
     end.

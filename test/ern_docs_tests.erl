@@ -19,17 +19,18 @@
 citations_resolve_test() ->
     Report = read("ernest_report.md"),
     Guide = read("ernest_guide.md"),
-    ReportHeads = headings(Report),
-    GuideHeads = headings(Guide),
+    ReportSections = section_numbers(Report),
+    GuideSections = section_numbers(Guide),
     %% docs/findings.md's lines cite each document as its reader did, the
     %% guide's sections bare beside the report's, and the list goes when a
     %% review's findings are done
     Live = (documents() -- ["docs/findings.md"]) ++ examples() ++ stdlib() ++ shell() ++ tools(),
     Dangling =
         [{File, Citation} || File <- Live, Citation <- cites(read(File)),
-                             not resolves(Citation, report, ReportHeads, GuideHeads)]
+                             not resolves(Citation, report, ReportSections, GuideSections)]
         ++ [{"ernest_guide.md", Citation}
-            || Citation <- cites(Guide), not resolves(Citation, guide, ReportHeads, GuideHeads)],
+            || Citation <- cites(Guide),
+               not resolves(Citation, guide, ReportSections, GuideSections)],
     ?assertEqual([], Dangling).
 
 %% ernest_report.md, ernest_guide.md, docs/development.md "Building": a document's
@@ -142,8 +143,8 @@ release_pages_test() ->
     ?assertEqual(lists:sort(Files -- ["man/README.md"]), lists:sort(Linked)).
 
 %% An index's links to pages within man/.
-page_links(Index) ->
-    {match, Links} = re:run(Index, "\\]\\(([^)]+\\.md)\\)",
+page_links(IndexText) ->
+    {match, Links} = re:run(IndexText, "\\]\\(([^)]+\\.md)\\)",
                             [global, {capture, all_but_first, list}]),
     [Link || [Link] <- Links, not lists:prefix("../", Link)].
 
@@ -170,8 +171,8 @@ described() ->
 paths(Document) ->
     Tops = ["erl/", "docs/", "test/", "bin/", "stdlib/", "examples/", "build/", "shell/",
             "libs/", "tools/", "emacs/", "assets/"],
-    Quoted = [Piece || Piece <- binary:split(Document, <<"`">>, [global])],
-    [binary_to_list(Piece) || {Index, Piece} <- lists:zip(lists:seq(1, length(Quoted)), Quoted),
+    Pieces = binary:split(Document, <<"`">>, [global]),
+    [binary_to_list(Piece) || {Index, Piece} <- lists:zip(lists:seq(1, length(Pieces)), Pieces),
                               Index rem 2 =:= 0,
                               lists:any(fun(Top) -> lists:prefix(Top, binary_to_list(Piece)) end,
                                         Tops),
@@ -275,39 +276,40 @@ read(Relative) ->
 examples() ->
     [filename:join("examples", File)
      || File <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "examples")),
-        not editor_file(File)].
+        not is_editor_file(File)].
 
 %% The shell's Ernest source, whose comments cite the report as the
 %% standard library's do.
 shell() ->
     [filename:join("shell", File)
      || File <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "shell")),
-        not editor_file(File)].
+        not is_editor_file(File)].
 
 %% The programs of the build written in Ernest, whose comments cite the
 %% report too.
 tools() ->
     [filename:join("tools", File)
-     || File <- filelib:wildcard("*.ern", filename:join(?ROOT, "tools")), not editor_file(File)].
+     || File <- filelib:wildcard("*.ern", filename:join(?ROOT, "tools")), not is_editor_file(File)].
 
 stdlib() ->
     [filename:join("stdlib", File)
-     || File <- filelib:wildcard("*.ern", filename:join(?ROOT, "stdlib")), not editor_file(File)]
+     || File <- filelib:wildcard("*.ern", filename:join(?ROOT, "stdlib")), not is_editor_file(File)]
     ++ [filename:join("libs", File)
         || File <- filelib:wildcard("*/*.ern", filename:join(?ROOT, "libs")),
-           not editor_file(File)].
+           not is_editor_file(File)].
 
 %% An editor's lock file, `.#editor.ern`, a link to nothing while the file
 %% is open, and its auto-save file, `#editor.ern#`: neither is a module.
-editor_file(File) ->
+is_editor_file(File) ->
     lists:member(hd(filename:basename(File)), ".#").
 
 %% "3.9", "3", "Appendix A", "E.12" for the headings of a document.
-headings(Document) ->
+section_numbers(Document) ->
     Lines = binary:split(Document, <<"\n">>, [global]),
-    lists:append([heading(Line) || Line <- Lines]).
+    lists:append([line_section_numbers(Line) || Line <- Lines]).
 
-heading(Line) ->
+%% The section numbers a line that is a heading names; none for any other.
+line_section_numbers(Line) ->
     case re:run(Line, "^#{1,3} (?:([0-9]+(?:\\.[0-9]+)?)\\.? |Appendix ([A-Z])(?:\\.([0-9]+))?\\.)",
                 [{capture, all_but_first, list}]) of
         {match, [Number]} -> [Number];
@@ -341,7 +343,7 @@ matches(Document, Pattern) ->
 kind([]) -> bare;
 kind(Word) -> list_to_atom(string:lowercase(Word)).
 
-resolves({report, Target}, _, ReportHeads, _) -> lists:member(Target, ReportHeads);
-resolves({guide, Target}, _, _, GuideHeads) -> lists:member(Target, GuideHeads);
-resolves({bare, Target}, report, ReportHeads, _) -> lists:member(Target, ReportHeads);
-resolves({bare, Target}, guide, _, GuideHeads) -> lists:member(Target, GuideHeads).
+resolves({report, Target}, _, ReportSections, _) -> lists:member(Target, ReportSections);
+resolves({guide, Target}, _, _, GuideSections) -> lists:member(Target, GuideSections);
+resolves({bare, Target}, report, ReportSections, _) -> lists:member(Target, ReportSections);
+resolves({bare, Target}, guide, _, GuideSections) -> lists:member(Target, GuideSections).

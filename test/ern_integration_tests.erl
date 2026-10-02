@@ -23,8 +23,7 @@ programs_test_() ->
     {inparallel, [{Name, {timeout, 60, fun() -> program(Name) end}} || Name <- ?PROGRAMS]}.
 
 program(Name) ->
-    0 = build(?BUILD ++ "../examples/" ++ Name
-                ++ ".ern"),
+    0 = build(?BUILD ++ "../examples/" ++ Name ++ ".ern"),
     {0, Output} = sh("../bin/ern run build/" ++ Name ++ ".erc"),
     ?assertEqual(expected(Name), unstamped(lines(Output))).
 
@@ -172,12 +171,12 @@ run_for(Dir, Command, Until, Signal) ->
     %% sh -c, since open_port runs the command with exec and `cd` is a builtin
     %% an earlier run's output goes first, since the command empties the
     %% file only once it has started, and Until may read it before then
-    {_, Status} = sh("sh -c 'cd " ++ Dir ++ " && { rm -f run.out; " ++ Command
+    {_, Printed} = sh("sh -c 'cd " ++ Dir ++ " && { rm -f run.out; " ++ Command
                      ++ " > run.out 2>&1 & p=$!; "
                      "i=0; until " ++ Until ++ " || [ $i -ge 300 ]; do sleep 0.1; i=$((i + 1)); "
                      "done; kill -" ++ Signal
                      ++ " $p 2>/dev/null; wait $p; echo status $?; }' 2>/dev/null"),
-    <<"status ", Digits/binary>> = string:trim(Status),
+    <<"status ", Digits/binary>> = string:trim(Printed),
     {ok, Output} = file:read_file(filename:join(Dir, "run.out")),
     {binary_to_integer(Digits), lines(Output)}.
 
@@ -223,13 +222,13 @@ interrupt() ->
                          "    receive { after 60000 -> Io.println(\"late\") }\n"
                          "}\n"),
     0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/waits.ern"),
-    Port = open_port({spawn_executable, filename:absname("../bin/ern")},
-                     [{args, ["run", "waits.erc"]}, {cd, Dir}, exit_status, stderr_to_stdout,
-                      binary]),
-    {os_pid, OsPid} = erlang:port_info(Port, os_pid),
+    Program = open_port({spawn_executable, filename:absname("../bin/ern")},
+                        [{args, ["run", "waits.erc"]}, {cd, Dir}, exit_status, stderr_to_stdout,
+                         binary]),
+    {os_pid, OsPid} = erlang:port_info(Program, os_pid),
     ok = wait_for(Dir ++ "/running", 300),
     _ = os:cmd("kill -INT " ++ integer_to_list(OsPid)),
-    ?assertEqual({130, <<>>}, collect(Port, [])).
+    ?assertEqual({130, <<>>}, collect(Program, [])).
 
 %% Wait until the file exists, a tenth of a second at a time.
 wait_for(_, 0) ->
@@ -250,9 +249,9 @@ webserver_test_() ->
 
 webserver() ->
     0 = build(?BUILD ++ "../examples/webserver.ern"),
-    Port = open_port({spawn, "../bin/ern run build/webserver.erc"},
-                     [exit_status, stderr_to_stdout, binary]),
-    {os_pid, OsPid} = erlang:port_info(Port, os_pid),
+    Server = open_port({spawn, "../bin/ern run build/webserver.erc"},
+                       [exit_status, stderr_to_stdout, binary]),
+    {os_pid, OsPid} = erlang:port_info(Server, os_pid),
     try
         ?assertEqual(ok, listening(8080, 100)),
         First = request([]),
@@ -264,7 +263,7 @@ webserver() ->
         ?assertMatch({_, _}, binary:match(Second, <<"Visit number 2">>))
     after
         os:cmd("kill " ++ integer_to_list(OsPid)),
-        try port_close(Port) catch _:_ -> true end
+        try port_close(Server) catch _:_ -> true end
     end.
 
 %% The server needs a moment to bind; a connection that is refused is retried.
@@ -313,7 +312,7 @@ manual_pages() ->
         ++ ["../build/stdlib/Ernest.Prelude.3ern"],
     ?assertEqual([], [Page || Page <- Pages, not filelib:is_regular(Page)]),
     0 = build("--load-path ../build/libs/markdown --load-path ../build/libs/ansi "
-                "--build-root build/tools ../tools"),
+              "--build-root build/tools ../tools"),
     {0, Output} = sh("../bin/ern run --load-path ../build/libs/markdown"
                      " --load-path ../build/libs/ansi build/tools/manual.erc "
                      "../ernest_report.md 9.9.9 ../build/stdlib"),
@@ -334,14 +333,14 @@ manual_pages() ->
                              binary:match(Synopsis, iolist_to_binary(["\\fBern ", Job, " ["]))
                                  =:= nomatch]),
     ?assertMatch({_, _}, binary:match(Output, <<".SH\nDESCRIPTION\n.PP\n"
-                                                 "The toolchain is one command, \\fBern\\fR, ">>)),
+                                                "The toolchain is one command, \\fBern\\fR, ">>)),
     {ok, Report} = file:read_file("../ernest_report.md"),
     {match, Sections} = re:run(Report, "^### (11\\.[0-6] .*)$",
                                [multiline, global, {capture, all_but_first, binary}]),
     ?assertEqual([binary:replace(Section, <<"`">>, <<>>, [global]) || [Section] <- Sections],
                  [Section || {<<".SS">>, Section} <- Pairs]),
     ?assertMatch({_, _}, binary:match(Output, <<".SH\nSEE ALSO\n.PP\n\\fBErnest.Prelude\\fR(3ern), "
-                                                 "\\fBErnest.Bool\\fR(3ern), ">>)),
+                                                "\\fBErnest.Bool\\fR(3ern), ">>)),
     SeeAlso = fun(Module) ->
                   iolist_to_binary(["\\fBErnest.", string:titlecase(Module), "\\fR(3ern)"])
               end,
@@ -395,8 +394,8 @@ install() ->
     ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
     {0, _} = InWork(Ern ++ " build hi.ern"),
     ?assertEqual({0, <<"hi\n">>}, InWork(Ern ++ " run hi.erc")),
-    {0, Shell} = InWork("printf '1 + 1\\n' | " ++ Ern ++ " shell"),
-    ?assertMatch({_, _}, binary:match(Shell, <<"> 2 : Int\n">>)),
+    {0, ShellOutput} = InWork("printf '1 + 1\\n' | " ++ Ern ++ " shell"),
+    ?assertMatch({_, _}, binary:match(ShellOutput, <<"> 2 : Int\n">>)),
     ?assertMatch({0, <<".\\\" Generated by ern ", _/binary>>}, InWork(Ern ++ " doc --man hi.ern")),
     case os:find_executable("man") of
         false ->
@@ -491,8 +490,8 @@ libs_test_() ->
 libs() ->
     Modules = filelib:wildcard("../build/libs/*/**/*.erc"),
     ?assert(lists:any(fun(Module) -> filename:basename(Module) =:= "markdown.erc" end, Modules)),
-    Runs = ["../bin/ern test " ++ Module || Module <- Modules],
-    {Status, Output} = sh(lists:flatten(lists:join(" && ", Runs))),
+    Commands = ["../bin/ern test " ++ Module || Module <- Modules],
+    {Status, Output} = sh(lists:flatten(lists:join(" && ", Commands))),
     Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
     %% a module without tests says so (report §11.2)
     ?assertEqual([], [Line || Line <- Lines, binary:match(Line, <<": passed">>) =:= nomatch,
@@ -542,7 +541,7 @@ stdin_test_() ->
 
 stdin() ->
     [0 = build("--source-root stdin --build-root build/stdin stdin/"
-                 ++ Program ++ ".ern") || Program <- ["lines", "stream", "chunks"]],
+               ++ Program ++ ".ern") || Program <- ["lines", "stream", "chunks"]],
     Launch = fun(Input, Program) ->
                  sh("printf '" ++ Input ++ "' | LANG=C ../bin/ern run build/stdin/"
                     ++ Program ++ ".erc")
@@ -641,8 +640,7 @@ working_directory() ->
                          "      | Left(_) -> Io.println(\"no notes\")\n"
                          "    }\n"
                          "}\n"),
-    0 = build("--source-root build/cwd/src --build-root build/cwd "
-                "build/cwd/src"),
+    0 = build("--source-root build/cwd/src --build-root build/cwd build/cwd/src"),
     Cafe = <<"build/cwd/caf", 16#c3, 16#a9>>,
     [ok = make_dir(Path) || Path <- [Cafe, <<"build/cwd/bad", 16#e9>>]],
     ok = file:write_file(<<Cafe/binary, "/notes.txt">>, <<"buy milk">>),
@@ -757,13 +755,13 @@ closed_pipe() ->
     ok = del(Dir),
     ok = filelib:ensure_path(Dir),
     Ern = filename:absname("../bin/ern"),
-    Status = fun(Job) ->
-                 {0, _} = sh("sh -c 'cd " ++ Dir ++ " && ( sleep 0.3; " ++ Ern ++ " " ++ Job
-                             ++ " 2>&1; echo $? > status ) | true'"),
-                 {ok, Text} = file:read_file(Dir ++ "/status"),
-                 string:trim(Text)
-             end,
-    [?assertEqual({Job, <<"141">>}, {Job, Status(Job)})
+    StatusOf = fun(Job) ->
+                   {0, _} = sh("sh -c 'cd " ++ Dir ++ " && ( sleep 0.3; " ++ Ern ++ " " ++ Job
+                               ++ " 2>&1; echo $? > status ) | true'"),
+                   {ok, Text} = file:read_file(Dir ++ "/status"),
+                   string:trim(Text)
+               end,
+    [?assertEqual({Job, <<"141">>}, {Job, StatusOf(Job)})
      || Job <- ["--version", "--help", "build missing.ern", "run missing.erc", "test --help",
                 "doc " ++ filename:absname("../stdlib/list.ern"), "shell < /dev/null"]],
     ?assertNot(filelib:is_file(Dir ++ "/erl_crash.dump")),
@@ -803,7 +801,7 @@ fault_line_escaped() ->
     {1, _} = sh("../bin/ern run " ++ Dir ++ "/forged.erc 2> " ++ ErrorFile),
     {ok, Text} = file:read_file(ErrorFile),
     ?assertMatch({_, _}, binary:match(Text, <<"Forged.main faulted: a\\u{1B}[31m\\nX.main"
-                                               " faulted: forged\n">>)),
+                                              " faulted: forged\n">>)),
     ?assertEqual(1, length(binary:matches(Text, <<"\n">>))).
 
 %% report §11.2: where standard error is a file, a fault line begins with
@@ -827,8 +825,8 @@ stamped() ->
     {1, _} = sh("../bin/ern run " ++ Dir ++ "/faulty.erc 2> " ++ ErrorFile),
     {ok, Stamped} = file:read_file(ErrorFile),
     ?assertMatch({match, _}, re:run(Stamped, "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:"
-                                              "[0-9]{2}\\.[0-9]{3}Z Faulty\\.main faulted: "
-                                              "division by zero\n$")),
+                                             "[0-9]{2}\\.[0-9]{3}Z Faulty\\.main faulted: "
+                                             "division by zero\n$")),
     ok = file:write_file(ErrorFile, <<>>),
     {ok, #file_info{major_device = Device, inode = Inode}} = file:read_file_info(ErrorFile),
     {1, _} = sh("env JOURNAL_STREAM=" ++ integer_to_list(Device) ++ ":" ++ integer_to_list(Inode)
@@ -959,11 +957,11 @@ sh(Command) ->
     sh(Command, []).
 
 sh(Command, Options) ->
-    Port = open_port({spawn, Command}, [exit_status, stderr_to_stdout, binary | Options]),
-    collect(Port, []).
+    Shell = open_port({spawn, Command}, [exit_status, stderr_to_stdout, binary | Options]),
+    collect(Shell, []).
 
-collect(Port, Acc) ->
+collect(Program, Acc) ->
     receive
-        {Port, {data, Data}} -> collect(Port, [Data | Acc]);
-        {Port, {exit_status, Status}} -> {Status, iolist_to_binary(lists:reverse(Acc))}
+        {Program, {data, Data}} -> collect(Program, [Data | Acc]);
+        {Program, {exit_status, Status}} -> {Status, iolist_to_binary(lists:reverse(Acc))}
     end.

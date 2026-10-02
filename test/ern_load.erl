@@ -31,7 +31,7 @@ main(["inputs", File]) ->
     halt(0);
 main([Name]) ->
     ets:new(ern_load_samples, [named_table, public, ordered_set]),
-    Status = run(Name),
+    Status = launch(Name),
     Samples = [Sample || {_, Sample} <- ets:tab2list(ern_load_samples)],
     Verdict = case {Status, verdict(Samples)} of
                   {0, []} -> [Name, ": flat\n"];
@@ -44,9 +44,9 @@ main([Name]) ->
     io:put_chars(Report),
     halt(case Verdict of [Name, _] -> 0; _ -> 1 end).
 
-run("shell") ->
+launch("shell") ->
     ern_cli:ern(["shell"]);
-run(Name) ->
+launch(Name) ->
     ern_cli:ern(["run", "build/load/" ++ Name ++ ".erc"]).
 
 %% The shell's session: fourteen rounds of a hundred inputs, the same each
@@ -96,15 +96,16 @@ sample(Round) ->
     Others = [Pid || Pid <- erlang:processes(), Pid =/= Sampler],
     [erlang:garbage_collect(Pid) || Pid <- Others],
     timer:sleep(100),
-    Reaper = reaper_memory(),
+    ReaperMemory = reaper_memory(),
     Unused = lists:sum([unused(Pid) || Pid <- Others]),
     {memory, SamplerMemory} = erlang:process_info(Sampler, memory),
     Own = ets:info(ern_load_samples, memory) * erlang:system_info(wordsize) + SamplerMemory,
-    [{processes_used, Processes}, {system, System}] = erlang:memory([processes_used, system]),
+    [{processes_used, ProcessesMemory}, {system, SystemMemory}] =
+        erlang:memory([processes_used, system]),
     #{round => Round,
-      memory => Processes + System - Own - Unused,
+      memory => ProcessesMemory + SystemMemory - Own - Unused,
       code => erlang:memory(code),
-      reaper => Reaper,
+      reaper => ReaperMemory,
       atoms => erlang:system_info(atom_count),
       processes => erlang:system_info(process_count),
       ports => erlang:system_info(port_count),

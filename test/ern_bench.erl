@@ -91,28 +91,30 @@ add({'Point', LeftX, LeftY}, {'Point', RightX, RightY}) ->
 
 %% A call as gen:do_call/4 makes one: a monitor that is the reply's alias.
 call(Server) ->
-    Ref = erlang:monitor(process, Server, [{alias, demonitor}]),
-    Server ! {get, Ref},
+    MonitorRef = erlang:monitor(process, Server, [{alias, demonitor}]),
+    Server ! {get, MonitorRef},
     receive
-        {Ref, Value} ->
-            erlang:demonitor(Ref, [flush]),
+        {MonitorRef, Value} ->
+            erlang:demonitor(MonitorRef, [flush]),
             Value;
-        {'DOWN', Ref, _, _, Reason} ->
-            exit(Reason)
+        {'DOWN', MonitorRef, _, _, ExitReason} ->
+            exit(ExitReason)
     end.
 
 serve() ->
     receive
-        {get, Ref} ->
-            Ref ! {Ref, 1},
+        {get, Reply} ->
+            Reply ! {Reply, 1},
             serve()
     end.
 
-%% The fastest of three runs of N iterations, in nanoseconds an iteration.
+%% The fastest of three timings of Count iterations, in nanoseconds an
+%% iteration.
 fastest(Count, Operation) ->
-    lists:min([run(Count, Operation) || _ <- [1, 2, 3]]) / Count.
+    lists:min([duration(Count, Operation) || _ <- [1, 2, 3]]) / Count.
 
-run(Count, Operation) ->
+%% The nanoseconds Count iterations of Operation take.
+duration(Count, Operation) ->
     Start = erlang:monotonic_time(nanosecond),
     _ = loop(Count, Operation, 0),
     erlang:monotonic_time(nanosecond) - Start.
