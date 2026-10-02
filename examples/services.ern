@@ -26,9 +26,9 @@ let store : Address(StoreMsg) = spawn(Supervisor.child(services, fn() = storing(
 
 fn storing(items : Map(String, Int)) : Unit with StoreMsg =
     receive {
-        Put(key = k, value = v) -> storing(Map.put(items, k, v))
-      | Get(key = k, reply = r) -> {
-            answer(r, Map.get(items, k));
+        Put(key = key, value = value) -> storing(Map.put(items, key, value))
+      | Get(key = key, reply = reply) -> {
+            answer(reply, Map.get(items, key));
             storing(items)
         }
       | Corrupt -> fault("the store was corrupted")
@@ -38,8 +38,8 @@ let ids : Address(IdMsg) = spawn(Supervisor.child(services, fn() = counting(1)))
 
 fn counting(next : Int) : Unit with IdMsg =
     receive {
-        NextId(reply = r) -> {
-            answer(r, next);
+        NextId(reply = reply) -> {
+            answer(reply, next);
             counting(next + 1)
         }
     }
@@ -48,9 +48,9 @@ let audit : Address(AuditMsg) = spawn(Supervisor.child(services, fn() = recordin
 
 fn recording(entries : List(String)) : Unit with AuditMsg =
     receive {
-        Record(e) -> recording(entries <> [e])
-      | Entries(reply = r) -> {
-            answer(r, entries);
+        Record(entry) -> recording(entries <> [entry])
+      | Entries(reply = reply) -> {
+            answer(reply, entries);
             recording(entries)
         }
     }
@@ -64,18 +64,18 @@ export fn main() : Unit with Never = {
 }
 
 fn put(key : String, value : Int) : Unit with m = {
-    let id = Address.callForever(ids, fn(r) = NextId(reply = r));
+    let id = Address.callForever(ids, fn(reply) = NextId(reply = reply));
     send(store, Put(key = key, value = value));
     send(audit, Record(Int.toString(id) <> ": put " <> key))
 }
 
 fn report(moment : String) : Unit with m = {
     let apples = match stored("apples") {
-        Some(n) -> Int.toString(n)
+        Some(count) -> Int.toString(count)
       | None -> "none"
     };
-    let entries = Address.callForever(audit, fn(r) = Entries(reply = r));
-    let id = Address.callForever(ids, fn(r) = NextId(reply = r));
+    let entries = Address.callForever(audit, fn(reply) = Entries(reply = reply));
+    let id = Address.callForever(ids, fn(reply) = NextId(reply = reply));
     Io.println(moment
                    <> ": apples "
                    <> apples
@@ -90,7 +90,7 @@ fn report(moment : String) : Unit with m = {
 // §6.6), and one made again is answered once its group has restarted whole (Appendix
 // E.22), so the services asked after it answer from their first state too.
 fn stored(key : String) : Optional(Int) with m =
-    match Address.call(store, fn(r) = Get(key = key, reply = r), 1000) {
+    match Address.call(store, fn(reply) = Get(key = key, reply = reply), 1000) {
         Some(value) -> value
       | None -> stored(key)
     }

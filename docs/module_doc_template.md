@@ -18,16 +18,16 @@ circle around one; `area` is the one operation every shape supports, and
 A shape and its area:
 
 ```ernest
-let c = Template.circle(Template.Point(x = 0, y = 0), 2);
-Template.area(c)
+let circle = Template.circle(Template.Point(x = 0, y = 0), 2);
+Template.area(circle)
 // => 12
 ```
 
 A stack of shapes, pushed and popped:
 
 ```ernest
-let s = Template.push(Template.emptyStack, Template.Dot(Template.Point(x = 1, y = 1)));
-match Template.pop(s) {
+let stack = Template.push(Template.emptyStack, Template.Dot(Template.Point(x = 1, y = 1)));
+match Template.pop(stack) {
     Some(#(top, _)) -> Template.area(top)
   | None -> -1
 }

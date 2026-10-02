@@ -9,7 +9,7 @@
 // Needs MVP 2, for clause alternatives with `or`.
 //
 
-type Snapshot = Snapshot(dir : String, seen : Int)
+type Snapshot = Snapshot(directory : String, seen : Int)
 
 type Shape = Circle(Int) | Square(Int) | Dot
 
@@ -17,42 +17,43 @@ export fn main() : Unit with Never = {
     Io.println(sign(-1));
     Io.println(sign(0));
     Io.println(sign(7));
-    Io.println(describe(Some(Snapshot(dir = "a", seen = 2))));
+    Io.println(describe(Some(Snapshot(directory = "a", seen = 2))));
     Io.println(describe(None));
     Io.println(Int.toString(negate(3)));
     Io.println(Int.toString(List.size(whole([1, 2, 3]))));
     Io.println(Int.toString(side(Square(4))))
 }
 
-fn sign(n : Int) : String =
-    match n {
+fn sign(number : Int) : String =
+    match number {
         -1 -> "minus one"
       | 0 -> "zero"
       | _ -> "other"
     }
 
-fn describe(o : Optional(Snapshot)) : String =
-    match o {
-        Some(Snapshot(dir = d) as snap) -> d <> " " <> Int.toString(seen(snap))
+fn describe(found : Optional(Snapshot)) : String =
+    match found {
+        Some(Snapshot(directory = directory) as snapshot) ->
+            directory <> " " <> Int.toString(seen(snapshot))
       | None -> "nothing"
     }
 
-fn seen(Snapshot(seen = n) : Snapshot) : Int =
-    n
+fn seen(Snapshot(seen = count) : Snapshot) : Int =
+    count
 
-fn negate(n : Int) : Int =
-    -n
+fn negate(number : Int) : Int =
+    -number
 
 // A clause with alternatives binds the same variables in each.
-fn side(s : Shape) : Int =
-    match s {
-        Circle(n) or Square(n) -> n
+fn side(shape : Shape) : Int =
+    match shape {
+        Circle(size) or Square(size) -> size
       | Dot -> 0
     }
 
-// `as` binds loosest: `x :: rest as all` names the whole list.
-fn whole(xs : List(Int)) : List(Int) =
-    match xs {
-        x :: rest as all -> all
+// `as` binds loosest: `first :: rest as all` names the whole list.
+fn whole(list : List(Int)) : List(Int) =
+    match list {
+        first :: rest as all -> all
       | [] -> []
     }

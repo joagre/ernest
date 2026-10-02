@@ -4,7 +4,7 @@
 //
 
 export fn main() : Unit with Never = {
-    let z = List.size([]);
-    let _ = 1 / z;
+    let zero = List.size([]);
+    let _ = 1 / zero;
     Unit
 }

@@ -179,7 +179,7 @@ counter_golden_test() ->
 -define(GOLDEN, "../../../test/golden/").
 
 golden_names() ->
-    ["hello", "counter", "upgrade", "pingpong", "stack", "patterns", "kvparser", "services",
+    ["hello", "counter", "upgrade", "pingpong", "stack", "patterns", "kv_parser", "services",
      "modules/net/http", "modules/main"].
 
 %% report §4.6, §8.5, §11.1: a `let` is a value whatever its type, so one
@@ -290,7 +290,7 @@ examples_test_() ->
                 {"pingpong", <<"ping 3\npong 3\nping 2\npong 2\nping 1\npong 1\n">>},
                 {"stack", <<"top is 2\n">>},
                 {"patterns", <<"minus one\nzero\nother\na 2\nnothing\n-3\n3\n4\n">>},
-                {"kvparser", <<"a 12\nbad key: =1\nexpected =: a\nbad number: a=x\n">>},
+                {"kv_parser", <<"a 12\nbad key: =1\nexpected =: a\nbad number: a=x\n">>},
                 {"services", <<"before: apples 3, next id 3, audit [1: put apples; 2: put pears]\n"
                                "after the restart: apples none, next id 1, audit []\n">>}],
     [{Base, fun() ->

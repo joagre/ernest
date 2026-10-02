@@ -27,8 +27,8 @@ let second : Address(WorkMsg) = spawn(Supervisor.child(all, working))
 
 fn working() : Unit with WorkMsg =
     receive {
-        Ask(reply = r) -> {
-            answer(r, 1);
+        Ask(reply = reply) -> {
+            answer(reply, 1);
             working()
         }
       | Crash -> fault("on purpose")
@@ -37,13 +37,13 @@ fn working() : Unit with WorkMsg =
 export fn main() : Unit with Never =
     round(1)
 
-fn round(n : Int) : Unit with Never =
-    if n > rounds then
+fn round(number : Int) : Unit with Never =
+    if number > rounds then
         Unit
     else {
         work(batch);
-        mark(n);
-        round(n + 1)
+        mark(number);
+        round(number + 1)
     }
 
 fn work(left : Int) : Unit with Never =
@@ -68,7 +68,7 @@ fn crash(child : Address(WorkMsg)) : Unit with Never = {
 }
 
 fn answered(child : Address(WorkMsg)) : Unit with Never =
-    match Address.call(child, fn(r) = Ask(reply = r), 1000) {
+    match Address.call(child, fn(reply) = Ask(reply = reply), 1000) {
         Some(_) -> Unit
       | None -> answered(child)
     }

@@ -6,8 +6,8 @@
 export fn main() : Unit with Never =
     match Io.read() {
         None -> Io.println("end")
-      | Some(b) -> {
-            Io.println(Int.toString(Bytes.size(b)));
+      | Some(bytes) -> {
+            Io.println(Int.toString(Bytes.size(bytes)));
             main()
         }
     }

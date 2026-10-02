@@ -10,15 +10,15 @@ export type Msg = Add(Int) | Get(reply : Reply(Int))
 export fn start() : Address(Msg) with m =
     spawn(fn() = loop(0))
 
-fn loop(n : Int) : Unit with Msg = {
-    let n2 = receive {
-        Add(k) -> n + k
-      | Get(reply = r) -> {
-            answer(r, n);
-            n
+fn loop(count : Int) : Unit with Msg = {
+    let count1 = receive {
+        Add(amount) -> count + amount
+      | Get(reply = reply) -> {
+            answer(reply, count);
+            count
         }
     };
-    loop(n2)
+    loop(count1)
 }
 
 /// Prints and then faults, a moment after it is spawned, so that a session
@@ -29,7 +29,7 @@ export fn boom() : Unit with Unit = {
         _ -> Unit
     };
     Io.println("worker here");
-    let n = 1 / 0;
+    let quotient = 1 / 0;
     Unit
 }
 
@@ -40,6 +40,6 @@ export fn main() : Unit with Unit = {
     receive {
         _ -> Unit
     };
-    let n = 1 / 0;
+    let quotient = 1 / 0;
     Unit
 }

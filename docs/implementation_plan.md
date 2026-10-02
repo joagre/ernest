@@ -92,9 +92,9 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    port: an interrupt that ends the host while a port starts leaves it waiting for the host's
    acknowledgement, and it reports that on standard error. Reproduced. Its fix is OTP's, which
    the user takes to OTP's maintainers (decided 2026-10-01); the test interrupts a program that
-   has started, and the start's case stands in *Standing gaps*. `filesync_test_`'s failure was
+   has started, and the start's case stands in *Standing gaps*. `file_sync_test_`'s failure was
    the example's own race, a peer's file taken before the first listing and stored with no
-   conflict, fixed with `filesync_first_listing_test_`.
+   conflict, fixed with `file_sync_first_listing_test_`.
 2. **The style guides and the glossary, a decision with the user**, done 2026-10-01 (the log's
    *The Glossary Drafted*). [`style.md`](style.md)'s *Glossary* names the concepts several
    modules name, one name each, the report's where it has one; in the six places the code
@@ -554,7 +554,7 @@ package story. Written: `libs/ets` and `libs/markdown` (Appendix G; `libs/markdo
   to `Tcp` (E.18), or a socket type of its own with its own `read`, `write` and `close`, is
   decided when it is written. Certificate verification is the caller's to ask for.
 - **`libs/http`**, Ernest over `Tcp` and `Tls`: request and response types, their parsing and
-  rendering in both directions, and a client. No server loop; that is the webserver example's,
+  rendering in both directions, and a client. No server loop; that is the web server example's,
   whose hand-written parser and renderer the library replaces (feedback item 55; the log's *The
   Web Server Waits for Its Library*). With it, `examples/fetch.ern`, a command-line tool that
   fetches JSON over HTTPS and prints a report, and `Time` in Appendix E over the clock's

@@ -11,10 +11,10 @@ store() -> ern_rt:binding({ern@services, store}).
 storing(Items_1) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'Put', K_2, V_3} ->
-            storing(ern@map:put(Items_1, K_2, V_3));
-        {'Get', K_4, R_5} ->
-            ern_rt:answer(R_5, ern@map:get(Items_1, K_4)),
+        {'Put', Key_2, Value_3} ->
+            storing(ern@map:put(Items_1, Key_2, Value_3));
+        {'Get', Key_4, Reply_5} ->
+            ern_rt:answer(Reply_5, ern@map:get(Items_1, Key_4)),
             storing(Items_1);
         'Corrupt' -> ern_rt:fault(<<"the store was corrupted">>)
     end.
@@ -24,8 +24,8 @@ ids() -> ern_rt:binding({ern@services, ids}).
 counting(Next_6) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'NextId', R_7} ->
-            ern_rt:answer(R_7, Next_6),
+        {'NextId', Reply_7} ->
+            ern_rt:answer(Reply_7, Next_6),
             counting(Next_6 + 1)
     end.
 
@@ -34,10 +34,10 @@ audit() -> ern_rt:binding({ern@services, audit}).
 recording(Entries_8) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'Record', E_9} ->
-            recording(ern@list:'<>'(Entries_8, [E_9]));
-        {'Entries', R_10} ->
-            ern_rt:answer(R_10, Entries_8),
+        {'Record', Entry_9} ->
+            recording(ern@list:'<>'(Entries_8, [Entry_9]));
+        {'Entries', Reply_10} ->
+            ern_rt:answer(Reply_10, Entries_8),
             recording(Entries_8)
     end.
 
@@ -50,7 +50,7 @@ main() ->
 
 put(Key_11, Value_12) ->
     Id_14 = ern_rt:call_forever(ids(),
-                                fun (R_13) -> {'NextId', R_13} end,
+                                fun (Reply_13) -> {'NextId', Reply_13} end,
                                 {int, <<"reply does not match Int">>}),
     ern_rt:send(store(), {'Put', Key_11, Value_12}),
     ern_rt:send(audit(),
@@ -60,15 +60,16 @@ put(Key_11, Value_12) ->
 
 report(Moment_15) ->
     Apples_17 = case stored(<<"apples">>) of
-                    {'Some', N_16} -> ern@int:toString(N_16);
+                    {'Some', Count_16} -> ern@int:toString(Count_16);
                     'None' -> <<"none">>
                 end,
     Entries_19 = ern_rt:call_forever(audit(),
-                                     fun (R_18) -> {'Entries', R_18} end,
+                                     fun (Reply_18) -> {'Entries', Reply_18}
+                                     end,
                                      {'$type_1'(),
                                       <<"reply does not match List(String)">>}),
     Id_21 = ern_rt:call_forever(ids(),
-                                fun (R_20) -> {'NextId', R_20} end,
+                                fun (Reply_20) -> {'NextId', Reply_20} end,
                                 {int, <<"reply does not match Int">>}),
     ern@io:println(<<Moment_15/binary, ": apples ",
                      Apples_17/binary, ", next id ",
@@ -77,7 +78,7 @@ report(Moment_15) ->
 
 stored(Key_22) ->
     case ern_rt:call(store(),
-                     fun (R_23) -> {'Get', Key_22, R_23} end,
+                     fun (Reply_23) -> {'Get', Key_22, Reply_23} end,
                      1000,
                      {'$type_2'(), <<"reply does not match Optional(Int)">>})
         of

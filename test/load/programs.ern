@@ -14,13 +14,13 @@ let batch = 20
 export fn main() : Unit with Never =
     round(1)
 
-fn round(n : Int) : Unit with Never =
-    if n > rounds then
+fn round(number : Int) : Unit with Never =
+    if number > rounds then
         Unit
     else {
         work(batch);
-        mark(n);
-        round(n + 1)
+        mark(number);
+        round(number + 1)
     }
 
 fn work(left : Int) : Unit with Never =
@@ -35,7 +35,7 @@ fn once() : Unit with Never = {
     let _ = Os.run(Os.Command(program = "cat", arguments = [], input = String.toUtf8("hi")), 5000);
     let _ = Os.run(Os.Command(program = "no-such-program-ern", arguments = [], input = <<>>), 5000);
     match Os.start(Os.Command(program = "sleep", arguments = ["10"], input = <<>>)) {
-        Right(p) -> kill(p)
+        Right(process) -> kill(process)
       | Left(_) -> Unit
     };
     let _ = Os.run(Os.Command(program = "sleep", arguments = ["10"], input = <<>>), 1);

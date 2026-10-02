@@ -3,12 +3,12 @@
 // Each key is printed as it arrives; Escape ends the program.
 //
 
-type Msg = E(Terminal.Event)
+type Msg = Key(Terminal.Event)
 
 // `ready` is printed after the subscription, not before: it is what the
 // harness waits for, and until the subscription the terminal still echoes.
 export fn main() : Unit with Msg =
-    match Terminal.subscribe(E) {
+    match Terminal.subscribe(Key) {
         Right(_) -> {
             Io.println("ready " <> sizeText());
             loop()
@@ -26,36 +26,36 @@ fn sizeText() : String with m =
 
 fn loop() : Unit with Msg =
     receive {
-        E(Terminal.Escape) -> Io.println("escape")
-      | E(Terminal.ArrowUp) -> {
+        Key(Terminal.Escape) -> Io.println("escape")
+      | Key(Terminal.ArrowUp) -> {
             Io.println("up");
             loop()
         }
-      | E(Terminal.ArrowDown) -> {
+      | Key(Terminal.ArrowDown) -> {
             Io.println("down");
             loop()
         }
-      | E(Terminal.ArrowLeft) -> {
+      | Key(Terminal.ArrowLeft) -> {
             Io.println("left");
             loop()
         }
-      | E(Terminal.ArrowRight) -> {
+      | Key(Terminal.ArrowRight) -> {
             Io.println("right");
             loop()
         }
-      | E(Terminal.Interrupt) -> {
+      | Key(Terminal.Interrupt) -> {
             Io.println("interrupt");
             loop()
         }
-      | E(Terminal.Key(c)) -> {
-            Io.println("char " <> Char.toString(c));
+      | Key(Terminal.Key(char)) -> {
+            Io.println("char " <> Char.toString(char));
             loop()
         }
-      | E(Terminal.Pasted(text)) -> {
+      | Key(Terminal.Pasted(text)) -> {
             Io.println("pasted " <> String.replace(text, "\n", "|"));
             loop()
         }
-      | E(Terminal.Resized(Terminal.Size(rows = rows, columns = columns))) -> {
+      | Key(Terminal.Resized(Terminal.Size(rows = rows, columns = columns))) -> {
             Io.println("resized " <> Int.toString(rows) <> "x" <> Int.toString(columns));
             loop()
         }

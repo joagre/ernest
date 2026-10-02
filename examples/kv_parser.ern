@@ -1,0 +1,45 @@
+//
+// A pure parser
+//
+// From MVP 1's test programs: a parser with three failing steps over
+// Either, chained with `<-` (report §5.5). Parses "key=123" into a pair.
+// Expected output: "a 12", "bad key: =1", "expected =: a", "bad number: a=x".
+//
+// Needs MVP 1. This is one of the MVP 1 test programs.
+//
+
+export fn main() : Unit with Never =
+    List.foreach(["a=12", "=1", "a", "a=x"], fn(line) = Io.println(show(parse(line))))
+
+fn show(parsed : Either(String, #(String, Int))) : String =
+    match parsed {
+        Right(#(key, value)) -> key <> " " <> Int.toString(value)
+      | Left(error) -> error
+    }
+
+fn parse(line : String) : Either(String, #(String, Int)) = {
+    let #(key, rest) <- keyOf(String.toList(line));
+    let digits <- expectEquals(rest, line);
+    let value <- number(digits, line);
+    Right(#(key, value))
+}
+
+fn keyOf(chars : List(Char)) : Either(String, #(String, List(Char))) = {
+    let #(letters, rest) = List.span(chars, Char.isAlpha);
+    if !List.isEmpty(letters) then
+        Right(#(String.fromList(letters), rest))
+    else
+        Left("bad key: " <> String.fromList(chars))
+}
+
+fn expectEquals(chars : List(Char), line : String) : Either(String, List(Char)) =
+    match chars {
+        '=' :: rest -> Right(rest)
+      | _ -> Left("expected =: " <> line)
+    }
+
+fn number(chars : List(Char), line : String) : Either(String, Int) =
+    match String.toInt(String.fromList(chars)) {
+        Some(value) -> Right(value)
+      | None -> Left("bad number: " <> line)
+    }

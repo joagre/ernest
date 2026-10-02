@@ -7,16 +7,16 @@
 /// A shape and its area:
 ///
 /// ```ernest
-/// let c = Template.circle(Template.Point(x = 0, y = 0), 2);
-/// Template.area(c)
+/// let circle = Template.circle(Template.Point(x = 0, y = 0), 2);
+/// Template.area(circle)
 /// // => 12
 /// ```
 ///
 /// A stack of shapes, pushed and popped:
 ///
 /// ```ernest
-/// let s = Template.push(Template.emptyStack, Template.Dot(Template.Point(x = 1, y = 1)));
-/// match Template.pop(s) {
+/// let stack = Template.push(Template.emptyStack, Template.Dot(Template.Point(x = 1, y = 1)));
+/// match Template.pop(stack) {
 ///     Some(#(top, _)) -> Template.area(top)
 ///   | None -> -1
 /// }
@@ -75,14 +75,14 @@ export abstract type Stack = Stack(List(Shape))
 export let emptyStack = Stack([])
 
 /// The stack with the shape on top.
-export fn push(Stack(ss) : Stack, s : Shape) : Stack =
-    Stack(s :: ss)
+export fn push(Stack(shapes) : Stack, shape : Shape) : Stack =
+    Stack(shape :: shapes)
 
 /// The top shape and the rest, `None` when the stack is empty.
-export fn pop(Stack(ss) : Stack) : Optional(#(Shape, Stack)) =
-    match ss {
+export fn pop(Stack(shapes) : Stack) : Optional(#(Shape, Stack)) =
+    match shapes {
         [] -> None
-      | s :: rest -> Some(#(s, Stack(rest)))
+      | top :: rest -> Some(#(top, Stack(rest)))
     }
 
 /// The circle of the radius around the centre.
@@ -95,10 +95,10 @@ export fn circle(centre : Point, radius : Int) : Shape =
 /// ### See also
 ///
 /// `circle`, which builds the shape whose area is not zero.
-export fn area(s : Shape) : Int =
-    match s {
+export fn area(shape : Shape) : Int =
+    match shape {
         Dot(_) -> 0
-      | Circle(radius = r) -> 3 * r * r
+      | Circle(radius = radius) -> 3 * radius * radius
     }
 
 /// The radius of a circle across the diameter, toward zero.
@@ -126,5 +126,5 @@ export fn radius(diameter : Int) : Int =
 /// half(7)
 /// // => 3
 /// ```
-fn half(n : Int) : Int =
-    n / 2
+fn half(number : Int) : Int =
+    number / 2

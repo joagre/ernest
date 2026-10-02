@@ -1270,7 +1270,7 @@ fn oneProcess(me : Address(CountMsg)) : Bool =
 
 `oneProcess(self())` is `true`, and `via(me, Counted) == me` does not compile.
 
-**Addresses travel.** An address is a value: it goes in a message, a field or a list, as `Link(me)` does in [`examples/filesync.ern`](examples/filesync.ern). To another node, an adapted address of your own process goes too, and its function stays here (§8.2).
+**Addresses travel.** An address is a value: it goes in a message, a field or a list, as `Link(me)` does in [`examples/file_sync.ern`](examples/file_sync.ern). To another node, an adapted address of your own process goes too, and its function stays here (§8.2).
 
 `Clock.alarm` fires once. A periodic tick is scheduled again after each tick is handled, and only then: a loop that scheduled one on every message would add a timer per key pressed. Two functions keep the two apart:
 
@@ -2148,14 +2148,14 @@ At a terminal the history is kept in `$HOME/.ernest/history`. When the shell sta
 
 ### 9.5 Running a program as a service
 
-A program meant to keep running is run in the foreground and left to a service manager, which starts it, restarts it, and keeps what it writes; `ern` has no mode of its own for it. A service here is the operating system's, not §6.5's. Standard output is the program's, and standard error is where `ern run` reports every fault, so the two streams are its log. A unit for systemd, running the web server of [`examples/webserver.ern`](examples/webserver.ern) built into `/srv/web/build`:
+A program meant to keep running is run in the foreground and left to a service manager, which starts it, restarts it, and keeps what it writes; `ern` has no mode of its own for it. A service here is the operating system's, not §6.5's. Standard output is the program's, and standard error is where `ern run` reports every fault, so the two streams are its log. A unit for systemd, running the web server of [`examples/web_server.ern`](examples/web_server.ern) built into `/srv/web/build`:
 
 ```ini
 [Unit]
 Description=The web server
 
 [Service]
-ExecStart=/usr/local/bin/ern run /srv/web/build/webserver.erc
+ExecStart=/usr/local/bin/ern run /srv/web/build/web_server.erc
 WorkingDirectory=/srv/web
 Restart=on-failure
 
@@ -2163,10 +2163,10 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
-systemd keeps both streams in its journal, which stamps every line, and `journalctl -u web` reads them. Where standard error is neither a terminal nor the journal, a file or a pipe, each fault line begins with its time, in UTC: `2026-09-27T14:22:11.836Z Webserver.handler:88 faulted: division by zero`. Without a service manager, `nohup` keeps a program running once its terminal has closed:
+systemd keeps both streams in its journal, which stamps every line, and `journalctl -u web` reads them. Where standard error is neither a terminal nor the journal, a file or a pipe, each fault line begins with its time, in UTC: `2026-09-27T14:22:11.836Z WebServer.handler:88 faulted: division by zero`. Without a service manager, `nohup` keeps a program running once its terminal has closed:
 
 ```console
-$ nohup ern run build/webserver.erc >> web.log 2>&1 &
+$ nohup ern run build/web_server.erc >> web.log 2>&1 &
 ```
 
 `kill` stops the program as §9.2 says: its output is flushed, and `ern run` ends by the signal, which systemd counts as a stop it asked for. A program that ends on its own gives the manager its reason with `Os.exit(status)` (§1.3), and `Restart=on-failure` starts again one that ends with any status but 0. A program whose output can no longer be written, because what reads it has ended, ends too, with status 141, as `ern run app.erc | head -1` shows. `ern` never changes what a program writes, on either stream.
@@ -2244,8 +2244,8 @@ Four larger programs, each written against the report to try the language on a w
 
 - [`examples/snake.ern`](examples/snake.ern) — snake game with tick-based updates; `..` record updates, one process per player, `Clock`, `Terminal`, `Random`.
 - [`examples/repl.ern`](examples/repl.ern) — small read-eval-print loop; `<-` for chained parsing, `spawnMonitored` + `kill` for aborting slow evaluation, `Io.readLine`.
-- [`examples/filesync.ern`](examples/filesync.ern) — file sync between two directories, whose two sides run on one node and would run the same on two; mutual-address setup, one process per file operation, `Fs`.
-- [`examples/webserver.ern`](examples/webserver.ern) — HTTP server with sessions in a process that owns a `Map`; request-reply, `Tcp`.
+- [`examples/file_sync.ern`](examples/file_sync.ern) — file sync between two directories, whose two sides run on one node and would run the same on two; mutual-address setup, one process per file operation, `Fs`.
+- [`examples/web_server.ern`](examples/web_server.ern) — HTTP server with sessions in a process that owns a `Map`; request-reply, `Tcp`.
 
 For the language rules themselves, [`ernest_report.md`](ernest_report.md) is the authority. Appendix F glosses every technical term.
 

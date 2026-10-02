@@ -24,17 +24,17 @@ fn manual(report : String,
           pages : String) : Either(String, List(String)) with m = {
     let bytes <-
         Either.mapLeft(Fs.read(Path(report), 10000),
-                       fn(e) = "cannot read " <> report <> ": " <> Io.show(e));
+                       fn(error) = "cannot read " <> report <> ": " <> Io.show(error));
     let text <- Either.fromOptional(String.fromUtf8(bytes), report <> " is not UTF-8");
     let entries <-
         Either.mapLeft(Fs.list(Path(pages), 10000),
-                       fn(e) = "cannot list " <> pages <> ": " <> Io.show(e));
+                       fn(error) = "cannot list " <> pages <> ": " <> Io.show(error));
     let section <-
         Either.fromOptional(toolchain(Markdown.parse(text)),
                             "no section 11. Toolchain in " <> report);
-    let #(description, rest) = List.span(section, fn(b) = !titled(b, "11.7 Options"));
-    let #(options, exitStatus) = List.span(rest, fn(b) = !titled(b, "11.8 Exit status"));
-    let names = List.filterMap(entries, fn(e) = Path.name(e.path));
+    let #(description, rest) = List.span(section, fn(block) = !titled(block, "11.7 Options"));
+    let #(options, exitStatus) = List.span(rest, fn(block) = !titled(block, "11.8 Exit status"));
+    let names = List.filterMap(entries, fn(error) = Path.name(error.path));
     if List.isEmpty(options) || List.isEmpty(exitStatus) then
         Left("no sections 11.7 Options and 11.8 Exit status in " <> report)
     else
@@ -61,18 +61,20 @@ fn page(version : String) : Markdown.Manual =
 // The blocks of §11 after its heading, up to the next chapter's.
 fn toolchain(blocks : List(Markdown.Block)) : Optional(List(Markdown.Block)) =
     match List.span(blocks,
-                    fn(b) =
-                        b != Markdown.Heading(level = 2, text = [Markdown.Text("11. Toolchain")])) {
+                    fn(block) =
+                        block
+                            != Markdown.Heading(level = 2,
+                                                text = [Markdown.Text("11. Toolchain")])) {
         #(_, _ :: rest) -> {
-            let #(section, _) = List.span(rest, fn(b) = !beginsChapter(b));
+            let #(section, _) = List.span(rest, fn(block) = !beginsChapter(block));
             Some(section)
         }
       | _ -> None
     }
 
 // Whether a block is the subsection heading of that title.
-fn titled(b : Markdown.Block, title : String) : Bool =
-    b == Markdown.Heading(level = 3, text = [Markdown.Text(title)])
+fn titled(block : Markdown.Block, title : String) : Bool =
+    block == Markdown.Heading(level = 3, text = [Markdown.Text(title)])
 
 fn heading(title : String) : Markdown.Block =
     Markdown.Heading(level = 1, text = [Markdown.Text(title)])
@@ -81,13 +83,13 @@ fn heading(title : String) : Markdown.Block =
 // `ern --help` and `ern --version`: a code span of a paragraph that is a
 // command line of `ern` with an option in brackets, or `ern` and an option.
 fn usages(blocks : List(Markdown.Block)) : List(String) =
-    List.flatMap(blocks, fn(b) = match b {
+    List.flatMap(blocks, fn(block) = match block {
         Markdown.Paragraph(inlines) -> List.filterMap(inlines, commandLine)
       | _ -> []
     })
 
-fn commandLine(i : Markdown.Inline) : Optional(String) =
-    match i {
+fn commandLine(inline : Markdown.Inline) : Optional(String) =
+    match inline {
         Markdown.CodeSpan(code) ->
             if String.startsWith(code, "ern --")
                 || String.startsWith(code, "ern ") && String.contains(code, " [") then
@@ -100,15 +102,15 @@ fn commandLine(i : Markdown.Inline) : Optional(String) =
 fn usage(line : String) : Markdown.Block =
     Markdown.Paragraph([Markdown.CodeSpan(line)])
 
-fn beginsChapter(b : Markdown.Block) : Bool =
-    match b {
+fn beginsChapter(block : Markdown.Block) : Bool =
+    match block {
         Markdown.Heading(level = level) -> level <= 2
       | _ -> false
     }
 
 // §11's sections are the page's subsections, a level above their own.
-fn raised(b : Markdown.Block) : Markdown.Block =
-    match b {
+fn raised(block : Markdown.Block) : Markdown.Block =
+    match block {
         Markdown.Heading(level = level, text = text) ->
             Markdown.Heading(level = level - 1, text = text)
       | other -> other
@@ -119,12 +121,12 @@ fn raised(b : Markdown.Block) : Markdown.Block =
 fn seeAlso(files : List(String)) : List(Markdown.Block) = {
     let names =
         List.filterMap(files,
-                       fn(f) = if String.endsWith(f, ".3ern") then
-                           Some(String.slice(f, 0, String.size(f) - 5))
+                       fn(file) = if String.endsWith(file, ".3ern") then
+                           Some(String.slice(file, 0, String.size(file) - 5))
                        else
                            None);
     let #(prelude, modules) =
-        List.partition(List.sort(names, String.compare), fn(n) = n == "Ernest.Prelude");
+        List.partition(List.sort(names, String.compare), fn(name) = name == "Ernest.Prelude");
     let rest =
         [Markdown.Text("; every Ernest page installed, which "),
          Markdown.CodeSpan("apropos Ernest."),

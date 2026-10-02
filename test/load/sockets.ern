@@ -18,9 +18,9 @@ export fn main() : Unit with Never =
                 let _ = spawn(fn() : Unit with Never = serve(listener));
                 round(port, 1)
             }
-          | Left(e) -> Io.println(Io.show(e))
+          | Left(error) -> Io.println(Io.show(error))
         }
-      | Left(e) -> Io.println(Io.show(e))
+      | Left(error) -> Io.println(Io.show(error))
     }
 
 fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never = {
@@ -37,18 +37,18 @@ fn serve(listener : Address(Tcp.ListenerMsg)) : Unit with Never = {
 fn echo(peer : Address(Tcp.SocketMsg)) : Unit with Never = {
     let _ = match Tcp.read(peer, 1000) {
         Right(bytes) -> Tcp.write(peer, bytes, 5000)
-      | Left(e) -> Left(e)
+      | Left(error) -> Left(error)
     };
     Tcp.close(peer)
 }
 
-fn round(port : Int, n : Int) : Unit with Never =
-    if n > rounds then
+fn round(port : Int, number : Int) : Unit with Never =
+    if number > rounds then
         Unit
     else {
         work(port, batch);
-        mark(n);
-        round(port, n + 1)
+        mark(number);
+        round(port, number + 1)
     }
 
 fn work(port : Int, left : Int) : Unit with Never =
@@ -67,5 +67,5 @@ fn once(port : Int) : Unit with Never =
             let _ = Tcp.read(client, 1000);
             Tcp.close(client)
         }
-      | Left(e) -> Io.println(Io.show(e))
+      | Left(error) -> Io.println(Io.show(error))
     }

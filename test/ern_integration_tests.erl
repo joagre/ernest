@@ -12,11 +12,11 @@
 -define(BUILD, "--source-root ../examples --load-path ../build/libs/ansi --build-root build ").
 
 -define(PROGRAMS, ["hello", "counter", "upgrade", "pingpong", "stack", "patterns",
-                   "kvparser", "services"]).
+                   "kv_parser", "services"]).
 
 %% report §8.1, §8.6, §11.1, §11.2, and per program: §6.4 (pingpong),
 %% §6.6 (counter), §6.10 (upgrade), §5.10 (patterns),
-%% §5.5 (kvparser), §4.4 (stack), Appendix E.22 (services)
+%% §5.5 (kv_parser), §4.4 (stack), Appendix E.22 (services)
 %% Each program is compiled and run apart from the others, so they run in
 %% parallel (plan, MVP 2.6).
 programs_test_() ->
@@ -30,7 +30,7 @@ program(Name) ->
 %% Plan, MVP 2.5: the paper programs that the doors of step 4 opened.
 %% snake waits for a terminal, so it is only compiled here and ern_terminal_tests
 %% plays it under a pseudo-terminal; echo is run by hand; the others run below.
--define(COMPILES, ["filesync", "repl", "snake", "echo", "webserver"]).
+-define(COMPILES, ["file_sync", "repl", "snake", "echo", "web_server"]).
 
 compiles_test_() ->
     {inparallel, [{Name, {timeout, 60, fun() -> compiles(Name) end}} || Name <- ?COMPILES]}.
@@ -69,17 +69,17 @@ repl() ->
 %% stops it, and reads the directories back. One file on each side crosses,
 %% and the pair that differs leaves a conflict beside the newer copy.
 %% report §8.2 (Fs's reference), §6.6 (Address.call), Appendix E.17 (Fs.list)
-filesync_test_() ->
-    {timeout, 60, fun filesync/0}.
+file_sync_test_() ->
+    {timeout, 60, fun file_sync/0}.
 
-filesync() ->
-    0 = build(?BUILD ++ "../examples/filesync.ern"),
+file_sync() ->
+    0 = build(?BUILD ++ "../examples/file_sync.ern"),
     %% its own tests: a peer's path is stored only where it names a file in
     %% the directory, a regression test for findings S7, where a peer's
     %% `../x` was written outside it
     ?assertEqual({0, <<"a peer's path is stored only where it names a file here: passed\n">>},
-                 sh("../bin/ern test build/filesync.erc")),
-    Dir = "build/filesync",
+                 sh("../bin/ern test build/file_sync.erc")),
+    Dir = "build/file_sync",
     ok = reset(Dir),
     ok = file:write_file(Dir ++ "/a/greeting.txt", <<"hello from a\n">>),
     ok = file:write_file(Dir ++ "/b/other.txt", <<"only in b\n">>),
@@ -91,7 +91,7 @@ filesync() ->
     Synced = "grep -q \"conflict: notes.txt\" run.out && [ -f b/greeting.txt ]"
              " && [ -f a/other.txt ] && [ -f b/notes.txt.conflict ]"
              " && grep -q \"new note\" a/notes.txt",
-    {Status, Output} = run_for(Dir, "../../../bin/ern run ../../build/filesync.erc", Synced,
+    {Status, Output} = run_for(Dir, "../../../bin/ern run ../../build/file_sync.erc", Synced,
                                "TERM"),
     %% report §8.6, §11.2: the signal ends the program as returning from main
     %% does, so what was written is there and the runtime says nothing of its
@@ -123,13 +123,13 @@ filesync() ->
 %% fifty files more, came after a's older notes.txt, which then replaced b's
 %% newer copy with no conflict. It does not cover a file changed here
 %% between two listings, which the program checks against the last one.
-filesync_first_listing_test_() ->
-    {timeout, 60, fun filesync_first_listing/0}.
+file_sync_first_listing_test_() ->
+    {timeout, 60, fun file_sync_first_listing/0}.
 
-filesync_first_listing() ->
-    %% a build root of its own, since filesync_test_ builds beside it
-    0 = build("--source-root ../examples --build-root build/first ../examples/filesync.ern"),
-    Dir = "build/filesync_first",
+file_sync_first_listing() ->
+    %% a build root of its own, since file_sync_test_ builds beside it
+    0 = build("--source-root ../examples --build-root build/first ../examples/file_sync.ern"),
+    Dir = "build/file_sync_first",
     ok = reset(Dir),
     ok = file:write_file(Dir ++ "/a/notes.txt", <<"old note\n">>),
     ok = file:write_file(Dir ++ "/b/notes.txt", <<"new note\n">>),
@@ -138,7 +138,7 @@ filesync_first_listing() ->
     ok = make_older(Dir ++ "/a/notes.txt"),
     Synced = "grep -q \"conflict: notes.txt\" run.out && [ -f b/notes.txt.conflict ]"
              " && grep -q \"new note\" a/notes.txt",
-    {Status, Output} = run_for(Dir, "../../../bin/ern run ../first/filesync.erc", Synced, "TERM"),
+    {Status, Output} = run_for(Dir, "../../../bin/ern run ../first/file_sync.erc", Synced, "TERM"),
     ?assertEqual(143, Status),
     ?assert(lists:member(<<"conflict: notes.txt">>, Output)),
     ?assertEqual({ok, <<"new note\n">>}, file:read_file(Dir ++ "/b/notes.txt")),
@@ -244,12 +244,12 @@ wait_for(File, Tries) ->
 %% and stops it. The second request carries the cookie the first set, and
 %% the visit count proves the session store kept it between connections.
 %% report §8.2 (Tcp's reference), Appendix E.18 (Tcp), §6.6 (the store's request-reply)
-webserver_test_() ->
-    {timeout, 60, fun webserver/0}.
+web_server_test_() ->
+    {timeout, 60, fun web_server/0}.
 
-webserver() ->
-    0 = build(?BUILD ++ "../examples/webserver.ern"),
-    Server = open_port({spawn, "../bin/ern run build/webserver.erc"},
+web_server() ->
+    0 = build(?BUILD ++ "../examples/web_server.ern"),
+    Server = open_port({spawn, "../bin/ern run build/web_server.erc"},
                        [exit_status, stderr_to_stdout, binary]),
     {os_pid, OsPid} = erlang:port_info(Server, os_pid),
     try

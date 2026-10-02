@@ -4,7 +4,7 @@
 // (test/ern_load.erl).
 //
 
-type Msg = Tick(Int)
+type Msg = Ticked(Int)
 
 foreign fn mark(round : Int) : Unit with m =
     "ern_load:mark/1"
@@ -16,13 +16,13 @@ let batch = 500
 export fn main() : Unit with Msg =
     round(1)
 
-fn round(n : Int) : Unit with Msg =
-    if n > rounds then
+fn round(number : Int) : Unit with Msg =
+    if number > rounds then
         Unit
     else {
         work(batch);
-        mark(n);
-        round(n + 1)
+        mark(number);
+        round(number + 1)
     }
 
 fn work(left : Int) : Unit with Msg =
@@ -34,13 +34,13 @@ fn work(left : Int) : Unit with Msg =
     }
 
 fn once() : Unit with Msg = {
-    Clock.alarm(1, Tick);
+    Clock.alarm(1, Ticked);
     receive {
-        Tick(_) -> Unit
+        Ticked(_) -> Unit
     };
-    Clock.alarmAt(Clock.now(), Tick);
+    Clock.alarmAt(Clock.now(), Ticked);
     receive {
-        Tick(_) -> Unit
+        Ticked(_) -> Unit
     };
     receive {
         after 0 -> Unit
