@@ -297,15 +297,20 @@ write_holds_up_no_read() ->
 %% report §6.9, Appendix E.18: a listener is owned by the process that
 %% opened it and is killed when that process dies. A regression test of the
 %% rule of 2026-10-01, before which a listener belonged to no one and lived
-%% until the program ended
+%% until the program ended. The owner ends once the listener is monitored:
+%% ended before, it let the kill come first and the monitor read `noproc`
 listener_ends_with_its_owner_test() ->
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                Main = self(),
-               _ = erlang:spawn(fun() -> Main ! {opened, listen(0)} end),
+               Owner = erlang:spawn(fun() ->
+                                        Main ! {opened, listen(0)},
+                                        receive stop -> ok end
+                                    end),
                {'Right', Listener} = ern_rt:in_foreign(fun() -> receive {opened, L} -> L end end),
                MonitorRef = erlang:monitor(process, ern_rt:process_of(Listener)),
+               Owner ! stop,
                Ended = fun() ->
                            receive {'DOWN', MonitorRef, _, _, ExitReason} -> ExitReason
                            after 5000 -> alive
