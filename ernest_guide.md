@@ -126,7 +126,7 @@ Sections 1 to 8 are eight stages: run a program, compute with values, pass behav
 
 ## 1. Run a program
 
-A program is a module that exports a function `main`. Put this line in `hello.ern`, a file named by one lowercase word (§7.1):
+A program is a module that exports a function `main`. Put this line in `hello.ern`, a file named by lowercase words joined by `_` (§7.1):
 
 ```ernest
 export fn main() : Unit with Never =
@@ -1672,7 +1672,7 @@ GET /
 
 Directory mode compiles the modules in the order their dependencies need, and a second run compiles again only what changed (§9.1).
 
-**The file's path is its namespace.** A file at `a/b/c.ern` under the source root declares the namespace `A.B.C`: each directory and the file name is one lowercase word, and the namespace capitalizes each. A module of two words is a directory, `http/parser.ern` for `Http.Parser`. The source root is `--source-root dir`; without it, the directory `ern build` is given, or for a single file the working directory. A module may not take a namespace the prelude or the standard library has, so `io.ern` at the root is refused (report §4.2, report §11.1).
+**The file's path is its namespace.** A file at `a/b/c.ern` under the source root declares the namespace `A.B.C`: each directory and the file name is one or more lowercase words joined by `_`, and the namespace capitalizes each word and drops the `_`, `ordered_set.ern` for `OrderedSet`. A module of two words may also be a directory, `http/parser.ern` for `Http.Parser`. The source root is `--source-root dir`; without it, the directory `ern build` is given, or for a single file the working directory. A module may not take a namespace the prelude or the standard library has, so `io.ern` at the root is refused (report §4.2, report §11.1).
 
 **Declarations use local names.** In `net/http.ern`, `export fn parse(...)` declares `parse`, which the code outside reaches as `Net.Http.parse`, and the code inside by either name.
 
