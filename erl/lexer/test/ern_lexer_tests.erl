@@ -4,16 +4,17 @@
 -include_lib("utils/include/ern_diagnostic.hrl").
 
 %% Token list without positions and without the trailing eof.
-toks(Text) ->
+tokens(Text) ->
     {ok, Tokens} = ern_lexer:tokenize(Text),
-    [strip(T) || T <- Tokens, element(1, T) =/= eof].
+    [without_position(Token) || Token <- Tokens, element(1, Token) =/= eof].
 
-strip({Cat, _Pos, Value}) -> {Cat, Value};
-strip({Sym, _Pos}) -> Sym.
+without_position({Category, _Position, Value}) -> {Category, Value};
+without_position({Symbol, _Position}) -> Symbol.
 
-err(Text) ->
-    {error, #diagnostic{span = {L, C, _}, message = Msg}} = ern_lexer:tokenize(Text),
-    {L, C, Msg}.
+%% Where the lexer refuses a text, and what it says.
+refusal(Text) ->
+    {error, #diagnostic{span = {Line, Column, _}, message = Message}} = ern_lexer:tokenize(Text),
+    {Line, Column, Message}.
 
 %% report §2.1: a control character but tab, line feed and carriage return
 %% is an error wherever it stands, a doc block and a comment among them. A
@@ -21,96 +22,96 @@ err(Text) ->
 %% it, and a string and a comment were taken as they were
 control_character_test() ->
     Refused = "control character U+001B; a string or a character literal writes it `\\u{1B}`",
-    ?assertEqual({1, 7, Refused}, err("/// a \e[2J doc\nlet x = 1\n")),
-    ?assertEqual({2, 6, Refused}, err("\n// a \e comment\n")),
-    ?assertEqual({1, 11, Refused}, err("let s = \"a\eb\"")),
-    ?assertMatch({1, 10, "control character U+009B" ++ _}, err("let s = \"\x{9B}\"")),
-    ?assertMatch([_ | _], toks("let s = \"tab\there\"\r\n")).
+    ?assertEqual({1, 7, Refused}, refusal("/// a \e[2J doc\nlet x = 1\n")),
+    ?assertEqual({2, 6, Refused}, refusal("\n// a \e comment\n")),
+    ?assertEqual({1, 11, Refused}, refusal("let s = \"a\eb\"")),
+    ?assertMatch({1, 10, "control character U+009B" ++ _}, refusal("let s = \"\x{9B}\"")),
+    ?assertMatch([_ | _], tokens("let s = \"tab\there\"\r\n")).
 
 %% report §2.4
 reserved_words_test() ->
     ?assertEqual([type, abstract, with, foreign, match, 'when', 'receive', 'after', as,
                   'if', then, 'else', fn, 'let', export],
-                 toks("type abstract with foreign match when receive after as "
+                 tokens("type abstract with foreign match when receive after as "
                       "if then else fn let export")).
 
 %% report §2.4, §2.5
 literals_true_false_test() ->
-    ?assertEqual([{bool, true}, {bool, false}], toks("true false")).
+    ?assertEqual([{bool, true}, {bool, false}], tokens("true false")).
 
 %% report §2.3
 identifiers_test() ->
     ?assertEqual([{ident, x}, {ident, foo_bar1}, {ident, '_x'}, '_', {ident, tryIt}],
-                 toks("x foo_bar1 _x _ tryIt")).
+                 tokens("x foo_bar1 _x _ tryIt")).
 
 %% report §2.3
 typenames_test() ->
     ?assertEqual([{typename, 'Int'}, {typename, 'Http_server'}, {typename, 'T1'}],
-                 toks("Int Http_server T1")).
+                 tokens("Int Http_server T1")).
 
 %% report §2.3: a name is at most 255 characters long, and a longer one is
 %% refused where it begins. A regression test: the lexer raised system_limit
 %% from list_to_atom before
 name_length_test() ->
     Long = lists:duplicate(255, $a),
-    ?assertEqual([{ident, list_to_atom(Long)}], toks(Long)),
-    ?assertEqual({1, 3, "a name is at most 255 characters long"}, err("x " ++ Long ++ "a")),
+    ?assertEqual([{ident, list_to_atom(Long)}], tokens(Long)),
+    ?assertEqual({1, 3, "a name is at most 255 characters long"}, refusal("x " ++ Long ++ "a")),
     ?assertEqual({1, 1, "a name is at most 255 characters long"},
-                 err(lists:duplicate(256, $A))).
+                 refusal(lists:duplicate(256, $A))).
 
 %% report §2.3
 qualified_name_test() ->
     ?assertEqual([{typename, 'Net'}, '.', {typename, 'Http'}, '.', {ident, parse}],
-                 toks("Net.Http.parse")),
-    ?assertEqual([{typename, 'Int'}, '.', '+'], toks("Int.+")).
+                 tokens("Net.Http.parse")),
+    ?assertEqual([{typename, 'Int'}, '.', '+'], tokens("Int.+")).
 
 %% report §2.5
 integers_test() ->
     ?assertEqual([{int, 0}, {int, 42}, {int, 123456789012345678901234567890}],
-                 toks("0 42 123456789012345678901234567890")).
+                 tokens("0 42 123456789012345678901234567890")).
 
 %% report §2.5: a float has a point or an exponent, `1e10` among them;
 %% `1e` is still an integer an `e` follows (findings.md's P1-23)
 exponent_floats_test() ->
-    ?assertEqual([{float, 1.0e10}, {float, 100.0}, {float, 2.0e-3}], toks("1e10 1E+2 2e-3")),
-    ?assertEqual({1, 2, "e cannot follow a number directly"}, err("1e")).
+    ?assertEqual([{float, 1.0e10}, {float, 100.0}, {float, 2.0e-3}], tokens("1e10 1E+2 2e-3")),
+    ?assertEqual({1, 2, "e cannot follow a number directly"}, refusal("1e")).
 
 %% report §4.8: `!` is a symbol of its own, and `!=` stays one token
 not_symbol_test() ->
-    ?assertEqual(['!', {ident, ok}], toks("!ok")),
-    ?assertEqual([{ident, a}, '!=', {ident, b}], toks("a != b")),
-    ?assertEqual(['!', '(', {ident, a}, ')'], toks("!(a)")).
+    ?assertEqual(['!', {ident, ok}], tokens("!ok")),
+    ?assertEqual([{ident, a}, '!=', {ident, b}], tokens("a != b")),
+    ?assertEqual(['!', '(', {ident, a}, ')'], tokens("!(a)")).
 
 %% report §2.5: hexadecimal, octal, and binary integers, the prefix lowercase
 based_integers_test() ->
     ?assertEqual([{int, 16#10FFFF}, {int, 255}, {int, 8#644}, {int, 10}, {int, 0}],
-                 toks("0x10FFFF 0xfF 0o644 0b1010 0x0")),
-    ?assertEqual({1, 5, "2 is not a binary digit"}, err("0b102")),
-    ?assertEqual({1, 1, "0x needs a hexadecimal digit"}, err("0x")),
-    ?assertEqual({1, 1, "a base prefix is lowercase: 0x"}, err("0XFF")).
+                 tokens("0x10FFFF 0xfF 0o644 0b1010 0x0")),
+    ?assertEqual({1, 5, "2 is not a binary digit"}, refusal("0b102")),
+    ?assertEqual({1, 1, "0x needs a hexadecimal digit"}, refusal("0x")),
+    ?assertEqual({1, 1, "a base prefix is lowercase: 0x"}, refusal("0XFF")).
 
 %% report §2.5: nothing word-like directly after a number
 number_then_word_test() ->
-    ?assertEqual({1, 3, "p cannot follow a number directly"}, err("12px")),
-    ?assertEqual({1, 4, "x cannot follow a number directly"}, err("1.5x")).
+    ?assertEqual({1, 3, "p cannot follow a number directly"}, refusal("12px")),
+    ?assertEqual({1, 4, "x cannot follow a number directly"}, refusal("1.5x")).
 
 %% report §2.5: an `_` between two digits groups them; anywhere else in a
 %% number it is an error
 digit_separators_test() ->
     ?assertEqual([{int, 1000000}, {int, 16#FFFFFFFF}, {int, 2#10101010}, {int, 8#7_55},
                   {float, 3.141592}, {float, 1.0e10}],
-                 toks("1_000_000 0xFFFF_FFFF 0b1010_1010 0o7_55 3.141_592 1.0e1_0")),
-    ?assertEqual({1, 2, "_ must stand between two digits"}, err("1_")),
-    ?assertEqual({1, 2, "_ must stand between two digits"}, err("1__0")),
-    ?assertEqual({1, 3, "_ must stand between two digits"}, err("0x_FF")),
-    ?assertEqual({1, 4, "_ must stand between two digits"}, err("1.5_")),
-    ?assertEqual([{int, 1000}, '..', {int, 2000}], toks("1_000..2_000")).
+                 tokens("1_000_000 0xFFFF_FFFF 0b1010_1010 0o7_55 3.141_592 1.0e1_0")),
+    ?assertEqual({1, 2, "_ must stand between two digits"}, refusal("1_")),
+    ?assertEqual({1, 2, "_ must stand between two digits"}, refusal("1__0")),
+    ?assertEqual({1, 3, "_ must stand between two digits"}, refusal("0x_FF")),
+    ?assertEqual({1, 4, "_ must stand between two digits"}, refusal("1.5_")),
+    ?assertEqual([{int, 1000}, '..', {int, 2000}], tokens("1_000..2_000")).
 
 %% report §2.5
 floats_test() ->
     ?assertEqual([{float, 1.0}, {float, 3.25}, {float, 1.0e-9}, {float, 2.5e3},
                   {float, 1.0e9}],
-                 toks("1.0 3.25 1.0e-9 2.5E+3 1.0e9")).
+                 tokens("1.0 3.25 1.0e-9 2.5E+3 1.0e9")).
 
 %% report §2.5: a float literal beyond the largest finite Float is an error
 %% at the literal, not a crash; one below the smallest is 0.0. A regression
@@ -118,88 +119,89 @@ floats_test() ->
 %% the shell shows the diagnostic.
 float_literal_out_of_range_test() ->
     ?assertEqual({1, 5, "the float literal is beyond the largest finite Float"},
-                 err("x = 1.0e400")),
+                 refusal("x = 1.0e400")),
     ?assertEqual({1, 1, "the float literal is beyond the largest finite Float"},
-                 err("1.7976931348623159e308")),
-    ?assertEqual([{float, 1.7976931348623157e308}], toks("1.7976931348623157e308")),
-    ?assertEqual([{float, 0.0}], toks("1.0e-400")).
+                 refusal("1.7976931348623159e308")),
+    ?assertEqual([{float, 1.7976931348623157e308}], tokens("1.7976931348623157e308")),
+    ?assertEqual([{float, 0.0}], tokens("1.0e-400")).
 
 %% report §2.5, §2.6
 int_then_dots_test() ->
-    ?assertEqual([{int, 1}, '..', {int, 2}], toks("1..2")),
-    ?assertEqual([{int, 1}, '.', {ident, x}], toks("1.x")).
+    ?assertEqual([{int, 1}, '..', {int, 2}], tokens("1..2")),
+    ?assertEqual([{int, 1}, '.', {ident, x}], tokens("1.x")).
 
 %% report §2.5
 negative_is_prefix_operator_test() ->
-    ?assertEqual(['-', {int, 1}], toks("-1")).
+    ?assertEqual(['-', {int, 1}], tokens("-1")).
 
 %% report §2.5
 chars_test() ->
     ?assertEqual([{char, $a}, {char, $\n}, {char, $'}, {char, $\\}, {char, 16#1F600},
                   {char, $"}],
-                 toks("'a' '\\n' '\\'' '\\\\' '\\u{1F600}' '\"'")).
+                 tokens("'a' '\\n' '\\'' '\\\\' '\\u{1F600}' '\"'")).
 
 %% report §2.5
 strings_test() ->
-    ?assertEqual([{string, <<"hello, world">>}], toks("\"hello, world\"")),
-    ?assertEqual([{string, <<"a\nb\r\tc\"'\\">>}], toks("\"a\\nb\\r\\tc\\\"'\\\\\"")),
-    ?assertEqual([{string, <<"é"/utf8>>}], toks("\"\\u{e9}\"")),
-    ?assertEqual([{string, <<"ö"/utf8>>}], toks(<<"\"ö\""/utf8>>)),
-    ?assertEqual([{string, <<>>}], toks("\"\"")).
+    ?assertEqual([{string, <<"hello, world">>}], tokens("\"hello, world\"")),
+    ?assertEqual([{string, <<"a\nb\r\tc\"'\\">>}], tokens("\"a\\nb\\r\\tc\\\"'\\\\\"")),
+    ?assertEqual([{string, <<"é"/utf8>>}], tokens("\"\\u{e9}\"")),
+    ?assertEqual([{string, <<"ö"/utf8>>}], tokens(<<"\"ö\""/utf8>>)),
+    ?assertEqual([{string, <<>>}], tokens("\"\"")).
 
 %% report §2.6
 symbols_max_munch_test() ->
     ?assertEqual(['#(', '<<', '>>', '<-', '->', '==', '!=', '<=', '>=', '&&', '||',
                   '|>', '<>', '::', '..'],
-                 toks("#( << >> <- -> == != <= >= && || |> <> :: ..")),
+                 tokens("#( << >> <- -> == != <= >= && || |> <> :: ..")),
     ?assertEqual(['(', ')', '{', '}', '[', ']', ',', ';', ':', '=', '|', '.',
                   '+', '-', '*', '/', '%', '<', '>'],
-                 toks("( ) { } [ ] , ; : = | . + - * / % < >")),
-    ?assertEqual([{ident, x}, '<-', {ident, y}], toks("x<-y")),
-    ?assertEqual([{ident, x}, '<', '-', {ident, y}], toks("x< -y")),
-    ?assertEqual([{ident, a}, '||', {ident, b}], toks("a||b")),
-    ?assertEqual([{ident, a}, '|', {ident, b}], toks("a|b")).
+                 tokens("( ) { } [ ] , ; : = | . + - * / % < >")),
+    ?assertEqual([{ident, x}, '<-', {ident, y}], tokens("x<-y")),
+    ?assertEqual([{ident, x}, '<', '-', {ident, y}], tokens("x< -y")),
+    ?assertEqual([{ident, a}, '||', {ident, b}], tokens("a||b")),
+    ?assertEqual([{ident, a}, '|', {ident, b}], tokens("a|b")).
 
 %% report §2.2
 line_comment_test() ->
-    ?assertEqual([{ident, a}, {ident, b}], toks("a // comment\nb")),
-    ?assertEqual([{ident, a}], toks("a // comment at eof")).
+    ?assertEqual([{ident, a}, {ident, b}], tokens("a // comment\nb")),
+    ?assertEqual([{ident, a}], tokens("a // comment at eof")).
 
 %% report §2.2
 four_slashes_is_a_comment_test() ->
     %% a doc comment is `///` not followed by a fourth slash, so `////` is
     %% an ordinary comment, and it ends a doc block
-    ?assertEqual([{ident, a}], toks("//// ruler\na")),
-    ?assertEqual([{doc, <<"one">>}, {ident, a}], toks("/// one\n//// ruler\na")),
-    ?assertEqual([{doc, <<"">>}, {ident, a}], toks("///\na")).
+    ?assertEqual([{ident, a}], tokens("//// ruler\na")),
+    ?assertEqual([{doc, <<"one">>}, {ident, a}], tokens("/// one\n//// ruler\na")),
+    ?assertEqual([{doc, <<"">>}, {ident, a}], tokens("///\na")).
 
 %% report §2.2
 block_comment_test() ->
-    ?assertEqual([{ident, a}, {ident, b}], toks("a /* x */ b")),
-    ?assertEqual([{ident, a}, {ident, b}], toks("a /* x /* nested */ still */ b")),
-    ?assertEqual([{ident, a}, {ident, b}], toks("a /* multi\nline\n*/ b")),
-    ?assertEqual({1, 3, "unterminated block comment"}, err("a /* x /* y */")).
+    ?assertEqual([{ident, a}, {ident, b}], tokens("a /* x */ b")),
+    ?assertEqual([{ident, a}, {ident, b}], tokens("a /* x /* nested */ still */ b")),
+    ?assertEqual([{ident, a}, {ident, b}], tokens("a /* multi\nline\n*/ b")),
+    ?assertEqual({1, 3, "unterminated block comment"}, refusal("a /* x /* y */")).
 
 %% report §2.2, §11.6: with the formatter's `comments` option every
 %% ordinary comment is a token, as written, and the other tokens' spans
 %% are the same; without it there are none. Regression test.
 comment_tokens_test() ->
-    Src = <<"a // one\n/* two /* three */ */ b //// four">>,
-    {ok, With} = ern_lexer:tokenize(Src, [comments]),
+    Source = <<"a // one\n/* two /* three */ */ b //// four">>,
+    {ok, With} = ern_lexer:tokenize(Source, [comments]),
     ?assertEqual([{ident, a}, {comment, <<"// one">>}, {comment, <<"/* two /* three */ */">>},
                   {ident, b}, {comment, <<"//// four">>}, eof],
-                 [case T of {K, _, V} -> {K, V}; {K, _} -> K end || T <- With]),
-    {ok, Without} = ern_lexer:tokenize(Src),
-    ?assertEqual(Without, [T || T <- With, element(1, T) =/= comment]).
+                 [case Token of {Kind, _, Value} -> {Kind, Value}; {Kind, _} -> Kind end
+                  || Token <- With]),
+    {ok, Without} = ern_lexer:tokenize(Source),
+    ?assertEqual(Without, [Token || Token <- With, element(1, Token) =/= comment]).
 
 %% report §2.2
 doc_block_test() ->
-    ?assertEqual([{doc, <<"one\ntwo">>}, {ident, a}], toks("/// one\n/// two\na")),
+    ?assertEqual([{doc, <<"one\ntwo">>}, {ident, a}], tokens("/// one\n/// two\na")),
     ?assertEqual([{doc, <<"one">>}, {doc, <<"two">>}, {ident, a}],
-                 toks("/// one\n\n/// two\na")),
-    ?assertEqual([{doc, <<"x">>}, {ident, a}], toks("  /// x\r\n  a")),
-    ?assertEqual([{doc, <<"no space">>}], toks("///no space")),
-    ?assertEqual([{doc, <<"">>}], toks("///")).
+                 tokens("/// one\n\n/// two\na")),
+    ?assertEqual([{doc, <<"x">>}, {ident, a}], tokens("  /// x\r\n  a")),
+    ?assertEqual([{doc, <<"no space">>}], tokens("///no space")),
+    ?assertEqual([{doc, <<"">>}], tokens("///")).
 
 %% report §2.2: a `///` after a token on its line is an error, where the
 %% `///` stands; one after a block comment alone begins a doc block, and
@@ -207,10 +209,10 @@ doc_block_test() ->
 %% doc block, which documented what came after it (findings C17)
 doc_comment_after_code_test() ->
     Said = "a doc comment `///` stands on a line of its own; a note after code is written `//`",
-    ?assertEqual({1, 3, Said}, err("a /// note\nb")),
-    ?assertEqual({2, 11, Said}, err("f(\n    x, y) /// note\n")),
-    ?assertEqual([{doc, <<"doc">>}, {ident, a}], toks("/* c */ /// doc\na")),
-    ?assertEqual([{ident, a}, {ident, b}], toks("a //// ruler\nb")).
+    ?assertEqual({1, 3, Said}, refusal("a /// note\nb")),
+    ?assertEqual({2, 11, Said}, refusal("f(\n    x, y) /// note\n")),
+    ?assertEqual([{doc, <<"doc">>}, {ident, a}], tokens("/* c */ /// doc\na")),
+    ?assertEqual([{ident, a}, {ident, b}], tokens("a //// ruler\nb")).
 
 %% report §11.1 (line and column in errors)
 positions_test() ->
@@ -232,43 +234,43 @@ position_after_multiline_things_test() ->
 
 %% report §2.1
 bom_is_stripped_test() ->
-    ?assertEqual([{ident, a}], toks([16#FEFF | "a"])).
+    ?assertEqual([{ident, a}], tokens([16#FEFF | "a"])).
 
 %% report §2.1: a source is UTF-8, and bytes that are not are refused
 %% where the first of them stands. A regression test: the catalogue of
 %% diagnostics, which cannot hold such bytes, found no test that gave the
 %% error, and the release review found it placed at 1:1
 not_utf8_test() ->
-    ?assertEqual({1, 10, "input is not valid UTF-8"}, err(<<"fn f() = ", 16#FF>>)),
+    ?assertEqual({1, 10, "input is not valid UTF-8"}, refusal(<<"fn f() = ", 16#FF>>)),
     ?assertEqual({2, 2, "input is not valid UTF-8"},
-                 err(<<16#EF, 16#BB, 16#BF, "a\n\t", 16#C3, "b", 16#FF>>)).
+                 refusal(<<16#EF, 16#BB, 16#BF, "a\n\t", 16#C3, "b", 16#FF>>)).
 
 %% report §2.5
 errors_test() ->
-    ?assertEqual({1, 1, "unterminated string literal"}, err("\"abc")),
+    ?assertEqual({1, 1, "unterminated string literal"}, refusal("\"abc")),
     %% an input that ends just after a backslash; a regression test, as the
     %% one above
-    ?assertEqual({1, 2, "unterminated escape"}, err("\"\\")),
-    ?assertEqual({1, 5, "newline in string literal; use \\n"}, err("\"abc\ndef\"")),
-    ?assertEqual({1, 2, "unknown escape \\q"}, err("\"\\q\"")),
+    ?assertEqual({1, 2, "unterminated escape"}, refusal("\"\\")),
+    ?assertEqual({1, 5, "newline in string literal; use \\n"}, refusal("\"abc\ndef\"")),
+    ?assertEqual({1, 2, "unknown escape \\q"}, refusal("\"\\q\"")),
     %% a line break after a backslash is named, not printed into the message; a
     %% regression test, the catalogue of diagnostics having found it printed
-    ?assertEqual({1, 2, "a line break cannot follow `\\`; use \\n"}, err("\"\\\nx\"")),
-    ?assertEqual({1, 2, "\\u{D800} is not a Unicode scalar value"}, err("\"\\u{D800}\"")),
-    ?assertEqual({1, 2, "\\u{110000} is not a Unicode scalar value"}, err("\"\\u{110000}\"")),
+    ?assertEqual({1, 2, "a line break cannot follow `\\`; use \\n"}, refusal("\"\\\nx\"")),
+    ?assertEqual({1, 2, "\\u{D800} is not a Unicode scalar value"}, refusal("\"\\u{D800}\"")),
+    ?assertEqual({1, 2, "\\u{110000} is not a Unicode scalar value"}, refusal("\"\\u{110000}\"")),
     ?assertEqual({1, 2, "\\u{ needs one to six hex digits followed by }"},
-                 err("\"\\u{1234567}\"")),
-    ?assertEqual({1, 2, "\\u{ needs one to six hex digits"}, err("\"\\u{}\"")),
-    ?assertEqual({1, 1, "empty char literal"}, err("''")),
+                 refusal("\"\\u{1234567}\"")),
+    ?assertEqual({1, 2, "\\u{ needs one to six hex digits"}, refusal("\"\\u{}\"")),
+    ?assertEqual({1, 1, "empty char literal"}, refusal("''")),
     %% a literal of two code points is closed, and named as what it is; a
     %% regression test, the catalogue of diagnostics having found it called
     %% unterminated (findings.md's X6)
     ?assertEqual({1, 1, "a char literal holds one code point; a string is written between"
-                        " double quotes"}, err("'ab'")),
-    ?assertEqual({1, 1, "unterminated char literal"}, err("'a")),
-    ?assertEqual({1, 1, "unterminated char literal"}, err("'ab\n'")),
-    ?assertEqual({2, 3, "illegal character '@'"}, err("a\n  @")),
-    ?assertEqual({1, 1, "illegal character 'é'"}, err(<<"é"/utf8>>)).
+                        " double quotes"}, refusal("'ab'")),
+    ?assertEqual({1, 1, "unterminated char literal"}, refusal("'a")),
+    ?assertEqual({1, 1, "unterminated char literal"}, refusal("'ab\n'")),
+    ?assertEqual({2, 3, "illegal character '@'"}, refusal("a\n  @")),
+    ?assertEqual({1, 1, "illegal character 'é'"}, refusal(<<"é"/utf8>>)).
 
 %% report §11.5: a token's pos is its line, column, end, and the end of the
 %% token before it
@@ -282,27 +284,27 @@ token_spans_test() ->
 
 %% report Appendix B, guide §1
 hello_program_test() ->
-    Src = "export fn main() : Unit with Never = Io.println(\"hello, world\")",
+    Source = "export fn main() : Unit with Never = Io.println(\"hello, world\")",
     ?assertEqual([export, fn, {ident, main}, '(', ')', ':', {typename, 'Unit'}, with,
                   {typename, 'Never'}, '=', {typename, 'Io'}, '.', {ident, println}, '(',
                   {string, <<"hello, world">>}, ')'],
-                 toks(Src)).
+                 tokens(Source)).
 
 %% report §6.3
 receive_clause_test() ->
-    Src = "receive {\n    Inc(k) -> counter(n + k)\n  | after 0 -> world\n}",
+    Source = "receive {\n    Inc(k) -> counter(n + k)\n  | after 0 -> world\n}",
     ?assertEqual(['receive', '{', {typename, 'Inc'}, '(', {ident, k}, ')', '->',
                   {ident, counter}, '(', {ident, n}, '+', {ident, k}, ')', '|', 'after',
                   {int, 0}, '->', {ident, world}, '}'],
-                 toks(Src)).
+                 tokens(Source)).
 
 %% report §2.5: a raw string is a String taken as written, no escapes, and may
 %% span lines, a CR before a line break dropped
 raw_string_test() ->
-    ?assertEqual([{string, <<"\\d+\\.\\d+">>}], toks("`\\d+\\.\\d+`")),
-    ?assertEqual([{string, <<>>}], toks("``")),
-    ?assertEqual([{string, <<"say \"hi\"">>}], toks("`say \"hi\"`")),
-    ?assertEqual([{string, <<"a\nb">>}], toks("`a\nb`")),
-    ?assertEqual([{string, <<"a\nb">>}], toks("`a\r\nb`")),
+    ?assertEqual([{string, <<"\\d+\\.\\d+">>}], tokens("`\\d+\\.\\d+`")),
+    ?assertEqual([{string, <<>>}], tokens("``")),
+    ?assertEqual([{string, <<"say \"hi\"">>}], tokens("`say \"hi\"`")),
+    ?assertEqual([{string, <<"a\nb">>}], tokens("`a\nb`")),
+    ?assertEqual([{string, <<"a\nb">>}], tokens("`a\r\nb`")),
     {ok, [_, {ident, {2, 4, _, _}, _} | _]} = ern_lexer:tokenize("`a\nb` x"),
-    ?assertEqual({1, 1, "unterminated raw string"}, err("`abc")).
+    ?assertEqual({1, 1, "unterminated raw string"}, refusal("`abc")).

@@ -24,7 +24,7 @@ The Makefiles pass `VERSION` to `erlc` as a macro, which `ern_cli` prints. The E
 
 ## Tokens and AST
 
-`ern_lexer:tokenize/1` returns `{ok, [Token]}` or `{error, #diagnostic{}}`. A token is `{Category, Pos, Value}` for a literal, an `ident`, a `typename` or a `doc` block, and `{Symbol, Pos}` for an operator, a delimiter or a reserved word. `Pos` is `{Line, Column, End, Before}`, `Before` being the end of the token before. `tokenize/2` with `comments` adds each comment as `{comment, Pos, Text}`, for the formatter.
+`ern_lexer:tokenize/1` returns `{ok, [Token]}` or `{error, #diagnostic{}}`. A token is `{Category, Position, Value}` for a literal, an `ident`, a `typename` or a `doc` block, and `{Symbol, Position}` for an operator, a delimiter or a reserved word. `Position` is `{Line, Column, End, Before}`, `Before` being the end of the token before. `tokenize/2` with `comments` adds each comment as `{comment, Position, Text}`, for the formatter.
 
 `ern_parser:parse/1` takes tokens; `parse_string/1`, `parse_expr/1`, `parse_type/1` and the shell's `parse_stmt/1` are conveniences. The diagnostic of an unfinished input carries `expected`, which completion reads, and `within`, the innermost call and the argument's index, which `Shift-Tab` reads (§11.2).
 

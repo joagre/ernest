@@ -1,35 +1,37 @@
 %% Lexer for Ernest, report section 2. Input is Unicode text; output is a
-%% flat token list ending in {eof, Pos}. Every token carries a pos(): the
-%% line and column of its first character, both 1-based, columns in code
-%% points, then where it ends and where the token before it ended.
+%% flat token list ending in {eof, Position}. Every token carries a
+%% position(): the line and column of its first character, both 1-based,
+%% columns in code points, then where it ends and where the token before it
+%% ended.
 %%
 %% Tokens: {int | float | char | string | bool | ident | typename | doc,
-%% Pos, Value} and {Symbol, Pos} for reserved words, operators, and
-%% delimiters. A doc token holds a `///` block joined with "\n"; its last
-%% line is Line plus the number of "\n" in the text. With `comments`, an
-%% ordinary comment is a token {comment, Pos, Text} too (tokenize/2).
+%% Position, Value} and {Symbol, Position} for reserved words, operators,
+%% and delimiters. A doc token holds a `///` block joined with "\n"; its
+%% last line is Line plus the number of "\n" in the text. With `comments`,
+%% an ordinary comment is a token {comment, Position, Text} too
+%% (tokenize/2).
 -module(ern_lexer).
 
 -export([tokenize/1, tokenize/2]).
 
 -include_lib("utils/include/ern_diagnostic.hrl").
 
--export_type([pos/0, token/0]).
+-export_type([position/0, token/0]).
 
--type pos() :: ern_diagnostic:position().
+-type position() :: ern_diagnostic:position().
 %% line, column, the end (exclusive) as line and column, and the end of the
 %% previous token, from which the parser sets a node's end (report §11.5)
 -type token() ::
-    {int, pos(), integer()}
-  | {float, pos(), float()}
-  | {char, pos(), char()}
-  | {string, pos(), unicode:unicode_binary()}
-  | {bool, pos(), boolean()}
-  | {ident, pos(), atom()}
-  | {typename, pos(), atom()}
-  | {doc, pos(), unicode:unicode_binary()}
-  | {comment, pos(), unicode:unicode_binary()}
-  | {atom(), pos()}.
+    {int, position(), integer()}
+  | {float, position(), float()}
+  | {char, position(), char()}
+  | {string, position(), unicode:unicode_binary()}
+  | {bool, position(), boolean()}
+  | {ident, position(), atom()}
+  | {typename, position(), atom()}
+  | {doc, position(), unicode:unicode_binary()}
+  | {comment, position(), unicode:unicode_binary()}
+  | {atom(), position()}.
 
 -define(RESERVED, [type, abstract, with, foreign, match, 'when', 'receive', 'after', 'or',
                    as, 'if', then, 'else', fn, 'let', export]).
@@ -41,123 +43,141 @@
                   "+", "-", "*", "/", "%", "<", ">", "!"]).
 
 -spec tokenize(unicode:chardata()) -> {ok, [token()]} | {error, ern_diagnostic:diagnostic()}.
-tokenize(Data) ->
-    tokenize(Data, []).
+tokenize(Source) ->
+    tokenize(Source, []).
 
-%% With `comments`, every ordinary comment is a token too, `{comment, Pos,
-%% Text}` with the text as written, for the formatter (report §11.6); it
-%% moves no other token's previous end, so the parser's spans are the same.
+%% With `comments`, every ordinary comment is a token too, `{comment,
+%% Position, Text}` with the text as written, for the formatter (report
+%% §11.6); it moves no other token's previous end, so the parser's spans
+%% are the same.
 -spec tokenize(unicode:chardata(), [comments]) ->
           {ok, [token()]} | {error, ern_diagnostic:diagnostic()}.
-tokenize(Data, Options) ->
-    Keep = lists:member(comments, Options),
-    case unicode:characters_to_list(Data) of
+tokenize(Source, Options) ->
+    KeepComments = lists:member(comments, Options),
+    case unicode:characters_to_list(Source) of
         Chars when is_list(Chars) ->
-            Text = strip_bom(Chars),
-            try controls(Text, 1, 1), lex(Text, 1, 1, {1, 1}, [], Keep) of
+            Text = without_bom(Chars),
+            try refuse_controls(Text, 1, 1), lex(Text, 1, 1, {1, 1}, [], KeepComments) of
                 Tokens -> {ok, Tokens}
             catch
-                throw:{lex_error, Line, Col, Message, Incomplete} ->
-                    {error, #diagnostic{span = {Line, Col, {Line, Col + 1}}, message = Message,
-                                        incomplete = Incomplete}}
+                throw:{lex_error, Line, Column, Message, Incomplete} ->
+                    {error, #diagnostic{span = {Line, Column, {Line, Column + 1}},
+                                        message = Message, incomplete = Incomplete}}
             end;
-        {_, Good, _} ->
-            {Line, Col} = place(strip_bom(Good), 1, 1),
-            {error, #diagnostic{span = {Line, Col, {Line, Col + 1}},
+        {_, Decoded, _} ->
+            {Line, Column} = place(without_bom(Decoded), 1, 1),
+            {error, #diagnostic{span = {Line, Column, {Line, Column + 1}},
                                 message = "input is not valid UTF-8"}}
     end.
 
 %% Report §2.1: where the byte after the characters stands, the first that
 %% begins no UTF-8 character.
-place([], Line, Col) -> {Line, Col};
+place([], Line, Column) -> {Line, Column};
 place([$\n | Rest], Line, _) -> place(Rest, Line + 1, 1);
-place([_ | Rest], Line, Col) -> place(Rest, Line, Col + 1).
+place([_ | Rest], Line, Column) -> place(Rest, Line, Column + 1).
 
-strip_bom([16#FEFF | Rest]) -> Rest;
-strip_bom(Chars) -> Chars.
+without_bom([16#FEFF | Rest]) -> Rest;
+without_bom(Chars) -> Chars.
 
 %% Report §2.1: a control character but tab, line feed and carriage return
 %% is an error wherever it stands, a comment and a doc block among them,
 %% so that no source carries one to a terminal.
-controls([], _, _) ->
+refuse_controls([], _, _) ->
     ok;
-controls([$\n | R], L, _) ->
-    controls(R, L + 1, 1);
-controls([Ch | _], L, C) when Ch < 16#20, Ch =/= $\t, Ch =/= $\r;
-                              Ch >= 16#7F, Ch =< 16#9F ->
-    throw({lex_error, L, C,
+refuse_controls([$\n | Rest], Line, _) ->
+    refuse_controls(Rest, Line + 1, 1);
+refuse_controls([Char | _], Line, Column) when Char < 16#20, Char =/= $\t, Char =/= $\r;
+                                               Char >= 16#7F, Char =< 16#9F ->
+    throw({lex_error, Line, Column,
            lists:flatten(io_lib:format("control character U+~4.16.0B; a string or a character"
-                                       " literal writes it `\\u{~.16B}`", [Ch, Ch])),
+                                       " literal writes it `\\u{~.16B}`", [Char, Char])),
            false});
-controls([_ | R], L, C) ->
-    controls(R, L, C + 1).
+refuse_controls([_ | Rest], Line, Column) ->
+    refuse_controls(Rest, Line, Column + 1).
 
 %%
-%% Main loop. Acc is reversed; Prev is the end of the last token emitted.
+%% Main loop. Acc is reversed; PreviousEnd is the end of the last token
+%% emitted.
 %%
 
-lex([], L, C, Prev, Acc, _Keep) ->
-    lists:reverse([{eof, {L, C, {L, C}, Prev}} | Acc]);
-lex([$\n | R], L, _C, Prev, Acc, Keep) ->
-    lex(R, L + 1, 1, Prev, Acc, Keep);
-lex([Ch | R], L, C, Prev, Acc, Keep) when Ch =:= $\s; Ch =:= $\t; Ch =:= $\r ->
-    lex(R, L, C + 1, Prev, Acc, Keep);
+lex([], Line, Column, PreviousEnd, Acc, _KeepComments) ->
+    lists:reverse([{eof, {Line, Column, {Line, Column}, PreviousEnd}} | Acc]);
+lex([$\n | Rest], Line, _Column, PreviousEnd, Acc, KeepComments) ->
+    lex(Rest, Line + 1, 1, PreviousEnd, Acc, KeepComments);
+lex([Char | Rest], Line, Column, PreviousEnd, Acc, KeepComments)
+  when Char =:= $\s; Char =:= $\t; Char =:= $\r ->
+    lex(Rest, Line, Column + 1, PreviousEnd, Acc, KeepComments);
 %% report §2.2: `///` begins a doc comment and `////` an ordinary one
-lex("////" ++ R, L, C, Prev, Acc, Keep) ->
-    line_comment("////", R, L, C, Prev, Acc, Keep);
-lex("///" ++ R, L, C, Prev, Acc, Keep) ->
-    after_token(Acc, L) andalso
-        throw({lex_error, L, C, "a doc comment `///` stands on a line of its own;"
-                                " a note after code is written `//`", false}),
-    {Text, Rest, L1} = doc_block(R, L, []),
-    lex(Rest, L1, 1, {L1, 1}, [{doc, {L, C, {L1, 1}, Prev}, Text} | Acc], Keep);
-lex("//" ++ R, L, C, Prev, Acc, Keep) ->
-    line_comment("//", R, L, C, Prev, Acc, Keep);
-lex("/*" ++ R, L, C, Prev, Acc, Keep) ->
-    {Text, Rest, L1, C1} = block_comment(R, 1, L, C + 2, L, C, "*/"),
-    lex(Rest, L1, C1, Prev, comment(Keep, Text, {L, C, {L1, C1}, Prev}, Acc), Keep);
-lex([Ch | _] = S, L, C, Prev, Acc, Keep) when Ch >= $0, Ch =< $9 ->
-    {Kind, V, Rest, C1} = number(S, L, C),
+lex("////" ++ Rest, Line, Column, PreviousEnd, Acc, KeepComments) ->
+    lex_line_comment("////", Rest, Line, Column, PreviousEnd, Acc, KeepComments);
+lex("///" ++ Rest, Line, Column, PreviousEnd, Acc, KeepComments) ->
+    is_after_token(Acc, Line) andalso
+        throw({lex_error, Line, Column, "a doc comment `///` stands on a line of its own;"
+                                        " a note after code is written `//`", false}),
+    {Text, Rest1, EndLine} = doc_block(Rest, Line, []),
+    lex(Rest1, EndLine, 1, {EndLine, 1},
+        [{doc, {Line, Column, {EndLine, 1}, PreviousEnd}, Text} | Acc], KeepComments);
+lex("//" ++ Rest, Line, Column, PreviousEnd, Acc, KeepComments) ->
+    lex_line_comment("//", Rest, Line, Column, PreviousEnd, Acc, KeepComments);
+lex("/*" ++ Rest, Line, Column, PreviousEnd, Acc, KeepComments) ->
+    {Text, Rest1, EndLine, EndColumn} =
+        block_comment(Rest, 1, Line, Column + 2, Line, Column, "*/"),
+    Position = {Line, Column, {EndLine, EndColumn}, PreviousEnd},
+    lex(Rest1, EndLine, EndColumn, PreviousEnd,
+        with_comment(KeepComments, Text, Position, Acc), KeepComments);
+lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, KeepComments)
+  when Char >= $0, Char =< $9 ->
+    {Kind, Value, Rest, EndColumn} = number(Input, Line, Column),
     %% report §2.5: nothing word-like directly after a number
     case Rest of
         [$_ | _] ->
-            error_at(L, C1, "_ must stand between two digits");
+            error_at(Line, EndColumn, "_ must stand between two digits");
         [Next | _] ->
             case is_word_char(Next) of
-                true -> error_at(L, C1, [Next] ++ " cannot follow a number directly");
+                true -> error_at(Line, EndColumn, [Next] ++ " cannot follow a number directly");
                 false -> ok
             end;
         [] ->
             ok
     end,
-    lex(Rest, L, C1, {L, C1}, [{Kind, {L, C, {L, C1}, Prev}, V} | Acc], Keep);
-lex([$" | R], L, C, Prev, Acc, Keep) ->
-    {Chars, Rest, L1, C1} = string_body(R, L, C + 1, L, C, []),
-    lex(Rest, L1, C1, {L1, C1},
-        [{string, {L, C, {L1, C1}, Prev}, unicode:characters_to_binary(Chars)} | Acc], Keep);
-lex([$` | R], L, C, Prev, Acc, Keep) ->
+    lex(Rest, Line, EndColumn, {Line, EndColumn},
+        [{Kind, {Line, Column, {Line, EndColumn}, PreviousEnd}, Value} | Acc], KeepComments);
+lex([$" | Rest], Line, Column, PreviousEnd, Acc, KeepComments) ->
+    {Chars, Rest1, EndLine, EndColumn} = string_body(Rest, Line, Column + 1, Line, Column, []),
+    lex(Rest1, EndLine, EndColumn, {EndLine, EndColumn},
+        [{string, {Line, Column, {EndLine, EndColumn}, PreviousEnd},
+          unicode:characters_to_binary(Chars)} | Acc], KeepComments);
+lex([$` | Rest], Line, Column, PreviousEnd, Acc, KeepComments) ->
     %% report §2.5: a raw string, no escapes, may span lines
-    {Chars, Rest, L1, C1} = raw_body(R, L, C + 1, L, C, []),
-    lex(Rest, L1, C1, {L1, C1},
-        [{string, {L, C, {L1, C1}, Prev}, unicode:characters_to_binary(Chars)} | Acc], Keep);
-lex([$' | R], L, C, Prev, Acc, Keep) ->
-    {Ch, Rest, C1} = char_body(R, L, C),
-    lex(Rest, L, C1, {L, C1}, [{char, {L, C, {L, C1}, Prev}, Ch} | Acc], Keep);
-lex([Ch | _] = S, L, C, Prev, Acc, Keep) when Ch >= $a, Ch =< $z; Ch =:= $_ ->
-    {Name, Rest} = take_word(S, L, C),
-    C1 = C + length(Name),
-    lex(Rest, L, C1, {L, C1}, [word_token(Name, {L, C, {L, C1}, Prev}) | Acc], Keep);
-lex([Ch | _] = S, L, C, Prev, Acc, Keep) when Ch >= $A, Ch =< $Z ->
-    {Name, Rest} = take_word(S, L, C),
-    C1 = C + length(Name),
-    lex(Rest, L, C1, {L, C1}, [{typename, {L, C, {L, C1}, Prev}, list_to_atom(Name)} | Acc],
-        Keep);
-lex(S, L, C, Prev, Acc, Keep) ->
-    case symbol(S, ?SYMBOLS) of
-        {Sym, Rest, Len} ->
-            lex(Rest, L, C + Len, {L, C + Len}, [{Sym, {L, C, {L, C + Len}, Prev}} | Acc], Keep);
+    {Chars, Rest1, EndLine, EndColumn} = raw_body(Rest, Line, Column + 1, Line, Column, []),
+    lex(Rest1, EndLine, EndColumn, {EndLine, EndColumn},
+        [{string, {Line, Column, {EndLine, EndColumn}, PreviousEnd},
+          unicode:characters_to_binary(Chars)} | Acc], KeepComments);
+lex([$' | Rest], Line, Column, PreviousEnd, Acc, KeepComments) ->
+    {Char, Rest1, EndColumn} = char_body(Rest, Line, Column),
+    lex(Rest1, Line, EndColumn, {Line, EndColumn},
+        [{char, {Line, Column, {Line, EndColumn}, PreviousEnd}, Char} | Acc], KeepComments);
+lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, KeepComments)
+  when Char >= $a, Char =< $z; Char =:= $_ ->
+    {Name, Rest} = word(Input, Line, Column),
+    EndColumn = Column + length(Name),
+    lex(Rest, Line, EndColumn, {Line, EndColumn},
+        [word_token(Name, {Line, Column, {Line, EndColumn}, PreviousEnd}) | Acc], KeepComments);
+lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, KeepComments)
+  when Char >= $A, Char =< $Z ->
+    {Name, Rest} = word(Input, Line, Column),
+    EndColumn = Column + length(Name),
+    lex(Rest, Line, EndColumn, {Line, EndColumn},
+        [{typename, {Line, Column, {Line, EndColumn}, PreviousEnd}, list_to_atom(Name)} | Acc],
+        KeepComments);
+lex(Input, Line, Column, PreviousEnd, Acc, KeepComments) ->
+    case symbol(Input, ?SYMBOLS) of
+        {Symbol, Rest, Length} ->
+            EndColumn = Column + Length,
+            lex(Rest, Line, EndColumn, {Line, EndColumn},
+                [{Symbol, {Line, Column, {Line, EndColumn}, PreviousEnd}} | Acc], KeepComments);
         none ->
-            error_at(L, C, io_lib:format("illegal character '~ts'", [[hd(S)]]))
+            error_at(Line, Column, io_lib:format("illegal character '~ts'", [[hd(Input)]]))
     end.
 
 %%
@@ -165,75 +185,79 @@ lex(S, L, C, Prev, Acc, Keep) ->
 %%
 
 %% A `//` or `////` comment runs to the end of its line.
-line_comment(Opener, R, L, C, Prev, Acc, Keep) ->
-    {Body, Rest} = take_line(R),
+lex_line_comment(Opener, Input, Line, Column, PreviousEnd, Acc, KeepComments) ->
+    {Body, Rest} = line(Input),
     Text = Opener ++ Body,
-    End = C + length(Text),
-    lex(Rest, L, End, Prev, comment(Keep, Text, {L, C, {L, End}, Prev}, Acc), Keep).
+    End = Column + length(Text),
+    lex(Rest, Line, End, PreviousEnd,
+        with_comment(KeepComments, Text, {Line, Column, {Line, End}, PreviousEnd}, Acc),
+        KeepComments).
 
-%% Report §2.2: whether a token stands before this point on line L.
-after_token([{Kind, _, _} | Acc], L) when Kind =:= comment; Kind =:= doc ->
-    after_token(Acc, L);
-after_token([T | _], L) ->
-    {_, _, {EL, _}, _} = element(2, T),
-    EL =:= L;
-after_token([], _L) ->
+%% Report §2.2: whether a token stands before this point on the line.
+is_after_token([{Kind, _, _} | Acc], Line) when Kind =:= comment; Kind =:= doc ->
+    is_after_token(Acc, Line);
+is_after_token([Token | _], Line) ->
+    {_, _, {EndLine, _}, _} = element(2, Token),
+    EndLine =:= Line;
+is_after_token([], _Line) ->
     false.
 
-comment(true, Text, Pos, Acc) -> [{comment, Pos, unicode:characters_to_binary(Text)} | Acc];
-comment(false, _Text, _Pos, Acc) -> Acc.
+with_comment(true, Text, Position, Acc) ->
+    [{comment, Position, unicode:characters_to_binary(Text)} | Acc];
+with_comment(false, _Text, _Position, Acc) ->
+    Acc.
 
 %% Consecutive /// lines join with "\n". One space after /// is dropped.
 %% Returns the rest starting at the line after the block.
-doc_block(S, L, Lines) ->
-    S1 = case S of [$\s | R0] -> R0; _ -> S end,
-    {Line, Rest} = take_line(S1),
-    Lines1 = [Line | Lines],
-    case next_doc_line(Rest) of
-        {yes, Rest1} -> doc_block(Rest1, L + 1, Lines1);
-        no -> {unicode:characters_to_binary(lists:join($\n, lists:reverse(Lines1))),
-               after_newline(Rest), L + 1}
+doc_block(Input, Line, DocLines) ->
+    Content = case Input of [$\s | Rest] -> Rest; _ -> Input end,
+    {DocLine, Rest1} = line(Content),
+    DocLines1 = [DocLine | DocLines],
+    case next_doc_line(Rest1) of
+        {yes, Rest2} -> doc_block(Rest2, Line + 1, DocLines1);
+        no -> {unicode:characters_to_binary(lists:join($\n, lists:reverse(DocLines1))),
+               after_newline(Rest1), Line + 1}
     end.
 
-take_line(S) -> take_line(S, []).
+line(Input) -> line(Input, []).
 
-take_line([$\n | _] = R, Acc) -> {strip_cr(lists:reverse(Acc)), R};
-take_line([], Acc) -> {strip_cr(lists:reverse(Acc)), []};
-take_line([Ch | R], Acc) -> take_line(R, [Ch | Acc]).
+line([$\n | _] = Rest, Acc) -> {without_return(lists:reverse(Acc)), Rest};
+line([], Acc) -> {without_return(lists:reverse(Acc)), []};
+line([Char | Rest], Acc) -> line(Rest, [Char | Acc]).
 
-strip_cr(Line) ->
+without_return(Line) ->
     case lists:reverse(Line) of
-        [$\r | R] -> lists:reverse(R);
+        [$\r | Rest] -> lists:reverse(Rest);
         _ -> Line
     end.
 
-after_newline([$\n | R]) -> R;
-after_newline(R) -> R.
+after_newline([$\n | Rest]) -> Rest;
+after_newline(Rest) -> Rest.
 
 %% Is the next line (after optional blanks) another /// line?
-next_doc_line([$\n | R]) -> next_doc_line_start(R);
+next_doc_line([$\n | Rest]) -> next_doc_line_start(Rest);
 next_doc_line(_) -> no.
 
-next_doc_line_start([Ch | R]) when Ch =:= $\s; Ch =:= $\t; Ch =:= $\r ->
-    next_doc_line_start(R);
+next_doc_line_start([Char | Rest]) when Char =:= $\s; Char =:= $\t; Char =:= $\r ->
+    next_doc_line_start(Rest);
 next_doc_line_start("////" ++ _) -> no;
-next_doc_line_start("///" ++ R) -> {yes, R};
+next_doc_line_start("///" ++ Rest) -> {yes, Rest};
 next_doc_line_start(_) -> no.
 
 %% A block comment's text, from its `/*` to its `*/`, gathered reversed in
 %% Seen as it is read, and what follows it.
-block_comment([], _Depth, _L, _C, L0, C0, _Seen) ->
-    unfinished_at(L0, C0, "unterminated block comment");
-block_comment("*/" ++ R, 1, L, C, _L0, _C0, Seen) ->
-    {lists:reverse("/*" ++ Seen), R, L, C + 2};
-block_comment("*/" ++ R, Depth, L, C, L0, C0, Seen) ->
-    block_comment(R, Depth - 1, L, C + 2, L0, C0, "/*" ++ Seen);
-block_comment("/*" ++ R, Depth, L, C, L0, C0, Seen) ->
-    block_comment(R, Depth + 1, L, C + 2, L0, C0, "*/" ++ Seen);
-block_comment([$\n | R], Depth, L, _C, L0, C0, Seen) ->
-    block_comment(R, Depth, L + 1, 1, L0, C0, [$\n | Seen]);
-block_comment([Ch | R], Depth, L, C, L0, C0, Seen) ->
-    block_comment(R, Depth, L, C + 1, L0, C0, [Ch | Seen]).
+block_comment([], _Depth, _Line, _Column, StartLine, StartColumn, _Seen) ->
+    unfinished_at(StartLine, StartColumn, "unterminated block comment");
+block_comment("*/" ++ Rest, 1, Line, Column, _StartLine, _StartColumn, Seen) ->
+    {lists:reverse("/*" ++ Seen), Rest, Line, Column + 2};
+block_comment("*/" ++ Rest, Depth, Line, Column, StartLine, StartColumn, Seen) ->
+    block_comment(Rest, Depth - 1, Line, Column + 2, StartLine, StartColumn, "/*" ++ Seen);
+block_comment("/*" ++ Rest, Depth, Line, Column, StartLine, StartColumn, Seen) ->
+    block_comment(Rest, Depth + 1, Line, Column + 2, StartLine, StartColumn, "*/" ++ Seen);
+block_comment([$\n | Rest], Depth, Line, _Column, StartLine, StartColumn, Seen) ->
+    block_comment(Rest, Depth, Line + 1, 1, StartLine, StartColumn, [$\n | Seen]);
+block_comment([Char | Rest], Depth, Line, Column, StartLine, StartColumn, Seen) ->
+    block_comment(Rest, Depth, Line, Column + 1, StartLine, StartColumn, [Char | Seen]).
 
 %%
 %% Numbers, report §2.5: int = decimal | "0x" hexdigit {["_"] hexdigit} |
@@ -242,228 +266,237 @@ block_comment([Ch | R], Depth, L, C, L0, C0, Seen) ->
 %% column after the text, underscores counted.
 %%
 
-number([$0, P | R], L, C) when P =:= $x; P =:= $o; P =:= $b ->
-    {Base, Name} = case P of
+number([$0, Prefix | Rest], Line, Column) when Prefix =:= $x; Prefix =:= $o; Prefix =:= $b ->
+    {Base, Name} = case Prefix of
                        $x -> {16, "hexadecimal"};
                        $o -> {8, "octal"};
                        $b -> {2, "binary"}
                    end,
-    {Digits, N, R1} = digits(R, fun(Ch) -> digit_value(Ch) < Base end),
-    case {Digits, R} of
-        {[], [$_ | _]} -> error_at(L, C + 2, "_ must stand between two digits");
-        {[], _} -> error_at(L, C, [$0, P] ++ " needs a " ++ Name ++ " digit");
+    {Digits, Consumed, Rest1} = digits(Rest, fun(Char) -> digit_value(Char) < Base end),
+    case {Digits, Rest} of
+        {[], [$_ | _]} -> error_at(Line, Column + 2, "_ must stand between two digits");
+        {[], _} -> error_at(Line, Column, [$0, Prefix] ++ " needs a " ++ Name ++ " digit");
         _ -> ok
     end,
-    End = C + 2 + N,
-    case R1 of
-        [Ch | _] when Ch =/= $_ ->
-            case is_word_char(Ch) of
-                true -> error_at(L, End, [Ch] ++ " is not a " ++ Name ++ " digit");
+    End = Column + 2 + Consumed,
+    case Rest1 of
+        [Char | _] when Char =/= $_ ->
+            case is_word_char(Char) of
+                true -> error_at(Line, End, [Char] ++ " is not a " ++ Name ++ " digit");
                 false -> ok
             end;
         _ ->
             ok
     end,
-    {int, list_to_integer(Digits, Base), R1, End};
-number([$0, P | _], L, C) when P =:= $X; P =:= $O; P =:= $B ->
-    error_at(L, C, "a base prefix is lowercase: 0" ++ [P + 32]);
-number(S, L, C) ->
-    {Int, N1, R1} = digits(S, fun is_digit/1),
-    case R1 of
-        [$., D | _] when D >= $0, D =< $9 ->
-            {Frac, N2, R2} = digits(tl(R1), fun is_digit/1),
-            {Exp, N3, R3} = exponent(R2),
-            Text = Int ++ "." ++ Frac ++ Exp,
-            {float, float_value(Text, L, C), R3, C + N1 + 1 + N2 + N3};
+    {int, list_to_integer(Digits, Base), Rest1, End};
+number([$0, Prefix | _], Line, Column) when Prefix =:= $X; Prefix =:= $O; Prefix =:= $B ->
+    error_at(Line, Column, "a base prefix is lowercase: 0" ++ [Prefix + 32]);
+number(Input, Line, Column) ->
+    {Whole, WholeWidth, AfterWhole} = digits(Input, fun is_digit/1),
+    case AfterWhole of
+        [$., Digit | _] when Digit >= $0, Digit =< $9 ->
+            {Fraction, FractionWidth, AfterFraction} = digits(tl(AfterWhole), fun is_digit/1),
+            {Exponent, ExponentWidth, AfterExponent} = exponent(AfterFraction),
+            Text = Whole ++ "." ++ Fraction ++ Exponent,
+            {float, float_value(Text, Line, Column), AfterExponent,
+             Column + WholeWidth + 1 + FractionWidth + ExponentWidth};
         _ ->
-            case exponent(R1) of
+            case exponent(AfterWhole) of
                 {"", 0, _} ->
-                    {int, list_to_integer(Int), R1, C + N1};
+                    {int, list_to_integer(Whole), AfterWhole, Column + WholeWidth};
                 %% report §2.5: an exponent alone makes a float, `1e10`;
                 %% the host reads a float only with its point
-                {Exp, N3, R3} ->
-                    {float, float_value(Int ++ ".0" ++ Exp, L, C), R3, C + N1 + N3}
+                {Exponent, ExponentWidth, AfterExponent} ->
+                    {float, float_value(Whole ++ ".0" ++ Exponent, Line, Column), AfterExponent,
+                     Column + WholeWidth + ExponentWidth}
             end
     end.
 
 %% A float literal's value, rounded to the nearest Float. One that rounds
 %% beyond the largest finite Float is an error at the literal (report §2.5);
 %% one that rounds below the smallest is 0.0.
-float_value(Text, L, C) ->
+float_value(Text, Line, Column) ->
     try
         list_to_float(Text)
     catch
-        error:badarg -> error_at(L, C, "the float literal is beyond the largest finite Float")
+        error:badarg ->
+            error_at(Line, Column, "the float literal is beyond the largest finite Float")
     end.
 
-%% The digits Pred accepts, a single `_` allowed between two of them: the
-%% digits without it, the characters consumed, and the rest. An `_` that
-%% does not stand between two digits is left in the rest.
-digits(S, Pred) ->
-    digits(S, Pred, [], 0).
+%% The digits IsDigit accepts, a single `_` allowed between two of them:
+%% the digits without it, the characters consumed, and the rest. An `_`
+%% that does not stand between two digits is left in the rest.
+digits(Input, IsDigit) ->
+    digits(Input, IsDigit, [], 0).
 
-digits([$_, D | R], Pred, Acc, N) when Acc =/= [] ->
-    case Pred(D) of
-        true -> digits(R, Pred, [D | Acc], N + 2);
-        false -> {lists:reverse(Acc), N, [$_, D | R]}
+digits([$_, Digit | Rest], IsDigit, Acc, Consumed) when Acc =/= [] ->
+    case IsDigit(Digit) of
+        true -> digits(Rest, IsDigit, [Digit | Acc], Consumed + 2);
+        false -> {lists:reverse(Acc), Consumed, [$_, Digit | Rest]}
     end;
-digits([D | R] = S, Pred, Acc, N) ->
-    case Pred(D) of
-        true -> digits(R, Pred, [D | Acc], N + 1);
-        false -> {lists:reverse(Acc), N, S}
+digits([Digit | Rest] = Input, IsDigit, Acc, Consumed) ->
+    case IsDigit(Digit) of
+        true -> digits(Rest, IsDigit, [Digit | Acc], Consumed + 1);
+        false -> {lists:reverse(Acc), Consumed, Input}
     end;
-digits([], _, Acc, N) ->
-    {lists:reverse(Acc), N, []}.
+digits([], _, Acc, Consumed) ->
+    {lists:reverse(Acc), Consumed, []}.
 
-is_digit(Ch) -> digit_value(Ch) < 10.
+is_digit(Char) -> digit_value(Char) < 10.
 
-is_hex(Ch) -> digit_value(Ch) < 16.
+is_hex(Char) -> digit_value(Char) < 16.
 
-digit_value(Ch) when Ch >= $0, Ch =< $9 -> Ch - $0;
-digit_value(Ch) when Ch >= $a, Ch =< $f -> Ch - $a + 10;
-digit_value(Ch) when Ch >= $A, Ch =< $F -> Ch - $A + 10;
+digit_value(Char) when Char >= $0, Char =< $9 -> Char - $0;
+digit_value(Char) when Char >= $a, Char =< $f -> Char - $a + 10;
+digit_value(Char) when Char >= $A, Char =< $F -> Char - $A + 10;
 digit_value(_) -> 99.
 
-exponent([E, Sign, D | R]) when (E =:= $e orelse E =:= $E),
-                                (Sign =:= $+ orelse Sign =:= $-),
-                                D >= $0, D =< $9 ->
-    {Digits, N, R1} = digits([D | R], fun is_digit/1),
-    {[E, Sign | Digits], N + 2, R1};
-exponent([E, D | R]) when (E =:= $e orelse E =:= $E), D >= $0, D =< $9 ->
-    {Digits, N, R1} = digits([D | R], fun is_digit/1),
-    {[E | Digits], N + 1, R1};
-exponent(R) ->
-    {"", 0, R}.
+exponent([Marker, Sign, Digit | Rest]) when (Marker =:= $e orelse Marker =:= $E),
+                                            (Sign =:= $+ orelse Sign =:= $-),
+                                            Digit >= $0, Digit =< $9 ->
+    {Digits, Consumed, Rest1} = digits([Digit | Rest], fun is_digit/1),
+    {[Marker, Sign | Digits], Consumed + 2, Rest1};
+exponent([Marker, Digit | Rest]) when (Marker =:= $e orelse Marker =:= $E),
+                                      Digit >= $0, Digit =< $9 ->
+    {Digits, Consumed, Rest1} = digits([Digit | Rest], fun is_digit/1),
+    {[Marker | Digits], Consumed + 1, Rest1};
+exponent(Rest) ->
+    {"", 0, Rest}.
 
 %%
 %% Strings and chars. Content excludes the quote, backslash, LF, and CR.
 %%
 
-string_body([], _L, _C, L0, C0, _Acc) ->
-    error_at(L0, C0, "unterminated string literal");
-string_body([$" | R], L, C, _L0, _C0, Acc) ->
-    {lists:reverse(Acc), R, L, C + 1};
-string_body([Ch | _], L, C, _L0, _C0, _Acc) when Ch =:= $\n; Ch =:= $\r ->
-    error_at(L, C, "newline in string literal; use \\n");
-string_body([$\\ | R], L, C, L0, C0, Acc) ->
-    {Ch, R1, Len} = escape(R, L, C),
-    string_body(R1, L, C + 1 + Len, L0, C0, [Ch | Acc]);
-string_body([Ch | R], L, C, L0, C0, Acc) ->
-    string_body(R, L, C + 1, L0, C0, [Ch | Acc]).
+string_body([], _Line, _Column, StartLine, StartColumn, _Acc) ->
+    error_at(StartLine, StartColumn, "unterminated string literal");
+string_body([$" | Rest], Line, Column, _StartLine, _StartColumn, Acc) ->
+    {lists:reverse(Acc), Rest, Line, Column + 1};
+string_body([Char | _], Line, Column, _StartLine, _StartColumn, _Acc)
+  when Char =:= $\n; Char =:= $\r ->
+    error_at(Line, Column, "newline in string literal; use \\n");
+string_body([$\\ | Rest], Line, Column, StartLine, StartColumn, Acc) ->
+    {Char, Rest1, Length} = escape(Rest, Line, Column),
+    string_body(Rest1, Line, Column + 1 + Length, StartLine, StartColumn, [Char | Acc]);
+string_body([Char | Rest], Line, Column, StartLine, StartColumn, Acc) ->
+    string_body(Rest, Line, Column + 1, StartLine, StartColumn, [Char | Acc]).
 
 %% Report §2.5: everything up to the next backtick, a line break being a
 %% line feed and a carriage return before it dropped.
-raw_body([], _L, _C, L0, C0, _Acc) ->
-    unfinished_at(L0, C0, "unterminated raw string");
-raw_body([$` | R], L, C, _L0, _C0, Acc) ->
-    {lists:reverse(Acc), R, L, C + 1};
-raw_body([$\r, $\n | R], L, _C, L0, C0, Acc) ->
-    raw_body(R, L + 1, 1, L0, C0, [$\n | Acc]);
-raw_body([$\n | R], L, _C, L0, C0, Acc) ->
-    raw_body(R, L + 1, 1, L0, C0, [$\n | Acc]);
-raw_body([Ch | R], L, C, L0, C0, Acc) ->
-    raw_body(R, L, C + 1, L0, C0, [Ch | Acc]).
+raw_body([], _Line, _Column, StartLine, StartColumn, _Acc) ->
+    unfinished_at(StartLine, StartColumn, "unterminated raw string");
+raw_body([$` | Rest], Line, Column, _StartLine, _StartColumn, Acc) ->
+    {lists:reverse(Acc), Rest, Line, Column + 1};
+raw_body([$\r, $\n | Rest], Line, _Column, StartLine, StartColumn, Acc) ->
+    raw_body(Rest, Line + 1, 1, StartLine, StartColumn, [$\n | Acc]);
+raw_body([$\n | Rest], Line, _Column, StartLine, StartColumn, Acc) ->
+    raw_body(Rest, Line + 1, 1, StartLine, StartColumn, [$\n | Acc]);
+raw_body([Char | Rest], Line, Column, StartLine, StartColumn, Acc) ->
+    raw_body(Rest, Line, Column + 1, StartLine, StartColumn, [Char | Acc]).
 
-char_body([$\\ | R], L, C) ->
-    {Ch, R1, Len} = escape(R, L, C + 1),
-    close_char(Ch, R1, L, C, C + 2 + Len);
-char_body([$' | _], L, C) ->
-    error_at(L, C, "empty char literal");
-char_body([Ch | _], L, C) when Ch =:= $\n; Ch =:= $\r ->
-    error_at(L, C, "newline in char literal; use '\\n'");
-char_body([Ch | R], L, C) ->
-    close_char(Ch, R, L, C, C + 2);
-char_body([], L, C) ->
-    error_at(L, C, "unterminated char literal").
+char_body([$\\ | Rest], Line, Column) ->
+    {Char, Rest1, Length} = escape(Rest, Line, Column + 1),
+    closed_char(Char, Rest1, Line, Column, Column + 2 + Length);
+char_body([$' | _], Line, Column) ->
+    error_at(Line, Column, "empty char literal");
+char_body([Char | _], Line, Column) when Char =:= $\n; Char =:= $\r ->
+    error_at(Line, Column, "newline in char literal; use '\\n'");
+char_body([Char | Rest], Line, Column) ->
+    closed_char(Char, Rest, Line, Column, Column + 2);
+char_body([], Line, Column) ->
+    error_at(Line, Column, "unterminated char literal").
 
-close_char(Ch, [$' | R], _L, _C0, C1) -> {Ch, R, C1 + 1};
-close_char(_Ch, R, L, C0, _C1) ->
-    case closed_on_line(R) of
-        true -> error_at(L, C0, "a char literal holds one code point; a string is written "
-                                "between double quotes");
-        false -> error_at(L, C0, "unterminated char literal")
+closed_char(Char, [$' | Rest], _Line, _StartColumn, EndColumn) ->
+    {Char, Rest, EndColumn + 1};
+closed_char(_Char, Rest, Line, StartColumn, _EndColumn) ->
+    case is_closed_on_line(Rest) of
+        true -> error_at(Line, StartColumn, "a char literal holds one code point; a string is"
+                                            " written between double quotes");
+        false -> error_at(Line, StartColumn, "unterminated char literal")
     end.
 
 %% Whether a quote closes a char literal later on its line, past more than
 %% one code point.
-closed_on_line([$' | _]) -> true;
-closed_on_line([$\\, Ch | R]) when Ch =/= $\n, Ch =/= $\r -> closed_on_line(R);
-closed_on_line([Ch | _]) when Ch =:= $\n; Ch =:= $\r -> false;
-closed_on_line([_ | R]) -> closed_on_line(R);
-closed_on_line([]) -> false.
+is_closed_on_line([$' | _]) -> true;
+is_closed_on_line([$\\, Char | Rest]) when Char =/= $\n, Char =/= $\r -> is_closed_on_line(Rest);
+is_closed_on_line([Char | _]) when Char =:= $\n; Char =:= $\r -> false;
+is_closed_on_line([_ | Rest]) -> is_closed_on_line(Rest);
+is_closed_on_line([]) -> false.
 
-%% After the backslash. Returns {CodePoint, Rest, CharsConsumedAfterBackslash}.
-escape([$' | R], _L, _C) -> {$', R, 1};
-escape([$" | R], _L, _C) -> {$", R, 1};
-escape([$\\ | R], _L, _C) -> {$\\, R, 1};
-escape([$n | R], _L, _C) -> {$\n, R, 1};
-escape([$r | R], _L, _C) -> {$\r, R, 1};
-escape([$t | R], _L, _C) -> {$\t, R, 1};
-escape([$u, ${ | R], L, C) ->
-    {Hex, R1} = lists:splitwith(fun is_hex/1, R),
-    case {Hex, R1} of
-        {[], _} -> error_at(L, C, "\\u{ needs one to six hex digits");
-        {_, [$} | R2]} when length(Hex) =< 6 ->
-            Cp = list_to_integer(Hex, 16),
-            case Cp =< 16#10FFFF andalso not (Cp >= 16#D800 andalso Cp =< 16#DFFF) of
-                true -> {Cp, R2, 3 + length(Hex)};
-                false -> error_at(L, C, "\\u{" ++ Hex ++ "} is not a Unicode scalar value")
+%% After the backslash: the code point, the rest, and the characters the
+%% escape took after the backslash.
+escape([$' | Rest], _Line, _Column) -> {$', Rest, 1};
+escape([$" | Rest], _Line, _Column) -> {$", Rest, 1};
+escape([$\\ | Rest], _Line, _Column) -> {$\\, Rest, 1};
+escape([$n | Rest], _Line, _Column) -> {$\n, Rest, 1};
+escape([$r | Rest], _Line, _Column) -> {$\r, Rest, 1};
+escape([$t | Rest], _Line, _Column) -> {$\t, Rest, 1};
+escape([$u, ${ | Rest], Line, Column) ->
+    {Hex, Rest1} = lists:splitwith(fun is_hex/1, Rest),
+    case {Hex, Rest1} of
+        {[], _} -> error_at(Line, Column, "\\u{ needs one to six hex digits");
+        {_, [$} | Rest2]} when length(Hex) =< 6 ->
+            CodePoint = list_to_integer(Hex, 16),
+            case CodePoint =< 16#10FFFF
+                andalso not (CodePoint >= 16#D800 andalso CodePoint =< 16#DFFF) of
+                true -> {CodePoint, Rest2, 3 + length(Hex)};
+                false ->
+                    error_at(Line, Column, "\\u{" ++ Hex ++ "} is not a Unicode scalar value")
             end;
-        _ -> error_at(L, C, "\\u{ needs one to six hex digits followed by }")
+        _ -> error_at(Line, Column, "\\u{ needs one to six hex digits followed by }")
     end;
-escape([Ch | _], L, C) when Ch =:= $\n; Ch =:= $\r ->
-    error_at(L, C, "a line break cannot follow `\\`; use \\n");
-escape([Ch | _], L, C) ->
-    error_at(L, C, io_lib:format("unknown escape \\~ts", [[Ch]]));
-escape([], L, C) ->
-    error_at(L, C, "unterminated escape").
+escape([Char | _], Line, Column) when Char =:= $\n; Char =:= $\r ->
+    error_at(Line, Column, "a line break cannot follow `\\`; use \\n");
+escape([Char | _], Line, Column) ->
+    error_at(Line, Column, io_lib:format("unknown escape \\~ts", [[Char]]));
+escape([], Line, Column) ->
+    error_at(Line, Column, "unterminated escape").
 
 %%
 %% Words: identifiers, type names, reserved words, bool literals, wildcard.
 %%
 
 %% Report §2.3: a word is at most 255 characters long.
-take_word(S, L, C) ->
-    {Name, Rest} = lists:splitwith(fun is_word_char/1, S),
+word(Input, Line, Column) ->
+    {Name, Rest} = lists:splitwith(fun is_word_char/1, Input),
     case length(Name) =< 255 of
         true -> {Name, Rest};
-        false -> error_at(L, C, "a name is at most 255 characters long")
+        false -> error_at(Line, Column, "a name is at most 255 characters long")
     end.
 
-is_word_char(Ch) -> (Ch >= $a andalso Ch =< $z) orelse (Ch >= $A andalso Ch =< $Z)
-                    orelse (Ch >= $0 andalso Ch =< $9) orelse Ch =:= $_.
+is_word_char(Char) -> (Char >= $a andalso Char =< $z) orelse (Char >= $A andalso Char =< $Z)
+                      orelse (Char >= $0 andalso Char =< $9) orelse Char =:= $_.
 
-word_token("_", Pos) -> {'_', Pos};
-word_token("true", Pos) -> {bool, Pos, true};
-word_token("false", Pos) -> {bool, Pos, false};
-word_token(Name, Pos) ->
+word_token("_", Position) -> {'_', Position};
+word_token("true", Position) -> {bool, Position, true};
+word_token("false", Position) -> {bool, Position, false};
+word_token(Name, Position) ->
     Atom = list_to_atom(Name),
     case lists:member(Atom, ?RESERVED) of
-        true -> {Atom, Pos};
-        false -> {ident, Pos, Atom}
+        true -> {Atom, Position};
+        false -> {ident, Position, Atom}
     end.
 
 %%
 %% Symbols
 %%
 
-symbol(_S, []) ->
+symbol(_Input, []) ->
     none;
-symbol(S, [Sym | Syms]) ->
-    case lists:prefix(Sym, S) of
-        true -> {list_to_atom(Sym), lists:nthtail(length(Sym), S), length(Sym)};
-        false -> symbol(S, Syms)
+symbol(Input, [Symbol | Symbols]) ->
+    case lists:prefix(Symbol, Input) of
+        true -> {list_to_atom(Symbol), lists:nthtail(length(Symbol), Input), length(Symbol)};
+        false -> symbol(Input, Symbols)
     end.
 
 %%
 %% Errors
 %%
 
-error_at(L, C, Message) ->
-    throw({lex_error, L, C, lists:flatten(Message), false}).
+error_at(Line, Column, Message) ->
+    throw({lex_error, Line, Column, lists:flatten(Message), false}).
 
 %% Report §11.2, §2.5: a raw string and a block comment may span lines, so
 %% more input can finish one, and the diagnostic says so; a string or a
 %% char literal may not, and an unfinished one is an error whatever follows.
-unfinished_at(L, C, Message) ->
-    throw({lex_error, L, C, Message, true}).
+unfinished_at(Line, Column, Message) ->
+    throw({lex_error, Line, Column, Message, true}).

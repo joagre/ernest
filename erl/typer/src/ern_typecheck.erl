@@ -3501,7 +3501,7 @@ other_ref(Path, Name, #env{ns = Ns} = Env) ->
 
 %% A constructor as a name written at Pos, `C` or `M.C`, names it (report
 %% §4.2, §4.4): the error for one unknown or not visible here is thrown.
--spec lookup_con(ern_lexer:pos(), [atom()], atom(), env()) -> #cinfo{}.
+-spec lookup_con(ern_lexer:position(), [atom()], atom(), env()) -> #cinfo{}.
 lookup_con(Pos, [], Name, #env{local_cons = LC, cons = Cs} = Env) ->
     case LC of
         #{Name := Q} -> maps:get(Q, Cs);
