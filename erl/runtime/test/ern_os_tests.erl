@@ -171,6 +171,33 @@ write_times_out_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({'Left', 'Timeout'}, wait(written)).
 
+%% report Appendix E.23: a request answered holds no timer: a write and a
+%% read answered before their milliseconds pass are sent nothing when they
+%% pass. A regression test: each timer stayed armed until its time, and a
+%% write's then answered `Left(Timeout)` to a reply already answered
+%% (findings.md's C-1)
+answered_requests_hold_no_timer_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Program} = start(<<"cat">>, []),
+               erlang:trace(Program, true, ['receive', {tracer, Self}]),
+               Self ! {answers, {write(Program, <<"x">>, 300), read(Program, 300)}},
+               sleep(800),
+               ern_rt:kill(Program)
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({{'Right', 'Unit'}, {'Right', {'Stdout', <<"x">>}}}, wait(answers)),
+    ?assertEqual([], timeouts_traced()).
+
+%% The timeout messages a traced process received.
+timeouts_traced() ->
+    receive
+        {trace, _, 'receive', {timeout, _, _} = Timeout} -> [Timeout | timeouts_traced()];
+        {trace, _, _, _} -> timeouts_traced()
+    after 0 ->
+        []
+    end.
+
 %% report §6.9, Appendix E.23: `give` makes another process a program's
 %% owner, so that it outlives the process that started it and is killed
 %% when its new owner dies. A regression test of the rule of 2026-10-01,

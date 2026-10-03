@@ -37,6 +37,13 @@
  * environment so, since the host decodes a value that is not UTF-8 without
  * a sign.
  *
+ * In every mode the helper first makes its environment the one `ern` was
+ * started in (report Appendix E.23, §11): the launcher clears the host's
+ * flags and the host's own launcher sets four variables and the head of
+ * PATH, and bin/ern keeps each as it was given under ERN_GIVEN_ and its
+ * name, saying so with ERN_GIVEN. A program the helper runs, and the
+ * environment it writes, are then the user's and not the host's.
+ *
  * Run with the argument `remove`, the helper removes the path the runtime's
  * first frame names, 'p' and the path's bytes, a directory with everything
  * under it, and answers 'd' once it is gone, or 'f' and the name of the
@@ -51,6 +58,7 @@
 #include <poll.h>
 #include <signal.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
@@ -68,6 +76,37 @@ static pid_t program = -1;
    here so that they stay reachable until the helper ends. */
 static char *command_text = NULL;
 static char **command = NULL;
+
+/* Past the highest signal number of a host Ernest runs on; a number that
+   names no signal is refused by the host, which is all that happens. */
+#define SIGNALS 64
+
+/* Report Appendix E.23, §11: the environment as `ern` was given it. Each
+   variable the launcher kept goes back, one it found unset goes, and the
+   launcher's own names go too, so that an `ern` this program starts
+   begins as any does. Without the launcher's word, as under a test that
+   runs the helper by itself, the environment stays as it is. */
+static void given_environment(void)
+{
+    static const char *const names[] = {"PATH", "BINDIR", "EMU", "PROGNAME", "ROOTDIR",
+                                        "ERL_AFLAGS", "ERL_FLAGS", "ERL_ZFLAGS", "ERL_LIBS"};
+    size_t index;
+
+    if (getenv("ERN_GIVEN") == NULL)
+        return;
+    for (index = 0; index < sizeof names / sizeof names[0]; index++) {
+        char kept[32];
+        const char *value;
+        snprintf(kept, sizeof kept, "ERN_GIVEN_%s", names[index]);
+        value = getenv(kept);
+        if (value != NULL)
+            setenv(names[index], value, 1);
+        else
+            unsetenv(names[index]);
+        unsetenv(kept);
+    }
+    unsetenv("ERN_GIVEN");
+}
 
 /* The program and every process of its group, killed and reaped. */
 static void kill_program(void)
@@ -449,6 +488,7 @@ int main(int argc, char **argv)
     int in[2], out[2], err[2], failed[2];
     char **program_command;
 
+    given_environment();
     signal(SIGPIPE, SIG_IGN);
     if (argc < 2) {
         char **variable;
@@ -471,11 +511,14 @@ int main(int argc, char **argv)
         return not_started(errno);
     if (program == 0) {
         /* the program starts with the signals as a shell would give them:
-           an ignored SIGPIPE and a blocked signal would survive the exec */
+           a signal the host or this helper ignores, and a blocked one,
+           would survive the exec */
         sigset_t none;
+        int number;
         sigemptyset(&none);
         sigprocmask(SIG_SETMASK, &none, NULL);
-        signal(SIGPIPE, SIG_DFL);
+        for (number = 1; number <= SIGNALS; number++)
+            signal(number, SIG_DFL);
         setpgid(0, 0);
         dup2(in[0], 0);
         dup2(out[1], 1);

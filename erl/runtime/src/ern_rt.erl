@@ -418,7 +418,7 @@ ask(Address, Request, Wrap, Ms, Check) ->
                 true -> reaper;
                 false -> ask
             end,
-    Timer = erlang:send_after(Deadline, Reaper, {ask_deadline, Alias}, [{abs, true}]),
+    Timer = ask_timer(Reaper, Alias, Deadline),
     Ask = #ask{alias = Alias, asker = erlang:self(), callee = Callee, wrap = Wrap, check = Check,
                deadline = Deadline, timer = Timer, watch = Watch},
     ets:insert(?ASKS, Ask),
@@ -434,6 +434,12 @@ ask(Address, Request, Wrap, Ms, Check) ->
     end,
     deliver(Address, Request(Alias)),
     ?UNIT.
+
+%% An ask's timer, to the reaper, armed again there until the deadline has
+%% passed, since a time has no upper bound and the host's timer has one
+%% (report §6.3).
+ask_timer(Reaper, Alias, Deadline) ->
+    erlang:send_after(remaining(Deadline), Reaper, {ask_deadline, Alias}).
 
 %% Report §6.6, §6.5: wrap is applied where the answer is given, as via's
 %% function is, and a fault in it is the asker's; the message goes through
@@ -702,18 +708,40 @@ ended_by_reaper(#ask{asker = Asker} = Ask) ->
 asked(Alias, Pid, #reaper{asked = Asked} = Reaper) ->
     Reaper#reaper{asked = Asked#{Alias => erlang:monitor(process, Pid)}}.
 
-%% Report §6.6: the ask's milliseconds have passed: None goes to the asker
-%% where nothing ended the ask before, and the monitor made for it goes.
-ask_deadline(Alias, #reaper{asked = Asked} = Reaper) ->
-    Asked1 = case maps:take(Alias, Asked) of
-                 {MonitorRef, Left} ->
-                     erlang:demonitor(MonitorRef, [flush]),
-                     Left;
-                 error ->
-                     Asked
-             end,
-    lists:foreach(fun ended_by_reaper/1, ets_lookup(?ASKS, Alias)),
-    Reaper#reaper{asked = Asked1}.
+%% Report §6.6: the ask's timer fired. Where its milliseconds have passed,
+%% None goes to the asker and the monitor made for the ask goes; where the
+%% deadline is past the host's longest timer, the timer is set again; and
+%% where the ask ended before, only the monitor is left to go.
+ask_deadline(Alias, Reaper) ->
+    case ets_lookup(?ASKS, Alias) of
+        [#ask{deadline = Deadline} = Ask] ->
+            case remaining(Deadline) of
+                0 ->
+                    ended_by_reaper(Ask),
+                    released(Alias, Reaper);
+                _ ->
+                    armed_again(Alias, Deadline),
+                    Reaper
+            end;
+        [] ->
+            released(Alias, Reaper)
+    end.
+
+released(Alias, #reaper{asked = Asked} = Reaper) ->
+    case maps:take(Alias, Asked) of
+        {MonitorRef, Left} ->
+            erlang:demonitor(MonitorRef, [flush]),
+            Reaper#reaper{asked = Left};
+        error ->
+            Reaper
+    end.
+
+%% A deadline past the host's longest timer: the timer set again, in the
+%% ask's row, or let go where the ask ended meanwhile.
+armed_again(Alias, Deadline) ->
+    Timer = ask_timer(erlang:self(), Alias, Deadline),
+    ets:update_element(?ASKS, Alias, {#ask.timer, Timer})
+        orelse erlang:cancel_timer(Timer, [{async, true}, {info, false}]).
 
 %% Report §8.6, §11.2: a deadlock is the entry process's fault, or under
 %% `ern test` the fault of the test that runs.

@@ -41,6 +41,21 @@ if ! { true; } 2>/dev/null 3>&1 || ! { true; } 3>&2; then
     exit 141
 fi
 
+# Report Appendix E.23: a program's environment is the one ern was started
+# in, so what is cleared here, and what the host's own launcher sets or
+# changes, is kept as it was given under ERN_GIVEN_ and its name, which the
+# runtime's helper puts back for a program and takes away (ern_exec.c).
+for name in PATH BINDIR EMU PROGNAME ROOTDIR ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS ERL_LIBS; do
+    if eval "[ \"\${$name+set}\" = set ]"; then
+        eval "ERN_GIVEN_$name=\$$name"
+        export "ERN_GIVEN_$name"
+    else
+        unset "ERN_GIVEN_$name"
+    fi
+done
+ERN_GIVEN=1
+export ERN_GIVEN
+
 unset ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS ERL_LIBS
 
 exec erl +B -boot no_dot_erlang -noshell -noinput \

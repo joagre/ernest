@@ -666,6 +666,44 @@ os() ->
                                                       " ERN_BAD is not UTF-8">>))
       end, ["C.UTF-8", "C"]).
 
+%% report Appendix E.23, §11: a program's environment is the one ern was
+%% started in, for Os.environment and for a program it starts: the host's
+%% flags the launcher clears and what the host's own start sets or changes
+%% reach it as given; and a started program has no signal ignored. A
+%% regression test: BINDIR, EMU, PROGNAME and ROOTDIR were the host's, the
+%% host's directories led PATH, ERL_LIBS was gone, and SIGFPE was ignored
+%% (findings.md's C1-9, C1-10). Written after the code
+given_environment_test_() ->
+    {timeout, 60, fun given_environment/0}.
+
+given_environment() ->
+    SourceRoot = "build/given/src",
+    ok = filelib:ensure_path(SourceRoot),
+    Names = "[\"PATH\", \"BINDIR\", \"EMU\", \"ERL_LIBS\"]",
+    ok = file:write_file(
+           SourceRoot ++ "/given.ern",
+           ["export fn main() : Unit with Never = {\n"
+            "    List.foreach(", Names, ", fn(name) =\n"
+            "        Io.println(Optional.withDefault(Os.environment(name), \"unset\")));\n"
+            "    let script = \"echo \\\"$PATH\\\"; echo \\\"$BINDIR\\\";"
+            " echo \\\"${EMU-unset}\\\"; echo \\\"$ERL_LIBS\\\";"
+            " trap 'echo caught' FPE; kill -FPE $$; echo survived\";\n"
+            "    let command = Os.Command(program = \"sh\", arguments = [\"-c\", script],"
+            " input = <<>>);\n"
+            "    match Os.run(command, 10000) {\n"
+            "        Right(finished) ->\n"
+            "            Io.print(Optional.withDefault(String.fromUtf8(finished.stdout), \"\"))\n"
+            "      | Left(_) -> Io.println(\"not run\")\n"
+            "    }\n"
+            "}\n"]),
+    0 = build("--source-root build/given/src --build-root build/given build/given/src"),
+    %% under a shell of its own, since the host runs a command by `exec`
+    {0, Output} = sh("sh -c 'echo \"$PATH\"; unset EMU;"
+                     " BINDIR=mine ERL_LIBS=/given ../bin/ern run build/given/given.erc'"),
+    [Path | Lines] = binary:split(Output, <<"\n">>, [global, trim]),
+    Given = [Path, <<"mine">>, <<"unset">>, <<"/given">>],
+    ?assertEqual(Given ++ Given ++ [<<"caught">>, <<"survived">>], Lines).
+
 %% report §11, Appendix E.23, E.17: Os.workingDirectory is the absolute
 %% path of the directory the program was started in, a relative path
 %% given to Fs names a file under it, and ern refuses to start where the

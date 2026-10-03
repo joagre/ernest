@@ -260,6 +260,44 @@ reach(Host, Port) ->
         Error -> Error
     end.
 
+%% report Appendix E.18: a write answered holds no timer: one the socket
+%% took before its milliseconds pass is sent nothing when they pass. A
+%% regression test: the timer stayed armed and answered `Left(Timeout)` to
+%% a reply already answered (findings.md's C-1)
+answered_write_holds_no_timer_test() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listen),
+    Self = self(),
+    Peer = spawn(fun() ->
+                     {ok, Conn} = gen_tcp:accept(Listen),
+                     receive done -> gen_tcp:close(Conn) end
+                 end),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Socket} = connect(Port, 2000),
+               erlang:trace(Socket, true, ['receive', {tracer, Self}]),
+               Written = ern_rt:call_forever(Socket, fun(Reply) ->
+                                                         {'Write', <<"x">>, 300, Reply}
+                                                     end),
+               ern_rt:timed(),
+               timer:sleep(800),
+               ern_rt:untimed(),
+               Self ! {written, Written}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    Peer ! done,
+    ?assertEqual({'Right', 'Unit'}, receive {written, Answer} -> Answer after 5000 -> none end),
+    Timeouts = fun Collect() ->
+                   receive
+                       {trace, _, 'receive', Timeout}
+                         when is_tuple(Timeout), element(1, Timeout) =:= write_timeout ->
+                           [Timeout | Collect()];
+                       {trace, _, _, _} -> Collect()
+                   after 0 ->
+                       []
+                   end
+               end,
+    ?assertEqual([], Timeouts()).
+
 %% Appendix E.18: a write the far end holds back holds up no read of the
 %% socket, and the read's time limit holds. A regression test: the
 %% socket's process wrote itself, and a read behind a write that waited

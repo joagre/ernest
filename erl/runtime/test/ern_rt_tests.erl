@@ -978,6 +978,26 @@ ask_deadline_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual({{answered, 'None'}, {0, 0, 0}}, wait(ended)).
 
+%% report §6.6, §6.3: a time has no upper bound, so an ask whose milliseconds
+%% are past the host's longest timer, or past the host's clock, is answered
+%% as any is. A regression test: the timer was set at the deadline itself,
+%% which the host refuses past its clock's end, faulting the asker
+ask_long_time_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Callee = fun() -> receive {ask, Reply} -> ern_rt:answer(Reply, 7) end end,
+               Answers = [begin
+                              ern_rt:ask(ern_rt:spawn(Callee, <<"callee">>),
+                                         fun(Reply) -> {ask, Reply} end,
+                                         fun(Answer) -> {answered, Answer} end, Ms),
+                              receive Message -> Message end
+                          end || Ms <- [16#FFFFFFFF + 1000, 1 bsl 80]],
+               nap(50),
+               Self ! {answers, {Answers, ask_rows()}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({[{answered, {'Some', 7}}, {answered, {'Some', 7}}], {0, 0, 0}}, wait(answers)).
+
 %% report §6.6: None arrives at once when the callee ends before it answers,
 %% killed here
 ask_callee_killed_test() ->

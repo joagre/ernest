@@ -20,10 +20,15 @@
 %% bytes no read has taken, and whether the connection is open or closed.
 %% The host's socket is asked for bytes only while a read waits, so a
 %% program that stops reading holds the far end back.
--record(connection, {socket, writer, monitor_ref, waiting = [], buffer = <<>>, state = open}).
+-record(connection, {socket, writer, monitor_ref, waiting = [], writes = [], buffer = <<>>,
+                     state = open}).
 
 %% A read waiting: its reference, its reply, its deadline and its timer.
 -record(read, {ref, reply, deadline, timer}).
+
+%% A write the writer holds, oldest first in the connection: its reply, its
+%% deadline, and its timer, `expired` once it has answered `Left(Timeout)`.
+-record(write, {reply, deadline, timer}).
 
 %% Report §8.6: every listener and socket is linked to this process, which
 %% the runtime kills when the program ends, so none outlives it; this
@@ -259,16 +264,15 @@ socket_loop(#connection{socket = Socket, writer = Writer, monitor_ref = MonitorR
             ern_rt:answer(Reply, {'Left', 'Closed'}),
             socket_loop(Connection);
         {'Write', Bytes, Ms, Reply} ->
-            send(Writer, Bytes, Ms, Reply),
-            socket_loop(Connection);
-        {write_timeout, Reply, Deadline} ->
-            write_timed_out(Reply, Deadline),
-            socket_loop(Connection);
+            socket_loop(send(Writer, Bytes, Ms, Reply, Connection));
+        {write_timeout, Reply} ->
+            socket_loop(write_timed_out(Reply, Connection));
         {written, Sent} ->
             ern_rt:source_end(),
+            Written = written(Connection),
             case Sent of
-                {error, _} -> socket_loop(closed(Connection));
-                ok -> socket_loop(Connection)
+                {error, _} -> socket_loop(closed(Written));
+                ok -> socket_loop(Written)
             end;
         %% report Appendix E.18: another process owns the socket from now on
         {'Give', Owner} ->
@@ -305,16 +309,37 @@ socket_loop(#connection{socket = Socket, writer = Writer, monitor_ref = MonitorR
 %% behind, or `Left(Timeout)` when the milliseconds pass first, which does
 %% not undo the write: the writer's later answer is dropped as a second
 %% answer is (E.0 shape rule 8).
-send(Writer, Bytes, Ms, Reply) ->
+send(Writer, Bytes, Ms, Reply, #connection{writes = Writes} = Connection) ->
     ern_rt:source_begin(),
     Writer ! {write, Bytes, Reply},
-    write_limit(Reply, ern_rt:deadline(Ms)).
+    Deadline = ern_rt:deadline(Ms),
+    Write = #write{reply = Reply, deadline = Deadline, timer = write_limit(Reply, Deadline)},
+    Connection#connection{writes = Writes ++ [Write]}.
 
-write_timed_out(Reply, Deadline) ->
-    case ern_rt:remaining(Deadline) of
-        0 -> ern_rt:answer(Reply, {'Left', 'Timeout'});
-        _ -> write_limit(Reply, Deadline)
+%% A write's time has passed: answered `Left(Timeout)`, its place kept for
+%% the writer's word, or armed again where the deadline is past the host's
+%% longest timer; one the writer answered as its timer fired is gone.
+write_timed_out(Reply, #connection{writes = Writes} = Connection) ->
+    case lists:keyfind(Reply, #write.reply, Writes) of
+        #write{deadline = Deadline} = Write ->
+            Timer = case ern_rt:remaining(Deadline) of
+                        0 ->
+                            ern_rt:answer(Reply, {'Left', 'Timeout'}),
+                            expired;
+                        _ ->
+                            write_limit(Reply, Deadline)
+                    end,
+            Later = lists:keystore(Reply, #write.reply, Writes, Write#write{timer = Timer}),
+            Connection#connection{writes = Later};
+        false ->
+            Connection
     end.
+
+%% Report Appendix E.18: the writer has answered its oldest write, which
+%% lets go of its timer.
+written(#connection{writes = [#write{timer = Timer} | Rest]} = Connection) ->
+    Timer =:= expired orelse erlang:cancel_timer(Timer, [{async, true}, {info, false}]),
+    Connection#connection{writes = Rest}.
 
 %% Report Appendix E.18: a read is answered the bytes no read has taken, or
 %% `Left(Closed)` once the connection has closed, or else waits, counted as
@@ -377,8 +402,7 @@ arm(Ref, Deadline) ->
 
 %% A write's limit, armed again until it has passed (report §6.3).
 write_limit(Reply, Deadline) ->
-    erlang:send_after(ern_rt:remaining(Deadline), erlang:self(),
-                      {write_timeout, Reply, Deadline}).
+    erlang:send_after(ern_rt:remaining(Deadline), erlang:self(), {write_timeout, Reply}).
 
 %% Report Appendix E.18: once the connection has closed, each read waiting
 %% answers `Left(Closed)`, and so does each read after, the socket living on

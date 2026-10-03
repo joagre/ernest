@@ -99,7 +99,7 @@ starting(#{helper := Helper} = Running, Reply) ->
             killed(Running)
     end.
 
-%% Waiting: the reads that wait, oldest first, each {Reply, Ref}. Owed: the
+%% Waiting: the reads that wait, oldest first, each {Reply, Ref, Timer}. Owed: the
 %% pieces the helper owes, one asked for each read that came with nothing
 %% kept. Kept: the answers the helper gave while no read waited, which the
 %% next reads take, in order. The helper sends one piece of output for each
@@ -109,20 +109,21 @@ starting(#{helper := Helper} = Running, Reply) ->
 %% milliseconds pass, the program running on, and the piece asked for it is
 %% the next read's; a write is answered when the helper says the program has
 %% taken its bytes, `a`, or dropped them, `d`, one for each input in order,
-%% the replies kept in the program's `writes`, or `Left(Timeout)` first, which
-%% does not undo it.
+%% the replies kept in the program's `writes`, each {Reply, Timer}, or
+%% `Left(Timeout)` first, which does not undo it and leaves `none` in its
+%% place. A request answered lets go of its timer.
 running(#{helper := Helper} = Running, Waiting, Owed, Kept) ->
     receive
         {'Read', Ms, Reply} ->
             read(Ms, Reply, Running, Waiting, Owed, Kept);
         {'Write', Bytes, Ms, Reply} ->
             command(Helper, <<"i", Bytes/binary>>),
-            arm({write, Reply}, ern_rt:deadline(Ms)),
-            Writes = queue:in(Reply, maps:get(writes, Running)),
+            Timer = arm({write, Reply}, ern_rt:deadline(Ms)),
+            Writes = queue:in({Reply, Timer}, maps:get(writes, Running)),
             running(Running#{writes := Writes}, Waiting, Owed, Kept);
         {Helper, {data, <<Tag>>}} when Tag =:= $a; Tag =:= $d ->
-            {{value, WriteReply}, Rest} = queue:out(maps:get(writes, Running)),
-            WriteReply =:= none orelse ern_rt:answer(WriteReply, written(Tag)),
+            {{value, Write}, Rest} = queue:out(maps:get(writes, Running)),
+            answered_write(Write, written(Tag)),
             running(Running#{writes := Rest}, Waiting, Owed, Kept);
         'CloseInput' ->
             command(Helper, <<"e">>),
@@ -141,8 +142,11 @@ running(#{helper := Helper} = Running, Waiting, Owed, Kept) ->
             failed(Running, Waiting);
         {'DOWN', MonitorRef, process, _, _} when MonitorRef =:= map_get(monitor_ref, Running) ->
             killed(Running);
-        {timeout, _, Expired} ->
-            running(Running, timed_out(Expired, Waiting), Owed, Kept)
+        {timeout, _, {{write, Reply}, Deadline}} ->
+            Writes = write_timed_out(Reply, Deadline, maps:get(writes, Running)),
+            running(Running#{writes := Writes}, Waiting, Owed, Kept);
+        {timeout, _, {{read, Ref}, Deadline}} ->
+            running(Running, read_timed_out(Ref, Deadline, Waiting), Owed, Kept)
     end.
 
 %% A read, answered a piece kept for it, or else waiting; the helper is
@@ -154,8 +158,8 @@ read(Ms, Reply, #{helper := Helper} = Running, Waiting, Owed, Kept) ->
             told(Running, Reply, Answer, Waiting, Owed, Rest);
         {empty, _} ->
             Ref = make_ref(),
-            arm({read, Ref}, ern_rt:deadline(Ms)),
-            Waiting1 = queue:in({Reply, Ref}, Waiting),
+            Timer = arm({read, Ref}, ern_rt:deadline(Ms)),
+            Waiting1 = queue:in({Reply, Ref, Timer}, Waiting),
             case Owed > queue:len(Waiting) of
                 true -> running(Running, Waiting1, Owed, Kept);
                 false -> command(Helper, <<"n">>), running(Running, Waiting1, Owed + 1, Kept)
@@ -168,15 +172,21 @@ failed(Running, Waiting) ->
     stop(Running),
     unwritten(Running, helper_failed()),
     ern_rt:source_end(),
-    [respond(Reply, helper_failed()) || {Reply, _} <- queue:to_list(Waiting)],
+    lists:foreach(fun({Reply, _, Timer}) ->
+                      let_go(Timer),
+                      respond(Reply, helper_failed())
+                  end, queue:to_list(Waiting)),
     over(helper_failed(), Running).
 
 %% An answer of the helper's, to the oldest read that waits, or kept for the
 %% next read where none does.
 given(Running, Answer, Waiting, Owed, Kept) ->
     case queue:out(Waiting) of
-        {{value, {Reply, _}}, Rest} -> told(Running, Reply, Answer, Rest, Owed, Kept);
-        {empty, _} -> kept(Running, Answer, Waiting, Owed, queue:in(Answer, Kept))
+        {{value, {Reply, _, Timer}}, Rest} ->
+            let_go(Timer),
+            told(Running, Reply, Answer, Rest, Owed, Kept);
+        {empty, _} ->
+            kept(Running, Answer, Waiting, Owed, queue:in(Answer, Kept))
     end.
 
 %% A read answered; the exit status is the last answer, after which the
@@ -222,25 +232,53 @@ exited(Kept, #{monitor_ref := MonitorRef} = Running) ->
 %% waits, answers it too and takes it from the reads that wait. A wait
 %% longer than the host's longest timer is armed again until it has passed
 %% (report §6.3).
-timed_out({Kind, Deadline}, Waiting) ->
+write_timed_out(Reply, Deadline, Writes) ->
+    queue:from_list([case Write of
+                         {Reply, _} -> expired_write(Reply, Deadline);
+                         _ -> Write
+                     end || Write <- queue:to_list(Writes)]).
+
+expired_write(Reply, Deadline) ->
     case ern_rt:remaining(Deadline) of
-        0 -> passed(Kind, Waiting);
-        _ -> arm(Kind, Deadline), Waiting
+        0 ->
+            ern_rt:answer(Reply, {'Left', 'Timeout'}),
+            none;
+        _ ->
+            {Reply, arm({write, Reply}, Deadline)}
     end.
 
-passed({write, Reply}, Waiting) ->
-    ern_rt:answer(Reply, {'Left', 'Timeout'}),
-    Waiting;
-passed({read, Ref}, Waiting) ->
-    queue:filter(fun({Reply, ReadRef}) when ReadRef =:= Ref ->
-                         ern_rt:answer(Reply, {'Left', 'Timeout'}),
-                         false;
-                    (_) ->
-                         true
-                 end, Waiting).
+read_timed_out(Ref, Deadline, Waiting) ->
+    queue:from_list(lists:append([case Read of
+                                      {Reply, Ref, _} -> expired_read(Reply, Ref, Deadline);
+                                      _ -> [Read]
+                                  end || Read <- queue:to_list(Waiting)])).
 
+expired_read(Reply, Ref, Deadline) ->
+    case ern_rt:remaining(Deadline) of
+        0 ->
+            ern_rt:answer(Reply, {'Left', 'Timeout'}),
+            [];
+        _ ->
+            [{Reply, Ref, arm({read, Ref}, Deadline)}]
+    end.
+
+%% A request's timer, which names the request and its deadline.
 arm(Kind, Deadline) ->
     erlang:start_timer(ern_rt:remaining(Deadline), erlang:self(), {Kind, Deadline}).
+
+%% Report Appendix E.23: a request answered holds no timer. One that fired
+%% as its request was answered finds the request gone, and does nothing.
+let_go(Timer) ->
+    erlang:cancel_timer(Timer, [{async, true}, {info, false}]).
+
+%% A write the helper has answered for: its caller is answered and its timer
+%% let go. One whose time had passed was answered then, and the input given
+%% at the start has no caller.
+answered_write(none, _Answer) ->
+    ok;
+answered_write({Reply, Timer}, Answer) ->
+    let_go(Timer),
+    respond(Reply, Answer).
 
 %% A frame for the helper. A helper whose end has closed has sent its exit
 %% status first, which ends the program, so a frame after it is dropped.
@@ -256,8 +294,7 @@ written($d) -> {'Left', 'Closed'}.
 %% dropped, and each is answered that its input is closed, or why the
 %% runtime lost the program.
 unwritten(#{writes := Writes}, Answer) ->
-    [respond(Reply, Answer) || Reply <- queue:to_list(Writes), Reply =/= none],
-    ok.
+    lists:foreach(fun(Write) -> answered_write(Write, Answer) end, queue:to_list(Writes)).
 
 piece($o, Bytes) -> {'Stdout', Bytes};
 piece($r, Bytes) -> {'Stderr', Bytes}.
