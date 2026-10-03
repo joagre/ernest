@@ -451,16 +451,13 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     at rest, and a deadlock in a program long quiet found within a second. Not looking at
     all while something can deliver, by a count kept on four paths of the runtime, was
     weighed and not taken.
-27. **The supervisors load lingers**, found 2026-10-03, to diagnose before the release
-    runs `make load`: in one or two runs of ten, a sample of `test/load/supervisors.ern`
-    counts one to five host processes and as many rows above its baseline, and the load
-    fails where its last round is one. It does so with the reaper's look as it was and as
-    it is, and the program's own processes stay eight, so what lingers is the runtime's:
-    most likely deliveries of a `Down` to the supervisor still alive 300 milliseconds after
-    the round's work. The shape of the fix: a sample that lists the processes and rows
-    beyond the baseline says what they are; where they are deliveries on their way, `mark`
-    waits for them as it waits for the round's ends, and where one is held, that is the
-    runtime's defect and is fixed there.
+27. **The supervisors load lingers**, found and done 2026-10-03 (the log's *The Supervisors
+    Load Sampled at Rest*): in one or two runs of ten a sample counted a process or a few,
+    and a row, above the baseline. They were no leak but alarms on their way: each fault
+    of the load sets the groups' alarm a second on, a process of the runtime's delivers
+    each, and the sample came 300 milliseconds after the round. The extra processes were
+    gone a moment later in the same sample. The load now rests for its restart window
+    before each mark, and thirty runs in a row were flat.
 
 ## MVP 2.99c (the language argued, and a release), about three weeks
 

@@ -18,7 +18,7 @@ A load does the same work in each of fourteen rounds and calls `mark(round)`, a 
 | `alarms` | 500 times: an alarm after a millisecond and one at the time now, each taken, and a wait that times out |
 | `shell` | 101 inputs at the prompt in line mode: expressions, `let`s, a function and a type declared again under the same names, a function as a value, output, a process spawned, and `:type`, `:bindings`, `:doc` and `:faults` |
 
-`mark` gives what the round set ending, a killed process or a `Down` on its way, 200 milliseconds to end. It then waits while a process of the harness's own collects every other process's garbage, gives the host 100 milliseconds to count the heaps the collections freed, and samples:
+`mark` gives what the round set ending, a killed process or a `Down` on its way, 200 milliseconds to end. A load whose round sets work for later rests until that work is done before it marks: the supervisors' load sets an alarm for each fault, a second on, which a process of its own delivers, and waits its restart window first, since a sample that catches a delivery on its way counts a process and a row more than the node holds at rest. It then waits while a process of the harness's own collects every other process's garbage, gives the host 100 milliseconds to count the heaps the collections freed, and samples:
 
 - `memory`, the node's memory in use: what the processes and the system use, less the harness's own table and process and the words of every heap that hold nothing. The structures the host keeps for processes to come are not in use;
 - `code`, the loaded code's;

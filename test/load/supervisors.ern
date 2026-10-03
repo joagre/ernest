@@ -13,7 +13,10 @@ let rounds = 14
 
 let batch = 100
 
-let limit = RestartLimit(restarts = 1000000, within = 1000)
+// The window of the groups' restart limit, in milliseconds.
+let window = 1000
+
+let limit = RestartLimit(restarts = 1000000, within = window)
 
 let single : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne, limit))
 
@@ -42,8 +45,18 @@ fn round(number : Int) : Unit with Never =
         Unit
     else {
         work(batch);
+        rest();
         mark(number);
         round(number + 1)
+    }
+
+// Each fault of a round sets an alarm the limit's window later, which the
+// group counts its faults by (Appendix E.22), so the round rests that long
+// before it is marked: a sample counts the node at rest, and an alarm on
+// its way, delivered by a process of its own, is not at rest.
+fn rest() : Unit with Never =
+    receive {
+        after window + 100 -> Unit
     }
 
 fn work(left : Int) : Unit with Never =
