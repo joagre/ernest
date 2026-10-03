@@ -93,7 +93,9 @@ as the cheaper; item 2 given its rounds and its oracles, item 4 its bound and it
    those is a finding in the generator, the checker, the emitter or the runtime. The programs
    run in-process through the runtime's entry, as the shell runs its own, since a program of
    its own costs a quarter of a second of host start-up; the seed is printed, so a failing
-   program comes back. A machine of `make test` once it runs in its time.
+   program comes back. A machine of `make test` once it runs in its time; until then a target
+   of its own, which [`release_review.md`](release_review.md) names among its machines in the
+   commit that builds it, as it names the loads.
 4. **The type system argued.** A written argument that a well-typed program does not go wrong:
    the core calculus, then effects and mailbox types, the reply discipline's linearity as §6.6
    now states it, naming no type and a list element among the places a reply stands, and where
@@ -109,7 +111,9 @@ as the cheaper; item 2 given its rounds and its oracles, item 4 its bound and it
    item writes and names in CLAUDE.md's owners in the same commit; the report keeps the rules
    and the log the rationale by entry. Its first line names the three tests of items 1 to 3,
    which check what it argues; the tests own the machines, as every test does, and no review
-   document holds the milestone's items (decided 2026-10-03).
+   document holds the milestone's items (decided 2026-10-03). The argument is kept, not run:
+   in the same commit CLAUDE.md gains the rule that a change to a rule it covers rewrites its
+   paragraph for that rule, so it cannot go stale between full reviews; MVP 3.0 extends it.
 5. **The report in three files**: moved to MVP 2.99b, its item 24, on 2026-10-03.
 7. **What Erlang holds that Ernest can**, decided with the user 2026-10-03, after CLAUDE.md
    gained the rule that as much as can be is written in Ernest; before item 6, the
