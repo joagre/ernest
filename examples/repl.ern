@@ -185,8 +185,8 @@ fn lex(chars : List(Char), index : Int, acc : List(Token)) : Either(LexError, Li
       | ')' :: rest -> lex(rest, index + 1, CloseParen :: acc)
       | '=' :: rest -> lex(rest, index + 1, Equals :: acc)
       | '-' :: '>' :: rest -> lex(rest, index + 2, Arrow :: acc)
-      | char :: _ when char >= '0' && char <= '9' -> {
-            let #(digits, rest) = List.span(chars, fn(digit) = digit >= '0' && digit <= '9');
+      | char :: _ when Char.isAsciiDigit(char) -> {
+            let #(digits, rest) = List.span(chars, Char.isAsciiDigit);
             let value = Optional.withDefault(String.toInt(String.fromList(digits)), 0);
             lex(rest, index + List.size(digits), Number(value) :: acc)
         }

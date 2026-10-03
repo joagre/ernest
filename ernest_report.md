@@ -1485,10 +1485,11 @@ String.fromUtf8 : (Bytes) -> Optional(String) // None when the bytes are not UTF
 
 ### Appendix E.6. `char.ern` (namespace `Char`)
 
-The predicates use the Unicode properties of the code point: `isDigit` is general category Nd, `isAlpha` is category L, `isSpace` is White_Space, `isUpper` is Lu, `isLower` is Ll. `Char.compare` orders by code point; it is the prelude's, §9.6, and this module provides it (§9). The primitives are the predicates `isAlpha`, `isDigit`, `isLower`, `isSpace`, and `isUpper`, `toUpper`, `toLower`, `toString`, `toInt`, and the conversion `fromInt` makes once it has checked its code point, which is private to the module (E.0 rule 1); the rest is Ernest over them.
+The predicates use the Unicode properties of the code point: `isDigit` is general category Nd, `isAlpha` is category L, `isSpace` is White_Space, `isUpper` is Lu, `isLower` is Ll. `isAsciiDigit` is the digits `0` to `9` alone, those `String.toInt` reads (E.5). `Char.compare` orders by code point; it is the prelude's, §9.6, and this module provides it (§9). The primitives are the predicates `isAlpha`, `isDigit`, `isLower`, `isSpace`, and `isUpper`, `toUpper`, `toLower`, `toString`, `toInt`, and the conversion `fromInt` makes once it has checked its code point, which is private to the module (E.0 rule 1); the rest is Ernest over them.
 
 ```
 Char.isDigit : (Char) -> Bool
+Char.isAsciiDigit : (Char) -> Bool // one of the digits 0 to 9, those String.toInt reads (E.5)
 Char.isAlpha : (Char) -> Bool
 Char.isSpace : (Char) -> Bool
 Char.isUpper : (Char) -> Bool

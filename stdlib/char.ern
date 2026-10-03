@@ -24,6 +24,18 @@
 export foreign fn isDigit(char : Char) : Bool =
     "ern_char:is_digit/1"
 
+/// `true` for one of the digits `0` to `9`, those `String.toInt` reads;
+/// `isDigit` accepts a digit of any script.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Char.isAsciiDigit('7'), Char.isAsciiDigit('٣'), Char.isDigit('٣'))
+/// // => #(true, false, true)
+/// ```
+export fn isAsciiDigit(char : Char) : Bool =
+    char >= '0' && char <= '9'
+
 /// `true` for a letter in any script, general category L.
 export foreign fn isAlpha(char : Char) : Bool =
     "ern_char:is_alpha/1"

@@ -217,8 +217,7 @@ fn freshSessionId(connection) =
     SessionId(Int.toString(connection)) // good enough on paper
 
 fn parseSessionId(text) =
-    if !String.isEmpty(text)
-        && List.all(String.toList(text), fn(char) = char >= '0' && char <= '9') then
+    if !String.isEmpty(text) && List.all(String.toList(text), Char.isAsciiDigit) then
         Some(SessionId(text))
     else
         None

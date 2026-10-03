@@ -280,7 +280,7 @@ fn octetsOf(digits : List(Char), acc : Bytes) : Optional(Bytes) =
     }
 
 fn value(char : Char) : Optional(Int) =
-    if char >= '0' && char <= '9' then
+    if Char.isAsciiDigit(char) then
         Some(Char.toInt(char) - Char.toInt('0'))
     else if char >= 'a' && char <= 'f' then
         Some(Char.toInt(char) - Char.toInt('a') + 10)

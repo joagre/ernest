@@ -388,7 +388,7 @@ export fn toInt(text : String) : Optional(Int) =
 fn decimal(chars : List(Char)) : Optional(Int) =
     if List.isEmpty(chars) then
         None
-    else if List.all(chars, fn(char) = char >= '0' && char <= '9') then
+    else if List.all(chars, Char.isAsciiDigit) then
         toIntBase(fromList(chars), 10)
     else
         None

@@ -214,7 +214,7 @@ fn prefixExpanded(chars : List(Char), column : Int) : List(Char) =
             || char == '+'
             || char == '.'
             || char == ')'
-            || char >= '0' && char <= '9' -> char :: prefixExpanded(rest, column + 1)
+            || Char.isAsciiDigit(char) -> char :: prefixExpanded(rest, column + 1)
       | other -> other
     }
 
@@ -403,7 +403,7 @@ fn markerOf(line : String) : Optional(Marker) =
         char :: rest when char == '-' || char == '*' || char == '+' -> spaced(None, char, 1, rest)
       | chars -> {
             // a list number is ASCII digits, where `Char.isDigit` is any script's
-            let #(digits, rest) = List.span(chars, fn(char) = char >= '0' && char <= '9');
+            let #(digits, rest) = List.span(chars, Char.isAsciiDigit);
             match rest {
                 delimiter :: later when (delimiter == '.' || delimiter == ')')
                     && digits != []
@@ -942,7 +942,7 @@ fn codesAfter(chars : List(Char), codes : List(String)) : List(String) =
     match chars {
         [] -> codes
       | '\u{1b}' :: '[' :: rest -> {
-            let #(digits, beyond) = List.span(rest, fn(char) = char >= '0' && char <= '9');
+            let #(digits, beyond) = List.span(rest, Char.isAsciiDigit);
             match beyond {
                 'm' :: more -> codesAfter(more, switched(String.fromList(digits), codes))
               | _ -> codesAfter(beyond, codes)

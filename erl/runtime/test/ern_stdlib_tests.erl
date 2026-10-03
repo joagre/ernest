@@ -318,6 +318,10 @@ char_test() ->
     ?assertEqual(true, Char:isDigit($7)),
     ?assertEqual(true, Char:isDigit(16#663)),
     ?assertEqual(false, Char:isDigit($a)),
+    %% the digits String.toInt reads, and no other script's
+    ?assertEqual(true, Char:isAsciiDigit($7)),
+    ?assertEqual(false, Char:isAsciiDigit(16#663)),
+    ?assertEqual(false, Char:isAsciiDigit($a)),
     ?assertEqual(true, Char:isAlpha($z)),
     ?assertEqual(true, Char:isAlpha(16#4E2D)),
     ?assertEqual(false, Char:isAlpha($1)),
