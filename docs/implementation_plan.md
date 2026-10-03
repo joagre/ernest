@@ -133,11 +133,19 @@ as the cheaper; item 2 given its rounds and its oracles, item 4 its bound and it
    when it is built. And **the terminal's key decoding**, ECMA-48 read in `ern_tty`, the
    runtime's by E.16 and §8.2's system process; recommended: kept, since a system process
    is the runtime's own, and stated so in the log.
+8. **The full review**, decided with the user 2026-10-03: after item 7 and before item 6,
+   in place of the release review's readers for 0.3.0. [`full_review.md`](full_review.md)
+   is run whole: each of its nineteen readers and parts is a fresh agent of one workflow,
+   never a fork, given only its brief and its files, as its *How it runs* says. P and K run
+   on Fable 5.1, every other reader and part on Opus 5.5. The lists are collected into
+   `findings.md` as its *The findings* says, and the work stops there for the user to read
+   them before any finding is worked.
 6. **A release, Ernest 0.3.0**, the milestone's last item, decided with the user
    2026-10-03, with no hurry: after the machines have run and the argument is written, so
    that what is released has been generated against. The review and the release run as
-   [`release_review.md`](release_review.md) says. Item 10's launchd checks of MVP 2.99b have
-   run on a Mac by then, or the notes say that the agent has not been checked.
+   [`release_review.md`](release_review.md) says, its readers being item 8's. Item 10's
+   launchd checks of MVP 2.99b have run on a Mac by then, or the notes say that the agent has
+   not been checked.
 
 ---
 
