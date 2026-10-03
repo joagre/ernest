@@ -61,7 +61,8 @@ fn once() : Unit with Msg = {
         Ended(_) -> Unit
     };
     // a watch on the service by a process that ends before it
-    let _ = spawnMonitored(fn() : Unit with Msg = monitor(keeper, Ended), Ended);
+    let _ = spawnMonitored(fn() : Unit with Msg = monitor(Process.fromAddress(keeper), Ended),
+                           Ended);
     receive {
         Ended(_) -> Unit
     };

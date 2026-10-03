@@ -225,17 +225,23 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    file's mode and owner, and `Os` the user, so that the shell's check of a startup file is
    Ernest over `Fs` and its `foreign fn` goes. Recommended: yes, since E.0's rule 1 admits
    each, a reader who knows a file's entry looks for both there, and `Fs.setMode` sets what
-   nothing reads; about half a day. Until then the shell asks the host. `findings.md` goes when this item and items 7, 15, 19 and 20 are done, with MVP 2.99b. With it the shell's and `ern
-   test`'s `persistent_term` replaced at each input and each test, each replacement a scan of
-   every process by the host (C3-39): what changes per input or per test moves to a table, and
-   what a binding's holder keeps, which a read must not copy, is measured against a table and
-   decided with the user with the numbers. With it the reaper's sample in `make load`, which on
-   2026-10-01 read 1,472 bytes above its baseline in about one round in twenty-five of the
-   programs and the processes loads, its heap, its queue and its monitors unchanged and the next
-   round back at the baseline, so that a load fails at random when its last round is one: what
-   holds the bytes is found by sampling the reaper's `monitored_by` and its collection's figures
-   at such a round, its stack ruled out (nine words), and the measure counts what holds a wait
-   and nothing else.
+   nothing reads; about half a day. Until then the shell asks the host. `findings.md` goes when this item and items 7, 15, 19 and 20 are done, with MVP 2.99b.
+   With it, built the same day: what the shell's front end and `ern test` replaced as
+   persistent terms at each input and each test (C3-39) is rows of a table, since each
+   replacement had the host scan every process, 2 milliseconds of CPU at a hundred processes
+   and 99 at a hundred thousand; a session of 122 inputs went from 9.4 seconds of CPU to 6.6.
+   And the reaper's sample in `make load`, which read 1,472 bytes high about one round in
+   twenty where the reaper's own look for a deadlock, ten times a second, fell between its
+   collection and its reading: it is read until two readings in a row agree. `make test`
+   now builds the loads' programs, one of which had stopped compiling unseen, and the
+   benchmark.
+   **What a binding's holder keeps** is a decision of this milestone, taken with the user
+   before it closes, with the numbers in the log's entry: as a persistent term, a holder let
+   go costs the host's scan, 2 to 99 milliseconds of CPU by the processes alive, once; in a
+   table nothing is scanned, and every read of a bound name copies its value, 13
+   milliseconds for a list of a million. Recommended: kept as it is, a persistent term,
+   since a name's read must cost what a name costs. The item is done but for its two
+   decisions.
 9. **The runtime's part of running as a service**: what item 6's decisions build, and a
    stream on a full or failing device ending the program, as §8.2 says, with status 141, as
    §11.8 says. On 2026-10-02 a program whose standard error was `/dev/full` lost the line, ran

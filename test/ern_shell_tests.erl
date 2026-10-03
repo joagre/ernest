@@ -2097,13 +2097,23 @@ output_to_a_pipe() ->
                                                 " the load path">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"2 : Int">>)).
 
+%% The tests that call the front end in this host, which keeps one session
+%% for all of it: they run one after the other, where the module's tests
+%% run side by side.
+front_end_test_() ->
+    {inorder, [{"signature", fun signature/0},
+               {"fields by module", fun fields_by_module/0},
+               {"browse an effect parameter", fun browse_effect_parameter/0},
+               {"not a name", fun not_a_name/0},
+               {"load words segment", fun load_words_segment/0}]}.
+
 %% report §11.2, Appendix E.0 rule 6: `Shift-Tab`'s two answers from the
 %% front end. Inside a call, the callee's signature with its parameters as
 %% declared, in three parts around the one at the cursor, which the shell
 %% colours; the prelude's too, without
 %% names it does not declare; nothing outside a call. On a name, its page
 %% with the version it appeared in, its own or its module's
-signature_test() ->
+signature() ->
     ?assertEqual({'Some', {<<"List.map(list : List(a), ">>, <<"f : (a) -> b with e">>,
                            <<") : List(b) with e">>}},
                  ern_shell:signature(<<"List.map([1], ">>)),
@@ -2464,7 +2474,7 @@ load_refuses_stale_compiled() ->
 %% A regression test: the fields were looked up by the constructor's bare
 %% name, so a constructor another module also declares offered the fields
 %% of whichever module came first
-fields_by_module_test() ->
+fields_by_module() ->
     Dir = scratch("ern_fields_"),
     ok = file:write_file(filename:join(Dir, "circles.ern"),
                          "export type Shape = Round(radius : Int)\n"),
@@ -2493,7 +2503,7 @@ fields_by_module_test() ->
 %% effect variable. A regression test: the shell printed under the
 %% prelude's state alone, which knows no module's types, and the printer
 %% named a variable `e` only after `with`, so it was `a`
-browse_effect_parameter_test() ->
+browse_effect_parameter() ->
     Dir = scratch("ern_hooks_"),
     ok = file:write_file(filename:join(Dir, "hooks.ern"),
                          "export type H(e) = H(f : (Int) -> Unit with e)\n"
@@ -2512,7 +2522,7 @@ browse_effect_parameter_test() ->
 %% than any the host can hold among them. A regression test: `:load .`
 %% was refused as ` is not a module name`, naming nothing, and a long name
 %% raised the host's limit on a name out of the front end
-not_a_name_test() ->
+not_a_name() ->
     Long = list_to_binary(lists:duplicate(300, $a)),
     try
         ern_shell:loaded(#loaded{}),
@@ -2536,7 +2546,7 @@ not_a_name_test() ->
 %% report §4.2, §11.2: `:load WordCount` finds `word_count.ern` under the
 %% source root, a name that is not words beginning with a capital is
 %% refused, and completion names the segment from the file
-load_words_segment_test() ->
+load_words_segment() ->
     Dir = scratch("ern_words_"),
     ok = file:write_file(filename:join(Dir, "word_count.ern"), "export fn size() : Int = 2\n"),
     try
@@ -2563,7 +2573,7 @@ with_loaded(Dir, Modules) ->
 %% set it leaves none behind for the next.
 forget_session() ->
     persistent_term:erase({ern_shell, loaded}),
-    persistent_term:erase({ern_shell, session}),
+    ets:whereis(ern_shell) =/= undefined andalso ets:delete(ern_shell),
     ok.
 
 %% report §11.2: on a terminal the shell reads keys, paints what is typed,

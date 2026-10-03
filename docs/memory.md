@@ -22,7 +22,7 @@ A load does the same work in each of fourteen rounds and calls `mark(round)`, a 
 
 - `memory`, the node's memory in use: what the processes and the system use, less the harness's own table and process and the words of every heap that hold nothing. The structures the host keeps for processes to come are not in use;
 - `code`, the loaded code's;
-- `reaper`, the memory the runtime's reaper holds, which holds every wait on a process, collected again just before it is read, since a message it takes after the first collection leaves words in its heap that the next collection frees;
+- `reaper`, the memory the runtime's reaper holds, which holds every wait on a process, collected again just before it is read, since a message it takes after the first collection leaves words in its heap that the next collection frees, and read until two readings in a row agree, since the reaper wakes ten times a second to look for a deadlock (§8.6), and a look that falls between a collection and its reading leaves words that count as held;
 - `atoms`, `procs` and `ports`, the node's counts;
 - `rows`, the rows of the runtime's tables `ern_processes`, `ern_calls`, `ern_faults` and `ern_held`;
 - `terms`, the persistent terms.
@@ -36,7 +36,7 @@ A load that grew prints what grew and by how much, and `make load` fails.
 
 **The host's code.** OTP keeps an entry for each lambda of each distinct version of a module it loads, for as long as the node lives, up to a limit that stops the node. It shows as `code` that rises with every new version of a module, and not with a version loaded again. New versions come from the shell's inputs and declarations, and in MVP 3.0 from code shipped between peers; the log's *The Shell's Code Memory* has the figures and weighs it.
 
-**Atoms.** The host never frees an atom and stops a node when it has made too many, so what makes one is read for as well as counted: a running program makes none from what it is given, and the shell makes them of the text typed to it. What each costs, and why the numbers of inputs are given again, is the log's *Atoms, Counted*.
+**Atoms.** The host never frees an atom and stops a node when it has made too many, so what makes one is read for as well as counted: a running program makes none from what it is given, and the shell makes them of the inputs it runs and none of text that is typed and not run. What each costs, and why the numbers of inputs are given again, is the log's *Atoms, Counted*.
 
 ## Reading the code
 

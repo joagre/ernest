@@ -858,7 +858,11 @@ init_fun(Loaded) ->
 %% module declares them, each in a process of its own and its line printed
 %% as it ends; status 1 unless every one passed.
 run_tests(Namespace, Loaded, ErrorDevice) ->
-    Entry = tests_entry(ern_emitter:erlang_module(Namespace), self()),
+    %% the test that runs, which the reporter asks for: a row, since it
+    %% changes with each test, and the host copies its table of persistent
+    %% terms at each change of one
+    Running = ets:new(running_test, [public]),
+    Entry = tests_entry(ern_emitter:erlang_module(Namespace), self(), Running),
     Site = unicode:characters_to_binary(ern_namespace:text(Namespace) ++ ".$tests"),
     %% report §11.2: a test's own fault is its line, and every other is
     %% reported as `ern run` reports it
@@ -866,10 +870,11 @@ run_tests(Namespace, Loaded, ErrorDevice) ->
     RunOptions = reporting(#{init => init_fun(Loaded), exit => fault}, ErrorDevice),
     Report = maps:get(faults, RunOptions),
     Reporter = fun({'FaultReport', Process, _, _, _, _} = FaultReport) ->
-                   Process =:= persistent_term:get({?MODULE, test}, none)
-                       orelse Report(FaultReport)
+                   ets:member(Running, Process) orelse Report(FaultReport)
                end,
-    case ern_rt:run_main(Entry, Site, RunOptions#{faults => Reporter}) of
+    Outcome = ern_rt:run_main(Entry, Site, RunOptions#{faults => Reporter}),
+    ets:delete(Running),
+    case Outcome of
         ok ->
             receive
                 {ern_tests, true} -> 0;
@@ -881,7 +886,7 @@ run_tests(Namespace, Loaded, ErrorDevice) ->
 
 %% The entry point of a module's tests, which runs them one at a time and
 %% tells Caller whether every one passed.
-tests_entry(ErlangModule, Caller) ->
+tests_entry(ErlangModule, Caller, Running) ->
     fun() ->
         Tests = case erlang:function_exported(ErlangModule, '$tests', 0) of
                     true -> ErlangModule:'$tests'();
@@ -900,7 +905,7 @@ tests_entry(ErlangModule, Caller) ->
                               (ern_show:controls(Twice, line))/binary, "\"\n">>),
                 Caller ! {ern_tests, false};
             {_, []} ->
-                Passed = [run_test(Test) || Test <- Tests],
+                Passed = [run_test(Test, Running) || Test <- Tests],
                 Caller ! {ern_tests, not lists:member(false, Passed)}
         end
     end.
@@ -910,7 +915,7 @@ tests_entry(ErlangModule, Caller) ->
 %% it comes, and not taken for the entry process's (report §6.9). A deadlock while it
 %% runs is its fault (§11.2). Its line goes through standard output's
 %% process, after what the test wrote there; whether it passed is returned.
-run_test({'Case', Name, Run}) ->
+run_test({'Case', Name, Run}, Running) ->
     Self = ern_rt:self(),
     Ref = make_ref(),
     Pid = ern_rt:spawn_monitored(fun() -> receive {Ref, go} -> Self ! {Ref, Run()} end end,
@@ -919,7 +924,7 @@ run_test({'Case', Name, Run}) ->
     %% the reporter hears of the test's fault before this process does,
     %% so the test is known before it runs and forgotten only once its end
     %% is here
-    persistent_term:put({?MODULE, test}, Pid),
+    ets:insert(Running, {Pid}),
     Pid ! {Ref, go},
     Outcome = receive
                   {Ref, 'Passed'} -> returned(Ref, <<"passed">>);
@@ -928,7 +933,7 @@ run_test({'Case', Name, Run}) ->
                   {Ref, down, {'Down', _, Reason, _}} -> <<"faulted: ", (cause(Reason))/binary>>
               end,
     ok = ern_rt:deadlock_victim(none),
-    persistent_term:erase({?MODULE, test}),
+    ets:delete(Running, Pid),
     %% report §11.2: a test's name is written as a cause is, its controls
     %% escaped
     ern_rt:send(ern_rt:system_process(stdout),

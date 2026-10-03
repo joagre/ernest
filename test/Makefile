@@ -41,8 +41,17 @@ test: programs docs guide shell
 # it runs the areas side by side.
 beams: $(BEAMS) prepare
 
-programs: $(BEAMS) prepare
+programs: $(BEAMS) prepare measured
 	$(call EUNIT_SIDE_BY_SIDE,$(PROGRAMS))
+
+# The load programs and the benchmark, which `load` and `bench` run and no
+# test does, are built with the programs, so that a change that breaks one
+# is seen by `make test`.
+measured: prepare
+	@mkdir -p build/load build/bench
+	@for p in $(LOADS); do \
+	  ../bin/ern build --source-root load --build-root build/load load/$$p.ern || exit 1; done
+	@../bin/ern build --source-root bench --build-root build/bench bench/bench.ern
 
 docs: $(BEAMS)
 	$(call EUNIT,$(DOCS))
@@ -78,10 +87,8 @@ format: $(EBIN)/ern_style_tests.beam
 # it stayed flat, into build/load/ as well.
 LOADS = processes supervisors sockets programs files alarms
 LOAD = erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN)
-load: $(EBIN)/ern_load.beam prepare
+load: $(EBIN)/ern_load.beam measured
 	@mkdir -p build/load/home
-	@for p in $(LOADS); do \
-	  ../bin/ern build --source-root load --build-root build/load load/$$p.ern || exit 1; done
 	@$(LOAD) -eval 'ern_load:main(["inputs", "build/load/shell.in"])'
 	@status=0; \
 	for p in $(LOADS); do $(LOAD) -eval "ern_load:main([\"$$p\"])" 2>/dev/null || status=1; done; \
@@ -93,9 +100,7 @@ load: $(EBIN)/ern_load.beam prepare
 # The benchmark: bench/bench.ern built and run as a user runs a program,
 # and its times printed beside the same operations in Erlang by ern_bench;
 # not part of `test`, since it measures and asserts nothing.
-bench: $(EBIN)/ern_bench.beam prepare
-	@mkdir -p build/bench
-	@../bin/ern build --source-root bench --build-root build/bench bench/bench.ern
+bench: $(EBIN)/ern_bench.beam measured
 	@../bin/ern run build/bench/bench.erc > build/bench/ernest.txt
 	@erl -noinput -pa $(EBIN) -eval 'ern_bench:main(["build/bench/ernest.txt"])'
 
@@ -111,4 +116,4 @@ $(EBIN)/%.beam: %.erl | $(EBIN)
 $(EBIN):
 	mkdir -p $(EBIN)
 
-.PHONY: test programs docs guide shell prepare xref load bench clean
+.PHONY: test programs docs guide shell prepare measured xref load bench clean

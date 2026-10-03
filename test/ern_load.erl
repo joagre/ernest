@@ -119,27 +119,45 @@ sample(Round) ->
 %% another, a step of over a hundred kilobytes in the shell's own process.
 unused(Pid) ->
     case erlang:process_info(Pid, garbage_collection_info) of
-        undefined ->
-            0;
-        {garbage_collection_info, Info} ->
-            #{heap_block_size := Heap, heap_size := Used, stack_size := Stack,
-              old_heap_block_size := Old, old_heap_size := OldUsed} = maps:from_list(Info),
-            (Heap - Used - Stack + Old - OldUsed) * erlang:system_info(wordsize)
+        undefined -> 0;
+        {garbage_collection_info, Info} -> unused_bytes(Info)
     end.
 
+unused_bytes(Info) ->
+    #{heap_block_size := Heap, heap_size := Used, stack_size := Stack,
+      old_heap_block_size := Old, old_heap_size := OldUsed} = maps:from_list(Info),
+    (Heap - Used - Stack + Old - OldUsed) * erlang:system_info(wordsize).
+
 %% The memory the runtime's reaper holds, which holds every wait on a
-%% process (report §6.9). It is collected again just before it is read: a
+%% process (report §6.9), read just after a collection of its own: a
 %% message it took after the collection of every process leaves words in
-%% its heap that the next collection frees.
+%% its heap that the next collection frees. The reaper also wakes ten times
+%% a second to look for a deadlock (report §8.6). A look that falls between
+%% the collection and the reading leaves 184 words that count as held, and
+%% one the collection falls into holds its own work; that was one reading
+%% in twenty, and a load failed where its last was one. So the reaper is
+%% read until two readings in a row agree: the looks are a tenth of a
+%% second apart, and no two of them disturb two readings alike.
 reaper_memory() ->
     case persistent_term:get({ern_rt, reaper}, none) of
-        none ->
-            0;
-        Pid ->
-            erlang:garbage_collect(Pid),
-            {memory, Memory} = erlang:process_info(Pid, memory),
-            Memory - unused(Pid)
+        none -> 0;
+        Pid -> settled(Pid, collected(Pid), 8)
     end.
+
+settled(Pid, Reading, Tries) ->
+    case collected(Pid) of
+        Reading -> Reading;
+        Other when Tries > 0 -> settled(Pid, Other, Tries - 1);
+        Other -> min(Reading, Other)
+    end.
+
+%% What a process holds once collected, its memory and its heaps' unused
+%% words read as one, so that nothing it does comes between them.
+collected(Pid) ->
+    erlang:garbage_collect(Pid),
+    [{memory, Memory}, {garbage_collection_info, Info}] =
+        erlang:process_info(Pid, [memory, garbage_collection_info]),
+    Memory - unused_bytes(Info).
 
 rows(Table) ->
     case ets:info(Table, size) of

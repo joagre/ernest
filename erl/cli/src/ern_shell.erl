@@ -57,10 +57,37 @@
 -record(startup_input, {file, line, column}).
 
 %% Report §11.2: what the runner loaded before the shell started, which the
-%% shell begins from.
+%% shell begins from. What is set once, or by a command alone, is a
+%% persistent term, which a read does not copy: what the runner loaded, the
+%% screen, where output goes. What changes as inputs run is a row of a
+%% table the runner owns, made here: the host scans every process when a
+%% persistent term is replaced, and what an input costs does not grow with
+%% the processes the session has. Its rows are the session as it stands
+%% (keep_session/1), the input numbers free to give again and the inputs
+%% not yet purged (release/3), what each session module needs (uses/0), and
+%% each input's name (input_site/2).
 -spec loaded(#loaded{}) -> ok.
 loaded(Loaded) ->
-    persistent_term:put({?MODULE, loaded}, Loaded).
+    persistent_term:put({?MODULE, loaded}, Loaded),
+    %% the table of an earlier loading goes, where a host loads again, so
+    %% that this one is the caller's own and lasts as long as it does
+    try ets:delete(?MODULE) catch error:badarg -> true end,
+    ?MODULE = ets:new(?MODULE, [named_table, public]),
+    ok.
+
+%% A row of the front end's table, and Default where there is none, or no
+%% table, nothing having been loaded.
+kept(Key, Default) ->
+    try ets:lookup(?MODULE, Key) of
+        [{_, Value}] -> Value;
+        [] -> Default
+    catch
+        error:badarg -> Default
+    end.
+
+keep(Key, Value) ->
+    ets:insert(?MODULE, {Key, Value}),
+    Value.
 
 -spec start() -> #session{}.
 start() ->
@@ -78,8 +105,10 @@ start() ->
 %% declarations join the session when it has run, not when it is checked,
 %% so this is set in both places.
 keep_session(Session) ->
-    persistent_term:put({?MODULE, session}, Session),
-    Session.
+    keep(session, Session).
+
+kept_session() ->
+    kept(session, #session{}).
 
 %% Report §11.2, §8.1: the file's entry point, spawned beside the prompt and
 %% not entered, and nothing where the shell was started with no file. A
@@ -157,7 +186,7 @@ check(#session{last_input = LastInput} = Session, Origin, Input) ->
              end,
     %% an input takes the number of one whose module was unloaded, whose
     %% name is an atom already, before a new one (report §2.3)
-    {Namespace, LastInput1} = case persistent_term:get({?MODULE, free_inputs}, []) of
+    {Namespace, LastInput1} = case free_inputs() of
                                   [Free | _] -> {Free, LastInput};
                                   [] -> {input_namespace(LastInput + 1), LastInput + 1}
                               end,
@@ -462,7 +491,7 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
     Build = #{source_hash => <<>>, deps => [], session_offset => Offset},
     {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
     {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
-    set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) -- [Namespace]),
+    keep(free_inputs, free_inputs() -- [Namespace]),
     record_uses(ErlangModule, Beam, Checked),
     %% report §11.2: an input that declares keeps its module for `:doc`;
     %% an expression's has no documentation, and is not kept
@@ -507,7 +536,8 @@ record_uses(ErlangModule, Beam, #checked{namespace = Namespace, typed = Typed,
     Keys = [{ErlangModule, ern_emitter:function_name(undefined, Name)}
             || #let_declaration{name = Name} <- Typed],
     set_uses(maps:put(ErlangModule, {Namespace, lists:usort(Calls ++ Named), Keys}, uses())),
-    set_names(maps:put(ErlangModule, InputName, names_of_inputs())).
+    keep({input_name, ErlangModule}, InputName),
+    ok.
 
 %% An input that declares nothing, an expression or a `let`, is done with
 %% its module once it has its answer, unless what it bound holds one of the
@@ -518,7 +548,7 @@ record_uses(ErlangModule, Beam, #checked{namespace = Namespace, typed = Typed,
 %% collected/1 lets it go.
 release(Namespace, Binds, Outcome) ->
     ErlangModule = ern_emitter:erlang_module(Namespace),
-    Pending = persistent_term:get({?MODULE, unpurged}, []),
+    Pending = kept(unpurged, []),
     Purgeable = fun(Unpurged) -> code:soft_purge(ern_emitter:erlang_module(Unpurged)) end,
     {Purged, Unpurged} = lists:partition(Purgeable, Pending),
     Now = case {Binds, Outcome} of
@@ -534,19 +564,19 @@ release(Namespace, Binds, Outcome) ->
                unpurged -> [Namespace | Unpurged];
                _ -> Unpurged
            end,
-    Left =/= Pending andalso persistent_term:put({?MODULE, unpurged}, Left),
+    keep(unpurged, Left),
     %% report §2.3: an unloaded input's number, and so its name's atoms, are
     %% given to the next input
     Freed = Purged ++ [Namespace || Now =:= purged],
-    Freed =/= [] andalso
-        set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) ++ Freed),
+    keep(free_inputs, free_inputs() ++ Freed),
     %% report §11.2: an input purged reads no holder again
-    set_uses(maps:without([ern_emitter:erlang_module(FreedInput) || FreedInput <- Freed], uses())),
+    forget_uses([ern_emitter:erlang_module(FreedInput) || FreedInput <- Freed]),
     ok.
 
-set_free_inputs(Free) ->
-    persistent_term:get({?MODULE, free_inputs}, []) =/= Free
-        andalso persistent_term:put({?MODULE, free_inputs}, Free).
+%% Report §2.3: the numbers of the inputs whose modules were unloaded,
+%% given again before a new one.
+free_inputs() ->
+    kept(free_inputs, []).
 
 %% Deleted, and purged unless a process still runs it.
 unload(ErlangModule) ->
@@ -675,7 +705,7 @@ slot_for(#expected_field{kind = field_or_pattern, namespace = Namespace,
 %% Report §11.2: each as a `Shell.Complete.Name`, listed with its type, the
 %% constructor's parameter in the field's place, both in declared order.
 fields_of(Namespace, ConstructorName, Segments) ->
-    Session = persistent_term:get({?MODULE, session}, #session{}),
+    Session = kept_session(),
     Written = named_constructor(Session, Namespace, ConstructorName),
     case along_path(Written, Segments, Session) of
         {ok, #constructor_info{fields = {named, Fields},
@@ -727,7 +757,7 @@ one_constructor(QualifiedName, #session{interfaces = Interfaces}) ->
 %% reading of the interfaces is the host's; the matching is Ernest's.
 -spec names() -> [{'Name', binary(), atom(), binary()}].
 names() ->
-    names(persistent_term:get({?MODULE, session}, #session{})).
+    names(kept_session()).
 
 names(#session{interfaces = Interfaces, scope = Scope} = Session) ->
     TypeState = session_type_state(Session),
@@ -785,7 +815,7 @@ constructor_scheme(QualifiedName, #session{interfaces = Interfaces}) ->
 %% session declares; a member goes with its type.
 -spec session_names() -> [{'Name', binary(), atom(), binary()}].
 session_names() ->
-    #session{scope = Scope} = Session = persistent_term:get({?MODULE, session}, #session{}),
+    #session{scope = Scope} = Session = kept_session(),
     TypeState = session_type_state(Session),
     lists:usort([name('Value', name_text(Key),
                       scheme_line(name_text(Key), QualifiedName, Session, TypeState))
@@ -799,7 +829,7 @@ session_names() ->
 %% nothing typed, these and the modules are what completion lists.
 -spec session_texts() -> [binary()].
 session_texts() ->
-    #session{scope = Scope} = persistent_term:get({?MODULE, session}, #session{}),
+    #session{scope = Scope} = kept_session(),
     lists:usort([unicode:characters_to_binary(name_text(Key))
                  || Which <- [values, types, constructors],
                     Key <- maps:keys(maps:get(Which, Scope, #{}))]).
@@ -807,7 +837,7 @@ session_texts() ->
 %% Report §11.2: where `:load` finds a module's source, `--source-root`.
 -spec source_root() -> binary().
 source_root() ->
-    #session{source_root = SourceRoot} = persistent_term:get({?MODULE, session}, #session{}),
+    #session{source_root = SourceRoot} = kept_session(),
     unicode:characters_to_binary(SourceRoot).
 
 %% Report §11.1, §4.2: the namespace segment a file or directory of the
@@ -1077,7 +1107,7 @@ page(Session, Text) ->
 %% session the front end keeps rather than asking the session.
 -spec documentation(binary()) -> 'None' | {'Some', binary()}.
 documentation(Text) ->
-    Session = persistent_term:get({?MODULE, session}, #session{}),
+    Session = kept_session(),
     case page(Session, Text) of
         {ok, Page, Segments} ->
             %% Appendix E.0 rule 6: a declaration without a `since` of its
@@ -1125,7 +1155,7 @@ prelude_or_none(Segments) ->
 %% each listed with its type. A namespace checks as no value and has none.
 -spec fields(binary()) -> [{'Name', binary(), 'Value', binary()}].
 fields(Before) ->
-    Session = persistent_term:get({?MODULE, session}, #session{}),
+    Session = kept_session(),
     case string:split(Before, ".", trailing) of
         [Head, _] when Head =/= <<>> ->
             maybe
@@ -1167,7 +1197,7 @@ signature(Before) ->
     end.
 
 call_signature(Namespace, Name, Argument) ->
-    Session = persistent_term:get({?MODULE, session}, #session{}),
+    Session = kept_session(),
     Text = unicode:characters_to_binary(ern_namespace:text(Namespace ++ [Name])),
     %% a callee that does not check, a name not in scope, has none, and
     %% neither has one whose declaration the checker does not hold or whose
@@ -1219,7 +1249,7 @@ declared_scheme(#session{interfaces = Interfaces, scope = Scope}, Text) ->
 %% Report §11.2: a constructor's fields, as a signature, the one whose
 %% value is at the cursor marked, and none where a field's name stands.
 constructor_signature(Namespace, Name, Argument) ->
-    Session = persistent_term:get({?MODULE, session}, #session{}),
+    Session = kept_session(),
     case named_constructor(Session, Namespace, Name) of
         {ok, #constructor_info{fields = Fields,
                                scheme = #scheme{type = {tfn, Params, _, _}} = Scheme}} ->
@@ -2311,7 +2341,7 @@ collect(Session) ->
 collected(#session{interfaces = Interfaces, scope = Scope, beams = Beams, free_holders = Free,
                    draining = Draining} = Session) ->
     Uses = uses(),
-    Unpurged = persistent_term:get({?MODULE, unpurged}, []),
+    Unpurged = kept(unpurged, []),
     Old = [ern_emitter:erlang_module(Namespace) || Namespace <- Unpurged]
         ++ [ern_emitter:erlang_module([Segment]) || Segment <- Draining],
     Named = [ern_emitter:erlang_module([hd(QualifiedName)])
@@ -2330,12 +2360,10 @@ collected(#session{interfaces = Interfaces, scope = Scope, beams = Beams, free_h
     {InputsPurged, InputsHeld} = lists:partition(Purgeable, Unpurged ++ DeadInputs),
     [persistent_term:erase(Key) || Namespace <- [[Segment] || Segment <- Purged] ++ InputsPurged,
                                    {Key, _} <- stored(ern_emitter:erlang_module(Namespace))],
-    InputsHeld =/= Unpurged andalso persistent_term:put({?MODULE, unpurged}, InputsHeld),
-    InputsPurged =/= [] andalso
-        set_free_inputs(persistent_term:get({?MODULE, free_inputs}, []) ++ InputsPurged),
-    set_uses(maps:without([ern_emitter:erlang_module(Namespace)
-                           || Namespace <- [[Segment] || Segment <- Purged] ++ InputsPurged],
-                          Uses)),
+    keep(unpurged, InputsHeld),
+    keep(free_inputs, free_inputs() ++ InputsPurged),
+    forget_uses([ern_emitter:erlang_module(Namespace)
+                 || Namespace <- [[Segment] || Segment <- Purged] ++ InputsPurged]),
     Kept = [Interface || #interface{namespace = Namespace} = Interface <- Interfaces,
                          not lists:member(Namespace, Dead)],
     Session#session{interfaces = Kept,
@@ -2399,25 +2427,27 @@ session_module(ErlangModule) ->
 %% interface names, and whose functions its values hold, and the keys its
 %% top-level bindings are stored under.
 uses() ->
-    persistent_term:get({?MODULE, uses}, #{}).
+    kept(uses, #{}).
 
 set_uses(Uses) ->
-    uses() =/= Uses andalso persistent_term:put({?MODULE, uses}, Uses),
-    set_names(maps:with(maps:keys(Uses), names_of_inputs())).
+    keep(uses, Uses).
+
+%% The modules let go: what each needed, and an input's name, which goes
+%% with its uses.
+forget_uses(ErlangModules) ->
+    set_uses(maps:without(ErlangModules, uses())),
+    lists:foreach(fun(ErlangModule) -> ets:delete(?MODULE, {input_name, ErlangModule}) end,
+                  ErlangModules).
 
 %% Report §6.9, §11.2: the site of a spawn an input's expression makes, the
 %% input's name as its diagnostics give it, `input 3`, and the line. The
 %% name is kept beside the module's uses and goes with them, since the
-%% module's number is given to a later input once it is purged.
+%% module's number is given to a later input once it is purged. It is a
+%% row of its own, since every spawn of the input reads it.
 -spec input_site(atom(), pos_integer()) -> binary().
 input_site(ErlangModule, Line) ->
-    <<(maps:get(ErlangModule, names_of_inputs()))/binary, ":", (integer_to_binary(Line))/binary>>.
-
-names_of_inputs() ->
-    persistent_term:get({?MODULE, input_names}, #{}).
-
-set_names(Names) ->
-    names_of_inputs() =/= Names andalso persistent_term:put({?MODULE, input_names}, Names).
+    InputName = ets:lookup_element(?MODULE, {input_name, ErlangModule}, 2),
+    <<InputName/binary, ":", (integer_to_binary(Line))/binary>>.
 
 %% Report §11.2: the session is a scope of its own. The interface behind an
 %% input joins the ones the checker is given, and what it declares joins the

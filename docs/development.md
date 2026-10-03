@@ -92,7 +92,8 @@ make test-guide   the guide's examples, the report's, the README's, and the cata
                   diagnostics
 make test-shell   the shell's sessions and the terminal
 make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
-make load         the loads of docs/memory.md; not part of make test
+make load         the loads of docs/memory.md; not part of make test, which builds
+                  their programs and the benchmark's
 make bench        what each of a few operations costs in Ernest beside the same
                   operation in Erlang, in nanoseconds; not part of make test
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
