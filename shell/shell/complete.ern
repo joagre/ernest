@@ -46,7 +46,17 @@ export fn completion(line : String, cursor : Int) : #(Completion, String) with m
         #(argument(line, cursor, typedWord), typedWord)
     else {
         let before = String.slice(line, 0, cursor - String.size(typedWord));
-        #(complete(typedWord, namesFor(typedWord), slot(before)), typedWord)
+        match #(slot(before), String.lastIndexOf(typedWord, ".")) {
+            #(Fields(_), Some(dot)) -> {
+                // report §5.6, §11.2: in a record update the segments before
+                // the last dot are a path's, which the parser reads, and the
+                // segment after it is the word
+                let segment = String.slice(typedWord, dot + 1, String.size(typedWord) - dot - 1);
+                let through = String.slice(line, 0, cursor - String.size(segment));
+                #(complete(segment, [], slot(through)), segment)
+            }
+          | #(found, _) -> #(complete(typedWord, namesFor(typedWord), found), typedWord)
+        }
     }
 }
 

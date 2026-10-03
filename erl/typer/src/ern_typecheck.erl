@@ -2479,6 +2479,14 @@ filled(#e_constructor{path = Path, name = Name, base = Base} = Expr, Namespace, 
        FieldTypes, Constructed, FieldSets, Env) ->
     BaseSpan = ern_ast:span(Base),
     Written = ern_namespace:text(Path ++ [Name]) ++ "(.." ++ ern_namespace:text(Namespace) ++ ")",
+    %% report §5.6: a path updates a value, which a namespace is not
+    lists:foreach(fun(#field_set{span = SetSpan, name = Field, path = [_ | _] = Rest}) ->
+                          fail(SetSpan, "`" ++ path_text([Field | Rest]) ++ "` is a path, which"
+                                        " updates a value, and `.." ++ ern_namespace:text(Namespace)
+                                        ++ "` names a namespace");
+                     (_) ->
+                          ok
+                  end, FieldSets),
     Given = [Field || #field_set{name = Field} <- FieldSets],
     Missing = [Field || Field <- Names, not lists:member(Field, Given)],
     {Filled, Env1} = lists:mapfoldl(fun(Field, Acc) ->
@@ -2503,6 +2511,152 @@ fill_field(Span, Written, Namespace, Field, Env) ->
             fail(Span, Written ++ " lacks " ++ atom_to_list(Field) ++ ": "
                        ++ ern_namespace:text(Namespace) ++ " has no " ++ atom_to_list(Field))
     end.
+
+%%
+%% A path in a record update (report §5.6)
+%%
+
+%% Report §5.6: `Pool(..pool, stats.indexed = e)` is `Pool(..pool, stats =
+%% Stats(..pool.stats, indexed = e))`, the base and each value bound once,
+%% in source order, before the construction reads them (§5.1); each type
+%% along a path has one constructor with the named field. The bindings
+%% take names no program spells (§2.3).
+updated_through_paths(#e_constructor{span = Span, name = Name} = Expr, Names, FieldTypes,
+                      Constructed, Base, FieldSets, Env) ->
+    lists:foreach(fun(#field_set{span = SetSpan, name = FieldName}) ->
+                      lists:member(FieldName, Names)
+                          orelse fail(SetSpan, atom_to_list(Name) ++ " has no field "
+                                               ++ atom_to_list(FieldName))
+                  end, FieldSets),
+    no_path_covers_another(FieldSets),
+    {TypedBase, BaseType, Env1} = infer(Base, Env),
+    Label = {constructor_name_span(Expr),
+             "a constructor of " ++ ern_types:format(Constructed, Env1#env.type_state)},
+    Env2 = unify_at(ern_ast:span(Base), Constructed, BaseType, Env1,
+                    "the base of `..` must have the constructor's type", Label),
+    BaseSpan = ern_ast:span(Base),
+    Env3 = bind_locals([{'$base', BaseType}], Env2),
+    {Bound, Env4} = lists:mapfoldl(fun bound_value/2, Env3, lists:enumerate(FieldSets)),
+    Bindings = [binding('$base', BaseSpan, TypedBase, BaseType)
+                | [Binding || {_, {Binding, _}} <- Bound, Binding =/= none]],
+    Sets = [{FieldName, Path, ValueName, SetSpan}
+            || {#field_set{span = SetSpan, name = FieldName, path = Path}, {_, ValueName}}
+                   <- Bound],
+    Construction = Expr#e_constructor{base = selection('$base', BaseSpan),
+                                      args = {named, [update_set(Group, Names, FieldTypes, Env4)
+                                                      || Group <- by_first_segment(Sets)]}},
+    {TypedConstruction, _, Env5} = infer(Construction, Env4),
+    {#e_block{span = Span, statements = Bindings ++ [TypedConstruction], type = Constructed},
+     Constructed, Env5#env{locals = Env#env.locals}}.
+
+%% A value bound to a name of its own, unless it is such a name already,
+%% as the values of an inner update are.
+bound_value({_, #field_set{expr = #e_var{path = [], name = Bound}} = FieldSet}, Env)
+  when is_atom(Bound) ->
+    case atom_to_list(Bound) of
+        [$$ | _] -> {{FieldSet, {none, Bound}}, Env};
+        _ -> fresh_bound_value(FieldSet, Env)
+    end;
+bound_value({_, FieldSet}, Env) ->
+    fresh_bound_value(FieldSet, Env).
+
+fresh_bound_value(#field_set{span = SetSpan, expr = Value} = FieldSet, Env) ->
+    ValueName = list_to_atom("$value" ++ integer_to_list(map_size(Env#env.locals))),
+    {TypedValue, ValueType, Env1} = infer(Value, Env),
+    {{FieldSet, {binding(ValueName, SetSpan, TypedValue, ValueType), ValueName}},
+     bind_locals([{ValueName, ValueType}], Env1)}.
+
+binding(Name, Span, TypedExpr, Type) ->
+    #binding{span = Span, pattern = #p_var{span = Span, name = Name, type = Type},
+             operator = '=', expr = TypedExpr}.
+
+selection(Name, Span) ->
+    #e_var{span = Span, name = Name}.
+
+%% The field sets by their first segment, in the order the segments first
+%% stand, each with its members in source order.
+by_first_segment(Sets) ->
+    Firsts = lists:usort([FieldName || {FieldName, _, _, _} <- Sets]),
+    Ordered = [FieldName || {FieldName, _, _, _} <- Sets],
+    [{FieldName, [Set || {Name, _, _, _} = Set <- Sets, Name =:= FieldName]}
+     || FieldName <- lists:filter(fun(FieldName) -> lists:member(FieldName, Firsts) end,
+                                  lists:uniq(Ordered))].
+
+%% A field given plainly reads its bound value; one reached by paths is the
+%% inner update, whose base is the field of the outer base and whose field
+%% sets are the paths shortened by their first segment.
+update_set({FieldName, [{FieldName, [], ValueName, SetSpan}]}, _Names, _FieldTypes, _Env) ->
+    #field_set{span = SetSpan, name = FieldName,
+               expr = #e_var{span = SetSpan, name = ValueName}};
+update_set({FieldName, [{_, _, _, FirstSpan} | _] = Members}, Names, FieldTypes, Env) ->
+    {Path, Inner} = reached_constructor(FieldName, Members, Names, FieldTypes, Env),
+    Base = #e_selection{span = FirstSpan, expr = #e_var{span = FirstSpan, name = '$base'},
+                        field = FieldName, field_span = FirstSpan},
+    #field_set{span = FirstSpan, name = FieldName,
+               expr = #e_constructor{span = FirstSpan, path = Path, name = Inner, base = Base,
+                                     args = {named, [#field_set{span = SetSpan, name = Next,
+                                                                path = Rest,
+                                                                expr = #e_var{span = SetSpan,
+                                                                              name = ValueName}}
+                                                     || {_, [Next | Rest], ValueName, SetSpan}
+                                                            <- Members]}}}.
+
+%% Report §5.6, §11.5: the one constructor of the type a path reaches
+%% through the field, as the construction writes it.
+reached_constructor(FieldName, [{_, Path, _, FirstSpan} | _], Names, FieldTypes,
+                    #env{type_state = TypeState} = Env) ->
+    Written = path_text([FieldName | Path]),
+    FieldType = ern_types:resolve(lists:nth(index_of(FieldName, Names), FieldTypes), TypeState),
+    Shown = ern_types:format(FieldType, TypeState),
+    case FieldType of
+        {tcon, QualifiedName, _} ->
+            case lookup_type(QualifiedName, Env) of
+                #type_info{constructors = [#constructor_info{qualified_name = Constructor}]} ->
+                    {constructor_path(Constructor, Env), lists:last(Constructor)};
+                #type_info{constructors = []} ->
+                    fail(FirstSpan, "`" ++ Written ++ "` reaches " ++ Shown
+                                    ++ ", which has no fields");
+                #type_info{constructors = Constructors} ->
+                    fail(FirstSpan, io_lib:format("`~s` reaches ~s, which has ~B constructors,"
+                                                  " and a path goes through a type with one",
+                                                  [Written, Shown, length(Constructors)]))
+            end;
+        {tvar, _} ->
+            fail(FirstSpan, "the type of " ++ atom_to_list(FieldName) ++ " under `" ++ Written
+                            ++ "` is not determined; annotate it");
+        _ ->
+            fail(FirstSpan, "`" ++ Written ++ "` reaches " ++ Shown ++ ", which has no fields")
+    end.
+
+%% Report §4.2: a constructor as the module writes it, the prelude's past a
+%% name the module hides.
+constructor_path([Name], Env) -> prelude_path(constructors, Name, Env);
+constructor_path(QualifiedName, _) -> lists:droplast(QualifiedName).
+
+%% Report §5.6, §11.5: no path is a prefix of another, and none is given
+%% twice; the second is reported, the first labelled.
+no_path_covers_another(FieldSets) ->
+    Paths = [{[FieldName | Path], SetSpan}
+             || #field_set{span = SetSpan, name = FieldName, path = Path} <- FieldSets],
+    lists:foldl(fun({Path, Span}, Earlier) ->
+                    [case {Path =:= Other,
+                           lists:prefix(Path, Other) orelse lists:prefix(Other, Path)} of
+                         {true, _} ->
+                             fail(Span, "field " ++ path_text(Path) ++ " is given twice",
+                                  [{ern_diagnostic:span(OtherSpan), "first given here"}],
+                                  undefined);
+                         {false, true} ->
+                             fail(Span, "`" ++ path_text(Path) ++ "` and `" ++ path_text(Other)
+                                        ++ "` update one field",
+                                  [{ern_diagnostic:span(OtherSpan), "given here"}],
+                                  "give the field once, or paths into it that do not overlap");
+                         _ -> ok
+                     end || {Other, OtherSpan} <- Earlier],
+                    [{Path, Span} | Earlier]
+                end, [], Paths),
+    ok.
+
+path_text(Path) -> lists:join(".", [atom_to_list(Segment) || Segment <- Path]).
 
 %%
 %% Requirements (report §4.9)
@@ -3575,8 +3729,17 @@ twice(Fields, Verb) ->
 help(undefined) -> "give the function a mailbox type with `with`";
 help(#effect_origin{help = Help}) -> Help.
 
-infer_named(#e_constructor{span = Span, name = Name} = Expr, Names, FieldTypes, Constructed,
-            Base, FieldSets, Fill, Env) ->
+infer_named(Expr, Names, FieldTypes, Constructed, Base, FieldSets, none, Env)
+  when Base =/= undefined ->
+    case [FieldSet || #field_set{path = [_ | _]} = FieldSet <- FieldSets] of
+        [] -> infer_fields(Expr, Names, FieldTypes, Constructed, Base, FieldSets, none, Env);
+        _ -> updated_through_paths(Expr, Names, FieldTypes, Constructed, Base, FieldSets, Env)
+    end;
+infer_named(Expr, Names, FieldTypes, Constructed, Base, FieldSets, Fill, Env) ->
+    infer_fields(Expr, Names, FieldTypes, Constructed, Base, FieldSets, Fill, Env).
+
+infer_fields(#e_constructor{span = Span, name = Name} = Expr, Names, FieldTypes, Constructed,
+             Base, FieldSets, Fill, Env) ->
     SetNames = [FieldName || #field_set{name = FieldName} <- FieldSets],
     twice([{FieldName, FieldSpan} || #field_set{span = FieldSpan, name = FieldName} <- FieldSets],
           "given"),

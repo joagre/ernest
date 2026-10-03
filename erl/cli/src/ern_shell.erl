@@ -608,31 +608,34 @@ slot_for(expression) -> 'Expression';
 slot_for(typename) -> 'TypeName';
 slot_for(pattern) -> 'Pattern';
 slot_for(declaration) -> 'Declaration';
-slot_for(#expected_field{kind = field, path = Path, constructor_name = ConstructorName}) ->
-    {'Fields', fields_of(Path, ConstructorName)};
+slot_for(#expected_field{kind = field, path = Path, constructor_name = ConstructorName,
+                         segments = Segments}) ->
+    {'Fields', fields_of(Path, ConstructorName, Segments)};
 %% the parser could not tell a field's name from a value; the
 %% constructor's type can, and only a named constructor has fields
 slot_for(#expected_field{kind = field_or_value, path = Path,
                          constructor_name = ConstructorName}) ->
-    case fields_of(Path, ConstructorName) of
+    case fields_of(Path, ConstructorName, []) of
         [] -> 'Expression';
         Fields -> {'Fields', Fields}
     end;
 slot_for(#expected_field{kind = field_or_pattern, path = Path,
                          constructor_name = ConstructorName}) ->
-    case fields_of(Path, ConstructorName) of
+    case fields_of(Path, ConstructorName, []) of
         [] -> 'Pattern';
         Fields -> {'Fields', Fields}
     end.
 
 %% The fields of the constructor as it is written, found as the checker
 %% finds it (report §4.2): unqualified, the session's or the prelude's, and
-%% qualified, its module's.
+%% qualified, its module's; after a path's segments (report §5.6), the
+%% fields of the type the path has reached.
 %% Report §11.2: each as a `Shell.Complete.Name`, listed with its type, the
 %% constructor's parameter in the field's place, both in declared order.
-fields_of(Path, ConstructorName) ->
+fields_of(Path, ConstructorName, Segments) ->
     Session = persistent_term:get({?MODULE, session}, #session{}),
-    case named_constructor(Session, Path, ConstructorName) of
+    Written = named_constructor(Session, Path, ConstructorName),
+    case along_path(Written, Segments, Session) of
         {ok, #constructor_info{fields = {named, Fields},
                                scheme = #scheme{type = {tfn, Params, _, _}}}} ->
             TypeState = session_type_state(Session),
@@ -641,6 +644,38 @@ fields_of(Path, ConstructorName) ->
              || {Field, Param} <- lists:zip(Fields, Params)];
         _ ->
             []
+    end.
+
+%% Report §5.6, §11.2: the constructor a path's segments reach from one,
+%% each segment a named field whose type has one constructor; none where
+%% a segment is no such field.
+along_path({ok, ConstructorInfo}, [], _Session) ->
+    {ok, ConstructorInfo};
+along_path({ok, #constructor_info{fields = {named, Fields},
+                                  scheme = #scheme{type = {tfn, Params, _, _}}}},
+           [Segment | Rest], Session) ->
+    case field_index(Segment, Fields, none) of
+        none -> none;
+        Index ->
+            case lists:nth(Index + 1, Params) of
+                {tcon, QualifiedName, _} ->
+                    along_path(one_constructor(QualifiedName, Session), Rest, Session);
+                _ -> none
+            end
+    end;
+along_path(_, _, _) ->
+    none.
+
+%% The one constructor of a type in scope, or none.
+one_constructor(QualifiedName, #session{interfaces = Interfaces}) ->
+    Found = [TypeInfo || #interface{types = Types} <- Interfaces,
+                         {Name, TypeInfo} <- maps:to_list(Types), Name =:= QualifiedName]
+        ++ [TypeInfo || TypeInfo <- [ern_typecheck:lookup_type(QualifiedName,
+                                                               ern_typecheck:prelude_env())],
+                        TypeInfo =/= undefined],
+    case Found of
+        [#type_info{constructors = [ConstructorInfo]} | _] -> {ok, ConstructorInfo};
+        _ -> none
     end.
 
 %% Report §11.2: every name completion may reach — the session's, the

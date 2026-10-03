@@ -335,7 +335,11 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     by one (the log's *MVP 2.99b's Questions, One by One*); what a decision admits into the
     language is built in this item after the decisions, its report sentences with its code.
     Entry 76: a path in a record update, `Pool(..pool, stats.indexed = e)`, admitted by
-    principle 2's sequence clause, about a day and a half (§5.6, Appendix A). Entry 77:
+    principle 2's sequence clause, built 2026-10-03 (§5.6, Appendix A, §11.2, §11.5; the
+    log's *The Path Built*): the parser reads a path after `..` alone, the checker binds the
+    base and each value once in source order and nests an update per first segment, the
+    emitter sees only bindings and constructions, and `Tab` after a path's `.` lists the fields
+    of the type reached. Entry 77:
     `let me = self()` before a spawn kept, the guide teaching it once (item 16). Entry 78:
     `let _ = e` kept, `foreach`'s callback answering `Unit` (principle 3). Entry 79:
     `Address.ask(address, request, wrap, ms)` admitted to the prelude, `wrap` taking
@@ -367,8 +371,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     module kept, OCaml's own rule. The fourth: `spawnMonitored` and `Unknown` kept, the runtime
     keeping nothing of an ended process. Every decision of this item was taken on 2026-10-02,
     and `language_feedback.md` holds no entry; what remains is to build what the decisions
-    admitted, entries 76, 79, 81 and 82, 83 and 85 and the rule for a recursive type, about
-    five days, its report sentences with its code.
+    admitted, entries 79, 81 and 82, 83 and 85 and the rule for a recursive type, about
+    four days, its report sentences with its code; entry 76 was built on 2026-10-03.
 21. **The report's and the guide's Ernest blocks by `style.md`**, decided with the user
     2026-10-02: they are read as item 15 read the rest, after items 16 and 20 rewrite parts of
     the guide, so that each block is read once, the guide's sentences that cite a name

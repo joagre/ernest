@@ -886,14 +886,14 @@ constructor_expr(Position, Path, Name, [{'(', _} | Rest]) ->
             {Base, Rest2} = expr(Rest1),
             {FieldSets, Rest3} = case Rest2 of
                                      [{',', _} | Rest4] -> separated(Rest4, ',',
-                                                                     field_of(Path, Name));
+                                                                     field_of(Path, Name, update));
                                      _ -> {[], Rest2}
                                  end,
             spanned({#e_constructor{span = Position, path = Path, name = Name, base = Base,
                                     args = {named, FieldSets}},
                      expect(Rest3, ')')});
         [{ident, _, _}, {'=', _} | _] ->
-            {FieldSets, Rest1} = separated(Rest, ',', field_of(Path, Name)),
+            {FieldSets, Rest1} = separated(Rest, ',', field_of(Path, Name, construction)),
             spanned({#e_constructor{span = Position, path = Path, name = Name,
                                     args = {named, FieldSets}},
                      expect(Rest1, ')')});
@@ -916,6 +916,7 @@ constructor_expr(Position, Path, Name, [{'(', _} | Rest]) ->
                                                       within = Enclosing}});
         _ ->
             {Expr, Rest1} = within(Path, Name, 0, fun() -> expr(Rest) end),
+            no_path(Expr, Rest1),
             spanned({#e_constructor{span = Position, path = Path, name = Name,
                                     args = {positional, Expr}},
                      expect(Rest1, ')')})
@@ -926,18 +927,43 @@ constructor_expr(Position, Path, Name, Tokens) ->
 %% Report §11.2: a field of this constructor, which the tag names, so
 %% that completion knows which fields may stand at the cursor; and where
 %% the input stops, which field's value it stops in, or `none` where a
-%% field's name would stand, for `Shift-Tab`.
-field_of(Path, ConstructorName) ->
+%% field's name would stand, for `Shift-Tab`. Report §5.6: in an update the
+%% field may be a path, `stats.indexed`, which a construction refuses.
+field_of(Path, ConstructorName, Form) ->
     fun(Tokens) ->
         Expected = #expected_field{kind = field, path = Path, constructor_name = ConstructorName},
         ParseFieldName = fun() ->
                              tagging(Expected, fun() -> expect_ident_position(Tokens) end)
                          end,
         {Name, Position, Rest} = within(Path, ConstructorName, none, ParseFieldName),
-        {Expr, Rest1} = within(Path, ConstructorName, {field, Name},
-                               fun() -> expr(expect(Rest, '=')) end),
-        spanned({#field_set{span = Position, name = Name, expr = Expr}, Rest1})
+        {Segments, Rest1} = path_segments(Rest, Form, Expected, [Name]),
+        {Expr, Rest2} = within(Path, ConstructorName, {field, Name},
+                               fun() -> expr(expect(Rest1, '=')) end),
+        spanned({#field_set{span = Position, name = Name, path = Segments, expr = Expr}, Rest2})
     end.
+
+%% The segments of a path after its first, each after a `.`, in an update;
+%% completion is told the segments typed so far (report §11.2).
+path_segments([{'.', DotPosition} | _], construction, _Expected, _SoFar) ->
+    fail(DotPosition, "a path stands in a record update only",
+         "write the field's value as a construction, or update a value with `..`");
+path_segments([{'.', _} | Rest], update, #expected_field{path = Path,
+                                                         constructor_name = Name} = Expected,
+              SoFar) ->
+    Typed = Expected#expected_field{segments = lists:reverse(SoFar)},
+    ParseSegment = fun() -> tagging(Typed, fun() -> expect_ident_position(Rest) end) end,
+    {Segment, _, Rest1} = within(Path, Name, none, ParseSegment),
+    path_segments(Rest1, update, Expected, [Segment | SoFar]);
+path_segments(Tokens, _Form, _Expected, SoFar) ->
+    {tl(lists:reverse(SoFar)), Tokens}.
+
+%% Report §5.6: a path written where a construction's one positional
+%% field stands, `C(a.b = e)`, is refused as a path, not as a `)` missing.
+no_path(#e_selection{span = Span}, [{'=', _} | _]) ->
+    fail(Span, "a path stands in a record update only",
+         "write the field's value as a construction, or update a value with `..`");
+no_path(_, _) ->
+    ok.
 
 %%
 %% Blocks
@@ -1073,6 +1099,7 @@ constructor_pattern(Position, Path, Name, [{'(', _} | Rest]) ->
                    EndPosition, "expected a pattern instead of end of input");
         _ ->
             {Pattern, Rest1} = pattern(Rest),
+            no_path_pattern(Pattern, Rest1),
             spanned({#p_constructor{span = Position, path = Path, name = Name,
                                     args = {positional, Pattern}},
                      expect(Rest1, ')')})
@@ -1080,12 +1107,28 @@ constructor_pattern(Position, Path, Name, [{'(', _} | Rest]) ->
 constructor_pattern(Position, Path, Name, Tokens) ->
     spanned({#p_constructor{span = Position, path = Path, name = Name}, Tokens}).
 
+%% Report §5.6: a path written where a constructor pattern's one
+%% positional field stands, `C(a.b = p)`, is refused as a path.
+no_path_pattern(#p_var{}, [{'.', DotPosition} | _]) ->
+    fail(DotPosition, "a path stands in a record update only, not in a pattern",
+         "match the field with a constructor pattern of its own");
+no_path_pattern(_, _) ->
+    ok.
+
 %% Report §11.2: a field of this constructor in a pattern, tagged as in
 %% an expression, so that completion knows which fields may stand there.
 field_pattern_of(Path, ConstructorName) ->
     fun(Tokens) ->
         Expected = #expected_field{kind = field, path = Path, constructor_name = ConstructorName},
         {Name, Position, Rest} = tagging(Expected, fun() -> expect_ident_position(Tokens) end),
+        case Rest of
+            [{'.', DotPosition} | _] ->
+                %% report §5.6: a path updates, and a pattern takes apart
+                fail(DotPosition, "a path stands in a record update only, not in a pattern",
+                     "match the field with a constructor pattern of its own");
+            _ ->
+                ok
+        end,
         {Pattern, Rest1} = pattern(expect(Rest, '=')),
         spanned({#field_pattern{span = Position, name = Name, pattern = Pattern}, Rest1})
     end.

@@ -369,6 +369,23 @@ Person(name = "Alice", age = 31) : Person
 
 The fields may be given in any order, and are evaluated in the order written; a value prints them in the order the type declares them.
 
+A field of a field is updated through a path:
+
+```console
+$ ern shell
+Ernest 0.2.0. :help for the commands, :quit to leave.
+> type Stats = Stats(indexed : Int, hits : Int)
+type Stats
+> type Pool = Pool(name : String, stats : Stats)
+type Pool
+> let pool = Pool(name = "p", stats = Stats(indexed = 0, hits = 0))
+pool : Pool
+> Pool(..pool, stats.indexed = 1)
+Pool(name = "p", stats = Stats(indexed = 1, hits = 0)) : Pool
+```
+
+`stats.indexed = 1` is `stats = Stats(..pool.stats, indexed = 1)`, the path written once; `pool` is evaluated once, and each type along the path has one constructor (report §5.6).
+
 A type with several constructors has a field only where every constructor has it, with one type: in `type Shape = Dot(at : Point) | Circle(at : Point, radius : Int)`, `s.at` reads any shape's point, and `s.radius` is refused, since a `Dot` has none; a `match` reads it. An abstract type's fields are its own module's (§7.2).
 
 ### 2.5 Lists, tuples, maps, sets

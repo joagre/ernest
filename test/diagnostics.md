@@ -1752,6 +1752,158 @@ example.ern:4:21: fromList needs a.compare, and the record's type leaves a undet
   |                     ^^^^^^^^^^
 ```
 
+### A path where a construction gives a field (§5.6)
+
+```ernest-rejected
+type Stats = Stats(indexed : Int, hits : Int)
+
+type Pool = Pool(name : String, stats : Stats)
+
+fn fresh() : Pool =
+    Pool(name = "p", stats.indexed = 1)
+```
+
+```console
+$ ern build example.ern
+example.ern:6:27: a path stands in a record update only
+5 | fn fresh() : Pool =
+6 |     Pool(name = "p", stats.indexed = 1)
+  |                           ^
+  | = help: write the field's value as a construction, or update a value with `..`
+```
+
+### A path in a pattern (§5.6)
+
+```ernest-rejected
+type Stats = Stats(indexed : Int, hits : Int)
+
+type Pool = Pool(name : String, stats : Stats)
+
+fn indexed(p : Pool) : Int =
+    match p {
+        Pool(stats.indexed = n) -> n
+    }
+```
+
+```console
+$ ern build example.ern
+example.ern:7:19: a path stands in a record update only, not in a pattern
+6 |     match p {
+7 |         Pool(stats.indexed = n) -> n
+  |                   ^
+  | = help: match the field with a constructor pattern of its own
+```
+
+### A path in a fill (§5.6)
+
+```ernest-rejected
+type Ops(s) = Ops(size : (s) -> Int)
+
+let hashed : Ops(Set(Int)) = Ops(..Set, size.x = 1)
+```
+
+```console
+$ ern build example.ern
+example.ern:3:41: `size.x` is a path, which updates a value, and `..Set` names a namespace
+2 | 
+3 | let hashed : Ops(Set(Int)) = Ops(..Set, size.x = 1)
+  |                                         ^^^^^^^^^^
+```
+
+### A path through a type with several constructors (§5.6)
+
+```ernest-rejected
+type Shape = Dot | Circle(at : Int)
+
+type Holder = Holder(shape : Shape, size : Int)
+
+fn moved(h : Holder) : Holder =
+    Holder(..h, shape.at = 1)
+```
+
+```console
+$ ern build example.ern
+example.ern:6:17: `shape.at` reaches Shape, which has 2 constructors, and a path goes through a type with one
+5 | fn moved(h : Holder) : Holder =
+6 |     Holder(..h, shape.at = 1)
+  |                 ^^^^^^^^^^^^
+```
+
+### A path through a type without fields (§5.6)
+
+```ernest-rejected
+type Holder = Holder(size : Int)
+
+fn grown(h : Holder) : Holder =
+    Holder(..h, size.x = 1)
+```
+
+```console
+$ ern build example.ern
+example.ern:4:17: `size.x` reaches Int, which has no fields
+3 | fn grown(h : Holder) : Holder =
+4 |     Holder(..h, size.x = 1)
+  |                 ^^^^^^^^^^
+```
+
+### A path that updates what a field updates (§5.6)
+
+```ernest-rejected
+type Stats = Stats(indexed : Int, hits : Int)
+
+type Pool = Pool(name : String, stats : Stats)
+
+fn reset(p : Pool) : Pool =
+    Pool(..p, stats = Stats(indexed = 0, hits = 0), stats.hits = 2)
+```
+
+```console
+$ ern build example.ern
+example.ern:6:53: `stats.hits` and `stats` update one field
+5 | fn reset(p : Pool) : Pool =
+6 |     Pool(..p, stats = Stats(indexed = 0, hits = 0), stats.hits = 2)
+  |               ------------------------------------ given here
+  |                                                     ^^^^^^^^^^^^^^
+  | = help: give the field once, or paths into it that do not overlap
+```
+
+### A path given twice (§5.6)
+
+```ernest-rejected
+type Stats = Stats(indexed : Int, hits : Int)
+
+type Pool = Pool(name : String, stats : Stats)
+
+fn hit(p : Pool) : Pool =
+    Pool(..p, stats.hits = 2, stats.hits = 3)
+```
+
+```console
+$ ern build example.ern
+example.ern:6:31: field stats.hits is given twice
+5 | fn hit(p : Pool) : Pool =
+6 |     Pool(..p, stats.hits = 2, stats.hits = 3)
+  |               -------------- first given here
+  |                               ^^^^^^^^^^^^^^
+```
+
+### A path through a field whose type is not determined (§5.6)
+
+```ernest-rejected
+type Box(a) = Box(inner : a)
+
+fn f(b) =
+    Box(..b, inner.x = 1)
+```
+
+```console
+$ ern build example.ern
+example.ern:4:14: the type of inner under `inner.x` is not determined; annotate it
+3 | fn f(b) =
+4 |     Box(..b, inner.x = 1)
+  |              ^^^^^^^^^^^
+```
+
 ### A record update that gives no field (§5.6)
 
 ```ernest-rejected

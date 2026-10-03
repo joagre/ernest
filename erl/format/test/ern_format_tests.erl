@@ -336,3 +336,13 @@ markdown_unparsed_indented_test() ->
 %% internal error (findings C17)
 doc_comment_after_code_test() ->
     ?assertMatch({error, _}, ern_format:format(<<"export let x : Int = 1 /// note\n">>)).
+
+%% report §5.6, §11.6: a path in a record update is written as its
+%% segments joined by dots, a bracket's item as any field; written after
+%% the code
+update_path_test() ->
+    fixed(["type Pool = Pool(name : String, stats : Stats)", "",
+           "fn f(p : Pool) : Pool =",
+           "    Pool(..p, stats.indexed = 1, name = \"q\")"]),
+    ?assertEqual([<<"fn f(s) =">>, <<"    Site(..s, pool.stats.hits = 5)">>],
+                 laid(["fn f(s) = Site( ..s , pool . stats . hits = 5 )"])).

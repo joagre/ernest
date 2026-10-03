@@ -84,7 +84,10 @@
 -record(e_constructor, {span, path = [], name, base, args = none, type}).
 %% base: the Expr of a record update's `..`, or undefined (report §5.6);
 %% args: none | {positional, Expr} | {named, [#field_set{}]}
--record(field_set, {span, name, expr}).
+-record(field_set, {span, name, path = [], expr}).
+%% path: in a record update, the segments after the name of a path to a
+%% field of a field, `stats.indexed` being name stats and path [indexed]
+%% (report §5.6); [] elsewhere
 -record(e_tuple, {span, elements, type}).
 -record(e_list, {span, elements, type}).
 -record(e_bitstring, {span, segments, type}).

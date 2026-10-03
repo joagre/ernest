@@ -1016,3 +1016,29 @@ fill_test() ->
                    args = {named, [#field_set{name = parse}]}} =
         expression("Ops(..Net.Http, parse = mine)"),
     #e_constructor{base = #e_var{name = p}, args = {named, []}} = expression("Ops(..p)").
+
+%% report §5.6, Appendix A's UpdateSet: in a record update a field may be
+%% a path, its segments after the name; a construction and a pattern refuse
+%% one; an unfinished path tells completion the segments typed (§11.2);
+%% written after the code
+update_path_test() ->
+    #e_constructor{base = #e_var{name = pool},
+                   args = {named, [#field_set{name = stats, path = [indexed]},
+                                   #field_set{name = name, path = []}]}} =
+        expression("Pool(..pool, stats.indexed = 1, name = \"q\")"),
+    #e_constructor{args = {named, [#field_set{name = pool, path = [stats, hits]}]}} =
+        expression("Site(..site, pool.stats.hits = 5)"),
+    Help = "write the field's value as a construction, or update a value with `..`",
+    ?assertEqual({"a path stands in a record update only", Help},
+                 {expression_refusal("Pool(name = \"p\", stats.indexed = 1)"),
+                  expression_help("Pool(name = \"p\", stats.indexed = 1)")}),
+    ?assertEqual("a path stands in a record update only", expression_refusal("Box(s.indexed = 1)")),
+    Pattern = {"a path stands in a record update only, not in a pattern",
+               "match the field with a constructor pattern of its own"},
+    ?assertEqual(Pattern, refusal_and_help("fn f(p) = match p { Pool(stats.indexed = n) -> n }")),
+    ?assertEqual(Pattern,
+                 refusal_and_help("fn f(p) = match p { Pool(name = x, stats.indexed = n) -> n }")),
+    {#enclosing{path = [], name = 'Pool', argument = none},
+     #expected_field{kind = field, path = [], constructor_name = 'Pool', segments = [stats]}} =
+        stopped_within(<<"Pool(..pool, stats.">>),
+    {_, #expected_field{segments = [pool, stats]}} = stopped_within(<<"Site(..site, pool.stats.">>).

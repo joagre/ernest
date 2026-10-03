@@ -2670,3 +2670,48 @@ selected_callee_named_test() ->
     ?assertEqual("the argument does not fit ops.toList: expected Set(Int), found Int",
                  refusal("type Ops = Ops(toList : (Set(Int)) -> List(Int))\n"
                          "fn f(ops : Ops) : List(Int) = ops.toList(1)")).
+
+%% report §5.6, §5.1: a path in a record update is the nested update, each
+%% type along it one constructor with the named field, two paths sharing
+%% a prefix and none covering another; written after the code
+update_path_test() ->
+    Types = "export type Stats = Stats(indexed : Int, hits : Int)\n"
+            "export type Pool = Pool(name : String, stats : Stats)\n"
+            "export type Site = Site(pool : Pool, visits : Int)\n",
+    ?assertEqual("(M.Pool) -> M.Pool",
+                 type_of(Types ++ "export fn f(p : Pool) : Pool =\n"
+                         "    Pool(..p, stats.indexed = 1, name = \"q\", stats.hits = 2)\n", f)),
+    ?assertEqual("(M.Site) -> M.Site",
+                 type_of(Types ++ "export fn f(s : Site) : Site =\n"
+                         "    Site(..s, pool.stats.hits = 5, visits = 1, pool.name = \"q\")\n", f)),
+    ?assertEqual(ok, ok("type Box(a) = Box(inner : a)\n"
+                        "type Point = Point(x : Int)\n"
+                        "fn f(b : Box(Point)) : Box(Point) = Box(..b, inner.x = 1)")),
+    %% a value of another type is the inner field's error
+    ?assertEqual("field indexed: expected Int, found String",
+                 refusal(Types ++ "fn f(p : Pool) : Pool = Pool(..p, stats.indexed = \"x\")")),
+    ?assertEqual("`shape.at` reaches Shape, which has 2 constructors, and a path goes through a"
+                 " type with one",
+                 refusal("type Shape = Dot | Circle(at : Int)\n"
+                         "type Holder = Holder(shape : Shape)\n"
+                         "fn f(h : Holder) : Holder = Holder(..h, shape.at = 1)")),
+    ?assertEqual("`size.x` reaches Int, which has no fields",
+                 refusal("type Holder = Holder(size : Int)\n"
+                         "fn f(h : Holder) : Holder = Holder(..h, size.x = 1)")),
+    ?assertEqual("Stats has no field misses",
+                 refusal(Types ++ "fn f(p : Pool) : Pool = Pool(..p, stats.misses = 1)")),
+    ?assertEqual("Pool has no field stat",
+                 refusal(Types ++ "fn f(p : Pool) : Pool = Pool(..p, stat.hits = 1)")),
+    ?assertEqual({"`stats.hits` and `stats` update one field",
+                  "give the field once, or paths into it that do not overlap"},
+                 refusal_and_help(Types ++ "fn f(p : Pool) : Pool =\n"
+                                  "    Pool(..p, stats = Stats(indexed = 0, hits = 0),"
+                                  " stats.hits = 2)")),
+    ?assertEqual("field stats.hits is given twice",
+                 refusal(Types ++ "fn f(p : Pool) : Pool =\n"
+                         "    Pool(..p, stats.hits = 2, stats.hits = 3)")),
+    ?assertEqual("the type of inner under `inner.x` is not determined; annotate it",
+                 refusal("type Box(a) = Box(inner : a)\nfn f(b) = Box(..b, inner.x = 1)")),
+    ?assertEqual("`size.x` is a path, which updates a value, and `..Set` names a namespace",
+                 refusal("type Ops(s) = Ops(size : (s) -> Int)\n"
+                         "let hashed : Ops(Set(Int)) = Ops(..Set, size.x = 1)")).

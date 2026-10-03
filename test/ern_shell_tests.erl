@@ -853,6 +853,28 @@ field_completion() ->
     ?assertMatch({_, _}, binary:match(Bytes, <<"q.p.count : Int">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"q.p.name : String">>)).
 
+%% report §5.6, §11.2: after the `.` of a path in a record update, `Tab`
+%% lists the fields of the type the path has reached; written after the code
+path_completion_test_() ->
+    {timeout, 60, fun path_completion/0}.
+
+path_completion() ->
+    Steps = [{expect, "> "},
+             {send, hex("type Stats = Stats(indexed : Int, hits : Int)\r")},
+             {expect, "type Stats"},
+             {send, hex("type Pool = Pool(name : String, stats : Stats)\r")},
+             {expect, "type Pool"},
+             {send, hex("let pool = Pool(name = \"p\", stats = Stats(indexed = 0, hits = 0))\r")},
+             {expect, "pool : Pool"},
+             {send, hex("Pool(..pool, stats.") ++ "09" ++ "09"},   % Tab twice: the listing
+             {expect, "indexed : Int"},
+             {send, "03"},
+             {expect, "> "},
+             {send, "04"}],
+    Bytes = pty(alone("../bin/ern shell"), Steps, 30, " --size 16x74"),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"indexed : Int">>)),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"hits : Int">>)).
+
 %% report §11.2: a `Tab` that adds nothing to the line lists the
 %% candidates at once, as a second `Tab` does. A regression test for a
 %% finding of the session of real use: every command begins with `:`, so

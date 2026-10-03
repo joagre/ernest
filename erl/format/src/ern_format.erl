@@ -469,9 +469,11 @@ bare_expr(#e_constructor{path = Path, args = none}, _) ->
 bare_expr(#e_constructor{path = Path, args = {positional, Expr}}, Code) ->
     [path(Path), token(), bracket(token('('), [expr(Expr, Code)], ')', Expr, Code)];
 bare_expr(#e_constructor{path = Path, base = Base, args = {named, FieldSets}}, Code) ->
+    %% report §5.6: a path's segments, each after its dot
     Items = [[token('..'), expr(Base, Code)] || Base =/= undefined]
-        ++ [[token(), space(), token('='), space(), expr(Expr, Code)]
-            || #field_set{expr = Expr} <- FieldSets],
+        ++ [[token(), [[token('.'), token()] || _ <- Segments], space(), token('='), space(),
+             expr(Expr, Code)]
+            || #field_set{path = Segments, expr = Expr} <- FieldSets],
     Last = last([Expr || #field_set{expr = Expr} <- FieldSets]),
     [path(Path), token(), bracket(token('('), Items, ')', Last, Code)];
 bare_expr(#e_tuple{elements = Elements}, Code) ->

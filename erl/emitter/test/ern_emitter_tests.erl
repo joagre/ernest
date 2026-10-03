@@ -3864,3 +3864,32 @@ fill_test() ->
             "    Io.println(Io.show(roundTrip([3, 1, 3], ordered)));\n"
             "    Io.println(Io.show(List.size(roundTrip([3, 1, 3], hashed))))\n}\n"),
     ?assertEqual(<<"[1, 3]\n2\n">>, Output).
+
+%% report §5.6, §5.1: a path in a record update builds the nested update,
+%% two paths sharing a prefix in one, the base and the field expressions
+%% evaluated once each, in source order; written after the code
+update_path_test() ->
+    {ok, Output} =
+        run("type Stats = Stats(indexed : Int, hits : Int)\n"
+            "type Pool = Pool(name : String, stats : Stats)\n"
+            "type Site = Site(pool : Pool, visits : Int)\n"
+            "fn counted(pool : Pool) : Pool =\n"
+            "    Pool(..pool, stats.indexed = pool.stats.indexed + 1)\n"
+            "export fn main() : Unit with Never = {\n"
+            "    let pool = Pool(name = \"p\", stats = Stats(indexed = 0, hits = 0));\n"
+            "    Io.println(Io.show(counted(pool)));\n"
+            "    Io.println(Io.show(Pool(..pool, stats.indexed = 1, name = \"q\","
+            " stats.hits = 2)));\n"
+            "    let site = Site(pool = pool, visits = 0);\n"
+            "    Io.println(Io.show(Site(..site, pool.stats.hits = 5, visits = 1)));\n"
+            "    let shown = Pool(..{ Io.println(\"base\"); pool },\n"
+            "                     stats.indexed = { Io.println(\"a\"); 1 },\n"
+            "                     name = { Io.println(\"b\"); \"r\" },\n"
+            "                     stats.hits = { Io.println(\"c\"); 3 });\n"
+            "    Io.println(Io.show(shown))\n}\n"),
+    ?assertEqual(<<"Pool(name = \"p\", stats = Stats(indexed = 1, hits = 0))\n"
+                   "Pool(name = \"q\", stats = Stats(indexed = 1, hits = 2))\n"
+                   "Site(pool = Pool(name = \"p\", stats = Stats(indexed = 0, hits = 5)),"
+                   " visits = 1)\n"
+                   "base\na\nb\nc\n"
+                   "Pool(name = \"r\", stats = Stats(indexed = 1, hits = 3))\n">>, Output).

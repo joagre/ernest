@@ -1966,6 +1966,8 @@ erlang_variable(Name, Number) ->
     Text = atom_to_list(Name),
     Base = case Text of
                [$_ | Rest] -> "V_" ++ Rest;
+               %% a name the checker makes, which no program spells (§2.3)
+               [$$ | Rest] -> "V_" ++ Rest;
                [First | Rest] -> [string:to_upper(First) | Rest]
            end,
     list_to_atom(Base ++ "_" ++ integer_to_list(Number)).
