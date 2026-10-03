@@ -10,7 +10,7 @@
 %% a source (report §8.6) from its start until it has exited or been killed.
 -module(ern_os).
 
--export([loop/0, helper_failed/0, helper/0, environment/0, working_directory/0]).
+-export([loop/0, helper_failed/0, helper/0, environment/0, user/0, working_directory/0]).
 
 %% Report §8.6: every program's process is linked to this one, which the
 %% runtime kills when the program ends, so that none outlives it; this
@@ -358,6 +358,20 @@ environment() ->
              catch error:_ -> ern_rt:fault(<<"the runtime's helper ern_exec failed">>)
              end,
     variables(Helper, #{}).
+
+%% Report §11.2: the user the runtime runs as, by the helper, since the host
+%% has no word for it; the shell's startup files are this user's or not run.
+-spec user() -> non_neg_integer().
+user() ->
+    Helper = try open(["user"])
+             catch error:_ -> ern_rt:fault(<<"the runtime's helper ern_exec failed">>)
+             end,
+    receive
+        {Helper, {data, <<"u", User:32>>}} ->
+            receive {Helper, {exit_status, _}} -> User end;
+        {Helper, {exit_status, _}} ->
+            ern_rt:fault(<<"the runtime's helper ern_exec failed">>)
+    end.
 
 %% Report Appendix E.23: a name that occurs twice keeps its first value, and
 %% each value is kept as its bytes, decoded when it is asked for. A name that

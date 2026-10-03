@@ -1463,6 +1463,40 @@ doc_man_test() ->
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
                                       <<".SH NAME\nErnest.Bare \\- Ernest module Bare\n">>)).
 
+%% report §11.1, §11.4: a compiled module may come from anywhere, so what
+%% its chunks say is read as data: a source's name with a line feed in it
+%% is written on the manual page's comment line with the line feed as an
+%% escape, and a chunk that holds a function is no chunk of the compiler's.
+%% A regression test: the name ended the comment and its next line was a
+%% request of the page's, and the host decoded whatever a chunk held
+%% (findings.md's C3-29)
+crafted_module_test() ->
+    Dir = tmp(),
+    File = write(Dir, "shapes.ern", "export fn one() : Int = 1\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    Erc = filename:join(Dir, "shapes.erc"),
+    {ok, Built} = file:read_file(Erc),
+    {ok, _, Chunks} = beam_lib:all_chunks(Built),
+    Rewritten = fun(Name, Rewrite) ->
+                    {Name, Chunk} = lists:keyfind(Name, 1, Chunks),
+                    {ok, Beam} = beam_lib:build_module(
+                                   lists:keystore(Name, 1, Chunks,
+                                                  {Name, term_to_binary(Rewrite(Chunk))})),
+                    ok = file:write_file(Erc, Beam)
+                end,
+    Rewritten("Docs", fun(Chunk) ->
+                          Docs = binary_to_term(Chunk),
+                          setelement(6, Docs, #{source => <<"shapes.ern\n.so /etc/passwd">>})
+                      end),
+    ?assertEqual(0, ern_cli:ern(["doc", "--man", Erc])),
+    [Comment, Next | _] = binary:split(iolist_to_binary(?capturedOutput), <<"\n">>, [global]),
+    ?assertMatch({_, _}, binary:match(Comment, <<"shapes.ern\\n.so /etc/passwd.">>)),
+    ?assertMatch(<<".TH ", _/binary>>, Next),
+    Rewritten("ErnI", fun(Chunk) -> (binary_to_term(Chunk))#{compiler => fun erlang:halt/0} end),
+    ?assertEqual(1, ern_err(["doc", Erc])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"of another compiler version">>)).
+
 %% report §11.4: `ern doc --man src-dir` writes each page beside its
 %% module's .erc, in a file named as `man` finds it, and no index
 doc_man_dir_test() ->

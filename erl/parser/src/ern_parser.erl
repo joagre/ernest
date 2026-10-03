@@ -8,7 +8,8 @@
 %% before the rest, set by spanned/1.
 -module(ern_parser).
 
--export([parse/1, parse_string/1, parse_expr/1, parse_statement/1, parse_type/1]).
+-export([parse/1, parse_string/1, parse_string/2, parse_expr/1, parse_expr/2, parse_statement/1,
+         parse_statement/2, parse_type/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("utils/include/ern_diagnostic.hrl").
@@ -42,7 +43,14 @@ incomplete_at_end(Tokens, #diagnostic{span = Span} = Diagnostic) ->
 
 -spec parse_string(unicode:chardata()) -> {ok, [tuple()]} | {error, ern_diagnostic:diagnostic()}.
 parse_string(Text) ->
-    case ern_lexer:tokenize(Text) of
+    parse_string(Text, []).
+
+%% The same, the text read under the lexer's options: with `no_new_names`
+%% the shell reads a line being typed and makes no name of it.
+-spec parse_string(unicode:chardata(), [no_new_names]) ->
+          {ok, [tuple()]} | {error, ern_diagnostic:diagnostic()}.
+parse_string(Text, Options) ->
+    case ern_lexer:tokenize(Text, Options) of
         {ok, Tokens} -> parse(Tokens);
         {error, _} = Error -> Error
     end.
@@ -50,22 +58,32 @@ parse_string(Text) ->
 %% One expression, for tests and the shell.
 -spec parse_expr(unicode:chardata()) -> {ok, tuple()} | {error, ern_diagnostic:diagnostic()}.
 parse_expr(Text) ->
-    parse_one(Text, fun(Tokens) -> expr(prune_docs(Tokens)) end).
+    parse_expr(Text, []).
+
+-spec parse_expr(unicode:chardata(), [no_new_names]) ->
+          {ok, tuple()} | {error, ern_diagnostic:diagnostic()}.
+parse_expr(Text, Options) ->
+    parse_one(Text, Options, fun(Tokens) -> expr(prune_docs(Tokens)) end).
 
 %% One statement of a block, for the shell: report §11.2, a `let` at the
 %% prompt is a block `let`.
 -spec parse_statement(unicode:chardata()) -> {ok, tuple()} | {error, ern_diagnostic:diagnostic()}.
 parse_statement(Text) ->
-    parse_one(Text, fun(Tokens) -> statement(prune_docs(Tokens)) end).
+    parse_statement(Text, []).
+
+-spec parse_statement(unicode:chardata(), [no_new_names]) ->
+          {ok, tuple()} | {error, ern_diagnostic:diagnostic()}.
+parse_statement(Text, Options) ->
+    parse_one(Text, Options, fun(Tokens) -> statement(prune_docs(Tokens)) end).
 
 %% One type, for the prelude tables and tests.
 -spec parse_type(unicode:chardata()) -> {ok, tuple()} | {error, ern_diagnostic:diagnostic()}.
 parse_type(Text) ->
-    parse_one(Text, fun type/1).
+    parse_one(Text, [], fun type/1).
 
 %% What Parse reads from the whole of Text, which must end there.
-parse_one(Text, Parse) ->
-    case ern_lexer:tokenize(Text) of
+parse_one(Text, Options, Parse) ->
+    case ern_lexer:tokenize(Text, Options) of
         {ok, Tokens} ->
             try
                 case Parse(Tokens) of

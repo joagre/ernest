@@ -14,7 +14,7 @@
          build_root/2, is_stdlib_root/1, stdlib_hash/1, dependency_interfaces/5,
          dependency_interface/4, load_path/1, compiler_modules/0, sweep_pages/5,
          compile_source/4, absolute/1, relative/2, write_whole/2,
-         write_whole/3, write_output/2, read/1, make_dirs/1, fail/1]).
+         write_whole/3, write_output/2, write_output/3, read/1, make_dirs/1, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -669,9 +669,9 @@ current(Erc, SourceHash, SourcePath, DependencyHashes, StdlibHash) ->
 %% and every module of the toolchain they call, which a test holds them to.
 -spec compiler_modules() -> [module()].
 compiler_modules() ->
-    [ern_ast, ern_bitspec, ern_descriptor, ern_diagnostic, ern_docs, ern_emitter, ern_exhaust,
-     ern_format, ern_interface, ern_lexer, ern_namespace, ern_parser, ern_prelude, ern_pretty,
-     ern_reply, ern_scope, ern_typecheck, ern_types, ern_build].
+    [ern_ast, ern_bitspec, ern_chunk, ern_descriptor, ern_diagnostic, ern_docs, ern_emitter,
+     ern_exhaust, ern_format, ern_interface, ern_lexer, ern_namespace, ern_parser, ern_prelude,
+     ern_pretty, ern_reply, ern_scope, ern_typecheck, ern_types, ern_build].
 
 %% Report §11.1: the build of ern, its version and a hash of the modules
 %% that compile, so that a compiler changed under one version is another.
@@ -879,7 +879,11 @@ write_whole(File, Data, Mode) ->
 %% that a link planted in a build tree names nothing the build writes.
 -spec write_output(file:filename(), iodata()) -> ok.
 write_output(File, Data) ->
-    write_at(File, File, Data, undefined).
+    write_output(File, Data, undefined).
+
+-spec write_output(file:filename(), iodata(), non_neg_integer() | undefined) -> ok.
+write_output(File, Data, Mode) ->
+    write_at(File, File, Data, Mode).
 
 %% File's data written at Place, the file itself or where its links lead.
 write_at(File, Place, Data, Mode) ->
@@ -890,26 +894,40 @@ write_at(File, Place, Data, Mode) ->
         _ ->
             ok
     end,
-    %% a name of this writer's own, so that two jobs writing one file at
-    %% once each write theirs whole and the last rename wins (report §11)
-    Own = os:getpid() ++ "." ++ integer_to_list(erlang:unique_integer([positive])),
-    New = filename:join(filename:dirname(Place),
-                        "." ++ filename:basename(Place) ++ "." ++ Own ++ ".new"),
     Kept = case {Mode, file:read_link_info(Place)} of
                {undefined, {ok, #file_info{type = regular, mode = Existing}}} ->
                    Existing band 8#7777;
                {undefined, _} -> undefined;
                {Given, _} -> Given
            end,
-    Steps = [fun() -> file:write_file(New, <<>>) end]
-        ++ [fun() -> file:change_mode(New, Kept) end || Kept =/= undefined]
-        ++ [fun() -> file:write_file(New, Data) end, fun() -> file:rename(New, Place) end],
+    {New, Device} = made_beside(File, Place, 0),
+    %% the mode before the data, so that what is private is never readable
+    Steps = [fun() -> file:change_mode(New, Kept) end || Kept =/= undefined]
+        ++ [fun() -> file:write(Device, Data) end, fun() -> file:close(Device) end,
+            fun() -> file:rename(New, Place) end],
     case lists:foldl(fun(Step, ok) -> Step(); (_, Failed) -> Failed end, ok, Steps) of
         ok ->
             ok;
         {error, Error} ->
+            _ = file:close(Device),
             _ = file:delete(New),
             fail(File ++ ": " ++ file:format_error(Error))
+    end.
+
+%% A file of this writer's own beside Place, open, under a name of its own,
+%% so that two jobs writing one file at once each write theirs whole and
+%% the last rename wins (report §11). It is made here or not at all: the
+%% host refuses a name that is there, a link among them, so that a name
+%% another planted is passed over for the next and is never written
+%% through.
+made_beside(File, Place, Tries) ->
+    Own = os:getpid() ++ "." ++ integer_to_list(erlang:unique_integer([positive])),
+    New = filename:join(filename:dirname(Place),
+                        "." ++ filename:basename(Place) ++ "." ++ Own ++ ".new"),
+    case file:open(New, [write, exclusive, raw]) of
+        {ok, Device} -> {New, Device};
+        {error, eexist} when Tries < 16 -> made_beside(File, Place, Tries + 1);
+        {error, Error} -> fail(File ++ ": " ++ file:format_error(Error))
     end.
 
 %% Report §11.8: a file a job cannot read, a directory it cannot make, and

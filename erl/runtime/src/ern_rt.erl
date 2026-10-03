@@ -103,7 +103,9 @@
 %% anyway, so the ask's timer is cancelled when the ask ends; `ask`, for
 %% one it did not, which the reaper monitors for this ask until its
 %% deadline, so the timer is left to fire and release the monitor.
--record(ask, {alias, asker, callee, wrap, check, deadline, timer, watch}).
+%% holder: the process that holds the ask's reply for foreign code (§8.4),
+%% which then sees the callee end or restart in place of the reaper.
+-record(ask, {alias, asker, callee, wrap, check, deadline, timer, watch, holder = none}).
 %% What a program's answer from foreign code is checked by: its descriptor
 %% and the fault's cause, or none for the runtime's own calls.
 -type check() :: none | {term(), binary()}.
@@ -485,24 +487,33 @@ asks_in(Index, Pid) ->
 %% own, whose wait takes the answer. An ask's would land in the asker's
 %% mailbox unwrapped, so a process of the runtime's holds one for it until
 %% the ask's deadline, checks the answer against the reply's type as a
-%% call does, and gives it through the ask's reply.
+%% call does, and gives it through the ask's reply. The holder sees the
+%% callee end or restart too, in place of the reaper: an answer the callee
+%% sends and its own end reach one process in their order, where two would
+%% each see one of them, and the end could overtake the answer.
 -spec exposed_reply(reference()) -> reference().
 exposed_reply(Alias) ->
     case ets_lookup(?ASKS, Alias) of
         [] ->
             Alias;
-        [#ask{deadline = Deadline} = Ask] ->
+        [Ask] ->
             Ref = make_ref(),
             Sender = erlang:self(),
-            _ = erlang:spawn(fun() ->
-                                 Exposed = erlang:alias([reply]),
-                                 Sender ! {Ref, Exposed},
-                                 held_reply(Exposed, Ask, Deadline)
-                             end),
+            _ = erlang:spawn(fun() -> holder(Ask, Sender, Ref) end),
             receive {Ref, Exposed} -> Exposed end
     end.
 
-held_reply(Exposed, #ask{asker = Asker, check = Check} = Ask, Deadline) ->
+%% The holder is in the ask's row before the reply is given out, so that
+%% the callee's end is the holder's to see from the first answer on.
+holder(#ask{alias = Alias, callee = Callee} = Ask, Sender, Ref) ->
+    Exposed = erlang:alias([reply]),
+    MonitorRef = erlang:monitor(process, Callee),
+    try ets:update_element(?ASKS, Alias, {#ask.holder, erlang:self()}) catch _:_ -> false end,
+    Sender ! {Ref, Exposed},
+    held_reply(Exposed, MonitorRef, Ask).
+
+held_reply(Exposed, MonitorRef,
+           #ask{alias = Alias, asker = Asker, check = Check, deadline = Deadline} = Ask) ->
     receive
         {Exposed, Value} ->
             try foreign_answer(Check, Value) of
@@ -510,11 +521,16 @@ held_reply(Exposed, #ask{asker = Asker, check = Check} = Ask, Deadline) ->
             catch
                 %% report §8.4: a breach faults the receiving process
                 Class:Error:Stack -> exit(Asker, fault_exit_reason(Class, Error, Stack))
-            end
+            end;
+        %% report §6.6: the callee ended, or restarted, before it answered
+        {'DOWN', MonitorRef, process, _, _} ->
+            ask_ended(Ask, 'None');
+        {restarted, Alias} ->
+            ask_ended(Ask, 'None')
     after remaining(Deadline) ->
         case remaining(Deadline) of
             0 -> ok;
-            _ -> held_reply(Exposed, Ask, Deadline)
+            _ -> held_reply(Exposed, MonitorRef, Ask)
         end
     end.
 
@@ -694,9 +710,10 @@ delivered_down(Pid, ExitReason, #reaper{monitors = Monitors, monitor_refs = Moni
 
 %% Report §6.6: the asks of a process that ended are answered None, each in
 %% a counted process of its own as a Down is (wrapped/3), and the asks it
-%% made go, their replies dead with it.
+%% made go, their replies dead with it. An ask whose reply a holder has is
+%% the holder's to answer (exposed_reply/1).
 asks_ended(Pid) ->
-    lists:foreach(fun ended_by_reaper/1, asks_on(Pid)),
+    lists:foreach(fun ended_by_reaper/1, [Ask || #ask{holder = none} = Ask <- asks_on(Pid)]),
     lists:foreach(fun ask_over/1, asks_of(Pid)).
 
 ended_by_reaper(#ask{asker = Asker} = Ask) ->
@@ -2077,7 +2094,9 @@ within_limit({Restarts, Within}, Times) ->
 %% every ask of it None.
 restarted(Cause) ->
     Self = erlang:self(),
-    lists:foreach(fun(Ask) -> ask_ended(Ask, 'None') end, asks_on(Self)),
+    lists:foreach(fun(#ask{holder = none} = Ask) -> ask_ended(Ask, 'None');
+                     (#ask{alias = Alias, holder = Holder}) -> Holder ! {restarted, Alias}
+                  end, asks_on(Self)),
     Callers = try ets:select(?CALLEES, [{{{Self, '$1'}, '$2'}, [], [{{'$1', '$2'}}]}])
               catch _:_ -> []
               end,

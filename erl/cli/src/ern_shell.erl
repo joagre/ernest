@@ -14,6 +14,7 @@
          reload/1, version/0, write/1, screen/1, to_screen/1,
          output/1, unbound/1, collect/1, input_site/2, is_expression/1, declared/1]).
 
+-include_lib("kernel/include/file.hrl").
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("utils/include/ern_diagnostic.hrl").
@@ -97,12 +98,36 @@ program() ->
 
 %% Report §11.2, §8.1: where the startup files are, the person's first
 %% and then the node's, each named from the working directory as §11.5
-%% names a file. The shell reads them itself, in Ernest: only where they
-%% are is the host's to say.
--spec startup_files() -> [binary()].
+%% names a file, and whether it is the user's own to run. The shell reads
+%% them itself, in Ernest: only where they are, and whose, is the host's to
+%% say.
+-spec startup_files() -> [{binary(), boolean()}].
 startup_files() ->
     #loaded{startups = Startups} = persistent_term:get({?MODULE, loaded}, #loaded{}),
-    [unicode:characters_to_binary(ern_build:shown(File)) || File <- Startups].
+    There = [File || File <- Startups, filelib:is_file(File)],
+    User = case There of
+               [] -> none;
+               _ -> ern_os:user()
+           end,
+    [{unicode:characters_to_binary(ern_build:shown(File)), is_own(File, User)}
+     || File <- Startups].
+
+%% Report §11.2: a startup file another user could change is not run: the
+%% file and the directory that holds it are each the user's own or the
+%% superuser's, and writable by no one beyond its owner and group. A file
+%% that is not there has nothing to run.
+is_own(_File, none) ->
+    true;
+is_own(File, User) ->
+    is_kept(File, User) andalso is_kept(filename:dirname(File), User).
+
+is_kept(Path, User) ->
+    case file:read_file_info(Path) of
+        {ok, #file_info{uid = Owner, mode = Mode}} ->
+            (Owner =:= User orelse Owner =:= 0) andalso Mode band 8#002 =:= 0;
+        {error, _} ->
+            true
+    end.
 
 %% Report §11.2: at a terminal the shell takes another line where the
 %% parser cannot finish the input. Both readings are tried, the expression
@@ -594,8 +619,12 @@ bindings(#session{scope = Scope} = Session) ->
 %% name a slot admits; this only answers the slot, a `Shell.Complete.Slot`.
 -spec slot(binary()) -> atom() | {'Fields', [binary()]}.
 slot(Before) ->
-    case [What || {true, What} <- [wanted(ern_parser:parse_expr(Before)),
-                                   wanted(ern_parser:parse_string(Before))],
+    %% a line being typed is read and not run, so reading it makes no name:
+    %% the host keeps a name for ever, and a `Tab` is pressed at every word
+    ok = stdlib_met(),
+    Read = [no_new_names],
+    case [What || {true, What} <- [wanted(ern_parser:parse_expr(Before, Read)),
+                                   wanted(ern_parser:parse_string(Before, Read))],
                   What =/= undefined] of
         [What | _] -> slot_for(What);
         [] -> 'Expression'
@@ -603,6 +632,19 @@ slot(Before) ->
 
 wanted({error, #diagnostic{incomplete = Incomplete, expected = What}}) -> {Incomplete, What};
 wanted(_) -> {false, undefined}.
+
+%% A name that names something has been met: the session's, when its input
+%% ran, a loaded module's, when its interface was read, and the standard
+%% library's once its interfaces are read, which is done here, once, before
+%% a line is first read without making names.
+stdlib_met() ->
+    case persistent_term:get({?MODULE, stdlib_met}, false) of
+        true ->
+            ok;
+        false ->
+            _ = ern_prelude:stdlib_interfaces(),
+            persistent_term:put({?MODULE, stdlib_met}, true)
+    end.
 
 slot_for(expression) -> 'Expression';
 slot_for(typename) -> 'TypeName';
@@ -845,7 +887,7 @@ forget(#session{scope = Scope} = Session, Text) ->
     Values = maps:get(values, Scope, #{}),
     Types = maps:get(types, Scope, #{}),
     Constructors = maps:get(constructors, Scope, #{}),
-    case segments(Text) of
+    case segments(Session, Text) of
         {ok, [Name]} when is_map_key(Name, Values); is_map_key(Name, Types) ->
             Members = [{MemberOf, Member} || {MemberOf, Member} <- maps:keys(Values),
                                              MemberOf =:= Name],
@@ -876,9 +918,10 @@ constructors(QualifiedName, ScopeConstructors, #session{interfaces = Interfaces}
 %% its values, each with its type as §11.5 prints it.
 -spec browse(#session{}, binary()) -> {'Left', binary()} | {'Right', [binary()]}.
 browse(Session, Text) ->
-    case module_name(Text) of
+    case module_name(Session, Text) of
         {ok, ['Prelude']} -> {'Right', prelude_listing()};
         {ok, Namespace} -> browse(Text, Namespace, Session);
+        unmet -> {'Left', <<"no module ", Text/binary, " is in scope">>};
         {error, Refusal} -> {'Left', Refusal}
     end.
 
@@ -923,12 +966,51 @@ abstract_text(_) -> "".
 %% Report §2.3: a name as it is written, its segments between the dots,
 %% or `none` for text that is no name: an empty segment, or one longer than
 %% the host holds in a name, 255 characters. A trailing dot, which
-%% completion leaves after a namespace, names the namespace.
-segments(Text) ->
+%% completion leaves after a namespace, names the namespace. The host keeps
+%% a name it has met for ever, so a name typed to a command is made one
+%% only where it can name something: each segment met before, or the text,
+%% or what stands before its last segments, a module there is a file of.
+%% Otherwise it is `{unmet, Parts}`, its segments as they were typed.
+segments(Session, Text) ->
     Parts = binary:split(without_dot(Text), <<".">>, [global]),
     case lists:all(fun(Part) -> Part =/= <<>> andalso byte_size(Part) =< 255 end, Parts) of
-        true -> {ok, [binary_to_atom(Part) || Part <- Parts]};
-        false -> none
+        true ->
+            case lists:all(fun is_met/1, Parts) orelse names_a_module(Session, Parts) of
+                true -> {ok, [binary_to_atom(Part) || Part <- Parts]};
+                false -> {unmet, Parts}
+            end;
+        false ->
+            none
+    end.
+
+is_met(Part) ->
+    try binary_to_existing_atom(Part) of
+        _ -> true
+    catch
+        error:badarg -> false
+    end.
+
+%% Whether the name, or what stands before its last segments, is a module
+%% the host may not have met: one whose source the source root holds, or
+%% one compiled, on the load path or the code path.
+names_a_module(Session, Parts) ->
+    lists:any(fun(Length) ->
+                  is_module_file(Session, [binary_to_list(Part)
+                                           || Part <- lists:sublist(Parts, Length)])
+              end, lists:seq(length(Parts), 1, -1)).
+
+is_module_file(#session{source_root = SourceRoot} = Session, Segments) ->
+    case lists:all(fun(Segment) -> ern_namespace:component(Segment) =/= error end, Segments) of
+        true ->
+            Relative = ern_namespace:path(Segments),
+            Beam = "ern@" ++ lists:flatten(lists:join("@", filename:split(Relative))) ++ ".beam",
+            filelib:is_regular(filename:join(SourceRoot, Relative ++ ".ern"))
+                orelse lists:any(fun(Root) ->
+                                     filelib:is_regular(filename:join(Root, Relative ++ ".erc"))
+                                 end, load_path(Session))
+                orelse code:where_is_file(Beam) =/= non_existing;
+        false ->
+            false
     end.
 
 without_dot(<<>>) ->
@@ -943,11 +1025,17 @@ without_dot(Text) ->
 %% is words each beginning with a capital letter, `Http.Parser` for
 %% `http/parser.ern` and `OrderedSet` for `ordered_set.ern`; a name that
 %% is not one is refused rather than looked for.
-module_name(Text) ->
-    case segments(Text) of
+module_name(Session, Text) ->
+    case segments(Session, Text) of
         {ok, Namespace} ->
-            case lists:all(fun is_segment/1, Namespace) of
+            case lists:all(fun(Segment) -> is_segment(atom_to_list(Segment)) end, Namespace) of
                 true -> {ok, Namespace};
+                false -> not_module(Text)
+            end;
+        %% a module's name in form, of no module there is a file of
+        {unmet, Parts} ->
+            case lists:all(fun(Part) -> is_segment(binary_to_list(Part)) end, Parts) of
+                true -> unmet;
                 false -> not_module(Text)
             end;
         none ->
@@ -955,7 +1043,7 @@ module_name(Text) ->
     end.
 
 is_segment(Segment) ->
-    ern_namespace:component(atom_to_list(Segment)) =/= error.
+    ern_namespace:component(Segment) =/= error.
 
 not_module(Text) ->
     {error, <<Text/binary, " is not a module name: each segment of one is words beginning with"
@@ -974,10 +1062,14 @@ doc(Session, Text) ->
 %% The documentation of a name as it is written, with its segments; none
 %% for text that is no name.
 page(Session, Text) ->
-    maybe
-        {ok, Segments} ?= segments(Text),
-        {ok, Page} ?= doc_of(Session, Segments),
-        {ok, Page, Segments}
+    case segments(Session, Text) of
+        {ok, Segments} ->
+            case doc_of(Session, Segments) of
+                {ok, Page} -> {ok, Page, Segments};
+                none -> none
+            end;
+        _ ->
+            none
     end.
 
 %% Report §11.2: the page for a name, as the session stands, for
@@ -1181,11 +1273,13 @@ constructor_info(QualifiedName, Interfaces) ->
 %% is read as an expression, as a block's statement, a `let`, and as
 %% declarations, the first that stops inside a call answering.
 within(Before) ->
-    Parsers = [fun ern_parser:parse_expr/1, fun ern_parser:parse_statement/1,
-               fun ern_parser:parse_string/1],
+    %% read and not run, so no name is made of it (slot/1)
+    ok = stdlib_met(),
+    Parsers = [fun ern_parser:parse_expr/2, fun ern_parser:parse_statement/2,
+               fun ern_parser:parse_string/2],
     case [Enclosing || Parse <- Parsers,
                        {error, #diagnostic{incomplete = true, within = Enclosing}}
-                           <- [Parse(Before)],
+                           <- [Parse(Before, [no_new_names])],
                        Enclosing =/= undefined] of
         [Enclosing | _] -> Enclosing;
         [] -> none
@@ -1444,7 +1538,10 @@ moved_column(_, Column, _) -> Column.
 %% version, which `:reload` alone does, and says so.
 -spec load(#session{}, binary()) -> {'Left', binary()} | {'Right', {#session{}, binary()}}.
 load(#session{modules = Modules} = Session, Text) ->
-    case module_name(Text) of
+    case module_name(Session, Text) of
+        unmet ->
+            {'Left', <<"no module ", (without_dot(Text))/binary,
+                       " under the source root or on the load path\n">>};
         {ok, Namespace} ->
             Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
             Standard = [Held || #interface{namespace = Held} <- ern_prelude:stdlib_interfaces()],
@@ -2073,6 +2170,16 @@ output(<<"-">>) ->
     {'Right', <<"output goes to the live region">>};
 output(Path) ->
     Name = unicode:characters_to_list(Path),
+    case file:read_file_info(Name) of
+        %% report §11.2: a terminal or a file. Anything else is refused: a
+        %% pipe no one reads would hold the session where it is opened
+        {ok, #file_info{type = Type}} when Type =/= regular, Type =/= device ->
+            {'Left', <<"cannot write to ", Path/binary, ": it is no terminal and no file">>};
+        _ ->
+            opened_output(Path, Name)
+    end.
+
+opened_output(Path, Name) ->
     %% not `raw`: a raw device belongs to the process that opened it, and
     %% what writes to it is the sink's process, not this one
     case file:open(Name, [append]) of

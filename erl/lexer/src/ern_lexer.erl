@@ -49,15 +49,16 @@ tokenize(Source) ->
 %% With `comments`, every ordinary comment is a token too, `{comment,
 %% Position, Text}` with the text as written, for the formatter (report
 %% §11.6); it moves no other token's previous end, so the parser's spans
-%% are the same.
--spec tokenize(unicode:chardata(), [comments]) ->
+%% are the same. With `no_new_names`, a name the host has not met is the
+%% stand-in `'$unmet'`: the host keeps a name it has met for ever, so text
+%% that is read and not run, a line being typed, is read so (report §11.2).
+-spec tokenize(unicode:chardata(), [comments | no_new_names]) ->
           {ok, [token()]} | {error, ern_diagnostic:diagnostic()}.
 tokenize(Source, Options) ->
-    KeepComments = lists:member(comments, Options),
     case unicode:characters_to_list(Source) of
         Chars when is_list(Chars) ->
             Text = without_bom(Chars),
-            try refuse_controls(Text, 1, 1), lex(Text, 1, 1, {1, 1}, [], KeepComments) of
+            try refuse_controls(Text, 1, 1), lex(Text, 1, 1, {1, 1}, [], Options) of
                 Tokens -> {ok, Tokens}
             catch
                 throw:{lex_error, Diagnostic} -> {error, Diagnostic}
@@ -97,69 +98,70 @@ refuse_controls([_ | Rest], Line, Column) ->
 
 lex([], Line, Column, PreviousEnd, Acc, _KeepComments) ->
     lists:reverse([{eof, {Line, Column, {Line, Column}, PreviousEnd}} | Acc]);
-lex([$\n | Rest], Line, _Column, PreviousEnd, Acc, KeepComments) ->
-    lex(Rest, Line + 1, 1, PreviousEnd, Acc, KeepComments);
-lex([Char | Rest], Line, Column, PreviousEnd, Acc, KeepComments)
+lex([$\n | Rest], Line, _Column, PreviousEnd, Acc, Options) ->
+    lex(Rest, Line + 1, 1, PreviousEnd, Acc, Options);
+lex([Char | Rest], Line, Column, PreviousEnd, Acc, Options)
   when Char =:= $\s; Char =:= $\t; Char =:= $\r ->
-    lex(Rest, Line, Column + 1, PreviousEnd, Acc, KeepComments);
+    lex(Rest, Line, Column + 1, PreviousEnd, Acc, Options);
 %% report §2.2: `///` begins a doc comment and `////` an ordinary one
-lex("////" ++ Rest, Line, Column, PreviousEnd, Acc, KeepComments) ->
-    lex_line_comment("////", Rest, Line, Column, PreviousEnd, Acc, KeepComments);
-lex("///" ++ Rest, Line, Column, PreviousEnd, Acc, KeepComments) ->
+lex("////" ++ Rest, Line, Column, PreviousEnd, Acc, Options) ->
+    lex_line_comment("////", Rest, Line, Column, PreviousEnd, Acc, Options);
+lex("///" ++ Rest, Line, Column, PreviousEnd, Acc, Options) ->
     is_after_token(Acc, Line) andalso
         error_at(Line, Column, "a doc comment `///` stands on a line of its own; a note after"
                                " code is written `//`"),
     {Text, Rest1, EndLine} = doc_block(Rest, Line, []),
     lex(Rest1, EndLine, 1, {EndLine, 1},
-        [{doc, {Line, Column, {EndLine, 1}, PreviousEnd}, Text} | Acc], KeepComments);
-lex("//" ++ Rest, Line, Column, PreviousEnd, Acc, KeepComments) ->
-    lex_line_comment("//", Rest, Line, Column, PreviousEnd, Acc, KeepComments);
-lex("/*" ++ Rest, Line, Column, PreviousEnd, Acc, KeepComments) ->
+        [{doc, {Line, Column, {EndLine, 1}, PreviousEnd}, Text} | Acc], Options);
+lex("//" ++ Rest, Line, Column, PreviousEnd, Acc, Options) ->
+    lex_line_comment("//", Rest, Line, Column, PreviousEnd, Acc, Options);
+lex("/*" ++ Rest, Line, Column, PreviousEnd, Acc, Options) ->
     {Text, Rest1, EndLine, EndColumn} =
         block_comment(Rest, 1, Line, Column + 2, Line, Column, "*/"),
     Position = {Line, Column, {EndLine, EndColumn}, PreviousEnd},
     lex(Rest1, EndLine, EndColumn, PreviousEnd,
-        with_comment(KeepComments, Text, Position, Acc), KeepComments);
-lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, KeepComments)
+        with_comment(lists:member(comments, Options), Text, Position, Acc), Options);
+lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, Options)
   when Char >= $0, Char =< $9 ->
     {Kind, Value, Rest, EndColumn} = number(Input, Line, Column),
     refuse_word_after_number(Rest, Line, EndColumn),
     lex(Rest, Line, EndColumn, {Line, EndColumn},
-        [{Kind, {Line, Column, {Line, EndColumn}, PreviousEnd}, Value} | Acc], KeepComments);
-lex([$" | Rest], Line, Column, PreviousEnd, Acc, KeepComments) ->
+        [{Kind, {Line, Column, {Line, EndColumn}, PreviousEnd}, Value} | Acc], Options);
+lex([$" | Rest], Line, Column, PreviousEnd, Acc, Options) ->
     {Chars, Rest1, EndLine, EndColumn} = string_body(Rest, Line, Column + 1, Line, Column, []),
     lex(Rest1, EndLine, EndColumn, {EndLine, EndColumn},
         [{string, {Line, Column, {EndLine, EndColumn}, PreviousEnd},
-          unicode:characters_to_binary(Chars)} | Acc], KeepComments);
-lex([$` | Rest], Line, Column, PreviousEnd, Acc, KeepComments) ->
+          unicode:characters_to_binary(Chars)} | Acc], Options);
+lex([$` | Rest], Line, Column, PreviousEnd, Acc, Options) ->
     %% report §2.5: a raw string, no escapes, may span lines
     {Chars, Rest1, EndLine, EndColumn} = raw_body(Rest, Line, Column + 1, Line, Column, []),
     lex(Rest1, EndLine, EndColumn, {EndLine, EndColumn},
         [{string, {Line, Column, {EndLine, EndColumn}, PreviousEnd},
-          unicode:characters_to_binary(Chars)} | Acc], KeepComments);
-lex([$' | Rest], Line, Column, PreviousEnd, Acc, KeepComments) ->
+          unicode:characters_to_binary(Chars)} | Acc], Options);
+lex([$' | Rest], Line, Column, PreviousEnd, Acc, Options) ->
     {Char, Rest1, EndColumn} = char_body(Rest, Line, Column),
     lex(Rest1, Line, EndColumn, {Line, EndColumn},
-        [{char, {Line, Column, {Line, EndColumn}, PreviousEnd}, Char} | Acc], KeepComments);
-lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, KeepComments)
+        [{char, {Line, Column, {Line, EndColumn}, PreviousEnd}, Char} | Acc], Options);
+lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, Options)
   when Char >= $a, Char =< $z; Char =:= $_ ->
     {Name, Rest} = word(Input, Line, Column),
     EndColumn = Column + length(Name),
     lex(Rest, Line, EndColumn, {Line, EndColumn},
-        [word_token(Name, {Line, Column, {Line, EndColumn}, PreviousEnd}) | Acc], KeepComments);
-lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, KeepComments)
+        [word_token(Name, {Line, Column, {Line, EndColumn}, PreviousEnd}, Options) | Acc],
+        Options);
+lex([Char | _] = Input, Line, Column, PreviousEnd, Acc, Options)
   when Char >= $A, Char =< $Z ->
     {Name, Rest} = word(Input, Line, Column),
     EndColumn = Column + length(Name),
     lex(Rest, Line, EndColumn, {Line, EndColumn},
-        [{typename, {Line, Column, {Line, EndColumn}, PreviousEnd}, list_to_atom(Name)} | Acc],
-        KeepComments);
-lex(Input, Line, Column, PreviousEnd, Acc, KeepComments) ->
+        [{typename, {Line, Column, {Line, EndColumn}, PreviousEnd}, name(Name, Options)} | Acc],
+        Options);
+lex(Input, Line, Column, PreviousEnd, Acc, Options) ->
     case symbol(Input, ?SYMBOLS) of
         {Symbol, Rest, Length} ->
             EndColumn = Column + Length,
             lex(Rest, Line, EndColumn, {Line, EndColumn},
-                [{Symbol, {Line, Column, {Line, EndColumn}, PreviousEnd}} | Acc], KeepComments);
+                [{Symbol, {Line, Column, {Line, EndColumn}, PreviousEnd}} | Acc], Options);
         none ->
             error_at(Line, Column, io_lib:format("illegal character '~ts'", [[hd(Input)]]))
     end.
@@ -169,13 +171,14 @@ lex(Input, Line, Column, PreviousEnd, Acc, KeepComments) ->
 %%
 
 %% A `//` or `////` comment runs to the end of its line.
-lex_line_comment(Opener, Input, Line, Column, PreviousEnd, Acc, KeepComments) ->
+lex_line_comment(Opener, Input, Line, Column, PreviousEnd, Acc, Options) ->
     {Body, Rest} = line(Input),
     Text = Opener ++ Body,
     EndColumn = Column + length(Text),
     lex(Rest, Line, EndColumn, PreviousEnd,
-        with_comment(KeepComments, Text, {Line, Column, {Line, EndColumn}, PreviousEnd}, Acc),
-        KeepComments).
+        with_comment(lists:member(comments, Options), Text,
+                     {Line, Column, {Line, EndColumn}, PreviousEnd}, Acc),
+        Options).
 
 %% Report §2.2: whether a token stands before this point on the line.
 is_after_token([{Kind, _, _} | Before], Line) when Kind =:= comment; Kind =:= doc ->
@@ -461,14 +464,22 @@ word(Input, Line, Column) ->
 is_word_char(Char) -> (Char >= $a andalso Char =< $z) orelse (Char >= $A andalso Char =< $Z)
                       orelse (Char >= $0 andalso Char =< $9) orelse Char =:= $_.
 
-word_token("_", Position) -> {'_', Position};
-word_token("true", Position) -> {bool, Position, true};
-word_token("false", Position) -> {bool, Position, false};
-word_token(Name, Position) ->
-    Atom = list_to_atom(Name),
+word_token("_", Position, _) -> {'_', Position};
+word_token("true", Position, _) -> {bool, Position, true};
+word_token("false", Position, _) -> {bool, Position, false};
+word_token(Name, Position, Options) ->
+    Atom = name(Name, Options),
     case lists:member(Atom, ?RESERVED) of
         true -> {Atom, Position};
         false -> {ident, Position, Atom}
+    end.
+
+%% A name as the atom a token carries; under `no_new_names`, one the host
+%% has not met is the stand-in, and no atom is made.
+name(Name, Options) ->
+    case lists:member(no_new_names, Options) of
+        true -> try list_to_existing_atom(Name) catch error:badarg -> '$unmet' end;
+        false -> list_to_atom(Name)
     end.
 
 %%

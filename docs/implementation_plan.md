@@ -209,9 +209,23 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    written in the new names. A full sweep by `style.md`, every name read, decided with the
    user 2026-10-02 (the log's *The Renamings Kept Whole*), and widened to the form the same
    day (the log's *The Sweep Takes the Form Too*).
-8. **The hardening the code readers found** (C1-5, C1-9, C1-10, C3-26 to C3-31; and 0.2.0's C-1,
+8. **The hardening the code readers found** (C1-9, C1-10, C3-26 to C3-31; and 0.2.0's C-1,
    a read's and a write's timers in `Os` and a write's in `Tcp` cancelled when the request is
-   answered, as the socket's read cancels its own), in the new names; `findings.md` goes when this item and items 7, 15, 19 and 20 are done, with MVP 2.99b. With it the shell's and `ern
+   answered, as the socket's read cancels its own), in the new names, built 2026-10-03 (the
+   log's *The Hardening Built*): a program's environment is the one `ern` was started in, and
+   it starts with no signal ignored (E.23, §11); a job writes a file under a name it made
+   itself; a startup file another user could change is said and not run, and `:output` takes
+   a terminal or a file (§11.2); a `.erc`'s chunk is read as plain data whose names fit the
+   host; and text typed and not run makes no name. **Forged handles** (C1-5), decided
+   2026-10-03, are not refused: the boundary's checks catch a foreign side's mistakes, and a
+   term in the runtime's own form is built on purpose by code that, in the same host, needs
+   no forged handle (the same log entry; item 13 states it in §8.4). **Whose a file is**
+   ([`language_feedback.md`](language_feedback.md)'s entry 90) is a decision of this
+   milestone, taken with the user before it closes: whether `Fs.stat`'s `Entry` gains a
+   file's mode and owner, and `Os` the user, so that the shell's check of a startup file is
+   Ernest over `Fs` and its `foreign fn` goes. Recommended: yes, since E.0's rule 1 admits
+   each, a reader who knows a file's entry looks for both there, and `Fs.setMode` sets what
+   nothing reads; about half a day. Until then the shell asks the host. `findings.md` goes when this item and items 7, 15, 19 and 20 are done, with MVP 2.99b. With it the shell's and `ern
    test`'s `persistent_term` replaced at each input and each test, each replacement a scan of
    every process by the host (C3-39): what changes per input or per test moves to a table, and
    what a binding's holder keeps, which a read must not copy, is measured against a table and

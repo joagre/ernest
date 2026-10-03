@@ -38,6 +38,8 @@ The documents installed are for a reader with no checkout. The README is `tools/
 - `-noshell -noinput`, in that order, since the host takes the last of the two: the host reads no input, and standard input is the runtime's alone (report §8.2);
 - `-run ern_cli start -extra` and the command line: `ern_cli:start/0` runs the job, and a failure of the toolchain itself exits with status 70 instead of writing a crash dump (report §11).
 
+Before it clears the host's flags, `ERL_AFLAGS`, `ERL_FLAGS`, `ERL_ZFLAGS` and `ERL_LIBS`, it keeps each of them, and `PATH`, `BINDIR`, `EMU`, `PROGNAME` and `ROOTDIR`, which the host's own start sets or changes, as `ERN_GIVEN_<NAME>`, with `ERN_GIVEN` to say so: the runtime's helper puts each back, so that a program's environment is the one `ern` was started in (report Appendix E.23).
+
 It needs `sh`, `readlink` and `iconv`, and checks no version of the host.
 
 ## The release archive

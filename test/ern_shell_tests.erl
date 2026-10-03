@@ -200,6 +200,32 @@ host_flags_cleared() ->
     ?assertEqual(nomatch, binary:match(Output, <<"leaked">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"ern ">>)).
 
+%% report §11.2: a startup file another user could change is said and not
+%% run: one that anyone may write, and one in a directory that anyone may
+%% write. A regression test: each was run (findings.md's C3-28); a file of
+%% another user's is not covered, since a test cannot make one. Written
+%% after the code
+startup_of_anothers_test_() ->
+    {timeout, 60, fun startup_of_anothers/0}.
+
+startup_of_anothers() ->
+    Refused = fun(Change) ->
+                  Home = fresh_home(),
+                  Dir = filename:join(Home, ".ernest"),
+                  File = filename:join(Dir, "startup"),
+                  ok = filelib:ensure_path(Dir),
+                  ok = file:write_file(File, "Io.println(\"planted\")\n"),
+                  ok = Change(Dir, File),
+                  {0, Output} = sh("echo 1 | HOME=" ++ Home ++ " ../bin/ern shell"),
+                  ?assertEqual(nomatch, binary:match(Output, <<"planted">>)),
+                  ?assertMatch({_, _},
+                               binary:match(Output, <<"startup could be changed by another user,"
+                                                      " and is not run">>)),
+                  ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>))
+              end,
+    Refused(fun(_Dir, File) -> file:change_mode(File, 8#666) end),
+    Refused(fun(Dir, _File) -> file:change_mode(Dir, 8#777) end).
+
 %% report §11.2: a HOME that is no absolute path names no startup file and
 %% no history, since each would be under wherever the shell was started. A
 %% regression test: `HOME=.` ran a startup file the working directory held
@@ -2010,6 +2036,66 @@ session_names() ->
     ?assertMatch({_, _}, binary:match(Output, <<"> 1 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"input 5:1\nstart:1\n">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"Input">>)).
+
+%% report §11.2: text that is typed and not run makes no name the host
+%% keeps: a `Tab`, a `Shift-Tab`, and a command given a name of nothing make
+%% none, and answer as for any name of nothing. A regression test: each
+%% made a name of every word, which the host keeps for ever (findings.md's
+%% C3-30). Written after the code; an input that is run makes its names, as
+%% it must
+typing_makes_no_names_test_() ->
+    {timeout, 60, fun typing_makes_no_names/0}.
+
+%% In a host of its own, since the count of names is the host's, and other
+%% tests make names beside this one.
+typing_makes_no_names() ->
+    Paths = [filename:absname(Path)
+             || Path <- filelib:wildcard("../erl/*/ebin") ++ ["../build/stdlib"]],
+    Script = filename:join(fresh_home(), "names.escript"),
+    ok = file:write_file(
+           Script,
+           ["#!/usr/bin/env escript\n"
+            "main(_) ->\n"
+            "    code:add_pathsa(", io_lib:format("~p", [Paths]), "),\n"
+            "    Typed = fun(Word) ->\n"
+            "        [ern_shell:slot(<<Word/binary, \"a(\", Word/binary, \"b, \">>),\n"
+            "         ern_shell:slot(<<\"Zqx\", Word/binary, \"C.Zqx\", Word/binary, \"D(\">>),\n"
+            "         ern_shell:signature(<<\"Zqx\", Word/binary, \"E.\", Word/binary,"
+            " \"f(1, \">>),\n"
+            "         ern_shell:documentation(<<\"Zqx\", Word/binary, \"G.\", Word/binary,"
+            " \"h\">>)]\n"
+            "    end,\n"
+            %% once for what reading loads, and again with other names
+            "    Typed(<<\"zqxFirst\">>),\n"
+            "    Before = erlang:system_info(atom_count),\n"
+            "    Answers = Typed(<<\"zqxSecond\">>),\n"
+            "    io:format(\"~p ~p\", [erlang:system_info(atom_count) - Before, Answers]).\n"]),
+    {0, Output} = sh("escript " ++ Script),
+    ?assertEqual(<<"0 ['Expression','Expression','None','None']">>, Output).
+
+%% report §11.2: `:output` takes a terminal or a file, and a path that
+%% names neither is refused, the session going on. A regression test: a
+%% pipe with no reader held the session where it was opened (findings.md's
+%% C3-31); a command given a name of no module answers as before
+output_to_a_pipe_test_() ->
+    {timeout, 60, fun output_to_a_pipe/0}.
+
+output_to_a_pipe() ->
+    Home = fresh_home(),
+    Pipe = filename:join(Home, "pipe"),
+    {0, _} = sh("mkfifo " ++ Pipe),
+    InputFile = filename:join(Home, "session.in"),
+    ok = file:write_file(InputFile, [":output ", Pipe, "\n:output ", Home, "\n",
+                                     ":browse Zqxunmet\n:load Zqxunmet\n1 + 1\n"]),
+    {0, Output} = sh("HOME=" ++ Home ++ " ../bin/ern shell < " ++ InputFile),
+    Refusal = fun(Path) -> list_to_binary(["cannot write to ", Path,
+                                           ": it is no terminal and no file"]) end,
+    ?assertMatch({_, _}, binary:match(Output, Refusal(Pipe))),
+    ?assertMatch({_, _}, binary:match(Output, Refusal(Home))),
+    ?assertMatch({_, _}, binary:match(Output, <<"no module Zqxunmet is in scope">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"no module Zqxunmet under the source root or on"
+                                                " the load path">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"2 : Int">>)).
 
 %% report §11.2, Appendix E.0 rule 6: `Shift-Tab`'s two answers from the
 %% front end. Inside a call, the callee's signature with its parameters as

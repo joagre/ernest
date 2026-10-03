@@ -44,6 +44,11 @@
  * name, saying so with ERN_GIVEN. A program the helper runs, and the
  * environment it writes, are then the user's and not the host's.
  *
+ * Run with the argument `user`, the helper writes a 'u' frame, the user it
+ * runs as in four bytes, big-endian, which the host has no word for. Report
+ * §11.2: the shell runs a startup file that is this user's or the
+ * superuser's.
+ *
  * Run with the argument `remove`, the helper removes the path the runtime's
  * first frame names, 'p' and the path's bytes, a directory with everything
  * under it, and answers 'd' once it is gone, or 'f' and the name of the
@@ -495,6 +500,15 @@ int main(int argc, char **argv)
         for (variable = environ; *variable != NULL; variable++)
             frame('v', (const unsigned char *)*variable, strlen(*variable));
         frame('x', (const unsigned char *)"\0\0\0\0", 4);
+        return 0;
+    }
+    if (strcmp(argv[1], "user") == 0) {
+        uint32_t user = (uint32_t)geteuid();
+        unsigned char bytes[4] = {
+            (unsigned char)(user >> 24), (unsigned char)(user >> 16),
+            (unsigned char)(user >> 8), (unsigned char)user
+        };
+        frame('u', bytes, sizeof bytes);
         return 0;
     }
     if (strcmp(argv[1], "remove") == 0)

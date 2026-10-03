@@ -1174,6 +1174,58 @@ ask_exposed_reply_test() ->
     ?assertEqual({{answered, {'Some', 9}}, {'Fault', <<"reply does not match Int">>}},
                  wait(ended)).
 
+%% report §6.6, §8.4: an answer foreign code sends through a reply and the
+%% end of the callee that sent it keep their order, so the answer arrives,
+%% however long its wrap takes. A regression test for an answer a full run
+%% once lost; it does not cover a reply another process than the callee
+%% answers, where the two have no order.
+ask_exposed_reply_then_end_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Foreign = fun() ->
+                             receive
+                                 {ask, Reply} ->
+                                     Exposed = ern_rt:exposed_reply(Reply),
+                                     Exposed ! {Exposed, 9}
+                             end
+                         end,
+               Slow = fun({'Some', _} = Answer) -> timer:sleep(100), {answered, Answer};
+                         ('None') -> {answered, 'None'}
+                      end,
+               Callee = ern_rt:spawn(Foreign, <<"callee">>),
+               ern_rt:ask(Callee, fun(Reply) -> {ask, Reply} end, Slow, 60000,
+                          {int, <<"reply does not match Int">>}),
+               Self ! {ended, receive {answered, Answer} -> Answer end}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_) -> ok end}),
+    ?assertEqual({'Some', 9}, wait(ended)).
+
+%% report §6.6, §8.4: a callee that gave its reply to foreign code and ends,
+%% or restarts, before the answer leaves the ask answered None at once, and
+%% nothing of it. A regression test, written after the code.
+ask_exposed_reply_unanswered_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Ending = fun() -> receive {ask, Reply} -> ern_rt:exposed_reply(Reply) end end,
+               Faulting = fun() ->
+                              receive {ask, Reply} -> ern_rt:exposed_reply(Reply) end,
+                              1 div zero()
+                          end,
+               Answers = [begin
+                              ern_rt:ask(ern_rt:spawn(Callee, <<"callee">>),
+                                         fun(Reply) -> {ask, Reply} end,
+                                         fun(Answer) -> {answered, Answer} end, 60000,
+                                         {int, <<"reply does not match Int">>}),
+                              receive {answered, Answer} -> Answer after 1000 -> late end
+                          end || Callee <- [Ending,
+                                            ern_rt:restarting({'RestartLimit', 2, 60000},
+                                                              Faulting)]],
+               nap(50),
+               Self ! {ended, {Answers, ask_rows()}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_) -> ok end}),
+    ?assertEqual({['None', 'None'], {0, 0, 0}}, wait(ended)).
+
 %% report §6.6: the asks of a process that dies go with it, their replies
 %% dead, so a callee that never answers holds nothing of a dead asker
 ask_asker_dies_test() ->

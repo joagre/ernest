@@ -233,7 +233,18 @@ fn history(screen : Address(ScreenMsg)) : #(List(String), Bool) with m =
 // then the node's, a line an input, each with the file it came from so
 // that a failure names it rather than `input`.
 fn startup(state : State, screen : Address(ScreenMsg)) : Next with ShellMsg =
-    fromFiles(state, screen, List.flatMap(startupFiles(), fn(file) = fileInputs(screen, file)))
+    fromFiles(state, screen, List.flatMap(startupFiles(), fn(found) = ownInputs(screen, found)))
+
+// Report §11.2: the inputs of a startup file that is the user's own to
+// run; one another user could change is said and not run.
+fn ownInputs(screen : Address(ScreenMsg),
+             #(file, isOwn) : #(String, Bool)) : List(#(String, Int, String)) with m =
+    if isOwn then
+        fileInputs(screen, file)
+    else {
+        say(screen, file <> " could be changed by another user, and is not run");
+        []
+    }
 
 // A file that is not there is no error; one that cannot be read is said
 // and the session goes on. Each input carries the line it is on.
@@ -1196,9 +1207,9 @@ foreign fn check(session : Session,
     "ern_shell:check/3"
 
 // The host's alone: where the startup files are, the person's first and
-// then the node's. Whether they are there, and what they hold, is read
-// here (report §11.2).
-foreign fn startupFiles() : List(String) with m =
+// then the node's, and whether each is the user's own to run. Whether they
+// are there, and what they hold, is read here (report §11.2).
+foreign fn startupFiles() : List(#(String, Bool)) with m =
     "ern_shell:startup_files/0"
 
 foreign fn typeText(checked : Checked) : String =

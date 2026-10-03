@@ -34,9 +34,10 @@ encode(Facts, Interface) ->
 read(Beam) ->
     case beam_lib:chunks(Beam, [binary_to_list(?CHUNK)]) of
         {ok, {_, [{_, Chunk}]}} ->
-            try binary_to_term(Chunk) of
-                #{format := ?FORMAT,
-                  interface := {interface, Namespace, Types, Values, Lets}} = Read ->
+            %% data alone, since a `.erc` may come from anywhere (ern_chunk)
+            try ern_chunk:term(Chunk) of
+                {ok, #{format := ?FORMAT,
+                       interface := {interface, Namespace, Types, Values, Lets}} = Read} ->
                     Interface = #interface{namespace = Namespace, types = maps:from_list(Types),
                                            values = maps:from_list(Values), lets = Lets},
                     {ok, Read#{interface => Interface}};

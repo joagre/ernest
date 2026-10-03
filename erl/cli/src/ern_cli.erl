@@ -349,9 +349,12 @@ beam_of(Options, Path) ->
     case filename:extension(Path) of
         ".erc" ->
             Compiled = compiled(Path),
-            case ern_docs:read(Compiled) of
-                {ok, _} -> Compiled;
-                {error, Error} -> ern_build:fail(Path ++ ": " ++ Error)
+            %% both chunks a page is built from, so that a module whose
+            %% chunks are not the compiler's is refused and no page begun
+            case {ern_docs:read(Compiled), ern_interface:read(Compiled)} of
+                {{ok, _}, {ok, _}} -> Compiled;
+                {{error, Error}, _} -> ern_build:fail(Path ++ ": " ++ Error);
+                {_, {error, Error}} -> ern_build:fail(Path ++ ": " ++ Error)
             end;
         _ ->
             SourceRoot = ern_build:source_root(Options, Path, "."),
@@ -1131,7 +1134,10 @@ same_interface(Namespace, Dependency, Hash) ->
 %% is a placeholder to edit. The directory is made here or not at all, so
 %% that one another made first, as this runs, is refused, and it is its
 %% owner's alone before a file is written in it, so that no one else can
-%% open a file there, the key's while it is being written among them. A
+%% open a file there, the key's while it is being written among them. What
+%% another put in it before it was its owner's alone would be written
+%% through, a link among them, so it must hold nothing then, and each file
+%% is written in its place, a link there replaced and never followed. A
 %% name ending in `/` names the directory before it.
 create_config_dir(Given) ->
     ConfigDir = filename:join([Given]),
@@ -1141,6 +1147,8 @@ create_config_dir(Given) ->
         {error, eexist} -> ern_build:fail(ConfigDir ++ " exists");
         {error, Error} -> ern_build:fail(ConfigDir ++ ": " ++ file:format_error(Error))
     end,
+    file:list_dir_all(ConfigDir) =:= {ok, []}
+        orelse ern_build:fail(ConfigDir ++ " was written to by another as it was made"),
     Key = public_key:generate_key({namedCurve, ed25519}),
     Private = public_key:pem_encode([public_key:pem_entry_encode('PrivateKeyInfo', Key)]),
     %% the key names its curve, {namedCurve, Oid}, as its parameters
@@ -1155,9 +1163,9 @@ create_config_dir(Given) ->
             "  \"public-key\": ", json:encode(Public), ",\n",
             "  \"peers\": []\n",
             "}\n"],
-    ok = ern_build:write_whole(filename:join(ConfigDir, "ernest.conf"), Json),
+    ok = ern_build:write_output(filename:join(ConfigDir, "ernest.conf"), Json),
     %% the key is its owner's alone before it is written
-    ok = ern_build:write_whole(filename:join(ConfigDir, "private-key.pem"), Private, 8#600),
+    ok = ern_build:write_output(filename:join(ConfigDir, "private-key.pem"), Private, 8#600),
     0.
 
 usage_fail(Message) ->

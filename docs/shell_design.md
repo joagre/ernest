@@ -63,6 +63,8 @@ The front end's values reach the shell as handles of three foreign types, `Sessi
 
 Each input is compiled as a module of its own and loaded. Its namespace is `$Input<n>`; the module that holds what a `let` bound is `$Bindings<n>`; and the ones a text is checked in for `fields` and `signature` are `$Fields` and `$Signature`. No identifier holds a `$` (§2.3), so no input can name one. The number of an input or a holder the session has let go is given again, so an input's own module costs no new atom.
 
+Text that is read and not run makes no name either, since the host keeps a name for ever. `slot` and `within`, which read the line being typed, lex it with `no_new_names`: a name the host has not met is the stand-in `'$unmet'`, which names nothing, and `stdlib_met/0` reads the standard library's interfaces once before, so that every name a completion offers has been met. A command's name, `:doc`'s, `:forget`'s, `:browse`'s and `:load`'s, is made a name only where it can name something (`segments/2`): each segment met before, or a module there is a file of; any other answers what a name that names nothing answers.
+
 `input/1` reads the text as an expression, whose value is `it`; failing that, as declarations, where a lone `let` binds its name; and failing that, as a `let` with a pattern, which becomes the block `{ let p = e; #(names) }`. An expression or a `let` becomes the body of `export fn '$input'()`, whose effect is left a variable, so the input's process takes the input's own mailbox type (§8.1). No Ernest identifier is spelled `'$input'`, so it shadows no name the session declares, `main` among them. Declarations are the module's own, each exported; an input that declares runs its module's initializers (§8.5) in its own process, and its value is `Unit`.
 
 ### The session's scope
@@ -89,7 +91,7 @@ An input that declares, a holder, and an input whose value holds its functions a
 
 The runner binds standard output and standard error to `ern_shell:to_screen`, so a program's bytes still pass through the runtime's sinks (§8.2) and reach the screen as `Wrote`. A byte that is not UTF-8 becomes U+FFFD, and a character cut across two writes waits for its end in the writing sink's process. Before `setScreen` names the screen, what is written goes to standard output.
 
-`:output path` opens the path in the front end, in append mode, so the shell gains no file system of its own. The device is not opened `raw`, since a raw device belongs to the process that opened it and what writes to it is the sink's process. While it is open, `to_screen` writes there instead of to the screen.
+`:output path` opens the path in the front end, in append mode, so the shell gains no file system of its own. The device is not opened `raw`, since a raw device belongs to the process that opened it and what writes to it is the sink's process. While it is open, `to_screen` writes there instead of to the screen. A path that is there and is neither a file nor a device is refused before it is opened (§11.2): opening a pipe no one reads would hold the session.
 
 ## The screen and the region
 
@@ -162,7 +164,7 @@ A spawn site in an input's module is written as §11.2 *Faults* says. The emitte
 
 ## Startup files
 
-`startupFiles()` answers the paths, the person's `$HOME/.ernest/startup` and then, where `--config-dir` names it, the configuration directory's `startup`, which the runner computes (§11.2), each named from the working directory. Whether each is there, and what it holds, the shell reads itself with `Fs`: a file that is not there is no error, one that cannot be read or is not UTF-8 is said, and `startupInputs` takes its inputs from its lines by line mode's rule, each carrying its file and the line it begins on. While a startup input runs, the session's `State` holds its file and line in `startupLine`, which `refuse` and a fault's report put before what they say. A `:` line goes to `perform`, as a typed command does; any other goes to `quietly`, which is `execute` with printing off and the file and the line passed to `check`, so a diagnostic names them.
+`startupFiles()` answers the paths, the person's `$HOME/.ernest/startup` and then, where `--config-dir` names it, the configuration directory's `startup`, which the runner computes (§11.2), each named from the working directory, and with each whether it is the user's own to run (§11.2): the file and the directory that holds it owned by the user or the superuser, and writable by no one beyond owner and group. `Fs.stat` answers no owner and `Os` no user ([`language_feedback.md`](language_feedback.md)'s entry 90), so the host says it, the user read through `ern_exec`. One that is not is said and not run. Whether each is there, and what it holds, the shell reads itself with `Fs`: a file that is not there is no error, one that cannot be read or is not UTF-8 is said, and `startupInputs` takes its inputs from its lines by line mode's rule, each carrying its file and the line it begins on. While a startup input runs, the session's `State` holds its file and line in `startupLine`, which `refuse` and a fault's report put before what they say. A `:` line goes to `perform`, as a typed command does; any other goes to `quietly`, which is `execute` with printing off and the file and the line passed to `check`, so a diagnostic names them.
 
 ## Testing
 
