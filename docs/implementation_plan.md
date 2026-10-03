@@ -219,7 +219,7 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    host; and text typed and not run makes no name. **Forged handles** (C1-5), decided
    2026-10-03, are not refused: the boundary's checks catch a foreign side's mistakes, and a
    term in the runtime's own form is built on purpose by code that, in the same host, needs
-   no forged handle (the same log entry; item 13 states it in §8.4). **Whose a file is**
+   no forged handle (the same log entry; §8.4 says so since item 13). **Whose a file is**
    ([`language_feedback.md`](language_feedback.md)'s entry 90) is a decision of this
    milestone, taken with the user before it closes: whether `Fs.stat`'s `Entry` gains a
    file's mode and owner, and `Os` the user, so that the shell's check of a startup file is
@@ -271,17 +271,15 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
 11. **`set.ern` over its record**: joined item 5 on 2026-10-02 (the log's *The Operations
     Decided and Built*).
 12. **`OrderedSet` in the standard library**: joined item 5 on 2026-10-02.
-13. **The boundary at a type variable**, what remains of it. A foreign function's result at a
-    type variable its parameters name, which §8.4 lets through unchecked, was decided with the
-    user on 2026-10-03 (R-2; the log's *The Boundary Trusts a Type Variable*): the trust is
-    kept, §8.4 stating it as the foreign side's promise, since a check can be made only where
-    a call is written at a known type and would cost the honest container a walk of every
-    value it returns. On 2026-10-02 `foreign fn weird(x : a) : a = "erlang:length/1"` applied
-    to a list was accepted and faulted inside `List.size` with the host's `case_clause` and
-    its stack. And `Foreign.from` exposes its value at the caller's type, a proxy for each
-    address in it and a check for each function, as a foreign function's argument is (C1-4,
-    decided with the user 2026-09-30), its argument's type known whole as `Io.show`'s is
-    (E.1), and refused on a type variable. The rest was done by the
+13. **The boundary at a type variable**, done 2026-10-03 (the log's *The Boundary Trusts a
+    Type Variable*, built in its last paragraph). A foreign function's result at a type
+    variable its parameters name is trusted, and §8.4 states it as the foreign side's
+    promise: at such a variable it returns, and calls a function with, only values it was
+    given at that variable; §8.4 also says that the checks catch a mistake and confine
+    nothing. `Foreign.from` gives its value as a foreign function's argument of the value's
+    type crosses, a proxy for each address in it and a check for each function (C1-4), by the
+    type at which the name is used, known whole there as `Io.show`'s is, and is refused on a
+    type variable, where no requirement names it (§8.4, E.12). The rest was done by the
     principles review's edits: `Io.show` and `Io.debug` on a type variable are refused, and
     `Io.debug` writes through `Io`'s stream process to standard error (the log's *A Value Shows
     Itself at a Known Type*).

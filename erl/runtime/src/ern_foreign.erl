@@ -1,6 +1,8 @@
 %% The shims behind Foreign (report Appendix E.12, rule 1): what a value of
-%% the runtime is can only be asked of the runtime. `from` is the identity,
-%% since an Ernest value is already a value of the runtime (report §8.4).
+%% the runtime is can only be asked of the runtime. `from/1` stands behind
+%% the declaration and is the identity: a use of `Foreign.from` is compiled
+%% to the crossing itself, by the type it is used at (report §8.4,
+%% ern_emitter), and nothing of the value's type is known here.
 -module(ern_foreign).
 
 -export([from/1, to_int/1, to_float/1, to_string/1, to_bytes/1, to_bool/1, to_list/1]).

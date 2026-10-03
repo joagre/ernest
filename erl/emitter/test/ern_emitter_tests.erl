@@ -3525,26 +3525,38 @@ retyped_address_test() ->
         "}\n"),
     ?assertEqual(<<"got 5\nFault(\"message does not match Int\")\n">>, Output).
 
-%% report §8.4, Appendix E.12: an address given to foreign code in an
-%% argument of its type crosses behind a proxy, which faults its process on
-%% a message of another type; given as `Foreign.from` makes it, it crosses
-%% as the runtime holds it, unchecked, until `Foreign.from` takes its
-%% caller's description of the type (MVP 2.99b's item 13). A regression
-%% test of what the report states (findings.md's C1-4)
-foreign_from_crosses_unchecked_test() ->
+%% report §8.4, Appendix E.12: `Foreign.from` gives its value as a foreign
+%% function's argument of the value's type crosses: an address goes behind
+%% the proxy that faults its process on a message of another type, and a
+%% function checks what foreign code calls it with, as each does given in
+%% an argument of its own type. A value nothing in which crosses is the
+%% value itself. A regression test: `Foreign.from` gave the address and the
+%% function as the runtime held them, unchecked (findings.md's C1-4)
+foreign_from_crosses_as_an_argument_test() ->
     Main = "export fn main() : Unit with Int = {\n    let _ = ~s;\n"
            "    receive { _ -> Unit | after 200 -> Unit }\n}\n",
     Typed = "foreign fn rawSend(to : Address(Int), message : String) : String =\n"
             "    \"erlang:send/2\"\n",
     Untyped = "foreign fn rawSend(to : Foreign.Term, message : String) : String =\n"
               "    \"erlang:send/2\"\n",
+    Applied = "foreign fn applied(f : Foreign.Term, arguments : List(String)) : Int =\n"
+              "    \"erlang:apply/2\"\n",
     Program = fun(Declaration, Call) ->
                   Declaration ++ lists:flatten(io_lib:format(Main, [Call]))
               end,
-    {Checked, _} = run(Program(Typed, "rawSend(self(), \"x\")")),
-    ?assertMatch({fault, _}, Checked),
-    {Unchecked, _} = run(Program(Untyped, "rawSend(Foreign.from(self()), \"x\")")),
-    ?assertEqual(ok, Unchecked).
+    Fault = fun(Source) ->
+                {{fault, Cause}, _} = run(Source),
+                Cause
+            end,
+    ?assertEqual(<<"message does not match Int">>,
+                 Fault(Program(Typed, "rawSend(self(), \"x\")"))),
+    ?assertEqual(<<"message does not match Int">>,
+                 Fault(Program(Untyped, "rawSend(Foreign.from(self()), \"x\")"))),
+    ?assertEqual(<<"foreign argument does not match Int">>,
+                 Fault(Program(Applied, "applied(Foreign.from(fn(n : Int) = n + 1), [\"x\"])"))),
+    ?assertEqual({ok, <<"Some(42)\n">>},
+                 run("export fn main() : Unit with Never =\n"
+                     "    Io.println(Io.show(Foreign.toInt(Foreign.from(42))))\n")).
 
 %% Appendix E.18, E.21, E.23: a listener, a socket and a running program are
 %% processes of the program's: Process.live lists them, and Process.info

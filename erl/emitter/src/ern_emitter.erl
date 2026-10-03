@@ -662,6 +662,15 @@ name_form(Span, _, Name, #own_declaration{member_of = undefined, name = Name}, T
           #emit_context{erlang_module = 'ern@io'} = Context)
   when Name =:= show; Name =:= debug ->
     io_value(Span, Name, Type, Shown, Context);
+%% Report §8.4, Appendix E.12: Foreign.from as a value, which gives its
+%% argument as a foreign function's argument of the supplied type crosses
+name_form(_Span, _, from,
+          #remote_declaration{namespace = ['Foreign'], member_of = undefined, name = from},
+          _Type, [#shown_type{type = Crossing}], Context) ->
+    from_value(Crossing, Context);
+name_form(_Span, _, from, #own_declaration{member_of = undefined, name = from}, _Type,
+          [#shown_type{type = Crossing}], #emit_context{erlang_module = 'ern@foreign'} = Context) ->
+    from_value(Crossing, Context);
 name_form(Span, _, _, {prelude, QualifiedName}, Type, [], Context) ->
     prelude_value(Span, QualifiedName, Type, Context);
 name_form(_, _, _, #own_declaration{member_of = MemberOf, name = Name}, _, [], Context) ->
@@ -763,6 +772,17 @@ call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = Name
      #emit_context{erlang_module = 'ern@io'} = Context)
   when Name =:= show; Name =:= debug ->
     io_call(Span, Name, Argument, Shown, Context);
+%% Report §8.4, Appendix E.12: Foreign.from, the value as a foreign
+%% function's argument of its type crosses, by what the checker supplied
+call(Span, #e_var{referent = #remote_declaration{namespace = ['Foreign'], member_of = undefined,
+                                                 name = from},
+                  supplies = [#shown_type{type = Crossing}]},
+     [Argument], Context) ->
+    from_call(Span, Argument, Crossing, Context);
+call(Span, #e_var{referent = #own_declaration{member_of = undefined, name = from},
+                  supplies = [#shown_type{type = Crossing}]},
+     [Argument], #emit_context{erlang_module = 'ern@foreign'} = Context) ->
+    from_call(Span, Argument, Crossing, Context);
 call(Span, #e_var{referent = {prelude, QualifiedName}} = Callee, Args, Context) ->
     %% report §4.2: the prelude's, `Prelude.x` among them
     {ArgForms, Context1} = exprs(Args, Context),
@@ -820,6 +840,16 @@ io_value(_Span, Name, {tfn, [_], _, _}, Shown, Context) ->
     {DescriptorForm, Context2} = supply_form(Shown, Context1),
     {lambda([Value], call_remote(ern_io, Name, [erl_syntax:variable(Value), DescriptorForm])),
      Context2}.
+
+from_call(Span, Argument, Crossing, Context) ->
+    {[ArgumentForm], Context1} = exprs([Argument], Context),
+    {Form, Context2} = exposed({Crossing, ArgumentForm}, Context1),
+    {at(Span, Form), Context2}.
+
+from_value(Crossing, Context) ->
+    {[Value], Context1} = fresh_variables(1, "A", Context),
+    {Form, Context2} = exposed({Crossing, erl_syntax:variable(Value)}, Context1),
+    {lambda([Value], Form), Context2}.
 
 %%
 %% Supplies, report §4.9: what the checker resolved a requirement's members

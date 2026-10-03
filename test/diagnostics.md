@@ -2305,6 +2305,22 @@ example.ern:2:5: Io.show needs a.show, which shown does not declare; add needs a
   |     ^^^^^^^
 ```
 
+### `Foreign.from` on a type variable (§8.4, Appendix E.12)
+
+```ernest-rejected
+fn give(x : a) : Foreign.Term =
+    Foreign.from(x)
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: Foreign.from gives foreign code a value by its type, which is not known whole here: a!
+1 | fn give(x : a) : Foreign.Term =
+2 |     Foreign.from(x)
+  |     ^^^^^^^^^^^^
+  | = help: annotate the value where it is bound; a value of a type variable is given by a `foreign fn` whose parameter is of that variable
+```
+
 ### A declaration with a requirement as a value at the prompt (§4.9, §11.2)
 
 ```console

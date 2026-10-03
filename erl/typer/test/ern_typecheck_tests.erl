@@ -494,6 +494,27 @@ show_needs_a_known_type_test() ->
     ?assertEqual(ok, ok("fn f() : String = Io.show(fn(n : Int) = n)")),
     ?assertEqual(ok, ok("fn f(xs : List(Int)) : List(String) = List.map(xs, Io.show)")).
 
+%% report §8.4, Appendix E.12: `Foreign.from` gives its value by the type at
+%% which the name is used, which is known whole there: on a type variable,
+%% and on a type that holds one, it is refused, as a callee and as a value,
+%% and no requirement names it; at a known type it is taken, an effect
+%% variable in the type being no matter. A regression test, written after
+%% the code: the value crossed as the runtime held it, whatever its type
+foreign_from_at_a_known_type_test() ->
+    ?assertEqual("Foreign.from gives foreign code a value by its type, which is not known whole"
+                 " here: a!",
+                 refusal("fn give(x : a) : Foreign.Term = Foreign.from(x)")),
+    ?assertEqual("Foreign.from gives foreign code a value by its type, which is not known whole"
+                 " here: List(a)",
+                 refusal("fn give(xs : List(a)) : Foreign.Term needs a.show = Foreign.from(xs)")),
+    ?assertEqual("Foreign.from gives foreign code a value by its type, which is not known whole"
+                 " here: a!",
+                 refusal("fn give(xs : List(a)) : List(Foreign.Term) =\n"
+                         "    List.map(xs, Foreign.from)")),
+    ?assertEqual(ok, ok("fn give(xs : List(Int)) : List(Foreign.Term) =\n"
+                        "    List.map(xs, Foreign.from)")),
+    ?assertEqual(ok, ok("fn give(f : (Int) -> Int with e) : Foreign.Term = Foreign.from(f)")).
+
 %% report §3.8, §3.10: a `Foreign` value has the runtime's exact equality,
 %% directly or inside another value, whatever term foreign code made, a
 %% function's among them. A regression test of the rule of 2026-10-01: the

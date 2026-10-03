@@ -2239,7 +2239,7 @@ $ ern run build/store.erc
 found 42
 ```
 
-A helper converts whatever its Erlang function returns to the declared type; Ernest does not. A `foreign fn` that takes a `Foreign.Term` is given one by `Foreign.from(value)`, and `Erl.atom(name)` makes an atom (report Appendix E.12, report Appendix E.19).
+A helper converts whatever its Erlang function returns to the declared type; Ernest does not. A `foreign fn` that takes a `Foreign.Term` is given one by `Foreign.from(value)`, which gives the value as an argument of its type crosses, so the type must be known where `Foreign.from` is written, as it must for `Io.show`; `Erl.atom(name)` makes an atom (report Appendix E.12, report Appendix E.19).
 
 `libs/ets` is such a library, report Appendix G.1, which Appendix D shows with a shorter documentation, and a program adds it with `--load-path`. A data format, a protocol and a pattern language each belong to a library outside the standard library (report Appendix E.0 rule 3), and report Appendix G lists the libraries there are.
 

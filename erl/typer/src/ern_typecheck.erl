@@ -1960,17 +1960,24 @@ params_and_body(#let_declaration{body = Body}) -> {[], Body}.
 %% own uses in io.ern among them; the type is read once the definition is
 %% inferred, as an operator's operand type is (§4.8), and supplied as a
 %% requirement's `show` is (§4.9).
+%% Report §8.4, Appendix E.12: `Foreign.from` gives its value by the type
+%% at which the name is used, read the same way.
 shown(Span, Referent, Type, #env{namespace = Namespace}) ->
-    Name = case Referent of
-               #remote_declaration{namespace = ['Io'], member_of = undefined, name = Called} ->
-                   Called;
-               #own_declaration{member_of = undefined, name = Called} when Namespace =:= ['Io'] ->
-                   Called;
-               _ -> none
-           end,
-    case {lists:member(Name, [show, debug]), Type} of
-        {true, {tfn, [Argument], _, _}} ->
+    Declared = case Referent of
+                   #remote_declaration{namespace = [Module], member_of = undefined,
+                                       name = Called} ->
+                       {Module, Called};
+                   #own_declaration{member_of = undefined, name = Called}
+                     when Namespace =:= ['Io']; Namespace =:= ['Foreign'] ->
+                       {hd(Namespace), Called};
+                   _ ->
+                       none
+               end,
+    case {Declared, Type} of
+        {{'Io', Name}, {tfn, [Argument], _, _}} when Name =:= show; Name =:= debug ->
             [#pending_member{span = Span, type = Argument, member = show, need = {shown, Name}}];
+        {{'Foreign', from}, {tfn, [Argument], _, _}} ->
+            [#pending_member{span = Span, type = Argument, member = exposed, need = exposed}];
         _ ->
             []
     end.
@@ -2842,6 +2849,15 @@ supplied(Leaf, Env) ->
 %% own operation; and a known type its member, with that member's own
 %% requirement supplied at its type, members supplying members. Outer is the
 %% member first needed, where this one supplies another's requirement.
+supply(Span, Type, exposed, _Need, _Outer, #env{type_state = TypeState} = Env) ->
+    %% report §8.4, Appendix E.12: Foreign.from gives its value at a type
+    %% known whole, and no requirement names it, a record's fill among
+    %% what cannot
+    Substituted = ern_types:substitute(ern_types:resolve(Type, TypeState), TypeState),
+    case ern_types:value_variables(Substituted, TypeState) of
+        [] -> {#shown_type{type = Substituted}, Env};
+        _ -> not_exposed(Span, Substituted, Env)
+    end;
 supply(Span, Type, Member, Need, Outer, #env{type_state = TypeState} = Env) ->
     case ern_types:resolve(Type, TypeState) of
         {tvar, _} = Variable ->
@@ -2992,6 +3008,13 @@ not_shown(Span, Type, Need, #env{type_state = TypeState}) ->
     fail(Span, needer_text(Need) ++ " needs " ++ ern_types:format(Type, TypeState)
                ++ ".show, and Io.show writes a type known whole, or a requirement's type"
                " variable").
+
+-spec not_exposed(ern_diagnostic:span(), term(), env()) -> no_return().
+not_exposed(Span, Type, #env{type_state = TypeState}) ->
+    fail(Span, "Foreign.from gives foreign code a value by its type, which is not known whole"
+               " here: " ++ ern_types:format(Type, TypeState), [],
+         "annotate the value where it is bound; a value of a type variable is given by a"
+         " `foreign fn` whose parameter is of that variable").
 
 needer_text({call, Name}) -> Name;
 needer_text({fill, Name}) -> Name;

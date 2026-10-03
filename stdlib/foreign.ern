@@ -1,8 +1,8 @@
 /// Operations on `Term`, any value of the runtime, which a `foreign fn`
 /// gives back where its result has no Ernest type (report §3.8, §8.4).
 /// These functions ask what a term is, each answering `None` when it is
-/// something else. `from` goes the other way, since an Ernest value is
-/// already a value of the runtime.
+/// something else. `from` goes the other way: it gives a value as foreign
+/// code is given an argument of the value's type.
 ///
 /// ## Examples
 ///
@@ -37,8 +37,12 @@
 /// since 0.2.0
 export foreign type Term
 
-/// The value as the runtime holds it, which a `foreign fn` may take where
-/// it declares `Term`.
+/// The value as it crosses into foreign code, which a `foreign fn` may
+/// take where it declares `Term`. It crosses as an argument of its type
+/// does: an address in it behind the check of what foreign code sends it,
+/// and a function with the check of what foreign code calls it with (report
+/// §8.4). The type is the one `from` is used at, and is known whole there;
+/// on a type variable `from` is a type error.
 export foreign fn from(value : a) : Term =
     "ern_foreign:from/1"
 
