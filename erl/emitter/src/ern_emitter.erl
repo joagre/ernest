@@ -126,11 +126,12 @@ top_functions(TopNames) ->
      || {MemberOf, Name} := Arity <- TopNames].
 
 %% Report Appendix E.24, §11.2: '$tests'/0 lists the module's tests, every
-%% top-level let of type Test.Case, exported or not, for `ern test`.
+%% top-level let of type Test.Case(m), exported or not, for `ern test`; the
+%% mailbox type is the test process's, and nothing here.
 tests_function(Lets) ->
     Names = [function_name(undefined, Name)
-             || #let_declaration{name = Name, scheme = Scheme} <- Lets,
-                Scheme#scheme.type =:= {tcon, ['Test', 'Case'], []}],
+             || #let_declaration{name = Name, scheme = #scheme{type = Type}} <- Lets,
+                is_test_case(Type)],
     case Names of
         [] -> [];
         _ ->
@@ -149,6 +150,9 @@ tests_function(Lets) ->
             [erl_syntax:function(erl_syntax:atom('$tests'),
                                  [erl_syntax:clause([], none, lists:reverse(Matches) ++ [List])])]
     end.
+
+is_test_case({tcon, ['Test', 'Case'], [_]}) -> true;
+is_test_case(_) -> false.
 
 %% Report §11.2, §6.10: '$fun'/2 answers an exported function of this
 %% module as a fun of the version that answers, so that a function value

@@ -137,7 +137,7 @@ many_tests_test_() ->
 many_tests() ->
     Dir = tmp(),
     File = write(Dir, "many.ern",
-                 [["let t", integer_to_list(Index), " : Test.Case =\n",
+                 [["let t", integer_to_list(Index), " : Test.Case(Never) =\n",
                    "    Test.Case(name = \"t", integer_to_list(Index),
                    "\", run = fn() = Test.Passed)\n"] || Index <- lists:seq(1, 1100)]),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
@@ -900,6 +900,23 @@ test_runner_unicode_test() ->
     ?assertEqual(1, ern_cli:ern(["test", Dir ++ "/build/checks.erc"])),
     Output = unicode:characters_to_binary(?capturedOutput),
     ?assertMatch({_, _}, binary:match(Output, <<"dash: failed: a — b\n"/utf8>>)).
+
+%% report Appendix E.24, §11.2: a test runs in a process whose mailbox type
+%% is its own, so one may receive what a process it spawned sends it.
+%% Written after the code
+test_receives_test() ->
+    Dir = tmp(),
+    File = write(Dir, "waits.ern",
+                 "type Go = Go\n"
+                 "let waits = Test.Case(name = \"waits\", run = fn() = {\n"
+                 "    let me = self();\n"
+                 "    let _ = spawn(fn() : Unit with Never = send(me, Go));\n"
+                 "    receive { Go -> Test.Passed }\n"
+                 "})\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    ?assertEqual(0, ern_cli:ern(["test", filename:join(Dir, "waits.erc")])),
+    Output = iolist_to_binary(?capturedOutput),
+    ?assertMatch({match, _}, re:run(Output, "waits: passed\n")).
 
 %% report Appendix E.24, §11.2: ern test runs every top-level let of type Test.Case,
 %% exported or not, each in its own process, reports each, and exits 1
@@ -1760,7 +1777,7 @@ faulting_binding_named_test() ->
                                   "let bad : Int = 1 / zero()\n\n"
                                   "export fn main() : Unit with Never ="
                                   " Io.println(Int.toString(bad))\n\n"
-                                  "let t : Test.Case =\n"
+                                  "let t : Test.Case(Never) =\n"
                                   "    Test.Case(name = \"one\", run = fn() = Test.Passed)\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
     Erc = filename:join(Dir, "init.erc"),

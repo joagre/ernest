@@ -2773,3 +2773,23 @@ monitor_takes_a_process_test() ->
     ?assertEqual(ok, ok(Source ++ "fn f(p : Process) : Unit with M = monitor(p, Died)")),
     ?assertEqual("the argument does not fit monitor: expected Process, found Address(Int)",
                  refusal(Source ++ "fn f(a : Address(Int)) : Unit with M = monitor(a, Died)")).
+
+%% report Appendix E.24, §11.2: a test's run has the mailbox type of the
+%% test's process, so one that receives infers Test.Case of its message
+%% type, one that does not leaves it open, and the type takes an
+%% argument. Written after the code
+test_case_mailbox_test() ->
+    ?assertEqual(ok, ok("type Go = Go\n"
+                        "let waits = Test.Case(name = \"waits\", run = fn() = {\n"
+                        "    let me = self();\n"
+                        "    let _ = spawn(fn() : Unit with Never = send(me, Go));\n"
+                        "    receive { Go -> Test.Passed }\n"
+                        "})\n"
+                        "fn f(t : Test.Case(Go)) : String = t.name\n"
+                        "let name = f(waits)\n")),
+    ?assertEqual(ok, ok("let quiet = Test.Case(name = \"quiet\", run = fn() = Test.Passed)\n"
+                        "fn f(t : Test.Case(Int)) : String = t.name\n"
+                        "fn g(t : Test.Case(Never)) : String = t.name\n"
+                        "let both = f(quiet) <> g(quiet)\n")),
+    ?assertMatch("Test.Case" ++ _,
+                 refusal("let t : Test.Case = Test.Case(name = \"t\", run = fn() = Test.Passed)")).

@@ -1,6 +1,7 @@
 /// Tests that `ern test` runs (report Appendix E.24, §11.2). A test is a
-/// top-level `let` of type `Case`, exported or not: its name, and a
-/// function that answers whether it passed. The module declares the two
+/// top-level `let` of type `Case(m)`, exported or not: its name, and a
+/// function that answers whether it passed, run in a process whose mailbox
+/// type is `m`, so that a test may receive. The module declares the two
 /// types and no function.
 ///
 /// ## Examples
@@ -11,7 +12,9 @@
 ///
 /// since 0.2.0
 
-/// A test: its name, which `ern test` prints, and the function it runs.
+/// A test: its name, which `ern test` prints, and the function it runs, in
+/// a process whose mailbox type is `m`; a test that receives nothing leaves
+/// `m` open, and runs with `Never`.
 ///
 /// ### Examples
 ///
@@ -19,7 +22,7 @@
 /// Test.Case(name = "the empty list is empty",
 ///           run = fn() = if List.isEmpty([]) then Test.Passed else Test.Failed("not empty"))
 /// ```
-export type Case = Case(name : String, run : () -> Result with Never)
+export type Case(m) = Case(name : String, run : () -> Result with m)
 
 /// A test's answer: `Passed`, or `Failed` with what went wrong.
 ///

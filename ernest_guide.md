@@ -1709,7 +1709,7 @@ Directory mode compiles the modules in the order their dependencies need, and a 
 
 **A module's own name hides the prelude's.** A module may declare its own `Unknown`, which then means its own throughout the module; `Prelude.Unknown` still names the prelude's (report §4.2).
 
-**Testing a module.** A test is a top-level `let` of the type `Test.Case`, a name and a function returning `Test.Passed` or `Test.Failed(text)` (report Appendix E.24):
+**Testing a module.** A test is a top-level `let` of the type `Test.Case(m)`, a name and a function returning `Test.Passed` or `Test.Failed(text)`, which runs in a process whose mailbox type is `m` (report Appendix E.24):
 
 ```ernest
 fn add(a : Int, b : Int) : Int =
@@ -1718,15 +1718,26 @@ fn add(a : Int, b : Int) : Int =
 let addsTwo =
     Test.Case(name = "adds two",
               run = fn() = if add(1, 1) == 2 then Test.Passed else Test.Failed("not two"))
+
+type Reported = Reported(Int)
+
+let answersBack = Test.Case(name = "a worker answers back", run = fn() = {
+    let me = self();
+    let _ = spawn(fn() : Unit with Never = send(me, Reported(add(1, 1))));
+    receive {
+        Reported(n) -> if n == 2 then Test.Passed else Test.Failed("not two")
+    }
+})
 ```
 
 ```console
 $ ern build checks.ern
 $ ern test checks.erc
 adds two: passed
+a worker answers back: passed
 ```
 
-`ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, or faulted with its cause. A test's `run` is `() -> Test.Result with Never`: it runs in a process, so it may spawn, send and call, and it receives nothing, so a test that must wait for a message gives the waiting to a process it spawns and calls, or waits a while with `receive { after ms -> Unit }`. A test left waiting with nothing to wake it is faulted with `deadlock` while the run goes on (report §11.2).
+`ern test` runs every test of the module, one at a time in the order the module declares them, each in a process of its own, and prints each as it ends: passed, failed with its text, or faulted with its cause. A test's `run` is `() -> Test.Result with m`: it runs in a process whose mailbox type is `m`, as an entry point does (report §8.1), so it may spawn, send, call and receive. `addsTwo` receives nothing and leaves `m` open, and `ern test` runs it with `Never`; `answersBack` receives a `Reported`, so its type is `Test.Case(Reported)`, which nothing writes. A test left waiting with nothing to wake it is faulted with `deadlock` while the run goes on (report §11.2).
 
 **Documenting a module.** A `///` block, on lines of its own, documents the declaration on the line after it, and one first in the file, with a blank line after it, documents the module. The text is CommonMark; `ern doc` renders the module as a page, and the shell's `:doc` shows a declaration's part of it, or a module's head, rendered for the terminal. What a module's documentation contains is report Appendix E.0 shape rule 6, and [`docs/module_doc_template.md`](docs/module_doc_template.md) shows it on an example module.
 
