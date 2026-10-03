@@ -528,21 +528,23 @@ debug_information(Dir) ->
                  lists:keymember("Dbgi", 1, Chunks)
              end].
 
-%% report §9.3, Appendix G.2, plan MVP 3.2: every library's own tests, run
-%% by `ern test` over its compiled modules, as the shell's are: the
-%% Markdown library's read and lay out what G.2 says
+%% report §9.3, §11.2, Appendix G.2, plan MVP 3.2: every library's own
+%% tests, run by `ern test` over the directory their compiled modules are
+%% under, as the shell's are: the Markdown library's read and lay out what
+%% G.2 says. A regression test too: the modules were run by one command
+%% joined with `&&`, which the host runs by `exec`, so only the first
+%% module's tests ran, and it has none
 libs_test_() ->
     {timeout, 60, fun libs/0}.
 
 libs() ->
-    Modules = filelib:wildcard("../build/libs/*/**/*.erc"),
-    ?assert(lists:any(fun(Module) -> filename:basename(Module) =:= "markdown.erc" end, Modules)),
-    Commands = ["../bin/ern test " ++ Module || Module <- Modules],
-    {Status, Output} = sh(lists:flatten(lists:join(" && ", Commands))),
+    {Status, Output} = sh("../bin/ern test --load-path ../build/libs/ansi ../build/libs"),
     Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
-    %% a module without tests says so (report §11.2)
-    ?assertEqual([], [Line || Line <- Lines, binary:match(Line, <<": passed">>) =:= nomatch,
-                              Line =/= <<"no tests">>]),
+    Passed = [Line || Line <- Lines, binary:match(Line, <<": passed">>) =/= nomatch],
+    %% a module with tests is named before them, and one without is passed
+    %% over (report §11.2)
+    ?assertEqual([<<"Markdown">>], Lines -- Passed),
+    ?assert(length(Passed) >= 40),
     ?assertEqual(0, Status).
 
 %% report Appendix G.1, §7.4: a table replaces a key's entry, a removal of

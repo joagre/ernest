@@ -151,6 +151,7 @@ bin/ern config                                    # ./.ernest with a key pair
 bin/ern shell                                     # a shell over the standard library
 bin/ern shell build/modules/main.erc              # a shell beside a running program
 bin/ern test build/shell/shell/editor.erc         # the module's tests
+bin/ern test --load-path build/libs/ansi build/libs   # the tests of every module under it
 ```
 
 A program whose source tree `app` uses a library adds the library's build to its load path, both to build and to run:

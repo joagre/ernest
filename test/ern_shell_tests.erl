@@ -484,26 +484,26 @@ live_region() ->
 %% report §11.2, §9.3: the pure parts of the shell test themselves, the
 %% editor's function from a line and an event to what the reader must do,
 %% the history file's escaping, the region's geometry, completion's
-%% matching, and the colours, run by `ern test` as the shell is built
+%% matching, and the colours, run by `ern test` over the directory the
+%% shell is built into, so that a module's tests run from the day it is
+%% written
 editor_test_() ->
     {timeout, 60, fun editor/0}.
 
 editor() ->
-    %% every compiled module of the shell, so that a module's tests run
-    %% from the day it is written; region's and complete's had not
-    Modules = filelib:wildcard("../build/shell/**/*.erc"),
-    ?assert(length(Modules) >= 7),
     %% the shell renders documentation with libs/markdown and styles it with
     %% libs/ansi, which a run of its modules puts on the load path as any
     %% program using a library does
-    Commands = ["../bin/ern test --load-path ../build/libs/markdown --load-path ../build/libs/ansi "
-                ++ Module || Module <- Modules],
-    {Status, Output} = sh(lists:flatten(lists:join(" && ", Commands))),
+    {Status, Output} = sh("../bin/ern test --load-path ../build/libs/markdown"
+                          " --load-path ../build/libs/ansi ../build/shell"),
     Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
-    %% a module without tests says so (report §11.2)
-    ?assertEqual([], [Line || Line <- Lines, binary:match(Line, <<": passed">>) =:= nomatch,
-                              Line =/= <<"no tests">>]),
-    ?assert(length(Lines) >= 10),
+    Passed = [Line || Line <- Lines, binary:match(Line, <<": passed">>) =/= nomatch],
+    %% a module with tests is named before them, and one without is passed
+    %% over (report §11.2)
+    ?assertEqual([<<"Shell.Command">>, <<"Shell.Complete">>, <<"Shell.Editor">>,
+                  <<"Shell.History">>, <<"Shell.Region">>, <<"Shell.Style">>],
+                 Lines -- Passed),
+    ?assert(length(Passed) >= 100),
     ?assertEqual(0, Status).
 
 %% report §11.2: the editor through the terminal, which is the wiring the

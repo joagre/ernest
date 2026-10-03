@@ -97,7 +97,7 @@ jobs() ->
      {"doc", doc_options(), "file.ern | file.erc | src-dir", fun doc/3},
      {"format", format_options(), "file.ern | src-dir ... | -", fun format/3},
      {"run", run_options(), "file.erc [argument]...", fun run/3},
-     {"test", test_options(), "file.erc", fun test/3},
+     {"test", test_options(), "file.erc | dir", fun test/3},
      {"shell", shell_options(), "[file.erc]", fun shell/3},
      {"config", config_options(), "", fun config/3}].
 
@@ -608,12 +608,50 @@ program_arguments([Word | Words], Position) ->
     is_utf8(Word) orelse ern_build:fail(io_lib:format("argument ~B is not UTF-8", [Position])),
     [word_bytes(Word) | program_arguments(Words, Position + 1)].
 
-test(Options, [File], ErrorDevice) ->
+%% Report §11.2: the tests of a module, or of every module under a
+%% directory.
+test(Options, [Path], ErrorDevice) ->
     quiet_signals(),
-    {Namespace, _LoadPath, Loaded} = program(File, Options),
-    run_tests(Namespace, Loaded, ErrorDevice);
+    case filelib:is_dir(Path) of
+        true ->
+            tree_status(tree_tests(ern_build:compiled_under(Path), Options, ErrorDevice));
+        false ->
+            {Namespace, _LoadPath, Loaded} = program(Path, Options),
+            run_tests(Namespace, Loaded, none, ErrorDevice)
+    end;
 test(_Options, _Rest, _ErrorDevice) ->
-    usage_fail("one .erc file argument is required").
+    usage_fail("one .erc file or one directory is required").
+
+%% Report §11.2: the modules of a directory in the order of their paths,
+%% each with tests run as `ern test file.erc` runs it, in a runtime of its
+%% own, its name before its tests' lines, and one without passed over,
+%% loaded and not run; the status of each run. A run a signal ended, or
+%% whose output could no longer be written, is the last.
+tree_tests([], _Options, _ErrorDevice) ->
+    [];
+tree_tests([File | Files], Options, ErrorDevice) ->
+    {Namespace, _LoadPath, Loaded} = program(File, Options),
+    case erlang:function_exported(ern_emitter:erlang_module(Namespace), '$tests', 0) of
+        false ->
+            tree_tests(Files, Options, ErrorDevice);
+        true ->
+            Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
+            case run_tests(Namespace, Loaded, Name, ErrorDevice) of
+                Status when Status =:= 0; Status =:= 1 ->
+                    [Status | tree_tests(Files, Options, ErrorDevice)];
+                Ended ->
+                    [Ended]
+            end
+    end.
+
+%% Report §11.2, §11.8: a directory without a test says so; status 1 where
+%% a test failed or faulted, and the status of the run that ended the job
+%% where one did.
+tree_status([]) ->
+    io:format("no tests~n"),
+    0;
+tree_status(Statuses) ->
+    lists:max(Statuses).
 
 config(Options, [], _ErrorDevice) ->
     create_config_dir(proplists:get_value(config_dir, Options, ".ernest"));
@@ -857,7 +895,7 @@ init_fun(Loaded) ->
 %% Report §11.2: every test of the module, one at a time in the order the
 %% module declares them, each in a process of its own and its line printed
 %% as it ends; status 1 unless every one passed.
-run_tests(Namespace, Loaded, ErrorDevice) ->
+run_tests(Namespace, Loaded, Heading, ErrorDevice) ->
     %% the test that runs, which the reporter asks for: a row, since it
     %% changes with each test, and the host copies its table of persistent
     %% terms at each change of one
@@ -867,7 +905,8 @@ run_tests(Namespace, Loaded, ErrorDevice) ->
     %% report §11.2: a test's own fault is its line, and every other is
     %% reported as `ern run` reports it
     %% report §11.2: Os.exit faults the test that calls it
-    RunOptions = reporting(#{init => init_fun(Loaded), exit => fault}, ErrorDevice),
+    RunOptions = reporting(#{init => headed(Heading, init_fun(Loaded)), exit => fault},
+                           ErrorDevice),
     Report = maps:get(faults, RunOptions),
     Reporter = fun({'FaultReport', Process, _, _, _, _} = FaultReport) ->
                    ets:member(Running, Process) orelse Report(FaultReport)
@@ -882,6 +921,16 @@ run_tests(Namespace, Loaded, ErrorDevice) ->
             end;
         Other ->
             outcome(ErrorDevice, Other)
+    end.
+
+%% Report §11.2: under a directory the module's name stands on a line
+%% before everything its run writes, its initializers' output among it.
+headed(none, Init) ->
+    Init;
+headed(Heading, Init) ->
+    fun() ->
+        ern_rt:send(ern_rt:system_process(stdout), <<Heading/binary, "\n">>),
+        Init()
     end.
 
 %% The entry point of a module's tests, which runs them one at a time and

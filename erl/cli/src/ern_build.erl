@@ -9,11 +9,11 @@
 %% nothing.
 -module(ern_build).
 
--export([compile/3, report_errors/4, shown/1, sources/1, bytes_text/1, module_of/2, shape/2,
-         segment/1, namespace/1, module_path/1, compile_order/2, compile_order/3, source_root/3,
-         build_root/2, is_stdlib_root/1, stdlib_hash/1, dependency_interfaces/5,
-         dependency_interface/4, load_path/1, compiler_modules/0, sweep_pages/5,
-         compile_source/4, absolute/1, relative/2, write_whole/2,
+-export([compile/3, report_errors/4, shown/1, sources/1, compiled_under/1, bytes_text/1,
+         module_of/2, shape/2, segment/1, namespace/1, module_path/1, compile_order/2,
+         compile_order/3, source_root/3, build_root/2, is_stdlib_root/1, stdlib_hash/1,
+         dependency_interfaces/5, dependency_interface/4, load_path/1, compiler_modules/0,
+         sweep_pages/5, compile_source/4, absolute/1, relative/2, write_whole/2,
          write_whole/3, write_output/2, write_output/3, read/1, make_dirs/1, fail/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
@@ -121,24 +121,35 @@ shown(File) ->
 %% error.
 -spec sources(file:filename()) -> [file:filename()].
 sources(Dir) ->
+    files_under(Dir, ".ern").
+
+%% Report §11.2: every `.erc` under a directory, found as its sources are,
+%% in the order of their paths, which `ern test` runs them in.
+-spec compiled_under(file:filename()) -> [file:filename()].
+compiled_under(Dir) ->
+    lists:sort(files_under(Dir, ".erc")).
+
+files_under(Dir, Extension) ->
     Names = case file:list_dir_all(Dir) of
                 {ok, Found} -> Found;
                 {error, Error} -> refused(Dir, Error)
             end,
-    lists:append([source(Dir, Name) || Name <- lists:sort(Names), not dot_name(Name)]).
+    lists:append([file_under(Dir, Name, Extension) || Name <- lists:sort(Names),
+                                                      not dot_name(Name)]).
 
-source(Dir, Name) when is_binary(Name) ->
+file_under(Dir, Name, Extension) when is_binary(Name) ->
     Path = filename:join(Dir, Name),
-    IsModule = filename:extension(Name) =:= <<".ern">>
-        orelse (filelib:is_dir(Path) andalso not is_link(Path) andalso sources(Path) =/= []),
+    IsModule = filename:extension(Name) =:= list_to_binary(Extension)
+        orelse (filelib:is_dir(Path) andalso not is_link(Path)
+                andalso files_under(Path, Extension) =/= []),
     IsModule andalso fail("a name that is not UTF-8: " ++ bytes_text(Path)),
     [];
-source(Dir, Name) ->
+file_under(Dir, Name, Extension) ->
     Path = filename:join(Dir, Name),
     case {filelib:is_dir(Path), is_link(Path)} of
-        {true, false} -> sources(Path);
+        {true, false} -> files_under(Path, Extension);
         {true, true} -> [];
-        {false, _} -> [Path || filename:extension(Name) =:= ".ern"]
+        {false, _} -> [Path || filename:extension(Name) =:= Extension]
     end.
 
 dot_name(<<$., _/binary>>) -> true;

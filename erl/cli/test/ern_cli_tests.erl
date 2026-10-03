@@ -942,6 +942,53 @@ test_runner_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build2", Dir ++ "/src2"])),
     ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build2/ok.erc"])).
 
+%% report §11.2, §11.8: given a directory, `ern test` runs the tests of every
+%% `.erc` under it in the order of their paths, a name that begins with a
+%% dot and a link to a directory passed over; each module's name stands on
+%% a line before its tests' lines; a module without tests is passed over
+%% and not run, so its initializer writes nothing; a module's own
+%% initializers run before its tests; the status is 1 where a test failed
+%% and 0 where every one passed; and a directory without a test prints `no
+%% tests`. A regression test, written after the code. It does not show
+%% that each module has a runtime of its own beyond its initializers
+%% running again
+test_directory_test() ->
+    Dir = tmp(),
+    write(Dir, "src/stack.ern",
+          "export let base = { Io.println(\"stack begins\"); 2 }\n"
+          "export fn double(n : Int) : Int = n * base\n"
+          "let doubles = Test.Case(name = \"doubles\", run = fn() =\n"
+          "    if double(2) == 4 then Test.Passed else Test.Failed(\"not 4\"))\n"),
+    write(Dir, "src/plain.ern",
+          "export let loud = { Io.println(\"plain begins\"); 1 }\n"),
+    write(Dir, "src/net/http.ern",
+          "let wrong = Test.Case(name = \"wrong\", run = fn() = Test.Failed(\"expected 3\"))\n"
+          "let fine = Test.Case(name = \"fine\", run = fn() =\n"
+          "    if Stack.double(1) == 2 then Test.Passed else Test.Failed(\"not 2\"))\n"),
+    Build = Dir ++ "/build",
+    ?assertEqual(0, ern_cli:ern(["build", "--build-root", Build, Dir ++ "/src"])),
+    %% what the walk passes over: a name that begins with a dot, and a link
+    %% to a directory, each holding a module whose test would fail
+    {ok, _} = file:copy(Build ++ "/net/http.erc", write(Dir, "build/.hidden/net/http.erc", "")),
+    ok = file:make_symlink("net", Build ++ "/linked"),
+    ?assertEqual(1, ern_cli:ern(["test", Build])),
+    ?assertEqual(<<"Net.Http\n"
+                   "stack begins\n"
+                   "wrong: failed: expected 3\n"
+                   "fine: passed\n"
+                   "Stack\n"
+                   "stack begins\n"
+                   "doubles: passed\n">>,
+                 iolist_to_binary(?capturedOutput)),
+    ok = file:delete(Build ++ "/net/http.erc"),
+    ok = file:delete(Build ++ "/linked"),
+    ?assertEqual(0, ern_cli:ern(["test", Build])),
+    Empty = filename:join(Dir, "empty"),
+    ok = file:make_dir(Empty),
+    ?assertEqual(0, ern_cli:ern(["test", Empty])),
+    Output = iolist_to_binary(?capturedOutput),
+    ?assertMatch({match, _}, re:run(Output, "doubles: passed\nno tests\n$")).
+
 %% report §11.2, §8.6: `ern test` runs its tests one at a time in the order
 %% the module declares them, printing each line as the test ends, after
 %% what the test wrote; a deadlock while a test runs is that test's fault,

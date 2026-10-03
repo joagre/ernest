@@ -349,16 +349,15 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     and OCaml's `Map.union` pass it (principle 1, E.3), and `Fs.makeHardLink` makes a hard link,
     the host's alone (E.0 rule 1, E.17). Each verdict had rested on a neighbour or a count,
     which phase 6 found (the log's *The Log Read Against Its Reasons*).
-19. **`ern test` over a directory** (0.2.0's N-12), a decision with the user: whether `ern test`
-    takes a directory and runs the tests of every module under it, as `ern build` walks a tree
-    (§11.1), the form a newcomer predicted (principle 1). Decided with the user 2026-10-02 (the
-    log's *MVP 2.99b's Questions, One by One*): yes, about a day, each answer as `ern build` or
-    today's `ern test` has it. Every `.erc` under the directory, passing over a name that
-    begins with a dot and a link to a directory; in the order of their paths; each module as
-    `ern test file.erc` runs it, its initializers first, in a runtime of its own; its name
-    before its tests' lines, a module without tests passed over and a directory without any
-    printing `no tests`; failing where any module's test failed or faulted. §11.2 gains the
-    form when it is built.
+19. **`ern test` over a directory**, done 2026-10-03 (0.2.0's N-12; decided with the user
+    2026-10-02, the log's *MVP 2.99b's Questions, One by One*, and built as its last
+    paragraph says): `ern test dir` runs the tests of every `.erc` under the directory, found
+    as `ern build` finds sources, a name that begins with a dot and a link to a directory
+    passed over; in the order of their paths; each module as `ern test file.erc` runs it, its
+    initializers first, in a runtime of its own; its name on a line before what its run
+    writes; a module without tests passed over and not run, and a directory without a test
+    printing `no tests`; failing where any module's test failed or faulted. A module that
+    cannot be loaded ends the job, as it ends `ern test file.erc`. §11.2 has the form.
 20. **The feedback the reviews left** ([`language_feedback.md`](language_feedback.md)'s entries
     76 to 88: the first release review's N-C8, the principles review's W-13, W-31, W-34 and
     W-38, and 0.2.0's review's L-1 to L-3 and C-14 to C-18; and entry 89, a record type laid
