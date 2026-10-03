@@ -1,0 +1,37 @@
+//
+// The program of the service manager's checks (test/ern_service_tests.erl).
+// It says that it started, lets one process fault, and then waits, ticking,
+// until it is stopped. Given `once` and a path it ends with status 1 the
+// first time, leaving a file at the path, and stays the second, as a
+// service does that its manager starts again.
+//
+
+type Msg = Tick(Int)
+
+export fn main() : Unit with Msg =
+    match Os.arguments {
+        ["once", marker] -> once(Path(marker))
+      | _ -> serve()
+    }
+
+fn once(marker : Path) : Unit with Msg =
+    match Fs.stat(marker, 5000) {
+        Right(_) -> serve()
+      | Left(_) -> {
+            let _ = Fs.write(marker, String.toUtf8("started once\n"), 5000);
+            Os.exit(1)
+        }
+    }
+
+fn serve() : Unit with Msg = {
+    Io.println("started");
+    let _ = spawn(fn() : Unit with Never = fault("on purpose"));
+    tick()
+}
+
+fn tick() : Unit with Msg = {
+    Clock.alarm(1000, Tick);
+    receive {
+        Tick(_) -> tick()
+    }
+}

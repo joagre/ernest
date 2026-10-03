@@ -257,12 +257,17 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    took it in a window of about 12 milliseconds after that; the launcher now has the host
    install Ernest's handler before the entry's module is loaded, and the window measured
    about 5.
-10. **A service manager's checks**: a systemd unit, start and stop, a stop asked for ending the
-    program by its signal, `Restart=on-failure` after a program ends with `Os.exit(1)`, and the
-    journal showing fault lines without a doubled time; and a launchd plist on macOS, with the
-    same checks. A stop asked for in the host's first fraction of a second is the host's limit
-    (§8.6), not a failure of the checks. The plist is written with the unit, and its checks
-    wait for a Mac, which the user runs (decided 2026-10-03).
+10. **A service manager's checks**, done for systemd 2026-10-03 (the log's *The Service
+    Manager's Checks*): `make service` runs the program of `test/service` under the user's
+    systemd by a unit as the guide's §9.5 writes one, and checks that it starts, that its
+    fault's line is in the journal without a time of its own, that a stop asked for ends it
+    by its signal, which systemd counts as clean, and that `Restart=on-failure` starts it
+    again after `Os.exit(1)`; a release runs it (`release_review.md`). A stop asked for in
+    the host's first fraction of a second is the host's limit (§8.6), not a failure of the
+    checks, which stop a program once it has said that it started. **The launchd agent** is
+    written with the unit, in the same module, and not run: its checks wait for a Mac, which
+    the user runs (decided 2026-10-03), and the guide's §9.5 gains the agent beside the unit
+    once they have passed.
 11. **`set.ern` over its record**: joined item 5 on 2026-10-02 (the log's *The Operations
     Decided and Built*).
 12. **`OrderedSet` in the standard library**: joined item 5 on 2026-10-02.

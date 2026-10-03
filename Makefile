@@ -221,6 +221,10 @@ test-shell: all
 load: all
 	@$(MAKE) -C test load
 
+# The service manager's checks, which a release runs (docs/release_review.md).
+service: all
+	@$(MAKE) -C test service
+
 # The benchmark: what an Ernest operation costs beside the same operation in
 # Erlang (test/ern_bench.erl).
 bench: all
@@ -357,6 +361,7 @@ clean-emacs:
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all stdlib libs shell tools man test test-erl test-programs test-docs test-guide \
-        test-shell load bench test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean clean-emacs \
-        sections coverage golden xref contents format doc pages install uninstall release unicode \
+        test-shell load service bench test-emacs $(APP_TESTS) $(APP_PARTS) $(EMACS_ALL) clean \
+        clean-emacs sections coverage golden xref contents format doc pages install uninstall \
+        release unicode \
         dialyzer sanitize diagnostics

@@ -44,14 +44,16 @@ beams: $(BEAMS) prepare
 programs: $(BEAMS) prepare measured
 	$(call EUNIT_SIDE_BY_SIDE,$(PROGRAMS))
 
-# The load programs and the benchmark, which `load` and `bench` run and no
-# test does, are built with the programs, so that a change that breaks one
+# The load programs, the benchmark and the service checks' program, which
+# `load`, `bench` and `service` run and no test does, are built with the
+# programs, and their harnesses compiled, so that a change that breaks one
 # is seen by `make test`.
-measured: prepare
-	@mkdir -p build/load build/bench
+measured: prepare $(EBIN)/ern_load.beam $(EBIN)/ern_bench.beam $(EBIN)/ern_service_tests.beam
+	@mkdir -p build/load build/bench build/service
 	@for p in $(LOADS); do \
 	  ../bin/ern build --source-root load --build-root build/load load/$$p.ern || exit 1; done
 	@../bin/ern build --source-root bench --build-root build/bench bench/bench.ern
+	@../bin/ern build --source-root service --build-root build/service service/service.ern
 
 docs: $(BEAMS)
 	$(call EUNIT,$(DOCS))
@@ -97,6 +99,13 @@ load: $(EBIN)/ern_load.beam measured
 	  || status=1; \
 	cat build/load/shell.txt; exit $$status
 
+# The service manager's checks: the program of service/ run under the
+# user's systemd on Linux and launchd on macOS (ern_service_tests.erl);
+# not part of `test`, which a host without a service manager runs too, and
+# run before every release (docs/release_review.md).
+service: measured
+	$(call EUNIT,ern_service_tests)
+
 # The benchmark: bench/bench.ern built and run as a user runs a program,
 # and its times printed beside the same operations in Erlang by ern_bench;
 # not part of `test`, since it measures and asserts nothing.
@@ -116,4 +125,4 @@ $(EBIN)/%.beam: %.erl | $(EBIN)
 $(EBIN):
 	mkdir -p $(EBIN)
 
-.PHONY: test programs docs guide shell prepare measured xref load bench clean
+.PHONY: test programs docs guide shell prepare measured xref load service bench clean
