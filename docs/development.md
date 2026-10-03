@@ -34,8 +34,8 @@ Makefile           the build and the tests' targets
 LICENSE, THIRD_PARTY_LICENSES  the licence, and the third-party code's
 ernest_report.md   the language report (normative)
 ernest_guide.md    the guide
-assets/            the wordmark the README shows, the mark, and the social preview
-                   GitHub's settings take
+assets/            the wordmark the README shows, its raster fallback, and the social
+                   preview GitHub's settings take, with a note on each
 docs/              the documents listed above, and this one
 examples/          Ernest programs: the paper programs and the small ones
 erl/               the toolchain, as Erlang applications: lexer, parser, format,
