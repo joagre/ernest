@@ -143,7 +143,8 @@ as the cheaper; item 2 given its rounds and its oracles, item 4 its bound and it
    in place of the release review's readers for 0.3.0. [`full_review.md`](full_review.md)
    is run whole: each of its nineteen readers and parts is a fresh agent of one workflow,
    never a fork, given only its brief and its files, as its *How it runs* says. P and K run
-   on Fable 5.1, every other reader and part on Opus 5.5. The lists are collected into
+   on the most advanced model and every other reader and part on the one below it, as its
+   *The models* says. The lists are collected into
    `findings.md` as its *The findings* says, and the work stops there for the user to read
    them before any finding is worked.
 6. **A release, Ernest 0.3.0**, the milestone's last item, decided with the user
