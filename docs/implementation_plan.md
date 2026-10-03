@@ -423,6 +423,28 @@ shaken (reordered 2026-10-01).
    a reply captured by a lambda, an operator resolved where its operand's type is known and
    carrying nothing hidden. Where it cannot be made, that is a finding; a model a machine
    checks follows only if the argument meets a rule it cannot settle.
+5. **The report in three files** (tentative, all of it: checked again, its counts included,
+   against the report as it then stands when work on this milestone begins). The report
+   stays one report and is stored in three files under `report/`: `report/language.md`, the
+   language (§0 to §10 and Appendices A, B and F); `report/toolchain.md`, the toolchain (§11
+   and Appendix C); and `report/library.md`, the standard library (Appendices D, E and G).
+   The move to `report/` is made in the same step as the split, so that each path changes
+   once, and the guide stays at the root. The section numbers and appendix letters are
+   kept: the first number or letter of a citation already names its part, 11 the
+   toolchain's and E the library's, so a citation keeps its one coordinate, and only
+   numbering each file from 1 would make it need a second. Counted on 2026-10-03, the split
+   costs the 48 places in 20 files that name `ernest_report.md` and the checks that read
+   the report by path, which take three paths; renumbering would have touched about 2,800
+   citations, 1,500 of §11, 1,200 of Appendix E and 100 of Appendices C, D and G, in the
+   code, the tests, the documents and the guide. The language file comes to about 25,000
+   words of the report's 46,000, some fifty pages, which one reader reads and checks whole:
+   it serves item 4's argument and a release's readers, and it shows the weight of the
+   three heaviest language chapters, §4, §6 and §8. The authority rule in CLAUDE.md says the
+   three files are one report, each file has its own revision date in its line 3, and a
+   line at the top of each says which numbers it holds. Done mechanically, at a boundary
+   where the readers run. The error texts the language chapters quote stay where they are,
+   and whether they move to the toolchain file is a decision of its own, taken later if at
+   all.
 
 ---
 
