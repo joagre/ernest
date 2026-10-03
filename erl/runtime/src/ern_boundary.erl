@@ -303,8 +303,6 @@ expose({address, MessageDescriptor, Cause}, {via, _, _} = Value, Bound) ->
 expose({address, _, _}, {foreign, Pid, _, _}, _) -> Pid;
 %% a Reply foreign code gave goes back to it as it came
 expose({reply, _, _}, {foreign_reply, Reply, _, _}, _) -> Reply;
-%% report §6.6: an ask's reply is held for foreign code by the runtime
-expose({reply, _, _}, Reply, _) when is_reference(Reply) -> ern_rt:exposed_reply(Reply);
 expose({list, ElementDescriptor}, Value, Bound) when is_list(Value) ->
     [expose(ElementDescriptor, Item, Bound) || Item <- Value];
 expose({tuple, ElementDescriptors}, Value, Bound)

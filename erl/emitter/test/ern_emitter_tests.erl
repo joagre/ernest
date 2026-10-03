@@ -2321,34 +2321,6 @@ system_reference_in_let_test() ->
                        "export fn main() : Unit with Never = Io.println(\"from main\")\n"),
     ?assertEqual(<<"from a let\nfrom main\n">>, Output).
 
-%% report §6.6, §6.4, §9.5: an ask returns at once and its answer arrives
-%% in the caller's mailbox as wrap's value, in its order with the callee's
-%% other messages; None arrives when the milliseconds pass; and Address.ask
-%% is a value as any prelude function is. Written after the code
-ask_test() ->
-    {ok, Output} = run("type Req = Get(reply : Reply(Int))\n"
-                       "type M = Got(Optional(Int)) | Other\n"
-                       "fn hold(r : Reply(Int)) : Unit with Req ="
-                       " receive { after 60000 -> answer(r, 0) }\n"
-                       "export fn main() : Unit with M = {\n"
-                       "    let me = self();\n"
-                       "    let s = spawn(fn() : Unit with Req = receive { Get(reply = r) -> {"
-                       " answer(r, 41); send(me, Other) } });\n"
-                       "    Address.ask(s, fn(r) = Get(reply = r), Got, 1000);\n"
-                       "    receive { Got(Some(n)) -> Io.println(Int.toString(n + 1))"
-                       " | Got(None) -> Io.println(\"none\")"
-                       " | Other -> Io.println(\"other first\") };\n"
-                       "    receive { Other -> Io.println(\"then other\") | _ -> Unit };\n"
-                       "    let quiet = spawn(fn() : Unit with Req = receive { Get(reply = r) ->"
-                       " hold(r) });\n"
-                       "    Address.ask(quiet, fn(r) = Get(reply = r), Got, 10);\n"
-                       "    receive { Got(None) -> Io.println(\"none\") | _ -> Unit };\n"
-                       "    let ask = Address.ask;\n"
-                       "    ask(quiet, fn(r) = Get(reply = r), Got, 10);\n"
-                       "    receive { Got(None) -> Io.println(\"none again\") | _ -> Unit }\n"
-                       "}\n"),
-    ?assertEqual(<<"42\nthen other\nnone\nnone again\n">>, Output).
-
 %% report §9, Appendix E: every prelude value the
 %% checker knows is emitted as a call to a function that exists, with the
 %% arity of its type, so no accepted name can reach the runtime as undef
@@ -2381,7 +2353,6 @@ prelude_target(QualifiedName, Text) ->
         [fault] -> {ern_rt, fault, 1};
         ['Address', call] -> {ern_rt, call, 3};
         ['Address', callForever] -> {ern_rt, call_forever, 2};
-        ['Address', ask] -> {ern_rt, ask, 4};
         [_, Operator]
           when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
                Operator =:= '%'; Operator =:= '<>'; Operator =:= negate ->

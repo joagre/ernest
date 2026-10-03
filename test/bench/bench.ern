@@ -6,7 +6,7 @@
 // two side by side.
 //
 
-type Msg = Ping(Int) | Answered(Optional(Int))
+type Msg = Ping(Int)
 
 type ServerMsg = Get(reply : Reply(Int))
 
@@ -45,14 +45,6 @@ export fn main() : Unit with Msg = {
     measure("call",
             1000000,
             fn(index) = Address.callForever(server, fn(reply) = Get(reply = reply)) + index);
-    measure("ask", 1000000, fn(index) = {
-        Address.ask(server, fn(reply) = Get(reply = reply), Answered, 1000);
-        receive {
-            Answered(Some(value)) -> value + index
-          | Answered(None) -> index
-          | Ping(_) -> index
-        }
-    });
     measure("spawn", 200000, fn(index) = {
         let _ = spawn(fn() : Unit with Never = Unit);
         index

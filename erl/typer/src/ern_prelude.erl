@@ -277,8 +277,8 @@ declared_types() ->
 %% (report §3.9).
 -spec process_only() -> [[atom()]].
 process_only() ->
-    [[send], [spawn], [spawnMonitored], ['Address', call], ['Address', callForever],
-     ['Address', ask], [answer], [monitor], [kill]].
+    [[send], [spawn], [spawnMonitored], ['Address', call], ['Address', callForever], [answer],
+     [monitor], [kill]].
 
 %% Qualified name, type text, and documentation, or `module` for an
 %% operation its type's module documents (report §9).
@@ -357,9 +357,9 @@ values() ->
       """/utf8>>},
      {['Address', call], "(Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n",
       <<"""
-      Sends the request `request(r)`, with a fresh reply `r`, and waits up to
-      `ms` milliseconds for the answer: `Some` of it, or `None` when none came.
-      An answer that comes late is dropped, and the recipient's work is not
+      Sends the request `mk(r)`, with a fresh reply `r`, and waits up to `ms`
+      milliseconds for the answer: `Some` of it, or `None` when none came. An
+      answer that comes late is dropped, and the recipient's work is not
       cancelled (report §6.6).
 
       ### Examples
@@ -382,24 +382,6 @@ values() ->
       {
           let echo = spawn(fn() = receive { #(n, r) -> answer(r, n) });
           Address.callForever(echo, fn(r) = #(7, r))
-      }
-      ```
-      """/utf8>>},
-     {['Address', ask], "(Address(m), (Reply(a)) -> m, (Optional(a)) -> n, Int) -> Unit with n",
-      <<"""
-      Sends the request `request(r)`, with a fresh reply `r`, and returns at
-      once. The answer arrives in the caller's mailbox as `wrap(Some(v))`, in
-      its order with the recipient's other messages, and `wrap(None)` arrives
-      instead when `ms` milliseconds pass, or the recipient ends or restarts,
-      before it answers (report §6.6).
-
-      ### Examples
-
-      ```ernest
-      {
-          let echo = spawn(fn() = receive { #(n, r) -> answer(r, n) });
-          Address.ask(echo, fn(r) = #(7, r), fn(answered) = answered, 1000);
-          receive { Some(n) -> n | None -> 0 }
       }
       ```
       """/utf8>>},

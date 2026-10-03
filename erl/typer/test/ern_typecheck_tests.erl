@@ -2776,27 +2776,6 @@ recursive_group_at_parameters_test() ->
                         "type Deep(a) = Deep(Pair(List(a), Deep(a)))\n"
                         "type Boxed = Boxed(List(Boxed))")).
 
-%% report §6.6, §9.5, §3.9: Address.ask takes the request's function, a
-%% wrap to the caller's mailbox type and the milliseconds last; it is
-%% process-only; and its request callback is held to the reply rule as a
-%% call's is. Written after the code
-ask_test() ->
-    Source = "type Req = Get(reply : Reply(Int)) | Stop\ntype M = Got(Optional(Int))\n",
-    ?assertEqual(ok, ok(Source ++ "fn f(a : Address(Req)) : Unit with M ="
-                        " Address.ask(a, fn(r) = Get(reply = r), Got, 1000)")),
-    ?assertEqual(ok, ok(Source ++ "fn f(a : Address(Req)) : Unit with M = {\n"
-                        "    let ask = Address.ask;\n"
-                        "    ask(a, fn(r) = Get(reply = r), Got, 1000)\n}")),
-    ?assertEqual("Address.ask needs mailbox Optional(Int), and the mailbox here is M",
-                 refusal(Source ++ "fn f(a : Address(Req)) : Unit with M ="
-                         " Address.ask(a, fn(r) = Get(reply = r), fn(o) = o, 1000)")),
-    ?assertEqual("Address.ask needs a process, and f is pure",
-                 refusal(Source ++ "fn f(a : Address(Req)) : Unit ="
-                         " Address.ask(a, fn(r) = Get(reply = r), Got, 1000)")),
-    ?assertEqual("the reply-carrying value r is never consumed",
-                 refusal(Source ++ "fn f(a : Address(Req)) : Unit with M ="
-                         " Address.ask(a, fn(r) = Stop, Got, 1000)")).
-
 %% report §6.9, §9.5: monitor takes a Process, the identity of a process,
 %% which Process.fromAddress gives for an address; an address is refused,
 %% since watching needs no permission to send. Written after the code

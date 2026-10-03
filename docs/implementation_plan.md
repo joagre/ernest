@@ -33,9 +33,11 @@ feedback the reviews left, the same day, its six builds each read back in the lo
 that decided it; item 21, the report's and the guide's blocks read by `style.md`, and item
 22, the AST's namespace named so, the same day. Items 8, 9, 10, 13, 14 and 19 were built on
 2026-10-03 too, and item 8's two decisions were taken with the user the same day; item 14, the operators
-as shims, was built and reverted. Three items remain: 23, *Whose a file is*, which the
-first of the decisions added; 24, the report in three files, moved from MVP 2.99c; and 25,
-a release, Ernest 0.3.0. Item 10's launchd checks wait for a Mac. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+as shims, was built and reverted. `Address.ask`, built in item 20, was taken
+out again. Two items remain: 23, *Whose a file is*, which the first of the decisions
+added, and 24, the report in three files, moved from MVP 2.99c; and one decision, item
+26, the reaper's look at rest. Item 10's launchd checks
+wait for a Mac. The next release, Ernest 0.3.0, is MVP 2.99c's last item. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -59,10 +61,10 @@ order. Each has its paragraph under "Done".
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
-| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | built but items 23, 24 and 25: a file's user, the report in three files, and the release, Ernest 0.3.0 |
+| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | built but items 23 and 24: a file's user, and the report in three files |
 | The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01 |
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
-| MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines | moved from MVP 3.9 on 2026-10-01 |
+| MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | moved from MVP 3.9 on 2026-10-01 |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -377,13 +379,14 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     of the type reached. Entry 77:
     `let me = self()` before a spawn kept, the guide teaching it once (item 16). Entry 78:
     `let _ = e` kept, `foreach`'s callback answering `Unit` (principle 3). Entry 79:
-    `Address.ask(address, request, wrap, ms)` admitted to the prelude, `wrap` taking
-    `Optional(a)`, `None` when the milliseconds pass or the callee ends or restarts first, a
-    late answer discarded; about a day and a half with §6.6, §9.5 and the guide's §4.4
-    rewritten without its helper, §6.6's `addr` and `mk` becoming `address` and `request` as
-    it is rewritten (the log's *Three Names Decided*). Entry 80: §6.9's `Down` without order kept, since the host's order would need a
-    mailbox of the runtime's own under every receive; the guide's §5.6 collects its workers'
-    results with `ask`, with entry 79's build. Entries 81 and 82: `monitor` takes a `Process`,
+    `Address.ask(address, request, wrap, ms)` was admitted to the prelude, built, and taken
+    out again on 2026-10-03, decided with the user (the log's *`Address.ask` Is Taken
+    Out*): a helper that calls and sends the answer on does its job with `spawn`,
+    `Address.call` and `send`, which the guide's §4.4 teaches; §6.6's `addr` and `mk` stay
+    `address` and `request` (the log's *Three Names Decided*). Entry 80: §6.9's `Down`
+    without order kept, since the host's order would need a mailbox of the runtime's own
+    under every receive; the guide's §5.6 monitors its workers and passes over the `Down`
+    of one that returned. Entries 81 and 82: `monitor` takes a `Process`,
     `monitor : (Process, (Down) -> m) -> Unit with m`, replacing the address form, since §6.5's
     address is the permission to send and watching needs only identity; `kill` keeps the
     address; about half a day with §6.9, §9.5, Appendix F's *monitor*, E.18's sentence that a
@@ -406,14 +409,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     module kept, OCaml's own rule. The fourth: `spawnMonitored` and `Unknown` kept, the runtime
     keeping nothing of an ended process. Every decision of this item was taken on 2026-10-02,
     and `language_feedback.md` holds no entry; every build the decisions admitted, entry 76,
-    the rule for a recursive type and entries 79, 81, 82, 83 and 85, was done on 2026-10-03,
+    the rule for a recursive type and entries 81, 82, 83 and 85, was done on 2026-10-03,
     each read back in its log entry, and the item is done.
-    **The ask's cost**, decided with the user 2026-10-03: `make bench` puts an ask and its
-    answer received at 2.6 times the host's `send_request` and `receive_response`, where a
-    call stands at 1.7, the difference being the ask's three rows and its timer, which answer
-    `None` at a callee's restart and cancel an asker's asks at its own (§6.6, §6.9); kept as
-    built, since each extra pays for a sentence the report states (the log's *`Address.ask`
-    answers into the mailbox*).
 22. **The AST's `path` is `namespace`**, done 2026-10-03 (the log's *The Path Built*): the
     field of the four AST records and of completion's two that holds a qualified name's
     namespace, and the variables bound from it in every stage, take §4.2's word, since §5.6
@@ -440,7 +437,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     keeps `owner` for the process a resource belongs to. About half a day, a build whose
     shape is decided.
 24. **The report in three files** (moved here from MVP 2.99c's item 5 on 2026-10-03, so
-    that the release's readers read the report as it will stand; tentative, all of it:
+    that MVP 2.99c's argument and the release's readers read the report as it will stand;
+    tentative, all of it:
     checked again, its counts included, against the report as it stands when work on the
     item begins). The report stays one report and is stored in three files under
     `report/`: `report/language.md`, the
@@ -463,16 +461,18 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     where the readers run. The error texts the language chapters quote stay where they are,
     and whether they move to the toolchain file is a decision of its own, taken later if at
     all.
-25. **A release, Ernest 0.3.0**, the milestone's last item, decided with the user
-    2026-10-03: the review before a release run as [`release_review.md`](release_review.md)
-    says, a fresh clone, its five machines, its three readers and their findings worked,
-    then the release itself, the version, the `since` lines, the pages, the notes, the tag
-    and the archive. After items 23 and 24. Its code reader reads the ask in `ern_rt` whole
-    (§6.6), the part of the runtime that changed most since 0.2.0 and where the suite met a
-    race on 2026-10-03. Item 10's launchd checks have run on a Mac by then, or the notes
-    say that the agent has not been checked.
+25. **A release**: moved to the end of MVP 2.99c, its item 6, on 2026-10-03.
+26. **The reaper's look at rest**, a decision with the user, named 2026-10-03 (the log's
+    *The Reaper's Look at Rest*): the reaper wakes every tenth of a second to look for a
+    deadlock (§8.6), and a program at rest pays for it, measured at 1.1% of a core and
+    twelve wake-ups a second where a host at rest has none. Recommended: the look comes
+    again after a tenth of a second only while nothing can still deliver, and after a
+    second while something can, since a deadlock can begin only once that has ended; about
+    0.3% at rest, and a deadlock in a program long quiet found within a second. Not looking
+    at all while something can deliver takes a count kept on four paths of the runtime,
+    and is weighed there.
 
-## MVP 2.99c (the language argued), about three weeks
+## MVP 2.99c (the language argued, and a release), about three weeks
 
 The core language argued sound and generated against, before peers build on it, moved here
 from MVP 3.9 on 2026-10-01 (the log's *The Language Argued Before Peers*). After MVP 2.99b,
@@ -498,9 +498,18 @@ shaken (reordered 2026-10-01).
    rules meet, generalization against effects, a pure function standing for one with a mailbox,
    a reply captured by a lambda, an operator resolved where its operand's type is known and
    carrying nothing hidden, and what MVP 2.99b added: a requirement and what supplies it
-   (§4.9), a derived `compare`, the rule for a recursive group's types (§3.9), and an ask's
-   reply consumed by its placement (§6.6). Where it cannot be made, that is a finding; a
-   model a machine checks follows only if the argument meets a rule it cannot settle.
+   (§4.9), a derived `compare`, and the rule for a recursive group's types (§3.9). Where it
+   cannot be made, that is a finding; a model a machine checks follows only if the argument
+   meets a rule it cannot settle.
+5. **The report in three files**: moved to MVP 2.99b, its item 24, on 2026-10-03.
+6. **A release, Ernest 0.3.0**, the milestone's last item, decided with the user
+   2026-10-03, with no hurry: after the machines have run and the argument is written, so
+   that what is released has been generated against. The review before a release run as
+   [`release_review.md`](release_review.md) says, a fresh clone, its five machines, its
+   three readers and their findings worked, then the release itself, the version, the
+   `since` lines, the pages, the notes, the tag and the archive. Item 10's launchd checks
+   of MVP 2.99b have run on a Mac by then, or the notes say that the agent has not been
+   checked.
 
 ---
 
