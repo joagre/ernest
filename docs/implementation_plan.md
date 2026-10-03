@@ -509,6 +509,20 @@ shaken (reordered 2026-10-01).
    cannot be made, that is a finding; a model a machine checks follows only if the argument
    meets a rule it cannot settle.
 5. **The report in three files**: moved to MVP 2.99b, its item 24, on 2026-10-03.
+7. **What Erlang holds that Ernest can**, decided with the user 2026-10-03, after CLAUDE.md
+   gained the rule that as much as can be is written in Ernest; before item 6, the
+   release. Moved: `String.trimStart` and `String.trimEnd`, exported shims though trimming
+   is Ernest's, written over the module's `slice`, `drop` and `Char.isSpace`; and
+   `String.toIntBase`'s reading of digits, a shim where `String.toInt` reads in Ernest,
+   written as `toInt` is. E.5's list of primitives loses the three, and the log's entry
+   that called finding and trimming the host's is corrected. Two named decisions, taken
+   with the user before the item is built: **`:output` in Ernest**, the shell's redirection
+   of a program's output, which the front end opens in Erlang since `Fs` writes regular
+   files only; recommended: `Fs.append` writes a device as well, a terminal or a pipe,
+   E.17 saying so, and the screen appends there, the cost of an open per write weighed
+   when it is built. And **the terminal's key decoding**, ECMA-48 read in `ern_tty`, the
+   runtime's by E.16 and §8.2's system process; recommended: kept, since a system process
+   is the runtime's own, and stated so in the log.
 6. **A release, Ernest 0.3.0**, the milestone's last item, decided with the user
    2026-10-03, with no hurry: after the machines have run and the argument is written, so
    that what is released has been generated against. The review before a release run as
