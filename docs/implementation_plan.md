@@ -65,9 +65,12 @@ on one node, and before MVP 3.0, whose code shipping and type identity extend th
 rather than begin it. The machines first, cheapest first, since each finds concrete defects
 in a day or two, and the argument last, written over a parser and a checker the machines have
 shaken (reordered 2026-10-01). Weighed again on 2026-10-03 before it starts (the log's *MVP
-2.99c Weighed Before It Starts*): about a week at the pace MVP 2.99b set; item 3 before item 2
-as the cheaper; item 2 given its rounds and its oracles, item 4 its bound and its owner; and
-[`release_review.md`](release_review.md) a sixth machine, the bench, and a reader of the guide.
+2.99c Weighed Before It Starts*): about a week at the pace MVP 2.99b set; the library's laws
+before the typed programs, as the cheaper; the typed programs given their rounds and their
+oracles, the argument its bound and its owner; and [`release_review.md`](release_review.md) a
+sixth machine, the bench, and a reader of the guide. The items are numbered in the order of
+work since 2026-10-04: a commit message before that day cites the laws as item 3, the typed
+programs as item 2, and the last three as items 7, 8 and 6.
 
 1. **The grammar generated against**, done 2026-10-03 (the log's *The Grammar Generated
    Against*): `make test-grammar`, a part of `make test`, derives a thousand programs from
@@ -81,14 +84,14 @@ as the cheaper; item 2 given its rounds and its oracles, item 4 its bound and it
    a type's parameters are distinct (§4.3, §4.7); and the formatter keeps two tokens that
    would read as others apart and a pipe's stage in its parentheses, which change nothing
    (§5.7, §11.6).
-3. **The standard library's laws as properties**, done 2026-10-03 (the log's *The Library's
+2. **The standard library's laws as properties**, done 2026-10-03 (the log's *The Library's
    Laws Held*): `ern_laws_tests`, a part of the runtime's tests in `make test`, checks 101
    laws drawn from Appendix E's sections of `List`, `String`, `Map`, `Set`, `OrderedSet`,
    `OrderedMap`, `Bytes`, `Int`, `Float`, `Char`, `Optional`, `Either` and `Path`, each on 200
    cases drawn afresh each run, the text among them hard at the graphemes. Every search of
    `String` matches whole graphemes of the string searched, `split` then `join` gives the
    string back, `sort` is stable, and the rest hold; none was broken.
-2. **Well-typed programs generated**, done 2026-10-03 (the log's *The Typed Programs
+3. **Well-typed programs generated**, done 2026-10-03 (the log's *The Typed Programs
    Generated*): `make test-typed`, a part of `make test` in about eighteen seconds, builds
    four hundred pure programs by type and sixty of four process shapes, checks, compiles,
    loads and runs each in one host through the runtime's entry, and holds what each prints
@@ -122,10 +125,9 @@ as the cheaper; item 2 given its rounds and its oracles, item 4 its bound and it
    paragraphs for those rules beside the report's sections (decided 2026-10-03); and it gives
    [`full_review.md`](full_review.md)'s cold reader, K, the argument among its files, to
    report every step that does not follow from the rules it cites (decided 2026-10-04), so
-   that item 8's full review reads it.
-5. **The report in three files**: moved to MVP 2.99b, its item 24, on 2026-10-03.
-7. **What Erlang holds that Ernest can**, decided with the user 2026-10-03, after CLAUDE.md
-   gained the rule that as much as can be is written in Ernest; before item 6, the
+   that item 6's full review reads it.
+5. **What Erlang holds that Ernest can**, decided with the user 2026-10-03, after CLAUDE.md
+   gained the rule that as much as can be is written in Ernest; before item 7, the
    release. Moved: `String.trimStart` and `String.trimEnd`, exported shims though trimming
    is Ernest's, written over the module's `slice`, `drop` and `Char.isSpace`, `trimEnd`
    without a walk from the start for each grapheme it drops, since `slice` by index walks;
@@ -139,18 +141,17 @@ as the cheaper; item 2 given its rounds and its oracles, item 4 its bound and it
    when it is built. And **the terminal's key decoding**, ECMA-48 read in `ern_tty`, the
    runtime's by E.16 and §8.2's system process; recommended: kept, since a system process
    is the runtime's own, and stated so in the log.
-8. **The full review**, decided with the user 2026-10-03: after item 7 and before item 6,
+6. **The full review**, decided with the user 2026-10-03: after item 5 and before item 7,
    in place of the release review's readers for 0.3.0. [`full_review.md`](full_review.md)
    is run whole: each of its nineteen readers and parts is a fresh agent of one workflow,
    never a fork, given only its brief and its files, as its *How it runs* says. P and K run
    on the most advanced model and every other reader and part on the one below it, as its
-   *The models* says. The lists are collected into
-   `findings.md` as its *The findings* says, and the work stops there for the user to read
-   them before any finding is worked.
-6. **A release, Ernest 0.3.0**, the milestone's last item, decided with the user
+   *The models* says. The lists are collected into `findings.md` as its *The findings* says,
+   and the work stops there for the user to read them before any finding is worked.
+7. **A release, Ernest 0.3.0**, the milestone's last item, decided with the user
    2026-10-03, with no hurry: after the machines have run and the argument is written, so
    that what is released has been generated against. The review and the release run as
-   [`release_review.md`](release_review.md) says, its readers being item 8's. Item 10's
+   [`release_review.md`](release_review.md) says, its readers being item 6's. Item 10's
    launchd checks of MVP 2.99b have run on a Mac by then, or the notes say that the agent has
    not been checked.
 
@@ -700,5 +701,5 @@ Variable*). `ern test` takes a directory, an `Fs.Entry` holds its file's mode an
 `Os.user` is the program's, and the report is three files under `report/`, each normative
 (*The Report in Three Files*). What it leaves: the launchd checks of the service manager's
 item, written and waiting for a Mac, which MVP 2.99c's release runs or names in its notes;
-and the Erlang that Ernest can hold, MVP 2.99c's item 7. `language_feedback.md` holds no
+and the Erlang that Ernest can hold, MVP 2.99c's item 5. `language_feedback.md` holds no
 entry, and stays as the place new feedback is written.

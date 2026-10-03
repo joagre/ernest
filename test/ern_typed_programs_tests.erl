@@ -1,4 +1,4 @@
-%% Well-typed programs generated (plan, MVP 2.99c item 2): programs built by
+%% Well-typed programs generated (plan, MVP 2.99c item 3): programs built by
 %% type, so that each type-checks by construction, then checked, compiled,
 %% loaded and run in this host through the runtime's entry, as the shell
 %% runs its own. Four oracles: the checker accepts the program; the Erlang it

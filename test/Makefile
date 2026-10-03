@@ -70,7 +70,7 @@ grammar: $(BEAMS)
 	$(call EUNIT,$(GRAMMAR))
 
 # Well-typed programs generated, checked, compiled and run in one host
-# (MVP 2.99c item 2), whose seed ERN_SEED gives again.
+# (MVP 2.99c item 3), whose seed ERN_SEED gives again.
 typed: $(BEAMS)
 	$(call EUNIT,$(TYPED))
 

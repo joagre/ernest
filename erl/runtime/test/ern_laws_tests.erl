@@ -1,4 +1,4 @@
-%% The standard library's laws as properties (plan, MVP 2.99c item 3): what
+%% The standard library's laws as properties (plan, MVP 2.99c item 2): what
 %% each module's section of report Appendix E and its doc blocks state of
 %% every value, checked on cases drawn at random, for the modules whose
 %% contracts state such laws: List, String, Map, Set, OrderedSet, OrderedMap,
