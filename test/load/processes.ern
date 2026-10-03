@@ -43,7 +43,7 @@ fn once() : Unit with Msg = {
     // a call answered, then the callee monitored and killed
     let answerer = spawn(worker);
     let _ = Address.call(answerer, fn(reply) = Ask(reply = reply), 1000);
-    monitor(answerer, Ended);
+    monitor(Process.fromAddress(answerer), Ended);
     kill(answerer);
     receive {
         Ended(_) -> Unit

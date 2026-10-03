@@ -1123,7 +1123,7 @@ The output is `ping 3`, `pong 3`, `ping 2`, and so on, alternating. Messages fro
 $ ern shell
 Ernest 0.2.0. :help for the commands, :quit to leave.
 > :type monitor
-monitor : (Address(a), (Down) -> m) -> Unit with m
+monitor : (Process, (Down) -> m) -> Unit with m
 > :type spawnMonitored
 spawnMonitored : (() -> Unit with n, (Down) -> m) -> Address(n) with m
 ```
@@ -1134,7 +1134,7 @@ type Down = Down(process : Process, reason : Reason, site : String)
 type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 ```
 
-`monitor(child, wrap)` puts `wrap(d)` in your mailbox when `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. A process you start yourself is watched from its start with `spawnMonitored(f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `process` says which, as `Process.fromAddress(child)` gives it, its `reason` says how, and its `site` says where it was spawned, the top-level declaration and the line of the spawn, `Counter.main:19`.
+`monitor(child, wrap)` puts `wrap(d)` in your mailbox when the process `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. `child` is a `Process`, the identity of a process, which `Process.fromAddress(a)` gives for an address `a`: watching a process needs no permission to send to it, so a server watches the clients it holds no address to. A process you start yourself is watched from its start with `spawnMonitored(f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `process` says which, its `reason` says how, and its `site` says where it was spawned, the top-level declaration and the line of the spawn, `Counter.main:19`.
 
 A process that monitors a worker while waiting for its answer gets two messages, the answer and the death, and takes the answer; the death is still in the mailbox when the next worker is monitored. The `Down` names the process it is about, and the worker names itself in its answer, so the wait takes what is about the worker it waits for:
 
@@ -1282,7 +1282,7 @@ fn talk() : Unit with ChatMsg =
     }
 ```
 
-**One process behind them all.** Addresses have no equality, since an adapted address holds a function. The process behind an address has: `Process.fromAddress(a)` is a `Process`, the same one through every `via`, which can key a `Map` or be kept in a `Set` and to which nothing can be sent. `monitor` and `kill` take any of a process's addresses and act on the process behind it. An address is the authority to reach a process, which is why they take one; a `Process` is its identity, which anyone may list, and what `Process.info` and `Tcp.give` take.
+**One process behind them all.** Addresses have no equality, since an adapted address holds a function. The process behind an address has: `Process.fromAddress(a)` is a `Process`, the same one through every `via`, which can key a `Map` or be kept in a `Set` and to which nothing can be sent. `kill` takes any of a process's addresses and acts on the process behind it. An address is the authority to reach a process, which is why `kill` takes one; a `Process` is its identity, which anyone may list, and what `monitor`, `Process.info` and `Tcp.give` take: watching a process needs no authority over it.
 
 ```ernest
 type CountMsg = Counted(Int)

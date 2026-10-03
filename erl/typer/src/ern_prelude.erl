@@ -232,7 +232,7 @@ declared_types() ->
     /// ```ernest
     /// {
     ///     let worker = spawn(fn() : Unit with Never = Unit);
-    ///     monitor(worker, fn(d : Down) = d);
+    ///     monitor(Process.fromAddress(worker), fn(d : Down) = d);
     ///     receive { Down(reason = r, site = _) -> r }
     /// }
     /// ```
@@ -434,19 +434,20 @@ values() ->
       spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() : Unit with Never = Unit))
       ```
       """/utf8>>},
-     {[monitor], "(Address(a), (Down) -> m) -> Unit with m",
+     {[monitor], "(Process, (Down) -> m) -> Unit with m",
       <<"""
-      Puts `wrap(d)` in the caller's mailbox when the process at `a` ends, or at
+      Puts `wrap(d)` in the caller's mailbox when the process `p` ends, or at
       once, with the reason `Unknown`, if it has ended. Each call gives one
-      message (report §6.9). A process one starts is watched from its start
-      with `spawnMonitored`.
+      message (report §6.9). `Process.fromAddress` gives the process behind an
+      address, and a process one starts is watched from its start with
+      `spawnMonitored`.
 
       ### Examples
 
       ```ernest
       {
           let worker : Address(Int) = spawn(fn() = receive { _ -> Unit });
-          monitor(worker, fn(d : Down) = d)
+          monitor(Process.fromAddress(worker), fn(d : Down) = d)
       }
       ```
       """/utf8>>},

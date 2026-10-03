@@ -522,11 +522,12 @@ held_reply(Exposed, #ask{asker = Asker, check = Check} = Ask, Deadline) ->
 %% there too, so a monitor costs no process of its own (report §6.9). The
 %% monitor is made when the reaper says so, so that a process killed just
 %% after it is seen to die rather than found already ended.
--spec monitor(address(), fun((term()) -> term())) -> 'Unit'.
-monitor(Address, Wrap) ->
+-spec monitor(pid(), fun((term()) -> term())) -> 'Unit'.
+monitor(Process, Wrap) ->
     Ref = make_ref(),
     Reaper = persistent_term:get({?MODULE, reaper}),
-    Reaper ! {monitor, process_of(Address), erlang:self(), Wrap, Ref},
+    %% a Process foreign code gave back may be the proxy before the process
+    Reaper ! {monitor, process_of(Process), erlang:self(), Wrap, Ref},
     receive {Ref, monitored} -> ?UNIT end.
 
 -spec kill(address()) -> 'Unit'.

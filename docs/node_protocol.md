@@ -67,7 +67,7 @@ A message is dropped without notice (§10) when its connection is torn down with
 
 *Changed:* the note stopped a monitor at a lost connection and let a new one see the process again when the connection returned, where §10 makes the loss terminal.
 
-`monitor(a, wrap)` works on a remote address as on a local one (§6.9). Only an identifier that the watcher's node draws crosses. That node keeps `wrap` and applies it as it delivers the `Down`, as §6.9 says of every monitor, so a wrap that does not finish holds up no other delivery. The watched process's node sends the `Down` when the process dies, and a monitor set on a dead process answers `Unknown` at once. When a watcher dies, its node removes its monitors on peers, so that no peer keeps a monitor that nothing will read.
+`monitor(p, wrap)` works on a remote process as on a local one (§6.9). Only an identifier that the watcher's node draws crosses. That node keeps `wrap` and applies it as it delivers the `Down`, as §6.9 says of every monitor, so a wrap that does not finish holds up no other delivery. The watched process's node sends the `Down` when the process dies, and a monitor set on a dead process answers `Unknown` at once. When a watcher dies, its node removes its monitors on peers, so that no peer keeps a monitor that nothing will read.
 
 The processes of a lost peer are dead with `Fault("peer lost")` (§10), and the watcher's node makes their `Down` itself. A node whose program ends is lost to its peers (§8.6).
 

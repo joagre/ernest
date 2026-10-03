@@ -2762,3 +2762,14 @@ ask_test() ->
     ?assertEqual("the reply-carrying value r is never consumed",
                  refusal(Source ++ "fn f(a : Address(Req)) : Unit with M ="
                          " Address.ask(a, fn(r) = Stop, Got, 1000)")).
+
+%% report §6.9, §9.5: monitor takes a Process, the identity of a process,
+%% which Process.fromAddress gives for an address; an address is refused,
+%% since watching needs no permission to send. Written after the code
+monitor_takes_a_process_test() ->
+    Source = "type M = Died(Down)\n",
+    ?assertEqual(ok, ok(Source ++ "fn f(a : Address(Int)) : Unit with M ="
+                        " monitor(Process.fromAddress(a), Died)")),
+    ?assertEqual(ok, ok(Source ++ "fn f(p : Process) : Unit with M = monitor(p, Died)")),
+    ?assertEqual("the argument does not fit monitor: expected Process, found Address(Int)",
+                 refusal(Source ++ "fn f(a : Address(Int)) : Unit with M = monitor(a, Died)")).

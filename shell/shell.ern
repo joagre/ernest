@@ -175,7 +175,7 @@ export fn main() : Unit with ShellMsg = {
                  Start(screen = screen, earlier = earlier, keeping = keeping, colour = colour));
             // report §11.2: an editor that cannot read keys is no shell,
             // so the reader's death is said and the session ends with it
-            monitor(reader, ReaderDied);
+            monitor(Process.fromAddress(reader), ReaderDied);
             match startup(state, screen) {
                 Continue(state1) -> {
                     prompt(screen);

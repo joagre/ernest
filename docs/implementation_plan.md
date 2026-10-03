@@ -371,8 +371,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     module kept, OCaml's own rule. The fourth: `spawnMonitored` and `Unknown` kept, the runtime
     keeping nothing of an ended process. Every decision of this item was taken on 2026-10-02,
     and `language_feedback.md` holds no entry; what remains is to build what the decisions
-    admitted, entries 81 and 82, 83 and 85, about two days, its report sentences with its
-    code; entry 76, the rule for a recursive type and entry 79 were built on 2026-10-03.
+    admitted, entries 83 and 85, about a day, its report sentences with its code; entry 76,
+    the rule for a recursive type and entries 79, 81 and 82 were built on 2026-10-03.
     **The ask's cost**, decided with the user 2026-10-03: `make bench` puts an ask and its
     answer received at 2.6 times the host's `send_request` and `receive_response`, where a
     call stands at 1.7, the difference being the ask's three rows and its timer, which answer
