@@ -467,8 +467,10 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     2026-10-03: the review before a release run as [`release_review.md`](release_review.md)
     says, a fresh clone, its five machines, its three readers and their findings worked,
     then the release itself, the version, the `since` lines, the pages, the notes, the tag
-    and the archive. After items 23 and 24. Item 10's launchd checks have run on a Mac by
-    then, or the notes say that the agent has not been checked.
+    and the archive. After items 23 and 24. Its code reader reads the ask in `ern_rt` whole
+    (§6.6), the part of the runtime that changed most since 0.2.0 and where the suite met a
+    race on 2026-10-03. Item 10's launchd checks have run on a Mac by then, or the notes
+    say that the agent has not been checked.
 
 ## MVP 2.99c (the language argued), about three weeks
 
