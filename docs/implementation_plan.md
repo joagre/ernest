@@ -107,7 +107,9 @@ as the cheaper; item 2 given its rounds and its oracles, item 4 its bound and it
    machine checks follows only if the argument meets a rule it cannot settle. Its owner is
    `docs/soundness.md`, the argument that a well-typed program does not go wrong, which this
    item writes and names in CLAUDE.md's owners in the same commit; the report keeps the rules
-   and the log the rationale by entry.
+   and the log the rationale by entry. Its first line names the three tests of items 1 to 3,
+   which check what it argues; the tests own the machines, as every test does, and no review
+   document holds the milestone's items (decided 2026-10-03).
 5. **The report in three files**: moved to MVP 2.99b, its item 24, on 2026-10-03.
 7. **What Erlang holds that Ernest can**, decided with the user 2026-10-03, after CLAUDE.md
    gained the rule that as much as can be is written in Ernest; before item 6, the
