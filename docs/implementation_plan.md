@@ -31,7 +31,10 @@ to follow items 16 and 20. Item 5, the operations built, was done on 2026-10-03 
 *The Requirement Built*), item 16, the guide's §7.3 over it, the same day, and item 20, the
 feedback the reviews left, the same day, its six builds each read back in the log entry
 that decided it; item 21, the report's and the guide's blocks read by `style.md`, and item
-22, the AST's namespace named so, the same day. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+22, the AST's namespace named so, the same day. Items 8, 9, 10, 13, 14 and 19 were built on
+2026-10-03 too, so that every item of the milestone is built. It closes when item 8's two
+decisions are taken with the user, *Whose a file is* and *What a binding's holder keeps*, and
+item 10's launchd checks have run on a Mac. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -55,7 +58,7 @@ order. Each has its paragraph under "Done".
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
-| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | decided 2026-10-02, `operations.md` the specification; about five weeks |
+| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | every item built 2026-10-03; two decisions of item 8 and item 10's checks on a Mac before it closes |
 | The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01 |
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines | moved from MVP 3.9 on 2026-10-01 |
