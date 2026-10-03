@@ -1,12 +1,9 @@
-%% The shims behind Float.toString, pow, and exp, and behind Float's
-%% operators, `negate` and `compare` (report Appendix E.9, §9.6): Erlang
-%% prints the shortest form only when asked, raises badarith where §3.1
-%% names the fault, keeps a negative zero the language has none of, and has
-%% no function in the shape of `compare`.
+%% The shims behind Float.toString, pow, and exp (report Appendix E.9):
+%% Erlang prints the shortest form only when asked, and raises badarith
+%% where §3.1 names the fault.
 -module(ern_float).
 
--export([to_string/1, text/1, pow/2, exp/1, add/2, subtract/2, multiply/2, divide/2, negate/1,
-         compare/2]).
+-export([to_string/1, text/1, pow/2, exp/1]).
 
 %% Report Appendix E.9: the shortest digits that read back as the same
 %% value, which float_to_list/2's `short` gives, written plain from 0.0001
@@ -58,44 +55,6 @@ pow(Base, Exponent) -> arith(fun() -> math:pow(Base, Exponent) end).
 
 -spec exp(float()) -> float().
 exp(Power) -> arith(fun() -> math:exp(Power) end).
-
-%% Report §9.6, §3.1: Float's operators as functions, each what the
-%% emitter writes for the operator in line (float_operation/5): a result
-%% the finite range cannot hold is the float fault, and a product or a
-%% quotient that is negative zero is 0.0, as is the negation of 0.0. A
-%% test holds the two equal.
--spec add(float(), float()) -> float().
-add(Left, Right) ->
-    try Left + Right
-    catch error:badarith -> ern_rt:fault(<<"float arithmetic error">>)
-    end.
-
--spec subtract(float(), float()) -> float().
-subtract(Left, Right) ->
-    try Left - Right
-    catch error:badarith -> ern_rt:fault(<<"float arithmetic error">>)
-    end.
-
--spec multiply(float(), float()) -> float().
-multiply(Left, Right) ->
-    try Left * Right + 0.0
-    catch error:badarith -> ern_rt:fault(<<"float arithmetic error">>)
-    end.
-
--spec divide(float(), float()) -> float().
-divide(Dividend, Divisor) ->
-    try Dividend / Divisor + 0.0
-    catch error:badarith -> ern_rt:fault(<<"float arithmetic error">>)
-    end.
-
--spec negate(float()) -> float().
-negate(Float) -> 0.0 - Float.
-
-%% Report §3.10, §9.6: the host's ordering of floats, as an Ordering.
--spec compare(float(), float()) -> 'Less' | 'Equal' | 'Greater'.
-compare(Left, Right) when Left < Right -> 'Less';
-compare(Left, Right) when Left > Right -> 'Greater';
-compare(_, _) -> 'Equal'.
 
 arith(Compute) ->
     try Compute()

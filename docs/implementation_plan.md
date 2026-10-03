@@ -32,9 +32,10 @@ to follow items 16 and 20. Item 5, the operations built, was done on 2026-10-03 
 feedback the reviews left, the same day, its six builds each read back in the log entry
 that decided it; item 21, the report's and the guide's blocks read by `style.md`, and item
 22, the AST's namespace named so, the same day. Items 8, 9, 10, 13, 14 and 19 were built on
-2026-10-03 too, and item 8's two decisions were taken with the user the same day. The milestone closes
-when item 23, *Whose a file is*, which the first of them added, is built, and item 10's
-launchd checks have run on a Mac. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+2026-10-03 too, and item 8's two decisions were taken with the user the same day; item 14, the operators
+as shims, was built and reverted. Three items remain: 23, *Whose a file is*, which the
+first of the decisions added; 24, the report in three files, moved from MVP 2.99c; and 25,
+a release, Ernest 0.3.0. Item 10's launchd checks wait for a Mac. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -58,7 +59,7 @@ order. Each has its paragraph under "Done".
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
-| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | built 2026-10-03 but item 23, *Whose a file is*; item 10's checks on a Mac before it closes |
+| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | built but items 23, 24 and 25: a file's user, the report in three files, and the release, Ernest 0.3.0 |
 | The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01 |
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines | moved from MVP 3.9 on 2026-10-01 |
@@ -282,20 +283,16 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     principles review's edits: `Io.show` and `Io.debug` on a type variable are refused, and
     `Io.debug` writes through `Io`'s stream process to standard error (the log's *A Value Shows
     Itself at a Known Type*).
-14. **The built-in operators as shims**, done 2026-10-03 (`findings.md`'s R-27, decided
-    with the user 2026-09-30 and kept 2026-10-02; the log's *The Operators as Shims, Built*):
-    each operator §9.6 gives `Int`, `Float`, `String` and `Bytes`, `Int`'s and `Float`'s
-    `negate`, and the `compare` of `Int`, `Float`, `String` and `Char` is a `foreign fn` in
-    its type's module, over the host's own operation where it serves as it stands, `Int`'s
-    `+`, `-`, `*` and `negate`, and else over a helper in the runtime's Erlang: where the
-    host raises in other words than §7.4's, `/` and `%`; where it keeps a negative zero or
-    raises for a result past the finite range, `Float`'s; and where it has no function of
-    the shape, `<>` and the `compare`s. §8.4 says that an implementation's function is named
-    as the host names it, an operator among them, `erlang:+/2`. §9.6's sentences that such a
-    body is no recursive call are gone; the checker held no case for them. An operator
-    applied costs what it cost, being written in line as before, and a test holds the line
-    and the declared function equal; a declared function called as a value costs its
-    foreign call, measured at 8% of a sort by `Int.compare` and 6% of a fold with `Float.+`.
+14. **The built-in operators as shims**, built and reverted 2026-10-03, decided with the
+    user (`findings.md`'s R-27; the log's *The Operators Stay Ernest*): the operators §9.6
+    gives `Int`, `Float`, `String` and `Bytes`, the two `negate`s and the four `compare`s
+    are declared in Ernest again, `fn Int.+(left, right) = left + right`. Built as
+    `foreign fn`s, four of seventeen named the host's operation and thirteen a helper that
+    stated a second time what the emitter writes in line, which an applied operator never
+    called. §9.6 now says that the operator is the primitive and the function of its name
+    is written with it, so that no sentence makes an exception. Kept of the build: §8.4
+    lets an implementation name a host operator, `erlang:+/2`, which the compiler had
+    refused though it is of the form the report gives.
 15. **Names that read, in Ernest**, done 2026-10-02 (the log's *The Ernest Read and
     Renamed*): the standard library, the shell, `libs/`, `examples/`, `tools/` and the
     programs under `test/` read, two commits an area, the names and then the form, the
@@ -442,6 +439,36 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     `startupFiles` answers the paths alone again. The field is `user`, since the glossary
     keeps `owner` for the process a resource belongs to. About half a day, a build whose
     shape is decided.
+24. **The report in three files** (moved here from MVP 2.99c's item 5 on 2026-10-03, so
+    that the release's readers read the report as it will stand; tentative, all of it:
+    checked again, its counts included, against the report as it stands when work on the
+    item begins). The report stays one report and is stored in three files under
+    `report/`: `report/language.md`, the
+    language (§0 to §10 and Appendices A, B and F); `report/toolchain.md`, the toolchain (§11
+    and Appendix C); and `report/library.md`, the standard library (Appendices D, E and G).
+    The move to `report/` is made in the same step as the split, so that each path changes
+    once, and the guide stays at the root. The section numbers and appendix letters are
+    kept: the first number or letter of a citation already names its part, 11 the
+    toolchain's and E the library's, so a citation keeps its one coordinate, and only
+    numbering each file from 1 would make it need a second. Counted on 2026-10-03, the split
+    costs the 48 places in 20 files that name `ernest_report.md` and the checks that read
+    the report by path, which take three paths; renumbering would have touched about 2,800
+    citations, 1,500 of §11, 1,200 of Appendix E and 100 of Appendices C, D and G, in the
+    code, the tests, the documents and the guide. The language file comes to about 25,000
+    words of the report's 46,000, some fifty pages, which one reader reads and checks whole:
+    it serves MVP 2.99c's argument, its item 4, and a release's readers, and it shows the
+    weight of the three heaviest language chapters, §4, §6 and §8. The authority rule in CLAUDE.md says the
+    three files are one report, each file has its own revision date in its line 3, and a
+    line at the top of each says which numbers it holds. Done mechanically, at a boundary
+    where the readers run. The error texts the language chapters quote stay where they are,
+    and whether they move to the toolchain file is a decision of its own, taken later if at
+    all.
+25. **A release, Ernest 0.3.0**, the milestone's last item, decided with the user
+    2026-10-03: the review before a release run as [`release_review.md`](release_review.md)
+    says, a fresh clone, its five machines, its three readers and their findings worked,
+    then the release itself, the version, the `since` lines, the pages, the notes, the tag
+    and the archive. After items 23 and 24. Item 10's launchd checks have run on a Mac by
+    then, or the notes say that the agent has not been checked.
 
 ## MVP 2.99c (the language argued), about three weeks
 
@@ -453,14 +480,14 @@ rather than begin it. The machines first, cheapest first, since each finds concr
 in a day or two, and the argument last, written over a parser and a checker the machines have
 shaken (reordered 2026-10-01).
 
-1. **The grammar generated against.** A thousand programs generated from Appendix A as round 2
-   leaves it, reaching every alternative, parsed, and each near miss refused with a diagnostic
+1. **The grammar generated against.** A thousand programs generated from Appendix A as it
+   stands, reaching every alternative, parsed, and each near miss refused with a diagnostic
    (the log's *Enough Coherence*). A machine of `make test`.
 2. **Well-typed programs generated.** Programs generated to type-check run under the runtime and
    end by returning, by a cause of §7.4, or by a deadlock; a host error that is none of those is
    a finding in the checker or the runtime. A machine of `make test` once it runs in its time.
 3. **The standard library's laws as properties**, generated against each module's contract as
-   round 2 leaves it: `String.split` then `String.join` gives the string back, `List.sort` is
+   it stands: `String.split` then `String.join` gives the string back, `List.sort` is
    stable, a search matches whole graphemes, and the rest its sections and doc blocks state. A
    machine of `make test`, a module at a time.
 4. **The type system argued.** A written argument that a well-typed program does not go wrong:
@@ -468,30 +495,10 @@ shaken (reordered 2026-10-01).
    now states it, naming no type and a list element among the places a reply stands, and where
    rules meet, generalization against effects, a pure function standing for one with a mailbox,
    a reply captured by a lambda, an operator resolved where its operand's type is known and
-   carrying nothing hidden. Where it cannot be made, that is a finding; a model a machine
-   checks follows only if the argument meets a rule it cannot settle.
-5. **The report in three files** (tentative, all of it: checked again, its counts included,
-   against the report as it then stands when work on this milestone begins). The report
-   stays one report and is stored in three files under `report/`: `report/language.md`, the
-   language (§0 to §10 and Appendices A, B and F); `report/toolchain.md`, the toolchain (§11
-   and Appendix C); and `report/library.md`, the standard library (Appendices D, E and G).
-   The move to `report/` is made in the same step as the split, so that each path changes
-   once, and the guide stays at the root. The section numbers and appendix letters are
-   kept: the first number or letter of a citation already names its part, 11 the
-   toolchain's and E the library's, so a citation keeps its one coordinate, and only
-   numbering each file from 1 would make it need a second. Counted on 2026-10-03, the split
-   costs the 48 places in 20 files that name `ernest_report.md` and the checks that read
-   the report by path, which take three paths; renumbering would have touched about 2,800
-   citations, 1,500 of §11, 1,200 of Appendix E and 100 of Appendices C, D and G, in the
-   code, the tests, the documents and the guide. The language file comes to about 25,000
-   words of the report's 46,000, some fifty pages, which one reader reads and checks whole:
-   it serves item 4's argument and a release's readers, and it shows the weight of the
-   three heaviest language chapters, §4, §6 and §8. The authority rule in CLAUDE.md says the
-   three files are one report, each file has its own revision date in its line 3, and a
-   line at the top of each says which numbers it holds. Done mechanically, at a boundary
-   where the readers run. The error texts the language chapters quote stay where they are,
-   and whether they move to the toolchain file is a decision of its own, taken later if at
-   all.
+   carrying nothing hidden, and what MVP 2.99b added: a requirement and what supplies it
+   (§4.9), a derived `compare`, the rule for a recursive group's types (§3.9), and an ask's
+   reply consumed by its placement (§6.6). Where it cannot be made, that is a finding; a
+   model a machine checks follows only if the argument meets a rule it cannot settle.
 
 ---
 

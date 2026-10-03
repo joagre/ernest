@@ -57,7 +57,7 @@
   (insert-file-contents "../stdlib/int.ern")
   (ernest-mode)
   (goto-char (point-min))
-  (search-forward "export foreign fn Int.+(")
+  (search-forward "export fn Int.+(")
   (end-of-line)
   (ernest-editing--want "the declaration at an operator" (ernest-current-defun) "Int.+")
   (let* ((index (imenu--generic-function ernest-imenu-generic-expression))

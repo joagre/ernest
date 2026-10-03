@@ -24,8 +24,8 @@
 /// since 0.1.0
 
 /// The octets of the first, then those of the second.
-export foreign fn Bytes.<>(left : Bytes, right : Bytes) : Bytes =
-    "ern_bytes:append/2"
+export fn Bytes.<>(left : Bytes, right : Bytes) : Bytes =
+    left <> right
 
 /// The number of octets.
 ///

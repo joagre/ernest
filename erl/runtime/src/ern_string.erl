@@ -7,7 +7,7 @@
 
 -export([graphemes/1, index_of/2, last_index_of/2, slice/3, drop/2, trim_start/1, trim_end/1,
          to_lower/1, to_upper/1, to_int_base/2, to_float/1, to_list/1, from_list/1, from_utf8/1,
-         to_utf8/1, append/2, compare/2]).
+         to_utf8/1]).
 
 %% Appendix E.5: the graphemes in order, as `string:to_graphemes/1` splits
 %% them, extended grapheme clusters by the host's Unicode data, the same
@@ -248,15 +248,3 @@ from_utf8(Bytes) ->
 
 -spec to_utf8(binary()) -> binary().
 to_utf8(Text) -> Text.
-
-%% Report §9.6: String.<>, which the host writes with its bit syntax and
-%% has no function for.
--spec append(binary(), binary()) -> binary().
-append(Left, Right) -> <<Left/binary, Right/binary>>.
-
-%% Report §3.10, §9.6: the host's ordering of binaries, by code point for
-%% UTF-8, as an Ordering.
--spec compare(binary(), binary()) -> 'Less' | 'Equal' | 'Greater'.
-compare(Left, Right) when Left < Right -> 'Less';
-compare(Left, Right) when Left > Right -> 'Greater';
-compare(_, _) -> 'Equal'.
