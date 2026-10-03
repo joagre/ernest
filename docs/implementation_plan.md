@@ -32,9 +32,9 @@ to follow items 16 and 20. Item 5, the operations built, was done on 2026-10-03 
 feedback the reviews left, the same day, its six builds each read back in the log entry
 that decided it; item 21, the report's and the guide's blocks read by `style.md`, and item
 22, the AST's namespace named so, the same day. Items 8, 9, 10, 13, 14 and 19 were built on
-2026-10-03 too, so that every item of the milestone is built. It closes when item 8's two
-decisions are taken with the user, *Whose a file is* and *What a binding's holder keeps*, and
-item 10's launchd checks have run on a Mac. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+2026-10-03 too, and item 8's two decisions were taken with the user the same day. The milestone closes
+when item 23, *Whose a file is*, which the first of them added, is built, and item 10's
+launchd checks have run on a Mac. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -58,7 +58,7 @@ order. Each has its paragraph under "Done".
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
-| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | every item built 2026-10-03; two decisions of item 8 and item 10's checks on a Mac before it closes |
+| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | built 2026-10-03 but item 23, *Whose a file is*; item 10's checks on a Mac before it closes |
 | The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01 |
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines | moved from MVP 3.9 on 2026-10-01 |
@@ -223,12 +223,10 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    2026-10-03, are not refused: the boundary's checks catch a foreign side's mistakes, and a
    term in the runtime's own form is built on purpose by code that, in the same host, needs
    no forged handle (the same log entry; §8.4 says so since item 13). **Whose a file is**
-   ([`language_feedback.md`](language_feedback.md)'s entry 90) is a decision of this
-   milestone, taken with the user before it closes: whether `Fs.stat`'s `Entry` gains a
-   file's mode and owner, and `Os` the user, so that the shell's check of a startup file is
-   Ernest over `Fs` and its `foreign fn` goes. Recommended: yes, since E.0's rule 1 admits
-   each, a reader who knows a file's entry looks for both there, and `Fs.setMode` sets what
-   nothing reads; about half a day. Until then the shell asks the host. `findings.md` goes when this item and items 7, 15, 19 and 20 are done, with MVP 2.99b.
+   (`language_feedback.md`'s entry 90), decided with the user 2026-10-03: `Fs.stat`'s `Entry`
+   gains a file's mode and its user, and `Os` the user the program runs as, so that the
+   shell's check of a startup file is Ernest over `Fs` and its `foreign fn` goes; item 23
+   builds it, and until then the shell asks the host. `findings.md` goes when this item and items 7, 15, 19 and 20 are done, with MVP 2.99b.
    With it, built the same day: what the shell's front end and `ern test` replaced as
    persistent terms at each input and each test (C3-39) is rows of a table, since each
    replacement had the host scan every process, 2 milliseconds of CPU at a hundred processes
@@ -238,13 +236,11 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    collection and its reading: it is read until two readings in a row agree. `make test`
    now builds the loads' programs, one of which had stopped compiling unseen, and the
    benchmark.
-   **What a binding's holder keeps** is a decision of this milestone, taken with the user
-   before it closes, with the numbers in the log's entry: as a persistent term, a holder let
-   go costs the host's scan, 2 to 99 milliseconds of CPU by the processes alive, once; in a
-   table nothing is scanned, and every read of a bound name copies its value, 13
-   milliseconds for a list of a million. Recommended: kept as it is, a persistent term,
-   since a name's read must cost what a name costs. The item is done but for its two
-   decisions.
+   **What a binding's holder keeps**, decided with the user 2026-10-03, is a persistent
+   term, as it was: a holder let go costs the host's scan once, 2 to 99 milliseconds of CPU
+   by the processes alive, where a table would copy a bound name's value at every read, 13
+   milliseconds for a list of a million; a name's read costs what a name costs (the numbers
+   in the log's entry). The item is done.
 9. **The runtime's part of running as a service**, done 2026-10-03 (the log's *The Runtime as
    a Service, Built*). A stream that can no longer be written ends the program with status
    141 (§8.2, §11.8): of twenty-four runs of a program whose one write went to a full device
@@ -434,6 +430,18 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     the function that runs it a verb, so the counter is `counter` and its loop `count`.
 
 ---
+
+23. **Whose a file is** (`language_feedback.md`'s entry 90, decided with the user
+    2026-10-03 in item 8; the log's *The Hardening Built*): `Entry`, which `Fs.stat` and
+    `Fs.list` answer, gains `mode : Int`, the permission bits as `Fs.setMode` takes them, and
+    `user : Int`, the host's number for the user the file belongs to; and `Os` gains `user :
+    Int`, the user the program runs as, a value as `Os.arguments` is (E.17, E.23; primitives
+    by E.0 rule 1). The shell's check of a startup file (§11.2) is then Ernest: the file as
+    `Fs.stat` gives it, its links followed, and the directory that holds its path, each the
+    user's own or the superuser's and writable by no one beyond owner and group;
+    `startupFiles` answers the paths alone again. The field is `user`, since the glossary
+    keeps `owner` for the process a resource belongs to. About half a day, a build whose
+    shape is decided.
 
 ## MVP 2.99c (the language argued), about three weeks
 
