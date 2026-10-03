@@ -90,7 +90,8 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **Substitution**: not `S`, `Sub`, `subst`; applying one is `substitute`, not `zonk`.
 - **Context**: the emitter's, `#emit_context{}`, and nothing else. Not `Cx`, `C`. The formatter's state, the descriptor builder's, a message's prefix and a source line are each named for what they hold.
 - **QualifiedName**: §4.2's qualified name. Not `Q`, `QName`, `TQ`, `CQ`.
-- **Namespace**: §4.2's namespace. Not `Ns`, `Prefix`, nor `Module` for a namespace.
+- **Namespace**: §4.2's namespace, a qualified name's prefix among it, which the AST's `path` field holds until MVP 2.99b's item 22 renames it. Not `Ns`, `Prefix`, `Path`, nor `Module` for a namespace.
+- **Path**: §5.6's path in a record update, `#field_set{path}`, the segments after the field's name; a file's path is a `Path`, `SourcePath`, in the build and the runner alone.
 - **Module**: an Ernest module (§4.1); the Erlang module it compiles to is its `ErlangModule`, `ern@io`, and a build's record of one a `#build_module{}`. Not `Mod`.
 - **Interface**: a compiled module's interface (§11.1), `#interface{}`. Not `Iface`, `I`.
 - **Scheme**: a type scheme (§3.9), as the code has it, and beside it a declaration's requirement (§4.9), which no instance has.

@@ -6476,7 +6476,7 @@ The path is read by the parser after `..` alone, Appendix A's `UpdateSet`; a con
 
 Completion walks the path's segments from the constructor's fields through each field type's one constructor, so that `Tab` after `stats.` lists `indexed` and `hits` (§11.2), the parser telling it the segments typed. The guide's §2.4 shows one path at the prompt, and `test/diagnostics.md` the eight errors.
 
-A word the build met: the AST names a qualified name's namespace prefix `path`, in `#e_var{}`, `#e_constructor{}`, `#p_constructor{}` and `#t_named{}`, where the report says namespace (§4.2) and the glossary gives the word; §5.6 now names a path. The new field is `#field_set{path}`, the report's word, and the older use is a question for the user, since the renaming would run through every stage.
+A word the build met: the AST names a qualified name's namespace prefix `path`, in `#e_var{}`, `#e_constructor{}`, `#p_constructor{}` and `#t_named{}`, where the report says namespace (§4.2) and the glossary gives the word; §5.6 now names a path. The new field is `#field_set{path}`, the report's word. Decided with the user the same day: the older field, and the variables bound from it, take the word `namespace`, a sweep of a few hours through every stage that the compiler checks record by record, MVP 2.99b's item 22, after item 21. Not taken: the two uses left with a glossary line telling them apart, which the glossary's own rule argues against.
 
 Not taken: the nested construction as the parser's rewrite, which knows no types; a path whose first segment names no field reported as the inner update's error, which would have named the wrong constructor; and bindings for values that are bound names already.
 

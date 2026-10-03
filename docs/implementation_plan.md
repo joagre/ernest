@@ -373,6 +373,12 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     and `language_feedback.md` holds no entry; what remains is to build what the decisions
     admitted, entries 79, 81 and 82, 83 and 85 and the rule for a recursive type, about
     four days, its report sentences with its code; entry 76 was built on 2026-10-03.
+22. **The AST's `path` is `namespace`**, decided with the user 2026-10-03 (the log's *The Path
+    Built*): the field of `#e_var{}`, `#e_constructor{}`, `#p_constructor{}` and `#t_named{}`
+    that holds a qualified name's namespace prefix, and the variables bound from it in the
+    parser, the checker, the emitter, the formatter and the shell, take §4.2's word, since
+    §5.6 names a path and the glossary gives one word to one concept; the compiler checks
+    every record field, and `make test` the rest; a few hours, after item 21.
 21. **The report's and the guide's Ernest blocks by `style.md`**, decided with the user
     2026-10-02: they are read as item 15 read the rest, after items 16 and 20 rewrite parts of
     the guide, so that each block is read once, the guide's sentences that cite a name
