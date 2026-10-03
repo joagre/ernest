@@ -114,6 +114,9 @@ as the cheaper; item 2 given its rounds and its oracles, item 4 its bound and it
    document holds the milestone's items (decided 2026-10-03). The argument is kept, not run:
    in the same commit CLAUDE.md gains the rule that a change to a rule it covers rewrites its
    paragraph for that rule, so it cannot go stale between full reviews; MVP 3.0 extends it.
+   The same commit gives [`release_review.md`](release_review.md) a row: when a rule the
+   argument covers changed since the last release, the report's reader reads the argument's
+   paragraphs for those rules beside the report's sections (decided 2026-10-03).
 5. **The report in three files**: moved to MVP 2.99b, its item 24, on 2026-10-03.
 7. **What Erlang holds that Ernest can**, decided with the user 2026-10-03, after CLAUDE.md
    gained the rule that as much as can be is written in Ernest; before item 6, the
