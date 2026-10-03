@@ -373,13 +373,12 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     and `language_feedback.md` holds no entry; what remains is to build what the decisions
     admitted, entries 81 and 82, 83 and 85, about two days, its report sentences with its
     code; entry 76, the rule for a recursive type and entry 79 were built on 2026-10-03.
-    **The ask's cost**, a decision of this item: `make bench` puts an ask and its answer
-    received at 2.6 times the host's `send_request` and `receive_response`, where a call
-    stands at 1.7, the difference being the ask's three rows and its timer, which answer
-    `None` at a callee's restart and cancel an asker's asks at its own (§6.6, §6.9); the
-    recommendation is to keep the design as built and the number in the benchmark, since
-    the index that could go, the asker's, buys a tenth of the time and would cost §6.9's
-    cancellation (the log's *`Address.ask` answers into the mailbox*).
+    **The ask's cost**, decided with the user 2026-10-03: `make bench` puts an ask and its
+    answer received at 2.6 times the host's `send_request` and `receive_response`, where a
+    call stands at 1.7, the difference being the ask's three rows and its timer, which answer
+    `None` at a callee's restart and cancel an asker's asks at its own (§6.6, §6.9); kept as
+    built, since each extra pays for a sentence the report states (the log's *`Address.ask`
+    answers into the mailbox*).
 22. **The AST's `path` is `namespace`**, decided with the user 2026-10-03 (the log's *The Path
     Built*): the field of `#e_var{}`, `#e_constructor{}`, `#p_constructor{}` and `#t_named{}`
     that holds a qualified name's namespace prefix, and the variables bound from it in the
