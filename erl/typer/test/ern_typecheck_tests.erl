@@ -448,13 +448,13 @@ declared_type_equality_test() ->
                          "fn f(t : Tree) = t == t")),
     ?assertEqual("`==` is not defined on Nest((Int) -> Int): it contains a function or an"
                  " address",
-                 refusal("type Nest(a) = Flat(a) | Deeper(Nest(List(a)))\n"
+                 refusal("type Nest(a) = Flat(a) | Deeper(List(Nest(a)))\n"
                          "fn f(n : Nest((Int) -> Int)) = n == n")),
     ?assertEqual("`==` is not defined on Hidden: it contains a function or an address",
                  refusal("export abstract type Hidden = Hidden((Int) -> Int)\n"
                          "fn f(h : Hidden) = h == h")),
     ?assertEqual(ok, ok("type Tree(a) = Leaf | Node(left : Tree(a), value : a)\n"
-                        "type Nest(a) = Flat(a) | Deeper(Nest(List(a)))\n"
+                        "type Nest(a) = Flat(a) | Deeper(List(Nest(a)))\n"
                         "fn f(t : Tree(Int), n : Nest(String)) = t == t && n == n")),
     ?assertEqual(ok, ok("type Tag(a) = Tag(Int)\nfn f(t : Tag((Int) -> Int)) = t == t")).
 
@@ -915,12 +915,12 @@ local_fn_signature_shares_variables_test() ->
 polymorphic_recursion_is_refused_test() ->
     Help = "a recursive call is at the definition's own type, so a call at another type goes"
            " to a second function (§3.9)",
-    %% report §11.5: at the recursive call's argument, as any call is
+    %% report §11.5: at the recursive call's argument, as any call is;
+    %% §3.9's rule for a recursive group refuses the type that once
+    %% exercised this, so a list does
     ?assertEqual({"the argument does not fit depth: a type that would contain itself"
-                  " (Nested(a) against Nested(List(a)))", Help},
-                 refusal_and_help("type Nested(a) = Flat(a) | Nest(Nested(List(a)))\n"
-                                  "fn depth(n : Nested(a)) : Int ="
-                                  " match n { Flat(_) -> 0 | Nest(m) -> 1 + depth(m) }")),
+                  " (a against List(a))", Help},
+                 refusal_and_help("fn depth(x : a) : Int = 1 + depth([x])")),
     ?assertEqual({"the argument does not fit both: expected a, found Bool", Help},
                  refusal_and_help("fn f() : Int = {\n"
                                   "    fn both(x : a, n : Int) : Int ="
@@ -2715,3 +2715,29 @@ update_path_test() ->
     ?assertEqual("`size.x` is a path, which updates a value, and `..Set` names a namespace",
                  refusal("type Ops(s) = Ops(size : (s) -> Int)\n"
                          "let hashed : Ops(Set(Int)) = Ops(..Set, size.x = 1)")).
+
+%% report §3.9, §11.5: within a recursive group a type of the group is
+%% named in the group's fields at the declaring type's parameters alone,
+%% refused at the declaration, self-recursive and mutually recursive alike;
+%% a reference outside the group, and the group's types under another,
+%% stand; written after the code
+recursive_group_at_parameters_test() ->
+    Help = "no function could walk the type, since a recursive call is at the definition's own"
+           " type (§3.9)",
+    ?assertEqual({"Nest is named at List(a) in its own fields, and a type of a recursive group"
+                  " is named in its fields at the declaring type's parameters alone", Help},
+                 refusal_and_help("type Nest(a) = Flat(a) | Deeper(Nest(List(a)))")),
+    ?assertEqual("Nest is named at Int in its own fields, and a type of a recursive group is"
+                 " named in its fields at the declaring type's parameters alone",
+                 refusal("type Nest(a) = Flat(a) | Deeper(Nest(Int))")),
+    ?assertEqual("Forest is named at List(a) in the fields of Tree, and a type of a recursive"
+                 " group is named in its fields at the declaring type's parameters alone",
+                 refusal("type Tree(a) = Node(value : a, children : Forest(List(a)))\n"
+                         "type Forest(a) = Forest(List(Tree(a)))")),
+    ?assertEqual(ok, ok("type Tree(a) = Node(value : a, children : Forest(a))\n"
+                        "type Forest(a) = Forest(List(Tree(a)))\n"
+                        "type Rose(a) = Rose(value : a, children : List(Rose(a)))\n"
+                        "type Chain(a) = End | Link(head : a, tail : Optional(Chain(a)))\n"
+                        "type Pair(a, b) = Pair(first : a, second : b)\n"
+                        "type Deep(a) = Deep(Pair(List(a), Deep(a)))\n"
+                        "type Boxed = Boxed(List(Boxed))")).

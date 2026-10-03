@@ -615,9 +615,105 @@ declare_types(Declarations, Env1) ->
     Env3 = lists:foldl(fun declare_foreign_type/2, Env2,
                        [Declaration || #foreign_type_declaration{} = Declaration <- Declarations]),
     %% pass two: constructors
-    {Env4, Diagnostics} = lists:foldl(fun try_declare_constructors/2, {Env3, []},
-                                      TypeDeclarations),
-    {mark_reply_carrying(with_reply_params(Env4)), Diagnostics}.
+    {Env4, Diagnostics, Constructed} = lists:foldl(fun try_declare_constructors/2, {Env3, [], []},
+                                                   TypeDeclarations),
+    %% pass three: each recursive group's types named at their parameters,
+    %% over the declarations whose constructors declared, so every name resolves
+    GroupDiagnostics = check_recursive_groups(lists:reverse(Constructed), Env4),
+    {mark_reply_carrying(with_reply_params(Env4)), Diagnostics ++ GroupDiagnostics}.
+
+%% Report §3.9: within a recursive group of the module's types, a type of
+%% the group is named in the group's fields at type variables that are
+%% parameters of the type declared, and at nothing else, so that every
+%% type can be walked: a walker of `Deeper(Nest(List(a)))` would call
+%% itself at `Nest(List(a))`, then at `Nest(List(List(a)))`, without end.
+%% The groups are the cyclic strong components of the types over the
+%% names in their fields.
+check_recursive_groups(TypeDeclarations, #env{local_types = LocalTypes} = Env) ->
+    Declared = [{maps:get(Name, LocalTypes), TypeDeclaration}
+                || #type_declaration{name = Name} = TypeDeclaration <- TypeDeclarations],
+    Graph = digraph:new(),
+    lists:foreach(fun({QualifiedName, _}) -> digraph:add_vertex(Graph, QualifiedName) end,
+                  Declared),
+    lists:foreach(fun({QualifiedName, TypeDeclaration}) ->
+                      [digraph:add_edge(Graph, QualifiedName, Named)
+                       || Named <- named_types_of(TypeDeclaration, Env),
+                          lists:keymember(Named, 1, Declared)]
+                  end, Declared),
+    Groups = digraph_utils:cyclic_strong_components(Graph),
+    digraph:delete(Graph),
+    lists:append([[Diagnostic || QualifiedName <- Group,
+                                 {_, TypeDeclaration} <-
+                                     [lists:keyfind(QualifiedName, 1, Declared)],
+                                 Diagnostic <- group_named(TypeDeclaration, Group, Env)]
+                  || Group <- Groups]).
+
+%% The types a declaration's fields name, by qualified name.
+named_types_of(#type_declaration{constructors = Constructors}, Env) ->
+    lists:usort(lists:append([named_in(Annotation, Env)
+                              || #constructor{fields = Fields} <- Constructors,
+                                 Annotation <- field_annotations(Fields)])).
+
+named_in(#t_named{span = Span, path = Path, name = Name, args = Args}, Env) ->
+    {QualifiedName, _} = lookup_type_name(Span, Path, Name, Env),
+    [QualifiedName | lists:append([named_in(Arg, Env) || Arg <- Args])];
+named_in(Node, Env) when is_tuple(Node) ->
+    lists:append([named_in(Child, Env) || Child <- tl(tuple_to_list(Node))]);
+named_in(Nodes, Env) when is_list(Nodes) ->
+    lists:append([named_in(Node, Env) || Node <- Nodes]);
+named_in(_, _) ->
+    [].
+
+%% The diagnostic of the first name of a group's type at other than the
+%% declaring type's parameters in the declaration's fields, if any.
+group_named(#type_declaration{name = Name, params = Params, constructors = Constructors},
+            Group, Env) ->
+    try
+        lists:foreach(fun(Annotation) -> at_parameters(Annotation, Name, Params, Group, Env) end,
+                      [Annotation || #constructor{fields = Fields} <- Constructors,
+                                     Annotation <- field_annotations(Fields)]),
+        []
+    catch
+        throw:{type_error, #diagnostic{} = Diagnostic} -> [Diagnostic]
+    end.
+
+at_parameters(#t_named{span = Span, path = Path, name = Named, args = Args} = Annotation, Owner,
+              Params, Group, Env) ->
+    {QualifiedName, _} = lookup_type_name(Span, Path, Named, Env),
+    case lists:member(QualifiedName, Group) of
+        true ->
+            Other = [Arg || Arg <- Args, not is_parameter(Arg, Params)],
+            case Other of
+                [] -> ok;
+                [First | _] ->
+                    {Type, _, TypeState} = annotation_type(First, #{}, Env),
+                    Where = case Named =:= Owner of
+                                true -> "its own fields";
+                                false -> "the fields of " ++ atom_to_list(Owner)
+                            end,
+                    fail(ern_ast:span(Annotation),
+                         atom_to_list(Named) ++ " is named at " ++ ern_types:format(Type, TypeState)
+                         ++ " in " ++ Where ++ ", and a type of a recursive group is named in its"
+                         " fields at the declaring type's parameters alone", [],
+                         "no function could walk the type, since a recursive call is at the"
+                         " definition's own type (§3.9)")
+            end;
+        false ->
+            lists:foreach(fun(Arg) -> at_parameters(Arg, Owner, Params, Group, Env) end, Args)
+    end;
+at_parameters(#t_tuple{elements = Elements}, Owner, Params, Group, Env) ->
+    lists:foreach(fun(Element) -> at_parameters(Element, Owner, Params, Group, Env) end, Elements);
+at_parameters(#t_fn{params = FnParams, result_type = Result, effect = Effect}, Owner, Params,
+              Group, Env) ->
+    lists:foreach(fun(Part) -> at_parameters(Part, Owner, Params, Group, Env) end,
+                  [Part || Part <- [Result, Effect | FnParams], Part =/= undefined]);
+at_parameters(_, _, _, _, _) ->
+    ok.
+
+is_parameter(#t_var{name = Name}, Params) ->
+    lists:member(Name, Params);
+is_parameter(_, _) ->
+    false.
 
 declare_type_name(#type_declaration{span = Span, name = Name, params = Params}, Env) ->
     check_unique_type(Span, Name, Env),
@@ -641,12 +737,15 @@ declare_foreign_type(#foreign_type_declaration{span = Span, name = Name, params 
 
 %% A type's constructors, an error in them collected, so that the module's
 %% other types are declared.
-try_declare_constructors(TypeDeclaration, {Env, Found}) ->
+%% The declarations whose constructors declared are kept for pass three.
+try_declare_constructors(TypeDeclaration, {Env, Found, Constructed}) ->
     try
-        {declare_constructors(TypeDeclaration, Env), Found}
+        {declare_constructors(TypeDeclaration, Env), Found, [TypeDeclaration | Constructed]}
     catch
-        throw:{type_error, Span, Message} -> {Env, [diagnostic(Span, Message) | Found]};
-        throw:{type_error, #diagnostic{} = Diagnostic} -> {Env, [Diagnostic | Found]}
+        throw:{type_error, Span, Message} ->
+            {Env, [diagnostic(Span, Message) | Found], Constructed};
+        throw:{type_error, #diagnostic{} = Diagnostic} ->
+            {Env, [Diagnostic | Found], Constructed}
     end.
 
 %% Report §3.9: a type argument is a value position where its parameter

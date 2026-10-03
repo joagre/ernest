@@ -1082,6 +1082,20 @@ example.ern:1:16: type variable a is not a parameter of the type
   |                ^
 ```
 
+### A recursive type named at other than its parameters (§3.9)
+
+```ernest-rejected
+type Nest(a) = Flat(a) | Deeper(Nest(List(a)))
+```
+
+```console
+$ ern build example.ern
+example.ern:1:33: Nest is named at List(a) in its own fields, and a type of a recursive group is named in its fields at the declaring type's parameters alone
+1 | type Nest(a) = Flat(a) | Deeper(Nest(List(a)))
+  |                                 ^^^^^^^^^^^^^
+  | = help: no function could walk the type, since a recursive call is at the definition's own type (§3.9)
+```
+
 ## Declarations (report §4)
 
 ### A value declared twice (§4.5)
