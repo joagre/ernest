@@ -1,6 +1,6 @@
 # The installation
 
-How the installation is built, from a checkout and from the release archive; the README and the archive's own README tell a user how to install. The plan's MVP 2.95 decided it, and the log's *`bin/ern` Is a Launcher*, *The Layout Under the Prefix* and *One Archive, Compiled Where It Is Installed* argue it. `installation_test_` and `working_directory_test_` in `test/ern_integration_tests.erl` test it.
+How the installation is built, from a checkout and from the release archive; the README and the archive's own README tell a user how to install. The plan's MVP 2.95 decided it, and the log's *`bin/ern` Is a Launcher*, *The Layout Under the Prefix*, *One Archive, Compiled Where It Is Installed* and *The Release Has a README of Its Own* argue it. `installation_test_` and `working_directory_test_` in `test/ern_integration_tests.erl` test it.
 
 ## The layout
 
@@ -19,11 +19,13 @@ lib/ernest/                      the toolchain's tree, as the repository lays it
     installed                    every file put outside the tree
 share/man/man1/ern.1             §11 of the report
 share/man/man3/Ernest.*.3ern     the prelude's page, each module's and each library's (report §11.4)
-share/doc/ernest/                the report, the guide, README.md, LICENSE, THIRD_PARTY_LICENSES
+share/doc/ernest/                the report, the guide, the release's README.md, LICENSE, THIRD_PARTY_LICENSES
 share/emacs/site-lisp/ernest-mode.el
 ```
 
 The tree keeps the repository's layout, `build/` included, because the toolchain finds every file it reads relative to its own modules. The Erlang sources, the tests, the shell's source and the examples are not installed. A program names a library by its place: `--load-path $PREFIX/lib/ernest/build/libs/markdown`. `tools/strip.escript` strips every module of the host's debug information, keeping `ErnI`, the module's interface, and `Docs`, the host's EEP 48 chunk (report §11.1).
+
+The documents installed are for a reader with no checkout. The README is `tools/release/README.md`, the release's: it says how to install from the archive and where to begin, names each thing by its place under the prefix, and holds no link into the checkout. The report and the guide are staged with each link into the checkout, to a file that is not installed, made a link into the repository: on `main` where a checkout is installed, and at the release's tag, `v<version>`, in the archive. So every link of an installed document names a file installed beside it or an address.
 
 `tools/install.sh` stages, installs, uninstalls and writes the archive. `make` builds everything installed, the manual pages included, and `make install` stages the checkout in a temporary directory outside it and installs from there, so that one run as another user writes nothing into the checkout. Nothing installed names the prefix, so a prefix moved whole runs where it is moved to.
 
@@ -40,7 +42,7 @@ It needs `sh`, `readlink` and `iconv`, and checks no version of the host.
 
 ## The release archive
 
-`make release` writes `build/release/ern-<version>.tar.gz`: under `ern-<version>/`, the staged tree without the compiled helper, and beside it the helper's source `ern_exec.c`, `install.sh`, and the `Makefile` and `README.md` of `tools/release`. The archive's `make` compiles the helper with `cc`, or the `CC` given; its `make install` and `make uninstall` take `PREFIX` and `DESTDIR` as the checkout's do.
+`make release` writes `build/release/ern-<version>.tar.gz`: under `ern-<version>/`, the staged tree without the compiled helper, and beside it the helper's source `ern_exec.c`, `install.sh`, the `Makefile` of `tools/release`, and the `README.md` it installs. The archive's `make` compiles the helper with `cc`, or the `CC` given; its `make install` and `make uninstall` take `PREFIX` and `DESTDIR` as the checkout's do.
 
 ## Removing it
 

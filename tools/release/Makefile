@@ -2,8 +2,8 @@
 # program through, the one part in C, for this machine; make install
 # installs Ernest under PREFIX, /usr/local by default, each path after
 # DESTDIR, which a packager passes; make uninstall removes it. The
-# installation is described by share/doc/ernest/README.md and made by
-# install.sh, as the checkout's is.
+# installation is described by README.md, which it installs as
+# share/doc/ernest/README.md, and made by install.sh, as the checkout's is.
 
 PREFIX = /usr/local
 DESTDIR =

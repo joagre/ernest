@@ -9,9 +9,12 @@
 # A staged tree is laid out as under the prefix: the toolchain's tree in
 # lib/ernest, as the repository lays it out and without the host's debug
 # information, bin/ern a relative link to its launcher, and the manual
-# pages, the documents and the Emacs mode under share. The tree's
-# `installed` lists every file outside it, a directory with a slash after
-# it, so that uninstall removes exactly those. make install stages the
+# pages, the documents and the Emacs mode under share. The README staged
+# is the release's, tools/release/README.md, and a document's link into the
+# checkout, to a file that is not installed, is staged as a link into the
+# repository at $ref: main from a checkout, the release's tag in an archive.
+# The tree's `installed` lists every file outside it, a directory with a
+# slash after it, so that uninstall removes exactly those. make install stages the
 # checkout and installs what it staged; the release archive is a staged
 # tree whose helper is compiled where it is installed. Nothing is changed
 # where a directory to be written cannot be.
@@ -20,6 +23,7 @@ set -eu
 
 job=$1
 repo=$(cd "$(dirname "$0")/.." && pwd -P)
+repository=https://github.com/joagre/ernest
 
 fail() {
     echo "make $job: $*" >&2
@@ -60,9 +64,13 @@ stage() {
     for f in build/stdlib/*.3ern build/libs/*/*.3ern; do
         shared "$f" "share/man/man3/$(basename "$f")"
     done
-    for f in ernest_report.md ernest_guide.md README.md LICENSE THIRD_PARTY_LICENSES; do
+    for f in LICENSE THIRD_PARTY_LICENSES; do
         shared "$f" "share/doc/ernest/$f"
     done
+    for f in ernest_report.md ernest_guide.md; do
+        edited "$f" "share/doc/ernest/$f" "s|](\\([a-z_]*\\)/|]($repository/blob/$ref/\\1/|g"
+    done
+    edited tools/release/README.md share/doc/ernest/README.md "s/@VERSION@/$(cat VERSION)/g"
     echo share/doc/ernest/ >> "$tree/installed"
     shared emacs/ernest-mode.el share/emacs/site-lisp/ernest-mode.el
     chmod -R u=rwX,go=rX "$stage"
@@ -72,6 +80,14 @@ stage() {
 shared() {
     mkdir -p "$(dirname "$stage/$2")"
     cp "$1" "$stage/$2"
+    echo "$2" >> "$tree/installed"
+}
+
+# A document of the checkout staged outside the tree as sed's $3 edits
+# it, and listed.
+edited() {
+    mkdir -p "$(dirname "$stage/$2")"
+    sed "$3" "$1" > "$stage/$2"
     echo "$2" >> "$tree/installed"
 }
 
@@ -129,26 +145,26 @@ uninstall() {
 }
 
 # The release archive: a staged tree without the helper, whose C source
-# it carries instead with the Makefile and the README of tools/release,
-# and this script, packed as ern-VERSION.
+# it carries instead with the Makefile of tools/release, the README it
+# installs, and this script, packed as ern-VERSION.
 release() {
     dir=$1
     version=$2
     name=ern-$version
+    ref=v$version
     stage "$dir/$name"
     rm "$dir/$name/lib/ernest/erl/runtime/priv/ern_exec"
     cd "$repo"
     cp erl/runtime/c_src/ern_exec.c tools/install.sh "$dir/$name/"
-    for f in Makefile README.md; do
-        sed "s/@VERSION@/$version/g" "tools/release/$f" > "$dir/$name/$f"
-    done
+    cp "$dir/$name/share/doc/ernest/README.md" "$dir/$name/README.md"
+    sed "s/@VERSION@/$version/g" tools/release/Makefile > "$dir/$name/Makefile"
     chmod -R u=rwX,go=rX "$dir/$name"
     rm -f "$dir/$name.tar.gz"
     (cd "$dir" && tar -czf "$name.tar.gz" "$name")
 }
 
 case $job in
-    stage) stage "$2" ;;
+    stage) ref=main && stage "$2" ;;
     install) root=$3$4 && tree=$root/lib/ernest && install "$2" ;;
     uninstall) root=$2$3 && tree=$root/lib/ernest && uninstall ;;
     release) release "$2" "$3" ;;

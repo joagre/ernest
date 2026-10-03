@@ -382,7 +382,13 @@ installation_test_() ->
 %% where nothing is installed; a DESTDIR stages the same tree, which runs
 %% where it is staged; and a prefix that cannot be written is refused with
 %% nothing written. No installed module carries the host's debug
-%% information. Written with the code.
+%% information. Written with the code. The installed documents were not:
+%% the README is the release's, every link of a document names a file
+%% installed beside it, and the guide's link to an example leads into the
+%% repository on main. A regression test, written after the README was
+%% found installed with its image and seven of its links naming nothing,
+%% and the guide with fourteen; it does not follow a link into the
+%% repository.
 install() ->
     Base = filename:absname("build/install"),
     ok = del(Base),
@@ -390,6 +396,10 @@ install() ->
     {0, _} = sh("make -s -C .. install PREFIX=" ++ Base ++ "/a"),
     ?assertEqual({ok, "../lib/ernest/bin/ern"}, file:read_link(Base ++ "/a/bin/ern")),
     ?assertEqual([], debug_information(Base ++ "/a")),
+    Documents = Base ++ "/a/share/doc/ernest/",
+    ?assertMatch({ok, <<"# Ernest 0.2.0\n", _/binary>>}, file:read_file(Documents ++ "README.md")),
+    ?assertEqual([], dead_links(Documents)),
+    ?assert(links_to(Documents ++ "ernest_guide.md", "/blob/main/examples/repl.ern")),
     ok = file:rename(Base ++ "/a", Base ++ "/b"),
     Ern = Base ++ "/b/bin/ern",
     InWork = fun(Command) -> sh(Command, [{cd, Base ++ "/work"}]) end,
@@ -438,7 +448,10 @@ install() ->
 %% the helper as its C source, a Makefile and a README; its make compiles
 %% the helper, and its make install installs under a prefix, where a
 %% program that runs another through the helper runs, and its make
-%% uninstall removes it. Written with the code.
+%% uninstall removes it. Written with the code. The README it carries is
+%% the one it installs, and the installed guide's link to an example leads
+%% into the repository at the release's tag: a regression test, as
+%% install/0's is.
 release() ->
     Base = filename:absname("build/release"),
     ok = del(Base),
@@ -458,6 +471,12 @@ release() ->
     Unpacked = Base ++ "/" ++ Name,
     {0, _} = sh("make -s install PREFIX=" ++ Base ++ "/p", [{cd, Unpacked}]),
     ?assertEqual([], debug_information(Base ++ "/p")),
+    Documents = Base ++ "/p/share/doc/ernest/",
+    {ok, Readme} = file:read_file(Unpacked ++ "/README.md"),
+    ?assertEqual({ok, Readme}, file:read_file(Documents ++ "README.md")),
+    ?assertEqual([], dead_links(Documents)),
+    Tag = "v" ++ string:trim(binary_to_list(Version)),
+    ?assert(links_to(Documents ++ "ernest_guide.md", "/blob/" ++ Tag ++ "/examples/repl.ern")),
     Ern = Base ++ "/p/bin/ern",
     ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
     {0, _} = sh(Ern ++ " build hi.ern", [{cd, Base ++ "/work"}]),
@@ -465,6 +484,31 @@ release() ->
     {0, _} = sh("make -s uninstall PREFIX=" ++ Base ++ "/p", [{cd, Unpacked}]),
     ?assertEqual([],
                  [File || File <- filelib:wildcard(Base ++ "/p/**/*"), not filelib:is_dir(File)]).
+
+%% The links of the documents in a directory that name no file in it: a
+%% link's target and an image's source, an address with a scheme and an
+%% anchor of the document's own aside.
+dead_links(Directory) ->
+    [{filename:basename(Document), Target}
+     || Document <- filelib:wildcard(Directory ++ "*.md"),
+        Target <- link_targets(Document),
+        not filelib:is_regular(Directory ++ Target)].
+
+link_targets(Document) ->
+    {ok, Text} = file:read_file(Document),
+    Pattern = "\\]\\(([^)#]+)[^)]*\\)|src=\"([^\"]+)\"",
+    case re:run(Text, Pattern, [global, {capture, all_but_first, list}]) of
+        {match, Matches} ->
+            [Target || Match <- Matches, Target <- Match,
+                       Target =/= [], string:find(Target, "://") =:= nomatch];
+        nomatch ->
+            []
+    end.
+
+%% Whether a document holds a link whose address ends as given.
+links_to(Document, AddressEnd) ->
+    {ok, Text} = file:read_file(Document),
+    binary:match(Text, list_to_binary(AddressEnd ++ ")")) =/= nomatch.
 
 %% A program that runs another through the runtime's helper (Appendix E.23).
 runs_echo() ->
