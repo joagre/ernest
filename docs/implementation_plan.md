@@ -2,7 +2,7 @@
 
 The roadmap: what will be built, in what order, and what is built already. Why anything is the
 way it is belongs to [`decisions.md`](decisions.md), what the language is to
-[`ernest_report.md`](../ernest_report.md), how the code is arranged to
+the report in [`report/`](../report/), how the code is arranged to
 [`architecture.md`](architecture.md), and the commands and what the toolchain does not do yet
 to [`development.md`](development.md).
 
@@ -34,9 +34,11 @@ that decided it; item 21, the report's and the guide's blocks read by `style.md`
 22, the AST's namespace named so, the same day. Items 8, 9, 10, 13, 14 and 19 were built on
 2026-10-03 too, and item 8's two decisions were taken with the user the same day; item 14, the operators
 as shims, was built and reverted. `Address.ask`, built in item 20, was taken
-out again. Item 23, *Whose a file is*, which the first of the decisions added, was built the same
-day. Two items remain: 24, the report in three files, moved from MVP 2.99c, and 27, a
-load that lingers, found that day. Item 10's launchd checks
+out again. Item 23, *Whose a file is*, which the first of the decisions added, and item 24, the
+report in three files, moved from MVP 2.99c, were done the same day. One item remains: 27,
+a load that lingers, found that day. When it is done the milestone closes: `findings.md`
+goes, its findings all decided, and `language_feedback.md`, which holds no entry, stays as
+the place new feedback is written. Item 10's launchd checks
 wait for a Mac. The next release, Ernest 0.3.0, is MVP 2.99c's last item. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
@@ -61,7 +63,7 @@ order. Each has its paragraph under "Done".
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
-| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | built but items 24 and 27: the report in three files, and a load that lingers |
+| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | built but item 27, a load that lingers; then `findings.md` goes |
 | The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01 |
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | moved from MVP 3.9 on 2026-10-01 |
@@ -433,31 +435,12 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     starts with (E.17, E.23). The shell's check of a startup file (§11.2) is Ernest over
     `Fs.stat` and `Os.user`, and the front end answers the paths alone; the helper's
     `user` mode, which item 8 added for the check, is gone.
-24. **The report in three files** (moved here from MVP 2.99c's item 5 on 2026-10-03, so
-    that MVP 2.99c's argument and the release's readers read the report as it will stand;
-    tentative, all of it:
-    checked again, its counts included, against the report as it stands when work on the
-    item begins). The report stays one report and is stored in three files under
-    `report/`: `report/language.md`, the
-    language (§0 to §10 and Appendices A, B and F); `report/toolchain.md`, the toolchain (§11
-    and Appendix C); and `report/library.md`, the standard library (Appendices D, E and G).
-    The move to `report/` is made in the same step as the split, so that each path changes
-    once, and the guide stays at the root. The section numbers and appendix letters are
-    kept: the first number or letter of a citation already names its part, 11 the
-    toolchain's and E the library's, so a citation keeps its one coordinate, and only
-    numbering each file from 1 would make it need a second. Counted on 2026-10-03, the split
-    costs the 48 places in 20 files that name `ernest_report.md` and the checks that read
-    the report by path, which take three paths; renumbering would have touched about 2,800
-    citations, 1,500 of §11, 1,200 of Appendix E and 100 of Appendices C, D and G, in the
-    code, the tests, the documents and the guide. The language file comes to about 25,000
-    words of the report's 46,000, some fifty pages, which one reader reads and checks whole:
-    it serves MVP 2.99c's argument, its item 4, and a release's readers, and it shows the
-    weight of the three heaviest language chapters, §4, §6 and §8. The authority rule in CLAUDE.md says the
-    three files are one report, each file has its own revision date in its line 3, and a
-    line at the top of each says which numbers it holds. Done mechanically, at a boundary
-    where the readers run. The error texts the language chapters quote stay where they are,
-    and whether they move to the toolchain file is a decision of its own, taken later if at
-    all.
+24. **The report in three files**, done 2026-10-03 (moved here from MVP 2.99c's item 5; the
+    log's *The Report in Three Files*): checked against the report as it stood and
+    approved, then made. The report is one report in three files under `report/`:
+    `language.md`, §0 to §10 and Appendices A, B and F; `toolchain.md`, §11 and Appendix C;
+    and `library.md`, Appendices D, E and G. The numbers are kept. Each file is normative,
+    as CLAUDE.md's authority rule says, and has its own revision date in its line 3.
 25. **A release**: moved to the end of MVP 2.99c, its item 6, on 2026-10-03.
 26. **The reaper's look at rest**, decided with the user and built 2026-10-03 (the log's
     *The Reaper's Look at Rest*): the reaper woke every tenth of a second to look for a

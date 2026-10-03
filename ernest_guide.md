@@ -1,6 +1,6 @@
 # Programming in Ernest
 
-This guide teaches Ernest to a programmer who knows another language, and needs nothing read before it. Each complete program in it compiles as shown, and prints what is shown after it. The language is defined by [`ernest_report.md`](ernest_report.md), to which the guide points where a question turns on a detail.
+This guide teaches Ernest to a programmer who knows another language, and needs nothing read before it. Each complete program in it compiles as shown, and prints what is shown after it. The language is defined by the report, in three files under [`report/`](report/language.md), to which the guide points where a question turns on a detail.
 
 **Contents**
 <!-- contents -->
@@ -2481,6 +2481,6 @@ Four larger programs, each written against the report to try the language on a w
 - [`examples/file_sync.ern`](examples/file_sync.ern) — file sync between two directories, whose two sides run on one node and would run the same on two; mutual-address setup, one process per file operation, `Fs`.
 - [`examples/web_server.ern`](examples/web_server.ern) — HTTP server with sessions in a process that owns a `Map`; request-reply, `Tcp`.
 
-For the language rules themselves, [`ernest_report.md`](ernest_report.md) is the authority. Appendix F glosses every technical term.
+For the language rules themselves, the report is the authority: [`report/language.md`](report/language.md), the language, [`report/toolchain.md`](report/toolchain.md), the toolchain, and [`report/library.md`](report/library.md), the standard library. Appendix F glosses every technical term.
 
 Why Ernest looks as it does, and what was tried and rejected, is in [`decisions.md`](docs/decisions.md), a dated record of the design decisions.

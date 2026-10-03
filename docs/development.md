@@ -2,7 +2,7 @@
 
 For those who work on the language and its toolchain: where things are, how to build and test them, and what the toolchain does not do yet. A reader who wants to learn Ernest starts with the [guide](../ernest_guide.md) instead.
 
-The report, [`ernest_report.md`](../ernest_report.md), is the one normative document. How work proceeds, and which document owns which fact, is in [`CLAUDE.md`](../CLAUDE.md).
+The report, in three files under [`report/`](../report/), is the one normative document. How work proceeds, and which document owns which fact, is in [`CLAUDE.md`](../CLAUDE.md).
 
 ## The documents
 
@@ -32,7 +32,9 @@ README.md          what Ernest is and where to begin
 CLAUDE.md          the working rules
 Makefile           the build and the tests' targets
 LICENSE, THIRD_PARTY_LICENSES  the licence, and the third-party code's
-ernest_report.md   the language report (normative)
+report/            the report (normative), in three files: language.md, §0 to §10 and
+                   Appendices A, B and F; toolchain.md, §11 and Appendix C; library.md,
+                   Appendices D, E and G
 ernest_guide.md    the guide
 assets/            the logo the README shows, the stoat mark alone as a vector and as a
                    512-pixel avatar, and the social preview GitHub's settings take,

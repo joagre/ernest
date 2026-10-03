@@ -9,7 +9,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--define(REPORT, "../../../ernest_report.md").
+-define(REPORT, "../../../report/language.md").
 
 %% report Appendix A: the grammar defines each nonterminal it uses, and
 %% uses each one it defines but the start

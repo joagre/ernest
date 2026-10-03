@@ -1,12 +1,12 @@
 # Ernest — Claude Instructions
 
-Ernest is a functional language for concurrent programs, designed by the user (joagre). Two concepts: pure functions (Hindley-Milner) and processes with typed mailboxes. [`ernest_report.md`](ernest_report.md) is the full report.
+Ernest is a functional language for concurrent programs, designed by the user (joagre). Two concepts: pure functions (Hindley-Milner) and processes with typed mailboxes. [`report/`](report/) holds the full report, in three files.
 
 The rules follow the order of work, and each is stated once.
 
 ## Authority
 
-- **[`ernest_report.md`](ernest_report.md) is the single normative document.** Nothing else in this repo overrides it.
+- **The report is the single normative document, in three files under [`report/`](report/)**: [`language.md`](report/language.md), §0 to §10 and Appendices A, B and F; [`toolchain.md`](report/toolchain.md), §11 and Appendix C; and [`library.md`](report/library.md), Appendices D, E and G. Every one of the three is normative, none ranks above another, and a citation's first number or letter names the file it is in. Nothing else in this repo overrides them.
 - **Appendix A, the grammar, is the truth.** A conflict between the prose and Appendix A is resolved in favour of Appendix A.
 - **Section 0, the five principles, is the tiebreaker.** It decides where Appendix A is ambiguous and when a design decision is under discussion. Principles 2 to 5 are the constructive rules; principle 1 audits the resulting code.
 
@@ -75,7 +75,7 @@ The rules follow the order of work, and each is stated once.
 
 - **The report and the guide are tight, in a Wirth language report's register.** State the rule; no rationale, no restating.
 - **Clear before short.** Plain sentences, one rule per sentence, its exception and its example in sentences of their own. A sentence is cut for restating or rationale, never for a count: a long section is kept when every sentence states a rule.
-- **A report edit updates the revision date** in its line 3.
+- **A report edit updates the revision date** in line 3 of each file it changes.
 - **The report's section numbers never change**, since the documents, the tests and the code cite them. A section is never renumbered, removed, or put between two others. A new rule goes into the section it belongs to; where none can hold it, a new section is added at the end of its chapter or appendix. The guide's numbers change only where a section cannot be placed otherwise.
 - **Compiler behaviour goes to §11** of the report.
 - **No document or message names who proposed an idea**, or that person's role; it states the argument.

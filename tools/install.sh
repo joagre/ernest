@@ -67,8 +67,13 @@ stage() {
     for f in LICENSE THIRD_PARTY_LICENSES; do
         shared "$f" "share/doc/ernest/$f"
     done
-    for f in ernest_report.md ernest_guide.md; do
-        edited "$f" "share/doc/ernest/$f" "s|](\\([a-z_]*\\)/|]($repository/blob/$ref/\\1/|g"
+    # a link into the report stays one to the installed copy, and any other
+    # link to the checkout's files goes to the repository at the release
+    kept="s|](report/|](@report@/|g"
+    linked="s|](\\([a-z_]*\\)/|]($repository/blob/$ref/\\1/|g"
+    restored="s|](@report@/|](report/|g"
+    for f in report/language.md report/toolchain.md report/library.md ernest_guide.md; do
+        edited "$f" "share/doc/ernest/$f" "$kept; $linked; $restored"
     done
     edited tools/release/README.md share/doc/ernest/README.md "s/@VERSION@/$(cat VERSION)/g"
     echo share/doc/ernest/ >> "$tree/installed"

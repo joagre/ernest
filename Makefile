@@ -104,7 +104,7 @@ pages: all
 	  printf 'module'"'"'s page and `man ern` the toolchain'"'"'s.\n\n'; \
 	  printf -- '- [The prelude and the standard library](stdlib/README.md)\n'; \
 	  printf -- '- [The libraries under `libs/`](libs/README.md)\n'; \
-	  printf -- '- [`ern`, the toolchain and its shell](../ernest_report.md#11-toolchain), '; \
+	  printf -- '- [`ern`, the toolchain and its shell](../report/toolchain.md#11-toolchain), '; \
 	  printf 'the report'"'"'s §11, whose §11.2 gives the shell'"'"'s commands\n'; \
 	} > man/README.md
 
@@ -122,7 +122,7 @@ man: stdlib libs tools
 	  $$d || exit 1; done
 	@mkdir -p build/man
 	@bin/ern run $(LIB_PATH) build/tools/manual.erc \
-	  ernest_report.md $$(cat VERSION) build/stdlib > build/man/ern.1.new
+	  report/toolchain.md $$(cat VERSION) build/stdlib > build/man/ern.1.new
 	@mv build/man/ern.1.new build/man/ern.1
 
 # The installation (docs/install.md): the toolchain's tree under
@@ -335,7 +335,7 @@ format: all
 # Report sections no test cites (every test function carries a `%% report §x.y` line):
 # every numbered section and every appendix, a chapter cited through its sections.
 sections:
-	@grep -oE '^#{2,3} ([0-9]+(\.[0-9]+)?\.? |Appendix [A-Z](\.[0-9]+)?\.)' ernest_report.md | \
+	@grep -ohE '^#{2,3} ([0-9]+(\.[0-9]+)?\.? |Appendix [A-Z](\.[0-9]+)?\.)' report/*.md | \
 	  sed -E 's/^#+ //; s/\.? $$//; s/\.$$//; s/^([0-9])/§\1/' | \
 	  while read -r s; do p=$$(printf '%s' "$$s" | sed 's/\./\\./g'); \
 	    grep -ohE "(guide )?$$p\b" erl/*/test/*.erl test/*.erl | \
@@ -347,7 +347,7 @@ sections:
 coverage:
 	@awk '/^#{2,3} [0-9]+\.[0-9]+/ { if (s != "") print s, w; s = $$2; w = 0; next } \
 	      /^#/ { if (s != "") print s, w; s = ""; next } \
-	      s != "" { w += NF } END { if (s != "") print s, w }' ernest_report.md | \
+	      s != "" { w += NF } END { if (s != "") print s, w }' report/*.md | \
 	  while read s w; do \
 	    c=$$(cat erl/*/test/*.erl test/*.erl | grep -o "\(guide \)\?§$$s\b" | grep -v '^guide' \
 	         | wc -l); \

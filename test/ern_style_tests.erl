@@ -8,7 +8,8 @@
 -define(ROOT, "..").
 
 %% The documents whose ```ernest fences the Ernest style guide governs.
--define(DOCUMENTS, ["ernest_guide.md", "ernest_report.md"]).
+-define(DOCUMENTS, ["ernest_guide.md", "report/language.md", "report/toolchain.md",
+                    "report/library.md"]).
 
 %% docs/style.md: code lines are at most 100 characters, in the compiler's
 %% Erlang, its C, its Makefiles and its scripts, and in Ernest alike; the

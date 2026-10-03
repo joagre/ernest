@@ -570,7 +570,7 @@ load_path_needed_test() ->
 
 %% The fenced code blocks of Appendix D, in order.
 appendix_d_blocks() ->
-    {ok, Report} = file:read_file("../../../ernest_report.md"),
+    {ok, Report} = file:read_file("../../../report/library.md"),
     [_, AfterD] = binary:split(Report, <<"## Appendix D.">>),
     [AppendixD | _] = binary:split(AfterD, <<"## Appendix E.">>),
     Parts = binary:split(AppendixD, <<"```">>, [global]),

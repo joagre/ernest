@@ -7,13 +7,15 @@
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
 
--define(REPORT, "../../../ernest_report.md").
+%% The report, in its three files (report §0), read as one text.
+-define(REPORT, ["../../../report/language.md", "../../../report/toolchain.md",
+                 "../../../report/library.md"]).
 
 %% report §9.4 to §9.7, Appendix E: every signature the report prints is a
 %% value of the tables with the same type text, and nothing else is
 values_test() ->
     Lines = code_lines(section("## 9. Prelude", "## 10. ")) ++
-        code_lines(section("## Appendix E.", "## Appendix F")),
+        code_lines(section("## Appendix E.", "## Appendix G")),
     Report = lists:sort(lists:append([signature(Line) || Line <- Lines])),
     %% a module written in Ernest gives its signatures by its interface; the
     %% restrictions the compiler infers and prints, `a=` and `a!`, are never
@@ -88,7 +90,7 @@ primitives_test() ->
          {ok, Declarations} = ern_parser:parse_string(Source),
          ?assertEqual({Namespace, lists:sort(Named)},
                       {Namespace, lists:sort(foreign_names(Declarations))})
-     end || {Namespace, Body} <- namespaces(section("## Appendix E.", "## Appendix F")),
+     end || {Namespace, Body} <- namespaces(section("## Appendix E.", "## Appendix G")),
             Named <- [primitives(Body)], Named =/= []].
 
 %% The names in backticks of a section's sentence "The primitives are ...".
@@ -167,7 +169,7 @@ declared_types_test() ->
 %% are variables: both sides are compared with the parameters renamed in
 %% order
 stdlib_types_test() ->
-    Sections = namespaces(section("## Appendix E.", "## Appendix F")),
+    Sections = namespaces(section("## Appendix E.", "## Appendix G")),
     Report = lists:sort(lists:append(
                           [[{Namespace, Declaration}
                             || Declaration <- declarations(code_lines(Body))]
@@ -369,7 +371,7 @@ same(Report, Code) ->
 %% The lines from the first line starting with From up to the next line
 %% starting with To.
 section(From, To) ->
-    {ok, Contents} = file:read_file(?REPORT),
+    Contents = iolist_to_binary([element(2, file:read_file(File)) || File <- ?REPORT]),
     Lines = string:split(unicode:characters_to_list(Contents), "\n", all),
     Rest = lists:dropwhile(fun(Line) -> not lists:prefix(From, Line) end, Lines),
     lists:takewhile(fun(Line) -> not lists:prefix(To, Line) end, tl(Rest)).

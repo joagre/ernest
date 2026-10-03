@@ -37,7 +37,10 @@
 
 -define(GUIDE, "../ernest_guide.md").
 -define(DIAGNOSTICS, "diagnostics.md").
--define(REPORT, "../ernest_report.md").
+%% The report, in its three files (report §0): the language, the toolchain
+%% and the standard library.
+-define(REPORT, ["../report/language.md", "../report/toolchain.md", "../report/library.md"]).
+-define(LANGUAGE, "../report/language.md").
 -define(README, "../README.md").
 
 %% A fenced block of a document: the line its fence opens on, the word
@@ -70,7 +73,7 @@ guide_prelude_declarations_test() ->
 
 %% report §9.3: the declarations §9.3 shows are the prelude's own
 report_prelude_declarations_test() ->
-    prelude_declarations(?REPORT).
+    prelude_declarations(?LANGUAGE).
 
 prelude_declarations(Document) ->
     {ok, Text} = file:read_file(Document),
@@ -249,6 +252,8 @@ session_end(Output) ->
 %% The checked units of a document, in order: {modules, Unit} for one
 %% module or a heading's source tree, {rejected, Unit} for an example that
 %% must not compile, and {session, Unit} for a session at the shell.
+units([First | _] = Documents) when is_list(First) ->
+    lists:append([units(Document) || Document <- Documents]);
 units(Document) ->
     {ok, Text} = file:read_file(Document),
     Lines = binary:split(Text, <<"\n">>, [global]),

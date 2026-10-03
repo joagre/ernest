@@ -19,7 +19,8 @@ lib/ernest/                      the toolchain's tree, as the repository lays it
     installed                    every file put outside the tree
 share/man/man1/ern.1             §11 of the report
 share/man/man3/Ernest.*.3ern     the prelude's page, each module's and each library's (report §11.4)
-share/doc/ernest/                the report, the guide, the release's README.md, LICENSE, THIRD_PARTY_LICENSES
+share/doc/ernest/                the report's three files under report/, the guide, the release's
+                                 README.md, LICENSE, THIRD_PARTY_LICENSES
 share/emacs/site-lisp/ernest-mode.el
 ```
 

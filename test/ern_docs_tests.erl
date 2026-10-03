@@ -10,14 +10,18 @@
 
 -define(ROOT, "..").
 
+%% The report's three files (report §0), the language's, the toolchain's
+%% and the standard library's, which are one report.
+-define(REPORT, ["report/language.md", "report/toolchain.md", "report/library.md"]).
+
 %% The documents with a contents list, and the lines that bound it.
--define(CONTENTS, ["ernest_report.md", "ernest_guide.md"]).
+-define(CONTENTS, ?REPORT ++ ["ernest_guide.md"]).
 -define(BEGIN, <<"<!-- contents -->">>).
 -define(END, <<"<!-- /contents -->">>).
 
 %% report §11, docs/development.md "Building": `make xref`
 citations_resolve_test() ->
-    Report = read("ernest_report.md"),
+    Report = report(),
     Guide = read("ernest_guide.md"),
     ReportSections = section_numbers(Report),
     GuideSections = section_numbers(Guide),
@@ -51,7 +55,7 @@ unpadded(Lines) ->
     Blank = fun(Line) -> Line =:= <<>> end,
     lists:reverse(lists:dropwhile(Blank, lists:reverse(lists:dropwhile(Blank, Lines)))).
 
-%% ernest_report.md, ernest_guide.md, docs/development.md "Building": a document's
+%% report/, ernest_guide.md, docs/development.md "Building": a document's
 %% contents list is its top-level sections, its headings of level two, each
 %% linked to its heading, which `make contents` writes
 contents_test() ->
@@ -181,7 +185,7 @@ documents() ->
 
 %% The documents that describe the repository as it is.
 described() ->
-    documents() -- ["ernest_report.md", "docs/implementation_plan.md"].
+    documents() -- (?REPORT ++ ["docs/implementation_plan.md"]).
 
 %% A backticked path under one of the repository's own directories. A
 %% metavariable is written `<name>`, as docs/style.md writes `ern_<thing>`,
@@ -225,16 +229,38 @@ path(Entry) ->
                              [multiline, {capture, all_but_first, list}]),
     Path.
 
+%% report Appendix F: the glossary holds a term a line, in alphabetical
+%% order, the backticks of a keyword and the case of a letter aside, and
+%% each with a section of the report that defines it, which
+%% citations_resolve_test holds to a heading. A regression test, written
+%% when the report was split: no test had read the glossary
+glossary_test() ->
+    [_, Rest] = binary:split(read("report/language.md"), <<"## Appendix F. Glossary">>),
+    [Glossary | _] = binary:split(Rest, <<"\n## ">>),
+    Entries = [Line || Line <- binary:split(Glossary, <<"\n">>, [global]),
+                       binary:match(Line, <<"- **">>) =:= {0, 4}],
+    ?assert(length(Entries) > 100),
+    Terms = [string:lowercase(binary:replace(Term, <<"`">>, <<>>, [global]))
+             || Entry <- Entries,
+                {match, [Term]} <- [re:run(Entry, "^- \\*\\*(.+?)\\*\\*",
+                                           [{capture, all_but_first, binary}])]],
+    ?assertEqual(length(Entries), length(Terms)),
+    ?assertEqual(lists:sort(Terms), Terms),
+    ?assertEqual([], [Entry || Entry <- Entries,
+                               re:run(Entry, "§[0-9]|Appendix [A-G]") =:= nomatch]).
+
 %% report §7.4: a cause of a fault quoted in sections
 %% 0 to 11 outside §7.4 is one §7.4 lists, since §7.4 holds the causes
 %% (§7.3); a library function's own section holds its faults (Appendix E.0
 %% shape rule 4). In §7.4's texts `...`, `m:f/n` and a placeholder of one
 %% letter stand for any text.
 fault_causes_test() ->
-    Report = read("ernest_report.md"),
-    [Before, Rest] = binary:split(Report, <<"### 7.4 Causes of faults">>),
+    Language = read("report/language.md"),
+    [Before, Rest] = binary:split(Language, <<"### 7.4 Causes of faults">>),
     [Own, After] = binary:split(Rest, <<"\n## 8. Programs">>),
-    [Body, _] = binary:split(After, <<"\n## Appendix A">>),
+    [Chapters, _] = binary:split(After, <<"\n## Appendix A">>),
+    [Toolchain, _] = binary:split(read("report/toolchain.md"), <<"\n## Appendix C">>),
+    Body = <<Chapters/binary, Toolchain/binary>>,
     Templates = [template(Cause) || Cause <- causes(Own)],
     ?assert(length(Templates) > 20),
     ?assertEqual([], [Cause || Cause <- causes(Before) ++ causes(Body),
@@ -288,6 +314,10 @@ generated(Text) ->
 read(Relative) ->
     {ok, Bytes} = file:read_file(filename:join(?ROOT, Relative)),
     Bytes.
+
+%% The report, its three files read as one text.
+report() ->
+    iolist_to_binary([read(File) || File <- ?REPORT]).
 
 %% A name that begins with a dot is no module (report §11.1's path shape),
 %% and an editor's lock file, `.#main.ern`, is one that may not be readable.

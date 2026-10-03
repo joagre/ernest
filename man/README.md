@@ -4,4 +4,4 @@ The pages `ern doc` wrote at the release of Ernest 0.2.0, which `main` may have 
 
 - [The prelude and the standard library](stdlib/README.md)
 - [The libraries under `libs/`](libs/README.md)
-- [`ern`, the toolchain and its shell](../ernest_report.md#11-toolchain), the report's §11, whose §11.2 gives the shell's commands
+- [`ern`, the toolchain and its shell](../report/toolchain.md#11-toolchain), the report's §11, whose §11.2 gives the shell's commands

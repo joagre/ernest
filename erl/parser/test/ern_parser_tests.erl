@@ -846,9 +846,12 @@ ernest_files() ->
 %% A's rules; Appendix A is the truth and this test keeps the fragments equal
 %% to it. The grammar stands in the bare fences; an ```ernest fence is code.
 grammar_fragments_test() ->
-    {ok, Source} = file:read_file("../../../ernest_report.md"),
-    Text = unicode:characters_to_list(Source),
-    [Body, FromAppendix] = string:split(Text, "## Appendix A. Grammar"),
+    {ok, Language} = file:read_file("../../../report/language.md"),
+    {ok, Toolchain} = file:read_file("../../../report/toolchain.md"),
+    Text = unicode:characters_to_list(Language),
+    [Before, FromAppendix] = string:split(Text, "## Appendix A. Grammar"),
+    %% the sections are the language's and the toolchain's
+    Body = Before ++ unicode:characters_to_list(Toolchain),
     [Appendix | _] = string:split(FromAppendix, "## Appendix B"),
     All = fun(Subject, Regex, Options) ->
               case re:run(Subject, Regex,

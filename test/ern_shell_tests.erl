@@ -1868,7 +1868,7 @@ reload_ends() ->
 %% own list, `Shell.Command.commands`, each once; a mirror, a list that lives
 %% in the code and in the report (CLAUDE.md)
 commands_mirror_test() ->
-    {ok, Report} = file:read_file("../ernest_report.md"),
+    {ok, Report} = file:read_file("../report/toolchain.md"),
     [_, Rest] = binary:split(Report, <<"**Commands.**">>),
     [Paragraph | _] = binary:split(Rest, <<"\n\n**">>),
     {match, Listed} = re:run(Paragraph, "^- `:([a-z]+)", [multiline, global,
