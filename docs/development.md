@@ -97,6 +97,9 @@ make test-guide   the guide's examples, the report's, the README's, and the cata
 make test-grammar  Appendix A read as data, and a thousand programs generated from it,
                   parsed, laid out and given as near misses; ERN_SEED=n runs a failing
                   seed again
+make test-typed   well-typed programs generated, checked, compiled and run in one host,
+                  each printing what an interpreter of it computes; ERN_SEED=n runs
+                  a failing seed again
 make test-shell   the shell's sessions and the terminal
 make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
 make load         the loads of docs/memory.md; not part of make test, which builds

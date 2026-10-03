@@ -179,7 +179,8 @@ JOBS := $(shell getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
 test: all
 	@$(MAKE) -s -C test beams
 	@for a in $(SPLIT_APPS); do $(MAKE) -s -C erl/$$a/src beams || exit 1; done
-	@$(MAKE) -s -j$(JOBS) -O test-guide $(EMACS_JOBS) $(APP_JOBS) test-docs test-grammar
+	@$(MAKE) -s -j$(JOBS) -O test-guide $(EMACS_JOBS) $(APP_JOBS) test-docs test-grammar \
+	  test-typed
 	@$(MAKE) -s -j$(JOBS) -O test-shell test-programs
 
 # The unit tests of the applications under erl/, side by side, or of one
@@ -208,7 +209,8 @@ $(APP_PARTS): test-app-%:
 
 # The areas under test/: the example programs, the documents and the style,
 # the guide's examples, the grammar with the programs generated from it,
-# and the shell with the terminal.
+# the well-typed programs generated and run, and the shell with the
+# terminal.
 test-programs: all
 	@$(MAKE) -C test programs
 test-docs:
@@ -217,6 +219,8 @@ test-guide: all
 	@$(MAKE) -C test guide
 test-grammar: all
 	@$(MAKE) -C test grammar
+test-typed: all
+	@$(MAKE) -C test typed
 test-shell: all
 	@$(MAKE) -C test shell
 
@@ -364,6 +368,6 @@ clean-emacs:
 EMACS_CORPUS = $(ERNEST_SOURCES:%=../%)
 
 .PHONY: all stdlib libs shell tools man test test-erl test-programs test-docs test-guide \
-        test-grammar test-shell load service bench test-emacs $(APP_TESTS) $(APP_PARTS) \
+        test-grammar test-typed test-shell load service bench test-emacs $(APP_TESTS) $(APP_PARTS) \
         $(EMACS_ALL) clean clean-emacs sections coverage golden xref contents format doc pages \
         install uninstall release unicode dialyzer sanitize diagnostics
