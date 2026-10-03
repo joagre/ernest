@@ -225,13 +225,20 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
 9. **The runtime's part of running as a service**: what item 6's decisions build, and a
    stream on a full or failing device ending the program, as §8.2 says, with status 141, as
    §11.8 says. On 2026-10-02 a program whose standard error was `/dev/full` lost the line, ran
-   on and exited with status 0, and so did one whose standard output was. Among item 6's: the
+   on and exited with status 0, and so did one whose standard output was. Measured again on
+   2026-10-03, twenty-four runs of a program whose one write goes to a full device: eleven
+   ended with status 0, ten with status 141, and three did not end, one of which a
+   termination signal had not ended a second later; a program that waits and writes again
+   ended at its failed write with status 141. Among item 6's: the
    clock process asks the host to be told of each change of its time offset,
    `erlang:monitor(time_offset, clock_service)`, and re-arms its alarms at a time on each, as
    E.15 states since 2026-10-02, where today an alarm at a time fixes its deadline in monotonic
    time when it is set; a test delivers the host's notice. And Ernest's signal handler is
    installed as the first thing the host runs, which narrows the window in which OTP's own
-   handler ends a program with status 0 (§8.6). Beside item 8, in the same code.
+   handler ends a program with status 0 (§8.6); the install is the first call of
+   `ern_cli:start/0` since 2026-09-28, so what remains is what the host runs before that
+   call, found by measuring the window, and where nothing narrows it this sentence goes.
+   Beside item 8, in the same code.
 10. **A service manager's checks**: a systemd unit, start and stop, a stop asked for ending the
     program by its signal, `Restart=on-failure` after a program ends with `Os.exit(1)`, and the
     journal showing fault lines without a doubled time; and a launchd plist on macOS, with the
