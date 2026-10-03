@@ -135,12 +135,9 @@ as the cheaper; item 2 given its rounds and its oracles, item 4 its bound and it
    is the runtime's own, and stated so in the log.
 6. **A release, Ernest 0.3.0**, the milestone's last item, decided with the user
    2026-10-03, with no hurry: after the machines have run and the argument is written, so
-   that what is released has been generated against. The review before a release run as
-   [`release_review.md`](release_review.md) says, a fresh clone, its six machines, its
-   readers and their findings worked, then the release itself, the version, the
-   `since` lines, the pages, the notes, the tag and the archive. Item 10's launchd checks
-   of MVP 2.99b have run on a Mac by then, or the notes say that the agent has not been
-   checked.
+   that what is released has been generated against. The review and the release run as
+   [`release_review.md`](release_review.md) says. Item 10's launchd checks of MVP 2.99b have
+   run on a Mac by then, or the notes say that the agent has not been checked.
 
 ---
 
