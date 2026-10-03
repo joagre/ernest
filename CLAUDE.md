@@ -46,6 +46,7 @@ The rules follow the order of work, and each is stated once.
 
 ## Shims
 
+- **As much as can be is written in Ernest.** Where a piece of work could be Ernest or Erlang, the shell's, a library's, a tool's, it is Ernest. Where only a missing function of the standard library, or a missing library, keeps it out, the gap is discussed with the user and filled, and the work is then written in Ernest, never in Erlang or behind a `foreign fn` meanwhile.
 - **`foreign` is only what the host alone can do, in every Ernest we write**, the standard library included. A `foreign fn` is admitted where Ernest cannot express the work *given the layers beneath it*. The shell reads its history file in Ernest because `Fs` is beneath it; `String.toUpper` is a shim because nothing is beneath `String` but the host and its Unicode tables. Reading, splitting, escaping, trimming and sorting are written in Ernest. E.0 rule 1 is the normative half of this rule; where the two differ the report is corrected.
 - **Performance is never the reason for a shim.** A measurement that demands one comes back as a decision with the numbers beside it.
 - **Whether a type's representation is the runtime's is a decision of its own**, recorded in Appendix E.0 and the log. `Map` is Erlang's map and `String` a binary, so the operations that reach the representation are the host's and the rest are Ernest over them. It never licenses a shim for a value the language already owns.
