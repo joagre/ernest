@@ -10,7 +10,7 @@ select the appropriate asset with `prefers-color-scheme`.
           srcset="assets/ernest-dark.svg">
   <source media="(prefers-color-scheme: light)"
           srcset="assets/ernest-light.svg">
-  <img src="assets/ernest-light.svg" alt="Ernest">
+  <img src="assets/ernest-light.svg" alt="Ernest" width="50%">
 </picture>
 ```
 
