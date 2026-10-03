@@ -14,37 +14,37 @@ type CounterMsg =
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
 export fn main() : Unit with m = {
-    let c = spawn(fn() = counter(0));
-    send(c, Inc(5));
-    send(c, Inc(3));
-    match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> Io.println("before upgrade: " <> Int.toString(n))
+    let counter = spawn(fn() = count(0));
+    send(counter, Inc(5));
+    send(counter, Inc(3));
+    match Address.call(counter, fn(reply) = Get(reply = reply), 1000) {
+        Some(total) -> Io.println("before upgrade: " <> Int.toString(total))
       | None -> Io.println("timeout")
     };
-    send(c, Upgrade(migrate = fn(n) = n, next = doublingCounter));
-    send(c, Inc(1));
-    match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> Io.println("after upgrade: " <> Int.toString(n))
+    send(counter, Upgrade(migrate = fn(total) = total, next = countTwice));
+    send(counter, Inc(1));
+    match Address.call(counter, fn(reply) = Get(reply = reply), 1000) {
+        Some(total) -> Io.println("after upgrade: " <> Int.toString(total))
       | None -> Io.println("timeout")
     }
 }
 
-fn counter(n : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit with CounterMsg =
     receive {
-        Inc(k) -> counter(n + k)
-      | Get(reply = r) -> {
-            answer(r, n);
-            counter(n)
+        Inc(amount) -> count(total + amount)
+      | Get(reply = reply) -> {
+            answer(reply, total);
+            count(total)
         }
-      | Upgrade(migrate = m, next = k) -> k(m(n))
+      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
     }
 
-fn doublingCounter(n : Int) : Unit with CounterMsg =
+fn countTwice(total : Int) : Unit with CounterMsg =
     receive {
-        Inc(k) -> doublingCounter(n + 2 * k)
-      | Get(reply = r) -> {
-            answer(r, n);
-            doublingCounter(n)
+        Inc(amount) -> countTwice(total + 2 * amount)
+      | Get(reply = reply) -> {
+            answer(reply, total);
+            countTwice(total)
         }
-      | Upgrade(migrate = m, next = k) -> k(m(n))
+      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
     }

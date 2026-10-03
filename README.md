@@ -16,21 +16,21 @@ A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is i
 ```ernest
 type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
 
-fn counter(n : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit with CounterMsg =
     receive {
-        Inc(k) -> counter(n + k)
-      | Get(reply = r) -> {
-            answer(r, n);
-            counter(n)
+        Inc(amount) -> count(total + amount)
+      | Get(reply = reply) -> {
+            answer(reply, total);
+            count(total)
         }
     }
 
 export fn main() : Unit with Never = {
-    let c = spawn(fn() = counter(0));
-    send(c, Inc(5));
-    send(c, Inc(3));
-    match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> Io.println("count is " <> Int.toString(n))
+    let counter = spawn(fn() = count(0));
+    send(counter, Inc(5));
+    send(counter, Inc(3));
+    match Address.call(counter, fn(reply) = Get(reply = reply), 1000) {
+        Some(total) -> Io.println("count is " <> Int.toString(total))
       | None -> Io.println("counter did not answer")
     }
 }

@@ -30,7 +30,8 @@ report's and the guide's blocks read the same way, was decided with the user the
 to follow items 16 and 20. Item 5, the operations built, was done on 2026-10-03 (the log's
 *The Requirement Built*), item 16, the guide's §7.3 over it, the same day, and item 20, the
 feedback the reviews left, the same day, its six builds each read back in the log entry
-that decided it. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+that decided it; item 21, the report's and the guide's blocks read by `style.md`, the same
+day. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -387,14 +388,12 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     parser, the checker, the emitter, the formatter and the shell, take §4.2's word, since
     §5.6 names a path and the glossary gives one word to one concept; the compiler checks
     every record field, and `make test` the rest; a few hours, after item 21.
-21. **The report's and the guide's Ernest blocks by `style.md`**, decided with the user
-    2026-10-02: they are read as item 15 read the rest, after items 16 and 20 rewrite parts of
-    the guide, so that each block is read once, the guide's sentences that cite a name
-    changing with it and the six examples that copy the blocks following, `counter`,
-    `pingpong`, `hello`, `stack`, `upgrade` and `modules`. `style.md` binds every Ernest block
-    of the report and the guide, and item 15 read every Ernest source but those (the log's
-    *The Ernest Read and Renamed*); their blocks hold one-letter names the glossary rules
-    out, `c` for the counter's address, `n`, `r` and `k`, and `pongAddr`. About a day.
+21. **The report's and the guide's Ernest blocks by `style.md`**, done 2026-10-03 (the log's
+    *The Report's and the Guide's Blocks Read*): every block read as item 15 read the rest,
+    the sentences that cite a name, the six examples that copy the blocks, the README's
+    counter and the emitter's golden files following, and `stdlib/ordered_set.ern`, which
+    the guide shows whole, read with them. A process's address takes the process's noun and
+    the function that runs it a verb, so the counter is `counter` and its loop `count`.
 
 ---
 

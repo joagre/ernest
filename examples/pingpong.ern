@@ -8,37 +8,37 @@
 // Needs MVP 2.65, for spawnMonitored. This was one of the first test programs.
 //
 
-type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
+type PongMsg = Ping(round : Int, reply : Reply(Int)) | Stop
 
 type MainMsg = PongDone(Down)
 
 export fn main() : Unit with MainMsg = {
-    let pongAddr = spawnMonitored(fn() = pong(), PongDone);
-    let _ = spawn(fn() = ping(pongAddr, 3));
+    let opponent = spawnMonitored(fn() = pong(), PongDone);
+    let _ = spawn(fn() = ping(opponent, 3));
     receive {
         PongDone(_) -> Unit
     }
 }
 
-fn ping(pongAddr : Address(PongMsg), n : Int) : Unit with m =
-    if n == 0 then
-        send(pongAddr, Stop)
+fn ping(opponent : Address(PongMsg), round : Int) : Unit with m =
+    if round == 0 then
+        send(opponent, Stop)
     else {
-        Io.println("ping " <> Int.toString(n));
-        match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
-            Some(_) -> ping(pongAddr, n - 1)
+        Io.println("ping " <> Int.toString(round));
+        match Address.call(opponent, fn(reply) = Ping(round = round, reply = reply), 5000) {
+            Some(_) -> ping(opponent, round - 1)
           | None -> {
                 Io.println("pong is not answering");
-                send(pongAddr, Stop)
+                send(opponent, Stop)
             }
         }
     }
 
 fn pong() : Unit with PongMsg =
     receive {
-        Ping(n = n, reply = r) -> {
-            Io.println("pong " <> Int.toString(n));
-            answer(r, n);
+        Ping(round = round, reply = reply) -> {
+            Io.println("pong " <> Int.toString(round));
+            answer(reply, round);
             pong()
         }
       | Stop -> Unit

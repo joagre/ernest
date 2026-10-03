@@ -3,29 +3,30 @@
 -export([main/0, '$fun'/2]).
 
 main() ->
-    C_1 = ern_rt:spawn(fun () -> counter(0) end,
-                       <<"Counter.main:17">>),
-    ern_rt:send(C_1, {'Inc', 5}),
-    ern_rt:send(C_1, {'Inc', 3}),
-    case ern_rt:call(C_1,
-                     fun (R_2) -> {'Get', R_2} end,
+    Counter_1 = ern_rt:spawn(fun () -> count(0) end,
+                             <<"Counter.main:17">>),
+    ern_rt:send(Counter_1, {'Inc', 5}),
+    ern_rt:send(Counter_1, {'Inc', 3}),
+    case ern_rt:call(Counter_1,
+                     fun (Reply_2) -> {'Get', Reply_2} end,
                      1000,
                      {int, <<"reply does not match Int">>})
         of
-        {'Some', N_3} ->
+        {'Some', Total_3} ->
             ern@io:println(<<"count is ",
-                             (ern@int:toString(N_3))/binary>>);
+                             (ern@int:toString(Total_3))/binary>>);
         'None' -> ern@io:println(<<"counter is not answering">>)
     end.
 
-counter(N_4) ->
+count(Total_4) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'Inc', K_5} -> counter(N_4 + K_5);
-        {'Get', R_6} ->
-            ern_rt:answer(R_6, N_4),
-            counter(N_4);
-        {'Upgrade', M_7, K_8} -> K_8(M_7(N_4))
+        {'Inc', Amount_5} -> count(Total_4 + Amount_5);
+        {'Get', Reply_6} ->
+            ern_rt:answer(Reply_6, Total_4),
+            count(Total_4);
+        {'Upgrade', Migrate_7, Next_8} ->
+            Next_8(Migrate_7(Total_4))
     end.
 
 '$fun'(main, 0) -> fun main/0.

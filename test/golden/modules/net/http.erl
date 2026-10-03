@@ -2,8 +2,8 @@
 
 -export([parse/1, '$fun'/2]).
 
-parse(S_1) ->
-    case S_1 =:= <<"GET /">> of
+parse(Text_1) ->
+    case Text_1 =:= <<"GET /">> of
         true -> {'Some', {'Request', <<"GET">>, <<"/">>}};
         false -> 'None'
     end.

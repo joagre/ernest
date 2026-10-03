@@ -10,10 +10,10 @@
 %%
 %% has no code of its own; its constructors are the tuples
 %%
-%%   Inc(k)                          {'Inc', K}
-%%   Get(reply = r)                  {'Get', R}
-%%   Upgrade(migrate = m, next = k)  {'Upgrade', M, K}     fields in canonical
-%%                                                         (sorted) order
+%%   Inc(amount)                                {'Inc', Amount}
+%%   Get(reply = reply)                         {'Get', Reply}
+%%   Upgrade(migrate = migrate, next = next)    {'Upgrade', Migrate, Next}, fields
+%%                                              in canonical (sorted) order
 %%
 %% The module atom is the module's path with @ for / and the prefix ern@,
 %% as Gleam names gleam@list, so Ernest never claims a bare name on the BEAM.
@@ -34,44 +34,45 @@
 -export([main/0, '$fun'/2]).
 
 %% export fn main() : Unit with m = {
-%%     let c = spawn(fn() = counter(0));
-%%     send(c, Inc(5));
-%%     send(c, Inc(3));
-%%     match Address.call(c, fn(r) = Get(reply = r), 1000) {
-%%         Some(n) -> Io.println("count is " <> Int.toString(n))
+%%     let counter = spawn(fn() = count(0));
+%%     send(counter, Inc(5));
+%%     send(counter, Inc(3));
+%%     match Address.call(counter, fn(reply) = Get(reply = reply), 1000) {
+%%         Some(total) -> Io.println("count is " <> Int.toString(total))
 %%       | None -> Io.println("counter is not answering")
 %%     }
 %% }
 main() ->
-    C = ern_rt:spawn(fun() -> counter(0) end, <<"Counter.main:17">>),
-    ern_rt:send(C, {'Inc', 5}),
-    ern_rt:send(C, {'Inc', 3}),
-    case ern_rt:call(C, fun(R) -> {'Get', R} end, 1000, {int, <<"reply does not match Int">>}) of
-        {'Some', N} ->
-            'ern@io':println(<<"count is ", ('ern@int':toString(N))/binary>>);
+    Counter = ern_rt:spawn(fun() -> count(0) end, <<"Counter.main:17">>),
+    ern_rt:send(Counter, {'Inc', 5}),
+    ern_rt:send(Counter, {'Inc', 3}),
+    case ern_rt:call(Counter, fun(Reply) -> {'Get', Reply} end, 1000,
+                     {int, <<"reply does not match Int">>}) of
+        {'Some', Total} ->
+            'ern@io':println(<<"count is ", ('ern@int':toString(Total))/binary>>);
         'None' ->
             'ern@io':println(<<"counter is not answering">>)
     end.
 
-%% fn counter(n : Int) : Unit with CounterMsg = receive {
-%%     Inc(k) -> counter(n + k)
-%%   | Get(reply = r) -> { answer(r, n); counter(n) }
-%%   | Upgrade(migrate = m, next = k) -> k(m(n))
+%% fn count(total : Int) : Unit with CounterMsg = receive {
+%%     Inc(amount) -> count(total + amount)
+%%   | Get(reply = reply) -> { answer(reply, total); count(total) }
+%%   | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
 %% }
 %%
 %% Every receive takes first the restart a supervisor asks for (report
 %% §6.9), which arrives before every other message.
-counter(N) ->
+count(Total) ->
     receive
         '$ern_restart' ->
             ern_rt:restart_now();
-        {'Inc', K} ->
-            counter(N + K);
-        {'Get', R} ->
-            ern_rt:answer(R, N),
-            counter(N);
-        {'Upgrade', M, K} ->
-            K(M(N))
+        {'Inc', Amount} ->
+            count(Total + Amount);
+        {'Get', Reply} ->
+            ern_rt:answer(Reply, Total),
+            count(Total);
+        {'Upgrade', Migrate, Next} ->
+            Next(Migrate(Total))
     end.
 
 %% A function of this module taken as a value by another is a fun made here,

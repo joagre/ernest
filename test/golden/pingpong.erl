@@ -3,42 +3,42 @@
 -export([main/0, '$fun'/2]).
 
 main() ->
-    PongAddr_2 = ern_rt:spawn_monitored(fun () -> pong()
+    Opponent_2 = ern_rt:spawn_monitored(fun () -> pong()
                                         end,
                                         fun (V_1) -> {'PongDone', V_1} end,
                                         <<"Pingpong.main:16">>),
-    _ = ern_rt:spawn(fun () -> ping(PongAddr_2, 3) end,
+    _ = ern_rt:spawn(fun () -> ping(Opponent_2, 3) end,
                      <<"Pingpong.main:17">>),
     receive
         '$ern_restart' -> ern_rt:restart_now();
         {'PongDone', _} -> 'Unit'
     end.
 
-ping(PongAddr_3, N_4) ->
-    case N_4 =:= 0 of
-        true -> ern_rt:send(PongAddr_3, 'Stop');
+ping(Opponent_3, Round_4) ->
+    case Round_4 =:= 0 of
+        true -> ern_rt:send(Opponent_3, 'Stop');
         false ->
             ern@io:println(<<"ping ",
-                             (ern@int:toString(N_4))/binary>>),
-            case ern_rt:call(PongAddr_3,
-                             fun (R_5) -> {'Ping', N_4, R_5} end,
+                             (ern@int:toString(Round_4))/binary>>),
+            case ern_rt:call(Opponent_3,
+                             fun (Reply_5) -> {'Ping', Round_4, Reply_5} end,
                              5000,
                              {int, <<"reply does not match Int">>})
                 of
-                {'Some', _} -> ping(PongAddr_3, N_4 - 1);
+                {'Some', _} -> ping(Opponent_3, Round_4 - 1);
                 'None' ->
                     ern@io:println(<<"pong is not answering">>),
-                    ern_rt:send(PongAddr_3, 'Stop')
+                    ern_rt:send(Opponent_3, 'Stop')
             end
     end.
 
 pong() ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'Ping', N_6, R_7} ->
+        {'Ping', Round_6, Reply_7} ->
             ern@io:println(<<"pong ",
-                             (ern@int:toString(N_6))/binary>>),
-            ern_rt:answer(R_7, N_6),
+                             (ern@int:toString(Round_6))/binary>>),
+            ern_rt:answer(Reply_7, Round_6),
             pong();
         'Stop' -> 'Unit'
     end.

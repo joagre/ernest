@@ -1,6 +1,6 @@
 # Ernest: Language Report
 
-Revision of 3 October 2026. Rationale and rejected alternatives are in [`decisions.md`](docs/decisions.md), and the decisions still to be made in [`implementation_plan.md`](docs/implementation_plan.md).
+Revision of 3 October 2026.
 
 **Contents**
 <!-- contents -->
@@ -210,7 +210,7 @@ Declared with `type`, §4.3. A constructor has no fields, exactly one positional
 ```ernest
 type Optional(a) = None | Some(a)
 
-type Snapshot = Snapshot(dir : Path, seen : Map(Path, Int))
+type Snapshot = Snapshot(directory : Path, seen : Map(Path, Int))
 ```
 
 Field names are unique within a constructor. Their declaration order is the order in which a value's fields are stored, transported (§8.4), and shown (Appendix E.1), and is part of the type's identity (§8.7); a construction and a pattern may give them in any order, and field expressions are evaluated in source order (§5.1). There is no canonical order. Positional and named fields are told apart by `:` after the first identifier in a declaration and by `=` in construction and patterns.
@@ -297,7 +297,7 @@ A *module* is one source file, ending in `.ern`: the unit of compilation and of 
 // net/http.ern
 export type Request = Request(method : String, path : String)
 
-export fn parse(s : String) : Optional(Request) =
+export fn parse(text : String) : Optional(Request) =
     ...
 
 // private to net/http.ern
@@ -323,17 +323,17 @@ export abstract type Stack(a) = Stack(List(a))
 
 export let empty = Stack([])
 
-export fn push(Stack(xs), x) =
-    Stack(x :: xs)
+export fn push(Stack(items), item) =
+    Stack(item :: items)
 
-export fn pop(Stack(xs)) =
-    match xs {
+export fn pop(Stack(items)) =
+    match items {
         [] -> None
-      | x :: rest -> Some(#(x, Stack(rest)))
+      | item :: rest -> Some(#(item, Stack(rest)))
     }
 
-export fn size(Stack(xs)) =
-    List.size(xs)
+export fn size(Stack(items)) =
+    List.size(items)
 ```
 
 External callers see `Stack.Stack`, `Stack.empty`, `Stack.push`, `Stack.pop`, and `Stack.size`; `Stack.Stack(...)` is refused outside `stack.ern`. A module may declare several abstract types. Outside its module, `Io.show` writes a value of an abstract type as `<abstract>` (Appendix E.1).
@@ -381,17 +381,19 @@ Code written once over several representations of a type takes an *operations re
 ```ernest
 type Date = Date(year : Int, month : Int, day : Int) derives compare
 
-type Ops(s, a) = Ops(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
+type Operations(s, a) =
+    Operations(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
 
-let hashed : Ops(Set(Int), Int) = Ops(..Set)
+let hashed : Operations(Set(Int), Int) = Operations(..Set)
 
-let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)
+let ordered : Operations(OrderedSet.Set(Int), Int) = Operations(..OrderedSet)
 
 fn unique(list : List(a)) : List(a) needs a.compare =
     OrderedSet.toList(OrderedSet.fromList(list))
 
-fn common(list : List(a), other : List(a), ops : Ops(s, a)) : List(a) =
-    ops.toList(ops.intersection(ops.fromList(list), ops.fromList(other)))
+fn common(list : List(a), other : List(a), operations : Operations(s, a)) : List(a) =
+    operations.toList(operations.intersection(operations.fromList(list),
+                                              operations.fromList(other)))
 ```
 
 `unique(["b", "a", "b"])` is `["a", "b"]`; `common([4, 2, 3], [3, 4, 5], ordered)` is `[3, 4]`, and with `hashed` the same elements in the hash set's order; `OrderedSet.fromList([Date(year = 2026, month = 10, day = 2), Date(year = 2025, month = 1, day = 1)])` is ordered by year, then month, then day.
@@ -468,7 +470,7 @@ In `let p : T <- e`, `T` is the type of `p`, the value inside. The sum type is d
 
 ### 5.6 Construction
 
-`Some(e)`, `None`, `Snapshot(dir = d, seen = s)`. All fields are given, each once. `Snapshot(..p, seen = s)`, a *record update*, takes the unlisted fields from `p`; at least one field follows `..`. A field of a field is updated through a *path*: `Pool(..pool, stats.indexed = e)` is `Pool(..pool, stats = Stats(..pool.stats, indexed = e))`, with `pool` evaluated once. A path stands in a record update only, and each type along it has one constructor with the named field. Two paths may share a prefix, `stats.indexed` beside `stats.hits`; neither may be a prefix of the other, and no path is given twice. The base is evaluated first, and the field expressions in source order (§5.1). `Ops(..Set)`, a *fill*, names a namespace after `..` and takes each field not given beside it from the declaration of its name in that namespace that the use site may name (§4.2), at the field's type; a namespace may stand alone after `..`, and `Ops(..OrderedSet, toList = mine)` takes the field given and fills the rest. The name after `..` is a namespace where it is a qualified name of type names alone that names no constructor or binding in scope, and an expression otherwise. A field with no declaration of its name in the namespace, or one whose type does not fit the field's, is an error naming the field and the namespace: `Ops(..Set) lacks isSubset: Set has no isSubset`. A declaration with a requirement (§4.9) fills a field with its members supplied at the field's type, which the construction's type must fix; where that type leaves the requirement's variable undetermined, the fill is an error naming the field and the variable: `fromList needs a.compare, and the record's type leaves a undetermined`. `..` is allowed only on a type with one constructor; on any other it is a type error. A constructor is qualified like a function, `Net.Http.Request(...)`.
+`Some(e)`, `None`, `Snapshot(directory = d, seen = s)`. All fields are given, each once. `Snapshot(..p, seen = s)`, a *record update*, takes the unlisted fields from `p`; at least one field follows `..`. A field of a field is updated through a *path*: `Pool(..pool, stats.indexed = e)` is `Pool(..pool, stats = Stats(..pool.stats, indexed = e))`, with `pool` evaluated once. A path stands in a record update only, and each type along it has one constructor with the named field. Two paths may share a prefix, `stats.indexed` beside `stats.hits`; neither may be a prefix of the other, and no path is given twice. The base is evaluated first, and the field expressions in source order (§5.1). `Operations(..Set)`, a *fill*, names a namespace after `..` and takes each field not given beside it from the declaration of its name in that namespace that the use site may name (§4.2), at the field's type; a namespace may stand alone after `..`, and `Operations(..OrderedSet, toList = mine)` takes the field given and fills the rest. The name after `..` is a namespace where it is a qualified name of type names alone that names no constructor or binding in scope, and an expression otherwise. A field with no declaration of its name in the namespace, or one whose type does not fit the field's, is an error naming the field and the namespace: `Operations(..Set) lacks isSubset: Set has no isSubset`. A declaration with a requirement (§4.9) fills a field with its members supplied at the field's type, which the construction's type must fix; where that type leaves the requirement's variable undetermined, the fill is an error naming the field and the variable: `fromList needs a.compare, and the record's type leaves a undetermined`. `..` is allowed only on a type with one constructor; on any other it is a type error. A constructor is qualified like a function, `Net.Http.Request(...)`.
 
 A nullary constructor is a value. A single-positional constructor is a function value. A named constructor is neither; it appears only in construction syntax. A qualified operator is a function value, `Int.+`.
 
@@ -516,12 +518,13 @@ A segment without specifiers is `int` of size 8. A segment is `big` and `unsigne
 A bitstring's total bit count, in construction and in a pattern, is a multiple of 8. A violation of these rules the compiler can see is a compile-time error; one that depends on a dynamic size faults at construction (§7.4) or fails to match. So is a value that does not fit its width: a numeric literal, negated or not, that does not fit a segment of constant width is a compile-time error, in a construction and in a pattern, and any other value that does not fit faults at construction or fails to match. A segment pattern is a variable, `_`, or a literal of the segment's type, a negative numeric literal among them: `<<-1:signed>>`. `size(Expr)` in a pattern is a variable, a top-level `let`, an `Int` literal, or `+`, `-`, or `*` applied to these. The variable is bound by an earlier segment of the same bitstring, or is in scope where the pattern stands: a parameter, a block `let`, a pattern variable of an enclosing clause, or a lambda's capture. A top-level `let` is read when the `match` begins, after its scrutinee, or when the `receive` begins. A variable bound elsewhere in the same pattern is not in scope in its sizes. Any other segment pattern or size expression is a type error. A negative or out-of-range size fails the match. Construction evaluates the segments left to right. A `bytes` value fits a sized segment only when it is exactly that long. A negative size fits no value. A `float` value is rounded to a 16- or 32-bit width to nearest, ties to even, and a value too small for the width becomes `0.0`; one whose magnitude exceeds the width's largest finite value does not fit. `<<>>` is the empty `Bytes`.
 
 ```ernest
-fn frame(len : Int, body : Bytes) : Bytes =
-    <<len:size(16)-big, body:bytes>>
+fn frame(bodySize : Int, body : Bytes) : Bytes =
+    <<bodySize:size(16)-big, body:bytes>>
 
 fn parseFrame(bytes : Bytes) : Optional(#(Int, Bytes, Bytes)) =
     match bytes {
-        <<len:size(16)-big, body:size(len)-bytes, rest:bytes>> -> Some(#(len, body, rest))
+        <<bodySize:size(16)-big, body:size(bodySize)-bytes, rest:bytes>> ->
+            Some(#(bodySize, body, rest))
       | _ -> None
     }
 ```
@@ -616,13 +619,13 @@ type Request = Get(reply : Reply(Int)) | Stop
 
 fn serve(request : Request) : Unit with m =
     match request {
-        Get(reply = r) -> answer(r, 42) // accepted: r is answered on its one path
+        Get(reply = reply) -> answer(reply, 42) // accepted: reply is answered on its one path
       | Stop -> Unit // Stop carries no reply
     }
 
-fn twice(dst : Address(Request), request : Request) : Unit with m = {
-    send(dst, request);
-    send(dst, request) // rejected: request is consumed twice
+fn twice(server : Address(Request), request : Request) : Unit with m = {
+    send(server, request);
+    send(server, request) // rejected: request is consumed twice
 }
 ```
 
@@ -660,18 +663,18 @@ type CounterMsg =
   | Get(reply : Reply(Int))
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
-fn counter(n : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit with CounterMsg =
     receive {
-        Inc(k) -> counter(n + k)
-      | Get(reply = r) -> {
-            answer(r, n);
-            counter(n)
+        Inc(amount) -> count(total + amount)
+      | Get(reply = reply) -> {
+            answer(reply, total);
+            count(total)
         }
-      | Upgrade(migrate = m, next = k) -> k(m(n))
+      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
     }
 ```
 
-A function does not cross nodes in a message (§3.11), so a process on another node is sent its `Upgrade` by a process spawned on that node, which the spawn gives the new function, as the statement `let _ = Peer.spawn(name, fn() = send(c, Upgrade(migrate = m, next = k)))` does. The language has no other mechanism for code replacement. The shell's reload (§11.2) runs new calls on the new code and never changes the code a running process runs; a process whose code the shell can no longer keep faults with `Fault("its code was unloaded")` (§7.4).
+A function does not cross nodes in a message (§3.11), so a process on another node is sent its `Upgrade` by a process spawned on that node, which the spawn gives the new function, as the statement `let _ = Peer.spawn(name, fn() = send(counter, Upgrade(migrate = migrate, next = next)))` does. The language has no other mechanism for code replacement. The shell's reload (§11.2) runs new calls on the new code and never changes the code a running process runs; a process whose code the shell can no longer keep faults with `Fault("its code was unloaded")` (§7.4).
 
 ## 7. Errors
 
@@ -978,7 +981,7 @@ The configuration directory is `./.ernest` unless `--config-dir` names another. 
 
 An error is reported as `file:line:column: message`, then the source. Lines and columns count from 1. A line ends at a line feed, and a column is a code point: a tab is one column, and a letter written as two code points is two. The file is the source's path from the working directory, or its absolute path when it lies outside that directory. The source shows a gutter of line numbers, the line before, the erroneous span underlined with `^`, any second span the message depends on, underlined with `-` and labelled, and at most one `help:` line naming the fix. Where the lines shown are not one after another, a line `...` stands for those passed over. The source shows a tab as a space and a control character as its picture, `␛` for U+001B, one of U+0080 to U+009F as U+FFFD. `--short-errors`, which `ern build`, `ern doc` and `ern format` take, prints the first line alone. The parser reports one error per file; the checker reports every error that does not follow from another. Within a block, an error in a statement that binds nothing, or in a `let` whose annotation fixes its name's type, does not stop the block, and the statements after it are checked; an error in any other binding does, since what follows may use the name.
 
-A type mismatch is reported at the innermost expression whose type is fixed: the last expression of a body or block, a branch or clause after the first, an argument, an operand, an element, or a pattern. The message shows both whole types. The label marks the span that fixed the expectation: an annotation, a callee's type, the first branch, clause, or element, the left operand, or the value matched. The help line names the part in which the types differ. An effect error names the primitive called and the function, `let`, or guard that is pure, and labels the annotation that made it so. An operator whose operand type is not determined (§4.8) is reported with the request to annotate it. A statement whose type is not `Unit` (§5.4) is reported whole, with the help line `let _ =`. `Io.show` or `Io.debug` at a type variable of the signature that the requirement does not name is reported as a call that needs its `show` (§4.9), and at any other type that is not known whole (Appendix E.1) with the request to annotate it. A call whose requirement the enclosing declaration must supply and does not (§4.9) is reported at the call, naming the callee, the member and the enclosing function, with the help line that adds the requirement, or, under a top-level `let`, that a `fn` declares it; a type whose member answers another type, and a known type without the member, are reported at the call naming both. A requirement that names what is no member, or a variable that is not the signature's, is reported at the requirement. A fill (§5.6) that lacks a field, or whose type leaves a requirement's variable undetermined, is reported at the construction, naming the field and the namespace or the variable. A path in a record update (§5.6) that reaches a type with several constructors or none, or a field whose type is not determined, is reported at the path, naming the type reached; two paths of which one is a prefix of the other are reported at the second, with the first labelled. A call of a selected field, `ops.intersection(...)`, names the field as written where a message would say `the callee`. A recursive call's argument at another type than the definition's own (§3.9) has a help line naming the rule: a call at another type goes to a second function. A type of a recursive group named in its fields at other than the declaring type's parameters (§3.9) is reported at that name, with a help line saying that no function could walk the type. A reply-carrying value passed where it would be duplicated or discarded (§6.6) has a help line naming the ways to discharge it: answering it, passing it on once, or matching it. A `<-` where the parser expects a delimiter has a help line that names `a < -1` (§2.6). A selector its operand's type lacks is reported at the selector, naming a constructor without the field. An error whose span holds a use of a name the module's own declaration hides from the prelude (§4.2) labels that use with the prelude's qualified name: `Unknown` here is this module's constructor, and the prelude's is `Prelude.Unknown`.
+A type mismatch is reported at the innermost expression whose type is fixed: the last expression of a body or block, a branch or clause after the first, an argument, an operand, an element, or a pattern. The message shows both whole types. The label marks the span that fixed the expectation: an annotation, a callee's type, the first branch, clause, or element, the left operand, or the value matched. The help line names the part in which the types differ. An effect error names the primitive called and the function, `let`, or guard that is pure, and labels the annotation that made it so. An operator whose operand type is not determined (§4.8) is reported with the request to annotate it. A statement whose type is not `Unit` (§5.4) is reported whole, with the help line `let _ =`. `Io.show` or `Io.debug` at a type variable of the signature that the requirement does not name is reported as a call that needs its `show` (§4.9), and at any other type that is not known whole (Appendix E.1) with the request to annotate it. A call whose requirement the enclosing declaration must supply and does not (§4.9) is reported at the call, naming the callee, the member and the enclosing function, with the help line that adds the requirement, or, under a top-level `let`, that a `fn` declares it; a type whose member answers another type, and a known type without the member, are reported at the call naming both. A requirement that names what is no member, or a variable that is not the signature's, is reported at the requirement. A fill (§5.6) that lacks a field, or whose type leaves a requirement's variable undetermined, is reported at the construction, naming the field and the namespace or the variable. A path in a record update (§5.6) that reaches a type with several constructors or none, or a field whose type is not determined, is reported at the path, naming the type reached; two paths of which one is a prefix of the other are reported at the second, with the first labelled. A call of a selected field, `operations.intersection(...)`, names the field as written where a message would say `the callee`. A recursive call's argument at another type than the definition's own (§3.9) has a help line naming the rule: a call at another type goes to a second function. A type of a recursive group named in its fields at other than the declaring type's parameters (§3.9) is reported at that name, with a help line saying that no function could walk the type. A reply-carrying value passed where it would be duplicated or discarded (§6.6) has a help line naming the ways to discharge it: answering it, passing it on once, or matching it. A `<-` where the parser expects a delimiter has a help line that names `a < -1` (§2.6). A selector its operand's type lacks is reported at the selector, naming a constructor without the field. An error whose span holds a use of a name the module's own declaration hides from the prelude (§4.2) labels that use with the prelude's qualified name: `Unknown` here is this module's constructor, and the prelude's is `Prelude.Unknown`.
 
 A printed type elides an effect variable bound to pure (§3.9). An effect variable that occurs once in a printed type, and is not process-only, is printed as pure: `fn k() : Int with m = 5` prints as `() -> Int`. The compiler shows the three inferred restrictions of §3.9. In a printed type a variable with the equality constraint is `a=`, one that is not reply-carrying `a!`, and a process-only effect variable that occurs in no value position `m+`: `equal : (a=, a=) -> Bool`, `discard : (a!) -> Unit`, `send : (Address(a), a) -> Unit with m+`. One that occurs in a value position is never pure, and is not marked: `self : () -> Address(m) with m`. A printed type is not an annotation, and no mark can be written in one; `=` is written on a foreign type's parameter alone (§4.7), and §9.2 lists `Map(k=, v)` and `Set(a=)` with the mark, though neither is a foreign type. A type name is printed as the module would write it (§4.2). The module's own types and the prelude's are printed unqualified. Other modules' types are printed qualified. A local type that shadows a prelude name is printed qualified. A type variable is printed under its annotation's name; an unnamed one is `a`, `b`, ... for a value variable and `e`, `e1`, ... for an effect variable, avoiding the names in use. An error at a rejected call site names the parameter and the origin of its restriction; `ern doc` prints restrictions the same way. A declaration's printed type ends in its requirement as declared, `(List(a)) -> OrderedSet.Set(a) needs a.compare`, in a diagnostic, in `ern doc` (§11.4), and in the shell's `:type` and its completion listing (§11.2) alike.
 
@@ -1111,60 +1114,60 @@ type CounterMsg =
   | Upgrade(migrate : (Int) -> Int, next : (Int) -> Unit with CounterMsg)
 
 export fn main() : Unit with m = {
-    let c = spawn(fn() = counter(0));
-    send(c, Inc(5));
-    send(c, Inc(3));
-    match Address.call(c, fn(r) = Get(reply = r), 1000) {
-        Some(n) -> Io.println("count is " <> Int.toString(n))
+    let counter = spawn(fn() = count(0));
+    send(counter, Inc(5));
+    send(counter, Inc(3));
+    match Address.call(counter, fn(reply) = Get(reply = reply), 1000) {
+        Some(total) -> Io.println("count is " <> Int.toString(total))
       | None -> Io.println("counter is not answering")
     }
 }
 
-fn counter(n : Int) : Unit with CounterMsg =
+fn count(total : Int) : Unit with CounterMsg =
     receive {
-        Inc(k) -> counter(n + k)
-      | Get(reply = r) -> {
-            answer(r, n);
-            counter(n)
+        Inc(amount) -> count(total + amount)
+      | Get(reply = reply) -> {
+            answer(reply, total);
+            count(total)
         }
-      | Upgrade(migrate = m, next = k) -> k(m(n))
+      | Upgrade(migrate = migrate, next = next) -> next(migrate(total))
     }
 ```
 
 Ping-pong. `main` starts `pong` under a monitor and `ping` beside it, and waits for `pong` to end. `ping` calls `pong` three times and then stops it.
 
 ```ernest
-type PongMsg = Ping(n : Int, reply : Reply(Int)) | Stop
+type PongMsg = Ping(round : Int, reply : Reply(Int)) | Stop
 
 type MainMsg = PongDone(Down)
 
 export fn main() : Unit with MainMsg = {
-    let pongAddr = spawnMonitored(fn() = pong(), PongDone);
-    let _ = spawn(fn() = ping(pongAddr, 3));
+    let opponent = spawnMonitored(fn() = pong(), PongDone);
+    let _ = spawn(fn() = ping(opponent, 3));
     receive {
         PongDone(_) -> Unit
     }
 }
 
-fn ping(pongAddr : Address(PongMsg), n : Int) : Unit with m =
-    if n == 0 then
-        send(pongAddr, Stop)
+fn ping(opponent : Address(PongMsg), round : Int) : Unit with m =
+    if round == 0 then
+        send(opponent, Stop)
     else {
-        Io.println("ping " <> Int.toString(n));
-        match Address.call(pongAddr, fn(r) = Ping(n = n, reply = r), 5000) {
-            Some(_) -> ping(pongAddr, n - 1)
+        Io.println("ping " <> Int.toString(round));
+        match Address.call(opponent, fn(reply) = Ping(round = round, reply = reply), 5000) {
+            Some(_) -> ping(opponent, round - 1)
           | None -> {
                 Io.println("pong is not answering");
-                send(pongAddr, Stop)
+                send(opponent, Stop)
             }
         }
     }
 
 fn pong() : Unit with PongMsg =
     receive {
-        Ping(n = n, reply = r) -> {
-            Io.println("pong " <> Int.toString(n));
-            answer(r, n);
+        Ping(round = round, reply = reply) -> {
+            Io.println("pong " <> Int.toString(round));
+            answer(reply, round);
             pong()
         }
       | Stop -> Unit
@@ -1174,11 +1177,11 @@ fn pong() : Unit with PongMsg =
 A message that carries a function. `submitter` is send-only, so its mailbox type is `Never`. Sent to a worker on another node, the message faults the sender (§3.11).
 
 ```ernest
-type WorkerMsg = DoWork(f : (String) -> Bytes, arg : String)
+type WorkerMsg = DoWork(work : (String) -> Bytes, input : String)
 
 fn submitter(worker : Address(WorkerMsg)) : Unit with Never = {
-    send(worker, DoWork(f = String.toUtf8, arg = "hello"));
-    send(worker, DoWork(f = String.toUtf8, arg = "world"))
+    send(worker, DoWork(work = String.toUtf8, input = "hello"));
+    send(worker, DoWork(work = String.toUtf8, input = "world"))
 }
 ```
 
@@ -1320,7 +1323,7 @@ Four *admission rules* decide whether a function is in: rules 1 to 3 each admit 
 
 Nine *shape rules* give a function its shape. Shape rules 1 to 4, 7, and 9 hold in a library outside the standard library too, as Appendix D's, which the four admission rules do not reach.
 
-1. The subject comes first, callbacks last but for shape rule 8's milliseconds, an accumulator between them: `x |> f(a)` is `f(x, a)`. No aliases, no argument-order variants. An operations record (§4.9) comes directly after the subjects, before an accumulator and the callbacks: `common(list, other, ops)`. A function takes a member as a parameter where any function of its type may be given, `List.sort(list, compare)`, and declares the requirement where the type's own member is meant (§4.9).
+1. The subject comes first, callbacks last but for shape rule 8's milliseconds, an accumulator between them: `x |> f(a)` is `f(x, a)`. No aliases, no argument-order variants. An operations record (§4.9) comes directly after the subjects, before an accumulator and the callbacks: `common(list, other, operations)`. A function takes a member as a parameter where any function of its type may be given, `List.sort(list, compare)`, and declares the requirement where the type's own member is meant (§4.9).
 2. One verb per operation on each kind of type that has it, and a type alone of its kind names its own; a module whose operations serve two kinds names the second's with the kind, `closeListener`, `nextFloat`. The container operations are `empty`, `size`, `isEmpty`, `contains`, `get` for lookup by index or key, `put` for insertion, `remove`, `map`, `filter`, `filterMap`, `foldLeft`, `foreach`, `any`, `all`, `find`, `fromList`, and `toList`; the sum-type operations are `withDefault`, `map`, and `andThen`. A predicate is `isX`. `empty` is a value; a function that makes something which belongs to a process and ends, as G.1's table does, is `new`. `contains` on text finds a substring of any length, not an element, the empty text being in every text, and `size` on text counts graphemes, not the `Char`s `toList` gives (E.5). A verb not in this list names an operation none of these does.
 3. A conversion is named by the other type. Between a type and one its module builds on, both directions are the building module's, `fromX` and `toX`: `String.fromList` and `String.toList`, `Map.fromList`, `Either.fromOptional`. Any other conversion is its argument's module's `toX`: `String.toInt`, `Int.toString`. A conversion exists once. When one conversion has several policies, the policy is the name: `Float.round`, `Float.floor`, `Float.ceil`, `Float.truncate`. A conversion of any value into a foreign type is `from`, since no type names its argument, and a function that makes a particular host term is named for the term, `Erl.atom`.
 4. A partial operation returns `Optional`; one with a cause returns `Either`. A function faults only as §7.4 says.

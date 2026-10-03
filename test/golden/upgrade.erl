@@ -3,54 +3,57 @@
 -export([main/0, '$fun'/2]).
 
 main() ->
-    C_1 = ern_rt:spawn(fun () -> counter(0) end,
-                       <<"Upgrade.main:17">>),
-    ern_rt:send(C_1, {'Inc', 5}),
-    ern_rt:send(C_1, {'Inc', 3}),
-    case ern_rt:call(C_1,
-                     fun (R_2) -> {'Get', R_2} end,
+    Counter_1 = ern_rt:spawn(fun () -> count(0) end,
+                             <<"Upgrade.main:17">>),
+    ern_rt:send(Counter_1, {'Inc', 5}),
+    ern_rt:send(Counter_1, {'Inc', 3}),
+    case ern_rt:call(Counter_1,
+                     fun (Reply_2) -> {'Get', Reply_2} end,
                      1000,
                      {int, <<"reply does not match Int">>})
         of
-        {'Some', N_3} ->
+        {'Some', Total_3} ->
             ern@io:println(<<"before upgrade: ",
-                             (ern@int:toString(N_3))/binary>>);
+                             (ern@int:toString(Total_3))/binary>>);
         'None' -> ern@io:println(<<"timeout">>)
     end,
-    ern_rt:send(C_1,
+    ern_rt:send(Counter_1,
                 {'Upgrade',
-                 fun (N_4) -> N_4 end,
-                 fun doublingCounter/1}),
-    ern_rt:send(C_1, {'Inc', 1}),
-    case ern_rt:call(C_1,
-                     fun (R_5) -> {'Get', R_5} end,
+                 fun (Total_4) -> Total_4 end,
+                 fun countTwice/1}),
+    ern_rt:send(Counter_1, {'Inc', 1}),
+    case ern_rt:call(Counter_1,
+                     fun (Reply_5) -> {'Get', Reply_5} end,
                      1000,
                      {int, <<"reply does not match Int">>})
         of
-        {'Some', N_6} ->
+        {'Some', Total_6} ->
             ern@io:println(<<"after upgrade: ",
-                             (ern@int:toString(N_6))/binary>>);
+                             (ern@int:toString(Total_6))/binary>>);
         'None' -> ern@io:println(<<"timeout">>)
     end.
 
-counter(N_7) ->
+count(Total_7) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'Inc', K_8} -> counter(N_7 + K_8);
-        {'Get', R_9} ->
-            ern_rt:answer(R_9, N_7),
-            counter(N_7);
-        {'Upgrade', M_10, K_11} -> K_11(M_10(N_7))
+        {'Inc', Amount_8} -> count(Total_7 + Amount_8);
+        {'Get', Reply_9} ->
+            ern_rt:answer(Reply_9, Total_7),
+            count(Total_7);
+        {'Upgrade', Migrate_10, Next_11} ->
+            Next_11(Migrate_10(Total_7))
     end.
 
-doublingCounter(N_12) ->
+countTwice(Total_12) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'Inc', K_13} -> doublingCounter(N_12 + 2 * K_13);
-        {'Get', R_14} ->
-            ern_rt:answer(R_14, N_12),
-            doublingCounter(N_12);
-        {'Upgrade', M_15, K_16} -> K_16(M_15(N_12))
+        {'Inc', Amount_13} ->
+            countTwice(Total_12 + 2 * Amount_13);
+        {'Get', Reply_14} ->
+            ern_rt:answer(Reply_14, Total_12),
+            countTwice(Total_12);
+        {'Upgrade', Migrate_15, Next_16} ->
+            Next_16(Migrate_15(Total_12))
     end.
 
 '$fun'(main, 0) -> fun main/0.
