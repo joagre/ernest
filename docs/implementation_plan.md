@@ -242,23 +242,21 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    milliseconds for a list of a million. Recommended: kept as it is, a persistent term,
    since a name's read must cost what a name costs. The item is done but for its two
    decisions.
-9. **The runtime's part of running as a service**: what item 6's decisions build, and a
-   stream on a full or failing device ending the program, as §8.2 says, with status 141, as
-   §11.8 says. On 2026-10-02 a program whose standard error was `/dev/full` lost the line, ran
-   on and exited with status 0, and so did one whose standard output was. Measured again on
-   2026-10-03, twenty-four runs of a program whose one write goes to a full device: eleven
-   ended with status 0, ten with status 141, and three did not end, one of which a
-   termination signal had not ended a second later; a program that waits and writes again
-   ended at its failed write with status 141. Among item 6's: the
-   clock process asks the host to be told of each change of its time offset,
-   `erlang:monitor(time_offset, clock_service)`, and re-arms its alarms at a time on each, as
-   E.15 states since 2026-10-02, where today an alarm at a time fixes its deadline in monotonic
-   time when it is set; a test delivers the host's notice. And Ernest's signal handler is
-   installed as the first thing the host runs, which narrows the window in which OTP's own
-   handler ends a program with status 0 (§8.6); the install is the first call of
-   `ern_cli:start/0` since 2026-09-28, so what remains is what the host runs before that
-   call, found by measuring the window, and where nothing narrows it this sentence goes.
-   Beside item 8, in the same code.
+9. **The runtime's part of running as a service**, done 2026-10-03 (the log's *The Runtime as
+   a Service, Built*). A stream that can no longer be written ends the program with status
+   141 (§8.2, §11.8): of twenty-four runs of a program whose one write went to a full device
+   eleven had ended with status 0, ten with 141, and three had not ended, since the write
+   was answered before the device refused it and the flush at the program's end was never
+   answered once the stream had gone. The flush now answers that, and §8.6 says that a
+   stream which can no longer be written then ends the program in place of what ended it;
+   thirty runs of thirty end with 141. The clock asks the host to be told of each change of
+   its time offset and sets its alarms at a time again on each (E.15); a test delivers the
+   notice against a clock of its own. And the signal handler: measured at twenty-four runs a
+   delay, a termination is lost until about 0.19 seconds after `ern` starts, which is the
+   host's limit (§8.6), and the host's own handler, which ends the program with status 0,
+   took it in a window of about 12 milliseconds after that; the launcher now has the host
+   install Ernest's handler before the entry's module is loaded, and the window measured
+   about 5.
 10. **A service manager's checks**: a systemd unit, start and stop, a stop asked for ending the
     program by its signal, `Restart=on-failure` after a program ends with `Os.exit(1)`, and the
     journal showing fault lines without a doubled time; and a launchd plist on macOS, with the
@@ -718,8 +716,9 @@ the terminal). The rest is MVP 3.3's.
   received - shutting down`; on this machine on 2026-10-02 the window was about a quarter of a
   second. §8.6 and §11.8 state it as the host's limit since 2026-10-02 (MVP 2.99b's item 6,
   the log's *MVP 2.99b's Questions, One by One*). Its fix is OTP's, a signal held until the
-  host's signal server runs, which the user takes to OTP's maintainers; item 9 installs
-  Ernest's handler as the first thing the host runs, which narrows the second outcome.
+  host's signal server runs, which the user takes to OTP's maintainers; since 2026-10-03
+  (item 9) the host installs Ernest's handler as the first thing it runs, and the second
+  outcome's window measured about 5 milliseconds where it had been about 12.
 - **A signal that ends the host while it starts a port**, for a host program, for `ern_exec`,
   or for OTP's lookup of the host's name, leaves a line of OTP's helper on standard error,
   `erl_child_setup: failed with error 32 on line 284`, where §8.6 has the runtime print

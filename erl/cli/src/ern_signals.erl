@@ -9,10 +9,11 @@
 
 -export([install/0, status/1, ended/0, die/2, init/1, handle_event/2, handle_call/2]).
 
-%% Handle the two signals here from now on (report §11). The launcher's
-%% entry installs this handler before its work, since the host's own handler
-%% would stop the node only once that work had returned. A launch installs
-%% it again, which changes nothing where it is in place and matters where a
+%% Handle the two signals here from now on (report §11). The launcher has
+%% the host run this first, before the entry's module is loaded, and the
+%% entry installs it before its work, since the host's own handler would
+%% stop the node only once that work had returned. A launch installs it
+%% again, which changes nothing where it is in place and matters where a
 %% test runs the job. A termination the host's handler took as the host
 %% started has asked the host to stop, which it would do only after the
 %% work, so `ern` ends by that signal here, before this handler is asked:

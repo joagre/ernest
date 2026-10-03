@@ -1298,8 +1298,14 @@ port_loop(Port, Name) ->
     receive
         {flush, From, Ref} ->
             case drained(Port) of
-                ok -> From ! {Ref, flushed}, port_loop(Port, Name);
-                gone -> gone(Name)
+                ok ->
+                    From ! {Ref, flushed},
+                    port_loop(Port, Name);
+                gone ->
+                    %% report §8.6: the flush is told, so that it neither
+                    %% waits nor takes what was lost for written
+                    From ! {Ref, gone},
+                    gone(Name)
             end;
         {'Write', Bytes, Reply} ->
             case written(Port, Bytes) of
@@ -1340,7 +1346,7 @@ gone(Name) ->
 %% its writer goes on, so that no writer faults for a stream that ended.
 dropping() ->
     receive
-        {flush, From, Ref} -> From ! {Ref, flushed};
+        {flush, From, Ref} -> From ! {Ref, gone};
         {'Write', _, Reply} -> answer(Reply, ?UNIT);
         _ -> ok
     end,
@@ -1583,80 +1589,111 @@ fed_message(Chars) -> {data, unicode:characters_to_binary(Chars)}.
 %% Clock's messages, clock.ern's (report Appendix E.15): Alarm(ms,
 %% address, reply), AlarmAt(time, address, reply), and Now(reply). Alarms
 %% are delivered through the clock itself, so each is counted as a source
-%% while it is pending (report §8.6). Alarms holds each pending alarm by
-%% its timer, its deadline, where it goes and the process behind that, and
-%% ByRecipient each process's timers, so that a restart of that process
-%% cancels its own and reads no other's (report §6.9).
-clock_loop(Alarms, ByRecipient) ->
+%% while it is pending (report §8.6). The clock holds each pending alarm by
+%% its timer, with its moment, where it goes and the process behind that,
+%% and each process's timers, so that a restart of that process cancels its
+%% own and reads no other's (report §6.9). An alarm after milliseconds is
+%% held by its deadline on the monotonic clock, `{monotonic, Deadline}`,
+%% which a clock that is set does not move; one at a time by the time,
+%% `{time, Time}`, which the host's clock is read against. The host's
+%% timers count monotonic time, so the clock asks the host to be told of
+%% each change of its time offset, and sets every alarm at a time again
+%% then. `time` reads the host's clock, or a test's.
+-record(clock, {alarms = #{}, by_recipient = #{}, time}).
+
+clock(Time) ->
+    _ = erlang:monitor(time_offset, clock_service),
+    clock_loop(#clock{time = Time}).
+
+clock_loop(#clock{time = Time} = Clock) ->
     receive
         {'Alarm', Ms, Address, Reply} ->
-            {Alarms1, ByRecipient1} = alarm(deadline(Ms), Address, Reply, Alarms, ByRecipient),
-            clock_loop(Alarms1, ByRecipient1);
-        {'AlarmAt', Time, Address, Reply} ->
-            Deadline = deadline(Time - erlang:system_time(millisecond)),
-            {Alarms1, ByRecipient1} = alarm(Deadline, Address, Reply, Alarms, ByRecipient),
-            clock_loop(Alarms1, ByRecipient1);
+            clock_loop(alarm({monotonic, deadline(Ms)}, Address, Reply, Clock));
+        {'AlarmAt', At, Address, Reply} ->
+            clock_loop(alarm({time, At}, Address, Reply, Clock));
         {timeout, Timer, fire} ->
-            {Alarms1, ByRecipient1} = fired(Timer, Alarms, ByRecipient),
-            clock_loop(Alarms1, ByRecipient1);
+            clock_loop(fired(Timer, Clock));
+        {'CHANGE', _, time_offset, clock_service, _} ->
+            clock_loop(set_again(Clock));
         {'Now', Reply} ->
-            answer(Reply, erlang:system_time(millisecond)),
-            clock_loop(Alarms, ByRecipient);
+            answer(Reply, Time()),
+            clock_loop(Clock);
         {new_run, Pid, Ref} ->
-            {Alarms1, ByRecipient1} = alarms_cancelled(Pid, Alarms, ByRecipient),
+            Clock1 = alarms_cancelled(Pid, Clock),
             Pid ! {Ref, fresh},
-            clock_loop(Alarms1, ByRecipient1)
+            clock_loop(Clock1)
     end.
 
 %% An alarm, answered once it is counted, so that the caller goes on
 %% waiting only on what is counted (report §8.6).
-alarm(Deadline, Address, Reply, Alarms, ByRecipient) ->
+alarm(Moment, Address, Reply, Clock) ->
     source_begin(),
-    Armed = armed(Deadline, Address, Alarms, ByRecipient),
+    Armed = armed(Moment, Address, Clock),
     answer(Reply, ?UNIT),
     Armed.
 
-%% A timer that fired: its alarm delivered once the deadline has passed,
-%% and set again before; one a restart cancelled as it fired is gone.
+%% A timer that fired: its alarm delivered once its moment has come, and
+%% set again before; one a restart cancelled as it fired, or a change of
+%% the clock set again, is gone.
 %% Report §6.5, E.15: the alarm's address may be an address seen through a
 %% function, and it is sent the time it fired, from a process of its own,
 %% so that a function that does not finish holds up no other alarm; the
 %% alarm is a source until it is delivered.
-fired(Timer, Alarms, ByRecipient) ->
-    case maps:take(Timer, Alarms) of
-        {{Deadline, Address, Recipient}, Rest} ->
-            Left = forgotten(Recipient, Timer, ByRecipient),
-            case remaining(Deadline) of
+fired(Timer, #clock{alarms = Alarms, time = Time} = Clock) ->
+    case Alarms of
+        #{Timer := {Moment, Address, Recipient}} ->
+            Left = without_alarm(Timer, Recipient, Clock),
+            case wait(Moment, Time) of
                 0 ->
-                    Now = erlang:system_time(millisecond),
+                    Now = Time(),
                     counted_link(Address, fun() -> deliver(Address, Now) end),
                     source_end(),
-                    {Rest, Left};
+                    Left;
                 _ ->
-                    armed(Deadline, Address, Rest, Left)
+                    armed(Moment, Address, Left)
             end;
-        error ->
-            {Alarms, ByRecipient}
+        #{} ->
+            Clock
     end.
+
+%% Appendix E.15: the host's clock was set. An alarm at a time is set again
+%% against the clock as it now reads: one whose time has come fires at
+%% once, and one whose time is further off waits the longer.
+set_again(#clock{alarms = Alarms} = Clock) ->
+    maps:fold(fun(Timer, {{time, _} = Moment, Address, Recipient}, Acc) ->
+                      erlang:cancel_timer(Timer),
+                      armed(Moment, Address, without_alarm(Timer, Recipient, Acc));
+                 (_Timer, {{monotonic, _}, _, _}, Acc) ->
+                      Acc
+              end, Clock, Alarms).
 
 %% Report §6.9: a restart cancels the process's alarms, and those on their
 %% way to it.
-alarms_cancelled(Pid, Alarms, ByRecipient) ->
+alarms_cancelled(Pid, #clock{alarms = Alarms, by_recipient = ByRecipient} = Clock) ->
     {Timers, ByRecipient1} = case maps:take(Pid, ByRecipient) of
                                  {Own, Others} -> {Own, Others};
                                  error -> {[], ByRecipient}
                              end,
     lists:foreach(fun(Timer) -> erlang:cancel_timer(Timer), source_end() end, Timers),
     cancelled(Pid),
-    {maps:without(Timers, Alarms), ByRecipient1}.
+    Clock#clock{alarms = maps:without(Timers, Alarms), by_recipient = ByRecipient1}.
 
 %% Appendix E.0 rule 8: a time has no upper bound, and the host's timers
-%% have one, so an alarm is set again until its deadline has passed.
-armed(Deadline, Address, Alarms, ByRecipient) ->
-    Timer = erlang:start_timer(remaining(Deadline), erlang:self(), fire),
+%% have one, so an alarm is set again until its moment has come.
+armed(Moment, Address, #clock{alarms = Alarms, by_recipient = ByRecipient, time = Time} = Clock) ->
+    Timer = erlang:start_timer(wait(Moment, Time), erlang:self(), fire),
     Recipient = process_of(Address),
-    {Alarms#{Timer => {Deadline, Address, Recipient}},
-     added(Recipient, Timer, ByRecipient)}.
+    Clock#clock{alarms = Alarms#{Timer => {Moment, Address, Recipient}},
+                by_recipient = added(Recipient, Timer, ByRecipient)}.
+
+without_alarm(Timer, Recipient, #clock{alarms = Alarms, by_recipient = ByRecipient} = Clock) ->
+    Clock#clock{alarms = maps:remove(Timer, Alarms),
+                by_recipient = forgotten(Recipient, Timer, ByRecipient)}.
+
+%% The next wait towards an alarm's moment, at most ?SLICE; 0 once it has
+%% come.
+wait({monotonic, Deadline}, _Time) -> remaining(Deadline);
+wait({time, At}, Time) -> min(?SLICE, max(0, At - Time())).
 
 %%
 %% Report §8.1, §8.6: the runner
@@ -1692,8 +1729,10 @@ armed(Deadline, Address, Alarms, ByRecipient) ->
 %% to the file descriptor through a port, which learns when the stream has
 %% gone (§8.2); stdin => fun(() -> eof | {error, term()} |
 %% unicode:chardata()), called for each read, and keys => the same for the
-%% terminal's keys, for tests (fed/1). Report §8.2: the standard streams carry bytes for the run,
-%% whatever the host's locale.
+%% terminal's keys, for tests (fed/1); time => fun(() -> integer()), the
+%% clock the Clock process reads in place of the host's, for tests. Report
+%% §8.2: the standard streams carry bytes for the run, whatever the host's
+%% locale.
 -spec run_main(fun(() -> term()), binary(), map()) -> outcome().
 run_main(EntryPoint, Site, Options) ->
     make_tables(),
@@ -1702,13 +1741,23 @@ run_main(EntryPoint, Site, Options) ->
     persistent_term:put({?MODULE, reaper}, Reaper),
     Encodings = bytes_out(),
     System = started_system(Options),
-    try
-        entry_outcome(EntryPoint, Site, Options, Launch)
+    Ended = try
+                {ended, entry_outcome(EntryPoint, Site, Options, Launch)}
+            catch
+                Class:Error:Stack -> {raised, Class, Error, Stack}
+            end,
+    try end_program(Launch, Reaper, System) of
+        Gone -> outcome_flushed(Ended, Gone)
     after
-        end_program(Launch, Reaper, System),
         persistent_term:erase({?MODULE, reporter}),
         restore_encodings(Encodings)
     end.
+
+%% Report §8.6: a stream that could not be written as the program's output
+%% was flushed is what ended the program, in place of what ended it.
+outcome_flushed({raised, Class, Error, Stack}, _Gone) -> erlang:raise(Class, Error, Stack);
+outcome_flushed({ended, Outcome}, []) -> Outcome;
+outcome_flushed({ended, _}, [Stream | _]) -> {gone, Stream}.
 
 %% The run's tables, which the module's header describes.
 make_tables() ->
@@ -1745,6 +1794,7 @@ started_system(Options) ->
     OpenStdin = input(stdin, Options),
     OpenKeys = input(keys, Options),
     KeysCome = maps:is_key(keys, Options) orelse ern_tty:is_terminal(stdin),
+    Time = maps:get(time, Options, fun() -> erlang:system_time(millisecond) end),
     System = [{stdout, erlang:spawn(fun() -> stream(Stdout, stdout) end)},
               {stderr, erlang:spawn(fun() -> stream(Stderr, stderr) end)},
               {stdin, erlang:spawn(fun() -> stdin_loop(OpenStdin) end)},
@@ -1752,7 +1802,7 @@ started_system(Options) ->
               {terminal, erlang:spawn(fun() -> ern_tty:loop(OpenKeys, KeysCome) end)},
               {tcp, erlang:spawn(fun ern_tcp:loop/0)},
               {os, erlang:spawn(fun ern_os:loop/0)},
-              {clock, erlang:spawn(fun() -> clock_loop(#{}, #{}) end)}],
+              {clock, erlang:spawn(fun() -> clock(Time) end)}],
     lists:foreach(fun({Name, Pid}) -> persistent_term:put({?MODULE, Name}, Pid) end, System),
     System.
 
@@ -2108,7 +2158,8 @@ restarted(Cause) ->
 
 %% Report §8.6: every local process ends with ProgramEnd, the sinks' output
 %% is flushed, the system processes and the reaper are stopped, and the
-%% terminal goes back as the program found it (§8.2).
+%% terminal goes back as the program found it (§8.2). The answer is the
+%% streams that could not be flushed, standard output's first.
 end_program(Launch, Reaper, System) ->
     Ref = make_ref(),
     MonitorRef = erlang:monitor(process, Reaper),
@@ -2120,18 +2171,8 @@ end_program(Launch, Reaper, System) ->
             lists:foreach(fun({Pid, _, _, _, _}) -> exit(Pid, {ern, program_end}) end, live_rows())
     end,
     erlang:demonitor(MonitorRef, [flush]),
-    lists:foreach(fun(Sink) ->
-                      FlushRef = make_ref(),
-                      SinkMonitorRef = erlang:monitor(process, Sink),
-                      Sink ! {flush, erlang:self(), FlushRef},
-                      %% a sink that died has nothing left to flush, and
-                      %% waiting for it would hold the program open
-                      receive
-                          {FlushRef, flushed} -> ok;
-                          {'DOWN', SinkMonitorRef, process, _, _} -> ok
-                      end,
-                      erlang:demonitor(SinkMonitorRef, [flush])
-                  end, [proplists:get_value(Name, System) || Name <- [stdout, stderr]]),
+    Gone = [Name || Name <- [stdout, stderr],
+                    sink_flushed(proplists:get_value(Name, System)) =:= gone],
     %% each ended before the table goes, which the reaper reads
     lists:foreach(fun stop/1, [Pid || {_, Pid} <- System] ++ [Reaper]),
     case ets:lookup(?PROCESSES, reading) of
@@ -2149,7 +2190,22 @@ end_program(Launch, Reaper, System) ->
     ets:delete(?ASKERS),
     %% a signal after the run has nothing to end (signal/1)
     persistent_term:erase({?MODULE, runner}),
-    flush_launch(Launch).
+    flush_launch(Launch),
+    Gone.
+
+%% A sink's pending output written, or the stream gone (stream/2).
+sink_flushed(Sink) ->
+    Ref = make_ref(),
+    MonitorRef = erlang:monitor(process, Sink),
+    Sink ! {flush, erlang:self(), Ref},
+    %% a sink that died has nothing left to flush, and waiting for it would
+    %% hold the program open
+    Flushed = receive
+                  {Ref, Answer} -> Answer;
+                  {'DOWN', MonitorRef, process, _, _} -> flushed
+              end,
+    erlang:demonitor(MonitorRef, [flush]),
+    Flushed.
 
 %% Report §8.5: a standard library module's top-level lets, `Map.empty`
 %% among them, are evaluated once at program start like any other module's;

@@ -772,6 +772,38 @@ stream_gone() ->
     ?assertEqual({ok, <<"141\n">>}, file:read_file(Dir ++ "/status")),
     ?assertEqual({ok, <<>>}, file:read_file(Dir ++ "/err")).
 
+%% report §8.6, §11.8: a stream that can no longer be written when the
+%% runtime flushes it ends the program with status 141, in place of what
+%% ended it: a program whose one write is lost, whose entry point then
+%% returns or calls Os.exit, on standard output and on standard error. A
+%% regression test, written after the code: of twenty-four such runs eleven
+%% ended with status 0, ten with 141, and three did not end. It does not
+%% cover a device that fails, which only some hosts have one of.
+stream_lost_at_end_test_() ->
+    {timeout, 120, fun stream_lost_at_end/0}.
+
+stream_lost_at_end() ->
+    Dir = "build/lost",
+    ok = filelib:ensure_path(Dir),
+    Programs = [{"out", "Io.println(\"written\")", ""},
+                {"err", "Io.printlnError(\"written\")", "2>&1 "},
+                {"exit", "{ Io.println(\"written\"); Os.exit(3) }", ""}],
+    [begin
+         ok = file:write_file(Dir ++ "/" ++ Name ++ ".ern",
+                              "export fn main() : Unit with m = " ++ Body ++ "\n"),
+         0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/" ++ Name ++ ".ern")
+     end || {Name, Body, _} <- Programs],
+    %% the reader has gone before the program writes
+    Statuses = [begin
+                    {0, <<>>} = sh("sh -c '{ sleep 1; timeout -s KILL 20 ../bin/ern run " ++ Dir
+                                   ++ "/" ++ Name ++ ".erc " ++ Redirect ++ "; echo $? > " ++ Dir
+                                   ++ "/status; } | true'"),
+                    {ok, Status} = file:read_file(Dir ++ "/status"),
+                    ok = file:delete(Dir ++ "/status"),
+                    {Name, Status}
+                end || {Name, _, Redirect} <- Programs, _ <- [1, 2, 3]],
+    ?assertEqual([{Name, <<"141\n">>} || {Name, _, _} <- Programs, _ <- [1, 2, 3]], Statuses).
+
 %% report §8.2: a program writing faster than its reader reads is held to
 %% the reader's pace, so what it has written and the reader has not taken
 %% is not held in the node. A regression test, written after the code: two

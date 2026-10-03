@@ -913,6 +913,51 @@ nap(Ms) ->
 alarm(Clock, Ms, Address) ->
     'Unit' = ern_rt:call_forever(Clock, fun(Reply) -> {'Alarm', Ms, Address, Reply} end).
 
+%% report Appendix E.15: an alarm at a time fires when the clock reaches
+%% the time, though the clock is set before it fires: a clock set past the
+%% time fires it once the host reports the change, and a clock set back
+%% delays it; an alarm after milliseconds is not moved. The test's clock
+%% stands in for the host's, and the test delivers the host's notice of a
+%% change. A regression test, written after the code: an alarm at a time
+%% fixed its deadline when it was set. It does not cover the host's own
+%% notice, which only a clock set under the host gives.
+alarm_at_follows_the_clock_test_() ->
+    {timeout, 30, fun alarm_at_follows_the_clock/0}.
+
+alarm_at_follows_the_clock() ->
+    Self = self(),
+    Ahead = atomics:new(1, []),
+    Time = fun() -> erlang:system_time(millisecond) + atomics:get(Ahead, 1) end,
+    ok = ern_rt:run_main(
+           fun() ->
+               Clock = ern_rt:system_process(clock),
+               Me = ern_rt:self(),
+               Set = fun(Ms) ->
+                         atomics:put(Ahead, 1, Ms),
+                         Clock ! {'CHANGE', make_ref(), time_offset, clock_service, 0}
+                     end,
+               AlarmAt = fun(At, Tag) ->
+                             Address = {via, fun(Fired) -> {Tag, Fired} end, Me},
+                             'Unit' = ern_rt:call_forever(
+                                        Clock, fun(Reply) -> {'AlarmAt', At, Address, Reply} end)
+                         end,
+               Start = Time(),
+               AlarmAt(Start + 60000, minute),
+               alarm(Clock, 2000, {via, fun(Fired) -> {after_ms, Fired} end, Me}),
+               Before = receive {minute, _} -> fired after 100 -> waiting end,
+               Set(61000),
+               Minute = receive {minute, Fired} -> Fired - Start after 1000 -> late end,
+               Unmoved = receive {after_ms, _} -> fired after 0 -> waiting end,
+               AlarmAt(Time() + 200, soon),
+               Set(51000),
+               SetBack = receive {soon, _} -> fired after 600 -> waiting end,
+               Set(61000),
+               SetAgain = receive {soon, _} -> fired after 1000 -> late end,
+               AfterMs = receive {after_ms, _} -> fired after 4000 -> late end,
+               Self ! {ended, {Before, Minute >= 60000, Unmoved, SetBack, SetAgain, AfterMs}}
+           end, <<"main">>, #{time => Time, stdout => fun(_) -> ok end}),
+    ?assertEqual({waiting, true, waiting, waiting, fired, fired}, wait(ended)).
+
 %%
 %% Report §6.6: ask
 %%

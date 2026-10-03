@@ -58,6 +58,9 @@ export ERN_GIVEN
 
 unset ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS ERL_LIBS
 
+# Report §8.6: ern takes the host's signals as the first thing the host
+# runs, before the entry's module is loaded, since until then the host's
+# own handler ends a program with status 0.
 exec erl +B -boot no_dot_erlang -noshell -noinput \
     -pa "$tree"/erl/*/ebin "$tree/build/stdlib" "$tree/build/shell" \
-    -run ern_cli start -extra "$@"
+    -run ern_signals install -run ern_cli start -extra "$@"
