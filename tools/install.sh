@@ -64,7 +64,7 @@ stage() {
     for f in build/stdlib/*.3ern build/libs/*/*.3ern; do
         shared "$f" "share/man/man3/$(basename "$f")"
     done
-    for f in LICENSE THIRD_PARTY_LICENSES; do
+    for f in LICENSE THIRD_PARTY_LICENSES assets/ernest-light.svg assets/ernest-dark.svg; do
         shared "$f" "share/doc/ernest/$f"
     done
     # a link into the report stays one to the installed copy, and any other
@@ -76,7 +76,11 @@ stage() {
         edited "$f" "share/doc/ernest/$f" "$kept; $linked; $restored"
     done
     edited tools/release/README.md share/doc/ernest/README.md "s/@VERSION@/$(cat VERSION)/g"
-    echo share/doc/ernest/ >> "$tree/installed"
+    # the directories of the installation's own, each before the one that
+    # holds it, as uninstall removes them in this order where they are empty
+    for d in share/doc/ernest/report/ share/doc/ernest/assets/ share/doc/ernest/; do
+        echo "$d" >> "$tree/installed"
+    done
     shared emacs/ernest-mode.el share/emacs/site-lisp/ernest-mode.el
     chmod -R u=rwX,go=rX "$stage"
 }
@@ -151,7 +155,8 @@ uninstall() {
 
 # The release archive: a staged tree without the helper, whose C source
 # it carries instead with the Makefile of tools/release, the README it
-# installs, and this script, packed as ern-VERSION.
+# installs with the logo that README shows, and this script, packed as
+# ern-VERSION.
 release() {
     dir=$1
     version=$2
@@ -162,6 +167,7 @@ release() {
     cd "$repo"
     cp erl/runtime/c_src/ern_exec.c tools/install.sh "$dir/$name/"
     cp "$dir/$name/share/doc/ernest/README.md" "$dir/$name/README.md"
+    cp -R "$dir/$name/share/doc/ernest/assets" "$dir/$name/assets"
     sed "s/@VERSION@/$version/g" tools/release/Makefile > "$dir/$name/Makefile"
     chmod -R u=rwX,go=rX "$dir/$name"
     rm -f "$dir/$name.tar.gz"

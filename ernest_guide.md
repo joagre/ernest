@@ -1,3 +1,11 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="assets/ernest-dark.svg">
+  <source media="(prefers-color-scheme: light)"
+          srcset="assets/ernest-light.svg">
+  <img src="assets/ernest-light.svg" alt="Ernest">
+</picture>
+
 # Programming in Ernest
 
 This guide teaches Ernest to a programmer who knows another language, and needs nothing read before it. Each complete program in it compiles as shown, and prints what is shown after it. The language is defined by the report, in three files under [`report/`](report/language.md), to which the guide points where a question turns on a detail.

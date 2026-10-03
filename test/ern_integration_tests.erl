@@ -388,7 +388,9 @@ installation_test_() ->
 %% repository on main. A regression test, written after the README was
 %% found installed with its image and seven of its links naming nothing,
 %% and the guide with fourteen; it does not follow a link into the
-%% repository.
+%% repository. That the directories of the installation's own go with it
+%% is a regression test too, written on 2026-10-04 after the report's
+%% directory was found left behind, and the documents' with it.
 install() ->
     Base = filename:absname("build/install"),
     ok = del(Base),
@@ -397,7 +399,8 @@ install() ->
     ?assertEqual({ok, "../lib/ernest/bin/ern"}, file:read_link(Base ++ "/a/bin/ern")),
     ?assertEqual([], debug_information(Base ++ "/a")),
     Documents = Base ++ "/a/share/doc/ernest/",
-    ?assertMatch({ok, <<"# Ernest 0.2.0\n", _/binary>>}, file:read_file(Documents ++ "README.md")),
+    {ok, Installed} = file:read_file(Documents ++ "README.md"),
+    ?assertMatch({_, _}, binary:match(Installed, <<"</picture>\n\n# Ernest 0.2.0\n">>)),
     ?assertEqual([], dead_links(Documents)),
     ?assert(links_to(Documents ++ "ernest_guide.md", "/blob/main/examples/repl.ern")),
     ok = file:rename(Base ++ "/a", Base ++ "/b"),
@@ -425,6 +428,8 @@ install() ->
     {0, _} = sh("make -s -C .. uninstall PREFIX=" ++ Base ++ "/b"),
     ?assertEqual([Base ++ "/b/share/man/man3/Mine.3"],
                  [File || File <- filelib:wildcard(Base ++ "/b/**/*"), not filelib:is_dir(File)]),
+    %% the directories of the installation's own go with it
+    ?assertNot(filelib:is_dir(Base ++ "/b/share/doc/ernest")),
     ?assertMatch({2, _}, sh("make -s -C .. uninstall PREFIX=" ++ Base ++ "/b")),
     Stage = Base ++ "/stage",
     {0, _} = sh("make -s -C .. install DESTDIR=" ++ Stage ++ " PREFIX=/opt/ernest"),
@@ -451,7 +456,8 @@ install() ->
 %% uninstall removes it. Written with the code. The README it carries is
 %% the one it installs, and the installed guide's link to an example leads
 %% into the repository at the release's tag: a regression test, as
-%% install/0's is.
+%% install/0's is. The logo the README shows stands beside it in the
+%% archive, as under the prefix.
 release() ->
     Base = filename:absname("build/release"),
     ok = del(Base),
@@ -475,6 +481,8 @@ release() ->
     {ok, Readme} = file:read_file(Unpacked ++ "/README.md"),
     ?assertEqual({ok, Readme}, file:read_file(Documents ++ "README.md")),
     ?assertEqual([], dead_links(Documents)),
+    %% the README beside the archive shows the logo it carries there
+    ?assertEqual([], dead_links(Unpacked ++ "/")),
     Tag = "v" ++ string:trim(binary_to_list(Version)),
     ?assert(links_to(Documents ++ "ernest_guide.md", "/blob/" ++ Tag ++ "/examples/repl.ern")),
     Ern = Base ++ "/p/bin/ern",

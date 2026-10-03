@@ -1,3 +1,11 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="assets/ernest-dark.svg">
+  <source media="(prefers-color-scheme: light)"
+          srcset="assets/ernest-light.svg">
+  <img src="assets/ernest-light.svg" alt="Ernest">
+</picture>
+
 # Ernest @VERSION@
 
 Ernest is a small functional language for concurrent programs, on the Erlang runtime. This is the README of a release: the archive `ern-@VERSION@.tar.gz` holds it, and an installation holds it as `share/doc/ernest/README.md`.

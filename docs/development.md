@@ -36,7 +36,8 @@ report/            the report (normative), in three files: language.md, §0 to �
                    Appendices A, B and F; toolchain.md, §11 and Appendix C; library.md,
                    Appendices D, E and G
 ernest_guide.md    the guide
-assets/            the logo the README shows, the stoat mark alone as a vector and as a
+assets/            the logo the README, the guide and a release show, light and dark, the
+                   stoat mark alone as a vector and as a
                    512-pixel avatar, and the social preview GitHub's settings take,
                    with a note on each
 docs/              the documents listed above, and this one

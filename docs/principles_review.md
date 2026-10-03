@@ -20,6 +20,10 @@ Four readers in five sessions.
 - **W, where the guide works hard.** Reads `ernest_guide.md` and the report. "Read the guide as one who knows the report. Report every place the guide explains why a rule is as it is, warns, or says 'note that', with the rule that made the sentence necessary; every place it teaches a way around a rule; every job it must teach two ways; and every example whose shape a reader of the report would not have predicted. Apart, list every rule of the report the guide never teaches and never uses."
 - **L, the log.** Reads `docs/decisions.md` and the report. "Read the log's entries as a set. Group them into families, a family being the decisions one sentence would decide: what the host's semantics decide, what is refused when a program is compiled and what faults when it runs, what is a member and what a module function, what waits and what answers at once, and what the standard library admits, among the families you find. For each family, list its entries and the principle each cites, and say whether the principle as written implies the verdict or would have implied the opposite as well; where it would, the family lacks a deciding sentence, and you propose it. Apart, report every entry decided on cost, on time or for now, with whether its reason still holds; and every two entries that decided alike cases differently." It hands in the families, the one with the most undecided entries first.
 
+## The models
+
+Every reader runs on the most advanced model there is, of the two [`full_review.md`](full_review.md)'s *The models* names: each brief judges a rule, against §0, against another rule, against what the guide must say for it, or against the decisions that cite it, and none holds text to a rule already stated. The decisions with the user and the sentences they add to §0, E.0 or a section take the most advanced as well; the edits that carry a decision through the report, the guide and the code take the one below.
+
 ## The findings
 
 - They go to `findings.md` under a heading of their own, by family, each line naming its reader's letter and number, the readers' lists below, as the full review's.

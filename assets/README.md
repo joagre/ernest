@@ -1,16 +1,28 @@
-# Ernest GitHub assets
+# Ernest logo assets
 
-Place `assets/` in the repository root.
-
-- `ernest.svg` — full horizontal logo.
-- `ernest-mark.svg` — canonical standalone vector stoat.
-- `ernest-mark-512.png` — 512×512 avatar/icon.
-- `ernest-social-preview.png` — 1280×640 social preview, with no slogan.
-
-README example:
+The Ernest README logo is supplied in separate light- and dark-theme variants.
+You do **not** need to know which background a visitor uses: the browser can
+select the appropriate asset with `prefers-color-scheme`.
 
 ```html
-<p align="center">
-  <img src="assets/ernest.svg" alt="Ernest" width="500">
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="assets/ernest-dark.svg">
+  <source media="(prefers-color-scheme: light)"
+          srcset="assets/ernest-light.svg">
+  <img src="assets/ernest-light.svg" alt="Ernest">
+</picture>
 ```
+
+## Files
+
+- `assets/ernest-light.svg` — full logo for light backgrounds; dark wordmark.
+- `assets/ernest-dark.svg` — full logo for dark backgrounds; cream wordmark and
+  lifted charcoal details so the stoat's tail tip, feet and face remain visible.
+- `assets/ernest-mark.svg` — standalone stoat mark with a middle charcoal chosen
+  to remain usable on both light and dark backgrounds.
+- `assets/ernest-mark-512.png` — 512 px raster mark for services that require PNG.
+- `assets/ernest-social-preview.png` — 1280 × 640 GitHub social preview, no slogan.
+
+The two full SVG logos use the same stoat geometry and layout. Only colors needed
+for contrast change between themes.

@@ -1,6 +1,10 @@
-<p align="center">
-  <img src="assets/ernest.svg" alt="Ernest" width="500">
-</p>
+<picture>
+  <source media="(prefers-color-scheme: dark)"
+          srcset="assets/ernest-dark.svg">
+  <source media="(prefers-color-scheme: light)"
+          srcset="assets/ernest-light.svg">
+  <img src="assets/ernest-light.svg" alt="Ernest">
+</picture>
 
 # Ernest
 

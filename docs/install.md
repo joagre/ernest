@@ -20,7 +20,8 @@ lib/ernest/                      the toolchain's tree, as the repository lays it
 share/man/man1/ern.1             §11 of the report
 share/man/man3/Ernest.*.3ern     the prelude's page, each module's and each library's (report §11.4)
 share/doc/ernest/                the report's three files under report/, the guide, the release's
-                                 README.md, LICENSE, THIRD_PARTY_LICENSES
+                                 README.md, the logo they show under assets/, LICENSE,
+                                 THIRD_PARTY_LICENSES
 share/emacs/site-lisp/ernest-mode.el
 ```
 
@@ -50,6 +51,6 @@ It needs `sh`, `readlink` and `iconv`, and checks no version of the host.
 
 ## Removing it
 
-The tree's `installed` lists every file put outside it, one a line, relative to the prefix, and each directory of the installation's own with a slash after it, `share/doc/ernest/`. `make uninstall` removes the files, then those directories where they are empty, then the tree; a file of the user's in `share/man/man3` stays, and so does every directory the prefix shares. `make install` first removes an installation already in the prefix the same way.
+The tree's `installed` lists every file put outside it, one a line, relative to the prefix, and each directory of the installation's own with a slash after it, `share/doc/ernest/` and the two beneath it, each listed before the one that holds it. `make uninstall` removes the files, then those directories, in that order, where they are empty, then the tree; a file of the user's in `share/man/man3` stays, and so does every directory the prefix shares. `make install` first removes an installation already in the prefix the same way.
 
 Neither target changes anything where it cannot write. Each first checks every directory it must write, or, for one not there yet, the nearest one above it that is, and stops with that directory's name and the two ways out: to run as a user who can write there, or to give another `PREFIX`. `make install` refuses a `lib/ernest` or a `bin/ern` that is not an installation of Ernest, and `make uninstall` a prefix that holds none.
