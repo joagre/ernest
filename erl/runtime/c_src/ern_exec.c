@@ -31,11 +31,14 @@
  *   output and its standard error have ended. A status is the program's
  *   exit code, or 128 and the signal's number for a program a signal ended.
  *
- * With no argument, the helper writes its environment, which it inherited
- * as exec passes it, byte for byte: a 'v' frame for each variable, NAME=VALUE,
- * and an 'x' frame. Report Appendix E.23: the runtime reads the program's
- * environment so, since the host decodes a value that is not UTF-8 without
- * a sign.
+ * With no argument, the helper writes what the host says of the program as
+ * it starts: a 'u' frame, the user it runs as in four bytes, big-endian,
+ * which the host has no word for; then its environment, which it inherited
+ * as exec passes it, byte for byte, a 'v' frame for each variable,
+ * NAME=VALUE; and an 'x' frame. Report Appendix E.23: the runtime reads the
+ * program's environment so, since the host decodes a value that is not
+ * UTF-8 without a sign, and its user in the same run, so that no program
+ * starts the helper twice for them.
  *
  * In every mode the helper first makes its environment the one `ern` was
  * started in (report Appendix E.23, §11): the launcher clears the host's
@@ -43,11 +46,6 @@
  * PATH, and bin/ern keeps each as it was given under ERN_GIVEN_ and its
  * name, saying so with ERN_GIVEN. A program the helper runs, and the
  * environment it writes, are then the user's and not the host's.
- *
- * Run with the argument `user`, the helper writes a 'u' frame, the user it
- * runs as in four bytes, big-endian, which the host has no word for. Report
- * §11.2: the shell runs a startup file that is this user's or the
- * superuser's.
  *
  * Run with the argument `remove`, the helper removes the path the runtime's
  * first frame names, 'p' and the path's bytes, a directory with everything
@@ -497,18 +495,15 @@ int main(int argc, char **argv)
     signal(SIGPIPE, SIG_IGN);
     if (argc < 2) {
         char **variable;
-        for (variable = environ; *variable != NULL; variable++)
-            frame('v', (const unsigned char *)*variable, strlen(*variable));
-        frame('x', (const unsigned char *)"\0\0\0\0", 4);
-        return 0;
-    }
-    if (strcmp(argv[1], "user") == 0) {
         uint32_t user = (uint32_t)geteuid();
         unsigned char bytes[4] = {
             (unsigned char)(user >> 24), (unsigned char)(user >> 16),
             (unsigned char)(user >> 8), (unsigned char)user
         };
         frame('u', bytes, sizeof bytes);
+        for (variable = environ; *variable != NULL; variable++)
+            frame('v', (const unsigned char *)*variable, strlen(*variable));
+        frame('x', (const unsigned char *)"\0\0\0\0", 4);
         return 0;
     }
     if (strcmp(argv[1], "remove") == 0)

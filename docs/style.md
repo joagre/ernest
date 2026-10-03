@@ -143,6 +143,7 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **old, new**: what `replace` takes, in every module. Not `from`, `to`.
 - **cause**: as above. Not `why`, `c`, `text`.
 - **error**: an error a function answers, an `Io.Error` among them. Not `e`, `why`.
+- **user**: the host's number for a user, the one a file belongs to, an `Fs.Entry`'s `user`, and the one the program runs as, `Os.user` (E.17, E.23). Not `owner`, which is a resource's process, nor `uid`.
 - **char**: a `Char`. Not `c`, `ch`.
 - **cursor**: the place in the line being typed, in the shell's editor, region and completion. Not `at`.
 - **serial**: the number the shell gives an input, which its outcome carries, `Serial` in the Erlang. Not `run`, `n`.

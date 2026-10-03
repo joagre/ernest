@@ -572,6 +572,38 @@ collect(Tag, Acc) ->
     after 0 -> lists:reverse(Acc)
     end.
 
+%% report Appendix E.17, E.23: an entry holds its file's permission bits,
+%% as Fs.setMode takes them and without the host's type bits, and the
+%% host's number for the user it belongs to, which is Os.user for a file
+%% the program made; Fs.stat follows a link, and Fs.list describes it as
+%% it is. A regression test, written after the code; it does not cover a
+%% file of another user, which a test cannot make
+entry_mode_and_user_test() ->
+    Self = self(),
+    Dir = scratch("ern_owned_"),
+    ok = filelib:ensure_path(Dir),
+    InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+    Fs = 'ern@fs',
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', 'Unit'} = Fs:write(InDir("private.txt"), <<"secret">>, 5000),
+               {'Right', 'Unit'} = Fs:setMode(InDir("private.txt"), 8#640, 5000),
+               {'Right', 'Unit'} = Fs:makeLink(InDir("link"), InDir("private.txt"), 5000),
+               Self ! {owned, {Fs:stat(InDir("private.txt"), 5000), Fs:stat(InDir("link"), 5000),
+                               Fs:list({'Path', unicode:characters_to_binary(Dir)}, 5000),
+                               'ern@os':user()}}
+           end, <<"entry_mode_and_user_test">>, #{}),
+    {Stat, ThroughLink, {'Right', Listed}, User} = receive {owned, Owned} -> Owned end,
+    {ok, #file_info{uid = Uid}} = file:read_file_info(filename:join(Dir, "private.txt")),
+    ?assertEqual(Uid, User),
+    ?assertMatch({'Right', {'Entry', _, _, 6, 'File', 8#640, User}}, Stat),
+    ?assertMatch({'Right', {'Entry', _, _, 6, 'File', 8#640, User}}, ThroughLink),
+    [{'Entry', _, _, _, 'Link', LinkMode, User}] =
+        [Entry || {'Entry', {'Path', Path}, _, _, _, _, _} = Entry <- Listed,
+                  filename:basename(Path) =:= <<"link">>],
+    ?assert(LinkMode =< 8#7777),
+    file:del_dir_r(Dir).
+
 %% report Appendix E.17, §8.2: the file system through Fs's reference, each answer
 %% Right or Left(Io.Error), and Left(Timeout) when the wait runs out
 fs_test() ->
@@ -601,14 +633,14 @@ fs_test() ->
     ?assertEqual({'Right', <<"hello">>}, Read),
     ?assertEqual({'Right', 'Unit'}, Append),
     ?assertEqual({'Right', <<"hello!">>}, ReadAppended),
-    ?assertMatch({'Right', {'Entry', _, _, 6, 'File'}}, Stat),
+    ?assertMatch({'Right', {'Entry', _, _, 6, 'File', _, _}}, Stat),
     ?assertEqual({'Right', 'Unit'}, Rename),
     ?assertEqual({'Right', 'Unit'}, Copy),
     ?assertEqual({'Right', 'Unit'}, MakeDir),
     {'Right', Entries} = List,
     ?assertEqual([<<"b.txt">>, <<"c.txt">>, <<"d">>],
                  lists:sort([filename:basename(Path)
-                             || {'Entry', {'Path', Path}, _, _, _} <- Entries])),
+                             || {'Entry', {'Path', Path}, _, _, _, _, _} <- Entries])),
     ?assertEqual({'Right', 'Unit'}, Remove),
     ?assertEqual({'Left', 'NotFound'}, Gone),
     file:del_dir_r(Dir).
@@ -684,7 +716,7 @@ fs_list_dangling_link_test() ->
                        end, <<"fs_list_dangling_link_test">>, #{})),
     [{'Right', Entries}] = collect(fs, []),
     Described = lists:sort([{filename:basename(Name), Kind, Size}
-                            || {'Entry', {'Path', Name}, _, Size, Kind} <- Entries]),
+                            || {'Entry', {'Path', Name}, _, Size, Kind, _, _} <- Entries]),
     %% a link is the link itself, whose size is its target's name
     ?assertEqual([{<<"plain">>, 'File', 4}, {<<"to_nothing">>, 'Link', 7},
                   {<<"to_plain">>, 'Link', 5}], Described),
@@ -716,17 +748,17 @@ fs_links_test() ->
     [Made, Read, Stat, Listed, Again, NotLink, Removed, After] = collect(fs, []),
     ?assertEqual({'Right', 'Unit'}, Made),
     ?assertEqual({'Right', {'Some', {'Path', <<"shelf">>}}}, Read),
-    ?assertMatch({'Right', {'Entry', _, _, _, 'Directory'}}, Stat),
+    ?assertMatch({'Right', {'Entry', _, _, _, 'Directory', _, _}}, Stat),
     {'Right', Entries} = Listed,
     ?assertEqual([{<<"shelf">>, 'Directory'}, {<<"to_shelf">>, 'Link'}],
                  lists:sort([{filename:basename(Path), Kind}
-                             || {'Entry', {'Path', Path}, _, _, Kind} <- Entries])),
+                             || {'Entry', {'Path', Path}, _, _, Kind, _, _} <- Entries])),
     ?assertEqual({'Left', 'Exists'}, Again),
     ?assertEqual({'Right', 'None'}, NotLink),
     ?assertEqual({'Right', 'Unit'}, Removed),
     {'Right', Kept} = After,
     ?assertEqual([<<"shelf">>],
-                 [filename:basename(Path) || {'Entry', {'Path', Path}, _, _, _} <- Kept]),
+                 [filename:basename(Path) || {'Entry', {'Path', Path}, _, _, _, _, _} <- Kept]),
     file:del_dir_r(Dir).
 
 %% report Appendix E.17: a hard link is a second name for a regular file,
@@ -754,7 +786,7 @@ fs_hard_links_test() ->
                        end, <<"fs_hard_links_test">>, #{})),
     [Made, Stat, Again, OfDir, OfLink, OfNone, Removed, Read] = collect(fs, []),
     ?assertEqual({'Right', 'Unit'}, Made),
-    ?assertMatch({'Right', {'Entry', _, _, 1, 'File'}}, Stat),
+    ?assertMatch({'Right', {'Entry', _, _, 1, 'File', _, _}}, Stat),
     ?assertEqual({'Left', 'Exists'}, Again),
     ?assertEqual({'Left', 'NotAFile'}, OfDir),
     ?assertEqual({'Left', 'NotAFile'}, OfLink),
@@ -824,7 +856,7 @@ fs_create_remove_all_modified_test() ->
     ?assertNot(filelib:is_file(filename:join(Dir, "tree"))),
     ?assertEqual({ok, <<"keep">>}, file:read_file(filename:join([Dir, "kept", "precious.txt"]))),
     ?assertEqual({'Right', 'Unit'}, Set),
-    ?assertMatch({'Right', {'Entry', _, 86400000, 1, 'File'}}, Stat),
+    ?assertMatch({'Right', {'Entry', _, 86400000, 1, 'File', _, _}}, Stat),
     file:del_dir_r(Dir).
 
 %% report Appendix E.17: `removeAll` removes a link where it stands, at the

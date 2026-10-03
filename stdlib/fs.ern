@@ -46,15 +46,26 @@ export type Kind = File | Directory | Link | Other
 
 /// What `Fs.stat` and `Fs.list` tell of a file: its path, its modification
 /// time in milliseconds since the epoch, as `Clock.now`, read to the second
-/// and so a multiple of 1000, its size in bytes, and its kind (report
-/// Appendix E.17).
+/// and so a multiple of 1000, its size in bytes, its kind, its permission
+/// bits, as `Fs.setMode` takes them, and the host's number for the user it
+/// belongs to, as `Os.user` is the program's (report Appendix E.17).
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// Fs.Entry(path = Path("a.txt"), mtime = 0, size = 5, kind = Fs.File)
+/// Fs.Entry(path = Path("a.txt"), mtime = 0, size = 5, kind = Fs.File, mode = 0o644, user = 0)
 /// ```
-export type Entry = Entry(path : Path, mtime : Int, size : Int, kind : Kind)
+///
+/// ```ernest
+/// {
+///     let _ = Fs.write(Path("private.txt"), <<>>, 5000);
+///     let _ = Fs.setMode(Path("private.txt"), 0o600, 5000);
+///     Either.map(Fs.stat(Path("private.txt"), 5000),
+///                fn(entry) = #(entry.mode == 0o600, entry.user == Os.user))
+/// }
+/// // => Right(#(true, true))
+/// ```
+export type Entry = Entry(path : Path, mtime : Int, size : Int, kind : Kind, mode : Int, user : Int)
 
 // What the file system takes.
 type Msg =

@@ -34,9 +34,9 @@ that decided it; item 21, the report's and the guide's blocks read by `style.md`
 22, the AST's namespace named so, the same day. Items 8, 9, 10, 13, 14 and 19 were built on
 2026-10-03 too, and item 8's two decisions were taken with the user the same day; item 14, the operators
 as shims, was built and reverted. `Address.ask`, built in item 20, was taken
-out again. Three items remain: 23, *Whose a file is*, which the first of the decisions
-added; 24, the report in three files, moved from MVP 2.99c; and 27, a load that lingers,
-found that day. Item 10's launchd checks
+out again. Item 23, *Whose a file is*, which the first of the decisions added, was built the same
+day. Two items remain: 24, the report in three files, moved from MVP 2.99c, and 27, a
+load that lingers, found that day. Item 10's launchd checks
 wait for a Mac. The next release, Ernest 0.3.0, is MVP 2.99c's last item. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
@@ -61,7 +61,7 @@ order. Each has its paragraph under "Done".
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
-| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | built but items 23, 24 and 27: a file's user, the report in three files, and a load that lingers |
+| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | built but items 24 and 27: the report in three files, and a load that lingers |
 | The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01 |
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | moved from MVP 3.9 on 2026-10-01 |
@@ -229,7 +229,7 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
    (`language_feedback.md`'s entry 90), decided with the user 2026-10-03: `Fs.stat`'s `Entry`
    gains a file's mode and its user, and `Os` the user the program runs as, so that the
    shell's check of a startup file is Ernest over `Fs` and its `foreign fn` goes; item 23
-   builds it, and until then the shell asks the host. `findings.md` goes when this item and items 7, 15, 19 and 20 are done, with MVP 2.99b.
+   built it the same day. `findings.md` goes when this item and items 7, 15, 19 and 20 are done, with MVP 2.99b.
    With it, built the same day: what the shell's front end and `ern test` replaced as
    persistent terms at each input and each test (C3-39) is rows of a table, since each
    replacement had the host scan every process, 2 milliseconds of CPU at a hundred processes
@@ -425,17 +425,14 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
 
 ---
 
-23. **Whose a file is** (`language_feedback.md`'s entry 90, decided with the user
-    2026-10-03 in item 8; the log's *The Hardening Built*): `Entry`, which `Fs.stat` and
-    `Fs.list` answer, gains `mode : Int`, the permission bits as `Fs.setMode` takes them, and
-    `user : Int`, the host's number for the user the file belongs to; and `Os` gains `user :
-    Int`, the user the program runs as, a value as `Os.arguments` is (E.17, E.23; primitives
-    by E.0 rule 1). The shell's check of a startup file (§11.2) is then Ernest: the file as
-    `Fs.stat` gives it, its links followed, and the directory that holds its path, each the
-    user's own or the superuser's and writable by no one beyond owner and group;
-    `startupFiles` answers the paths alone again. The field is `user`, since the glossary
-    keeps `owner` for the process a resource belongs to. About half a day, a build whose
-    shape is decided.
+23. **Whose a file is**, done 2026-10-03 (`language_feedback.md`'s entry 90, decided with
+    the user in item 8; the log's *The Hardening Built*): `Entry`, which `Fs.stat` and
+    `Fs.list` answer, holds `mode`, the permission bits as `Fs.setMode` takes them, and
+    `user`, the host's number for the user the file belongs to; `Os.user` is the user the
+    program runs as, read with the environment in the one run of the helper every program
+    starts with (E.17, E.23). The shell's check of a startup file (§11.2) is Ernest over
+    `Fs.stat` and `Os.user`, and the front end answers the paths alone; the helper's
+    `user` mode, which item 8 added for the check, is gone.
 24. **The report in three files** (moved here from MVP 2.99c's item 5 on 2026-10-03, so
     that MVP 2.99c's argument and the release's readers read the report as it will stand;
     tentative, all of it:

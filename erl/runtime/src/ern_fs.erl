@@ -229,13 +229,15 @@ entries(Dir, Names) ->
                         end
                 end, {ok, []}, lists:reverse(Names)).
 
-%% Report Appendix E.17: Fs.Entry(path, mtime, size, kind), mtime in
-%% milliseconds; stat describes what the path leads to.
+%% Report Appendix E.17: Fs.Entry(path, mtime, size, kind, mode, user),
+%% mtime in milliseconds and mode the permission bits alone, as setMode
+%% takes them, where the host's mode holds the file's type too; stat
+%% describes what the path leads to.
 entry(Name) ->
     entry(Name, file:read_file_info(Name, [raw, {time, posix}])).
 
-entry(Name, {ok, #file_info{type = Type, mtime = Mtime, size = Size}}) ->
-    {ok, {'Entry', {'Path', Name}, Mtime * 1000, Size, kind(Type)}};
+entry(Name, {ok, #file_info{type = Type, mtime = Mtime, size = Size, mode = Mode, uid = User}}) ->
+    {ok, {'Entry', {'Path', Name}, Mtime * 1000, Size, kind(Type), Mode band 8#7777, User}};
 entry(_, Error) ->
     Error.
 

@@ -236,14 +236,27 @@ fn startup(state : State, screen : Address(ScreenMsg)) : Next with ShellMsg =
     fromFiles(state, screen, List.flatMap(startupFiles(), fn(found) = ownInputs(screen, found)))
 
 // Report §11.2: the inputs of a startup file that is the user's own to
-// run; one another user could change is said and not run.
-fn ownInputs(screen : Address(ScreenMsg),
-             #(file, isOwn) : #(String, Bool)) : List(#(String, Int, String)) with m =
-    if isOwn then
+// run; one another user could change is said and not run. A path without a
+// directory is a file of the working directory.
+fn ownInputs(screen : Address(ScreenMsg), file : String) : List(#(String, Int, String)) with m = {
+    let path = Path(file);
+    if isKept(path) && isKept(Optional.withDefault(Path.parent(path), Path("."))) then
         fileInputs(screen, file)
     else {
         say(screen, file <> " could be changed by another user, and is not run");
         []
+    }
+}
+
+// Report §11.2: a startup file, and the directory that holds it, are the
+// user's own or the superuser's, whose number is 0, and writable by no one
+// beyond its owner and group. One that is not there has nothing to run,
+// and one that cannot be read is said where it is read.
+fn isKept(path : Path) : Bool with m =
+    match Fs.stat(path, fileMs) {
+        Right(entry) ->
+            (entry.user == Os.user || entry.user == 0) && Int.bitAnd(entry.mode, 0o002) == 0
+      | Left(_) -> true
     }
 
 // A file that is not there is no error; one that cannot be read is said
@@ -1207,9 +1220,9 @@ foreign fn check(session : Session,
     "ern_shell:check/3"
 
 // The host's alone: where the startup files are, the person's first and
-// then the node's, and whether each is the user's own to run. Whether they
-// are there, and what they hold, is read here (report §11.2).
-foreign fn startupFiles() : List(#(String, Bool)) with m =
+// then the node's. Whether they are there, whose they are, and what they
+// hold, is read here (report §11.2).
+foreign fn startupFiles() : List(String) with m =
     "ern_shell:startup_files/0"
 
 foreign fn typeText(checked : Checked) : String =

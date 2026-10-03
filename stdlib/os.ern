@@ -127,12 +127,29 @@ export fn environment(name : String) : Optional(String) =
         }
     }
 
-// Report Appendix E.23: the environment as the host gave it when the program
-// started, each value its bytes, decoded when it is asked for.
-let variables : Map(String, Bytes) = hostEnvironment()
+// Report Appendix E.23: what the host says of the program as it starts,
+// the user it runs as and its environment, read in one run of the
+// runtime's helper; each value of the environment is its bytes, decoded
+// when it is asked for.
+type Host = Host(user : Int, environment : Map(String, Bytes))
 
-foreign fn hostEnvironment() : Map(String, Bytes) with m =
-    "ern_os:environment/0"
+let host : Host = hostFacts()
+
+let variables : Map(String, Bytes) = host.environment
+
+foreign fn hostFacts() : Host with m =
+    "ern_os:host/0"
+
+/// The host's number for the user the program runs as, bound when the
+/// program starts. An entry of `Fs` names the user a file belongs to by
+/// the same number (report Appendix E.17).
+///
+/// ### Examples
+///
+/// ```ernest
+/// Either.map(Fs.stat(Os.workingDirectory, 5000), fn(entry) = entry.user == Os.user)
+/// ```
+export let user : Int = host.user
 
 /// The absolute path of the directory the program was started in, bound
 /// when the program starts. Nothing changes it. A relative path given to

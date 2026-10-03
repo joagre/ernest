@@ -127,36 +127,13 @@ program() ->
 
 %% Report §11.2, §8.1: where the startup files are, the person's first
 %% and then the node's, each named from the working directory as §11.5
-%% names a file, and whether it is the user's own to run. The shell reads
-%% them itself, in Ernest: only where they are, and whose, is the host's to
+%% names a file. The shell reads them itself, in Ernest, whether they are
+%% there and whose they are among it: only where they are is the host's to
 %% say.
--spec startup_files() -> [{binary(), boolean()}].
+-spec startup_files() -> [binary()].
 startup_files() ->
     #loaded{startups = Startups} = persistent_term:get({?MODULE, loaded}, #loaded{}),
-    There = [File || File <- Startups, filelib:is_file(File)],
-    User = case There of
-               [] -> none;
-               _ -> ern_os:user()
-           end,
-    [{unicode:characters_to_binary(ern_build:shown(File)), is_own(File, User)}
-     || File <- Startups].
-
-%% Report §11.2: a startup file another user could change is not run: the
-%% file and the directory that holds it are each the user's own or the
-%% superuser's, and writable by no one beyond its owner and group. A file
-%% that is not there has nothing to run.
-is_own(_File, none) ->
-    true;
-is_own(File, User) ->
-    is_kept(File, User) andalso is_kept(filename:dirname(File), User).
-
-is_kept(Path, User) ->
-    case file:read_file_info(Path) of
-        {ok, #file_info{uid = Owner, mode = Mode}} ->
-            (Owner =:= User orelse Owner =:= 0) andalso Mode band 8#002 =:= 0;
-        {error, _} ->
-            true
-    end.
+    [unicode:characters_to_binary(ern_build:shown(File)) || File <- Startups].
 
 %% Report §11.2: at a terminal the shell takes another line where the
 %% parser cannot finish the input. Both readings are tried, the expression
