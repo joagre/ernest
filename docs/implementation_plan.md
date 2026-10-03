@@ -13,16 +13,18 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
-**MVP 2.99c is next**: the core language argued sound and generated against, the grammar,
-well-typed programs and the standard library's laws as machines and the type system as a
-written argument, then what Erlang holds that Ernest can, and last the next release, Ernest
-0.3.0. MVP 2.99b, what the release review left, the code's names read and made to read,
-operations records, and running as a service, was done on 2026-10-03, and `findings.md` went
-with it; the principles review, a milestone of its own between its items 3 and 4, closed on
-2026-10-01, and Ernest 0.2.0, the second release, is tagged `v0.2.0` the same day. Ernest
-0.1.0, the first release, is tagged `v0.1.0` and was published on 2026-09-30 with MVP 2.99;
-MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its
-paragraph under "Done".
+**MVP 2.99c is under way**: the core language argued sound and generated against. Its machines,
+the grammar, the standard library's laws and well-typed programs, were built on 2026-10-03, and
+its argument, [`soundness.md`](soundness.md), was written on 2026-10-04 and found the reply
+discipline short in ten places, each closed that day. Next is its item 5, what Erlang holds
+that Ernest can, with a third round of the typed generator, on replies, before the full review
+of item 6 and the release, Ernest 0.3.0. MVP 2.99b, what the release review left, the code's
+names read and made to read, operations records, and running as a service, was done on
+2026-10-03, and `findings.md` went with it; the principles review, a milestone of its own
+between its items 3 and 4, closed on 2026-10-01, and Ernest 0.2.0, the second release, is
+tagged `v0.2.0` the same day. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was
+published on 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were
+taken out of order. Each has its paragraph under "Done".
 
 ---
 
@@ -101,31 +103,32 @@ programs as item 2, and the last three as items 7, 8 and 6.
    lists, lambdas, helper and local functions, structural recursion, and the operations of
    `Int` and `String` with a few of `List` and `Optional`; the shapes are a worker that
    sends its value back, a server that answers a call, a receive that times out, and a
-   deadlock. No program was refused, miscompiled or ended otherwise than predicted.
-4. **The type system argued.** A written argument that a well-typed program does not go wrong:
-   the core calculus, then effects and mailbox types, the reply discipline's linearity as §6.6
-   now states it, naming no type and a list element among the places a reply stands, and where
-   rules meet, generalization against effects, a pure function standing for one with a mailbox,
-   a reply captured by a lambda, an operator resolved where its operand's type is known and
-   carrying nothing hidden, and what MVP 2.99b added: a requirement and what supplies it
-   (§4.9), a derived `compare`, and the rule for a recursive group's types (§3.9). Bounded on
-   2026-10-03: a calculus stated in two pages, its invariants, then a paragraph for each
-   reduction rule and one for each place above where rules meet; no mechanization. Where it
-   cannot be made, that is a finding and a plan item, and the argument stops there; a model a
-   machine checks follows only if the argument meets a rule it cannot settle. Its owner is
-   `docs/soundness.md`, the argument that a well-typed program does not go wrong, which this
-   item writes and names in CLAUDE.md's owners in the same commit; the report keeps the rules
-   and the log the rationale by entry. Its first line names the three tests of items 1 to 3,
-   which check what it argues; the tests own the machines, as every test does, and no review
-   document holds the milestone's items (decided 2026-10-03). The argument is kept, not run:
-   in the same commit CLAUDE.md gains the rule that a change to a rule it covers rewrites its
-   paragraph for that rule, so it cannot go stale between full reviews; MVP 3.0 extends it.
-   The same commit gives [`release_review.md`](release_review.md) a row: when a rule the
-   argument covers changed since the last release, the report's reader reads the argument's
-   paragraphs for those rules beside the report's sections (decided 2026-10-03); and it gives
-   [`full_review.md`](full_review.md)'s cold reader, K, the argument among its files, to
-   report every step that does not follow from the rules it cites (decided 2026-10-04), so
-   that item 6's full review reads it.
+   deadlock. No program was refused, miscompiled or ended otherwise than predicted. A third
+   round, the reply discipline, is planned (decided 2026-10-04, the log's *The Type System
+   Argued*) and built before item 6: programs that hold replies and move them in each way
+   §6.6 allows, each run with every reply answered once, and each again with one consumption
+   doubled, dropped, hidden or put on a path that may be skipped, which the checker must
+   refuse. The argument found ten such programs by hand that the checker accepted.
+4. **The type system argued**, done 2026-10-04 (the log's *The Type System Argued*):
+   [`soundness.md`](soundness.md), the argument that a well-typed program does not go wrong,
+   in a small calculus, three invariants, a paragraph for each step and one for each place
+   where rules meet, with no mechanization. It claims four things, that no step is undefined,
+   that every message fits its mailbox, that every function runs where its type says, and
+   that every reply has one holder, and says what it assumes and what it leaves. Each place
+   was probed with programs before it was argued. Outside replies every probe held. In the
+   reply discipline ten programs were accepted that dropped or duplicated a reply, and each
+   is closed with its sentence of the report, its regression test and its entry in the
+   catalogue of diagnostics: a call to a function that returns its mailbox type was read as
+   not returning; the not-reply-carrying restriction did not reach a function a definition
+   returns or holds, a lambda a block's `let` binds, or a value passed inside another; a
+   reply was consumed after a `<-` and in the right operand of `&&` and `||`, which may be
+   skipped; a name that hides a reply counted for it; a field was selected from a
+   reply-carrying value and one was the base of a record update; and a reply was bound at
+   top level (§3.9, §6.6). The rule for a recursive group's types now names the declared
+   type's parameters each in its place (§3.9). CLAUDE.md names the document among the
+   owners and holds the rule that a change to a rule it covers rewrites its paragraph in
+   the same commit; [`release_review.md`](release_review.md) has its row, and
+   [`full_review.md`](full_review.md)'s cold reader reads it, so that item 6's review does.
 5. **What Erlang holds that Ernest can**, decided with the user 2026-10-03, after CLAUDE.md
    gained the rule that as much as can be is written in Ernest; before item 7, the
    release. Moved: `String.trimStart` and `String.trimEnd`, exported shims though trimming
@@ -174,6 +177,10 @@ A full review ([`full_review.md`](full_review.md)) runs before it, since others 
 it, and what the review finds is worked through before its work begins (2026-09-29, the
 log's *A Full Review Now and Then*).
 
+- **The soundness argument extended** ([`soundness.md`](soundness.md), its section 7),
+  written before peers are built on it (decided 2026-10-04): which two types are one, across
+  nodes by their hash (§8.7) and across a session's inputs (§11.2), and what crosses a node,
+  §3.8's and §3.11's transport.
 - **The distribution notes' rewrite, read with the user before any of it is built.** Brought to
   the report on 2026-09-28, the two notes also gained design no one has weighed: a `spawned`
   and a `kill` frame, `demonitor` kept to the runtime, the spawn site in the spawn frame, the

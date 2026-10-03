@@ -9,40 +9,69 @@
 %% {lambda, Name} for such a lambda bound by let.
 %%
 %% A path with a call that does not return, to a function whose result type
-%% is a variable no parameter's type names, `fault` among them, consumes
-%% every obligation open on it (§6.6): its uses carry the mark
-%% {'$fault', Span}, which no name is, so a branch that faults is left out
-%% of the comparison of branches, and a name a faulting path leaves
-%% unconsumed is not a name never consumed. The mark does not leave a
-%% lambda or a local function, whose bodies are not on the enclosing path.
+%% is a variable neither a parameter's type nor its mailbox type names,
+%% `fault` among them, consumes every obligation open on it (§6.6): its
+%% uses carry the mark {'$fault', Span}, which no name is, so a branch that
+%% faults is left out of the comparison of branches, and a name a faulting
+%% path leaves unconsumed is not a name never consumed. The mark does not
+%% leave a lambda or a local function, whose bodies are not on the
+%% enclosing path.
 %%
-%% Report §3.9: a type variable of a parameter's type gets the
-%% not_reply_carrying restriction when the body, read with that variable
-%% taken for reply-carrying, would break this discipline: a second use or
-%% none, through a `let` or a pattern as much as by the parameter's own
-%% name, a place a reply may not stand, or a user type that carries one
-%% dropped.
+%% A name is an obligation where it is bound, and a binding of the same
+%% name inside hides it: the uses of the inner name are not the outer's.
+%% The right operand of `&&` and `||`, and what follows a `<-` in its
+%% block, are paths that may be skipped, so neither consumes an obligation
+%% open before it.
+%%
+%% Report §3.9: a type variable of the definition's type, a parameter's,
+%% the result's or a value's own, gets the not_reply_carrying restriction
+%% when the definition, read with that variable taken for reply-carrying,
+%% would break this discipline: a second use or none, through a `let` or a
+%% pattern as much as by the parameter's own name, a place a reply may not
+%% stand, a user type that carries one dropped, or a value whose type
+%% would then carry one passed where a function has the restriction.
 -module(ern_reply).
 
--export([check/4]).
+-export([check/4, restrict/4]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("utils/include/ern_diagnostic.hrl").
 
+%% A definition of type Type checked, a fn's parameters and body or a
+%% top-level let's value, and the restrictions its type's variables take.
 -spec check([#param{}], tuple(), ern_types:type(), ern_typecheck:env()) ->
           ern_typecheck:env().
 check(Params, Body, Type, Env) ->
     discipline(Params, Body, Env),
-    TypeState = ern_typecheck:type_state(Env),
-    Variables = lists:usort(param_variables(Type, TypeState)),
-    lists:foldl(fun(Variable, Acc) -> restricted(Variable, Params, Body, Acc) end, Env,
+    restricted(Params, Body, Type, Env).
+
+%% The restrictions alone, for a lambda a block's `let` binds, which is
+%% generalized before its block is checked (report §4.6): where the lambda
+%% breaks the discipline as it stands, the block's check says so, and
+%% nothing is restricted here.
+-spec restrict([#param{}], tuple(), ern_types:type(), ern_typecheck:env()) ->
+          ern_typecheck:env().
+restrict(Params, Body, Type, Env) ->
+    case holds(Params, Body, Env) of
+        true -> restricted(Params, Body, Type, Env);
+        false -> Env
+    end.
+
+restricted(Params, Body, Type, Env) ->
+    Variables = lists:usort(value_variables(Type, ern_typecheck:type_state(Env))),
+    lists:foldl(fun(Variable, Acc) -> restricted_variable(Variable, Params, Body, Acc) end, Env,
                 Variables).
 
 %% Report §3.9: the variable takes the not_reply_carrying restriction where
-%% the body, with it taken for reply-carrying, breaks the discipline.
-restricted(Variable, Params, Body, Env) ->
-    case holds(Params, Body, ern_typecheck:assume_reply_carrying([Variable], Env)) of
+%% the definition, with it taken for reply-carrying, breaks the discipline,
+%% or passes a value whose type then carries a reply where a function it
+%% uses has the restriction.
+restricted_variable(Variable, Params, Body, Env) ->
+    Assumed = ern_typecheck:assume_reply_carrying([Variable], Env),
+    Keeps = holds(Params, Body, Assumed)
+        andalso not ern_typecheck:restricted_reply_carrying(Assumed),
+    case Keeps of
         true ->
             Env;
         false ->
@@ -70,15 +99,8 @@ holds(Params, Body, Env) ->
         throw:{type_error, #diagnostic{}} -> false
     end.
 
-%% The type variables of the parameters' types, where values stand: not a
-%% function type's effect. A let's type has no parameters.
-param_variables(Type, TypeState) ->
-    case ern_types:resolve(Type, TypeState) of
-        {tfn, ParamTypes, _, _} ->
-            lists:append([value_variables(ParamType, TypeState) || ParamType <- ParamTypes]);
-        _ -> []
-    end.
-
+%% The type variables of a type where values stand: not a function type's
+%% effect.
 value_variables(Type, TypeState) ->
     case ern_types:resolve(Type, TypeState) of
         {tvar, _} = Variable -> [Variable];
@@ -108,7 +130,35 @@ position(#p_constructor{type = Type} = Pattern, Env) ->
         true -> reply_fields(Pattern, Env);
         false -> ok
     end;
+position(#e_selection{expr = Operand, field = Field, field_span = FieldSpan, span = Span}, Env) ->
+    %% report §6.6: a selection would drop the fields it leaves
+    Place = case FieldSpan of
+                undefined -> Span;
+                _ -> FieldSpan
+            end,
+    stands(Operand, Env)
+        orelse throw({type_error,
+                      #diagnostic{span = ern_diagnostic:span(Place),
+                                  message = "`." ++ atom_to_list(Field) ++ "` is selected from a"
+                                            " reply-carrying value, and would drop its other"
+                                            " fields",
+                                  help = "take the value apart with a pattern, which binds every"
+                                         " field that carries a reply (§6.6)"}});
+position(#e_constructor{span = Span, name = Name, base = Base}, Env) when Base =/= undefined ->
+    %% report §6.6: a record update would drop the field it replaces
+    stands(Base, Env)
+        orelse throw({type_error,
+                      #diagnostic{span = ern_diagnostic:span(Span),
+                                  message = "a record update of a reply-carrying value would drop"
+                                            " the field it replaces",
+                                  help = "take the value apart with a pattern and build "
+                                         ++ atom_to_list(Name) ++ " from its fields (§6.6)"}});
 position(_, _) -> ok.
+
+%% Whether a selection's operand or an update's base may stand there: its
+%% type carries no reply. A fill has no base, its namespace being no value.
+stands(Node, Env) ->
+    not ern_typecheck:is_reply_carrying(ern_typecheck:node_type(Node), Env).
 
 %% Report §6.6: a pattern on a reply-carrying constructor binds each of its
 %% fields that carries a reply, at the field's type where the pattern
@@ -201,8 +251,9 @@ uses(#e_lambda{span = Span} = Lambda, Obligations, Env) ->
                                      ++ " is captured by a lambda that is not called, bound by"
                                      " `let`, or passed directly to spawn or spawnMonitored"})
     end;
-uses(#fn_declaration{span = Span, body = Body}, Obligations, Env) ->
-    case [Name || {Name, _} <- uses(Body, Obligations, Env), Name =/= '$fault'] of
+uses(#fn_declaration{span = Span, params = Params, body = Body}, Obligations, Env) ->
+    Visible = visible(lists:append([bound(Param#param.pattern) || Param <- Params]), Obligations),
+    case [Name || {Name, _} <- uses(Body, Visible, Env), Name =/= '$fault'] of
         [] -> [];
         [Name | _] ->
             throw({type_error,
@@ -212,6 +263,17 @@ uses(#fn_declaration{span = Span, body = Body}, Obligations, Env) ->
                                help = "a local fn may be called many times; pass "
                                       ++ atom_to_list(Name) ++ " to it as a parameter"}})
     end;
+uses(#e_binop{operator = Operator, left = Left, right = Right}, Obligations, Env)
+  when Operator =:= '&&'; Operator =:= '||' ->
+    %% report §6.6, §4.8: the left operand may decide alone
+    Skipped = skippable(uses(Right, Obligations, Env),
+                        fun(Name) ->
+                            {" is consumed in the right operand of `" ++ atom_to_list(Operator)
+                             ++ "`, which the left operand may skip",
+                             "consume " ++ atom_to_list(Name) ++ " before the `"
+                             ++ atom_to_list(Operator) ++ "` or after it, or write an `if`"}
+                        end),
+    sequence([uses(Left, Obligations, Env), Skipped]);
 uses(#e_if{span = Span, condition = Condition, then_branch = Then, else_branch = Else},
      Obligations, Env) ->
     sequence([uses(Condition, Obligations, Env),
@@ -255,8 +317,9 @@ spawned(Arg, Obligations, Env) ->
 clause_uses(#clause{span = Span, pattern = Pattern, guard = Guard, body = Body},
             Obligations, Env) ->
     Inner = obligations_bound(Pattern, Env),
-    GuardUses = case Guard of undefined -> []; _ -> uses(Guard, Obligations ++ Inner, Env) end,
-    All = sequence([GuardUses, uses(Body, Obligations ++ Inner, Env)]),
+    Scope = visible(bound(Pattern), Obligations) ++ Inner,
+    GuardUses = case Guard of undefined -> []; _ -> uses(Guard, Scope, Env) end,
+    All = sequence([GuardUses, uses(Body, Scope, Env)]),
     lists:foreach(fun(Name) -> exactly_once(Name, All, Span) end, Inner),
     [Use || {Name, _} = Use <- All, not lists:member(Name, Inner)].
 
@@ -270,7 +333,8 @@ block_uses([#binding{span = Span, pattern = #p_var{name = LambdaName},
         [] ->
             binding_uses(Binding, Rest, Obligations, Env, Acc);
         Captures ->
-            RestUses = block_uses(Rest, [{lambda, LambdaName} | Obligations], Env, []),
+            RestUses = block_uses(Rest, [{lambda, LambdaName} | visible([LambdaName], Obligations)],
+                                  Env, []),
             exactly_once(LambdaName, RestUses, Span),
             Outer = [Use || {Name, _} = Use <- RestUses, Name =/= LambdaName],
             sequence(lists:reverse([Outer, Captures | Acc]))
@@ -282,22 +346,55 @@ block_uses([Statement | Rest], Obligations, Env, Acc) ->
 
 %% A `let`: each linear name its pattern binds is consumed once by the rest
 %% of the block.
-binding_uses(#binding{span = Span, pattern = Pattern, expr = Expr}, Rest, Obligations, Env, Acc) ->
+binding_uses(#binding{span = Span, pattern = Pattern, operator = Operator, expr = Expr}, Rest,
+             Obligations, Env, Acc) ->
     ExprUses = uses(Expr, Obligations, Env),
     Inner = obligations_bound(Pattern, Env),
-    RestUses = block_uses(Rest, Obligations ++ Inner, Env, []),
+    RestUses = block_uses(Rest, visible(bound(Pattern), Obligations) ++ Inner, Env, []),
     lists:foreach(fun(Name) -> exactly_once(Name, RestUses, Span) end, Inner),
     Outer = [Use || {Name, _} = Use <- RestUses, not lists:member(Name, Inner)],
-    sequence(lists:reverse([Outer, ExprUses | Acc])).
+    After = case Operator of
+                '<-' ->
+                    %% report §6.6, §5.5: a `Left` or a `None` leaves the block here
+                    skippable(Outer,
+                              fun(Name) ->
+                                  {" is consumed after a `<-`, which leaves the block on a `Left`"
+                                   " or a `None`",
+                                   "consume " ++ atom_to_list(Name) ++ " before the `<-`, or"
+                                   " `match` on the value in place of the `<-`"}
+                              end);
+                _ ->
+                    Outer
+            end,
+    sequence(lists:reverse([After, ExprUses | Acc])).
 
 %% The uses a lambda's body makes of the enclosing linear names: its
 %% captures, each consumed once by the capture. The lambda's own linear
 %% parameters are checked here.
 captures(#e_lambda{span = Span, params = Params, body = Body}, Obligations, Env) ->
     Inner = [Name || Param <- Params, Name <- obligations_bound(Param#param.pattern, Env)],
-    BodyUses = uses(Body, Obligations ++ Inner, Env),
+    Visible = visible(lists:append([bound(Param#param.pattern) || Param <- Params]), Obligations),
+    BodyUses = uses(Body, Visible ++ Inner, Env),
     lists:foreach(fun(Name) -> exactly_once(Name, BodyUses, Span) end, Inner),
     [Use || {Name, _} = Use <- BodyUses, not lists:member(Name, Inner), Name =/= '$fault'].
+
+%% The uses of a path that may be skipped, the right operand of `&&` or
+%% `||` or what follows a `<-`: none where it faults, since the path that
+%% skips it goes on, and an obligation it consumes is an error, which
+%% Describe words as the message's end and its help.
+skippable(Uses, Describe) ->
+    case {lists:keymember('$fault', 1, Uses), Uses} of
+        {true, _} ->
+            [];
+        {false, []} ->
+            [];
+        {false, [{Name, Span} | _]} ->
+            {Rest, Help} = Describe(Name),
+            throw({type_error,
+                   #diagnostic{span = ern_diagnostic:span(Span),
+                               message = "the reply-carrying value " ++ atom_to_list(Name) ++ Rest,
+                               help = Help}})
+    end.
 
 %% Sequential composition: a second use of a name is an error there.
 sequence(Lists) ->
@@ -373,6 +470,17 @@ count(Name, Uses) -> length([x || {UsedName, _} <- Uses, UsedName =:= Name]).
 obligations_bound(Pattern, Env) ->
     [Name || {Name, Type} <- ern_ast:pattern_bindings(Pattern),
              ern_typecheck:is_reply_carrying(Type, Env)].
+
+%% The names a pattern binds.
+bound(Pattern) ->
+    [Name || {Name, _} <- ern_ast:pattern_bindings(Pattern)].
+
+%% The obligations still visible where Names are bound anew (report §5.10):
+%% a name bound inside hides the obligation of that name around it.
+visible(Names, Obligations) ->
+    [Obligation || Obligation <- Obligations,
+                   not lists:member(Obligation, Names),
+                   not lists:member(Obligation, [{lambda, Name} || Name <- Names])].
 
 walk(Visit, Node) ->
     ern_ast:walk(fun(Child, ok) -> Visit(Child), ok end, Node, ok).

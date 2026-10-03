@@ -1158,6 +1158,29 @@ toplevel_let_test() ->
                  refusal("export let s = spawn(fn() = Unit)")),
     ?assertEqual("List(a)", type_of("export let empty = List.reverse([])", empty)).
 
+%% report §3.9, §4.6: an initializer calls a process-only function where
+%% its evaluation does, through a helper that calls what it is given, through
+%% a function a call returns, and through a function passed by name; a
+%% lambda it builds and does not call is generalized. Regression tests,
+%% written with the type system's argument (2026-10-04), which rests on
+%% them: a process generalized over its mailbox type would answer one
+%% caller with another's value
+effectful_initializer_test() ->
+    Cell = "type Cell(a) = Put(a) | Get(reply : Reply(a))\n"
+           "fn cell(v : a) : Unit with Cell(a) = receive {\n"
+           "    Put(x) -> cell(x)\n  | Get(reply = r) -> { answer(r, v); cell(v) } }\n"
+           "fn apply(f) = f()\n"
+           "fn make() = fn() = spawn(fn() = cell(None))\n"
+           "fn start() = spawn(fn() = cell(None))\n",
+    Refused = "the type of shared is not determined (Address(Cell(Optional(a!)))), and a"
+              " top-level `let` whose initializer calls a process-only function is not"
+              " generalized; annotate it",
+    ?assertEqual(Refused, refusal(Cell ++ "let shared = spawn(fn() = cell(None))")),
+    ?assertEqual(Refused, refusal(Cell ++ "let shared = apply(fn() = spawn(fn() = cell(None)))")),
+    ?assertEqual(Refused, refusal(Cell ++ "let shared = make()()")),
+    ?assertEqual(Refused, refusal(Cell ++ "let shared = apply(start)")),
+    ?assertEqual("() -> Address(a) with a", type_of("export let me = fn() = self()", me)).
+
 %% report §3.9, §6.6: a type variable is not-reply-carrying where the body,
 %% read with it taken for a reply, would break the discipline: through a
 %% `let` as much as by the parameter's name, or dropped inside a user type;
@@ -1703,7 +1726,8 @@ abstract_type_test() ->
     ?assertEqual("Nope is not a type declared in this module", refusal("fn Nope.negate(n) = n")).
 
 %% report §6.6: a path with a call to a function whose result type is a
-%% variable no parameter's type names, `fault` among them, consumes every
+%% variable neither a parameter's type nor its mailbox type names, `fault`
+%% among them, consumes every
 %% obligation open on it, in an `if` and in a `receive`; a returning path
 %% that does not answer is still refused, and so is a function whose type
 %% says it returns though it faults, and a fault inside a lambda, neither
@@ -1758,6 +1782,154 @@ fault_path_test() ->
                          "    }\n"
                          "  | Stop -> Unit\n"
                          "}\n")).
+
+%% report §6.6: a function whose result type is its mailbox type returns
+%% what it receives, and a call to it consumes no obligation. A regression
+%% test of a hole the type system's argument found (2026-10-04): the call
+%% was read as one that does not return, since no parameter's type names
+%% its result, and a reply after it could be dropped
+receive_returns_test() ->
+    Source = "type Tick = Tick\nfn next() = receive { x -> x }\n",
+    ?assertEqual("() -> a with a", type_of("export fn next() = receive { x -> x }", next)),
+    ?assertEqual("the reply-carrying value r is never consumed",
+                 refusal(Source ++ "fn worker(r : Reply(Int)) : Unit with Tick = {\n"
+                         "    let _ = next();\n    Unit\n}")),
+    ?assertEqual(ok, ok(Source ++ "fn worker(r : Reply(Int)) : Unit with Tick = {\n"
+                        "    let _ = next();\n    answer(r, 1)\n}")).
+
+%% report §3.9, §6.6: the not-reply-carrying restriction falls on a variable
+%% of the definition's type wherever it stands, in the result and in a
+%% value as in a parameter, and where the variable's value is passed inside
+%% another to a function that has the restriction; a lambda a block's `let`
+%% binds takes it before it is generalized. Regression tests of holes the
+%% type system's argument found (2026-10-04): a function a definition
+%% returned or held duplicated a reply, and so did `dup` given a box of one
+restriction_reaches_values_test() ->
+    Dup = "fn dup(x) = #(x, x)\n",
+    ?assertEqual("() -> (a!) -> #(a!, a!)", type_of("export fn pair() = fn(x) = #(x, x)", pair)),
+    ?assertEqual("List((a!) -> #(a!, a!))", type_of("export let fs = [fn(x) = #(x, x)]", fs)),
+    ?assertEqual("(a!) -> #(List(a!), List(a!))",
+                 type_of(Dup ++ "export fn both(x) = dup([x])", both)),
+    ?assertEqual("(a!) -> #(M.Box(a!), M.Box(a!))",
+                 type_of(Dup ++ "export type Box(a) = Box(item : a)\n"
+                         "export fn boxed(x) = dup(Box(item = x))", boxed)),
+    %% a captured value may be used by each call of the lambda; its own
+    %% parameter is used once
+    ?assertEqual("(a!) -> (b) -> #(a!, b)",
+                 type_of("export fn first(x) = fn(y) = #(x, y)", first)),
+    ?assertEqual("a reply-carrying value, Reply(Int), passed where d duplicates or discards its"
+                 " argument: d : (a!) -> #(a!, a!)",
+                 refusal("fn f(r : Reply(Int)) : Unit with m = {\n"
+                         "    let d = fn(x) = #(x, x);\n"
+                         "    let #(a, b) = d(r);\n    answer(a, 1);\n    answer(b, 2)\n}")),
+    ?assertEqual("a reply-carrying value, Reply(Int), passed where pair duplicates or discards"
+                 " its argument: pair : () -> (a!) -> #(a!, a!)",
+                 refusal("fn pair() = fn(x) = #(x, x)\n"
+                         "fn f(r : Reply(Int)) : Unit with m = {\n"
+                         "    let #(a, b) = pair()(r);\n    answer(a, 1);\n    answer(b, 2)\n}")).
+
+%% report §6.6, §4.8, §5.5: the right operand of `&&` and `||`, and what
+%% follows a `<-` in its block, are paths that may be skipped, and neither
+%% consumes an obligation open before it; one that faults consumes none
+%% for the path that skips it. Regression tests of holes the type system's
+%% argument found (2026-10-04): a reply was dropped where the left operand
+%% decided alone and where a `None` left the block
+skipped_path_test() ->
+    Done = "fn done(r : Reply(Int)) : Bool with m = { answer(r, 1); true }\n",
+    ?assertEqual({"the reply-carrying value r is consumed in the right operand of `&&`, which the"
+                  " left operand may skip",
+                  "consume r before the `&&` or after it, or write an `if`"},
+                 refusal_and_help(Done ++ "fn f(r : Reply(Int), c : Bool) : Unit with m =\n"
+                                  "    if c && done(r) then Unit else Unit")),
+    ?assertEqual("the reply-carrying value r is consumed in the right operand of `||`, which the"
+                 " left operand may skip",
+                 refusal(Done ++ "fn f(r : Reply(Int), c : Bool) : Unit with m =\n"
+                         "    if c || done(r) then Unit else Unit")),
+    ?assertEqual(ok, ok("fn f(r : Reply(Int), c : Bool) : Unit with m = {\n"
+                        "    let go = c || fault(\"stop\");\n    answer(r, 1)\n}")),
+    ?assertEqual({"the reply-carrying value r is consumed after a `<-`, which leaves the block on"
+                  " a `Left` or a `None`",
+                  "consume r before the `<-`, or `match` on the value in place of the `<-`"},
+                 refusal_and_help("fn f(r : Reply(Int), text : String) : Optional(Unit) with m ="
+                                  " {\n    let n <- String.toInt(text);\n    answer(r, n);\n"
+                                  "    Some(Unit)\n}")),
+    %% consumed before the `<-`, and after the block the `<-` leaves
+    ?assertEqual(ok, ok("fn f(r : Reply(Int), text : String) : Optional(Int) with m = {\n"
+                        "    answer(r, 0);\n    let n <- String.toInt(text);\n    Some(n)\n}")),
+    ?assertEqual(ok, ok("fn f(r : Reply(Int), o : Optional(Int)) : Optional(Int) with m = {\n"
+                        "    let v = { let n <- o; Some(n) };\n    answer(r, 1);\n    v\n}")).
+
+%% report §6.6, §5.10: a name bound inside hides the obligation of that
+%% name around it, and its uses consume nothing of the outer one. A
+%% regression test of a hole the type system's argument found
+%% (2026-10-04): a use of the inner name counted for the reply, which was
+%% then never answered; and a name bound anew after the reply was answered
+%% was refused as a second use
+hidden_name_test() ->
+    ?assertEqual("the reply-carrying value r is not consumed on this path",
+                 refusal("fn f(r : Reply(Int), n : Optional(Int)) : Unit with m =\n"
+                         "    match n {\n        Some(r) -> Io.println(Int.toString(r))\n"
+                         "      | None -> answer(r, 0)\n    }")),
+    ?assertEqual("the reply-carrying value r is never consumed",
+                 refusal("fn f(r : Reply(Int)) : Unit with m = {\n"
+                         "    let r = 5;\n    Io.println(Int.toString(r))\n}")),
+    ?assertEqual("the reply-carrying value r is never consumed",
+                 refusal("fn f(r : Reply(Int)) : Unit with m =\n"
+                         "    (fn(r) = Io.println(Int.toString(r)))(5)")),
+    ?assertEqual(ok, ok("fn f(r : Reply(Int)) : Unit with m = {\n"
+                        "    answer(r, 1);\n    let r = 5;\n"
+                        "    Io.println(Int.toString(r))\n}")).
+
+%% report §6.6: a reply-carrying value is not the value a field is selected
+%% from nor the base of a record update, which would drop the fields the
+%% selection leaves and the field the update replaces; a pattern takes it
+%% apart, and the restriction says so of a type variable (§3.9). A
+%% regression test of a hole the type system's argument found
+%% (2026-10-04): the report's list of where such a value may stand was not
+%% held, and both dropped a reply
+selection_and_update_test() ->
+    Source = "type Req = Get(reply : Reply(Int)) | Stop\n"
+             "type Two = Two(first : Req, second : Req, count : Int)\n"
+             "export type Pair(a, b) = Pair(first : a, second : b)\n",
+    ?assertEqual({"`.first` is selected from a reply-carrying value, and would drop its other"
+                  " fields",
+                  "take the value apart with a pattern, which binds every field that carries a"
+                  " reply (§6.6)"},
+                 refusal_and_help(Source ++ "fn f(two : Two) : Req = two.first")),
+    ?assertEqual("`.count` is selected from a reply-carrying value, and would drop its other"
+                 " fields",
+                 refusal(Source ++ "fn f(two : Two) : Int = two.count")),
+    ?assertEqual({"a record update of a reply-carrying value would drop the field it replaces",
+                  "take the value apart with a pattern and build Two from its fields (§6.6)"},
+                 refusal_and_help(Source ++ "fn f(two : Two, other : Req) : Two =\n"
+                                  "    Two(..two, first = other)")),
+    ?assertEqual("(M.Pair(a!, b!)) -> a!",
+                 type_of(Source ++ "export fn left(p : Pair(a, b)) : a = p.first", left)),
+    ?assertEqual("(M.Pair(a, b)) -> M.Pair(b, a)",
+                 type_of(Source ++ "export fn swap(p : Pair(a, b)) : Pair(b, a) =\n"
+                         "    match p { Pair(first = x, second = y) ->"
+                         " Pair(first = y, second = x) }", swap)).
+
+%% report §6.6: a top-level binding is read by every function and is no
+%% obligation, so one whose type is reply-carrying is refused; a generalized
+%% one holds no value of its variable's type and is used at any instance. A
+%% regression test of a hole the type system's argument found (2026-10-04):
+%% a reply a call answered with was bound at top level and answered twice
+top_level_holds_no_reply_test() ->
+    Source = "type Give = Give(reply : Reply(Reply(Int)))\n"
+             "let server : Address(Give) = spawn(fn() : Unit with Give =\n"
+             "    receive { Give(reply = out) -> fault(\"no\") })\n",
+    ?assertEqual({"stash has the reply-carrying type Reply(Int), and a top-level `let` holds no"
+                  " reply: every function may read it",
+                  "hold the reply in the process that answers it, as a parameter of its loop"
+                  " (§6.6)"},
+                 refusal_and_help(Source ++ "let stash = Address.callForever(server,"
+                                  " fn(r) = Give(reply = r))")),
+    ?assertEqual("none has the reply-carrying type List(Reply(Int)), and a top-level `let` holds"
+                 " no reply: every function may read it",
+                 refusal("let none : List(Reply(Int)) = []")),
+    ?assertEqual(ok, ok("let empty = []\n"
+                        "fn keep(r : Reply(Int)) : List(Reply(Int)) = r :: empty")).
 
 %% report §6.6, §6.9: `restarting` may run its function more than once, so a
 %% lambda that captures a reply is refused there, by the rule that lets such
@@ -2816,6 +2988,22 @@ recursive_group_at_parameters_test() ->
                  " group is named in its fields at the declaring type's parameters alone",
                  refusal("type Tree(a) = Node(value : a, children : Forest(List(a)))\n"
                          "type Forest(a) = Forest(List(Tree(a)))")),
+    %% each parameter in its place: named in another order, or one twice, a
+    %% walk would call itself at another type; found when a derived compare
+    %% of such a type failed with a message about an annotation (2026-10-04)
+    ?assertEqual({"Flip is named at Flip(b, a) in its own fields, and a type of a recursive group"
+                  " is named in its fields at the declaring type's parameters, each in its"
+                  " place, (a, b)", Help},
+                 refusal_and_help("type Flip(a, b) = End(a) | Turn(Flip(b, a))")),
+    ?assertEqual("Twin is named at Twin(a, a) in its own fields, and a type of a recursive group"
+                 " is named in its fields at the declaring type's parameters, each in its place,"
+                 " (a, b)",
+                 refusal("type Twin(a, b) = One(first : a, second : b) | Both(Twin(a, a))")),
+    ?assertEqual("B is named at B(b) in the fields of A, and a type of a recursive group is"
+                 " named in its fields at the declaring type's parameters, each in its place,"
+                 " (a, b)",
+                 refusal("type A(a, b) = A(first : a, rest : B(b))\n"
+                         "type B(b) = Nil | B(A(b, b))")),
     ?assertEqual(ok, ok("type Tree(a) = Node(value : a, children : Forest(a))\n"
                         "type Forest(a) = Forest(List(Tree(a)))\n"
                         "type Rose(a) = Rose(value : a, children : List(Rose(a)))\n"

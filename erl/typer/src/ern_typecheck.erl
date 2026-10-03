@@ -16,9 +16,9 @@
 -export([check/3, check/4, check_string/2, type_state/1, scope_state/1, set_type_state/2,
          prelude_names/0, prelude_values/0, prelude_constructor/1, prelude_constructors/0,
          prelude_env/0, lookup_type/2, member_qualified_name/3, is_reply_carrying/2,
-         assume_reply_carrying/2, let_order/1, foreign_implementation/1, fields/2,
-         declared_scheme/3, lookup_constructor/4, constructor_info/2, is_value/2, resolve_type/2,
-         node_type/1]).
+         assume_reply_carrying/2, restricted_reply_carrying/1, let_order/1,
+         foreign_implementation/1, fields/2, declared_scheme/3, lookup_constructor/4,
+         constructor_info/2, is_value/2, resolve_type/2, node_type/1]).
 
 -export_type([env/0, session_scope/0]).
 
@@ -695,21 +695,34 @@ at_parameters(#t_named{span = Span, namespace = Namespace, name = Named, args = 
     {QualifiedName, _} = lookup_type_name(Span, Namespace, Named, Env),
     case lists:member(QualifiedName, Group) of
         true ->
-            Other = [Arg || Arg <- Args, not is_parameter(Arg, Params)],
-            case Other of
-                [] -> ok;
+            Where = case Named =:= Owner of
+                        true -> "its own fields";
+                        false -> "the fields of " ++ atom_to_list(Owner)
+                    end,
+            Help = "no function could walk the type, since a recursive call is at the"
+                   " definition's own type (§3.9)",
+            case [Arg || Arg <- Args, not is_parameter(Arg, Params)] of
+                [] ->
+                    %% the parameters, each in its place: named at them in
+                    %% another order, a walk would call itself at another type
+                    Written = [Name || #t_var{name = Name} <- Args],
+                    Listed = fun(Names) ->
+                                 lists:flatten(lists:join(", ", [atom_to_list(Name)
+                                                                 || Name <- Names]))
+                             end,
+                    Written =:= Params
+                        orelse fail(ern_ast:span(Annotation),
+                                    atom_to_list(Named) ++ " is named at " ++ atom_to_list(Named)
+                                    ++ "(" ++ Listed(Written) ++ ") in " ++ Where
+                                    ++ ", and a type of a recursive group is named in its fields"
+                                    " at the declaring type's parameters, each in its place, ("
+                                    ++ Listed(Params) ++ ")", [], Help);
                 [First | _] ->
                     {Type, _, TypeState} = annotation_type(First, #{}, Env),
-                    Where = case Named =:= Owner of
-                                true -> "its own fields";
-                                false -> "the fields of " ++ atom_to_list(Owner)
-                            end,
                     fail(ern_ast:span(Annotation),
                          atom_to_list(Named) ++ " is named at " ++ ern_types:format(Type, TypeState)
                          ++ " in " ++ Where ++ ", and a type of a recursive group is named in its"
-                         " fields at the declaring type's parameters alone", [],
-                         "no function could walk the type, since a recursive call is at the"
-                         " definition's own type (§3.9)")
+                         " fields at the declaring type's parameters alone", [], Help)
             end;
         false ->
             lists:foreach(fun(Arg) -> at_parameters(Arg, Owner, Params, Group, Env) end, Args)
@@ -1007,6 +1020,17 @@ is_reply_carrying(Type, #env{types = Types} = Env) -> reply_in(Type, Types, Env)
 %% are taken for reply-carrying.
 -spec assume_reply_carrying([ern_types:type()], env()) -> env().
 assume_reply_carrying(Variables, Env) -> Env#env{reply_variables = Variables}.
+
+%% Report §3.9: whether a value whose type carries a reply, as the
+%% environment takes its variables, was passed where a function has the
+%% not-reply-carrying restriction, in the definition under check.
+-spec restricted_reply_carrying(env()) -> boolean().
+restricted_reply_carrying(#env{pending = Pending} = Env) ->
+    lists:any(fun(#pending_restriction{restriction = not_reply_carrying, id = Id}) ->
+                      is_reply_carrying({tvar, Id}, Env);
+                 (_) ->
+                      false
+              end, Pending).
 
 %%
 %% Values: fn, let, foreign fn, in dependency order
@@ -2005,12 +2029,25 @@ post_checks(Declaration,
     rigid_annotation_variables(Span, Rigid, Env2),
     ern_scope:order(TypedBody),
     ern_exhaust:check(TypedBody, Env2),
+    holds_no_reply(Declaration, Span, Type, Env2),
     Env3 = ern_reply:check(TypedParams, TypedBody, Type, Env2),
     check_pending_restrictions(Env3),
     {Supplied, Env3#env{effect = Env#env.effect, effect_origin = Env#env.effect_origin,
                         pending = Env#env.pending, deferred = Env#env.deferred,
                         requirement = Env#env.requirement, signature = Env#env.signature,
                         definition = Env#env.definition}}.
+
+%% Report §6.6: a top-level binding is read by every function and is no
+%% obligation, so its type carries no reply.
+holds_no_reply(#let_declaration{name = Name}, Span, Type, Env) ->
+    not is_reply_carrying(Type, Env)
+        orelse fail(Span, atom_to_list(Name) ++ " has the reply-carrying type "
+                          ++ ern_types:format(Type, Env#env.type_state)
+                          ++ ", and a top-level `let` holds no reply: every function may read it",
+                    [], "hold the reply in the process that answers it, as a parameter of its"
+                        " loop (§6.6)");
+holds_no_reply(_, _, _, _) ->
+    ok.
 
 params_and_body(#fn_declaration{params = Params, body = Body}) -> {Params, Body};
 params_and_body(#let_declaration{body = Body}) -> {[], Body}.
@@ -3839,22 +3876,24 @@ argument_rule(Name, Callee, #env{inferring = Inferring} = Env) ->
         false -> Text
     end.
 
-%% Report §6.6: a function whose result type is a variable no parameter's
-%% type names does not return, `fault` among them, and a call to it
-%% consumes every obligation open on its path. The variable is the
-%% scheme's own; one the enclosing definition fixes may stand for a type
-%% a value has.
+%% Report §6.6: a function whose result type is a variable neither a
+%% parameter's type nor its mailbox type names does not return, `fault`
+%% among them, and a call to it consumes every obligation open on its
+%% path. One whose result is its mailbox type returns what it receives.
+%% The variable is the scheme's own; one the enclosing definition fixes
+%% may stand for a type a value has.
 returns(#e_var{span = Span, namespace = Namespace, name = Name}, Env) ->
     {#scheme{quantified = Quantified, type = Type}, _, _} =
         lookup_value(Span, Namespace, Name, Env),
     TypeState = Env#env.type_state,
     case ern_types:resolve(Type, TypeState) of
-        {tfn, Params, _, Result} ->
+        {tfn, Params, Effect, Result} ->
             case ern_types:resolve(Result, TypeState) of
                 {tvar, Id} ->
-                    ParamVariables = ern_types:free_variables({ttuple, Params}, TypeState),
+                    Named = ern_types:free_variables({tfn, Params, Effect, {ttuple, []}},
+                                                     TypeState),
                     not (lists:keymember(Id, 1, Quantified)
-                         andalso not lists:member(Id, ParamVariables));
+                         andalso not lists:member(Id, Named));
                 _ ->
                     true
             end;
@@ -4426,7 +4465,11 @@ let_binding(#binding{span = BindingSpan, pattern = Pattern, annotation = Annotat
                                          ++ ern_types:format(ExprType, Env2#env.type_state)}),
     Env4 = case Generalize of
                true ->
-                   TypeState1 = ern_types:leave(Env3#env.type_state),
+                   %% report §3.9: the lambda's variables take their
+                   %% restrictions before they are generalized
+                   #e_lambda{params = LambdaParams, body = LambdaBody} = TypedExpr,
+                   Restricted = ern_reply:restrict(LambdaParams, LambdaBody, ExprType, Env3),
+                   TypeState1 = ern_types:leave(Restricted#env.type_state),
                    {Scheme, TypeState2} = ern_types:generalize(ExprType, TypeState1),
                    #p_var{name = Name} = Pattern,
                    Env3#env{type_state = TypeState2, generalizing = false,

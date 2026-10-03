@@ -1076,6 +1076,20 @@ example.ern:1:33: Nest is named at List(a) in its own fields, and a type of a re
   | = help: no function could walk the type, since a recursive call is at the definition's own type (§3.9)
 ```
 
+### A recursive type named at its parameters in another order (§3.9)
+
+```ernest-rejected
+type Flip(a, b) = End(a) | Turn(Flip(b, a))
+```
+
+```console
+$ ern build example.ern
+example.ern:1:33: Flip is named at Flip(b, a) in its own fields, and a type of a recursive group is named in its fields at the declaring type's parameters, each in its place, (a, b)
+1 | type Flip(a, b) = End(a) | Turn(Flip(b, a))
+  |                                 ^^^^^^^^^^
+  | = help: no function could walk the type, since a recursive call is at the definition's own type (§3.9)
+```
+
 ## Declarations (report §4)
 
 ### A value declared twice (§4.5)
@@ -3738,4 +3752,168 @@ $ ern build example.ern
 example.ern:1:42: the reply-carrying value r is never consumed
 1 | fn never(r : Reply(Int)) : Unit with m = Unit
   |                                          ^^^^
+```
+
+### A reply left unanswered after a function that returns what it receives (§6.6)
+
+```ernest-rejected
+type Tick = Tick
+
+fn next() =
+    receive { x -> x }
+
+fn worker(r : Reply(Int)) : Unit with Tick = {
+    let _ = next();
+    Unit
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:6:46: the reply-carrying value r is never consumed
+5 | 
+6 | fn worker(r : Reply(Int)) : Unit with Tick = {
+  |                                              ^
+```
+
+### A reply consumed in the right operand of `&&` (§6.6)
+
+```ernest-rejected
+fn done(r : Reply(Int)) : Bool with m = {
+    answer(r, 1);
+    true
+}
+
+fn serve(r : Reply(Int), ready : Bool) : Unit with m =
+    if ready && done(r) then Unit else Unit
+```
+
+```console
+$ ern build example.ern
+example.ern:7:22: the reply-carrying value r is consumed in the right operand of `&&`, which the left operand may skip
+6 | fn serve(r : Reply(Int), ready : Bool) : Unit with m =
+7 |     if ready && done(r) then Unit else Unit
+  |                      ^
+  | = help: consume r before the `&&` or after it, or write an `if`
+```
+
+### A reply consumed after a `<-` (§6.6, §5.5)
+
+```ernest-rejected
+fn serve(r : Reply(Int), text : String) : Optional(Unit) with m = {
+    let n <- String.toInt(text);
+    answer(r, n);
+    Some(Unit)
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:3:12: the reply-carrying value r is consumed after a `<-`, which leaves the block on a `Left` or a `None`
+2 |     let n <- String.toInt(text);
+3 |     answer(r, n);
+  |            ^
+  | = help: consume r before the `<-`, or `match` on the value in place of the `<-`
+```
+
+### A reply left unanswered behind a name that hides it (§6.6, §5.10)
+
+```ernest-rejected
+fn serve(r : Reply(Int), n : Optional(Int)) : Unit with m =
+    match n {
+        Some(r) -> Io.println(Int.toString(r))
+      | None -> answer(r, 0)
+    }
+```
+
+```console
+$ ern build example.ern
+example.ern:3:20: the reply-carrying value r is not consumed on this path
+2 |     match n {
+3 |         Some(r) -> Io.println(Int.toString(r))
+  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+4 |       | None -> answer(r, 0)
+  |                        - consumed here, on another path
+```
+
+### A field selected from a value that carries a reply (§6.6)
+
+```ernest-rejected
+type Request = Get(reply : Reply(Int)) | Stop
+
+type Pending = Pending(request : Request, tries : Int)
+
+fn tries(pending : Pending) : Int =
+    pending.tries
+```
+
+```console
+$ ern build example.ern
+example.ern:6:13: `.tries` is selected from a reply-carrying value, and would drop its other fields
+5 | fn tries(pending : Pending) : Int =
+6 |     pending.tries
+  |             ^^^^^
+  | = help: take the value apart with a pattern, which binds every field that carries a reply (§6.6)
+```
+
+### A record update of a value that carries a reply (§6.6)
+
+```ernest-rejected
+type Request = Get(reply : Reply(Int)) | Stop
+
+type Pending = Pending(request : Request, tries : Int)
+
+fn again(pending : Pending, request : Request) : Pending =
+    Pending(..pending, request = request)
+```
+
+```console
+$ ern build example.ern
+example.ern:6:5: a record update of a reply-carrying value would drop the field it replaces
+5 | fn again(pending : Pending, request : Request) : Pending =
+6 |     Pending(..pending, request = request)
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: take the value apart with a pattern and build Pending from its fields (§6.6)
+```
+
+### A reply bound at top level (§6.6)
+
+```ernest-rejected
+type Give = Give(reply : Reply(Reply(Int)))
+
+let server : Address(Give) =
+    spawn(fn() : Unit with Give = receive { Give(reply = out) -> fault("no") })
+
+let stash = Address.callForever(server, fn(r) = Give(reply = r))
+```
+
+```console
+$ ern build example.ern
+example.ern:6:1: stash has the reply-carrying type Reply(Int), and a top-level `let` holds no reply: every function may read it
+5 | 
+6 | let stash = Address.callForever(server, fn(r) = Give(reply = r))
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: hold the reply in the process that answers it, as a parameter of its loop (§6.6)
+```
+
+### A reply given to a function that a function returned, which duplicates it (§6.6, §3.9)
+
+```ernest-rejected
+fn pair() =
+    fn(x) = #(x, x)
+
+fn serve(r : Reply(Int)) : Unit with m = {
+    let #(first, second) = pair()(r);
+    answer(first, 1);
+    answer(second, 2)
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:5:28: a reply-carrying value, Reply(Int), passed where pair duplicates or discards its argument: pair : () -> (a!) -> #(a!, a!)
+4 | fn serve(r : Reply(Int)) : Unit with m = {
+5 |     let #(first, second) = pair()(r);
+  |                            ^^^^
+  | = help: a reply is discharged by answering it, passing it on once, or matching it (§6.6)
 ```
