@@ -211,16 +211,16 @@ top_value_name(_) -> [].
 
 %% Each unqualified use of a hidden name, its span and what it names.
 hidden_uses(Declarations, Hidden) ->
-    Uses = fun Walk(#t_named{path = [], name = Name, span = Span} = Node) ->
+    Uses = fun Walk(#t_named{namespace = [], name = Name, span = Span} = Node) ->
                    [{Span, type, Name} || lists:member({type, Name}, Hidden)]
                        ++ Walk(Node#t_named.args);
-               Walk(#e_constructor{path = [], name = Name, span = Span} = Node) ->
+               Walk(#e_constructor{namespace = [], name = Name, span = Span} = Node) ->
                    [{Span, constructor, Name} || lists:member({constructor, Name}, Hidden)]
                        ++ Walk(Node#e_constructor.base) ++ Walk(Node#e_constructor.args);
-               Walk(#p_constructor{path = [], name = Name, span = Span} = Node) ->
+               Walk(#p_constructor{namespace = [], name = Name, span = Span} = Node) ->
                    [{Span, constructor, Name} || lists:member({constructor, Name}, Hidden)]
                        ++ Walk(Node#p_constructor.args);
-               Walk(#e_var{path = [], name = Name, span = Span}) ->
+               Walk(#e_var{namespace = [], name = Name, span = Span}) ->
                    [{Span, value, Name} || lists:member({value, Name}, Hidden)];
                Walk(Node) when is_tuple(Node) ->
                    lists:append([Walk(Child) || Child <- tuple_to_list(Node)]);
@@ -503,9 +503,9 @@ annotation_type(#t_var{name = Name}, AnnotationVariables, Env) ->
             {Variable, TypeState} = ern_types:fresh_named(Name, Env#env.type_state),
             {Variable, AnnotationVariables#{Name => Variable}, TypeState}
     end;
-annotation_type(#t_named{span = Span, path = Path, name = Name, args = Args},
+annotation_type(#t_named{span = Span, namespace = Namespace, name = Name, args = Args},
                 AnnotationVariables, Env) ->
-    {QualifiedName, Arity} = lookup_type_name(Span, Path, Name, Env),
+    {QualifiedName, Arity} = lookup_type_name(Span, Namespace, Name, Env),
     length(Args) =:= Arity orelse
         fail(Span, io_lib:format("~s takes ~B type argument~s, not ~B",
                                  [ern_namespace:text(QualifiedName), Arity, plural(Arity),
@@ -574,10 +574,10 @@ lookup_type_name(Span, ['Prelude'], Name, #env{types = Types, local_types = Loca
         _ ->
             fail(Span, "the prelude declares no type " ++ atom_to_list(Name))
     end;
-lookup_type_name(Span, ['Prelude' | _] = Path, Name, _Env) ->
-    prelude_one(Span, Path, Name);
-lookup_type_name(Span, Path, Name, #env{types = Types}) ->
-    QualifiedName = Path ++ [Name],
+lookup_type_name(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
+    prelude_one(Span, Namespace, Name);
+lookup_type_name(Span, Namespace, Name, #env{types = Types}) ->
+    QualifiedName = Namespace ++ [Name],
     case Types of
         #{QualifiedName := #type_info{params = Params}} -> {QualifiedName, length(Params)};
         _ -> fail(Span, "unknown type " ++ ern_namespace:text(QualifiedName))
@@ -586,14 +586,14 @@ lookup_type_name(Span, Path, Name, #env{types = Types}) ->
 -spec lookup_type([atom()], env()) -> #type_info{} | undefined.
 lookup_type(QualifiedName, #env{types = Types}) -> maps:get(QualifiedName, Types, undefined).
 
-%% Report §4.2, §11.2: whether Path is a module and the type that owns the
+%% Report §4.2, §11.2: whether Namespace is a module and the type that owns the
 %% member Name: a type of that module, or, at the prompt, a type the session
 %% declares whose member a later input declared.
--spec is_member_path([atom()], atom(), env()) -> boolean().
-is_member_path(Path, Name, Env) ->
-    case lookup_type(Path, Env) of
+-spec is_member_namespace([atom()], atom(), env()) -> boolean().
+is_member_namespace(Namespace, Name, Env) ->
+    case lookup_type(Namespace, Env) of
         #type_info{qualified_name = QualifiedName} when length(QualifiedName) > 1 -> true;
-        _ -> session_name(values, {lists:last(Path), Name}, Env) =:= {ok, Path ++ [Name]}
+        _ -> session_name(values, {lists:last(Namespace), Name}, Env) =:= {ok, Namespace ++ [Name]}
     end.
 
 %% Report §4.8, §11.2: the qualified name of the member an operator on the
@@ -654,8 +654,8 @@ named_types_of(#type_declaration{constructors = Constructors}, Env) ->
                               || #constructor{fields = Fields} <- Constructors,
                                  Annotation <- field_annotations(Fields)])).
 
-named_in(#t_named{span = Span, path = Path, name = Name, args = Args}, Env) ->
-    {QualifiedName, _} = lookup_type_name(Span, Path, Name, Env),
+named_in(#t_named{span = Span, namespace = Namespace, name = Name, args = Args}, Env) ->
+    {QualifiedName, _} = lookup_type_name(Span, Namespace, Name, Env),
     [QualifiedName | lists:append([named_in(Arg, Env) || Arg <- Args])];
 named_in(Node, Env) when is_tuple(Node) ->
     lists:append([named_in(Child, Env) || Child <- tl(tuple_to_list(Node))]);
@@ -677,9 +677,9 @@ group_named(#type_declaration{name = Name, params = Params, constructors = Const
         throw:{type_error, #diagnostic{} = Diagnostic} -> [Diagnostic]
     end.
 
-at_parameters(#t_named{span = Span, path = Path, name = Named, args = Args} = Annotation, Owner,
-              Params, Group, Env) ->
-    {QualifiedName, _} = lookup_type_name(Span, Path, Named, Env),
+at_parameters(#t_named{span = Span, namespace = Namespace, name = Named, args = Args} = Annotation,
+              Owner, Params, Group, Env) ->
+    {QualifiedName, _} = lookup_type_name(Span, Namespace, Named, Env),
     case lists:member(QualifiedName, Group) of
         true ->
             Other = [Arg || Arg <- Args, not is_parameter(Arg, Params)],
@@ -1186,20 +1186,22 @@ references_in(#e_block{statements = Statements}, Env, Acc, Bound) ->
                                 statement_references(Statement, FoundAndScope, Env)
                             end, {Acc, BlockBound}, Statements),
     Acc1;
-references_in(#e_var{path = [], name = Name}, _Env, Acc, Bound) when is_map_key(Name, Bound) -> Acc;
-references_in(#e_var{path = [], name = Name}, _Env, Acc, _Bound) -> [{undefined, Name} | Acc];
-references_in(#e_var{path = Namespace, name = Name}, #env{namespace = Namespace}, Acc, _Bound)
+references_in(#e_var{namespace = [], name = Name}, _Env, Acc, Bound) when is_map_key(Name, Bound) ->
+    Acc;
+references_in(#e_var{namespace = [], name = Name}, _Env, Acc, _Bound) -> [{undefined, Name} | Acc];
+references_in(#e_var{namespace = Namespace, name = Name}, #env{namespace = Namespace}, Acc, _Bound)
   when Namespace =/= [] ->
     %% the module's own qualified name (report §4.2), which a local binding
     %% of the same name does not hide
     [{undefined, Name} | Acc];
-references_in(#e_var{path = [MemberOf], name = Name}, #env{local_types = LocalTypes}, Acc,
+references_in(#e_var{namespace = [MemberOf], name = Name}, #env{local_types = LocalTypes}, Acc,
               _Bound) ->
     case maps:is_key(MemberOf, LocalTypes) of true -> [{MemberOf, Name} | Acc]; false -> Acc end;
-references_in(#e_var{path = Path} = Variable, #env{namespace = Namespace} = Env, Acc, Bound)
-  when length(Path) > 1 ->
-    case is_own_type_path(Path, Namespace) of
-        true -> references_in(Variable#e_var{path = [lists:last(Path)]}, Env, Acc, Bound);
+references_in(#e_var{namespace = Namespace} = Variable, #env{namespace = OwnNamespace} = Env, Acc,
+              Bound)
+  when length(Namespace) > 1 ->
+    case is_own_type_namespace(Namespace, OwnNamespace) of
+        true -> references_in(Variable#e_var{namespace = [lists:last(Namespace)]}, Env, Acc, Bound);
         false -> Acc
     end;
 references_in(#e_binop{operator = Operator, left = Left, right = Right}, Env, Acc, Bound)
@@ -1220,7 +1222,7 @@ references_in(#known_member{qualified_name = QualifiedName, member = Member,
               #env{namespace = Namespace, local_types = LocalTypes} = Env, Acc, Bound) ->
     %% report §4.9, §8.5: a supplied member is called where it is supplied
     MemberOf = lists:last(QualifiedName),
-    Own = [{MemberOf, Member} || is_own_type_path(QualifiedName, Namespace),
+    Own = [{MemberOf, Member} || is_own_type_namespace(QualifiedName, Namespace),
                                  is_map_key(MemberOf, LocalTypes)],
     references_in(Supplies, Env, Own ++ Acc, Bound);
 references_in(#e_negation{expr = Operand}, Env, Acc, Bound) ->
@@ -1272,7 +1274,7 @@ operator_ref(Member, Operand, #env{namespace = Namespace, local_types = LocalTyp
     case node_type(Operand) of
         {tcon, QualifiedName, _} ->
             MemberOf = lists:last(QualifiedName),
-            IsLocal = is_own_type_path(QualifiedName, Namespace)
+            IsLocal = is_own_type_namespace(QualifiedName, Namespace)
                 andalso maps:is_key(MemberOf, LocalTypes),
             case IsLocal of
                 true -> [{MemberOf, Member}];
@@ -1282,10 +1284,10 @@ operator_ref(Member, Operand, #env{namespace = Namespace, local_types = LocalTyp
             []
     end.
 
-%% Report §4.2: is Path the module's own namespace and one name below it,
+%% Report §4.2: is Namespace the module's own and one name below it,
 %% as `M.T` in module M, where T may be a type the module declares?
-is_own_type_path(Path, Namespace) ->
-    length(Path) =:= length(Namespace) + 1 andalso lists:prefix(Namespace, Path).
+is_own_type_namespace(Namespace, OwnNamespace) ->
+    length(Namespace) =:= length(OwnNamespace) + 1 andalso lists:prefix(OwnNamespace, Namespace).
 
 %% A group failed: give its names a fresh polymorphic type so that later
 %% groups report their own errors rather than cascades.
@@ -2344,16 +2346,16 @@ field_annotations({named, Fields}) -> [Annotation || #field{annotation = Annotat
 %% requirement names at the type's arguments.
 reach(#t_var{name = Param}, Member, _Owner, _Known, _Env) ->
     [{Param, Member}];
-reach(#t_named{span = Span, path = Path, name = Name, args = Args} = Annotation, Member, Owner,
-      Known, Env) ->
-    {QualifiedName, _} = lookup_type_name(Span, Path, Name, Env),
+reach(#t_named{span = Span, namespace = Namespace, name = Name, args = Args} = Annotation, Member,
+      Owner, Known, Env) ->
+    {QualifiedName, _} = lookup_type_name(Span, Namespace, Name, Env),
     case member_requirement(QualifiedName, Member, Known, Env) of
         none ->
             cannot_derive(Owner, Annotation, Member, Env);
-        {ok, Paths} ->
+        {ok, Routes} ->
             lists:append([reach(Argument, Needed, Owner, Known, Env)
-                          || {ArgumentPath, Needed} <- Paths,
-                             Argument <- argument_at(Args, ArgumentPath)])
+                          || {ArgumentRoute, Needed} <- Routes,
+                             Argument <- argument_at(Args, ArgumentRoute)])
     end;
 reach(Annotation, Member, Owner, _Known, Env) ->
     cannot_derive(Owner, Annotation, Member, Env).
@@ -2368,20 +2370,20 @@ cannot_derive(Owner, Annotation, Member, Env) ->
          ++ " has no " ++ atom_to_list(Member)).
 
 %% The requirement of the member Member of the type QualifiedName, each of
-%% its members with the path, through the type's arguments, to the type
+%% its members with the route, through the type's arguments, to the type
 %% variable it names: a derived compare's as reached so far, a member of
 %% this module's as its declaration writes it, another's as its interface
 %% has it; none where the type has no such member.
 member_requirement(QualifiedName, Member, {TypeDeclarations, Requirements, Declarations},
                    #env{namespace = Namespace} = Env) ->
-    case is_own_type_path(QualifiedName, Namespace) of
+    case is_own_type_namespace(QualifiedName, Namespace) of
         true -> own_member_requirement(lists:last(QualifiedName), Member, TypeDeclarations,
                                        Requirements, Declarations);
         false ->
             case maps:get(session_member(QualifiedName, Member, Env), Env#env.globals, undefined) of
                 #scheme{type = {tfn, [First | _], _, _}, requirement = Requirement} ->
-                    {ok, [{Path, Needed} || {Id, Needed} <- Requirement,
-                                            Path <- type_paths(First, Id)]};
+                    {ok, [{Route, Needed} || {Id, Needed} <- Requirement,
+                                            Route <- type_routes(First, Id)]};
                 #scheme{} -> {ok, []};
                 undefined -> none
             end
@@ -2400,38 +2402,38 @@ own_member_requirement(Name, Member, _TypeDeclarations, _Requirements, Declarati
             %% the variable's place is read from whichever parameter the
             %% member annotates; a requirement names a variable the
             %% signature writes, so one does
-            {ok, lists:usort([{Path, Needed}
+            {ok, lists:usort([{Route, Needed}
                               || #member{member_of = Variable, name = Needed} <- Members,
                                  #param{annotation = Annotation} <- Params,
-                                 Path <- annotation_paths(Annotation, Variable)])};
+                                 Route <- annotation_routes(Annotation, Variable)])};
         [_] -> {ok, []};
         [] -> none
     end.
 
-%% The paths through a type's arguments to a variable, a path a list of
+%% The routes through a type's arguments to a variable, a route a list of
 %% argument indexes.
-type_paths({tcon, _, Args}, Id) ->
+type_routes({tcon, _, Args}, Id) ->
     lists:append([case Arg of
                       {tvar, Id} -> [[Index]];
-                      _ -> [[Index | Path] || Path <- type_paths(Arg, Id)]
+                      _ -> [[Index | Route] || Route <- type_routes(Arg, Id)]
                   end || {Index, Arg} <- lists:enumerate(Args)]);
-type_paths(_, _) ->
+type_routes(_, _) ->
     [].
 
-annotation_paths(#t_named{args = Args}, Variable) ->
+annotation_routes(#t_named{args = Args}, Variable) ->
     lists:append([case Arg of
                       #t_var{name = Variable} -> [[Index]];
-                      _ -> [[Index | Path] || Path <- annotation_paths(Arg, Variable)]
+                      _ -> [[Index | Route] || Route <- annotation_routes(Arg, Variable)]
                   end || {Index, Arg} <- lists:enumerate(Args)]);
-annotation_paths(_, _) ->
+annotation_routes(_, _) ->
     [].
 
-%% The annotation at a path through a named type's arguments, if it has one.
+%% The annotation at a route through a named type's arguments, if it has one.
 argument_at(Args, [Index]) when Index =< length(Args) ->
     [lists:nth(Index, Args)];
-argument_at(Args, [Index | Path]) when Index =< length(Args) ->
+argument_at(Args, [Index | Route]) when Index =< length(Args) ->
     case lists:nth(Index, Args) of
-        #t_named{args = Inner} -> argument_at(Inner, Path);
+        #t_named{args = Inner} -> argument_at(Inner, Route);
         _ -> []
     end;
 argument_at(_, _) ->
@@ -2452,7 +2454,8 @@ derived_compare(#type_declaration{name = Name, params = Params, constructors = C
                                                   #e_var{span = Span, name = right}]},
     #fn_declaration{span = Span, doc = derived_doc(), export = Export, member_of = Name,
                     name = compare, params = [Side(left), Side(right)],
-                    result_type = #t_named{span = Span, path = prelude_path(types, 'Ordering', Env),
+                    result_type = #t_named{span = Span,
+                                           namespace = prelude_namespace(types, 'Ordering', Env),
                                            name = 'Ordering'},
                     requirement = [#member{span = Span, member_of = Param, name = Member}
                                    || {Param, Member} <- Requirement],
@@ -2517,7 +2520,7 @@ compared([Field | Rest], Span, Env) ->
     #e_match{span = Span, scrutinee = field_compared(Field),
              clauses = [#clause{span = Span,
                                 pattern = #p_constructor{span = Span,
-                                                         path = prelude_path(constructors,
+                                                         namespace = prelude_namespace(constructors,
                                                                              'Equal', Env),
                                                          name = 'Equal'},
                                 body = compared(Rest, Span, Env)},
@@ -2534,18 +2537,19 @@ field_compared({Annotation, Left, Right}) ->
             args = [#e_var{span = Span, name = Left}, #e_var{span = Span, name = Right}]}.
 
 ordering(Name, Span, Env) ->
-    #e_constructor{span = Span, path = prelude_path(constructors, Name, Env), name = Name}.
+    #e_constructor{span = Span, namespace = prelude_namespace(constructors, Name, Env),
+                   name = Name}.
 
 %% Report §4.2: the prelude's name as the module may write it, `Prelude.`
 %% before it where the module or the session hides it.
-prelude_path(types, Name, #env{local_types = LocalTypes} = Env) ->
-    hidden_path(is_map_key(Name, LocalTypes) orelse session_name(types, Name, Env) =/= error);
-prelude_path(constructors, Name, #env{local_constructors = LocalConstructors} = Env) ->
-    hidden_path(is_map_key(Name, LocalConstructors)
+prelude_namespace(types, Name, #env{local_types = LocalTypes} = Env) ->
+    hidden_namespace(is_map_key(Name, LocalTypes) orelse session_name(types, Name, Env) =/= error);
+prelude_namespace(constructors, Name, #env{local_constructors = LocalConstructors} = Env) ->
+    hidden_namespace(is_map_key(Name, LocalConstructors)
                 orelse session_name(constructors, Name, Env) =/= error).
 
-hidden_path(true) -> ['Prelude'];
-hidden_path(false) -> [].
+hidden_namespace(true) -> ['Prelude'];
+hidden_namespace(false) -> [].
 
 %%
 %% The fill (report §5.6)
@@ -2554,10 +2558,11 @@ hidden_path(false) -> [].
 %% Report §5.6: the name after `..` is a namespace where it is a qualified
 %% name of type names alone that names no constructor or binding in scope,
 %% and an expression otherwise.
-fill_namespace(#e_constructor{path = Path, name = Name, args = none, base = undefined}, Env) ->
-    case names_constructor(Path, Name, Env) of
+fill_namespace(#e_constructor{namespace = Namespace, name = Name, args = none, base = undefined},
+               Env) ->
+    case names_constructor(Namespace, Name, Env) of
         true -> expression;
-        false -> {namespace, Path ++ [Name]}
+        false -> {namespace, Namespace ++ [Name]}
     end;
 fill_namespace(_, _) ->
     expression.
@@ -2568,16 +2573,17 @@ names_constructor([], Name, #env{local_constructors = LocalConstructors,
         orelse is_map_key([Name], Constructors);
 names_constructor(['Prelude'], Name, #env{constructors = Constructors}) ->
     is_map_key([Name], Constructors);
-names_constructor(Path, Name, #env{constructors = Constructors}) ->
-    is_map_key(Path ++ [Name], Constructors).
+names_constructor(Namespace, Name, #env{constructors = Constructors}) ->
+    is_map_key(Namespace ++ [Name], Constructors).
 
 %% Report §5.6: `Ops(..Set)`, each field not given beside the namespace the
 %% declaration of its name there, at the field's type, as the construction
 %% that names each would be.
-filled(#e_constructor{path = Path, name = Name, base = Base} = Expr, Namespace, Names,
-       FieldTypes, Constructed, FieldSets, Env) ->
+filled(#e_constructor{namespace = ConstructorNamespace, name = Name, base = Base} = Expr, Namespace,
+       Names, FieldTypes, Constructed, FieldSets, Env) ->
     BaseSpan = ern_ast:span(Base),
-    Written = ern_namespace:text(Path ++ [Name]) ++ "(.." ++ ern_namespace:text(Namespace) ++ ")",
+    Written = ern_namespace:text(ConstructorNamespace ++ [Name]) ++ "(.."
+        ++ ern_namespace:text(Namespace) ++ ")",
     %% report §5.6: a path updates a value, which a namespace is not
     lists:foreach(fun(#field_set{span = SetSpan, name = Field, path = [_ | _] = Rest}) ->
                           fail(SetSpan, "`" ++ path_text([Field | Rest]) ++ "` is a path, which"
@@ -2605,7 +2611,7 @@ fill_field(Span, Written, Namespace, Field, Env) ->
     case Declared of
         {ok, Env2} ->
             {#field_set{span = Span, name = Field,
-                        expr = #e_var{span = Span, path = Namespace, name = Field}}, Env2};
+                        expr = #e_var{span = Span, namespace = Namespace, name = Field}}, Env2};
         none ->
             fail(Span, Written ++ " lacks " ++ atom_to_list(Field) ++ ": "
                        ++ ern_namespace:text(Namespace) ++ " has no " ++ atom_to_list(Field))
@@ -2650,7 +2656,7 @@ updated_through_paths(#e_constructor{span = Span, name = Name} = Expr, Names, Fi
 
 %% A value bound to a name of its own, unless it is such a name already,
 %% as the values of an inner update are.
-bound_value({_, #field_set{expr = #e_var{path = [], name = Bound}} = FieldSet}, Env)
+bound_value({_, #field_set{expr = #e_var{namespace = [], name = Bound}} = FieldSet}, Env)
   when is_atom(Bound) ->
     case atom_to_list(Bound) of
         [$$ | _] -> {{FieldSet, {none, Bound}}, Env};
@@ -2688,11 +2694,12 @@ update_set({FieldName, [{FieldName, [], ValueName, SetSpan}]}, _Names, _FieldTyp
     #field_set{span = SetSpan, name = FieldName,
                expr = #e_var{span = SetSpan, name = ValueName}};
 update_set({FieldName, [{_, _, _, FirstSpan} | _] = Members}, Names, FieldTypes, Env) ->
-    {Path, Inner} = reached_constructor(FieldName, Members, Names, FieldTypes, Env),
+    {Namespace, Inner} = reached_constructor(FieldName, Members, Names, FieldTypes, Env),
     Base = #e_selection{span = FirstSpan, expr = #e_var{span = FirstSpan, name = '$base'},
                         field = FieldName, field_span = FirstSpan},
     #field_set{span = FirstSpan, name = FieldName,
-               expr = #e_constructor{span = FirstSpan, path = Path, name = Inner, base = Base,
+               expr = #e_constructor{span = FirstSpan, namespace = Namespace, name = Inner,
+                                     base = Base,
                                      args = {named, [#field_set{span = SetSpan, name = Next,
                                                                 path = Rest,
                                                                 expr = #e_var{span = SetSpan,
@@ -2711,7 +2718,7 @@ reached_constructor(FieldName, [{_, Path, _, FirstSpan} | _], Names, FieldTypes,
         {tcon, QualifiedName, _} ->
             case lookup_type(QualifiedName, Env) of
                 #type_info{constructors = [#constructor_info{qualified_name = Constructor}]} ->
-                    {constructor_path(Constructor, Env), lists:last(Constructor)};
+                    {constructor_namespace(Constructor, Env), lists:last(Constructor)};
                 #type_info{constructors = []} ->
                     fail(FirstSpan, "`" ++ Written ++ "` reaches " ++ Shown
                                     ++ ", which has no fields");
@@ -2729,8 +2736,8 @@ reached_constructor(FieldName, [{_, Path, _, FirstSpan} | _], Names, FieldTypes,
 
 %% Report §4.2: a constructor as the module writes it, the prelude's past a
 %% name the module hides.
-constructor_path([Name], Env) -> prelude_path(constructors, Name, Env);
-constructor_path(QualifiedName, _) -> lists:droplast(QualifiedName).
+constructor_namespace([Name], Env) -> prelude_namespace(constructors, Name, Env);
+constructor_namespace(QualifiedName, _) -> lists:droplast(QualifiedName).
 
 %% Report §5.6, §11.5: no path is a prefix of another, and none is given
 %% twice; the second is reported, the first labelled.
@@ -3193,7 +3200,7 @@ user_operator(Span, Operator, OperandType, QualifiedName, Env) ->
 %% declaration with its type; another module's is not in the source shown.
 member_declared(QualifiedName, Member, Name, MemberType,
                 #env{namespace = Namespace, typed = Typed, type_state = TypeState}) ->
-    IsOwn = is_own_type_path(QualifiedName, Namespace),
+    IsOwn = is_own_type_namespace(QualifiedName, Namespace),
     case [Declaration || Declaration <- Typed, IsOwn,
                          declaration_key(Declaration) =:= {lists:last(QualifiedName), Member}] of
         [Declaration | _] ->
@@ -3224,7 +3231,7 @@ operator_text(Operator) -> atom_to_list(Operator).
 member_scheme(QualifiedName, Member,
               #env{namespace = Namespace, local_values = LocalValues} = Env) ->
     MemberQualifiedName =
-        case is_own_type_path(QualifiedName, Namespace) of
+        case is_own_type_namespace(QualifiedName, Namespace) of
             true -> maps:get({lists:last(QualifiedName), Member}, LocalValues, undefined);
             false -> session_member(QualifiedName, Member, Env)
         end,
@@ -3259,9 +3266,9 @@ rigid_annotation_variables(Span, Rigid, #env{type_state = TypeState}) ->
 %% shell's input that is one name; the scheme keeps the declaration's
 %% variable names, which an instance does not.
 -spec declared_scheme(env(), [atom()], atom()) -> {ok, #scheme{}} | error.
-declared_scheme(Env, Path, Name) ->
+declared_scheme(Env, Namespace, Name) ->
     %% the position is never shown: an unknown name answers `error`
-    try lookup_value({1, 1, {1, 1}}, Path, Name, Env) of
+    try lookup_value({1, 1, {1, 1}}, Namespace, Name, Env) of
         {Scheme, _, _} -> {ok, Scheme}
     catch
         throw:{type_error, _, _} -> error;
@@ -3291,16 +3298,16 @@ open_effect(Type, TypeState) ->
 infer(#e_literal{kind = Kind} = Expr, Env) ->
     Type = literal_type(Kind),
     {Expr#e_literal{type = Type}, Type, Env};
-infer(#e_var{span = Span, path = Path, name = Name} = Expr, Env) ->
+infer(#e_var{span = Span, namespace = Namespace, name = Name} = Expr, Env) ->
     %% report §11.2: a name the session declared resolves to the input that
-    %% declared it, which its referent records; its path stays as written
-    {Scheme, Referent, Env1} = lookup_value(Span, Path, Name, Env),
+    %% declared it, which its referent records; its namespace stays as written
+    {Scheme, Referent, Env1} = lookup_value(Span, Namespace, Name, Env),
     {Closed, Requirement, TypeState1} = ern_types:instance(Scheme, Env1#env.type_state),
     {Type, TypeState} = open_effect(Closed, TypeState1),
     Who = case Scheme of
               #scheme{quantified = []} -> undefined;
               _ ->
-                  {ern_namespace:text(Path ++ [Name]),
+                  {ern_namespace:text(Namespace ++ [Name]),
                    ern_types:format_scheme(Scheme, TypeState)}
           end,
     Pending = instance_pending(Type, Span, TypeState, Who),
@@ -3315,9 +3322,9 @@ infer(#e_var{span = Span, path = Path, name = Name} = Expr, Env) ->
     %% emitter reads the decision rather than making it again
     {Expr#e_var{type = Type, referent = Referent, supplies = Supplies}, Type,
      Env1#env{type_state = TypeState, pending = Pending ++ Env1#env.pending}};
-infer(#e_constructor{span = Span, path = Path, name = Name, base = Base, args = Args} = Expr,
-      Env) ->
-    ConstructorInfo = lookup_constructor(Span, Path, Name, Env),
+infer(#e_constructor{span = Span, namespace = ConstructorNamespace, name = Name, base = Base,
+                     args = Args} = Expr, Env) ->
+    ConstructorInfo = lookup_constructor(Span, ConstructorNamespace, Name, Env),
     {ConstructorType, TypeState} =
         ern_types:instantiate(ConstructorInfo#constructor_info.scheme, Env#env.type_state),
     Env1 = Env#env{type_state = TypeState},
@@ -3657,7 +3664,7 @@ guard_operand(#e_literal{}, _) -> ok;
 guard_operand(#e_negation{expr = #e_literal{kind = Kind}}, _) when Kind =:= int; Kind =:= float ->
     ok;
 guard_operand(#e_constructor{args = none}, _) -> ok;
-guard_operand(#e_var{path = [], name = Name}, #env{locals = Locals})
+guard_operand(#e_var{namespace = [], name = Name}, #env{locals = Locals})
   when is_map_key(Name, Locals) ->
     ok;
 guard_operand(#e_var{referent = Referent} = Variable, Env) ->
@@ -3708,7 +3715,7 @@ needs(#e_var{supplies = Supplies}) ->
 needs(_) ->
     [].
 
-callee_name(#e_var{path = Path, name = Name}) -> ern_namespace:text(Path ++ [Name]);
+callee_name(#e_var{namespace = Namespace, name = Name}) -> ern_namespace:text(Namespace ++ [Name]);
 %% report §11.5: a selected field called, named as written, `ops.toList`
 callee_name(#e_selection{expr = Expr, field = Field}) ->
     case callee_name(Expr) of
@@ -3725,7 +3732,7 @@ callee_name(_) -> "the callee".
 argument_rule(Name, Callee, #env{inferring = Inferring} = Env) ->
     Text = "the argument does not fit " ++ Name,
     Recursive = case Callee of
-                    #e_var{referent = var, path = [], name = LocalName} ->
+                    #e_var{referent = var, namespace = [], name = LocalName} ->
                         lists:member({local, LocalName}, Inferring);
                     #e_var{referent = #own_declaration{member_of = MemberOf,
                                                        name = DeclarationName}} ->
@@ -3745,8 +3752,9 @@ argument_rule(Name, Callee, #env{inferring = Inferring} = Env) ->
 %% consumes every obligation open on its path. The variable is the
 %% scheme's own; one the enclosing definition fixes may stand for a type
 %% a value has.
-returns(#e_var{span = Span, path = Path, name = Name}, Env) ->
-    {#scheme{quantified = Quantified, type = Type}, _, _} = lookup_value(Span, Path, Name, Env),
+returns(#e_var{span = Span, namespace = Namespace, name = Name}, Env) ->
+    {#scheme{quantified = Quantified, type = Type}, _, _} =
+        lookup_value(Span, Namespace, Name, Env),
     TypeState = Env#env.type_state,
     case ern_types:resolve(Type, TypeState) of
         {tfn, Params, _, Result} ->
@@ -3899,9 +3907,9 @@ check_field_set(#field_set{name = FieldName, expr = Value} = FieldSet,
 
 %% The span of a construction's written constructor, `Point` or
 %% `Shape.Circle`, which labels what fixed a field's type.
-constructor_name_span(#e_constructor{span = Span, path = Path, name = Name}) ->
+constructor_name_span(#e_constructor{span = Span, namespace = Namespace, name = Name}) ->
     {Line, Column, _} = ern_diagnostic:span(Span),
-    {Line, Column, {Line, Column + length(ern_namespace:text(Path ++ [Name]))}}.
+    {Line, Column, {Line, Column + length(ern_namespace:text(Namespace ++ [Name]))}}.
 
 %% Report §5.6: `..` takes the unlisted fields from a value that has them,
 %% so its type has one constructor.
@@ -4505,8 +4513,9 @@ infer_pattern(#p_var{name = Name} = Pattern, Env) ->
 infer_pattern(#p_literal{kind = Kind} = Pattern, Env) ->
     Type = literal_type(Kind),
     {Pattern#p_literal{type = Type}, Type, [], Env};
-infer_pattern(#p_constructor{span = Span, path = Path, name = Name, args = Args} = Pattern, Env) ->
-    ConstructorInfo = lookup_constructor(Span, Path, Name, Env),
+infer_pattern(#p_constructor{span = Span, namespace = Namespace, name = Name,
+                             args = Args} = Pattern, Env) ->
+    ConstructorInfo = lookup_constructor(Span, Namespace, Name, Env),
     {ConstructorType, TypeState} =
         ern_types:instantiate(ConstructorInfo#constructor_info.scheme, Env#env.type_state),
     Env1 = Env#env{type_state = TypeState},
@@ -4714,7 +4723,7 @@ size_shape(Expr, Env) ->
                                  " literal, or `+`, `-`, `*` of them").
 
 size_expression(#e_literal{kind = int}, _) -> true;
-size_expression(#e_var{path = [], name = Name}, #env{locals = Locals})
+size_expression(#e_var{namespace = [], name = Name}, #env{locals = Locals})
   when is_map_key(Name, Locals) ->
     true;
 size_expression(#e_var{referent = Referent}, Env) -> is_top_let(Referent, Env);
@@ -4747,7 +4756,7 @@ sizes_see_no_sibling(Pattern, Env) ->
                          ok
                  end, Pattern, ok).
 
-size_variables(#e_var{path = [], name = _} = Variable, Acc) -> Acc ++ [Variable];
+size_variables(#e_var{namespace = [], name = _} = Variable, Acc) -> Acc ++ [Variable];
 size_variables(_, Acc) -> Acc.
 
 sibling_size(#e_var{span = Span, name = Name}, Bound, Earlier, Env) ->
@@ -4824,9 +4833,9 @@ irrefutable(#p_var{}, _) -> true;
 irrefutable(#p_as{pattern = Pattern}, Env) -> irrefutable(Pattern, Env);
 irrefutable(#p_tuple{elements = Elements}, Env) ->
     lists:all(fun(Element) -> irrefutable(Element, Env) end, Elements);
-irrefutable(#p_constructor{span = Span, path = Path, name = Name, args = Args}, Env) ->
+irrefutable(#p_constructor{span = Span, namespace = Namespace, name = Name, args = Args}, Env) ->
     #constructor_info{type_qualified_name = TypeQualifiedName} =
-        lookup_constructor(Span, Path, Name, Env),
+        lookup_constructor(Span, Namespace, Name, Env),
     #type_info{constructors = Constructors} = maps:get(TypeQualifiedName, Env#env.types),
     length(Constructors) =:= 1 andalso
         case Args of
@@ -4871,37 +4880,38 @@ lookup_value(Span, ['Prelude', TypeName], Name, #env{provided = Provided} = Env)
     lists:member(TypeName, Provided) orelse prelude_one(Span, ['Prelude', TypeName], Name),
     hidden(Span, [TypeName, Name], own_member(TypeName, Name, Env) =/= error),
     lookup_global(Span, [TypeName], Name, Env);
-lookup_value(Span, ['Prelude' | _] = Path, Name, _Env) ->
-    prelude_one(Span, Path, Name);
-lookup_value(Span, [MemberOf] = Path, Name, #env{local_values = LocalValues} = Env) ->
+lookup_value(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
+    prelude_one(Span, Namespace, Name);
+lookup_value(Span, [MemberOf] = Namespace, Name, #env{local_values = LocalValues} = Env) ->
     case LocalValues of
         #{{MemberOf, Name} := QualifiedName} -> local_global(QualifiedName, Env);
         _ ->
             case session_name(values, {MemberOf, Name}, Env) of
                 {ok, QualifiedName} -> session_global(QualifiedName, Name, Env);
-                error -> lookup_global(Span, Path, Name, Env)
+                error -> lookup_global(Span, Namespace, Name, Env)
             end
     end;
-lookup_value(Span, Path, Name, #env{namespace = Namespace, local_values = LocalValues} = Env) ->
+lookup_value(Span, Namespace, Name,
+             #env{namespace = OwnNamespace, local_values = LocalValues} = Env) ->
     %% report §4.2: a module may name its own declarations qualified
-    case Path =:= Namespace of
+    case Namespace =:= OwnNamespace of
         true ->
             case LocalValues of
                 #{Name := QualifiedName} -> local_global(QualifiedName, Env);
-                _ -> lookup_global(Span, Path, Name, Env)
+                _ -> lookup_global(Span, Namespace, Name, Env)
             end;
         false ->
             %% report §4.2: `M.T.name` in module M is M's own member where M
             %% declares T, and the module M.T's `name` otherwise; only one of
             %% the two can exist, a module namespace may not coincide with a
             %% type-member namespace
-            Own = case is_own_type_path(Path, Namespace) of
-                      true -> own_member(lists:last(Path), Name, Env);
+            Own = case is_own_type_namespace(Namespace, OwnNamespace) of
+                      true -> own_member(lists:last(Namespace), Name, Env);
                       false -> error
                   end,
             case Own of
                 {ok, QualifiedName} -> local_global(QualifiedName, Env);
-                error -> lookup_global(Span, Path, Name, Env)
+                error -> lookup_global(Span, Namespace, Name, Env)
             end
     end.
 
@@ -4925,8 +4935,8 @@ hidden(Span, QualifiedName, false) ->
 %% namespace of the prelude or the standard library and one of its names;
 %% a module of the program's own is reached by its namespace alone.
 -spec prelude_one(ern_diagnostic:span(), [atom()], atom()) -> no_return().
-prelude_one(Span, Path, Name) ->
-    fail(Span, ern_namespace:text(Path ++ [Name])
+prelude_one(Span, Namespace, Name) ->
+    fail(Span, ern_namespace:text(Namespace ++ [Name])
                ++ ": Prelude takes one name the prelude declares, as `Prelude.Some`, or a name"
                " of the prelude's or the standard library's namespaces, as"
                " `Prelude.Io.println`").
@@ -5009,20 +5019,20 @@ session_global(QualifiedName, Name, Env) ->
     {maps:get(QualifiedName, Env1#env.globals),
      qualified_referent(lists:droplast(QualifiedName), Name, Env1), Env1}.
 
-lookup_global(Span, Path, Name, #env{globals = Globals} = Env) ->
-    QualifiedName = Path ++ [Name],
+lookup_global(Span, Namespace, Name, #env{globals = Globals} = Env) ->
+    QualifiedName = Namespace ++ [Name],
     case Globals of
         #{QualifiedName := Scheme} ->
             Referent = case lookup_type(QualifiedName, Env) =:= undefined
                             andalso lists:keymember(QualifiedName, 1, ern_prelude:values()) of
                            true -> {prelude, QualifiedName};
-                           false -> qualified_referent(Path, Name, Env)
+                           false -> qualified_referent(Namespace, Name, Env)
                        end,
             {Scheme, Referent, Env};
-        _ when Path =:= ['Peer'] ->
+        _ when Namespace =:= ['Peer'] ->
             %% Report §8.3: a spawn on a peer is the module Peer's, which
             %% MVP 3.0 builds; a module of the program's may take the name
-            case lists:any(fun(Key) -> lists:droplast(Key) =:= Path end, maps:keys(Globals)) of
+            case lists:any(fun(Key) -> lists:droplast(Key) =:= Namespace end, maps:keys(Globals)) of
                 true -> fail(Span, "unknown name " ++ ern_namespace:text(QualifiedName));
                 false ->
                     fail(Span, ern_namespace:text(QualifiedName)
@@ -5033,14 +5043,14 @@ lookup_global(Span, Path, Name, #env{globals = Globals} = Env) ->
             fail(Span, "unknown name " ++ ern_namespace:text(QualifiedName))
     end.
 
-%% Report §4.2: the declaration a qualified name names, Path its namespace
-%% or its namespace and the type that owns the member.
-qualified_referent(Path, Name, #env{namespace = Namespace} = Env) ->
-    {Declaring, MemberOf} = case is_member_path(Path, Name, Env) of
-                                true -> {lists:droplast(Path), lists:last(Path)};
-                                false -> {Path, undefined}
+%% Report §4.2: the declaration a qualified name names, Namespace the
+%% module's namespace or that and the type that owns the member.
+qualified_referent(Namespace, Name, #env{namespace = OwnNamespace} = Env) ->
+    {Declaring, MemberOf} = case is_member_namespace(Namespace, Name, Env) of
+                                true -> {lists:droplast(Namespace), lists:last(Namespace)};
+                                false -> {Namespace, undefined}
                             end,
-    case Declaring =:= Namespace of
+    case Declaring =:= OwnNamespace of
         true -> #own_declaration{member_of = MemberOf, name = Name};
         false -> #remote_declaration{namespace = Declaring, member_of = MemberOf, name = Name}
     end.
@@ -5076,11 +5086,11 @@ lookup_constructor(Span, ['Prelude'], Name,
         _ ->
             fail(Span, "the prelude declares no constructor " ++ atom_to_list(Name))
     end;
-lookup_constructor(Span, ['Prelude' | _] = Path, Name, _Env) ->
-    prelude_one(Span, Path, Name);
-lookup_constructor(Span, Path, Name,
+lookup_constructor(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
+    prelude_one(Span, Namespace, Name);
+lookup_constructor(Span, Namespace, Name,
                    #env{constructors = Constructors, types = Types, local_types = LocalTypes}) ->
-    QualifiedName = Path ++ [Name],
+    QualifiedName = Namespace ++ [Name],
     case Constructors of
         #{QualifiedName := ConstructorInfo} ->
             #constructor_info{type_qualified_name = TypeQualifiedName} = ConstructorInfo,

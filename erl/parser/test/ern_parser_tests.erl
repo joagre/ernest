@@ -76,11 +76,12 @@ literals_test() ->
 
 %% report §2.3, §4.2
 names_test() ->
-    ?assertMatch(#e_var{path = [], name = x}, expression("x")),
-    ?assertMatch(#e_var{path = ['Net', 'Http'], name = parse}, expression("Net.Http.parse")),
-    ?assertMatch(#e_var{path = ['Int'], name = '+'}, expression("Int.+")),
-    ?assertMatch(#e_constructor{path = [], name = 'None', args = none}, expression("None")),
-    ?assertMatch(#e_constructor{path = ['Net', 'Http'], name = 'Request', args = {positional, _}},
+    ?assertMatch(#e_var{namespace = [], name = x}, expression("x")),
+    ?assertMatch(#e_var{namespace = ['Net', 'Http'], name = parse}, expression("Net.Http.parse")),
+    ?assertMatch(#e_var{namespace = ['Int'], name = '+'}, expression("Int.+")),
+    ?assertMatch(#e_constructor{namespace = [], name = 'None', args = none}, expression("None")),
+    ?assertMatch(#e_constructor{namespace = ['Net', 'Http'], name = 'Request',
+                                args = {positional, _}},
                  expression("Net.Http.Request(x)")).
 
 %% report §2.6
@@ -132,7 +133,7 @@ calls_test() ->
                  expression("f(x, 1)")),
     ?assertMatch(#e_call{callee = #e_call{callee = #e_var{name = f}, args = [_]}, args = [_]},
                  expression("f(a)(b)")),
-    ?assertMatch(#e_call{callee = #e_var{path = ['Address'], name = call}},
+    ?assertMatch(#e_call{callee = #e_var{namespace = ['Address'], name = call}},
                  expression("Address.call(c, fn(r) = Get(reply = r), 1000)")).
 
 %% report §5.7: the pipe binds loosest, below ||, and takes a
@@ -199,7 +200,7 @@ field_selection_test() ->
     ?assertMatch(#e_selection{expr = #e_selection{expr = #e_var{name = s}, field = at}, field = x},
                  expression("s.at.x")),
     ?assertMatch(#e_selection{expr = #e_call{}, field = y}, expression("f(1).y")),
-    ?assertMatch(#e_selection{expr = #e_var{path = ['Stack'], name = empty}, field = items},
+    ?assertMatch(#e_selection{expr = #e_var{namespace = ['Stack'], name = empty}, field = items},
                  expression("Stack.empty.items")),
     ?assertMatch(#e_binop{operator = '+', left = #e_selection{}, right = #e_selection{}},
                  expression("p.x + p.y")).
@@ -422,7 +423,8 @@ constructor_patterns_test() ->
     ?assertMatch(#p_constructor{name = 'Player',
                                 args = {named, [#field_pattern{pattern = #p_literal{}}]}},
                  pattern_of("Player(alive = false)")),
-    ?assertMatch(#p_constructor{path = ['Net', 'Http'], name = 'Request', args = {named, [_, _]}},
+    ?assertMatch(#p_constructor{namespace = ['Net', 'Http'], name = 'Request',
+                                args = {named, [_, _]}},
                  pattern_of("Net.Http.Request(method = m, path = p)")),
     ?assertMatch(#p_constructor{args = {positional,
                                         #p_as{pattern = #p_constructor{name = 'Snapshot'},
@@ -454,11 +456,11 @@ compound_patterns_test() ->
 
 %% report §3, §3.4
 types_test() ->
-    ?assertMatch(#t_named{path = [], name = 'Int', args = []}, type_of("Int")),
+    ?assertMatch(#t_named{namespace = [], name = 'Int', args = []}, type_of("Int")),
     ?assertMatch(#t_var{name = a}, type_of("a")),
     ?assertMatch(#t_named{name = 'Map', args = [#t_named{name = 'String'}, #t_var{name = v}]},
                  type_of("Map(String, v)")),
-    ?assertMatch(#t_named{path = ['Ets'], name = 'Table', args = [_, _]},
+    ?assertMatch(#t_named{namespace = ['Ets'], name = 'Table', args = [_, _]},
                  type_of("Ets.Table(k, v)")),
     ?assertMatch(#t_tuple{elements = [#t_named{name = 'Int'}, #t_named{name = 'Bool'}]},
                  type_of("#(Int, Bool)")),
@@ -922,13 +924,13 @@ incomplete_test() ->
 %% which argument, the innermost call first, for `Shift-Tab`; `expected`
 %% still says what may stand there, for completion
 within_call_test() ->
-    ?assertEqual({#enclosing{path = ['List'], name = map, argument = 1}, expression},
+    ?assertEqual({#enclosing{namespace = ['List'], name = map, argument = 1}, expression},
                  stopped_within(<<"List.map(xs, ">>)),
-    ?assertEqual({#enclosing{path = ['List'], name = map, argument = 0}, expression},
+    ?assertEqual({#enclosing{namespace = ['List'], name = map, argument = 0}, expression},
                  stopped_within(<<"List.map(">>)),
-    ?assertEqual({#enclosing{path = [], name = g, argument = 1}, expression},
+    ?assertEqual({#enclosing{namespace = [], name = g, argument = 1}, expression},
                  stopped_within(<<"f(g(1, ">>)),
-    ?assertMatch({#enclosing{path = [], name = f, argument = 1}, _},
+    ?assertMatch({#enclosing{namespace = [], name = f, argument = 1}, _},
                  stopped_within(<<"f(1, 2">>)),
     ?assertMatch({undefined, _}, stopped_within(<<"1 + ">>)).
 
@@ -1010,9 +1012,9 @@ derives_test() ->
 %% where the name after it is a namespace, which the checker decides;
 %% written after the code
 fill_test() ->
-    #e_constructor{name = 'Ops', base = #e_constructor{path = [], name = 'Set', args = none},
+    #e_constructor{name = 'Ops', base = #e_constructor{namespace = [], name = 'Set', args = none},
                    args = {named, []}} = expression("Ops(..Set)"),
-    #e_constructor{base = #e_constructor{path = ['Net'], name = 'Http'},
+    #e_constructor{base = #e_constructor{namespace = ['Net'], name = 'Http'},
                    args = {named, [#field_set{name = parse}]}} =
         expression("Ops(..Net.Http, parse = mine)"),
     #e_constructor{base = #e_var{name = p}, args = {named, []}} = expression("Ops(..p)").
@@ -1038,7 +1040,7 @@ update_path_test() ->
     ?assertEqual(Pattern, refusal_and_help("fn f(p) = match p { Pool(stats.indexed = n) -> n }")),
     ?assertEqual(Pattern,
                  refusal_and_help("fn f(p) = match p { Pool(name = x, stats.indexed = n) -> n }")),
-    {#enclosing{path = [], name = 'Pool', argument = none},
-     #expected_field{kind = field, path = [], constructor_name = 'Pool', segments = [stats]}} =
+    {#enclosing{namespace = [], name = 'Pool', argument = none},
+     #expected_field{kind = field, namespace = [], constructor_name = 'Pool', segments = [stats]}} =
         stopped_within(<<"Pool(..pool, stats.">>),
     {_, #expected_field{segments = [pool, stats]}} = stopped_within(<<"Site(..site, pool.stats.">>).

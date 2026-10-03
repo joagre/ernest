@@ -368,12 +368,13 @@ let_order(Lets, #emit_context{env = Env}) ->
 
 expr(#e_literal{span = Span, kind = Kind, value = Value}, Context) ->
     {at(Span, literal(Kind, Value)), Context};
-expr(#e_var{span = Span, path = Path, name = Name, type = Type, referent = Referent,
+expr(#e_var{span = Span, namespace = Namespace, name = Name, type = Type, referent = Referent,
             supplies = Supplies}, Context) ->
-    {Form, Context1} = name_form(Span, Path, Name, Referent, Type, Supplies, Context),
+    {Form, Context1} = name_form(Span, Namespace, Name, Referent, Type, Supplies, Context),
     {at(Span, Form), Context1};
-expr(#e_constructor{span = Span, path = Path, name = Name, base = Base, args = Args}, Context) ->
-    constructor_expr(Span, Path, Name, Base, Args, Context);
+expr(#e_constructor{span = Span, namespace = Namespace, name = Name, base = Base, args = Args},
+     Context) ->
+    constructor_expr(Span, Namespace, Name, Base, Args, Context);
 expr(#e_tuple{span = Span, elements = Elements}, Context) ->
     {Forms, Context1} = exprs(Elements, Context),
     {at(Span, erl_syntax:tuple(Forms)), Context1};
@@ -600,7 +601,7 @@ read_top(#e_negation{expr = Expr} = Node, Acc) ->
 read_top(#e_var{referent = Referent} = Reference, {Reads, Context}) when Referent =/= var ->
     {Form, Context1} = expr(Reference, Context),
     {[ReadName], Context2} = fresh_variables(1, "Read", Context1),
-    {Reference#e_var{path = [], name = ReadName, referent = var},
+    {Reference#e_var{namespace = [], name = ReadName, referent = var},
      {Reads ++ [erl_syntax:match_expr(erl_syntax:variable(ReadName), Form)],
       Context2#emit_context{variables = maps:put(ReadName, ReadName,
                                                  Context2#emit_context.variables)}}};
@@ -651,7 +652,7 @@ name_form(Span, _, Name, var, Type, [],
 %% Appendix E.1: the library's Io.show and Io.debug as values too, by
 %% what the checker supplied for the argument's type, named by the checker's
 %% referent from another module and from the library's own, and never by
-%% the path
+%% the namespace written
 name_form(Span, _, Name,
           #remote_declaration{namespace = ['Io'], member_of = undefined, name = Name},
           Type, [Shown], Context)
@@ -670,9 +671,9 @@ name_form(_, _, _, #remote_declaration{namespace = Declaring, member_of = Member
     {remote_value(Declaring, MemberOf, Name, Type, Env), Context};
 %% Report §4.9: a declaration with a requirement taken as a value is the
 %% function with its members supplied
-name_form(Span, Path, Name, Referent, Type, Supplies, Context) ->
+name_form(Span, Namespace, Name, Referent, Type, Supplies, Context) ->
     Arity = arity_of(Type, Span),
-    {Function, Context1} = name_form(Span, Path, Name, Referent, widened(Type, Supplies), [],
+    {Function, Context1} = name_form(Span, Namespace, Name, Referent, widened(Type, Supplies), [],
                                      Context),
     {SupplyForms, Context2} = supply_forms(Supplies, Context1),
     {Params, Context3} = fresh_variables(Arity, "A", Context2),
@@ -1425,8 +1426,9 @@ selecting_pattern(ConstructorName, Index, Count, VariableForm) ->
 place(Field, [Field | _]) -> 1;
 place(Field, [_ | Rest]) -> 1 + place(Field, Rest).
 
-constructor_expr(Span, Path, Name, Base, Args, #emit_context{env = Env} = Context) ->
-    #constructor_info{fields = Fields} = ern_typecheck:lookup_constructor(Span, Path, Name, Env),
+constructor_expr(Span, Namespace, Name, Base, Args, #emit_context{env = Env} = Context) ->
+    #constructor_info{fields = Fields} =
+        ern_typecheck:lookup_constructor(Span, Namespace, Name, Env),
     Tag = erl_syntax:atom(Name),
     case {Fields, Args} of
         {none, none} ->
@@ -1813,13 +1815,13 @@ erlang_guard(#e_binop{operator = Operator, left = Left, right = Right}, Bound, C
     IsPreludeType andalso guard_operand(Left, Bound) andalso guard_operand(Right, Bound);
 erlang_guard(#e_not{expr = Expr}, Bound, Context) -> erlang_guard(Expr, Bound, Context);
 erlang_guard(#e_literal{kind = bool}, _, _) -> true;
-erlang_guard(#e_var{path = [], name = Name}, Bound, _) -> lists:member(Name, Bound);
+erlang_guard(#e_var{namespace = [], name = Name}, Bound, _) -> lists:member(Name, Bound);
 erlang_guard(_, _, _) -> false.
 
 guard_operand(#e_literal{}, _) -> true;
 guard_operand(#e_negation{expr = #e_literal{kind = Kind}}, _) when Kind =:= int; Kind =:= float ->
     true;
-guard_operand(#e_var{path = [], name = Name}, Bound) -> lists:member(Name, Bound);
+guard_operand(#e_var{namespace = [], name = Name}, Bound) -> lists:member(Name, Bound);
 guard_operand(#e_constructor{args = none}, _) -> true;
 guard_operand(_, _) -> false.
 
@@ -1835,9 +1837,10 @@ pattern(#p_var{span = Span, name = Name}, Context) ->
     {at(Span, erl_syntax:variable(Variable)), Context1};
 pattern(#p_literal{span = Span, kind = Kind, value = Value}, Context) ->
     {at(Span, literal(Kind, Value)), Context};
-pattern(#p_constructor{span = Span, path = Path, name = Name, args = Args},
+pattern(#p_constructor{span = Span, namespace = Namespace, name = Name, args = Args},
         #emit_context{env = Env} = Context) ->
-    #constructor_info{fields = Fields} = ern_typecheck:lookup_constructor(Span, Path, Name, Env),
+    #constructor_info{fields = Fields} =
+        ern_typecheck:lookup_constructor(Span, Namespace, Name, Env),
     Tag = erl_syntax:atom(Name),
     case {Fields, Args} of
         {none, _} -> {at(Span, Tag), Context};

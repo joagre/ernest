@@ -59,7 +59,7 @@ pattern_bindings(_) ->
 %% clause's pattern, a block's bindings from the statement after them and
 %% a local fn's name for the rest of its block and its own body bind.
 -spec free_names(term(), [atom()]) -> [atom()].
-free_names(#e_var{path = [], name = Name}, Bound) ->
+free_names(#e_var{namespace = [], name = Name}, Bound) ->
     case lists:member(Name, Bound) of true -> []; false -> [Name] end;
 free_names(#e_lambda{params = Params, body = Body}, Bound) ->
     free_names(Body, param_names(Params) ++ Bound);

@@ -21,16 +21,16 @@
 %% Where a constructor's field's name stands, kind `field`; or where its
 %% first argument would stand and could be a field's name or a value,
 %% `field_or_value`, or a field's name or a pattern, `field_or_pattern`.
-%% path is the qualifier the constructor is written with, and
-%% constructor_name the name it is written with.
--record(expected_field, {kind, path, constructor_name, segments = []}).
+%% namespace is the one the constructor is written with (report §4.2),
+%% and constructor_name the name it is written with.
+-record(expected_field, {kind, namespace, constructor_name, segments = []}).
 %% segments: in a record update, the segments of a path typed before the
 %% cursor, whose last the fields completed are the type's reached (§5.6)
 
-%% A call or a constructor the input stops inside, by the path and the
-%% name written. argument: for a call, the index of the argument at the
+%% A call or a constructor the input stops inside, by the namespace and
+%% the name written. argument: for a call, the index of the argument at the
 %% cursor; for a constructor, that index, `{field, F}` in a named field's
 %% value, or `none` where a field's name stands.
--record(enclosing, {path, name, argument}).
+-record(enclosing, {namespace, name, argument}).
 
 -endif.

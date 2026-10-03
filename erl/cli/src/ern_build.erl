@@ -365,14 +365,15 @@ dependencies(Declarations, SourceRoot, SearchPath) ->
     lists:usort(lists:filtermap(fun(Path) -> module_prefix(Path, SourceRoot, SearchPath) end,
                                 Paths)).
 
-%% Each qualified reference of a source, its path and its last name; only a
+%% Each qualified reference of a source, its namespace and its last name; only a
 %% value's lowercase name or operator can be a type's member.
-references(#e_var{path = Path, name = Name}) -> [{Path, Name}];
-references(#e_constructor{path = Path, name = Name, base = Base, args = Args}) ->
-    [{Path, Name} | references(Base) ++ references(Args)];
-references(#p_constructor{path = Path, name = Name, args = Args}) ->
-    [{Path, Name} | references(Args)];
-references(#t_named{path = Path, name = Name, args = Args}) -> [{Path, Name} | references(Args)];
+references(#e_var{namespace = Namespace, name = Name}) -> [{Namespace, Name}];
+references(#e_constructor{namespace = Namespace, name = Name, base = Base, args = Args}) ->
+    [{Namespace, Name} | references(Base) ++ references(Args)];
+references(#p_constructor{namespace = Namespace, name = Name, args = Args}) ->
+    [{Namespace, Name} | references(Args)];
+references(#t_named{namespace = Namespace, name = Name, args = Args}) ->
+    [{Namespace, Name} | references(Args)];
 references(Node) when is_tuple(Node) ->
     lists:append([references(Child) || Child <- tuple_to_list(Node)]);
 references(Nodes) when is_list(Nodes) -> lists:append([references(Child) || Child <- Nodes]);

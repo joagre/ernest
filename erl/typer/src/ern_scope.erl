@@ -141,7 +141,7 @@ needed_lets(Name, Direct, Seen, Acc) ->
     end.
 
 check_uses(Expr, FnNames, Needs, Bound, BoundSpans) ->
-    ern_ast:walk(fun(#e_var{span = Span, path = [], name = FnName}, Acc) ->
+    ern_ast:walk(fun(#e_var{span = Span, namespace = [], name = FnName}, Acc) ->
                          case lists:member(FnName, FnNames) of
                              true -> check_use(Span, FnName, Needs(FnName) -- Bound, BoundSpans);
                              false -> ok

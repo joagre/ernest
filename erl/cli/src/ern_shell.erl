@@ -408,8 +408,8 @@ is_unit(#checked{type = Type, env = Env}) ->
 type_text(#checked{typed = Typed, type = Type, env = Env}) ->
     TypeState = ern_typecheck:type_state(Env),
     Text = case one_name(Typed) of
-               {Path, Name} ->
-                   case ern_typecheck:declared_scheme(Env, Path, Name) of
+               {Namespace, Name} ->
+                   case ern_typecheck:declared_scheme(Env, Namespace, Name) of
                        {ok, Scheme} -> ern_types:format_scheme(Scheme, TypeState);
                        error -> ern_types:format(Type, TypeState)
                    end;
@@ -422,7 +422,7 @@ type_text(#checked{typed = Typed, type = Type, env = Env}) ->
 %% declared type, its variables named as the declaration names them.
 one_name(Typed) ->
     case [Body || #fn_declaration{name = ?ENTRY, body = Body} <- Typed] of
-        [#e_var{path = Path, name = Name}] -> {Path, Name};
+        [#e_var{namespace = Namespace, name = Name}] -> {Namespace, Name};
         _ -> none
     end.
 
@@ -608,20 +608,20 @@ slot_for(expression) -> 'Expression';
 slot_for(typename) -> 'TypeName';
 slot_for(pattern) -> 'Pattern';
 slot_for(declaration) -> 'Declaration';
-slot_for(#expected_field{kind = field, path = Path, constructor_name = ConstructorName,
+slot_for(#expected_field{kind = field, namespace = Namespace, constructor_name = ConstructorName,
                          segments = Segments}) ->
-    {'Fields', fields_of(Path, ConstructorName, Segments)};
+    {'Fields', fields_of(Namespace, ConstructorName, Segments)};
 %% the parser could not tell a field's name from a value; the
 %% constructor's type can, and only a named constructor has fields
-slot_for(#expected_field{kind = field_or_value, path = Path,
+slot_for(#expected_field{kind = field_or_value, namespace = Namespace,
                          constructor_name = ConstructorName}) ->
-    case fields_of(Path, ConstructorName, []) of
+    case fields_of(Namespace, ConstructorName, []) of
         [] -> 'Expression';
         Fields -> {'Fields', Fields}
     end;
-slot_for(#expected_field{kind = field_or_pattern, path = Path,
+slot_for(#expected_field{kind = field_or_pattern, namespace = Namespace,
                          constructor_name = ConstructorName}) ->
-    case fields_of(Path, ConstructorName, []) of
+    case fields_of(Namespace, ConstructorName, []) of
         [] -> 'Pattern';
         Fields -> {'Fields', Fields}
     end.
@@ -632,9 +632,9 @@ slot_for(#expected_field{kind = field_or_pattern, path = Path,
 %% fields of the type the path has reached.
 %% Report §11.2: each as a `Shell.Complete.Name`, listed with its type, the
 %% constructor's parameter in the field's place, both in declared order.
-fields_of(Path, ConstructorName, Segments) ->
+fields_of(Namespace, ConstructorName, Segments) ->
     Session = persistent_term:get({?MODULE, session}, #session{}),
-    Written = named_constructor(Session, Path, ConstructorName),
+    Written = named_constructor(Session, Namespace, ConstructorName),
     case along_path(Written, Segments, Session) of
         {ok, #constructor_info{fields = {named, Fields},
                                scheme = #scheme{type = {tfn, Params, _, _}}}} ->
@@ -1064,25 +1064,25 @@ fields(Before) ->
 -spec signature(binary()) -> 'None' | {'Some', {binary(), binary(), binary()}}.
 signature(Before) ->
     case within(Before) of
-        #enclosing{path = Path, name = Name, argument = Argument} ->
+        #enclosing{namespace = Namespace, name = Name, argument = Argument} ->
             %% a constructor's name begins with a capital (report §2.3)
             case not is_integer(Argument) orelse hd(atom_to_list(Name)) < $a of
-                true -> constructor_signature(Path, Name, Argument);
-                false -> call_signature(Path, Name, Argument)
+                true -> constructor_signature(Namespace, Name, Argument);
+                false -> call_signature(Namespace, Name, Argument)
             end;
         none ->
             'None'
     end.
 
-call_signature(Path, Name, Argument) ->
+call_signature(Namespace, Name, Argument) ->
     Session = persistent_term:get({?MODULE, session}, #session{}),
-    Text = unicode:characters_to_binary(ern_namespace:text(Path ++ [Name])),
+    Text = unicode:characters_to_binary(ern_namespace:text(Namespace ++ [Name])),
     %% a callee that does not check, a name not in scope, has none, and
     %% neither has one whose declaration the checker does not hold or whose
     %% type is not a function's
     case scheme_of(Session, Text) of
         {ok, Scheme, Env} ->
-            Params = parameters(Session, Path, Name),
+            Params = parameters(Session, Namespace, Name),
             {Head, Marked, Rest} = ern_types:format_call(Scheme, Params, Argument,
                                                          ern_typecheck:type_state(Env)),
             {'Some', {unicode:characters_to_binary([Text, Head]),
@@ -1116,9 +1116,9 @@ declared_type(Session, Input) ->
 %% a type for its variable (report §4.9).
 declared_scheme(#session{interfaces = Interfaces, scope = Scope}, Text) ->
     maybe
-        {ok, it, #e_var{path = Path, name = Name}} ?= input(Text),
+        {ok, it, #e_var{namespace = Namespace, name = Name}} ?= input(Text),
         {ok, _, _, Env} ?= ern_typecheck:check(['$Signature'], [], Interfaces, Scope),
-        {ok, Scheme} ?= ern_typecheck:declared_scheme(Env, Path, Name),
+        {ok, Scheme} ?= ern_typecheck:declared_scheme(Env, Namespace, Name),
         {ok, Scheme, Env}
     else
         _ -> none
@@ -1126,9 +1126,9 @@ declared_scheme(#session{interfaces = Interfaces, scope = Scope}, Text) ->
 
 %% Report §11.2: a constructor's fields, as a signature, the one whose
 %% value is at the cursor marked, and none where a field's name stands.
-constructor_signature(Path, Name, Argument) ->
+constructor_signature(Namespace, Name, Argument) ->
     Session = persistent_term:get({?MODULE, session}, #session{}),
-    case named_constructor(Session, Path, Name) of
+    case named_constructor(Session, Namespace, Name) of
         {ok, #constructor_info{fields = Fields,
                                scheme = #scheme{type = {tfn, Params, _, _}} = Scheme}} ->
             %% a constructor is declared, so its signature is a head's
@@ -1143,7 +1143,7 @@ constructor_signature(Path, Name, Argument) ->
                           end,
             {Head, Marked, Rest} = ern_types:format_call(Scheme, Names, MarkedIndex,
                                                          session_type_state(Session)),
-            Text = ern_namespace:text(Path ++ [Name]),
+            Text = ern_namespace:text(Namespace ++ [Name]),
             {'Some', {unicode:characters_to_binary([Text, Head]),
                       unicode:characters_to_binary(Marked), unicode:characters_to_binary(Rest)}};
         _ ->
@@ -1164,8 +1164,8 @@ named_constructor(#session{scope = Scope, interfaces = Interfaces}, [], Name) ->
         none -> ern_typecheck:prelude_constructor(Name);
         QualifiedName -> constructor_info(QualifiedName, Interfaces)
     end;
-named_constructor(#session{interfaces = Interfaces}, Path, Name) ->
-    constructor_info(Path ++ [Name], Interfaces ++ ern_prelude:stdlib_interfaces()).
+named_constructor(#session{interfaces = Interfaces}, Namespace, Name) ->
+    constructor_info(Namespace ++ [Name], Interfaces ++ ern_prelude:stdlib_interfaces()).
 
 constructor_info(QualifiedName, Interfaces) ->
     case [ConstructorInfo || #interface{types = Types} <- Interfaces,
@@ -1194,13 +1194,13 @@ within(Before) ->
 %% The parameter names a function's documentation entry carries, from the
 %% session's input or the module that declares it; none where no
 %% declaration carries them, the prelude's and a function value's.
-parameters(Session, Path, Name) ->
-    Beam = case session_beam(Session, Path, Name) of
-               none when Path =/= [] -> beam_of(Session, Path);
+parameters(Session, Namespace, Name) ->
+    Beam = case session_beam(Session, Namespace, Name) of
+               none when Namespace =/= [] -> beam_of(Session, Namespace);
                Found -> Found
            end,
     %% a module's function by its local name, a type's member as `Type.name`
-    Keys = [entry_name([Name]) | [entry_name([lists:last(Path), Name]) || Path =/= []]],
+    Keys = [entry_name([Name]) | [entry_name([lists:last(Namespace), Name]) || Namespace =/= []]],
     case Beam of
         none ->
             none;
@@ -1213,15 +1213,15 @@ parameters(Session, Path, Name) ->
             end
     end.
 
-session_beam(#session{scope = Scope, beams = Beams}, Path, Name) ->
-    Key = case Path of
+session_beam(#session{scope = Scope, beams = Beams}, Namespace, Name) ->
+    Key = case Namespace of
               [] -> Name;
               [MemberOf] -> {MemberOf, Name};
               _ -> none
           end,
     case maps:get(Key, maps:get(values, Scope, #{}), none) of
         none -> none;
-        QualifiedName -> declaring_beam(QualifiedName, Path ++ [Name], Beams)
+        QualifiedName -> declaring_beam(QualifiedName, Namespace ++ [Name], Beams)
     end.
 
 %% The session's own names first, then a module's, then the prelude's,

@@ -442,10 +442,10 @@ last(Nodes) -> lists:last(Nodes).
 
 type(Type, Code) -> {node, Type, bare_type(Type, Code)}.
 
-bare_type(#t_named{path = Path, args = []}, _) ->
-    [path(Path), token()];
-bare_type(#t_named{path = Path, args = Args}, Code) ->
-    [path(Path), token(), bracket(token('('), [type(Arg, Code) || Arg <- Args], ')')];
+bare_type(#t_named{namespace = Namespace, args = []}, _) ->
+    [namespace(Namespace), token()];
+bare_type(#t_named{namespace = Namespace, args = Args}, Code) ->
+    [namespace(Namespace), token(), bracket(token('('), [type(Arg, Code) || Arg <- Args], ')')];
 bare_type(#t_var{}, _) ->
     token();
 bare_type(#t_tuple{elements = Elements}, Code) ->
@@ -454,7 +454,7 @@ bare_type(#t_fn{params = Params, result_type = ResultType, effect = Effect}, Cod
     [bracket(token('('), [type(Param, Code) || Param <- Params], ')'),
      result_type('->', ResultType, Effect, Code)].
 
-path(Path) -> [[token(), token('.')] || _ <- Path].
+namespace(Namespace) -> [[token(), token('.')] || _ <- Namespace].
 
 %% Expressions
 
@@ -462,20 +462,20 @@ expr(Expr, Code) -> {node, Expr, bare_expr(Expr, Code)}.
 
 bare_expr(#e_literal{}, _) ->
     token();
-bare_expr(#e_var{path = Path}, _) ->
-    [path(Path), token()];
-bare_expr(#e_constructor{path = Path, args = none}, _) ->
-    [path(Path), token()];
-bare_expr(#e_constructor{path = Path, args = {positional, Expr}}, Code) ->
-    [path(Path), token(), bracket(token('('), [expr(Expr, Code)], ')', Expr, Code)];
-bare_expr(#e_constructor{path = Path, base = Base, args = {named, FieldSets}}, Code) ->
+bare_expr(#e_var{namespace = Namespace}, _) ->
+    [namespace(Namespace), token()];
+bare_expr(#e_constructor{namespace = Namespace, args = none}, _) ->
+    [namespace(Namespace), token()];
+bare_expr(#e_constructor{namespace = Namespace, args = {positional, Expr}}, Code) ->
+    [namespace(Namespace), token(), bracket(token('('), [expr(Expr, Code)], ')', Expr, Code)];
+bare_expr(#e_constructor{namespace = Namespace, base = Base, args = {named, FieldSets}}, Code) ->
     %% report §5.6: a path's segments, each after its dot
     Items = [[token('..'), expr(Base, Code)] || Base =/= undefined]
         ++ [[token(), [[token('.'), token()] || _ <- Segments], space(), token('='), space(),
              expr(Expr, Code)]
             || #field_set{path = Segments, expr = Expr} <- FieldSets],
     Last = last([Expr || #field_set{expr = Expr} <- FieldSets]),
-    [path(Path), token(), bracket(token('('), Items, ')', Last, Code)];
+    [namespace(Namespace), token(), bracket(token('('), Items, ')', Last, Code)];
 bare_expr(#e_tuple{elements = Elements}, Code) ->
     bracket(token('#('), [expr(Element, Code) || Element <- Elements], ')', last(Elements), Code);
 bare_expr(#e_list{elements = Elements}, Code) ->
@@ -646,16 +646,16 @@ pattern(#p_literal{} = Literal, Code) ->
         '-' -> [token('-'), token()];
         _ -> token()
     end;
-pattern(#p_constructor{path = Path, args = none}, _) ->
-    [path(Path), token()];
-pattern(#p_constructor{path = Path, args = {named, []}}, _) ->
-    [path(Path), token(), token('('), token(')')];
-pattern(#p_constructor{path = Path, args = {named, FieldPatterns}}, Code) ->
-    [path(Path), token(),
+pattern(#p_constructor{namespace = Namespace, args = none}, _) ->
+    [namespace(Namespace), token()];
+pattern(#p_constructor{namespace = Namespace, args = {named, []}}, _) ->
+    [namespace(Namespace), token(), token('('), token(')')];
+pattern(#p_constructor{namespace = Namespace, args = {named, FieldPatterns}}, Code) ->
+    [namespace(Namespace), token(),
      bracket(token('('), [[token(), space(), token('='), space(), pattern(Pattern, Code)]
                           || #field_pattern{pattern = Pattern} <- FieldPatterns], ')')];
-pattern(#p_constructor{path = Path, args = {positional, Pattern}}, Code) ->
-    [path(Path), token(), bracket(token('('), [pattern(Pattern, Code)], ')')];
+pattern(#p_constructor{namespace = Namespace, args = {positional, Pattern}}, Code) ->
+    [namespace(Namespace), token(), bracket(token('('), [pattern(Pattern, Code)], ')')];
 pattern(#p_tuple{elements = Elements}, Code) ->
     bracket(token('#('), [pattern(Element, Code) || Element <- Elements], ')');
 pattern(#p_list{elements = Elements}, Code) ->

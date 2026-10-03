@@ -113,10 +113,10 @@ position(_, _) -> ok.
 %% Report §6.6: a pattern on a reply-carrying constructor binds each of its
 %% fields that carries a reply, at the field's type where the pattern
 %% stands; `_` and an omitted field bind nothing.
-reply_fields(#p_constructor{span = Span, path = Path, name = Name, args = Args, type = Type},
-             Env) ->
+reply_fields(#p_constructor{span = Span, namespace = Namespace, name = Name, args = Args,
+                            type = Type}, Env) ->
     #constructor_info{fields = Fields, scheme = Scheme} =
-        ern_typecheck:lookup_constructor(Span, Path, Name, Env),
+        ern_typecheck:lookup_constructor(Span, Namespace, Name, Env),
     {FieldTypes, Env1} = field_types(Scheme, Type, Env),
     case {Fields, Args} of
         {positional, {positional, #p_wildcard{}}} ->
@@ -161,7 +161,7 @@ reply_field(Span, Name, FieldName, FieldType, Env) ->
 
 %% uses(Expr, Obligations, Env) -> [{Name, Span}], one entry per use on the
 %% path; a variable twice in the list is an error raised where it happens.
-uses(#e_var{span = Span, path = [], name = Name}, Obligations, _Env) ->
+uses(#e_var{span = Span, namespace = [], name = Name}, Obligations, _Env) ->
     case lists:member(Name, Obligations) of
         true ->
             [{Name, Span}];
@@ -182,7 +182,7 @@ uses(#e_call{callee = #e_var{referent = {prelude, [Spawn]}}, args = [Arg | WrapA
     %% them, not names spelled so
     ArgUses = spawned(Arg, Obligations, Env),
     sequence([ArgUses | [uses(WrapArg, Obligations, Env) || WrapArg <- WrapArgs]]);
-uses(#e_call{span = Span, callee = #e_var{path = [], name = LambdaName}, args = Args},
+uses(#e_call{span = Span, callee = #e_var{namespace = [], name = LambdaName}, args = Args},
      Obligations, Env) ->
     %% a call consumes a capturing lambda bound by let
     Callee = case lists:member({lambda, LambdaName}, Obligations) of
@@ -244,7 +244,7 @@ uses(_, _, _) ->
 %% capturing lambda, written there or bound by `let`.
 spawned(#e_lambda{} = Lambda, Obligations, Env) ->
     captures(Lambda, Obligations, Env);
-spawned(#e_var{span = Span, path = [], name = Name} = Arg, Obligations, Env) ->
+spawned(#e_var{span = Span, namespace = [], name = Name} = Arg, Obligations, Env) ->
     case lists:member({lambda, Name}, Obligations) of
         true -> [{Name, Span}];
         false -> uses(Arg, Obligations, Env)

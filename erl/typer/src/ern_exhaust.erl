@@ -129,9 +129,9 @@ simplify(#p_list{elements = [Element | Elements]} = Pattern, Env) ->
     {con, cons, [simplify(Element, Env), simplify(Pattern#p_list{elements = Elements}, Env)]};
 simplify(#p_cons{head = Head, tail = Tail}, Env) ->
     {con, cons, [simplify(Head, Env), simplify(Tail, Env)]};
-simplify(#p_constructor{span = Span, path = Path, name = Name, args = Args}, Env) ->
+simplify(#p_constructor{span = Span, namespace = Namespace, name = Name, args = Args}, Env) ->
     #constructor_info{qualified_name = QualifiedName, fields = Fields} =
-        ern_typecheck:lookup_constructor(Span, Path, Name, Env),
+        ern_typecheck:lookup_constructor(Span, Namespace, Name, Env),
     SubPatterns = case {Fields, Args} of
                       {none, _} -> [];
                       {positional, none} -> [wild];

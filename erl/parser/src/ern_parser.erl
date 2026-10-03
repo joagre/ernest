@@ -333,7 +333,7 @@ signature_variables(_) -> [].
 
 %% The body with each selection of a member from a type variable named
 %% Variables made that member, and every binding checked against them.
-named_members(#e_selection{span = Span, expr = #e_var{path = [], name = Name},
+named_members(#e_selection{span = Span, expr = #e_var{namespace = [], name = Name},
                            field = Field} = Selection, Variables)
   when Field =:= compare; Field =:= negate ->
     case lists:member(Name, Variables) of
@@ -557,12 +557,12 @@ type([{'#(', Position} | Rest]) ->
     spanned({#t_tuple{span = Position, elements = Elements}, expect(Rest1, ')')});
 type([{typename, Position, _} | _] = Tokens) ->
     case qualified(Tokens) of
-        {{con, Path, Name}, [{'(', _} | Rest]} ->
+        {{con, Namespace, Name}, [{'(', _} | Rest]} ->
             {Args, Rest1} = separated(Rest, ',', fun type/1),
-            spanned({#t_named{span = Position, path = Path, name = Name, args = Args},
+            spanned({#t_named{span = Position, namespace = Namespace, name = Name, args = Args},
                      expect(Rest1, ')')});
-        {{con, Path, Name}, Rest} ->
-            spanned({#t_named{span = Position, path = Path, name = Name}, Rest});
+        {{con, Namespace, Name}, Rest} ->
+            spanned({#t_named{span = Position, namespace = Namespace, name = Name}, Rest});
         {{value, _, _}, Rest} ->
             %% report §11.5: over the whole name, with how an argument is
             %% written, which is true whether the name was meant as a type's
@@ -601,23 +601,23 @@ parenthesized(_, _, [Token | _]) ->
     fail(position(Token), "expected `->` after a parameter list instead of " ++ describe(Token),
          "a tuple type is written with `#(`, as #(Int, Int)").
 
-%% {typename "."} followed by a final segment. Returns {con, Path, Name} for
-%% an uppercase final, {value, Path, Name} for an ident or userop final.
+%% {typename "."} followed by a final segment. Returns {con, Namespace, Name}
+%% for an uppercase final, {value, Namespace, Name} for an ident or userop final.
 qualified([{typename, _, First} | Rest]) ->
     qualified(Rest, [], First).
 
-qualified([{'.', _}, {typename, _, Next} | Rest], Path, Current) ->
-    qualified(Rest, Path ++ [Current], Next);
-qualified([{'.', _}, {ident, _, Name} | Rest], Path, Current) ->
-    {{value, Path ++ [Current], Name}, Rest};
-qualified([{'.', _}, {Operator, _} | Rest], Path, Current)
+qualified([{'.', _}, {typename, _, Next} | Rest], Namespace, Current) ->
+    qualified(Rest, Namespace ++ [Current], Next);
+qualified([{'.', _}, {ident, _, Name} | Rest], Namespace, Current) ->
+    {{value, Namespace ++ [Current], Name}, Rest};
+qualified([{'.', _}, {Operator, _} | Rest], Namespace, Current)
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
        Operator =:= '/'; Operator =:= '%'; Operator =:= '<>' ->
-    {{value, Path ++ [Current], Operator}, Rest};
-qualified([{'.', _}, Token | _], _Path, _Current) ->
+    {{value, Namespace ++ [Current], Operator}, Rest};
+qualified([{'.', _}, Token | _], _Namespace, _Current) ->
     fail(position(Token), "expected a name after `.` instead of " ++ describe(Token));
-qualified(Rest, Path, Current) ->
-    {{con, Path, Current}, Rest}.
+qualified(Rest, Namespace, Current) ->
+    {{con, Namespace, Current}, Rest}.
 
 %%
 %% Expressions
@@ -815,18 +815,18 @@ arguments(Callee, Tokens, Index) ->
 %% Report §11.2: the call an unfinished input stops inside, its callee and
 %% the argument at the cursor, for `Shift-Tab`; a callee that is not a name
 %% names nothing.
-inside(#e_var{path = Path, name = Name}, Index, Parse) ->
-    within(Path, Name, Index, Parse);
+inside(#e_var{namespace = Namespace, name = Name}, Index, Parse) ->
+    within(Namespace, Name, Index, Parse);
 inside(_, _, Parse) ->
     Parse().
 
 %% What Parse reads, an error in it marked as stopping within Name's
 %% Argument. The innermost call or constructor is the first to catch the
 %% error, so it is the one that names itself.
-within(Path, Name, Argument, Parse) ->
+within(Namespace, Name, Argument, Parse) ->
     try Parse()
     catch throw:{parse_error, #diagnostic{within = undefined} = Diagnostic} ->
-        Enclosing = #enclosing{path = Path, name = Name, argument = Argument},
+        Enclosing = #enclosing{namespace = Namespace, name = Name, argument = Argument},
         throw({parse_error, Diagnostic#diagnostic{within = Enclosing}})
     end.
 
@@ -844,10 +844,10 @@ primary([{ident, Position, Name} | Rest]) ->
     spanned({#e_var{span = Position, name = Name}, Rest});
 primary([{typename, Position, _} | _] = Tokens) ->
     case qualified(Tokens) of
-        {{value, Path, Name}, Rest} ->
-            spanned({#e_var{span = Position, path = Path, name = Name}, Rest});
-        {{con, Path, Name}, Rest} ->
-            constructor_expr(Position, Path, Name, Rest)
+        {{value, Namespace, Name}, Rest} ->
+            spanned({#e_var{span = Position, namespace = Namespace, name = Name}, Rest});
+        {{con, Namespace, Name}, Rest} ->
+            constructor_expr(Position, Namespace, Name, Rest)
     end;
 primary([{'#(', Position} | Rest]) ->
     {Elements, Rest1} = components(Position, separated(Rest, ',', fun expr/1)),
@@ -878,23 +878,23 @@ primary([{Keyword, Position} | _]) when Keyword =:= 'if'; Keyword =:= fn ->
 primary([Token | _]) ->
     wanted(expression, position(Token), "expected an expression instead of " ++ describe(Token)).
 
-constructor_expr(Position, Path, Name, [{'(', _} | Rest]) ->
+constructor_expr(Position, Namespace, Name, [{'(', _} | Rest]) ->
     case Rest of
         [{'..', _} | Rest1] ->
             %% report §5.6, Appendix A's Fields: a namespace after `..` may
             %% stand alone, which the checker decides
             {Base, Rest2} = expr(Rest1),
             {FieldSets, Rest3} = case Rest2 of
-                                     [{',', _} | Rest4] -> separated(Rest4, ',',
-                                                                     field_of(Path, Name, update));
+                                     [{',', _} | Rest4] ->
+                                         separated(Rest4, ',', field_of(Namespace, Name, update));
                                      _ -> {[], Rest2}
                                  end,
-            spanned({#e_constructor{span = Position, path = Path, name = Name, base = Base,
-                                    args = {named, FieldSets}},
+            spanned({#e_constructor{span = Position, namespace = Namespace, name = Name,
+                                    base = Base, args = {named, FieldSets}},
                      expect(Rest3, ')')});
         [{ident, _, _}, {'=', _} | _] ->
-            {FieldSets, Rest1} = separated(Rest, ',', field_of(Path, Name, construction)),
-            spanned({#e_constructor{span = Position, path = Path, name = Name,
+            {FieldSets, Rest1} = separated(Rest, ',', field_of(Namespace, Name, construction)),
+            spanned({#e_constructor{span = Position, namespace = Namespace, name = Name,
                                     args = {named, FieldSets}},
                      expect(Rest1, ')')});
         [{')', ParenPosition} | _] ->
@@ -910,34 +910,36 @@ constructor_expr(Position, Path, Name, [{'(', _} | Rest]) ->
             %% name, and only the constructor's type tells which
             Diagnostic = diagnostic(EndPosition, "expected an expression instead of end of input",
                                     undefined),
-            Expected = #expected_field{kind = field_or_value, path = Path, constructor_name = Name},
-            Enclosing = #enclosing{path = Path, name = Name, argument = none},
+            Expected = #expected_field{kind = field_or_value, namespace = Namespace,
+                                       constructor_name = Name},
+            Enclosing = #enclosing{namespace = Namespace, name = Name, argument = none},
             throw({parse_error, Diagnostic#diagnostic{expected = Expected,
                                                       within = Enclosing}});
         _ ->
-            {Expr, Rest1} = within(Path, Name, 0, fun() -> expr(Rest) end),
+            {Expr, Rest1} = within(Namespace, Name, 0, fun() -> expr(Rest) end),
             no_path(Expr, Rest1),
-            spanned({#e_constructor{span = Position, path = Path, name = Name,
+            spanned({#e_constructor{span = Position, namespace = Namespace, name = Name,
                                     args = {positional, Expr}},
                      expect(Rest1, ')')})
     end;
-constructor_expr(Position, Path, Name, Tokens) ->
-    spanned({#e_constructor{span = Position, path = Path, name = Name}, Tokens}).
+constructor_expr(Position, Namespace, Name, Tokens) ->
+    spanned({#e_constructor{span = Position, namespace = Namespace, name = Name}, Tokens}).
 
 %% Report §11.2: a field of this constructor, which the tag names, so
 %% that completion knows which fields may stand at the cursor; and where
 %% the input stops, which field's value it stops in, or `none` where a
 %% field's name would stand, for `Shift-Tab`. Report §5.6: in an update the
 %% field may be a path, `stats.indexed`, which a construction refuses.
-field_of(Path, ConstructorName, Form) ->
+field_of(Namespace, ConstructorName, Form) ->
     fun(Tokens) ->
-        Expected = #expected_field{kind = field, path = Path, constructor_name = ConstructorName},
+        Expected = #expected_field{kind = field, namespace = Namespace,
+                                   constructor_name = ConstructorName},
         ParseFieldName = fun() ->
                              tagging(Expected, fun() -> expect_ident_position(Tokens) end)
                          end,
-        {Name, Position, Rest} = within(Path, ConstructorName, none, ParseFieldName),
+        {Name, Position, Rest} = within(Namespace, ConstructorName, none, ParseFieldName),
         {Segments, Rest1} = path_segments(Rest, Form, Expected, [Name]),
-        {Expr, Rest2} = within(Path, ConstructorName, {field, Name},
+        {Expr, Rest2} = within(Namespace, ConstructorName, {field, Name},
                                fun() -> expr(expect(Rest1, '=')) end),
         spanned({#field_set{span = Position, name = Name, path = Segments, expr = Expr}, Rest2})
     end.
@@ -947,12 +949,12 @@ field_of(Path, ConstructorName, Form) ->
 path_segments([{'.', DotPosition} | _], construction, _Expected, _SoFar) ->
     fail(DotPosition, "a path stands in a record update only",
          "write the field's value as a construction, or update a value with `..`");
-path_segments([{'.', _} | Rest], update, #expected_field{path = Path,
+path_segments([{'.', _} | Rest], update, #expected_field{namespace = Namespace,
                                                          constructor_name = Name} = Expected,
               SoFar) ->
     Typed = Expected#expected_field{segments = lists:reverse(SoFar)},
     ParseSegment = fun() -> tagging(Typed, fun() -> expect_ident_position(Rest) end) end,
-    {Segment, _, Rest1} = within(Path, Name, none, ParseSegment),
+    {Segment, _, Rest1} = within(Namespace, Name, none, ParseSegment),
     path_segments(Rest1, update, Expected, [Segment | SoFar]);
 path_segments(Tokens, _Form, _Expected, SoFar) ->
     {tl(lists:reverse(SoFar)), Tokens}.
@@ -1062,7 +1064,7 @@ atompat([{'-', _}, Token | _]) ->
          "expected a number after `-` in a pattern instead of " ++ describe(Token));
 atompat([{typename, Position, _} | _] = Tokens) ->
     case qualified(Tokens) of
-        {{con, Path, Name}, Rest} -> constructor_pattern(Position, Path, Name, Rest);
+        {{con, Namespace, Name}, Rest} -> constructor_pattern(Position, Namespace, Name, Rest);
         {{value, _, _}, Rest} ->
             fail(span_through(Position, Tokens, Rest),
                  "expected a constructor; a pattern cannot name a function or value")
@@ -1082,30 +1084,32 @@ atompat([{'<<', Position} | Rest]) ->
 atompat([Token | _]) ->
     wanted(pattern, position(Token), "expected a pattern instead of " ++ describe(Token)).
 
-constructor_pattern(Position, Path, Name, [{'(', _} | Rest]) ->
+constructor_pattern(Position, Namespace, Name, [{'(', _} | Rest]) ->
     case Rest of
         [{')', _} | Rest1] ->
-            spanned({#p_constructor{span = Position, path = Path, name = Name, args = {named, []}},
+            spanned({#p_constructor{span = Position, namespace = Namespace, name = Name,
+                                    args = {named, []}},
                      Rest1});
         [{ident, _, _}, {'=', _} | _] ->
-            {Fields, Rest1} = separated(Rest, ',', field_pattern_of(Path, Name)),
-            spanned({#p_constructor{span = Position, path = Path, name = Name,
+            {Fields, Rest1} = separated(Rest, ',', field_pattern_of(Namespace, Name)),
+            spanned({#p_constructor{span = Position, namespace = Namespace, name = Name,
                                     args = {named, Fields}},
                      expect(Rest1, ')')});
         [{eof, EndPosition} | _] ->
             %% report §11.2: as in an expression, a field's name or a
             %% pattern may stand here, and the constructor's type tells
-            wanted(#expected_field{kind = field_or_pattern, path = Path, constructor_name = Name},
+            wanted(#expected_field{kind = field_or_pattern, namespace = Namespace,
+                                   constructor_name = Name},
                    EndPosition, "expected a pattern instead of end of input");
         _ ->
             {Pattern, Rest1} = pattern(Rest),
             no_path_pattern(Pattern, Rest1),
-            spanned({#p_constructor{span = Position, path = Path, name = Name,
+            spanned({#p_constructor{span = Position, namespace = Namespace, name = Name,
                                     args = {positional, Pattern}},
                      expect(Rest1, ')')})
     end;
-constructor_pattern(Position, Path, Name, Tokens) ->
-    spanned({#p_constructor{span = Position, path = Path, name = Name}, Tokens}).
+constructor_pattern(Position, Namespace, Name, Tokens) ->
+    spanned({#p_constructor{span = Position, namespace = Namespace, name = Name}, Tokens}).
 
 %% Report §5.6: a path written where a constructor pattern's one
 %% positional field stands, `C(a.b = p)`, is refused as a path.
@@ -1117,9 +1121,10 @@ no_path_pattern(_, _) ->
 
 %% Report §11.2: a field of this constructor in a pattern, tagged as in
 %% an expression, so that completion knows which fields may stand there.
-field_pattern_of(Path, ConstructorName) ->
+field_pattern_of(Namespace, ConstructorName) ->
     fun(Tokens) ->
-        Expected = #expected_field{kind = field, path = Path, constructor_name = ConstructorName},
+        Expected = #expected_field{kind = field, namespace = Namespace,
+                                   constructor_name = ConstructorName},
         {Name, Position, Rest} = tagging(Expected, fun() -> expect_ident_position(Tokens) end),
         case Rest of
             [{'.', DotPosition} | _] ->

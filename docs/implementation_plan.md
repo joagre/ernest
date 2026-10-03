@@ -30,8 +30,8 @@ report's and the guide's blocks read the same way, was decided with the user the
 to follow items 16 and 20. Item 5, the operations built, was done on 2026-10-03 (the log's
 *The Requirement Built*), item 16, the guide's §7.3 over it, the same day, and item 20, the
 feedback the reviews left, the same day, its six builds each read back in the log entry
-that decided it; item 21, the report's and the guide's blocks read by `style.md`, the same
-day. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+that decided it; item 21, the report's and the guide's blocks read by `style.md`, and item
+22, the AST's namespace named so, the same day. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -382,12 +382,11 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     `None` at a callee's restart and cancel an asker's asks at its own (§6.6, §6.9); kept as
     built, since each extra pays for a sentence the report states (the log's *`Address.ask`
     answers into the mailbox*).
-22. **The AST's `path` is `namespace`**, decided with the user 2026-10-03 (the log's *The Path
-    Built*): the field of `#e_var{}`, `#e_constructor{}`, `#p_constructor{}` and `#t_named{}`
-    that holds a qualified name's namespace prefix, and the variables bound from it in the
-    parser, the checker, the emitter, the formatter and the shell, take §4.2's word, since
-    §5.6 names a path and the glossary gives one word to one concept; the compiler checks
-    every record field, and `make test` the rest; a few hours, after item 21.
+22. **The AST's `path` is `namespace`**, done 2026-10-03 (the log's *The Path Built*): the
+    field of the four AST records and of completion's two that holds a qualified name's
+    namespace, and the variables bound from it in every stage, take §4.2's word, since §5.6
+    names a path; a derived `compare`'s indexes through a type's arguments, which were
+    called paths too, are routes.
 21. **The report's and the guide's Ernest blocks by `style.md`**, done 2026-10-03 (the log's
     *The Report's and the Guide's Blocks Read*): every block read as item 15 read the rest,
     the sentences that cite a name, the six examples that copy the blocks, the README's

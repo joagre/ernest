@@ -177,10 +177,11 @@ constructor_text(#constructor{name = Name, fields = {named, Fields}}) ->
      ")"].
 
 %% A syntactic type as written.
-syntax_text(#t_named{path = Path, name = Name, args = []}) -> ern_namespace:text(Path ++ [Name]);
-syntax_text(#t_named{path = Path, name = Name, args = Args}) ->
-    [ern_namespace:text(Path ++ [Name]), "(", lists:join(", ", [syntax_text(Arg) || Arg <- Args]),
-     ")"];
+syntax_text(#t_named{namespace = Namespace, name = Name, args = []}) ->
+    ern_namespace:text(Namespace ++ [Name]);
+syntax_text(#t_named{namespace = Namespace, name = Name, args = Args}) ->
+    [ern_namespace:text(Namespace ++ [Name]), "(",
+     lists:join(", ", [syntax_text(Arg) || Arg <- Args]), ")"];
 syntax_text(#t_var{name = Name}) -> atom_to_list(Name);
 syntax_text(#t_tuple{elements = Elements}) ->
     ["#(", lists:join(", ", [syntax_text(Element) || Element <- Elements]), ")"];

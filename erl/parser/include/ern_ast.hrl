@@ -61,7 +61,7 @@
 %% Types (syntactic)
 %%
 
--record(t_named, {span, path = [], name, args = []}).
+-record(t_named, {span, namespace = [], name, args = []}).
 -record(t_var, {span, name}).
 -record(t_tuple, {span, elements}).
 -record(t_fn, {span, params, result_type, effect}).
@@ -73,15 +73,15 @@
 
 -record(e_literal, {span, kind, value, type}).
 %% kind: int | float | char | string | bool
--record(e_var, {span, path = [], name, referent, supplies = [], type}).
+-record(e_var, {span, namespace = [], name, referent, supplies = [], type}).
 %% referent, which the checker sets (report §4.2): var, a name bound around
 %% it; #own_declaration{}, this module's declaration; #remote_declaration{},
 %% another module's, the two of typer/include/ern_types.hrl; {prelude,
-%% QualifiedName}. A qualified function, operator, or value: path is the
-%% typename prefix. supplies, which the checker sets: what the declaration's
+%% QualifiedName}. A qualified function, operator, or value: namespace is
+%% the name's prefix (report §4.2). supplies, which the checker sets: what the declaration's
 %% requirement is supplied with at this use (report §4.9), and Io.show's or
 %% Io.debug's descriptor (Appendix E.1), each a supply of ern_types.hrl.
--record(e_constructor, {span, path = [], name, base, args = none, type}).
+-record(e_constructor, {span, namespace = [], name, base, args = none, type}).
 %% base: the Expr of a record update's `..`, or undefined (report §5.6);
 %% args: none | {positional, Expr} | {named, [#field_set{}]}
 -record(field_set, {span, name, path = [], expr}).
@@ -138,7 +138,7 @@
 -record(p_wildcard, {span, type}).
 -record(p_var, {span, name, type}).
 -record(p_literal, {span, kind, value, type}).
--record(p_constructor, {span, path = [], name, args = none, type}).
+-record(p_constructor, {span, namespace = [], name, args = none, type}).
 %% args: none | {positional, Pattern} | {named, [#field_pattern{}]}
 -record(field_pattern, {span, name, pattern}).
 -record(p_tuple, {span, elements, type}).
