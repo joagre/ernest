@@ -243,18 +243,22 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     program by its signal, `Restart=on-failure` after a program ends with `Os.exit(1)`, and the
     journal showing fault lines without a doubled time; and a launchd plist on macOS, with the
     same checks. A stop asked for in the host's first fraction of a second is the host's limit
-    (§8.6), not a failure of the checks.
+    (§8.6), not a failure of the checks. The plist is written with the unit, and its checks
+    wait for a Mac, which the user runs (decided 2026-10-03).
 11. **`set.ern` over its record**: joined item 5 on 2026-10-02 (the log's *The Operations
     Decided and Built*).
 12. **`OrderedSet` in the standard library**: joined item 5 on 2026-10-02.
 13. **The boundary at a type variable**, what remains of it. A foreign function's result at a
-    type variable its parameters name, which §8.4 lets through unchecked, is decided under
-    §4.8's rule of no hidden argument: a check where the function is instantiated at a known
-    type, or the trust stated (R-2, placed here 2026-10-01). On 2026-10-02 `foreign fn weird(x
-    : a) : a = "erlang:length/1"` applied to a list was accepted and faulted inside `List.size`
-    with the host's `case_clause` and its stack. And `Foreign.from` exposes its value at the
-    caller's type, a proxy for each address in it and a check for each function, as a foreign
-    function's argument is (C1-4, decided with the user 2026-09-30). The rest was done by the
+    type variable its parameters name, which §8.4 lets through unchecked, was decided with the
+    user on 2026-10-03 (R-2; the log's *The Boundary Trusts a Type Variable*): the trust is
+    kept, §8.4 stating it as the foreign side's promise, since a check can be made only where
+    a call is written at a known type and would cost the honest container a walk of every
+    value it returns. On 2026-10-02 `foreign fn weird(x : a) : a = "erlang:length/1"` applied
+    to a list was accepted and faulted inside `List.size` with the host's `case_clause` and
+    its stack. And `Foreign.from` exposes its value at the caller's type, a proxy for each
+    address in it and a check for each function, as a foreign function's argument is (C1-4,
+    decided with the user 2026-09-30), its argument's type known whole as `Io.show`'s is
+    (E.1), and refused on a type variable. The rest was done by the
     principles review's edits: `Io.show` and `Io.debug` on a type variable are refused, and
     `Io.debug` writes through `Io`'s stream process to standard error (the log's *A Value Shows
     Itself at a Known Type*).
