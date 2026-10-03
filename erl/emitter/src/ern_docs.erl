@@ -146,10 +146,10 @@ signature(#abstract_declaration{declaration = #type_declaration{name = TypeName,
 signature(#foreign_type_declaration{name = Name, params = Params, equality = Equality}, _, _) ->
     %% report §4.7: a parameter that requires equality is written `k=`
     text(["foreign type ", atom_to_list(Name),
-          params_text([case lists:member(Param, Equality) of
+          params_text([case Written of
                            true -> list_to_atom(atom_to_list(Param) ++ "=");
                            false -> Param
-                       end || Param <- Params])]).
+                       end || {Param, Written} <- lists:zip(Params, Equality)])]).
 
 %% Report §11.4, §11.6: the declaration whole, `derives compare` among it,
 %% as `ern format` lays it out.

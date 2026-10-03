@@ -1,12 +1,13 @@
 %% What more than one stage reads of the AST the parser builds, typed or
-%% not: a node's span; every node in pre-order; what a pattern binds; and
-%% the unqualified names free in an expression. The parser, the formatter,
+%% not: a node's span; every node in pre-order; what a pattern binds; the
+%% type variables a declaration's signature names; and the unqualified
+%% names free in an expression. The parser, the formatter,
 %% the checker, the reply check, the exhaustiveness check and the emitter
 %% each use them rather than a copy of their own, since copies of one rule
 %% drift.
 -module(ern_ast).
 
--export([span/1, walk/3, pattern_bindings/1, free_names/2]).
+-export([span/1, walk/3, pattern_bindings/1, signature_variables/1, free_names/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 
@@ -53,6 +54,19 @@ pattern_bindings(#p_bitstring{segments = Segments}) ->
     lists:append([pattern_bindings(Value) || #bit_segment{value = Value} <- Segments]);
 pattern_bindings(_) ->
     [].
+
+%% Report §3.9, §4.9: the type variables a fn declaration's signature
+%% names, in its parameters' annotations, its result type and its effect.
+-spec signature_variables(tuple()) -> [atom()].
+signature_variables(#fn_declaration{params = Params, result_type = ResultType,
+                                    effect = Effect}) ->
+    lists:usort(type_variables([ResultType, Effect
+                                | [Annotation || #param{annotation = Annotation} <- Params]])).
+
+type_variables(#t_var{name = Name}) -> [Name];
+type_variables(Node) when is_tuple(Node) -> type_variables(tuple_to_list(Node));
+type_variables(Nodes) when is_list(Nodes) -> lists:append([type_variables(Node) || Node <- Nodes]);
+type_variables(_) -> [].
 
 %% Report §5.4: the unqualified names free in an expression, outside the
 %% names Bound around it, once for each use. A lambda's parameters, a

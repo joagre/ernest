@@ -308,7 +308,7 @@ fn helper(x) =
 
 ### 4.3 Type declarations
 
-`type` declares a sum type with its constructors. A constructor has the visibility of its type.
+`type` declares a sum type with its constructors. A type's parameters are distinct type variables. A constructor has the visibility of its type.
 
 ### 4.4 Abstract types
 
@@ -353,7 +353,7 @@ At top level, `let` binds an `ident`. The left side is a name, not a pattern; `<
 
 ### 4.7 Foreign declarations
 
-`foreign type T` declares a type implemented outside the language. A parameter written with `=`, `k=` in `foreign type Table(k=, v)`, puts the equality constraint of §3.10 on its argument at every operation of the type, and the type written with an argument that lacks it is not itself an error (§3.10).
+`foreign type T` declares a type implemented outside the language. Its parameters are distinct type variables. A parameter written with `=`, `k=` in `foreign type Table(k=, v)`, puts the equality constraint of §3.10 on its argument at every operation of the type, and the type written with an argument that lacks it is not itself an error (§3.10).
 
 `foreign fn f(params) : T = "impl"` declares a function whose body is the implementation named by the string, in the runtime's language; parameters and the result are annotated. A foreign function has no body from which §3.9 infers restrictions, and its code may copy a value it is given or drop it, so each type variable whose values a parameter holds is not reply-carrying (§6.6): one the parameter's type reaches through tuples and type arguments, and not under `Address`, `Reply`, or a function type. `Foreign.from(r)` on a reply is a type error. A foreign function with a mailbox type may do anything. One without a mailbox type promises purity: the same result for the same arguments, and no effect on anything. The implementation promises the declared types: a value of another shape, or an exception, is a fault, §7. Foreign code sees values in the runtime's representation, §8.4. Both declarations take `export` (§4.2).
 
@@ -420,8 +420,8 @@ Tuple     = "#(" Expr "," Expr { "," Expr } ")" .
 ListLit   = "[" [ Expr { "," Expr } ] "]" .
 BitExpr   = "<<" [ BitSegE { "," BitSegE } ] ">>" .
 BitSegE   = Expr [ ":" BitSpec { "-" BitSpec } ] .
-Block     = "{" Stmt { ";" Stmt } "}" .
-Stmt      = FnDecl | Binding | Expr .
+Block     = "{" Stmts "}" .
+Stmts     = ( FnDecl | Binding ) ";" Stmts | Expr [ ";" Stmts ] .
 Pattern   = ConsPat [ "as" ident ] .
 ConsPat   = AtomPat [ "::" ConsPat ] .
 AtomPat   = "_" | ident | literal | "-" ( int | float )
@@ -473,7 +473,7 @@ A nullary constructor is a value. A single-positional constructor is a function 
 
 ### 5.7 Pipe
 
-`x |> e` applies `e`, a function value or a call, with `x` inserted as the first argument: `x |> f` is `f(x)`, `x |> f(a, b)` is `f(x, a, b)`.
+`x |> e` applies `e`, a function value or a call, with `x` inserted as the first argument: `x |> f` is `f(x)`, `x |> f(a, b)` is `f(x, a, b)`. Parentheses around `e` change nothing: `x |> (f(a))` is `f(x, a)`.
 
 ```ernest-fragment
 let words = input |> String.trim |> String.toLower |> String.toList
@@ -948,8 +948,8 @@ Tuple       = "#(" Expr "," Expr { "," Expr } ")" .
 ListLit     = "[" [ Expr { "," Expr } ] "]" .
 BitExpr     = "<<" [ BitSegE { "," BitSegE } ] ">>" .
 BitSegE     = Expr [ ":" BitSpec { "-" BitSpec } ] .
-Block       = "{" Stmt { ";" Stmt } "}" .
-Stmt        = FnDecl | Binding | Expr .
+Block       = "{" Stmts "}" .
+Stmts       = ( FnDecl | Binding ) ";" Stmts | Expr [ ";" Stmts ] .
 
 Pattern     = ConsPat [ "as" ident ] .
 ConsPat     = AtomPat [ "::" ConsPat ] .
@@ -968,7 +968,7 @@ BitSpec     = "size" "(" Expr ")"
 FieldPats   = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 ```
 
-`binop`, `userop`, and `literal` are defined in §2, along with the other lexical categories; `binop` precedence follows the table there. Every nonterminal is decided by its first token, or by the later token this paragraph names: `let` begins a binding, `fn` a declaration or lambda (an identifier or type name after `fn` makes it a declaration, `(` a lambda), `{` a block, `[` a list, `#(` a tuple, `(` a call or parenthesized expression, `<<` a bitstring. After a primary, `.` and an `ident` select a field (§3.5): a lowercase first segment is a value, so `s.upper` selects, while an uppercase one begins a `QName`, `Net.Http.parse`. An `ident`, `.` and a `userop` are a type variable's member, `a.+`, and so are an `ident`, `.` and `compare` or `negate` where the `ident` is a type variable of the enclosing declaration's signature and the declaration has a requirement (§4.9). The expression after `..` in `Fields` names a namespace where §5.6 says so, and the parser reads one form. In a qualified name, of a value in `QName`, of a type in `TypeAtom`, or of a constructor in `AtomPat`, after each uppercase token the next token decides: `.` continues the qualification, and otherwise the segment is final. In `QName` a final `ident` names a function or a value, a `userop` an operator, and a `conname` a constructor. A constructor's fields are positional or named by whether `=` or `:` follows the first identifier. When a constructor name is immediately followed by a parenthesized constructor argument, the parser consumes that argument in the constructor branch of `QName`; a single-positional construction has the semantics of calling the constructor's function value. `conname` and `typename` are one token class; which one a segment is follows from its position. A parenthesized list of types is an `FnType` when `->` follows its `)`, and otherwise a `ParenType` (§3). A `with` after a function type belongs to that type (§3). In a `receive`, a `|` followed by `after` begins its `AfterClause`.
+`binop`, `userop`, and `literal` are defined in §2, along with the other lexical categories; `binop` precedence follows the table there. Every nonterminal is decided by its first token, or by the later token this paragraph names: `let` begins a binding, `fn` a declaration or lambda (an identifier or type name after `fn` makes it a declaration, `(` a lambda), `{` a block, `[` a list, `#(` a tuple, `(` a call or parenthesized expression, `<<` a bitstring. After a primary, `.` and an `ident` select a field (§3.5): a lowercase first segment is a value, so `s.upper` selects, while an uppercase one begins a `QName`, `Net.Http.parse`. An `ident`, `.` and a `userop` are a type variable's member, `a.+`, and so are an `ident`, `.` and `compare` or `negate` where the `ident` is a type variable of the enclosing declaration's signature and the declaration has a requirement (§4.9). The expression after `..` in `Fields` names a namespace where §5.6 says so, and the parser reads one form. In a qualified name, of a value in `QName`, of a type in `TypeAtom`, or of a constructor in `AtomPat`, after each uppercase token the next token decides: `.` continues the qualification, and otherwise the segment is final. In `QName` a final `ident` names a function or a value, a `userop` an operator, and a `conname` a constructor. A constructor's fields are positional or named by whether `=` or `:` follows the first identifier. When a constructor name is immediately followed by a parenthesized constructor argument, one expression or fields, the parser consumes that argument in the constructor branch of `QName`; a single-positional construction has the semantics of calling the constructor's function value. Empty parentheses after a constructor name, or two expressions or more, are a call of its value (§5.6). `conname` and `typename` are one token class; which one a segment is follows from its position. A parenthesized list of types is an `FnType` when `->` follows its `)`, and otherwise a `ParenType` (§3). A `with` after a function type belongs to that type (§3). In a `receive`, a `|` followed by `after` begins its `AfterClause`.
 
 ## Appendix B. Examples
 

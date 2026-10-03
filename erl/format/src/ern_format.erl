@@ -342,8 +342,8 @@ declaration(#foreign_type_declaration{export = Export, params = Params, equality
     ParamsTemplate = case Params of
                          [] -> [];
                          _ -> bracket(token('('),
-                                      [[token() | [token('=') || lists:member(Param, Equality)]]
-                                       || Param <- Params], ')')
+                                      [[token() | [token('=') || Written]]
+                                       || {_, Written} <- lists:zip(Params, Equality)], ')')
                      end,
     [export(Export), token(foreign), space(), token(type), space(), token(), ParamsTemplate];
 declaration(#foreign_fn_declaration{export = Export, member_of = MemberOf, params = Params,
@@ -489,8 +489,9 @@ bare_expr(#e_call{pipe = false, callee = Callee, args = Args}, Code) ->
 bare_expr(#e_call{pipe = true} = Call, Code) ->
     {Base, Stages} = pipe_chain(Call, Code, []),
     {group, [expr(Base, Code),
-             {nest, 4, [[line, token('|>'), space(), expr(Callee, Code), Args]
-                        || {Callee, Args} <- Stages]}]};
+             {nest, 4, [[line, token('|>'), space(), lists:duplicate(Parens, token('(')),
+                         expr(Callee, Code), Args, lists:duplicate(Parens, token(')'))]
+                        || {Callee, Args, Parens} <- Stages]}]};
 bare_expr(#e_member{}, _) ->
     %% report §4.9: `a.compare`, `a.+`
     [token(), token('.'), token()];
@@ -550,13 +551,14 @@ spec({size, Expr}, Code) -> [token(), token('('), expr(Expr, Code), token(')')];
 spec(_, _) -> token().
 
 %% `x |> f(a) |> g`: the first operand, then each callee with the
-%% arguments after the first, where the call has its parentheses.
+%% arguments after the first, where the call has its parentheses, and the
+%% parentheses around the stage, `x |> (f(a))`.
 pipe_chain(#e_call{pipe = true, callee = Callee, args = [Piped | Rest]} = Call, Code, Acc) ->
     Args = case bracketed(Call, Callee, Code) of
                true -> args(Rest, Code);
                false -> []
            end,
-    Stages = [{Callee, Args} | Acc],
+    Stages = [{Callee, Args, stage_parens(Call, Piped, Code)} | Acc],
     case Piped of
         #e_call{pipe = true} ->
             case is_parenthesized(Piped, Code) of
@@ -564,6 +566,19 @@ pipe_chain(#e_call{pipe = true, callee = Callee, args = [Piped | Rest]} = Call, 
                 true -> {Piped, Stages}
             end;
         _ -> {Piped, Stages}
+    end.
+
+%% How many parentheses a stage is written in, which make no node: those
+%% that open after its `|>` and close where its call ends (report §5.7).
+stage_parens(Call, Piped, Code) ->
+    stage_parens(last_index(Piped, Code) + 2, last_index(Call, Code), Code, 0).
+
+stage_parens(Index, Close, Code, Count) ->
+    IsOwn = symbol(element(Index, Code#code.tokens)) =:= '('
+        andalso maps:get(Index, Code#code.pairs) =:= Close,
+    case IsOwn of
+        true -> stage_parens(Index + 1, Close - 1, Code, Count + 1);
+        false -> Count
     end.
 
 bracketed(Call, Callee, Code) ->
@@ -778,7 +793,11 @@ items(Open, [First | Rest], Close, Hug, Code, Cursor) ->
     {Pairs, Cursor5} = lists:mapfoldl(fun(Item, Acc) -> comma_and_item(Item, Code, Acc) end,
                                       Cursor4, Rest),
     {Lead, Cursor6} = lead_trivia(Cursor5, Code),
-    {CloseLayout, Cursor7} = consume(Close, Code, Cursor6),
+    {Closing, Cursor7} = consume(Close, Code, Cursor6),
+    CloseLayout = case Lead =:= [] andalso reads_with_previous(Code, Cursor6) of
+                      true -> [space(), Closing];
+                      false -> Closing
+                  end,
     Items = [FirstLayout, [[Comma, line, Layout] || {Comma, Layout} <- Pairs], Lead],
     Broken = {bracket, [OpenLayout, {align, Items}, CloseLayout]},
     Laid = case {Pairs, Hug} of
@@ -794,6 +813,18 @@ items(Open, [First | Rest], Close, Hug, Code, Cursor) ->
                                   CloseLayout], Broken}
            end,
     {[Before, Laid], Cursor7}.
+
+%% Report §11.6: whether the token at the cursor, written against the one
+%% before it, would read as other tokens, as `-` and `>>` read as `->` and
+%% `>`, so that the two stay a space apart.
+reads_with_previous(Code, #cursor{index = Index}) ->
+    Indexes = [Index - 1, Index],
+    Written = iolist_to_binary([element(At, Code#code.texts) || At <- Indexes]),
+    Symbols = [symbol(element(At, Code#code.tokens)) || At <- Indexes],
+    case ern_lexer:tokenize(Written) of
+        {ok, Tokens} -> [symbol(Token) || Token <- Tokens] =/= Symbols ++ [eof];
+        {error, _} -> true
+    end.
 
 %% An item after the first, with the comma before it.
 comma_and_item(Item, Code, Cursor) ->

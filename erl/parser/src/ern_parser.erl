@@ -21,7 +21,7 @@
 parse(Tokens) ->
     try
         {ModuleDoc, Tokens1} = module_doc(Tokens),
-        Declarations = program(prune_docs(Tokens1), undefined, []),
+        Declarations = program(prune_docs(Tokens1), []),
         {ok, case ModuleDoc of undefined -> Declarations; _ -> [ModuleDoc | Declarations] end}
     catch
         throw:{parse_error, #diagnostic{} = Diagnostic} ->
@@ -157,22 +157,11 @@ is_declaration_start(Token, _) -> lists:member(symbol(Token), ?DECLARATION_START
 %% Program and declarations
 %%
 
-program([{eof, _}], _Previous, Acc) ->
+program([{eof, _}], Acc) ->
     lists:reverse(Acc);
-program(Tokens, Previous, Acc) ->
+program(Tokens, Acc) ->
     {Declaration, Tokens1} = declaration(Tokens),
-    refuse_second_clause(Declaration, Previous),
-    program(Tokens1, Declaration, [Declaration | Acc]).
-
-%% A second consecutive fn with the same name is the Haskell habit.
-refuse_second_clause(#fn_declaration{span = Span, member_of = MemberOf, name = Name},
-                     #fn_declaration{span = FirstSpan, member_of = MemberOf, name = Name}) ->
-    %% report §11.5: at the second clause, the first labelled
-    Diagnostic = diagnostic(Span, "a function has one clause",
-                            "write one clause whose body is a `match`"),
-    throw({parse_error, Diagnostic#diagnostic{labels = [{FirstSpan, "first clause"}]}});
-refuse_second_clause(_, _) ->
-    ok.
+    program(Tokens1, [Declaration | Acc]).
 
 declaration(Tokens) ->
     {Doc, Tokens1} = doc(Tokens),
@@ -328,29 +317,17 @@ member([Token | _]) ->
 
 %% Appendix A, report §3.5, §4.9: in a declaration with a requirement,
 %% `a.compare` and `a.negate`, where `a` is a type variable of its
-%% signature, name the members of a's type and select nothing; the
-%% declaration binds no name that is one of its type variables, so the two
-%% readings never meet.
+%% signature, name the members of a's type and select nothing. That the
+%% declaration binds no name that is one of its type variables is a rule
+%% of its scope, which the checker holds.
 members_named(#fn_declaration{requirement = []} = Declaration) ->
     Declaration;
-members_named(#fn_declaration{params = Params, result_type = ResultType, effect = Effect,
-                              body = Body} = Declaration) ->
-    Variables = lists:usort(signature_variables([ResultType, Effect]
-                                                ++ [Annotation
-                                                    || #param{annotation = Annotation} <- Params])),
-    lists:foreach(fun(#param{pattern = Pattern}) -> no_binding_named(Pattern, Variables) end,
-                  Params),
+members_named(#fn_declaration{body = Body} = Declaration) ->
+    Variables = ern_ast:signature_variables(Declaration),
     Declaration#fn_declaration{body = named_members(Body, Variables)}.
 
-%% The type variables a signature's annotations name.
-signature_variables(#t_var{name = Name}) -> [Name];
-signature_variables(Node) when is_tuple(Node) -> signature_variables(tuple_to_list(Node));
-signature_variables(Nodes) when is_list(Nodes) -> lists:append([signature_variables(Node)
-                                                               || Node <- Nodes]);
-signature_variables(_) -> [].
-
 %% The body with each selection of a member from a type variable named
-%% Variables made that member, and every binding checked against them.
+%% Variables made that member.
 named_members(#e_selection{span = Span, expr = #e_var{namespace = [], name = Name},
                            field = Field} = Selection, Variables)
   when Field =:= compare; Field =:= negate ->
@@ -358,21 +335,6 @@ named_members(#e_selection{span = Span, expr = #e_var{namespace = [], name = Nam
         true -> #e_member{span = Span, member_of = Name, name = Field};
         false -> Selection
     end;
-named_members(#e_lambda{params = Params} = Lambda, Variables) ->
-    lists:foreach(fun(#param{pattern = Pattern}) -> no_binding_named(Pattern, Variables) end,
-                  Params),
-    list_to_tuple([named_members(Child, Variables) || Child <- tuple_to_list(Lambda)]);
-named_members(#binding{pattern = Pattern} = Binding, Variables) ->
-    no_binding_named(Pattern, Variables),
-    list_to_tuple([named_members(Child, Variables) || Child <- tuple_to_list(Binding)]);
-named_members(#clause{pattern = Pattern} = Clause, Variables) ->
-    no_binding_named(Pattern, Variables),
-    list_to_tuple([named_members(Child, Variables) || Child <- tuple_to_list(Clause)]);
-named_members(#fn_declaration{span = Span, name = Name, params = Params} = Local, Variables) ->
-    lists:member(Name, Variables) andalso binding_named(Span, Name),
-    lists:foreach(fun(#param{pattern = Pattern}) -> no_binding_named(Pattern, Variables) end,
-                  Params),
-    list_to_tuple([named_members(Child, Variables) || Child <- tuple_to_list(Local)]);
 named_members(Node, Variables) when is_tuple(Node), is_atom(element(1, Node)) ->
     list_to_tuple([element(1, Node) | [named_members(Child, Variables)
                                        || Child <- tl(tuple_to_list(Node))]]);
@@ -380,28 +342,6 @@ named_members(Nodes, Variables) when is_list(Nodes) ->
     [named_members(Node, Variables) || Node <- Nodes];
 named_members(Leaf, _) ->
     Leaf.
-
-no_binding_named(Pattern, Variables) ->
-    lists:foreach(fun({Name, _}) ->
-                      case lists:member(Name, Variables) of
-                          true -> binding_named(pattern_span(Pattern, Name), Name);
-                          false -> ok
-                      end
-                  end, ern_ast:pattern_bindings(Pattern)).
-
-%% Where a pattern binds Name, for the error.
-pattern_span(Pattern, Name) ->
-    ern_ast:walk(fun(#p_var{span = Span, name = Bound}, _) when Bound =:= Name -> Span;
-                    (#p_as{name_span = Span, name = Bound}, _) when Bound =:= Name -> Span;
-                    (_, Found) -> Found
-                 end, Pattern, ern_ast:span(Pattern)).
-
--spec binding_named(ern_diagnostic:span(), atom()) -> no_return().
-binding_named(Span, Name) ->
-    Text = atom_to_list(Name),
-    fail(Span, "`" ++ Text ++ "` names a type variable of the signature, and a declaration with a"
-               " requirement binds no name that is one of its type variables",
-         "rename the binding; " ++ Text ++ ".compare names the member of " ++ Text ++ "'s type").
 
 %% Report §4.5, Appendix A's DeclName: a member, declared with `fn`, is an
 %% operator, `compare` or `negate`, what the language resolves by the
@@ -513,7 +453,7 @@ foreign_declaration([{foreign, Position}, {type, _} | Rest], Doc, Export) ->
                     end,
     spanned({#foreign_type_declaration{span = Position, doc = Doc, export = Export, name = Name,
                                        params = [Var || {Var, _} <- Vars],
-                                       equality = [Var || {Var, true} <- Vars]},
+                                       equality = [Equality || {_, Equality} <- Vars]},
              Rest2});
 foreign_declaration([{foreign, Position}, {fn, _} | Rest], Doc, Export) ->
     {MemberOf, Name, Rest1} = declaration_name(Rest),
@@ -896,7 +836,7 @@ primary([{Keyword, Position} | _]) when Keyword =:= 'if'; Keyword =:= fn ->
 primary([Token | _]) ->
     wanted(expression, position(Token), "expected an expression instead of " ++ describe(Token)).
 
-constructor_expr(Position, Namespace, Name, [{'(', _} | Rest]) ->
+constructor_expr(Position, Namespace, Name, [{'(', _} = Paren | Rest]) ->
     case Rest of
         [{'..', _} | Rest1] ->
             %% report §5.6, Appendix A's Fields: a namespace after `..` may
@@ -915,12 +855,12 @@ constructor_expr(Position, Namespace, Name, [{'(', _} | Rest]) ->
             spanned({#e_constructor{span = Position, namespace = Namespace, name = Name,
                                     args = {named, FieldSets}},
                      expect(Rest1, ')')});
-        [{')', ParenPosition} | _] ->
-            %% report §11.5: the parser does not know the constructor's
-            %% fields, so the help gives both forms
-            fail(ParenPosition, "empty parentheses after " ++ atom_to_list(Name),
-                 "a constructor without fields is written without parentheses, "
-                 ++ atom_to_list(Name) ++ "; one with fields has its fields inside them");
+        [{')', _} | _] ->
+            %% Appendix A: empty parentheses hold no constructor argument,
+            %% so they are a call of the constructor's value, which the
+            %% checker refuses (report §5.6)
+            spanned({#e_constructor{span = Position, namespace = Namespace, name = Name},
+                     [Paren | Rest]});
         [{eof, EndPosition} | _] ->
             %% report §11.2: the input ends where the constructor's first
             %% argument would stand, and positional or named is not
@@ -935,10 +875,24 @@ constructor_expr(Position, Namespace, Name, [{'(', _} | Rest]) ->
                                                       within = Enclosing}});
         _ ->
             {Expr, Rest1} = within(Namespace, Name, 0, fun() -> expr(Rest) end),
-            no_path(Expr, Rest1),
-            spanned({#e_constructor{span = Position, namespace = Namespace, name = Name,
-                                    args = {positional, Expr}},
-                     expect(Rest1, ')')})
+            case Rest1 of
+                [{',', _} | Rest2] ->
+                    %% Appendix A: two expressions or more are no constructor
+                    %% argument but a call of the constructor's value, which
+                    %% the checker refuses (report §5.6)
+                    {Callee, _} = spanned({#e_constructor{span = Position, namespace = Namespace,
+                                                          name = Name},
+                                           [Paren | Rest]}),
+                    {More, Rest3} = arguments(Callee, Rest2, 1),
+                    spanned({#e_call{span = ern_ast:span(Callee), callee = Callee,
+                                     args = [Expr | More]},
+                             expect(Rest3, ')')});
+                _ ->
+                    no_path(Expr, Rest1),
+                    spanned({#e_constructor{span = Position, namespace = Namespace, name = Name,
+                                            args = {positional, Expr}},
+                             expect(Rest1, ')')})
+            end
     end;
 constructor_expr(Position, Namespace, Name, Tokens) ->
     spanned({#e_constructor{span = Position, namespace = Namespace, name = Name}, Tokens}).
@@ -992,18 +946,17 @@ no_path(_, _) ->
 block([{'}', Position} | _], _BlockPosition) ->
     fail(Position, "a block needs at least one expression");
 block(Tokens, Position) ->
-    {Statements, Rest} = statements(Tokens, undefined, []),
+    {Statements, Rest} = statements(Tokens, []),
     spanned({#e_block{span = Position, statements = Statements}, Rest}).
 
-statements(Tokens, Previous, Acc) ->
+statements(Tokens, Acc) ->
     {Statement, Rest} = statement(Tokens),
-    refuse_second_clause(Statement, Previous),
     case Rest of
         [{';', SemicolonPosition}, {'}', _} | _] ->
             %% report §11.5: at the `;` the help says to remove
             fail(SemicolonPosition, "a block ends with an expression", "remove the trailing `;`");
         [{';', _} | Rest1] ->
-            statements(Rest1, Statement, [Statement | Acc]);
+            statements(Rest1, [Statement | Acc]);
         [{'}', BracePosition} | Rest1] ->
             case Statement of
                 #binding{} ->

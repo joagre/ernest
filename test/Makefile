@@ -17,8 +17,10 @@ ERLC_FLAGS = +debug_info -Werror
 PROGRAMS = ern_integration_tests
 DOCS = ern_docs_tests ern_style_tests
 GUIDE = ern_guide_tests
+GRAMMAR = ern_grammar_tests ern_grammar_programs_tests
 SHELL_TESTS = ern_terminal_tests ern_shell_tests
-BEAMS = $(patsubst %,$(EBIN)/%.beam,$(PROGRAMS) $(DOCS) $(GUIDE) $(SHELL_TESTS))
+BEAMS = $(patsubst %,$(EBIN)/%.beam,$(PROGRAMS) $(DOCS) $(GUIDE) $(GRAMMAR) ern_grammar \
+	  $(SHELL_TESTS))
 
 # Run the EUnit modules $(1), with the toolchain and the standard library on
 # the code path.
@@ -35,7 +37,7 @@ EUNIT_SIDE_BY_SIDE = erl -noshell -pa ../erl/*/ebin -pa $(abspath ../build/stdli
 	  halt(case eunit:test({inparallel, [{inparallel, N, M} || M <- Ms]}) of \
 	  ok -> 0; _ -> 1 end).'
 
-test: programs docs guide shell
+test: programs docs guide grammar shell
 
 # The test modules and the build directory, which make test readies before
 # it runs the areas side by side.
@@ -60,6 +62,11 @@ docs: $(BEAMS)
 
 guide: $(BEAMS) prepare
 	$(call EUNIT,$(GUIDE))
+
+# Appendix A read as data, and the programs generated from it (MVP 2.99c
+# item 1), whose seed ERN_SEED gives again.
+grammar: $(BEAMS)
+	$(call EUNIT,$(GRAMMAR))
 
 shell: $(BEAMS) prepare
 	$(call EUNIT_SIDE_BY_SIDE,$(SHELL_TESTS))
@@ -125,4 +132,4 @@ $(EBIN)/%.beam: %.erl | $(EBIN)
 $(EBIN):
 	mkdir -p $(EBIN)
 
-.PHONY: test programs docs guide shell prepare measured xref load service bench clean
+.PHONY: test programs docs guide grammar shell prepare measured xref load service bench clean

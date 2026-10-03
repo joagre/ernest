@@ -571,7 +571,7 @@ foreign_declaration_test() ->
     ?assertMatch(#foreign_type_declaration{export = false, name = 'Handle', params = []},
                  declaration("foreign type Handle")),
     %% a parameter that requires equality, Appendix A's ForeignVar
-    ?assertMatch(#foreign_type_declaration{params = [k, v], equality = [k]},
+    ?assertMatch(#foreign_type_declaration{params = [k, v], equality = [true, false]},
                  declaration("export foreign type Table(k=, v)")),
     ?assertMatch({error, _}, ern_parser:parse_string("type T(a=) = T(a)")),
     ?assertMatch(#foreign_fn_declaration{export = true, name = member,
@@ -642,12 +642,14 @@ several_declarations_test() ->
 %% Errors, including the mandated diagnostics
 %%
 
-%% report §4.5
+%% report Appendix A: two fns of one name in a row are two declarations,
+%% which the checker refuses (report §4.5); a regression test of the
+%% parser's reading, since it refused them itself until MVP 2.99c item 1
 two_clause_function_test() ->
-    ?assertEqual("a function has one clause", refusal("fn f(0) = 1\nfn f(n) = n")),
-    ?assertEqual("a function has one clause",
-                 expression_refusal("{ fn f(0) = 1; fn f(n) = n; f(1) }")),
-    ?assertEqual("write one clause whose body is a `match`", help("fn f(0) = 1\nfn f(n) = n")).
+    [#fn_declaration{name = f}, #fn_declaration{name = f}] =
+        declarations("fn f(0) = 1\nfn f(n) = n"),
+    #e_block{statements = [#fn_declaration{}, #fn_declaration{}, #e_call{}]} =
+        expression("{ fn f(0) = 1; fn f(n) = n; f(1) }").
 
 %% report §5.2
 juxtaposition_test() ->
@@ -679,9 +681,7 @@ help_lines_hold_test() ->
     ?assertEqual("a type's arguments are written in parentheses, as List(a), and a lowercase"
                  " name after `.` names a value", help("fn f(x : Io.println) : Int = 1")),
     ?assertEqual("a type name begins with an uppercase letter: P", help("type _p = A")),
-    ?assertEqual("a type name begins with an uppercase letter", help("type _1 = A")),
-    ?assertEqual("a constructor without fields is written without parentheses, Circle; one"
-                 " with fields has its fields inside them", expression_help("Circle()")).
+    ?assertEqual("a type name begins with an uppercase letter", help("type _1 = A")).
 
 %% report §4.6
 toplevel_bind_arrow_test() ->
@@ -739,7 +739,12 @@ member_names_test() ->
 %% report Appendix A
 misc_errors_test() ->
     ?assertEqual("`_` is a pattern, not an expression", expression_refusal("_ + 1")),
-    ?assertEqual("empty parentheses after None", expression_refusal("None()")),
+    %% Appendix A: empty parentheses after a constructor, or two arguments,
+    %% are a call of its value, which the checker refuses (report §5.6)
+    #e_call{callee = #e_constructor{name = 'None', args = none}, args = []} =
+        expression("None()"),
+    #e_call{callee = #e_constructor{name = 'Pair', args = none}, args = [_, _]} =
+        expression("Pair(1, 2)"),
     ?assertEqual("expected a name instead of type name `Stack`", refusal("fn Stack(x) = x")),
     ?assertEqual("a foreign function declares its result type",
                  refusal("foreign fn f(x : Int) = \"m:f/1\"")),
@@ -986,20 +991,13 @@ member_test() ->
     #e_member{member_of = a, name = '+'} = expression("a.+"),
     #e_call{callee = #e_member{member_of = t, name = '<>'}} = expression("t.<>(x, y)").
 
-%% report §4.9: a declaration with a requirement binds no name that is one
-%% of its type variables, a parameter, a pattern's, a let's, a local fn's,
-%% in a lambda too; written after the code
-requirement_binds_no_type_variable_test() ->
-    Message = "`a` names a type variable of the signature, and a declaration with a requirement"
-              " binds no name that is one of its type variables",
-    ?assertEqual({Message, "rename the binding; a.compare names the member of a's type"},
-                 refusal_and_help("fn f(a : a) : a needs a.compare = a")),
-    ?assertEqual(Message, refusal("fn f(x : a) : a needs a.compare = { let a = x; a }")),
-    ?assertEqual(Message, refusal("fn f(x : a) : a needs a.compare = match x { a -> a }")),
-    ?assertEqual(Message, refusal("fn f(x : a) : a needs a.compare = (fn(a) = a)(x)")),
-    ?assertEqual(Message, refusal("fn f(x : a) : a needs a.compare = { fn a() = x; a() }")),
-    %% without a requirement, a name may be one
-    #fn_declaration{} = declaration("fn f(a : a) : a = a").
+%% report Appendix A, §4.9: a declaration with a requirement that binds a
+%% name that is one of its type variables parses, and the checker refuses
+%% it; a regression test of the parser's reading, since it refused it
+%% itself until MVP 2.99c item 1
+requirement_binding_parses_test() ->
+    #fn_declaration{} = declaration("fn f(a : a) : a needs a.compare = a"),
+    #fn_declaration{} = declaration("fn f(x : a) : a needs a.compare = { let a = x; a }").
 
 %% report §3.5, Appendix A's TypeDecl: `derives compare` after a type's
 %% constructors, and nothing else derived; written after the code

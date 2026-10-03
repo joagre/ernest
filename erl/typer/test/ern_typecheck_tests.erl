@@ -851,6 +851,54 @@ bind_arrow_open_sum_and_pattern_test() ->
 %% Types and declarations
 %%
 
+%% report §4.5, §11.5: two fns of one name in a row are told they are one
+%% function written as clauses, at the second with the first labelled, at
+%% the top and in a block; moved from the parser's tests in MVP 2.99c item
+%% 1, when the parser came to read them as Appendix A does
+two_clause_function_test() ->
+    ?assertEqual({"a function has one clause", "write one clause whose body is a `match`"},
+                 refusal_and_help("fn f(0) = 1\nfn f(n) = n")),
+    ?assertEqual("a function has one clause",
+                 refusal("fn g() : Int = { fn f(0) = 1; fn f(n) = n; f(1) }")),
+    %% apart, they are one name declared twice
+    ?assertEqual("value f is declared twice", refusal("fn f() = 1\nlet x = 2\nfn f() = 3")).
+
+%% report §5.6, Appendix A: a constructor's empty parentheses are a call of
+%% its value, which is no function where it has no fields, and two
+%% arguments are one too many for a positional field; moved from the
+%% parser's tests in MVP 2.99c item 1
+constructor_called_test() ->
+    ?assertEqual({"empty parentheses after None",
+                  "a constructor without fields is written without parentheses, None"},
+                 refusal_and_help("fn f() : Optional(Int) = None()")),
+    ?assertEqual("Some takes 1 argument, not 2", refusal("fn f() : Optional(Int) = Some(1, 2)")),
+    ?assertEqual("Snap has named fields; write Snap(a = value)",
+                 refusal("type Snap = Snap(a : Int)\nfn f() : Snap = Snap()")).
+
+%% report §3.5, §4.9: a declaration with a requirement binds no name that is
+%% one of its type variables, a parameter, a pattern's, a let's, a local
+%% fn's, in a lambda too; moved from the parser's tests in MVP 2.99c item 1
+requirement_binds_no_type_variable_test() ->
+    Message = "`a` names a type variable of the signature, and a declaration with a requirement"
+              " binds no name that is one of its type variables",
+    ?assertEqual({Message, "rename the binding; a.compare names the member of a's type"},
+                 refusal_and_help("fn f(a : a) : a needs a.compare = a")),
+    ?assertEqual(Message, refusal("fn f(x : a) : a needs a.compare = { let a = x; a }")),
+    ?assertEqual(Message, refusal("fn f(x : a) : a needs a.compare = match x { a -> a }")),
+    ?assertEqual(Message, refusal("fn f(x : a) : a needs a.compare = (fn(a) = a)(x)")),
+    ?assertEqual(Message, refusal("fn f(x : a) : a needs a.compare = { fn a() = x; a() }")),
+    %% without a requirement, a name may be one
+    ok = ok("fn f(a : a) : a = a").
+
+%% report §4.3, §4.7: a type's parameters are distinct, a foreign type's too
+type_parameters_distinct_test() ->
+    ?assertEqual("type variable a appears twice among the parameters of Pair",
+                 refusal("type Pair(a, a) = Pair(a)")),
+    ?assertEqual("type variable a appears twice among the parameters of Stack",
+                 refusal("abstract type Stack(a, a) = Stack(List(a))")),
+    ?assertEqual("type variable k appears twice among the parameters of Table",
+                 refusal("foreign type Table(k=, k)")).
+
 %% report §3.5, §3.9, §4.2, §4.3
 type_declarations_test() ->
     ?assertEqual("type T is declared twice", refusal("type T = A\ntype T = B")),

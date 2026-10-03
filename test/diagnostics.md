@@ -322,25 +322,6 @@ example.ern:1:20: a function's result is annotated with `:`, not `->`
   | = help: write `: T` after the parameters, as a parameter's type is written
 ```
 
-### A function written in two clauses (§4.4)
-
-```ernest-rejected
-fn size(xs : List(Int)) : Int = 0
-
-fn size(xs : List(Int)) : Int = List.size(xs)
-```
-
-```console
-$ ern build example.ern
-example.ern:3:1: a function has one clause
-1 | fn size(xs : List(Int)) : Int = 0
-  | --------------------------------- first clause
-...
-3 | fn size(xs : List(Int)) : Int = List.size(xs)
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: write one clause whose body is a `match`
-```
-
 ### `abstract` before something other than a type (§3.8)
 
 ```ernest-rejected
@@ -651,20 +632,6 @@ $ ern build example.ern
 example.ern:1:16: expected an expression instead of `)`
 1 | fn f() : Int = )
   |                ^
-```
-
-### Empty parentheses after a nullary constructor (§3.3)
-
-```ernest-rejected
-fn f() : Optional(Int) = None()
-```
-
-```console
-$ ern build example.ern
-example.ern:1:31: empty parentheses after None
-1 | fn f() : Optional(Int) = None()
-  |                               ^
-  | = help: a constructor without fields is written without parentheses, None; one with fields has its fields inside them
 ```
 
 ### An empty block (§5.4)
@@ -1069,6 +1036,19 @@ example.ern:1:29: field x is declared twice
   |                             ^^^^^^^
 ```
 
+### A type parameter written twice (§4.3)
+
+```ernest-rejected
+type Pair(a, a) = Pair(a)
+```
+
+```console
+$ ern build example.ern
+example.ern:1:1: type variable a appears twice among the parameters of Pair
+1 | type Pair(a, a) = Pair(a)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
 ### A type variable that is no parameter (§3.9)
 
 ```ernest-rejected
@@ -1114,6 +1094,25 @@ example.ern:3:1: value n is declared twice
 ...
 3 | let n = 2
   | ^^^^^^^^^
+```
+
+### A function written in two clauses (§4.5)
+
+```ernest-rejected
+fn size(xs : List(Int)) : Int = 0
+
+fn size(xs : List(Int)) : Int = List.size(xs)
+```
+
+```console
+$ ern build example.ern
+example.ern:3:1: a function has one clause
+1 | fn size(xs : List(Int)) : Int = 0
+  | --------------------------------- first clause
+...
+3 | fn size(xs : List(Int)) : Int = List.size(xs)
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: write one clause whose body is a `match`
 ```
 
 ### A member of a type the module does not declare (§4.2)
@@ -1449,6 +1448,20 @@ example.ern:3:8: f is exported and its type names Box, which this module keeps p
 ```
 
 ## Fields and construction (report §3.5, §5.6)
+
+### Empty parentheses after a nullary constructor (§5.6)
+
+```ernest-rejected
+fn f() : Optional(Int) = None()
+```
+
+```console
+$ ern build example.ern
+example.ern:1:26: empty parentheses after None
+1 | fn f() : Optional(Int) = None()
+  |                          ^^^^^^
+  | = help: a constructor without fields is written without parentheses, None
+```
 
 ### A field of a type that has none (§3.5)
 

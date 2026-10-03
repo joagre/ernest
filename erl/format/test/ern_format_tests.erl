@@ -43,6 +43,23 @@ keeps_what_was_written_test() ->
                   <<"    x |> f() |> `raw`">>],
                  laid(["fn f(x)=(x+0x1F_FF)|>g", "fn h(x) = x |> f() |> `raw`"])).
 
+%% report §11.6: two tokens that would read as others written together
+%% stay a space apart, a member `-` before a bitstring's `>>`, which read
+%% as `->` and `>`. A regression test, of a defect the programs generated
+%% from Appendix A found (MVP 2.99c item 1)
+apart_test() ->
+    ?assertEqual([<<"fn f(a) =">>, <<"    <<a.- >>">>], laid(["fn f(a) = << a.- >>"])),
+    fixed(["fn f(a) =", "    <<a.+, a.- >>"]),
+    fixed(["fn f(x) =", "    <<x:int-big>>"]).
+
+%% report §11.6, §5.7: the parentheses around a pipe's stage, which make no
+%% node, and a foreign type whose parameters share a name stay as written.
+%% Regression tests, of crashes the programs generated from Appendix A
+%% found (MVP 2.99c item 1)
+written_whole_test() ->
+    fixed(["fn f(x) =", "    x |> (g(1)) |> ((h)(2))"]),
+    fixed(["foreign type T(a, a=, a)"]).
+
 %% report §11.6: a function's head ends at `=` and its body begins on the
 %% next line, one step in; a block's brace ends the head's line
 head_test() ->

@@ -148,6 +148,7 @@ check(Namespace, Parsed, Interfaces, SessionScope) ->
     every_type_declared(Interfaces, Seeded),
     Env = Seeded#env{session_scope = SessionScope},
     try
+        one_clause(Parsed),
         declared_twice(Declarations),
         {Env1, TypeDiagnostics} = declare_types(Declarations, Env),
         %% report §11.5: the module's types print unqualified, except those
@@ -249,6 +250,18 @@ is_within({Line, Column, _}, {StartLine, StartColumn, {EndLine, EndColumn}}) ->
     ({Line, Column} >= {StartLine, StartColumn}) andalso ({Line, Column} < {EndLine, EndColumn});
 is_within(_, _) ->
     false.
+
+%% Report §4.5, §11.5: a function has one clause, and a second fn of one
+%% name directly after the first, the habit of languages whose functions
+%% have clauses, is said to be that, at the second with the first labelled.
+one_clause([#fn_declaration{span = First, member_of = MemberOf, name = Name},
+            #fn_declaration{span = Second, member_of = MemberOf, name = Name} | _]) ->
+    fail(Second, "a function has one clause", [{ern_diagnostic:span(First), "first clause"}],
+         "write one clause whose body is a `match`");
+one_clause([_ | Rest]) ->
+    one_clause(Rest);
+one_clause([]) ->
+    ok.
 
 %% Report §4.2, §11.5: a type, a constructor or a value a module declares
 %% twice is an error at the second, with the first labelled.
@@ -717,6 +730,7 @@ is_parameter(_, _) ->
 
 declare_type_name(#type_declaration{span = Span, name = Name, params = Params}, Env) ->
     check_unique_type(Span, Name, Env),
+    distinct_parameters(Span, Name, Params),
     QualifiedName = Env#env.namespace ++ [Name],
     Added = add_type(Env, #type_info{qualified_name = QualifiedName, params = Params}),
     Added#env{local_types = maps:put(Name, QualifiedName, Added#env.local_types)}.
@@ -726,10 +740,11 @@ declare_type_name(#type_declaration{span = Span, name = Name, params = Params}, 
 declare_foreign_type(#foreign_type_declaration{span = Span, name = Name, params = Params,
                                                equality = Equality}, Env) ->
     check_unique_type(Span, Name, Env),
+    distinct_parameters(Span, Name, Params),
     QualifiedName = Env#env.namespace ++ [Name],
-    RequiresEquality = case Equality of
-                           [] -> [];
-                           _ -> [lists:member(Param, Equality) || Param <- Params]
+    RequiresEquality = case lists:member(true, Equality) of
+                           true -> Equality;
+                           false -> []
                        end,
     Added = add_type(Env, #type_info{qualified_name = QualifiedName, params = Params,
                                      foreign = true, equality = RequiresEquality}),
@@ -845,6 +860,16 @@ check_unique_type(Span, Name, #env{local_types = LocalTypes}) ->
     case LocalTypes of
         #{Name := _} -> fail(Span, "type " ++ atom_to_list(Name) ++ " is declared twice");
         _ -> ok
+    end.
+
+%% Report §4.3, §4.7: a type's parameters are distinct type variables.
+distinct_parameters(Span, Name, Params) ->
+    case Params -- lists:usort(Params) of
+        [] ->
+            ok;
+        [Repeated | _] ->
+            fail(Span, "type variable " ++ atom_to_list(Repeated)
+                       ++ " appears twice among the parameters of " ++ atom_to_list(Name))
     end.
 
 declare_constructors(#type_declaration{name = Name, params = Params, constructors = Constructors},
@@ -1594,6 +1619,7 @@ cycle_help(LetName, _, Between, Fns) ->
 signature_shape(#fn_declaration{params = Params, result_type = ResultAnnotation,
                                 effect = Effect} = Declaration,
                 Placeholder, Env) ->
+    binds_no_type_variable(Declaration),
     ParamType = fun(Param, {Acc, TypeStateAcc}) ->
                     {Type, Acc1, TypeStateAcc1} =
                         param_type(Param, Acc, Env#env{type_state = TypeStateAcc}),
@@ -1625,6 +1651,38 @@ signature_shape(#foreign_fn_declaration{span = Span, params = Params,
           Env#env{type_state = not_reply_carrying_params(Type, foreign_effect(Type, TypeState))});
 signature_shape(_, _, Env) ->
     Env.
+
+%% Report §3.5, §4.9: a declaration with a requirement binds no name that
+%% is one of its signature's type variables, in a parameter, a pattern or
+%% a local fn's name, so that `a.compare` names a member and nothing else.
+%% The first such binding in the source is the error.
+binds_no_type_variable(#fn_declaration{requirement = []}) ->
+    ok;
+binds_no_type_variable(#fn_declaration{params = Params, body = Body} = Declaration) ->
+    Variables = ern_ast:signature_variables(Declaration),
+    Bindings = ern_ast:walk(fun(Node, Acc) -> bindings_of(Node, Variables) ++ Acc end,
+                            [Params, Body], []),
+    case lists:sort(Bindings) of
+        [] ->
+            ok;
+        [{Span, Name} | _] ->
+            Text = atom_to_list(Name),
+            fail(Span, "`" ++ Text ++ "` names a type variable of the signature, and a"
+                       " declaration with a requirement binds no name that is one of its type"
+                       " variables", [],
+                 "rename the binding; " ++ Text ++ ".compare names the member of " ++ Text
+                 ++ "'s type")
+    end.
+
+%% The names among Variables a node binds itself, each where it stands.
+bindings_of(#p_var{span = Span, name = Name}, Variables) ->
+    [{ern_diagnostic:span(Span), Name} || lists:member(Name, Variables)];
+bindings_of(#p_as{name_span = Span, name = Name}, Variables) ->
+    [{ern_diagnostic:span(Span), Name} || lists:member(Name, Variables)];
+bindings_of(#fn_declaration{span = Span, name = Name}, Variables) ->
+    [{ern_diagnostic:span(Span), Name} || lists:member(Name, Variables)];
+bindings_of(_, _) ->
+    [].
 
 %% Report §4.9: each member a requirement names, with the type variable of
 %% the signature it names, which stands in a value position.
@@ -3458,6 +3516,12 @@ infer(#e_call{span = Span, callee = Callee, args = Args} = Expr, Env) ->
             Env4 = use_effect(Span, Name, Effect, Env3),
             {Expr#e_call{callee = TypedCallee, args = TypedArgs, type = ResultType}, ResultType,
              Env4};
+        _ when Args =:= [], is_record(Callee, e_constructor) ->
+            %% Appendix A: empty parentheses after a constructor are a call
+            %% of its value, and one without fields is no function (report
+            %% §5.6)
+            fail(Span, "empty parentheses after " ++ Name, [],
+                 "a constructor without fields is written without parentheses, " ++ Name);
         Other ->
             fail(Span, Name ++ " is not a function; it has type "
                        ++ ern_types:format(Other, Env1#env.type_state))
@@ -3749,6 +3813,9 @@ callee_name(#e_selection{expr = Expr, field = Field}) ->
     end;
 callee_name(#e_member{member_of = Variable, name = Member}) when is_atom(Variable) ->
     atom_to_list(Variable) ++ "." ++ atom_to_list(Member);
+%% report §5.6: a constructor's value called, named as written, `None()`
+callee_name(#e_constructor{namespace = Namespace, name = Name, args = none}) ->
+    ern_namespace:text(Namespace ++ [Name]);
 callee_name(_) -> "the callee".
 
 %% Report §3.9, §11.5: an argument's mismatch in a recursive call, one to a
@@ -4157,6 +4224,7 @@ check_guard(Kind, Guard, Env) ->
 infer_block(Statements, Span, Expect, Env) ->
     Fns = [Statement || #fn_declaration{} = Statement <- Statements],
     FnNames = [Name || #fn_declaration{name = Name} <- Fns],
+    one_clause(Statements),
     one_local_fn(Fns, []),
     TypeState1 = ern_types:enter(Env#env.type_state),
     Fresh = fun(#fn_declaration{name = Name}, Acc) ->

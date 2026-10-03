@@ -50,7 +50,8 @@
 
 -record(foreign_type_declaration, {span, doc, export = false, name, params = [],
                                    equality = []}).
-%% equality: the parameters written `k=`, which require equality (report §4.7)
+%% equality: for each parameter, whether it is written `k=` and requires equality
+%% (report §4.7); [] where it has none
 -record(foreign_fn_declaration, {span, doc, export = false, member_of, name, params, result_type,
                                  effect, implementation, implementation_span, scheme}).
 %% scheme: set by the checker, as on fn_declaration; implementation_span:

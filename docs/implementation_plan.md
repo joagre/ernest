@@ -69,12 +69,18 @@ shaken (reordered 2026-10-01). Weighed again on 2026-10-03 before it starts (the
 as the cheaper; item 2 given its rounds and its oracles, item 4 its bound and its owner; and
 [`release_review.md`](release_review.md) a sixth machine, the bench, and a reader of the guide.
 
-1. **The grammar generated against.** A thousand programs generated from Appendix A as it
-   stands, reaching every alternative, parsed, and each near miss refused with a diagnostic
-   (the log's *Enough Coherence*). Each program is formatted and parsed again, the two trees
-   equal and a second formatting changing nothing, which reads the formatter against §11.6
-   with the same programs. The grammar is the data `ern_grammar_tests` already reads from
-   Appendix A. A machine of `make test`.
+1. **The grammar generated against**, done 2026-10-03 (the log's *The Grammar Generated
+   Against*): `make test-grammar`, a part of `make test`, derives a thousand programs from
+   Appendix A as data and one more for each choice they leave untaken, so that every one of
+   the grammar's choices is taken in every run; each is parsed, laid out and parsed again to
+   the same tree, and given with one token changed as a near miss, which a recognizer built
+   from the same grammar judges. It found seven places where the parser, the checker or the
+   formatter left the grammar: Appendix A now says that a block ends with an expression;
+   `Foo()` and `Foo(a, b)` are calls of the constructor's value, which the checker refuses;
+   the binding rule of §3.5 and the message for a function in two clauses are the checker's;
+   a type's parameters are distinct (§4.3, §4.7); and the formatter keeps two tokens that
+   would read as others apart and a pipe's stage in its parentheses, which change nothing
+   (§5.7, §11.6).
 3. **The standard library's laws as properties**, before item 2 as the cheaper (decided
    2026-10-03), generated against each module's contract as it stands: `String.split` then
    `String.join` gives the string back, `List.sort` is stable, a search matches whole

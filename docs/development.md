@@ -94,6 +94,9 @@ make test-programs  the integration tests: the programs compiled and run as a us
 make test-docs    the document tests and the style tests
 make test-guide   the guide's examples, the report's, the README's, and the catalogue of
                   diagnostics
+make test-grammar  Appendix A read as data, and a thousand programs generated from it,
+                  parsed, laid out and given as near misses; ERN_SEED=n runs a failing
+                  seed again
 make test-shell   the shell's sessions and the terminal
 make test-emacs   the Emacs mode's tests (docs/emacs_mode.md)
 make load         the loads of docs/memory.md; not part of make test, which builds
