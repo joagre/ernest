@@ -1825,10 +1825,12 @@ foreign_effect(_, TypeState) -> TypeState.
 parameter_effect({tfn, _, {tvar, Id}, _}, Id) -> true;
 parameter_effect(_, _) -> false.
 
-%% Report §8.4: the implementation name of a foreign fn, module:function/arity.
+%% Report §8.4: the implementation name of a foreign fn, module:function/arity,
+%% the function named as the host names it, a name or one of its operators.
 -spec foreign_implementation(binary()) -> {ok, {atom(), atom(), non_neg_integer()}} | error.
 foreign_implementation(Implementation) ->
-    case re:run(Implementation, "^([a-z][A-Za-z0-9_@]*):([a-z][A-Za-z0-9_]*)/([0-9]+)$",
+    case re:run(Implementation,
+                "^([a-z][A-Za-z0-9_@]*):([a-z][A-Za-z0-9_]*|[-+*/=<>!:]{1,3})/([0-9]+)$",
                 %% `$` at the very end, not before a final line feed
                 [dollar_endonly, {capture, all_but_first, list}]) of
         {match, [Module, Function, Arity]} ->

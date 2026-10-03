@@ -29,8 +29,8 @@
 ///
 /// Faults with `Fault("float arithmetic error")` when the result is not
 /// finite (report §3.1).
-export fn Float.+(left : Float, right : Float) : Float =
-    left + right
+export foreign fn Float.+(left : Float, right : Float) : Float =
+    "ern_float:add/2"
 
 /// The difference, rounded to the nearest `Float`.
 ///
@@ -38,8 +38,8 @@ export fn Float.+(left : Float, right : Float) : Float =
 ///
 /// Faults with `Fault("float arithmetic error")` when the result is not
 /// finite (report §3.1).
-export fn Float.-(left : Float, right : Float) : Float =
-    left - right
+export foreign fn Float.-(left : Float, right : Float) : Float =
+    "ern_float:subtract/2"
 
 /// The product, rounded to the nearest `Float`.
 ///
@@ -47,8 +47,8 @@ export fn Float.-(left : Float, right : Float) : Float =
 ///
 /// Faults with `Fault("float arithmetic error")` when the result is not
 /// finite (report §3.1).
-export fn Float.*(left : Float, right : Float) : Float =
-    left * right
+export foreign fn Float.*(left : Float, right : Float) : Float =
+    "ern_float:multiply/2"
 
 /// The quotient, rounded to the nearest `Float`.
 ///
@@ -56,8 +56,8 @@ export fn Float.*(left : Float, right : Float) : Float =
 ///
 /// Faults with `Fault("float arithmetic error")` when the result is not
 /// finite (report §3.1), which a divisor of `0.0` makes it.
-export fn Float./(dividend : Float, divisor : Float) : Float =
-    dividend / divisor
+export foreign fn Float./(dividend : Float, divisor : Float) : Float =
+    "ern_float:divide/2"
 
 /// `-float`, which prefix `-` calls.
 ///
@@ -67,8 +67,8 @@ export fn Float./(dividend : Float, divisor : Float) : Float =
 /// Float.negate(1.5)
 /// // => -1.5
 /// ```
-export fn negate(float : Float) : Float =
-    -float
+export foreign fn negate(float : Float) : Float =
+    "ern_float:negate/1"
 
 /// The numeric order, which `<` and the other comparisons use.
 ///
@@ -78,8 +78,8 @@ export fn negate(float : Float) : Float =
 /// Float.compare(2.0, 1.0)
 /// // => Greater
 /// ```
-export fn compare(left : Float, right : Float) : Ordering =
-    if left < right then Less else if left > right then Greater else Equal
+export foreign fn compare(left : Float, right : Float) : Ordering =
+    "ern_float:compare/2"
 
 /// The magnitude.
 export fn abs(float : Float) : Float =

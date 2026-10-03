@@ -117,5 +117,5 @@ foreign fn fromCode(code : Int) : Char =
 /// Char.compare('b', 'a')
 /// // => Greater
 /// ```
-export fn compare(left : Char, right : Char) : Ordering =
-    if left < right then Less else if left > right then Greater else Equal
+export foreign fn compare(left : Char, right : Char) : Ordering =
+    "ern_char:compare/2"

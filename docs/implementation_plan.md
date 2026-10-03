@@ -283,15 +283,20 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     principles review's edits: `Io.show` and `Io.debug` on a type variable are refused, and
     `Io.debug` writes through `Io`'s stream process to standard error (the log's *A Value Shows
     Itself at a Known Type*).
-14. **The built-in operators as shims** (`findings.md`'s R-27, decided with the user
-    2026-09-30): each operator §9.6 gives `Int`, `Float`, `String` and `Bytes`, `Int`'s and
-    `Float`'s `negate`, and the `compare` of `Int`, `Float`, `String` and `Char` become a `foreign fn`
-    over the host's operation, or over a helper in the runtime's Erlang where the host has
-    none of the shape, `String.<>` and the `compare`s, since the operation is the host's alone
-    (Appendix E.0 rule 1). §9.6's sentences that such a body is no recursive call go, and so
-    does the checker's case for them; an operator costs what it costs now, which `make bench`
-    measures. After item 15, so that its declarations are written in item 15's names. Kept,
-    decided with the user 2026-10-02 (the log's *MVP 2.99b's Questions, One by One*).
+14. **The built-in operators as shims**, done 2026-10-03 (`findings.md`'s R-27, decided
+    with the user 2026-09-30 and kept 2026-10-02; the log's *The Operators as Shims, Built*):
+    each operator §9.6 gives `Int`, `Float`, `String` and `Bytes`, `Int`'s and `Float`'s
+    `negate`, and the `compare` of `Int`, `Float`, `String` and `Char` is a `foreign fn` in
+    its type's module, over the host's own operation where it serves as it stands, `Int`'s
+    `+`, `-`, `*` and `negate`, and else over a helper in the runtime's Erlang: where the
+    host raises in other words than §7.4's, `/` and `%`; where it keeps a negative zero or
+    raises for a result past the finite range, `Float`'s; and where it has no function of
+    the shape, `<>` and the `compare`s. §8.4 says that an implementation's function is named
+    as the host names it, an operator among them, `erlang:+/2`. §9.6's sentences that such a
+    body is no recursive call are gone; the checker held no case for them. An operator
+    applied costs what it cost, being written in line as before, and a test holds the line
+    and the declared function equal; a declared function called as a value costs its
+    foreign call, measured at 8% of a sort by `Int.compare` and 6% of a fold with `Float.+`.
 15. **Names that read, in Ernest**, done 2026-10-02 (the log's *The Ernest Read and
     Renamed*): the standard library, the shell, `libs/`, `examples/`, `tools/` and the
     programs under `test/` read, two commits an area, the names and then the form, the

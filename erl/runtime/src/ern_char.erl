@@ -8,7 +8,7 @@
 -module(ern_char).
 
 -export([is_digit/1, is_alpha/1, is_space/1, is_upper/1, is_lower/1, to_upper/1, to_lower/1,
-         to_string/1, to_int/1, from_int/1]).
+         to_string/1, to_int/1, from_int/1, compare/2]).
 
 -spec is_digit(char()) -> boolean().
 is_digit(Char) when Char < 16#80 -> Char >= $0 andalso Char =< $9;
@@ -51,6 +51,12 @@ to_int(Char) -> Char.
 %% Char.fromInt has checked the range
 -spec from_int(char()) -> char().
 from_int(Code) -> Code.
+
+%% Report §3.10, §9.6: the host's ordering of code points, as an Ordering.
+-spec compare(char(), char()) -> 'Less' | 'Equal' | 'Greater'.
+compare(Left, Right) when Left < Right -> 'Less';
+compare(Left, Right) when Left > Right -> 'Greater';
+compare(_, _) -> 'Equal'.
 
 single([Changed], _) -> Changed;
 single(_, Char) -> Char.

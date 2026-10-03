@@ -494,6 +494,19 @@ show_needs_a_known_type_test() ->
     ?assertEqual(ok, ok("fn f() : String = Io.show(fn(n : Int) = n)")),
     ?assertEqual(ok, ok("fn f(xs : List(Int)) : List(String) = List.map(xs, Io.show)")).
 
+%% report §8.4: a foreign function's implementation is named
+%% module:function/arity, the function as the host names it, an operator
+%% among them; a name of another form is refused. A regression test,
+%% written after the code: an operator was no name
+operator_implementation_test() ->
+    ?assertEqual(ok, ok("foreign fn plus(a : Int, b : Int) : Int = \"erlang:+/2\"")),
+    ?assertEqual(ok, ok("foreign fn same(a : Int, b : Int) : Bool = \"erlang:=:=/2\"")),
+    ?assertEqual("the implementation of plus is named module:function/arity, here"
+                 " module:function/2",
+                 refusal("foreign fn plus(a : Int, b : Int) : Int = \"erlang:+x/2\"")),
+    ?assertEqual("the implementation names arity 3, and plus has 2 parameters",
+                 refusal("foreign fn plus(a : Int, b : Int) : Int = \"erlang:+/3\"")).
+
 %% report §8.4, Appendix E.12: `Foreign.from` gives its value by the type at
 %% which the name is used, which is known whole there: on a type variable,
 %% and on a type that holds one, it is refused, as a callee and as a value,

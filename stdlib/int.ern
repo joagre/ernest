@@ -21,32 +21,32 @@
 /// since 0.1.0
 
 /// The sum.
-export fn Int.+(left : Int, right : Int) : Int =
-    left + right
+export foreign fn Int.+(left : Int, right : Int) : Int =
+    "erlang:+/2"
 
 /// The difference.
-export fn Int.-(left : Int, right : Int) : Int =
-    left - right
+export foreign fn Int.-(left : Int, right : Int) : Int =
+    "erlang:-/2"
 
 /// The product.
-export fn Int.*(left : Int, right : Int) : Int =
-    left * right
+export foreign fn Int.*(left : Int, right : Int) : Int =
+    "erlang:*/2"
 
 /// The quotient, truncated toward zero: `-7 / 3` is `-2`.
 ///
 /// ### Errors
 ///
 /// Faults with `Fault("division by zero")` when `divisor` is `0`; `Int.div` does not.
-export fn Int./(dividend : Int, divisor : Int) : Int =
-    dividend / divisor
+export foreign fn Int./(dividend : Int, divisor : Int) : Int =
+    "ern_int:divide/2"
 
 /// The remainder of `/`, with the sign of `dividend`: `-7 % 3` is `-1`.
 ///
 /// ### Errors
 ///
 /// Faults with `Fault("division by zero")` when `divisor` is `0`; `Int.rem` does not.
-export fn Int.%(dividend : Int, divisor : Int) : Int =
-    dividend % divisor
+export foreign fn Int.%(dividend : Int, divisor : Int) : Int =
+    "ern_int:remainder/2"
 
 /// `-int`, which prefix `-` calls.
 ///
@@ -56,8 +56,8 @@ export fn Int.%(dividend : Int, divisor : Int) : Int =
 /// Int.negate(5)
 /// // => -5
 /// ```
-export fn negate(int : Int) : Int =
-    -int
+export foreign fn negate(int : Int) : Int =
+    "erlang:-/1"
 
 /// `dividend / divisor`, truncated toward zero, or `None` when `divisor` is
 /// `0`.
@@ -77,8 +77,8 @@ export fn rem(dividend : Int, divisor : Int) : Optional(Int) =
 /// Int.compare(1, 2)
 /// // => Less
 /// ```
-export fn compare(left : Int, right : Int) : Ordering =
-    if left < right then Less else if left > right then Greater else Equal
+export foreign fn compare(left : Int, right : Int) : Ordering =
+    "ern_int:compare/2"
 
 /// The magnitude.
 export fn abs(int : Int) : Int =

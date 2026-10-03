@@ -75,32 +75,55 @@ in_module_docs(Namespace, Name) ->
             false
     end.
 
-%% report Appendix E.0 rule 1, E.1, E.3, E.4, E.5, E.14, E.16, E.20, E.22:
-%% the primitives a module's section names are the module's `foreign fn`s.
-%% An exported one is named as itself; a private one by the exported
-%% declaration that alone calls it, `slice` for String's `part`; one that
-%% only system references call, a system module's (§8.2), by the exported
-%% functions that reach them, since in a system module a function that
-%% reaches its process is a primitive; or else by its own name.
+%% report Appendix E.0 rule 1, §9.6, E.1, E.3, E.4, E.5, E.6, E.8, E.9,
+%% E.14, E.16, E.20, E.22: the primitives a module's section names are the
+%% module's `foreign fn`s. An exported one is named as itself; a private
+%% one by the exported declaration that alone calls it, `slice` for
+%% String's `part`; one that only system references call, a system
+%% module's (§8.2), by the exported functions that reach them, since in a
+%% system module a function that reaches its process is a primitive; or
+%% else by its own name. Where the section says that the module provides
+%% the prelude's operations as primitives, they are §9.6's of its namespace.
 primitives_test() ->
-    [begin
-         {ok, Source} = file:read_file(stdlib_file(Namespace)),
-         {ok, Declarations} = ern_parser:parse_string(Source),
-         ?assertEqual({Namespace, lists:sort(Named)},
-                      {Namespace, lists:sort(foreign_names(Declarations))})
-     end || {Namespace, Body} <- namespaces(section("## Appendix E.", "## Appendix F")),
-            Named <- [primitives(Body)], Named =/= []].
+    Checked = [begin
+                   {ok, Source} = file:read_file(stdlib_file(Namespace)),
+                   {ok, Declarations} = ern_parser:parse_string(Source),
+                   ?assertEqual({Namespace, lists:sort(Named)},
+                                {Namespace, lists:sort(foreign_names(Declarations))}),
+                   Namespace
+               end || {Namespace, Body} <- namespaces(section("## Appendix E.", "## Appendix F")),
+                      Named <- [primitives(Namespace, Body)], Named =/= []],
+    %% the five types whose operations §9.6 gives the runtime are among them
+    ?assertEqual([], [['Int'], ['Float'], ['String'], ['Bytes'], ['Char']] -- Checked).
 
-%% The names in backticks of a section's sentence "The primitives are ...".
-primitives(Body) ->
+%% The names in backticks of a section's sentence "The primitives are ...",
+%% "The other primitives are ..." or "The other primitive is ...", and
+%% §9.6's operations of the namespace where the section says the module
+%% provides them as primitives.
+primitives([Module], Body) ->
     Text = lists:append(Body),
-    case string:find(Text, "The primitives are") of
-        nomatch -> [];
-        Found ->
-            [Sentence | _] = string:split(Found, "(E.0 rule 1)"),
-            {match, Names} = re:run(Sentence, "`(\\w+)`", [global, {capture, [1], list}]),
-            [list_to_atom(Name) || [Name] <- Names]
-    end.
+    Listed = case re:run(Text, "The (?:other )?primitives? (?:are|is)(.*?)\\(E\\.0 rule 1\\)",
+                         [{capture, [1], list}]) of
+                 {match, [Sentence]} ->
+                     {match, Names} = re:run(Sentence, "`(\\w+)`", [global, {capture, [1], list}]),
+                     [list_to_atom(Name) || [Name] <- Names];
+                 nomatch ->
+                     []
+             end,
+    Provided = case re:run(Text, "as (?:a primitive|primitives)") of
+                   {match, _} -> required(atom_to_list(Module));
+                   nomatch -> []
+               end,
+    Listed ++ Provided.
+
+%% The operations §9.6 lists in a type's namespace: `Int.+`, `Int.negate`.
+required(Module) ->
+    Lines = code_lines(section("### 9.6", "### 9.7")),
+    [list_to_atom(Name) || Line <- Lines,
+                           [Names | _] <- [string:split(Line, " : ")],
+                           Qualified <- string:split(Names, ", ", all),
+                           [Namespace, Name] <- [string:split(Qualified, ".")],
+                           Namespace =:= Module].
 
 stdlib_file(Namespace) ->
     filename:join("../../../stdlib", ern_namespace:module_path(Namespace) ++ ".ern").

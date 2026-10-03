@@ -37,8 +37,8 @@
 /// since 0.1.0
 
 /// The first, then the second.
-export fn String.<>(left : String, right : String) : String =
-    left <> right
+export foreign fn String.<>(left : String, right : String) : String =
+    "ern_string:append/2"
 
 /// The number of graphemes, extended grapheme clusters, which is neither
 /// the number of octets nor the number of `Char`s: `e` with a combining
@@ -87,8 +87,8 @@ export fn isEmpty(text : String) : Bool =
 /// String.compare("a", "b")
 /// // => Less
 /// ```
-export fn compare(left : String, right : String) : Ordering =
-    if left < right then Less else if left > right then Greater else Equal
+export foreign fn compare(left : String, right : String) : Ordering =
+    "ern_string:compare/2"
 
 /// `true` when the second is somewhere in the first, as whole graphemes; an
 /// empty second is always there.
