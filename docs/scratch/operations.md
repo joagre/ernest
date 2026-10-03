@@ -107,7 +107,7 @@ A type has one member of each name, so a requirement has one value at a type. A 
 type Ops(s, a) = Ops(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
 ```
 
-The program fills it from each representation's module at an element type, one binding per representation and element type, and passes it:
+The program fills it from each representation's module, one binding per representation and element type, or one function per representation generic in the element type, shown below, and passes it:
 
 ```ernest-fragment
 let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)
@@ -119,6 +119,15 @@ fn common(list : List(a), other : List(a), ops : Ops(s, a)) : List(a) =
 Selecting a field, `ops.toList`, is ordinary field selection, resolved against the parameter's annotated type. The standard library declares no such record and no generic function over one: which operations a program needs is the program's to say. An operation whose callback has an effect variable, or whose accumulator has a type of its own, `filter` and `foldLeft` among them, cannot be a field, because the field's type would need a variable the record does not have. Generic code that needs one goes through `toList` and `List`.
 
 **The fill.** In a record construction, `..` may name a module in place of an expression. `Ops(..Set)` fills each field not given beside it from the declaration of that field's name in the module, at the field's type. `Ops(..OrderedSet, toList = mine)` takes the field given and fills the rest. A declaration with a requirement is filled with its member supplied at the field's type, which the record's type must fix: `Ops(OrderedSet.Set(Int), Int)` fixes `a` to `Int`, so `fromList` is filled with `Int.compare`. Where the record's type leaves that variable open, the fill is an error naming the field and the variable: `fromList needs a.compare, and the record's type leaves a undetermined`.
+
+A type variable of the enclosing function's signature that its requirement names is not open. So a function with a requirement returns the record generic in the element type, and one fill serves every element type with an order:
+
+```ernest-fragment
+fn orderedOps() : Ops(OrderedSet.Set(a), a) needs a.compare =
+    Ops(..OrderedSet)
+```
+
+`common([4, 2, 3], [3, 4, 5], orderedOps())` is `[3, 4]`, and `common(["b", "a"], ["a", "c"], orderedOps())` is `["a"]`. The fill is supplied from the requirement as a call is.
 
 The name after `..` is a module where it is a qualified name made of type names alone that names no constructor or binding in scope, and an expression otherwise, as in the record update `Snapshot(..old, seen = s)`. A module may stand alone after `..`; an expression keeps the rule that at least one field follows it. A field with no declaration of its name in the module, or one whose type does not fit the field's, is an error naming the field and the module: `Ops(..Set) lacks isSubset: Set has no isSubset`.
 
@@ -456,9 +465,9 @@ In the language: two reserved words, `needs` and `derives`; a clause at the end 
 
 At run time a requirement's member is an ordinary argument, and a field use is one indirect call, the host's own application of a function value. The ordered set's own costs are the sorted list's.
 
-## Compared with OCaml, Standard ML, Haskell and Elm
+## Compared with OCaml, Standard ML, Haskell, Rust and Elm
 
-`usage.ern` against the same program in the four languages, in what a program writes:
+`usage.ern` against the same program in the five languages, in what a program writes:
 
 | | The order | Equality | Code written once over two representations | Generic over the element | A second order |
 |---|---|---|---|---|---|
@@ -466,19 +475,24 @@ At run time a requirement's member is an ordinary argument, and a field use is o
 | OCaml | once, at `Set.Make(Int)` | `IntSet.equal` | a first-class module, its parameter annotated | a functor, or a first-class module passed | a second functor application |
 | Standard ML | once, at the functor application | `IntSet.equal` | a functor over the representation's structure | a functor | a second functor application |
 | Haskell | nowhere; `Ord` is found | `==` | a class the program declares, an instance per representation | `Ord a =>`, inferred | a `newtype` |
+| Rust | nowhere; `Ord` is found | `==` | a trait the program declares, an `impl` per representation | `T: Ord` declared; nothing written at a call | a wrapper type, `Reverse<T>` in the standard library |
 | Elm | nowhere; elements are `comparable` | `==` | no second representation | `comparable` only | no second order |
 
 In `usage.ern`, `main` writes no order and `==` once; `unique` declares the requirement and its call writes nothing; `common` writes `ops.` four times over an annotated parameter; the program declares `Ops` in three lines and fills it in two. In `numeric.ern`, three generic functions declare `needs a.+` once each, their calls write nothing, and their bodies write `+` or `a.+`; `sum`'s zero is passed beside the `+` that is found. In `num.ern`, each type fills `Num` in one line, and every generic function takes `num` and writes `num.` before each operation.
+
+In Rust, `unique` is `fn unique<T: Ord>(list: Vec<T>) -> Vec<T>`, its bound declared and supplied at each call as the requirement is; `Date` is `#[derive(PartialEq, Eq, PartialOrd, Ord)]` over a struct of three fields, four traits for one order, since `==` is a trait too; and `common` is a trait of three methods the program declares, with an `impl` for `HashSet<T>` and one for `BTreeSet<T>`, each writing each method. The derive is the same as `derives compare`: it orders by variant in declaration order and then by field from left to right, bounds the type's parameters, and is an error at a field whose type has no order. Rust bounds every parameter of the type, reached by the comparison or not; `derives compare` requires only those it reaches.
 
 **Pros.**
 
 - Against OCaml and Standard ML: no functor application and no module per element type, one `OrderedSet` for every element type, and a record declared and filled in five lines where a functor is a module. The guarantee is the same: one order per type.
 - Against Haskell: the same program on the element side, and no class declaration for code over two representations. Nothing is inferred and nothing is declared an instance: the only thing resolved is a member the type already has, nothing is written at a call, and every signature on the page says what its type must have.
+- Against Rust: the same discipline, a requirement declared and never inferred, in one word where an order derived in Rust names four traits; a representation's operations enter the record by name from its module, `Ops(..Set)`, where an `impl` writes each method; and the derive requires only the parameters the comparison reaches, where Rust bounds them all.
 - Against Elm: a user type has an order, `fn Date.compare`; a second representation exists; a second order is a wrapper type.
 
 **Cons.**
 
-- Against Haskell: every generic function that needs the order declares `needs a.compare`, where Haskell infers `Ord a =>` and Rust declares its bounds; and one argument is passed unseen along the declared requirements, where the language's rule on operators had allowed none.
+- Against Haskell: every generic function that needs the order declares `needs a.compare`, where Haskell infers `Ord a =>`; and one argument is passed unseen along the declared requirements, where the language's rule on operators had allowed none.
+- Against Rust: a bound names any trait, the program's own among them, so a `zero` or a `hash` is a bound where Ernest passes a parameter or fills a field; a trait's method is dispatched statically, one copy of the code per type, where a field use is one indirect call and a requirement one argument passed; a bound stands once on an `impl` block for every method in it, where each function of `OrderedSet` that needs the order writes `needs a.compare`; and Rust orders `Option`, tuples and `Vec` by their contents, where Ernest's `Optional`, tuples and lists have no order.
 - Against OCaml and Standard ML: the member is the only order a type has, so a reversed set of `Int` is a wrapper type where OCaml applies the functor again; and the requirement and the fill are two forms, where a functor is one.
 - Against Elm: two forms where Elm has none, and an order declared per user type where Elm has no such type at all.
 - Against all: a record over the whole vocabulary is twelve fields the program writes, and `filter` and `foldLeft` cannot be fields. The requirement reaches the members and `show` only; a record that needs a `zero` or a `hash` fills them by name from a module and can name neither in a requirement.
