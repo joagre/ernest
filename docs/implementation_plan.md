@@ -35,8 +35,7 @@ that decided it; item 21, the report's and the guide's blocks read by `style.md`
 2026-10-03 too, and item 8's two decisions were taken with the user the same day; item 14, the operators
 as shims, was built and reverted. `Address.ask`, built in item 20, was taken
 out again. Two items remain: 23, *Whose a file is*, which the first of the decisions
-added, and 24, the report in three files, moved from MVP 2.99c; and one decision, item
-26, the reaper's look at rest. Item 10's launchd checks
+added, and 24, the report in three files, moved from MVP 2.99c. Item 10's launchd checks
 wait for a Mac. The next release, Ernest 0.3.0, is MVP 2.99c's last item. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
@@ -462,15 +461,15 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     and whether they move to the toolchain file is a decision of its own, taken later if at
     all.
 25. **A release**: moved to the end of MVP 2.99c, its item 6, on 2026-10-03.
-26. **The reaper's look at rest**, a decision with the user, named 2026-10-03 (the log's
-    *The Reaper's Look at Rest*): the reaper wakes every tenth of a second to look for a
-    deadlock (§8.6), and a program at rest pays for it, measured at 1.1% of a core and
-    twelve wake-ups a second where a host at rest has none. Recommended: the look comes
-    again after a tenth of a second only while nothing can still deliver, and after a
-    second while something can, since a deadlock can begin only once that has ended; about
-    0.3% at rest, and a deadlock in a program long quiet found within a second. Not looking
-    at all while something can deliver takes a count kept on four paths of the runtime,
-    and is weighed there.
+26. **The reaper's look at rest**, decided with the user and built 2026-10-03 (the log's
+    *The Reaper's Look at Rest*): the reaper woke every tenth of a second to look for a
+    deadlock (§8.6), and a program at rest paid 1.1% of a core and twelve wake-ups a second
+    for it, where a host at rest has none. The look now comes again after a tenth of a
+    second only while nothing can still deliver, and after a second while something can,
+    since a deadlock can begin only once that has ended: 0.3% and three wake-ups a second
+    at rest, and a deadlock in a program long quiet found within a second. Not looking at
+    all while something can deliver, by a count kept on four paths of the runtime, was
+    weighed and not taken.
 
 ## MVP 2.99c (the language argued, and a release), about three weeks
 

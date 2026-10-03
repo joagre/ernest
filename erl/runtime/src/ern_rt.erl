@@ -75,6 +75,14 @@
 -define(DELIVERIES, ern_deliveries).
 %% The longest wait the host's `receive ... after` takes, in milliseconds.
 -define(SLICE, 16#FFFFFFFF).
+%% How long the reaper waits without a message before it looks for a
+%% deadlock, in milliseconds (report §8.6): soon after a message and while
+%% nothing can deliver but a process still runs, which may be about to
+%% wait; later while something can still deliver, since a deadlock can
+%% begin only once that has ended. A program at rest pays for each look
+%% with a wake-up of the host, so there the look comes seldom.
+-define(LOOK_SOON, 100).
+-define(LOOK_LATER, 1000).
 
 -type address() :: pid() | {via, fun((term()) -> term()), address()}
                  | {foreign, pid(), term(), map()}.
@@ -407,6 +415,9 @@ reason(Other) -> {'Fault', format("~p", [Other])}.
 %% ended. Report §6.9: of a process that has ended it keeps nothing, so a
 %% monitor made after the end answers Unknown.
 reaper_loop(Reaper) ->
+    reaper_loop(Reaper, ?LOOK_SOON).
+
+reaper_loop(Reaper, Wait) ->
     receive
         {spawn, From, Ref, Function, Site, SpawnMonitors} ->
             reaper_loop(spawned(From, Ref, Function, Site, SpawnMonitors, Reaper));
@@ -424,12 +435,16 @@ reaper_loop(Reaper) ->
             ended_program(From, Ref);
         {'DOWN', _MonitorRef, process, Pid, ExitReason} ->
             reaper_loop(down(Pid, ExitReason, Reaper))
-    after 100 ->
-        case deadlocked() of
-            true -> deadlock();
-            false -> ok
-        end,
-        reaper_loop(Reaper)
+    after Wait ->
+        case look() of
+            deadlock ->
+                deadlock(),
+                reaper_loop(Reaper);
+            running ->
+                reaper_loop(Reaper);
+            delivering ->
+                reaper_loop(Reaper, ?LOOK_LATER)
+        end
     end.
 
 %% A process spawned on request, which starts once its row is in the
@@ -747,17 +762,26 @@ died(Pid, Site, ExitReason) ->
 %% mailbox is what is read of it. §8.6 leaves a foreign process that can
 %% deliver to the runtime. Report §11.2: nothing is a deadlock while a
 %% shell holds the terminal.
-deadlocked() ->
-    terminal_holder() =:= undefined
-        andalso nothing_delivers()
-        andalso begin
-                    Pids = [Pid || {Pid, _, _, _, _} <- live_rows()],
-                    First = snapshot(Pids),
-                    Pids =/= []
-                        andalso lists:all(fun({_, Status, _}) -> Status =:= waiting end, First)
-                        andalso nothing_delivers()
-                        andalso snapshot(Pids) =:= First
-                end.
+%% What the look finds: `delivering`, where something can still deliver or
+%% a shell holds the terminal, so that no deadlock can begin before that
+%% ends; `running`, where nothing can and a process is not waiting, or
+%% none is left; `deadlock`, where nothing can and every process waits.
+look() ->
+    case terminal_holder() =:= undefined andalso nothing_delivers() of
+        false ->
+            delivering;
+        true ->
+            Pids = [Pid || {Pid, _, _, _, _} <- live_rows()],
+            First = snapshot(Pids),
+            Waits = Pids =/= []
+                andalso lists:all(fun({_, Status, _}) -> Status =:= waiting end, First)
+                andalso nothing_delivers()
+                andalso snapshot(Pids) =:= First,
+            case Waits of
+                true -> deadlock;
+                false -> running
+            end
+    end.
 
 nothing_delivers() ->
     sources() =:= 0

@@ -348,6 +348,33 @@ call_clock_starts_at_the_call_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     receive {result, Answer} -> ?assertEqual('None', Answer) after 2000 -> ?assert(false) end.
 
+%% report §8.6: a deadlock is found soon where nothing could deliver from
+%% the start, and within about a second of the end of the last thing that
+%% could, a timed wait here: while something can deliver, the reaper looks
+%% once a second, since a program at rest pays for each look. A regression
+%% test, written after the code; it does not measure what the program at
+%% rest pays, which the log's *The Reaper's Look at Rest* does
+deadlock_after_a_wait_test_() ->
+    {timeout, 30, fun deadlock_after_a_wait/0}.
+
+deadlock_after_a_wait() ->
+    Quiet = #{stdout => fun(_) -> ok end},
+    Elapsed = fun(Entry) ->
+                  Start = erlang:monotonic_time(millisecond),
+                  ?assertEqual({fault, <<"deadlock">>}, ern_rt:run_main(Entry, <<"main">>, Quiet)),
+                  erlang:monotonic_time(millisecond) - Start
+              end,
+    AtOnce = Elapsed(fun() -> receive never -> ok end end),
+    ?assert(AtOnce < 600),
+    Waited = Elapsed(fun() ->
+                         ern_rt:timed(),
+                         receive never -> ok after 300 -> ok end,
+                         ern_rt:untimed(),
+                         receive never -> ok end
+                     end),
+    ?assert(Waited >= 300),
+    ?assert(Waited < 2500).
+
 %% report §8.6: every live process blocked in an untimed receive, with no
 %% timed receive, clock alarm, or foreign call pending, is a deadlock, the
 %% entry process's fault `deadlock` (§7.4); each
