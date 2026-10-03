@@ -28,7 +28,9 @@ the same day (the log's *The Erlang Read Again*), and item 15, moved to follow i
 Renamed*) and read again by six readers (the log's *The Ernest Read Again*); item 21, the
 report's and the guide's blocks read the same way, was decided with the user the same day,
 to follow items 16 and 20. Item 5, the operations built, was done on 2026-10-03 (the log's
-*The Requirement Built*), and item 16, the guide's §7.3 over it, the same day. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
+*The Requirement Built*), item 16, the guide's §7.3 over it, the same day, and item 20, the
+feedback the reviews left, the same day, its six builds each read back in the log entry
+that decided it. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
 
@@ -370,9 +372,9 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     it; about half a day. The third: §2.2's blank line that gives the first doc block to the
     module kept, OCaml's own rule. The fourth: `spawnMonitored` and `Unknown` kept, the runtime
     keeping nothing of an ended process. Every decision of this item was taken on 2026-10-02,
-    and `language_feedback.md` holds no entry; what remains is to build what the decisions
-    admitted: entry 76, the rule for a recursive type and entries 79, 81, 82, 83 and 85
-    were built on 2026-10-03, and what remains is the item's read-back and its report.
+    and `language_feedback.md` holds no entry; every build the decisions admitted, entry 76,
+    the rule for a recursive type and entries 79, 81, 82, 83 and 85, was done on 2026-10-03,
+    each read back in its log entry, and the item is done.
     **The ask's cost**, decided with the user 2026-10-03: `make bench` puts an ask and its
     answer received at 2.6 times the host's `send_request` and `receive_response`, where a
     call stands at 1.7, the difference being the ask's three rows and its timer, which answer
