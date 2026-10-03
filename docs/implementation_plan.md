@@ -34,8 +34,9 @@ that decided it; item 21, the report's and the guide's blocks read by `style.md`
 22, the AST's namespace named so, the same day. Items 8, 9, 10, 13, 14 and 19 were built on
 2026-10-03 too, and item 8's two decisions were taken with the user the same day; item 14, the operators
 as shims, was built and reverted. `Address.ask`, built in item 20, was taken
-out again. Two items remain: 23, *Whose a file is*, which the first of the decisions
-added, and 24, the report in three files, moved from MVP 2.99c. Item 10's launchd checks
+out again. Three items remain: 23, *Whose a file is*, which the first of the decisions
+added; 24, the report in three files, moved from MVP 2.99c; and 27, a load that lingers,
+found that day. Item 10's launchd checks
 wait for a Mac. The next release, Ernest 0.3.0, is MVP 2.99c's last item. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was published on
 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of
 order. Each has its paragraph under "Done".
@@ -60,7 +61,7 @@ order. Each has its paragraph under "Done".
 | MVP 2.96 | a result annotation written with `:`, and a process's addresses taught | done 2026-09-29 |
 | MVP 2.98 | what the first review left | done 2026-09-30 |
 | MVP 2.99 | a restart begins afresh, and the first release | done 2026-09-30, tag `v0.1.0` |
-| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | built but items 23 and 24: a file's user, and the report in three files |
+| MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | built but items 23, 24 and 27: a file's user, the report in three files, and a load that lingers |
 | The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01 |
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | moved from MVP 3.9 on 2026-10-01 |
@@ -470,6 +471,16 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     at rest, and a deadlock in a program long quiet found within a second. Not looking at
     all while something can deliver, by a count kept on four paths of the runtime, was
     weighed and not taken.
+27. **The supervisors load lingers**, found 2026-10-03, to diagnose before the release
+    runs `make load`: in one or two runs of ten, a sample of `test/load/supervisors.ern`
+    counts one to five host processes and as many rows above its baseline, and the load
+    fails where its last round is one. It does so with the reaper's look as it was and as
+    it is, and the program's own processes stay eight, so what lingers is the runtime's:
+    most likely deliveries of a `Down` to the supervisor still alive 300 milliseconds after
+    the round's work. The shape of the fix: a sample that lists the processes and rows
+    beyond the baseline says what they are; where they are deliveries on their way, `mark`
+    waits for them as it waits for the round's ends, and where one is held, that is the
+    runtime's defect and is fixed there.
 
 ## MVP 2.99c (the language argued, and a release), about three weeks
 
