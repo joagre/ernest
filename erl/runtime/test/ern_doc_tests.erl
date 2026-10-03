@@ -27,9 +27,11 @@ stdlib_present_test() ->
 %% one that ends in `// => v` is run and its Io.show rendering compared
 %% with v, so an example cannot rot
 doc_examples_test_() ->
-    [{atom_to_list(hd(Namespace)), fun() ->
-                                       examples(Namespace, File)
-                                   end} || {Namespace, File} <- modules()].
+    %% a module of many examples takes seconds where the suite's other
+    %% hosts run beside it, so each has the prelude's time and not the
+    %% five seconds a test has unsaid
+    [{atom_to_list(hd(Namespace)), {timeout, 60, fun() -> examples(Namespace, File) end}}
+     || {Namespace, File} <- modules()].
 
 examples(Namespace, File) ->
     {ok, Source} = file:read_file(File),

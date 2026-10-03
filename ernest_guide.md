@@ -675,7 +675,7 @@ The inferred type is `((a) -> b with e, a) -> b with e`: `apply` has the effect 
 
 An effect variable may stand for a mailbox type or for pure. One that also appears inside `Address`, as in `self : () -> Address(m) with m`, stands for a mailbox type only, since an address needs one. The letters in a printed type mean nothing of their own.
 
-The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `Address.ask`, `monitor`, and `kill`, which §4 and §5 teach, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9). A printed type marks such an effect variable with `+`: `:type send` prints `send : (Address(a), a) -> Unit with m+`, and so does a function of yours that calls `send`.
+The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `Address.ask`, `monitor`, and `kill`, which §4 and §5 teach, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9). A printed type marks such an effect variable with `+` where it stands nowhere else in the type: `:type send` prints `send : (Address(a), a) -> Unit with m+`, and so does a function of yours that calls `send`. `monitor`'s stands in its callback's result too, `(Down) -> m`, where it can only be a mailbox type, and is printed without the mark (report §11.5).
 
 ### 3.6 The word counter as functions
 
