@@ -912,3 +912,267 @@ nap(Ms) ->
 %% it.
 alarm(Clock, Ms, Address) ->
     'Unit' = ern_rt:call_forever(Clock, fun(Reply) -> {'Alarm', Ms, Address, Reply} end).
+
+%%
+%% Report §6.6: ask
+%%
+
+%% report §6.6, §6.4: an ask returns at once, and its answer arrives in the
+%% asker's mailbox as wrap's value, sent by the callee, so that it keeps
+%% its order with the callee's other messages; written after the code
+ask_answers_in_the_callee_order_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Asker = ern_rt:self(),
+               Callee = ern_rt:spawn(fun() ->
+                                         receive
+                                             {ask, Reply} ->
+                                                 ern_rt:answer(Reply, 7),
+                                                 ern_rt:send(Asker, after_the_answer)
+                                         end
+                                     end, <<"callee">>),
+               Returned = ern_rt:ask(Callee, fun(Reply) -> {ask, Reply} end,
+                                     fun(Answer) -> {answered, Answer} end, 1000),
+               First = receive Message -> Message end,
+               Second = receive Message2 -> Message2 end,
+               Self ! {order, {Returned, First, Second}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({'Unit', {answered, {'Some', 7}}, after_the_answer}, wait(order)).
+
+%% report §6.6: an answered ask leaves nothing: its rows and its timer go,
+%% and a second answer is dropped, since the reply delivers once
+ask_leaves_nothing_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Callee = ern_rt:spawn(fun() ->
+                                         receive
+                                             {ask, Reply} ->
+                                                 ern_rt:answer(Reply, 7),
+                                                 ern_rt:answer(Reply, 8)
+                                         end
+                                     end, <<"callee">>),
+               ern_rt:ask(Callee, fun(Reply) -> {ask, Reply} end,
+                          fun(Answer) -> {answered, Answer} end, 60000),
+               First = receive Message -> Message end,
+               nap(50),
+               Second = receive Message2 -> Message2 after 0 -> nothing end,
+               Self ! {left, {First, Second, ask_rows()}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({{answered, {'Some', 7}}, nothing, {0, 0, 0}}, wait(left)).
+
+%% report §6.6: None arrives once the milliseconds have passed, once, and the
+%% ask's rows go with it; report §8.6: an ask awaiting its deadline is not a
+%% deadlock, so the asker waits for it in an untimed receive
+ask_deadline_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Silent = ern_rt:spawn(fun() -> receive never -> ok end end, <<"silent">>),
+               ern_rt:ask(Silent, fun(Reply) -> {ask, Reply} end,
+                          fun(Answer) -> {answered, Answer} end, 300),
+               Answer = receive Message -> Message end,
+               nap(50),
+               Self ! {ended, {Answer, ask_rows()}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({{answered, 'None'}, {0, 0, 0}}, wait(ended)).
+
+%% report §6.6: None arrives at once when the callee ends before it answers,
+%% killed here
+ask_callee_killed_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Callee = ern_rt:spawn(fun() -> receive never -> ok end end, <<"callee">>),
+               ern_rt:ask(Callee, fun(Reply) -> {ask, Reply} end,
+                          fun(Answer) -> {answered, Answer} end, 60000),
+               ern_rt:kill(Callee),
+               Answer = receive Message -> Message end,
+               nap(50),
+               Self ! {ended, {Answer, ask_rows()}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({{answered, 'None'}, {0, 0, 0}}, wait(ended)).
+
+%% report §6.6, §6.9: None arrives when the callee restarts before it
+%% answers, told by the callee as it begins its new run
+ask_callee_restarts_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Faulting = fun() -> receive {ask, _} -> 1 div zero() end end,
+               Callee = ern_rt:spawn(ern_rt:restarting({'RestartLimit', 2, 60000}, Faulting),
+                                     <<"callee">>),
+               ern_rt:ask(Callee, fun(Reply) -> {ask, Reply} end,
+                          fun(Answer) -> {answered, Answer} end, 60000),
+               Answer = receive Message -> Message end,
+               nap(50),
+               Self ! {ended, {Answer, ask_rows()}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_) -> ok end}),
+    ?assertEqual({{answered, 'None'}, {0, 0, 0}}, wait(ended)).
+
+%% report §6.6: an ask of a process that had ended is answered None at once
+ask_dead_callee_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Callee = ern_rt:spawn(fun() -> ok end, <<"callee">>),
+               nap(50),
+               ern_rt:ask(Callee, fun(Reply) -> {ask, Reply} end,
+                          fun(Answer) -> {answered, Answer} end, 60000),
+               Answer = receive Message -> Message end,
+               nap(50),
+               Self ! {ended, {Answer, ask_rows()}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({{answered, 'None'}, {0, 0, 0}}, wait(ended)).
+
+%% report §6.6, §8.6: an ask of a process the runtime did not start is
+%% watched for the ask, so its end answers None at once
+ask_foreign_callee_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Foreign = erlang:spawn(fun() -> receive stop -> ok end end),
+               ern_rt:ask(Foreign, fun(Reply) -> {ask, Reply} end,
+                          fun(Answer) -> {answered, Answer} end, 60000),
+               Foreign ! stop,
+               Answer = receive Message -> Message end,
+               nap(50),
+               Self ! {ended, {Answer, ask_rows()}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({{answered, 'None'}, {0, 0, 0}}, wait(ended)).
+
+%% report §6.6, §6.9: a restarting asker's pending asks are cancelled, so an
+%% answer given after the restart reaches neither run
+ask_cancelled_by_restart_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               EntryProcess = ern_rt:self(),
+               Callee = ern_rt:spawn(fun() ->
+                                         receive {ask, Reply} -> receive go -> ok end,
+                                                                 ern_rt:answer(Reply, 7)
+                                         end
+                                     end, <<"callee">>),
+               Worker = fun() ->
+                            case get(runs) of
+                                undefined ->
+                                    put(runs, 1),
+                                    ern_rt:ask(Callee, fun(Reply) -> {ask, Reply} end,
+                                               fun(Answer) -> {answered, Answer} end, 60000),
+                                    1 div zero();
+                                1 ->
+                                    ern_rt:send(Callee, go),
+                                    nap(100),
+                                    Arrived = receive Message -> Message after 0 -> nothing end,
+                                    Self ! {left, {Arrived, ask_rows()}},
+                                    ern_rt:send(EntryProcess, done)
+                            end
+                        end,
+               _ = ern_rt:spawn(ern_rt:restarting({'RestartLimit', 2, 60000}, Worker),
+                                <<"worker">>),
+               receive done -> ok end
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_) -> ok end}),
+    ?assertEqual({nothing, {0, 0, 0}}, wait(left)).
+
+%% report §6.6, §6.5: a fault in wrap is the asker's, as a fault in via's
+%% function is the target's, and the callee goes on
+ask_wrap_fault_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               EntryProcess = ern_rt:self(),
+               Callee = ern_rt:spawn(fun() ->
+                                         receive {ask, Reply} -> ern_rt:answer(Reply, 7) end,
+                                         ern_rt:send(EntryProcess, callee_went_on)
+                                     end, <<"callee">>),
+               Asker = ern_rt:spawn_monitored(fun() ->
+                                                  ern_rt:ask(Callee, fun(Reply) -> {ask, Reply} end,
+                                                             fun(_) -> 1 div zero() end, 60000),
+                                                  receive never -> ok end
+                                              end, fun(Down) -> Down end, <<"asker">>),
+               Reason = receive {'Down', Asker, R, _} -> R end,
+               WentOn = receive callee_went_on -> true end,
+               Self ! {ended, {Reason, WentOn}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_) -> ok end}),
+    ?assertEqual({{'Fault', <<"division by zero">>}, true}, wait(ended)).
+
+%% report §6.6, §8.2: a system process's refusal of an ask faults the asker
+ask_refused_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Refusing = ern_rt:spawn(fun() ->
+                                           receive
+                                               {ask, Reply} -> ern_rt:refuse(Reply, <<"no">>)
+                                           end
+                                       end, <<"refusing">>),
+               Asker = ern_rt:spawn_monitored(fun() ->
+                                                  ern_rt:ask(Refusing,
+                                                             fun(Reply) -> {ask, Reply} end,
+                                                             fun(Answer) -> {answered, Answer} end,
+                                                             60000),
+                                                  receive never -> ok end
+                                              end, fun(Down) -> Down end, <<"asker">>),
+               Reason = receive {'Down', Asker, R, _} -> R end,
+               nap(50),
+               Self ! {ended, {Reason, ask_rows()}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_) -> ok end}),
+    ?assertEqual({{'Fault', <<"no">>}, {0, 0, 0}}, wait(ended)).
+
+%% report §8.4, §6.6: an ask's reply exposed to foreign code is held by the
+%% runtime: the answer foreign code sends to the exposed alias is checked
+%% and arrives wrapped, and one that does not fit faults the asker
+ask_exposed_reply_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Foreign = fun() ->
+                             receive
+                                 {ask, Reply} ->
+                                     Exposed = ern_rt:exposed_reply(Reply),
+                                     receive {answer_with, Value} -> Exposed ! {Exposed, Value} end
+                             end
+                         end,
+               Checked = ern_rt:spawn(Foreign, <<"checked">>),
+               ern_rt:ask(Checked, fun(Reply) -> {ask, Reply} end,
+                          fun(Answer) -> {answered, Answer} end, 60000,
+                          {int, <<"reply does not match Int">>}),
+               ern_rt:send(Checked, {answer_with, 9}),
+               Answer = receive Message -> Message end,
+               Misfit = ern_rt:spawn(Foreign, <<"misfit">>),
+               Asker = ern_rt:spawn_monitored(fun() ->
+                                                  ern_rt:ask(Misfit, fun(Reply) -> {ask, Reply} end,
+                                                             fun(A) -> {answered, A} end, 60000,
+                                                             {int, <<"reply does not match Int">>}),
+                                                  ern_rt:send(Misfit, {answer_with, not_an_int}),
+                                                  receive never -> ok end
+                                              end, fun(Down) -> Down end, <<"asker">>),
+               Reason = receive {'Down', Asker, R, _} -> R end,
+               Self ! {ended, {Answer, Reason}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end, faults => fun(_) -> ok end}),
+    ?assertEqual({{answered, {'Some', 9}}, {'Fault', <<"reply does not match Int">>}},
+                 wait(ended)).
+
+%% report §6.6: the asks of a process that dies go with it, their replies
+%% dead, so a callee that never answers holds nothing of a dead asker
+ask_asker_dies_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Silent = ern_rt:spawn(fun() -> receive never -> ok end end, <<"silent">>),
+               Asker = ern_rt:spawn_monitored(fun() ->
+                                                  ern_rt:ask(Silent, fun(Reply) -> {ask, Reply} end,
+                                                             fun(Answer) -> {answered, Answer} end,
+                                                             60000),
+                                                  ern_rt:send(Silent, asked)
+                                              end, fun(Down) -> Down end, <<"asker">>),
+               Reason = receive {'Down', Asker, R, _} -> R end,
+               nap(50),
+               Self ! {ended, {Reason, ask_rows()}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertEqual({'Returned', {0, 0, 0}}, wait(ended)).
+
+%% The rows of the pending asks, by reply, by callee and by asker.
+ask_rows() ->
+    {ets:info(ern_asks, size), ets:info(ern_asked, size), ets:info(ern_askers, size)}.

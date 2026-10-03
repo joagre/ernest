@@ -371,8 +371,8 @@ operations' decision, item 5, is decided under the principles it sharpens (decid
     module kept, OCaml's own rule. The fourth: `spawnMonitored` and `Unknown` kept, the runtime
     keeping nothing of an ended process. Every decision of this item was taken on 2026-10-02,
     and `language_feedback.md` holds no entry; what remains is to build what the decisions
-    admitted, entries 79, 81 and 82, 83 and 85, about three days, its report sentences with
-    its code; entry 76 and the rule for a recursive type were built on 2026-10-03.
+    admitted, entries 81 and 82, 83 and 85, about two days, its report sentences with its
+    code; entry 76, the rule for a recursive type and entry 79 were built on 2026-10-03.
 22. **The AST's `path` is `namespace`**, decided with the user 2026-10-03 (the log's *The Path
     Built*): the field of `#e_var{}`, `#e_constructor{}`, `#p_constructor{}` and `#t_named{}`
     that holds a qualified name's namespace prefix, and the variables bound from it in the

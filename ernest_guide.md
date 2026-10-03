@@ -675,7 +675,7 @@ The inferred type is `((a) -> b with e, a) -> b with e`: `apply` has the effect 
 
 An effect variable may stand for a mailbox type or for pure. One that also appears inside `Address`, as in `self : () -> Address(m) with m`, stands for a mailbox type only, since an address needs one. The letters in a printed type mean nothing of their own.
 
-The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, and `kill`, which §4 and §5 teach, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9). A printed type marks such an effect variable with `+`: `:type send` prints `send : (Address(a), a) -> Unit with m+`, and so does a function of yours that calls `send`.
+The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `Address.ask`, `monitor`, and `kill`, which §4 and §5 teach, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9). A printed type marks such an effect variable with `+`: `:type send` prints `send : (Address(a), a) -> Unit with m+`, and so does a function of yours that calls `send`.
 
 ### 3.6 The word counter as functions
 
@@ -810,7 +810,7 @@ A guard in `receive` is narrower than one in `match`, since it chooses a message
 
 If a `Wake` is already in the mailbox, `waitForData` leaves it there and waits for a `Data`; a later `receive` can take the `Wake`.
 
-### 4.4 `Address.call`
+### 4.4 `Address.call` and `Address.ask`
 
 Synchronous request-reply, used from the caller side:
 
@@ -819,16 +819,20 @@ $ ern shell
 Ernest 0.2.0. :help for the commands, :quit to leave.
 > :type Address.call
 Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n+
+> :type Address.ask
+Address.ask : (Address(m), (Reply(a)) -> m, (Optional(a)) -> n, Int) -> Unit with n
 ```
 
 `Address.call(c, fn(r) = Get(reply = r), 1000)` makes a fresh `Reply`, gives it to the function that builds the request, sends the request to `c`, and waits up to 1000 ms. It returns `Some(v)` for an answer and `None` for none. `None` does not cancel the work: the recipient may still be computing, so a request that changes state and is sent again may change it twice. An answer that comes late is dropped and never reaches the caller's mailbox, so `Address.call` works whatever that mailbox's type is (report §6.6). `Address.callForever` waits without a deadline and returns the answer itself. When the process called ends or restarts before it answers, either call ends at once: `Address.call` returns `None`, and `Address.callForever` faults its caller, with the callee's cause where it faulted, and otherwise with a cause saying it was killed, returned without answering, was restarted by its supervisor, or had ended already. A callee that only waits keeps a `callForever` caller waiting too.
 
-A server that cannot answer at once keeps the reply until it can, in a list as well as anywhere else a value waits (§4.2). A queue answers a `Take` with an item it has, or keeps the reply until a `Put` brings one:
+`Address.ask(q, fn(r) = Take(reply = r), Took, 1000)` sends the same request and returns at once. The answer arrives later, in the caller's own mailbox, as `Took(Some(v))`: the recipient's `answer` sends it, so it keeps its order with the recipient's other messages to the caller (§5.1). `Took(None)` arrives instead when 1000 ms have passed, or when the recipient ended or restarted first; one of the two arrives, once. A process that must keep receiving while it waits for an answer asks; one with nothing else to do calls.
+
+A server that cannot answer at once keeps the reply until it can, in a list as well as anywhere else a value waits (§4.2). A queue answers a `Take` with an item it has, or keeps the reply until a `Put` brings one, and `main` asks for an item before it puts one:
 
 ```ernest
 type QueueMsg = Put(Int) | Take(reply : Reply(Int))
 
-type MainMsg = Took(Int)
+type MainMsg = Took(Optional(Int))
 
 // Items no one has asked for yet, and the replies of the callers waiting for
 // an item.
@@ -852,11 +856,11 @@ fn queue(items : List(Int), waiting : List(Reply(Int))) : Unit with QueueMsg =
 
 export fn main() : Unit with MainMsg = {
     let q = spawn(fn() = queue([], []));
-    let me = self();
-    let _ = spawn(fn() = send(me, Took(Address.callForever(q, fn(r) = Take(reply = r)))));
+    Address.ask(q, fn(r) = Take(reply = r), Took, 1000);
     send(q, Put(7));
     receive {
-        Took(x) -> Io.println("took " <> Int.toString(x))
+        Took(Some(x)) -> Io.println("took " <> Int.toString(x))
+      | Took(None) -> Io.println("nothing to take")
     }
 }
 ```
@@ -866,7 +870,7 @@ $ ern run queue.erc
 took 7
 ```
 
-Each reply is answered once on every path: a `Put` answers the first caller waiting, and a `Take` answers at once or hands its reply to the list.
+Each reply is answered once on every path: a `Put` answers the first caller waiting, and a `Take` answers at once or hands its reply to the list. `main` sends `Take` and then `Put(7)`, and the queue takes them in that order (§5.1), so the `Take` waits in the list until the `Put` answers it.
 
 **Pacing.** A mailbox has no limit. A process that sends faster than its receiver takes messages fills the receiver's mailbox, and the node's memory with it. A call paces its caller, since the caller waits for each answer before it asks again. A stream of messages is paced by a window of credits: the receiver grants a number of messages, and the sender waits for the next grant when it has sent them.
 
@@ -1323,7 +1327,9 @@ Several texts are counted at once, by a worker each, and the tally totals them. 
 
 ```ernest
 // words.ern, continued
-type MainMsg = Counted(Map(String, Int)) | Died(Down)
+type MainMsg = Counted(Optional(Map(String, Int)))
+
+type WorkerMsg = Count(text : String, reply : Reply(Map(String, Int)))
 
 export fn main() : Unit with MainMsg = {
     let totals = spawn(fn() = tally(Map.empty));
@@ -1335,27 +1341,31 @@ export fn main() : Unit with MainMsg = {
 }
 
 fn countAll(totals : Address(TallyMsg), texts : List(String)) : Unit with MainMsg = {
-    let me = self();
     List.foreach(texts, fn(text) = {
-        let _ = spawnMonitored(fn() = send(me, Counted(count(text))), Died);
-        Unit
+        let counter = spawn(worker);
+        Address.ask(counter, fn(r) = Count(text = text, reply = r), Counted, 1000)
     });
     collect(totals, List.size(texts))
 }
+
+// Counts the one text it is asked for.
+fn worker() : Unit with WorkerMsg =
+    receive {
+        Count(text = text, reply = r) -> answer(r, count(text))
+    }
 
 fn collect(totals : Address(TallyMsg), left : Int) : Unit with MainMsg =
     if left == 0 then
         Unit
     else receive {
-        Counted(counts) -> {
+        Counted(Some(counts)) -> {
             send(totals, Add(counts));
             collect(totals, left - 1)
         }
-      | Died(Down(reason = Fault(cause), site = _)) -> {
-            Io.println("a worker faulted: " <> cause);
+      | Counted(None) -> {
+            Io.println("a worker did not answer");
             collect(totals, left - 1)
         }
-      | Died(_) -> collect(totals, left)
     }
 ```
 
@@ -1367,7 +1377,7 @@ and 2
 cat 2
 ```
 
-Each worker counts one text and sends the map to `main`, not to the tally. Messages are ordered per sender only (§5.1), so an `Add` a worker sent to the tally could arrive after the `Top` that `main` sends; sent by `main`, they arrive in order. `main` monitors every worker, so one that faults is counted as done and reported. A worker that returned is counted by its `Counted`, so `collect` passes over its `Down`, whichever of the two arrives first.
+Each worker is asked for its count, and the answer arrives in `main`'s mailbox as `Counted(Some(counts))`, which `main` sends on to the tally, not the worker. Messages are ordered per sender only (§5.1), so an `Add` a worker sent to the tally could arrive after the `Top` that `main` sends; sent by `main`, they arrive in order. A worker that faults, or takes longer than a second, is `Counted(None)`, counted as done and reported: the ask says so itself, so no monitor is needed, and nothing is lost to a `Down` arriving before the result (§5.2).
 
 ### 5.7 Prediction exercise
 
@@ -2387,7 +2397,7 @@ Ernest runs on the Erlang runtime, and a program in it is processes that send me
 - `receive` selects a message by pattern and leaves the others in the mailbox. `after` gives a timeout in milliseconds.
 - Messages from one sender arrive in the order they were sent.
 - `monitor` delivers a message when a process dies, whatever the reason. `kill` ends a process from outside.
-- `Address.call` is `gen_server:call` with a timeout, and `Address.callForever` is the call without one.
+- `Address.call` is `gen_server:call` with a timeout, and `Address.callForever` is the call without one. `Address.ask` is `gen_server:send_request`, with the answer taken in the caller's own `receive`.
 - Integers are exact and unbounded. On `Int`, `/` is Erlang's `div` and `%` is `rem`.
 - A `foreign fn` calls an Erlang function directly, `"ets:lookup/2"`, and the values cross as report §8.4 lists: a constructor is a tagged tuple or an atom, and a `String` is a UTF-8 binary.
 

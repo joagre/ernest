@@ -80,6 +80,8 @@ operations(Server) ->
                  end},
       "call" => {"a call answered, as gen_server's",
                  fun(Iteration) -> call(Server) + Iteration end},
+      "ask" => {"an ask and its answer received, as send_request's",
+                fun(Iteration) -> ask(Server) + Iteration end},
       "spawn" => {"spawn a process that returns",
                   fun(Iteration) ->
                       spawn(fun() -> ok end),
@@ -91,6 +93,20 @@ add({'Point', LeftX, LeftY}, {'Point', RightX, RightY}) ->
 
 %% A call as gen:do_call/4 makes one: a monitor that is the reply's alias.
 call(Server) ->
+    MonitorRef = erlang:monitor(process, Server, [{alias, demonitor}]),
+    Server ! {get, MonitorRef},
+    receive
+        {MonitorRef, Value} ->
+            erlang:demonitor(MonitorRef, [flush]),
+            Value;
+        {'DOWN', MonitorRef, _, _, ExitReason} ->
+            exit(ExitReason)
+    end.
+
+%% An ask as gen_server:send_request/2 and receive_response/1 make one: a
+%% monitor that is the reply's alias, and the answer taken from the
+%% mailbox by a receive of the caller's own.
+ask(Server) ->
     MonitorRef = erlang:monitor(process, Server, [{alias, demonitor}]),
     Server ! {get, MonitorRef},
     receive

@@ -14,7 +14,12 @@
 %% (report §6.6). Ernest answers {Reply, answered, Value} and foreign code
 %% {Reply, Value}, so that a call checks the second only, as §8.4 says; a
 %% Reply foreign code gave back is {foreign_reply, Reply, Descriptor,
-%% Bound}, answered in the second form with the answer exposed.
+%% Bound}, answered in the second form with the answer exposed. An ask's
+%% Reply (report §6.6) is a one-shot alias of the asker's: the host delivers
+%% the first message sent through it and drops the rest, so every end of an
+%% ask, the answer, the deadline, the callee's end or restart, sends
+%% wrap's value through the alias first and takes the ask's row after, and
+%% the one that takes the row cleans up.
 %% Every process body runs under run/1, which turns an exception into an
 %% exit reason that Down reports as a Fault. All spawns go through the
 %% reaper process, which spawn_monitors each process; a monitor placed
@@ -24,20 +29,22 @@
 %% no timed receive or clock alarm pending, no process inside foreign code,
 %% and no source held that can still deliver.
 %%
-%% Four tables hold the run's state. `ern_processes` has a row {Pid,
+%% Five tables hold the run's state. `ern_processes` has a row {Pid,
 %% Site, Timers, Foreign, Spawned} per process the runtime started or
 %% adopted, where Timers counts the timed receives the process is in,
 %% Foreign its foreign calls, and Spawned its place in the order of spawns,
 %% and beside them the way the terminal is read, `reading`, the process
 %% deadlock faults, `deadlock_victim`, and a row per restart a process may
 %% be asked, and per checking proxy of §8.4 and what it stands for.
-%% `ern_calls` holds the pending calls, `ern_faults` the subscriptions to
-%% faults, and `ern_held` the sources and the processes the system modules
-%% opened, each described where it is defined.
+%% `ern_calls` holds the pending calls, `ern_asks` the pending asks,
+%% `ern_faults` the subscriptions to faults, and `ern_held` the sources and
+%% the processes the system modules opened, each described where it is
+%% defined.
 -module(ern_rt).
 
 -export([send/2, process_of/1, held/3, is_address/1, spawn/2, spawn_monitored/3, self/0, via/2,
-         call/3, call/4, call_forever/2, call_forever/3, answer/2, refuse/2, monitor/2, kill/1,
+         call/3, call/4, call_forever/2, call_forever/3, answer/2, refuse/2, ask/4, ask/5,
+         exposed_reply/1, monitor/2, kill/1,
          reason/1, live/0, processes/0, info/1, faults/1, proxy_for/3, proxy_forget/2,
          source_begin/0, source_begin/1, source_end/0, opened/2, forget_opened/1, timed/0,
          untimed/0, deadline/1, remaining/1, monotonic/0, in_foreign/1,
@@ -60,6 +67,14 @@
 %% the same calls by callee, {{Callee, Caller}, Reply}, ordered, so that a
 %% restart reads its own callers and no other process's calls
 -define(CALLEES, ern_callees).
+%% report §6.6: each pending ask, #ask{}, keyed by its reply
+-define(ASKS, ern_asks).
+%% the same asks by callee, {{Callee, Alias}}, ordered, so that a callee's
+%% restart or death reads its own asks and no other process's
+-define(ASKED, ern_asked).
+%% and by asker, {{Asker, Alias}}, ordered, read at the asker's restart and
+%% death
+-define(ASKERS, ern_askers).
 %% Appendix E.21: each subscription to faults, {Subscriber, Address}, in a table
 %% of its own, so that a fault reads the subscriptions and not every
 %% process's row
@@ -82,6 +97,13 @@
 %% under.
 -type system() :: stdout | stderr | stdin | clock | fs | terminal | tcp | os.
 -type reply() :: reference() | {foreign_reply, reference(), term(), map()}.
+
+%% A pending ask (report §6.6). watch: who sees the callee end. `reaper`,
+%% for a process the runtime started or adopted, which the reaper monitors
+%% anyway, so the ask's timer is cancelled when the ask ends; `ask`, for
+%% one it did not, which the reaper monitors for this ask until its
+%% deadline, so the timer is left to fire and release the monitor.
+-record(ask, {alias, asker, callee, wrap, check, deadline, timer, watch}).
 %% What a program's answer from foreign code is checked by: its descriptor
 %% and the fault's cause, or none for the runtime's own calls.
 -type check() :: none | {term(), binary()}.
@@ -94,8 +116,10 @@
 %% monitors, so that a caller's death takes its monitors with it: nothing
 %% is left to deliver them to. monitor_refs: #{Pid => MonitorRef}, a
 %% process the runtime did not start, monitored here only while a monitor
-%% of it stands.
--record(reaper, {monitors = #{}, monitoring = #{}, monitor_refs = #{}}).
+%% of it stands. asked: #{Alias => MonitorRef}, a monitor made for an ask
+%% of a process the runtime did not start, held until the ask's deadline
+%% (report §6.6).
+-record(reaper, {monitors = #{}, monitoring = #{}, monitor_refs = #{}, asked = #{}}).
 
 %%
 %% Report §6.2, §9.4
@@ -349,16 +373,144 @@ answer({foreign_reply, Reply, Descriptor, Bound}, Value) ->
     Reply ! {Reply, ern_boundary:expose(Descriptor, Value, Bound)},
     ?UNIT;
 answer(Reply, Value) ->
-    Reply ! {Reply, answered, Value},
+    case ets_lookup(?ASKS, Reply) of
+        %% report §6.6: an ask's answer is wrap's value, sent by the callee
+        [Ask] -> ask_ended(Ask, {'Some', Value});
+        [] -> Reply ! {Reply, answered, Value}
+    end,
     ?UNIT.
 
-%% Report §8.2, §7.4: a system process faults the caller it answers.
+%% Report §8.2, §7.4: a system process faults the caller it answers; an
+%% asker as a fault in its wrap faults it (§6.6).
 -spec refuse(reply(), binary()) -> 'Unit'.
 refuse({foreign_reply, Reply, _, _}, Cause) ->
     refuse(Reply, Cause);
 refuse(Reply, Cause) ->
-    Reply ! {Reply, fault, Cause},
+    case ets_lookup(?ASKS, Reply) of
+        [#ask{asker = Asker} = Ask] ->
+            exit(Asker, {ern, fault, Cause}),
+            ask_over(Ask);
+        [] ->
+            Reply ! {Reply, fault, Cause}
+    end,
     ?UNIT.
+
+%% Report §6.6: the runtime's own ask, whose answer is not checked (§8.4).
+-spec ask(address(), fun((reply()) -> term()), fun((term()) -> term()), integer()) -> 'Unit'.
+ask(Address, Request, Wrap, Ms) ->
+    ask(Address, Request, Wrap, Ms, none).
+
+%% Report §6.6, §8.4: a program's ask, whose answer from foreign code is
+%% checked by Check. The ask's row is written before the request goes, so
+%% that a callee that ends from then on is seen to end the ask: by the
+%% reaper's own monitor of a process the runtime holds, or by one the
+%% reaper makes for the ask.
+-spec ask(address(), fun((reply()) -> term()), fun((term()) -> term()), integer(), check()) ->
+          'Unit'.
+ask(Address, Request, Wrap, Ms, Check) ->
+    %% report §6.6: the clock starts at the ask
+    Deadline = deadline(Ms),
+    line_guard(Address),
+    Callee = process_of(Address),
+    Alias = erlang:alias([reply]),
+    Reaper = persistent_term:get({?MODULE, reaper}),
+    Watch = case ets:member(?PROCESSES, Callee) of
+                true -> reaper;
+                false -> ask
+            end,
+    Timer = erlang:send_after(Deadline, Reaper, {ask_deadline, Alias}, [{abs, true}]),
+    Ask = #ask{alias = Alias, asker = erlang:self(), callee = Callee, wrap = Wrap, check = Check,
+               deadline = Deadline, timer = Timer, watch = Watch},
+    ets:insert(?ASKS, Ask),
+    ets:insert(?ASKED, {{Callee, Alias}}),
+    ets:insert(?ASKERS, {{erlang:self(), Alias}}),
+    case Watch of
+        ask ->
+            Reaper ! {asked, Alias, Callee};
+        reaper ->
+            %% a callee that ended between the look and the row ended before
+            %% the reaper could see the ask
+            ets:member(?PROCESSES, Callee) orelse ask_ended(Ask, 'None')
+    end,
+    deliver(Address, Request(Alias)),
+    ?UNIT.
+
+%% Report §6.6, §6.5: wrap is applied where the answer is given, as via's
+%% function is, and a fault in it is the asker's; the message goes through
+%% the alias, which the host delivers once, and the row is taken after.
+ask_ended(#ask{alias = Alias, asker = Asker, wrap = Wrap} = Ask, Answer) ->
+    try Wrap(Answer) of
+        Message -> Alias ! Message
+    catch
+        Class:Error:Stack -> exit(Asker, fault_exit_reason(Class, Error, Stack))
+    end,
+    ask_over(Ask).
+
+%% The ask's rows gone, by the one that takes the first, and its timer
+%% where the reaper's own monitor sees its callee; a timer made for an ask
+%% fires, to release the monitor made for it.
+ask_over(#ask{alias = Alias, asker = Asker, callee = Callee, timer = Timer, watch = Watch}) ->
+    try ets:take(?ASKS, Alias) of
+        [_] ->
+            ets:delete(?ASKED, {Callee, Alias}),
+            ets:delete(?ASKERS, {Asker, Alias}),
+            Watch =:= reaper
+                andalso erlang:cancel_timer(Timer, [{async, true}, {info, false}]),
+            ok;
+        [] ->
+            ok
+    catch _:_ ->
+        ok
+    end.
+
+%% The pending asks of a callee, and of an asker.
+asks_on(Callee) ->
+    asks_in(?ASKED, Callee).
+
+asks_of(Asker) ->
+    asks_in(?ASKERS, Asker).
+
+asks_in(Index, Pid) ->
+    Aliases = try ets:select(Index, [{{{Pid, '$1'}}, [], ['$1']}]) catch _:_ -> [] end,
+    [Ask || Alias <- Aliases, Ask <- ets_lookup(?ASKS, Alias)].
+
+%% Report §8.4, §6.6: a Reply crossing into foreign code is an alias, which
+%% foreign code answers by sending {Alias, v}. A call's is the caller's
+%% own, whose wait takes the answer. An ask's would land in the asker's
+%% mailbox unwrapped, so a process of the runtime's holds one for it until
+%% the ask's deadline, checks the answer against the reply's type as a
+%% call does, and gives it through the ask's reply.
+-spec exposed_reply(reference()) -> reference().
+exposed_reply(Alias) ->
+    case ets_lookup(?ASKS, Alias) of
+        [] ->
+            Alias;
+        [#ask{deadline = Deadline} = Ask] ->
+            Ref = make_ref(),
+            Sender = erlang:self(),
+            _ = erlang:spawn(fun() ->
+                                 Exposed = erlang:alias([reply]),
+                                 Sender ! {Ref, Exposed},
+                                 held_reply(Exposed, Ask, Deadline)
+                             end),
+            receive {Ref, Exposed} -> Exposed end
+    end.
+
+held_reply(Exposed, #ask{asker = Asker, check = Check} = Ask, Deadline) ->
+    receive
+        {Exposed, Value} ->
+            try foreign_answer(Check, Value) of
+                Checked -> ask_ended(Ask, {'Some', Checked})
+            catch
+                %% report §8.4: a breach faults the receiving process
+                Class:Error:Stack -> exit(Asker, fault_exit_reason(Class, Error, Stack))
+            end
+    after remaining(Deadline) ->
+        case remaining(Deadline) of
+            0 -> ok;
+            _ -> held_reply(Exposed, Ask, Deadline)
+        end
+    end.
 
 %%
 %% Report §6.9
@@ -414,6 +566,10 @@ reaper_loop(Reaper) ->
             reaper_loop(Reaper);
         {monitor, Pid, Caller, Wrap, Ref} ->
             reaper_loop(monitored(Pid, Caller, Wrap, Ref, Reaper));
+        {asked, Alias, Pid} ->
+            reaper_loop(asked(Alias, Pid, Reaper));
+        {ask_deadline, Alias} ->
+            reaper_loop(ask_deadline(Alias, Reaper));
         {report, Pid, Site, Fault} ->
             report(Pid, Site, Fault, true),
             reaper_loop(Reaper);
@@ -493,6 +649,7 @@ new_run(Pid, Ref, #reaper{monitors = Monitors, monitoring = Monitoring,
 down(Pid, ExitReason, #reaper{monitors = Monitors, monitoring = Monitoring,
                               monitor_refs = MonitorRefs} = Reaper) ->
     delivered_down(Pid, ExitReason, Reaper),
+    asks_ended(Pid),
     case is_map_key(Pid, Monitors) orelse is_map_key(Pid, Monitoring)
         orelse is_map_key(Pid, MonitorRefs) of
         false ->
@@ -527,6 +684,35 @@ delivered_down(Pid, ExitReason, #reaper{monitors = Monitors, monitor_refs = Moni
                           maps:get(Pid, Monitors, [])),
             is_map_key(Pid, MonitorRefs) andalso source_end()
     end.
+
+%% Report §6.6: the asks of a process that ended are answered None, each in
+%% a counted process of its own as a Down is (wrapped/3), and the asks it
+%% made go, their replies dead with it.
+asks_ended(Pid) ->
+    lists:foreach(fun ended_by_reaper/1, asks_on(Pid)),
+    lists:foreach(fun ask_over/1, asks_of(Pid)).
+
+ended_by_reaper(#ask{asker = Asker} = Ask) ->
+    counted_link(Asker, fun() -> ask_ended(Ask, 'None') end).
+
+%% Report §6.6: an ask of a process the runtime did not start, monitored
+%% for the ask until its deadline; a monitor its death triggers is left
+%% until then too, since nothing else names the alias.
+asked(Alias, Pid, #reaper{asked = Asked} = Reaper) ->
+    Reaper#reaper{asked = Asked#{Alias => erlang:monitor(process, Pid)}}.
+
+%% Report §6.6: the ask's milliseconds have passed: None goes to the asker
+%% where nothing ended the ask before, and the monitor made for it goes.
+ask_deadline(Alias, #reaper{asked = Asked} = Reaper) ->
+    Asked1 = case maps:take(Alias, Asked) of
+                 {MonitorRef, Left} ->
+                     erlang:demonitor(MonitorRef, [flush]),
+                     Left;
+                 error ->
+                     Asked
+             end,
+    lists:foreach(fun ended_by_reaper/1, ets_lookup(?ASKS, Alias)),
+    Reaper#reaper{asked = Asked1}.
 
 %% Report §8.6, §11.2: a deadlock is the entry process's fault, or under
 %% `ern test` the fault of the test that runs.
@@ -760,9 +946,19 @@ deadlocked() ->
 
 nothing_delivers() ->
     sources() =:= 0
+        andalso no_ask_pending()
         andalso not calling_the_system()
         andalso quiet_system()
         andalso not counted().
+
+%% Report §8.6, §6.6: an ask's deadline delivers, so a pending ask is what
+%% can still deliver.
+no_ask_pending() ->
+    case ets:info(?ASKS, size) of
+        0 -> true;
+        undefined -> true;
+        _ -> false
+    end.
 
 %% Whether a process is in a timed receive or a foreign call, found at the
 %% first such row.
@@ -1475,7 +1671,10 @@ make_tables() ->
     ets:new(?CALLEES, [named_table, public, ordered_set]),
     ets:new(?FAULTS, [named_table, public, set]),
     ets:new(?HELD, [named_table, public, set]),
-    ets:new(?DELIVERIES, [named_table, public, ordered_set]).
+    ets:new(?DELIVERIES, [named_table, public, ordered_set]),
+    ets:new(?ASKS, [named_table, public, set, {keypos, #ask.alias}]),
+    ets:new(?ASKED, [named_table, public, ordered_set]),
+    ets:new(?ASKERS, [named_table, public, ordered_set]).
 
 %% The reference that tags this launch, under which the runner is known,
 %% and what the options give the run. Report §11.2: `ern run` reports
@@ -1815,7 +2014,16 @@ fresh_run() ->
                           {'DOWN', MonitorRef, process, _, _} -> ok
                       end
                   end, Asked),
+    asks_cancelled(),
     emptied().
+
+%% Report §6.9, §6.6: the restarting process's asks are cancelled, each
+%% reply deactivated first, so that nothing on its way reaches the new run.
+asks_cancelled() ->
+    lists:foreach(fun(#ask{alias = Alias} = Ask) ->
+                      erlang:unalias(Alias),
+                      ask_over(Ask)
+                  end, asks_of(erlang:self())).
 
 emptied() ->
     receive
@@ -1836,9 +2044,11 @@ within_limit({Restarts, Within}, Times) ->
     end.
 
 %% Report §6.6, §6.9: a restart ends every call waiting on the process, each
-%% caller told the cause, which a callForever faults with.
+%% caller told the cause, which a callForever faults with, and answers
+%% every ask of it None.
 restarted(Cause) ->
     Self = erlang:self(),
+    lists:foreach(fun(Ask) -> ask_ended(Ask, 'None') end, asks_on(Self)),
     Callers = try ets:select(?CALLEES, [{{{Self, '$1'}, '$2'}, [], [{{'$1', '$2'}}]}])
               catch _:_ -> []
               end,
@@ -1886,6 +2096,9 @@ end_program(Launch, Reaper, System) ->
     ets:delete(?FAULTS),
     ets:delete(?HELD),
     ets:delete(?DELIVERIES),
+    ets:delete(?ASKS),
+    ets:delete(?ASKED),
+    ets:delete(?ASKERS),
     %% a signal after the run has nothing to end (signal/1)
     persistent_term:erase({?MODULE, runner}),
     flush_launch(Launch).

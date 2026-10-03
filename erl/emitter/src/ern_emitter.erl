@@ -921,6 +921,9 @@ prelude_call(Span, ['Address', call], _, ArgForms, #e_var{type = Type}, Context)
 prelude_call(Span, ['Address', callForever], _, ArgForms, #e_var{type = Type}, Context) ->
     {Form, Context1} = reply_call(call_forever, ArgForms, Type, Context),
     {at(Span, Form), Context1};
+prelude_call(Span, ['Address', ask], _, ArgForms, #e_var{type = Type}, Context) ->
+    {Form, Context1} = reply_call(ask, ArgForms, Type, Context),
+    {at(Span, Form), Context1};
 prelude_call(Span, [restarting], _, ArgForms, _, Context) ->
     {at(Span, call_remote(ern_rt, restarting, ArgForms)), Context};
 prelude_call(Span, [fault], _, [CauseForm], _, Context) ->
@@ -942,10 +945,11 @@ prelude_call(Span, [Namespace | Rest], _, ArgForms, _, Context) when Rest =/= []
 prelude_call(Span, QualifiedName, _, _, _, _) ->
     fail(Span, "no emission for " ++ ern_namespace:text(QualifiedName)).
 
-%% Report §6.6, §8.4: `Address.call` or `Address.callForever`, of type T,
-%% and in a program what an answer from foreign code is checked by, the
-%% Reply's type, as a foreign function's return is; a call the standard
-%% library makes is the runtime's own, and checks nothing.
+%% Report §6.6, §8.4: `Address.call`, `Address.callForever` or
+%% `Address.ask`, of type T, and in a program what an answer from foreign
+%% code is checked by, the Reply's type, as a foreign function's return is;
+%% a call the standard library makes is the runtime's own, and checks
+%% nothing.
 reply_call(Function, ArgForms, _, #emit_context{standard = true} = Context) ->
     {call_remote(ern_rt, Function, ArgForms), Context};
 reply_call(Function, ArgForms, Type, Context) ->
@@ -972,8 +976,9 @@ prelude_value(Span, [spawnMonitored], _, Context) ->
     ArgForms = [erl_syntax:variable(Variable) || Variable <- [Function, Wrap]]
         ++ [site(Span, Context)],
     {lambda([Function, Wrap], call_remote(ern_rt, spawn_monitored, ArgForms)), Context1};
-prelude_value(Span, ['Address', Name], Type, Context) when Name =:= call; Name =:= callForever ->
-    Function = case Name of call -> call; callForever -> call_forever end,
+prelude_value(Span, ['Address', Name], Type, Context)
+  when Name =:= call; Name =:= callForever; Name =:= ask ->
+    Function = case Name of call -> call; callForever -> call_forever; ask -> ask end,
     {Variables, Context1} = fresh_variables(arity_of(Type, Span), "A", Context),
     ArgForms = [erl_syntax:variable(Variable) || Variable <- Variables],
     {Body, Context2} = reply_call(Function, ArgForms, Type, Context1),
