@@ -113,15 +113,16 @@ kept_session() ->
 %% not entered, and nothing where the shell was started with no file. A
 %% fault in it reaches the session through Process.faults, to which the
 %% session subscribed before (E.21).
--spec program() -> {'Some', pid()} | 'None'.
+-spec program() -> 'Unit'.
 program() ->
     case persistent_term:get({?MODULE, loaded}, #loaded{}) of
         #loaded{entry = #entry_point{erlang_module = ErlangModule, function = Function,
                                      site = Site}} ->
             ErlangFunction = ern_emitter:function_atom(Function),
-            {'Some', ern_rt:spawn(fun() -> ErlangModule:ErlangFunction() end, Site)};
+            _ = ern_rt:spawn(fun() -> ErlangModule:ErlangFunction() end, Site),
+            'Unit';
         _ ->
-            'None'
+            'Unit'
     end.
 
 %% Report §11.2, §8.1: where the startup files are, the person's first

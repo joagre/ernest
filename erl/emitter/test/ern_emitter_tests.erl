@@ -3514,6 +3514,37 @@ retyped_address_test() ->
         "}\n"),
     ?assertEqual(<<"got 5\nFault(\"message does not match Int\")\n">>, Output).
 
+%% report §8.4: a process of the program's whose address foreign code was
+%% never given is a bad value where foreign code gives it as an address: its
+%% own `self()` in a foreign function, and a `Process` it was given, but as
+%% an `Address(Never)`, through which nothing passes; an address that
+%% crossed comes back as the program's own at its type. A regression test:
+%% each was the program's own at whatever type foreign code named, and a
+%% String reached a process of Int (findings.md's S7)
+never_given_address_test() ->
+    Program = fun(Forged) ->
+                  "foreign fn me() : Address(String) =\n"
+                  "    \"erlang:self/0\"\n"
+                  "foreign fn retyped(processes : List(Process)) : Address(String) =\n"
+                  "    \"erlang:hd/1\"\n"
+                  "foreign fn same(addresses : List(Address(Int))) : Address(Int) =\n"
+                  "    \"erlang:hd/1\"\n"
+                  "export fn main() : Unit with Int = {\n"
+                  "    send(same([self()]), 5);\n"
+                  "    receive { n -> Io.println(Int.toString(n)) };\n"
+                  "    send(" ++ Forged ++ ", \"x\")\n"
+                  "}\n"
+              end,
+    Refused = {{fault, <<"foreign return does not match Address(String)">>}, <<"5\n">>},
+    ?assertEqual(Refused, run(Program("me()"))),
+    ?assertEqual(Refused, run(Program("retyped([Process.fromAddress(self())])"))),
+    ?assertEqual({ok, <<"true\n">>},
+                 run("foreign fn handle() : Address(Never) =\n"
+                     "    \"erlang:self/0\"\n"
+                     "export fn main() : Unit with Int =\n"
+                     "    Io.println(Bool.toString(Process.fromAddress(handle())\n"
+                     "                             == Process.fromAddress(self())))\n")).
+
 %% report §8.4, §6.9: a foreign message that does not match takes its place
 %% in the receiver's mailbox as a fault, which lands at the wait that reaches
 %% it, in a `receive` or for a call's answer, as a fault of the receiver's

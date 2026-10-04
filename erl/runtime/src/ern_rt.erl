@@ -36,17 +36,17 @@
 %% opened, each described where it is defined.
 -module(ern_rt).
 
--export([send/2, process_of/1, held/3, is_address/1, spawn/2, spawn_monitored/3, self/0, via/2,
-         call/3, call/4, call_forever/2, call_forever/3, answer/2, refuse/2, monitor/2, kill/1,
-         reason/1, live/0, processes/0, info/1, faults/1, proxy_for/3, proxy_forget/2,
-         source_begin/0, source_begin/1, source_end/0, opened/2, forget_opened/1, timed/0,
-         untimed/0, deadline/1, remaining/1, monotonic/0, in_foreign/1,
+-export([send/2, process_of/1, held/3, is_never_given/1, is_address/1, spawn/2, spawn_monitored/3,
+         self/0, via/2, call/3, call/4, call_forever/2, call_forever/3, answer/2, refuse/2,
+         monitor/2, kill/1, reason/1, live/0, processes/0, info/1, faults/1, proxy_for/3,
+         proxy_forget/2, source_begin/0, source_begin/1, source_end/0, opened/2, forget_opened/1,
+         timed/0, untimed/0, deadline/1, remaining/1, monotonic/0, in_foreign/1,
          undefined_function/3, undefined_lambda/3, fault_exit_reason/3, fault/1, fault/2, trace/1,
-         system_process/1,
-         hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1, input_not_utf8/0,
-         by_input/1, read_input/1, run_main/3, arguments/0, exit_program/1, deadlock_victim/1,
-         signal/1, initializing/1, site/0, binding/1, restarting/2, restart_now/0, ask_restart/1,
-         start_cause/0, spawn_order/1, init_stdlib/0, init_modules/1, ordered/1]).
+         system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
+         input_not_utf8/0, by_input/1, read_input/1, run_main/3, arguments/0, exit_program/1,
+         deadlock_victim/1, signal/1, initializing/1, site/0, binding/1, restarting/2,
+         restart_now/0, ask_restart/1, start_cause/0, spawn_order/1, init_stdlib/0, init_modules/1,
+         ordered/1]).
 
 -compile({no_auto_import, [spawn/2, self/0, monitor/2]}).
 
@@ -148,26 +148,35 @@ behind(Pid) ->
     end.
 
 %% Report §8.4: an address foreign code gave, whose messages Descriptor
-%% describes inside the mu bindings Bound, as the program holds it: where it names one of
-%% the program's processes, the address that went out, the proxy in front
-%% of it undone and a function `via` made kept (§6.5), and otherwise
-%% foreign. A proxy comes back as the address that went out only at the
-%% type it went out at; at another it stays foreign, so that what is sent
-%% through it is checked against the process's own type.
+%% describes inside the mu bindings Bound, as the program holds it: where
+%% it is the proxy in front of one of the program's processes, the address
+%% that went out, the proxy undone and a function `via` made kept (§6.5),
+%% and otherwise foreign. A proxy comes back as the address that went out
+%% only at the type it went out at; at another it stays foreign, so that
+%% what is sent through it is checked against the process's own type. A
+%% process of the program's with no proxy in front of it reaches here only
+%% as an `Address(Never)`, the check refusing it at any other type
+%% (is_never_given/1), and is held foreign, nothing passing through it.
 -spec held(pid(), term(), map()) -> address().
 held(Pid, Descriptor, Bound) ->
     case ets_lookup(?PROCESSES, {behind, Pid}) of
         [{_, Real, Exposed, {_, Descriptor, Bound}}] ->
-            own_or_foreign(Real, Exposed, Pid, Descriptor, Bound);
-        [{_, _, _, _}] -> {foreign, Pid, Descriptor, Bound};
-        _ -> own_or_foreign(Pid, Pid, Pid, Descriptor, Bound)
+            case ets_lookup(?PROCESSES, Real) of
+                [_] -> Exposed;
+                [] -> {foreign, Pid, Descriptor, Bound}
+            end;
+        _ ->
+            {foreign, Pid, Descriptor, Bound}
     end.
 
-own_or_foreign(Real, Address, Pid, Descriptor, Bound) ->
-    case ets_lookup(?PROCESSES, Real) of
-        [_] -> Address;
-        [] -> {foreign, Pid, Descriptor, Bound}
-    end.
+%% Report §8.4: whether foreign code gives as an address a process of the
+%% program's whose address it was never given: one the program runs, with
+%% no proxy, which every address that crossed into foreign code has.
+-spec is_never_given(term()) -> boolean().
+is_never_given(Pid) when is_pid(Pid) ->
+    ets_lookup(?PROCESSES, {behind, Pid}) =:= [] andalso ets_lookup(?PROCESSES, Pid) =/= [];
+is_never_given(_) ->
+    false.
 
 %% Whether a term is an address in one of the forms the runtime holds.
 -spec is_address(term()) -> boolean().

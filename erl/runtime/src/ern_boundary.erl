@@ -212,8 +212,13 @@ matches(char, Value, _) ->
 matches(string, Value, _) -> is_binary(Value) andalso unicode:characters_to_binary(Value) =:= Value;
 matches(bytes, Value, _) -> is_binary(Value);
 %% an answer checked because its Reply crossed may be Ernest's own, which
-%% holds an address in any of its forms
-matches({address, _, _}, Value, _) -> ern_rt:is_address(Value);
+%% holds an address in any of its forms; a process of the program's whose
+%% address foreign code was never given is no address it may give, but as
+%% an `Address(Never)`, through which no message passes
+matches({address, never, _}, Value, _) ->
+    ern_rt:is_address(Value);
+matches({address, _, _}, Value, _) ->
+    ern_rt:is_address(Value) andalso not ern_rt:is_never_given(Value);
 matches({reply, _, _}, Value, _) when is_reference(Value) -> true;
 matches({reply, _, _}, {foreign_reply, Value, _, _}, _) -> is_reference(Value);
 matches({reply, _, _}, _, _) -> false;

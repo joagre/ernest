@@ -171,7 +171,7 @@ export fn main() : Unit with ShellMsg = {
     // before the program's entry point runs
     Process.faults(Reported);
     // report §11.2: the file's entry point is spawned beside the prompt
-    let _ = program();
+    program();
     // report §11.2: the startup files are checked and read as they are
     // found, and the person's directory is then made its owner's alone,
     // before the history makes it so at a terminal
@@ -1279,7 +1279,7 @@ fn moreLines(screen : Address(ScreenMsg), input : String) : String with m =
 foreign fn start() : Session with m =
     "ern_shell:start/0"
 
-foreign fn program() : Optional(Address(Never)) with m =
+foreign fn program() : Unit with m =
     "ern_shell:program/0"
 
 foreign fn load(session : Session, name : String) : Either(String, #(Session, String)) with m =

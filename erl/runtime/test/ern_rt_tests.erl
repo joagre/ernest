@@ -800,6 +800,29 @@ proxy_names_its_process_test() ->
     ?assertNotEqual(Mine, Proxy),
     ?assertEqual(Mine, Behind).
 
+%% report §8.4: an address that crossed into foreign code comes back as the
+%% program's own at the type it crossed at, as it does inside an answer
+%% Ernest code gave to a Reply foreign code relayed, every address of which
+%% crossed; a process of the program's whose address foreign code was never
+%% given is a bad value. A regression test: the second was the program's
+%% own at whatever type foreign code named (findings.md's S7)
+never_given_address_test() ->
+    Self = self(),
+    Descriptor = {address, string, <<"a String">>},
+    ok = ern_rt:run_main(
+           fun() ->
+               Mine = ern_rt:self(),
+               [Proxy] = ern_boundary:expose({list, Descriptor}, [Mine]),
+               Given = ern_boundary:value(Descriptor, Proxy, <<"bad return">>),
+               Found = try ern_boundary:value(Descriptor, Mine, <<"bad return">>)
+                       catch throw:Thrown -> Thrown
+                       end,
+               Self ! {held, {Mine, Given, Found}}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    {Mine, Given, Found} = wait(held),
+    ?assertEqual(Mine, Given),
+    ?assertEqual({ern, fault, <<"bad return">>}, Found).
+
 %% report §6.5, §7.4: a fault in the function is the target's, and the
 %% process that sent the message goes on
 via_fault_test() ->
