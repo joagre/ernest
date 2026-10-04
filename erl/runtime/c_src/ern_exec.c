@@ -42,8 +42,9 @@
  *
  * In every mode the helper first makes its environment the one `ern` was
  * started in (report Appendix E.23, §11): the launcher clears the host's
- * flags and the host's own launcher sets four variables and the head of
- * PATH, and bin/ern keeps each as it was given under ERN_GIVEN_ and its
+ * flags and tells the host to write no crash dump (report §10), the host's
+ * own launcher sets four variables and the head of PATH, and bin/ern keeps
+ * each as it was given under ERN_GIVEN_ and its
  * name, saying so with ERN_GIVEN. A program the helper runs, and the
  * environment it writes, are then the user's and not the host's.
  *
@@ -92,13 +93,14 @@ static char **command = NULL;
 static void given_environment(void)
 {
     static const char *const names[] = {"PATH", "BINDIR", "EMU", "PROGNAME", "ROOTDIR",
-                                        "ERL_AFLAGS", "ERL_FLAGS", "ERL_ZFLAGS", "ERL_LIBS"};
+                                        "ERL_AFLAGS", "ERL_FLAGS", "ERL_ZFLAGS", "ERL_LIBS",
+                                        "ERL_CRASH_DUMP_SECONDS"};
     size_t index;
 
     if (getenv("ERN_GIVEN") == NULL)
         return;
     for (index = 0; index < sizeof names / sizeof names[0]; index++) {
-        char kept[32];
+        char kept[48];
         const char *value;
         snprintf(kept, sizeof kept, "ERN_GIVEN_%s", names[index]);
         value = getenv(kept);

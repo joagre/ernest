@@ -886,6 +886,7 @@ The prelude binds no system reference. Each is a private binding of its system m
 - Processes are scheduled preemptively; a process cannot prevent others from running.
 - Processes share no memory, except what foreign functions share (§4.7); a message is a copy or immutable.
 - Mailboxes are unbounded; a program is responsible for its own backpressure.
+- Memory is the host's. A program that exhausts it ends at once, every process with it: no process faults, no monitor is told, and the host's message is written to standard error (§11.8).
 - `Int` has arbitrary precision.
 - Bitstrings are constructed and matched by the runtime's bit syntax (§5.11).
 - Unicode's tables, which decide a `Char`'s category and case, a `String`'s graphemes and White_Space, and a grapheme's width (Appendix E.4, E.5, E.16), are the host's, of the version it ships.

@@ -200,6 +200,35 @@ hangup() ->
                  run_for(Dir, "../../../bin/ern run waits.erc", "grep -q running run.out",
                          "HUP")).
 
+%% report §10, §11.8: a program that exhausts the host's memory ends at
+%% once, the process that monitored the one that grew never told, with
+%% status 1 and the host's message, and no crash dump is left in the
+%% working directory. The limit is the shell's on the virtual memory, which
+%% the host meets within a second. A regression test of the full review's
+%% U1 (2026-10-04): the guide called it a fault of one process, and the host
+%% wrote its dump where the program ran
+out_of_memory_test_() ->
+    {timeout, 60, fun out_of_memory/0}.
+
+out_of_memory() ->
+    Dir = "build/out_of_memory",
+    ok = filelib:ensure_path(Dir),
+    _ = file:delete(Dir ++ "/erl_crash.dump"),
+    ok = file:write_file(Dir ++ "/grows.ern",
+                         "type Msg = Ended(Down)\n"
+                         "fn grow(list : List(Int)) : Unit = grow(List.range(1, 1000) <> list)\n"
+                         "export fn main() : Unit with Msg = {\n"
+                         "    let _ = spawnMonitored(fn() = grow([]), Ended);\n"
+                         "    receive { Ended(_) -> Io.println(\"main was told\") }\n"
+                         "}\n"),
+    0 = build("--source-root " ++ Dir ++ " " ++ Dir ++ "/grows.ern"),
+    {Status, Output} = sh("sh -c 'cd " ++ Dir ++ " && ulimit -v 3000000"
+                          " && ../../../bin/ern run grows.erc'"),
+    ?assertEqual(1, Status),
+    ?assertMatch({_, _}, binary:match(Output, <<"Cannot allocate">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"main was told">>)),
+    ?assertNot(filelib:is_regular(Dir ++ "/erl_crash.dump")).
+
 %% report §8.6, §11.2: the host's interrupt ends a running program at once,
 %% printing nothing, with status 128 plus the signal's number. The run is
 %% started from here rather than by a shell, which would start it with the
@@ -682,14 +711,16 @@ os() ->
 %% reach it as given; and a started program has no signal ignored. A
 %% regression test: BINDIR, EMU, PROGNAME and ROOTDIR were the host's, the
 %% host's directories led PATH, ERL_LIBS was gone, and SIGFPE was ignored
-%% (findings.md's C1-9, C1-10). Written after the code
+%% (findings.md's C1-9, C1-10). Written after the code; the crash dump's
+%% variable, which the launcher sets for the host alone (report §10), joined
+%% it with the full review's U1
 given_environment_test_() ->
     {timeout, 60, fun given_environment/0}.
 
 given_environment() ->
     SourceRoot = "build/given/src",
     ok = filelib:ensure_path(SourceRoot),
-    Names = "[\"PATH\", \"BINDIR\", \"EMU\", \"ERL_LIBS\"]",
+    Names = "[\"PATH\", \"BINDIR\", \"EMU\", \"ERL_LIBS\", \"ERL_CRASH_DUMP_SECONDS\"]",
     ok = file:write_file(
            SourceRoot ++ "/given.ern",
            ["export fn main() : Unit with Never = {\n"
@@ -697,6 +728,7 @@ given_environment() ->
             "        Io.println(Optional.withDefault(Os.environment(name), \"unset\")));\n"
             "    let script = \"echo \\\"$PATH\\\"; echo \\\"$BINDIR\\\";"
             " echo \\\"${EMU-unset}\\\"; echo \\\"$ERL_LIBS\\\";"
+            " echo \\\"$ERL_CRASH_DUMP_SECONDS\\\";"
             " trap 'echo caught' FPE; kill -FPE $$; echo survived\";\n"
             "    let command = Os.Command(program = \"sh\", arguments = [\"-c\", script],"
             " input = <<>>);\n"
@@ -709,9 +741,10 @@ given_environment() ->
     0 = build("--source-root build/given/src --build-root build/given build/given/src"),
     %% under a shell of its own, since the host runs a command by `exec`
     {0, Output} = sh("sh -c 'echo \"$PATH\"; unset EMU;"
-                     " BINDIR=mine ERL_LIBS=/given ../bin/ern run build/given/given.erc'"),
+                     " BINDIR=mine ERL_LIBS=/given ERL_CRASH_DUMP_SECONDS=7"
+                     " ../bin/ern run build/given/given.erc'"),
     [Path | Lines] = binary:split(Output, <<"\n">>, [global, trim]),
-    Given = [Path, <<"mine">>, <<"unset">>, <<"/given">>],
+    Given = [Path, <<"mine">>, <<"unset">>, <<"/given">>, <<"7">>],
     ?assertEqual(Given ++ Given ++ [<<"caught">>, <<"survived">>], Lines).
 
 %% report §11, Appendix E.23, E.17: Os.workingDirectory is the absolute

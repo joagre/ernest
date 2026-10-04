@@ -45,7 +45,8 @@ fi
 # in, so what is cleared here, and what the host's own launcher sets or
 # changes, is kept as it was given under ERN_GIVEN_ and its name, which the
 # runtime's helper puts back for a program and takes away (ern_exec.c).
-for name in PATH BINDIR EMU PROGNAME ROOTDIR ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS ERL_LIBS; do
+for name in PATH BINDIR EMU PROGNAME ROOTDIR ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS ERL_LIBS \
+            ERL_CRASH_DUMP_SECONDS; do
     if eval "[ \"\${$name+set}\" = set ]"; then
         eval "ERN_GIVEN_$name=\$$name"
         export "ERN_GIVEN_$name"
@@ -57,6 +58,12 @@ ERN_GIVEN=1
 export ERN_GIVEN
 
 unset ERL_AFLAGS ERL_FLAGS ERL_ZFLAGS ERL_LIBS
+
+# Report §10, §11.8: a program that exhausts the host's memory ends with
+# status 1 and the host's message, and the host writes no crash dump into
+# the working directory, since its internals are no part of the outcome.
+ERL_CRASH_DUMP_SECONDS=0
+export ERL_CRASH_DUMP_SECONDS
 
 # Report §8.6: ern takes the host's signals as the first thing the host
 # runs, before the entry's module is loaded, since until then the host's
