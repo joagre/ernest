@@ -393,11 +393,30 @@ bitstring_expr_test() ->
                                                                 signed]}]},
                  expression("<<x:size(n)-little-signed>>")).
 
+%% report §3.5: a constructor has no fields, one positional field, or named
+%% fields; a second positional field is refused with the two ways to write
+%% it. A regression test of findings.md's D30: the parser said only that it
+%% expected `)`
+second_positional_field_test() ->
+    ?assertMatch({error, #diagnostic{span = {1, 21, _},
+                                     message = "a constructor has exactly one positional field",
+                                     help = "name the fields, `Vec(x : ..., y : ...)`, or hold a"
+                                            " tuple, `Vec(#(..., ...))`"}},
+                 ern_parser:parse_string("type Vec = Vec(Float, Float)")).
+
 %% report §5.11: there is no `unit`; a size counts bits, and octets for
 %% `bytes`, and the error says to write it so. A regression test: `unit`
 %% was a second way to scale a size
 no_unit_specifier_test() ->
-    ?assertEqual("there is no `unit` specifier", expression_refusal("<<x:size(n)-unit(8)>>")).
+    ?assertEqual("there is no `unit` specifier", expression_refusal("<<x:size(n)-unit(8)>>")),
+    %% the help writes the size given: a regression test of findings.md's X15
+    ?assertMatch({error, #diagnostic{span = {1, 13, _},
+                                     help = "a size counts bits, and octets for `bytes`: write"
+                                            " `size(2 * 8)`"}},
+                 ern_parser:parse_expr("<<n:size(2)-unit(8)>>")),
+    ?assertMatch({error, #diagnostic{help = "a size counts bits, and octets for `bytes`: write"
+                                            " the size multiplied by the unit"}},
+                 ern_parser:parse_expr("<<x:size(n)-unit(8)>>")).
 
 %% report §5.11: a specifier's name is an ordinary identifier outside a
 %% specifier list, so a segment's value, a size's expression and a pattern's
@@ -774,8 +793,14 @@ misc_errors_test() ->
                  refusal("foreign fn f(x : Int) = \"m:f/1\"")),
     ?assertEqual("expected `)` instead of `;`", expression_refusal("f(a;")),
     ?assertEqual("expected an expression instead of end of input", expression_refusal("1 +")),
-    ?assertEqual("expected a declaration (type, abstract, fn, let, foreign) instead of `}`",
+    %% `export` begins a declaration, once: a regression test of
+    %% findings.md's X23
+    ?assertEqual("expected a declaration (export, type, abstract, fn, let, foreign) instead of"
+                 " `}`",
                  refusal("}")),
+    ?assertEqual("expected a declaration (type, abstract, fn, let, foreign) instead of `}`",
+                 refusal("export }")),
+
     ?assertEqual("expected `->` after a parameter list instead of `=`",
                  refusal("let f : (A, B) = x")),
     ?assertEqual("unknown bitstring specifier `bogus`", expression_refusal("<<x:bogus>>")),
@@ -991,6 +1016,9 @@ requirement_test() ->
     ?assertEqual("zero is not a member: a requirement names compare, negate, an operator or show"
                  " (§4.8, E.1)",
                  refusal("fn f(x : a) : a needs a.zero = x")),
+    %% the member underlined whole: a regression test of findings.md's X7
+    ?assertMatch({error, #diagnostic{span = {1, 23, {1, 29}}}},
+                 ern_parser:parse_string("fn f(x : a) : a needs a.zero = x")),
     ?assertEqual({"expected `.` after a instead of `,`",
                   "a requirement names a member of a type variable, as needs a.compare"},
                  refusal_and_help("fn f(x : a) : a needs a, a.+ = x")),

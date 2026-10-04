@@ -20,9 +20,10 @@
 
 -record(module_doc, {span, text}). % the module's doc block, first in the list, report §2.2
 -record(type_declaration, {span, doc, export = false, name, params = [], constructors,
-                           derives}).
+                           derives, param_spans = []}).
 %% derives: undefined, or the span of `derives compare`, which gives the type
-%% the member compare (report §3.5)
+%% the member compare (report §3.5); param_spans: each parameter's span, in
+%% the order of params, for the error of one written twice (§4.3, §11.5)
 -record(constructor, {span, doc, name, fields = none}).
 %% fields: none | {positional, Type} | {named, [#field{}]}
 -record(field, {span, doc, name, annotation}).
@@ -49,9 +50,9 @@
 %% annotation: the type written, or undefined; scheme: set by the checker
 
 -record(foreign_type_declaration, {span, doc, export = false, name, params = [],
-                                   equality = []}).
+                                   equality = [], param_spans = []}).
 %% equality: for each parameter, whether it is written `k=` and requires equality
-%% (report §4.7); [] where it has none
+%% (report §4.7); [] where it has none; param_spans: as a type declaration's
 -record(foreign_fn_declaration, {span, doc, export = false, member_of, name, params, result_type,
                                  effect, implementation, implementation_span, scheme}).
 %% scheme: set by the checker, as on fn_declaration; implementation_span:

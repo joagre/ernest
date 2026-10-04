@@ -32,7 +32,7 @@
 %% would then carry one passed where a function has the restriction.
 -module(ern_reply).
 
--export([check/4, restrict/4]).
+-export([check/4, restrict/4, consume_help/0]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -57,6 +57,12 @@ restrict(Params, Body, Type, Env) ->
         true -> restricted(Params, Body, Type, Env);
         false -> Env
     end.
+
+%% Report §11.5: the help line of every error of an obligation, which names
+%% the ways §6.6 consumes a reply.
+-spec consume_help() -> string().
+consume_help() ->
+    "a reply is consumed by answering it, passing it on once, or matching it (§6.6)".
 
 restricted(Params, Body, Type, Env) ->
     Variables = lists:usort(value_variables(Type, ern_typecheck:type_state(Env))),
@@ -121,10 +127,10 @@ positions(Node, Env) ->
 
 position(#p_wildcard{span = Span, type = Type}, Env) ->
     not ern_typecheck:is_reply_carrying(Type, Env)
-        orelse throw({type_error, Span, "`_` would discard a reply-carrying value"});
+        orelse obligation_error(Span, "`_` would discard a reply-carrying value");
 position(#p_as{span = Span, type = Type}, Env) ->
     not ern_typecheck:is_reply_carrying(Type, Env)
-        orelse throw({type_error, Span, "`as` on a reply-carrying value would duplicate it"});
+        orelse obligation_error(Span, "`as` on a reply-carrying value would duplicate it");
 position(#p_constructor{type = Type} = Pattern, Env) ->
     case ern_typecheck:is_reply_carrying(Type, Env) of
         true -> reply_fields(Pattern, Env);
@@ -195,15 +201,19 @@ field_types(Scheme, Type, Env) ->
 
 wild_field(Span, Name, [FieldType], Env) ->
     not ern_typecheck:is_reply_carrying(FieldType, Env)
-        orelse throw({type_error, Span, "the field of " ++ atom_to_list(Name)
-                                        ++ " carries a reply and cannot be `_`"});
+        orelse obligation_error(Span, "the field of " ++ atom_to_list(Name)
+                                      ++ " carries a reply and cannot be `_`");
 wild_field(_, _, _, _) -> ok.
 
 reply_field(Span, Name, FieldName, FieldType, Env) ->
     not ern_typecheck:is_reply_carrying(FieldType, Env)
-        orelse throw({type_error, Span, "field " ++ atom_to_list(FieldName) ++ " of "
-                                        ++ atom_to_list(Name) ++ " carries a reply and must be"
-                                        " bound"}).
+        orelse obligation_error(Span, "field " ++ atom_to_list(FieldName) ++ " of "
+                                      ++ atom_to_list(Name) ++ " carries a reply and must be"
+                                      " bound").
+
+obligation_error(Span, Message) ->
+    throw({type_error, #diagnostic{span = ern_diagnostic:span(Span), message = Message,
+                                   help = consume_help()}}).
 
 %%
 %% Uses of linear variables, per path
@@ -278,21 +288,21 @@ uses(#e_binop{operator = Operator, left = Left, right = Right}, Obligations, Env
 uses(#e_if{span = Span, condition = Condition, then_branch = Then, else_branch = Else},
      Obligations, Env) ->
     sequence([uses(Condition, Obligations, Env),
-              branches(Span, [{ern_ast:span(Then), uses(Then, Obligations, Env)},
-                              {ern_ast:span(Else), uses(Else, Obligations, Env)}])]);
+              branches(Span, [{ern_ast:span(Then), Then, uses(Then, Obligations, Env)},
+                              {ern_ast:span(Else), Else, uses(Else, Obligations, Env)}])]);
 uses(#e_match{span = Span, scrutinee = Scrutinee, clauses = Clauses}, Obligations, Env) ->
     sequence([uses(Scrutinee, Obligations, Env),
-              branches(Span, [{ern_ast:span(Body), clause_uses(Clause, Obligations, Env)}
+              branches(Span, [{ern_ast:span(Body), Clause, clause_uses(Clause, Obligations, Env)}
                               || #clause{body = Body} = Clause <- Clauses])]);
 uses(#e_receive{span = Span, clauses = Clauses, 'after' = After}, Obligations, Env) ->
     AfterUses = case After of
                     undefined -> [];
-                    #after_clause{timeout = Timeout, body = Body} ->
-                        [{ern_ast:span(Body),
+                    #after_clause{timeout = Timeout, body = Body} = AfterClause ->
+                        [{ern_ast:span(Body), AfterClause,
                           sequence([uses(Timeout, Obligations, Env),
                                     uses(Body, Obligations, Env)])}]
                 end,
-    branches(Span, [{ern_ast:span(Body), clause_uses(Clause, Obligations, Env)}
+    branches(Span, [{ern_ast:span(Body), Clause, clause_uses(Clause, Obligations, Env)}
                     || #clause{body = Body} = Clause <- Clauses] ++ AfterUses);
 uses(#e_block{statements = Statements}, Obligations, Env) ->
     block_uses(Statements, Obligations, Env, []);
@@ -415,16 +425,17 @@ check_first_use({Name, Span}, Earlier) ->
                    #diagnostic{span = ern_diagnostic:span(Span),
                                message = "the reply-carrying value " ++ atom_to_list(Name)
                                          ++ " is consumed twice",
-                               labels = [{ern_diagnostic:span(First), "first consumed here"}]}});
+                               labels = [{ern_diagnostic:span(First), "first consumed here"}],
+                               help = consume_help()}});
         false ->
             ok
     end.
 
-%% Branches, each its path's span and its uses, consume the same names. A
-%% path that faults consumes every obligation (§6.6) and is left out of the
-%% comparison; where every path faults, the whole faults.
+%% Branches, each its path's span, its node and its uses, consume the same
+%% names. A path that faults consumes every obligation (§6.6) and is left
+%% out of the comparison; where every path faults, the whole faults.
 branches(Span, Branches) ->
-    case [Branch || {_, BranchUses} = Branch <- Branches,
+    case [Branch || {_, _, BranchUses} = Branch <- Branches,
                     not lists:keymember('$fault', 1, BranchUses)] of
         [] when Branches =/= [] -> [{'$fault', Span}];
         Returning -> compared(Returning)
@@ -432,35 +443,56 @@ branches(Span, Branches) ->
 
 compared([]) ->
     [];
-compared([{_, First} | _] = Branches) ->
-    Names = lists:usort([Name || {_, BranchUses} <- Branches, {Name, _} <- BranchUses]),
+compared([{_, _, First} | _] = Branches) ->
+    Names = lists:usort([Name || {_, _, BranchUses} <- Branches, {Name, _} <- BranchUses]),
     lists:foreach(fun(Name) -> check_every_path(Name, Branches) end, Names),
     First.
 
 %% Report §11.5: a path that lacks a use is reported where it stands, the
-%% use on another path labelled.
+%% use on another path labelled, and the first binding on the path that
+%% shadows the name labelled as well (§5.10).
 check_every_path(Name, Branches) ->
-    case [Span || {Span, BranchUses} <- Branches, not lists:keymember(Name, 1, BranchUses)] of
+    case [{Span, Node} || {Span, Node, BranchUses} <- Branches,
+                          not lists:keymember(Name, 1, BranchUses)] of
         [] ->
             ok;
-        [Lacking | _] ->
-            [Used | _] = [UseSpan || {_, BranchUses} <- Branches,
+        [{Lacking, LackingNode} | _] ->
+            [Used | _] = [UseSpan || {_, _, BranchUses} <- Branches,
                                      {UsedName, UseSpan} <- BranchUses, UsedName =:= Name],
+            Hiding = [{ern_diagnostic:span(BinderSpan),
+                       "this " ++ atom_to_list(Name) ++ " is a new binding, which shadows the"
+                       " reply-carrying " ++ atom_to_list(Name)}
+                      || BinderSpan <- lists:sublist(binders(Name, LackingNode), 1)],
             throw({type_error,
                    #diagnostic{span = ern_diagnostic:span(Lacking),
                                message = "the reply-carrying value " ++ atom_to_list(Name)
                                          ++ " is not consumed on this path",
-                               labels = [{ern_diagnostic:span(Used),
-                                          "consumed here, on another path"}]}})
+                               labels = Hiding ++ [{ern_diagnostic:span(Used),
+                                                    "consumed here, on another path"}],
+                               help = consume_help()}})
     end.
+
+%% Where Node binds Name anew, in source order (report §5.10).
+binders(Name, Node) ->
+    lists:reverse(ern_ast:walk(fun(#p_var{span = Span, name = Bound}, Acc) when Bound =:= Name ->
+                                       [Span | Acc];
+                                  (#p_as{name_span = Span, name = Bound}, Acc)
+                                    when Bound =:= Name ->
+                                       [Span | Acc];
+                                  (#fn_declaration{span = Span, name = Bound}, Acc)
+                                    when Bound =:= Name ->
+                                       [Span | Acc];
+                                  (_, Acc) ->
+                                       Acc
+                               end, Node, [])).
 
 %% Report §6.6: a name is consumed once on its path, or on none where the
 %% path faults; a second use is sequence/1's to report.
 exactly_once(Name, Uses, Span) ->
     case {count(Name, Uses), lists:keymember('$fault', 1, Uses)} of
         {0, false} ->
-            throw({type_error, Span, "the reply-carrying value " ++ atom_to_list(Name)
-                                     ++ " is never consumed"});
+            obligation_error(Span, "the reply-carrying value " ++ atom_to_list(Name)
+                                   ++ " is never consumed");
         _ ->
             ok
     end.

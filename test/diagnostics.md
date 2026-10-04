@@ -302,7 +302,7 @@ type Coin = Coin(Int)
 
 ```console
 $ ern build example.ern
-example.ern:3:1: expected a declaration (type, abstract, fn, let, foreign) instead of integer 1
+example.ern:3:1: expected a declaration (export, type, abstract, fn, let, foreign) instead of integer 1
 2 | 
 3 | 1
   | ^
@@ -322,7 +322,7 @@ example.ern:1:20: a function's result is annotated with `:`, not `->`
   | = help: write `: T` after the parameters, as a parameter's type is written
 ```
 
-### `abstract` before something other than a type (§3.8)
+### `abstract` before something other than a type (§3.6, §4.4)
 
 ```ernest-rejected
 abstract fn hidden() : Int = 1
@@ -335,7 +335,7 @@ example.ern:1:10: expected `type` after `abstract`
   |          ^^
 ```
 
-### An abstract type with a signature (§3.8)
+### An abstract type with a signature (§3.6, §4.4)
 
 ```ernest-rejected
 abstract type Stack = Stack(List(Int)) with { push }
@@ -432,7 +432,7 @@ example.ern:3:5: a `let` declares no member of Money
   | = help: a member is declared with `fn`: write `fn Money.+(...)`
 ```
 
-### A declaration with no name (§4.4)
+### A declaration with no name (§4.5)
 
 ```ernest-rejected
 fn 1() -> Int = 1
@@ -498,7 +498,7 @@ example.ern:1:9: expected `type` or `fn` after `foreign` instead of the reserved
   |         ^^^
 ```
 
-### Empty parentheses where a type stands (§3.2)
+### Empty parentheses where a type stands (§3)
 
 ```ernest-rejected
 fn f() : () = 1
@@ -512,7 +512,7 @@ example.ern:1:10: expected a type inside the parentheses, or `->` after them
   | = help: the type whose one value is written () is Unit
 ```
 
-### Parenthesized types that are no function type (§3.2)
+### Parenthesized types that are no function type (§3, §3.2)
 
 ```ernest-rejected
 fn f(pair : (Int, Int)) : Int = 1
@@ -526,7 +526,7 @@ example.ern:1:23: expected `->` after a parameter list instead of `)`
   | = help: a tuple type is written with `#(`, as #(Int, Int)
 ```
 
-### A qualified type that ends in a lowercase name (§3.2)
+### A qualified type that ends in a lowercase name (§3)
 
 ```ernest-rejected
 fn f(xs : List.a) : Int = 1
@@ -540,7 +540,7 @@ example.ern:1:11: expected a type name; a qualified type ends in an uppercase na
   | = help: a type's arguments are written in parentheses, as List(a), and a lowercase name after `.` names a value
 ```
 
-### Something that is no type where a type stands (§3.2)
+### Something that is no type where a type stands (§3)
 
 ```ernest-rejected
 fn f(x : 1) : Int = 1
@@ -580,7 +580,7 @@ example.ern:1:18: unexpected integer 2 after an expression
   | = help: a call is written f(x), and statements are separated by `;`
 ```
 
-### An `if` without its `else` (§5.2)
+### An `if` without its `else` (§5.8)
 
 ```ernest-rejected
 fn f(b : Bool) : Int = if b then 1
@@ -662,13 +662,13 @@ $ ern build example.ern
 example.ern:2:16: the argument does not fit Io.println: expected String, found Int
 1 | fn f() : Unit with Never = {
 2 |     Io.println(1);
-  |     ---------- Io.println : (String) -> Unit with e+
+  |     ---------- Io.println : (String) -> Unit with m+
   |                ^
 
 example.ern:3:16: the argument does not fit Io.println: expected String, found Int
 2 |     Io.println(1);
 3 |     Io.println(2);
-  |     ---------- Io.println : (String) -> Unit with e+
+  |     ---------- Io.println : (String) -> Unit with m+
   |                ^
 ```
 
@@ -855,7 +855,7 @@ $ ern build example.ern
 example.ern:1:37: there is no `unit` specifier
 1 | fn f(n : Int) : Bytes = <<n:size(2)-unit(8)>>
   |                                     ^^^^
-  | = help: a size counts bits, and octets for `bytes`: write `size(n * 8)`
+  | = help: a size counts bits, and octets for `bytes`: write `size(2 * 8)`
 ```
 
 ### A bitstring specifier the language does not have (§5.11)
@@ -884,7 +884,7 @@ example.ern:1:31: expected a bitstring specifier instead of integer 1
   |                               ^
 ```
 
-### A missing parenthesis (§4.4)
+### A missing parenthesis (§4.5)
 
 ```ernest-rejected
 fn f(x : Int -> Int = x
@@ -911,7 +911,7 @@ example.ern:1:28: expected `then` instead of `<-`
   | = help: `<-` is one token; write `a < -1` to compare with a negative number
 ```
 
-### A lowercase name where a type's name stands (§3.3)
+### A lowercase name where a type's name stands (§2.3, §4.3)
 
 ```ernest-rejected
 type point = Point(Int)
@@ -1036,6 +1036,20 @@ example.ern:1:29: field x is declared twice
   |                             ^^^^^^^
 ```
 
+### A constructor with two positional fields (§3.5)
+
+```ernest-rejected
+type Vec = Vec(Float, Float)
+```
+
+```console
+$ ern build example.ern
+example.ern:1:21: a constructor has exactly one positional field
+1 | type Vec = Vec(Float, Float)
+  |                     ^
+  | = help: name the fields, `Vec(x : ..., y : ...)`, or hold a tuple, `Vec(#(..., ...))`
+```
+
 ### A type parameter written twice (§4.3)
 
 ```ernest-rejected
@@ -1044,9 +1058,10 @@ type Pair(a, a) = Pair(a)
 
 ```console
 $ ern build example.ern
-example.ern:1:1: type variable a appears twice among the parameters of Pair
+example.ern:1:14: type variable a appears twice among the parameters of Pair
 1 | type Pair(a, a) = Pair(a)
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |           - first written here
+  |              ^
 ```
 
 ### A type variable that is no parameter (§3.9)
@@ -1073,7 +1088,7 @@ $ ern build example.ern
 example.ern:1:33: Nest is named at List(a) in its own fields, and a type of a recursive group is named in its fields at the declaring type's parameters alone
 1 | type Nest(a) = Flat(a) | Deeper(Nest(List(a)))
   |                                 ^^^^^^^^^^^^^
-  | = help: no function could walk the type, since a recursive call is at the definition's own type (§3.9)
+  | = help: write `Nest(a)`, or `List(Nest(a))` to hold it in a List
 ```
 
 ### A recursive type named at its parameters in another order (§3.9)
@@ -1087,12 +1102,12 @@ $ ern build example.ern
 example.ern:1:33: Flip is named at Flip(b, a) in its own fields, and a type of a recursive group is named in its fields at the declaring type's parameters, each in its place, (a, b)
 1 | type Flip(a, b) = End(a) | Turn(Flip(b, a))
   |                                 ^^^^^^^^^^
-  | = help: no function could walk the type, since a recursive call is at the definition's own type (§3.9)
+  | = help: write `Flip(a, b)`
 ```
 
 ## Declarations (report §4)
 
-### A value declared twice (§4.5)
+### A value declared twice (§4.6)
 
 ```ernest-rejected
 let n = 1
@@ -1199,10 +1214,11 @@ foreign fn size(t : Foreign.Term) : Int =
 
 ```console
 $ ern build example.ern
-example.ern:2:5: the implementation of size is named module:function/arity, here module:function/1
+example.ern:2:5: the implementation of size is not written `module:function/arity`
 1 | foreign fn size(t : Foreign.Term) : Int =
 2 |     "tuple_size"
   |     ^^^^^^^^^^^^
+  | = help: write the host's module and function and the arity 1, as `module:function/1`
 ```
 
 ### A refutable parameter pattern (§4.5)
@@ -1596,6 +1612,8 @@ example.ern:4:24: the field x: expected String, found Int
 4 |     let s : String = p.x;
   |             ------ declared String here
   |                        ^
+5 |     let q : Point = p;
+  |                     - this fixes the value whose x is read as Point
 ```
 
 ### Fields given to a constructor that has none (§5.6)
@@ -1831,10 +1849,10 @@ let hashed : Ops(Set(Int)) = Ops(..Set)
 
 ```console
 $ ern build example.ern
-example.ern:3:36: Ops(..Set) fills size with Set.size: expected (a) -> Bool, found (Set(a=!)) -> Int
+example.ern:3:36: Ops(..Set) fills size with Set.size: expected (a) -> Bool, found (Set(b=!)) -> Int
 2 | 
 3 | let hashed : Ops(Set(Int)) = Ops(..Set)
-  |                              --- Ops declares size : (a) -> Bool
+  |                              --- Ops declares size : (s) -> Bool
   |                                    ^^^
   | = help: the types differ at Bool and Int
 ```
@@ -1852,7 +1870,7 @@ fn f() : Int = {
 
 ```console
 $ ern build example.ern
-example.ern:4:21: fromList needs a.compare, and the record's type leaves a undetermined
+example.ern:4:21: fromList needs a.compare, and the record's type leaves the variable a undetermined; annotate it
 3 | fn f() : Int = {
 4 |     let ops = Ops(..OrderedSet);
   |                     ^^^^^^^^^^
@@ -2060,6 +2078,8 @@ example.ern:2:22: the result of `+`: expected String, found Int
 2 |     let s : String = a + b;
   |             ------ declared String here
   |                      ^^^^^
+3 |     let n : Int = a;
+  |                   - this fixes `+`'s operands as Int
 ```
 
 ### An operator the type does not define (§4.8)
@@ -2205,10 +2225,11 @@ fn f() : Bool = same(fn() = 1, fn() = 1)
 
 ```console
 $ ern build example.ern
-example.ern:3:17: () -> Int does not support equality (it contains a function or an address), which same requires: same : (a=, a=) -> Bool
+example.ern:3:22: () -> Int does not support equality (it contains a function or an address), which same requires of its first argument
 2 | 
 3 | fn f() : Bool = same(fn() = 1, fn() = 1)
-  |                 ^^^^
+  |                 ---- same : (a=, a=) -> Bool
+  |                      ^^^^^^^^
 ```
 
 ## Requirements and derived members (report §4.9, §3.5)
@@ -2222,10 +2243,11 @@ fn unique(list : List(a)) : List(a) =
 
 ```console
 $ ern build example.ern
-example.ern:2:23: fromList needs a.compare, which unique does not declare; add needs a.compare
+example.ern:2:23: fromList needs a.compare, which unique does not declare
 1 | fn unique(list : List(a)) : List(a) =
 2 |     OrderedSet.toList(OrderedSet.fromList(list))
   |                       ^^^^^^^^^^^^^^^^^^^
+  | = help: add `needs a.compare` to unique's signature
 ```
 
 ### An operator on a type variable no requirement names (§4.8, §4.9)
@@ -2237,10 +2259,11 @@ fn smaller(x : a, y : a) : a =
 
 ```console
 $ ern build example.ern
-example.ern:2:8: `<` needs a.compare, which smaller does not declare; add needs a.compare
+example.ern:2:8: `<` needs a.compare, which smaller does not declare
 1 | fn smaller(x : a, y : a) : a =
 2 |     if x < y then x else y
   |        ^^^^^
+  | = help: add `needs a.compare` to smaller's signature
 ```
 
 ### A member written without its requirement (§4.9)
@@ -2252,10 +2275,11 @@ fn sum(x : a, y : a) : a needs a.compare =
 
 ```console
 $ ern build example.ern
-example.ern:2:5: sum does not declare a.+; add needs a.+
+example.ern:2:5: sum does not declare a.+
 1 | fn sum(x : a, y : a) : a needs a.compare =
 2 |     a.+(x, y)
   |     ^^^
+  | = help: add `needs a.+` to sum's signature
 ```
 
 ### A top-level `let` that would need a requirement (§4.9)
@@ -2266,9 +2290,10 @@ let build = OrderedSet.fromList
 
 ```console
 $ ern build example.ern
-example.ern:1:13: fromList needs a.compare; a let cannot declare it, so write a fn with the requirement
+example.ern:1:13: fromList needs a.compare, which a top-level let cannot declare
 1 | let build = OrderedSet.fromList
   |             ^^^^^^^^^^^^^^^^^^^
+  | = help: declare a `fn` with `needs a.compare`
 ```
 
 ### A known type without the member (§4.9)
@@ -2321,7 +2346,7 @@ fn sum(list : List(a)) : a needs a.zero, a.+ =
 $ ern build example.ern
 example.ern:1:34: zero is not a member: a requirement names compare, negate, an operator or show (§4.8, E.1)
 1 | fn sum(list : List(a)) : a needs a.zero, a.+ =
-  |                                  ^
+  |                                  ^^^^^^
 ```
 
 ### A requirement on no type variable of the signature (§4.9)
@@ -2347,10 +2372,9 @@ fn f(x : a) : a with e needs e.compare =
 
 ```console
 $ ern build example.ern
-example.ern:1:30: e is no type variable of the signature
+example.ern:1:30: e is an effect variable, and a requirement names a type variable in a value position
 1 | fn f(x : a) : a with e needs e.compare =
   |                              ^^^^^^^^^
-  | = help: e stands only after `with`, where a mailbox type stands, and a requirement names a type
 ```
 
 ### A binding named as a type variable of the signature (§4.9)
@@ -2391,10 +2415,27 @@ fn shown(x : a) : String =
 
 ```console
 $ ern build example.ern
-example.ern:2:5: Io.show needs a.show, which shown does not declare; add needs a.show
+example.ern:2:5: Io.show needs a.show, which shown does not declare
 1 | fn shown(x : a) : String =
 2 |     Io.show(x)
   |     ^^^^^^^
+  | = help: add `needs a.show` to shown's signature
+```
+
+### `Io.show` at a type not known whole (Appendix E.1, §11.5)
+
+```ernest-rejected
+fn f() : String =
+    Io.show([])
+```
+
+```console
+$ ern build example.ern
+example.ern:2:5: the type List(a) is not known whole here, and Io.show writes a value by its type
+1 | fn f() : String =
+2 |     Io.show([])
+  |     ^^^^^^^
+  | = help: annotate the value where it is bound; at a type variable of the signature, a requirement `needs a.show` lets it write the value
 ```
 
 ### `Foreign.from` on a type variable (§8.4, Appendix E.12)
@@ -2406,11 +2447,11 @@ fn give(x : a) : Foreign.Term =
 
 ```console
 $ ern build example.ern
-example.ern:2:5: Foreign.from gives foreign code a value by its type, which is not known whole here: a!
+example.ern:2:5: the type a! is not known whole here, and Foreign.from gives foreign code a value by its type
 1 | fn give(x : a) : Foreign.Term =
 2 |     Foreign.from(x)
   |     ^^^^^^^^^^^^
-  | = help: annotate the value where it is bound; a value of a type variable is given by a `foreign fn` whose parameter is of that variable
+  | = help: a value of a type variable is given by a `foreign fn` whose parameter is of that variable
 ```
 
 ### A declaration with a requirement as a value at the prompt (§4.9, §11.2)
@@ -2487,6 +2528,40 @@ example.ern:3:16: g takes 1 argument, not 2
 2 | 
 3 | fn f() : Int = g(1, 2)
   |                ^^^^^^^
+  | = help: a call supplies all the arguments
+```
+
+### A call of a callee that is no name (§5.2, §11.5)
+
+```ernest-rejected
+fn f() : Int =
+    (fn(x : Int) : Int = x)(1, 2)
+```
+
+```console
+$ ern build example.ern
+example.ern:2:6: the callee takes 1 argument, not 2
+1 | fn f() : Int =
+2 |     (fn(x : Int) : Int = x)(1, 2)
+  |      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: a call supplies all the arguments
+```
+
+### A call of a selected field (§5.2, §11.5)
+
+```ernest-rejected
+type Ops = Ops(size : (Int) -> Int)
+
+fn f(ops : Ops) : Int =
+    ops.size(1, 2)
+```
+
+```console
+$ ern build example.ern
+example.ern:4:5: ops.size takes 1 argument, not 2
+3 | fn f(ops : Ops) : Int =
+4 |     ops.size(1, 2)
+  |     ^^^^^^^^^^^^^^
   | = help: a call supplies all the arguments
 ```
 
@@ -2653,14 +2728,14 @@ fn f(x) = if x then f(1) else 2
 
 ```console
 $ ern build example.ern
-example.ern:1:23: the argument does not fit f: expected Bool, found Int
+example.ern:1:23: the argument of a recursive call does not fit f at its own type (§3.9): expected Bool, found Int
 1 | fn f(x) = if x then f(1) else 2
   |                     - f : (Bool) -> a
   |                       ^
-  | = help: a recursive call is at the definition's own type, so a call at another type goes to a second function (§3.9)
+  | = help: declare a second function for the call at another type
 ```
 
-### A recursive use at another type than the `let`'s (§4.6)
+### A top-level `let` that names itself (§8.5)
 
 ```ernest-rejected
 let f = fn(x) = if x then f(1) else 2
@@ -2668,11 +2743,6 @@ let f = fn(x) = if x then f(1) else 2
 
 ```console
 $ ern build example.ern
-example.ern:1:1: recursive use does not match the definition: expected (Bool) -> Int, found (Int) -> Int
-1 | let f = fn(x) = if x then f(1) else 2
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  | = help: the types differ at Bool and Int
-
 example.ern:1:1: the initializer of f depends on itself
 1 | let f = fn(x) = if x then f(1) else 2
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -2691,6 +2761,7 @@ example.ern:1:20: the body does not have the declared result type: expected a, f
 1 | fn id(x : a) : a = 1
   |                - result type a declared here
   |                    ^
+  | = help: `a` stands for every type a caller may choose, not for Int alone
 ```
 
 ### Two type variables of an annotation used as one (§3.9)
@@ -2705,6 +2776,7 @@ example.ern:1:26: the body does not have the declared result type: expected a, f
 1 | fn f(x : a, y : b) : a = y
   |                      - result type a declared here
   |                          ^
+  | = help: `a` and `b` stand for types a caller chooses apart, which may differ
 ```
 
 ### A reply passed where a function discards its argument (§3.9, §6.6)
@@ -2717,11 +2789,12 @@ fn f(r : Reply(Int)) : Unit with m = drop(r)
 
 ```console
 $ ern build example.ern
-example.ern:3:38: a reply-carrying value, Reply(Int), passed where drop duplicates or discards its argument: drop : (a!) -> Unit
+example.ern:3:43: a reply-carrying value, Reply(Int), passed in the first argument of drop, which duplicates or discards it
 2 | 
 3 | fn f(r : Reply(Int)) : Unit with m = drop(r)
-  |                                      ^^^^
-  | = help: a reply is discharged by answering it, passing it on once, or matching it (§6.6)
+  |                                      ---- drop : (a!) -> Unit
+  |                                           ^
+  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ## Names in a block (report §5.4)
@@ -2816,7 +2889,7 @@ fn f(o : Optional(Int)) : Optional(Int) = {
 
 ```console
 $ ern build example.ern
-example.ern:2:9: the pattern does not fit the value inside the sum type: expected Int, found #(Int, a)
+example.ern:2:9: the pattern does not fit the value inside the sum type: expected Int, found #(a, b)
 1 | fn f(o : Optional(Int)) : Optional(Int) = {
 2 |     let #(a, b) <- o;
   |         ^^^^^^^
@@ -2857,7 +2930,8 @@ example.ern:2:14: `<-` on an Optional: a type that would contain itself (Optiona
 2 |     let y <- o;
   |              ^
 3 |     if true then Some(o) else Some(y)
-  |     --------------------------------- the block's value has type Optional(a)
+  |                  ------- the block's value has type Optional(a) here
+  |                               ------- and here
 ```
 
 ### `<-` on an Either that would contain itself (§5.5)
@@ -2876,7 +2950,8 @@ example.ern:2:14: `<-` on an Either: a type that would contain itself (Either(a,
 2 |     let y <- o;
   |              ^
 3 |     if true then Right(o) else Right(y)
-  |     ----------------------------------- the block's value has type Either(a, b)
+  |                  -------- the block's value has type Either(a, b) here
+  |                                -------- and here
 ```
 
 ### A refutable `let` pattern (§4.6)
@@ -2973,7 +3048,7 @@ example.ern:3:16: Io.println needs a process, and a guard is pure
 2 |     match n {
 3 |         k when Io.println("k") == Unit -> k
   |                ^^^^^^^^^^^^^^^
-  |                ----------------------- a guard is pure (report §5.9)
+  |                ----------------------- a guard is pure (§5.9)
   | = help: compute the value before the match
 ```
 
@@ -3598,6 +3673,7 @@ example.ern:7:16: a `receive` guard orders only Int, Float, String, and Char, no
 6 |     receive {
 7 |         m when m < limit -> 1
   |                ^^^^^^^^^
+  | = help: receive the message and `match` it
 ```
 
 ### A `receive` guard that calls a function (§6.3)
@@ -3618,7 +3694,7 @@ example.ern:3:16: a `receive` guard combines `true`, `false`, Bool variables, an
   | = help: receive the message and `match` it
 ```
 
-### A `receive` guard that compares a sum (§6.3)
+### A `receive` guard that compares a computed value (§6.3)
 
 ```ernest-rejected
 fn f() : Int with Int =
@@ -3651,6 +3727,7 @@ example.ern:2:9: `_` would discard a reply-carrying value
 1 | fn drop(r : Reply(Int)) : Unit with m = {
 2 |     let _ = r;
   |         ^
+  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ### A reply duplicated with `as` (§6.6)
@@ -3668,6 +3745,7 @@ example.ern:3:9: `as` on a reply-carrying value would duplicate it
 2 |     match r {
 3 |         x as y -> answer(x, 1)
   |         ^^^^^^
+  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ### A positional field that carries a reply matched with `_` (§6.6)
@@ -3687,6 +3765,7 @@ example.ern:5:9: the field of Get carries a reply and cannot be `_`
 4 |     match q {
 5 |         Get(_) -> Unit
   |         ^^^^^^
+  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ### A named field that carries a reply left out of a pattern (§6.6)
@@ -3706,6 +3785,7 @@ example.ern:5:9: field reply of Get carries a reply and must be bound
 4 |     match q {
 5 |         Get(n = n) -> Unit
   |         ^^^^^^^^^^
+  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ### A list of replies given to a function that drops its elements (§6.6, §3.9)
@@ -3716,10 +3796,11 @@ fn count(r : Reply(Int), waiting : List(Reply(Int))) : Int = List.size(r :: wait
 
 ```console
 $ ern build example.ern
-example.ern:1:62: a reply-carrying value, Reply(Int), passed where List.size duplicates or discards its argument: List.size : (List(a!)) -> Int
+example.ern:1:72: a reply-carrying value, Reply(Int), passed in the first argument of List.size, which duplicates or discards it
 1 | fn count(r : Reply(Int), waiting : List(Reply(Int))) : Int = List.size(r :: waiting)
-  |                                                              ^^^^^^^^^
-  | = help: a reply is discharged by answering it, passing it on once, or matching it (§6.6)
+  |                                                              --------- List.size : (List(a!)) -> Int
+  |                                                                        ^^^^^^^^^^^^
+  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ### A lambda that captures a reply, bound and passed on (§6.6)
@@ -3790,6 +3871,7 @@ example.ern:3:12: the reply-carrying value r is consumed twice
   |            - first consumed here
 3 |     answer(r, 2)
   |            ^
+  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ### A reply answered on one path only (§6.6)
@@ -3804,6 +3886,7 @@ example.ern:1:80: the reply-carrying value r is not consumed on this path
 1 | fn maybe(r : Reply(Int), b : Bool) : Unit with m = if b then answer(r, 1) else Unit
   |                                                                     - consumed here, on another path
   |                                                                                ^^^^
+  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ### A reply never answered (§6.6)
@@ -3817,6 +3900,7 @@ $ ern build example.ern
 example.ern:1:42: the reply-carrying value r is never consumed
 1 | fn never(r : Reply(Int)) : Unit with m = Unit
   |                                          ^^^^
+  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ### A reply left unanswered after a function that returns what it receives (§6.6)
@@ -3839,6 +3923,7 @@ example.ern:6:46: the reply-carrying value r is never consumed
 5 | 
 6 | fn worker(r : Reply(Int)) : Unit with Tick = {
   |                                              ^
+  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ### A reply consumed in the right operand of `&&` (§6.6)
@@ -3896,9 +3981,11 @@ $ ern build example.ern
 example.ern:3:20: the reply-carrying value r is not consumed on this path
 2 |     match n {
 3 |         Some(r) -> Io.println(Int.toString(r))
+  |              - this r is a new binding, which shadows the reply-carrying r
   |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 4 |       | None -> answer(r, 0)
   |                        - consumed here, on another path
+  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ### A field selected from a value that carries a reply (§6.6)
@@ -3980,5 +4067,5 @@ example.ern:5:28: a reply-carrying value, Reply(Int), passed where pair duplicat
 4 | fn serve(r : Reply(Int)) : Unit with m = {
 5 |     let #(first, second) = pair()(r);
   |                            ^^^^
-  | = help: a reply is discharged by answering it, passing it on once, or matching it (§6.6)
+  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```

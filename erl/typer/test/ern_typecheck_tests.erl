@@ -231,10 +231,10 @@ foreign_type_equality_test() ->
              "foreign fn mk() : T(k, v) = \"m:mk/0\"\n"
              "foreign fn put(t : T(k, v), key : k, value : v) : T(k, v) = \"m:put/3\"\n",
     ?assertEqual(ok, ok(Source ++ "fn f() = put(mk(), 1, 2)\n")),
-    %% reported at the first place that needs it, `put`, whose signature
-    %% shows the key's restriction
+    %% reported at the first place that needs it, `put`'s second argument,
+    %% put's type in the label showing the key's restriction (§11.5)
     ?assertEqual("(Int) -> Int does not support equality (it contains a function or an"
-                 " address), which put requires: put : (T(k=!, v!), k=!, v!) -> T(k=!, v!)",
+                 " address), which put requires of its second argument",
                  refusal(Source ++ "fn f() = put(mk(), fn(x : Int) : Int = x, 2)\n")),
     %% a parameter without `=` asks nothing
     ?assertEqual(ok, ok(Source ++ "fn f() = put(mk(), 1, fn(x : Int) : Int = x)\n")),
@@ -450,11 +450,11 @@ equality_test() ->
     ?assertEqual("`==` is not defined on (Int) -> Int: it contains a function or an address",
                  refusal("fn f(g : (Int) -> Int) = g == g")),
     ?assertEqual("Address(Int) does not support equality (it contains a function or an"
-                 " address), which equal requires: equal : (a=, a=) -> Bool; compare the"
+                 " address), which equal requires of its first argument; compare the"
                  " processes behind addresses, `Process.fromAddress(a)`",
                  refusal("fn same(a : Address(Int), b) = equal(a, b)\nfn equal(a, b) = a == b")),
     ?assertEqual("Address(Int) does not support equality (it contains a function or an"
-                 " address), and a Map's key needs it"
+                 " address), which Map.put requires of a Map's key, in its second argument"
                  "; compare the processes behind addresses, `Process.fromAddress(a)`",
                  refusal("fn f(a : Address(Int)) = Map.put(Map.empty, a, 1)")),
     ?assertEqual(ok, ok("fn f(a : String) = Map.put(Map.empty, a, 1)")).
@@ -501,14 +501,14 @@ show_under_a_requirement_test() ->
     ?assertEqual(ok, ok("fn wrap(x : a) : String needs a.show = Io.show(x)")),
     ?assertEqual(ok, ok("fn wrap(x : a) : String needs a.show = Io.show(x)\n"
                         "fn f() : String = wrap(1)")),
-    ?assertEqual({"Io.show needs a.show, which wrap does not declare; add needs a.show",
-                  undefined},
+    ?assertEqual({"Io.show needs a.show, which wrap does not declare",
+                  "add `needs a.show` to wrap's signature"},
                  refusal_and_help("fn wrap(x : a) : String = Io.show(x)")),
     ?assertEqual(ok, ok("fn wrap(xs : List(a)) : String needs a.show = Io.show(xs)")),
     ?assertEqual(ok, ok("fn wrap(x : a) : String needs a.show = Io.show(Some(#(x, 1)))")),
     ?assertEqual(ok, ok("fn wrap(x : a) : String needs a.show = Io.show(x)\n"
                         "fn f(xs : List(b)) : String needs b.show = wrap(xs)")),
-    ?assertEqual("Io.show needs b.show, which wrap does not declare; add needs b.show",
+    ?assertEqual("Io.show needs b.show, which wrap does not declare",
                  refusal("fn wrap(pair : #(a, b)) : String needs a.show = Io.show(pair)")).
 
 %% report Appendix E.1: `Io.show` and `Io.debug` write a value by the type
@@ -520,11 +520,11 @@ show_under_a_requirement_test() ->
 show_needs_a_known_type_test() ->
     Help = "annotate the value where it is bound; at a type variable of the signature, a"
            " requirement `needs a.show` lets it write the value",
-    ?assertEqual({"Io.show writes a value by its type, which is not known whole here: List(a)",
-                  Help},
+    ?assertEqual({"the type List(a) is not known whole here, and Io.show writes a value by its"
+                  " type", Help},
                  refusal_and_help("fn f() : String = Io.show([])")),
-    ?assertEqual("Io.debug writes a value by its type, which is not known whole here:"
-                 " Optional(a)",
+    ?assertEqual("the type Optional(a) is not known whole here, and Io.debug writes a value by"
+                 " its type",
                  refusal("fn f() : Unit with m = { let _ = Io.debug(None); Unit }")),
     ?assertEqual(ok, ok("fn f() : String = { let xs : List(Int) = []; Io.show(xs) }")),
     ?assertEqual(ok, ok("fn f() : String = Io.show(fn(n : Int) = n)")),
@@ -537,8 +537,7 @@ show_needs_a_known_type_test() ->
 operator_implementation_test() ->
     ?assertEqual(ok, ok("foreign fn plus(a : Int, b : Int) : Int = \"erlang:+/2\"")),
     ?assertEqual(ok, ok("foreign fn same(a : Int, b : Int) : Bool = \"erlang:=:=/2\"")),
-    ?assertEqual("the implementation of plus is named module:function/arity, here"
-                 " module:function/2",
+    ?assertEqual("the implementation of plus is not written `module:function/arity`",
                  refusal("foreign fn plus(a : Int, b : Int) : Int = \"erlang:+x/2\"")),
     ?assertEqual("the implementation names arity 3, and plus has 2 parameters",
                  refusal("foreign fn plus(a : Int, b : Int) : Int = \"erlang:+/3\"")).
@@ -550,14 +549,21 @@ operator_implementation_test() ->
 %% variable in the type being no matter. A regression test, written after
 %% the code: the value crossed as the runtime held it, whatever its type
 foreign_from_at_a_known_type_test() ->
-    ?assertEqual("Foreign.from gives foreign code a value by its type, which is not known whole"
-                 " here: a!",
-                 refusal("fn give(x : a) : Foreign.Term = Foreign.from(x)")),
-    ?assertEqual("Foreign.from gives foreign code a value by its type, which is not known whole"
-                 " here: List(a)",
+    %% at a signature's variable the help is the `foreign fn` alone: a
+    %% regression test of findings.md's X13
+    ?assertEqual({"the type a! is not known whole here, and Foreign.from gives foreign code a"
+                  " value by its type",
+                  "a value of a type variable is given by a `foreign fn` whose parameter is of"
+                  " that variable"},
+                 refusal_and_help("fn give(x : a) : Foreign.Term = Foreign.from(x)")),
+    ?assertEqual({"the type List(a) is not known whole here, and Foreign.from gives foreign code"
+                  " a value by its type", "annotate the value where it is bound"},
+                 refusal_and_help("fn give() : Foreign.Term = Foreign.from([])")),
+    ?assertEqual("the type List(a) is not known whole here, and Foreign.from gives foreign code"
+                 " a value by its type",
                  refusal("fn give(xs : List(a)) : Foreign.Term needs a.show = Foreign.from(xs)")),
-    ?assertEqual("Foreign.from gives foreign code a value by its type, which is not known whole"
-                 " here: a!",
+    ?assertEqual("the type a! is not known whole here, and Foreign.from gives foreign code a"
+                 " value by its type",
                  refusal("fn give(xs : List(a)) : List(Foreign.Term) =\n"
                          "    List.map(xs, Foreign.from)")),
     ?assertEqual(ok, ok("fn give(xs : List(Int)) : List(Foreign.Term) =\n"
@@ -581,7 +587,7 @@ foreign_has_exact_equality_test() ->
 equality_through_a_binding_test() ->
     Source = "fn eq(a, b) = a == b\nexport fn g(x) = eq([x], [x])\n",
     ?assertEqual("(Int) -> Int does not support equality (it contains a function or an"
-                 " address), which g requires: g : (a=!) -> Bool",
+                 " address), which g requires of its first argument",
                  refusal(Source ++ "fn h() = g(fn(y : Int) = y)")),
     ?assertEqual(ok, ok(Source ++ "fn h() = g(1)")),
     ?assertEqual("(a=!) -> Bool", type_of(Source, g)).
@@ -607,8 +613,8 @@ map_key_equality_test() ->
                  " address), and a Map's key needs it",
                  refusal("fn f() = { let m : Map((Int) -> Int, Int) = Map.empty; m }")),
     ?assertEqual("Address(Int) does not support equality (it contains a function or an"
-                 " address), and a Set's element needs it"
-                 "; compare the processes behind addresses, `Process.fromAddress(a)`",
+                 " address), which Set.put requires of a Set's element, in its second"
+                 " argument; compare the processes behind addresses, `Process.fromAddress(a)`",
                  refusal("fn f(a : Address(Int)) = Set.put(Set.empty, a)")),
     ?assertEqual(ok, ok("type Box = Box(m : Map((Int) -> Int, Int))\n"
                         "fn f(m : Map((Int) -> Int, Int)) : Int = 1\n"
@@ -616,7 +622,7 @@ map_key_equality_test() ->
     ?assertEqual("(Map(#(k=, Int), v)) -> Map(#(k=, Int), v)",
                  type_of("export fn f(m : Map(#(k, Int), v)) : Map(#(k, Int), v) = m", f)),
     ?assertEqual("Address(Int) does not support equality (it contains a function or an"
-                 " address), and a Map's key needs it"
+                 " address), which f requires of a Map's key, in its first argument"
                  "; compare the processes behind addresses, `Process.fromAddress(a)`",
                  refusal("fn f(m : Map(#(k, Int), Int), key : k) = m\n"
                          "fn g(m : Map(#(Address(Int), Int), Int), a : Address(Int)) = f(m, a)")).
@@ -870,6 +876,55 @@ bind_arrow_test() ->
     ?assertMatch("`<-` needs an Either or an Optional, not Int",
                  refusal("fn f() = { let x <- 1; x }")).
 
+%% report §11.5: a callee's type in the label at its call is printed as its
+%% declaration writes it, under its own variable names, and a field's in a
+%% fill's label under its type's parameter names. A regression test: each
+%% label printed a fresh instance, `t` as `a` and `m` as `e` (findings.md's
+%% X2)
+declared_names_in_labels_test() ->
+    #diagnostic{labels = CallLabels} =
+        diagnostic("fn g(x : Int, y : t) : t with m = {\n    let _ = self();\n    y\n}\n"
+                   "fn f() : Unit with Int = g(\"x\", Unit)\n"),
+    ?assertMatch([{_, "g : (Int, t) -> t with m+"}], CallLabels),
+    #diagnostic{labels = FillLabels} =
+        diagnostic("type Ops(s) = Ops(size : (s) -> Bool)\n"
+                   "fn f() : Ops(Set(Int)) = Ops(..Set)\n"),
+    ?assertMatch([{_, "Ops declares size : (s) -> Bool"}], FillLabels).
+
+%% report §11.5, §3.5, §4.8: a deferred mismatch labels the later use that
+%% fixed the operand type, beside the annotation. A regression test of
+%% findings.md's X16; it does not cover a type fixed by a unification that
+%% cannot fail, as a first branch's
+settled_operand_labelled_test() ->
+    #diagnostic{labels = SelectionLabels} =
+        diagnostic("type Point = Point(x : Int)\n"
+                   "fn f(p) : String = {\n    let s : String = p.x;\n    let q : Point = p;\n"
+                   "    s\n}\n"),
+    ?assertMatch([{_, "declared String here"},
+                  {{4, 21, _}, "this fixes the value whose x is read as Point"}],
+                 SelectionLabels),
+    #diagnostic{labels = OperatorLabels} =
+        diagnostic("fn g(a, b) : Int = {\n    let s : String = a + b;\n    let n : Int = b;\n"
+                   "    n\n}\n"),
+    ?assertMatch([{_, "declared String here"}, {{3, 19, _}, "this fixes `+`'s operands as Int"}],
+                 OperatorLabels).
+
+%% report §11.5, §5.5: a `<-` whose value's sum type is known where it
+%% stands is checked there, so that its error stops the block, before a
+%% later statement's error hides it or a later use settles the types it
+%% prints. A regression test: a later error was reported alone, and the
+%% pattern's mismatch printed a type a later line had settled (findings.md's
+%% X1). It does not cover a `<-` whose sum type is open, which waits for
+%% the end of the definition as before
+bind_arrow_checked_where_it_stands_test() ->
+    ?assertEqual(["`<-` needs an Either or an Optional, not Int"],
+                 refusals("fn f() : Optional(Int) = {\n    let x <- 1;\n"
+                          "    let z : String = 2;\n    Some(x)\n}")),
+    ?assertEqual(["the pattern does not fit the value inside the sum type: expected Int,"
+                  " found #(a, b)"],
+                 refusals("fn f(o : Optional(Int)) : Optional(Int) = {\n    let #(a, b) <- o;\n"
+                          "    let z : String = a;\n    Some(1)\n}")).
+
 %% report §5.5: `<-` over a value whose sum type nothing decides asks for an
 %% annotation; its pattern is irrefutable, as `let`'s is, so a constructor
 %% pattern is refused and a tuple accepted. A regression test: the checker
@@ -933,7 +988,11 @@ type_parameters_distinct_test() ->
     ?assertEqual("type variable a appears twice among the parameters of Stack",
                  refusal("abstract type Stack(a, a) = Stack(List(a))")),
     ?assertEqual("type variable k appears twice among the parameters of Table",
-                 refusal("foreign type Table(k=, k)")).
+                 refusal("foreign type Table(k=, k)")),
+    %% the second underlined, the first labelled: a regression test of
+    %% findings.md's X20, which underlined the declaration
+    ?assertMatch(#diagnostic{span = {1, 14, _}, labels = [{{1, 11, _}, "first written here"}]},
+                 diagnostic("type Pair(a, a) = Pair(a)")).
 
 %% report §3.5, §3.9, §4.2, §4.3
 type_declarations_test() ->
@@ -1025,21 +1084,22 @@ local_fn_signature_shares_variables_test() ->
                  refusal("fn outer(x : a) : a = { fn g(y : b) : b = 1; x }")).
 
 %% report §3.9: polymorphic recursion is refused, even under a full
-%% signature, and §11.5's help line names the rule, at a top-level and a
+%% signature, the message naming the rule and §11.5's help line the fix, a
+%% second function (findings.md's X11), at a top-level and a
 %% local definition's recursive call alike, and at no other call. A
 %% regression test: the checker conformed before it was written; the help
 %% line, of 2026-10-01, is its own. It does not cover a mutually recursive
 %% group.
 polymorphic_recursion_is_refused_test() ->
-    Help = "a recursive call is at the definition's own type, so a call at another type goes"
-           " to a second function (§3.9)",
+    Help = "declare a second function for the call at another type",
     %% report §11.5: at the recursive call's argument, as any call is;
     %% §3.9's rule for a recursive group refuses the type that once
     %% exercised this, so a list does
-    ?assertEqual({"the argument does not fit depth: a type that would contain itself"
-                  " (a against List(a))", Help},
+    ?assertEqual({"the argument of a recursive call does not fit depth at its own type (§3.9):"
+                  " a type that would contain itself (a against List(a))", Help},
                  refusal_and_help("fn depth(x : a) : Int = 1 + depth([x])")),
-    ?assertEqual({"the argument does not fit both: expected a, found Bool", Help},
+    ?assertEqual({"the argument of a recursive call does not fit both at its own type (§3.9):"
+                  " expected a, found Bool", Help},
                  refusal_and_help("fn f() : Int = {\n"
                                   "    fn both(x : a, n : Int) : Int ="
                                   " if n == 0 then 0 else both(true, n - 1);\n"
@@ -1057,8 +1117,7 @@ polymorphic_recursion_is_refused_test() ->
 block_let_annotation_variables_test() ->
     ?assertEqual("the value does not have the declared type: expected a, found Int",
                  refusal("fn f(x : a) : Int = { let y : a = 1; y }")),
-    ?assertEqual("the body does not have the declared result type: expected Optional(Int),"
-                 " found Optional(a)",
+    ?assertEqual("the pattern does not fit the value inside the sum type: expected Int, found a",
                  refusal("fn f(x : Optional(a), n : Int) : Optional(Int) ="
                          " { let y : a <- Some(n); Some(y) }")),
     ?assertEqual("(a) -> a", type_of("export fn f(x : a) : a = { let y : a = x; y }", f)),
@@ -1140,9 +1199,27 @@ let_cycle_test() ->
 let_cycle_through_a_named_function_test() ->
     ?assertEqual("the initializer of handlers depends on itself, through f",
                  refusal("let handlers = [f]\nfn f() : Int = List.size(handlers)\n")),
-    ?assert(lists:member("the initializer of a depends on itself", refusals("let a = fn() = a\n"))),
+    ?assertEqual(["the initializer of a depends on itself"], refusals("let a = fn() = a\n")),
     ?assertEqual(["the initializer of a depends on itself"],
                  refusals("let a : () -> Int = fn() : Int = a()\n")).
+
+%% report §11.5: a declaration whose check failed is used at the type its
+%% signature states, so that no error at a use follows from its own. A
+%% regression test of findings.md's D9: `Io.show` of its result was refused
+%% as not known whole; it does not cover a signature itself in error
+failed_declaration_keeps_its_signature_test() ->
+    ?assertEqual(["fromList needs a.compare, which unique does not declare"],
+                 refusals("fn unique(list : List(a)) : List(a) =\n"
+                          "    OrderedSet.toList(OrderedSet.fromList(list))\n"
+                          "fn f() : String = Io.show(unique([\"b\", \"a\"]))\n")).
+
+%% report §8.5, §11.5: a let whose initializer uses it at another type than
+%% its own is refused for the cycle alone, the mismatch following from it.
+%% A regression test (findings.md's X3); it does not cover a mismatch at a
+%% use of the let inside a function of its cycle, which is reported there
+let_named_by_itself_one_error_test() ->
+    ?assertEqual(["the initializer of f depends on itself"],
+                 refusals("let f = fn(x) = if x then f(1) else 2\n")).
 
 %% report §8.5, §11.5: a cycle through a function says that the function
 %% reads the value when called and that a `fn` builds it when asked; one
@@ -1232,8 +1309,8 @@ reply_through_bindings_test() ->
     ?assertEqual("(M.Box(a!)) -> Unit",
                  type_of(Source ++ "export fn forget(b : Box(a)) : Unit = Unit", forget)),
     ?assertEqual("(a) -> a", type_of("export fn keep(x) = { let y = x; y }", keep)),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where dup duplicates or discards"
-                 " its argument: dup : (a!) -> #(a!, a!)",
+    ?assertEqual("a reply-carrying value, Reply(Int), passed in the first argument of dup,"
+                 " which duplicates or discards it",
                  refusal(Source ++ "fn dup(x) = { let y = x; #(y, y) }\n"
                          "fn f(r : Reply(Int)) = {\n"
                          "    let #(a, b) = dup(r); answer(a, 1); answer(b, 2) }")).
@@ -1272,8 +1349,8 @@ reply_carrying_by_the_fields_test() ->
     Requests = "type Req = Get(reply : Reply(Int))\n",
     ?assertEqual(ok, ok(Types ++ Requests ++ "fn drop(h : H(e)) : Unit = Unit\n"
                         "fn f(h : H(Req)) : Unit = { drop(h); drop(h) }\n")),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where drop duplicates or discards"
-                 " its argument: drop : (Box(a!)) -> Unit",
+    ?assertEqual("a reply-carrying value, Reply(Int), passed in the first argument of drop,"
+                 " which duplicates or discards it",
                  refusal(Types ++ "fn drop(b : Box(a)) : Unit = Unit\n"
                          "fn f(r : Reply(Int)) : Unit = drop(Box(r))\n")).
 
@@ -1454,10 +1531,9 @@ reply_test() ->
                  refusal(Source ++ "fn f(r : Reply(Int)) = List.map([1], fn(x) = answer(r, x))")),
     ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int)) : Unit with Never ="
                         " { let _ = spawn(fn() : Unit with Never = answer(r, 1)); Unit }")),
-    ?assertEqual({"a reply-carrying value, Reply(Int), passed where dup duplicates or discards"
-                  " its argument: dup : (a!) -> #(a!, a!)",
-                  "a reply is discharged by answering it, passing it on once, or matching it"
-                  " (§6.6)"},
+    ?assertEqual({"a reply-carrying value, Reply(Int), passed in the first argument of dup,"
+                  " which duplicates or discards it",
+                  "a reply is consumed by answering it, passing it on once, or matching it (§6.6)"},
                  refusal_and_help(Source ++ "fn dup(x) = #(x, x)\nfn f(r : Reply(Int)) = dup(r)")),
     ?assertEqual(ok, ok(Source ++ "fn id(x) = x\nfn f(r : Reply(Int)) = answer(id(r), 1)")),
     ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int)) = { let r2 = r; answer(r2, 1) }")),
@@ -1535,8 +1611,8 @@ smaller_silences_test() ->
 %% not held. A regression test: `Foreign.from(r)` dropped a reply
 foreign_no_reply_test() ->
     Source = "type Msg = Get(reply : Reply(Int))\n",
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where Foreign.from duplicates or"
-                 " discards its argument: Foreign.from : (a!) -> Foreign.Term",
+    ?assertEqual("a reply-carrying value, Reply(Int), passed in the first argument of"
+                 " Foreign.from, which duplicates or discards it",
                  refusal(Source ++ "fn f(r : Reply(Int)) = { let _ = Foreign.from(r); Unit }")),
     ?assertEqual("(a!) -> M.Held(a!)",
                  type_of("export type Held(a) = Held(a)\n"
@@ -1556,12 +1632,12 @@ reply_in_a_list_test() ->
                         "fn f(r : Reply(Int)) : #(List(Reply(Int)), Int) = pair(r)")),
     ?assertEqual(ok, ok("fn some(x) = Some([x])\n"
                         "fn f(r : Reply(Int)) : Optional(List(Reply(Int))) = some(r)")),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where List.size duplicates or"
-                 " discards its argument: List.size : (List(a!)) -> Int",
+    ?assertEqual("a reply-carrying value, Reply(Int), passed in the first argument of"
+                 " List.size, which duplicates or discards it",
                  refusal("fn f(r : Reply(Int), waiters : List(Reply(Int))) ="
                          " List.size(r :: waiters)")),
-    ?assertMatch("a reply-carrying value, Reply(Int), passed where Map.put duplicates or"
-                 " discards its argument" ++ _,
+    ?assertMatch("a reply-carrying value, Reply(Int), passed in the third argument of Map.put,"
+                 " which duplicates or discards it",
                  refusal("fn f(r : Reply(Int)) = Map.put(Map.empty, 1, r)")),
     ?assertEqual(ok, ok("fn pair(x) = #([x], 1)\nfn f(n : Int) = pair(n)")),
     ?assertEqual(ok, ok("fn f(r : Reply(Int)) = { let #(r2, _) = #(r, [1]); answer(r2, 1) }")).
@@ -1604,8 +1680,8 @@ warts_audit_test() ->
                  refusal(Source ++ "fn f(_ : Reply(Int)) = Unit")),
     %% the flag reaches variables inside a tuple parameter
     ?assertEqual("(#(a, b!)) -> a", type_of("export fn fst(#(x, y)) = x", fst)),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where fst duplicates or discards"
-                 " its argument: fst : (#(a, b!)) -> a",
+    ?assertEqual("a reply-carrying value, Reply(Int), passed in the first argument of fst,"
+                 " which duplicates or discards it",
                  refusal(Source ++ "fn fst(#(x, y)) = x\nfn f(r : Reply(Int)) = fst(#(1, r))")),
     %% duplicate field in a pattern
     ?assertEqual("field reply is matched twice",
@@ -1615,13 +1691,11 @@ warts_audit_test() ->
     %% the parameter count
     ?assertEqual("the implementation names arity 2, and tick has 0 parameters",
                  refusal("foreign fn tick() : Unit with m = \"m:tick/2\"")),
-    ?assertEqual("the implementation of tick is named module:function/arity, here"
-                 " module:function/0",
+    ?assertEqual("the implementation of tick is not written `module:function/arity`",
                  refusal("foreign fn tick() : Unit with m = \"tick\"")),
     %% a line feed after the arity is no part of the form; a regression
     %% test: `$` matched before it (findings.md's C2-8)
-    ?assertEqual("the implementation of tick is named module:function/arity, here"
-                 " module:function/0",
+    ?assertEqual("the implementation of tick is not written `module:function/arity`",
                  refusal("foreign fn tick() : Unit with m = \"m:tick/0\\n\"")),
     %% foreign fn with an effect is process-only
     ?assertEqual("tick needs a process, and f is pure",
@@ -1646,8 +1720,11 @@ warts_audit_test() ->
 %% A regression test: the checker conformed before it was written. It does
 %% not cover a module or function missing at run time.
 foreign_implementation_name_test() ->
-    Named = "the implementation of tick is named module:function/arity, here module:function/1",
-    ?assertEqual(Named, refusal("foreign fn tick(n : Int) : Int = \"erlang:abs\"")),
+    Named = "the implementation of tick is not written `module:function/arity`",
+    %% the help gives the arity to write: a regression test of findings.md's X24
+    ?assertEqual({Named, "write the host's module and function and the arity 1, as"
+                         " `module:function/1`"},
+                 refusal_and_help("foreign fn tick(n : Int) : Int = \"erlang:abs\"")),
     ?assertEqual(Named, refusal("foreign fn tick(n : Int) : Int = \"abs/1\"")),
     ?assertEqual(Named, refusal("foreign fn tick(n : Int) : Int = \"erlang:abs/x\"")),
     ?assertEqual("the implementation names arity 2, and tick has 1 parameter",
@@ -1853,8 +1930,8 @@ restriction_reaches_values_test() ->
     %% parameter is used once
     ?assertEqual("(a!) -> (b) -> #(a!, b)",
                  type_of("export fn first(x) = fn(y) = #(x, y)", first)),
-    ?assertEqual("a reply-carrying value, Reply(Int), passed where d duplicates or discards its"
-                 " argument: d : (a!) -> #(a!, a!)",
+    ?assertEqual("a reply-carrying value, Reply(Int), passed in the first argument of d, which"
+                 " duplicates or discards it",
                  refusal("fn f(r : Reply(Int)) : Unit with m = {\n"
                          "    let d = fn(x) = #(x, x);\n"
                          "    let #(a, b) = d(r);\n    answer(a, 1);\n    answer(b, 2)\n}")),
@@ -2431,7 +2508,7 @@ leaf_placement_test() ->
     ArrowPattern = diagnostic("fn f(o : Optional(Int)) : Optional(Int) = {\n    let #(a, b) <- o;\n"
                               "    Some(a)\n}\n"),
     ?assertEqual("the pattern does not fit the value inside the sum type: expected Int,"
-                 " found #(Int, a)", ArrowPattern#diagnostic.message),
+                 " found #(a, b)", ArrowPattern#diagnostic.message),
     ?assertEqual({2, 9, {2, 16}}, ArrowPattern#diagnostic.span),
     ?assertEqual([{{2, 20, {2, 21}}, "the value inside has type Int"}],
                  ArrowPattern#diagnostic.labels).
@@ -2456,7 +2533,7 @@ effect_placement_test() ->
     ?assertEqual("give main a mailbox type with `with`", Pure#diagnostic.help),
     Guard = diagnostic("fn f(n : Int) : Int with Never = match n {"
                        " k when Io.println(\"x\") == Unit -> 1 | _ -> 0 }\n"),
-    ?assertEqual([{{1, 51, {1, 74}}, "a guard is pure (report §5.9)"}], Guard#diagnostic.labels),
+    ?assertEqual([{{1, 51, {1, 74}}, "a guard is pure (§5.9)"}], Guard#diagnostic.labels),
     ?assertEqual("compute the value before the match", Guard#diagnostic.help),
     Receive = diagnostic("fn f() : Unit = receive { after 1 -> Unit }\n"),
     ?assertEqual("`receive` needs a process, and f is pure", Receive#diagnostic.message),
@@ -2539,9 +2616,9 @@ comparison_reported_where_it_stands_test() ->
     ?assertNotEqual(nomatch, string:find(Message, "but it is compared here")).
 
 %% report §3.10, §11.5: a map keyed by addresses is an error at its first
-%% operation, as the guide teaches it. A regression test: the error stood
-%% at the map's last operation, a `Map.size` after the `Map.put` that gave
-%% it the key
+%% operation, at the argument that gives the key, as the guide teaches it.
+%% A regression test: the error stood at the map's last operation, a
+%% `Map.size` after the `Map.put` that gave it the key
 address_key_at_first_operation_test() ->
     {error, [#diagnostic{span = Span} | _]} =
         check("type Msg = Go\n"
@@ -2549,7 +2626,7 @@ address_key_at_first_operation_test() ->
               "    let m = Map.put(Map.empty, self(), 1);\n"
               "    Io.println(Int.toString(Map.size(m)))\n"
               "}\n"),
-    ?assertMatch({3, 13, _}, ern_diagnostic:span(Span)).
+    ?assertMatch({3, 32, _}, ern_diagnostic:span(Span)).
 
 %% report §3.10, §4.8: a regression test. An operator resolved at the end
 %% of its definition keeps its member's equality constraint, as one
@@ -2830,9 +2907,9 @@ requirement_in_the_body_test() ->
 requirement_variable_test() ->
     ?assertEqual("b is no type variable of the signature",
                  refusal("fn f(x : a) : a needs b.compare = x")),
-    ?assertEqual({"e is no type variable of the signature",
-                  "e stands only after `with`, where a mailbox type stands, and a requirement"
-                  " names a type"},
+    %% an effect variable's own message: a regression test of findings.md's X12
+    ?assertEqual({"e is an effect variable, and a requirement names a type variable in a value"
+                  " position", undefined},
                  refusal_and_help("fn f(x : a) : a with e needs e.compare = x")),
     ?assertEqual(ok, ok("fn f() : List(a) needs a.compare = []")).
 
@@ -2840,11 +2917,12 @@ requirement_variable_test() ->
 %% error, written, by an operator, or by its type variable without a
 %% requirement; written after the code
 member_not_declared_test() ->
-    ?assertEqual("f does not declare a.+; add needs a.+",
-                 refusal("fn f(x : a, y : a) : a needs a.compare = a.+(x, y)")),
-    ?assertEqual("`<` needs a.compare, which f does not declare; add needs a.compare",
-                 refusal("fn f(x : a, y : a) : Bool = x < y")),
-    ?assertEqual("`-` needs a.negate, which f does not declare; add needs a.negate",
+    ?assertEqual({"f does not declare a.+", "add `needs a.+` to f's signature"},
+                 refusal_and_help("fn f(x : a, y : a) : a needs a.compare = a.+(x, y)")),
+    ?assertEqual({"`<` needs a.compare, which f does not declare",
+                  "add `needs a.compare` to f's signature"},
+                 refusal_and_help("fn f(x : a, y : a) : Bool = x < y")),
+    ?assertEqual("`-` needs a.negate, which f does not declare",
                  refusal("fn f(x : a) : a = -x")),
     ?assertEqual({"unknown name a",
                   "a is a type variable of the signature; its member, as a.compare, is named"
@@ -2859,8 +2937,9 @@ requirement_supplied_test() ->
     ?assertEqual(ok, ok("fn f() : List(Int) = OrderedSet.toList(OrderedSet.fromList([3, 1]))")),
     ?assertEqual(ok, ok("fn unique(list : List(a)) : List(a) needs a.compare =\n"
                         "    OrderedSet.toList(OrderedSet.fromList(list))")),
-    ?assertEqual("fromList needs a.compare, which unique does not declare; add needs a.compare",
-                 refusal("fn unique(list : List(a)) : List(a) =\n"
+    ?assertEqual({"fromList needs a.compare, which unique does not declare",
+                  "add `needs a.compare` to unique's signature"},
+                 refusal_and_help("fn unique(list : List(a)) : List(a) =\n"
                          "    OrderedSet.toList(OrderedSet.fromList(list))")),
     ?assertEqual("fromList needs List(Int).compare, and List(Int) has no compare",
                  refusal("fn f() : Int = OrderedSet.size(OrderedSet.fromList([[1]]))")),
@@ -2873,9 +2952,9 @@ requirement_supplied_test() ->
                                   "    List.foldLeft(list, zero, a.+)\n"
                                   "fn f() : Vec = total([Vec(1.0)], Vec(0.0))")),
     %% a top-level let declares no requirement
-    ?assertEqual("fromList needs a.compare; a let cannot declare it, so write a fn with the"
-                 " requirement",
-                 refusal("let f = OrderedSet.fromList")).
+    ?assertEqual({"fromList needs a.compare, which a top-level let cannot declare",
+                  "declare a `fn` with `needs a.compare`"},
+                 refusal_and_help("let f = OrderedSet.fromList")).
 
 %% report §4.9: the requirement in force is the enclosing `fn` declaration's,
 %% in a lambda and in a block fn that shares its variables; a let-bound
@@ -2962,12 +3041,15 @@ fill_test() ->
     ?assertEqual("Ops(..Set) lacks min: Set has no min",
                  refusal("type Ops(s, a) = Ops(min : (s) -> Optional(a))\n"
                          "let hashed : Ops(Set(Int), Int) = Ops(..Set)")),
-    ?assertEqual("fromList needs a.compare, and the record's type leaves a undetermined",
+    ?assertEqual("fromList needs a.compare, and the record's type leaves the variable a"
+                 " undetermined; annotate it",
                  refusal(Ops ++ "fn f() : Int = { let ops = Ops(..OrderedSet); 1 }")),
     %% the help names the part that differs, past a variable on either
-    %% side; a regression: it said "the types differ at a=! and a=!"
+    %% side; a regression: it said "the types differ at a=! and a=!". The
+    %% two types are named as one, so two variables are `a` and `b`; a
+    %% regression test too, both printed as `a` (findings.md's X2)
     ?assertEqual({"Ops(..Set) fills size with Set.size: expected (a) -> Bool, found"
-                  " (Set(a=!)) -> Int", "the types differ at Bool and Int"},
+                  " (Set(b=!)) -> Int", "the types differ at Bool and Int"},
                  refusal_and_help("type Ops(s) = Ops(size : (s) -> Bool)\n"
                                   "fn f() : Ops(Set(Int)) = Ops(..Set)")),
     %% an expression after `..` keeps the record update's rule
@@ -3046,10 +3128,10 @@ update_path_test() ->
 %% a reference outside the group, and the group's types under another,
 %% stand; written after the code
 recursive_group_at_parameters_test() ->
-    Help = "no function could walk the type, since a recursive call is at the definition's own"
-           " type (§3.9)",
+    %% the help names the fix (findings.md's X11)
     ?assertEqual({"Nest is named at List(a) in its own fields, and a type of a recursive group"
-                  " is named in its fields at the declaring type's parameters alone", Help},
+                  " is named in its fields at the declaring type's parameters alone",
+                  "write `Nest(a)`, or `List(Nest(a))` to hold it in a List"},
                  refusal_and_help("type Nest(a) = Flat(a) | Deeper(Nest(List(a)))")),
     ?assertEqual("Nest is named at Int in its own fields, and a type of a recursive group is"
                  " named in its fields at the declaring type's parameters alone",
@@ -3063,7 +3145,7 @@ recursive_group_at_parameters_test() ->
     %% of such a type failed with a message about an annotation (2026-10-04)
     ?assertEqual({"Flip is named at Flip(b, a) in its own fields, and a type of a recursive group"
                   " is named in its fields at the declaring type's parameters, each in its"
-                  " place, (a, b)", Help},
+                  " place, (a, b)", "write `Flip(a, b)`"},
                  refusal_and_help("type Flip(a, b) = End(a) | Turn(Flip(b, a))")),
     ?assertEqual("Twin is named at Twin(a, a) in its own fields, and a type of a recursive group"
                  " is named in its fields at the declaring type's parameters, each in its place,"

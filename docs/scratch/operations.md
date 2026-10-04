@@ -68,14 +68,14 @@ Members supply members. A member with a requirement of its own, such as the deri
 **The errors.** Each names what the program wrote and, where there is one, what it must write instead.
 
 - A call where the type is a variable and the enclosing function declares no requirement for it:
-  `fromList needs a.compare, which unique does not declare; add needs a.compare`
+  `fromList needs a.compare, which unique does not declare`, with the help ``add `needs a.compare` to unique's signature``
 - A call at a known type without the member:
   `fromList needs List(Int).compare, and List(Int) has no compare`
 - A call at a type whose member has another shape:
   `total needs Vec.+ : (Vec, Vec) -> Vec, and Vec.+ answers Float`
 - `a.compare` or `<` on a type variable in a body without the requirement is a type error, as it was before.
 
-**Where a requirement is in force.** The requirement in force in a body is the enclosing `fn` declaration's, for the type variables of its signature, wherever the use stands: inside a lambda, and inside a lambda bound by `let`, included. One case needs care. A `let`-bound lambda whose own type variable is not the signature's is generalized on its own, before any call ties it to the signature, so an unannotated `let build = fn(xs) = OrderedSet.fromList(xs)` meets the first error above. A `fn` declared in a block declares its own requirement for its own variables and shares the enclosing one for the variables they share. A top-level `let` declares no requirement, so `let f = OrderedSet.fromList` is refused with a message that says what to write instead: `fromList needs a.compare; a let cannot declare it, so write a fn with the requirement`.
+**Where a requirement is in force.** The requirement in force in a body is the enclosing `fn` declaration's, for the type variables of its signature, wherever the use stands: inside a lambda, and inside a lambda bound by `let`, included. One case needs care. A `let`-bound lambda whose own type variable is not the signature's is generalized on its own, before any call ties it to the signature, so an unannotated `let build = fn(xs) = OrderedSet.fromList(xs)` meets the first error above. A `fn` declared in a block declares its own requirement for its own variables and shares the enclosing one for the variables they share. A top-level `let` declares no requirement, so `let f = OrderedSet.fromList` is refused, `fromList needs a.compare, which a top-level let cannot declare`, with the help ``declare a `fn` with `needs a.compare` ``.
 
 **What a requirement may name.** The variable is a type variable of the signature that stands in a value position ([report §3.9](https://github.com/joagre/ernest/blob/main/report/language.md#39-type-variables-and-polymorphism)). `needs e.compare` on an effect variable, and `needs b.compare` where `b` is nowhere in the signature, are errors at the declaration: `b is no type variable of the signature`. A variable that stands only in the result type may carry one, since the instantiation is read once the enclosing definition is inferred. Under a requirement on `a`, no parameter, `let` or pattern variable may be named `a`, so that `a.compare` reads one way.
 
@@ -288,7 +288,7 @@ fn unique(list : List(a)) : List(a) =
 
 ```console
 $ ern build --short-errors usage.ern
-usage.ern:17:23: fromList needs a.compare, which unique does not declare; add needs a.compare
+usage.ern:18:23: fromList needs a.compare, which unique does not declare
 ```
 
 `mixed.ern` is a program goal 4 refuses:

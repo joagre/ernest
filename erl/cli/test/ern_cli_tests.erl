@@ -706,8 +706,7 @@ abstract_shown_outside_its_module_test() ->
           "export fn main() : Unit with Never = Io.println(shown(Lib.Stack.one))\n"),
     ?assertEqual(1, build_err(["--build-root", Refused ++ "/build", Refused ++ "/src"])),
     ?assertMatch({match, _}, re:run(iolist_to_binary(?capturedOutput),
-                                    "Io.show needs a.show, which shown does not declare; add"
-                                    " needs a.show")).
+                                    "Io.show needs a.show, which shown does not declare")).
 
 %% report Appendix E.1, §3.8: a value of a foreign type is shown as
 %% `<foreign>`, `Foreign.Term` and a type a module declares alike, inside
@@ -1390,7 +1389,7 @@ compile_error_test() ->
                    " expected String, found Int\n"
                    "1 | export fn main() : Unit with Never = Io.println(1)\n"
                    "  |                                      ---------- Io.println : (String) ->"
-                   " Unit with e+\n"
+                   " Unit with m+\n"
                    "  |                                                 ^\n\n">>,
                  iolist_to_binary(?capturedOutput)),
     ?assertNot(filelib:is_regular(filename:join(Dir, "bad.erc"))).

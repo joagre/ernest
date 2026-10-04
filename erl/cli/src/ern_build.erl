@@ -372,7 +372,7 @@ namespace_clash(#build_module{namespace = Namespace, relative = Relative,
 -spec clash(string(), atom(), string(), [atom()]) -> no_return().
 clash(ChildRelative, Type, ParentRelative, Namespace) ->
     fail(ChildRelative ++ " and type " ++ atom_to_list(Type) ++ " in " ++ ParentRelative
-         ++ " share the namespace " ++ ern_namespace:text(Namespace) ++ " (report §4.2)").
+         ++ " share the namespace " ++ ern_namespace:text(Namespace) ++ " (§4.2)").
 
 %% The types a parsed source declares; none when it is absent or does not parse.
 source_types(File) ->

@@ -176,9 +176,13 @@ declaration(Tokens) ->
         [{'let', _} | _] -> let_declaration(Tokens2, Doc, Export);
         [{foreign, _} | _] -> foreign_declaration(Tokens2, Doc, Export);
         [Token | _] ->
+            %% Appendix A's Declaration: `export` may begin one, once
+            Starts = case Export of
+                         true -> "type, abstract, fn, let, foreign";
+                         false -> "export, type, abstract, fn, let, foreign"
+                     end,
             wanted(declaration, position(Token),
-                   "expected a declaration (type, abstract, fn, let, foreign) instead of "
-                   ++ describe(Token))
+                   "expected a declaration (" ++ Starts ++ ") instead of " ++ describe(Token))
     end.
 
 doc([{doc, _, Text} | Rest]) -> {Text, Rest};
@@ -186,12 +190,14 @@ doc(Tokens) -> {undefined, Tokens}.
 
 type_declaration([{type, Position} | Rest], Doc, Export) ->
     {Name, Rest1} = expect_typename(Rest),
-    {Params, Rest2} = optional_typevars(Rest1),
+    {Vars, Rest2} = optional_typevars(Rest1),
     Rest3 = expect(Rest2, '='),
     {Constructors, Rest4} = constructors(Rest3),
     {Derives, Rest5} = optional_derives(Rest4),
     spanned({#type_declaration{span = Position, doc = Doc, export = Export, name = Name,
-                               params = Params, constructors = Constructors, derives = Derives},
+                               params = [Var || {Var, _} <- Vars],
+                               param_spans = [VarSpan || {_, VarSpan} <- Vars],
+                               constructors = Constructors, derives = Derives},
              Rest5}).
 
 %% Report §3.5, §2.4, Appendix A's TypeDecl: `derives compare` after the
@@ -205,11 +211,17 @@ optional_derives([{ident, _, derives}, Token | _]) ->
 optional_derives(Tokens) ->
     {undefined, Tokens}.
 
+%% Each type variable with its span; that the parameters are distinct is
+%% §4.3's rule, which the checker holds.
 optional_typevars([{'(', _} | Rest]) ->
-    {Vars, Rest1} = separated(Rest, ',', fun expect_ident/1),
+    {Vars, Rest1} = separated(Rest, ',', fun typevar/1),
     {Vars, expect(Rest1, ')')};
 optional_typevars(Tokens) ->
     {[], Tokens}.
+
+typevar(Tokens) ->
+    {Var, Position, Rest} = expect_ident_position(Tokens),
+    {{Var, ern_diagnostic:span(Position)}, Rest}.
 
 %% Report §2.2: a doc block before a constructor documents it, on the line
 %% above the constructor or above the `|` that leads it.
@@ -245,6 +257,16 @@ constructor(Tokens, Doc) ->
                      expect(Rest2, ')')});
         [{'(', _} | Rest1] ->
             {Type, Rest2} = type(Rest1),
+            case Rest2 of
+                [{',', CommaPosition} | _] ->
+                    %% report §3.5: one positional field, or named fields
+                    Text = atom_to_list(Name),
+                    fail(CommaPosition, "a constructor has exactly one positional field",
+                         "name the fields, `" ++ Text ++ "(x : ..., y : ...)`, or hold a tuple, `"
+                         ++ Text ++ "(#(..., ...))`");
+                _ ->
+                    ok
+            end,
             spanned({#constructor{span = Position, doc = Doc, name = Name,
                                   fields = {positional, Type}},
                      expect(Rest2, ')')});
@@ -301,10 +323,14 @@ member([{ident, Position, Variable}, {'.', _}, {Operator, _} | Rest])
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
        Operator =:= '/'; Operator =:= '%'; Operator =:= '<>' ->
     spanned({#member{span = Position, member_of = Variable, name = Operator}, Rest});
-member([{ident, Position, Variable}, {'.', _}, {ident, _, Name} | Rest]) ->
+member([{ident, Position, Variable}, {'.', _}, {ident, NamePosition, Name} | Rest]) ->
+    %% report §11.5: the error covers the member as written, `a.zero`
+    {Line, Column, _, _} = Position,
+    {_, _, End, _} = NamePosition,
     lists:member(Name, [compare, negate, show])
-        orelse fail(Position, atom_to_list(Name) ++ " is not a member: a requirement names"
-                                  " compare, negate, an operator or show (§4.8, E.1)"),
+        orelse fail({Line, Column, End}, atom_to_list(Name) ++ " is not a member: a requirement"
+                                         " names compare, negate, an operator or show"
+                                         " (§4.8, E.1)"),
     spanned({#member{span = Position, member_of = Variable, name = Name}, Rest});
 member([{ident, _, _}, {'.', _}, Token | _]) ->
     fail(position(Token), "expected compare, negate, an operator or show after `.` instead of "
@@ -469,8 +495,9 @@ foreign_declaration([{foreign, Position}, {type, _} | Rest], Doc, Export) ->
                         _ -> {[], Rest1}
                     end,
     spanned({#foreign_type_declaration{span = Position, doc = Doc, export = Export, name = Name,
-                                       params = [Var || {Var, _} <- Vars],
-                                       equality = [Equality || {_, Equality} <- Vars]},
+                                       params = [Var || {Var, _, _} <- Vars],
+                                       param_spans = [VarSpan || {_, VarSpan, _} <- Vars],
+                                       equality = [Equality || {_, _, Equality} <- Vars]},
              Rest2});
 foreign_declaration([{foreign, Position}, {fn, _} | Rest], Doc, Export) ->
     {MemberOf, Name, Rest1} = declaration_name(Rest),
@@ -505,10 +532,11 @@ foreign_declaration([{foreign, _}, Token | _], _Doc, _Export) ->
 
 %% Report §4.7, Appendix A: ForeignVar = typevar [ "=" ].
 foreign_var(Tokens) ->
-    {Name, Rest} = expect_ident(Tokens),
+    {Name, Position, Rest} = expect_ident_position(Tokens),
+    Span = ern_diagnostic:span(Position),
     case Rest of
-        [{'=', _} | Rest1] -> {{Name, true}, Rest1};
-        _ -> {{Name, false}, Rest}
+        [{'=', _} | Rest1] -> {{Name, Span, true}, Rest1};
+        _ -> {{Name, Span, false}, Rest}
     end.
 
 foreign_param(Tokens) ->
@@ -1146,6 +1174,7 @@ bit_segment(Tokens, Parse) ->
     case Rest of
         [{':', _} | Rest1] ->
             {Specs, Rest2} = separated(Rest1, '-', fun bit_spec/1),
+            no_unit(Specs),
             spanned({#bit_segment{span = ern_ast:span(Value), value = Value, specs = Specs},
                      Rest2});
         _ ->
@@ -1155,11 +1184,12 @@ bit_segment(Tokens, Parse) ->
 bit_spec([{ident, _, size}, {'(', _} | Rest]) ->
     {Expr, Rest1} = expr(Rest),
     {{size, Expr}, expect(Rest1, ')')};
+bit_spec([{ident, Position, unit}, {'(', _} | Rest]) ->
+    %% refused by no_unit/1, which sees the size written beside it
+    {Expr, Rest1} = expr(Rest),
+    {{unit, Position, Expr}, expect(Rest1, ')')};
 bit_spec([{ident, Position, unit} | _]) ->
-    %% report §5.11: a size counts bits, and octets for `bytes`, so no
-    %% specifier scales it
-    fail(Position, "there is no `unit` specifier",
-         "a size counts bits, and octets for `bytes`: write `size(n * 8)`");
+    fail(Position, "there is no `unit` specifier", unit_help(false, undefined));
 bit_spec([{ident, Position, Name} | Rest]) ->
     case lists:member(Name, ?SPECS) of
         true -> {Name, Rest};
@@ -1167,6 +1197,24 @@ bit_spec([{ident, Position, Name} | Rest]) ->
     end;
 bit_spec([Token | _]) ->
     fail(position(Token), "expected a bitstring specifier instead of " ++ describe(Token)).
+
+%% Report §5.11: a size counts bits, and octets for `bytes`, so no specifier
+%% scales it; the help writes the size with the scale where both are
+%% integers, `size(2 * 8)`.
+no_unit(Specs) ->
+    case lists:keyfind(unit, 1, Specs) of
+        {unit, Position, Unit} ->
+            fail(Position, "there is no `unit` specifier",
+                 unit_help(lists:keyfind(size, 1, Specs), Unit));
+        false ->
+            ok
+    end.
+
+unit_help({size, #e_literal{kind = int, value = Size}}, #e_literal{kind = int, value = Scale}) ->
+    "a size counts bits, and octets for `bytes`: write `size(" ++ integer_to_list(Size) ++ " * "
+    ++ integer_to_list(Scale) ++ ")`";
+unit_help(_, _) ->
+    "a size counts bits, and octets for `bytes`: write the size multiplied by the unit".
 
 %%
 %% Token helpers
@@ -1194,10 +1242,6 @@ expect([{'<-', _} = Token | _], Symbol) ->
 expect([Token | _], Symbol) ->
     fail(position(Token),
          "expected `" ++ atom_to_list(Symbol) ++ "` instead of " ++ describe(Token)).
-
-expect_ident(Tokens) ->
-    {Name, _, Rest} = expect_ident_position(Tokens),
-    {Name, Rest}.
 
 expect_ident_position([{ident, Position, Name} | Rest]) ->
     {Name, Position, Rest};
@@ -1278,7 +1322,7 @@ components(Position, {[_], _}) ->
 components(_, Parsed) ->
     Parsed.
 
--spec fail(ern_diagnostic:position(), iodata()) -> no_return().
+-spec fail(ern_diagnostic:position() | ern_diagnostic:span(), iodata()) -> no_return().
 fail(Position, Message) ->
     fail(Position, Message, undefined).
 
@@ -1299,7 +1343,8 @@ tagging(What, Parse) ->
     end.
 
 %% Report §11.5: the message states the rule, the help line the fix.
--spec fail(ern_diagnostic:position(), iodata(), string() | undefined) -> no_return().
+-spec fail(ern_diagnostic:position() | ern_diagnostic:span(), iodata(), string() | undefined) ->
+          no_return().
 fail(Position, Message, Help) ->
     throw({parse_error, diagnostic(Position, Message, Help)}).
 

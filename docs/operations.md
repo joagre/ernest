@@ -71,7 +71,7 @@ fn unique(list : List(a)) : List(a) =
 
 ```console
 $ ern build --short-errors usage.ern
-usage.ern:17:23: fromList needs a.compare, which unique does not declare; add needs a.compare
+usage.ern:18:23: fromList needs a.compare, which unique does not declare
 ```
 
 `mixed.ern` is a program E.25 refuses, an order belonging to an element type.

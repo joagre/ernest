@@ -60,7 +60,7 @@ $ ern build message.ern
 message.ern:14:19: the argument does not fit send: expected CounterMsg, found String
 13 |     let counter = spawn(fn() = count(0));
 14 |     send(counter, "increment")
-   |     ---- send : (Address(a), a) -> Unit with e+
+   |     ---- send : (Address(a), a) -> Unit with m+
    |                   ^^^^^^^^^^^
 ```
 
@@ -84,6 +84,7 @@ forgot.ern:6:9: the reply-carrying value reply is never consumed
 5 |         Inc(amount) -> count(total + amount)
 6 |       | Get(reply = reply) -> count(total)
   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
 
 **Work through a process, in a function that says it does none.** Standard output is a process, so printing is sending it a message. `area` is declared pure, `: Int` with nothing after it, and the compiler holds it to that. A function that sends or receives says so with `with`, as the help line says.
@@ -817,6 +818,7 @@ resend.ern:5:19: the reply-carrying value request is consumed twice
   |                   ------- first consumed here
 5 |     send(counter, request)
   |                   ^^^^^^^
+  | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
 
 ### 4.3 Selective receive and `after`
@@ -1948,10 +1950,11 @@ fn unique(list : List(a)) : List(a) =
 
 ```console
 $ ern build generic.ern
-generic.ern:2:23: fromList needs a.compare, which unique does not declare; add needs a.compare
+generic.ern:2:23: fromList needs a.compare, which unique does not declare
 1 | fn unique(list : List(a)) : List(a) =
 2 |     OrderedSet.toList(OrderedSet.fromList(list))
   |                       ^^^^^^^^^^^^^^^^^^^
+  | = help: add `needs a.compare` to unique's signature
 ```
 
 `shown` declares `needs a.show`. `Io.show` writes a value by its type, which a function generic in that type does not know, so the function names `show` as it would name a member, and each call supplies the type's. `Io.show`'s own type says so, `(a!) -> String needs a.show`, and under the requirement it writes `a` and any type built from it, `List(a)` as well (report §9.4, Appendix E.1).

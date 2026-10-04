@@ -8,8 +8,8 @@
          resolve/2, substitute/2, unify/3, free_variables/2,
          monomorphic/1, generalize/2, generalize/3, instantiate/2, instance/2,
          replace_variables/2,
-         mismatch_pair/3, format/2, value_variables/2, value_args/3, effect_variables/1,
-         set_scope/4, set_effect_params/2,
+         mismatch_pair/3, format/2, format_pair/3, value_variables/2, value_args/3,
+         effect_variables/1, set_scope/4, set_effect_params/2,
          format_scheme/2, format_needs/3, format_call/4, format_error/1]).
 
 -export_type([type_state/0, type/0, effect/0, qualified_name/0, id/0, restrictions/0]).
@@ -433,6 +433,19 @@ format(Type, TypeState) ->
     EffectOnly = effect_only_variables(Elided, TypeState),
     {Text, _} = format_type(Elided, TypeState, #variable_names{effect_only = EffectOnly}),
     lists:flatten(Text).
+
+%% Report §11.5: two types a message prints together, an expected one and
+%% one found, named as one, so that a variable has one name in both and
+%% two variables never share one.
+-spec format_pair(type(), type(), type_state()) -> {string(), string()}.
+format_pair(Expected, Actual, TypeState) ->
+    {ttuple, [ElidedExpected, ElidedActual]} = Elided =
+        elide_pure_effects(substitute({ttuple, [Expected, Actual]}, TypeState), [], TypeState),
+    EffectOnly = effect_only_variables(Elided, TypeState),
+    Names = #variable_names{effect_only = EffectOnly},
+    {ExpectedText, Names1} = format_type(ElidedExpected, TypeState, Names),
+    {ActualText, _} = format_type(ElidedActual, TypeState, Names1),
+    {lists:flatten(ExpectedText), lists:flatten(ActualText)}.
 
 %% Variables that occur in no value position are named e, e1, ...: those
 %% after `with`, and those only in a type argument that is no value

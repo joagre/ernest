@@ -1047,7 +1047,7 @@ entry_point(Options, Namespace, LoadPath, Loaded) ->
                  load(EntryNamespace, LoadPath, Loaded)}
         end,
     Name = ern_namespace:text(entry_namespace(EntryModule) ++ [EntryFunction]),
-    Shape = "; an entry point is an exported fn of type () -> Unit (report §8.1)",
+    Shape = "; an entry point is an exported fn of type () -> Unit (§8.1)",
     case entry_shape(EntryModule, EntryFunction) of
         entry -> ok;
         missing -> ern_build:fail("no exported function " ++ Name ++ Shape);

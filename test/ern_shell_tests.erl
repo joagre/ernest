@@ -1675,7 +1675,7 @@ open_binding() ->
     {0, Output} = sh("../bin/ern shell < " ++ InputFile),
     %% the open binding is refused, and says what would settle it
     ?assertMatch({_, _}, binary:match(Output, <<"the type of p is not determined">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"bind it with an annotation">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"annotate the binding, `let p : Address(T)">>)),
     %% the annotated one is taken, and `kill` reaches it
     ?assertMatch({_, _}, binary:match(Output, <<"q : Address(Int)">>)),
     %% and the session goes on, which it did not before: a scheme with a
@@ -1823,6 +1823,22 @@ effect_variable() ->
     ?assertMatch({_, _}, binary:match(Output, <<"> f : (Int) -> Int\n> 3 : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> g : () -> Int with e+\n"
                                                 "> g : () -> Int with e+\n">>)).
+
+%% report §11.2, §11.5: an input whose binding's type it does not settle is
+%% refused at the whole binding, and an address with the mailbox its spawned
+%% function may declare. A regression test of findings.md's N10: column 1
+%% alone was underlined, and the help showed a list
+unsettled_binding_test_() ->
+    {timeout, 60, fun unsettled_binding/0}.
+
+unsettled_binding() ->
+    InputFile = scratch_file("ern_unsettled_"),
+    ok = file:write_file(InputFile, "let p = spawn(fn() : Unit = Unit)\n"),
+    {0, Output} = sh("../bin/ern shell < " ++ InputFile),
+    [?assertMatch({_, _}, binary:match(Output, Text))
+     || Text <- [<<"  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n">>,
+                 <<"annotate the binding, `let p : Address(T) = ...`, or write the spawned"
+                   " function's mailbox, `fn() : Unit with Never = ...`">>]].
 
 %% report §4.6, §11.2: a lambda bound by `let` at the prompt is generalized
 %% as in a block, its restrictions with it, and another value bound by `let`

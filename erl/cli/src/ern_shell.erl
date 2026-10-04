@@ -403,10 +403,19 @@ undetermined(Type, Env, Binds, Typed) ->
                                   message = lists:flatten(
                                               io_lib:format(undetermined_text(Binds),
                                                             [bound_names(Binds), Text])),
-                                  help = "bind it with an annotation that settles the variable,"
-                                         " as in `let xs : List(Int) = []`, or declare a function"
-                                         " with `fn`"}}
+                                  help = undetermined_help(ern_types:resolve(Type, TypeState),
+                                                           Binds)}}
     end.
+
+%% Report §11.2, §6.1: an address whose mailbox type is open is settled by
+%% its annotation or by the mailbox the spawned function declares, `Never`
+%% for one that receives nothing; any other type by an annotation.
+undetermined_help({tcon, ['Address'], _}, Name) when is_atom(Name) ->
+    "annotate the binding, `let " ++ atom_to_list(Name) ++ " : Address(T) = ...`, or write the"
+    " spawned function's mailbox, `fn() : Unit with Never = ...` for one that receives nothing";
+undetermined_help(_, _) ->
+    "bind it with an annotation that settles the variable, as in `let xs : List(Int) = []`, or"
+    " declare a function with `fn`".
 
 undetermined_text({names, [_, _ | _]}) ->
     "the types of ~s are not determined by this input; together they are ~ts";
@@ -416,6 +425,11 @@ undetermined_text(_) ->
 bound_names({names, Names}) -> lists:join(", ", [atom_to_list(Name) || Name <- Names]);
 bound_names(Name) -> atom_to_list(Name).
 
+%% Report §11.5: the input's binding whole, from its start to the end of its
+%% value, as `ern build` underlines a top-level `let`.
+input_span([#fn_declaration{name = ?ENTRY, body = Body} | _]) ->
+    {_, _, End} = ern_diagnostic:span(ern_ast:span(Body)),
+    {1, 1, End};
 input_span([#fn_declaration{span = Span} | _]) -> ern_diagnostic:span(Span);
 input_span(_) -> {1, 1, {1, 2}}.
 

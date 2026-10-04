@@ -41,9 +41,10 @@ push : (Stack, Int) -> Stack
 1 | fn f() = 1 let y = 2
   |            ^^^^^^^^^
   | = help: run this `let` on an input of its own, or make it a `let` inside a declaration's body
-> input 33:1:18: expected `)` instead of `,`
+> input 33:1:18: a constructor has exactly one positional field
 1 | type Pair = P(Int, Int)
   |                  ^
+  | = help: name the fields, `P(x : ..., y : ...)`, or hold a tuple, `P(#(..., ...))`
 > type Shape
 abstract type Stack
 area : (Shape) -> Int
