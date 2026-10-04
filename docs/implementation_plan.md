@@ -16,9 +16,10 @@ milestone, the standing gaps, and what is done.
 **MVP 2.99c is under way**: the core language argued sound and generated against. Its machines,
 the grammar, the standard library's laws and well-typed programs, were built on 2026-10-03, and
 its argument, [`soundness.md`](soundness.md), was written on 2026-10-04 and found the reply
-discipline short in ten places, each closed that day. Next is its item 5, what Erlang holds
-that Ernest can, with a third round of the typed generator, on replies, before the full review
-of item 6 and the release, Ernest 0.3.0. MVP 2.99b, what the release review left, the code's
+discipline short in ten places, each closed that day, and the typed generator's third round,
+on replies, was built the same day and found nothing more. Next is its item 5, what Erlang
+holds that Ernest can, whose three named decisions are the user's, then the full review of
+item 6 and the release, Ernest 0.3.0. MVP 2.99b, what the release review left, the code's
 names read and made to read, operations records, and running as a service, was done on
 2026-10-03, and `findings.md` went with it; the principles review, a milestone of its own
 between its items 3 and 4, closed on 2026-10-01, and Ernest 0.2.0, the second release, is
@@ -94,7 +95,7 @@ programs as item 2, and the last three as items 7, 8 and 6.
    `String` matches whole graphemes of the string searched, `split` then `join` gives the
    string back, `sort` is stable, and the rest hold; none was broken.
 3. **Well-typed programs generated**, done 2026-10-03 (the log's *The Typed Programs
-   Generated*): `make test-typed`, a part of `make test` in about eighteen seconds, builds
+   Generated*): `make test-typed`, a part of `make test` in about twenty-seven seconds, builds
    four hundred pure programs by type and sixty of four process shapes, checks, compiles,
    loads and runs each in one host through the runtime's entry, and holds what each prints
    to what an interpreter of the same program, written in the test from the report's rules,
@@ -103,12 +104,14 @@ programs as item 2, and the last three as items 7, 8 and 6.
    lists, lambdas, helper and local functions, structural recursion, and the operations of
    `Int` and `String` with a few of `List` and `Optional`; the shapes are a worker that
    sends its value back, a server that answers a call, a receive that times out, and a
-   deadlock. No program was refused, miscompiled or ended otherwise than predicted. A third
-   round, the reply discipline, is planned (decided 2026-10-04, the log's *The Type System
-   Argued*) and built before item 6: programs that hold replies and move them in each way
-   §6.6 allows, each run with every reply answered once, and each again with one consumption
-   doubled, dropped, hidden or put on a path that may be skipped, which the checker must
-   refuse. The argument found ten such programs by hand that the checker accepted.
+   deadlock. No program was refused, miscompiled or ended otherwise than predicted. Its third
+   round, the reply discipline, decided with item 4, was built on 2026-10-04 (the log's *The
+   Replies Generated*): eighty programs a run whose server hands a call's reply on in each way
+   §6.6 allows before it is answered, each run, and each changed four times at one
+   consumption, doubled, dropped, hidden, put on a path that may be skipped, passed where a
+   function discards or copies it, or put where a reply may not stand, which the checker must
+   refuse with the change's own diagnostic. It found nothing; with one of item 4's fixes taken
+   out of the checker, it fails within a run.
 4. **The type system argued**, done 2026-10-04 (the log's *The Type System Argued*):
    [`soundness.md`](soundness.md), the argument that a well-typed program does not go wrong,
    in a small calculus, three invariants, a paragraph for each step and one for each place
@@ -143,7 +146,13 @@ programs as item 2, and the last three as items 7, 8 and 6.
    E.17 saying so, and the screen appends there, the cost of an open per write weighed
    when it is built. And **the terminal's key decoding**, ECMA-48 read in `ern_tty`, the
    runtime's by E.16 and §8.2's system process; recommended: kept, since a system process
-   is the runtime's own, and stated so in the log.
+   is the runtime's own, and stated so in the log. The three moves were measured before they
+   were built, and the measurement returned a third (the log's *What Erlang Holds, Measured*):
+   **`trimEnd` beneath**, since over `graphemes` it costs what the text's length costs where
+   the shim costs what its trailing spaces cost; recommended: a private primitive, the text
+   without its last grapheme and that grapheme, found from the end, and `trimEnd` Ernest
+   over it, as E.0 rule 1 admits, while `trimStart` and `toIntBase`, whose cost over the
+   shim's does not grow with the text, move as decided.
 6. **The full review**, decided with the user 2026-10-03: after item 5 and before item 7,
    in place of the release review's readers for 0.3.0. [`full_review.md`](full_review.md)
    is run whole: each of its nineteen readers and parts is a fresh agent of one workflow,

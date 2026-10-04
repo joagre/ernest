@@ -218,5 +218,5 @@ Within a recursive group, a type of the group is named at the parameters of the 
 ## 7. What it leaves
 
 - **The standard results it leans on** are not argued again: that Hindley-Milner inference gives each expression a type the rules of section 3 derive, and that the coverage check of §5.9 refuses a `match` that some value escapes.
-- **The checker against the rules.** The argument is of the report. The checker's tests hold each paragraph of section 6 as a case that is refused or accepted, and the plan gives the typed generator a round on replies.
+- **The checker against the rules.** The argument is of the report. The checker's tests hold each paragraph of section 6 as a case that is refused or accepted, and the typed generator's round on replies changes consumptions in programs that run, each change one the checker must refuse.
 - **Peers and sessions.** A type that crosses nodes is identified by its hash (§8.7), and a session declares a type anew (§11.2). Both are questions of which two types are one, and MVP 3.0 extends the argument to them.

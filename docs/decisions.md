@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-04.** [The Type System Argued](#the-type-system-argued-2026-10-04); [The Logo Installed, and the Reviews' Models](#the-logo-installed-and-the-reviews-models-2026-10-04).
+**2026-10-04.** [What Erlang Holds, Measured](#what-erlang-holds-measured-2026-10-04); [The Replies Generated](#the-replies-generated-2026-10-04); [The Type System Argued](#the-type-system-argued-2026-10-04); [The Logo Installed, and the Reviews' Models](#the-logo-installed-and-the-reviews-models-2026-10-04).
 
 **2026-10-03.** [The Typed Programs Generated](#the-typed-programs-generated-2026-10-03); [The Library's Laws Held](#the-librarys-laws-held-2026-10-03); [The Grammar Generated Against](#the-grammar-generated-against-2026-10-03); [MVP 2.99c Weighed Before It Starts](#mvp-299c-weighed-before-it-starts-2026-10-03); [The Supervisors Load Sampled at Rest](#the-supervisors-load-sampled-at-rest-2026-10-03); [The Report in Three Files](#the-report-in-three-files-2026-10-03); [The Reaper's Look at Rest](#the-reapers-look-at-rest-2026-10-03); [`Address.ask` Is Taken Out](#addressask-is-taken-out-2026-10-03); [The Operators Stay Ernest](#the-operators-stay-ernest-2026-10-03); [The Operators as Shims, Built](#the-operators-as-shims-built-2026-10-03); [The Service Manager's Checks](#the-service-managers-checks-2026-10-03); [The Runtime as a Service, Built](#the-runtime-as-a-service-built-2026-10-03); [The Hardening Built](#the-hardening-built-2026-10-03); [The Boundary Trusts a Type Variable](#the-boundary-trusts-a-type-variable-2026-10-03); [The Release Has a README of Its Own](#the-release-has-a-readme-of-its-own-2026-10-03); [The Report's and the Guide's Blocks Read](#the-reports-and-the-guides-blocks-read-2026-10-03); [The Path Built](#the-path-built-2026-10-03); [A Record Type That Fits Stays on One Line](#a-record-type-that-fits-stays-on-one-line-2026-10-03); [The Guide's §7.3 Over the Finished Code](#the-guides-73-over-the-finished-code-2026-10-03); [The Requirement Built](#the-requirement-built-2026-10-03).
 
@@ -6473,6 +6473,50 @@ MVP 2.99b's tenth item, a file's words joined by `_` naming one namespace, moves
 The documents that cite the milestone's items by number follow, the plan, CLAUDE.md, `development.md`, `operations.md`, `language_feedback.md` and `findings.md`; an entry of this log that stands before this one keeps the numbers of its day, which the note under the index says.
 
 Not taken: leaving it tenth, where a decided, independent item waited on what does not need it.
+
+## What Erlang Holds, Measured, 2026-10-04
+
+MVP 2.99c's item 5 moves `String.trimStart`, `String.trimEnd` and `String.toIntBase`'s reading of digits into Ernest. E.0 rule 1 admits a private primitive beneath an operation Ernest could write only where the Ernest form costs a multiple of the host's own, measured, so each was written and measured against its shim before the move was built. The forms were set aside, since the measurement returned a decision. Microseconds a call:
+
+| Operation and text | Shim | Ernest |
+|---|---|---|
+| `trimStart`, short | 4.0 | 10.1 |
+| `trimStart`, 100 KB, no space at the start | 1.5 | 5.9 |
+| `trimEnd` over `graphemes`, short | 2.1 | 5.9 |
+| `trimEnd` over `graphemes`, 100 KB of ASCII | 0.9 | 22,379 |
+| `trimEnd` over `graphemes`, 100 KB accented, ten spaces at the end | 6,668 | 11,027 |
+| `trimEnd` over a last grapheme, short | 1.9 | 4.3 |
+| `trimEnd` over a last grapheme, 100 KB of ASCII | 1.3 | 1.5 |
+| `trimEnd` over a last grapheme, 100 KB of ASCII, ten spaces at the end | 2.0 | 7.2 |
+| `trimEnd` over a last grapheme, 100 KB accented, ten spaces at the end | 6,488 | 12,714 |
+| `toIntBase`, 5 digits | 1.9 | 2.4 |
+| `toIntBase`, 20 digits | 2.8 | 4.2 |
+| `toIntBase`, 100 digits | 2.0 | 14.2 |
+| `toIntBase`, 1,000 digits | 26 | 178 |
+| `toIntBase`, 10,000 digits | 205 | 2,565 |
+| `toIntBase`, 100,000 digits | 6,990 | 51,646 |
+
+**`trimStart`** reads the first grapheme with `slice` and drops it with the private `drop`, both primitives already. It walks only the spaces it drops, and what it costs over the shim is a constant a call.
+
+**`trimEnd`** has no such pair at the end. `slice` by index walks from the start and `graphemes` splits the whole text, so over the module's primitives it costs what the text's length costs, where the shim costs what the trailing spaces cost: on 100 KB of ASCII, twenty-five thousand times as much. The shim reads only the end, by a fact of Unicode's segmentation: no ASCII code point extends a grapheme, so the graphemes after the one an ASCII byte is in are the whole text's, and splitting from that byte finds them. Recommended: a private primitive beneath, the text without its last grapheme and that grapheme, found from the end by the same fact, and `trimEnd` Ernest over it as `trimStart` is over `slice` and `drop`. Prototyped, it agreed with the shim on UAX #29's edge cases, a combining mark after a space, CR LF, a prepended mark, a joined emoji, flags, a conjunct, and on twenty thousand random strings of those, and it costs 1.2 to 3.6 times the shim, twice on text with no ASCII, where both split it whole. Keeping the shim is refused by rule 1 itself, which keeps the operation Ernest over its primitive. Writing it over `toUtf8` and `Bytes` with the shim's argument was set aside: the tail is read back with `fromUtf8`, whose `None` cannot happen, a branch the program must write and never takes.
+
+**`toIntBase`** reads through the private `valueInBase`, the host's `binary_to_integer`, beneath its base check. `toInt` checks its digits in Ernest and reads them through `toIntBase`, so the plan's "written as `toInt` is" is the digit check. A fold of `acc * base + digit` was quadratic, since each step multiplies a number as long as the digits read; reading the two halves and joining them by a power of the base, as the host does, gives the table's numbers. Recommended: moved. Rule 1 admits a primitive beneath where the Ernest form costs a multiple but does not require one, and this multiple is Erlang's arithmetic against the host's C, bounded as the numeral grows, where `trimEnd`'s grows without bound. The line drawn is that one: a primitive beneath where the Ernest form's cost grows with what the host's does not.
+
+The two decisions named when the item was planned, `:output` in Ernest and the terminal's key decoding, stand in the plan with their recommendations.
+
+## The Replies Generated, 2026-10-04
+
+The typed generator's third round, which the argument asked for, is built: `reply_programs_test_` in `test/ern_typed_programs_tests.erl`, eighty programs a run, each run as it is and changed four times. `make test-typed` takes about twenty-seven seconds where it took eighteen.
+
+**The programs.** A server receives a call's request and consumes its reply by a tree of §6.6's ways: passed to a helper; returned by a function, its own or one generic in its parameter; placed in a box, an `Optional`, an `Either`, a tuple, a list or a record and taken out by a pattern; captured by a lambda that is called or spawned; sent to a process that receives it; bound by a `let`, by a branch's value, a block's or a `<-`'s; held across a `receive` that waits for another message, with a timeout or without; and bound anew, by its own name or another, and after it is answered. Each branch of an `if` consumes it, and in one the server may fault. Main calls with a deadline or without, and the run prints the value answered, or what the call gives when the server faulted, `None` or the server's cause.
+
+**The changes.** Each program is changed at one consumption: doubled, dropped, hidden by a name bound inside, put in the right operand of `&&` or `||` or after a `<-`, or passed, alone or inside a value, where a function discards or copies it, directly, through a function another returns, or through a lambda a block binds; where a value holds the reply, selected from, updated, or matched by `_` or `as`; and where a lambda captures it, called twice, renamed, left uncalled, or written as a local `fn`. The change is drawn before the consumption it changes, so that the eight a single kind of consumption admits come up as often as the six every consumption admits. A changed program must be refused, every diagnostic must be the reply discipline's, and one must be the change's own. The last was learned: a copy at first was refused as a pair of replies never consumed, since the checker reports one diagnostic a function, and the restriction it was written to reach was never asked. The copy is now consumed, and the restriction answers.
+
+**Two choices of the test's.** The server waits once it has handed the reply on, since a request handed on is watched only at the process it was sent to (§6.6): a server that returned would end the call before the process holding the reply answered. And only the server's own code faults or waits for another message: a fault where the reply was handed would leave the call to its deadline, and the message waited for is in the server's mailbox type alone.
+
+**What it found.** Nothing over the runs made: every program ran as predicted, and every change was refused with its own diagnostic. Its sensitivity was measured as the first rounds' was, each fix taken out of the checker for one run and put back: without the skipped-path rule the first program's changes were accepted, without the hiding rule the first or the second, and without the restriction of a lambda a block binds the eighth or the seventeenth. Of the holes the argument found by hand, the skipped paths, the hidden name, the selection, the update and the restriction's reach into a returned function, a lambda and a value built around the reply are among the changes; a call to a function that returns its mailbox type and a reply bound at top level are not, and the checker's tests hold them.
+
+What it does not cover: two replies held at once by one function, a reply answered through an operations record or an operator a member answers (§4.8, §4.9), `Address.call` made by the server itself, and monitors, restarts and supervisors around the server.
 
 ## The Type System Argued, 2026-10-04
 
