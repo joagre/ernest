@@ -62,7 +62,7 @@ In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault repor
 | `Shell.Editor` | [`shell/editor.ern`](shell/editor.ern) | The line editor: Readline's Emacs keys, the walk through the history, and the incremental search. |
 | `Shell.Complete` | [`shell/complete.ern`](shell/complete.ern) | Completion: what may stand at the cursor, the names that may, gathered from the session and the source root, and matching a word against them. |
 | `Shell.Region` | [`shell/region.ern`](shell/region.ern) | The live region at the foot of the terminal, and the bytes each event writes. |
-| `Shell.History` | [`shell/history.ern`](shell/history.ern) | The history file, over `Os` and `Fs`. |
+| `Shell.History` | [`shell/history.ern`](shell/history.ern) | The person's directory and the history file in it, over `Os` and `Fs`. |
 | `Shell.Style` | [`shell/style.ern`](shell/style.ern) | The colours. Each function is given `Markdown.Styled` or `Markdown.Plain`, as documentation is rendered. |
 | `Markdown` | [`libs/markdown`](../libs/markdown/markdown.ern) | A library, not part of the shell, which renders documentation. |
 | `Ansi` | [`libs/ansi`](../libs/ansi/ansi.ern) | A library, not part of the shell, which writes the terminal's styles and the cursor's moves. |

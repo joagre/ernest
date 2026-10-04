@@ -14,14 +14,31 @@ export let kept = 1000
 // How long to wait for the file system, which is a local file.
 let fileMs = 5000
 
-/// The file in the person's home directory, and none where the environment
-/// names no home or one that is no absolute path, which would put the
-/// history under whatever directory the shell starts in (report §11.2).
-export let file : Optional(Path) =
+/// The person's directory, `.ernest` in the home directory, which holds
+/// the history and the person's startup file, and none where the
+/// environment names no home or one that is no absolute path, which would
+/// put them under whatever directory the shell starts in (report §11.2).
+export let directory : Optional(Path) =
     Optional.andThen(Os.environment("HOME"), fn(home) = match Path(home) {
-        path when Path.isAbsolute(path) -> Some(path <> Path(".ernest/history"))
+        path when Path.isAbsolute(path) -> Some(path <> Path(".ernest"))
       | _ -> None
     })
+
+/// The history's file in the person's directory.
+export let file : Optional(Path) = Optional.map(directory, fn(path) = path <> Path("history"))
+
+/// Report §11.2: the person's directory made its owner's alone to read,
+/// write and enter, where it is there, once its startup file has been
+/// checked as it was found, so that no one else can change what a later
+/// session runs. One whose mode cannot be set is left as it stands.
+export fn keepOwn() : Unit with m =
+    match directory {
+        None -> Unit
+      | Some(path) -> {
+            let _ = Fs.setMode(path, 0o700, fileMs);
+            Unit
+        }
+    }
 
 /// The inputs of the sessions before this one, newest first. A file that
 /// holds more than the last thousand is trimmed to them as it is read.

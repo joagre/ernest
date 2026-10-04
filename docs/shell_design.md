@@ -32,8 +32,9 @@ The runner, `ern_cli`, loads the file and its dependencies and runs their initia
 1. Where `Terminal.size()` answers a size, it spawns the reader and waits for `Subscribed` or `SubscriptionRefused`. The reader answers once its subscription is granted, and so once the terminal no longer echoes (§8.2 *Keys*); what was typed at a prompt written earlier would be echoed and read as a line.
 2. It spawns the screen, binds the sinks to it with `setScreen(via(screen, Wrote))`, and says the greeting, the version and where the commands are.
 3. It subscribes to `Process.faults(Reported)`, and only then spawns the file's entry point (`program`), so that a fault in the entry point is reported.
-4. At a terminal it reads the history, sends the reader `Start` with the screen, the history, whether the history file takes what is typed, which it does not where it could not be read, and whether to colour, and monitors the reader: the reader's end is the session's.
-5. It runs the startup inputs, and writes the first `> ` with `prompt`, which drains the screen first, as before every prompt.
+4. It checks and reads the startup files as it finds them (`ownInputs`), and only then makes the person's directory its owner's alone (`Shell.History.keepOwn`), so that a directory found open to others is seen as found.
+5. At a terminal it reads the history, sends the reader `Start` with the screen, the history, whether the history file takes what is typed, which it does not where it could not be read, and whether to colour, and monitors the reader: the reader's end is the session's.
+6. It runs the startup inputs, and writes the first `> ` with `prompt`, which drains the screen first, as before every prompt.
 
 `finish` takes the region away with `Height(0)` and an empty `Typing`, leaves the cursor on a fresh line, and drains the screen. When `main` returns, every process the session spawned ends with `ProgramEnd` (§8.6).
 

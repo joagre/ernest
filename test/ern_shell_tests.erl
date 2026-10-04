@@ -216,9 +216,11 @@ host_flags_cleared() ->
 
 %% report §11.2: a startup file another user could change is said and not
 %% run: one that anyone may write, and one in a directory that anyone may
-%% write. A regression test: each was run (findings.md's C3-28); a file of
-%% another user's is not covered, since a test cannot make one. Written
-%% after the code
+%% write; the person's directory is its owner's alone after the session,
+%% in line mode too. A regression test: each was run (findings.md's C3-28),
+%% and in line mode the directory kept its mode (S3); a file of another
+%% user's is not covered, since a test cannot make one. Written after the
+%% code
 startup_of_anothers_test_() ->
     {timeout, 60, fun startup_of_anothers/0}.
 
@@ -235,10 +237,32 @@ startup_of_anothers() ->
                   ?assertMatch({_, _},
                                binary:match(Output, <<"startup could be changed by another user,"
                                                       " and is not run">>)),
-                  ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>))
+                  ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)),
+                  {ok, #file_info{mode = Mode}} = file:read_file_info(Dir),
+                  ?assertEqual(8#700, Mode band 8#777)
               end,
     Refused(fun(_Dir, File) -> file:change_mode(File, 8#666) end),
     Refused(fun(Dir, _File) -> file:change_mode(Dir, 8#777) end).
+
+%% report §11.2: at a terminal too, a startup file is checked as it is
+%% found, before the history makes the person's directory its owner's
+%% alone. A regression test: the history's mode came first, so a startup
+%% file in a directory anyone could write was run at a terminal (findings.md's
+%% S3)
+startup_checked_as_found_test_() ->
+    {timeout, 60, fun startup_checked_as_found/0}.
+
+startup_checked_as_found() ->
+    Home = fresh_home(),
+    Dir = filename:join(Home, ".ernest"),
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(filename:join(Dir, "startup"), "Io.println(\"planted\")\n"),
+    ok = file:change_mode(Dir, 8#777),
+    Bytes = pty("HOME=" ++ Home ++ " ../bin/ern shell",
+                [{expect, "and is not run"}, {expect, "> "}, {send, "04"}], 30),
+    ?assertEqual(nomatch, binary:match(Bytes, <<"planted">>)),
+    {ok, #file_info{mode = Mode}} = file:read_file_info(Dir),
+    ?assertEqual(8#700, Mode band 8#777).
 
 %% report §11.2: a HOME that is no absolute path names no startup file and
 %% no history, since each would be under wherever the shell was started. A

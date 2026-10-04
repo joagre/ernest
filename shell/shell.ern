@@ -172,6 +172,11 @@ export fn main() : Unit with ShellMsg = {
     Process.faults(Reported);
     // report §11.2: the file's entry point is spawned beside the prompt
     let _ = program();
+    // report §11.2: the startup files are checked and read as they are
+    // found, and the person's directory is then made its owner's alone,
+    // before the history makes it so at a terminal
+    let startupInputs = List.flatMap(startupFiles(), fn(found) = ownInputs(screen, found));
+    Shell.History.keepOwn();
     match keys {
         Some(Keys(reader = reader)) -> {
             let #(earlier, keeping) = history(screen);
@@ -180,7 +185,7 @@ export fn main() : Unit with ShellMsg = {
             // report §11.2: an editor that cannot read keys is no shell,
             // so the reader's death is said and the session ends with it
             monitor(Process.fromAddress(reader), ReaderDied);
-            match startup(state, screen) {
+            match fromFiles(state, screen, startupInputs) {
                 Continue(state1) -> {
                     prompt(screen);
                     keyLoop(state1, screen)
@@ -188,7 +193,7 @@ export fn main() : Unit with ShellMsg = {
               | Leave -> finish(screen, "")
             }
         }
-      | None -> match startup(state, screen) {
+      | None -> match fromFiles(state, screen, startupInputs) {
             Continue(state1) -> lineLoop(state1, screen)
           | Leave -> finish(screen, "")
         }
@@ -232,12 +237,6 @@ fn history(screen : Address(ScreenMsg)) : #(List(String), Bool) with m =
             }
         }
     }
-
-// Report §11.2: the inputs of the startup files, the person's first and
-// then the node's, a line an input, each with the file it came from so
-// that a failure names it rather than `input`.
-fn startup(state : State, screen : Address(ScreenMsg)) : Next with ShellMsg =
-    fromFiles(state, screen, List.flatMap(startupFiles(), fn(found) = ownInputs(screen, found)))
 
 // Report §11.2: the inputs of a startup file that is the user's own to
 // run; one another user could change is said and not run. A path without a
