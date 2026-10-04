@@ -477,9 +477,13 @@ declared_type_equality_test() ->
                         "fn f(t : Tree(Int), n : Nest(String)) = t == t && n == n")),
     ?assertEqual(ok, ok("type Tag(a) = Tag(Int)\nfn f(t : Tag((Int) -> Int)) = t == t")).
 
-%% report §4.9, Appendix E.1, §11.5: at a type variable of the signature,
-%% Io.show writes by the requirement's show, which a call supplies; one the
-%% requirement does not name is a call that needs it
+%% report §4.9, §9.4, Appendix E.1, §11.5: Io.show needs a.show, which a
+%% call supplies: at a type variable of the signature the requirement's, and
+%% at a type built from variables the requirement names, the descriptor
+%% composed of theirs, for Io.show and for any function that needs show; a
+%% variable the requirement does not name is a call that needs it. A
+%% regression test of the full review's P4 (2026-10-04): `List(a)` under
+%% `needs a.show` was refused
 show_under_a_requirement_test() ->
     ?assertEqual(ok, ok("fn wrap(x : a) : String needs a.show = Io.show(x)")),
     ?assertEqual(ok, ok("fn wrap(x : a) : String needs a.show = Io.show(x)\n"
@@ -487,12 +491,12 @@ show_under_a_requirement_test() ->
     ?assertEqual({"Io.show needs a.show, which wrap does not declare; add needs a.show",
                   undefined},
                  refusal_and_help("fn wrap(x : a) : String = Io.show(x)")),
-    ?assertEqual("Io.show writes a value by its type, which is not known whole here: List(a)",
-                 refusal("fn wrap(xs : List(a)) : String needs a.show = Io.show(xs)")),
-    ?assertEqual("wrap needs List(b).show, and Io.show writes a type known whole, or a"
-                 " requirement's type variable",
-                 refusal("fn wrap(x : a) : String needs a.show = Io.show(x)\n"
-                         "fn f(xs : List(b)) : String needs b.show = wrap(xs)")).
+    ?assertEqual(ok, ok("fn wrap(xs : List(a)) : String needs a.show = Io.show(xs)")),
+    ?assertEqual(ok, ok("fn wrap(x : a) : String needs a.show = Io.show(Some(#(x, 1)))")),
+    ?assertEqual(ok, ok("fn wrap(x : a) : String needs a.show = Io.show(x)\n"
+                        "fn f(xs : List(b)) : String needs b.show = wrap(xs)")),
+    ?assertEqual("Io.show needs b.show, which wrap does not declare; add needs b.show",
+                 refusal("fn wrap(pair : #(a, b)) : String needs a.show = Io.show(pair)")).
 
 %% report Appendix E.1: `Io.show` and `Io.debug` write a value by the type
 %% at which the name is used, as a callee or an argument, known whole once

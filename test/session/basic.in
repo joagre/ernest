@@ -34,6 +34,7 @@ type Pair = P(Int, Int)
 :bindings
 :t 1 + 2
 :type Io.println
+:type Io.show
 :set
 :set timing off
 :set depth 2

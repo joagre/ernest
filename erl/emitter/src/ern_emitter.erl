@@ -211,9 +211,11 @@ top_names(Declarations) ->
     maps:from_list([{{MemberOf, Name}, length(Params) + length(Requirement)}
                     || #fn_declaration{member_of = MemberOf, name = Name, params = Params,
                                        requirement = Requirement} <- Declarations]
-                   ++ [{{MemberOf, Name}, length(Params)}
+                   ++ [{{MemberOf, Name}, length(Params) + length(Requirement)}
                        || #foreign_fn_declaration{member_of = MemberOf, name = Name,
-                                                  params = Params} <- Declarations]
+                                                  params = Params,
+                                                  scheme = #scheme{requirement = Requirement}}
+                              <- Declarations]
                    ++ [{{undefined, Name}, value}
                        || #let_declaration{name = Name} <- Declarations]).
 
@@ -225,8 +227,9 @@ exported(_) -> false.
 export(#fn_declaration{member_of = MemberOf, name = Name, params = Params,
                        requirement = Requirement}) ->
     {function_name(MemberOf, Name), length(Params) + length(Requirement)};
-export(#foreign_fn_declaration{member_of = MemberOf, name = Name, params = Params}) ->
-    {function_name(MemberOf, Name), length(Params)};
+export(#foreign_fn_declaration{member_of = MemberOf, name = Name, params = Params,
+                               scheme = #scheme{requirement = Requirement}}) ->
+    {function_name(MemberOf, Name), length(Params) + length(Requirement)};
 export(#let_declaration{name = Name}) -> {function_name(undefined, Name), 0}.
 
 %% The Erlang function a top-level Ernest name compiles to: its own name,
@@ -276,13 +279,18 @@ declaration(#foreign_fn_declaration{span = Span, member_of = MemberOf, name = Na
     {tfn, ParamTypes, Effect, ResultType} = Scheme#scheme.type,
     Args = [erl_syntax:variable(Variable) || Variable <- Variables],
     {Exposed, Context2} = lists:mapfoldl(fun exposed/2, Context1, lists:zip(ParamTypes, Args)),
+    %% report §9.4: `Io.show` and `Io.debug` take their requirement's member,
+    %% the descriptor, after their argument, and pass it to the host
+    {MemberVariables, Context3} = fresh_variables(length(Scheme#scheme.requirement), "Member",
+                                                   Context2),
+    Members = [erl_syntax:variable(Variable) || Variable <- MemberVariables],
     Call = erl_syntax:application(erl_syntax:atom(HostModule), erl_syntax:atom(HostFunction),
-                                  Exposed),
-    {Try, Context3} = foreign_call(Call, HostModule, HostFunction, length(Params), Effect,
-                                   Context2),
-    {Body, Context4} = foreign_return(Try, ParamTypes, ResultType, Context3),
-    Clause = at(Span, erl_syntax:clause(Args, none, [Body])),
-    {[at(Span, erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]))], Context4};
+                                  Exposed ++ Members),
+    {Try, Context4} = foreign_call(Call, HostModule, HostFunction, length(Exposed ++ Members),
+                                   Effect, Context3),
+    {Body, Context5} = foreign_return(Try, ParamTypes, ResultType, Context4),
+    Clause = at(Span, erl_syntax:clause(Args ++ Members, none, [Body])),
+    {[at(Span, erl_syntax:function(erl_syntax:atom(FunctionName), [Clause]))], Context5};
 declaration(_, Context) ->
     {[], Context}.
 
@@ -870,8 +878,17 @@ supply_forms(Supplies, Context) ->
 %% is that member as a function, its own requirement supplied.
 supply_form(#required_member{variable = Variable, member = Member}, Context) ->
     {erl_syntax:variable(member_variable(Variable, Member, Context)), Context};
-supply_form(#shown_type{type = Type}, Context) ->
-    {erl_syntax:abstract(descriptor(Type, Context)), Context};
+supply_form(#shown_type{type = Type}, #emit_context{env = Env, namespace = Namespace} = Context) ->
+    %% report §4.9, Appendix E.1: a type built from type variables a
+    %% requirement names `show` for is the descriptor composed of theirs,
+    %% which came in as the requirement's members
+    case ern_types:value_variables(Type, ern_typecheck:type_state(Env)) of
+        [] ->
+            {erl_syntax:abstract(descriptor(Type, Context)), Context};
+        Holes ->
+            Descriptor = ern_descriptor:describe(Type, Env, Namespace, Holes),
+            {holes_filled(Descriptor, Context), Context}
+    end;
 supply_form(#known_member{qualified_name = [_] = QualifiedName, member = Member,
                           supplies = []}, Context) ->
     %% report §9.6: a prelude type's member, the runtime's own operation or
@@ -895,6 +912,17 @@ supply_form(#known_member{qualified_name = QualifiedName, member = Member, suppl
             Applied = member_call(QualifiedName, Member, Args, Context3),
             {erl_syntax:block_expr(Matches ++ [lambda(Params, Applied)]), Context3}
     end.
+
+%% A descriptor as a form, each hole the descriptor its variable's `show`
+%% came in as.
+holes_filled({hole, Id}, Context) ->
+    erl_syntax:variable(member_variable({tvar, Id}, show, Context));
+holes_filled(Part, Context) when is_tuple(Part) ->
+    erl_syntax:tuple([holes_filled(Inner, Context) || Inner <- tuple_to_list(Part)]);
+holes_filled(Parts, Context) when is_list(Parts) ->
+    erl_syntax:list([holes_filled(Inner, Context) || Inner <- Parts]);
+holes_filled(Leaf, _) ->
+    erl_syntax:abstract(Leaf).
 
 %% The parameter a requirement's member came in, in the declaration being
 %% emitted or one that encloses it.

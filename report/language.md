@@ -838,8 +838,8 @@ self           : () -> Address(m) with m
 send           : (Address(a), a) -> Unit with m
 spawn          : (() -> Unit with n) -> Address(n) with m
 spawnMonitored : (() -> Unit with n, (Down) -> m) -> Address(n) with m
-Io.show        : (a) -> String // the value as Ernest writes it, at the use's type (Appendix E.1)
-Io.debug       : (a) -> a with m // prints Io.show's text and a line feed to standard error, then returns the value
+Io.show        : (a) -> String needs a.show // the value as Ernest writes it, at the use's type (Appendix E.1)
+Io.debug       : (a) -> a with m needs a.show // prints Io.show's text and a line feed to standard error, then returns the value
 ```
 
 ### 9.5 Process functions

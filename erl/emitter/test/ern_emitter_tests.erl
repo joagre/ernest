@@ -3882,6 +3882,30 @@ requirement_supplied_test() ->
     ?assertEqual(<<"Money(3)\nMoney(-3)\nSome(9)\n[\"a\", \"b\", \"c\"]\n1 2\n[1, 2]\n">>,
                  Output).
 
+%% report §9.4, §4.9, Appendix E.1: under `needs a.show`, Io.show writes a
+%% type built from `a`, its descriptor composed of the one passed in for
+%% `a`; a recursive type stands in the place of `a` inside a recursive type,
+%% each descriptor's mu binding its own refs. A regression test of the full
+%% review's P4 (2026-10-04): a type built from a variable was refused
+show_composed_test() ->
+    {ok, Output} = run(
+        "type Tree(a) = Leaf | Node(left : Tree(a), item : a, right : Tree(a))\n"
+        "fn showAll(list : List(a)) : String needs a.show = Io.show(list)\n"
+        "fn showOne(x : a) : String needs a.show = Io.show(Some(#(x, 1)))\n"
+        "fn showTree(tree : Tree(a)) : String needs a.show = Io.show(tree)\n"
+        "fn twice(x : a) : String needs a.show = showAll([x, x])\n"
+        "export fn main() : Unit with m = {\n"
+        "    Io.println(showAll([1, 2]));\n"
+        "    Io.println(showOne(\"hi\"));\n"
+        "    let inner = Node(left = Leaf, item = 'c', right = Leaf);\n"
+        "    Io.println(showTree(Node(left = Leaf, item = Some(inner), right = Leaf)));\n"
+        "    Io.println(twice([Some(1.5)]))\n"
+        "}\n"),
+    ?assertEqual(<<"[1, 2]\nSome(#(\"hi\", 1))\n"
+                   "Node(left = Leaf, item = Some(Node(left = Leaf, item = 'c', right = Leaf)),"
+                   " right = Leaf)\n"
+                   "[[Some(1.5)], [Some(1.5)]]\n">>, Output).
+
 %% report §3.5, §4.9: a derived compare orders by constructor in declaration
 %% order, then field by field from the left, its parameters' members
 %% supplied where it is used. Written after the code, it found a defect:

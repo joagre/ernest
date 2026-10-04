@@ -59,13 +59,14 @@ x : Int
 zero : () -> Int
 > 1 + 2 : Int
 > Io.println : (String) -> Unit with m+
+> Io.show : (a!) -> String needs a.show
 > depth 10
 length 100
 output 5
 timing off
 > > > [[..., ...], [...]] : List(List(List(Int)))
 > > > [1, 2, ...] : List(Int)
-> > > input 46:1:1: unknown name x
+> > > input 47:1:1: unknown name x
 1 | x
   | ^
 > the session declares no nosuchname

@@ -123,21 +123,20 @@ doc_of(#let_declaration{doc = Doc}) -> Doc;
 doc_of(#foreign_type_declaration{doc = Doc}) -> Doc;
 doc_of(#foreign_fn_declaration{doc = Doc}) -> Doc.
 
-%% The declaration's type: inferred schemes for fn and let, the
-%% declaration itself for the type forms, an abstract type without its
-%% representation.
+%% The declaration's type: its scheme for fn, let and foreign fn, with the
+%% restrictions and the requirement every printed type shows (report §11.5,
+%% §9.4), the declaration itself for the type forms, an abstract type
+%% without its representation.
 signature(#fn_declaration{member_of = MemberOf, name = Name, scheme = Scheme}, Prefix, Env) ->
     text([Prefix, atom_to_list(shown_name(MemberOf, Name)), " : ",
           ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
 signature(#let_declaration{name = Name, scheme = Scheme}, Prefix, Env) ->
     text([Prefix, atom_to_list(Name), " : ",
           ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
-signature(#foreign_fn_declaration{member_of = MemberOf, name = Name, params = Params,
-                                  result_type = Result, effect = Effect},
-          Prefix, _) ->
-    Type = #t_fn{params = [Annotation || #param{annotation = Annotation} <- Params],
-                 result_type = Result, effect = Effect},
-    text([Prefix, atom_to_list(shown_name(MemberOf, Name)), " : ", syntax_text(Type)]);
+signature(#foreign_fn_declaration{member_of = MemberOf, name = Name, scheme = Scheme}, Prefix,
+          Env) ->
+    text([Prefix, atom_to_list(shown_name(MemberOf, Name)), " : ",
+          ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
 signature(#type_declaration{} = Declaration, _, _) ->
     text(type_text(Declaration));
 signature(#abstract_declaration{declaration = #type_declaration{name = TypeName, params = Params}},

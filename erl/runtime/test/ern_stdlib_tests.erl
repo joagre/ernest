@@ -562,7 +562,9 @@ either_test() ->
     ?assertEqual({'Left', e}, Either:fromOptional('None', e)).
 
 %% report Appendix E.1, §8.2: print and println write to Io's stdout,
-%% printError, printlnError and debug to its stderr, each as a message
+%% printError, printlnError and debug to its stderr, each as a message;
+%% report §9.4, §4.9: debug takes its requirement's member, the
+%% descriptor of the value's type, after the value
 io_test() ->
     Self = self(),
     Sink = fun(Tag) -> fun(Bin) -> Self ! {Tag, Bin} end end,
@@ -571,7 +573,7 @@ io_test() ->
                                  'ern@io':println(<<"b">>),
                                  'ern@io':printError(<<"c">>),
                                  'ern@io':printlnError(<<"d">>),
-                                 'ern@io':debug(42)
+                                 'ern@io':debug(42, int)
                              end, <<"io_test">>,
                              #{stdout => Sink(out), stderr => Sink(err)}),
     ?assertEqual(ok, Result),

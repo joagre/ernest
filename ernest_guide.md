@@ -2029,7 +2029,7 @@ generic.ern:2:23: fromList needs a.compare, which unique does not declare; add n
   |                       ^^^^^^^^^^^^^^^^^^^
 ```
 
-`shown` declares `needs a.show`. `Io.show` writes a value by its type, which a function generic in that type does not know, so the function names `show` as it would name a member, and each call supplies the type's (report Appendix E.1).
+`shown` declares `needs a.show`. `Io.show` writes a value by its type, which a function generic in that type does not know, so the function names `show` as it would name a member, and each call supplies the type's. `Io.show`'s own type says so, `(a!) -> String needs a.show`, and under the requirement it writes `a` and any type built from it, `List(a)` as well (report §9.4, Appendix E.1).
 
 `Date` derives its order: `derives compare` gives the type the member `compare`, which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare`, so the dates print by year, then month, then day. A field whose type has no `compare`, an `Optional(Int)`, is refused at the declaration (report §3.5).
 

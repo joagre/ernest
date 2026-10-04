@@ -169,10 +169,11 @@ export fn writeError(bytes : Bytes) : Unit with m =
 /// The value as Ernest writes it, by its type at the call: a value as its
 /// literal or construction is written, a named constructor's fields in
 /// declared order (report §3.5), an address as the process behind it,
-/// `<address 84>`, and a function as `<function>`. The type at the call is
-/// known whole, with no type variable in it, so that in a generic function
-/// `Io.show` at the function's type variable is a type error (report
-/// Appendix E.1). It is pure.
+/// `<address 84>`, and a function as `<function>`. It needs `a.show`, which
+/// a call at a known type supplies without writing it; in a generic
+/// function, `needs a.show` lets it write `a` and any type built from it,
+/// `List(a)` among them, and a type variable no requirement names is a type
+/// error (report §9.4, Appendix E.1). It is pure.
 ///
 /// ### Examples
 ///
@@ -185,7 +186,7 @@ export foreign fn show(value : a) : String =
 
 /// The value printed as `Io.show` writes it, with a line feed, to
 /// standard error, and returned, so it wraps an expression where it
-/// stands: `let n = Io.debug(f(x))`. Its type at the call is known whole,
-/// as `Io.show`'s is.
+/// stands: `let n = Io.debug(f(x))`. It needs `a.show`, as `Io.show`
+/// does, and writes the same types.
 export foreign fn debug(value : a) : a with m =
     "ern_io:debug/1"

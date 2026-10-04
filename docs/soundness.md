@@ -199,6 +199,7 @@ A call to a function whose result type is a type variable that neither a paramet
 
 - **At a known type** the type's member is supplied, and its whole type is checked against the member's shape at that type, so a member declared for `Vec(Int)` alone does not serve `Vec(String)`.
 - **At a type variable of the enclosing signature** the enclosing requirement supplies it, and a variable the enclosing declaration's requirement does not name is refused.
+- **`show` at a type built from type variables** the enclosing requirement names `show` for is the type's descriptor with each variable's descriptor, which came in as that requirement's member, in the variable's place (Appendix E.1). A descriptor passed in describes every value of the type its caller instantiated the variable to, by induction on the calls that supplied it, so the composed one describes every value of the instance. A descriptor passed in binds each recursive reference inside it, so it stands in a variable's place whatever recursive type encloses it.
 - **Anywhere else it is refused**: at a variable nothing fixes, and in a top-level `let`, which declares no requirement.
 
 A requirement is never inferred and is no part of a scheme, so no function value carries one unmet: a declaration taken as a value is taken with its members supplied. A type has one member of each name, so the type alone decides what is supplied. A member is pure, so supplying one changes no effect.

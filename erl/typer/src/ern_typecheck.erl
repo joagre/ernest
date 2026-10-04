@@ -1666,13 +1666,16 @@ signature_shape(#let_declaration{annotation = Annotation}, Placeholder, Env)
     {Type, _, TypeState} = annotation_type(Annotation, #{}, Env),
     bound(Placeholder, Type, Env#env{type_state = TypeState});
 signature_shape(#foreign_fn_declaration{span = Span, params = Params,
-                                        result_type = ResultAnnotation, effect = Effect},
-                Placeholder, Env) ->
+                                        result_type = ResultAnnotation, effect = Effect}
+                = Declaration, Placeholder, Env) ->
     Syntax = #t_fn{span = Span, params = [Type || #param{annotation = Type} <- Params],
                    result_type = ResultAnnotation, effect = Effect},
     {Type, _, TypeState} = annotation_type(Syntax, #{}, Env),
-    bound(Placeholder, Type,
-          Env#env{type_state = not_reply_carrying_params(Type, foreign_effect(Type, TypeState))});
+    Env1 = bound(Placeholder, Type,
+                 Env#env{type_state = not_reply_carrying_params(Type,
+                                                                foreign_effect(Type, TypeState))}),
+    placeholder_requirement(Declaration, Placeholder, shown_requirement(Declaration, Type, Env),
+                            Env1);
 signature_shape(_, _, Env) ->
     Env.
 
@@ -1733,6 +1736,11 @@ requirement_variables(#fn_declaration{requirement = Members}, AnnotationVariable
 %% it, a top-level one's among the module's.
 placeholder_requirement(_Declaration, _Placeholder, [], Env) ->
     Env;
+placeholder_requirement(#foreign_fn_declaration{member_of = MemberOf, name = Name}, _Placeholder,
+                        Requirement, #env{globals = Globals} = Env) ->
+    QualifiedName = value_qualified_name(Env, MemberOf, Name),
+    Scheme = maps:get(QualifiedName, Globals),
+    Env#env{globals = Globals#{QualifiedName => Scheme#scheme{requirement = Requirement}}};
 placeholder_requirement(#fn_declaration{member_of = MemberOf, name = Name}, Placeholder,
                         Requirement, #env{locals = Locals, globals = Globals} = Env) ->
     case Locals of
@@ -1743,6 +1751,15 @@ placeholder_requirement(#fn_declaration{member_of = MemberOf, name = Name}, Plac
             Scheme = maps:get(QualifiedName, Globals),
             Env#env{globals = Globals#{QualifiedName => Scheme#scheme{requirement = Requirement}}}
     end.
+
+%% Report §9.4: `Io.show` and `Io.debug` need `a.show`, the requirement
+%% their type states; a foreign function declares none of its own.
+shown_requirement(#foreign_fn_declaration{member_of = undefined, name = Name},
+                  {tfn, [{tvar, Id}], _, _}, #env{namespace = ['Io']})
+  when Name =:= show; Name =:= debug ->
+    [{Id, show}];
+shown_requirement(_, _, _) ->
+    [].
 
 %% A parameter's type as its annotation shapes it, a fresh variable where
 %% it has none.
@@ -2059,25 +2076,30 @@ params_and_body(#let_declaration{body = Body}) -> {[], Body}.
 %% requirement's `show` is (§4.9).
 %% Report §8.4, Appendix E.12: `Foreign.from` gives its value by the type
 %% at which the name is used, read the same way.
-shown(Span, Referent, Type, #env{namespace = Namespace}) ->
-    Declared = case Referent of
-                   #remote_declaration{namespace = [Module], member_of = undefined,
-                                       name = Called} ->
-                       {Module, Called};
-                   #own_declaration{member_of = undefined, name = Called}
-                     when Namespace =:= ['Io']; Namespace =:= ['Foreign'] ->
-                       {hd(Namespace), Called};
-                   _ ->
-                       none
-               end,
-    case {Declared, Type} of
-        {{'Io', Name}, {tfn, [Argument], _, _}} when Name =:= show; Name =:= debug ->
-            [#pending_member{span = Span, type = Argument, member = show, need = {shown, Name}}];
+shown(Span, Referent, Type, Env) ->
+    case {declared(Referent, Env), Type} of
         {{'Foreign', from}, {tfn, [Argument], _, _}} ->
             [#pending_member{span = Span, type = Argument, member = exposed, need = exposed}];
         _ ->
             []
     end.
+
+%% Report §9.4, Appendix E.1: `Io.show` and `Io.debug`, whose requirement is
+%% named for the function in what a refusal says.
+io_shown(Referent, Env) ->
+    case declared(Referent, Env) of
+        {'Io', Name} when Name =:= show; Name =:= debug -> {ok, Name};
+        _ -> none
+    end.
+
+%% The module and name of a prelude-provided function a name resolved to.
+declared(#remote_declaration{namespace = [Module], member_of = undefined, name = Called}, _) ->
+    {Module, Called};
+declared(#own_declaration{member_of = undefined, name = Called}, #env{namespace = Namespace})
+  when Namespace =:= ['Io']; Namespace =:= ['Foreign'] ->
+    {hd(Namespace), Called};
+declared(_, _) ->
+    none.
 
 %% Report §5.5: `let p <- e` is resolved from the type of e, or from the
 %% block's type, once the definition is inferred. Solving one may resolve
@@ -2958,10 +2980,21 @@ supply(Span, Type, Member, Need, Outer, #env{type_state = TypeState} = Env) ->
                 false -> not_in_force(Span, Variable, Member, Need, Env)
             end;
         Resolved when Member =:= show ->
+            %% report §9.4, Appendix E.1: a type known whole is written by
+            %% its descriptor, and one built from type variables the
+            %% requirement in force names `show` for by the descriptor
+            %% composed of theirs
             Substituted = ern_types:substitute(Resolved, TypeState),
-            case ern_types:value_variables(Substituted, TypeState) of
-                [] -> {#shown_type{type = Substituted}, Env};
-                _ -> not_shown(Span, Substituted, Need, Env)
+            Unnamed = [Id || Id <- ern_types:value_variables(Substituted, TypeState),
+                             not is_in_force({tvar, Id}, show, Env)],
+            case Unnamed of
+                [] ->
+                    {#shown_type{type = Substituted}, Env};
+                [Id | _] ->
+                    case signature_variable({tvar, Id}, Env) of
+                        none -> not_shown(Span, Substituted, Need, Env);
+                        _ -> not_in_force(Span, {tvar, Id}, show, Need, Env)
+                    end
             end;
         {tcon, [_], _} when element(1, Need) =:= operator ->
             %% report §4.8, §9.6: a prelude type's operator is the runtime's
@@ -3428,9 +3461,11 @@ infer(#e_var{span = Span, namespace = Namespace, name = Name} = Expr, Env) ->
     Pending = instance_pending(Type, Span, TypeState, Who),
     %% report §4.9: a call writes nothing for a requirement; what supplies
     %% it is read at the definition's end, as is what `Io.show` writes by
-    Needer = needer_name(Referent, Name),
-    Supplies = [#pending_member{span = Span, type = Instance, member = Member,
-                                need = {call, Needer}}
+    Need = case io_shown(Referent, Env1) of
+               {ok, Shown} -> {shown, Shown};
+               none -> {call, needer_name(Referent, Name)}
+           end,
+    Supplies = [#pending_member{span = Span, type = Instance, member = Member, need = Need}
                 || {Instance, Member} <- Requirement]
         ++ shown(Span, Referent, Type, Env1),
     %% report §4.2: what the name resolved to is recorded, so that the

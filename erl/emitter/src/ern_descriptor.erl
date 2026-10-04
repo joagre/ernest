@@ -5,19 +5,29 @@
 %% back to its mu.
 -module(ern_descriptor).
 
--export([describe/3]).
+-export([describe/3, describe/4]).
 
 -include_lib("typer/include/ern_types.hrl").
 
-%% The type's names and the module it is seen from.
--record(scope, {env, namespace = []}).
+%% The type's names, the module it is seen from, and the type variables
+%% whose descriptors a requirement passes in, each a hole.
+-record(scope, {env, namespace = [], holes = []}).
 
 %% The descriptor of Type, whose names Env knows, seen from the module
 %% Namespace: from any other, an abstract type's representation is not
 %% the program's to print (report §4.4).
 -spec describe(term(), ern_typecheck:env(), [atom()]) -> term().
 describe(Type, Env, Namespace) ->
-    Scope = #scope{env = Env, namespace = Namespace},
+    describe(Type, Env, Namespace, []).
+
+%% The descriptor of Type with `{hole, Id}` for each variable of Holes,
+%% whose descriptor the program passes in under a requirement that names
+%% `show` (report §4.9, Appendix E.1). A descriptor passed in is closed, a
+%% mu of its own binding each ref inside it, so it stands in a hole whatever
+%% the mus around it.
+-spec describe(term(), ern_typecheck:env(), [atom()], [integer()]) -> term().
+describe(Type, Env, Namespace, Holes) ->
+    Scope = #scope{env = Env, namespace = Namespace, holes = Holes},
     Substituted = ern_types:substitute(Type, ern_typecheck:type_state(Env)),
     {Descriptor, _} = descriptor(Substituted, #{}, Scope),
     Descriptor.
@@ -25,7 +35,11 @@ describe(Type, Env, Namespace) ->
 %% Seen maps each user type enclosing the one being described to the id
 %% its mu binds, so a recursive type refers back instead of unfolding; a
 %% sibling is described in full, since a ref reaches only an enclosing mu.
-descriptor({tvar, _}, Seen, _) -> {any, Seen};
+descriptor({tvar, Id}, Seen, #scope{holes = Holes}) ->
+    case lists:member(Id, Holes) of
+        true -> {{hole, Id}, Seen};
+        false -> {any, Seen}
+    end;
 descriptor(pure, Seen, _) -> {any, Seen};
 descriptor({ttuple, Elements}, Seen, Scope) ->
     {Descriptors, Seen1} = descriptors(Elements, Seen, Scope),
