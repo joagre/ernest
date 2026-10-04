@@ -1797,10 +1797,10 @@ The representation may change later, a tree for the list, and the modules that u
 
 Code is often written once for a kind of thing that has several representations: a set kept in a hash and a set kept in order, a sum over `Int` and over `Float`. Ernest has three forms for it, and a module of the standard library shows the first.
 
-**A module that declares what it needs.** `OrderedSet` keeps a set's elements in the order of their type's `compare`. A function that needs the order says so after its result type, `needs a.compare`, a *requirement* (report §4.9): in its body `a.compare` is the member of the type `a` stands for, and `<` resolves to it, as both would on a known type. Here is the module whole, `stdlib/ordered_set.ern`, with its doc blocks left out, which `:doc OrderedSet` shows:
+**A module that declares what it needs.** `OrderedSet` keeps a set's elements in the order of their type's `compare`. A function that needs the order says so after its result type, `needs a.compare`, a *requirement* (report §4.9): in its body `a.compare` is the member of the type `a` stands for, and `<` resolves to it, as both would on a known type. Here are the parts of `stdlib/ordered_set.ern` that show the requirement, with their doc blocks left out; the rest of the module, the functions that need no order among them, is in the file, and `:doc OrderedSet` lists it:
 
 ```ernest-fragment
-// stdlib/ordered_set.ern  (namespace OrderedSet), its doc blocks left out
+// stdlib/ordered_set.ern  (namespace OrderedSet), in part, its doc blocks left out
 export abstract type Set(a) = Set(List(a))
 
 export let empty : Set(a) = Set([])
@@ -1822,9 +1822,6 @@ fn firstOfEach(sorted : List(a)) : List(a) needs a.compare =
 
 export fn size(Set(list) : Set(a)) : Int =
     List.size(list)
-
-export fn isEmpty(Set(list) : Set(a)) : Bool =
-    List.isEmpty(list)
 
 export fn contains(Set(list) : Set(a), element : a) : Bool needs a.compare =
     has(list, element)
@@ -1852,98 +1849,11 @@ fn inserted(list : List(a), element : a) : List(a) needs a.compare =
         }
     }
 
-export fn remove(Set(list) : Set(a), element : a) : Set(a) needs a.compare =
-    Set(List.filter(list, fn(other) = a.compare(element, other) != Equal))
-
 export fn map(Set(list) : Set(a), f : (a) -> b with e) : Set(b) with e needs b.compare =
     fromList(List.map(list, f))
 
-export fn filter(Set(list) : Set(a), keep : (a) -> Bool with e) : Set(a) with e =
-    Set(List.filter(list, keep))
-
-export fn filterMap(Set(list) : Set(a),
-                    f : (a) -> Optional(b) with e) : Set(b) with e needs b.compare =
-    fromList(List.filterMap(list, f))
-
-export fn foldLeft(Set(list) : Set(a), acc : b, step : (b, a) -> b with e) : b with e =
-    List.foldLeft(list, acc, step)
-
-export fn foreach(Set(list) : Set(a), f : (a) -> Unit with e) : Unit with e =
-    List.foreach(list, f)
-
-export fn any(Set(list) : Set(a), keep : (a) -> Bool with e) : Bool with e =
-    List.any(list, keep)
-
-export fn all(Set(list) : Set(a), keep : (a) -> Bool with e) : Bool with e =
-    List.all(list, keep)
-
-export fn find(Set(list) : Set(a), keep : (a) -> Bool with e) : Optional(a) with e =
-    List.find(list, keep)
-
 export fn toList(Set(list) : Set(a)) : List(a) =
     list
-
-export fn min(Set(list) : Set(a)) : Optional(a) =
-    List.get(list, 0)
-
-export fn max(Set(list) : Set(a)) : Optional(a) =
-    List.last(list)
-
-export fn union(Set(list) : Set(a), Set(other) : Set(a)) : Set(a) needs a.compare =
-    Set(merged(list, other))
-
-fn merged(list : List(a), other : List(a)) : List(a) needs a.compare =
-    match #(list, other) {
-        #([], _) -> other
-      | #(_, []) -> list
-      | #(head :: rest, otherHead :: others) -> match a.compare(head, otherHead) {
-            Less -> head :: merged(rest, other)
-          | Equal -> head :: merged(rest, others)
-          | Greater -> otherHead :: merged(list, others)
-        }
-    }
-
-export fn intersection(Set(list) : Set(a), Set(other) : Set(a)) : Set(a) needs a.compare =
-    Set(shared(list, other))
-
-fn shared(list : List(a), other : List(a)) : List(a) needs a.compare =
-    match #(list, other) {
-        #([], _) -> []
-      | #(_, []) -> []
-      | #(head :: rest, otherHead :: others) -> match a.compare(head, otherHead) {
-            Less -> shared(rest, other)
-          | Equal -> head :: shared(rest, others)
-          | Greater -> shared(list, others)
-        }
-    }
-
-export fn difference(Set(list) : Set(a), Set(other) : Set(a)) : Set(a) needs a.compare =
-    Set(remaining(list, other))
-
-fn remaining(list : List(a), other : List(a)) : List(a) needs a.compare =
-    match #(list, other) {
-        #([], _) -> []
-      | #(_, []) -> list
-      | #(head :: rest, otherHead :: others) -> match a.compare(head, otherHead) {
-            Less -> head :: remaining(rest, other)
-          | Equal -> remaining(rest, others)
-          | Greater -> remaining(list, others)
-        }
-    }
-
-export fn isSubset(Set(list) : Set(a), Set(other) : Set(a)) : Bool needs a.compare =
-    isWithin(list, other)
-
-fn isWithin(list : List(a), other : List(a)) : Bool needs a.compare =
-    match #(list, other) {
-        #([], _) -> true
-      | #(_, []) -> false
-      | #(head :: rest, otherHead :: others) -> match a.compare(head, otherHead) {
-            Less -> false
-          | Equal -> isWithin(rest, others)
-          | Greater -> isWithin(list, others)
-        }
-    }
 ```
 
 The set is a sorted list and nothing else, so it is data: two sets built in different orders are `==`, a set keys a `Map`, and a set is sent to another node. Its order is its element type's, `Int.compare` for an `OrderedSet.Set(Int)` and `Money.compare` for a set of `Money` (§2.5), so a set carries no order and a call writes none: `OrderedSet.fromList([3, 1, 3])` is `fromList` with `Int.compare`, which the compiler supplies, since the element type is known there. Where the element type is a type variable, the function that calls declares the requirement itself, as `fromList` does for `firstOfEach`, and the member it was given goes along. `List.sort` takes the member as a parameter instead, `a.compare` written, since a sort may be given any order; a function declares the requirement where the type's own member is meant. `map` needs its result's, `b.compare`, since the set it makes is in the results' order; `size`, `toList`, `filter` and the rest need none. `put`, `contains` and `remove` are linear in the set's size, as a sorted list is, and `fromList` is a sort (report Appendix E.25). The ordered map, `OrderedMap`, is written the same way over its keys (report Appendix E.26).

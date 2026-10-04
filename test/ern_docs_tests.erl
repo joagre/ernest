@@ -38,10 +38,11 @@ citations_resolve_test() ->
                not resolves(Citation, guide, ReportSections, GuideSections)],
     ?assertEqual([], Dangling).
 
-%% ernest_guide.md §7.3, report Appendix E.25: the guide shows
-%% stdlib/ordered_set.ern whole but for its doc blocks, a restatement a
-%% teaching document makes, and this holds the two equal
-ordered_set_shown_whole_test() ->
+%% ernest_guide.md §7.3, report Appendix E.25: the guide shows parts of
+%% stdlib/ordered_set.ern, its doc blocks left out, a restatement a teaching
+%% document makes, and this holds each part equal to the module's lines, in
+%% the module's order
+ordered_set_shown_in_part_test() ->
     Guide = read("ernest_guide.md"),
     [_, Rest] = binary:split(Guide, <<"```ernest-fragment\n// stdlib/ordered_set.ern">>),
     [Block | _] = binary:split(Rest, <<"\n```">>),
@@ -49,12 +50,32 @@ ordered_set_shown_whole_test() ->
     Source = read("stdlib/ordered_set.ern"),
     Code = [Line || Line <- binary:split(Source, <<"\n">>, [global]),
                     not lists:prefix("///", binary_to_list(Line))],
-    ?assertEqual(unpadded(Code), unpadded(Shown)).
+    Parts = parts(Shown),
+    ?assert(length(Parts) > 1),
+    ?assertEqual(ok, in_order(Parts, Code)).
 
-%% Lines without the blank ones that begin and end them.
-unpadded(Lines) ->
-    Blank = fun(Line) -> Line =:= <<>> end,
-    lists:reverse(lists:dropwhile(Blank, lists:reverse(lists:dropwhile(Blank, Lines)))).
+%% Each part a run of the lines, after the one before it.
+in_order([], _) ->
+    ok;
+in_order([Part | Parts], Lines) ->
+    case Lines of
+        [] -> {missing, Part};
+        _ ->
+            case lists:prefix(Part, Lines) of
+                true -> in_order(Parts, lists:nthtail(length(Part), Lines));
+                false -> in_order([Part | Parts], tl(Lines))
+            end
+    end.
+
+%% The runs of lines between blank ones.
+parts(Lines) ->
+    case lists:dropwhile(fun(Line) -> Line =:= <<>> end, Lines) of
+        [] ->
+            [];
+        Rest ->
+            {Part, After} = lists:splitwith(fun(Line) -> Line =/= <<>> end, Rest),
+            [Part | parts(After)]
+    end.
 
 %% report/, ernest_guide.md, docs/development.md "Building": a document's
 %% contents list is its top-level sections, its headings of level two, each
