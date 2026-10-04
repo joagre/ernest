@@ -81,7 +81,7 @@ Members supply members. A member with a requirement of its own, such as the deri
 
 A requirement names a member and nothing else: `compare`, `negate`, an operator, and beside them `show`. `show` is no member of a type but the standard library's `Io.show`, which renders a value as text, and `Io.debug`, which prints one to standard error and returns it; both work from a description of the value's type that the compiler supplies. Under `needs a.show`, either may be applied in the body to a value whose type is `a` itself, and the compiler supplies the description as it does at a known type. A value of a type built from `a` is shown as well: under `needs a.show`, a `List(a)` and an `Optional(#(a, Int))` are each written, the call composing the description from the types the variables were instantiated to. A value whose type holds a variable no requirement names `show` for is a type error.
 
-`needs a.zero` and `needs a.hash` are errors at the declaration: `zero is not a member: a requirement names compare, negate, an operator or show`. A program declares no member beyond these. What a generic function needs beyond the members, a `zero` or a `hash`, it takes as a parameter or as a field of a record the program fills, described below.
+`needs a.zero` and `needs a.hash` are errors at the declaration: `zero is not a member: a requirement names compare, negate, an operator or show (§4.8, E.1)`; the parenthesis cites the sections of the language's report that list the members. A program declares no member beyond these. What a generic function needs beyond the members, a `zero` or a `hash`, it takes as a parameter or as a field of a record the program fills, described below.
 
 A type has one member of each name, so a requirement has one value at a type. A second order, sum or product for a type exists only through a second type. A requirement is never inferred: a function has the requirement it writes and no other, and a call that needs one the enclosing function does not declare is an error, never a silently widened signature.
 
@@ -97,7 +97,7 @@ A type has one member of each name, so a requirement has one value at a type. A 
 
 **The representation is a sorted list**, one shape per set, so that `==` is structural. `put`, `contains` and `remove` are linear in the set's size; `fromList` is a stable sort and one pass, `n log n`, and `map` and `filterMap` cost that beside the function's; `union`, `intersection`, `difference` and `isSubset` are linear in the two sizes. A representation of another shape must also have one shape per set. It would replace the list when a program's measurement shows the linear cost matters, with no change a program can see.
 
-**Where it lives.** `OrderedSet` is the standard library's `ordered_set.ern`. Its type is `OrderedSet.Set(a)`; inside the file, `Set` is this type and shadows the prelude's hash set. A set carried into the other representation goes through that representation's `fromList` of its `toList`. The hash set, `Set`, does not change.
+**Where it lives.** `OrderedSet` is the standard library's `ordered_set.ern`. Its type is `OrderedSet.Set(a)`; inside the file, `Set` is this type and shadows the built-in hash set. A set carried into the other representation goes through that representation's `fromList` of its `toList`. The hash set, `Set`, does not change.
 
 ### Operations records and the fill
 
@@ -347,7 +347,7 @@ fn sum(list : List(a)) : a needs a.zero, a.+ =
 
 ```console
 $ ern build --short-errors numeric.ern
-numeric.ern:16:34: zero is not a member: a requirement names compare, negate, an operator or show
+numeric.ern:16:34: zero is not a member: a requirement names compare, negate, an operator or show (§4.8, E.1)
 ```
 
 `num.ern` writes the same functions over a record the program fills by hand, `Num`. `zero` and `one` are no members and `+` is no field name, so no fill applies. Each type is one line, and generic code passes the record.
@@ -463,11 +463,11 @@ After a hot code upgrade or a reload in the shell, a set built under the old `T.
 
 In the language: two words read by position, `needs` after a function's parameters or result type and `derives` after a type's last constructor, each an ordinary identifier everywhere else; a clause at the end of a function declaration; `a.member` as an expression, where `a` is a type variable under a requirement; `derives compare` at the end of a type declaration; and a module name after `..` in a record construction. The type checker gained the supply of members at calls and at fills, the code generator the added argument, and the compiled interface a record of each declaration's requirement. One sentence of the language's rule on operators changed. It had said that an operator carries no argument the program has not declared. It now says: on a known type none, and on a type variable the member a requirement names, which a call supplies without writing it.
 
-At run time a requirement's member is an ordinary argument, and a field use is one indirect call, the host's own application of a function value. The ordered set's own costs are the sorted list's.
+At run time a requirement's member is an ordinary argument, and a field use is one indirect call, the Erlang runtime's own application of a function value. The ordered set's own costs are the sorted list's.
 
-## Compared with OCaml, Standard ML, Haskell, Rust and Elm
+## Compared with OCaml, Standard ML, Haskell, Rust, Java and Elm
 
-`usage.ern` against the same program in the five languages, in what a program writes:
+`usage.ern` against the same program in the six languages, in what a program writes:
 
 | | The order | Equality | Code written once over two representations | Generic over the element | A second order |
 |---|---|---|---|---|---|
@@ -476,17 +476,23 @@ At run time a requirement's member is an ordinary argument, and a field use is o
 | Standard ML | once, at the functor application | `IntSet.equal` | a functor over the representation's structure | a functor | a second functor application |
 | Haskell | nowhere; `Ord` is found | `==` | a class the program declares, an instance per representation | `Ord a =>`, inferred | a `newtype` |
 | Rust | nowhere; `Ord` is found | `==` | a trait the program declares, an `impl` per representation | `T: Ord` declared; nothing written at a call | a wrapper type, `Reverse<T>` in the standard library |
+| Java | nowhere where elements are `Comparable`; else once, at `new TreeSet<>(comparator)` | `equals` | the library's interface `Set<E>`, which `HashSet` and `TreeSet` implement | `<T extends Comparable<? super T>>` declared; nothing written at a call | a `Comparator` given to the set |
 | Elm | nowhere; elements are `comparable` | `==` | no second representation | `comparable` only | no second order |
 
 In `usage.ern`, `main` writes no order and `==` once; `unique` declares the requirement and its call writes nothing; `common` writes `ops.` four times over an annotated parameter; the program declares `Ops` in three lines and fills it in two. In `numeric.ern`, three generic functions declare `needs a.+` once each, their calls write nothing, and their bodies write `+` or `a.+`; `sum`'s zero is passed beside the `+` that is found. In `num.ern`, each type fills `Num` in one line, and every generic function takes `num` and writes `num.` before each operation.
 
 In Rust, `unique` is `fn unique<T: Ord>(list: Vec<T>) -> Vec<T>`, its bound declared and supplied at each call as the requirement is; `Date` is `#[derive(PartialEq, Eq, PartialOrd, Ord)]` over a struct of three fields, four traits for one order, since `==` is a trait too; and `common` is a trait of three methods the program declares, with an `impl` for `HashSet<T>` and one for `BTreeSet<T>`, each writing each method. The derive is the same as `derives compare`: it orders by variant in declaration order and then by field from left to right, bounds the type's parameters, and is an error at a field whose type has no order. Rust bounds every parameter of the type, reached by the comparison or not; `derives compare` requires only those it reaches.
 
+In Java, `unique` is `<T extends Comparable<? super T>> List<T> unique(List<T> list)`, its bound declared and met at each call as the requirement is. `Date` is a record that implements `Comparable<Date>` and writes `compareTo`, or an order built with `Comparator.comparing(...).thenComparing(...)`; nothing derives it. `common` needs no declaration of its own: `Set<E>` is the library's interface, `HashSet` and `TreeSet` implement it, `retainAll` is a method the set object carries, and the caller chooses the representation by passing a constructor, `HashSet::new` or `TreeSet::new`. A `TreeSet`'s order belongs to the set object, its elements' natural order or a `Comparator`'s, so two sets in different orders have one type and meet in `addAll`, each keeping its own order. Java's documentation asks that an order be consistent with `equals`, and checks it no more than Ernest checks the same promise.
+
+An interface is the nearest relative of what this note describes, and the difference is where the operations live. A Java object carries its methods, so a value and its operations travel together and a call dispatches on the value. An operations record travels beside the data: the function takes it as a parameter, and the representation stays visible as the type parameter `s`. The second record type described earlier, for a list that mixes representations, is the Java shape: its functions close over one set, so each value carries its operations, values of different representations share a list, and no operation sees inside two of them.
+
 **Pros.**
 
 - Against OCaml and Standard ML: no functor application and no module per element type, one `OrderedSet` for every element type, and a record declared and filled in five lines where a functor is a module. The guarantee is the same: one order per type.
 - Against Haskell: the same program on the element side, and no class declaration for code over two representations. Nothing is inferred and nothing is declared an instance: the only thing resolved is a member the type already has, nothing is written at a call, and every signature on the page says what its type must have.
 - Against Rust: the same discipline, a requirement declared and never inferred, in one word where an order derived in Rust names four traits; a representation's operations enter the record by name from its module, `Ops(..Set)`, where an `impl` writes each method; and the derive requires only the parameters the comparison reaches, where Rust bounds them all.
+- Against Java: an order belongs to the element type, so two sets in different orders are different types and the compiler refuses their union, where two `TreeSet`s of one type may hold different orders; a set is plain data with structural `==`, which can key a map and be sent to another node; an existing module enters a record after the fact, `Ops(..Set)`, where a class names the interfaces it implements when it is written; an order is derived in two words; and a function is generic over `+`, which no Java interface abstracts.
 - Against Elm: a user type has an order, `fn Date.compare`; a second representation exists; a second order is a wrapper type.
 
 **Cons.**
@@ -494,5 +500,6 @@ In Rust, `unique` is `fn unique<T: Ord>(list: Vec<T>) -> Vec<T>`, its bound decl
 - Against Haskell: every generic function that needs the order declares `needs a.compare`, where Haskell infers `Ord a =>`; and one argument is passed unseen along the declared requirements, where the language's rule on operators had allowed none.
 - Against Rust: a bound names any trait, the program's own among them, so a `zero` or a `hash` is a bound where Ernest passes a parameter or fills a field; a trait's method is dispatched statically, one copy of the code per type, where a field use is one indirect call and a requirement one argument passed; a bound stands once on an `impl` block for every method in it, where each function of `OrderedSet` that needs the order writes `needs a.compare`; and Rust orders `Option`, tuples and `Vec` by their contents, where Ernest's `Optional`, tuples and lists have no order.
 - Against OCaml and Standard ML: the member is the only order a type has, so a reversed set of `Int` is a wrapper type where OCaml applies the functor again; and the requirement and the fill are two forms, where a functor is one.
+- Against Java: the operations are passed and named, `ops.toList(...)`, where a method call dispatches on the object and nothing is passed; values of different representations in one list are Java's ordinary case and here need the second record form; the library gives no ready interface for sets, so the program declares its record; a second order is a wrapper type where Java passes a `Comparator`; and a record has no default methods and no inheritance from another.
 - Against Elm: two forms where Elm has none, and an order declared per user type where Elm has no such type at all.
 - Against all: a record over the whole vocabulary is twelve fields the program writes, and `filter` and `foldLeft` cannot be fields. The requirement reaches the members and `show` only; a record that needs a `zero` or a `hash` fills them by name from a module and can name neither in a requirement.
