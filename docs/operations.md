@@ -1,6 +1,6 @@
 # Operations records
 
-*The specification of code written once over several representations of one type. MVP 2.99b's item 5 builds it. The log's *Operations Records*, *Members, Operators, and No Hidden Argument*, *The Operations Note Rewritten*, *The Order Bound Once* and *MVP 2.99b's Questions, One by One* argue its earlier choices, *The Requirement, the Fill and the Set as Data* the three that made these rules, and *The Operations Specification Read* the read before the build. Revised 2026-10-04. The report states the forms since 2026-10-02, the requirement in §4.9, `derives` in §3.5 and the fill in §5.6, and the two modules in E.25 and E.26; where this note and the report differ, the report holds. Item 5 built them on 2026-10-03 (the log's *The Requirement Built*): the ordered set and the ordered map are the standard library's, [`ordered_set.ern`](../stdlib/ordered_set.ern) and [`ordered_map.ern`](../stdlib/ordered_map.ern), and the three programs stand under [`docs/operations/`](operations/), where the integration tests build them and hold what they print to what this note says. The code here is excerpted from the files.*
+*The comparison of operations records, code written once over several representations of one type, with type classes, functors and traits, what the forms cost to build, and three programs that use them. The report states the forms: the requirement in §4.9, `derives` in §3.5, the fill in §5.6, the place of a record among a function's parameters in E.0's shape rule 1, `show` under a requirement in E.1, and the ordered set and map in E.25 and E.26; [`soundness.md`](soundness.md) argues them. This note restates none of their rules. The log's *Operations Records*, *Members, Operators, and No Hidden Argument*, *The Operations Note Rewritten*, *The Order Bound Once*, *MVP 2.99b's Questions, One by One* and *The Requirement, the Fill and the Set as Data* argue the choices, and *The Requirement Built* the build. The three programs stand under [`docs/operations/`](operations/), where the integration tests build them and hold what they print to what this note says; the code here is excerpted from them. Revised 2026-10-04.*
 
 Ernest has one set in its standard library, `Set`, a hash set. A second, `OrderedSet`, keeps its elements in the order of their type's `compare`. Code written once works on both through an *operations record*, a record the program declares of the operations it needs, filled from each representation's namespace. The § numbers cite Ernest's report.
 
@@ -13,93 +13,9 @@ Ernest has one set in its standard library, `Set`, a hash set. A second, `Ordere
 5. Errors name what the user wrote: a function, a type, a record.
 6. A program changes a set's representation by renaming it; no call site changes otherwise.
 
-## The specification
+## The programs
 
-Three forms enter the language, a requirement that names a member of a type, a record filled from a namespace, and a type that derives its order; *What changes in Ernest* lists the report's sections they touch. The rules:
-
-1. **A function that needs a member of a type says so.** A requirement after its result type, `needs a.compare`, names the member `compare` of the type `a` is (§4.8, §3.10); `needs a.+` names an operator, and a requirement names several with commas, `needs a.+, a.*`. Under the requirement, `a.compare` in the body is that member, and an operator on `a`, `x < y`, resolves to it as it resolves on a known type (§4.8). The member has its shape with `a` for its result: `a.compare` has the type `(a, a) -> Ordering`, `a.negate` the type `(a) -> a`, and an operator `a.+` the type `(a, a) -> a`. A call, or a fill (rule 7), at a type whose member has another result type is an error naming both: `total needs Vec.+ : (Vec, Vec) -> Vec, and Vec.+ answers Float`; generic code over an operation of another shape takes it as a parameter. A call writes nothing for it. Where `a` is a known type when the enclosing definition is inferred (§4.8), the compiler supplies that type's member: `OrderedSet.fromList([3, 1, 3])` is `fromList` with `Int.compare`. Where `a` is a type variable there, the enclosing function's own requirement at that type supplies it: `fn unique(list : List(a)) : List(a) needs a.compare = OrderedSet.toList(OrderedSet.fromList(list))`. A type built from a variable, `List(b)`, is neither: it is read as a known type whose member is looked for, and refused where it has none. A member that has a requirement of its own, a derived `Pair.compare` (rule 11), is supplied with that requirement resolved at its type by the same rule, members supplying members: at `Pair(Int, String)` with `Int.compare` and `String.compare`, and at `Pair(a, b)` with the enclosing requirement's. A function with a requirement used as a value is the function with the member supplied, under the same rule, so `List.foldLeft(list, empty, put)` under `needs a.compare` passes `put` with that `compare`. A call where the type is a variable and the enclosing function has no requirement for it is an error naming both: `fromList needs a.compare, which unique does not declare; add needs a.compare`. So is `a.compare` or `<` on a variable in a body without the requirement (§4.8), and so is a known type without the member, naming both: `fromList needs List(Int).compare, and List(Int) has no compare`. The requirement that applies in a body is the enclosing `fn` declaration's, for its signature's variables, wherever a use stands in the body, inside a lambda or a `let`-bound lambda included (§3.9); a `let`-bound lambda whose own variable is not the signature's, `let build = fn(xs) = OrderedSet.fromList(xs)` unannotated, meets the error above, since its variable is generalized away before a call ties it to the signature's. A block `fn` declares its own requirement for its own variables and shares the enclosing one for the shared. A top-level `let` declares no requirement, so `let f = OrderedSet.fromList` is refused with a message that says what to write instead: `fromList needs a.compare; a let cannot declare it, so write a fn with the requirement`. A requirement names a type variable of the signature that stands in a value position (§3.9): `needs e.compare` on an effect variable, and `needs b.compare` where `b` is nowhere in the signature, are errors at the declaration, `b is no type variable of the signature`; a variable that stands only in the result type may carry one, since the instantiation is read once the enclosing definition is inferred. In a body under a requirement, `a.compare` names the member where `a` is a type variable of the signature, and a definition with a requirement has no binding named as one of its type variables. A function takes a member as a parameter where any function of its type may be given, `List.sort(list, compare)`, and declares the requirement where the type's own member is meant; a helper of a function with a requirement declares the requirement and does not take the member.
-2. **A requirement names a member of §4.8 and nothing else.** The members are `compare`, `negate` and the operators, each of one shape (§4.8), and beside them `show`, which is no member but E.1's `Io.show` and `Io.debug`: under `needs a.show` either may be applied in the body to a value whose type is `a` itself, and the compiler supplies the type's descriptor as it does at a known type; a value of a type that contains `a`, `List(a)`, is E.1's error as before, since its descriptor would have to be composed at run time. `needs a.zero` and `needs a.hash` are errors at the declaration: `zero is not a member: a requirement names compare, negate, an operator or show (§4.8, E.1)`. A program declares no member beyond these (§4.8). A type has one member of each name, its own, so a requirement has one value at a type, and a second order, sum or product for a type exists only through a second type (rule 4). A requirement is never inferred: a function has the requirement it writes and no other (§3.9), and a call that needs one the enclosing function does not declare is rule 1's error. What a record needs beyond the members and `show`, a `zero` or a `hash`, is a field the program fills (rule 7).
-3. **An ordered set is data.** `OrderedSet.Set(a)` holds its elements and nothing else; its order is its element type's `compare`. `==` is structural (§3.10), a set keys a `Map`, and a set is sent as any value is. `fromList`, `contains`, `put`, `remove`, `union`, `intersection`, `difference` and `isSubset` need `a.compare`; `map` and `filterMap` need their result's, `b.compare`; `empty`, `size`, `isEmpty`, `toList`, `min`, `max`, `filter`, `foldLeft`, `foreach`, `any`, `all` and `find` need none.
-4. **An order belongs to an element type.** A type's order is its `compare`, and no set of that type is in another. A second order on one type is a second type with its own `compare`: `type Descending = Descending(Int)` with `fn Descending.compare`. Two sets in different orders have different types and cannot meet: `OrderedSet.union(up, down)` with `down : OrderedSet.Set(Descending)` is refused.
-5. **`put` keeps the element already there** where `compare` says `Equal`.
-6. **The record is the program's.** Code written once over several representations takes a record the program declares, holding the operations it uses, each field of a type that names only the record's parameters (§3.9): `type Ops(s, a) = Ops(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))`. The program fills it from each representation's namespace at an element type (rule 7), one binding per representation and element type, `let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)`, and passes it, `common(list, other, ops)`. A function with a requirement returns the record generic in the element type, so one fill serves every element type with an order: `fn orderedOps() : Ops(OrderedSet.Set(a), a) needs a.compare = Ops(..OrderedSet)`, and `common([4, 2, 3], [3, 4, 5], orderedOps())` is `[3, 4]` as `common(["b", "a"], ["a", "c"], orderedOps())` is `["a"]`. Selecting a field is ordinary selection, resolved against the parameter's annotated type (§3.5, §4.8). The library declares no record and no generic function over one (E.0 rule 4). An operation whose callback has an effect variable, or whose accumulator has a type of its own, `filter` and `foldLeft` among them, is no field; generic code that needs one goes through `toList` and `List`.
-7. **A record is filled from a namespace.** In a record construction, `..` may name a namespace in place of an expression: `Ops(..Set)` fills each field not given beside it from the declaration of its name that the use site may name (§4.2), at the field's type. A declaration with a requirement (rule 1) is filled with the member of the field's type supplied, which the record's type must fix, to a known type or to a type variable of the enclosing declaration's signature that its requirement names, as rule 1 supplies a call; where it leaves that type a variable no requirement names, the fill is an error naming the field and the variable, `fromList needs a.compare, and the record's type leaves a undetermined`. `Ops(..OrderedSet, toList = mine)` takes the field given and fills the rest. The name after `..` is a namespace where it is a qualified name of type names alone that names no constructor or binding in scope, and an expression otherwise (§5.6); a namespace may stand alone, `Ops(..Set)`, where an expression keeps §5.6's rule that at least one field follows it. A field with no declaration of its name in the namespace, or one whose type does not fit the field's, is an error naming the field and the namespace: `Ops(..Set) lacks isSubset: Set has no isSubset`.
-8. **`OrderedSet` is `ordered_set.ern`** in the standard library, a file whose words joined by `_` name one namespace (§4.2, §11.1). Its type is `OrderedSet.Set(a)` (E.0 shape rule 7), which inside the file shadows the prelude's `Set` (§4.2). A set carried into another representation goes through that representation's `fromList` of its `toList`. `Set` does not change.
-9. **The representation is a sorted list**, one shape per set, so that `==` is structural. `put`, `contains` and `remove` are linear in the set's size; `fromList` is a stable sort and one pass, `n log n`, and `map` and `filterMap` are its cost beside the function's; `union`, `intersection`, `difference` and `isSubset` are linear in the two sizes. A representation of another shape needs one shape per set as well, and replaces the list when a program's measurement shows the linear cost matters, with no change a program can see.
-10. **A list that mixes representations needs a second record type**, one that hides `s`: its functions close over one set, and its `put` returns another such record. It has no operation on two sets and no `==`.
-11. **A type asks for the structural order.** A type declaration may end in `derives compare`: `type Date = Date(year : Int, month : Int, day : Int) derives compare`. The type gains the member `compare` (§4.8), which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare`. A field whose type has no `compare` is an error at the declaration: `Date.compare cannot be derived: Optional(Int) has no compare`. The member is written on the type's page as any member. For a type with parameters it declares `needs` for each parameter the comparison reaches: `type Pair(a, b) = Pair(first : a, second : b) derives compare` gives `Pair.compare` the requirement `needs a.compare, b.compare`. `derives` names `compare` and nothing else.
-12. **An ordered map is specified as the ordered set is.** `ordered_map.ern`, namespace `OrderedMap`, type `OrderedMap.Map(k, v)`, keeps its keys in the order of their type's `compare`, with E.0 rule 2's vocabulary for a map. Each function that needs the keys' order declares `needs k.compare`; the map is data, a sorted list of pairs with one shape per map, and `==` is structural. The file is [`ordered_map.ern`](../stdlib/ordered_map.ern).
-
-## The files
-
-[`ordered_set.ern`](../stdlib/ordered_set.ern) is the ordered set. Shown are its type, `empty`, `fromList` with its pass, `contains`, `put`, `map`, `filter` and `union`; the rest of the vocabulary is written as these are, and the file holds it whole.
-
-```ernest
-export abstract type Set(a) = Set(List(a))
-
-export let empty : Set(a) = Set([])
-
-export fn fromList(list : List(a)) : Set(a) needs a.compare =
-    Set(firstOfEach(List.sort(list, a.compare)))
-
-// The first of each run the order calls `Equal` in a sorted list. The sort
-// is stable, so the list's earlier occurrence comes first and is the one
-// kept, as `put` keeps the element already there.
-fn firstOfEach(sorted : List(a)) : List(a) needs a.compare =
-    match sorted {
-        x :: y :: rest -> if a.compare(x, y) == Equal then
-            firstOfEach(x :: rest)
-        else
-            x :: firstOfEach(y :: rest)
-      | _ -> sorted
-    }
-
-export fn contains(Set(list) : Set(a), x : a) : Bool needs a.compare =
-    has(list, x)
-
-fn has(list : List(a), x : a) : Bool needs a.compare =
-    match list {
-        [] -> false
-      | y :: rest -> match a.compare(x, y) {
-            Less -> false
-          | Equal -> true
-          | Greater -> has(rest, x)
-        }
-    }
-
-export fn put(Set(list) : Set(a), x : a) : Set(a) needs a.compare =
-    Set(inserted(list, x))
-
-fn inserted(list : List(a), x : a) : List(a) needs a.compare =
-    match list {
-        [] -> [x]
-      | y :: rest -> match a.compare(x, y) {
-            Less -> x :: list
-          | Equal -> list
-          | Greater -> y :: inserted(rest, x)
-        }
-    }
-
-export fn map(Set(list) : Set(a), f : (a) -> b with e) : Set(b) with e needs b.compare =
-    fromList(List.map(list, f))
-
-export fn filter(Set(list) : Set(a), keep : (a) -> Bool with e) : Set(a) with e =
-    Set(List.filter(list, keep))
-
-export fn union(Set(list) : Set(a), Set(other) : Set(a)) : Set(a) needs a.compare =
-    Set(merged(list, other))
-
-fn merged(list : List(a), other : List(a)) : List(a) needs a.compare =
-    match #(list, other) {
-        #([], _) -> other
-      | #(_, []) -> list
-      | #(x :: rest, y :: others) -> match a.compare(x, y) {
-            Less -> x :: merged(rest, other)
-          | Equal -> x :: merged(rest, others)
-          | Greater -> y :: merged(list, others)
-        }
-    }
-```
+The ordered set and the ordered map are the standard library's, [`ordered_set.ern`](../stdlib/ordered_set.ern) and [`ordered_map.ern`](../stdlib/ordered_map.ern); guide §7.3 shows the parts of the first that carry the requirement. The programs here use them and the forms.
 
 [`usage.ern`](operations/usage.ern) is a program over both sets, a type that derives its order, a map in order, and printing in generic code. No line names an order; `unique` and `shown`, generic, declare what they need; and `Ops` is the record `common` needs, declared there and filled from each representation at `Int`.
 
@@ -144,7 +60,7 @@ export fn main() : Unit with Never = {
 }
 ```
 
-It prints `[1, 2, 3]`, `Some(1)`, `true`, `[1, 3]`, `true`, `["a", "b"]`, `Some(Date(year = 2025, month = 1, day = 1))`, the two dates on a line each in order, `["al", "bo"]`, `Some(1)`, `[3, 4]` and `2`: two sets built in different orders are `==`, `map` makes a set of the results' type, `unique` and `shown` write nothing at their calls, `Date` is ordered by year, month and day from its declaration, and `common` is written once for both representations. Without its requirement, `unique` is rule 1's error:
+It prints `[1, 2, 3]`, `Some(1)`, `true`, `[1, 3]`, `true`, `["a", "b"]`, `Some(Date(year = 2025, month = 1, day = 1))`, the two dates on a line each in order, `["al", "bo"]`, `Some(1)`, `[3, 4]` and `2`: two sets built in different orders are `==`, `map` makes a set of the results' type, `unique` and `shown` write nothing at their calls, `Date` is ordered by year, month and day from its declaration, and `common` is written once for both representations. Without its requirement, `unique` is §4.9's error:
 
 ```ernest-rejected
 fn unique(list : List(a)) : List(a) =
@@ -156,7 +72,7 @@ $ ern build --short-errors usage.ern
 usage.ern:17:23: fromList needs a.compare, which unique does not declare; add needs a.compare
 ```
 
-`mixed.ern` is a program rule 4 refuses.
+`mixed.ern` is a program E.25 refuses, an order belonging to an element type.
 
 ```ernest-rejected
 type Descending = Descending(Int)
@@ -194,7 +110,7 @@ fn doubled(list : List(a)) : List(a) needs a.+ =
     List.map(list, fn(x) = x + x)
 ```
 
-Its `main` prints `Some(6)`, `Some(4.0)`, `Some(Money(3))`, `6`, `[Money(4)]` and `Some(6)`. Declaring the zero as a requirement is rule 2's error:
+Its `main` prints `Some(6)`, `Some(4.0)`, `Some(Money(3))`, `6`, `[Money(4)]` and `Some(6)`. Declaring the zero as a requirement is §4.9's error:
 
 ```ernest-rejected
 fn sum(list : List(a)) : a needs a.zero, a.+ =
@@ -222,112 +138,13 @@ fn sumOfSquares(list : List(a), num : Num(a)) : a =
 
 Its `main` prints `6`, `3.0` and `14`.
 
-[`ordered_map.ern`](../stdlib/ordered_map.ern) is the ordered map of rule 12. Shown are its type, `empty`, `fromList`, `get`, `put`, `map`, which keeps the keys and needs nothing, `merge` and `mergeWith`; the rest of the vocabulary is written as these are, and the file holds it whole.
+## What the types do not guarantee
 
-```ernest
-export abstract type Map(k, v) = Map(List(#(k, v)))
+The report holds no contract for `compare`'s laws yet; MVP 2.99d's item 4 moves this section to §3.10, E.25 and E.26 pointing at it, and it then goes from here.
 
-export let empty : Map(k, v) = Map([])
-
-export fn fromList(pairs : List(#(k, v))) : Map(k, v) needs k.compare =
-    Map(lastOfEach(List.sort(pairs, fn(#(key, _), #(other, _)) = k.compare(key, other))))
-
-// The last of each run of pairs whose keys the order calls `Equal`, in a
-// sorted list. The sort is stable, so the list's later pair comes last
-// and is the one kept, as `put` replaces the value already there.
-fn lastOfEach(sorted : List(#(k, v))) : List(#(k, v)) needs k.compare =
-    match sorted {
-        #(key, value) :: #(other, later) :: rest -> if k.compare(key, other) == Equal then
-            lastOfEach(#(other, later) :: rest)
-        else
-            #(key, value) :: lastOfEach(#(other, later) :: rest)
-      | _ -> sorted
-    }
-
-export fn get(Map(pairs) : Map(k, v), key : k) : Optional(v) needs k.compare =
-    found(pairs, key)
-
-fn found(pairs : List(#(k, v)), key : k) : Optional(v) needs k.compare =
-    match pairs {
-        [] -> None
-      | #(other, value) :: rest -> match k.compare(key, other) {
-            Less -> None
-          | Equal -> Some(value)
-          | Greater -> found(rest, key)
-        }
-    }
-
-export fn put(Map(pairs) : Map(k, v), key : k, value : v) : Map(k, v) needs k.compare =
-    Map(inserted(pairs, key, value))
-
-fn inserted(pairs : List(#(k, v)), key : k, value : v) : List(#(k, v)) needs k.compare =
-    match pairs {
-        [] -> [#(key, value)]
-      | #(other, kept) :: rest -> match k.compare(key, other) {
-            Less -> #(key, value) :: pairs
-          | Equal -> #(key, value) :: rest
-          | Greater -> #(other, kept) :: inserted(rest, key, value)
-        }
-    }
-
-export fn map(Map(pairs) : Map(k, v), f : (k, v) -> w with e) : Map(k, w) with e =
-    Map(List.map(pairs, fn(#(key, value)) = #(key, f(key, value))))
-
-export fn merge(map : Map(k, v), other : Map(k, v)) : Map(k, v) needs k.compare =
-    mergeWith(map, other, fn(_, _, value) = value)
-
-export fn mergeWith(Map(pairs) : Map(k, v),
-                    Map(others) : Map(k, v),
-                    f : (k, v, v) -> v with e) : Map(k, v) with e needs k.compare =
-    Map(mergedWith(pairs, others, f))
-
-fn mergedWith(pairs : List(#(k, v)),
-              others : List(#(k, v)),
-              f : (k, v, v) -> v with e) : List(#(k, v)) with e needs k.compare =
-    match #(pairs, others) {
-        #([], _) -> others
-      | #(_, []) -> pairs
-      | #(#(key, mine) :: rest, #(theirs, value) :: more) -> match k.compare(key, theirs) {
-            Less -> #(key, mine) :: mergedWith(rest, others, f)
-          | Equal -> #(key, f(key, mine, value)) :: mergedWith(rest, more, f)
-          | Greater -> #(theirs, value) :: mergedWith(pairs, more, f)
-        }
-    }
-```
-
-[`set.ern`](../stdlib/set.ern) does not change. `ern doc` writes a requirement as declared: `OrderedSet.fromList : (List(a)) -> OrderedSet.Set(a) needs a.compare`.
-
-## Typing
-
-Every construct above but the two forms is one the report specifies and the checker of Ernest 0.2.0 implements. The type system is §3.9's, and the specification stays inside it.
-
-- **The requirement.** A requirement adds nothing to the function's scheme (§3.9). It licenses `a.compare` and an operator on `a` in the body, each with the member's shape at `a`, its result `a` for an operator and for `negate` (rule 1), so that a type whose member answers another type is refused where the member is supplied. At a call of a function with a requirement, the checker reads the type `a` is instantiated to once the enclosing definition is inferred, as it reads an operator's operand type (§4.8): a known type's member is supplied as an argument the emitter adds after the written ones; a type variable is met by the enclosing function's requirement at that type, whose own added argument is passed along; a member with a requirement of its own is supplied with that requirement resolved first, so the argument added may be a closure over arguments added in turn; and otherwise the call is rule 1's error. Nothing is inferred: a requirement is written, or the call is refused.
-- **The record.** `Ops(s, a)` is a sum type with one constructor and named fields (§3.5), rank-1: every field's type names only `s` and `a`. A field for `foldLeft` is refused with `type variable b is not a parameter of the type`.
-- **Selection.** `ops.toList` in `common` is §3.5's selector, resolved as an operator's operand type is (§4.8): the operand's type constructor must be known when the enclosing definition is inferred, so the record parameter is annotated. Unannotated, it is refused with `the type whose field toList is read is not determined; annotate it`.
-- **Code written once.** `common` is a let-polymorphic function over the record, with a principal type, instantiated at each representation.
-- **The fill.** `Ops(..OrderedSet)` is checked as the literal it stands for: each field not given is the declaration of its name at a fresh instance of its scheme, unified with the field's type. `Ops(OrderedSet.Set(Int), Int)` fixes `a` to `Int`, so `fromList`'s requirement is supplied with `Int.compare` and the field holds `fromList` at `Int`. The restrictions travel as from a literal: `hashed : Ops(Set(Int), Int)` carries `=` from `Set`'s functions, met at `Int`.
-- **The bindings.** `let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)` has a type with no variable in it; §8.5 runs the initializer once, a pure construction.
-- **Goal 4.** `OrderedSet.Set(Int)` and `OrderedSet.Set(Descending)` do not unify, since two declared types are distinct by name (§8.7).
-- **Equality.** `==` on two ordered sets is structural over their sorted lists (§3.10) and needs the element's equality at that application: a set whose elements hold functions is built and used, and `==` on two of them is refused there.
-- **The invariant.** The sorted list is the module's alone (§4.4).
-
-**What the types do not guarantee**, stated as the program's promise: `compare` is a total order, and where the element type has `==`, says `Equal` only where `==` holds. Nothing checks either. Where the element type has no `==`, an ordered set holds one element per class of `Equal`, and `put` keeps the element already there (rule 5). A `compare` that is not transitive breaks the order: `contains` answers wrongly and duplicates stay. One that says `Equal` where `==` does not makes `==` on two sets depend on the order of insertion.
+Stated as the program's promise: `compare` is a total order, and where the element type has `==`, says `Equal` only where `==` holds. Nothing checks either. Where the element type has no `==`, an ordered set holds one element per class of `Equal`, and `put` keeps the element already there (E.25). A `compare` that is not transitive breaks the order: `contains` answers wrongly and duplicates stay. One that says `Equal` where `==` does not makes `==` on two sets depend on the order of insertion.
 
 After an `Upgrade` (§6.10) or `:reload` (§11.2) a set built under the old `T.compare` is read under the new, and a changed order misorders it. A set sent to a node whose `T.compare` differs is read under that node's; MVP 3.0 decides where versions meet.
-
-## What changes in Ernest
-
-- A new section after §4.8, *Requirements*, at the end of chapter 4, where a section goes without renumbering, and Appendix A: a function declaration may end in a requirement naming members of its type variables, `needs a.compare`: `FnDecl = ... [ "needs" Member { "," Member } ] "=" Expr`, `Member = typevar "." ( ident | userop )`; and `Primary` gains `typevar "." ( userop | "compare" | "negate" )`, mirroring `DeclName`, so that `a.compare` and `a.+` are expressions, §3.5 saying that under a requirement such a name is the member and not a selection. Under the requirement `a.compare` in the body is that member, and an operator on `a` resolves to it; the member has its shape with `a` for its result, `(a, a) -> a` for an operator, and a call at a type whose member has another result type is refused (rule 1). A call writes nothing for it: where the type is known when the enclosing definition is inferred the compiler supplies the member, where it is a variable the enclosing function's requirement at that type supplies it, and without one the call is refused. A requirement names a member of §4.8, or `show` (E.1), and nothing else, and is never inferred (rule 2). §4.8's sentence on the hidden argument becomes one sentence: an operator resolved against its operand's type carries no argument the program has not declared, on a known type none, and on a type variable the member a requirement names, which a call supplies without writing it; `==` compares structurally and needs none, as before.
-- §2.4: `needs` and `derives` are words of Appendix A read by position, as a bitstring's specifiers are, and identifiers everywhere else; the lexer, the parser, the Emacs mode and the formatter follow. They were reserved until 2026-10-04 (the log's *The Full Review's Questions, One by One*).
-- §3.5 and Appendix A: a type declaration may end in `derives compare`, `TypeDecl = ... [ "derives" "compare" ]`, which declares the member rule 11 states.
-- E.1: under `needs a.show`, `Io.show` and `Io.debug` apply to a value of a type variable (rule 2).
-- E.0's shape rule 1: an operations record comes directly after the subjects, before an accumulator and callbacks, `common(list, other, ops)`, decided on 2026-10-02 (the log's *MVP 2.99b's Questions, One by One*).
-- Appendix F: *member*, *requirement*, *fill*, *derives* and *operations record*.
-- §5.6 and Appendix A: in a record construction, `..` may name a namespace, which fills the fields not given from the declarations of their names (rule 7). `Fields = ".." Expr [ "," FieldSet { "," FieldSet } ] | FieldSet { "," FieldSet }`, one form the parser reads, and two sentences of §5.6 that decide it: the expression after `..` names a namespace where it is a qualified name of type names alone that names no constructor or binding in scope; a namespace may stand alone, and an expression keeps §5.6's rule that at least one field follows it.
-- §4.2 and §11.1: a file name of words joined by `_` names one namespace, MVP 2.99b's item 4, done 2026-10-02.
-- Appendix E, a section for `ordered_map.ern`, namespace `OrderedMap`, as rule 12 states, and a section for `ordered_set.ern`, namespace `OrderedSet`, with `abstract type Set(a)`, `empty`, `fromList`, and E.0 rule 2's vocabulary; which functions name `a.compare` and which `b.compare` (rule 3); `==` structural; the sorted list's costs.
-- §11.5: rule 1's errors for a call without the requirement, in a `fn` and in a `let`, for a member of another result type and for a requirement variable that is not the signature's, rule 2's error for a name that is no member, and the fill's; a call of a selected field names it as written, `ops.intersection`, where its message says "the callee", as goal 5 asks; `ern doc` writes a requirement as declared, and `ern shell` shows it as `ern doc` writes it, in `:type` and in completion.
-- E.4 and E.0's vocabulary do not change. Nothing else in §3 or §4; §3.10 stays as it is: tuples, lists, `Optional` and `Either` have no order, and a program sorts pairs with a function it passes to `List.sort`.
 
 ## What it costs to build
 
@@ -346,7 +163,7 @@ The work falls on the parser and checker for the two forms, on the library, and 
 | Report | a new section after §4.8 for the requirement; §4.8, §3.5, §5.6, §2.4, E.0, E.1, Appendix A, Appendix F, §11.5; the two Appendix E sections | 5 |
 | Guide §7.3 | rewritten over the finished code, `ordered_set.ern` its example with `usage.ern`'s program | 16 |
 
-At run time a requirement's member is an ordinary argument and a field use one indirect call, the host's own application of a fun. The ordered set's own costs are rule 9's.
+At run time a requirement's member is an ordinary argument and a field use one indirect call, the host's own application of a fun. The ordered set's own costs are E.25's.
 
 ## Compared, with pros and cons
 
@@ -378,4 +195,4 @@ In Rust, `unique` is `fn unique<T: Ord>(list: Vec<T>) -> Vec<T>`, its bound decl
 - Against Rust: a bound names any trait, the program's own among them, so a `zero` or a `hash` is a bound where Ernest passes a parameter or fills a field; a trait's method is dispatched statically, one copy of the code per type, where a field use is one indirect call and a requirement one argument passed; a bound stands once on an `impl` block for every method in it, where each function of `OrderedSet` that needs the order writes `needs a.compare`; and Rust orders `Option`, tuples and `Vec` by their contents, where Ernest's `Optional`, tuples and lists have no order.
 - Against OCaml and Standard ML: the member is the only order a type has, so a reversed set of `Int` is a wrapper type where OCaml applies the functor again; and the requirement and the fill are two forms, where a functor is one.
 - Against Elm: two forms where Elm has none, and an order declared per user type where Elm has no such type at all.
-- Against all: a record over the whole vocabulary is twelve fields the program writes, and `filter` and `foldLeft` cannot be fields. The requirement reaches §4.8's members and `show` only; a record that needs a `zero` or a `hash` fills them by name from a namespace (rule 7) and can name neither in a requirement (rule 2).
+- Against all: a record over the whole vocabulary is twelve fields the program writes, and `filter` and `foldLeft` cannot be fields. The requirement reaches §4.8's members and `show` only; a record that needs a `zero` or a `hash` fills them by name from a namespace (§5.6) and can name neither in a requirement (§4.9).

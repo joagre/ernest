@@ -17,7 +17,7 @@ The report, in three files under [`report/`](../report/), is the one normative d
 - **[`style.md`](style.md)**: the style of the Erlang, the C and the Ernest.
 - **[`module_doc_template.md`](module_doc_template.md)**: a documented module, as `ern doc` renders it.
 - **[`language_feedback.md`](language_feedback.md)**: what writing Ernest has felt against the principles, until the plan decides it.
-- **[`operations.md`](operations.md)**: the specification of operations records, which MVP 2.99b's item 5 decided and built, and its three programs.
+- **[`operations.md`](operations.md)**: operations records compared with type classes, what the forms cost, and three programs that use them; the report states their rules.
 - **[`shell_design.md`](shell_design.md)**, **[`node_protocol.md`](node_protocol.md)**, **[`code_distribution.md`](code_distribution.md)**, **[`install.md`](install.md)**: the design notes of the shell, of the protocol between nodes, of code distribution, and of the installation.
 - **[`emacs_mode.md`](emacs_mode.md)**: the Emacs major mode.
 - **[`shell/README.md`](../shell/README.md)**: a guide to the shell's code.
