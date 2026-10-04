@@ -18,8 +18,9 @@ the grammar, the standard library's laws and well-typed programs, were built on 
 its argument, [`soundness.md`](soundness.md), was written on 2026-10-04 and found the reply
 discipline short in ten places, each closed that day, and the typed generator's third round,
 on replies, was built the same day and found nothing more; item 5 moved into Ernest what
-Erlang held that Ernest can, the same day. Next is its item 6, the full review, then the
-release, Ernest 0.3.0. MVP 2.99b, what the release review left, the code's
+Erlang held that Ernest can, and item 6, the full review, ran on `d90a5b3`, the same day. Its
+570 findings stand in [`findings.md`](findings.md) for the user to read; next is the
+milestone that works them, and then item 7, the release, Ernest 0.3.0. MVP 2.99b, what the release review left, the code's
 names read and made to read, operations records, and running as a service, was done on
 2026-10-03, and `findings.md` went with it; the principles review, a milestone of its own
 between its items 3 and 4, closed on 2026-10-01, and Ernest 0.2.0, the second release, is
@@ -51,6 +52,7 @@ taken out of order. Each has its paragraph under "Done".
 | The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01 |
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | moved from MVP 3.9 on 2026-10-01 |
+| The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -142,19 +144,45 @@ programs as item 2, and the last three as items 7, 8 and 6.
    `:output` is Ernest: the screen appends there and, where a write fails, says why and
    draws again (§11.2). The terminal's key decoding stays in `ern_tty`, the runtime's
    system process.
-6. **The full review**, decided with the user 2026-10-03: after item 5 and before item 7,
-   in place of the release review's readers for 0.3.0. [`full_review.md`](full_review.md)
-   is run whole: each of its nineteen readers and parts is a fresh agent of one workflow,
-   never a fork, given only its brief and its files, as its *How it runs* says. P and K run
-   on the most advanced model and every other reader and part on the one below it, as its
-   *The models* says. The lists are collected into `findings.md` as its *The findings* says,
-   and the work stops there for the user to read them before any finding is worked.
+6. **The full review**, done 2026-10-04 (the log's *The Full Review Run*), in place of the
+   release review's readers for 0.3.0: [`full_review.md`](full_review.md) run whole on
+   `d90a5b3`, its nineteen readers and parts each a fresh agent of one workflow, never a
+   fork, given only its brief, its files and a copy of the commit, P and K on the most
+   advanced model and the rest on the one below. They handed in 570 findings, collected
+   into [`findings.md`](findings.md) as its *The findings* says, which the milestone after
+   this item works once the user has read them.
 7. **A release, Ernest 0.3.0**, the milestone's last item, decided with the user
    2026-10-03, with no hurry: after the machines have run and the argument is written, so
    that what is released has been generated against. The review and the release run as
    [`release_review.md`](release_review.md) says, its readers being item 6's. Item 10's
    launchd checks of MVP 2.99b have run on a Mac by then, or the notes say that the agent has
    not been checked.
+
+---
+
+## The full review's findings (after MVP 2.99c's item 6, before its item 7), about two days
+
+The 570 findings the full review handed in on 2026-10-04, MVP 2.99c's item 6, worked as
+[`full_review.md`](full_review.md)'s *The findings* says. They stand in
+[`findings.md`](findings.md), a line each by area, with every reader's whole list below.
+They are worked before item 7, since the release's review takes item 6's readers for its own
+and its notes say what changed.
+
+1. **The lines' decisions**: each line `cheap`, a milestone, `done` or `dropped` with its
+   reason, once the user has read the lines.
+2. **The design questions**, discussed with the user one at a time, each a sentence of the
+   report or of §0 or a ruling, the report and the log changing with each.
+3. **The fixes**: the report, the guide and the documents, then the code and its tests, a
+   batch a commit. A design question, a sentence of the report or of §0, and a reading of the
+   argument run on the most advanced model, and a defect whose fix the finding names on the
+   one below, as *The models* says.
+4. **The close**: the log's entry for the review gains how many findings took each decision,
+   and `findings.md` goes when every line is done or dropped, or stands in the plan as an
+   item of its own.
+
+The two days are the earlier reviews' pace, the principles review's 663 findings worked in
+one; the decisions take the user's time, at the user's pace, and the estimate is revised
+when the lines have their decisions.
 
 ---
 
