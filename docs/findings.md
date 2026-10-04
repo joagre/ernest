@@ -794,7 +794,7 @@ Clarity
 Where the language made the work harder
 
 - **S16** `question`: Fs has no read that refuses a link, so a program serving files under a root that others can write cannot stop a planted link from leading out. (Appendix E.17) — Should `Fs` gain a read and a write, admitted under E.0 rule 1, that refuse a link in any segment below a given root, walking by open directories as `removeAll` does?.
-- **S17** `question`: One file whose name is not UTF-8 makes `Fs.list` fail for its whole directory, and no Path can name that file to remove it. (Appendix E.17 (`Fs.list`); §8.2) — Should `Fs.list` answer its UTF-8 entries with the other names' bytes beside them, and `Fs.remove` take such a name, so that one name not UTF-8 neither hides its directory nor pins itself, which *The One Silence*'s whole-or-error answer did not weigh?.
+- **S17** `done`: One file whose name is not UTF-8 makes `Fs.list` fail for its whole directory, and no Path can name that file to remove it. (Appendix E.17 (`Fs.list`); §8.2) — decided with the user: the rule stands, whole or an error; a listing by bytes waits for a program that needs it (the log's *Later*; the plan's MVP 3.2).
 
 ## The readers' lists
 

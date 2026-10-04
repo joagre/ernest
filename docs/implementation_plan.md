@@ -392,6 +392,9 @@ package story. Written: `libs/ets` and `libs/markdown` (Appendix G; `libs/markdo
   Either(RegexError, Regex)`, `Regex` a foreign type.
 - **`libs/crypto`**, a shim over `crypto` for hashes, HMAC and random bytes; **`libs/uri`**,
   pure Ernest or a shim over `uri_string`; **`libs/zlib`**, a shim over `zlib`.
+- **A listing by bytes in `Fs`**, decided when a program must manage a directory others
+  write by names it does not choose: `Fs.names` and `Fs.removeName`, through E.0's rules,
+  beside an `Fs.list` that stays whole or an error (§8.2; the log's *Later*, S17).
 - **`Udp`**, a system module of Appendix E beside `Tcp` and not a library, admitted by E.0
   rule 1 and written as wanted too, with `Tcp`'s shapes: a socket an address, a read pulled
   with a time, a datagram `Bytes` (the log's *`Clock.monotonic` Is In, and `Udp` Is
