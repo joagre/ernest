@@ -7,7 +7,7 @@
 1. **A TLS socket is a `Tcp` socket.** One type, `Address(Tcp.SocketMsg)`, and `Tcp.read`, `Tcp.write` and `Tcp.close` serve both.
 2. **TLS is an upgrade of a connected socket.** A program connects or accepts with `Tcp`, then calls `Tls.client` or `Tls.server` on the socket.
 3. **Trust is an argument.** The call says which certificates it accepts, and accepting any is spelled `Unverified`.
-4. **`Tls` is a module of the standard library**, two functions and two types, with the transport inside the runtime's socket process.
+4. **`Tls` is a module of the standard library**, two functions and two types. The `ssl` calls are inside the runtime's Erlang module for sockets, `ern_tcp.erl`, and `tcp.ern` does not change.
 5. **It is built on Erlang's `ssl`**, and no part of TLS is written in Ernest. That is an exception to the rule that Ernest is used wherever it can express the work, taken for security, and recorded as one.
 6. **No operations record.** One was tried for this and works, but the address already does its job. The last section reports the experiment.
 
@@ -113,6 +113,19 @@ The reason is that Ernest should not write TLS, not that it cannot. That is an e
 - **No `PublicKey` library is needed.** `Pinned` and `Identity` take PEM bytes, read with `Fs.read`, and the runtime hands them to the host.
 - **Nothing of `ssl`, `crypto` or `public_key` shows in an Ernest signature.** The module's types are `Trust`, `Identity`, `Io.Error` and `Tcp`'s socket.
 
+### Where each part of the code lives
+
+The `ssl` calls are inside the Erlang module that already runs the socket process, and nowhere else. An Ernest program never sees them.
+
+- **Ernest, a new `tls.ern` in the standard library.** The two types, `Trust` and `Identity`, and the two functions, `Tls.client` and `Tls.server`. Each function is a thin call down to a primitive, as `Tcp.listen` and `Tcp.connect` are today.
+- **Erlang, `erl/runtime/src/ern_tcp.erl`**, the module that runs a socket's process over `gen_tcp`. It gains three things:
+  - the upgrade itself, which hands the connected socket to `ssl` and runs the handshake;
+  - the turning of a `Trust` or an `Identity` into `ssl`'s options;
+  - a field in the socket's state saying which transport it is on, so that after an upgrade its sends, its close, its asking for the next message and its endpoint queries call `ssl` where they called `gen_tcp`.
+- **Ernest, `stdlib/tcp.ern`, unchanged.** `read`, `write`, `close`, `give` and the rest send the same messages to the same process. That the process now encrypts is its own affair.
+
+So the Erlang grows inside one module, at the places where it already touches the socket, and no new Erlang module is written.
+
 ### What it takes to build
 
 - **The socket process learns a second transport.** It touches its socket in about ten places: sending, closing, asking for the next message, the three messages a socket delivers, the two endpoint queries, the pending-bytes check before a close, and handing the socket to another process. `ssl` has a counterpart for each. The state gains one field, which transport, set by the upgrade. This is an estimate from the calls the file makes, not from a reading of its logic.
@@ -209,4 +222,5 @@ A record of closures admits a connection that is no socket at all. A test of an 
 - **Client certificates, protocol negotiation (ALPN) and session resumption** are not in the proposal. ALPN comes with HTTP/2, if that is ever wanted. The peers of MVP 3.0 authenticate both sides, and do so inside the runtime, not through this module.
 - **Two decisions that are the user's.** The plan drew TLS as a library, and the proposal moves it into the standard library. And the `foreign` rule, read strictly, asks for TLS in Ernest; the proposal takes the host's instead and asks that the exception be recorded with its argument. Neither is settled by this note.
 - **The socket process was not read line by line.** The estimate of ten places comes from the calls it makes.
+- **How `Tls.client` reaches the socket process.** The messages a socket takes are `Tcp`'s alone, so `tls.ern` cannot make an upgrade message itself. Either it has a primitive of its own that reaches the process, or the upgrade is a function of `Tcp` and `Tls` holds the types. Decided when the module is written.
 - **The error for a refused certificate.** `Io.Error` has no constructor for it today; whether it gains one or the refusal is `Other(text)` is decided when the module is written.
