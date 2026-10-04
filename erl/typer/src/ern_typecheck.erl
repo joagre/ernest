@@ -2050,10 +2050,40 @@ post_checks(Declaration,
     holds_no_reply(Declaration, Span, Type, Env2),
     Env3 = ern_reply:check(TypedParams, TypedBody, Type, Env2),
     check_pending_restrictions(Env3),
+    %% the lesser error last, so that a reply or a restriction the body
+    %% breaks is what a refusal names first
+    needless_effect(Declaration, Type, Env3),
     {Supplied, Env3#env{effect = Env#env.effect, effect_origin = Env#env.effect_origin,
                         pending = Env#env.pending, deferred = Env#env.deferred,
                         requirement = Env#env.requirement, signature = Env#env.signature,
                         definition = Env#env.definition}}.
+
+%% Report §4.5, §3.9: a `fn` whose result annotation writes an effect
+%% variable that names no parameter's effect, and whose body acts through
+%% no process, is pure, and is written so: the variable would be pure at
+%% every call, and the printed type already leaves it out.
+needless_effect(#fn_declaration{member_of = MemberOf, name = Name,
+                                effect = #t_var{span = EffectSpan, name = Written}},
+                Type, #env{type_state = TypeState}) ->
+    case ern_types:substitute(Type, TypeState) of
+        {tfn, Params, {tvar, Id}, Result} ->
+            Elsewhere = lists:member(Id, ern_types:free_variables({ttuple, Params ++ [Result]},
+                                                                  TypeState)),
+            ProcessOnly = lists:member(process_only, ern_types:restrictions(Id, TypeState)),
+            case Elsewhere orelse ProcessOnly of
+                true ->
+                    ok;
+                false ->
+                    Declared = local_name(MemberOf, Name),
+                    fail(EffectSpan, Declared ++ " acts through no process, and `with "
+                                     ++ atom_to_list(Written) ++ "` names no parameter's effect",
+                         [], "write " ++ Declared ++ "'s type without `with`: it is pure")
+            end;
+        _ ->
+            ok
+    end;
+needless_effect(_, _, _) ->
+    ok.
 
 %% Report §6.6: a top-level binding is read by every function and is no
 %% obligation, so its type carries no reply.

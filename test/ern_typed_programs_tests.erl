@@ -502,7 +502,9 @@ plain(#{kind := rebind, same := Same, next := Next}, Reply, ChangeAt) ->
     ["{ let ", Name, " = ", Reply, "; ", consumed(Next, Name, ChangeAt), " }"];
 plain(#{kind := helper, next := Next}, Reply, ChangeAt) ->
     [Helper, Param] = [fresh("hand"), fresh("reply")],
-    declare(["fn ", Helper, "(", Param, " : Reply(Int)) : Unit with m =\n    ",
+    %% the result unannotated, so that its effect is the body's, a change
+    %% that leaves the body pure among them (report §4.5)
+    declare(["fn ", Helper, "(", Param, " : Reply(Int)) =\n    ",
              consumed(Next, Param, ChangeAt)]),
     [Helper, "(", Reply, ")"];
 plain(#{kind := returned, polymorphic := Polymorphic, same := Same, next := Next}, Reply,

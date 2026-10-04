@@ -2274,13 +2274,29 @@ variable_names_test() ->
                  type_of("export fn get(m : Map(k, v), key : k) : Optional(v) = Map.get(m, key)",
                          get)),
     ?assertEqual("(a=, a=) -> Bool",
-                 type_of("export fn eq(x : a, y : a) : Bool with m = x == y", eq)),
+                 type_of("export fn eq(x : a, y : a) : Bool = x == y", eq)),
     ?assertEqual("() -> Map(a=, b)", type_of("export fn empty() = Map.empty", empty)),
     ?assertEqual("(b, (b) -> a with e) -> a with e",
                  type_of("export fn ap(x : b, f) = f(x)", ap)),
     ?assertEqual("((a) -> a with e, a) -> a with e",
                  type_of("export fn twice(f : (a) -> a with e, x : a) : a with e = f(f(x))",
                          twice)).
+
+%% report §4.5, §3.9: a `fn` whose result annotation writes an effect
+%% variable that names no parameter's effect, and whose body acts through
+%% no process, is refused, the pure signature being the one spelling; a
+%% variable a parameter's effect names, or one the body makes process-only,
+%% stands; a reply or a restriction the body breaks is named first. A
+%% regression test of the full review's P12 (2026-10-04)
+needless_effect_test() ->
+    ?assertEqual({"k acts through no process, and `with m` names no parameter's effect",
+                  "write k's type without `with`: it is pure"},
+                 refusal_and_help("fn k() : Int with m = 5")),
+    ?assertEqual(ok, ok("fn apply(f : () -> Unit with m) : Unit with m = f()\n"
+                        "fn tell(a : Address(Int)) : Unit with m = send(a, 1)\n"
+                        "fn k() : Int = 5\n")),
+    ?assertEqual("the reply-carrying value r is never consumed",
+                 refusal("fn never(r : Reply(Int)) : Unit with m = Unit")).
 
 %% report §4.8: an operator is resolved in its definition, and a local fn
 %% and a lambda a block `let` binds are definitions of their own, since

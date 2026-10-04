@@ -1740,6 +1740,20 @@ example.ern:3:27: `..` is allowed only on a type with one constructor, and Shape
   | = help: give every field of Circle
 ```
 
+### `with m` on a body that acts through no process (§4.5)
+
+```ernest-rejected
+fn k() : Int with m = 5
+```
+
+```console
+$ ern build example.ern
+example.ern:1:19: k acts through no process, and `with m` names no parameter's effect
+1 | fn k() : Int with m = 5
+  |                   ^
+  | = help: write k's type without `with`: it is pure
+```
+
 ### A module's own name written qualified where nothing hides it (§4.2)
 
 ```ernest-rejected
