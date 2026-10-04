@@ -8,7 +8,8 @@
 -include_lib("parser/include/ern_ast.hrl").
 
 %% Report §5.11: the specifiers of a segment as one map, kind, size (none,
-%% {const, Bits}, or {expr, Expr}), unit, endian, sign, with the defaults,
+%% {const, Count}, or {expr, Expr}, Count counted in units), unit, endian,
+%% sign, with the defaults,
 %% or the error of a conflict, a sign or byte order the kind does not
 %% take, or an impossible width. The unit is what a size counts, 8 bits
 %% for `bytes` and 1 otherwise; no specifier sets it.
@@ -39,7 +40,8 @@ spec(Specs) ->
         IsUtf = lists:member(Kind, [utf8, utf16, utf32]),
         not (IsUtf andalso maps:is_key(size, Spec)) orelse throw("a utf segment has no size"),
         case {Kind, Size} of
-            {float, {const, Bits}} when Bits =/= 16, Bits =/= 32, Bits =/= 64 ->
+            %% a float's unit is a bit
+            {float, {const, Count}} when Count =/= 16, Count =/= 32, Count =/= 64 ->
                 throw("a float segment is 16, 32, or 64 bits");
             _ -> ok
         end,
@@ -49,7 +51,7 @@ spec(Specs) ->
         throw:Message -> {error, Message}
     end.
 
-spec_fold({size, #e_literal{kind = int, value = Bits}}, Spec) -> once(size, {const, Bits}, Spec);
+spec_fold({size, #e_literal{kind = int, value = Count}}, Spec) -> once(size, {const, Count}, Spec);
 spec_fold({size, Expr}, Spec) -> once(size, {expr, Expr}, Spec);
 spec_fold(Kind, Spec) when Kind =:= int; Kind =:= float; Kind =:= bytes; Kind =:= utf8;
                            Kind =:= utf16; Kind =:= utf32 ->
@@ -66,6 +68,6 @@ once(Key, Value, Spec) ->
             Spec#{Key => Value}
     end.
 
-spec_text(size, {const, Bits}) -> "`size(" ++ integer_to_list(Bits) ++ ")`";
+spec_text(size, {const, Count}) -> "`size(" ++ integer_to_list(Count) ++ ")`";
 spec_text(size, _) -> "`size(...)`";
 spec_text(_, Value) -> "`" ++ atom_to_list(Value) ++ "`".

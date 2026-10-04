@@ -32,7 +32,7 @@
 %% (report §11.2), which the checker takes as its fourth argument.
 -record(session, {load_path = [], source_root = ".", last_input = 0, interfaces = [],
                   scope = #{}, beams = #{}, modules = #{}, last_holder = 0, free_holders = [],
-                  draining = []}).
+                  draining = [], prelude}).
 %% last_input: the highest input number given; last_holder: the highest
 %% `$Bindings` number given; free_holders: the numbers of holders freed
 %% (collected/1), given again first, as an input's number is once its
@@ -42,6 +42,10 @@
 %% of the source it was compiled from, which `:reload` compares (§11.2)
 %% beams: the namespace of an input that declared, to its compiled module,
 %% which `:doc` reads the documentation of (report §11.2, §11.4)
+%% prelude: the prelude's environment, the standard library's interfaces
+%% among it, built when the session starts and kept while it lives, since
+%% neither changes while it runs; the queries of completion, `:browse` and
+%% `:doc` read it rather than build it each time
 %% A checked input: the module it became, its typed tree, the checker's
 %% environment, its type.
 -record(checked, {namespace, typed, declarations, interface, env, type, binds, site}).
@@ -93,6 +97,7 @@ start() ->
     #loaded{load_path = LoadPath, source_root = SourceRoot, interfaces = Interfaces} =
         persistent_term:get({?MODULE, loaded}, #loaded{}),
     keep_session(#session{load_path = LoadPath, source_root = SourceRoot,
+                          prelude = ern_typecheck:prelude_env(),
                           interfaces = [Interface || {Interface, _} <- Interfaces],
                           modules = maps:from_list([{Interface#interface.namespace, Hash}
                                                     || {Interface, Hash} <- Interfaces])}).
@@ -455,7 +460,7 @@ type_text(#checked{typed = Typed, type = Type, env = Env}) ->
     TypeState = ern_typecheck:type_state(Env),
     Text = case one_name(Typed) of
                {Namespace, Name} ->
-                   case ern_typecheck:declared_scheme(Env, Namespace, Name) of
+                   case ern_typecheck:declared_scheme(Namespace, Name, Env) of
                        {ok, Scheme} -> ern_types:format_scheme(Scheme, TypeState);
                        error -> ern_types:format(Type, TypeState)
                    end;
@@ -731,11 +736,10 @@ along_path(_, _, _) ->
     none.
 
 %% The one constructor of a type in scope, or none.
-one_constructor(QualifiedName, #session{interfaces = Interfaces}) ->
+one_constructor(QualifiedName, #session{interfaces = Interfaces, prelude = Prelude}) ->
     Found = [TypeInfo || #interface{types = Types} <- Interfaces,
                          {Name, TypeInfo} <- maps:to_list(Types), Name =:= QualifiedName]
-        ++ [TypeInfo || TypeInfo <- [ern_typecheck:lookup_type(QualifiedName,
-                                                               ern_typecheck:prelude_env())],
+        ++ [TypeInfo || TypeInfo <- [ern_typecheck:lookup_type(QualifiedName, Prelude)],
                         TypeInfo =/= undefined],
     case Found of
         [#type_info{constructors = [ConstructorInfo]} | _] -> {ok, ConstructorInfo};
@@ -751,7 +755,7 @@ one_constructor(QualifiedName, #session{interfaces = Interfaces}) ->
 names() ->
     names(kept_session()).
 
-names(#session{interfaces = Interfaces, scope = Scope} = Session) ->
+names(#session{interfaces = Interfaces, scope = Scope, prelude = Prelude} = Session) ->
     TypeState = session_type_state(Session),
     Declared = [name('Value', name_text(Key),
                      scheme_line(name_text(Key), QualifiedName, Session, TypeState))
@@ -762,22 +766,26 @@ names(#session{interfaces = Interfaces, scope = Scope} = Session) ->
                  constructor_line(atom_to_list(Name),
                                   constructor_scheme(QualifiedName, Session), TypeState))
             || {Name, QualifiedName} <- maps:to_list(maps:get(constructors, Scope, #{}))],
-    {PreludeTypes, _} = ern_typecheck:prelude_names(),
-    Prelude = [name('Value', Text, Text ++ " : " ++ Type)
-               || {QualifiedName, Type, _} <- ern_prelude:values(),
-                  Text <- [ern_namespace:text(QualifiedName)]]
+    {PreludeTypes, _} = ern_typecheck:prelude_names(Prelude),
+    %% report §11.5: a prelude value's type as `:type` prints it, its marks
+    %% with it
+    PreludeState = ern_typecheck:type_state(Prelude),
+    PreludeNames = [name('Value', Text, Text ++ " : " ++ ern_types:format_scheme(Scheme,
+                                                                                PreludeState))
+                    || {QualifiedName, Scheme} <- ern_typecheck:prelude_values(Prelude),
+                       Text <- [ern_namespace:text(QualifiedName)]]
         ++ [name('Type', Text, "type " ++ Text)
             || QualifiedName <- PreludeTypes,
                Text <- [ern_namespace:text(QualifiedName)]]
         ++ [name('Constructor', Text, constructor_line(Text, {ok, Scheme}, TypeState))
             || {QualifiedName, #constructor_info{scheme = Scheme}}
-                   <- maps:to_list(ern_typecheck:prelude_constructors()),
+                   <- maps:to_list(ern_typecheck:prelude_constructors(Prelude)),
                Text <- [ern_namespace:text(QualifiedName)]],
     Modules = lists:append([module_names(Interface, TypeState)
                             || Interface <- Interfaces ++ ern_prelude:stdlib_interfaces()]),
     %% report §11.2: an operator is no name, and does not complete, and
     %% neither does a module the session made, which is spelled as no name
-    lists:usort([Name || {'Name', Text, _, _} = Name <- Declared ++ Prelude ++ Modules,
+    lists:usort([Name || {'Name', Text, _, _} = Name <- Declared ++ PreludeNames ++ Modules,
                          words(Text)]).
 
 %% Every segment of a text begins with a letter or `_`, as a name's does.
@@ -893,9 +901,9 @@ scheme(QualifiedName, #session{interfaces = Interfaces}) ->
 
 %% The state a session name's type is printed under: the session's types
 %% print unqualified, as they do in an input (report §11.2).
-session_type_state(#session{scope = Scope, interfaces = Interfaces}) ->
-    TypeState = ern_typecheck:scope_state(Interfaces),
-    ern_types:set_scope(TypeState, [], maps:values(maps:get(types, Scope, #{})), []).
+session_type_state(#session{scope = Scope, interfaces = Interfaces, prelude = Prelude}) ->
+    TypeState = ern_typecheck:scope_state(Interfaces, Prelude),
+    ern_types:set_scope([], maps:values(maps:get(types, Scope, #{})), [], TypeState).
 
 %% Report §11.2: `:forget` removes a name the session declared, and `*`
 %% every one of them. A type is forgotten with its constructors. A module
@@ -941,7 +949,7 @@ constructors(QualifiedName, ScopeConstructors, #session{interfaces = Interfaces}
 -spec browse(#session{}, binary()) -> {'Left', binary()} | {'Right', [binary()]}.
 browse(Session, Text) ->
     case module_name(Session, Text) of
-        {ok, ['Prelude']} -> {'Right', prelude_listing()};
+        {ok, ['Prelude']} -> {'Right', prelude_listing(Session)};
         {ok, Namespace} -> browse(Text, Namespace, Session);
         unmet -> {'Left', <<"no module ", Text/binary, " is in scope">>};
         {error, Refusal} -> {'Left', Refusal}
@@ -949,36 +957,35 @@ browse(Session, Text) ->
 
 %% Report §11.2, §9: the prelude's types and values, as `:browse` lists a
 %% module's, since `Prelude` names its namespace (§4.2).
-prelude_listing() ->
-    Env = ern_typecheck:prelude_env(),
+prelude_listing(#session{prelude = Env}) ->
     TypeState = ern_typecheck:type_state(Env),
-    {Types, _} = ern_typecheck:prelude_names(),
+    {Types, _} = ern_typecheck:prelude_names(Env),
     %% report §9.4: `Io.show` and `Io.debug` are the prelude's, typed by
     %% `io.ern`'s interface, since the table's text has no place for their
     %% requirement
     Shown = [{['Io', Name], Scheme} || Name <- [show, debug],
-                                      {ok, Scheme} <- [ern_typecheck:declared_scheme(Env, ['Io'],
-                                                                                     Name)]],
+                                      {ok, Scheme} <- [ern_typecheck:declared_scheme(['Io'], Name,
+                                                                                     Env)]],
     %% the environment holds the standard library's types too, each under
     %% its module's name; the prelude's own are unqualified
     [unicode:characters_to_binary(["type ", ern_namespace:text(QualifiedName)])
      || [_] = QualifiedName <- lists:sort(Types)]
         ++ [unicode:characters_to_binary([ern_namespace:text(QualifiedName), " : ",
                                           ern_types:format_scheme(Scheme, TypeState)])
-            || {QualifiedName, Scheme} <- lists:sort(ern_typecheck:prelude_values() ++ Shown)].
+            || {QualifiedName, Scheme} <- lists:sort(ern_typecheck:prelude_values(Env) ++ Shown)].
 
 %% Report §11.5: each name and each type as the session writes it, the
 %% names qualified and another module's types too.
-browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope}) ->
+browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope, prelude = Prelude}) ->
     InScope = Interfaces ++ ern_prelude:stdlib_interfaces(),
     case [Interface || #interface{namespace = Held} = Interface <- InScope, Held =:= Namespace] of
         [] ->
             {'Left', <<"no module ", Text/binary, " is in scope">>};
         Found ->
             #interface{types = InterfaceTypes, values = InterfaceValues} = Last = lists:last(Found),
-            ScopeState = ern_typecheck:scope_state(Interfaces ++ [Last]),
-            TypeState = ern_types:set_scope(ScopeState, [],
-                                            maps:values(maps:get(types, Scope, #{})), []),
+            ScopeState = ern_typecheck:scope_state(Interfaces ++ [Last], Prelude),
+            TypeState = ern_types:set_scope([], maps:values(maps:get(types, Scope, #{})), [],
+                                            ScopeState),
             Types = [unicode:characters_to_binary([abstract_text(TypeInfo), "type ",
                                                    ern_namespace:text(QualifiedName)])
                      || {QualifiedName, TypeInfo} <- lists:sort(maps:to_list(InterfaceTypes))],
@@ -1239,7 +1246,7 @@ declared_scheme(#session{interfaces = Interfaces, scope = Scope}, Text) ->
     maybe
         {ok, it, #e_var{namespace = Namespace, name = Name}} ?= input(Text),
         {ok, _, _, Env} ?= ern_typecheck:check(['$Signature'], [], Interfaces, Scope),
-        {ok, Scheme} ?= ern_typecheck:declared_scheme(Env, Namespace, Name),
+        {ok, Scheme} ?= ern_typecheck:declared_scheme(Namespace, Name, Env),
         {ok, Scheme, Env}
     else
         _ -> none
@@ -1280,9 +1287,10 @@ field_index(Field, Names, Otherwise) ->
 
 %% A constructor by the name written: the session's, the prelude's, or a
 %% module's.
-named_constructor(#session{scope = Scope, interfaces = Interfaces}, [], Name) ->
+named_constructor(#session{scope = Scope, interfaces = Interfaces, prelude = Prelude}, [],
+                  Name) ->
     case maps:get(Name, maps:get(constructors, Scope, #{}), none) of
-        none -> ern_typecheck:prelude_constructor(Name);
+        none -> ern_typecheck:prelude_constructor(Name, Prelude);
         QualifiedName -> constructor_info(QualifiedName, Interfaces)
     end;
 named_constructor(#session{interfaces = Interfaces}, Namespace, Name) ->
@@ -1403,10 +1411,10 @@ first([Find | Rest]) ->
 %% Report §11.4: a constructor is documented in its type's section, so its
 %% documentation is its type's: a session constructor's the session's type,
 %% a module's its module's type, and an unqualified one the prelude's.
-constructor_doc(#session{scope = Scope, beams = Beams} = Session, [Name]) ->
+constructor_doc(#session{scope = Scope, beams = Beams, prelude = Prelude} = Session, [Name]) ->
     case maps:get(Name, maps:get(constructors, Scope, #{}), none) of
         none ->
-            case ern_typecheck:prelude_constructor(Name) of
+            case ern_typecheck:prelude_constructor(Name, Prelude) of
                 {ok, #constructor_info{type_qualified_name = TypeQualifiedName}} ->
                     prelude_doc(TypeQualifiedName);
                 none -> none

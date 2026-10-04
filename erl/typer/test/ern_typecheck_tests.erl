@@ -362,7 +362,7 @@ operator_member_shape_test() ->
     ?assertEqual(ok, ok(Box ++ "export fn Box.<>(Box(a), Box(b)) = Box(a <> b)\n")),
     ?assertEqual(ok, ok(Box ++ "export fn Box.*(x : Box(Int), y : Box(Int)) : Int = 1\n")),
     ?assertEqual("Box.<> must have the type (Box(a), Box(a)) -> Box(a),"
-                 " not (Box(a), Box(b)) -> Box(a)",
+                 " not (Box(a), Box(b!)) -> Box(a)",
                  refusal(Box ++ "export fn Box.<>(x : Box(a), y : Box(b)) : Box(a) = x\n")),
     %% an inferred signature is read as it is inferred
     ?assertEqual(ok, ok(Vec ++ "export fn Vec.negate(Vec(a)) = Vec(-a)\n")).
@@ -1212,6 +1212,83 @@ failed_declaration_keeps_its_signature_test() ->
                           "    OrderedSet.toList(OrderedSet.fromList(list))\n"
                           "fn f() : String = Io.show(unique([\"b\", \"a\"]))\n")).
 
+%% report §3.9, §11.5: an unannotated fn's body is checked against the
+%% result type its uses gave it, an earlier use's, a group member's or the
+%% body's own recursive one, and a body that disagrees is a mismatch. A
+%% regression test: each crashed the checker, which took the result type
+%% for a fresh variable
+unannotated_result_fixed_by_use_test() ->
+    Rule = "the body does not have the result type ",
+    ?assertEqual(Rule ++ "h's uses give it: expected Int, found String",
+                 refusal("fn main() : Int = {\n    let x = h() + 1;\n    fn h() = \"a\";\n"
+                         "    x\n}\n")),
+    %% in a group, whichever member is checked first fixes the type the
+    %% other is refused against
+    Group = refusal("fn g(n : Int) = f(n) + 1\n"
+                    "fn f(n : Int) =\n"
+                    "    if n == 0 then \"a\" else { let _ = g(n - 1); \"b\" }\n"),
+    ?assert(lists:member(Group, [Rule ++ "f's uses give it: expected Int, found String",
+                                 "both operands of `+` must have the same type: expected String,"
+                                 " found Int"])),
+    ?assertEqual(Rule ++ "f's uses give it: a type that would contain itself"
+                 " (a against List(a))",
+                 refusal("fn f() = [f()]\n")).
+
+%% report §6.6: a declared type whose field is a List of a parameter is
+%% reply-carrying where the parameter is, so a value of it holding a reply
+%% is an obligation. A regression test: `Box([r])` was dropped with no error
+reply_in_a_list_field_test() ->
+    ?assertEqual("the reply-carrying value b is never consumed",
+                 refusal("type Box(a) = Box(List(a))\n"
+                         "fn drop(r : Reply(Int)) : Unit = {\n"
+                         "    let b = Box([r]);\n"
+                         "    Unit\n"
+                         "}\n")).
+
+%% report §5.11, §8.5: a size expression names an earlier segment's
+%% variable, which no top-level `let` of the same name is. A regression
+%% test: the name was taken for the let's, and a false cycle refused
+size_names_no_let_test() ->
+    ?assertEqual(ok, ok("let n : Int = parse(<<2, 7, 8>>)\n"
+                        "fn parse(bytes : Bytes) : Int =\n"
+                        "    match bytes {\n"
+                        "        <<n, body:size(n)-bytes>> -> Bytes.size(body)\n"
+                        "      | _ -> 0\n"
+                        "    }\n")).
+
+%% report §11.5: an unnamed variable past `z` is named `a1`, `b1`, ...,
+%% avoiding a name an annotation took. A regression test: the 26th was
+%% named `a1` beside the annotation's own
+variable_names_past_z_test() ->
+    Params = string:join(["x : a1" | ["y" ++ integer_to_list(N) || N <- lists:seq(1, 26)]],
+                         ", "),
+    Printed = type_of("export fn f(" ++ Params ++ ") : a1 = x\n", f),
+    ?assertMatch({match, _}, re:run(Printed, ", z!, b1!\\) -> a1$")).
+
+%% report §11.5, §4.8: of the operators whose operand type nothing fixes,
+%% the first in the source is reported, after a selection a later use
+%% resolved. A regression test: the second was named
+unresolved_operator_first_test() ->
+    #diagnostic{span = Span} =
+        diagnostic("type Point = Point(x : Int, y : Int)\n"
+                   "fn f(p, a, b, c, d) = {\n    let s = p.x;\n    let u = a + b;\n"
+                   "    let v = c + d;\n    let q : Point = p;\n    Unit\n}\n"),
+    ?assertMatch({4, 13, _}, Span).
+
+%% report §6.3, §4.8: a `receive` guard's ordering is checked once its
+%% operand type is known, a later use fixing it as well as an earlier one.
+%% A regression test: it was refused before a later `send` fixed it
+guard_order_fixed_later_test() ->
+    ?assertEqual(ok, ok("fn g() = {\n    let me = self();\n"
+                        "    receive { #(x, y) when x < y -> Unit };\n"
+                        "    send(me, #(1, 2))\n}\n")),
+    ?assertEqual("a `receive` guard orders only Int, Float, String, and Char, not Money",
+                 refusal("type Money = Money(Int)\n"
+                         "fn Money.compare(a : Money, b : Money) : Ordering = Equal\n"
+                         "fn g() = {\n    let me = self();\n"
+                         "    receive { #(x, y) when x < y -> Unit };\n"
+                         "    send(me, #(Money(1), Money(2)))\n}\n")).
+
 %% report §8.5, §11.5: a let whose initializer uses it at another type than
 %% its own is refused for the cycle alone, the mismatch following from it.
 %% A regression test; it does not cover a mismatch at a
@@ -1318,9 +1395,11 @@ reply_through_bindings_test() ->
 %% whose fields, its arguments substituted, have a reply-carrying type, so
 %% a variable is not-reply-carrying for a dropped value of the type only
 %% where its parameter reaches a field outside function types and the
-%% arguments of built-in types, directly or through another declared
-%% type's parameter. H(e) was taken as reply-carrying at a reply-carrying
-%% e, and `drop` printed as `(H(e!)) -> Unit`; so were Lst(a) and WH(a).
+%% arguments of built-in types but a List's element, directly or through
+%% another declared type's parameter. H(e) was taken as reply-carrying at a
+%% reply-carrying e, and `drop` printed as `(H(e!)) -> Unit`; so was WH(a).
+%% A List's element carries a reply, so Lst(a) is reply-carrying at a: a
+%% regression test, a reply in it was dropped with no error
 reply_carrying_by_the_fields_test() ->
     Types = "export type H(e) = H(f : (Int) -> Unit with e)\n"
             "export type Box(a) = Box(a)\n"
@@ -1336,7 +1415,7 @@ reply_carrying_by_the_fields_test() ->
     ?assertEqual("(H(e)) -> Unit", Printed("export fn drop(h : H(e)) : Unit = Unit\n", drop)),
     ?assertEqual("(WH(e)) -> Unit",
                  Printed("export fn drop(h : WH(e)) : Unit = Unit\n", drop)),
-    ?assertEqual("(Lst(a)) -> Unit",
+    ?assertEqual("(Lst(a!)) -> Unit",
                  Printed("export fn drop(b : Lst(a)) : Unit = Unit\n", drop)),
     ?assertEqual("(Box(a!)) -> Unit",
                  Printed("export fn drop(b : Box(a)) : Unit = Unit\n", drop)),
@@ -1482,7 +1561,9 @@ exhaustiveness_test() ->
     ?assertEqual(ok, ok("fn f(xs) = match xs { [] -> 0 | _ :: _ -> 1 }")),
     ?assertEqual(ok, ok("type R = Get(reply : Int) | Stop\n"
                         "fn f(r) = match r { Get(reply = n) -> n | Stop -> 0 }")),
-    ?assertEqual("match on R is not exhaustive; missing Get",
+    %% a named-field constructor with no field shown is written as §5.10's
+    %% pattern for any value of it: a regression test, it was shown bare
+    ?assertEqual("match on R is not exhaustive; missing Get()",
                  refusal("type R = Get(reply : Int) | Stop\nfn f(r) = match r { Stop -> 0 }")).
 
 %%
@@ -1589,16 +1670,23 @@ bitstring_specifiers_test() ->
                  refusal("fn f(x : Int) : Bytes = <<x:big-big>>")),
     ?assertEqual(ok, ok("fn f(b : Bytes) : Bool = match b { <<-1:signed>> -> true | _ -> false }")).
 
-%% report §5.9, §5.7, §3.5: `true` and `false` cover `Bool`; a pipe's
-%% right-hand side is any operand, a selected function among them, and one
-%% that is no function is a type error; a selector over a type with
-%% parameters has one type once the arguments stand for them. A regression
+%% report §5.9: `true` and `false` cover `Bool`. A regression test,
+%% written after the report said what the checker did
+bool_covered_test() ->
+    ?assertEqual(ok, ok("fn f(b : Bool) : Int = match b { true -> 1 | false -> 0 }")).
+
+%% report §5.7: a pipe's right-hand side is any operand, a selected function
+%% among them, and one that is no function is a type error. A regression
 %% test, written after the report said what the checker did
-smaller_silences_test() ->
-    ?assertEqual(ok, ok("fn f(b : Bool) : Int = match b { true -> 1 | false -> 0 }")),
+pipe_operand_test() ->
     ?assertEqual(ok, ok("type S = S(f : (Int) -> Int)\nfn g(s : S) : Int = 1 |> s.f")),
     ?assertEqual("the callee is not a function; it has type List((Int) -> Int)",
-                 refusal("fn g(f : (Int) -> Int) = 1 |> [f]")),
+                 refusal("fn g(f : (Int) -> Int) = 1 |> [f]")).
+
+%% report §3.5: a selector over a type with parameters has one type once
+%% the arguments stand for them. A regression test, written after the
+%% report said what the checker did
+selector_at_the_arguments_test() ->
     Source = "type P(a) = A(x : a) | B(x : Int)\n",
     ?assertEqual(ok, ok(Source ++ "fn g(p : P(Int)) : Int = p.x")),
     ?assertEqual("P(String) has no field x of one type: x is String in A and Int in B",
@@ -1666,45 +1754,46 @@ reply_through_functions_test() ->
                  refusal(Pass ++ "fn g(r : Reply(Int)) : Unit with Never ="
                          " { let x = pass(r); Unit }")).
 
-%% report §6.6, §3.9, §4.4, §4.7
-warts_audit_test() ->
+%% report §5.4, §6.6: a reply-carrying expression neither bound nor
+%% consumed is refused: a statement has type Unit, which carries no reply,
+%% and `_` would discard one, in a block and as a parameter
+reply_discarded_test() ->
     Source = "type Req = Get(reply : Reply(Int)) | Stop\n",
-    %% a reply-carrying expression neither bound nor consumed: a statement
-    %% has type Unit (§5.4), which carries no reply
     ?assertEqual("this statement's value is discarded: expected Unit, found Req",
                  refusal(Source ++ "fn f(r : Reply(Int)) = { Get(reply = r); Unit }")),
     ?assertEqual("`_` would discard a reply-carrying value",
                  refusal(Source ++ "fn f(r : Reply(Int)) = { let _ = Get(reply = r); Unit }")),
     ?assertEqual("`_` would discard a reply-carrying value",
-                 refusal(Source ++ "fn f(_ : Reply(Int)) = Unit")),
-    %% the flag reaches variables inside a tuple parameter
+                 refusal(Source ++ "fn f(_ : Reply(Int)) = Unit")).
+
+%% report §3.9, §6.6: the not-reply-carrying restriction reaches the
+%% variables inside a tuple parameter
+reply_restriction_in_a_tuple_test() ->
+    Source = "type Req = Get(reply : Reply(Int)) | Stop\n",
     ?assertEqual("(#(a, b!)) -> a", type_of("export fn fst(#(x, y)) = x", fst)),
     ?assertEqual("a reply-carrying value, Reply(Int), passed in the first argument of fst,"
                  " which duplicates or discards it",
-                 refusal(Source ++ "fn fst(#(x, y)) = x\nfn f(r : Reply(Int)) = fst(#(1, r))")),
-    %% duplicate field in a pattern
+                 refusal(Source ++ "fn fst(#(x, y)) = x\nfn f(r : Reply(Int)) = fst(#(1, r))")).
+
+%% report §5.10: a pattern matches each field once
+field_matched_twice_test() ->
     ?assertEqual("field reply is matched twice",
-                 refusal(Source ++ "fn f(r) = match r { Get(reply = a, reply = b) -> Unit"
-                         " | Stop -> Unit }")),
-    %% report §8.4: the implementation is module:function/arity, the arity
-    %% the parameter count
-    ?assertEqual("the implementation names arity 2, and tick has 0 parameters",
-                 refusal("foreign fn tick() : Unit with m = \"m:tick/2\"")),
-    ?assertEqual("the implementation of tick is not written `module:function/arity`",
-                 refusal("foreign fn tick() : Unit with m = \"tick\"")),
-    %% a line feed after the arity is no part of the form; a regression
-    %% test: `$` matched before it
-    ?assertEqual("the implementation of tick is not written `module:function/arity`",
-                 refusal("foreign fn tick() : Unit with m = \"m:tick/0\\n\"")),
-    %% foreign fn with an effect is process-only
+                 refusal("type Req = Get(reply : Reply(Int)) | Stop\n"
+                         "fn f(r) = match r { Get(reply = a, reply = b) -> Unit | Stop -> Unit }")).
+
+%% report §4.7, §3.9: a foreign function with an effect of its own is
+%% process-only, and pure code cannot call it
+foreign_effect_process_only_test() ->
     ?assertEqual("tick needs a process, and f is pure",
                  refusal("foreign fn tick() : Unit with m = \"m:tick/0\"\nfn f() : Unit = tick()")),
     ?assertEqual(ok, ok("foreign fn tick() : Unit with m = \"m:tick/0\"\n"
-                        "fn f() : Unit with Never = tick()")),
-    %% report §3.9: lambda annotation variables: the definition's are in
-    %% scope and rigid, and a new one means every type, which only a
-    %% lambda that is generalized may name. A regression test for the new
-    %% one: it belonged to the lambda and became Int
+                        "fn f() : Unit with Never = tick()")).
+
+%% report §3.9: a lambda's annotation variables: the definition's are in
+%% scope and rigid, and a new one means every type, which only a lambda
+%% that is generalized may name. A regression test for the new one: it
+%% belonged to the lambda and became Int
+lambda_annotation_variables_test() ->
     ?assertEqual("(a) -> a", type_of("export fn f(x : a) : a = (fn(y : a) : a = y)(x)", f)),
     ?assertEqual("the lambda body does not have the declared type: expected a, found Int",
                  refusal("fn f(x : a) : a = { let g = fn(y : a) : a = 1; g(x) }")),
@@ -1728,6 +1817,9 @@ foreign_implementation_name_test() ->
     ?assertEqual(Named, refusal("foreign fn tick(n : Int) : Int = \"erlang:abs/x\"")),
     ?assertEqual("the implementation names arity 2, and tick has 1 parameter",
                  refusal("foreign fn tick(n : Int) : Int = \"erlang:abs/2\"")),
+    %% a line feed after the arity is no part of the form; a regression
+    %% test: `$` matched before it
+    ?assertEqual(Named, refusal("foreign fn tick(n : Int) : Int = \"erlang:abs/1\\n\"")),
     ?assertEqual(ok, ok("foreign fn tick(n : Int) : Int = \"erlang:abs/1\"")).
 
 %% report §3.1
@@ -2909,6 +3001,26 @@ requirement_variable_test() ->
                   " position", undefined},
                  refusal_and_help("fn f(x : a) : a with e needs e.compare = x")),
     ?assertEqual(ok, ok("fn f() : List(a) needs a.compare = []")).
+
+%% report §4.9, §11.5: a requirement names a variable's member once, the
+%% second naming refused and the first labelled, an operator's and a local
+%% fn's alike; one member on two variables is no repetition. Written with
+%% the rule, which the report had been silent on
+requirement_named_twice_test() ->
+    #diagnostic{message = Message, span = Span, labels = Labels} =
+        diagnostic("fn largest(list : List(a)) : Optional(a) needs a.compare, a.compare =\n"
+                   "    List.last(list)\n"),
+    ?assertEqual("the requirement names a.compare twice", Message),
+    ?assertMatch({1, 59, _}, Span),
+    ?assertMatch([{{1, 48, _}, "first named here"}], Labels),
+    ?assertEqual("the requirement names a.+ twice",
+                 refusal("fn sum(x : a, y : a) : a needs a.+, a.+ = a.+(x, y)\n")),
+    ?assertEqual("the requirement names a.compare twice",
+                 refusal("fn f() : Int = {\n"
+                         "    fn same(x : a) : a needs a.compare, a.compare = x;\n"
+                         "    same(1)\n"
+                         "}\n")),
+    ?assertEqual(ok, ok("fn f(x : a, y : b) : a needs a.compare, b.compare = x\n")).
 
 %% report §4.9, §4.8: a member the requirement does not name is a type
 %% error, written, by an operator, or by its type variable without a

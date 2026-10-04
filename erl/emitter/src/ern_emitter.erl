@@ -937,7 +937,7 @@ member_arity(_) -> 2.
 %% this module's, or another module's as it was taken (report §11.2).
 member_value(QualifiedName, Member, Arity, #emit_context{namespace = Namespace, env = Env}) ->
     MemberOf = lists:last(QualifiedName),
-    MemberQualifiedName = ern_typecheck:member_qualified_name(QualifiedName, Member, Env),
+    MemberQualifiedName = ern_typecheck:session_member(QualifiedName, Member, Env),
     Function = erl_syntax:atom(function_name(MemberOf, Member)),
     case lists:droplast(lists:droplast(MemberQualifiedName)) of
         Namespace -> erl_syntax:implicit_fun(Function, erl_syntax:integer(Arity));
@@ -1225,7 +1225,7 @@ member_call([_] = QualifiedName, Name, Args, #emit_context{namespace = Namespace
 member_call(QualifiedName, Name, Args, #emit_context{namespace = Namespace, env = Env}) ->
     MemberOf = lists:last(QualifiedName),
     %% report §11.2: at the prompt a later input may have declared it
-    MemberQualifiedName = ern_typecheck:member_qualified_name(QualifiedName, Name, Env),
+    MemberQualifiedName = ern_typecheck:session_member(QualifiedName, Name, Env),
     case lists:droplast(lists:droplast(MemberQualifiedName)) of
         Namespace -> erl_syntax:application(erl_syntax:atom(function_name(MemberOf, Name)), Args);
         Declaring -> call_remote(erlang_module(Declaring), function_name(MemberOf, Name), Args)

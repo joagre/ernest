@@ -261,13 +261,13 @@ rename(Declaration) ->
 %% A compiled type's declaration, as the appendix writes it, the field
 %% order read from the module's source.
 compiled_declaration(#type_info{foreign = true, qualified_name = QualifiedName,
-                                params = Params},
+                                param_names = ParamNames},
                      _SourceFile) ->
     %% report §3.8: a foreign type has no constructors, and its parameters
-    %% are names rather than variables
-    Head = case Params of
+    %% are written by the names its declaration gives them
+    Head = case ParamNames of
                [] -> "";
-               _ -> "(" ++ lists:join(", ", [atom_to_list(Param) || Param <- Params]) ++ ")"
+               _ -> "(" ++ lists:join(", ", [atom_to_list(Name) || Name <- ParamNames]) ++ ")"
            end,
     normalize(lists:flatten(["foreign type ", atom_to_list(lists:last(QualifiedName)), Head]));
 compiled_declaration(#type_info{abstract = true, qualified_name = QualifiedName, params = Params},

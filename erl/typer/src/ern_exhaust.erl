@@ -134,7 +134,6 @@ simplify(#p_constructor{span = Span, namespace = Namespace, name = Name, args = 
         ern_typecheck:lookup_constructor(Span, Namespace, Name, Env),
     SubPatterns = case {Fields, Args} of
                       {none, _} -> [];
-                      {positional, none} -> [wild];
                       {positional, {positional, Pattern}} -> [simplify(Pattern, Env)];
                       {{named, Names}, none} -> [wild || _ <- Names];
                       {{named, Names}, {named, FieldPatterns}} ->
@@ -242,13 +241,12 @@ arity(cons, _) -> 2;
 arity(_, _) -> 0.
 
 %%
-%% Witness printing
+%% Witness printing. A witness holds only the constructors of a type whose
+%% values complete/2 can list, so no literal and no bitstring.
 %%
 
 show(wild, _) -> "_";
 show({con, {bool, Bool}, []}, _) -> atom_to_list(Bool);
-show({con, {lit, Value}, []}, _) -> lists:flatten(io_lib:format("~p", [Value]));
-show({con, bits, []}, _) -> "<<...>>";
 show({con, {tuple, _}, SubPatterns}, Env) ->
     ["#(", join([show(SubPattern, Env) || SubPattern <- SubPatterns]), ")"];
 show({con, nil, []}, _) -> "[]";
@@ -263,10 +261,9 @@ show({con, {con, QualifiedName}, SubPatterns}, Env) ->
             Shown = [[atom_to_list(FieldName), " = ", show(SubPattern, Env)]
                      || {FieldName, SubPattern} <- lists:zip(Names, SubPatterns),
                         SubPattern =/= wild],
-            case Shown of
-                [] -> atom_to_list(Name);
-                _ -> [atom_to_list(Name), "(", join(Shown), ")"]
-            end
+            %% report §5.10: `Circle()` matches any `Circle`, and a bare
+            %% `Circle` is no pattern
+            [atom_to_list(Name), "(", join(Shown), ")"]
     end.
 
 show_atom({con, cons, _} = Pattern, Env) -> ["(", show(Pattern, Env), ")"];

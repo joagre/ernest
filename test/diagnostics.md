@@ -2363,6 +2363,21 @@ example.ern:1:23: b is no type variable of the signature
   |                       ^^^^^^^^^
 ```
 
+### A requirement that names a member twice (§4.9)
+
+```ernest-rejected
+fn largest(list : List(a)) : Optional(a) needs a.compare, a.compare =
+    List.last(list)
+```
+
+```console
+$ ern build example.ern
+example.ern:1:59: the requirement names a.compare twice
+1 | fn largest(list : List(a)) : Optional(a) needs a.compare, a.compare =
+  |                                                --------- first named here
+  |                                                           ^^^^^^^^^
+```
+
 ### A requirement on an effect variable (§4.9)
 
 ```ernest-rejected
@@ -2718,6 +2733,24 @@ example.ern:2:5: a member, `fn Int.negate`, is a top-level form; a local functio
 1 | fn f() : Int = {
 2 |     fn Int.negate(n : Int) : Int = n;
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+```
+
+### A body at another type than its uses gave its result (§3.9)
+
+```ernest-rejected
+fn main() : Int = {
+    let x = h() + 1;
+    fn h() = "a";
+    x
+}
+```
+
+```console
+$ ern build example.ern
+example.ern:3:14: the body does not have the result type h's uses give it: expected Int, found String
+2 |     let x = h() + 1;
+3 |     fn h() = "a";
+  |              ^^^
 ```
 
 ### A recursive call at another type than the definition's (§4.5)

@@ -3,14 +3,14 @@
 %% is in #type_state{} and threaded; nothing is mutated.
 -module(ern_types).
 
--export([new/0, fresh/1, fresh/2, fresh_named/2, fresh_effect/1, restrictions/2,
+-export([new/0, fresh/1, fresh/2, fresh_named/2, restrictions/2,
          add_restriction/3, enter/1, leave/1,
          resolve/2, substitute/2, unify/3, free_variables/2,
          monomorphic/1, generalize/2, generalize/3, instantiate/2, instance/2,
          replace_variables/2,
          mismatch_pair/3, format/2, format_pair/3, value_variables/2, value_args/3,
-         effect_variables/1, set_scope/4, set_effect_params/2,
-         format_scheme/2, format_needs/3, format_call/4, format_error/1]).
+         args_in_value/3, effect_variables/1, set_scope/4, set_effect_params/2,
+         format_scheme/2, format_with_requirement/3, format_call/4, format_error/1]).
 
 -export_type([type_state/0, type/0, effect/0, qualified_name/0, id/0, restrictions/0]).
 
@@ -63,10 +63,6 @@ fresh_named(Name, TypeState) ->
     Variable = maps:get(Id, Variables),
     Named = Variable#type_variable{name = Name},
     {Type, TypeState1#type_state{variables = Variables#{Id => Named}}}.
-
-%% An effect variable for a function whose effect is inferred.
--spec fresh_effect(type_state()) -> {type(), type_state()}.
-fresh_effect(TypeState) -> fresh(TypeState, []).
 
 -spec restrictions(id(), type_state()) -> restrictions().
 restrictions(Id, #type_state{variables = Variables}) ->
@@ -339,17 +335,11 @@ replace_effects(Type, _) ->
 
 %% Fresh variables for the quantified ones, restrictions copied.
 -spec instantiate(#scheme{}, type_state()) -> {type(), type_state()}.
-instantiate(#scheme{quantified = [], type = Type}, TypeState) ->
-    {Type, TypeState};
 %% An instance's variables carry no names: a name belongs to the
 %% annotation that wrote it, not to a use of the value (report §11.5).
-instantiate(#scheme{quantified = Quantified, type = Type}, TypeState) ->
-    Fresh = fun({Id, Restrictions}, {Replacements, Acc}) ->
-                {Variable, Acc1} = fresh(Acc, Restrictions),
-                {Replacements#{Id => Variable}, Acc1}
-            end,
-    {Replacements, TypeState1} = lists:foldl(Fresh, {#{}, TypeState}, Quantified),
-    {replace_variables(Type, Replacements), TypeState1}.
+instantiate(Scheme, TypeState) ->
+    {Type, _, TypeState1} = instance(Scheme, TypeState),
+    {Type, TypeState1}.
 
 %% Report §4.9: an instance of a declaration's scheme, and its requirement
 %% at that instance, each member with the type its variable stands for
@@ -382,9 +372,9 @@ replace_variables(pure, _) ->
 
 %%
 %% Printing, report §11.5. Variables are named a, b, c, ... in order of
-%% appearance; a variable with the equality restriction prints as a=, one
-%% that is process-only prints unchanged in effect position (its restriction
-%% is stated in messages), one that is not-reply-carrying prints as a!.
+%% appearance; a variable with the equality restriction prints as a=, a
+%% process-only effect variable in no value position as m+, and one that is
+%% not-reply-carrying as a!.
 %%
 
 %% Report §11.5: the differing part of two types that do not unify, so a
@@ -465,8 +455,17 @@ value_variables(Type, #type_state{effect_params = EffectParams}) ->
 %% in a value position of the type's fields (report §3.9).
 -spec value_args(qualified_name(), [type()], type_state()) -> [type()].
 value_args(QualifiedName, Args, #type_state{effect_params = EffectParams}) ->
-    case EffectParams of
-        #{QualifiedName := IsValue} -> [Arg || {Arg, true} <- lists:zip(Args, IsValue)];
+    args_in_value(QualifiedName, Args, EffectParams).
+
+%% The same against IsValue, for each type with a parameter in no value
+%% position whether each parameter is in one, as the state holds it or as
+%% the checker's fixpoint builds it; a type IsValue does not name has
+%% every argument in a value position.
+-spec args_in_value(qualified_name(), [type()], #{qualified_name() => [boolean()]}) ->
+          [type()].
+args_in_value(QualifiedName, Args, IsValue) ->
+    case IsValue of
+        #{QualifiedName := TypeIsValue} -> [Arg || {Arg, true} <- lists:zip(Args, TypeIsValue)];
         _ -> Args
     end.
 
@@ -478,11 +477,7 @@ effect_variables(Type) -> lists:usort(effect_positions(Type, [])).
 value_positions({tvar, Id}, _EffectParams, Acc) ->
     [Id | Acc];
 value_positions({tcon, QualifiedName, Args}, EffectParams, Acc) ->
-    Values = case EffectParams of
-                 #{QualifiedName := IsValue} -> [Arg || {Arg, true} <- lists:zip(Args, IsValue)];
-                 _ -> Args
-             end,
-    value_positions_list(Values, EffectParams, Acc);
+    value_positions_list(args_in_value(QualifiedName, Args, EffectParams), EffectParams, Acc);
 value_positions({ttuple, Elements}, EffectParams, Acc) ->
     value_positions_list(Elements, EffectParams, Acc);
 value_positions({tfn, Params, _Effect, Result}, EffectParams, Acc) ->
@@ -496,15 +491,15 @@ value_positions_list(Types, EffectParams, Acc) ->
 
 %% The module being checked, the session's types, and the type names that
 %% shadow prelude names, which print qualified (report §11.5).
--spec set_scope(type_state(), qualified_name(), [qualified_name()], [atom()]) -> type_state().
-set_scope(TypeState, Namespace, SessionTypes, Shadows) ->
+-spec set_scope(qualified_name(), [qualified_name()], [atom()], type_state()) -> type_state().
+set_scope(Namespace, SessionTypes, Shadows, TypeState) ->
     TypeState#type_state{namespace = Namespace, session_types = SessionTypes, shadows = Shadows}.
 
 %% Report §3.9: the types with a parameter that occurs in no value position
 %% of their fields, each with whether each of its arguments is a value
 %% position.
--spec set_effect_params(type_state(), #{qualified_name() => [boolean()]}) -> type_state().
-set_effect_params(TypeState, EffectParams) ->
+-spec set_effect_params(#{qualified_name() => [boolean()]}, type_state()) -> type_state().
+set_effect_params(EffectParams, TypeState) ->
     TypeState#type_state{effect_params = EffectParams}.
 
 %% Report §11.5: a type name as the module would write it.
@@ -528,12 +523,12 @@ format_scheme(#scheme{type = Type, requirement = Requirement} = Scheme, TypeStat
     Elided = elide_pure_effects(substitute(Type, SchemeState), [], SchemeState),
     EffectOnly = effect_only_variables(Elided, SchemeState),
     {Text, Names} = format_type(Elided, SchemeState, #variable_names{effect_only = EffectOnly}),
-    lists:flatten([Text | requirement_text(Requirement, SchemeState, Names)]).
+    lists:flatten([Text | requirement_text(over_variables(Requirement), SchemeState, Names)]).
 
 %% Report §4.9, §11.5: an instance of a declaration's type, the type at a
 %% use, ending in its requirement at that use, each member at its type.
--spec format_needs(type(), [{type(), atom()}], type_state()) -> string().
-format_needs(Type, Requirement, TypeState) ->
+-spec format_with_requirement(type(), [{type(), atom()}], type_state()) -> string().
+format_with_requirement(Type, Requirement, TypeState) ->
     Elided = elide_pure_effects(substitute(Type, TypeState), [], TypeState),
     EffectOnly = effect_only_variables(Elided, TypeState),
     {Text, Names} = format_type(Elided, TypeState, #variable_names{effect_only = EffectOnly}),
@@ -541,17 +536,21 @@ format_needs(Type, Requirement, TypeState) ->
                                             || {Instance, Member} <- Requirement],
                                            TypeState, Names)]).
 
-%% Report §4.9, §11.5: ` needs a.compare, b.+`, each variable under the
-%% name the type printed it with, without its marks.
+%% Report §4.9, §11.5: ` needs a.compare, b.+`, each member's type, a
+%% variable or a type at a use, under the name the type printed it with,
+%% without its marks.
 requirement_text([], _TypeState, _Names) ->
     [];
 requirement_text(Requirement, TypeState, Names) ->
-    {Members, _} = lists:mapfoldl(fun({Id, Member}, Acc) when is_integer(Id) ->
-                                          member_text({tvar, Id}, Member, TypeState, Acc);
-                                     ({Type, Member}, Acc) ->
+    {Members, _} = lists:mapfoldl(fun({Type, Member}, Acc) ->
                                           member_text(Type, Member, TypeState, Acc)
                                   end, Names, Requirement),
     [" needs ", lists:join(", ", Members)].
+
+%% A scheme's requirement, over its variables' ids, as requirement_text/3
+%% takes it, over the variables.
+over_variables(Requirement) ->
+    [{{tvar, Id}, Member} || {Id, Member} <- Requirement].
 
 member_text(Type, Member, TypeState, Names) ->
     {Text, Names1} = format_type(Type, TypeState, Names),
@@ -607,8 +606,9 @@ format_call(#scheme{type = Type} = Scheme, Params, MarkedIndex, TypeState) ->
                         none -> ") -> ";
                         _ -> ") : "
                     end,
-            Needs = requirement_text(Scheme#scheme.requirement, SchemeState, Names2),
-            marked(Named, MarkedIndex, [Arrow, ResultText, EffectText, Needs]);
+            RequirementText = requirement_text(over_variables(Scheme#scheme.requirement),
+                                               SchemeState, Names2),
+            marked(Named, MarkedIndex, [Arrow, ResultText, EffectText, RequirementText]);
         _ ->
             {format_scheme(Scheme, TypeState), "", ""}
     end.
@@ -670,9 +670,10 @@ format_type(pure, _TypeState, Names) ->
     {"pure", Names}.
 
 %% A function type in result position is parenthesized where the outer
-%% function carries an effect, since `with` binds to the nearest arrow and
-%% the outer's is written after the parentheses: `(A) -> ((B) -> C) with
-%% M`, and `(A) -> (B) -> C with M` for the inner's (report §3.4).
+%% function carries an effect: the parentheses keep the result's own `with`
+%% inside them, so that the `with` after them is the outer arrow's, `(A) ->
+%% ((B) -> C) with M`; without an outer effect, `(A) -> (B) -> C with M` is
+%% the inner's (report §3.4).
 format_result({tfn, _, _, _} = Type, OuterEffect, TypeState, Names) when OuterEffect =/= pure ->
     {Text, Names1} = format_type(Type, TypeState, Names),
     {["(", Text, ")"], Names1};
@@ -715,10 +716,14 @@ known_restrictions(Id, #type_state{variables = Variables}) ->
         _ -> []
     end.
 
-%% a, b, c, d, f, ... skipping e.
+%% a, b, c, d, f, ... skipping e, and past z a1, b1, ...: a flat string, so
+%% that it is compared with the names already taken.
 value_variable_name(Count) ->
     Letters = "abcdfghijklmnopqrstuvwxyz",
-    [lists:nth(Count rem 25 + 1, Letters)] ++ [integer_to_list(Count div 25) || Count >= 25].
+    case Count < 25 of
+        true -> [lists:nth(Count + 1, Letters)];
+        false -> [lists:nth(Count rem 25 + 1, Letters) | integer_to_list(Count div 25)]
+    end.
 
 effect_variable_name(0) -> "e";
 effect_variable_name(Count) -> "e" ++ integer_to_list(Count).
@@ -727,16 +732,12 @@ effect_variable_name(Count) -> "e" ++ integer_to_list(Count).
 format_error({arity, ExpectedCount, ActualCount}) ->
     lists:flatten(io_lib:format("a function of ~B argument~s where one of ~B was expected",
                                 [ActualCount, plural(ActualCount), ExpectedCount]));
-format_error({pure_vs_effect, _}) ->
-    "a pure function where a function with a mailbox effect was expected, or the reverse";
 format_error(pure_where_process_needed) ->
     "a pure function where one that runs in a process is needed";
 format_error(process_where_pure_needed) ->
     "a function that runs in a process where a pure one is needed";
 format_error({occurs, _, _}) ->
-    "a type that would contain itself";
-format_error({mismatch, _, _}) ->
-    "types do not match".
+    "a type that would contain itself".
 
 plural(1) -> "";
 plural(_) -> "s".

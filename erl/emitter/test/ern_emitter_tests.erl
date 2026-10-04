@@ -355,7 +355,14 @@ interface_chunk_test() ->
     ?assertEqual(ern_interface:hash(Interface), ern_interface:hash(Read)),
     {ok, _, Interface2, _} = ern_typecheck:check_string(Namespace,
                                                         <<"fn f(x) = x\n", Source/binary>>),
-    ?assertEqual(ern_interface:hash(Interface), ern_interface:hash(Interface2)).
+    ?assertEqual(ern_interface:hash(Interface), ern_interface:hash(Interface2)),
+    %% nor on that of a type's parameters: a regression test, a private type
+    %% declared before an exported one changed the exported one's numbers
+    Shape = <<"export type Shape(a) = Circle(a) | Square(a)\n">>,
+    {ok, _, Alone, _} = ern_typecheck:check_string(['Shape'], Shape),
+    {ok, _, AfterHidden, _} =
+        ern_typecheck:check_string(['Shape'], <<"type Hidden(b) = Hidden(b)\n\n", Shape/binary>>),
+    ?assertEqual(ern_interface:hash(Alone), ern_interface:hash(AfterHidden)).
 
 %% report §11.1: a chunk of another compiler version reads as an error,
 %% so the module counts as stale; and the interface hash ignores the names

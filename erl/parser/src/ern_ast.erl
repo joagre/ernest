@@ -7,7 +7,8 @@
 %% drift.
 -module(ern_ast).
 
--export([span/1, walk/3, pattern_bindings/1, signature_variables/1, free_names/2]).
+-export([span/1, walk/3, binder/1, pattern_binders/1, pattern_bindings/1, signature_variables/1,
+         free_names/2]).
 
 -include_lib("parser/include/ern_ast.hrl").
 
@@ -30,31 +31,46 @@ walk(Visit, Nodes, Acc) when is_list(Nodes) ->
 walk(_, _, Acc) ->
     Acc.
 
+%% Report §5.10: the name a pattern node binds itself, with where the name
+%% stands and the type the node holds: a variable, and the name after
+%% `as`; none for any other node.
+-spec binder(tuple()) -> {atom(), term(), term()} | none.
+binder(#p_var{span = Span, name = Name, type = Type}) -> {Name, Span, Type};
+binder(#p_as{name_span = Span, name = Name, type = Type}) -> {Name, Span, Type};
+binder(_) -> none.
+
 %% Report §5.10: the names a pattern binds, in the order written, each with
-%% the type its node holds, undefined before the pattern is checked. The
-%% alternatives of a clause bind the same names (§5.9), so the first says.
--spec pattern_bindings(tuple()) -> [{atom(), term()}].
-pattern_bindings(#p_var{name = Name, type = Type}) ->
-    [{Name, Type}];
-pattern_bindings(#p_as{name = Name, type = Type, pattern = Pattern}) ->
-    pattern_bindings(Pattern) ++ [{Name, Type}];
-pattern_bindings(#p_constructor{args = {positional, Pattern}}) ->
-    pattern_bindings(Pattern);
-pattern_bindings(#p_constructor{args = {named, FieldPatterns}}) ->
-    lists:append([pattern_bindings(Pattern) || #field_pattern{pattern = Pattern} <- FieldPatterns]);
-pattern_bindings(#p_tuple{elements = Elements}) ->
-    lists:append([pattern_bindings(Element) || Element <- Elements]);
-pattern_bindings(#p_list{elements = Elements}) ->
-    lists:append([pattern_bindings(Element) || Element <- Elements]);
-pattern_bindings(#p_cons{head = Head, tail = Tail}) ->
-    pattern_bindings(Head) ++ pattern_bindings(Tail);
-pattern_bindings(#p_or{alternatives = [First | _]}) ->
-    pattern_bindings(First);
-pattern_bindings(#p_bitstring{segments = Segments}) ->
+%% where it stands and the type its node holds, undefined before the
+%% pattern is checked. The alternatives of a clause bind the same names
+%% (§5.9), so the first says.
+-spec pattern_binders(tuple()) -> [{atom(), term(), term()}].
+pattern_binders(#p_var{} = Pattern) ->
+    [binder(Pattern)];
+pattern_binders(#p_as{pattern = Pattern} = As) ->
+    pattern_binders(Pattern) ++ [binder(As)];
+pattern_binders(#p_constructor{args = {positional, Pattern}}) ->
+    pattern_binders(Pattern);
+pattern_binders(#p_constructor{args = {named, FieldPatterns}}) ->
+    lists:append([pattern_binders(Pattern) || #field_pattern{pattern = Pattern} <- FieldPatterns]);
+pattern_binders(#p_tuple{elements = Elements}) ->
+    lists:append([pattern_binders(Element) || Element <- Elements]);
+pattern_binders(#p_list{elements = Elements}) ->
+    lists:append([pattern_binders(Element) || Element <- Elements]);
+pattern_binders(#p_cons{head = Head, tail = Tail}) ->
+    pattern_binders(Head) ++ pattern_binders(Tail);
+pattern_binders(#p_or{alternatives = [First | _]}) ->
+    pattern_binders(First);
+pattern_binders(#p_bitstring{segments = Segments}) ->
     %% report §5.11: a segment's value is a variable, a literal or `_`
-    lists:append([pattern_bindings(Value) || #bit_segment{value = Value} <- Segments]);
-pattern_bindings(_) ->
+    lists:append([pattern_binders(Value) || #bit_segment{value = Value} <- Segments]);
+pattern_binders(_) ->
     [].
+
+%% The names a pattern binds, as pattern_binders/1 gives them, each with its
+%% type.
+-spec pattern_bindings(tuple()) -> [{atom(), term()}].
+pattern_bindings(Pattern) ->
+    [{Name, Type} || {Name, _, Type} <- pattern_binders(Pattern)].
 
 %% Report §3.9, §4.9: the type variables a fn declaration's signature
 %% names, in its parameters' annotations, its result type and its effect.

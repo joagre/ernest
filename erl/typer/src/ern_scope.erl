@@ -64,14 +64,8 @@ param_variables(Params) ->
     lists:append([pattern_variables(Pattern) || #param{pattern = Pattern} <- Params]).
 
 %% The variables a pattern binds, each with where it is bound.
-pattern_variables(#p_var{span = Span, name = Name}) -> [{Name, Span}];
-pattern_variables(#p_as{span = Span, pattern = Pattern, name = Name}) ->
-    [{Name, Span} | pattern_variables(Pattern)];
-pattern_variables(#p_or{alternatives = [First | _]}) -> pattern_variables(First);
-pattern_variables(Pattern) when is_tuple(Pattern) -> pattern_variables(tl(tuple_to_list(Pattern)));
-pattern_variables(Patterns) when is_list(Patterns) ->
-    lists:append([pattern_variables(Element) || Element <- Patterns]);
-pattern_variables(_) -> [].
+pattern_variables(Pattern) ->
+    [{Name, Span} || {Name, Span, _} <- ern_ast:pattern_binders(Pattern)].
 
 %% Report §5.4: a local fn may be used only after every `let` of its block
 %% that it references, directly or through other local fns, has been

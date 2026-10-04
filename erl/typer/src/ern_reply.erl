@@ -65,7 +65,10 @@ consume_help() ->
     "a reply is consumed by answering it, passing it on once, or matching it (§6.6)".
 
 restricted(Params, Body, Type, Env) ->
-    Variables = lists:usort(value_variables(Type, ern_typecheck:type_state(Env))),
+    TypeState = ern_typecheck:type_state(Env),
+    Variables = [{tvar, Id}
+                 || Id <- ern_types:value_variables(ern_types:substitute(Type, TypeState),
+                                                    TypeState)],
     lists:foldl(fun(Variable, Acc) -> restricted_variable(Variable, Params, Body, Acc) end, Env,
                 Variables).
 
@@ -103,19 +106,6 @@ holds(Params, Body, Env) ->
     catch
         throw:{type_error, _, _} -> false;
         throw:{type_error, #diagnostic{}} -> false
-    end.
-
-%% The type variables of a type where values stand: not a function type's
-%% effect.
-value_variables(Type, TypeState) ->
-    case ern_types:resolve(Type, TypeState) of
-        {tvar, _} = Variable -> [Variable];
-        {tcon, _, Args} -> lists:append([value_variables(Arg, TypeState) || Arg <- Args]);
-        {ttuple, Elements} ->
-            lists:append([value_variables(Element, TypeState) || Element <- Elements]);
-        {tfn, Params, _, Result} ->
-            lists:append([value_variables(Part, TypeState) || Part <- [Result | Params]]);
-        _ -> []
     end.
 
 %%
@@ -474,16 +464,14 @@ check_every_path(Name, Branches) ->
 
 %% Where Node binds Name anew, in source order (report §5.10).
 binders(Name, Node) ->
-    lists:reverse(ern_ast:walk(fun(#p_var{span = Span, name = Bound}, Acc) when Bound =:= Name ->
+    lists:reverse(ern_ast:walk(fun(#fn_declaration{span = Span, name = Bound}, Acc)
+                                     when Bound =:= Name ->
                                        [Span | Acc];
-                                  (#p_as{name_span = Span, name = Bound}, Acc)
-                                    when Bound =:= Name ->
-                                       [Span | Acc];
-                                  (#fn_declaration{span = Span, name = Bound}, Acc)
-                                    when Bound =:= Name ->
-                                       [Span | Acc];
-                                  (_, Acc) ->
-                                       Acc
+                                  (Child, Acc) ->
+                                       case ern_ast:binder(Child) of
+                                           {Name, Span, _} -> [Span | Acc];
+                                           _ -> Acc
+                                       end
                                end, Node, [])).
 
 %% Report §6.6: a name is consumed once on its path, or on none where the

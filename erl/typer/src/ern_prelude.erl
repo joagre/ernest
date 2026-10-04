@@ -273,12 +273,14 @@ declared_types() ->
     type Path = Path(String)
     """.
 
-%% The primitives among values/0 whose effect variables are process-only
-%% (report §3.9).
+%% The primitives among values/0 whose effect variable is process-only and
+%% stands in no value position (report §3.9); one that stands in a value
+%% position, `self`'s, `monitor`'s and `spawnMonitored`'s, is process-only
+%% by that alone, which signature_scheme marks.
 -spec process_only() -> [[atom()]].
 process_only() ->
-    [[send], [spawn], [spawnMonitored], ['Address', call], ['Address', callForever], [answer],
-     [monitor], [kill], [restarting]].
+    [[send], [spawn], ['Address', call], ['Address', callForever], [answer], [kill],
+     [restarting]].
 
 %% Qualified name, type text, and documentation, or `module` for an
 %% operation its type's module documents (report §9).
@@ -532,8 +534,8 @@ entry(Key, Signature, Doc, Meta) ->
 %% Report §11.4: a function's declaration as its page shows it, its
 %% parameters named and its restrictions marked (§11.5).
 declaration(QualifiedName, Env) ->
-    {ok, Scheme} = ern_typecheck:declared_scheme(Env, lists:droplast(QualifiedName),
-                                                 lists:last(QualifiedName)),
+    {ok, Scheme} = ern_typecheck:declared_scheme(lists:droplast(QualifiedName),
+                                                 lists:last(QualifiedName), Env),
     Params = parameters(QualifiedName),
     {Head, Marked, Rest} = ern_types:format_call(Scheme, Params, length(Params),
                                                  ern_typecheck:type_state(Env)),

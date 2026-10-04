@@ -12,7 +12,7 @@
 -include_lib("typer/include/ern_types.hrl").
 
 -define(CHUNK, <<"ErnI">>).
--define(FORMAT, 4).
+-define(FORMAT, 5).
 
 -type chunk() :: #{format := pos_integer(), interface := #interface{}, source_hash := binary(),
                    deps := [{[atom()], binary()}], compiler => binary(),
@@ -61,14 +61,36 @@ hash(Interface) ->
 %% annotation changes no dependent.
 canonical(#interface{namespace = Namespace, types = Types, values = Values, lets = Lets},
           VariableNames) ->
-    {interface, Namespace, lists:sort(maps:to_list(Types)),
-     lists:sort([{QualifiedName, canonical_scheme(Scheme, VariableNames)}
+    {interface, Namespace,
+     lists:sort([{QualifiedName, canonical_type(TypeInfo, VariableNames)}
+                 || {QualifiedName, TypeInfo} <- maps:to_list(Types)]),
+     lists:sort([{QualifiedName, canonical_scheme(Scheme, #{}, VariableNames)}
                  || {QualifiedName, Scheme} <- maps:to_list(Values)]),
      lists:sort(Lets)}.
 
+%% A type's parameters numbered by place, and its constructors' schemes
+%% over the same numbers; the names its declaration writes are left out of
+%% the hash, as a value's variables' are.
+canonical_type(#type_info{params = Params, param_names = ParamNames,
+                          constructors = Constructors} = TypeInfo, VariableNames) ->
+    Numbers = maps:from_list([{Id, Number} || {Number, {tvar, Id}} <- lists:enumerate(Params)]),
+    TypeInfo#type_info{
+      params = [{tvar, maps:get(Id, Numbers)} || {tvar, Id} <- Params],
+      param_names = case VariableNames of
+                        keep -> ParamNames;
+                        strip -> []
+                    end,
+      constructors = [Constructor#constructor_info{
+                        scheme = canonical_scheme(Scheme, Numbers, VariableNames)}
+                      || #constructor_info{scheme = Scheme} = Constructor <- Constructors]}.
+
+%% Numbers: the numbers some quantified variables have already, a type's
+%% parameters; the rest are numbered after them in the order quantified.
 canonical_scheme(#scheme{quantified = Quantified, type = Type, names = Names,
-                         requirement = Requirement}, VariableNames) ->
-    Numbers = maps:from_list([{Id, Number} || {Number, {Id, _}} <- lists:enumerate(Quantified)]),
+                         requirement = Requirement}, Given, VariableNames) ->
+    Rest = [Id || {Id, _} <- Quantified, not is_map_key(Id, Given)],
+    Numbers = maps:merge(Given, maps:from_list([{Id, maps:size(Given) + Number}
+                                                || {Number, Id} <- lists:enumerate(Rest)])),
     #scheme{quantified = [{maps:get(Id, Numbers), Restrictions}
                           || {Id, Restrictions} <- Quantified],
             type = renumber(Type, Numbers),

@@ -93,7 +93,7 @@ instantiate_copies_restrictions_test() ->
 %% report §6.1
 elide_unused_effect_test() ->
     TypeState = ern_types:enter(ern_types:new()),
-    {E, TypeState1} = ern_types:fresh_effect(TypeState),
+    {E, TypeState1} = ern_types:fresh(TypeState),
     TypeState2 = ern_types:leave(TypeState1),
     %% an effect variable used nowhere else becomes pure
     {#scheme{type = Unused}, _} = ern_types:generalize({tfn, [int()], E, int()}, TypeState2),
