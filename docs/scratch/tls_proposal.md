@@ -113,6 +113,8 @@ The reason is that Ernest should not write TLS, not that it cannot. That is an e
 - **No `PublicKey` library is needed.** `Pinned` and `Identity` take PEM bytes, read with `Fs.read`, and the runtime hands them to the host.
 - **Nothing of `ssl`, `crypto` or `public_key` shows in an Ernest signature.** The module's types are `Trust`, `Identity`, `Io.Error` and `Tcp`'s socket.
 
+A side note on what comes after. `Tls` in the standard library does not close the door on libraries around it: a crypto library, an HTTP library, JSON and the others the plan names under MVP 3.2 are added under `libs/` later, each when it is wanted. The HTTP library is Ernest over `Tcp`, and so serves an upgraded socket with no code of its own for TLS; the crypto library is a thin shim over the host's primitives, with everything built from them in Ernest.
+
 ### Where each part of the code lives
 
 The `ssl` calls are inside the Erlang module that already runs the socket process, and nowhere else. An Ernest program never sees them.
