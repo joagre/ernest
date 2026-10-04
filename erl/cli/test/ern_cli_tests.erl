@@ -827,9 +827,9 @@ abstract_constructor_outside_test() ->
 %% report §4.2: type names that differ only in case are distinct, and a
 %% type whose name differs only in case from a child module's segment does
 %% not take that module's namespace: `STACK` in main.ern beside
-%% main/stack.ern compiles, `STACK.negate` and `Main.STACK.negate` are main's
-%% own member, and `Main.Stack.one` is the child module's. A regression test,
-%% written after the code; single-file mode is not covered.
+%% main/stack.ern compiles, `STACK.negate` is main's own member, written
+%% plain within main (§4.2), and `Main.Stack.one` is the child module's. A
+%% regression test, written after the code; single-file mode is not covered.
 case_distinct_names_test() ->
     Dir = tmp(),
     write(Dir, "src/main.ern",
@@ -838,7 +838,7 @@ case_distinct_names_test() ->
           "export type STACK2 = B\n"
           "export fn STACK.negate(s : STACK) : Int = match s { STACK(n) -> n }\n"
           "export fn main() : Unit with m = Io.println(Int.toString(\n"
-          "    STACK.negate(STACK(3)) * 100 + Main.STACK.negate(STACK(4)) * 10\n"
+          "    STACK.negate(STACK(3)) * 100 + STACK.negate(STACK(4)) * 10\n"
           "    + Main.Stack.one()))\n"),
     write(Dir, "src/main/stack.ern", "export fn one() : Int = 1\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])),
@@ -859,10 +859,12 @@ abstract_field_outside_test() ->
                  re:run(iolist_to_binary(?capturedOutput),
                         "Main.Box is abstract, and its fields are its module's alone")).
 
-%% report §4.2: a module that names itself qualified is not a module cycle
+%% report §4.2: a module that names itself qualified, past a binding that
+%% hides the plain name, is not a module cycle
 self_qualified_module_test() ->
     Dir = tmp(),
-    write(Dir, "src/main.ern", "export fn g() : Int = 1\nexport fn f() : Int = Main.g()\n"
+    write(Dir, "src/main.ern", "export fn g() : Int = 1\n"
+                               "export fn f() : Int = { let g = 0; Main.g() + g }\n"
                                "export fn main() : Unit with Never ="
                                " Io.println(Int.toString(f()))\n"),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])).

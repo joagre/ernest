@@ -1817,25 +1817,40 @@ bif_names_test() ->
         "}\n"),
     ?assertEqual(<<"2\n10\n">>, Output).
 
-%% report §4.2, §4.6, §8.5: a module names its own declarations qualified
-%% as well, a private function, a `let`, and a type's member, called and
-%% taken as values, and a `let` so named is still ordered after the one it
-%% reads. A regression test: each was a remote call, undefined for a
-%% private function, and the `let` was not seen as a dependency
+%% report §4.2, §4.6, §8.5: a module names its own declaration qualified
+%% where a binding hides the plain name, a private function and a `let`,
+%% called and taken as values, and a `let` so named is still ordered after
+%% the one it reads; where nothing hides it, and for a type, a constructor
+%% or a member, which no binding hides, the qualified name is refused. A
+%% regression test: each was a remote call, undefined for a private
+%% function, and the `let` was not seen as a dependency; the refusals are
+%% the full review's P7 (2026-10-04)
 qualified_own_name_test() ->
     {ok, Output} = run(
-        "let total = M.base * 2\n"
+        "let total = { let base = 0; M.base * 2 + base }\n"
         "let base = 3\n"
         "fn two() : Int = 2\n"
-        "type Box = Box(Int)\n"
-        "fn Box.negate(b : Box) : Int = match b { Box(n) -> n }\n"
         "export fn main() : Unit with Never = {\n"
+        "    let two = fn() : Int = 10;\n"
         "    let f = M.two;\n"
-        "    let g = M.Box.negate;\n"
-        "    Io.println(Int.toString(M.two() + f() + M.Box.negate(Box(4)) + g(Box(1))));\n"
-        "    Io.println(Int.toString(M.total))\n"
+        "    Io.println(Int.toString(M.two() + f() + two()));\n"
+        "    Io.println(Int.toString(total))\n"
         "}\n"),
-    ?assertEqual(<<"9\n6\n">>, Output).
+    ?assertEqual(<<"14\n6\n">>, Output),
+    Refused = fun(Text) ->
+                      {error, [Diagnostic | _]} = ern_typecheck:check_string(['M'], Text),
+                      Diagnostic#diagnostic.message
+              end,
+    ?assertEqual("M.two is written only where a binding hides two",
+                 Refused("fn two() : Int = 2\nfn f() : Int = M.two()\n")),
+    ?assertEqual("M.Box is the module's own Box, which no binding hides",
+                 Refused("type Box = Box(Int)\nfn f() : M.Box = Box(1)\n")),
+    ?assertEqual("M.Box is the module's own Box, which no binding hides",
+                 Refused("type Box = Box(Int)\nfn f() : Box = M.Box(1)\n")),
+    ?assertEqual("M.Box.negate is the module's own Box.negate, which no binding hides",
+                 Refused("type Box = Box(Int)\n"
+                         "fn Box.negate(b : Box) : Box = b\n"
+                         "fn f() : Box = M.Box.negate(Box(1))\n")).
 
 %% report §6.3, §4.5: a timed receive's time below 0 is 0 whatever the
 %% module calls `max`. A regression test: the emitted `max(0, t)` called
@@ -2023,7 +2038,8 @@ initialization_order_test() ->
 %% to the declaration the checker resolved it to, which the emitter reads
 %% from the name's `ref` rather than resolving again: a type's member, the
 %% module's own function over the prelude's `self`, the module named
-%% qualified, `Prelude.self`, and a local binding over them all. A
+%% qualified past a local binding that hides it, `Prelude.self`, and a
+%% local binding over them all. A
 %% regression test for the single decision; the order it had was the same.
 lookup_order_test() ->
     {ok, Output} = run("type Box = Box(Int)\n"
@@ -2032,10 +2048,12 @@ lookup_order_test() ->
                        "fn self() : Int = 5\n"
                        "export fn main() : Unit with Never = {\n"
                        "    let me = Prelude.self();\n"
-                       "    let first = Box.negate(Box(1)) + negate(Box(1)) + self() + M.self();\n"
+                       "    let first = Box.negate(Box(1)) + negate(Box(1)) + self();\n"
+                       "    let self = fn() : Int = 10;\n"
+                       "    let second = self() + M.self();\n"
                        "    let negate = fn(b : Box) : Int = 1000;\n"
-                       "    Io.println(Int.toString(first + negate(Box(1))))\n}\n"),
-    ?assertEqual(<<"1111\n">>, Output).
+                       "    Io.println(Int.toString(first + second + negate(Box(1))))\n}\n"),
+    ?assertEqual(<<"1121\n">>, Output).
 
 %% A function may be named `module_info` or `record_info`, which the host
 %% gives every module: the emitter compiles them under names no Ernest name

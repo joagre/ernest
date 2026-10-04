@@ -86,31 +86,65 @@ check_examples(Namespace, Source, Docs) ->
                                 end,
                       ?assertMatch({{ok, _, _, _}, _}, {Checked, {Namespace, Number, Body}})
                   end, lists:zip(Numbered, [Where || {_, Where} <- Blocks])),
-    WithResult = [{Number, Body, Value} || {Number, {Body, Value}} <- Numbered, Value =/= none],
-    Fns = [<<"export fn docExample", (integer_to_binary(Number))/binary, "() = {\n", Body/binary,
-             "\n}\n">> || {Number, Body, _} <- WithResult],
-    Qualified = ern_namespace:text(Namespace),
-    Mains = [iolist_to_binary(["export fn docMain", integer_to_list(Number),
-                               "() : Unit with Never =\n    Io.println(Io.show(", Qualified,
-                               ".docExample", integer_to_list(Number), "()))\n"])
-             || {Number, _, _} <- WithResult],
-    Text = iolist_to_binary([Source, "\n", Fns, Mains]),
+    %% Appendix E.0 rule 6, report §4.2: an example of an exported
+    %% declaration runs in a module of its own that uses the documented
+    %% one, as a programmer writes it there, qualified; one of a private
+    %% declaration runs inside the module, which names its own plain
+    WithResult = [{Number, Body, Value, Where}
+                  || {{Number, {Body, Value}}, Where}
+                         <- lists:zip(Numbered, [Where || {_, Where} <- Blocks]),
+                     Value =/= none],
+    Inside = [{Number, Body, Value} || {Number, Body, Value, inside} <- WithResult],
+    Outside = [{Number, Body, Value} || {Number, Body, Value, outside} <- WithResult],
+    Text = iolist_to_binary([Source, "\n", example_fns(Inside), example_mains(Namespace, Inside)]),
     {ok, Typed, Interface, Env} = checked(Namespace, Text, Libraries),
     {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env),
     Original = code:which(ErlangModule),
     {module, ErlangModule} = code:load_binary(ErlangModule, "doc examples", Beam),
+    ExampleModule = example_module(Outside, [Interface | Libraries]),
     try
         %% Appendix E.0 rule 6: each example runs on its own, and the value
         %% it ends with is the last line it prints; what it prints itself,
         %% as an example of `foreach` does, comes before and is not compared
         lists:foreach(fun({Number, _, Value}) ->
-                          run_example(ErlangModule, Number, Value)
-                      end, WithResult)
+                          run_example(ErlangModule, [ErlangModule], Number, Value)
+                      end, Inside),
+        lists:foreach(fun({Number, _, Value}) ->
+                          run_example(ExampleModule, [ErlangModule, ExampleModule], Number,
+                                      Value)
+                      end, Outside)
     after
-        restore(ErlangModule, Original)
+        restore(ErlangModule, Original),
+        restore(ExampleModule, non_existing)
     end.
 
-run_example(ErlangModule, Number, Expected) ->
+%% The examples with a result, each a function of its own.
+example_fns(Examples) ->
+    [<<"export fn docExample", (integer_to_binary(Number))/binary, "() = {\n", Body/binary,
+       "\n}\n">> || {Number, Body, _} <- Examples].
+
+%% Each example's value printed as `Io.show` writes it, by a main of its
+%% own; the module Io names its own functions plain (report §4.2).
+example_mains(Namespace, Examples) ->
+    Print = case Namespace of
+                ['Io'] -> "println(show(";
+                _ -> "Io.println(Io.show("
+            end,
+    [iolist_to_binary(["export fn docMain", integer_to_list(Number), "() : Unit with Never =\n    ",
+                       Print, "docExample", integer_to_list(Number), "()))\n"])
+     || {Number, _, _} <- Examples].
+
+%% The module the outside examples run in, compiled and loaded against the
+%% documented module's interface and the libraries'.
+example_module(Examples, Interfaces) ->
+    Text = iolist_to_binary([example_fns(Examples), example_mains(['Docexample'], Examples)]),
+    {ok, Declarations} = ern_parser:parse_string(Text),
+    {ok, Typed, Interface, Env} = ern_typecheck:check(['Docexample'], Declarations, Interfaces),
+    {ok, ExampleModule, Beam} = ern_emitter:compile(['Docexample'], Typed, Interface, Env),
+    {module, ExampleModule} = code:load_binary(ExampleModule, "doc examples", Beam),
+    ExampleModule.
+
+run_example(ErlangModule, Initialized, Number, Expected) ->
     %% Appendix E.0 rule 6: an example may touch the file system, so each
     %% runs in a directory of its own, removed afterwards
     {ok, Cwd} = file:get_cwd(),
@@ -119,20 +153,21 @@ run_example(ErlangModule, Number, Expected) ->
     ok = filelib:ensure_path(Dir),
     ok = file:set_cwd(Dir),
     try
-        run_example(ErlangModule, Number, Expected, Cwd)
+        run_example(ErlangModule, Initialized, Number, Expected, Cwd)
     after
         file:set_cwd(Cwd),
         file:del_dir_r(Dir)
     end.
 
-run_example(ErlangModule, Number, Expected, _Cwd) ->
+run_example(ErlangModule, Initialized, Number, Expected, _Cwd) ->
     Main = list_to_atom("docMain" ++ integer_to_list(Number)),
     Self = self(),
     _ = collect([]),
-    Init = fun() -> case erlang:function_exported(ErlangModule, '$init', 0) of
-                        true -> ErlangModule:'$init'();
-                        false -> ok
-                    end
+    %% report §8.5: each module's top-level bindings, the documented
+    %% module's before the examples' that read them
+    Init = fun() -> [Module:'$init'() || Module <- Initialized,
+                                         erlang:function_exported(Module, '$init', 0)],
+                    ok
            end,
     %% the value goes to stdout, what the example prints itself may go to
     %% either sink, and the two are separate processes, so only stdout's

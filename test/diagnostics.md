@@ -1740,6 +1740,40 @@ example.ern:3:27: `..` is allowed only on a type with one constructor, and Shape
   | = help: give every field of Circle
 ```
 
+### A module's own name written qualified where nothing hides it (§4.2)
+
+```ernest-rejected
+fn helper() : Int = 1
+
+export fn main() : Unit with Never = Io.println(Int.toString(Example.helper()))
+```
+
+```console
+$ ern build example.ern
+example.ern:3:62: Example.helper is written only where a binding hides helper
+2 | 
+3 | export fn main() : Unit with Never = Io.println(Int.toString(Example.helper()))
+  |                                                              ^^^^^^^^^^^^^^
+  | = help: nothing here hides it; write helper
+```
+
+### A module's own constructor written qualified (§4.2)
+
+```ernest-rejected
+type Box = Box(Int)
+
+fn f() : Box = Example.Box(1)
+```
+
+```console
+$ ern build example.ern
+example.ern:3:16: Example.Box is the module's own Box, which no binding hides
+2 | 
+3 | fn f() : Box = Example.Box(1)
+  |                ^^^^^^^^^^^
+  | = help: write Box
+```
+
 ### A fill that lacks a field (§5.6)
 
 ```ernest-rejected

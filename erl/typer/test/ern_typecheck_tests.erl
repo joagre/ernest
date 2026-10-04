@@ -2011,12 +2011,15 @@ reply_lambda_test() ->
                  refusal(Source ++ "fn f(r : Reply(Int), b : Bool) : Unit with Never = {\n"
                          "    let g = fn() = worker(r);\n    if b then g() else Unit }")).
 
-%% report §4.2: a module may name its own declarations by their qualified
-%% names, in any order
+%% report §4.2: a module may name its own declaration by its qualified name
+%% where a binding hides the plain one, in any order, and not its own
+%% member, which no binding hides (the full review's P7, 2026-10-04)
 self_qualified_test() ->
-    ?assertEqual("() -> Int", type_of("export fn f() = M.g()\nfn g() = 1\n", f)),
-    ?assertEqual("(M.T) -> M.T", type_of("export type T = T(Int)\nexport fn f(t) = M.T.negate(t)\n"
-                                         "fn T.negate(T(n)) = T(-n)\n", f)).
+    ?assertEqual("() -> Int", type_of("export fn f() = { let g = 0; M.g() + g }\nfn g() = 1\n",
+                                      f)),
+    ?assertEqual("M.T.negate is the module's own T.negate, which no binding hides",
+                 refusal("export type T = T(Int)\nexport fn f(t : T) : T = M.T.negate(t)\n"
+                         "fn T.negate(t : T) : T = t\n")).
 
 %% report §4.2, §8.5: a local binding does not hide the module's own
 %% qualified name, so the initializer depends on it as on the plain name.

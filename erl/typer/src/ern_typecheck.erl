@@ -589,7 +589,8 @@ lookup_type_name(Span, ['Prelude'], Name, #env{types = Types, local_types = Loca
     end;
 lookup_type_name(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
     prelude_one(Span, Namespace, Name);
-lookup_type_name(Span, Namespace, Name, #env{types = Types}) ->
+lookup_type_name(Span, Namespace, Name, #env{namespace = OwnNamespace, types = Types}) ->
+    Namespace =:= OwnNamespace andalso written_plain(Span, Namespace, [Name]),
     QualifiedName = Namespace ++ [Name],
     case Types of
         #{QualifiedName := #type_info{params = Params}} -> {QualifiedName, length(Params)};
@@ -2856,9 +2857,14 @@ reached_constructor(FieldName, [{_, Path, _, FirstSpan} | _], Names, FieldTypes,
     end.
 
 %% Report §4.2: a constructor as the module writes it, the prelude's past a
-%% name the module hides.
-constructor_namespace([Name], Env) -> prelude_namespace(constructors, Name, Env);
-constructor_namespace(QualifiedName, _) -> lists:droplast(QualifiedName).
+%% name the module hides, and its own plain.
+constructor_namespace([Name], Env) ->
+    prelude_namespace(constructors, Name, Env);
+constructor_namespace(QualifiedName, #env{namespace = OwnNamespace}) ->
+    case lists:droplast(QualifiedName) of
+        OwnNamespace -> [];
+        Namespace -> Namespace
+    end.
 
 %% Report §5.6, §11.5: no path is a prefix of another, and none is given
 %% twice; the second is reported, the first labelled.
@@ -5048,9 +5054,13 @@ lookup_value(Span, ['Prelude', TypeName], Name, #env{provided = Provided} = Env)
     lookup_global(Span, [TypeName], Name, Env);
 lookup_value(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
     prelude_one(Span, Namespace, Name);
-lookup_value(Span, [MemberOf] = Namespace, Name, #env{local_values = LocalValues} = Env) ->
+lookup_value(Span, [MemberOf] = Namespace, Name, #env{namespace = OwnNamespace,
+                                                      local_values = LocalValues} = Env) ->
     case LocalValues of
         #{{MemberOf, Name} := QualifiedName} -> local_global(QualifiedName, Env);
+        #{Name := QualifiedName} when Namespace =:= OwnNamespace ->
+            own_qualified(Span, Namespace, Name, Env),
+            local_global(QualifiedName, Env);
         _ ->
             case session_name(values, {MemberOf, Name}, Env) of
                 {ok, QualifiedName} -> session_global(QualifiedName, Name, Env);
@@ -5059,11 +5069,14 @@ lookup_value(Span, [MemberOf] = Namespace, Name, #env{local_values = LocalValues
     end;
 lookup_value(Span, Namespace, Name,
              #env{namespace = OwnNamespace, local_values = LocalValues} = Env) ->
-    %% report §4.2: a module may name its own declarations qualified
+    %% report §4.2: a module may name its own declarations qualified where a
+    %% binding hides the plain name
     case Namespace =:= OwnNamespace of
         true ->
             case LocalValues of
-                #{Name := QualifiedName} -> local_global(QualifiedName, Env);
+                #{Name := QualifiedName} ->
+                    own_qualified(Span, Namespace, Name, Env),
+                    local_global(QualifiedName, Env);
                 _ -> lookup_global(Span, Namespace, Name, Env)
             end;
         false ->
@@ -5076,10 +5089,39 @@ lookup_value(Span, Namespace, Name,
                       false -> error
                   end,
             case Own of
-                {ok, QualifiedName} -> local_global(QualifiedName, Env);
-                error -> lookup_global(Span, Namespace, Name, Env)
+                {ok, QualifiedName} ->
+                    written_plain(Span, OwnNamespace, [lists:last(Namespace), Name]),
+                    local_global(QualifiedName, Env);
+                error ->
+                    lookup_global(Span, Namespace, Name, Env)
             end
     end.
+
+%% Report §4.2: a module's own qualified name is written where a binding
+%% hides the plain name, and nowhere else, as `Prelude.` is.
+own_qualified(Span, Namespace, Name, #env{locals = Locals}) ->
+    case is_map_key(Name, Locals) of
+        true ->
+            ok;
+        false ->
+            Plain = atom_to_list(Name),
+            Written = ern_namespace:text(Namespace ++ [Name]),
+            {Line, Column, _} = ern_diagnostic:span(Span),
+            fail({Line, Column, {Line, Column + length(Written)}},
+                 Written ++ " is written only where a binding hides " ++ Plain, [],
+                 "nothing here hides it; write " ++ Plain)
+    end.
+
+%% Report §4.2: a module's own type, constructor or member, which no binding
+%% can hide, is written by its plain name.
+-spec written_plain(ern_diagnostic:span(), [atom()], [atom()]) -> no_return().
+written_plain(Span, OwnNamespace, Plain) ->
+    Written = ern_namespace:text(OwnNamespace ++ Plain),
+    PlainText = ern_namespace:text(Plain),
+    {Line, Column, _} = ern_diagnostic:span(Span),
+    fail({Line, Column, {Line, Column + length(Written)}},
+         Written ++ " is the module's own " ++ PlainText ++ ", which no binding hides", [],
+         "write " ++ PlainText).
 
 %% Report §4.2: `Prelude.` is written where the module hides the prelude's
 %% name, and nowhere else, where the plain name is the one way to write it.
@@ -5255,7 +5297,9 @@ lookup_constructor(Span, ['Prelude'], Name,
 lookup_constructor(Span, ['Prelude' | _] = Namespace, Name, _Env) ->
     prelude_one(Span, Namespace, Name);
 lookup_constructor(Span, Namespace, Name,
-                   #env{constructors = Constructors, types = Types, local_types = LocalTypes}) ->
+                   #env{namespace = OwnNamespace, constructors = Constructors, types = Types,
+                        local_types = LocalTypes}) ->
+    Namespace =:= OwnNamespace andalso written_plain(Span, Namespace, [Name]),
     QualifiedName = Namespace ++ [Name],
     case Constructors of
         #{QualifiedName := ConstructorInfo} ->
