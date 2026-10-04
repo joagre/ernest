@@ -358,6 +358,131 @@ listener_ends_with_its_owner_test() ->
            end, <<"main">>, quiet()),
     ?assertEqual({ern, killed}, wait(ended)).
 
+%% report Appendix E.18: a socket closed or killed while the far end takes
+%% nothing lets go of its host's socket once 5 seconds pass with nothing
+%% taken, and a write it holds at its close answers `Left(Closed)`. A
+%% regression test: the host's socket stayed open, with its descriptor and
+%% its bytes, for as long as the far end took nothing (findings.md's S1),
+%% and a write held at the close had whatever answer the writer gave before
+%% the exit took it (C108). The 3 minutes' bound is not reached here
+lingering_socket_closes_test_() ->
+    {timeout, 60, fun lingering_socket_closes/0}.
+
+lingering_socket_closes() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listen),
+    Self = self(),
+    %% the far end accepts twice and never reads
+    Peer = spawn(fun() ->
+                     {ok, First} = gen_tcp:accept(Listen),
+                     {ok, Second} = gen_tcp:accept(Listen),
+                     receive done -> gen_tcp:close(First), gen_tcp:close(Second) end
+                 end),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Closed} = connect(Port, 2000),
+               {'Right', Killed} = connect(Port, 2000),
+               Chunk = binary:copy(<<0>>, 1024 * 1024),
+               _ = ern_rt:spawn(fun() -> Self ! {closed_write, flooded(Closed, Chunk)} end,
+                                <<"flood">>),
+               _ = ern_rt:spawn_monitored(fun() -> flooded(Killed, Chunk) end,
+                                          fun(Down) -> {down, Down} end, <<"flood">>),
+               %% a write is held once the writer waits on the busy host socket
+               ern_rt:in_foreign(fun() -> held(Closed), held(Killed) end),
+               Self ! {host_sockets, [host_socket(Closed), host_socket(Killed)]},
+               ern_rt:send(Closed, 'Close'),
+               ern_rt:kill(Killed),
+               receive {down, Down} -> Self ! {killed_write, Down} end
+           end, <<"main">>, quiet()),
+    HostSockets = wait(host_sockets),
+    ?assertEqual(2, length(HostSockets)),
+    %% the write each socket held as it ended: answered by the close, and
+    %% its caller faulted by the kill, as §6.6 says
+    ?assertEqual({'Left', 'Closed'}, wait(closed_write)),
+    ?assertMatch({'Down', _, {'Fault', _}, _}, wait(killed_write)),
+    Gone = gone(HostSockets, 9000),
+    Peer ! done,
+    gen_tcp:close(Listen),
+    ?assertEqual(HostSockets, Gone).
+
+%% Writes until one is not taken, and its answer.
+flooded(Socket, Chunk) ->
+    case write(Socket, Chunk) of
+        {'Right', 'Unit'} -> flooded(Socket, Chunk);
+        Answer -> Answer
+    end.
+
+%% report Appendix E.18: the bytes a socket has taken when it is closed
+%% reach a far end that takes them late, and the connection then closes.
+%% The host's own close did so too; this holds that the bound of
+%% lingering_socket_closes cuts nothing off a far end that takes its bytes
+closed_socket_sends_what_it_took_test_() ->
+    {timeout, 60, fun closed_socket_sends_what_it_took/0}.
+
+closed_socket_sends_what_it_took() ->
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    {ok, Port} = inet:port(Listen),
+    Self = self(),
+    Peer = spawn(fun() ->
+                     {ok, Conn} = gen_tcp:accept(Listen),
+                     receive go -> ok end,
+                     timer:sleep(2000),
+                     Self ! {taken, taken(Conn, 0)}
+                 end),
+    Size = 4 * 1024 * 1024,
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Socket} = connect(Port, 2000),
+               Self ! {written, write(Socket, binary:copy(<<1>>, Size))},
+               Self ! {host_sockets, [host_socket(Socket)]},
+               ern_rt:send(Socket, 'Close'),
+               Peer ! go
+           end, <<"main">>, quiet()),
+    ?assertEqual({'Right', 'Unit'}, wait(written)),
+    HostSockets = wait(host_sockets),
+    ?assertEqual({Size, {error, closed}}, receive {taken, Taken} -> Taken after 20000 -> none end),
+    ?assertEqual(HostSockets, gone(HostSockets, 3000)),
+    gen_tcp:close(Listen).
+
+%% Every byte the far end reads, and how the connection then ends.
+taken(Conn, Count) ->
+    case gen_tcp:recv(Conn, 0, 10000) of
+        {ok, Bytes} -> taken(Conn, Count + byte_size(Bytes));
+        Ended -> {Count, Ended}
+    end.
+
+%% Until the socket's writer waits inside the host's send, which holds it
+%% while the connection is behind, rather than in its own receive.
+held(Socket) ->
+    Pid = ern_rt:process_of(Socket),
+    {links, Links} = erlang:process_info(Pid, links),
+    [Writer] = [Linked || Linked <- Links, is_pid(Linked),
+                          Linked =/= ern_rt:system_process(tcp)],
+    case erlang:process_info(Writer, [status, current_function]) of
+        [{status, waiting}, {current_function, Function}]
+          when Function =/= {ern_tcp, writer, 2} ->
+            ok;
+        _ ->
+            timer:sleep(5),
+            held(Socket)
+    end.
+
+%% The host's socket a socket's process owns.
+host_socket(Socket) ->
+    Pid = ern_rt:process_of(Socket),
+    [HostSocket] = [Port || Port <- erlang:ports(),
+                            erlang:port_info(Port, connected) =:= {connected, Pid}],
+    HostSocket.
+
+%% The host's sockets that have closed within Ms.
+gone(HostSockets, Ms) ->
+    Closed = [HostSocket || HostSocket <- HostSockets,
+                            erlang:port_info(HostSocket) =:= undefined],
+    case Closed =:= HostSockets orelse Ms =< 0 of
+        true -> Closed;
+        false -> timer:sleep(100), gone(HostSockets, Ms - 100)
+    end.
+
 %% Which side of an Either a result is, Left or Right.
 side({Side, _}) -> Side.
 

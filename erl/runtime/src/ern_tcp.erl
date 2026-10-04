@@ -30,6 +30,13 @@
 %% deadline, and its timer, `expired` once it has answered `Left(Timeout)`.
 -record(write, {reply, deadline, timer}).
 
+%% Report Appendix E.18: how long the host's socket may send what the far
+%% end has not taken once the socket has ended: until 5 seconds pass with
+%% nothing taken, and 3 minutes in all, looked at once a second.
+-define(LINGER_IDLE, 5000).
+-define(LINGER_LIMIT, 180000).
+-define(LINGER_CHECK, 1000).
+
 %% Report §8.6: every listener and socket is linked to this process, which
 %% the runtime kills when the program ends, so none outlives it; this
 %% process traps the exits, so that one ending takes nothing else with it,
@@ -61,9 +68,15 @@ counted(Work) ->
 
 %% A listener or a socket, linked to the TCP process and recorded as opened
 %% before its address is given out (report §8.6), under the function that
-%% opened it (Appendix E.18).
+%% opened it (Appendix E.18). It traps exits from its start, so that however
+%% it ends, by a kill, with the program or with the TCP process, it closes
+%% its host's socket itself (close_socket/1).
 opened(Tcp, Loop, Site) ->
-    Pid = erlang:spawn(fun() -> link(Tcp), receive go -> Loop() end end),
+    Pid = erlang:spawn(fun() ->
+                           process_flag(trap_exit, true),
+                           link(Tcp),
+                           receive go -> Loop() end
+                       end),
     ern_rt:opened(Pid, Site),
     Pid ! go,
     Pid.
@@ -200,7 +213,14 @@ listener_loop(Tcp, Socket, MonitorRef) ->
         'CloseListener' ->
             gen_tcp:close(Socket),
             %% report Appendix E.18: a call after the close faults its caller
-            exit({ern, closed})
+            exit({ern, closed});
+        %% the host's socket's own exit, which ends nothing
+        {'EXIT', _, normal} ->
+            listener_loop(Tcp, Socket, MonitorRef);
+        %% report Appendix E.18: killed, or ended with the program
+        {'EXIT', _, ExitReason} ->
+            gen_tcp:close(Socket),
+            exit(ExitReason)
     end.
 
 %% The worker owns what it accepts, and hands it to the socket process,
@@ -249,9 +269,7 @@ writer(Socket, SocketProcess) ->
                                      {error, Error} -> {'Left', io_error(Error)}
                                  end),
             SocketProcess ! {written, Sent},
-            writer(Socket, SocketProcess);
-        stop ->
-            ok
+            writer(Socket, SocketProcess)
     end.
 
 socket_loop(#connection{socket = Socket, writer = Writer, monitor_ref = MonitorRef,
@@ -280,14 +298,29 @@ socket_loop(#connection{socket = Socket, writer = Writer, monitor_ref = MonitorR
             socket_loop(Connection#connection{monitor_ref = erlang:monitor(process, Owner)});
         %% report Appendix E.18: its owner has died, and it is killed
         {'DOWN', MonitorRef, process, _, _} ->
-            gen_tcp:close(Socket),
+            stop_writer(Writer),
+            close_socket(Socket),
             exit({ern, killed});
         'Close' ->
-            _ = closed(Connection),
-            gen_tcp:close(Socket),
-            Writer ! stop,
+            #connection{writes = Writes} = closed(Connection),
+            stop_writer(Writer),
+            %% report Appendix E.18: each write it holds answers `Left(Closed)`,
+            %% and one the writer answered first keeps its answer
+            lists:foreach(fun(#write{reply = Reply}) ->
+                              ern_rt:answer(Reply, {'Left', 'Closed'})
+                          end, Writes),
+            close_socket(Socket),
             %% report Appendix E.18: a call after the close faults its caller
             exit({ern, closed});
+        %% the writer's exit, or the host's socket's when the far end has
+        %% closed it, which end nothing
+        {'EXIT', _, normal} ->
+            socket_loop(Connection);
+        %% report Appendix E.18: killed, or ended with the program
+        {'EXIT', _, ExitReason} ->
+            stop_writer(Writer),
+            close_socket(Socket),
+            exit(ExitReason);
         {'Remote', Reply} ->
             ern_rt:answer(Reply, endpoint(State, fun() -> inet:peername(Socket) end)),
             socket_loop(Connection);
@@ -302,6 +335,63 @@ socket_loop(#connection{socket = Socket, writer = Writer, monitor_ref = MonitorR
             socket_loop(closed(Connection));
         {tcp_error, Socket, _} ->
             socket_loop(closed(Connection))
+    end.
+
+%% The writer is ended before the host's socket closes, so that it gives
+%% the host no more bytes; a write the host was holding back, the
+%% connection being behind, has given none.
+stop_writer(Writer) ->
+    unlink(Writer),
+    MonitorRef = erlang:monitor(process, Writer),
+    exit(Writer, kill),
+    receive {'DOWN', MonitorRef, process, _, _} -> ok end.
+
+%% Report Appendix E.18: the host's socket closed, the bytes the far end has
+%% not taken sent while it takes them. The host's own close leaves its
+%% socket open, with its descriptor, for as long as the far end takes
+%% nothing, and once the socket's owner has ended no process can stop that;
+%% so a socket with bytes waiting is handed to a closer of its own first.
+close_socket(Socket) ->
+    case inet:getstat(Socket, [send_pend]) of
+        {ok, [{send_pend, Pending}]} when Pending > 0 ->
+            Ended = erlang:monotonic_time(millisecond),
+            Closer = erlang:spawn(fun() ->
+                                      receive go -> lingering(Socket, Pending, Ended, Ended) end
+                                  end),
+            _ = inet:setopts(Socket, [{active, false}]),
+            case gen_tcp:controlling_process(Socket, Closer) of
+                ok ->
+                    Closer ! go;
+                {error, _} ->
+                    exit(Closer, kill),
+                    gen_tcp:close(Socket)
+            end;
+        _ ->
+            gen_tcp:close(Socket)
+    end.
+
+%% Report Appendix E.18: the closer looks at what the host still holds once
+%% a second. Nothing left closes the socket. Nothing taken for 5 seconds,
+%% or 3 minutes since the end, drops the rest and resets the connection,
+%% which the host's close does at once with a linger of no time.
+lingering(Socket, Pending, Moved, Ended) ->
+    receive after ?LINGER_CHECK -> ok end,
+    Now = erlang:monotonic_time(millisecond),
+    InTime = Now - Ended < ?LINGER_LIMIT,
+    case inet:getstat(Socket, [send_pend]) of
+        {ok, [{send_pend, 0}]} ->
+            gen_tcp:close(Socket);
+        {ok, [{send_pend, Left}]} when Left < Pending, InTime ->
+            lingering(Socket, Left, Now, Ended);
+        {ok, _} when Now - Moved < ?LINGER_IDLE, InTime ->
+            lingering(Socket, Pending, Moved, Ended);
+        {ok, _} ->
+            _ = inet:setopts(Socket, [{linger, {true, 0}}]),
+            gen_tcp:close(Socket);
+        {error, _} ->
+            %% the far end has closed the connection, and the host's socket
+            %% has closed with it
+            ok
     end.
 
 %% Report Appendix E.18: a write is answered once the socket has taken the
