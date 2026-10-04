@@ -1236,6 +1236,11 @@ references_in(#e_block{statements = Statements}, Env, Acc, Bound) ->
                                 statement_references(Statement, FoundAndScope, Env)
                             end, {Acc, BlockBound}, Statements),
     Acc1;
+references_in(#e_var{supplies = [_ | _] = Supplies} = Variable, Env, Acc, Bound) ->
+    %% report §4.9, §8.5: the members a requirement supplies at a use are
+    %% named there, a fill's and a derived compare's among them
+    references_in(Variable#e_var{supplies = []}, Env, references_in(Supplies, Env, Acc, Bound),
+                  Bound);
 references_in(#e_var{namespace = [], name = Name}, _Env, Acc, Bound) when is_map_key(Name, Bound) ->
     Acc;
 references_in(#e_var{namespace = [], name = Name}, _Env, Acc, _Bound) -> [{undefined, Name} | Acc];

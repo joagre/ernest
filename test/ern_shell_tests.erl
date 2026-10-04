@@ -297,7 +297,13 @@ prelude_shown() ->
     [?assertMatch({_, _}, binary:match(Output, Text))
      || Text <- [<<"type Reason\n">>, <<"spawn : (() -> Unit with n) -> Address(n) with m+">>,
                  <<"Ernest prelude">>, <<"Starts a process on this node that runs">>,
-                 <<"List.size(list : List(a!)) : Int">>]],
+                 <<"List.size(list : List(a!)) : Int">>,
+                 %% report §9.4, §9.6: every prelude function, `Io.show`,
+                 %% `Io.debug` and `String.compare` among them; a regression
+                 %% test, the listing left them out (findings.md's P10)
+                 <<"\nIo.show : (a!) -> String needs a.show\n">>,
+                 <<"\nIo.debug : (a!) -> a! with m+ needs a.show\n">>,
+                 <<"\nString.compare : (String, String) -> Ordering\n">>]],
     ?assertEqual(nomatch, binary:match(Output, <<"type Fs.Entry">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no module Prelude">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no documentation">>)).

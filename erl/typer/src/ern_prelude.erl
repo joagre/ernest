@@ -457,6 +457,7 @@ values() ->
      {['Path', '<>'], "(Path, Path) -> Path", module},
      {['Int', compare], "(Int, Int) -> Ordering", module},
      {['Float', compare], "(Float, Float) -> Ordering", module},
+     {['String', compare], "(String, String) -> Ordering", module},
      {['Char', compare], "(Char, Char) -> Ordering", module},
      {[fault], "(String) -> a",
       <<"""

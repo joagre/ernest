@@ -3734,7 +3734,7 @@ fn later(r : Reply(Int)) : Unit with m = {
 
 ```console
 $ ern build example.ern
-example.ern:3:13: the lambda f captures a reply-carrying value and may only be called or passed directly to spawn or spawnMonitored
+example.ern:3:13: the lambda f captures a reply-carrying value and may only be called or passed as the function spawn or spawnMonitored runs
 2 |     let f = fn() = answer(r, 1);
 3 |     let g = f;
   |             ^
@@ -3749,7 +3749,7 @@ fn each(r : Reply(Int)) : Unit with m =
 
 ```console
 $ ern build example.ern
-example.ern:2:23: the reply-carrying value r is captured by a lambda that is not called, bound by `let`, or passed directly to spawn or spawnMonitored
+example.ern:2:23: the reply-carrying value r is captured by a lambda that is not called, bound by `let`, or passed as the function spawn or spawnMonitored runs
 1 | fn each(r : Reply(Int)) : Unit with m =
 2 |     List.foreach([1], fn(x) = answer(r, x))
   |                       ^^^^^^^^^^^^^^^^^^^^

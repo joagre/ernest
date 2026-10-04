@@ -67,8 +67,8 @@ v ::= k | C | C(v) | C(f = v, …) | #(v, v, …) | [v, …] | ⟨fn(p, …) = e
 (let)      Γ ⊢ e₁ : τ₁ ! ε,  p : τ₁ binds Γ₁,  Γ, Γ₁ ⊢ e₂ : τ ! ε   gives  Γ ⊢ { let p = e₁; e₂ } : τ ! ε
 (match)    Γ ⊢ e : τ₀ ! ε,  each pᵢ : τ₀ binds Γᵢ,  Γ, Γᵢ ⊢ gᵢ : Bool ! pure,
            Γ, Γᵢ ⊢ eᵢ : τ ! ε,  the unguarded pᵢ cover τ₀            gives  Γ ⊢ match e { pᵢ when gᵢ -> eᵢ } : τ ! ε
-(receive)  each pᵢ : M binds Γᵢ,  Γ, Γᵢ ⊢ eᵢ : τ ! M,
-           Γ ⊢ t : Int ! M,  Γ ⊢ e′ : τ ! M                          gives  Γ ⊢ receive { pᵢ -> eᵢ | after t -> e′ } : τ ! M
+(receive)  each pᵢ : M binds Γᵢ,  Γ, Γᵢ ⊢ gᵢ : Bool ! pure,  Γ, Γᵢ ⊢ eᵢ : τ ! M,
+           Γ ⊢ t : Int ! M,  Γ ⊢ e′ : τ ! M          gives  Γ ⊢ receive { pᵢ when gᵢ -> eᵢ | after t -> e′ } : τ ! M
 ```
 
 A `fn` definition, a top-level `let`, and a block's `let` of a lambda are given the scheme that quantifies the variables of their type which `Γ` does not hold, each with its restrictions (§3.9, §4.6); section 6.1 gives the one exception. The primitives are names with schemes (§9.4, §9.5), among them:
@@ -112,7 +112,7 @@ Claims 1 and 2 follow from I1 with the rules of section 3, claim 3 from the shap
 
 ## 5. Each step keeps them
 
-**The functional steps.** These are the steps of Hindley-Milner's calculus with sum types, and the usual argument holds: a step replaces an expression by one of the same type. The count of arguments is part of a function's type (§3.4), so a call has as many as the closure takes (§5.2). A pattern in a parameter or a `let` is irrefutable (§5.10), so its binding cannot fail. The unguarded clauses of a `match` cover its type (§5.9), so a clause matches whatever the guards answer. A selection `e.f` is typed only where every constructor of the type has the field (§3.5), and a record update only on a type with one constructor (§5.6). An operator is a call of a member chosen when the program is compiled (6.9). `==` takes two values of one type and is defined on every pair of them (6.13). Division by zero, a float out of range, a bitstring that does not fit and `fault` are faults, which claim 1 counts as defined (§7.4). A name is read only after its binding has a value: top-level bindings are evaluated in dependency order and a cycle is refused (§8.5), and a local `fn` is not used before the `let`s it references (§5.4).
+**The functional steps.** These are the steps of Hindley-Milner's calculus with sum types, and the usual argument holds: a step replaces an expression by one of the same type. The count of arguments is part of a function's type (§3.4), so a call has as many as the closure takes (§5.2). A pattern in a parameter or a `let` is irrefutable (§5.10), so its binding cannot fail. The unguarded clauses of a `match` cover its type (§5.9), so a clause matches whatever the guards answer. A selection `e.f` is typed only where every constructor of the type has the field (§3.5), and a record update only on a type with one constructor (§5.6). An operator is a call of a member chosen when the program is compiled (6.9). `==` takes two values of one type and is defined on every pair of them (6.13). Division by zero, a float out of range, a bitstring that does not fit and `fault` are faults, which claim 1 counts as defined (§7.4). A name is read only after its binding has a value: top-level bindings are evaluated in dependency order, a member counting as named where it is supplied, and a cycle is refused (§8.5), and a local `fn` is not used before the `let`s it references (§5.4).
 
 **Generalization.** A pure initializer makes a value that never changes (§10), and a value of a scheme's type holds no value of the types its variables stand for, so it is a value of each instance. This is why a top-level `let` whose initializer is pure is generalized though it is no lambda, as `let empty = []` is. Section 6.1 gives the initializer that is not pure.
 
@@ -144,7 +144,7 @@ fn cell(v : a) : Unit with Cell(a) = …
 let shared = spawn(fn() = cell(None))       // refused
 ```
 
-Generalized, `shared` would have the type `Address(Cell(Optional(a)))` for every `a`: one process could be sent `Put(Some(1))` and then asked, at `Optional(String)`, for what it holds. So a top-level `let` whose initializer calls a process-only function as it is evaluated is not generalized, and a variable left in its type is an error (§3.9, §4.6). The initializer's own effect decides: a spawn reached through a helper that calls its argument, or through a function a call returns, counts, and a call in the body of a lambda the initializer only builds does not. A block's `let` is generalized only where it binds a lambda, which evaluates nothing. A `fn` is always generalized: each call makes its processes anew, so two instances share none.
+Generalized, `shared` would have the type `Address(Cell(Optional(a)))` for every `a`: one process could be sent `Put(Some(1))` and then asked, at `Optional(String)`, for what it holds. So a top-level `let` whose initializer calls a process-only function as it is evaluated is not generalized, and a variable left in its type is an error (§3.9, §4.6). The initializer's own effect decides: a spawn reached through a helper that calls its argument, or through a function a call returns, counts, and a call in the body of a lambda the initializer only builds does not. A block's `let` is generalized only where it binds a lambda, which evaluates nothing. A `fn` is generalized over the variables of its type that no name in scope around it holds (§3.9): each call makes its processes anew, so two instances share none of those, and a process it captures is held by a name around it, whose variables it is not generalized over. A local `fn` that sends to a block's `let c = spawn(fn() = cell(None))` has `c`'s variable in its type, held by `c`, so every call of it is at the one type `c` has.
 
 ### 6.2 A pure function where one with a mailbox type is expected
 
@@ -156,7 +156,7 @@ An effect variable that stands in no value position may be instantiated with `pu
 
 ### 6.4 An initializer runs at `Never`
 
-A top-level initializer is typed at the mailbox type `Never` and run in the entry process, whose mailbox type may be another (§4.6, §8.5). It is the one body that runs outside claim 3, and `Never` is what makes it safe. `Never` has no value. So `self()` in an initializer is an `Address(Never)`, to which nothing can be sent; a wrap `(Down) -> Never` cannot return a message; and a `receive` there has no pattern clause (§6.8). A function that returns what it receives, called there, waits for ever. Nothing therefore reaches the entry process's mailbox before `main` runs, and `main` begins with I1 holding at its own mailbox type.
+A top-level initializer is typed at the mailbox type `Never` and run in the entry process, whose mailbox type may be another (§4.6, §8.5). It is the one body that runs outside claim 3, and `Never` is what makes it safe. `Never` has no value. So `self()` in an initializer is an `Address(Never)`, to which nothing can be sent; a wrap `(Down) -> Never` cannot return a message; and a `receive` there has no pattern clause (§6.8). A function that returns what it receives, called there, waits for a message that cannot come, and the runtime faults it with `Fault("deadlock")` (§6.8, §8.6). Nothing therefore reaches the entry process's mailbox before `main` runs, and `main` begins with I1 holding at its own mailbox type.
 
 ### 6.5 The reply discipline
 

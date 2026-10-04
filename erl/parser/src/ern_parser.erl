@@ -419,7 +419,14 @@ optional_result_type([{'->', Position} | _]) ->
 optional_result_type([{':', _} | Rest]) ->
     {Type, Rest1} = type(Rest),
     case Rest1 of
-        [{with, _} | Rest2] ->
+        [{with, Position} | Rest2] ->
+            %% Appendix A: a function type's `with` is its own, so the
+            %% function's effect after one is written around the type in
+            %% parentheses, the one spelling (principle 2)
+            not is_bare_effectful_function(Type, Rest) orelse
+                fail(Position, "a second `with` after a function type's own",
+                     "write the function's effect after the type in parentheses,"
+                     " : ((A) -> B with M) with N"),
             {Effect, Rest3} = type(Rest2),
             {Type, Effect, Rest3};
         _ ->
@@ -427,6 +434,14 @@ optional_result_type([{':', _} | Rest]) ->
     end;
 optional_result_type(Tokens) ->
     {undefined, undefined, Tokens}.
+
+%% Whether the type is a function type with a `with` of its own, written
+%% without parentheses around it: it begins where the annotation does.
+is_bare_effectful_function(#t_fn{span = {Line, Column, _}, effect = Effect}, [First | _]) ->
+    {FirstLine, FirstColumn, _} = ern_diagnostic:span(position(First)),
+    Effect =/= undefined andalso {Line, Column} =:= {FirstLine, FirstColumn};
+is_bare_effectful_function(_, _) ->
+    false.
 
 let_declaration([{'let', Position} | Rest], Doc, Export) ->
     {Name, Rest1} = let_name(Rest),
@@ -543,7 +558,11 @@ type([Token | _]) ->
 parenthesized(Position, Params, [{'->', _} | Rest]) ->
     {ResultType, Rest1} = type(Rest),
     case Rest1 of
-        [{with, _} | Rest2] ->
+        [{with, WithPosition} | Rest2] ->
+            not is_bare_effectful_function(ResultType, Rest) orelse
+                fail(WithPosition, "a second `with` after a function type's own",
+                     "write the function's effect after its result in parentheses,"
+                     " (A) -> ((B) -> C with M) with N"),
             {Effect, Rest3} = type(Rest2),
             spanned({#t_fn{span = Position, params = Params, result_type = ResultType,
                            effect = Effect}, Rest3});

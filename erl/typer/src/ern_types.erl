@@ -579,7 +579,7 @@ format_call(#scheme{type = Type} = Scheme, Params, MarkedIndex, TypeState) ->
                                              end, Names, ParamTypes),
             Named = [parameter(Name, Text)
                      || {Name, Text} <- lists:zip(padded(Params, length(ParamTypes)), Shown)],
-            {ResultText, Names2} = format_result(Result, SchemeState, Names1),
+            {ResultText, Names2} = format_result(Result, Effect, SchemeState, Names1),
             EffectText = case Effect of
                              pure ->
                                  [];
@@ -646,7 +646,7 @@ format_type({ttuple, Elements}, TypeState, Names) ->
     {["#(", ElementsText, ")"], Names1};
 format_type({tfn, Params, Effect, Result}, TypeState, Names) ->
     {ParamsText, Names1} = format_list(Params, TypeState, Names),
-    {ResultText, Names2} = format_result(Result, TypeState, Names1),
+    {ResultText, Names2} = format_result(Result, Effect, TypeState, Names1),
     case Effect of
         pure -> {["(", ParamsText, ") -> ", ResultText], Names2};
         _ ->
@@ -656,12 +656,14 @@ format_type({tfn, Params, Effect, Result}, TypeState, Names) ->
 format_type(pure, _TypeState, Names) ->
     {"pure", Names}.
 
-%% A function type in result position is parenthesized when it carries an
-%% effect, so `with` reads as belonging to the outer arrow (report §3.4).
-format_result({tfn, _, Effect, _} = Type, TypeState, Names) when Effect =/= pure ->
+%% A function type in result position is parenthesized where the outer
+%% function carries an effect, since `with` binds to the nearest arrow and
+%% the outer's is written after the parentheses: `(A) -> ((B) -> C) with
+%% M`, and `(A) -> (B) -> C with M` for the inner's (report §3.4).
+format_result({tfn, _, _, _} = Type, OuterEffect, TypeState, Names) when OuterEffect =/= pure ->
     {Text, Names1} = format_type(Type, TypeState, Names),
     {["(", Text, ")"], Names1};
-format_result(Type, TypeState, Names) ->
+format_result(Type, _OuterEffect, TypeState, Names) ->
     format_type(Type, TypeState, Names).
 
 format_list(Types, TypeState, Names) ->

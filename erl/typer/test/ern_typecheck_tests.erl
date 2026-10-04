@@ -1074,9 +1074,9 @@ block_let_annotation_variables_test() ->
 
 %% report §3.4
 with_binds_to_the_nearest_arrow_test() ->
-    ?assertEqual("(Int) -> ((Int) -> Int with Never)",
-                 type_of("export fn f(a : Int) : (Int) -> Int with Never = fn(b) = a + b", f)),
     ?assertEqual("(Int) -> (Int) -> Int with Never",
+                 type_of("export fn f(a : Int) : (Int) -> Int with Never = fn(b) = a + b", f)),
+    ?assertEqual("(Int) -> ((Int) -> Int) with Never",
                  type_of("export fn f(a : Int) : ((Int) -> Int) with Never = fn(b) = a + b",
                          f)).
 
@@ -1450,7 +1450,7 @@ reply_test() ->
     ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int), b : Bool) = if b then answer(r, 1)"
                         " else answer(r, 2)")),
     ?assertEqual("the reply-carrying value r is captured by a lambda that is not called, bound by"
-                 " `let`, or passed directly to spawn or spawnMonitored",
+                 " `let`, or passed as the function spawn or spawnMonitored runs",
                  refusal(Source ++ "fn f(r : Reply(Int)) = List.map([1], fn(x) = answer(r, x))")),
     ?assertEqual(ok, ok(Source ++ "fn f(r : Reply(Int)) : Unit with Never ="
                         " { let _ = spawn(fn() : Unit with Never = answer(r, 1)); Unit }")),
@@ -1972,7 +1972,7 @@ top_level_holds_no_reply_test() ->
 %% a lambda stand only where it is called or spawned once
 reply_lambda_restarting_test() ->
     ?assertEqual("the reply-carrying value r is captured by a lambda that is not called, bound by"
-                 " `let`, or passed directly to spawn or spawnMonitored",
+                 " `let`, or passed as the function spawn or spawnMonitored runs",
                  refusal("fn worker(r : Reply(Int)) : Unit with m = answer(r, 1)\n"
                          "fn f(r : Reply(Int)) : Unit with Never = {\n"
                          "    let limit = RestartLimit(restarts = 1, within = 1);\n"
@@ -2000,11 +2000,11 @@ reply_lambda_test() ->
                  refusal(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                          "    let g = fn() = worker(r);\n    Unit }")),
     ?assertEqual("the reply-carrying value g is captured by a lambda that is not called, bound by"
-                 " `let`, or passed directly to spawn or spawnMonitored",
+                 " `let`, or passed as the function spawn or spawnMonitored runs",
                  refusal(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                          "    let g = fn() = worker(r);\n    List.foreach([1], fn(_) = g()) }")),
     ?assertEqual("the lambda g captures a reply-carrying value and may only be called or passed"
-                 " directly to spawn or spawnMonitored",
+                 " as the function spawn or spawnMonitored runs",
                  refusal(Source ++ "fn f(r : Reply(Int)) : Unit with Never = {\n"
                          "    let g = fn() = worker(r);\n    let h = g;\n    h() }")),
     ?assertEqual("the reply-carrying value g is not consumed on this path",
@@ -2509,7 +2509,8 @@ own_spawn_is_no_spawn_test() ->
                             "    let f = fn() = answer(r, 1);\n"
                             "    spawn(1, f)\n}\n"),
     ?assertEqual("the lambda f captures a reply-carrying value and may only be called or"
-                 " passed directly to spawn or spawnMonitored", Diagnostic#diagnostic.message).
+                 " passed as the function spawn or spawnMonitored runs",
+                 Diagnostic#diagnostic.message).
 
 %% report §4.8, §3.4: an operator resolved at the end of its definition,
 %% once its operand type is known, calls its member, which is pure, in a

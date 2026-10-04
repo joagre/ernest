@@ -43,7 +43,7 @@ first_sets_test() ->
 decided() ->
     [{'Stmts', "fn", "an identifier or type name after `fn` makes it a declaration"},
      {'Type', "(", "is an `FnType` when `->` follows its `)`"},
-     {'FnType', "with", "A `with` after a function type belongs to that type"},
+     {'FnResult', "(", "is an `FnType` when `->` follows its `)`"},
      {'TypeAtom', typename, "of a type in `TypeAtom`"},
      {'QName', typename, "of a value in `QName`"},
      {'AtomPat', typename, "of a constructor in `AtomPat`"},

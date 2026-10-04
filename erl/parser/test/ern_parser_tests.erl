@@ -273,7 +273,21 @@ result_annotation_test() ->
                  declarations("fn f() : (Int) -> Int with M = g")),
     ?assertMatch([#fn_declaration{result_type = #t_fn{effect = undefined},
                                   effect = #t_named{name = 'M'}}],
-                 declarations("fn f() : ((Int) -> Int) with M = g")).
+                 declarations("fn f() : ((Int) -> Int) with M = g")),
+    %% Appendix A: a second `with` after a function type's own is refused,
+    %% the function's effect written around the type in parentheses. A
+    %% regression test: `(A) -> B with M with N` was a second spelling of
+    %% it (findings.md's K13)
+    ?assertEqual("a second `with` after a function type's own",
+                 refusal("fn f() : (Int) -> Int with M with N = g")),
+    ?assertEqual("a second `with` after a function type's own",
+                 expression_refusal("fn() : (Int) -> Int with M with N = g")),
+    ?assertMatch([#fn_declaration{result_type = #t_fn{effect = #t_named{name = 'M'}},
+                                  effect = #t_named{name = 'N'}}],
+                 declarations("fn f() : ((Int) -> Int with M) with N = g")),
+    %% and in a function type's own result alike
+    ?assertEqual("a second `with` after a function type's own",
+                 refusal("fn f(g : () -> (Int) -> Int with M with N) = g")).
 
 %% report §5.3
 lambda_test() ->

@@ -936,15 +936,22 @@ browse(Session, Text) ->
 %% Report §11.2, §9: the prelude's types and values, as `:browse` lists a
 %% module's, since `Prelude` names its namespace (§4.2).
 prelude_listing() ->
-    TypeState = ern_typecheck:type_state(ern_typecheck:prelude_env()),
+    Env = ern_typecheck:prelude_env(),
+    TypeState = ern_typecheck:type_state(Env),
     {Types, _} = ern_typecheck:prelude_names(),
+    %% report §9.4: `Io.show` and `Io.debug` are the prelude's, typed by
+    %% `io.ern`'s interface, since the table's text has no place for their
+    %% requirement
+    Shown = [{['Io', Name], Scheme} || Name <- [show, debug],
+                                      {ok, Scheme} <- [ern_typecheck:declared_scheme(Env, ['Io'],
+                                                                                     Name)]],
     %% the environment holds the standard library's types too, each under
     %% its module's name; the prelude's own are unqualified
     [unicode:characters_to_binary(["type ", ern_namespace:text(QualifiedName)])
      || [_] = QualifiedName <- lists:sort(Types)]
         ++ [unicode:characters_to_binary([ern_namespace:text(QualifiedName), " : ",
                                           ern_types:format_scheme(Scheme, TypeState)])
-            || {QualifiedName, Scheme} <- lists:sort(ern_typecheck:prelude_values())].
+            || {QualifiedName, Scheme} <- lists:sort(ern_typecheck:prelude_values() ++ Shown)].
 
 %% Report §11.5: each name and each type as the session writes it, the
 %% names qualified and another module's types too.

@@ -1337,6 +1337,28 @@ let_order_through_operator_test() ->
         "export fn main() : Unit with Never = Io.println(show(sum))\n"),
     ?assertEqual(<<"30\n">>, Output).
 
+%% report §8.5, §4.9, §5.6, §3.5: a top-level let comes after the lets a
+%% member reads that a requirement supplies in its initializer, at a call,
+%% in a fill, and through a derived compare. A regression test: only an
+%% operator's member was counted, and `sorted` read `scale` before it had a
+%% value (findings.md's K1)
+let_order_through_supplied_member_test() ->
+    {ok, Output} = run(
+        "type T = T(Int)\n"
+        "type P = P(t : T) derives compare\n"
+        "type Ops(a) = Ops(fromList : (List(a)) -> OrderedSet.Set(a))\n"
+        "let sorted = OrderedSet.toList(OrderedSet.fromList([T(2), T(1)]))\n"
+        "let filled = {\n"
+        "    let ops : Ops(T) = Ops(..OrderedSet);\n"
+        "    OrderedSet.toList(ops.fromList([T(4), T(3)]))\n"
+        "}\n"
+        "let derived = OrderedSet.toList(OrderedSet.fromList([P(t = T(6)), P(t = T(5))]))\n"
+        "fn T.compare(T(a) : T, T(b) : T) : Ordering = Int.compare(a * scale, b * scale)\n"
+        "let scale = 1\n"
+        "export fn main() : Unit with Never =\n"
+        "    Io.println(Io.show(#(sorted, filled, derived)))\n"),
+    ?assertEqual(<<"#([T(1), T(2)], [T(3), T(4)], [P(t = T(5)), P(t = T(6))])\n">>, Output).
+
 %% report §8.5: a top-level let is evaluated after the lets it depends
 %% on, and otherwise in the order the module declares it. A regression
 %% test: the order of independent lets was the digraph's, which moved with

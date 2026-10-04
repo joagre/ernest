@@ -219,8 +219,8 @@ uses(#e_var{span = Span, namespace = [], name = Name}, Obligations, _Env) ->
             not lists:member({lambda, Name}, Obligations)
                 orelse throw({type_error, Span, "the lambda " ++ atom_to_list(Name)
                                                 ++ " captures a reply-carrying value and may only"
-                                                " be called or passed directly to spawn or"
-                                                " spawnMonitored"}),
+                                                " be called or passed as the function spawn or"
+                                                " spawnMonitored runs"}),
             []
     end;
 uses(#e_call{span = Span, returns = false} = Call, Obligations, Env) ->
@@ -249,7 +249,8 @@ uses(#e_lambda{span = Span} = Lambda, Obligations, Env) ->
         [{Name, _} | _] ->
             throw({type_error, Span, "the reply-carrying value " ++ atom_to_list(Name)
                                      ++ " is captured by a lambda that is not called, bound by"
-                                     " `let`, or passed directly to spawn or spawnMonitored"})
+                                     " `let`, or passed as the function spawn or spawnMonitored"
+                                     " runs"})
     end;
 uses(#fn_declaration{span = Span, params = Params, body = Body}, Obligations, Env) ->
     Visible = visible(lists:append([bound(Param#param.pattern) || Param <- Params]), Obligations),

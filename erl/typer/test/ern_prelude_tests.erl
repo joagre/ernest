@@ -19,7 +19,8 @@ values_test() ->
     Report = lists:sort(lists:append([signature(Line) || Line <- Lines])),
     %% a module written in Ernest gives its signatures by its interface; the
     %% marks of the restrictions the compiler infers, `a=`, `a!` and `m+`,
-    %% are left out of the comparison on both sides, §9 writing none and
+    %% are left out of the comparison on both sides, §9 writing only §9.4's
+    %% `Io.show` and `Io.debug`'s, which §3.9 sends the reader to, and
     %% Appendix E's listings being held to them by ern_doc_tests'
     %% listings_are_the_interfaces_test (report §3.9, §11.5); a module's
     %% section writes its own types unqualified (§4.2)

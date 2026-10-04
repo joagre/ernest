@@ -125,9 +125,16 @@ format_test() ->
                  ern_types:format({tfn, [], A, {tcon, ['Address'], [A]}}, TypeState3)),
     ?assertEqual("((a) -> b with e, a) -> b with e",
                  ern_types:format({tfn, [{tfn, [A], E, B}, A], E, B}, TypeState3)),
-    ?assertEqual("(Int) -> ((Int) -> Int with Never)",
+    %% report §3.4: `with` binds to the nearest arrow, so a function result
+    %% is parenthesized only under an outer `with`. A regression test: an
+    %% outer effect printed after a bare result, which reads as the
+    %% result's (findings.md's K13)
+    ?assertEqual("(Int) -> (Int) -> Int with Never",
                  ern_types:format({tfn, [int()], pure,
                                    {tfn, [int()], {tcon, ['Never'], []}, int()}}, TypeState3)),
+    ?assertEqual("(Int) -> ((Int) -> Int) with Never",
+                 ern_types:format({tfn, [int()], {tcon, ['Never'], []},
+                                   {tfn, [int()], pure, int()}}, TypeState3)),
     ?assertEqual("(Int) -> (Int) -> Int",
                  ern_types:format({tfn, [int()], pure, {tfn, [int()], pure, int()}}, TypeState3)),
     TypeState4 = ern_types:add_restriction(A, equality, TypeState3),
