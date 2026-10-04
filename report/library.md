@@ -111,7 +111,7 @@ export fn main() : Unit with Never = {
 
 ## Appendix E. Standard Library
 
-E.0 is normative; a function enters this appendix by its rules before it enters `stdlib/`. The listing that follows is what E.0 has admitted, the modules that ship with the compiler as ordinary Ernest files under `stdlib/`. A listing gives each function's type as an annotation writes it, without the inferred restrictions of §3.9: `ern doc` prints every restriction (§11.5). The standard library is on the load path by default; every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in §9 is what the language itself requires. Everything else here is written in Ernest on top of the language and prelude, except the shims that E.0's first rule admits.
+E.0 is normative; a function enters this appendix by its rules before it enters `stdlib/`. The listing that follows is what E.0 has admitted, the modules that ship with the compiler as ordinary Ernest files under `stdlib/`. A listing gives each function's type as §11.5 prints it, its inferred restrictions of §3.9 marked, so that the marks are part of its contract: `List.size : (List(a!)) -> Int` takes no list that holds a reply, and `List.map` takes one. A module's own types are written there without its namespace. The standard library is on the load path by default; every program can call `Io.println`, `List.map`, and the rest without any setup. The prelude in §9 is what the language itself requires. Everything else here is written in Ernest on top of the language and prelude, except the shims that E.0's first rule admits.
 
 ### Appendix E.0. Rules
 
@@ -144,14 +144,14 @@ Output to standard output and standard error, and input from standard input, thr
 ```
 type Error = NotFound | Denied | Refused | Closed | Timeout | NotATerminal | NotAFile | Exists
            | NotUtf8(Bytes) | Invalid | Other(String)
-Io.print : (String) -> Unit with m
-Io.println : (String) -> Unit with m // appends "\n"
-Io.printError : (String) -> Unit with m // to standard error
-Io.printlnError : (String) -> Unit with m // appends "\n"
-Io.readLine : () -> Optional(String) with m // the next line without its line feed; None at end of input
-Io.read : () -> Optional(Bytes) with m // what has arrived, at least one byte; None at end of input
-Io.write : (Bytes) -> Unit with m // the bytes to standard output, as they are
-Io.writeError : (Bytes) -> Unit with m // the bytes to standard error, as they are
+Io.print : (String) -> Unit with m+
+Io.println : (String) -> Unit with m+ // appends "\n"
+Io.printError : (String) -> Unit with m+ // to standard error
+Io.printlnError : (String) -> Unit with m+ // appends "\n"
+Io.readLine : () -> Optional(String) with m+ // the next line without its line feed; None at end of input
+Io.read : () -> Optional(Bytes) with m+ // what has arrived, at least one byte; None at end of input
+Io.write : (Bytes) -> Unit with m+ // the bytes to standard output, as they are
+Io.writeError : (Bytes) -> Unit with m+ // the bytes to standard error, as they are
 ```
 
 `Io.show` writes a value by the argument's type at the call, each value as its literal or construction is written: a negative number with `-` before it, `-1`, a `Char` as `'a'`, `Bytes` as `<<104, 105>>`, a named constructor with its fields in their declared order (§3.5), `Snap(dir = "x", seen = 2)`. A `Map` prints as `Map.fromList` of its pairs, a `Set` as `Set.fromList` of its elements, in an order the values fix, so that equal maps and equal sets print alike: ascending where the keys or the elements are `Int`, `Float`, `Char`, or `String`. An address prints as `<address 84>`, the number naming the process behind it, and a `Process` as `<process 84>` (E.21). A function prints as `<function>`; no reply reaches `Io.show`, whose argument is no reply-carrying type (§6.6). `Io.show` and `Io.debug` write a value by the type at which the name is used, as a callee or an argument; their requirement, `needs a.show` (§9.4), is supplied there as any requirement is (§4.9). The type must be known there whole, more than an operator asks (§4.8), but for type variables a requirement in force names `show` for, at which the call writes the value as the types the variables are instantiated to: under `needs a.show`, `a`, `List(a)` and `Optional(#(a, Int))` are each written. A type variable no requirement names `show` for is a type error. Neither takes an argument the program has not declared: on a known type none, and under a requirement what it names, which a call supplies without writing it (§4.9). An effect variable in the type is no matter, since a function is written `<function>`. A value of an abstract type outside its module is written as `<abstract>`, and a value of a foreign type as `<foreign>`. `Io.debug` writes `Io.show`'s text to standard error.
@@ -161,37 +161,37 @@ Io.writeError : (Bytes) -> Unit with m // the bytes to standard error, as they a
 `[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains`, `remove`, and `unique` require equality on `a` (§3.10). `List.<>` is the prelude's, §9.6; this module provides it (§9).
 
 ```
-List.size : (List(a)) -> Int
-List.isEmpty : (List(a)) -> Bool
-List.contains : (List(a), a) -> Bool
-List.get : (List(a), Int) -> Optional(a) // by index from 0; None for a negative index or one at or past the end
-List.remove : (List(a), a) -> List(a) // the first occurrence
+List.size : (List(a!)) -> Int
+List.isEmpty : (List(a!)) -> Bool
+List.contains : (List(a=!), a=!) -> Bool
+List.get : (List(a!), Int) -> Optional(a!) // by index from 0; None for a negative index or one at or past the end
+List.remove : (List(a=!), a=!) -> List(a=!) // the first occurrence
 List.map : (List(a), (a) -> b with e) -> List(b) with e
-List.filter : (List(a), (a) -> Bool with e) -> List(a) with e
+List.filter : (List(a!), (a!) -> Bool with e) -> List(a!) with e
 List.filterMap : (List(a), (a) -> Optional(b) with e) -> List(b) with e
 List.foldLeft : (List(a), b, (b, a) -> b with e) -> b with e
 List.foldRight : (List(a), b, (a, b) -> b with e) -> b with e // from the right, the element first
 List.foreach : (List(a), (a) -> Unit with e) -> Unit with e
-List.any : (List(a), (a) -> Bool with e) -> Bool with e
-List.all : (List(a), (a) -> Bool with e) -> Bool with e
-List.find : (List(a), (a) -> Bool with e) -> Optional(a) with e // the first that satisfies
-List.last : (List(a)) -> Optional(a)
-List.take : (List(a), Int) -> List(a) // the first n, or all when there are fewer; n below 0 is 0
-List.drop : (List(a), Int) -> List(a) // all but the first n; n below 0 is 0
-List.dropLast : (List(a), Int) -> List(a) // all but the last n; n below 0 is 0
-List.span : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e // the longest prefix that satisfies, and the rest
-List.partition : (List(a), (a) -> Bool with e) -> #(List(a), List(a)) with e // those that satisfy and those that do not, each in order
-List.unique : (List(a)) -> List(a) // the first occurrence of each, in order
+List.any : (List(a!), (a!) -> Bool with e) -> Bool with e
+List.all : (List(a!), (a!) -> Bool with e) -> Bool with e
+List.find : (List(a!), (a!) -> Bool with e) -> Optional(a!) with e // the first that satisfies
+List.last : (List(a!)) -> Optional(a!)
+List.take : (List(a!), Int) -> List(a!) // the first n, or all when there are fewer; n below 0 is 0
+List.drop : (List(a!), Int) -> List(a!) // all but the first n; n below 0 is 0
+List.dropLast : (List(a!), Int) -> List(a!) // all but the last n; n below 0 is 0
+List.span : (List(a!), (a!) -> Bool with e) -> #(List(a!), List(a!)) with e // the longest prefix that satisfies, and the rest
+List.partition : (List(a!), (a!) -> Bool with e) -> #(List(a!), List(a!)) with e // those that satisfy and those that do not, each in order
+List.unique : (List(a=!)) -> List(a=!) // the first occurrence of each, in order
 List.indexed : (List(a)) -> List(#(Int, a)) // each element with its index from 0
-List.repeat : (a, Int) -> List(a) // n copies; n below 0 is 0
+List.repeat : (a!, Int) -> List(a!) // n copies; n below 0 is 0
 List.reverse : (List(a)) -> List(a)
-List.sort : (List(a), (a, a) -> Ordering with e) -> List(a) with e // stable
-List.zip : (List(a), List(b)) -> List(#(a, b)) // to the shorter length
+List.sort : (List(a!), (a!, a!) -> Ordering with e) -> List(a!) with e // stable
+List.zip : (List(a!), List(b!)) -> List(#(a!, b!)) // to the shorter length
 List.unzip : (List(#(a, b))) -> #(List(a), List(b))
 List.flatMap : (List(a), (a) -> List(b) with e) -> List(b) with e
 List.range : (Int, Int) -> List(Int) // from the first to the second inclusive; empty when the first is greater
-List.tryMap : (List(a), (a) -> Either(e, b) with x) -> Either(e, List(b)) with x // the first Left ends it
-List.tryFold : (List(a), b, (b, a) -> Either(e, b) with x) -> Either(e, b) with x // the first Left ends it
+List.tryMap : (List(a!), (a!) -> Either(e, b!) with x) -> Either(e, List(b!)) with x // the first Left ends it
+List.tryFold : (List(a!), b, (b, a!) -> Either(e, b) with x) -> Either(e, b) with x // the first Left ends it
 ```
 
 ### Appendix E.3. `map.ern` (namespace `Map`)
@@ -199,28 +199,28 @@ List.tryFold : (List(a), b, (b, a) -> Either(e, b) with x) -> Either(e, b) with 
 Requires equality on `k` (§3.10). The order of `keys`, `values`, `toList`, `foldLeft`, `foreach`, and `find` is unspecified, and so is the order in which `map`, `filter`, `filterMap`, `any`, `all`, and `mergeWith` meet the entries. The primitives are `empty`, `size`, `get`, `put`, `remove`, and `toList` (E.0 rule 1).
 
 ```
-Map.empty : Map(k, v)
-Map.size : (Map(k, v)) -> Int
-Map.isEmpty : (Map(k, v)) -> Bool
-Map.contains : (Map(k, v), k) -> Bool
-Map.get : (Map(k, v), k) -> Optional(v)
-Map.put : (Map(k, v), k, v) -> Map(k, v) // replaces an entry with that key
-Map.remove : (Map(k, v), k) -> Map(k, v) // a key not present is not an error
-Map.update : (Map(k, v), k, (Optional(v)) -> v with e) -> Map(k, v) with e // the entry, present or not, replaced by the function's value
-Map.map : (Map(k, v), (k, v) -> w with e) -> Map(k, w) with e
-Map.filter : (Map(k, v), (k, v) -> Bool with e) -> Map(k, v) with e
-Map.filterMap : (Map(k, v), (k, v) -> Optional(w) with e) -> Map(k, w) with e
-Map.foldLeft : (Map(k, v), b, (b, k, v) -> b with e) -> b with e
-Map.foreach : (Map(k, v), (k, v) -> Unit with e) -> Unit with e
-Map.any : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
-Map.all : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
-Map.find : (Map(k, v), (k, v) -> Bool with e) -> Optional(#(k, v)) with e // some entry that satisfies
-Map.merge : (Map(k, v), Map(k, v)) -> Map(k, v) // the second wins for a shared key
-Map.mergeWith : (Map(k, v), Map(k, v), (k, v, v) -> v with e) -> Map(k, v) with e // for a shared key, the function of the key, the first's value and the second's
-Map.fromList : (List(#(k, v))) -> Map(k, v) // a later pair wins
-Map.toList : (Map(k, v)) -> List(#(k, v))
-Map.keys : (Map(k, v)) -> List(k)
-Map.values : (Map(k, v)) -> List(v)
+Map.empty : Map(k=, v)
+Map.size : (Map(k=!, v!)) -> Int
+Map.isEmpty : (Map(k=!, v!)) -> Bool
+Map.contains : (Map(k=!, v!), k=!) -> Bool
+Map.get : (Map(k=!, v!), k=!) -> Optional(v!)
+Map.put : (Map(k=!, v!), k=!, v!) -> Map(k=!, v!) // replaces an entry with that key
+Map.remove : (Map(k=!, v!), k=!) -> Map(k=!, v!) // a key not present is not an error
+Map.update : (Map(k=!, v!), k=!, (Optional(v!)) -> v! with e) -> Map(k=!, v!) with e // the entry, present or not, replaced by the function's value
+Map.map : (Map(k=!, v!), (k=!, v!) -> w! with e) -> Map(k=!, w!) with e
+Map.filter : (Map(k=!, v!), (k=!, v!) -> Bool with e) -> Map(k=!, v!) with e
+Map.filterMap : (Map(k=!, v!), (k=!, v!) -> Optional(w!) with e) -> Map(k=!, w!) with e
+Map.foldLeft : (Map(k=!, v!), b, (b, k=!, v!) -> b with e) -> b with e
+Map.foreach : (Map(k=!, v!), (k=!, v!) -> Unit with e) -> Unit with e
+Map.any : (Map(k=!, v!), (k=!, v!) -> Bool with e) -> Bool with e
+Map.all : (Map(k=!, v!), (k=!, v!) -> Bool with e) -> Bool with e
+Map.find : (Map(k=!, v!), (k=!, v!) -> Bool with e) -> Optional(#(k=!, v!)) with e // some entry that satisfies
+Map.merge : (Map(k=!, v!), Map(k=!, v!)) -> Map(k=!, v!) // the second wins for a shared key
+Map.mergeWith : (Map(k=!, v!), Map(k=!, v!), (k=!, v!, v!) -> v! with e) -> Map(k=!, v!) with e // for a shared key, the function of the key, the first's value and the second's
+Map.fromList : (List(#(k=!, v!))) -> Map(k=!, v!) // a later pair wins
+Map.toList : (Map(k=!, v!)) -> List(#(k=!, v!))
+Map.keys : (Map(k=!, v!)) -> List(k=!)
+Map.values : (Map(k=!, v!)) -> List(v!)
 ```
 
 ### Appendix E.4. `set.ern` (namespace `Set`)
@@ -228,26 +228,26 @@ Map.values : (Map(k, v)) -> List(v)
 Requires equality on `a` (§3.10). A set has no `get`; membership is `contains`. The order of `toList`, `foldLeft`, `foreach`, and `find` is unspecified, and so is the order in which `map`, `filter`, `filterMap`, `any`, and `all` meet the elements. The primitives are `empty`, `size`, `contains`, `put`, `remove`, and `toList` (E.0 rule 1).
 
 ```
-Set.empty : Set(a)
-Set.size : (Set(a)) -> Int
-Set.isEmpty : (Set(a)) -> Bool
-Set.contains : (Set(a), a) -> Bool
-Set.put : (Set(a), a) -> Set(a) // an element already present is not an error
-Set.remove : (Set(a), a) -> Set(a) // an element not present is not an error
-Set.map : (Set(a), (a) -> b with e) -> Set(b) with e // requires equality on b
-Set.filter : (Set(a), (a) -> Bool with e) -> Set(a) with e
-Set.filterMap : (Set(a), (a) -> Optional(b) with e) -> Set(b) with e // requires equality on b
-Set.foldLeft : (Set(a), b, (b, a) -> b with e) -> b with e
-Set.foreach : (Set(a), (a) -> Unit with e) -> Unit with e
-Set.any : (Set(a), (a) -> Bool with e) -> Bool with e
-Set.all : (Set(a), (a) -> Bool with e) -> Bool with e
-Set.find : (Set(a), (a) -> Bool with e) -> Optional(a) with e // some element that satisfies
-Set.fromList : (List(a)) -> Set(a)
-Set.toList : (Set(a)) -> List(a)
-Set.union : (Set(a), Set(a)) -> Set(a)
-Set.intersection : (Set(a), Set(a)) -> Set(a)
-Set.difference : (Set(a), Set(a)) -> Set(a) // the elements of the first not in the second
-Set.isSubset : (Set(a), Set(a)) -> Bool // every element of the first is in the second
+Set.empty : Set(a=)
+Set.size : (Set(a=!)) -> Int
+Set.isEmpty : (Set(a=!)) -> Bool
+Set.contains : (Set(a=!), a=!) -> Bool
+Set.put : (Set(a=!), a=!) -> Set(a=!) // an element already present is not an error
+Set.remove : (Set(a=!), a=!) -> Set(a=!) // an element not present is not an error
+Set.map : (Set(a=!), (a=!) -> b=! with e) -> Set(b=!) with e // requires equality on b
+Set.filter : (Set(a=!), (a=!) -> Bool with e) -> Set(a=!) with e
+Set.filterMap : (Set(a=!), (a=!) -> Optional(b=!) with e) -> Set(b=!) with e // requires equality on b
+Set.foldLeft : (Set(a=!), b, (b, a=!) -> b with e) -> b with e
+Set.foreach : (Set(a=!), (a=!) -> Unit with e) -> Unit with e
+Set.any : (Set(a=!), (a=!) -> Bool with e) -> Bool with e
+Set.all : (Set(a=!), (a=!) -> Bool with e) -> Bool with e
+Set.find : (Set(a=!), (a=!) -> Bool with e) -> Optional(a=!) with e // some element that satisfies
+Set.fromList : (List(a=!)) -> Set(a=!)
+Set.toList : (Set(a=!)) -> List(a=!)
+Set.union : (Set(a=!), Set(a=!)) -> Set(a=!)
+Set.intersection : (Set(a=!), Set(a=!)) -> Set(a=!)
+Set.difference : (Set(a=!), Set(a=!)) -> Set(a=!) // the elements of the first not in the second
+Set.isSubset : (Set(a=!), Set(a=!)) -> Bool // every element of the first is in the second
 ```
 
 ### Appendix E.5. `string.ern` (namespace `String`)
@@ -364,9 +364,9 @@ Float.atan2 : (Float, Float) -> Float // the angle of the point #(x, y), the y f
 ### Appendix E.10. `optional.ern` (namespace `Optional`)
 
 ```
-Optional.isSome : (Optional(a)) -> Bool
-Optional.isNone : (Optional(a)) -> Bool
-Optional.withDefault : (Optional(a), a) -> a
+Optional.isSome : (Optional(a!)) -> Bool
+Optional.isNone : (Optional(a!)) -> Bool
+Optional.withDefault : (Optional(a!), a!) -> a!
 Optional.map : (Optional(a), (a) -> b with e) -> Optional(b) with e
 Optional.andThen : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with e
 ```
@@ -374,14 +374,14 @@ Optional.andThen : (Optional(a), (a) -> Optional(b) with e) -> Optional(b) with 
 ### Appendix E.11. `either.ern` (namespace `Either`)
 
 ```
-Either.isLeft : (Either(e, a)) -> Bool
-Either.isRight : (Either(e, a)) -> Bool
-Either.withDefault : (Either(e, a), a) -> a
+Either.isLeft : (Either(e!, a!)) -> Bool
+Either.isRight : (Either(e!, a!)) -> Bool
+Either.withDefault : (Either(e!, a!), a!) -> a!
 Either.map : (Either(e, a), (a) -> b with x) -> Either(e, b) with x
 Either.mapLeft : (Either(e, a), (e) -> b with x) -> Either(b, a) with x
 Either.andThen : (Either(e, a), (a) -> Either(e, b) with x) -> Either(e, b) with x
-Either.toOptional : (Either(e, a)) -> Optional(a)
-Either.fromOptional : (Optional(a), e) -> Either(e, a)
+Either.toOptional : (Either(e!, a)) -> Optional(a)
+Either.fromOptional : (Optional(a), e!) -> Either(e!, a)
 ```
 
 ### Appendix E.12. `foreign.ern` (namespace `Foreign`)
@@ -390,7 +390,7 @@ Either.fromOptional : (Optional(a), e) -> Either(e, a)
 
 ```
 foreign type Term
-Foreign.from : (a) -> Term // the value as it crosses into foreign code, at the use's type (§8.4)
+Foreign.from : (a!) -> Term // the value as it crosses into foreign code, at the use's type (§8.4)
 Foreign.toInt : (Term) -> Optional(Int)
 Foreign.toFloat : (Term) -> Optional(Float)
 Foreign.toString : (Term) -> Optional(String) // a binary that is not UTF-8 is None
@@ -431,8 +431,8 @@ Path.toString : (Path) -> String
 Over the clock's system reference (§8.2). Times are milliseconds since the epoch, by the host's clock, which may be set while the program runs. `monotonic` is milliseconds since a moment the runtime chose, and never goes back. The difference of two readings of `monotonic` is the time the host ran between them: where the host's monotonic clock stops while the machine is suspended, that time is left out. The difference of two `now`s is not that time when the clock is set between them. An alarm after milliseconds counts them as `monotonic` does, and setting the clock does not move it. An alarm at a time fires when the clock reaches the time, though the clock is set before it fires: a clock set past the time fires it once the host reports the change, and a clock set back delays it. An alarm fires once, and a program cannot cancel it: a process that no longer wants it ignores the message, and a periodic tick is scheduled after the previous one is handled. A restart of the process that set it cancels it (§6.9).
 
 ```
-Clock.now : () -> Int with m
-Clock.monotonic : () -> Int with m
+Clock.now : () -> Int with m+
+Clock.monotonic : () -> Int with m+
 Clock.alarm : (Int, (Int) -> m) -> Unit with m // after the milliseconds, wrap(time) in the caller's mailbox, time the time it fired
 Clock.alarmAt : (Int, (Int) -> m) -> Unit with m // at the time, wrap(time) in the caller's mailbox, time the time it fired
 ```
@@ -447,7 +447,7 @@ type Event =
     Key(Char) | ArrowUp | ArrowDown | ArrowLeft | ArrowRight | Escape | Interrupt
   | Pasted(String) | Resized(Size)
 Terminal.subscribe : ((Event) -> m) -> Either(Io.Error, Unit) with m // every key pressed and every resize from now on, wrapped, in the caller's mailbox; a second call replaces the first; Left(NotATerminal) where standard input is not a terminal
-Terminal.size : () -> Either(Io.Error, Size) with m // the terminal's size now; Left(NotATerminal) where standard output is not a terminal
+Terminal.size : () -> Either(Io.Error, Size) with m+ // the terminal's size now; Left(NotATerminal) where standard output is not a terminal
 Terminal.columns : (String) -> Int // the columns the text takes at a terminal: an escape sequence none, a wide or emoji grapheme two, a grapheme only of combining marks, format characters and controls none
 ```
 
@@ -458,23 +458,23 @@ Over the file system's system reference (§8.2). The last argument is the millis
 ```
 type Kind = File | Directory | Link | Other // Other: a named pipe, a device, or a socket
 type Entry = Entry(path : Path, mtime : Int, size : Int, kind : Kind, mode : Int, user : Int) // mtime in milliseconds since the epoch, as Clock.now, read to the second and so a multiple of 1000; size in bytes; mode the permission bits, as setMode takes them; user the host's number for the user the file belongs to, as Os.user is the program's
-Fs.read : (Path, Int) -> Either(Io.Error, Bytes) with m // the whole file, however large; readRange reads a file of a size the program does not trust in parts
-Fs.readRange : (Path, Int, Int, Int) -> Either(Io.Error, Bytes) with m // up to count bytes from offset, fewer at the end of the file and none past it; an offset or a count below 0 is none
-Fs.write : (Path, Bytes, Int) -> Either(Io.Error, Unit) with m // creates or replaces
-Fs.append : (Path, Bytes, Int) -> Either(Io.Error, Unit) with m // creates or extends a file, or writes to a device
-Fs.list : (Path, Int) -> Either(Io.Error, List(Entry)) with m // the entries of a directory but `.` and `..`, in unspecified order, each entry's path the directory's path joined with the entry's name, each described as it is; a name that is not UTF-8 answers `Left(NotUtf8(name))`, the first such in the order of their bytes (§8.2), and an entry gone before it is described is left out
-Fs.stat : (Path, Int) -> Either(Io.Error, Entry) with m // what the path leads to, its links followed
-Fs.makeDir : (Path, Int) -> Either(Io.Error, Unit) with m // with its missing parents; an existing directory is not an error
-Fs.remove : (Path, Int) -> Either(Io.Error, Unit) with m // a file, a link, or an empty directory
-Fs.rename : (Path, Path, Int) -> Either(Io.Error, Unit) with m // the first to the second
-Fs.copy : (Path, Path, Int) -> Either(Io.Error, Unit) with m // a file, the first to the second; replaces
-Fs.makeLink : (Path, Path, Int) -> Either(Io.Error, Unit) with m // a symbolic link at the first path to the second, which may name nothing
-Fs.makeHardLink : (Path, Path, Int) -> Either(Io.Error, Unit) with m // a hard link at the first path to the regular file the second names, a second name for it
-Fs.readLink : (Path, Int) -> Either(Io.Error, Optional(Path)) with m // the path a symbolic link holds, as it was written
-Fs.makeFile : (Path, Bytes, Int) -> Either(Io.Error, Unit) with m // a new file, or none where the path names something
-Fs.removeAll : (Path, Int) -> Either(Io.Error, Unit) with m // a directory and everything under it, or a file or a link; a link is removed, not followed
-Fs.setModified : (Path, Int, Int) -> Either(Io.Error, Unit) with m // the modification time, in milliseconds since the epoch, kept to the second
-Fs.setMode : (Path, Int, Int) -> Either(Io.Error, Unit) with m // the permission bits, as the host writes them, 0o600; a mode outside 0 to 0o7777 is Left(Invalid)
+Fs.read : (Path, Int) -> Either(Io.Error, Bytes) with m+ // the whole file, however large; readRange reads a file of a size the program does not trust in parts
+Fs.readRange : (Path, Int, Int, Int) -> Either(Io.Error, Bytes) with m+ // up to count bytes from offset, fewer at the end of the file and none past it; an offset or a count below 0 is none
+Fs.write : (Path, Bytes, Int) -> Either(Io.Error, Unit) with m+ // creates or replaces
+Fs.append : (Path, Bytes, Int) -> Either(Io.Error, Unit) with m+ // creates or extends a file, or writes to a device
+Fs.list : (Path, Int) -> Either(Io.Error, List(Entry)) with m+ // the entries of a directory but `.` and `..`, in unspecified order, each entry's path the directory's path joined with the entry's name, each described as it is; a name that is not UTF-8 answers `Left(NotUtf8(name))`, the first such in the order of their bytes (§8.2), and an entry gone before it is described is left out
+Fs.stat : (Path, Int) -> Either(Io.Error, Entry) with m+ // what the path leads to, its links followed
+Fs.makeDir : (Path, Int) -> Either(Io.Error, Unit) with m+ // with its missing parents; an existing directory is not an error
+Fs.remove : (Path, Int) -> Either(Io.Error, Unit) with m+ // a file, a link, or an empty directory
+Fs.rename : (Path, Path, Int) -> Either(Io.Error, Unit) with m+ // the first to the second
+Fs.copy : (Path, Path, Int) -> Either(Io.Error, Unit) with m+ // a file, the first to the second; replaces
+Fs.makeLink : (Path, Path, Int) -> Either(Io.Error, Unit) with m+ // a symbolic link at the first path to the second, which may name nothing
+Fs.makeHardLink : (Path, Path, Int) -> Either(Io.Error, Unit) with m+ // a hard link at the first path to the regular file the second names, a second name for it
+Fs.readLink : (Path, Int) -> Either(Io.Error, Optional(Path)) with m+ // the path a symbolic link holds, as it was written
+Fs.makeFile : (Path, Bytes, Int) -> Either(Io.Error, Unit) with m+ // a new file, or none where the path names something
+Fs.removeAll : (Path, Int) -> Either(Io.Error, Unit) with m+ // a directory and everything under it, or a file or a link; a link is removed, not followed
+Fs.setModified : (Path, Int, Int) -> Either(Io.Error, Unit) with m+ // the modification time, in milliseconds since the epoch, kept to the second
+Fs.setMode : (Path, Int, Int) -> Either(Io.Error, Unit) with m+ // the permission bits, as the host writes them, 0o600; a mode outside 0 to 0o7777 is Left(Invalid)
 ```
 
 ### Appendix E.18. `tcp.ern` (namespace `Tcp`)
@@ -485,17 +485,17 @@ Over TCP's system reference (§8.2). A socket is a process: its address can be s
 abstract type ListenerMsg // what a listener takes
 abstract type SocketMsg // what a socket takes
 type Endpoint = Endpoint(host : String, port : Int)
-Tcp.listen : (String, Int) -> Either(Io.Error, Address(ListenerMsg)) with m // host, port: the interface the host's name or address names, `"127.0.0.1"` the loopback alone and `"0.0.0.0"` or `"::"` every one; port 0 asks the system for a free one
-Tcp.port : (Address(ListenerMsg)) -> Either(Io.Error, Int) with m // the port it listens on
-Tcp.accept : (Address(ListenerMsg), Int) -> Either(Io.Error, Address(SocketMsg)) with m
-Tcp.connect : (String, Int, Int) -> Either(Io.Error, Address(SocketMsg)) with m // host, port
-Tcp.read : (Address(SocketMsg), Int) -> Either(Io.Error, Bytes) with m // what has arrived, at least one byte
-Tcp.write : (Address(SocketMsg), Bytes, Int) -> Either(Io.Error, Unit) with m
-Tcp.close : (Address(SocketMsg)) -> Unit with m
-Tcp.give : (Address(SocketMsg), Process) -> Unit with m // makes the process the socket's owner
-Tcp.closeListener : (Address(ListenerMsg)) -> Unit with m // stops listening
-Tcp.remote : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) with m // the connection's far end
-Tcp.local : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) with m // the connection's near end
+Tcp.listen : (String, Int) -> Either(Io.Error, Address(ListenerMsg)) with m+ // host, port: the interface the host's name or address names, `"127.0.0.1"` the loopback alone and `"0.0.0.0"` or `"::"` every one; port 0 asks the system for a free one
+Tcp.port : (Address(ListenerMsg)) -> Either(Io.Error, Int) with m+ // the port it listens on
+Tcp.accept : (Address(ListenerMsg), Int) -> Either(Io.Error, Address(SocketMsg)) with m+
+Tcp.connect : (String, Int, Int) -> Either(Io.Error, Address(SocketMsg)) with m+ // host, port
+Tcp.read : (Address(SocketMsg), Int) -> Either(Io.Error, Bytes) with m+ // what has arrived, at least one byte
+Tcp.write : (Address(SocketMsg), Bytes, Int) -> Either(Io.Error, Unit) with m+
+Tcp.close : (Address(SocketMsg)) -> Unit with m+
+Tcp.give : (Address(SocketMsg), Process) -> Unit with m+ // makes the process the socket's owner
+Tcp.closeListener : (Address(ListenerMsg)) -> Unit with m+ // stops listening
+Tcp.remote : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) with m+ // the connection's far end
+Tcp.local : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) with m+ // the connection's near end
 ```
 
 ### Appendix E.19. `erl.ern` (namespace `Erl`)
@@ -539,8 +539,8 @@ type Info = Info(site : String, queued : Int, activity : Activity)
 type Activity = Running | Receiving | Calling
 type FaultReport = FaultReport(process : Process, site : String, cause : String, restarted : Bool, trace : String)
 Process.fromAddress : (Address(m)) -> Process // the process behind the address, through every via
-Process.info : (Process) -> Optional(Info) with m // its spawn site (§6.9), the messages in its mailbox, and whether it runs, waits in a receive, or waits for a call's answer; None once it has ended
-Process.live : () -> List(Process) with m // in unspecified order
+Process.info : (Process) -> Optional(Info) with m+ // its spawn site (§6.9), the messages in its mailbox, and whether it runs, waits in a receive, or waits for a call's answer; None once it has ended
+Process.live : () -> List(Process) with m+ // in unspecified order
 Process.faults : ((FaultReport) -> m) -> Unit with m // every fault from now on, wrapped, in the caller's mailbox
 ```
 
@@ -551,8 +551,8 @@ A supervisor restarts a group of processes, its children, together. The primitiv
 ```
 type Strategy = OneForOne | OneForAll | RestForOne
 abstract type Msg // what a supervisor takes
-Supervisor.group : (Strategy, RestartLimit) -> (() -> Unit with Msg) with m
-Supervisor.child : (Address(Msg), () -> Unit with m) -> (() -> Unit with m)
+Supervisor.group : (Strategy, RestartLimit) -> (() -> Unit with Msg) with m+
+Supervisor.child : (Address(Msg), () -> Unit with m+) -> (() -> Unit with m+)
 ```
 
 ### Appendix E.23. `os.ern` (namespace `Os`)
@@ -576,13 +576,13 @@ Os.arguments : List(String)
 Os.environment : (String) -> Optional(String) // the variable's value, None where there is none
 Os.workingDirectory : Path
 Os.user : Int // the host's number for the user the program runs as
-Os.exit : (Int) -> a with m
-Os.start : (Command) -> Either(Io.Error, Address(ProgramMsg)) with m
-Os.read : (Address(ProgramMsg), Int) -> Either(Io.Error, Output) with m
-Os.write : (Address(ProgramMsg), Bytes, Int) -> Either(Io.Error, Unit) with m
-Os.closeInput : (Address(ProgramMsg)) -> Unit with m
-Os.give : (Address(ProgramMsg), Process) -> Unit with m // makes the process the program's owner
-Os.run : (Command, Int) -> Either(Io.Error, Finished) with m
+Os.exit : (Int) -> a with m+
+Os.start : (Command) -> Either(Io.Error, Address(ProgramMsg)) with m+
+Os.read : (Address(ProgramMsg), Int) -> Either(Io.Error, Output) with m+
+Os.write : (Address(ProgramMsg), Bytes, Int) -> Either(Io.Error, Unit) with m+
+Os.closeInput : (Address(ProgramMsg)) -> Unit with m+
+Os.give : (Address(ProgramMsg), Process) -> Unit with m+ // makes the process the program's owner
+Os.run : (Command, Int) -> Either(Io.Error, Finished) with m+
 ```
 
 ### Appendix E.24. `test.ern` (namespace `Test`)
@@ -601,27 +601,27 @@ A set in the order of its element type's `compare` (§3.10). `Set(a)` is an abst
 ```
 abstract type Set(a)
 OrderedSet.empty : Set(a)
-OrderedSet.size : (Set(a)) -> Int
-OrderedSet.isEmpty : (Set(a)) -> Bool
-OrderedSet.contains : (Set(a), a) -> Bool needs a.compare
-OrderedSet.put : (Set(a), a) -> Set(a) needs a.compare // an element already there is kept
-OrderedSet.remove : (Set(a), a) -> Set(a) needs a.compare // an element not present is not an error
-OrderedSet.map : (Set(a), (a) -> b with e) -> Set(b) with e needs b.compare
-OrderedSet.filter : (Set(a), (a) -> Bool with e) -> Set(a) with e
-OrderedSet.filterMap : (Set(a), (a) -> Optional(b) with e) -> Set(b) with e needs b.compare
+OrderedSet.size : (Set(a!)) -> Int
+OrderedSet.isEmpty : (Set(a!)) -> Bool
+OrderedSet.contains : (Set(a!), a!) -> Bool needs a.compare
+OrderedSet.put : (Set(a!), a!) -> Set(a!) needs a.compare // an element already there is kept
+OrderedSet.remove : (Set(a!), a!) -> Set(a!) needs a.compare // an element not present is not an error
+OrderedSet.map : (Set(a), (a) -> b! with e) -> Set(b!) with e needs b.compare
+OrderedSet.filter : (Set(a!), (a!) -> Bool with e) -> Set(a!) with e
+OrderedSet.filterMap : (Set(a), (a) -> Optional(b!) with e) -> Set(b!) with e needs b.compare
 OrderedSet.foldLeft : (Set(a), b, (b, a) -> b with e) -> b with e
 OrderedSet.foreach : (Set(a), (a) -> Unit with e) -> Unit with e
-OrderedSet.any : (Set(a), (a) -> Bool with e) -> Bool with e
-OrderedSet.all : (Set(a), (a) -> Bool with e) -> Bool with e
-OrderedSet.find : (Set(a), (a) -> Bool with e) -> Optional(a) with e // the first in order that satisfies
-OrderedSet.fromList : (List(a)) -> Set(a) needs a.compare
+OrderedSet.any : (Set(a!), (a!) -> Bool with e) -> Bool with e
+OrderedSet.all : (Set(a!), (a!) -> Bool with e) -> Bool with e
+OrderedSet.find : (Set(a!), (a!) -> Bool with e) -> Optional(a!) with e // the first in order that satisfies
+OrderedSet.fromList : (List(a!)) -> Set(a!) needs a.compare
 OrderedSet.toList : (Set(a)) -> List(a) // in order
-OrderedSet.min : (Set(a)) -> Optional(a) // the first in order
-OrderedSet.max : (Set(a)) -> Optional(a) // the last in order
-OrderedSet.union : (Set(a), Set(a)) -> Set(a) needs a.compare
-OrderedSet.intersection : (Set(a), Set(a)) -> Set(a) needs a.compare
-OrderedSet.difference : (Set(a), Set(a)) -> Set(a) needs a.compare // the elements of the first not in the second
-OrderedSet.isSubset : (Set(a), Set(a)) -> Bool needs a.compare // every element of the first is in the second
+OrderedSet.min : (Set(a!)) -> Optional(a!) // the first in order
+OrderedSet.max : (Set(a!)) -> Optional(a!) // the last in order
+OrderedSet.union : (Set(a!), Set(a!)) -> Set(a!) needs a.compare
+OrderedSet.intersection : (Set(a!), Set(a!)) -> Set(a!) needs a.compare
+OrderedSet.difference : (Set(a!), Set(a!)) -> Set(a!) needs a.compare // the elements of the first not in the second
+OrderedSet.isSubset : (Set(a!), Set(a!)) -> Bool needs a.compare // every element of the first is in the second
 ```
 
 ### Appendix E.26. `ordered_map.ern` (namespace `OrderedMap`)
@@ -631,27 +631,27 @@ A map from keys to values in the order of the key type's `compare` (§3.10), wit
 ```
 abstract type Map(k, v)
 OrderedMap.empty : Map(k, v)
-OrderedMap.size : (Map(k, v)) -> Int
-OrderedMap.isEmpty : (Map(k, v)) -> Bool
-OrderedMap.contains : (Map(k, v), k) -> Bool needs k.compare
-OrderedMap.get : (Map(k, v), k) -> Optional(v) needs k.compare
-OrderedMap.put : (Map(k, v), k, v) -> Map(k, v) needs k.compare // replaces an entry with that key
-OrderedMap.remove : (Map(k, v), k) -> Map(k, v) needs k.compare // a key not present is not an error
-OrderedMap.update : (Map(k, v), k, (Optional(v)) -> v with e) -> Map(k, v) with e needs k.compare // the entry, present or not, replaced by the function's value
-OrderedMap.map : (Map(k, v), (k, v) -> w with e) -> Map(k, w) with e
-OrderedMap.filter : (Map(k, v), (k, v) -> Bool with e) -> Map(k, v) with e
-OrderedMap.filterMap : (Map(k, v), (k, v) -> Optional(w) with e) -> Map(k, w) with e
+OrderedMap.size : (Map(k!, v!)) -> Int
+OrderedMap.isEmpty : (Map(k!, v!)) -> Bool
+OrderedMap.contains : (Map(k!, v!), k!) -> Bool needs k.compare
+OrderedMap.get : (Map(k!, v!), k!) -> Optional(v!) needs k.compare
+OrderedMap.put : (Map(k!, v!), k!, v!) -> Map(k!, v!) needs k.compare // replaces an entry with that key
+OrderedMap.remove : (Map(k!, v!), k!) -> Map(k!, v!) needs k.compare // a key not present is not an error
+OrderedMap.update : (Map(k!, v!), k!, (Optional(v!)) -> v! with e) -> Map(k!, v!) with e needs k.compare // the entry, present or not, replaced by the function's value
+OrderedMap.map : (Map(k!, v), (k!, v) -> w with e) -> Map(k!, w) with e
+OrderedMap.filter : (Map(k!, v!), (k!, v!) -> Bool with e) -> Map(k!, v!) with e
+OrderedMap.filterMap : (Map(k!, v), (k!, v) -> Optional(w) with e) -> Map(k!, w) with e
 OrderedMap.foldLeft : (Map(k, v), b, (b, k, v) -> b with e) -> b with e
 OrderedMap.foreach : (Map(k, v), (k, v) -> Unit with e) -> Unit with e
-OrderedMap.any : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
-OrderedMap.all : (Map(k, v), (k, v) -> Bool with e) -> Bool with e
-OrderedMap.find : (Map(k, v), (k, v) -> Bool with e) -> Optional(#(k, v)) with e // the first in order that satisfies
-OrderedMap.merge : (Map(k, v), Map(k, v)) -> Map(k, v) needs k.compare // the second wins for a shared key
-OrderedMap.mergeWith : (Map(k, v), Map(k, v), (k, v, v) -> v with e) -> Map(k, v) with e needs k.compare // for a shared key, the function of the key, the first's value and the second's
-OrderedMap.fromList : (List(#(k, v))) -> Map(k, v) needs k.compare // a later pair wins
+OrderedMap.any : (Map(k!, v!), (k!, v!) -> Bool with e) -> Bool with e
+OrderedMap.all : (Map(k!, v!), (k!, v!) -> Bool with e) -> Bool with e
+OrderedMap.find : (Map(k!, v!), (k!, v!) -> Bool with e) -> Optional(#(k!, v!)) with e // the first in order that satisfies
+OrderedMap.merge : (Map(k!, v!), Map(k!, v!)) -> Map(k!, v!) needs k.compare // the second wins for a shared key
+OrderedMap.mergeWith : (Map(k!, v!), Map(k!, v!), (k!, v!, v!) -> v! with e) -> Map(k!, v!) with e needs k.compare // for a shared key, the function of the key, the first's value and the second's
+OrderedMap.fromList : (List(#(k!, v!))) -> Map(k!, v!) needs k.compare // a later pair wins
 OrderedMap.toList : (Map(k, v)) -> List(#(k, v)) // in order
-OrderedMap.keys : (Map(k, v)) -> List(k) // in order
-OrderedMap.values : (Map(k, v)) -> List(v) // in the keys' order
+OrderedMap.keys : (Map(k, v!)) -> List(k) // in order
+OrderedMap.values : (Map(k!, v)) -> List(v) // in the keys' order
 ```
 
 ## Appendix G. Libraries
@@ -664,15 +664,15 @@ Tables of the runtime, Erlang's `ets` tables of type `set`, which Appendix D sho
 
 ```
 foreign type Table(k=, v)
-Ets.new : () -> Table(k, v) with m
-Ets.put : (Table(k, v), k, v) -> Unit with m
-Ets.get : (Table(k, v), k) -> Optional(v) with m
-Ets.contains : (Table(k, v), k) -> Bool with m
-Ets.remove : (Table(k, v), k) -> Unit with m
-Ets.size : (Table(k, v)) -> Int with m
-Ets.clear : (Table(k, v)) -> Unit with m
-Ets.close : (Table(k, v)) -> Unit with m
-Ets.toList : (Table(k, v)) -> List(#(k, v)) with m
+Ets.new : () -> Table(k=, v) with m+
+Ets.put : (Table(k=!, v!), k=!, v!) -> Unit with m+
+Ets.get : (Table(k=!, v!), k=!) -> Optional(v!) with m+
+Ets.contains : (Table(k=!, v!), k=!) -> Bool with m+
+Ets.remove : (Table(k=!, v!), k=!) -> Unit with m+
+Ets.size : (Table(k=!, v!)) -> Int with m+
+Ets.clear : (Table(k=!, v!)) -> Unit with m+
+Ets.close : (Table(k=!, v!)) -> Unit with m+
+Ets.toList : (Table(k=!, v!)) -> List(#(k=!, v!)) with m+
 ```
 
 ### Appendix G.2. `libs/markdown` (namespace `Markdown`)

@@ -202,6 +202,51 @@ collect(Acc) ->
         iolist_to_binary(lists:reverse(Acc))
     end.
 
+%% Appendix E, Appendix G, report §11.5, §3.9: every listed function's type
+%% is the type its module's interface prints, its inferred restrictions
+%% marked and the module's own types written without its namespace, so that
+%% the report states each function's whole contract. A test of the full
+%% review's K20 (2026-10-04), whose first run found every difference to be a
+%% mark or a namespace, no signature drifted
+listings_are_the_interfaces_test() ->
+    Printed = maps:from_list(
+                [{ern_namespace:text(QualifiedName),
+                  ern_types:format_scheme(Scheme, ern_types:new())}
+                 || #interface{values = Values} <- ern_prelude:stdlib_interfaces() ++ libraries([]),
+                    {QualifiedName, Scheme} <- maps:to_list(Values)]),
+    {ok, Report} = file:read_file(filename:join(?ROOT, "report/library.md")),
+    Listed = listed(binary:split(Report, <<"\n">>, [global]), outside, []),
+    ?assert(length(Listed) > 300),
+    Differing = [{Name, Written, Expected}
+                 || {Name, Written} <- Listed,
+                    Expected <- [own_plain(Name, maps:get(Name, Printed, missing))],
+                    Written =/= Expected],
+    ?assertEqual([], Differing).
+
+%% The `Name.function : type` lines of the plain fenced blocks, each with its
+%% type as written, a comment after `//` left out.
+listed([<<"```", Language/binary>> | Lines], outside, Acc) ->
+    listed(Lines, {inside, Language =:= <<>>}, Acc);
+listed([<<"```", _/binary>> | Lines], {inside, _}, Acc) ->
+    listed(Lines, outside, Acc);
+listed([Line | Lines], {inside, true} = State, Acc) ->
+    case re:run(Line, "^([A-Z]\\w*(?:\\.\\w+)*\\.(?:\\w+|[-+*/%<>]+)) : (.*?)(?: //.*)?$",
+                [{capture, all_but_first, list}, unicode]) of
+        {match, [Name, Type]} -> listed(Lines, State, [{Name, Type} | Acc]);
+        nomatch -> listed(Lines, State, Acc)
+    end;
+listed([_ | Lines], State, Acc) ->
+    listed(Lines, State, Acc);
+listed([], _, Acc) ->
+    lists:reverse(Acc).
+
+%% A printed type as its module's section writes it, its own types plain.
+own_plain(_, missing) ->
+    missing;
+own_plain(Name, Type) ->
+    [Module | _] = string:split(Name, "."),
+    re:replace(Type, "\\b" ++ Module ++ "\\.(?=[A-Z])", "", [global, {return, list}, unicode]).
+
 %% Report §11.1, Appendix G: a library's module is checked with the other
 %% libraries' interfaces, as a program has them on its load path; libs/markdown
 %% uses libs/ansi.

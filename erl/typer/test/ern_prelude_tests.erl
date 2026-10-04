@@ -18,9 +18,11 @@ values_test() ->
         code_lines(section("## Appendix E.", "## Appendix G")),
     Report = lists:sort(lists:append([signature(Line) || Line <- Lines])),
     %% a module written in Ernest gives its signatures by its interface; the
-    %% restrictions the compiler infers and prints, `a=` and `a!`, are never
-    %% written (report §3.9), so they are left out of the comparison; a
-    %% module's section writes its own types unqualified (§4.2)
+    %% marks of the restrictions the compiler infers, `a=`, `a!` and `m+`,
+    %% are left out of the comparison on both sides, §9 writing none and
+    %% Appendix E's listings being held to them by ern_doc_tests'
+    %% listings_are_the_interfaces_test (report §3.9, §11.5); a module's
+    %% section writes its own types unqualified (§4.2)
     TypeState = ern_typecheck:type_state(ern_typecheck:prelude_env()),
     Compiled = [{ern_namespace:text(QualifiedName), printed(QualifiedName, Scheme, TypeState)}
                 || #interface{values = Values} <- ern_prelude:stdlib_interfaces(),
@@ -413,7 +415,7 @@ signature([First | _] = Line) when First =/= $\s, First =/= $= , First =/= $| ->
             NamePattern = "[A-Za-z][\\w.]*(\\.[-+*/%<>]+)?",
             case re:run(Names, "^" ++ NamePattern ++ "(,\\s*" ++ NamePattern ++ ")*$", [unicode]) of
                 {match, _} ->
-                    Type = normalize(hd(string:split(TypeAndComment, "//"))),
+                    Type = normalize(unmarked(hd(string:split(TypeAndComment, "//")))),
                     [{string:trim(Name), Type} || Name <- string:split(Names, ",", all)];
                 nomatch -> []
             end;
