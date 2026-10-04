@@ -193,6 +193,36 @@ fn withoutTrailingSeparators(text : String) : String =
     } else
         text
 
+/// The path placed under the root, where it is relative and each of its
+/// segments names an entry: `None` for an absolute path, an empty one, or
+/// one with a `.` or `..` segment, so that a name from outside the program
+/// stays under the root, where `<>` would let it leave. It reads the text
+/// alone: a link under the root may still lead out of it, which is the
+/// file system's (Appendix E.17).
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Optional.map(Path.under(Path("/srv"), Path("site/index.html")), Path.toString),
+///   Path.under(Path("/srv"), Path("../etc")),
+///   Path.under(Path("/srv"), Path("/etc")))
+/// // => #(Some("/srv/site/index.html"), None, None)
+/// ```
+///
+/// since 0.2.0
+export fn under(root : Path, path : Path) : Optional(Path) =
+    match split(path) {
+        [] -> None
+      | segments -> if isAbsolute(path) || List.any(segments, isStep) then
+            None
+        else
+            Some(root <> path)
+    }
+
+// A segment that names no entry but a step from where it stands.
+fn isStep(segment : String) : Bool =
+    segment == "." || segment == ".."
+
 /// `true` when the path starts at a root.
 ///
 /// ### Examples

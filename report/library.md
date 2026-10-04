@@ -412,7 +412,7 @@ Random.nextFloat : (Seed) -> #(Float, Seed) // uniform above 0.0 and below 1.0, 
 
 ### Appendix E.14. `path.ern` (namespace `Path`)
 
-`Path` is `Path(String)`, §9.3, in the runtime's syntax. `Path.<>` is the prelude's, §9.6; this module provides it (§9). The primitives are `isAbsolute` and `separator`, the host's separator, which is private to the module (E.0 rule 1); the rest is Ernest over `String`.
+`Path` is `Path(String)`, §9.3, in the runtime's syntax. `Path.<>` is the prelude's, §9.6; this module provides it (§9). The primitives are `isAbsolute` and `separator`, the host's separator, which is private to the module (E.0 rule 1); the rest is Ernest over `String`. `under` reads the path's text alone: a link under the root that leads out of it is the file system's (E.17).
 
 ```
 Path.join : (List(String)) -> Path // the segments as a path, the inverse of split: a root first stays a root, one separator between the others
@@ -422,6 +422,7 @@ Path.name : (Path) -> Optional(String) // the last segment, None for the root, w
 Path.extension : (Path) -> Optional(String) // after the last "." of the name, without it; the dots that begin the name begin none
 Path.withExtension : (Path, String) -> Path // replaced or added, the rest as written; an empty one leaves the dot; the root, "." and ".." are left as they are
 Path.withoutExtension : (Path) -> Path // removed, the rest as written; the root, "." and ".." are left as they are
+Path.under : (Path, Path) -> Optional(Path) // the second under the first, where it is relative and each segment names an entry: None for an absolute or empty path, or one with a "." or ".." segment
 Path.isAbsolute : (Path) -> Bool
 Path.toString : (Path) -> String
 ```

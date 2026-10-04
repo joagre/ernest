@@ -697,7 +697,9 @@ path_laws_test_() ->
           {"withExtension then extension, withoutExtension of both",
            fun segments_and_extension/1, fun path_with_extension/1},
           {"<>: the second under the first, an absolute second alone", fun two_segments/1,
-           fun path_under/1},
+           fun path_joined/1},
+          {"under: the second under the first, but an absolute second or one that steps",
+           fun two_segments/1, fun path_under/1},
           {"isAbsolute, toString", fun segments/1, fun path_text_of/1}]).
 
 path_join_split(Text) ->
@@ -735,12 +737,25 @@ path_with_extension({Segments, Extension}) ->
             With =:= Path andalso ?PATH:withoutExtension(Path) =:= Path
     end.
 
-path_under({First, Second}) ->
+path_joined({First, Second}) ->
     Expected = case hd(Second) of
                    <<"/">> -> ?PATH:join(Second);
                    _ -> ?PATH:join(First ++ Second)
                end,
     ?PATH:'<>'(?PATH:join(First), ?PATH:join(Second)) =:= Expected.
+
+%% The second under the first where it is relative and each of its segments
+%% names an entry, and None where it is absolute or has a `.` or `..`.
+path_under({First, Second}) ->
+    Root = ?PATH:join(First),
+    Path = ?PATH:join(Second),
+    Steps = hd(Second) =:= <<"/">>
+        orelse lists:any(fun(Segment) -> lists:member(Segment, [<<".">>, <<"..">>]) end, Second),
+    Expected = case Steps of
+                   true -> 'None';
+                   false -> {'Some', ?PATH:'<>'(Root, Path)}
+               end,
+    ?PATH:under(Root, Path) =:= Expected.
 
 path_text_of(Segments) ->
     Path = ?PATH:join(Segments),

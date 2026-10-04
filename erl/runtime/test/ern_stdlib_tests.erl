@@ -1098,6 +1098,12 @@ path_edges_test() ->
     %% to extend; a regression test, `.bashrc`'s extension was `bashrc`, so
     %% removing it left an empty path (findings.md's E12)
     ?assertEqual('None', Path:extension(AsPath(<<".profile">>))),
+    %% report Appendix E.14: an empty path, a `.` between separators and a
+    %% trailing separator under a root, which the laws do not draw, the last
+    %% joined as `<>` joins it; written with `under` (findings.md's S6)
+    ?assertEqual('None', Path:under(AsPath(<<"/srv">>), AsPath(<<"">>))),
+    ?assertEqual('None', Path:under(AsPath(<<"/srv">>), AsPath(<<"a/./b">>))),
+    ?assertEqual({'Some', AsPath(<<"/srv/a">>)}, Path:under(AsPath(<<"/srv">>), AsPath(<<"a/">>))),
     ?assertEqual({'Some', <<"bak">>}, Path:extension(AsPath(<<".profile.bak">>))),
     ?assertEqual(AsPath(<<".bashrc">>), Path:withoutExtension(AsPath(<<".bashrc">>))),
     ?assertEqual(AsPath(<<"dir/.bashrc.txt">>),
