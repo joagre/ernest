@@ -124,6 +124,19 @@ effect_only_type_argument_test() ->
                          "fn run(h : V(e), x : Int) : Unit with e = h.f(x)\n"
                          "fn usePure() : Unit = run(V(f = fn(x) = Unit, v = 1), 1)\n")).
 
+%% report §5.4, §0 principle 3: `let _ = e` discards a value whatever `e`
+%% is, a pure one among them, since the `_` shows it unused, and a pure call
+%% may still fault; an expression statement not of type Unit is refused. A
+%% test of the full review's P6 (2026-10-04), which found the toolchain
+%% already accepting it and the report silent
+discard_whatever_test() ->
+    ?assertEqual(ok, ok("fn checked(n : Int) : Int = if n < 0 then fault(\"negative\") else n\n"
+                        "fn f(n : Int) : Unit with m = {\n"
+                        "    let _ = 5;\n    let _ = checked(n);\n    let _ = self();\n"
+                        "    Unit\n}\n")),
+    ?assertEqual("this statement's value is discarded: expected Unit, found Int",
+                 refusal("fn f() : Unit = {\n    5;\n    Unit\n}\n")).
+
 %% report §3.9, §6.9, §9.5: `restarting` is process-only, though its effect
 %% is its function's, since a restart empties the process's mailbox and
 %% ends the calls waiting on it: the function it returns is never pure,

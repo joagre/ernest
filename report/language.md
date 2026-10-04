@@ -455,7 +455,7 @@ Strict, left to right, arguments before the call. A callee is evaluated before i
 
 ### 5.4 Blocks
 
-`{ s1; s2; e }` is an expression whose value is its last statement, which is an expression: a block that ends in a `let` or a `fn` is refused. `;` separates statements and never appears last. A statement is a `fn` declaration, a `let` binding, or an expression evaluated for its effect. An expression that is not the last statement has type `Unit`; a value is discarded with `let _ = e` (§5.10).
+`{ s1; s2; e }` is an expression whose value is its last statement, which is an expression: a block that ends in a `let` or a `fn` is refused. `;` separates statements and never appears last. A statement is a `fn` declaration, a `let` binding, or an expression evaluated for its effect. An expression that is not the last statement has type `Unit`; a value is discarded with `let _ = e` (§5.10), whatever `e` is, a pure one among them, since the `_` shows the value unused (§0, principle 3).
 
 A `fn` declared in a block is visible throughout it, so local functions may be recursive and mutually recursive. Two `fn` declarations of one name in one block are an error. A local `fn` may not take the name of a parameter or a variable in scope where it is declared, nor of a `let` of its block. The body of a local `fn` sees the bindings in force at its declaration. `let` bindings are sequential. A `fn` body that references a `let` declared later in the block is a compile-time error. A local `fn` may be used only after every `let` it references has been evaluated; a `let` referenced through another local function counts. A use is a call, or taking the function as a value, passing, storing, returning, or capturing it. An earlier use is a compile-time error.
 
