@@ -493,7 +493,7 @@ foreign let now = 1
 
 ```console
 $ ern build example.ern
-example.ern:1:9: expected `type` or `fn` after `foreign` instead of `let`
+example.ern:1:9: expected `type` or `fn` after `foreign` instead of the reserved word `let`
 1 | foreign let now = 1
   |         ^^^
 ```

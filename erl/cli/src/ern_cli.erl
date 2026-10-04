@@ -764,11 +764,19 @@ compiled(File) ->
         {ok, _} -> Beam
     end.
 
+%% Report §11.2: a file given to run that is no `.erc`, and a module's
+%% source among them, which is built first.
+not_compiled(File) ->
+    case filename:extension(File) of
+        ".ern" -> File ++ " does not end in .erc; build it first: ern build " ++ File;
+        _ -> File ++ " does not end in .erc"
+    end.
+
 %% The module of a `.erc`, its load path, and every module loaded for it:
 %% the file's own dependencies first (report §11.2, §4.2).
 program(File, Options) ->
     filelib:is_regular(File) orelse ern_build:fail("no such file " ++ File),
-    filename:extension(File) =:= ".erc" orelse ern_build:fail(File ++ " does not end in .erc"),
+    filename:extension(File) =:= ".erc" orelse ern_build:fail(not_compiled(File)),
     Absolute = ern_build:absolute(File),
     Beam = compiled(File),
     Namespace = case ern_interface:read(Beam) of

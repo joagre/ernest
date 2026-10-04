@@ -1258,10 +1258,17 @@ describe({int, _, Value}) -> "integer " ++ integer_to_list(Value);
 describe({float, _, Value}) -> "float " ++ float_to_list(Value, [short]);
 describe({char, _, _}) -> "char literal";
 describe({string, _, _}) -> "string literal";
-describe({bool, _, Value}) -> "`" ++ atom_to_list(Value) ++ "`";
+describe({bool, _, Value}) -> "the reserved word `" ++ atom_to_list(Value) ++ "`";
 describe({doc, _, _}) -> "doc comment";
 describe({eof, _}) -> "end of input";
-describe({Symbol, _}) -> "`" ++ atom_to_list(Symbol) ++ "`".
+describe({Symbol, _}) ->
+    %% report §2.4: a word the lexer gives as a token of its own is a
+    %% reserved word, which names nothing
+    Text = atom_to_list(Symbol),
+    case lists:all(fun(Char) -> Char >= $a andalso Char =< $z end, Text) of
+        true -> "the reserved word `" ++ Text ++ "`";
+        false -> "`" ++ Text ++ "`"
+    end.
 
 %% Report §3.2: a tuple has two components or more, as a type, a value
 %% and a pattern alike.

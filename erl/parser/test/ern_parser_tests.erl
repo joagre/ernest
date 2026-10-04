@@ -289,6 +289,16 @@ result_annotation_test() ->
     ?assertEqual("a second `with` after a function type's own",
                  refusal("fn f(g : () -> (Int) -> Int with M with N) = g")).
 
+%% report §2.4: a reserved word where a name stands is called one, `true`
+%% and `false` among them. A regression test: the message named the word
+%% alone, and a reader took it for a name (findings.md's N6)
+reserved_word_named_test() ->
+    ?assertEqual("expected a name instead of the reserved word `match`",
+                 refusal("let match = 1")),
+    ?assertEqual("expected a pattern instead of the reserved word `type`",
+                 refusal("fn f(type : Int) = 1")),
+    ?assertEqual("expected a name instead of the reserved word `true`", refusal("let true = 1")).
+
 %% report §5.3
 lambda_test() ->
     ?assertMatch(#e_lambda{params = [#param{pattern = #p_var{name = x}, annotation = undefined}],

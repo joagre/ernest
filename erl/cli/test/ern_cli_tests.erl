@@ -513,6 +513,22 @@ default_root_test() ->
         file:set_cwd(Cwd)
     end.
 
+%% report §11.2: `ern run` given a module's source says to build it first,
+%% and given any other file that is no `.erc` says only that. A regression
+%% test: the source was refused without the step that was missing
+%% (findings.md's N14)
+run_a_source_test() ->
+    Dir = tmp(),
+    Source = write(Dir, "greet.ern", hello()),
+    Notes = write(Dir, "notes.txt", "x\n"),
+    ?assertEqual(1, ern_err(["run", Source])),
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      iolist_to_binary([" does not end in .erc; build it first:"
+                                                        " ern build ", Source]))),
+    ?assertEqual(1, ern_err(["run", Notes])),
+    ?assertEqual(nomatch, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                       <<"notes.txt does not end in .erc; build">>)).
+
 %% report §11.1: in single-file mode without --source-root a file's
 %% namespace is its path from the current directory; a directory of it
 %% that breaks the path shape is refused with the source root that leaves
