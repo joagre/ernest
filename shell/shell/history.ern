@@ -40,22 +40,47 @@ export fn keepOwn() : Unit with m =
         }
     }
 
+/// Report §11.2: why the history is not kept: its file could not be read,
+/// or it is a link, or anything else but a regular file of the user's own,
+/// which the shell neither reads nor writes.
+export type Unkept = Unreadable(Io.Error) | Linked | NotOwn
+
 /// The inputs of the sessions before this one, newest first. A file that
 /// holds more than the last thousand is trimmed to them as it is read.
-export fn read() : Either(Io.Error, List(String)) with m =
+export fn read() : Either(Unkept, List(String)) with m =
     match file {
         None -> Right([])
       | Some(path) -> {
-            let _ <- makeDirectory(path);
-            match Fs.read(path, fileMs) {
-                // no file yet: a first session has no history
-                Left(Io.NotFound) -> Right([])
-              | Left(error) -> Left(error)
-              | Right(bytes) -> {
-                    let decoded <- inputs(bytes);
-                    trimmed(path, decoded)
-                }
-            }
+            let _ <- Either.mapLeft(makeDirectory(path), Unreadable);
+            let there <- held(path);
+            if there then Either.mapLeft(readFile(path), Unreadable) else Right([])
+        }
+    }
+
+// Report §11.2: whether the history file is there, and one that is a
+// link, or anything but a regular file of the user's own, unkept, so that
+// what is typed goes nowhere but the directory made its owner's alone. No
+// file yet is a first session's.
+fn held(path : Path) : Either(Unkept, Bool) with m =
+    match Fs.readLink(path, fileMs) {
+        Left(Io.NotFound) -> Right(false)
+      | Left(error) -> Left(Unreadable(error))
+      | Right(Some(_)) -> Left(Linked)
+      | Right(None) -> match Fs.stat(path, fileMs) {
+            Left(error) -> Left(Unreadable(error))
+          | Right(entry) -> if entry.kind == Fs.File && entry.user == Os.user then
+                Right(true)
+            else
+                Left(NotOwn)
+        }
+    }
+
+fn readFile(path : Path) : Either(Io.Error, List(String)) with m =
+    match Fs.read(path, fileMs) {
+        Left(error) -> Left(error)
+      | Right(bytes) -> {
+            let decoded <- inputs(bytes);
+            trimmed(path, decoded)
         }
     }
 

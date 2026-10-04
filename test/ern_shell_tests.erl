@@ -486,6 +486,39 @@ history_is_private() ->
     {ok, #file_info{mode = Unreadable}} = file:read_file_info(Dir),
     ?assertEqual(0, Unreadable band 8#077).
 
+%% report §11.2: a history file that is a link, or anything but a regular
+%% file of the user's own, is neither read nor written, and the session
+%% says so once and goes on; what the link leads to is left as it was. A
+%% regression test: the history was read and appended through a link, so
+%% what was typed went wherever it led (findings.md's S11); a file of
+%% another user's is not covered, since a test cannot make one
+history_kept_in_place_test_() ->
+    {timeout, 60, fun history_kept_in_place/0}.
+
+history_kept_in_place() ->
+    Unkept = fun(Plant, Said) ->
+                 Home = fresh_home(),
+                 Dir = filename:join(Home, ".ernest"),
+                 ok = filelib:ensure_path(Dir),
+                 History = filename:join(Dir, "history"),
+                 ok = Plant(Home, History),
+                 Bytes = pty("HOME=" ++ Home ++ " ../bin/ern shell",
+                             [{expect, "> "}, {send, hex("1 + 1\r")}, {expect, "2 : Int"},
+                              {send, "04"}], 20),
+                 ?assertMatch({_, _},
+                              binary:match(Bytes, iolist_to_binary(["the history is not kept,"
+                                                                    " since ", History, Said]))),
+                 Home
+             end,
+    LinkHome = Unkept(fun(Home, History) ->
+                          Elsewhere = filename:join(Home, "elsewhere"),
+                          ok = file:write_file(Elsewhere, "11 + 11\n"),
+                          file:make_symlink(Elsewhere, History)
+                      end, " is a link"),
+    ?assertEqual({ok, <<"11 + 11\n">>}, file:read_file(filename:join(LinkHome, "elsewhere"))),
+    _ = Unkept(fun(_, History) -> file:make_dir(History) end,
+               " is not a regular file of the user's own").
+
 %% report §11.2: on a terminal the shell commits its transcript to the
 %% terminal and paints only the live region, the tail of what programs
 %% write and the line being typed under it. What a program writes is
