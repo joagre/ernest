@@ -38,14 +38,13 @@ import argparse
 import base64
 import fcntl
 import os
+import pty
 import re
 import select
 import struct
 import sys
 import termios
 import time
-
-import pty as _pty  # after the arguments, so a stray ./pty.py cannot shadow it
 
 
 def step_spec(text):
@@ -182,7 +181,7 @@ def ended_by(pid, screen, signal, grace):
 
 
 def run(command, steps, timeout, size):
-    pid, fd = _pty.fork()
+    pid, fd = pty.fork()
     if pid == 0:
         os.execvp("/bin/sh", ["/bin/sh", "-c", command])
         os._exit(127)

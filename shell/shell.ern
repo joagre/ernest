@@ -486,7 +486,7 @@ fn printResult(state : State,
         else {
             let shown = show(value, state.settings.depth, state.settings.length);
             say(screen, shown <> Shell.Style.quiet(state.colour, " : " <> typeText(checked)));
-            if unbound(checked) then
+            if isUnbound(checked) then
                 say(screen, "`it` is unchanged: this input did not determine the type of its value")
             else
                 Unit
@@ -619,7 +619,7 @@ fn escapedChar(char : Char) : String =
 
 // A diagnostic, its first line coloured as a fault (report §11.2).
 fn diagnose(screen : Address(ScreenMsg), colour : Markdown.Output, text : String) : Unit with m =
-    send(screen, Said(Shell.Style.diagnostic(colour, text)))
+    send(screen, Said(Shell.Style.diagnostic(colour, text) <> "\n"))
 
 fn say(screen : Address(ScreenMsg), text : String) : Unit with m =
     send(screen, Said(text <> "\n"))
@@ -1347,8 +1347,8 @@ foreign fn declared(checked : Checked) : List(String) =
 
 // Report §11.2: the value is printed, and `it` is left as it was when
 // this input did not settle its type.
-foreign fn unbound(checked : Checked) : Bool =
-    "ern_shell:unbound/1"
+foreign fn isUnbound(checked : Checked) : Bool =
+    "ern_shell:is_unbound/1"
 
 // The session after an input has answered, with what nothing reaches any
 // more let go (report §11.2).

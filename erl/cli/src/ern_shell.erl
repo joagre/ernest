@@ -12,7 +12,7 @@
          session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
          documentation/1, fields/1, signature/1, declared_type/2, load/2,
          reload/1, version/0, write/1, screen/1, to_screen/1,
-         unbound/1, collect/1, input_site/2, is_expression/1, declared/1]).
+         is_unbound/1, collect/1, input_site/2, is_expression/1, declared/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -31,27 +31,28 @@
 %% the modules behind the session, and the scope those modules make
 %% (report §11.2), which the checker takes as its fourth argument.
 -record(session, {load_path = [], source_root = ".", last_input = 0, interfaces = [],
-                  scope = #{}, beams = #{}, modules = #{}, last_holder = 0, free_holders = [],
-                  draining = [], prelude}).
+                  scope = #{}, beams = #{}, source_hashes = #{}, last_holder = 0, prelude}).
 %% last_input: the highest input number given; last_holder: the highest
-%% `$Bindings` number given; free_holders: the numbers of holders freed
-%% (collected/1), given again first, as an input's number is once its
-%% module is unloaded (release/3); draining: holders deleted whose old code
-%% a process still ran, purged at the next collection
-%% modules: the namespace of a module the session has loaded, to the hash
+%% `$Bindings` number given; a number freed is given again first, from the
+%% kept row `free` (free_namespace/1)
+%% source_hashes: the namespace of a module the session has loaded, to the hash
 %% of the source it was compiled from, which `:reload` compares (§11.2)
-%% beams: the namespace of an input that declared, to its compiled module,
-%% which `:doc` reads the documentation of (report §11.2, §11.4)
+%% beams: the namespace of an input that declared, and of a module `:load`
+%% or `:reload` compiled, to its compiled module, which `:doc` reads the
+%% documentation of (report §11.2, §11.4)
 %% prelude: the prelude's environment, the standard library's interfaces
 %% among it, built when the session starts and kept while it lives, since
 %% neither changes while it runs; the queries of completion, `:browse` and
 %% `:doc` read it rather than build it each time
-%% A checked input: the module it became, its typed tree, the checker's
-%% environment, its type.
+%% A checked input: the namespace of the module it became, its typed tree,
+%% the declarations it was checked as, the module's interface, the
+%% checker's environment, its type, what it binds, and its site, the name
+%% and the line offset its spawn sites are written with (site/1).
 -record(checked, {namespace, typed, declarations, interface, env, type, binds, site}).
-%% binds: the name a `let` binds, `{lambda, Name, Scheme}` for a `let` of a
-%% lambda, generalized, `{names, Names}` for the names a `let` with a
-%% pattern binds, `it` for an expression, or `declarations`
+%% binds: `{name, Name}` for the name a `let` binds, `{lambda, Name,
+%% Scheme}` for a `let` of a lambda, generalized, `{names, Names}` for the
+%% names a `let` with a pattern binds, `it` for an expression, or
+%% `declarations`; a name is tagged, so that no name stands for a tag
 %% A value with the descriptor of its type, so it prints as E.1 prints it.
 -record(value, {term, descriptor}).
 %% Where an input from a startup file came from: the file, the line it
@@ -62,13 +63,19 @@
 %% Report §11.2: what the runner loaded before the shell started, which the
 %% shell begins from. What is set once, or by a command alone, is a
 %% persistent term, which a read does not copy: what the runner loaded and
-%% the screen. What changes as inputs run is a row of a
-%% table the runner owns, made here: the host scans every process when a
-%% persistent term is replaced, and what an input costs does not grow with
-%% the processes the session has. Its rows are the session as it stands
-%% (keep_session/1), the input numbers free to give again and the inputs
-%% not yet purged (release/3), what each session module needs (uses/0), and
-%% each input's name (input_site/2).
+%% the screen. What the shell's own state changes to as inputs run is a row
+%% of a table the runner owns, made here, since the host scans every
+%% process when a persistent term is replaced or erased. Its rows are the
+%% session as it stands (keep_session/1), the holders' and the inputs'
+%% numbers free to give again and the modules not yet purged (release/3,
+%% collected/1), what each session module needs (uses/0), each input's
+%% name (input_site/2), and the values of a reloaded module's dropped lets
+%% (dropped_lets/3). A binding's value
+%% is §8.5's store, a persistent term, as a module's is, so that a later
+%% input reads it as it reads another module's value; its release when it
+%% is replaced, `it` at almost every input, scans every process, a cost
+%% that grows with the processes the session has (the log's *The Hardening
+%% Built*).
 -spec loaded(#loaded{}) -> ok.
 loaded(Loaded) ->
     persistent_term:put({?MODULE, loaded}, Loaded),
@@ -99,7 +106,7 @@ start() ->
     keep_session(#session{load_path = LoadPath, source_root = SourceRoot,
                           prelude = ern_typecheck:prelude_env(),
                           interfaces = [Interface || {Interface, _} <- Interfaces],
-                          modules = maps:from_list([{Interface#interface.namespace, Hash}
+                          source_hashes = maps:from_list([{Interface#interface.namespace, Hash}
                                                     || {Interface, Hash} <- Interfaces])}).
 
 %% Report §11.2: the session as it stands, which completion reads. The
@@ -141,12 +148,13 @@ startup_files() ->
     [unicode:characters_to_binary(ern_build:shown(File)) || File <- Startups].
 
 %% Report §11.2: at a terminal the shell takes another line where the
-%% parser cannot finish the input. Both readings are tried, the expression
-%% and the declarations, as `input/1` tries them: an input that could
-%% still become either is unfinished.
+%% parser cannot finish the input. Every reading is tried, the expression,
+%% the declarations and a `let` with a pattern, as `input/1` tries them: an
+%% input that could still become any of them is unfinished.
 -spec needs_more(binary()) -> boolean().
 needs_more(Text) ->
-    unfinished(ern_parser:parse_expr(Text)) orelse unfinished(ern_parser:parse_string(Text)).
+    unfinished(ern_parser:parse_expr(Text)) orelse unfinished(ern_parser:parse_string(Text))
+        orelse unfinished(ern_parser:parse_statement(Text)).
 
 unfinished({error, #diagnostic{incomplete = Incomplete}}) -> Incomplete;
 unfinished(_) -> false.
@@ -160,26 +168,31 @@ unfinished(_) -> false.
 -spec check(#session{}, {'Prompt', pos_integer()}
                         | {'Startup', binary(), pos_integer(), pos_integer()}, binary()) ->
           {'Left', binary()} | {'Right', {#session{}, #checked{}}}.
-check(#session{last_input = LastInput} = Session, Origin, Input) ->
-    Source = case Origin of
+check(Session, Origin, Input) ->
+    without_line_feed(checked_input(Session, Origin, Input)).
+
+checked_input(#session{last_input = LastInput} = Session, Origin, Input) ->
+    InputOrigin = case Origin of
                  {'Prompt', Number} -> {typed, <<"input ", (integer_to_binary(Number))/binary>>};
                  {'Startup', File, Line, Column} ->
                      #startup_input{file = File, line = Line, column = Column}
              end,
     %% an input takes the number of one whose module was unloaded, whose
     %% name is an atom already, before a new one (report §2.3)
-    {Namespace, LastInput1} = case free_inputs() of
-                                  [Free | _] -> {Free, LastInput};
-                                  [] -> {input_namespace(LastInput + 1), LastInput + 1}
+    {Namespace, LastInput1} = case free_namespace(input) of
+                                  {ok, Free} -> {Free, LastInput};
+                                  none -> {input_namespace(LastInput + 1), LastInput + 1}
                               end,
     Numbered = Session#session{last_input = LastInput1},
     case input(Input) of
         {ok, Binds, Expr} ->
-            checked(check_module(Numbered, Namespace, Source, Input, input_entry(Expr), Binds));
+            checked(check_module(Numbered, Namespace, InputOrigin, Input, input_entry(Expr),
+                                 Binds));
         {declarations, Declarations} ->
-            checked(check_module(Numbered, Namespace, Source, Input, Declarations, declarations));
+            checked(check_module(Numbered, Namespace, InputOrigin, Input, Declarations,
+                                 declarations));
         {error, Diagnostic} ->
-            {'Left', diagnostic(Source, Input, [Diagnostic])}
+            {'Left', diagnostic(InputOrigin, Input, [Diagnostic])}
     end.
 
 %% Report §2.3: the modules the session makes are named as no Ernest name
@@ -201,17 +214,24 @@ checked(Other) ->
 %% is a block `let` (§4.6 is for a module's), so it is the entry point's
 %% body and the name is bound to what the input answers.
 input(Text) ->
-    case ern_parser:parse_expr(Text) of
+    input(Text, []).
+
+%% The same, read under the lexer's options: text that is read and not
+%% run, a line being typed, is read with `no_new_names`.
+input(Text, Read) ->
+    case ern_parser:parse_expr(Text, Read) of
         {ok, Expr} ->
             {ok, it, Expr};
         {error, Diagnostic} ->
-            case ern_parser:parse_string(Text) of
+            case ern_parser:parse_string(Text, Read) of
                 {ok, [#let_declaration{name = Name, body = Body, annotation = Annotation}]} ->
                     {ok, let_binds(Name, Body), annotated(Name, Body, Annotation)};
                 {ok, Declarations} -> declarations(Declarations);
                 {error, DeclarationDiagnostic} ->
-                    case pattern_let(Text) of
-                        none -> {error, which(Text, Diagnostic, DeclarationDiagnostic)};
+                    case pattern_let(Text, Read) of
+                        none ->
+                            {error, reported_diagnostic(Text, Read, Diagnostic,
+                                                        DeclarationDiagnostic)};
                         Parsed -> Parsed
                     end
             end
@@ -221,8 +241,8 @@ input(Text) ->
 %% pattern binds. It is the block `{ let p = e; #(names) }`, whose value
 %% holds the names in the order the pattern has them; `let _ = e` binds
 %% none, and `<-` is refused, since no block follows it for it to end.
-pattern_let(Text) ->
-    case ern_parser:parse_statement(Text) of
+pattern_let(Text, Read) ->
+    case ern_parser:parse_statement(Text, Read) of
         {ok, #binding{operator = '<-', span = Span}} ->
             {error, #diagnostic{span = ern_diagnostic:span(Span),
                                 message = "a `let` with `<-` at the prompt has no block to end",
@@ -245,8 +265,8 @@ pattern_let(Text) ->
 %% the one that names what is wrong; anything else is an expression, whose
 %% error names it. `fn` begins a lambda as well, and begins a declaration
 %% only when a name follows it, a member's type name among them (§4.8).
-which(Text, Diagnostic, DeclarationDiagnostic) ->
-    case ern_lexer:tokenize(Text) of
+reported_diagnostic(Text, Read, Diagnostic, DeclarationDiagnostic) ->
+    case ern_lexer:tokenize(Text, Read) of
         {ok, Tokens} ->
             case declaration_start(Tokens) of
                 true -> DeclarationDiagnostic;
@@ -263,7 +283,9 @@ declaration_start(_) -> false.
 
 %% Report §11.2: what an input declares is the session's from then on, so
 %% every declaration of an input is exported; a later input reaches it as it
-%% reaches another module's declaration (§4.3).
+%% reaches another module's declaration (§4.3). A declaring input holds no
+%% `let`, which is refused here, so it has no top-level values to compute or
+%% keep.
 declarations(Declarations) ->
     case [Span || #let_declaration{span = Span} <- Declarations] of
         [] -> {declarations, [exported(Declaration) || Declaration <- Declarations]};
@@ -273,8 +295,7 @@ declarations(Declarations) ->
 
 %% Report §11.2: a `let` at the prompt is a block `let`, and a block has one
 %% of them per input; a `let` beside a declaration would be a top-level
-%% `let`, which §4.6 generalizes and requires to be pure. A `let` that
-%% declares a type member, `let T.name`, is a declaration and not this.
+%% `let`, which §4.6 generalizes and requires to be pure.
 one_let(Span) ->
     #diagnostic{span = ern_diagnostic:span(Span),
                 message = "a `let` at the prompt is an input of its own",
@@ -289,8 +310,6 @@ exported(#foreign_type_declaration{} = Declaration) ->
     Declaration#foreign_type_declaration{export = true};
 exported(#fn_declaration{} = Declaration) ->
     Declaration#fn_declaration{export = true};
-exported(#let_declaration{} = Declaration) ->
-    Declaration#let_declaration{export = true};
 exported(#foreign_fn_declaration{} = Declaration) ->
     Declaration#foreign_fn_declaration{export = true};
 exported(Declaration) ->
@@ -299,7 +318,7 @@ exported(Declaration) ->
 %% Report §4.6, §11.2: a `let` that binds a name to a lambda is generalized,
 %% as in a block; its scheme is known once the input is checked.
 let_binds(Name, #e_lambda{}) -> {lambda, Name};
-let_binds(Name, _) -> Name.
+let_binds(Name, _) -> {name, Name}.
 
 %% Report §11.2: a `let` at the prompt may carry an annotation, which the
 %% checker holds its value to as it holds a `let` in a block's: the input
@@ -318,8 +337,8 @@ input_entry(Expr) ->
     [#fn_declaration{span = {1, 1, {1, 1}}, export = true, name = ?ENTRY, params = [],
                      body = Expr}].
 
-check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespace, Source, Input,
-             Declarations, Binds) ->
+check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespace, InputOrigin,
+             Input, Declarations, Binds) ->
     case ern_typecheck:check(Namespace, Declarations, Interfaces, Scope) of
         {ok, Typed, Interface, Env} ->
             Type = input_type(Typed, Binds),
@@ -328,13 +347,14 @@ check_module(#session{interfaces = Interfaces, scope = Scope} = Session, Namespa
                 none ->
                     Checked = #checked{namespace = Namespace, typed = Typed,
                                        declarations = Declarations, interface = Interface,
-                                       env = Env, type = Type, binds = Binds1, site = site(Source)},
+                                       env = Env, type = Type, binds = Binds1,
+                                       site = site(InputOrigin)},
                     {'Right', {Session, Checked}};
                 {refused, Diagnostic} ->
-                    {'Left', diagnostic(Source, Input, [Diagnostic])}
+                    {'Left', diagnostic(InputOrigin, Input, [Diagnostic])}
             end;
         {error, Diagnostics} ->
-            {'Left', diagnostic(Source, Input, Diagnostics)}
+            {'Left', diagnostic(InputOrigin, Input, Diagnostics)}
     end.
 
 %% Report §4.6: the scheme a `let` of a lambda binds its name to, the
@@ -363,7 +383,7 @@ site(#startup_input{file = File, line = Line}) -> {File, Line - 1}.
 %% it, rather than entering the session as a scheme whose variables mean
 %% nothing to the inputs after it.
 refused(Type, Env, Binds, Typed) ->
-    case carries_reply(Type, Env, Binds, Typed) of
+    case reply_refusal(Type, Env, Binds, Typed) of
         none -> undetermined(Type, Env, Binds, Typed);
         Refused -> Refused
     end.
@@ -371,9 +391,9 @@ refused(Type, Env, Binds, Typed) ->
 %% Report §6.6, §11.2: an input's value is printed and dropped, and what a
 %% `let` at the prompt binds is the session's, for any later input to use,
 %% so neither may carry a reply, which is consumed exactly once.
-carries_reply(_Type, _Env, declarations, _Typed) ->
+reply_refusal(_Type, _Env, declarations, _Typed) ->
     none;
-carries_reply(Type, Env, _Binds, Typed) ->
+reply_refusal(Type, Env, _Binds, Typed) ->
     case ern_typecheck:is_reply_carrying(Type, Env) of
         false ->
             none;
@@ -415,7 +435,7 @@ undetermined(Type, Env, Binds, Typed) ->
 %% Report §11.2, §6.1: an address whose mailbox type is open is settled by
 %% its annotation or by the mailbox the spawned function declares, `Never`
 %% for one that receives nothing; any other type by an annotation.
-undetermined_help({tcon, ['Address'], _}, Name) when is_atom(Name) ->
+undetermined_help({tcon, ['Address'], _}, {name, Name}) ->
     "annotate the binding, `let " ++ atom_to_list(Name) ++ " : Address(T) = ...`, or write the"
     " spawned function's mailbox, `fn() : Unit with Never = ...` for one that receives nothing";
 undetermined_help(_, _) ->
@@ -428,7 +448,7 @@ undetermined_text(_) ->
     "the type of ~s is not determined by this input; it is ~ts".
 
 bound_names({names, Names}) -> lists:join(", ", [atom_to_list(Name) || Name <- Names]);
-bound_names(Name) -> atom_to_list(Name).
+bound_names({name, Name}) -> atom_to_list(Name).
 
 %% Report §11.5: the input's binding whole, from its start to the end of its
 %% value, as `ern build` underlines a top-level `let`.
@@ -480,7 +500,7 @@ one_name(Typed) ->
 %% Report §11.2: the input runs in a process of its own; the outcome goes to
 %% `Address`, so the shell's reader stays live and the address is what an
 %% interruption kills.
--spec run(#session{}, #checked{}, integer(), term()) -> term().
+-spec run(#session{}, #checked{}, integer(), term()) -> ern_rt:address().
 run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interface, env = Env,
                       type = Type, binds = Binds, site = {InputName, Offset}} = Checked,
     Serial, Address) ->
@@ -488,7 +508,7 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
     Build = #{source_hash => <<>>, deps => [], session_offset => Offset},
     {ok, ErlangModule, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, Build),
     {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
-    keep(free_inputs, free_inputs() -- [Namespace]),
+    keep(free, kept(free, []) -- [Namespace]),
     record_uses(ErlangModule, Beam, Checked),
     %% report §11.2: an input that declares keeps its module for `:doc`;
     %% an expression's has no documentation, and is not kept
@@ -502,13 +522,13 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
                %% here, so that its process does not end with a fault
                Outcome = try
                              Value = value(ErlangModule, Binds),
-                             Bound = bind(Session1, Binds, Namespace, Value, Type, Env, Interface),
-                             {'Ok', keep_session(Bound), Serial,
+                             BoundSession = bind(Session1, Binds, Namespace, Value, Type, Env,
+                                                 Interface),
+                             {'Ok', keep_session(BoundSession), Serial,
                               #value{term = Value, descriptor = Descriptor}}
                          catch
-                             throw:{ern, fault, Cause} -> {'Faulted', Cause, Serial};
-                             throw:{ern, fault, Cause, _} -> {'Faulted', Cause, Serial};
-                             Class:Error -> {'Faulted', fault_text(Class, Error), Serial}
+                             Class:Error:Stack ->
+                                 {'Faulted', fault_cause(Class, Error, Stack), Serial}
                          end,
                release(Namespace, Binds, Outcome),
                ern_rt:send(Address, Outcome)
@@ -517,22 +537,18 @@ run(Session, #checked{namespace = Namespace, typed = Typed, interface = Interfac
 
 %% Report §11.2: what the input's module needs of the session's modules,
 %% kept while it is (collected/1): those its code calls and, where it
-%% declares, those whose types its declarations name; with the keys its
-%% top-level lets are stored under (§8.5), which go when it does, and the
-%% name its spawn sites are written with.
-record_uses(ErlangModule, Beam, #checked{namespace = Namespace, typed = Typed,
-                                         interface = Interface, binds = Binds,
-                                         site = {InputName, _}}) ->
+%% declares, those whose types its declarations name; and the name its
+%% spawn sites are written with. It stores no value (declarations/1).
+record_uses(ErlangModule, Beam, #checked{namespace = Namespace, interface = Interface,
+                                         binds = Binds, site = {InputName, _}}) ->
     {ok, {_, [{imports, Imports}]}} = beam_lib:chunks(Beam, [imports]),
-    Calls = [Imported || {Imported, _, _} <- Imports, session_module(Imported),
+    Calls = [Imported || {Imported, _, _} <- Imports, is_session_module(Imported),
                          Imported =/= ErlangModule],
     Named = case Binds of
                 declarations -> mentions(Interface, Namespace);
                 _ -> []
             end,
-    Keys = [{ErlangModule, ern_emitter:function_name(undefined, Name)}
-            || #let_declaration{name = Name} <- Typed],
-    set_uses(maps:put(ErlangModule, {Namespace, lists:usort(Calls ++ Named), Keys}, uses())),
+    set_uses(maps:put(ErlangModule, {Namespace, lists:usort(Calls ++ Named), []}, uses())),
     keep({input_name, ErlangModule}, InputName),
     ok.
 
@@ -545,9 +561,6 @@ record_uses(ErlangModule, Beam, #checked{namespace = Namespace, typed = Typed,
 %% collected/1 lets it go.
 release(Namespace, Binds, Outcome) ->
     ErlangModule = ern_namespace:erlang_module(Namespace),
-    Pending = kept(unpurged, []),
-    Purgeable = fun(Unpurged) -> code:soft_purge(ern_namespace:erlang_module(Unpurged)) end,
-    {Purged, Unpurged} = lists:partition(Purgeable, Pending),
     Now = case {Binds, Outcome} of
               {declarations, _} -> kept;
               {_, {'Ok', _, _, #value{term = Value}}} ->
@@ -557,23 +570,39 @@ release(Namespace, Binds, Outcome) ->
                   end;
               {_, {'Faulted', _, _}} -> unload(ErlangModule)
           end,
-    Left = case Now of
-               unpurged -> [Namespace | Unpurged];
-               _ -> Unpurged
-           end,
-    keep(unpurged, Left),
-    %% report §2.3: an unloaded input's number, and so its name's atoms, are
-    %% given to the next input
-    Freed = Purged ++ [Namespace || Now =:= purged],
-    keep(free_inputs, free_inputs() ++ Freed),
-    %% report §11.2: an input purged reads no holder again
-    forget_uses([ern_namespace:erlang_module(FreedInput) || FreedInput <- Freed]),
+    case Now of
+        kept ->
+            ok;
+        unpurged ->
+            %% purged at a later collection (collected/1)
+            keep(unpurged, kept(unpurged, []) ++ [Namespace]);
+        purged ->
+            %% report §2.3: an unloaded input's number, and so its name's
+            %% atoms, are given to the next input; report §11.2: it reads
+            %% no holder again
+            keep(free, kept(free, []) ++ [Namespace]),
+            forget_uses([ErlangModule])
+    end,
     ok.
 
-%% Report §2.3: the numbers of the inputs whose modules were unloaded,
-%% given again before a new one.
-free_inputs() ->
-    kept(free_inputs, []).
+%% Report §2.3: the namespace of a holder or an input whose module was
+%% purged, taken to be given again before a new number, or none.
+free_namespace(Kind) ->
+    case [Namespace || Namespace <- kept(free, []), kind_of_namespace(Namespace) =:= Kind] of
+        [Namespace | _] when Kind =:= holder ->
+            keep(free, kept(free, []) -- [Namespace]),
+            {ok, Namespace};
+        [Namespace | _] ->
+            {ok, Namespace};
+        [] ->
+            none
+    end.
+
+kind_of_namespace([Segment]) ->
+    case holder_number(Segment) of
+        none -> input;
+        _ -> holder
+    end.
 
 %% Deleted, and purged unless a process still runs it.
 unload(ErlangModule) ->
@@ -585,33 +614,48 @@ unload(ErlangModule) ->
 
 %% The modules whose functions a value holds, in its data or in a
 %% function's captures.
-fun_modules(Function, Acc) when is_function(Function) ->
+fun_modules(Value, Acc) ->
+    [ErlangModule || {ErlangModule, _} <- held_functions(Value, [])] ++ Acc.
+
+%% Each function a value holds, in its data or in a function's captures,
+%% as its module and the version of the module's code it runs: the code's
+%% md5 for a function the code made, which runs that version for as long as
+%% it is held (report §6.10), and `current` for a function named by its
+%% module and name, which runs whichever version is current.
+held_functions(Function, Acc) when is_function(Function) ->
     {module, ErlangModule} = erlang:fun_info(Function, module),
-    {env, Captured} = erlang:fun_info(Function, env),
-    fun_modules(Captured, [ErlangModule | Acc]);
-fun_modules(Tuple, Acc) when is_tuple(Tuple) ->
-    fun_modules(tuple_to_list(Tuple), Acc);
-fun_modules([Head | Rest], Acc) ->
-    fun_modules(Rest, fun_modules(Head, Acc));
-fun_modules(Map, Acc) when is_map(Map) ->
-    fun_modules(maps:to_list(Map), Acc);
-fun_modules(_, Acc) ->
+    case erlang:fun_info(Function, type) of
+        {type, local} ->
+            {new_uniq, Version} = erlang:fun_info(Function, new_uniq),
+            {env, Captured} = erlang:fun_info(Function, env),
+            held_functions(Captured, [{ErlangModule, Version} | Acc]);
+        {type, external} ->
+            [{ErlangModule, current} | Acc]
+    end;
+held_functions(Tuple, Acc) when is_tuple(Tuple) ->
+    held_functions(tuple_to_list(Tuple), Acc);
+held_functions([Head | Rest], Acc) ->
+    held_functions(Rest, held_functions(Head, Acc));
+held_functions(Map, Acc) when is_map(Map) ->
+    held_functions(maps:to_list(Map), Acc);
+held_functions(_, Acc) ->
     Acc.
 
-%% An input that declares runs its initializers and nothing else. Report
-%% §8.5: a module's top-level values are computed by them, which the runner
-%% does when it loads a module; an input's module is loaded here, so they
-%% run here, in the input's own process. Its value is Unit, which prints
-%% nothing (report §11.2).
-value(ErlangModule, declarations) ->
-    erlang:function_exported(ErlangModule, '$init', 0) andalso ErlangModule:'$init'(),
+%% An input that declares runs nothing, having no top-level value to
+%% compute (declarations/1). Its value is Unit, which prints nothing (report
+%% §11.2).
+value(_ErlangModule, declarations) ->
     'Unit';
 value(ErlangModule, _Binds) ->
     ErlangModule:?ENTRY().
 
-fault_text(error, badarith) -> <<"division by zero">>;
-fault_text(Class, Error) ->
-    unicode:characters_to_binary(io_lib:format("~p:~p", [Class, Error])).
+%% Report §7.3, §7.4: the cause of a fault the shell catches in a process
+%% of its own, as the runtime gives a process's.
+fault_cause(Class, Error, Stack) ->
+    case ern_rt:fault_exit_reason(Class, Error, Stack) of
+        {ern, fault, Cause} -> Cause;
+        {ern, fault, Cause, _Trace} -> Cause
+    end.
 
 %% Appendix E.1: the value as Ernest writes it, by the descriptor of its
 %% type; report §11.2: to the depth and the length the session is set to,
@@ -627,8 +671,7 @@ limit(Count) -> Count.
 %% own declarations print, its types first and then its values by name.
 -spec bindings(#session{}) -> [binary()].
 bindings(#session{scope = Scope} = Session) ->
-    Types = [unicode:characters_to_binary([abstract_text(type_info(QualifiedName, Session)),
-                                           "type ", atom_to_list(Name)])
+    Types = [unicode:characters_to_binary(type_line(Name, QualifiedName, Session))
              || {Name, QualifiedName} <- lists:sort(maps:to_list(maps:get(types, Scope, #{})))],
     TypeState = session_type_state(Session),
     Schemes = [{name_text(Key), Scheme}
@@ -644,7 +687,7 @@ bindings(#session{scope = Scope} = Session) ->
 %% (§11.5's diagnostic carries the tag). Both readings are tried, as
 %% `input/1` tries them. Completion decides for itself which kinds of
 %% name a slot admits; this only answers the slot, a `Shell.Complete.Slot`.
--spec slot(binary()) -> atom() | {'Fields', [binary()]}.
+-spec slot(binary()) -> atom() | {'Fields', [{'Name', binary(), atom(), binary()}]}.
 slot(Before) ->
     %% a line being typed is read and not run, so reading it makes no name:
     %% the host keeps a name for ever, and a `Tab` is pressed at every word
@@ -737,8 +780,7 @@ along_path(_, _, _) ->
 
 %% The one constructor of a type in scope, or none.
 one_constructor(QualifiedName, #session{interfaces = Interfaces, prelude = Prelude}) ->
-    Found = [TypeInfo || #interface{types = Types} <- Interfaces,
-                         {Name, TypeInfo} <- maps:to_list(Types), Name =:= QualifiedName]
+    Found = [TypeInfo || #interface{types = #{QualifiedName := TypeInfo}} <- Interfaces]
         ++ [TypeInfo || TypeInfo <- [ern_typecheck:lookup_type(QualifiedName, Prelude)],
                         TypeInfo =/= undefined],
     case Found of
@@ -760,8 +802,8 @@ names(#session{interfaces = Interfaces, scope = Scope, prelude = Prelude} = Sess
     Declared = [name('Value', name_text(Key),
                      scheme_line(name_text(Key), QualifiedName, Session, TypeState))
                 || {Key, QualifiedName} <- maps:to_list(maps:get(values, Scope, #{}))]
-        ++ [name('Type', atom_to_list(Name), "type " ++ atom_to_list(Name))
-            || {Name, _} <- maps:to_list(maps:get(types, Scope, #{}))]
+        ++ [name('Type', atom_to_list(Name), type_line(Name, QualifiedName, Session))
+            || {Name, QualifiedName} <- maps:to_list(maps:get(types, Scope, #{}))]
         ++ [name('Constructor', atom_to_list(Name),
                  constructor_line(atom_to_list(Name),
                                   constructor_scheme(QualifiedName, Session), TypeState))
@@ -781,15 +823,15 @@ names(#session{interfaces = Interfaces, scope = Scope, prelude = Prelude} = Sess
             || {QualifiedName, #constructor_info{scheme = Scheme}}
                    <- maps:to_list(ern_typecheck:prelude_constructors(Prelude)),
                Text <- [ern_namespace:text(QualifiedName)]],
-    Modules = lists:append([module_names(Interface, TypeState)
+    ModuleNames = lists:append([module_names(Interface, TypeState)
                             || Interface <- Interfaces ++ ern_prelude:stdlib_interfaces()]),
     %% report §11.2: an operator is no name, and does not complete, and
     %% neither does a module the session made, which is spelled as no name
-    lists:usort([Name || {'Name', Text, _, _} = Name <- Declared ++ PreludeNames ++ Modules,
-                         words(Text)]).
+    lists:usort([Name || {'Name', Text, _, _} = Name <- Declared ++ PreludeNames ++ ModuleNames,
+                         is_name_text(Text)]).
 
 %% Every segment of a text begins with a letter or `_`, as a name's does.
-words(Text) ->
+is_name_text(Text) ->
     lists:all(fun(<<Char, _/binary>>) ->
                       Char =:= $_ orelse (Char >= $a andalso Char =< $z)
                           orelse (Char >= $A andalso Char =< $Z);
@@ -803,12 +845,9 @@ constructor_line(Text, {ok, Scheme}, TypeState) ->
 constructor_line(Text, none, _) -> Text.
 
 constructor_scheme(QualifiedName, #session{interfaces = Interfaces}) ->
-    case [Scheme || #interface{types = Types} <- Interfaces,
-                    {_, #type_info{constructors = Constructors}} <- maps:to_list(Types),
-                    #constructor_info{qualified_name = Found, scheme = Scheme} <- Constructors,
-                    Found =:= QualifiedName] of
-        [Scheme | _] -> {ok, Scheme};
-        [] -> none
+    case constructor_info(QualifiedName, Interfaces) of
+        {ok, #constructor_info{scheme = Scheme}} -> {ok, Scheme};
+        none -> none
     end.
 
 %% Report §11.2: the names `:forget` takes, the values and the types the
@@ -821,8 +860,8 @@ session_names() ->
                       scheme_line(name_text(Key), QualifiedName, Session, TypeState))
                  || {Key, QualifiedName} <- maps:to_list(maps:get(values, Scope, #{})),
                     is_atom(Key)]
-                ++ [name('Type', atom_to_list(Name), "type " ++ atom_to_list(Name))
-                    || Name <- maps:keys(maps:get(types, Scope, #{}))]).
+                ++ [name('Type', atom_to_list(Name), type_line(Name, QualifiedName, Session))
+                    || {Name, QualifiedName} <- maps:to_list(maps:get(types, Scope, #{}))]).
 
 %% Report §11.2: every name the session declares, as it is written, its
 %% values, members among them, its types, and its constructors: with
@@ -866,7 +905,7 @@ module_names(#interface{namespace = Namespace, types = Types, values = Values}, 
 type_names(QualifiedName, #type_info{constructors = Constructors} = TypeInfo, TypeState) ->
     Text = ern_namespace:text(QualifiedName),
     Namespace = lists:droplast(QualifiedName),
-    [name('Type', Text, abstract_text(TypeInfo) ++ "type " ++ Text)
+    [name('Type', Text, type_keyword(TypeInfo) ++ "type " ++ Text)
      | [name('Constructor', ConstructorText,
              constructor_line(ConstructorText, {ok, Scheme}, TypeState))
         || not TypeInfo#type_info.abstract,
@@ -951,7 +990,7 @@ browse(Session, Text) ->
     case module_name(Session, Text) of
         {ok, ['Prelude']} -> {'Right', prelude_listing(Session)};
         {ok, Namespace} -> browse(Text, Namespace, Session);
-        unmet -> {'Left', <<"no module ", Text/binary, " is in scope">>};
+        unmet -> {'Left', <<"no module ", (without_dot(Text))/binary, " is in scope">>};
         {error, Refusal} -> {'Left', Refusal}
     end.
 
@@ -978,15 +1017,15 @@ prelude_listing(#session{prelude = Env}) ->
 %% names qualified and another module's types too.
 browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope, prelude = Prelude}) ->
     InScope = Interfaces ++ ern_prelude:stdlib_interfaces(),
-    case [Interface || #interface{namespace = Held} = Interface <- InScope, Held =:= Namespace] of
+    case [Interface || #interface{namespace = Found} = Interface <- InScope, Found =:= Namespace] of
         [] ->
-            {'Left', <<"no module ", Text/binary, " is in scope">>};
+            {'Left', <<"no module ", (without_dot(Text))/binary, " is in scope">>};
         Found ->
             #interface{types = InterfaceTypes, values = InterfaceValues} = Last = lists:last(Found),
             ScopeState = ern_typecheck:scope_state(Interfaces ++ [Last], Prelude),
             TypeState = ern_types:set_scope([], maps:values(maps:get(types, Scope, #{})), [],
                                             ScopeState),
-            Types = [unicode:characters_to_binary([abstract_text(TypeInfo), "type ",
+            Types = [unicode:characters_to_binary([type_keyword(TypeInfo), "type ",
                                                    ern_namespace:text(QualifiedName)])
                      || {QualifiedName, TypeInfo} <- lists:sort(maps:to_list(InterfaceTypes))],
             Values = [unicode:characters_to_binary(
@@ -996,8 +1035,16 @@ browse(Text, Namespace, #session{interfaces = Interfaces, scope = Scope, prelude
             {'Right', Types ++ Values}
     end.
 
-abstract_text(#type_info{abstract = true}) -> "abstract ";
-abstract_text(_) -> "".
+%% A type the session declares, as its declaration writes it.
+type_line(Name, QualifiedName, Session) ->
+    type_keyword(type_info(QualifiedName, Session)) ++ "type " ++ atom_to_list(Name).
+
+%% Report §11.2: the word a type's declaration begins with before `type`,
+%% as its declaration writes it; a built-in type, which the checker holds
+%% as foreign under a name of one segment, is the prelude's and has none.
+type_keyword(#type_info{abstract = true}) -> "abstract ";
+type_keyword(#type_info{foreign = true, qualified_name = [_, _ | _]}) -> "foreign ";
+type_keyword(_) -> "".
 
 %% Report §2.3: a name as it is written, its segments between the dots,
 %% or `none` for text that is no name: an empty segment, or one longer than
@@ -1039,7 +1086,7 @@ is_module_file(#session{source_root = SourceRoot} = Session, Segments) ->
     case lists:all(fun(Segment) -> ern_namespace:component(Segment) =/= error end, Segments) of
         true ->
             Relative = ern_namespace:path(Segments),
-            Beam = "ern@" ++ lists:flatten(lists:join("@", filename:split(Relative))) ++ ".beam",
+            Beam = ern_namespace:erlang_module_text(Segments) ++ ".beam",
             filelib:is_regular(filename:join(SourceRoot, Relative ++ ".ern"))
                 orelse lists:any(fun(Root) ->
                                      filelib:is_regular(filename:join(Root, Relative ++ ".erc"))
@@ -1048,6 +1095,12 @@ is_module_file(#session{source_root = SourceRoot} = Session, Segments) ->
         false ->
             false
     end.
+
+%% Report §11.2: every refusal the front end answers, a diagnostic among
+%% them, ends with no line feed, and the shell ends each with one as it
+%% says it.
+without_line_feed({'Left', Text}) -> {'Left', string:trim(Text, trailing, "\n")};
+without_line_feed(Answer) -> Answer.
 
 without_dot(<<>>) ->
     <<>>;
@@ -1116,40 +1169,50 @@ documentation(Text) ->
     Session = kept_session(),
     case page(Session, Text) of
         {ok, Page, Segments} ->
-            %% Appendix E.0 rule 6: a declaration without a `since` of its
-            %% own has its module's, which the brief shows
-            Since = case string:find(unicode:characters_to_binary(Page), <<"*Since ">>) of
-                        nomatch -> since_line(Session, Segments);
-                        _ -> []
-                    end,
-            {'Some', unicode:characters_to_binary([Page, Since])};
+            {'Some', unicode:characters_to_binary([Page, module_since(Session, Segments)])};
         none ->
             'None'
     end.
 
-since_line(Session, Segments) ->
-    Version = case module_of_name(Session, Segments) of
-                  none -> undefined;
-                  prelude -> ern_page:since(prelude);
-                  Beam -> ern_page:since(Beam)
-              end,
-    case Version of
-        undefined -> [];
-        _ -> ["*Since ", Version, ".*\n"]
+%% Appendix E.0 rule 6, report §11.2: a declaration without a `since` of
+%% its own has its module's, which the brief shows after the page; its own
+%% the page shows. Whether it has one is its documentation entry's to say.
+module_since(Session, Segments) ->
+    case declaring(Session, Segments) of
+        {Declaring, Name} ->
+            case {ern_page:declared_since(Declaring, Name), ern_page:since(Declaring)} of
+                {undefined, Version} when Version =/= undefined ->
+                    ["*Since ", Version, ".*\n"];
+                _ ->
+                    []
+            end;
+        none ->
+            []
     end.
 
-%% The compiled module a documented name comes from, or the prelude.
-module_of_name(Session, Segments) when length(Segments) >= 2 ->
-    case beam_of(Session, lists:droplast(Segments)) of
-        none -> prelude_or_none(Segments);
-        Beam -> Beam
+%% The compiled module, or the prelude, whose documentation entry a
+%% documented name is, and the entry's name: a module's function, `map` of
+%% `List.map`; a member of a module's type, `Point.compare` of
+%% `Shape.Point.compare`; or the prelude's name.
+declaring(Session, Segments) when length(Segments) >= 2 ->
+    Namespace = lists:droplast(Segments),
+    TypeNamespace = lists:droplast(Namespace),
+    Member = lists:nthtail(length(Segments) - 2, Segments),
+    Beams = [{Beam, entry_name([lists:last(Segments)])}
+             || Beam <- [beam_of(Session, Namespace)], Beam =/= none]
+        ++ [{Beam, entry_name(Member)}
+            || TypeNamespace =/= [], Beam <- [beam_of(Session, TypeNamespace)], Beam =/= none],
+    case [Found || {Beam, Name} = Found <- Beams, ern_page:declaration(Beam, Name, entry) =/= none]
+    of
+        [Found | _] -> Found;
+        [] -> prelude_entry(Segments)
     end;
-module_of_name(_, Segments) ->
-    prelude_or_none(Segments).
+declaring(_, Segments) ->
+    prelude_entry(Segments).
 
-prelude_or_none(Segments) ->
+prelude_entry(Segments) ->
     case prelude_doc(Segments) of
-        {ok, _} -> prelude;
+        {ok, _} -> {prelude, entry_name(Segments)};
         none -> none
     end.
 
@@ -1161,15 +1224,15 @@ prelude_or_none(Segments) ->
 %% each listed with its type. A namespace checks as no value and has none.
 -spec fields(binary()) -> [{'Name', binary(), 'Value', binary()}].
 fields(Before) ->
-    Session = kept_session(),
     case string:split(Before, ".", trailing) of
         [Head, _] when Head =/= <<>> ->
             maybe
-                {ok, Binds, Expr} ?= input(Head),
+                %% a line being typed makes no name, as slot/1 says
+                ok = stdlib_met(),
+                {ok, Binds, Expr} ?= input(Head, [no_new_names]),
                 {'Right', {_, #checked{type = Type, env = Env}}} ?=
-                    check_module(Session#session{last_input = Session#session.last_input + 1},
-                                 ['$Fields'], {typed, <<"fields">>}, Head, input_entry(Expr),
-                                 Binds),
+                    check_module(kept_session(), ['$Fields'], {typed, <<"fields">>}, Head,
+                                 input_entry(Expr), Binds),
                 TypeState = ern_typecheck:type_state(Env),
                 [name('Value', [Head, ".", atom_to_list(Field)],
                       [Head, ".", atom_to_list(Field), " : ",
@@ -1191,10 +1254,11 @@ fields(Before) ->
 %% carries.
 -spec signature(binary()) -> 'None' | {'Some', {binary(), binary(), binary()}}.
 signature(Before) ->
-    case within(Before) of
+    case enclosing_call(Before) of
         #enclosing{namespace = Namespace, name = Name, argument = Argument} ->
             %% a constructor's name begins with a capital (report §2.3)
-            case not is_integer(Argument) orelse hd(atom_to_list(Name)) < $a of
+            [First | _] = atom_to_list(Name),
+            case not is_integer(Argument) orelse (First >= $A andalso First =< $Z) of
                 true -> constructor_signature(Namespace, Name, Argument);
                 false -> call_signature(Namespace, Name, Argument)
             end;
@@ -1309,7 +1373,7 @@ constructor_info(QualifiedName, Interfaces) ->
 %% Report §11.2: the call is found wherever the input stands, so the text
 %% is read as an expression, as a block's statement, a `let`, and as
 %% declarations, the first that stops inside a call answering.
-within(Before) ->
+enclosing_call(Before) ->
     %% read and not run, so no name is made of it (slot/1)
     ok = stdlib_met(),
     Parsers = [fun ern_parser:parse_expr/2, fun ern_parser:parse_statement/2,
@@ -1396,8 +1460,8 @@ namespace_doc(Session, Segments) ->
     case [Shown || {'Name', Text, _, Shown} <- names(Session),
                    binary:match(Text, Prefix) =:= {0, byte_size(Prefix)}] of
         [] -> none;
-        Held -> {ok, ["# namespace ", ern_namespace:text(Segments), "\n\n",
-                      [["- `", Shown, "`\n"] || Shown <- Held]]}
+        Listed -> {ok, ["# namespace ", ern_namespace:text(Segments), "\n\n",
+                      [["- `", Shown, "`\n"] || Shown <- Listed]]}
     end.
 
 first([]) ->
@@ -1517,20 +1581,47 @@ entry_name(Segments) ->
     unicode:characters_to_binary(ern_namespace:text(Segments)).
 
 %% A module on the load path, `List.map`, or one of its type's members,
-%% `Net.Http.Request.method`.
+%% `Net.Http.Request.method`. Report §11.2: a value's declaration shows the
+%% type the shell prints, `Fs.Entry` and not the page's `Entry`, and a
+%% type's its own.
 module_doc(Session, Segments) when length(Segments) >= 2 ->
-    case entry(beam_of(Session, lists:droplast(Segments)), entry_name([lists:last(Segments)])) of
+    Namespace = lists:droplast(Segments),
+    Name = lists:last(Segments),
+    case entry(beam_of(Session, Namespace), entry_name([Name]),
+               module_signature(Session, Segments, Namespace, Name)) of
         {ok, Page} ->
             {ok, Page};
         none when length(Segments) >= 3 ->
             [MemberOf, Member] = lists:nthtail(length(Segments) - 2, Segments),
             entry(beam_of(Session, lists:sublist(Segments, length(Segments) - 2)),
-                  entry_name([MemberOf, Member]));
+                  entry_name([MemberOf, Member]),
+                  module_signature(Session, Segments, Namespace, Member));
         none ->
             none
     end;
 module_doc(_, _) ->
     none.
+
+%% The signature a module's value is shown with, its parameters as its
+%% documentation names them and its type as `:type` prints it; a type's
+%% entry keeps its own.
+module_signature(Session, QualifiedName, Namespace, Name) ->
+    Text = unicode:characters_to_binary(ern_namespace:text(QualifiedName)),
+    case declared_scheme(Session, Text) of
+        {ok, Scheme, Env} ->
+            TypeState = ern_typecheck:type_state(Env),
+            Line = case parameters(Session, Namespace, Name) of
+                       Params when is_list(Params) ->
+                           {Head, Marked, Rest} =
+                               ern_types:format_call(Scheme, Params, length(Params), TypeState),
+                           [Text, Head, Marked, Rest];
+                       _ ->
+                           [Text, " : ", ern_types:format_scheme(Scheme, TypeState)]
+                   end,
+            [unicode:characters_to_list(Line)];
+        none ->
+            entry
+    end.
 
 %% The compiled module behind a namespace, as bytes: the one `:load` or
 %% `:reload` compiled, which is loaded from memory and has no file; else the
@@ -1543,16 +1634,20 @@ beam_of(#session{beams = Beams}, Namespace) ->
         _ -> beam_on_path(Namespace)
     end.
 
+%% A module's name is made an atom only where it is one already, so that a
+%% name `:doc` or `Shift-Tab` is asked of, `List.filter` taken for a module,
+%% makes none (report §11.2).
 beam_on_path(Namespace) ->
-    ErlangModule = ern_namespace:erlang_module(Namespace),
-    Paths = [code:which(ErlangModule), code:where_is_file(atom_to_list(ErlangModule) ++ ".beam")],
+    Text = ern_namespace:erlang_module_text(Namespace),
+    Loaded = try code:which(list_to_existing_atom(Text)) catch error:badarg -> non_existing end,
+    Paths = [Loaded, code:where_is_file(Text ++ ".beam")],
     case [Beam || Path <- Paths, is_list(Path), {ok, Beam} <- [file:read_file(Path)]] of
         [] -> none;
         [Beam | _] -> Beam
     end.
 
-entry(none, _) -> none;
-entry(Beam, Name) -> ern_page:declaration(Beam, Name).
+entry(none, _, _) -> none;
+entry(Beam, Name, Signature) -> ern_page:declaration(Beam, Name, Signature).
 
 %% Report §11.2: a typed input is the file `input`; an input from a startup
 %% file is named by the file, its positions moved to the line it stands on
@@ -1562,12 +1657,12 @@ diagnostic({typed, Name}, Input, Diagnostics) ->
     unicode:characters_to_binary([ern_diagnostic:format(binary_to_list(Name), Input, Diagnostic)
                                   || Diagnostic <- Diagnostics]);
 diagnostic(#startup_input{file = File, line = Line, column = Column}, Input, Diagnostics) ->
-    Source = case file:read_file(File) of
-                 {ok, Text} -> Text;
-                 {error, _} -> Input
-             end,
+    SourceText = case file:read_file(File) of
+                     {ok, Read} -> Read;
+                     {error, _} -> Input
+                 end,
     unicode:characters_to_binary(
-      [ern_diagnostic:format(ern_build:shown(binary_to_list(File)), Source,
+      [ern_diagnostic:format(ern_build:shown(binary_to_list(File)), SourceText,
                              moved(Diagnostic, Line - 1, Column - 1))
        || Diagnostic <- Diagnostics]).
 
@@ -1593,14 +1688,17 @@ moved_column(_, Column, _) -> Column.
 %% is refused: loading it over itself would end what runs its previous
 %% version, which `:reload` alone does, and says so.
 -spec load(#session{}, binary()) -> {'Left', binary()} | {'Right', {#session{}, binary()}}.
-load(#session{modules = Modules} = Session, Text) ->
+load(Session, Text) ->
+    without_line_feed(load_named(Session, Text)).
+
+load_named(#session{source_hashes = SourceHashes} = Session, Text) ->
     case module_name(Session, Text) of
         unmet ->
             {'Left', <<"no module ", (without_dot(Text))/binary,
                        " under the source root or on the load path\n">>};
         {ok, Namespace} ->
             Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
-            Standard = [Held || #interface{namespace = Held} <- ern_prelude:stdlib_interfaces()],
+            Standard = [Found || #interface{namespace = Found} <- ern_prelude:stdlib_interfaces()],
             case lists:member(Namespace, Standard) of
                 %% report §4.2, §11.2: a standard library namespace is taken,
                 %% and the module, in scope since the session began, is one
@@ -1608,7 +1706,7 @@ load(#session{modules = Modules} = Session, Text) ->
                 true ->
                     {'Left', <<Name/binary, " is the standard library's, in scope from the"
                                " start\n">>};
-                false when is_map_key(Namespace, Modules) ->
+                false when is_map_key(Namespace, SourceHashes) ->
                     {'Left', <<Name/binary, " is loaded already; :reload compiles it again"
                                " when its source has changed\n">>};
                 false ->
@@ -1632,19 +1730,19 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
                     %% loaded and whose source the root holds is compiled too
                     Sources = with_sources(Session, [{Namespace, File}], []),
                     case compile_in_order(Session, Sources) of
-                        {ok, Modules} ->
+                        {ok, CompiledModules} ->
                             Lines = [[ern_namespace:text(Compiled), ", compiled from ",
-                                      relative(Source, Session)]
-                                     || {Compiled, Source} <- lists:reverse(Sources)],
-                            with_needed(Session, Modules,
+                                      relative(SourceFile, Session)]
+                                     || {Compiled, SourceFile} <- lists:reverse(Sources)],
+                            with_needed(Session, CompiledModules,
                                         unicode:characters_to_binary(lists:join("\n", Lines)));
                         {error, Failed} ->
                             {'Left', iolist_to_binary(Failed)}
                     end;
                 _ ->
-                    {'Left', <<(list_to_binary(ern_namespace:text(Declared)))/binary,
+                    {'Left', <<(unicode:characters_to_binary(ern_namespace:text(Declared)))/binary,
                                " is declared in ",
-                               (list_to_binary(relative(File, Session)))/binary,
+                               (unicode:characters_to_binary(relative(File, Session)))/binary,
                                ", which is not where ", Name/binary, " belongs\n">>}
             end;
         none ->
@@ -1652,7 +1750,9 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
                 {ok, File, Beam, Hash} ->
                     with_needed(Session, [{Namespace, Beam, Hash}],
                                 <<Name/binary, ", from ",
-                                  (list_to_binary(relative(File, Session)))/binary>>);
+                                  (unicode:characters_to_binary(relative(File, Session)))/binary>>);
+                {error, Refusal} ->
+                    {'Left', <<Refusal/binary, "\n">>};
                 none ->
                     {'Left', <<"no module ", Name/binary, " under the source root or on the"
                                " load path\n">>}
@@ -1665,7 +1765,7 @@ load(#session{source_root = SourceRoot} = Session, Name, Namespace) ->
 %% that does not parse uses nothing here; compiling it reports why.
 with_sources(_Session, [], Acc) ->
     Acc;
-with_sources(#session{source_root = SourceRoot, modules = Loaded} = Session,
+with_sources(#session{source_root = SourceRoot, source_hashes = Loaded} = Session,
              [{Namespace, File} | Rest], Acc) ->
     case lists:keymember(Namespace, 1, Acc) of
         true ->
@@ -1679,18 +1779,18 @@ with_sources(#session{source_root = SourceRoot, modules = Loaded} = Session,
                 catch
                     throw:_ -> []
                 end,
-            More = [{Dependency, Source} || Dependency <- Dependencies,
+            More = [{Dependency, SourceFile} || Dependency <- Dependencies,
                                             not is_map_key(Dependency, Loaded),
-                                            {ok, Source} <- [source_of(Session, Dependency)]],
+                                            {ok, SourceFile} <- [source_of(Session, Dependency)]],
             with_sources(Session, Rest ++ More, Acc ++ [{Namespace, File}])
     end.
 
 %% The modules loaded, after what they use that the session has not
 %% loaded, and `:load`'s answer.
-with_needed(Session, Modules, Answer) ->
-    case needed(Session, Modules) of
+with_needed(Session, CompiledModules, Answer) ->
+    case needed(Session, CompiledModules) of
         {ok, Needed} ->
-            All = Needed ++ Modules,
+            All = Needed ++ CompiledModules,
             case refused_compiled(Session, All) of
                 none -> installed(Session, All, Answer);
                 Refusal -> {'Left', <<(unicode:characters_to_binary(Refusal))/binary, "\n">>}
@@ -1716,11 +1816,11 @@ refused_compiled(Session, All) ->
     end.
 
 compiled_refusals(Namespace, Beam, Interfaces, StdlibHash) ->
-    {ok, #{interface := #interface{namespace = Held}, deps := DependencyHashes} = Chunk} =
+    {ok, #{interface := #interface{namespace = FileNamespace}, deps := DependencyHashes} = Chunk} =
         ern_interface:read(Beam),
     Name = ern_namespace:text(Namespace),
-    [Name ++ "'s compiled file holds " ++ ern_namespace:text(Held)
-     ++ "; build it again from its source root" || Held =/= Namespace]
+    [Name ++ "'s compiled file holds " ++ ern_namespace:text(FileNamespace)
+     ++ "; build it again from its source root" || FileNamespace =/= Namespace]
         ++ [Name ++ " was compiled against another standard library; build " ++ Name ++ " again"
             || not lists:member(maps:get(stdlib, Chunk, none), [none, StdlibHash])]
         ++ [Name ++ " was compiled against another " ++ ern_namespace:text(Dependency)
@@ -1730,7 +1830,7 @@ compiled_refusals(Namespace, Beam, Interfaces, StdlibHash) ->
                ern_interface:hash(Interface) =/= Hash].
 
 held_interfaces(Namespace, Interfaces) ->
-    [Interface || #interface{namespace = Held} = Interface <- Interfaces, Held =:= Namespace].
+    [Interface || #interface{namespace = Found} = Interface <- Interfaces, Found =:= Namespace].
 
 %% The modules installed and their bindings evaluated, and `:load`'s answer.
 installed(Session, All, Answer) ->
@@ -1745,22 +1845,33 @@ installed(Session, All, Answer) ->
 
 %% Report §8.5, §11.2: the modules in the order their bindings are
 %% evaluated, each after those it depends on.
-in_order(Modules) ->
-    ErlangModules = [ern_namespace:erlang_module(Namespace) || {Namespace, _, _} <- Modules],
-    ByErlangModule = maps:from_list(lists:zip(ErlangModules, Modules)),
+in_order(CompiledModules) ->
+    ErlangModules = [ern_namespace:erlang_module(Namespace)
+                     || {Namespace, _, _} <- CompiledModules],
+    ByErlangModule = maps:from_list(lists:zip(ErlangModules, CompiledModules)),
     [maps:get(ErlangModule, ByErlangModule) || ErlangModule <- ern_rt:ordered(ErlangModules)].
 
 %% Report §11.2: the modules a failed `:load` or `:reload` had loaded, each
 %% gone with the processes its bindings started, which end as a reload ends
-%% those of a previous version, so that the session is as it was.
-withdraw_all(Modules) ->
-    [withdraw(ern_namespace:erlang_module(Namespace)) || {Namespace, _, _} <- Modules],
+%% those of a previous version, and with the values its bindings stored
+%% (§8.5), so that the session is as it was.
+withdraw_all(CompiledModules) ->
+    [withdraw(Namespace, Beam) || {Namespace, Beam, _} <- CompiledModules],
     ok.
 
-withdraw(ErlangModule) ->
+withdraw(Namespace, Beam) ->
+    ErlangModule = ern_namespace:erlang_module(Namespace),
     code:delete(ErlangModule),
     end_unloaded([Pid || {Pid, _} <- ern_rt:live(), erlang:check_process_code(Pid, ErlangModule)]),
-    code:purge(ErlangModule).
+    code:purge(ErlangModule),
+    {ok, #{interface := Interface}} = ern_interface:read(Beam),
+    lists:foreach(fun persistent_term:erase/1, let_keys(ErlangModule, Interface)).
+
+%% The keys §8.5's store holds a module's top-level lets under, as its
+%% interface lists them.
+let_keys(ErlangModule, #interface{lets = Lets}) ->
+    [{ErlangModule, ern_emitter:function_name(undefined, lists:last(QualifiedName))}
+     || QualifiedName <- Lets].
 
 %% Report §7.3, §11.2: each process ends with its code unloaded, and is
 %% waited for before its code is purged, since the purge kills one that has
@@ -1796,9 +1907,8 @@ initialize(Namespace, ErlangModule, Rest) ->
                Result = try ErlangModule:'$init'() of
                             _ -> ok
                         catch
-                            throw:{ern, fault, Cause} -> {fault, ern_rt:site(), Cause};
-                            throw:{ern, fault, Cause, _} -> {fault, ern_rt:site(), Cause};
-                            Class:Error -> {fault, ern_rt:site(), fault_text(Class, Error)}
+                            Class:Error:Stack ->
+                                {fault, ern_rt:site(), fault_cause(Class, Error, Stack)}
                         end,
                Self ! {Ref, Result}
            end,
@@ -1822,7 +1932,7 @@ initialize(Namespace, ErlangModule, Rest) ->
 
 %% Report §11.2: a reloaded module's binding that faulted, which with the
 %% bindings after it keeps what the previous version gave them.
-kept_values(Site, Cause) ->
+kept_values_line(Site, Cause) ->
     <<(binding_fault(Site, Cause))/binary, "; it and the bindings after it keep the values of the"
       " previous version">>.
 
@@ -1832,16 +1942,16 @@ binding_fault(Site, Cause) ->
 %% Report §11.2: what the modules use that the session has not loaded,
 %% each found as the runner finds it, by namespace on the load path, and
 %% loaded before them, the modules it uses first.
-needed(Session, Modules) ->
-    Compiled = [Namespace || {Namespace, _, _} <- Modules],
+needed(Session, CompiledModules) ->
+    Compiled = [Namespace || {Namespace, _, _} <- CompiledModules],
     lists:foldl(fun({_, Beam, _}, Found) -> needed(Session, Beam, Found, Compiled) end, {ok, []},
-                Modules).
+                CompiledModules).
 
 %% What one module uses that neither the session nor the modules compiled
 %% with it, Compiled, provide.
 needed(_Session, _Beam, {error, _} = Error, _Compiled) ->
     Error;
-needed(#session{modules = Loaded} = Session, Beam, {ok, _} = Found, Compiled) ->
+needed(#session{source_hashes = Loaded} = Session, Beam, {ok, _} = Found, Compiled) ->
     {ok, #{deps := DependencyHashes}} = ern_interface:read(Beam),
     lists:foldl(fun(_, {error, _} = Error) ->
                         Error;
@@ -1860,6 +1970,8 @@ needed_one(Session, Namespace, Acc, Compiled) ->
                 {ok, Acc1} -> {ok, Acc1 ++ [{Namespace, Beam, Hash}]};
                 Error -> Error
             end;
+        {error, Refusal} ->
+            {error, <<Refusal/binary, "\n">>};
         none ->
             Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
             {error, <<"no module ", Name/binary, " on the load path\n">>}
@@ -1872,36 +1984,39 @@ needed_one(Session, Namespace, Acc, Compiled) ->
 %% module is compiled before any is loaded, and where one does not compile
 %% none is, so the session goes on with every module as it was.
 -spec reload(#session{}) -> {'Left', binary()} | {'Right', {#session{}, [binary()]}}.
-reload(#session{modules = Modules} = Session) ->
+reload(Session) ->
+    without_line_feed(reload_changed(Session)).
+
+reload_changed(#session{source_hashes = SourceHashes} = Session) ->
     Sources = [{Namespace, LoadedHash, source_of(Session, Namespace)}
-               || {Namespace, LoadedHash} <- lists:sort(maps:to_list(Modules))],
-    Changed = [{Namespace, File}
+               || {Namespace, LoadedHash} <- lists:sort(maps:to_list(SourceHashes))],
+    ChangedSources = [{Namespace, File}
                || {Namespace, LoadedHash, {ok, File}} <- Sources,
                   {ok, Hash} <- [source_hash(File)],
                   Hash =/= LoadedHash],
-    Sourceless = sourceless(Session, [Namespace || {Namespace, _, none} <- Sources]),
-    case Changed of
+    SourcelessLines = sourceless(Session, [Namespace || {Namespace, _, none} <- Sources]),
+    case ChangedSources of
         [] ->
-            {'Right', {Session, [<<"no source has changed">> | Sourceless]}};
+            {'Right', {Session, [<<"no source has changed">> | SourcelessLines]}};
         _ ->
-            case compile_all(Session, Changed) of
-                {ok, Needed, Compiled} -> reloaded(Session, Needed, Compiled, Sourceless);
+            case compile_all(Session, ChangedSources) of
+                {ok, Needed, Compiled} -> reloaded(Session, Needed, Compiled, SourcelessLines);
                 {error, Text} -> {'Left', iolist_to_binary([Text, "nothing was reloaded\n"])}
             end
     end.
 
 %% Report §11.2: the changed modules loaded again, after what they use that
 %% the session had not loaded, which is loaded as `:load` loads it.
-reloaded(Session, Needed, Compiled, Sourceless) ->
+reloaded(Session, Needed, Compiled, SourcelessLines) ->
     Session1 = install(Session, Needed),
     case initialize(Needed) of
         ok ->
             {Session2, Lines} = lists:foldl(fun reload_one/2, {Session1, []}, Compiled),
             Faulted = case initialize(in_order(Compiled)) of
                           ok -> [];
-                          {fault, Site, Cause} -> [kept_values(Site, Cause)]
+                          {fault, Site, Cause} -> [kept_values_line(Site, Cause)]
                       end,
-            {'Right', {keep_session(Session2), lists:reverse(Lines) ++ Faulted ++ Sourceless}};
+            {'Right', {keep_session(Session2), lists:reverse(Lines) ++ Faulted ++ SourcelessLines}};
         {fault, Site, Cause} ->
             withdraw_all(Needed),
             {'Left', <<(binding_fault(Site, Cause))/binary, "; nothing was reloaded\n">>}
@@ -1918,18 +2033,19 @@ sourceless(#session{source_root = SourceRoot}, Names) ->
 
 %% Report §11.2: the changed modules compiled in the order they use one
 %% another, each against the session's modules and those compiled before
-%% it; and, while one's interface differs from the one the session holds,
-%% every loaded module that uses it compiled again with them, from its
-%% source. The modules compiled, with what they use that the session has
-%% not loaded; or why they cannot all be. A regression: a module that used
-%% a changed interface kept running against the previous one, and faulted.
-compile_all(Session, Changed) ->
-    case compile_in_order(Session, Changed) of
-        {ok, Modules} ->
-            case stale_users(Session, Changed, Modules) of
+%% it, with each they have come to use that the session has not loaded and
+%% whose source the source root holds, as `:load` compiles it; and, while
+%% one's interface differs from the one the session holds, every loaded
+%% module that uses it compiled again with them, from its source. The
+%% modules compiled, with what they use that the session has not loaded
+%% and the source root does not hold; or why they cannot all be.
+compile_all(Session, ChangedSources) ->
+    case compile_in_order(Session, with_sources(Session, ChangedSources, [])) of
+        {ok, CompiledModules} ->
+            case stale_users(Session, ChangedSources, CompiledModules) of
                 [] ->
-                    case needed(Session, Modules) of
-                        {ok, Needed} -> {ok, Needed, Modules};
+                    case needed(Session, CompiledModules) of
+                        {ok, Needed} -> {ok, Needed, CompiledModules};
                         Error -> Error
                     end;
                 Users ->
@@ -1937,13 +2053,13 @@ compile_all(Session, Changed) ->
                     case [Namespace || {Namespace, none} <- Sources] of
                         [] ->
                             More = [{Namespace, File} || {Namespace, {ok, File}} <- Sources],
-                            compile_all(Session, Changed ++ More);
-                        Sourceless ->
+                            compile_all(Session, ChangedSources ++ More);
+                        SourcelessUsers ->
                             {error, [unicode:characters_to_binary(
                                        [ern_namespace:text(Namespace),
                                         " uses a module whose interface changed,"
                                         " and the source root holds no source of it\n"])
-                                     || Namespace <- Sourceless]}
+                                     || Namespace <- SourcelessUsers]}
                     end
             end;
         Error ->
@@ -1975,24 +2091,25 @@ compile_in_order(#session{source_root = SourceRoot} = Session, Set) ->
         throw:{cli_error, Message} ->
             {error, [unicode:characters_to_binary([Message, "\n"])]};
         throw:{errors, FailedFile, Diagnostics} ->
-            {ok, Source} = file:read_file(FailedFile),
+            {ok, SourceText} = file:read_file(FailedFile),
             {error, [unicode:characters_to_binary(
-                       [ern_diagnostic:format(ern_build:shown(FailedFile), Source, Diagnostic)
+                       [ern_diagnostic:format(ern_build:shown(FailedFile), SourceText, Diagnostic)
                         || Diagnostic <- Diagnostics])]}
     end.
 
 %% The loaded modules, outside those compiled, that use a compiled module
 %% whose interface is not the one the session holds.
-stale_users(#session{modules = Loaded} = Session, Set, Modules) ->
-    Held = loaded_interfaces(Session),
-    Changed = [Namespace || {Namespace, Beam, _} <- Modules,
+stale_users(#session{source_hashes = Loaded} = Session, Set, CompiledModules) ->
+    LoadedInterfaces = loaded_interfaces(Session),
+    InterfaceChanged = [Namespace || {Namespace, Beam, _} <- CompiledModules,
                             {ok, #{interface := Interface}} <- [ern_interface:read(Beam)],
-                            not is_map_key(Namespace, Held)
-                                orelse ern_interface:hash(maps:get(Namespace, Held))
+                            not is_map_key(Namespace, LoadedInterfaces)
+                                orelse ern_interface:hash(maps:get(Namespace, LoadedInterfaces))
                                        =/= ern_interface:hash(Interface)],
     UsesChanged = fun(Namespace) ->
-                      lists:any(fun({Dependency, _}) -> lists:member(Dependency, Changed) end,
-                                dependency_hashes(Session, Namespace))
+                      lists:any(fun({Dependency, _}) ->
+                                        lists:member(Dependency, InterfaceChanged)
+                                end, dependency_hashes(Session, Namespace))
                   end,
     [Namespace || Namespace <- lists:sort(maps:keys(Loaded)),
                   not lists:keymember(Namespace, 1, Set), UsesChanged(Namespace)].
@@ -2011,11 +2128,20 @@ dependency_hashes(#session{beams = Beams}, Namespace) ->
     DependencyHashes.
 
 %% The interfaces of the modules the session has loaded, by namespace.
-loaded_interfaces(#session{interfaces = Interfaces, modules = Modules}) ->
+loaded_interfaces(#session{interfaces = Interfaces, source_hashes = SourceHashes}) ->
     maps:from_list([{Namespace, Interface}
                     || #interface{namespace = Namespace} = Interface <- Interfaces,
-                       is_map_key(Namespace, Modules)]).
+                       is_map_key(Namespace, SourceHashes)]).
 
+%% Report §11.2: a module the session had loaded, loaded again, and one it
+%% had not, which a changed module has come to use, loaded as `:load`
+%% loads it.
+reload_one({Namespace, Beam, Hash}, {#session{source_hashes = SourceHashes} = Session, Lines})
+  when not is_map_key(Namespace, SourceHashes) ->
+    {ok, File} = source_of(Session, Namespace),
+    Line = unicode:characters_to_binary([ern_namespace:text(Namespace), ", compiled from ",
+                                         relative(File, Session)]),
+    {install(Session, Namespace, Beam, Hash), [Line | Lines]};
 reload_one({Namespace, Beam, Hash}, {Session, Lines}) ->
     ErlangModule = ern_namespace:erlang_module(Namespace),
     Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
@@ -2024,10 +2150,25 @@ reload_one({Namespace, Beam, Hash}, {Session, Lines}) ->
                             false -> {[], Session}
                         end,
     code:purge(ErlangModule),
+    dropped_lets(Session1, Namespace, Beam),
     Session2 = install(Session1, Namespace, Beam, Hash),
     Waiting = in_previous(Session2, ErlangModule),
     {Session2, waiting_line(Name, Waiting) ++ ended_lines(Name, Ended)
                ++ [<<Name/binary, ", compiled again">> | Lines]}.
+
+%% Report §8.5, §11.2: the values of the lets the version just purged
+%% declared and the one after it no longer does are erased, since nothing
+%% reads them now; those the version being replaced declares and the new
+%% one does not are kept until the reload that purges it, since a process
+%% or a binding still in it may read them.
+dropped_lets(#session{interfaces = Interfaces}, Namespace, Beam) ->
+    ErlangModule = ern_namespace:erlang_module(Namespace),
+    lists:foreach(fun persistent_term:erase/1, kept({dropped_lets, ErlangModule}, [])),
+    [Replaced] = [Interface || #interface{namespace = Found} = Interface <- Interfaces,
+                               Found =:= Namespace],
+    {ok, #{interface := New}} = ern_interface:read(Beam),
+    keep({dropped_lets, ErlangModule},
+         let_keys(ErlangModule, Replaced) -- let_keys(ErlangModule, New)).
 
 ended_lines(_, []) ->
     [];
@@ -2064,11 +2205,31 @@ end_previous(#session{scope = Scope} = Session, ErlangModule) ->
      ++ [<<(atom_to_binary(Name))/binary, ", a binding">> || {Name, _} <- Bindings],
      Session#session{scope = Scope#{values => Values}}}.
 
-%% The session's bindings whose value holds a function of the module.
+%% Report §11.2: the session's bindings that run a version of the module
+%% other than its current one: before a reload installs its version, the
+%% one the reload purges; after, the one it replaced. A binding taken from
+%% a version is so listed by the reload that replaces the version and
+%% forgotten by the one that purges it, and no other.
 bindings_of(#session{scope = Scope}, ErlangModule) ->
+    Current = ErlangModule:module_info(md5),
+    Previous = fun({HeldModule, Version}) ->
+                   HeldModule =:= ErlangModule
+                       andalso Version =/= current andalso Version =/= Current
+               end,
+    Uses = uses(),
     [{name_atom(Key), Key}
      || {Key, QualifiedName} <- maps:to_list(maps:get(values, Scope, #{})),
-        holds_fun(value_of(QualifiedName), ErlangModule)].
+        lists:any(Previous, functions_run(value_of(QualifiedName), Uses))].
+
+%% The functions a value can run: those it holds, and those the values of
+%% the session's modules it reaches hold, since a function of an input
+%% reads the bindings it names from their holders when it runs.
+functions_run(Value, Uses) ->
+    Own = held_functions(Value, []),
+    Reached = reached([Held || {Held, _} <- Own, is_session_module(Held)], Uses, #{}),
+    Own ++ lists:append([held_functions(Stored, [])
+                         || Module <- maps:keys(Reached), is_map_key(Module, Uses),
+                            {_, Stored} <- stored(Module)]).
 
 name_atom({_, Name}) -> Name;
 name_atom(Name) -> Name.
@@ -2077,35 +2238,25 @@ value_of(QualifiedName) ->
     ErlangModule = ern_namespace:erlang_module(lists:droplast(QualifiedName)),
     persistent_term:get({ErlangModule, lists:last(QualifiedName)}, undefined).
 
-holds_fun(Function, ErlangModule) when is_function(Function) ->
-    {module, Held} = erlang:fun_info(Function, module),
-    Held =:= ErlangModule;
-holds_fun([Head | Tail], ErlangModule) ->
-    holds_fun(Head, ErlangModule) orelse holds_fun(Tail, ErlangModule);
-holds_fun(Tuple, ErlangModule) when is_tuple(Tuple) ->
-    holds_fun(tuple_to_list(Tuple), ErlangModule);
-holds_fun(Map, ErlangModule) when is_map(Map) ->
-    holds_fun(maps:to_list(Map), ErlangModule);
-holds_fun(_, _) ->
-    false.
-
 %% Each module loaded, in order, and in scope by its namespace.
-install(Session, Modules) ->
+install(Session, CompiledModules) ->
     lists:foldl(fun({Namespace, Beam, Hash}, Acc) ->
                     install(Acc, Namespace, Beam, Hash)
-                end, Session, Modules).
+                end, Session, CompiledModules).
 
-install(#session{interfaces = Interfaces, modules = Modules} = Session, Namespace, Beam, Hash) ->
+install(#session{interfaces = Interfaces, source_hashes = SourceHashes} = Session, Namespace, Beam,
+        Hash) ->
     ErlangModule = ern_namespace:erlang_module(Namespace),
     {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
     {ok, #{interface := Interface}} = ern_interface:read(Beam),
     Others = [Other || #interface{namespace = Found} = Other <- Interfaces, Found =/= Namespace],
-    Session#session{interfaces = Others ++ [Interface], modules = Modules#{Namespace => Hash},
+    Session#session{interfaces = Others ++ [Interface],
+                    source_hashes = SourceHashes#{Namespace => Hash},
                     beams = maps:put(Namespace, Beam, Session#session.beams)}.
 
 %% Report §11.2: a module compiled against the modules the session has
-%% loaded, as Interfaces holds them. A regression: a dependency `:load` had
-%% compiled in memory was sought as a `.erc`, and the dependent refused.
+%% loaded, as Interfaces holds them, a dependency `:load` compiled in
+%% memory among them.
 compile_source(#session{source_root = SourceRoot} = Session, File, Interfaces) ->
     case ern_build:compile_source(File, SourceRoot, load_path(Session), Interfaces) of
         {ok, Namespace, Beam, Hash} ->
@@ -2113,10 +2264,10 @@ compile_source(#session{source_root = SourceRoot} = Session, File, Interfaces) -
         {refused, Text} ->
             {error, unicode:characters_to_binary([Text, "\n"])};
         {error, FailedFile, Diagnostics} ->
-            {ok, Source} = file:read_file(FailedFile),
+            {ok, SourceText} = file:read_file(FailedFile),
             %% report §11.5: the file named from the working directory
             {error, unicode:characters_to_binary(
-                      [ern_diagnostic:format(ern_build:shown(FailedFile), Source, Diagnostic)
+                      [ern_diagnostic:format(ern_build:shown(FailedFile), SourceText, Diagnostic)
                        || Diagnostic <- Diagnostics])}
     end.
 
@@ -2133,15 +2284,23 @@ source_of(#session{source_root = SourceRoot}, Namespace) ->
         false -> none
     end.
 
+%% Report §11.2, §11.8: a module's compiled form on the load path, or
+%% none; one that cannot be read is refused with the file and the host's
+%% reason, as the build refuses a file it cannot read.
 compiled_of(Session, Namespace) ->
     Relative = ern_build:module_path(Namespace) ++ ".erc",
     case [Candidate || Dir <- load_path(Session), Candidate <- [filename:join(Dir, Relative)],
                        filelib:is_regular(Candidate)] of
         [File | _] ->
-            {ok, Beam} = file:read_file(File),
-            case ern_interface:read(Beam) of
-                {ok, #{source_hash := Hash}} -> {ok, File, Beam, Hash};
-                {error, _} -> none
+            case file:read_file(File) of
+                {ok, Beam} ->
+                    case ern_interface:read(Beam) of
+                        {ok, #{source_hash := Hash}} -> {ok, File, Beam, Hash};
+                        {error, _} -> none
+                    end;
+                {error, Error} ->
+                    {error, unicode:characters_to_binary([ern_build:bytes_text(File), ": ",
+                                                          file:format_error(Error)])}
             end;
         [] ->
             none
@@ -2149,7 +2308,7 @@ compiled_of(Session, Namespace) ->
 
 source_hash(File) ->
     case file:read_file(File) of
-        {ok, Source} -> {ok, crypto:hash(sha256, Source)};
+        {ok, SourceText} -> {ok, crypto:hash(sha256, SourceText)};
         {error, _} -> none
     end.
 
@@ -2179,7 +2338,7 @@ screen(Address) ->
     persistent_term:put({?MODULE, screen}, Address),
     'Unit'.
 
--spec to_screen(binary()) -> ok.
+-spec to_screen(binary()) -> 'Unit' | ok | {error, term()}.
 to_screen(Bytes) ->
     case persistent_term:get({?MODULE, screen}, undefined) of
         undefined -> file:write(standard_io, Bytes);
@@ -2211,18 +2370,10 @@ erase_cut() ->
 %% value is held by a module of its own, as a module's own value is
 %% (§8.5's store), so a later input reads it with the call the emitter
 %% already makes for another module's value.
-bind(Session, declarations, Namespace, _Value, _Type, _Env, Interface) ->
-    %% the functions its own values hold join what the input needs
-    ErlangModule = ern_namespace:erlang_module(Namespace),
-    Held = lists:foldl(fun({_, Stored}, Acc) -> fun_modules(Stored, Acc) end, [],
-                       stored(ErlangModule)),
-    {Namespace, Needs, Keys} = maps:get(ErlangModule, uses()),
-    HeldModules = [HeldModule || HeldModule <- Held, session_module(HeldModule),
-                                 HeldModule =/= ErlangModule],
-    set_uses(maps:put(ErlangModule, {Namespace, lists:usort(Needs ++ HeldModules), Keys}, uses())),
+bind(Session, declarations, _Namespace, _Value, _Type, _Env, Interface) ->
     joined(Session, Interface);
 bind(Session, it, _Namespace, Value, Type, Env, _Interface) ->
-    case open(Type, Env) of
+    case is_open(Type, Env) of
         true -> Session;
         false -> bound(Session, [{it, Value, Type}], Env)
     end;
@@ -2230,7 +2381,7 @@ bind(Session, {names, Names}, _Namespace, Value, Type, Env, _Interface) ->
     bound(Session, components(Names, Value, Type, Env), Env);
 bind(Session, {lambda, Name, Scheme}, _Namespace, Value, _Type, Env, _Interface) ->
     bound(Session, [{Name, Value, Scheme}], Env);
-bind(Session, Name, _Namespace, Value, Type, Env, _Interface) ->
+bind(Session, {name, Name}, _Namespace, Value, Type, Env, _Interface) ->
     bound(Session, [{Name, Value, Type}], Env).
 
 %% Each name a pattern bound, with its value and type: the whole of the
@@ -2245,16 +2396,16 @@ components(Names, Value, Type, Env) ->
 
 %% Report §11.2: whether the input's value was left unbound, its type
 %% not being determined by the input itself.
--spec unbound(#checked{}) -> boolean().
-unbound(#checked{binds = it, type = Type, env = Env}) -> open(Type, Env);
-unbound(#checked{}) -> false.
+-spec is_unbound(#checked{}) -> boolean().
+is_unbound(#checked{binds = it, type = Type, env = Env}) -> is_open(Type, Env);
+is_unbound(#checked{}) -> false.
 
 %% Report §11.2: a value whose type its own input did not settle is
 %% printed but not bound, since a scheme with a variable of that input's
 %% type state means nothing to the inputs after it. A named binding is
 %% refused outright when it is checked; `it` is the one this can still
 %% reach, and `declared/1` says that it was not bound.
-open(Type, Env) ->
+is_open(Type, Env) ->
     TypeState = ern_typecheck:type_state(Env),
     ern_types:free_variables(ern_types:substitute(Type, TypeState), TypeState) =/= [].
 
@@ -2263,24 +2414,28 @@ open(Type, Env) ->
 %% types their types name.
 bound(Session, [], _Env) ->
     Session;
-bound(#session{last_holder = LastHolder, free_holders = Free} = Session, Bound, Env) ->
-    {Number, Session1} = case Free of
-                             [Freed | Rest] -> {Freed, Session#session{free_holders = Rest}};
-                             [] -> {LastHolder + 1, Session#session{last_holder = LastHolder + 1}}
-                         end,
-    HolderNamespace = [list_to_atom("$Bindings" ++ integer_to_list(Number))],
+bound(#session{last_holder = LastHolder} = Session, Bindings, Env) ->
+    {HolderNamespace, Session1} =
+        case free_namespace(holder) of
+            {ok, Freed} ->
+                {Freed, Session};
+            none ->
+                {[list_to_atom("$Bindings" ++ integer_to_list(LastHolder + 1))],
+                 Session#session{last_holder = LastHolder + 1}}
+        end,
     ErlangModule = ern_namespace:erlang_module(HolderNamespace),
     TypeState = ern_typecheck:type_state(Env),
-    [persistent_term:put({ErlangModule, Name}, Value) || {Name, Value, _} <- Bound],
-    Names = [Name || {Name, _, _} <- Bound],
+    [persistent_term:put({ErlangModule, Name}, Value) || {Name, Value, _} <- Bindings],
+    Names = [Name || {Name, _, _} <- Bindings],
     {module, ErlangModule} =
         code:load_binary(ErlangModule, atom_to_list(ErlangModule), holder(ErlangModule, Names)),
     Values = maps:from_list([{HolderNamespace ++ [Name], binding_scheme(Type, TypeState)}
-                             || {Name, _, Type} <- Bound]),
+                             || {Name, _, Type} <- Bindings]),
     Interface = #interface{namespace = HolderNamespace, values = Values,
                            lets = [HolderNamespace ++ [Name] || Name <- Names]},
-    Held = lists:foldl(fun({_, Value, _}, Acc) -> fun_modules(Value, Acc) end, [], Bound),
-    Needs = [HeldModule || HeldModule <- Held, session_module(HeldModule)]
+    FunctionModules = lists:foldl(fun({_, Value, _}, Acc) -> fun_modules(Value, Acc) end, [],
+                                  Bindings),
+    Needs = [HeldModule || HeldModule <- FunctionModules, is_session_module(HeldModule)]
         ++ mentions(Interface, HolderNamespace),
     Keys = [{ErlangModule, Name} || Name <- Names],
     set_uses(maps:put(ErlangModule, {HolderNamespace, lists:usort(Needs), Keys}, uses())),
@@ -2303,44 +2458,34 @@ collect(Session) ->
 %% which a later holder or input takes (report §2.3). What reaches one is a
 %% name in the session's scope, a module whose old code a process is still
 %% inside, and, from either, what that module needs (uses/0). A module whose
-%% old code a process is inside is purged at a later collection, holders
-%% here and inputs here and at each input's end (release/3), and its values
-%% are let go once it is purged, since that process may still read them.
+%% old code a process is inside is purged at a later collection, a holder
+%% as an input, and its values are let go once it is purged, since that
+%% process may still read them.
 %% The session collects in its own process, once an input has answered
 %% (collect/1), so that an input killed while it runs has let nothing go
 %% that the session still names.
-collected(#session{interfaces = Interfaces, scope = Scope, beams = Beams, free_holders = Free,
-                   draining = Draining} = Session) ->
+collected(#session{interfaces = Interfaces, scope = Scope, beams = Beams} = Session) ->
     Uses = uses(),
     Unpurged = kept(unpurged, []),
-    Old = [ern_namespace:erlang_module(Namespace) || Namespace <- Unpurged]
-        ++ [ern_namespace:erlang_module([Segment]) || Segment <- Draining],
+    Old = [ern_namespace:erlang_module(Namespace) || Namespace <- Unpurged],
     Named = [ern_namespace:erlang_module([hd(QualifiedName)])
              || Which <- [values, types, constructors],
                 QualifiedName <- maps:values(maps:get(Which, Scope, #{})),
-                session_segment(hd(QualifiedName))],
+                is_session_segment(hd(QualifiedName))],
     Live = reached(Named ++ Old, Uses, #{}),
     Dead = [Namespace || ErlangModule := {Namespace, _, _} <- Uses,
                          not is_map_key(ErlangModule, Live)],
     lists:foreach(fun(Namespace) -> code:delete(ern_namespace:erlang_module(Namespace)) end, Dead),
-    IsHolder = fun([Segment]) -> holder_number(Segment) =/= none end,
-    {DeadHolders, DeadInputs} = lists:partition(IsHolder, Dead),
     Purgeable = fun(Namespace) -> code:soft_purge(ern_namespace:erlang_module(Namespace)) end,
-    {Purged, Held} = lists:partition(fun(Segment) -> Purgeable([Segment]) end,
-                                     Draining ++ [Segment || [Segment] <- DeadHolders]),
-    {InputsPurged, InputsHeld} = lists:partition(Purgeable, Unpurged ++ DeadInputs),
-    [persistent_term:erase(Key) || Namespace <- [[Segment] || Segment <- Purged] ++ InputsPurged,
+    {Purged, StillRun} = lists:partition(Purgeable, Unpurged ++ Dead),
+    [persistent_term:erase(Key) || Namespace <- Purged,
                                    {Key, _} <- stored(ern_namespace:erlang_module(Namespace))],
-    keep(unpurged, InputsHeld),
-    keep(free_inputs, free_inputs() ++ InputsPurged),
-    forget_uses([ern_namespace:erlang_module(Namespace)
-                 || Namespace <- [[Segment] || Segment <- Purged] ++ InputsPurged]),
+    keep(unpurged, StillRun),
+    keep(free, kept(free, []) ++ Purged),
+    forget_uses([ern_namespace:erlang_module(Namespace) || Namespace <- Purged]),
     Kept = [Interface || #interface{namespace = Namespace} = Interface <- Interfaces,
                          not lists:member(Namespace, Dead)],
-    Session#session{interfaces = Kept,
-                    beams = maps:without(Dead, Beams),
-                    free_holders = Free ++ [holder_number(Segment) || Segment <- Purged],
-                    draining = Held}.
+    Session#session{interfaces = Kept, beams = maps:without(Dead, Beams)}.
 
 %% The values a session module's top-level bindings hold, each under its
 %% key, as the emitter keeps them (report §8.5): read by the module's own
@@ -2366,7 +2511,7 @@ reached([ErlangModule | Rest], Uses, Live) ->
 %% interface names is such a mention.
 mentions(Term, [Own]) ->
     lists:usort([ern_namespace:erlang_module([Atom]) || Atom <- atoms(Term, []), Atom =/= Own,
-                                                      session_segment(Atom)]).
+                                                      is_session_segment(Atom)]).
 
 atoms(Atom, Acc) when is_atom(Atom) -> [Atom | Acc];
 atoms(Tuple, Acc) when is_tuple(Tuple) -> atoms(tuple_to_list(Tuple), Acc);
@@ -2382,16 +2527,19 @@ holder_number(Segment) ->
     end.
 
 %% Whether a namespace segment is one the session made (report §2.3).
-session_segment(Segment) ->
+is_session_segment(Segment) ->
     case atom_to_list(Segment) of
         "$Bindings" ++ _ -> true;
         "$Input" ++ _ -> true;
         _ -> false
     end.
 
-session_module(ErlangModule) ->
+%% Whether an Erlang module is a session module, its name the one
+%% ern_namespace gives a holder's or an input's namespace.
+is_session_module(ErlangModule) ->
     Name = atom_to_list(ErlangModule),
-    lists:prefix("ern@$bindings", Name) orelse lists:prefix("ern@$input", Name).
+    lists:any(fun(Segment) -> lists:prefix(ern_namespace:erlang_module_text([Segment]), Name) end,
+              ['$Bindings', '$Input']).
 
 %% What each session module needs of the others, by the module: the
 %% namespace it is, the session's modules its code calls, whose types its
@@ -2511,14 +2659,14 @@ declared(#checked{binds = {names, Names}, type = Type, env = Env}) ->
                     {ttuple, Components} = ern_types:substitute(Type, TypeState),
                     Components
             end,
-    [unicode:characters_to_binary([atom_to_list(Bound), " : ",
+    [unicode:characters_to_binary([atom_to_list(BoundName), " : ",
                                    ern_types:format(BoundType, TypeState)])
-     || {Bound, BoundType} <- lists:zip(Names, Types)];
+     || {BoundName, BoundType} <- lists:zip(Names, Types)];
 declared(#checked{binds = {lambda, Name, Scheme}, env = Env}) ->
     TypeState = ern_typecheck:type_state(Env),
     [unicode:characters_to_binary([atom_to_list(Name), " : ",
                                    ern_types:format_scheme(Scheme, TypeState)])];
-declared(#checked{binds = Name} = Checked) ->
+declared(#checked{binds = {name, Name}} = Checked) ->
     [<<(atom_to_binary(Name))/binary, " : ", (type_text(Checked))/binary>>].
 
 kind(#type_declaration{}) -> <<"type">>;
@@ -2526,7 +2674,6 @@ kind(#abstract_declaration{}) -> <<"abstract type">>;
 kind(#foreign_type_declaration{}) -> <<"foreign type">>;
 kind(#fn_declaration{}) -> value;
 kind(#foreign_fn_declaration{}) -> value;
-kind(#let_declaration{}) -> value;
 kind(_) -> other.
 
 line(Declaration, Namespace, #interface{values = Values}, Env) ->
@@ -2545,7 +2692,6 @@ declared_name(#fn_declaration{member_of = undefined, name = Name}) -> {[], Name}
 declared_name(#fn_declaration{member_of = MemberOf, name = Name}) -> {[MemberOf], Name};
 declared_name(#foreign_fn_declaration{member_of = undefined, name = Name}) -> {[], Name};
 declared_name(#foreign_fn_declaration{member_of = MemberOf, name = Name}) -> {[MemberOf], Name};
-declared_name(#let_declaration{name = Name}) -> {[], Name};
 declared_name(#type_declaration{name = Name}) -> {[], Name};
 declared_name(#abstract_declaration{declaration = #type_declaration{name = Name}}) -> {[], Name};
 declared_name(#foreign_type_declaration{name = Name}) -> {[], Name}.

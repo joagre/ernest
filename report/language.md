@@ -1,6 +1,6 @@
 # Ernest Report: The Language
 
-Revision of 4 October 2026.
+Revision of 5 October 2026.
 
 This file holds the report's §0 to §10 and Appendices A, B and F. §11 and Appendix C are in [`toolchain.md`](toolchain.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative.
 
@@ -679,7 +679,7 @@ fn count(total : Int) : Unit with CounterMsg =
     }
 ```
 
-A function does not cross nodes in a message (§3.11), so a process on another node is sent its `Upgrade` by a process spawned on that node, which the spawn gives the new function, as the statement `let _ = Peer.spawn(name, fn() = send(counter, Upgrade(migrate = migrate, next = next)))` does. The language has no other mechanism for code replacement. The shell's reload (§11.2) runs new calls on the new code and never changes the code a running process runs; a process whose code the shell can no longer keep faults with `Fault("its code was unloaded")` (§7.4).
+A function does not cross nodes in a message (§3.11), so a process on another node is sent its `Upgrade` by a process spawned on that node, which the spawn gives the new function, as the statement `let _ = Peer.spawn(name, fn() = send(counter, Upgrade(migrate = migrate, next = next)))` does. The language has no other mechanism for code replacement. The shell's reload (§11.2) runs a call by name on the new code, and a call through a function value on the version current where the value was taken, and never changes the code a running process runs; a process whose code the shell can no longer keep faults with `Fault("its code was unloaded")` (§7.4).
 
 ## 7. Errors
 

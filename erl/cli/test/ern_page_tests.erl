@@ -9,12 +9,12 @@
 %% and its text, and none where the module declares no such name
 declaration_test() ->
     Beam = beam(),
-    {ok, Page} = ern_page:declaration(Beam, <<"trim">>),
+    {ok, Page} = ern_page:declaration(Beam, <<"trim">>, entry),
     Text = unicode:characters_to_binary(Page),
     ?assertMatch({0, _}, binary:match(Text, <<"## String.trim">>)),
     %% report §11.4: a function's declaration, its parameters named
     ?assertMatch({_, _}, binary:match(Text, <<"String.trim(text : String) : String">>)),
-    ?assertEqual(none, ern_page:declaration(Beam, <<"nosuchname">>)).
+    ?assertEqual(none, ern_page:declaration(Beam, <<"nosuchname">>, entry)).
 
 beam() ->
     File = "ern@string.beam",

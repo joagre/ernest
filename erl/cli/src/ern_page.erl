@@ -6,8 +6,8 @@
 %% which libs/markdown writes from the CommonMark (Appendix G.2).
 -module(ern_page).
 
--export([page/1, prelude_page/0, module_head/1, manual/1, prelude_manual/0, declaration/2,
-         session_declaration/3, prelude_declaration/1, since/1]).
+-export([page/1, prelude_page/0, module_head/1, manual/1, prelude_manual/0, declaration/3,
+         session_declaration/3, prelude_declaration/1, since/1, declared_since/2]).
 
 -include_lib("typer/include/ern_types.hrl").
 
@@ -159,14 +159,22 @@ since_line(Version) -> ["*Since ", Version, ".*\n\n"].
 
 %% Report §11.2: one declaration's documentation, as `:doc` prints it. The
 %% name is the unqualified one the entry carries, `map` or `Stack.push`, as
-%% it is written, so that no name is made of what a person typed.
--spec declaration(binary() | file:filename(), binary()) -> {ok, unicode:chardata()} | none.
-declaration(Beam, Name) ->
+%% it is written, so that no name is made of what a person typed. The
+%% signature is the one given, as the shell prints it, or with `entry` the
+%% entry's own, in the module's names.
+-spec declaration(binary() | file:filename(), binary(), [string()] | entry) ->
+          {ok, unicode:chardata()} | none.
+declaration(Beam, Name, Signature) ->
     {ok, #{interface := #interface{namespace = Namespace}}} = ern_interface:read(Beam),
     {ok, {docs_v1, _, ernest, _, _, _, Entries}} = ern_docs:read(Beam),
+    Prefix = ern_namespace:text(Namespace) ++ ".",
     case find(Name, Entries) of
-        {ok, Entry} -> {ok, entry(Entry, ern_namespace:text(Namespace) ++ ".")};
-        none -> none
+        {ok, Entry} when Signature =:= entry ->
+            {ok, entry(Entry, Prefix)};
+        {ok, {KindNameArity, Anno, _, Doc, Meta}} ->
+            {ok, entry({KindNameArity, Anno, lines(Signature), Doc, Meta}, Prefix)};
+        none ->
+            none
     end.
 
 %% The entry of a name as it is written.
@@ -221,6 +229,20 @@ since(prelude) ->
 since(Beam) ->
     {ok, Docs} = ern_docs:read(Beam),
     module_since(Docs).
+
+%% Appendix E.0 rule 6: the `since` a declaration's own doc block ends
+%% with, in a module or the prelude, or undefined for one that has none and
+%% so has its module's.
+-spec declared_since(binary() | prelude, binary()) -> binary() | undefined.
+declared_since(Source, Name) ->
+    {docs_v1, _, _, _, _, _, Entries} = case Source of
+                                            prelude -> ern_prelude:docs();
+                                            Beam -> element(2, ern_docs:read(Beam))
+                                        end,
+    case find(Name, Entries) of
+        {ok, {_, _, _, #{<<"en">> := DocText}, _}} -> element(2, split_since(DocText));
+        _ -> undefined
+    end.
 
 module_since({docs_v1, _, _, _, #{<<"en">> := DocText}, _, _}) ->
     {_, Since} = split_since(DocText),

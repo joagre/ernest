@@ -93,12 +93,16 @@ path(Segments) ->
 erlang_module(Namespace) ->
     list_to_atom(erlang_module_text(Namespace)).
 
-%% The same as text, which the build measures against the host's limit
-%% before any atom is made of it (report §11.1).
--spec erlang_module_text([atom()]) -> string().
+%% The same as text, which makes no atom: the build measures it against
+%% the host's limit before any atom is made of it (report §11.1), and the
+%% shell seeks a module's file by it. A segment may be given as its text.
+-spec erlang_module_text([atom() | string()]) -> string().
 erlang_module_text(Namespace) ->
-    lists:flatten(["ern" | ["@" ++ component_or_lowered(atom_to_list(Segment))
+    lists:flatten(["ern" | ["@" ++ component_or_lowered(segment_text(Segment))
                             || Segment <- Namespace]]).
+
+segment_text(Segment) when is_atom(Segment) -> atom_to_list(Segment);
+segment_text(Segment) -> Segment.
 
 %% Report §11.1: the most characters the host holds in a name.
 -spec host_name_limit() -> pos_integer().

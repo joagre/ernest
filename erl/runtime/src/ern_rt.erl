@@ -48,6 +48,8 @@
          restart_now/0, ask_restart/1, start_cause/0, spawn_order/1, init_stdlib/0, init_modules/1,
          ordered/1]).
 
+-export_type([address/0]).
+
 -compile({no_auto_import, [spawn/2, self/0, monitor/2]}).
 
 -define(UNIT, 'Unit').

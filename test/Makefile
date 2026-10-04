@@ -21,7 +21,7 @@ GRAMMAR = ern_grammar_tests ern_grammar_programs_tests
 TYPED = ern_typed_programs_tests
 SHELL_TESTS = ern_terminal_tests ern_shell_tests
 BEAMS = $(patsubst %,$(EBIN)/%.beam,$(PROGRAMS) $(DOCS) $(GUIDE) $(GRAMMAR) ern_grammar \
-	  $(TYPED) $(SHELL_TESTS))
+	  $(TYPED) $(SHELL_TESTS) ern_pty)
 
 # Run the EUnit modules $(1), with the toolchain and the standard library on
 # the code path.
@@ -74,8 +74,13 @@ grammar: $(BEAMS)
 typed: $(BEAMS)
 	$(call EUNIT,$(TYPED))
 
+# The shell's and the terminal's tests make their homes, sources, inputs
+# and step files under one directory of the run's own, which is removed
+# when the run ends, whatever its outcome (ern_pty:run_dir/0).
 shell: $(BEAMS) prepare
-	$(call EUNIT_SIDE_BY_SIDE,$(SHELL_TESTS))
+	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_shell_XXXXXX") && \
+	  ERN_TEST_DIR=$$dir $(call EUNIT_SIDE_BY_SIDE,$(SHELL_TESTS)); \
+	  status=$$?; rm -rf "$$dir"; exit $$status
 
 # The programs compiled here stay between runs: ern build recompiles what a
 # changed compiler changes (report §11.1).

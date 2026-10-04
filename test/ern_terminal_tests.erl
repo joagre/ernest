@@ -44,7 +44,7 @@ keys() ->
     ?assertEqual([<<"ready 24x80">>, <<"char x">>, <<"up">>, <<"down">>,
                   <<"resized 30x100">>, <<"pasted a|b">>, <<"escape">>], Lines),
     %% an arrow is not split: no Escape arrived before the one that was sent
-    ?assertEqual(1, count(Screen, <<"escape">>)).
+    ?assertEqual(1, ern_pty:count(Screen, <<"escape">>)).
 
 %% report §8.2: a paste whose end the terminal does not send ends when no
 %% more of it arrives, and the keys after it are keys; an end that comes
@@ -78,7 +78,7 @@ not_a_terminal_test_() ->
 not_a_terminal() ->
     ok = build("terminal/probe.ern", "terminal"),
     ?assertEqual({0, <<"no terminal, no size\n">>},
-                 sh("echo x | ../bin/ern run build/terminal/probe.erc")).
+                 ern_pty:sh("echo x | ../bin/ern run build/terminal/probe.erc")).
 
 %% report §11.2: at a terminal a fault line is as the reader watches it
 %% happen, without the time it begins with in a file. Written with the code.
@@ -123,9 +123,10 @@ terminal_restored() ->
                       [{expect, "ready"}, {send, "1b"}], 15),
     %% the terminal is described before and after, and is never left without
     %% echo; `-echoe` and its like are not `-echo`
-    ?assert(count(Screen, <<"ready">>) =:= 1 andalso count(Screen, <<"escape">>) =:= 1),
+    ?assert(ern_pty:count(
+        Screen, <<"ready">>) =:= 1 andalso ern_pty:count(Screen, <<"escape">>) =:= 1),
     ?assertEqual(nomatch, re:run(Screen, "(^|[ \t])-echo([ \t;\r\n]|$)", [{capture, none}])),
-    ?assert(count(Screen, <<"speed">>) >= 2).
+    ?assert(ern_pty:count(Screen, <<"speed">>) >= 2).
 
 %% report §8.6: the terminal's settings a program found are the ones it
 %% leaves, not stty's defaults. A regression test: the end ran `stty sane`,
@@ -196,45 +197,15 @@ head(Frame) ->
                               {Column, _} <- [binary:match(Row, <<"@">>)]]).
 
 build(Source, SourceRoot) ->
-    {0, _} = sh("../bin/ern build --source-root " ++ SourceRoot ++ " --load-path ../build/libs/ansi"
-                ++ " --build-root build/"
-                ++ filename:basename(SourceRoot) ++ " " ++ Source),
+    {0, _} = ern_pty:sh(
+        "../bin/ern build --source-root " ++ SourceRoot ++ " --load-path ../build/libs/ansi"
+        ++ " --build-root build/"
+        ++ filename:basename(SourceRoot) ++ " " ++ Source),
     ok.
 
-%% A command with a terminal of its own: {exit status, the screen}. The
-%% steps are the harness's, `{expect, Text}` before a `{send, Hex}` so
-%% that a program slower under load is waited for rather than raced. The
-%% command is one word to the shell that starts the harness, since its own
-%% `;` and `|` belong to the shell inside the terminal; it may hold no
-%% single quote.
+%% A command with a terminal of its own: {exit status, the screen}.
 pty(Command, Steps, Seconds) ->
-    nomatch = binary:match(list_to_binary(Command), <<"'">>),
-    File = steps_file(Steps),
-    {0, Output} = sh("./ern_pty.py --timeout " ++ integer_to_list(Seconds) ++ " --steps " ++ File
-                     ++ " -- '" ++ Command ++ "'"),
-    Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
-    %% a step the harness could not meet is a failure of the test, not a
-    %% screen to assert against
-    ?assertEqual([], [Line || <<"unmet ", _/binary>> = Line <- Lines]),
-    [<<"status ", Status/binary>>] = [Line || <<"status ", _/binary>> = Line <- Lines],
-    [<<"data ", Data/binary>>] = [Line || <<"data ", _/binary>> = Line <- Lines],
-    {status(Status), base64:decode(Data)}.
-
-%% The steps go in a file: one holds whatever the program prints, and a
-%% shell reading `>` would take it for a redirection.
-steps_file(Steps) ->
-    File = "build/steps-" ++ integer_to_list(erlang:unique_integer([positive])),
-    ok = filelib:ensure_dir(File),
-    ok = file:write_file(File, [[step(Step), "\n"] || Step <- Steps]),
-    File.
-
-step({expect, Text}) -> "expect:" ++ Text;
-step({resize, Size}) -> "resize:" ++ Size;
-step({send, Hex}) -> "send:" ++ Hex;
-step({sleep, Ms}) -> "sleep:" ++ integer_to_list(Ms).
-
-status(<<"timeout">>) -> timeout;
-status(Text) -> binary_to_integer(Text).
+    ern_pty:run(Command, Steps, Seconds, "").
 
 lines(Screen) ->
     [Line || Line <- binary:split(modeless(Screen), <<"\r\n">>, [global]), Line =/= <<>>].
@@ -244,15 +215,3 @@ lines(Screen) ->
 modeless(Screen) ->
     re:replace(Screen, "\e\\[\\?[0-9]+[hl]", "", [global, {return, binary}]).
 
-count(Haystack, Needle) ->
-    length(binary:matches(Haystack, Needle)).
-
-sh(Command) ->
-    Shell = open_port({spawn, Command}, [exit_status, stderr_to_stdout, binary]),
-    collect(Shell, []).
-
-collect(Shell, Acc) ->
-    receive
-        {Shell, {data, Data}} -> collect(Shell, [Data | Acc]);
-        {Shell, {exit_status, Status}} -> {Status, iolist_to_binary(lists:reverse(Acc))}
-    end.
