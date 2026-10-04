@@ -318,7 +318,7 @@ After an `Upgrade` (§6.10) or `:reload` (§11.2) a set built under the old `T.c
 ## What changes in Ernest
 
 - A new section after §4.8, *Requirements*, at the end of chapter 4, where a section goes without renumbering, and Appendix A: a function declaration may end in a requirement naming members of its type variables, `needs a.compare`: `FnDecl = ... [ "needs" Member { "," Member } ] "=" Expr`, `Member = typevar "." ( ident | userop )`; and `Primary` gains `typevar "." ( userop | "compare" | "negate" )`, mirroring `DeclName`, so that `a.compare` and `a.+` are expressions, §3.5 saying that under a requirement such a name is the member and not a selection. Under the requirement `a.compare` in the body is that member, and an operator on `a` resolves to it; the member has its shape with `a` for its result, `(a, a) -> a` for an operator, and a call at a type whose member has another result type is refused (rule 1). A call writes nothing for it: where the type is known when the enclosing definition is inferred the compiler supplies the member, where it is a variable the enclosing function's requirement at that type supplies it, and without one the call is refused. A requirement names a member of §4.8, or `show` (E.1), and nothing else, and is never inferred (rule 2). §4.8's sentence on the hidden argument becomes one sentence: an operator resolved against its operand's type carries no argument the program has not declared, on a known type none, and on a type variable the member a requirement names, which a call supplies without writing it; `==` compares structurally and needs none, as before.
-- §2.4: `needs` and `derives` are reserved words, twenty with them; the lexer, the Emacs mode's list of them and the formatter follow. Neither is an identifier anywhere in the repository's Ernest.
+- §2.4: `needs` and `derives` are words of Appendix A read by position, as a bitstring's specifiers are, and identifiers everywhere else; the lexer, the parser, the Emacs mode and the formatter follow. They were reserved until 2026-10-04 (the log's *The Full Review's Questions, One by One*).
 - §3.5 and Appendix A: a type declaration may end in `derives compare`, `TypeDecl = ... [ "derives" "compare" ]`, which declares the member rule 11 states.
 - E.1: under `needs a.show`, `Io.show` and `Io.debug` apply to a value of a type variable (rule 2).
 - E.0's shape rule 1: an operations record comes directly after the subjects, before an accumulator and callbacks, `common(list, other, ops)`, decided on 2026-10-02 (the log's *MVP 2.99b's Questions, One by One*) and not yet in E.0.
@@ -335,7 +335,7 @@ The work falls on the parser and checker for the two forms, on the library, and 
 
 | Area | Work | Item |
 |---|---|---|
-| Lexer, Emacs mode | two reserved words, `needs` and `derives`, and §2.4's count | 5 |
+| Lexer, Emacs mode | two words read by position, `needs` and `derives` | 5 |
 | Parser, checker, interfaces, emitter | the requirement: its form, its two errors, its record in the `.erc`, the member or `show`'s descriptor supplied at a call or passed along from the enclosing requirement | 5 |
 | Parser, checker, emitter | `derives compare`: the generated member, its error, its place on the page | 5 |
 | Parser, checker | `..` naming a namespace in a record construction, its error | 5 |

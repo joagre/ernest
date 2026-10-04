@@ -30,10 +30,16 @@ control_character_test() ->
 
 %% report §2.4
 reserved_words_test() ->
-    ?assertEqual([type, abstract, with, foreign, derives, match, 'when', 'receive', 'after',
-                  as, 'if', then, 'else', fn, 'let', needs, export],
-                 tokens("type abstract with foreign derives match when receive after as "
-                        "if then else fn let needs export")).
+    ?assertEqual([type, abstract, with, foreign, match, 'when', 'receive', 'after',
+                  as, 'if', then, 'else', fn, 'let', export],
+                 tokens("type abstract with foreign match when receive after as "
+                        "if then else fn let export")).
+
+%% report §2.4: `needs` and `derives` are identifiers, which the parser
+%% reads as Appendix A's words where they stand (the full review's P17,
+%% 2026-10-04)
+words_read_by_position_test() ->
+    ?assertEqual([{ident, needs}, {ident, derives}], tokens("needs derives")).
 
 %% report §2.4, §2.5
 literals_true_false_test() ->

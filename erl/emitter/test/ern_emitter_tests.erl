@@ -3924,6 +3924,29 @@ show_composed_test() ->
                    " right = Leaf)\n"
                    "[[Some(1.5)], [Some(1.5)]]\n">>, Output).
 
+%% report §2.4, §4.9, §3.5: `needs` and `derives` are words only where they
+%% stand, and identifiers elsewhere, a field, a binding and a parameter
+%% among them, beside a requirement and a derived compare. A regression test
+%% of the full review's P17 and N20 (2026-10-04): both were reserved, and a
+%% task's field `needs` was refused
+words_by_position_test() ->
+    {ok, Output} = run(
+        "type Task = Task(name : String, needs : List(String))\n"
+        "type Pair = Pair(left : Int, right : Int) derives compare\n"
+        "fn largest(list : List(a)) : Optional(a) needs a.compare =\n"
+        "    List.foldLeft(list, None, fn(best, x) = match best {\n"
+        "        Some(b) -> if x < b then Some(b) else Some(x)\n"
+        "      | None -> Some(x)\n"
+        "    })\n"
+        "fn count(derives : List(String)) : Int = List.size(derives)\n"
+        "export fn main() : Unit with Never = {\n"
+        "    let task = Task(name = \"build\", needs = [\"fetch\", \"unpack\"]);\n"
+        "    let needs = task.needs;\n"
+        "    Io.println(Int.toString(count(needs)));\n"
+        "    Io.println(Io.show(largest([Pair(left = 1, right = 2), Pair(left = 1, right = 3)])))\n"
+        "}\n"),
+    ?assertEqual(<<"2\nSome(Pair(left = 1, right = 3))\n">>, Output).
+
 %% report §3.5, §4.9: a derived compare orders by constructor in declaration
 %% order, then field by field from the left, its parameters' members
 %% supplied where it is used. Written after the code, it found a defect:

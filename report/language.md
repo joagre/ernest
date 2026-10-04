@@ -76,16 +76,18 @@ A qualified name is a sequence of uppercase-starting segments followed by a fina
 
 ### 2.4 Reserved words
 
-Twenty, grouped by role:
+Eighteen, grouped by role:
 
 | Role                 | Words                                                  |
 |----------------------|--------------------------------------------------------|
-| Types                | `type`, `abstract`, `with`, `foreign`, `derives`       |
+| Types                | `type`, `abstract`, `with`, `foreign`                  |
 | Pattern matching     | `match`, `when`, `receive`, `after`, `as`, `or`        |
 | Control flow         | `if`, `then`, `else`                                   |
-| Bindings             | `fn`, `let`, `needs`                                   |
+| Bindings             | `fn`, `let`                                            |
 | Visibility           | `export`                                               |
 | Literals             | `true`, `false`                                        |
+
+`needs` and `derives` are words of Appendix A read by position, as a bitstring's specifiers are (§5.11), and identifiers everywhere else: `needs` after a `fn` declaration's parameters or result type (§4.9), and `derives` after a type declaration's last constructor (§3.5).
 
 ### 2.5 Literals
 

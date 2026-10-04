@@ -31,6 +31,9 @@ export fn merge(left : List(a), right : List(a), less : (a, a) -> Bool) : List(a
     merge(left, right)
 
 export fn Int.<>(a : Int, b : Int) : Int = a
+
+type Task = Task(needs : List(String), done : Bool) derives compare
+fn largest(list : List(a)) : Optional(a) needs a.compare = List.last(list)
 "
   "A buffer holding one of everything the keywords claim to paint.")
 
@@ -68,6 +71,11 @@ export fn Int.<>(a : Int, b : Int) : Int = a
   ;; the prefix is lowercase, report section 2.5
   (ernest-colour--check "0X1F" nil)
   (ernest-colour--check "`C:" 'font-lock-string-face)
+  ;; `needs' and `derives' are words only where they stand (report
+  ;; section 2.4): a field named `needs' is no keyword
+  (ernest-colour--check "needs :" nil)
+  (ernest-colour--check "derives compare" 'font-lock-keyword-face)
+  (ernest-colour--check "needs a.compare" 'font-lock-keyword-face)
   ;; neither the apostrophe in the comment above nor the backslash that
   ;; ends the raw string may leave the rest of the buffer inside a string
   (goto-char (point-min))

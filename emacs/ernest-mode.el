@@ -64,8 +64,8 @@
 ;;; checks them against the lexer's.
 
 (defconst ernest-reserved-words
-  '("type" "abstract" "with" "foreign" "derives" "match" "when" "receive" "after"
-    "or" "as" "if" "then" "else" "fn" "let" "needs" "export")
+  '("type" "abstract" "with" "foreign" "match" "when" "receive" "after"
+    "or" "as" "if" "then" "else" "fn" "let" "export")
   "Ernest's reserved words, report §2.4, but `true' and `false'.")
 
 (defconst ernest-operators
@@ -170,6 +170,10 @@ one, and a `///' after code is an error (report section 2.2)."
        1 'font-lock-type-face)
       ;; reserved words and the two word literals
       (,(regexp-opt ernest-reserved-words 'symbols) . 'font-lock-keyword-face)
+      ;; `needs' and `derives' are words only where they stand, before a
+      ;; member and before `compare' (report section 2.4)
+      (,(concat "\\_<\\(needs\\)[ \t]+" lower "\\.") 1 'font-lock-keyword-face)
+      ("\\_<\\(derives\\)[ \t]+compare\\_>" 1 'font-lock-keyword-face)
       (,(regexp-opt ernest-constants 'symbols) . 'font-lock-constant-face)
       ;; a qualified name: every uppercase segment is a namespace or a type
       (,(concat "\\_<" upper "\\(?:\\." upper "\\)*") . 'font-lock-type-face)

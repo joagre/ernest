@@ -194,12 +194,13 @@ type_declaration([{type, Position} | Rest], Doc, Export) ->
                                params = Params, constructors = Constructors, derives = Derives},
              Rest5}).
 
-%% Report §3.5, Appendix A's TypeDecl: `derives compare` after the
-%% constructors, its span kept for the errors of the member it derives.
-optional_derives([{derives, {Line, Column, _, PreviousEnd}}, {ident, {_, _, End, _}, compare}
-                  | Rest]) ->
+%% Report §3.5, §2.4, Appendix A's TypeDecl: `derives compare` after the
+%% constructors, its span kept for the errors of the member it derives;
+%% `derives` is an identifier read by its place, where no other can stand.
+optional_derives([{ident, {Line, Column, _, PreviousEnd}, derives},
+                  {ident, {_, _, End, _}, compare} | Rest]) ->
     {ern_diagnostic:span({Line, Column, End, PreviousEnd}), Rest};
-optional_derives([{derives, _}, Token | _]) ->
+optional_derives([{ident, _, derives}, Token | _]) ->
     fail(position(Token), "`derives` names compare and nothing else, not " ++ describe(Token));
 optional_derives(Tokens) ->
     {undefined, Tokens}.
@@ -286,9 +287,10 @@ fn_declaration([{fn, Position} | Rest], Doc, Export) ->
                                   requirement = Requirement, body = Body},
     spanned({members_named(Declaration), Rest5}).
 
-%% Report §4.9, Appendix A's Requirement: `needs` and the members it names,
-%% after the result type.
-optional_requirement([{needs, _} | Rest]) ->
+%% Report §4.9, §2.4, Appendix A's Requirement: `needs` and the members it
+%% names, after the result type; `needs` is an identifier read by its place,
+%% where no other can stand.
+optional_requirement([{ident, _, needs} | Rest]) ->
     separated(Rest, ',', fun member/1);
 optional_requirement(Tokens) ->
     {[], Tokens}.
@@ -604,7 +606,7 @@ lambda(Tokens, Position) ->
     {Params, Rest1} = params(Tokens),
     {ResultType, Effect, Rest2} = optional_result_type(Rest1),
     case Rest2 of
-        [{needs, NeedsPosition} | _] ->
+        [{ident, NeedsPosition, needs} | _] ->
             %% report §4.9: a requirement is a `fn` declaration's
             fail(NeedsPosition, "a lambda declares no requirement",
                  "declare a `fn` with the requirement and pass it");

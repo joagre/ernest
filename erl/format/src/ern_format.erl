@@ -387,12 +387,12 @@ annotation(Annotation, Code) -> [space(), token(':'), space(), type(Annotation, 
 requirement([]) ->
     [];
 requirement(Members) ->
-    [space(), token(needs), space(),
+    [space(), token(ident), space(),
      lists:join([token(','), space()], [[token(), token('.'), token()] || _ <- Members])].
 
 %% Report §11.6: `derives compare` follows the last constructor on its line.
 derives(undefined) -> [];
-derives(_) -> [space(), token(derives), space(), token()].
+derives(_) -> [space(), token(ident), space(), token()].
 
 type_declaration(Params, Constructors, Code) ->
     ParamsTemplate = case Params of
