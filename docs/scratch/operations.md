@@ -36,7 +36,7 @@ The usual answers are type classes, as in Haskell; functors, as in OCaml and Sta
 ## The three forms
 
 - A **requirement**: a function declaration may end in `needs a.compare`, naming a member of a type it is generic in.
-- A **fill**: a record construction may take its fields from a module, `Ops(..Set)`.
+- A **fill**: a record construction may take its fields from a module, `Operations(..Set)`.
 - A **derived order**: a type declaration may end in `derives compare`.
 
 ### The requirement
@@ -104,32 +104,32 @@ A type has one member of each name, so a requirement has one value at a type. A 
 **The record is the program's.** Code written once over several representations takes a record the program declares, holding the operations it uses. Each field's type names only the record's own parameters:
 
 ```ernest-fragment
-type Ops(s, a) = Ops(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
+type Operations(s, a) = Operations(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
 ```
 
 The program fills it from each representation's module, one binding per representation and element type, or one function per representation generic in the element type, shown below, and passes it:
 
 ```ernest-fragment
-let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)
+let ordered : Operations(OrderedSet.Set(Int), Int) = Operations(..OrderedSet)
 
-fn common(list : List(a), other : List(a), ops : Ops(s, a)) : List(a) =
-    ops.toList(ops.intersection(ops.fromList(list), ops.fromList(other)))
+fn common(list : List(a), other : List(a), operations : Operations(s, a)) : List(a) =
+    operations.toList(operations.intersection(operations.fromList(list), operations.fromList(other)))
 ```
 
-Selecting a field, `ops.toList`, is ordinary field selection, resolved against the parameter's annotated type. The standard library declares no such record and no generic function over one: which operations a program needs is the program's to say. An operation whose callback has an effect variable, or whose accumulator has a type of its own, `filter` and `foldLeft` among them, cannot be a field, because the field's type would need a variable the record does not have. Generic code that needs one goes through `toList` and `List`.
+Selecting a field, `operations.toList`, is ordinary field selection, resolved against the parameter's annotated type. The standard library declares no such record and no generic function over one: which operations a program needs is the program's to say. An operation whose callback has an effect variable, or whose accumulator has a type of its own, `filter` and `foldLeft` among them, cannot be a field, because the field's type would need a variable the record does not have. Generic code that needs one goes through `toList` and `List`.
 
-**The fill.** In a record construction, `..` may name a module in place of an expression. `Ops(..Set)` fills each field not given beside it from the declaration of that field's name in the module, at the field's type. `Ops(..OrderedSet, toList = mine)` takes the field given and fills the rest. A declaration with a requirement is filled with its member supplied at the field's type, which the record's type must fix: `Ops(OrderedSet.Set(Int), Int)` fixes `a` to `Int`, so `fromList` is filled with `Int.compare`. Where the record's type leaves that variable open, the fill is an error naming the field and the variable: `fromList needs a.compare, and the record's type leaves a undetermined`.
+**The fill.** In a record construction, `..` may name a module in place of an expression. `Operations(..Set)` fills each field not given beside it from the declaration of that field's name in the module, at the field's type. `Operations(..OrderedSet, toList = mine)` takes the field given and fills the rest. A declaration with a requirement is filled with its member supplied at the field's type, which the record's type must fix: `Operations(OrderedSet.Set(Int), Int)` fixes `a` to `Int`, so `fromList` is filled with `Int.compare`. Where the record's type leaves that variable open, the fill is an error naming the field and the variable: `fromList needs a.compare, and the record's type leaves a undetermined`.
 
 A type variable of the enclosing function's signature that its requirement names is not open. So a function with a requirement returns the record generic in the element type, and one fill serves every element type with an order:
 
 ```ernest-fragment
-fn orderedOps() : Ops(OrderedSet.Set(a), a) needs a.compare =
-    Ops(..OrderedSet)
+fn orderedOps() : Operations(OrderedSet.Set(a), a) needs a.compare =
+    Operations(..OrderedSet)
 ```
 
 `common([4, 2, 3], [3, 4, 5], orderedOps())` is `[3, 4]`, and `common(["b", "a"], ["a", "c"], orderedOps())` is `["a"]`. The fill is supplied from the requirement as a call is.
 
-The name after `..` is a module where it is a qualified name made of type names alone, even where a constructor has the same name, and an expression otherwise, as in the record update `Snapshot(..old, seen = s)`. A module may stand alone after `..`; an expression keeps the rule that at least one field follows it. A field with no declaration of its name in the module, or one whose type does not fit the field's, is an error naming the field and the module: `Ops(..Set) lacks isSubset: Set has no isSubset`.
+The name after `..` is a module where it is a qualified name made of type names alone, even where a constructor has the same name, and an expression otherwise, as in the record update `Snapshot(..old, seen = s)`. A module may stand alone after `..`; an expression keeps the rule that at least one field follows it. A field with no declaration of its name in the module, or one whose type does not fit the field's, is an error naming the field and the module: `Operations(..Set) lacks isSubset: Set has no isSubset`.
 
 **A list that mixes representations** needs a second record type, one that hides `s`: its functions close over one set, and its `put` returns another such record. It has no operation on two sets and no `==`. The design does not try to make one record serve both uses.
 
@@ -218,16 +218,16 @@ fn merged(list : List(a), other : List(a)) : List(a) needs a.compare =
     }
 ```
 
-`usage.ern` is a program over both sets, a type that derives its order, a map in order, and printing in generic code. No line names an order; `unique` and `shown`, both generic, declare what they need; and `Ops` is the record `common` needs, declared there and filled from each representation at `Int`.
+`usage.ern` is a program over both sets, a type that derives its order, a map in order, and printing in generic code. No line names an order; `unique` and `shown`, both generic, declare what they need; and `Operations` is the record `common` needs, declared there and filled from each representation at `Int`.
 
 ```ernest
 type Date = Date(year : Int, month : Int, day : Int) derives compare
 
-type Ops(s, a) = Ops(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
+type Operations(s, a) = Operations(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
 
-let hashed : Ops(Set(Int), Int) = Ops(..Set)
+let hashed : Operations(Set(Int), Int) = Operations(..Set)
 
-let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)
+let ordered : Operations(OrderedSet.Set(Int), Int) = Operations(..OrderedSet)
 
 fn unique(list : List(a)) : List(a) needs a.compare =
     OrderedSet.toList(OrderedSet.fromList(list))
@@ -235,8 +235,8 @@ fn unique(list : List(a)) : List(a) needs a.compare =
 fn shown(list : List(a)) : Unit with m needs a.show =
     List.foreach(list, fn(x) = Io.println(Io.show(x)))
 
-fn common(list : List(a), other : List(a), ops : Ops(s, a)) : List(a) =
-    ops.toList(ops.intersection(ops.fromList(list), ops.fromList(other)))
+fn common(list : List(a), other : List(a), operations : Operations(s, a)) : List(a) =
+    operations.toList(operations.intersection(operations.fromList(list), operations.fromList(other)))
 
 export fn main() : Unit with Never = {
     let small = OrderedSet.fromList([3, 1, 3]);
@@ -306,7 +306,7 @@ export fn main() : Unit with Never = {
 }
 ```
 
-`ern build` refuses it at `down`: `the argument does not fit the callee: expected OrderedSet.Set(Int), found OrderedSet.Set(Descending)`.
+`ern build` refuses it at `down`: `the argument does not fit OrderedSet.union: expected OrderedSet.Set(Int), found OrderedSet.Set(Descending)`.
 
 Two programs beyond sets test the forms where no set is involved. `numeric.ern` writes generic numeric functions over the requirement `needs a.+`, used at `Int`, at `Float`, and at a type with a `+` of its own. `sum` needs a zero as well, which is no member, so its caller passes one.
 
@@ -447,10 +447,10 @@ The type system is Hindley-Milner with let-polymorphism, and the design stays in
 
 - **The requirement adds nothing to the function's type scheme.** It licenses `a.compare` and the operators on `a` in the body, each with the member's shape at `a`. At a call, the checker reads what `a` was instantiated to once the enclosing definition is inferred, as it already reads an operator's operand type. A known type's member becomes an argument the code generator adds after the written ones. A type variable is met by the enclosing function's requirement, whose own added argument is passed along. A member with a requirement of its own is supplied with that requirement resolved first, so the added argument may be a closure over arguments added in turn. Otherwise the call is an error. Nothing is inferred: a requirement is written, or the call is refused. A declaration's requirement is recorded in the module's compiled interface and shown after its type.
 - **The record is an ordinary sum type** with one constructor and named fields, rank-1: every field's type names only `s` and `a`. A field for `foldLeft` is refused with `type variable b is not a parameter of the type`.
-- **Selection.** `ops.toList` in `common` is resolved as an operator's operand is: the operand's type constructor must be known when the enclosing definition is inferred, so the record parameter is annotated. Unannotated, it is refused with `the type whose field toList is read is not determined; annotate it`.
+- **Selection.** `operations.toList` in `common` is resolved as an operator's operand is: the operand's type constructor must be known when the enclosing definition is inferred, so the record parameter is annotated. Unannotated, it is refused with `the type whose field toList is read is not determined; annotate it`.
 - **Code written once.** `common` is a let-polymorphic function over the record, with a principal type, instantiated at each representation.
-- **The fill is checked as the literal it stands for.** Each field not given is the declaration of its name at a fresh instance of its scheme, unified with the field's type. A function that applies `==` to a value of a type variable carries an inferred equality constraint on that variable, and the constraints travel through a fill as through a literal: `hashed : Ops(Set(Int), Int)` carries the hash set's constraint on its elements, met at `Int`.
-- **The bindings.** `let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)` has a type with no variable in it. A top-level `let` runs its initializer once, and this one is a pure construction.
+- **The fill is checked as the literal it stands for.** Each field not given is the declaration of its name at a fresh instance of its scheme, unified with the field's type. A function that applies `==` to a value of a type variable carries an inferred equality constraint on that variable, and the constraints travel through a fill as through a literal: `hashed : Operations(Set(Int), Int)` carries the hash set's constraint on its elements, met at `Int`.
+- **The bindings.** `let ordered : Operations(OrderedSet.Set(Int), Int) = Operations(..OrderedSet)` has a type with no variable in it. A top-level `let` runs its initializer once, and this one is a pure construction.
 - **Goal 4** holds because `OrderedSet.Set(Int)` and `OrderedSet.Set(Descending)` do not unify: two declared types are distinct by name.
 - **Equality.** `==` on two ordered sets is structural over their sorted lists and needs the element's equality at that application. A set whose elements hold functions can be built and used, and `==` on two of them is refused there, as `==` on the functions would be.
 - **The invariant.** The sorted list is the module's alone; `abstract type` keeps the constructor inside the file.
@@ -471,7 +471,7 @@ At run time a requirement's member is an ordinary argument, and a field use is o
 
 | | The order | Equality | Code written once over two representations | Generic over the element | A second order |
 |---|---|---|---|---|---|
-| Ernest | nowhere; the member is found | `==` | a record the program declares, `Ops(..Set)` and `Ops(..OrderedSet)` | `needs a.compare` declared; nothing written at a call | a wrapper type |
+| Ernest | nowhere; the member is found | `==` | a record the program declares, `Operations(..Set)` and `Operations(..OrderedSet)` | `needs a.compare` declared; nothing written at a call | a wrapper type |
 | OCaml | once, at `Set.Make(Int)` | `IntSet.equal` | a first-class module, its parameter annotated | a functor, or a first-class module passed | a second functor application |
 | Standard ML | once, at the functor application | `IntSet.equal` | a functor over the representation's structure | a functor | a second functor application |
 | Haskell | nowhere; `Ord` is found | `==` | a class the program declares, an instance per representation | `Ord a =>`, inferred | a `newtype` |
@@ -479,7 +479,7 @@ At run time a requirement's member is an ordinary argument, and a field use is o
 | Java | nowhere where elements are `Comparable`; else once, at `new TreeSet<>(comparator)` | `equals` | the library's interface `Set<E>`, which `HashSet` and `TreeSet` implement | `<T extends Comparable<? super T>>` declared; nothing written at a call | a `Comparator` given to the set |
 | Elm | nowhere; elements are `comparable` | `==` | no second representation | `comparable` only | no second order |
 
-In `usage.ern`, `main` writes no order and `==` once; `unique` declares the requirement and its call writes nothing; `common` writes `ops.` four times over an annotated parameter; the program declares `Ops` in three lines and fills it in two. In `numeric.ern`, three generic functions declare `needs a.+` once each, their calls write nothing, and their bodies write `+` or `a.+`; `sum`'s zero is passed beside the `+` that is found. In `num.ern`, each type fills `Num` in one line, and every generic function takes `num` and writes `num.` before each operation.
+In `usage.ern`, `main` writes no order and `==` once; `unique` declares the requirement and its call writes nothing; `common` writes `operations.` four times over an annotated parameter; the program declares `Operations` in three lines and fills it in two. In `numeric.ern`, three generic functions declare `needs a.+` once each, their calls write nothing, and their bodies write `+` or `a.+`; `sum`'s zero is passed beside the `+` that is found. In `num.ern`, each type fills `Num` in one line, and every generic function takes `num` and writes `num.` before each operation.
 
 In Rust, `unique` is `fn unique<T: Ord>(list: Vec<T>) -> Vec<T>`, its bound declared and supplied at each call as the requirement is; `Date` is `#[derive(PartialEq, Eq, PartialOrd, Ord)]` over a struct of three fields, four traits for one order, since `==` is a trait too; and `common` is a trait of three methods the program declares, with an `impl` for `HashSet<T>` and one for `BTreeSet<T>`, each writing each method. The derive is the same as `derives compare`: it orders by variant in declaration order and then by field from left to right, bounds the type's parameters, and is an error at a field whose type has no order. Rust bounds every parameter of the type, reached by the comparison or not; `derives compare` requires only those it reaches.
 
@@ -491,8 +491,8 @@ An interface is the nearest relative of what this note describes, and the differ
 
 - Against OCaml and Standard ML: no functor application and no module per element type, one `OrderedSet` for every element type, and a record declared and filled in five lines where a functor is a module. The guarantee is the same: one order per type.
 - Against Haskell: the same program on the element side, and no class declaration for code over two representations. Nothing is inferred and nothing is declared an instance: the only thing resolved is a member the type already has, nothing is written at a call, and every signature on the page says what its type must have.
-- Against Rust: the same discipline, a requirement declared and never inferred, in one word where an order derived in Rust names four traits; a representation's operations enter the record by name from its module, `Ops(..Set)`, where an `impl` writes each method; and the derive requires only the parameters the comparison reaches, where Rust bounds them all.
-- Against Java: an order belongs to the element type, so two sets in different orders are different types and the compiler refuses their union, where two `TreeSet`s of one type may hold different orders; a set is plain data with structural `==`, which can key a map and be sent to another node; an existing module enters a record after the fact, `Ops(..Set)`, where a class names the interfaces it implements when it is written; an order is derived in two words; and a function is generic over `+`, which no Java interface abstracts.
+- Against Rust: the same discipline, a requirement declared and never inferred, in one word where an order derived in Rust names four traits; a representation's operations enter the record by name from its module, `Operations(..Set)`, where an `impl` writes each method; and the derive requires only the parameters the comparison reaches, where Rust bounds them all.
+- Against Java: an order belongs to the element type, so two sets in different orders are different types and the compiler refuses their union, where two `TreeSet`s of one type may hold different orders; a set is plain data with structural `==`, which can key a map and be sent to another node; an existing module enters a record after the fact, `Operations(..Set)`, where a class names the interfaces it implements when it is written; an order is derived in two words; and a function is generic over `+`, which no Java interface abstracts.
 - Against Elm: a user type has an order, `fn Date.compare`; a second representation exists; a second order is a wrapper type.
 
 **Cons.**
@@ -500,6 +500,6 @@ An interface is the nearest relative of what this note describes, and the differ
 - Against Haskell: every generic function that needs the order declares `needs a.compare`, where Haskell infers `Ord a =>`; and one argument is passed unseen along the declared requirements, where the language's rule on operators had allowed none.
 - Against Rust: a bound names any trait, the program's own among them, so a `zero` or a `hash` is a bound where Ernest passes a parameter or fills a field; a trait's method is dispatched statically, one copy of the code per type, where a field use is one indirect call and a requirement one argument passed; a bound stands once on an `impl` block for every method in it, where each function of `OrderedSet` that needs the order writes `needs a.compare`; and Rust orders `Option`, tuples and `Vec` by their contents, where Ernest's `Optional`, tuples and lists have no order.
 - Against OCaml and Standard ML: the member is the only order a type has, so a reversed set of `Int` is a wrapper type where OCaml applies the functor again; and the requirement and the fill are two forms, where a functor is one.
-- Against Java: the operations are passed and named, `ops.toList(...)`, where a method call dispatches on the object and nothing is passed; values of different representations in one list are Java's ordinary case and here need the second record form; the library gives no ready interface for sets, so the program declares its record; a second order is a wrapper type where Java passes a `Comparator`; and a record has no default methods and no inheritance from another.
+- Against Java: the operations are passed and named, `operations.toList(...)`, where a method call dispatches on the object and nothing is passed; values of different representations in one list are Java's ordinary case and here need the second record form; the library gives no ready interface for sets, so the program declares its record; a second order is a wrapper type where Java passes a `Comparator`; and a record has no default methods and no inheritance from another.
 - Against Elm: two forms where Elm has none, and an order declared per user type where Elm has no such type at all.
 - Against all: a record over the whole vocabulary is twelve fields the program writes, and `filter` and `foldLeft` cannot be fields. The requirement reaches the members and `show` only; a record that needs a `zero` or a `hash` fills them by name from a module and can name neither in a requirement.

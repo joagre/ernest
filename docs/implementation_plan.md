@@ -263,9 +263,6 @@ log's *A Full Review Now and Then*).
   trust, read with `public_key`, inside `ern`; a program never sees either module.
 - Peer loss as §10 says: every process on the lost peer dead with `Fault("peer lost")`, its
   monitors delivered; a peer that reappears is a new instance.
-- `Supervisor.child` refusing a supervisor on another node, `Fault("a child runs on its
-  supervisor's node")`, which Appendix E.22 states and no code can reach before peers exist
-  (the release review's C1-35, 2026-09-30).
 - **Placement by load, in `Peer` and a library** (feedback items 14 and 25, decided in MVP
   2.66; the log's *No Remote Computation in the Language*). `Peer.nodes` answers the nodes
   a program can place work on, the running node first, then each peer of `ernest.conf` in its
@@ -298,8 +295,7 @@ log's *A Full Review Now and Then*).
   the peer, decided in MVP 2.65's step 5 (the log's *A Peer's Service Is Found Through Its
   Binding* and *`Peer.find` Stands*). Built here with §8.7's two sentences on a node's own
   initialization and on a definition that differs by hash. It answers a failure rather than
-  faulting, `Peer.Failure = NoSuchPeer | Lost`, `Peer`'s own; `Peer` as a namespace beside the
-  constructor `Peer` of `Where` is checked against §4.2.
+  faulting, `Peer.Failure = NoSuchPeer | Lost`, `Peer`'s own.
 - **When a module's top-level bindings run**, decided with §8.7's sentence on a node's own
   initialization: whether one rule serves both nodes, where the node a program starts on runs
   those of every module the entry point depends on, though their names may appear nowhere at a
@@ -318,7 +314,8 @@ log's *A Full Review Now and Then*).
 - **A supervisor's children run on its node**, decided 2026-09-27 (Appendix E.22; the log's
   *The `Supervisor`'s Shape*): `Supervisor.child` asks the runtime, through a private shim,
   whether `sup` is on the child's node, and faults with `a child runs on its supervisor's
-  node` before the child joins when it is not.
+  node` before the child joins when it is not, which no code can reach before peers exist
+  (the release review's C1-35, 2026-09-30).
 
 ---
 
@@ -372,7 +369,7 @@ that work, when someone asks for it, or when we want it, decided 2026-09-25 (the
 program adds with `--load-path`, with `stdlib/`'s test discipline, documented in one pass to
 [`module_doc_template.md`](module_doc_template.md) with its executed examples as its first
 user, and a section in the appendix of libraries. Own repositories come later, when there is a
-package story. Written: `libs/ets` and `libs/markdown` (Appendix G; `libs/markdown` under
+package story. Written: `libs/ets`, `libs/markdown` and `libs/ansi` (Appendix G; `libs/markdown` under
 "Done"). Named so far:
 
 - **`libs/json`**, pure Ernest: a `Json` type, a parser over `String` returning `Either`, a

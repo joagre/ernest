@@ -356,10 +356,13 @@ shell() ->
         not is_editor_file(File)].
 
 %% The programs of the build written in Ernest, whose comments cite the
-%% report too.
+%% report too, and docs/operations.md's three programs.
 tools() ->
     [filename:join("tools", File)
-     || File <- filelib:wildcard("*.ern", filename:join(?ROOT, "tools")), not is_editor_file(File)].
+     || File <- filelib:wildcard("*.ern", filename:join(?ROOT, "tools")), not is_editor_file(File)]
+    ++ [filename:join("docs/operations", File)
+        || File <- filelib:wildcard("*.ern", filename:join(?ROOT, "docs/operations")),
+           not is_editor_file(File)].
 
 stdlib() ->
     [filename:join("stdlib", File)

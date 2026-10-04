@@ -6,7 +6,7 @@
 ///
 /// Pure: each event takes the region and what happened, and gives the
 /// region after it and the bytes to write. The screen process in `shell.ern` writes
-/// them and holds nothing else, which is what makes the drawing testable:
+/// them and holds nothing else of the drawing, which is what makes it testable:
 /// the tests at the foot of this file read the bytes. There is a region only
 /// at a terminal; elsewhere the screen writes what it is sent as it comes.
 ///
@@ -445,7 +445,7 @@ fn split(text : String) : #(List(String), String) =
     }
 
 //
-// The tests (report §9.3), run by `ern test`, which `make test` does.
+// The tests (report Appendix E.24, §11.2), run by `ern test`, which `make test` does.
 // The region is pure, so a test reads the bytes it would have written.
 //
 

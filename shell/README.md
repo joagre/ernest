@@ -1,13 +1,13 @@
 # Reading the shell
 
-The Ernest shell is an Ernest program: `Shell` in [`shell.ern`](shell.ern), six modules under [`shell/`](shell/), and a front end in Erlang for what only the compiler knows. This page guides an Ernest programmer through its code. What the shell does is report §11.2, cited here by the names of its paragraphs. How it is built is the design note, [`docs/shell_design.md`](../docs/shell_design.md), cited by the names of its sections.
+The Ernest shell is an Ernest program: `Shell` in [`shell.ern`](shell.ern), six modules under [`shell/`](shell/), and a front end in Erlang for what only the compiler or the host can answer. This page guides an Ernest programmer through its code. What the shell does is report §11.2, cited here by the names of its paragraphs. How it is built is the design note, [`docs/shell_design.md`](../docs/shell_design.md), cited by the names of its sections and paragraphs.
 
 ## Where to start
 
 Start at `main` in `shell.ern`. The file reads top to bottom, in six parts:
 
 1. **The session**: the types of all three processes and the front end's handles, `main`, and the session's own functions.
-2. **Commands**: what a `:` line does.
+2. **Commands**: what a `:` line does, but `:output`'s `output` and `cannotWrite`, which stand in the session's part beside the functions that write to the screen.
 3. **The screen**: the one process that writes to the terminal.
 4. **The reader**: the keys, completion, and documentation.
 5. **Line mode**: `lineLoop`, where the shell reads lines rather than keys (§11.2 *Editing*).
@@ -21,11 +21,11 @@ The comments on the three mailbox types, `ShellMsg`, `ReaderMsg` and `ScreenMsg`
 
 - **The session** is `main`, then `keyLoop`, or `lineLoop` in line mode. It holds the `State` and takes one input at a time. It runs an Ernest input in a new process and waits for it in `await`.
 - **The reader** is `reader`, then `readLoop`. It passes a change of the terminal's size to the screen as `Resized`. Every other event from the terminal goes through `Shell.Editor.edit`, whose `Edit` says what to do: show the line, submit it, cancel it, clear the screen, complete, document, or leave.
-- **The screen** is `screenLoop`, the only process that writes to the terminal. For each message it writes the bytes its `Shell.Region.Region` gives back. In line mode it runs `plainLoop` instead, which writes text as it comes.
+- **The screen** is `screenLoop`, the only process that writes to the terminal. For each message it writes the bytes its `Shell.Region.Region` gives back, and it holds where `:output` sends what programs write. In line mode it runs `plainLoop` instead, which writes text as it comes.
 
 What each process holds, and how the session orders and queues its work, is the design note's *Processes*.
 
-`Typing`, `Clear` and `Leave` are constructors of `Shell.Editor.Edit` and of types in `Shell`, and `State` is a type of both modules. In `shell.ern`, `Shell.Editor.Typing` is the editor's answer and a bare `Typing` is the screen's message.
+`Typing`, `Clear` and `Leave` are constructors of `Shell.Editor.Edit` and of types in `Shell`, and `State` is a type of both modules. In `shell.ern`, `Shell.Editor.Typing` is the editor's answer and a bare `Typing` is the screen's message, and `Terminal.Resized` is the terminal's event and a bare `Resized` the screen's message.
 
 ## Start and end
 
@@ -33,7 +33,7 @@ What each process holds, and how the session orders and queues its work, is the 
 
 - The reader records itself as the terminal's holder (`holdTerminal`) before it subscribes to the keys. In line mode `main` records the session instead.
 - Once the sinks are bound to the screen (`setScreen`), `main` says the greeting, which names the version, `:help` and `:quit`. It does so in either mode.
-- At a terminal, `main` writes the first `> ` itself, after the startup files. `prompt` writes each later one, after draining the screen. In line mode `lineLoop` writes every prompt through `prompt`, the first among them.
+- `prompt` writes every prompt, after draining the screen: at a terminal `main` calls it after the startup files, and in line mode `lineLoop` before each line.
 
 `finish` ends the session, in either mode.
 
@@ -57,7 +57,7 @@ In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault repor
 
 | Module | File | What it is |
 |---|---|---|
-| `Shell` | [`shell.ern`](shell.ern) | The processes and the front end's declarations: all that sends, receives, or reaches the host, but the history file. |
+| `Shell` | [`shell.ern`](shell.ern) | The processes and the front end's declarations: all that sends, receives, or reaches the host, but the history file and the questions `Shell.Complete` asks of the front end and of `Fs`. |
 | `Shell.Command` | [`shell/command.ern`](shell/command.ern) | The table of commands, and the parsing of a command line and of `:set`'s argument. |
 | `Shell.Editor` | [`shell/editor.ern`](shell/editor.ern) | The line editor: Readline's Emacs keys, the walk through the history, and the incremental search. |
 | `Shell.Complete` | [`shell/complete.ern`](shell/complete.ern) | Completion: what may stand at the cursor, the names that may, gathered from the session and the source root, and matching a word against them. |
@@ -69,11 +69,11 @@ In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault repor
 
 `Shell` uses all the others but `Ansi`, which `Shell.Region`, `Shell.Style` and `Markdown` write with. Of the others, two use another: `Shell.Editor` reads the history's length, `Shell.History.kept`, and `Shell.Complete` reads from `Shell.Command` what each command takes and where a command's word ends.
 
-Every module but `Shell`, `Shell.History` and `Shell.Complete` is pure, and `Shell.Complete`'s matching is. `Shell.Editor.State` and `Shell.Region.Region` are abstract (§4.4), so the shell reads them through their modules' functions, such as `Shell.Editor.text`. Each pure module is tested by its `Test` values (§9.3). `make test-shell` runs them with the tests of the session and the terminal (the design note's *Testing*).
+Every module but `Shell`, `Shell.History` and `Shell.Complete` is pure, and `Shell.Complete`'s matching is. `Shell.Editor.State` and `Shell.Region.Region` are abstract (§4.4), so the shell reads them through their modules' functions, such as `Shell.Editor.text`. Each module but `Shell` is tested by its `Test` values (Appendix E.24, §11.2), the impure ones' tests reaching their pure parts. `make test-shell` runs them with the tests of the session and the terminal (the design note's *Testing*).
 
 ## The front end
 
-The shell reaches the host as any program does: through the system modules `Terminal`, `Io`, `Fs`, `Os` and `Clock` (§8.2), and through the standard library's `Process` (E.21). Beyond them it declares `foreign fn`s (§4.7). Each declaration's string names the Erlang function that answers it, whose name may differ: `spawnInput` is `ern_shell:run/4`. [`erl/cli/src/ern_shell.erl`](../erl/cli/src/ern_shell.erl) answers every one but `holdTerminal`, which the runtime answers. The design note's *The foreign interface* groups them by what they are for.
+The shell reaches the host as any program does: through the system modules `Terminal`, `Io`, `Fs`, `Os` and `Clock` (§8.2), and through the standard library's `Process` (E.21). Beyond them it declares `foreign fn`s (§4.7). Each declaration's string names the Erlang function that answers it, whose name may differ: `spawnInput` is `ern_shell:run/4`. [`erl/cli/src/ern_shell.erl`](../erl/cli/src/ern_shell.erl) answers every one but `holdTerminal`, which the runtime answers. `Shell.Complete` declares its own questions of the front end, `names` among them, at the foot of `complete.ern`. The design note's *The foreign interface* groups them by what they are for.
 
 `Session`, `Checked` and `Value` are foreign types (§3.8), handles the shell never looks inside. The session process keeps the `Session` in its `State` and passes it to `check`, `spawnInput`, and each command's function that needs it. The reader's questions, such as `names` and `documentation`, take no `Session`. They read the front end's own copy of the session, which the design note's *The front end's copy* explains.
 
@@ -92,5 +92,7 @@ bin/ern shell                               # a session
 bin/ern build --build-root build/modules examples/modules
 bin/ern shell build/modules/main.erc        # a session beside a running program
 bin/ern test build/shell/shell/editor.erc   # one module's tests
+bin/ern test --load-path build/libs/ansi --load-path build/libs/markdown \
+    build/shell/shell/style.erc             # Shell.Style's and Shell.Region's need the libraries
 make test-shell                             # every module's tests, and the terminal sessions
 ```

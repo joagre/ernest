@@ -692,13 +692,13 @@ group_named(#type_declaration{name = Name, params = Params, constructors = Const
     end.
 
 at_parameters(#t_named{span = Span, namespace = Namespace, name = Named, args = Args} = Annotation,
-              Owner, Params, Group, Env) ->
+              Declaring, Params, Group, Env) ->
     {QualifiedName, _} = lookup_type_name(Span, Namespace, Named, Env),
     case lists:member(QualifiedName, Group) of
         true ->
-            Where = case Named =:= Owner of
+            Where = case Named =:= Declaring of
                         true -> "its own fields";
-                        false -> "the fields of " ++ atom_to_list(Owner)
+                        false -> "the fields of " ++ atom_to_list(Declaring)
                     end,
             Help = "no function could walk the type, since a recursive call is at the"
                    " definition's own type (§3.9)",
@@ -726,13 +726,14 @@ at_parameters(#t_named{span = Span, namespace = Namespace, name = Named, args = 
                          " fields at the declaring type's parameters alone", [], Help)
             end;
         false ->
-            lists:foreach(fun(Arg) -> at_parameters(Arg, Owner, Params, Group, Env) end, Args)
+            lists:foreach(fun(Arg) -> at_parameters(Arg, Declaring, Params, Group, Env) end, Args)
     end;
-at_parameters(#t_tuple{elements = Elements}, Owner, Params, Group, Env) ->
-    lists:foreach(fun(Element) -> at_parameters(Element, Owner, Params, Group, Env) end, Elements);
-at_parameters(#t_fn{params = FnParams, result_type = Result, effect = Effect}, Owner, Params,
+at_parameters(#t_tuple{elements = Elements}, Declaring, Params, Group, Env) ->
+    lists:foreach(fun(Element) -> at_parameters(Element, Declaring, Params, Group, Env) end,
+                  Elements);
+at_parameters(#t_fn{params = FnParams, result_type = Result, effect = Effect}, Declaring, Params,
               Group, Env) ->
-    lists:foreach(fun(Part) -> at_parameters(Part, Owner, Params, Group, Env) end,
+    lists:foreach(fun(Part) -> at_parameters(Part, Declaring, Params, Group, Env) end,
                   [Part || Part <- [Result, Effect | FnParams], Part =/= undefined]);
 at_parameters(_, _, _, _, _) ->
     ok.
@@ -2506,30 +2507,30 @@ field_annotations({named, Fields}) -> [Annotation || #field{annotation = Annotat
 %% The members of the derived type's parameters a field's Member reaches:
 %% a parameter's own, and through a named type's member the members its
 %% requirement names at the type's arguments.
-reach(#t_var{name = Param}, Member, _Owner, _Known, _Env) ->
+reach(#t_var{name = Param}, Member, _MemberOf, _Known, _Env) ->
     [{Param, Member}];
 reach(#t_named{span = Span, namespace = Namespace, name = Name, args = Args} = Annotation, Member,
-      Owner, Known, Env) ->
+      MemberOf, Known, Env) ->
     {QualifiedName, _} = lookup_type_name(Span, Namespace, Name, Env),
     case member_requirement(QualifiedName, Member, Known, Env) of
         none ->
-            cannot_derive(Owner, Annotation, Member, Env);
+            cannot_derive(MemberOf, Annotation, Member, Env);
         {ok, Routes} ->
-            lists:append([reach(Argument, Needed, Owner, Known, Env)
+            lists:append([reach(Argument, Needed, MemberOf, Known, Env)
                           || {ArgumentRoute, Needed} <- Routes,
                              Argument <- argument_at(Args, ArgumentRoute)])
     end;
-reach(Annotation, Member, Owner, _Known, Env) ->
-    cannot_derive(Owner, Annotation, Member, Env).
+reach(Annotation, Member, MemberOf, _Known, Env) ->
+    cannot_derive(MemberOf, Annotation, Member, Env).
 
 %% Report §3.5: a field whose type has no compare is an error at the
 %% declaration, at that field.
 -spec cannot_derive(atom(), tuple(), atom(), env()) -> no_return().
-cannot_derive(Owner, Annotation, Member, Env) ->
+cannot_derive(MemberOf, Annotation, Member, Env) ->
     {Type, _, TypeState} = annotation_type(Annotation, #{}, Env),
     fail(ern_ast:span(Annotation),
-         atom_to_list(Owner) ++ ".compare cannot be derived: " ++ ern_types:format(Type, TypeState)
-         ++ " has no " ++ atom_to_list(Member)).
+         atom_to_list(MemberOf) ++ ".compare cannot be derived: "
+         ++ ern_types:format(Type, TypeState) ++ " has no " ++ atom_to_list(Member)).
 
 %% The requirement of the member Member of the type QualifiedName, each of
 %% its members with the route, through the type's arguments, to the type

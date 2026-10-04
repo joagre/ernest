@@ -1,6 +1,6 @@
 # The principles review
 
-The report's rules and the guide judged on §0, and §0 on what it decided. It runs alone, apart from the release review of [`release_review.md`](release_review.md) and the full review of [`full_review.md`](full_review.md), and reads the report and the guide, not the code. It changes no rule; its findings do, in the milestone the plan gives them. It judges rules and not defects, so it may run while another review's findings are open.
+The report's rules and the guide judged on §0, and §0 on what it decided. It runs alone, apart from the release review of [`release_review.md`](release_review.md) and the full review of [`full_review.md`](full_review.md), and its readers read the report and the guide, L the log too, and the code only as *How it runs* allows, to see what a rule means. It changes no rule; its findings do, in the milestone the plan gives them. It judges rules and not defects, so it may run while another review's findings are open.
 
 ## When it runs
 

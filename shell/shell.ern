@@ -69,8 +69,8 @@ type Settings = Settings(depth : Int, length : Int, timing : Bool, output : Int)
 type Next = Continue(State) | Leave
 
 // Report §11.2: the messages the screen takes. The shell's own text is
-// `Said`, from the session and the reader, and `Noted` while an input is
-// typed, from the reader; a running program's is `Wrote`. `Typing` is the
+// `Said`, from the session alone, and `Noted` while an input is typed,
+// from the reader; a running program's is `Wrote`. `Typing` is the
 // line being typed with the rows shown under it, from the reader, and from
 // the session as it ends; the reader's `Entered` finishes the line, and the
 // session's `Taken` says it has taken an input, which may have been typed
@@ -1037,8 +1037,8 @@ fn readLoop(shell : Address(ShellMsg),
     }
 }
 
-// The screen is told what is being typed, and the session is told once
-// how a multi-line input is run.
+// The screen is told what is being typed, and the person is told once,
+// above the region, how a multi-line input is run.
 fn showing(shell : Address(ShellMsg),
            screen : Address(ScreenMsg),
            reading : Reading,

@@ -2,16 +2,17 @@
 /// in generic code. No line names an order: each set's is its element
 /// type's `compare`, which `Date` derives from its declaration. The two
 /// generic functions declare what they need, `unique` the order and
-/// `shown` the printing. `Ops` is the record `common` needs, declared
+/// `shown` the printing. `Operations` is the record `common` needs, declared
 /// here and filled from each representation at the element type.
 
 type Date = Date(year : Int, month : Int, day : Int) derives compare
 
-type Ops(s, a) = Ops(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
+type Operations(s, a) =
+    Operations(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
 
-let hashed : Ops(Set(Int), Int) = Ops(..Set)
+let hashed : Operations(Set(Int), Int) = Operations(..Set)
 
-let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)
+let ordered : Operations(OrderedSet.Set(Int), Int) = Operations(..OrderedSet)
 
 fn unique(list : List(a)) : List(a) needs a.compare =
     OrderedSet.toList(OrderedSet.fromList(list))
@@ -19,8 +20,9 @@ fn unique(list : List(a)) : List(a) needs a.compare =
 fn shown(list : List(a)) : Unit with m needs a.show =
     List.foreach(list, fn(x) = Io.println(Io.show(x)))
 
-fn common(list : List(a), other : List(a), ops : Ops(s, a)) : List(a) =
-    ops.toList(ops.intersection(ops.fromList(list), ops.fromList(other)))
+fn common(list : List(a), other : List(a), operations : Operations(s, a)) : List(a) =
+    operations.toList(operations.intersection(operations.fromList(list),
+                                              operations.fromList(other)))
 
 export fn main() : Unit with Never = {
     let small = OrderedSet.fromList([3, 1, 3]);

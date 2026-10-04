@@ -121,7 +121,8 @@ write_formatted() ->
 %% The modules the Ernest style guide governs.
 modules() ->
     Modules = [File || Pattern <- ["stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern",
-                                   "libs/**/*.ern", "tools/*.ern", "test/**/*.ern"],
+                                   "libs/**/*.ern", "tools/*.ern", "test/**/*.ern",
+                                   "docs/operations/*.ern"],
                        File <- filelib:wildcard(Pattern, ?ROOT),
                        not lists:prefix("test/build/", File),
                        not is_editor_file(filename:basename(File))],

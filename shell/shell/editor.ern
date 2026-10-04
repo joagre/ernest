@@ -4,7 +4,7 @@
 /// `Escape` and the key after it are `Meta` and that key (§8.2).
 ///
 /// Pure, and tested on its own: the tests at the foot of this file are
-/// what `ern test` runs (§9.3). The reader holds a `State` and reads it
+/// what `ern test` runs (Appendix E.24, §11.2). The reader holds a `State` and reads it
 /// through the functions here, since its constructor is this module's.
 
 /// What is being edited: the line and the cursor, what was last killed,
@@ -458,7 +458,7 @@ fn alphanumeric(text : String, index : Int) : Bool =
     }
 
 //
-// The tests (report §9.3), run by `ern test build/shell/shell/editor.erc`,
+// The tests (report Appendix E.24, §11.2), run by `ern test build/shell/shell/editor.erc`,
 // which `make test` does. Each plays a list of events onto a fresh line
 // and reads off the text and the cursor.
 //
@@ -468,7 +468,7 @@ let typing =
               run = fn() = reads(play(keys("abc") <> [Terminal.ArrowLeft] <> keys("X")), "abXc", 3))
 
 // a regression test: the cursor moved by the Chars a key put in, so a
-// combining mark after a letter left it past the end (findings.md's E6)
+// combining mark after a letter left it past the end
 let combining =
     Test.Case(name = "a mark that joins the letter before it leaves the cursor after both",
               run = fn() =

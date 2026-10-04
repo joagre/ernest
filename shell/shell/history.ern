@@ -160,9 +160,8 @@ fn encode(input : String) : String =
 
 // Left to right, since `\\n` is a backslash and an `n` and not a
 // newline; two passes of `String.replace` would read it as one. One pass
-// over the characters, since a line may be a large paste. A regression:
-// slicing the rest at each character made the decoding quadratic
-// (findings.md's S11).
+// over the characters, since a line may be a large paste, and slicing the
+// rest at each character would make the decoding quadratic.
 fn decode(line : String) : String =
     String.fromList(List.reverse(undo(String.toList(line), [])))
 
@@ -175,7 +174,7 @@ fn undo(rest : List(Char), acc : List(Char)) : List(Char) =
     }
 
 //
-// The tests (report §9.3), run by `ern test`, which `make test` does.
+// The tests (report Appendix E.24, §11.2), run by `ern test`, which `make test` does.
 // The file itself is tested through the shell, in `test/`.
 //
 

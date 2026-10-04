@@ -17,16 +17,17 @@ Ernest has one set in its standard library, `Set`, a hash set. A second, `Ordere
 
 The ordered set and the ordered map are the standard library's, [`ordered_set.ern`](../stdlib/ordered_set.ern) and [`ordered_map.ern`](../stdlib/ordered_map.ern); guide §7.3 shows the parts of the first that carry the requirement. The programs here use them and the forms.
 
-[`usage.ern`](operations/usage.ern) is a program over both sets, a type that derives its order, a map in order, and printing in generic code. No line names an order; `unique` and `shown`, generic, declare what they need; and `Ops` is the record `common` needs, declared there and filled from each representation at `Int`.
+[`usage.ern`](operations/usage.ern) is a program over both sets, a type that derives its order, a map in order, and printing in generic code. No line names an order; `unique` and `shown`, generic, declare what they need; and `Operations` is the record `common` needs, declared there and filled from each representation at `Int`.
 
 ```ernest
 type Date = Date(year : Int, month : Int, day : Int) derives compare
 
-type Ops(s, a) = Ops(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
+type Operations(s, a) =
+    Operations(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
 
-let hashed : Ops(Set(Int), Int) = Ops(..Set)
+let hashed : Operations(Set(Int), Int) = Operations(..Set)
 
-let ordered : Ops(OrderedSet.Set(Int), Int) = Ops(..OrderedSet)
+let ordered : Operations(OrderedSet.Set(Int), Int) = Operations(..OrderedSet)
 
 fn unique(list : List(a)) : List(a) needs a.compare =
     OrderedSet.toList(OrderedSet.fromList(list))
@@ -34,8 +35,9 @@ fn unique(list : List(a)) : List(a) needs a.compare =
 fn shown(list : List(a)) : Unit with m needs a.show =
     List.foreach(list, fn(x) = Io.println(Io.show(x)))
 
-fn common(list : List(a), other : List(a), ops : Ops(s, a)) : List(a) =
-    ops.toList(ops.intersection(ops.fromList(list), ops.fromList(other)))
+fn common(list : List(a), other : List(a), operations : Operations(s, a)) : List(a) =
+    operations.toList(operations.intersection(operations.fromList(list),
+                                              operations.fromList(other)))
 
 export fn main() : Unit with Never = {
     let small = OrderedSet.fromList([3, 1, 3]);
@@ -87,7 +89,7 @@ export fn main() : Unit with Never = {
 }
 ```
 
-`ern build` refuses it at `down`: `the argument does not fit the callee: expected OrderedSet.Set(Int), found OrderedSet.Set(Descending)`.
+`ern build` refuses it at `down`: `the argument does not fit OrderedSet.union: expected OrderedSet.Set(Int), found OrderedSet.Set(Descending)`.
 
 Two programs beyond sets test the two forms where no set is involved. [`numeric.ern`](operations/numeric.ern) writes generic numeric functions over the requirement `needs a.+`, at `Int`, at `Float`, and at a type with a `+` of its own; `sum` needs a zero as well, which is no member, so its caller passes one.
 
@@ -144,7 +146,7 @@ The report holds no contract for `compare`'s laws yet; MVP 2.99d's item 4 moves 
 
 Stated as the program's promise: `compare` is a total order, and where the element type has `==`, says `Equal` only where `==` holds. Nothing checks either. Where the element type has no `==`, an ordered set holds one element per class of `Equal`, and `put` keeps the element already there (E.25). A `compare` that is not transitive breaks the order: `contains` answers wrongly and duplicates stay. One that says `Equal` where `==` does not makes `==` on two sets depend on the order of insertion.
 
-After an `Upgrade` (§6.10) or `:reload` (§11.2) a set built under the old `T.compare` is read under the new, and a changed order misorders it. A set sent to a node whose `T.compare` differs is read under that node's; MVP 3.0 decides where versions meet.
+After an `Upgrade` (§6.10) or `:reload` (§11.2) a set built under the old `T.compare` is read under the new, and a changed order misorders it. A set sent to a node whose `T.compare` differs is read under that node's; MVP 3.1's normalized definition decides where versions meet.
 
 ## What it costs to build
 
@@ -171,14 +173,14 @@ At run time a requirement's member is an ordinary argument and a field use one i
 
 | | The order | Equality | Code written once over two representations | Generic over the element | A second order |
 |---|---|---|---|---|---|
-| Ernest | nowhere; the member is found | `==` | a record the program declares, `Ops(..Set)` and `Ops(..OrderedSet)` | `needs a.compare` declared; nothing written at a call | a wrapper type |
+| Ernest | nowhere; the member is found | `==` | a record the program declares, `Operations(..Set)` and `Operations(..OrderedSet)` | `needs a.compare` declared; nothing written at a call | a wrapper type |
 | OCaml | once, at `Set.Make(Int)` | `IntSet.equal` | a first-class module, its parameter annotated | a functor, or a first-class module passed | a second functor application |
 | Standard ML | once, at the functor application | `IntSet.equal` | a functor over the representation's structure | a functor | a second functor application |
 | Haskell | nowhere; `Ord` is found | `==` | a class the program declares, an instance per representation | `Ord a =>`, inferred | a `newtype` |
 | Rust | nowhere; `Ord` is found | `==` | a trait the program declares, an `impl` per representation | `T: Ord` declared; nothing written at a call | a wrapper type, `Reverse<T>` in the standard library |
 | Elm | nowhere; elements are `comparable` | `==` | no second representation | `comparable` only | no second order |
 
-In `usage.ern`, `main` writes no order and `==` once; `unique` declares the requirement and its call writes nothing; `common` writes `ops.` four times over an annotated parameter; the program declares `Ops` in three lines and fills it in two. In `numeric.ern`, three generic functions declare `needs a.+` once each, their calls write nothing, and their bodies write `+` or `a.+`; `sum`'s zero is passed beside the `+` that is found. In `num.ern`, each type fills `Num` in one line, and every generic function takes `num` and writes `num.` before each operation.
+In `usage.ern`, `main` writes no order and `==` once; `unique` declares the requirement and its call writes nothing; `common` writes `operations.` four times over an annotated parameter; the program declares `Operations` in three lines and fills it in two. In `numeric.ern`, three generic functions declare `needs a.+` once each, their calls write nothing, and their bodies write `+` or `a.+`; `sum`'s zero is passed beside the `+` that is found. In `num.ern`, each type fills `Num` in one line, and every generic function takes `num` and writes `num.` before each operation.
 
 In Rust, `unique` is `fn unique<T: Ord>(list: Vec<T>) -> Vec<T>`, its bound declared and supplied at each call as the requirement is; `Date` is `#[derive(PartialEq, Eq, PartialOrd, Ord)]` over a struct of three fields, four traits for one order, since `==` is a trait too; and `common` is a trait of three methods the program declares, with an `impl` for `HashSet<T>` and one for `BTreeSet<T>`, each writing each method. The derive is the same as `derives compare`: it orders by variant in declaration order and then by field from left to right, bounds the type's parameters, and is an error at a field whose type has no order. Rust bounds every parameter of the type, reached by the comparison or not; `derives compare` requires only those it reaches.
 
@@ -186,7 +188,7 @@ In Rust, `unique` is `fn unique<T: Ord>(list: Vec<T>) -> Vec<T>`, its bound decl
 
 - Against OCaml and Standard ML: no functor application and no module per element type, one `OrderedSet` for every element type, and a record declared and filled in five lines where a functor is a module. The guarantee is the same: one order per type.
 - Against Haskell: the same program on the element side, and no class declaration for code over two representations. Nothing is inferred and nothing is declared an instance: the only thing resolved is a member the type already has, nothing is written at a call, and every signature on the page says what its type must have.
-- Against Rust: the same discipline, a requirement declared and never inferred, in one word where an order derived in Rust names four traits; a representation's operations enter the record by name from its module, `Ops(..Set)`, where an `impl` writes each method; and the derive requires only the parameters the comparison reaches, where Rust bounds them all.
+- Against Rust: the same discipline, a requirement declared and never inferred, in one word where an order derived in Rust names four traits; a representation's operations enter the record by name from its module, `Operations(..Set)`, where an `impl` writes each method; and the derive requires only the parameters the comparison reaches, where Rust bounds them all.
 - Against Elm: a user type has an order, `fn Date.compare`; a second representation exists; a second order is a wrapper type.
 
 **Cons.**

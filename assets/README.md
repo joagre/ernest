@@ -1,18 +1,8 @@
 # Ernest logo assets
 
-The Ernest README logo is supplied in separate light- and dark-theme variants.
-You do **not** need to know which background a visitor uses: the browser can
-select the appropriate asset with `prefers-color-scheme`.
-
-```html
-<picture>
-  <source media="(prefers-color-scheme: dark)"
-          srcset="assets/ernest-dark.svg">
-  <source media="(prefers-color-scheme: light)"
-          srcset="assets/ernest-light.svg">
-  <img src="assets/ernest-light.svg" alt="Ernest" width="50%">
-</picture>
-```
+The Ernest README logo is supplied in separate light- and dark-theme variants,
+and the browser selects one with `prefers-color-scheme`, as the `<picture>` block
+at the top of [`README.md`](../README.md) shows.
 
 ## Files
 

@@ -49,14 +49,15 @@ erl/               the toolchain, as Erlang applications: lexer, parser, format,
                    also c_src/, the helper ern_exec's C source, and priv/, where make
                    builds it
 test/              what spans applications: the integration, document, style, guide,
-                   shell and terminal tests, the harnesses of the loads, the benchmark,
-                   the service manager's checks and the pseudo-terminal, and the
-                   catalogue of diagnostics; target/,
-                   the hand-written target modules; expected/ and golden/, what the
-                   MVP 1 examples, services and examples/modules print, repl's session
-                   among them, and the Erlang they compile to; and bench/,
-                   input/, load/, service/, session/, stdin/ and terminal/, the programs
-                   and inputs tests run
+                   grammar, generated-program, shell and terminal tests, the harnesses
+                   of the loads, the benchmark, the service manager's checks and the
+                   pseudo-terminal, ern_grammar.erl, which reads Appendix A, and the
+                   catalogue of diagnostics; target/, the hand-written target modules;
+                   expected/ and golden/, what the MVP 1 examples, services,
+                   examples/modules and docs/operations print, repl's session among
+                   them, and the Erlang they compile to; and bench/, input/, layout/,
+                   load/, service/, session/, stdin/ and terminal/, the programs and
+                   inputs tests run
 bin/               ern, the launcher, a POSIX sh script
 stdlib/            the standard library as Ernest source
 shell/             the shell as Ernest source; its README.md guides a reader
@@ -75,8 +76,9 @@ man/               the last release's pages as CommonMark, which make pages writ
                    each its directory's README.md
 build/             build products, not in git: stdlib/, libs/, shell/, tools/ and man/
                    from make, with the manual pages; the standard library's pages
-                   in stdlib/ from make doc; release/ from make release; dialyzer/
-                   and dialyzer.plt from make dialyzer; sanitize/ from make sanitize
+                   in stdlib/ from make doc; pages/ from make pages; release/ from
+                   make release; dialyzer/ and dialyzer.plt from make dialyzer;
+                   sanitize/ from make sanitize
 ```
 
 A module's path follows report §11.1. A file that is not a module is named with underscores, but for the Emacs mode's, which follow Emacs's convention.
@@ -181,6 +183,6 @@ The toolchain is the report on one node. Everything the report describes type-ch
 
 | Construct | Until | What you see today |
 |---|---|---|
-| `Peer.spawn`, `Peer.spawnMonitored`, peers, `ernest.conf` (§6.2, §8.3) | MVP 3.0 | a name of `Peer` is refused, `Peer.spawn is not here yet: the module Peer, which acts on peers, arrives in MVP 3.0`; `ernest.conf` is not read, and of the configuration directory only the shell's `startup` is, where `--config-dir` names it |
+| `Peer.spawn`, `Peer.spawnMonitored`, peers, `ernest.conf` (§6.2, §8.3) | MVP 3.0 | a name of `Peer` is refused, `Peer.spawn is not here yet: the module Peer, which acts on peers, arrives in MVP 3.0`; `ernest.conf` is not read, and of the configuration directory only the shell's `startup` is, where `--config-dir` names it; the option's help says `its ernest.conf is read from MVP 3.0`, and for `ern shell` `its startup is run; its ernest.conf is read from MVP 3.0` |
 
 Every refusal the toolchain makes for a later milestone's sake names that milestone in its error text, and `mvp_refusals_listed_test` in `erl/cli/test/ern_cli_tests.erl` fails when such a text is missing from this table. Runtime behaviour that stands in for a later milestone is listed by hand. `make sections` prints only what the plan's *Standing gaps* names.

@@ -12,7 +12,7 @@ Ernest nodes talk over TLS connections of their own; Erlang distribution is not 
 
 The protocol adds nothing to the language. It carries §6's `spawn`, `spawnMonitored`, `send`, adapted addresses, `Reply`, `monitor` and `kill` between nodes, with `Down` (§9.3) and `Process` (Appendix E.21). `Peer.find`, `Peer.nodes` and `Peer.runQueue` are the plan's MVP 3.0.
 
-*Changed:* the note's `Node`, `node(name)`, `self_node()`, `spawn_at(node, f)`, `MonitorRef`, `demonitor` and `Down = Exited | Crashed(Text) | NoProcess | Unreachable` are gone. The report places a process with `Where = Local | Peer(String)`, writes text as `String`, and has a `monitor` that answers nothing.
+*Changed:* the note's `Node`, `node(name)`, `self_node()`, `spawn_at(node, f)`, `MonitorRef`, `demonitor` and `Down = Exited | Crashed(Text) | NoProcess | Unreachable` are gone. The report places a process with `Peer.spawn(name, f)` (§8.3), writes text as `String`, and has a `monitor` that answers nothing.
 
 ## 3. Nodes
 

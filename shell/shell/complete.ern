@@ -275,7 +275,7 @@ fn admitted(names : List(Name), slot : Slot) : List(Name) =
     }
 
 // Report §11.2: the names that may stand there, and the namespaces that
-// hold one, at any depth: after `:`, `Net` holds no type and is not
+// hold one, at any depth: where a type stands, `Net` holds no type and is not
 // offered, where `Shell` holds `Shell.Region.Region`.
 fn held(names : List(Name), keep : (Name) -> Bool) : List(Name) =
     List.filter(names, fn(name) = match name {
@@ -477,7 +477,7 @@ fn sharedPrefix(left : String, right : String, count : Int) : String =
         String.slice(left, 0, count)
 
 //
-// The tests (report §9.3), run by `ern test`, which `make test` does.
+// The tests (report Appendix E.24, §11.2), run by `ern test`, which `make test` does.
 //
 
 let only =
