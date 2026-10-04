@@ -53,7 +53,7 @@ taken out of order. Each has its paragraph under "Done".
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | moved from MVP 3.9 on 2026-10-01 |
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | |
-| MVP 2.99d | the library measured against E.0 rule 1's line, and the emitted code's cost | |
+| MVP 2.99d | the library and the prelude measured against their lines, and the emitted code's cost | |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -187,7 +187,7 @@ when the lines have their decisions.
 
 ---
 
-## MVP 2.99d (the library measured), about a week
+## MVP 2.99d (the library and the prelude measured), about a week
 
 E.0 rule 1's line, decided with the user on 2026-10-04 (the log's *The Full Review's
 Questions, One by One*): a private primitive goes beneath an Ernest operation where the Ernest
@@ -203,10 +203,16 @@ and its measurement does not hold the release.
    moved by MVP 2.99c's item 5, are measured with the rest, and so are `String.toList`,
    `String.fromUtf8`, `Int.toString` and `Int.toStringBase`, which the full review's E11
    and E12 measured on large inputs alone.
-2. **The emitted code's cost**: where ordinary Ernest costs a multiple of the Erlang a
+2. **The prelude measured**: each function of §9.4 to §9.6 against the host's operation
+   it stands on, at the sizes a program meets, held to CLAUDE.md's stricter line for the
+   runtime, that what Ernest adds to a host operation costs a fraction of it. `spawn`
+   first, which `make bench` puts at about three and a half times a bare spawn of the
+   host's (the log's *The Principles Review Closed*). Each past the line comes back to the
+   user as a decision with its numbers, and a cost goes by needing less, never by a trick.
+3. **The emitted code's cost**: where ordinary Ernest costs a multiple of the Erlang a
    person would write, the emitter's output is measured against that Erlang and its
    overheads cut, since a faster emitter brings every function under the line at once,
-   where a shim brings one. Sized when item 1's numbers are in.
+   where a shim brings one. Sized when items 1 and 2's numbers are in.
 
 ---
 
