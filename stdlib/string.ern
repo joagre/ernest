@@ -423,10 +423,7 @@ fn number(chars : List(Char), base : Int) : Optional(Int) =
 
 // A digit's value in the base, or the character that is none.
 fn digitIn(char : Char, base : Int) : Either(Char, Int) =
-    match digitValue(char) {
-        Some(value) when value < base -> Right(value)
-      | _ -> Left(char)
-    }
+    Either.fromOptional(Char.digitValue(char, base), char)
 
 // The value of the digits, count of them, read in halves past forty, so
 // that a long numeral costs what multiplying its halves costs and not the
@@ -449,17 +446,6 @@ fn power(base : Int, exponent : Int) : Int =
         let half = power(base, exponent / 2);
         if exponent % 2 == 0 then half * half else half * half * base
     }
-
-// A digit's value, the letters after 9 in either case: `a` and `A` are 10.
-fn digitValue(char : Char) : Optional(Int) =
-    if char >= '0' && char <= '9' then
-        Some(Char.toInt(char) - Char.toInt('0'))
-    else if char >= 'a' && char <= 'z' then
-        Some(Char.toInt(char) - Char.toInt('a') + 10)
-    else if char >= 'A' && char <= 'Z' then
-        Some(Char.toInt(char) - Char.toInt('A') + 10)
-    else
-        None
 
 /// `true` for `"true"` and `false` for `"false"`, or `None` for anything
 /// else; the inverse of `Bool.toString`.

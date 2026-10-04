@@ -294,6 +294,7 @@ The predicates use the Unicode properties of the code point: `isDigit` is genera
 ```
 Char.isDigit : (Char) -> Bool
 Char.isAsciiDigit : (Char) -> Bool // one of the digits 0 to 9, those String.toInt reads (E.5)
+Char.digitValue : (Char, Int) -> Optional(Int) // its value as a digit in the base, 2 to 36: 0 to 9, then a letter in either case 10 to 35, as Int.toStringBase writes them; None for no digit of the base, or a base outside 2 to 36
 Char.isAlpha : (Char) -> Bool
 Char.isSpace : (Char) -> Bool
 Char.isUpper : (Char) -> Bool

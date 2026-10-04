@@ -480,12 +480,15 @@ string_compare({First, Second}) ->
 %%
 
 %% report Appendix E.6: a character's code point and back, the ASCII digits,
-%% the classes, the single case forms, the order by code point
+%% a digit's value in a base, the classes, the single case forms, the order
+%% by code point
 char_laws_test_() ->
     laws([{"fromInt of toInt, toString", fun one_char/1, fun char_code/1},
           {"fromInt: None outside U+0000 to U+10FFFF and for a surrogate", fun code_point/1,
            fun char_from_int/1},
           {"isAsciiDigit: 0 to 9 alone, each a digit", fun one_char/1, fun char_ascii_digit/1},
+          {"digitValue: 0 to 9, then a letter of either case, under a base of 2 to 36",
+           fun char_and_base/1, fun char_digit_value/1},
           {"the classes: a letter of a case a letter, a digit or a space none", fun one_char/1,
            fun char_classes/1},
           {"toUpper and toLower: itself where there is no single form", fun one_char/1,
@@ -504,6 +507,16 @@ char_from_int(Code) ->
 char_ascii_digit(Char) ->
     Ascii = Char >= $0 andalso Char =< $9,
     ?CHAR:isAsciiDigit(Char) =:= Ascii andalso (not Ascii orelse ?CHAR:isDigit(Char)).
+
+char_digit_value({Char, Base}) ->
+    Place = if
+                Char >= $0, Char =< $9 -> Char - $0;
+                Char >= $a, Char =< $z -> Char - $a + 10;
+                Char >= $A, Char =< $Z -> Char - $A + 10;
+                true -> none
+            end,
+    InBase = Place =/= none andalso Base >= 2 andalso Base =< 36 andalso Place < Base,
+    ?CHAR:digitValue(Char, Base) =:= kept(InBase, Place).
 
 char_classes(Char) ->
     Alpha = ?CHAR:isAlpha(Char),
@@ -1084,6 +1097,8 @@ optional(Size) -> {pick(['None', {'Some', small(Size)}]), small(Size)}.
 either(Size) -> {pick([{'Left', small(Size)}, {'Right', small(Size)}]), small(Size)}.
 one_char(_) -> char().
 two_chars(_) -> {char(), char()}.
+%% A character and a base, one past each end of 2 to 36 among them.
+char_and_base(_) -> {char(), rand:uniform(40) - 2}.
 code_point(Size) ->
     pick([int(Size), 16#D800 + rand:uniform(16#800) - 1, 16#10FFFF + rand:uniform(3) - 1,
           rand:uniform(16#110000) - 1]).

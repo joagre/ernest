@@ -271,20 +271,10 @@ export fn fromHex(text : String) : Optional(Bytes) =
 fn octetsOf(digits : List(Char), acc : Bytes) : Optional(Bytes) =
     match digits {
         [] -> Some(acc)
-      | high :: low :: rest -> match #(value(high), value(low)) {
+      | high :: low :: rest -> match #(Char.digitValue(high, 16), Char.digitValue(low, 16)) {
             #(Some(highValue), Some(lowValue)) ->
                 octetsOf(rest, <<acc:bytes, (highValue * 16 + lowValue)>>)
           | _ -> None
         }
       | [_] -> None
     }
-
-fn value(char : Char) : Optional(Int) =
-    if Char.isAsciiDigit(char) then
-        Some(Char.toInt(char) - Char.toInt('0'))
-    else if char >= 'a' && char <= 'f' then
-        Some(Char.toInt(char) - Char.toInt('a') + 10)
-    else if char >= 'A' && char <= 'F' then
-        Some(Char.toInt(char) - Char.toInt('A') + 10)
-    else
-        None

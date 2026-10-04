@@ -36,6 +36,37 @@ export foreign fn isDigit(char : Char) : Bool =
 export fn isAsciiDigit(char : Char) : Bool =
     char >= '0' && char <= '9'
 
+/// The character's value as a digit in the base, 2 to 36: `0` to `9`, then
+/// a letter in either case, `a` and `A` 10 to `z` and `Z` 35, the digits
+/// `Int.toStringBase` writes and `String.toIntBase` reads. `None` for a
+/// character that is no digit of the base, and for a base outside 2 to 36.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Char.digitValue('7', 10), Char.digitValue('F', 16), Char.digitValue('9', 8))
+/// // => #(Some(7), Some(15), None)
+/// ```
+///
+/// since 0.2.0
+export fn digitValue(char : Char, base : Int) : Optional(Int) =
+    match placeValue(char) {
+        Some(value) when base >= 2 && base <= 36 && value < base -> Some(value)
+      | _ -> None
+    }
+
+// The character's place among the digits and then the letters, either
+// case, `a` and `A` coming after `9`.
+fn placeValue(char : Char) : Optional(Int) =
+    if isAsciiDigit(char) then
+        Some(toInt(char) - toInt('0'))
+    else if char >= 'a' && char <= 'z' then
+        Some(toInt(char) - toInt('a') + 10)
+    else if char >= 'A' && char <= 'Z' then
+        Some(toInt(char) - toInt('A') + 10)
+    else
+        None
+
 /// `true` for a letter in any script, general category L.
 export foreign fn isAlpha(char : Char) : Bool =
     "ern_char:is_alpha/1"
