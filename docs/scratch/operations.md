@@ -1,6 +1,6 @@
 # Operations records
 
-*A design note for a reader outside the project. It describes how Ernest lets code be written once over several representations of one type, and how a generic function reaches an operation of the type it is generic in, without type classes. The design is built: the ordered set and the ordered map are in the standard library, and the programs shown here compile and print what this note says they print. Revised 2026-10-03.*
+*A design note for a reader outside the project. It describes how Ernest lets code be written once over several representations of one type, and how a generic function reaches an operation of the type it is generic in, without type classes. The design is built: the ordered set and the ordered map are in the standard library, and the programs shown here compile and print what this note says they print. Revised 2026-10-04.*
 
 ## Background
 
@@ -461,7 +461,7 @@ After a hot code upgrade or a reload in the shell, a set built under the old `T.
 
 ## What it costs
 
-In the language: two reserved words, `needs` and `derives`; a clause at the end of a function declaration; `a.member` as an expression, where `a` is a type variable under a requirement; `derives compare` at the end of a type declaration; and a module name after `..` in a record construction. The type checker gained the supply of members at calls and at fills, the code generator the added argument, and the compiled interface a record of each declaration's requirement. One sentence of the language's rule on operators changed. It had said that an operator carries no argument the program has not declared. It now says: on a known type none, and on a type variable the member a requirement names, which a call supplies without writing it.
+In the language: two words read by position, `needs` after a function's parameters or result type and `derives` after a type's last constructor, each an ordinary identifier everywhere else; a clause at the end of a function declaration; `a.member` as an expression, where `a` is a type variable under a requirement; `derives compare` at the end of a type declaration; and a module name after `..` in a record construction. The type checker gained the supply of members at calls and at fills, the code generator the added argument, and the compiled interface a record of each declaration's requirement. One sentence of the language's rule on operators changed. It had said that an operator carries no argument the program has not declared. It now says: on a known type none, and on a type variable the member a requirement names, which a call supplies without writing it.
 
 At run time a requirement's member is an ordinary argument, and a field use is one indirect call, the host's own application of a function value. The ordered set's own costs are the sorted list's.
 
