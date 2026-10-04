@@ -395,6 +395,10 @@ package story. Written: `libs/ets` and `libs/markdown` (Appendix G; `libs/markdo
 - **A listing by bytes in `Fs`**, decided when a program must manage a directory others
   write by names it does not choose: `Fs.names` and `Fs.removeName`, through E.0's rules,
   beside an `Fs.list` that stays whole or an error (§8.2; the log's *Later*, S17).
+- **A read and a write in `Fs` that refuse a link under a root**, decided when a program
+  serving files from a root others can write is written: `Fs.readUnder` and `Fs.writeUnder`,
+  through E.0 rule 1, walking by opened directories in the runtime's helper, started per call
+  or resident as that program's cost decides (E.17; the log's *Later*, S16).
 - **`Udp`**, a system module of Appendix E beside `Tcp` and not a library, admitted by E.0
   rule 1 and written as wanted too, with `Tcp`'s shapes: a socket an address, a read pulled
   with a time, a datagram `Bytes` (the log's *`Clock.monotonic` Is In, and `Udp` Is
