@@ -119,6 +119,13 @@ type Group = Group(strategy : Strategy, limit : RestartLimit, watcher : Address(
 // its fault restarts that have not yet restarted or ended.
 type Waiting = Waiting(reply : Reply(Bool), asked : List(Process), next : Waiting) | NoOne
 
+// How long a call to the watcher or the supervisor waits before it is made
+// again. A callee that ends or restarts answers `None` at once (report
+// §6.6), so the limit bounds only one that lives and has not answered,
+// which both do at once; its value changes nothing but how soon such a
+// call is made again.
+let retryMs = 1000
+
 /// The function a supervisor runs, which the caller spawns. It spawns the
 /// process that keeps the group's children, which a restart of the
 /// supervisor does not end. The first process that runs it is the group's
@@ -166,7 +173,7 @@ export fn group(strategy : Strategy, limit : RestartLimit) : (() -> Unit with Ms
 // call it has not answered is made again while it lives; one that has
 // ended ended with the group's first supervisor.
 fn runs(watcher : Address(WatcherMsg), supervisor : Address(Msg)) : Bool with Msg =
-    match Address.call(watcher, fn(reply) = Run(supervisor = supervisor, reply = reply), 1000) {
+    match Address.call(watcher, fn(reply) = Run(supervisor = supervisor, reply = reply), retryMs) {
         Some(answer) -> answer
       | None -> match Process.info(Process.fromAddress(watcher)) {
             None -> false
@@ -426,7 +433,7 @@ fn join(supervisor : Address(Msg),
         process : Process,
         stop : () -> Unit with WatcherMsg) : Address(WatcherMsg) with m = {
     let request = fn(reply) = Join(process = process, stop = stop, reply = reply);
-    match Address.call(supervisor, request, 1000) {
+    match Address.call(supervisor, request, retryMs) {
         Some(watcher) -> watcher
       | None -> match Process.info(Process.fromAddress(supervisor)) {
             None -> fault("the supervisor has ended")
