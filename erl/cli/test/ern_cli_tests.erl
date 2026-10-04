@@ -1435,15 +1435,17 @@ doc_test() ->
     Expect(<<"## Shapes.Box\n\n```ernest\nabstract type Box(a)\n```\n">>),
     Expect(<<"## Shapes.empty\n\n```ernest\nShapes.empty : Box(a)\n```\n">>),
     %% report §3.9, §6.6: put places its element in a list once, so it takes a reply
-    Expect(<<"## Shapes.put\n\n```ernest\nShapes.put : (a, Box(a)) -> Box(a)\n```\n\n"
+    %% report §11.4: a function shows its declaration, a parameter written
+    %% as a pattern with its type alone
+    Expect(<<"## Shapes.put\n\n```ernest\nShapes.put(x : a, Box(a)) : Box(a)\n```\n\n"
              "Put x in the box.\n">>),
     %% report §4.2: a member is shown under its type; §3.9: it drops its
     %% boxes' elements, and `Box` is no type the restriction looks through
     Expect(<<"## Shapes.Box.compare\n\n```ernest\n"
-             "Shapes.Box.compare : (Box(a!), Box(a!)) -> Ordering\n```\n\nBy size.\n">>),
-    Expect(<<"## Shapes.same\n\n```ernest\nShapes.same : (a=, a=) -> Bool\n```\n">>),
+             "Shapes.Box.compare(Box(a!), Box(a!)) : Ordering\n```\n\nBy size.\n">>),
+    Expect(<<"## Shapes.same\n\n```ernest\nShapes.same(a : a=, b : a=) : Bool\n```\n">>),
     %% report §11.4: a private declaration is marked
-    Expect(<<"## Shapes.twice\n\n```ernest\nShapes.twice : (Int) -> Int\n```\n\n"
+    Expect(<<"## Shapes.twice\n\n```ernest\nShapes.twice(n : Int) : Int\n```\n\n"
              "*Private to the module.*\n\nDocumented but private.\n">>),
     ?assertEqual(nomatch, binary:match(Output, <<"hidden">>)),
     %% a type error is reported as for a compilation
@@ -1639,7 +1641,7 @@ docs_chunk_test() ->
     %% the parameter list as written, for the shell's completion
     ?assertMatch([{{type, 'Shape', 0}, _, [<<"type Shape = Dot | At(x : Int, y : Int)">>],
                    #{<<"en">> := <<"A shape.\nsince 0.2.0">>}, #{items := _}},
-                  {{function, twice, 1}, _, [<<"Shapes.twice : (Int) -> Int">>],
+                  {{function, twice, 1}, _, [<<"Shapes.twice(n : Int) : Int">>],
                    #{<<"en">> := <<"Twice n.">>}, #{params := [n]}}],
                  Entries),
     %% Erlang's own documentation reader finds it, as it finds the standard

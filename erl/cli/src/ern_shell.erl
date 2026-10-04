@@ -238,7 +238,7 @@ pattern_let(Text) ->
 %% a declaration a person got wrong, and the declaration parser's error is
 %% the one that names what is wrong; anything else is an expression, whose
 %% error names it. `fn` begins a lambda as well, and begins a declaration
-%% only when a name follows it.
+%% only when a name follows it, a member's type name among them (§4.8).
 which(Text, Diagnostic, DeclarationDiagnostic) ->
     case ern_lexer:tokenize(Text) of
         {ok, Tokens} ->
@@ -251,6 +251,7 @@ which(Text, Diagnostic, DeclarationDiagnostic) ->
     end.
 
 declaration_start([{'fn', _}, {ident, _, _} | _]) -> true;
+declaration_start([{'fn', _}, {typename, _, _} | _]) -> true;
 declaration_start([{Word, _} | _]) -> lists:member(Word, [type, abstract, foreign, export, 'let']);
 declaration_start(_) -> false.
 
@@ -1292,8 +1293,8 @@ within(Before) ->
     end.
 
 %% The parameter names a function's documentation entry carries, from the
-%% session's input or the module that declares it; none where no
-%% declaration carries them, the prelude's and a function value's.
+%% session's input or the module that declares it, or the prelude's; none
+%% where no declaration carries them, a function value's.
 parameters(Session, Namespace, Name) ->
     Beam = case session_beam(Session, Namespace, Name) of
                none when Namespace =/= [] -> beam_of(Session, Namespace);
@@ -1303,7 +1304,9 @@ parameters(Session, Namespace, Name) ->
     Keys = [entry_name([Name]) | [entry_name([lists:last(Namespace), Name]) || Namespace =/= []]],
     case Beam of
         none ->
-            none;
+            %% report §9.4, §9.5: a prelude function's parameters, named for
+            %% their roles
+            ern_prelude:parameters(Namespace ++ [Name]);
         _ ->
             {ok, {docs_v1, _, _, _, _, _, Entries}} = ern_docs:read(Beam),
             case [Params || {{function, Key, _}, _, _, _, #{params := Params}} <- Entries,
@@ -1449,10 +1452,27 @@ session_doc(#session{scope = Scope, beams = Beams} = Session, Segments) ->
             Beam = declaring_beam(QualifiedName, [TypeName], Beams),
             {ok, ern_page:session_declaration(Beam, entry_name([TypeName]), entry)};
         {QualifiedName, _} ->
-            TypeState = session_type_state(Session),
-            Line = scheme_line(name_text(Key), QualifiedName, Session, TypeState),
+            Line = session_line(Key, QualifiedName, Session),
             Beam = declaring_beam(QualifiedName, Segments, Beams),
             {ok, ern_page:session_declaration(Beam, entry_name(Segments), [Line])}
+    end.
+
+%% Report §11.2, §11.4: a function the session declares is shown as a
+%% module's page shows it, its declaration as a caller names it, in the
+%% session's names; a `let`'s name has its type.
+session_line(Key, QualifiedName, Session) ->
+    TypeState = session_type_state(Session),
+    {Namespace, Name} = case Key of
+                            {MemberOf, Member} -> {[MemberOf], Member};
+                            _ -> {[], Key}
+                        end,
+    case {scheme(QualifiedName, Session), parameters(Session, Namespace, Name)} of
+        {{ok, Scheme}, Params} when is_list(Params) ->
+            {Head, Marked, Rest} = ern_types:format_call(Scheme, Params, length(Params),
+                                                         TypeState),
+            unicode:characters_to_list([name_text(Key), Head, Marked, Rest]);
+        _ ->
+            scheme_line(name_text(Key), QualifiedName, Session, TypeState)
     end.
 
 %% The input that declared the name: the qualified name without the

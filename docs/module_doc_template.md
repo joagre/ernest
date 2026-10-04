@@ -105,7 +105,7 @@ The stack with nothing on it.
 ## Template.push
 
 ```ernest
-Template.push : (Stack, Shape) -> Stack
+Template.push(Stack, shape : Shape) : Stack
 ```
 
 The stack with the shape on top.
@@ -113,7 +113,7 @@ The stack with the shape on top.
 ## Template.pop
 
 ```ernest
-Template.pop : (Stack) -> Optional(#(Shape, Stack))
+Template.pop(Stack) : Optional(#(Shape, Stack))
 ```
 
 The top shape and the rest, `None` when the stack is empty.
@@ -121,7 +121,7 @@ The top shape and the rest, `None` when the stack is empty.
 ## Template.circle
 
 ```ernest
-Template.circle : (Point, Int) -> Shape
+Template.circle(centre : Point, radius : Int) : Shape
 ```
 
 The circle of the radius around the centre.
@@ -129,7 +129,7 @@ The circle of the radius around the centre.
 ## Template.area
 
 ```ernest
-Template.area : (Shape) -> Int
+Template.area(shape : Shape) : Int
 ```
 
 The area of the shape: zero for a point, three times the radius squared
@@ -142,7 +142,7 @@ for a circle, since the module has no `Float`.
 ## Template.radius
 
 ```ernest
-Template.radius : (Int) -> Int
+Template.radius(diameter : Int) : Int
 ```
 
 The radius of a circle across the diameter, toward zero.
@@ -162,7 +162,7 @@ Template.radius(9)
 ## Template.half
 
 ```ernest
-Template.half : (Int) -> Int
+Template.half(number : Int) : Int
 ```
 
 *Private to the module.*

@@ -123,20 +123,20 @@ doc_of(#let_declaration{doc = Doc}) -> Doc;
 doc_of(#foreign_type_declaration{doc = Doc}) -> Doc;
 doc_of(#foreign_fn_declaration{doc = Doc}) -> Doc.
 
-%% The declaration's type: its scheme for fn, let and foreign fn, with the
-%% restrictions and the requirement every printed type shows (report §11.5,
-%% §9.4), the declaration itself for the type forms, an abstract type
-%% without its representation.
-signature(#fn_declaration{member_of = MemberOf, name = Name, scheme = Scheme}, Prefix, Env) ->
-    text([Prefix, atom_to_list(shown_name(MemberOf, Name)), " : ",
-          ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
+%% The declaration as its page shows it (report §11.4): a function's head,
+%% each parameter named beside its type, and a `let`'s type, from their
+%% schemes, with the restrictions and the requirement every printed type
+%% shows (§11.5, §9.4); the declaration itself for the type forms, an
+%% abstract type without its representation.
+signature(#fn_declaration{member_of = MemberOf, name = Name, params = Params, scheme = Scheme},
+          Prefix, Env) ->
+    head(Prefix, shown_name(MemberOf, Name), Params, Scheme, Env);
 signature(#let_declaration{name = Name, scheme = Scheme}, Prefix, Env) ->
     text([Prefix, atom_to_list(Name), " : ",
           ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
-signature(#foreign_fn_declaration{member_of = MemberOf, name = Name, scheme = Scheme}, Prefix,
-          Env) ->
-    text([Prefix, atom_to_list(shown_name(MemberOf, Name)), " : ",
-          ern_types:format_scheme(Scheme, ern_typecheck:type_state(Env))]);
+signature(#foreign_fn_declaration{member_of = MemberOf, name = Name, params = Params,
+                                  scheme = Scheme}, Prefix, Env) ->
+    head(Prefix, shown_name(MemberOf, Name), Params, Scheme, Env);
 signature(#type_declaration{} = Declaration, _, _) ->
     text(type_text(Declaration));
 signature(#abstract_declaration{declaration = #type_declaration{name = TypeName, params = Params}},
@@ -149,6 +149,14 @@ signature(#foreign_type_declaration{name = Name, params = Params, equality = Equ
                            true -> list_to_atom(atom_to_list(Param) ++ "=");
                            false -> Param
                        end || {Param, Written} <- lists:zip(Params, Equality)])]).
+
+%% Report §11.4: a function's head, `List.take(list : List(a!), count : Int)
+%% : List(a!)`, as `Shift-Tab` prints a signature, its parameters named.
+head(Prefix, Name, Params, Scheme, Env) ->
+    Names = param_names(Params),
+    {Head, Marked, Rest} = ern_types:format_call(Scheme, Names, length(Names),
+                                                 ern_typecheck:type_state(Env)),
+    text([Prefix, atom_to_list(Name), Head, Marked, Rest]).
 
 %% Report §11.4, §11.6: the declaration whole, `derives compare` among it,
 %% as `ern format` lays it out.

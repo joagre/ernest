@@ -12,7 +12,8 @@ declaration_test() ->
     {ok, Page} = ern_page:declaration(Beam, <<"trim">>),
     Text = unicode:characters_to_binary(Page),
     ?assertMatch({0, _}, binary:match(Text, <<"## String.trim">>)),
-    ?assertMatch({_, _}, binary:match(Text, <<"String.trim : (String) -> String">>)),
+    %% report §11.4: a function's declaration, its parameters named
+    ?assertMatch({_, _}, binary:match(Text, <<"String.trim(text : String) : String">>)),
     ?assertEqual(none, ern_page:declaration(Beam, <<"nosuchname">>)).
 
 beam() ->

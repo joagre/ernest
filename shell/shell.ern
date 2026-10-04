@@ -1199,10 +1199,10 @@ fn documenting(shell : Address(ShellMsg),
     readLoop(shell, screen, Reading(..reading, editing = editing, last = Documented))
 }
 
-// The type, the first sentence, and the version a page's declaration
-// appeared in: the first line of its first code block, the first sentence
-// of its first paragraph (report §11.4), and its `Since` paragraph, the
-// name before the type bold.
+// The declaration, the first sentence, and the version a page's
+// declaration appeared in: the first line of its first code block, the
+// first sentence of its first paragraph (report §11.4), and its `Since`
+// paragraph, the name bold.
 fn brief(text : String, width : Int, colour : Markdown.Output) : List(String) = {
     let blocks = Markdown.parse(text);
     let declarations = List.flatMap(blocks, fn(block) = match block {

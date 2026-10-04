@@ -77,7 +77,7 @@ Optional.map : (Optional(a), (a) -> b with e) -> Optional(b) with e
 Optional.withDefault : (Optional(a!), a!) -> a!
 > String.trim
 
-    String.trim : (String) -> String
+    String.trim(text : String) : String
 
 Without leading and trailing whitespace: the graphemes whose first code point is
 White_Space, as `Char.isSpace` says. It is `trimStart` then `trimEnd`, a pair

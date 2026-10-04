@@ -8,7 +8,7 @@
 -module(ern_prelude).
 
 -export([equality_params/1, builtin_types/0, declared_types/0, process_only/0, values/0,
-         member_types/0, docs/0, stdlib_interfaces/0]).
+         parameters/1, member_types/0, docs/0, stdlib_interfaces/0]).
 
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("parser/include/ern_ast.hrl").
@@ -301,9 +301,9 @@ values() ->
       """/utf8>>},
      {[send], "(Address(a), a) -> Unit with m",
       <<"""
-      Puts `v` in the mailbox of the process at `a`, and returns at once.
-      Messages from one sender arrive in the order they were sent (report
-      §6.4).
+      Puts `message` in the mailbox of the process at `address`, and returns
+      at once. Messages from one sender arrive in the order they were sent
+      (report §6.4).
 
       ### Examples
 
@@ -325,13 +325,8 @@ values() ->
      {[spawnMonitored], "(() -> Unit with n, (Down) -> m) -> Address(n) with m",
       <<"""
       Starts a process as `spawn` does, monitored by the caller from its
-      start: `wrap(d)` is put in the caller's mailbox when it ends, with its
-      reason, however soon that is (report §6.2, §6.9).
-
-      ### Errors
-
-      `Fault("peer unreachable")` when the peer is unknown or cannot be
-      reached.
+      start: `wrap` of its `Down` is put in the caller's mailbox when it ends,
+      with its reason, however soon that is (report §6.2, §6.9).
 
       ### Examples
 
@@ -342,9 +337,9 @@ values() ->
      %% §9.5 process functions
      {[via], "(Address(b), (a) -> b) -> Address(a)",
       <<"""
-      An address that delivers what is sent to it to `target`, turned by `f`.
-      It is not a process. A fault in `f` ends the process behind `target`,
-      not the sender (report §6.5).
+      An address that delivers what is sent to it to `target`, turned by
+      `wrap`. It is not a process. A fault in `wrap` ends the process behind
+      `target`, not the sender (report §6.5).
 
       ### Examples
 
@@ -357,10 +352,10 @@ values() ->
       """/utf8>>},
      {['Address', call], "(Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n",
       <<"""
-      Sends the request `mk(r)`, with a fresh reply `r`, and waits up to `ms`
-      milliseconds for the answer: `Some` of it, or `None` when none came. An
-      answer that comes late is dropped, and the recipient's work is not
-      cancelled (report §6.6).
+      Sends `request` of a fresh reply to the process at `address`, and waits
+      up to `ms` milliseconds for the answer: `Some` of it, or `None` when
+      none came. An answer that comes late is dropped, and the recipient's
+      work is not cancelled (report §6.6).
 
       ### Examples
 
@@ -387,7 +382,7 @@ values() ->
       """/utf8>>},
      {[answer], "(Reply(a), a) -> Unit with m",
       <<"""
-      Puts `v` in the reply `r`, which consumes it. A second answer to one reply
+      Puts `value` in `reply`, which consumes it. A second answer to one reply
       is dropped (report §6.6).
 
       ### Examples
@@ -418,8 +413,8 @@ values() ->
       """/utf8>>},
      {[monitor], "(Process, (Down) -> m) -> Unit with m",
       <<"""
-      Puts `wrap(d)` in the caller's mailbox when the process `p` ends, or at
-      once, with the reason `Unknown`, if it has ended. Each call gives one
+      Puts `wrap` of a `Down` in the caller's mailbox when `process` ends, or
+      at once, with the reason `Unknown`, if it has ended. Each call gives one
       message (report §6.9). `Process.fromAddress` gives the process behind an
       address, and a process one starts is watched from its start with
       `spawnMonitored`.
@@ -435,8 +430,8 @@ values() ->
       """/utf8>>},
      {[kill], "(Address(a)) -> Unit with m",
       <<"""
-      Ends the process at `a`, which its monitors see as `Killed`. The process
-      may run a little before it stops (report §6.9).
+      Ends the process at `address`, which its monitors see as `Killed`. The
+      process may run a little before it stops (report §6.9).
 
       ### Examples
 
@@ -465,14 +460,14 @@ values() ->
      {['Char', compare], "(Char, Char) -> Ordering", module},
      {[fault], "(String) -> a",
       <<"""
-      Ends the process with the cause given: it has every type, and nothing
+      Ends the process with `cause`: it has every type, and nothing
       catches the fault (report §7.3, §7.4). It is for an invariant broken
       beyond recovery; a failure the caller can handle is an `Optional` or an
       `Either`. Code not written yet is `fault("todo: ...")`.
 
       ### Errors
 
-      `Fault(text)`.
+      `Fault(cause)`.
 
       ### Examples
 
@@ -480,6 +475,25 @@ values() ->
       fn(xs : List(Int)) : Int = match xs { x :: _ -> x | [] -> fault("never empty here") }
       ```
       """/utf8>>}].
+
+%% Report §9.4, §9.5, §11.4: the parameters of the prelude's functions, named
+%% for their roles as the report's §6 names them, which their pages and
+%% `Shift-Tab` show; none for a value that is no function the prelude
+%% documents.
+-spec parameters([atom()]) -> [atom()] | none.
+parameters([self]) -> [];
+parameters([send]) -> [address, message];
+parameters([spawn]) -> [f];
+parameters([spawnMonitored]) -> [f, wrap];
+parameters([via]) -> [target, wrap];
+parameters(['Address', call]) -> [address, request, ms];
+parameters(['Address', callForever]) -> [address, request];
+parameters([answer]) -> [reply, value];
+parameters([restarting]) -> [limit, f];
+parameters([monitor]) -> [process, wrap];
+parameters([kill]) -> [address];
+parameters([fault]) -> [cause];
+parameters(_) -> none.
 
 %% Report §4.2, §9.5, §9.6: the prelude's types that have members, each a
 %% namespace of the prelude beside `Prelude`; a prelude type without
@@ -500,15 +514,29 @@ docs() ->
              || {Name, Arity, Doc} <- builtin_types()]
         ++ [entry({type, Name, length(Params)}, maps:get(Name, Texts), Doc)
             || #type_declaration{name = Name, params = Params, doc = Doc} <- Declarations],
+    Env = ern_typecheck:prelude_env(),
     Values = [entry({function, dotted(QualifiedName), arity(Signature)},
-                    [iolist_to_binary([ern_namespace:text(QualifiedName), " : ",
-                                       Signature])], Doc)
+                    [declaration(QualifiedName, Env)], Doc,
+                    #{params => parameters(QualifiedName)})
               || {QualifiedName, Signature, Doc} <- values(), Doc =/= module],
     {docs_v1, erl_anno:new(0), ernest, <<"text/markdown">>, #{<<"en">> => prelude_doc()},
      #{source => <<"the prelude, report §9"/utf8>>}, Types ++ Values}.
 
 entry(Key, Signature, Doc) ->
-    {Key, erl_anno:new(0), Signature, #{<<"en">> => iolist_to_binary(Doc)}, #{}}.
+    entry(Key, Signature, Doc, #{}).
+
+entry(Key, Signature, Doc, Meta) ->
+    {Key, erl_anno:new(0), Signature, #{<<"en">> => iolist_to_binary(Doc)}, Meta}.
+
+%% Report §11.4: a function's declaration as its page shows it, its
+%% parameters named and its restrictions marked (§11.5).
+declaration(QualifiedName, Env) ->
+    {ok, Scheme} = ern_typecheck:declared_scheme(Env, lists:droplast(QualifiedName),
+                                                 lists:last(QualifiedName)),
+    Params = parameters(QualifiedName),
+    {Head, Marked, Rest} = ern_types:format_call(Scheme, Params, length(Params),
+                                                 ern_typecheck:type_state(Env)),
+    unicode:characters_to_binary([ern_namespace:text(QualifiedName), Head, Marked, Rest]).
 
 %% A built-in type as the report's §9.1 and §9.2 write it.
 type_signature('Address', 1) -> <<"type Address(m)">>;

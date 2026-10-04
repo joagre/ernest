@@ -22,14 +22,29 @@ export fn diagnostic(colour : Markdown.Output, text : String) : String =
 export fn quiet(colour : Markdown.Output, text : String) : String =
     paint(colour, Ansi.Dim, text)
 
-/// A name in a listing or a brief, `name : type`, the name bold.
-export fn named(colour : Markdown.Output, text : String) : String =
-    match String.indexOf(text, " : ") {
-        None -> text
-      | Some(index) ->
-            paint(colour, Ansi.Bold, String.slice(text, 0, index))
-                <> String.slice(text, index, String.size(text) - index)
+/// A name in a listing or a brief, the name bold: `name : type`, a
+/// function's declaration `List.map(list : List(a), ...) : List(b)`, or a
+/// type's `type Down = ...`. The name is the last word before the first
+/// `(`, ` : ` or ` = `, or before a type declaration's end; any other line,
+/// a command's, has no name.
+export fn named(colour : Markdown.Output, text : String) : String = {
+    let found = List.filterMap(["(", " : ", " = "], fn(mark) = String.indexOf(text, mark));
+    let declared =
+        List.any(["type ", "abstract type ", "foreign type "],
+                 fn(keyword) = String.startsWith(text, keyword));
+    let marks = if declared then String.size(text) :: found else found;
+    match List.sort(marks, Int.compare) {
+        [] -> text
+      | end :: _ -> {
+            let before = String.slice(text, 0, end);
+            let name = Optional.withDefault(List.last(String.words(before)), "");
+            let start = end - String.size(name);
+            String.slice(text, 0, start)
+                <> paint(colour, Ansi.Bold, name)
+                <> String.slice(text, end, String.size(text) - end)
+        }
     }
+}
 
 /// The parameter at the cursor in a signature, in the terminal's cyan, which
 /// its theme chooses, so that it reads on a dark screen and a light one.

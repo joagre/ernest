@@ -45,6 +45,20 @@ type_refuses_a_let() ->
                                     " is not one">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
 
+%% report §11.2, §11.5, §4.8: a member declared at the prompt that is no
+%% member shows the error `ern build` shows. A regression test: `fn` before
+%% a type name was read as a lambda, and the prompt showed the expression
+%% parser's `expected (`
+member_declaration_error_test_() ->
+    {timeout, 60, fun member_declaration_error/0}.
+
+member_declaration_error() ->
+    InputFile = scratch_file("ern_member_"),
+    ok = file:write_file(InputFile, "type Pt = Pt(Int)\nfn Pt.push(Pt(a), x : Int) : Pt = Pt(x)\n"),
+    {0, Output} = sh("../bin/ern shell < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"`push` cannot be a member of Pt">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"expected `(`">>)).
+
 %% report §11.2, §8.1, §6.9: with a file the shell is the entry point and
 %% the file's entry point is spawned beside it; the loaded modules are in
 %% scope, by their qualified names; every process that faults is reported
@@ -259,7 +273,7 @@ prelude_shown() ->
     [?assertMatch({_, _}, binary:match(Output, Text))
      || Text <- [<<"type Reason\n">>, <<"spawn : (() -> Unit with n) -> Address(n) with m+">>,
                  <<"Ernest prelude">>, <<"Starts a process on this node that runs">>,
-                 <<"List.size : (List(a!)) -> Int">>]],
+                 <<"List.size(list : List(a!)) : Int">>]],
     ?assertEqual(nomatch, binary:match(Output, <<"type Fs.Entry">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no module Prelude">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"no documentation">>)).
@@ -939,7 +953,7 @@ shift_tab() ->
                  {send, hex("List.map") ++ ShiftTab},
                  {expect, "The function applied to each element, in order."},
                  {send, ShiftTab},                        % again: the page
-                 {expect, "    List.map : (List(a)"},
+                 {expect, "    List.map(list : List(a)"},
                  {send, "03"},
                  {send, hex("List.map([1], ") ++ ShiftTab},
                  {expect, "list : List(a)"},
@@ -956,15 +970,15 @@ shift_tab() ->
                  {send, "03"},
                  {send, "04"}],
                 30, " --size 60x90"),
-    %% the brief under the line: the type, the sentence, the version
-    ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map\r\nList.map : (List(a), (a) -> b with e)"
-                                               " -> List(b) with e\r\n"
+    %% the brief under the line: the declaration, the sentence, the version
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map\r\nList.map(list : List(a),"
+                                               " f : (a) -> b with e) : List(b) with e\r\n"
                                                "The function applied to each element, in order.\r\n"
                                                "Since 0.1.0.">>)),
     %% then the page, under the line in its place, rendered: the heading as
-    %% its text and the type's code block without its fences
+    %% its text and the declaration's code block without its fences
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map\r\nList.map\r\n\r\n"
-                                               "    List.map : (List(a)">>)),
+                                               "    List.map(list : List(a)">>)),
     ?assertEqual(nomatch, binary:match(Bytes, <<"```">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map([1], \r\n"
                                                "List.map(list : List(a), f : (a) -> b with e)"
@@ -1050,7 +1064,9 @@ command_argument() ->
     ?assertEqual(nomatch, binary:match(Bytes, <<"> :output     ">>)).
 
 %% report §11.2: the parameter at the cursor is written in the terminal's
-%% cyan, and the colour ends where the parameter does
+%% cyan, and the colour ends where the parameter does; a brief's name is
+%% bold, a function's before its parameters and a type's after its keyword.
+%% The brief's half is a regression test: it bolded up to the first ` : `
 shift_tab_colour_test_() ->
     {timeout, 60, fun shift_tab_colour/0}.
 
@@ -1082,6 +1098,12 @@ shift_tab_colour() ->
                {send, hex("Point(x = 1, yval = ") ++ "1b5b5a"},
                {expect, ": Point"},
                {send, "03"},
+               {send, hex("List.map") ++ "1b5b5a"},
+               {expect, "in order."},
+               {send, "03"},
+               {send, hex("Down") ++ "1b5b5a"},
+               {expect, "Since"},
+               {send, "03"},
                {send, "04"}],
               30),
     ?assertMatch({_, _}, binary:match(Raw, <<"list : List(a), \e[36mf : (a) -> b with e\e[39m)">>)),
@@ -1092,7 +1114,9 @@ shift_tab_colour() ->
                  binary:match(Raw, <<"List.foldLeft(\e[36mlist : List(a)\e[39m, acc : b">>)),
     ?assertMatch({_, _},
                  binary:match(Raw, <<"List.foldLeft(list : List(a), \e[36macc : b\e[39m">>)),
-    ?assertMatch({_, _}, binary:match(Raw, <<"Point(x : Int, \e[36myval : Int\e[39m) : Point">>)).
+    ?assertMatch({_, _}, binary:match(Raw, <<"Point(x : Int, \e[36myval : Int\e[39m) : Point">>)),
+    ?assertMatch({_, _}, binary:match(Raw, <<"\e[1mList.map\e[22m(list : List(a), f :">>)),
+    ?assertMatch({_, _}, binary:match(Raw, <<"type \e[1mDown\e[22m = Down(">>)).
 
 %% report §11.2: `Tab` indents only where spaces alone stand before the
 %% cursor on its row; after `(`, with nothing to complete, it lists what may
@@ -1941,7 +1965,8 @@ prelude_doc() ->
     InputFile = scratch_file("ern_pdoc_"),
     ok = file:write_file(InputFile, ":doc monitor\n:doc Down\n:doc restarting\n:doc Int.compare\n"),
     {0, Output} = sh("../bin/ern shell < " ++ InputFile),
-    ?assertMatch({_, _}, binary:match(Output, <<"> monitor\n\n    monitor : ">>)),
+    ?assertMatch({_, _},
+                 binary:match(Output, <<"> monitor\n\n    monitor(process : Process, wrap : ">>)),
     ?assertMatch({_, _},
                  binary:match(Output, <<"type Down = Down(process : Process, reason : Reason">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> restarting\n">>)),
@@ -1972,8 +1997,9 @@ one_name_type() ->
 %% documentation. A constructor's is its type's, the prelude's, the
 %% session's, and a loaded module's alike; a module's is the head of its
 %% page; a name the session declares is shown as the session writes it,
-%% never under the input's namespace; and a `let` at the prompt has its
-%% name and type. A regression test for findings of the session of real
+%% never under the input's namespace, a function by its declaration as a
+%% module's page shows it; and a `let` at the prompt has its name and
+%% type. A regression test for findings of the session of real
 %% use: `:doc Accept` and `:doc Some` answered no documentation, a session
 %% declaration was headed `Input1.sz`, and `:doc` found nothing in a
 %% module `:load` had compiled, which is loaded from memory
@@ -1989,7 +2015,7 @@ doc_every_name() ->
     ok = file:write_file(filename:join([SourceRoot, "net", "http.ern"]),
                          "export fn get() : Int = 1\n"),
     InputFile = filename:join(SourceRoot, "session.in"),
-    ok = file:write_file(InputFile, ["let zeta = 1\n", "fn sz() : Int = 1\n",
+    ok = file:write_file(InputFile, ["let zeta = 1\n", "fn sz(count : Int) : Int = count\n",
                                      "type Tree = Leaf | Node(left : Tree, right : Tree)\n",
                                      ":doc zeta\n", ":doc sz\n", ":doc Leaf\n",
                                      ":doc Tcp.ListenerMsg\n",
@@ -1999,7 +2025,7 @@ doc_every_name() ->
     ?assertEqual(nomatch, binary:match(Output, <<"no documentation">>)),
     ?assertEqual(nomatch, binary:match(Output, <<"Input">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> zeta\n\n    zeta : Int\n">>)),
-    ?assertMatch({_, _}, binary:match(Output, <<"> sz\n\n    sz : () -> Int\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"> sz\n\n    sz(count : Int) : Int\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> Tree\n\n    type Tree = Leaf">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> Tcp.ListenerMsg\n">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"> Optional\n">>)),
@@ -2166,14 +2192,15 @@ front_end_test_() ->
 %% report §11.2, Appendix E.0 rule 6: `Shift-Tab`'s two answers from the
 %% front end. Inside a call, the callee's signature with its parameters as
 %% declared, in three parts around the one at the cursor, which the shell
-%% colours; the prelude's too, without
-%% names it does not declare; nothing outside a call. On a name, its page
+%% colours; the prelude's too, its parameters named for their roles;
+%% nothing outside a call. On a name, its page
 %% with the version it appeared in, its own or its module's
 signature() ->
     ?assertEqual({'Some', {<<"List.map(list : List(a), ">>, <<"f : (a) -> b with e">>,
                            <<") : List(b) with e">>}},
                  ern_shell:signature(<<"List.map([1], ">>)),
-    ?assertEqual({'Some', {<<"send(Address(a), ">>, <<"a">>, <<") -> Unit with m+">>}},
+    ?assertEqual({'Some', {<<"send(address : Address(a), ">>, <<"message : a">>,
+                           <<") : Unit with m+">>}},
                  ern_shell:signature(<<"send(a, ">>)),
     ?assertEqual('None', ern_shell:signature(<<"1 + ">>)),
     %% a callee that is no function has no signature; a regression test,
