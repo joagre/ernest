@@ -259,7 +259,7 @@ shape(File, Component, Advice) ->
                 true -> fail(Named ++ " must be lowercase" ++ Advice);
                 false -> fail(Named ++ " must be words joined by `_`, each a lowercase letter,"
                               " then lowercase letters and digits; a module of several words"
-                              " is `ordered_set.ern` or a directory" ++ Advice)
+                              " is `ordered_set.ern`" ++ Advice)
             end
     end.
 
