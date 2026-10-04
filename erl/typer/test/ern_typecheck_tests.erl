@@ -124,6 +124,25 @@ effect_only_type_argument_test() ->
                          "fn run(h : V(e), x : Int) : Unit with e = h.f(x)\n"
                          "fn usePure() : Unit = run(V(f = fn(x) = Unit, v = 1), 1)\n")).
 
+%% report §3.9, §6.9, §9.5: `restarting` is process-only, though its effect
+%% is its function's, since a restart empties the process's mailbox and
+%% ends the calls waiting on it: the function it returns is never pure,
+%% and a process's body takes it as before. A regression test of the full
+%% review's K2 (2026-10-04): a pure function restarted its process
+restarting_is_process_only_test() ->
+    Limit = "RestartLimit(restarts = 1, within = 1000)",
+    ?assertEqual("run needs a process, and tryIt is pure",
+                 refusal("fn tryIt(n : Int) : Int = {\n"
+                         "    let run = restarting(" ++ Limit ++ ", fn() = Unit);\n"
+                         "    run();\n    n\n}\n")),
+    ?assertEqual("the callee needs a process, and tryIt is pure",
+                 refusal("fn tryIt() : Unit = restarting(" ++ Limit ++ ", fn() = Unit)()\n")),
+    ?assertEqual(ok, ok("fn serve() : Unit with Never =\n"
+                        "    restarting(" ++ Limit ++ ", fn() : Unit with Never = Unit)()\n"
+                        "fn start() : Unit with m = {\n"
+                        "    let _ = spawn(restarting(" ++ Limit ++ ", fn() = Unit));\n"
+                        "    Unit\n}\n")).
+
 %% report §3.9: a pure function stands where one with a mailbox type is
 %% expected, whether it is named, declared, annotated, a parameter, a
 %% field, or a call's result, and in either order beside one that sends;

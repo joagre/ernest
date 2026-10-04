@@ -278,7 +278,7 @@ declared_types() ->
 -spec process_only() -> [[atom()]].
 process_only() ->
     [[send], [spawn], [spawnMonitored], ['Address', call], ['Address', callForever], [answer],
-     [monitor], [kill]].
+     [monitor], [kill], [restarting]].
 
 %% Qualified name, type text, and documentation, or `module` for an
 %% operation its type's module documents (report §9).

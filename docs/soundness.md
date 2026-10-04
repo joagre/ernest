@@ -82,7 +82,7 @@ Address.call : ∀m a n. (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with 
 answer       : ∀a m. (Reply(a), a) -> Unit with m
 ```
 
-The effect variable of `send`, `spawn`, `Address.call` and `answer`, and of every other function of §9.4 and §9.5 whose effect is its own, is process-only.
+The effect variable of `send`, `spawn`, `Address.call` and `answer`, of every other function of §9.4 and §9.5 whose effect is its own, and of `restarting`, is process-only.
 
 **Steps.** Within a process an expression steps as in any strict language, left to right (§5.1): a call of a closure puts the arguments for its parameters, a `match` takes the first clause whose pattern matches and whose guard holds, a block evaluates its statements in order. The steps that reach outside the expression are these.
 
@@ -152,7 +152,7 @@ The rule (stands) of section 3 is §3.9's: an expression whose type is a functio
 
 ### 6.3 Process-only
 
-An effect variable that stands in no value position may be instantiated with `pure` (§3.9). A function that calls `send` or `spawn`, or waits in a `receive` that binds nothing of its mailbox's type, has such a variable and must not be taken for pure, so the variable carries the process-only restriction and `pure` does not instantiate it. Claim 2 rests on this, since the language runs some functions outside the process they were written for. The function of `via` runs in the sender or on delivery, in no process of the target's (§6.5). A wrap is applied by the runtime (§6.9). A guard is evaluated while a message is selected (§6.3). Each is typed pure. Were a function that receives accepted there, its `receive` would read one process's mailbox at another's type.
+An effect variable that stands in no value position may be instantiated with `pure` (§3.9). A function that calls `send` or `spawn`, or waits in a `receive` that binds nothing of its mailbox's type, has such a variable and must not be taken for pure, so the variable carries the process-only restriction and `pure` does not instantiate it. Claim 2 rests on this, since the language runs some functions outside the process they were written for. The function of `via` runs in the sender or on delivery, in no process of the target's (§6.5). A wrap is applied by the runtime (§6.9). A guard is evaluated while a message is selected (§6.3). Each is typed pure. Were a function that receives accepted there, its `receive` would read one process's mailbox at another's type. `restarting` carries the restriction though its effect is its function's: a restart empties the process's mailbox and ends every call waiting on it (§6.9), so the function it returns acts on the process whatever `f` does. Were it taken for pure when `f` is, a pure function would empty a mailbox, which claim 3 forbids.
 
 ### 6.4 An initializer runs at `Never`
 
