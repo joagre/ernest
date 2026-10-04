@@ -110,13 +110,13 @@ install() {
              "$root/share/doc" "$root/share/emacs/site-lisp"; do
         writable "$d"
     done
+    if ! is_ours "$root/bin/ern" && { [ -e "$root/bin/ern" ] || [ -L "$root/bin/ern" ]; }; then
+        fail "$root/bin/ern is there already and is not Ernest's"
+    fi
     if [ -f "$tree/installed" ]; then
         uninstall
     elif [ -e "$tree" ]; then
         fail "$tree is there already and is no installation of Ernest"
-    fi
-    if [ -e "$root/bin/ern" ] || [ -L "$root/bin/ern" ]; then
-        fail "$root/bin/ern is there already and is not Ernest's"
     fi
     mkdir -p "$root/lib"
     cp -R "$from/lib/ernest" "$tree"
@@ -131,8 +131,14 @@ install() {
     done < "$tree/installed"
 }
 
-# The files the tree lists, then the directories it lists where they are
-# empty, then the tree.
+# Whether the path is the link an installation makes, to the launcher in
+# its tree.
+is_ours() {
+    [ -L "$1" ] && [ "$(readlink "$1")" = ../lib/ernest/bin/ern ]
+}
+
+# The files the tree lists, `bin/ern` where it is still the installation's
+# link, then the directories it lists where they are empty, then the tree.
 uninstall() {
     [ -f "$tree/installed" ] || fail "no installation of Ernest in $root"
     writable "$root/lib"
@@ -142,6 +148,7 @@ uninstall() {
     while read -r f; do
         case $f in
             */) ;;
+            bin/ern) if is_ours "$root/bin/ern"; then rm -f "$root/bin/ern"; fi ;;
             *) rm -f "$root/$f" ;;
         esac
     done < "$tree/installed"

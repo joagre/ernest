@@ -49,7 +49,7 @@ no_bool_choice_test() ->
                    lists:member({tcon, ['Bool'], []}, ParamTypes)],
     ?assertEqual([], Choosing).
 
-%% report §9, Appendix E.0 rule 6: every prelude name is documented, a type
+%% report §9, Appendix E.0 shape rule 6: every prelude name is documented, a type
 %% and a value beside its entry, and an operation marked `module` by its
 %% type's module, whose documentation chunk has the entry
 prelude_documented_test() ->
@@ -206,8 +206,8 @@ set_and_map_words_test() ->
 %% as Appendix E's are the standard library's
 libraries_test() ->
     %% Appendix G is the report's last, so its section runs to the report's
-    %% end, a heading of Appendix H never being met
-    Sections = libraries(section("## Appendix G.", "## Appendix H")),
+    %% end
+    Sections = libraries(section("## Appendix G.", none)),
     Dirs = [filename:basename(Dir) || Dir <- filelib:wildcard("../../../libs/*"),
                                       filelib:is_dir(Dir)],
     ?assertEqual(lists:sort(Dirs), lists:sort([Library || {Library, _, _} <- Sections])),
@@ -372,12 +372,12 @@ same(Report, Code) ->
 %%
 
 %% The lines from the first line starting with From up to the next line
-%% starting with To.
+%% starting with To, or to the end with To none.
 section(From, To) ->
     Contents = iolist_to_binary([element(2, file:read_file(File)) || File <- ?REPORT]),
     Lines = string:split(unicode:characters_to_list(Contents), "\n", all),
     Rest = lists:dropwhile(fun(Line) -> not lists:prefix(From, Line) end, Lines),
-    lists:takewhile(fun(Line) -> not lists:prefix(To, Line) end, tl(Rest)).
+    lists:takewhile(fun(Line) -> To =:= none orelse not lists:prefix(To, Line) end, tl(Rest)).
 
 %% The lines inside ``` fences.
 code_lines(Lines) -> code_lines(Lines, false).

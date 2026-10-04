@@ -1174,7 +1174,7 @@ documentation(Text) ->
             'None'
     end.
 
-%% Appendix E.0 rule 6, report §11.2: a declaration without a `since` of
+%% Appendix E.0 shape rule 6, report §11.2: a declaration without a `since` of
 %% its own has its module's, which the brief shows after the page; its own
 %% the page shows. Whether it has one is its documentation entry's to say.
 module_since(Session, Segments) ->
@@ -1804,7 +1804,7 @@ with_needed(Session, CompiledModules, Answer) ->
 %% against another interface of a module it uses, or of the standard
 %% library, than the session holds; none, or the refusal.
 refused_compiled(Session, All) ->
-    StdlibHash = ern_build:stdlib_hash("."),
+    StdlibHash = ern_build:stdlib_hash(),
     Interfaces = [Interface || {_, Beam, _} <- All,
                                {ok, #{interface := Interface}} <- [ern_interface:read(Beam)]]
         ++ Session#session.interfaces ++ ern_prelude:stdlib_interfaces(),

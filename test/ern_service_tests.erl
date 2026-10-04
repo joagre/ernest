@@ -132,8 +132,9 @@ journal(Unit) ->
     binary:split(Output, <<"\n">>, [global]).
 
 %%
-%% launchd. Written with the unit and not yet run: its checks wait for a
-%% Mac (plan, MVP 2.99b's item 10).
+%% launchd. Written with the unit and not yet run: the release of MVP
+%% 2.99c runs these checks on a Mac, or its notes say that the agent has not
+%% been checked (plan, MVP 2.99c's item 7).
 %%
 
 %% report §8.6, §11.8, §11.2: under a launchd agent the program starts; its

@@ -463,9 +463,8 @@ printed(Code) ->
 %% A fresh directory: the counter restarts with each run, so one left by an
 %% earlier run is removed first.
 tmp() ->
-    Unique = integer_to_list(erlang:unique_integer([positive])),
-    Dir = filename:join("/tmp", "ern_guide_" ++ Unique),
-    _ = file:del_dir_r(Dir),
+    Unique = os:getpid() ++ "_" ++ integer_to_list(erlang:unique_integer([positive])),
+    Dir = filename:join(ern_pty:run_dir(), "ern_guide_" ++ Unique),
     ok = filelib:ensure_path(Dir),
     Dir.
 

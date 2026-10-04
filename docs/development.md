@@ -51,13 +51,14 @@ erl/               the toolchain, as Erlang applications: lexer, parser, format,
 test/              what spans applications: the integration, document, style, guide,
                    grammar, generated-program, shell and terminal tests, the harnesses
                    of the loads, the benchmark, the service manager's checks and the
-                   pseudo-terminal, ern_grammar.erl, which reads Appendix A, and the
-                   catalogue of diagnostics; target/, the hand-written target modules;
-                   expected/ and golden/, what the MVP 1 examples, services,
-                   examples/modules and docs/operations print, repl's session among
-                   them, and the Erlang they compile to; and bench/, input/, layout/,
-                   load/, service/, session/, stdin/ and terminal/, the programs and
-                   inputs tests run
+                   pseudo-terminal, ern_grammar.erl, which reads Appendix A,
+                   ern_repository.erl, which the document and style tests read the
+                   repository through, and the catalogue of diagnostics; target/, the
+                   hand-written target modules; expected/ and golden/, what the MVP 1
+                   examples, services, examples/modules and docs/operations print,
+                   repl's session among them, and the Erlang they compile to; and
+                   bench/, input/, layout/, load/, service/, session/, stdin/ and
+                   terminal/, the programs and inputs tests run
 bin/               ern, the launcher, a POSIX sh script
 stdlib/            the standard library as Ernest source
 shell/             the shell as Ernest source; its README.md guides a reader

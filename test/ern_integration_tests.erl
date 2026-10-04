@@ -1,7 +1,10 @@
-%% Plan, MVP 1: the programs compiled in this node as `ern build` compiles
-%% them, and run with bin/ern as a user would, output compared as a multiset of lines with
+%% The toolchain as a user runs it, through bin/ern: the example programs
+%% built and run, their output compared as a multiset of lines with
 %% expected/<name>.out, since prints from different processes interleave
-%% by scheduling. Run from this directory by its Makefile.
+%% by scheduling; the launcher, the signals and the streams; `Os`; the
+%% manual pages against §11; the installation and the release archive; the
+%% libraries' tests; and docs/operations/'s programs. Run from this
+%% directory by its Makefile.
 -module(ern_integration_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -235,9 +238,9 @@ out_of_memory() ->
 %% interrupt ignored, and interrupted once the program shows by a file that
 %% it runs. An interrupt that comes while the host starts a port, as it
 %% does twice before `main`, leaves a line of OTP's helper on standard
-%% error, a gap whose fix and test wait for MVP 2.99b's item 5 (plan,
-%% *Standing gaps*). Written after the code, with the sentence of §11.2
-%% that states the status.
+%% error, a gap the plan's *Standing gaps* names, a signal that ends the
+%% host while it starts a port, and is not covered here. Written after the
+%% code, with the sentence of §11.2 that states the status.
 interrupt_test_() ->
     {timeout, 60, fun interrupt/0}.
 
@@ -421,6 +424,8 @@ installation_test_() ->
 %% is a regression test too, written on 2026-10-04 after the report's
 %% directory was found left behind, and the documents' with it.
 install() ->
+    {ok, VersionText} = file:read_file("../VERSION"),
+    Version = string:trim(VersionText),
     Base = filename:absname("build/install"),
     ok = del(Base),
     ok = filelib:ensure_path(Base ++ "/work"),
@@ -429,13 +434,14 @@ install() ->
     ?assertEqual([], debug_information(Base ++ "/a")),
     Documents = Base ++ "/a/share/doc/ernest/",
     {ok, Installed} = file:read_file(Documents ++ "README.md"),
-    ?assertMatch({_, _}, binary:match(Installed, <<"</picture>\n\n# Ernest 0.2.0\n">>)),
+    ?assertMatch({_, _}, binary:match(Installed, <<"</picture>\n\n# Ernest ", Version/binary,
+                                                    "\n">>)),
     ?assertEqual([], dead_links(Documents)),
     ?assert(links_to(Documents ++ "ernest_guide.md", "/blob/main/examples/repl.ern")),
     ok = file:rename(Base ++ "/a", Base ++ "/b"),
     Ern = Base ++ "/b/bin/ern",
     InWork = fun(Command) -> sh(Command, [{cd, Base ++ "/work"}]) end,
-    ?assertEqual({0, <<"ern 0.2.0\n">>}, InWork(Ern ++ " --version")),
+    ?assertEqual({0, <<"ern ", Version/binary, "\n">>}, InWork(Ern ++ " --version")),
     ok = file:write_file(Base ++ "/work/hi.ern", runs_echo()),
     {0, _} = InWork(Ern ++ " build hi.ern"),
     ?assertEqual({0, <<"hi\n">>}, InWork(Ern ++ " run hi.erc")),
@@ -462,10 +468,24 @@ install() ->
     ?assertMatch({2, _}, sh("make -s -C .. uninstall PREFIX=" ++ Base ++ "/b")),
     Stage = Base ++ "/stage",
     {0, _} = sh("make -s -C .. install DESTDIR=" ++ Stage ++ " PREFIX=/opt/ernest"),
-    ?assertEqual({0, <<"ern 0.2.0\n">>}, InWork(Stage ++ "/opt/ernest/bin/ern --version")),
+    ?assertEqual({0, <<"ern ", Version/binary, "\n">>},
+                 InWork(Stage ++ "/opt/ernest/bin/ern --version")),
     {0, _} = sh("make -s -C .. uninstall DESTDIR=" ++ Stage ++ " PREFIX=/opt/ernest"),
     ?assertEqual([],
                  [File || File <- filelib:wildcard(Stage ++ "/**/*"), not filelib:is_dir(File)]),
+    %% a `bin/ern` that is no longer the installation's link is a person's
+    %% own: install refuses it before it touches the installation there,
+    %% and uninstall leaves it, a regression test of both, which removed it
+    Own = Base ++ "/c",
+    {0, _} = sh("make -s -C .. install PREFIX=" ++ Own),
+    ok = file:delete(Own ++ "/bin/ern"),
+    ok = file:write_file(Own ++ "/bin/ern", <<"mine\n">>),
+    {2, NotOurs} = sh("make -s -C .. install PREFIX=" ++ Own),
+    ?assertMatch({_, _}, binary:match(NotOurs, <<"bin/ern is there already and is not Ernest's">>)),
+    ?assert(filelib:is_regular(Own ++ "/lib/ernest/installed")),
+    {0, _} = sh("make -s -C .. uninstall PREFIX=" ++ Own),
+    ?assertEqual({ok, <<"mine\n">>}, file:read_file(Own ++ "/bin/ern")),
+    ?assertNot(filelib:is_dir(Own ++ "/lib/ernest")),
     case sh("id -u") of
         {0, <<"0\n">>} ->
             io:format(user, "  run as root; a prefix that cannot be written was not tried.~n", []);
@@ -791,6 +811,20 @@ make_dir(Dir) ->
         {error, eexist} -> ok;
         Other -> Other
     end.
+
+%% report §11, docs/install.md: the launcher needs `iconv` to read the
+%% working directory's name, and names it where the path has none. A
+%% regression test: every working directory was refused as not UTF-8
+launcher_names_a_missing_iconv_test() ->
+    Bin = filename:absname("build/no_iconv"),
+    _ = file:del_dir_r(Bin),
+    ok = filelib:ensure_path(Bin),
+    [ok = file:make_symlink(os:find_executable(Tool), filename:join(Bin, Tool))
+     || Tool <- ["erl", "dirname", "readlink"]],
+    ?assertEqual({1, <<"ern: iconv, which tells whether the working directory's name is UTF-8,"
+                       " is not on the path\n">>},
+                 sh("env PATH=" ++ Bin ++ " " ++ filename:absname("../bin/ern") ++ " --version")),
+    ok = file:del_dir_r(Bin).
 
 %% report §8.2, §8.6, §11.2: a run whose standard output has lost its
 %% reader ends at once, with status 141, as a shell reports a broken pipe,

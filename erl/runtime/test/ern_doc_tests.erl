@@ -1,4 +1,4 @@
-%% The documentation rules of report §2.2 and Appendix E.0 rule 6, checked
+%% The documentation rules of report §2.2 and Appendix E.0 shape rule 6, checked
 %% over every standard library module written in Ernest, every library
 %% under libs/, which keeps the standard library's discipline (plan, MVP
 %% 2.7), and the fictive module that docs/module_doc_template.md shows.
@@ -18,11 +18,11 @@ modules() ->
         || File <- filelib:wildcard(filename:join(?ROOT, "stdlib/*.ern"))
                ++ filelib:wildcard(filename:join(?ROOT, "libs/*/*.ern"))]].
 
-%% Appendix E.0 rule 6: the standard library is checked, not only the template
+%% Appendix E.0 shape rule 6: the standard library is checked, not only the template
 stdlib_present_test() ->
     ?assert(length(modules()) >= 2).
 
-%% report §2.2, Appendix E.0 rule 6: every fenced Ernest block in a module's
+%% report §2.2, Appendix E.0 shape rule 6: every fenced Ernest block in a module's
 %% doc blocks type-checks against the module as the body of a lambda, and
 %% one that ends in `// => v` is run and its Io.show rendering compared
 %% with v, so an example cannot rot
@@ -38,7 +38,7 @@ examples(Namespace, File) ->
     {ok, Declarations} = ern_parser:parse_string(Source),
     check_examples(Namespace, Source, docs(Declarations, outside, [])).
 
-%% report §9, Appendix E.0 rule 6: the prelude's page is documented as a
+%% report §9, Appendix E.0 shape rule 6: the prelude's page is documented as a
 %% module's is, so its examples type-check and those with `// => v` run,
 %% and every function it documents is called by one of them
 prelude_examples_test_() ->
@@ -59,7 +59,7 @@ prelude_docs() ->
     {docs_v1, _, _, _, #{<<"en">> := ModuleDoc}, _, Entries} = ern_prelude:docs(),
     [ModuleDoc | [Doc || {_, _, _, #{<<"en">> := Doc}, _} <- Entries]].
 
-%% Appendix E.0 rule 6: each example type-checks where a programmer writes
+%% Appendix E.0 shape rule 6: each example type-checks where a programmer writes
 %% it, in a module of its own that uses the documented one, so that a name
 %% the module keeps private, or writes unqualified, is refused; the example
 %% of a declaration the module keeps private speaks to the module's own
@@ -85,7 +85,7 @@ check_examples(Namespace, Source, Docs) ->
                                 end,
                       ?assertMatch({{ok, _, _, _}, _}, {Checked, {Namespace, Number, Body}})
                   end, lists:zip(Numbered, [Where || {_, Where} <- Blocks])),
-    %% Appendix E.0 rule 6, report §4.2: an example of an exported
+    %% Appendix E.0 shape rule 6, report §4.2: an example of an exported
     %% declaration runs in a module of its own that uses the documented
     %% one, as a programmer writes it there, qualified; one of a private
     %% declaration runs inside the module, which names its own plain
@@ -102,7 +102,7 @@ check_examples(Namespace, Source, Docs) ->
     {module, ErlangModule} = code:load_binary(ErlangModule, "doc examples", Beam),
     ExampleModule = example_module(Outside, [Interface | Libraries]),
     try
-        %% Appendix E.0 rule 6: each example runs on its own, and the value
+        %% Appendix E.0 shape rule 6: each example runs on its own, and the value
         %% it ends with is the last line it prints; what it prints itself,
         %% as an example of `foreach` does, comes before and is not compared
         lists:foreach(fun({Number, _, Value}) ->
@@ -144,7 +144,7 @@ example_module(Examples, Interfaces) ->
     ExampleModule.
 
 run_example(ErlangModule, Initialized, Number, Expected) ->
-    %% Appendix E.0 rule 6: an example may touch the file system, so each
+    %% Appendix E.0 shape rule 6: an example may touch the file system, so each
     %% runs in a directory of its own, removed afterwards
     {ok, Cwd} = file:get_cwd(),
     Dir = filename:join(["/tmp", "ern_doc_" ++ os:getpid() ++ "_"
@@ -264,7 +264,7 @@ split_result(Block) ->
         _ -> {Block, none}
     end.
 
-%% Appendix E.0 rule 6: the module's doc block ends with `since v`; a
+%% Appendix E.0 shape rule 6: the module's doc block ends with `since v`; a
 %% declaration may state its own; every one is no newer than VERSION
 doc_since_test_() ->
     [{atom_to_list(hd(Namespace)), fun() -> since(File) end} || {Namespace, File} <- modules()].
@@ -290,7 +290,7 @@ version(Text) ->
     Trimmed = string:trim(unicode:characters_to_list(Text)),
     [list_to_integer(Part) || Part <- string:split(Trimmed, ".", all)].
 
-%% Appendix E.0 rule 6: every exported declaration has a doc block
+%% Appendix E.0 shape rule 6: every exported declaration has a doc block
 doc_exported_documented_test_() ->
     [{atom_to_list(hd(Namespace)), fun() ->
                                        documented(File)
@@ -303,7 +303,7 @@ documented(File) ->
                                                         exported_declaration(Declaration) =:= true,
                                                         doc_of(Declaration) =:= undefined]).
 
-%% Appendix E.0 rule 6: every exported function is called by an example on
+%% Appendix E.0 shape rule 6: every exported function is called by an example on
 %% the page, the module's or its own; an operator member, used infix, is
 %% not a call and is not looked for
 doc_coverage_test_() ->
@@ -335,7 +335,7 @@ is_alpha(Name) ->
     [First | _] = atom_to_list(Name),
     First >= $a andalso First =< $z.
 
-%% Appendix E.0 rule 6: every backticked name under `See also` is a
+%% Appendix E.0 shape rule 6: every backticked name under `See also` is a
 %% declaration of the module, a prelude or standard library namespace or
 %% value, or a prelude type
 doc_see_also_test_() ->

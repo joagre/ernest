@@ -97,7 +97,7 @@ recognizer_accepts_derived_programs_test_() ->
                        Recognizer = recognizer(ern_grammar:rules()),
                        {Programs, _} = programs(Grammar),
                        Refused = [failure(Seed, Number, text(Tokens), refused)
-                                  || {Number, Tokens} <- lists:sublist(Programs, 200),
+                                  || {Number, Tokens} <- Programs,
                                      not recognized(Tokens, Recognizer)],
                        ?assertEqual([], first(Refused))
                    end}.
@@ -196,7 +196,7 @@ programs(Grammar) ->
     {Programs, Coverage} =
         lists:mapfoldl(fun(Number, Coverage) ->
                            Budget = 2 + Number * 100 div ?PROGRAMS,
-                           Derivation = derive({nt, 'Program'}, root, Grammar,
+                           Derivation = derive({nonterminal, 'Program'}, root, Grammar,
                                                #derivation{budget = Budget,
                                                            coverage = Coverage}),
                            {{Number, lists:reverse(Derivation#derivation.tokens)},
@@ -213,7 +213,7 @@ steered([Choice | Rest], Number, Grammar, Coverage, Acc) ->
         true ->
             steered(Rest, Number, Grammar, Coverage, Acc);
         false ->
-            Derivation = derive({nt, 'Program'}, root, Grammar,
+            Derivation = derive({nonterminal, 'Program'}, root, Grammar,
                                 #derivation{budget = 0, coverage = Coverage, target = Choice,
                                             distances = distances(Choice, Grammar)}),
             steered(Rest, Number + 1, Grammar, Derivation#derivation.coverage,
@@ -222,11 +222,11 @@ steered([Choice | Rest], Number, Grammar, Coverage, Acc) ->
 
 %% An expression derived at the choice point Point, a rule's name and the
 %% path to the expression in its tree.
-derive({t, Terminal}, _, Grammar, Derivation) ->
+derive({terminal, Terminal}, _, Grammar, Derivation) ->
     emit(token(Terminal, Grammar), Derivation);
-derive({nt, Name}, _, Grammar, Derivation) ->
+derive({nonterminal, Name}, _, Grammar, Derivation) ->
     derive(maps:get(Name, Grammar#grammar.rules), {Name, []}, Grammar, Derivation);
-derive({seq, Items}, Point, Grammar, Derivation) ->
+derive({sequence, Items}, Point, Grammar, Derivation) ->
     Steered = nearest(Items, Point, Derivation),
     lists:foldl(fun({Index, Item}, Acc) when Index =:= Steered ->
                         derive(Item, inner(Point, Index), Grammar, Acc);
@@ -235,25 +235,26 @@ derive({seq, Items}, Point, Grammar, Derivation) ->
                                          Acc#derivation{target = undefined}),
                         Derived#derivation{target = Target}
                 end, Derivation, lists:enumerate(Items));
-derive({alt, Branches}, Point, Grammar, Derivation) ->
+derive({alternatives, Branches}, Point, Grammar, Derivation) ->
     Options = [{Index, length_of(Branch, Grammar), Branch}
                || {Index, Branch} <- lists:enumerate(Branches)],
     Index = chosen(Point, Options, Derivation),
     derive(lists:nth(Index, Branches), inner(Point, Index), Grammar,
            covered(Point, Index, Derivation));
-derive({opt, Expr}, Point, Grammar, Derivation) ->
-    case chosen(Point, [{0, 0, none}, {1, length_of(Expr, Grammar), Expr}], Derivation) of
+derive({optional, Expression}, Point, Grammar, Derivation) ->
+    Options = [{0, 0, none}, {1, length_of(Expression, Grammar), Expression}],
+    case chosen(Point, Options, Derivation) of
         0 -> covered(Point, 0, Derivation);
-        1 -> derive(Expr, inner(Point, 1), Grammar, covered(Point, 1, Derivation))
+        1 -> derive(Expression, inner(Point, 1), Grammar, covered(Point, 1, Derivation))
     end;
-derive({rep, Expr}, Point, Grammar, Derivation) ->
-    Length = length_of(Expr, Grammar),
-    Times = case chosen(Point, [{0, 0, none}, {1, Length, Expr}, {2, 2 * Length, Expr}],
+derive({repetition, Expression}, Point, Grammar, Derivation) ->
+    Length = length_of(Expression, Grammar),
+    Times = case chosen(Point, [{0, 0, none}, {1, Length, Expression}, {2, 2 * Length, Expression}],
                         Derivation) of
                 2 -> 1 + rand:uniform(2);
                 Chosen -> Chosen
             end,
-    lists:foldl(fun(_, Acc) -> derive(Expr, inner(Point, 1), Grammar, Acc) end,
+    lists:foldl(fun(_, Acc) -> derive(Expression, inner(Point, 1), Grammar, Acc) end,
                 covered(Point, min(Times, 2), Derivation), lists:seq(1, Times)).
 
 %% The root of a rule's tree is named for the rule when the rule is
@@ -302,10 +303,10 @@ steering(_, _, #derivation{target = undefined}) ->
 steering(Point, _, #derivation{target = {Point, Option}}) ->
     Option;
 steering(Point, Options, #derivation{target = Target, distances = Distances}) ->
-    Reaching = [{Distance, Option} || {Option, _, Expr} <- Options, Expr =/= none,
-                                      Distance <- [distance(Expr, inner(Point, Option), Target,
-                                                            Distances)],
-                                      Distance =/= infinity],
+    Reaching = [{Distance, Option}
+                || {Option, _, Expression} <- Options, Expression =/= none,
+                   Distance <- [distance(Expression, inner(Point, Option), Target, Distances)],
+                   Distance =/= infinity],
     case Reaching of
         [] -> none;
         _ -> element(2, lists:min(Reaching))
@@ -329,35 +330,31 @@ nearest(Items, Point, #derivation{target = Target, distances = Distances}) ->
 %% How many rules an expression at Point is from the target's point: none
 %% where the point lies within it, and else one more than its nearest
 %% nonterminal is.
-distance(Expr, {Rule, Path}, {{TargetRule, TargetPath}, _}, Distances) ->
+distance(Expression, {Rule, Path}, {{TargetRule, TargetPath}, _}, Distances) ->
     case Rule =:= TargetRule andalso lists:suffix(Path, TargetPath) of
         true -> 0;
         false -> lists:min([infinity | [further(maps:get(Name, Distances))
-                                        || Name <- nonterminals(Expr)]])
+                                        || Name <- ern_grammar:nonterminals(Expression)]])
     end.
 
 %% How many rules each nonterminal is from the target's rule, to their
 %% fixed point; `infinity` where none leads there.
 distances({{TargetRule, _}, _}, Grammar) ->
     Rules = maps:to_list(Grammar#grammar.rules),
-    Distance = fun(Name, Expr, Distances) when Name =/= TargetRule ->
+    Distance = fun(Name, Expression, Distances) when Name =/= TargetRule ->
                        lists:min([infinity | [further(maps:get(Inner, Distances))
-                                              || Inner <- nonterminals(Expr)]]);
+                                              || Inner <- ern_grammar:nonterminals(Expression)]]);
                   (_, _, _) ->
                        0
                end,
-    fix(fun(Distances) ->
-            maps:from_list([{Name, Distance(Name, Expr, Distances)} || {Name, Expr} <- Rules])
-        end, maps:from_list([{Name, infinity} || {Name, _} <- Rules])).
+    Step = fun(Distances) ->
+                   maps:from_list([{Name, Distance(Name, Expression, Distances)}
+                                   || {Name, Expression} <- Rules])
+           end,
+    ern_grammar:fix(Step, maps:from_list([{Name, infinity} || {Name, _} <- Rules])).
 
 further(infinity) -> infinity;
 further(Distance) -> Distance + 1.
-
-nonterminals({nt, Name}) -> [Name];
-nonterminals({t, _}) -> [];
-nonterminals({opt, Expr}) -> nonterminals(Expr);
-nonterminals({rep, Expr}) -> nonterminals(Expr);
-nonterminals({_, Items}) -> lists:append([nonterminals(Item) || Item <- Items]).
 
 pick(Options) ->
     lists:nth(rand:uniform(length(Options)), Options).
@@ -367,44 +364,39 @@ pick(Options) ->
 %% once and more.
 choices(Grammar) ->
     Rules = maps:to_list(Grammar#grammar.rules),
-    lists:append([choices(Expr, {Name, []}) || {Name, Expr} <- Rules]).
+    lists:append([choices(Expression, {Name, []}) || {Name, Expression} <- Rules]).
 
-choices({seq, Items}, Point) ->
+choices({sequence, Items}, Point) ->
     lists:append([choices(Item, inner(Point, Index)) || {Index, Item} <- lists:enumerate(Items)]);
-choices({alt, Branches}, Point) ->
+choices({alternatives, Branches}, Point) ->
     [{Point, Index} || Index <- lists:seq(1, length(Branches))]
         ++ lists:append([choices(Branch, inner(Point, Index))
                          || {Index, Branch} <- lists:enumerate(Branches)]);
-choices({opt, Expr}, Point) ->
-    [{Point, 0}, {Point, 1} | choices(Expr, inner(Point, 1))];
-choices({rep, Expr}, Point) ->
-    [{Point, 0}, {Point, 1}, {Point, 2} | choices(Expr, inner(Point, 1))];
+choices({optional, Expression}, Point) ->
+    [{Point, 0}, {Point, 1} | choices(Expression, inner(Point, 1))];
+choices({repetition, Expression}, Point) ->
+    [{Point, 0}, {Point, 1}, {Point, 2} | choices(Expression, inner(Point, 1))];
 choices(_, _) ->
     [].
 
 %% The fewest tokens each nonterminal derives, to their fixed point.
 shortest(Rules) ->
     Infinite = maps:from_list([{Name, infinity} || {Name, _} <- Rules]),
-    fix(fun(Shortest) ->
-            maps:from_list([{Name, length_of(Expr, #grammar{shortest = Shortest})}
-                            || {Name, Expr} <- Rules])
-        end, Infinite).
-
-fix(Step, Value) ->
-    case Step(Value) of
-        Value -> Value;
-        Next -> fix(Step, Next)
-    end.
+    Step = fun(Shortest) ->
+                   maps:from_list([{Name, length_of(Expression, #grammar{shortest = Shortest})}
+                                   || {Name, Expression} <- Rules])
+           end,
+    ern_grammar:fix(Step, Infinite).
 
 %% The fewest tokens an expression derives; an atom is larger than any
 %% number, so `infinity` stands for none yet.
-length_of({t, _}, _) -> 1;
-length_of({nt, Name}, Grammar) -> maps:get(Name, Grammar#grammar.shortest);
-length_of({seq, Items}, Grammar) -> sum([length_of(Item, Grammar) || Item <- Items]);
-length_of({alt, Branches}, Grammar) ->
+length_of({terminal, _}, _) -> 1;
+length_of({nonterminal, Name}, Grammar) -> maps:get(Name, Grammar#grammar.shortest);
+length_of({sequence, Items}, Grammar) -> sum([length_of(Item, Grammar) || Item <- Items]);
+length_of({alternatives, Branches}, Grammar) ->
     lists:min([length_of(Branch, Grammar) || Branch <- Branches]);
-length_of({opt, _}, _) -> 0;
-length_of({rep, _}, _) -> 0.
+length_of({optional, _}, _) -> 0;
+length_of({repetition, _}, _) -> 0.
 
 sum(Lengths) ->
     case lists:member(infinity, Lengths) of
@@ -471,12 +463,12 @@ gap() ->
 
 %% Every terminal of the grammar, once.
 vocabulary(Rules) ->
-    lists:usort(lists:append([terminals(Expr) || {_, Expr} <- Rules])).
+    lists:usort(lists:append([terminals(Expression) || {_, Expression} <- Rules])).
 
-terminals({t, Terminal}) -> [Terminal];
-terminals({nt, _}) -> [];
-terminals({opt, Expr}) -> terminals(Expr);
-terminals({rep, Expr}) -> terminals(Expr);
+terminals({terminal, Terminal}) -> [Terminal];
+terminals({nonterminal, _}) -> [];
+terminals({optional, Expression}) -> terminals(Expression);
+terminals({repetition, Expression}) -> terminals(Expression);
 terminals({_, Items}) -> lists:append([terminals(Item) || Item <- Items]).
 
 %% The tokens with one changed: deleted, doubled, swapped with the next,
@@ -502,10 +494,11 @@ near_miss(Tokens, Vocabulary, Grammar) ->
 %% nonterminal of its own for each group, optional part and repetition
 %% within a rule, `{Rule, Number}`.
 recognizer(Rules) ->
-    {Productions, _} = lists:foldl(fun({Name, Expr}, {Acc, Next}) ->
-                                       {Alternatives, Acc1, Next1} = alternatives(Expr, Acc, Next),
-                                       {[{Name, Symbols} || Symbols <- Alternatives] ++ Acc1, Next1}
-                                   end, {[], 1}, Rules),
+    {Productions, _} =
+        lists:foldl(fun({Name, Expression}, {Acc, Next}) ->
+                        {Alternatives, Acc1, Next1} = alternatives(Expression, Acc, Next),
+                        {[{Name, Symbols} || Symbols <- Alternatives] ++ Acc1, Next1}
+                    end, {[], 1}, Rules),
     Numbered = lists:enumerate(Productions),
     ByName = lists:foldl(fun({Index, {Name, _}}, Acc) ->
                              maps:update_with(Name, fun(Indexes) -> [Index | Indexes] end,
@@ -518,51 +511,54 @@ recognizer(Rules) ->
 
 %% An expression's alternatives, each a list of symbols, with the
 %% productions its inner groups need.
-alternatives({alt, Branches}, Acc, Next) ->
+alternatives({alternatives, Branches}, Acc, Next) ->
     lists:foldr(fun(Branch, {Alternatives, BranchAcc, BranchNext}) ->
                     {Symbols, BranchAcc1, BranchNext1} = symbols(Branch, BranchAcc, BranchNext),
                     {[Symbols | Alternatives], BranchAcc1, BranchNext1}
                 end, {[], Acc, Next}, Branches);
-alternatives(Expr, Acc, Next) ->
-    {Symbols, Acc1, Next1} = symbols(Expr, Acc, Next),
+alternatives(Expression, Acc, Next) ->
+    {Symbols, Acc1, Next1} = symbols(Expression, Acc, Next),
     {[Symbols], Acc1, Next1}.
 
-symbols({seq, Items}, Acc, Next) ->
+symbols({sequence, Items}, Acc, Next) ->
     lists:foldl(fun(Item, {Symbols, ItemAcc, ItemNext}) ->
                     {Symbol, ItemAcc1, ItemNext1} = symbol(Item, ItemAcc, ItemNext),
                     {Symbols ++ [Symbol], ItemAcc1, ItemNext1}
                 end, {[], Acc, Next}, Items);
-symbols(Expr, Acc, Next) ->
-    {Symbol, Acc1, Next1} = symbol(Expr, Acc, Next),
+symbols(Expression, Acc, Next) ->
+    {Symbol, Acc1, Next1} = symbol(Expression, Acc, Next),
     {[Symbol], Acc1, Next1}.
 
-symbol({t, _} = Terminal, Acc, Next) ->
+symbol({terminal, _} = Terminal, Acc, Next) ->
     {Terminal, Acc, Next};
-symbol({nt, _} = Nonterminal, Acc, Next) ->
+symbol({nonterminal, _} = Nonterminal, Acc, Next) ->
     {Nonterminal, Acc, Next};
-symbol({opt, Expr}, Acc, Next) ->
+symbol({optional, Expression}, Acc, Next) ->
     Name = {inner, Next},
-    {Alternatives, Acc1, Next1} = alternatives(Expr, Acc, Next + 1),
-    {{nt, Name}, [{Name, []} | [{Name, Symbols} || Symbols <- Alternatives]] ++ Acc1, Next1};
-symbol({rep, Expr}, Acc, Next) ->
+    {Alternatives, Acc1, Next1} = alternatives(Expression, Acc, Next + 1),
+    Productions = [{Name, []} | [{Name, Symbols} || Symbols <- Alternatives]],
+    {{nonterminal, Name}, Productions ++ Acc1, Next1};
+symbol({repetition, Expression}, Acc, Next) ->
     Name = {inner, Next},
-    {Alternatives, Acc1, Next1} = alternatives(Expr, Acc, Next + 1),
-    {{nt, Name}, [{Name, []} | [{Name, Symbols ++ [{nt, Name}]} || Symbols <- Alternatives]]
-                     ++ Acc1, Next1};
+    {Alternatives, Acc1, Next1} = alternatives(Expression, Acc, Next + 1),
+    Productions = [{Name, []} | [{Name, Symbols ++ [{nonterminal, Name}]}
+                                 || Symbols <- Alternatives]],
+    {{nonterminal, Name}, Productions ++ Acc1, Next1};
 symbol(Group, Acc, Next) ->
     Name = {inner, Next},
     {Alternatives, Acc1, Next1} = alternatives(Group, Acc, Next + 1),
-    {{nt, Name}, [{Name, Symbols} || Symbols <- Alternatives] ++ Acc1, Next1}.
+    {{nonterminal, Name}, [{Name, Symbols} || Symbols <- Alternatives] ++ Acc1, Next1}.
 
 %% The nonterminals that derive no token, to their fixed point.
 nullable(Productions) ->
-    fix(fun(Nullable) ->
-            Empty = fun({nt, Inner}) -> is_map_key(Inner, Nullable);
-                       ({t, _}) -> false
-                    end,
-            maps:from_list([{Name, true} || {Name, Symbols} <- Productions,
-                                            lists:all(Empty, Symbols)])
-        end, #{}).
+    Step = fun(Nullable) ->
+                   Empty = fun({nonterminal, Inner}) -> is_map_key(Inner, Nullable);
+                              ({terminal, _}) -> false
+                           end,
+                   maps:from_list([{Name, true} || {Name, Symbols} <- Productions,
+                                                   lists:all(Empty, Symbols)])
+           end,
+    ern_grammar:fix(Step, #{}).
 
 %% Whether the tokens are a sentence of the grammar: Earley's recognizer,
 %% an item a production, how much of it is read, and where it began; a
@@ -610,7 +606,7 @@ closure([Item | Agenda], Position, Input, Recognizer, Waitings, Seen, Waiting, S
                             Recognizer, Waitings, Seen1, Waiting, Scanned);
                 false ->
                     case element(Dot + 1, Symbols) of
-                        {nt, Inner} ->
+                        {nonterminal, Inner} ->
                             Predicted = [{Production, 0, Position}
                                          || Production <- maps:get(Inner,
                                                                    Recognizer#recognizer.by_name)],
@@ -622,7 +618,7 @@ closure([Item | Agenda], Position, Input, Recognizer, Waitings, Seen, Waiting, S
                                                         [Item], Waiting),
                             closure(Predicted ++ Stepped ++ Agenda, Position, Input, Recognizer,
                                     Waitings, Seen1, Waiting1, Scanned);
-                        {t, Terminal} ->
+                        {terminal, Terminal} ->
                             Scanned1 = case scans(Terminal, Position, Input) of
                                            true -> [advanced(Item) | Scanned];
                                            false -> Scanned

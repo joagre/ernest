@@ -27,6 +27,12 @@ while [ -L "$self" ]; do
 done
 tree=$(cd "$(dirname "$self")/.." && pwd -P)
 
+if ! command -v iconv >/dev/null 2>&1; then
+    echo "ern: iconv, which tells whether the working directory's name is UTF-8," \
+         "is not on the path" >&2
+    exit 1
+fi
+
 if ! pwd -P | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1; then
     echo "ern: the working directory's name is not UTF-8" >&2
     exit 1

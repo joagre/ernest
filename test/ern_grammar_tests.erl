@@ -14,7 +14,8 @@
 defined_and_used_test() ->
     Rules = ern_grammar:rules(),
     Defined = [Name || {Name, _} <- Rules],
-    Used = lists:usort([Name || {_, Expr} <- Rules, Name <- nonterminals(Expr)]),
+    Used = lists:usort([Name || {_, Expression} <- Rules,
+                                Name <- ern_grammar:nonterminals(Expression)]),
     ?assertEqual([], Used -- Defined),
     ?assertEqual([], Defined -- ['Program' | Used]).
 
@@ -25,8 +26,8 @@ first_sets_test() ->
     Grammar = maps:from_list(Rules),
     First = first_sets(Grammar),
     Follow = follow_sets(Rules, First),
-    Conflicts = lists:usort(lists:append([conflicts(Rule, Expr, maps:get(Rule, Follow), First)
-                                          || {Rule, Expr} <- Rules])),
+    Conflicts = lists:usort(lists:append([conflicts(Rule, Expression, maps:get(Rule, Follow), First)
+                                          || {Rule, Expression} <- Rules])),
     Prose = ern_grammar:prose(),
     Named = [{Rule, Token} || {Rule, Token, Phrase} <- decided(),
                               string:find(Prose, Phrase) =/= nomatch],
@@ -54,14 +55,6 @@ decided() ->
      {'Constructor', ident, "whether `=` or `:` follows the first identifier"},
      {'ReceiveExpr', "|", "a `|` followed by `after` begins its `AfterClause`"}].
 
-%% The nonterminals an expression uses.
-nonterminals({nt, Name}) -> [Name];
-nonterminals({t, _}) -> [];
-nonterminals({seq, Items}) -> lists:append([nonterminals(Item) || Item <- Items]);
-nonterminals({alt, Branches}) -> lists:append([nonterminals(Branch) || Branch <- Branches]);
-nonterminals({opt, Expr}) -> nonterminals(Expr);
-nonterminals({rep, Expr}) -> nonterminals(Expr).
-
 %%
 %% FIRST and FOLLOW
 %%
@@ -69,26 +62,20 @@ nonterminals({rep, Expr}) -> nonterminals(Expr).
 %% Each nonterminal's FIRST set, with `empty` where it derives nothing,
 %% to their fixed point.
 first_sets(Grammar) ->
-    fix(fun(First) -> maps:map(fun(_, Expr) -> first(Expr, First) end, Grammar) end,
-        maps:map(fun(_, _) -> [] end, Grammar)).
+    Step = fun(First) -> maps:map(fun(_, Expression) -> first(Expression, First) end, Grammar) end,
+    ern_grammar:fix(Step, maps:map(fun(_, _) -> [] end, Grammar)).
 
-fix(Step, Value) ->
-    case Step(Value) of
-        Value -> Value;
-        Next -> fix(Step, Next)
-    end.
-
-first({t, Token}, _) -> [Token];
-first({nt, Name}, First) -> maps:get(Name, First);
-first({alt, Branches}, First) ->
+first({terminal, Token}, _) -> [Token];
+first({nonterminal, Name}, First) -> maps:get(Name, First);
+first({alternatives, Branches}, First) ->
     lists:usort(lists:append([first(Branch, First) || Branch <- Branches]));
-first({opt, Expr}, First) -> lists:usort([empty | first(Expr, First)]);
-first({rep, Expr}, First) -> lists:usort([empty | first(Expr, First)]);
-first({seq, []}, _) -> [empty];
-first({seq, [Item | Items]}, First) ->
+first({optional, Expression}, First) -> lists:usort([empty | first(Expression, First)]);
+first({repetition, Expression}, First) -> lists:usort([empty | first(Expression, First)]);
+first({sequence, []}, _) -> [empty];
+first({sequence, [Item | Items]}, First) ->
     FirstSet = first(Item, First),
     case lists:member(empty, FirstSet) of
-        true -> lists:usort((FirstSet -- [empty]) ++ first({seq, Items}, First));
+        true -> lists:usort((FirstSet -- [empty]) ++ first({sequence, Items}, First));
         false -> FirstSet
     end.
 
@@ -96,21 +83,23 @@ first({seq, [Item | Items]}, First) ->
 follow_sets(Rules, First) ->
     Initial = maps:from_list([{Name, case Name of 'Program' -> [eof]; _ -> [] end}
                               || {Name, _} <- Rules]),
-    fix(fun(Follow) ->
-            lists:foldl(fun({Name, Expr}, Acc) ->
-                            follows(Expr, maps:get(Name, Follow), First, Acc)
-                        end, Follow, Rules)
-        end, Initial).
+    Step = fun(Follow) ->
+                   lists:foldl(fun({Name, Expression}, Acc) ->
+                                   follows(Expression, maps:get(Name, Follow), First, Acc)
+                               end, Follow, Rules)
+           end,
+    ern_grammar:fix(Step, Initial).
 
-follows({nt, Name}, After, _, Acc) -> Acc#{Name => lists:usort(maps:get(Name, Acc) ++ After)};
-follows({t, _}, _, _, Acc) -> Acc;
-follows({alt, Branches}, After, First, Acc) ->
+follows({nonterminal, Name}, After, _, Acc) ->
+    Acc#{Name => lists:usort(maps:get(Name, Acc) ++ After)};
+follows({terminal, _}, _, _, Acc) -> Acc;
+follows({alternatives, Branches}, After, First, Acc) ->
     lists:foldl(fun(Branch, BranchAcc) -> follows(Branch, After, First, BranchAcc) end, Acc,
                 Branches);
-follows({opt, Expr}, After, First, Acc) -> follows(Expr, After, First, Acc);
-follows({rep, Expr}, After, First, Acc) ->
-    follows(Expr, then(first(Expr, First), After), First, Acc);
-follows({seq, Items}, After, First, Acc) ->
+follows({optional, Expression}, After, First, Acc) -> follows(Expression, After, First, Acc);
+follows({repetition, Expression}, After, First, Acc) ->
+    follows(Expression, then(first(Expression, First), After), First, Acc);
+follows({sequence, Items}, After, First, Acc) ->
     Step = fun(Item, {ItemAfter, ItemAcc}) ->
                {then(first(Item, First), ItemAfter), follows(Item, ItemAfter, First, ItemAcc)}
            end,
@@ -127,20 +116,20 @@ then(FirstSet, After) ->
 %% Each choice of the rule that the next token does not decide, as the
 %% rule and a token its branches share: two branches of a `|`, or an
 %% optional or repeated part and what may follow it.
-conflicts(Rule, {alt, Branches}, After, First) ->
+conflicts(Rule, {alternatives, Branches}, After, First) ->
     Sets = [then(first(Branch, First), After) || Branch <- Branches],
     Numbered = lists:enumerate(Sets),
     Shared = [Token || {Index, Set} <- Numbered, {OtherIndex, OtherSet} <- Numbered,
                        Index < OtherIndex, Token <- Set, lists:member(Token, OtherSet)],
     [{Rule, Token} || Token <- lists:usort(Shared)]
         ++ lists:append([conflicts(Rule, Branch, After, First) || Branch <- Branches]);
-conflicts(Rule, {opt, Expr}, After, First) ->
-    [{Rule, Token} || Token <- first(Expr, First) -- [empty], lists:member(Token, After)]
-        ++ conflicts(Rule, Expr, After, First);
-conflicts(Rule, {rep, Expr}, After, First) ->
-    [{Rule, Token} || Token <- first(Expr, First) -- [empty], lists:member(Token, After)]
-        ++ conflicts(Rule, Expr, then(first(Expr, First), After), First);
-conflicts(Rule, {seq, Items}, After, First) ->
+conflicts(Rule, {optional, Expression}, After, First) ->
+    [{Rule, Token} || Token <- first(Expression, First) -- [empty], lists:member(Token, After)]
+        ++ conflicts(Rule, Expression, After, First);
+conflicts(Rule, {repetition, Expression}, After, First) ->
+    [{Rule, Token} || Token <- first(Expression, First) -- [empty], lists:member(Token, After)]
+        ++ conflicts(Rule, Expression, then(first(Expression, First), After), First);
+conflicts(Rule, {sequence, Items}, After, First) ->
     Step = fun(Item, {ItemAfter, ItemAcc}) ->
                {then(first(Item, First), ItemAfter),
                 conflicts(Rule, Item, ItemAfter, First) ++ ItemAcc}

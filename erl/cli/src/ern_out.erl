@@ -23,11 +23,11 @@ take() ->
 -spec finish(pid() | atom()) -> ok.
 finish(ErrorDevice) when is_pid(ErrorDevice) ->
     lists:foreach(fun(Device) ->
-                      Ref = erlang:monitor(process, Device),
-                      Device ! {finish, self(), Ref},
+                      MonitorRef = erlang:monitor(process, Device),
+                      Device ! {finish, self(), MonitorRef},
                       receive
-                          {Ref, finished} -> erlang:demonitor(Ref, [flush]);
-                          {'DOWN', Ref, process, _, _} -> ok
+                          {MonitorRef, finished} -> erlang:demonitor(MonitorRef, [flush]);
+                          {'DOWN', MonitorRef, process, _, _} -> ok
                       end
                   end, [group_leader(), ErrorDevice]);
 finish(_) ->

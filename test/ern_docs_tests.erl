@@ -1,7 +1,10 @@
-%% The documents' citations resolve: every `§x.y`, `Appendix X`, and `E.n`
-%% written in a live document names a heading of the report, and the
-%% guide's own bare `§x.y` names a heading of the guide. docs/decisions.md
-%% is history and is not checked.
+%% The documents held to what they name: every `§x.y`, appendix by its
+%% letter, and `E.n` written in a live document or in the code names a
+%% heading of the report, and the guide's own bare `§x.y` a heading of the
+%% guide, docs/decisions.md being history and not checked; the contents
+%% lists, the paths the documents name, the release's pages, the third
+%% parties' licences, the glossary, the fault causes and the log's index
+%% are each current.
 -module(ern_docs_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -22,16 +25,16 @@
 %% report §11, docs/development.md "Building": `make xref`
 citations_resolve_test() ->
     Report = report(),
-    Guide = read("ernest_guide.md"),
+    Guide = ern_repository:read("ernest_guide.md"),
     ReportSections = section_numbers(Report),
     GuideSections = section_numbers(Guide),
     %% docs/findings.md's lines and docs/guide_feedback.md's points cite each
     %% document as their readers did, the guide's sections bare beside the
     %% report's, and each list goes when its plan item is done
     Live = (documents() -- ["docs/findings.md", "docs/guide_feedback.md"])
-        ++ examples() ++ stdlib() ++ shell() ++ tools(),
+        ++ examples() ++ stdlib() ++ shell() ++ tools() ++ toolchain(),
     Dangling =
-        [{File, Citation} || File <- Live, Citation <- cites(read(File)),
+        [{File, Citation} || File <- Live, Citation <- cites(ern_repository:read(File)),
                              not resolves(Citation, report, ReportSections, GuideSections)]
         ++ [{"ernest_guide.md", Citation}
             || Citation <- cites(Guide),
@@ -43,11 +46,11 @@ citations_resolve_test() ->
 %% document makes, and this holds each part equal to the module's lines, in
 %% the module's order
 ordered_set_shown_in_part_test() ->
-    Guide = read("ernest_guide.md"),
+    Guide = ern_repository:read("ernest_guide.md"),
     [_, Rest] = binary:split(Guide, <<"```ernest-fragment\n// stdlib/ordered_set.ern">>),
     [Block | _] = binary:split(Rest, <<"\n```">>),
     [_Named | Shown] = binary:split(Block, <<"\n">>, [global]),
-    Source = read("stdlib/ordered_set.ern"),
+    Source = ern_repository:read("stdlib/ordered_set.ern"),
     Code = [Line || Line <- binary:split(Source, <<"\n">>, [global]),
                     not lists:prefix("///", binary_to_list(Line))],
     Parts = parts(Shown),
@@ -82,13 +85,13 @@ parts(Lines) ->
 %% linked to its heading, which `make contents` writes
 contents_test() ->
     [?assertEqual({File, contents(Document)}, {File, listed(Document)})
-     || File <- ?CONTENTS, Document <- [read(File)]].
+     || File <- ?CONTENTS, Document <- [ern_repository:read(File)]].
 
 %% Rewrite the contents list of every document that has one.
 -spec write_contents() -> ok.
 write_contents() ->
     lists:foreach(fun(File) ->
-                      Document = read(File),
+                      Document = ern_repository:read(File),
                       [Before, Rest] = binary:split(Document, ?BEGIN),
                       [_, After] = binary:split(Rest, ?END),
                       ok = file:write_file(filename:join(?ROOT, File),
@@ -148,7 +151,8 @@ anchored(Heads) ->
 %% page's list of what Ernest adds is the guide's, word for word, so that the
 %% two cannot drift apart
 what_ernest_adds_test() ->
-    ?assertEqual(adds(read("ernest_guide.md")), adds(read("README.md"))).
+    ?assertEqual(adds(ern_repository:read("ernest_guide.md")),
+                 adds(ern_repository:read("README.md"))).
 
 adds(Document) ->
     [_, Rest] = binary:split(Document, <<"What Ernest adds is where the parts meet:\n\n">>),
@@ -162,7 +166,8 @@ adds(Document) ->
 %% paths not yet written, and the findings' lists the paths of the tree
 %% their readers read, so every other document is checked.
 document_paths_test() ->
-    Missing = [{File, Path} || File <- described(), Path <- paths(read(File)), not exists(Path),
+    Missing = [{File, Path} || File <- described(), Path <- paths(ern_repository:read(File)),
+                               not exists(Path),
                                not exists(filename:join(filename:dirname(File), Path))],
     ?assertEqual([], Missing).
 
@@ -173,17 +178,18 @@ document_paths_test() ->
 %% every page and index but man/README.md is linked from one index, a
 %% directory's README.md
 release_pages_test() ->
-    Version = string:trim(read("VERSION")),
-    Files = filelib:wildcard("man/**/*.md", ?ROOT),
+    Version = string:trim(ern_repository:read("VERSION")),
+    Files = ern_repository:files(["man/**/*.md"]),
     Indexes = [File || File <- Files, filename:basename(File) =:= "README.md"],
     Pages = Files -- Indexes,
     ?assert(length(Pages) > 25),
     ?assertMatch(<<"# Ernest ", Version:(byte_size(Version))/binary, "\n", _/binary>>,
-                 read("man/README.md")),
+                 ern_repository:read("man/README.md")),
     Written = <<"Generated by ern ", Version/binary, " from ">>,
-    ?assertEqual([], [Page || Page <- Pages, binary:match(read(Page), Written) =:= nomatch]),
-    Linked = [filename:join(filename:dirname(Index), Link) || Index <- Indexes,
-                                                              Link <- page_links(read(Index))],
+    ?assertEqual([], [Page || Page <- Pages,
+                              binary:match(ern_repository:read(Page), Written) =:= nomatch]),
+    Linked = [filename:join(filename:dirname(Index), Link)
+              || Index <- Indexes, Link <- page_links(ern_repository:read(Index))],
     ?assertEqual(lists:sort(Files -- ["man/README.md"]), lists:sort(Linked)).
 
 %% An index's links to pages within man/.
@@ -231,13 +237,14 @@ exists(Relative) ->
 %% table a tool generated, is an entry's path; and every entry names a
 %% file that is there, and its licence
 third_party_test() ->
-    Entries = [Entry || Entry <- binary:split(read("THIRD_PARTY_LICENSES"), <<"\n----">>, [global]),
+    Licenses = ern_repository:read("THIRD_PARTY_LICENSES"),
+    Entries = [Entry || Entry <- binary:split(Licenses, <<"\n----">>, [global]),
                         binary:match(Entry, <<"  Path:">>) =/= nomatch],
     Listed = [path(Entry) || Entry <- Entries],
     Tracked = [File || File <- string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files"), "\n"),
                        not lists:member(File, ["LICENSE", "THIRD_PARTY_LICENSES"])],
     Owed = [File || File <- Tracked, filelib:is_regular(filename:join(?ROOT, File)),
-                    borrowed(read(File)) orelse generated(read(File))],
+                    Text <- [ern_repository:read(File)], borrowed(Text) orelse generated(Text)],
     ?assert(length(Owed) >= 2),
     ?assertEqual([], Owed -- Listed),
     ?assertEqual([], [Path || Path <- Listed, not filelib:is_regular(filename:join(?ROOT, Path))]),
@@ -257,7 +264,8 @@ path(Entry) ->
 %% citations_resolve_test holds to a heading. A regression test, written
 %% when the report was split: no test had read the glossary
 glossary_test() ->
-    [_, Rest] = binary:split(read("report/language.md"), <<"## Appendix F. Glossary">>),
+    Language = ern_repository:read("report/language.md"),
+    [_, Rest] = binary:split(Language, <<"## Appendix F. Glossary">>),
     [Glossary | _] = binary:split(Rest, <<"\n## ">>),
     Entries = [Line || Line <- binary:split(Glossary, <<"\n">>, [global]),
                        binary:match(Line, <<"- **">>) =:= {0, 4}],
@@ -277,11 +285,12 @@ glossary_test() ->
 %% shape rule 4). In §7.4's texts `...`, `m:f/n` and a placeholder of one
 %% letter stand for any text.
 fault_causes_test() ->
-    Language = read("report/language.md"),
+    Language = ern_repository:read("report/language.md"),
     [Before, Rest] = binary:split(Language, <<"### 7.4 Causes of faults">>),
     [Own, After] = binary:split(Rest, <<"\n## 8. Programs">>),
     [Chapters, _] = binary:split(After, <<"\n## Appendix A">>),
-    [Toolchain, _] = binary:split(read("report/toolchain.md"), <<"\n## Appendix C">>),
+    [Toolchain, _] = binary:split(ern_repository:read("report/toolchain.md"),
+                                  <<"\n## Appendix C">>),
     Body = <<Chapters/binary, Toolchain/binary>>,
     Templates = [template(Cause) || Cause <- causes(Own)],
     ?assert(length(Templates) > 20),
@@ -313,7 +322,7 @@ template(Cause) ->
 %% index had missed thirty-eight entries (the log's *A Port Lost While It
 %% Starts*); it does not check an anchor, which the reader's renderer makes.
 log_index_names_every_section_test() ->
-    Log = read("docs/decisions.md"),
+    Log = ern_repository:read("docs/decisions.md"),
     [_, AfterHeading] = binary:split(Log, <<"\n## Index\n">>),
     [Index, _] = binary:split(AfterHeading, <<"\n## ">>),
     {match, Named} = re:run(Index, "\\[((?:[^][]|\\[[^]]*\\])+)\\]\\(#",
@@ -333,48 +342,33 @@ borrowed(Text) ->
 generated(Text) ->
     re:run(Text, "^// Generated by tools/", [multiline]) =/= nomatch.
 
-read(Relative) ->
-    {ok, Bytes} = file:read_file(filename:join(?ROOT, Relative)),
-    Bytes.
-
 %% The report, its three files read as one text.
 report() ->
-    iolist_to_binary([read(File) || File <- ?REPORT]).
+    iolist_to_binary([ern_repository:read(File) || File <- ?REPORT]).
 
-%% A name that begins with a dot is no module (report §11.1's path shape),
-%% and an editor's lock file, `.#main.ern`, is one that may not be readable.
 examples() ->
-    [filename:join("examples", File)
-     || File <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "examples")),
-        not is_editor_file(File)].
+    ern_repository:files(["examples/**/*.ern"]).
 
 %% The shell's Ernest source, whose comments cite the report as the
 %% standard library's do.
 shell() ->
-    [filename:join("shell", File)
-     || File <- filelib:wildcard("**/*.ern", filename:join(?ROOT, "shell")),
-        not is_editor_file(File)].
+    ern_repository:files(["shell/**/*.ern"]).
 
 %% The programs of the build written in Ernest, whose comments cite the
 %% report too, and docs/operations.md's three programs.
 tools() ->
-    [filename:join("tools", File)
-     || File <- filelib:wildcard("*.ern", filename:join(?ROOT, "tools")), not is_editor_file(File)]
-    ++ [filename:join("docs/operations", File)
-        || File <- filelib:wildcard("*.ern", filename:join(?ROOT, "docs/operations")),
-           not is_editor_file(File)].
+    ern_repository:files(["tools/*.ern", "docs/operations/*.ern"]).
+
+%% The toolchain's own code, whose comments cite the report as its rules
+%% ask: the Erlang sources, includes and tests, the helper in C, the tests
+%% under test/ and the Makefiles.
+toolchain() ->
+    ern_repository:files(["erl/*/src/*.erl", "erl/*/include/*.hrl", "erl/*/test/*.erl",
+                          "erl/runtime/c_src/*.c", "test/*.erl", "Makefile", "test/Makefile",
+                          "erl/app.mk", "erl/*/src/Makefile", "tools/release/Makefile"]).
 
 stdlib() ->
-    [filename:join("stdlib", File)
-     || File <- filelib:wildcard("*.ern", filename:join(?ROOT, "stdlib")), not is_editor_file(File)]
-    ++ [filename:join("libs", File)
-        || File <- filelib:wildcard("*/*.ern", filename:join(?ROOT, "libs")),
-           not is_editor_file(File)].
-
-%% An editor's lock file, `.#editor.ern`, a link to nothing while the file
-%% is open, and its auto-save file, `#editor.ern#`: neither is a module.
-is_editor_file(File) ->
-    lists:member(hd(filename:basename(File)), ".#").
+    ern_repository:files(["stdlib/*.ern", "libs/*/*.ern"]).
 
 %% "3.9", "3", "Appendix A", "E.12" for the headings of a document.
 section_numbers(Document) ->

@@ -43,10 +43,10 @@
          timed/0, untimed/0, deadline/1, remaining/1, monotonic/0, in_foreign/1,
          undefined_function/3, undefined_lambda/3, fault_exit_reason/3, fault/1, fault/2, trace/1,
          system_process/1, hold_terminal/1, terminal_holder/0, shell_holds/0, own_terminal/1,
-         input_not_utf8/0, by_input/1, read_input/1, run_main/3, arguments/0, exit_program/1,
-         deadlock_victim/1, signal/1, initializing/1, site/0, binding/1, restarting/2,
-         restart_now/0, ask_restart/1, start_cause/0, spawn_order/1, init_stdlib/0, init_modules/1,
-         ordered/1]).
+         input_not_utf8/0, by_input/1, read_input/1, run_main/3, tables/0, arguments/0,
+         exit_program/1, deadlock_victim/1, signal/1, initializing/1, site/0, binding/1,
+         restarting/2, restart_now/0, ask_restart/1, start_cause/0, spawn_order/1, init_stdlib/0,
+         init_modules/1, ordered/1]).
 
 -export_type([address/0]).
 
@@ -1569,16 +1569,21 @@ outcome_flushed({ended, Outcome}, []) -> Outcome;
 outcome_flushed({ended, _}, [Stream | _]) -> {gone, Stream}.
 
 %% The run's tables, which the module's header describes.
+%% The tables that hold a launch's state, which `make load` counts the rows
+%% of (docs/memory.md).
+-spec tables() -> [atom()].
+tables() ->
+    [?PROCESSES, ?CALLS, ?CALLEES, ?FAULTS, ?HELD, ?DELIVERIES, ?RESTARTS, ?PROXIES, ?LAUNCH].
+
 make_tables() ->
-    ets:new(?PROCESSES, [named_table, public, set]),
-    ets:new(?CALLS, [named_table, public, set]),
-    ets:new(?CALLEES, [named_table, public, ordered_set]),
-    ets:new(?FAULTS, [named_table, public, set]),
-    ets:new(?HELD, [named_table, public, set]),
-    ets:new(?DELIVERIES, [named_table, public, ordered_set]),
-    ets:new(?RESTARTS, [named_table, public, set]),
-    ets:new(?PROXIES, [named_table, public, set]),
-    ets:new(?LAUNCH, [named_table, public, set]).
+    lists:foreach(fun(Table) -> ets:new(Table, [named_table, public, table_kind(Table)]) end,
+                  tables()).
+
+%% The callees' and the deliveries' rows are ordered, so that a process
+%% reads its own by their key's prefix.
+table_kind(?CALLEES) -> ordered_set;
+table_kind(?DELIVERIES) -> ordered_set;
+table_kind(_) -> set.
 
 %% The reference that tags this launch, under which the runner is known,
 %% and what the options give the run. Report §11.2: `ern run` reports
@@ -1978,15 +1983,7 @@ end_program(Launch, Reaper, System) ->
         [{reading, keys}] -> ern_tty:restore();
         _ -> ok
     end,
-    ets:delete(?PROCESSES),
-    ets:delete(?CALLS),
-    ets:delete(?CALLEES),
-    ets:delete(?FAULTS),
-    ets:delete(?HELD),
-    ets:delete(?DELIVERIES),
-    ets:delete(?RESTARTS),
-    ets:delete(?PROXIES),
-    ets:delete(?LAUNCH),
+    lists:foreach(fun ets:delete/1, tables()),
     %% a signal after the run has nothing to end (signal/1)
     persistent_term:erase({?MODULE, runner}),
     flush_launch(Launch),

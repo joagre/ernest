@@ -98,7 +98,7 @@ underscore_signature() ->
                 30, " --size 60x90"),
     ?assertMatch({_, _}, binary:match(Bytes, <<"_twice(n : Int) : Int">>)).
 
-%% report §11.2, Appendix E.0 rule 6: the brief of a declaration without a
+%% report §11.2, Appendix E.0 shape rule 6: the brief of a declaration without a
 %% `since` of its own shows its module's version, a member of a module's
 %% type among them, whatever its text says. A regression test: a member
 %% `Shape.Point.compare` showed none, its module sought one segment back,
@@ -1144,7 +1144,7 @@ listing_at_once() ->
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :\r\n:bindings ">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\nand 7 more">>)).
 
-%% report §11.2, Appendix E.0 rule 6: `Shift-Tab` on a name shows its type,
+%% report §11.2, Appendix E.0 shape rule 6: `Shift-Tab` on a name shows its type,
 %% its first sentence, and the version it appeared in, and its page when
 %% pressed again; inside a call, the callee's signature with the
 %% parameters as declared; and a command completes as a word of the
@@ -2478,7 +2478,7 @@ front_end_test_() ->
                {"not a name", fun not_a_name/0},
                {"load words segment", fun load_words_segment/0}]}.
 
-%% report §11.2, Appendix E.0 rule 6: `Shift-Tab`'s two answers from the
+%% report §11.2, Appendix E.0 shape rule 6: `Shift-Tab`'s two answers from the
 %% front end. Inside a call, the callee's signature with its parameters as
 %% declared, in three parts around the one at the cursor, which the shell
 %% colours; the prelude's too, its parameters named for their roles;

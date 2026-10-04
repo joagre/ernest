@@ -33,16 +33,18 @@ main([Name]) ->
     ets:new(ern_load_samples, [named_table, public, ordered_set]),
     Status = launch(Name),
     Samples = [Sample || {_, Sample} <- ets:tab2list(ern_load_samples)],
-    Verdict = case {Status, verdict(Samples)} of
-                  {0, []} -> [Name, ": flat\n"];
-                  {_, Grown} -> io_lib:format("~s: status ~p, grew: ~p~n", [Name, Status, Grown])
+    Grown = verdict(Samples),
+    IsFlat = {Status, Grown} =:= {0, []},
+    Verdict = case IsFlat of
+                  true -> [Name, ": flat\n"];
+                  false -> io_lib:format("~s: status ~p, grew: ~p~n", [Name, Status, Grown])
               end,
     %% the shell's session writes to standard output too, so the table is
     %% also a file of its own
     Report = [table(Name, Samples), Verdict],
     ok = file:write_file("build/load/" ++ Name ++ ".txt", Report),
     io:put_chars(Report),
-    halt(case Verdict of [Name, _] -> 0; _ -> 1 end).
+    halt(case IsFlat of true -> 0; false -> 1 end).
 
 launch("shell") ->
     ern_cli:ern(["shell"]);
@@ -109,9 +111,7 @@ sample(Round) ->
       atoms => erlang:system_info(atom_count),
       processes => erlang:system_info(process_count),
       ports => erlang:system_info(port_count),
-      rows => lists:sum([rows(Table)
-                         || Table <- [ern_processes, ern_calls, ern_callees, ern_faults, ern_held,
-                                      ern_deliveries, ern_restarts, ern_proxies, ern_launch]]),
+      rows => lists:sum([rows(Table) || Table <- ern_rt:tables()]),
       terms => maps:get(count, persistent_term:info())}.
 
 %% The bytes of a process's heaps that hold nothing. The host sizes a heap

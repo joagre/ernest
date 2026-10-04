@@ -145,14 +145,33 @@ list(Items) ->
         _ -> [Items, "\n"]
     end.
 
-%% Appendix E.0 rule 6: a doc block's last line `since v` names the version
+%% Appendix E.0 shape rule 6: a doc block's last line `since v` names the version
 %% the declaration appeared in; it is rendered after the synopsis.
 split_since(Doc) ->
-    case re:run(Doc, "^(.*?)\\n?since ([0-9][0-9A-Za-z.+-]*)\\s*$",
-                [dotall, {capture, all_but_first, binary}]) of
-        {match, [Text, Version]} -> {string:trim(Text, trailing), Version};
-        nomatch -> {Doc, undefined}
+    Lines = binary:split(string:trim(Doc, trailing), <<"\n">>, [global]),
+    case lists:last(Lines) of
+        <<"since ", Version/binary>> ->
+            case is_version(Version) of
+                true ->
+                    Text = iolist_to_binary(lists:join(<<"\n">>, lists:droplast(Lines))),
+                    {string:trim(Text, trailing), Version};
+                false ->
+                    {Doc, undefined}
+            end;
+        _ ->
+            {Doc, undefined}
     end.
+
+%% A version as a `since` line writes it: a digit, then digits, letters,
+%% `.`, `+` and `-`.
+is_version(<<First, Rest/binary>>) when First >= $0, First =< $9 ->
+    lists:all(fun(Char) ->
+                  (Char >= $0 andalso Char =< $9) orelse (Char >= $a andalso Char =< $z)
+                      orelse (Char >= $A andalso Char =< $Z)
+                      orelse Char =:= $. orelse Char =:= $+ orelse Char =:= $-
+              end, binary_to_list(Rest));
+is_version(_) ->
+    false.
 
 since_line(undefined) -> [];
 since_line(Version) -> ["*Since ", Version, ".*\n\n"].
@@ -221,7 +240,7 @@ prelude_declaration(Name) ->
         none -> none
     end.
 
-%% Appendix E.0 rule 6: the version a module, or the prelude, appeared in,
+%% Appendix E.0 shape rule 6: the version a module, or the prelude, appeared in,
 %% which a declaration without a `since` of its own shares.
 -spec since(binary() | file:filename() | prelude) -> binary() | undefined.
 since(prelude) ->
@@ -230,7 +249,7 @@ since(Beam) ->
     {ok, Docs} = ern_docs:read(Beam),
     module_since(Docs).
 
-%% Appendix E.0 rule 6: the `since` a declaration's own doc block ends
+%% Appendix E.0 shape rule 6: the `since` a declaration's own doc block ends
 %% with, in a module or the prelude, or undefined for one that has none and
 %% so has its module's.
 -spec declared_since(binary() | prelude, binary()) -> binary() | undefined.

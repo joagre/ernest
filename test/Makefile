@@ -1,12 +1,12 @@
-# The terminal tests need python3, which opens the pseudo-terminal that
-# Erlang cannot (ern_pty.py).
-#
-# The integration tests: every MVP 1 program compiled with bin/ern build and run
-# with bin/ern run, output compared with expected/<name>.out; the document
-# tests, every citation in a live document resolving to a heading; the
-# style tests, what docs/style.md says a machine can check; the guide's
-# examples, compiled and run; and the shell and the terminal, driven through
-# the pseudo-terminal.
+# The tests that span the applications, by area: the programs (the example
+# programs, the signals, the streams, the installation and the release,
+# ern_integration_tests), the documents and the style, the guide's
+# examples, the grammar with the programs generated from it, the
+# well-typed programs generated and run, and the shell and the terminal,
+# driven through the pseudo-terminal, which python3 opens since Erlang
+# cannot (ern_pty.py). Beside them, the loads, the service manager's
+# checks and the bench, which a release runs, and the targets that write
+# the catalogue, the contents lists and the layout anew.
 
 EBIN = ebin
 ERLC_FLAGS = +debug_info -Werror
@@ -21,7 +21,7 @@ GRAMMAR = ern_grammar_tests ern_grammar_programs_tests
 TYPED = ern_typed_programs_tests
 SHELL_TESTS = ern_terminal_tests ern_shell_tests
 BEAMS = $(patsubst %,$(EBIN)/%.beam,$(PROGRAMS) $(DOCS) $(GUIDE) $(GRAMMAR) ern_grammar \
-	  $(TYPED) $(SHELL_TESTS) ern_pty)
+	  $(TYPED) $(SHELL_TESTS) ern_pty ern_repository)
 
 # Run the EUnit modules $(1), with the toolchain and the standard library on
 # the code path.
@@ -62,7 +62,9 @@ docs: $(BEAMS)
 	$(call EUNIT,$(DOCS))
 
 guide: $(BEAMS) prepare
-	$(call EUNIT,$(GUIDE))
+	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_guide_XXXXXX") && \
+	  ERN_TEST_DIR=$$dir $(call EUNIT,$(GUIDE)); \
+	  status=$$?; rm -rf "$$dir"; exit $$status
 
 # Appendix A read as data, and the programs generated from it (MVP 2.99c
 # item 1), whose seed ERN_SEED gives again.

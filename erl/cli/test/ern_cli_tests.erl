@@ -1,3 +1,6 @@
+%% The command line, report §11: every job of `ern`, build, doc, format,
+%% run, test, shell and config, run in this node as the launcher runs it,
+%% with what each refuses, writes and reports.
 -module(ern_cli_tests).
 
 %% EUnit's captured output, asked of the test's group leader, which is
@@ -16,10 +19,13 @@
 %% Helpers: a fresh directory per test, sources written into it
 %%
 
-%% Unique within this VM; a leftover from an earlier run is removed first.
+%% Unique to this host and this run, under the run's own directory, which
+%% `make` removes when the run ends (erl/app.mk), or the host's for a run
+%% of a test by itself.
 tmp() ->
-    Dir = filename:join(["/tmp", "ern_cli_" ++ integer_to_list(erlang:unique_integer([positive]))]),
-    file:del_dir_r(Dir),
+    Base = os:getenv("ERN_TEST_DIR", os:getenv("TMPDIR", "/tmp")),
+    Dir = filename:join(Base, "ern_cli_" ++ os:getpid() ++ "_"
+                              ++ integer_to_list(erlang:unique_integer([positive]))),
     ok = filelib:ensure_path(Dir),
     Dir.
 
@@ -41,8 +47,8 @@ stdlib_build_sets_its_copy_aside() ->
     ok = file:write_file(filename:join(Installed, "ern@unreadable.beam"), <<"not a module">>),
     true = code:add_pathz(Installed),
     try
-        ?assertEqual(0, ern_build:compile([{build_root, Installed}], "../../../stdlib",
-                                          standard_error)),
+        ?assertEqual(0, ern_build:compile("ern build", [{build_root, Installed}],
+                                          "../../../stdlib", standard_error)),
         ?assert(lists:member(Installed, code:get_path()))
     after
         code:del_path(Installed)
@@ -513,6 +519,101 @@ segment_test() ->
     ?assertEqual({'Some', <<"OrderedSet">>}, ern_shell:segment(<<"ordered_set">>)),
     ?assertEqual('None', ern_shell:segment(<<"Bad">>)).
 
+%% report §11.1, §11.4: the build's sweep passes over a name under the
+%% build root that is not UTF-8, and the host says nothing of it. A
+%% regression test: the host printed its own WARNING REPORT during `ern
+%% build` and `ern doc`
+sweep_passes_over_a_name_not_utf8_test() ->
+    Dir = tmp(),
+    write(Dir, "src/util.ern", "export let u : Int = 1\n"),
+    ok = filelib:ensure_path(Dir ++ "/build"),
+    ok = file:write_file(<<(list_to_binary(Dir))/binary, "/build/caf", 16#e9, ".erc">>, <<>>),
+    Output = os:cmd("../../../bin/ern build --source-root " ++ Dir ++ "/src --build-root "
+                    ++ Dir ++ "/build " ++ Dir ++ "/src 2>&1; echo status $?"),
+    ?assertEqual("status 0\n", Output).
+
+%% report §11.1: in a directory build, a module whose dependency is
+%% refused fails alone, and every other module is compiled and its errors
+%% reported. A regression test: a stale `util.erc` that `a.ern` used
+%% stopped the build before `y.ern`'s type error was reported
+refused_dependency_fails_its_module_alone_test() ->
+    Dir = tmp(),
+    Util = write(Dir, "src/util.ern", "export let u : Int = 1\n"),
+    Build = ["build", "--source-root", Dir ++ "/src", "--build-root", Dir ++ "/build",
+             Dir ++ "/src"],
+    ?assertEqual(0, ern_cli:ern(Build)),
+    ok = file:delete(Util),
+    write(Dir, "src/a.ern", "export let a : Int = Util.u\n"),
+    write(Dir, "src/y.ern", "export let y : Int = \"no\"\n"),
+    ?assertEqual(1, ern_err(Build)),
+    Output = unicode:characters_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Output, <<"y.ern:1:22: the value does not have the declared"
+                                                " type">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"ern build: no module Util: ">>)).
+
+%% report §11: each job's `--help` begins with its synopsis as §11 writes
+%% it, and no line of it ends in a space. A regression test: getopt's
+%% showed the options' keys as metavariables, `<source_root>`, hid
+%% --load-path's repetition, and left a space where it wrapped a line
+synopses_are_the_reports_test_() ->
+    {ok, Report} = file:read_file("../../../report/toolchain.md"),
+    [{Job, fun() ->
+                   {Help, 0} = help_of(Job),
+                   ?assertEqual([], [Line || Line <- string:split(Help, "\n", all),
+                                             lists:suffix(" ", Line)]),
+                   [Synopsis | _] = string:split(Help, "\n\n"),
+                   "Usage: " ++ Shown = lists:flatten(lists:join(" ", string:lexemes(Synopsis,
+                                                                                      " \n"))),
+                   ?assertMatch({_, _},
+                                binary:match(Report, unicode:characters_to_binary(
+                                                       ["`", Shown, "`"])))
+           end}
+     || Job <- ["build", "doc", "format", "run", "test", "shell", "config"]].
+
+%% A job's help as it prints it, and its status.
+help_of(Job) ->
+    Self = self(),
+    Leader = spawn(fun() -> capture(Self, []) end),
+    Previous = group_leader(),
+    group_leader(Leader, self()),
+    Status = try ern_cli:ern([Job, "--help"]) after group_leader(Previous, self()) end,
+    Leader ! {done, self()},
+    receive {captured, Text} -> {Text, Status} end.
+
+capture(Owner, Acc) ->
+    receive
+        {io_request, From, ReplyAs, {put_chars, Encoding, Chars}} ->
+            From ! {io_reply, ReplyAs, ok},
+            capture(Owner, [unicode:characters_to_list(Chars, Encoding) | Acc]);
+        {io_request, From, ReplyAs, {put_chars, Encoding, Module, Function, Args}} ->
+            From ! {io_reply, ReplyAs, ok},
+            Chars = apply(Module, Function, Args),
+            capture(Owner, [unicode:characters_to_list(Chars, Encoding) | Acc]);
+        {io_request, From, ReplyAs, _} ->
+            From ! {io_reply, ReplyAs, {error, request}},
+            capture(Owner, Acc);
+        {done, Owner} ->
+            Owner ! {captured, lists:flatten(lists:reverse(Acc))}
+    end.
+
+%% report §11.1, §11.2: `ern run` checks a module against the installed
+%% standard library whatever the working directory, the library's own
+%% source root among them. A regression test: run from `stdlib/`, every
+%% program was refused as compiled against another standard library
+run_in_the_stdlib_root_test() ->
+    Dir = tmp(),
+    File = write(Dir, "hello.ern", hello()),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    {ok, Cwd} = file:get_cwd(),
+    ok = file:set_cwd("../../../stdlib"),
+    try
+        ?assertEqual(0, ern_err(["run", filename:join(Dir, "hello.erc")]))
+    after
+        file:set_cwd(Cwd)
+    end,
+    ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
+                                      <<"hello, world">>)).
+
 %% report §11.1: single-file mode with no --source-root uses the current
 %% directory, so `ern build a.ern` in a project's directory works
 default_root_test() ->
@@ -933,8 +1034,12 @@ self_qualified_module_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", Dir ++ "/src"])).
 
 %% report §4.2: the standard library's own source root may take prelude
-%% namespaces, and no other root may
-stdlib_root_test() ->
+%% namespaces, and no other root may. A build of the whole library, so the
+%% time stdlib_build_sets_its_copy_aside_test_ has
+stdlib_root_test_() ->
+    {timeout, 60, fun stdlib_root/0}.
+
+stdlib_root() ->
     Dir = tmp(),
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build", "../../../stdlib"])),
     ?assert(filelib:is_regular(Dir ++ "/build/bool.erc")),
@@ -1751,7 +1856,7 @@ prelude_page() ->
      || Name <- [<<"send">>, <<"Address.call">>, <<"Optional">>, <<"restarting">>, <<"Int">>]],
     ?assertMatch({_, _}, binary:match(Page, <<"from the prelude, report §9."/utf8>>)).
 
-%% report §11.4, Appendix E.0 rule 6: docs/module_doc_template.md is what
+%% report §11.4, Appendix E.0 shape rule 6: docs/module_doc_template.md is what
 %% `ern doc` renders for examples/template.ern, after its marker line
 doc_template_test() ->
     Source = example("template.ern"),
@@ -1762,12 +1867,12 @@ doc_template_test() ->
     [_, Generated] = binary:split(Template, Marker),
     %% the last line names the compiler's version, which is compared to itself
     ?assertEqual(without_footer(Generated), without_footer(Output)),
-    %% the module and every exported declaration say since which version, E.0 rule 6
+    %% the module and every exported declaration say since which version, E.0 shape rule 6
     {match, Sinces} = re:run(Output, "\\*Since 0\\.1\\.0\\.\\*", [global]),
     %% the module states its since; no declaration differs from it
     ?assertEqual(1, length(Sinces)),
     %% every exported type has an Examples section, and the one function no
-    %% module example calls, E.0 rule 6
+    %% module example calls, E.0 shape rule 6
     Sections = tl(binary:split(Output, <<"\n## ">>, [global])),
     Named = fun(Name) ->
                 Head = <<Name/binary, "\n">>,

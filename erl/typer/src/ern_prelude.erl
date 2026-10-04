@@ -1,5 +1,5 @@
 %% The prelude, report section 9, as data, with its documentation beside
-%% each entry (report §9, Appendix E.0 rule 6). Types are Ernest source;
+%% each entry (report §9, Appendix E.0 shape rule 6). Types are Ernest source;
 %% values are name, type text, and documentation, the type parsed by
 %% ern_parser:parse_type/1 and converted by the checker. An operation a
 %% type's standard library module provides is documented there, and its

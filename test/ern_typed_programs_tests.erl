@@ -98,7 +98,6 @@ generated(Count, Program) ->
 first_failure(Count, _, _, Number) when Number > Count ->
     none;
 first_failure(Count, Program, Seed, Number) ->
-    put(fresh, 0),
     case failed(Program(2 + Number * 4 div Count)) of
         none -> first_failure(Count, Program, Seed, Number + 1);
         {Text, Expected, Got} ->
@@ -203,7 +202,7 @@ pure_program(Size) ->
     Type = {tuple, [any_type(2), any_type(1), any_type(1)]},
     Value = generate(Type, #{vars => [], helpers => Helpers}, Size),
     Text = [?DECLARATIONS, [[helper_text(Helper), "\n\n"] || Helper <- Helpers],
-            "fn value() : ", type_text(Type), " =\n    ", expr_text(Value), "\n\n",
+            "fn value() : ", type_text(Type), " =\n    ", expression_text(Value), "\n\n",
             "export fn main() : Unit with m = Io.println(Io.show(value()))\n"],
     Expected = try evaluate(Value, #{}, Helpers) of
                    Result -> {ok, <<(show(Result))/binary, "\n">>}
@@ -238,8 +237,8 @@ recursive_helper(Name, Helpers, Size) ->
     Self = {helper, Name, Params, Result, undefined},
     Step = generate(Result, #{vars => [{Acc, Result}, {X, int}], helpers => Helpers}, Size),
     Body = {match, {var, Xs},
-            [{{plist, []}, none, {var, Acc}},
-             {{pcons, {pvar, X}, {pvar, Rest}}, none,
+            [{{list_pattern, []}, none, {var, Acc}},
+             {{cons_pattern, {variable_pattern, X}, {variable_pattern, Rest}}, none,
               {call, {helper, Name}, [{var, Rest}, Step]}}]},
     setelement(5, Self, Body).
 
@@ -263,7 +262,7 @@ process_shape(worker, Scope, Helpers, Size) ->
     Body = ["type Main = Done(", type_text(Type), ")\n\n",
             "export fn main() : Unit with Main = {\n",
             "    let me = self();\n",
-            "    let _ = spawn(fn() = send(me, Done(", expr_text(Value), ")));\n",
+            "    let _ = spawn(fn() = send(me, Done(", expression_text(Value), ")));\n",
             "    receive { Done(value) -> Io.println(Io.show(value)) }\n",
             "}\n"],
     {Body, {ok, <<(show(Result))/binary, "\n">>}};
@@ -281,7 +280,7 @@ process_shape(server, Scope, Helpers, Size) ->
             "    }\n\n",
             "export fn main() : Unit with m = {\n",
             "    let server = spawn(fn() = serve(0));\n",
-            [["    send(server, Add(", expr_text(Value), "));\n"] || {Value, _} <- Sent],
+            [["    send(server, Add(", expression_text(Value), "));\n"] || {Value, _} <- Sent],
             "    match Address.call(server, fn(reply) = Total(reply = reply), 5000) {\n",
             "        Some(total) -> Io.println(Io.show(total))\n",
             "      | None -> Io.println(\"no answer\")\n",
@@ -298,7 +297,7 @@ process_shape(timeout, Scope, Helpers, Size) ->
             "    receive {\n",
             "        Done(value) -> Io.println(Io.show(value))\n",
             "      | after ", integer_to_list(rand:uniform(5) - 1), " -> {\n",
-            "            let late : ", type_text(Type), " = ", expr_text(Value), ";\n",
+            "            let late : ", type_text(Type), " = ", expression_text(Value), ";\n",
             "            Io.println(Io.show(late))\n",
             "        }\n",
             "    }\n"],
@@ -308,16 +307,16 @@ process_shape(deadlock, Scope, Helpers, Size) ->
     {Value, _} = faultless(int, Scope, Helpers, Size),
     Body = ["type Main = Done(Int)\n\n",
             "export fn main() : Unit with Main = {\n",
-            "    let expected = ", expr_text(Value), ";\n",
+            "    let expected = ", expression_text(Value), ";\n",
             "    receive { Done(value) -> Io.println(Io.show(value == expected)) }\n",
             "}\n"],
     {Body, {{fault, <<"deadlock">>}, <<>>}}.
 
 %% An expression of the type that does not fault, and its value.
 faultless(Type, Scope, Helpers, Size) ->
-    Expr = generate(Type, Scope, Size),
-    try evaluate(Expr, #{}, Helpers) of
-        Value -> {Expr, Value}
+    Expression = generate(Type, Scope, Size),
+    try evaluate(Expression, #{}, Helpers) of
+        Value -> {Expression, Value}
     catch throw:{fault, _} -> faultless(Type, Scope, Helpers, Size)
     end.
 
@@ -353,11 +352,10 @@ changed_case(Helpers, Tree, Call) ->
 %% tree says, and waits; main calls it, with a deadline or without, and
 %% sends first as many `Poke`s as the tree may wait for.
 reply_program(Helpers, Tree, Call, ChangeAt) ->
-    put(declarations, []),
-    Handler = consumed(Tree, "reply", ChangeAt),
+    {Handler, Declarations} = consumed(Tree, "reply", ChangeAt),
     Text = [?DECLARATIONS, ?REPLY_DECLARATIONS,
             [[helper_text(Helper), "\n\n"] || Helper <- Helpers],
-            [[Declaration, "\n\n"] || Declaration <- lists:reverse(get(declarations))],
+            [[Declaration, "\n\n"] || Declaration <- Declarations],
             "fn serve() : Unit with Request =\n",
             "    receive { Get(reply = reply) -> { ", Handler, "; idle() } }\n\n",
             "export fn main() : Unit with m = {\n",
@@ -488,82 +486,101 @@ coin() ->
 %% The moves as text
 %%
 
-%% The text that consumes the reply bound to the name: the node's own, or
-%% the one the change makes of it.
+%% The text that consumes the reply bound to the name, the node's own or
+%% the one the change makes of it, and the declarations the text calls.
 consumed(#{id := Id} = Move, Reply, {Id, Change} = ChangeAt) ->
     changed(Change, Move, Reply, ChangeAt);
 consumed(Move, Reply, ChangeAt) ->
     plain(Move, Reply, ChangeAt).
 
 plain(#{kind := answer, value := {Value, _}}, Reply, _) ->
-    ["answer(", Reply, ", ", expr_text(Value), ")"];
+    {["answer(", Reply, ", ", expression_text(Value), ")"], []};
 plain(#{kind := rebind, same := Same, next := Next}, Reply, ChangeAt) ->
     Name = named(Same, Reply),
-    ["{ let ", Name, " = ", Reply, "; ", consumed(Next, Name, ChangeAt), " }"];
+    enclosed(["{ let ", Name, " = ", Reply, "; "], consumed(Next, Name, ChangeAt), " }");
 plain(#{kind := helper, next := Next}, Reply, ChangeAt) ->
     [Helper, Param] = [fresh("hand"), fresh("reply")],
+    {Body, Declarations} = consumed(Next, Param, ChangeAt),
     %% the result unannotated, so that its effect is the body's, a change
     %% that leaves the body pure among them (report §4.5)
-    declare(["fn ", Helper, "(", Param, " : Reply(Int)) =\n    ",
-             consumed(Next, Param, ChangeAt)]),
-    [Helper, "(", Reply, ")"];
+    {[Helper, "(", Reply, ")"],
+     [["fn ", Helper, "(", Param, " : Reply(Int)) =\n    ", Body] | Declarations]};
 plain(#{kind := returned, polymorphic := Polymorphic, same := Same, next := Next}, Reply,
       ChangeAt) ->
     [Helper, Name] = [fresh("pass"), named(Same, Reply)],
-    declare(case Polymorphic of
-                true -> ["fn ", Helper, "(value : a) : a = value"];
-                false -> ["fn ", Helper, "(reply : Reply(Int)) : Reply(Int) = reply"]
-            end),
-    ["{ let ", Name, " = ", Helper, "(", Reply, "); ", consumed(Next, Name, ChangeAt), " }"];
+    Declaration = case Polymorphic of
+                      true -> ["fn ", Helper, "(value : a) : a = value"];
+                      false -> ["fn ", Helper, "(reply : Reply(Int)) : Reply(Int) = reply"]
+                  end,
+    {Text, Declarations} = enclosed(["{ let ", Name, " = ", Helper, "(", Reply, "); "],
+                                    consumed(Next, Name, ChangeAt), " }"),
+    {Text, [Declaration | Declarations]};
 plain(#{kind := built, form := Form, same := Same, extra := {Extra, _}, next := Next}, Reply,
       ChangeAt) ->
     Name = named(Same, Reply),
-    built(Form, Reply, Name, expr_text(Extra), consumed(Next, Name, ChangeAt));
+    {Body, Declarations} = consumed(Next, Name, ChangeAt),
+    {built(Form, Reply, Name, expression_text(Extra), Body), Declarations};
 plain(#{kind := lambda, next := Next}, Reply, ChangeAt) ->
     Lambda = fresh("deliver"),
-    ["{ let ", Lambda, " = fn() = ", consumed(Next, Reply, ChangeAt), "; ", Lambda, "() }"];
+    enclosed(["{ let ", Lambda, " = fn() = "], consumed(Next, Reply, ChangeAt),
+             ["; ", Lambda, "() }"]);
 plain(#{kind := spawned, next := Next}, Reply, ChangeAt) ->
-    ["{ let _ = spawn(fn() = ", consumed(Next, Reply, ChangeAt), "); Unit }"];
+    enclosed("{ let _ = spawn(fn() = ", consumed(Next, Reply, ChangeAt), "); Unit }");
 plain(#{kind := sent, next := Next}, Reply, ChangeAt) ->
     [Type, Forward, Param] = [fresh("Forward"), fresh("forward"), fresh("reply")],
-    declare(["type ", Type, " = ", Type, "(reply : Reply(Int))"]),
-    declare(["fn ", Forward, "() : Unit with ", Type, " =\n    receive { ", Type, "(reply = ",
-             Param, ") -> ", consumed(Next, Param, ChangeAt), " }"]),
-    ["send(spawn(fn() = ", Forward, "()), ", Type, "(reply = ", Reply, "))"];
+    {Body, Declarations} = consumed(Next, Param, ChangeAt),
+    {["send(spawn(fn() = ", Forward, "()), ", Type, "(reply = ", Reply, "))"],
+     [["type ", Type, " = ", Type, "(reply : Reply(Int))"],
+      ["fn ", Forward, "() : Unit with ", Type, " =\n    receive { ", Type, "(reply = ", Param,
+       ") -> ", Body, " }"]
+      | Declarations]};
 plain(#{kind := branch, condition := {Condition, _}, then := Then, otherwise := Otherwise}, Reply,
       ChangeAt) ->
-    ["(if ", expr_text(Condition), " then ", consumed(Then, Reply, ChangeAt), " else ",
-     consumed(Otherwise, Reply, ChangeAt), ")"];
+    {ThenText, ThenDeclarations} = consumed(Then, Reply, ChangeAt),
+    {OtherwiseText, OtherwiseDeclarations} = consumed(Otherwise, Reply, ChangeAt),
+    {["(if ", expression_text(Condition), " then ", ThenText, " else ", OtherwiseText, ")"],
+     ThenDeclarations ++ OtherwiseDeclarations};
 plain(#{kind := branch_value, condition := {Condition, _}, same := Same, next := Next}, Reply,
       ChangeAt) ->
     Name = named(Same, Reply),
-    ["{ let ", Name, " = (if ", expr_text(Condition), " then ", Reply, " else ", Reply, "); ",
-     consumed(Next, Name, ChangeAt), " }"];
+    enclosed(["{ let ", Name, " = (if ", expression_text(Condition), " then ", Reply, " else ",
+              Reply, "); "],
+             consumed(Next, Name, ChangeAt), " }");
 plain(#{kind := block_value, extra := {Extra, _}, same := Same, next := Next}, Reply,
       ChangeAt) ->
     [Name, Count] = [named(Same, Reply), fresh("k")],
-    ["{ let ", Name, " = { let ", Count, " = ", expr_text(Extra), "; ", Reply, " }; ",
-     consumed(Next, Name, ChangeAt), " }"];
+    enclosed(["{ let ", Name, " = { let ", Count, " = ", expression_text(Extra), "; ", Reply,
+              " }; "],
+             consumed(Next, Name, ChangeAt), " }");
 plain(#{kind := arrow, same := Same, next := Next}, Reply, ChangeAt) ->
     Name = named(Same, Reply),
-    ["{ let _ = { let ", Name, " <- Some(", Reply, "); ", consumed(Next, Name, ChangeAt),
-     "; Some(Unit) }; Unit }"];
+    enclosed(["{ let _ = { let ", Name, " <- Some(", Reply, "); "],
+             consumed(Next, Name, ChangeAt), "; Some(Unit) }; Unit }");
 plain(#{kind := fault_branch, condition := {Condition, _}, side := Side, next := Next}, Reply,
       ChangeAt) ->
-    [Body, Fault] = [consumed(Next, Reply, ChangeAt), "fault(\"gave up\")"],
+    {Body, Declarations} = consumed(Next, Reply, ChangeAt),
+    Fault = "fault(\"gave up\")",
     case Side of
-        then -> ["(if ", expr_text(Condition), " then ", Body, " else ", Fault, ")"];
-        otherwise -> ["(if ", expr_text(Condition), " then ", Fault, " else ", Body, ")"]
+        then -> {["(if ", expression_text(Condition), " then ", Body, " else ", Fault, ")"],
+                 Declarations};
+        otherwise -> {["(if ", expression_text(Condition), " then ", Fault, " else ", Body, ")"],
+                      Declarations}
     end;
+plain(#{kind := held, 'after' := none, next := Next}, Reply, ChangeAt) ->
+    enclosed("receive { Poke(_) -> ", consumed(Next, Reply, ChangeAt), " }");
 plain(#{kind := held, 'after' := After, next := Next}, Reply, ChangeAt) ->
-    ["receive { Poke(_) -> ", consumed(Next, Reply, ChangeAt),
-     case After of
-         none -> "";
-         _ -> [" | after 5000 -> ", consumed(After, Reply, ChangeAt)]
-     end, " }"];
+    {Body, Declarations} = consumed(Next, Reply, ChangeAt),
+    {Late, LateDeclarations} = consumed(After, Reply, ChangeAt),
+    {["receive { Poke(_) -> ", Body, " | after 5000 -> ", Late, " }"],
+     Declarations ++ LateDeclarations};
 plain(#{kind := rebound_after, extra := {Extra, _}, next := Next}, Reply, ChangeAt) ->
-    ["{ ", consumed(Next, Reply, ChangeAt), "; let ", Reply, " = ", expr_text(Extra), "; if ",
-     Reply, " > 0 then Unit else Unit }"].
+    enclosed("{ ", consumed(Next, Reply, ChangeAt),
+             ["; let ", Reply, " = ", expression_text(Extra), "; if ", Reply,
+              " > 0 then Unit else Unit }"]).
+
+%% A consumption's text between two others, its declarations as they were.
+enclosed(Before, {Text, Declarations}, After) ->
+    {[Before, Text, After], Declarations}.
 
 %% The reply placed in a value and taken from it by a pattern.
 built(box, Reply, Name, _, Body) ->
@@ -593,9 +610,6 @@ wrapped(Reply) ->
 named(true, Reply) -> Reply;
 named(false, _) -> fresh("reply").
 
-declare(Declaration) ->
-    put(declarations, [Declaration | get(declarations)]).
-
 %%
 %% The changes the checker must refuse
 %%
@@ -611,32 +625,33 @@ changes(#{kind := lambda}) -> ?COMMON_CHANGES ++ ?LAMBDA_CHANGES;
 changes(_) -> ?COMMON_CHANGES.
 
 changed(double, Move, Reply, ChangeAt) ->
-    Text = plain(Move, Reply, ChangeAt),
-    ["{ ", Text, "; ", Text, " }"];
+    {Text, Declarations} = plain(Move, Reply, ChangeAt),
+    {["{ ", Text, "; ", Text, " }"], Declarations};
 changed(drop, _, _, _) ->
-    "Unit";
+    {"Unit", []};
 changed(hide, Move, Reply, ChangeAt) ->
     Shown = ["Io.println(Int.toString(", Reply, "))"],
     case rand:uniform(3) of
-        1 -> ["{ let ", Reply, " = 5; ", Shown, " }"];
-        2 -> ["(fn(", Reply, " : Int) = ", Shown, ")(5)"];
-        3 -> ["(match Some(5) { Some(", Reply, ") -> ", Shown, " | None -> ",
-              plain(Move, Reply, ChangeAt), " })"]
+        1 -> {["{ let ", Reply, " = 5; ", Shown, " }"], []};
+        2 -> {["(fn(", Reply, " : Int) = ", Shown, ")(5)"], []};
+        3 -> enclosed(["(match Some(5) { Some(", Reply, ") -> ", Shown, " | None -> "],
+                      plain(Move, Reply, ChangeAt), " })")
     end;
 changed(skip, Move, Reply, ChangeAt) ->
-    Text = plain(Move, Reply, ChangeAt),
+    Plain = plain(Move, Reply, ChangeAt),
     case rand:uniform(3) of
-        1 -> ["(if true && { ", Text, "; true } then Unit else Unit)"];
-        2 -> ["(if false || { ", Text, "; true } then Unit else Unit)"];
-        3 -> ["{ let _ = { let ", fresh("k"), " <- Some(1); ", Text, "; Some(Unit) }; Unit }"]
+        1 -> enclosed("(if true && { ", Plain, "; true } then Unit else Unit)");
+        2 -> enclosed("(if false || { ", Plain, "; true } then Unit else Unit)");
+        3 -> enclosed(["{ let _ = { let ", fresh("k"), " <- Some(1); "], Plain,
+                      "; Some(Unit) }; Unit }")
     end;
 changed(forgotten, _, Reply, _) ->
     Wrapped = wrapped(Reply),
     case rand:uniform(3) of
-        1 -> ["forget(", Wrapped, ")"];
-        2 -> ["forgetter()(", Wrapped, ")"];
+        1 -> {["forget(", Wrapped, ")"], []};
+        2 -> {["forgetter()(", Wrapped, ")"], []};
         3 -> Lambda = fresh("forget"),
-             ["{ let ", Lambda, " = fn(value) = Unit; ", Lambda, "(", Wrapped, ") }"]
+             {["{ let ", Lambda, " = fn(value) = Unit; ", Lambda, "(", Wrapped, ") }"], []}
     end;
 changed(copied, _, Reply, _) ->
     [First, Second] = [fresh("reply"), fresh("reply")],
@@ -644,37 +659,39 @@ changed(copied, _, Reply, _) ->
                                {["Box(item = ", Reply, ")"],
                                 fun(Name) -> ["Box(item = ", Name, ")"] end},
                                {["#(", Reply, ", 0)"], fun(Name) -> ["#(", Name, ", _)"] end}]),
-    ["(match copy(", Wrapped, ") { #(", Pattern(First), ", ", Pattern(Second), ") -> { answer(",
-     First, ", 1); answer(", Second, ", 2) } })"];
+    {["(match copy(", Wrapped, ") { #(", Pattern(First), ", ", Pattern(Second), ") -> { answer(",
+      First, ", 1); answer(", Second, ", 2) } })"], []};
 changed(select, #{next := Next}, Reply, ChangeAt) ->
     [Ticket, Name] = [fresh("ticket"), fresh("reply")],
-    ["{ let ", Ticket, " = Ticket(reply = ", Reply, ", extra = 1); let ", Name, " = ", Ticket,
-     ".reply; ", consumed(Next, Name, ChangeAt), " }"];
+    enclosed(["{ let ", Ticket, " = Ticket(reply = ", Reply, ", extra = 1); let ", Name, " = ",
+              Ticket, ".reply; "],
+             consumed(Next, Name, ChangeAt), " }");
 changed(update, #{next := Next}, Reply, ChangeAt) ->
     [Ticket, Name] = [fresh("ticket"), fresh("reply")],
-    ["{ let ", Ticket, " = Ticket(..Ticket(reply = ", Reply, ", extra = 1), extra = 2); (match ",
-     Ticket, " { Ticket(reply = ", Name, ", extra = _) -> ", consumed(Next, Name, ChangeAt),
-     " }) }"];
+    enclosed(["{ let ", Ticket, " = Ticket(..Ticket(reply = ", Reply, ", extra = 1), extra = 2);",
+              " (match ", Ticket, " { Ticket(reply = ", Name, ", extra = _) -> "],
+             consumed(Next, Name, ChangeAt), " }) }");
 changed(discard, _, Reply, _) ->
-    ["(match Some(", Reply, ") { Some(_) -> Unit | None -> Unit })"];
+    {["(match Some(", Reply, ") { Some(_) -> Unit | None -> Unit })"], []};
 changed(alias, #{next := Next}, Reply, ChangeAt) ->
     [Name, Whole] = [fresh("reply"), fresh("whole")],
-    ["(match Some(", Reply, ") { Some(", Name, ") as ", Whole, " -> ",
-     consumed(Next, Name, ChangeAt), " | None -> Unit })"];
+    enclosed(["(match Some(", Reply, ") { Some(", Name, ") as ", Whole, " -> "],
+             consumed(Next, Name, ChangeAt), " | None -> Unit })");
 changed(twice, #{next := Next}, Reply, ChangeAt) ->
     Lambda = fresh("deliver"),
-    ["{ let ", Lambda, " = fn() = ", consumed(Next, Reply, ChangeAt), "; ", Lambda, "(); ",
-     Lambda, "() }"];
+    enclosed(["{ let ", Lambda, " = fn() = "], consumed(Next, Reply, ChangeAt),
+             ["; ", Lambda, "(); ", Lambda, "() }"]);
 changed(renamed, #{next := Next}, Reply, ChangeAt) ->
     [Lambda, Other] = [fresh("deliver"), fresh("deliver")],
-    ["{ let ", Lambda, " = fn() = ", consumed(Next, Reply, ChangeAt), "; let ", Other, " = ",
-     Lambda, "; ", Other, "() }"];
+    enclosed(["{ let ", Lambda, " = fn() = "], consumed(Next, Reply, ChangeAt),
+             ["; let ", Other, " = ", Lambda, "; ", Other, "() }"]);
 changed(uncalled, #{next := Next}, Reply, ChangeAt) ->
     Lambda = fresh("deliver"),
-    ["{ let ", Lambda, " = fn() = ", consumed(Next, Reply, ChangeAt), "; Unit }"];
+    enclosed(["{ let ", Lambda, " = fn() = "], consumed(Next, Reply, ChangeAt), "; Unit }");
 changed(local, #{next := Next}, Reply, ChangeAt) ->
     Local = fresh("deliver"),
-    ["{ fn ", Local, "() = ", consumed(Next, Reply, ChangeAt), "; ", Local, "() }"].
+    enclosed(["{ fn ", Local, "() = "], consumed(Next, Reply, ChangeAt),
+             ["; ", Local, "() }"]).
 
 %%
 %% Types
@@ -792,36 +809,38 @@ form(local_call, Type, #{vars := Vars} = Scope, Depth) ->
 form(match_optional, Type, Scope, Depth) ->
     Inner = any_type(1),
     Bound = fresh("y"),
-    Some = {{pcon, 'Some', {positional, {pvar, Bound}}}, none,
+    Some = {{constructor_pattern, 'Some', {positional, {variable_pattern, Bound}}}, none,
             generate(Type, bind(Scope, Bound, Inner), Depth)},
-    None = {{pcon, 'None', none}, none, generate(Type, Scope, Depth)},
+    None = {{constructor_pattern, 'None', none}, none, generate(Type, Scope, Depth)},
     Guarded = guarded(Inner, Bound, Type, Scope, Depth),
     scrutinized({optional, Inner}, Scope, Depth, Guarded ++ shuffle([Some, None]));
 form(match_list, Type, Scope, Depth) ->
     Element = base_type(),
     {Head, Tail} = {fresh("h"), fresh("t")},
-    Empty = {{plist, []}, none, generate(Type, Scope, Depth)},
-    Cons = {{pcons, {pvar, Head}, {pvar, Tail}}, none,
+    Empty = {{list_pattern, []}, none, generate(Type, Scope, Depth)},
+    Cons = {{cons_pattern, {variable_pattern, Head}, {variable_pattern, Tail}}, none,
             generate(Type, bind(bind(Scope, Head, Element), Tail, {list, Element}), Depth)},
-    Single = {{plist, [{pvar, Head}]}, none, generate(Type, bind(Scope, Head, Element), Depth)},
+    Single = {{list_pattern, [{variable_pattern, Head}]}, none,
+              generate(Type, bind(Scope, Head, Element), Depth)},
     Clauses = case rand:uniform(2) of
                   1 -> [Empty, Cons];
-                  _ -> [Single, Empty, {{pwild}, none, generate(Type, Scope, Depth)}]
+                  _ -> [Single, Empty, {{wildcard_pattern}, none, generate(Type, Scope, Depth)}]
               end,
     scrutinized({list, Element}, Scope, Depth, Clauses);
 form(match_shape, Type, Scope, Depth) ->
     {Radius, Width} = {fresh("r"), fresh("w")},
-    Circle = {{pcon, 'Circle', {positional, {pvar, Radius}}}, none,
+    Circle = {{constructor_pattern, 'Circle', {positional, {variable_pattern, Radius}}}, none,
               generate(Type, bind(Scope, Radius, int), Depth)},
     Rect = case rand:uniform(2) of
-               1 -> {{pcon, 'Rect', {named, [{w, {pvar, Width}}]}}, none,
+               1 -> {{constructor_pattern, 'Rect', {named, [{w, {variable_pattern, Width}}]}}, none,
                      generate(Type, bind(Scope, Width, int), Depth)};
-               _ -> {{pcon, 'Rect', {named, []}}, none, generate(Type, Scope, Depth)}
+               _ -> {{constructor_pattern, 'Rect', {named, []}}, none, generate(Type, Scope, Depth)}
            end,
-    Dot = {{pcon, 'Dot', none}, none, generate(Type, Scope, Depth)},
+    Dot = {{constructor_pattern, 'Dot', none}, none, generate(Type, Scope, Depth)},
     Clauses = case rand:uniform(2) of
                   1 -> shuffle([Circle, Rect, Dot]);
-                  _ -> [pick([Circle, Rect, Dot]), {{pwild}, none, generate(Type, Scope, Depth)}]
+                  _ -> [pick([Circle, Rect, Dot]),
+                        {{wildcard_pattern}, none, generate(Type, Scope, Depth)}]
               end,
     scrutinized(shape, Scope, Depth, Clauses);
 form(match_tuple, Type, Scope, Depth) ->
@@ -829,12 +848,14 @@ form(match_tuple, Type, Scope, Depth) ->
     {Left, Right} = {fresh("a"), fresh("b")},
     Inner = bind(bind(Scope, Left, First), Right, Second),
     scrutinized({tuple, [First, Second]}, Scope, Depth,
-                [{{ptuple, [{pvar, Left}, {pvar, Right}]}, none, generate(Type, Inner, Depth)}]);
+                [{{tuple_pattern, [{variable_pattern, Left}, {variable_pattern, Right}]}, none,
+                  generate(Type, Inner, Depth)}]);
 form(match_int, Type, Scope, Depth) ->
     Literals = lists:usort([rand:uniform(7) - 4 || _ <- lists:seq(1, rand:uniform(3))]),
-    Clauses = [{{plit, Literal}, none, generate(Type, Scope, Depth)} || Literal <- Literals],
+    Clauses = [{{literal_pattern, Literal}, none, generate(Type, Scope, Depth)}
+               || Literal <- Literals],
     Bound = fresh("n"),
-    Last = {{pvar, Bound}, none, generate(Type, bind(Scope, Bound, int), Depth)},
+    Last = {{variable_pattern, Bound}, none, generate(Type, bind(Scope, Bound, int), Depth)},
     scrutinized(int, Scope, Depth, Clauses ++ [Last]);
 form(lambda_call, Type, Scope, Depth) ->
     {Param, ParamType} = {fresh("z"), base_type()},
@@ -961,7 +982,8 @@ guarded(int, Bound, Type, Scope, Depth) ->
         1 ->
             Inner = bind(Scope, Bound, int),
             Guard = {binop, '>', {var, Bound}, generate(int, Inner, 1)},
-            [{{pcon, 'Some', {positional, {pvar, Bound}}}, Guard, generate(Type, Inner, Depth)}];
+            [{{constructor_pattern, 'Some', {positional, {variable_pattern, Bound}}}, Guard,
+              generate(Type, Inner, Depth)}];
         _ -> []
     end;
 guarded(_, _, _, _, _) ->
@@ -996,10 +1018,10 @@ literal({box, Inner}, Scope, Depth) ->
 bind(#{vars := Vars} = Scope, Name, Type) ->
     Scope#{vars => [{Name, Type} | Vars]}.
 
+%% A name no other of the program has, numbered as a move is (numbered/2),
+%% so that no counter is carried through the generator.
 fresh(Prefix) ->
-    Next = get(fresh) + 1,
-    put(fresh, Next),
-    Prefix ++ integer_to_list(Next).
+    Prefix ++ integer_to_list(erlang:unique_integer([positive])).
 
 pick(Choices) ->
     lists:nth(rand:uniform(length(Choices)), Choices).
@@ -1013,73 +1035,81 @@ shuffle(List) ->
 
 helper_text({helper, Name, Params, Result, Body}) ->
     ["fn ", Name, "(", params_text(Params), ") : ", type_text(Result), " =\n    ",
-     expr_text(Body)].
+     expression_text(Body)].
 
 params_text(Params) ->
     lists:join(", ", [[Param, " : ", type_text(Type)] || {Param, Type} <- Params]).
 
-expr_text({int, Int}) when Int >= 0 -> integer_to_list(Int);
-expr_text({int, Int}) -> ["(-", integer_to_list(-Int), ")"];
-expr_text({string, Text}) -> [$", Text, $"];
-expr_text({bool, Bool}) -> atom_to_list(Bool);
-expr_text(unit) -> "Unit";
-expr_text({var, Name}) -> Name;
-expr_text({binop, Operator, Left, Right}) ->
-    ["(", expr_text(Left), " ", atom_to_list(Operator), " ", expr_text(Right), ")"];
-expr_text({negation, Operand}) -> ["(-", expr_text(Operand), ")"];
-expr_text({'not', Operand}) -> ["(!", expr_text(Operand), ")"];
-expr_text({'if', Condition, Then, Else}) ->
-    ["(if ", expr_text(Condition), " then ", expr_text(Then), " else ", expr_text(Else), ")"];
-expr_text({block, Statements, Body}) ->
-    ["{ ", [[statement_text(Statement), "; "] || Statement <- Statements], expr_text(Body), " }"];
-expr_text({match, Scrutinee, Clauses}) ->
-    ["(match ", expr_text(Scrutinee), " { ",
+expression_text({int, Int}) when Int >= 0 -> integer_to_list(Int);
+expression_text({int, Int}) -> ["(-", integer_to_list(-Int), ")"];
+expression_text({string, Text}) -> [$", Text, $"];
+expression_text({bool, Bool}) -> atom_to_list(Bool);
+expression_text(unit) -> "Unit";
+expression_text({var, Name}) -> Name;
+expression_text({binop, Operator, Left, Right}) ->
+    ["(", expression_text(Left), " ", atom_to_list(Operator), " ", expression_text(Right), ")"];
+expression_text({negation, Operand}) -> ["(-", expression_text(Operand), ")"];
+expression_text({'not', Operand}) -> ["(!", expression_text(Operand), ")"];
+expression_text({'if', Condition, Then, Else}) ->
+    ["(if ", expression_text(Condition), " then ", expression_text(Then), " else ",
+     expression_text(Else), ")"];
+expression_text({block, Statements, Body}) ->
+    ["{ ", [[statement_text(Statement), "; "] || Statement <- Statements],
+     expression_text(Body), " }"];
+expression_text({match, Scrutinee, Clauses}) ->
+    ["(match ", expression_text(Scrutinee), " { ",
      lists:join(" | ", [clause_text(Clause) || Clause <- Clauses]), " })"];
-expr_text({con, Name, none}) -> atom_to_list(Name);
-expr_text({con, Name, {positional, Arg}}) -> [atom_to_list(Name), "(", expr_text(Arg), ")"];
-expr_text({con, Name, {named, Fields}}) ->
+expression_text({con, Name, none}) -> atom_to_list(Name);
+expression_text({con, Name, {positional, Argument}}) ->
+    [atom_to_list(Name), "(", expression_text(Argument), ")"];
+expression_text({con, Name, {named, Fields}}) ->
     [atom_to_list(Name), "(", fields_text(Fields), ")"];
-expr_text({tuple, Elements}) -> ["#(", lists:join(", ", [expr_text(E) || E <- Elements]), ")"];
-expr_text({list, Elements}) -> ["[", lists:join(", ", [expr_text(E) || E <- Elements]), "]"];
-expr_text({select, Record, Field}) -> ["(", expr_text(Record), ").", atom_to_list(Field)];
-expr_text({update, Name, Base, Fields}) ->
-    [atom_to_list(Name), "(..", expr_text(Base), ", ", fields_text(Fields), ")"];
-expr_text({lambda, Params, Result, Body}) ->
-    ["(fn(", params_text(Params), ") : ", type_text(Result), " = ", expr_text(Body), ")"];
-expr_text({call, {qualified, Name}, Args}) -> [Name, "(", args_text(Args), ")"];
-expr_text({call, {helper, Name}, Args}) -> [Name, "(", args_text(Args), ")"];
-expr_text({call, {local, Name}, Args}) -> [Name, "(", args_text(Args), ")"];
-expr_text({call, Callee, Args}) -> [expr_text(Callee), "(", args_text(Args), ")"].
+expression_text({tuple, Elements}) ->
+    ["#(", lists:join(", ", [expression_text(Element) || Element <- Elements]), ")"];
+expression_text({list, Elements}) ->
+    ["[", lists:join(", ", [expression_text(Element) || Element <- Elements]), "]"];
+expression_text({select, Record, Field}) ->
+    ["(", expression_text(Record), ").", atom_to_list(Field)];
+expression_text({update, Name, Base, Fields}) ->
+    [atom_to_list(Name), "(..", expression_text(Base), ", ", fields_text(Fields), ")"];
+expression_text({lambda, Params, Result, Body}) ->
+    ["(fn(", params_text(Params), ") : ", type_text(Result), " = ", expression_text(Body), ")"];
+expression_text({call, {qualified, Name}, Args}) -> [Name, "(", args_text(Args), ")"];
+expression_text({call, {helper, Name}, Args}) -> [Name, "(", args_text(Args), ")"];
+expression_text({call, {local, Name}, Args}) -> [Name, "(", args_text(Args), ")"];
+expression_text({call, Callee, Args}) -> [expression_text(Callee), "(", args_text(Args), ")"].
 
-args_text(Args) -> lists:join(", ", [expr_text(Arg) || Arg <- Args]).
+args_text(Args) -> lists:join(", ", [expression_text(Arg) || Arg <- Args]).
 
 statement_text({'let', Name, Type, Bound}) ->
-    ["let ", Name, " : ", type_text(Type), " = ", expr_text(Bound)];
+    ["let ", Name, " : ", type_text(Type), " = ", expression_text(Bound)];
 statement_text({local_fn, Name, Params, Result, Body}) ->
-    ["fn ", Name, "(", params_text(Params), ") : ", type_text(Result), " = ", expr_text(Body)].
+    ["fn ", Name, "(", params_text(Params), ") : ", type_text(Result), " = ",
+     expression_text(Body)].
 
 fields_text(Fields) ->
-    lists:join(", ", [[atom_to_list(Field), " = ", expr_text(Value)] || {Field, Value} <- Fields]).
+    lists:join(", ", [[atom_to_list(Field), " = ", expression_text(Value)]
+                      || {Field, Value} <- Fields]).
 
-clause_text({Pattern, none, Body}) -> [pattern_text(Pattern), " -> ", expr_text(Body)];
+clause_text({Pattern, none, Body}) -> [pattern_text(Pattern), " -> ", expression_text(Body)];
 clause_text({Pattern, Guard, Body}) ->
-    [pattern_text(Pattern), " when ", expr_text(Guard), " -> ", expr_text(Body)].
+    [pattern_text(Pattern), " when ", expression_text(Guard), " -> ", expression_text(Body)].
 
-pattern_text({pwild}) -> "_";
-pattern_text({pvar, Name}) -> Name;
-pattern_text({plit, Int}) -> integer_to_list(Int);
-pattern_text({pcon, Name, none}) -> atom_to_list(Name);
-pattern_text({pcon, Name, {positional, Pattern}}) ->
+pattern_text({wildcard_pattern}) -> "_";
+pattern_text({variable_pattern, Name}) -> Name;
+pattern_text({literal_pattern, Int}) -> integer_to_list(Int);
+pattern_text({constructor_pattern, Name, none}) -> atom_to_list(Name);
+pattern_text({constructor_pattern, Name, {positional, Pattern}}) ->
     [atom_to_list(Name), "(", pattern_text(Pattern), ")"];
-pattern_text({pcon, Name, {named, Fields}}) ->
+pattern_text({constructor_pattern, Name, {named, Fields}}) ->
     [atom_to_list(Name), "(",
      lists:join(", ", [[atom_to_list(Field), " = ", pattern_text(Pattern)]
                        || {Field, Pattern} <- Fields]), ")"];
-pattern_text({ptuple, Patterns}) ->
+pattern_text({tuple_pattern, Patterns}) ->
     ["#(", lists:join(", ", [pattern_text(Pattern) || Pattern <- Patterns]), ")"];
-pattern_text({plist, Patterns}) ->
+pattern_text({list_pattern, Patterns}) ->
     ["[", lists:join(", ", [pattern_text(Pattern) || Pattern <- Patterns]), "]"];
-pattern_text({pcons, Head, Tail}) -> [pattern_text(Head), " :: ", pattern_text(Tail)].
+pattern_text({cons_pattern, Head, Tail}) -> [pattern_text(Head), " :: ", pattern_text(Tail)].
 
 %%
 %% The interpreter: the program's value by the report's rules, a value an
@@ -1182,20 +1212,21 @@ clause(Value, [{Pattern, Guard, Body} | Rest], Env, Helpers) ->
             clause(Value, Rest, Env, Helpers)
     end.
 
-matched({pwild}, _, Env) -> {true, Env};
-matched({pvar, Name}, Value, Env) -> {true, Env#{Name => Value}};
-matched({plit, Int}, Int, Env) -> {true, Env};
-matched({pcon, Name, none}, {con, Name, none}, Env) -> {true, Env};
-matched({pcon, Name, {positional, Pattern}}, {con, Name, {positional, Value}}, Env) ->
+matched({wildcard_pattern}, _, Env) -> {true, Env};
+matched({variable_pattern, Name}, Value, Env) -> {true, Env#{Name => Value}};
+matched({literal_pattern, Int}, Int, Env) -> {true, Env};
+matched({constructor_pattern, Name, none}, {con, Name, none}, Env) -> {true, Env};
+matched({constructor_pattern, Name, {positional, Pattern}}, {con, Name, {positional, Value}},
+        Env) ->
     matched(Pattern, Value, Env);
-matched({pcon, Name, {named, Patterns}}, {con, Name, {named, Fields}}, Env) ->
+matched({constructor_pattern, Name, {named, Patterns}}, {con, Name, {named, Fields}}, Env) ->
     all_matched([{Pattern, proplists:get_value(Field, Fields)} || {Field, Pattern} <- Patterns],
                 Env);
-matched({ptuple, Patterns}, {tuple, Values}, Env) ->
+matched({tuple_pattern, Patterns}, {tuple, Values}, Env) ->
     all_matched(lists:zip(Patterns, Values), Env);
-matched({plist, Patterns}, Values, Env) when length(Patterns) =:= length(Values) ->
+matched({list_pattern, Patterns}, Values, Env) when length(Patterns) =:= length(Values) ->
     all_matched(lists:zip(Patterns, Values), Env);
-matched({pcons, Head, Tail}, [Value | Values], Env) ->
+matched({cons_pattern, Head, Tail}, [Value | Values], Env) ->
     all_matched([{Head, Value}, {Tail, Values}], Env);
 matched(_, _, _) -> false.
 

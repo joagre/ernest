@@ -42,9 +42,13 @@ TESTS = Modules = [list_to_atom(filename:basename(File, ".beam")) \
 
 # The tests run with the standard library on the path, and the shell's
 # tree, which holds libs/markdown's module for `ern doc --man` (report §11.4).
+# A test makes what it needs under one directory of the run's own,
+# ERN_TEST_DIR, which is removed when the run ends, whatever its outcome.
 test: $(BEAM) $(TEST_BEAM)
-	erl -noshell -pa $(EBIN) -pa $(abspath ../../../build/stdlib) \
-	  -pa $(abspath ../../../build/shell) -eval '$(TESTS)'
+	@dir=$$(mktemp -d "$${TMPDIR:-/tmp}/ern_test_XXXXXX") && \
+	  ERN_TEST_DIR=$$dir erl -noshell -pa $(EBIN) -pa $(abspath ../../../build/stdlib) \
+	  -pa $(abspath ../../../build/shell) -eval '$(TESTS)'; \
+	  status=$$?; rm -rf "$$dir"; exit $$status
 
 clean:
 	rm -f $(EBIN)/*.beam $(EBIN)/*.Pbeam

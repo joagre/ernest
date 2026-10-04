@@ -22,10 +22,9 @@ line_length_test() ->
                 "test/*.py", "emacs/*.el", "emacs/test/*.el", "libs/**/*.ern", "tools/*.ern",
                 "tools/*.sh", "tools/*.escript", "bin/ern", "erl/*/include/*.hrl", "Makefile",
                 "test/Makefile", "erl/*/src/Makefile", "erl/app.mk", "tools/release/Makefile"],
-    Files = [File || Pattern <- Patterns, File <- filelib:wildcard(Pattern, ?ROOT),
+    Files = [File || File <- ern_repository:files(Patterns),
                      filename:basename(File) =/= "getopt.erl",
-                     not lists:prefix("test/build/", File),
-                     not is_editor_file(filename:basename(File))],
+                     not lists:prefix("test/build/", File)],
     ?assert(length(Files) > 20),
     Long = [{File, Number} || File <- Files,
                               {Number, Line} <- numbered(File),
@@ -41,10 +40,9 @@ no_tab_test() ->
                 "test/*.py", "emacs/*.el", "emacs/test/*.el", "emacs/test/broken/*.ern",
                 "libs/**/*.ern", "libs/*/*.md", "tools/*.ern", "tools/*.sh", "bin/ern", "*.md",
                 "docs/*.md"],
-    Files = [File || Pattern <- Patterns, File <- filelib:wildcard(Pattern, ?ROOT),
+    Files = [File || File <- ern_repository:files(Patterns),
                      filename:basename(File) =/= "getopt.erl",
-                     not lists:prefix("test/build/", File),
-                     not is_editor_file(filename:basename(File))],
+                     not lists:prefix("test/build/", File)],
     ?assert(length(Files) > 20),
     ?assertEqual([], [{File, Number} || File <- Files, {Number, Line} <- numbered(File),
                                         lists:member($\t, Line)]).
@@ -54,9 +52,8 @@ no_tab_test() ->
 %% the vendored getopt keeps its upstream form. Written after the rule,
 %% when six modules had fallen out of order and one had lost its specs
 exports_test() ->
-    Files = [File || File <- filelib:wildcard("erl/*/src/*.erl", ?ROOT),
-                     filename:basename(File) =/= "getopt.erl",
-                     not is_editor_file(filename:basename(File))],
+    Files = [File || File <- ern_repository:files(["erl/*/src/*.erl"]),
+                     filename:basename(File) =/= "getopt.erl"],
     ?assert(length(Files) > 20),
     ?assertEqual([],
                  [{File, Fault} || File <- Files,
@@ -99,18 +96,18 @@ formatted_test_() ->
      end}.
 
 formatted(File) ->
-    {ok, Bytes} = file:read_file(filename:join(?ROOT, File)),
+    Bytes = ern_repository:read(File),
     ern_format:format(Bytes) =:= {ok, Bytes}.
 
 document_formatted(File) ->
-    {ok, Bytes} = file:read_file(filename:join(?ROOT, File)),
+    Bytes = ern_repository:read(File),
     ern_format:markdown(Bytes) =:= Bytes.
 
 %% The Ernest blocks of the documents laid out, for `make format`.
 write_formatted() ->
     lists:foreach(fun(Document) ->
                       Path = filename:join(?ROOT, Document),
-                      {ok, Bytes} = file:read_file(Path),
+                      Bytes = ern_repository:read(Document),
                       case ern_format:markdown(Bytes) of
                           Bytes -> ok;
                           Formatted -> ok = file:write_file(Path, Formatted)
@@ -119,12 +116,10 @@ write_formatted() ->
 
 %% The modules the Ernest style guide governs.
 modules() ->
-    Modules = [File || Pattern <- ["stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern",
-                                   "libs/**/*.ern", "tools/*.ern", "test/**/*.ern",
-                                   "docs/operations/*.ern"],
-                       File <- filelib:wildcard(Pattern, ?ROOT),
-                       not lists:prefix("test/build/", File),
-                       not is_editor_file(filename:basename(File))],
+    Patterns = ["stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern", "libs/**/*.ern",
+                "tools/*.ern", "test/**/*.ern", "docs/operations/*.ern"],
+    Modules = [File || File <- ern_repository:files(Patterns),
+                       not lists:prefix("test/build/", File)],
     ?assert(length(Modules) > 20),
     Modules.
 
@@ -221,9 +216,7 @@ moved(Token, Offset) ->
 %% repository, and a module compiled from an Ernest source is ern@<namespace>;
 %% the one exception is a vendored file, which THIRD_PARTY_LICENSES names
 module_name_test() ->
-    ErlangFiles = [File || Pattern <- ["erl/*/src/*.erl", "erl/*/test/*.erl", "test/*.erl"],
-                           File <- filelib:wildcard(Pattern, ?ROOT),
-                           not is_editor_file(filename:basename(File))],
+    ErlangFiles = ern_repository:files(["erl/*/src/*.erl", "erl/*/test/*.erl", "test/*.erl"]),
     ?assert(length(ErlangFiles) > 20),
     Names = [filename:basename(File, ".erl") || File <- ErlangFiles],
     ?assertEqual([], [Name || Name <- Names, string:prefix(Name, "ern_") =:= nomatch,
@@ -234,7 +227,7 @@ module_name_test() ->
                                                  ++ ").")]),
     %% unique across the repository, which the directory no longer disambiguates
     ?assertEqual([], Names -- lists:usort(Names)),
-    Sources = lists:usort(filelib:wildcard("stdlib/**/*.ern", ?ROOT)),
+    Sources = lists:usort(ern_repository:files(["stdlib/**/*.ern"])),
     ?assert(length(Sources) > 10),
     ?assertEqual([], [File || File <- Sources, not compiled_as(File)]).
 
@@ -242,8 +235,8 @@ module_name_test() ->
 %% the header of emacs/ernest-mode.el, which is installed alone, and the two
 %% give the same lines in the same order
 emacs_installation_test() ->
-    {ok, Readme} = file:read_file(filename:join(?ROOT, "emacs/README.md")),
-    {ok, Mode} = file:read_file(filename:join(?ROOT, "emacs/ernest-mode.el")),
+    Readme = ern_repository:read("emacs/README.md"),
+    Mode = ern_repository:read("emacs/ernest-mode.el"),
     Blocks = tl(binary:split(Readme, <<"```elisp\n">>, [global])),
     FromReadme = lists:append([lines(hd(binary:split(Block, <<"```">>))) || Block <- Blocks]),
     [_, AfterHead] = binary:split(Mode, <<";;; Installation:\n">>),
@@ -262,8 +255,8 @@ lines(Text) ->
 %% and `do`, which the mode painted and the language does not have.
 %% report §2.4, Appendix A
 emacs_mode_mirrors_the_lexer_test() ->
-    Lexer = read("erl/lexer/src/ern_lexer.erl"),
-    Mode = read("emacs/ernest-mode.el"),
+    Lexer = unicode:characters_to_list(ern_repository:read("erl/lexer/src/ern_lexer.erl")),
+    Mode = unicode:characters_to_list(ern_repository:read("emacs/ernest-mode.el")),
     ?assertEqual(lists:sort(atoms_of(Lexer, "-define(RESERVED,")),
                  lists:sort(strings_of(Mode, "(defconst ernest-reserved-words"))),
     Symbols = strings_of(Lexer, "-define(SYMBOLS,"),
@@ -277,8 +270,8 @@ emacs_mode_mirrors_the_lexer_test() ->
 %% its table equal to the parser's. Written with the table.
 %% report §2.6
 emacs_mode_mirrors_the_parser_test() ->
-    Parser = read("erl/parser/src/ern_parser.erl"),
-    Mode = read("emacs/ernest-mode.el"),
+    Parser = unicode:characters_to_list(ern_repository:read("erl/parser/src/ern_parser.erl")),
+    Mode = unicode:characters_to_list(ern_repository:read("emacs/ernest-mode.el")),
     {match, InParser} = re:run(Parser, "^precedence\\('([^']+)'\\) -> \\{([0-9]+),",
                                [global, multiline, {capture, all_but_first, list}]),
     {match, InMode} = re:run(body(Mode, "(defconst ernest--precedence"),
@@ -323,15 +316,10 @@ in_string([Char | Rest], Open, Close, Depth, Acc) ->
     in_string(Rest, Open, Close, Depth, [Char | Acc]);
 in_string([], _, _, _, Acc) -> lists:reverse(Acc).
 
-read(Relative) ->
-    {ok, Bytes} = file:read_file(filename:join(?ROOT, Relative)),
-    unicode:characters_to_list(Bytes).
-
 %% THIRD_PARTY_LICENSES names every borrowed file, so the exception is checked
 %% rather than listed twice.
 vendored(Name) ->
-    {ok, Bytes} = file:read_file(filename:join(?ROOT, "THIRD_PARTY_LICENSES")),
-    string:find(Bytes, Name ++ ".erl") =/= nomatch.
+    string:find(ern_repository:read("THIRD_PARTY_LICENSES"), Name ++ ".erl") =/= nomatch.
 
 %% build/stdlib holds the standard library under the name erlang_module/1 gives it.
 compiled_as(Relative) ->
@@ -342,10 +330,7 @@ compiled_as(Relative) ->
 has_line(Relative, Line) ->
     lists:member(Line, [Text || {_, Text} <- numbered(Relative)]).
 
-%% Emacs lock files, `.#name`, and auto-save files, `#name#` (report §11.1).
-is_editor_file([Char | _]) -> Char =:= $. orelse Char =:= $#.
-
 numbered(Relative) ->
-    {ok, Bytes} = file:read_file(filename:join(?ROOT, Relative)),
-    Lines = string:split(unicode:characters_to_list(Bytes), "\n", all),
+    Text = unicode:characters_to_list(ern_repository:read(Relative)),
+    Lines = string:split(Text, "\n", all),
     lists:zip(lists:seq(1, length(Lines)), Lines).

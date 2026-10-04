@@ -1,6 +1,9 @@
-# Top-level build. Each application under erl/ has its own src/Makefile,
-# which includes the rules erl/app.mk keeps once; this one runs them in
-# order.
+# The repository's build and its checks. `make` builds the toolchain's
+# applications under erl/, each by its own src/Makefile over the rules
+# erl/app.mk keeps once, the runtime's helper in C, and the standard
+# library, the shell, the libraries and the tools written in Ernest; `make
+# test` runs every test by area; docs/development.md names every other
+# target and what it is for.
 
 APPS = utils lexer parser format typer runtime emitter cli
 
@@ -20,7 +23,6 @@ ERNEST_SOURCES = stdlib/*.ern shell/*.ern shell/shell/*.ern examples/*.ern \
 # in C since the host's ports cannot keep a program's standard error apart,
 # end its input while its output is read, or kill it.
 EXEC = erl/runtime/priv/ern_exec
-CC ?= cc
 
 all: $(EXEC)
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
@@ -269,9 +271,9 @@ clean:
 	@for app in $(APPS); do $(MAKE) -C erl/$$app/src $@ || exit 1; done
 	@$(MAKE) -C test $@
 	@rm -rf build/stdlib build/shell build/libs build/tools build/man build/pages build/release \
-	  build/dialyzer build/dialyzer.plt build/sanitize \
-	  examples/*.erc \
-	  examples/**/*.erc $(EXEC)
+	  build/dialyzer build/dialyzer.plt build/sanitize $(EXEC)
+	@# sh reads `**` as `*`, so the examples' compiled modules are found
+	@find examples -name '*.erc' -delete
 
 # Rewrite test/golden/*.erl, the Erlang source the compiler emits for every
 # MVP 1 example, after an intended change to the emitter.
@@ -319,8 +321,9 @@ sanitize: all
 	  $(MAKE) -s test-erl APP=runtime && $(MAKE) -s test-programs
 	@if [ -n "$$(ls $(SANITIZE))" ]; then cat $(SANITIZE)/*; exit 1; fi
 
-# Every `§x.y`, `Appendix X`, and `E.n` in a live document names a heading of the
-# report, and the guide's own bare `§x.y` a heading of the guide; a test in test/.
+# The document tests (test/ern_docs_tests.erl): every citation of a live
+# document and of the code names a heading, the contents lists are
+# current, and what the documents name exists.
 xref:
 	@$(MAKE) -s -C test xref
 
