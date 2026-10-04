@@ -2102,7 +2102,7 @@ Can a helper in the same file as `Stack`, one that is not declared `Stack.` anyt
 
 A program reaches outside its node's Ernest code in two ways: to peers over the network, and to foreign code on the same node.
 
-Peers are the language's, and the toolchain does not run them yet: [`docs/development.md`](docs/development.md)'s *What the toolchain accepts* says what a program meets until it does. §8.1 and §8.2 describe what peers do, and the examples that spawn on a peer, in §8.1 and §8.4, wait for it.
+Peers are the language's, and the toolchain does not run them yet: they come with MVP 3.0, the [plan](docs/implementation_plan.md)'s milestone for peers, which a refusal names, and [`docs/development.md`](docs/development.md)'s *What the toolchain accepts* says what a program meets until then. §8.1 and §8.2 describe what peers do, and the examples that spawn on a peer, in §8.1 and §8.4, wait for it.
 
 A node that talks to peers has a configuration, which a node running alone does not need. `ern config` creates it, once, in `./.ernest/`: `ernest.conf`, with this node's network address, its public key and an empty list of peers, and the private key beside it. The command fails if `./.ernest` exists. A peer is added to the list by editing `ernest.conf` (report Appendix C), and its name is what `Peer.spawn(name, f)` takes.
 
