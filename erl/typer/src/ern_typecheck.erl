@@ -2660,25 +2660,20 @@ hidden_namespace(false) -> [].
 %%
 
 %% Report §5.6: the name after `..` is a namespace where it is a qualified
-%% name of type names alone that names no constructor or binding in scope,
-%% and an expression otherwise.
+%% name of type names alone, a constructor of the same name notwithstanding,
+%% since no constructor is a record an update could take fields from; and
+%% an expression otherwise. `Prelude.` reaches a name, not a namespace
+%% (§4.2).
+fill_namespace(#e_constructor{span = Span, namespace = ['Prelude'], name = Name, args = none,
+                              base = undefined}, _) ->
+    fail(Span, "`Prelude." ++ atom_to_list(Name) ++ "` names no namespace: `Prelude.` reaches"
+               " one of the prelude's names", [],
+         "write the namespace after `..` as it is, `.." ++ atom_to_list(Name) ++ "` (§5.6)");
 fill_namespace(#e_constructor{namespace = Namespace, name = Name, args = none, base = undefined},
-               Env) ->
-    case names_constructor(Namespace, Name, Env) of
-        true -> expression;
-        false -> {namespace, Namespace ++ [Name]}
-    end;
+               _) ->
+    {namespace, Namespace ++ [Name]};
 fill_namespace(_, _) ->
     expression.
-
-names_constructor([], Name, #env{local_constructors = LocalConstructors,
-                                 constructors = Constructors} = Env) ->
-    is_map_key(Name, LocalConstructors) orelse session_name(constructors, Name, Env) =/= error
-        orelse is_map_key([Name], Constructors);
-names_constructor(['Prelude'], Name, #env{constructors = Constructors}) ->
-    is_map_key([Name], Constructors);
-names_constructor(Namespace, Name, #env{constructors = Constructors}) ->
-    is_map_key(Namespace ++ [Name], Constructors).
 
 %% Report §5.6: `Ops(..Set)`, each field not given beside the namespace the
 %% declaration of its name there, at the field's type, as the construction

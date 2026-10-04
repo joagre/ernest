@@ -2937,6 +2937,20 @@ fill_test() ->
     ?assertEqual("a record update gives at least one field after its `..`",
                  refusal(Ops ++ "fn f(o : Ops(Set(Int), Int)) : Ops(Set(Int), Int) = Ops(..o)")).
 
+%% report §5.6, §4.2: after `..`, a name of type names alone is a namespace,
+%% a constructor of the same name notwithstanding, and `..Prelude.N` is
+%% refused, naming the namespace to write. A regression test of the full
+%% review's P3 (2026-10-04): a constructor `Set` took the fill from `Set`
+%% away, and `..Prelude.Set` read as a namespace that holds nothing
+fill_beside_a_constructor_test() ->
+    Ops = "type Mode = Set | Plain\n"
+          "type Ops(s, a) = Ops(fromList : (List(a)) -> s, toList : (s) -> List(a))\n",
+    ?assertEqual(ok, ok(Ops ++ "let hashed : Ops(Set(Int), Int) = Ops(..Set)\n"
+                        "let mode : Mode = Set\n")),
+    ?assertEqual({"`Prelude.Set` names no namespace: `Prelude.` reaches one of the prelude's"
+                  " names", "write the namespace after `..` as it is, `..Set` (§5.6)"},
+                 refusal_and_help(Ops ++ "let hashed : Ops(Set(Int), Int) = Ops(..Prelude.Set)\n")).
+
 %% report §11.5: a selected field called is named as written where its
 %% argument does not fit; written after the code
 selected_callee_named_test() ->

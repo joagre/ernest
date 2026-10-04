@@ -1756,6 +1756,23 @@ example.ern:3:41: Ops(..Set) lacks min: Set has no min
   |                                         ^^^
 ```
 
+### A fill from `Prelude.` (§5.6, §4.2)
+
+```ernest-rejected
+type Ops(s, a) = Ops(fromList : (List(a)) -> s, toList : (s) -> List(a))
+
+let hashed : Ops(Set(Int), Int) = Ops(..Prelude.Set)
+```
+
+```console
+$ ern build example.ern
+example.ern:3:41: `Prelude.Set` names no namespace: `Prelude.` reaches one of the prelude's names
+2 | 
+3 | let hashed : Ops(Set(Int), Int) = Ops(..Prelude.Set)
+  |                                         ^^^^^^^^^^^
+  | = help: write the namespace after `..` as it is, `..Set` (§5.6)
+```
+
 ### A filled field of another type (§5.6)
 
 ```ernest-rejected
