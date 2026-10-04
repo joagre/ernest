@@ -8,7 +8,8 @@
 2. **TLS is an upgrade of a connected socket.** A program connects or accepts with `Tcp`, then calls `Tls.client` or `Tls.server` on the socket.
 3. **Trust is an argument.** The call says which certificates it accepts, and accepting any is spelled `Unverified`.
 4. **`Tls` is a module of the standard library**, two functions and two types, with the transport inside the runtime's socket process.
-5. **No operations record.** One was tried for this and works, but the address already does its job. The last section reports the experiment.
+5. **It is built on Erlang's `ssl`**, and no part of TLS is written in Ernest. That is an exception to the rule that Ernest is used wherever it can express the work, taken for security, and recorded as one.
+6. **No operations record.** One was tried for this and works, but the address already does its job. The last section reports the experiment.
 
 ## What exists
 
@@ -85,7 +86,32 @@ The plan's sentence today is "Certificate verification is the caller's to ask fo
 In the standard library, as `tls.ern` beside `tcp.ern`. Two rules decide it.
 
 - **Only the runtime's socket process can answer `SocketMsg`.** A library outside could give a TLS socket `Tcp`'s type only by copying an encoding private to `Tcp`, which is the coupling the abstract boundary exists to prevent.
-- **The handshake and the record layer are work the host alone can do**, which is the standard library's first admission rule ([report E.0](https://github.com/joagre/ernest/blob/main/report/library.md#appendix-e0-rules)). `Tls.client` and `Tls.server` are primitives that reach the socket process, as `Tcp.listen` and `Tcp.connect` reach TCP's. Nothing of TLS is written in Ernest, so the rule that a published protocol is a library's work is not at stake: the module is two doors to the host's implementation.
+- **TLS is the host's implementation and not ours**, for the reasons the next section gives. `Tls.client` and `Tls.server` are primitives that reach the socket process, as `Tcp.listen` and `Tcp.connect` reach TCP's, so the module holds two doors to the host and no protocol.
+
+## What it is built on
+
+There are two ways to build it.
+
+1. **A shim over `ssl`.** The runtime's socket process calls Erlang's `ssl` application, which brings `crypto` and `public_key` with it as its own dependencies. A program sees none of the three, only `Tls.client` and `Tls.server`.
+2. **TLS written in Ernest over new libraries.** A `Crypto` library gives the primitives, the ciphers, the key exchange, the signatures and the hashes; a `PublicKey` library reads certificates; and the handshake, the record layer and the validation of a certificate chain are Ernest code over them.
+
+**What the project's rules say.** Read strictly, they point to the second. A `foreign fn` is admitted where Ernest cannot express the work given the layers beneath it ([report E.0](https://github.com/joagre/ernest/blob/main/report/library.md#appendix-e0-rules), rule 1), and given the primitives beneath it a TLS handshake is ordinary programming: a state machine, some parsing, some framing of bytes. Erlang's own `ssl` is that, Erlang over `crypto`. So "the host alone can do it" is not the reason for the shim.
+
+**Why the proposal takes the first all the same.**
+
+- **A defect in a TLS implementation is a security hole.** Validating a certificate chain, refusing a downgrade and handling alerts are where implementations have failed for twenty years. `ssl` has had that hardening, and one written here would begin without it.
+- **Constant time cannot be promised.** Some comparisons must take the same time whatever their input, or they leak a secret. Nothing in Ernest, or in the Erlang machine beneath it, promises that of code a program writes.
+- **It does not end.** Each new attack on TLS would be this project's to answer, for a language whose subject is something else.
+- **It is large.** A TLS 1.3 client alone, with the parsing of certificates and the validation of their chain, is thousands of lines before a first HTTPS request is answered.
+- **The runtime uses `ssl` in any case.** The peers of MVP 3.0 speak to each other over `ssl` inside the runtime, and two implementations of TLS in one system are worse than one.
+
+The reason is that Ernest should not write TLS, not that it cannot. That is an exception to the `foreign` rule, and it is recorded as one, with this argument, in the decisions log, as each departure from a rule is. Performance is no part of the argument.
+
+**The libraries.**
+
+- **`Crypto` stands on its own.** The plan names it for hashes, HMAC and random bytes, which programs want whether or not they use TLS. `Tls` does not depend on it.
+- **No `PublicKey` library is needed.** `Pinned` and `Identity` take PEM bytes, read with `Fs.read`, and the runtime hands them to the host.
+- **Nothing of `ssl`, `crypto` or `public_key` shows in an Ernest signature.** The module's types are `Trust`, `Identity`, `Io.Error` and `Tcp`'s socket.
 
 ### What it takes to build
 
@@ -181,6 +207,6 @@ A record of closures admits a connection that is no socket at all. A test of an 
 ## Left out, and open
 
 - **Client certificates, protocol negotiation (ALPN) and session resumption** are not in the proposal. ALPN comes with HTTP/2, if that is ever wanted. The peers of MVP 3.0 authenticate both sides, and do so inside the runtime, not through this module.
-- **The plan's line.** The plan drew TLS as a library, and CLAUDE.md says a published protocol is a library's work. The argument above is that the module implements no protocol and is two primitives over the host's. The user decides whether that argument holds.
+- **Two decisions that are the user's.** The plan drew TLS as a library, and the proposal moves it into the standard library. And the `foreign` rule, read strictly, asks for TLS in Ernest; the proposal takes the host's instead and asks that the exception be recorded with its argument. Neither is settled by this note.
 - **The socket process was not read line by line.** The estimate of ten places comes from the calls it makes.
 - **The error for a refused certificate.** `Io.Error` has no constructor for it today; whether it gains one or the refusal is `Other(text)` is decided when the module is written.
