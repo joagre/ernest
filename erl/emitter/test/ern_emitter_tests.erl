@@ -3496,6 +3496,46 @@ retyped_address_test() ->
         "}\n"),
     ?assertEqual(<<"got 5\nFault(\"message does not match Int\")\n">>, Output).
 
+%% report §8.4, §6.9: a foreign message that does not match takes its place
+%% in the receiver's mailbox as a fault, which lands at the wait that reaches
+%% it, in a `receive` or for a call's answer, as a fault of the receiver's
+%% own, so that `restarting` restarts it until its limit. A regression test
+%% of the full review's C104 (2026-10-04): the fault came as an exit signal,
+%% which ended the process whatever wrapped it, at its first run
+foreign_fault_restarts_test() ->
+    Common = "type Msg = Ended(Down)\n"
+             "type Hold = Hold(reply : Reply(Int))\n"
+             "foreign fn retyped(addresses : List(Address(Int))) : Address(String) =\n"
+             "    \"erlang:hd/1\"\n"
+             "fn holder(held : List(Reply(Int))) : Unit with Hold =\n"
+             "    receive { Hold(reply = r) -> holder(r :: held) }\n",
+    Main = fun(Run) ->
+                   "export fn main() : Unit with Msg = {\n"
+                   "    let h = spawn(fn() = holder([]));\n"
+                   "    let limit = RestartLimit(restarts = 2, within = 60000);\n"
+                   "    let _ = spawnMonitored(restarting(limit, fn() = " ++ Run ++ "), Ended);\n"
+                   "    receive { Ended(Down(reason = r)) -> Io.println(Io.show(r)) }\n"
+                   "}\n"
+           end,
+    Expected = <<"run\nrun\nrun\nFault(\"message does not match Int\")\n">>,
+    %% at a receive
+    ?assertEqual({ok, Expected},
+                 run(Common ++
+                     "fn wait(h : Address(Hold)) : Unit with Int = {\n"
+                     "    Io.println(\"run\");\n"
+                     "    send(retyped([self()]), \"x\");\n"
+                     "    receive { n -> Io.println(Int.toString(n)) }\n"
+                     "}\n" ++ Main("wait(h)"))),
+    %% at a call's wait, which nothing else would end
+    ?assertEqual({ok, Expected},
+                 run(Common ++
+                     "fn ask(h : Address(Hold)) : Unit with Int = {\n"
+                     "    Io.println(\"run\");\n"
+                     "    send(retyped([self()]), \"x\");\n"
+                     "    Io.println(Int.toString(Address.callForever(h,"
+                     " fn(r) = Hold(reply = r))))\n"
+                     "}\n" ++ Main("ask(h)"))).
+
 %% report §8.4, Appendix E.12: `Foreign.from` gives its value as a foreign
 %% function's argument of the value's type crosses: an address goes behind
 %% the proxy that faults its process on a message of another type, and a

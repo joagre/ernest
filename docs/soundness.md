@@ -25,7 +25,7 @@ It does not argue the following.
 
 - **The runtime** gives the functions of §9.4 to §9.6 their types and their meaning, and meets §10: a value never changes, a message is a copy, processes share no memory, and a mailbox holds what was sent to it, in order for each sender.
 - **The standard library's foreign functions and the system processes** deliver their declared types and keep what their sections of Appendix E say. §8.4 does not check them.
-- **Other foreign code** is checked where it crosses (§8.4). Three promises are its own: at a type variable a parameter's type names it returns only values it was given at that variable; without a mailbox type it is pure (§4.7); and a reply it is given it answers once or not at all, as it hands on once what a function it calls returns. A second answer is discarded (§6.6), so claim 4 says what the program does, not what foreign code does.
+- **Other foreign code** is checked where it crosses (§8.4). Three promises are its own: at a type variable a parameter's type names it returns only values it was given at that variable; without a mailbox type it is pure (§4.7); and a reply it is given it answers once or not at all, as it hands on once what a function it calls returns. A second answer is discarded (§6.6), so claim 4 says what the program does, not what foreign code does. A message that fails the check does not enter the mailbox as a value: its fault stands in its place, and the wait that reaches it faults the receiver before any clause is tried (§8.4), so I1's mailbox holds only values of its type.
 
 ## 3. The calculus
 

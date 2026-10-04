@@ -61,11 +61,14 @@ main() ->
 %% }
 %%
 %% Every receive takes first the restart a supervisor asks for (report
-%% §6.9), which arrives before every other message.
+%% §6.9), which arrives before every other message, and then the fault a
+%% foreign message that did not match left in its place (§8.4).
 count(Total) ->
     receive
         '$ern_restart' ->
             ern_rt:restart_now();
+        {'$ern_fault', Cause} ->
+            ern_rt:fault(Cause);
         {'Inc', Amount} ->
             count(Total + Amount);
         {'Get', Reply} ->

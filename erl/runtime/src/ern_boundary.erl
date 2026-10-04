@@ -351,7 +351,10 @@ proxy_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause) ->
                 true ->
                     Zeroed = zeroed(Descriptor, Message, Bound),
                     ern_rt:send(Behind, armed(Descriptor, Zeroed, Bound));
-                false -> exit(ern_rt:process_of(Behind), {ern, fault, Cause})
+                %% report §8.4: the fault takes the message's place, and
+                %% the receiver faults at the wait that reaches it, as at a
+                %% fault of its own, which `restarting` restarts (§6.9)
+                false -> ern_rt:process_of(Behind) ! {'$ern_fault', Cause}
             end,
             proxy_loop(Key, Behind, MonitorRef, Descriptor, Bound, Cause)
     end.

@@ -62,7 +62,7 @@ refusing() ->
     receive
         {'Subscribe', Address, Reply} ->
             case held_by_another(Address) of
-                true -> exit(ern_rt:process_of(Address), {ern, fault, ern_rt:shell_holds()});
+                true -> ern_rt:refuse(Reply, ern_rt:shell_holds());
                 false -> ern_rt:answer(Reply, {'Left', 'NotATerminal'})
             end;
         {'ReadSize', Reply} ->
@@ -118,7 +118,9 @@ loop(Subscribers, Reader, Pending, Size) ->
 subscription(Address, Reply, Subscribers, Reader, Size) ->
     case held_by_another(Address) of
         true ->
-            exit(ern_rt:process_of(Address), {ern, fault, ern_rt:shell_holds()}),
+            %% report §11.2: the caller faults at its call, as at a fault
+            %% of its own, which `restarting` restarts (§6.9)
+            ern_rt:refuse(Reply, ern_rt:shell_holds()),
             {Subscribers, Reader, Size};
         false ->
             case start_reader(Reader) of

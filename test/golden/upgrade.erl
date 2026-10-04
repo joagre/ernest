@@ -36,6 +36,7 @@ main() ->
 count(Total_7) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
+        {'$ern_fault', Cause_12} -> ern_rt:fault(Cause_12);
         {'Inc', Amount_8} -> count(Total_7 + Amount_8);
         {'Get', Reply_9} ->
             ern_rt:answer(Reply_9, Total_7),
@@ -44,16 +45,17 @@ count(Total_7) ->
             Next_11(Migrate_10(Total_7))
     end.
 
-countTwice(Total_12) ->
+countTwice(Total_13) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'Inc', Amount_13} ->
-            countTwice(Total_12 + 2 * Amount_13);
-        {'Get', Reply_14} ->
-            ern_rt:answer(Reply_14, Total_12),
-            countTwice(Total_12);
-        {'Upgrade', Migrate_15, Next_16} ->
-            Next_16(Migrate_15(Total_12))
+        {'$ern_fault', Cause_18} -> ern_rt:fault(Cause_18);
+        {'Inc', Amount_14} ->
+            countTwice(Total_13 + 2 * Amount_14);
+        {'Get', Reply_15} ->
+            ern_rt:answer(Reply_15, Total_13),
+            countTwice(Total_13);
+        {'Upgrade', Migrate_16, Next_17} ->
+            Next_17(Migrate_16(Total_13))
     end.
 
 '$fun'(main, 0) -> fun main/0.

@@ -507,16 +507,22 @@ expr(#e_receive{span = Span, clauses = Written, 'after' = After}, Context) ->
     {OwnBindings, OwnForms} = join_parts(Parts),
     Bindings = Reads ++ OwnBindings,
     %% report §6.9: a restart a supervisor asks for arrives before every
-    %% other message and is taken here, first
+    %% other message and is taken here, first; report §8.4: a foreign
+    %% message that did not match stands in the mailbox as its fault, which
+    %% is taken here before any clause of the program's could bind it
+    {[CauseName], Context3} = fresh_variables(1, "Cause", Context2),
+    Cause = erl_syntax:variable(CauseName),
     ClauseForms = [erl_syntax:clause([erl_syntax:atom('$ern_restart')], none,
-                                     [call_remote(ern_rt, restart_now, [])])
+                                     [call_remote(ern_rt, restart_now, [])]),
+                   erl_syntax:clause([erl_syntax:tuple([erl_syntax:atom('$ern_fault'), Cause])],
+                                     none, [call_remote(ern_rt, fault, [Cause])])
                    | OwnForms],
     case After of
         undefined ->
-            {at(Span, with_bindings(Bindings, erl_syntax:receive_expr(ClauseForms))), Context2};
+            {at(Span, with_bindings(Bindings, erl_syntax:receive_expr(ClauseForms))), Context3};
         #after_clause{timeout = Timeout, body = AfterBody} ->
-            {Enter, Wait, Context3} = timed_receive(ClauseForms, Timeout, AfterBody, Context2),
-            {at(Span, with_bindings(Bindings ++ Enter, Wait)), Context3}
+            {Enter, Wait, Context4} = timed_receive(ClauseForms, Timeout, AfterBody, Context3),
+            {at(Span, with_bindings(Bindings ++ Enter, Wait)), Context4}
     end.
 
 %% A receive with an `after`: the bindings that enter it, and the call

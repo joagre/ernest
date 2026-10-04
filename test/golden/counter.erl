@@ -21,6 +21,7 @@ main() ->
 count(Total_4) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
+        {'$ern_fault', Cause_9} -> ern_rt:fault(Cause_9);
         {'Inc', Amount_5} -> count(Total_4 + Amount_5);
         {'Get', Reply_6} ->
             ern_rt:answer(Reply_6, Total_4),

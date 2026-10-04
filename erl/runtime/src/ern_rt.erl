@@ -251,7 +251,9 @@ waited_answer(Reply, Deadline, Check) ->
         {Reply, restarted, _} -> 'None';
         {Reply, fault, Cause} -> fault(Cause);
         {'DOWN', Reply, process, _, _} -> 'None';
-        '$ern_restart' -> '$ern_restart'
+        '$ern_restart' -> '$ern_restart';
+        %% report §8.4: a foreign message's fault, taken at a call's wait
+        {'$ern_fault', Cause} -> fault(Cause)
     after remaining(Deadline) ->
         case remaining(Deadline) of
             0 -> 'None';
@@ -283,7 +285,9 @@ call_forever(Address, Mk, Check) ->
                      {'DOWN', Reply, process, _, CalleeExitReason} -> {ended, CalleeExitReason};
                      %% report §6.9: a restart asked for is taken at a call's
                      %% wait
-                     '$ern_restart' -> restart
+                     '$ern_restart' -> restart;
+                     %% report §8.4: a foreign message's fault, taken there too
+                     {'$ern_fault', ForeignCause} -> {fault, ForeignCause}
                  end
              after
                  settled(Reply)

@@ -11,6 +11,7 @@ store() -> ern_rt:binding({ern@services, store}).
 storing(Items_1) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
+        {'$ern_fault', Cause_6} -> ern_rt:fault(Cause_6);
         {'Put', Key_2, Value_3} ->
             storing(ern@map:put(Items_1, Key_2, Value_3));
         {'Get', Key_4, Reply_5} ->
@@ -21,24 +22,26 @@ storing(Items_1) ->
 
 ids() -> ern_rt:binding({ern@services, ids}).
 
-counting(Next_6) ->
+counting(Next_7) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'NextId', Reply_7} ->
-            ern_rt:answer(Reply_7, Next_6),
-            counting(Next_6 + 1)
+        {'$ern_fault', Cause_9} -> ern_rt:fault(Cause_9);
+        {'NextId', Reply_8} ->
+            ern_rt:answer(Reply_8, Next_7),
+            counting(Next_7 + 1)
     end.
 
 audit() -> ern_rt:binding({ern@services, audit}).
 
-recording(Entries_8) ->
+recording(Entries_10) ->
     receive
         '$ern_restart' -> ern_rt:restart_now();
-        {'Record', Entry_9} ->
-            recording(ern@list:'<>'(Entries_8, [Entry_9]));
-        {'Entries', Reply_10} ->
-            ern_rt:answer(Reply_10, Entries_8),
-            recording(Entries_8)
+        {'$ern_fault', Cause_13} -> ern_rt:fault(Cause_13);
+        {'Record', Entry_11} ->
+            recording(ern@list:'<>'(Entries_10, [Entry_11]));
+        {'Entries', Reply_12} ->
+            ern_rt:answer(Reply_12, Entries_10),
+            recording(Entries_10)
     end.
 
 main() ->
@@ -48,42 +51,42 @@ main() ->
     ern_rt:send(store(), 'Corrupt'),
     report(<<"after the restart">>).
 
-put(Key_11, Value_12) ->
-    Id_14 = ern_rt:call_forever(ids(),
-                                fun (Reply_13) -> {'NextId', Reply_13} end,
+put(Key_14, Value_15) ->
+    Id_17 = ern_rt:call_forever(ids(),
+                                fun (Reply_16) -> {'NextId', Reply_16} end,
                                 {int, <<"reply does not match Int">>}),
-    ern_rt:send(store(), {'Put', Key_11, Value_12}),
+    ern_rt:send(store(), {'Put', Key_14, Value_15}),
     ern_rt:send(audit(),
                 {'Record',
-                 <<(ern@int:toString(Id_14))/binary, ": put ",
-                   Key_11/binary>>}).
+                 <<(ern@int:toString(Id_17))/binary, ": put ",
+                   Key_14/binary>>}).
 
-report(Label_15) ->
-    Apples_17 = case stored(<<"apples">>) of
-                    {'Some', Count_16} -> ern@int:toString(Count_16);
+report(Label_18) ->
+    Apples_20 = case stored(<<"apples">>) of
+                    {'Some', Count_19} -> ern@int:toString(Count_19);
                     'None' -> <<"none">>
                 end,
-    Entries_19 = ern_rt:call_forever(audit(),
-                                     fun (Reply_18) -> {'Entries', Reply_18}
+    Entries_22 = ern_rt:call_forever(audit(),
+                                     fun (Reply_21) -> {'Entries', Reply_21}
                                      end,
                                      {'$type_1'(),
                                       <<"reply does not match List(String)">>}),
-    Id_21 = ern_rt:call_forever(ids(),
-                                fun (Reply_20) -> {'NextId', Reply_20} end,
+    Id_24 = ern_rt:call_forever(ids(),
+                                fun (Reply_23) -> {'NextId', Reply_23} end,
                                 {int, <<"reply does not match Int">>}),
-    ern@io:println(<<Label_15/binary, ": apples ",
-                     Apples_17/binary, ", next id ",
-                     (ern@int:toString(Id_21))/binary, ", audit [",
-                     (ern@string:join(Entries_19, <<"; ">>))/binary, "]">>).
+    ern@io:println(<<Label_18/binary, ": apples ",
+                     Apples_20/binary, ", next id ",
+                     (ern@int:toString(Id_24))/binary, ", audit [",
+                     (ern@string:join(Entries_22, <<"; ">>))/binary, "]">>).
 
-stored(Key_22) ->
+stored(Key_25) ->
     case ern_rt:call(store(),
-                     fun (Reply_23) -> {'Get', Key_22, Reply_23} end,
+                     fun (Reply_26) -> {'Get', Key_25, Reply_26} end,
                      1000,
                      {'$type_2'(), <<"reply does not match Optional(Int)">>})
         of
-        {'Some', Value_24} -> Value_24;
-        'None' -> stored(Key_22)
+        {'Some', Value_27} -> Value_27;
+        'None' -> stored(Key_25)
     end.
 
 '$init'() ->
