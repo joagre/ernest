@@ -160,6 +160,7 @@ check(Namespace, Parsed, Interfaces, SessionScope) ->
     try
         one_clause(Parsed),
         declared_twice(Declarations),
+        host_names(Declarations),
         {Env1, TypeDiagnostics} = declare_types(Declarations, Env),
         %% report §11.5: the module's types print unqualified, except those
         %% that shadow a prelude name
@@ -286,6 +287,39 @@ declared_twice(Declarations) ->
             fail(Second, atom_to_list(Kind) ++ " " ++ key_text(Key) ++ " is declared twice",
                  [{ern_diagnostic:span(First), "first declared here"}], undefined)
     end.
+
+%% Report §11.1: the host holds a name of at most 255 characters, so a
+%% member whose Erlang function name, its type's name and its own joined by
+%% `.`, passes it is refused, a foreign one and a derived `compare` among
+%% them. A module's Erlang name is the build's to refuse
+%% (ern_build:module_of/3), and a foreign fn's implementation's names are
+%% refused where it is checked. Every other name the module compiles to is
+%% a name of §2.3's length or the emitter's own, which it cuts to fit.
+host_names(Declarations) ->
+    Members = [{Span, MemberOf, Name}
+               || #fn_declaration{span = Span, member_of = MemberOf, name = Name} <- Declarations,
+                  MemberOf =/= undefined]
+        ++ [{Span, MemberOf, Name}
+            || #foreign_fn_declaration{span = Span, member_of = MemberOf, name = Name}
+                   <- Declarations,
+               MemberOf =/= undefined]
+        ++ [{Span, Name, compare}
+            || #type_declaration{name = Name, derives = Span} <- declared_types(Declarations),
+               Span =/= undefined],
+    lists:foreach(fun({Span, MemberOf, Name}) ->
+                      Function = atom_to_list(MemberOf) ++ "." ++ atom_to_list(Name),
+                      length(Function) =< ern_namespace:host_name_limit()
+                          orelse fail(Span, host_member_text(Function), [],
+                                      host_member_help(MemberOf, Function))
+                  end, Members).
+
+host_member_text(Function) ->
+    ern_namespace:host_name_text("the member's Erlang name, its type's and its own joined by"
+                                 " `.`,", Function).
+
+host_member_help(MemberOf, Function) ->
+    Most = length(atom_to_list(MemberOf)) - (length(Function) - ern_namespace:host_name_limit()),
+    lists:flatten(io_lib:format("shorten the type's name to at most ~B characters", [Most])).
 
 %% The first of Items whose key an earlier one has, with that earlier one's
 %% value and its own, `{Key, First, Second}`, or `none`.
@@ -1967,6 +2001,9 @@ check_value(#foreign_fn_declaration{span = Span, params = Params, implementation
                                           " parameter~s",
                                           [Arity, declaration_name(Declaration), Count,
                                            plural(Count)]));
+        {too_long, Part, Name} ->
+            fail(ErrorSpan, ern_namespace:host_name_text("the implementation's " ++ Part
+                                                         ++ " name", Name));
         error ->
             Count = length(Params),
             fail(ErrorSpan, "the implementation of " ++ declaration_name(Declaration)
@@ -2000,14 +2037,22 @@ parameter_effect(_, _) -> false.
 
 %% Report §8.4: the implementation name of a foreign fn, module:function/arity,
 %% the function named as the host names it, a name or one of its operators.
--spec foreign_implementation(binary()) -> {ok, {atom(), atom(), non_neg_integer()}} | error.
+%% Report §11.1: a module or function name the host does not hold is
+%% answered `{too_long, Part, Name}` before any atom is made of it.
+-spec foreign_implementation(binary()) ->
+          {ok, {atom(), atom(), non_neg_integer()}} | {too_long, string(), string()} | error.
 foreign_implementation(Implementation) ->
     case re:run(Implementation,
                 "^([a-z][A-Za-z0-9_@]*):([a-z][A-Za-z0-9_]*|[-+*/=<>!:]{1,3})/([0-9]+)$",
                 %% `$` at the very end, not before a final line feed
                 [dollar_endonly, {capture, all_but_first, list}]) of
         {match, [Module, Function, Arity]} ->
-            {ok, {list_to_atom(Module), list_to_atom(Function), list_to_integer(Arity)}};
+            case [{Part, Name} || {Part, Name} <- [{"module", Module}, {"function", Function}],
+                                  length(Name) > ern_namespace:host_name_limit()] of
+                [] -> {ok, {list_to_atom(Module), list_to_atom(Function),
+                            list_to_integer(Arity)}};
+                [{Part, Name} | _] -> {too_long, Part, Name}
+            end;
         nomatch -> error
     end.
 

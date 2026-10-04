@@ -1,21 +1,14 @@
+%% The emitter's tests: the code it makes and the programs it compiles,
+%% run as the runner runs them (report §8.5, §11.2) by run/3, which the
+%% other tests of programs share.
 -module(ern_emitter_tests).
 
--export([write_golden/0, pair/0, opt/1, funs/0, improper/1, remember/1, junk/1, good/1,
-         tell/1, junk_server/0, hello_junk/0, hello_good/0, relay_junk/1, relay_good/1, same/1,
-         ask_junk/1, ask_good/1, call_nested_bad/1, call_nested_good/1, reaper_words/0]).
+-export([run/1, run/2, run/3, run_at_terminal/1, scratch/0, write_golden/0, pair/0, funs/0,
+         opt/1, improper/1, remember/1, junk/1, good/1, tell/1, junk_server/0, hello_junk/0,
+         hello_good/0, relay_junk/1, relay_good/1, same/1, call_nested_bad/1, call_nested_good/1,
+         ask_junk/1, ask_good/1]).
 
 -include_lib("eunit/include/eunit.hrl").
-
-%% A program's `up(s)`: true once the restarting process `s` answers, its
-%% new run begun, and false once it has ended. A message sent before a
-%% restart is lost with the mailbox (report §6.9), so a test that restarts
-%% a process sends it the next message only after this.
--define(UP,
-        "fn up(s : Address(Msg)) : Bool with m =\n"
-        "    match Address.call(s, fn(r) = Ping(reply = r), 1000) {\n"
-        "        Some(_) -> true\n"
-        "      | None -> Process.info(Process.fromAddress(s)) != None && up(s)\n"
-        "    }\n").
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("utils/include/ern_diagnostic.hrl").
 -include_lib("typer/include/ern_types.hrl").
@@ -93,6 +86,16 @@ collect(Acc) ->
     after 0 ->
         iolist_to_binary(lists:reverse(Acc))
     end.
+
+%% A directory of the test's own, for a program to leave a mark in; one an
+%% earlier run left under the same name is removed first.
+scratch() ->
+    Dir = filename:join(os:getenv("TMPDIR", "/tmp"),
+                        "ern_os_" ++ os:getpid() ++ "_"
+                        ++ integer_to_list(erlang:unique_integer([positive]))),
+    file:del_dir_r(Dir),
+    ok = filelib:ensure_path(Dir),
+    Dir.
 
 example(Base) ->
     {ok, Source} = file:read_file("../../../examples/" ++ Base ++ ".ern"),
@@ -340,6 +343,26 @@ docs_chunk_test() ->
     {ok, Read} = ern_interface:read(Beam),
     ?assertEqual(false, is_map_key(source, Read)).
 
+%% report §11.4, §3.4, §4.9: the Docs chunk keys a function by the arity
+%% the module exports it at, a requirement's members among it, and writes
+%% a function-typed result under an outer `with` in its parentheses. A
+%% regression test: `unique/1` was keyed where `unique/2` is exported, and
+%% the field's type was printed as another type
+docs_chunk_keys_and_types_test() ->
+    Namespace = ['Holders'],
+    Source = <<"export type Msg = Go\n"
+               "export type Holder = Holder(make : (Int) -> ((Int) -> Int) with Msg)\n"
+               "export fn unique(list : List(a)) : List(a) needs a.compare =\n"
+               "    OrderedSet.toList(OrderedSet.fromList(list))\n">>,
+    {ok, Typed, Interface, Env} = ern_typecheck:check_string(Namespace, Source),
+    {ok, _, Beam} = ern_emitter:compile(Namespace, Typed, Interface, Env, #{}),
+    {ok, {docs_v1, _, _, _, _, _, Entries}} = ern_docs:read(Beam),
+    Keys = [Key || {Key, _, _, _, _} <- Entries],
+    ?assert(lists:member({function, unique, 2}, Keys)),
+    [Signature] = [Signature || {{type, 'Holder', 0}, _, Signature, _, _} <- Entries],
+    ?assertEqual([<<"type Holder = Holder(make : (Int) -> ((Int) -> Int) with Msg)">>],
+                 Signature).
+
 %% report §11.1: the interface travels in the BEAM chunk ErnI
 %% with the source hash and the dependencies' interface hashes, and its
 %% hash does not depend on the numbering of type variables
@@ -389,11 +412,11 @@ erl_source_test() ->
 
 %% report §4.2: the module atom is ern@ and the path with @ for /
 erlang_module_test() ->
-    ?assertEqual('ern@counter', ern_emitter:erlang_module(['Counter'])),
-    ?assertEqual('ern@net@http', ern_emitter:erlang_module(['Net', 'Http'])),
+    ?assertEqual('ern@counter', ern_namespace:erlang_module(['Counter'])),
+    ?assertEqual('ern@net@http', ern_namespace:erlang_module(['Net', 'Http'])),
     %% a segment of several words is its file's name, joined by `_`
-    ?assertEqual('ern@ordered_set', ern_emitter:erlang_module(['OrderedSet'])),
-    ?assertEqual('ern@net@http_client', ern_emitter:erlang_module(['Net', 'HttpClient'])).
+    ?assertEqual('ern@ordered_set', ern_namespace:erlang_module(['OrderedSet'])),
+    ?assertEqual('ern@net@http_client', ern_namespace:erlang_module(['Net', 'HttpClient'])).
 
 %%
 %% Blocks, bindings, and local functions
@@ -463,6 +486,107 @@ free_names_test() ->
         "    Io.println(Int.toString(x + second + width(8, <<7, 1>>)))\n"
         "}\n"),
     ?assertEqual(<<"13\n">>, Output).
+
+%% report §4.2, §5.4: a local fn reads the local binding, or calls the
+%% local fn, that a top-level declaration's name names in its block. A
+%% regression test: both crashed the emitter, which took the name for the
+%% top-level one
+local_name_over_top_level_test() ->
+    {ok, Output} = run(
+        "fn helper() : Int = 1\n"
+        "export fn main() : Unit with Never = {\n"
+        "    let helper = 5;\n"
+        "    fn f() : Int = helper;\n"
+        "    let base = 10;\n"
+        "    fn g() : Int = later() + 1;\n"
+        "    fn later() : Int = base;\n"
+        "    Io.println(Int.toString(f() + g()))\n"
+        "}\n"),
+    ?assertEqual(<<"16\n">>, Output).
+
+%% report §5.11: a pattern's size reads the scope before the pattern, not a
+%% variable the same pattern binds elsewhere. A regression test: the
+%% emitted Erlang read the tuple's own `n`, and did not compile
+pattern_size_reads_the_outer_scope_test() ->
+    {ok, Output} = run(
+        "fn pick(n : Int, pair : #(Int, Bytes)) : Int = match pair {\n"
+        "    #(n, <<x:size(n)>>) -> x + n\n"
+        "  | _ -> 0\n"
+        "}\n"
+        "export fn main() : Unit with Never = Io.println(Int.toString(pick(8, #(16, <<5>>))))\n"),
+    ?assertEqual(<<"21\n">>, Output).
+
+%% report §5.1, §5.11: a construction evaluates a segment's size once, in
+%% order. A regression test: the size stood twice, its width checked and
+%% its field built, and its effect happened twice
+construction_size_once_test() ->
+    {ok, Output} = run(
+        "fn width() : Int with m = {\n    Io.println(\"width\");\n    16\n}\n"
+        "fn value() : Int with m = {\n    Io.println(\"value\");\n    5\n}\n"
+        "export fn main() : Unit with Never = {\n"
+        "    let b = <<value():size(width()), 1:size(8)>>;\n"
+        "    Io.println(Int.toString(Bytes.size(b)))\n"
+        "}\n"),
+    ?assertEqual(<<"value\nwidth\n3\n">>, Output).
+
+%% report §2.3, §11.1: a name of §2.3's 255 characters compiles, the
+%% emitter cutting the names it makes from it to the host's limit. A
+%% regression test: a variable's Erlang name passed it and crashed the
+%% emitter
+longest_names_test() ->
+    Variable = lists:duplicate(255, $a),
+    Function = lists:duplicate(255, $b),
+    {ok, Output} = run(
+        "export fn main() : Unit with Never = {\n"
+        "    let " ++ Variable ++ " = 1;\n"
+        "    fn " ++ Function ++ "() : Int = " ++ Variable ++ " + 1;\n"
+        "    Io.println(Int.toString(" ++ Function ++ "()))\n"
+        "}\n"),
+    ?assertEqual(<<"2\n">>, Output).
+
+%% report §5.1: a list literal of more calls than the host keeps live at
+%% one, and a long tuple, are built with their elements evaluated first to
+%% last. A regression test: the host's compiler refused the module
+long_literals_test_() ->
+    {timeout, 60, fun long_literals/0}.
+
+long_literals() ->
+    Calls = lists:join(", ", ["f(" ++ integer_to_list(N) ++ ")" || N <- lists:seq(1, 1100)]),
+    Numbers = lists:join(", ", [integer_to_list(N) || N <- lists:seq(1, 300)]),
+    {ok, Output} = run(
+        "fn f(n : Int) : Int with m = {\n"
+        "    if n == 1 || n == 1100 then Io.println(Int.toString(n)) else Unit;\n"
+        "    n\n"
+        "}\n"
+        "export fn main() : Unit with Never = {\n"
+        "    let calls = [" ++ Calls ++ "];\n"
+        "    Io.println(Io.show(#(List.size(calls), List.last(calls))));\n"
+        "    Io.println(Io.show(#(" ++ Numbers ++ ")))\n"
+        "}\n"),
+    ?assertEqual(iolist_to_binary(["1\n1100\n#(1100, Some(1100))\n#(", Numbers, ")\n"]),
+                 Output).
+
+%% report §5.1: a call's arguments, a tuple's and a list's elements and an
+%% operator's operands are evaluated left to right. Written after the
+%% code, which leaves the order to the host's compiler, so that a change of
+%% the host's order fails here
+order_of_evaluation_test() ->
+    {ok, Output} = run(
+        "fn say(word : String, n : Int) : Int with m = {\n"
+        "    Io.println(word);\n"
+        "    n\n"
+        "}\n"
+        "fn pair(x : Int, y : Int) : Int = x + y\n"
+        "export fn main() : Unit with Never = {\n"
+        "    let _ = pair(say(\"call 1\", 1), say(\"call 2\", 2));\n"
+        "    let _ = #(say(\"tuple 1\", 1), say(\"tuple 2\", 2));\n"
+        "    let _ = [say(\"list 1\", 1), say(\"list 2\", 2)];\n"
+        "    let _ = say(\"operand 1\", 1) + say(\"operand 2\", 2);\n"
+        "    let _ = say(\"compared 1\", 1) < say(\"compared 2\", 2);\n"
+        "    Unit\n"
+        "}\n"),
+    ?assertEqual(<<"call 1\ncall 2\ntuple 1\ntuple 2\nlist 1\nlist 2\noperand 1\n"
+                   "operand 2\ncompared 1\ncompared 2\n">>, Output).
 
 %% report §4.6: shadowing rebinds; each binding is its own variable
 shadowing_test() ->
@@ -658,62 +782,12 @@ io_debug_escapes_test() ->
                        "}\n"),
     ?assertEqual(<<"\"a\\\"b\\\\c\\n\\t\\u{1}\\u{7F}é\"\n"/utf8>>, Output).
 
-%% report §8.2: keys and lines are the same terminal, so the process that
-%% claims it the other way faults, naming the side that holds it
-terminal_is_lines_or_keys_test() ->
-    {Result1, _} = run_at_terminal("type Msg = Pressed(Terminal.Event)\n"
-                                   "export fn main() : Unit with Msg = {\n"
-                                   "    let _ = Io.readLine();\n"
-                                   "    let _ = Terminal.subscribe(Pressed);\n"
-                                   "    receive { Pressed(_) -> Unit }\n"
-                                   "}\n"),
-    ?assertEqual({fault, <<"the terminal is already read as lines">>}, Result1).
-
-%% report §8.2, §7.4: a claim of the terminal the other way faults the
-%% process that makes it, and the first claim stands: a worker that
-%% subscribes after main read a line faults, and main reads on. A
-%% regression test: the entry process faulted, whoever asked
-terminal_claim_faults_its_caller_test() ->
-    ?assertEqual({ok, <<"the terminal is already read as lines\nread on\n">>},
-                 run_at_terminal("type Msg = Pressed(Terminal.Event)\n"
-                                 "type MainMsg = Ended(Down)\n"
-                                 "fn watch() : Unit with Msg = {\n"
-                                 "    let _ = Terminal.subscribe(Pressed);\n"
-                                 "    Unit\n"
-                                 "}\n"
-                                 "export fn main() : Unit with MainMsg = {\n"
-                                 "    let _ = Io.readLine();\n"
-                                 "    let _ = spawnMonitored(watch, Ended);\n"
-                                 "    receive {\n"
-                                 "        Ended(Down(reason = Fault(c), site = _)) ->\n"
-                                 "            Io.println(c)\n"
-                                 "      | Ended(_) -> Io.println(\"ended\")\n"
-                                 "    };\n"
-                                 "    let _ = Io.readLine();\n"
-                                 "    Io.println(\"read on\")\n"
-                                 "}\n")).
-
-%% report §8.6, §7.4: a program whose every process waits forever ends
-%% with the entry process's fault, `deadlock`; a timed receive is a source
-%% and ends by itself
-deadlock_test() ->
-    {Result1, _} = run("type Msg = Ping\n"
-                       "export fn main() : Unit with Msg = receive { Ping -> Unit }\n"),
-    ?assertEqual({fault, <<"deadlock">>}, Result1),
-    {Result2, Output} = run("type Msg = Ping\n"
-                            "export fn main() : Unit with Msg = receive {\n"
-                            "    Ping -> Unit\n"
-                            "  | after 100 -> Io.println(\"timeout\")\n"
-                            "}\n"),
-    ?assertEqual({ok, <<"timeout\n">>}, {Result2, Output}).
-
 %% report §6.3, §6.6, Appendix E.0 rule 8: a time below 0 is 0, in `after`,
 %% in `Address.call`, and in `Clock.alarm`. A regression test: the first two
 %% faulted with the host's `timeout_value`, and the alarm crashed the clock,
 %% which left the program waiting for ever
 negative_time_test() ->
-    {ok, Output} = run("type M = M | Get(reply : Reply(Int))
-"
+    {ok, Output} = run("type M = M | Get(reply : Reply(Int))\n"
                        "export fn main() : Unit with M = {\n"
                        "    receive { Get(reply = r) -> answer(r, 1) | after 0 - 5 ->"
                        " Io.println(\"after\") };\n"
@@ -758,283 +832,6 @@ long_time_test() ->
         "    }\n"
         "}\n"),
     ?assertEqual(<<"ping\nSome(7)\nread\n">>, Output).
-
-%% report §8.6: a process blocked in Address.callForever waits without a
-%% limit, as an untimed receive does, so a call to a server that waits in
-%% an untimed receive for something else is a deadlock. A regression test,
-%% written after the code; a callForever to a process that has ended is
-%% call_ends_with_callee_test_'s
-call_forever_deadlock_test() ->
-    {Result, _} = run("type Req = Get(reply : Reply(Int)) | Other\n"
-                      "fn server() : Unit with Req = receive { Other -> Unit }\n"
-                      "export fn main() : Unit with m = {\n"
-                      "    let a = spawn(server);\n"
-                      "    let _ = Io.debug(Address.callForever(a, fn(r) = Get(reply = r)));\n"
-                      "    Unit\n"
-                      "}\n"),
-    ?assertEqual({fault, <<"deadlock">>}, Result).
-
-%% report §6.9, §9.5: a process whose function is `restarting`'s runs it
-%% again after a fault, keeping its address and its mailbox, the message
-%% being handled lost and the state its function starts from. The call is
-%% made once the crash has been handled, since a call pending at a restart
-%% ends with it (call_ends_with_callee_test_)
-restart_keeps_address_test() ->
-    {ok, Output} = run(
-        "type Msg = Bump | Crash | Get(reply : Reply(Int))\n"
-        "fn loop(n : Int) : Unit with Msg = receive {\n"
-        "    Bump -> loop(n + 1)\n"
-        "  | Crash -> fault(\"crash\")\n"
-        "  | Get(reply = r) -> { answer(r, n); loop(n) }\n"
-        "}\n"
-        "export fn main() : Unit with Never = {\n"
-        "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
-        "    let s = spawn(restarting(limit, fn() : Unit with Msg = loop(0)));\n"
-        "    send(s, Bump);\n"
-        "    send(s, Crash);\n"
-        "    receive { after 100 -> Unit };\n"
-        "    send(s, Bump);\n"
-        "    Io.println(Int.toString(Address.callForever(s, fn(r) = Get(reply = r))))\n"
-        "}\n"),
-    ?assertEqual(<<"1\n">>, Output).
-
-%% report §6.9: past the limit the next fault ends the process with its
-%% cause, which is its one death a monitor is told of; a restart is none,
-%% and a limit of no restarts ends it at the first fault. Each start says
-%% so, so that a limit of one restart is told from a limit of none, which
-%% the test could not do before
-restart_limit_test() ->
-    Program = fun(Restarts) ->
-        "type Msg = Crash | Ping(reply : Reply(Unit))\n"
-        "type MainMsg = Died(Down)\n"
-        "fn loop(n : Int) : Unit with Msg =\n"
-        "    receive {\n"
-        "        Crash -> fault(Int.toString(n))\n"
-        "      | Ping(reply = r) -> { answer(r, Unit); loop(n) }\n"
-        "    }\n"
-        "fn count() : Unit with Msg = {\n"
-        "    Io.println(\"start\");\n"
-        "    loop(1)\n"
-        "}\n"
-        ++ ?UP ++
-        "export fn main() : Unit with MainMsg = {\n"
-        "    let limit = RestartLimit(restarts = " ++ Restarts ++ ", within = 60000);\n"
-        "    let s = spawnMonitored(restarting(limit, count), Died);\n"
-        "    let _ = up(s);\n"
-        "    send(s, Crash);\n"
-        "    if up(s) then send(s, Crash) else Unit;\n"
-        "    receive {\n"
-        "        Died(Down(reason = Fault(c), site = _)) -> Io.println(\"ended \" <> c)\n"
-        "      | Died(_) -> Io.println(\"other\")\n"
-        "    };\n"
-        "    receive { Died(_) -> Io.println(\"twice\") | after 100 -> Unit }\n"
-        "}\n"
-    end,
-    ?assertEqual({ok, <<"start\nstart\nended 1\n">>}, run(Program("1"))),
-    ?assertEqual({ok, <<"start\nended 1\n">>}, run(Program("0"))),
-    ?assertEqual({ok, <<"start\nended 1\n">>}, run(Program("-2"))).
-
-%% report §6.9: `Unlimited` runs the function again after every fault, and a
-%% time of 0 is a window of one millisecond, which a loop that faults at
-%% once passes. A regression test: a time of 0 set no limit, and the loop
-%% ran for good
-restart_unlimited_test_() ->
-    {timeout, 30, fun restart_unlimited/0}.
-
-restart_unlimited() ->
-    Program = fun(Limit, Body, Crashes) ->
-        "type Msg = Crash | Stop | Ping(reply : Reply(Unit))\n"
-        "type MainMsg = Died(Down)\n"
-        "fn loop() : Unit with Msg =\n"
-        "    receive {\n"
-        "        Crash -> fault(\"crash\")\n"
-        "      | Stop -> Unit\n"
-        "      | Ping(reply = r) -> { answer(r, Unit); loop() }\n"
-        "    }\n"
-        "fn boom() : Unit with Msg = fault(\"boom\")\n"
-        ++ ?UP ++
-        "fn crash(s : Address(Msg), left : Int) : Unit with m =\n"
-        "    if left == 0 || !up(s) then Unit else { send(s, Crash); crash(s, left - 1) }\n"
-        "export fn main() : Unit with MainMsg = {\n"
-        "    let s = spawnMonitored(restarting(" ++ Limit ++ ", " ++ Body ++ "), Died);\n"
-        "    crash(s, " ++ Crashes ++ ");\n"
-        "    if up(s) then send(s, Stop) else Unit;\n"
-        "    receive { Died(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
-        "}\n"
-    end,
-    ?assertEqual({ok, <<"Returned\n">>}, run(Program("Unlimited", "loop", "50"))),
-    ?assertEqual({ok, <<"Fault(\"boom\")\n">>},
-                 run(Program("RestartLimit(restarts = 3, within = 0)", "boom", "0"))).
-
-%% report §6.9, §6.6: a restart empties the mailbox, so a plain send and
-%% the request of a call the restart ended, both waiting there as the
-%% process faulted, are not taken by the new run: the ended call was not
-%% done. A regression test: the new run took both, and the total was 6
-restart_empties_the_mailbox_test() ->
-    {ok, Output} = run(
-        "type Msg = Add(n : Int, reply : Reply(Int)) | Total(reply : Reply(Int)) | Plain(Int)"
-        " | Busy\n"
-        "fn count(total : Int) : Unit with Msg =\n"
-        "    receive {\n"
-        "        Add(n = n, reply = r) -> { answer(r, total + n); count(total + n) }\n"
-        "      | Total(reply = r) -> { answer(r, total); count(total) }\n"
-        "      | Plain(n) -> count(total + n)\n"
-        "      | Busy -> { spin(Clock.monotonic() + 200); fault(\"busy\") }\n"
-        "    }\n"
-        "fn spin(until : Int) : Unit with m =\n"
-        "    if Clock.monotonic() >= until then Unit else spin(until)\n"
-        "export fn main() : Unit with Never = {\n"
-        "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
-        "    let s = spawn(restarting(limit, fn() = count(0)));\n"
-        "    send(s, Busy);\n"
-        "    send(s, Plain(5));\n"
-        "    Io.println(Io.show(Address.call(s, fn(r) = Add(n = 1, reply = r), 2000)));\n"
-        "    Io.println(Int.toString(Address.callForever(s, fn(r) = Total(reply = r))))\n"
-        "}\n"),
-    ?assertEqual(<<"None\n0\n">>, Output).
-
-%% report §6.9, Appendix E.15, E.21: a restart cancels the process's alarm,
-%% its monitor and its subscription to faults, so the new run hears nothing
-%% of what the old one asked for. A regression test: the alarm, the Down
-%% and the fault reached the new run
-restart_cancels_what_it_asked_for_test_() ->
-    {timeout, 30, fun restart_cancels_what_it_asked_for/0}.
-
-restart_cancels_what_it_asked_for() ->
-    Program = fun(Ask, After) ->
-        "type Msg = Heard | Ask(Address(Int)) | Crash | Ping(reply : Reply(Unit))"
-        " | Count(reply : Reply(Int))\n"
-        "fn loop(n : Int) : Unit with Msg =\n"
-        "    receive {\n"
-        "        Heard -> loop(n + 1)\n"
-        "      | Ask(other) -> { " ++ Ask ++ "; loop(n) }\n"
-        "      | Crash -> fault(\"crash\")\n"
-        "      | Ping(reply = r) -> { answer(r, Unit); loop(n) }\n"
-        "      | Count(reply = r) -> { answer(r, n); loop(n) }\n"
-        "    }\n"
-        ++ ?UP ++
-        "export fn main() : Unit with Never = {\n"
-        "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
-        "    let s = spawn(restarting(limit, fn() = loop(0)));\n"
-        "    let other = spawn(fn() : Unit with Int = receive { _ -> Unit });\n"
-        "    send(s, Ask(other));\n"
-        "    send(s, Crash);\n"
-        "    let _ = up(s);\n"
-        "    " ++ After ++ ";\n"
-        "    receive { after 300 -> Unit };\n"
-        "    Io.println(Int.toString(Address.callForever(s, fn(r) = Count(reply = r))))\n"
-        "}\n"
-    end,
-    %% an alarm set by the old run
-    ?assertEqual({ok, <<"0\n">>}, run(Program("Clock.alarm(100, fn(_) = Heard)", "Unit"))),
-    %% a monitor made by the old run, of a process killed after the restart
-    ?assertEqual({ok, <<"0\n">>},
-                 run(Program("monitor(Process.fromAddress(other), fn(_) = Heard)",
-                             "kill(other)"))),
-    %% a subscription to faults, and a fault after the restart
-    ?assertEqual({ok, <<"0\n">>},
-                 run(Program("Process.faults(fn(_) = Heard)",
-                             "let _ = spawn(fn() : Unit with Never = fault(\"other\"))"))).
-
-%% Appendix E.22, report §6.9: a child's fault is counted by its supervisor
-%% before the child runs again, so a limit of two restarts lets the child
-%% run three times; and under `Unlimited` the supervisor never gives up. A
-%% regression test: the child restarted itself and told the supervisor
-%% after, running about two hundred times under a limit of two, and a time
-%% of 0, which set no limit then, still gave up
-supervisor_counts_before_the_restart_test_() ->
-    {timeout, 60, fun supervisor_counts_before_the_restart/0}.
-
-supervisor_counts_before_the_restart() ->
-    Program = fun(Limit) ->
-        "type CounterMsg = Next(reply : Reply(Int))\n"
-        "type MainMsg = SupDied(Down) | ChildEnded(Down)\n"
-        "fn counter(n : Int) : Unit with CounterMsg =\n"
-        "    receive { Next(reply = r) -> { answer(r, n); counter(n + 1) } }\n"
-        "fn crash(c : Address(CounterMsg)) : Unit with Int = {\n"
-        "    let n = Address.callForever(c, fn(r) = Next(reply = r));\n"
-        "    Io.println(\"run \" <> Int.toString(n));\n"
-        "    if n < 6 then fault(\"boom\") else Unit\n"
-        "}\n"
-        "export fn main() : Unit with MainMsg = {\n"
-        "    let c = spawn(fn() = counter(1));\n"
-        "    let limit = " ++ Limit ++ ";\n"
-        "    let sup = spawnMonitored(Supervisor.group(Supervisor.OneForOne, limit),\n"
-        "                             SupDied);\n"
-        "    let _ = spawnMonitored(Supervisor.child(sup, fn() = crash(c)), ChildEnded);\n"
-        "    receive {\n"
-        "        SupDied(Down(reason = Fault(cause), site = _)) -> Io.println(cause)\n"
-        "      | SupDied(_) -> Io.println(\"supervisor ended\")\n"
-        "      | ChildEnded(_) -> Io.println(\"kept\")\n"
-        "    }\n"
-        "}\n"
-    end,
-    ?assertEqual({ok, <<"run 1\nrun 2\nrun 3\nsupervisor restart limit reached\n">>},
-                 run(Program("RestartLimit(restarts = 2, within = 60000)"))),
-    ?assertEqual({ok, <<"run 1\nrun 2\nrun 3\nrun 4\nrun 5\nrun 6\nkept\n">>},
-                 run(Program("Unlimited"))).
-
-%% Appendix E.22: the child whose fault restarts its siblings runs again
-%% once each of them has restarted, so that a call to it after its fault is
-%% answered by the group restarted whole. The sibling spins when the fault
-%% comes and takes its restart at its next wait. A regression test: the
-%% faulted child ran again at once, and a call to the sibling made after it
-%% had answered was still waiting when the sibling restarted, and ended
-supervisor_restarts_whole_test_() ->
-    {timeout, 30, fun supervisor_restarts_whole/0}.
-
-supervisor_restarts_whole() ->
-    {ok, Output} = run(
-        "type AMsg = Crash | Ping(reply : Reply(Int))\n"
-        "type BMsg = Inc | Busy | Count(reply : Reply(Int))\n"
-        "fn a() : Unit with AMsg =\n"
-        "    receive { Crash -> fault(\"crash\") | Ping(reply = r) -> { answer(r, 1); a() } }\n"
-        "fn b(n : Int) : Unit with BMsg =\n"
-        "    receive {\n"
-        "        Inc -> b(n + 1)\n"
-        "      | Busy -> { spin(Clock.monotonic() + 300); b(n) }\n"
-        "      | Count(reply = r) -> { answer(r, n); b(n) }\n"
-        "    }\n"
-        "fn spin(until : Int) : Unit with m =\n"
-        "    if Clock.monotonic() >= until then Unit else spin(until)\n"
-        "fn ping(x : Address(AMsg)) : Int with m =\n"
-        "    match Address.call(x, fn(r) = Ping(reply = r), 1000) {\n"
-        "        Some(v) -> v\n"
-        "      | None -> ping(x)\n"
-        "    }\n"
-        "export fn main() : Unit with Never = {\n"
-        "    let limit = RestartLimit(restarts = 3, within = 60000);\n"
-        "    let sup = spawn(Supervisor.group(Supervisor.OneForAll, limit));\n"
-        "    let x = spawn(Supervisor.child(sup, a));\n"
-        "    let y = spawn(Supervisor.child(sup, fn() = b(0)));\n"
-        "    send(y, Inc);\n"
-        "    let _ = Address.callForever(y, fn(r) = Count(reply = r));\n"
-        "    let _ = ping(x);\n"
-        "    send(y, Busy);\n"
-        "    send(x, Crash);\n"
-        "    let _ = ping(x);\n"
-        "    Io.println(Io.show(Address.call(y, fn(r) = Count(reply = r), 2000)))\n"
-        "}\n"),
-    ?assertEqual(<<"Some(0)\n">>, Output).
-
-%% report §6.9: returning and a kill end a restarting process as they end
-%% any; only a fault restarts
-restart_only_on_fault_test() ->
-    {ok, Output} = run(
-        "type Msg = Stop\n"
-        "type MainMsg = Died(Down)\n"
-        "fn waits() : Unit with Msg = receive { Stop -> Unit }\n"
-        "export fn main() : Unit with MainMsg = {\n"
-        "    let limit = RestartLimit(restarts = 5, within = 60000);\n"
-        "    let a = spawnMonitored(restarting(limit, waits), Died);\n"
-        "    send(a, Stop);\n"
-        "    receive { Died(Down(reason = r, site = _)) -> { let _ = Io.debug(r); Unit } };\n"
-        "    let b = spawnMonitored(restarting(limit, waits), Died);\n"
-        "    kill(b);\n"
-        "    receive { Died(Down(reason = r, site = _)) -> { let _ = Io.debug(r); Unit } };\n"
-        "    Unit\n"
-        "}\n"),
-    ?assertEqual(<<"Returned\nKilled\n">>, Output).
 
 %% report §6.6, §7.4: a call ends at once when its callee faults, is
 %% killed, returns, or had ended, before it answers: Address.call answers
@@ -1337,8 +1134,7 @@ not_operator_test() ->
     ?assertEqual(<<"false\n[2, 4]\n\"small\"\n">>, Output).
 
 %% report §4.8, §3.10, §5.1: a user type's operator is its member, its
-%% ordering goes through its compare, prefix - through its negate; in a receive guard
-%% the ordering is a call, a type error by §5.9
+%% ordering goes through its compare, and prefix - through its negate
 user_operators_test() ->
     Vec = "export type Vec = Vec(Int)\n"
           "export fn Vec.+(Vec(a), Vec(b)) : Vec = Vec(a + b)\n"
@@ -2076,10 +1872,11 @@ bitstring_defaults_test() ->
         run("export fn main() : Unit with Never = { let n = 0 - 1; let _ = <<n>>; Unit }\n"),
     ?assertEqual({fault, <<"segment overflow">>}, Result).
 
-%% report §8.5: top-level lets run in the order the checker found, a let
-%% after every let it reaches through the functions it names, whatever the
-%% order they are declared in. A regression test for the order the emitter
-%% now reads rather than computing again; the order it had was the same.
+%% report §8.5: top-level lets run in the order the checker's let_order/1
+%% gives, a let after every let it reaches through the functions it names,
+%% whatever the order they are declared in. A regression test, written when
+%% the emitter came to read that order in place of computing its own, which
+%% was the same.
 initialization_order_test() ->
     {ok, Output} = run("let total = twice() + 1\n"
                        "fn twice() : Int = base * 2\n"
@@ -2092,8 +1889,8 @@ initialization_order_test() ->
 %% from the name's `ref` rather than resolving again: a type's member, the
 %% module's own function over the prelude's `self`, the module named
 %% qualified past a local binding that hides it, `Prelude.self`, and a
-%% local binding over them all. A
-%% regression test for the single decision; the order it had was the same.
+%% local binding over them all. A regression test for the single decision;
+%% the order it had was the same.
 lookup_order_test() ->
     {ok, Output} = run("type Box = Box(Int)\n"
                        "fn Box.negate(b : Box) : Int = match b { Box(n) -> n }\n"
@@ -2278,6 +2075,21 @@ monitor_site_test() ->
         "}\n"),
     ?assertEqual(<<"M.main:4 division by zero\n">>, Output).
 
+%% report §6.9: a spawn site names the declaration by its Ernest name, one
+%% the host's own names collide with among them. A regression test: a
+%% function named module_info was named `module_info$`
+host_named_site_test() ->
+    {ok, Output} = run(
+        "type Msg = Died(Down)\n"
+        "fn module_info() : Unit with Msg = {\n"
+        "    let z = List.size([]);\n"
+        "    let _ = spawnMonitored(fn() : Unit with Never = { let _ = 1 / z; Unit },"
+        " Died);\n"
+        "    receive { Died(Down(site = f, reason = _)) -> Io.println(f) }\n"
+        "}\n"
+        "export fn main() : Unit with Msg = module_info()\n"),
+    ?assertEqual(<<"M.module_info:4\n">>, Output).
+
 %% report §6.9: a Down's function is the top-level declaration the spawn
 %% is written in: one inside a local fn or a lambda counts as written in
 %% the enclosing declaration, and `spawn` taken as a value counts where
@@ -2403,8 +2215,10 @@ prelude_targets_test() ->
                                     not erlang:function_exported(HostModule, HostFunction, Arity)],
     ?assertEqual([], Missing).
 
-%% The emission of a prelude name, as ern_emitter makes it; inline
-%% operators have no target.
+%% The emission of a prelude name, as ern_emitter makes it: Int's
+%% arithmetic and negate, and the `<>` of String and Bytes, are inline and
+%% have no target; Float's operators, and the `<>` of List and Path, are
+%% their modules' functions (report §4.8).
 prelude_target(QualifiedName, Text) ->
     {ok, Syntax} = ern_parser:parse_type(Text),
     Arity = case Syntax of
@@ -2424,11 +2238,13 @@ prelude_target(QualifiedName, Text) ->
         [fault] -> {ern_rt, fault, 1};
         ['Address', call] -> {ern_rt, call, 3};
         ['Address', callForever] -> {ern_rt, call_forever, 2};
-        [_, Operator]
+        ['Int', Operator]
           when Operator =:= '+'; Operator =:= '-'; Operator =:= '*'; Operator =:= '/';
-               Operator =:= '%'; Operator =:= '<>'; Operator =:= negate ->
+               Operator =:= '%'; Operator =:= negate ->
             {erlang, is_atom, 1};
-        [Namespace, Function] -> {ern_emitter:erlang_module([Namespace]), Function, Arity}
+        [TypeName, '<>'] when TypeName =:= 'String'; TypeName =:= 'Bytes' ->
+            {erlang, is_atom, 1};
+        [Namespace, Function] -> {ern_namespace:erlang_module([Namespace]), Function, Arity}
     end.
 
 %% report §6.5, §6.9, §7.3, §9.5: kill is a Down with Killed, a fault a
@@ -2456,796 +2272,6 @@ process_functions_test() ->
         "    receive { Tick -> Io.println(\"tick\") | _ -> Io.println(\"other\") }\n"
         "}\n"),
     ?assertEqual(<<"killed\ndivision by zero\ntick\n">>, Output).
-
-%%
-%% Report §6.9 and Appendix E.22: a supervisor's group. Each child is a
-%% counter that a restart sets back to 0, and that faults on Boom.
-%%
-
-supervised(Strategy, Limit, Names, Main) ->
-    run(["type Msg = Ask(reply : Reply(Int)) | Boom\n"
-         "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.",
-         Strategy, ", ", Limit, "))\n",
-         [["let ", Name, " : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"]
-          || Name <- Names],
-         "fn count(n : Int) : Unit with Msg = receive {\n"
-         "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
-         "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
-         "}\n"
-         "fn ask(c : Address(Msg)) : Int with m = Address.callForever(c, fn(r) = Ask(reply = r))\n"
-         "fn show(c : Address(Msg)) : String with m = Int.toString(ask(c))\n"
-         "fn pause() : Unit with m = receive { after 100 -> Unit }\n",
-         Main]).
-
--define(LIMIT, "RestartLimit(restarts = 3, within = 5000)").
-
-%% report §6.9, Appendix E.22: under OneForAll a fault restarts every
-%% sibling in place, at its next wait, its address kept
-one_for_all_restarts_siblings_test() ->
-    {ok, Output} = supervised("OneForAll", ?LIMIT, ["a", "b"],
-        "export fn main() : Unit with Never = {\n"
-        "    let _ = ask(a); let _ = ask(b);\n"
-        "    send(a, Boom);\n"
-        "    pause();\n"
-        "    Io.println(show(a) <> \" \" <> show(b))\n"
-        "}\n"),
-    ?assertEqual(<<"0 0\n">>, Output).
-
-%% Appendix E.22: under OneForOne a fault restarts only the child that
-%% faulted
-one_for_one_restarts_the_child_alone_test() ->
-    {ok, Output} = supervised("OneForOne", ?LIMIT, ["a", "b"],
-        "export fn main() : Unit with Never = {\n"
-        "    let _ = ask(a); let _ = ask(b);\n"
-        "    send(a, Boom);\n"
-        "    pause();\n"
-        "    Io.println(show(a) <> \" \" <> show(b))\n"
-        "}\n"),
-    ?assertEqual(<<"0 1\n">>, Output).
-
-%% Appendix E.22: under RestForOne a fault restarts the children spawned
-%% after the one that faulted, and not those before it
-rest_for_one_restarts_later_children_test() ->
-    {ok, Output} = supervised("RestForOne", ?LIMIT, ["a", "b", "c"],
-        "export fn main() : Unit with Never = {\n"
-        "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
-        "    send(b, Boom);\n"
-        "    pause();\n"
-        "    Io.println(show(a) <> \" \" <> show(b) <> \" \" <> show(c))\n"
-        "}\n"),
-    ?assertEqual(<<"1 0 0\n">>, Output).
-
-%% Appendix E.22: RestForOne reads the order the children were spawned in,
-%% whatever order they joined in: `a`, spawned first, joins last, and its
-%% fault still restarts `b` and `c`. A regression test: the order read was
-%% the order of joins, which the scheduler decides, and a race of it failed
-%% examples/services.ern
-rest_for_one_reads_the_order_of_spawns_test() ->
-    {ok, Output} = run(["type Msg = Ask(reply : Reply(Int)) | Boom\n"
-                        "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group("
-                        "Supervisor.RestForOne, ", ?LIMIT, "))\n"
-                        "let a : Address(Msg) = spawn(fn() : Unit with Msg = {\n"
-                        "    receive { after 100 -> Unit };\n"
-                        "    Supervisor.child(sup, fn() = count(0))()\n"
-                        "})\n"
-                        "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
-                        "let c : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
-                        "fn count(n : Int) : Unit with Msg = receive {\n"
-                        "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
-                        "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
-                        "}\n"
-                        "fn ask(c : Address(Msg)) : Int with m ="
-                        " Address.callForever(c, fn(r) = Ask(reply = r))\n"
-                        "fn show(c : Address(Msg)) : String with m = Int.toString(ask(c))\n"
-                        "fn pause() : Unit with m = receive { after 100 -> Unit }\n"
-                        "export fn main() : Unit with Never = {\n"
-                        "    pause(); pause();\n"
-                        "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
-                        "    send(a, Boom);\n"
-                        "    pause();\n"
-                        "    Io.println(show(a) <> \" \" <> show(b) <> \" \" <> show(c))\n"
-                        "}\n"]),
-    ?assertEqual(<<"0 0 0\n">>, Output).
-
-%% report §6.9: a restart asked for is no fault, and no fault is reported
-%% for it; only the child that faulted is
-restart_asked_for_is_no_fault_test() ->
-    {ok, Output} = supervised("OneForAll", ?LIMIT, ["a", "b", "c"],
-        "export fn main() : Unit with Process.FaultReport = {\n"
-        "    Process.faults(fn(f) = f);\n"
-        "    send(a, Boom);\n"
-        "    pause();\n"
-        "    let _ = ask(b);\n"
-        "    Io.println(Int.toString(reports(0)))\n"
-        "}\n"
-        "fn reports(n : Int) : Int with Process.FaultReport ="
-        " receive { _ -> reports(n + 1) | after 100 -> n }\n"),
-    ?assertEqual(<<"1\n">>, Output).
-
-%% report §6.6, §6.9: a call waiting on a child when its supervisor
-%% restarts it ends, and callForever faults with the cause that says so;
-%% the child restarts at the wait inside its handling of the request
-call_ends_at_asked_restart_test() ->
-    {Result, _} = run(
-             "type Msg = Slow(reply : Reply(Int)) | Boom\n"
-        "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
-        " RestartLimit(restarts = 3, within = 5000)))\n"
-        "let a : Address(Msg) = spawn(Supervisor.child(sup, fn() = serve()))\n"
-        "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = serve()))\n"
-        "fn serve() : Unit with Msg = receive {\n"
-        "    Slow(reply = r) -> { receive { after 500 -> Unit }; answer(r, 1); serve() }\n"
-        "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
-        "}\n"
-        "export fn main() : Unit with Never = {\n"
-        "    let _ = spawn(fn() : Unit with Never = {\n"
-        "        receive { after 50 -> Unit };\n"
-        "        send(a, Boom)\n"
-        "    });\n"
-        "    let _ = Address.callForever(b, fn(r) = Slow(reply = r));\n"
-        "    Io.println(\"answered\")\n"
-        "}\n"),
-    ?assertEqual({fault, <<"callee was restarted">>}, Result).
-
-%% Appendix E.22: past its limit a group faults; at the root it dies, and
-%% its watcher kills its children
-limit_ends_the_group_test() ->
-    {ok, Output} = supervised("OneForOne", "RestartLimit(restarts = 1, within = 5000)", ["a"],
-        "type Seen = Died(Down)\n"
-        "export fn main() : Unit with Seen = {\n"
-        "    monitor(Process.fromAddress(a), Died);\n"
-        "    send(a, Boom);\n"
-        "    pause();\n"
-        "    send(a, Boom);\n"
-        "    receive {\n"
-        "        Died(Down(reason = Killed, site = _)) -> Io.println(\"killed\")\n"
-        "      | Died(_) -> Io.println(\"other\")\n"
-        "    }\n"
-        "}\n"),
-    ?assertEqual(<<"killed\n">>, Output).
-
-%% Appendix E.22: kill(sup) stops the group, the children killed in the
-%% reverse of the order they joined, each once the one before has ended
-kill_stops_in_reverse_order_test() ->
-    {ok, Output} = supervised("OneForOne", ?LIMIT, ["a", "b", "c"],
-        "type Seen = Died(String)\n"
-        "export fn main() : Unit with Seen = {\n"
-        "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
-        "    monitor(Process.fromAddress(a), fn(_) = Died(\"a\"));\n"
-        "    monitor(Process.fromAddress(b), fn(_) = Died(\"b\"));\n"
-        "    monitor(Process.fromAddress(c), fn(_) = Died(\"c\"));\n"
-        "    kill(sup);\n"
-        "    Io.println(String.join([next(), next(), next()], \" \"))\n"
-        "}\n"
-        "fn next() : String with Seen = receive { Died(n) -> n }\n"),
-    ?assertEqual(<<"c b a\n">>, Output).
-
-%% Appendix E.22: a supervisor that is a child restarts in place past its
-%% limit, its children restarted with it, their addresses kept
-nested_group_restarts_in_place_test() ->
-    {ok, Output} = run(
-        "type Msg = Ask(reply : Reply(Int)) | Boom\n"
-        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
-        " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
-        " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 0, within = 5000))))\n"
-        "let a : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
-        "let b : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
-        "fn count(n : Int) : Unit with Msg = receive {\n"
-        "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
-        "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
-        "}\n"
-        "fn ask(c : Address(Msg)) : Int with m = Address.callForever(c, fn(r) = Ask(reply = r))\n"
-        "export fn main() : Unit with Never = {\n"
-        "    let _ = ask(a); let _ = ask(b);\n"
-        "    send(a, Boom);\n"
-        "    receive { after 100 -> Unit };\n"
-        "    Io.println(Int.toString(ask(a)) <> \" \" <> Int.toString(ask(b)))\n"
-        "}\n"),
-    ?assertEqual(<<"0 0\n">>, Output).
-
-%% Appendix E.22: a supervisor restarted in place counts its limit afresh,
-%% and a fault it counted before the restart does not expire from the new
-%% count. A regression test for alarms of an earlier run lowering the
-%% count; the gaps around the old alarm, at 1000 ms, are 150 ms and more
-count_survives_restart_in_place_test() ->
-    {ok, Output} = run(
-        "type Msg = Ask(reply : Reply(Int)) | Boom\n"
-        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
-        " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
-        " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 1, within = 1000))))\n"
-        "let a : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
-        "let b : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
-        "fn count(n : Int) : Unit with Msg = receive {\n"
-        "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
-        "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
-        "}\n"
-        "fn ask(c : Address(Msg)) : Int with m = Address.callForever(c, fn(r) = Ask(reply = r))\n"
-        "fn wait(ms : Int) : Unit with m = receive { after ms -> Unit }\n"
-        "export fn main() : Unit with Never = {\n"
-        "    send(a, Boom);\n"
-        "    wait(50);\n"
-        "    send(a, Boom);\n"
-        "    wait(250);\n"
-        "    let _ = ask(b); let _ = ask(b);\n"
-        "    send(a, Boom);\n"
-        "    wait(850);\n"
-        "    send(a, Boom);\n"
-        "    wait(100);\n"
-        "    Io.println(Int.toString(ask(b)))\n"
-        "}\n"),
-    ?assertEqual(<<"0\n">>, Output).
-
-%% Appendix E.22: a child that starts after its supervisor has ended
-%% faults once with a cause that says so, and does not restart. A
-%% regression test for a child that joined inside its restart loop and
-%% restarted without end
-child_of_ended_supervisor_test() ->
-    {Result, _} = run(
-             "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
-        " RestartLimit(restarts = 3, within = 5000)))\n"
-        "export fn main() : Unit with Never = {\n"
-        "    kill(sup);\n"
-        "    receive { after 50 -> Unit };\n"
-        "    let c = Supervisor.child(sup, fn() : Unit with Never = Unit);\n"
-        "    c()\n"
-        "}\n"),
-    ?assertEqual({fault, <<"the supervisor has ended">>}, Result).
-
-%% report §6.9, Appendix E.22: a root group past its limit faults, and its
-%% children are killed; none reports a fault it did not have. A regression
-%% test for children that, asked to restart, rejoined the dead supervisor
-%% and reported that as their own fault
-limit_reports_only_real_faults_test() ->
-    {ok, Output} = supervised("OneForOne", "RestartLimit(restarts = 1, within = 5000)",
-        ["a", "b", "c"],
-        "export fn main() : Unit with Process.FaultReport = {\n"
-        "    let _ = ask(a); let _ = ask(b); let _ = ask(c);\n"
-        "    Process.faults(fn(f) = f);\n"
-        "    send(a, Boom);\n"
-        "    pause();\n"
-        "    send(a, Boom);\n"
-        "    Io.println(String.join(causes([]), \"; \"))\n"
-        "}\n"
-        "fn causes(seen : List(String)) : List(String) with Process.FaultReport = receive {\n"
-        "    f -> causes(seen <> [f.cause])\n"
-        "  | after 300 -> seen\n"
-        "}\n"),
-    ?assertEqual(<<"division by zero; division by zero; supervisor restart limit reached\n">>,
-                 Output).
-
-%% Appendix E.22: one process runs a group's function, and a second that
-%% runs it faults, since the process that keeps the group's children is
-%% the function's. Written with the rule (report §6.9's emptied mailbox)
-group_runs_in_one_process_test() ->
-    {ok, Output} = run(
-        "type MainMsg = Died(Down)\n"
-        "export fn main() : Unit with MainMsg = {\n"
-        "    let g = Supervisor.group(Supervisor.OneForOne, Unlimited);\n"
-        "    let _ = spawnMonitored(g, Died);\n"
-        "    let _ = spawnMonitored(g, Died);\n"
-        "    receive { Died(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
-        "}\n"),
-    ?assertEqual(<<"Fault(\"a group runs in one process\")\n">>, Output).
-
-%% Appendix E.22: a group's first supervisor is the one, and a process that
-%% runs the group after it has ended faults as a second does while it
-%% runs. A regression test: the second was told the watcher had returned
-%% without answering
-group_runs_once_after_its_end_test() ->
-    {ok, Output} = run(
-        "type MainMsg = Died(Down)\n"
-        "export fn main() : Unit with MainMsg = {\n"
-        "    let g = Supervisor.group(Supervisor.OneForOne, Unlimited);\n"
-        "    let first = spawn(g);\n"
-        "    receive { after 50 -> Unit };\n"
-        "    kill(first);\n"
-        "    receive { after 50 -> Unit };\n"
-        "    let _ = spawnMonitored(g, Died);\n"
-        "    receive { Died(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
-        "}\n"),
-    ?assertEqual(<<"Fault(\"a group runs in one process\")\n">>, Output).
-
-%% A group whose children count, fault on Boom, and on Crunch compute for a
-%% while without waiting, so that a restart asked of one then waits; on
-%% Crash they compute so and then fault.
-crunching(Main) ->
-    run(["type Msg = Ask(reply : Reply(Int)) | Boom | Crunch | Crash\n", Main,
-         "fn count(n : Int) : Unit with Msg = receive {\n"
-         "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
-         "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
-         "  | Crunch -> { let _ = spin(50000000); count(n) }\n"
-         "  | Crash -> { let z = spin(50000000); let _ = 1 / z; Unit }\n"
-         "}\n"
-         "fn spin(k : Int) : Int = if k == 0 then 0 else spin(k - 1)\n"
-         "fn ask(c : Address(Msg)) : Int with m = Address.callForever(c, fn(r) = Ask(reply = r))\n"
-         "fn wait(ms : Int) : Unit with m = receive { after ms -> Unit }\n"]).
-
-%% Appendix E.22: a sibling asked to restart that faults of its own before
-%% it takes the restart has restarted by its fault, and the child that
-%% waited for it runs again. RestForOne, so that the sibling's fault asks
-%% nothing of the child. A regression test: the sibling's fault emptied
-%% the ask with its mailbox, and the child waited for ever
-sibling_faulting_first_counts_as_restarted_test() ->
-    {ok, Output} = crunching(
-        "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.RestForOne,"
-        " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let a : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
-        "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
-        "export fn main() : Unit with Never = {\n"
-        "    let _ = ask(a); let _ = ask(b);\n"
-        "    send(b, Crash);\n"
-        "    wait(20);\n"
-        "    send(a, Boom);\n"
-        "    wait(1000);\n"
-        "    Io.println(Int.toString(ask(a)))\n"
-        "}\n"),
-    ?assertEqual(<<"0\n">>, Output).
-
-%% Appendix E.22: a child that waits for its fault to be counted when its
-%% supervisor restarts in place is restarted as asked, and reports no fault
-%% of its own. A regression test: its call to the supervisor ended as the
-%% supervisor restarted, and it faulted with `callee was restarted`
-child_waits_through_its_supervisors_restart_test() ->
-    {ok, Output} = crunching(
-        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
-        " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let x : Address(Msg) = spawn(Supervisor.child(top, fn() = count(0)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
-        " Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 5, within = 5000))))\n"
-        "let a : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
-        "let b : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
-        "export fn main() : Unit with Process.FaultReport = {\n"
-        "    let _ = ask(a); let _ = ask(b); let _ = ask(x);\n"
-        "    Process.faults(fn(f) = f);\n"
-        "    send(b, Crunch);\n"
-        "    wait(20);\n"
-        "    send(a, Boom);\n"
-        "    wait(20);\n"
-        "    send(x, Boom);\n"
-        "    Io.println(String.join(causes([]), \"; \"))\n"
-        "}\n"
-        "fn causes(seen : List(String)) : List(String) with Process.FaultReport = receive {\n"
-        "    f -> causes(seen <> [f.cause])\n"
-        "  | after 1000 -> seen\n"
-        "}\n"),
-    ?assertEqual(<<"division by zero; division by zero\n">>, Output).
-
-%% Appendix E.22: a child at whose fault a nested group gave up runs its
-%% function once when the group, restarted in place, restarts it. A
-%% regression test: the watcher let it go on before the supervisor asked
-%% it to restart, and it ran its function twice
-held_child_runs_once_test() ->
-    {ok, Output} = run(
-        "type Msg = Ask(reply : Reply(Int)) | Boom\n"
-        "type LogMsg = Started | Count(reply : Reply(Int))\n"
-        "let log : Address(LogMsg) = spawn(fn() = logging(0))\n"
-        "fn logging(n : Int) : Unit with LogMsg = receive {\n"
-        "    Started -> logging(n + 1)\n"
-        "  | Count(reply = r) -> { answer(r, n); logging(n) }\n"
-        "}\n"
-        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForOne,"
-        " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
-        " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 0, within = 5000))))\n"
-        "let a : Address(Msg) = spawn(Supervisor.child(sub, fn() = {\n"
-        "    send(log, Started);\n"
-        "    count(0)\n"
-        "}))\n"
-        "fn count(n : Int) : Unit with Msg = receive {\n"
-        "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
-        "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
-        "}\n"
-        "fn ask(c : Address(Msg)) : Int with m = Address.callForever(c, fn(r) = Ask(reply = r))\n"
-        "export fn main() : Unit with Never = {\n"
-        "    let _ = ask(a);\n"
-        "    send(a, Boom);\n"
-        "    receive { after 300 -> Unit };\n"
-        "    let _ = ask(a);\n"
-        "    Io.println(Int.toString(Address.callForever(log, fn(r) = Count(reply = r))))\n"
-        "}\n"),
-    ?assertEqual(<<"2\n">>, Output).
-
-%% Appendix E.22: a supervisor that its parent restarts asks its own
-%% children to restart, so a subtree restarts with its root. A regression
-%% test for a supervisor restarted in place that left its children running
-parent_restarts_subtree_test() ->
-    {ok, Output} = run(
-        "type Msg = Ask(reply : Reply(Int)) | Boom\n"
-        "let top : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
-        " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let x : Address(Msg) = spawn(Supervisor.child(top, fn() = count(0)))\n"
-        "let sub : Address(Supervisor.Msg) = spawn(Supervisor.child(top,"
-        " Supervisor.group(Supervisor.OneForOne, RestartLimit(restarts = 5, within = 5000))))\n"
-        "let c : Address(Msg) = spawn(Supervisor.child(sub, fn() = count(0)))\n"
-        "fn count(n : Int) : Unit with Msg = receive {\n"
-        "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
-        "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
-        "}\n"
-        "fn ask(a : Address(Msg)) : Int with m = Address.callForever(a, fn(r) = Ask(reply = r))\n"
-        "export fn main() : Unit with Never = {\n"
-        "    let _ = ask(c); let _ = ask(c);\n"
-        "    send(x, Boom);\n"
-        "    receive { after 100 -> Unit };\n"
-        "    Io.println(Int.toString(ask(c)))\n"
-        "}\n"),
-    ?assertEqual(<<"0\n">>, Output).
-
-%% report §6.9: a restart asked for runs the child's own function again,
-%% even where that function runs a restarting function of its own. A
-%% regression test for the inner function taking the restart. The fault
-%% is sent once the child has started, and the log asked until it has
-%% seen the second start, each wait at most ten seconds: a child that has
-%% not begun when its sibling faults is not asked, and starts fresh, and
-%% how soon either happens is the host's. Sent at once, with a wait of
-%% 100 ms, the fault came first under the host's modified timing
-restart_reaches_the_outer_function_test() ->
-    {ok, Output} = run(
-        "type Msg = Ask(reply : Reply(Int)) | Boom\n"
-        "type LogMsg = Started | Count(reply : Reply(Int))\n"
-        "let log : Address(LogMsg) = spawn(fn() = logging(0))\n"
-        "fn logging(n : Int) : Unit with LogMsg = receive {\n"
-        "    Started -> logging(n + 1)\n"
-        "  | Count(reply = r) -> { answer(r, n); logging(n) }\n"
-        "}\n"
-        "let sup : Address(Supervisor.Msg) = spawn(Supervisor.group(Supervisor.OneForAll,"
-        " RestartLimit(restarts = 5, within = 5000)))\n"
-        "let a : Address(Msg) = spawn(Supervisor.child(sup, fn() = count(0)))\n"
-        "let b : Address(Msg) = spawn(Supervisor.child(sup, fn() = {\n"
-        "    send(log, Started);\n"
-        "    restarting(RestartLimit(restarts = 5, within = 5000), fn() = count(0))()\n"
-        "}))\n"
-        "fn count(n : Int) : Unit with Msg = receive {\n"
-        "    Ask(reply = r) -> { answer(r, n); count(n + 1) }\n"
-        "  | Boom -> { let z = List.size([]); let _ = 1 / z; Unit }\n"
-        "}\n"
-        "fn starts(least : Int, tries : Int) : Int with Never = {\n"
-        "    let n = Address.callForever(log, fn(r) = Count(reply = r));\n"
-        "    if n >= least || tries == 0 then n else {\n"
-        "        receive { after 10 -> Unit };\n"
-        "        starts(least, tries - 1)\n"
-        "    }\n"
-        "}\n"
-        "export fn main() : Unit with Never = {\n"
-        "    let _ = starts(1, 1000);\n"
-        "    send(a, Boom);\n"
-        "    Io.println(Int.toString(starts(2, 1000)))\n"
-        "}\n"),
-    ?assertEqual(<<"2\n">>, Output).
-
-%%
-%% Report Appendix E.23: Os.run, each program run through ern_exec.
-%%
-
-%% A program that prints what Os.run answered for one command.
-os_run(Program, Arguments, Input, Ms) ->
-    run(["fn show(r : Either(Io.Error, Os.Finished)) : String = match r {\n"
-         "    Right(f) -> Int.toString(f.status) <> \"|\" <> Io.show(String.fromUtf8(f.stdout))\n"
-         "        <> \"|\" <> Io.show(String.fromUtf8(f.stderr))\n"
-         "  | Left(e) -> Io.show(e)\n"
-         "}\n"
-         "export fn main() : Unit with Never = Io.println(show(Os.run(Os.Command(program = ",
-         Program, ", arguments = ", Arguments, ", input = ", Input, "), ", Ms, ")))\n"]).
-
-%% A directory of the test's own, for a program to leave a mark in; one an
-%% earlier run left under the same name is removed first.
-scratch() ->
-    Dir = filename:join(os:getenv("TMPDIR", "/tmp"),
-                        "ern_os_" ++ os:getpid() ++ "_"
-                        ++ integer_to_list(erlang:unique_integer([positive]))),
-    file:del_dir_r(Dir),
-    ok = filelib:ensure_path(Dir),
-    Dir.
-
-%% Appendix E.23: the exit status, the output and the standard error, apart
-os_run_status_and_streams_test() ->
-    {ok, Output} = os_run("\"sh\"", "[\"-c\", \"echo out; echo err >&2; exit 2\"]", "<<>>", "5000"),
-    ?assertEqual(<<"2|Some(\"out\\n\")|Some(\"err\\n\")\n">>, Output).
-
-%% Appendix E.23: the program reads its input and then the end of it, so
-%% one that reads to the end, as sort does, ends
-os_run_input_then_end_test() ->
-    {ok, Output} = os_run("\"sort\"", "[]", "String.toUtf8(\"b\\na\\n\")", "5000"),
-    ?assertEqual(<<"0|Some(\"a\\nb\\n\")|Some(\"\")\n">>, Output).
-
-%% Appendix E.23: each argument reaches the program as it is, no shell
-%% between, so a space or a `;` is part of the argument
-os_run_arguments_as_they_are_test() ->
-    {ok, Output} = os_run("\"printf\"", "[\"%s|\", \"a b\", \"c;d\", \"$HOME\"]", "<<>>", "5000"),
-    ?assertEqual(<<"0|Some(\"a b|c;d|$HOME|\")|Some(\"\")\n">>, Output).
-
-%% Appendix E.23: a program a signal ended has 128 and the signal's number
-os_run_signal_status_test() ->
-    {ok, Output} = os_run("\"sh\"", "[\"-c\", \"kill -TERM $$\"]", "<<>>", "5000"),
-    ?assertEqual(<<"143|Some(\"\")|Some(\"\")\n">>, Output).
-
-%% Appendix E.23: NotFound for a program not found, Denied for one that may
-%% not be run, and Invalid for an argument no program could be given
-os_run_refusals_test() ->
-    ?assertEqual({ok, <<"NotFound\n">>}, os_run("\"no-such-program-ern\"", "[]", "<<>>", "5000")),
-    ?assertEqual({ok, <<"Denied\n">>}, os_run("\"/dev/null\"", "[]", "<<>>", "5000")),
-    ?assertEqual({ok, <<"Invalid\n">>},
-                 os_run("\"echo\"", "[\"a\\u{0}b\"]", "<<>>", "5000")).
-
-%% Appendix E.23: Timeout when the time runs out first, and the program,
-%% still running, killed, so the mark it would leave is never made
-os_run_timeout_kills_test() ->
-    Mark = filename:join(scratch(), "mark"),
-    {ok, Output} = os_run("\"sh\"", "[\"-c\", \"sleep 1; touch " ++ Mark ++ "\"]", "<<>>", "200"),
-    ?assertEqual(<<"Timeout\n">>, Output),
-    timer:sleep(1500),
-    ?assertNot(filelib:is_file(Mark)).
-
-%% Appendix E.23: a program whose caller dies is killed with it
-os_run_dies_with_its_caller_test() ->
-    Mark = filename:join(scratch(), "mark"),
-    {ok, _} = run(
-        "export fn main() : Unit with Never = {\n"
-        "    let w = spawn(fn() : Unit with Never = {\n"
-        "        let _ = Os.run(Os.Command(program = \"sh\", arguments = [\"-c\",\n"
-        "            \"sleep 1; touch " ++ Mark ++ "\"], input = <<>>), 5000);\n"
-        "        Unit\n"
-        "    });\n"
-        "    receive { after 200 -> Unit };\n"
-        "    kill(w)\n"
-        "}\n"),
-    timer:sleep(1500),
-    ?assertNot(filelib:is_file(Mark)).
-
-%% Appendix E.17: a path that holds U+0000 names no file, `Invalid`. A
-%% regression test for the host's own term, badarg, answered as the cause
-fs_path_with_nul_test() ->
-    {ok, Output} = run("export fn main() : Unit with Never =\n"
-                       "    Io.println(Io.show(Fs.read(Path(\"a\\u{0}b\"), 1000)))\n"),
-    ?assertEqual(<<"Left(Invalid)\n">>, Output).
-
-%% report §8.6, Appendix E.23: a program running is a source, so a caller
-%% that only waits for it is in no deadlock
-os_run_is_a_source_test() ->
-    ?assertEqual({ok, <<"0|Some(\"\")|Some(\"\")\n">>},
-                 os_run("\"sleep\"", "[\"0.5\"]", "<<>>", "5000")).
-
-%%
-%% Report Appendix E.23: a running program is a process, Os.start's
-%% address, read and fed piece by piece. Regression tests, written after
-%% the code; the host's output order within one stream is its own, and a
-%% name the host gives twice in the environment is not covered here.
-%%
-
-%% What a program wrote, a line a piece, until its exit status or why not.
-drain() ->
-    "fn text(b : Bytes) : String = Optional.withDefault(String.fromUtf8(b), \"?\")\n"
-    "fn drain(p : Address(Os.ProgramMsg)) : Unit with m = match Os.read(p, 5000) {\n"
-    "    Right(Os.Stdout(b)) -> { Io.print(\"out \" <> text(b)); drain(p) }\n"
-    "  | Right(Os.Stderr(b)) -> { Io.print(\"err \" <> text(b)); drain(p) }\n"
-    "  | Right(Os.Exited(s)) -> Io.println(\"exit \" <> Int.toString(s))\n"
-    "  | Left(e) -> Io.println(Io.show(e))\n"
-    "}\n".
-
-%% Appendix E.23: each read answers the next piece from either stream, in
-%% the order the host delivered them, and last the exit status
-os_start_reads_in_order_test() ->
-    {ok, Output} = run([drain(),
-        "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
-        "    arguments = [\"-c\", \"echo a; sleep 0.1; echo b >&2; sleep 0.1; echo c; exit 4\"],\n"
-        "    input = <<>>)) {\n"
-        "    Right(p) -> drain(p)\n"
-        "  | Left(e) -> Io.println(Io.show(e))\n"
-        "}\n"]),
-    ?assertEqual(<<"out a\nerr b\nout c\nexit 4\n">>, Output).
-
-%% Appendix E.23: the host takes the program's output only while a read
-%% waits, so a program that writes more than a pipe holds, and that no one
-%% reads, waits on its output and has not gone on to leave its mark
-os_start_output_waits_for_a_read_test() ->
-    Mark = filename:join(scratch(), "mark"),
-    {ok, Output} = run([
-        "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int with m = match Os.read(p, 5000) {\n"
-        "    Right(Os.Exited(_)) -> n\n"
-        "  | Right(_) -> drain(p, n + 1)\n"
-        "  | Left(_) -> -1\n"
-        "}\n"
-        "fn marked() : Bool with m = Either.isRight(Fs.stat(Path(\"", Mark, "\"), 1000))\n"
-        "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
-        "    arguments = [\"-c\", \"head -c 1000000 /dev/zero; touch ", Mark, "\"],\n"
-        "    input = <<>>)) {\n"
-        "    Right(p) -> {\n"
-        "        receive { after 300 -> Unit };\n"
-        "        let before = marked();\n"
-        "        let pieces = drain(p, 0);\n"
-        "        Io.println(Io.show(#(before, pieces > 0, marked())))\n"
-        "    }\n"
-        "  | Left(e) -> Io.println(Io.show(e))\n"
-        "}\n"]),
-    ?assertEqual(<<"#(false, true, true)\n">>, Output).
-
-%% Appendix E.23: the program reads `input`, then what write gives it,
-%% until closeInput; what is written after that is dropped, and the write
-%% answers Left(Closed)
-os_start_write_then_close_test() ->
-    {ok, Output} = run([
-        "fn collect(p : Address(Os.ProgramMsg), got : Bytes) : Bytes with m =\n"
-        "    match Os.read(p, 5000) {\n"
-        "    Right(Os.Stdout(b)) -> collect(p, got <> b)\n"
-        "  | _ -> got\n"
-        "}\n"
-        "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"cat\",\n"
-        "    arguments = [], input = String.toUtf8(\"a\"))) {\n"
-        "    Right(p) -> {\n"
-        "        let taken = Os.write(p, String.toUtf8(\"b\"), 5000);\n"
-        "        Os.closeInput(p);\n"
-        "        let dropped = Os.write(p, String.toUtf8(\"c\"), 5000);\n"
-        "        Io.println(Io.show(#(taken, dropped, String.fromUtf8(collect(p, <<>>)))))\n"
-        "    }\n"
-        "  | Left(e) -> Io.println(Io.show(e))\n"
-        "}\n"]),
-    ?assertEqual(<<"#(Right(Unit), Left(Closed), Some(\"ab\"))\n">>, Output).
-
-%% Appendix E.23, report §6.9: a running program is a process, which
-%% `monitor` watches and `kill` stops, the program and its process group
-%% with it; one that has answered its exit status has returned
-os_program_is_a_process_test() ->
-    Dir = scratch(),
-    Pids = filename:join(Dir, "pids"),
-    {ok, Output} = run([
-        "type Msg = Ended(Down)\n"
-        "fn started(script : String) : Address(Os.ProgramMsg) with Msg =\n"
-        "    match Os.start(Os.Command(program = \"sh\", arguments = [\"-c\", script],\n"
-        "        input = <<>>)) {\n"
-        "        Right(p) -> p\n"
-        "      | Left(_) -> fault(\"not started\")\n"
-        "    }\n"
-        "fn reason() : String with Msg =\n"
-        "    receive { Ended(Down(reason = r, site = _)) -> Io.show(r) }\n"
-        "export fn main() : Unit with Msg = {\n"
-        "    let sleeper = started(\"sleep 10 & echo $$ $! > ", Pids, "; wait\");\n"
-        "    receive { after 300 -> Unit };\n"
-        "    monitor(Process.fromAddress(sleeper), Ended);\n"
-        "    kill(sleeper);\n"
-        "    Io.println(reason());\n"
-        "    let quick = started(\"exit 0\");\n"
-        "    monitor(Process.fromAddress(quick), Ended);\n"
-        "    let _ = Os.read(quick, 5000);\n"
-        "    Io.println(reason())\n"
-        "}\n"]),
-    ?assertEqual(<<"Killed\nReturned\n">>, Output),
-    timer:sleep(200),
-    {ok, Written} = file:read_file(Pids),
-    [begin
-         {Status, _} = sh("kill -0 " ++ binary_to_list(Pid)),
-         ?assertNotEqual(0, Status)
-     end || Pid <- binary:split(Written, [<<" ">>, <<"\n">>], [global, trim_all])].
-
-%% Appendix E.23, E.0 shape rule 8: a read whose milliseconds pass answers
-%% Timeout and the program runs on, the next read taking what it wrote. A
-%% regression test of the rule of 2026-10-01, before which the start's time
-%% killed the program
-os_read_time_limit_test() ->
-    {ok, Output} = run(
-        "export fn main() : Unit with Never = match Os.start(Os.Command(program = \"sh\",\n"
-        "    arguments = [\"-c\", \"sleep 0.3; echo late\"], input = <<>>)) {\n"
-        "    Right(p) -> {\n"
-        "        Io.println(Io.show(Os.read(p, 50)));\n"
-        "        Io.println(Io.show(Os.read(p, 5000)));\n"
-        "        Io.println(Io.show(Os.read(p, 5000)))\n"
-        "    }\n"
-        "  | Left(e) -> Io.println(Io.show(e))\n"
-        "}\n"),
-    ?assertEqual(<<"Left(Timeout)\nRight(Stdout(<<108, 97, 116, 101, 10>>))\nRight(Exited(0))\n">>,
-                 Output).
-
-%% Appendix E.23, report §8.6: Os.exit ends the program with its status,
-%% from any process, the output written before it flushed; a status
-%% outside 0 to 255 faults the caller (§7.4)
-os_exit_test() ->
-    ?assertEqual({{exit, 3}, <<"bye\n">>},
-                 run("export fn main() : Unit with Never = {\n"
-                     "    Io.println(\"bye\");\n"
-                     "    Os.exit(3)\n"
-                     "}\n")),
-    ?assertEqual({{exit, 5}, <<>>},
-                 run("export fn main() : Unit with Never = {\n"
-                     "    let _ = spawn(fn() : Unit with Never = Os.exit(5));\n"
-                     "    receive { after 5000 -> Unit }\n"
-                     "}\n")),
-    ?assertEqual({{fault, <<"an exit status is from 0 to 255">>}, <<>>},
-                 run("export fn main() : Unit with Never = Os.exit(256)\n")).
-
-%% report §11.2: where Os.exit faults its caller, as in the shell and under
-%% `ern test`, it ends only the process that calls it
-os_exit_faults_where_asked_test() ->
-    ?assertEqual({{fault, <<"exited with status 2">>}, <<>>},
-                 run(['M'], "export fn main() : Unit with Never = Os.exit(2)\n",
-                     #{exit => fault})).
-
-%% Appendix E.23, report §11.2: Os.arguments is what the program was run
-%% with, and the empty list where it was run with none
-os_arguments_test() ->
-    Main = "export fn main() : Unit with Never = Io.println(Io.show(Os.arguments))\n",
-    ?assertEqual({ok, <<"[\"a\", \"b c\", \"--x\"]\n">>},
-                 run(['M'], Main, #{arguments => [<<"a">>, <<"b c">>, <<"--x">>]})),
-    ?assertEqual({ok, <<"[]\n">>}, run(Main)).
-
-%% Appendix E.17, §8.2: a name in a directory that is not UTF-8 makes
-%% Fs.list answer NotUtf8 with its bytes; a regression test for the host's
-%% warning printed in its place, and of the rule of 2026-10-01, before which
-%% the name was left out
-fs_list_names_a_name_not_utf8_test() ->
-    Dir = scratch(),
-    ok = file:write_file(<<(list_to_binary(Dir))/binary, "/caf", 16#e9>>, <<>>),
-    ok = file:write_file(filename:join(Dir, "ok"), <<>>),
-    {ok, Output} = run(["export fn main() : Unit with Never = match Fs.list(Path(\"", Dir,
-                        "\"), 1000) {\n"
-                        "    Right(entries) -> Io.println(Io.show(List.map(entries,\n"
-                        "        fn(e) = Path.name(e.path))))\n"
-                        "  | Left(e) -> Io.println(Io.show(e))\n"
-                        "}\n"]),
-    ?assertEqual(<<"NotUtf8(<<99, 97, 102, 233>>)\n">>, Output).
-
-%% report §6.9: a wait on a process is kept while its waiter lives: a
-%% watcher that ends takes its waits with it, and a process that ends
-%% leaves nothing behind in what its waiter watches. A regression test,
-%% written after the code: the runtime kept both for as long as the other
-%% process lived, so a long-lived service watched by short-lived clients,
-%% or a long-lived process watching short-lived workers, grew it with every
-%% monitor. The runtime's memory for waits is read after 100 of each and
-%% after 1,100.
-monitors_let_go_test() ->
-    {ok, Output} = run(
-        "type Msg = Ended(Down) | Go\n"
-        "foreign fn waits() : Int with m = \"ern_emitter_tests:reaper_words/0\"\n"
-        "fn rounds(keeper : Address(Msg), n : Int) : Unit with Msg =\n"
-        "    if n == 0 then Unit\n"
-        "    else {\n"
-        "        let _ = spawnMonitored(fn() : Unit with Msg ="
-        " monitor(Process.fromAddress(keeper), Ended),\n"
-        "            Ended);\n"
-        "        receive { Ended(_) -> Unit };\n"
-        "        let w = spawn(fn() : Unit with Msg = receive { Go -> Unit });\n"
-        "        monitor(Process.fromAddress(w), Ended);\n"
-        "        send(w, Go);\n"
-        "        receive { Ended(_) -> Unit };\n"
-        "        rounds(keeper, n - 1)\n"
-        "    }\n"
-        "export fn main() : Unit with Msg = {\n"
-        "    let keeper = spawn(fn() : Unit with Msg = receive { Go -> Unit });\n"
-        "    rounds(keeper, 100);\n"
-        "    let before = waits();\n"
-        "    rounds(keeper, 1000);\n"
-        "    Io.println(Io.show(waits() == before))\n"
-        "}\n"),
-    ?assertEqual(<<"true\n">>, Output).
-
-%% The words of the runtime's reaper, which holds every wait, after the
-%% deliveries in flight have ended and its garbage is collected.
-reaper_words() ->
-    timer:sleep(100),
-    Reaper = persistent_term:get({ern_rt, reaper}),
-    erlang:garbage_collect(Reaper),
-    {total_heap_size, Words} = erlang:process_info(Reaper, total_heap_size),
-    Words.
-
-%% report §8.6: a program waiting only on alarms it has set is in no
-%% deadlock, however its waits and the clock's work interleave. A
-%% regression test, written after the code: the check read its counts
-%% before its snapshots, and could not see an alarm still in transit to the
-%% clock, so a loop like this one faulted with `deadlock` about one run in
-%% three at twenty thousand alarms. At five thousand it catches the race
-%% only sometimes; `make load`'s `alarms` catches it more often.
-alarms_are_no_deadlock_test_() ->
-    {timeout, 120, fun alarms_are_no_deadlock/0}.
-
-alarms_are_no_deadlock() ->
-    ?assertEqual({ok, <<"done\n">>}, run(
-        "type Msg = Tick(Int)\n"
-        "fn loop(n : Int) : Unit with Msg =\n"
-        "    if n == 0 then Unit\n"
-        "    else {\n"
-        "        Clock.alarmAt(Clock.now(), Tick);\n"
-        "        receive { Tick(_) -> Unit };\n"
-        "        loop(n - 1)\n"
-        "    }\n"
-        "export fn main() : Unit with Msg = { loop(5000); Io.println(\"done\") }\n")).
 
 %% report §8.4, §7.4: a function value inside a recursive type that comes
 %% back from foreign code has its result checked against the type at each
@@ -3310,127 +2336,6 @@ work_makes_no_atoms() ->
         "}\n"]),
     ?assertEqual(<<"0\n">>, Output).
 
-%%
-%% report §8.2, Appendix E.18, E.23: a write returns once its stream has
-%% taken the bytes, and waits while the stream is behind. Regression
-%% tests, written after the code: each write returned at once, and what the
-%% reader had not taken was held in the node.
-%%
-
-%% A writer of four megabytes, and whether it has finished after half a
-%% second in which nothing reads, then after everything is read.
-paced(Setup) ->
-    run(["type Msg = Done | Ended(Down)\n",
-         Setup,
-         "fn chunk() : Bytes = String.toUtf8(String.repeat(\"x\", 65536))\n"
-         "fn writes(write : (Bytes) -> Either(Io.Error, Unit) with Never, n : Int)"
-         " : Unit with Never =\n"
-         "    if n == 0 then Unit else { let _ = write(chunk()); writes(write, n - 1) }\n"
-         "fn done() : Bool with Msg =\n"
-         "    receive { Done -> true | after 0 -> false }\n"]).
-
-%% Appendix E.23: a program that stops reading its input, since no one
-%% reads its output, holds its writer, and a write after its end faults
-os_write_waits_test() ->
-    {ok, Output} = paced(
-        "fn drain(p : Address(Os.ProgramMsg), n : Int) : Int with Msg = match Os.read(p, 5000) {\n"
-        "    Right(Os.Stdout(b)) -> drain(p, n + Bytes.size(b))\n"
-        "  | _ -> n\n"
-        "}\n"
-        "export fn main() : Unit with Msg = match Os.start(Os.Command(program = \"cat\",\n"
-        "    arguments = [], input = <<>>)) {\n"
-        "    Right(p) -> {\n"
-        "        let me = self();\n"
-        "        let _ = spawn(fn() : Unit with Never = {\n"
-        "            writes(fn(b) = Os.write(p, b, 30000), 64);\n"
-        "            Os.closeInput(p);\n"
-        "            send(me, Done)\n"
-        "        });\n"
-        "        receive { after 500 -> Unit };\n"
-        "        let early = done();\n"
-        "        let n = drain(p, 0);\n"
-        "        receive { Done -> Unit };\n"
-        "        Io.println(Io.show(#(early, n)));\n"
-        "        let late = fn() : Unit with Never = {\n"
-        "            let _ = Os.write(p, <<1>>, 5000);\n"
-        "            Unit\n"
-        "        };\n"
-        "        let _ = spawnMonitored(late, Ended);\n"
-        "        receive { Ended(Down(reason = r, site = _)) -> Io.println(Io.show(r)) }\n"
-        "    }\n"
-        "  | Left(e) -> Io.println(Io.show(e))\n"
-        "}\n"),
-    ?assertMatch({match, _}, re:run(Output, "^#\\(false, 4194304\\)\nFault\\(\"callee (had ended|"
-                                            "returned without answering)\"\\)\n$")).
-
-%% Appendix E.18: a socket whose far end does not read holds its writer,
-%% and a write to a socket that has been closed faults
-tcp_write_waits_test() ->
-    {ok, Output} = paced(
-        "fn drain(s : Address(Tcp.SocketMsg), n : Int) : Int with Msg =\n"
-        "    if n >= 4194304 then n\n"
-        "    else match Tcp.read(s, 5000) {\n"
-        "        Right(b) -> drain(s, n + Bytes.size(b))\n"
-        "      | Left(_) -> n\n"
-        "    }\n"
-        "export fn main() : Unit with Msg = match Tcp.listen(\"127.0.0.1\", 0) {\n"
-        "    Right(l) -> match Tcp.port(l) {\n"
-        "        Right(port) -> {\n"
-        "            let me = self();\n"
-        "            let _ = spawn(fn() : Unit with Never = match\n"
-        "                Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
-        "                    Right(c) -> {\n"
-        "                        writes(fn(b) = Tcp.write(c, b, 30000), 64);\n"
-        "                        send(me, Done)\n"
-        "                    }\n"
-        "                  | Left(_) -> Unit\n"
-        "                });\n"
-        "            match Tcp.accept(l, 5000) {\n"
-        "                Right(s) -> {\n"
-        "                    receive { after 500 -> Unit };\n"
-        "                    let early = done();\n"
-        "                    let n = drain(s, 0);\n"
-        "                    receive { Done -> Unit };\n"
-        "                    Tcp.close(s);\n"
-        "                    receive { after 50 -> Unit };\n"
-        "                    Io.println(Io.show(#(early, n)));\n"
-        "                    let late = fn() : Unit with Never = {\n"
-        "                        let _ = Tcp.write(s, <<1>>, 5000);\n"
-        "                        Unit\n"
-        "                    };\n"
-        "                    let _ = spawnMonitored(late, Ended);\n"
-        "                    receive {\n"
-        "                        Ended(Down(reason = r, site = _)) -> Io.println(Io.show(r))\n"
-        "                    }\n"
-        "                }\n"
-        "              | Left(e) -> Io.println(Io.show(e))\n"
-        "            }\n"
-        "        }\n"
-        "      | Left(e) -> Io.println(Io.show(e))\n"
-        "    }\n"
-        "  | Left(e) -> Io.println(Io.show(e))\n"
-        "}\n"),
-    ?assertEqual(<<"#(false, 4194304)\nFault(\"callee had ended\")\n">>, Output).
-
-%% report §6.9: where restarting functions are nested, a fault restarts the
-%% innermost, which counts it against its own limit; one whose limit is
-%% spent gives the fault to the one around it, whose restart enters the
-%% inner afresh, and the process dies where none is left. A regression
-%% test, written after the code; it does not cover a
-%% restart a supervisor asks for, which §6.9 gives to the outer function
-nested_restarting_test() ->
-    {Result, Output} = run(
-        "export fn main() : Unit with Never =\n"
-        "    restarting(RestartLimit(restarts = 1, within = 60000), fn() = {\n"
-        "        Io.println(\"outer\");\n"
-        "        restarting(RestartLimit(restarts = 1, within = 60000), fn() = {\n"
-        "            Io.println(\"inner\");\n"
-        "            fault(\"boom\")\n"
-        "        })()\n"
-        "    })()\n"),
-    ?assertMatch({fault, <<"boom">>}, Result),
-    ?assertEqual(<<"outer\ninner\ninner\nouter\ninner\ninner\n">>, Output).
-
 %% report §8.4, §7.4: a type variable of a foreign function's result that no
 %% parameter names matches no value, so a return that holds one faults, and
 %% an empty list of it passes, as does a value of a foreign type over it,
@@ -3457,8 +2362,7 @@ foreign_casts_and_callbacks_test() ->
 
 %% report §8.4: a type variable a parameter's type names matches any value at
 %% the boundary, in a foreign function's result and in an argument foreign
-%% code calls a function with, until a foreign function takes its caller's
-%% description of the type. A regression test of what the report states
+%% code calls a function with. A regression test of what the report states
 foreign_type_variables_unchecked_test() ->
     ResultOf = fun(Declaration, Body) ->
                    {Result, _} = run(Declaration ++ "export fn main() : Unit with Never = {\n"
@@ -3469,63 +2373,6 @@ foreign_type_variables_unchecked_test() ->
                               "weird([1, 2])")),
     ?assertEqual(ok, ResultOf("foreign fn each(f : (a) -> Int, x : a) : List(Int) =\n"
                               "    \"lists:map/2\"\n", "each(fn(_) = 1, [[\"x\"]])")).
-
-%% report Appendix E.18: a socket is owned by the process that opened it and
-%% killed when its owner dies; `give` makes another its owner, and a socket
-%% given to a process that has ended is killed at once. A regression test:
-%% a socket outlived a handler that faulted, one leaked connection each
-socket_owner_test() ->
-    {ok, Output} = run(
-        "type Msg = Opened(Address(Tcp.SocketMsg)) | Ended(Down)\n"
-        "fn opener(port : Int, to : Address(Msg)) : Unit with Never =\n"
-        "    match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
-        "        Right(s) -> send(to, Opened(s))\n"
-        "      | Left(_) -> Unit\n"
-        "    }\n"
-        "fn keeper() : Unit with Int = receive { _ -> Unit }\n"
-        "fn giver(port : Int, keep : Process, to : Address(Msg)) : Unit with Never =\n"
-        "    match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
-        "        Right(s) -> {\n"
-        "            Tcp.give(s, keep);\n"
-        "            send(to, Opened(s))\n"
-        "        }\n"
-        "      | Left(_) -> Unit\n"
-        "    }\n"
-        "fn opened() : Address(Tcp.SocketMsg) with Msg = receive { Opened(s) -> s }\n"
-        "fn ends(s : Address(Tcp.SocketMsg), ms : Int) : String with Msg = {\n"
-        "    monitor(Process.fromAddress(s), Ended);\n"
-        "    receive { Ended(_) -> \"ended\" | after ms -> \"alive\" }\n"
-        "}\n"
-        "fn check(port : Int) : Unit with Msg = {\n"
-        "    let me = self();\n"
-        "    let first = spawnMonitored(fn() = opener(port, me), Ended);\n"
-        "    let orphan = opened();\n"
-        "    receive { Ended(_) -> Unit };\n"
-        "    Io.println(\"opener's: \" <> ends(orphan, 2000));\n"
-        "    let keep = spawn(keeper);\n"
-        "    let _ = spawnMonitored(fn() = giver(port, Process.fromAddress(keep), me), Ended);\n"
-        "    let given = opened();\n"
-        "    receive { Ended(_) -> Unit };\n"
-        "    Io.println(\"given, giver gone: \" <> ends(given, 300));\n"
-        "    send(keep, 1);\n"
-        "    Io.println(\"given, keeper gone: \" <> ends(given, 2000));\n"
-        "    match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
-        "        Right(s) -> {\n"
-        "            Tcp.give(s, Process.fromAddress(first));\n"
-        "            Io.println(\"given to the dead: \" <> ends(s, 2000))\n"
-        "        }\n"
-        "      | Left(_) -> Unit\n"
-        "    }\n"
-        "}\n"
-        "export fn main() : Unit with Msg = match Tcp.listen(\"127.0.0.1\", 0) {\n"
-        "    Right(listener) -> {\n"
-        "        let _ = Either.map(Tcp.port(listener), check);\n"
-        "        Tcp.closeListener(listener)\n"
-        "    }\n"
-        "  | Left(_) -> Unit\n"
-        "}\n"),
-    ?assertEqual(<<"opener's: ended\ngiven, giver gone: alive\ngiven, keeper gone: ended\n"
-                   "given to the dead: ended\n">>, Output).
 
 %% report §6.9, §6.6: a callee's own answer to a call is not overtaken by
 %% its end, so a worker that answers and returns at once is answered, every
@@ -3669,69 +2516,6 @@ foreign_from_crosses_as_an_argument_test() ->
                  run("export fn main() : Unit with Never =\n"
                      "    Io.println(Io.show(Foreign.toInt(Foreign.from(42))))\n")).
 
-%% Appendix E.18, E.21, E.23: a listener, a socket and a running program are
-%% processes of the program's: Process.live lists them, and Process.info
-%% gives the function that opened each as its site. A regression test: the
-%% runtime did not know them
-opened_processes_are_live_test() ->
-    {ok, Output} = run([
-        "fn site(p : Process) : String with m = match Process.info(p) {\n"
-        "    Some(Process.Info(site = s, queued = _, activity = _)) -> s\n"
-        "  | None -> \"none\"\n"
-        "}\n"
-        "fn listed(p : Process) : Bool with m = List.any(Process.live(), fn(q) = q == p)\n"
-        "export fn main() : Unit with Never = match Tcp.listen(\"127.0.0.1\", 0) {\n"
-        "    Right(l) -> match Tcp.port(l) {\n"
-        "        Right(port) -> match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
-        "            Right(c) -> {\n"
-        "                let pl = Process.fromAddress(l);\n"
-        "                let pc = Process.fromAddress(c);\n"
-        "                Io.println(Io.show(#(site(pl), site(pc), listed(pl), listed(pc))));\n"
-        "                match Os.start(Os.Command(program = \"cat\", arguments = [],"
-        " input = <<>>)) {\n"
-        "                    Right(p) -> Io.println(site(Process.fromAddress(p)))\n"
-        "                  | Left(e) -> Io.println(Io.show(e))\n"
-        "                }\n"
-        "            }\n"
-        "          | Left(e) -> Io.println(Io.show(e))\n"
-        "        }\n"
-        "      | Left(e) -> Io.println(Io.show(e))\n"
-        "    }\n"
-        "  | Left(e) -> Io.println(Io.show(e))\n"
-        "}\n"]),
-    ?assertEqual(<<"#(\"Tcp.listen\", \"Tcp.connect\", true, true)\nOs.start\n">>, Output).
-
-%% Appendix E.18: a write answers Right(Unit) once the socket has taken the
-%% bytes, and Left(Closed) once the connection has closed; the far end's
-%% close is learned here by a read, so that the answer does not depend on
-%% when the host reports it
-tcp_write_answers_closed_test() ->
-    {ok, Output} = run([
-        "export fn main() : Unit with Never = match Tcp.listen(\"127.0.0.1\", 0) {\n"
-        "    Right(l) -> match Tcp.port(l) {\n"
-        "        Right(port) -> {\n"
-        "            let _ = spawn(fn() : Unit with Never = match Tcp.accept(l, 5000) {\n"
-        "                Right(s) -> {\n"
-        "                    let _ = Tcp.read(s, 5000);\n"
-        "                    Tcp.close(s)\n"
-        "                }\n"
-        "              | Left(_) -> Unit\n"
-        "            });\n"
-        "            match Tcp.connect(\"127.0.0.1\", port, 1000) {\n"
-        "                Right(c) -> {\n"
-        "                    let taken = Tcp.write(c, <<1>>, 5000);\n"
-        "                    let ended = Tcp.read(c, 5000);\n"
-        "                    Io.println(Io.show(#(taken, ended, Tcp.write(c, <<2>>, 5000))))\n"
-        "                }\n"
-        "              | Left(e) -> Io.println(Io.show(e))\n"
-        "            }\n"
-        "        }\n"
-        "      | Left(e) -> Io.println(Io.show(e))\n"
-        "    }\n"
-        "  | Left(e) -> Io.println(Io.show(e))\n"
-        "}\n"]),
-    ?assertEqual(<<"#(Right(Unit), Left(Closed), Left(Closed))\n">>, Output).
-
 %% report §8.2: a write to standard output returns once the stream has taken
 %% it, so a program writing to a slow stream goes at its pace
 io_write_waits_test() ->
@@ -3782,16 +2566,6 @@ unrelated_module_not_initialized_test() ->
         code:del_path(Dir),
         code:purge(ErlangModule),
         code:delete(ErlangModule)
-    end.
-
-sh(Cmd) ->
-    Port = open_port({spawn, Cmd}, [exit_status, stderr_to_stdout, binary]),
-    sh_collect(Port, []).
-
-sh_collect(Port, Acc) ->
-    receive
-        {Port, {data, Data}} -> sh_collect(Port, [Data | Acc]);
-        {Port, {exit_status, Status}} -> {Status, iolist_to_binary(lists:reverse(Acc))}
     end.
 
 %% report §10: a tail call takes constant stack space, through the branches
@@ -3915,7 +2689,6 @@ system_reference_private_test() ->
                  Refused("send(Sys.stdout, \"hi\")")),
     ?assertMatch({error, [#diagnostic{message = "unknown constructor Clock.Now"} | _]},
                  Refused("{ let _ = Clock.Now; Unit }")).
-
 
 %% report §8.5: a compiled module declares the modules it depends on, as
 %% `'$deps'/0`, so that the runtime can evaluate top-level bindings in

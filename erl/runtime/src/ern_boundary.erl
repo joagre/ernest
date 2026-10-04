@@ -13,26 +13,29 @@
 %% sent to it is exposed, and a Reply as {foreign_reply, Reply, Descriptor,
 %% Bound}, Descriptor its answer's descriptor, so that its answer is
 %% exposed, given in foreign code's form, and checked. The compiler
-%% describes a type as a term this module interprets:
-%% any | int | float | bool | char | string | bytes | {address, D, Cause} | {reply, D, Cause}
-%% | process | {'fun', Arity, R, Cause, Make, Exposer} | {'fun', Arity, R, Cause, Ps, Causes}
-%% | never | {list, D} | {tuple, [D]} | {map, K, V} | {set, D}
-%% | {con, [{Tag, [D]} | {Tag, [D], [Name]}]} | {abstract, D} | {mu, Id, D} | {ref, Id},
-%% mu binding Id for the ref inside it, which is how a recursive type is
-%% described once; {address, D, Cause} is an address whose messages D
-%% describes, and {reply, D, Cause} a Reply whose answer D describes; a
-%% constructor with named fields carries their names, and an abstract type
-%% seen from outside its module is wrapped, both for printing (ern_show).
-%% A function's R describes its result, and Make wraps a function value,
-%% given R closed over the recursive types around it, so that each call's
-%% result is checked against R, faulting with Cause (report §7.4); the
-%% descriptors `Io.show` and `Io.debug` print by carry no Make, since
-%% nothing is checked there. A function given to foreign code is
-%% {callback, Make}, Make wrapping it to check each argument foreign code
-%% calls it with (report §8.4).
+%% describes a type as ern_descriptor's descriptor() says, and builds the
+%% form this module interprets, descriptor() below, the same but for a
+%% function's: {'fun', Arity, R, Cause, Make, Exposer}, R describing its
+%% result and Make wrapping a function value, given R closed over the
+%% recursive types around it, so that each call's result is checked against
+%% R, faulting with Cause (report §7.4), and Exposer wrapping one that
+%% crosses into foreign code, wherever it stands in what crosses, so that
+%% each argument it is called with is checked (§8.4).
 -module(ern_boundary).
 
 -export([raised/6, called_raised/3, expose/2, check/3, value/3, argument/4, expose/3]).
+
+-export_type([descriptor/0]).
+
+-type descriptor() :: any | int | float | bool | char | string | bytes | process | never
+                    | foreign
+                    | {ref, pos_integer()}
+                    | {tuple, [descriptor()]} | {list, descriptor()} | {set, descriptor()}
+                    | {map, descriptor(), descriptor()}
+                    | {address, descriptor(), binary()} | {reply, descriptor(), binary()}
+                    | {'fun', non_neg_integer(), descriptor(), binary(), fun(), fun()}
+                    | {con, [{atom(), [descriptor()]} | {atom(), [descriptor()], [atom()]}]}
+                    | {mu, pos_integer(), descriptor()} | {abstract, descriptor()}.
 
 %% Report §7.4: an exception foreign function HostModule:HostFunction/Arity
 %% raised, a fault of the calling process that names the implementation;
@@ -65,14 +68,14 @@ called_raised(Class, Error, Stack) ->
 %% An argument given to foreign code (report §8.4): every address inside it
 %% replaced by the proxy that checks what foreign code sends it, and a
 %% function wrapped to check the arguments foreign code calls it with.
--spec expose(term(), term()) -> term().
+-spec expose(descriptor(), term()) -> term().
 expose(Descriptor, Value) ->
     expose(Descriptor, Value, #{}).
 
 %% The value, or the fault Cause (report §7.4), where the descriptor holds
 %% no function, no address, no Reply and no float, so that the checked
 %% value is the value itself.
--spec check(term(), term(), binary()) -> term().
+-spec check(descriptor(), term(), binary()) -> term().
 check(Descriptor, Value, Cause) ->
     case matches(Descriptor, Value, #{}) of
         true -> Value;
@@ -82,7 +85,7 @@ check(Descriptor, Value, Cause) ->
 %% The value, or the fault Cause (report §7.4). A descriptor that is a word
 %% describes a value with no function in it and nothing to make zero but a
 %% float itself, so it is checked alone.
--spec value(term(), term(), binary()) -> term().
+-spec value(descriptor(), term(), binary()) -> term().
 value(Descriptor, Value, Cause) when is_atom(Descriptor) ->
     case matches(Descriptor, Value, #{}) of
         true when Descriptor =:= float -> Value + 0.0;
@@ -99,7 +102,7 @@ value(Descriptor, Value, Cause) ->
 %% with, where the function stood inside what crossed, the recursive types
 %% around it in Bound: the value as the program holds it, or the fault
 %% Cause.
--spec argument(term(), term(), binary(), map()) -> term().
+-spec argument(descriptor(), term(), binary(), map()) -> term().
 argument(Descriptor, Value, Cause, Bound) ->
     case matches(Descriptor, Value, Bound) of
         true -> armed(Descriptor, zeroed(Descriptor, Value, Bound), Bound);
@@ -291,11 +294,10 @@ elements_match(_, _, _) -> false.
 %% scope: a foreign function's argument, a message sent to a foreign
 %% address, and an answer given to a Reply foreign code gave, whose
 %% descriptor was read inside them.
--spec expose(term(), term(), map()) -> term().
+-spec expose(descriptor(), term(), map()) -> term().
 %% report §8.4: a function given to foreign code checks the arguments it is
 %% called with, whether it is the argument or stands in one, in a message
 %% or in an answer
-expose({callback, Make}, Value, _) when is_function(Value) -> Make(Value);
 expose({'fun', _, _, _, _, Exposer}, Value, Bound) when is_function(Value) ->
     Exposer(Value, Bound);
 expose({address, MessageDescriptor, Cause}, Value, Bound) when is_pid(Value) ->

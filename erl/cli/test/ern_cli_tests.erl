@@ -84,6 +84,21 @@ format_directory_is_no_root_test() ->
     ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
                                       <<"path component `Bad` must be lowercase">>)).
 
+%% report §11.1: a module whose Erlang name, `ern@` and its path, passes
+%% the host's 255 characters is refused at its file. A regression test:
+%% the checker refused it at the source's first character, and the
+%% emitter had crashed making the name before
+module_name_the_host_cannot_hold_test() ->
+    Dir = tmp(),
+    Relative = lists:duplicate(130, $a) ++ "/" ++ lists:duplicate(130, $b) ++ ".ern",
+    File = write(Dir, Relative, "export fn main() : Unit with Never = Unit\n"),
+    ?assertEqual(1, ern_err(["build", "--source-root", Dir, File])),
+    ?assertMatch({_, _},
+                 binary:match(unicode:characters_to_binary(?capturedOutput),
+                              list_to_binary(Relative ++ ": the module's Erlang name, `ern@` and"
+                                             " its path, is 265 characters long, and the"
+                                             " host's names are at most 255"))).
+
 %% report §11: a file a job writes is written whole, beside its place and
 %% renamed into it, which keeps what the file was: a module reached by a
 %% link is laid out where the link leads and the link stays, a module keeps
@@ -432,7 +447,7 @@ words_name_a_segment_test() ->
     ?assert(filelib:is_regular(filename:join(Dir, "pages/word_count.md"))),
     ?assert(filelib:is_regular(filename:join(Dir, "pages/net/http_client.md"))),
     ?assertEqual("word_count", ern_build:module_path(['WordCount'])),
-    ?assertEqual('ern@net@http_client', ern_emitter:erlang_module(['Net', 'HttpClient'])).
+    ?assertEqual('ern@net@http_client', ern_namespace:erlang_module(['Net', 'HttpClient'])).
 
 %% report §11.1, §3.10: a module depends on each module that declares a type
 %% the interface of a module it depends on names, so a type reached through
@@ -1712,7 +1727,7 @@ docs_chunk_test() ->
                  Entries),
     %% Erlang's own documentation reader finds it, as it finds the standard
     %% library's modules installed under build/stdlib
-    ErlangModule = ern_emitter:erlang_module(['Shapes']),
+    ErlangModule = ern_namespace:erlang_module(['Shapes']),
     ok = file:write_file(filename:join(BuildRoot, atom_to_list(ErlangModule) ++ ".beam"), Beam),
     true = code:add_patha(BuildRoot),
     {module, ErlangModule} = code:ensure_loaded(ErlangModule),
@@ -1936,7 +1951,18 @@ faulting_binding_named_test() ->
     Output = iolist_to_binary(?capturedOutput),
     ?assertEqual(2, length(binary:matches(Output, <<"Init.bad:3 faulted: division by zero">>))),
     ?assertEqual(nomatch, binary:match(Output, <<"Init.main">>)),
-    ?assertEqual(nomatch, binary:match(Output, <<"$tests">>)).
+    ?assertEqual(nomatch, binary:match(Output, <<"$tests">>)),
+    %% a binding the host's own names collide with is named as written: a
+    %% regression test, `record_info` was named `record_info$`
+    Host = tmp(),
+    HostFile = write(Host, "init.ern", "fn zero() : Int = List.size([])\n\n"
+                                       "let record_info : Int = 1 / zero()\n\n"
+                                       "export fn main() : Unit with Never ="
+                                       " Io.println(Int.toString(record_info))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Host, HostFile])),
+    ?assertEqual(1, ern_err(["run", filename:join(Host, "init.erc")])),
+    ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
+                                      <<"Init.record_info:3 faulted: division by zero">>)).
 
 %% report §11: an option is given once, a `-path` one excepted, with its
 %% value as the next word, and never an empty one. A regression test: a

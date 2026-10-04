@@ -73,7 +73,7 @@ The environment is opaque outside the module. The compiler reads it through func
 
 `compile/5` runs `compile:forms` with the chunk `ErnI`: a format number, the canonical interface, and what §11.1's recompile rule compares, the hashes of the source, of each dependency's interface and of the standard library's, and the build of `ern`. `ern_interface` owns the chunk: `encode/2`, `read/1`, which refuses another format, and `hash/1`, which leaves variable names out. `ern_docs:build/4` builds the EEP 48 `Docs` chunk in the same compile, an entry per declaration §11.4 renders, with its signature, its doc block, and, in its metadata, parameter names, constructors and fields; its `BeamLanguage` is `ernest`. `erl_source/4` is `--emit-erl`.
 
-A module's atom is [`style.md`](style.md)'s `ern@` name, and a type member keeps its prefix, `'Stack.push'/2`. `module_info` and `record_info`, which the host gives every module, compile as `'module_info$'` and `'record_info$'`; `ern_emitter:function_atom/1` is that mapping, and the runner and the shell call through it.
+A module's atom is its Erlang name, `ern@` and its path (report §11.1), and a type member keeps its prefix, `'Stack.push'/2`. `module_info` and `record_info`, which the host gives every module, compile as `'module_info$'` and `'record_info$'`; `ern_emitter:function_atom/1` is that mapping, and the runner and the shell call through it.
 
 ## The runtime
 
@@ -143,7 +143,7 @@ The shell is an Ernest program over `Terminal`: `shell/shell.ern` and its six mo
 
 `make test` runs every kind below; the targets are [`development.md`](development.md)'s.
 
-- **Unit tests**: EUnit under `erl/*/test`, one function per behaviour, each citing what it tests; `make sections` lists the report sections none cites.
+- **Unit tests**: EUnit under `erl/*/test`, one function per behaviour, each citing what it tests; `make sections` lists the report sections none cites. The emitter's tests run a program as the runner does with `ern_emitter_tests:run/3`, which `ern_supervisor_tests`, `ern_restart_tests`, `ern_reaper_tests` and `ern_system_module_tests` share, the tests of a supervisor's group, a restarting function, the reaper and the system modules.
 - **Golden files**: `test/golden` holds the Erlang emitted for the MVP 1 programs, `services` and `examples/modules` (`golden_names/0` in `erl/emitter/test/ern_emitter_tests.erl`), compared as text. The hand-written modules of `test/target`, for `hello` and `counter`, are the two expectations the emitter did not write.
 - **Programs**: `test/ern_integration_tests.erl` builds and runs the MVP 1 programs, `services` and `examples/modules`, comparing their output with `test/expected` as a multiset of lines. `repl`, `file_sync` and `web_server` run under tests of their own; `echo` is only compiled, `snake` is run without a terminal for its refusal, and `test/ern_terminal_tests.erl` plays `snake`. The file also tests the signals, the streams, `Os`, the manual pages against §11 (`manual_pages_test_`), the installation and the release archive (`installation_test_`), each library's `Test` values (`libs_test_`), and the three programs under `docs/operations/` against `test/expected/operations/` (`operations_test_`).
 - **The corpus**: `ast_coverage_test` holds that the examples, the standard library and the libraries use every AST record, and the checker's tests type-check every example.

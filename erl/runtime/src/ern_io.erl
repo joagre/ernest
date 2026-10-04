@@ -10,13 +10,13 @@
 -spec show(term()) -> binary().
 show(Value) -> show(Value, any).
 
--spec show(term(), term()) -> binary().
+-spec show(term(), ern_descriptor:descriptor()) -> binary().
 show(Value, Descriptor) -> ern_show:show(Descriptor, Value).
 
 -spec debug(term()) -> term().
 debug(Value) -> debug(Value, any).
 
--spec debug(term(), term()) -> term().
+-spec debug(term(), ern_descriptor:descriptor()) -> term().
 debug(Value, Descriptor) ->
     Line = <<(show(Value, Descriptor))/binary, "\n">>,
     %% report §8.2, Appendix E.1: to standard error, as Io.OutMsg's

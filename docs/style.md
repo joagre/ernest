@@ -32,7 +32,7 @@ Code is read more often than written, mostly by someone else, so a name is writt
 
 For the toolchain under `erl/`.
 
-- **Every module is `ern_<thing>`**, `<thing>` unique across the repository and not repeating its application, which its directory names; a vendored file keeps its upstream name. A module compiled from Ernest is `ern@<namespace>`, the path with `@` for `/`: `stdlib/io.ern` is `ern@io`. The log's *One Token for the Project* says why.
+- **Every module is `ern_<thing>`**, `<thing>` unique across the repository and not repeating its application, which its directory names; a vendored file keeps its upstream name. A module compiled from Ernest is `ern@<namespace>`, the path with `@` for `/` (report §11.1): `stdlib/io.ern` is `ern@io`. The log's *One Token for the Project* says why.
 - **One `-export` list at the top**, in the order the functions appear *(tested)*.
 - **`-spec` on every exported function** *(tested)*; a type shared between modules is a `-type` of its owner.
 - **A shared record lives in `include/*.hrl`**, any other in its module. The only macros are the few constants that need a name.

@@ -58,17 +58,14 @@ doc_entry(Declaration, Prefix, Env) ->
      end}.
 
 %% A type declaration is a type entry; everything else is a function of the
-%% module, under the name and arity the emission gives it.
+%% module, under the name and arity the module exports it at.
 doc_key(#type_declaration{name = Name, params = Params}) -> {type, Name, length(Params)};
 doc_key(#abstract_declaration{declaration = #type_declaration{name = Name, params = Params}}) ->
     {type, Name, length(Params)};
 doc_key(#foreign_type_declaration{name = Name, params = Params}) -> {type, Name, length(Params)};
-doc_key(#fn_declaration{member_of = MemberOf, name = Name, params = Params}) ->
-    {function, ern_emitter:function_name(MemberOf, Name), length(Params)};
-doc_key(#foreign_fn_declaration{member_of = MemberOf, name = Name, params = Params}) ->
-    {function, ern_emitter:function_name(MemberOf, Name), length(Params)};
-doc_key(#let_declaration{name = Name}) ->
-    {function, ern_emitter:function_name(undefined, Name), 0}.
+doc_key(Declaration) ->
+    {Function, Arity} = ern_emitter:export(Declaration),
+    {function, Function, Arity}.
 
 doc_signature(Declaration, Prefix, Env) ->
     [unicode:characters_to_binary(Line)
@@ -192,7 +189,13 @@ syntax_text(#t_var{name = Name}) -> atom_to_list(Name);
 syntax_text(#t_tuple{elements = Elements}) ->
     ["#(", lists:join(", ", [syntax_text(Element) || Element <- Elements]), ")"];
 syntax_text(#t_fn{params = Params, result_type = Result, effect = Effect}) ->
-    ["(", lists:join(", ", [syntax_text(Param) || Param <- Params]), ") -> ", syntax_text(Result),
+    %% report §3.4: a function-typed result under an outer `with` keeps its
+    %% parentheses, so that the `with` is the outer arrow's
+    ResultText = case {Result, Effect} of
+                     {#t_fn{}, Outer} when Outer =/= undefined -> ["(", syntax_text(Result), ")"];
+                     _ -> syntax_text(Result)
+                 end,
+    ["(", lists:join(", ", [syntax_text(Param) || Param <- Params]), ") -> ", ResultText,
      case Effect of undefined -> ""; _ -> [" with ", syntax_text(Effect)] end].
 
 %% The name as the program writes it.

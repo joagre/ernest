@@ -9,7 +9,7 @@
 -module(ern_namespace).
 
 -export([is_component/1, segment/1, component/1, namespace/1, module_path/1, path/1,
-         erlang_module/1, text/1]).
+         erlang_module/1, erlang_module_text/1, host_name_limit/0, host_name_text/2, text/1]).
 
 %% Whether a path component has the shape §11.1 asks of a module's file.
 -spec is_component(string()) -> boolean().
@@ -87,12 +87,29 @@ path(Segments) ->
     filename:join([component_or_lowered(Segment) || Segment <- Segments]).
 
 %% The Erlang module a namespace compiles to, `ern@` and the path with `@`
-%% for `/`, `ern@ordered_set` and `ern@net@http_client`, as docs/style.md
+%% for `/`, `ern@ordered_set` and `ern@net@http_client`, as report §11.1
 %% names it (the log's *One Token for the Project*).
 -spec erlang_module([atom()]) -> atom().
 erlang_module(Namespace) ->
-    list_to_atom(lists:flatten(["ern" | ["@" ++ component_or_lowered(atom_to_list(Segment))
-                                         || Segment <- Namespace]])).
+    list_to_atom(erlang_module_text(Namespace)).
+
+%% The same as text, which the build measures against the host's limit
+%% before any atom is made of it (report §11.1).
+-spec erlang_module_text([atom()]) -> string().
+erlang_module_text(Namespace) ->
+    lists:flatten(["ern" | ["@" ++ component_or_lowered(atom_to_list(Segment))
+                            || Segment <- Namespace]]).
+
+%% Report §11.1: the most characters the host holds in a name.
+-spec host_name_limit() -> pos_integer().
+host_name_limit() -> 255.
+
+%% Report §11.1: the refusal of Name, which the host does not hold, as
+%% What: its length and the host's limit.
+-spec host_name_text(string(), string()) -> string().
+host_name_text(What, Name) ->
+    lists:flatten(io_lib:format("~s is ~B characters long, and the host's names are at most ~B",
+                                [What, length(Name), host_name_limit()])).
 
 component_or_lowered(Segment) ->
     case component(Segment) of

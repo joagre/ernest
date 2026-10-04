@@ -5,7 +5,9 @@
 main() ->
     Opponent_2 = ern_rt:spawn_monitored(fun () -> pong()
                                         end,
-                                        fun (V_1) -> {'PongDone', V_1} end,
+                                        fun (Argument_1) ->
+                                                {'PongDone', Argument_1}
+                                        end,
                                         <<"Pingpong.main:16">>),
     _ = ern_rt:spawn(fun () -> ping(Opponent_2, 3) end,
                      <<"Pingpong.main:17">>),

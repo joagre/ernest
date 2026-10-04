@@ -1275,6 +1275,38 @@ unresolved_operator_first_test() ->
                    "    let v = c + d;\n    let q : Point = p;\n    Unit\n}\n"),
     ?assertMatch({4, 13, _}, Span).
 
+%% report §11.1, §2.3: a member whose Erlang name passes the host's 255
+%% characters is refused, a foreign member and a derived `compare` among
+%% them, with the type's name that fits; so is a foreign fn's
+%% implementation whose module or function name passes it; a type name of
+%% §2.3's length is otherwise taken. A regression test: the emitter
+%% crashed making the name, and the checker making a foreign fn's
+host_name_limit_test() ->
+    Long = "T" ++ lists:duplicate(254, $a),
+    Refused = fun(Length) ->
+                  "the member's Erlang name, its type's and its own joined by `.`, is "
+                      ++ integer_to_list(Length)
+                      ++ " characters long, and the host's names are at most 255"
+              end,
+    ?assertEqual({Refused(263), "shorten the type's name to at most 247 characters"},
+                 refusal_and_help("type " ++ Long ++ " = A(Int) derives compare\n")),
+    ?assertEqual({Refused(257), "shorten the type's name to at most 253 characters"},
+                 refusal_and_help("type " ++ Long ++ " = A(Int)\n"
+                                  "fn " ++ Long ++ ".+(x : " ++ Long ++ ", y : " ++ Long
+                                  ++ ") : " ++ Long ++ " = x\n")),
+    ?assertEqual(Refused(263),
+                 refusal("type " ++ Long ++ " = A(Int)\n"
+                         "foreign fn " ++ Long ++ ".compare(x : " ++ Long ++ ", y : " ++ Long
+                         ++ ") : Ordering = \"erlang:max/2\"\n")),
+    LongName = lists:duplicate(256, $m),
+    ?assertEqual("the implementation's module name is 256 characters long, and the host's names"
+                 " are at most 255",
+                 refusal("foreign fn f(x : Int) : Int = \"" ++ LongName ++ ":g/1\"\n")),
+    ?assertEqual("the implementation's function name is 256 characters long, and the host's"
+                 " names are at most 255",
+                 refusal("foreign fn f(x : Int) : Int = \"m:" ++ LongName ++ "/1\"\n")),
+    ?assertEqual(ok, ok("type " ++ Long ++ " = A(Int)\n")).
+
 %% report §6.3, §4.8: a `receive` guard's ordering is checked once its
 %% operand type is known, a later use fixing it as well as an earlier one.
 %% A regression test: it was refused before a later `send` fixed it

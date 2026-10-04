@@ -544,9 +544,9 @@ record_uses(ErlangModule, Beam, #checked{namespace = Namespace, typed = Typed,
 %% value holds its functions, is kept while the session can reach it, and
 %% collected/1 lets it go.
 release(Namespace, Binds, Outcome) ->
-    ErlangModule = ern_emitter:erlang_module(Namespace),
+    ErlangModule = ern_namespace:erlang_module(Namespace),
     Pending = kept(unpurged, []),
-    Purgeable = fun(Unpurged) -> code:soft_purge(ern_emitter:erlang_module(Unpurged)) end,
+    Purgeable = fun(Unpurged) -> code:soft_purge(ern_namespace:erlang_module(Unpurged)) end,
     {Purged, Unpurged} = lists:partition(Purgeable, Pending),
     Now = case {Binds, Outcome} of
               {declarations, _} -> kept;
@@ -567,7 +567,7 @@ release(Namespace, Binds, Outcome) ->
     Freed = Purged ++ [Namespace || Now =:= purged],
     keep(free_inputs, free_inputs() ++ Freed),
     %% report §11.2: an input purged reads no holder again
-    forget_uses([ern_emitter:erlang_module(FreedInput) || FreedInput <- Freed]),
+    forget_uses([ern_namespace:erlang_module(FreedInput) || FreedInput <- Freed]),
     ok.
 
 %% Report §2.3: the numbers of the inputs whose modules were unloaded,
@@ -1544,7 +1544,7 @@ beam_of(#session{beams = Beams}, Namespace) ->
     end.
 
 beam_on_path(Namespace) ->
-    ErlangModule = ern_emitter:erlang_module(Namespace),
+    ErlangModule = ern_namespace:erlang_module(Namespace),
     Paths = [code:which(ErlangModule), code:where_is_file(atom_to_list(ErlangModule) ++ ".beam")],
     case [Beam || Path <- Paths, is_list(Path), {ok, Beam} <- [file:read_file(Path)]] of
         [] -> none;
@@ -1746,7 +1746,7 @@ installed(Session, All, Answer) ->
 %% Report §8.5, §11.2: the modules in the order their bindings are
 %% evaluated, each after those it depends on.
 in_order(Modules) ->
-    ErlangModules = [ern_emitter:erlang_module(Namespace) || {Namespace, _, _} <- Modules],
+    ErlangModules = [ern_namespace:erlang_module(Namespace) || {Namespace, _, _} <- Modules],
     ByErlangModule = maps:from_list(lists:zip(ErlangModules, Modules)),
     [maps:get(ErlangModule, ByErlangModule) || ErlangModule <- ern_rt:ordered(ErlangModules)].
 
@@ -1754,7 +1754,7 @@ in_order(Modules) ->
 %% gone with the processes its bindings started, which end as a reload ends
 %% those of a previous version, so that the session is as it was.
 withdraw_all(Modules) ->
-    [withdraw(ern_emitter:erlang_module(Namespace)) || {Namespace, _, _} <- Modules],
+    [withdraw(ern_namespace:erlang_module(Namespace)) || {Namespace, _, _} <- Modules],
     ok.
 
 withdraw(ErlangModule) ->
@@ -1778,7 +1778,7 @@ end_unloaded(Pids) ->
 initialize([]) ->
     ok;
 initialize([{Namespace, _, _} | Rest]) ->
-    ErlangModule = ern_emitter:erlang_module(Namespace),
+    ErlangModule = ern_namespace:erlang_module(Namespace),
     case erlang:function_exported(ErlangModule, '$init', 0) of
         true -> initialize(Namespace, ErlangModule, Rest);
         false -> initialize(Rest)
@@ -2004,7 +2004,7 @@ dependency_hashes(#session{beams = Beams}, Namespace) ->
     Beam = case Beams of
                #{Namespace := Found} -> Found;
                _ ->
-                   {ok, Found} = file:read_file(code:which(ern_emitter:erlang_module(Namespace))),
+                   {ok, Found} = file:read_file(code:which(ern_namespace:erlang_module(Namespace))),
                    Found
            end,
     {ok, #{deps := DependencyHashes}} = ern_interface:read(Beam),
@@ -2017,7 +2017,7 @@ loaded_interfaces(#session{interfaces = Interfaces, modules = Modules}) ->
                        is_map_key(Namespace, Modules)]).
 
 reload_one({Namespace, Beam, Hash}, {Session, Lines}) ->
-    ErlangModule = ern_emitter:erlang_module(Namespace),
+    ErlangModule = ern_namespace:erlang_module(Namespace),
     Name = unicode:characters_to_binary(ern_namespace:text(Namespace)),
     {Ended, Session1} = case erlang:check_old_code(ErlangModule) of
                             true -> end_previous(Session, ErlangModule);
@@ -2074,7 +2074,7 @@ name_atom({_, Name}) -> Name;
 name_atom(Name) -> Name.
 
 value_of(QualifiedName) ->
-    ErlangModule = ern_emitter:erlang_module(lists:droplast(QualifiedName)),
+    ErlangModule = ern_namespace:erlang_module(lists:droplast(QualifiedName)),
     persistent_term:get({ErlangModule, lists:last(QualifiedName)}, undefined).
 
 holds_fun(Function, ErlangModule) when is_function(Function) ->
@@ -2096,7 +2096,7 @@ install(Session, Modules) ->
                 end, Session, Modules).
 
 install(#session{interfaces = Interfaces, modules = Modules} = Session, Namespace, Beam, Hash) ->
-    ErlangModule = ern_emitter:erlang_module(Namespace),
+    ErlangModule = ern_namespace:erlang_module(Namespace),
     {module, ErlangModule} = code:load_binary(ErlangModule, atom_to_list(ErlangModule), Beam),
     {ok, #{interface := Interface}} = ern_interface:read(Beam),
     Others = [Other || #interface{namespace = Found} = Other <- Interfaces, Found =/= Namespace],
@@ -2213,7 +2213,7 @@ erase_cut() ->
 %% already makes for another module's value.
 bind(Session, declarations, Namespace, _Value, _Type, _Env, Interface) ->
     %% the functions its own values hold join what the input needs
-    ErlangModule = ern_emitter:erlang_module(Namespace),
+    ErlangModule = ern_namespace:erlang_module(Namespace),
     Held = lists:foldl(fun({_, Stored}, Acc) -> fun_modules(Stored, Acc) end, [],
                        stored(ErlangModule)),
     {Namespace, Needs, Keys} = maps:get(ErlangModule, uses()),
@@ -2269,7 +2269,7 @@ bound(#session{last_holder = LastHolder, free_holders = Free} = Session, Bound, 
                              [] -> {LastHolder + 1, Session#session{last_holder = LastHolder + 1}}
                          end,
     HolderNamespace = [list_to_atom("$Bindings" ++ integer_to_list(Number))],
-    ErlangModule = ern_emitter:erlang_module(HolderNamespace),
+    ErlangModule = ern_namespace:erlang_module(HolderNamespace),
     TypeState = ern_typecheck:type_state(Env),
     [persistent_term:put({ErlangModule, Name}, Value) || {Name, Value, _} <- Bound],
     Names = [Name || {Name, _, _} <- Bound],
@@ -2313,27 +2313,27 @@ collected(#session{interfaces = Interfaces, scope = Scope, beams = Beams, free_h
                    draining = Draining} = Session) ->
     Uses = uses(),
     Unpurged = kept(unpurged, []),
-    Old = [ern_emitter:erlang_module(Namespace) || Namespace <- Unpurged]
-        ++ [ern_emitter:erlang_module([Segment]) || Segment <- Draining],
-    Named = [ern_emitter:erlang_module([hd(QualifiedName)])
+    Old = [ern_namespace:erlang_module(Namespace) || Namespace <- Unpurged]
+        ++ [ern_namespace:erlang_module([Segment]) || Segment <- Draining],
+    Named = [ern_namespace:erlang_module([hd(QualifiedName)])
              || Which <- [values, types, constructors],
                 QualifiedName <- maps:values(maps:get(Which, Scope, #{})),
                 session_segment(hd(QualifiedName))],
     Live = reached(Named ++ Old, Uses, #{}),
     Dead = [Namespace || ErlangModule := {Namespace, _, _} <- Uses,
                          not is_map_key(ErlangModule, Live)],
-    lists:foreach(fun(Namespace) -> code:delete(ern_emitter:erlang_module(Namespace)) end, Dead),
+    lists:foreach(fun(Namespace) -> code:delete(ern_namespace:erlang_module(Namespace)) end, Dead),
     IsHolder = fun([Segment]) -> holder_number(Segment) =/= none end,
     {DeadHolders, DeadInputs} = lists:partition(IsHolder, Dead),
-    Purgeable = fun(Namespace) -> code:soft_purge(ern_emitter:erlang_module(Namespace)) end,
+    Purgeable = fun(Namespace) -> code:soft_purge(ern_namespace:erlang_module(Namespace)) end,
     {Purged, Held} = lists:partition(fun(Segment) -> Purgeable([Segment]) end,
                                      Draining ++ [Segment || [Segment] <- DeadHolders]),
     {InputsPurged, InputsHeld} = lists:partition(Purgeable, Unpurged ++ DeadInputs),
     [persistent_term:erase(Key) || Namespace <- [[Segment] || Segment <- Purged] ++ InputsPurged,
-                                   {Key, _} <- stored(ern_emitter:erlang_module(Namespace))],
+                                   {Key, _} <- stored(ern_namespace:erlang_module(Namespace))],
     keep(unpurged, InputsHeld),
     keep(free_inputs, free_inputs() ++ InputsPurged),
-    forget_uses([ern_emitter:erlang_module(Namespace)
+    forget_uses([ern_namespace:erlang_module(Namespace)
                  || Namespace <- [[Segment] || Segment <- Purged] ++ InputsPurged]),
     Kept = [Interface || #interface{namespace = Namespace} = Interface <- Interfaces,
                          not lists:member(Namespace, Dead)],
@@ -2365,7 +2365,7 @@ reached([ErlangModule | Rest], Uses, Live) ->
 %% The session's modules whose names a term mentions, but its own: a type an
 %% interface names is such a mention.
 mentions(Term, [Own]) ->
-    lists:usort([ern_emitter:erlang_module([Atom]) || Atom <- atoms(Term, []), Atom =/= Own,
+    lists:usort([ern_namespace:erlang_module([Atom]) || Atom <- atoms(Term, []), Atom =/= Own,
                                                       session_segment(Atom)]).
 
 atoms(Atom, Acc) when is_atom(Atom) -> [Atom | Acc];

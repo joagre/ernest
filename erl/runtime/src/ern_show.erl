@@ -13,11 +13,11 @@
 %% printed; `unbounded` is neither.
 -record(limits, {depth = unbounded, length = unbounded}).
 
--spec show(term(), term()) -> binary().
+-spec show(ern_descriptor:descriptor(), term()) -> binary().
 show(Descriptor, Value) ->
     show(Descriptor, Value, unbounded, unbounded).
 
--spec show(term(), term(), non_neg_integer() | unbounded,
+-spec show(ern_descriptor:descriptor(), term(), non_neg_integer() | unbounded,
            non_neg_integer() | unbounded) -> binary().
 show(Descriptor, Value, Depth, Length) ->
     Limits = #limits{depth = Depth, length = Length},
@@ -55,7 +55,7 @@ by_type(bytes, Value, _, Limits) -> bytes(Value, Limits);
 by_type({address, _, _}, Value, _, _) -> address(Value);
 by_type(process, Value, _, _) -> ["<process ", number(Value), ">"];
 by_type({reply, _, _}, _, _, _) -> "<reply>";
-by_type({'fun', _, _, _, _, _}, _, _, _) -> "<function>";
+by_type({function, _, _, _, _, _}, _, _, _) -> "<function>";
 by_type({abstract, _}, _, _, _) -> "<abstract>";
 by_type({mu, Id, Descriptor}, Value, Bound, Limits) ->
     by_type(Descriptor, Value, Bound#{Id => Descriptor}, Limits);

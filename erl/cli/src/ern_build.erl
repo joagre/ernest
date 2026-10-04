@@ -202,6 +202,12 @@ module_of(File, SourceRoot, Mode) ->
     Components = filename:split(filename:rootname(Relative)),
     shaped(Relative, Components, SourceRoot, Mode),
     Namespace = namespace(Components),
+    %% report §11.1: the host holds the module's Erlang name
+    ErlangModule = ern_namespace:erlang_module_text(Namespace),
+    length(ErlangModule) =< ern_namespace:host_name_limit()
+        orelse fail(Relative ++ ": " ++ ern_namespace:host_name_text(
+                                            "the module's Erlang name, `ern@` and its path,",
+                                            ErlangModule)),
     %% report §4.2: a module namespace is never a namespace of the prelude
     %% or the standard library, except in the standard library's own source
     %% root; the message names which of the two takes it, the prelude where

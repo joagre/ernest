@@ -20,14 +20,14 @@ show(Parsed_2) ->
 
 parse(Line_6) ->
     case keyOf(ern@string:toList(Line_6)) of
-        {'Left', E_13} -> {'Left', E_13};
-        {'Right', {Key_7, Rest_8}} ->
-            case expectEquals(Rest_8, Line_6) of
-                {'Left', E_12} -> {'Left', E_12};
-                {'Right', AfterEquals_9} ->
-                    case number(AfterEquals_9, Line_6) of
-                        {'Left', E_11} -> {'Left', E_11};
-                        {'Right', Value_10} -> {'Right', {Key_7, Value_10}}
+        {'Left', Left_7} -> {'Left', Left_7};
+        {'Right', {Key_8, Rest_9}} ->
+            case expectEquals(Rest_9, Line_6) of
+                {'Left', Left_10} -> {'Left', Left_10};
+                {'Right', AfterEquals_11} ->
+                    case number(AfterEquals_11, Line_6) of
+                        {'Left', Left_12} -> {'Left', Left_12};
+                        {'Right', Value_13} -> {'Right', {Key_8, Value_13}}
                     end
             end
     end.

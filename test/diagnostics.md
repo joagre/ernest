@@ -1157,6 +1157,20 @@ example.ern:1:1: Colour is not a type declared in this module
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ```
 
+### A member whose Erlang name the host cannot hold (§11.1)
+
+```ernest-rejected
+type Vxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx = Point(x : Int, y : Int) derives compare
+```
+
+```console
+$ ern build example.ern
+example.ern:1:281: the member's Erlang name, its type's and its own joined by `.`, is 256 characters long, and the host's names are at most 255
+1 | type Vxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx = Point(x : Int, y : Int) derives compare
+  |                                                                                                                                                                                                                                                                                         ^^^^^^^^^^^^^^^
+  | = help: shorten the type's name to at most 247 characters
+```
+
 ### An operator member of the wrong shape (§4.8)
 
 ```ernest-rejected
