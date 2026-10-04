@@ -10,7 +10,7 @@
 -module(ern_build).
 
 -export([compile/3, report_errors/4, shown/1, sources/1, compiled_under/1, bytes_text/1,
-         module_of/2, shape/2, segment/1, namespace/1, module_path/1, compile_order/2,
+         module_of/2, module_of/3, shape/2, segment/1, namespace/1, module_path/1, compile_order/2,
          compile_order/3, source_root/3, build_root/2, is_stdlib_root/1, stdlib_hash/1,
          dependency_interfaces/5, dependency_interface/4, load_path/1, compiler_modules/0,
          sweep_pages/5, compile_source/4, absolute/1, relative/2, write_whole/2,
@@ -35,7 +35,11 @@ compile(Options, Path, ErrorDevice) ->
                 true -> sources(Path);
                 false -> [Path]
             end,
-    Modules = [module_of(absolute(Source), SourceRoot) || Source <- Files],
+    Mode = case DirMode of
+               true -> tree;
+               false -> file
+           end,
+    Modules = [module_of(absolute(Source), SourceRoot, Mode) || Source <- Files],
     SearchPath = [BuildRoot | load_path(Options)],
     SetAside = set_aside_installed_stdlib(SourceRoot, BuildRoot),
     try
@@ -175,9 +179,16 @@ is_link(Path) ->
     end.
 
 %% A source file as a module: its namespace from its path under the root,
-%% with the path shape rule of §11.1.
+%% with the path shape rule of §11.1, a file of a tree.
 -spec module_of(file:filename(), file:filename()) -> #build_module{}.
 module_of(File, SourceRoot) ->
+    module_of(File, SourceRoot, tree).
+
+%% The same, of a tree's file or of a file built alone, whose source root
+%% only it takes, so that a directory breaking the path shape is refused
+%% with the root that leaves it out (report §11.1).
+-spec module_of(file:filename(), file:filename(), file | tree) -> #build_module{}.
+module_of(File, SourceRoot, Mode) ->
     Relative = relative(File, SourceRoot),
     Relative =/= outside orelse fail(File ++ " is not under the source root " ++ SourceRoot
                                      ++ "; --source-root names another"),
@@ -189,7 +200,7 @@ module_of(File, SourceRoot) ->
     end,
     filename:extension(Relative) =:= ".ern" orelse fail(Relative ++ " does not end in .ern"),
     Components = filename:split(filename:rootname(Relative)),
-    lists:foreach(fun(Component) -> shape(Relative, Component) end, Components),
+    shaped(Relative, Components, SourceRoot, Mode),
     Namespace = namespace(Components),
     %% report §4.2: a module namespace is never a namespace of the prelude
     %% or the standard library, except in the standard library's own source
@@ -212,20 +223,43 @@ module_of(File, SourceRoot) ->
     end,
     #build_module{namespace = Namespace, file = File, relative = Relative}.
 
+%% Report §11.1: every component of the path keeps the shape. A file built
+%% alone has its own name checked first, and then the deepest directory
+%% that breaks the shape is refused with the source root that leaves it
+%% out of the namespace.
+shaped(Relative, Components, _, tree) ->
+    lists:foreach(fun(Component) -> shape(Relative, Component) end, Components);
+shaped(Relative, Components, SourceRoot, file) ->
+    {Directories, [Name]} = lists:split(length(Components) - 1, Components),
+    shape(Relative, Name),
+    Broken = [Index || {Index, Directory} <- lists:enumerate(Directories),
+                       not ern_namespace:is_component(Directory)],
+    case lists:reverse(Broken) of
+        [] ->
+            ok;
+        [Deepest | _] ->
+            Root = shown(filename:join([SourceRoot | lists:sublist(Directories, Deepest)])),
+            shape(Relative, lists:nth(Deepest, Directories),
+                  "; --source-root " ++ Root ++ " leaves it out of the namespace")
+    end.
+
 %% Report §11.1: each component of a file's path is words joined by single
 %% `_`, a word a lowercase letter, then lowercase letters and digits
 %% (ern_namespace). The refusal names the file.
 -spec shape(file:filename(), string()) -> ok.
 shape(File, Component) ->
+    shape(File, Component, "").
+
+shape(File, Component, Advice) ->
     case ern_namespace:is_component(Component) of
         true -> ok;
         false ->
             Named = File ++ ": path component `" ++ Component ++ "`",
             case lists:any(fun(Char) -> Char >= $A andalso Char =< $Z end, Component) of
-                true -> fail(Named ++ " must be lowercase");
+                true -> fail(Named ++ " must be lowercase" ++ Advice);
                 false -> fail(Named ++ " must be words joined by `_`, each a lowercase letter,"
                               " then lowercase letters and digits; a module of several words"
-                              " is `ordered_set.ern` or a directory")
+                              " is `ordered_set.ern` or a directory" ++ Advice)
             end
     end.
 

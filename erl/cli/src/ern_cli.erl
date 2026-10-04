@@ -362,7 +362,7 @@ beam_of(Options, Path) ->
             %% report §11.1: a module outside the source root is found under
             %% build-root, then under each --load-path root
             SearchPath = [BuildRoot | ern_build:load_path(Options)],
-            Module = ern_build:module_of(ern_build:absolute(Path), SourceRoot),
+            Module = ern_build:module_of(ern_build:absolute(Path), SourceRoot, file),
             [#build_module{namespace = Namespace, file = File, relative = Relative,
                            declarations = Declarations, dependencies = Dependencies}] =
                 ern_build:compile_order([Module], SourceRoot, SearchPath),

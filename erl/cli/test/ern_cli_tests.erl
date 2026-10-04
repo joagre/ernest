@@ -513,6 +513,41 @@ default_root_test() ->
         file:set_cwd(Cwd)
     end.
 
+%% report §11.1: in single-file mode without --source-root a file's
+%% namespace is its path from the current directory; a directory of it
+%% that breaks the path shape is refused with the source root that leaves
+%% it out of the namespace, the deepest such, by `ern build` and `ern doc`
+%% alike, and the file's own name with none. A regression test: the
+%% refusal named no root (findings.md's K21)
+single_file_root_test() ->
+    Dir = tmp(),
+    write(Dir, "app/net/http.ern", "export let port : Int = 80\n"),
+    write(Dir, "tA/main.ern", hello()),
+    write(Dir, "a/Bc/De/main.ern", hello()),
+    write(Dir, "ok/Main.ern", hello()),
+    {ok, Cwd} = file:get_cwd(),
+    ok = file:set_cwd(Dir),
+    Refused = fun(Args, Said) ->
+                  ?assertEqual(1, ern_cli:ern(Args, group_leader())),
+                  ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(
+                                                      ?capturedOutput), Said))
+              end,
+    try
+        ?assertEqual(0, ern_cli:ern(["build", "app/net/http.ern"])),
+        {ok, Beam} = file:read_file("app/net/http.erc"),
+        ?assertMatch({ok, #{interface := #interface{namespace = ['App', 'Net', 'Http']}}},
+                     ern_interface:read(Beam)),
+        Refused(["build", "tA/main.ern"],
+                <<"tA/main.ern: path component `tA` must be lowercase; --source-root tA"
+                  " leaves it out of the namespace">>),
+        Refused(["doc", "tA/main.ern"], <<"; --source-root tA leaves it out">>),
+        Refused(["build", "a/Bc/De/main.ern"],
+                <<"path component `De` must be lowercase; --source-root a/Bc/De leaves">>),
+        Refused(["build", "ok/Main.ern"], <<"path component `Main` must be lowercase\n">>)
+    after
+        file:set_cwd(Cwd)
+    end.
+
 %% report §11.1, §11.5: a parse error in directory mode is its position,
 %% its message, and the source under it with the span marked, status 1
 parse_error_test() ->
