@@ -91,7 +91,7 @@ An input that declares, a holder, and an input whose value holds its functions a
 
 The runner binds standard output and standard error to `ern_shell:to_screen`, so a program's bytes still pass through the runtime's sinks (§8.2) and reach the screen as `Wrote`. A byte that is not UTF-8 becomes U+FFFD, and a character cut across two writes waits for its end in the writing sink's process. Before `setScreen` names the screen, what is written goes to standard output.
 
-`:output path` opens the path in the front end, in append mode, so the shell gains no file system of its own. The device is not opened `raw`, since a raw device belongs to the process that opened it and what writes to it is the sink's process. While it is open, `to_screen` writes there instead of to the screen. A path that is there and is neither a file nor a device is refused before it is opened (§11.2): opening a pipe no one reads would hold the session.
+`:output path` is the session's, in Ernest: it appends nothing to the path through `Fs.append`, which creates a file that is not there and refuses what is neither a file nor a device (E.17), a pipe among them, since opening a pipe no one reads would hold the session. It then sends the screen `Redirect`, and the screen, which holds where output goes, appends each `Wrote` there through `Fs.append` instead of drawing it, as the live region would show it. Where an append fails, the screen says why and draws again (§11.2). `:output` alone asks the screen with `Locate`. An append opens the file each time, about 0.2 ms a line at a terminal where the live region takes 0.08, which the log's *What Erlang Held, Moved* weighs.
 
 ## The screen and the region
 

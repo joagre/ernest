@@ -2097,6 +2097,62 @@ output_to_a_pipe() ->
                                                 " the load path">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"2 : Int">>)).
 
+%% report §11.2, Appendix E.17: what programs write goes to the file
+%% `:output` names, appended as the live region would show it, and not to
+%% the session; `:output` alone says where it goes, and where a write there
+%% fails, here since its directory was removed, the session says why and
+%% what programs write comes back to the live region. A regression test of
+%% `:output` written in Ernest over `Fs.append` (MVP 2.99c's item 5); it
+%% covers no terminal, since a test has none
+output_to_a_file_test_() ->
+    {timeout, 60, fun output_to_a_file/0}.
+
+output_to_a_file() ->
+    Home = fresh_home(),
+    Dir = filename:join(Home, "logs"),
+    ok = filelib:ensure_path(Dir),
+    Log = filename:join(Dir, "out.log"),
+    InputFile = filename:join(Home, "session.in"),
+    ok = file:write_file(InputFile, [":output ", Log, "\n",
+                                     "Io.println(\"zqx one\")\n",
+                                     "Io.print(\"zqx two\")\n",
+                                     ":output\n",
+                                     "let _ = Fs.removeAll(Path(\"", Dir, "\"), 5000)\n",
+                                     "Io.println(\"zqx three\")\n",
+                                     ":output\n"]),
+    {0, Output} = sh("HOME=" ++ Home ++ " ../bin/ern shell < " ++ InputFile),
+    Goes = fun(Where) -> iolist_to_binary(["output goes to ", Where]) end,
+    ?assertMatch({_, _}, binary:match(Output, Goes(Log))),
+    ?assertEqual(nomatch, binary:match(Output, <<"zqx one">>)),
+    ?assertEqual(nomatch, binary:match(Output, <<"zqx two">>)),
+    ?assertMatch({_, _}, binary:match(Output, iolist_to_binary(
+                                                ["cannot write to ", Log, ": its directory is not",
+                                                 " there, and output goes to the live region"]))),
+    ?assertMatch({_, _}, binary:match(Output, <<"zqx three">>)),
+    ?assertMatch({_, _}, binary:match(Output, Goes("the live region"))),
+    ?assertEqual({error, enoent}, file:read_file(Log)),
+    file:del_dir_r(Home).
+
+%% report §11.2, Appendix E.17: the file `:output` names holds what was
+%% written there, the text of each write in order
+output_appends_test_() ->
+    {timeout, 60, fun output_appends/0}.
+
+output_appends() ->
+    Home = fresh_home(),
+    Log = filename:join(Home, "out.log"),
+    ok = file:write_file(Log, <<"before\n">>),
+    InputFile = filename:join(Home, "session.in"),
+    ok = file:write_file(InputFile, [":output ", Log, "\n",
+                                     "Io.println(\"one\")\n",
+                                     "Io.print(\"two\")\n",
+                                     ":output -\n",
+                                     "Io.println(\"zqx three\")\n"]),
+    {0, Output} = sh("HOME=" ++ Home ++ " ../bin/ern shell < " ++ InputFile),
+    ?assertEqual({ok, <<"before\none\ntwo">>}, file:read_file(Log)),
+    ?assertMatch({_, _}, binary:match(Output, <<"zqx three">>)),
+    file:del_dir_r(Home).
+
 %% The tests that call the front end in this host, which keeps one session
 %% for all of it: they run one after the other, where the module's tests
 %% run side by side.

@@ -168,16 +168,31 @@ string_graphemes_test() ->
     ?assertEqual(<<"\x{200e}a"/utf8>>, String:trimStart(<<" \x{200e}a"/utf8>>)),
     ?assertEqual(<<"a ">>, String:trimStart(<<"\r\n a ">>)),
     ?assertEqual(<<" a">>, String:trimEnd(<<" a \r\n">>)),
-    %% report Appendix E.5: a grapheme is removed by its first code point, a
-    %% space that a combining mark joins among them, and one a prepended
-    %% code point begins is kept; the fast pass over ASCII meets none of
-    %% them. A regression test for the pass that replaced a list of every
-    %% grapheme, 34 times the host's trim over 100 KB
+    %% report Appendix E.5, E.0 rule 1: a grapheme is removed by its first
+    %% code point, a space that a combining mark joins among them, and one a
+    %% prepended code point begins is kept; `trimEnd` is Ernest over the
+    %% private `lastGrapheme`, which splits from an ASCII byte near the end
+    %% and steps back to the one before where that leaves one grapheme: a
+    %% line feed after a carriage return, a long cluster, flags and a joined
+    %% emoji before a space, and text with no ASCII, split whole. A
+    %% regression test of the primitive that replaced the shim, and before
+    %% it a list of every grapheme, 34 times the host's trim over 100 KB
     ?assertEqual(<<"a">>, String:trimEnd(<<"a \x{301}\t"/utf8>>)),
     ?assertEqual(<<"a\x{600} "/utf8>>, String:trimEnd(<<"a\x{600} \n"/utf8>>)),
     ?assertEqual(<<"é"/utf8>>, String:trimEnd(<<"é\x{3000}"/utf8>>)),
     ?assertEqual(<<>>, String:trimEnd(<<" \r\n\x{2028}"/utf8>>)),
     ?assertEqual(<<>>, String:trimEnd(<<>>)),
+    ?assertEqual(<<"a">>, String:trimEnd(<<"a\r\n\r\n">>)),
+    ?assertEqual(<<>>, String:trimEnd(<<"\r\n">>)),
+    Cluster = unicode:characters_to_binary([$a | lists:duplicate(300, 16#301)]),
+    ?assertEqual(Cluster, String:trimEnd(<<Cluster/binary, " \x{301} "/utf8>>)),
+    ?assertEqual(<<"\x{1F1F8}\x{1F1EA}\x{1F1F8}"/utf8>>,
+                 String:trimEnd(<<"\x{1F1F8}\x{1F1EA}\x{1F1F8} "/utf8>>)),
+    ?assertEqual(<<"\x{1F468}\x{200D}\x{1F469}"/utf8>>,
+                 String:trimEnd(<<"\x{1F468}\x{200D}\x{1F469}\x{3000} \n"/utf8>>)),
+    ?assertEqual(<<"éé"/utf8>>, String:trimEnd(<<"éé\x{3000}\x{2003}"/utf8>>)),
+    ?assertEqual(<<"\x{915}\x{94D}\x{937}"/utf8>>,
+                 String:trimEnd(<<"\x{915}\x{94D}\x{937} \x{A0}"/utf8>>)),
     ?assertEqual(<<"SS">>, String:toUpper(<<"ß"/utf8>>)),
     ?assertEqual(<<"σασ"/utf8>>, String:toLower(<<"ΣΑΣ"/utf8>>)),
     ?assertEqual('Less', String:compare(<<"z">>, <<"é"/utf8>>)).
@@ -257,6 +272,23 @@ string_test() ->
     ?assertEqual('None', String:toInt(<<"1a">>)),
     ?assertEqual('None', String:toInt(<<"-">>)),
     ?assertEqual('None', String:toInt(<<>>)),
+    %% report Appendix E.5, E.0 rule 1: the digits are read in Ernest, a long
+    %% numeral in halves joined by a power of the base, so its value is the
+    %% host's at every length past the forty digits read in one pass; a `+`
+    %% and a sign alone read as nothing. A regression test of the reading
+    %% that replaced the host's, which covers no length past a few thousand
+    ?assertEqual('None', String:toIntBase(<<"+5">>, 10)),
+    ?assertEqual('None', String:toIntBase(<<"-">>, 16)),
+    ?assertEqual('None', String:toIntBase(<<"z">>, 35)),
+    ?assertEqual({'Some', 35}, String:toIntBase(<<"Z">>, 36)),
+    [?assertEqual({'Some', binary_to_integer(Numeral, Base)}, String:toIntBase(Numeral, Base))
+     || Length <- [40, 41, 81, 1000, 3001],
+        Base <- [2, 10, 16, 36],
+        Sign <- [<<>>, <<"-">>],
+        Numeral <- [<<Sign/binary,
+                      (list_to_binary([lists:nth(Index rem Base + 1,
+                                                 "0123456789abcdefghijklmnopqrstuvwxyz")
+                                       || Index <- lists:seq(1, Length)]))/binary>>]],
     ?assertEqual({'Some', -1.5}, String:toFloat(<<"-1.5">>)),
     ?assertEqual({'Some', 1.0e-9}, String:toFloat(<<"1.0e-9">>)),
     ?assertEqual('None', String:toFloat(<<"1">>)),
@@ -645,8 +677,9 @@ fs_test() ->
     ?assertEqual({'Left', 'NotFound'}, Gone),
     file:del_dir_r(Dir).
 
-%% report Appendix E.17: read, write, append and copy work on regular files,
-%% and refuse a named pipe and a directory at once. A regression test: a
+%% report Appendix E.17: read, write and copy work on regular files, and
+%% append on a regular file and a device; each refuses a named pipe and a
+%% directory at once. A regression test: a
 %% named pipe's read waited for a writer in the host's file server, which
 %% then answered no other request of the node's, the read of a plain file
 %% after it among them
@@ -670,6 +703,30 @@ fs_named_pipe_test() ->
                        end, <<"fs_named_pipe_test">>, #{})),
     Refused = {'Left', 'NotAFile'},
     ?assertEqual(lists:duplicate(6, Refused) ++ [{'Right', <<"hi">>}], collect(fs, [])),
+    file:del_dir_r(Dir).
+
+%% report Appendix E.17: append writes a device, a terminal among them, and
+%% read, write and copy refuse one, as append refuses a directory; the
+%% device here is the null device, which every host has. A regression test
+%% of the change that let the shell's `:output` append through Fs
+%% (report §11.2), which covers no terminal, since a test has none
+fs_append_device_test() ->
+    Self = self(),
+    Null = {'Path', <<"/dev/null">>},
+    Dir = scratch("ern_device_"),
+    ok = filelib:ensure_path(Dir),
+    Fs = 'ern@fs',
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Self ! {fs, Fs:append(Null, <<"x">>, 1000)},
+                           Self ! {fs, Fs:write(Null, <<"x">>, 1000)},
+                           Self ! {fs, Fs:read(Null, 1000)},
+                           Self ! {fs, Fs:copy(Null, {'Path', <<"/dev/null">>}, 1000)},
+                           Self ! {fs, Fs:append({'Path', unicode:characters_to_binary(Dir)},
+                                                 <<"x">>, 1000)}
+                       end, <<"fs_append_device_test">>, #{})),
+    Refused = {'Left', 'NotAFile'},
+    ?assertEqual([{'Right', 'Unit'}, Refused, Refused, Refused, Refused], collect(fs, [])),
     file:del_dir_r(Dir).
 
 %% report Appendix E.17: `setMode` sets a file's and a directory's

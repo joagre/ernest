@@ -1,6 +1,6 @@
 # Ernest Report: The Toolchain
 
-Revision of 3 October 2026.
+Revision of 4 October 2026.
 
 This file holds the report's §11 and Appendix C. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and Appendices D, E and G in [`library.md`](library.md). The three files are one report, and each is normative.
 
@@ -47,7 +47,7 @@ The toolchain is one command, `ern`, whose first word is its job: `ern build`, `
 - `:forget name` forgets a name the session declared, and `:forget *` forgets all of them.
 - `:help` lists the commands, each with a line of help.
 - `:load Module` loads a module, as **Loading and reloading** below says.
-- `:output path` appends what programs write to the terminal or file `path`, a path that names neither, a pipe among them, being refused, `:output -` sends it back to the live region, and `:output` alone says where it goes.
+- `:output path` appends what programs write, as the live region would show it, to the terminal or file `path`, a path that names neither, a pipe among them, being refused, `:output -` sends it back to the live region, and `:output` alone says where it goes. Where a write there fails, what programs write goes back to the live region, and the shell says why.
 - `:processes` lists the live processes of the session, by spawn site.
 - `:quit` leaves the shell, as `C-d` on an empty line does.
 - `:reload` reloads the loaded modules whose source has changed, as **Loading and reloading** below says.

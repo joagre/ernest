@@ -5,12 +5,11 @@
 /// as one letter; `toList` and `fromList` are `Char`s, one scalar value
 /// each. The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`,
 /// and the slice `slice` makes once it has clipped its index and count,
-/// the operations that need Unicode's tables, with the private `drop`,
-/// `trimStart`, `trimEnd`, `toLower`, and `toUpper`, the conversions
-/// `toFloat`, `toList`, `fromList`, `toUtf8`, and `fromUtf8`, and the
-/// reading in a base that `toIntBase` makes once it has checked the base
-/// and the sign, the runtime's; the rest is written over them, so every
-/// search matches whole graphemes (report Appendix E.0 rule 1).
+/// the operations that need Unicode's tables, with the private `drop` and
+/// `lastGrapheme`, `toLower`, and `toUpper`, and the conversions
+/// `toFloat`, `toList`, `fromList`, `toUtf8`, and `fromUtf8`, the
+/// runtime's; the rest is written over them, so every search matches whole
+/// graphemes (report Appendix E.0 rule 1).
 ///
 /// ## Examples
 ///
@@ -250,12 +249,29 @@ export fn trim(text : String) : String =
 /// #(String.trimStart("  a "), String.trimEnd("  a "))
 /// // => #("a ", "  a")
 /// ```
-export foreign fn trimStart(text : String) : String =
-    "ern_string:trim_start/1"
+export fn trimStart(text : String) : String =
+    if isSpaceFirst(slice(text, 0, 1)) then trimStart(drop(text, 1)) else text
 
 /// Without trailing whitespace, as `trim` has it.
-export foreign fn trimEnd(text : String) : String =
-    "ern_string:trim_end/1"
+export fn trimEnd(text : String) : String =
+    match lastGrapheme(text) {
+        Some(#(rest, last)) when isSpaceFirst(last) -> trimEnd(rest)
+      | _ -> text
+    }
+
+// Whether a grapheme's first code point is White_Space, which a trim
+// removes it for (report Appendix E.5).
+fn isSpaceFirst(grapheme : String) : Bool =
+    match toList(grapheme) {
+        first :: _ -> Char.isSpace(first)
+      | [] -> false
+    }
+
+// Report Appendix E.5: the string without its last grapheme, and that
+// grapheme, found from the string's end without a walk from its start, a
+// primitive since graphemes are the host's (E.0 rule 1).
+foreign fn lastGrapheme(text : String) : Optional(#(String, String)) =
+    "ern_string:last_grapheme/1"
 
 /// The lower-case form, by Unicode.
 ///
@@ -378,20 +394,7 @@ export fn join(parts : List(String), separator : String) : String =
 /// // => #(Some(12), None)
 /// ```
 export fn toInt(text : String) : Optional(Int) =
-    match toList(text) {
-        [] -> None
-      | '-' :: rest -> Optional.map(decimal(rest), Int.negate)
-      | chars -> decimal(chars)
-    }
-
-// The number the decimal digits spell.
-fn decimal(chars : List(Char)) : Optional(Int) =
-    if List.isEmpty(chars) then
-        None
-    else if List.all(chars, Char.isAsciiDigit) then
-        toIntBase(fromList(chars), 10)
-    else
-        None
+    toIntBase(text, 10)
 
 /// The digits and letters in that base, 2 to 36, in either case, with an
 /// optional leading `-`, or `None` for anything else, a leading `+` among
@@ -404,10 +407,59 @@ fn decimal(chars : List(Char)) : Optional(Int) =
 /// // => #(Some(255), None)
 /// ```
 export fn toIntBase(text : String, base : Int) : Optional(Int) =
-    if base < 2 || base > 36 || startsWith(text, "+") then None else valueInBase(text, base)
+    if base < 2 || base > 36 then
+        None
+    else match toList(text) {
+        '-' :: rest -> Optional.map(number(rest, base), Int.negate)
+      | chars -> number(chars, base)
+    }
 
-foreign fn valueInBase(text : String, base : Int) : Optional(Int) =
-    "ern_string:to_int_base/2"
+// The number the digits spell in the base, at least one of them.
+fn number(chars : List(Char), base : Int) : Optional(Int) =
+    match List.tryMap(chars, fn(char) = digitIn(char, base)) {
+        Right(values) when !List.isEmpty(values) -> Some(valueOf(values, List.size(values), base))
+      | _ -> None
+    }
+
+// A digit's value in the base, or the character that is none.
+fn digitIn(char : Char, base : Int) : Either(Char, Int) =
+    match digitValue(char) {
+        Some(value) when value < base -> Right(value)
+      | _ -> Left(char)
+    }
+
+// The value of the digits, count of them, read in halves past forty, so
+// that a long numeral costs what multiplying its halves costs and not the
+// square of its length.
+fn valueOf(values : List(Int), count : Int, base : Int) : Int =
+    if count <= 40 then
+        List.foldLeft(values, 0, fn(acc, value) = acc * base + value)
+    else {
+        let low = count / 2;
+        let high = count - low;
+        valueOf(List.take(values, high), high, base) * power(base, low)
+            + valueOf(List.drop(values, high), low, base)
+    }
+
+// The base to the exponent, 0 or more, by squaring.
+fn power(base : Int, exponent : Int) : Int =
+    if exponent == 0 then
+        1
+    else {
+        let half = power(base, exponent / 2);
+        if exponent % 2 == 0 then half * half else half * half * base
+    }
+
+// A digit's value, the letters after 9 in either case: `a` and `A` are 10.
+fn digitValue(char : Char) : Optional(Int) =
+    if char >= '0' && char <= '9' then
+        Some(Char.toInt(char) - Char.toInt('0'))
+    else if char >= 'a' && char <= 'z' then
+        Some(Char.toInt(char) - Char.toInt('a') + 10)
+    else if char >= 'A' && char <= 'Z' then
+        Some(Char.toInt(char) - Char.toInt('A') + 10)
+    else
+        None
 
 /// `true` for `"true"` and `false` for `"false"`, or `None` for anything
 /// else; the inverse of `Bool.toString`.

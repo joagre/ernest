@@ -5,9 +5,8 @@
 %% and comparison is Erlang's on binaries, which is by code point.
 -module(ern_string).
 
--export([graphemes/1, index_of/2, last_index_of/2, slice/3, drop/2, trim_start/1, trim_end/1,
-         to_lower/1, to_upper/1, to_int_base/2, to_float/1, to_list/1, from_list/1, from_utf8/1,
-         to_utf8/1]).
+-export([graphemes/1, index_of/2, last_index_of/2, slice/3, drop/2, last_grapheme/1,
+         to_lower/1, to_upper/1, to_float/1, to_list/1, from_list/1, from_utf8/1, to_utf8/1]).
 
 %% Appendix E.5: the graphemes in order, as `string:to_graphemes/1` splits
 %% them, extended grapheme clusters by the host's Unicode data, the same
@@ -114,78 +113,51 @@ past(Text, Boundary, Count) ->
         {Next, _} -> past(Text, Next, Count - 1)
     end.
 
-%% Appendix E.5: without the leading graphemes whose first code point is
-%% White_Space, as Char.isSpace says. string:next_grapheme/1 answers the
-%% first grapheme cluster, a code point or a list of them, and the rest.
--spec trim_start(binary()) -> binary().
-trim_start(Text) ->
-    case string:next_grapheme(Text) of
-        [Grapheme | Rest] ->
-            case ern_char:is_space(first(Grapheme)) of
-                true -> trim_start(Rest);
-                false -> Text
-            end;
-        [] ->
-            <<>>
+%% Appendix E.5: the string without its last grapheme, and that grapheme,
+%% found from the string's end. No rule of Unicode's segmentation looks
+%% back across an ASCII code point but a line feed's to the carriage return
+%% before it, so of the graphemes the host splits from an ASCII byte, every
+%% one after the first is the string's own: where they are two or more, the
+%% last is the string's last. A tail of one grapheme is split again from
+%% the ASCII byte before it, and one from the string's start is the
+%% string's own: only the tail is split, and ordinary text ends in a few
+%% bytes.
+-spec last_grapheme(binary()) -> {'Some', {binary(), binary()}} | 'None'.
+last_grapheme(<<>>) ->
+    'None';
+last_grapheme(Text) ->
+    last_grapheme(Text, byte_size(Text) - 1).
+
+last_grapheme(Text, Offset) ->
+    From = ascii_byte(Text, Offset),
+    <<_:From/binary, Tail/binary>> = Text,
+    case lists:reverse(string:to_graphemes(Tail)) of
+        [Last, _ | _] -> split_off(Text, Last);
+        [Last] when From =:= 0 -> split_off(Text, Last);
+        [_] -> last_grapheme(Text, From - 1)
     end.
 
-%% Appendix E.5: without the trailing graphemes whose first code point is
-%% White_Space.
--spec trim_end(binary()) -> binary().
-trim_end(Text) ->
-    Offset = word_byte(Text, byte_size(Text) - 1),
-    <<_:Offset/binary, Tail/binary>> = Text,
-    Trailing = dropped(lists:reverse(string:to_graphemes(Tail)), 0),
-    binary:part(Text, 0, byte_size(Text) - Trailing).
-
-%% The offset of the last ASCII byte that is not White_Space, or 0. No
-%% ASCII code point extends a grapheme or is prepended to one, so the
-%% grapheme it is in begins with no White_Space, and the graphemes after it
-%% are the host's graphemes of the tail from it: only the tail is split.
-word_byte(_, -1) ->
+%% The offset of the last ASCII byte at Offset or before it, or 0. An ASCII
+%% byte is a code point of its own in UTF-8, never a part of another.
+ascii_byte(_, Offset) when Offset =< 0 ->
     0;
-word_byte(Text, Offset) ->
-    case binary:at(Text, Offset) of
-        Byte when Byte < 16#80 ->
-            case ern_char:is_space(Byte) of
-                true -> word_byte(Text, Offset - 1);
-                false -> Offset
-            end;
-        _ ->
-            word_byte(Text, Offset - 1)
+ascii_byte(Text, Offset) ->
+    case binary:at(Text, Offset) < 16#80 of
+        true -> Offset;
+        false -> ascii_byte(Text, Offset - 1)
     end.
 
-%% The octets of the graphemes, last first, that begin with White_Space.
-dropped([Grapheme | Graphemes], Count) ->
-    case ern_char:is_space(first(Grapheme)) of
-        true -> dropped(Graphemes, Count + octets(Grapheme));
-        false -> Count
-    end;
-dropped([], Count) ->
-    Count.
-
-%% A grapheme's length in UTF-8, a code point or a list of them.
-octets(Chars) when is_list(Chars) -> lists:sum([octets(Char) || Char <- Chars]);
-octets(Char) when Char < 16#80 -> 1;
-octets(Char) when Char < 16#800 -> 2;
-octets(Char) when Char < 16#10000 -> 3;
-octets(_) -> 4.
-
-first([Char | _]) -> Char;
-first(Char) -> Char.
+%% The string before its last grapheme, and the grapheme, a code point or a
+%% list of them as the host splits it.
+split_off(Text, Last) ->
+    Size = byte_size(Text) - byte_size(unicode:characters_to_binary([Last])),
+    {'Some', {binary:part(Text, 0, Size), binary:part(Text, Size, byte_size(Text) - Size)}}.
 
 -spec to_lower(binary()) -> binary().
 to_lower(Text) -> unicode:characters_to_binary(string:lowercase(Text)).
 
 -spec to_upper(binary()) -> binary().
 to_upper(Text) -> unicode:characters_to_binary(string:uppercase(Text)).
-
-%% report Appendix E.5: in that base, its digits and letters in either case
--spec to_int_base(binary(), integer()) -> {'Some', integer()} | 'None'.
-to_int_base(Text, Base) ->
-    try {'Some', binary_to_integer(Text, Base)}
-    catch error:badarg -> 'None'
-    end.
 
 %% report §2.5: the float literal form, with an optional leading minus;
 %% §3.1: "-0.0" reads as 0.0

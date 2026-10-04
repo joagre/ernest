@@ -17,9 +17,9 @@ milestone, the standing gaps, and what is done.
 the grammar, the standard library's laws and well-typed programs, were built on 2026-10-03, and
 its argument, [`soundness.md`](soundness.md), was written on 2026-10-04 and found the reply
 discipline short in ten places, each closed that day, and the typed generator's third round,
-on replies, was built the same day and found nothing more. Next is its item 5, what Erlang
-holds that Ernest can, whose three named decisions are the user's, then the full review of
-item 6 and the release, Ernest 0.3.0. MVP 2.99b, what the release review left, the code's
+on replies, was built the same day and found nothing more; item 5 moved into Ernest what
+Erlang held that Ernest can, the same day. Next is its item 6, the full review, then the
+release, Ernest 0.3.0. MVP 2.99b, what the release review left, the code's
 names read and made to read, operations records, and running as a service, was done on
 2026-10-03, and `findings.md` went with it; the principles review, a milestone of its own
 between its items 3 and 4, closed on 2026-10-01, and Ernest 0.2.0, the second release, is
@@ -132,27 +132,16 @@ programs as item 2, and the last three as items 7, 8 and 6.
    owners and holds the rule that a change to a rule it covers rewrites its paragraph in
    the same commit; [`release_review.md`](release_review.md) has its row, and
    [`full_review.md`](full_review.md)'s cold reader reads it, so that item 6's review does.
-5. **What Erlang holds that Ernest can**, decided with the user 2026-10-03, after CLAUDE.md
-   gained the rule that as much as can be is written in Ernest; before item 7, the
-   release. Moved: `String.trimStart` and `String.trimEnd`, exported shims though trimming
-   is Ernest's, written over the module's `slice`, `drop` and `Char.isSpace`, `trimEnd`
-   without a walk from the start for each grapheme it drops, since `slice` by index walks;
-   and `String.toIntBase`'s reading of digits, a shim where `String.toInt` reads in Ernest,
-   written as `toInt` is. E.5's list of primitives loses the three, and the log's entry
-   that called finding and trimming the host's is corrected. Two named decisions, taken
-   with the user before the item is built: **`:output` in Ernest**, the shell's redirection
-   of a program's output, which the front end opens in Erlang since `Fs` writes regular
-   files only; recommended: `Fs.append` writes a device as well, a terminal or a pipe,
-   E.17 saying so, and the screen appends there, the cost of an open per write weighed
-   when it is built. And **the terminal's key decoding**, ECMA-48 read in `ern_tty`, the
-   runtime's by E.16 and §8.2's system process; recommended: kept, since a system process
-   is the runtime's own, and stated so in the log. The three moves were measured before they
-   were built, and the measurement returned a third (the log's *What Erlang Holds, Measured*):
-   **`trimEnd` beneath**, since over `graphemes` it costs what the text's length costs where
-   the shim costs what its trailing spaces cost; recommended: a private primitive, the text
-   without its last grapheme and that grapheme, found from the end, and `trimEnd` Ernest
-   over it, as E.0 rule 1 admits, while `trimStart` and `toIntBase`, whose cost over the
-   shim's does not grow with the text, move as decided.
+5. **What Erlang holds that Ernest can**, done 2026-10-04 (the log's *What Erlang Held,
+   Moved*, after *What Erlang Holds, Measured*), its three decisions taken with the user as
+   recommended. E.0 rule 1 admits a primitive beneath an Ernest operation only where the
+   Ernest form's cost grows with what the host's does not. `String.trimStart` is Ernest over
+   `slice` and `drop`, `String.trimEnd` over the private `lastGrapheme`, found from the
+   string's end, and `String.toIntBase` reads its digits in Ernest, in halves past forty;
+   E.5's primitives say so. `Fs.append` writes a device as well (E.17), and the shell's
+   `:output` is Ernest: the screen appends there and, where a write fails, says why and
+   draws again (§11.2). The terminal's key decoding stays in `ern_tty`, the runtime's
+   system process.
 6. **The full review**, decided with the user 2026-10-03: after item 5 and before item 7,
    in place of the release review's readers for 0.3.0. [`full_review.md`](full_review.md)
    is run whole: each of its nineteen readers and parts is a fresh agent of one workflow,

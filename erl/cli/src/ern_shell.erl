@@ -12,9 +12,8 @@
          session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
          documentation/1, fields/1, signature/1, declared_type/2, load/2,
          reload/1, version/0, write/1, screen/1, to_screen/1,
-         output/1, unbound/1, collect/1, input_site/2, is_expression/1, declared/1]).
+         unbound/1, collect/1, input_site/2, is_expression/1, declared/1]).
 
--include_lib("kernel/include/file.hrl").
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("utils/include/ern_diagnostic.hrl").
@@ -58,8 +57,8 @@
 
 %% Report §11.2: what the runner loaded before the shell started, which the
 %% shell begins from. What is set once, or by a command alone, is a
-%% persistent term, which a read does not copy: what the runner loaded, the
-%% screen, where output goes. What changes as inputs run is a row of a
+%% persistent term, which a read does not copy: what the runner loaded and
+%% the screen. What changes as inputs run is a row of a
 %% table the runner owns, made here: the host scans every process when a
 %% persistent term is replaced, and what an input costs does not grow with
 %% the processes the session has. Its rows are the session as it stands
@@ -2132,17 +2131,9 @@ screen(Address) ->
 
 -spec to_screen(binary()) -> ok.
 to_screen(Bytes) ->
-    case persistent_term:get({?MODULE, output}, undefined) of
-        undefined ->
-            case persistent_term:get({?MODULE, screen}, undefined) of
-                undefined -> file:write(standard_io, Bytes);
-                Address -> ern_rt:send(Address, shown(Bytes))
-            end;
-        {_, Device} ->
-            %% report §11.2: a program's output goes where `:output` sent
-            %% it, which is another terminal and its own scrolling
-            file:write(Device, Bytes),
-            ok
+    case persistent_term:get({?MODULE, screen}, undefined) of
+        undefined -> file:write(standard_io, Bytes);
+        Address -> ern_rt:send(Address, shown(Bytes))
     end.
 
 %% Report §11.2: the text the screen shows of what a program wrote, with
@@ -2164,53 +2155,6 @@ erase_cut() ->
     case erase({?MODULE, cut}) of
         undefined -> <<>>;
         Cut -> Cut
-    end.
-
-%% Report §11.2: where a program's output goes. A path is another terminal
-%% or a file, `-` is the tail again, and nothing is where it goes now. The
-%% front end opens it, so the shell gains no file system of its own.
--spec output(binary()) -> {'Left', binary()} | {'Right', binary()}.
-output(<<>>) ->
-    {'Right', <<"output goes to ", (where_output())/binary>>};
-output(<<"-">>) ->
-    close_output(),
-    {'Right', <<"output goes to the live region">>};
-output(Path) ->
-    Name = unicode:characters_to_list(Path),
-    case file:read_file_info(Name) of
-        %% report §11.2: a terminal or a file. Anything else is refused: a
-        %% pipe no one reads would hold the session where it is opened
-        {ok, #file_info{type = Type}} when Type =/= regular, Type =/= device ->
-            {'Left', <<"cannot write to ", Path/binary, ": it is no terminal and no file">>};
-        _ ->
-            opened_output(Path, Name)
-    end.
-
-opened_output(Path, Name) ->
-    %% not `raw`: a raw device belongs to the process that opened it, and
-    %% what writes to it is the sink's process, not this one
-    case file:open(Name, [append]) of
-        {ok, Device} ->
-            close_output(),
-            persistent_term:put({?MODULE, output}, {Path, Device}),
-            {'Right', <<"output goes to ", Path/binary>>};
-        {error, Error} ->
-            {'Left', <<"cannot write to ", Path/binary, ": ",
-                       (unicode:characters_to_binary(file:format_error(Error)))/binary>>}
-    end.
-
-where_output() ->
-    case persistent_term:get({?MODULE, output}, undefined) of
-        undefined -> <<"the live region">>;
-        {Path, _} -> Path
-    end.
-
-close_output() ->
-    case persistent_term:get({?MODULE, output}, undefined) of
-        undefined -> ok;
-        {_, Device} ->
-            file:close(Device),
-            persistent_term:erase({?MODULE, output})
     end.
 
 %% Report §11.2: the name an input binds is the session's from then on. Its

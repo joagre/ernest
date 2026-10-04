@@ -44,9 +44,7 @@ handle({'Write', Path, Bytes, Reply}) ->
     answer(Reply, regular_or_none(Name, fun() -> unit(file:write_file(Name, Bytes, [raw])) end));
 handle({'Append', Path, Bytes, Reply}) ->
     Name = text(Path),
-    answer(Reply, regular_or_none(Name, fun() ->
-                                            unit(file:write_file(Name, Bytes, [raw, append]))
-                                        end));
+    answer(Reply, appendable(Name, fun() -> unit(file:write_file(Name, Bytes, [raw, append])) end));
 handle({'List', Path, Reply}) ->
     Dir = text(Path),
     answer(Reply, case file:list_dir_all(Dir) of
@@ -168,9 +166,9 @@ copy(Source, Destination) ->
         Error -> Error
     end.
 
-%% Report Appendix E.17: read, write, append and copy work on regular
-%% files, since a named pipe waits for a writer that may never come and a
-%% device may never end; a path that names nothing may be written.
+%% Report Appendix E.17: read, write and copy work on regular files, since
+%% a named pipe waits for a writer that may never come and a device may
+%% never end; a path that names nothing may be written.
 regular(Name, Then) ->
     case file:read_file_info(Name, [raw]) of
         {ok, #file_info{type = regular}} -> Then();
@@ -182,6 +180,15 @@ regular_or_none(Name, Then) ->
     case file:read_file_info(Name, [raw]) of
         {error, enoent} -> Then();
         _ -> regular(Name, Then)
+    end.
+
+%% Report Appendix E.17: append writes a device as well, a terminal among
+%% them, since a write to it ends; a named pipe's open waits for a reader
+%% that may never come.
+appendable(Name, Then) ->
+    case file:read_file_info(Name, [raw]) of
+        {ok, #file_info{type = device}} -> Then();
+        _ -> regular_or_none(Name, Then)
     end.
 
 %% Every answer is Right(v) or Left(Io.Error).

@@ -75,8 +75,10 @@ type Next = Continue(State) | Leave
 // the session as it ends; the reader's `Entered` finishes the line, and the
 // session's `Taken` says it has taken an input, which may have been typed
 // ahead. The reader sends `Resized` and `Clear`, `C-l`'s clean screen; the
-// session sends `Height`, `:set output n` and `0` at the end, and `Flush`,
-// answered once everything sent before it is written.
+// session sends `Height`, `:set output n` and `0` at the end, `Redirect`,
+// where `:output` sends what programs write, `None` the live region,
+// `Locate`, answered with where it goes, and `Flush`, answered once
+// everything sent before it is written.
 type ScreenMsg =
     Said(String)
   | Noted(String)
@@ -87,6 +89,8 @@ type ScreenMsg =
   | Resized
   | Clear
   | Height(Int)
+  | Redirect(Optional(Path))
+  | Locate(reply : Reply(Optional(Path)))
   | Flush(reply : Reply(Unit))
 
 // What the reader is told: a key, which the terminal sends it once it has
@@ -135,8 +139,8 @@ export fn main() : Unit with ShellMsg = {
     let keys = readKeys(shell);
     let colour = if Optional.isSome(keys) && colourAllowed then Markdown.Styled else Markdown.Plain;
     let screen = spawn(fn() = match keys {
-        Some(Keys(size = size)) -> screenLoop(Shell.Region.new(size))
-      | None -> plainLoop()
+        Some(Keys(size = size)) -> screenLoop(Shell.Region.new(size), None)
+      | None -> plainLoop(None)
     });
     // report §11.2: in line mode the session reads the lines itself, and
     // holds the terminal, so that an input that asks for the keys or a
@@ -319,6 +323,43 @@ fn trouble(error : Io.Error) : String =
       | Io.Invalid -> "the path is not one the host can take"
       | Io.Other(text) -> text
     }
+
+// Report §11.2: where a program's output goes. A path is a terminal or a
+// file, which an append of nothing tries, creating a file that is not
+// there; `-` is the live region again, and nothing says where it goes now,
+// which the screen holds.
+fn output(screen : Address(ScreenMsg), argument : String) : Either(String, String) with m =
+    if String.isEmpty(argument) then
+        match Address.call(screen, fn(reply) = Locate(reply = reply), fileMs) {
+            Some(Some(path)) -> Right("output goes to " <> Path.toString(path))
+          | Some(None) -> Right("output goes to the live region")
+          | None -> Left("the screen did not say where output goes")
+        }
+    else if argument == "-" then {
+        send(screen, Redirect(None));
+        Right("output goes to the live region")
+    } else {
+        let path = Path(argument);
+        match Fs.append(path, <<>>, fileMs) {
+            Left(error) -> Left(cannotWrite(path, error))
+          | Right(_) -> {
+                send(screen, Redirect(Some(path)));
+                Right("output goes to " <> argument)
+            }
+        }
+    }
+
+// Report §11.2: a path that names neither a terminal nor a file, a pipe
+// among them, is refused, as the file system refuses it (Appendix E.17);
+// a file that is not there is created, so one not found is its directory.
+fn cannotWrite(path : Path, error : Io.Error) : String = {
+    let why = match error {
+        Io.NotAFile -> "it is no terminal and no file"
+      | Io.NotFound -> "its directory is not there"
+      | _ -> trouble(error)
+    };
+    "cannot write to " <> Path.toString(path) <> ": " <> why
+}
 
 // Report §11.2: a startup input runs as a typed one, a command among them,
 // and a `:quit` there ends the session; a diagnostic names its file and
@@ -655,7 +696,7 @@ fn obey(state : State,
             Left(text) -> refused(state, screen, text)
           | Right(text) -> answered(state, screen, rendered(text, screenWidth(), colour))
         }
-      | Shell.Command.Output -> match output(argument) {
+      | Shell.Command.Output -> match output(screen, argument) {
             Left(text) -> refused(state, screen, text)
           | Right(text) -> answered(state, screen, [text])
         }
@@ -786,48 +827,104 @@ fn settingLines(settings : Settings) : List(String) =
 // is written as it arrives.
 
 // The screen process holds the region of `Shell.Region` and writes what
-// it answers; the region itself is pure and draws nothing.
-fn screenLoop(region : Shell.Region.Region) : Unit with ScreenMsg = {
-    let #(region1, bytes) = receive {
-        Said(text) -> Shell.Region.said(region, text)
-      | Noted(text) -> Shell.Region.noted(region, text)
-      | Wrote(text) -> Shell.Region.wrote(region, text)
-      | Typing(text = text, cursor = cursor, offered = offered) ->
-            Shell.Region.typing(region, text, cursor, offered)
-      | Entered -> Shell.Region.entered(region)
-      | Taken -> Shell.Region.taken(region)
-      | Resized -> match Terminal.size() {
-            Right(size) -> Shell.Region.resized(region, size)
-          | Left(_) -> #(region, "")
+// it answers; the region itself is pure and draws nothing. It holds too
+// where `:output` sent what programs write, since it is what appends there.
+fn screenLoop(region : Shell.Region.Region, destination : Optional(Path)) : Unit with ScreenMsg =
+    receive {
+        Said(text) -> painted(Shell.Region.said(region, text), destination)
+      | Noted(text) -> painted(Shell.Region.noted(region, text), destination)
+      | Wrote(text) -> match destination {
+            None -> painted(Shell.Region.wrote(region, text), None)
+          | Some(path) -> match appended(path, text) {
+                Right(_) -> screenLoop(region, destination)
+              | Left(why) -> {
+                    let #(region1, bytes) = Shell.Region.said(region, why);
+                    write(bytes);
+                    painted(Shell.Region.wrote(region1, text), None)
+                }
+            }
         }
-      | Clear -> Shell.Region.cleared(region)
-      | Height(rows) -> Shell.Region.output(region, rows)
+      | Typing(text = text, cursor = cursor, offered = offered) ->
+            painted(Shell.Region.typing(region, text, cursor, offered), destination)
+      | Entered -> painted(Shell.Region.entered(region), destination)
+      | Taken -> painted(Shell.Region.taken(region), destination)
+      | Resized -> match Terminal.size() {
+            Right(size) -> painted(Shell.Region.resized(region, size), destination)
+          | Left(_) -> screenLoop(region, destination)
+        }
+      | Clear -> painted(Shell.Region.cleared(region), destination)
+      | Height(rows) -> painted(Shell.Region.output(region, rows), destination)
+      | Redirect(destination1) -> screenLoop(region, destination1)
+      | Locate(reply = reply) -> {
+            answer(reply, destination);
+            screenLoop(region, destination)
+        }
       | Flush(reply = reply) -> {
             answer(reply, Unit);
-            #(region, "")
+            screenLoop(region, destination)
         }
-    };
+    }
+
+// What the region answered written, and the screen goes on with the
+// region it became.
+fn painted(drawn : #(Shell.Region.Region, String),
+           destination : Optional(Path)) : Unit with ScreenMsg = {
+    let #(region, bytes) = drawn;
     write(bytes);
-    screenLoop(region1)
+    screenLoop(region, destination)
 }
 
 // Report §11.2: without a terminal there is no region, and what the screen
 // is sent is written as it comes, a note on a line of its own.
-fn plainLoop() : Unit with ScreenMsg = {
-    receive {
-        Said(text) -> write(text)
-      | Wrote(text) -> write(text)
-      | Noted(text) -> write(text <> "\n")
-      | Flush(reply = reply) -> answer(reply, Unit)
-      | Typing(text = _, cursor = _, offered = _) -> Unit
-      | Entered -> Unit
-      | Taken -> Unit
-      | Resized -> Unit
-      | Clear -> Unit
-      | Height(_) -> Unit
+fn plainLoop(destination : Optional(Path)) : Unit with ScreenMsg = {
+    let destination1 = receive {
+        Said(text) -> {
+            write(text);
+            destination
+        }
+      | Wrote(text) -> match destination {
+            None -> {
+                write(text);
+                None
+            }
+          | Some(path) -> match appended(path, text) {
+                Right(_) -> destination
+              | Left(why) -> {
+                    write(why <> text);
+                    None
+                }
+            }
+        }
+      | Noted(text) -> {
+            write(text <> "\n");
+            destination
+        }
+      | Redirect(path) -> path
+      | Locate(reply = reply) -> {
+            answer(reply, destination);
+            destination
+        }
+      | Flush(reply = reply) -> {
+            answer(reply, Unit);
+            destination
+        }
+      | Typing(text = _, cursor = _, offered = _) -> destination
+      | Entered -> destination
+      | Taken -> destination
+      | Resized -> destination
+      | Clear -> destination
+      | Height(_) -> destination
     };
-    plainLoop()
+    plainLoop(destination1)
 }
+
+// Report §11.2: what a program wrote, appended where `:output` sent it;
+// where that fails, why, and what programs write goes back to the screen.
+fn appended(path : Path, text : String) : Either(String, Unit) with m =
+    match Fs.append(path, String.toUtf8(text), fileMs) {
+        Right(_) -> Right(Unit)
+      | Left(error) -> Left(cannotWrite(path, error) <> ", and output goes to the live region\n")
+    }
 
 // Report §11.2: on quitting, the region goes and the cursor is left on a
 // fresh line, so the terminal is as the shell found it.
@@ -1191,9 +1288,6 @@ foreign fn load(session : Session, name : String) : Either(String, #(Session, St
 
 foreign fn reload(session : Session) : Either(String, #(Session, List(String))) with m =
     "ern_shell:reload/1"
-
-foreign fn output(path : String) : Either(String, String) with m =
-    "ern_shell:output/1"
 
 // Report §11.2: the parser cannot finish what is typed, so another line
 // may. The parser is the compiler's, and only it knows.
