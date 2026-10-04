@@ -53,7 +53,7 @@ taken out of order. Each has its paragraph under "Done".
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | moved from MVP 3.9 on 2026-10-01 |
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | |
-| MVP 2.99d | the library and the prelude measured against their lines, the emitted code's cost, and the guide's feedback | |
+| MVP 2.99d | the library and the prelude measured against their lines, the emitted code's cost, and the report's and the guide's feedback | |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -187,7 +187,7 @@ when the lines have their decisions.
 
 ---
 
-## MVP 2.99d (the library and the prelude measured, and the guide's feedback), about a week
+## MVP 2.99d (the library and the prelude measured, and the report's and the guide's feedback), about a week
 
 E.0 rule 1's line, decided with the user on 2026-10-04 (the log's *The Full Review's
 Questions, One by One*): a private primitive goes beneath an Ernest operation where the Ernest
@@ -213,7 +213,14 @@ and its measurement does not hold the release.
    person would write, the emitter's output is measured against that Erlang and its
    overheads cut, since a faster emitter brings every function under the line at once,
    where a shim brings one. Sized when items 1 and 2's numbers are in.
-4. **The guide's feedback**: `docs/guide_feedback.md`, a pedagogical assessment of the guide
+4. **The report's feedback**: `docs/report_feedback.md`, six points of precision in the
+   report's contracts, decided on 2026-10-04 to be read with the user point by point, as a
+   review's findings are: each point a sentence of the report, a plan item, or dropped with
+   its reason. The three of peers, foreign definitions' compatibility and a peer's
+   initialization (§8.7) and a peer's loss (§9.3, §10), are weighed against MVP 3.0, which
+   builds them. Before item 5, since the report is the owner and a point decided there can
+   change what the guide teaches.
+5. **The guide's feedback**: `docs/guide_feedback.md`, a pedagogical assessment of the guide
    in seven points, decided on 2026-10-04 to be read with the user point by point, as a
    review's findings are: each point taken into the guide, made a plan item, or dropped with
    its reason, the guide's teaching backbone, its programs, the growing word counter and its
