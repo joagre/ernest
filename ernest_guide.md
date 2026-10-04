@@ -1716,15 +1716,13 @@ Directory mode compiles the modules in the order their dependencies need, and a 
 
 **A module's own name hides the prelude's.** A module may declare its own `Unknown`, which then means its own throughout the module; `Prelude.Unknown` still names the prelude's (report §4.2).
 
-**Testing a module.** A test is a top-level `let` of the type `Test.Case(m)`, a name and a function returning `Test.Passed` or `Test.Failed(text)`, which runs in a process whose mailbox type is `m` (report Appendix E.24):
+**Testing a module.** A test is a top-level `let` of the type `Test.Case(m)`, a name and a function returning `Test.Passed` or `Test.Failed(text)`, which runs in a process whose mailbox type is `m` (report Appendix E.24). `Test.equal(actual, expected)` is the comparison most tests make: `Test.Passed` where the two are equal, and otherwise `Test.Failed("expected 2, got 3")`, each value as `Io.show` writes it:
 
 ```ernest
 fn add(left : Int, right : Int) : Int =
     left + right
 
-let addsTwo =
-    Test.Case(name = "adds two",
-              run = fn() = if add(1, 1) == 2 then Test.Passed else Test.Failed("not two"))
+let addsTwo = Test.Case(name = "adds two", run = fn() = Test.equal(add(1, 1), 2))
 
 type Reported = Reported(Int)
 
@@ -1732,7 +1730,7 @@ let answersBack = Test.Case(name = "a worker answers back", run = fn() = {
     let me = self();
     let _ = spawn(fn() : Unit with Never = send(me, Reported(add(1, 1))));
     receive {
-        Reported(n) -> if n == 2 then Test.Passed else Test.Failed("not two")
+        Reported(n) -> Test.equal(n, 2)
     }
 })
 ```

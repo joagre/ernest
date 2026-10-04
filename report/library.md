@@ -589,11 +589,12 @@ Os.run : (Command, Int) -> Either(Io.Error, Finished) with m+
 
 ### Appendix E.24. `test.ern` (namespace `Test`)
 
-A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a process whose mailbox type is `m` (§11.2), so that a test may receive as an entry point may (§8.1). Its `run` answers `Passed`, or `Failed` with what went wrong. The module declares these two types and no function.
+A top-level `let` of type `Test.Case(m)` is a test, which `ern test` runs in a process whose mailbox type is `m` (§11.2), so that a test may receive as an entry point may (§8.1). Its `run` answers `Passed`, or `Failed` with what went wrong. The module declares these two types and `equal`, which answers `Passed` where its two arguments are equal, and otherwise `Failed("expected e, got a")`, the expected value and the actual one written as `Io.show` writes them (§9.4).
 
 ```
 type Case(m) = Case(name : String, run : () -> Result with m)
 type Result = Passed | Failed(String)
+Test.equal : (a=!, a=!) -> Result needs a.show // the actual value first, then the expected one
 ```
 
 ### Appendix E.25. `ordered_set.ern` (namespace `OrderedSet`)

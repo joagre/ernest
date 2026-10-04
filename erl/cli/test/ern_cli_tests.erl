@@ -979,6 +979,28 @@ test_runner_test() ->
     ?assertEqual(0, ern_cli:ern(["build", "--build-root", Dir ++ "/build2", Dir ++ "/src2"])),
     ?assertEqual(0, ern_cli:ern(["test", Dir ++ "/build2/ok.erc"])).
 
+%% report Appendix E.24, §4.9: `Test.equal` passes where the actual value
+%% equals the expected one and otherwise fails naming both as `Io.show`
+%% writes them, the expected first, at a type the program declares and
+%% through a function that names `a.show` alike. Written with the function
+%% (findings.md's E108)
+test_equal_test() ->
+    Dir = tmp(),
+    File = write(Dir, "equals.ern",
+                 "type Point = Point(x : Int, y : Int)\n"
+                 "fn same(value : a) : Test.Result needs a.show = Test.equal(value, value)\n"
+                 "let sums = Test.Case(name = \"sums\", run = fn() = Test.equal(1 + 1, 3))\n"
+                 "let points = Test.Case(name = \"points\", run = fn() =\n"
+                 "    Test.equal(Point(x = 1, y = 2), Point(x = 1, y = 3)))\n"
+                 "let itself = Test.Case(name = \"itself\", run = fn() = same([Some(1)]))\n"),
+    ?assertEqual(0, ern_cli:ern(["build", "--source-root", Dir, File])),
+    ?assertEqual(1, ern_cli:ern(["test", filename:join(Dir, "equals.erc")])),
+    Output = iolist_to_binary(?capturedOutput),
+    ?assertMatch({_, _}, binary:match(Output, <<"sums: failed: expected 3, got 2\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"points: failed: expected Point(x = 1, y = 3),"
+                                                " got Point(x = 1, y = 2)\n">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"itself: passed\n">>)).
+
 %% report §11.2, §11.8: given a directory, `ern test` runs the tests of every
 %% `.erc` under it in the order of their paths, a name that begins with a
 %% dot and a link to a directory passed over; each module's name stands on

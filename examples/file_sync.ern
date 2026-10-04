@@ -210,8 +210,5 @@ let namesOnly =
         let accepted =
             List.map(["notes.txt", "../x", "/etc/x", "a/b", ".", "..", ""],
                      fn(text) = isName(Path(text)));
-        if accepted == [true, false, false, false, false, false, false] then
-            Test.Passed
-        else
-            Test.Failed(Io.show(accepted))
+        Test.equal(accepted, [true, false, false, false, false, false, false])
     })
