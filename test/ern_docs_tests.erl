@@ -185,7 +185,7 @@ documents() ->
 
 %% The documents that describe the repository as it is.
 described() ->
-    documents() -- (?REPORT ++ ["docs/implementation_plan.md"]).
+    documents() -- (?REPORT ++ ["docs/implementation_plan.md", "docs/findings.md"]).
 
 %% A backticked path under one of the repository's own directories. A
 %% metavariable is written `<name>`, as docs/style.md writes `ern_<thing>`,
