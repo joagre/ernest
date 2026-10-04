@@ -53,6 +53,7 @@ taken out of order. Each has its paragraph under "Done".
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | moved from MVP 3.9 on 2026-10-01 |
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | |
+| MVP 2.99d | the library measured against E.0 rule 1's line, and the emitted code's cost | |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
@@ -183,6 +184,29 @@ and its notes say what changed.
 The two days are the earlier reviews' pace, the principles review's 663 findings worked in
 one; the decisions take the user's time, at the user's pace, and the estimate is revised
 when the lines have their decisions.
+
+---
+
+## MVP 2.99d (the library measured), about a week
+
+E.0 rule 1's line, decided with the user on 2026-10-04 (the log's *The Full Review's
+Questions, One by One*): a private primitive goes beneath an Ernest operation where the Ernest
+form costs more than three times the host's own at the sizes a program meets, or grows with
+what the host's does not, and nowhere else. After Ernest 0.3.0, since the rule ships in it
+and its measurement does not hold the release.
+
+1. **Every function measured**: each function of `stdlib/` and `libs/` against the host's
+   counterpart, at the sizes a program meets and at a large one, by a machine that joins
+   `make bench`, its inputs drawn as the library's laws draw theirs. A function with no
+   counterpart in the host is judged by its growth alone. Each past the line comes back to
+   the user as a decision with its numbers: `String.trimStart` and `String.toIntBase`,
+   moved by MVP 2.99c's item 5, are measured with the rest, and so are `String.toList`,
+   `String.fromUtf8`, `Int.toString` and `Int.toStringBase`, which the full review's E11
+   and E12 measured on large inputs alone.
+2. **The emitted code's cost**: where ordinary Ernest costs a multiple of the Erlang a
+   person would write, the emitter's output is measured against that Erlang and its
+   overheads cut, since a faster emitter brings every function under the line at once,
+   where a shim brings one. Sized when item 1's numbers are in.
 
 ---
 
