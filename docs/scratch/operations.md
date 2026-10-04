@@ -79,7 +79,7 @@ Members supply members. A member with a requirement of its own, such as the deri
 
 **What a requirement may name.** The variable is a type variable of the signature that stands in a value position. `needs e.compare` on an effect variable, and `needs b.compare` where `b` is nowhere in the signature, are errors at the declaration: `b is no type variable of the signature`. A variable that stands only in the result type may carry one, since the instantiation is read once the enclosing definition is inferred. Under a requirement on `a`, no parameter, `let` or pattern variable may be named `a`, so that `a.compare` reads one way.
 
-A requirement names a member and nothing else: `compare`, `negate`, an operator, and beside them `show`. `show` is no member of a type but the standard library's `Io.show`, which renders a value as text, and `Io.debug`, which prints one to standard error and returns it; both work from a description of the value's type that the compiler supplies. Under `needs a.show`, either may be applied in the body to a value whose type is `a` itself, and the compiler supplies the description as it does at a known type. A value of a type that merely contains `a`, a `List(a)`, cannot be shown this way, since its description would have to be composed at run time.
+A requirement names a member and nothing else: `compare`, `negate`, an operator, and beside them `show`. `show` is no member of a type but the standard library's `Io.show`, which renders a value as text, and `Io.debug`, which prints one to standard error and returns it; both work from a description of the value's type that the compiler supplies. Under `needs a.show`, either may be applied in the body to a value whose type is `a` itself, and the compiler supplies the description as it does at a known type. A value of a type built from `a` is shown as well: under `needs a.show`, a `List(a)` and an `Optional(#(a, Int))` are each written, the call composing the description from the types the variables were instantiated to. A value whose type holds a variable no requirement names `show` for is a type error.
 
 `needs a.zero` and `needs a.hash` are errors at the declaration: `zero is not a member: a requirement names compare, negate, an operator or show`. A program declares no member beyond these. What a generic function needs beyond the members, a `zero` or a `hash`, it takes as a parameter or as a field of a record the program fills, described below.
 
@@ -129,7 +129,7 @@ fn orderedOps() : Ops(OrderedSet.Set(a), a) needs a.compare =
 
 `common([4, 2, 3], [3, 4, 5], orderedOps())` is `[3, 4]`, and `common(["b", "a"], ["a", "c"], orderedOps())` is `["a"]`. The fill is supplied from the requirement as a call is.
 
-The name after `..` is a module where it is a qualified name made of type names alone that names no constructor or binding in scope, and an expression otherwise, as in the record update `Snapshot(..old, seen = s)`. A module may stand alone after `..`; an expression keeps the rule that at least one field follows it. A field with no declaration of its name in the module, or one whose type does not fit the field's, is an error naming the field and the module: `Ops(..Set) lacks isSubset: Set has no isSubset`.
+The name after `..` is a module where it is a qualified name made of type names alone, even where a constructor has the same name, and an expression otherwise, as in the record update `Snapshot(..old, seen = s)`. A module may stand alone after `..`; an expression keeps the rule that at least one field follows it. A field with no declaration of its name in the module, or one whose type does not fit the field's, is an error naming the field and the module: `Ops(..Set) lacks isSubset: Set has no isSubset`.
 
 **A list that mixes representations** needs a second record type, one that hides `s`: its functions close over one set, and its `put` returns another such record. It has no operation on two sets and no `==`. The design does not try to make one record serve both uses.
 
@@ -164,36 +164,36 @@ export fn fromList(list : List(a)) : Set(a) needs a.compare =
 // kept, as `put` keeps the element already there.
 fn firstOfEach(sorted : List(a)) : List(a) needs a.compare =
     match sorted {
-        x :: y :: rest -> if a.compare(x, y) == Equal then
-            firstOfEach(x :: rest)
+        first :: second :: rest -> if a.compare(first, second) == Equal then
+            firstOfEach(first :: rest)
         else
-            x :: firstOfEach(y :: rest)
+            first :: firstOfEach(second :: rest)
       | _ -> sorted
     }
 
-export fn contains(Set(list) : Set(a), x : a) : Bool needs a.compare =
-    has(list, x)
+export fn contains(Set(list) : Set(a), element : a) : Bool needs a.compare =
+    has(list, element)
 
-fn has(list : List(a), x : a) : Bool needs a.compare =
+fn has(list : List(a), element : a) : Bool needs a.compare =
     match list {
         [] -> false
-      | y :: rest -> match a.compare(x, y) {
+      | head :: rest -> match a.compare(element, head) {
             Less -> false
           | Equal -> true
-          | Greater -> has(rest, x)
+          | Greater -> has(rest, element)
         }
     }
 
-export fn put(Set(list) : Set(a), x : a) : Set(a) needs a.compare =
-    Set(inserted(list, x))
+export fn put(Set(list) : Set(a), element : a) : Set(a) needs a.compare =
+    Set(inserted(list, element))
 
-fn inserted(list : List(a), x : a) : List(a) needs a.compare =
+fn inserted(list : List(a), element : a) : List(a) needs a.compare =
     match list {
-        [] -> [x]
-      | y :: rest -> match a.compare(x, y) {
-            Less -> x :: list
+        [] -> [element]
+      | head :: rest -> match a.compare(element, head) {
+            Less -> element :: list
           | Equal -> list
-          | Greater -> y :: inserted(rest, x)
+          | Greater -> head :: inserted(rest, element)
         }
     }
 
@@ -210,10 +210,10 @@ fn merged(list : List(a), other : List(a)) : List(a) needs a.compare =
     match #(list, other) {
         #([], _) -> other
       | #(_, []) -> list
-      | #(x :: rest, y :: others) -> match a.compare(x, y) {
-            Less -> x :: merged(rest, other)
-          | Equal -> x :: merged(rest, others)
-          | Greater -> y :: merged(list, others)
+      | #(head :: rest, otherHead :: others) -> match a.compare(head, otherHead) {
+            Less -> head :: merged(rest, other)
+          | Equal -> head :: merged(rest, others)
+          | Greater -> otherHead :: merged(list, others)
         }
     }
 ```
