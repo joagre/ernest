@@ -186,7 +186,7 @@ stdlib_types_test() ->
 
 %% report Appendix E.0 rule 2: the words rule 2 gives a set and a map are
 %% functions of `Set` and `Map`, which rule 4 admits as the vocabulary. A
-%% regression test, written when rule 2 named them (findings.md's R-6)
+%% regression test, written when rule 2 named them
 set_and_map_words_test() ->
     Rules = lists:flatten(lists:join(" ", section("Four *admission rules*", "Nine *shape rules*"))),
     Exported = lists:append([maps:keys(Values)

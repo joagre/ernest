@@ -17,8 +17,9 @@
 span(Node) ->
     element(2, Node).
 
-%% Every node in pre-order, a node being a tuple whose first element is
-%% its record's name, with an accumulator threaded through.
+%% Every node in pre-order, with an accumulator threaded through: every
+%% tuple whose first element is an atom, a record or a tagged part of one,
+%% such as `{positional, T}` or `{size, E}`.
 -spec walk(fun((tuple(), Acc) -> Acc), term(), Acc) -> Acc.
 walk(Visit, Node, Acc) when is_tuple(Node), is_atom(element(1, Node)) ->
     Acc1 = Visit(Node, Acc),
@@ -71,18 +72,20 @@ type_variables(_) -> [].
 %% Report §5.4: the unqualified names free in an expression, outside the
 %% names Bound around it, once for each use. A lambda's parameters, a
 %% clause's pattern, a block's bindings from the statement after them and
-%% a local fn's name for the rest of its block and its own body bind.
+%% a local fn's name throughout its block bind. A pattern's bitstring size
+%% expressions read names too (§5.11).
 -spec free_names(term(), [atom()]) -> [atom()].
 free_names(#e_var{namespace = [], name = Name}, Bound) ->
     case lists:member(Name, Bound) of true -> []; false -> [Name] end;
 free_names(#e_lambda{params = Params, body = Body}, Bound) ->
     free_names(Body, param_names(Params) ++ Bound);
 free_names(#e_block{statements = Statements}, Bound) ->
-    {Free, _} = lists:mapfoldl(fun statement_free_names/2, Bound, Statements),
+    Fns = [Name || #fn_declaration{name = Name} <- Statements],
+    {Free, _} = lists:mapfoldl(fun statement_free_names/2, Fns ++ Bound, Statements),
     lists:append(Free);
 free_names(#clause{pattern = Pattern, guard = Guard, body = Body}, Bound) ->
     Bound1 = bound_names(Pattern) ++ Bound,
-    free_names(Guard, Bound1) ++ free_names(Body, Bound1);
+    pattern_free_names(Pattern, Bound) ++ free_names(Guard, Bound1) ++ free_names(Body, Bound1);
 free_names(Node, Bound) when is_tuple(Node) ->
     lists:append([free_names(Child, Bound) || Child <- tl(tuple_to_list(Node))]);
 free_names(Nodes, Bound) when is_list(Nodes) ->
@@ -93,12 +96,26 @@ free_names(_, _) ->
 %% A block's statement: its free names, and the names bound from the next
 %% statement on.
 statement_free_names(#binding{pattern = Pattern, expr = Expr}, Bound) ->
-    {free_names(Expr, Bound), bound_names(Pattern) ++ Bound};
-statement_free_names(#fn_declaration{name = Name, params = Params, body = Body}, Bound) ->
-    {free_names(Body, [Name | param_names(Params)] ++ Bound), [Name | Bound]};
+    {free_names(Expr, Bound) ++ pattern_free_names(Pattern, Bound), bound_names(Pattern) ++ Bound};
+statement_free_names(#fn_declaration{params = Params, body = Body}, Bound) ->
+    {free_names(Body, param_names(Params) ++ Bound), Bound};
 statement_free_names(Statement, Bound) ->
     {free_names(Statement, Bound), Bound}.
 
 bound_names(Pattern) -> [Name || {Name, _} <- pattern_bindings(Pattern)].
+
+%% Report §5.11: the names a pattern's bitstrings read, each size expression
+%% in the scope of its bitstring's earlier segments.
+pattern_free_names(Pattern, Bound) ->
+    walk(fun(#p_bitstring{segments = Segments}, Acc) -> Acc ++ segments_free_names(Segments, Bound);
+            (_, Acc) -> Acc
+         end, Pattern, []).
+
+segments_free_names(Segments, Bound) ->
+    {Free, _} = lists:mapfoldl(fun(#bit_segment{value = Value, specs = Specs}, Earlier) ->
+                                   {free_names([Size || {size, Size} <- Specs], Earlier),
+                                    bound_names(Value) ++ Earlier}
+                               end, Bound, Segments),
+    lists:append(Free).
 
 param_names(Params) -> lists:append([bound_names(Pattern) || #param{pattern = Pattern} <- Params]).

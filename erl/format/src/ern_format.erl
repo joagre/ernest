@@ -22,13 +22,15 @@
 -record(code, {tokens, texts, starts, ends, pairs}).
 
 %% The cursor of the second pass: the next code token, the comments not
-%% yet written, the last line written from the source, the code token
-%% before, and whether a blank line must come before what comes next.
+%% yet written, the last line written from the source, the symbol of what
+%% was written last, a code token or a comment's kind, and whether a blank
+%% line must come before what comes next.
 -record(cursor, {index = 1, trivia = [], last_line = 0, previous = none, force_blank = false}).
 
 %% A comment or a doc block, which the second pass writes between the code
-%% tokens: its kind, line, block or doc, where it begins, the line it ends
-%% on, and its text, a doc block's as its lines.
+%% tokens: its kind, which is line, block or doc; the line and the column
+%% it begins at; the line it ends on; and its text, a doc block's as its
+%% lines.
 -record(trivium, {kind, line, column, end_line, text}).
 
 %% A module in the layout, or the diagnostic that stopped it.
@@ -40,9 +42,15 @@ format(Text) ->
         {error, _} = Error -> Error;
         {ok, Tokens} ->
             {CodeTokens, Trivia} = split(Tokens, SourceLines),
-            case ern_parser:parse(CodeTokens) of
-                {error, _} = Error -> Error;
-                {ok, Declarations} -> {ok, laid_out(Declarations, CodeTokens, Trivia, SourceLines)}
+            %% report §11.6, §2.2: the module is parsed as `ern build` parses
+            %% it, its doc blocks in place, so that one that documents
+            %% nothing is refused; the layout is made without them
+            case {ern_parser:parse([Token || Token <- Tokens, element(1, Token) =/= comment]),
+                  ern_parser:parse(CodeTokens)} of
+                {{error, _} = Error, _} -> Error;
+                {_, {error, _} = Error} -> Error;
+                {_, {ok, Declarations}} ->
+                    {ok, laid_out(Declarations, CodeTokens, Trivia, SourceLines)}
             end
     end.
 
@@ -103,10 +111,25 @@ fence(Lines) ->
             case format(Wrapped) of
                 {ok, Formatted} ->
                     Inner = lists:droplast(tl(lines(Formatted))),
-                    [dedent(Line, 4) || Line <- Inner];
+                    Continued = continued_lines(Formatted),
+                    [case lists:member(Number, Continued) of
+                         true -> Line;
+                         false -> dedent(Line, 4)
+                     end
+                     || {Number, Line} <- lists:zip(lists:seq(2, length(Inner) + 1), Inner)];
                 {error, _} -> Lines
             end
     end.
+
+%% Report §11.6: the lines on which a token goes on, a raw string's or a
+%% block comment's, whose text is the token's own and is kept as written,
+%% so the wrapper's indentation is not taken from them.
+continued_lines(Text) ->
+    {ok, Tokens} = ern_lexer:tokenize(Text, [comments]),
+    lists:append([lists:seq(Line + 1, EndLine)
+                  || Token <- Tokens,
+                     {Line, _, {EndLine, _}, _} <- [element(2, Token)],
+                     EndLine > Line]).
 
 lines(Formatted) ->
     binary:split(string:trim(Formatted, trailing, "\n"), <<"\n">>, [global]).
@@ -270,12 +293,12 @@ last_index(Node, Code) ->
     {_, _, End} = ern_ast:span(Node),
     maps:get(End, Code#code.ends).
 
-%% Whether parentheses stand around a node: its span ends at the closing
-%% one, and the token before its first is the opening one.
+%% Whether parentheses stand around a node: its span runs from the opening
+%% one to the closing one (report §11.5).
 is_parenthesized(Node, Code) ->
-    Before = first_index(Node, Code) - 1,
-    Before >= 1 andalso symbol(element(Before, Code#code.tokens)) =:= '('
-        andalso maps:get(Before, Code#code.pairs) =:= last_index(Node, Code).
+    First = first_index(Node, Code),
+    symbol(element(First, Code#code.tokens)) =:= '('
+        andalso maps:get(First, Code#code.pairs) =:= last_index(Node, Code).
 
 %% How a node's first line may end: a block's brace; a brace, for what
 %% runs over lines inside braces and may stay on the line before them
@@ -695,7 +718,7 @@ resolve(Template, Code, Cursor) when is_list(Template) ->
     lists:mapfoldl(fun(Part, PartCursor) -> resolve(Part, Code, PartCursor) end, Cursor,
                    Template);
 resolve(Template, _Code, Cursor)
-  when Template =:= line; Template =:= softline; Template =:= hardline; Template =:= blank ->
+  when Template =:= line; Template =:= hardline; Template =:= blank ->
     {Template, Cursor};
 resolve(force_blank, _Code, Cursor) ->
     {[], Cursor#cursor{force_blank = true}};
@@ -744,7 +767,7 @@ resolve({hug_else, Template}, Code, Cursor) ->
     {{choice, branch, [space(), Layout], {nest, 4, [line, Layout]}}, Cursor1}.
 
 %% Whether a template begins with a line break.
-leading_break(Template) when Template =:= line; Template =:= softline; Template =:= hardline ->
+leading_break(Template) when Template =:= line; Template =:= hardline ->
     true;
 leading_break([]) -> false;
 leading_break([[] | Rest]) -> leading_break(Rest);
@@ -819,8 +842,8 @@ items(Open, [First | Rest], Close, Hug, Code, Cursor) ->
 %% `>`, so that the two stay a space apart.
 reads_with_previous(Code, #cursor{index = Index}) ->
     Indexes = [Index - 1, Index],
-    Written = iolist_to_binary([element(At, Code#code.texts) || At <- Indexes]),
-    Symbols = [symbol(element(At, Code#code.tokens)) || At <- Indexes],
+    Written = iolist_to_binary([element(Each, Code#code.texts) || Each <- Indexes]),
+    Symbols = [symbol(element(Each, Code#code.tokens)) || Each <- Indexes],
     case ern_lexer:tokenize(Written) of
         {ok, Tokens} -> [symbol(Token) || Token <- Tokens] =/= Symbols ++ [eof];
         {error, _} -> true
@@ -838,8 +861,11 @@ comma_and_item(Item, Code, Cursor) ->
 %% a closing one, and one comes before a declaration after the first.
 consume(Expected, Code, Cursor) ->
     Token = next_token(Cursor, Code),
-    Expected =:= any orelse symbol(Token) =:= Expected
-        orelse error({formatter_expected, Expected, Token}),
+    case {Expected, symbol(Token)} of
+        {any, _} -> ok;
+        {Symbol, Symbol} -> ok;
+        _ -> error({formatter_expected, Expected, Token})
+    end,
     {Lead, Cursor1} = lead_trivia(Cursor, Code),
     {Line, _, {EndLine, _}, _} = position(Token),
     Blank = blank_before(Cursor1, Line, symbol(Token)),

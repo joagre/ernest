@@ -59,7 +59,7 @@
   :type 'string
   :group 'ernest)
 
-;;; Words and operators.  These restate Appendix A, so
+;;; Words and operators.  These restate report sections 2.4 and 2.6, so
 ;;; `emacs_mode_mirrors_the_lexer_test' in test/ern_style_tests.erl
 ;;; checks them against the lexer's.
 
@@ -70,7 +70,7 @@
 
 (defconst ernest-operators
   '("->" "<-" "::" "<>" "|>" "==" "!=" "<=" ">=" "&&" "||" "..")
-  "The operators font lock paints, a subset of Appendix A's symbols.")
+  "The operators font lock paints, a subset of report section 2.6's.")
 
 (defconst ernest--precedence
   '(("*" . 7) ("/" . 7) ("%" . 7) ("+" . 6) ("-" . 6) ("<>" . 6) ("::" . 5)
@@ -121,7 +121,8 @@ An apostrophe is punctuation until it is found to quote a char literal,
 so prose in a comment cannot unbalance a buffer.  A quote marked inside
 a comment or a string is harmless: a scanner already in one ignores it.
 A backslash in a raw string is punctuation, since a raw string has no
-escapes (report section 2.5)."
+escapes (report section 2.5).  A bitstring's `<<' and `>>' are a
+bracket pair (report section 5.11)."
   (funcall
    (syntax-propertize-rules
     ;; a char literal, report section 2.5: 'a', '\n', '\u{1b}'
@@ -131,7 +132,13 @@ escapes (report section 2.5)."
      (0 (when (eq (nth 3 (save-excursion
                             (save-match-data (syntax-ppss (match-beginning 0)))))
                   ?`)
-          (string-to-syntax ".")))))
+          (string-to-syntax "."))))
+    ;; `->', `|>' and `<-' are taken whole first, so that the `>' of `->>'
+    ;; is no bitstring's end, as the lexer reads them (report section 2.6)
+    ("->\\||>\\|<-" (0 (ignore)))
+    ;; a bitstring's `<<' and `>>' are a bracket pair, report section 5.11
+    ("\\(<\\)<" (1 "(>"))
+    ("\\(>\\)>" (1 ")<")))
    start end))
 
 ;;; Colour
@@ -144,16 +151,34 @@ escapes (report section 2.5)."
 (defun ernest-syntactic-face (state)
   "The face for the string or comment STATE describes.
 A comment opening with `///', and no fourth slash, is a doc comment
-where nothing stands before it on its line; `////' opens an ordinary
-one, and a `///' after code is an error (report section 2.2)."
+where no code stands before it on its line, block comments aside;
+`////' opens an ordinary one, and a `///' after code is an error, as
+report section 2.2 says."
   (cond ((nth 3 state) 'font-lock-string-face)
         ((nth 4 state)
          (save-excursion
            (goto-char (nth 8 state))
            (if (and (looking-at-p "///\\(?:[^/]\\|$\\)")
-                    (progn (skip-chars-backward " \t") (bolp)))
+                    (ernest--no-code-before-p))
                'ernest-doc-comment-face
              'font-lock-comment-face)))))
+
+(defun ernest--no-code-before-p ()
+  "Whether no code stands before point on its line.
+White space and block comments are passed over, a block comment that
+began on a line above among them, as the lexer passes them over."
+  (let ((line-start (line-beginning-position))
+        (result 'unknown))
+    (while (eq result 'unknown)
+      (skip-chars-backward " \t")
+      (cond ((<= (point) line-start) (setq result t))
+            ((looking-back "\\*/" line-start)
+             (let ((start (nth 8 (syntax-ppss (1- (point))))))
+               (cond ((null start) (setq result nil))
+                     ((< start line-start) (setq result t))
+                     (t (goto-char start)))))
+            (t (setq result nil))))
+    result))
 
 (defconst ernest-font-lock-keywords
   (let ((upper "[A-Z][A-Za-z0-9_]*")
@@ -181,7 +206,7 @@ one, and a `///' after code is an error (report section 2.2)."
       ("\\_<0x[0-9a-fA-F_]+\\_>" . 'font-lock-constant-face)
       ("\\_<0o[0-7_]+\\_>" . 'font-lock-constant-face)
       ("\\_<0b[01_]+\\_>" . 'font-lock-constant-face)
-      ("\\_<[0-9][0-9_]*\\(?:\\.[0-9][0-9_]*\\)?\\(?:[eE][-+]?[0-9]+\\)?\\_>"
+      ("\\_<[0-9][0-9_]*\\(?:\\.[0-9][0-9_]*\\)?\\(?:[eE][-+]?[0-9][0-9_]*\\)?\\_>"
        . 'font-lock-constant-face)
       ;; the operators a reader looks for
       (,(regexp-opt ernest-operators) . 'font-lock-operator-face)))
@@ -194,6 +219,10 @@ one, and a `///' after code is an error (report section 2.2)."
 ;; line's own first token; and the previous line's last token.  Nothing
 ;; is parsed, so a half-typed buffer is placed as well as a whole one,
 ;; and a line whose place cannot be decided keeps the indentation it has.
+
+(defconst ernest--walk-limit 100
+  "How many lines a walk back over a construct takes at most.
+A broken buffer, whose brackets never close, ends the walk there.")
 
 (defconst ernest--body-opener-re
   (concat "\\(?:->\\|<-\\|[^=<>!+*/%-]="
@@ -247,10 +276,11 @@ bar, so `| x -> {' anchors its body at `x'."
       (skip-chars-backward " \t")
       (point))))
 
-(defun ernest--previous-code-line ()
-  "Move to the previous line holding code, and return non-nil when there is one."
+(defun ernest--code-line (step)
+  "Move STEP lines at a time, -1 or 1, to the nearest line holding code.
+Return non-nil when there is one."
   (let ((found nil))
-    (while (and (not found) (zerop (forward-line -1)))
+    (while (and (not found) (zerop (forward-line step)))
       (unless (or (ernest--line-empty-p)
                   (save-excursion
                     (back-to-indentation)
@@ -259,17 +289,13 @@ bar, so `| x -> {' anchors its body at `x'."
         (setq found t)))
     found))
 
+(defun ernest--previous-code-line ()
+  "Move to the previous line holding code, and return non-nil when there is one."
+  (ernest--code-line -1))
+
 (defun ernest--next-code-line ()
   "Move to the next line holding code, and return non-nil when there is one."
-  (let ((found nil))
-    (while (and (not found) (zerop (forward-line 1)))
-      (unless (or (ernest--line-empty-p)
-                  (save-excursion
-                    (back-to-indentation)
-                    (or (looking-at-p "//")
-                        (nth 8 (syntax-ppss (point))))))
-        (setq found t)))
-    found))
+  (ernest--code-line 1))
 
 (defun ernest--closer-p ()
   "Whether this line opens with a closing bracket."
@@ -295,9 +321,24 @@ the line starts an element rather than carrying the line above on."
            (goto-char end)
            (looking-back ernest--body-opener-re (max (point-min) (- end 5)))))))
 
+(defconst ernest--operator-end-re
+  "\\(?:[-+*%]\\|[^/*]/\\|<>\\|[=!<>]=\\|[^<]<\\|[^>-]>\\|&&\\|||\\|::\\)"
+  "What a line's code ends with when a binary operator ends it.
+A trailing comment after the operator puts its right operand on the
+next line.  The operators are report section 2.6's, but `=' and `->',
+which open a body, and `<<' and `>>', which are brackets.")
+
+(defun ernest--ends-in-operator-p ()
+  "Whether the code on this line ends in a binary operator."
+  (let ((end (ernest--code-line-end)))
+    (and (> end (line-beginning-position))
+         (save-excursion
+           (goto-char end)
+           (looking-back ernest--operator-end-re (max (point-min) (- end 3)))))))
+
 (defconst ernest--declaration-re
   "\\(?:export[ \t]+\\)?\\(?:foreign[ \t]+\\|abstract[ \t]+\\)*\\(?:fn\\|type\\|let\\)\\_>"
-  "How a declaration opens, in column zero (report section 3).")
+  "How a declaration opens, in column zero (report section 4).")
 
 (defun ernest--head-ended-p (start end)
   "Whether the `=' that ends a declaration's head lies between START and END."
@@ -334,11 +375,15 @@ A signature broken over lines is the only place this happens."
 
 (defun ernest--continues-p ()
   "Whether this line carries the line above on rather than starting something.
-A line opening with an operator carries on, and so does a declaration's
-head broken over lines, but for an item of a bracket that aligns its
-items.  A body under `=' or `then' does not: it is a new logical line,
-one step in."
+A line opening with an operator carries on, and so does the operand
+after a line whose code ends in one, before a trailing comment, which
+`ern format' lays out at the operator's step; and so does a
+declaration's head broken over lines, but for an item of a bracket that
+aligns its items.  A body under `=' or `then' does not: it is a new
+logical line, one step in."
   (or (ernest--operator-line-p)
+      (save-excursion
+        (and (ernest--previous-code-line) (ernest--ends-in-operator-p)))
       (and (ernest--in-head-p)
            (save-excursion
              (back-to-indentation)
@@ -366,7 +411,7 @@ which stands as if it began the line."
                   (if carried
                       (or (ernest--operator-line-p) (ernest--in-head-p))
                     (ernest--in-head-p))
-                  (< seen 100)                  ; a broken buffer ends the walk
+                  (< seen ernest--walk-limit)
                   (save-excursion (ernest--previous-code-line)))
         (setq seen (1+ seen))
         (ernest--previous-code-line))
@@ -387,7 +432,7 @@ line OPEN opened on."
     (while (and (not (ernest--opened-here-p open))
                 (or (and (ernest--operator-line-p) (>= (ernest--precedence-here) binds))
                     (ernest--in-head-p))
-                (< seen 100)                    ; a broken buffer ends the walk
+                (< seen ernest--walk-limit)
                 (save-excursion (ernest--previous-code-line)))
       (setq seen (1+ seen))
       (ernest--expression-line open))
@@ -423,7 +468,7 @@ closed on it, and what it closes began on the line the bracket opened on."
   (let ((seen 0) inner)
     (while (and (setq inner (save-excursion (back-to-indentation) (nth 1 (syntax-ppss))))
                 (or (null open) (> inner open))
-                (< seen 100))                   ; a broken buffer ends the walk
+                (< seen ernest--walk-limit))
       (setq seen (1+ seen))
       (goto-char inner)
       (beginning-of-line))))
@@ -467,38 +512,35 @@ many lines its guard takes, as `ern format' lays it out (report section
             (setq found t))))
       found)))
 
-(defun ernest--first-item-p (open pos)
-  "Whether POS lies in the first item of the bracket at OPEN."
+(defun ernest--comma-between-p (open from to)
+  "Whether a comma of the bracket at OPEN stands between FROM and TO."
   (save-excursion
     (let ((found nil))
-      (goto-char (1+ open))
-      (while (and (not found) (re-search-forward "," pos t))
-        (let ((state (save-excursion (syntax-ppss (match-beginning 0)))))
-          (when (and (not (nth 8 state)) (eql (nth 1 state) open))
-            (setq found t))))
-      (not found))))
-
-(defun ernest--more-items-p (open pos)
-  "Whether the bracket at OPEN holds a further item after POS."
-  (save-excursion
-    (let ((found nil)
-          (end (or (ignore-errors (scan-lists open 1 0)) (point-max))))
-      (goto-char pos)
-      (while (and (not found) (re-search-forward "," end t))
+      (goto-char from)
+      (while (and (not found) (re-search-forward "," to t))
         (let ((state (save-excursion (syntax-ppss (match-beginning 0)))))
           (when (and (not (nth 8 state)) (eql (nth 1 state) open))
             (setq found t))))
       found)))
 
+(defun ernest--first-item-p (open pos)
+  "Whether POS lies in the first item of the bracket at OPEN."
+  (not (ernest--comma-between-p open (1+ open) pos)))
+
+(defun ernest--more-items-p (open pos)
+  "Whether the bracket at OPEN holds a further item after POS."
+  (ernest--comma-between-p open pos
+                           (or (ignore-errors (scan-lists open 1 0)) (point-max))))
+
 (defun ernest--first-item-column (open)
   "The column of the first item after the bracket at OPEN, or nil.
-A parenthesis or a square bracket whose first item follows it on its
-line aligns its items under that one.  A brace, and a bracket that ends
-its line, align nothing."
+A parenthesis, a square bracket or a bitstring's `<<' whose first item
+follows it on its line aligns its items under that one.  A brace, and a
+bracket that ends its line, align nothing."
   (save-excursion
     (goto-char open)
-    (when (memq (char-after) '(?\( ?\[))
-      (forward-char 1)
+    (when (or (memq (char-after) '(?\( ?\[)) (looking-at-p "<<"))
+      (forward-char (if (looking-at-p "<<") 2 1))
       (skip-chars-forward " \t")
       (unless (or (eolp) (looking-at-p "/[/*]"))
         (current-column)))))

@@ -432,6 +432,31 @@ local_fn_bindings_test() ->
         "}\n"),
     ?assertEqual(<<"12\n2\n6\n21\n">>, Output).
 
+%% report §5.4, §5.11: a local fn is free in no block of its own, before
+%% its declaration as after, and a pattern's size expression reads the
+%% names around it, which a local fn captures. A regression test: both
+%% crashed the emitter, looking up a name the free names had missed or kept
+free_names_test() ->
+    {ok, Output} = run(
+        "fn width(n : Int, b : Bytes) : Int = {\n"
+        "    fn read(x : Bytes) : Int = match x {\n"
+        "        <<v:size(n), _:bytes>> -> v\n"
+        "      | _ -> 0\n"
+        "    };\n"
+        "    read(b)\n"
+        "}\n"
+        "export fn main() : Unit with Never = {\n"
+        "    fn outer() : Int = {\n"
+        "        fn first() : Int = second();\n"
+        "        fn second() : Int = 1;\n"
+        "        first()\n"
+        "    };\n"
+        "    let x = outer();\n"
+        "    let second = 5;\n"
+        "    Io.println(Int.toString(x + second + width(8, <<7, 1>>)))\n"
+        "}\n"),
+    ?assertEqual(<<"13\n">>, Output).
+
 %% report §4.6: shadowing rebinds; each binding is its own variable
 shadowing_test() ->
     {ok, Output} = run(
@@ -770,7 +795,7 @@ restart_keeps_address_test() ->
 %% cause, which is its one death a monitor is told of; a restart is none,
 %% and a limit of no restarts ends it at the first fault. Each start says
 %% so, so that a limit of one restart is told from a limit of none, which
-%% the test could not do before (findings.md's C38)
+%% the test could not do before
 restart_limit_test() ->
     Program = fun(Restarts) ->
         "type Msg = Crash | Ping(reply : Reply(Unit))\n"
@@ -1341,7 +1366,7 @@ let_order_through_operator_test() ->
 %% member reads that a requirement supplies in its initializer, at a call,
 %% in a fill, and through a derived compare. A regression test: only an
 %% operator's member was counted, and `sorted` read `scale` before it had a
-%% value (findings.md's K1)
+%% value
 let_order_through_supplied_member_test() ->
     {ok, Output} = run(
         "type T = T(Int)\n"
@@ -1677,7 +1702,6 @@ foreign_messages_test() ->
 %% crosses as one given alone does, each argument foreign code calls it with
 %% checked. A regression test: only a parameter that was itself a function
 %% was wrapped, and the bad argument faulted inside the function
-%% (findings.md's C2-7)
 nested_function_checked_test() ->
     Source = fun(Name) ->
                  "foreign fn call(p : #(Int, (Int) -> Int)) : Int with m = \"ern_emitter_tests:"
@@ -3241,8 +3265,8 @@ erl_atom_too_long_test() ->
     ?assertMatch({fault, <<"foreign function erlang:binary_to_atom/1 raised error:system_limit">>,
                   _}, Result).
 
-%% Plan, MVP 2.7, "Atoms, counted": a program's work makes no atoms, since
-%% the host never frees one; the same work done again, processes and calls,
+%% docs/memory.md, *Atoms*: a program's work makes no atoms, since the host
+%% never frees one; the same work done again, processes and calls,
 %% a socket, a host program, a file and an alarm, leaves the count as it
 %% was. Written after the reading that found none; `make load` measures the
 %% same at length (docs/memory.md).
@@ -3385,7 +3409,7 @@ tcp_write_waits_test() ->
 %% innermost, which counts it against its own limit; one whose limit is
 %% spent gives the fault to the one around it, whose restart enters the
 %% inner afresh, and the process dies where none is left. A regression
-%% test, written after the code (findings.md's K-13); it does not cover a
+%% test, written after the code; it does not cover a
 %% restart a supervisor asks for, which §6.9 gives to the outer function
 nested_restarting_test() ->
     {Result, Output} = run(
@@ -3405,8 +3429,8 @@ nested_restarting_test() ->
 %% an empty list of it passes, as does a value of a foreign type over it,
 %% which the check does not look into; a function given to foreign code has
 %% the arguments it is called with checked. A regression test: the first was
-%% an unchecked cast, and the second let any value in (findings.md's S-H);
-%% the foreign type's case was written after the code (findings.md's K-8)
+%% an unchecked cast, and the second let any value in;
+%% the foreign type's case was written after the code
 foreign_casts_and_callbacks_test() ->
     ResultOf = fun(Declaration, Body) ->
                    {Result, _} = run(Declaration ++ "export fn main() : Unit with Never = {\n"
@@ -3427,8 +3451,7 @@ foreign_casts_and_callbacks_test() ->
 %% report §8.4: a type variable a parameter's type names matches any value at
 %% the boundary, in a foreign function's result and in an argument foreign
 %% code calls a function with, until a foreign function takes its caller's
-%% description of the type (MVP 2.99b's item 13). A regression test of what
-%% the report states
+%% description of the type. A regression test of what the report states
 foreign_type_variables_unchecked_test() ->
     ResultOf = fun(Declaration, Body) ->
                    {Result, _} = run(Declaration ++ "export fn main() : Unit with Never = {\n"
@@ -3444,7 +3467,6 @@ foreign_type_variables_unchecked_test() ->
 %% killed when its owner dies; `give` makes another its owner, and a socket
 %% given to a process that has ended is killed at once. A regression test:
 %% a socket outlived a handler that faulted, one leaked connection each
-%% (findings.md's C1-2)
 socket_owner_test() ->
     {ok, Output} = run(
         "type Msg = Opened(Address(Tcp.SocketMsg)) | Ended(Down)\n"
@@ -3500,7 +3522,7 @@ socket_owner_test() ->
 
 %% report §6.9, §6.6: a callee's own answer to a call is not overtaken by
 %% its end, so a worker that answers and returns at once is answered, every
-%% time. A regression test of what the report states (findings.md's N-B5);
+%% time. A regression test of what the report states;
 %% the order of a `Down` and the ended process's own messages is not
 %% promised, and so not tested
 answer_before_end_test() ->
@@ -3516,7 +3538,7 @@ answer_before_end_test() ->
 %% the type it went out at, and foreign at another, so that what is sent
 %% through it is checked against the process's own type. A regression test:
 %% the proxy was undone whatever the type it came back at, and a String
-%% reached a process of Int (findings.md's C1-6). The first target's end is
+%% reached a process of Int. The first target's end is
 %% waited for, so that its line is written before the program ends
 retyped_address_test() ->
     {ok, Output} = run(
@@ -3542,7 +3564,7 @@ retyped_address_test() ->
 %% an `Address(Never)`, through which nothing passes; an address that
 %% crossed comes back as the program's own at its type. A regression test:
 %% each was the program's own at whatever type foreign code named, and a
-%% String reached a process of Int (findings.md's S7)
+%% String reached a process of Int
 never_given_address_test() ->
     Program = fun(Forged) ->
                   "foreign fn me() : Address(String) =\n"
@@ -3613,7 +3635,7 @@ foreign_fault_restarts_test() ->
 %% function checks what foreign code calls it with, as each does given in
 %% an argument of its own type. A value nothing in which crosses is the
 %% value itself. A regression test: `Foreign.from` gave the address and the
-%% function as the runtime held them, unchecked (findings.md's C1-4)
+%% function as the runtime held them, unchecked
 foreign_from_crosses_as_an_argument_test() ->
     Main = "export fn main() : Unit with Int = {\n    let _ = ~s;\n"
            "    receive { _ -> Unit | after 200 -> Unit }\n}\n",
@@ -3643,7 +3665,7 @@ foreign_from_crosses_as_an_argument_test() ->
 %% Appendix E.18, E.21, E.23: a listener, a socket and a running program are
 %% processes of the program's: Process.live lists them, and Process.info
 %% gives the function that opened each as its site. A regression test: the
-%% runtime did not know them (findings.md's C10)
+%% runtime did not know them
 opened_processes_are_live_test() ->
     {ok, Output} = run([
         "fn site(p : Process) : String with m = match Process.info(p) {\n"
@@ -3879,7 +3901,7 @@ system_reference_private_test() ->
                                              ++ Main ++ "\n")
               end,
     %% each refused for the reason the test names, not another; a
-    %% regression test of the test, which took any error (findings.md's C39)
+    %% regression test of the test, which took any error
     ?assertMatch({error, [#diagnostic{message = "unknown name Io.stdout"} | _]},
                  Refused("send(Io.stdout, String.toUtf8(\"hi\"))")),
     ?assertMatch({error, [#diagnostic{message = "unknown name Sys.stdout"} | _]},

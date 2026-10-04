@@ -149,7 +149,7 @@ startup() ->
 %% report §11.2: a startup input's refusal and fault are named by its file
 %% and line, as its diagnostic is, and a file that is not UTF-8 is said and
 %% not run. A regression test: each was printed bare, and the file was read
-%% as empty (findings.md's T15); the release review found `:type`'s
+%% as empty; the release review found `:type`'s
 %% diagnostic named as though typed at the prompt, and `:load`'s refusal
 %% bare, and `:type`'s excerpt now places its argument after the command
 startup_failures_named_test_() ->
@@ -181,7 +181,6 @@ startup_failures_named() ->
 %% source root does not hold, and a module's diagnostic names its file from
 %% the working directory. A regression test: `:reload` said only that no
 %% source had changed, and the file was named by its absolute path
-%% (findings.md's T13, T16)
 reload_sources_named_test_() ->
     {timeout, 60, fun reload_sources_named/0}.
 
@@ -204,7 +203,7 @@ reload_sources_named() ->
 
 %% report §11: `ern` starts the host without the flags and the code path the
 %% environment would give it. A regression test: ERL_AFLAGS could run code
-%% with -eval before any job (findings.md's S-H)
+%% with -eval before any job
 host_flags_cleared_test_() ->
     {timeout, 60, fun host_flags_cleared/0}.
 
@@ -217,7 +216,7 @@ host_flags_cleared() ->
 %% report §11.2: a startup file another user could change is said and not
 %% run: one that anyone may write, and one in a directory that anyone may
 %% write; the person's directory is its owner's alone after the session,
-%% in line mode too. A regression test: each was run (findings.md's C3-28),
+%% in line mode too. A regression test: each was run,
 %% and in line mode the directory kept its mode (S3); a file of another
 %% user's is not covered, since a test cannot make one. Written after the
 %% code
@@ -247,8 +246,7 @@ startup_of_anothers() ->
 %% report §11.2: at a terminal too, a startup file is checked as it is
 %% found, before the history makes the person's directory its owner's
 %% alone. A regression test: the history's mode came first, so a startup
-%% file in a directory anyone could write was run at a terminal (findings.md's
-%% S3)
+%% file in a directory anyone could write was run at a terminal
 startup_checked_as_found_test_() ->
     {timeout, 60, fun startup_checked_as_found/0}.
 
@@ -267,7 +265,6 @@ startup_checked_as_found() ->
 %% report §11.2: a HOME that is no absolute path names no startup file and
 %% no history, since each would be under wherever the shell was started. A
 %% regression test: `HOME=.` ran a startup file the working directory held
-%% (findings.md's S-H)
 relative_home_test_() ->
     {timeout, 60, fun relative_home/0}.
 
@@ -284,7 +281,7 @@ relative_home() ->
 %% report §11.2, §4.2: `:browse Prelude` lists the prelude's types and
 %% values, `:doc Prelude` shows its page, and `:doc Prelude.name` the
 %% prelude's name, one its type's module documents among them. A
-%% regression test: no module Prelude was in scope (findings.md's T19)
+%% regression test: no module Prelude was in scope
 prelude_shown_test_() ->
     {timeout, 60, fun prelude_shown/0}.
 
@@ -300,7 +297,7 @@ prelude_shown() ->
                  <<"List.size(list : List(a!)) : Int">>,
                  %% report §9.4, §9.6: every prelude function, `Io.show`,
                  %% `Io.debug` and `String.compare` among them; a regression
-                 %% test, the listing left them out (findings.md's P10)
+                 %% test, the listing left them out
                  <<"\nIo.show : (a!) -> String needs a.show\n">>,
                  <<"\nIo.debug : (a!) -> a! with m+ needs a.show\n">>,
                  <<"\nString.compare : (String, String) -> Ordering\n">>]],
@@ -310,7 +307,7 @@ prelude_shown() ->
 
 %% report §8.5, §11.2: a file whose top-level binding faults does not start
 %% the shell, and the binding is named with its line. A regression test:
-%% the shell printed a bare `fault:` (findings.md's T14)
+%% the shell printed a bare `fault:`
 faulting_binding_named_test_() ->
     {timeout, 60, fun faulting_binding_named/0}.
 
@@ -338,7 +335,7 @@ faulting_binding_named() ->
 %% loaded module that uses it where its interface changed, and a type error
 %% there reloads nothing. A regression test: `:load Main` sought
 %% `geo/shape.erc`, and a reload left `Main` running against the previous
-%% interface, to fault (findings.md's T12, T3)
+%% interface, to fault
 load_and_reload_dependents_test_() ->
     {timeout, 60, fun load_and_reload_dependents/0}.
 
@@ -373,7 +370,7 @@ load_and_reload_dependents() ->
 %% finish takes the next line, and a blank line or the end of input runs
 %% what there is; a startup file's inputs are taken so too, each named by
 %% the line it begins on. A regression test: a line was an input, so code
-%% in `ern format`'s layout could not be piped in (findings.md's T29)
+%% in `ern format`'s layout could not be piped in
 line_mode_continues_test_() ->
     {timeout, 60, fun line_mode_continues/0}.
 
@@ -452,7 +449,7 @@ startup_of_the_working_directory() ->
 %% control character as its escape, a spawned process's and an input's own
 %% alike. A regression test: the cause reached the terminal as it was, an
 %% escape and a line feed among it, and an input's own did until the
-%% release review (findings.md's C3-1)
+%% release review
 fault_line_escaped_test_() ->
     {timeout, 60, fun fault_line_escaped/0}.
 
@@ -496,7 +493,7 @@ history_is_private() ->
 %% file of the user's own, is neither read nor written, and the session
 %% says so once and goes on; what the link leads to is left as it was. A
 %% regression test: the history was read and appended through a link, so
-%% what was typed went wherever it led (findings.md's S11); a file of
+%% what was typed went wherever it led; a file of
 %% another user's is not covered, since a test cannot make one
 history_kept_in_place_test_() ->
     {timeout, 60, fun history_kept_in_place/0}.
@@ -714,7 +711,7 @@ history_trimmed_beside() ->
 
 %% report §11.2: a history file that cannot be read is reported once, and
 %% the session goes on without one. A regression test: a second report came
-%% at the first input, as the session tried to write it (findings.md's T18)
+%% at the first input, as the session tried to write it
 history_unreadable_test_() ->
     {timeout, 60, fun history_unreadable/0}.
 
@@ -799,7 +796,7 @@ multiline() ->
 
 %% report §11.2: a line `C-c` abandons runs nothing and is kept in the
 %% history, where `C-p` recalls it. A regression test of what the shell
-%% did and the report came to say (findings.md's C3-23)
+%% did and the report came to say
 abandoned_line_kept_test_() ->
     {timeout, 90, fun abandoned_line_kept/0}.
 
@@ -905,7 +902,7 @@ completion() ->
 
 %% report §11.2, §3.5: a field that two constructors give two types is no
 %% selector, and `.` completes to no field of it; the session goes on. A
-%% regression test: the completion crashed the shell (findings C15)
+%% regression test: the completion crashed the shell
 field_of_two_types_test_() ->
     {timeout, 90, fun field_of_two_types/0}.
 
@@ -929,8 +926,8 @@ field_of_two_types() ->
 
 %% report §11.2, §3.5: after a name the session binds and a `.`, `Tab`
 %% completes the fields its type selects, along a chain, and lists them
-%% with their types. A regression test for item 54; it does not cover a
-%% module's exported value
+%% with their types. A regression test: a field was not completed; it does
+%% not cover a module's exported value
 field_completion_test_() ->
     {timeout, 90, fun field_completion/0}.
 
@@ -1211,8 +1208,8 @@ tab_mid_row() ->
 
 %% report §11.2: with nothing typed, the candidates are the names the
 %% session declares, its constructors among them. A regression test, found
-%% by a read of the front end in MVP 2.99b's item 7: the session's
-%% constructors were read under a key it does not have, and left out
+%% by a read of the front end: the session's constructors were read under a
+%% key it does not have, and left out
 session_constructors_listed_test_() ->
     {timeout, 60, fun session_constructors_listed/0}.
 
@@ -1562,10 +1559,10 @@ declarations_kept_while_reached() ->
 
 %% report §11.2: a module the session reaches by a constructor alone is
 %% kept, the constructors of a type declared again staying in scope for the
-%% earlier type. A regression test, found by a read of the front end in
-%% MVP 2.99b's item 7: the collection read the session's constructors under
-%% a key it does not have, let the earlier input's module go, and the
-%% checker failed on the constructor's next use
+%% earlier type. A regression test, found by a read of the front end: the
+%% collection read the session's constructors under a key it does not have,
+%% let the earlier input's module go, and the checker failed on the
+%% constructor's next use
 shadowed_constructor_kept_test_() ->
     {timeout, 60, fun shadowed_constructor_kept/0}.
 
@@ -1826,7 +1823,7 @@ effect_variable() ->
 
 %% report §11.2, §11.5: an input whose binding's type it does not settle is
 %% refused at the whole binding, and an address with the mailbox its spawned
-%% function may declare. A regression test of findings.md's N10: column 1
+%% function may declare. A regression test: column 1
 %% alone was underlined, and the help showed a list
 unsettled_binding_test_() ->
     {timeout, 60, fun unsettled_binding/0}.
@@ -2145,9 +2142,8 @@ session_names() ->
 %% report §11.2: text that is typed and not run makes no name the host
 %% keeps: a `Tab`, a `Shift-Tab`, and a command given a name of nothing make
 %% none, and answer as for any name of nothing. A regression test: each
-%% made a name of every word, which the host keeps for ever (findings.md's
-%% C3-30). Written after the code; an input that is run makes its names, as
-%% it must
+%% made a name of every word, which the host keeps for ever. Written after
+%% the code; an input that is run makes its names, as it must
 typing_makes_no_names_test_() ->
     {timeout, 60, fun typing_makes_no_names/0}.
 
@@ -2180,8 +2176,8 @@ typing_makes_no_names() ->
 
 %% report §11.2: `:output` takes a terminal or a file, and a path that
 %% names neither is refused, the session going on. A regression test: a
-%% pipe with no reader held the session where it was opened (findings.md's
-%% C3-31); a command given a name of no module answers as before
+%% pipe with no reader held the session where it was opened; a command
+%% given a name of no module answers as before
 output_to_a_pipe_test_() ->
     {timeout, 60, fun output_to_a_pipe/0}.
 
@@ -2207,8 +2203,8 @@ output_to_a_pipe() ->
 %% the session; `:output` alone says where it goes, and where a write there
 %% fails, here since its directory was removed, the session says why and
 %% what programs write comes back to the live region. A regression test of
-%% `:output` written in Ernest over `Fs.append` (MVP 2.99c's item 5); it
-%% covers no terminal, since a test has none
+%% `:output` written in Ernest over `Fs.append`; it covers no terminal,
+%% since a test has none
 output_to_a_file_test_() ->
     {timeout, 60, fun output_to_a_file/0}.
 
@@ -2509,7 +2505,7 @@ load_loaded() ->
 %% dependency order. A regression test: it took them in the order of their
 %% names, so a module read the value its dependency's previous version gave.
 %% B is compiled on the load path, since a module `:load` loaded cannot yet
-%% be another's dependency (findings T12, MVP 2.98)
+%% be another's dependency (MVP 2.98)
 reload_in_dependency_order_test_() ->
     {timeout, 60, fun reload_in_dependency_order/0}.
 
@@ -2600,7 +2596,7 @@ load_path_dependency() ->
 %% report §11.2: `:load` refuses a compiled module as `ern run` does, one
 %% compiled against another interface of a module it uses than the session
 %% holds, and loads nothing. A regression test: `:load` took such a module
-%% and it faulted where the two differed (findings.md's C3-9)
+%% and it faulted where the two differed
 load_refuses_stale_compiled_test_() ->
     {timeout, 60, fun load_refuses_stale_compiled/0}.
 

@@ -1,0 +1,22 @@
+//
+// Layouts the Emacs mode is held to, beside the repository's sources: `ern
+// format` lays this file out, and the mode's corpus tests reindent it
+// unchanged (docs/emacs_mode.md). A bitstring broken over lines has its
+// further items under the first after `<<`, and the operand after an
+// operator that a trailing comment ends its line with stands at the
+// operator's step (report §11.6).
+//
+
+fn header(version : Int, flags : Int, length : Int, checksum : Int) : Bytes =
+    <<version:size(8),
+      flags:size(8),
+      length:size(16),
+      checksum:size(32),
+      0:size(32),
+      0:size(32),
+      0:size(64)>>
+
+fn reversed(list : List(Int)) : List(Int) =
+    list
+        |> // the last first
+        List.reverse

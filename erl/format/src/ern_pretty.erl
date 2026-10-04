@@ -5,8 +5,8 @@
 %% the first line of the first, and a trailing comment that ends its line.
 %%
 %% A layout is text, a list of layouts one after the other, or one of these:
-%%   line, softline   a space or nothing on one line, a line break when
-%%                    the group around it breaks
+%%   line             a space on one line, a line break when the group
+%%                    around it breaks
 %%   hardline         a line break always; a group holding one breaks
 %%   blank            a blank line where a line break falls here
 %%   mark             nothing; a body choice's trial reached it
@@ -28,7 +28,7 @@
 
 -type layout() :: unicode:unicode_binary()
                 | [layout()]
-                | line | softline | hardline | blank | mark
+                | line | hardline | blank | mark
                 | {nest, integer(), layout()}
                 | {align, layout()}
                 | {group, layout()}
@@ -66,9 +66,7 @@ print([{Indent, Mode, Layout} | Rest], Printer) ->
         Layouts when is_list(Layouts) ->
             print([{Indent, Mode, Part} || Part <- Layouts] ++ Rest, Printer);
         line when Mode =:= flat -> print(Rest, text(<<" ">>, Indent, Printer));
-        softline when Mode =:= flat -> print(Rest, Printer);
         line -> print(Rest, newline(Indent, Printer));
-        softline -> print(Rest, newline(Indent, Printer));
         hardline -> print(Rest, newline(Indent, Printer));
         blank -> print(Rest, blank(Printer));
         mark -> print(Rest, Printer#printer{marked = true});
@@ -204,9 +202,8 @@ fits(Room, [{Indent, Mode, Layout} | Rest], Ended) ->
                 true -> false;
                 false -> fits(Room - 1, Rest, Ended)
             end;
-        softline when Mode =:= flat -> fits(Room, Rest, Ended);
         hardline when Mode =:= flat -> false;
-        _ when Layout =:= line; Layout =:= softline; Layout =:= hardline -> true;
+        _ when Layout =:= line; Layout =:= hardline -> true;
         _ when Layout =:= blank; Layout =:= mark -> fits(Room, Rest, Ended);
         {nest, More, Inner} -> fits(Room, [{Indent + More, Mode, Inner} | Rest], Ended);
         {align, Inner} -> fits(Room, [{Indent, Mode, Inner} | Rest], Ended);

@@ -197,7 +197,6 @@ port_out_of_range_test() ->
 %% `listen` and `connect` alike, and the program is still found deadlocked
 %% after. A regression test: the host raised an exit the worker did not
 %% catch, the caller waited for good, and no deadlock was found
-%% (findings.md's C1-1)
 host_with_nul_test() ->
     Self = self(),
     Result = ern_rt:run_main(
@@ -214,7 +213,6 @@ host_with_nul_test() ->
 %% Appendix E.18: `connect` reaches the address its host names, IPv6's
 %% too. A regression test: the host's name went to the host without its
 %% family, and `::1` was answered `Other("non-existing domain")`
-%% (findings.md's C1-24)
 connect_ipv6_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -263,7 +261,7 @@ reach(Host, Port) ->
 %% report Appendix E.18: a write answered holds no timer: one the socket
 %% took before its milliseconds pass is sent nothing when they pass. A
 %% regression test: the timer stayed armed and answered `Left(Timeout)` to
-%% a reply already answered (findings.md's C-1)
+%% a reply already answered
 answered_write_holds_no_timer_test() ->
     {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
     {ok, Port} = inet:port(Listen),
@@ -362,7 +360,7 @@ listener_ends_with_its_owner_test() ->
 %% nothing lets go of its host's socket once 5 seconds pass with nothing
 %% taken, and a write it holds at its close answers `Left(Closed)`. A
 %% regression test: the host's socket stayed open, with its descriptor and
-%% its bytes, for as long as the far end took nothing (findings.md's S1),
+%% its bytes, for as long as the far end took nothing,
 %% and a write held at the close had whatever answer the writer gave before
 %% the exit took it (C108). The 3 minutes' bound is not reached here
 lingering_socket_closes_test_() ->

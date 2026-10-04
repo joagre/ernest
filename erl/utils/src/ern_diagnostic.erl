@@ -95,11 +95,16 @@ without_return(Line) ->
     end.
 
 %% Report §11.5: a source's characters, each byte that begins no UTF-8
-%% character as U+FFFD, so that the lexer's refusal of one shows its line.
-chars(<<Char/utf8, Rest/binary>>) -> [Char | chars(Rest)];
-chars(<<_, Rest/binary>>) -> [16#FFFD | chars(Rest)];
-chars(<<>>) -> [];
+%% character as U+FFFD, so that the lexer's refusal of one shows its line;
+%% a leading byte-order mark is stripped, as the lexer strips it (§2.1), so
+%% that a column of the first line is the lexer's.
+chars(<<16#FEFF/utf8, Rest/binary>>) -> decoded(Rest);
+chars(<<_/binary>> = Source) -> decoded(Source);
 chars(Source) -> chars(unicode:characters_to_binary(Source)).
+
+decoded(<<Char/utf8, Rest/binary>>) -> [Char | decoded(Rest)];
+decoded(<<_, Rest/binary>>) -> [16#FFFD | decoded(Rest)];
+decoded(<<>>) -> [].
 
 %% Report §11.5: an excerpt shows a tab as a space and a control character
 %% as its picture, one column each, so that the caret stays under it and

@@ -41,7 +41,7 @@ compiles(Name) ->
 
 %% report §8.2, E.16: without a terminal snake has no keys, so it says so
 %% and ends with status 1 before it draws. A regression test: it drew a
-%% frame and ended with status 0 (findings.md's pages line)
+%% frame and ended with status 0
 snake_without_terminal_test_() ->
     {timeout, 60,
      fun() ->
@@ -75,8 +75,8 @@ file_sync_test_() ->
 file_sync() ->
     0 = build(?BUILD ++ "../examples/file_sync.ern"),
     %% its own tests: a peer's path is stored only where it names a file in
-    %% the directory, a regression test for findings S7, where a peer's
-    %% `../x` was written outside it
+    %% the directory, a regression test: a peer's `../x` was written outside
+    %% it
     ?assertEqual({0, <<"a peer's path is stored only where it names a file here: passed\n">>},
                  sh("../bin/ern test build/file_sync.erc")),
     Dir = "build/file_sync",
@@ -108,7 +108,7 @@ file_sync() ->
     ?assert(filelib:is_regular(Dir ++ "/b/notes.txt.conflict")),
     %% a file stored takes its source's time, so that the next pass finds it
     %% as it was recorded and does not send it back; a regression test, the
-    %% two sides rewrote each other every pass (findings.md's E7)
+    %% two sides rewrote each other every pass
     Mtime = fun(Relative) ->
                 {ok, #file_info{mtime = Seconds}} = file:read_file_info(Dir ++ Relative,
                                                                         [{time, posix}]),
@@ -711,7 +711,7 @@ os() ->
 %% reach it as given; and a started program has no signal ignored. A
 %% regression test: BINDIR, EMU, PROGNAME and ROOTDIR were the host's, the
 %% host's directories led PATH, ERL_LIBS was gone, and SIGFPE was ignored
-%% (findings.md's C1-9, C1-10). Written after the code; the crash dump's
+%%. Written after the code; the crash dump's
 %% variable, which the launcher sets for the host alone (report §10), joined
 %% it with the full review's U1
 given_environment_test_() ->
@@ -1099,7 +1099,7 @@ format_input() ->
 %% report §11.6, §11.5: what the toolchain writes is UTF-8 whatever the
 %% host's locale. A regression test: under the C locale a laid-out module
 %% and a diagnostic's source line came out as Latin-1 and escapes
-%% (findings.md's C14); the ports of MVP 2.95 had fixed it unseen
+%%; the ports of MVP 2.95 had fixed it unseen
 locale_test_() ->
     {timeout, 60, fun locale/0}.
 

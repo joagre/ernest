@@ -21,7 +21,7 @@
 parse(Tokens) ->
     try
         {ModuleDoc, Tokens1} = module_doc(Tokens),
-        Declarations = program(prune_docs(Tokens1), []),
+        Declarations = program(placed_docs(Tokens1), []),
         {ok, case ModuleDoc of undefined -> Declarations; _ -> [ModuleDoc | Declarations] end}
     catch
         throw:{parse_error, #diagnostic{} = Diagnostic} ->
@@ -89,8 +89,7 @@ parse_one(Text, Options, Parse) ->
                 case Parse(Tokens) of
                     {Node, [{eof, _}]} -> {ok, Node};
                     {_, [Token | _]} ->
-                        fail(position(Token),
-                             "expected end of input instead of " ++ describe(Token))
+                        expected_instead("end of input", Token)
                 end
             catch
                 throw:{parse_error, #diagnostic{} = Diagnostic} ->
@@ -126,14 +125,16 @@ prune_docs([{doc, Position, Text} = DocToken, Next | Rest], InType, Depth) ->
     Adjacent = line(Next) =:= doc_end(Position, Text) + 1,
     Attached = Adjacent andalso
                ((Depth =:= 0 andalso is_declaration_start(Next, Rest))
-                orelse (InType andalso lists:member(symbol(Next), [typename, ident, '|']))),
-    case Attached of
-        true ->
+                orelse (InType andalso is_documented_part(Next, Rest, Depth))),
+    case {Attached, Next} of
+        {true, _} ->
             [DocToken | prune_docs([Next | Rest], InType, Depth)];
-        false ->
-            fail(Position, "a doc block documents nothing here",
-                 "a doc block stands directly above a top-level declaration, a constructor"
-                 " or a named field; a comment is written `//`")
+        {false, {eof, _}} ->
+            %% report §11.2: the declaration it documents may come on the
+            %% next line, so the shell takes one
+            throw({parse_error, (doc_documents_nothing(Position))#diagnostic{incomplete = true}});
+        {false, _} ->
+            throw({parse_error, doc_documents_nothing(Position)})
     end;
 prune_docs([Token | Rest], InType, Depth) ->
     {InType1, Depth1} =
@@ -148,6 +149,44 @@ prune_docs([Token | Rest], InType, Depth) ->
     [Token | prune_docs(Rest, InType1, Depth1)];
 prune_docs([], _, _) ->
     [].
+
+doc_documents_nothing(Position) ->
+    diagnostic(Position, "a doc block documents nothing here",
+               "a doc block stands directly above a top-level declaration, a constructor or a"
+               " named field; a comment is written `//`").
+
+%% Report §2.2: inside a type declaration, a doc block documents a
+%% constructor or its `|`, outside every bracket, or a named field's name,
+%% and no type a field holds.
+is_documented_part({typename, _, _}, _, 0) -> true;
+is_documented_part({'|', _}, _, 0) -> true;
+is_documented_part({ident, _, _}, [{':', _} | _], _) -> true;
+is_documented_part(_, _, _) -> false.
+
+%% Report §11.5: a doc block placed where it documents nothing is refused,
+%% unless the module holds an error no later than the token the doc block
+%% stands above: a misplaced bracket makes such an error, and makes a
+%% well-placed doc block look misplaced, so that error is reported.
+placed_docs(Tokens) ->
+    try
+        prune_docs(Tokens)
+    catch
+        throw:{parse_error, #diagnostic{span = DocSpan} = DocDiagnostic} ->
+            [Above | _] = [ern_diagnostic:span(position(Next))
+                           || {{doc, Position, _}, Next} <- lists:zip(lists:droplast(Tokens),
+                                                                      tl(Tokens)),
+                              ern_diagnostic:span(Position) =:= DocSpan],
+            throw({parse_error, earlier_error(Tokens, Above, DocDiagnostic)})
+    end.
+
+earlier_error(Tokens, {AboveLine, AboveColumn, _}, DocDiagnostic) ->
+    try program([Token || Token <- Tokens, symbol(Token) =/= doc], []) of
+        _ -> DocDiagnostic
+    catch
+        throw:{parse_error, #diagnostic{span = {Line, Column, _}} = Diagnostic}
+          when {Line, Column} =< {AboveLine, AboveColumn} -> Diagnostic;
+        throw:{parse_error, _} -> DocDiagnostic
+    end.
 
 %% `fn` before a bracket opens a lambda, not a declaration.
 is_declaration_start({fn, _}, [{'(', _} | _]) -> false;
@@ -175,6 +214,8 @@ declaration(Tokens) ->
         [{fn, _} | _] -> fn_declaration(Tokens2, Doc, Export);
         [{'let', _} | _] -> let_declaration(Tokens2, Doc, Export);
         [{foreign, _} | _] -> foreign_declaration(Tokens2, Doc, Export);
+        [{'<-', _} = Token | _] ->
+            expected_instead("a declaration", Token);
         [Token | _] ->
             %% Appendix A's Declaration: `export` may begin one, once
             Starts = case Export of
@@ -190,13 +231,13 @@ doc(Tokens) -> {undefined, Tokens}.
 
 type_declaration([{type, Position} | Rest], Doc, Export) ->
     {Name, Rest1} = expect_typename(Rest),
-    {Vars, Rest2} = optional_typevars(Rest1),
+    {Parameters, Rest2} = optional_typevars(Rest1),
     Rest3 = expect(Rest2, '='),
     {Constructors, Rest4} = constructors(Rest3),
     {Derives, Rest5} = optional_derives(Rest4),
     spanned({#type_declaration{span = Position, doc = Doc, export = Export, name = Name,
-                               params = [Var || {Var, _} <- Vars],
-                               param_spans = [VarSpan || {_, VarSpan} <- Vars],
+                               params = [Parameter || {Parameter, _} <- Parameters],
+                               param_spans = [Span || {_, Span} <- Parameters],
                                constructors = Constructors, derives = Derives},
              Rest5}).
 
@@ -214,14 +255,14 @@ optional_derives(Tokens) ->
 %% Each type variable with its span; that the parameters are distinct is
 %% §4.3's rule, which the checker holds.
 optional_typevars([{'(', _} | Rest]) ->
-    {Vars, Rest1} = separated(Rest, ',', fun typevar/1),
-    {Vars, expect(Rest1, ')')};
+    {Parameters, Rest1} = separated(Rest, ',', fun typevar/1),
+    {Parameters, expect(Rest1, ')')};
 optional_typevars(Tokens) ->
     {[], Tokens}.
 
 typevar(Tokens) ->
-    {Var, Position, Rest} = expect_ident_position(Tokens),
-    {{Var, ern_diagnostic:span(Position)}, Rest}.
+    {Variable, Position, Rest} = expect_ident_position(Tokens),
+    {{Variable, ern_diagnostic:span(Position)}, Rest}.
 
 %% Report §2.2: a doc block before a constructor documents it, on the line
 %% above the constructor or above the `|` that leads it.
@@ -327,10 +368,9 @@ member([{ident, Position, Variable}, {'.', _}, {ident, NamePosition, Name} | Res
     %% report §11.5: the error covers the member as written, `a.zero`
     {Line, Column, _, _} = Position,
     {_, _, End, _} = NamePosition,
-    lists:member(Name, [compare, negate, show])
-        orelse fail({Line, Column, End}, atom_to_list(Name) ++ " is not a member: a requirement"
-                                         " names compare, negate, an operator or show"
-                                         " (§4.8, E.1)"),
+    NoMember = atom_to_list(Name) ++ " is not a member: a requirement names compare, negate, an"
+               " operator or show (§4.8, E.1)",
+    lists:member(Name, [compare, negate, show]) orelse fail({Line, Column, End}, NoMember),
     spanned({#member{span = Position, member_of = Variable, name = Name}, Rest});
 member([{ident, _, _}, {'.', _}, Token | _]) ->
     fail(position(Token), "expected compare, negate, an operator or show after `.` instead of "
@@ -377,12 +417,11 @@ named_members(Leaf, _) ->
 declaration_name([{ident, _, Name} | Rest]) ->
     {undefined, Name, Rest};
 declaration_name([{typename, _, MemberOf}, {'.', _}, {ident, Position, Name} | Rest]) ->
-    lists:member(Name, [compare, negate])
-        orelse fail(Position, "`" ++ atom_to_list(Name) ++ "` cannot be a member of "
-                              ++ atom_to_list(MemberOf) ++ ": a member is an operator, `compare` or"
-                              " `negate`",
-                    "a type's other operations are functions of its module:"
-                    " write `fn " ++ atom_to_list(Name) ++ "`"),
+    NoMember = "`" ++ atom_to_list(Name) ++ "` cannot be a member of " ++ atom_to_list(MemberOf)
+               ++ ": a member is an operator, `compare` or `negate`",
+    Help = "a type's other operations are functions of its module: write `fn "
+           ++ atom_to_list(Name) ++ "`",
+    lists:member(Name, [compare, negate]) orelse fail(Position, NoMember, Help),
     {MemberOf, Name, Rest};
 declaration_name([{typename, _, MemberOf}, {'.', _}, {Operator, _} | Rest])
   when Operator =:= '+'; Operator =:= '-'; Operator =:= '*';
@@ -487,17 +526,17 @@ let_declaration([{'let', Position} | Rest], Doc, Export) ->
 
 foreign_declaration([{foreign, Position}, {type, _} | Rest], Doc, Export) ->
     {Name, Rest1} = expect_typename(Rest),
-    {Vars, Rest2} = case Rest1 of
-                        [{'(', _} | AfterParen] ->
-                            {ForeignVars, AfterVars} =
-                                separated(AfterParen, ',', fun foreign_var/1),
-                            {ForeignVars, expect(AfterVars, ')')};
-                        _ -> {[], Rest1}
-                    end,
+    {Parameters, Rest2} = case Rest1 of
+                              [{'(', _} | AfterParen] ->
+                                  {Written, AfterParameters} =
+                                      separated(AfterParen, ',', fun foreign_type_parameter/1),
+                                  {Written, expect(AfterParameters, ')')};
+                              _ -> {[], Rest1}
+                          end,
     spanned({#foreign_type_declaration{span = Position, doc = Doc, export = Export, name = Name,
-                                       params = [Var || {Var, _, _} <- Vars],
-                                       param_spans = [VarSpan || {_, VarSpan, _} <- Vars],
-                                       equality = [Equality || {_, _, Equality} <- Vars]},
+                                       params = [Parameter || {Parameter, _, _} <- Parameters],
+                                       param_spans = [Span || {_, Span, _} <- Parameters],
+                                       equality = [Equality || {_, _, Equality} <- Parameters]},
              Rest2});
 foreign_declaration([{foreign, Position}, {fn, _} | Rest], Doc, Export) ->
     {MemberOf, Name, Rest1} = declaration_name(Rest),
@@ -531,7 +570,7 @@ foreign_declaration([{foreign, _}, Token | _], _Doc, _Export) ->
     fail(position(Token), "expected `type` or `fn` after `foreign` instead of " ++ describe(Token)).
 
 %% Report §4.7, Appendix A: ForeignVar = typevar [ "=" ].
-foreign_var(Tokens) ->
+foreign_type_parameter(Tokens) ->
     {Name, Position, Rest} = expect_ident_position(Tokens),
     Span = ern_diagnostic:span(Position),
     case Rest of
@@ -875,9 +914,13 @@ primary([{match, Position} | Rest]) ->
     match_expr(Rest, Position);
 primary([{'receive', Position} | Rest]) ->
     receive_expr(Rest, Position);
-primary([{'(', _} | Rest]) ->
+primary([{'(', {Line, Column, _, _}} | Rest]) ->
+    %% report §11.5: a parenthesized expression spans its parentheses, so a
+    %% diagnostic underlines it whole; parentheses make no node
     {Expr, Rest1} = expr(Rest),
-    spanned({Expr, expect(Rest1, ')')});
+    Rest2 = expect(Rest1, ')'),
+    {_, _, _, End} = position(hd(Rest2)),
+    {setelement(2, Expr, {Line, Column, End}), Rest2};
 primary([{'_', Position} | _]) ->
     fail(Position, "`_` is a pattern, not an expression");
 primary([{Keyword, Position} | _]) when Keyword =:= 'if'; Keyword =:= fn ->
@@ -1018,7 +1061,7 @@ statements(Tokens, Acc) ->
                     {lists:reverse([Statement | Acc]), Rest1}
             end;
         [Token | _] ->
-            fail(position(Token), "expected `;` or `}` instead of " ++ describe(Token))
+            expected_instead("`;` or `}`", Token)
     end.
 
 statement([{'let', Position} | Rest]) ->
@@ -1233,15 +1276,19 @@ separated(Tokens, Separator, Parse) ->
 
 expect([{Symbol, _} | Rest], Symbol) ->
     Rest;
-expect([{'<-', _} = Token | _], Symbol) ->
-    %% report §2.6, §11.5: max-munch makes `a<-1` a binding arrow, which a
-    %% comparison with a negative number was meant as
-    fail(position(Token),
-         "expected `" ++ atom_to_list(Symbol) ++ "` instead of " ++ describe(Token),
-         "`<-` is one token; write `a < -1` to compare with a negative number");
 expect([Token | _], Symbol) ->
-    fail(position(Token),
-         "expected `" ++ atom_to_list(Symbol) ++ "` instead of " ++ describe(Token)).
+    expected_instead("`" ++ atom_to_list(Symbol) ++ "`", Token).
+
+%% What the parser expected instead of Token. Report §2.6, §11.5:
+%% max-munch makes `a<-1` a binding arrow, which a comparison with a
+%% negative number was meant as, so a `<-` there has the help that says so.
+expected_instead(Expected, Token) ->
+    Message = "expected " ++ Expected ++ " instead of " ++ describe(Token),
+    case symbol(Token) of
+        '<-' -> fail(position(Token), Message,
+                     "`<-` is one token; write `a < -1` to compare with a negative number");
+        _ -> fail(position(Token), Message)
+    end.
 
 expect_ident_position([{ident, Position, Name} | Rest]) ->
     {Name, Position, Rest};
@@ -1303,7 +1350,7 @@ describe({float, _, Value}) -> "float " ++ float_to_list(Value, [short]);
 describe({char, _, _}) -> "char literal";
 describe({string, _, _}) -> "string literal";
 describe({bool, _, Value}) -> "the reserved word `" ++ atom_to_list(Value) ++ "`";
-describe({doc, _, _}) -> "doc comment";
+describe({doc, _, _}) -> "doc block";
 describe({eof, _}) -> "end of input";
 describe({Symbol, _}) ->
     %% report §2.4: a word the lexer gives as a token of its own is a

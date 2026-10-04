@@ -1,3 +1,6 @@
+%% The parser: the tree each form of Appendix A builds, the spans its nodes
+%% carry (report §11.5), and the errors it refuses a text with, with their
+%% help lines and whether the shell takes another line (§11.2).
 -module(ern_parser_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -157,7 +160,7 @@ pipe_rewrite_test() ->
                          args = [#e_var{name = x}, #e_var{name = b}]},
                  expression("x |> f(a)(b)")),
     %% parentheses change nothing: a parenthesized call is a call the pipe
-    %% fills, and a parenthesized callee is the callee (findings.md's P1-7)
+    %% fills, and a parenthesized callee is the callee
     ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_var{name = a}]},
                  expression("x |> (f(a))")),
     ?assertMatch(#e_call{callee = #e_var{name = f}, args = [#e_var{name = x}, #e_var{name = a}]},
@@ -223,7 +226,6 @@ constructors_test() ->
 tuples_lists_test() ->
     ?assertMatch(#e_tuple{elements = [#e_literal{}, #e_literal{}]}, expression("#(1, 2)")),
     %% a tuple has two components or more, as a value, a type and a pattern
-    %% (findings.md's P1-38)
     ?assertEqual("a tuple has two components or more", expression_refusal("#(1)")),
     ?assertEqual("a tuple has two components or more", refusal("fn f(x : #(Int)) : Int = 1")),
     ?assertEqual("a tuple has two components or more",
@@ -277,7 +279,7 @@ result_annotation_test() ->
     %% Appendix A: a second `with` after a function type's own is refused,
     %% the function's effect written around the type in parentheses. A
     %% regression test: `(A) -> B with M with N` was a second spelling of
-    %% it (findings.md's K13)
+    %% it
     ?assertEqual("a second `with` after a function type's own",
                  refusal("fn f() : (Int) -> Int with M with N = g")),
     ?assertEqual("a second `with` after a function type's own",
@@ -291,7 +293,7 @@ result_annotation_test() ->
 
 %% report §2.4: a reserved word where a name stands is called one, `true`
 %% and `false` among them. A regression test: the message named the word
-%% alone, and a reader took it for a name (findings.md's N6)
+%% alone, and a reader took it for a name
 reserved_word_named_test() ->
     ?assertEqual("expected a name instead of the reserved word `match`",
                  refusal("let match = 1")),
@@ -395,7 +397,7 @@ bitstring_expr_test() ->
 
 %% report §3.5: a constructor has no fields, one positional field, or named
 %% fields; a second positional field is refused with the two ways to write
-%% it. A regression test of findings.md's D30: the parser said only that it
+%% it. A regression test: the parser said only that it
 %% expected `)`
 second_positional_field_test() ->
     ?assertMatch({error, #diagnostic{span = {1, 21, _},
@@ -409,7 +411,7 @@ second_positional_field_test() ->
 %% was a second way to scale a size
 no_unit_specifier_test() ->
     ?assertEqual("there is no `unit` specifier", expression_refusal("<<x:size(n)-unit(8)>>")),
-    %% the help writes the size given: a regression test of findings.md's X15
+    %% the help writes the size given: a regression test
     ?assertMatch({error, #diagnostic{span = {1, 13, _},
                                      help = "a size counts bits, and octets for `bytes`: write"
                                             " `size(2 * 8)`"}},
@@ -640,8 +642,7 @@ doc_comments_test() ->
     %% a blank line breaks the attachment; first in the file, the block is then
     %% the module's documentation, and anywhere else it documents nothing and
     %% is an error: after a blank line, inside an expression, above a `fn` in
-    %% a block, or second before the first declaration (findings.md's P1-19,
-    %% K-11, K-17)
+    %% a block, or second before the first declaration
     ?assertMatch([#module_doc{text = <<"first">>}, #fn_declaration{doc = undefined}],
                  declarations("/// first\n\nfn inc(n) = n + 1")),
     Nothing = "a doc block documents nothing here",
@@ -669,6 +670,25 @@ doc_after_tuple_type_test() ->
                                   "fn g(x : Int) : Int =\n    /// not a doc\n    x\n")),
     ?assertEqual(Nothing, refusal("fn f() = #(1, 2)\ntype T = A\n\n"
                                   "fn g(x : Int) : Int =\n    /// not a doc\n    x\n")).
+
+%% report §2.2, §11.2, §11.5: a doc block inside a type documents a
+%% constructor or a named field and no type a field holds; one with nothing
+%% after it lets the shell take another line; and an error no later than
+%% the token a doc block stands above, as an unclosed or extra bracket
+%% makes, is reported in its place. Regression tests
+doc_placement_test() ->
+    Nothing = "a doc block documents nothing here",
+    ?assertEqual(Nothing, refusal("type T = A(\n    /// doc\n    Int)")),
+    ?assertEqual(Nothing, refusal("type T = A(x :\n    /// doc\n    Int)")),
+    ?assertMatch([#type_declaration{constructors = [#constructor{doc = <<"one">>}]}],
+                 declarations("type T =\n    /// one\n    A(x : Int)")),
+    ?assert(is_incomplete_program("/// The module.")),
+    ?assertNot(is_incomplete_program("fn f() = {\n    /// not a doc\n    1\n}")),
+    ?assertEqual("expected `)` instead of the reserved word `fn`",
+                 refusal("fn f() : Int = g(1\n\n/// Two.\nfn g(x : Int) : Int = 2")),
+    ?assertEqual("expected a declaration (export, type, abstract, fn, let, foreign) instead of"
+                 " `}`",
+                 refusal("fn f() : Int = 1 }\n\n/// Two.\nfn g() : Int = 2")).
 
 %% report Appendix B
 several_declarations_test() ->
@@ -779,45 +799,70 @@ member_names_test() ->
                   "a value's name begins with a lowercase letter"},
                  refusal_and_help("let Stack = 1")).
 
-%% report Appendix A
-misc_errors_test() ->
+%% report Appendix A: `_` is no expression, and empty parentheses after a
+%% constructor, or two arguments, are a call of its value, which the checker
+%% refuses (report §5.6)
+constructor_call_and_wildcard_test() ->
     ?assertEqual("`_` is a pattern, not an expression", expression_refusal("_ + 1")),
-    %% Appendix A: empty parentheses after a constructor, or two arguments,
-    %% are a call of its value, which the checker refuses (report §5.6)
     #e_call{callee = #e_constructor{name = 'None', args = none}, args = []} =
         expression("None()"),
     #e_call{callee = #e_constructor{name = 'Pair', args = none}, args = [_, _]} =
-        expression("Pair(1, 2)"),
+        expression("Pair(1, 2)").
+
+%% report Appendix A, §4.5, §4.7: a declaration's name, and a foreign
+%% function's result type, where its form asks for them
+declaration_form_errors_test() ->
     ?assertEqual("expected a name instead of type name `Stack`", refusal("fn Stack(x) = x")),
     ?assertEqual("a foreign function declares its result type",
                  refusal("foreign fn f(x : Int) = \"m:f/1\"")),
-    ?assertEqual("expected `)` instead of `;`", expression_refusal("f(a;")),
-    ?assertEqual("expected an expression instead of end of input", expression_refusal("1 +")),
-    %% `export` begins a declaration, once: a regression test of
-    %% findings.md's X23
+    %% `export` begins a declaration, once: a regression test, the list had
+    %% left it out
     ?assertEqual("expected a declaration (export, type, abstract, fn, let, foreign) instead of"
                  " `}`",
                  refusal("}")),
     ?assertEqual("expected a declaration (type, abstract, fn, let, foreign) instead of `}`",
-                 refusal("export }")),
+                 refusal("export }")).
 
+%% report Appendix A: what the parser expected where the input stopped or
+%% went astray, a bracket's close, an operand, the input's end
+expected_token_errors_test() ->
+    ?assertEqual("expected `)` instead of `;`", expression_refusal("f(a;")),
+    ?assertEqual("expected an expression instead of end of input", expression_refusal("1 +")),
+    ?assertEqual("expected end of input instead of `)`", expression_refusal("1)")).
+
+%% report §3, §4.2: a type's form, a parameter list's `->` and a qualified
+%% type's last name
+type_form_errors_test() ->
     ?assertEqual("expected `->` after a parameter list instead of `=`",
                  refusal("let f : (A, B) = x")),
-    ?assertEqual("unknown bitstring specifier `bogus`", expression_refusal("<<x:bogus>>")),
-    %% report §2.6, §11.5: max-munch reads `a<-1` as a binding arrow, and the
-    %% error says how to write the comparison
+    ?assertEqual("expected a type name; a qualified type ends in an uppercase name",
+                 refusal("let x : Int.foo = 1")).
+
+%% report §2.6, §11.5: max-munch reads `a<-1` as a binding arrow, and the
+%% error says how to write the comparison
+negative_comparison_help_test() ->
     ?assertEqual("expected `then` instead of `<-`", expression_refusal("if a<-1 then 1 else 2")),
     ?assertEqual("`<-` is one token; write `a < -1` to compare with a negative number",
                  expression_help("if a<-1 then 1 else 2")),
-    %% report §5.11: `bits` and `native` are Erlang's, not Ernest's
+    %% and so it does in a block's place of `;` or `}` and after a top-level
+    %% body: a regression test, where it had no help
+    ?assertEqual("`<-` is one token; write `a < -1` to compare with a negative number",
+                 expression_help("{ let b = a<-1; b }")),
+    ?assertEqual("`<-` is one token; write `a < -1` to compare with a negative number",
+                 help("fn f(a : Int) : Bool = a<-1")).
+
+%% report §5.11: a specifier is one of §5.11's, `bits` and `native` being
+%% Erlang's, not Ernest's
+bitstring_specifier_errors_test() ->
+    ?assertEqual("unknown bitstring specifier `bogus`", expression_refusal("<<x:bogus>>")),
     ?assertEqual("unknown bitstring specifier `bits`", expression_refusal("<<x:bits>>")),
     ?assertEqual("unknown bitstring specifier `native`",
-                 expression_refusal("<<x:size(32)-native>>")),
+                 expression_refusal("<<x:size(32)-native>>")).
+
+%% report §5.10: a pattern's `-` comes before a number
+negative_pattern_errors_test() ->
     ?assertEqual("expected a number after `-` in a pattern instead of identifier `x`",
-                 expression_refusal("match y { -x -> 1 }")),
-    ?assertEqual("expected a type name; a qualified type ends in an uppercase name",
-                 refusal("let x : Int.foo = 1")),
-    ?assertEqual("expected end of input instead of `)`", expression_refusal("1)")).
+                 expression_refusal("match y { -x -> 1 }")).
 
 %% report §11.1
 lexer_errors_pass_through_test() ->
@@ -835,6 +880,10 @@ spans_test() ->
     {ok, [#fn_declaration{span = {1, 1, {1, 14}}, body = #e_literal{span = {1, 11, {1, 14}}}}]} =
         ern_parser:parse_string("fn f(x) = 123\n"),
     {ok, #e_literal{span = {1, 1, {1, 5}}}} = ern_parser:parse_expr("\"ab\"\n"),
+    %% a parenthesized expression spans its parentheses, nested ones too: a
+    %% regression test, its span began after `(` and ended at `)`
+    {ok, #e_binop{span = {1, 1, {1, 8}}}} = ern_parser:parse_expr("(1 + 2)"),
+    {ok, #e_call{args = [#e_literal{span = {1, 3, {1, 6}}}]}} = ern_parser:parse_expr("g((1))"),
     ok.
 
 %% report §11.5, §5.9: an or-pattern spans its alternatives, from the
@@ -972,7 +1021,7 @@ incomplete_test() ->
     ?assertMatch({ok, _}, ern_parser:parse_string("fn f() = 1")),
     %% an `if` whose `else` is still to come, and a parameter list whose
     %% `->` is; a regression test: the error stood at the `if` or the
-    %% bracket, and the input was refused (findings.md's C2-4)
+    %% bracket, and the input was refused
     ?assert(is_incomplete_expression("if c then a")),
     ?assertNot(is_incomplete_expression("if c then a )")),
     ?assert(is_incomplete_program("fn f(g : ()")).
@@ -1016,7 +1065,7 @@ requirement_test() ->
     ?assertEqual("zero is not a member: a requirement names compare, negate, an operator or show"
                  " (§4.8, E.1)",
                  refusal("fn f(x : a) : a needs a.zero = x")),
-    %% the member underlined whole: a regression test of findings.md's X7
+    %% the member underlined whole: a regression test
     ?assertMatch({error, #diagnostic{span = {1, 23, {1, 29}}}},
                  ern_parser:parse_string("fn f(x : a) : a needs a.zero = x")),
     ?assertEqual({"expected `.` after a instead of `,`",

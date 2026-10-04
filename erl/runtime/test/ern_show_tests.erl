@@ -17,7 +17,7 @@ controls_shown_test() ->
 by_type_test() ->
     ?assertEqual(<<"'a'">>, ern_show:show(char, $a)),
     %% a negative number with `-` before it; a regression test, written after
-    %% the code (findings.md's K-15)
+    %% the code
     ?assertEqual(<<"#(-1, -2.5)">>, ern_show:show({tuple, [int, float]}, {-1, -2.5})),
     ?assertEqual(<<"\"hi\"">>, ern_show:show(string, <<"hi">>)),
     ?assertEqual(<<"<<104, 105>>">>, ern_show:show(bytes, <<"hi">>)),

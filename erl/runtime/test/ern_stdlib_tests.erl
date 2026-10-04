@@ -42,7 +42,7 @@ list_test() ->
     ?assertEqual({[1, 2], [3, 1]}, List:span([1, 2, 3, 1], fun(X) -> X < 3 end)),
     ?assertEqual({[1, 2, 1], [3]}, List:partition([1, 2, 3, 1], fun(X) -> X < 3 end)),
     %% the predicate meets the elements in order; a regression test, it met
-    %% them from the last (findings.md's E11)
+    %% them from the last
     Seen = fun(X) -> put(seen, [X | get(seen)]), X > 1 end,
     put(seen, []),
     _ = List:partition([1, 2, 3], Seen),
@@ -260,7 +260,7 @@ string_test() ->
     ?assertEqual(<<"7  ">>, String:padEnd(<<"7">>, 3, <<" ">>)),
     ?assertEqual(<<"hello">>, String:padStart(<<"hello">>, 3, <<"0">>)),
     %% report Appendix E.5: the pad is text, its copies cut to fit, and an
-    %% empty pad adds none (findings.md's P2-20)
+    %% empty pad adds none
     ?assertEqual(<<"ab-7">>, String:padStart(<<"7">>, 4, <<"ab-">>)),
     ?assertEqual(<<"7éaé"/utf8>>, String:padEnd(<<"7">>, 4, <<"éa"/utf8>>)),
     ?assertEqual(<<"7">>, String:padStart(<<"7">>, 3, <<>>)),
@@ -293,7 +293,7 @@ string_test() ->
     ?assertEqual({'Some', 1.0e-9}, String:toFloat(<<"1.0e-9">>)),
     ?assertEqual('None', String:toFloat(<<"1">>)),
     %% report §2.5, Appendix E.5: an exponent alone is a float's literal
-    %% form (findings.md's P1-23)
+    %% form
     ?assertEqual({'Some', 1.0e5}, String:toFloat(<<"1e5">>)),
     ?assertEqual({'Some', -2.0e-3}, String:toFloat(<<"-2E-3">>)),
     ?assertEqual('None', String:toFloat(<<"1e">>)),
@@ -761,7 +761,7 @@ fs_set_mode_test() ->
 
 %% report Appendix E.17: a file is created with the permission bits the
 %% host's mask leaves of 0o666, by `makeFile`, `write` and `append` alike.
-%% Written with the sentence (findings.md's S9), after the code
+%% Written with the sentence, after the code
 fs_created_mode_test() ->
     Self = self(),
     Dir = scratch("ern_mask_"),
@@ -944,7 +944,7 @@ fs_create_remove_all_modified_test() ->
 %% waiting on it, and answers the error that stopped it: a directory it
 %% cannot list is Denied, and a path that names nothing NotFound. A
 %% regression test, written with the walk by open directories that replaced
-%% one by paths (findings.md's C1-3); it cannot put a link in a directory's
+%% one by paths; it cannot put a link in a directory's
 %% place between two steps of the walk, which the walk makes harmless by
 %% opening each directory refusing a link
 fs_remove_all_by_directories_test() ->
@@ -1112,16 +1112,16 @@ path_edges_test() ->
     ?assertEqual('None', Path:extension(AsPath(<<"a.d/b">>))),
     ?assertEqual(AsPath(<<"a/b/">>), Path:withoutExtension(AsPath(<<"a/b.txt/">>))),
     %% report Appendix E.14: an empty extension leaves the dot, and removing
-    %% one is withoutExtension's (findings.md's P2-28)
+    %% one is withoutExtension's
     ?assertEqual(AsPath(<<"a/b.">>), Path:withExtension(AsPath(<<"a/b.txt">>), <<>>)),
     ?assertEqual(AsPath(<<"a.d/b.md">>), Path:withExtension(AsPath(<<"a.d/b">>), <<"md">>)),
     %% a dot that begins a name begins no extension, and the root has no name
     %% to extend; a regression test, `.bashrc`'s extension was `bashrc`, so
-    %% removing it left an empty path (findings.md's E12)
+    %% removing it left an empty path
     ?assertEqual('None', Path:extension(AsPath(<<".profile">>))),
     %% report Appendix E.14: an empty path, a `.` between separators and a
     %% trailing separator under a root, which the laws do not draw, the last
-    %% joined as `<>` joins it; written with `under` (findings.md's S6)
+    %% joined as `<>` joins it; written with `under`
     ?assertEqual('None', Path:under(AsPath(<<"/srv">>), AsPath(<<"">>))),
     ?assertEqual('None', Path:under(AsPath(<<"/srv">>), AsPath(<<"a/./b">>))),
     ?assertEqual({'Some', AsPath(<<"/srv/a">>)}, Path:under(AsPath(<<"/srv">>), AsPath(<<"a/">>))),

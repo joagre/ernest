@@ -86,8 +86,9 @@ module_path(Namespace) ->
 path(Segments) ->
     filename:join([component_or_lowered(Segment) || Segment <- Segments]).
 
-%% Report §4.2: the Erlang module a namespace compiles to, `ern@` and the
-%% path with `@` for `/`, `ern@ordered_set` and `ern@net@http_client`.
+%% The Erlang module a namespace compiles to, `ern@` and the path with `@`
+%% for `/`, `ern@ordered_set` and `ern@net@http_client`, as docs/style.md
+%% names it (the log's *One Token for the Project*).
 -spec erlang_module([atom()]) -> atom().
 erlang_module(Namespace) ->
     list_to_atom(lists:flatten(["ern" | ["@" ++ component_or_lowered(atom_to_list(Segment))

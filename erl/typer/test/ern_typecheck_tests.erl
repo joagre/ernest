@@ -224,7 +224,7 @@ redundant_clause_test() ->
 
 %% report §4.7, §3.10, §9.2: a foreign type's parameter written `k=` puts
 %% the equality constraint on its argument wherever the type is written,
-%% as Map's key has it. Feedback item 39: a table keyed by functions was
+%% as Map's key has it. A regression test: a table keyed by functions was
 %% accepted, and the host compared the keys
 foreign_type_equality_test() ->
     Source = "export foreign type T(k=, v)\n"
@@ -411,7 +411,7 @@ operator_member_on_demand_test() ->
 
 %% report §4.2, §11.5: an error at a use of a name the module's own
 %% declaration hides from the prelude labels that use with the prelude's
-%% qualified name; an error elsewhere has no such label. Feedback item 59
+%% qualified name; an error elsewhere has no such label
 hidden_prelude_name_test() ->
     Text = "type Outcome = Unknown(Int) | Known\n"
            "fn reason() : Reason = Unknown\n",
@@ -550,7 +550,7 @@ operator_implementation_test() ->
 %% the code: the value crossed as the runtime held it, whatever its type
 foreign_from_at_a_known_type_test() ->
     %% at a signature's variable the help is the `foreign fn` alone: a
-    %% regression test of findings.md's X13
+    %% regression test, the help opened with an annotation, which cannot fix it
     ?assertEqual({"the type a! is not known whole here, and Foreign.from gives foreign code a"
                   " value by its type",
                   "a value of a type variable is given by a `foreign fn` whose parameter is of"
@@ -730,7 +730,7 @@ guards_are_pure_test() ->
 
 %% report §5.10, §11.5: a name after `as` binds as a variable does, so one
 %% bound twice through it is refused at the second. A regression test: the
-%% checker crashed looking for two variables (findings.md's C2-3)
+%% checker crashed looking for two variables
 as_binds_twice_test() ->
     ?assertEqual("variable x appears twice in the pattern", refusal("fn f(x as x) : Int = x")),
     ?assertEqual("variable a appears twice in the pattern",
@@ -794,7 +794,7 @@ blocks_test() ->
 
 %% report §4.5, §4.6: a binding does not see its own name, so a lambda bound
 %% by `let` does not call itself, and a local `fn` does. A regression test,
-%% written when §4.6 said so (findings.md's R-22)
+%% written when §4.6 said so
 let_lambda_does_not_recur_test() ->
     ?assertEqual("unknown name count",
                  refusal("fn f() : Int = { let count = fn(n : Int) : Int ="
@@ -879,8 +879,7 @@ bind_arrow_test() ->
 %% report §11.5: a callee's type in the label at its call is printed as its
 %% declaration writes it, under its own variable names, and a field's in a
 %% fill's label under its type's parameter names. A regression test: each
-%% label printed a fresh instance, `t` as `a` and `m` as `e` (findings.md's
-%% X2)
+%% label printed a fresh instance, `t` as `a` and `m` as `e`
 declared_names_in_labels_test() ->
     #diagnostic{labels = CallLabels} =
         diagnostic("fn g(x : Int, y : t) : t with m = {\n    let _ = self();\n    y\n}\n"
@@ -892,9 +891,9 @@ declared_names_in_labels_test() ->
     ?assertMatch([{_, "Ops declares size : (s) -> Bool"}], FillLabels).
 
 %% report §11.5, §3.5, §4.8: a deferred mismatch labels the later use that
-%% fixed the operand type, beside the annotation. A regression test of
-%% findings.md's X16; it does not cover a type fixed by a unification that
-%% cannot fail, as a first branch's
+%% fixed the operand type, beside the annotation. A regression test: the
+%% found type had no visible source; it does not cover a type fixed by a
+%% unification that cannot fail, as a first branch's
 settled_operand_labelled_test() ->
     #diagnostic{labels = SelectionLabels} =
         diagnostic("type Point = Point(x : Int)\n"
@@ -913,9 +912,9 @@ settled_operand_labelled_test() ->
 %% stands is checked there, so that its error stops the block, before a
 %% later statement's error hides it or a later use settles the types it
 %% prints. A regression test: a later error was reported alone, and the
-%% pattern's mismatch printed a type a later line had settled (findings.md's
-%% X1). It does not cover a `<-` whose sum type is open, which waits for
-%% the end of the definition as before
+%% pattern's mismatch printed a type a later line had settled. It does not
+%% cover a `<-` whose sum type is open, which waits for the end of the
+%% definition as before
 bind_arrow_checked_where_it_stands_test() ->
     ?assertEqual(["`<-` needs an Either or an Optional, not Int"],
                  refusals("fn f() : Optional(Int) = {\n    let x <- 1;\n"
@@ -989,8 +988,8 @@ type_parameters_distinct_test() ->
                  refusal("abstract type Stack(a, a) = Stack(List(a))")),
     ?assertEqual("type variable k appears twice among the parameters of Table",
                  refusal("foreign type Table(k=, k)")),
-    %% the second underlined, the first labelled: a regression test of
-    %% findings.md's X20, which underlined the declaration
+    %% the second underlined, the first labelled: a regression test, the
+    %% declaration was underlined whole
     ?assertMatch(#diagnostic{span = {1, 14, _}, labels = [{{1, 11, _}, "first written here"}]},
                  diagnostic("type Pair(a, a) = Pair(a)")).
 
@@ -1085,7 +1084,7 @@ local_fn_signature_shares_variables_test() ->
 
 %% report §3.9: polymorphic recursion is refused, even under a full
 %% signature, the message naming the rule and §11.5's help line the fix, a
-%% second function (findings.md's X11), at a top-level and a
+%% second function, at a top-level and a
 %% local definition's recursive call alike, and at no other call. A
 %% regression test: the checker conformed before it was written; the help
 %% line, of 2026-10-01, is its own. It does not cover a mutually recursive
@@ -1164,7 +1163,7 @@ or_pattern_test() ->
 %% report §5.9, §5.10: `or` stands between a clause's whole patterns and
 %% `as` names what one of them matches, so each alternative names the value
 %% itself, which the refusal's help says. A regression test, written when
-%% §5.10 was made to agree with Appendix A (R-5)
+%% §5.10 was made to agree with Appendix A
 as_in_each_alternative_test() ->
     ?assertEqual(ok, ok("fn f(o : Optional(Int)) : Optional(Int) ="
                         " match o { Some(1) as x or Some(2) as x -> x | _ -> None }")),
@@ -1205,8 +1204,8 @@ let_cycle_through_a_named_function_test() ->
 
 %% report §11.5: a declaration whose check failed is used at the type its
 %% signature states, so that no error at a use follows from its own. A
-%% regression test of findings.md's D9: `Io.show` of its result was refused
-%% as not known whole; it does not cover a signature itself in error
+%% regression test: `Io.show` of its result was refused as not known whole;
+%% it does not cover a signature itself in error
 failed_declaration_keeps_its_signature_test() ->
     ?assertEqual(["fromList needs a.compare, which unique does not declare"],
                  refusals("fn unique(list : List(a)) : List(a) =\n"
@@ -1215,7 +1214,7 @@ failed_declaration_keeps_its_signature_test() ->
 
 %% report §8.5, §11.5: a let whose initializer uses it at another type than
 %% its own is refused for the cycle alone, the mismatch following from it.
-%% A regression test (findings.md's X3); it does not cover a mismatch at a
+%% A regression test; it does not cover a mismatch at a
 %% use of the let inside a function of its cycle, which is reported there
 let_named_by_itself_one_error_test() ->
     ?assertEqual(["the initializer of f depends on itself"],
@@ -1391,7 +1390,7 @@ constructors_test() ->
 %% nothing, or in a `let` whose annotation fixes its name's type, and
 %% reports every error of its own; it stops at any other binding's error,
 %% whose name the rest may use. A regression test: a definition's first
-%% error was its only one (findings.md's T10)
+%% error was its only one
 errors_of_a_block_test() ->
     ?assertEqual(["the argument does not fit Io.println: expected String, found Int",
                   "the argument does not fit Io.println: expected String, found Int"],
@@ -1430,7 +1429,7 @@ named_fields_named_test() ->
                  refusal(Point ++ "fn f(q : Point) : Int = match q { Point(a) -> a }")).
 
 %% report §5.6: a construction gives each field once. A regression test,
-%% written after the code (findings.md's K-12)
+%% written after the code
 field_given_once_test() ->
     ?assertEqual("field x is given twice",
                  refusal("type P = P(x : Int, y : Int)\n"
@@ -1557,7 +1556,7 @@ member_written_qualified_test() ->
 %% of that name; `Prelude.T.name` reaches the name of a namespace of the
 %% prelude or the standard library past the module's own member. A
 %% regression test, written with the rule: the standard library's
-%% `List.size` was out of reach there, and its `Io.println` until R-3; since
+%% `List.size` was out of reach there, and its `Io.println` before; since
 %% a member is an operator, `compare` or `negate` (§4.5), the module's own
 %% `List.<>` stands for both
 first_segment_test() ->
@@ -1626,7 +1625,7 @@ foreign_no_reply_test() ->
 %% `List.size` among them, or a shim of `Map` (§4.7), refuses one at the
 %% call. A regression test of the rule of 2026-10-01: the check read `[]`
 %% alone, so `r :: waiters` compiled and the list's functions could drop
-%% the reply (P1-1)
+%% the reply
 reply_in_a_list_test() ->
     ?assertEqual(ok, ok("fn pair(x) = #([x], 1)\n"
                         "fn f(r : Reply(Int)) : #(List(Reply(Int)), Int) = pair(r)")),
@@ -1694,7 +1693,7 @@ warts_audit_test() ->
     ?assertEqual("the implementation of tick is not written `module:function/arity`",
                  refusal("foreign fn tick() : Unit with m = \"tick\"")),
     %% a line feed after the arity is no part of the form; a regression
-    %% test: `$` matched before it (findings.md's C2-8)
+    %% test: `$` matched before it
     ?assertEqual("the implementation of tick is not written `module:function/arity`",
                  refusal("foreign fn tick() : Unit with m = \"m:tick/0\\n\"")),
     %% foreign fn with an effect is process-only
@@ -1721,7 +1720,7 @@ warts_audit_test() ->
 %% not cover a module or function missing at run time.
 foreign_implementation_name_test() ->
     Named = "the implementation of tick is not written `module:function/arity`",
-    %% the help gives the arity to write: a regression test of findings.md's X24
+    %% the help gives the arity to write: a regression test
     ?assertEqual({Named, "write the host's module and function and the arity 1, as"
                          " `module:function/1`"},
                  refusal_and_help("foreign fn tick(n : Int) : Int = \"erlang:abs\"")),
@@ -1844,8 +1843,8 @@ abstract_type_test() ->
 %% obligation open on it, in an `if` and in a `receive`; a returning path
 %% that does not answer is still refused, and so is a function whose type
 %% says it returns though it faults, and a fault inside a lambda, neither
-%% of which is the path's own. Feedback item 60; `die` is a regression test
-%% of the rule of 2026-10-01, which named `fault` alone before (P1-12)
+%% of which is the path's own; `die` is a regression test of the rule of
+%% 2026-10-01, which named `fault` alone before
 fault_path_test() ->
     Source = "type M = Add(amount : Int, reply : Reply(Int)) | Stop\n",
     ?assertEqual(ok, ok(Source ++ "fn serve() : Unit with M = receive {\n"
@@ -2378,8 +2377,7 @@ needless_effect_test() ->
 %% report §4.8: an operator is resolved in its definition, and a local fn
 %% and a lambda a block `let` binds are definitions of their own, since
 %% each is generalized; a lambda passed on belongs to the definition it
-%% stands in. A regression test of what the report states (findings.md's
-%% R-26)
+%% stands in. A regression test of what the report states
 local_helper_over_an_operator_test() ->
     Undetermined = "the operand type of `+` is not determined; annotate it",
     ?assertEqual(Undetermined,
@@ -2394,7 +2392,7 @@ local_helper_over_an_operator_test() ->
 %% is a nullary constructor, and no alias, and a mismatch between the two
 %% types says so in its help, either way round; a type whose constructor
 %% names no type in the mismatch has no such help. A regression test,
-%% written with the help (findings.md's N-C3)
+%% written with the help
 not_an_alias_test() ->
     Help = fun(Source) -> {error, [#diagnostic{help = Given} | _]} = check(Source), Given end,
     Alias = "`type Word = String` declares a type whose one value is `String`, not another"
@@ -2408,7 +2406,7 @@ not_an_alias_test() ->
 %% report §5.7, Appendix A: a construction is a value and no call, so the
 %% pipe applies a bare constructor and does not fill a construction. A
 %% regression test: the refusals named the callee or a missing field and
-%% not the pipe (findings.md's R-12)
+%% not the pipe
 pipe_into_construction_test() ->
     Source = "type W = W(a : Int, b : Int)\n",
     ?assertEqual(ok, ok("fn f() : Optional(Int) = 1 |> Some")),
@@ -2496,7 +2494,6 @@ leaf_placement_test() ->
     ?assertEqual([{{1, 23, {1, 24}}, "the value matched has type Int"}], Pattern#diagnostic.labels),
     %% a `let` pattern against its value, the value's type expected; a
     %% regression test, the two having been printed the other way round
-    %% (findings.md's X4)
     LetPattern = diagnostic("fn f() : Int = {\n    let #(a, b) = 1;\n    a\n}\n"),
     ?assertEqual("the pattern does not fit the value: expected Int, found #(a, b)",
                  LetPattern#diagnostic.message),
@@ -2652,7 +2649,7 @@ deferred_operator_keeps_its_members_equality_test() ->
 %% report §5.11: a numeric literal that does not fit a segment of constant
 %% width is a compile-time error, in a construction and in a pattern; one
 %% that fits, and a computed value, are not refused. A regression test: a
-%% literal faulted at construction and never matched (findings.md's R-13)
+%% literal faulted at construction and never matched
 literal_does_not_fit_test() ->
     Byte = "the literal does not fit an unsigned segment of 8 bits, which holds 0 to 255",
     ?assertEqual(Byte, refusal("fn f() : Bytes = <<256>>")),
@@ -2907,7 +2904,7 @@ requirement_in_the_body_test() ->
 requirement_variable_test() ->
     ?assertEqual("b is no type variable of the signature",
                  refusal("fn f(x : a) : a needs b.compare = x")),
-    %% an effect variable's own message: a regression test of findings.md's X12
+    %% an effect variable's own message: a regression test
     ?assertEqual({"e is an effect variable, and a requirement names a type variable in a value"
                   " position", undefined},
                  refusal_and_help("fn f(x : a) : a with e needs e.compare = x")),
@@ -3047,7 +3044,7 @@ fill_test() ->
     %% the help names the part that differs, past a variable on either
     %% side; a regression: it said "the types differ at a=! and a=!". The
     %% two types are named as one, so two variables are `a` and `b`; a
-    %% regression test too, both printed as `a` (findings.md's X2)
+    %% regression test too, both printed as `a`
     ?assertEqual({"Ops(..Set) fills size with Set.size: expected (a) -> Bool, found"
                   " (Set(b=!)) -> Int", "the types differ at Bool and Int"},
                  refusal_and_help("type Ops(s) = Ops(size : (s) -> Bool)\n"
@@ -3128,7 +3125,7 @@ update_path_test() ->
 %% a reference outside the group, and the group's types under another,
 %% stand; written after the code
 recursive_group_at_parameters_test() ->
-    %% the help names the fix (findings.md's X11)
+    %% the help names the fix
     ?assertEqual({"Nest is named at List(a) in its own fields, and a type of a recursive group"
                   " is named in its fields at the declaring type's parameters alone",
                   "write `Nest(a)`, or `List(Nest(a))` to hold it in a List"},

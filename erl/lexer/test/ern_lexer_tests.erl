@@ -1,3 +1,5 @@
+%% The lexer: each token of report §2, its spellings and the errors it
+%% refuses a text with, each at its line and column.
 -module(ern_lexer_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -30,9 +32,9 @@ control_character_test() ->
 
 %% report §2.4
 reserved_words_test() ->
-    ?assertEqual([type, abstract, with, foreign, match, 'when', 'receive', 'after',
+    ?assertEqual([type, abstract, with, foreign, match, 'when', 'receive', 'after', 'or',
                   as, 'if', then, 'else', fn, 'let', export],
-                 tokens("type abstract with foreign match when receive after as "
+                 tokens("type abstract with foreign match when receive after or as "
                         "if then else fn let export")).
 
 %% report §2.4: `needs` and `derives` are identifiers, which the parser
@@ -77,7 +79,7 @@ integers_test() ->
                  tokens("0 42 123456789012345678901234567890")).
 
 %% report §2.5: a float has a point or an exponent, `1e10` among them;
-%% `1e` is still an integer an `e` follows (findings.md's P1-23)
+%% `1e` is still an integer an `e` follows
 exponent_floats_test() ->
     ?assertEqual([{float, 1.0e10}, {float, 100.0}, {float, 2.0e-3}], tokens("1e10 1E+2 2e-3")),
     ?assertEqual({1, 2, "e cannot follow a number directly"}, refusal("1e")).
@@ -94,6 +96,9 @@ based_integers_test() ->
                  tokens("0x10FFFF 0xfF 0o644 0b1010 0x0")),
     ?assertEqual({1, 5, "2 is not a binary digit"}, refusal("0b102")),
     ?assertEqual({1, 1, "0x needs a hexadecimal digit"}, refusal("0x")),
+    %% the article goes with the base: a regression test, which wrote "a octal"
+    ?assertEqual({1, 1, "0o needs an octal digit"}, refusal("0o")),
+    ?assertEqual({1, 4, "8 is not an octal digit"}, refusal("0o78")),
     ?assertEqual({1, 1, "a base prefix is lowercase: 0x"}, refusal("0XFF")).
 
 %% report §2.5: nothing word-like directly after a number
@@ -212,7 +217,7 @@ doc_block_test() ->
 %% report §2.2: a `///` after a token on its line is an error, where the
 %% `///` stands; one after a block comment alone begins a doc block, and
 %% `////` after code is an ordinary comment. A regression test: it began a
-%% doc block, which documented what came after it (findings C17)
+%% doc block, which documented what came after it
 doc_comment_after_code_test() ->
     Said = "a doc comment `///` stands on a line of its own; a note after code is written `//`",
     ?assertEqual({1, 3, Said}, refusal("a /// note\nb")),
@@ -249,15 +254,27 @@ bom_is_stripped_test() ->
 not_utf8_test() ->
     ?assertEqual({1, 10, "input is not valid UTF-8"}, refusal(<<"fn f() = ", 16#FF>>)),
     ?assertEqual({2, 2, "input is not valid UTF-8"},
-                 refusal(<<16#EF, 16#BB, 16#BF, "a\n\t", 16#C3, "b", 16#FF>>)).
+                 refusal(<<16#EF, 16#BB, 16#BF, "a\n\t", 16#C3, "b", 16#FF>>)),
+    %% a sequence cut off at the end, an overlong one, an encoded surrogate
+    %% and a lone continuation byte, each at the byte that begins it, and
+    %% before a control character earlier in the source
+    ?assertEqual({1, 3, "input is not valid UTF-8"}, refusal(<<"ab", 16#E2, 16#82>>)),
+    ?assertEqual({1, 2, "input is not valid UTF-8"}, refusal(<<"a", 16#C0, 16#80>>)),
+    ?assertEqual({1, 2, "input is not valid UTF-8"}, refusal(<<"a", 16#ED, 16#A0, 16#80>>)),
+    ?assertEqual({1, 2, "input is not valid UTF-8"}, refusal(<<"a", 16#80>>)),
+    ?assertEqual({2, 2, "input is not valid UTF-8"}, refusal(<<"a\e\nb", 16#FF>>)).
 
-%% report §2.5
-errors_test() ->
+%% report §2.5: a string ends on its line, at its closing quote
+string_literal_errors_test() ->
     ?assertEqual({1, 1, "unterminated string literal"}, refusal("\"abc")),
+    ?assertEqual({1, 5, "newline in string literal; use \\n"}, refusal("\"abc\ndef\"")).
+
+%% report §2.5: an escape is one of §2.5's, and `\u{...}` names a Unicode
+%% scalar value in one to six hex digits
+escape_errors_test() ->
     %% an input that ends just after a backslash; a regression test, as the
-    %% one above
+    %% unterminated string
     ?assertEqual({1, 2, "unterminated escape"}, refusal("\"\\")),
-    ?assertEqual({1, 5, "newline in string literal; use \\n"}, refusal("\"abc\ndef\"")),
     ?assertEqual({1, 2, "unknown escape \\q"}, refusal("\"\\q\"")),
     %% a line break after a backslash is named, not printed into the message; a
     %% regression test, the catalogue of diagnostics having found it printed
@@ -266,15 +283,22 @@ errors_test() ->
     ?assertEqual({1, 2, "\\u{110000} is not a Unicode scalar value"}, refusal("\"\\u{110000}\"")),
     ?assertEqual({1, 2, "\\u{ needs one to six hex digits followed by }"},
                  refusal("\"\\u{1234567}\"")),
-    ?assertEqual({1, 2, "\\u{ needs one to six hex digits"}, refusal("\"\\u{}\"")),
+    ?assertEqual({1, 2, "\\u{ needs one to six hex digits"}, refusal("\"\\u{}\"")).
+
+%% report §2.5: a char literal holds one code point and closes on its line
+char_literal_errors_test() ->
     ?assertEqual({1, 1, "empty char literal"}, refusal("''")),
     %% a literal of two code points is closed, and named as what it is; a
     %% regression test, the catalogue of diagnostics having found it called
-    %% unterminated (findings.md's X6)
+    %% unterminated
     ?assertEqual({1, 1, "a char literal holds one code point; a string is written between"
                         " double quotes"}, refusal("'ab'")),
     ?assertEqual({1, 1, "unterminated char literal"}, refusal("'a")),
-    ?assertEqual({1, 1, "unterminated char literal"}, refusal("'ab\n'")),
+    ?assertEqual({1, 1, "unterminated char literal"}, refusal("'ab\n'")).
+
+%% report §2.1, §2.3: a character no token begins with is refused where it
+%% stands
+illegal_character_test() ->
     ?assertEqual({2, 3, "illegal character '@'"}, refusal("a\n  @")),
     ?assertEqual({1, 1, "illegal character 'é'"}, refusal(<<"é"/utf8>>)).
 

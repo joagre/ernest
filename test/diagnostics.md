@@ -2540,10 +2540,10 @@ fn f() : Int =
 
 ```console
 $ ern build example.ern
-example.ern:2:6: the callee takes 1 argument, not 2
+example.ern:2:5: the callee takes 1 argument, not 2
 1 | fn f() : Int =
 2 |     (fn(x : Int) : Int = x)(1, 2)
-  |      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   | = help: a call supplies all the arguments
 ```
 

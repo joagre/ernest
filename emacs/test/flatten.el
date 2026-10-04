@@ -13,7 +13,7 @@
 (add-to-list 'load-path (expand-file-name "."))
 (require 'ernest-mode)
 
-(let ((total 0) (moved 0) (worst nil))
+(let ((total 0) (moved 0) (last-moved nil))
   (dolist (file command-line-args-left)
     (with-temp-buffer
       (insert-file-contents file)
@@ -32,10 +32,10 @@
                  do (setq total (1+ total))
                  unless (string= a b)
                  do (setq moved (1+ moved))
-                 and do (setq worst (format "%s:%d: %s" (file-name-nondirectory file)
-                                            line a))))))
+                 and do (setq last-moved (format "%s:%d: %s" (file-name-nondirectory file)
+                                                 line a))))))
   (message "%d of %d lines misplaced from column zero%s" moved total
-           (if worst (concat "\n  last: " worst) ""))
+           (if last-moved (concat "\n  last: " last-moved) ""))
   (unless (zerop moved) (kill-emacs 1)))
 
 ;;; flatten.el ends here

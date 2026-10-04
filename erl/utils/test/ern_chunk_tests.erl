@@ -13,7 +13,6 @@ plain_data_test() ->
 %% report §11.1: a chunk that holds a function, a process, or a term the
 %% compiler does not write is refused, and so is one cut short or one that
 %% is no term. A regression test: the host's decoder took each
-%% (findings.md's C3-29)
 not_data_test() ->
     ?assertEqual(error, ern_chunk:term(term_to_binary(fun erlang:halt/0))),
     ?assertEqual(error, ern_chunk:term(term_to_binary({ok, self()}))),
@@ -27,7 +26,7 @@ not_data_test() ->
 
 %% report §11.1: a chunk with more names new to the host than the host has
 %% room for makes none of them. A regression test: reading one filled the
-%% host's table of names, which ends the host (findings.md's C3-29)
+%% host's table of names, which ends the host
 too_many_names_test_() ->
     {timeout, 120, fun too_many_names/0}.
 

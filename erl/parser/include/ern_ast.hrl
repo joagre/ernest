@@ -15,9 +15,6 @@
 %% Declarations
 %%
 
-%% DeclName: name is an ident or a userop atom; member_of is the typename prefix
-%% of a type member (`fn Distance.+`), else undefined.
-
 -record(module_doc, {span, text}). % the module's doc block, first in the list, report §2.2
 -record(type_declaration, {span, doc, export = false, name, params = [], constructors,
                            derives, param_spans = []}).
@@ -34,6 +31,8 @@
 
 -record(fn_declaration, {span, doc, export = false, member_of, name, params, result_type, effect,
                          requirement = [], body, scheme}).
+%% DeclName: name is an ident or a userop atom; member_of is the typename
+%% prefix of a type member (`fn Distance.+`), else undefined.
 %% result_type/effect: the annotation; result_type = undefined means none,
 %% result_type given with effect = undefined means pure. requirement: the
 %% #member{}s its `needs` names, report §4.9, [] where it has none. scheme:
@@ -84,7 +83,8 @@
 %% requirement is supplied with at this use (report §4.9), and Io.show's or
 %% Io.debug's descriptor (Appendix E.1), each a supply of ern_types.hrl.
 -record(e_constructor, {span, namespace = [], name, base, args = none, type}).
-%% base: the Expr of a record update's `..`, or undefined (report §5.6);
+%% base: the Expr after `..`, a record update's base or a fill's namespace,
+%% or undefined (report §5.6);
 %% args: none | {positional, Expr} | {named, [#field_set{}]}
 -record(field_set, {span, name, path = [], expr}).
 %% path: in a record update, the segments after the name of a path to a
@@ -95,7 +95,7 @@
 -record(e_bitstring, {span, segments, type}).
 -record(bit_segment, {span, value, specs = []}).
 %% value: an expression or, in a pattern, a pattern; specs: [spec()]
-%% spec(): {size, Expr} | {unit, integer()} | bytes | int | float
+%% spec(): {size, Expr} | bytes | int | float
 %%       | utf8 | utf16 | utf32 | big | little | signed | unsigned
 -record(e_block, {span, statements, type}).
 %% statements: [#fn_declaration{} | #binding{} | Expr], the last an Expr

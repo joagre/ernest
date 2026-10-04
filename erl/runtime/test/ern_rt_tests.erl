@@ -86,7 +86,7 @@ stdin_stream_test() ->
 
 %% report §8.2: one carriage return before a line feed is dropped, and a
 %% last line without a line feed keeps its own. A regression test: the last
-%% line lost it too (findings.md's C29)
+%% line lost it too
 stdin_last_line_test() ->
     Tab = ets:new(chunks, [public]),
     ets:insert(Tab, {queue, [<<"a\r\nb\r">>]}),
@@ -197,7 +197,7 @@ flush() ->
 %% it made, and the timed wait it counted, however it ends: its message's
 %% function faulting, or its callee answering with a fault, as a system
 %% process does. A regression test: in a process restarted in place they
-%% were left behind (findings C7)
+%% were left behind
 call_leaves_nothing_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -332,7 +332,6 @@ call_timeout_test() ->
 %% delivery takes longer than the call's time is answered None, though the
 %% callee answers soon after it. A regression test: the deadline was taken
 %% after the delivery, and the call waited its whole time again
-%% (findings.md's C22)
 call_clock_starts_at_the_call_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -805,7 +804,7 @@ proxy_names_its_process_test() ->
 %% Ernest code gave to a Reply foreign code relayed, every address of which
 %% crossed; a process of the program's whose address foreign code was never
 %% given is a bad value. A regression test: the second was the program's
-%% own at whatever type foreign code named (findings.md's S7)
+%% own at whatever type foreign code named
 never_given_address_test() ->
     Self = self(),
     Descriptor = {address, string, <<"a String">>},

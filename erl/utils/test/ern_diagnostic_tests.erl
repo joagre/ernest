@@ -27,7 +27,16 @@ not_utf8_test() ->
                  "  |     ^\n",
                  lists:flatten(ern_diagnostic:format("main.ern",
                                                      <<"\xC3\xA9\na = ", 16#FF, 16#C3>>,
-                                                     Diagnostic))).
+                                                     Diagnostic))),
+    %% a leading byte-order mark is not shown, so the caret stands at the
+    %% lexer's column: a regression test, the excerpt kept it as a column
+    AfterMark = #diagnostic{span = {1, 3, {1, 4}}, message = "input is not valid UTF-8"},
+    ?assertEqual("main.ern:1:3: input is not valid UTF-8\n"
+                 "1 | ab\x{FFFD}\n"
+                 "  |   ^\n",
+                 lists:flatten(ern_diagnostic:format("main.ern",
+                                                     <<16#EF, 16#BB, 16#BF, "ab", 16#FF>>,
+                                                     AfterMark))).
 
 %% report §11.5: a carriage return that ends a line with its line feed is
 %% not shown, and one anywhere else is a column, shown as its picture, so
@@ -66,7 +75,6 @@ format_test() ->
 
 %% report §11.5: a line `...` stands for the lines an excerpt passes over.
 %% A regression test: the gutter went from line 1 to line 4 unmarked
-%% (findings.md's T34)
 format_gap_test() ->
     Diagnostic = #diagnostic{span = {4, 5, {4, 8}}, message = "expected Int, found String",
                              labels = [{{1, 10, {1, 13}}, "declared Int here"}]},

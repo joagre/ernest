@@ -6,7 +6,7 @@
 %% Appendix E.23, report §7.4: a write and a read that wait while the helper
 %% ends fault their callers, the runtime's own failure. A regression test:
 %% the process gave them to the port the helper's end had closed, and
-%% crashed with badarg (findings C9); and of the rule of 2026-10-01, before
+%% crashed with badarg; and of the rule of 2026-10-01, before
 %% which they were answered `Left(Other(...))`
 helper_ends_under_a_write_and_a_read_test() ->
     Self = self(),
@@ -35,7 +35,7 @@ helper_ends_under_a_write_and_a_read_test() ->
 %% input's end among them, so that a write returns only once the program
 %% has taken the bytes before it. A regression test: an 'i' after 'e' was
 %% answered at once, ahead of one the program had not taken, which let its
-%% writer go (findings.md's C8)
+%% writer go
 helper_answers_input_in_order_test() ->
     Helper = helper(["sleep", "2"]),
     receive {Helper, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
@@ -92,7 +92,7 @@ helper_says_input_was_dropped_test() ->
 %% Appendix E.23: a program the host cannot start, here for want of a file
 %% descriptor for its pipes, is answered with the host's reason. A
 %% regression test: the helper ended without a word, and `start` answered
-%% only that the helper failed (findings.md's C19). Under `make sanitize`
+%% only that the helper failed. Under `make sanitize`
 %% the leak checker, which needs descriptors of its own as the helper
 %% ends, is off for this run alone; the release review found it starved,
 %% and the helper hung as it failed
@@ -175,7 +175,6 @@ write_times_out_test() ->
 %% read answered before their milliseconds pass are sent nothing when they
 %% pass. A regression test: each timer stayed armed until its time, and a
 %% write's then answered `Left(Timeout)` to a reply already answered
-%% (findings.md's C-1)
 answered_requests_hold_no_timer_test() ->
     Self = self(),
     ok = ern_rt:run_main(

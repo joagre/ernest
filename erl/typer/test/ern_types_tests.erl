@@ -128,7 +128,7 @@ format_test() ->
     %% report §3.4: `with` binds to the nearest arrow, so a function result
     %% is parenthesized only under an outer `with`. A regression test: an
     %% outer effect printed after a bare result, which reads as the
-    %% result's (findings.md's K13)
+    %% result's
     ?assertEqual("(Int) -> (Int) -> Int with Never",
                  ern_types:format({tfn, [int()], pure,
                                    {tfn, [int()], {tcon, ['Never'], []}, int()}}, TypeState3)),

@@ -49,7 +49,7 @@ keys() ->
 %% report §8.2: a paste whose end the terminal does not send ends when no
 %% more of it arrives, and the keys after it are keys; an end that comes
 %% later is nothing. A regression test: the paste took in every key after
-%% it (findings C31)
+%% it
 unended_paste_test_() ->
     {timeout, 60, fun unended_paste/0}.
 
@@ -129,7 +129,7 @@ terminal_restored() ->
 
 %% report §8.6: the terminal's settings a program found are the ones it
 %% leaves, not stty's defaults. A regression test: the end ran `stty sane`,
-%% which turned off the user's `tostop` among others (findings C20). The
+%% which turned off the user's `tostop` among others. The
 %% program's output goes through a pipe, since the host puts back the
 %% terminal it found as it halts where its own output is the terminal
 settings_kept_test_() ->

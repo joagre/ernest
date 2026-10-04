@@ -257,7 +257,7 @@ paste_test() ->
 %% arrives, what came of it being the paste, and an end that comes after it
 %% is nothing, a piece of it waiting as the whole of it would. A regression
 %% test: the paste waited for its end for good, and took in every key after
-%% it (findings C31)
+%% it
 unended_paste_test() ->
     ?assertEqual([{'Pasted', <<"hi">>}], ern_tty:flush("\e[200~hi")),
     ?assertEqual({[{'Key', $x}], []}, ern_tty:decode("\e[201~x")),

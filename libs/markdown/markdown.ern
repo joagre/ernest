@@ -1266,7 +1266,7 @@ let tabs =
               run = fn() = blocksAre(parse("\tcode"), [Code(info = "", lines = ["code"])]))
 
 // a regression test: every tab was expanded, a code block's content among
-// them, so a Makefile's lines lost theirs (findings.md's E22)
+// them, so a Makefile's lines lost theirs
 let tabsInCode =
     Test.Case(name = "a tab in a code block's content is kept",
               run = fn() =
@@ -1313,7 +1313,7 @@ let interrupted =
                              Paragraph([Text("c 2. d")])]))
 
 // a regression test: the line after a quoted heading was read into the
-// quote, though only paragraph text continues lazily (findings.md's E21)
+// quote, though only paragraph text continues lazily
 let lazyAfterHeading =
     Test.Case(name = "a line after a quoted heading is outside the quote",
               run = fn() =
@@ -1322,7 +1322,7 @@ let lazyAfterHeading =
                              Paragraph([Text("lazy")])]))
 
 // a regression test: a tag that began a line made the line a Raw block,
-// and ended the paragraph before it (findings.md's E8)
+// and ended the paragraph before it
 let inlineHtml =
     Test.Case(name = "a tag with text after it is inline HTML, and ends no paragraph",
               run = fn() =
@@ -1401,7 +1401,7 @@ let wrapping =
                           ["a", "abcdefghijklmnopqrstuvwxyz", "b"]))
 
 // a regression test: bold was turned on in the first row and off in the
-// last, so a listing cut after the first left it on (findings.md's E5)
+// last, so a listing cut after the first left it on
 let styledRowsStandAlone =
     Test.Case(name = "a style a row leaves on is turned off at its end and on again after",
               run = fn() =

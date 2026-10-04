@@ -1,5 +1,6 @@
-# Top-level build. Each application under erl/ has its own src/Makefile;
-# this one just runs them in order.
+# Top-level build. Each application under erl/ has its own src/Makefile,
+# which includes the rules erl/app.mk keeps once; this one runs them in
+# order.
 
 APPS = utils lexer parser format typer runtime emitter cli
 

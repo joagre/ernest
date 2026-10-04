@@ -26,12 +26,14 @@ export fn merge(left : List(a), right : List(a), less : (a, a) -> Bool) : List(a
     let name = \"circle\";
     let flag = true; /// refused after code, and no doc comment
     let size = 0x1F_2A;
+    let big = 1.0e1_0;
     let upper = 0X1F;
     let raw = `C:\\`;
     merge(left, right)
 
 export fn Int.<>(a : Int, b : Int) : Int = a
 
+/* a note */ /// after a note, a doc comment as the lexer reads it
 type Task = Task(needs : List(String), done : Bool) derives compare
 fn largest(list : List(a)) : Optional(a) needs a.compare = List.last(list)
 "
@@ -65,6 +67,10 @@ fn largest(list : List(a)) : Optional(a) needs a.compare = List.last(list)
   (ernest-colour--check "\"circle\"" 'font-lock-string-face)
   (ernest-colour--check "true" 'font-lock-constant-face)
   (ernest-colour--check "0x1F_2A" 'font-lock-constant-face)
+  ;; an exponent's digits are grouped as any decimal's, report section 2.5
+  (ernest-colour--check "e1_0" 'font-lock-constant-face)
+  ;; a block comment before `///' leaves it a doc comment (section 2.2)
+  (ernest-colour--check "/// after a note" 'ernest-doc-comment-face)
   ;; an operator a type declares, report section 4.8
   (ernest-colour--check "Int.<>" 'font-lock-type-face)
   (ernest-colour--check "<>(a" 'font-lock-function-name-face)

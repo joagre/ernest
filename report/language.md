@@ -46,7 +46,7 @@ The grammar is Wirth-style EBNF. `=` defines, juxtaposition concatenates, `|` se
 
 ### 2.1 Characters
 
-Source text is Unicode in UTF-8; a leading byte-order mark (U+FEFF) is stripped. Whitespace is space (U+0020), tab (U+0009), line feed (U+000A), and carriage return (U+000D); it separates tokens. A blank line has one meaning more: it decides what a doc block documents (§2.2). Any other control character, U+0000 to U+001F and U+007F to U+009F, is an error wherever it stands, in a comment and a doc block as elsewhere; a string or a character literal writes one as an escape.
+Source text is Unicode in UTF-8; a leading byte-order mark (U+FEFF) is stripped. A source that is not UTF-8 is an error at its first byte that begins no character, before any other. Whitespace is space (U+0020), tab (U+0009), line feed (U+000A), and carriage return (U+000D); it separates tokens. A blank line has one meaning more: it decides what a doc block documents (§2.2). Any other control character, U+0000 to U+001F and U+007F to U+009F, is an error wherever it stands, in a comment and a doc block as elsewhere; a string or a character literal writes one as an escape.
 
 ### 2.2 Comments
 

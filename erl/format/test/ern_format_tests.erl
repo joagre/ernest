@@ -8,6 +8,7 @@
 -module(ern_format_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("utils/include/ern_diagnostic.hrl").
 
 %% The lines a text of lines is laid out as.
 laid(Lines) ->
@@ -22,9 +23,9 @@ fixed(Lines) ->
 %% report §11.6: a block comment on a line of code stands apart from the
 %% tokens around it by one space, but for none after an opening bracket
 %% and none before a closing bracket or a separator. A regression test: it
-%% was glued to a token the layout puts no space before, `- /* neg */1`
-%% (findings.md's C-B5), and the release review found a space put after an
-%% opening bracket, `h( /* f */ x)`
+%% was glued to a token the layout puts no space before, `- /* neg */1`,
+%% and the release review found a space put after an opening bracket,
+%% `h( /* f */ x)`
 block_comment_apart_test() ->
     ?assertEqual([<<"fn f(x) =">>, <<"    - /* neg */ 1">>], laid(["fn f(x) = - /* neg */1"])),
     ?assertEqual([<<"fn g(x) =">>, <<"    h(/* f */ x)">>], laid(["fn g(x) = h( /* f */x)"])),
@@ -301,10 +302,35 @@ doc_examples_test() ->
                        "/// ```",
                        "export fn f(n : Int) : Int = n + 1"])).
 
-%% report §11.6: a module that does not parse is not laid out
+%% report §11.6: a raw string in a doc block's example that is laid out as
+%% a body keeps its lines as written, however few or many spaces open
+%% them. A regression test: the wrapper's four columns
+%% were taken from them, changing the string
+doc_example_raw_string_test() ->
+    fixed(["/// A value.",
+           "///",
+           "/// ```ernest",
+           "/// let s = `a",
+           "///     b`;",
+           "/// String.length(s)",
+           "/// ```",
+           "export let x : Int = 1"]),
+    fixed(["/// ```ernest",
+           "/// let s = `a",
+           "///  `;",
+           "/// String.length(s)",
+           "/// ```",
+           "export let x : Int = 1"]).
+
+%% report §11.6: a module that does not parse is not laid out, one whose
+%% doc block documents nothing among them, as `ern build` refuses it. A
+%% regression test for the doc block: the formatter parsed without the doc
+%% blocks and laid the module out
 not_parsed_test() ->
     ?assertMatch({error, _}, ern_format:format(<<"fn f( = 1">>)),
-    ?assertMatch({error, _}, ern_format:format(<<"let s = \"open">>)).
+    ?assertMatch({error, _}, ern_format:format(<<"let s = \"open">>)),
+    ?assertMatch({error, #diagnostic{message = "a doc block documents nothing here"}},
+                 ern_format:format(<<"fn f() : Int = {\n    /// stray\n    1\n}\n">>)).
 
 %% report §11.6: in a CommonMark text, an Ernest block that parses as a
 %% module or as a function's body is laid out, and any other is left
@@ -317,7 +343,7 @@ markdown_test() ->
 
 %% report §11.6: a doc block is kept as written, the spaces that end a line
 %% among them, and so is a raw string in one of its examples. A regression
-%% test: both lost their trailing spaces (findings C11, C16)
+%% test: both lost their trailing spaces
 doc_trailing_spaces_test() ->
     fixed(["/// A line  ", "/// broken.", "export let x : Int = 1"]),
     fixed(["/// A value.", "///", "/// ```ernest", "/// let s = `a   ", "/// b`", "/// ```",
@@ -325,14 +351,14 @@ doc_trailing_spaces_test() ->
 
 %% report §11.6: a blank line after a comment on a line of its own is kept,
 %% where the comment follows an opening bracket too. A regression test: it
-%% was dropped (findings C25)
+%% was dropped
 blank_after_comment_test() ->
     fixed(["fn f(x : Int) : Int = {", "    // one", "", "    let y = x;", "    y", "}"]).
 
 %% report §11.6: comments directly under a declaration, with a blank line
 %% after them, stay beside it, and the blank line between two declarations
 %% comes after them; one directly above a declaration is its. A regression
-%% test: the blank line went before them (findings C24)
+%% test: the blank line went before them
 comment_under_declaration_test() ->
     fixed(["type T = A | B", "// after the type", "", "export let x : Int = 1"]),
     fixed(["export let y : Int = 2", "// one", "// two", "", "// before x",
@@ -343,14 +369,14 @@ comment_under_declaration_test() ->
 
 %% report §11.6: an Ernest block of a CommonMark text that does not parse
 %% is left as it is, the indentation of its lines too. A regression test:
-%% an indented one was re-indented (findings C26)
+%% an indented one was re-indented
 markdown_unparsed_indented_test() ->
     Markdown = <<"- an item\n\n   ```ernest\n   let  = (\n  x\n   ```\n">>,
     ?assertEqual(Markdown, ern_format:markdown(Markdown)).
 
 %% report §2.2, §11.6: a `///` after code is an error, and the module is
 %% left as it is. A regression test: the formatter stopped with an
-%% internal error (findings C17)
+%% internal error
 doc_comment_after_code_test() ->
     ?assertMatch({error, _}, ern_format:format(<<"export let x : Int = 1 /// note\n">>)).
 

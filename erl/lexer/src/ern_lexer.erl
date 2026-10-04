@@ -36,7 +36,8 @@
 -define(RESERVED, [type, abstract, with, foreign, match, 'when', 'receive', 'after',
                    'or', as, 'if', then, 'else', fn, 'let', export]).
 
-%% Longest first, so max-munch is clause order.
+%% Longest first, so that the first symbol symbol/2 finds in the list is
+%% the longest, max-munch.
 -define(SYMBOLS, ["#(", "<<", ">>", "<-", "->", "==", "!=", "<=", ">=", "&&",
                   "||", "|>", "<>", "::", "..",
                   "(", ")", "{", "}", "[", "]", ",", ";", ":", "=", "|", ".",
@@ -96,7 +97,7 @@ refuse_controls([_ | Rest], Line, Column) ->
 %% emitted.
 %%
 
-lex([], Line, Column, PreviousEnd, Acc, _KeepComments) ->
+lex([], Line, Column, PreviousEnd, Acc, _Options) ->
     lists:reverse([{eof, {Line, Column, {Line, Column}, PreviousEnd}} | Acc]);
 lex([$\n | Rest], Line, _Column, PreviousEnd, Acc, Options) ->
     lex(Rest, Line + 1, 1, PreviousEnd, Acc, Options);
@@ -107,9 +108,9 @@ lex([Char | Rest], Line, Column, PreviousEnd, Acc, Options)
 lex("////" ++ Rest, Line, Column, PreviousEnd, Acc, Options) ->
     lex_line_comment("////", Rest, Line, Column, PreviousEnd, Acc, Options);
 lex("///" ++ Rest, Line, Column, PreviousEnd, Acc, Options) ->
-    is_after_token(Acc, Line) andalso
-        error_at(Line, Column, "a doc comment `///` stands on a line of its own; a note after"
-                               " code is written `//`"),
+    AfterCode = "a doc comment `///` stands on a line of its own; a note after code is written"
+                " `//`",
+    not is_after_token(Acc, Line) orelse error_at(Line, Column, AfterCode),
     {Text, Rest1, EndLine} = doc_block(Rest, Line, []),
     lex(Rest1, EndLine, 1, {EndLine, 1},
         [{doc, {Line, Column, {EndLine, 1}, PreviousEnd}, Text} | Acc], Options);
@@ -255,21 +256,21 @@ block_comment([Char | Rest], Depth, Line, Column, StartLine, StartColumn, Seen) 
 
 number([$0, Prefix | Rest], Line, Column) when Prefix =:= $x; Prefix =:= $o; Prefix =:= $b ->
     {Base, Name} = case Prefix of
-                       $x -> {16, "hexadecimal"};
-                       $o -> {8, "octal"};
-                       $b -> {2, "binary"}
+                       $x -> {16, "a hexadecimal"};
+                       $o -> {8, "an octal"};
+                       $b -> {2, "a binary"}
                    end,
     {Digits, Consumed, Rest1} = digits(Rest, fun(Char) -> digit_value(Char) < Base end),
     case {Digits, Rest} of
         {[], [$_ | _]} -> error_at(Line, Column + 2, "_ must stand between two digits");
-        {[], _} -> error_at(Line, Column, [$0, Prefix] ++ " needs a " ++ Name ++ " digit");
+        {[], _} -> error_at(Line, Column, [$0, Prefix] ++ " needs " ++ Name ++ " digit");
         _ -> ok
     end,
     EndColumn = Column + 2 + Consumed,
     case Rest1 of
         [Char | _] when Char =/= $_ ->
             case is_word_char(Char) of
-                true -> error_at(Line, EndColumn, [Char] ++ " is not a " ++ Name ++ " digit");
+                true -> error_at(Line, EndColumn, [Char] ++ " is not " ++ Name ++ " digit");
                 false -> ok
             end;
         _ ->

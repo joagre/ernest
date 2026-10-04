@@ -196,7 +196,7 @@ page_links(IndexText) ->
 %% are its own sections, and the log, whose entries say what was; man/'s
 %% pages are what `ern doc` wrote of sources these tests read. A
 %% regression: the lists were written out, and left out five documents
-%% and four directories (findings.md's D4)
+%% and four directories
 documents() ->
     Tracked = string:lexemes(os:cmd("git -C " ++ ?ROOT ++ " ls-files '*.md'"), "\n"),
     Found = [File || File <- Tracked,

@@ -65,7 +65,6 @@ prelude_docs() ->
 %% of a declaration the module keeps private speaks to the module's own
 %% reader, and is checked inside it. A regression test: every example was
 %% checked inside the module, where `Terminal.size`'s `Size` passed
-%% (findings.md's E15)
 check_examples(Namespace, Source, Docs) ->
     Blocks = [{split_result(Block), Where} || {Doc, Where} <- Docs, Block <- fences(Doc)],
     ?assert(Blocks =/= []),

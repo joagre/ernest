@@ -198,7 +198,6 @@ word_not_utf8_test() ->
 %% `.ern` and is otherwise one word, and those under a directory are found
 %% as `ern build` finds them (§11.1); a file that is none is refused and
 %% left as it is. A regression test: `ern format` laid out any file named
-%% (findings T11)
 format_finds_modules_as_build_test() ->
     Dir = tmp(),
     Text = "fn f(x) = x+1\n",
@@ -212,7 +211,7 @@ format_finds_modules_as_build_test() ->
               end,
     Refused([Notes], <<"notes.txt does not end in .ern">>),
     %% the refusal names the file; a regression test, it named only the
-    %% component (findings.md's T30)
+    %% component
     Refused([Upper], <<"Bad.ern: path component `Bad` must be lowercase">>),
     Refused([Dir ++ "/src"], <<"Sub/ok.ern: path component `Sub` must be lowercase">>),
     [?assertEqual({ok, list_to_binary(Text)}, file:read_file(File))
@@ -516,7 +515,6 @@ default_root_test() ->
 %% report §11.2: `ern run` given a module's source says to build it first,
 %% and given any other file that is no `.erc` says only that. A regression
 %% test: the source was refused without the step that was missing
-%% (findings.md's N14)
 run_a_source_test() ->
     Dir = tmp(),
     Source = write(Dir, "greet.ern", hello()),
@@ -534,7 +532,7 @@ run_a_source_test() ->
 %% that breaks the path shape is refused with the source root that leaves
 %% it out of the namespace, the deepest such, by `ern build` and `ern doc`
 %% alike, and the file's own name with none. A regression test: the
-%% refusal named no root (findings.md's K21)
+%% refusal named no root
 single_file_root_test() ->
     Dir = tmp(),
     write(Dir, "app/net/http.ern", "export let port : Int = 80\n"),
@@ -727,7 +725,7 @@ foreign_shown_as_foreign_test() ->
 %% report §4.2: `T.name` is the module's own member where its type `T`
 %% declares one of that name, and the module T's `name` otherwise. A
 %% regression test: the build left module T out wherever the module
-%% declared a type T, and `Stack.other` was an unknown name (R-3)
+%% declared a type T, and `Stack.other` was an unknown name
 type_name_shares_a_module_test() ->
     Dir = tmp(),
     write(Dir, "src/stack.ern", "export fn other() : Int = 7\n"),
@@ -998,7 +996,6 @@ test_runner_test() ->
 %% equals the expected one and otherwise fails naming both as `Io.show`
 %% writes them, the expected first, at a type the program declares and
 %% through a function that names `a.show` alike. Written with the function
-%% (findings.md's E108)
 test_equal_test() ->
     Dir = tmp(),
     File = write(Dir, "equals.ern",
@@ -1113,7 +1110,6 @@ test_runner_os_test() ->
 %% report §11: a link where `ern build` writes a `.erc` is replaced by the
 %% module, and what the link named is left as it was. A regression test:
 %% the build wrote through a link planted in the build tree
-%% (findings.md's C3-25)
 build_replaces_a_link_test() ->
     Dir = tmp(),
     write(Dir, "src/util.ern", "export fn one() : Int = 1\n"),
@@ -1126,7 +1122,7 @@ build_replaces_a_link_test() ->
 
 %% report §11.2: `ern test` writes a test's name as it writes a cause, its
 %% control characters escaped. A regression test: the name reached the
-%% terminal as it was (findings.md's C3-17)
+%% terminal as it was
 test_name_escaped_test() ->
     Dir = tmp(),
     write(Dir, "src/names.ern",
@@ -1592,7 +1588,6 @@ doc_man_test() ->
 %% escape, and a chunk that holds a function is no chunk of the compiler's.
 %% A regression test: the name ended the comment and its next line was a
 %% request of the page's, and the host decoded whatever a chunk held
-%% (findings.md's C3-29)
 crafted_module_test() ->
     Dir = tmp(),
     File = write(Dir, "shapes.ern", "export fn one() : Int = 1\n"),
@@ -1636,7 +1631,6 @@ doc_man_dir_test() ->
 %% report §11.4: a page `ern doc` wrote of a module whose source is gone is
 %% removed, as the build removes its .erc, and a file it did not write is
 %% kept. A regression test: the page stayed, out of the index
-%% (findings.md's T17)
 doc_sweeps_pages_test() ->
     Dir = pair(tmp()),
     SourceRoot = filename:join(Dir, "src"),
@@ -1781,7 +1775,7 @@ without_footer(Doc) ->
 %% error's or an option's help, appears in that document's table, by its
 %% first forty characters, so the table cannot drift from what the code
 %% refuses. A regression test: only "in MVP n" was found, and
-%% `--config-dir`'s "read from MVP 3.0" passed (findings.md's D28)
+%% `--config-dir`'s "read from MVP 3.0" passed
 mvp_refusals_listed_test() ->
     {ok, Listed} = file:read_file("../../../docs/development.md"),
     Pattern = "\"([^\"\n]*\\bMVP [0-9][^\"\n]*)\"",
@@ -1860,7 +1854,6 @@ old_spellings_test() ->
 %% report §11.2: a module without tests says so, and one two of whose tests
 %% have one name is refused before any runs. A regression test: the first
 %% printed nothing, and the second two lines no reader could tell apart
-%% (findings.md's T24)
 test_names_test() ->
     Dir = tmp(),
     None = write(Dir, "none.ern", "export fn two() : Int =\n    2\n"),
@@ -1882,7 +1875,6 @@ test_names_test() ->
 
 %% report §11.2: `--main` without a file is refused, as it names a function
 %% of the file; a regression test, the option having been ignored
-%% (findings.md's T9)
 shell_main_without_file_test() ->
     ?assertEqual(1, ern_err(["shell", "--main", "Foo.bar"])),
     ?assertMatch({_, _}, binary:match(iolist_to_binary(?capturedOutput),
@@ -1892,7 +1884,7 @@ shell_main_without_file_test() ->
 %% report §11: an old spelling names its replacement only to a job that
 %% takes it, matched by its whole name; `--version` and `--help` stand
 %% alone. A regression test: every job recommended what it then refused,
-%% and `--emit-erl=x` was taken for `--emit` (findings.md's T7)
+%% and `--emit-erl=x` was taken for `--emit`
 old_spellings_per_job_test() ->
     Refused = [{["run", "--out-dir", "x", "a.erc"], <<"ern run: invalid option: --out-dir">>},
                {["run", "--errors", "short", "a.erc"], <<"ern run: invalid option: --errors">>},
@@ -1910,7 +1902,6 @@ old_spellings_per_job_test() ->
 %% report §11.1, §11.5: a directory build compiles every module but one that
 %% uses a module that failed, and reports every failure, a module that
 %% does not parse among them. A regression test: it stopped at the first
-%% (findings.md's T10)
 every_failure_reported_test() ->
     Dir = tmp(),
     write(Dir, "src/c.ern", "export fn c() : Int = \"x\"\n"),
@@ -1928,8 +1919,8 @@ every_failure_reported_test() ->
 
 %% report §8.5, §11.2: a top-level binding that faults is reported under
 %% its name and line by `ern run` and `ern test`, where `main`'s site and
-%% the test runner's internal name stood. A regression test (findings.md's
-%% T14); the shell's start is ern_shell_tests' faulting_binding_named
+%% the test runner's internal name stood. A regression test; the shell's
+%% start is ern_shell_tests' faulting_binding_named
 faulting_binding_named_test() ->
     Dir = tmp(),
     File = write(Dir, "init.ern", "fn zero() : Int = List.size([])\n\n"
@@ -1950,7 +1941,7 @@ faulting_binding_named_test() ->
 %% report §11: an option is given once, a `-path` one excepted, with its
 %% value as the next word, and never an empty one. A regression test: a
 %% repeat took its first value, and `--name=value` and an empty value were
-%% accepted (findings.md's T8)
+%% accepted
 option_spellings_test() ->
     Refused = [{["build", "--build-root", "a", "--build-root", "b", "x.ern"],
                 <<"ern build: --build-root is given more than once">>},

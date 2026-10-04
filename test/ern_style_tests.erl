@@ -21,7 +21,7 @@ line_length_test() ->
                 "stdlib/**/*.ern", "examples/**/*.ern", "shell/**/*.ern", "test/**/*.ern",
                 "test/*.py", "emacs/*.el", "emacs/test/*.el", "libs/**/*.ern", "tools/*.ern",
                 "tools/*.sh", "tools/*.escript", "bin/ern", "erl/*/include/*.hrl", "Makefile",
-                "test/Makefile", "erl/*/src/Makefile", "tools/release/Makefile"],
+                "test/Makefile", "erl/*/src/Makefile", "erl/app.mk", "tools/release/Makefile"],
     Files = [File || Pattern <- Patterns, File <- filelib:wildcard(Pattern, ?ROOT),
                      filename:basename(File) =/= "getopt.erl",
                      not lists:prefix("test/build/", File),
@@ -53,7 +53,6 @@ no_tab_test() ->
 %% and a `-spec` on every exported function, in the toolchain's modules;
 %% the vendored getopt keeps its upstream form. Written after the rule,
 %% when six modules had fallen out of order and one had lost its specs
-%% (findings.md's C42, C43)
 exports_test() ->
     Files = [File || File <- filelib:wildcard("erl/*/src/*.erl", ?ROOT),
                      filename:basename(File) =/= "getopt.erl",
