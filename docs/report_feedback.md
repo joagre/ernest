@@ -63,8 +63,9 @@ This matters because a pure callback is not necessarily terminating. The wording
 starts at the call" and no more. `ern_rt:call/4` takes the deadline first, evaluates
 `request(r)` in the caller, which nothing interrupts, sends the request whether or not the
 deadline has passed, and waits until the deadline, at once where it has passed: `ms` bounds
-the wait, counted from the call, and not the request's construction. The sentence states
-that, or the code changes.
+the wait, counted from the call, and not the request's construction. An adapted address's
+function is applied by the send, in the caller, as §6.5 says of every `send`, after the
+deadline is taken and uninterrupted too. §6.6's sentence states that, or the code changes.
 
 **4. State ordering laws and their consequences — §3.10 and the relevant library entries.**
 
