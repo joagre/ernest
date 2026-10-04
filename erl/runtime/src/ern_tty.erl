@@ -21,7 +21,7 @@
 %% Decoding is decode/1 over the bytes read, and flush/1 for what is left
 %% when nothing follows; both are functions and are what the unit tests
 %% exercise. The reading itself is driven through a pseudo-terminal by
-%% test/ern_terminal_tests.erl, since 2026-09-20; loop/2 takes the input
+%% test/ern_terminal_tests.erl; loop/2 takes the input
 %% as ern_rt's stdin does, the host's standard input but in a test, and
 %% whether keys can come, which a test's keys say they can.
 -module(ern_tty).
@@ -271,7 +271,7 @@ start_reader(Reader) ->
 %% characters; a terminal that does not know the request ignores it.
 %% Report §8.2: while the terminal is claimed for keys, its interrupt is
 %% delivered to every subscriber as `Interrupt`, so raw mode's `-isig`
-%% stays. A regression: the signal was turned back on but for the shell.
+%% stays, for a program's subscribers as for the shell.
 %% Report §8.6: the terminal's settings are kept first, so that the end
 %% gives back the ones the program found; where they cannot be read, the
 %% mode is left as it is, since it could not be given back.
@@ -346,16 +346,16 @@ stty(Args) ->
 %% The terminal's settings as `stty -g` writes them, one word that stty
 %% takes back, or none. stty reads the terminal on the standard input its
 %% shell inherits, and writes to the port's descriptor 4, which a port
-%% opened with nouse_stdio reads.
+%% opened with nouse_stdio reads. The shell is /bin/sh by its path and the
+%% stty the system's, as stty/1 runs it, never one that PATH names.
 settings() ->
-    case terminal() andalso os:find_executable("sh") =/= false
-        andalso os:find_executable("stty") =/= false of
+    case terminal() andalso system_stty() of
         false ->
             none;
-        true ->
-            Stty = open_port({spawn_executable, os:find_executable("sh")},
-                             [{args, ["-c", "stty -g >&4"]}, nouse_stdio, exit_status,
-                              binary]),
+        SttyPath ->
+            Stty = open_port({spawn_executable, "/bin/sh"},
+                             [{args, ["-c", "\"$1\" -g >&4", "sh", SttyPath]}, nouse_stdio,
+                              exit_status, binary]),
             settings(Stty, [])
     end.
 
@@ -428,8 +428,8 @@ keys(Tty, Chars) -> Tty ! {chars, Chars}.
 %% What has arrived after what was pending. A paste under way is read on
 %% from where it stopped, so that each of its characters is read once
 %% however many pieces it comes in; anything else is decoded with the
-%% escape that was pending before it. A regression: a paste was read again
-%% from its start at every piece, a cost that grew as its square.
+%% escape that was pending before it. A paste's cost so grows with its
+%% length, and not with its square.
 -spec more(pending(), [char()]) -> {[term()], pending()}.
 more({paste, Text, Tail}, Chars) ->
     case pasted(Tail ++ Chars, Text) of

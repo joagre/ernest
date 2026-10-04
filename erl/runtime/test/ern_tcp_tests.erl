@@ -12,12 +12,12 @@ read_after_timeout_test() ->
     {ok, Port} = inet:port(Listen),
     Self = self(),
     Peer = spawn(fun() ->
-                     {ok, Conn} = gen_tcp:accept(Listen),
+                     {ok, Connection} = gen_tcp:accept(Listen),
                      receive go -> ok end,
-                     ok = gen_tcp:send(Conn, <<"a">>),
+                     ok = gen_tcp:send(Connection, <<"a">>),
                      timer:sleep(100),
-                     ok = gen_tcp:send(Conn, <<"b">>),
-                     receive done -> gen_tcp:close(Conn) end
+                     ok = gen_tcp:send(Connection, <<"b">>),
+                     receive done -> gen_tcp:close(Connection) end
                  end),
     ok = ern_rt:run_main(
            fun() ->
@@ -46,42 +46,58 @@ accept_timeout_test() ->
                Self ! {port, Port},
                Self ! {first, accept(Listener, 300)},
                %% a foreign call, which the deadlock detector counts
-               {ok, Conn} = ern_rt:in_foreign(fun() ->
+               {ok, Connection} = ern_rt:in_foreign(fun() ->
                                                   gen_tcp:connect("127.0.0.1", Port,
                                                                   [binary, {active, false}])
                                               end),
                Self ! {second, side(accept(Listener, 2000))},
-               gen_tcp:close(Conn)
+               gen_tcp:close(Connection)
            end, <<"main">>, quiet()),
     ?assert(wait(port) > 0),
     ?assertEqual({'Left', 'Timeout'}, wait(first)),
     ?assertEqual('Right', wait(second)).
 
+%% report §8.4, Appendix E.18: a listener the program closed exits
+%% `{ern, closed}`, the host term foreign code sees, which a monitor reads
+%% as `Returned`. A regression test of the report's list, written after
+%% the code
+closed_listener_exit_term_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               {'Right', Listener} = listen(0),
+               MonitorRef = erlang:monitor(process, Listener),
+               Listener ! 'CloseListener',
+               receive {'DOWN', MonitorRef, process, _, ExitReason} -> Self ! {ended, ExitReason}
+               end
+           end, <<"main">>, quiet()),
+    ?assertEqual({ern, closed}, wait(ended)).
+
 %% Appendix E.18 (L3): a socket lives until it is closed: after the far end
-%% closes, what came before is read, then each read, `peer` and `local`
+%% closes, what came before is read, then each read, `remote` and `local`
 %% answer `Left(Closed)`; a read after `Tcp.close` faults the reader, as a
 %% callForever on an ended process does: `callee was closed` where the
 %% close ends the socket while the read waits, and `callee had ended` where
-%% it had ended before (§6.6). The first is a regression test of the rule of
-%% 2026-10-01, before which it said the callee returned; the socket is held
-%% still until both the close and the read wait in its mailbox
+%% it had ended before (§6.6). The first is a regression test of the rule,
+%% before which it said the callee returned; the socket is held still until
+%% both the close and the read wait in its mailbox
 socket_lives_until_closed_test() ->
     {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
     {ok, Port} = inet:port(Listen),
     spawn(fun() ->
-              {ok, Conn} = gen_tcp:accept(Listen),
-              ok = gen_tcp:send(Conn, <<"x">>),
-              gen_tcp:close(Conn)
+              {ok, Connection} = gen_tcp:accept(Listen),
+              ok = gen_tcp:send(Connection, <<"x">>),
+              gen_tcp:close(Connection)
           end),
     Self = self(),
     ok = ern_rt:run_main(
            fun() ->
                {'Right', Socket} = connect(Port, 2000),
-               {'Right', {'Endpoint', <<"127.0.0.1">>, Port}} = peer(Socket),
+               {'Right', {'Endpoint', <<"127.0.0.1">>, Port}} = remote(Socket),
                {'Right', {'Endpoint', <<"127.0.0.1">>, _}} = local(Socket),
                sleep(100),
                Self ! {reads, [read(Socket, 1000), read(Socket, 1000), read(Socket, 1000),
-                               peer(Socket), local(Socket)]},
+                               remote(Socket), local(Socket)]},
                Pid = ern_rt:process_of(Socket),
                erlang:suspend_process(Pid),
                ern_rt:send(Socket, 'Close'),
@@ -135,9 +151,9 @@ close_listener_test() ->
     ?assertEqual(false, wait(alive)).
 
 %% report §6.6, Appendix E.18: an accept that waits as the listener's close
-%% ends it faults with `callee was closed`. A regression test of the rule
-%% of 2026-10-01; the listener is held still until both the close and the
-%% accept wait in its mailbox
+%% ends it faults with `callee was closed`. A regression test of the rule;
+%% the listener is held still until both the close and the accept wait in
+%% its mailbox
 accept_meets_the_close_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -267,8 +283,8 @@ answered_write_holds_no_timer_test() ->
     {ok, Port} = inet:port(Listen),
     Self = self(),
     Peer = spawn(fun() ->
-                     {ok, Conn} = gen_tcp:accept(Listen),
-                     receive done -> gen_tcp:close(Conn) end
+                     {ok, Connection} = gen_tcp:accept(Listen),
+                     receive done -> gen_tcp:close(Connection) end
                  end),
     ok = ern_rt:run_main(
            fun() ->
@@ -309,8 +325,8 @@ write_holds_up_no_read() ->
     Self = self(),
     %% the far end accepts and never reads
     Peer = spawn(fun() ->
-                     {ok, Conn} = gen_tcp:accept(Listen),
-                     receive done -> gen_tcp:close(Conn) end
+                     {ok, Connection} = gen_tcp:accept(Listen),
+                     receive done -> gen_tcp:close(Connection) end
                  end),
     ok = ern_rt:run_main(
            fun() ->
@@ -332,8 +348,8 @@ write_holds_up_no_read() ->
 
 %% report §6.9, Appendix E.18: a listener is owned by the process that
 %% opened it and is killed when that process dies. A regression test of the
-%% rule of 2026-10-01, before which a listener belonged to no one and lived
-%% until the program ended. The owner ends once the listener is monitored:
+%% rule, before which a listener belonged to no one and lived until the
+%% program ended. The owner ends once the listener is monitored:
 %% ended before, it let the kill come first and the monitor read `noproc`
 listener_ends_with_its_owner_test() ->
     Self = self(),
@@ -422,10 +438,10 @@ closed_socket_sends_what_it_took() ->
     {ok, Port} = inet:port(Listen),
     Self = self(),
     Peer = spawn(fun() ->
-                     {ok, Conn} = gen_tcp:accept(Listen),
+                     {ok, Connection} = gen_tcp:accept(Listen),
                      receive go -> ok end,
                      timer:sleep(2000),
-                     Self ! {taken, taken(Conn, 0)}
+                     Self ! {taken, taken(Connection, 0)}
                  end),
     Size = 4 * 1024 * 1024,
     ok = ern_rt:run_main(
@@ -443,9 +459,9 @@ closed_socket_sends_what_it_took() ->
     gen_tcp:close(Listen).
 
 %% Every byte the far end reads, and how the connection then ends.
-taken(Conn, Count) ->
-    case gen_tcp:recv(Conn, 0, 10000) of
-        {ok, Bytes} -> taken(Conn, Count + byte_size(Bytes));
+taken(Connection, Count) ->
+    case gen_tcp:recv(Connection, 0, 10000) of
+        {ok, Bytes} -> taken(Connection, Count + byte_size(Bytes));
         Ended -> {Count, Ended}
     end.
 
@@ -533,7 +549,7 @@ write(Socket, Bytes) ->
 read(Socket, Ms) ->
     ern_rt:call_forever(Socket, fun(Reply) -> {'Read', Ms, Reply} end).
 
-peer(Socket) ->
+remote(Socket) ->
     ern_rt:call_forever(Socket, fun(Reply) -> {'Remote', Reply} end).
 
 local(Socket) ->

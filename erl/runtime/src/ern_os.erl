@@ -6,7 +6,7 @@
 %% a program no one reads waits on its output. A read and a write each wait
 %% their own milliseconds (E.0 shape rule 8); the program runs until it
 %% exits, until its process is killed, since the port closing ends the
-%% helper, or until the process that started it dies. A running program is
+%% helper, or until its owner dies (E.23). A running program is
 %% a source (report §8.6) from its start until it has exited or been killed.
 -module(ern_os).
 
@@ -319,7 +319,7 @@ given_to(Owner, #{monitor_ref := MonitorRef} = Running) ->
     Running#{monitor_ref := erlang:monitor(process, Owner)}.
 
 %% The helper's port closed, which ends the helper and kills the program if
-%% it runs. The monitor of the process that started it stays.
+%% it runs. The monitor of its owner stays.
 stop(#{helper := Helper}) ->
     try erlang:port_close(Helper) catch error:badarg -> closed end.
 
@@ -333,7 +333,7 @@ answered(Reply, Answer) ->
 respond(Reply, {fault, Cause}) -> ern_rt:refuse(Reply, Cause);
 respond(Reply, Answer) -> ern_rt:answer(Reply, Answer).
 
-%% The process that started the program died: the program is killed with
+%% The program's owner died: the program is killed with
 %% this process, which ends as a killed process does.
 killed(Running) ->
     stop(Running),
@@ -341,12 +341,10 @@ killed(Running) ->
     exit({ern, killed}).
 
 %% Report Appendix E.23: why a program did not start, by the error's name
-%% the helper sends.
-not_started(<<"enoent">>) -> 'NotFound';
+%% the helper sends; a path through something that is no directory finds
+%% no program.
 not_started(<<"enotdir">>) -> 'NotFound';
-not_started(<<"eacces">>) -> 'Denied';
-not_started(<<"eperm">>) -> 'Denied';
-not_started(Text) -> {'Other', Text}.
+not_started(Name) -> ern_io:helper_error(Name).
 
 %% Report Appendix E.23: what the host says of the program as it starts, as
 %% the helper run with no program writes it back, `Os.Host(user,
@@ -357,12 +355,18 @@ not_started(Text) -> {'Other', Text}.
 -spec host() -> {'Host', non_neg_integer(), #{binary() => binary()}}.
 host() ->
     Helper = try open([])
-             catch error:_ -> ern_rt:fault(<<"the runtime's helper ern_exec failed">>)
+             catch error:_ -> host_failed()
              end,
     receive
         {Helper, {data, <<"u", User:32>>}} -> {'Host', User, variables(Helper, #{})};
-        {Helper, {exit_status, _}} -> ern_rt:fault(<<"the runtime's helper ern_exec failed">>)
+        {Helper, {exit_status, _}} -> host_failed()
     end.
+
+%% Report Appendix E.23, §8.5: the helper failed as the host was read,
+%% which ends the program before `main` runs.
+host_failed() ->
+    {fault, Cause} = helper_failed(),
+    ern_rt:fault(Cause).
 
 %% Report Appendix E.23: a name that occurs twice keeps its first value, and
 %% each value is kept as its bytes, decoded when it is asked for. A name that
@@ -376,19 +380,16 @@ variables(Helper, Environment) ->
                 {Helper, {exit_status, _}} -> Environment
             end;
         {Helper, {exit_status, _}} ->
-            ern_rt:fault(<<"the runtime's helper ern_exec failed">>)
+            host_failed()
     end.
 
 variable([Name, Value], Environment) ->
-    case is_map_key(Name, Environment) orelse not utf8(Name) of
+    case is_map_key(Name, Environment) orelse not ern_fs:is_utf8(Name) of
         true -> Environment;
         false -> Environment#{Name => Value}
     end;
 variable([_], Environment) ->
     Environment.
-
-utf8(Bytes) ->
-    is_binary(unicode:characters_to_binary(Bytes, utf8, utf8)).
 
 %% Report Appendix E.23, §7.4: the directory the program was started in,
 %% absolute, whose name ern has found UTF-8 before starting (report §11):
@@ -398,11 +399,8 @@ utf8(Bytes) ->
 -spec working_directory() -> binary().
 working_directory() ->
     case file:get_cwd() of
-        {ok, Dir} -> name(file:native_name_encoding(), Dir);
+        {ok, Dir} -> ern_fs:name_bytes(Dir);
         {error, Error} ->
             ern_rt:fault(iolist_to_binary(["the working directory cannot be read: ",
                                            atom_to_list(Error)]))
     end.
-
-name(latin1, Dir) -> list_to_binary(Dir);
-name(utf8, Dir) -> unicode:characters_to_binary(Dir).

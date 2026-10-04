@@ -1,5 +1,5 @@
-%% The stdlib modules of Appendix E, one test per module, and the
-%% operations of report §9.6 that live in them.
+%% The stdlib modules of Appendix E, by module, and the operations of
+%% report §9.6 that live in them.
 -module(ern_stdlib_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -25,7 +25,7 @@ list_test() ->
     ?assertEqual([1, 2], List:dropLast([1, 2, 3], 1)),
     ?assertEqual([], List:dropLast([], 1)),
     %% report Appendix E.2: a count, as drop takes one, a regression test of the
-    %% rule of 2026-10-01; one past the length leaves none, one below 0 all
+    %% rule; one past the length leaves none, one below 0 all
     ?assertEqual([1], List:dropLast([1, 2, 3], 2)),
     ?assertEqual([], List:dropLast([1, 2], 5)),
     ?assertEqual([1, 2], List:dropLast([1, 2], -1)),
@@ -218,7 +218,7 @@ string_searches_begin_at_a_grapheme_test() ->
 
 %% report Appendix E.5: `words` splits at runs of White_Space, the Unicode
 %% property, a no-break space and a line separator among them, and gives
-%% no empty word. Written with the code, of 2026-10-01
+%% no empty word. Written with the code
 string_words_test() ->
     String = 'ern@string',
     ?assertEqual([], String:words(<<>>)),
@@ -488,8 +488,8 @@ int_edges_test() ->
     ?assertThrow({ern, fault, <<"Int out of Float range">>}, Int:toFloat(Max + (1 bsl 970))),
     ?assertThrow({ern, fault, <<"Int out of Float range">>}, Int:toFloat(-(Max + (1 bsl 970)))),
     ?assertEqual({'Some', 1}, Int:pow(0, 0)),
-    %% report §7.4, E.8: a count below 0 is none; a regression test of the rule
-    %% of 2026-10-01, before which it shifted the other way
+    %% report §7.4, E.8: a count below 0 is none; a regression test of the rule,
+    %% before which it shifted the other way
     ?assertEqual(8, Int:shiftLeft(8, -2)),
     ?assertEqual(8, Int:shiftRight(8, -2)).
 
@@ -567,7 +567,7 @@ either_test() ->
 %% descriptor of the value's type, after the value
 io_test() ->
     Self = self(),
-    Sink = fun(Tag) -> fun(Bin) -> Self ! {Tag, Bin} end end,
+    Sink = fun(Tag) -> fun(Bytes) -> Self ! {Tag, Bytes} end end,
     Result = ern_rt:run_main(fun() ->
                                  'ern@io':print(<<"a">>),
                                  'ern@io':println(<<"b">>),
@@ -584,15 +584,7 @@ io_test() ->
 %% feed, and None at end of input
 io_read_line_test() ->
     Self = self(),
-    %% the reader runs in the stdin process, so the queue is shared
-    Tab = ets:new(lines, [public]),
-    ets:insert(Tab, {queue, ["one\n", "two"]}),
-    Lines = fun() ->
-                case ets:lookup(Tab, queue) of
-                    [{_, [Chunk | Rest]}] -> ets:insert(Tab, {queue, Rest}), Chunk;
-                    _ -> eof
-                end
-            end,
+    Lines = ern_rt_tests:queued_input(["one\n", "two"], fun() -> eof end),
     Result = ern_rt:run_main(fun() ->
                                  Self ! {read, 'ern@io':readLine()},
                                  Self ! {read, 'ern@io':readLine()},
@@ -602,7 +594,7 @@ io_read_line_test() ->
     ?assertEqual([{'Some', <<"one">>}, {'Some', <<"two">>}, 'None'], collect(read, [])).
 
 collect(Tag, Acc) ->
-    receive {Tag, Bin} -> collect(Tag, [Bin | Acc])
+    receive {Tag, Bytes} -> collect(Tag, [Bytes | Acc])
     after 0 -> lists:reverse(Acc)
     end.
 
@@ -733,8 +725,8 @@ fs_append_device_test() ->
 
 %% report Appendix E.17: `setMode` sets a file's and a directory's
 %% permission bits to the mode, a path that names nothing is NotFound, and a
-%% mode beyond the bits is Invalid. A regression test of the rule of
-%% 2026-10-01, which replaced `makePrivate` with it
+%% mode beyond the bits is Invalid. A regression test of the rule that
+%% replaced `makePrivate` with it
 fs_set_mode_test() ->
     Self = self(),
     Dir = scratch("ern_private_"),
@@ -877,8 +869,8 @@ fs_hard_links_test() ->
 
 %% report Appendix E.17: `readRange` reads a part of a file, fewer bytes at
 %% its end and none past it, a regular file only, and an offset or a count
-%% below 0 is none (§7.4, a regression test of the rule of 2026-10-01, which
-%% refused one in words). Written with the code (MVP 2.98); the counts and
+%% below 0 is none (§7.4, a regression test of the rule, before which one
+%% was refused in words). Written with the code (MVP 2.98); the counts and
 %% the offset past what the host can hold are a regression test, since the
 %% host made room for the count first and answered `Other("not enough
 %% memory")` or `Other("invalid argument")`
@@ -980,6 +972,48 @@ fs_remove_all_by_directories_test() ->
     ok = file:change_mode(filename:join([Dir, "locked", "inner"]), 8#755),
     file:del_dir_r(Dir).
 
+%% report Appendix E.17, E.1: `setModified` with a time the host cannot
+%% hold answers Invalid, an argument the host cannot take. A regression
+%% test: it answered Other("bad argument")
+fs_set_modified_past_the_host_test() ->
+    Self = self(),
+    Dir = scratch("ern_fs6_"),
+    File = filename:join(Dir, "f"),
+    ok = filelib:ensure_path(Dir),
+    ok = file:write_file(File, <<>>),
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Path = {'Path', list_to_binary(File)},
+                           Self ! {fs, 'ern@fs':setModified(Path, 1 bsl 80, 1000)},
+                           Self ! {fs, 'ern@fs':setModified(Path, -(1 bsl 80), 1000)}
+                       end, <<"fs_set_modified_past_the_host_test">>, #{})),
+    ?assertEqual([{'Left', 'Invalid'}, {'Left', 'Invalid'}], collect(fs, [])),
+    file:del_dir_r(Dir).
+
+%% report Appendix E.17: `removeAll` of a link named with a trailing `/`
+%% removes the link and keeps what it leads to, and an empty path names
+%% nothing. A regression test: the link was followed, its target emptied,
+%% and the removal then failed; and the empty path faulted as the helper's
+%% failure
+fs_remove_all_link_with_a_slash_test() ->
+    Self = self(),
+    Dir = scratch("ern_fs5_"),
+    Kept = filename:join(Dir, "kept"),
+    ok = filelib:ensure_path(Kept),
+    ok = file:write_file(filename:join(Kept, "precious.txt"), <<"keep">>),
+    ok = file:make_symlink(Kept, filename:join(Dir, "link")),
+    Fs = 'ern@fs',
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Slashed = list_to_binary(filename:join(Dir, "link") ++ "//"),
+                           Self ! {fs, Fs:removeAll({'Path', Slashed}, 5000)},
+                           Self ! {fs, Fs:removeAll({'Path', <<>>}, 5000)}
+                       end, <<"fs_remove_all_link_with_a_slash_test">>, #{})),
+    ?assertEqual([{'Right', 'Unit'}, {'Left', 'NotFound'}], collect(fs, [])),
+    ?assertEqual({error, enoent}, file:read_link_info(filename:join(Dir, "link"))),
+    ?assertEqual({ok, <<"keep">>}, file:read_file(filename:join(Kept, "precious.txt"))),
+    file:del_dir_r(Dir).
+
 %% report Appendix E.18, §8.2: a listener and a socket are processes, a
 %% write arrives at the peer's read, and a closed socket answers Left(Closed)
 tcp_test() ->
@@ -987,8 +1021,9 @@ tcp_test() ->
     Tcp = 'ern@tcp',
     Result = ern_rt:run_main(
                fun() ->
-                   {'Right', Listener} = Tcp:listen(<<"127.0.0.1">>, 7411),
-                   {'Right', Client} = Tcp:connect(<<"127.0.0.1">>, 7411, 1000),
+                   {'Right', Listener} = Tcp:listen(<<"127.0.0.1">>, 0),
+                   {'Right', Port} = Tcp:port(Listener),
+                   {'Right', Client} = Tcp:connect(<<"127.0.0.1">>, Port, 1000),
                    {'Right', Server} = Tcp:accept(Listener, 1000),
                    Tcp:write(Client, <<"ping">>, 5000),
                    Self ! {tcp, Tcp:read(Server, 1000)},
@@ -1005,16 +1040,22 @@ tcp_test() ->
 %% port is free for the next. A regression test: listeners and sockets
 %% were started outside the runtime's reach and outlived their program,
 %% and a second program listening on the port was refused `eaddrinuse`.
+%% The first listens on a port the host chooses, which the second asks for.
 tcp_ends_with_program_test() ->
     Self = self(),
     Tcp = 'ern@tcp',
-    Listen = fun() ->
-                 {Side, _} = Tcp:listen(<<"127.0.0.1">>, 7412),
+    First = fun() ->
+                {'Right', Listener} = Tcp:listen(<<"127.0.0.1">>, 0),
+                Self ! {listened, Tcp:port(Listener)}
+            end,
+    ?assertEqual(ok, ern_rt:run_main(First, <<"first">>, #{})),
+    [{'Right', Port}] = collect(listened, []),
+    Second = fun() ->
+                 {Side, _} = Tcp:listen(<<"127.0.0.1">>, Port),
                  Self ! {listened, Side}
              end,
-    ?assertEqual(ok, ern_rt:run_main(Listen, <<"first">>, #{})),
-    ?assertEqual(ok, ern_rt:run_main(Listen, <<"second">>, #{})),
-    ?assertEqual(['Right', 'Right'], collect(listened, [])).
+    ?assertEqual(ok, ern_rt:run_main(Second, <<"second">>, #{})),
+    ?assertEqual(['Right'], collect(listened, [])).
 
 %% report Appendix E.12, §3.8, §8.4
 foreign_test() ->
@@ -1106,7 +1147,7 @@ path_edges_test() ->
     ?assertEqual(AsPath(<<"b">>), Path:'<>'(AsPath(<<"">>), AsPath(<<"b">>))),
     ?assertEqual([<<"/">>], Path:split(AsPath(<<"/">>))),
     %% report Appendix E.14: the root has no name, a regression test of the
-    %% rule of 2026-10-01, before which it was ""
+    %% rule, before which it was ""
     ?assertEqual('None', Path:name(AsPath(<<"/">>))),
     ?assertEqual({'Some', <<>>}, Path:extension(AsPath(<<"a.">>))),
     ?assertEqual('None', Path:extension(AsPath(<<"a.d/b">>))),
@@ -1169,8 +1210,8 @@ path_test() ->
     ?assertEqual({'Path', <<"a/b">>}, Path:'<>'({'Path', <<"a/">>}, {'Path', <<"b">>})),
     ?assertEqual({'Path', <<"/b">>}, Path:'<>'({'Path', <<"a">>}, {'Path', <<"/b">>})),
     %% report Appendix E.14: join is split's inverse, a root first staying
-    %% one; a regression test of the rule of 2026-10-01, before which join
-    %% took two paths, which `<>` now does
+    %% one; a regression test of the rule, before which join took two paths,
+    %% which `<>` now does
     ?assertEqual({'Path', <<"/etc/hosts">>}, Path:join([<<"/">>, <<"etc">>, <<"hosts">>])),
     ?assertEqual({'Path', <<"a/b">>}, Path:join(Path:split({'Path', <<"a//b/">>}))),
     ?assertEqual({'Path', <<>>}, Path:join([])),

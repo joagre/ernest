@@ -1032,7 +1032,7 @@ broken(_, _, _, Number) when Number > ?CASES ->
 broken(Draw, Law, Seed, Number) ->
     Drawn = Draw(1 + Number div 10),
     Outcome = try Law(Drawn)
-              catch Class:Reason:Trace -> {Class, Reason, lists:sublist(Trace, 2)}
+              catch Class:Error:Trace -> {Class, Error, lists:sublist(Trace, 2)}
               end,
     case Outcome of
         true -> broken(Draw, Law, Seed, Number + 1);

@@ -82,10 +82,13 @@ os_run_signal_status_test() ->
     {ok, Output} = os_run("\"sh\"", "[\"-c\", \"kill -TERM $$\"]", "<<>>", "5000"),
     ?assertEqual(<<"143|Some(\"\")|Some(\"\")\n">>, Output).
 
-%% Appendix E.23: NotFound for a program not found, Denied for one that may
-%% not be run, and Invalid for an argument no program could be given
+%% Appendix E.23: NotFound for a program not found, an empty name among
+%% them, Denied for one that may not be run, and Invalid for an argument no
+%% program could be given. A regression test of the empty name, which
+%% faulted as the helper's failure
 os_run_refusals_test() ->
     ?assertEqual({ok, <<"NotFound\n">>}, os_run("\"no-such-program-ern\"", "[]", "<<>>", "5000")),
+    ?assertEqual({ok, <<"NotFound\n">>}, os_run("\"\"", "[]", "<<>>", "5000")),
     ?assertEqual({ok, <<"Denied\n">>}, os_run("\"/dev/null\"", "[]", "<<>>", "5000")),
     ?assertEqual({ok, <<"Invalid\n">>},
                  os_run("\"echo\"", "[\"a\\u{0}b\"]", "<<>>", "5000")).

@@ -3,10 +3,11 @@
 %% that one slow file does not hold up the rest. The work that opens a file
 %% goes around the host's file server, which does one request at a time:
 %% raw, as the host calls it. A Path is {'Path', Bytes} and an Entry's fields
-%% are in declared order (report §3.5): path, mtime, size, kind.
+%% are in declared order (report §3.5): path, mtime, size, kind, mode and
+%% user, as entry/2 builds them.
 -module(ern_fs).
 
--export([loop/0]).
+-export([loop/0, is_utf8/1, name_bytes/1]).
 
 -include_lib("kernel/include/file.hrl").
 
@@ -31,20 +32,20 @@ serve(Message) ->
     end.
 
 handle({'Read', Path, Reply}) ->
-    Name = text(Path),
-    answer(Reply, regular(Name, fun() -> file:read_file(Name, [raw]) end));
+    Text = text(Path),
+    answer(Reply, regular(Text, fun() -> file:read_file(Text, [raw]) end));
 %% Report Appendix E.17: a part of a file, read where it lies, without
 %% holding the rest; fewer bytes at its end, and none past it. Report §7.4:
 %% an offset or a count below 0 is none.
 handle({'ReadRange', Path, Offset, Count, Reply}) ->
-    Name = text(Path),
-    answer(Reply, regular(Name, fun() -> range(Name, max(Offset, 0), max(Count, 0)) end));
+    Text = text(Path),
+    answer(Reply, regular(Text, fun() -> range(Text, max(Offset, 0), max(Count, 0)) end));
 handle({'Write', Path, Bytes, Reply}) ->
-    Name = text(Path),
-    answer(Reply, regular_or_none(Name, fun() -> unit(file:write_file(Name, Bytes, [raw])) end));
+    Text = text(Path),
+    answer(Reply, regular_or_none(Text, fun() -> unit(file:write_file(Text, Bytes, [raw])) end));
 handle({'Append', Path, Bytes, Reply}) ->
-    Name = text(Path),
-    answer(Reply, appendable(Name, fun() -> unit(file:write_file(Name, Bytes, [raw, append])) end));
+    Text = text(Path),
+    answer(Reply, appendable(Text, fun() -> unit(file:write_file(Text, Bytes, [raw, append])) end));
 handle({'List', Path, Reply}) ->
     Dir = text(Path),
     answer(Reply, case file:list_dir_all(Dir) of
@@ -64,10 +65,10 @@ handle({'SetMode', Path, Mode, Reply}) ->
     answer(Reply, unit(file:change_mode(text(Path), Mode)));
 %% Report Appendix E.17: a link is removed, not what it leads to.
 handle({'Remove', Path, Reply}) ->
-    Name = text(Path),
-    answer(Reply, unit(case file:read_link_info(Name, [raw]) of
-                           {ok, #file_info{type = directory}} -> file:del_dir(Name);
-                           _ -> file:delete(Name, [raw])
+    Text = text(Path),
+    answer(Reply, unit(case file:read_link_info(Text, [raw]) of
+                           {ok, #file_info{type = directory}} -> file:del_dir(Text);
+                           _ -> file:delete(Text, [raw])
                        end));
 %% Report Appendix E.17: a tree removed by the runtime's helper, which walks
 %% a directory by the directories it has opened and never by a path, so
@@ -107,15 +108,15 @@ handle({'ReadLink', Path, Reply}) ->
 %% Report Appendix E.17: a new file, claimed by its name at once, or none:
 %% one whose write fails is removed.
 handle({'MakeFile', Path, Bytes, Reply}) ->
-    Name = text(Path),
-    answer(Reply, case file:open(Name, [write, exclusive, raw, binary]) of
+    Text = text(Path),
+    answer(Reply, case file:open(Text, [write, exclusive, raw, binary]) of
                       {ok, File} ->
                           Written = file:write(File, Bytes),
                           Closed = file:close(File),
                           case {Written, Closed} of
                               {ok, ok} -> {ok, 'Unit'};
-                              {ok, Error} -> gone(Name, Error);
-                              {Error, _} -> gone(Name, Error)
+                              {ok, Error} -> gone(Text, Error);
+                              {Error, _} -> gone(Text, Error)
                           end;
                       Error ->
                           Error
@@ -123,12 +124,12 @@ handle({'MakeFile', Path, Bytes, Reply}) ->
 %% Report Appendix E.17: the modification time, kept to the second, as the
 %% host sets it; the access time is left as it was.
 handle({'SetModified', Path, Mtime, Reply}) ->
-    Name = text(Path),
-    answer(Reply, case file:read_file_info(Name, [raw, {time, posix}]) of
+    Text = text(Path),
+    answer(Reply, case file:read_file_info(Text, [raw, {time, posix}]) of
                       {ok, #file_info{atime = Atime}} ->
                           Info = #file_info{atime = Atime,
                                             mtime = floor_div(Mtime, 1000)},
-                          unit(file:write_file_info(Name, Info, [raw, {time, posix}]));
+                          unit(file:write_file_info(Text, Info, [raw, {time, posix}]));
                       Error ->
                           Error
                   end);
@@ -140,8 +141,8 @@ handle({'Copy', SourcePath, DestinationPath, Reply}) ->
                                                       fun() -> copy(Source, Destination) end)
                                   end)).
 
-range(Name, Offset, Count) ->
-    case file:open(Name, [read, raw, binary]) of
+range(Text, Offset, Count) ->
+    case file:open(Text, [read, raw, binary]) of
         {ok, File} ->
             %% the host makes room for the count before it reads, so the
             %% count asked for is what the file holds from the offset
@@ -169,26 +170,26 @@ copy(Source, Destination) ->
 %% Report Appendix E.17: read, write and copy work on regular files, since
 %% a named pipe waits for a writer that may never come and a device may
 %% never end; a path that names nothing may be written.
-regular(Name, Then) ->
-    case file:read_file_info(Name, [raw]) of
+regular(Text, Then) ->
+    case file:read_file_info(Text, [raw]) of
         {ok, #file_info{type = regular}} -> Then();
         {ok, _} -> {error, not_regular};
         Error -> Error
     end.
 
-regular_or_none(Name, Then) ->
-    case file:read_file_info(Name, [raw]) of
+regular_or_none(Text, Then) ->
+    case file:read_file_info(Text, [raw]) of
         {error, enoent} -> Then();
-        _ -> regular(Name, Then)
+        _ -> regular(Text, Then)
     end.
 
 %% Report Appendix E.17: append writes a device as well, a terminal among
 %% them, since a write to it ends; a named pipe's open waits for a reader
 %% that may never come.
-appendable(Name, Then) ->
-    case file:read_file_info(Name, [raw]) of
+appendable(Text, Then) ->
+    case file:read_file_info(Text, [raw]) of
         {ok, #file_info{type = device}} -> Then();
-        _ -> regular_or_none(Name, Then)
+        _ -> regular_or_none(Text, Then)
     end.
 
 %% Every answer is Right(v) or Left(Io.Error).
@@ -210,11 +211,15 @@ named_entries(Dir, Names) ->
         [First | _] -> {error, {not_utf8, First}}
     end.
 
+%% Whether the bytes are UTF-8, as a Path's and a String's are.
+-spec is_utf8(binary()) -> boolean().
 is_utf8(Bytes) ->
     is_binary(unicode:characters_to_binary(Bytes, utf8, utf8)).
 
-%% The host gives a name decoded where its names are UTF-8, and one that is
-%% not as its bytes; where they are not, it gives every name's bytes.
+%% A name the host gives as its bytes. The host gives a name decoded where
+%% its names are UTF-8, and one that is not as its bytes; where they are
+%% not, it gives every name's bytes.
+-spec name_bytes(file:filename_all()) -> binary().
 name_bytes(Name) when is_binary(Name) -> Name;
 name_bytes(Name) ->
     case file:native_name_encoding() of
@@ -227,9 +232,10 @@ name_bytes(Name) ->
 entries(Dir, Names) ->
     lists:foldl(fun(_, {error, _} = Error) ->
                         Error;
-                   (Name, {ok, Acc}) ->
-                        Path = filename:join(Dir, Name),
-                        case entry(Path, file:read_link_info(Path, [raw, {time, posix}])) of
+                   (EntryName, {ok, Acc}) ->
+                        EntryText = filename:join(Dir, EntryName),
+                        Info = file:read_link_info(EntryText, [raw, {time, posix}]),
+                        case entry(EntryText, Info) of
                             {ok, Entry} -> {ok, [Entry | Acc]};
                             {error, enoent} -> {ok, Acc};
                             Error -> Error
@@ -240,11 +246,11 @@ entries(Dir, Names) ->
 %% mtime in milliseconds and mode the permission bits alone, as setMode
 %% takes them, where the host's mode holds the file's type too; stat
 %% describes what the path leads to.
-entry(Name) ->
-    entry(Name, file:read_file_info(Name, [raw, {time, posix}])).
+entry(Text) ->
+    entry(Text, file:read_file_info(Text, [raw, {time, posix}])).
 
-entry(Name, {ok, #file_info{type = Type, mtime = Mtime, size = Size, mode = Mode, uid = User}}) ->
-    {ok, {'Entry', {'Path', Name}, Mtime * 1000, Size, kind(Type), Mode band 8#7777, User}};
+entry(Text, {ok, #file_info{type = Type, mtime = Mtime, size = Size, mode = Mode, uid = User}}) ->
+    {ok, {'Entry', {'Path', Text}, Mtime * 1000, Size, kind(Type), Mode band 8#7777, User}};
 entry(_, Error) ->
     Error.
 
@@ -262,8 +268,8 @@ utf8_target(Bytes) ->
     end.
 
 %% A file created whose write failed is removed, so that none is left.
-gone(Name, Error) ->
-    _ = file:delete(Name, [raw]),
+gone(Text, Error) ->
+    _ = file:delete(Text, [raw]),
     Error.
 
 %% Seconds from milliseconds, rounded down, a time before the epoch too.
@@ -273,35 +279,24 @@ floor_div(Dividend, Divisor) -> -((-Dividend + Divisor - 1) div Divisor).
 %% The helper's job `remove` run on the path: Right(Unit) once it is gone,
 %% and the runtime's own failure, which faults the caller, where the helper
 %% fails (report §7.4, Appendix E.17).
-removed_by_helper(Name) ->
+removed_by_helper(Text) ->
     try erlang:open_port({spawn_executable, ern_os:helper()},
                          [{args, ["remove"]}, {packet, 4}, binary, exit_status]) of
         Helper ->
-            erlang:port_command(Helper, <<"p", Name/binary>>),
+            erlang:port_command(Helper, <<"p", Text/binary>>),
             receive
                 {Helper, {data, <<"d">>}} -> {'Right', 'Unit'};
-                {Helper, {data, <<"f", ErrorName/binary>>}} -> {'Left', removal_error(ErrorName)};
+                {Helper, {data, <<"f", ErrorName/binary>>}} ->
+                    {'Left', ern_io:helper_error(ErrorName)};
                 {Helper, {exit_status, _}} -> ern_os:helper_failed()
             end
     catch
         error:_ -> ern_os:helper_failed()
     end.
 
-%% The helper's name for an error, described as the file module's errors
-%% are, and its host's words where it has no name.
-removal_error(Name) ->
-    try binary_to_existing_atom(Name) of
-        Error -> io_error(Error)
-    catch
-        error:badarg -> {'Other', Name}
-    end.
-
-io_error(enoent) -> 'NotFound';
-io_error(eacces) -> 'Denied';
-io_error(eperm) -> 'Denied';
-io_error(econnrefused) -> 'Refused';
-%% Report Appendix E.1: Io.Error's constructors for what the host names
+%% Report Appendix E.1: Io.Error for what the file module answers, the
+%% runtime's own words for a file that is not regular and a name that is
+%% not UTF-8 among them.
 io_error(not_regular) -> 'NotAFile';
-io_error(eexist) -> 'Exists';
 io_error({not_utf8, Bytes}) -> {'NotUtf8', Bytes};
-io_error(Error) -> ern_io:other(Error, fun file:format_error/1).
+io_error(Error) -> ern_io:host_error(Error, fun file:format_error/1).

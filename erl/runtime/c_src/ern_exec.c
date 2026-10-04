@@ -81,8 +81,8 @@ static pid_t program = -1;
 static char *command_text = NULL;
 static char **command = NULL;
 
-/* Past the highest signal number of a host Ernest runs on; a number that
-   names no signal is refused by the host, which is all that happens. */
+/* The highest signal number of a host Ernest runs on; a number that names
+   no signal is refused by the host, which is all that happens. */
 #define SIGNALS 64
 
 /* Report Appendix E.23, §11: the environment as `ern` was given it. Each
@@ -151,13 +151,29 @@ static void frame(unsigned char tag, const unsigned char *data, size_t size)
     write_all(1, data, size);
 }
 
-static const char *error_name(int error)
+/* The name Erlang gives an error, which the runtime describes as it does
+   the file system's other errors; the host's own words where Erlang has no
+   name for it. Both jobs send it, so that one error has one text. */
+static const char *posix_name(int error)
 {
     switch (error) {
     case ENOENT: return "enoent";
     case ENOTDIR: return "enotdir";
     case EACCES: return "eacces";
     case EPERM: return "eperm";
+    case ENOTEMPTY: return "enotempty";
+    case EISDIR: return "eisdir";
+    case EBUSY: return "ebusy";
+    case EROFS: return "erofs";
+    case ELOOP: return "eloop";
+    case EIO: return "eio";
+    case ENAMETOOLONG: return "enametoolong";
+    case EMFILE: return "emfile";
+    case ENFILE: return "enfile";
+    case ENOMEM: return "enomem";
+    case ENOEXEC: return "enoexec";
+    case E2BIG: return "e2big";
+    case ETXTBSY: return "etxtbsy";
     default: return strerror(error);
     }
 }
@@ -167,7 +183,7 @@ static const char *error_name(int error)
    reason). */
 static int not_started(int error)
 {
-    const char *name = error_name(error);
+    const char *name = posix_name(error);
     frame('f', (const unsigned char *)name, strlen(name));
     return 0;
 }
@@ -269,7 +285,8 @@ static int read_all(unsigned char *data, size_t size)
 
 /* The runtime's first frame, the command, 'c' and at least the program,
    each part ended by a NUL byte, as execvp takes it; NULL where it is not
-   one. */
+   one. An empty program is one, which execvp finds nowhere (report
+   Appendix E.23: NotFound). */
 static char **read_command(void)
 {
     unsigned char head[4];
@@ -278,7 +295,7 @@ static char **read_command(void)
     if (!read_all(head, sizeof head))
         return NULL;
     length = (size_t)head[0] << 24 | (size_t)head[1] << 16 | (size_t)head[2] << 8 | head[3];
-    if (length < 3)
+    if (length < 2)
         return NULL;
     command_text = malloc(length);
     if (command_text == NULL || !read_all((unsigned char *)command_text, length)
@@ -304,30 +321,6 @@ static char **read_command(void)
  * directory another process replaces with a link while the walk runs leads
  * it nowhere else, and a link is removed, never followed.
  */
-
-/* The name Erlang gives an error, which the runtime describes as it does
-   the file system's other errors; the host's own words where Erlang has no
-   name for it. */
-static const char *posix_name(int error)
-{
-    switch (error) {
-    case ENOENT: return "enoent";
-    case ENOTDIR: return "enotdir";
-    case EACCES: return "eacces";
-    case EPERM: return "eperm";
-    case ENOTEMPTY: return "enotempty";
-    case EISDIR: return "eisdir";
-    case EBUSY: return "ebusy";
-    case EROFS: return "erofs";
-    case ELOOP: return "eloop";
-    case EIO: return "eio";
-    case ENAMETOOLONG: return "enametoolong";
-    case EMFILE: return "emfile";
-    case ENFILE: return "enfile";
-    case ENOMEM: return "enomem";
-    default: return strerror(error);
-    }
-}
 
 /* The flags that open a directory and nothing else: a link is refused
    with ELOOP and any other file with ENOTDIR, and a named pipe is not
@@ -438,22 +431,35 @@ static int remove_entry(int directory, const char *name)
     return unlinkat(directory, name, AT_REMOVEDIR) < 0 ? errno : 0;
 }
 
-/* The path removed as remove_entry removes an entry. */
-static int remove_all(const char *path)
+/* The path removed as remove_entry removes an entry, its last name
+   relative to the directory before it, so that a link is removed and not
+   followed, written with a trailing `/` or not. The path is changed in
+   place: its trailing slashes go, and its last `/` ends the directory. An
+   empty path names nothing. */
+static int remove_all(char *path)
 {
-    int root = open(path, DIRECTORY_ONLY);
-    int error;
+    size_t length = strlen(path);
+    char *last;
+    int parent, error;
 
-    if (root < 0) {
-        if (errno != ENOTDIR && errno != ELOOP)
-            return errno;
-        return unlink(path) < 0 ? errno : 0;
+    if (length == 0)
+        return ENOENT;
+    while (length > 1 && path[length - 1] == '/')
+        path[--length] = '\0';
+    last = strrchr(path, '/');
+    if (last == NULL || strcmp(path, "/") == 0)
+        return remove_entry(AT_FDCWD, path);
+    if (last == path)
+        parent = open("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    else {
+        *last = '\0';
+        parent = open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     }
-    error = empty_directory(root);
-    close(root);
-    if (error != 0)
-        return error;
-    return rmdir(path) < 0 ? errno : 0;
+    if (parent < 0)
+        return errno;
+    error = remove_entry(parent, last + 1);
+    close(parent);
+    return error;
 }
 
 /* The job `remove`: the path the first frame names, 'p' and its bytes,
@@ -468,7 +474,7 @@ static int remove_job(void)
     if (!read_all(head, sizeof head))
         return 1;
     length = (size_t)head[0] << 24 | (size_t)head[1] << 16 | (size_t)head[2] << 8 | head[3];
-    if (length < 2)
+    if (length < 1)
         return 1;
     frame_text = malloc(length + 1);
     if (frame_text == NULL || !read_all((unsigned char *)frame_text, length)

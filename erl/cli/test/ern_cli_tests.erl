@@ -232,7 +232,7 @@ format_finds_modules_as_build_test() ->
     [?assertEqual({ok, list_to_binary(Text)}, file:read_file(File))
      || File <- [Notes, Upper, Under]],
     %% a file outside the source root is refused with the option that names
-    %% another; a regression test for T30 too
+    %% another; a regression test too, the refusal having named no fix
     ?assertEqual(1, ern_err(["build", "--source-root", Dir ++ "/src", Upper])),
     ?assertMatch({_, _}, binary:match(unicode:characters_to_binary(?capturedOutput),
                                       <<"; --source-root names another">>)).
@@ -2221,7 +2221,7 @@ create_config_dir_test() ->
     #{<<"peers">> := [], <<"public-key">> := <<"-----BEGIN PUBLIC KEY-----", _/binary>>,
       <<"network-address">> := _} = json:decode(Conf),
     %% laid out as Appendix C shows it, a key a line in its order; a
-    %% regression test, it was one line with its keys sorted (T33)
+    %% regression test, it was one line with its keys sorted
     ?assertMatch([<<"{">>, <<"  \"network-address\": \"127.0.0.1:8654\",">>,
                   <<"  \"public-key\": \"-----BEGIN PUBLIC KEY-----", _/binary>>,
                   <<"  \"peers\": []">>, <<"}">>, <<>>],

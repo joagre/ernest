@@ -152,16 +152,17 @@ run_example(ErlangModule, Initialized, Number, Expected) ->
     ok = filelib:ensure_path(Dir),
     ok = file:set_cwd(Dir),
     try
-        run_example(ErlangModule, Initialized, Number, Expected, Cwd)
+        run_example_here(ErlangModule, Initialized, Number, Expected)
     after
         file:set_cwd(Cwd),
         file:del_dir_r(Dir)
     end.
 
-run_example(ErlangModule, Initialized, Number, Expected, _Cwd) ->
+%% The example run in the working directory.
+run_example_here(ErlangModule, Initialized, Number, Expected) ->
     Main = list_to_atom("docMain" ++ integer_to_list(Number)),
     Self = self(),
-    _ = collect([]),
+    _ = collect(out, []),
     %% report §8.5: each module's top-level bindings, the documented
     %% module's before the examples' that read them
     Init = fun() -> [Module:'$init'() || Module <- Initialized,
@@ -175,7 +176,7 @@ run_example(ErlangModule, Initialized, Number, Expected, _Cwd) ->
                              #{init => Init, stdout => fun(Bytes) -> Self ! {out, Bytes} end,
                                stderr => fun(Bytes) -> Self ! {err, Bytes} end}),
     ?assertEqual(ok, Result),
-    Lines = binary:split(collect([]), <<"\n">>, [global, trim]),
+    Lines = binary:split(iolist_to_binary(collect(out, [])), <<"\n">>, [global, trim]),
     _ = collect(err, []),
     ?assertEqual(iolist_to_binary(Expected), lists:last(Lines)).
 
@@ -193,13 +194,6 @@ restore(ErlangModule, _) ->
     code:purge(ErlangModule),
     code:delete(ErlangModule),
     code:purge(ErlangModule).
-
-collect(Acc) ->
-    receive
-        {out, Bytes} -> collect([Bytes | Acc])
-    after 0 ->
-        iolist_to_binary(lists:reverse(Acc))
-    end.
 
 %% Appendix E, Appendix G, report §11.5, §3.9: every listed function's type
 %% is the type its module's interface prints, its inferred restrictions
@@ -394,7 +388,8 @@ exported_declaration(#foreign_type_declaration{export = Export}) -> Export;
 exported_declaration(#foreign_fn_declaration{export = Export}) -> Export;
 exported_declaration(_) -> none.
 
-%% A node's doc block, or none where it carries no doc.
+%% A node's doc block: undefined for a declaration without one, which
+%% documented/1 looks for, and none for a node that carries no doc.
 doc_of(#module_doc{text = Doc}) -> Doc;
 doc_of(#type_declaration{doc = Doc}) -> Doc;
 doc_of(#abstract_declaration{doc = Doc}) -> Doc;
@@ -442,16 +437,13 @@ stdlib_targets_test() ->
                              values = Values} <- ern_prelude:stdlib_interfaces(),
                   {QualifiedName, Scheme} <- maps:to_list(Values),
                   Arity <- [arity(Scheme)],
-                  ErlangModule <- [erlang_module(Namespace)],
+                  ErlangModule <- [ern_namespace:erlang_module(Namespace)],
                   code:ensure_loaded(ErlangModule) =/= {module, ErlangModule}
                       orelse not erlang:function_exported(ErlangModule,
                                                           lists:last(QualifiedName),
                                                           Arity)],
     ?assertEqual([], Missing),
     ?assertNotEqual([], ern_prelude:stdlib_interfaces()).
-
-erlang_module(Namespace) ->
-    ern_namespace:erlang_module(Namespace).
 
 %% Report §4.9: a function's arity, and a parameter for each member its
 %% requirement names.

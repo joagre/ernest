@@ -2,10 +2,13 @@
 %% processes behind a listener and a socket. A socket is a process: it owns
 %% the host's socket and lives until Close, answering each read
 %% `Left(Closed)` once its connection has closed, and its address can be
-%% monitored, killed, and adapted like any other. Each request that waits carries its milliseconds,
-%% and the process that owns the stream decides whether time ran out, so
-%% that a request that timed out has taken nothing. A request waiting is a
-%% source (report §8.6), counted from its arrival until its answer.
+%% monitored, killed, and adapted like any other. Each request that waits
+%% carries its milliseconds, and the process that owns the stream decides
+%% whether time ran out, so that a request that timed out has taken
+%% nothing. Such a request, a connect, an accept, a read or a write, is a
+%% source (report §8.6), counted from its arrival until its answer. A
+%% listen waits on the host alone, and its caller's call to this process,
+%% which the reaper reads, covers it.
 -module(ern_tcp).
 
 -export([loop/0]).
@@ -17,7 +20,8 @@
 
 %% A socket's process: the host's socket, the writer that writes to it,
 %% the owner's monitor, the reads with no bytes yet, oldest first, the
-%% bytes no read has taken, and whether the connection is open or closed.
+%% writes the writer holds, oldest first, the bytes no read has taken, and
+%% whether the connection is open or closed.
 %% The host's socket is asked for bytes only while a read waits, so a
 %% program that stops reading holds the far end back.
 -record(connection, {socket, writer, monitor_ref, waiting = [], writes = [], buffer = <<>>,
@@ -49,7 +53,7 @@ loop() ->
 serve(Tcp) ->
     receive
         {'Listen', Host, Port, Owner, Reply} ->
-            erlang:spawn(fun() -> listen(Tcp, Host, Owner, Port, Reply) end),
+            erlang:spawn(fun() -> listen(Tcp, Host, Port, Owner, Reply) end),
             serve(Tcp);
         {'Connect', Host, Port, Ms, Owner, Reply} ->
             counted(fun() -> connect(Tcp, Host, Port, ern_rt:deadline(Ms), Owner, Reply) end),
@@ -84,7 +88,7 @@ opened(Tcp, Loop, Site) ->
 %% Report Appendix E.18: a listener on the interface the host's name or
 %% address names. Every request is answered: a port out of range, and what
 %% the host refuses by raising, are errors as much as what it answers.
-listen(Tcp, Host, Owner, Port, Reply) ->
+listen(Tcp, Host, Port, Owner, Reply) ->
     Answer = case {in_range(Port), ip_address(Host)} of
                  {false, _} ->
                      {'Left', 'Invalid'};
@@ -515,10 +519,7 @@ endpoint(open, Ask) ->
             {'Left', 'Closed'}
     end.
 
-io_error(enoent) -> 'NotFound';
-io_error(eacces) -> 'Denied';
-io_error(eperm) -> 'Denied';
-io_error(econnrefused) -> 'Refused';
+%% Report Appendix E.1, E.18: Io.Error for what the host's sockets answer.
 io_error(closed) -> 'Closed';
 io_error(etimedout) -> 'Timeout';
-io_error(Error) -> ern_io:other(Error, fun inet:format_error/1).
+io_error(Error) -> ern_io:host_error(Error, fun inet:format_error/1).

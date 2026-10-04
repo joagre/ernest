@@ -1230,7 +1230,10 @@ session_constructors_listed() ->
 
 %% report §11.2: after `:forget`, what completes is a name the session
 %% declares. A regression test: make untested found that no test reached
-%% the session's names for it.
+%% the session's names for it. The keys go once the next prompt is
+%% painted: keys typed ahead of it are painted without it and again with
+%% it, and the second painting counted the listing twice, one run in four
+%% under load.
 forget_completion_test_() ->
     {timeout, 60, fun forget_completion/0}.
 
@@ -1239,6 +1242,7 @@ forget_completion() ->
                 [{expect, "> "},
                  {send, hex("let zebra = 1\r")},
                  {expect, "zebra : Int"},
+                 {expect, "> "},
                  {send, hex(":forget ze") ++ "09"},
                  {expect, "bra"},
                  {send, "03"},

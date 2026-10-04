@@ -1,13 +1,18 @@
+%% Report §6, §7, §8: the runtime, ern_rt, as the runner runs a program's
+%% main: processes, calls and replies, monitors, the system processes, the
+%% boundary's proxies, and the end of a program.
 -module(ern_rt_tests).
+
+-export([queued_input/2]).
 
 -include_lib("eunit/include/eunit.hrl").
 
 %% report §8.2: the terminal is read as lines or as keys; a claim the same
 %% way stands, and one the other way is refused with the cause
 own_terminal_test() ->
-    ets:new(ern_processes, [named_table, public, set]),
+    ets:new(ern_launch, [named_table, public, set]),
     Owned = [ern_rt:own_terminal(keys), ern_rt:own_terminal(keys), ern_rt:own_terminal(lines)],
-    ets:delete(ern_processes),
+    ets:delete(ern_launch),
     ?assertEqual([ok, ok, {taken, <<"the terminal is already read as keys">>}], Owned).
 
 %% report §8.2: readers of the terminal asking at once, some for lines and
@@ -17,7 +22,7 @@ own_terminal_test() ->
 %% race can be won by luck, so a pass confirms the order rather than
 %% proving it
 own_terminal_race_test() ->
-    ets:new(ern_processes, [named_table, public, set]),
+    ets:new(ern_launch, [named_table, public, set]),
     Self = self(),
     Kinds = [case Number rem 2 of 0 -> keys; 1 -> lines end || Number <- lists:seq(1, 64)],
     Askers = [spawn(fun() ->
@@ -27,7 +32,7 @@ own_terminal_race_test() ->
     [Asker ! go || Asker <- Askers],
     Owned = [receive {owned, Kind, Result} -> {Kind, Result} after 1000 -> timeout end
              || _ <- Kinds],
-    ets:delete(ern_processes),
+    ets:delete(ern_launch),
     [Winner] = lists:usort([Kind || {Kind, ok} <- Owned]),
     Cause = <<"the terminal is already read as ", (atom_to_binary(Winner))/binary>>,
     ?assertEqual([], [Result || {_, Result} <- Owned, Result =/= ok, Result =/= {taken, Cause}]).
@@ -54,14 +59,8 @@ stdin_failure_test() ->
 %% carriage return before it, and a last line needs none; a line that is
 %% not UTF-8 faults the process that asked, and the next line is read
 stdin_stream_test() ->
-    Tab = ets:new(chunks, [public]),
-    ets:insert(Tab, {queue, [<<"ab\r\ncd">>, <<"\nrest\n">>, <<"ok\n", 255, "\nnext">>]}),
-    Next = fun() ->
-               case ets:lookup(Tab, queue) of
-                   [{_, [Chunk | Rest]}] -> ets:insert(Tab, {queue, Rest}), Chunk;
-                   _ -> eof
-               end
-           end,
+    Next = queued_input([<<"ab\r\ncd">>, <<"\nrest\n">>, <<"ok\n", 255, "\nnext">>],
+                        fun() -> eof end),
     Line = fun() ->
                ern_rt:call_forever(ern_rt:system_process(stdin), fun(Reply) ->
                                                                      {'ReadLine', Reply}
@@ -88,14 +87,7 @@ stdin_stream_test() ->
 %% last line without a line feed keeps its own. A regression test: the last
 %% line lost it too
 stdin_last_line_test() ->
-    Tab = ets:new(chunks, [public]),
-    ets:insert(Tab, {queue, [<<"a\r\nb\r">>]}),
-    Next = fun() ->
-               case ets:lookup(Tab, queue) of
-                   [{_, [Chunk | Rest]}] -> ets:insert(Tab, {queue, Rest}), Chunk;
-                   _ -> eof
-               end
-           end,
+    Next = queued_input([<<"a\r\nb\r">>], fun() -> eof end),
     Line = fun() ->
                ern_rt:call_forever(ern_rt:system_process(stdin), fun(Reply) ->
                                                                      {'ReadLine', Reply}
@@ -676,7 +668,10 @@ clock_test() ->
     ?assertEqual(true, wait(clock_ok)).
 
 %% report §8.4: a process's end is a host term, since foreign code may
-%% observe it: normal, {ern, fault, Text}, {ern, killed}, {ern, program_end}
+%% observe it: normal, {ern, fault, Text}, {ern, fault, Text, Trace} for a
+%% failure of the runtime, {ern, killed}, {ern, program_end}; a socket's
+%% {ern, closed} is ern_tcp_tests', and the shell's {ern, code_unloaded}
+%% the shell's tests'
 host_exit_reason_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -695,11 +690,17 @@ host_exit_reason_test() ->
                                      <<"Main.main:7">>),
                erlang:monitor(process, Victim),
                ern_rt:kill(Victim),
-               receive {'DOWN', _, process, Victim, VictimReason} -> Self ! {r3, VictimReason} end
+               receive {'DOWN', _, process, Victim, VictimReason} -> Self ! {r3, VictimReason} end,
+               Failed = ern_rt:spawn(fun() -> receive go -> erlang:error(boom) end end,
+                                     <<"Main.main:9">>),
+               erlang:monitor(process, Failed),
+               Failed ! go,
+               receive {'DOWN', _, process, Failed, FailedReason} -> Self ! {r4, FailedReason} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     ?assertEqual(normal, wait(r1)),
     ?assertEqual({ern, fault, <<"division by zero">>}, wait(r2)),
     ?assertEqual({ern, killed}, wait(r3)),
+    ?assertMatch({ern, fault, <<"error:boom">>, Trace} when is_binary(Trace), wait(r4)),
     %% a process still alive when main returns ends with the program
     spawn(fun() ->
               ern_rt:run_main(
@@ -716,6 +717,20 @@ host_exit_reason_test() ->
             ?assertEqual({ern, program_end}, ExitReason)
     after 2000 -> error(no_program_end)
     end.
+
+%% report §6.9: a process the host ends otherwise, here killed by foreign
+%% code, has the reason Fault(text), the host's term as the host writes it.
+%% A regression test of the sentence, written after the code
+host_ended_process_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Victim = ern_rt:spawn(fun() -> receive never -> ok end end, <<"Main.main:3">>),
+               ern_rt:monitor(Victim, fun(Down) -> {down, Down} end),
+               erlang:exit(Victim, kill),
+               receive {down, Down} -> Self ! {d, Down} end
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    ?assertMatch({'Down', _, {'Fault', <<"killed">>}, <<"Main.main:3">>}, wait(d)).
 
 %% report §8.6: a subscription and a read in progress are sources that can
 %% still deliver, so a program waiting on one is not deadlocked
@@ -738,8 +753,9 @@ sources_test() ->
                            ok
                        end, <<"main">>, #{stdout => fun(_) -> ok end, stdin => Slow})).
 
-%% report §8.6: a message on its way through a via proxy is in flight, so
-%% the program that waits for it is not deadlocked
+%% report §8.6, §6.5: a message an alarm delivers through `via` is in
+%% flight until its delivery process ends, `via` making no process of its
+%% own, so the program that waits for it is not deadlocked
 via_in_flight_test() ->
     ?assertEqual(ok, ern_rt:run_main(
                        fun() ->
@@ -766,7 +782,7 @@ via_is_not_a_process_test() ->
                lists:foreach(fun(_) -> receive tick -> ok end end, lists:seq(1, 100)),
                Self ! {counts, Before, settled(Before, 100)}
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    {Before, After} = wait(counts2),
+    {Before, After} = wait_counts(),
     ?assertEqual(Before, After).
 
 %% The process count once it is Before again, or after Tries waits of 10
@@ -782,7 +798,7 @@ settled(Before, Tries) ->
             settled(Before, Tries - 1)
     end.
 
-%% report §8.4, §6.3: an address handed to a foreign function arrives as
+%% report §8.4, §6.5: an address handed to a foreign function arrives as
 %% the checking proxy, and the proxy names the process behind it, so what
 %% the runtime holds of a process, its terminal (§11.2) among it, is the
 %% process and not the proxy
@@ -853,14 +869,30 @@ monitor_foreign_process_test() ->
                Self ! {counts, Before, erlang:system_info(process_count)},
                receive {down, Down} -> Self ! {d, Down} end
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
-    {Before, After} = wait(counts2),
+    {Before, After} = wait_counts(),
     ?assertEqual(Before, After),
     ?assertMatch({'Down', _, 'Returned', <<>>}, wait(d)).
 
-wait(counts2) ->
-    receive {counts, Before, After} -> {Before, After} after 2000 -> timeout end;
 wait(Tag) ->
     receive {Tag, Value} -> Value after 1000 -> timeout end.
+
+%% An input that gives each of Chunks in turn, to whichever process reads
+%% it, the standard input's or the terminal's, and then what Last gives,
+%% `eof` for an input that ends.
+-spec queued_input(list(), fun(() -> term())) -> fun(() -> term()).
+queued_input(Chunks, Last) ->
+    Table = ets:new(chunks, [public]),
+    ets:insert(Table, {queue, Chunks}),
+    fun() ->
+        case ets:lookup(Table, queue) of
+            [{_, [Chunk | Rest]}] -> ets:insert(Table, {queue, Rest}), Chunk;
+            _ -> Last()
+        end
+    end.
+
+%% The process counts a test sent, before and after.
+wait_counts() ->
+    receive {counts, Before, After} -> {Before, After} after 2000 -> timeout end.
 
 wait_atom(Atom) ->
     receive Atom -> Atom after 1000 -> timeout end.

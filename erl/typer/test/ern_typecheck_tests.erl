@@ -2624,8 +2624,8 @@ leaf_placement_test() ->
     ?assertEqual({2, 9, {2, 16}}, LetPattern#diagnostic.span),
     ?assertEqual([{{2, 19, {2, 20}}, "the value has type Int"}], LetPattern#diagnostic.labels),
     %% a `<-` pattern against the value inside, at the pattern and labelled
-    %% at the value; a regression test for X4 too, the error having stood at
-    %% the `let`, unlabelled and turned round
+    %% at the value; a regression test too, the error having stood at the
+    %% `let`, unlabelled and turned round
     ArrowPattern = diagnostic("fn f(o : Optional(Int)) : Optional(Int) = {\n    let #(a, b) <- o;\n"
                               "    Some(a)\n}\n"),
     ?assertEqual("the pattern does not fit the value inside the sum type: expected Int,"

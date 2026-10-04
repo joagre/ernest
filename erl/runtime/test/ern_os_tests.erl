@@ -6,8 +6,8 @@
 %% Appendix E.23, report §7.4: a write and a read that wait while the helper
 %% ends fault their callers, the runtime's own failure. A regression test:
 %% the process gave them to the port the helper's end had closed, and
-%% crashed with badarg; and of the rule of 2026-10-01, before
-%% which they were answered `Left(Other(...))`
+%% crashed with badarg; and of the rule, before which they were answered
+%% `Left(Other(...))`
 helper_ends_under_a_write_and_a_read_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -44,7 +44,7 @@ helper_answers_input_in_order_test() ->
     true = port_command(Helper, <<"e">>),
     true = port_command(Helper, <<"i", "y">>),
     ?assertEqual(none, receive
-                           {Helper, {data, <<T>>}} when T =:= $a; T =:= $d -> answered
+                           {Helper, {data, <<Tag>>}} when Tag =:= $a; Tag =:= $d -> answered
                        after 300 -> none
                        end),
     port_close(Helper).
@@ -86,7 +86,7 @@ helper_says_input_was_dropped_test() ->
     receive {Helper, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
     receive after 300 -> ok end,
     true = port_command(Helper, <<"i", "x">>),
-    ?assertEqual(<<"d">>, receive {Helper, {data, D}} -> D after 5000 -> none end),
+    ?assertEqual(<<"d">>, receive {Helper, {data, Frame}} -> Frame after 5000 -> none end),
     port_close(Helper).
 
 %% Appendix E.23: a program the host cannot start, here for want of a file
@@ -101,9 +101,9 @@ helper_gives_the_hosts_reason_test() ->
                         " exec " ++ helper_path() ++ " run\""},
                        [{packet, 4}, binary, exit_status]),
     true = port_command(Helper, command(["true"])),
-    ?assertEqual(<<"fToo many open files">>,
-                 receive {Helper, {data, D}} -> D after 5000 -> none end),
-    ?assertEqual(0, receive {Helper, {exit_status, S}} -> S after 5000 -> none end).
+    ?assertEqual(<<"femfile">>,
+                 receive {Helper, {data, Frame}} -> Frame after 5000 -> none end),
+    ?assertEqual(0, receive {Helper, {exit_status, Status}} -> Status after 5000 -> none end).
 
 %% report §8.6, Appendix E.23: a program whose helper ended waits for a read
 %% to fault, and holds nothing the check for a deadlock would read as work.
@@ -137,13 +137,13 @@ argument_too_long_test() ->
     Long = binary:copy(<<"x">>, 200000),
     ok = ern_rt:run_main(fun() -> Self ! {started, start(<<"echo">>, [Long])} end,
                          <<"main">>, #{stdout => fun(_) -> ok end}),
-    ?assertEqual({'Left', {'Other', <<"Argument list too long">>}}, wait(started)).
+    ?assertEqual({'Left', {'Other', <<"argument list too long">>}}, wait(started)).
 
 %% Appendix E.23, E.0 shape rule 8: a read answers `Left(Timeout)` when its
 %% milliseconds pass, the program running on; the piece asked for it is the
 %% next read's, whether it comes before that read or while it waits, and
-%% the exit status comes last. A regression test of the rule of 2026-10-01,
-%% before which the program's one time limit killed it
+%% the exit status comes last. A regression test of the rule, before which
+%% the program's one time limit killed it
 read_times_out_and_the_piece_is_kept_test() ->
     Self = self(),
     Echo = [<<"-c">>, <<"sleep 0.3; echo hi; sleep 0.3; echo there">>],
@@ -159,8 +159,8 @@ read_times_out_and_the_piece_is_kept_test() ->
 
 %% Appendix E.23, E.0 shape rule 8: a write to a program that takes no input
 %% answers `Left(Timeout)` when its milliseconds pass, more than a pipe holds
-%% being given. A regression test of the rule of 2026-10-01, before which
-%% the write waited without a limit
+%% being given. A regression test of the rule, before which the write
+%% waited without a limit
 write_times_out_test() ->
     Self = self(),
     ok = ern_rt:run_main(
@@ -199,8 +199,8 @@ timeouts_traced() ->
 
 %% report §6.9, Appendix E.23: `give` makes another process a program's
 %% owner, so that it outlives the process that started it and is killed
-%% when its new owner dies. A regression test of the rule of 2026-10-01,
-%% before which a program could not be given
+%% when its new owner dies. A regression test of the rule, before which a
+%% program could not be given
 give_test() ->
     Self = self(),
     ok = ern_rt:run_main(

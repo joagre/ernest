@@ -77,14 +77,17 @@ A module's atom is its Erlang name, `ern@` and its path (report §11.1), and a t
 
 ## The runtime
 
-`ern_rt` is what compiled code calls for processes, and the runner. It keeps six tables:
+`ern_rt` is what compiled code calls for processes, and the runner. It keeps nine tables:
 
-- `ern_processes`: `{Pid, Site, Timers, Foreign, Spawned}` per process the runtime started or adopted, `Timers` and `Foreign` counting its timed receives and foreign calls, and `Spawned` its place in the order of spawns, which `RestForOne` reads; beside them, the proxies' `{proxy, Key}` and `{behind, Pid}` rows, the `{restart, Pid}` rows, the deadlock target, and how the terminal is read.
+- `ern_processes`: `{Pid, Site, Timers, Foreign, SpawnOrder}` per process the runtime started or adopted, `Timers` and `Foreign` counting its timed receives and foreign calls, and `SpawnOrder` its place in the order of spawns, which `RestForOne` reads.
 - `ern_calls`: `{Caller, Callee, Reply}` per pending call, keyed by the caller, which makes one call at a time; `Reply` is the alias of the caller's monitor of the callee, and the reply's.
 - `ern_callees`: the same calls by callee, `{{Callee, Caller}, Reply}`, ordered, so that a restart reads its own callers.
 - `ern_faults`: `{Subscriber, Address}` per subscription to faults.
 - `ern_held`: `{{source, Holder}, Count}` for each holder of a source: a system process, a socket or a running program, the reaper for a watched process it did not start, a counted delivery process (`counted_link/2`), and `Tcp`'s connect and accept workers; and `{{opened, Pid}}` for each process a system module opened.
 - `ern_deliveries`: `{{Recipient, Starter, Pid}}` for each delivery a process started, ordered, so that a restart of the recipient reads its own deliveries and its starter can end them.
+- `ern_restarts`: `{Pid, Alias}` for each restart a process may be asked (§6.9).
+- `ern_proxies`: `{{proxy, Key}, Proxy}` for each checking proxy of §8.4, and `{{behind, Proxy}, Pid, Address, Key}` for what it stands in front of.
+- `ern_launch`: how the terminal is read, `{reading, Kind}`, and the process a deadlock faults, `{deadlock_victim, Pid}`.
 
 Its parts:
 

@@ -1,11 +1,11 @@
 %% The shims behind Io.show and Io.debug (report Appendix E.1): the value
 %% is written by the descriptor of its type at the call, which the compiler
 %% passes, and by the runtime's representation where the call has no type
-%% to give. And Io.Error's Other for a reason of the host's, which the
-%% system modules answer.
+%% to give. And Io.Error for a reason of the host's, which the system
+%% modules answer, the one mapping of the host's errors to it.
 -module(ern_io).
 
--export([show/1, show/2, debug/1, debug/2, other/2]).
+-export([show/1, show/2, debug/1, debug/2, host_error/2, helper_error/1, other/2]).
 
 -spec show(term()) -> binary().
 show(Value) -> show(Value, any).
@@ -23,6 +23,38 @@ debug(Value, Descriptor) ->
     %% Write(bytes, reply), answered once written
     ern_rt:call_forever(ern_rt:system_process(stderr), fun(Reply) -> {'Write', Line, Reply} end),
     Value.
+
+%% Report Appendix E.1: Io.Error for a reason of the host's, the constructor
+%% that names it, or Other.
+-spec host_error(term(), fun((atom()) -> string())) -> term().
+host_error(enoent, _) -> 'NotFound';
+host_error(eacces, _) -> 'Denied';
+host_error(eperm, _) -> 'Denied';
+host_error(econnrefused, _) -> 'Refused';
+host_error(eexist, _) -> 'Exists';
+%% an argument the host cannot take, a time it cannot hold among them, by
+%% Erlang's word or the kernel's
+host_error(badarg, _) -> 'Invalid';
+host_error(einval, _) -> 'Invalid';
+host_error(Error, Describe) -> other(Error, Describe).
+
+%% Report Appendix E.1: Io.Error for an error the runtime's helper names,
+%% by Erlang's name for it, described as the file module's errors are, and
+%% by the host's own words where Erlang has no name. A name is one of the
+%% helper's table (c_src/ern_exec.c, posix_name), which bounds the atoms
+%% made of them; the host's words have a space or a capital.
+-spec helper_error(binary()) -> term().
+helper_error(Name) ->
+    case is_posix_name(Name) of
+        true -> host_error(binary_to_atom(Name), fun file:format_error/1);
+        false -> {'Other', Name}
+    end.
+
+is_posix_name(<<$e, Rest/binary>>) when Rest =/= <<>> ->
+    lists:all(fun(Char) -> (Char >= $a andalso Char =< $z) orelse (Char >= $0 andalso Char =< $9)
+              end, binary_to_list(Rest));
+is_posix_name(_) ->
+    false.
 
 %% Report Appendix E.1: Io.Error's Other for a reason of the host's that no
 %% constructor names. It is the host's description, which Describe, the

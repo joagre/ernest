@@ -103,14 +103,7 @@ wait(Tag) ->
 %% end the program with its entry process's fault
 utf8_keys_test() ->
     Self = self(),
-    Tab = ets:new(chunks, [public]),
-    ets:insert(Tab, {queue, [<<195>>, <<169>>]}),
-    Cut = fun() ->
-              case ets:lookup(Tab, queue) of
-                  [{_, [Chunk | Rest]}] -> ets:insert(Tab, {queue, Rest}), Chunk;
-                  _ -> silent()
-              end
-          end,
+    Cut = ern_rt_tests:queued_input([<<195>>, <<169>>], fun silent/0),
     ok = ern_rt:run_main(fun() ->
                              subscribe(ern_rt:system_process(terminal)),
                              receive Key -> Self ! {key, Key} end
