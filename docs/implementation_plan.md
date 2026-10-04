@@ -399,6 +399,9 @@ package story. Written: `libs/ets` and `libs/markdown` (Appendix G; `libs/markdo
   serving files from a root others can write is written: `Fs.readUnder` and `Fs.writeUnder`,
   through E.0 rule 1, walking by opened directories in the runtime's helper, started per call
   or resident as that program's cost decides (E.17; the log's *Later*, S16).
+- **A file made with a mode in `Fs`**, decided when a program must write a file only its owner
+  may read into a directory others may enter: a function beside `makeFile` that takes the mode,
+  through E.0 rule 1, opening with it in the runtime's helper (E.17; the log's *Later*, S9).
 - **`Udp`**, a system module of Appendix E beside `Tcp` and not a library, admitted by E.0
   rule 1 and written as wanted too, with `Tcp`'s shapes: a socket an address, a read pulled
   with a time, a datagram `Bytes` (the log's *`Clock.monotonic` Is In, and `Udp` Is

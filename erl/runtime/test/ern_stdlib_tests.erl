@@ -759,6 +759,27 @@ fs_set_mode_test() ->
                                   DirInfo#file_info.mode band 8#777}),
     file:del_dir_r(Dir).
 
+%% report Appendix E.17: a file is created with the permission bits the
+%% host's mask leaves of 0o666, by `makeFile`, `write` and `append` alike.
+%% Written with the sentence (findings.md's S9), after the code
+fs_created_mode_test() ->
+    Self = self(),
+    Dir = scratch("ern_mask_"),
+    ok = filelib:ensure_path(Dir),
+    InDir = fun(Name) -> {'Path', unicode:characters_to_binary(filename:join(Dir, Name))} end,
+    ?assertEqual(ok, ern_rt:run_main(
+                       fun() ->
+                           Self ! {fs, 'ern@fs':makeFile(InDir("made"), <<"x">>, 1000)},
+                           Self ! {fs, 'ern@fs':write(InDir("written"), <<"x">>, 1000)},
+                           Self ! {fs, 'ern@fs':append(InDir("appended"), <<"x">>, 1000)}
+                       end, <<"fs_created_mode_test">>, #{})),
+    ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Right', 'Unit'}], collect(fs, [])),
+    Mask = list_to_integer(string:trim(os:cmd("umask")), 8),
+    [?assertEqual(8#666 band bnot Mask, Mode band 8#777)
+     || Name <- ["made", "written", "appended"],
+        {ok, #file_info{mode = Mode}} <- [file:read_file_info(filename:join(Dir, Name))]],
+    file:del_dir_r(Dir).
+
 %% report Appendix E.17: `list` describes each entry as it is, a link as
 %% the link itself, a link to nothing among them. A regression test: a link
 %% to nothing failed the list of the whole directory with NotFound
