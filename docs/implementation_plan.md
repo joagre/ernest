@@ -166,19 +166,20 @@ log's *A Full Review Now and Then*).
   and 15 to 21, and the distribution note's 8 to 17 (the second read-back, 2026-09-30, placed
   here with the user the same day).
 - **Code change in running processes, decided with the user before any of it is built**
-  (noted 2026-10-05; the log's *Code Change for a Service That Never Ends*, which holds the
-  thinking so far): §6.10's replacement by a message that carries the new loop, and
-  [`code_distribution.md`](code_distribution.md)'s section 8, weighed against the objection
-  that a typed language cannot have Erlang's code loading. The starting point: loading never
-  disturbs running code. The central case: the long-serving service. The direction: a
-  discipline around upgrade types, a fixed shape every such service's protocol holds, likely
-  a library type, with protocols kept small, stable and a service's own. The questions:
-  whether a protocol must hold an upgrade case; what an upgrade in place may change; a
-  restart after an upgrade, which must run the new function and not the one spawned; clients
-  of two versions; a forwarder through a protocol's overlap and when it retires; a
-  supervisor's tree upgraded; who hands a replacement its state; code no longer referred to,
-  collected; compatible evolution, kept out unless a service misses it; and an upgrade made
-  a test.
+  (noted 2026-10-05; the log's *Code Change for a Service That Never Ends* holds the
+  thinking so far, all tentative, none of it decided): §6.10's replacement by a message that
+  carries the new loop, and [`code_distribution.md`](code_distribution.md)'s section 8,
+  weighed against the objection that a typed language cannot have Erlang's code loading. The
+  thinking so far: loading never disturbs running code; the long-serving service is the
+  central case; a discipline around upgrade types, a fixed shape every such service's
+  protocol holds, with protocols small, stable and a service's own; and, in practice, a
+  deploy planned from the hashes, a keeper holding the state behind a stable protocol, an
+  upgrade in place that rolls back by default, the code's hash in `Process.info`, and an
+  upgrade tested against the last release in CI. The questions: whether a protocol must hold
+  an upgrade case; what an upgrade in place may change; a restart after an upgrade, which
+  must run the new function and not the one spawned; clients of two versions; a forwarder
+  through a protocol's overlap and when it retires; a supervisor's tree upgraded; who hands
+  a replacement its state; code no longer referred to, collected; and compatible evolution.
 - The module `Peer`, with `Peer.spawn(name, f)` and `Peer.spawnMonitored(name, f, wrap)` (§8.3),
   in a section added at the end of Appendix E; the checker's refusal of a name of `Peer` goes,
   and the guide's examples in §8.1 and §8.4 are compiled again (2026-10-01, the log's *The Rules
