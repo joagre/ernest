@@ -1,6 +1,14 @@
-/// Operations on `Char`, a Unicode scalar value (report §3.1). The predicates
-/// use the code point's Unicode properties; the ordering is the prelude's
-/// (report §9.6), by code point.
+/// Characters: one Unicode scalar value each.
+///
+/// A `Char` is written `'a'`. Text is a `String`, and `String.toList` gives its
+/// `Char`s. A letter a reader sees may be several `Char`s, a letter and an
+/// accent, so text is searched and counted as a `String`, not a `Char` at a
+/// time.
+///
+/// The predicates, `isAlpha`, `isDigit`, `isSpace` and the rest, read Unicode's
+/// properties of the character, so they hold for the letters and digits of
+/// every script. `isAsciiDigit` holds for `0` to `9` alone. `<` on two `Char`s
+/// compares their code points.
 ///
 /// ## Examples
 ///
@@ -20,12 +28,12 @@
 ///
 /// since 0.1.0
 
-/// `true` for a decimal digit in any script, general category Nd.
+/// `true` for a decimal digit of any script, Unicode's category Nd.
+/// `isAsciiDigit` holds for `0` to `9` alone.
 export foreign fn isDigit(char : Char) : Bool =
     "ern_char:is_digit/1"
 
-/// `true` for one of the digits `0` to `9`, those `String.toInt` reads;
-/// `isDigit` accepts a digit of any script.
+/// `true` for one of the digits `0` to `9`, those `String.toInt` reads.
 ///
 /// ### Examples
 ///
@@ -67,12 +75,12 @@ fn placeValue(char : Char) : Optional(Int) =
     else
         None
 
-/// `true` for a letter in any script, general category L.
+/// `true` for a letter of any script, Unicode's category L.
 export foreign fn isAlpha(char : Char) : Bool =
     "ern_char:is_alpha/1"
 
-/// `true` for white space, the White_Space property: `' '`, `'\n'`, and the
-/// wider spaces of other scripts.
+/// `true` for whitespace, Unicode's White_Space property: a space, a tab, a
+/// line end, and the wider spaces of other scripts.
 ///
 /// ### Examples
 ///
@@ -83,7 +91,7 @@ export foreign fn isAlpha(char : Char) : Bool =
 export foreign fn isSpace(char : Char) : Bool =
     "ern_char:is_space/1"
 
-/// `true` for an upper-case letter, general category Lu.
+/// `true` for an upper-case letter, Unicode's category Lu.
 ///
 /// ### Examples
 ///
@@ -94,16 +102,18 @@ export foreign fn isSpace(char : Char) : Bool =
 export foreign fn isUpper(char : Char) : Bool =
     "ern_char:is_upper/1"
 
-/// `true` for a lower-case letter, general category Ll.
+/// `true` for a lower-case letter, Unicode's category Ll.
 export foreign fn isLower(char : Char) : Bool =
     "ern_char:is_lower/1"
 
-/// The upper-case form, or `char` itself when it has no single upper-case
-/// form: `'ß'` stays `'ß'`.
+/// The upper-case form, or `char` itself where it has no single upper-case
+/// `Char`: `'ß'` stays `'ß'`, since its upper case is two letters, which
+/// `String.toUpper` gives.
 export foreign fn toUpper(char : Char) : Char =
     "ern_char:to_upper/1"
 
-/// The lower-case form, or `char` itself when it has no single lower-case form.
+/// The lower-case form, or `char` itself where it has no single lower-case
+/// `Char`.
 ///
 /// ### Examples
 ///
@@ -114,7 +124,7 @@ export foreign fn toUpper(char : Char) : Char =
 export foreign fn toLower(char : Char) : Char =
     "ern_char:to_lower/1"
 
-/// The one-character string.
+/// The string of that one character.
 ///
 /// ### Examples
 ///
@@ -125,12 +135,12 @@ export foreign fn toLower(char : Char) : Char =
 export foreign fn toString(char : Char) : String =
     "ern_char:to_string/1"
 
-/// The code point.
+/// The character's code point.
 export foreign fn toInt(char : Char) : Int =
     "ern_char:to_int/1"
 
 /// The character with code point `code`, or `None` outside U+0000 to U+10FFFF
-/// or for a surrogate, U+D800 to U+DFFF.
+/// and for a surrogate, U+D800 to U+DFFF.
 export fn fromInt(code : Int) : Optional(Char) =
     if code < 0 || code > 0x10FFFF || (code >= 0xD800 && code <= 0xDFFF) then
         None
@@ -140,7 +150,8 @@ export fn fromInt(code : Int) : Optional(Char) =
 foreign fn fromCode(code : Int) : Char =
     "ern_char:from_int/1"
 
-/// The order of the code points, which `<` and the other comparisons use.
+/// Compares two characters by their code points, the order `<` and the other
+/// comparisons use.
 ///
 /// ### Examples
 ///

@@ -1,6 +1,11 @@
-/// Operations on `Int`, the integers of arbitrary precision (report §3.1).
-/// The arithmetic and the ordering are the prelude's (report §9.6); this
-/// module provides them with the rest.
+/// Integers of any size.
+///
+/// An `Int` never overflows: arithmetic on it is exact however large the
+/// numbers grow. Use a `Float` for fractions and measurements.
+///
+/// The operators, `+`, `-`, `*`, `/`, `%` and the comparisons, are this
+/// module's, and the language calls them for an `Int`. `/` and `%` fault on a
+/// divisor of 0; `div` and `rem` answer `None` instead.
 ///
 /// ## Examples
 ///
@@ -36,7 +41,8 @@ export fn Int.*(left : Int, right : Int) : Int =
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("division by zero")` when `divisor` is `0`; `Int.div` does not.
+/// Faults where `divisor` is 0, with the cause `division by zero`. `Int.div`
+/// answers `None` instead.
 export fn Int./(dividend : Int, divisor : Int) : Int =
     dividend / divisor
 
@@ -44,11 +50,12 @@ export fn Int./(dividend : Int, divisor : Int) : Int =
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("division by zero")` when `divisor` is `0`; `Int.rem` does not.
+/// Faults where `divisor` is 0, with the cause `division by zero`. `Int.rem`
+/// answers `None` instead.
 export fn Int.%(dividend : Int, divisor : Int) : Int =
     dividend % divisor
 
-/// `-int`, which prefix `-` calls.
+/// `-int`, which a prefix `-` calls.
 ///
 /// ### Examples
 ///
@@ -59,17 +66,16 @@ export fn Int.%(dividend : Int, divisor : Int) : Int =
 export fn negate(int : Int) : Int =
     -int
 
-/// `dividend / divisor`, truncated toward zero, or `None` when `divisor` is
-/// `0`.
+/// `dividend / divisor`, truncated toward zero, or `None` where `divisor` is 0.
 export fn div(dividend : Int, divisor : Int) : Optional(Int) =
     if divisor == 0 then None else Some(dividend / divisor)
 
-/// `dividend % divisor`, the remainder with the sign of `dividend`, or
-/// `None` when `divisor` is `0`.
+/// `dividend % divisor`, the remainder with the sign of `dividend`, or `None`
+/// where `divisor` is 0.
 export fn rem(dividend : Int, divisor : Int) : Optional(Int) =
     if divisor == 0 then None else Some(dividend % divisor)
 
-/// The numeric order, which `<` and the other comparisons use.
+/// Compares two integers by size, the order `<` and the other comparisons use.
 ///
 /// ### Examples
 ///
@@ -80,11 +86,11 @@ export fn rem(dividend : Int, divisor : Int) : Optional(Int) =
 export fn compare(left : Int, right : Int) : Ordering =
     if left < right then Less else if left > right then Greater else Equal
 
-/// The magnitude.
+/// The absolute value: `abs(-3)` is `3`.
 export fn abs(int : Int) : Int =
     if int < 0 then -int else int
 
-/// The smaller.
+/// The smaller of the two.
 ///
 /// ### Examples
 ///
@@ -95,11 +101,11 @@ export fn abs(int : Int) : Int =
 export fn min(left : Int, right : Int) : Int =
     if left < right then left else right
 
-/// The larger.
+/// The larger of the two.
 export fn max(left : Int, right : Int) : Int =
     if left > right then left else right
 
-/// Bitwise and, on the two's complement form.
+/// The bitwise and of the two, each taken as its two's complement form.
 ///
 /// ### Examples
 ///
@@ -110,15 +116,16 @@ export fn max(left : Int, right : Int) : Int =
 export foreign fn bitAnd(left : Int, right : Int) : Int =
     "erlang:band/2"
 
-/// Bitwise or, on the two's complement form.
+/// The bitwise or of the two, each taken as its two's complement form.
 export foreign fn bitOr(left : Int, right : Int) : Int =
     "erlang:bor/2"
 
-/// Bitwise exclusive or, on the two's complement form.
+/// The bitwise exclusive or of the two, each taken as its two's complement
+/// form.
 export foreign fn bitXor(left : Int, right : Int) : Int =
     "erlang:bxor/2"
 
-/// Bitwise complement, on the two's complement form.
+/// Each bit of the two's complement form flipped, which is `-int - 1`.
 ///
 /// ### Examples
 ///
@@ -129,13 +136,13 @@ export foreign fn bitXor(left : Int, right : Int) : Int =
 export fn bitNot(int : Int) : Int =
     -int - 1
 
-/// `int` shifted left by `count` bits: `int` times two to the power `count`; a
-/// count below 0 is none.
+/// `int` shifted left by `count` bits, which is `int` times two to the power
+/// `count`. A `count` below 0 shifts nothing.
 ///
 /// ### Errors
 ///
-/// A result beyond the host's integers faults the caller with
-/// `Fault("error:system_limit")`, a limit of the host met (report §7.4).
+/// Faults where the result is larger than the host can hold, with the cause
+/// `error:system_limit`.
 ///
 /// ### Examples
 ///
@@ -149,21 +156,20 @@ export fn shiftLeft(int : Int, count : Int) : Int =
 foreign fn shiftedLeft(int : Int, count : Int) : Int =
     "ern_int:shift_left/2"
 
-/// `int` shifted right by `count` bits, the sign kept: `int` divided by two to
-/// the power `count`, rounded toward negative infinity; a count below 0 is
-/// none.
+/// `int` shifted right by `count` bits, the sign kept, which is `int` divided
+/// by two to the power `count`, rounded down. A `count` below 0 shifts nothing.
 export fn shiftRight(int : Int, count : Int) : Int =
     shiftedRight(int, max(count, 0))
 
 foreign fn shiftedRight(int : Int, count : Int) : Int =
     "erlang:bsr/2"
 
-/// The decimal form, with a leading `-` when negative.
+/// The decimal digits of `int`, with a leading `-` where it is negative.
 export foreign fn toString(int : Int) : String =
     "erlang:integer_to_binary/1"
 
-/// `base` raised to `exponent`, exactly, or `None` when the exponent is
-/// negative, since that is not an `Int`.
+/// `base` raised to `exponent`, exactly, or `None` where `exponent` is
+/// negative, whose result is no integer.
 ///
 /// ### Examples
 ///
@@ -182,8 +188,8 @@ fn power(base : Int, exponent : Int, acc : Int) : Int =
     else
         power(base * base, exponent / 2, acc)
 
-/// The digits of `int` in that base, 2 to 36, letters upper case, with a
-/// leading `-` when negative; `None` outside those bases.
+/// The digits of `int` in `base`, 2 to 36, letters in upper case, with a
+/// leading `-` where it is negative, or `None` for a base outside 2 to 36.
 ///
 /// ### Examples
 ///
@@ -197,12 +203,13 @@ export fn toStringBase(int : Int, base : Int) : Optional(String) =
 foreign fn inBase(int : Int, base : Int) : String =
     "erlang:integer_to_binary/2"
 
-/// The nearest `Float`, ties to even.
+/// The `Float` nearest to `int`, a tie to the even one. A large integer loses
+/// its low digits, since a `Float` holds about sixteen.
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("Int out of Float range")` beyond the largest finite
-/// `Float` (report §3.1).
+/// Faults where `int` is beyond the largest finite `Float`, with the cause `Int
+/// out of Float range`.
 ///
 /// ### Examples
 ///

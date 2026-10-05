@@ -1,11 +1,18 @@
-/// Operations on `Set(a=)`, a finite set of elements (report §9.2). The
-/// element type needs equality, which the type itself requires (report
-/// §3.10). A set has no `get`: membership is `contains`. The order of
-/// `toList`, `foldLeft`, `foreach`, and `find` is unspecified, and so is
-/// the order in which `map`, `filter`, `filterMap`, `any`, and `all` meet
-/// the elements. The primitives are `empty`, `size`, `contains`, `put`,
-/// `remove`, and `toList`, the runtime's; the rest is written over them
-/// (report Appendix E.0 rule 1).
+/// Finite sets: each element once, in no order.
+///
+/// Use a set to ask whether a value is among others, and to keep each value
+/// once. For values in an order use a `List`, for elements in their own order
+/// an `OrderedSet`, and for values looked up by a key a `Map`. A set is a
+/// value: `put` and `remove` answer a new set and leave the one given as it
+/// was.
+///
+/// The element type needs equality, which the `=` in `Set(a=)` says: a set of
+/// functions or addresses is a type error.
+///
+/// A set has no order. `toList`, `foldLeft`, `foreach` and `find` give the
+/// elements in an order that is not specified, and `map`, `filter`,
+/// `filterMap`, `any` and `all` call their function for the elements in such an
+/// order.
 ///
 /// ## Examples
 ///
@@ -46,15 +53,16 @@ export foreign fn size(set : Set(a)) : Int =
 export fn isEmpty(set : Set(a)) : Bool =
     size(set) == 0
 
-/// `true` when the element is in the set.
+/// `true` when `element` is in the set.
 export foreign fn contains(set : Set(a), element : a) : Bool =
     "ern_set:contains/2"
 
-/// The set with that element, which may already be there.
+/// The set with `element` in it. A set that already holds it is answered as it
+/// is.
 export foreign fn put(set : Set(a), element : a) : Set(a) =
     "ern_set:put/2"
 
-/// The set without that element, which need not be there.
+/// The set without `element`. A set that does not hold it is answered as it is.
 ///
 /// ### Examples
 ///
@@ -65,8 +73,8 @@ export foreign fn put(set : Set(a), element : a) : Set(a) =
 export foreign fn remove(set : Set(a), element : a) : Set(a) =
     "ern_set:remove/2"
 
-/// The function applied to each element; two elements it maps together
-/// become one, so the result may be smaller.
+/// The set of `f(x)` for each element `x`. Two elements `f` maps to equal
+/// values become one, so the result may be smaller.
 ///
 /// ### Examples
 ///
@@ -77,7 +85,7 @@ export foreign fn remove(set : Set(a), element : a) : Set(a) =
 export fn map(set : Set(a), f : (a) -> b with e) : Set(b) with e =
     fromList(List.map(toList(set), f))
 
-/// The elements the predicate holds for.
+/// The set of the elements `keep` answers `true` for.
 ///
 /// ### Examples
 ///
@@ -90,7 +98,8 @@ export fn filter(set : Set(a), keep : (a) -> Bool with e) : Set(a) with e =
                   set,
                   fn(acc, element) = if keep(element) then acc else remove(acc, element))
 
-/// The values of the `Some` results.
+/// The set of the values `f` answers `Some` for; an element `f` answers `None`
+/// for is left out.
 ///
 /// ### Examples
 ///
@@ -101,8 +110,10 @@ export fn filter(set : Set(a), keep : (a) -> Bool with e) : Set(a) with e =
 export fn filterMap(set : Set(a), f : (a) -> Optional(b) with e) : Set(b) with e =
     fromList(List.filterMap(toList(set), f))
 
-/// The accumulator after the function has seen each element, the
-/// accumulator first.
+/// The elements folded into one value. `step(acc, x)` is called with the given
+/// `acc` for the first element met, and with what `step` answered before for
+/// the rest. The order is unspecified, so `step` should give the same result in
+/// any order.
 ///
 /// ### Examples
 ///
@@ -113,7 +124,7 @@ export fn filterMap(set : Set(a), f : (a) -> Optional(b) with e) : Set(b) with e
 export fn foldLeft(set : Set(a), acc : b, step : (b, a) -> b with e) : b with e =
     List.foldLeft(toList(set), acc, step)
 
-/// The function applied to each element for its effect.
+/// Calls `f` for each element, for its effect, in unspecified order.
 ///
 /// ### Examples
 ///
@@ -124,7 +135,8 @@ export fn foldLeft(set : Set(a), acc : b, step : (b, a) -> b with e) : b with e 
 export fn foreach(set : Set(a), f : (a) -> Unit with e) : Unit with e =
     List.foreach(toList(set), f)
 
-/// `true` when the predicate holds for some element.
+/// `true` when `test` holds for at least one element, and `false` for the empty
+/// set.
 ///
 /// ### Examples
 ///
@@ -135,12 +147,12 @@ export fn foreach(set : Set(a), f : (a) -> Unit with e) : Unit with e =
 export fn any(set : Set(a), test : (a) -> Bool with e) : Bool with e =
     List.any(toList(set), test)
 
-/// `true` when the predicate holds for every element, and for the set with
-/// no elements.
+/// `true` when `test` holds for every element, and for the empty set.
 export fn all(set : Set(a), test : (a) -> Bool with e) : Bool with e =
     List.all(toList(set), test)
 
-/// Some element the predicate holds for.
+/// An element `test` holds for, or `None` where there is none. Where it holds
+/// for several, which one is answered is unspecified.
 ///
 /// ### Examples
 ///
@@ -151,7 +163,7 @@ export fn all(set : Set(a), test : (a) -> Bool with e) : Bool with e =
 export fn find(set : Set(a), test : (a) -> Bool with e) : Optional(a) with e =
     List.find(toList(set), test)
 
-/// The set of those elements, each once.
+/// The set of the list's elements, each once.
 export fn fromList(list : List(a)) : Set(a) =
     List.foldLeft(list, empty, put)
 
@@ -159,7 +171,7 @@ export fn fromList(list : List(a)) : Set(a) =
 export foreign fn toList(set : Set(a)) : List(a) =
     "ern_set:to_list/1"
 
-/// The elements of both.
+/// The set of the elements in either set.
 ///
 /// ### Examples
 ///
@@ -170,7 +182,7 @@ export foreign fn toList(set : Set(a)) : List(a) =
 export fn union(set : Set(a), other : Set(a)) : Set(a) =
     List.foldLeft(toList(other), set, put)
 
-/// The elements in both.
+/// The set of the elements in both sets.
 ///
 /// ### Examples
 ///
@@ -181,11 +193,12 @@ export fn union(set : Set(a), other : Set(a)) : Set(a) =
 export fn intersection(set : Set(a), other : Set(a)) : Set(a) =
     filter(set, fn(element) = contains(other, element))
 
-/// The elements of the first that are not in the second.
+/// The elements of `set` that are not in `other`.
 export fn difference(set : Set(a), other : Set(a)) : Set(a) =
     filter(set, fn(element) = !contains(other, element))
 
-/// `true` when every element of the first is in the second.
+/// `true` when every element of `set` is in `other`. The empty set is a subset
+/// of every set.
 ///
 /// ### Examples
 ///

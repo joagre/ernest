@@ -1,9 +1,18 @@
-/// Operations on `Float`, IEEE 754 double precision restricted to the
-/// finite range (report §3.1). The arithmetic and the ordering are the
-/// prelude's (report §9.6); this module provides them with the rest. No
-/// operation here returns an infinity or a NaN: one that would, faults,
-/// and one with no answer gives `None`. The module holds the operations of
-/// the type itself; mathematics over collections of floats is a library.
+/// Floating-point numbers, always finite.
+///
+/// A `Float` is a double-precision number. Use it for measurements and
+/// fractions, and an `Int` for counts and anything that must be exact: `0.1 +
+/// 0.2` is not `0.3` in floating point.
+///
+/// **Always finite.** There is no infinity, no NaN and no negative zero. An
+/// operation whose result would be infinite or no number, an overflow or a
+/// division by zero, faults with the cause `float arithmetic error`. A function
+/// with no answer for an argument, the square root of a negative number,
+/// answers `None` instead (report §3.1).
+///
+/// The operators, `+`, `-`, `*`, `/` and the comparisons, are this module's,
+/// and the language calls them for a `Float`. An `Int` and a `Float` do not
+/// mix: `Int.toFloat` and `round` convert between them.
 ///
 /// ## Examples
 ///
@@ -27,8 +36,8 @@
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("float arithmetic error")` when the result is not
-/// finite (report §3.1).
+/// Faults where the result is too large to be finite, with the cause `float
+/// arithmetic error`.
 export fn Float.+(left : Float, right : Float) : Float =
     left + right
 
@@ -36,8 +45,8 @@ export fn Float.+(left : Float, right : Float) : Float =
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("float arithmetic error")` when the result is not
-/// finite (report §3.1).
+/// Faults where the result is too large to be finite, with the cause `float
+/// arithmetic error`.
 export fn Float.-(left : Float, right : Float) : Float =
     left - right
 
@@ -45,8 +54,8 @@ export fn Float.-(left : Float, right : Float) : Float =
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("float arithmetic error")` when the result is not
-/// finite (report §3.1).
+/// Faults where the result is too large to be finite, with the cause `float
+/// arithmetic error`.
 export fn Float.*(left : Float, right : Float) : Float =
     left * right
 
@@ -54,12 +63,12 @@ export fn Float.*(left : Float, right : Float) : Float =
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("float arithmetic error")` when the result is not
-/// finite (report §3.1), which a divisor of `0.0` makes it.
+/// Faults where the result would not be finite, a `divisor` of 0.0 among them,
+/// with the cause `float arithmetic error`.
 export fn Float./(dividend : Float, divisor : Float) : Float =
     dividend / divisor
 
-/// `-float`, which prefix `-` calls.
+/// `-float`, which a prefix `-` calls.
 ///
 /// ### Examples
 ///
@@ -70,7 +79,7 @@ export fn Float./(dividend : Float, divisor : Float) : Float =
 export fn negate(float : Float) : Float =
     -float
 
-/// The numeric order, which `<` and the other comparisons use.
+/// Compares two floats by size, the order `<` and the other comparisons use.
 ///
 /// ### Examples
 ///
@@ -81,11 +90,11 @@ export fn negate(float : Float) : Float =
 export fn compare(left : Float, right : Float) : Ordering =
     if left < right then Less else if left > right then Greater else Equal
 
-/// The magnitude.
+/// The absolute value: `abs(-1.5)` is `1.5`.
 export fn abs(float : Float) : Float =
     if float < 0.0 then -float else float
 
-/// The smaller.
+/// The smaller of the two.
 ///
 /// ### Examples
 ///
@@ -96,14 +105,14 @@ export fn abs(float : Float) : Float =
 export fn min(left : Float, right : Float) : Float =
     if left < right then left else right
 
-/// The larger.
+/// The larger of the two.
 export fn max(left : Float, right : Float) : Float =
     if left > right then left else right
 
 /// The shortest digits that read back as the same value, always with a
-/// fraction: `100.0`, not `100`. From 0.0001 to below 1.0e16 they are
-/// written plain; beyond, as one digit, the point, the rest, and the
-/// exponent, whose sign is written only when it is negative.
+/// fraction: `100.0`, not `100`. From 0.0001 to below 1.0e16 they are written
+/// plain, and beyond as one digit, the point, the rest and the exponent:
+/// `1.0e16`.
 ///
 /// ### Examples
 ///
@@ -114,7 +123,8 @@ export fn max(left : Float, right : Float) : Float =
 export foreign fn toString(float : Float) : String =
     "ern_float:to_string/1"
 
-/// The nearest `Int`, ties to even.
+/// The nearest `Int`, a tie to the even one: `round(2.5)` is `2` and
+/// `round(3.5)` is `4`.
 export fn round(float : Float) : Int = {
     let floored = floor(float);
     let fraction = float - Int.toFloat(floored);
@@ -128,7 +138,7 @@ export fn round(float : Float) : Int = {
         floored + 1
 }
 
-/// Toward zero, so `-2.7` gives `-2`.
+/// The `Int` toward zero: `-2.7` gives `-2`.
 ///
 /// ### Examples
 ///
@@ -139,7 +149,7 @@ export fn round(float : Float) : Int = {
 export foreign fn truncate(float : Float) : Int =
     "erlang:trunc/1"
 
-/// The greatest `Int` not above `float`.
+/// The greatest `Int` not above `float`: `-2.7` gives `-3`.
 ///
 /// ### Examples
 ///
@@ -150,7 +160,7 @@ export foreign fn truncate(float : Float) : Int =
 export foreign fn floor(float : Float) : Int =
     "erlang:floor/1"
 
-/// The least `Int` not below `float`.
+/// The least `Int` not below `float`: `2.1` gives `3`.
 ///
 /// ### Examples
 ///
@@ -161,7 +171,7 @@ export foreign fn floor(float : Float) : Int =
 export foreign fn ceil(float : Float) : Int =
     "erlang:ceil/1"
 
-/// The square root, or `None` below zero.
+/// The square root, or `None` for a number below zero.
 ///
 /// ### Examples
 ///
@@ -175,13 +185,13 @@ export fn sqrt(float : Float) : Optional(Float) =
 foreign fn squareRoot(float : Float) : Float =
     "math:sqrt/1"
 
-/// `base` raised to `exponent`, or `None` where no real number is: a
-/// negative base with a fractional exponent, and zero to a negative power.
+/// `base` raised to `exponent`, or `None` where the result is no real number: a
+/// negative base with a fractional exponent, or zero to a negative power.
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("float arithmetic error")` when the result is too
-/// large to be finite, as `Float.exp` does (report §3.1).
+/// Faults where the result is too large to be finite, with the cause `float
+/// arithmetic error`.
 ///
 /// ### Examples
 ///
@@ -204,8 +214,8 @@ foreign fn power(base : Float, exponent : Float) : Float =
 ///
 /// ### Errors
 ///
-/// Faults with `Fault("float arithmetic error")` when the result is not
-/// finite (report §3.1).
+/// Faults where the result is too large to be finite, with the cause `float
+/// arithmetic error`.
 ///
 /// ### Examples
 ///
@@ -216,7 +226,7 @@ foreign fn power(base : Float, exponent : Float) : Float =
 export foreign fn exp(float : Float) : Float =
     "ern_float:exp/1"
 
-/// The natural logarithm, or `None` at zero and below.
+/// The natural logarithm, or `None` for zero and below.
 ///
 /// ### Examples
 ///
@@ -230,8 +240,8 @@ export fn log(float : Float) : Optional(Float) =
 foreign fn naturalLog(float : Float) : Float =
     "math:log/1"
 
-/// The ratio of a circle's circumference to its diameter, the nearest
-/// `Float` to it, a constant of the type (report Appendix E.0 rule 3).
+/// The ratio of a circle's circumference to its diameter, as the nearest
+/// `Float`.
 ///
 /// ### Examples
 ///
@@ -243,8 +253,8 @@ foreign fn naturalLog(float : Float) : Float =
 /// since 0.2.0
 export let pi : Float = 3.141592653589793
 
-/// The sine of an angle in radians, as the other trigonometric functions
-/// take and give.
+/// The sine of an angle in radians. The other trigonometric functions take and
+/// give radians too.
 ///
 /// ### Examples
 ///
@@ -255,15 +265,15 @@ export let pi : Float = 3.141592653589793
 export foreign fn sin(float : Float) : Float =
     "math:sin/1"
 
-/// The cosine.
+/// The cosine of an angle in radians.
 export foreign fn cos(float : Float) : Float =
     "math:cos/1"
 
-/// The tangent.
+/// The tangent of an angle in radians.
 export foreign fn tan(float : Float) : Float =
     "math:tan/1"
 
-/// The angle whose sine is `float`, or `None` outside -1.0 to 1.0.
+/// The angle, in radians, whose sine is `float`, or `None` outside -1.0 to 1.0.
 ///
 /// ### Examples
 ///
@@ -277,14 +287,15 @@ export fn asin(float : Float) : Optional(Float) =
 foreign fn arcSin(float : Float) : Float =
     "math:asin/1"
 
-/// The angle whose cosine is `float`, or `None` outside -1.0 to 1.0.
+/// The angle, in radians, whose cosine is `float`, or `None` outside -1.0 to
+/// 1.0.
 export fn acos(float : Float) : Optional(Float) =
     if float < -1.0 || float > 1.0 then None else Some(arcCos(float))
 
 foreign fn arcCos(float : Float) : Float =
     "math:acos/1"
 
-/// The angle whose tangent is `float`.
+/// The angle, in radians, whose tangent is `float`.
 ///
 /// ### Examples
 ///
@@ -295,8 +306,8 @@ foreign fn arcCos(float : Float) : Float =
 export foreign fn atan(float : Float) : Float =
     "math:atan/1"
 
-/// The angle of the point `#(x, y)`, the `y` given first, which keeps the
-/// quadrant that `atan(y / x)` loses.
+/// The angle, in radians, of the point `#(x, y)`, `y` given first. It keeps the
+/// quadrant that `atan(y / x)` loses, and takes an `x` of 0.0.
 ///
 /// ### Examples
 ///

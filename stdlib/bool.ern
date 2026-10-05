@@ -1,5 +1,8 @@
-/// Operations on `Bool`, the type of `true` and `false`. The language
-/// itself has `&&`, `||`, `!`, and `if`; this module holds the rest.
+/// Operations on `Bool`, the type of `true` and `false`.
+///
+/// The language itself has `&&`, `||`, `!` and `if`. This module holds the
+/// rest: `not` as a function, to pass where a function is wanted, and
+/// `toString`.
 ///
 /// ## Examples
 ///
@@ -15,10 +18,11 @@
 ///
 /// since 0.1.0
 
-/// The other truth value, which prefix `!` also gives (report §4.8).
+/// The other truth value, as a prefix `!` gives it, to pass where a function is
+/// wanted: `List.filter(flags, Bool.not)`.
 export fn not(bool : Bool) : Bool =
     !bool
 
-/// `"true"` or `"false"`.
+/// `"true"` or `"false"`, which `String.toBool` reads back.
 export fn toString(bool : Bool) : String =
     if bool then "true" else "false"
