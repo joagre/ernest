@@ -184,6 +184,18 @@ and its measurement does not hold the release.
    and under `make test-shell` too. Undiagnosed: when it fails again, its step file in the
    run's directory says which expectation went unmet, and the fix follows from it; until
    then it is watched.
+12. **The library stands on the host**, decided with the user on 2026-10-05 (the log's
+    *The Library Stands on the Host*): E.0 rule 1's line of three times goes, and so does
+    "`foreign` is only what the host alone can do". Where a host function does exactly an
+    Ernest function's work, the Ernest function is a shim of it; where one almost does, a
+    few lines of Ernest close the gap around a shim that is the host function exactly, and
+    in Erlang only where the measurement shows the Ernest ones cost; where none does,
+    Ernest as now. First E.0 rule 1 of the report and CLAUDE.md's *Shims*, written anew,
+    with the sentences that sort and split in Ernest gone; then the library converted
+    function by function, each with its upstream manual page open and held by the laws
+    machine, `List.unique`, `List.sort`, the `Path` functions and the rest of item 1's
+    list among the first; then the measurement run again. Items 1 to 3's decisions on
+    functions past the line become this item's.
 
 ---
 
