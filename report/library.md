@@ -199,7 +199,7 @@ List.tryFold : (List(a!), b, (b, a!) -> Either(e, b) with x) -> Either(e, b) wit
 
 ### Appendix E.3. `map.ern` (namespace `Map`)
 
-Requires equality on `k` (§3.10). The order of `keys`, `values`, `toList`, `foldLeft`, `foreach`, and `find` is unspecified, and so is the order in which `map`, `filter`, `filterMap`, `any`, `all`, and `mergeWith` meet the entries. The primitives are `empty`, `size`, `get`, `put`, `remove`, and `toList` (E.0 rule 1).
+Requires equality on `k` (§3.10). The order of `keys`, `values`, `toList`, `foldLeft`, `foreach`, and `find` is unspecified, and so is the order in which `map`, `filter`, `filterMap`, `any`, `all`, and `mergeWith` meet the entries. The primitives are `empty`, `size`, `contains`, `get`, `put`, `remove`, `map`, `filter`, `merge`, `mergeWith`, `fromList`, `toList`, `keys`, and `values` (E.0 rule 1); the rest is Ernest over them.
 
 ```
 Map.empty : Map(k=, v)
@@ -210,7 +210,7 @@ Map.get : (Map(k=!, v!), k=!) -> Optional(v!)
 Map.put : (Map(k=!, v!), k=!, v!) -> Map(k=!, v!) // replaces an entry with that key
 Map.remove : (Map(k=!, v!), k=!) -> Map(k=!, v!) // a key not present is not an error
 Map.update : (Map(k=!, v!), k=!, (Optional(v!)) -> v! with e) -> Map(k=!, v!) with e // the entry, present or not, replaced by the function's value
-Map.map : (Map(k=!, v!), (k=!, v!) -> w! with e) -> Map(k=!, w!) with e
+Map.map : (Map(k=!, v!), (k=!, v!) -> w with e) -> Map(k=!, w) with e
 Map.filter : (Map(k=!, v!), (k=!, v!) -> Bool with e) -> Map(k=!, v!) with e
 Map.filterMap : (Map(k=!, v!), (k=!, v!) -> Optional(w!) with e) -> Map(k=!, w!) with e
 Map.foldLeft : (Map(k=!, v!), b, (b, k=!, v!) -> b with e) -> b with e
@@ -228,7 +228,7 @@ Map.values : (Map(k=!, v!)) -> List(v!)
 
 ### Appendix E.4. `set.ern` (namespace `Set`)
 
-Requires equality on `a` (§3.10). A set has no `get`; membership is `contains`. The order of `toList`, `foldLeft`, `foreach`, and `find` is unspecified, and so is the order in which `map`, `filter`, `filterMap`, `any`, and `all` meet the elements. The primitives are `empty`, `size`, `contains`, `put`, `remove`, and `toList` (E.0 rule 1).
+Requires equality on `a` (§3.10). A set has no `get`; membership is `contains`. The order of `toList`, `foldLeft`, `foreach`, and `find` is unspecified, and so is the order in which `map`, `filter`, `filterMap`, `any`, and `all` meet the elements. The primitives are `empty`, `size`, `contains`, `put`, `remove`, `map`, `filter`, `fromList`, `toList`, `union`, `intersection`, `difference`, and `isSubset` (E.0 rule 1); the rest is Ernest over them.
 
 ```
 Set.empty : Set(a=)
@@ -237,7 +237,7 @@ Set.isEmpty : (Set(a=!)) -> Bool
 Set.contains : (Set(a=!), a=!) -> Bool
 Set.put : (Set(a=!), a=!) -> Set(a=!) // an element already present is not an error
 Set.remove : (Set(a=!), a=!) -> Set(a=!) // an element not present is not an error
-Set.map : (Set(a=!), (a=!) -> b=! with e) -> Set(b=!) with e // requires equality on b
+Set.map : (Set(a=!), (a=!) -> b= with e) -> Set(b=) with e // requires equality on b
 Set.filter : (Set(a=!), (a=!) -> Bool with e) -> Set(a=!) with e
 Set.filterMap : (Set(a=!), (a=!) -> Optional(b=!) with e) -> Set(b=!) with e // requires equality on b
 Set.foldLeft : (Set(a=!), b, (b, a=!) -> b with e) -> b with e

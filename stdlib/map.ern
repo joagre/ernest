@@ -41,7 +41,7 @@
 export let empty : Map(k, v) = emptyMap()
 
 foreign fn emptyMap() : Map(k, v) =
-    "ern_map:empty/0"
+    "maps:new/0"
 
 /// The number of entries.
 ///
@@ -52,7 +52,7 @@ foreign fn emptyMap() : Map(k, v) =
 /// // => #(1, true)
 /// ```
 export foreign fn size(map : Map(k, v)) : Int =
-    "ern_map:size/1"
+    "erlang:map_size/1"
 
 /// `true` for the map with no entries.
 export fn isEmpty(map : Map(k, v)) : Bool =
@@ -67,7 +67,10 @@ export fn isEmpty(map : Map(k, v)) : Bool =
 /// // => #(true, false)
 /// ```
 export fn contains(map : Map(k, v), key : k) : Bool =
-    Optional.isSome(get(map, key))
+    isKey(key, map)
+
+foreign fn isKey(key : k, map : Map(k, v)) : Bool =
+    "maps:is_key/2"
 
 /// The value at that key, or `None` where the map has no entry for it.
 ///
@@ -93,8 +96,11 @@ export foreign fn get(map : Map(k, v), key : k) : Optional(v) =
 /// }
 /// // => #(Some(1), Some(2))
 /// ```
-export foreign fn put(map : Map(k, v), key : k, value : v) : Map(k, v) =
-    "ern_map:put/3"
+export fn put(map : Map(k, v), key : k, value : v) : Map(k, v) =
+    withEntry(key, value, map)
+
+foreign fn withEntry(key : k, value : v, map : Map(k, v)) : Map(k, v) =
+    "maps:put/3"
 
 /// The map without the entry at that key. A map that has no such entry is
 /// answered as it is.
@@ -105,8 +111,11 @@ export foreign fn put(map : Map(k, v), key : k, value : v) : Map(k, v) =
 /// Map.toList(Map.remove(Map.fromList([#("a", 1)]), "a"))
 /// // => []
 /// ```
-export foreign fn remove(map : Map(k, v), key : k) : Map(k, v) =
-    "ern_map:remove/2"
+export fn remove(map : Map(k, v), key : k) : Map(k, v) =
+    withoutKey(key, map)
+
+foreign fn withoutKey(key : k, map : Map(k, v)) : Map(k, v) =
+    "maps:remove/2"
 
 /// The map with the value at that key replaced by `f` of it. `f` is given
 /// `Some(value)` where the key has an entry and `None` where it has none, so
@@ -124,7 +133,10 @@ export fn update(map : Map(k, v), key : k, f : (Optional(v)) -> v with e) : Map(
 /// The map with each value replaced by `f(key, value)`. The keys stay as
 /// they are.
 export fn map(map : Map(k, v), f : (k, v) -> w with e) : Map(k, w) with e =
-    List.foldLeft(toList(map), empty, fn(acc, #(key, value)) = put(acc, key, f(key, value)))
+    mapped(f, map)
+
+foreign fn mapped(f : (k, v) -> w with e, map : Map(k, v)) : Map(k, w) with e =
+    "maps:map/2"
 
 /// The map of the entries `keep(key, value)` is `true` for.
 ///
@@ -135,9 +147,10 @@ export fn map(map : Map(k, v), f : (k, v) -> w with e) : Map(k, w) with e =
 /// // => [#("b", 2)]
 /// ```
 export fn filter(map : Map(k, v), keep : (k, v) -> Bool with e) : Map(k, v) with e =
-    List.foldLeft(toList(map),
-                  map,
-                  fn(acc, #(key, value)) = if keep(key, value) then acc else remove(acc, key))
+    filtered(keep, map)
+
+foreign fn filtered(keep : (k, v) -> Bool with e, map : Map(k, v)) : Map(k, v) with e =
+    "maps:filter/2"
 
 /// The map of the entries `f(key, value)` answers `Some(w)` for, each with
 /// `w` as its value. An entry `f` answers `None` for is left out.
@@ -219,8 +232,8 @@ export fn find(map : Map(k, v), test : (k, v) -> Bool with e) : Optional(#(k, v)
 /// Map.toList(Map.merge(Map.fromList([#("a", 1)]), Map.fromList([#("a", 2)])))
 /// // => [#("a", 2)]
 /// ```
-export fn merge(map : Map(k, v), other : Map(k, v)) : Map(k, v) =
-    List.foldLeft(toList(other), map, fn(acc, #(key, value)) = put(acc, key, value))
+export foreign fn merge(map : Map(k, v), other : Map(k, v)) : Map(k, v) =
+    "maps:merge/2"
 
 /// The entries of both maps. Where both have a key, its value is
 /// `f(key, first, second)`, of the first map's value and the second's.
@@ -240,12 +253,12 @@ export fn merge(map : Map(k, v), other : Map(k, v)) : Map(k, v) =
 export fn mergeWith(map : Map(k, v),
                     other : Map(k, v),
                     f : (k, v, v) -> v with e) : Map(k, v) with e =
-    List.foldLeft(toList(other),
-                  map,
-                  fn(acc, #(key, value)) = update(acc, key, fn(found) = match found {
-                      Some(existing) -> f(key, existing, value)
-                    | None -> value
-                  }))
+    mergedWith(f, map, other)
+
+foreign fn mergedWith(f : (k, v, v) -> v with e,
+                      map : Map(k, v),
+                      other : Map(k, v)) : Map(k, v) with e =
+    "maps:merge_with/3"
 
 /// The map of those pairs. Where a key occurs more than once, its last pair
 /// is kept.
@@ -256,12 +269,12 @@ export fn mergeWith(map : Map(k, v),
 /// Map.toList(Map.fromList([#("a", 1), #("a", 2)]))
 /// // => [#("a", 2)]
 /// ```
-export fn fromList(pairs : List(#(k, v))) : Map(k, v) =
-    List.foldLeft(pairs, empty, fn(acc, #(key, value)) = put(acc, key, value))
+export foreign fn fromList(pairs : List(#(k, v))) : Map(k, v) =
+    "maps:from_list/1"
 
 /// The entries as pairs, in unspecified order.
 export foreign fn toList(map : Map(k, v)) : List(#(k, v)) =
-    "ern_map:to_list/1"
+    "maps:to_list/1"
 
 /// The keys, in unspecified order.
 ///
@@ -271,9 +284,9 @@ export foreign fn toList(map : Map(k, v)) : List(#(k, v)) =
 /// #(Map.keys(Map.fromList([#("a", 1)])), Map.values(Map.fromList([#("a", 1)])))
 /// // => #(["a"], [1])
 /// ```
-export fn keys(map : Map(k, v)) : List(k) =
-    List.map(toList(map), fn(#(key, _)) = key)
+export foreign fn keys(map : Map(k, v)) : List(k) =
+    "maps:keys/1"
 
 /// The values, in unspecified order.
-export fn values(map : Map(k, v)) : List(v) =
-    List.map(toList(map), fn(#(_, value)) = value)
+export foreign fn values(map : Map(k, v)) : List(v) =
+    "maps:values/1"

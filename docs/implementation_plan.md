@@ -214,8 +214,10 @@ and its measurement does not hold the release.
     the log's *Path Read as the Runtime Reads It*), over two primitives of the path syntax,
     since the `filename` pages state none of E.14's edge cases: `name` 0.3 to 0.7 times
     `filename`'s, `extension` and `parent` 1.1 to 1.6. `Bytes` stands on the `binary`
-    module (2026-10-06; the log's *Bytes Stands on the Host*). Next: `Map`, and the rest,
-    module by module.
+    module (2026-10-06; the log's *Bytes Stands on the Host*), and `Map` and `Set` on
+    `maps` and `sets`, `Map.map` and `Set.map` with wider types (E.3, E.4; the log's *Map
+    and Set Stand on the Host*). The machine's last measurement draws predicates that keep
+    about half. Next: the value modules, then the system modules and the libraries.
 
 ---
 
