@@ -4,8 +4,7 @@ Twelve readers, each over the whole of its area. Between them they read the repo
 
 ## When it runs
 
-- Before a milestone that others will build on, which the plan names.
-- When the user asks.
+- Only when the user says so. It is expensive, and no milestone, plan item or release starts one of itself.
 
 It does not run while the findings of the last one are open.
 

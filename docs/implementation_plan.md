@@ -74,24 +74,41 @@ form costs more than three times the host's own at the sizes a program meets, or
 what the host's does not, and nowhere else. After Ernest 0.3.0, since the rule ships in it
 and its measurement does not hold the release.
 
-1. **Every function measured**: each function of `stdlib/` and `libs/` against the host's
-   counterpart, at the sizes a program meets and at a large one, by a machine that joins
-   `make bench`, its inputs drawn as the library's laws draw theirs. A function with no
-   counterpart in the host is judged by its growth alone. Each past the line comes back to
-   the user as a decision with its numbers: `String.trimStart` and `String.toIntBase`,
-   moved by MVP 2.99c's item 5, are measured with the rest, and so are `String.toList`,
-   `String.fromUtf8`, `Int.toString` and `Int.toStringBase`, which the full review's E11
-   and E12 measured on large inputs alone.
-2. **The prelude measured**: each function of §9.4 to §9.6 against the host's operation
-   it stands on, at the sizes a program meets, held to CLAUDE.md's stricter line for the
-   runtime, that what Ernest adds to a host operation costs a fraction of it. `spawn`
-   first, which `make bench` puts at about three and a half times a bare spawn of the
-   host's (the log's *The Principles Review Closed*). Each past the line comes back to the
-   user as a decision with its numbers, and a cost goes by needing less, never by a trick.
+1. **Every function measured, a first pass**: each exported function of `stdlib/` and
+   `libs/`, 349 at Ernest 0.3.1, by a machine that joins `make bench` and calls the
+   compiled modules as the library's laws do (`ern_laws_tests`). The pass is sized to be
+   built in days and to run in minutes, and covers every function; a function it finds
+   near the line is measured more thoroughly afterwards (decided with the user on
+   2026-10-05, the log's *MVP 2.99d's Measurements, Sized*). Nothing is changed before the
+   numbers are in: each function past the line comes back to the user as a decision with
+   its numbers, `String.trimStart` and `String.toIntBase`, moved by MVP 2.99c's item 5,
+   among them, and `String.toList`, `String.fromUtf8`, `Int.toString` and
+   `Int.toStringBase`, which the full review's E11 and E12 measured on large inputs alone.
+   - **Inputs** are drawn by each parameter's type, as the laws draw theirs, at three
+     sizes: 10, 100 and 10,000 elements, graphemes or bytes. A callback is a cheap
+     function of its type.
+   - **Against the host**, where one function of the host's does the same work, named in a
+     table beside the machine: past the line where the Ernest form costs more than three
+     times the host's at 10 or at 100.
+   - **By growth**, for every function: past the line where its time grows faster than its
+     input from 100 to 10,000, and its page states no such cost.
+   - **A system module's function**, of `Fs`, `Tcp`, `Os`, `Io`, `Clock` and `Terminal`,
+     costs a system call and a message by design. It is measured as item 2 measures the
+     prelude, by what Ernest adds to the host's operation, and one that reads a terminal
+     or standard input is listed as not measured.
+2. **The prelude measured**: each function of §9.4 to §9.6, about twenty, against the
+   host's operation it stands on, at the sizes a program meets, held to CLAUDE.md's
+   stricter line for the runtime, that what Ernest adds to a host operation costs a
+   fraction of it: a ratio below 2. `make bench` already holds `send`, a call and `spawn`,
+   and the rest join it. `spawn` first, which the bench puts at about three and a half
+   times a bare spawn of the host's (the log's *The Principles Review Closed*), where a
+   call stands at 1.6. Each past the line comes back to the user as a decision with its
+   numbers, and a cost goes by needing less, never by a trick.
 3. **The emitted code's cost**: where ordinary Ernest costs a multiple of the Erlang a
    person would write, the emitter's output is measured against that Erlang and its
    overheads cut, since a faster emitter brings every function under the line at once,
-   where a shim brings one. Sized when items 1 and 2's numbers are in.
+   where a shim brings one. Sized when items 1 and 2's numbers are in, and nothing is cut
+   before then.
 4. **The report's feedback**, done 2026-10-05: six points of precision in the report's
    contracts, from a reader outside the project. Three were taken into the report, out of
    order and ahead of items 1 to 3, each a statement of what already ran or was already
@@ -113,9 +130,13 @@ and its measurement does not hold the release.
    backbone, the programs, the word counter and the rejected programs, is kept.
 6. **`Fs.removeAll` refuses the root**: `Fs.removeAll(Path("/"))` walks the root as any
    directory and removes what the program may, and E.17 is silent on it (found 2026-10-05,
-   as the walk was rewritten for the full review's S10). A path that names the root, however
-   written, answers `Left(Invalid)` before the helper runs, as GNU `rm` refuses `/` by
-   default; a sentence of E.17, the check in `ern_fs`, and a test.
+   as the walk was rewritten for the full review's S10). A path that names the root,
+   however written, `/`, `//`, `/tmp/..`, or `.` where the root is the working directory,
+   answers `Left(Invalid)` before anything is removed. A comparison of spellings would
+   miss some, so the check is by the directory's identity, its device and inode against
+   the root's, as GNU `rm` refuses `/` by default. A sentence of E.17, the check, and a
+   test that can remove nothing where the check fails: it runs with a helper that removes
+   nothing, and holds that the helper was never asked.
 7. **The manual pages made to teach**, done 2026-10-05 and shipped as Ernest 0.3.1 (Appendix
    E.0 shape rule 6; the log's *The Manual Pages Teach*): the pages `ern doc` writes, the
    standard library's, the prelude's and the libraries', each rewritten to the form
@@ -151,9 +172,9 @@ them that carry values (§3.11). Code is shipped only between nodes running the 
 from MVP 3.1 on 2026-09-20. It holds distributed code and the node protocol alone, decided
 2026-09-28 (the log's *MVP 3.0 Is Distributed Code and the Node Protocol*).
 
-A full review ([`full_review.md`](full_review.md)) runs before it, since others build on
-it, and what the review finds is worked through before its work begins (2026-09-29, the
-log's *A Full Review Now and Then*).
+The full review ([`full_review.md`](full_review.md)) that was to run before it, since
+others build on it, ran as MVP 2.99c's item 6, and its findings were worked before Ernest
+0.3.0 (the log's *A Full Review Now and Then*). Another runs only when the user says so.
 
 - **The soundness argument extended** ([`soundness.md`](soundness.md), its section 7),
   written before peers are built on it (decided 2026-10-04): which two types are one, across
@@ -362,8 +383,8 @@ log's *The Shell's Second Round*), in this order. The first three need nothing o
 What a promise of stability needs and a first release could leave out (the log's *The First
 Release Is for Others*), after the language was argued in MVP 2.99c:
 
-- **The full review**, every reader over the whole of its area ([`full_review.md`](full_review.md)),
-  and its findings worked.
+- **The full review**, when the user says so: every reader over the whole of its area
+  ([`full_review.md`](full_review.md)), and its findings worked.
 - **The numbering decided once.** Whether the report's section numbers have drifted enough since
   0.1.0 to renumber, with the mapping table written first and one commit that rewrites every
   citation, in the report, the guide, the log, the code, the tests and the diagnostics; or the
