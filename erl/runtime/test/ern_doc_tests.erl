@@ -264,21 +264,90 @@ split_result(Block) ->
         _ -> {Block, none}
     end.
 
-%% Appendix E.0 shape rule 6: the module's doc block ends with `since v`; a
-%% declaration may state its own; every one is no newer than VERSION
+%% Appendix E.0 shape rule 6, docs/release_review.md step 5: the module's
+%% doc block ends with `since v`, and a declaration may state its own. A
+%% module, and an exported declaration, says the release that first
+%% shipped it, the first tag that holds it, a declaration without a line of
+%% its own saying its module's; one no tag holds says a release after the
+%% last tag, its next patch, minor or major. A tag holds a declaration of
+%% that kind and name. A regression test: OrderedSet and OrderedMap, new
+%% after 0.2.0, said 0.2.0, and `Os.user` inherited 0.1.0, which the test
+%% before it, that no line is newer than VERSION, let through
 doc_since_test_() ->
     [{atom_to_list(hd(Namespace)), fun() -> since(File) end} || {Namespace, File} <- modules()].
 
 since(File) ->
-    {ok, VersionText} = file:read_file(filename:join(?ROOT, "VERSION")),
-    Current = version(VersionText),
+    Tags = tags(),
+    ?assertNotEqual([], Tags),
+    "../../../" ++ Relative = File,
+    Shipped = [{Version, shipped(Tag, Relative)} || {Version, Tag} <- Tags],
     {ok, Source} = file:read_file(File),
     {ok, Declarations} = ern_parser:parse_string(Source),
     ModuleDocs = [Text || #module_doc{text = Text} <- Declarations],
     ?assertMatch([_], ModuleDocs),
-    ?assertNotEqual(none, since_of(hd(ModuleDocs))),
-    Stated = [Since || Doc <- docs(Declarations), Since <- [since_of(Doc)], Since =/= none],
-    ?assertEqual([], [Since || Since <- Stated, version(Since) > Current]).
+    ModuleSince = since_of(hd(ModuleDocs)),
+    ?assertNotEqual(none, ModuleSince),
+    First = [Version || {Version, Keys} <- Shipped, Keys =/= none],
+    ?assertEqual([], [{module, ModuleSince} || not is_release(ModuleSince, First, Tags)]),
+    Wrong = [{Key, Since} || Declaration <- Declarations,
+                             exported_declaration(Declaration) =:= true,
+                             Key <- [declaration_key(Declaration)],
+                             Since <- [own_since(Declaration, ModuleSince)],
+                             not is_release(Since, [Version || {Version, Keys} <- Shipped,
+                                                               Keys =/= none,
+                                                               lists:member(Key, Keys)],
+                                            Tags)],
+    ?assertEqual([], Wrong).
+
+%% The repository's release tags, `v0.2.0`, oldest first, each with its
+%% version.
+tags() ->
+    Output = os:cmd("git -C " ++ ?ROOT ++ " tag --list 'v*'"),
+    lists:sort([{version(Version), Tag}
+                || Tag <- string:lexemes(Output, "\n"), "v" ++ Version <- [Tag]]).
+
+%% The exported declarations of the module at the tag, each its kind and
+%% its name as the source writes them, or none where the tag has no such
+%% file. A tag's source is read by its lines, since the parser of today
+%% need not read it.
+shipped(Tag, Relative) ->
+    case os:cmd("git -C " ++ ?ROOT ++ " show " ++ Tag ++ ":" ++ Relative ++ " 2>/dev/null") of
+        "" -> none;
+        Text ->
+            Pattern = "^export\\s+(?:foreign\\s+|abstract\\s+)?(fn|let|type)\\s+([^\\s(:=]+)",
+            Options = [global, multiline, unicode, {capture, all_but_first, list}],
+            case re:run(unicode:characters_to_binary(Text), Pattern, Options) of
+                {match, Keys} -> [{Kind, Name} || [Kind, Name] <- Keys];
+                nomatch -> []
+            end
+    end.
+
+declaration_key(#fn_declaration{} = Declaration) -> {"fn", hd(declaration_names(Declaration))};
+declaration_key(#foreign_fn_declaration{} = Declaration) ->
+    {"fn", hd(declaration_names(Declaration))};
+declaration_key(#let_declaration{} = Declaration) -> {"let", hd(declaration_names(Declaration))};
+declaration_key(Declaration) -> {"type", hd(declaration_names(Declaration))}.
+
+%% A declaration's own `since`, or its module's where it states none.
+own_since(Declaration, ModuleSince) ->
+    case doc_of(Declaration) of
+        Doc when is_binary(Doc) ->
+            case since_of(Doc) of
+                none -> ModuleSince;
+                Since -> Since
+            end;
+        _ -> ModuleSince
+    end.
+
+%% Whether a `since` names the release that first shipped what it is on,
+%% the first of the versions that hold it, or, where none does, a release
+%% after the last tag.
+is_release(Since, [First | _], _Tags) ->
+    version(Since) =:= First;
+is_release(Since, [], Tags) ->
+    {[Major, Minor, Patch], _} = lists:last(Tags),
+    lists:member(version(Since), [[Major, Minor, Patch + 1], [Major, Minor + 1, 0],
+                                  [Major + 1, 0, 0]]).
 
 since_of(Doc) ->
     case re:run(Doc, "(?m)^since ([0-9][0-9.]*)\\s*$", [{capture, all_but_first, binary}]) of

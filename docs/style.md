@@ -147,5 +147,5 @@ The names that recur across modules, one for each concept, in every module. A wo
 - **char**: a `Char`. Not `c`, `ch`.
 - **cursor**: the place in the line being typed, in the shell's editor, region and completion. Not `at`.
 - **serial**: the number the shell gives an input, which its outcome carries, `Serial` in the Erlang. Not `run`, `n`.
-- A **request** constructor is the function it serves, `Read` for `read`; an **event** is in the past tense, `Resized`. Not `Recv`, `Measure`, `FarEnd`, `Resize`.
+- A **request** constructor is the function it serves, `Read` for `read`, and where that is a prelude name, what it asks for, `ListEntries` for `list`; an **event** is in the past tense, `Resized`. Not `Recv`, `Measure`, `FarEnd`, `Resize`.
 - A prelude name, `Down`, `answer`, `kill`, is not bound to another concept.

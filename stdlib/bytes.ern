@@ -108,7 +108,7 @@ export fn fromList(octets : List(Int)) : Optional(Bytes) =
 /// // => #(true, false)
 /// ```
 export fn contains(bytes : Bytes, part : Bytes) : Bool =
-    indexOf(bytes, part) != None
+    Optional.isSome(indexOf(bytes, part))
 
 /// Where the second begins in the first, the first place it does, and
 /// `None` where it is not there. An empty second is at 0.

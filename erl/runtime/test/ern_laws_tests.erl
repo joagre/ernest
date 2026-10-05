@@ -333,7 +333,7 @@ string_laws_test_() ->
            fun text/1, fun string_cases/1},
           {"lines at each line feed and carriage return with line feed", fun text/1,
            fun string_lines/1},
-          {"words: the parts between runs of White_Space, none empty", fun text/1,
+          {"words: the parts between runs of the graphemes trim removes, none empty", fun text/1,
            fun string_words/1},
           {"toInt: the digits 0 to 9, an optional leading -", fun numeral/1,
            fun string_to_int/1},
@@ -1309,14 +1309,14 @@ lines_model(Whole) ->
     end.
 
 words_model(Whole) ->
-    Split = fun(Char, [Word | Rest]) ->
-                    case ?CHAR:isSpace(Char) of
+    Split = fun(Grapheme, [Word | Rest]) ->
+                    case is_space_grapheme(Grapheme) of
                         true -> [[], Word | Rest];
-                        false -> [[Char | Word] | Rest]
+                        false -> [[Grapheme | Word] | Rest]
                     end
             end,
-    Words = lists:foldr(Split, [[]], unicode:characters_to_list(Whole)),
-    [unicode:characters_to_binary(Word) || Word <- Words, Word =/= []].
+    Words = lists:foldr(Split, [[]], ?STRING:graphemes(Whole)),
+    [iolist_to_binary(Word) || Word <- Words, Word =/= []].
 
 %% A numeral in a base from 2 to 36: an optional leading -, then at least
 %% one digit or letter, either case, below the base.

@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 4 October 2026.
+Revision of 5 October 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and §11 and Appendix C in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative.
 
@@ -139,7 +139,7 @@ Nine *shape rules* give a function its shape. Shape rules 1 to 4, 7, and 9 hold 
 
 ### Appendix E.1. `io.ern` (namespace `Io`)
 
-Output to standard output and standard error, and input from standard input, through the module's system references `stdout`, `stderr`, and `stdin` (§8.2). `Io.show` and `Io.debug` are the prelude's, §9.4; this module provides them. The primitives are `print`, `println`, `printError`, `printlnError`, `readLine`, `read`, `write`, and `writeError`, which reach the module's processes, and `show` and `debug`, which read a value's representation in the runtime (E.0 rule 1). `Error` is the error of every system module. `NotAFile` is a path that names something other than what the function works on, a regular file or, for `Fs.append`, a device, and `Exists` a path that names something where nothing may stand. `NotUtf8(bytes)` is text that is not UTF-8, a name or a link's target among them, its bytes as they came. `Invalid` is an argument the host cannot take, one that holds U+0000, a port out of range, or a time it cannot hold among them. `Other(text)` holds the host's description of its reason, `"address already in use"`; where the host has no description, it holds the reason as the host writes it.
+Output to standard output and standard error, and input from standard input, through the module's system references `stdout`, `stderr`, and `stdin` (§8.2). `Io.show` and `Io.debug` are the prelude's, §9.4; this module provides them. The primitives are `print`, `println`, `printError`, `printlnError`, `readLine`, `read`, `write`, and `writeError`, which reach the module's processes, and `show` and `debug`, which read a value's representation in the runtime (E.0 rule 1). `Error` is the error of every system module. `NotATerminal` is a standard stream that is no terminal: standard input for `Terminal.subscribe`, standard output for `Terminal.size` (Appendix E.16). `NotAFile` is a path that names something other than what the function works on, a regular file or, for `Fs.append`, a device, and `Exists` a path that names something where nothing may stand. `NotUtf8(bytes)` is text that is not UTF-8, a name or a link's target among them, its bytes as they came. `Invalid` is an argument the host cannot take whole: one that holds U+0000, a port out of range, a mode with bits the host does not write, or a time it cannot hold among them. `Other(text)` holds the host's description of its reason, `"address already in use"`; where the host has no description, it holds the reason as the host writes it.
 
 ```
 type Error = NotFound | Denied | Refused | Closed | Timeout | NotATerminal | NotAFile | Exists
@@ -252,7 +252,7 @@ Set.isSubset : (Set(a=!), Set(a=!)) -> Bool // every element of the first is in 
 
 ### Appendix E.5. `string.ern` (namespace `String`)
 
-A `String` is a container read through `toList`: of the container operations it provides `size`, `isEmpty`, `contains`, `fromList`, and `toList`, and the rest go through `toList`. `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and index in graphemes, extended grapheme clusters, each what a reader sees as one letter, and `graphemes` gives them in order. A pad that begins no grapheme, a combining mark, joins the grapheme beside it, so `padStart` and `padEnd` then leave the string shorter than asked. `toList` and `fromList` are `Char`s, one scalar value each, so a string holding a combining mark has more `Char`s than graphemes. The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`, `toLower` and `toUpper`, which need Unicode's tables, and the conversions `toFloat`, `toList`, `fromList`, `toUtf8` and `fromUtf8`. Three are private to the module: the slice `slice` makes once it has clipped its index and count, `drop`, the string after a count of graphemes, and the last grapheme `trimEnd` takes off, found from the string's end (E.0 rule 1). `drop` is beneath `trimStart` and `split`. The rest is Ernest over them, so every search matches whole graphemes: `String.contains("e\u{301}", "e")` is `false`, and `String.split("a\r\nb", "\n")` is `["a\r\nb"]`, a carriage return and a line feed being one grapheme. `trim`, `trimStart`, and `trimEnd` remove the graphemes whose first code point is White_Space, as `Char.isSpace` says. `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `String.compare` orders by code point. It and `String.<>` are the prelude's, §9.6; this module provides them (§9).
+A `String` is a container read through `toList`: of the container operations it provides `size`, `isEmpty`, `contains`, `fromList`, and `toList`, and the rest go through `toList`. `size`, `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and index in graphemes, extended grapheme clusters, each what a reader sees as one letter, and `graphemes` gives them in order. A pad that begins no grapheme, a combining mark, joins the grapheme beside it, so `padStart` and `padEnd` then leave the string shorter than asked. `toList` and `fromList` are `Char`s, one scalar value each, so a string holding a combining mark has more `Char`s than graphemes. The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`, `toLower` and `toUpper`, which need Unicode's tables, and the conversions `toFloat`, `toList`, `fromList`, `toUtf8` and `fromUtf8`. Three are private to the module: the slice `slice` makes once it has clipped its index and count, `drop`, the string after a count of graphemes, and the last grapheme `trimEnd` takes off, found from the string's end (E.0 rule 1). `drop` is beneath `trimStart` and `split`. The rest is Ernest over them, so every search matches whole graphemes: `String.contains("e\u{301}", "e")` is `false`, and `String.split("a\r\nb", "\n")` is `["a\r\nb"]`, a carriage return and a line feed being one grapheme. Whitespace, which `trim`, `trimStart`, and `trimEnd` remove at the ends and `words` splits at, is a grapheme whose first code point `Char.isSpace` is `true` for (E.6). `toLower` and `toUpper` use Unicode's full case mapping without the rules that depend on a language or a context: `String.toUpper("ß")` is `"SS"`. `String.compare` orders by code point. It and `String.<>` are the prelude's, §9.6; this module provides them (§9).
 
 ```
 String.size : (String) -> Int // graphemes
@@ -274,7 +274,7 @@ String.trimEnd : (String) -> String // without trailing whitespace
 String.toLower : (String) -> String
 String.toUpper : (String) -> String
 String.lines : (String) -> List(String) // at each line feed and each carriage return with a line feed; a line's end at the end adds no empty line, and "" has no lines
-String.words : (String) -> List(String) // the parts between runs of White_Space, none empty
+String.words : (String) -> List(String) // the parts between runs of whitespace, none empty
 String.split : (String, String) -> List(String) // at each occurrence of the second; an empty second gives the first alone
 String.join : (List(String), String) -> String // the second between the parts
 String.toInt : (String) -> Optional(Int) // the digits 0 to 9, with an optional leading -
@@ -315,7 +315,7 @@ Bool.toString : (Bool) -> String // "true" or "false"
 
 ### Appendix E.8. `int.ern` (namespace `Int`)
 
-`Int.compare`, `Int.negate`, and the operators are the prelude's, §9.6; this module provides them (§9). The primitives are `bitAnd`, `bitOr`, `bitXor`, `bitNot`, `shiftLeft`, `shiftRight`, `toString`, `toFloat`, and the writing in a base that `toStringBase` makes once it has checked the base, which is private to the module (E.0 rule 1); the rest is Ernest over them.
+`Int.compare`, `Int.negate`, and the operators are the prelude's, §9.6; this module provides them (§9). The primitives are `bitAnd`, `bitOr`, `bitXor`, `toString`, `toFloat`, the shifts `shiftLeft` and `shiftRight` make once they have corrected the count, and the writing in a base that `toStringBase` makes once it has checked the base, the last three private to the module (E.0 rule 1); the rest is Ernest over them.
 
 ```
 Int.abs : (Int) -> Int
@@ -327,7 +327,7 @@ Int.bitAnd : (Int, Int) -> Int
 Int.bitOr : (Int, Int) -> Int
 Int.bitXor : (Int, Int) -> Int
 Int.bitNot : (Int) -> Int
-Int.shiftLeft : (Int, Int) -> Int // times two to the power of the second; a second below 0 is none
+Int.shiftLeft : (Int, Int) -> Int // times two to the power of the second; a second below 0 is none; a result beyond the host's integers faults with Fault("error:system_limit") (§7.4)
 Int.shiftRight : (Int, Int) -> Int // arithmetic, sign-preserving; a second below 0 is none
 Int.pow : (Int, Int) -> Optional(Int) // exact; None for a negative exponent; Int.pow(0, 0) is Some(1)
 Int.toString : (Int) -> String
@@ -413,11 +413,11 @@ Random.nextFloat : (Seed) -> #(Float, Seed) // uniform above 0.0 and below 1.0, 
 
 ### Appendix E.14. `path.ern` (namespace `Path`)
 
-`Path` is `Path(String)`, §9.3, in the runtime's syntax. `Path.<>` is the prelude's, §9.6; this module provides it (§9). The primitives are `isAbsolute` and `separator`, the host's separator, which is private to the module (E.0 rule 1); the rest is Ernest over `String`. `under` reads the path's text alone: a link under the root that leads out of it is the file system's (E.17).
+`Path` is `Path(String)`, §9.3, in the runtime's syntax. `Path.<>` is the prelude's, §9.6; this module provides it (§9). `<>` joins the segments of both, `split` then `join`: `Path("a//b") <> Path("c")` is `Path("a/b/c")`. An absolute second is the result, as it was written. The primitives are `isAbsolute` and `separator`, the host's separator, which is private to the module (E.0 rule 1); the rest is Ernest over `String`. `under` reads the path's text alone: a link under the root that leads out of it is the file system's (E.17).
 
 ```
 Path.join : (List(String)) -> Path // the segments as a path, the inverse of split: a root first stays a root, one separator between the others
-Path.split : (Path) -> List(String) // the segments; an absolute path's first is the root
+Path.split : (Path) -> List(String) // the segments, none empty; an absolute path's first is the root
 Path.parent : (Path) -> Optional(Path) // None for a bare name or the root
 Path.name : (Path) -> Optional(String) // the last segment, None for the root, which has none
 Path.extension : (Path) -> Optional(String) // after the last "." of the name, without it; the dots that begin the name begin none
@@ -476,7 +476,7 @@ Fs.readLink : (Path, Int) -> Either(Io.Error, Optional(Path)) with m+ // the pat
 Fs.makeFile : (Path, Bytes, Int) -> Either(Io.Error, Unit) with m+ // a new file, or none where the path names something
 Fs.removeAll : (Path, Int) -> Either(Io.Error, Unit) with m+ // a directory and everything under it, or a file or a link; a link is removed, not followed
 Fs.setModified : (Path, Int, Int) -> Either(Io.Error, Unit) with m+ // the modification time, in milliseconds since the epoch, kept to the second; Left(Invalid) for one past the host's 64-bit seconds, and one past the file system's range kept as the file system keeps it
-Fs.setMode : (Path, Int, Int) -> Either(Io.Error, Unit) with m+ // the permission bits, as the host writes them, 0o600; a mode outside 0 to 0o7777 is Left(Invalid)
+Fs.setMode : (Path, Int, Int) -> Either(Io.Error, Unit) with m+ // the permission bits, as the host writes them, 0o600; a mode outside 0 to 0o7777, or with the bit 0o1000, which the host does not write, is Left(Invalid)
 ```
 
 ### Appendix E.18. `tcp.ern` (namespace `Tcp`)

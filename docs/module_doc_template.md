@@ -100,6 +100,8 @@ Template.push(Template.emptyStack, Template.Dot(Template.Point(x = 0, y = 0)))
 Template.emptyStack : Stack
 ```
 
+*Since 0.2.0.*
+
 The stack with nothing on it.
 
 ## Template.push
@@ -108,6 +110,8 @@ The stack with nothing on it.
 Template.push(Stack, shape : Shape) : Stack
 ```
 
+*Since 0.2.0.*
+
 The stack with the shape on top.
 
 ## Template.pop
@@ -115,6 +119,8 @@ The stack with the shape on top.
 ```ernest
 Template.pop(Stack) : Optional(#(Shape, Stack))
 ```
+
+*Since 0.2.0.*
 
 The top shape and the rest, `None` when the stack is empty.
 

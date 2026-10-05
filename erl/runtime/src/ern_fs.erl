@@ -46,7 +46,7 @@ handle({'Write', Path, Bytes, Reply}) ->
 handle({'Append', Path, Bytes, Reply}) ->
     Text = text(Path),
     answer(Reply, appendable(Text, fun() -> unit(file:write_file(Text, Bytes, [raw, append])) end));
-handle({'List', Path, Reply}) ->
+handle({'ListEntries', Path, Reply}) ->
     Dir = text(Path),
     answer(Reply, case file:list_dir_all(Dir) of
                       {ok, Names} ->
@@ -58,8 +58,9 @@ handle({'Stat', Path, Reply}) ->
 handle({'MakeDir', Path, Reply}) ->
     answer(Reply, unit(filelib:ensure_path(text(Path))));
 %% Report Appendix E.17: the permission bits as the host writes them; a
-%% mode beyond them is an argument the host cannot take.
-handle({'SetMode', _Path, Mode, Reply}) when Mode < 0; Mode > 8#7777 ->
+%% mode beyond them, or with the bit 0o1000, which file:change_mode/2 drops
+%% and answers ok, is an argument the host cannot take whole.
+handle({'SetMode', _Path, Mode, Reply}) when Mode < 0; Mode > 8#7777; Mode band 8#1000 =/= 0 ->
     ern_rt:answer(Reply, {'Left', 'Invalid'});
 handle({'SetMode', Path, Mode, Reply}) ->
     answer(Reply, unit(file:change_mode(text(Path), Mode)));

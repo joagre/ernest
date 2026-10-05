@@ -93,6 +93,8 @@ export type Block =
 /// Markdown.render(Markdown.parse("Some *words*."), 80, Markdown.Plain)
 /// // => ["Some *words*."]
 /// ```
+///
+/// since 0.2.0
 export type Output =
     /// Emphasis, strong emphasis and code spans as they are written.
     Plain

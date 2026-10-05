@@ -140,10 +140,24 @@ export foreign fn truncate(float : Float) : Int =
     "erlang:trunc/1"
 
 /// The greatest `Int` not above `float`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Float.floor(2.7), Float.floor(-2.7))
+/// // => #(2, -3)
+/// ```
 export foreign fn floor(float : Float) : Int =
     "erlang:floor/1"
 
 /// The least `Int` not below `float`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Float.ceil(2.2), Float.ceil(-2.2))
+/// // => #(3, -2)
+/// ```
 export foreign fn ceil(float : Float) : Int =
     "erlang:ceil/1"
 

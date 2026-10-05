@@ -14,7 +14,7 @@
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.write(Path("greeting.txt"), String.toUtf8("hello"), 5000);
+///     let _ <- Fs.write(Path("greeting.txt"), String.toUtf8("hello"), 5000);
 ///     Either.map(Fs.read(Path("greeting.txt"), 5000), String.fromUtf8)
 /// }
 /// // => Right(Some("hello"))
@@ -54,12 +54,13 @@ export type Kind = File | Directory | Link | Other
 ///
 /// ```ernest
 /// Fs.Entry(path = Path("a.txt"), mtime = 0, size = 5, kind = Fs.File, mode = 0o644, user = 0)
+/// // => Entry(path = Path("a.txt"), mtime = 0, size = 5, kind = File, mode = 420, user = 0)
 /// ```
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.write(Path("private.txt"), <<>>, 5000);
-///     let _ = Fs.setMode(Path("private.txt"), 0o600, 5000);
+///     let _ <- Fs.write(Path("private.txt"), <<>>, 5000);
+///     let _ <- Fs.setMode(Path("private.txt"), 0o600, 5000);
 ///     Either.map(Fs.stat(Path("private.txt"), 5000),
 ///                fn(entry) = #(entry.mode == 0o600, entry.user == Os.user))
 /// }
@@ -73,7 +74,7 @@ type Msg =
   | ReadRange(path : Path, offset : Int, count : Int, reply : Reply(Either(Io.Error, Bytes)))
   | Write(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
   | Append(path : Path, bytes : Bytes, reply : Reply(Either(Io.Error, Unit)))
-  | List(path : Path, reply : Reply(Either(Io.Error, List(Entry))))
+  | ListEntries(path : Path, reply : Reply(Either(Io.Error, List(Entry))))
   | Stat(path : Path, reply : Reply(Either(Io.Error, Entry)))
   | MakeDir(path : Path, reply : Reply(Either(Io.Error, Unit)))
   | Remove(path : Path, reply : Reply(Either(Io.Error, Unit)))
@@ -107,11 +108,12 @@ export fn read(path : Path, ms : Int) : Either(Io.Error, Bytes) with m =
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.write(Path("alphabet.txt"), String.toUtf8("abcdef"), 5000);
-///     #(Fs.readRange(Path("alphabet.txt"), 1, 3, 5000),
-///       Fs.readRange(Path("alphabet.txt"), 4, 9, 5000))
+///     let _ <- Fs.write(Path("alphabet.txt"), String.toUtf8("abcdef"), 5000);
+///     let middle <- Fs.readRange(Path("alphabet.txt"), 1, 3, 5000);
+///     let end <- Fs.readRange(Path("alphabet.txt"), 4, 9, 5000);
+///     Right(#(middle, end))
 /// }
-/// // => #(Right(<<98, 99, 100>>), Right(<<101, 102>>))
+/// // => Right(#(<<98, 99, 100>>, <<101, 102>>))
 /// ```
 export fn readRange(path : Path,
                     offset : Int,
@@ -134,8 +136,8 @@ export fn write(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) w
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.write(Path("log.txt"), String.toUtf8("a"), 5000);
-///     let _ = Fs.append(Path("log.txt"), String.toUtf8("b"), 5000);
+///     let _ <- Fs.write(Path("log.txt"), String.toUtf8("a"), 5000);
+///     let _ <- Fs.append(Path("log.txt"), String.toUtf8("b"), 5000);
 ///     Either.map(Fs.read(Path("log.txt"), 5000), String.fromUtf8)
 /// }
 /// // => Right(Some("ab"))
@@ -153,8 +155,8 @@ export fn append(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) 
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.makeDir(Path("shelf"), 5000);
-///     let _ = Fs.write(Path("shelf/one.txt"), <<>>, 5000);
+///     let _ <- Fs.makeDir(Path("shelf"), 5000);
+///     let _ <- Fs.write(Path("shelf/one.txt"), <<>>, 5000);
 ///     Either.map(Fs.list(Path("shelf"), 5000),
 ///                fn(entries) = List.filterMap(entries, fn(entry) = Path.name(entry.path)))
 /// }
@@ -163,15 +165,15 @@ export fn append(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) 
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.makeDir(Path("kinds"), 5000);
-///     let _ = Fs.makeLink(Path("kinds/link"), Path("elsewhere"), 5000);
+///     let _ <- Fs.makeDir(Path("kinds"), 5000);
+///     let _ <- Fs.makeLink(Path("kinds/link"), Path("elsewhere"), 5000);
 ///     Either.map(Fs.list(Path("kinds"), 5000),
 ///                fn(entries) = List.map(entries, fn(entry) = entry.kind))
 /// }
 /// // => Right([Link])
 /// ```
 export fn list(path : Path, ms : Int) : Either(Io.Error, List(Entry)) with m =
-    answered(Address.call(reference, fn(reply) = List(path = path, reply = reply), ms))
+    answered(Address.call(reference, fn(reply) = ListEntries(path = path, reply = reply), ms))
 
 /// What the path leads to, its links followed: its size, its modification
 /// time, and its kind.
@@ -180,7 +182,7 @@ export fn list(path : Path, ms : Int) : Either(Io.Error, List(Entry)) with m =
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.write(Path("three.txt"), String.toUtf8("abc"), 5000);
+///     let _ <- Fs.write(Path("three.txt"), String.toUtf8("abc"), 5000);
 ///     Either.map(Fs.stat(Path("three.txt"), 5000), fn(entry) = entry.size)
 /// }
 /// // => Right(3)
@@ -200,8 +202,8 @@ export fn makeDir(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.write(Path("gone.txt"), <<>>, 5000);
-///     let _ = Fs.remove(Path("gone.txt"), 5000);
+///     let _ <- Fs.write(Path("gone.txt"), <<>>, 5000);
+///     let _ <- Fs.remove(Path("gone.txt"), 5000);
 ///     Fs.read(Path("gone.txt"), 5000)
 /// }
 /// // => Left(NotFound)
@@ -215,8 +217,8 @@ export fn remove(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.write(Path("before.txt"), String.toUtf8("x"), 5000);
-///     let _ = Fs.rename(Path("before.txt"), Path("after.txt"), 5000);
+///     let _ <- Fs.write(Path("before.txt"), String.toUtf8("x"), 5000);
+///     let _ <- Fs.rename(Path("before.txt"), Path("after.txt"), 5000);
 ///     Either.map(Fs.read(Path("after.txt"), 5000), String.fromUtf8)
 /// }
 /// // => Right(Some("x"))
@@ -233,8 +235,8 @@ export fn rename(source : Path, destination : Path, ms : Int) : Either(Io.Error,
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.write(Path("source.txt"), String.toUtf8("y"), 5000);
-///     let _ = Fs.copy(Path("source.txt"), Path("copy.txt"), 5000);
+///     let _ <- Fs.write(Path("source.txt"), String.toUtf8("y"), 5000);
+///     let _ <- Fs.copy(Path("source.txt"), Path("copy.txt"), 5000);
 ///     Either.map(Fs.read(Path("copy.txt"), 5000), String.fromUtf8)
 /// }
 /// // => Right(Some("y"))
@@ -252,8 +254,8 @@ export fn copy(source : Path, destination : Path, ms : Int) : Either(Io.Error, U
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.write(Path("target.txt"), String.toUtf8("t"), 5000);
-///     let _ = Fs.makeLink(Path("pointer"), Path("target.txt"), 5000);
+///     let _ <- Fs.write(Path("target.txt"), String.toUtf8("t"), 5000);
+///     let _ <- Fs.makeLink(Path("pointer"), Path("target.txt"), 5000);
 ///     Either.map(Fs.read(Path("pointer"), 5000), String.fromUtf8)
 /// }
 /// // => Right(Some("t"))
@@ -272,9 +274,9 @@ export fn makeLink(path : Path, target : Path, ms : Int) : Either(Io.Error, Unit
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.write(Path("original.txt"), String.toUtf8("o"), 5000);
-///     let _ = Fs.makeHardLink(Path("twin.txt"), Path("original.txt"), 5000);
-///     let _ = Fs.remove(Path("original.txt"), 5000);
+///     let _ <- Fs.write(Path("original.txt"), String.toUtf8("o"), 5000);
+///     let _ <- Fs.makeHardLink(Path("twin.txt"), Path("original.txt"), 5000);
+///     let _ <- Fs.remove(Path("original.txt"), 5000);
 ///     Either.map(Fs.read(Path("twin.txt"), 5000), String.fromUtf8)
 /// }
 /// // => Right(Some("o"))
@@ -294,11 +296,13 @@ export fn makeHardLink(path : Path, target : Path, ms : Int) : Either(Io.Error, 
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.makeLink(Path("sign"), Path("somewhere"), 5000);
-///     let _ = Fs.write(Path("plain.txt"), <<>>, 5000);
-///     #(Fs.readLink(Path("sign"), 5000), Fs.readLink(Path("plain.txt"), 5000))
+///     let _ <- Fs.makeLink(Path("sign"), Path("somewhere"), 5000);
+///     let _ <- Fs.write(Path("plain.txt"), <<>>, 5000);
+///     let target <- Fs.readLink(Path("sign"), 5000);
+///     let plain <- Fs.readLink(Path("plain.txt"), 5000);
+///     Right(#(target, plain))
 /// }
-/// // => #(Right(Some(Path("somewhere"))), Right(None))
+/// // => Right(#(Some(Path("somewhere")), None))
 /// ```
 export fn readLink(path : Path, ms : Int) : Either(Io.Error, Optional(Path)) with m =
     answered(Address.call(reference, fn(reply) = ReadLink(path = path, reply = reply), ms))
@@ -317,6 +321,8 @@ export fn readLink(path : Path, ms : Int) : Either(Io.Error, Optional(Path)) wit
 /// }
 /// // => #(Right(Unit), Left(Exists))
 /// ```
+///
+/// since 0.2.0
 export fn makeFile(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference,
                           fn(reply) = MakeFile(path = path, bytes = bytes, reply = reply),
@@ -326,19 +332,23 @@ export fn makeFile(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit
 /// is removed and not followed, wherever it stands, so what it leads to is
 /// left, even where another process puts it in a directory's place while
 /// the removal runs. It waits the milliseconds given once, for the whole
-/// removal, and faults its caller where the runtime's helper fails, as
-/// `Os.start` does.
+/// removal.
+///
+/// ### Errors
+///
+/// Where the runtime's helper fails, the caller faults with `Fault("the
+/// runtime's helper ern_exec failed")`, as `Os.start`'s does.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.makeDir(Path("tree/branch"), 5000);
-///     let _ = Fs.write(Path("tree/branch/leaf.txt"), <<>>, 5000);
-///     let _ = Fs.removeAll(Path("tree"), 5000);
-///     Either.isLeft(Fs.stat(Path("tree"), 5000))
+///     let _ <- Fs.makeDir(Path("tree/branch"), 5000);
+///     let _ <- Fs.write(Path("tree/branch/leaf.txt"), <<>>, 5000);
+///     let _ <- Fs.removeAll(Path("tree"), 5000);
+///     Right(Either.isLeft(Fs.stat(Path("tree"), 5000)))
 /// }
-/// // => true
+/// // => Right(true)
 /// ```
 export fn removeAll(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
     answered(Address.call(reference, fn(reply) = RemoveAll(path = path, reply = reply), ms))
@@ -350,8 +360,8 @@ export fn removeAll(path : Path, ms : Int) : Either(Io.Error, Unit) with m =
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.write(Path("dated.txt"), <<>>, 5000);
-///     let _ = Fs.setModified(Path("dated.txt"), 86400000, 5000);
+///     let _ <- Fs.write(Path("dated.txt"), <<>>, 5000);
+///     let _ <- Fs.setModified(Path("dated.txt"), 86400000, 5000);
 ///     Either.map(Fs.stat(Path("dated.txt"), 5000), fn(entry) = entry.mtime)
 /// }
 /// // => Right(86400000)
@@ -364,14 +374,14 @@ export fn setModified(path : Path, mtime : Int, ms : Int) : Either(Io.Error, Uni
 /// Sets the permission bits of a file or a directory to the mode, as the
 /// host writes them: `0o600` is its owner's alone to read and write, and a
 /// directory made `0o700` before a file is written in it keeps the file
-/// from others as it is written. A mode outside 0 to `0o7777` is
-/// `Left(Invalid)`.
+/// from others as it is written. A mode outside 0 to `0o7777`, or with the
+/// bit `0o1000`, which the host does not write, is `Left(Invalid)`.
 ///
 /// ### Examples
 ///
 /// ```ernest
 /// {
-///     let _ = Fs.makeDir(Path("own"), 5000);
+///     let _ <- Fs.makeDir(Path("own"), 5000);
 ///     Fs.setMode(Path("own"), 0o700, 5000)
 /// }
 /// // => Right(Unit)
@@ -383,5 +393,5 @@ export fn setMode(path : Path, mode : Int, ms : Int) : Either(Io.Error, Unit) wi
                           fn(reply) = SetMode(path = path, mode = mode, reply = reply),
                           ms))
 
-fn answered(answer : Optional(Either(Io.Error, a))) : Either(Io.Error, a) =
-    Optional.withDefault(answer, Left(Io.Timeout))
+fn answered(called : Optional(Either(Io.Error, a))) : Either(Io.Error, a) =
+    Optional.withDefault(called, Left(Io.Timeout))

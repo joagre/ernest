@@ -17,7 +17,7 @@
 
 /// The other truth value, which prefix `!` also gives (report §4.8).
 export fn not(bool : Bool) : Bool =
-    if bool then false else true
+    !bool
 
 /// `"true"` or `"false"`.
 export fn toString(bool : Bool) : String =

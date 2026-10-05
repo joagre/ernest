@@ -37,7 +37,7 @@
 /// The prelude's `Set` for a set with no order, `List.sort` for a list in
 /// order.
 ///
-/// since 0.2.0
+/// since 0.3.0
 
 /// A set in the order of its element type.
 export abstract type Set(a) = Set(List(a))
@@ -206,13 +206,13 @@ export fn foreach(Set(list) : Set(a), f : (a) -> Unit with e) : Unit with e =
 ///   OrderedSet.all(OrderedSet.fromList([1]), fn(n) = n > 1))
 /// // => #(true, false)
 /// ```
-export fn any(Set(list) : Set(a), keep : (a) -> Bool with e) : Bool with e =
-    List.any(list, keep)
+export fn any(Set(list) : Set(a), test : (a) -> Bool with e) : Bool with e =
+    List.any(list, test)
 
 /// `true` when the predicate holds for every element, and for the set with
 /// no elements.
-export fn all(Set(list) : Set(a), keep : (a) -> Bool with e) : Bool with e =
-    List.all(list, keep)
+export fn all(Set(list) : Set(a), test : (a) -> Bool with e) : Bool with e =
+    List.all(list, test)
 
 /// The first element in order the predicate holds for.
 ///
@@ -222,8 +222,8 @@ export fn all(Set(list) : Set(a), keep : (a) -> Bool with e) : Bool with e =
 /// OrderedSet.find(OrderedSet.fromList([3, 1, 2]), fn(n) = n > 1)
 /// // => Some(2)
 /// ```
-export fn find(Set(list) : Set(a), keep : (a) -> Bool with e) : Optional(a) with e =
-    List.find(list, keep)
+export fn find(Set(list) : Set(a), test : (a) -> Bool with e) : Optional(a) with e =
+    List.find(list, test)
 
 /// The elements, in order.
 export fn toList(Set(list) : Set(a)) : List(a) =

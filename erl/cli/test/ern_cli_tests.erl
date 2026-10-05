@@ -1869,8 +1869,11 @@ doc_template_test() ->
     ?assertEqual(without_footer(Generated), without_footer(Output)),
     %% the module and every exported declaration say since which version, E.0 shape rule 6
     {match, Sinces} = re:run(Output, "\\*Since 0\\.1\\.0\\.\\*", [global]),
-    %% the module states its since; no declaration differs from it
+    %% the module states its since, and the three declarations 0.2.0 renamed
+    %% their own
     ?assertEqual(1, length(Sinces)),
+    {match, Renamed} = re:run(Output, "\\*Since 0\\.2\\.0\\.\\*", [global]),
+    ?assertEqual(3, length(Renamed)),
     %% every exported type has an Examples section, and the one function no
     %% module example calls, E.0 shape rule 6
     Sections = tl(binary:split(Output, <<"\n## ">>, [global])),

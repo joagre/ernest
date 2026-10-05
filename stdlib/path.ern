@@ -1,11 +1,9 @@
 /// Operations on `Path`, a file system path in the runtime's syntax
 /// (report §9.3, Appendix E.14). A `Path` is `Path(String)`, so a path is
 /// built from text and `toString` gives it back. There is no `fromString`:
-/// the constructor is it, `Path("/etc/hosts")`. The primitives are
-/// `isAbsolute` and `separator`, private, the host's separator, both the
-/// runtime's; the rest is Ernest over `String` (report Appendix E.0 rule 1).
-/// An absolute path's first segment is its root, the text up to its first
-/// separator and that separator.
+/// the constructor is it, `Path("/etc/hosts")`. An absolute path's first
+/// segment is its root, the text up to its first separator and that
+/// separator.
 ///
 /// ## Examples
 ///
@@ -25,8 +23,9 @@
 ///
 /// since 0.1.0
 
-/// The second path under the first, one separator between their segments;
-/// an absolute second stands alone (report §9.6).
+/// The second path under the first: the segments of both, `split` then
+/// `join`, so `Path("a//b") <> Path("c")` is `Path("a/b/c")`. An absolute
+/// second is the result, as it was written (report Appendix E.14).
 ///
 /// ### Examples
 ///
@@ -65,7 +64,7 @@ fn written(segments : List(String)) : String =
 foreign fn separator() : String =
     "ern_path:separator/0"
 
-/// The segments; an absolute path's first segment is the root.
+/// The segments, none empty; an absolute path's first segment is the root.
 ///
 /// ### Examples
 ///
@@ -209,7 +208,7 @@ fn withoutTrailingSeparators(text : String) : String =
 /// // => #(Some("/srv/site/index.html"), None, None)
 /// ```
 ///
-/// since 0.2.0
+/// since 0.3.0
 export fn under(root : Path, path : Path) : Optional(Path) =
     match split(path) {
         [] -> None

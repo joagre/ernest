@@ -48,7 +48,7 @@ export fn isAsciiDigit(char : Char) : Bool =
 /// // => #(Some(7), Some(15), None)
 /// ```
 ///
-/// since 0.2.0
+/// since 0.3.0
 export fn digitValue(char : Char, base : Int) : Optional(Int) =
     match placeValue(char) {
         Some(value) when base >= 2 && base <= 36 && value < base -> Some(value)

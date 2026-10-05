@@ -3,13 +3,8 @@
 /// `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and
 /// index in graphemes, extended grapheme clusters, each what a reader sees
 /// as one letter; `toList` and `fromList` are `Char`s, one scalar value
-/// each. The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`,
-/// and the slice `slice` makes once it has clipped its index and count,
-/// the operations that need Unicode's tables, with the private `drop` and
-/// `lastGrapheme`, `toLower`, and `toUpper`, and the conversions
-/// `toFloat`, `toList`, `fromList`, `toUtf8`, and `fromUtf8`, the
-/// runtime's; the rest is written over them, so every search matches whole
-/// graphemes (report Appendix E.0 rule 1).
+/// each. Every search matches whole graphemes, so
+/// `String.contains("e\u{301}", "e")` is `false` (report Appendix E.5).
 ///
 /// ## Examples
 ///
@@ -104,7 +99,7 @@ export fn compare(left : String, right : String) : Ordering =
 /// // => false
 /// ```
 export fn contains(text : String, part : String) : Bool =
-    indexOf(text, part) != None
+    Optional.isSome(indexOf(text, part))
 
 /// Where the second begins in the first, and `None` where it is not
 /// there. An empty second is at 0.
@@ -309,8 +304,10 @@ export fn lines(text : String) : List(String) =
         }
     }
 
-/// The words: the parts between runs of White_Space, the Unicode property
-/// `Char.isSpace` reads, none of them empty.
+/// The words: the parts between runs of whitespace, the graphemes whose
+/// first code point is White_Space, as `trim` judges them, none of the
+/// parts empty. A grapheme is never split, so a combining mark after a
+/// space goes with the space.
 ///
 /// ### Examples
 ///
@@ -319,23 +316,28 @@ export fn lines(text : String) : List(String) =
 /// // => #(["one", "two", "three"], [])
 /// ```
 ///
+/// ```ernest
+/// String.words("a \u{301}b")
+/// // => ["a", "b"]
+/// ```
+///
 /// since 0.2.0
 export fn words(text : String) : List(String) =
-    List.reverse(wordsFrom(toList(text), [], []))
+    List.reverse(wordsFrom(graphemes(text), [], []))
 
-// The words before the characters, in reverse, the one being read's
-// characters in reverse too.
-fn wordsFrom(chars : List(Char), word : List(Char), acc : List(String)) : List(String) =
-    match chars {
+// The words before the graphemes, in reverse, the one being read's
+// graphemes in reverse too.
+fn wordsFrom(graphemes : List(String), word : List(String), acc : List(String)) : List(String) =
+    match graphemes {
         [] -> withWord(word, acc)
-      | char :: rest when Char.isSpace(char) -> wordsFrom(rest, [], withWord(word, acc))
-      | char :: rest -> wordsFrom(rest, char :: word, acc)
+      | grapheme :: rest when isSpaceFirst(grapheme) -> wordsFrom(rest, [], withWord(word, acc))
+      | grapheme :: rest -> wordsFrom(rest, grapheme :: word, acc)
     }
 
-fn withWord(word : List(Char), acc : List(String)) : List(String) =
+fn withWord(word : List(String), acc : List(String)) : List(String) =
     match word {
         [] -> acc
-      | _ -> fromList(List.reverse(word)) :: acc
+      | _ -> join(List.reverse(word), "") :: acc
     }
 
 /// The parts between the occurrences of the second, the empty parts
@@ -416,14 +418,21 @@ export fn toIntBase(text : String, base : Int) : Optional(Int) =
 
 // The number the digits spell in the base, at least one of them.
 fn number(chars : List(Char), base : Int) : Optional(Int) =
-    match List.tryMap(chars, fn(char) = digitIn(char, base)) {
-        Right(values) when !List.isEmpty(values) -> Some(valueOf(values, List.size(values), base))
+    match digits(chars, base, []) {
+        Some(values) when !List.isEmpty(values) -> Some(valueOf(values, List.size(values), base))
       | _ -> None
     }
 
-// A digit's value in the base, or the character that is none.
-fn digitIn(char : Char, base : Int) : Either(Char, Int) =
-    Either.fromOptional(Char.digitValue(char, base), char)
+// The digits' values in order, or `None` where a character is no digit in
+// the base.
+fn digits(chars : List(Char), base : Int, acc : List(Int)) : Optional(List(Int)) =
+    match chars {
+        [] -> Some(List.reverse(acc))
+      | char :: rest -> match Char.digitValue(char, base) {
+            Some(value) -> digits(rest, base, value :: acc)
+          | None -> None
+        }
+    }
 
 // The value of the digits, count of them, read in halves past forty, so
 // that a long numeral costs what multiplying its halves costs and not the

@@ -118,6 +118,8 @@ foreign fn commandLine() : List(String) with m =
 /// ```ernest
 /// Os.environment("HOME")
 /// ```
+///
+/// since 0.2.0
 export fn environment(name : String) : Optional(String) =
     match Map.get(variables, name) {
         None -> None
@@ -149,6 +151,8 @@ foreign fn hostFacts() : Host with m =
 /// ```ernest
 /// Either.map(Fs.stat(Os.workingDirectory, 5000), fn(entry) = entry.user == Os.user)
 /// ```
+///
+/// since 0.3.0
 export let user : Int = host.user
 
 /// The absolute path of the directory the program was started in, bound
@@ -201,8 +205,12 @@ export foreign fn exit(status : Int) : a with m =
 /// found, `Left(Denied)` when it may not be run, `Left(Invalid)` for a
 /// name or an argument no program could be given, and `Left(Other(text))`,
 /// the host's reason, when it cannot start for another.
+///
+/// ### Errors
+///
 /// Where the runtime's helper fails, the caller faults with `Fault("the
-/// runtime's helper ern_exec failed")`, the runtime's own failure.
+/// runtime's helper ern_exec failed")`, the runtime's own failure (report
+/// §7.4).
 ///
 /// ### Examples
 ///
@@ -332,6 +340,11 @@ export fn give(program : Address(ProgramMsg), owner : Process) : Unit with m =
 /// `Left(Invalid)`, `Left(Other(text))`, and `Left(Timeout)` when the
 /// milliseconds pass first, the program killed then.
 ///
+/// ### Errors
+///
+/// Where the runtime's helper fails, the caller faults, as `Os.start`'s
+/// does.
+///
 /// ### Examples
 ///
 /// ```ernest
@@ -369,4 +382,4 @@ fn collect(program : Address(ProgramMsg),
     }
 
 fn joined(pieces : List(Bytes)) : Bytes =
-    List.foldLeft(List.reverse(pieces), <<>>, fn(acc, piece) = acc <> piece)
+    Bytes.join(List.reverse(pieces), <<>>)

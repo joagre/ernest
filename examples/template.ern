@@ -72,13 +72,19 @@ export type Shape =
 export abstract type Stack = Stack(List(Shape))
 
 /// The stack with nothing on it.
+///
+/// since 0.2.0
 export let emptyStack = Stack([])
 
 /// The stack with the shape on top.
+///
+/// since 0.2.0
 export fn push(Stack(shapes) : Stack, shape : Shape) : Stack =
     Stack(shape :: shapes)
 
 /// The top shape and the rest, `None` when the stack is empty.
+///
+/// since 0.2.0
 export fn pop(Stack(shapes) : Stack) : Optional(#(Shape, Stack)) =
     match shapes {
         [] -> None

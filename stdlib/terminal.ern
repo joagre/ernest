@@ -35,18 +35,22 @@
 /// ```
 export type Size = Size(rows : Int, columns : Int)
 
-/// What the terminal delivers to its subscriber: a key, `Enter` and
-/// Backspace among them as their characters, an arrow, `Escape`, the
-/// interrupt, a paste, or a new size (report §8.2).
+/// What the terminal delivers to its subscriber: a key, an arrow,
+/// `Escape`, the interrupt, a paste, or a new size (report §8.2). A key the
+/// terminal sends as one character is `Key` of it, a control character
+/// among them: Enter is `Key('\r')`, or `Key('\n')` where the terminal
+/// sends a line feed, Backspace `Key('\u{7f}')` or `Key('\u{8}')`, and Tab
+/// `Key('\t')`.
 ///
 /// ### Examples
 ///
 /// ```ernest
-/// match Terminal.Key('q') {
-///     Terminal.Key(char) -> char == 'q'
-///   | _ -> false
+/// match Terminal.Key('\r') {
+///     Terminal.Key('\r') or Terminal.Key('\n') -> "enter"
+///   | Terminal.Key(char) -> String.fromList([char])
+///   | _ -> "other"
 /// }
-/// // => true
+/// // => "enter"
 /// ```
 export type Event =
     Key(Char)
@@ -87,6 +91,11 @@ foreign fn system(name : Foreign.Term) : Address(Msg) with m =
 /// process dies or restarts (report §6.9). The terminal applies each
 /// subscriber's wrap itself, in order, so a wrap that does not finish
 /// delays that subscriber's keys and no other's.
+///
+/// ### Errors
+///
+/// A subscription after a line or bytes were read faults the caller with
+/// `Fault("the terminal is already read as lines")` (report §7.4).
 export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) with m = {
     let address = via(self(), wrap);
     Address.callForever(reference, fn(reply) = Subscribe(address = address, reply = reply))

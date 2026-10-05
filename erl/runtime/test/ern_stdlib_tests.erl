@@ -446,6 +446,13 @@ bool_test() ->
     ?assertEqual(false, 'ern@bool':'not'(true)),
     ?assertEqual(<<"true">>, 'ern@bool':toString(true)).
 
+%% report Appendix E.8, §7.4: a shift whose result is beyond the host's
+%% integers faults as `*` does at that limit, a limit of the host met. A
+%% regression test: it faulted as a foreign function's raise, naming
+%% erlang:bsl/2, which no program wrote
+int_shift_limit_test() ->
+    ?assertThrow({ern, fault, <<"error:system_limit">>}, 'ern@int':shiftLeft(1, 1 bsl 40)).
+
 %% report Appendix E.8, §3.1, §7.4, §9.6
 int_test() ->
     Int = 'ern@int',
@@ -725,8 +732,9 @@ fs_append_device_test() ->
 
 %% report Appendix E.17: `setMode` sets a file's and a directory's
 %% permission bits to the mode, a path that names nothing is NotFound, and a
-%% mode beyond the bits is Invalid. A regression test of the rule that
-%% replaced `makePrivate` with it
+%% mode beyond the bits, or with 0o1000, which the host does not write, is
+%% Invalid. A regression test of the rule that replaced `makePrivate` with
+%% it, and of 0o1777, which set 0o777 and answered Right(Unit)
 fs_set_mode_test() ->
     Self = self(),
     Dir = scratch("ern_private_"),
@@ -741,10 +749,11 @@ fs_set_mode_test() ->
                            Self ! {fs, 'ern@fs':setMode(InDir(File), 8#600, 1000)},
                            Self ! {fs, 'ern@fs':setMode(InDir(Dir), 8#700, 1000)},
                            Self ! {fs, 'ern@fs':setMode(InDir(Dir ++ "/none"), 8#700, 1000)},
-                           Self ! {fs, 'ern@fs':setMode(InDir(File), 8#10000, 1000)}
+                           Self ! {fs, 'ern@fs':setMode(InDir(File), 8#10000, 1000)},
+                           Self ! {fs, 'ern@fs':setMode(InDir(Dir), 8#1777, 1000)}
                        end, <<"fs_set_mode_test">>, #{})),
     ?assertEqual([{'Right', 'Unit'}, {'Right', 'Unit'}, {'Left', 'NotFound'},
-                  {'Left', 'Invalid'}], collect(fs, [])),
+                  {'Left', 'Invalid'}, {'Left', 'Invalid'}], collect(fs, [])),
     {ok, FileInfo} = file:read_file_info(File),
     {ok, DirInfo} = file:read_file_info(Dir),
     ?assertEqual({8#600, 8#700}, {FileInfo#file_info.mode band 8#777,

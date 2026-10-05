@@ -23,7 +23,7 @@
 ///
 /// `Map` for keys in no order, `OrderedSet` for elements in order.
 ///
-/// since 0.2.0
+/// since 0.3.0
 
 /// A map in the order of its key type.
 export abstract type Map(k, v) = Map(List(#(k, v)))
@@ -221,13 +221,13 @@ export fn foreach(Map(pairs) : Map(k, v), f : (k, v) -> Unit with e) : Unit with
 ///   OrderedMap.all(OrderedMap.fromList([#(1, 2)]), fn(key, value) = key == value))
 /// // => #(true, false)
 /// ```
-export fn any(Map(pairs) : Map(k, v), keep : (k, v) -> Bool with e) : Bool with e =
-    List.any(pairs, fn(#(key, value)) = keep(key, value))
+export fn any(Map(pairs) : Map(k, v), test : (k, v) -> Bool with e) : Bool with e =
+    List.any(pairs, fn(#(key, value)) = test(key, value))
 
 /// `true` when the predicate holds for every entry, and for the map with
 /// no entries.
-export fn all(Map(pairs) : Map(k, v), keep : (k, v) -> Bool with e) : Bool with e =
-    List.all(pairs, fn(#(key, value)) = keep(key, value))
+export fn all(Map(pairs) : Map(k, v), test : (k, v) -> Bool with e) : Bool with e =
+    List.all(pairs, fn(#(key, value)) = test(key, value))
 
 /// The first entry in order the predicate holds for.
 ///
@@ -237,8 +237,8 @@ export fn all(Map(pairs) : Map(k, v), keep : (k, v) -> Bool with e) : Bool with 
 /// OrderedMap.find(OrderedMap.fromList([#(2, "b"), #(1, "a")]), fn(key, _) = key > 1)
 /// // => Some(#(2, "b"))
 /// ```
-export fn find(Map(pairs) : Map(k, v), keep : (k, v) -> Bool with e) : Optional(#(k, v)) with e =
-    List.find(pairs, fn(#(key, value)) = keep(key, value))
+export fn find(Map(pairs) : Map(k, v), test : (k, v) -> Bool with e) : Optional(#(k, v)) with e =
+    List.find(pairs, fn(#(key, value)) = test(key, value))
 
 /// The entries of both; at one key, the second's value.
 ///
@@ -273,11 +273,12 @@ fn mergedWith(pairs : List(#(k, v)),
     match #(pairs, others) {
         #([], _) -> others
       | #(_, []) -> pairs
-      | #(#(key, mine) :: rest, #(theirs, value) :: more) -> match k.compare(key, theirs) {
-            Less -> #(key, mine) :: mergedWith(rest, others, f)
-          | Equal -> #(key, f(key, mine, value)) :: mergedWith(rest, more, f)
-          | Greater -> #(theirs, value) :: mergedWith(pairs, more, f)
-        }
+      | #(#(key, value) :: rest, #(otherKey, otherValue) :: more) ->
+            match k.compare(key, otherKey) {
+                Less -> #(key, value) :: mergedWith(rest, others, f)
+              | Equal -> #(key, f(key, value, otherValue)) :: mergedWith(rest, more, f)
+              | Greater -> #(otherKey, otherValue) :: mergedWith(pairs, more, f)
+            }
     }
 
 /// The entries, in order.

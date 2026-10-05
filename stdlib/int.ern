@@ -118,12 +118,24 @@ export foreign fn bitOr(left : Int, right : Int) : Int =
 export foreign fn bitXor(left : Int, right : Int) : Int =
     "erlang:bxor/2"
 
-/// Bitwise complement, `-int - 1`.
-export foreign fn bitNot(int : Int) : Int =
-    "erlang:bnot/1"
+/// Bitwise complement, on the two's complement form.
+///
+/// ### Examples
+///
+/// ```ernest
+/// #(Int.bitNot(0), Int.bitNot(5))
+/// // => #(-1, -6)
+/// ```
+export fn bitNot(int : Int) : Int =
+    -int - 1
 
 /// `int` shifted left by `count` bits: `int` times two to the power `count`; a
-/// count below 0 is none (report §7.4).
+/// count below 0 is none.
+///
+/// ### Errors
+///
+/// A result beyond the host's integers faults the caller with
+/// `Fault("error:system_limit")`, a limit of the host met (report §7.4).
 ///
 /// ### Examples
 ///
@@ -135,7 +147,7 @@ export fn shiftLeft(int : Int, count : Int) : Int =
     shiftedLeft(int, max(count, 0))
 
 foreign fn shiftedLeft(int : Int, count : Int) : Int =
-    "erlang:bsl/2"
+    "ern_int:shift_left/2"
 
 /// `int` shifted right by `count` bits, the sign kept: `int` divided by two to
 /// the power `count`, rounded toward negative infinity; a count below 0 is
