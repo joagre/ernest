@@ -404,7 +404,11 @@ lingering_socket_closes_test_() ->
     {timeout, 60, fun lingering_socket_closes/0}.
 
 lingering_socket_closes() ->
-    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}]),
+    %% the far end's buffer is small, as the near end's are below, so that
+    %% the hosts take far less than a megabyte and a write queued behind
+    %% another is held for good: a write the host finished as the socket
+    %% closed would hold nothing, and the flood's next write would fault
+    {ok, Listen} = gen_tcp:listen(0, [binary, {active, false}, {recbuf, 4096}]),
     {ok, Port} = inet:port(Listen),
     Self = self(),
     %% the far end accepts twice and never reads
@@ -417,16 +421,29 @@ lingering_socket_closes() ->
            fun() ->
                {'Right', Closed} = connect(Port, 2000),
                {'Right', Killed} = connect(Port, 2000),
+               HostSockets = [host_socket(Closed), host_socket(Killed)],
+               [ok = inet:setopts(HostSocket, [{sndbuf, 4096}]) || HostSocket <- HostSockets],
+               Main = self(),
                Chunk = binary:copy(<<0>>, 1024 * 1024),
-               _ = ern_rt:spawn(fun() -> Self ! {closed_write, flooded(Closed, Chunk)} end,
+               _ = ern_rt:spawn(fun() -> Main ! {closed_write, flooded(Closed, Chunk)} end,
                                 <<"flood">>),
                _ = ern_rt:spawn_monitored(fun() -> flooded(Killed, Chunk) end,
                                           fun(Down) -> {down, Down} end, <<"flood">>),
                %% a write is held once the writer waits on the busy host socket
-               ern_rt:in_foreign(fun() -> held(Closed), held(Killed) end),
-               Self ! {host_sockets, [host_socket(Closed), host_socket(Killed)]},
+               ern_rt:in_foreign(fun() ->
+                                     held(Closed, byte_size(Chunk)),
+                                     held(Killed, byte_size(Chunk))
+                                 end),
+               Self ! {host_sockets, HostSockets},
                ern_rt:send(Closed, 'Close'),
                ern_rt:kill(Killed),
+               %% the program's end kills every process (report §8.6), so main
+               %% returns only once both floods have their answers
+               receive
+                   {closed_write, Written} -> Self ! {closed_write, Written}
+               after 5000 ->
+                   Self ! {closed_write, timeout}
+               end,
                receive {down, Down} -> Self ! {killed_write, Down} end
            end, <<"main">>, quiet()),
     HostSockets = wait(host_sockets),
@@ -486,20 +503,23 @@ taken(Connection, Count) ->
         Ended -> {Count, Ended}
     end.
 
-%% Until the socket's writer waits inside the host's send, which holds it
-%% while the connection is behind, rather than in its own receive.
-held(Socket) ->
+%% Until the socket's writer waits inside the host's send with more than a
+%% write's bytes before it in the host's queue, which the host never takes:
+%% a send the host finishes at once waits in the same function, so the
+%% queue is what says that this one is held.
+held(Socket, Size) ->
     Pid = ern_rt:process_of(Socket),
     {links, Links} = erlang:process_info(Pid, links),
     [Writer] = [Linked || Linked <- Links, is_pid(Linked),
                           Linked =/= ern_rt:system_process(tcp)],
+    {ok, [{send_pend, Pending}]} = inet:getstat(host_socket(Socket), [send_pend]),
     case erlang:process_info(Writer, [status, current_function]) of
         [{status, waiting}, {current_function, Function}]
-          when Function =/= {ern_tcp, writer, 2} ->
+          when Function =/= {ern_tcp, writer, 2}, Pending > Size ->
             ok;
         _ ->
             timer:sleep(5),
-            held(Socket)
+            held(Socket, Size)
     end.
 
 %% The host's socket a socket's process owns.
