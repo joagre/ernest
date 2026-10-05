@@ -1833,91 +1833,87 @@ The representation may change later, a tree for the list, and the modules that u
 
 ### 7.3 Code written once over several representations
 
-Code is often written once for a kind of thing that has several representations: a set kept in a hash and a set kept in order, a sum over `Int` and over `Float`. Ernest has three forms for it, and a module of the standard library shows the first.
+Code is often written once for a kind of thing that has several representations: a set kept in a hash and a set kept in order, a sum over `Int` and over `Float`. Ernest has three forms for it, each for a need of its own:
 
-**A module that declares what it needs.** `OrderedSet` keeps a set's elements in the order of their type's `compare`. A function that needs the order says so after its result type, `needs a.compare`, a *requirement* (report §4.9): in its body `a.compare` is the member of the type `a` stands for, and `<` resolves to it, as both would on a known type. Here are the parts of `stdlib/ordered_set.ern` that show the requirement, with their doc blocks left out; the rest of the module, the functions that need no order among them, is in the file, and `:doc OrderedSet` lists it:
+| The need | The form |
+|---|---|
+| A type's own operation, in a function generic in the type | a *requirement*, `needs a.compare` |
+| One algorithm over several representations | an *operations record* |
+| Values of several representations in one list | a record of closures |
 
-```ernest-fragment
-// stdlib/ordered_set.ern  (namespace OrderedSet), in part, its doc blocks left out
-export abstract type Set(a) = Set(List(a))
-
-export let empty : Set(a) = Set([])
-
-export fn fromList(list : List(a)) : Set(a) needs a.compare =
-    Set(firstOfEach(List.sort(list, a.compare)))
-
-// The first of each run the order calls `Equal` in a sorted list. The sort
-// is stable, so the list's earlier occurrence comes first and is the one
-// kept, as `put` keeps the element already there.
-fn firstOfEach(sorted : List(a)) : List(a) needs a.compare =
-    match sorted {
-        first :: second :: rest -> if a.compare(first, second) == Equal then
-            firstOfEach(first :: rest)
-        else
-            first :: firstOfEach(second :: rest)
-      | _ -> sorted
-    }
-
-export fn size(Set(list) : Set(a)) : Int =
-    List.size(list)
-
-export fn contains(Set(list) : Set(a), element : a) : Bool needs a.compare =
-    has(list, element)
-
-fn has(list : List(a), element : a) : Bool needs a.compare =
-    match list {
-        [] -> false
-      | head :: rest -> match a.compare(element, head) {
-            Less -> false
-          | Equal -> true
-          | Greater -> has(rest, element)
-        }
-    }
-
-export fn put(Set(list) : Set(a), element : a) : Set(a) needs a.compare =
-    Set(inserted(list, element))
-
-fn inserted(list : List(a), element : a) : List(a) needs a.compare =
-    match list {
-        [] -> [element]
-      | head :: rest -> match a.compare(element, head) {
-            Less -> element :: list
-          | Equal -> list
-          | Greater -> head :: inserted(rest, element)
-        }
-    }
-
-export fn map(Set(list) : Set(a), f : (a) -> b with e) : Set(b) with e needs b.compare =
-    fromList(List.map(list, f))
-
-export fn toList(Set(list) : Set(a)) : List(a) =
-    list
-```
-
-The set is a sorted list and nothing else, so it is data: two sets built in different orders are `==`, a set keys a `Map`, and a set is sent to another node. Its order is its element type's, `Int.compare` for an `OrderedSet.Set(Int)` and `Money.compare` for a set of `Money` (§2.5), so a set carries no order and a call writes none: `OrderedSet.fromList([3, 1, 3])` is `fromList` with `Int.compare`, which the compiler supplies, since the element type is known there. Where the element type is a type variable, the function that calls declares the requirement itself, as `fromList` does for `firstOfEach`, and the member it was given goes along. `List.sort` takes the member as a parameter instead, `a.compare` written, since a sort may be given any order; a function declares the requirement where the type's own member is meant. `map` needs its result's, `b.compare`, since the set it makes is in the results' order; `size`, `toList`, `filter` and the rest need none. `put`, `contains` and `remove` are linear in the set's size, as a sorted list is, and `fromList` is a sort (report Appendix E.25). The ordered map, `OrderedMap`, is written the same way over its keys (report Appendix E.26).
-
-**A program over it.** No line of this program names an order:
+**A requirement.** A function generic in a type may need the type's own operation: its order, to find the largest of a list. It says so after its result type, `needs a.compare`, a *requirement* (report §4.9):
 
 ```ernest
-// usage.ern  (namespace Usage)
+// largest.ern  (namespace Largest)
 type Date = Date(year : Int, month : Int, day : Int) derives compare
 
-type Operations(s, a) =
-    Operations(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
+fn largest(first : a, rest : List(a)) : a needs a.compare =
+    List.foldLeft(rest, first, fn(best, x) = if x > best then x else best)
 
-let hashed : Operations(Set(Int), Int) = Operations(..Set)
+fn largestOf(list : List(a)) : Optional(a) needs a.compare =
+    match list {
+        [] -> None
+      | first :: rest -> Some(largest(first, rest))
+    }
 
-let ordered : Operations(OrderedSet.Set(Int), Int) = Operations(..OrderedSet)
-
-fn unique(list : List(a)) : List(a) needs a.compare =
-    OrderedSet.toList(OrderedSet.fromList(list))
+fn sorted(list : List(a)) : List(a) needs a.compare =
+    List.sort(list, a.compare)
 
 fn shown(list : List(a)) : Unit with m needs a.show =
     List.foreach(list, fn(x) = Io.println(Io.show(x)))
 
-fn common(list : List(a), other : List(a), operations : Operations(s, a)) : List(a) =
-    operations.toList(operations.intersection(operations.fromList(list),
-                                              operations.fromList(other)))
+export fn main() : Unit with Never = {
+    Io.println(Int.toString(largest(3, [8, 5])));
+    Io.println(largest("pear", ["fig", "apple"]));
+    Io.println(Io.show(largestOf([1.5, 0.5])));
+    shown(sorted([Date(year = 2026, month = 10, day = 2), Date(year = 2025, month = 1, day = 1)]))
+}
+```
+
+```console
+$ ern build largest.ern
+$ ern run largest.erc
+8
+pear
+Some(1.5)
+Date(year = 2025, month = 1, day = 1)
+Date(year = 2026, month = 10, day = 2)
+```
+
+In the body, an operator resolves to the member of whatever type `a` stands for, as it would on a known type: `x > best` in `largest` is `a.compare`. The member is also a value, written `a.compare`, which `sorted` hands to `List.sort`. `List.sort` takes its order as a parameter, since a sort may be given any order; a function declares a requirement where the type's own member is meant.
+
+A call writes nothing for the requirement. `largest(3, [8, 5])` is `largest` with `Int.compare`, which the compiler supplies, since the element type is known there, and the next call is supplied `String.compare`. Where the element type is itself a type variable, the calling function declares the requirement too, as `largestOf` does for `largest`, and the member it was given goes along. Without the requirement the call is refused, naming what to add:
+
+```ernest-rejected
+fn largest(first : a, rest : List(a)) : a needs a.compare =
+    List.foldLeft(rest, first, fn(best, x) = if x > best then x else best)
+
+fn largestOf(list : List(a)) : Optional(a) =
+    match list {
+        [] -> None
+      | first :: rest -> Some(largest(first, rest))
+    }
+```
+
+```console
+$ ern build generic.ern
+generic.ern:7:31: largest needs a.compare, which largestOf does not declare
+6 |         [] -> None
+7 |       | first :: rest -> Some(largest(first, rest))
+  |                               ^^^^^^^
+  | = help: add `needs a.compare` to largestOf's signature
+```
+
+`Date` gets its order from its declaration. `derives compare` gives the type the member `compare`, which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare`, so the dates print by year, then month, then day. A field whose type has no `compare`, an `Optional(Int)`, is refused at the declaration (report §3.5).
+
+`shown` declares `needs a.show`. `Io.show` writes a value by its type, which a function generic in that type does not know, so the function names `show` as it would name a member, and each call supplies the type's. `Io.show`'s own type says so, `(a!) -> String needs a.show`, and under the requirement it writes `a` and any type built from it, `List(a)` as well (report §9.4, Appendix E.1).
+
+**A module built on a requirement.** The standard library's `OrderedSet` keeps a set's elements in the order of their type's `compare`, and each of its functions that needs the order declares `needs a.compare`. A program uses it without naming an order:
+
+```ernest
+// sets.ern  (namespace Sets)
+fn unique(list : List(a)) : List(a) needs a.compare =
+    OrderedSet.toList(OrderedSet.fromList(list))
 
 export fn main() : Unit with Never = {
     let small = OrderedSet.fromList([3, 1, 3]);
@@ -1925,64 +1921,30 @@ export fn main() : Unit with Never = {
     Io.println(Io.show(OrderedSet.toList(both)));
     Io.println(Io.show(OrderedSet.min(both)));
     Io.println(Bool.toString(both == OrderedSet.fromList([2, 3, 1])));
-    Io.println(Io.show(OrderedSet.toList(OrderedSet.filter(both, fn(n) = n % 2 == 1))));
     let doubled = OrderedSet.map(both, fn(n) = n * 2);
     Io.println(Bool.toString(OrderedSet.contains(doubled, 6)));
     Io.println(Io.show(unique(["b", "a", "b"])));
-    let dates =
-        OrderedSet.fromList([Date(year = 2026, month = 10, day = 2),
-                             Date(year = 2025, month = 1, day = 1)]);
-    Io.println(Io.show(OrderedSet.min(dates)));
-    shown(OrderedSet.toList(dates));
     let ages = OrderedMap.fromList([#("bo", 42), #("al", 7)]);
-    Io.println(Io.show(OrderedMap.keys(ages)));
-    Io.println(Io.show(OrderedMap.get(OrderedMap.put(ages, "cy", 1), "cy")));
-    Io.println(Io.show(common([4, 2, 3], [3, 4, 5], ordered)));
-    Io.println(Int.toString(List.size(common([4, 2, 3], [3, 4, 5], hashed))))
+    Io.println(Io.show(OrderedMap.keys(ages)))
 }
 ```
 
 ```console
-$ ern build usage.ern
-$ ern run usage.erc
+$ ern build sets.ern
+$ ern run sets.erc
 [1, 2, 3]
 Some(1)
 true
-[1, 3]
 true
 ["a", "b"]
-Some(Date(year = 2025, month = 1, day = 1))
-Date(year = 2025, month = 1, day = 1)
-Date(year = 2026, month = 10, day = 2)
 ["al", "bo"]
-Some(1)
-[3, 4]
-2
 ```
 
-`unique` is written once for any element type and declares `needs a.compare`; its call writes nothing, and the compiler supplies `String.compare`. Without the requirement the call is refused, naming what to add:
+`OrderedSet.fromList([3, 1, 3])` is `fromList` with `Int.compare`, and `unique`, generic in its element, declares the requirement and passes it on. `map` needs its result's order, `b.compare`, since the set it makes is in the results' order; `size`, `toList`, `filter` and the rest need none.
 
-```ernest-rejected
-fn unique(list : List(a)) : List(a) =
-    OrderedSet.toList(OrderedSet.fromList(list))
-```
+The set is a sorted list and nothing else, so it is data: two sets built in different orders are `==`, a set keys a `Map`, and a set is sent to another node. `put`, `contains` and `remove` are linear in the set's size, as a sorted list is, and `fromList` is a sort (report Appendix E.25). `OrderedMap` is written the same way over its keys, filled and read as a `Map` is (report Appendix E.26).
 
-```console
-$ ern build generic.ern
-generic.ern:2:23: fromList needs a.compare, which unique does not declare
-1 | fn unique(list : List(a)) : List(a) =
-2 |     OrderedSet.toList(OrderedSet.fromList(list))
-  |                       ^^^^^^^^^^^^^^^^^^^
-  | = help: add `needs a.compare` to unique's signature
-```
-
-`shown` declares `needs a.show`. `Io.show` writes a value by its type, which a function generic in that type does not know, so the function names `show` as it would name a member, and each call supplies the type's. `Io.show`'s own type says so, `(a!) -> String needs a.show`, and under the requirement it writes `a` and any type built from it, `List(a)` as well (report §9.4, Appendix E.1).
-
-`Date` derives its order: `derives compare` gives the type the member `compare`, which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare`, so the dates print by year, then month, then day. A field whose type has no `compare`, an `Optional(Int)`, is refused at the declaration (report §3.5).
-
-`Operations` is an *operations record*: the record of the operations `common` uses, which the program declares, each field's type over the record's parameters, `s` the representation and `a` the element. `Operations(..Set)` fills it from the namespace `Set`, each field not given beside the namespace being the declaration of its name there, at the field's type, and `Operations(..OrderedSet)` from `OrderedSet`, where `fromList`'s requirement is met with `Int.compare`, since the record's type fixes `a`. A field the namespace lacks, or one of another type, is refused where the record is built (report §5.6). `common` is an ordinary function over the record, `operations.fromList` a field read against the parameter's annotation, written once and called with either record; the caller chooses the representation at each call. The standard library declares no such record: a program declares the one it needs, three fields here, and reaches what a representation has beyond it, `OrderedSet.min`, through its module. `ages` is an `OrderedMap`, its keys in order, filled and read as a `Map` is.
-
-**Two orders cannot meet.** An order belongs to a type, since a type has one `compare`. A second order on `Int` is a second type with a `compare` of its own, and the two sets are of two types:
+An order belongs to a type, since a type has one `compare`. A second order on `Int` is a second type with a `compare` of its own, and two sets in two orders are of two types, which cannot meet:
 
 ```ernest-rejected
 type Descending = Descending(Int)
@@ -2007,7 +1969,67 @@ mixed.ern:9:66: the argument does not fit OrderedSet.union: expected OrderedSet.
   | = help: the types differ at Int and Descending
 ```
 
-**Values of several representations in one list.** An operations record keeps the representation's type, `s`, so that `common` can take two sets of it and give one back; it also keeps the two representations apart. Where values of different representations are to meet in one list or one message, a record of a second kind hides the representation: its functions close over one set, and `put` answers another such record.
+**An operations record.** A requirement gives a function one operation of one type. An algorithm written once over two representations of a set needs more: the operations of whichever representation it is given. It takes them as a record, which the program declares:
+
+```ernest
+// common.ern  (namespace Common)
+type Operations(s, a) =
+    Operations(fromList : (List(a)) -> s, intersection : (s, s) -> s, toList : (s) -> List(a))
+
+let hashed : Operations(Set(Int), Int) = Operations(..Set)
+
+let ordered : Operations(OrderedSet.Set(Int), Int) = Operations(..OrderedSet)
+
+fn common(list : List(a), other : List(a), operations : Operations(s, a)) : List(a) =
+    operations.toList(operations.intersection(operations.fromList(list),
+                                              operations.fromList(other)))
+
+export fn main() : Unit with Never = {
+    Io.println(Io.show(common([4, 2, 3], [3, 4, 5], ordered)));
+    Io.println(Int.toString(List.size(common([4, 2, 3], [3, 4, 5], hashed))))
+}
+```
+
+```console
+$ ern build common.ern
+$ ern run common.erc
+[3, 4]
+2
+```
+
+`Operations` is an *operations record*: the record of the operations `common` uses, each field's type over the record's parameters, `s` the representation and `a` the element. The parameter `s` keeps one call to one representation. `intersection : (s, s) -> s` takes two sets of it and gives a third, so `common` can pass what `fromList` made to `intersection` and its result to `toList`, and cannot mix a hashed set with an ordered one.
+
+`Operations(..Set)` fills the record from the namespace `Set`: each field not given beside the namespace is the declaration of its name there, at the field's type. `Operations(..OrderedSet)` fills it from `OrderedSet`, where `fromList`'s requirement is met with `Int.compare`, since the record's type fixes `a`. A field the namespace lacks, or one of another type, is refused where the record is built (report §5.6).
+
+`common` is an ordinary function over the record, and `operations.fromList` a field read against the parameter's annotation. It is written once and called with either record, so the caller chooses the representation at each call. The standard library declares no such record: a program declares the one it needs, three fields here, and reaches what a representation has beyond it, `OrderedSet.min`, through its module.
+
+**A record of closures.** An operations record keeps the representations apart: a list of sets is a list of one representation. Where values of different representations are to meet in one list or one message, a record of a second kind hides the representation. Its fields are functions that close over the value:
+
+```ernest
+// shapes.ern  (namespace Shapes)
+type Shape = Shape(name : String, area : () -> Float)
+
+fn circle(radius : Float) : Shape =
+    Shape(name = "circle", area = fn() = Float.pi * radius * radius)
+
+fn square(side : Float) : Shape =
+    Shape(name = "square", area = fn() = side * side)
+
+export fn main() : Unit with Never =
+    List.foreach([circle(1.0), square(2.0)],
+                 fn(shape) = Io.println(shape.name <> ": " <> Float.toString(shape.area())))
+```
+
+```console
+$ ern build shapes.ern
+$ ern run shapes.erc
+circle: 3.141592653589793
+square: 4.0
+```
+
+A circle and a square are both a `Shape`, since the radius and the side are not in the type: each is captured by the function in its record. The list holds both, and `shape.area()` runs the function the value carries.
+
+The same form serves the two sets, where an operation answers another such record: `put` closes over one set and answers a `Bag` over the next.
 
 ```ernest
 // bag.ern  (namespace Bag)
@@ -2039,9 +2061,56 @@ $ ern run bag.erc
 #(2, true)
 ```
 
-`ordered` declares the requirement, and the lambdas it makes close over the member it was given with the set. What a `Bag` cannot do is what the first kind keeps: nothing can take two bags apart to unite them, and a `Bag` has no `==`, since it holds functions (§2.5). Reach for an operations record where code written once must keep the representation's type, and for a record of closures where values of different representations meet.
+`ordered` declares the requirement, and the lambdas it makes close over the member it was given with the set.
+
+A record of closures gives up what an operations record keeps:
+
+- The representation is hidden, so nothing can take two bags apart to unite them. An operation over two of them needs a design of its own, as one that goes through `toList`.
+- The value holds functions, so it has no `==` (§2.5) and does not go to another node (§8.2).
+
+Reach for an operations record where code written once must keep the representation's type, and for a record of closures where values of different representations meet.
 
 In every form the types check what they can: a fill gives every field at its type, a call supplies the member its type has or is refused, and nothing is inferred, since a requirement is written and a member is the type's own, one of each name; a program finds its order where it finds its `+` (report §4.8). A service with state is different: two processes of different representations take one message type, and the caller holds an `Address(M)` (§4).
+
+**How `OrderedSet` is written.** The module is Ernest over `List`, and its source shows a requirement at work in a library. Here are the parts of `stdlib/ordered_set.ern` that carry it, with their doc blocks left out; the rest of the module is in the file, and `:doc OrderedSet` lists it:
+
+```ernest-fragment
+// stdlib/ordered_set.ern  (namespace OrderedSet), in part, its doc blocks left out
+export abstract type Set(a) = Set(List(a))
+
+export fn fromList(list : List(a)) : Set(a) needs a.compare =
+    Set(firstOfEach(List.sort(list, a.compare)))
+
+// The first of each run the order calls `Equal` in a sorted list. The sort
+// is stable, so the list's earlier occurrence comes first and is the one
+// kept, as `put` keeps the element already there.
+fn firstOfEach(sorted : List(a)) : List(a) needs a.compare =
+    match sorted {
+        first :: second :: rest -> if a.compare(first, second) == Equal then
+            firstOfEach(first :: rest)
+        else
+            first :: firstOfEach(second :: rest)
+      | _ -> sorted
+    }
+
+export fn contains(Set(list) : Set(a), element : a) : Bool needs a.compare =
+    has(list, element)
+
+fn has(list : List(a), element : a) : Bool needs a.compare =
+    match list {
+        [] -> false
+      | head :: rest -> match a.compare(element, head) {
+            Less -> false
+          | Equal -> true
+          | Greater -> has(rest, element)
+        }
+    }
+
+export fn map(Set(list) : Set(a), f : (a) -> b with e) : Set(b) with e needs b.compare =
+    fromList(List.map(list, f))
+```
+
+`fromList` declares the requirement and hands `a.compare` to `List.sort`. `firstOfEach` and `has` are helpers generic in the element, so each declares the requirement too, and the member goes along from the exported function that calls it. `map` declares `needs b.compare`, the order of the set it builds.
 
 ### 7.4 Prediction exercise
 
