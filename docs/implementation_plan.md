@@ -166,8 +166,7 @@ programs as item 2, and the last three as items 7, 8 and 6.
 The 570 findings the full review handed in on 2026-10-04, MVP 2.99c's item 6, worked as
 [`full_review.md`](full_review.md)'s *The findings* says. They stand in
 [`findings.md`](findings.md), a line each by area, with every reader's whole list below.
-They are worked before item 7, since the release's review takes item 6's readers for its own
-and its notes say what changed.
+They are worked before item 7, since the release's review takes item 6's readers for its own.
 
 1. **The lines' decisions**: each line `cheap`, a milestone, `done` or `dropped` with its
    reason, once the user has read the lines.
@@ -445,6 +444,8 @@ Release Is for Others*), after the language was argued in MVP 2.99c:
   citation, in the report, the guide, the log, the code, the tests and the diagnostics; or the
   numbers kept for good (the log's *The Language Argued Before Peers*).
 - **The promise**: what 1.0 holds stable, stated in the report's §0 and the release's notes.
+  Until then a release may refuse a program the previous release accepted, and its notes
+  point at what changed rather than list it (the log's *A Release Carries No History*).
 
 ---
 

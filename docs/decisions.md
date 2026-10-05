@@ -15,6 +15,8 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
+**2026-10-05.** [A Release Carries No History](#a-release-carries-no-history-2026-10-05).
+
 **2026-10-04.** [The Full Review's Questions, One by One](#the-full-reviews-questions-one-by-one-2026-10-04); [The Full Review Run](#the-full-review-run-2026-10-04); [What Erlang Held, Moved](#what-erlang-held-moved-2026-10-04); [What Erlang Holds, Measured](#what-erlang-holds-measured-2026-10-04); [The Replies Generated](#the-replies-generated-2026-10-04); [The Type System Argued](#the-type-system-argued-2026-10-04); [The Logo Installed, and the Reviews' Models](#the-logo-installed-and-the-reviews-models-2026-10-04).
 
 **2026-10-03.** [The Typed Programs Generated](#the-typed-programs-generated-2026-10-03); [The Library's Laws Held](#the-librarys-laws-held-2026-10-03); [The Grammar Generated Against](#the-grammar-generated-against-2026-10-03); [MVP 2.99c Weighed Before It Starts](#mvp-299c-weighed-before-it-starts-2026-10-03); [The Supervisors Load Sampled at Rest](#the-supervisors-load-sampled-at-rest-2026-10-03); [The Report in Three Files](#the-report-in-three-files-2026-10-03); [The Reaper's Look at Rest](#the-reapers-look-at-rest-2026-10-03); [`Address.ask` Is Taken Out](#addressask-is-taken-out-2026-10-03); [The Operators Stay Ernest](#the-operators-stay-ernest-2026-10-03); [The Operators as Shims, Built](#the-operators-as-shims-built-2026-10-03); [The Service Manager's Checks](#the-service-managers-checks-2026-10-03); [The Runtime as a Service, Built](#the-runtime-as-a-service-built-2026-10-03); [The Hardening Built](#the-hardening-built-2026-10-03); [The Boundary Trusts a Type Variable](#the-boundary-trusts-a-type-variable-2026-10-03); [The Release Has a README of Its Own](#the-release-has-a-readme-of-its-own-2026-10-03); [The Report's and the Guide's Blocks Read](#the-reports-and-the-guides-blocks-read-2026-10-03); [The Path Built](#the-path-built-2026-10-03); [A Record Type That Fits Stays on One Line](#a-record-type-that-fits-stays-on-one-line-2026-10-03); [The Guide's §7.3 Over the Finished Code](#the-guides-73-over-the-finished-code-2026-10-03); [The Requirement Built](#the-requirement-built-2026-10-03).
@@ -4553,6 +4555,8 @@ The three words for a directory now follow a rule §11 states: `-root` where the
 
 *Reason restated 2026-10-01: the job as `ern`'s first word stands as §11's rule ("The Reader Family's Rules"); the toolchains a reader arrives from were neighbours', which no longer decide.*
 
+*Superseded in part 2026-10-05 by "A Release Carries No History": a refusal of an old spelling no longer names the new one; an earlier spelling is refused as any word the job does not take is.*
+
 ## A Word Is Readline's, 2026-09-26
 
 Feedback item 29, which was a defect rather than a question. §11.2 promised the Emacs keys of GNU Readline, and Readline has two words: `forward-word`, `backward-word`, `kill-word` and `backward-kill-word`, on `M-f`, `M-b`, `M-d` and `M-DEL`, walk over runs of letters and digits, and `unix-word-rubout`, on `C-w`, back to whitespace. The editor used spaces for all five, so `M-b` jumped `List.map(xs` whole. The editor's walk now takes what a word is as a predicate, letters and digits by `Char.isAlpha` and `Char.isDigit` for the `M-` keys and anything but a space for `C-w`, and §11.2 says so in a sentence, the promise exact rather than a pointer to another program's manual. The tests had used `"one two"`, where the two words agree, which is how it passed; the new ones use `List.map(xs`.
@@ -6478,6 +6482,12 @@ The documents that cite the milestone's items by number follow, the plan, CLAUDE
 
 Not taken: leaving it tenth, where a decided, independent item waited on what does not need it.
 
+## A Release Carries No History, 2026-10-05
+
+**The notes point at the report.** A release's notes listed what changed for a program, by hand. 0.2.0's ran to some twenty-five lines after one review, and 0.3.0's would restate some five hundred findings and two milestones, each batch of them keeping a list of what it refused for the notes. The list restated the report's diff, which CLAUDE.md's rule of one owner forbids in every other document, and it was the one document the rule had not reached. Until 1.0 a release may refuse a program the previous release accepted: the release's report is what holds, its diff since the last release is what changed, and the log's entries since that release say why. So the notes say what the release is, that promise, where those two are read, what the review did not run, and the newcomer's program, and list no change (`release_review.md`, item 5); the plan's MVP 3.9 owns the promise, and the README and the release's own README say it where a reader begins. A list of the report's changed sections, generated, was weighed and not taken: it cannot drift, but it says little, since §11.2 changes in every release. Messages in the compiler that name what replaced an old form were weighed and not taken either: they keep history in the toolchain for as long as it lives. Decided with the user.
+
+**`ern` drops the earlier spellings.** §11 refused a job or an option spelled as an earlier version of the toolchain spelled it, with the spelling that replaces it: the jobs `--shell`, `--test` and `--doc`, `--create-config-dir`, `--out-dir`, `--errors short`, `--emit erl` and `--no-clean` (*One Tool, the Job Its First Word*). That is the history the notes no longer carry, kept in the code and its tests for the few who used a release of a week before. The sentence goes, with the code and the tests that held it, and an earlier spelling is refused as any word the job does not take is, with the job's usage. The two refusals that guide a mistake made with today's toolchain stay, a compiled module given as the first word and an option given before the job, and §11, which had not stated them, now does. Decided with the user.
+
 ## The Full Review's Questions, One by One, 2026-10-04
 
 The questions the full review's triage left for the user (*The Full Review Run*; `findings.md`), each decided in turn and built in the commit that records it.
@@ -6569,6 +6579,8 @@ The questions the full review's triage left for the user (*The Full Review Run*;
 **The guide's feedback becomes MVP 2.99d's fourth item.** `docs/guide_feedback.md`, a pedagogical assessment of the guide in seven points, is read point by point after the release, as a review's findings are, and each point is taken into the guide, planned, or dropped with its reason.
 
 **The report's feedback comes before it, as the fourth item, and the guide's becomes the fifth.** `docs/report_feedback.md`, six points of precision in the report's contracts, is read the same way. It goes first because the report is the owner of the language and a point decided there can change what the guide teaches, so the guide is read against the report as it will stand; three of its points concern peers, which MVP 3.0 builds, and are weighed against it.
+
+*Superseded in part 2026-10-05 by "A Release Carries No History": a release's notes list no change, so no refusal goes to 0.3.0's notes.*
 
 ## The Full Review Run, 2026-10-04
 
@@ -6675,6 +6687,8 @@ MVP 2.99c's item 4 is written: `docs/soundness.md`, the argument that a well-typ
 **What a program written for 0.2.0 meets.** Each refusal above is of a program that was accepted. Most were defects in the program: a reply dropped or answered twice. Three refuse programs that ran correctly: a selection or an update of a reply-carrying record where no reply was lost, a top-level binding of a reply-carrying type that held none, and a recursive type with its parameters out of place. The release's notes say so.
 
 **The documents.** CLAUDE.md names the argument among the owners, and holds the rule that keeps it true: a change to a rule it covers rewrites its paragraph in the same commit, and where the paragraph can no longer be made, that is a finding. The release review has a row for it, and the full review's cold reader reads it after the report. The plan's MVP 3.0 extends it to which two types are one, across nodes and across a session's inputs.
+
+*Superseded in part 2026-10-05 by "A Release Carries No History": a release's notes list no change, so no refusal goes to 0.3.0's notes.*
 
 ## The Logo Installed, and the Reviews' Models, 2026-10-04
 

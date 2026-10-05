@@ -2038,34 +2038,34 @@ options_test() ->
      || Job <- ["build", "doc", "format", "run", "test", "shell", "config"]].
 
 %% report §11: the first word is the job, and none is refused with the jobs
-%% named
+%% named; an empty first word is none. A regression test of the empty
+%% word, which was refused as `no job ;`
 job_first_test() ->
     ?assertEqual(1, ern_err([])),
+    ?assertEqual(1, ern_err(["", "x.erc"])),
     ?assertEqual(1, ern_err(["compile", "x.ern"])),
     Output = iolist_to_binary(?capturedOutput),
-    ?assertMatch({_, _}, binary:match(Output, <<"ern: a job is required\nUsage: ern <job>">>)),
+    ?assertEqual(2, length(binary:matches(Output, <<"ern: a job is required\nUsage: ern <job>">>))),
+    ?assertEqual(nomatch, binary:match(Output, <<"no job ;">>)),
     ?assertMatch({_, _}, binary:match(Output, <<"ern: no job compile; the jobs are build, doc,"
                                                 " format, run, test, shell and config">>)).
 
-%% report §11: a spelling of the toolchain before its jobs is refused, and
-%% the refusal names the spelling that replaces it
-old_spellings_test() ->
+%% report §11: a compiled module given first is refused with the job that
+%% runs it, an option before the job with where it goes, and a spelling of
+%% an earlier toolchain as any word that is no job or no option of the job
+%% is. A regression test of the last: an earlier spelling was refused with
+%% the one that replaced it, which the log's *A Release Carries No
+%% History* took out
+first_words_test() ->
     File = example("hello.ern"),
-    Refused = [{["x.erc"], <<"the job comes first: ern run x.erc">>},
-               {["--shell"], <<"--shell is now the job: ern shell">>},
-               {["--test", "x.erc"], <<"--test is now the job: ern test">>},
-               {["--doc", File], <<"--doc is now the job: ern doc">>},
-               {["--create-config-dir", "d"], <<"--create-config-dir is now the job ern config">>},
-               {["--load-path", "d", "x.erc"], <<"--load-path comes after the job">>},
-               {["build", "--out-dir", "b", File], <<"--out-dir is now --build-root">>},
-               {["build", "--no-clean", File], <<"--no-clean is gone">>},
-               {["build", "--errors", "short", File], <<"--errors short is now --short-errors">>},
-               {["build", "--emit", "erl", File], <<"--emit erl is now --emit-erl">>},
-               {["run", "--shell"], <<"--shell is now the job: ern shell">>},
-               {["run", "--test", "x.erc"], <<"--test is now the job: ern test">>}],
+    Refused = [{["x.erc"], <<"ern: the job comes first: ern run x.erc">>},
+               {["--load-path", "d", "x.erc"], <<"ern: --load-path comes after the job">>},
+               {["--shell"], <<"ern: no job --shell; the jobs are">>},
+               {["build", "--out-dir", "b", File], <<"ern build: invalid option: --out-dir">>}],
     lists:foreach(fun({Args, _}) -> ?assertEqual(1, ern_err(Args)) end, Refused),
     Output = iolist_to_binary(?capturedOutput),
-    [?assertMatch({_, _}, binary:match(Output, Text)) || {_, Text} <- Refused].
+    [?assertMatch({_, _}, binary:match(Output, Text)) || {_, Text} <- Refused],
+    ?assertEqual(nomatch, binary:match(Output, <<"is now">>)).
 
 %% report §11.2: a module without tests says so, and one two of whose tests
 %% have one name is refused before any runs. A regression test: the first
@@ -2097,14 +2097,11 @@ shell_main_without_file_test() ->
                                       <<"ern shell: --main names the function to spawn from"
                                         " the file the shell loads, and no file is given">>)).
 
-%% report §11: an old spelling names its replacement only to a job that
-%% takes it, matched by its whole name; `--version` and `--help` stand
-%% alone. A regression test: every job recommended what it then refused,
-%% and `--emit-erl=x` was taken for `--emit`
-old_spellings_per_job_test() ->
-    Refused = [{["run", "--out-dir", "x", "a.erc"], <<"ern run: invalid option: --out-dir">>},
-               {["run", "--errors", "short", "a.erc"], <<"ern run: invalid option: --errors">>},
-               {["run", "--emit", "erl", "a.erc"], <<"ern run: invalid option: --emit">>},
+%% report §11: an option is matched by its whole name, a flag takes no
+%% value, and `--version` and `--help` stand alone. A regression test:
+%% `--emit-erl=x` was taken for `--emit`
+option_words_test() ->
+    Refused = [{["run", "--errors", "short", "a.erc"], <<"ern run: invalid option: --errors">>},
                {["build", "--emit-erl=x", "a.ern"], <<"--emit-erl=x: --emit-erl takes no value">>},
                {["--version", "--help"], <<"ern: --version stands alone: ern --version">>},
                {["-v"], <<"ern: no job -v; the jobs are">>},
@@ -2112,8 +2109,7 @@ old_spellings_per_job_test() ->
                 <<"ern: --load-path comes after the job: ern <job> --load-path">>}],
     lists:foreach(fun({Args, _}) -> ?assertEqual(1, ern_err(Args)) end, Refused),
     Output = iolist_to_binary(?capturedOutput),
-    [?assertMatch({_, _}, binary:match(Output, Text)) || {_, Text} <- Refused],
-    ?assertEqual(nomatch, binary:match(Output, <<"is now">>)).
+    [?assertMatch({_, _}, binary:match(Output, Text)) || {_, Text} <- Refused].
 
 %% report §11.1, §11.5: a directory build compiles every module but one that
 %% uses a module that failed, and reports every failure, a module that

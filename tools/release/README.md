@@ -8,7 +8,7 @@
 
 # Ernest @VERSION@
 
-Ernest is a small functional language for concurrent programs, on the Erlang runtime. This is the README of a release: the archive `ern-@VERSION@.tar.gz` holds it, and an installation holds it as `share/doc/ernest/README.md`.
+Ernest is a small functional language for concurrent programs, on the Erlang runtime. This is the README of a release: the archive `ern-@VERSION@.tar.gz` holds it, and an installation holds it as `share/doc/ernest/README.md`. Until 1.0 a release may refuse a program the previous release accepted; this release's notes, on the [releases page](https://github.com/joagre/ernest/releases), say where to read what changed.
 
 ## Installing
 

@@ -84,6 +84,9 @@ ern(["--help"], _ErrorDevice) ->
 ern(["--version"], _ErrorDevice) ->
     io:format("ern ~s~n", [?VERSION]),
     0;
+%% report §11: an empty first word names no job, as none does
+ern([[] | _], ErrorDevice) ->
+    refuse("a job is required", ErrorDevice);
 ern([Word | Args], ErrorDevice) ->
     case {is_utf8(Word), lists:keyfind(Word, 1, jobs())} of
         {false, _} -> refuse(not_utf8(Word), ErrorDevice);
@@ -105,17 +108,16 @@ jobs() ->
      {"shell", shell_options(), "[file.erc]", fun shell/3},
      {"config", config_options(), "", fun config/3}].
 
-%% Report §11: a first word that is no job. A spelling of the toolchain
-%% before its jobs is refused with the one that replaces it.
+%% Report §11: a first word that is no job; an option a job takes, given
+%% before it, is refused with where it goes.
 no_job("--help") -> "--help stands alone: ern --help, or ern <job> --help";
 no_job("--version") -> "--version stands alone: ern --version";
 no_job("-" ++ _ = Word) ->
     Name = option_name(Word),
     Taken = [Job || {Job, Spec, _, _} <- jobs(), {_, _, Long, _, _} <- Spec, "--" ++ Long =:= Name],
-    case {old_spelling(Name), Taken} of
-        {{job, Message}, _} -> Message;
-        {_, []} -> no_such_job(Word);
-        {_, _} -> Name ++ " comes after the job: ern <job> " ++ Name
+    case Taken of
+        [] -> no_such_job(Word);
+        _ -> Name ++ " comes after the job: ern <job> " ++ Name
     end;
 no_job(Word) ->
     case filename:extension(Word) of
@@ -158,12 +160,6 @@ job(Job, Spec, Positional, Args, Work, ErrorDevice) ->
                      end,
     try
         lists:foreach(fun(Word) -> is_utf8(Word) orelse ern_build:fail(not_utf8(Word)) end, Own),
-        lists:foreach(fun(Word) ->
-                          case old_option(Word, Spec) of
-                              none -> ok;
-                              Message -> usage_fail(Message)
-                          end
-                      end, Own),
         lists:foreach(fun(Word) -> one_spelling(Word, Spec) end, Own),
         {Options, Rest} = case getopt:parse(Spec, Own) of
                               {ok, Parsed} -> Parsed;
@@ -278,34 +274,6 @@ takes_value(Spec, "--" ++ Long) ->
               end, Spec);
 takes_value(_Spec, _Short) ->
     false.
-
-%% Report §11: an option as the toolchain spelled it before its jobs,
-%% matched by its whole name, refused with the spelling that replaces it
-%% where the job takes that spelling. Elsewhere it is an option the job
-%% does not take, refused as any other is.
-old_option(Word, Spec) ->
-    case old_spelling(option_name(Word)) of
-        {job, Message} -> Message;
-        {Key, Message} ->
-            case lists:keymember(Key, 1, Spec) of
-                true -> Message;
-                false -> none
-            end;
-        none -> none
-    end.
-
-old_spelling("--out-dir") -> {build_root, "--out-dir is now --build-root"};
-old_spelling("--no-clean") ->
-    {build_root, "--no-clean is gone; a separate output takes a separate --build-root"};
-old_spelling("--errors") -> {short_errors, "--errors short is now --short-errors"};
-old_spelling("--emit") -> {emit_erl, "--emit erl is now --emit-erl"};
-old_spelling("--create-config-dir") ->
-    {job, "--create-config-dir is now the job ern config, whose --config-dir names the"
-          " directory itself"};
-old_spelling("--shell") -> {job, "--shell is now the job: ern shell"};
-old_spelling("--test") -> {job, "--test is now the job: ern test"};
-old_spelling("--doc") -> {job, "--doc is now the job: ern doc"};
-old_spelling(_) -> none.
 
 %% Report §11: a job's synopsis as §11 writes it, then getopt's list of
 %% its options, on any device.
