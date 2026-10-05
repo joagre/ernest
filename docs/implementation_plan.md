@@ -165,6 +165,18 @@ log's *A Full Review Now and Then*).
   hash modules named `ern#<base32>`, and new open questions, the protocol note's 5, 7 to 12
   and 15 to 21, and the distribution note's 8 to 17 (the second read-back, 2026-09-30, placed
   here with the user the same day).
+- **Code change in running processes, decided with the user before any of it is built**
+  (noted 2026-10-05): §6.10's replacement by a message that carries the new loop, and
+  [`code_distribution.md`](code_distribution.md)'s section 8, weighed against the objection
+  that a typed language cannot have Erlang's code loading. Erlang's module replacement,
+  which swaps code under every process and lets a state and a message change shape
+  unchecked, cannot be typed; what it is for, a running system upgraded without a stop and
+  versions side by side, is what §6.10 must give. The questions: what an upgrade in place
+  may change, the state's type at the switch and the mailbox type; how a protocol change
+  reaches clients that hold the old address, kept, adapted with `via`, or moved to a new
+  binding; what a process without an upgrade case costs; how a supervisor's tree is
+  upgraded; and whether handing a replacement its state is a library's work or each
+  program's.
 - The module `Peer`, with `Peer.spawn(name, f)` and `Peer.spawnMonitored(name, f, wrap)` (§8.3),
   in a section added at the end of Appendix E; the checker's refusal of a name of `Peer` goes,
   and the guide's examples in §8.1 and §8.4 are compiled again (2026-10-01, the log's *The Rules
