@@ -476,10 +476,12 @@ the terminal). The rest is MVP 3.3's.
   _Acc) -> h(Rest, X rem (X - 3)).` OTP's type pass gives the accumulator the list's range,
   -79 to 1000, where `rem`'s is -996 to 996, a divisor whose range holds 0; compiled with
   `+no_type_opt` it builds and answers -79. Met in OTP 29's compiler 10.0.5. Its fix is OTP's,
-  which the user takes to OTP's maintainers. Two decisions are the user's meanwhile: whether
-  Ernest compiles with that pass off until an OTP that Ernest requires has the fix, its code
-  then slower; and that `make test-typed` fails whenever its seed draws the shape. Ernest adds
-  nothing around it until then.
+  which the user takes to OTP's maintainers. Meanwhile, decided with the user on 2026-10-05
+  (the log's *OTP's Compiler, Worked Around*), the emitter compiles a module the validator
+  refuses again with that pass off, that module alone, `ern_emitter`'s
+  `compiled_without_type_pass`, whose comment says so. Its test holds that the host still
+  refuses the shape, so that it fails, and says the workaround goes, once an OTP with the fix
+  runs it.
 - **The launchd checks** of `make service`, written for macOS in MVP 2.99b's item 10, have
   not run, since no Mac has been at hand; 0.3.0's and 0.3.1's notes say so. They run on the
   first Mac the project has, and a release's notes say they have not until then.

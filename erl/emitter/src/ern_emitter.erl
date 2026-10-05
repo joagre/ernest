@@ -93,10 +93,33 @@ compile(Namespace, Declarations, Interface, Env, Build) ->
                                          maps:get(source, Build, <<>>))),
     Chunks = [{ern_interface:chunk_name(), Chunk}, {ern_docs:chunk_name(), Docs}],
     %% report §11: the host's compiler takes nothing from the environment
-    case compile:noenv_forms(Forms, [return_errors, debug_info, {extra_chunks, Chunks}]) of
+    Options = [return_errors, debug_info, {extra_chunks, Chunks}],
+    case compile:noenv_forms(Forms, Options) of
         {ok, ErlangModule, Beam} -> {ok, ErlangModule, Beam};
-        {error, Errors, _} -> erlang:error({emitted_erlang_does_not_compile, Errors})
+        {error, Errors, _} -> compiled_without_type_pass(Forms, Options, Errors)
     end.
+
+%% A workaround of a defect of OTP's compiler, decided with the user on
+%% 2026-10-05, the plan's standing gap *OTP 29's compiler refuses a recursive
+%% call through rem*. OTP 29's compiler 10.0.5 narrows a recursive function's
+%% parameter to a range its call's argument breaks, a `rem` whose divisor's
+%% range holds 0 among them, and its own validator then refuses valid
+%% Erlang. A module the validator refuses so is compiled again with that
+%% type pass off, `no_type_opt`, its code then a little slower, and no other
+%% module is. The workaround goes when an OTP that Ernest requires has the
+%% fix; another refusal is the emitter's defect, as before.
+compiled_without_type_pass(Forms, Options, Errors) ->
+    Refused = case refused_by_validator(Errors) of
+                  true -> compile:noenv_forms(Forms, [no_type_opt | Options]);
+                  false -> {error, Errors, []}
+              end,
+    case Refused of
+        {ok, ErlangModule, Beam} -> {ok, ErlangModule, Beam};
+        {error, Errors1, _} -> erlang:error({emitted_erlang_does_not_compile, Errors1})
+    end.
+
+refused_by_validator(Errors) ->
+    lists:any(fun({_, Refusals}) -> lists:keymember(beam_validator, 2, Refusals) end, Errors).
 
 %% The abstract forms, for the golden tests and erl_prettypr.
 -spec forms([atom()], [tuple()], ern_typecheck:env()) -> [erl_parse:abstract_form()].

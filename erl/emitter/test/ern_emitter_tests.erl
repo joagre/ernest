@@ -173,6 +173,28 @@ rename(Node, {Names, Counter} = State) ->
 %% Golden tests: the emitter reproduces the hand-written targets
 %%
 
+%% report §11, and the plan's standing gap *OTP 29's compiler refuses a
+%% recursive call through rem*: a module the host's own validator refuses,
+%% its type pass narrowing a recursive function's parameter to a range the
+%% call's argument breaks, is compiled again without that pass, and runs.
+%% Written with the workaround; the shape is the one `make test-typed`
+%% found (seed 74183997), reduced. It also holds that the host still
+%% refuses the module, so that it fails, and says the workaround can go,
+%% once an OTP with the fix runs it
+validator_refusal_compiled_again_test() ->
+    Text = "fn h(xs : List(Int), acc : Int) : Int =\n"
+           "    match xs {\n"
+           "        [] -> acc\n"
+           "      | x :: rest -> h(rest, x % (x - 3))\n"
+           "    }\n"
+           "\n"
+           "export fn main() : Unit with Never = Io.println(Int.toString(h([1000, -79], -62)))\n",
+    {ok, Typed, _, Env} = ern_typecheck:check_string(['M'], Text),
+    Forms = ern_emitter:forms(['M'], Typed, Env),
+    ?assertMatch({error, [{_, [{_, beam_validator, _} | _]}], _},
+                 compile:noenv_forms(Forms, [return_errors])),
+    ?assertEqual({ok, <<"-79\n">>}, run(Text)).
+
 %% report §8.1, §8.4, Appendix B
 hello_golden_test() ->
     ?assertEqual(target_forms("hello.erl"), example_forms("hello")).
