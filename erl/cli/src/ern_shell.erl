@@ -1648,25 +1648,33 @@ module_signature(Session, QualifiedName, Namespace, Name) ->
             entry
     end.
 
-%% The compiled module behind a namespace, as bytes: the one `:load` or
-%% `:reload` compiled, which is loaded from memory and has no file; else the
-%% file the runner loaded it from, an `.erc`, or the `.beam` of a module on
-%% the code path, the standard library's among them. `beam_lib` takes
-%% either as a binary.
-beam_of(#session{beams = Beams}, Namespace) ->
+%% The compiled module behind a namespace the session can name, as bytes:
+%% the one `:load` or `:reload` compiled, which is loaded from memory and
+%% has no file; else the file the runner loaded it from, an `.erc`, or the
+%% standard library's `.beam`. `beam_lib` takes either as a binary. A
+%% module on the code path the session cannot name, the shell's own
+%% libraries among them, has none (report §11.2).
+beam_of(#session{beams = Beams, interfaces = Interfaces}, Namespace) ->
     case Beams of
         #{Namespace := Beam} -> Beam;
-        _ -> beam_on_path(Namespace)
+        _ ->
+            IsLoaded = lists:any(fun(#interface{namespace = Known}) -> Known =:= Namespace end,
+                                 Interfaces),
+            beam_on_path(Namespace, IsLoaded)
     end.
 
 %% A module's name is made an atom only where it is one already, so that a
 %% name `:doc` or `Shift-Tab` is asked of, `List.filter` taken for a module,
-%% makes none (report §11.2).
-beam_on_path(Namespace) ->
+%% makes none (report §11.2). One the session has not loaded is the
+%% standard library's where its file lies in the library's directory, as
+%% ern_prelude:stdlib_interfaces/0 finds the library.
+beam_on_path(Namespace, IsLoaded) ->
     Text = ern_namespace:erlang_module_text(Namespace),
     Loaded = try code:which(list_to_existing_atom(Text)) catch error:badarg -> non_existing end,
     Paths = [Loaded, code:where_is_file(Text ++ ".beam")],
-    case [Beam || Path <- Paths, is_list(Path), {ok, Beam} <- [file:read_file(Path)]] of
+    case [Beam || Path <- Paths, is_list(Path),
+                  IsLoaded orelse filename:basename(filename:dirname(Path)) =:= "stdlib",
+                  {ok, Beam} <- [file:read_file(Path)]] of
         [] -> none;
         [Beam | _] -> Beam
     end.

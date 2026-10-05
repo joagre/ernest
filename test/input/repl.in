@@ -7,5 +7,7 @@ inc 41
 y
 (3
 @
+
+1 + let z = 2
 (fun f -> f f) (fun f -> f f)
 1 + 1

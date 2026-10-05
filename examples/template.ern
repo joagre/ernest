@@ -9,7 +9,7 @@
 /// ```ernest
 /// let circle = Template.circle(Template.Point(x = 0, y = 0), 2);
 /// Template.area(circle)
-/// // => 12
+/// // => 12.566370614359172
 /// ```
 ///
 /// A stack of shapes, pushed and popped:
@@ -18,14 +18,14 @@
 /// let stack = Template.push(Template.emptyStack, Template.Dot(Template.Point(x = 1, y = 1)));
 /// match Template.pop(stack) {
 ///     Some(#(top, _)) -> Template.area(top)
-///   | None -> -1
+///   | None -> -1.0
 /// }
-/// // => 0
+/// // => 0.0
 /// ```
 ///
 /// ## See also
 ///
-/// `Int` (Appendix E.8) for the arithmetic used.
+/// `Float` (Appendix E.9) for the arithmetic of an area.
 ///
 /// since 0.1.0
 
@@ -95,19 +95,19 @@ export fn pop(Stack(shapes) : Stack) : Optional(#(Shape, Stack)) =
 export fn circle(centre : Point, radius : Int) : Shape =
     Circle(centre = centre, radius = radius)
 
-/// The area of the shape: zero for a point, three times the radius squared
-/// for a circle, since the module has no `Float`.
+/// The area of the shape: zero for a point, and pi times the radius
+/// squared for a circle.
 ///
 /// ### See also
 ///
 /// `circle`, which builds the shape whose area is not zero.
-export fn area(shape : Shape) : Int =
+export fn area(shape : Shape) : Float =
     match shape {
-        Dot(_) -> 0
-      | Circle(radius = radius) -> 3 * radius * radius
+        Dot(_) -> 0.0
+      | Circle(radius = radius) -> Float.pi * Int.toFloat(radius * radius)
     }
 
-/// The radius of a circle across the diameter, toward zero.
+/// The radius of a circle of that diameter, rounded toward zero.
 ///
 /// ### Errors
 ///

@@ -1,16 +1,16 @@
 //
-// Paper program 2: file sync
+// File sync
 //
-// Written against the Ernest report, September 2026. Two directories are kept
-// identical; changes are sent to the peer; conflicts are saved as an extra
-// file. The peer is an Address, and the code is the same whether it lives on
-// the same node or not.
+// Two directories are kept identical: changes are sent to the peer, and a
+// file the peer sends where this side's copy is newer is saved beside it as
+// a conflict. The peer is an Address, and the code is the same whether it
+// lives on the same node or not.
 //
-// Assumptions. Fs and Clock are the standard library's system modules (report
-// Appendix E) over the file system and the clock (§8.2); Path is the prelude's
-// (§9.3), Fs.Entry and Io.Error the modules'. errorText is a hand-written rendering for stdout.
-// main runs directory a's process itself, so the program keeps running
-// (report §8.6).
+// Fs and Clock are the standard library's system modules (report Appendix E)
+// over the file system and the clock (§8.2); Path is the prelude's (§9.3),
+// Fs.Entry and Io.Error the modules'. errorText writes an error for standard
+// output. main runs directory a's process itself, so the program keeps
+// running (report §8.6).
 //
 // Run under test since 2026-09-20: the harness prepares a and b, runs the
 // program for a few seconds, and reads the directories back, since the
@@ -70,10 +70,9 @@ fn syncer(directory : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : Un
       | Link(_) -> syncer(directory, peer, seen) // already connected
     }
 
-// Between the listing's start and Listed, a Put waits in the mailbox, so
-// that it is checked against what the listing finds: on the first pass
-// nothing is known yet, and a file stored then would replace a newer one
-// here without a conflict.
+// Between the listing's start and Listed, a Put waits in the mailbox and is
+// stored after it, so that the snapshot the listing gives does not lose the
+// time of a file stored meanwhile.
 fn listing(directory : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : Unit with SyncMsg = {
     let tick = fn() = Clock.alarm(5000, fn(_) = Ticked);
     receive {
@@ -94,9 +93,8 @@ fn listing(directory : Path, peer : Address(SyncMsg), seen : Map(Path, Int)) : U
 }
 
 // Store a file from the peer, and what is known of the directory after
-// it. Newer local file: conflict. A path that is not a name in this
-// directory is refused: the peer is another program, and its paths are
-// not this one's to follow.
+// it. A path that is not a name in this directory is refused: the peer is
+// another program, and its paths are not this one's to follow.
 fn store(directory : Path,
          seen : Map(Path, Int),
          path : Path,
@@ -111,16 +109,7 @@ fn store(directory : Path,
         seen
     } else {
         let here = directory <> path;
-        match Map.get(seen, here) {
-            Some(mine) when mine > mtime -> {
-                let _ = spawn(fn() = writer(conflictPath(here), bytes, mtime, reply, Conflict));
-                Unit
-            }
-          | _ -> {
-                let _ = spawn(fn() = writer(here, bytes, mtime, reply, Stored));
-                Unit
-            }
-        };
+        let _ = spawn(fn() = writer(here, bytes, mtime, reply));
         Map.put(seen, here, mtime)
     }
 
@@ -132,18 +121,23 @@ fn isName(path : Path) : Bool =
       | _ -> false
     }
 
-// One process per write: waits for Fs and answers the peer. The file takes
-// the peer's modification time, which the next listing then finds as it
-// was recorded, so that a file stored is not sent back.
-fn writer(path : Path,
-          bytes : Bytes,
-          mtime : Int,
-          reply : Reply(Ack),
-          written : Ack) : Unit with n =
-    match Either.andThen(Fs.write(path, bytes, 10000), fn(_) = Fs.setModified(path, mtime, 10000)) {
-        Right(Unit) -> answer(reply, written)
+// One process per write: waits for Fs and answers the peer. Where the
+// file here is newer than the peer's, as it stands now, the peer's is saved
+// beside it as a conflict. The file takes the peer's modification time,
+// which the next listing then finds as it was recorded, so that a file
+// stored is not sent back.
+fn writer(path : Path, bytes : Bytes, mtime : Int, reply : Reply(Ack)) : Unit with n = {
+    let isNewerHere = match Fs.stat(path, 10000) {
+        Right(entry) -> entry.mtime > mtime
+      | Left(_) -> false
+    };
+    let #(target, ack) = if isNewerHere then #(conflictPath(path), Conflict) else #(path, Stored);
+    match Either.andThen(Fs.write(target, bytes, 10000),
+                         fn(_) = Fs.setModified(target, mtime, 10000)) {
+        Right(Unit) -> answer(reply, ack)
       | Left(error) -> answer(reply, Failed(error))
     }
+}
 
 // One process per changed file: reads and sends to the peer.
 fn pusher(peer : Address(SyncMsg), Change(path = path, mtime = mtime) : Change) : Unit with n =
@@ -169,9 +163,11 @@ fn push(peer : Address(SyncMsg), path : Path, mtime : Int, bytes : Bytes) : Unit
 // Pure helpers
 //
 
-// What has changed since the last snapshot?
+// The files that have changed since the last snapshot; a directory, a
+// link and anything else that is no regular file is passed over.
 fn diff(seen : Map(Path, Int), entries : List(Fs.Entry)) : List(Change) =
-    List.filterMap(entries, fn(entry) = changed(seen, entry))
+    List.filterMap(entries,
+                   fn(entry) = if entry.kind == Fs.File then changed(seen, entry) else None)
 
 fn changed(seen : Map(Path, Int),
            Fs.Entry(path = path, mtime = mtime) : Fs.Entry) : Optional(Change) =

@@ -1,19 +1,19 @@
 //
-// Paper program 3: tick game
+// Snake
 //
-// Written against the Ernest report, September 2026. A snake game in the
-// terminal: the world, which holds its players by number, is updated ten
-// times per second, the player sends directions between ticks, apples
-// appear at random, scores are counted. The aim is to hit local state in
-// pure code, time drift, input faster than ticks, and randomness in pure
-// code through a threaded seed rather than a hidden source.
+// A snake game in the terminal: the world, which holds its players by
+// number, is updated ten times a second, the player sends directions
+// between ticks, apples appear at random on free cells, and scores are
+// counted. It holds local state in pure code, keeps its ticks to a
+// deadline so that they do not drift, takes input faster than ticks, and
+// draws its randomness in pure code through a threaded seed rather than a
+// hidden source.
 //
-// Assumptions. Terminal, Clock, and Random are the standard library's
-// (report Appendix E), and Ansi is libs/ansi's (Appendix G.3), on the load
-// path where the program is built and run; Terminal.Event and Terminal.Size
-// are the module's.
-// main runs the game loop itself so that the world is one value in one
-// place, and while it runs the program keeps running (report §8.6).
+// Terminal, Clock, and Random are the standard library's (report Appendix
+// E), and Ansi is libs/ansi's (Appendix G.3), on the load path where the
+// program is built and run; Terminal.Event and Terminal.Size are the
+// module's. main runs the game loop itself so that the world is one value
+// in one place, and while it runs the program keeps running (report §8.6).
 //
 // Compiled under test since 2026-09-20, and played under a pseudo-terminal by
 // test/ern_terminal_tests.erl since the same day, since it reads keys from a
@@ -28,7 +28,15 @@ type Direction = North | South | West | East
 
 type Point = Point(x : Int, y : Int)
 
-type Player = Player(id : Int, body : List(Point), direction : Direction, score : Int, alive : Bool)
+// A player: `direction` is where it goes next, and `moved` where it went at
+// the last tick, which a turn may not reverse.
+type Player =
+    Player(id : Int,
+           body : List(Point),
+           direction : Direction,
+           moved : Direction,
+           score : Int,
+           alive : Bool)
 
 type World =
     World(width : Int,
@@ -73,22 +81,28 @@ export fn main() : Unit with GameMsg = {
         }
     });
     receive {
-        Joined(id) -> game(addPlayer(world, id))
+        Joined(id) -> game(addPlayer(world, id), Clock.monotonic() + tickMs)
     }
 }
+
+// The time between ticks, ten a second.
+let tickMs = 100
 
 //
 // Processes
 //
 
-fn game(world : World) : Unit with GameMsg = {
-    Clock.alarm(100, fn(_) = Ticked);
+// Each tick is due at a deadline on the monotonic clock, and its alarm
+// waits what is left of it, so that the time a tick's work takes does not
+// put off the ticks after it (report Appendix E.15).
+fn game(world : World, deadline : Int) : Unit with GameMsg = {
+    Clock.alarm(Int.max(deadline - Clock.monotonic(), 0), fn(_) = Ticked);
     receive {
         Ticked -> {
             let world1 = step(drain(world, 64));
             Io.print(render(world1));
             // the last player left, so the game is over (report §8.6)
-            if Map.isEmpty(world1.players) then Unit else game(world1)
+            if Map.isEmpty(world1.players) then Unit else game(world1, deadline + tickMs)
         }
     }
 }
@@ -105,25 +119,24 @@ fn drain(world : World, count : Int) : World with GameMsg =
 // One process per player: translates keys into Input.
 fn steering(id : Int, game : Address(GameMsg)) : Unit with Terminal.Event =
     receive {
-        Terminal.ArrowUp -> {
-            send(game, Played(Turn(id = id, direction = North)));
+        Terminal.Escape or Terminal.Interrupt -> send(game, Played(Leave(id)))
+      | event -> {
+            match directionOf(event) {
+                Some(direction) -> send(game, Played(Turn(id = id, direction = direction)))
+              | None -> Unit
+            };
             steering(id, game)
         }
-      | Terminal.ArrowDown -> {
-            send(game, Played(Turn(id = id, direction = South)));
-            steering(id, game)
-        }
-      | Terminal.ArrowLeft -> {
-            send(game, Played(Turn(id = id, direction = West)));
-            steering(id, game)
-        }
-      | Terminal.ArrowRight -> {
-            send(game, Played(Turn(id = id, direction = East)));
-            steering(id, game)
-        }
-      | Terminal.Escape -> send(game, Played(Leave(id)))
-      | Terminal.Interrupt -> send(game, Played(Leave(id)))
-      | _ -> steering(id, game)
+    }
+
+// The direction an arrow key steers, and none for any other key.
+fn directionOf(event : Terminal.Event) : Optional(Direction) =
+    match event {
+        Terminal.ArrowUp -> Some(North)
+      | Terminal.ArrowDown -> Some(South)
+      | Terminal.ArrowLeft -> Some(West)
+      | Terminal.ArrowRight -> Some(East)
+      | _ -> None
     }
 
 // The board: the window the program was given, two rows kept for the
@@ -152,14 +165,14 @@ fn step(world : World) : World = {
                     #(next :: head :: rest, score + 1)
                 else
                     #(next :: head :: List.dropLast(rest, 1), score);
-                let moved = Player(..player, body = body, score = score1);
+                let moved = Player(..player, body = body, moved = direction, score = score1);
                 #(Map.put(acc, player.id, moved), List.remove(apples, next))
             }
         };
     let #(moved, left) = Map.foldLeft(world.players, #(world.players, world.apples), movePlayer);
     let collided = Map.map(moved, fn(_, player) = collide(moved, player));
-    let #(apples, seed) = refill(world.width, world.height, Map.size(collided), left, world.seed);
-    World(..world, players = collided, apples = apples, seed = seed, tick = world.tick + 1)
+    refill(World(..world, players = collided, apples = left, tick = world.tick + 1),
+           Map.size(collided))
 }
 
 fn applyInput(world : World, input : Input) : World =
@@ -182,30 +195,45 @@ fn collide(players : Map(Int, Player), player : Player) : Player =
       | _ -> player
     }
 
-fn refill(width : Int,
-          height : Int,
-          wanted : Int,
-          apples : List(Point),
-          seed : Random.Seed) : #(List(Point), Random.Seed) =
-    if List.size(apples) >= wanted then
-        #(apples, seed)
-    else {
-        let #(x, seed1) = Random.next(seed, width - 1);
-        let #(y, seed2) = Random.next(seed1, height - 1);
-        refill(width, height, wanted, Point(x = x, y = y) :: apples, seed2)
+// Apples added on free cells until there are as many as wanted, or until
+// no cell is free.
+fn refill(world : World, wanted : Int) : World =
+    if List.size(world.apples) >= wanted then
+        world
+    else match freePoint(world) {
+        Some(#(point, seed)) ->
+            refill(World(..world, apples = point :: world.apples, seed = seed), wanted)
+      | None -> world
     }
 
-fn addPlayer(world : World, id : Int) : World = {
-    let #(point, seed) = freePoint(world, world.seed);
-    let player = Player(id = id, body = [point], direction = East, score = 0, alive = true);
-    World(..world, players = Map.put(world.players, id, player), seed = seed)
-}
+fn addPlayer(world : World, id : Int) : World =
+    match freePoint(world) {
+        Some(#(point, seed)) -> {
+            let player =
+                Player(id = id,
+                       body = [point],
+                       direction = East,
+                       moved = East,
+                       score = 0,
+                       alive = true);
+            World(..world, players = Map.put(world.players, id, player), seed = seed)
+        }
+      | None -> world
+    }
 
-fn freePoint(world : World, seed : Random.Seed) : #(Point, Random.Seed) = {
-    let #(x, seed1) = Random.next(seed, world.width - 1);
-    let #(y, seed2) = Random.next(seed1, world.height - 1);
-    let point = Point(x = x, y = y);
-    if taken(world, point) then freePoint(world, seed2) else #(point, seed2)
+// A cell no snake and no apple takes, drawn from those there are, and the
+// seed after the draw; none where every cell is taken.
+fn freePoint(world : World) : Optional(#(Point, Random.Seed)) = {
+    let cells =
+        List.flatMap(List.range(0, world.height - 1),
+                     fn(y) = List.map(List.range(0, world.width - 1), fn(x) = Point(x = x, y = y)));
+    match List.filter(cells, fn(point) = !taken(world, point)) {
+        [] -> None
+      | free -> {
+            let #(index, seed) = Random.next(world.seed, List.size(free) - 1);
+            Optional.map(List.get(free, index), fn(point) = #(point, seed))
+        }
+    }
 }
 
 fn taken(world : World, point : Point) : Bool =
@@ -266,12 +294,11 @@ fn move(width : Int, height : Int, Point(x = x, y = y) : Point, direction : Dire
       | East -> Point(x = (x + 1) % width, y = y)
     }
 
+// No U-turn: a turn may not reverse the last move, which two turns within
+// one tick would otherwise do.
 fn turn(player : Player, direction : Direction) : Player =
-    match #(player.direction, direction) {
-        #(North, South) -> player
-      | #(South, North) -> player
-      | #(West, East) -> player
-      | #(East, West) -> player // no U-turn
+    match #(player.moved, direction) {
+        #(North, South) or #(South, North) or #(West, East) or #(East, West) -> player
       | _ -> Player(..player, direction = direction)
     }
 
@@ -280,3 +307,42 @@ fn tailOf(player : Player) : List(Point) =
         _ :: rest -> rest
       | [] -> []
     }
+
+//
+// Tests, run by `ern test`
+//
+
+let noUTurn =
+    Test.Case(name = "two turns within a tick do not reverse the last move", run = fn() = {
+        let player =
+            Player(id = 1,
+                   body = [Point(x = 1, y = 0), Point(x = 0, y = 0)],
+                   direction = East,
+                   moved = East,
+                   score = 0,
+                   alive = true);
+        Test.equal(turn(turn(player, North), West).direction, North)
+    })
+
+let applesOnFreeCells =
+    Test.Case(name = "an apple goes on a free cell, and none where every cell is taken",
+              run = fn() = {
+                  let body = [Point(x = 0, y = 0), Point(x = 1, y = 0), Point(x = 0, y = 1)];
+                  let player =
+                      Player(id = 1,
+                             body = body,
+                             direction = East,
+                             moved = East,
+                             score = 0,
+                             alive = true);
+                  let almostFull =
+                      World(width = 2,
+                            height = 2,
+                            players = Map.fromList([#(1, player)]),
+                            apples = [],
+                            seed = Random.seed(7),
+                            tick = 0);
+                  let full = World(..almostFull, apples = [Point(x = 1, y = 1)]);
+                  Test.equal(#(refill(almostFull, 1).apples, refill(full, 2).apples),
+                             #([Point(x = 1, y = 1)], [Point(x = 1, y = 1)]))
+              })

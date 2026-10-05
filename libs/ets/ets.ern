@@ -91,8 +91,8 @@ foreign fn rawLookup(table : Table(k, v), key : k) : List(#(k, v)) with m =
 ///
 /// On a table that has ended, faults as a foreign function that raises
 /// does (report §7.4).
-export foreign fn contains(table : Table(k, v), key : k) : Bool with m =
-    "ets:member/2"
+export fn contains(table : Table(k, v), key : k) : Bool with m =
+    Optional.isSome(get(table, key))
 
 /// Removes the entry at that key, which need not be there.
 ///
@@ -112,12 +112,14 @@ foreign fn rawDelete(table : Table(k, v), key : k) : Bool with m =
 ///
 /// ### Errors
 ///
-/// On a table that has ended, faults as a foreign function that raises
-/// does (report §7.4).
+/// On a table that has ended, faults with `Fault("the table has ended")`.
 export fn size(table : Table(k, v)) : Int with m =
-    rawInfo(table, Erl.atom("size"))
+    match Foreign.toInt(rawInfo(table, Erl.atom("size"))) {
+        Some(count) -> count
+      | None -> fault("the table has ended")
+    }
 
-foreign fn rawInfo(table : Table(k, v), item : Foreign.Term) : Int with m =
+foreign fn rawInfo(table : Table(k, v), item : Foreign.Term) : Foreign.Term with m =
     "ets:info/2"
 
 /// Removes every entry, leaving the table.
@@ -139,11 +141,11 @@ foreign fn rawInfo(table : Table(k, v), item : Foreign.Term) : Int with m =
 /// // => []
 /// ```
 export fn clear(table : Table(k, v)) : Unit with m = {
-    let _ = rawClear(table);
+    let _ = rawDeleteAllObjects(table);
     Unit
 }
 
-foreign fn rawClear(table : Table(k, v)) : Bool with m =
+foreign fn rawDeleteAllObjects(table : Table(k, v)) : Bool with m =
     "ets:delete_all_objects/1"
 
 /// Closes the table, deleting it; every operation on it after this faults.
@@ -165,11 +167,11 @@ foreign fn rawClear(table : Table(k, v)) : Bool with m =
 /// // => "closed"
 /// ```
 export fn close(table : Table(k, v)) : Unit with m = {
-    let _ = rawClose(table);
+    let _ = rawDeleteTable(table);
     Unit
 }
 
-foreign fn rawClose(table : Table(k, v)) : Bool with m =
+foreign fn rawDeleteTable(table : Table(k, v)) : Bool with m =
     "ets:delete/1"
 
 /// The entries as pairs, in unspecified order.

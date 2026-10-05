@@ -54,6 +54,21 @@ snake_without_terminal_test_() ->
                          " < /dev/null"))
      end}.
 
+%% snake's own tests: two turns within a tick do not reverse the last move,
+%% and an apple goes on a free cell. Regression tests: two quick keys made
+%% a U-turn that killed the snake, and an apple could land on the snake
+snake_own_tests_test_() ->
+    {timeout, 60,
+     fun() ->
+         0 = build("--source-root ../examples --load-path ../build/libs/ansi"
+                   " --build-root build/snake_own ../examples/snake.ern"),
+         {0, Output} = sh("../bin/ern test --load-path ../build/libs/ansi"
+                          " build/snake_own/snake.erc"),
+         Lines = [Line || Line <- binary:split(Output, <<"\n">>, [global]), Line =/= <<>>],
+         ?assertEqual(2, length([Line || Line <- Lines,
+                                         binary:match(Line, <<": passed">>) =/= nomatch]))
+     end}.
+
 %% Paper program 4 (plan, MVP 2.5): the REPL reads stdin and ends at
 %% end of input, so its run is bounded by its input. The last two lines are
 %% the point of the program: an expression that does not terminate is killed
@@ -120,12 +135,12 @@ file_sync() ->
     ?assertEqual(Mtime("/a/greeting.txt"), Mtime("/b/greeting.txt")),
     ?assertEqual(Mtime("/b/other.txt"), Mtime("/a/other.txt")).
 
-%% Paper program 2: a file from the peer is checked against the directory
-%% as its own listing finds it, the first listing too. A regression test,
-%% written after the fix (plan, MVP 2.99b's item 1): b's listing, slowed by
-%% fifty files more, came after a's older notes.txt, which then replaced b's
-%% newer copy with no conflict. It does not cover a file changed here
-%% between two listings, which the program checks against the last one.
+%% file_sync: a file from the peer is checked against the file here as it
+%% stands when the file arrives, before the first listing too. A regression
+%% test, written after the fix (plan, MVP 2.99b's item 1): b's listing,
+%% slowed by fifty files more, came after a's older notes.txt, which then
+%% replaced b's newer copy with no conflict. It does not reach a file
+%% changed here between two listings, which the same reading covers.
 file_sync_first_listing_test_() ->
     {timeout, 60, fun file_sync_first_listing/0}.
 
@@ -362,9 +377,11 @@ manual_pages() ->
                   <<"SEE ALSO">>],
                  [Section || {<<".SH">>, Section} <- Pairs]),
     [_, Synopsis | _] = binary:split(Output, [<<"SYNOPSIS">>, <<"DESCRIPTION">>], [global]),
+    %% each job's usage once: a regression test, `ern build` stood twice
     ?assertEqual([], [Job || Job <- ["build", "run", "test", "shell", "config", "doc", "format"],
-                             binary:match(Synopsis, iolist_to_binary(["\\fBern ", Job, " ["]))
-                                 =:= nomatch]),
+                             length(binary:matches(Synopsis,
+                                                   iolist_to_binary(["\\fBern ", Job, " ["])))
+                                 =/= 1]),
     ?assertMatch({_, _}, binary:match(Output, <<".SH\nDESCRIPTION\n.PP\n"
                                                 "The toolchain is one command, \\fBern\\fR, ">>)),
     {ok, Report} = file:read_file("../report/toolchain.md"),
@@ -607,8 +624,10 @@ libs() ->
 %% report Appendix G.1, §7.4: a table replaces a key's entry, a removal of
 %% a key that is not there does nothing, `clear` leaves the table, and an
 %% operation on a table that has ended faults as a foreign function that
-%% raises does. A regression test: the library had no test of its own, and
-%% its pages no Errors sections
+%% raises does, but `size`, which faults with its own cause. A regression
+%% test: the library had no test of its own, and its pages no Errors
+%% sections; and `size` of an ended table faulted with "foreign return
+%% does not match Int"
 ets_test_() ->
     {timeout, 60, fun ets/0}.
 
@@ -636,7 +655,18 @@ ets() ->
     ?assert(lists:member(<<"#(Some(2), 1, false)">>, Lines)),
     ?assert(lists:member(<<"[]">>, Lines)),
     ?assert(lists:member(<<"Tables.main faulted: foreign function ets:insert/2 raised "
-                           "error:badarg">>, Lines)).
+                           "error:badarg">>, Lines)),
+    ok = file:write_file(Dir ++ "/sized.ern",
+                         "export fn main() : Unit with Never = {\n"
+                         "    let t : Ets.Table(String, Int) = Ets.new();\n"
+                         "    Ets.close(t);\n"
+                         "    Io.println(Int.toString(Ets.size(t)))\n"
+                         "}\n"),
+    0 = build("--source-root " ++ Dir ++ " --load-path ../build/libs/ets --build-root "
+              ++ Dir ++ " " ++ Dir ++ "/sized.ern"),
+    {1, Sized} = sh("../bin/ern run --load-path ../build/libs/ets " ++ Dir ++ "/sized.erc"),
+    ?assert(lists:member(<<"Sized.main faulted: the table has ended">>,
+                         unstamped(binary:split(Sized, <<"\n">>, [global, trim])))).
 
 %% report §8.2, §7.4, Appendix E.1: standard input is UTF-8 whatever the
 %% host's locale, a line without its line feed or the carriage return

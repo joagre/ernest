@@ -39,9 +39,11 @@ export type Colour = Black | Red | Green | Yellow | Blue | Magenta | Cyan | Whit
 /// ```
 export type Style = Bold | Dim | Italic | Underline | Foreground(Colour)
 
-/// The text in the style, which is turned off after it by the style's own
-/// code, so that a style around it stays on. `Bold` and `Dim` are turned
-/// off together, since ECMA-48 has one code for both.
+/// The text in the style, turned off after it with the code that turns off
+/// every style of its kind: `Bold` and `Dim` are one kind, `Italic` one,
+/// `Underline` one, and the colours one. A style of another kind around the
+/// text stays on; one of the same kind is turned off with it, a colour
+/// around a colour, italics around italics, `Bold` around `Dim`.
 ///
 /// ### Examples
 ///

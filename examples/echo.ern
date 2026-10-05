@@ -11,34 +11,42 @@
 
 type Msg = Served(Down)
 
-export fn main() : Unit with Msg = {
-    let port = 7345;
-    match Tcp.listen("127.0.0.1", port) {
+// Port 0 asks the system for a free port, which the listener then names,
+// so that nothing else listening on a fixed one is in the way.
+export fn main() : Unit with Msg =
+    match Tcp.listen("127.0.0.1", 0) {
         Left(_) -> Io.printlnError("cannot listen")
       | Right(listener) -> {
             let _ = spawnMonitored(fn() = serve(listener), Served);
-            match Tcp.connect("127.0.0.1", port, 1000) {
+            let connected =
+                Either.andThen(Tcp.port(listener), fn(port) = Tcp.connect("127.0.0.1", port, 1000));
+            match connected {
                 Left(_) -> Io.printlnError("cannot connect")
               | Right(socket) -> {
                     let rounds = 2000;
-                    let started = Clock.now();
-                    let _ = roundTrips(socket, rounds);
-                    let elapsed = Clock.now() - started;
+                    // the monotonic clock, since the host's may be set
+                    // while the round trips run (report Appendix E.15)
+                    let started = Clock.monotonic();
+                    let measured = roundTrips(socket, rounds);
+                    let elapsed = Clock.monotonic() - started;
                     Tcp.close(socket);
                     Tcp.closeListener(listener);
                     // the server ends once it reads the closed connection
                     receive {
                         Served(_) -> Unit
                     };
-                    Io.println(Int.toString(rounds)
-                                   <> " round trips in "
-                                   <> Int.toString(elapsed)
-                                   <> " ms")
+                    match measured {
+                        Right(_) ->
+                            Io.println(Int.toString(rounds)
+                                           <> " round trips in "
+                                           <> Int.toString(elapsed)
+                                           <> " ms")
+                      | Left(error) -> Io.printlnError("a round trip failed: " <> Io.show(error))
+                    }
                 }
             }
         }
     }
-}
 
 // The round trips stop at the first write or read that fails.
 fn roundTrips(socket : Address(Tcp.SocketMsg), left : Int) : Either(Io.Error, Unit) with m =

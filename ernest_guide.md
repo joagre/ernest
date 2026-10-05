@@ -2076,11 +2076,11 @@ A peer that is lost stays lost: its processes are dead to this node, monitors re
 // ets.ern
 export foreign type Table(k=, v)
 
-export foreign fn contains(table : Table(k, v), key : k) : Bool with m =
-    "ets:member/2"
+export foreign fn toList(table : Table(k, v)) : List(#(k, v)) with m =
+    "ets:tab2list/1"
 ```
 
-External callers write `Ets.Table` and `Ets.contains`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:member/2`. The `=` in `k=` says the keys need equality, since `ets` compares them: a table keyed by functions is a type error at its first operation, as a `Map` is (report §4.7).
+External callers write `Ets.Table` and `Ets.toList`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:tab2list/1`. The `=` in `k=` says the keys need equality, since `ets` compares them: a table keyed by functions is a type error at its first operation, as a `Map` is (report §4.7).
 
 The foreign side promises the declared types. A return value of the wrong shape faults the calling process when the function returns, the whole value checked, and a function in it when that function is called; an Erlang exception becomes a fault of the calling process; and a message of the wrong type from foreign code faults its receiver on delivery. Purity is not checked: a `foreign fn` declared without `with` is trusted to have no effect (report §4.7).
 
@@ -2110,7 +2110,7 @@ A program that needs such state on another node sends what the state is made of 
 
 ### 8.5 The shim pattern
 
-A shim is a `foreign fn` over the host (report Appendix F). Where the host's function answers the type Ernest wants, the `foreign fn` is exported as it is, as `contains` is in §8.3. Where it does not, the `foreign fn` stays private and an exported Ernest function gives it the type Ernest wants. Erlang's `ets:lookup` returns a list, since a key matches no entry or one:
+A shim is a `foreign fn` over the host (report Appendix F). Where the host's function answers the type Ernest wants, the `foreign fn` is exported as it is, as `toList` is in §8.3. Where it does not, the `foreign fn` stays private and an exported Ernest function gives it the type Ernest wants. Erlang's `ets:lookup` returns a list, since a key matches no entry or one:
 
 ```ernest
 // ets.ern

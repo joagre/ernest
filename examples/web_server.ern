@@ -1,14 +1,17 @@
 //
-// Paper program 1: web server with sessions
+// Web server with sessions
 //
-// Written against the Ernest report, September 2026. A web server with
-// sessions.
+// A web server that keeps a session for each client by a cookie.
 //
-// Assumptions. Tcp and Clock are the standard library's system modules (report
-// Appendix E) over the TCP process and the clock (§8.2). The sessions are a process
-// that owns a Map, since state shared by processes is a process (Appendix E.0 rule 1).
-// errorText is a hand-written rendering for stdout. main runs the acceptor
-// itself so the program keeps running (report §8.6).
+// Tcp and Clock are the standard library's system modules (report Appendix
+// E) over the TCP process and the clock (§8.2). The sessions are a process
+// that owns a Map, since state shared by processes is a process (Appendix
+// E.0 rule 1). errorText writes an error for standard output. main runs the
+// acceptor itself so the program keeps running (report §8.6).
+//
+// Waits for libs/crypto (MVP 3.2): a session id is the connection's number,
+// which a client can guess; one drawn from the library's random bytes is
+// not, where a Random seeded from the clock would be.
 //
 // Waits for libs/http (MVP 3.2). parse, requestLine, headerLines and render
 // are a stand-in for its request parser and response renderer, a part of
@@ -210,17 +213,24 @@ let statusOk = StatusCode(200)
 
 let statusBadRequest = StatusCode(400)
 
-fn statusText(StatusCode(code)) =
-    if code == 200 then "200 OK" else "400 Bad Request"
+// The status line's code and reason, each code the program answers with
+// its own; any other, which it does not answer, as its number, the reason
+// being optional (RFC 9112).
+fn statusText(StatusCode(code) : StatusCode) : String =
+    match code {
+        200 -> "200 OK"
+      | 400 -> "400 Bad Request"
+      | other -> Int.toString(other) <> " "
+    }
 
-fn freshSessionId(connection) =
-    SessionId(Int.toString(connection)) // good enough on paper
+fn freshSessionId(connection : Int) : SessionId =
+    SessionId(Int.toString(connection))
 
-fn parseSessionId(text) =
+fn parseSessionId(text : String) : Optional(SessionId) =
     if !String.isEmpty(text) && List.all(String.toList(text), Char.isAsciiDigit) then
         Some(SessionId(text))
     else
         None
 
-fn sessionIdText(SessionId(text)) =
+fn sessionIdText(SessionId(text) : SessionId) : String =
     text

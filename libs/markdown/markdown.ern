@@ -6,9 +6,14 @@
 /// breaks; `render` lays them out at a width, and `roff` writes them as a
 /// manual page in the roff of man(7). What it does not read is kept as
 /// written: an HTML block is a `Raw` block, and inline HTML, an entity, and
-/// a link by reference stay in the text. An HTML block begins with a
-/// comment, a declaration, a processing instruction, or a tag alone on its
-/// line, and a tag alone does not end a paragraph. Emphasis follows a
+/// a link by reference stay in the text. HTML blocks follow a simpler rule
+/// than the specification's: one begins with a comment, a declaration, a
+/// processing instruction or a CDATA section, whatever follows on the
+/// line, or with a tag alone on its line, which does not end a paragraph.
+/// A comment runs to the line that holds `-->`, a processing instruction
+/// to one that holds `?>`, a CDATA section to one that holds `]]>`, and a
+/// declaration to one that holds `>`, its first line among them, and to
+/// the end where no line does; a tag runs to a blank line. Emphasis follows a
 /// simpler rule than the specification's: a mark opens before a character
 /// other than a space and closes after one, the nearest run of as many
 /// marks closes it, and a run of three or more is text. A tab in a line's
@@ -96,7 +101,8 @@ export type Block =
 ///
 /// since 0.2.0
 export type Output =
-    /// Emphasis, strong emphasis and code spans as they are written.
+    /// A code span between single backticks, emphasis between `*`s and
+    /// strong emphasis between `**`s, whether the source wrote `*` or `_`.
     Plain
   /// Bold, italics and colour, in the terminal's escape sequences.
   | Styled
@@ -161,22 +167,22 @@ fn blocks(lines : List(String)) : List(Block) =
 // The block that begins at a line that is not blank, and the lines after it:
 // the first kind of block that begins there, and a paragraph where none does.
 fn block(line : String, rest : List(String)) : #(Block, List(String)) =
-    if indent(line) >= 4 then indented(line :: rest, []) else begun(starts(), line, rest)
+    if indent(line) >= 4 then indented(line :: rest, []) else opened(openers(), line, rest)
 
-fn begun(tries : List((String, List(String)) -> Optional(#(Block, List(String)))),
-         line : String,
-         rest : List(String)) : #(Block, List(String)) =
-    match tries {
+fn opened(openers : List((String, List(String)) -> Optional(#(Block, List(String)))),
+          line : String,
+          rest : List(String)) : #(Block, List(String)) =
+    match openers {
         [] -> paragraph(rest, [unindented(line)])
       | opener :: more -> match opener(line, rest) {
             Some(found) -> found
-          | None -> begun(more, line, rest)
+          | None -> opened(more, line, rest)
         }
     }
 
 // Each kind of block that may begin at a line, in the order they are tried;
 // a function rather than a `let`, which would be a cycle, since they reach back to it (§8.5).
-fn starts() : List((String, List(String)) -> Optional(#(Block, List(String)))) =
+fn openers() : List((String, List(String)) -> Optional(#(Block, List(String)))) =
     [headingStart, ruleStart, fenceStart, quoteStart, listStart, htmlStart]
 
 fn headingStart(line : String, rest : List(String)) : Optional(#(Block, List(String))) =
@@ -196,40 +202,61 @@ fn listStart(line : String, rest : List(String)) : Optional(#(Block, List(String
     Optional.map(markerOf(unindented(line)), fn(marker) = listed(line :: rest, marker, []))
 
 fn htmlStart(line : String, rest : List(String)) : Optional(#(Block, List(String))) =
-    if isHtml(unindented(line)) then Some(raw(line :: rest, [])) else None
+    if !isHtml(unindented(line)) then
+        None
+    else match closingMark(unindented(line)) {
+        Some(mark) -> Some(closedRaw(mark, line :: rest, []))
+      | None -> Some(raw(line :: rest, []))
+    }
 
 // A tab stands for the spaces to the next multiple of four columns where
 // it decides a line's structure: in the line's prefix of indentation, quote
 // marks and list markers. Elsewhere it is kept, in a code block's content
 // as in text.
-fn structured(line : String) : String =
+fn spacedPrefix(line : String) : String =
     String.fromList(prefixExpanded(String.toList(line), 0))
 
 fn prefixExpanded(chars : List(Char), column : Int) : List(Char) =
     match chars {
         '\t' :: rest ->
             List.repeat(' ', 4 - column % 4) <> prefixExpanded(rest, column + 4 - column % 4)
-      | char :: rest when char == ' '
-            || char == '>'
-            || char == '-'
-            || char == '*'
-            || char == '+'
-            || char == '.'
-            || char == ')'
-            || Char.isAsciiDigit(char) -> char :: prefixExpanded(rest, column + 1)
-      | other -> other
+      | char :: rest when char == ' ' || char == '>' -> char :: prefixExpanded(rest, column + 1)
+      | _ -> match markerSize(chars) {
+            Some(size) ->
+                List.take(chars, size) <> prefixExpanded(List.drop(chars, size), column + size)
+          | None -> chars
+        }
     }
+
+// The size of a list marker at the start, a bullet or up to nine digits
+// and their delimiter, where a space, a tab or the end follows it, as
+// `markerOf` reads one; none where the characters are text.
+fn markerSize(chars : List(Char)) : Optional(Int) = {
+    let #(digits, rest) = List.span(chars, Char.isAsciiDigit);
+    let size = match #(digits, rest) {
+        #([], mark :: _) when mark == '-' || mark == '*' || mark == '+' -> 1
+      | #(_ :: _, delimiter :: _) when (delimiter == '.' || delimiter == ')')
+            && List.size(digits) <= 9 -> List.size(digits) + 1
+      | _ -> 0
+    };
+    match List.drop(chars, size) {
+        _ when size == 0 -> None
+      | [] -> Some(size)
+      | next :: _ when next == ' ' || next == '\t' -> Some(size)
+      | _ -> None
+    }
+}
 
 fn isBlank(line : String) : Bool =
     String.isEmpty(String.trim(line))
 
 fn indent(line : String) : Int = {
-    let #(spaces, _) = List.span(String.toList(structured(line)), fn(char) = char == ' ');
+    let #(spaces, _) = List.span(String.toList(spacedPrefix(line)), fn(char) = char == ' ');
     List.size(spaces)
 }
 
 fn unindented(line : String) : String = {
-    let expanded = structured(line);
+    let expanded = spacedPrefix(line);
     String.slice(expanded, indent(line), String.size(expanded))
 }
 
@@ -255,8 +282,8 @@ fn cut(chars : List(Char), column : Int, count : Int) : List(Char) =
 // Headings, thematic breaks, and code
 //
 
-// A heading of one to six `#`s and the space after them, the closing `#`s
-// dropped.
+// A heading of one to six `#`s and the space or the tab after them, the
+// closing `#`s dropped.
 fn atx(line : String) : Optional(Block) = {
     let #(marks, rest) = List.span(String.toList(line), fn(char) = char == '#');
     let level = List.size(marks);
@@ -265,7 +292,7 @@ fn atx(line : String) : Optional(Block) = {
         None
     else if String.isEmpty(text) then
         Some(Heading(level = level, text = []))
-    else if !String.startsWith(text, " ") then
+    else if !String.startsWith(text, " ") && !String.startsWith(text, "\t") then
         None
     else
         Some(Heading(level = level, text = inlines(closed(String.trim(text)))))
@@ -356,9 +383,15 @@ fn quoted(lines : List(String), acc : List(String)) : #(Block, List(String)) =
             quoted(rest,
                    (if String.startsWith(inside, " ") then dedented(inside, 1) else inside) :: acc)
         }
-      | line :: rest when continues(line, acc) -> quoted(rest, line :: acc)
+      | line :: rest when continues(line, acc) -> quoted(rest, lazily(line) :: acc)
       | _ -> #(Quote(blocks(List.reverse(acc))), lines)
     }
+
+// A lazy line as the paragraph it continues holds it. A line of `=` or `-`
+// is its text, since a lazy line is no underline in CommonMark, and is
+// escaped so that the blocks read again keep it text.
+fn lazily(line : String) : String =
+    if underlineLevel(unindented(line)) > 0 then "\\" <> unindented(line) else line
 
 // A line continues a paragraph lazily when the line before it was
 // paragraph text, and not a heading, a rule or a fence, and it begins no
@@ -441,7 +474,7 @@ fn listed(lines : List(String),
             Some(Marker(width = width) as marker) when indent(line) < 4
                 && sameKind(marker, first) -> {
                 let column = indent(line) + width;
-                let expanded = structured(line);
+                let expanded = spacedPrefix(line);
                 let text = String.slice(expanded, column, String.size(expanded) - column);
                 let #(body, later) = itemLines(rest, column, [text]);
                 let more = items <> [blocks(body)];
@@ -492,26 +525,25 @@ fn itemLines(lines : List(String),
         else if indent(line) >= column then
             itemLines(rest, column, dedented(line, column) :: acc)
         else if continues(line, acc) && markerOf(unindented(line)) == None then
-            itemLines(rest, column, unindented(line) :: acc)
+            itemLines(rest, column, lazily(unindented(line)) :: acc)
         else
             #(List.reverse(acc), lines)
     }
 
 // An HTML block begins with a comment, a declaration, a processing
-// instruction, or a tag alone on its line, and runs to a blank line. A tag
-// with text after it on its line is inline HTML, which stays in the text,
-// and `<` before an address is an autolink and not HTML.
+// instruction, or a tag alone on its line. One of the first three runs to
+// the line that holds its closing mark, blank lines and all, as
+// CommonMark's start conditions 2 to 5 have it, and a tag to a blank line.
+// A tag with text after it on its line is inline HTML, which stays in the
+// text, and `<` before an address is an autolink and not HTML.
 fn isHtml(line : String) : Bool =
     htmlOpens(line) || isTagAlone(line)
 
 // What begins an HTML block wherever it stands, and so ends a paragraph: a
-// comment, a declaration, a processing instruction.
+// comment, a declaration, a processing instruction, a CDATA section, each
+// what `closingMark` knows the end of; `<![x` and `<!-x` are text.
 fn htmlOpens(line : String) : Bool =
-    match String.toList(line) {
-        '<' :: '!' :: char :: _ -> char == '-' || char == '[' || Char.isAlpha(char)
-      | '<' :: '?' :: _ -> true
-      | _ -> false
-    }
+    Optional.isSome(closingMark(line))
 
 // A tag alone on its line, `<div>` or `</div>`, which begins an HTML block
 // but does not end a paragraph.
@@ -530,6 +562,32 @@ fn raw(lines : List(String), acc : List(String)) : #(Block, List(String)) =
     match lines {
         line :: rest when !isBlank(line) -> raw(rest, line :: acc)
       | _ -> #(Raw(List.reverse(acc)), lines)
+    }
+
+// The mark that closes a comment, a processing instruction, a CDATA
+// section or a declaration, by what opens it; none for a tag.
+fn closingMark(line : String) : Optional(String) =
+    if String.startsWith(line, "<!--") then
+        Some("-->")
+    else if String.startsWith(line, "<?") then
+        Some("?>")
+    else if String.startsWith(line, "<![CDATA[") then
+        Some("]]>")
+    else match String.toList(line) {
+        '<' :: '!' :: letter :: _ when Char.isAlpha(letter) -> Some(">")
+      | _ -> None
+    }
+
+// The lines to the one that holds the closing mark, the first among them,
+// so that `<!-- note -->` is a block of one line; to the end where none
+// does.
+fn closedRaw(mark : String, lines : List(String), acc : List(String)) : #(Block, List(String)) =
+    match lines {
+        [] -> #(Raw(List.reverse(acc)), [])
+      | line :: rest -> if String.contains(line, mark) then
+            #(Raw(List.reverse(line :: acc)), rest)
+        else
+            closedRaw(mark, rest, line :: acc)
     }
 
 // A paragraph runs to a blank line or a line that begins another block; a
@@ -711,7 +769,7 @@ fn startsWord(chars : List(Char)) : Bool =
 // address, an optional title in quotes, and `)`.
 fn linked(chars : List(Char)) : Optional(#(Inline, List(Char))) =
     match bracketed(chars, 0, []) {
-        Some(#(text, '(' :: rest)) -> match destination(rest, 0, []) {
+        Some(#(text, '(' :: rest)) -> match address(rest) {
             Some(#(address, later)) ->
                 Some(#(Link(text = inlines(String.fromList(text)), address = address), later))
           | None -> None
@@ -733,8 +791,31 @@ fn bracketed(chars : List(Char),
       | char :: rest -> bracketed(rest, depth, char :: acc)
     }
 
-// The address runs to a space or to the `)` that balances; a title after
-// a space is read past and not kept.
+// The address between `<` and `>`, which may hold spaces, or else one that
+// runs to a space or to the `)` that balances; a title after a space is
+// read past and not kept.
+fn address(chars : List(Char)) : Optional(#(String, List(Char))) =
+    match chars {
+        '<' :: inside -> match enclosed(inside, []) {
+            Some(#(found, ')' :: later)) -> Some(#(found, later))
+          | Some(#(found, char :: later)) when char == ' ' || char == '\n' ->
+                Optional.map(titled(later), fn(rest) = #(found, rest))
+          | _ -> None
+        }
+      | _ -> destination(chars, 0, [])
+    }
+
+// An address in angle brackets runs to the `>` that closes it, a line
+// ending or a `<` within it making none, and a backslash escaping the
+// character after it.
+fn enclosed(chars : List(Char), acc : List(Char)) : Optional(#(String, List(Char))) =
+    match chars {
+        '>' :: rest -> Some(#(String.fromList(List.reverse(acc)), rest))
+      | '\\' :: char :: rest when char != '\n' -> enclosed(rest, char :: acc)
+      | char :: rest when char != '<' && char != '\n' -> enclosed(rest, char :: acc)
+      | _ -> None
+    }
+
 fn destination(chars : List(Char),
                depth : Int,
                acc : List(Char)) : Optional(#(String, List(Char))) =
@@ -796,11 +877,14 @@ fn autolink(chars : List(Char), acc : List(Char)) : Optional(#(Inline, List(Char
 /// word allows, with the terminal's styles when the output is `Styled`. A
 /// heading is its text, bold with styles; a code block is indented four
 /// columns and never wrapped; a list item follows a bullet, or its number
-/// and a period whichever delimiter it was written with; a block quote
+/// and a period, whichever delimiter it was written with; a block quote
 /// follows a bar; a thematic break is a line across the width; and a link
 /// is its text with its address after it. Emphasis is in italics, strong
-/// emphasis bold, and a code span cyan with styles, and each is as
-/// written without them. Blocks are separated by an empty row.
+/// emphasis bold, and a code span cyan with styles, emphasis within
+/// emphasis and strong emphasis within a heading as the text around them;
+/// without styles a code span is between single backticks, emphasis
+/// between `*`s and strong emphasis between `**`s. Blocks are separated by
+/// an empty row.
 ///
 /// ### Examples
 ///
@@ -826,7 +910,10 @@ fn rendered(block : Block, width : Int, output : Output) : List(String) =
       | Paragraph(text) -> standing(output, wrapped(spans(text, output), width))
       | Code(lines = lines) ->
             List.map(lines, fn(line) = if isBlank(line) then "" else "    " <> line)
-      | Quote(inner) -> List.map(render(inner, width - 2, output), fn(row) = "│ " <> row)
+      // an empty row of the quote is the bar alone, with no space after it
+      | Quote(inner) ->
+            List.map(render(inner, width - 2, output),
+                     fn(row) = if String.isEmpty(row) then "│" else "│ " <> row)
       | Items(start = start, items = items) -> itemRows(start, items, width, output)
       | Rule -> [String.repeat("─", width)]
       | Raw(lines) -> lines
@@ -880,6 +967,17 @@ fn unstrong(inlines : List(Inline)) : List(Inline) =
       | other -> [other]
     })
 
+// Emphasis inside emphasis is its text, at any depth, as strong emphasis is
+// inside a heading.
+fn unemphasized(inlines : List(Inline)) : List(Inline) =
+    List.flatMap(inlines, fn(inline) = match inline {
+        Emphasis(inner) -> unemphasized(inner)
+      | Strong(inner) -> [Strong(unemphasized(inner))]
+      | Link(text = inner, address = address) ->
+            [Link(address = address, text = unemphasized(inner))]
+      | other -> [other]
+    })
+
 fn spans(inlines : List(Inline), output : Output) : String =
     String.join(List.map(inlines, fn(inline) = span(inline, output)), "")
 
@@ -887,7 +985,12 @@ fn span(inline : Inline, output : Output) : String =
     match inline {
         Text(text) -> text
       | CodeSpan(code) -> marked(output, Ansi.Foreground(Ansi.Cyan), "`", code)
-      | Emphasis(inner) -> marked(output, Ansi.Italic, "*", spans(inner, output))
+      // italics inside italics would turn the outer ones off where they end
+      | Emphasis(inner) ->
+            marked(output,
+                   Ansi.Italic,
+                   "*",
+                   spans(if output == Styled then unemphasized(inner) else inner, output))
       | Strong(inner) -> marked(output, Ansi.Bold, "**", spans(inner, output))
       | Link(text = text, address = address) -> if plain(text) == address then
             address
@@ -1015,7 +1118,7 @@ fn filled(pieces : List(String), width : Int, row : String, rows : List(String))
 
 /// The document as a manual page in the roff of man(7), which groff and
 /// mandoc render, a line of the page's source each: the header and the
-/// NAME line from the page, the blocks before the first heading of level 1
+/// NAME line from the `Manual`, the blocks before the first heading of level 1
 /// under DESCRIPTION, a heading of level 1 a section, one of level 2 a
 /// subsection, and a deeper one a paragraph in bold. Lines are filled to
 /// the left margin alone and no word is hyphenated, so that a name in the
@@ -1238,6 +1341,43 @@ let headings =
                             [Heading(level = 3, text = [Text("Three")]),
                              Paragraph([Text("####### seven")])]))
 
+// a regression test: a tab after the marks made the line a paragraph
+let tabbedHeading =
+    Test.Case(name = "an ATX heading's marks may be followed by a tab",
+              run = fn() =
+                  blocksAre(parse("#\tTitle"), [Heading(level = 1, text = [Text("Title")])]))
+
+// a regression test: the inner emphasis turned the italics off for the
+// rest of the outer
+let nestedEmphasis =
+    Test.Case(name = "emphasis inside emphasis keeps the italics on", run = fn() = {
+        let rows = render(parse("*a **b *c* d** e*"), 80, Styled);
+        let offs = List.map(rows, fn(row) = List.size(String.split(row, "\u{1b}[23m")) - 1);
+        Test.equal(offs, [1])
+    })
+
+// a regression test: a tab after a leading run of digits and points in
+// text was expanded, as one after a list's number is
+let tabInText =
+    Test.Case(name = "a tab after text that is no marker is kept",
+              run = fn() = blocksAre(parse("3.14\tpi"), [Paragraph([Text("3.14\tpi")])]))
+
+// a regression test: a lazy line of `=` under a quoted paragraph made it
+// a heading
+let lazyUnderline =
+    Test.Case(name = "a lazy line of = is the quoted paragraph's text",
+              run = fn() =
+                  blocksAre(parse("> foo\nbar\n==="), [Quote([Paragraph([Text("foo bar ===")])])]))
+
+// a regression test: an address in angle brackets was not read
+let angledAddress =
+    Test.Case(name = "an address in angle brackets may hold a space",
+              run = fn() =
+                  blocksAre(parse("[a](<b c>) and [d](<e> \"t\")"),
+                            [Paragraph([Link(text = [Text("a")], address = "b c"),
+                                        Text(" and "),
+                                        Link(text = [Text("d")], address = "e")])]))
+
 let setext =
     Test.Case(name = "a line of = or - under a paragraph makes it a heading",
               run = fn() =
@@ -1322,6 +1462,25 @@ let lazyAfterHeading =
                   blocksAre(parse("> # Heading\nlazy"),
                             [Quote([Heading(level = 1, text = [Text("Heading")])]),
                              Paragraph([Text("lazy")])]))
+
+// a regression test: a comment ran to a blank line, so the paragraph after
+// it was swallowed into the Raw block, and a blank line inside it ended it
+let closedComment =
+    Test.Case(name = "a comment runs to the line that closes it",
+              run = fn() =
+                  blocksAre(parse("<!-- a\n\nb -->\nafter\n\n<!-- c -->\npara"),
+                            [Raw(["<!-- a", "", "b -->"]),
+                             Paragraph([Text("after")]),
+                             Raw(["<!-- c -->"]),
+                             Paragraph([Text("para")])]))
+
+// a regression test: `<![x` and `<!-x` began an HTML block that ran to a
+// blank line, though they open none
+let notHtml =
+    Test.Case(name = "an opening no HTML block has is text",
+              run = fn() =
+                  blocksAre(parse("<![x y\n\n<!-x"),
+                            [Paragraph([Text("<![x y")]), Paragraph([Text("<!-x")])]))
 
 // a regression test: a tag that began a line made the line a Raw block,
 // and ended the paragraph before it
@@ -1436,6 +1595,11 @@ let nestedRows =
               run = fn() =
                   rowsAre(render(parse("1. a\n\n   > q\n2. b"), 80, Plain),
                           ["1. a", "", "   │ q", "2. b"]))
+
+// a regression test: an empty row of a quote ended in a space
+let emptyQuoteRow =
+    Test.Case(name = "an empty row of a quote is the bar alone",
+              run = fn() = rowsAre(render(parse("> a\n>\n> b"), 80, Plain), ["│ a", "│", "│ b"]))
 
 let manualHeader =
     Test.Case(name = "a manual page begins with its header and its NAME line",
@@ -1553,10 +1717,7 @@ fn hello() : Manual =
            title = "Hello Manual")
 
 fn blocksAre(blocks : List(Block), expected : List(Block)) : Test.Result =
-    if blocks == expected then
-        Test.Passed
-    else
-        Test.Failed(Int.toString(List.size(blocks)) <> " blocks")
+    Test.equal(blocks, expected)
 
 fn inlinesAre(text : String, expected : List(Inline)) : Test.Result =
     match parse(text) {

@@ -7,5 +7,6 @@ error: division by zero
 error: unbound y
 unexpected end of input
 illegal character @ at 0
+unexpected let
 aborted after 2 s
 2

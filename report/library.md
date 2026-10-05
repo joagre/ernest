@@ -13,7 +13,7 @@ This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A
 
 ## Appendix D. A Foreign Library
 
-A library over Erlang's `ets`, tables of type `set`, outside the standard library; a program adds its compiled root to the load path (§11.1, §11.2). Raw bindings are module-local, unqualified; the library is ordinary Ernest over them. The values `ets` returns match the ABI of §8.4 without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and `[{K, V}]` is `List(#(k, v))`. An API that answers Erlang's `{ok, V} | {error, R}` needs an Erlang helper that rewrites the answer, as E.19 says; the `ets` calls below do not use that convention.
+A library over Erlang's `ets`, tables of type `set`, outside the standard library; a program adds its compiled root to the load path (§11.1, §11.2). Raw bindings are module-local, unqualified; the library is ordinary Ernest over them. The values `ets` returns match the ABI of §8.4 without an Erlang-side wrapper: `true` and `false` are `Bool` on both sides, and `[{K, V}]` is `List(#(k, v))`. A host answer that is not always of one Ernest type, `ets:info/2`'s count or `undefined`, is bound at `Foreign.Term` and read with E.12's conversions. An API that answers Erlang's `{ok, V} | {error, R}` needs an Erlang helper that rewrites the answer, as E.19 says; the `ets` calls below do not use that convention.
 
 ```ernest
 // ets.ern  (namespace Ets)
@@ -62,32 +62,35 @@ foreign fn rawDelete(table : Table(k, v), key : k) : Bool with m =
 
 /// The number of entries in the table.
 export fn size(table : Table(k, v)) : Int with m =
-    rawInfo(table, Erl.atom("size"))
+    match Foreign.toInt(rawInfo(table, Erl.atom("size"))) {
+        Some(count) -> count
+      | None -> fault("the table has ended")
+    }
 
-foreign fn rawInfo(table : Table(k, v), item : Foreign.Term) : Int with m =
+foreign fn rawInfo(table : Table(k, v), item : Foreign.Term) : Foreign.Term with m =
     "ets:info/2"
 
 /// Close the table, deleting it. All subsequent operations on it fault.
 export fn close(table : Table(k, v)) : Unit with m = {
-    let _ = rawClose(table);
+    let _ = rawDeleteTable(table);
     Unit
 }
 
-foreign fn rawClose(table : Table(k, v)) : Bool with m =
+foreign fn rawDeleteTable(table : Table(k, v)) : Bool with m =
     "ets:delete/1"
 
 /// Remove all entries, leaving the table empty.
 export fn clear(table : Table(k, v)) : Unit with m = {
-    let _ = rawClear(table);
+    let _ = rawDeleteAllObjects(table);
     Unit
 }
 
-foreign fn rawClear(table : Table(k, v)) : Bool with m =
+foreign fn rawDeleteAllObjects(table : Table(k, v)) : Bool with m =
     "ets:delete_all_objects/1"
 
 /// True if key is present in table.
-export foreign fn contains(table : Table(k, v), key : k) : Bool with m =
-    "ets:member/2"
+export fn contains(table : Table(k, v), key : k) : Bool with m =
+    Optional.isSome(get(table, key))
 
 /// All key-value pairs currently in the table, in unspecified order.
 export foreign fn toList(table : Table(k, v)) : List(#(k, v)) with m =
@@ -663,7 +666,7 @@ Informative. The libraries this project writes, each a directory under `libs/` a
 
 ### Appendix G.1. `libs/ets` (namespace `Ets`)
 
-Tables of the runtime, Erlang's `ets` tables of type `set`, which Appendix D shows with a shorter documentation. A table holds a value of type `v` at each key of type `k`, and keys are compared as the runtime compares its terms. A table belongs to the process that made it and ends with that process or with `close`, and every operation on a table that has ended faults, as a foreign function that raises does (§7.4). Any process on the node that holds a table reads and writes it, so every operation on one, a read too, carries `with m` (§4.7). `put` replaces the entry a key had, `remove` of a key that is not there does nothing, `clear` leaves the table empty, and `toList` answers the entries in unspecified order.
+Tables of the runtime, Erlang's `ets` tables of type `set`, which Appendix D shows with a shorter documentation. A table holds a value of type `v` at each key of type `k`, and keys are compared as the runtime compares its terms. A table belongs to the process that made it and ends with that process or with `close`, and every operation on a table that has ended faults: `size` with `Fault("the table has ended")`, and every other as a foreign function that raises does (§7.4). Any process on the node that holds a table reads and writes it, so every operation on one, a read too, carries `with m` (§4.7). `put` replaces the entry a key had, `remove` of a key that is not there does nothing, `clear` leaves the table empty, and `toList` answers the entries in unspecified order.
 
 ```
 foreign type Table(k=, v)
@@ -680,7 +683,7 @@ Ets.toList : (Table(k=!, v!)) -> List(#(k=!, v!)) with m+
 
 ### Appendix G.2. `libs/markdown` (namespace `Markdown`)
 
-CommonMark 0.31, read into blocks and inlines and laid out as text for a terminal or as a manual page. `parse` reads headings, paragraphs, code blocks, block quotes, lists, and thematic breaks, and inside them code spans, emphasis, strong emphasis, links, images, and hard line breaks. A line ends in a line feed, a carriage return, or both. A tab in a line's indentation, quote marks and list markers reaches to the next multiple of four columns, and one elsewhere, in a code block's content as in text, is kept. An image is read as a `Link`, its description the link's text and its source the address. What `parse` does not read is kept as written: an HTML block is a `Raw` block, and inline HTML, an entity, and a link by reference stay in the text. An HTML block begins with a comment, a declaration, a processing instruction, or a tag alone on its line, and a tag alone does not end a paragraph. Emphasis follows a simpler rule than the specification's: a mark opens before a character other than a space and closes after one, the nearest run of as many marks closes it, and a run of three or more is text. `render` lays the blocks out as rows at most `width` columns wide where a word allows, an empty row between two blocks, with the terminal's styles (Appendix E.16) when the output is `Styled` and each span as it was written when it is `Plain`. `roff` writes the blocks as a manual page in the roff of man(7), which groff and mandoc render: its header and its NAME line from the `Manual`, the blocks before its first heading of level 1 under DESCRIPTION, a heading of level 1 as a section, one of level 2 as a subsection, and a deeper one as a paragraph in bold, its lines filled to the left margin alone and never hyphenated. It lays out and styles the rest as §11.4 says of a manual page, with a thematic break as a row of asterisks and a `Raw` block as written. It writes every character roff would change as roff's escape for it, and the rest in UTF-8, which man-db and mandoc read. `firstSentence` is the first paragraph's text up to the first period a space follows outside emphasis, code spans, and links, or all of it where there is none, and empty where there is no paragraph.
+CommonMark 0.31, read into blocks and inlines and laid out as text for a terminal or as a manual page. `parse` reads headings, paragraphs, code blocks, block quotes, lists, and thematic breaks, and inside them code spans, emphasis, strong emphasis, links, images, and hard line breaks. A line ends in a line feed, a carriage return, or both. A tab in a line's indentation, quote marks and list markers reaches to the next multiple of four columns, and one elsewhere, in a code block's content as in text, is kept. An image is read as a `Link`, its description the link's text and its source the address. What `parse` does not read is kept as written: an HTML block is a `Raw` block, and inline HTML, an entity, and a link by reference stay in the text. HTML blocks follow a simpler rule than the specification's: one begins with a comment, a declaration, a processing instruction or a CDATA section, whatever follows on the line, or with a tag alone on its line, which does not end a paragraph. A comment runs to the line that holds `-->`, a processing instruction to one that holds `?>`, a CDATA section to one that holds `]]>`, and a declaration to one that holds `>`, its first line among them, and to the end of the input where no line does; a tag runs to a blank line. Emphasis follows a simpler rule than the specification's: a mark opens before a character other than a space and closes after one, the nearest run of as many marks closes it, and a run of three or more is text. `render` lays the blocks out as rows at most `width` columns wide where a word allows, an empty row between two blocks, with the terminal's styles (Appendix E.16) when the output is `Styled`, emphasis within emphasis and strong emphasis within a heading as the text around them, and when it is `Plain` a code span between single backticks, emphasis between `*`s and strong emphasis between `**`s, whether the source wrote `*` or `_`. `roff` writes the blocks as a manual page in the roff of man(7), which groff and mandoc render: its header and its NAME line from the `Manual`, the blocks before its first heading of level 1 under DESCRIPTION, a heading of level 1 as a section, one of level 2 as a subsection, and a deeper one as a paragraph in bold, its lines filled to the left margin alone and never hyphenated. It lays out and styles the rest as §11.4 says of a manual page, with a thematic break as a row of asterisks and a `Raw` block as written. It writes every character roff would change as roff's escape for it, and the rest in UTF-8, which man-db and mandoc read. `firstSentence` is the first paragraph's text up to the first period a space follows outside emphasis, code spans, and links, or all of it where there is none, and empty where there is no paragraph.
 
 ```
 type Inline = Text(String) | CodeSpan(String) | Emphasis(List(Inline)) | Strong(List(Inline))
@@ -699,7 +702,7 @@ Markdown.firstSentence : (List(Block)) -> List(Inline)
 
 ### Appendix G.3. `libs/ansi` (namespace `Ansi`)
 
-Text that styles what a program writes to a terminal and moves its cursor, Ernest over ECMA-48, the standard the terminal speaks (Appendix E.16). Each answers its sequences as a string a program writes with `Io.print`. `styled` turns its style off after the text by the style's own code, and a style around it stays on. `Bold` and `Dim` are turned off together, by the one code ECMA-48 has for both. `libs/markdown` styles its output for a terminal with it, and so needs it on the load path.
+Text that styles what a program writes to a terminal and moves its cursor, Ernest over ECMA-48, the standard the terminal speaks (Appendix E.16). Each answers its sequences as a string a program writes with `Io.print`. `styled` turns its style off after the text with the code that turns off every style of its kind: `Bold` and `Dim` are one kind, `Italic` one, `Underline` one, and the colours one. A style of another kind around the text stays on; one of the same kind is turned off with it, a colour around a colour, italics around italics, `Bold` around `Dim`. `libs/markdown` styles its output for a terminal with it, and so needs it on the load path.
 
 ```
 type Colour = Black | Red | Green | Yellow | Blue | Magenta | Cyan | White

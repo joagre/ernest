@@ -546,6 +546,22 @@ piped_output_is_line_mode() ->
                  [{expect, "> "}, {send, hex("1\r")}, {expect, "1 : Int"}, {send, "04"}], 30),
     ?assertEqual(nomatch, binary:match(Screen, <<"\e[">>)).
 
+%% report §11.2, §11.4: `:doc` documents what the session can name, the
+%% standard library and what it loaded, and not the shell's own libraries.
+%% A regression test: `:doc Markdown` showed the page of a module the
+%% session cannot call
+doc_of_what_the_session_names_test_() ->
+    {timeout, 60, fun doc_of_what_the_session_names/0}.
+
+doc_of_what_the_session_names() ->
+    Dir = fresh_home(),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":doc Markdown\n:doc Ansi.styled\n:doc List.map\n"),
+    {0, Output} = ern_pty:sh("HOME=" ++ Dir ++ " ../bin/ern shell < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<"no documentation for Markdown">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"no documentation for Ansi.styled">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"List.map(list : List(a)">>)).
+
 %% report §11.2: a command is one line, which `Enter` runs whatever its
 %% argument. A regression test: an unfinished block comment in a command's
 %% argument made the shell take the next line into the command

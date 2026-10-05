@@ -1,17 +1,16 @@
 //
-// Paper program 4: REPL
+// REPL
 //
-// Written against the Ernest report, September 2026. A read-evaluate-print
-// loop for a small expression language with numbers, let, and functions of
-// one argument, a function not seeing its own name, so that a `let` binds no
-// recursion. The aim is to hit deep error handling in pure code
-// (lexer, parser, evaluator) and try as a process (an expression that never
-// terminates must be abortable).
+// A read-evaluate-print loop for a small expression language with numbers,
+// let, and functions of one argument, a function not seeing its own name,
+// so that a `let` binds no recursion. Its errors are handled in pure code,
+// in the lexer, the parser and the evaluator, and an expression is tried in
+// a process of its own, so that one that never ends is cut off.
 //
-// Assumptions. Io.readLine is the standard library's (report Appendix E) over
-// standard input (§8.2). parseErrorText and evalErrorText are hand-written
-// renderings for stdout. main runs the loop itself so the program keeps
-// running (report §8.6).
+// Io.readLine is the standard library's (report Appendix E) over standard
+// input (§8.2). parseErrorText and evalErrorText write the errors for
+// standard output. main runs the loop itself so the program keeps running
+// (report §8.6).
 //
 // Compiles and type-checks since 2026-09-20, and runs under test since the
 // same day on a fixed input, test/input/repl.in, which ends the loop.
@@ -88,6 +87,8 @@ fn evaluateLine(env : Map(String, Value),
                            <> Int.toString(index));
             #(env, serial)
         }
+      // a line with nothing on it answers nothing
+      | Right([]) -> #(env, serial)
       | Right(tokens) -> match parse(tokens) {
             Left(error) -> {
                 Io.println(parseErrorText(error));
@@ -208,14 +209,24 @@ fn lex(chars : List(Char), index : Int, acc : List(Token)) : Either(LexError, Li
 // Pure code: parser
 //
 
-// expression := 'let' name '=' expression | 'fun' name '->' expression | sum
+// line := 'let' name '=' expression | expression
+// expression := 'fun' name '->' expression | sum
 // sum := product (('+'|'-') product)*
 // product := application (('*'|'/') application)*
 // application := atom atom*
 // atom := number | name | '(' expression ')'
 
+// A `let` binds a name for the lines after it, so it stands only at a
+// line's start; inside an expression it would bind nothing, and is refused
+// as the token it is.
 fn parse(tokens : List(Token)) : Either(ParseError, Expression) = {
-    let #(expression, rest) <- parseExpression(tokens);
+    let #(expression, rest) <- match tokens {
+        LetKeyword :: Name(name) :: Equals :: more -> {
+            let #(value, remaining) <- parseExpression(more);
+            Right(#(Let(name = name, value = value), remaining))
+        }
+      | _ -> parseExpression(tokens)
+    };
     match rest {
         [] -> Right(expression)
       | token :: _ -> Left(Unexpected(token))
@@ -224,11 +235,7 @@ fn parse(tokens : List(Token)) : Either(ParseError, Expression) = {
 
 fn parseExpression(tokens : List(Token)) : Either(ParseError, #(Expression, List(Token))) =
     match tokens {
-        LetKeyword :: Name(name) :: Equals :: rest -> {
-            let #(value, remaining) <- parseExpression(rest);
-            Right(#(Let(name = name, value = value), remaining))
-        }
-      | FunKeyword :: Name(parameter) :: Arrow :: rest -> {
+        FunKeyword :: Name(parameter) :: Arrow :: rest -> {
             let #(body, remaining) <- parseExpression(rest);
             Right(#(Function(parameter = parameter, body = body), remaining))
         }
