@@ -339,6 +339,41 @@ call_clock_starts_at_the_call_test() ->
            end, <<"main">>, #{stdout => fun(_) -> ok end}),
     receive {result, Answer} -> ?assertEqual('None', Answer) after 2000 -> ?assert(false) end.
 
+%% report §6.6: the time of a call bounds the wait for the answer and
+%% nothing before it: a request whose making outlasts the time is made in
+%% the caller, uninterrupted, and sent all the same, and the wait that
+%% begins after the time has passed ends at once. Written after the code,
+%% a regression test of what §6.6 came to state
+call_time_bounds_the_wait_alone_test() ->
+    Self = self(),
+    ok = ern_rt:run_main(
+           fun() ->
+               Callee = ern_rt:spawn(fun() ->
+                                         receive {ask, _Reply} -> Self ! request_arrived end,
+                                         receive after infinity -> ok end
+                                     end, <<"callee">>),
+               Caller = self(),
+               Answer = ern_rt:call(Callee, fun(Reply) ->
+                                                nap(600),
+                                                Self ! {made, self() =:= Caller,
+                                                        erlang:monotonic_time(millisecond)},
+                                                {ask, Reply}
+                                            end, 500),
+               Self ! {result, Answer, erlang:monotonic_time(millisecond)}
+           end, <<"main">>, #{stdout => fun(_) -> ok end}),
+    Made = receive
+               {made, InCaller, At} -> ?assert(InCaller), At
+           after 5000 -> ?assert(false)
+           end,
+    receive request_arrived -> ok after 5000 -> ?assert(false) end,
+    receive
+        {result, Answer, Returned} ->
+            ?assertEqual('None', Answer),
+            %% no second wait of the call's 500 ms after the making's 600
+            ?assert(Returned - Made < 400)
+    after 5000 -> ?assert(false)
+    end.
+
 %% report §8.6: a deadlock is found soon where nothing could deliver from
 %% the start, and within about a second of the end of the last thing that
 %% could, a timed wait here: while something can deliver, the reaper looks

@@ -305,4 +305,4 @@ export foreign fn atan(float : Float) : Float =
 /// // => 0.0
 /// ```
 export foreign fn atan2(y : Float, x : Float) : Float =
-    "math:atan2/2"
+    "ern_float:atan2/2"

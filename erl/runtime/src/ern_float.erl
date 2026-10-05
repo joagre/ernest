@@ -3,7 +3,7 @@
 %% where §3.1 names the fault.
 -module(ern_float).
 
--export([to_string/1, text/1, pow/2, exp/1]).
+-export([to_string/1, text/1, pow/2, exp/1, atan2/2]).
 
 %% Report Appendix E.9: the shortest digits that read back as the same
 %% value, which float_to_list/2's `short` gives, written plain from 0.0001
@@ -49,12 +49,21 @@ scientific([First | Rest], Point) ->
     [First, $. | case Rest of [] -> "0"; _ -> Rest end] ++ "e" ++ integer_to_list(Point - 1).
 
 %% Report §3.1: a result the finite range cannot hold is the float fault,
-%% not Erlang's badarith; Float.pow keeps the domain out before it gets here
+%% not Erlang's badarith; Float.pow keeps the domain out before it gets here.
+%% There is no negative zero: a negative result too small for the range is
+%% the host's `-0.0`, which adding `0.0` makes the one zero.
 -spec pow(float(), float()) -> float().
-pow(Base, Exponent) -> arith(fun() -> math:pow(Base, Exponent) end).
+pow(Base, Exponent) -> arith(fun() -> math:pow(Base, Exponent) + 0.0 end).
 
 -spec exp(float()) -> float().
 exp(Power) -> arith(fun() -> math:exp(Power) end).
+
+%% Report §3.1: no negative zero, which the host's atan2 gives for a
+%% negative `y` beside an `x` large enough. Of the host's functions Float
+%% stands on, this one and pow alone bring a negative result to zero: the
+%% others answer a zero only for a zero.
+-spec atan2(float(), float()) -> float().
+atan2(Y, X) -> math:atan2(Y, X) + 0.0.
 
 arith(Compute) ->
     try Compute()

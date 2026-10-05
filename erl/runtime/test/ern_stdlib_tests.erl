@@ -545,6 +545,19 @@ float_test() ->
     ?assertEqual('None', Float:acos(-2.0)),
     ?assertEqual(0.0, Float:atan2(0.0, 1.0)).
 
+%% report §3.1, §3.10: there is no negative zero, so a negative result too
+%% small for the range is the one zero, which `==` and `Float.compare` both
+%% call equal to `0.0`. A regression test: `Float.atan2` and `Float.pow`
+%% answered the host's `-0.0`, which printed as `0.0`, compared `Equal` to
+%% it and was not `==` to it, so a `Map` held both as keys
+float_has_one_zero_test() ->
+    Float = 'ern@float',
+    Small = Float:atan2(-1.0e-300, 1.0e300),
+    {'Some', Power} = Float:pow(-1.0e-200, 3.0),
+    ?assert(Small =:= +0.0),
+    ?assert(Power =:= +0.0),
+    ?assertEqual('Equal', Float:compare(Small, 0.0)).
+
 %% report Appendix E.10
 optional_test() ->
     Optional = 'ern@optional',

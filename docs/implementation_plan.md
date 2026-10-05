@@ -86,12 +86,15 @@ and its measurement does not hold the release.
    overheads cut, since a faster emitter brings every function under the line at once,
    where a shim brings one. Sized when items 1 and 2's numbers are in.
 4. **The report's feedback**: `docs/report_feedback.md`, six points of precision in the
-   report's contracts, decided on 2026-10-04 to be read with the user point by point, as a
-   review's findings are: each point a sentence of the report, a plan item, or dropped with
-   its reason. The three of peers, foreign definitions' compatibility and a peer's
-   initialization (§8.7) and a peer's loss (§9.3, §10), are weighed against MVP 3.0, which
-   builds them. Before item 5, since the report is the owner and a point decided there can
-   change what the guide teaches.
+   report's contracts. Three were taken into the report on 2026-10-05, out of order and
+   ahead of items 1 to 3, each a statement of what already ran or was already written, with
+   no rule changed (the log's *The Report's Feedback, Three Points*): what a call's time
+   bounds (§6.6), an order's laws and what the library's guarantees rest on (§3.10, E.2,
+   E.25), and the foreign boundary's summaries taking §8.4's exceptions by reference (§4.7,
+   §7.4). The three of peers remain in the file, since any answer to them is a rule of the
+   language: foreign definitions' compatibility (§8.7), a peer's initialization (§8.7) and
+   a peer's loss (§9.3, §10), each read with the user and weighed against MVP 3.0 and 3.1,
+   which build them.
 5. **The guide's feedback**: `docs/guide_feedback.md`, a pedagogical assessment of the guide
    in seven points, decided on 2026-10-04 to be read with the user point by point, as a
    review's findings are: each point taken into the guide, made a plan item, or dropped with
@@ -213,8 +216,8 @@ The milestone is §8.7's identity in full:
   never written. With it, whether a type's identity holds the hash of its `compare`, so that
   a value ordered under one order is not read under another where versions meet (on one
   node MVP 2.99b's item 5 made it the type's `compare`, supplied by the compiler, so that a
-  set built before an `Upgrade` of its `compare` is misordered after it, `operations.md`'s
-  *What the types do not guarantee*). Whether `ern_interface:hash/1`, which hashes a canonical interface, grows into
+  set built before an `Upgrade` of its `compare` is misordered after it, as Appendix E.25
+  says). Whether `ern_interface:hash/1`, which hashes a canonical interface, grows into
   the definition hash or a second scheme stands beside it is part of that decision.
 - Every definition gets a hash of its typed AST; modules are named by hash, with a registry
   per node `{Hash -> Module}`. A function spawned on a peer carries its hash, and a node that

@@ -140,14 +140,6 @@ fn sumOfSquares(list : List(a), num : Num(a)) : a =
 
 Its `main` prints `6`, `3.0` and `14`.
 
-## What the types do not guarantee
-
-The report holds no contract for `compare`'s laws yet; MVP 2.99d's item 4 moves this section to §3.10, E.25 and E.26 pointing at it, and it then goes from here.
-
-Stated as the program's promise: `compare` is a total order, and where the element type has `==`, says `Equal` only where `==` holds. Nothing checks either. Where the element type has no `==`, an ordered set holds one element per class of `Equal`, and `put` keeps the element already there (E.25). A `compare` that is not transitive breaks the order: `contains` answers wrongly and duplicates stay. One that says `Equal` where `==` does not makes `==` on two sets depend on the order of insertion.
-
-After an `Upgrade` (§6.10) or `:reload` (§11.2) a set built under the old `T.compare` is read under the new, and a changed order misorders it. A set sent to a node whose `T.compare` differs is read under that node's; MVP 3.1's normalized definition decides where versions meet.
-
 ## What it costs to build
 
 The work falls on the parser and checker for the two forms, on the library, and on the documents:
