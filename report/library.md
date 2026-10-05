@@ -161,7 +161,7 @@ Io.writeError : (Bytes) -> Unit with m+ // the bytes to standard error, as they 
 
 ### Appendix E.2. `list.ern` (namespace `List`)
 
-`[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains`, `remove`, and `unique` require equality on `a` (§3.10). `sort` takes an order (§3.10); given a function that is none, how its result is arranged is not stated. `List.<>` is the prelude's, §9.6; this module provides it (§9).
+`[]` is `empty` and `::` is `put`, so neither is a function; `fromList` and `toList` are the identity and are not provided. `contains`, `remove`, and `unique` require equality on `a` (§3.10). `sort` takes an order (§3.10); given a function that is none, its result is not stated. `List.<>` is the prelude's, §9.6; this module provides it (§9). The primitives are `size`, `unique`, and `zip`, and functions of the host's beneath `contains`, `remove`, `last`, `take`, `repeat`, `sort`, and `range`, private to the module, around which each closes what differs: the order of the arguments, a count below 0, the empty list, and, for `sort`, a stability the host's sort does not promise (E.0 rule 1). The rest is Ernest.
 
 ```
 List.size : (List(a!)) -> Int

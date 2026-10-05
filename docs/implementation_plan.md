@@ -202,7 +202,11 @@ and its measurement does not hold the release.
     not-reply-carrying, so a function whose type carries a reply, `List.reverse`,
     `foreach`, `foldRight`, `indexed`, `unzip` and `<>`, stays Ernest. Whether a second mark
     lifts that restriction is decided with the user after the measurement this item ends
-    with.
+    with. `List` is converted (2026-10-05; the log's *List Stands on the Host*): ten
+    functions on the host's, each 1.1 to 1.5 times it. Before the item's last measurement,
+    the machine draws varied elements, and an order for a comparison, where it now draws
+    equal elements and a constant `Less`. Next: `String`, `Path`, `Bytes`, `Map`, then
+    the rest, module by module.
 
 ---
 
