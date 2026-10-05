@@ -556,8 +556,9 @@ delivered_down(Pid, ExitReason, #reaper{monitors = Monitors, monitor_refs = Moni
     case ets:take(?PROCESSES, Pid) of
         [{_, Site, _, _, _}] ->
             uncalled(Pid),
-            died(Pid, Site, ExitReason),
-            Down = {'Down', Pid, reason(ExitReason), Site},
+            Ended = ended_with_program(Pid, ExitReason),
+            died(Pid, Site, Ended),
+            Down = {'Down', Pid, reason(Ended), Site},
             lists:foreach(fun({Caller, {raw, Tag}}) -> Caller ! {Tag, Site, ExitReason};
                              ({Caller, Wrap}) -> wrapped(Caller, Wrap, Down)
                           end, maps:get(Pid, Monitors, []));
@@ -566,6 +567,23 @@ delivered_down(Pid, ExitReason, #reaper{monitors = Monitors, monitor_refs = Moni
             lists:foreach(fun({Caller, Wrap}) -> wrapped(Caller, Wrap, Down) end,
                           maps:get(Pid, Monitors, [])),
             is_map_key(Pid, MonitorRefs) andalso source_end()
+    end.
+
+%% Report §8.6: once the entry process has died the program is ending, and
+%% a process that faults then, at what the ending ended, dies with the
+%% reason ProgramEnd as every live process does, its fault not reported. A
+%% fault the entry's end causes comes after that end, so the entry found
+%% dead here is the program's end, whatever order the two signals came in.
+%% The entry process's own end is its own.
+ended_with_program(Pid, ExitReason) ->
+    case {reason(ExitReason), ets:lookup(?LAUNCH, entry_process)} of
+        {{'Fault', _}, [{_, Entry}]} when Entry =/= Pid ->
+            case erlang:is_process_alive(Entry) of
+                true -> ExitReason;
+                false -> {ern, program_end}
+            end;
+        _ ->
+            ExitReason
     end.
 
 %% Report §8.6, §11.2: a deadlock is the entry process's fault, or under
@@ -1636,6 +1654,8 @@ entry_outcome(EntryPoint, Site, Options, Launch) ->
     Stdlib = stdlib_modules(),
     Init = maps:get(init, Options, fun() -> ok end),
     Entry = fun() ->
+                %% report §8.6: the reaper asks whether it has died
+                ets:insert(?LAUNCH, {entry_process, erlang:self()}),
                 run_inits(Stdlib),
                 Init(),
                 initializing(Site),

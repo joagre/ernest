@@ -169,16 +169,16 @@ and its measurement does not hold the release.
    went from 52 ms to 2.1 ms, 1.6 times the host's; a regression test holds the fastest of
    five exits reported under 25 ms.
 
-10. **A fault at the program's end, reported** (found 2026-10-05, in a full `make test`
-   under load): when `examples/shout.ern`'s `main` returns, its listener dies with it, its
-   owner, and the accepting process's `accept`, waiting on the listener, can fault with
-   `callee had ended` and be reported before the program's end stops every process, so the
-   example printed a fault line it does not have. A fault the entry process's end causes
-   is part of the program's end (§8.6), and the shape of the fix is the runtime's: once
-   the entry process has ended, a fault is not reported, every process ending with the
-   program; a sentence of §8.6 first if it says less, and a regression test that ends a
-   program under a waiting `accept`.
-
+10. **A fault at the program's end, not reported**, done 2026-10-05 (found in a full `make
+    test` under load; the log's *A Fault at the Program's End*): when
+    `examples/shout.ern`'s `main` returned, its listener died with it, its owner, and the
+    accepting process's `accept` could fault with `callee had ended` and be reported
+    before the program's end stopped every process. §8.6 now says it: a process that
+    faults once the entry process has died, at what the program's end ended, dies with the
+    reason `ProgramEnd` too, and is not reported, and §11.2's reporting says until when.
+    The reaper asks whether the entry process has died as it handles a fault, which holds
+    whatever order the two signals come in. A regression test ends a program five times
+    under a hundred waiting accepts; it failed three runs in three before the change.
 11. **The shell's `live_region` test, unmet once** (2026-10-05, in a full `make test` under
    load): its terminal script found an expected line missing; run again alone it passed,
    and under `make test-shell` too. Undiagnosed: when it fails again, its step file in the

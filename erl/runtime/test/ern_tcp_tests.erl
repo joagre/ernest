@@ -557,6 +557,41 @@ sleep(Ms) ->
     timer:sleep(Ms),
     ern_rt:untimed().
 
+%% report §8.6: a process that faults once the entry process has died, at
+%% what the program's end ended, dies with the reason ProgramEnd as every
+%% live process does, and no fault of it is reported (§11.2). A regression
+%% test: an accept waiting on a listener its owner, the entry process,
+%% took with it as it returned, faulted with `callee had ended` and was
+%% reported before the program's end stopped it, as examples/shout.ern
+%% showed now and then. A hundred acceptors, in five runs, widen the old
+%% window until it is met; a fault the program's end did not cause, come
+%% in the same instant, is not covered
+fault_at_the_programs_end_not_reported_test_() ->
+    {timeout, 60, fun fault_at_the_programs_end_not_reported/0}.
+
+fault_at_the_programs_end_not_reported() ->
+    [program_ended_under_accepts() || _ <- lists:seq(1, 5)],
+    ?assertEqual([], reported([])).
+
+%% A program whose entry process returns while a hundred processes wait in
+%% an accept on its listeners.
+program_ended_under_accepts() ->
+    Self = self(),
+    Reporter = fun(Report) -> Self ! {reported, Report} end,
+    ok = ern_rt:run_main(
+           fun() ->
+               [begin
+                    {'Right', Listener} = listen(0),
+                    ern_rt:spawn(fun() -> accept(Listener, 60000) end, <<"acceptor">>)
+                end || _ <- lists:seq(1, 100)],
+               %% each acceptor waits in its accept before main returns
+               ern_rt:in_foreign(fun() -> timer:sleep(200) end)
+           end, <<"main">>, #{faults => Reporter}).
+
+%% The fault reports a run gave, in order.
+reported(Acc) ->
+    receive {reported, Report} -> reported([Report | Acc]) after 0 -> lists:reverse(Acc) end.
+
 listen(Port) ->
     listen(<<"127.0.0.1">>, Port).
 
