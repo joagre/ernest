@@ -1,34 +1,54 @@
-/// CommonMark 0.31, the specification at commonmark.org, read into blocks
-/// and inlines, and rendered as text for a terminal or as a manual page.
-/// `parse` reads the blocks a document is made of, headings, paragraphs,
-/// code blocks, block quotes, lists, and thematic breaks, and inside them
-/// code spans, emphasis, strong emphasis, links, images, and hard line
-/// breaks; `render` lays them out at a width, and `roff` writes them as a
-/// manual page in the roff of man(7). What it does not read is kept as
-/// written: an HTML block is a `Raw` block, and inline HTML, an entity, and
-/// a link by reference stay in the text. HTML blocks follow a simpler rule
-/// than the specification's: one begins with a comment, a declaration, a
-/// processing instruction or a CDATA section, whatever follows on the
-/// line, or with a tag alone on its line, which does not end a paragraph.
-/// A comment runs to the line that holds `-->`, a processing instruction
-/// to one that holds `?>`, a CDATA section to one that holds `]]>`, and a
-/// declaration to one that holds `>`, its first line among them, and to
-/// the end where no line does; a tag runs to a blank line. Emphasis follows a
-/// simpler rule than the specification's: a mark opens before a character
-/// other than a space and closes after one, the nearest run of as many
-/// marks closes it, and a run of three or more is text. A tab in a line's
-/// indentation, quote marks and list markers reaches to the next multiple
-/// of four columns, and one elsewhere is kept, in a code block's content as
-/// in text. A line may end in a line feed, a carriage return and a line
-/// feed, or a carriage return. A program puts the library on its load
-/// path, when it is compiled and when it is run.
+/// Markdown documents, read and laid out as text for a terminal or as a manual
+/// page.
+///
+/// Use it to show a document a program holds. `parse` reads CommonMark 0.31
+/// text, the specification at commonmark.org, into blocks; `render` lays the
+/// blocks out as rows for a terminal, and `roff` writes them as a manual page.
+/// The shell's `:doc` shows documentation with `render`, and `ern doc` writes
+/// manual pages with `roff`.
+///
+/// A program that uses the library puts it on its load path, both when it is
+/// compiled and when it is run: `--load-path` with the directory of the
+/// compiled library, `lib/ernest/build/libs/markdown` under the prefix Ernest
+/// is installed in. It styles text with `libs/ansi`, which goes on the load
+/// path beside it (report Appendix G.2).
+///
+/// **What it reads.** `parse` reads headings, paragraphs, code blocks, block
+/// quotes, lists and thematic breaks, and inside them code spans, emphasis,
+/// strong emphasis, links, images and hard line breaks. An image is read as a
+/// `Link`. A line may end in a line feed, a carriage return and a line feed, or
+/// a carriage return.
+///
+/// **What it keeps as written.** An HTML block is a `Raw` block, and inline
+/// HTML, an entity and a link by reference stay in the text.
+///
+/// **Emphasis, more simply than CommonMark.** A mark opens before a character
+/// other than a space and closes after one, the nearest run of as many marks
+/// closes it, and a run of three or more is text.
+///
+/// **HTML blocks, more simply than CommonMark.** One begins with a comment, a
+/// declaration, a processing instruction or a CDATA section, whatever follows
+/// on the line, or with a tag alone on its line, which does not end a
+/// paragraph. A comment runs to the line that holds `-->`, a processing
+/// instruction to one that holds `?>`, a CDATA section to one that holds `]]>`,
+/// and a declaration to one that holds `>`, its first line among them, and each
+/// to the end where no line does. A tag runs to a blank line.
+///
+/// **Tabs.** A tab in a line's indentation, quote marks and list markers
+/// reaches to the next multiple of four columns. One elsewhere is kept, in a
+/// code block's content as in text.
 ///
 /// ## Examples
+///
+/// A heading and a paragraph rendered plain, 80 columns wide; plain text keeps
+/// emphasis between `*`s:
 ///
 /// ```ernest
 /// Markdown.render(Markdown.parse("# Title\n\nSome *words*."), 80, Markdown.Plain)
 /// // => ["Title", "", "Some *words*."]
 /// ```
+///
+/// A bullet list rendered plain:
 ///
 /// ```ernest
 /// Markdown.render(Markdown.parse("- one\n- two"), 80, Markdown.Plain)
@@ -89,8 +109,7 @@ export type Block =
   /// Lines that are not read, an HTML block's, kept as written.
   | Raw(List(String))
 
-/// How `render` writes a document: each span as it is written, or with
-/// the terminal's styles.
+/// How `render` writes a document: plain, or with the terminal's styles.
 ///
 /// ### Examples
 ///
@@ -137,7 +156,7 @@ type Font = Roman | Bold | Italic | BoldItalic
 // Reading the blocks
 //
 
-/// The blocks of the document, in order.
+/// The blocks of `text`, in order.
 ///
 /// ### Examples
 ///
@@ -873,18 +892,20 @@ fn autolink(chars : List(Char), acc : List(Char)) : Optional(#(Inline, List(Char
 // Rendering
 //
 
-/// The document as rows of text at most that many columns wide where a
-/// word allows, with the terminal's styles when the output is `Styled`. A
-/// heading is its text, bold with styles; a code block is indented four
-/// columns and never wrapped; a list item follows a bullet, or its number
-/// and a period, whichever delimiter it was written with; a block quote
-/// follows a bar; a thematic break is a line across the width; and a link
-/// is its text with its address after it. Emphasis is in italics, strong
-/// emphasis bold, and a code span cyan with styles, emphasis within
-/// emphasis and strong emphasis within a heading as the text around them;
-/// without styles a code span is between single backticks, emphasis
-/// between `*`s and strong emphasis between `**`s. Blocks are separated by
-/// an empty row.
+/// The document as rows of text at most `width` columns wide, where a word
+/// allows, with the terminal's styles where `output` is `Styled`. Blocks are
+/// separated by an empty row.
+///
+/// A heading is its text, bold with styles. A code block is indented four
+/// columns and never wrapped. A list item follows a bullet, or its number and a
+/// period, whatever delimiter it was written with. A block quote follows a bar,
+/// a thematic break is a line across the width, and a link is its text with its
+/// address after it.
+///
+/// With styles, emphasis is in italics, strong emphasis bold, and a code span
+/// cyan; emphasis within emphasis, and strong emphasis within a heading, are as
+/// the text around them. Without styles a code span is between single
+/// backticks, emphasis between `*`s and strong emphasis between `**`s.
 ///
 /// ### Examples
 ///
@@ -1116,20 +1137,23 @@ fn filled(pieces : List(String), width : Int, row : String, rows : List(String))
 // Manual pages
 //
 
-/// The document as a manual page in the roff of man(7), which groff and
-/// mandoc render, a line of the page's source each: the header and the
-/// NAME line from the `Manual`, the blocks before the first heading of level 1
-/// under DESCRIPTION, a heading of level 1 a section, one of level 2 a
-/// subsection, and a deeper one a paragraph in bold. Lines are filled to
-/// the left margin alone and no word is hyphenated, so that a name in the
-/// text is never spread or broken. A code span and strong
-/// emphasis are bold, emphasis is in italics, a code block is indented and
-/// not filled, a list item follows its bullet or its number, a block quote
-/// is indented, a thematic break is a row of asterisks, a link is its text
-/// with its address after it, and a `Raw` block is as written. Every
-/// character roff would change is written as roff's escape for it, so that
-/// code copied from the page is the code written, and the rest is UTF-8,
-/// which man-db and mandoc read.
+/// The document as a manual page in the roff of man(7), which groff and mandoc
+/// render, a line of the page's source in each element.
+///
+/// The header and the NAME line come from `manual`. The blocks before the first
+/// heading of level 1 go under DESCRIPTION; a heading of level 1 is a section,
+/// one of level 2 a subsection, and a deeper one a paragraph in bold. Lines are
+/// filled to the left margin alone and no word is hyphenated, so that a name in
+/// the text is never spread or broken.
+///
+/// A code span and strong emphasis are bold, and emphasis is in italics. A code
+/// block is indented and not filled, a list item follows its bullet or its
+/// number, a block quote is indented, a thematic break is a row of asterisks, a
+/// link is its text with its address after it, and a `Raw` block is as written.
+///
+/// Every character roff would change is written as roff's escape for it, so
+/// that code copied from the page is the code written. The rest is UTF-8, which
+/// man-db and mandoc read.
 ///
 /// ### Examples
 ///
@@ -1297,10 +1321,10 @@ fn escapedChar(char : Char) : String =
 // The first sentence
 //
 
-/// The first sentence of the document: the text of its first paragraph up
-/// to the first period a space follows outside emphasis, code spans, and
-/// links, or all of it where there is none, and nothing where the document
-/// has no paragraph.
+/// The first sentence of the document: the text of its first paragraph up to
+/// the first period a space follows, outside emphasis, code spans and links. It
+/// is the whole paragraph where there is no such period, and nothing where the
+/// document has no paragraph.
 ///
 /// ### Examples
 ///
