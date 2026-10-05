@@ -10,17 +10,22 @@ code spans, emphasis, strong emphasis, links, images, and hard line
 breaks; `render` lays them out at a width, and `roff` writes them as a
 manual page in the roff of man(7). What it does not read is kept as
 written: an HTML block is a `Raw` block, and inline HTML, an entity, and
-a link by reference stay in the text. An HTML block begins with a
-comment, a declaration, a processing instruction, or a tag alone on its
-line, and a tag alone does not end a paragraph. Emphasis follows a
+a link by reference stay in the text. HTML blocks follow a simpler rule
+than the specification's: one begins with a comment, a declaration, a
+processing instruction or a CDATA section, whatever follows on the
+line, or with a tag alone on its line, which does not end a paragraph.
+A comment runs to the line that holds `-->`, a processing instruction
+to one that holds `?>`, a CDATA section to one that holds `]]>`, and a
+declaration to one that holds `>`, its first line among them, and to
+the end where no line does; a tag runs to a blank line. Emphasis follows a
 simpler rule than the specification's: a mark opens before a character
 other than a space and closes after one, the nearest run of as many
 marks closes it, and a run of three or more is text. A tab in a line's
 indentation, quote marks and list markers reaches to the next multiple
 of four columns, and one elsewhere is kept, in a code block's content as
 in text. A line may end in a line feed, a carriage return and a line
-feed, or a carriage return. A program puts the library on its load path, when it is compiled
-and when it is run.
+feed, or a carriage return. A program puts the library on its load
+path, when it is compiled and when it is run.
 
 ## Examples
 
@@ -104,6 +109,8 @@ and the blocks of each item.
 type Output = Plain | Styled
 ```
 
+*Since 0.2.0.*
+
 How `render` writes a document: each span as it is written, or with
 the terminal's styles.
 
@@ -114,7 +121,8 @@ Markdown.render(Markdown.parse("Some *words*."), 80, Markdown.Plain)
 // => ["Some *words*."]
 ```
 
-- `Plain`: Emphasis, strong emphasis and code spans as they are written.
+- `Plain`: A code span between single backticks, emphasis between `*`s and
+strong emphasis between `**`s, whether the source wrote `*` or `_`.
 - `Styled`: Bold, italics and colour, in the terminal's escape sequences.
 
 ## Markdown.Manual
@@ -143,7 +151,7 @@ Markdown.Manual(name = "ern",
 ## Markdown.parse
 
 ```ernest
-Markdown.parse : (String) -> List(Block)
+Markdown.parse(text : String) : List(Block)
 ```
 
 The blocks of the document, in order.
@@ -158,18 +166,21 @@ Markdown.parse("## Usage\n\nRun `ern`")
 ## Markdown.render
 
 ```ernest
-Markdown.render : (List(Block), Int, Output) -> List(String)
+Markdown.render(blocks : List(Block), width : Int, output : Output) : List(String)
 ```
 
 The document as rows of text at most that many columns wide where a
 word allows, with the terminal's styles when the output is `Styled`. A
 heading is its text, bold with styles; a code block is indented four
 columns and never wrapped; a list item follows a bullet, or its number
-and a period whichever delimiter it was written with; a block quote
+and a period, whichever delimiter it was written with; a block quote
 follows a bar; a thematic break is a line across the width; and a link
 is its text with its address after it. Emphasis is in italics, strong
-emphasis bold, and a code span cyan with styles, and each is as
-written without them. Blocks are separated by an empty row.
+emphasis bold, and a code span cyan with styles, emphasis within
+emphasis and strong emphasis within a heading as the text around them;
+without styles a code span is between single backticks, emphasis
+between `*`s and strong emphasis between `**`s. Blocks are separated by
+an empty row.
 
 ### Examples
 
@@ -183,12 +194,12 @@ Markdown.render(Markdown.parse("A [link](https://example.org).\n\n    code"),
 ## Markdown.roff
 
 ```ernest
-Markdown.roff : (List(Block), Manual) -> List(String)
+Markdown.roff(blocks : List(Block), manual : Manual) : List(String)
 ```
 
 The document as a manual page in the roff of man(7), which groff and
 mandoc render, a line of the page's source each: the header and the
-NAME line from the page, the blocks before the first heading of level 1
+NAME line from the `Manual`, the blocks before the first heading of level 1
 under DESCRIPTION, a heading of level 1 a section, one of level 2 a
 subsection, and a deeper one a paragraph in bold. Lines are filled to
 the left margin alone and no word is hyphenated, so that a name in the
@@ -219,7 +230,7 @@ List.drop(Markdown.roff(Markdown.parse("Says *hello*."),
 ## Markdown.firstSentence
 
 ```ernest
-Markdown.firstSentence : (List(Block)) -> List(Inline)
+Markdown.firstSentence(blocks : List(Block)) : List(Inline)
 ```
 
 The first sentence of the document: the text of its first paragraph up
@@ -236,4 +247,4 @@ Markdown.firstSentence(Markdown.parse("# Title\n\nOne `a`. Two."))
 
 ---
 
-Generated by ern 0.2.0 from markdown.ern.
+Generated by ern 0.3.0 from markdown.ern.

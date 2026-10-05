@@ -25,7 +25,7 @@ Int.toString(Int.max(Int.abs(-7), 3))
 ## Int.+
 
 ```ernest
-Int.+ : (Int, Int) -> Int
+Int.+(left : Int, right : Int) : Int
 ```
 
 The sum.
@@ -33,7 +33,7 @@ The sum.
 ## Int.-
 
 ```ernest
-Int.- : (Int, Int) -> Int
+Int.-(left : Int, right : Int) : Int
 ```
 
 The difference.
@@ -41,7 +41,7 @@ The difference.
 ## Int.*
 
 ```ernest
-Int.* : (Int, Int) -> Int
+Int.*(left : Int, right : Int) : Int
 ```
 
 The product.
@@ -49,34 +49,34 @@ The product.
 ## Int./
 
 ```ernest
-Int./ : (Int, Int) -> Int
+Int./(dividend : Int, divisor : Int) : Int
 ```
 
 The quotient, truncated toward zero: `-7 / 3` is `-2`.
 
 ### Errors
 
-Faults with `Fault("division by zero")` when `b` is `0`; `Int.div` does not.
+Faults with `Fault("division by zero")` when `divisor` is `0`; `Int.div` does not.
 
 ## Int.%
 
 ```ernest
-Int.% : (Int, Int) -> Int
+Int.%(dividend : Int, divisor : Int) : Int
 ```
 
-The remainder of `/`, with the sign of `a`: `-7 % 3` is `-1`.
+The remainder of `/`, with the sign of `dividend`: `-7 % 3` is `-1`.
 
 ### Errors
 
-Faults with `Fault("division by zero")` when `b` is `0`; `Int.rem` does not.
+Faults with `Fault("division by zero")` when `divisor` is `0`; `Int.rem` does not.
 
 ## Int.negate
 
 ```ernest
-Int.negate : (Int) -> Int
+Int.negate(int : Int) : Int
 ```
 
-`-n`, which prefix `-` calls.
+`-int`, which prefix `-` calls.
 
 ### Examples
 
@@ -88,23 +88,25 @@ Int.negate(5)
 ## Int.div
 
 ```ernest
-Int.div : (Int, Int) -> Optional(Int)
+Int.div(dividend : Int, divisor : Int) : Optional(Int)
 ```
 
-`a / b`, truncated toward zero, or `None` when `b` is `0`.
+`dividend / divisor`, truncated toward zero, or `None` when `divisor` is
+`0`.
 
 ## Int.rem
 
 ```ernest
-Int.rem : (Int, Int) -> Optional(Int)
+Int.rem(dividend : Int, divisor : Int) : Optional(Int)
 ```
 
-`a % b`, the remainder with the sign of `a`, or `None` when `b` is `0`.
+`dividend % divisor`, the remainder with the sign of `dividend`, or
+`None` when `divisor` is `0`.
 
 ## Int.compare
 
 ```ernest
-Int.compare : (Int, Int) -> Ordering
+Int.compare(left : Int, right : Int) : Ordering
 ```
 
 The numeric order, which `<` and the other comparisons use.
@@ -119,7 +121,7 @@ Int.compare(1, 2)
 ## Int.abs
 
 ```ernest
-Int.abs : (Int) -> Int
+Int.abs(int : Int) : Int
 ```
 
 The magnitude.
@@ -127,7 +129,7 @@ The magnitude.
 ## Int.min
 
 ```ernest
-Int.min : (Int, Int) -> Int
+Int.min(left : Int, right : Int) : Int
 ```
 
 The smaller.
@@ -142,7 +144,7 @@ Int.min(1, 2)
 ## Int.max
 
 ```ernest
-Int.max : (Int, Int) -> Int
+Int.max(left : Int, right : Int) : Int
 ```
 
 The larger.
@@ -150,7 +152,7 @@ The larger.
 ## Int.bitAnd
 
 ```ernest
-Int.bitAnd : (Int, Int) -> Int
+Int.bitAnd(left : Int, right : Int) : Int
 ```
 
 Bitwise and, on the two's complement form.
@@ -165,7 +167,7 @@ Bitwise and, on the two's complement form.
 ## Int.bitOr
 
 ```ernest
-Int.bitOr : (Int, Int) -> Int
+Int.bitOr(left : Int, right : Int) : Int
 ```
 
 Bitwise or, on the two's complement form.
@@ -173,7 +175,7 @@ Bitwise or, on the two's complement form.
 ## Int.bitXor
 
 ```ernest
-Int.bitXor : (Int, Int) -> Int
+Int.bitXor(left : Int, right : Int) : Int
 ```
 
 Bitwise exclusive or, on the two's complement form.
@@ -181,19 +183,31 @@ Bitwise exclusive or, on the two's complement form.
 ## Int.bitNot
 
 ```ernest
-Int.bitNot : (Int) -> Int
+Int.bitNot(int : Int) : Int
 ```
 
-Bitwise complement, `-n - 1`.
+Bitwise complement, on the two's complement form.
+
+### Examples
+
+```ernest
+#(Int.bitNot(0), Int.bitNot(5))
+// => #(-1, -6)
+```
 
 ## Int.shiftLeft
 
 ```ernest
-Int.shiftLeft : (Int, Int) -> Int
+Int.shiftLeft(int : Int, count : Int) : Int
 ```
 
-`n` shifted left by `count` bits: `n` times two to the power `count`; a
-count below 0 is none (report §7.4).
+`int` shifted left by `count` bits: `int` times two to the power `count`; a
+count below 0 is none.
+
+### Errors
+
+A result beyond the host's integers faults the caller with
+`Fault("error:system_limit")`, a limit of the host met (report §7.4).
 
 ### Examples
 
@@ -205,17 +219,17 @@ count below 0 is none (report §7.4).
 ## Int.shiftRight
 
 ```ernest
-Int.shiftRight : (Int, Int) -> Int
+Int.shiftRight(int : Int, count : Int) : Int
 ```
 
-`n` shifted right by `count` bits, the sign kept: `n` divided by two to
+`int` shifted right by `count` bits, the sign kept: `int` divided by two to
 the power `count`, rounded toward negative infinity; a count below 0 is
 none.
 
 ## Int.toString
 
 ```ernest
-Int.toString : (Int) -> String
+Int.toString(int : Int) : String
 ```
 
 The decimal form, with a leading `-` when negative.
@@ -223,7 +237,7 @@ The decimal form, with a leading `-` when negative.
 ## Int.pow
 
 ```ernest
-Int.pow : (Int, Int) -> Optional(Int)
+Int.pow(base : Int, exponent : Int) : Optional(Int)
 ```
 
 `base` raised to `exponent`, exactly, or `None` when the exponent is
@@ -239,10 +253,10 @@ negative, since that is not an `Int`.
 ## Int.toStringBase
 
 ```ernest
-Int.toStringBase : (Int, Int) -> Optional(String)
+Int.toStringBase(int : Int, base : Int) : Optional(String)
 ```
 
-The digits of `n` in that base, 2 to 36, letters upper case, with a
+The digits of `int` in that base, 2 to 36, letters upper case, with a
 leading `-` when negative; `None` outside those bases.
 
 ### Examples
@@ -255,7 +269,7 @@ leading `-` when negative; `None` outside those bases.
 ## Int.toFloat
 
 ```ernest
-Int.toFloat : (Int) -> Float
+Int.toFloat(int : Int) : Float
 ```
 
 The nearest `Float`, ties to even.
@@ -274,4 +288,4 @@ Int.toFloat(7)
 
 ---
 
-Generated by ern 0.2.0 from int.ern.
+Generated by ern 0.3.0 from int.ern.

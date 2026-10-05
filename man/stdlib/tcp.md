@@ -28,7 +28,7 @@ and a connection to it, one message each way:
         Right(accepted) -> {
             let _ = match Tcp.read(accepted, 1000) {
                 Right(bytes) -> Tcp.write(accepted, bytes, 1000)
-              | Left(e) -> Left(e)
+              | Left(error) -> Left(error)
             };
             Tcp.close(accepted)
         }
@@ -36,10 +36,10 @@ and a connection to it, one message each way:
     });
     let client <- Tcp.connect("127.0.0.1", port, 1000);
     let _ <- Tcp.write(client, String.toUtf8("ping"), 1000);
-    let answer = Tcp.read(client, 1000);
+    let received = Tcp.read(client, 1000);
     Tcp.close(client);
     Tcp.closeListener(listener);
-    answer
+    received
 }
 ```
 
@@ -73,6 +73,8 @@ What a listener takes; a program uses `Tcp.accept`, `Tcp.port`, and
 abstract type SocketMsg
 ```
 
+*Since 0.2.0.*
+
 What a connected socket takes; a program uses `Tcp.read`, `Tcp.write`,
 `Tcp.close`, `Tcp.give`, `Tcp.remote`, and `Tcp.local` (report Appendix
 E.18).
@@ -101,7 +103,7 @@ Tcp.Endpoint(host = "127.0.0.1", port = 7000).port
 ## Tcp.listen
 
 ```ernest
-Tcp.listen : (String, Int) -> Either(Io.Error, Address(ListenerMsg)) with m+
+Tcp.listen(host : String, port : Int) : Either(Io.Error, Address(ListenerMsg)) with m+
 ```
 
 A listener on the port of the host's interface that the name or the
@@ -113,7 +115,7 @@ by the process that calls `listen`, and is killed when it dies.
 ## Tcp.port
 
 ```ernest
-Tcp.port : (Address(ListenerMsg)) -> Either(Io.Error, Int) with m+
+Tcp.port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) with m+
 ```
 
 The port the listener listens on.
@@ -138,7 +140,7 @@ On a listener that has ended, closed or killed, faults as
 ## Tcp.accept
 
 ```ernest
-Tcp.accept : (Address(ListenerMsg), Int) -> Either(Io.Error, Address(SocketMsg)) with m+
+Tcp.accept(listener : Address(ListenerMsg), ms : Int) : Either(Io.Error, Address(SocketMsg)) with m+
 ```
 
 The next connection to the listener, owned by the caller, or
@@ -155,16 +157,16 @@ On a listener that has ended, closed or killed, faults as
 ```ernest
 {
     let listener <- Tcp.listen("127.0.0.1", 0);
-    let answer = Tcp.accept(listener, 10);
+    let accepted = Tcp.accept(listener, 10);
     Tcp.closeListener(listener);
-    answer
+    accepted
 }
 ```
 
 ## Tcp.connect
 
 ```ernest
-Tcp.connect : (String, Int, Int) -> Either(Io.Error, Address(SocketMsg)) with m+
+Tcp.connect(host : String, port : Int, ms : Int) : Either(Io.Error, Address(SocketMsg)) with m+
 ```
 
 A connection to that host and port, owned by the caller, or
@@ -174,7 +176,7 @@ closed.
 ## Tcp.read
 
 ```ernest
-Tcp.read : (Address(SocketMsg), Int) -> Either(Io.Error, Bytes) with m+
+Tcp.read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) with m+
 ```
 
 What has arrived, at least one byte, or `Left(Io.Closed)` once the
@@ -189,28 +191,27 @@ On a socket that has ended, closed or killed, faults as
 ## Tcp.write
 
 ```ernest
-Tcp.write : (Address(SocketMsg), Bytes, Int) -> Either(Io.Error, Unit) with m+
+Tcp.write(socket : Address(SocketMsg), bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m+
 ```
 
 Writes the bytes to the socket, and answers `Right(Unit)` once the
 socket has taken them, waiting while the connection is behind, at most
 `ms` milliseconds. That the socket took them does not mean that the far
-end has them.
+end has them. It answers `Left(Io.Timeout)` when `ms` milliseconds pass
+first, which does not undo the write: the bytes may still be sent, after
+those written before. It answers `Left(Io.Closed)` once the connection
+has closed, from either end or by a failure, and `Left(Io.Other(text))`,
+the host's reason, when the host refuses the bytes for another.
 
 ### Errors
 
-Answers `Left(Timeout)` when `ms` milliseconds pass first, which does
-not undo the write: the bytes may still be sent, after those written
-before. Answers `Left(Closed)` once the connection has closed, from
-either end or by a failure, and `Left(Other(text))`, the host's reason,
-when the host refuses the bytes for another. A write to a socket that
-has been closed with `Tcp.close` faults as `Address.callForever` does on
-an ended process.
+On a socket that has ended, closed or killed, faults as
+`Address.callForever` does on an ended process.
 
 ## Tcp.close
 
 ```ernest
-Tcp.close : (Address(SocketMsg)) -> Unit with m+
+Tcp.close(socket : Address(SocketMsg)) : Unit with m+
 ```
 
 Closes the socket, which ends its process.
@@ -218,7 +219,7 @@ Closes the socket, which ends its process.
 ## Tcp.give
 
 ```ernest
-Tcp.give : (Address(SocketMsg), Process) -> Unit with m+
+Tcp.give(socket : Address(SocketMsg), owner : Process) : Unit with m+
 ```
 
 Makes the process the socket's owner, so that the socket is killed when
@@ -246,7 +247,7 @@ that has ended.
 ## Tcp.closeListener
 
 ```ernest
-Tcp.closeListener : (Address(ListenerMsg)) -> Unit with m+
+Tcp.closeListener(listener : Address(ListenerMsg)) : Unit with m+
 ```
 
 Stops the listener, which ends its process; an accept waiting on it
@@ -255,8 +256,10 @@ answers `Left(Io.Closed)`.
 ## Tcp.remote
 
 ```ernest
-Tcp.remote : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) with m+
+Tcp.remote(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) with m+
 ```
+
+*Since 0.2.0.*
 
 The connection's far end, or `Left(Io.Closed)` once the connection has
 closed.
@@ -276,7 +279,7 @@ On a socket that has ended, closed or killed, faults as
     let far = Tcp.remote(client);
     Tcp.close(client);
     Tcp.closeListener(listener);
-    Either.map(far, fn(e) = e.port == port)
+    Either.map(far, fn(endpoint) = endpoint.port == port)
 }
 // => Right(true)
 ```
@@ -284,7 +287,7 @@ On a socket that has ended, closed or killed, faults as
 ## Tcp.local
 
 ```ernest
-Tcp.local : (Address(SocketMsg)) -> Either(Io.Error, Endpoint) with m+
+Tcp.local(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) with m+
 ```
 
 The connection's near end, or `Left(Io.Closed)` once the connection has
@@ -305,11 +308,11 @@ On a socket that has ended, closed or killed, faults as
     let near = Tcp.local(client);
     Tcp.close(client);
     Tcp.closeListener(listener);
-    Either.map(near, fn(e) = e.host)
+    Either.map(near, fn(endpoint) = endpoint.host)
 }
 // => Right("127.0.0.1")
 ```
 
 ---
 
-Generated by ern 0.2.0 from tcp.ern.
+Generated by ern 0.3.0 from tcp.ern.

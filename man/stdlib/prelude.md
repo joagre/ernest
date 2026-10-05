@@ -302,7 +302,7 @@ the line of the spawn, `Counter.main:19` (report §6.9).
 ```ernest
 {
     let worker = spawn(fn() : Unit with Never = Unit);
-    monitor(worker, fn(d : Down) = d);
+    monitor(Process.fromAddress(worker), fn(d : Down) = d);
     receive { Down(reason = r, site = _) -> r }
 }
 ```
@@ -362,7 +362,7 @@ Path.name(Path("/tmp/a.txt"))
 ## self
 
 ```ernest
-self : () -> Address(m) with m
+self() : Address(m) with m
 ```
 
 The address of the calling process.
@@ -380,12 +380,12 @@ The address of the calling process.
 ## send
 
 ```ernest
-send : (Address(a), a) -> Unit with m
+send(address : Address(a), message : a) : Unit with m+
 ```
 
-Puts `v` in the mailbox of the process at `a`, and returns at once.
-Messages from one sender arrive in the order they were sent (report
-§6.4).
+Puts `message` in the mailbox of the process at `address`, and returns
+at once. Messages from one sender arrive in the order they were sent
+(report §6.4).
 
 ### Examples
 
@@ -396,7 +396,7 @@ send(self(), 42)
 ## spawn
 
 ```ernest
-spawn : (() -> Unit with n) -> Address(n) with m
+spawn(f : () -> Unit with n) : Address(n) with m+
 ```
 
 Starts a process on this node that runs `f`, and answers its address.
@@ -411,17 +411,12 @@ spawn(fn() = receive { n -> Io.println(Int.toString(n)) })
 ## spawnMonitored
 
 ```ernest
-spawnMonitored : (() -> Unit with n, (Down) -> m) -> Address(n) with m
+spawnMonitored(f : () -> Unit with n, wrap : (Down) -> m) : Address(n) with m
 ```
 
 Starts a process as `spawn` does, monitored by the caller from its
-start: `wrap(d)` is put in the caller's mailbox when it ends, with its
-reason, however soon that is (report §6.2, §6.9).
-
-### Errors
-
-`Fault("peer unreachable")` when the peer is unknown or cannot be
-reached.
+start: `wrap` of its `Down` is put in the caller's mailbox when it ends,
+with its reason, however soon that is (report §6.2, §6.9).
 
 ### Examples
 
@@ -432,12 +427,12 @@ spawnMonitored(fn() : Unit with Never = Unit, fn(d : Down) = d)
 ## via
 
 ```ernest
-via : (Address(b), (a) -> b) -> Address(a)
+via(target : Address(b), wrap : (a) -> b) : Address(a)
 ```
 
-An address that delivers what is sent to it to `target`, turned by `f`.
-It is not a process. A fault in `f` ends the process behind `target`,
-not the sender (report §6.5).
+An address that delivers what is sent to it to `target`, turned by
+`wrap`. It is not a process. A fault in `wrap` ends the process behind
+`target`, not the sender (report §6.5).
 
 ### Examples
 
@@ -451,13 +446,13 @@ not the sender (report §6.5).
 ## Address.call
 
 ```ernest
-Address.call : (Address(m), (Reply(a)) -> m, Int) -> Optional(a) with n
+Address.call(address : Address(m), request : (Reply(a)) -> m, ms : Int) : Optional(a) with n+
 ```
 
-Sends the request `mk(r)`, with a fresh reply `r`, and waits up to `ms`
-milliseconds for the answer: `Some` of it, or `None` when none came. An
-answer that comes late is dropped, and the recipient's work is not
-cancelled (report §6.6).
+Sends `request` of a fresh reply to the process at `address`, and waits
+up to `ms` milliseconds for the answer: `Some` of it, or `None` when
+none came. An answer that comes late is dropped, and the recipient's
+work is not cancelled (report §6.6).
 
 ### Examples
 
@@ -471,7 +466,7 @@ cancelled (report §6.6).
 ## Address.callForever
 
 ```ernest
-Address.callForever : (Address(m), (Reply(a)) -> m) -> a with n
+Address.callForever(address : Address(m), request : (Reply(a)) -> m) : a with n+
 ```
 
 As `Address.call`, but waits without a deadline and answers the answer
@@ -489,10 +484,10 @@ itself; if none comes, the caller waits for ever.
 ## answer
 
 ```ernest
-answer : (Reply(a), a) -> Unit with m
+answer(reply : Reply(a), value : a) : Unit with m+
 ```
 
-Puts `v` in the reply `r`, which consumes it. A second answer to one reply
+Puts `value` in `reply`, which consumes it. A second answer to one reply
 is dropped (report §6.6).
 
 ### Examples
@@ -504,7 +499,7 @@ spawn(fn() = receive { #(n, r) -> answer(r, n * 2) })
 ## restarting
 
 ```ernest
-restarting : (RestartLimit, () -> Unit with n) -> () -> Unit with n
+restarting(limit : RestartLimit, f : () -> Unit with n+) : () -> Unit with n+
 ```
 
 A function that runs `f()` and, when `f` faults, runs it again in the
@@ -528,31 +523,32 @@ spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() : Unit with Nev
 ## monitor
 
 ```ernest
-monitor : (Address(a), (Down) -> m) -> Unit with m
+monitor(process : Process, wrap : (Down) -> m) : Unit with m
 ```
 
-Puts `wrap(d)` in the caller's mailbox when the process at `a` ends, or at
-once, with the reason `Unknown`, if it has ended. Each call gives one
-message (report §6.9). A process one starts is watched from its start
-with `spawnMonitored`.
+Puts `wrap` of a `Down` in the caller's mailbox when `process` ends, or
+at once, with the reason `Unknown`, if it has ended. Each call gives one
+message (report §6.9). `Process.fromAddress` gives the process behind an
+address, and a process one starts is watched from its start with
+`spawnMonitored`.
 
 ### Examples
 
 ```ernest
 {
     let worker : Address(Int) = spawn(fn() = receive { _ -> Unit });
-    monitor(worker, fn(d : Down) = d)
+    monitor(Process.fromAddress(worker), fn(d : Down) = d)
 }
 ```
 
 ## kill
 
 ```ernest
-kill : (Address(a)) -> Unit with m
+kill(address : Address(a)) : Unit with m+
 ```
 
-Ends the process at `a`, which its monitors see as `Killed`. The process
-may run a little before it stops (report §6.9).
+Ends the process at `address`, which its monitors see as `Killed`. The
+process may run a little before it stops (report §6.9).
 
 ### Examples
 
@@ -563,17 +559,17 @@ kill(spawn(fn() = receive { _ -> Unit }))
 ## fault
 
 ```ernest
-fault : (String) -> a
+fault(cause : String) : a
 ```
 
-Ends the process with the cause given: it has every type, and nothing
+Ends the process with `cause`: it has every type, and nothing
 catches the fault (report §7.3, §7.4). It is for an invariant broken
 beyond recovery; a failure the caller can handle is an `Optional` or an
 `Either`. Code not written yet is `fault("todo: ...")`.
 
 ### Errors
 
-`Fault(text)`.
+`Fault(cause)`.
 
 ### Examples
 
@@ -583,4 +579,4 @@ fn(xs : List(Int)) : Int = match xs { x :: _ -> x | [] -> fault("never empty her
 
 ---
 
-Generated by ern 0.2.0 from the prelude, report §9.
+Generated by ern 0.3.0 from the prelude, report §9.

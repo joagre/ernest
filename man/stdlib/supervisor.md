@@ -4,7 +4,7 @@
 
 A supervisor restarts a group of processes, its children, together
 (report Appendix E.22). `group(strategy, limit)` is the function a
-supervisor runs and `child(sup, f)` the function a child runs. The
+supervisor runs and `child(supervisor, f)` the function a child runs. The
 caller spawns each, as it spawns what `restarting` answers, so a fault
 line names the binding that holds the process (report §6.9) and a
 service binding reaches it (report §6.5).
@@ -12,40 +12,35 @@ service binding reaches it (report §6.5).
 A child restarts in place after a fault, as `restarting` does, and the
 strategy says which of its siblings restart with it. A sibling runs on
 until it next waits and restarts there, keeping its address, its mailbox
-emptied as every restart empties it (report §6.9). A group whose
+emptied as every restart empties it (report §6.9). The child that
+faulted runs again once each of those siblings has restarted or ended,
+so that a call to it after its fault is answered by the group restarted
+whole. A group whose
 children fault more often than its limit allows faults. A supervisor
 that is itself a child restarts in place, and asks each of its own
 children to restart. When a supervisor dies, its children are killed
 after it, the last spawned first, each once the one before has ended, by
-a watcher the module spawns beside it; so `kill(sup)` stops a group. A
+a watcher the module spawns beside it; so `kill(supervisor)` stops a group. A
 child that must finish its work first is sent a message of its own
 protocol before, since a killed process runs nothing more.
-
-A child tells its supervisor when it joins, when it faults, and when it
-has restarted as it was asked, which is what a faulted sibling waits
-for. It tells of its fault through the watcher, which a restart of the
-supervisor in place does not end, so that the child waits on through
-that restart. The supervisor does not subscribe to `Process.faults`,
-which delivers every fault of the runtime where a supervisor needs its
-own children's.
 
 ## Examples
 
 A group of one, a child that answers, and the group stopped. The child's
 mailbox takes a bare `Reply(Int)`, so the call makes its message with
-`fn(r) = r`:
+`fn(reply) = reply`:
 
 ```ernest
 {
-    let sup =
+    let supervisor =
         spawn(Supervisor.group(Supervisor.OneForOne,
                                RestartLimit(restarts = 3, within = 5000)));
-    let echo = spawn(Supervisor.child(sup, fn() : Unit with Reply(Int) = receive {
-        r -> answer(r, 42)
+    let echo = spawn(Supervisor.child(supervisor, fn() : Unit with Reply(Int) = receive {
+        reply -> answer(reply, 42)
     }));
-    let n = Address.callForever(echo, fn(r) = r);
-    kill(sup);
-    n
+    let answered = Address.callForever(echo, fn(reply) = reply);
+    kill(supervisor);
+    answered
 }
 // => 42
 ```
@@ -77,18 +72,16 @@ Supervisor.RestForOne
 abstract type Msg
 ```
 
-What a supervisor takes: its children's joins, their faults as the
-watcher passes them on, their restarts, and the ends of the alarms it
-sets itself; only this module makes it.
+What a supervisor takes; only this module makes it.
 
 ### Examples
 
 ```ernest
 {
-    let sup : Address(Supervisor.Msg) =
+    let supervisor : Address(Supervisor.Msg) =
         spawn(Supervisor.group(Supervisor.OneForOne,
                                RestartLimit(restarts = 3, within = 5000)));
-    kill(sup)
+    kill(supervisor)
 }
 // => Unit
 ```
@@ -96,7 +89,7 @@ sets itself; only this module makes it.
 ## Supervisor.group
 
 ```ernest
-Supervisor.group : (Strategy, RestartLimit) -> (() -> Unit with Msg) with m+
+Supervisor.group(strategy : Strategy, limit : RestartLimit) : (() -> Unit with Msg) with m+
 ```
 
 The function a supervisor runs, which the caller spawns. It spawns the
@@ -123,27 +116,27 @@ spawn(Supervisor.group(Supervisor.OneForAll, RestartLimit(restarts = 5, within =
 ## Supervisor.child
 
 ```ernest
-Supervisor.child : (Address(Msg), () -> Unit with m+) -> (() -> Unit with m+)
+Supervisor.child(supervisor : Address(Msg), f : () -> Unit with m+) : () -> Unit with m+
 ```
 
-The function a child runs, which the caller spawns. It joins `sup`'s
+The function a child runs, which the caller spawns. It joins `supervisor`'s
 group, waiting until the supervisor has it, and runs `f`; after a fault
 it runs `f` again in place until the group gives up. A child that
 returns or is killed leaves the group.
 
 ### Errors
 
-`Fault("the supervisor has ended")` when `sup` has ended before the
+`Fault("the supervisor has ended")` when `supervisor` has ended before the
 child joins.
 
 ### Examples
 
 ```ernest
 {
-    let sup =
+    let supervisor =
         spawn(Supervisor.group(Supervisor.OneForOne,
                                RestartLimit(restarts = 3, within = 5000)));
-    spawn(Supervisor.child(sup, fn() : Unit with Int = receive {
+    spawn(Supervisor.child(supervisor, fn() : Unit with Int = receive {
         _ -> Unit
     }))
 }
@@ -151,4 +144,4 @@ child joins.
 
 ---
 
-Generated by ern 0.2.0 from supervisor.ern.
+Generated by ern 0.3.0 from supervisor.ern.

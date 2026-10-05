@@ -3,7 +3,7 @@
 *Since 0.1.0.*
 
 Operations on `Bytes`, a sequence of octets (report §3.1). A `Bytes` is
-not a container: its octets are reached through `toList`, each an `Int`
+a container read through `toList`, which gives its octets, each an `Int`
 from 0 to 255, and `<<...>>` builds and matches one at the bit level
 (report §5.11), so there is no constructor here. The primitive is
 `size`, the runtime's; the rest is written over it and with the bit
@@ -28,7 +28,7 @@ Bytes.fromList([104, 105])
 ## Bytes.<>
 
 ```ernest
-Bytes.<> : (Bytes, Bytes) -> Bytes
+Bytes.<>(left : Bytes, right : Bytes) : Bytes
 ```
 
 The octets of the first, then those of the second.
@@ -36,7 +36,7 @@ The octets of the first, then those of the second.
 ## Bytes.size
 
 ```ernest
-Bytes.size : (Bytes) -> Int
+Bytes.size(bytes : Bytes) : Int
 ```
 
 The number of octets.
@@ -51,7 +51,7 @@ The number of octets.
 ## Bytes.isEmpty
 
 ```ernest
-Bytes.isEmpty : (Bytes) -> Bool
+Bytes.isEmpty(bytes : Bytes) : Bool
 ```
 
 `true` for the empty `Bytes`.
@@ -59,7 +59,7 @@ Bytes.isEmpty : (Bytes) -> Bool
 ## Bytes.get
 
 ```ernest
-Bytes.get : (Bytes, Int) -> Optional(Int)
+Bytes.get(bytes : Bytes, index : Int) : Optional(Int)
 ```
 
 The octet at the index, counting from 0, or `None` beyond either end.
@@ -74,7 +74,7 @@ The octet at the index, counting from 0, or `None` beyond either end.
 ## Bytes.slice
 
 ```ernest
-Bytes.slice : (Bytes, Int, Int) -> Bytes
+Bytes.slice(bytes : Bytes, index : Int, count : Int) : Bytes
 ```
 
 The octets from the index, that many of them, clipped to what is there;
@@ -90,7 +90,7 @@ a negative index or count is 0.
 ## Bytes.toList
 
 ```ernest
-Bytes.toList : (Bytes) -> List(Int)
+Bytes.toList(bytes : Bytes) : List(Int)
 ```
 
 The octets, each from 0 to 255.
@@ -98,7 +98,7 @@ The octets, each from 0 to 255.
 ## Bytes.fromList
 
 ```ernest
-Bytes.fromList : (List(Int)) -> Optional(Bytes)
+Bytes.fromList(octets : List(Int)) : Optional(Bytes)
 ```
 
 The `Bytes` of those octets, or `None` when one is outside 0 to 255.
@@ -113,7 +113,7 @@ Bytes.fromList([256])
 ## Bytes.contains
 
 ```ernest
-Bytes.contains : (Bytes, Bytes) -> Bool
+Bytes.contains(bytes : Bytes, part : Bytes) : Bool
 ```
 
 `true` when the second occurs in the first; an empty second always does.
@@ -128,7 +128,7 @@ Bytes.contains : (Bytes, Bytes) -> Bool
 ## Bytes.indexOf
 
 ```ernest
-Bytes.indexOf : (Bytes, Bytes) -> Optional(Int)
+Bytes.indexOf(bytes : Bytes, part : Bytes) : Optional(Int)
 ```
 
 Where the second begins in the first, the first place it does, and
@@ -144,7 +144,7 @@ Where the second begins in the first, the first place it does, and
 ## Bytes.lastIndexOf
 
 ```ernest
-Bytes.lastIndexOf : (Bytes, Bytes) -> Optional(Int)
+Bytes.lastIndexOf(bytes : Bytes, part : Bytes) : Optional(Int)
 ```
 
 Where the second begins in the first, the last place it does, and
@@ -160,7 +160,7 @@ Where the second begins in the first, the last place it does, and
 ## Bytes.startsWith
 
 ```ernest
-Bytes.startsWith : (Bytes, Bytes) -> Bool
+Bytes.startsWith(bytes : Bytes, prefix : Bytes) : Bool
 ```
 
 `true` when the first begins with the second, and for an empty second.
@@ -175,7 +175,7 @@ Bytes.startsWith : (Bytes, Bytes) -> Bool
 ## Bytes.endsWith
 
 ```ernest
-Bytes.endsWith : (Bytes, Bytes) -> Bool
+Bytes.endsWith(bytes : Bytes, suffix : Bytes) : Bool
 ```
 
 `true` when the first ends with the second, and for an empty second.
@@ -190,7 +190,7 @@ Bytes.endsWith(<<1, 2, 3>>, <<3>>)
 ## Bytes.split
 
 ```ernest
-Bytes.split : (Bytes, Bytes) -> List(Bytes)
+Bytes.split(bytes : Bytes, separator : Bytes) : List(Bytes)
 ```
 
 The parts between the occurrences of the second, the empty parts
@@ -206,7 +206,7 @@ Bytes.split(<<1, 0, 0, 2>>, <<0>>)
 ## Bytes.replace
 
 ```ernest
-Bytes.replace : (Bytes, Bytes, Bytes) -> Bytes
+Bytes.replace(bytes : Bytes, old : Bytes, new : Bytes) : Bytes
 ```
 
 Every occurrence of the second replaced by the third, the first
@@ -222,7 +222,7 @@ Bytes.replace(<<1, 0, 2, 0>>, <<0>>, <<9, 9>>)
 ## Bytes.join
 
 ```ernest
-Bytes.join : (List(Bytes), Bytes) -> Bytes
+Bytes.join(parts : List(Bytes), separator : Bytes) : Bytes
 ```
 
 The parts with the second between them.
@@ -237,10 +237,10 @@ Bytes.join([<<1>>, <<2>>], <<0>>)
 ## Bytes.repeat
 
 ```ernest
-Bytes.repeat : (Bytes, Int) -> Bytes
+Bytes.repeat(bytes : Bytes, count : Int) : Bytes
 ```
 
-The octets `n` times; `n` below 0 gives the empty `Bytes`.
+The octets `count` times; `count` below 0 gives the empty `Bytes`.
 
 ### Examples
 
@@ -252,7 +252,7 @@ Bytes.repeat(<<1, 2>>, 2)
 ## Bytes.toHex
 
 ```ernest
-Bytes.toHex : (Bytes) -> String
+Bytes.toHex(bytes : Bytes) : String
 ```
 
 Each octet as two hexadecimal digits, with upper-case letters as
@@ -268,7 +268,7 @@ Bytes.toHex(<<0, 171, 255>>)
 ## Bytes.fromHex
 
 ```ernest
-Bytes.fromHex : (String) -> Optional(Bytes)
+Bytes.fromHex(text : String) : Optional(Bytes)
 ```
 
 The octets two hexadecimal digits write each, in either case, or `None`
@@ -283,4 +283,4 @@ for an odd number of digits or a character that is none.
 
 ---
 
-Generated by ern 0.2.0 from bytes.ern.
+Generated by ern 0.3.0 from bytes.ern.

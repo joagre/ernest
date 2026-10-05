@@ -15,6 +15,8 @@
 - [List](list.md)
 - [Map](map.md)
 - [Optional](optional.md)
+- [OrderedMap](ordered_map.md)
+- [OrderedSet](ordered_set.md)
 - [Os](os.md)
 - [Path](path.md)
 - [Process](process.md)

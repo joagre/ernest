@@ -47,14 +47,17 @@ type Error =
 Why an operation of a system module found no answer: `NotFound`, the
 file or the host is not there; `Denied`, access was refused; `Refused`
 and `Closed`, the connection was refused or has closed; `Timeout`, the
-time ran out; `NotATerminal`, standard input is not a terminal;
+time ran out; `NotATerminal`, the standard stream an operation needs is
+not a terminal, standard input for `Terminal.subscribe` and standard
+output, or a terminal with no rows or no columns, for `Terminal.size`;
 `NotAFile`, a path names something other than a regular file; `Exists`,
 a path names something where nothing may stand; `NotUtf8(bytes)`, text
 that is not UTF-8, a name or a link's target among them, its bytes
-carried; `Invalid`, an argument holds U+0000 or a port is out of range;
-and `Other(text)`, another reason as the host describes it, `"address
-already in use"`, or as the host writes it where it has no description
-(report Appendix E.1).
+carried; `Invalid`, an argument the host cannot take whole, one that
+holds U+0000, a port out of range, a mode with bits the host does not
+write, or a time it cannot hold; and `Other(text)`, another reason as
+the host describes it, `"address already in use"`, or as the host writes
+it where it has no description (report Appendix E.1).
 
 ### Examples
 
@@ -69,7 +72,7 @@ match Fs.read(Path("/no/such/file"), 1000) {
 ## Io.print
 
 ```ernest
-Io.print : (String) -> Unit with m+
+Io.print(text : String) : Unit with m+
 ```
 
 The string to standard output, as it is, without a line feed.
@@ -85,7 +88,7 @@ Io.println("and half")
 ## Io.println
 
 ```ernest
-Io.println : (String) -> Unit with m+
+Io.println(text : String) : Unit with m+
 ```
 
 The string to standard output, with a line feed after it.
@@ -93,7 +96,7 @@ The string to standard output, with a line feed after it.
 ## Io.printError
 
 ```ernest
-Io.printError : (String) -> Unit with m+
+Io.printError(text : String) : Unit with m+
 ```
 
 The string to standard error, as it is, without a line feed. Standard
@@ -111,7 +114,7 @@ Io.printlnError("open the file")
 ## Io.printlnError
 
 ```ernest
-Io.printlnError : (String) -> Unit with m+
+Io.printlnError(text : String) : Unit with m+
 ```
 
 The string to standard error, with a line feed after it.
@@ -119,14 +122,19 @@ The string to standard error, with a line feed after it.
 ## Io.readLine
 
 ```ernest
-Io.readLine : () -> Optional(String) with m+
+Io.readLine() : Optional(String) with m+
 ```
 
 The next line from standard input, without its line feed and without
 one carriage return before it, or `None` at end of input. A last line
-without a line feed is a line. Standard input is read as UTF-8, and a
-line that is not faults the caller. A program reads lines or
-subscribes to keys, not both (report §8.2).
+without a line feed is a line. Standard input is read as UTF-8. A
+program reads lines or subscribes to keys, not both (report §8.2).
+
+### Errors
+
+A line that is not UTF-8 faults the caller with `Fault("the standard
+input is not UTF-8")`, and a read after the program subscribed to the
+keys with `Fault("the terminal is already read as keys")` (report §7.4).
 
 ### Examples
 
@@ -137,12 +145,17 @@ Io.readLine()
 ## Io.read
 
 ```ernest
-Io.read : () -> Optional(Bytes) with m+
+Io.read() : Optional(Bytes) with m+
 ```
 
 What has arrived on standard input, at least one byte, or `None` at end
 of input. Lines and bytes are read from one stream, so a read takes up
 where the line before it stopped (report §8.2).
+
+### Errors
+
+A read after the program subscribed to the keys faults the caller with
+`Fault("the terminal is already read as keys")` (report §7.4).
 
 ### Examples
 
@@ -153,7 +166,7 @@ Io.read()
 ## Io.write
 
 ```ernest
-Io.write : (Bytes) -> Unit with m+
+Io.write(bytes : Bytes) : Unit with m+
 ```
 
 The bytes to standard output, as they are.
@@ -168,7 +181,7 @@ Io.write(<<104, 105, 10>>)
 ## Io.writeError
 
 ```ernest
-Io.writeError : (Bytes) -> Unit with m+
+Io.writeError(bytes : Bytes) : Unit with m+
 ```
 
 *Since 0.2.0.*
@@ -186,16 +199,17 @@ Io.writeError(<<104, 105, 10>>)
 ## Io.show
 
 ```ernest
-Io.show : (a) -> String
+Io.show(value : a!) : String needs a.show
 ```
 
 The value as Ernest writes it, by its type at the call: a value as its
 literal or construction is written, a named constructor's fields in
 declared order (report §3.5), an address as the process behind it,
-`<address 84>`, and a function as `<function>`. The type at the call is
-known whole, with no type variable in it, so that in a generic function
-`Io.show` at the function's type variable is a type error (report
-Appendix E.1). It is pure.
+`<address 84>`, and a function as `<function>`. It needs `a.show`, which
+a call at a known type supplies without writing it; in a generic
+function, `needs a.show` lets it write `a` and any type built from it,
+`List(a)` among them, and a type variable no requirement names is a type
+error (report §9.4, Appendix E.1). It is pure.
 
 ### Examples
 
@@ -207,14 +221,14 @@ Io.show(#('a', Some([1, 2]), <<104, 105>>))
 ## Io.debug
 
 ```ernest
-Io.debug : (a) -> a with m
+Io.debug(value : a!) : a! with m+ needs a.show
 ```
 
 The value printed as `Io.show` writes it, with a line feed, to
 standard error, and returned, so it wraps an expression where it
-stands: `let n = Io.debug(f(x))`. Its type at the call is known whole,
-as `Io.show`'s is.
+stands: `let n = Io.debug(f(x))`. It needs `a.show`, as `Io.show`
+does, and writes the same types.
 
 ---
 
-Generated by ern 0.2.0 from io.ern.
+Generated by ern 0.3.0 from io.ern.

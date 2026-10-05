@@ -3,17 +3,12 @@
 *Since 0.1.0.*
 
 Operations on `String`, a Unicode string (report §3.1). A `String` is
-not a container: its `Char`s are reached through `toList`. `size`,
+a container read through `toList`, which gives its `Char`s. `size`,
 `slice`, `indexOf`, `lastIndexOf`, `padStart`, and `padEnd` count and
 index in graphemes, extended grapheme clusters, each what a reader sees
 as one letter; `toList` and `fromList` are `Char`s, one scalar value
-each. The primitives are `size`, `graphemes`, `indexOf`, `lastIndexOf`,
-`slice`, and the private `drop`, the operations that need Unicode's
-tables, `trimStart`, `trimEnd`, `toLower`, and `toUpper`, and the
-conversions `toIntBase`, `toFloat`,
-`toList`, `fromList`, `toUtf8`, and `fromUtf8`, the runtime's; the rest
-is written over them, so every search matches whole graphemes (report
-Appendix E.0 rule 1).
+each. Every search matches whole graphemes, so
+`String.contains("e\u{301}", "e")` is `false` (report Appendix E.5).
 
 ## Examples
 
@@ -40,7 +35,7 @@ String.toInt("-12")
 ## String.<>
 
 ```ernest
-String.<> : (String, String) -> String
+String.<>(left : String, right : String) : String
 ```
 
 The first, then the second.
@@ -48,7 +43,7 @@ The first, then the second.
 ## String.size
 
 ```ernest
-String.size : (String) -> Int
+String.size(text : String) : Int
 ```
 
 The number of graphemes, extended grapheme clusters, which is neither
@@ -70,7 +65,7 @@ acute is one grapheme of two `Char`s.
 ## String.graphemes
 
 ```ernest
-String.graphemes : (String) -> List(String)
+String.graphemes(text : String) : List(String)
 ```
 
 The graphemes in order, each a `String`: what a reader sees as one
@@ -91,7 +86,7 @@ String.graphemes("a中!")
 ## String.isEmpty
 
 ```ernest
-String.isEmpty : (String) -> Bool
+String.isEmpty(text : String) : Bool
 ```
 
 `true` for the empty string.
@@ -99,7 +94,7 @@ String.isEmpty : (String) -> Bool
 ## String.compare
 
 ```ernest
-String.compare : (String, String) -> Ordering
+String.compare(left : String, right : String) : Ordering
 ```
 
 The order of the code points, which `<` and the other comparisons use.
@@ -114,7 +109,7 @@ String.compare("a", "b")
 ## String.contains
 
 ```ernest
-String.contains : (String, String) -> Bool
+String.contains(text : String, part : String) : Bool
 ```
 
 `true` when the second is somewhere in the first, as whole graphemes; an
@@ -135,7 +130,7 @@ String.contains("e\u{301}", "e")
 ## String.indexOf
 
 ```ernest
-String.indexOf : (String, String) -> Optional(Int)
+String.indexOf(text : String, part : String) : Optional(Int)
 ```
 
 Where the second begins in the first, and `None` where it is not
@@ -151,7 +146,7 @@ there. An empty second is at 0.
 ## String.lastIndexOf
 
 ```ernest
-String.lastIndexOf : (String, String) -> Optional(Int)
+String.lastIndexOf(text : String, part : String) : Optional(Int)
 ```
 
 Where the second begins last in the first, and `None` where it is not
@@ -167,7 +162,7 @@ there. An empty second is at the first's size.
 ## String.startsWith
 
 ```ernest
-String.startsWith : (String, String) -> Bool
+String.startsWith(text : String, prefix : String) : Bool
 ```
 
 `true` when the string begins with the second, as whole graphemes, and
@@ -183,7 +178,7 @@ for an empty second.
 ## String.endsWith
 
 ```ernest
-String.endsWith : (String, String) -> Bool
+String.endsWith(text : String, suffix : String) : Bool
 ```
 
 `true` when the string ends with the second, as whole graphemes, and for
@@ -192,7 +187,7 @@ an empty second.
 ## String.replace
 
 ```ernest
-String.replace : (String, String, String) -> String
+String.replace(text : String, old : String, new : String) : String
 ```
 
 Every occurrence of the second replaced by the third; an empty second
@@ -208,7 +203,7 @@ String.replace("a-b-c", "-", "+")
 ## String.slice
 
 ```ernest
-String.slice : (String, Int, Int) -> String
+String.slice(text : String, index : Int, count : Int) : String
 ```
 
 From the index, that many graphemes, clipped to what is there; a
@@ -225,7 +220,7 @@ empty string.
 ## String.padStart
 
 ```ernest
-String.padStart : (String, Int, String) -> String
+String.padStart(text : String, count : Int, pad : String) : String
 ```
 
 The pad's copies in front until the text has that many graphemes, the
@@ -248,7 +243,7 @@ String.size(String.padStart("ab", 4, "\u{301}"))
 ## String.padEnd
 
 ```ernest
-String.padEnd : (String, Int, String) -> String
+String.padEnd(text : String, count : Int, pad : String) : String
 ```
 
 The pad's copies at the end until the text has that many graphemes, as
@@ -257,10 +252,10 @@ The pad's copies at the end until the text has that many graphemes, as
 ## String.repeat
 
 ```ernest
-String.repeat : (String, Int) -> String
+String.repeat(text : String, count : Int) : String
 ```
 
-The string `n` times; `n` below 0 gives the empty string.
+The string `count` times; `count` below 0 gives the empty string.
 
 ### Examples
 
@@ -272,7 +267,7 @@ String.repeat("ab", 3)
 ## String.trim
 
 ```ernest
-String.trim : (String) -> String
+String.trim(text : String) : String
 ```
 
 Without leading and trailing whitespace: the graphemes whose first code
@@ -294,7 +289,7 @@ String.trim("\u{a0}a\u{3000}")
 ## String.trimStart
 
 ```ernest
-String.trimStart : (String) -> String
+String.trimStart(text : String) : String
 ```
 
 Without leading whitespace, as `trim` has it.
@@ -309,7 +304,7 @@ Without leading whitespace, as `trim` has it.
 ## String.trimEnd
 
 ```ernest
-String.trimEnd : (String) -> String
+String.trimEnd(text : String) : String
 ```
 
 Without trailing whitespace, as `trim` has it.
@@ -317,7 +312,7 @@ Without trailing whitespace, as `trim` has it.
 ## String.toLower
 
 ```ernest
-String.toLower : (String) -> String
+String.toLower(text : String) : String
 ```
 
 The lower-case form, by Unicode.
@@ -332,7 +327,7 @@ The lower-case form, by Unicode.
 ## String.toUpper
 
 ```ernest
-String.toUpper : (String) -> String
+String.toUpper(text : String) : String
 ```
 
 The upper-case form, by Unicode.
@@ -340,7 +335,7 @@ The upper-case form, by Unicode.
 ## String.lines
 
 ```ernest
-String.lines : (String) -> List(String)
+String.lines(text : String) : List(String)
 ```
 
 The lines, split at each line feed and at each carriage return with a
@@ -357,13 +352,15 @@ line, and `""` has no lines.
 ## String.words
 
 ```ernest
-String.words : (String) -> List(String)
+String.words(text : String) : List(String)
 ```
 
 *Since 0.2.0.*
 
-The words: the parts between runs of White_Space, the Unicode property
-`Char.isSpace` reads, none of them empty.
+The words: the parts between runs of whitespace, the graphemes whose
+first code point is White_Space, as `trim` judges them, none of the
+parts empty. A grapheme is never split, so a combining mark after a
+space goes with the space.
 
 ### Examples
 
@@ -372,10 +369,15 @@ The words: the parts between runs of White_Space, the Unicode property
 // => #(["one", "two", "three"], [])
 ```
 
+```ernest
+String.words("a \u{301}b")
+// => ["a", "b"]
+```
+
 ## String.split
 
 ```ernest
-String.split : (String, String) -> List(String)
+String.split(text : String, separator : String) : List(String)
 ```
 
 The parts between the occurrences of the second, the empty parts
@@ -391,7 +393,7 @@ String.split("a,,b", ",")
 ## String.join
 
 ```ernest
-String.join : (List(String), String) -> String
+String.join(parts : List(String), separator : String) : String
 ```
 
 The parts with the second between them.
@@ -406,7 +408,7 @@ String.join(["a", "b"], ", ")
 ## String.toInt
 
 ```ernest
-String.toInt : (String) -> Optional(Int)
+String.toInt(text : String) : Optional(Int)
 ```
 
 The digits 0 to 9 as an `Int`, with an optional leading `-`, or `None`
@@ -422,7 +424,7 @@ for anything else.
 ## String.toIntBase
 
 ```ernest
-String.toIntBase : (String, Int) -> Optional(Int)
+String.toIntBase(text : String, base : Int) : Optional(Int)
 ```
 
 The digits and letters in that base, 2 to 36, in either case, with an
@@ -439,7 +441,7 @@ it, and for a base outside those.
 ## String.toBool
 
 ```ernest
-String.toBool : (String) -> Optional(Bool)
+String.toBool(text : String) : Optional(Bool)
 ```
 
 `true` for `"true"` and `false` for `"false"`, or `None` for anything
@@ -455,7 +457,7 @@ else; the inverse of `Bool.toString`.
 ## String.toFloat
 
 ```ernest
-String.toFloat : (String) -> Optional(Float)
+String.toFloat(text : String) : Optional(Float)
 ```
 
 The float literal form of report §2.5 without `_`, with an optional
@@ -473,7 +475,7 @@ subnormal is the nearest `Float`, `0.0` among them.
 ## String.toList
 
 ```ernest
-String.toList : (String) -> List(Char)
+String.toList(text : String) : List(Char)
 ```
 
 The code points, in order.
@@ -488,7 +490,7 @@ String.fromList(List.filter(String.toList("a1b"), Char.isAlpha))
 ## String.fromList
 
 ```ernest
-String.fromList : (List(Char)) -> String
+String.fromList(chars : List(Char)) : String
 ```
 
 The string of those code points.
@@ -496,7 +498,7 @@ The string of those code points.
 ## String.toUtf8
 
 ```ernest
-String.toUtf8 : (String) -> Bytes
+String.toUtf8(text : String) : Bytes
 ```
 
 The UTF-8 octets of the string.
@@ -511,11 +513,11 @@ The UTF-8 octets of the string.
 ## String.fromUtf8
 
 ```ernest
-String.fromUtf8 : (Bytes) -> Optional(String)
+String.fromUtf8(bytes : Bytes) : Optional(String)
 ```
 
 The string those octets spell, or `None` when they are not UTF-8.
 
 ---
 
-Generated by ern 0.2.0 from string.ern.
+Generated by ern 0.3.0 from string.ern.

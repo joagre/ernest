@@ -28,7 +28,7 @@ Float.toString(Float.abs(-2.5) * 2.0)
 ## Float.+
 
 ```ernest
-Float.+ : (Float, Float) -> Float
+Float.+(left : Float, right : Float) : Float
 ```
 
 The sum, rounded to the nearest `Float`.
@@ -41,7 +41,7 @@ finite (report §3.1).
 ## Float.-
 
 ```ernest
-Float.- : (Float, Float) -> Float
+Float.-(left : Float, right : Float) : Float
 ```
 
 The difference, rounded to the nearest `Float`.
@@ -54,7 +54,7 @@ finite (report §3.1).
 ## Float.*
 
 ```ernest
-Float.* : (Float, Float) -> Float
+Float.*(left : Float, right : Float) : Float
 ```
 
 The product, rounded to the nearest `Float`.
@@ -67,7 +67,7 @@ finite (report §3.1).
 ## Float./
 
 ```ernest
-Float./ : (Float, Float) -> Float
+Float./(dividend : Float, divisor : Float) : Float
 ```
 
 The quotient, rounded to the nearest `Float`.
@@ -80,10 +80,10 @@ finite (report §3.1), which a divisor of `0.0` makes it.
 ## Float.negate
 
 ```ernest
-Float.negate : (Float) -> Float
+Float.negate(float : Float) : Float
 ```
 
-`-x`, which prefix `-` calls.
+`-float`, which prefix `-` calls.
 
 ### Examples
 
@@ -95,7 +95,7 @@ Float.negate(1.5)
 ## Float.compare
 
 ```ernest
-Float.compare : (Float, Float) -> Ordering
+Float.compare(left : Float, right : Float) : Ordering
 ```
 
 The numeric order, which `<` and the other comparisons use.
@@ -110,7 +110,7 @@ Float.compare(2.0, 1.0)
 ## Float.abs
 
 ```ernest
-Float.abs : (Float) -> Float
+Float.abs(float : Float) : Float
 ```
 
 The magnitude.
@@ -118,7 +118,7 @@ The magnitude.
 ## Float.min
 
 ```ernest
-Float.min : (Float, Float) -> Float
+Float.min(left : Float, right : Float) : Float
 ```
 
 The smaller.
@@ -133,7 +133,7 @@ The smaller.
 ## Float.max
 
 ```ernest
-Float.max : (Float, Float) -> Float
+Float.max(left : Float, right : Float) : Float
 ```
 
 The larger.
@@ -141,7 +141,7 @@ The larger.
 ## Float.toString
 
 ```ernest
-Float.toString : (Float) -> String
+Float.toString(float : Float) : String
 ```
 
 The shortest digits that read back as the same value, always with a
@@ -159,7 +159,7 @@ exponent, whose sign is written only when it is negative.
 ## Float.round
 
 ```ernest
-Float.round : (Float) -> Int
+Float.round(float : Float) : Int
 ```
 
 The nearest `Int`, ties to even.
@@ -167,7 +167,7 @@ The nearest `Int`, ties to even.
 ## Float.truncate
 
 ```ernest
-Float.truncate : (Float) -> Int
+Float.truncate(float : Float) : Int
 ```
 
 Toward zero, so `-2.7` gives `-2`.
@@ -182,23 +182,37 @@ Toward zero, so `-2.7` gives `-2`.
 ## Float.floor
 
 ```ernest
-Float.floor : (Float) -> Int
+Float.floor(float : Float) : Int
 ```
 
-The greatest `Int` not above `x`.
+The greatest `Int` not above `float`.
+
+### Examples
+
+```ernest
+#(Float.floor(2.7), Float.floor(-2.7))
+// => #(2, -3)
+```
 
 ## Float.ceil
 
 ```ernest
-Float.ceil : (Float) -> Int
+Float.ceil(float : Float) : Int
 ```
 
-The least `Int` not below `x`.
+The least `Int` not below `float`.
+
+### Examples
+
+```ernest
+#(Float.ceil(2.2), Float.ceil(-2.2))
+// => #(3, -2)
+```
 
 ## Float.sqrt
 
 ```ernest
-Float.sqrt : (Float) -> Optional(Float)
+Float.sqrt(float : Float) : Optional(Float)
 ```
 
 The square root, or `None` below zero.
@@ -213,7 +227,7 @@ The square root, or `None` below zero.
 ## Float.pow
 
 ```ernest
-Float.pow : (Float, Float) -> Optional(Float)
+Float.pow(base : Float, exponent : Float) : Optional(Float)
 ```
 
 `base` raised to `exponent`, or `None` where no real number is: a
@@ -234,10 +248,10 @@ large to be finite, as `Float.exp` does (report §3.1).
 ## Float.exp
 
 ```ernest
-Float.exp : (Float) -> Float
+Float.exp(float : Float) : Float
 ```
 
-`e` raised to `x`.
+`e` raised to the power `float`.
 
 ### Errors
 
@@ -254,7 +268,7 @@ Float.exp(0.0)
 ## Float.log
 
 ```ernest
-Float.log : (Float) -> Optional(Float)
+Float.log(float : Float) : Optional(Float)
 ```
 
 The natural logarithm, or `None` at zero and below.
@@ -287,7 +301,7 @@ Float.cos(Float.pi)
 ## Float.sin
 
 ```ernest
-Float.sin : (Float) -> Float
+Float.sin(float : Float) : Float
 ```
 
 The sine of an angle in radians, as the other trigonometric functions
@@ -303,7 +317,7 @@ take and give.
 ## Float.cos
 
 ```ernest
-Float.cos : (Float) -> Float
+Float.cos(float : Float) : Float
 ```
 
 The cosine.
@@ -311,7 +325,7 @@ The cosine.
 ## Float.tan
 
 ```ernest
-Float.tan : (Float) -> Float
+Float.tan(float : Float) : Float
 ```
 
 The tangent.
@@ -319,10 +333,10 @@ The tangent.
 ## Float.asin
 
 ```ernest
-Float.asin : (Float) -> Optional(Float)
+Float.asin(float : Float) : Optional(Float)
 ```
 
-The angle whose sine is `x`, or `None` outside -1.0 to 1.0.
+The angle whose sine is `float`, or `None` outside -1.0 to 1.0.
 
 ### Examples
 
@@ -334,18 +348,18 @@ The angle whose sine is `x`, or `None` outside -1.0 to 1.0.
 ## Float.acos
 
 ```ernest
-Float.acos : (Float) -> Optional(Float)
+Float.acos(float : Float) : Optional(Float)
 ```
 
-The angle whose cosine is `x`, or `None` outside -1.0 to 1.0.
+The angle whose cosine is `float`, or `None` outside -1.0 to 1.0.
 
 ## Float.atan
 
 ```ernest
-Float.atan : (Float) -> Float
+Float.atan(float : Float) : Float
 ```
 
-The angle whose tangent is `x`.
+The angle whose tangent is `float`.
 
 ### Examples
 
@@ -357,7 +371,7 @@ Float.atan(0.0)
 ## Float.atan2
 
 ```ernest
-Float.atan2 : (Float, Float) -> Float
+Float.atan2(y : Float, x : Float) : Float
 ```
 
 The angle of the point `#(x, y)`, the `y` given first, which keeps the
@@ -372,4 +386,4 @@ Float.atan2(0.0, 1.0)
 
 ---
 
-Generated by ern 0.2.0 from float.ern.
+Generated by ern 0.3.0 from float.ern.

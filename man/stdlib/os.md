@@ -17,7 +17,7 @@ as it is: no shell stands between, and a program that wants one runs
 
 ```ernest
 Either.map(Os.run(Os.Command(program = "sh", arguments = ["-c", "exit 3"], input = <<>>), 5000),
-           fn(f) = f.status)
+           fn(finished) = finished.status)
 // => Right(3)
 ```
 
@@ -84,8 +84,8 @@ Os.Finished(status = 0, stdout = <<>>, stderr = <<>>).status
 abstract type ProgramMsg
 ```
 
-What a running program takes; a program uses `Os.read`, `Os.write`, and
-`Os.closeInput` (report Appendix E.23).
+What a running program takes; a program uses `Os.read`, `Os.write`,
+`Os.closeInput`, and `Os.give` (report Appendix E.23).
 
 ### Examples
 
@@ -115,8 +115,10 @@ match Os.arguments {
 ## Os.environment
 
 ```ernest
-Os.environment : (String) -> Optional(String)
+Os.environment(name : String) : Optional(String)
 ```
+
+*Since 0.2.0.*
 
 The value of the program's environment variable of that name, or `None`
 where the host has none. The environment is read once, when the program
@@ -131,6 +133,24 @@ variable n is not UTF-8")`, `n` its name.
 
 ```ernest
 Os.environment("HOME")
+```
+
+## Os.user
+
+```ernest
+Os.user : Int
+```
+
+*Since 0.3.0.*
+
+The host's number for the user the program runs as, bound when the
+program starts. An entry of `Fs` names the user a file belongs to by
+the same number (report Appendix E.17).
+
+### Examples
+
+```ernest
+Either.map(Fs.stat(Os.workingDirectory, 5000), fn(entry) = entry.user == Os.user)
 ```
 
 ## Os.workingDirectory
@@ -153,7 +173,7 @@ Os.workingDirectory <> Path("notes.txt")
 ## Os.exit
 
 ```ernest
-Os.exit : (Int) -> a with m
+Os.exit(status : Int) : a with m+
 ```
 
 Ends the program with that exit status, as the end of its entry process
@@ -181,7 +201,7 @@ match Os.arguments {
 ## Os.start
 
 ```ernest
-Os.start : (Command) -> Either(Io.Error, Address(ProgramMsg)) with m+
+Os.start(command : Command) : Either(Io.Error, Address(ProgramMsg)) with m+
 ```
 
 Starts the program and answers its address. The program reads `input`,
@@ -195,8 +215,12 @@ alarm and `kill`. It answers `Left(NotFound)` when the program is not
 found, `Left(Denied)` when it may not be run, `Left(Invalid)` for a
 name or an argument no program could be given, and `Left(Other(text))`,
 the host's reason, when it cannot start for another.
+
+### Errors
+
 Where the runtime's helper fails, the caller faults with `Fault("the
-runtime's helper ern_exec failed")`, the runtime's own failure.
+runtime's helper ern_exec failed")`, the runtime's own failure (report
+§7.4).
 
 ### Examples
 
@@ -213,7 +237,7 @@ runtime's helper ern_exec failed")`, the runtime's own failure.
 ## Os.read
 
 ```ernest
-Os.read : (Address(ProgramMsg), Int) -> Either(Io.Error, Output) with m+
+Os.read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Output) with m+
 ```
 
 The next piece of what the program wrote, to its standard output or to
@@ -249,7 +273,7 @@ A read after the program's process has ended faults as
 ## Os.write
 
 ```ernest
-Os.write : (Address(ProgramMsg), Bytes, Int) -> Either(Io.Error, Unit) with m+
+Os.write(program : Address(ProgramMsg), bytes : Bytes, ms : Int) : Either(Io.Error, Unit) with m+
 ```
 
 Gives the bytes to the program as its input, after what it was given
@@ -282,7 +306,7 @@ faults as `Address.callForever` does.
 ## Os.closeInput
 
 ```ernest
-Os.closeInput : (Address(ProgramMsg)) -> Unit with m+
+Os.closeInput(program : Address(ProgramMsg)) : Unit with m+
 ```
 
 Ends the program's input once what it was given before is written.
@@ -293,7 +317,7 @@ Ends the program's input once what it was given before is written.
 {
     let wc <- Os.start(Os.Command(program = "wc", arguments = ["-c"], input = <<1, 2>>));
     Os.closeInput(wc);
-    Either.map(Os.read(wc, 5000), fn(o) = match o {
+    Either.map(Os.read(wc, 5000), fn(output) = match output {
         Os.Stdout(bytes) -> String.trim(Optional.withDefault(String.fromUtf8(bytes), ""))
       | _ -> ""
     })
@@ -304,7 +328,7 @@ Ends the program's input once what it was given before is written.
 ## Os.give
 
 ```ernest
-Os.give : (Address(ProgramMsg), Process) -> Unit with m+
+Os.give(program : Address(ProgramMsg), owner : Process) : Unit with m+
 ```
 
 *Since 0.2.0.*
@@ -330,7 +354,7 @@ owner dies, and at once where the process has ended (report §6.9).
 ## Os.run
 
 ```ernest
-Os.run : (Command, Int) -> Either(Io.Error, Finished) with m+
+Os.run(command : Command, ms : Int) : Either(Io.Error, Finished) with m+
 ```
 
 Runs the program to its end: starts it, ends its input after `input`,
@@ -341,15 +365,20 @@ output and to its standard error, or why it did not run to its end, as
 `Left(Invalid)`, `Left(Other(text))`, and `Left(Timeout)` when the
 milliseconds pass first, the program killed then.
 
+### Errors
+
+Where the runtime's helper fails, the caller faults, as `Os.start`'s
+does.
+
 ### Examples
 
 ```ernest
 Either.map(Os.run(Os.Command(program = "cat", arguments = [], input = String.toUtf8("hi")),
                   5000),
-           fn(f) = String.fromUtf8(f.stdout))
+           fn(finished) = String.fromUtf8(finished.stdout))
 // => Right(Some("hi"))
 ```
 
 ---
 
-Generated by ern 0.2.0 from os.ern.
+Generated by ern 0.3.0 from os.ern.

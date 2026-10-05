@@ -38,7 +38,7 @@ The set with no elements.
 ## Set.size
 
 ```ernest
-Set.size : (Set(a)) -> Int
+Set.size(set : Set(a=!)) : Int
 ```
 
 The number of elements.
@@ -53,7 +53,7 @@ The number of elements.
 ## Set.isEmpty
 
 ```ernest
-Set.isEmpty : (Set(a=!)) -> Bool
+Set.isEmpty(set : Set(a=!)) : Bool
 ```
 
 `true` for the set with no elements.
@@ -61,7 +61,7 @@ Set.isEmpty : (Set(a=!)) -> Bool
 ## Set.contains
 
 ```ernest
-Set.contains : (Set(a), a) -> Bool
+Set.contains(set : Set(a=!), element : a=!) : Bool
 ```
 
 `true` when the element is in the set.
@@ -69,7 +69,7 @@ Set.contains : (Set(a), a) -> Bool
 ## Set.put
 
 ```ernest
-Set.put : (Set(a), a) -> Set(a)
+Set.put(set : Set(a=!), element : a=!) : Set(a=!)
 ```
 
 The set with that element, which may already be there.
@@ -77,7 +77,7 @@ The set with that element, which may already be there.
 ## Set.remove
 
 ```ernest
-Set.remove : (Set(a), a) -> Set(a)
+Set.remove(set : Set(a=!), element : a=!) : Set(a=!)
 ```
 
 The set without that element, which need not be there.
@@ -92,7 +92,7 @@ Set.toList(Set.remove(Set.fromList([1, 2]), 2))
 ## Set.map
 
 ```ernest
-Set.map : (Set(a=!), (a=!) -> b=! with e) -> Set(b=!) with e
+Set.map(set : Set(a=!), f : (a=!) -> b=! with e) : Set(b=!) with e
 ```
 
 The function applied to each element; two elements it maps together
@@ -108,7 +108,7 @@ List.sort(Set.toList(Set.map(Set.fromList([1, 2]), fn(n) = n * 10)), Int.compare
 ## Set.filter
 
 ```ernest
-Set.filter : (Set(a=!), (a=!) -> Bool with e) -> Set(a=!) with e
+Set.filter(set : Set(a=!), keep : (a=!) -> Bool with e) : Set(a=!) with e
 ```
 
 The elements the predicate holds for.
@@ -123,7 +123,7 @@ Set.toList(Set.filter(Set.fromList([1, 2, 3]), fn(n) = n > 2))
 ## Set.filterMap
 
 ```ernest
-Set.filterMap : (Set(a=!), (a=!) -> Optional(b=!) with e) -> Set(b=!) with e
+Set.filterMap(set : Set(a=!), f : (a=!) -> Optional(b=!) with e) : Set(b=!) with e
 ```
 
 The values of the `Some` results.
@@ -138,7 +138,7 @@ Set.toList(Set.filterMap(Set.fromList(["1", "x"]), String.toInt))
 ## Set.foldLeft
 
 ```ernest
-Set.foldLeft : (Set(a=!), b, (b, a=!) -> b with e) -> b with e
+Set.foldLeft(set : Set(a=!), acc : b, step : (b, a=!) -> b with e) : b with e
 ```
 
 The accumulator after the function has seen each element, the
@@ -154,7 +154,7 @@ Set.foldLeft(Set.fromList([1, 2]), 0, Int.+)
 ## Set.foreach
 
 ```ernest
-Set.foreach : (Set(a=!), (a=!) -> Unit with e) -> Unit with e
+Set.foreach(set : Set(a=!), f : (a=!) -> Unit with e) : Unit with e
 ```
 
 The function applied to each element for its effect.
@@ -169,7 +169,7 @@ Set.foreach(Set.fromList(["a"]), Io.println)
 ## Set.any
 
 ```ernest
-Set.any : (Set(a=!), (a=!) -> Bool with e) -> Bool with e
+Set.any(set : Set(a=!), test : (a=!) -> Bool with e) : Bool with e
 ```
 
 `true` when the predicate holds for some element.
@@ -184,7 +184,7 @@ Set.any : (Set(a=!), (a=!) -> Bool with e) -> Bool with e
 ## Set.all
 
 ```ernest
-Set.all : (Set(a=!), (a=!) -> Bool with e) -> Bool with e
+Set.all(set : Set(a=!), test : (a=!) -> Bool with e) : Bool with e
 ```
 
 `true` when the predicate holds for every element, and for the set with
@@ -193,7 +193,7 @@ no elements.
 ## Set.find
 
 ```ernest
-Set.find : (Set(a=!), (a=!) -> Bool with e) -> Optional(a=!) with e
+Set.find(set : Set(a=!), test : (a=!) -> Bool with e) : Optional(a=!) with e
 ```
 
 Some element the predicate holds for.
@@ -208,7 +208,7 @@ Set.find(Set.fromList([1, 2]), fn(n) = n > 1)
 ## Set.fromList
 
 ```ernest
-Set.fromList : (List(a=!)) -> Set(a=!)
+Set.fromList(list : List(a=!)) : Set(a=!)
 ```
 
 The set of those elements, each once.
@@ -216,7 +216,7 @@ The set of those elements, each once.
 ## Set.toList
 
 ```ernest
-Set.toList : (Set(a)) -> List(a)
+Set.toList(set : Set(a=!)) : List(a=!)
 ```
 
 The elements, in unspecified order.
@@ -224,7 +224,7 @@ The elements, in unspecified order.
 ## Set.union
 
 ```ernest
-Set.union : (Set(a=!), Set(a=!)) -> Set(a=!)
+Set.union(set : Set(a=!), other : Set(a=!)) : Set(a=!)
 ```
 
 The elements of both.
@@ -239,7 +239,7 @@ List.sort(Set.toList(Set.union(Set.fromList([1]), Set.fromList([2]))), Int.compa
 ## Set.intersection
 
 ```ernest
-Set.intersection : (Set(a=!), Set(a=!)) -> Set(a=!)
+Set.intersection(set : Set(a=!), other : Set(a=!)) : Set(a=!)
 ```
 
 The elements in both.
@@ -254,7 +254,7 @@ Set.toList(Set.intersection(Set.fromList([1, 2]), Set.fromList([2, 3])))
 ## Set.difference
 
 ```ernest
-Set.difference : (Set(a=!), Set(a=!)) -> Set(a=!)
+Set.difference(set : Set(a=!), other : Set(a=!)) : Set(a=!)
 ```
 
 The elements of the first that are not in the second.
@@ -262,7 +262,7 @@ The elements of the first that are not in the second.
 ## Set.isSubset
 
 ```ernest
-Set.isSubset : (Set(a=!), Set(a=!)) -> Bool
+Set.isSubset(set : Set(a=!), other : Set(a=!)) : Bool
 ```
 
 `true` when every element of the first is in the second.
@@ -276,4 +276,4 @@ Set.isSubset(Set.fromList([1]), Set.fromList([1, 2]))
 
 ---
 
-Generated by ern 0.2.0 from set.ern.
+Generated by ern 0.3.0 from set.ern.

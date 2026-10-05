@@ -34,7 +34,7 @@ a string.
 ## List.<>
 
 ```ernest
-List.<> : (List(a), List(a)) -> List(a)
+List.<>(list : List(a), other : List(a)) : List(a)
 ```
 
 The elements of the first list, then those of the second.
@@ -49,7 +49,7 @@ The elements of the first list, then those of the second.
 ## List.size
 
 ```ernest
-List.size : (List(a!)) -> Int
+List.size(list : List(a!)) : Int
 ```
 
 The number of elements.
@@ -64,7 +64,7 @@ The number of elements.
 ## List.isEmpty
 
 ```ernest
-List.isEmpty : (List(a!)) -> Bool
+List.isEmpty(list : List(a!)) : Bool
 ```
 
 `true` for the empty list.
@@ -72,10 +72,10 @@ List.isEmpty : (List(a!)) -> Bool
 ## List.contains
 
 ```ernest
-List.contains : (List(a=!), a=!) -> Bool
+List.contains(list : List(a=!), element : a=!) : Bool
 ```
 
-`true` when some element equals `x`.
+`true` when some element of the list equals `element`.
 
 ### Examples
 
@@ -87,10 +87,10 @@ List.contains : (List(a=!), a=!) -> Bool
 ## List.get
 
 ```ernest
-List.get : (List(a!), Int) -> Optional(a!)
+List.get(list : List(a!), index : Int) : Optional(a!)
 ```
 
-The element at index `i`, counting from 0, or `None` beyond either end.
+The element at `index`, counting from 0, or `None` beyond either end.
 
 ### Examples
 
@@ -102,11 +102,11 @@ The element at index `i`, counting from 0, or `None` beyond either end.
 ## List.remove
 
 ```ernest
-List.remove : (List(a=!), a=!) -> List(a=!)
+List.remove(list : List(a=!), element : a=!) : List(a=!)
 ```
 
-The list without the first element that equals `x`, or the list itself
-when none does.
+The list without the first of its elements that equals `element`, or
+the list itself when none does.
 
 ### Examples
 
@@ -118,7 +118,7 @@ List.remove([1, 2, 1], 1)
 ## List.map
 
 ```ernest
-List.map : (List(a), (a) -> b with e) -> List(b) with e
+List.map(list : List(a), f : (a) -> b with e) : List(b) with e
 ```
 
 The function applied to each element, in order.
@@ -126,7 +126,7 @@ The function applied to each element, in order.
 ## List.filter
 
 ```ernest
-List.filter : (List(a!), (a!) -> Bool with e) -> List(a!) with e
+List.filter(list : List(a!), keep : (a!) -> Bool with e) : List(a!) with e
 ```
 
 The elements the predicate holds for, in order.
@@ -141,7 +141,7 @@ List.filter([1, 2, 3, 4], fn(n) = n > 2)
 ## List.filterMap
 
 ```ernest
-List.filterMap : (List(a), (a) -> Optional(b) with e) -> List(b) with e
+List.filterMap(list : List(a), f : (a) -> Optional(b) with e) : List(b) with e
 ```
 
 The values of the `Some` results, in order: mapping and filtering in one
@@ -157,7 +157,7 @@ List.filterMap(["1", "x", "3"], String.toInt)
 ## List.foldLeft
 
 ```ernest
-List.foldLeft : (List(a), b, (b, a) -> b with e) -> b with e
+List.foldLeft(list : List(a), acc : b, step : (b, a) -> b with e) : b with e
 ```
 
 The accumulator after the function has seen each element from the left,
@@ -166,7 +166,7 @@ the accumulator first.
 ## List.foldRight
 
 ```ernest
-List.foldRight : (List(a), b, (a, b) -> b with e) -> b with e
+List.foldRight(list : List(a), acc : b, step : (a, b) -> b with e) : b with e
 ```
 
 The accumulator after the function has seen each element from the
@@ -182,7 +182,7 @@ List.foldRight(["a", "b"], "", fn(s, acc) = s <> acc)
 ## List.foreach
 
 ```ernest
-List.foreach : (List(a), (a) -> Unit with e) -> Unit with e
+List.foreach(list : List(a), f : (a) -> Unit with e) : Unit with e
 ```
 
 The function applied to each element for its effect.
@@ -197,7 +197,7 @@ List.foreach([1, 2], fn(n) = Io.println(Int.toString(n)))
 ## List.any
 
 ```ernest
-List.any : (List(a!), (a!) -> Bool with e) -> Bool with e
+List.any(list : List(a!), test : (a!) -> Bool with e) : Bool with e
 ```
 
 `true` when the predicate holds for some element; it is not called after
@@ -213,7 +213,7 @@ the first that satisfies it.
 ## List.all
 
 ```ernest
-List.all : (List(a!), (a!) -> Bool with e) -> Bool with e
+List.all(list : List(a!), test : (a!) -> Bool with e) : Bool with e
 ```
 
 `true` when the predicate holds for every element, and for the empty
@@ -222,7 +222,7 @@ list; it is not called after the first that fails.
 ## List.find
 
 ```ernest
-List.find : (List(a!), (a!) -> Bool with e) -> Optional(a!) with e
+List.find(list : List(a!), test : (a!) -> Bool with e) : Optional(a!) with e
 ```
 
 The first element the predicate holds for.
@@ -237,7 +237,7 @@ List.find([1, 2, 3], fn(n) = n > 1)
 ## List.last
 
 ```ernest
-List.last : (List(a!)) -> Optional(a!)
+List.last(list : List(a!)) : Optional(a!)
 ```
 
 The last element.
@@ -253,11 +253,11 @@ let empty : List(Int) = [];
 ## List.take
 
 ```ernest
-List.take : (List(a!), Int) -> List(a!)
+List.take(list : List(a!), count : Int) : List(a!)
 ```
 
-The first `n` elements, or all of them when there are fewer; `n` below 0
-takes none.
+The first `count` elements, or all of them when there are fewer;
+`count` below 0 takes none.
 
 ### Examples
 
@@ -269,18 +269,18 @@ takes none.
 ## List.drop
 
 ```ernest
-List.drop : (List(a!), Int) -> List(a!)
+List.drop(list : List(a!), count : Int) : List(a!)
 ```
 
-All but the first `n` elements; `n` below 0 drops none.
+All but the first `count` elements; `count` below 0 drops none.
 
 ## List.dropLast
 
 ```ernest
-List.dropLast : (List(a!), Int) -> List(a!)
+List.dropLast(list : List(a!), count : Int) : List(a!)
 ```
 
-All but the last `n` elements; `n` below 0 drops none.
+All but the last `count` elements; `count` below 0 drops none.
 
 ### Examples
 
@@ -292,7 +292,7 @@ All but the last `n` elements; `n` below 0 drops none.
 ## List.span
 
 ```ernest
-List.span : (List(a!), (a!) -> Bool with e) -> #(List(a!), List(a!)) with e
+List.span(list : List(a!), test : (a!) -> Bool with e) : #(List(a!), List(a!)) with e
 ```
 
 The longest prefix the predicate holds for, and the rest.
@@ -307,7 +307,7 @@ List.span([1, 2, 3, 1], fn(n) = n < 3)
 ## List.partition
 
 ```ernest
-List.partition : (List(a!), (a!) -> Bool with e) -> #(List(a!), List(a!)) with e
+List.partition(list : List(a!), test : (a!) -> Bool with e) : #(List(a!), List(a!)) with e
 ```
 
 The elements the predicate holds for and those it does not, each in
@@ -323,7 +323,7 @@ List.partition([1, 2, 3, 4], fn(n) = n % 2 == 0)
 ## List.unique
 
 ```ernest
-List.unique : (List(a=!)) -> List(a=!)
+List.unique(list : List(a=!)) : List(a=!)
 ```
 
 The first occurrence of each element, in order.
@@ -338,7 +338,7 @@ List.unique([2, 1, 2, 3])
 ## List.indexed
 
 ```ernest
-List.indexed : (List(a)) -> List(#(Int, a))
+List.indexed(list : List(a)) : List(#(Int, a))
 ```
 
 Each element with its index, counting from 0.
@@ -353,10 +353,10 @@ List.indexed(["a", "b"])
 ## List.repeat
 
 ```ernest
-List.repeat : (a!, Int) -> List(a!)
+List.repeat(element : a!, count : Int) : List(a!)
 ```
 
-`n` copies of the value; `n` below 0 gives none.
+`count` copies of the value; `count` below 0 gives none.
 
 ### Examples
 
@@ -368,7 +368,7 @@ List.repeat("ha", 2)
 ## List.reverse
 
 ```ernest
-List.reverse : (List(a)) -> List(a)
+List.reverse(list : List(a)) : List(a)
 ```
 
 The elements in the opposite order.
@@ -383,7 +383,7 @@ List.reverse([1, 2, 3])
 ## List.sort
 
 ```ernest
-List.sort : (List(a!), (a!, a!) -> Ordering with e) -> List(a!) with e
+List.sort(list : List(a!), compare : (a!, a!) -> Ordering with e) : List(a!) with e
 ```
 
 The elements in the order `compare` gives, stable: two elements it calls
@@ -399,7 +399,7 @@ List.sort([3, 1, 2], Int.compare)
 ## List.zip
 
 ```ernest
-List.zip : (List(a!), List(b!)) -> List(#(a!, b!))
+List.zip(list : List(a!), other : List(b!)) : List(#(a!, b!))
 ```
 
 The pairs of elements at the same index, to the length of the shorter
@@ -415,7 +415,7 @@ List.zip([1, 2, 3], ["a", "b"])
 ## List.unzip
 
 ```ernest
-List.unzip : (List(#(a, b))) -> #(List(a), List(b))
+List.unzip(pairs : List(#(a, b))) : #(List(a), List(b))
 ```
 
 The first components and the second components, each in order.
@@ -430,7 +430,7 @@ List.unzip([#(1, "a"), #(2, "b")])
 ## List.flatMap
 
 ```ernest
-List.flatMap : (List(a), (a) -> List(b) with e) -> List(b) with e
+List.flatMap(list : List(a), f : (a) -> List(b) with e) : List(b) with e
 ```
 
 The lists the function gives, one after another.
@@ -445,7 +445,7 @@ List.flatMap([1, 2], fn(n) = [n, n * 10])
 ## List.range
 
 ```ernest
-List.range : (Int, Int) -> List(Int)
+List.range(first : Int, last : Int) : List(Int)
 ```
 
 The integers from the first to the second, both included; empty when the
@@ -461,7 +461,7 @@ first is greater.
 ## List.tryMap
 
 ```ernest
-List.tryMap : (List(a), (a) -> Either(e, b) with x) -> Either(e, List(b)) with x
+List.tryMap(list : List(a!), step : (a!) -> Either(e, b!) with x) : Either(e, List(b!)) with x
 ```
 
 The mapped elements, or the first `Left` the function gives, which ends
@@ -477,7 +477,7 @@ List.tryMap(["1", "x"], fn(s) = Either.fromOptional(String.toInt(s), s))
 ## List.tryFold
 
 ```ernest
-List.tryFold : (List(a), b, (b, a) -> Either(e, b) with x) -> Either(e, b) with x
+List.tryFold(list : List(a!), acc : b, step : (b, a!) -> Either(e, b) with x) : Either(e, b) with x
 ```
 
 The accumulator after the function has seen each element, or the first
@@ -492,4 +492,4 @@ List.tryFold([1, 2], 0, fn(acc, n) = if n > 1 then Left("big") else Right(acc + 
 
 ---
 
-Generated by ern 0.2.0 from list.ern.
+Generated by ern 0.3.0 from list.ern.
