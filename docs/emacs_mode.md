@@ -42,7 +42,7 @@ Eight tests under `emacs/test/`, which `make test-emacs` runs, or `make test-ema
 | `lint.el` | the mode byte-compiles and passes `checkdoc` without a warning |
 | `reindent.el` | every `.ern` source in the repository, which `ern format` has laid out, reindents unchanged |
 | `flatten.el` | the same sources, every line outside a string or a comment moved to column zero, reindent to what they were, so no line's place depends on the indentation it has |
-| `typing.el` | the same sources, cut every 25 lines (`STEP` sets it), keep every line above the cut |
+| `typing.el` | the same sources, cut every 25 lines (`STEP` sets it), keep every line above the cut, but one whose place is read from what follows the cut: a comment ending the cut, and the contents of a brace in a bracket's first item, which align with the bracket's items where a further item follows |
 | `broken.el` over `broken/` | each half-typed buffer, written to report §11.6's layout by hand, keeps its indentation, and a fresh line at its end takes the column a person expects |
 | `colour.el` | one check for each kind of face, and what must not be painted |
 | `editing.el` | `imenu`, declaration movement, the diagnostic regexp |
