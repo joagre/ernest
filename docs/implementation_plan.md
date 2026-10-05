@@ -135,7 +135,14 @@ and its measurement does not hold the release.
    and inode against the root's, as GNU `rm` refuses `/` by default, since a comparison of
    spellings would miss some (the log's *MVP 2.99d's Measurements, Sized*). Its test gives
    the file system process a remover that removes nothing, `run_main`'s `remove_tree`, and
-   holds that a scratch tree reaches it before any spelling of the root is sent.
+   holds that a scratch tree reaches it before any spelling of the root is sent. Left
+   open, found in the read-back: the check and the helper's walk resolve the path at two
+   moments, so a directory along the path that another process swaps for a link between
+   them, `/tmp/a/b` for a link to `/usr` under `/tmp/a/b/..`, can make the walk begin at
+   the root. The fix is the helper's own: the directory it opened compared with the root's
+   identity before it removes anything. No test can give the helper a root safely without
+   a root of the test's own, a chroot or a mount namespace, so whether it is built, and
+   how it is tested, is decided with the user.
 7. **The manual pages made to teach**, done 2026-10-05 and shipped as Ernest 0.3.1 (Appendix
    E.0 shape rule 6; the log's *The Manual Pages Teach*): the pages `ern doc` writes, the
    standard library's, the prelude's and the libraries', each rewritten to the form
