@@ -68,14 +68,24 @@ export fn join(segments : List(String)) : Path =
 fn written(segments : List(String)) : String =
     match segments {
         [] -> ""
-      | first :: rest -> if String.endsWith(first, separator()) then
+      | first :: rest -> if endsInSeparator(first) then
             first <> String.join(rest, separator())
         else
             String.join(segments, separator())
     }
 
+// Whether the text's last code point is the separator.
+fn endsInSeparator(text : String) : Bool =
+    !String.isEmpty(text) && String.isEmpty(lastPart(text, separator()))
+
 foreign fn separator() : String =
     "ern_path:separator/0"
+
+// Report Appendix E.14: the text between each occurrence of the mark, a
+// separator or a dot, empty parts kept, read by code points as the
+// runtime reads a path.
+foreign fn parts(text : String, mark : String) : List(String) =
+    "ern_path:parts/2"
 
 /// The path's segments, none of them empty. An absolute path's first segment is
 /// its root.
@@ -86,19 +96,14 @@ foreign fn separator() : String =
 /// Path.split(Path("/etc/hosts"))
 /// // => ["/", "etc", "hosts"]
 /// ```
-export fn split(path : Path) : List(String) = {
-    let text = toString(path);
-    let segmentsOf =
-        fn(part) =
-            List.filter(String.split(part, separator()), fn(segment) = !String.isEmpty(segment));
-    match String.indexOf(text, separator()) {
-        Some(index) when isAbsolute(path) -> {
-            let root = String.slice(text, 0, index + 1);
-            root :: segmentsOf(String.slice(text, index + 1, String.size(text)))
-        }
-      | _ -> segmentsOf(text)
+export fn split(path : Path) : List(String) =
+    match parts(toString(path), separator()) {
+        first :: rest when isAbsolute(path) -> (first <> separator()) :: withoutEmpty(rest)
+      | all -> withoutEmpty(all)
     }
-}
+
+fn withoutEmpty(segments : List(String)) : List(String) =
+    List.filter(segments, fn(segment) = !String.isEmpty(segment))
 
 /// The path without its last segment, or `None` for a bare name, which has no
 /// parent written, and for the root.
@@ -129,28 +134,38 @@ export fn parent(path : Path) : Optional(Path) =
 /// // => #(Some("b.txt"), None)
 /// ```
 export fn name(path : Path) : Optional(String) =
-    match split(path) {
-        [_] when isAbsolute(path) -> None
-      | segments -> List.last(segments)
+    match lastPart(toString(path), separator()) {
+        "" -> match split(path) {
+            [_] when isAbsolute(path) -> None
+          | segments -> List.last(segments)
+        }
+      | last -> Some(last)
     }
+
+// Report Appendix E.14: the text after the separator's last occurrence,
+// read from the text's end, or the whole text where there is none; empty
+// where the text ends in the separator.
+foreign fn lastPart(text : String, separator : String) : String =
+    "ern_path:last_part/2"
 
 /// What follows the last `.` of the path's name, without the dot, or `None`
 /// where the name has none. A dot that begins the name begins no extension, so
 /// `.bashrc`, `.` and `..` have none.
 export fn extension(path : Path) : Optional(String) = {
     let named <- name(path);
-    let bare = withoutLeadingDots(named);
-    match String.lastIndexOf(bare, ".") {
-        Some(index) -> Some(String.slice(bare, index + 1, String.size(bare)))
-      | None -> None
-    }
+    let #(_, found) = atLastDot(named);
+    found
 }
 
-fn withoutLeadingDots(named : String) : String =
-    if String.startsWith(named, ".") then
-        withoutLeadingDots(String.slice(named, 1, String.size(named)))
-    else
-        named
+// The name taken apart at its last dot, the dots that begin it beginning
+// none: the stem and the extension, or the name and `None`.
+fn atLastDot(named : String) : #(String, Optional(String)) = {
+    let #(leading, rest) = List.span(parts(named, "."), String.isEmpty);
+    match rest {
+        _ :: _ :: _ -> #(String.join(leading <> List.dropLast(rest, 1), "."), List.last(rest))
+      | _ -> #(named, None)
+    }
+}
 
 /// The path with `extension` in place of any it had, after a dot; an empty
 /// `extension` leaves the dot. The rest of the path stays as it was written.
@@ -184,25 +199,21 @@ export fn withExtension(path : Path, extension : String) : Path =
 export fn withoutExtension(path : Path) : Path =
     if List.contains([None, Some("."), Some("..")], name(path)) then path else extended(path, "")
 
-// The name's extension replaced by the suffix where the name ends, before
-// any separators after it.
+// The name's extension replaced by the suffix, the rest of the text as it
+// was written: the name is the last part between separators that is not
+// empty, and the parts are joined again as they were.
 fn extended(path : Path, suffix : String) : Path = {
-    let text = toString(path);
-    let trimmed = withoutTrailingSeparators(text);
-    let trailing = String.slice(text, String.size(trimmed), String.size(text));
-    let stem = match extension(path) {
-        Some(old) -> String.slice(trimmed, 0, String.size(trimmed) - String.size(old) - 1)
-      | None -> trimmed
-    };
-    Path(stem <> suffix <> trailing)
+    let reversed = List.reverse(parts(toString(path), separator()));
+    let #(trailing, before) = List.span(reversed, String.isEmpty);
+    match before {
+        named :: earlier -> {
+            let #(stem, _) = atLastDot(named);
+            let rebuilt = List.reverse(earlier) <> [stem <> suffix] <> trailing;
+            Path(String.join(rebuilt, separator()))
+        }
+      | [] -> path
+    }
 }
-
-fn withoutTrailingSeparators(text : String) : String =
-    if String.endsWith(text, separator()) then {
-        let kept = String.size(text) - String.size(separator());
-        withoutTrailingSeparators(String.slice(text, 0, kept))
-    } else
-        text
 
 /// `path` placed below `root`, or `None` where it could name something outside
 /// it: where `path` is absolute or empty, or has a `.` or `..` segment. Use it

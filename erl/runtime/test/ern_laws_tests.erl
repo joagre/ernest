@@ -698,7 +698,8 @@ either_from_optional({Value, Cause}) ->
 %%
 
 %% report Appendix E.14: a path's segments and back, its parent and its
-%% name, its extension replaced and removed, one path under another
+%% name, its extension replaced and removed, one path under another, each
+%% read by code points
 path_laws_test_() ->
     laws([{"join of split, one separator between the segments", fun path_text/1,
            fun path_join_split/1},
@@ -1186,19 +1187,26 @@ float_numeral(Size) ->
 %% A path in the runtime's syntax, a root or not, separators doubled and
 %% trailing, segments with dots.
 path_text(Size) ->
-    Segments = [pick(["a", "b.txt", ".rc", "c.d.e", "f.", "..", "."])
+    Segments = [pick(["a", "b.txt", ".rc", "c.d.e", "f.", "..", ".", marked()])
                 || _ <- lists:seq(1, rand:uniform(Size + 2))],
     Body = lists:append([[pick(["/", "/", "//"]), Segment] || Segment <- Segments]),
     Text = case rand:uniform(2) of
                1 -> Body;
                _ -> tl(Body)
            end,
-    iolist_to_binary([Text, pick(["", "", "/"])]).
+    unicode:characters_to_binary([Text, pick(["", "", "/"])]).
+
+%% Report Appendix E.14: a name where graphemes and code points part, a
+%% combining mark after a dot or at a name's start, which joins the
+%% separator before it, and a prepended mark at a name's end, which joins
+%% the separator after it.
+marked() ->
+    pick([[$a, $., 16#301], [16#301, $x], [$b, 16#600], [$., 16#301, $y]]).
 
 %% A path's segments as split gives them.
 segments(Size) ->
     Names = [pick([<<"a">>, <<"b.txt">>, <<".rc">>, <<"c.d.e">>, <<"f.">>, <<"..">>, <<".">>,
-                   <<"x.tar.gz">>])
+                   <<"x.tar.gz">>, unicode:characters_to_binary(marked())])
              || _ <- lists:seq(1, rand:uniform(Size + 1))],
     case rand:uniform(3) of
         1 -> [<<"/">> | Names];
@@ -1394,17 +1402,20 @@ normal_path(Text) ->
     iolist_to_binary([Root, lists:join(<<"/">>, Segments)]).
 
 %% A name's extension: after its last dot, the dots that begin it beginning
-%% none; the root has no name.
+%% none, read by bytes as the runtime reads a path; the root has no name.
 extension_model(<<"/">>) ->
     'None';
 extension_model(Name) ->
-    Rest = string:trim(Name, leading, "."),
+    Rest = without_leading_dots(Name),
     case binary:matches(Rest, <<".">>) of
         [] -> 'None';
         Dots ->
             {Offset, _} = lists:last(Dots),
             {'Some', binary:part(Rest, Offset + 1, byte_size(Rest) - Offset - 1)}
     end.
+
+without_leading_dots(<<".", Rest/binary>>) -> without_leading_dots(Rest);
+without_leading_dots(Name) -> Name.
 
 has_name(Name) ->
     not lists:member(Name, [<<"/">>, <<".">>, <<"..">>]).

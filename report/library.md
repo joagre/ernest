@@ -1,6 +1,6 @@
 # Ernest Report: The Standard Library
 
-Revision of 5 October 2026.
+Revision of 6 October 2026.
 
 This file holds the report's Appendices D, E and G. §0 to §10 and Appendices A, B and F are in [`language.md`](language.md), and §11 and Appendix C in [`toolchain.md`](toolchain.md). The three files are one report, and each is normative.
 
@@ -416,7 +416,7 @@ Random.nextFloat : (Seed) -> #(Float, Seed) // uniform above 0.0 and below 1.0, 
 
 ### Appendix E.14. `path.ern` (namespace `Path`)
 
-`Path` is `Path(String)`, §9.3, in the runtime's syntax. `Path.<>` is the prelude's, §9.6; this module provides it (§9). `<>` joins the segments of both, `split` then `join`: `Path("a//b") <> Path("c")` is `Path("a/b/c")`. An absolute second is the result, as it was written. The primitives are `isAbsolute` and `separator`, the host's separator, which is private to the module (E.0 rule 1); the rest is Ernest over `String`. `under` reads the path's text alone: a link under the root that leads out of it is the file system's (E.17).
+`Path` is `Path(String)`, §9.3, in the runtime's syntax. A path is read by its code points, as the runtime reads it, and not by graphemes: a separator or a `.` is one though a combining mark follows it, so `Path.name(Path("a/\u{301}b"))` is `Some("\u{301}b")`. `Path.<>` is the prelude's, §9.6; this module provides it (§9). `<>` joins the segments of both, `split` then `join`: `Path("a//b") <> Path("c")` is `Path("a/b/c")`. An absolute second is the result, as it was written. The primitives are `isAbsolute`, `separator`, the host's separator, `parts`, the text between each occurrence of a separator or a `.`, and `lastPart`, the text after the last separator, found from the text's end, the last three private to the module (E.0 rule 1); the rest is Ernest over them and `String`. `under` reads the path's text alone: a link under the root that leads out of it is the file system's (E.17).
 
 ```
 Path.join : (List(String)) -> Path // the segments as a path, the inverse of split: a root first stays a root, one separator between the others

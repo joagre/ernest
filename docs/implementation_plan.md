@@ -209,10 +209,12 @@ and its measurement does not hold the release.
     page (2026-10-05; the log's *String Stands on the Host*). E.5 keeps whole graphemes:
     the host's `find`, `split`, `replace` and `trim` match from inside a grapheme, which
     their page does not say, so the host's rule agreed for them that day is not taken, and
-    the report of the defect to OTP is the user's (`docs/otp_bugs.md`, report 4). `Path` stays Ernest, since the
-    `filename` pages state none of E.14's edge cases; its `name`, `extension` and `parent`
-    are rewritten to read the path's last segment from its end. Next: that, then `Bytes`,
-    `Map`, and the rest, module by module.
+    the report of the defect to OTP is the user's (`docs/otp_bugs.md`, report 4). `Path`
+    is read by code points, as the runtime reads it, which it was not (2026-10-06; E.14;
+    the log's *Path Read as the Runtime Reads It*), over two primitives of the path syntax,
+    since the `filename` pages state none of E.14's edge cases: `name` 0.3 to 0.7 times
+    `filename`'s, `extension` and `parent` 1.1 to 1.6. Next: `Bytes`, `Map`, and the rest,
+    module by module.
 
 ---
 
