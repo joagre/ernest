@@ -15,6 +15,8 @@ Ernest is a small functional language for concurrent programs, on the Erlang run
 - **Purity in the type.** `with` separates the functions that may send or receive from those that cannot. A pure function computes and returns, and the compiler holds it to that.
 - **Distribution by content, planned.** Every function and type is known by a hash of its definition, a type's name included, so a message is checked across nodes as it is within one. Code travels only with a process spawned on a peer, and two versions of a type are two types.
 
+Ernest is for programs written in it from the start. An Ernest program is not an OTP application and is not mixed with Elixir or Gleam code; a library that ships with Erlang/OTP comes as a shim, and anything else is written in Ernest.
+
 A counter is a process that holds a number. Its mailbox type, `CounterMsg`, is in its type, so a `send` of anything else is refused, and a `Get` that the counter left unanswered would be refused too:
 
 ```ernest
