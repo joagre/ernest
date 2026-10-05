@@ -85,16 +85,15 @@ and its measurement does not hold the release.
    person would write, the emitter's output is measured against that Erlang and its
    overheads cut, since a faster emitter brings every function under the line at once,
    where a shim brings one. Sized when items 1 and 2's numbers are in.
-4. **The report's feedback**: `docs/report_feedback.md`, six points of precision in the
-   report's contracts. Three were taken into the report on 2026-10-05, out of order and
-   ahead of items 1 to 3, each a statement of what already ran or was already written, with
-   no rule changed (the log's *The Report's Feedback, Three Points*): what a call's time
-   bounds (§6.6), an order's laws and what the library's guarantees rest on (§3.10, E.2,
-   E.25), and the foreign boundary's summaries taking §8.4's exceptions by reference (§4.7,
-   §7.4). The three of peers remain in the file, since any answer to them is a rule of the
-   language: foreign definitions' compatibility (§8.7), a peer's initialization (§8.7) and
-   a peer's loss (§9.3, §10), each read with the user and weighed against MVP 3.0 and 3.1,
-   which build them.
+4. **The report's feedback**, done 2026-10-05: six points of precision in the report's
+   contracts, from a reader outside the project. Three were taken into the report, out of
+   order and ahead of items 1 to 3, each a statement of what already ran or was already
+   written, with no rule changed (the log's *The Report's Feedback, Three Points*): what a
+   call's time bounds (§6.6), an order's laws (§3.10, E.2, E.25), and the foreign boundary's
+   summaries (§4.7, §7.4). The three of peers, whose every answer is a rule, went into the
+   items that build them, with the file, kept at `0ebb1bc`: a peer's loss into MVP 3.0's
+   `Unreachable`, a peer's initialization into MVP 3.0's *When a module's top-level bindings
+   run*, and a foreign definition's compatibility into MVP 3.1's definition hash.
 5. **The guide's feedback**, done 2026-10-05, out of order and ahead of items 1 to 3 (the
    log's *The Guide Staged for Its Reader*): a pedagogical assessment of the guide in seven
    points, each taken into the guide, and the file gone, kept at `6495854`. The guide names
@@ -194,7 +193,9 @@ log's *A Full Review Now and Then*).
   trips per `pick`.
 - **What the protocol note asks of the report**, each decided before it is built: whether
   `Reason` gains `Unreachable` for a lost peer whose process may live on (the note's question 6,
-  §9.3, §6.9), and whether §6.4 states that what arrives is an unbroken prefix of what was sent,
+  §9.3, §6.9), which also settles a contradiction a reader outside the project found on
+  2026-10-04: §10 requires a lost peer's `Down` to carry a reason distinguishable from every
+  other, and a process that calls `fault("peer lost")` gives the same; and whether §6.4 states that what arrives is an unbroken prefix of what was sent,
   a sender told nothing of a drop, as the note's section 8 promises.
 - **Where a node's configuration is read**, decided before `ernest.conf` is: its default,
   `./.ernest`, is the directory a program starts in, whose `ernest.conf` would name the peers
@@ -212,7 +213,12 @@ log's *A Full Review Now and Then*).
 - **When a module's top-level bindings run**, decided with §8.7's sentence on a node's own
   initialization: whether one rule serves both nodes, where the node a program starts on runs
   those of every module the entry point depends on, though their names may appear nowhere at a
-  use (§8.5, principle 3), and a peer runs them lazily (a reader's finding, P4).
+  use (§8.5, principle 3), and a peer runs them lazily (a reader's finding, P4). With it,
+  what §8.7 leaves open of a peer's initialization, which the same reader listed: what two
+  processes see that use one binding before it has a value; whether an initializer's fault is
+  kept, or a later use runs it again; what follows where the process that began it dies or
+  restarts meanwhile; an initializer that reads a binding not yet initialized, and one that
+  does not end; and which process runs it, and so what its `self()` is.
 - **Code travels only with a spawn**, decided 2026-09-27 (§3.11, §6.5, §8.7; the log's *Code
   Travels Only With a Spawn*). A value that holds a function faults at the operation that
   would take it to another node, `function cannot cross nodes`, found by the walk that finds a
@@ -253,7 +259,12 @@ The milestone is §8.7's identity in full:
   says). Whether `ern_interface:hash/1`, which hashes a canonical interface, grows into
   the definition hash or a second scheme stands beside it is part of that decision.
 - Every definition gets a hash of its typed AST; modules are named by hash, with a registry
-  per node `{Hash -> Module}`. A function spawned on a peer carries its hash, and a node that
+  per node `{Hash -> Module}`. With the hash of a `foreign fn`, what §8.7's "incompatible
+  foreign definition" compares, which a reader outside the project found unstated on
+  2026-10-04: whether the qualified name and the host's implementation, the arity, the
+  parameters' and the result's types, the mailbox type, the inferred restrictions and a foreign
+  type's equality parameters, and the runtime's version, each count; and that a definition
+  compatible by its declaration is not thereby trusted to keep its promise. A function spawned on a peer carries its hash, and a node that
   lacks it fetches the code from the sender. Erlang's module distribution is not used.
 - Hash modules never change, and versions coexist on a node for as long as a process runs one
   ([`code_distribution.md`](code_distribution.md) section 8). The shell's reload then ends
