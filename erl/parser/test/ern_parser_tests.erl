@@ -657,6 +657,29 @@ foreign_declaration_test() ->
                  declaration("foreign fn atom(name : String) : Foreign.Term ="
                              " \"erlang:binary_to_atom/1\"")).
 
+%% report §3, §4.7, Appendix A's ListedType: in a list of types a type
+%% variable followed by `=` is marked, a parameter's whole type in a
+%% foreign function among them; after a type that is no list's, `=` is
+%% the body's
+listed_type_mark_test() ->
+    ?assertMatch(#foreign_fn_declaration{params = [#param{annotation = #t_var{name = a,
+                                                                             equality = true}},
+                                                   #param{annotation = #t_named{
+                                                              args = [#t_var{equality = false}]}}]},
+                 declaration("foreign fn member(element : a=, list : List(a)) : Bool ="
+                             " \"lists:member/2\"")),
+    #foreign_fn_declaration{params = [#param{annotation = #t_tuple{elements = Elements}}]} =
+        declaration("foreign fn f(pair : #(k=, (v=) -> Int)) : Int = \"m:f/1\""),
+    ?assertMatch([#t_var{equality = true}, #t_fn{params = [#t_var{equality = true}]}], Elements),
+    %% `needs` after a result type is the requirement's, and `=` the body's
+    ?assertMatch(#fn_declaration{result_type = #t_var{name = a, equality = false},
+                                 body = #e_var{name = needs}},
+                 declaration("fn f(needs : a) : a = needs")),
+    ?assertEqual({"a type in parentheses takes no equality mark",
+                  "the mark stands in a list of types, as List(a=) or (a=) -> Bool"},
+                 refusal_and_help("fn f(x : (a=)) : Int = 1")),
+    ?assertEqual("expected `)` instead of `=`", refusal("fn f(x : a=) : Int = 1")).
+
 %% report §2.2
 doc_comments_test() ->
     ?assertMatch([#fn_declaration{doc = <<"Adds one.\nReally.">>}],

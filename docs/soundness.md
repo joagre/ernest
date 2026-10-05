@@ -182,7 +182,7 @@ The claim behind 6.5's last point is that every function value, given a reply-ca
 - **One reading suffices.** Code that does not know a value's type can only move the value, so what it does with one reply-carrying type it does with every one. Each variable is read alone, and that is enough: a break under two assumptions is a misuse of some value, whose type holds one of the two variables.
 - **The variable may stand anywhere in the definition's type.** A function the definition returns, or holds in a list or a field, is read as the definition is: `fn pair() = fn(x) = #(x, x)` has the type `() -> (a!) -> #(a!, a!)`. A lambda a block's `let` binds takes its restrictions before it is generalized.
 - **The restriction follows the value.** Passing a value to a function that has the restriction restricts the caller's variable: the two variables are one where the value is passed alone, and where it is passed inside another value, `dup([x])`, the reading finds a reply-carrying type where the restriction forbids one.
-- **What has no body is restricted by rule**: a foreign function's variables by §4.7, and the prelude's by §9.
+- **What has no body is restricted by rule**: a foreign function's variables by §4.7, and the prelude's by §9. A foreign function's equality mark (§4.7) adds a restriction and removes none, so an instance it admits is one the function without it admits.
 - **Pure code answers nothing.** `answer`, `send` and `spawn` are process-only, so pure code that returns can only hand a reply on, through its result, or discharge a value that holds none. A guard is pure and its value is a `Bool`, so a guard that is given a live reply does not return, and one that falls through has consumed none (§6.6).
 
 ### 6.8 The call that does not return
@@ -214,7 +214,7 @@ Within a recursive group, a type of the group is named at the parameters of the 
 
 ### 6.13 Equality
 
-`==` on two values of one type is defined, so it cannot go wrong. The equality constraint (§3.10) keeps it from values that hold a function or an address, where the host's answer would not be the language's. The constraint travels as 6.7's restriction does: it is part of the scheme, is checked at each instance, and passes into the variables of a type a constrained variable is bound to.
+`==` on two values of one type is defined, so it cannot go wrong. The equality constraint (§3.10) keeps it from values that hold a function or an address, where the host's answer would not be the language's. The constraint travels as 6.7's restriction does: it is part of the scheme, is checked at each instance, and passes into the variables of a type a constrained variable is bound to. A foreign function has no `==` to infer it from: the mark its signature writes (§4.7) puts it on the scheme as the inference would, and from there it travels and is checked as an inferred one is. Foreign code that compares values at a variable without the mark is outside the argument as its other broken promises are; the standard library's keep Appendix E, which names the functions that require equality.
 
 ## 7. What it leaves
 

@@ -472,8 +472,10 @@ bare_type(#t_named{namespace = Namespace, args = []}, _) ->
     [namespace(Namespace), token()];
 bare_type(#t_named{namespace = Namespace, args = Args}, Code) ->
     [namespace(Namespace), token(), bracket(token('('), [type(Arg, Code) || Arg <- Args], ')')];
-bare_type(#t_var{}, _) ->
+bare_type(#t_var{equality = false}, _) ->
     token();
+bare_type(#t_var{equality = true}, _) ->
+    [token(), token('=')];
 bare_type(#t_tuple{elements = Elements}, Code) ->
     bracket(token('#('), [type(Element, Code) || Element <- Elements], ')');
 bare_type(#t_fn{params = Params, result_type = ResultType, effect = Effect}, Code) ->

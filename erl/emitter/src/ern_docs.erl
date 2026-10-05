@@ -185,7 +185,8 @@ syntax_text(#t_named{namespace = Namespace, name = Name, args = []}) ->
 syntax_text(#t_named{namespace = Namespace, name = Name, args = Args}) ->
     [ern_namespace:text(Namespace ++ [Name]), "(",
      lists:join(", ", [syntax_text(Arg) || Arg <- Args]), ")"];
-syntax_text(#t_var{name = Name}) -> atom_to_list(Name);
+syntax_text(#t_var{name = Name, equality = false}) -> atom_to_list(Name);
+syntax_text(#t_var{name = Name, equality = true}) -> [atom_to_list(Name), "="];
 syntax_text(#t_tuple{elements = Elements}) ->
     ["#(", lists:join(", ", [syntax_text(Element) || Element <- Elements]), ")"];
 syntax_text(#t_fn{params = Params, result_type = Result, effect = Effect}) ->

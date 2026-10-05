@@ -63,7 +63,8 @@
 %%
 
 -record(t_named, {span, namespace = [], name, args = []}).
--record(t_var, {span, name}).
+%% equality: true where the source writes the mark, `a=` (report §3, §4.7).
+-record(t_var, {span, name, equality = false}).
 -record(t_tuple, {span, elements}).
 -record(t_fn, {span, params, result_type, effect}).
 %% effect = undefined means pure.

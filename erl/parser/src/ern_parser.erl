@@ -653,7 +653,7 @@ foreign_type_parameter(Tokens) ->
 foreign_param(Tokens) ->
     {Name, Position, Rest} = expect_ident_position(Tokens),
     {Variable, _} = spanned({#p_var{span = Position, name = Name}, Rest}),
-    {Type, Rest1} = type(expect(Rest, ':')),
+    {Type, Rest1} = listed_type(expect(Rest, ':')),
     spanned({#param{span = Position, pattern = Variable, annotation = Type}, Rest1}).
 
 %%
@@ -663,16 +663,16 @@ foreign_param(Tokens) ->
 type([{'(', Position} | Rest]) ->
     {Types, Rest1} = case Rest of
                          [{')', _} | _] -> {[], Rest};
-                         _ -> separated(Rest, ',', fun type/1)
+                         _ -> separated(Rest, ',', fun listed_type/1)
                      end,
     parenthesized(Position, Types, expect(Rest1, ')'));
 type([{'#(', Position} | Rest]) ->
-    {Elements, Rest1} = components(Position, separated(Rest, ',', fun type/1)),
+    {Elements, Rest1} = components(Position, separated(Rest, ',', fun listed_type/1)),
     spanned({#t_tuple{span = Position, elements = Elements}, expect(Rest1, ')')});
 type([{typename, Position, _} | _] = Tokens) ->
     case qualified(Tokens) of
         {{con, Namespace, Name}, [{'(', _} | Rest]} ->
-            {Args, Rest1} = separated(Rest, ',', fun type/1),
+            {Args, Rest1} = separated(Rest, ',', fun listed_type/1),
             spanned({#t_named{span = Position, namespace = Namespace, name = Name, args = Args},
                      expect(Rest1, ')')});
         {{con, Namespace, Name}, Rest} ->
@@ -691,6 +691,13 @@ type([{ident, Position, Name} | Rest]) ->
 type([Token | _]) ->
     wanted(typename, position(Token), instead("expected a type", Token)).
 
+%% Report §3, Appendix A's ListedType: in a list of types, a type variable
+%% followed by `=` is marked with equality (§4.7).
+listed_type([{ident, Position, Name}, {'=', _} | Rest]) ->
+    spanned({#t_var{span = Position, name = Name, equality = true}, Rest});
+listed_type(Tokens) ->
+    type(Tokens).
+
 %% Appendix A's FnType and ParenType: the types in parentheses are a
 %% function type's parameters where `->` follows them, else the one type
 %% they hold.
@@ -708,6 +715,11 @@ parenthesized(Position, Params, [{'->', _} | Rest]) ->
         _ ->
             spanned({#t_fn{span = Position, params = Params, result_type = ResultType}, Rest1})
     end;
+parenthesized(_, [#t_var{span = Span, name = Name, equality = true}], _) ->
+    Text = atom_to_list(Name),
+    fail(Span, "a type in parentheses takes no equality mark",
+         "the mark stands in a list of types, as List(" ++ Text ++ "=) or (" ++ Text
+         ++ "=) -> Bool");
 parenthesized(_, [Type], Rest) ->
     spanned({Type, Rest});
 parenthesized(Position, [], Rest) ->

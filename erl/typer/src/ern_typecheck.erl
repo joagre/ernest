@@ -554,6 +554,13 @@ signature_scheme(Syntax, ProcessOnly, Env) ->
 
 annotation_type(undefined, AnnotationVariables, Env) ->
     {pure, AnnotationVariables, Env#env.type_state};
+annotation_type(#t_var{span = Span, name = Name, equality = true}, _, _) ->
+    %% report §4.7: the mark stands in a foreign function's parameters
+    %% alone, which signature_shape takes off before it comes here
+    Text = atom_to_list(Name),
+    fail(Span, "the equality mark is written in a foreign function's parameters alone", [],
+         "write " ++ Text ++ "; " ++ Text ++ " has equality where a body compares its values"
+         " with ==");
 annotation_type(#t_var{name = Name}, AnnotationVariables, Env) ->
     case AnnotationVariables of
         #{Name := Variable} -> {Variable, AnnotationVariables, Env#env.type_state};
@@ -1753,12 +1760,18 @@ signature_shape(#let_declaration{annotation = Annotation}, Placeholder, Env)
 signature_shape(#foreign_fn_declaration{span = Span, params = Params,
                                         result_type = ResultAnnotation, effect = Effect}
                 = Declaration, Placeholder, Env) ->
-    Syntax = #t_fn{span = Span, params = [Type || #param{annotation = Type} <- Params],
-                   result_type = ResultAnnotation, effect = Effect},
-    {Type, _, TypeState} = annotation_type(Syntax, #{}, Env),
+    Annotations = [Type || #param{annotation = Type} <- Params],
+    Marked = [Name || {Name, _} <- equality_marks(Annotations, [ResultAnnotation, Effect])],
+    Syntax = #t_fn{span = Span, params = unmarked(Annotations), result_type = ResultAnnotation,
+                   effect = Effect},
+    {Type, AnnotationVariables, TypeState} = annotation_type(Syntax, #{}, Env),
+    TypeState1 = lists:foldl(fun(Name, Acc) ->
+                                 ern_types:add_restriction(maps:get(Name, AnnotationVariables),
+                                                           equality, Acc)
+                             end, TypeState, Marked),
     Env1 = bound(Placeholder, Type,
                  Env#env{type_state = not_reply_carrying_params(Type,
-                                                                foreign_effect(Type, TypeState))}),
+                                                                foreign_effect(Type, TypeState1))}),
     placeholder_requirement(Declaration, Placeholder, shown_requirement(Declaration, Type, Env),
                             Env1);
 signature_shape(_, _, Env) ->
@@ -1849,6 +1862,43 @@ placeholder_requirement(#fn_declaration{member_of = MemberOf, name = Name}, Plac
             Scheme = maps:get(QualifiedName, Globals),
             Env#env{globals = Globals#{QualifiedName => Scheme#scheme{requirement = Requirement}}}
     end.
+
+%% Report §4.7: the type variables a foreign function's parameters mark
+%% with `=`, each once, in the order they are written. A mark in the
+%% result type or the effect, Rest, or a second one is an error;
+%% annotation_type refuses one anywhere else.
+equality_marks(Annotations, Rest) ->
+    case [Variable || #t_var{equality = true} = Variable <- variable_nodes(Rest)] of
+        [] -> ok;
+        [#t_var{span = Span, name = Name} | _] ->
+            Text = atom_to_list(Name),
+            fail(Span, "a foreign function's result type takes no equality mark", [],
+                 "mark " ++ Text ++ " in the parameters, " ++ Text ++ "=")
+    end,
+    Marks = [Variable || #t_var{equality = true} = Variable <- variable_nodes(Annotations)],
+    lists:foldl(fun equality_mark/2, [], Marks).
+
+equality_mark(#t_var{span = Span, name = Name}, Marked) ->
+    case lists:keyfind(Name, 1, Marked) of
+        {_, First} ->
+            Text = atom_to_list(Name),
+            fail(Span, Text ++ " is marked twice", [{ern_diagnostic:span(First), "first here"}],
+                 "write " ++ Text ++ "= once; it marks every occurrence of " ++ Text);
+        false -> Marked ++ [{Name, Span}]
+    end.
+
+%% The type variables of syntactic types, each occurrence in the order it
+%% is written.
+variable_nodes(#t_var{} = Variable) -> [Variable];
+variable_nodes(Node) when is_tuple(Node) -> variable_nodes(tuple_to_list(Node));
+variable_nodes(Nodes) when is_list(Nodes) -> lists:append([variable_nodes(Node) || Node <- Nodes]);
+variable_nodes(_) -> [].
+
+%% Syntactic types with every equality mark taken off.
+unmarked(#t_var{} = Variable) -> Variable#t_var{equality = false};
+unmarked(Node) when is_tuple(Node) -> list_to_tuple(unmarked(tuple_to_list(Node)));
+unmarked(Nodes) when is_list(Nodes) -> [unmarked(Node) || Node <- Nodes];
+unmarked(Other) -> Other.
 
 %% Report §9.4: `Io.show` and `Io.debug` need `a.show`, the requirement
 %% their type states; a foreign function declares none of its own.

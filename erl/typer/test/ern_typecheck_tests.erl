@@ -434,6 +434,34 @@ peer_module_refused_test() ->
                          "    Unit\n"
                          "}\n")).
 
+%% report §4.7, §3.10: a foreign function's type variable written `a=` in
+%% its parameters carries the equality constraint, as one a body compares
+%% does; it is written once, and nowhere but a foreign function's
+%% parameters
+foreign_fn_equality_mark_test() ->
+    Member = "foreign fn member(element : a=, list : List(a)) : Bool = \"lists:member/2\"\n",
+    ?assertEqual(ok, ok(Member ++ "fn f() = member(1, [2])\n")),
+    ?assertEqual("(Int) -> Int does not support equality (it contains a function or an"
+                 " address), which member requires of its first argument",
+                 refusal(Member ++ "fn f() = member(fn(x : Int) : Int = x, [])\n")),
+    %% the mark is the variable's: it holds at the occurrence it is not on
+    ?assertEqual("(a=!, List(a=!)) -> Bool",
+                 type_of("export " ++ Member, member)),
+    ?assertEqual(type_of("export " ++ Member, member),
+                 type_of("export foreign fn member(element : a, list : List(a=)) : Bool ="
+                         " \"lists:member/2\"\n", member)),
+    ?assertEqual({"a is marked twice", "write a= once; it marks every occurrence of a"},
+                 refusal_and_help("foreign fn m(list : List(a=), element : a=) : Bool ="
+                                  " \"lists:member/2\"\n")),
+    ?assertEqual({"a foreign function's result type takes no equality mark",
+                  "mark a in the parameters, a="},
+                 refusal_and_help("foreign fn m(list : List(a)) : List(a=) = \"m:m/1\"\n")),
+    Elsewhere = {"the equality mark is written in a foreign function's parameters alone",
+                 "write a; a has equality where a body compares its values with =="},
+    ?assertEqual(Elsewhere, refusal_and_help("fn f(x : List(a=)) : Int = 1\n")),
+    ?assertEqual(Elsewhere, refusal_and_help("type Box(a) = Box(List(a=))\n")),
+    ?assertEqual(Elsewhere, refusal_and_help("fn f() = { let x : List(a=) = []; 1 }\n")).
+
 %% report §3.10, Appendix E.21: a process has equality and no ordering, and
 %% a comparison of addresses is refused with the process behind each named
 process_identity_test() ->

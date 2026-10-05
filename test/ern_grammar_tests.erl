@@ -46,6 +46,7 @@ decided() ->
      {'Type', "(", "is an `FnType` when `->` follows its `)`"},
      {'FnResult', "(", "is an `FnType` when `->` follows its `)`"},
      {'TypeAtom', typename, "of a type in `TypeAtom`"},
+     {'ListedType', ident, "a type variable followed by `=` is marked"},
      {'QName', typename, "of a value in `QName`"},
      {'AtomPat', typename, "of a constructor in `AtomPat`"},
      {'QName', "(", "the parser consumes that argument in the constructor branch of `QName`"},

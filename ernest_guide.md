@@ -2290,7 +2290,7 @@ export foreign fn toList(table : Table(k, v)) : List(#(k, v)) with m =
     "ets:tab2list/1"
 ```
 
-External callers write `Ets.Table` and `Ets.toList`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:tab2list/1`. The `=` in `k=` says the keys need equality, since `ets` compares them: a table keyed by functions is a type error at its first operation, as a `Map` is (report §4.7).
+External callers write `Ets.Table` and `Ets.toList`. `foreign type` declares a type whose values only foreign functions make and read; Ernest has no constructor for it and cannot match it. `foreign fn` binds a name to a function on the other side, here Erlang's `ets:tab2list/1`. The `=` in `k=` says the keys need equality, since `ets` compares them: a table keyed by functions is a type error at its first operation, as a `Map` is (report §4.7). A `foreign fn` whose Erlang compares the values of a type variable marks the variable the same way, once, in its parameters: `foreign fn member(element : a=, list : List(a)) : Bool = "lists:member/2"` cannot be given a function.
 
 The foreign side promises the declared types. A return value of the wrong shape faults the calling process when the function returns, the whole value checked, and a function in it when that function is called; an Erlang exception becomes a fault of the calling process; and a message of the wrong type from foreign code faults its receiver on delivery. Purity is not checked: a `foreign fn` declared without `with` is trusted to have no effect (report §4.7).
 

@@ -195,7 +195,14 @@ and its measurement does not hold the release.
     function by function, each with its upstream manual page open and held by the laws
     machine, `List.unique`, `List.sort`, the `Path` functions and the rest of item 1's
     list among the first; then the measurement run again. Items 1 to 3's decisions on
-    functions past the line become this item's.
+    functions past the line become this item's. The rule is written (2026-10-05). A
+    primitive's type is its signature alone, so a foreign function now writes the equality
+    mark in its parameters, `a=` (§3, §4.7; the log's *A Foreign Function Marks Its
+    Equality*), for `List.contains`, `remove` and `unique`. Its variables stay
+    not-reply-carrying, so a function whose type carries a reply, `List.reverse`,
+    `foreach`, `foldRight`, `indexed`, `unzip` and `<>`, stays Ernest. Whether a second mark
+    lifts that restriction is decided with the user after the measurement this item ends
+    with.
 
 ---
 

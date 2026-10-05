@@ -539,6 +539,20 @@ example.ern:1:23: expected `->` after a parameter list instead of `)`
   | = help: a tuple type is written with `#(`, as #(Int, Int)
 ```
 
+### An equality mark in parentheses (§3, §4.7)
+
+```ernest-rejected
+fn f(x : (a=)) : Int = 1
+```
+
+```console
+$ ern build example.ern
+example.ern:1:11: a type in parentheses takes no equality mark
+1 | fn f(x : (a=)) : Int = 1
+  |           ^^
+  | = help: the mark stands in a list of types, as List(a=) or (a=) -> Bool
+```
+
 ### A qualified type that ends in a lowercase name (§3)
 
 ```ernest-rejected
@@ -1119,6 +1133,51 @@ example.ern:1:33: Flip is named at Flip(b, a) in its own fields, and a type of a
 ```
 
 ## Declarations (report §4)
+
+### An equality mark outside a foreign function (§4.7)
+
+```ernest-rejected
+fn f(xs : List(a=)) : Int = 1
+```
+
+```console
+$ ern build example.ern
+example.ern:1:16: the equality mark is written in a foreign function's parameters alone
+1 | fn f(xs : List(a=)) : Int = 1
+  |                ^^
+  | = help: write a; a has equality where a body compares its values with ==
+```
+
+### A foreign function's equality mark written twice (§4.7)
+
+```ernest-rejected
+foreign fn member(list : List(a=), element : a=) : Bool =
+    "lists:member/2"
+```
+
+```console
+$ ern build example.ern
+example.ern:1:46: a is marked twice
+1 | foreign fn member(list : List(a=), element : a=) : Bool =
+  |                               -- first here
+  |                                              ^^
+  | = help: write a= once; it marks every occurrence of a
+```
+
+### An equality mark in a foreign function's result type (§4.7)
+
+```ernest-rejected
+foreign fn first(list : List(a)) : List(a=) =
+    "erlang:hd/1"
+```
+
+```console
+$ ern build example.ern
+example.ern:1:41: a foreign function's result type takes no equality mark
+1 | foreign fn first(list : List(a)) : List(a=) =
+  |                                         ^^
+  | = help: mark a in the parameters, a=
+```
 
 ### A value declared twice (§4.6)
 

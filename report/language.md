@@ -156,17 +156,18 @@ Only a `userop` can be qualified, `Int.+`, or declared, `fn Distance.+` (§4.8).
 ## 3. Types
 
 ```
-Type      = TypeAtom | FnType | ParenType .
-TypeAtom  = { typename "." } typename [ "(" Type { "," Type } ")" ]
-          | typevar
-          | TupleType .
-TupleType = "#(" Type "," Type { "," Type } ")" .
-FnType    = "(" [ Type { "," Type } ] ")" "->" FnResult .
-FnResult  = FnType | ( TypeAtom | ParenType ) [ "with" Type ] .
-ParenType = "(" Type ")" .
+Type       = TypeAtom | FnType | ParenType .
+TypeAtom   = { typename "." } typename [ "(" ListedType { "," ListedType } ")" ]
+           | typevar
+           | TupleType .
+ListedType = typevar "=" | Type .
+TupleType  = "#(" ListedType "," ListedType { "," ListedType } ")" .
+FnType     = "(" [ ListedType { "," ListedType } ] ")" "->" FnResult .
+FnResult   = FnType | ( TypeAtom | ParenType ) [ "with" Type ] .
+ParenType  = "(" Type ")" .
 ```
 
-`FnType` and `ParenType` both begin with `(`. The parenthesized list of types is read whole, and a `->` after its `)` makes it an `FnType`; otherwise it is a `ParenType`, which holds exactly one `Type`.
+`FnType` and `ParenType` both begin with `(`. The parenthesized list of types is read whole, and a `->` after its `)` makes it an `FnType`; otherwise it is a `ParenType`, which holds exactly one `Type`. In a list of types, a type variable followed by `=` is marked with the equality constraint of §3.10, which is written in a foreign function's parameters alone (§4.7).
 
 ### 3.1 Base types
 
@@ -245,7 +246,7 @@ The functions of §9.4 and §9.5 whose own effect is a mailbox type, `restarting
 
 A function has one mailbox effect or none. A function may take a pure callback beside an effectful one: in `fn callBoth(p : (Int) -> Int, e : (Int) -> Unit with n) : Unit with n`, `p` is pure, `e` has effect `n`, and the function inherits `n`. Two callbacks whose effects are both variables unify to one effect. Two callbacks with different concrete effects are a type error.
 
-**Inferred restrictions.** An annotation gives a function's shape: arity, argument types, result, mailbox effect. Three restrictions are inferred from the body. Where there is no body, a restriction is given instead: written on a foreign type's parameter, `k=`, the one mark a program writes (§4.7); given to a foreign function by §4.7 and the paragraph above; and stated for the prelude's types and primitives in §9. Each prints with its mark (§11.5). The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is inherited by a function whose body calls a process-only function: `fn wrap(a, v) = send(a, v)` cannot be called from pure code, and neither can `fn h(a : Int) : Unit with e = Io.println("")`. Not-reply-carrying (§6.6) falls on a type variable of a definition's type when the definition, read with that variable as a reply-carrying type, would break §6.6, and on a foreign function's as §4.7 says: use such a value twice or not at all, through a `let` or a pattern as much as by the parameter's name, put it where §6.6 forbids one, or pass it, alone or inside another value, where a function carries the restriction. The variable stands in a parameter's type, in the result type, or in the type of a value. A function the definition returns or holds is read as the definition is. So `fn dup(x) = #(x, x)`, `fn discard(x) = Unit`, `fn keep(x) = { let y = x; Unit }`, `fn both(x) = dup([x])`, and, for `type Box(a) = Box(a)`, `fn forget(b : Box(a)) : Unit = Unit` cannot take a reply, nor can the function `fn pair() = fn(x) = #(x, x)` returns, of type `() -> (a!) -> #(a!, a!)`, and `fn id(x) = x` can. `Optional.withDefault : (Optional(a!), a!) -> a!` is restricted. Each is part of the type scheme and travels with the function value through bindings, branches, and compiled interfaces. Each is checked at instantiation, not at definition.
+**Inferred restrictions.** An annotation gives a function's shape: arity, argument types, result, mailbox effect. Three restrictions are inferred from the body. Where there is no body, a restriction is given instead: written on a foreign type's parameter, `k=`, or on a type variable in a foreign function's parameters, `a=`, the one mark a program writes (§4.7); given to a foreign function by §4.7 and the paragraph above; and stated for the prelude's types and primitives in §9. Each prints with its mark (§11.5). The equality constraint of §3.10 falls on a variable compared with `==`. Process-only is inherited by a function whose body calls a process-only function: `fn wrap(a, v) = send(a, v)` cannot be called from pure code, and neither can `fn h(a : Int) : Unit with e = Io.println("")`. Not-reply-carrying (§6.6) falls on a type variable of a definition's type when the definition, read with that variable as a reply-carrying type, would break §6.6, and on a foreign function's as §4.7 says: use such a value twice or not at all, through a `let` or a pattern as much as by the parameter's name, put it where §6.6 forbids one, or pass it, alone or inside another value, where a function carries the restriction. The variable stands in a parameter's type, in the result type, or in the type of a value. A function the definition returns or holds is read as the definition is. So `fn dup(x) = #(x, x)`, `fn discard(x) = Unit`, `fn keep(x) = { let y = x; Unit }`, `fn both(x) = dup([x])`, and, for `type Box(a) = Box(a)`, `fn forget(b : Box(a)) : Unit = Unit` cannot take a reply, nor can the function `fn pair() = fn(x) = #(x, x)` returns, of type `() -> (a!) -> #(a!, a!)`, and `fn id(x) = x` can. `Optional.withDefault : (Optional(a!), a!) -> a!` is restricted. Each is part of the type scheme and travels with the function value through bindings, branches, and compiled interfaces. Each is checked at instantiation, not at definition.
 
 ### 3.10 Equality and ordering
 
@@ -253,7 +254,7 @@ A function has one mailbox effect or none. A function may take a pure callback b
 
 An *order* on a type `T` is a function `f : (T, T) -> Ordering` for which, for all `a`, `b`, and `c` of `T`: `f(a, a)` is `Equal`; `f(a, b)` is `Less` exactly when `f(b, a)` is `Greater`; where `f(a, b)` and `f(b, c)` are `Less`, `f(a, c)` is `Less`; and where `f(a, b)` is `Equal`, `f(a, c)` is `f(b, c)`. Each `compare` of the prelude is an order, and says `Equal` only where `==` holds. A derived `compare` (§3.5) is an order where the `compare` of each other type its fields name is one, and says `Equal` only where `==` holds where each of those does. Where any other function is given as an order, or is the `compare` an ordered set or map requires, the laws are the program's promise, and nothing checks them. What the standard library says of a sorted list, and of an ordered set or map, holds only where the function it is given, or the `compare` it requires, is an order (Appendix E.2, E.25, E.26).
 
-A function that applies `==` to a value of a type variable gives that variable an *equality constraint*, inferred and never written; instantiating it with a type that contains a function or an address is a type error at that call site. A foreign type's parameter may carry the constraint (§4.7), and `Map(k=, v)` and `Set(a=)` carry it on `k` and `a` (§9.2). A value of such a type over a type without equality is rejected at its first operation; a type that names one, `Map((Int) -> Int, Int)` in an annotation or a field, is not itself an error. A standard library function that compares elements, `List.contains`, propagates the constraint through its parameter. `fn equal(a, b) = a == b` has type `(a, a) -> Bool` with the constraint on `a`. The constraint travels and is checked as §3.9 says: `let f = equal` carries it, and applying `f` to addresses is an error at that application; `if flag then equal else always`, with `always` unconstrained, carries the union of the branches' constraints.
+A function that applies `==` to a value of a type variable gives that variable an *equality constraint*, inferred and never written; instantiating it with a type that contains a function or an address is a type error at that call site. A foreign type's parameter and a foreign function's type variable may carry the constraint (§4.7), and `Map(k=, v)` and `Set(a=)` carry it on `k` and `a` (§9.2). A value of such a type over a type without equality is rejected at its first operation; a type that names one, `Map((Int) -> Int, Int)` in an annotation or a field, is not itself an error. A standard library function that compares elements, `List.contains`, propagates the constraint through its parameter. `fn equal(a, b) = a == b` has type `(a, a) -> Bool` with the constraint on `a`. The constraint travels and is checked as §3.9 says: `let f = equal` carries it, and applying `f` to addresses is an error at that application; `if flag then equal else always`, with `always` unconstrained, carries the union of the branches' constraints.
 
 ### 3.11 Serialization
 
@@ -267,7 +268,7 @@ Declaration = [ "export" ] ( TypeDecl | AbstractDecl | FnDecl | LetDecl | Foreig
 ForeignDecl = "foreign" ( "type" typename [ "(" ForeignVar { "," ForeignVar } ")" ]
             | "fn" DeclName "(" [ ForeignParam { "," ForeignParam } ] ")" Return "=" string ) .
 ForeignVar  = typevar [ "=" ] .
-ForeignParam = ident ":" Type .
+ForeignParam = ident ":" ListedType .
 TypeDecl    = "type" typename [ "(" typevar { "," typevar } ")" ] "="
               Constructor { "|" Constructor } [ "derives" "compare" ] .
 Constructor = conname [ "(" ( Type | Field { "," Field } ) ")" ] .
@@ -360,7 +361,7 @@ At top level, `let` binds an `ident`. The left side is a name, not a pattern; `<
 
 `foreign type T` declares a type implemented outside the language. Its parameters are distinct type variables. A parameter written with `=`, `k=` in `foreign type Table(k=, v)`, puts the equality constraint of §3.10 on its argument at every operation of the type, and the type written with an argument that lacks it is not itself an error (§3.10).
 
-`foreign fn f(params) : T = "impl"` declares a function whose body is the implementation named by the string, in the runtime's language; parameters and the result are annotated. A foreign function has no body from which §3.9 infers restrictions, and its code may copy a value it is given or drop it, so each type variable whose values a parameter holds is not reply-carrying (§6.6): one the parameter's type reaches through tuples and type arguments, and not under `Address`, `Reply`, or a function type. What a function it is given returns is the foreign code's to hand on once, as a `Reply` it is given is its to answer once (§8.4). `Foreign.from(r)` on a reply is a type error. A foreign function with a mailbox type may do anything. One without a mailbox type promises purity: the same result for the same arguments, and no effect on anything. The implementation promises the declared types: a value of another shape, where it is checked (§8.4), or an exception, is a fault, §7. Foreign code sees values in the runtime's representation, §8.4. Both declarations take `export` (§4.2).
+`foreign fn f(params) : T = "impl"` declares a function whose body is the implementation named by the string, in the runtime's language; parameters and the result are annotated. A type variable written with `=` in a parameter's type, `a=` in `foreign fn member(element : a=, list : List(a)) : Bool = "lists:member/2"`, carries the equality constraint of §3.10, as one a body compares with `==` does. A variable is marked once, at any of its occurrences in the parameters: a second mark is a type error, and so is a mark in the result type or in any annotation outside a foreign function's parameters. A foreign function has no body from which §3.9 infers restrictions, and its code may copy a value it is given or drop it, so each type variable whose values a parameter holds is not reply-carrying (§6.6): one the parameter's type reaches through tuples and type arguments, and not under `Address`, `Reply`, or a function type. What a function it is given returns is the foreign code's to hand on once, as a `Reply` it is given is its to answer once (§8.4). `Foreign.from(r)` on a reply is a type error. A foreign function with a mailbox type may do anything. One without a mailbox type promises purity: the same result for the same arguments, and no effect on anything. The implementation promises the declared types: a value of another shape, where it is checked (§8.4), or an exception, is a fault, §7. Foreign code sees values in the runtime's representation, §8.4. Both declarations take `export` (§4.2).
 
 ### 4.8 Operators
 
@@ -931,7 +932,7 @@ Declaration = [ "export" ] ( TypeDecl | AbstractDecl | FnDecl | LetDecl | Foreig
 ForeignDecl = "foreign" ( "type" typename [ "(" ForeignVar { "," ForeignVar } ")" ]
             | "fn" DeclName "(" [ ForeignParam { "," ForeignParam } ] ")" Return "=" string ) .
 ForeignVar  = typevar [ "=" ] .
-ForeignParam = ident ":" Type .
+ForeignParam = ident ":" ListedType .
 
 TypeDecl    = "type" typename [ "(" typevar { "," typevar } ")" ] "="
               Constructor { "|" Constructor } [ "derives" "compare" ] .
@@ -949,10 +950,11 @@ Binding     = "let" Pattern [ ":" Type ] ( "=" | "<-" ) Expr .
 DeclName    = ident | typename "." ( userop | "compare" | "negate" ) .
 
 Type        = TypeAtom | FnType | ParenType .
-TypeAtom    = { typename "." } typename [ "(" Type { "," Type } ")" ] | typevar
+TypeAtom    = { typename "." } typename [ "(" ListedType { "," ListedType } ")" ] | typevar
             | TupleType .
-TupleType   = "#(" Type "," Type { "," Type } ")" .
-FnType      = "(" [ Type { "," Type } ] ")" "->" FnResult .
+ListedType  = typevar "=" | Type .
+TupleType   = "#(" ListedType "," ListedType { "," ListedType } ")" .
+FnType      = "(" [ ListedType { "," ListedType } ] ")" "->" FnResult .
 FnResult    = FnType | ( TypeAtom | ParenType ) [ "with" Type ] .
 ParenType   = "(" Type ")" .
 
@@ -998,7 +1000,7 @@ BitSpec     = "size" "(" Expr ")"
 FieldPats   = [ ident "=" Pattern { "," ident "=" Pattern } ] .
 ```
 
-`binop`, `userop`, and `literal` are defined in §2, along with the other lexical categories; `binop` precedence follows the table there. Every nonterminal is decided by its first token, or by the later token this paragraph names: `let` begins a binding, `fn` a declaration or lambda (an identifier or type name after `fn` makes it a declaration, `(` a lambda), `{` a block, `[` a list, `#(` a tuple, `(` a call or parenthesized expression, `<<` a bitstring. After a primary, `.` and an `ident` select a field (§3.5): a lowercase first segment is a value, so `s.upper` selects, while an uppercase one begins a `QName`, `Net.Http.parse`. An `ident`, `.` and a `userop` are a type variable's member, `a.+`. An `ident`, `.` and `compare` or `negate`, `a.compare`, parse as a selection, which §4.9 makes the member in a declaration with a requirement. The expression after `..` in `Fields` names a namespace where §5.6 says so, and the parser reads one form. In a qualified name, of a value in `QName`, of a type in `TypeAtom`, or of a constructor in `AtomPat`, after each uppercase token the next token decides: `.` continues the qualification, and otherwise the segment is final. In `QName` a final `ident` names a function or a value, a `userop` an operator, and a `conname` a constructor. A constructor's fields are positional or named by whether `=` or `:` follows the first identifier. When a constructor name is immediately followed by a parenthesized constructor argument, one expression or fields, the parser consumes that argument in the constructor branch of `QName`; a single-positional construction has the semantics of calling the constructor's function value. Empty parentheses after a constructor name, or two expressions or more, are a call of its value (§5.6). `conname` and `typename` are one token class; which one a segment is follows from its position. A parenthesized list of types is an `FnType` when `->` follows its `)`, and otherwise a `ParenType` (§3). A `with` after a function type belongs to that type (§3), and a function type that ends in a `with` takes no second: a function's effect after a result that is a function type is written after that type in parentheses, `(A) -> ((B) -> C with M) with N`, in a `Return` as in a type, `: ((A) -> B with M) with N`. In a `receive`, a `|` followed by `after` begins its `AfterClause`.
+`binop`, `userop`, and `literal` are defined in §2, along with the other lexical categories; `binop` precedence follows the table there. Every nonterminal is decided by its first token, or by the later token this paragraph names: `let` begins a binding, `fn` a declaration or lambda (an identifier or type name after `fn` makes it a declaration, `(` a lambda), `{` a block, `[` a list, `#(` a tuple, `(` a call or parenthesized expression, `<<` a bitstring. After a primary, `.` and an `ident` select a field (§3.5): a lowercase first segment is a value, so `s.upper` selects, while an uppercase one begins a `QName`, `Net.Http.parse`. An `ident`, `.` and a `userop` are a type variable's member, `a.+`. An `ident`, `.` and `compare` or `negate`, `a.compare`, parse as a selection, which §4.9 makes the member in a declaration with a requirement. The expression after `..` in `Fields` names a namespace where §5.6 says so, and the parser reads one form. In a qualified name, of a value in `QName`, of a type in `TypeAtom`, or of a constructor in `AtomPat`, after each uppercase token the next token decides: `.` continues the qualification, and otherwise the segment is final. In `QName` a final `ident` names a function or a value, a `userop` an operator, and a `conname` a constructor. A constructor's fields are positional or named by whether `=` or `:` follows the first identifier. When a constructor name is immediately followed by a parenthesized constructor argument, one expression or fields, the parser consumes that argument in the constructor branch of `QName`; a single-positional construction has the semantics of calling the constructor's function value. Empty parentheses after a constructor name, or two expressions or more, are a call of its value (§5.6). `conname` and `typename` are one token class; which one a segment is follows from its position. A parenthesized list of types is an `FnType` when `->` follows its `)`, and otherwise a `ParenType` (§3). In a `ListedType`, a type variable followed by `=` is marked (§3). A `with` after a function type belongs to that type (§3), and a function type that ends in a `with` takes no second: a function's effect after a result that is a function type is written after that type in parentheses, `(A) -> ((B) -> C with M) with N`, in a `Return` as in a type, `: ((A) -> B with M) with N`. In a `receive`, a `|` followed by `after` begins its `AfterClause`.
 
 ## Appendix B. Examples
 
