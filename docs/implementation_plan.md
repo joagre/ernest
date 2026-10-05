@@ -19,8 +19,8 @@ its argument, [`soundness.md`](soundness.md), was written on 2026-10-04 and foun
 discipline short in ten places, each closed that day, and the typed generator's third round,
 on replies, was built the same day and found nothing more; item 5 moved into Ernest what
 Erlang held that Ernest can, and item 6, the full review, ran on `d90a5b3`, the same day. Its
-570 findings stand in [`findings.md`](findings.md) for the user to read; next is the
-milestone that works them, and then item 7, the release, Ernest 0.3.0. MVP 2.99b, what the release review left, the code's
+570 findings were worked by 2026-10-05, in the milestone after it; next is item 7, the
+release, Ernest 0.3.0. MVP 2.99b, what the release review left, the code's
 names read and made to read, operations records, and running as a service, was done on
 2026-10-03, and `findings.md` went with it; the principles review, a milestone of its own
 between its items 3 and 4, closed on 2026-10-01, and Ernest 0.2.0, the second release, is
@@ -52,7 +52,7 @@ taken out of order. Each has its paragraph under "Done".
 | The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01 |
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | moved from MVP 3.9 on 2026-10-01 |
-| The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | |
+| The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | MVP 2.99d | the library and the prelude measured against their lines, the emitted code's cost, and the report's and the guide's feedback | |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
@@ -149,43 +149,14 @@ programs as item 2, and the last three as items 7, 8 and 6.
    release review's readers for 0.3.0: [`full_review.md`](full_review.md) run whole on
    `d90a5b3`, its nineteen readers and parts each a fresh agent of one workflow, never a
    fork, given only its brief, its files and a copy of the commit, P and K on the most
-   advanced model and the rest on the one below. They handed in 570 findings, collected
-   into [`findings.md`](findings.md) as its *The findings* says, which the milestone after
-   this item works once the user has read them.
+   advanced model and the rest on the one below. They handed in 570 findings, which the
+   milestone after this item worked (*The full review's findings* under "Done").
 7. **A release, Ernest 0.3.0**, the milestone's last item, decided with the user
    2026-10-03, with no hurry: after the machines have run and the argument is written, so
    that what is released has been generated against. The review and the release run as
    [`release_review.md`](release_review.md) says, its readers being item 6's. Item 10's
    launchd checks of MVP 2.99b have run on a Mac by then, or the notes say that the agent has
    not been checked.
-
----
-
-## The full review's findings (after MVP 2.99c's item 6, before its item 7), about two days
-
-The 570 findings the full review handed in on 2026-10-04, MVP 2.99c's item 6, worked as
-[`full_review.md`](full_review.md)'s *The findings* says. They stand in
-[`findings.md`](findings.md), a line each by area, with every reader's whole list below.
-They are worked before item 7, since the release's review takes item 6's readers for its own.
-
-1. **The lines' decisions**: each line `cheap`, a milestone, `done` or `dropped` with its
-   reason, once the user has read the lines.
-2. **The design questions**, discussed with the user one at a time, each a sentence of the
-   report or of §0 or a ruling, the report and the log changing with each.
-3. **The fixes**: the report, the guide and the documents, then the code and its tests, a
-   batch a commit. A design question, a sentence of the report or of §0, and a reading of the
-   argument run on the most advanced model, and a defect whose fix the finding names on the
-   one below, as *The models* says. One fix departs from its triage: `PWD` reaches a
-   program as the launcher's shell sets it, which §11 states, since a shell's script cannot
-   see what the shell replaced; a compiled launcher, which would keep it, is not built,
-   decided with the user 2026-10-05 (the log's *The security reader's cheap lines*).
-4. **The close**: the log's entry for the review gains how many findings took each decision,
-   and `findings.md` goes when every line is done or dropped, or stands in the plan as an
-   item of its own.
-
-The two days are the earlier reviews' pace, the principles review's 663 findings worked in
-one; the decisions take the user's time, at the user's pace, and the estimate is revised
-when the lines have their decisions.
 
 ---
 
@@ -789,3 +760,15 @@ Variable*). `ern test` takes a directory, an `Fs.Entry` holds its file's mode an
 item, written and waiting for a Mac, which MVP 2.99c's release runs or names in its notes;
 and the Erlang that Ernest can hold, MVP 2.99c's item 5. `language_feedback.md` holds no
 entry, and stays as the place new feedback is written.
+
+### The full review's findings (done 2026-10-05)
+
+The 570 findings of MVP 2.99c's item 6 were worked, and `findings.md` went: its lines with
+what was done stand at commit `0d2de61`, and the log's *The Full Review Run* counts them, 539
+done, 23 dropped and 8 placed here, in MVP 2.99d, 3.0, 3.1, 3.2 and 3.3. The 34 design
+questions were decided with the user one at a time, and the cheap lines worked a reader's area
+a commit (the log's *The Full Review's Questions, One by One*). One fix departs from its
+triage: `PWD` reaches a program as the launcher's shell sets it, which §11 states, and no
+compiled launcher is built, decided with the user. A release's notes list no change, and
+`ern` refuses no spelling of an earlier toolchain with its replacement (*A Release Carries
+No History*).
