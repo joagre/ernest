@@ -1137,9 +1137,31 @@ Some([#("the", 3), #("and", 1)]) : Optional(List(#(String, Int)))
 
 A `send` is `Unit`, which the shell does not print.
 
-### 4.8 Prediction exercise
+### 4.8 Exercises
 
-Does `Address.call(counter, ..., 1000)` returning `None` guarantee the recipient did no work?
+**(a)** Does `Address.call(counter, ..., 1000)` returning `None` guarantee the recipient did no work?
+
+**(b)** A relay stands in front of the counter of §4.1 and passes every message on:
+
+```ernest
+type CounterMsg = Inc(Int) | Get(reply : Reply(Int))
+
+fn relay(counter : Address(CounterMsg)) : Unit with CounterMsg =
+    receive {
+        Inc(amount) -> {
+            send(counter, Inc(amount));
+            relay(counter)
+        }
+      | Get(reply = reply) -> {
+            send(counter, Get(reply = reply));
+            relay(counter)
+        }
+    }
+```
+
+Who answers a `Get` sent to the relay? Does the relay still owe an answer after its `send`, and what would the compiler say of `answer(reply, 0)` written after it?
+
+**(c)** Add a request `Reset` to §4.1's `CounterMsg`: it answers the total and sets it to zero. Write its clause in `count`. Then leave the clause out and predict: does the program still compile, and what happens to a `Reset` sent to that counter?
 
 ## 5. Manage process lifetime
 
@@ -1449,9 +1471,11 @@ cat 2
 
 Each worker counts one text and sends the map to `main`, not to the tally. Messages are ordered per sender only (§5.1), so an `Add` a worker sent to the tally could arrive after the `Top` that `main` sends; sent by `main`, they arrive in order. `main` monitors every worker, so one that faults is counted as done and reported. A worker that returned is counted by its `Counted`, so `collect` passes over its `Down`, whichever of the two arrives first (§5.2).
 
-### 5.7 Prediction exercise
+### 5.7 Exercises
 
-Given the ping-pong program, does the runtime guarantee ping and pong's `Io.println` output appears in strictly alternating order?
+**(a)** Given the ping-pong program, does the runtime guarantee ping and pong's `Io.println` output appears in strictly alternating order?
+
+**(b)** Take the clause for `Returned` out of §5.2's `waitFor`. Which lines can `jobs.erc` then print for job 1?
 
 ## 6. Handle failure
 
@@ -1726,7 +1750,9 @@ Some(1) Some(1)
 
 **Who is in a group.** A child that returns or is killed leaves the group, and a child may join at any time, so one supervisor also holds the children a program starts while it runs, one per connection.
 
-### 6.7 Prediction exercise
+### 6.7 Exercises
+
+**(a)** Given:
 
 ```ernest
 fn first(list : List(Int)) : Int =
@@ -1737,6 +1763,24 @@ fn first(list : List(Int)) : Int =
 ```
 
 What happens when `main` calls `first([])`, and how would you make the empty list the caller's to handle?
+
+**(b)** The compiler refuses this counter, which is meant to pass over a negative amount:
+
+```ernest-rejected
+type CounterMsg = Add(amount : Int, reply : Reply(Int))
+
+fn count(total : Int) : Unit with CounterMsg =
+    receive {
+        Add(amount = amount, reply = reply) -> if amount < 0 then
+            count(total) // rejected
+        else {
+            answer(reply, total + amount);
+            count(total + amount)
+        }
+    }
+```
+
+Why? Repair it twice: once so that the caller is told, as §6.2 would have it, and once as §6.4 would.
 
 ## 7. Organize code
 
@@ -2150,9 +2194,13 @@ export fn map(Set(list) : Set(a), f : (a) -> b with e) : Set(b) with e needs b.c
 
 `fromList` declares the requirement and hands `a.compare` to `List.sort`. `firstOfEach` and `has` are helpers generic in the element, so each declares the requirement too, and the member goes along from the exported function that calls it. `map` declares `needs b.compare`, the order of the set it builds.
 
-### 7.4 Prediction exercise
+### 7.4 Exercises
 
-Can a helper in the same file as `Stack`, one that is not declared `Stack.` anything, match `Stack(items)`?
+**(a)** Can a helper in the same file as `Stack`, one that is not declared `Stack.` anything, match `Stack(items)`?
+
+**(b)** §7.3 has two records of sets, `hashed` and `ordered` in `common.ern`, and two bags, `hashed(Set.empty)` and `ordered(OrderedSet.empty)` in `bag.ern`. Which pair can stand in one list, and why?
+
+**(c)** With `sorted` of §7.3, write `firstTwo`, which answers the two smallest elements of a list. What does its signature declare, and what does the call `firstTwo([3, 1, 2])` write for the order?
 
 ## 8. Cross boundaries
 
@@ -2528,13 +2576,13 @@ It begins with `fn`, so a reader and the parser see a lambda begin at its first 
 
 **§3.7.** `map2`'s inferred type is `((a) -> b with e, a, a) -> #(b, b) with e`. The call binds `a = Int`, `b = Unit`, and `e` to the mailbox effect of `send`, the same as the enclosing function's.
 
-**§4.8.** No. The timeout only bounds the caller's wait. The recipient may still be processing the request or may answer later; the late answer is silently discarded but the work done on the recipient side is not undone.
+**§4.8.** (a) No. The timeout only bounds the caller's wait. The recipient may still be processing the request or may answer later; the late answer is silently discarded but the work done on the recipient side is not undone. (b) The counter answers. Sending the `Get` on handed the reply's obligation to the counter with the message, so the relay owes nothing after its `send`, and holds nothing to answer with: `answer(reply, 0)` after it is refused, `the reply-carrying value reply is consumed twice`. (c) The type gains `Reset(reply : Reply(Int))`, and `count` the clause `Reset(reply = reply) -> { answer(reply, total); count(0) }`. Without the clause the program still compiles. A `receive` takes the messages its clauses match and leaves the others in the mailbox (§4.3), so the `Reset` waits there for a clause that never comes: its caller's `Address.call` answers `None` at its deadline, and the counter goes on serving `Inc` and `Get`. A `match` must cover its type; a `receive` need not, and a protocol's new request is the programmer's to give a clause.
 
-**§5.7.** Yes. `Io.println` returns once standard output has taken the line (report §8.2). Ping prints before it calls pong and waits for the answer, and pong prints before it answers, so each line is written before the next can be. Per-sender order alone would not give it, since the two are two senders to standard output: the call orders them.
+**§5.7.** (a) Yes. `Io.println` returns once standard output has taken the line (report §8.2). Ping prints before it calls pong and waits for the answer, and pong prints before it answers, so each line is written before the next can be. Per-sender order alone would not give it, since the two are two senders to standard output: the call orders them. (b) `job 1: 1` or `job 1: the worker died`. The result comes from the worker and the `Down` from the runtime, two senders, so either may be received first (§5.1). Where the `Down` comes first, the wait answers `None` though the worker did its work, and the result arrives afterwards, for the next wait to pass over. The clause tells the two ends apart by the `Down`'s reason.
 
-**§6.7.** `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints the fault, `Main.main faulted: first of an empty list` for a `main` in `main.ern`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`.
+**§6.7.** (a) `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints the fault, `Main.main faulted: first of an empty list` for a `main` in `main.ern`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`. (b) On the path for a negative amount `reply` is neither answered nor handed on, and a reply is used exactly once on every path (§4.2); its caller would wait until its deadline for an answer no one can give. Told to the caller (§6.2): the reply becomes a `Reply(Either(String, Int))`, the path answers `Left("a negative amount")` before it loops, and the other answers `Right(total + amount)`. Let it crash (§6.4): the path calls `fault("a negative amount")`, which need not answer, since the fault ends the process and the call waiting on it at once; under `restarting` the counter then begins again from zero (§6.5).
 
-**§7.4.** Yes. The boundary of an abstract type is its module, so every definition in `stack.ern` may name the constructor, a helper or a test included; another module sees the type and its operations, never the constructor.
+**§7.4.** (a) Yes. The boundary of an abstract type is its module, so every definition in `stack.ern` may name the constructor, a helper or a test included; another module sees the type and its operations, never the constructor. (b) The two bags. A list's elements have one type. `hashed` is an `Operations(Set(Int), Int)` and `ordered` an `Operations(OrderedSet.Set(Int), Int)`: an operations record keeps the representation in its type, so the two records are of two types, and a list of both is refused. Both bags are a `Bag(Int)`, since a record of closures hides the representation in its functions. (c) `fn firstTwo(list : List(a)) : List(a) needs a.compare = List.take(sorted(list), 2)`. It calls `sorted` at its own type variable, so it declares the requirement and passes on the member it is given. The call writes nothing: the compiler supplies `Int.compare`.
 
 **§8.8.** The `send` faults the sending process, at the call, with `function cannot cross nodes`: a function does not leave its node inside a message. To give the service the function, spawn a process on its node, which takes the function's code with it, and let that process send the message there: `Peer.spawn(name, fn() = send(service, Register(fn(x) = x + 1)))`.
 
