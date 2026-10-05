@@ -217,7 +217,9 @@ and its measurement does not hold the release.
     module (2026-10-06; the log's *Bytes Stands on the Host*), and `Map` and `Set` on
     `maps` and `sets`, `Map.map` and `Set.map` with wider types (E.3, E.4; the log's *Map
     and Set Stand on the Host*). The machine's last measurement draws predicates that keep
-    about half. Next: the value modules, then the system modules and the libraries.
+    about half. The value modules stay as they are: an operation Ernest writes as the
+    host's operators applied once is no shim (E.0 rule 1; the log's *The Host's Operators
+    Are No Shim's*). Next: the system modules and the libraries.
 
 ---
 
