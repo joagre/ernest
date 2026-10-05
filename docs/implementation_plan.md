@@ -16,8 +16,10 @@ milestone, the standing gaps, and what is done.
 **Ernest 0.3.1 is tagged** `v0.3.1` on 2026-10-05, a documentation release from MVP 2.99d:
 the manual pages rewritten to teach (item 7), the examples made to teach (item 8), the guide
 staged for its reader (item 5) and the report's contracts made precise (item 4), no rule
-changed. Next is the rest of MVP 2.99d, the library and the prelude measured, and
-`Fs.removeAll` refusing the root.
+changed. Since then MVP 2.99d has measured the library (item 1) and stood it on the host
+(item 12), `Fs.removeAll` refuses the root (item 6), and a program's exit and its end are
+reported as they happen (items 9 and 10). Next are the prelude measured (item 2), the
+emitted code's cost (item 3), and the decision on `Clock.now` (item 13).
 
 **Ernest 0.3.0 is tagged** `v0.3.0` on 2026-10-05, the end of MVP 2.99c: the core
 language argued sound in [`soundness.md`](soundness.md) and generated against, the grammar,
@@ -184,44 +186,21 @@ and its measurement does not hold the release.
    and under `make test-shell` too. Undiagnosed: when it fails again, its step file in the
    run's directory says which expectation went unmet, and the fix follows from it; until
    then it is watched.
-12. **The library stands on the host**, decided with the user on 2026-10-05 (the log's
-    *The Library Stands on the Host*): E.0 rule 1's line of three times goes, and so does
-    "`foreign` is only what the host alone can do". Where a host function does exactly an
-    Ernest function's work, the Ernest function is a shim of it; where one almost does, a
-    few lines of Ernest close the gap around a shim that is the host function exactly, and
-    in Erlang only where the measurement shows the Ernest ones cost; where none does,
-    Ernest as now. First E.0 rule 1 of the report and CLAUDE.md's *Shims*, written anew,
-    with the sentences that sort and split in Ernest gone; then the library converted
-    function by function, each with its upstream manual page open and held by the laws
-    machine, `List.unique`, `List.sort`, the `Path` functions and the rest of item 1's
-    list among the first; then the measurement run again. Items 1 to 3's decisions on
-    functions past the line become this item's. The rule is written (2026-10-05). A
-    primitive's type is its signature alone, so a foreign function now writes the equality
-    mark in its parameters, `a=` (§3, §4.7; the log's *A Foreign Function Marks Its
-    Equality*), for `List.contains`, `remove` and `unique`. Its variables stay
-    not-reply-carrying, so a function whose type carries a reply, `List.reverse`,
-    `foreach`, `foldRight`, `indexed`, `unzip` and `<>`, stays Ernest. No second mark lifts
-    that restriction, decided with the user on 2026-10-06 (§4.7; the log's *No Mark Lifts
-    a Foreign Function's Restriction*). `List` is converted (2026-10-05; the log's *List Stands on the Host*): ten
-    functions on the host's, each 1.1 to 1.5 times it. Before the item's last measurement,
-    the machine draws varied elements, and an order for a comparison, where it now draws
-    equal elements and a constant `Less`. `String` is converted where the host keeps its
-    page (2026-10-05; the log's *String Stands on the Host*). E.5 keeps whole graphemes:
-    the host's `find`, `split`, `replace` and `trim` match from inside a grapheme, which
-    their page does not say, so the host's rule agreed for them that day is not taken, and
-    the report of the defect to OTP is the user's (`docs/otp_bugs.md`, report 4). `Path`
-    is read by code points, as the runtime reads it, which it was not (2026-10-06; E.14;
-    the log's *Path Read as the Runtime Reads It*), over two primitives of the path syntax,
-    since the `filename` pages state none of E.14's edge cases: `name` 0.3 to 0.7 times
-    `filename`'s, `extension` and `parent` 1.1 to 1.6. `Bytes` stands on the `binary`
-    module (2026-10-06; the log's *Bytes Stands on the Host*), and `Map` and `Set` on
-    `maps` and `sets`, `Map.map` and `Set.map` with wider types (E.3, E.4; the log's *Map
-    and Set Stand on the Host*). The machine's last measurement draws predicates that keep
-    about half. The value modules stay as they are: an operation Ernest writes as the
-    host's operators applied once is no shim (E.0 rule 1; the log's *The Host's Operators
-    Are No Shim's*). The system modules' functions reach their processes by design, and
-    of the libraries `Ets.contains` stands on `ets:member/2` (the log's *The System Modules
-    and the Libraries, Read*). Last: the machine's draws, and the measurement again.
+12. **The library stands on the host**, done 2026-10-06 (decided with the user on
+    2026-10-05; the log's *The Library Stands on the Host*). E.0 rule 1 and CLAUDE.md's
+    *Shims* say it: where a host function does exactly an operation's work by its page,
+    the operation is its shim; where one almost does, Ernest closes the difference around
+    it, and Erlang only where that Ernest measurably costs; an operation written as the
+    host's operators applied once is no shim. A foreign function marks its equality, `a=`
+    (§3, §4.7), and no second mark lifts its reply restriction (decided 2026-10-06).
+    `List`, `String`, `Bytes`, `Map`, `Set` and `Ets.contains` stand on the host; `Path` is
+    read by its code points, as the runtime reads it (E.14). Measured again with varied
+    elements, an order and predicates that keep half, nothing is past three times the
+    host's but `List.reverse`, which carries replies, and `String.trimStart`, whose host
+    function reads whitespace otherwise. Four defects of OTP's are written as reports in
+    `docs/otp_bugs.md`, filed by the user. The log's entries from *A Foreign Function
+    Marks Its Equality* to *The System Modules and the Libraries, Read*, and *Item 12's
+    Last Measurement*, say each step.
 13. **Whether `Clock.now` reads the host's clock without a message**, a decision with the
     user before this milestone closes (found 2026-10-06 by item 12; the log's *The System
     Modules and the Libraries, Read*). E.15 has `now` reach the clock's process, 1.8 us

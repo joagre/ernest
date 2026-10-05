@@ -1,6 +1,7 @@
 %% `make bench`'s second half (docs/development.md), MVP 2.99d's item 1:
 %% every exported function of the standard library and the libraries
-%% measured, a first pass, against Appendix E.0 rule 1's line. A function
+%% measured beside the host's, so that what Ernest adds to the host's work
+%% shows (Appendix E.0 rule 1, CLAUDE.md's cost rule). A function
 %% that needs no process is called with arguments drawn from its type, at
 %% 10, 100 and 10,000 elements, graphemes or bytes, and timed beside the
 %% host's function that does the same work, where one does (hosts/0), and
@@ -23,9 +24,10 @@
 -include_lib("kernel/include/file.hrl").
 -include_lib("typer/include/ern_types.hrl").
 
-%% Report Appendix E.0 rule 1: past the line where the Ernest form costs
-%% more than three times the host's at the sizes a program meets, or grows
-%% with what the host's does not. Growth is judged from 100 to 10,000: at
+%% The machine's line, for what to look at: E.0 rule 1 has none since MVP
+%% 2.99d's item 12, deciding by whether a host function does the work. Past
+%% it, the Ernest form costs more than three times the host's at the sizes
+%% a program meets, or grows with what the host's does not. Growth is judged from 100 to 10,000: at
 %% least tenfold, and more than three times the host's own where hosts/0
 %% names one, since at 10,000 the host's memory makes a linear operation
 %% grow by several hundred; where none does, above what a sort with that
@@ -382,6 +384,10 @@ value({tcon, ['Random', 'Seed'], []}, _, _) -> 'ern@random':seed(1);
 value({tcon, ['Foreign', 'Term'], []}, Size, _) -> lists:seq(1, Size);
 value({ttuple, Elements}, Size, Types) ->
     list_to_tuple([value(Element, Size, Types) || Element <- Elements]);
+value({tfn, [_, _], _, {tcon, ['Ordering'], []}}, _, _) ->
+    fun ordered/2;
+value({tfn, Params, _, {tcon, ['Bool'], []}}, _, _) ->
+    half(length(Params));
 value({tfn, Params, _, Result}, _, Types) ->
     callback(length(Params), value(Result, 1, Types));
 value({tcon, QualifiedName, _} = Type, Size, Types) ->
@@ -400,15 +406,33 @@ constructed(_, Type, _, _) ->
     throw({no_value, Type}).
 
 %% Size elements, distinct where the type lets them be, so that a set or a
-%% map's keys are Size of them.
-elements({tvar, _}, Size, _) -> lists:seq(1, Size);
-elements({tcon, ['Int'], []}, Size, _) -> lists:seq(1, Size);
-elements({tcon, ['String'], []}, Size, _) -> [integer_to_binary(I) || I <- lists:seq(1, Size)];
-elements({tcon, ['Char'], []}, Size, _) -> [$a + I rem 26 || I <- lists:seq(1, Size)];
+%% map's keys are Size of them, and in an order of their hashes, the same
+%% each run, so that a sort meets no run the host's would read as sorted.
+elements({tvar, _}, Size, _) -> shuffled(lists:seq(1, Size));
+elements({tcon, ['Int'], []}, Size, _) -> shuffled(lists:seq(1, Size));
+elements({tcon, ['String'], []}, Size, _) ->
+    [integer_to_binary(I) || I <- shuffled(lists:seq(1, Size))];
+elements({tcon, ['Char'], []}, Size, _) -> [$a + I rem 26 || I <- shuffled(lists:seq(1, Size))];
 elements(Type, Size, Types) -> lists:duplicate(Size, value(Type, 1, Types)).
+
+shuffled(List) ->
+    [Element || {_, Element} <- lists:sort([{erlang:phash2(Element), Element} || Element <- List])].
 
 pairs(Key, Element, Size, Types) ->
     lists:zip(elements(Key, Size, Types), lists:duplicate(Size, value(Element, 1, Types))).
+
+%% An order on any value drawn, the host's order of terms, which for the
+%% values drawn is each type's own: a comparison that is no order measures a
+%% sort that need not do its work (report §3.10).
+ordered(Left, Right) when Left < Right -> 'Less';
+ordered(Left, Right) when Left > Right -> 'Greater';
+ordered(_, _) -> 'Equal'.
+
+%% A test that holds for about half of what it is given, by its first
+%% argument's hash, so that a filter keeps some and drops some.
+half(1) -> fun(Value) -> erlang:phash2(Value) rem 2 =:= 0 end;
+half(2) -> fun(Value, _) -> erlang:phash2(Value) rem 2 =:= 0 end;
+half(3) -> fun(_, Value, _) -> erlang:phash2(Value) rem 2 =:= 0 end.
 
 callback(0, Result) -> fun() -> Result end;
 callback(1, Result) -> fun(_) -> Result end;

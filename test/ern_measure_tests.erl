@@ -8,7 +8,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% report Appendix E.0 rule 1: each function is measured against the line,
+%% report Appendix E.0 rule 1: each function is measured beside the host's,
 %% or named with why it is not
 every_function_measured_test_() ->
     {timeout, 120, fun every_function_measured/0}.

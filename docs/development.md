@@ -121,7 +121,7 @@ make service      a program run by the host's service manager, a user's systemd 
 make bench        what each of a few operations costs in Ernest beside the same
                   operation in Erlang, in nanoseconds; then every function of the
                   library beside the host's, at 10, 100 and 10,000, its time and what it
-                  allocates, with what is past Appendix E.0 rule 1's line and whether
+                  allocates, with what costs more than three times the host's and whether
                   the machine was idle, the whole table in test/build/bench/library.txt;
                   not part of make test
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
