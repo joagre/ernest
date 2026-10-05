@@ -167,8 +167,9 @@ log's *A Full Review Now and Then*).
   here with the user the same day).
 - **Code change in running processes, decided with the user before any of it is built**:
   §6.10's replacement by a message that carries the new loop, and a long-serving service's
-  upgrade. The thinking so far, tentative and undecided, is in [`mvp3.md`](mvp3.md), which
-  also holds the rest of the thinking for MVP 3.0 and 3.1 until their discussions decide it.
+  upgrade. The thinking so far, tentative and undecided, is in
+  [`distribution.md`](distribution.md), which also holds the rest of the thinking for MVP
+  3.0 and 3.1 until their discussions decide it.
 - The module `Peer`, with `Peer.spawn(name, f)` and `Peer.spawnMonitored(name, f, wrap)` (§8.3),
   in a section added at the end of Appendix E; the checker's refusal of a name of `Peer` goes,
   and the guide's examples in §8.1 and §8.4 are compiled again (2026-10-01, the log's *The Rules

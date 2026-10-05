@@ -1,8 +1,10 @@
-# Thinking for MVP 3.0 and 3.1
+# Ernest: Distribution
 
-The thinking about peers, code distribution and code change, before MVP 3.0 decides any of it. Everything here is tentative: nothing is a decision, nothing is built, and nothing in the report changes because of it.
+Status: thinking for MVP 3.0 and 3.1, begun 5 October 2026, all of it tentative.
 
-**A clean room.** This note stands on its own. It reads [`node_protocol.md`](node_protocol.md) and [`code_distribution.md`](code_distribution.md) as input, and their solutions are valuable, but it is not bound by them. Nothing flows from it into the report, the notes, the plan or the log until the thinking is covered. Then each decision goes to its owner, the report for a rule and the log for the why, and the design to the documents the thinking settles on: which those are, the two notes kept, merged, rewritten or joined by others, is itself part of what this note decides. The leading candidate: this note, its thinking settled and its tentative marks gone, becomes the one design note for nodes, code and code change, under a name of its own, `distribution.md` perhaps, and the two notes retire into it. Otherwise this note goes.
+The thinking about nodes, code distribution and code change, before MVP 3.0 decides any of it. Everything here is tentative: nothing is a decision, nothing is built, and nothing in the report changes because of it.
+
+**A clean room.** This note stands on its own. It reads [`node_protocol.md`](node_protocol.md) and [`code_distribution.md`](code_distribution.md) as input, and their solutions are valuable, but it is not bound by them. Nothing flows from it into the report, the notes, the plan or the log until the thinking is covered. Then each decision goes to its owner, the report for a rule and the log for the why, and the design to the documents the thinking settles on: which those are, the two notes kept, merged, rewritten or joined by others, is itself part of what this note decides. The note is named for what it is meant to become: its thinking settled and its tentative marks gone, the one design note for nodes, code and code change, into which the two notes retire. Whether and when they do is still to decide.
 
 **What is carried in.** Sections 2 to 6 carry in the two notes' design as it stands, in this note's words and unweighed, so that the whole story is in one place; each says which sections it comes from. Until the thinking is covered the two notes own that design, and where a paragraph here and a note differ, the note says what was brought to the report. Section 11 carries in their open questions, each with its number there: *P* for the protocol note's and *D* for the distribution note's.
 
@@ -30,7 +32,21 @@ From the protocol note, sections 1 to 3 and 9.
 
 **The handshake.** Mutual TLS 1.3, then a hello: the `NodeId`, checked against the certificate; the incarnation; the protocol's version; and the versions of the IR and the hash scheme. A hello whose versions differ is refused, so a change of the IR or the hash scheme is a cutover of every node at once.
 
-**The frames.** Each is length-prefixed and has a type: have, want and code, the exchange before a spawn (section 6); spawn and spawned; message; monitor, demonitor and down; kill; and heartbeat. `demonitor` serves the runtime alone, when a watcher dies.
+**The frames.** Each is length-prefixed and has a type. A spawn frame follows its have frame (section 6), and `demonitor` serves the runtime alone, since the language has none.
+
+| Frame | Purpose |
+|---|---|
+| have | the hashes, of code and types, that the next spawn references |
+| want | the hashes the receiver lacks |
+| code | the code of the hashes wanted |
+| spawn | start a process from `{hash, env}` under a `LocalId`, with its site and, for `spawnMonitored`, its monitor |
+| spawned | the peer's answer to a spawn: started, or the cause of the resolution failure |
+| message | a value for an address, with an adapted address's `{hash, env}` |
+| monitor | set a monitor under the watcher node's identifier |
+| demonitor | remove a monitor whose watcher has died |
+| down | the `Down` for a monitor |
+| kill | kill a process (§6.9) |
+| heartbeat | liveness |
 
 **Loss.** A connection torn down is the loss of the peer: by the network, a full outgoing queue, a faulty frame, or a peer silent past the heartbeat's timeout. The node then treats every process of that incarnation as dead with `Fault("peer lost")` and delivers each monitor on one. It drops what was queued, drops the monitors the lost peer's processes held on its own, and ends the calls waiting on them. Loss is terminal (§10): the addresses held before it stay dead if the connection returns. A connection is opened again only on demand, with increasing delay between attempts, never in the background.
 
@@ -46,7 +62,7 @@ From the protocol note, sections 4, 5, 8 and 10.
 
 **A message fetches no code.** A spawn's exchange of code holds up only its spawner, and no other sender's frames wait behind it.
 
-**Values** cross in the runtime's external term format, in the representations of §8.4's ABI, and no peer creates an atom on a node by sending data. An address crosses in its wire form. The function a spawn starts crosses as `{hash, env}`, and so does every function it reaches, through data and through captures. A foreign value, and a function anywhere else, faults the operation that would transport it (§3.8, §3.11). An adapted address crosses as its target's address and its function's `{hash, env}`. A message to it carries the value, unconverted, back to the node that made the address, which applies the function on delivery (§6.5).
+**Values** cross in the runtime's external term format, in the representations of §8.4's ABI, and no peer creates an atom on a node by sending data. An address crosses in its wire form. The function a spawn starts crosses as `{hash, env}`, and so does every function it reaches, through data and through captures; a raw function of the host's is never serialized. A foreign value, and a function anywhere else, faults the operation that would transport it (§3.8, §3.11). An adapted address crosses as its target's address and its function's `{hash, env}`. A message to it carries the value, unconverted, back to the node that made the address, which applies the function on delivery (§6.5).
 
 ## 4. Processes on a peer
 
@@ -64,7 +80,7 @@ The plan's MVP 3.0 holds what is decided around these: `Peer.find`, which answer
 
 From the distribution note, sections 1 to 4 and 11.
 
-**What is hashed.** A definition's hash is the SHA-256 of its canonical form: the version of the format first; each external reference as its qualified name and the hash of what it names; local variables numbered by position; the hashes of the types it uses; named fields in declared order, and construction in source evaluation order (§8.7). Comments and layout are not hashed. Mutually recursive definitions are hashed as one group. The toolchain has no IR today: the emitter goes from the typed tree to Erlang's abstract format in one pass, and whether an IR is added or the typed tree made canonical is the first decision of the plan's MVP 3.1.
+**What is hashed.** A definition's hash is the SHA-256, by `crypto:hash/2`, of its canonical form: the version of the format first; each external reference as its qualified name and the hash of what it names; local variables numbered by position; the hashes of the types it uses; named fields in declared order, and construction in source evaluation order (§8.7). Comments and layout are not hashed. Mutually recursive definitions are hashed as one group. The toolchain has no IR today: the emitter goes from the typed tree to Erlang's abstract format in one pass, and whether an IR is added or the typed tree made canonical is the first decision of the plan's MVP 3.1.
 
 **Hash modules.** Each hash, and each group's, is compiled to a module of its own on the host, named `ern#` and the hash in base32. A hash module never changes.
 
@@ -78,15 +94,15 @@ From the distribution note, sections 1 to 4 and 11.
 
 From the distribution note, sections 5 to 7, 9, 10 and 14.
 
-**One kind of node.** Each node has a cache of code keyed by hash: persistent, on disk and possibly filled at deployment, or volatile, in memory and empty at start. A program's code may be absent, and a node receives what it needs from its peers. The platform may not be absent: the host and its applications, Ernest's runtime and loader, and the compiler's back end. A diskless node can boot the platform over the network by the host's boot server, which has no TLS.
+**One kind of node.** Each node has a cache of code keyed by hash: persistent, on disk and possibly filled at deployment, or volatile, in memory and empty at start. A program's code may be absent, and a node receives what it needs from its peers. The platform may not be absent: the host and its applications, Ernest's runtime and loader, and the compiler's back end. A diskless node can boot the platform over the network by `-loader inet` and `erl_boot_server`, which use no Erlang distribution and no TLS.
 
-**The loader** stands beside the host's unchanged code server. It verifies first: the hash of incoming code is computed before anything else, and a mismatch rejects it. It compiles to a binary, deterministically, and caches the binary under the hash, the back end's version and OTP's. Every unit lists the hashes it references, so a fetched closure is known to be complete before any of it is loaded, and the closure is loaded at once, all of it or none. Nodes run in the host's embedded mode, which loads nothing from the code path on demand, so a missing module is an honest failure.
+**The loader** stands beside the host's unchanged `code_server`, which keeps its table of loaded modules, its purging and its serialized loads. The loader's cache is ETS, from hash to code and compiled binary, and on a persistent node one file for each hash. It verifies first: the hash of incoming code is computed before anything else, and a mismatch rejects it. It compiles to a binary by `compile:forms` with `deterministic`, and caches the binary under the hash, the back end's version and OTP's. Every unit lists the hashes it references, so a fetched closure is known to be complete before any of it is loaded. The closure is loaded at once, all of it or none, by `code:prepare_loading/1` and `code:atomic_load/1`; the first does the heavy work in the calling process, so the one `code_server` should not become a bottleneck, which the plan's MVP 3.1 measures. Nodes run in the host's embedded mode, which loads nothing from the code path on demand, so a missing module is an honest failure.
 
 **Have and want.** Only a spawn on a peer ships code (§8.7). Before a spawn frame's payload is decoded, the sender lists the hashes, of code and types, that the function references transitively, its captures included. The receiver answers with those it lacks, and the sender sends them. The receiver verifies, compiles and loads them. Only then is the payload decoded, since a value cannot be read before its types are loaded, and the process starts. So the whole closure is present before anything runs. A failed exchange is a resolution failure, which faults the caller of the spawn.
 
 **Trust.** The boundary is mutual TLS and nothing else: loading code from the network is remote execution by design. The receiver does not type-check incoming code again, and ill-typed code can fault at run time. The hash guarantees only that what is loaded is what was named. Any authenticated peer may load and run any code on any node it talks to, a known limit while one owner runs every node.
 
-**Unloading.** A hash may be unloaded, and removed from the cache, when no name table on the node refers to it, no loaded hash depends on it, and the host's soft purge succeeds, which checks that no process runs its code or holds a function of it. It is tried after a configured idle time. The host's check sees the closures in each process's state, so nothing counts references.
+**Unloading.** A hash may be unloaded, and removed from the cache, when no name table on the node refers to it, no loaded hash depends on it, and `code:delete/1` followed by `code:soft_purge/1` succeeds, the host checking that no process runs its code or holds a function of it. It is tried after a configured idle time. The host's check sees the closures in each process's state, so nothing counts references.
 
 **Atoms and lambdas.** Every module's name is an atom, and the host never collects atoms; its limit is about a million. The host's table of lambdas grows the same way, an entry for each lambda of each version loaded, up to 524,288, and unloading frees neither. So a long-lived node that receives many versions leaks both. The note's answer is that a node counts its atoms and, above a threshold, drains and restarts: every process on it dies, and every address to it is dead. In reserve it holds a hybrid: incoming code is interpreted first, and compiled to a hash module only when hot, so that cold code costs no atom.
 
