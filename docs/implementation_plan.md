@@ -97,6 +97,11 @@ and its measurement does not hold the release.
    review's findings are: each point taken into the guide, made a plan item, or dropped with
    its reason, the guide's teaching backbone, its programs, the growing word counter and its
    rejected programs, kept as the assessment advises.
+6. **`Fs.removeAll` refuses the root**: `Fs.removeAll(Path("/"))` walks the root as any
+   directory and removes what the program may, and E.17 is silent on it (found 2026-10-05,
+   as the walk was rewritten for the full review's S10). A path that names the root, however
+   written, answers `Left(Invalid)` before the helper runs, as GNU `rm` refuses `/` by
+   default; a sentence of E.17, the check in `ern_fs`, and a test.
 
 ---
 
