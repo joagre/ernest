@@ -14,8 +14,10 @@
 /// `map` changes the value of a `Right`:
 ///
 /// ```ernest
-/// let found : Either(String, Int) = Right(2);
-/// Either.map(found, fn(n) = n * 10)
+/// {
+///     let found : Either(String, Int) = Right(2);
+///     Either.map(found, fn(n) = n * 10)
+/// }
 /// // => Right(20)
 /// ```
 ///
@@ -88,8 +90,10 @@ export fn map(either : Either(e, a), f : (a) -> b with x) : Either(e, b) with x 
 /// ### Examples
 ///
 /// ```ernest
-/// let failed : Either(String, Int) = Left("bad");
-/// Either.mapLeft(failed, fn(s) = s <> "!")
+/// {
+///     let failed : Either(String, Int) = Left("bad");
+///     Either.mapLeft(failed, fn(s) = s <> "!")
+/// }
 /// // => Left("bad!")
 /// ```
 export fn mapLeft(either : Either(e, a), f : (e) -> b with x) : Either(b, a) with x =
@@ -126,8 +130,10 @@ export fn toOptional(either : Either(e, a)) : Optional(a) =
 /// ### Examples
 ///
 /// ```ernest
-/// let nothing : Optional(Int) = None;
-/// Either.fromOptional(nothing, "missing")
+/// {
+///     let nothing : Optional(Int) = None;
+///     Either.fromOptional(nothing, "missing")
+/// }
 /// // => Left("missing")
 /// ```
 export fn fromOptional(optional : Optional(a), cause : e) : Either(e, a) =

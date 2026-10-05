@@ -11,8 +11,8 @@
 ///
 /// **One test at a time.** The tests run in the order the module declares them,
 /// each in a process of its own, so a test may spawn, send and receive. A test
-/// that faults or deadlocks has failed, and the run goes on with the next
-/// (report Appendix E.24).
+/// that faults or deadlocks is reported as `faulted` with the cause, counts as
+/// not passed, and the run goes on with the next (report Appendix E.24).
 ///
 /// Most tests compare a value with the one expected, which `equal` does. A test
 /// that wants another text answers `Failed` with its own.
@@ -24,7 +24,7 @@
 /// ```ernest
 /// {
 ///     let adds = Test.Case(name = "adds", run = fn() = Test.equal(1 + 1, 2));
-///     (adds.run)()
+///     adds.run()
 /// }
 /// // => Passed
 /// ```

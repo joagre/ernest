@@ -5,10 +5,10 @@
 /// with `String.toUtf8` and `String.fromUtf8`.
 ///
 /// A `Bytes` is built and taken apart with bitstrings, which the language
-/// provides: `<<1, 2, 3>>`, and in a pattern `<<length:16, rest:bytes>>` reads
-/// a 16-bit number and the bytes after it (report §5.11). This module holds the
-/// operations bitstrings do not: searching, splitting and the conversions. A
-/// `Bytes` is a value, which no function here changes.
+/// provides: `<<1, 2, 3>>`, and in a pattern `<<length:size(16), rest:bytes>>`
+/// reads a 16-bit number and the bytes after it (report §5.11). This module
+/// holds the operations bitstrings do not: searching, splitting and the
+/// conversions. A `Bytes` is a value, which no function here changes.
 ///
 /// `toList` gives the bytes as `Int`s, each from 0 to 255, and `fromList`
 /// builds a `Bytes` from them.

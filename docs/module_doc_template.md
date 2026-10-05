@@ -26,18 +26,22 @@ Coordinates and radii are whole units, and an area is a `Float`.
 A shape and its area:
 
 ```ernest
-let circle = Template.circle(Template.Point(x = 0, y = 0), 2);
-Template.area(circle)
+{
+    let circle = Template.circle(Template.Point(x = 0, y = 0), 2);
+    Template.area(circle)
+}
 // => 12.566370614359172
 ```
 
 A stack of shapes, pushed and popped:
 
 ```ernest
-let stack = Template.push(Template.emptyStack, Template.Dot(Template.Point(x = 1, y = 1)));
-match Template.pop(stack) {
-    Some(#(top, _)) -> Template.area(top)
-  | None -> -1.0
+{
+    let stack = Template.push(Template.emptyStack, Template.Dot(Template.Point(x = 1, y = 1)));
+    match Template.pop(stack) {
+        Some(#(top, _)) -> Template.area(top)
+      | None -> -1.0
+    }
 }
 // => 0.0
 ```

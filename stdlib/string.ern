@@ -407,8 +407,9 @@ export fn join(parts : List(String), separator : String) : String =
       | first :: rest -> List.foldLeft(rest, first, fn(acc, part) = acc <> separator <> part)
     }
 
-/// The number the decimal digits of `text` write, with an optional leading `-`,
-/// or `None` for any other text: a space, a `+`, an `_` or a point among them.
+/// Reads `text` as a decimal integer. It answers `Some(n)` where `text` is
+/// digits with an optional leading `-`. Other text answers `None`, text with a
+/// space, a `+`, an `_` or a point among it.
 ///
 /// ### Examples
 ///
@@ -419,9 +420,10 @@ export fn join(parts : List(String), separator : String) : String =
 export fn toInt(text : String) : Optional(Int) =
     toIntBase(text, 10)
 
-/// The number `text` writes in `base`, 2 to 36, with digits and letters in
-/// either case and an optional leading `-`, or `None` for any other text, a
-/// leading `+` among it, and for a base outside 2 to 36.
+/// Reads `text` as an integer in `base`, from 2 to 36. It answers `Some(n)`
+/// where `text` is digits and letters of the base, in either case, with an
+/// optional leading `-`. Other text answers `None`, a leading `+` among it, and
+/// so does a base outside 2 to 36.
 ///
 /// ### Examples
 ///
@@ -489,10 +491,12 @@ fn power(base : Int, exponent : Int) : Int =
 export fn toBool(text : String) : Optional(Bool) =
     if text == "true" then Some(true) else if text == "false" then Some(false) else None
 
-/// The `Float` the text writes as a float literal, `"2.5"` or `"1e10"`, with an
-/// optional leading `-` and without `_`, or `None` for any other text and for a
-/// value too large for a `Float`. A value too small to hold is the nearest
-/// `Float`, `0.0` among them (report §2.5, §3.1).
+/// Reads `text` as a `Float`. It answers `Some(x)` where `text` is digits with
+/// a point and digits after it, `"2.5"`, with an exponent, `"1e10"`, or with
+/// both, and an optional leading `-`. A whole number, `"1"`, answers `None`, as
+/// do `"2."`, `".5"`, a `+` or an `_`, other text, and a value too large for a
+/// `Float`. A value too small to hold is the nearest `Float`, `0.0` among them
+/// (report §2.5, §3.1).
 ///
 /// ### Examples
 ///

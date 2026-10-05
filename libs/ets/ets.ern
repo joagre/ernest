@@ -8,17 +8,28 @@
 ///
 /// A program that uses the library puts it on its load path, both when it
 /// is compiled and when it is run: `--load-path` with the directory of the
-/// compiled library, `lib/ernest/build/libs/ets` under the prefix Ernest
-/// is installed in.
+/// compiled library, `lib/ernest/build/libs/ets` under the prefix Ernest is
+/// installed in. Under `/usr/local`, where Ernest is installed by default:
+///
+/// ```sh
+/// ern build --load-path /usr/local/lib/ernest/build/libs/ets main.ern
+/// ern run --load-path /usr/local/lib/ernest/build/libs/ets main.erc
+/// ```
 ///
 /// **A table's life.** A table belongs to the process that made it. It ends
 /// when that process ends, or when any process that holds it calls
-/// `close`. Every operation on a table that has ended faults.
+/// `close`. Every operation on a table that has ended faults: `size` with the
+/// cause `the table has ended`, and the others with the host's, `foreign
+/// function ets:lookup/2 raised error:badarg` and the like, which means the
+/// same.
 ///
 /// **Sharing.** A table is not copied when it is sent in a message or
 /// captured by a spawned function: the other process reads and writes the
 /// same table. Nothing orders the writes of two processes but the order in
-/// which they run. A table stays on the node that made it.
+/// which they run. A `get` followed by a `put` is two operations: another
+/// process may write between them, and one of the two updates is then lost.
+/// State changed by reading and writing it belongs in one process, as a `Map`
+/// in its loop. A table stays on the node that made it.
 ///
 /// **Keys.** The key type needs equality, which the `=` in `Table(k=, v)`
 /// says, and two keys are one key where `==` holds for them.
@@ -182,14 +193,14 @@ foreign fn rawDeleteAllObjects(table : Table(k, v)) : Bool with m =
 ///
 /// ### Examples
 ///
+/// A table closed once its work is done; an operation on it after this faults:
+///
 /// ```ernest
 /// {
 ///     let table = Ets.new();
 ///     Ets.put(table, "k", "v");
-///     Ets.close(table);
-///     "closed"
+///     Ets.close(table)
 /// }
-/// // => "closed"
 /// ```
 export fn close(table : Table(k, v)) : Unit with m = {
     let _ = rawDeleteTable(table);

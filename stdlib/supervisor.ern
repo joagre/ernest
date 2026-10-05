@@ -1,20 +1,24 @@
 /// A group of processes, restarted together when one of them faults.
 ///
 /// Use it where processes depend on one another, so that a fault in one must
-/// restart others too. A single process that restarts alone is `restarting`'s
-/// work. Spawn `group(strategy, limit)` as the supervisor, then spawn
-/// `child(supervisor, f)` for each child, `f` the work it does. The caller
-/// spawns each, as it spawns what `restarting` answers, so a fault line names
-/// the binding that holds the process (report §6.9), and a service binding can
-/// reach it (report §6.5).
+/// restart others too, or where independent processes should share one restart
+/// limit and stop together, one child per connection among them. A single
+/// process that restarts alone is `restarting`'s work. Spawn `group(strategy,
+/// limit)` as the supervisor, then spawn `child(supervisor, f)` for each child,
+/// `f` the work it does. The caller spawns each, as it spawns what `restarting`
+/// answers, so a fault line names the binding that holds the process (report
+/// §6.9), and a service binding can reach it (report §6.5).
 ///
 /// **What restarts.** A child that faults runs `f` again in place, keeping its
 /// address, as under `restarting`. The `Strategy` says which of its siblings
-/// restart with it. A sibling runs on until it next waits, and restarts there,
-/// keeping its address, with its mailbox emptied as every restart empties it
-/// (report §6.9). The child that faulted runs again once each of those siblings
-/// has restarted or ended, so a call to it after its fault is answered by the
-/// group restarted whole.
+/// restart with it. The child that faulted runs again once each of those
+/// siblings has restarted or ended, so a call to it after its fault is answered
+/// by the group restarted whole.
+///
+/// **When a sibling restarts.** A sibling restarts at its next wait, a
+/// `receive` or a call waiting for its answer, and runs on until then; a
+/// sibling that never waits never restarts. It keeps its address, and its
+/// mailbox is emptied, as every restart empties it (report §6.9).
 ///
 /// **The limit.** A group whose children fault more often than `limit` allows
 /// faults itself. A supervisor that is itself a child of another group then
@@ -60,9 +64,11 @@
 ///
 /// ### Examples
 ///
+/// A group whose later children use the earlier ones, restarted from the child
+/// that faulted onwards:
+///
 /// ```ernest
-/// Supervisor.RestForOne
-/// // => RestForOne
+/// spawn(Supervisor.group(Supervisor.RestForOne, RestartLimit(restarts = 3, within = 5000)))
 /// ```
 export type Strategy = OneForOne | OneForAll | RestForOne
 
@@ -133,11 +139,11 @@ let retryMs = 1000
 /// `spawn(Supervisor.group(strategy, limit))`. The children's faults are
 /// counted against `limit` as `restarting` counts a process's (report §6.9).
 ///
-/// The function runs in one process: the first process that runs it is the
-/// group's supervisor, and another that runs it faults, whether the first still
-/// runs or has ended. Beside the supervisor it spawns the process that keeps
-/// the group's children and kills them when the supervisor dies, which a
-/// restart of the supervisor does not end.
+/// Spawn the function `group` answers once. A second process that runs the same
+/// function faults, even after the first has ended; a second group is a second
+/// call of `group`. The call also spawns a process that keeps the group's
+/// children and kills them when the supervisor dies. A restart of the
+/// supervisor does not end it, and `Process.live` lists it.
 ///
 /// A supervisor that is itself a child restarts in place, and asks each of its
 /// children to restart; they keep their order.

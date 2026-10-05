@@ -20,8 +20,10 @@
 /// A list of terms, each asked in turn:
 ///
 /// ```ernest
-/// let terms = Foreign.toList(Foreign.from([1, 2]));
-/// Optional.map(terms, fn(list) = List.filterMap(list, Foreign.toInt))
+/// {
+///     let terms = Foreign.toList(Foreign.from([1, 2]));
+///     Optional.map(terms, fn(list) = List.filterMap(list, Foreign.toInt))
+/// }
 /// // => Some([1, 2])
 /// ```
 ///

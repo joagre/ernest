@@ -31,8 +31,8 @@ builtin_types() ->
       ### Examples
 
       ```ernest
-      1_000_000 * 1_000_000
-      // => 1000000000000
+      1_000_000_000_000 * 1_000_000_000_000
+      // => 1000000000000000000000000
       ```
       """/utf8>>},
      {'Float', 0,
@@ -78,8 +78,8 @@ builtin_types() ->
      {'Bytes', 0,
       <<"""
       A sequence of bytes, as a file or a socket holds them. Bitstrings build
-      it and take it apart: `<<1, 2, 3>>`, and `<<size:16, rest:bytes>>` in a
-      pattern (report §5.11).
+      it and take it apart: `<<1, 2, 3>>`, and `<<length:size(16), rest:bytes>>`
+      in a pattern (report §5.11).
 
       ### Examples
 
@@ -207,9 +207,11 @@ declared_types() ->
     /// // => Unit
     /// ```
     type Unit = Unit
-    /// A value that may be absent, `None`, or present, `Some(v)`: the result of
-    /// a partial operation (report Appendix E.0 rule 4), and a chain of `<-`
-    /// (report §5.5).
+    /// A value that may be absent, `None`, or present, `Some(v)`. A function
+    /// that may have no answer answers one, `List.get` past the end among them
+    /// (report Appendix E.0 rule 4). In a block, `let x <- e` takes the value
+    /// out of a `Some`, and the block answers `None` at the first `None` (report
+    /// §5.5).
     ///
     /// ### Examples
     ///
@@ -218,8 +220,10 @@ declared_types() ->
     /// // => None
     /// ```
     type Optional(a) = None | Some(a)
-    /// A result, `Right(v)`, or the reason there is none, `Left(e)`: the result
-    /// of an operation that fails for a cause, and a chain of `<-` (report §5.5).
+    /// A result, `Right(v)`, or the reason there is none, `Left(e)`. An
+    /// operation that can fail for a cause answers one. In a block, `let x <- e`
+    /// takes the value out of a `Right`, and the block answers the first `Left`
+    /// (report §5.5).
     ///
     /// ### Examples
     ///
@@ -252,8 +256,19 @@ declared_types() ->
     /// }
     /// ```
     type Down = Down(process : Process, reason : Reason, site : String)
-    /// How a process ended: its function returned, `kill` ended it, the program
-    /// ended while it ran, or it faulted with a cause. Only `Fault` is a fault.
+    /// How a process ended, as `Down` says it.
+    ///
+    /// - `Returned`: its function returned, or, for a socket or a listener, the
+    ///   program closed it.
+    /// - `Killed`: `kill` ended it, or its owner's death, for a socket, a
+    ///   listener or a running program.
+    /// - `ProgramEnd`: the program ended while it ran.
+    /// - `Fault(cause)`: it faulted, with that cause.
+    /// - `Unknown`: it had ended before `monitor` was called, and how is not
+    ///   known.
+    ///
+    /// Only `Fault` counts as a fault: `ern run` reports it, and `restarting`
+    /// restarts after it.
     ///
     /// ### Examples
     ///
@@ -265,10 +280,11 @@ declared_types() ->
     /// // => "division by zero"
     /// ```
     type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
-    /// How often `restarting` restarts: at most `restarts` times within
-    /// `within` milliseconds, the next fault ending the process, or after
-    /// every fault where it is `Unlimited` (report §6.9). A count below 0 is
-    /// 0, and a time below 1 is 1.
+    /// How often a process restarts, which `restarting` and `Supervisor.group`
+    /// take (report §6.9). `RestartLimit(restarts, within)` restarts at most
+    /// `restarts` times within `within` milliseconds, and the next fault then
+    /// ends the process. `Unlimited` restarts after every fault. A count below 0
+    /// is 0, and a time below 1 is 1.
     ///
     /// ### Examples
     ///
@@ -276,8 +292,8 @@ declared_types() ->
     /// RestartLimit(restarts = 3, within = 5000)
     /// ```
     type RestartLimit = RestartLimit(restarts : Int, within : Int) | Unlimited
-    /// A file system path, in the runtime's syntax; the `Path` module takes it
-    /// apart (report Appendix E.14).
+    /// A file system path, as the operating system writes it, `/tmp/a.txt`. The
+    /// `Path` module joins paths and takes them apart (report Appendix E.14).
     ///
     /// ### Examples
     ///
@@ -339,11 +355,14 @@ values() ->
       runs beside the caller, on this node, and `spawn` returns at once.
 
       The address takes the messages `f`'s mailbox type names. A process that
-      receives nothing says so with `with Never` on its function, as the example
-      does (report §6.2). The process ends when `f` returns, faults, or is
-      killed.
+      receives nothing says so with `with Never` on its function: `spawn(fn() :
+      Unit with Never = Io.println("hi"))` (report §6.2). The process ends when
+      `f` returns, faults, or is killed.
 
       ### Examples
+
+      A process that receives an `Int`, so that its address is an
+      `Address(Int)`:
 
       ```ernest
       spawn(fn() = receive { n -> Io.println(Int.toString(n)) })
@@ -394,7 +413,9 @@ values() ->
       `None` does not cancel the work: the process asked may still do it, and
       an answer that comes late is dropped. Where that process has ended, or
       ends or restarts before it answers, the call answers `None` at once.
-      `ms` bounds the wait for the answer and nothing before it (report §6.6).
+      The clock starts at the call. The request is made and sent whatever the
+      time, and `ms` bounds only the wait for the answer, which ends at once
+      where the time has already passed (report §6.6).
 
       ### Examples
 
@@ -414,9 +435,15 @@ values() ->
       ### Errors
 
       Faults where the process asked has ended, or ends or restarts before it
-      answers: with that process's own cause where it faulted, and otherwise
-      with `callee was killed`, `callee returned without answering`, `callee
-      was closed`, `callee was restarted` or `callee had ended` (report §6.6).
+      answers (report §6.6):
+
+      - with that process's own cause, where it faulted;
+      - `callee was killed`, where `kill` or its owner's death ended it;
+      - `callee returned without answering`, where its function returned;
+      - `callee was closed`, where the program closed it, a socket or a
+        listener;
+      - `callee was restarted`, where a supervisor asked it to restart;
+      - `callee had ended`, where it had ended before the call.
 
       ### Examples
 
@@ -465,8 +492,13 @@ values() ->
 
       ### Examples
 
+      A worker that faults on `0`, and runs again, at most three times in five
+      seconds:
+
       ```ernest
-      spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() : Unit with Never = Unit))
+      spawn(restarting(RestartLimit(restarts = 3, within = 5000), fn() : Unit with Int = receive {
+          n -> Io.println(Int.toString(100 / n))
+      }))
       ```
       """/utf8>>},
      {[monitor], "(Process, (Down) -> m) -> Unit with m",

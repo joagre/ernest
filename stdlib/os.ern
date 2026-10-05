@@ -46,17 +46,22 @@
 export type Command = Command(program : String, arguments : List(String), input : Bytes)
 
 /// A piece of what a running program wrote, to its standard output or its
-/// standard error, and last its exit status, which is 128 and the signal's
-/// number for a program a signal ended.
+/// standard error, and last its exit status. A program a signal ended has the
+/// status 128 plus the signal's number.
 ///
 /// ### Examples
 ///
+/// A program's output read piece by piece, what it wrote and then its exit
+/// status:
+///
 /// ```ernest
-/// match Os.Exited(0) {
-///     Os.Exited(status) -> status
-///   | _ -> -1
+/// {
+///     let program <- Os.start(Os.Command(program = "echo", arguments = ["hi"], input = <<>>));
+///     let first <- Os.read(program, 5000);
+///     let second <- Os.read(program, 5000);
+///     Right(#(first, second))
 /// }
-/// // => 0
+/// // => Right(#(Stdout(<<104, 105, 10>>), Exited(0)))
 /// ```
 export type Output = Stdout(Bytes) | Stderr(Bytes) | Exited(Int)
 
@@ -76,6 +81,9 @@ export type Finished = Finished(status : Int, stdout : Bytes, stderr : Bytes)
 /// (report Appendix E.23).
 ///
 /// ### Examples
+///
+/// The address of a running program, which `read`, `write`, `closeInput` and
+/// `give` take:
 ///
 /// ```ernest
 /// Os.start(Os.Command(program = "cat", arguments = [], input = <<>>))
@@ -126,8 +134,10 @@ foreign fn commandLine() : List(String) with m =
 ///
 /// ### Examples
 ///
+/// The editor the user chose, or `vi` where none is set:
+///
 /// ```ernest
-/// Os.environment("HOME")
+/// Optional.withDefault(Os.environment("EDITOR"), "vi")
 /// ```
 ///
 /// since 0.2.0
@@ -166,8 +176,9 @@ foreign fn hostFacts() : Host with m =
 export let user : Int = host.user
 
 /// The absolute path of the directory the program was started in, bound when
-/// the program starts, which nothing changes. A relative path given to `Fs`, or
-/// as a program's name to `start`, is taken from it, and a path joined to it is
+/// the program starts, which nothing changes. A relative path given to `Fs`,
+/// and a program's name to `start` that holds a `/`, `./tool`, are taken from
+/// it; a name without `/` is looked for in `PATH`. A path joined to it is
 /// absolute.
 ///
 /// ### Examples
@@ -220,16 +231,17 @@ export foreign fn exit(status : Int) : a with m =
 /// program that started it. It inherits that program's environment and working
 /// directory.
 ///
-/// It runs until it exits, until its process is killed, or until its owner
-/// dies: the process that started it, or the one it was given to with `give`.
-/// Its owner's death kills it, and the processes it started that are still in
-/// its process group. A run is bounded as any process is, by an alarm and
-/// `kill`.
+/// It runs until it exits, until `kill` ends it, or until its owner dies: the
+/// process that started it, or the one it was given to with `give`. Its owner's
+/// death kills it, and with it the programs it started in turn that are still
+/// in its Unix process group. To limit how long it runs, set a `Clock.alarm`
+/// and `kill` it when the alarm comes; `Os.run` takes a limit of its own.
 ///
 /// ### Errors
 ///
-/// Faults where the runtime's helper fails, with the cause `the runtime's
-/// helper ern_exec failed`, the runtime's own failure.
+/// Faults with the cause `the runtime's helper ern_exec failed` where
+/// `ern_exec`, the small program the runtime starts others through, fails. That
+/// is a fault of the installation, not of the command.
 ///
 /// ### Examples
 ///
@@ -261,8 +273,9 @@ export fn start(command : Command) : Either(Io.Error, Address(ProgramMsg)) with 
 ///
 /// ### Errors
 ///
-/// Faults where the program's process has already ended, as
-/// `Address.callForever` does.
+/// Faults where the program's process has ended, as it does once a read has
+/// answered `Exited`: with the cause `callee had ended`, or `callee returned
+/// without answering` where the call came as it ended.
 ///
 /// ### Examples
 ///
@@ -295,8 +308,10 @@ export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Outpu
 ///
 /// ### Errors
 ///
-/// Faults where the runtime's helper fails, as `start` does, and where the
-/// program's process has already ended, as `Address.callForever` does.
+/// Faults where the runtime's helper fails, as `start` does. Faults where the
+/// program's process has ended, as it does once a read has answered `Exited`:
+/// with the cause `callee had ended`, or `callee returned without answering`
+/// where the call came as it ended.
 ///
 /// ### Examples
 ///
@@ -338,14 +353,16 @@ export fn closeInput(program : Address(ProgramMsg)) : Unit with m =
 ///
 /// ### Examples
 ///
+/// A program started for another process to read, given to it, so that the
+/// program is killed if its reader dies:
+///
 /// ```ernest
 /// {
-///     let sleeper <- Os.start(Os.Command(program = "sleep", arguments = ["1"], input = <<>>));
-///     let keeper = spawn(fn() : Unit with Never = receive {
-///         after 1000 -> Unit
+///     let program <- Os.start(Os.Command(program = "sleep", arguments = ["1"], input = <<>>));
+///     let reader = spawn(fn() : Unit with Never = match Os.read(program, 5000) {
+///         _ -> Unit
 ///     });
-///     Os.give(sleeper, Process.fromAddress(keeper));
-///     kill(sleeper);
+///     Os.give(program, Process.fromAddress(reader));
 ///     Right(Unit)
 /// }
 /// ```

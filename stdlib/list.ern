@@ -18,6 +18,12 @@
 /// `==`, so the element type needs equality: a list of functions has none
 /// of the three.
 ///
+/// **Replies.** A list may hold a `Reply`, which must be answered exactly once
+/// (report §6.6). A function that drops or copies elements, `size`, `filter`
+/// and `take` among them, refuses such a list, and its printed type marks the
+/// element `!`: `List.size : (List(a!)) -> Int`. One that uses each element
+/// once, `map` or `foldLeft`, takes it.
+///
 /// ## Examples
 ///
 /// Each element doubled, and a list appended:
@@ -175,10 +181,16 @@ export fn filterMap(list : List(a), f : (a) -> Optional(b) with e) : List(b) wit
         }
     }
 
-/// The elements folded into one value, from the first. `step(acc, x)` is
-/// called with the given `acc` for the first element, and with what `step`
-/// answered for the one before it for the rest. The empty list answers
-/// `acc`.
+/// What `step` answers for the last element. `step` is called on each element
+/// in order: first with `acc` and the first element, then with what it answered
+/// before and the next element. The empty list answers `acc`.
+///
+/// ### Examples
+///
+/// ```ernest
+/// List.foldLeft([1, 2, 3], 0, fn(sum, n) = sum + n)
+/// // => 6
+/// ```
 export fn foldLeft(list : List(a), acc : b, step : (b, a) -> b with e) : b with e =
     match list {
         [] -> acc
@@ -202,9 +214,11 @@ export fn foldRight(list : List(a), acc : b, step : (a, b) -> b with e) : b with
       | head :: rest -> step(head, foldRight(rest, acc, step))
     }
 
-/// Calls `f` for each element, in order, for its effect.
+/// Calls `f` for each element, in order, for its effect, and answers `Unit`.
 ///
 /// ### Examples
+///
+/// Prints `1` and `2`, each on a line:
 ///
 /// ```ernest
 /// List.foreach([1, 2], fn(n) = Io.println(Int.toString(n)))
@@ -261,9 +275,14 @@ export fn find(list : List(a), test : (a) -> Bool with e) : Optional(a) with e =
 ///
 /// ### Examples
 ///
+/// The empty list needs its element type written, since nothing else settles
+/// it:
+///
 /// ```ernest
-/// let empty : List(Int) = [];
-/// #(List.last([1, 2]), List.last(empty))
+/// {
+///     let empty : List(Int) = [];
+///     #(List.last([1, 2]), List.last(empty))
+/// }
 /// // => #(Some(2), None)
 /// ```
 export fn last(list : List(a)) : Optional(a) =
@@ -408,10 +427,12 @@ export fn repeat(element : a, count : Int) : List(a) =
 export fn reverse(list : List(a)) : List(a) =
     foldLeft(list, [], fn(acc, element) = element :: acc)
 
-/// The elements sorted by `compare`, smallest first. The sort is stable:
-/// two elements `compare` calls `Equal` keep the order they had, so a list
-/// sorted by one key and then by another is in order of both. `compare` is
-/// an order (report §3.10), `Int.compare` or one of the program's.
+/// The elements sorted by `compare`, smallest first. `compare` is an order
+/// (report §3.10), `Int.compare` or one of the program's.
+///
+/// The sort is stable: two elements `compare` calls `Equal` keep the order they
+/// had. So to sort by age, and by name among equal ages, sort by name first and
+/// then by age.
 ///
 /// ### Examples
 ///
@@ -506,8 +527,10 @@ export fn flatMap(list : List(a), f : (a) -> List(b) with e) : List(b) with e =
 export fn range(first : Int, last : Int) : List(Int) =
     if first > last then [] else first :: range(first + 1, last)
 
-/// The list of what `step` answers for each element in a `Right`, as `map`
-/// does, or the first `Left` it answers, after which it is called no more.
+/// Calls `step` on each element in order. Where every call answers `Right(y)`,
+/// the answer is `Right` of the list of the `y`s. At the first `Left(e)` the
+/// answer is `Left(e)`, and `step` is not called again. The empty list answers
+/// `Right([])`.
 ///
 /// ### Examples
 ///
@@ -525,9 +548,10 @@ export fn tryMap(list : List(a), step : (a) -> Either(e, b) with x) : Either(e, 
         }
     }
 
-/// The elements folded into one value as `foldLeft` does, `step` answering
-/// a `Right` with the next value, or the first `Left` it answers, after
-/// which it is called no more.
+/// Folds the list as `foldLeft` does, `step` answering `Right` of the next
+/// accumulator. Where every call answers a `Right`, the answer is `Right` of
+/// the last accumulator. At the first `Left(e)` the answer is `Left(e)`, and
+/// `step` is not called again. The empty list answers `Right(acc)`.
 ///
 /// ### Examples
 ///

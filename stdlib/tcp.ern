@@ -5,22 +5,30 @@
 /// connection carries bytes, and a program frames its messages with bitstrings
 /// (report §5.11); there are no socket options.
 ///
-/// **A socket is a process.** `accept` and `connect` answer a socket's address,
-/// which can be sent, monitored, killed and adapted with `via` like any other.
-/// A socket belongs to the process that opened it until `give` gives it to
-/// another, and is killed when its owner dies. It lives until `close` or its
-/// owner's death, and a read or a write after its end faults. A listener is a
-/// process too: it belongs to the process that called `listen`, and lives until
-/// `closeListener` or that process's death.
+/// **A socket is a process.** `accept` and `connect` answer a socket's address.
+/// It can be sent in a message and killed like any other, and
+/// `monitor(Process.fromAddress(socket), wrap)` tells when it ends. A listener
+/// is a process too.
+///
+/// **Ownership.** A socket belongs to the process that opened it, and is killed
+/// when its owner dies. Ownership decides only that: any process that holds the
+/// address may read, write and close it. `give` hands a socket to another
+/// process, so that it dies with that one instead, as an accepting loop gives
+/// each socket to the process that serves it. A listener belongs to the process
+/// that called `listen`.
+///
+/// **A connection that closes, and a socket that ends.** When the far end
+/// closes the connection, or the network fails, the socket lives on: each read
+/// answers `Left(Closed)` once what came before is read, and each write answers
+/// `Left(Closed)`. The socket ends only with `close` or its owner's death, and
+/// a listener with `closeListener` or its owner's death. A read waiting when
+/// `close` ends the socket answers `Left(Closed)`, and a call after the end
+/// faults.
 ///
 /// **A wait that times out takes nothing.** The last argument of a function
 /// that waits is the milliseconds it waits. A read, an accept or a connect that
 /// times out has taken nothing, so bytes that arrive later wait for the next
-/// read.
-///
-/// **A closed connection.** Once the far end has closed the connection, each
-/// read answers `Left(Closed)`, after what came before is read, and so does
-/// each write.
+/// read (report Appendix E.18).
 ///
 /// ## Examples
 ///
@@ -48,12 +56,13 @@
 ///     Tcp.closeListener(listener);
 ///     received
 /// }
+/// // => Right(<<112, 105, 110, 103>>)
 /// ```
 ///
 /// ## See also
 ///
-/// `Bytes` for what a socket carries, `monitor` for learning that a
-/// socket was closed.
+/// `Bytes` for what a socket carries, `monitor` for learning that a socket
+/// has ended.
 ///
 /// since 0.1.0
 
@@ -62,6 +71,8 @@
 /// E.18).
 ///
 /// ### Examples
+///
+/// A listener's address, which `accept`, `port` and `closeListener` take:
 ///
 /// ```ernest
 /// {
@@ -80,6 +91,9 @@ export abstract type ListenerMsg =
 /// and `Tcp.local` on it (report Appendix E.18).
 ///
 /// ### Examples
+///
+/// A socket's address, which `read`, `write`, `close`, `give`, `remote` and
+/// `local` take:
 ///
 /// ```ernest
 /// Tcp.connect("127.0.0.1", 7000, 1000)
@@ -143,12 +157,13 @@ export fn listen(host : String, port : Int) : Either(Io.Error, Address(ListenerM
 }
 
 /// The port the listener listens on: the one `listen` was given, or the one the
-/// host chose for port 0.
+/// host chose for port 0. While the listener lives it answers a `Right`.
 ///
 /// ### Errors
 ///
 /// Faults where the listener has ended, as `Address.callForever` does: with the
-/// cause `callee was closed` after `closeListener`.
+/// cause `callee had ended`, or `callee was closed` where `closeListener` ended
+/// it as the call was made.
 ///
 /// ### Examples
 ///
@@ -172,9 +187,12 @@ export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) with m =
 /// ### Errors
 ///
 /// Faults where the listener has ended, as `Address.callForever` does: with the
-/// cause `callee was closed` after `closeListener`.
+/// cause `callee had ended`, or `callee was closed` where `closeListener` ended
+/// it as the call was made.
 ///
 /// ### Examples
+///
+/// No connection comes within 10 milliseconds:
 ///
 /// ```ernest
 /// {
@@ -183,6 +201,7 @@ export fn port(listener : Address(ListenerMsg)) : Either(Io.Error, Int) with m =
 ///     Tcp.closeListener(listener);
 ///     accepted
 /// }
+/// // => Left(Timeout)
 /// ```
 export fn accept(listener : Address(ListenerMsg),
                  ms : Int) : Either(Io.Error, Address(SocketMsg)) with m = {
@@ -216,7 +235,8 @@ export fn connect(host : String,
 /// ### Errors
 ///
 /// Faults where the socket has ended, as `Address.callForever` does: with the
-/// cause `callee was closed` after `close`.
+/// cause `callee had ended`, or `callee was closed` where `close` ended it as
+/// the call was made.
 export fn read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) with m =
     Address.callForever(socket, fn(reply) = Read(ms = ms, reply = reply))
 
@@ -234,7 +254,8 @@ export fn read(socket : Address(SocketMsg), ms : Int) : Either(Io.Error, Bytes) 
 /// ### Errors
 ///
 /// Faults where the socket has ended, as `Address.callForever` does: with the
-/// cause `callee was closed` after `close`.
+/// cause `callee had ended`, or `callee was closed` where `close` ended it as
+/// the call was made.
 export fn write(socket : Address(SocketMsg),
                 bytes : Bytes,
                 ms : Int) : Either(Io.Error, Unit) with m =
@@ -252,19 +273,26 @@ export fn close(socket : Address(SocketMsg)) : Unit with m =
 ///
 /// ### Examples
 ///
+/// A connection given to the process that serves it, so that the socket dies
+/// with its session; the session greets the client and closes:
+///
 /// ```ernest
 /// {
 ///     let listener <- Tcp.listen("127.0.0.1", 0);
 ///     let port <- Tcp.port(listener);
 ///     let client <- Tcp.connect("127.0.0.1", port, 1000);
-///     let keeper = spawn(fn() : Unit with Never = receive {
-///         after 1000 -> Unit
+///     let socket <- Tcp.accept(listener, 1000);
+///     let session = spawn(fn() : Unit with Never = {
+///         let _ = Tcp.write(socket, String.toUtf8("hello"), 1000);
+///         Tcp.close(socket)
 ///     });
-///     Tcp.give(client, Process.fromAddress(keeper));
+///     Tcp.give(socket, Process.fromAddress(session));
+///     let greeting = Tcp.read(client, 1000);
 ///     Tcp.close(client);
 ///     Tcp.closeListener(listener);
-///     Right(Unit)
+///     greeting
 /// }
+/// // => Right(<<104, 101, 108, 108, 111>>)
 /// ```
 export fn give(socket : Address(SocketMsg), owner : Process) : Unit with m =
     send(socket, Give(owner = owner))
@@ -280,7 +308,8 @@ export fn closeListener(listener : Address(ListenerMsg)) : Unit with m =
 /// ### Errors
 ///
 /// Faults where the socket has ended, as `Address.callForever` does: with the
-/// cause `callee was closed` after `close`.
+/// cause `callee had ended`, or `callee was closed` where `close` ended it as
+/// the call was made.
 ///
 /// ### Examples
 ///
@@ -307,7 +336,8 @@ export fn remote(socket : Address(SocketMsg)) : Either(Io.Error, Endpoint) with 
 /// ### Errors
 ///
 /// Faults where the socket has ended, as `Address.callForever` does: with the
-/// cause `callee was closed` after `close`.
+/// cause `callee had ended`, or `callee was closed` where `close` ended it as
+/// the call was made.
 ///
 /// ### Examples
 ///

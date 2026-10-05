@@ -591,7 +591,7 @@ Four more rules concern processes, and are for after §4:
 
 What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it. `:browse Fs` lists a module's types by name and its functions with their types, and `:doc Fs.Entry` shows a type's declaration, its fields among it.
 
-**Marks in a printed type.** A printed type marks a type variable that needs equality `k=` and one that may not carry a reply `a!` (§2.5, §4.2), and a process-only effect variable that stands nowhere else in the type `m+` (§3.5, report §11.5).
+**Marks in a printed type.** A printed type marks a type variable that needs equality `k=` and one that may not carry a reply `a!` (§2.5, §4.2), and a process-only effect variable that stands only after `with`, never as the type of a value, `m+` (§3.5, report §11.5).
 
 ### 2.10 A word counter, by hand
 
@@ -738,7 +738,7 @@ An effect variable may stand for a mailbox type or for pure. One that also appea
 
 **Process-only.** The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, and `kill`, which §4 and §5 teach, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
 
-**In a printed type.** A printed type marks a process-only effect variable with `+` where it stands nowhere else in the type: `:type send` prints `send : (Address(a), a) -> Unit with m+`, and so does a function of yours that calls `send`. Where the variable is also a callback's result type, as in `monitor`'s `(Down) -> m` (§5.2), it is a type and so never pure, and is printed without the mark (report §11.5).
+**In a printed type.** A printed type marks a process-only effect variable with `+` where it stands only after `with`, never as the type of a value: `:type send` prints `send : (Address(a), a) -> Unit with m+`, and so does a function of yours that calls `send`. The variable may stand there more than once, each marked: `restarting : (RestartLimit, () -> Unit with n+) -> () -> Unit with n+`. Where the variable is also a callback's result type, as in `monitor`'s `(Down) -> m` (§5.2), it is a type and so never pure, and is printed without the mark (report §11.5).
 
 ### 3.6 The word counter as functions
 

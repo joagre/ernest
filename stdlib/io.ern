@@ -18,7 +18,7 @@
 ///
 /// ## Examples
 ///
-/// A line on standard output:
+/// Prints `hello, world` and a line feed on standard output:
 ///
 /// ```ernest
 /// Io.println("hello, world")
@@ -40,8 +40,8 @@
 ///
 /// since 0.1.0
 
-/// Why an operation of a system module found no answer. Every system module
-/// answers `Left` with one of these:
+/// Why an operation of a system module failed. Every system module answers
+/// `Left` with one of these:
 ///
 /// - `NotFound`: the file or the host is not there.
 /// - `Denied`: access was refused.
@@ -50,7 +50,8 @@
 /// - `NotATerminal`: a standard stream an operation needs is not a terminal, or
 ///   is one with no rows or no columns.
 /// - `NotAFile`: a path names something other than a regular file.
-/// - `Exists`: a path names something where nothing may stand.
+/// - `Exists`: the path already names something, where the operation needs it
+///   free, as when a directory is made that is there.
 /// - `NotUtf8(bytes)`: text that is not UTF-8, a name or a link's target among
 ///   them, with its bytes.
 /// - `Invalid`: an argument the host cannot take, one that holds U+0000, a port
@@ -102,9 +103,13 @@ foreign fn system(name : Foreign.Term) : Address(a) with m =
 ///
 /// ### Examples
 ///
+/// Prints `half and half` on one line, since `print` adds no line feed:
+///
 /// ```ernest
-/// Io.print("half ");
-/// Io.println("and half")
+/// {
+///     Io.print("half ");
+///     Io.println("and half")
+/// }
 /// // => Unit
 /// ```
 export fn print(text : String) : Unit with m =
@@ -119,14 +124,19 @@ fn writeTo(stream : Address(OutMsg), bytes : Bytes) : Unit with m =
     Address.callForever(stream, fn(reply) = Write(bytes = bytes, reply = reply))
 
 /// Writes the string to standard error, as it is, without a line feed. Standard
-/// error is a second stream, for what a program says beside output that
-/// something else reads; it is not a level of severity.
+/// error is a second output stream, for messages to the person running the
+/// program, kept apart from the output another program reads. Writing there
+/// marks nothing as an error.
 ///
 /// ### Examples
 ///
+/// Prints `cannot open the file` on one line of standard error:
+///
 /// ```ernest
-/// Io.printError("cannot ");
-/// Io.printlnError("open the file")
+/// {
+///     Io.printError("cannot ");
+///     Io.printlnError("open the file")
+/// }
 /// // => Unit
 /// ```
 export fn printError(text : String) : Unit with m =
@@ -144,14 +154,20 @@ export fn printlnError(text : String) : Unit with m =
 ///
 /// ### Errors
 ///
-/// A line that is not UTF-8 faults the caller with `Fault("the standard
-/// input is not UTF-8")`, and a read after the program subscribed to the
-/// keys with `Fault("the terminal is already read as keys")` (report §7.4).
+/// Faults where a line is not UTF-8, with the cause `the standard input is not
+/// UTF-8`; input that may not be text is read with `read`. Faults after the
+/// program has subscribed to the keys, with the cause `the terminal is already
+/// read as keys`.
 ///
 /// ### Examples
 ///
+/// One line read and echoed, or the end of the input noticed:
+///
 /// ```ernest
-/// Io.readLine()
+/// match Io.readLine() {
+///     Some(line) -> Io.println("read: " <> line)
+///   | None -> Io.println("no more input")
+/// }
 /// ```
 export fn readLine() : Optional(String) with m =
     Address.callForever(stdin, fn(reply) = ReadLine(reply = reply))
@@ -162,13 +178,18 @@ export fn readLine() : Optional(String) with m =
 ///
 /// ### Errors
 ///
-/// A read after the program subscribed to the keys faults the caller with
-/// `Fault("the terminal is already read as keys")` (report §7.4).
+/// Faults after the program has subscribed to the keys, with the cause `the
+/// terminal is already read as keys`.
 ///
 /// ### Examples
 ///
+/// How many bytes the next read brought, 0 at the end of the input:
+///
 /// ```ernest
-/// Io.read()
+/// match Io.read() {
+///     Some(bytes) -> Bytes.size(bytes)
+///   | None -> 0
+/// }
 /// ```
 export fn read() : Optional(Bytes) with m =
     Address.callForever(stdin, fn(reply) = Read(reply = reply))
@@ -176,6 +197,8 @@ export fn read() : Optional(Bytes) with m =
 /// Writes the bytes to standard output, as they are.
 ///
 /// ### Examples
+///
+/// Prints `hi` and a line feed, the bytes 104, 105 and 10:
 ///
 /// ```ernest
 /// Io.write(<<104, 105, 10>>)
@@ -188,6 +211,8 @@ export fn write(bytes : Bytes) : Unit with m =
 /// string.
 ///
 /// ### Examples
+///
+/// Prints `hi` and a line feed on standard error:
 ///
 /// ```ernest
 /// Io.writeError(<<104, 105, 10>>)

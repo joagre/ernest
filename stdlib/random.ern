@@ -16,9 +16,11 @@
 /// Two throws of a die, the seed the first answers carried to the second:
 ///
 /// ```ernest
-/// let #(first, seed1) = Random.next(Random.seed(2026), 5);
-/// let #(second, _) = Random.next(seed1, 5);
-/// #(first + 1, second + 1)
+/// {
+///     let #(first, seed1) = Random.next(Random.seed(2026), 5);
+///     let #(second, _) = Random.next(seed1, 5);
+///     #(first + 1, second + 1)
+/// }
 /// // => #(2, 6)
 /// ```
 ///
@@ -58,8 +60,10 @@ export fn seed(int : Int) : Seed =
 /// ### Examples
 ///
 /// ```ernest
-/// let #(x, _) = Random.next(Random.seed(1), -3);
-/// x <= 0 && x >= -3
+/// {
+///     let #(x, _) = Random.next(Random.seed(1), -3);
+///     x <= 0 && x >= -3
+/// }
 /// // => true
 /// ```
 export fn next(seed : Seed, bound : Int) : #(Int, Seed) = {
@@ -107,8 +111,10 @@ fn splitMix(seed : Seed) : #(Int, Seed) =
 /// ### Examples
 ///
 /// ```ernest
-/// let #(x, _) = Random.nextFloat(Random.seed(3));
-/// x > 0.0 && x < 1.0
+/// {
+///     let #(x, _) = Random.nextFloat(Random.seed(3));
+///     x > 0.0 && x < 1.0
+/// }
 /// // => true
 /// ```
 export fn nextFloat(seed : Seed) : #(Float, Seed) = {
