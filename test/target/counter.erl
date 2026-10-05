@@ -31,6 +31,9 @@
 
 -module('ern@counter').
 
+%% report §3.9: a function that never returns is meant, which Dialyzer is told
+-dialyzer(no_return).
+
 -export([main/0, '$fun'/2]).
 
 %% export fn main() : Unit with m = {
