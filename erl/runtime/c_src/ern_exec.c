@@ -79,6 +79,41 @@ extern char **environ;
 
 static pid_t program = -1;
 
+/* Report Appendix E.23: the program's exit wakes the helper as it happens.
+   SIGCHLD writes a byte to this pipe, which the helper polls beside the
+   runtime's frames once the program's outputs have ended, so no timer
+   stands between the exit and its report, and an exit that comes between
+   the helper's asking and its poll leaves its byte to be read. */
+static int exited[2] = {-1, -1};
+
+static void program_exited(int signal_number)
+{
+    int saved = errno;
+    ssize_t ignored = write(exited[1], "x", 1);
+    (void)signal_number;
+    (void)ignored;
+    errno = saved;
+}
+
+/* The pipe and the handler, before the program is started; each end of the
+   pipe is closed in the program by its exec, and neither end ever blocks. */
+static int watch_exit(void)
+{
+    struct sigaction action;
+    int end;
+    if (pipe(exited) < 0)
+        return -1;
+    for (end = 0; end < 2; end++) {
+        fcntl(exited[end], F_SETFD, FD_CLOEXEC);
+        fcntl(exited[end], F_SETFL, fcntl(exited[end], F_GETFL) | O_NONBLOCK);
+    }
+    memset(&action, 0, sizeof action);
+    action.sa_handler = program_exited;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = SA_RESTART | SA_NOCLDSTOP;
+    return sigaction(SIGCHLD, &action, NULL);
+}
+
 /* The command the runtime's first frame names: the frame's text, and the
    program and its arguments pointing into it, as execvp takes them, held
    here so that they stay reachable until the helper ends. */
@@ -567,7 +602,8 @@ int main(int argc, char **argv)
     program_command = read_command();
     if (program_command == NULL || program_command[0] == NULL)
         return 1;
-    if (pipe(in) < 0 || pipe(out) < 0 || pipe(err) < 0 || pipe(failed) < 0)
+    if (pipe(in) < 0 || pipe(out) < 0 || pipe(err) < 0 || pipe(failed) < 0
+        || watch_exit() < 0)
         return not_started(errno);
     fcntl(failed[1], F_SETFD, FD_CLOEXEC);
 
@@ -766,6 +802,7 @@ int main(int argc, char **argv)
         acknowledge(1);
         for (;;) {
             int status;
+            struct pollfd woken[2];
             pid_t done = waitpid(program, &status, WNOHANG);
             if (done == program) {
                 unsigned char code[4];
@@ -779,14 +816,25 @@ int main(int argc, char **argv)
                 frame('x', code, sizeof code);
                 return 0;
             }
-            {
-                struct pollfd runtime = { 0, POLLIN, 0 };
-                if (poll(&runtime, 1, 50) > 0) {
-                    ssize_t got = read(0, buffer, sizeof buffer);
-                    if (got == 0 || (got < 0 && errno != EINTR)) {
-                        kill_program();
-                        return 0;
-                    }
+            /* the program has not ended yet: wait for its exit, or for the
+               runtime to let go, with no timer */
+            woken[0].fd = 0; woken[0].events = POLLIN; woken[0].revents = 0;
+            woken[1].fd = exited[0]; woken[1].events = POLLIN; woken[1].revents = 0;
+            if (poll(woken, 2, -1) < 0) {
+                if (errno == EINTR)
+                    continue;
+                kill_program();
+                return 1;
+            }
+            if (woken[1].revents) {
+                while (read(exited[0], buffer, sizeof buffer) > 0)
+                    ;
+            }
+            if (woken[0].revents) {
+                ssize_t got = read(0, buffer, sizeof buffer);
+                if (got == 0 || (got < 0 && errno != EINTR)) {
+                    kill_program();
+                    return 0;
                 }
             }
         }

@@ -159,15 +159,31 @@ and its measurement does not hold the release.
    `word_count.ern`, an operations record over two maps, and `shout.ern`, a TCP server and
    its clients.
 
-9. **A program's exit reported at once** (found 2026-10-05 by item 1's first pass): once a
-   program has closed its outputs, the runtime's helper asks whether it has exited and, if
-   not yet, waits 50 ms in `poll` before asking again (`ern_exec.c`), so a program that
-   exits a moment after closing them, as `cat` does at the end of its input, has its exit
-   reported about 50 ms late, and `Os.closeInput`'s scenario takes 52 ms where the host's
-   takes 1.5. The fix is the helper's own: woken by the program's exit, `SIGCHLD` written
-   to a pipe it polls beside the runtime's, with no timer; a regression test holds a
-   program's exit reported within a few milliseconds of its end, and the measurement is
-   run again.
+9. **A program's exit reported at once**, done 2026-10-05 (found by item 1's first pass):
+   once a program had closed its outputs, the runtime's helper asked whether it had exited
+   and, if not yet, waited 50 ms in `poll` before asking again (`ern_exec.c`), so a
+   program that exits a moment after closing them, as `cat` does at the end of its input,
+   had its exit reported about 50 ms late. The helper is now woken by the exit: `SIGCHLD`
+   writes a byte to a pipe it polls beside the runtime's, with no timer, and an exit
+   between its asking and its poll leaves its byte to be read. `Os.closeInput`'s scenario
+   went from 52 ms to 2.1 ms, 1.6 times the host's; a regression test holds the fastest of
+   five exits reported under 25 ms.
+
+10. **A fault at the program's end, reported** (found 2026-10-05, in a full `make test`
+   under load): when `examples/shout.ern`'s `main` returns, its listener dies with it, its
+   owner, and the accepting process's `accept`, waiting on the listener, can fault with
+   `callee had ended` and be reported before the program's end stops every process, so the
+   example printed a fault line it does not have. A fault the entry process's end causes
+   is part of the program's end (§8.6), and the shape of the fix is the runtime's: once
+   the entry process has ended, a fault is not reported, every process ending with the
+   program; a sentence of §8.6 first if it says less, and a regression test that ends a
+   program under a waiting `accept`.
+
+11. **The shell's `live_region` test, unmet once** (2026-10-05, in a full `make test` under
+   load): its terminal script found an expected line missing; run again alone it passed,
+   and under `make test-shell` too. Undiagnosed: when it fails again, its step file in the
+   run's directory says which expectation went unmet, and the fix follows from it; until
+   then it is watched.
 
 ---
 
@@ -452,6 +468,18 @@ the terminal). The rest is MVP 3.3's.
   child exits silently when the host is gone, as the helper does, which the user takes to
   OTP's maintainers (decided 2026-10-01, the log's *A Port Lost While It Starts*). Ernest adds
   nothing around it, and the gap stands until a release of OTP that Ernest requires has it.
+- **OTP 29's compiler refuses a recursive call through `rem`** (found 2026-10-05 by `make
+  test-typed`, seed 74183997, program 220): a well-typed program whose emitted Erlang is valid
+  fails to build, `emitted Erlang does not compile`, OTP's validator reporting "Internal
+  consistency check failed - please report this bug". Five lines of Erlang show it, with
+  nothing of Ernest's: `f() -> h([1000, -79], -62).`, `h([], Acc) -> Acc;` and `h([X | Rest],
+  _Acc) -> h(Rest, X rem (X - 3)).` OTP's type pass gives the accumulator the list's range,
+  -79 to 1000, where `rem`'s is -996 to 996, a divisor whose range holds 0; compiled with
+  `+no_type_opt` it builds and answers -79. Met in OTP 29's compiler 10.0.5. Its fix is OTP's,
+  which the user takes to OTP's maintainers. Two decisions are the user's meanwhile: whether
+  Ernest compiles with that pass off until an OTP that Ernest requires has the fix, its code
+  then slower; and that `make test-typed` fails whenever its seed draws the shape. Ernest adds
+  nothing around it until then.
 - **The launchd checks** of `make service`, written for macOS in MVP 2.99b's item 10, have
   not run, since no Mac has been at hand; 0.3.0's and 0.3.1's notes say so. They run on the
   first Mac the project has, and a release's notes say they have not until then.

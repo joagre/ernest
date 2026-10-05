@@ -227,6 +227,29 @@ give_test() ->
     ?assertEqual(true, wait(alive)),
     ?assertEqual({ern, killed}, wait(ended)).
 
+%% Appendix E.23: a program's exit is reported as it happens, once its
+%% outputs have ended. A regression test: the helper asked for the exit as
+%% they ended and, the program not yet gone, slept 50 ms before asking
+%% again, so `cat`, which ends a moment after its outputs close, was
+%% reported 50 ms late (the log's *MVP 2.99d's First Measurements*). The
+%% fastest of five is held under 25 ms, which a timer of 50 cannot give;
+%% what a loaded host adds to one wake is not covered
+exit_reported_as_it_happens_test() ->
+    ?assert(lists:min([exit_reported_after_input_ends() || _ <- lists:seq(1, 5)]) < 25).
+
+%% The milliseconds from the end of `cat`'s input to its exit's frame.
+exit_reported_after_input_ends() ->
+    Helper = helper(["cat"]),
+    receive {Helper, {data, <<"s">>}} -> ok after 5000 -> erlang:error(no_start) end,
+    %% a request for output, so that the helper sees the outputs end
+    true = port_command(Helper, <<"n">>),
+    Start = erlang:monotonic_time(millisecond),
+    true = port_command(Helper, <<"e">>),
+    receive {Helper, {data, <<"x", _:32>>}} -> ok after 5000 -> erlang:error(no_exit) end,
+    Elapsed = erlang:monotonic_time(millisecond) - Start,
+    receive {Helper, {exit_status, _}} -> ok after 5000 -> erlang:error(no_end) end,
+    Elapsed.
+
 %% The helper run on a command, as ern_os runs it: the command comes as the
 %% first frame.
 helper(Command) ->
