@@ -171,12 +171,18 @@ log's *A Full Review Now and Then*).
   that a typed language cannot have Erlang's code loading. Erlang's module replacement,
   which swaps code under every process and lets a state and a message change shape
   unchecked, cannot be typed; what it is for, a running system upgraded without a stop and
-  versions side by side, is what §6.10 must give. The questions: what an upgrade in place
-  may change, the state's type at the switch and the mailbox type; how a protocol change
-  reaches clients that hold the old address, kept, adapted with `via`, or moved to a new
-  binding; what a process without an upgrade case costs; how a supervisor's tree is
-  upgraded; and whether handing a replacement its state is a library's work or each
-  program's.
+  versions side by side, is what §6.10 must give. The starting point: loading never disturbs
+  running code, since a hash module never changes, so a process keeps its code until it
+  moves by its own upgrade case or ends. The central case is the long-serving service, which
+  never ends, and the direction is a discipline around upgrade types: a shape every
+  long-serving service's protocol holds, stated by the language or a library, so that no
+  service is built without one. The questions: whether a protocol is required or merely
+  encouraged to hold an upgrade case; what an upgrade in place may change, the state's type
+  at the switch and the mailbox type; how a protocol change reaches clients that hold the
+  old address, a forwarder serving them through the overlap and when it may retire; how a
+  supervisor's tree is upgraded; whether handing a replacement its state is a library's work
+  or each program's; and how code no process, message or value still refers to is collected,
+  since memory no collection reclaims is a defect.
 - The module `Peer`, with `Peer.spawn(name, f)` and `Peer.spawnMonitored(name, f, wrap)` (§8.3),
   in a section added at the end of Appendix E; the checker's refusal of a name of `Peer` goes,
   and the guide's examples in §8.1 and §8.4 are compiled again (2026-10-01, the log's *The Rules
