@@ -193,9 +193,7 @@ A value of type `Unit` prints nothing, so the last input shows only what it wrot
 
 At a terminal the shell edits the line with Readline's Emacs keys, and keeps a history across sessions that `C-r` searches. An input the parser cannot finish takes another line, and `M-Enter` adds one whatever the parser says. What programs write appears in a region at the foot of the screen, apart from the inputs, and a process that faults is reported at the prompt with the place it was spawned. A fault, an error, and a refused command are shown in red and a result's type dimmed, and documentation is styled, unless the environment sets `NO_COLOR`. A line wider than the screen wraps as it is typed.
 
-`Tab` completes the word before the cursor, by its prefix or by its word starts, `S.pS` to `String.padStart`. After a value the session knows and a `.`, it completes the fields the value's type selects: `it.co` to `it.count`. It offers only what may stand there: a command after a leading `:` and what the command takes after it, a type after `:` in an annotation, a constructor in a pattern, a field inside a named constructor's parentheses. A name completed alone is shown under the line with its type, and a second `Tab`, or one with nothing to add, lists the candidates there alphabetically, until the next key. With no word begun, as after `f(`, they are the session's names, the modules in scope, and the prelude's names other than its constructors, and every other name comes from its first letters. At the start of a row `Tab` indents instead. `Shift-Tab` shows the declaration, the first sentence, and the version of the name at the cursor, `String.trim(text : String) : String` and what it does, and pressed again its documentation. Inside a call, on no documented name, it shows the callee's signature with the parameter at the cursor marked, and inside a constructor its fields.
-
-`:load` compiles a module from its source and puts it in scope, and `:reload` compiles and loads again a loaded module whose source has changed. Where one of the changed modules does not compile, `:reload` loads none of them. Both evaluate a module's top-level bindings, so a service it declares starts, and after a reload a service of the new version runs beside the old. Processes running the old version go on running it, and a binding that holds a function of it keeps it, until the next reload of that module, which ends the processes and forgets the bindings.
+`Tab` completes the word before the cursor, and `Shift-Tab` shows what the name at the cursor is: its declaration and the first sentence of its documentation. §9.3 has the rest of the shell: completion in full, the other commands, and loading a module from its source.
 
 ### 1.3 Reading input
 
@@ -338,7 +336,9 @@ let defaultPort : Int = 8080
 export let helloBanner : String = "hello, world"
 ```
 
-An initializer runs before `main`, in the entry process, as a body that may spawn, send and call, which §4 teaches, but not receive; a top-level `let` that holds a process's address is a service binding, which §6.5 teaches. Constants are evaluated in the order their references need, and otherwise in the order the module declares them, and a cycle among them is an error (report §4.6, §8.5).
+Constants are evaluated before `main`, in the order their references need, and otherwise in the order the module declares them. A cycle among them is an error (report §4.6, §8.5).
+
+An initializer may do more than compute. It runs in the entry process, as a body that may spawn, send and call, though not receive, and a top-level `let` that holds a process's address is a *service binding*. §6.5 teaches both, once §4 has taught processes.
 
 ### 2.3 Sum types and pattern matching
 
@@ -580,11 +580,15 @@ The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char
 - **Subject first, callbacks last**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
 - **A conversion is named by the other type.** Between a type and one its module builds on, both directions are the building module's, `String.fromList` and `String.toList`; any other conversion is its argument's module's `toX`: `String.toInt`, `Int.toString`.
 - **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(Io.Error, Bytes)`. A program says an `Io.Error` to its user in its own words, with a `match` over its constructors; `Io.show` writes it as a value, `Other("address already in use")`.
-- **Pure unless the value lives in a process.** A function carries `with m` where it reaches a system process, spawns a process, as `Supervisor.group` does, asks the runtime about its processes, as `Process.live` does, or reads the time, as `Clock.monotonic` does, and nowhere else (report Appendix E.0 shape rule 5); every function that calls a function it takes is as pure as the function it is given (§3.5). One that delivers later, `Clock.alarm` or `Terminal.subscribe`, takes a pure function to make the message and acts through a process anyway.
+- **Pure unless the value lives in a process.** A function carries `with m` in four cases and nowhere else: where it reaches a system process; where it spawns a process, as `Supervisor.group` does; where it asks the runtime about its processes, as `Process.live` does; and where it reads the time, as `Clock.monotonic` does (report Appendix E.0 shape rule 5). Every function that calls a function it takes is as pure as the function it is given (§3.5).
 - **A `String` is text, not a list.** Its length and positions count what a reader sees as letters, which `String.graphemes` gives one by one; `String.toList` gives its `Char`s.
-- **A system process is used through its module**, never by `send`. A function that waits takes a timeout in milliseconds last and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. There is no time that means no limit; a server that waits for as long as it takes asks again on each `Left(Timeout)` (§8.7). A read of standard input and a write to standard output wait without a limit, since those streams are the program's own; a socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8). One that delivers later takes a function that makes the message: `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired, and `Clock.now()` is the time now, in milliseconds since the epoch. A process that only waits a while writes `receive { after ms -> Unit }` (§4.3); `Clock` has no sleep.
+- **A system process is used through its module**, never by `send`.
+- **A function that waits takes a timeout in milliseconds, last**, and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. There is no time that means no limit. A server that waits for as long as it takes asks again on each `Left(Timeout)` (§8.7). A read of standard input and a write to standard output wait without a limit, since those streams are the program's own. A socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8).
+- **A function that delivers later takes a function that makes the message.** `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired. The function that makes the message is pure, and the one that takes it, `Clock.alarm` or `Terminal.subscribe`, acts through a process all the same. `Clock.now()` is the time now, in milliseconds since the epoch. A process that only waits a while writes `receive { after ms -> Unit }` (§4.3); `Clock` has no sleep.
 
-What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it. `:browse Fs` lists a module's types by name and its functions with their types, and `:doc Fs.Entry` shows a type's declaration, its fields among it. A printed type marks a type variable that needs equality `k=` and one that may not carry a reply `a!` (§2.5, §4.2), and a process-only effect variable that stands nowhere else in the type `m+` (§3.5, report §11.5).
+What a type does not say, the entry in Appendix E does: `List.sort` is stable, `Map.toList` has no order. In the shell, `:doc List.sort` prints it. `:browse Fs` lists a module's types by name and its functions with their types, and `:doc Fs.Entry` shows a type's declaration, its fields among it.
+
+**Marks in a printed type.** A printed type marks a type variable that needs equality `k=` and one that may not carry a reply `a!` (§2.5, §4.2), and a process-only effect variable that stands nowhere else in the type `m+` (§3.5, report §11.5).
 
 ### 2.10 A word counter, by hand
 
@@ -679,10 +683,30 @@ fn twice(value) =
 
 Without a source that fixes the type, `value + value` is a type error. Once it is fixed, `+` is that type's: `Int.+` for an `Int`, `Distance.+` for a user type that declares it as a member, `fn Distance.+`, and `Int.+` is also a function value, as in `List.foldLeft(xs, 0, Int.+)` (report §4.8, report §5.6).
 
-Other limits worth knowing:
+**What is polymorphic.** A polymorphic name may be used at one type here and at another there.
 
-- A `fn` and a top-level `let` are polymorphic, and so is a `let` in a block that binds a lambda. Another `let` in a block is not, and neither is a top-level `let` whose initializer calls a process-only function, `spawn`, `send`, `Address.call` or `Io.println` among them. After `let xs = []` in a block, the element type of `xs` is settled by an annotation, by a later use in the block, or by `xs` reaching the block's result; where nothing settles it, with `xs` never read, the variable stays open and the block compiles. A top-level `let` that is not polymorphic, and a `let` at the prompt, must have their types settled, by an annotation where nothing else settles them (report §4.6).
-- A `fn` declared in a block is visible in the whole block, but may be used only after the `let`s it reads (report §5.4).
+- A `fn` and a top-level `let` are polymorphic.
+- A `let` in a block is polymorphic only where it binds a lambda. Any other `let` in a block has one type.
+- A top-level `let` whose initializer calls a process-only function, `spawn`, `send`, `Address.call` or `Io.println` among them, is not polymorphic either.
+
+```console
+$ ern shell
+Ernest 0.3.0. :help for the commands, :quit to leave.
+> { let pair = fn(x) = #(x, x); #(pair(1), pair("a")) }
+#(#(1, 1), #("a", "a")) : #(#(Int, Int), #(String, String))
+> { let one = List.take; #(one([1, 2], 1), one(["a"], 1)) }
+input 2:1:46: the argument does not fit one: expected List(Int), found List(String)
+1 | { let one = List.take; #(one([1, 2], 1), one(["a"], 1)) }
+  |                                          --- one : (List(Int), Int) -> List(Int)
+  |                                              ^^^^^
+  | = help: the types differ at Int and String
+```
+
+`pair` binds a lambda and is used at `Int` and at `String`. `one` binds another function's value, so its first use settles its type, and the second is refused.
+
+**A type nothing settles.** After `let xs = []` in a block, the element type of `xs` is settled by an annotation, by a later use in the block, or by `xs` reaching the block's result. Where nothing settles it, with `xs` never read, the type stays open and the block compiles. A top-level `let` that is not polymorphic, and a `let` at the prompt, must have their types settled, by an annotation where nothing else settles them (report §4.6).
+
+A `fn` declared in a block is visible in the whole block, but may be used only after the `let`s it reads (report §5.4).
 
 ### 3.4 Pure functions and functions with a mailbox effect
 
@@ -701,7 +725,9 @@ The inferred type is `((a) -> b with e, a) -> b with e`: `apply` has the effect 
 
 An effect variable may stand for a mailbox type or for pure. One that also appears inside `Address`, as in `self : () -> Address(m) with m`, stands for a mailbox type only, since an address needs one. The letters in a printed type mean nothing of their own.
 
-The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, and `kill`, which §4 and §5 teach, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9). A printed type marks such an effect variable with `+` where it stands nowhere else in the type: `:type send` prints `send : (Address(a), a) -> Unit with m+`, and so does a function of yours that calls `send`. `monitor`'s stands in its callback's result too, `(Down) -> m`, where it can only be a mailbox type, and is printed without the mark (report §11.5).
+**Process-only.** The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, and `kill`, which §4 and §5 teach, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
+
+**In a printed type.** A printed type marks a process-only effect variable with `+` where it stands nowhere else in the type: `:type send` prints `send : (Address(a), a) -> Unit with m+`, and so does a function of yours that calls `send`. `monitor`'s stands in its callback's result too, `(Down) -> m`, where it can only be a mailbox type, and is printed without the mark (report §11.5).
 
 ### 3.6 The word counter as functions
 
@@ -1680,13 +1706,25 @@ None
 Some(1) Some(1)
 ```
 
-`Supervisor.group(strategy, limit)` is the function the supervisor runs, and `Supervisor.child(group, f)` the function a child runs. The program spawns each, as it spawns what `restarting` answers, so the fault line names the child's binding. A child joins the group before `f` runs, and waits until the supervisor has it; after a fault it runs `f` again in place, as under `restarting`.
+`Supervisor.group(strategy, limit)` is the function the supervisor runs, and `Supervisor.child(group, f)` the function a child runs. The program spawns each, as it spawns what `restarting` answers, so the fault line names the child's binding. A child joins the group before `f` runs, and waits until the supervisor has it. After a fault it runs `f` again in place, as under `restarting`.
 
-The strategy says which siblings restart with the child that faulted. `OneForOne` restarts none. `OneForAll` restarts every other child, so `sales` starts from zero too. `RestForOne` restarts the children spawned after it, for services that use the ones before them; the order is the order of the `spawn`s, not of the joins, which the scheduler decides. A sibling runs on until it next waits, in a `receive` or for a call's answer, and restarts there, with the same address, as a fault restarts a process, and the child that faulted waits for it; a sibling that never waits is never restarted (report Appendix E.22). Its restart is not a fault, so `ern run` reports only the fault of `visits`. A call waiting on a sibling as it restarts ends: `Address.call` answers `None`, and `Address.callForever` faults with `callee was restarted` (report §6.6). So for a moment after a fault, a call to a sibling may be answered from its old state, end, or be answered from its new one. The child that faulted runs again only once each sibling has restarted, so a call to it after its fault is answered by the group restarted whole (report Appendix E.22): `add(visits, 1)` is, and `sales` has restarted before `main` asks it. A client that relies on a service's state after a fault takes the state as lost and asks again.
+**Which siblings restart.** The strategy says which siblings restart with the child that faulted:
 
-The limit is the group's. When its children have faulted `restarts` times within `within` milliseconds, the next fault makes the supervisor give up: it faults, with `supervisor restart limit reached`. A supervisor is a child like any other, `spawn(Supervisor.child(parent, Supervisor.group(...)))`, so groups form a tree. A supervisor under a parent restarts in place when it gives up, or when its parent restarts it with a sibling, and asks each of its children to restart; every binding keeps its address, and the fault is the parent's to count. A supervisor at the root that gives up dies. A supervisor and its children run on one node; between nodes, a process watches another with `monitor` (§8).
+- `OneForOne` restarts none.
+- `OneForAll` restarts every other child, so `sales` starts from zero too.
+- `RestForOne` restarts the children spawned after it, for services that use the ones before them. The order is the order of the `spawn`s, not of the joins, which the scheduler decides.
 
-When a supervisor dies, given up, killed, or of a defect of its own, its children are killed after it, the last spawned first, each once the one before has ended; so `kill(group)` stops a group. A killed process runs nothing more, so a child that must finish its work, a file to flush, is sent a message of its own protocol first. A child that returns or is killed leaves the group, and a child may join at any time, so one supervisor also holds the children a program starts while it runs, one per connection.
+**How a sibling restarts.** A sibling runs on until it next waits, in a `receive` or for a call's answer, and restarts there, with the same address, as a fault restarts a process. A sibling that never waits is never restarted (report Appendix E.22). Its restart is not a fault, so `ern run` reports only the fault of `visits`. The child that faulted waits meanwhile, and runs again only once each sibling has restarted.
+
+**What a caller sees.** A call waiting on a sibling as it restarts ends: `Address.call` answers `None`, and `Address.callForever` faults with `callee was restarted` (report §6.6). So for a moment after a fault, a call to a sibling may be answered from its old state, end, or be answered from its new one. A call to the child that faulted, made after its fault, is answered by the group restarted whole (report Appendix E.22): `add(visits, 1)` is, and `sales` has restarted before `main` asks it. A restart keeps the address and loses the state, so a client that relies on a service's state after a fault takes the state as lost and asks again.
+
+**The limit.** The limit is the group's. When its children have faulted `restarts` times within `within` milliseconds, the next fault makes the supervisor give up: it faults, with `supervisor restart limit reached`.
+
+**A tree of groups.** A supervisor is a child like any other, `spawn(Supervisor.child(parent, Supervisor.group(...)))`, so groups form a tree. A supervisor under a parent restarts in place when it gives up, or when its parent restarts it with a sibling, and asks each of its children to restart; every binding keeps its address, and the fault is the parent's to count. A supervisor at the root that gives up dies. A supervisor and its children run on one node; between nodes, a process watches another with `monitor` (§8).
+
+**Stopping a group.** When a supervisor dies, given up, killed, or of a defect of its own, its children are killed after it, the last spawned first, each once the one before has ended; so `kill(group)` stops a group. A killed process runs nothing more, so a child that must finish its work, a file to flush, is sent a message of its own protocol first.
+
+**Who is in a group.** A child that returns or is killed leaves the group, and a child may join at any time, so one supervisor also holds the children a program starts while it runs, one per connection.
 
 ### 6.7 Prediction exercise
 
@@ -2392,7 +2430,11 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
 ### 9.3 The shell
 
-§1.2 teaches inputs, editing and completion. A command begins with `:`, and `:help` lists the commands, among them these: `:type` gives an expression's type and `:doc` a name's documentation, `:browse` lists a module's exports, `:load` and `:reload` compile a module from its source, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, `:set` sets the depth and length values are printed to, the rows of the live region, and timing, and `:output` sends what programs write to a terminal or a file. A command may be shortened to a prefix of its name that begins no other, `:br` for `:browse`; `:b` begins `:bindings` too, and the shell says so.
+§1.2 teaches inputs and the first commands. A command begins with `:`, and `:help` lists the commands, among them these: `:type` gives an expression's type and `:doc` a name's documentation, `:browse` lists a module's exports, `:load` and `:reload` compile a module from its source, `:bindings` and `:forget` manage what the session has declared, `:processes` and `:faults` show what runs and what has faulted, `:set` sets the depth and length values are printed to, the rows of the live region, and timing, and `:output` sends what programs write to a terminal or a file. A command may be shortened to a prefix of its name that begins no other, `:br` for `:browse`; `:b` begins `:bindings` too, and the shell says so.
+
+**Completion.** `Tab` completes the word before the cursor, by its prefix or by its word starts, `S.pS` to `String.padStart`. After a value the session knows and a `.`, it completes the fields the value's type selects: `it.co` to `it.count`. It offers only what may stand there: a command after a leading `:` and what the command takes after it, a type after `:` in an annotation, a constructor in a pattern, a field inside a named constructor's parentheses. A name completed alone is shown under the line with its type, and a second `Tab`, or one with nothing to add, lists the candidates there alphabetically, until the next key. With no word begun, as after `f(`, they are the session's names, the modules in scope, and the prelude's names other than its constructors, and every other name comes from its first letters. At the start of a row `Tab` indents instead. `Shift-Tab` shows the declaration, the first sentence, and the version of the name at the cursor, `String.trim(text : String) : String` and what it does, and pressed again its documentation. Inside a call, on no documented name, it shows the callee's signature with the parameter at the cursor marked, and inside a constructor its fields.
+
+**Loading and reloading.** `:load` compiles a module from its source and puts it in scope, and `:reload` compiles and loads again a loaded module whose source has changed. Where one of the changed modules does not compile, `:reload` loads none of them. Both evaluate a module's top-level bindings, so a service it declares starts, and after a reload a service of the new version runs beside the old. Processes running the old version go on running it, and a binding that holds a function of it keeps it, until the next reload of that module, which ends the processes and forgets the bindings.
 
 At a terminal the history is kept in `$HOME/.ernest/history`. When the shell starts it runs the inputs in `$HOME/.ernest/startup`, and then, if `--config-dir` names a configuration directory, those in its `startup`. A directory the shell merely starts in runs nothing of its own. A startup line may be a command, and one that fails is reported with its file and line.
 
