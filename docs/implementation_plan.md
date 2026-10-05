@@ -140,10 +140,10 @@ and its measurement does not hold the release.
 
 ## MVP 3.0 (peers: distributed code and the node protocol), about three weeks
 
-Designed in [`node_protocol.md`](node_protocol.md), which owns the protocol. The note is
-tentative, and was brought to the report on 2026-09-28, each change a line marked *Changed*;
-what it still asks of the report, listed below, and its open questions are decided before any
-of it is built.
+Designed in [`distribution.md`](distribution.md), the note for nodes, code and code change,
+all of it tentative. It took in the protocol's note and code distribution's, brought to the
+report on 2026-09-28, which went on 2026-10-05, kept at `3fa6b42`. What it still asks of the
+report, listed below, and its open questions are decided before any of it is built.
 
 Nodes that reach each other, a spawn on a peer that ships code (§8.7), and messages between
 them that carry values (§3.11). Code is shipped only between nodes running the same build,
@@ -159,11 +159,11 @@ log's *A Full Review Now and Then*).
   written before peers are built on it (decided 2026-10-04): which two types are one, across
   nodes by their hash (§8.7) and across a session's inputs (§11.2), and what crosses a node,
   §3.8's and §3.11's transport.
-- **The distribution notes' rewrite, read with the user before any of it is built.** Brought to
-  the report on 2026-09-28, the two notes also gained design no one has weighed: a `spawned`
-  and a `kill` frame, `demonitor` kept to the runtime, the spawn site in the spawn frame, the
-  hash modules named `ern#<base32>`, and new open questions, the protocol note's 5, 7 to 12
-  and 15 to 21, and the distribution note's 8 to 17 (the second read-back, 2026-09-30, placed
+- **The distribution note, read with the user before any of it is built.** Brought to the
+  report on 2026-09-28, the two notes it took in also gained design no one has weighed: a
+  `spawned` and a `kill` frame, `demonitor` kept to the runtime, the spawn site in the spawn
+  frame, the hash modules named `ern#<base32>`, and new open questions, its *P5*, *P7* to
+  *P12* and *P15* to *P21*, and its *D8* to *D17* (the second read-back, 2026-09-30, placed
   here with the user the same day).
 - **Code change in running processes, decided with the user before any of it is built**:
   §6.10's replacement by a message that carries the new loop, and a long-serving service's
@@ -194,12 +194,12 @@ log's *A Full Review Now and Then*).
   and with one node `pick` answers it without measuring. `measure : () -> Int with m`, so the
   common call is `Balancer.pick(Peer.runQueue)`. Its module page states the cost, two round
   trips per `pick`.
-- **What the protocol note asks of the report**, each decided before it is built: whether
-  `Reason` gains `Unreachable` for a lost peer whose process may live on (the note's question 6,
+- **What the distribution note asks of the report**, each decided before it is built: whether
+  `Reason` gains `Unreachable` for a lost peer whose process may live on (the note's question *P6*,
   §9.3, §6.9), which also settles a contradiction a reader outside the project found on
   2026-10-04: §10 requires a lost peer's `Down` to carry a reason distinguishable from every
   other, and a process that calls `fault("peer lost")` gives the same; and whether §6.4 states that what arrives is an unbroken prefix of what was sent,
-  a sender told nothing of a drop, as the note's section 8 promises.
+  a sender told nothing of a drop, as the note's section 3 promises.
 - **Where a node's configuration is read**, decided before `ernest.conf` is: its default,
   `./.ernest`, is the directory a program starts in, whose `ernest.conf` would name the peers
   and keys the node trusts, as its `startup` ran inputs until MVP 2.95 (§11.2, §11.3; the log's
@@ -243,9 +243,9 @@ log's *A Full Review Now and Then*).
 
 ## MVP 3.1 (content addressing), about four weeks
 
-Designed in [`code_distribution.md`](code_distribution.md), which owns it. The note is
-tentative, and was brought to the report on 2026-09-28; its open questions are decided here,
-report first. Its question 9 meets the code as it stands: whether a node running hash modules
+Designed in [`distribution.md`](distribution.md) with MVP 3.0, all of it tentative; the
+open questions it carries of code distribution are decided here, report first. Its question
+*D9* meets the code as it stands: whether a node running hash modules
 keeps embedded mode, which loads nothing from the code path on demand, where §11.2 finds a
 `foreign fn`'s Erlang module on the load path. The toolchain has no IR: `ern_emitter` goes from
 the typed AST to Erlang's abstract format in one traversal, and whether an IR is introduced or
@@ -270,18 +270,18 @@ The milestone is §8.7's identity in full:
   compatible by its declaration is not thereby trusted to keep its promise. A function spawned on a peer carries its hash, and a node that
   lacks it fetches the code from the sender. Erlang's module distribution is not used.
 - Hash modules never change, and versions coexist on a node for as long as a process runs one
-  ([`code_distribution.md`](code_distribution.md) section 8). The shell's reload then ends
+  ([`distribution.md`](distribution.md), section 7). The shell's reload then ends
   nothing: §7.3's unloading cause, §7.4's `Fault("its code was unloaded")` and §11.2's
   second-reload rule go, with the test that pins them.
 - **The loader's one `code_server`**, measured under the loader's batches before it is relied
-  on, and **normalization**, given a test suite of its own (the note's section 6 and risk 1).
+  on, and **normalization**, given a test suite of its own (the note's section 6, *The loader* and *Risks*).
 - **A node whose atoms near the host's limit**, decided with the hash modules: the note's
-  section 10.2 drains and restarts it, which CLAUDE.md's rule that memory no collection
+  section 6, *Atoms and lambdas*, drains and restarts it, which CLAUDE.md's rule that memory no collection
   reclaims is fixed at its cause, never by a cap, questions (a reader's finding).
 - Two nodes with different versions of one type never meet in a message, decided 2026-09-27
   (§8.7, *Identity*): an address carries its mailbox type's hash and is obtained only through
   typed operations. A frame that breaks it comes from a faulty peer and tears the connection
-  down (node protocol, section 4.2).
+  down (the note's section 3).
 - The library fetcher, decided 2026-09-19: `ern fetch name url` fetches a library's source
   tree from a git URL into a directory on the load path, compiles it, and records the hashes of
   its definitions. No resolver, no semver, no lockfile beyond those hashes, and no registry.
