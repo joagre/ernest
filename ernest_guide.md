@@ -8,7 +8,9 @@
 
 # Programming in Ernest
 
-This guide teaches Ernest to a programmer who knows another language, and needs nothing read before it. Each complete program in it compiles as shown, and prints what is shown after it. The language is defined by the report, in three files under [`report/`](report/language.md), to which the guide points where a question turns on a detail.
+This guide teaches Ernest to a programmer who has used a functional language. It assumes immutable values, sum types, pattern matching, functions as values and recursion, and shows only how Ernest writes them. Processes and messages it teaches from the start, since their types are what is new; a reader who knows Erlang will recognize the model, and §10 says what carries over. Nothing of Ernest or of its report needs reading first.
+
+Each complete program in the guide compiles as shown and prints what is shown after it, and the guide's tests run every one. A fault's report goes to standard error, so its place among a program's own lines is one run's. A program the compiler refuses is shown with what the compiler says of it. The examples of peers in §8 are fragments, since the toolchain does not run peers yet. The language is defined by the report, in three files under [`report/`](report/language.md), to which the guide points where a question turns on a detail.
 
 **Contents**
 <!-- contents -->
@@ -609,18 +611,16 @@ Map.fromList([#("the", 2)]) : Map(String, Int)
 
 Given:
 
-```console
-$ ern shell
-Ernest 0.3.0. :help for the commands, :quit to leave.
-> type Person = Person(name : String, age : Int)
-type Person
-> let p = Person(name = "Alice", age = 30)
-p : Person
-> let q = Person(..p, age = 31)
-q : Person
+```ernest-fragment
+type Shape = Dot(name : String) | Circle(name : String, radius : Int)
 ```
 
-Does `p` change?
+and a value `s : Shape`, which of these compile?
+
+- (a) `s.name`
+- (b) `s.radius`
+- (c) `Circle(..s, radius = 2)`
+- (d) `match s { Circle(radius = r) -> r | Dot() -> 0 }`
 
 ## 3. Pass behavior
 
@@ -1187,6 +1187,8 @@ fn runWorker(job : Int) : Optional(Int) with MainMsg = {
 fn waitFor(child : Process) : Optional(Int) with MainMsg =
     receive {
         Result(from = w, value = v) when w == child -> Some(v)
+      // it returned, so it sent its result first: the result is still to come
+      | Died(Down(process = p, reason = Returned)) when p == child -> waitFor(child)
       | Died(Down(process = p)) when p == child -> None
       | _ -> waitFor(child)
     }
@@ -1211,7 +1213,7 @@ job 2: 4
 
 Anything else is an earlier worker's death, and `waitFor` takes it and passes over it, so that it does not stay in the mailbox.
 
-A `Down` comes from the runtime and not from the process that ended, so it has no order with that process's own messages (§5.1): a worker's last message may arrive after its `Down`. A result that must not be lost to a `Down` comes as the worker's answer to a call (§4.4), which its end does not overtake.
+A `Down` comes from the runtime and not from the process that ended, so it has no order with that process's own messages (§5.1): a worker's last message may arrive after its `Down`. `waitFor` allows for it with the `Down`'s reason. A worker that `Returned` sent its result before it did, so the wait goes on until the result comes. Any other reason, a fault or a kill, ended the worker before it sent one, and the wait answers `None`. A result that should need no such care comes as the worker's answer to a call (§4.4), which its end does not overtake.
 
 `Process.live()` lists the live processes, `Process.info(p)` tells where one was spawned, how many messages wait for it and whether it runs, and `Process.faults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
 
@@ -1453,7 +1455,7 @@ no config: workers is not a number
 
 ### 6.2 A message
 
-Between processes a failure is part of the protocol. A request whose work can fail is answered with an `Either`, and the process that asked handles a `Left` as it handles any answer. `Address.call` adds a case of its own, `None`, for an answer that did not come: in time, or at all, since a call ends at once when the process called ends or restarts. A deadline tells a slow process from one that waits and never answers.
+Between processes a failure is part of the protocol. A request whose work can fail is answered with an `Either`, and the process that asked handles a `Left` as it handles any answer. `Address.call` adds a case of its own, `None`, for an answer that did not come: in time, or at all, since a call ends at once when the process called ends or restarts. A deadline bounds how long the caller waits: `None` says that no answer was obtained, not whether the process called did the work, or will.
 
 ```ernest
 type ParserMsg = Parse(text : String, reply : Reply(Either(String, Int)))
@@ -2394,7 +2396,7 @@ It begins with `fn`, so a reader and the parser see a lambda begin at its first 
 
 **§1.4.** (a) compiles: inference gives `main` a mailbox effect from the call of `Io.println`. (b) does not compile: `: Unit` with no `with` declares `main` pure, and a pure function cannot call `Io.println`, which sends. It is the mistake of `area` in §0. The `with Never` of hello-world says that `main` runs in a process whose mailbox will never receive. Omitting an annotation is not the same as declaring purity.
 
-**§2.11.** No. Ernest has no assignment. `q` is a separate `Person` value; `p` is still `Person(name = "Alice", age = 30)`.
+**§2.11.** (a) and (d) compile. Every constructor of `Shape` has `name`, with one type, so `s.name` reads it whichever built `s`. (b) is refused: a `Dot` has no `radius`, and the compiler does not take the programmer's word that `s` is a `Circle`. (c) is refused for the same reason: `..s` would copy `name` from a `Circle`, and `s` may be a `Dot`, so `..` is allowed only on a type with one constructor. (d) asks which constructor built `s` and reads `radius` only in the clause where it is there; a pattern may leave out the fields it does not need.
 
 **§3.7.** `map2`'s inferred type is `((a) -> b with e, a, a) -> #(b, b) with e`. The call binds `a = Int`, `b = Unit`, and `e` to the mailbox effect of `send`, the same as the enclosing function's.
 

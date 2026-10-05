@@ -1,44 +1,20 @@
 # Guide feedback
 
-A pedagogical assessment of the guide in seven points, from a read on 2026-10-04 by a reader
-outside the project, who compared it with the report and did not run its examples. MVP
-2.99d's item 5 decides each, read point by point as a review's findings are: taken into the
-guide, made a plan item, or dropped with its reason; a point leaves this file when it is
-decided. The reader's text is kept as written, in the reader's voice. Each point was checked
-against the guide and the report on 2026-10-04, and its *Checked.* note says what was found.
+A pedagogical assessment of the guide, from a read on 2026-10-04 by a reader outside the
+project, who compared it with the report and did not run its examples. MVP 2.99d's item 5
+decides each point: taken into the guide, made a plan item, or dropped with its reason; a
+point leaves this file when it is decided. Of its seven, three left on 2026-10-05: point 1,
+the reader, decided with the user as one who has used a functional language, processes
+taught from the start; point 2, which asks for nothing; and point 7, the accuracy issues,
+each fixed. The reader's text is kept as written, in the reader's voice, under its own
+number. Each point was checked against the guide and the report on 2026-10-04, and its
+*Checked.* note says what was found.
 
 For programmers already familiar with functional programming and message-passing concurrency, the guide's overall teaching order is appropriate. It progresses from values and functions to protocols, process lifetime, failure, modules and external boundaries.
 
 The main improvements concern the presentation of Ernest-specific rules, the size of certain examples and a few accuracy issues. A broad restructuring is unnecessary.
 
 This assessment is based on reading the guide and comparing relevant rules with the report. The examples have not been independently compiled.
-
-## 1. State the prerequisites explicitly
-
-The introduction should identify the knowledge the guide assumes:
-
-> This guide teaches Ernest to programmers familiar with functional programming and message-passing concurrency. It assumes familiarity with immutable values, algebraic data types, pattern matching, higher-order functions and recursive process loops. No prior knowledge of Ernest or its report is required.
-
-With this audience, the guide need not teach ordinary functions, recursion or immutability from first principles. It should explain where Ernest differs from familiar models.
-
-*Checked.* A decision, and the first to take, since points 3 and 6 lean on it. The guide's
-first sentence says it "teaches Ernest to a programmer who knows another language", a wider
-reader than the one this assessment assumes; chapter 2 and §2.11's exercise are written for
-that wider reader.
-
-## 2. Preserve the teaching backbone
-
-Several features provide useful continuity:
-
-- Complete programs with compilation commands and expected output.
-- The word counter developed across §§2–5.
-- Rejected programs and compiler diagnostics that explain language restrictions.
-- Prediction exercises with answers.
-- Explicit discussion of timeouts, message ordering and failure.
-
-The rejected programs in §0 are appropriate for this audience. They demonstrate the practical consequences of typed mailboxes, checked replies, purity and explicit failure handling before the detailed explanations begin.
-
-*Checked.* Asks for nothing; the plan's item 5 keeps the backbone.
 
 ## 3. Separate ordinary use from advanced restrictions
 
@@ -149,55 +125,6 @@ Occasional modification exercises would also help: add a request to a protocol, 
 
 *Checked.* The list of distinctions stands whoever the reader is. Replacing §2.11's question
 follows from point 1's narrower reader and is decided with it.
-
-## 7. Correct accuracy issues
-
-### §3.3: Generalization of block bindings
-
-The statement that a `let` in a block is not polymorphic is too broad. Report §3.9 explicitly generalizes a block `let` whose value is a lambda.
-
-State the exception and demonstrate it with a small example.
-
-*Checked.* Holds. §3.3 says "a `let` in a block is not" polymorphic, and nowhere that one
-binding a lambda is (report §3.9).
-
-### §5.2: Worker results and monitor notifications
-
-The worker example's `waitFor` returns `None` if `Down` arrives before `Result`. The following explanation permits that ordering, so the successful output shown is not guaranteed.
-
-Either present the example as a demonstration of the race or use request-reply when successful result delivery is the intended lesson.
-
-*Checked.* Holds, and it reaches the tests: `waitFor` answers `None` where the `Down` comes
-before the result, the text below the example says it may, and the guide tests hold the
-example to the output shown, which a run may then not print.
-
-### §6.2: What a deadline establishes
-
-A deadline does not distinguish a slow process from one that will never answer. It bounds the caller's wait.
-
-Use wording such as:
-
-> A deadline bounds how long the caller waits. `None` means no answer was obtained; it does not establish whether the recipient performed the work.
-
-*Checked.* Holds. §6.2 says "A deadline tells a slow process from one that waits and never
-answers", which it cannot.
-
-### Opening: Executable-example promise
-
-Qualify the claim that every complete program compiles and prints the shown output.
-
-Distinguish:
-
-- Runnable examples supported by the current toolchain.
-- Illustrative examples involving planned peer functionality.
-- Rejected examples with expected diagnostics.
-- Concurrent examples whose output order or success may vary.
-
-Chapter 8 already acknowledges the implementation status of peers; the opening should be consistent with that qualification.
-
-*Checked.* Half holds. The guide tests hold every complete program to what is shown, and
-the examples of peers are fragments, outside the claim. What the opening does not say is that
-a concurrent example's output may vary, as §5.2's does.
 
 ## Recommended scope of revision
 
