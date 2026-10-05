@@ -13,6 +13,12 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
+**Ernest 0.3.1 is tagged** `v0.3.1` on 2026-10-05, a documentation release from MVP 2.99d:
+the manual pages rewritten to teach (item 7), the examples made to teach (item 8), the guide
+staged for its reader (item 5) and the report's contracts made precise (item 4), no rule
+changed. Next is the rest of MVP 2.99d, the library and the prelude measured, and
+`Fs.removeAll` refusing the root.
+
 **Ernest 0.3.0 is tagged** `v0.3.0` on 2026-10-05, the end of MVP 2.99c: the core
 language argued sound in [`soundness.md`](soundness.md) and generated against, the grammar,
 the standard library's laws and well-typed programs as machines, and a full review of every
@@ -50,6 +56,7 @@ paragraph under "Done".
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
 | MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | done 2026-10-05, tag `v0.3.0` |
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
+| Ernest 0.3.1 | the documentation rewritten: the manual pages, the examples, the guide and the report's precision, from MVP 2.99d's items 4, 5, 7 and 8 | done 2026-10-05, tag `v0.3.1` |
 | MVP 2.99d | the library and the prelude measured against their lines, the emitted code's cost, and the report's and the guide's feedback | |
 | MVP 3.0 | peers: distributed code and the node protocol | |
 | MVP 3.1 | content addressing | |
@@ -109,18 +116,16 @@ and its measurement does not hold the release.
    as the walk was rewritten for the full review's S10). A path that names the root, however
    written, answers `Left(Invalid)` before the helper runs, as GNU `rm` refuses `/` by
    default; a sentence of E.17, the check in `ern_fs`, and a test.
-7. **The manual pages made to teach**, done 2026-10-05 but for its last step (Appendix E.0
-   shape rule 6; the log's *The Manual Pages Teach*): the pages `ern doc` writes, the
+7. **The manual pages made to teach**, done 2026-10-05 and shipped as Ernest 0.3.1 (Appendix
+   E.0 shape rule 6; the log's *The Manual Pages Teach*): the pages `ern doc` writes, the
    standard library's, the prelude's and the libraries', each rewritten to the form
    [`module_doc_template.md`](module_doc_template.md) shows. A module's opening says what it
    is, when to use it, what a program does to use it and what to know, one behaviour a
    paragraph; a declaration's first sentence says what it does or answers, then its edges,
    and an `Errors` section the cause as a run prints it. A cold reader, briefed as a
    newcomer, read ten pages, and its forty findings were taken, three of them errors, one in
-   the guide. What remains is the last step: `make pages` writes every page under `man/`
-   anew, which the repository shows until the next release writes them again. **Decision
-   for the user**: whether that is Ernest 0.3.1, recommended, since each page names the
-   release that wrote it, which a test holds to `VERSION`.
+   the guide. `man/` holds the pages at 0.3.1, decided with the user: each page names the
+   release that wrote it, so new pages are a release.
 8. **The examples made to teach**, done 2026-10-05 (the log's *The Examples Are for a
    Reader*): `examples/` holds only programs written for a reader of the language, and
    [`examples/README.md`](../examples/README.md) lists them in an order to read them. The
@@ -410,8 +415,8 @@ the terminal). The rest is MVP 3.3's.
   OTP's maintainers (decided 2026-10-01, the log's *A Port Lost While It Starts*). Ernest adds
   nothing around it, and the gap stands until a release of OTP that Ernest requires has it.
 - **The launchd checks** of `make service`, written for macOS in MVP 2.99b's item 10, have
-  not run, since no Mac has been at hand; 0.3.0's notes say so. They run on the first Mac the
-  project has, and a release's notes say they have not until then.
+  not run, since no Mac has been at hand; 0.3.0's and 0.3.1's notes say so. They run on the
+  first Mac the project has, and a release's notes say they have not until then.
 
 ---
 

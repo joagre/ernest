@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-05.** [The Examples Are for a Reader](#the-examples-are-for-a-reader-2026-10-05); [The Manual Pages Teach](#the-manual-pages-teach-2026-10-05); [The Guide Staged for Its Reader](#the-guide-staged-for-its-reader-2026-10-05); [The Report's Feedback, Three Points](#the-reports-feedback-three-points-2026-10-05); [The Release Review Before 0.3.0](#the-release-review-before-030-2026-10-05); [A Release Carries No History](#a-release-carries-no-history-2026-10-05).
+**2026-10-05.** [The Release Review Before 0.3.1](#the-release-review-before-031-2026-10-05); [The Examples Are for a Reader](#the-examples-are-for-a-reader-2026-10-05); [The Manual Pages Teach](#the-manual-pages-teach-2026-10-05); [The Guide Staged for Its Reader](#the-guide-staged-for-its-reader-2026-10-05); [The Report's Feedback, Three Points](#the-reports-feedback-three-points-2026-10-05); [The Release Review Before 0.3.0](#the-release-review-before-030-2026-10-05); [A Release Carries No History](#a-release-carries-no-history-2026-10-05).
 
 **2026-10-04.** [The Full Review's Questions, One by One](#the-full-reviews-questions-one-by-one-2026-10-04); [The Full Review Run](#the-full-review-run-2026-10-04); [What Erlang Held, Moved](#what-erlang-held-moved-2026-10-04); [What Erlang Holds, Measured](#what-erlang-holds-measured-2026-10-04); [The Replies Generated](#the-replies-generated-2026-10-04); [The Type System Argued](#the-type-system-argued-2026-10-04); [The Logo Installed, and the Reviews' Models](#the-logo-installed-and-the-reviews-models-2026-10-04).
 
@@ -6481,6 +6481,36 @@ MVP 2.99b's tenth item, a file's words joined by `_` naming one namespace, moves
 The documents that cite the milestone's items by number follow, the plan, CLAUDE.md, `development.md`, `operations.md`, `language_feedback.md` and `findings.md`; an entry of this log that stands before this one keeps the numbers of its day, which the note under the index says.
 
 Not taken: leaving it tenth, where a decided, independent item waited on what does not need it.
+
+## The Release Review Before 0.3.1, 2026-10-05
+
+Ernest 0.3.1 is the documentation MVP 2.99d's items 4, 5, 7 and 8 rewrote: the report's contracts made precise, the guide staged for its reader, the manual pages and the examples made to teach. It is a release because the pages are: each names the release that wrote it, and `man/` holds the last release's, so pages written anew are a release, decided with the user. The rest of MVP 2.99d, the measurements and `Fs.removeAll`, waits for the next.
+
+**No readers ran**, at the user's word: the release changes the documentation and not the language, and no rule of the report changed, so the guide's reader and the argument's would not have run in any case. What read the release's work was its own: the cold reader of the guide in item 5 and the newcomer's read of ten manual pages in item 7, each worked before the tag (*The Guide Staged for Its Reader*, *The Manual Pages Teach*). The rule of `release_review.md` stands for the releases after this one.
+
+**The machines** ran on `5c6bcf0`, the version and the pages, which holds item 8's commit. A fresh clone built and passed. Dialyzer passed, the sanitizers wrote nothing, `make sections` named the plan's three standing gaps and nothing else, the seven loads were flat, and the service manager's checks passed under systemd; launchd's have not run, which the notes say.
+
+**The bench.** Three runs straight after the machines read four rows a tenth worse, the loop alone among them, with Erlang's own times slower by as much; no code on any row's path had changed since 0.3.0, only `Float.pow` and `Float.atan2`. After three minutes' rest three runs more, the median of each row, nanoseconds an iteration, against the rows of *The Release Review Before 0.3.0*:
+
+| Operation | Ernest | Erlang | Ratio | Then |
+|---|---|---|---|---|
+| the loop alone | 7.6 | 7.6 | 1.0 | 1.0 |
+| a record added by a function | 13.4 | 11.6 | 1.1 | 1.2 |
+| two records compared | 15.6 | 14.5 | 1.1 | 1.1 |
+| `Map.get`, `maps:find` | 20.7 | 18.9 | 1.1 | 1.1 |
+| `Map.put`, `maps:put` | 133.2 | 183.3 | 0.8 | 0.8 |
+| `List.map` over 100, `lists:map` | 1070.0 | 737.8 | 1.5 | 1.5 |
+| `List.size` of 100, `length` | 235.0 | 123.5 | 1.9 | 1.9 |
+| `String.size`, `string:length` | 89.6 | 88.9 | 1.0 | 1.0 |
+| `<>` and `String.size` | 134.8 | 115.2 | 1.2 | 1.2 |
+| `Bytes.size`, `byte_size` | 14.2 | 7.9 | 1.8 | 1.8 |
+| send and receive to self | 135.4 | 130.0 | 1.0 | 1.0 |
+| a call answered, as `gen_server`'s | 1878.0 | 1163.2 | 1.6 | 1.6 |
+| spawn a process that returns | 5045.0 | 1512.9 | 3.3 | 3.4 |
+
+No row is worse. The machine must be idle and settled before the bench: one that has just run the others is neither.
+
+**The newcomer's program** is 0.3.0's, `taskrun`, which builds and runs under 0.3.1 as it did, since no newcomer wrote one for this release.
 
 ## The Manual Pages Teach, 2026-10-05
 
