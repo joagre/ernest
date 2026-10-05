@@ -200,9 +200,9 @@ and its measurement does not hold the release.
     mark in its parameters, `a=` (§3, §4.7; the log's *A Foreign Function Marks Its
     Equality*), for `List.contains`, `remove` and `unique`. Its variables stay
     not-reply-carrying, so a function whose type carries a reply, `List.reverse`,
-    `foreach`, `foldRight`, `indexed`, `unzip` and `<>`, stays Ernest. Whether a second mark
-    lifts that restriction is decided with the user after the measurement this item ends
-    with. `List` is converted (2026-10-05; the log's *List Stands on the Host*): ten
+    `foreach`, `foldRight`, `indexed`, `unzip` and `<>`, stays Ernest. No second mark lifts
+    that restriction, decided with the user on 2026-10-06 (§4.7; the log's *No Mark Lifts
+    a Foreign Function's Restriction*). `List` is converted (2026-10-05; the log's *List Stands on the Host*): ten
     functions on the host's, each 1.1 to 1.5 times it. Before the item's last measurement,
     the machine draws varied elements, and an order for a comparison, where it now draws
     equal elements and a constant `Less`. `String` is converted where the host keeps its
