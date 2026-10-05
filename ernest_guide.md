@@ -773,9 +773,13 @@ fn count(total : Int) : Unit with CounterMsg =
 
 `count` keeps its state in the parameter `total`, and its mailbox takes `CounterMsg`. `receive` waits for a message that matches a clause and evaluates that clause. Both clauses call `count` again with the new state; a tail call does not grow the stack, so the loop runs for ever.
 
-`let counter = spawn(fn() = count(0))` starts a process that runs the lambda, and `counter` is its address, an `Address(CounterMsg)`. The process runs on this node, the runtime the program runs in; `Peer.spawn(name, f)` starts one on another node (§8). `send(counter, Inc(5))` puts `Inc(5)` in the mailbox of the process at `counter` and returns at once, without waiting for it to be received. `self()` is the address of the process that calls it, so a parent that gives a child its own address takes it first: `let me = self(); spawn(fn() = child(me))`.
+`let counter = spawn(fn() = count(0))` starts a process that runs the lambda, and `counter` is its address. The lambda calls `count`, whose mailbox takes `CounterMsg`, so the address is an `Address(CounterMsg)`, and nothing but a `CounterMsg` can be sent to it. The process runs on this node, the runtime the program runs in; `Peer.spawn(name, f)` starts one on another node (§8). `send(counter, Inc(5))` puts `Inc(5)` in the mailbox of the process at `counter` and returns at once, without waiting for it to be received. `self()` is the address of the process that calls it, so a parent that gives a child its own address takes it first: `let me = self(); spawn(fn() = child(me))`.
 
-`spawn`'s callback has type `() -> Unit with n`, and the `n` is also the mailbox of the `Address(n)` it returns. A pure function fits wherever one with a mailbox type is expected, so a pure callback is spawned too, and its mailbox is whatever the address is used as. When nothing says, the mailbox stays open until a `send` to the address fixes it, and an address nothing sends to may keep it open. A top-level `let`, and one at the prompt, whose address stays open is refused until an annotation settles it (§3.3). A process that never receives says so with the mailbox `Never`, written on its lambda, `fn() : Unit with Never = ...`, since no `receive` in it settles the type:
+A `Reply(Int)` is where an answer goes. The process that asks puts one in its request, and the process that receives the request answers it with `answer(reply, total)`.
+
+**A process that receives nothing.** A process with no `receive` has nothing in it that says what its mailbox takes. It says so itself, with the mailbox type `Never` on its lambda: `spawn(fn() : Unit with Never = work())`. Its address is an `Address(Never)`, to which nothing can be sent. The `main` of hello-world is such a process (§1.1).
+
+**When nothing settles the mailbox.** `spawn`'s type ties its function to the address it returns: the function is a `() -> Unit with n`, and the address an `Address(n)`. A pure function fits wherever one with a mailbox type is expected, so a pure function is spawned too. Its mailbox is then whatever the address is used as, and the first `send` to the address fixes it. Where nothing fixes it the type stays open. In a block that does no harm, and the address of a process nothing sends to may stay open. A top-level `let`, and one at the prompt, must have its type settled, and is refused until an annotation settles it (§3.3). The shell shows an open mailbox as a type variable, and the process that receives nothing as `Never`:
 
 ```console
 $ ern shell
@@ -789,15 +793,9 @@ spawn : (() -> Unit with n) -> Address(n) with m+
 <address 87> : Address(Never)
 ```
 
-A `Reply(Int)` is where an answer goes. The process that asks puts one in its request, and the process that receives the request answers it with `answer(reply, total)`.
-
 ### 4.2 A reply is answered once
 
-A `Reply` is an obligation: whoever holds one answers it exactly once, on every path, and the compiler checks it, as §0 showed. The obligation moves with the value. Sending a message that carries a reply, passing it to a function, returning it, putting it in a constructor or a list, or capturing it in a lambda that is called once or given straight to `spawn` hands the obligation on; only `answer(r, v)` answers it. A constructor with no reply-carrying field, `Stop` in a type whose `Get` carries one, has no obligation to hand on. A value that contains a reply is *reply-carrying*, as `CounterMsg` is because of `Get`, and the same rule holds for it.
-
-The check is on paths, not on time. A path that calls `fault` need not answer, since the fault ends the process and every call waiting on it at once (§6.5). Nor need a path that calls a function whose result type is a type variable that neither a parameter's type nor its mailbox type names, as `fn die(cause : String) : a = fault(cause)`, since such a function cannot return. A path that faults inside a function whose type says it returns, or waits for ever, must still answer on paper: the compiler reads the type, and the caller's deadline covers a wait (§4.4). A path may also be skipped: the right operand of `&&` or `||` where the left decides alone, and what follows a `let p <- e` where a `None` or a `Left` leaves the block. A reply held there is answered before it or after it, never in it.
-
-Since each reply is counted, a reply-carrying value is never copied or dropped. A list may hold one, as an `Optional`, an `Either` or any sum type may, and the queue of §4.4 keeps its waiting callers' replies in a list; the pattern `[]` holds none and owes nothing. A function that copies or drops its argument cannot take one, and neither can a `Map` or a `Set`, whose operations are the runtime's. A reply-carrying value is no operand of `==` or `!=`, and `_` cannot stand for one in a pattern. No field is selected from one, and one is not the base of a record update, since the selection would drop the other fields and the update the field it replaces: a pattern takes such a value apart. In a printed type, a variable marked `!` is one that may not hold a reply, as in `dup : (a!) -> #(a!, a!)` for a function that copies its argument and `List.size : (List(a!)) -> Int` for one that drops a list's elements. Report §6.6 gives the whole discipline.
+A `Reply` is an obligation: whoever holds one answers it exactly once, on every path, and the compiler checks it, as §0 showed. `answer(r, v)` answers it. Giving the reply to someone else hands the obligation on with it: sending the message that carries it, passing it to a function, or returning it. A value that contains a reply is *reply-carrying*, as `CounterMsg` is because of `Get`, and the same rule holds for the whole value: it is used exactly once, neither twice nor never.
 
 Sending a request twice consumes its reply twice:
 
@@ -820,6 +818,25 @@ resend.ern:5:19: the reply-carrying value request is consumed twice
   |                   ^^^^^^^
   | = help: a reply is consumed by answering it, passing it on once, or matching it (§6.6)
 ```
+
+**What may hold a reply.** Putting a reply in a constructor or a list hands the obligation to the value built. A list may hold a reply, as an `Optional`, an `Either` or any sum type may, and the queue of §4.4 keeps its waiting callers' replies in a list. A constructor with no reply-carrying field, `Stop` in a type whose `Get` carries one, has no obligation to hand on, and neither has the pattern `[]`.
+
+Since each reply is counted, a reply-carrying value is never copied or dropped:
+
+- A function that copies or drops its argument cannot take one. Neither can a `Map` or a `Set`, whose operations are the runtime's.
+- It is no operand of `==` or `!=`.
+- `_` cannot stand for one in a pattern.
+- No field is selected from one, since the selection would drop the other fields. One is not the base of a record update, since the update would drop the field it replaces. A pattern takes such a value apart.
+
+In a printed type, a variable marked `!` is one that may not hold a reply: `dup : (a!) -> #(a!, a!)` for a function that copies its argument, and `List.size : (List(a!)) -> Int` for one that drops a list's elements.
+
+**A reply in a lambda.** Capturing a reply in a lambda hands the obligation to the lambda. The lambda is then used exactly once itself: called once, or given straight to `spawn`.
+
+**Paths that need not answer.** The check is on paths, not on time. A path that calls `fault` need not answer, since the fault ends the process and every call waiting on it at once (§6.5). Nor need a path that calls a function whose result type is a type variable that neither a parameter's type nor its mailbox type names, as `fn die(cause : String) : a = fault(cause)`, since such a function cannot return. A path that faults inside a function whose type says it returns, or waits for ever, must still answer on paper: the compiler reads the type, and the caller's deadline covers a wait (§4.4).
+
+**Paths that may be skipped.** The right operand of `&&` or `||` is skipped where the left decides alone, and what follows a `let p <- e` is skipped where a `None` or a `Left` leaves the block. A reply held there is answered before it or after it, never in it.
+
+Report §6.6 gives the whole discipline.
 
 ### 4.3 Selective receive and `after`
 
