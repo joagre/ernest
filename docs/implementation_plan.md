@@ -13,20 +13,17 @@ milestone, the standing gaps, and what is done.
 
 ## Where we are
 
-**MVP 2.99c is under way**: the core language argued sound and generated against. Its machines,
-the grammar, the standard library's laws and well-typed programs, were built on 2026-10-03, and
-its argument, [`soundness.md`](soundness.md), was written on 2026-10-04 and found the reply
-discipline short in ten places, each closed that day, and the typed generator's third round,
-on replies, was built the same day and found nothing more; item 5 moved into Ernest what
-Erlang held that Ernest can, and item 6, the full review, ran on `d90a5b3`, the same day. Its
-570 findings were worked by 2026-10-05, in the milestone after it; next is item 7, the
-release, Ernest 0.3.0. MVP 2.99b, what the release review left, the code's
-names read and made to read, operations records, and running as a service, was done on
-2026-10-03, and `findings.md` went with it; the principles review, a milestone of its own
-between its items 3 and 4, closed on 2026-10-01, and Ernest 0.2.0, the second release, is
-tagged `v0.2.0` the same day. Ernest 0.1.0, the first release, is tagged `v0.1.0` and was
-published on 2026-09-30 with MVP 2.99; MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were
-taken out of order. Each has its paragraph under "Done".
+**Ernest 0.3.0 is tagged** `v0.3.0` on 2026-10-05, the end of MVP 2.99c: the core
+language argued sound in [`soundness.md`](soundness.md) and generated against, the grammar,
+the standard library's laws and well-typed programs as machines, and a full review of every
+area, whose 570 findings were worked before the tag. Next is MVP 2.99d, the library and the
+prelude measured against their lines, and the report's and the guide's feedback. MVP 2.99b,
+what the release review left, the code's names read and made to read, operations records,
+and running as a service, was done on 2026-10-03; the principles review closed on
+2026-10-01, and Ernest 0.2.0, the second release, is tagged `v0.2.0` the same day. Ernest
+0.1.0, the first release, is tagged `v0.1.0` and was published on 2026-09-30 with MVP 2.99;
+MVP 2.9, MVP 2.61, `libs/markdown` and MVP 2.8 were taken out of order. Each has its
+paragraph under "Done".
 
 ---
 
@@ -51,7 +48,7 @@ taken out of order. Each has its paragraph under "Done".
 | MVP 2.99b | what the release review left, names that read among it; operations records: the requirement `needs a.compare`, a record filled from a namespace, an ordered set and an ordered map; running as a service | done 2026-10-03 |
 | The principles review | the report and the guide against §0, and §0 against what it decided | done 2026-10-01 |
 | Ernest 0.2.0 | the review's rules shipped as one, after the release review | done 2026-10-01, tag `v0.2.0` |
-| MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | moved from MVP 3.9 on 2026-10-01 |
+| MVP 2.99c | the language argued: the type system's argument, generated programs, the grammar and the library's laws as machines; then a release, Ernest 0.3.0 | done 2026-10-05, tag `v0.3.0` |
 | The full review's findings | the 570 findings of MVP 2.99c's item 6, worked before its release | done 2026-10-05 |
 | MVP 2.99d | the library and the prelude measured against their lines, the emitted code's cost, and the report's and the guide's feedback | |
 | MVP 3.0 | peers: distributed code and the node protocol | |
@@ -59,104 +56,6 @@ taken out of order. Each has its paragraph under "Done".
 | MVP 3.2 | the libraries, as they are wanted | `libs/markdown` done 2026-09-25 |
 | MVP 3.3 | the shell's second round | |
 | MVP 3.9 | the review before 1.0: the full review, the numbering decided once, the promise | |
-
----
-
-## MVP 2.99c (the language argued, and a release), about a week
-
-The core language argued sound and generated against, before peers build on it, moved here
-from MVP 3.9 on 2026-10-01 (the log's *The Language Argued Before Peers*). After MVP 2.99b,
-since the review's phase 5 and the operations records are the last changes to the type system
-on one node, and before MVP 3.0, whose code shipping and type identity extend the argument
-rather than begin it. The machines first, cheapest first, since each finds concrete defects
-in a day or two, and the argument last, written over a parser and a checker the machines have
-shaken (reordered 2026-10-01). Weighed again on 2026-10-03 before it starts (the log's *MVP
-2.99c Weighed Before It Starts*): about a week at the pace MVP 2.99b set; the library's laws
-before the typed programs, as the cheaper; the typed programs given their rounds and their
-oracles, the argument its bound and its owner; and [`release_review.md`](release_review.md) a
-sixth machine, the bench, and a reader of the guide. The items are numbered in the order of
-work since 2026-10-04: a commit message before that day cites the laws as item 3, the typed
-programs as item 2, and the last three as items 7, 8 and 6.
-
-1. **The grammar generated against**, done 2026-10-03 (the log's *The Grammar Generated
-   Against*): `make test-grammar`, a part of `make test`, derives a thousand programs from
-   Appendix A as data and one more for each choice they leave untaken, so that every one of
-   the grammar's choices is taken in every run; each is parsed, laid out and parsed again to
-   the same tree, and given with one token changed as a near miss, which a recognizer built
-   from the same grammar judges. It found seven places where the parser, the checker or the
-   formatter left the grammar: Appendix A now says that a block ends with an expression;
-   `Foo()` and `Foo(a, b)` are calls of the constructor's value, which the checker refuses;
-   the binding rule of §3.5 and the message for a function in two clauses are the checker's;
-   a type's parameters are distinct (§4.3, §4.7); and the formatter keeps two tokens that
-   would read as others apart and a pipe's stage in its parentheses, which change nothing
-   (§5.7, §11.6).
-2. **The standard library's laws as properties**, done 2026-10-03 (the log's *The Library's
-   Laws Held*): `ern_laws_tests`, a part of the runtime's tests in `make test`, checks 101
-   laws drawn from Appendix E's sections of `List`, `String`, `Map`, `Set`, `OrderedSet`,
-   `OrderedMap`, `Bytes`, `Int`, `Float`, `Char`, `Optional`, `Either` and `Path`, each on 200
-   cases drawn afresh each run, the text among them hard at the graphemes. Every search of
-   `String` matches whole graphemes of the string searched, `split` then `join` gives the
-   string back, `sort` is stable, and the rest hold; none was broken.
-3. **Well-typed programs generated**, done 2026-10-03 (the log's *The Typed Programs
-   Generated*): `make test-typed`, a part of `make test` in about twenty-seven seconds, builds
-   four hundred pure programs by type and sixty of four process shapes, checks, compiles,
-   loads and runs each in one host through the runtime's entry, and holds what each prints
-   to what an interpreter of the same program, written in the test from the report's rules,
-   computes. The pure programs cover `let`, `if`, `match` over every pattern form with
-   guards, constructors positional and named, records with selection and update, tuples,
-   lists, lambdas, helper and local functions, structural recursion, and the operations of
-   `Int` and `String` with a few of `List` and `Optional`; the shapes are a worker that
-   sends its value back, a server that answers a call, a receive that times out, and a
-   deadlock. No program was refused, miscompiled or ended otherwise than predicted. Its third
-   round, the reply discipline, decided with item 4, was built on 2026-10-04 (the log's *The
-   Replies Generated*): eighty programs a run whose server hands a call's reply on in each way
-   §6.6 allows before it is answered, each run, and each changed four times at one
-   consumption, doubled, dropped, hidden, put on a path that may be skipped, passed where a
-   function discards or copies it, or put where a reply may not stand, which the checker must
-   refuse with the change's own diagnostic. It found nothing; with one of item 4's fixes taken
-   out of the checker, it fails within a run.
-4. **The type system argued**, done 2026-10-04 (the log's *The Type System Argued*):
-   [`soundness.md`](soundness.md), the argument that a well-typed program does not go wrong,
-   in a small calculus, three invariants, a paragraph for each step and one for each place
-   where rules meet, with no mechanization. It claims four things, that no step is undefined,
-   that every message fits its mailbox, that every function runs where its type says, and
-   that every reply has one holder, and says what it assumes and what it leaves. Each place
-   was probed with programs before it was argued. Outside replies every probe held. In the
-   reply discipline ten programs were accepted that dropped or duplicated a reply, and each
-   is closed with its sentence of the report, its regression test and its entry in the
-   catalogue of diagnostics: a call to a function that returns its mailbox type was read as
-   not returning; the not-reply-carrying restriction did not reach a function a definition
-   returns or holds, a lambda a block's `let` binds, or a value passed inside another; a
-   reply was consumed after a `<-` and in the right operand of `&&` and `||`, which may be
-   skipped; a name that hides a reply counted for it; a field was selected from a
-   reply-carrying value and one was the base of a record update; and a reply was bound at
-   top level (§3.9, §6.6). The rule for a recursive group's types now names the declared
-   type's parameters each in its place (§3.9). CLAUDE.md names the document among the
-   owners and holds the rule that a change to a rule it covers rewrites its paragraph in
-   the same commit; [`release_review.md`](release_review.md) has its row, and
-   [`full_review.md`](full_review.md)'s cold reader reads it, so that item 6's review does.
-5. **What Erlang holds that Ernest can**, done 2026-10-04 (the log's *What Erlang Held,
-   Moved*, after *What Erlang Holds, Measured*), its three decisions taken with the user as
-   recommended. E.0 rule 1 admits a primitive beneath an Ernest operation only where the
-   Ernest form's cost grows with what the host's does not. `String.trimStart` is Ernest over
-   `slice` and `drop`, `String.trimEnd` over the private `lastGrapheme`, found from the
-   string's end, and `String.toIntBase` reads its digits in Ernest, in halves past forty;
-   E.5's primitives say so. `Fs.append` writes a device as well (E.17), and the shell's
-   `:output` is Ernest: the screen appends there and, where a write fails, says why and
-   draws again (§11.2). The terminal's key decoding stays in `ern_tty`, the runtime's
-   system process.
-6. **The full review**, done 2026-10-04 (the log's *The Full Review Run*), in place of the
-   release review's readers for 0.3.0: [`full_review.md`](full_review.md) run whole on
-   `d90a5b3`, its nineteen readers and parts each a fresh agent of one workflow, never a
-   fork, given only its brief, its files and a copy of the commit, P and K on the most
-   advanced model and the rest on the one below. They handed in 570 findings, which the
-   milestone after this item worked (*The full review's findings* under "Done").
-7. **A release, Ernest 0.3.0**, the milestone's last item, decided with the user
-   2026-10-03, with no hurry: after the machines have run and the argument is written, so
-   that what is released has been generated against. The review and the release run as
-   [`release_review.md`](release_review.md) says, its readers being item 6's. Item 10's
-   launchd checks of MVP 2.99b have run on a Mac by then, or the notes say that the agent has
-   not been checked.
 
 ---
 
@@ -465,6 +364,9 @@ the terminal). The rest is MVP 3.3's.
   child exits silently when the host is gone, as the helper does, which the user takes to
   OTP's maintainers (decided 2026-10-01, the log's *A Port Lost While It Starts*). Ernest adds
   nothing around it, and the gap stands until a release of OTP that Ernest requires has it.
+- **The launchd checks** of `make service`, written for macOS in MVP 2.99b's item 10, have
+  not run, since no Mac has been at hand; 0.3.0's notes say so. They run on the first Mac the
+  project has, and a release's notes say they have not until then.
 
 ---
 
@@ -772,3 +674,20 @@ triage: `PWD` reaches a program as the launcher's shell sets it, which §11 stat
 compiled launcher is built, decided with the user. A release's notes list no change, and
 `ern` refuses no spelling of an earlier toolchain with its replacement (*A Release Carries
 No History*).
+
+### MVP 2.99c — the language argued, and Ernest 0.3.0 (done 2026-10-05, tag `v0.3.0`)
+
+The core language argued sound and generated against, before peers build on it (the log's
+*The Language Argued Before Peers*). Three machines run in `make test`: programs derived
+from Appendix A as data, each parsed, laid out and given as a near miss (*The Grammar
+Generated Against*); 101 laws of Appendix E's modules checked on cases drawn afresh (*The
+Library's Laws Held*); and well-typed programs built by type, the pure ones held to an
+interpreter of the report's rules and the reply discipline's changed at one consumption
+(*The Typed Programs Generated*, *The Replies Generated*). [`soundness.md`](soundness.md)
+argues that a well-typed program does not go wrong, and closed the ten places where the
+reply discipline was short (*The Type System Argued*). What Erlang held that Ernest can
+moved into Ernest, and E.0 rule 1's line is three times the host's (*What Erlang Held,
+Moved*). The full review read every area on `d90a5b3`, and its 570 findings were worked
+before the release (*The full review's findings* above). The release review's machines ran
+on `6e07e7d` and the tag (the log's *The Release Review Before 0.3.0*), item 6's readers
+serving as its readers; a release's notes list no change (*A Release Carries No History*).

@@ -15,7 +15,7 @@ newest first. The log is read by searching it; this is for seeing what is in it.
 
 **Standing sections.** [Starting Point](#starting-point); [Kept from Unison](#kept-from-unison); [Dropped from Unison](#dropped-from-unison); [Tried and Rejected](#tried-and-rejected); [Toolchain and Guide](#toolchain-and-guide); [Reasons Lifted Out of the Report](#reasons-lifted-out-of-the-report); [Erlang's Standard Library, Module by Module](#erlangs-standard-library-module-by-module); [Later](#later); [Paper Programs and Measurements](#paper-programs-and-measurements); [Form of the Report](#form-of-the-report); [Measure](#measure).
 
-**2026-10-05.** [A Release Carries No History](#a-release-carries-no-history-2026-10-05).
+**2026-10-05.** [The Release Review Before 0.3.0](#the-release-review-before-030-2026-10-05); [A Release Carries No History](#a-release-carries-no-history-2026-10-05).
 
 **2026-10-04.** [The Full Review's Questions, One by One](#the-full-reviews-questions-one-by-one-2026-10-04); [The Full Review Run](#the-full-review-run-2026-10-04); [What Erlang Held, Moved](#what-erlang-held-moved-2026-10-04); [What Erlang Holds, Measured](#what-erlang-holds-measured-2026-10-04); [The Replies Generated](#the-replies-generated-2026-10-04); [The Type System Argued](#the-type-system-argued-2026-10-04); [The Logo Installed, and the Reviews' Models](#the-logo-installed-and-the-reviews-models-2026-10-04).
 
@@ -6481,6 +6481,34 @@ MVP 2.99b's tenth item, a file's words joined by `_` naming one namespace, moves
 The documents that cite the milestone's items by number follow, the plan, CLAUDE.md, `development.md`, `operations.md`, `language_feedback.md` and `findings.md`; an entry of this log that stands before this one keeps the numbers of its day, which the note under the index says.
 
 Not taken: leaving it tenth, where a decided, independent item waited on what does not need it.
+
+## The Release Review Before 0.3.0, 2026-10-05
+
+The review before Ernest 0.3.0 ran as `release_review.md` says. Its readers were item 6's, the full review's nineteen on `d90a5b3`, whose findings the milestone before this one worked (*The Full Review Run*), so none ran again; its machines ran on the commits that followed, and the tag is the commit that adds this entry.
+
+**The machines.** A fresh clone of `525cbdf` built and failed two tests: the emitter had begun writing `-dialyzer(no_return)` that morning, and the two hand-written targets the golden tests compare against had not been given it, a commit made after the machines and before the full suite; `6e07e7d` gave it them, and a fresh clone of it built and passed. Dialyzer named three functions that never return: `ern_os`'s `host_failed/0` and `ern_parser`'s `expected_instead/2` lacked the `no_return()` their neighbours declare, and the shell's Ernest `screenDied`, of type `(Down) -> a`, never returns by its type, which the emitter now tells Dialyzer in each module it writes; the run then passed. The sanitizers wrote nothing; the out-of-memory test does not run under them, since the address sanitizer's shadow memory fits under no limit on virtual memory, and runs in `make test` with the plain helper. `make sections` named the plan's three standing gaps and nothing else. The seven loads were flat. The service manager's checks passed under systemd; launchd's have not run, no Mac being at hand, which the plan's standing gaps and the notes say.
+
+**The bench**, the median of three runs, the machine idle, nanoseconds an iteration, against the rows of 2026-10-01 (*The Principles Review Closed*):
+
+| Operation | Ernest | Erlang | Ratio | Then |
+|---|---|---|---|---|
+| the loop alone | 7.8 | 7.9 | 1.0 | 1.0 |
+| a record added by a function | 13.7 | 12.2 | 1.2 | 1.1 |
+| two records compared | 16.8 | 15.2 | 1.1 | 1.1 |
+| `Map.get`, `maps:find` | 21.4 | 19.6 | 1.1 | 1.1 |
+| `Map.put`, `maps:put` | 148.6 | 190.8 | 0.8 | 0.8 |
+| `List.map` over 100, `lists:map` | 1105.0 | 756.8 | 1.5 | 1.4 |
+| `List.size` of 100, `length` | 247.0 | 129.0 | 1.9 | 1.9 |
+| `String.size`, `string:length` | 93.8 | 91.5 | 1.0 | 1.0 |
+| `<>` and `String.size` | 144.0 | 122.0 | 1.2 | 1.2 |
+| `Bytes.size`, `byte_size` | 15.1 | 8.3 | 1.8 | 1.9 |
+| send and receive to self | 140.6 | 139.3 | 1.0 | 1.0 |
+| a call answered, as `gen_server`'s | 2026.0 | 1239.5 | 1.6 | 1.7 |
+| spawn a process that returns | 5205.0 | 1511.3 | 3.4 | 3.4 |
+
+Two rows read a tenth worse, and are counted as no worse: in both, Ernest's own time fell, 14.2 to 13.7 and 1120 to 1105, and the ratio is the median of each run's, rounded; the ratios of the medians are 1.12 against 1.16 and 1.46 against 1.43, the second within the three percent *The Principles Review Closed* took for the machine's own noise.
+
+**The newcomer's program** is the full review's, `taskrun`, published beside the archive with the tasks it was tried on. It builds and runs under 0.3.0 as it did under the commit it was written against.
 
 ## A Release Carries No History, 2026-10-05
 
