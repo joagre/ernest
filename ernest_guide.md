@@ -10,7 +10,7 @@
 
 This guide teaches Ernest to a programmer who has used a functional language. It assumes immutable values, sum types, pattern matching, functions as values and recursion, and shows only how Ernest writes them. Processes and messages it teaches from the start, since their types are what is new; a reader who knows Erlang will recognize the model, and §10 says what carries over. Nothing of Ernest or of its report needs reading first.
 
-Each complete program in the guide compiles as shown and prints what is shown after it, and the guide's tests run every one. A fault's report goes to standard error, so its place among a program's own lines is one run's. A program the compiler refuses is shown with what the compiler says of it. The examples of peers in §8 are fragments, since the toolchain does not run peers yet. The language is defined by the report, in three files under [`report/`](report/language.md), to which the guide points where a question turns on a detail.
+Each complete program in the guide compiles as shown and prints what is shown after it, and the guide's tests run every one. Where a process fails, `ern run` reports it on standard error, and where that line falls among the program's own lines may differ from run to run. A program the compiler refuses is shown with what the compiler says of it. The examples of peers in §8 are fragments, since the toolchain does not run peers yet. The language is defined by the report, in three files under [`report/`](report/language.md), to which the guide points where a question turns on a detail.
 
 **Contents**
 <!-- contents -->
@@ -498,7 +498,7 @@ x : Int
 "same as x" : String
 ```
 
-A name appears at most once in a pattern.
+A name appears at most once in a pattern. A pattern of a constructor with named fields may leave out the fields it does not need: `Rectangle(width = w)` binds one field of the `Rectangle` above, and `Rectangle()` matches any.
 
 A clause may list several patterns separated by `or`; it matches when any of them does. Every alternative binds the same variables at the same types, so the body uses them whichever alternative matched:
 
@@ -580,8 +580,11 @@ The standard library is a module per type, `List`, `Map`, `Set`, `String`, `Char
 - **Subject first, callbacks last**, so the pipe works: `xs |> List.foldLeft(0, fn(acc, x) = acc + x)`.
 - **A conversion is named by the other type.** Between a type and one its module builds on, both directions are the building module's, `String.fromList` and `String.toList`; any other conversion is its argument's module's `toX`: `String.toInt`, `Int.toString`.
 - **A partial operation returns `Optional`; one with a cause returns `Either`.** `List.get` and `String.toInt` return `Optional`, `Fs.read` returns `Either(Io.Error, Bytes)`. A program says an `Io.Error` to its user in its own words, with a `match` over its constructors; `Io.show` writes it as a value, `Other("address already in use")`.
-- **Pure unless the value lives in a process.** A function carries `with m` in four cases and nowhere else: where it reaches a system process; where it spawns a process, as `Supervisor.group` does; where it asks the runtime about its processes, as `Process.live` does; and where it reads the time, as `Clock.monotonic` does (report Appendix E.0 shape rule 5). Every function that calls a function it takes is as pure as the function it is given (§3.5).
 - **A `String` is text, not a list.** Its length and positions count what a reader sees as letters, which `String.graphemes` gives one by one; `String.toList` gives its `Char`s.
+
+Four more rules concern processes, and are for after §4:
+
+- **Pure unless the value lives in a process.** A function carries `with m` in four cases and nowhere else: where it reaches a system process; where it spawns a process, as `Supervisor.group` does; where it asks the runtime about its processes, as `Process.live` does; and where it reads the time, as `Clock.monotonic` does (report Appendix E.0 shape rule 5). Every function that calls a function it takes is as pure as the function it is given (§3.5).
 - **A system process is used through its module**, never by `send`.
 - **A function that waits takes a timeout in milliseconds, last**, and may answer `Left(Timeout)`: `Fs.read(path, 5000)`. There is no time that means no limit. A server that waits for as long as it takes asks again on each `Left(Timeout)` (§8.7). A read of standard input and a write to standard output wait without a limit, since those streams are the program's own. A socket's far end or a program the runtime started can hang unseen, so `Tcp.write`, `Os.read` and `Os.write` take a time too (report Appendix E.0 shape rule 8).
 - **A function that delivers later takes a function that makes the message.** `Clock.alarm(100, Tick)` puts `Tick(t)` in the mailbox after 100 ms, `t` being the time it fired. The function that makes the message is pure, and the one that takes it, `Clock.alarm` or `Terminal.subscribe`, acts through a process all the same. `Clock.now()` is the time now, in milliseconds since the epoch. A process that only waits a while writes `receive { after ms -> Unit }` (§4.3); `Clock` has no sleep.
@@ -644,6 +647,8 @@ A function body is either a single expression (like `value * 2`) or a block; a b
 
 Function arity is fixed and part of the type. `hypotenuseSquared(3, 4)` is `25`. `hypotenuseSquared(3)` is a type error, not a partially applied function. To make a unary version, write a lambda: `fn(b) = hypotenuseSquared(3, b)`.
 
+A block may declare a `fn` of its own, `{ fn square(n : Int) : Int = n * n; square(3) }`. It is visible in the whole block, but may be used only after the `let`s it reads (report §5.4).
+
 ### 3.2 Lambdas and closures
 
 ```console
@@ -678,16 +683,24 @@ The literal `2` is an `Int`, so `*` is `Int.*` and `value : Int`. But **Ernest d
 
 ```ernest-rejected
 fn twice(value) =
-    value + value // value's type ambiguous — annotate: (value : Int) or (value : Float)
+    value + value
 ```
 
-Without a source that fixes the type, `value + value` is a type error. Once it is fixed, `+` is that type's: `Int.+` for an `Int`, `Distance.+` for a user type that declares it as a member, `fn Distance.+`, and `Int.+` is also a function value, as in `List.foldLeft(xs, 0, Int.+)` (report §4.8, report §5.6).
+```console
+$ ern build twice.ern
+twice.ern:2:5: the operand type of `+` is not determined; annotate it
+1 | fn twice(value) =
+2 |     value + value
+  |     ^^^^^^^^^^^^^
+```
+
+Without a source that fixes the type, `value + value` is a type error, and `(value : Int)` or `(value : Float)` fixes it. A field read is the same: `fn age(person) = person.age` is refused until `person : Person` says whose field it is. Once the type is fixed, `+` is that type's: `Int.+` for an `Int`, `Distance.+` for a user type that declares it as a member, `fn Distance.+`, and `Int.+` is also a function value, as in `List.foldLeft(xs, 0, Int.+)` (report §4.8, report §5.6).
 
 **What is polymorphic.** A polymorphic name may be used at one type here and at another there.
 
 - A `fn` and a top-level `let` are polymorphic.
 - A `let` in a block is polymorphic only where it binds a lambda. Any other `let` in a block has one type.
-- A top-level `let` whose initializer calls a process-only function, `spawn`, `send`, `Address.call` or `Io.println` among them, is not polymorphic either.
+- A top-level `let` whose initializer calls a function that needs a process, `spawn`, `send`, `Address.call` or `Io.println` among them (§3.5), is not polymorphic either.
 
 ```console
 $ ern shell
@@ -706,8 +719,6 @@ input 2:1:46: the argument does not fit one: expected List(Int), found List(Stri
 
 **A type nothing settles.** After `let xs = []` in a block, the element type of `xs` is settled by an annotation, by a later use in the block, or by `xs` reaching the block's result. Where nothing settles it, with `xs` never read, the type stays open and the block compiles. A top-level `let` that is not polymorphic, and a `let` at the prompt, must have their types settled, by an annotation where nothing else settles them (report §4.6).
 
-A `fn` declared in a block is visible in the whole block, but may be used only after the `let`s it reads (report §5.4).
-
 ### 3.4 Pure functions and functions with a mailbox effect
 
 A function whose type has no `with` is *pure*. It cannot send, receive, spawn, ask for its own address, or call a `foreign fn` that has an effect. A function with `with M` may act through a process whose mailbox takes `M`.
@@ -721,13 +732,13 @@ fn apply(f, x) =
     f(x)
 ```
 
-The inferred type is `((a) -> b with e, a) -> b with e`: `apply` has the effect of the function it is given, so `apply(f, x)` is pure when `f` is. `List.map`, `List.foreach`, and every other function of the standard library that calls a function it takes are the same.
+The inferred type is `((a) -> b with e, a) -> b with e`: `apply` has the effect of the function it is given, so `apply(f, x)` is pure when `f` is. Written out, it is `fn apply(f : (a) -> b with e, x : a) : b with e = f(x)`. An annotation without the `with e`, `f : (a) -> b`, takes a pure function only. `List.map`, `List.foreach`, and every other function of the standard library that calls a function it takes are the same.
 
 An effect variable may stand for a mailbox type or for pure. One that also appears inside `Address`, as in `self : () -> Address(m) with m`, stands for a mailbox type only, since an address needs one. The letters in a printed type mean nothing of their own.
 
 **Process-only.** The process operations, `self`, `send`, `spawn`, `spawnMonitored`, `receive`, `answer`, `Address.call`, `Address.callForever`, `monitor`, and `kill`, which §4 and §5 teach, are *process-only*: the function that uses one has a real mailbox type, never pure (report §3.9).
 
-**In a printed type.** A printed type marks a process-only effect variable with `+` where it stands nowhere else in the type: `:type send` prints `send : (Address(a), a) -> Unit with m+`, and so does a function of yours that calls `send`. `monitor`'s stands in its callback's result too, `(Down) -> m`, where it can only be a mailbox type, and is printed without the mark (report §11.5).
+**In a printed type.** A printed type marks a process-only effect variable with `+` where it stands nowhere else in the type: `:type send` prints `send : (Address(a), a) -> Unit with m+`, and so does a function of yours that calls `send`. Where the variable is also a callback's result type, as in `monitor`'s `(Down) -> m` (§5.2), it is a type and so never pure, and is printed without the mark (report §11.5).
 
 ### 3.6 The word counter as functions
 
@@ -801,9 +812,9 @@ fn count(total : Int) : Unit with CounterMsg =
 
 `let counter = spawn(fn() = count(0))` starts a process that runs the lambda, and `counter` is its address. The lambda calls `count`, whose mailbox takes `CounterMsg`, so the address is an `Address(CounterMsg)`, and nothing but a `CounterMsg` can be sent to it. The process runs on this node, the runtime the program runs in; `Peer.spawn(name, f)` starts one on another node (§8). `send(counter, Inc(5))` puts `Inc(5)` in the mailbox of the process at `counter` and returns at once, without waiting for it to be received. `self()` is the address of the process that calls it, so a parent that gives a child its own address takes it first: `let me = self(); spawn(fn() = child(me))`.
 
-A `Reply(Int)` is where an answer goes. The process that asks puts one in its request, and the process that receives the request answers it with `answer(reply, total)`.
+A `Reply(Int)` is where an answer goes. The process that asks gets one from `Address.call`, which puts it in the request and waits for the answer (§4.4), and the process that receives the request answers it with `answer(reply, total)`. §4.5 runs the counter whole.
 
-**A process that receives nothing.** A process with no `receive` has nothing in it that says what its mailbox takes. It says so itself, with the mailbox type `Never` on its lambda: `spawn(fn() : Unit with Never = work())`. Its address is an `Address(Never)`, to which nothing can be sent. The `main` of hello-world is such a process (§1.1).
+**A process that receives nothing.** A process with no `receive` has nothing in it that says what its mailbox takes. It can say so itself, with the mailbox type `Never` on its lambda: `spawn(fn() : Unit with Never = work())`. Its address is then an `Address(Never)`, to which nothing can be sent. Where it does not say, the next rule applies. The `main` of hello-world is such a process (§1.1).
 
 **When nothing settles the mailbox.** `spawn`'s type ties its function to the address it returns: the function is a `() -> Unit with n`, and the address an `Address(n)`. A pure function fits wherever one with a mailbox type is expected, so a pure function is spawned too. Its mailbox is then whatever the address is used as, and the first `send` to the address fixes it. Where nothing fixes it the type stays open. In a block that does no harm, and the address of a process nothing sends to may stay open. A top-level `let`, and one at the prompt, must have its type settled, and is refused until an annotation settles it (§3.3). The shell shows an open mailbox as a type variable, and the process that receives nothing as `Never`:
 
@@ -821,7 +832,7 @@ spawn : (() -> Unit with n) -> Address(n) with m+
 
 ### 4.2 A reply is answered once
 
-A `Reply` is an obligation: whoever holds one answers it exactly once, on every path, and the compiler checks it, as §0 showed. `answer(r, v)` answers it. Giving the reply to someone else hands the obligation on with it: sending the message that carries it, passing it to a function, or returning it. A value that contains a reply is *reply-carrying*, as `CounterMsg` is because of `Get`, and the same rule holds for the whole value: it is used exactly once, neither twice nor never.
+A `Reply` is an obligation: whoever holds one answers it exactly once, on every path, and the compiler checks it, as §0 showed. `answer(r, v)` answers it. Giving the reply to someone else hands the obligation on with it: sending the message that carries it, passing it to a function, or returning it. Each of these *consumes* the reply, as answering does, and the compiler's messages use the word. A value that contains a reply is *reply-carrying*, as `CounterMsg` is because of `Get`, and the same rule holds for the whole value: it is used exactly once, neither twice nor never.
 
 Sending a request twice consumes its reply twice:
 
@@ -858,9 +869,9 @@ In a printed type, a variable marked `!` is one that may not hold a reply: `dup 
 
 **A reply in a lambda.** Capturing a reply in a lambda hands the obligation to the lambda. The lambda is then used exactly once itself: called once, or given straight to `spawn`.
 
-**Paths that need not answer.** The check is on paths, not on time. A path that calls `fault` need not answer, since the fault ends the process and every call waiting on it at once (§6.5). Nor need a path that calls a function whose result type is a type variable that neither a parameter's type nor its mailbox type names, as `fn die(cause : String) : a = fault(cause)`, since such a function cannot return. A path that faults inside a function whose type says it returns, or waits for ever, must still answer on paper: the compiler reads the type, and the caller's deadline covers a wait (§4.4).
+**Paths that need not answer.** The check is on paths, not on time. A path that calls `fault` need not answer, since the fault ends the process and every call waiting on it at once (§6.5). Nor need a path that calls a function whose result type is a type variable that neither a parameter's type nor its mailbox type names, as `fn die(cause : String) : a = fault(cause)`, since such a function cannot return. A path that faults inside a function whose type says it returns, or waits for ever, is still written with its answer: the compiler reads the type, not the run, and the caller's deadline covers a wait (§4.4).
 
-**Paths that may be skipped.** The right operand of `&&` or `||` is skipped where the left decides alone, and what follows a `let p <- e` is skipped where a `None` or a `Left` leaves the block. A reply held there is answered before it or after it, never in it.
+**Paths that may be skipped.** The right operand of `&&` or `||` is skipped where the left decides alone, and what follows a `let p <- e` is skipped where a `None` or a `Left` leaves the block. A reply is not consumed in a part that may be skipped. It is consumed before that part or after it, or the `<-` is written as a `match`, whose every clause consumes it.
 
 Report §6.6 gives the whole discipline.
 
@@ -1232,7 +1243,7 @@ type Reason = Returned | Killed | ProgramEnd | Fault(String) | Unknown
 
 `monitor(child, wrap)` puts `wrap(d)` in your mailbox when the process `child` dies, or at once if it is dead already, with the reason `Unknown`, since the runtime keeps nothing of a process that has ended. `child` is a `Process`, the identity of a process, which `Process.fromAddress(a)` gives for an address `a`: watching a process needs no permission to send to it, so a server watches the clients it holds no address to. A process you start yourself is watched from its start with `spawnMonitored(f, wrap)`, `spawn` and `monitor` in one step, so that no end comes before the watch. `wrap` makes your message from the runtime's `Down`: in ping-pong, `PongDone` is a constructor of `MainMsg` that carries one. A `Down` says the process ended, not that it succeeded; its `process` says which, its `reason` says how, and its `site` says where it was spawned, the top-level declaration and the line of the spawn, `Counter.main:19`.
 
-A process that monitors a worker while waiting for its answer gets two messages, the answer and the death, and takes the answer; the death is still in the mailbox when the next worker is monitored. The `Down` names the process it is about, and the worker names itself in its answer, so the wait takes what is about the worker it waits for:
+A process that monitors a worker while waiting for its result gets two messages, the result and the death. A `Down` comes from the runtime and not from the process that ended, so it has no order with that process's own messages (§5.1): the worker's last message may arrive after its `Down`. Whichever comes second is still in the mailbox when the next worker is monitored. The `Down` names the process it is about, and the worker names itself in its result, so the wait takes what is about the worker it waits for:
 
 ```ernest
 type MainMsg = Result(from : Process, value : Int) | Died(Down)
@@ -1252,7 +1263,7 @@ fn runWorker(job : Int) : Optional(Int) with MainMsg = {
 fn waitFor(child : Process) : Optional(Int) with MainMsg =
     receive {
         Result(from = w, value = v) when w == child -> Some(v)
-      // it returned, so it sent its result first: the result is still to come
+      // the Down came before the result; a worker that returned has sent it, so go on waiting
       | Died(Down(process = p, reason = Returned)) when p == child -> waitFor(child)
       | Died(Down(process = p)) when p == child -> None
       | _ -> waitFor(child)
@@ -1278,7 +1289,7 @@ job 2: 4
 
 Anything else is an earlier worker's death, and `waitFor` takes it and passes over it, so that it does not stay in the mailbox.
 
-A `Down` comes from the runtime and not from the process that ended, so it has no order with that process's own messages (§5.1): a worker's last message may arrive after its `Down`. `waitFor` allows for it with the `Down`'s reason. A worker that `Returned` sent its result before it did, so the wait goes on until the result comes. Any other reason, a fault or a kill, ended the worker before it sent one, and the wait answers `None`. A result that should need no such care comes as the worker's answer to a call (§4.4), which its end does not overtake.
+Where the `Down` comes first, `waitFor` reads its reason. A worker that `Returned` sent its result before it did, so the wait goes on until the result comes. Any other reason, a fault or a kill, ended the worker before it sent one, and the wait answers `None`. Where the result is the worker's answer to a call (§4.4), no such care is needed: a call's answer is never overtaken by the callee's end.
 
 `Process.live()` lists the live processes, `Process.info(p)` tells where one was spawned, how many messages wait for it and whether it runs, and `Process.faults(wrap)` sends you every fault as it happens (report Appendix E.21). They are for seeing what runs, and a program is still written with the addresses it was given.
 
@@ -1473,7 +1484,7 @@ Each worker counts one text and sends the map to `main`, not to the tally. Messa
 
 ### 5.7 Exercises
 
-**(a)** Given the ping-pong program, does the runtime guarantee ping and pong's `Io.println` output appears in strictly alternating order?
+**(a)** The ping-pong program prints `ping 3`, `pong 3`, `ping 2`, and so on (§5.1). Move pong's `Io.println` below its `answer`. Is the alternation still guaranteed?
 
 **(b)** Take the clause for `Returned` out of §5.2's `waitFor`. Which lines can `jobs.erc` then print for job 1?
 
@@ -1539,7 +1550,7 @@ fn outcome(parser : Address(ParserMsg), text : String) : String with m =
     match Address.call(parser, fn(reply) = Parse(text = text, reply = reply), 1000) {
         Some(Right(n)) -> "parsed " <> Int.toString(n)
       | Some(Left(reason)) -> "refused: " <> reason
-      | None -> "no answer in time"
+      | None -> "no answer"
     }
 
 export fn main() : Unit with Never = {
@@ -1730,7 +1741,7 @@ None
 Some(1) Some(1)
 ```
 
-`Supervisor.group(strategy, limit)` is the function the supervisor runs, and `Supervisor.child(group, f)` the function a child runs. The program spawns each, as it spawns what `restarting` answers, so the fault line names the child's binding. A child joins the group before `f` runs, and waits until the supervisor has it. After a fault it runs `f` again in place, as under `restarting`.
+`Supervisor.group(strategy, limit)` is the function the supervisor runs, and `Supervisor.child(group, f)` the function a child runs. The program spawns each itself, as it spawns the function `restarting` gives (§6.5), so the fault line names the child's binding. A child joins the group before `f` runs, and waits until the supervisor has it. After a fault it runs `f` again in place, as under `restarting`.
 
 **Which siblings restart.** The strategy says which siblings restart with the child that faulted:
 
@@ -1927,8 +1938,6 @@ Code is often written once for a kind of thing that has several representations:
 
 ```ernest
 // largest.ern  (namespace Largest)
-type Date = Date(year : Int, month : Int, day : Int) derives compare
-
 fn largest(first : a, rest : List(a)) : a needs a.compare =
     List.foldLeft(rest, first, fn(best, x) = if x > best then x else best)
 
@@ -1941,14 +1950,11 @@ fn largestOf(list : List(a)) : Optional(a) needs a.compare =
 fn sorted(list : List(a)) : List(a) needs a.compare =
     List.sort(list, a.compare)
 
-fn shown(list : List(a)) : Unit with m needs a.show =
-    List.foreach(list, fn(x) = Io.println(Io.show(x)))
-
 export fn main() : Unit with Never = {
     Io.println(Int.toString(largest(3, [8, 5])));
     Io.println(largest("pear", ["fig", "apple"]));
     Io.println(Io.show(largestOf([1.5, 0.5])));
-    shown(sorted([Date(year = 2026, month = 10, day = 2), Date(year = 2025, month = 1, day = 1)]))
+    Io.println(Io.show(sorted([3, 1, 2])))
 }
 ```
 
@@ -1958,8 +1964,7 @@ $ ern run largest.erc
 8
 pear
 Some(1.5)
-Date(year = 2025, month = 1, day = 1)
-Date(year = 2026, month = 10, day = 2)
+[1, 2, 3]
 ```
 
 In the body, an operator resolves to the member of whatever type `a` stands for, as it would on a known type: `x > best` in `largest` is `a.compare`. The member is also a value, written `a.compare`, which `sorted` hands to `List.sort`. `List.sort` takes its order as a parameter, since a sort may be given any order; a function declares a requirement where the type's own member is meant.
@@ -1986,9 +1991,40 @@ generic.ern:7:31: largest needs a.compare, which largestOf does not declare
   | = help: add `needs a.compare` to largestOf's signature
 ```
 
+A requirement is always written: the compiler infers none, and a body that uses `>` on an `a` without it is refused the same way.
+
+A requirement names `compare`, `negate`, an operator, or `show`, and nothing else. Several are separated by commas, `needs a.+, a.compare`. A sum is written once for `Int`, for `Float`, and for any type that declares a `+`:
+
+```ernest
+// members.ern  (namespace Members)
+type Date = Date(year : Int, month : Int, day : Int) derives compare
+
+fn sum(first : a, rest : List(a)) : a needs a.+ =
+    List.foldLeft(rest, first, a.+)
+
+fn shown(list : List(a)) : Unit with m needs a.show =
+    List.foreach(list, fn(x) = Io.println(Io.show(x)))
+
+export fn main() : Unit with Never = {
+    Io.println(Int.toString(sum(1, [2, 3])));
+    Io.println(Float.toString(sum(0.5, [1.5])));
+    let dates = [Date(year = 2026, month = 10, day = 2), Date(year = 2025, month = 1, day = 1)];
+    shown(List.sort(dates, Date.compare))
+}
+```
+
+```console
+$ ern build members.ern
+$ ern run members.erc
+6
+2.0
+Date(year = 2025, month = 1, day = 1)
+Date(year = 2026, month = 10, day = 2)
+```
+
 `Date` gets its order from its declaration. `derives compare` gives the type the member `compare`, which orders two values by constructor in declaration order and then by field from left to right, each by its type's `compare`, so the dates print by year, then month, then day. A field whose type has no `compare`, an `Optional(Int)`, is refused at the declaration (report §3.5).
 
-`shown` declares `needs a.show`. `Io.show` writes a value by its type, which a function generic in that type does not know, so the function names `show` as it would name a member, and each call supplies the type's. `Io.show`'s own type says so, `(a!) -> String needs a.show`, and under the requirement it writes `a` and any type built from it, `List(a)` as well (report §9.4, Appendix E.1).
+`shown` declares `needs a.show`. `show` is no member a type declares: every type can be shown. `Io.show` writes a value by its type, which a function generic in `a` does not know, so the function declares `needs a.show`, and each call supplies it for its type. `Io.show`'s own type says so, `(a!) -> String needs a.show`, and under the requirement it writes `a` and any type built from it, `List(a)` as well (report §9.4, Appendix E.1).
 
 **A module built on a requirement.** The standard library's `OrderedSet` keeps a set's elements in the order of their type's `compare`, and each of its functions that needs the order declares `needs a.compare`. A program uses it without naming an order:
 
@@ -2051,7 +2087,7 @@ mixed.ern:9:66: the argument does not fit OrderedSet.union: expected OrderedSet.
   | = help: the types differ at Int and Descending
 ```
 
-**An operations record.** A requirement gives a function one operation of one type. An algorithm written once over two representations of a set needs more: the operations of whichever representation it is given. It takes them as a record, which the program declares:
+**An operations record.** A requirement names a type's members and nothing else. `fromList` and `intersection` are a module's functions, not members, so an algorithm written once over two representations of a set takes them another way: as a record, which the program declares.
 
 ```ernest
 // common.ern  (namespace Common)
@@ -2083,7 +2119,7 @@ $ ern run common.erc
 
 `Operations(..Set)` fills the record from the namespace `Set`: each field not given beside the namespace is the declaration of its name there, at the field's type. `Operations(..OrderedSet)` fills it from `OrderedSet`, where `fromList`'s requirement is met with `Int.compare`, since the record's type fixes `a`. A field the namespace lacks, or one of another type, is refused where the record is built (report §5.6).
 
-`common` is an ordinary function over the record, and `operations.fromList` a field read against the parameter's annotation. It is written once and called with either record, so the caller chooses the representation at each call. The standard library declares no such record: a program declares the one it needs, three fields here, and reaches what a representation has beyond it, `OrderedSet.min`, through its module.
+`common` is an ordinary function over the record, and `operations.fromList` a field read, which the parameter's annotation makes possible (§3.3). It is written once and called with either record, so the caller chooses the representation at each call. The standard library declares no such record: a program declares the one it needs, three fields here, and reaches what a representation has beyond it, `OrderedSet.min`, through its module.
 
 **A record of closures.** An operations record keeps the representations apart: a list of sets is a list of one representation. Where values of different representations are to meet in one list or one message, a record of a second kind hides the representation. Its fields are functions that close over the value:
 
@@ -2152,9 +2188,9 @@ A record of closures gives up what an operations record keeps:
 
 Reach for an operations record where code written once must keep the representation's type, and for a record of closures where values of different representations meet.
 
-In every form the types check what they can: a fill gives every field at its type, a call supplies the member its type has or is refused, and nothing is inferred, since a requirement is written and a member is the type's own, one of each name; a program finds its order where it finds its `+` (report §4.8). A service with state is different: two processes of different representations take one message type, and the caller holds an `Address(M)` (§4).
+A service with state needs none of the three: two processes of different representations take one message type, and the caller holds an `Address(M)` (§4).
 
-**How `OrderedSet` is written.** The module is Ernest over `List`, and its source shows a requirement at work in a library. Here are the parts of `stdlib/ordered_set.ern` that carry it, with their doc blocks left out; the rest of the module is in the file, and `:doc OrderedSet` lists it:
+**For the curious: how `OrderedSet` is written.** The module is Ernest over `List`, and its source shows a requirement at work in a library. Here are the parts of `stdlib/ordered_set.ern` that carry it, with their doc blocks left out; the rest of the module is in the file, and `:doc OrderedSet` lists it:
 
 ```ernest-fragment
 // stdlib/ordered_set.ern  (namespace OrderedSet), in part, its doc blocks left out
@@ -2196,7 +2232,7 @@ export fn map(Set(list) : Set(a), f : (a) -> b with e) : Set(b) with e needs b.c
 
 ### 7.4 Exercises
 
-**(a)** Can a helper in the same file as `Stack`, one that is not declared `Stack.` anything, match `Stack(items)`?
+**(a)** Can a private helper in `stack.ern` match `Stack(items)`? And which may `main.ern` write: `Stack.Stack([1])`, or `Stack.push(Stack.empty, 1)`?
 
 **(b)** §7.3 has two records of sets, `hashed` and `ordered` in `common.ern`, and two bags, `hashed(Set.empty)` and `ordered(OrderedSet.empty)` in `bag.ern`. Which pair can stand in one list, and why?
 
@@ -2482,7 +2518,7 @@ One command, `ern`, whose first word is its job, and a mode for Emacs. `ern --he
 
 **Completion.** `Tab` completes the word before the cursor, by its prefix or by its word starts, `S.pS` to `String.padStart`. After a value the session knows and a `.`, it completes the fields the value's type selects: `it.co` to `it.count`. It offers only what may stand there: a command after a leading `:` and what the command takes after it, a type after `:` in an annotation, a constructor in a pattern, a field inside a named constructor's parentheses. A name completed alone is shown under the line with its type, and a second `Tab`, or one with nothing to add, lists the candidates there alphabetically, until the next key. With no word begun, as after `f(`, they are the session's names, the modules in scope, and the prelude's names other than its constructors, and every other name comes from its first letters. At the start of a row `Tab` indents instead. `Shift-Tab` shows the declaration, the first sentence, and the version of the name at the cursor, `String.trim(text : String) : String` and what it does, and pressed again its documentation. Inside a call, on no documented name, it shows the callee's signature with the parameter at the cursor marked, and inside a constructor its fields.
 
-**Loading and reloading.** `:load` compiles a module from its source and puts it in scope, and `:reload` compiles and loads again a loaded module whose source has changed. Where one of the changed modules does not compile, `:reload` loads none of them. Both evaluate a module's top-level bindings, so a service it declares starts, and after a reload a service of the new version runs beside the old. Processes running the old version go on running it, and a binding that holds a function of it keeps it, until the next reload of that module, which ends the processes and forgets the bindings.
+**Loading and reloading.** `:load Words` compiles the module `Words` from its source, `words.ern` under the source root, and puts it in scope. `:reload` compiles and loads again each loaded module whose source has changed. Where one of the changed modules does not compile, `:reload` loads none of them. Both evaluate a module's top-level bindings, so a service it declares starts, and after a reload a service of the new version runs beside the old. Processes running the old version go on running it, and a binding that holds a function of it keeps it, until the next reload of that module, which ends the processes and forgets the bindings.
 
 At a terminal the history is kept in `$HOME/.ernest/history`. When the shell starts it runs the inputs in `$HOME/.ernest/startup`, and then, if `--config-dir` names a configuration directory, those in its `startup`. A directory the shell merely starts in runs nothing of its own. A startup line may be a command, and one that fails is reported with its file and line.
 
@@ -2578,11 +2614,11 @@ It begins with `fn`, so a reader and the parser see a lambda begin at its first 
 
 **§4.8.** (a) No. The timeout only bounds the caller's wait. The recipient may still be processing the request or may answer later; the late answer is silently discarded but the work done on the recipient side is not undone. (b) The counter answers. Sending the `Get` on handed the reply's obligation to the counter with the message, so the relay owes nothing after its `send`, and holds nothing to answer with: `answer(reply, 0)` after it is refused, `the reply-carrying value reply is consumed twice`. (c) The type gains `Reset(reply : Reply(Int))`, and `count` the clause `Reset(reply = reply) -> { answer(reply, total); count(0) }`. Without the clause the program still compiles. A `receive` takes the messages its clauses match and leaves the others in the mailbox (§4.3), so the `Reset` waits there for a clause that never comes: its caller's `Address.call` answers `None` at its deadline, and the counter goes on serving `Inc` and `Get`. A `match` must cover its type; a `receive` need not, and a protocol's new request is the programmer's to give a clause.
 
-**§5.7.** (a) Yes. `Io.println` returns once standard output has taken the line (report §8.2). Ping prints before it calls pong and waits for the answer, and pong prints before it answers, so each line is written before the next can be. Per-sender order alone would not give it, since the two are two senders to standard output: the call orders them. (b) `job 1: 1` or `job 1: the worker died`. The result comes from the worker and the `Down` from the runtime, two senders, so either may be received first (§5.1). Where the `Down` comes first, the wait answers `None` though the worker did its work, and the result arrives afterwards, for the next wait to pass over. The clause tells the two ends apart by the `Down`'s reason.
+**§5.7.** (a) No. As written, pong prints before it answers, and `Io.println` returns once standard output has taken the line (report §8.2), so ping, which waits for the answer, cannot print its next line first. With the print below the `answer`, ping is free to print `ping 2` while pong has still to print `pong 3`. The two are two senders to standard output, and nothing orders them: the call did, and it has returned. (b) `job 1: 1` or `job 1: the worker died`. The result comes from the worker and the `Down` from the runtime, two senders, so either may be received first (§5.1). Where the `Down` comes first, the wait answers `None` though the worker did its work, and the result arrives afterwards, for the next wait to pass over. The clause tells the two ends apart by the `Down`'s reason. A run seldom shows the second line, but the order is not promised, so the clause stays.
 
 **§6.7.** (a) `main` faults with the cause `first of an empty list`, and since it is the entry process the program ends and `ern run` prints the fault, `Main.main faulted: first of an empty list` for a `main` in `main.ern`. To give the case to the caller, return `Optional(Int)`, as `List.get` does: `[] -> None`. (b) On the path for a negative amount `reply` is neither answered nor handed on, and a reply is used exactly once on every path (§4.2); its caller would wait until its deadline for an answer no one can give. Told to the caller (§6.2): the reply becomes a `Reply(Either(String, Int))`, the path answers `Left("a negative amount")` before it loops, and the other answers `Right(total + amount)`. Let it crash (§6.4): the path calls `fault("a negative amount")`, which need not answer, since the fault ends the process and the call waiting on it at once; under `restarting` the counter then begins again from zero (§6.5).
 
-**§7.4.** (a) Yes. The boundary of an abstract type is its module, so every definition in `stack.ern` may name the constructor, a helper or a test included; another module sees the type and its operations, never the constructor. (b) The two bags. A list's elements have one type. `hashed` is an `Operations(Set(Int), Int)` and `ordered` an `Operations(OrderedSet.Set(Int), Int)`: an operations record keeps the representation in its type, so the two records are of two types, and a list of both is refused. Both bags are a `Bag(Int)`, since a record of closures hides the representation in its functions. (c) `fn firstTwo(list : List(a)) : List(a) needs a.compare = List.take(sorted(list), 2)`. It calls `sorted` at its own type variable, so it declares the requirement and passes on the member it is given. The call writes nothing: the compiler supplies `Int.compare`.
+**§7.4.** (a) Yes. The boundary of an abstract type is its module, so every definition in `stack.ern` may name the constructor, a helper or a test included. `main.ern` writes `Stack.push(Stack.empty, 1)`: another module sees the type and its operations, never the constructor, so `Stack.Stack([1])` is refused. (b) The two bags. A list's elements have one type. `hashed` is an `Operations(Set(Int), Int)` and `ordered` an `Operations(OrderedSet.Set(Int), Int)`: an operations record keeps the representation in its type, so the two records are of two types, and a list of both is refused. Both bags are a `Bag(Int)`, since a record of closures hides the representation in its functions. (c) `fn firstTwo(list : List(a)) : List(a) needs a.compare = List.take(sorted(list), 2)`. It calls `sorted` at its own type variable, so it declares the requirement and passes on the member it is given. The call writes nothing: the compiler supplies `Int.compare`.
 
 **§8.8.** The `send` faults the sending process, at the call, with `function cannot cross nodes`: a function does not leave its node inside a message. To give the service the function, spawn a process on its node, which takes the function's code with it, and let that process send the message there: `Peer.spawn(name, fn() = send(service, Register(fn(x) = x + 1)))`.
 

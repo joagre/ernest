@@ -95,11 +95,16 @@ and its measurement does not hold the release.
    language: foreign definitions' compatibility (§8.7), a peer's initialization (§8.7) and
    a peer's loss (§9.3, §10), each read with the user and weighed against MVP 3.0 and 3.1,
    which build them.
-5. **The guide's feedback**: `docs/guide_feedback.md`, a pedagogical assessment of the guide
-   in seven points, decided on 2026-10-04 to be read with the user point by point, as a
-   review's findings are: each point taken into the guide, made a plan item, or dropped with
-   its reason, the guide's teaching backbone, its programs, the growing word counter and its
-   rejected programs, kept as the assessment advises.
+5. **The guide's feedback**, done 2026-10-05, out of order and ahead of items 1 to 3 (the
+   log's *The Guide Staged for Its Reader*): a pedagogical assessment of the guide in seven
+   points, each taken into the guide, and the file gone, kept at `6495854`. The guide names
+   its reader, decided with the user: a programmer who has used a functional language, with
+   processes and messages taught from the start. Each construct's ordinary use comes before
+   its finer rules, which stand under leads of their own. §7.3 teaches a requirement, an
+   operations record and a record of closures as three lessons, each on a small program, and
+   the ordered set's source closes it, against MVP 2.99b's choice of that module as the
+   section's example. Chapters 4 to 7 gain exercises on Ernest's own distinctions. The
+   backbone, the programs, the word counter and the rejected programs, is kept.
 6. **`Fs.removeAll` refuses the root**: `Fs.removeAll(Path("/"))` walks the root as any
    directory and removes what the program may, and E.17 is silent on it (found 2026-10-05,
    as the walk was rewritten for the full review's S10). A path that names the root, however
