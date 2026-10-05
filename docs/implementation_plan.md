@@ -121,6 +121,15 @@ and its measurement does not hold the release.
    anew, which the repository shows until the next release writes them again. **Decision
    for the user**: whether that is Ernest 0.3.1, recommended, since each page names the
    release that wrote it, which a test holds to `VERSION`.
+8. **The examples made to teach**, done 2026-10-05 (the log's *The Examples Are for a
+   Reader*): `examples/` holds only programs written for a reader of the language, and
+   [`examples/README.md`](../examples/README.md) lists them in an order to read them. The
+   programs kept for the tests, the first test programs, the guide's copies, the echo
+   measurement and the module of the documentation template, went to `test/programs/`.
+   Each example's first comment says what it does, what to look at and how to run it.
+   Three were written where the set had none: `tally.ern`, a command-line tool,
+   `word_count.ern`, an operations record over two maps, and `shout.ern`, a TCP server and
+   its clients.
 
 ---
 

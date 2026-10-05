@@ -2624,10 +2624,10 @@ It begins with `fn`, so a reader and the parser see a lambda begin at its first 
 
 ## 14. Reading further
 
-Four larger programs, each written against the report to try the language on a whole program, in ascending complexity:
+The programs under [`examples/`](examples/README.md) are complete, each larger than a section can hold, and [`examples/README.md`](examples/README.md) lists them in an order to read them, with what each shows. Four of the larger:
 
 - [`examples/snake.ern`](examples/snake.ern) — snake game with tick-based updates; `..` record updates, one process per player, `Clock`, `Terminal`, `Random`.
-- [`examples/repl.ern`](examples/repl.ern) — small read-eval-print loop; `<-` for chained parsing, `spawnMonitored` + `kill` for aborting slow evaluation, `Io.readLine`.
+- [`examples/repl.ern`](examples/repl.ern) — small read-eval-print loop; errors as `Either` values through the lexer, the parser and the evaluator, `spawnMonitored` + `kill` for aborting slow evaluation, `Io.readLine`.
 - [`examples/file_sync.ern`](examples/file_sync.ern) — file sync between two directories, whose two sides run on one node and would run the same on two; mutual-address setup, one process per file operation, `Fs`.
 - [`examples/web_server.ern`](examples/web_server.ern) — HTTP server with sessions in a process that owns a `Map`; request-reply, `Tcp`.
 

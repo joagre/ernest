@@ -2339,16 +2339,17 @@ exported_types_test() ->
 
 %% report §4.2
 modules_example_test() ->
-    Dir = "../../../examples/modules/",
+    Dir = "../../../test/programs/modules/",
     {ok, Http} = file:read_file(Dir ++ "net/http.ern"),
     {ok, _, Interface, _} = ern_typecheck:check_string(['Net', 'Http'], Http),
     {ok, MainSource} = file:read_file(Dir ++ "main.ern"),
     {ok, Declarations} = ern_parser:parse_string(MainSource),
     ?assertMatch({ok, _, _, _}, ern_typecheck:check(['Main'], Declarations, [Interface])).
 
-%% report Appendix B, examples/
+%% report Appendix B, examples/ and test/programs/
 examples_test_() ->
-    Files = [File || File <- filelib:wildcard("../../../examples/*.ern"),
+    Files = [File || File <- filelib:wildcard("../../../examples/*.ern")
+                                 ++ filelib:wildcard("../../../test/programs/*.ern"),
                      hd(filename:basename(File)) =/= $.], % editor artifacts, report §11.1
     %% report §11.1, Appendix G: the libraries' interfaces, as an example
     %% has them on its load path; snake writes with libs/ansi
@@ -2456,7 +2457,7 @@ type_names_in_messages_test() ->
                                   " found Optional(Int)"}]},
                  check("type Optional = Nothing\nfn f(o : Optional) : Int = 1\n"
                        "fn g() : Int = f(List.get([1], 0))\n")),
-    {ok, Http} = file:read_file("../../../examples/modules/net/http.ern"),
+    {ok, Http} = file:read_file("../../../test/programs/modules/net/http.ern"),
     {ok, _, Interface, _} = ern_typecheck:check_string(['Net', 'Http'], Http),
     {ok, Declarations} = ern_parser:parse_string("fn f(r : Net.Http.Request) : Int = 1\n"
                                                  "fn g() : Int = f(1)\n"),

@@ -1,0 +1,94 @@
+//
+// Tally: lines, words and bytes of the files named
+//
+// A command-line tool in the manner of `wc`. For each file named on the
+// command line it prints its lines, its words and its bytes, and then the
+// total. A file it cannot read is reported on standard error by name, the
+// others are still counted, and the program ends with status 1. Run with no
+// file, it says how it is called and ends with status 2.
+//
+// What to look at:
+//
+// - `Os.arguments` is the command line after the program's own name, and
+//   `Os.exit` ends the program with a status (report Appendix E.23).
+// - `measured` is pure: it counts bytes it is given. Reading the file is
+//   the one thing that acts, and its failure is a value, an `Either`, which
+//   `tallied` turns into a line on standard error (report §7.1).
+// - `<-` takes the `Right` of an `Either` and gives up at the first `Left`
+//   (report §5.5).
+// - `Tally` is a record, read by field, `tally.words`, and summed with an
+//   operator it declares, `Tally.+` (report §4.8).
+//
+// Run it from the repository's root, on two of the examples:
+//
+//     ern build examples/tally.ern
+//     ern run examples/tally.erc examples/hello.ern examples/tally.ern
+//
+
+type Tally = Tally(lines : Int, words : Int, bytes : Int)
+
+fn Tally.+(left : Tally, right : Tally) : Tally =
+    Tally(lines = left.lines + right.lines,
+          words = left.words + right.words,
+          bytes = left.bytes + right.bytes)
+
+let nothing : Tally = Tally(lines = 0, words = 0, bytes = 0)
+
+export fn main() : Unit with Never =
+    match Os.arguments {
+        [] -> {
+            Io.printlnError("usage: tally file...");
+            Os.exit(2)
+        }
+      | names -> {
+            let results = List.map(names, tallied);
+            let total = List.foldLeft(results, nothing, fn(sum, result) = match result {
+                Right(tally) -> sum + tally
+              | Left(_) -> sum
+            });
+            Io.println(line(total, "total"));
+            if List.any(results, Either.isLeft) then Os.exit(1) else Unit
+        }
+    }
+
+// The file's tally, printed, or why it could not be read, on standard error.
+fn tallied(name : String) : Either(String, Tally) with m =
+    match read(name) {
+        Right(tally) -> {
+            Io.println(line(tally, name));
+            Right(tally)
+        }
+      | Left(cause) -> {
+            Io.printlnError("tally: " <> name <> ": " <> cause);
+            Left(cause)
+        }
+    }
+
+fn read(name : String) : Either(String, Tally) with m = {
+    let bytes <- Either.mapLeft(Fs.read(Path(name), 5000), errorText);
+    match String.fromUtf8(bytes) {
+        Some(text) -> Right(measured(text, Bytes.size(bytes)))
+      | None -> Left("not UTF-8 text")
+    }
+}
+
+// A program says an error in its own words.
+fn errorText(error : Io.Error) : String =
+    match error {
+        Io.NotFound -> "no such file"
+      | Io.Denied -> "permission denied"
+      | Io.NotAFile -> "not a regular file"
+      | _ -> "cannot be read"
+    }
+
+fn measured(text : String, size : Int) : Tally =
+    Tally(lines = List.size(String.lines(text)),
+          words = List.size(String.words(text)),
+          bytes = size)
+
+fn line(tally : Tally, name : String) : String =
+    String.join([Int.toString(tally.lines),
+                 Int.toString(tally.words),
+                 Int.toString(tally.bytes),
+                 name],
+                " ")

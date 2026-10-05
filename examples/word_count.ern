@@ -1,0 +1,74 @@
+//
+// Word count, written once over two kinds of map
+//
+// Counts the words of a short text twice: once in the hash map `Map`, and
+// once in `OrderedMap`, which keeps its keys in order. The counting is one
+// function, `counted`, which takes the operations it needs as a record, so
+// the caller chooses the map. The ordered map lists the words alphabetically
+// with no sort written, and the two counts agree.
+//
+// What to look at:
+//
+// - `Counts(m)` is an operations record: a type the program declares, whose
+//   fields are the operations `counted` uses, over the map's type `m`.
+// - `Counts(..Map)` and `Counts(..OrderedMap)` fill it from each module, by
+//   the names of its fields (report §5.6).
+// - `OrderedMap.put` needs the keys' order, `needs k.compare`; the fill
+//   supplies `String.compare` without a word written for it (report §4.9).
+// - `Entry` derives its order, so the most frequent words sort by count and
+//   then by word (report §3.5).
+//
+// Run it from the repository's root:
+//
+//     ern build examples/word_count.ern
+//     ern run examples/word_count.erc
+//
+
+// The operations counting needs, over a map from words to counts.
+type Counts(m) =
+    Counts(empty : m,
+           get : (m, String) -> Optional(Int),
+           put : (m, String, Int) -> m,
+           toList : (m) -> List(#(String, Int)))
+
+// A word and how often it was seen, ordered by count and then by word.
+type Entry = Entry(count : Int, word : String) derives compare
+
+let hashed : Counts(Map(String, Int)) = Counts(..Map)
+
+let ordered : Counts(OrderedMap.Map(String, Int)) = Counts(..OrderedMap)
+
+let text : String = "the cat sat on the mat and the dog sat on the log"
+
+export fn main() : Unit with Never = {
+    let words = String.words(text);
+    let inOrder = counted(words, ordered);
+    let byHash = counted(words, hashed);
+    Io.println("in order: " <> shown(inOrder));
+    Io.println("the same counts: " <> Bool.toString(List.sort(byHash, compareWords) == inOrder));
+    Io.println("most frequent: " <> String.join(List.map(mostFrequent(inOrder, 2), wordOf), ", "))
+}
+
+// Each word with how often it occurs, in the order the map gives.
+fn counted(words : List(String), counts : Counts(m)) : List(#(String, Int)) =
+    counts.toList(List.foldLeft(words,
+                                counts.empty,
+                                fn(map, word) =
+                                    counts.put(map,
+                                               word,
+                                               Optional.withDefault(counts.get(map, word), 0) + 1)))
+
+fn compareWords(#(left, _) : #(String, Int), #(right, _) : #(String, Int)) : Ordering =
+    String.compare(left, right)
+
+// The `count` words seen most, the most frequent first.
+fn mostFrequent(pairs : List(#(String, Int)), count : Int) : List(Entry) =
+    List.map(pairs, fn(#(word, seen)) = Entry(count = seen, word = word))
+        |> List.sort(fn(left, right) = Entry.compare(right, left))
+        |> List.take(count)
+
+fn wordOf(entry : Entry) : String =
+    entry.word
+
+fn shown(pairs : List(#(String, Int))) : String =
+    String.join(List.map(pairs, fn(#(word, count)) = word <> " " <> Int.toString(count)), ", ")

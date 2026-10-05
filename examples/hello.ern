@@ -1,9 +1,13 @@
 //
 // Hello world
 //
-// From the guide, §1. Compile with ern build hello.ern and run with ern run hello.erc.
+// The smallest program: a `main` that prints a line. `with Never` says that
+// main runs in a process whose mailbox receives nothing.
 //
-// Needs MVP 1.
+// Run it from this directory:
+//
+//     ern build hello.ern
+//     ern run hello.erc
 //
 
 export fn main() : Unit with Never =

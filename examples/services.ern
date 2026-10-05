@@ -1,13 +1,25 @@
 //
 // Three services under one supervisor
 //
-// A store, a source of ids, and an audit log, each a top-level binding spawned as a child
-// of `services` (report Appendix E.22). The store is corrupted on purpose. Under
-// RestForOne the store restarts, and so do the two services spawned after it; every
-// binding still names its service, and each answers from its first state.
+// A store, a source of ids, and an audit log, each a service the module
+// declares, started under one supervisor (report Appendix E.22). The program
+// corrupts the store on purpose. Under the strategy RestForOne the store is
+// restarted, and so are the two services started after it; each service is
+// still reached by the same name, and each answers from its first state.
 //
-// Needs MVP 2.66. The fault line on standard error names the binding,
-// Services.store:25 (report §6.9).
+// What to look at:
+//
+// - A service is a top-level binding whose value is a process's address, so
+//   any function of the module reaches it by name (report §6.5).
+// - A restart keeps the address and loses the state, so a client needs no
+//   new address after a fault (report §6.9).
+// - The line the restart writes on standard error names the service and the
+//   line of its declaration.
+//
+// Run it from this directory:
+//
+//     ern build services.ern
+//     ern run services.erc
 //
 
 type StoreMsg =

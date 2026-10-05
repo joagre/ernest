@@ -98,8 +98,15 @@ scratch() ->
     Dir.
 
 example(Base) ->
-    {ok, Source} = file:read_file("../../../examples/" ++ Base ++ ".ern"),
+    {ok, Source} = file:read_file(source_file(Base)),
     {[list_to_atom(string:titlecase(Base))], Source}.
+
+%% Two of the programs are examples a reader opens; the others are kept
+%% for the tests.
+source_file(Base) when Base =:= "hello"; Base =:= "services" ->
+    "../../../examples/" ++ Base ++ ".ern";
+source_file(Base) ->
+    "../../../test/programs/" ++ Base ++ ".ern".
 
 %% The forms of an example and of a target file, made comparable: no
 %% annotations, and variables renamed in order of first occurrence, each
@@ -235,14 +242,14 @@ let_of_function_type_remote_test() ->
 %% The source the compiler emits for an example; the modules pair is
 %% checked in dependency order, main against http's interface.
 golden_source("modules/" ++ _ = Name) ->
-    {ok, HttpSource} = file:read_file("../../../examples/modules/net/http.ern"),
+    {ok, HttpSource} = file:read_file("../../../test/programs/modules/net/http.ern"),
     {ok, HttpTyped, HttpInterface, HttpEnv} =
         ern_typecheck:check_string(['Net', 'Http'], HttpSource),
     case Name of
         "modules/net/http" ->
             emitted(['Net', 'Http'], HttpTyped, HttpEnv);
         "modules/main" ->
-            {ok, MainSource} = file:read_file("../../../examples/modules/main.ern"),
+            {ok, MainSource} = file:read_file("../../../test/programs/modules/main.ern"),
             {ok, Declarations} = ern_parser:parse_string(MainSource),
             {ok, Typed, _, Env} = ern_typecheck:check(['Main'], Declarations, [HttpInterface]),
             emitted(['Main'], Typed, Env)
@@ -282,7 +289,8 @@ write_golden() ->
                   end, golden_names()).
 
 %%
-%% The MVP 1 examples run and print what their headers promise
+%% The test programs, hello and services run and print what their headers
+%% promise
 %%
 
 %% report Appendix B

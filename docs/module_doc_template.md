@@ -1,10 +1,10 @@
 # How an Ernest module is documented
 
-This page shows how a standard library module is documented, on one fictive module, `examples/template.ern`. The rules are the report's, and this page states none of its own: §2.2 says where a doc block may stand and that its text is CommonMark, Appendix E.0 shape rule 6 what a module's and a declaration's doc blocks contain, and §11.4 what `ern doc` renders from them. Each part of the page below is an instance of one of those rules.
+This page shows how a standard library module is documented, on one fictive module, `test/programs/template.ern`. The rules are the report's, and this page states none of its own: §2.2 says where a doc block may stand and that its text is CommonMark, Appendix E.0 shape rule 6 what a module's and a declaration's doc blocks contain, and §11.4 what `ern doc` renders from them. Each part of the page below is an instance of one of those rules.
 
-Everything below the marker is the output of `ern doc examples/template.ern`, and a test keeps it so; another test type-checks the module's examples and runs every one that ends in `// => v`.
+Everything below the marker is the output of `ern doc test/programs/template.ern`, and a test keeps it so; another test type-checks the module's examples and runs every one that ends in `// => v`.
 
-<!-- generated: ern doc examples/template.ern -->
+<!-- generated: ern doc test/programs/template.ern -->
 # Ernest module Template
 
 *Since 0.1.0.*

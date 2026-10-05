@@ -1,19 +1,25 @@
 //
 // REPL
 //
-// A read-evaluate-print loop for a small expression language with numbers,
-// let, and functions of one argument, a function not seeing its own name,
-// so that a `let` binds no recursion. Its errors are handled in pure code,
-// in the lexer, the parser and the evaluator, and an expression is tried in
-// a process of its own, so that one that never ends is cut off.
+// A read-evaluate-print loop for a small language of numbers, `let`, and
+// functions of one argument. It reads an expression a line, prints its value
+// or what is wrong with it, and ends at the end of its input.
 //
-// Io.readLine is the standard library's (report Appendix E) over standard
-// input (§8.2). parseErrorText and evalErrorText write the errors for
-// standard output. main runs the loop itself so the program keeps running
-// (report §8.6).
+// What to look at:
 //
-// Compiles and type-checks since 2026-09-20, and runs under test since the
-// same day on a fixed input, test/input/repl.in, which ends the loop.
+// - The lexer, the parser and the evaluator are pure functions, and each
+//   answers its errors as a value, an `Either`, which the loop turns into a
+//   line of output (report §7.1).
+// - Each expression is evaluated in a process of its own, watched with
+//   `spawnMonitored`; one that does not end within two seconds is killed
+//   with `kill`, and the loop goes on (report §6.9).
+//
+// Run it from this directory, and type an expression a line:
+//
+//     ern build repl.ern
+//     ern run repl.erc
+//
+// For example, `let x = 21`, then `x * 2`, then `(fun n -> n * n) 9`.
 //
 
 //

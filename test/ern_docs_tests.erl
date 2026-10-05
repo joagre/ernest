@@ -346,8 +346,10 @@ generated(Text) ->
 report() ->
     iolist_to_binary([ern_repository:read(File) || File <- ?REPORT]).
 
+%% The examples and the programs kept for the tests, whose comments cite
+%% the report.
 examples() ->
-    ern_repository:files(["examples/**/*.ern"]).
+    ern_repository:files(["examples/**/*.ern", "test/programs/**/*.ern"]).
 
 %% The shell's Ernest source, whose comments cite the report as the
 %% standard library's do.

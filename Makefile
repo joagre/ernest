@@ -10,8 +10,8 @@ APPS = utils lexer parser format typer runtime emitter cli
 # Every Ernest source of the repository, which `make format` lays out and
 # the Emacs mode's tests read (report §11.6, docs/emacs_mode.md).
 ERNEST_SOURCES = stdlib/*.ern shell/*.ern shell/shell/*.ern examples/*.ern \
-		examples/modules/*.ern examples/modules/*/*.ern test/*/*.ern libs/*/*.ern tools/*.ern \
-		docs/operations/*.ern
+		test/*/*.ern test/programs/modules/*.ern test/programs/modules/*/*.ern libs/*/*.ern \
+		tools/*.ern docs/operations/*.ern
 
 # The Ernest trees, stdlib/, libs/, shell/ and tools/, are built by `ern build`
 # every time, and its own rule decides what in each to compile again, by the
@@ -272,11 +272,11 @@ clean:
 	@$(MAKE) -C test $@
 	@rm -rf build/stdlib build/shell build/libs build/tools build/man build/pages build/release \
 	  build/dialyzer build/dialyzer.plt build/sanitize $(EXEC)
-	@# sh reads `**` as `*`, so the examples' compiled modules are found
-	@find examples -name '*.erc' -delete
+	@# sh reads `**` as `*`, so the programs' compiled modules are found
+	@find examples test/programs -name '*.erc' -delete
 
 # Rewrite test/golden/*.erl, the Erlang source the compiler emits for every
-# MVP 1 example, after an intended change to the emitter.
+# program of test/programs/ and services, after an intended change to the emitter.
 golden: all
 	@$(MAKE) -s -C erl/emitter/src ../ebin/ern_emitter_tests.beam
 	@cd erl/emitter/src && erl -noshell -pa ../../*/ebin -pa $(abspath build/stdlib) \

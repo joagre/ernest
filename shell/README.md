@@ -89,7 +89,7 @@ The shell reaches the host as any program does: through the system modules `Term
 ```
 make                                        # builds the shell into build/shell
 bin/ern shell                               # a session
-bin/ern build --build-root build/modules examples/modules
+bin/ern build --build-root build/modules test/programs/modules
 bin/ern shell build/modules/main.erc        # a session beside a running program
 bin/ern test build/shell/shell/editor.erc   # one module's tests
 bin/ern test --load-path build/libs/ansi --load-path build/libs/markdown \

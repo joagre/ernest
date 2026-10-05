@@ -1950,13 +1950,13 @@ prelude_page() ->
     ?assertMatch({_, _}, binary:match(Page, <<"from the prelude, report §9."/utf8>>)).
 
 %% report §11.4, Appendix E.0 shape rule 6: docs/module_doc_template.md is what
-%% `ern doc` renders for examples/template.ern, after its marker line
+%% `ern doc` renders for test/programs/template.ern, after its marker line
 doc_template_test() ->
-    Source = example("template.ern"),
+    Source = "../../../test/programs/template.ern",
     ?assertEqual(0, ern_cli:ern(["doc", "--source-root", filename:dirname(Source), Source])),
     Output = iolist_to_binary(?capturedOutput),
     {ok, Template} = file:read_file("../../../docs/module_doc_template.md"),
-    Marker = <<"<!-- generated: ern doc examples/template.ern -->\n">>,
+    Marker = <<"<!-- generated: ern doc test/programs/template.ern -->\n">>,
     [_, Generated] = binary:split(Template, Marker),
     %% the last line names the compiler's version, which is compared to itself
     ?assertEqual(without_footer(Generated), without_footer(Output)),

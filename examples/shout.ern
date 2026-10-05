@@ -1,0 +1,102 @@
+//
+// Shout: a TCP server and its clients
+//
+// A server that answers each line it is sent in capitals, and three clients
+// in the same program that each connect, send a line and print the answer.
+// Each connection the server accepts is served by a process of its own, so
+// a slow client holds up no other.
+//
+// What to look at:
+//
+// - A socket is a process, and its address is how the program talks to it:
+//   `Tcp.read`, `Tcp.write` and `Tcp.close` take the address (report
+//   Appendix E.18).
+// - Port 0 asks the system for a free port, and `Tcp.port` says which it
+//   gave, so the program never collides with another on a fixed one.
+// - `serve` reads until a whole line has arrived, since a read answers what
+//   has arrived so far, which may be part of a line or more than one.
+// - The process that accepts a connection owns its socket, and `Tcp.give`
+//   hands it to the process that serves it, so that the socket is closed
+//   when that process ends, however it ends.
+// - Every wait has a limit in milliseconds, and an error is a value: a
+//   client that gets none prints what went wrong instead.
+//
+// Run it from the repository's root:
+//
+//     ern build examples/shout.ern
+//     ern run examples/shout.erc
+//
+
+export fn main() : Unit with Never =
+    match Tcp.listen("127.0.0.1", 0) {
+        Left(_) -> Io.printlnError("shout: cannot listen")
+      | Right(listener) -> match Tcp.port(listener) {
+            Left(_) -> Io.printlnError("shout: no port")
+          | Right(port) -> {
+                let _ = spawn(fn() = accepting(listener));
+                List.foreach(["hello", "ernest", "goodbye"],
+                             fn(line) = Io.println(line <> " -> " <> asked(port, line)))
+            }
+        }
+    }
+
+//
+// The server
+//
+
+// Accepts connections for as long as the program runs, each served by a
+// process of its own.
+fn accepting(listener : Address(Tcp.ListenerMsg)) : Unit with Never =
+    match Tcp.accept(listener, 60000) {
+        Right(socket) -> {
+            let server = spawn(fn() = serve(socket, <<>>));
+            Tcp.give(socket, Process.fromAddress(server));
+            accepting(listener)
+        }
+      | Left(_) -> accepting(listener)
+    }
+
+// Reads until a line has arrived, answers it in capitals, and closes.
+fn serve(socket : Address(Tcp.SocketMsg), received : Bytes) : Unit with Never =
+    match Bytes.indexOf(received, newline) {
+        Some(end) -> {
+            let line = Optional.withDefault(String.fromUtf8(Bytes.slice(received, 0, end)), "");
+            let _ = Tcp.write(socket, String.toUtf8(String.toUpper(line) <> "\n"), 5000);
+            Tcp.close(socket)
+        }
+      | None -> match Tcp.read(socket, 5000) {
+            Right(more) -> serve(socket, received <> more)
+          | Left(_) -> Tcp.close(socket)
+        }
+    }
+
+let newline : Bytes = String.toUtf8("\n")
+
+//
+// A client
+//
+
+// Sends a line to the server on the port and answers its reply, or what
+// went wrong.
+fn asked(port : Int, line : String) : String with m =
+    match Tcp.connect("127.0.0.1", port, 5000) {
+        Left(_) -> "(cannot connect)"
+      | Right(socket) -> {
+            let answer = match Tcp.write(socket, String.toUtf8(line <> "\n"), 5000) {
+                Right(_) -> replied(socket, <<>>)
+              | Left(_) -> "(cannot send)"
+            };
+            Tcp.close(socket);
+            answer
+        }
+    }
+
+// Reads until the reply's line has arrived.
+fn replied(socket : Address(Tcp.SocketMsg), received : Bytes) : String with m =
+    match Bytes.indexOf(received, newline) {
+        Some(end) -> Optional.withDefault(String.fromUtf8(Bytes.slice(received, 0, end)), "")
+      | None -> match Tcp.read(socket, 5000) {
+            Right(more) -> replied(socket, received <> more)
+          | Left(_) -> "(no answer)"
+        }
+    }

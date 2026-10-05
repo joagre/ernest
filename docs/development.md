@@ -42,7 +42,8 @@ assets/            the logo the README, the guide and a release show, light and 
                    512-pixel avatar, and the social preview GitHub's settings take,
                    with a note on each
 docs/              the documents listed above, and this one
-examples/          Ernest programs: the paper programs and the small ones
+examples/          Ernest programs written for a reader of the language, which
+                   examples/README.md lists in the order to read them
 erl/               the toolchain, as Erlang applications: lexer, parser, format,
                    typer, runtime, emitter, cli, and utils, which holds the vendored
                    getopt; each has src/, include/, ebin/ and test/, and the runtime
@@ -54,8 +55,10 @@ test/              what spans applications: the integration, document, style, gu
                    pseudo-terminal, ern_grammar.erl, which reads Appendix A,
                    ern_repository.erl, which the document and style tests read the
                    repository through, and the catalogue of diagnostics; target/, the
-                   hand-written target modules; expected/ and golden/, what the MVP 1
-                   examples, services, examples/modules and docs/operations print,
+                   hand-written target modules; programs/, the programs the tests keep:
+                   the first test programs, a two-module tree, the module of
+                   docs/module_doc_template.md and the echo measurement; expected/ and
+                   golden/, what programs/, hello, services and docs/operations print,
                    repl's session among them, and the Erlang they compile to; and
                    bench/, input/, layout/, load/, service/, session/, stdin/ and
                    terminal/, the programs and inputs tests run
@@ -135,7 +138,7 @@ make xref         the document tests alone, without a build: every citation and
                   document path resolves
 make coverage     every section with how many tests cite it and its length, thinnest first
 make golden       rewrite test/golden/, the Erlang the compiler emits for each program
-                  `golden_names/0` lists: the MVP 1 examples, services and examples/modules
+                  `golden_names/0` lists: test/programs/, hello and services
 make diagnostics  rewrite the outputs of test/diagnostics.md, the front end's errors,
                   from what ern build prints
 make contents     rewrite the contents lists of the report and the guide from their headings
@@ -157,7 +160,7 @@ Which programs the tests compile and run is [`architecture.md`](architecture.md)
 ```
 bin/ern build examples/hello.ern                  # writes examples/hello.erc
 bin/ern run examples/hello.erc                    # hello, world
-bin/ern build --build-root build/modules examples/modules  # a source tree, in dependency order
+bin/ern build --build-root build/modules test/programs/modules  # a tree, in dependency order
 bin/ern run build/modules/main.erc                # loads net/http.erc by namespace
 bin/ern build --emit-erl examples/hello.ern       # the Erlang source, for reading
 bin/ern doc stdlib/list.ern                       # the module's documentation as CommonMark

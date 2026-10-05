@@ -13,7 +13,7 @@
 %% The modules checked: the template, every file under stdlib/, and every
 %% library's top module under libs/.
 modules() ->
-    [{['Template'], filename:join(?ROOT, "examples/template.ern")}
+    [{['Template'], filename:join(?ROOT, "test/programs/template.ern")}
      | [{ern_namespace:namespace([filename:basename(File, ".ern")]), File}
         || File <- filelib:wildcard(filename:join(?ROOT, "stdlib/*.ern"))
                ++ filelib:wildcard(filename:join(?ROOT, "libs/*/*.ern"))]].
@@ -311,7 +311,8 @@ tags() ->
 %% file. A tag's source is read by its lines, since the parser of today
 %% need not read it.
 shipped(Tag, Relative) ->
-    case os:cmd("git -C " ++ ?ROOT ++ " show " ++ Tag ++ ":" ++ Relative ++ " 2>/dev/null") of
+    case os:cmd("git -C " ++ ?ROOT ++ " show " ++ Tag ++ ":" ++ released(Relative)
+                ++ " 2>/dev/null") of
         "" -> none;
         Text ->
             Pattern = "^export\\s+(?:foreign\\s+|abstract\\s+)?(fn|let|type)\\s+([^\\s(:=]+)",
@@ -321,6 +322,12 @@ shipped(Tag, Relative) ->
                 nomatch -> []
             end
     end.
+
+%% Where the releases held a module that has moved since: the template
+%% was examples/template.ern until it went among the programs kept for the
+%% tests.
+released("test/programs/template.ern") -> "examples/template.ern";
+released(Relative) -> Relative.
 
 declaration_key(#fn_declaration{} = Declaration) -> {"fn", hd(declaration_names(Declaration))};
 declaration_key(#foreign_fn_declaration{} = Declaration) ->

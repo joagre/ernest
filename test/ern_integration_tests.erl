@@ -1,5 +1,5 @@
-%% The toolchain as a user runs it, through bin/ern: the example programs
-%% built and run, their output compared as a multiset of lines with
+%% The toolchain as a user runs it, through bin/ern: the examples and the
+%% test programs built and run, their output compared as a multiset of lines with
 %% expected/<name>.out, since prints from different processes interleave
 %% by scheduling; the launcher, the signals and the streams; `Os`; the
 %% manual pages against §11; the installation and the release archive; the
@@ -14,33 +14,62 @@
 %% libs/ansi, which snake writes with (report Appendix G.3)
 -define(BUILD, "--source-root ../examples --load-path ../build/libs/ansi --build-root build ").
 
--define(PROGRAMS, ["hello", "counter", "upgrade", "pingpong", "stack", "patterns",
-                   "kv_parser", "services"]).
+%% A program kept for the tests, compiled into test/build.
+-define(BUILD_PROGRAM, "--source-root programs --build-root build ").
+
+%% The examples that end of themselves, and the programs kept for the tests.
+-define(EXAMPLES, ["hello", "services", "word_count", "shout"]).
+-define(PROGRAMS, ["counter", "upgrade", "pingpong", "stack", "patterns", "kv_parser"]).
 
 %% report §8.1, §8.6, §11.1, §11.2, and per program: §6.4 (pingpong),
 %% §6.6 (counter), §6.10 (upgrade), §5.10 (patterns),
-%% §5.5 (kv_parser), §4.4 (stack), Appendix E.22 (services)
+%% §5.5 (kv_parser), §4.4 (stack), Appendix E.22 (services), §4.9 and §5.6
+%% (word_count), Appendix E.18 (shout)
 %% Each program is compiled and run apart from the others, so they run in
 %% parallel (plan, MVP 2.6).
 programs_test_() ->
-    {inparallel, [{Name, {timeout, 60, fun() -> program(Name) end}} || Name <- ?PROGRAMS]}.
+    {inparallel,
+     [{Name, {timeout, 60, fun() -> program(?BUILD ++ "../examples/", Name) end}}
+      || Name <- ?EXAMPLES]
+     ++ [{Name, {timeout, 60, fun() -> program(?BUILD_PROGRAM ++ "programs/", Name) end}}
+         || Name <- ?PROGRAMS]}.
 
-program(Name) ->
-    0 = build(?BUILD ++ "../examples/" ++ Name ++ ".ern"),
+program(Build, Name) ->
+    0 = build(Build ++ Name ++ ".ern"),
     {0, Output} = sh("../bin/ern run build/" ++ Name ++ ".erc"),
     ?assertEqual(expected(Name), unstamped(lines(Output))).
 
-%% Plan, MVP 2.5: the paper programs that the doors of step 4 opened.
-%% snake waits for a terminal, so it is only compiled here and ern_terminal_tests
-%% plays it under a pseudo-terminal; echo is run by hand; the others run below.
--define(COMPILES, ["file_sync", "repl", "snake", "echo", "web_server"]).
+%% Plan, MVP 2.5: the examples that the doors of step 4 opened. snake
+%% waits for a terminal, so it is only compiled here and ern_terminal_tests
+%% plays it under a pseudo-terminal; the others run below. The echo
+%% measurement, kept for the tests, prints timings, so it is compiled alone.
+-define(COMPILES, ["file_sync", "repl", "snake", "web_server"]).
 
 compiles_test_() ->
-    {inparallel, [{Name, {timeout, 60, fun() -> compiles(Name) end}} || Name <- ?COMPILES]}.
+    {inparallel,
+     [{Name, {timeout, 60, fun() -> compiles(?BUILD ++ "../examples/", Name) end}}
+      || Name <- ?COMPILES]
+     ++ [{"echo", {timeout, 60, fun() -> compiles(?BUILD_PROGRAM ++ "programs/", "echo") end}}]}.
 
-compiles(Name) ->
-    0 = build(?BUILD ++ "../examples/" ++ Name ++ ".ern"),
+compiles(Build, Name) ->
+    0 = build(Build ++ Name ++ ".ern"),
     ?assert(filelib:is_regular("build/" ++ Name ++ ".erc")).
+
+%% report §8.1, §8.6, Appendix E.17, E.23: tally counts the files its
+%% command line names, a total last; a file it cannot read is named on
+%% standard error and the status is 1; with no file it says how it is
+%% called and the status is 2. A regression test, written with the example
+tally_test_() ->
+    {timeout, 60, fun tally/0}.
+
+tally() ->
+    0 = build(?BUILD ++ "../examples/tally.ern"),
+    ?assertEqual({0, <<"2 5 24 input/two_lines.txt\n2 5 24 total\n">>},
+                 sh("../bin/ern run build/tally.erc input/two_lines.txt")),
+    ?assertEqual({1, <<"tally: input/absent.txt: no such file\n"
+                       "2 5 24 input/two_lines.txt\n2 5 24 total\n">>},
+                 sh("../bin/ern run build/tally.erc input/absent.txt input/two_lines.txt")),
+    ?assertEqual({2, <<"usage: tally file...\n">>}, sh("../bin/ern run build/tally.erc")).
 
 %% report §8.2, E.16: without a terminal snake has no keys, so it says so
 %% and ends with status 1 before it draws. A regression test: it drew a
@@ -1183,7 +1212,7 @@ modules_test_() ->
     {timeout, 60, fun modules/0}.
 
 modules() ->
-    {0, _} = sh("../bin/ern build --build-root build/modules ../examples/modules"),
+    {0, _} = sh("../bin/ern build --build-root build/modules programs/modules"),
     {0, Output} = sh("../bin/ern run build/modules/main.erc"),
     ?assertEqual(expected("modules"), lines(Output)).
 

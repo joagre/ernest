@@ -1,20 +1,30 @@
 //
 // File sync
 //
-// Two directories are kept identical: changes are sent to the peer, and a
-// file the peer sends where this side's copy is newer is saved beside it as
-// a conflict. The peer is an Address, and the code is the same whether it
-// lives on the same node or not.
+// Keeps two directories, a and b, identical. Each is watched by a process
+// of its own, which sends what changed to its peer; a file the peer sends
+// where this side's copy is newer is saved beside it as a conflict. It runs
+// until it is stopped.
 //
-// Fs and Clock are the standard library's system modules (report Appendix E)
-// over the file system and the clock (§8.2); Path is the prelude's (§9.3),
-// Fs.Entry and Io.Error the modules'. errorText writes an error for standard
-// output. main runs directory a's process itself, so the program keeps
-// running (report §8.6).
+// What to look at:
 //
-// Run under test since 2026-09-20: the harness prepares a and b, runs the
-// program for a few seconds, and reads the directories back, since the
-// program itself runs until it is stopped.
+// - The two processes learn each other's address from a message, `Link`,
+//   since an address is a value that travels like any other (report §6.5).
+// - A process asks the file system and the clock through the standard
+//   library, and a failure comes back as a value (Fs and Clock, report
+//   Appendix E.17 and E.15).
+// - The program's own tests, `ern test`, check that a file the peer names is
+//   stored only inside the directory.
+//
+// Both directories are served on one node. Each side knows its peer only by
+// an address, so the same code would keep a directory on another node in
+// step, once Ernest has peers.
+//
+// Run it from this directory, in a directory of its own:
+//
+//     ern build file_sync.ern
+//     mkdir -p /tmp/sync/a /tmp/sync/b
+//     cd /tmp/sync && ern run $OLDPWD/file_sync.erc
 //
 
 //

@@ -951,7 +951,7 @@ tags(Nodes, Acc) when is_list(Nodes) ->
 tags(_, Acc) ->
     Acc.
 
-%% report Appendix B, examples/
+%% report Appendix B, examples/ and test/programs/
 examples_parse_test_() ->
     Files = ernest_files(),
     ?assert(length(Files) >= 12),
@@ -966,6 +966,7 @@ examples_parse_test_() ->
 %% §11.1).
 ernest_files() ->
     Found = filelib:wildcard("../../../examples/**/*.ern")
+        ++ filelib:wildcard("../../../test/programs/**/*.ern")
         ++ filelib:wildcard("../../../stdlib/*.ern") ++ filelib:wildcard("../../../libs/*/*.ern"),
     [File || File <- Found, hd(filename:basename(File)) =/= $.].
 

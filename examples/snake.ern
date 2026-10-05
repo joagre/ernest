@@ -1,23 +1,30 @@
 //
 // Snake
 //
-// A snake game in the terminal: the world, which holds its players by
-// number, is updated ten times a second, the player sends directions
-// between ticks, apples appear at random on free cells, and scores are
-// counted. It holds local state in pure code, keeps its ticks to a
-// deadline so that they do not drift, takes input faster than ticks, and
-// draws its randomness in pure code through a threaded seed rather than a
-// hidden source.
+// A snake game in the terminal. The world, which holds its players by
+// number, is updated ten times a second; the player steers with the arrow
+// keys between ticks; apples appear at random on free cells, and the score
+// is counted. Escape or C-c ends it.
 //
-// Terminal, Clock, and Random are the standard library's (report Appendix
-// E), and Ansi is libs/ansi's (Appendix G.3), on the load path where the
-// program is built and run; Terminal.Event and Terminal.Size are the
-// module's. main runs the game loop itself so that the world is one value
-// in one place, and while it runs the program keeps running (report §8.6).
+// What to look at:
 //
-// Compiled under test since 2026-09-20, and played under a pseudo-terminal by
-// test/ern_terminal_tests.erl since the same day, since it reads keys from a
-// terminal and runs until Escape or C-c.
+// - The whole game is one value, `World`, changed by pure functions and
+//   updated with `..`, the record update (report §5.6); `main` runs the loop
+//   that holds it.
+// - The ticks keep to a deadline, so they do not drift however long a frame
+//   takes to draw (Clock, report Appendix E.15).
+// - Keys arrive as messages from the terminal, faster than ticks, and the
+//   loop takes them between ticks (Terminal, report Appendix E.16).
+// - Randomness is a seed passed from step to step, so every step is pure and
+//   no hidden source decides where an apple lands (Random, report Appendix
+//   E.13).
+// - The program's own tests, `ern test`, check two of its rules.
+//
+// It draws with the library libs/ansi, which the build puts on the load
+// path. Run it at a terminal, from this directory:
+//
+//     ern build --load-path ../build/libs/ansi snake.ern
+//     ern run --load-path ../build/libs/ansi snake.erc
 //
 
 //
