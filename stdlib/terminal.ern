@@ -1,11 +1,22 @@
-/// The terminal through its system process, which reads it
-/// (report §8.2). A subscriber is sent every key pressed from then on,
-/// the text of a paste as one `Pasted`, and the new size whenever the
-/// window changes, wrapped for its own mailbox, as `monitor` and
-/// `Clock.alarm` deliver. Where standard input is not a terminal there are
-/// no keys, and a subscription is refused. The terminal read as keys and
-/// the terminal read as lines are the same one, so a program subscribes
-/// here or reads lines with `Io.readLine`, never both.
+/// The terminal read key by key, its size, and the columns text takes on it.
+///
+/// Use it for a program that answers each key as it is pressed: an editor, a
+/// menu, a game. A program that reads whole lines uses `Io.readLine` instead.
+/// The terminal is read one way or the other: a program that has read a line
+/// cannot subscribe, and one that has subscribed cannot read lines.
+///
+/// **Subscribing.** `subscribe` sends the caller every key pressed from then
+/// on, as an `Event` wrapped for its own mailbox, as `monitor` and
+/// `Clock.alarm` deliver. Keys are not echoed while a program is subscribed,
+/// and the runtime gives the terminal back as it found it when the program
+/// ends. Where standard input is not a terminal there are no keys, and
+/// `subscribe` answers `Left(NotATerminal)`, so that the program can read lines
+/// instead.
+///
+/// **Pastes, resizes and Ctrl-C.** A paste arrives as one `Pasted` with its
+/// text, and a change of the window's size as `Resized`. While a program is
+/// subscribed, the interrupt, Ctrl-C, arrives as `Interrupt` and does not end
+/// the program (report §8.2).
 ///
 /// ## Examples
 ///
@@ -24,8 +35,7 @@
 ///
 /// since 0.1.0
 
-/// The terminal's window, in rows and columns, as the terminal reports it
-/// (report §8.2).
+/// The terminal's window, in rows and columns, as the terminal reports it.
 ///
 /// ### Examples
 ///
@@ -35,12 +45,14 @@
 /// ```
 export type Size = Size(rows : Int, columns : Int)
 
-/// What the terminal delivers to its subscriber: a key, an arrow,
-/// `Escape`, the interrupt, a paste, or a new size (report §8.2). A key the
-/// terminal sends as one character is `Key` of it, a control character
-/// among them: Enter is `Key('\r')`, or `Key('\n')` where the terminal
-/// sends a line feed, Backspace `Key('\u{7f}')` or `Key('\u{8}')`, and Tab
-/// `Key('\t')`.
+/// What the terminal sends its subscriber: a key, an arrow, `Escape`, the
+/// interrupt, a paste, or a new size (report §8.2).
+///
+/// A key the terminal sends as one character is `Key` of it, a control
+/// character among them: Enter is `Key('\r')`, or `Key('\n')` where the
+/// terminal sends a line feed, Backspace `Key('\u{7f}')` or `Key('\u{8}')`, and
+/// Tab `Key('\t')`. An escape sequence the runtime does not name arrives as
+/// `Escape` and the characters after it.
 ///
 /// ### Examples
 ///
@@ -81,30 +93,32 @@ let reference : Address(Msg) = system(Erl.atom("terminal"))
 foreign fn system(name : Foreign.Term) : Address(Msg) with m =
     "ern_rt:system_process/1"
 
-/// Every key pressed and every resize from now on, wrapped, in the
-/// caller's mailbox. It answers once the terminal is in the mode the keys
-/// need, so that nothing typed after it returns is echoed (report §8.2),
-/// or with `Left(Io.NotATerminal)` where standard input is not a terminal,
-/// claiming nothing, so that the program can read lines instead. A process
-/// holds one subscription: a second call replaces the first, and the keys
-/// come wrapped the new way from then on. A subscription ends when its
+/// Sends the caller every key pressed from now on, and every change of the
+/// window's size, each as `wrap(event)` in its mailbox. It answers once the
+/// terminal is in the mode the keys need, so that nothing typed after it
+/// returns is echoed (report §8.2).
+///
+/// Where standard input is not a terminal it answers `Left(NotATerminal)` and
+/// claims nothing, so that the program can read lines instead.
+///
+/// A process holds one subscription: a second call replaces the first, and the
+/// keys come wrapped the new way from then on. A subscription ends when its
 /// process dies or restarts (report §6.9). The terminal applies each
-/// subscriber's wrap itself, in order, so a wrap that does not finish
+/// subscriber's `wrap` itself, in order, so a `wrap` that does not finish
 /// delays that subscriber's keys and no other's.
 ///
 /// ### Errors
 ///
-/// A subscription after a line or bytes were read faults the caller with
-/// `Fault("the terminal is already read as lines")` (report §7.4).
+/// Faults where a line or bytes have been read from the terminal, with the
+/// cause `the terminal is already read as lines`.
 export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) with m = {
     let address = via(self(), wrap);
     Address.callForever(reference, fn(reply) = Subscribe(address = address, reply = reply))
 }
 
-/// The terminal's size now, or `Left(Io.NotATerminal)` where standard
-/// output is not a terminal or the terminal has no rows or no columns. A
-/// program that draws asks at each redraw and hears of a change as
-/// `Resized`.
+/// The terminal's size now, or `Left(NotATerminal)` where standard output is
+/// not a terminal or the terminal has no rows or no columns. A program that
+/// draws asks at each redraw, and hears of a change as `Resized`.
 ///
 /// ### Examples
 ///
@@ -117,12 +131,15 @@ export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) with m = {
 export fn size() : Either(Io.Error, Size) with m =
     Address.callForever(reference, fn(reply) = ReadSize(reply = reply))
 
-/// The columns the text takes at a terminal, counted by grapheme: two for
-/// one East Asian Wide or Fullwidth or of emoji presentation, or an
-/// extended pictographic one followed by U+FE0F, none for one only of
-/// combining marks, format characters and controls, a tab among them,
-/// whose width is the caller's, and one for any other. An escape sequence
-/// takes none, so styled text counts as its text does.
+/// The columns `text` takes at a terminal, counted by grapheme, for lining text
+/// up.
+///
+/// A grapheme takes two columns where it is East Asian Wide or Fullwidth, of
+/// emoji presentation, or an extended pictographic character followed by
+/// U+FE0F. It takes none where it is only combining marks, format characters
+/// and controls, a tab among them, whose width is the caller's to decide. Any
+/// other grapheme takes one. An escape sequence takes none, so styled text
+/// counts as its text does.
 ///
 /// ### Examples
 ///

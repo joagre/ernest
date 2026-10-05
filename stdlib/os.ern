@@ -1,13 +1,21 @@
-/// The host: the program's command line and environment, its exit status,
-/// and the host's programs, run over Os's system process (report §8.2,
-/// Appendix E.23). A running program is a process, as a `Tcp` socket is:
-/// `start` answers its address, `read` answers what it wrote, piece by
-/// piece, `write` and `closeInput` feed it, and `kill` and `monitor` work
-/// on it as on any process. `run` runs a program to its end and answers
-/// all it wrote. The program is found as the host finds a command, a name
-/// without `/` in the directories of `PATH`, and each argument reaches it
-/// as it is: no shell stands between, and a program that wants one runs
+/// The host: the program's command line, its environment and exit status, and
+/// other programs run from it.
+///
+/// Use `arguments`, `environment` and `workingDirectory` to read what the
+/// program was started with, and `exit` to end it with a status. Use `run` to
+/// run another program to its end and read all it wrote, and `start` with
+/// `read` and `write` to talk to one while it runs.
+///
+/// **No shell.** A program is found as the host finds a command: a name without
+/// `/` is looked for in the directories of `PATH`. Each argument reaches it as
+/// it is, so nothing is expanded or quoted; a program that wants a shell runs
 /// `sh` with `-c`.
+///
+/// **A running program is a process.** `start` answers its address, as
+/// `Tcp.connect` answers a socket's. `read` answers what it wrote, a piece at a
+/// time, `write` and `closeInput` feed its input, and `kill` and `monitor` work
+/// on it as on any process. It belongs to the process that started it, and is
+/// killed when that process dies (report Appendix E.23).
 ///
 /// ## Examples
 ///
@@ -24,7 +32,7 @@
 ///
 /// since 0.1.0
 
-/// A program to run: its name, its arguments, and what it reads first as
+/// A program to run: its name, its arguments, and the bytes it reads first as
 /// its input.
 ///
 /// ### Examples
@@ -35,8 +43,8 @@
 /// ```
 export type Command = Command(program : String, arguments : List(String), input : Bytes)
 
-/// A piece of what a running program wrote, to its standard output or to
-/// its standard error, and last its exit status: 128 and the signal's
+/// A piece of what a running program wrote, to its standard output or its
+/// standard error, and last its exit status, which is 128 and the signal's
 /// number for a program a signal ended.
 ///
 /// ### Examples
@@ -50,8 +58,8 @@ export type Command = Command(program : String, arguments : List(String), input 
 /// ```
 export type Output = Stdout(Bytes) | Stderr(Bytes) | Exited(Int)
 
-/// How a program ended: its exit status, and all it wrote to its standard
-/// output and to its standard error.
+/// How a program that `run` ran ended: its exit status, and all it wrote to its
+/// standard output and its standard error.
 ///
 /// ### Examples
 ///
@@ -61,8 +69,9 @@ export type Output = Stdout(Bytes) | Stderr(Bytes) | Exited(Int)
 /// ```
 export type Finished = Finished(status : Int, stdout : Bytes, stderr : Bytes)
 
-/// What a running program takes; a program uses `Os.read`, `Os.write`,
-/// `Os.closeInput`, and `Os.give` (report Appendix E.23).
+/// What a running program's process takes. Its constructors are hidden, so a
+/// program uses `Os.read`, `Os.write`, `Os.closeInput` and `Os.give` on it
+/// (report Appendix E.23).
 ///
 /// ### Examples
 ///
@@ -87,9 +96,9 @@ let reference : Address(Msg) = system(Erl.atom("os"))
 foreign fn system(name : Foreign.Term) : Address(Msg) with m =
     "ern_rt:system_process/1"
 
-/// The words after the module on `ern run`'s command line, whatever they
-/// look like, bound when the program starts; `ern run` refuses one that is
-/// not UTF-8. In the shell and under `ern test` there are none.
+/// The words after the module on `ern run`'s command line, whatever they look
+/// like, `-v` among them, bound when the program starts. `ern run` refuses a
+/// word that is not UTF-8. In the shell and under `ern test` there are none.
 ///
 /// ### Examples
 ///
@@ -104,14 +113,14 @@ export let arguments : List(String) = commandLine()
 foreign fn commandLine() : List(String) with m =
     "ern_rt:arguments/0"
 
-/// The value of the program's environment variable of that name, or `None`
-/// where the host has none. The environment is read once, when the program
-/// starts, and a name the host gives twice keeps its first value.
+/// The value of the program's environment variable `name`, or `None` where it
+/// is not set. The environment is read once, when the program starts; where the
+/// host gives a name twice, its first value is kept.
 ///
 /// ### Errors
 ///
-/// A value that is not UTF-8 faults the caller with `Fault("the environment
-/// variable n is not UTF-8")`, `n` its name.
+/// Faults where the value is not UTF-8, with the cause `the environment
+/// variable n is not UTF-8`, `n` the name.
 ///
 /// ### Examples
 ///
@@ -142,9 +151,8 @@ let variables : Map(String, Bytes) = host.environment
 foreign fn hostFacts() : Host with m =
     "ern_os:host/0"
 
-/// The host's number for the user the program runs as, bound when the
-/// program starts. An entry of `Fs` names the user a file belongs to by
-/// the same number (report Appendix E.17).
+/// The host's number for the user the program runs as, bound when the program
+/// starts. An `Fs.Entry` names the user a file belongs to by the same number.
 ///
 /// ### Examples
 ///
@@ -155,10 +163,10 @@ foreign fn hostFacts() : Host with m =
 /// since 0.3.0
 export let user : Int = host.user
 
-/// The absolute path of the directory the program was started in, bound
-/// when the program starts. Nothing changes it. A relative path given to
-/// `Fs`, or as a program's name to `start`, is resolved against it, and
-/// joining a path to it makes the path absolute.
+/// The absolute path of the directory the program was started in, bound when
+/// the program starts, which nothing changes. A relative path given to `Fs`, or
+/// as a program's name to `start`, is taken from it, and a path joined to it is
+/// absolute.
 ///
 /// ### Examples
 ///
@@ -170,15 +178,17 @@ export let workingDirectory : Path = Path(hostDirectory())
 foreign fn hostDirectory() : String with m =
     "ern_os:working_directory/0"
 
-/// Ends the program with that exit status, as the end of its entry process
-/// ends it (report §8.6), and does not return. It ends the program, not a
-/// process; a process ends by returning or by `kill`. In the shell and
-/// under `ern test` it faults the process that calls it with
-/// `exited with status n`, and ends neither.
+/// Ends the program with `status`, as the end of its entry process ends it, and
+/// does not return. It ends the whole program, not one process; a process ends
+/// by returning or by `kill` (report §8.6).
+///
+/// In the shell and under `ern test`, it faults the calling process with the
+/// cause `exited with status n` instead, and ends neither.
 ///
 /// ### Errors
 ///
-/// A status outside 0 to 255 faults the caller.
+/// Faults where `status` is outside 0 to 255, with the cause `an exit status is
+/// from 0 to 255`.
 ///
 /// ### Examples
 ///
@@ -194,23 +204,30 @@ foreign fn hostDirectory() : String with m =
 export foreign fn exit(status : Int) : a with m =
     "ern_rt:exit_program/1"
 
-/// Starts the program and answers its address. The program reads `input`,
-/// then what `Os.write` gives it, until `Os.closeInput` ends its input,
-/// and never the standard input of the program that runs it; it inherits
-/// that program's environment and working directory. It runs until it
-/// exits, until its process is killed, or until its owner dies, the process
-/// that started it or was given it (`give`), which kills it with the processes it started that are
-/// still in its process group; a run is bounded as any process is, by an
-/// alarm and `kill`. It answers `Left(NotFound)` when the program is not
-/// found, `Left(Denied)` when it may not be run, `Left(Invalid)` for a
-/// name or an argument no program could be given, and `Left(Other(text))`,
-/// the host's reason, when it cannot start for another.
+/// Starts the program and answers its address, or `Left` with why it could not
+/// start.
+///
+/// - `Left(NotFound)`: the program is not found.
+/// - `Left(Denied)`: it may not be run.
+/// - `Left(Invalid)`: a name or an argument no program could be given, one that
+///   holds U+0000 among them.
+/// - `Left(Other(text))`: another reason, in the host's words.
+///
+/// The program reads `command.input`, then what `Os.write` gives it, until
+/// `Os.closeInput` ends its input. It never reads the standard input of the
+/// program that started it. It inherits that program's environment and working
+/// directory.
+///
+/// It runs until it exits, until its process is killed, or until its owner
+/// dies: the process that started it, or the one it was given to with `give`.
+/// Its owner's death kills it, and the processes it started that are still in
+/// its process group. A run is bounded as any process is, by an alarm and
+/// `kill`.
 ///
 /// ### Errors
 ///
-/// Where the runtime's helper fails, the caller faults with `Fault("the
-/// runtime's helper ern_exec failed")`, the runtime's own failure (report
-/// §7.4).
+/// Faults where the runtime's helper fails, with the cause `the runtime's
+/// helper ern_exec failed`, the runtime's own failure.
 ///
 /// ### Examples
 ///
@@ -229,19 +246,20 @@ export fn start(command : Command) : Either(Io.Error, Address(ProgramMsg)) with 
                         fn(reply) = Start(command = command, owner = owner, reply = reply))
 }
 
-/// The next piece of what the program wrote, to its standard output or to
-/// its standard error, in the order the host delivered them, and last its
-/// exit status, once it has exited and both have ended. The host takes the
-/// program's output only while a read waits, so a program that no one
-/// reads waits on its output. A status other than 0 is the program's
-/// answer, not a `Left`. It answers `Left(Timeout)` when `ms` milliseconds
-/// pass first, the program running on, and what the program writes meanwhile
-/// is the next read's. The program's process ends once it has answered the
-/// exit status.
+/// The next piece of what the program wrote, to its standard output or its
+/// standard error, in the order the host delivered them, and last its exit
+/// status, once it has exited and both streams have ended. A status other than
+/// 0 is the program's answer, not a `Left`.
+///
+/// The host takes the program's output only while a read waits, so a program
+/// that no one reads waits on its output. Where `ms` milliseconds pass first
+/// the answer is `Left(Timeout)`, the program runs on, and what it writes
+/// meanwhile is the next read's. The program's process ends once it has
+/// answered the exit status.
 ///
 /// ### Errors
 ///
-/// A read after the program's process has ended faults as
+/// Faults where the program's process has already ended, as
 /// `Address.callForever` does.
 ///
 /// ### Examples
@@ -261,21 +279,22 @@ export fn start(command : Command) : Either(Io.Error, Address(ProgramMsg)) with 
 export fn read(program : Address(ProgramMsg), ms : Int) : Either(Io.Error, Output) with m =
     Address.callForever(program, fn(reply) = Read(ms = ms, reply = reply))
 
-/// Gives the bytes to the program as its input, after what it was given
-/// before, and answers `Right(Unit)` once the program has taken them,
-/// waiting while it is behind, at most `ms` milliseconds, and
-/// `Left(Timeout)` when they pass first, which does not undo the write. A
-/// program that stops reading its input, as one whose output no one reads
-/// may, holds its writer; a program that both takes much input and writes
-/// much output is written to by one process and read by another. Bytes
-/// given after `Os.closeInput`, or once the program has closed its input or
-/// has exited, are dropped, and the write answers `Left(Closed)`.
+/// Gives `bytes` to the program as its input, after what it was given before.
+/// It answers `Right(Unit)` once the program has taken them, waiting while the
+/// program is behind, at most `ms` milliseconds; `Left(Timeout)` does not undo
+/// the write.
+///
+/// A program that stops reading its input holds its writer, and one whose output
+/// no one reads stops reading. So a program that both takes much input and
+/// writes much output is written to by one process and read by another. Bytes
+/// given after
+/// `closeInput`, or once the program has closed its input or exited, are
+/// dropped, and the answer is `Left(Closed)`.
 ///
 /// ### Errors
 ///
-/// Where the runtime's helper fails, the writer faults, as `Os.start`'s
-/// caller does. A write after the program's process has ended
-/// faults as `Address.callForever` does.
+/// Faults where the runtime's helper fails, as `start` does, and where the
+/// program's process has already ended, as `Address.callForever` does.
 ///
 /// ### Examples
 ///
@@ -292,7 +311,8 @@ export fn write(program : Address(ProgramMsg),
                 ms : Int) : Either(Io.Error, Unit) with m =
     Address.callForever(program, fn(reply) = Write(bytes = bytes, ms = ms, reply = reply))
 
-/// Ends the program's input once what it was given before is written.
+/// Ends the program's input, once what it was given before is written. A
+/// program that reads to the end of its input then sees the end.
 ///
 /// ### Examples
 ///
@@ -310,9 +330,9 @@ export fn write(program : Address(ProgramMsg),
 export fn closeInput(program : Address(ProgramMsg)) : Unit with m =
     send(program, CloseInput)
 
-/// Makes the process the program's owner, in place of the process that
-/// called `Os.start` or was given it before: the program is killed when its
-/// owner dies, and at once where the process has ended (report §6.9).
+/// Makes `owner` the program's owner, in place of the process that started it
+/// or was given it before. The program is killed when its owner dies, and at
+/// once where `owner` has already ended (report §6.9).
 ///
 /// ### Examples
 ///
@@ -332,18 +352,18 @@ export fn closeInput(program : Address(ProgramMsg)) : Unit with m =
 export fn give(program : Address(ProgramMsg), owner : Process) : Unit with m =
     send(program, Give(owner = owner))
 
-/// Runs the program to its end: starts it, ends its input after `input`,
-/// and reads it until it has exited, within `ms` milliseconds of its start.
-/// It answers the exit status and all the program wrote to its standard
-/// output and to its standard error, or why it did not run to its end, as
-/// `Os.start` and `Os.read` answer it: `Left(NotFound)`, `Left(Denied)`,
-/// `Left(Invalid)`, `Left(Other(text))`, and `Left(Timeout)` when the
-/// milliseconds pass first, the program killed then.
+/// Runs the program to its end and answers its exit status and all it wrote: it
+/// starts the program, ends its input after `command.input`, and reads it until
+/// it has exited, within `ms` milliseconds of its start.
+///
+/// It answers `Left` where the program did not run to its end, as `start` and
+/// `read` answer it: `Left(NotFound)`, `Left(Denied)`, `Left(Invalid)` or
+/// `Left(Other(text))` where it could not start, and `Left(Timeout)` where the
+/// milliseconds passed first, the program killed then.
 ///
 /// ### Errors
 ///
-/// Where the runtime's helper fails, the caller faults, as `Os.start`'s
-/// does.
+/// Faults where the runtime's helper fails, as `start` does.
 ///
 /// ### Examples
 ///

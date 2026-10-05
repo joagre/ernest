@@ -1,10 +1,18 @@
-/// Time from the clock, the system process that keeps it (report §8.2).
-/// Times are milliseconds since the epoch; `monotonic` is the clock to
-/// measure a duration by, since `now` moves when the clock is set. An
-/// alarm fires once, and a program cannot cancel it: a process that no
-/// longer wants it ignores the message, and a periodic tick is scheduled
-/// again after the previous one is handled. A restart of the process that
-/// set it cancels it (report §6.9).
+/// The time, and alarms.
+///
+/// `now` is the time of day, in milliseconds since the epoch, 1970-01-01 UTC.
+/// `monotonic` is the clock to measure a duration by, since `now` moves when
+/// the host's clock is set. `alarm` and `alarmAt` put a message in the caller's
+/// mailbox later.
+///
+/// **Alarms.** An alarm fires once, and cannot be cancelled: a process that no
+/// longer wants it ignores its message. A periodic tick is set again each time
+/// the one before is handled. A restart of the process that set an alarm
+/// cancels it (report §6.9).
+///
+/// **It needs a process.** The clock is a system process of the runtime (report
+/// §8.2): every function here carries a mailbox effect, `with m`, and is called
+/// from a process, not from a pure function.
 ///
 /// ## Examples
 ///
@@ -34,15 +42,15 @@ let reference : Address(Msg) = system(Erl.atom("clock"))
 foreign fn system(name : Foreign.Term) : Address(Msg) with m =
     "ern_rt:system_process/1"
 
-/// The time now.
+/// The time now, in milliseconds since the epoch, 1970-01-01 UTC. It moves when
+/// the host's clock is set; `monotonic` measures a duration.
 export fn now() : Int with m =
     Address.callForever(reference, fn(reply) = Now(reply = reply))
 
-/// Milliseconds since a moment the runtime chose, which never go back, so
-/// that the difference of two readings is the time the host ran between
-/// them; where the host's monotonic clock stops while the machine is
-/// suspended, that time is left out. Its value alone says nothing; `now` is
-/// the time of day.
+/// Milliseconds since a moment the runtime chose, which never go back, so the
+/// difference of two readings is the time the host ran between them. Its value
+/// alone says nothing, and `now` is the time of day. Where the host's monotonic
+/// clock stops while the machine is suspended, that time is left out.
 ///
 /// ### Examples
 ///
@@ -56,9 +64,9 @@ export fn now() : Int with m =
 export foreign fn monotonic() : Int with m =
     "ern_rt:monotonic/0"
 
-/// After that many milliseconds, `wrap(time)` arrives in the caller's
-/// mailbox, `time` the time it fired. A single-positional constructor passes as
-/// `wrap` directly, `Clock.alarm(100, Tick)` for `Tick(Int)`.
+/// Puts `wrap(time)` in the caller's mailbox after `ms` milliseconds, `time`
+/// the time it fired. A constructor of one argument passes as `wrap` as it is:
+/// `Clock.alarm(100, Tick)` for `Tick(Int)`.
 ///
 /// ### Examples
 ///
@@ -71,8 +79,8 @@ export fn alarm(ms : Int, wrap : (Int) -> m) : Unit with m = {
     Address.callForever(reference, request)
 }
 
-/// At that time, `wrap(time)` arrives in the caller's mailbox, `time` the
-/// time it fired; a time already past arrives at once.
+/// Puts `wrap(time)` in the caller's mailbox at `time`, in milliseconds since
+/// the epoch, `time` then the time it fired. A time already past fires at once.
 ///
 /// ### Examples
 ///
