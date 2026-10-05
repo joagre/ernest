@@ -1,5 +1,7 @@
 -module(ern@services).
 
+-dialyzer(no_return).
+
 -compile({no_auto_import, [{put, 2}]}).
 
 -export([main/0, '$init'/0, '$fun'/2]).

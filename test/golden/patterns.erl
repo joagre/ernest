@@ -1,5 +1,7 @@
 -module(ern@patterns).
 
+-dialyzer(no_return).
+
 -export([main/0, '$fun'/2]).
 
 main() ->

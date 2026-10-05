@@ -1,5 +1,7 @@
 -module(ern@stack).
 
+-dialyzer(no_return).
+
 -export([main/0,
          empty/0,
          push/2,

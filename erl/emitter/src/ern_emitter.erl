@@ -133,7 +133,12 @@ forms(Namespace, Declarations, Env, Build) ->
                    _ -> [erl_syntax:attribute(erl_syntax:atom(compile),
                                               [erl_syntax:abstract({no_auto_import, Clashes})])]
                end,
-    Attrs = [erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(ErlangModule)])]
+    %% report §3.9: a function whose result is a type variable no parameter
+    %% holds never returns, `fault` and `Os.exit` among them, so Dialyzer,
+    %% which the release review runs over this code, is told it is meant
+    NoReturn = erl_syntax:attribute(erl_syntax:atom(dialyzer), [erl_syntax:atom(no_return)]),
+    Attrs = [erl_syntax:attribute(erl_syntax:atom(module), [erl_syntax:atom(ErlangModule)]),
+             NoReturn]
         ++ NoImport
         ++ [erl_syntax:attribute(erl_syntax:atom(export),
                                  [erl_syntax:list([erl_syntax:arity_qualifier(

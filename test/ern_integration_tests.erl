@@ -224,9 +224,15 @@ hangup() ->
 %% working directory. The limit is the shell's on the virtual memory, which
 %% the host meets within a second. A regression test of the full review's
 %% U1 (2026-10-04): the guide called it a fault of one process, and the host
-%% wrote its dump where the program ran
+%% wrote its dump where the program ran. Under `make sanitize` the helper is
+%% built with the address sanitizer, whose shadow memory no limit on the
+%% virtual memory admits, so the helper itself fails at start; the test
+%% runs where the helper is the plain build, in `make test`
 out_of_memory_test_() ->
-    {timeout, 60, fun out_of_memory/0}.
+    case os:getenv("ASAN_OPTIONS") of
+        false -> {timeout, 60, fun out_of_memory/0};
+        _ -> []
+    end.
 
 out_of_memory() ->
     Dir = "build/out_of_memory",
@@ -849,7 +855,7 @@ host_takes_nothing_from_where_it_runs() ->
     ?assertEqual({0, <<>>}, {Built, BuildOutput}),
     {Ran, RunOutput} = sh("sh -c 'cd " ++ Dir ++ " && " ++ Ern ++ " run src/plain.erc'"),
     ?assertEqual(1, Ran),
-    ?assertEqual(nomatch, binary:match(RunOutput, <<"42">>)),
+    ?assertNot(lists:member(<<"42">>, binary:split(RunOutput, <<"\n">>, [global]))),
     file:del_dir_r(Dir).
 
 %% report §11, Appendix E.23, E.17: Os.workingDirectory is the absolute

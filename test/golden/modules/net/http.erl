@@ -1,5 +1,7 @@
 -module(ern@net@http).
 
+-dialyzer(no_return).
+
 -export([parse/1, '$fun'/2]).
 
 parse(Text_1) ->

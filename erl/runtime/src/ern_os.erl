@@ -387,6 +387,7 @@ umask() ->
 
 %% Report Appendix E.23, §8.5: the helper failed as the host was read,
 %% which ends the program before `main` runs.
+-spec host_failed() -> no_return().
 host_failed() ->
     {fault, Cause} = helper_failed(),
     ern_rt:fault(Cause).

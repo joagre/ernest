@@ -1,5 +1,7 @@
 -module(ern@upgrade).
 
+-dialyzer(no_return).
+
 -export([main/0, '$fun'/2]).
 
 main() ->

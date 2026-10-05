@@ -1360,6 +1360,7 @@ expect([Token | _], Symbol) ->
 %% What the parser expected instead of Token. Report §2.6, §11.5:
 %% max-munch makes `a<-1` a binding arrow, which a comparison with a
 %% negative number was meant as, so a `<-` there has the help that says so.
+-spec expected_instead(string(), tuple()) -> no_return().
 expected_instead(Expected, Token) ->
     Message = "expected " ++ Expected ++ " instead of " ++ describe(Token),
     case symbol(Token) of
