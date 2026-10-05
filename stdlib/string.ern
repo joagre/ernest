@@ -232,10 +232,11 @@ fn padding(text : String, count : Int, pad : String) : String = {
 /// // => "ababab"
 /// ```
 export fn repeat(text : String, count : Int) : String =
-    copies(text, count, "")
+    copied(text, Int.max(count, 0))
 
-fn copies(text : String, count : Int, acc : String) : String =
-    if count <= 0 then acc else copies(text, count - 1, acc <> text)
+// Raises on a count below 0, which `repeat` makes 0.
+foreign fn copied(text : String, count : Int) : String =
+    "binary:copy/2"
 
 /// `text` without whitespace at its start and its end. Whitespace is the
 /// graphemes whose first code point is Unicode White_Space, as `Char.isSpace`
@@ -371,22 +372,21 @@ fn withWord(word : List(String), acc : List(String)) : List(String) =
 /// // => ["a", "", "b"]
 /// ```
 export fn split(text : String, separator : String) : List(String) =
-    if isEmpty(separator) then [text] else List.reverse(parts(text, separator, size(separator), []))
+    if isEmpty(separator) then [text] else List.reverse(parts(text, separator, []))
 
 // The parts found so far, the last first, and the rest of the string, each
 // step reading only as far as the next separator.
-fn parts(text : String,
-         separator : String,
-         separatorSize : Int,
-         acc : List(String)) : List(String) =
-    match indexOf(text, separator) {
+fn parts(text : String, separator : String, acc : List(String)) : List(String) =
+    match around(text, separator) {
         None -> text :: acc
-      | Some(index) ->
-            parts(drop(text, index + separatorSize),
-                  separator,
-                  separatorSize,
-                  slice(text, 0, index) :: acc)
+      | Some(#(before, rest)) -> parts(rest, separator, before :: acc)
     }
+
+// Report Appendix E.5: the string before the first whole-grapheme
+// occurrence of the part, and the string after it, found in one walk, a
+// primitive since graphemes are the host's.
+foreign fn around(text : String, part : String) : Optional(#(String, String)) =
+    "ern_string:around/2"
 
 // Report Appendix E.5: the string after that many graphemes, walking only
 // those, a primitive since graphemes are the host's.
@@ -402,10 +402,13 @@ foreign fn drop(text : String, count : Int) : String =
 /// // => "a, b"
 /// ```
 export fn join(parts : List(String), separator : String) : String =
-    match parts {
-        [] -> ""
-      | first :: rest -> List.foldLeft(rest, first, fn(acc, part) = acc <> separator <> part)
-    }
+    concatenated(interleaved(separator, parts))
+
+foreign fn interleaved(separator : String, parts : List(String)) : List(String) =
+    "lists:join/2"
+
+foreign fn concatenated(parts : List(String)) : String =
+    "erlang:iolist_to_binary/1"
 
 /// Reads `text` as a decimal integer. It answers `Some(n)` where `text` is
 /// digits with an optional leading `-`. Other text answers `None`, text with a
@@ -432,52 +435,10 @@ export fn toInt(text : String) : Optional(Int) =
 /// // => #(Some(255), None)
 /// ```
 export fn toIntBase(text : String, base : Int) : Optional(Int) =
-    if base < 2 || base > 36 then
-        None
-    else match toList(text) {
-        '-' :: rest -> Optional.map(number(rest, base), Int.negate)
-      | chars -> number(chars, base)
-    }
+    if base < 2 || base > 36 then None else integer(text, base)
 
-// The number the digits spell in the base, at least one of them.
-fn number(chars : List(Char), base : Int) : Optional(Int) =
-    match digits(chars, base, []) {
-        Some(values) when !List.isEmpty(values) -> Some(valueOf(values, List.size(values), base))
-      | _ -> None
-    }
-
-// The digits' values in order, or `None` where a character is no digit in
-// the base.
-fn digits(chars : List(Char), base : Int, acc : List(Int)) : Optional(List(Int)) =
-    match chars {
-        [] -> Some(List.reverse(acc))
-      | char :: rest -> match Char.digitValue(char, base) {
-            Some(value) -> digits(rest, base, value :: acc)
-          | None -> None
-        }
-    }
-
-// The value of the digits, count of them, read in halves past forty, so
-// that a long numeral costs what multiplying its halves costs and not the
-// square of its length.
-fn valueOf(values : List(Int), count : Int, base : Int) : Int =
-    if count <= 40 then
-        List.foldLeft(values, 0, fn(acc, value) = acc * base + value)
-    else {
-        let low = count / 2;
-        let high = count - low;
-        valueOf(List.take(values, high), high, base) * power(base, low)
-            + valueOf(List.drop(values, high), low, base)
-    }
-
-// The base to the exponent, 0 or more, by squaring.
-fn power(base : Int, exponent : Int) : Int =
-    if exponent == 0 then
-        1
-    else {
-        let half = power(base, exponent / 2);
-        if exponent % 2 == 0 then half * half else half * half * base
-    }
+foreign fn integer(text : String, base : Int) : Optional(Int) =
+    "ern_string:to_integer/2"
 
 /// `Some(true)` for `"true"` and `Some(false)` for `"false"`, or `None` for any
 /// other text; the inverse of `Bool.toString`.

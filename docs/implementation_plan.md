@@ -205,8 +205,14 @@ and its measurement does not hold the release.
     with. `List` is converted (2026-10-05; the log's *List Stands on the Host*): ten
     functions on the host's, each 1.1 to 1.5 times it. Before the item's last measurement,
     the machine draws varied elements, and an order for a comparison, where it now draws
-    equal elements and a constant `Less`. Next: `String`, `Path`, `Bytes`, `Map`, then
-    the rest, module by module.
+    equal elements and a constant `Less`. `String` is converted where the host keeps its
+    page (2026-10-05; the log's *String Stands on the Host*). E.5 keeps whole graphemes:
+    the host's `find`, `split`, `replace` and `trim` match from inside a grapheme, which
+    their page does not say, so the host's rule agreed for them that day is not taken, and
+    the report of the defect to OTP is the user's. `Path` stays Ernest, since the
+    `filename` pages state none of E.14's edge cases; its `name`, `extension` and `parent`
+    are rewritten to read the path's last segment from its end. Next: that, then `Bytes`,
+    `Map`, and the rest, module by module.
 
 ---
 

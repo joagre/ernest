@@ -1,12 +1,15 @@
 %% The primitives of String (report Appendix E.5, E.0 rule 1): Erlang's
 %% Unicode operations, each returning what the declared type says; the rest
 %% of String is Ernest over them, so every search matches whole graphemes.
+%% One stands on a host function whose answer no Ernest value is,
+%% `binary_to_integer/2`'s raise.
 %% A String is a UTF-8 binary (report §8.4), so toUtf8 is the value itself
 %% and comparison is Erlang's on binaries, which is by code point.
 -module(ern_string).
 
--export([graphemes/1, index_of/2, last_index_of/2, slice/3, drop/2, last_grapheme/1,
-         to_lower/1, to_upper/1, to_float/1, to_list/1, from_list/1, from_utf8/1, to_utf8/1]).
+-export([graphemes/1, index_of/2, last_index_of/2, around/2, slice/3, drop/2, last_grapheme/1,
+         to_lower/1, to_upper/1, to_integer/2, to_float/1, to_list/1, from_list/1, from_utf8/1,
+         to_utf8/1]).
 
 %% Appendix E.5: the graphemes in order, as `string:to_graphemes/1` splits
 %% them, extended grapheme clusters by the host's Unicode data, the same
@@ -48,6 +51,19 @@ last_match(Text, Part, Boundary, Index, Last) ->
             Last
     end.
 
+%% Appendix E.5: the string before the first match of the part and the
+%% string after it, found as index_of finds it, so that `split` reads the
+%% string once. The part is not empty.
+-spec around(binary(), binary()) -> 'None' | {'Some', {binary(), binary()}}.
+around(Text, Part) ->
+    case next_match(Text, Part, 0, 0) of
+        {_, Offset} ->
+            End = Offset + byte_size(Part),
+            {'Some', {binary:part(Text, 0, Offset), binary:part(Text, End, byte_size(Text) - End)}};
+        none ->
+            'None'
+    end.
+
 %% The first match at or after the grapheme boundary Boundary, which Index
 %% graphemes precede: the graphemes before it and its byte offset, or none.
 next_match(Text, Part, Boundary, Index) ->
@@ -86,11 +102,17 @@ walk(Text, Boundary, Index, Offset) ->
     end.
 
 %% Past the grapheme at the boundary; at the end, the boundary itself.
+%% `string:next_grapheme/1` answers the rest, of a form its page leaves
+%% open: where it is a binary the grapheme ends where the rest begins, and
+%% otherwise the grapheme is measured.
 step(Text, Boundary, Index) ->
     case string:next_grapheme(binary:part(Text, Boundary, byte_size(Text) - Boundary)) of
+        [_ | Rest] when is_binary(Rest) ->
+            {byte_size(Text) - byte_size(Rest), Index + 1};
         [Grapheme | _] ->
             {Boundary + byte_size(unicode:characters_to_binary([Grapheme])), Index + 1};
-        [] -> {Boundary, Index}
+        [] ->
+            {Boundary, Index}
     end.
 
 -spec slice(binary(), integer(), integer()) -> binary().
@@ -158,6 +180,18 @@ to_lower(Text) -> unicode:characters_to_binary(string:lowercase(Text)).
 
 -spec to_upper(binary()) -> binary().
 to_upper(Text) -> unicode:characters_to_binary(string:uppercase(Text)).
+
+%% Appendix E.5: the integer the text spells in the base, 2 to 36.
+%% `binary_to_integer/2` takes the base's digits and letters in either case
+%% after an optional `+` or `-`, and raises on anything else; E.5 takes no
+%% `+`, and answers `None` where the host raises, which Ernest cannot catch.
+-spec to_integer(binary(), 2..36) -> {'Some', integer()} | 'None'.
+to_integer(<<"+", _/binary>>, _) ->
+    'None';
+to_integer(Text, Base) ->
+    try {'Some', binary_to_integer(Text, Base)}
+    catch error:badarg -> 'None'
+    end.
 
 %% report §2.5: the float literal form, with an optional leading minus;
 %% §3.1: "-0.0" reads as 0.0
