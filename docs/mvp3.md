@@ -2,7 +2,7 @@
 
 The thinking about peers, code distribution and code change, before MVP 3.0 decides any of it. Everything here is tentative: nothing is a decision, nothing is built, and nothing in the report changes because of it.
 
-**A clean room.** This note stands on its own. It reads [`node_protocol.md`](node_protocol.md) and [`code_distribution.md`](code_distribution.md) as input, and their solutions are valuable, but it is not bound by them. Nothing flows from it into the report, the notes, the plan or the log until the thinking is covered. Then each decision goes to its owner, the report for a rule, the two notes for the design, the log for the why, in the plan's step *The distribution notes' rewrite*, and this note goes.
+**A clean room.** This note stands on its own. It reads [`node_protocol.md`](node_protocol.md) and [`code_distribution.md`](code_distribution.md) as input, and their solutions are valuable, but it is not bound by them. Nothing flows from it into the report, the notes, the plan or the log until the thinking is covered. Then each decision goes to its owner, the report for a rule and the log for the why, and the design to the documents the thinking settles on: which those are, the two notes kept, merged, rewritten or joined by others, is itself part of what this note decides. Then this note goes.
 
 ## 1. The aim
 
