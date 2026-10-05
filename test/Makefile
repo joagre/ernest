@@ -1,6 +1,7 @@
 # The tests that span the applications, by area: the programs (the example
 # programs, the signals, the streams, the installation and the release,
-# ern_integration_tests), the documents and the style, the guide's
+# ern_integration_tests, and the measuring machine's reach over every
+# function, ern_measure_tests), the documents and the style, the guide's
 # examples, the grammar with the programs generated from it, the
 # well-typed programs generated and run, and the shell and the terminal,
 # driven through the pseudo-terminal, which python3 opens since Erlang
@@ -15,13 +16,15 @@ ERLC_FLAGS = +debug_info -Werror
 # under `make -j`, and each area has a target of its own for a change that
 # touches it alone.
 PROGRAMS = ern_integration_tests
+# a launch of its own, which shares no host with the programs' runs
+MEASURE = ern_measure_tests
 DOCS = ern_docs_tests ern_style_tests
 GUIDE = ern_guide_tests
 GRAMMAR = ern_grammar_tests ern_grammar_programs_tests
 TYPED = ern_typed_programs_tests
 SHELL_TESTS = ern_terminal_tests ern_shell_tests
 BEAMS = $(patsubst %,$(EBIN)/%.beam,$(PROGRAMS) $(DOCS) $(GUIDE) $(GRAMMAR) ern_grammar \
-	  $(TYPED) $(SHELL_TESTS) ern_pty ern_repository)
+	  $(TYPED) $(SHELL_TESTS) ern_pty ern_repository ern_measure $(MEASURE))
 
 # Run the EUnit modules $(1), with the toolchain and the standard library on
 # the code path.
@@ -46,6 +49,7 @@ beams: $(BEAMS) prepare
 
 programs: $(BEAMS) prepare measured
 	$(call EUNIT_SIDE_BY_SIDE,$(PROGRAMS))
+	$(call EUNIT,$(MEASURE))
 
 # The load programs, the benchmark and the service checks' program, which
 # `load`, `bench` and `service` run and no test does, are built with the
@@ -128,10 +132,15 @@ service: measured
 
 # The benchmark: bench/bench.ern built and run as a user runs a program,
 # and its times printed beside the same operations in Erlang by ern_bench;
-# not part of `test`, since it measures and asserts nothing.
-bench: $(EBIN)/ern_bench.beam measured
+# then every function of the library measured against the host's by
+# ern_measure (plan MVP 2.99d item 1), its whole table in
+# build/bench/library.txt. Not part of `test`, since it measures and
+# asserts nothing.
+bench: $(EBIN)/ern_bench.beam $(EBIN)/ern_measure.beam measured
 	@../bin/ern run build/bench/bench.erc > build/bench/ernest.txt
 	@erl -noinput -pa $(EBIN) -eval 'ern_bench:main(["build/bench/ernest.txt"])'
+	@erl -noinput -pa ../erl/*/ebin -pa $(abspath ../build/stdlib) -pa $(EBIN) \
+	  -eval 'ern_measure:main(["build/bench/library.txt"])'
 
 clean:
 	rm -rf $(EBIN) build

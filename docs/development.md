@@ -98,7 +98,8 @@ make test         build, then every area below, side by side
 make test-erl     the unit tests of every application under erl/, side by side;
                   APP=typer for one
 make test-programs  the integration tests: the programs compiled and run as a user
-                  runs them, the manual pages and the installation
+                  runs them, the manual pages and the installation, and that the
+                  measuring machine reaches every function of the library
 make test-docs    the document tests and the style tests
 make test-guide   the guide's examples, the report's, the README's, and the catalogue of
                   diagnostics
@@ -117,7 +118,10 @@ make service      a program run by the host's service manager, a user's systemd 
                   launchd: started, stopped, started again after Os.exit(1); not
                   part of make test
 make bench        what each of a few operations costs in Ernest beside the same
-                  operation in Erlang, in nanoseconds; not part of make test
+                  operation in Erlang, in nanoseconds; then every function of the
+                  library beside the host's, at 10, 100 and 10,000, with what is past
+                  Appendix E.0 rule 1's line, the whole table in
+                  test/build/bench/library.txt; not part of make test
 make doc          write the standard library's and the prelude's pages to build/stdlib/,
                   with index.md
 make pages        write man/, the release's pages: the standard library's, the prelude's

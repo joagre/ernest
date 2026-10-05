@@ -237,7 +237,8 @@ service: all
 	@$(MAKE) -C test service
 
 # The benchmark: what an Ernest operation costs beside the same operation in
-# Erlang (test/ern_bench.erl).
+# Erlang (test/ern_bench.erl), and every function of the library beside the
+# host's (test/ern_measure.erl).
 bench: all
 	@$(MAKE) -C test bench
 

@@ -74,28 +74,20 @@ form costs more than three times the host's own at the sizes a program meets, or
 what the host's does not, and nowhere else. After Ernest 0.3.0, since the rule ships in it
 and its measurement does not hold the release.
 
-1. **Every function measured, a first pass**: each exported function of `stdlib/` and
-   `libs/`, 349 at Ernest 0.3.1, by a machine that joins `make bench` and calls the
-   compiled modules as the library's laws do (`ern_laws_tests`). The pass is sized to be
-   built in days and to run in minutes, and covers every function; a function it finds
-   near the line is measured more thoroughly afterwards (decided with the user on
-   2026-10-05, the log's *MVP 2.99d's Measurements, Sized*). Nothing is changed before the
-   numbers are in: each function past the line comes back to the user as a decision with
-   its numbers, `String.trimStart` and `String.toIntBase`, moved by MVP 2.99c's item 5,
-   among them, and `String.toList`, `String.fromUtf8`, `Int.toString` and
-   `Int.toStringBase`, which the full review's E11 and E12 measured on large inputs alone.
-   - **Inputs** are drawn by each parameter's type, as the laws draw theirs, at three
-     sizes: 10, 100 and 10,000 elements, graphemes or bytes. A callback is a cheap
-     function of its type.
-   - **Against the host**, where one function of the host's does the same work, named in a
-     table beside the machine: past the line where the Ernest form costs more than three
-     times the host's at 10 or at 100.
-   - **By growth**, for every function: past the line where its time grows faster than its
-     input from 100 to 10,000, and its page states no such cost.
-   - **A system module's function**, of `Fs`, `Tcp`, `Os`, `Io`, `Clock` and `Terminal`,
-     costs a system call and a message by design. It is measured as item 2 measures the
-     prelude, by what Ernest adds to the host's operation, and one that reads a terminal
-     or standard input is listed as not measured.
+1. **Every function measured, a first pass**, the machine done 2026-10-05 (the log's *MVP
+   2.99d's First Measurements*): `test/ern_measure.erl`, which `make bench` runs in
+   seconds and `ern_measure_tests` holds to every function. Each of the 349 exported names
+   of `stdlib/` and `libs/` is timed by arguments drawn from its type at 10, 100 and
+   10,000, the subject at the size and the rest at 10 at most, beside the host's function
+   where one does the same work; or in a scenario beside the host's operation, for one
+   that needs a process; or listed with why it cannot be: five read standard input or a
+   terminal, or end the program, and ten are values. Past the line: costing more than
+   three times the host's at 10 or 100; or growing from 100 to 10,000 at least tenfold and
+   more than three times the host's own growth, or a thousandfold where no host does the
+   work, three hundredfold being near it. A system module's function is shown with what
+   Ernest adds, held to the prelude's line. Nothing is changed before the user decides:
+   each function past the line is a decision with the user, with its numbers in the log's
+   entry, and a function near the line is measured more thoroughly first.
 2. **The prelude measured**: each function of §9.4 to §9.6, about twenty, against the
    host's operation it stands on, at the sizes a program meets, held to CLAUDE.md's
    stricter line for the runtime, that what Ernest adds to a host operation costs a
@@ -162,6 +154,16 @@ and its measurement does not hold the release.
    Three were written where the set had none: `tally.ern`, a command-line tool,
    `word_count.ern`, an operations record over two maps, and `shout.ern`, a TCP server and
    its clients.
+
+9. **A program's exit reported at once** (found 2026-10-05 by item 1's first pass): once a
+   program has closed its outputs, the runtime's helper asks whether it has exited and, if
+   not yet, waits 50 ms in `poll` before asking again (`ern_exec.c`), so a program that
+   exits a moment after closing them, as `cat` does at the end of its input, has its exit
+   reported about 50 ms late, and `Os.closeInput`'s scenario takes 52 ms where the host's
+   takes 1.5. The fix is the helper's own: woken by the program's exit, `SIGCHLD` written
+   to a pipe it polls beside the runtime's, with no timer; a regression test holds a
+   program's exit reported within a few milliseconds of its end, and the measurement is
+   run again.
 
 ---
 
