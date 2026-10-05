@@ -11,6 +11,7 @@ The report, in three files under [`report/`](../report/), is the one normative d
 - **[`architecture.md`](architecture.md)**: how the toolchain is built, from the lexer to the runtime, and what each test runs.
 - **[`memory.md`](memory.md)**: how the project checks that nothing grows with the work done.
 - **[`soundness.md`](soundness.md)**: the argument that a well-typed program does not go wrong, kept with the rules it covers.
+- **[`otp_bugs.md`](otp_bugs.md)**: the defects found in OTP, each written as a report for OTP's tracker.
 - **[`release_review.md`](release_review.md)**: what a release runs to be ready.
 - **[`full_review.md`](full_review.md)**: every reader over the whole of its area, run seldom.
 - **[`principles_review.md`](principles_review.md)**: the report and the guide read against §0, and §0 against what it decided.

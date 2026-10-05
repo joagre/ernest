@@ -209,7 +209,7 @@ and its measurement does not hold the release.
     page (2026-10-05; the log's *String Stands on the Host*). E.5 keeps whole graphemes:
     the host's `find`, `split`, `replace` and `trim` match from inside a grapheme, which
     their page does not say, so the host's rule agreed for them that day is not taken, and
-    the report of the defect to OTP is the user's. `Path` stays Ernest, since the
+    the report of the defect to OTP is the user's (`docs/otp_bugs.md`, report 4). `Path` stays Ernest, since the
     `filename` pages state none of E.14's edge cases; its `name`, `extension` and `parent`
     are rewritten to read the path's last segment from its end. Next: that, then `Bytes`,
     `Map`, and the rest, module by module.
@@ -485,7 +485,8 @@ the terminal). The rest is MVP 3.3's.
   received - shutting down`; on this machine on 2026-10-02 the window was about a quarter of a
   second. §8.6 and §11.8 state it as the host's limit since 2026-10-02 (MVP 2.99b's item 6,
   the log's *MVP 2.99b's Questions, One by One*). Its fix is OTP's, a signal held until the
-  host's signal server runs, which the user takes to OTP's maintainers; since 2026-10-03
+  host's signal server runs, which the user takes to OTP's maintainers (`docs/otp_bugs.md`,
+  report 2); since 2026-10-03
   (item 9) the host installs Ernest's handler as the first thing it runs, and the second
   outcome's window measured about 5 milliseconds where it had been about 12.
 - **A signal that ends the host while it starts a port**, for a host program, for `ern_exec`,
@@ -495,7 +496,7 @@ the terminal). The rest is MVP 3.3's.
   that starts host programs meets it while it runs. A port closed while it starts would
   leave the same line by OTP's source, and was not met in thirty tries. Its fix is OTP's: the
   child exits silently when the host is gone, as the helper does, which the user takes to
-  OTP's maintainers (decided 2026-10-01, the log's *A Port Lost While It Starts*). Ernest adds
+  OTP's maintainers (`docs/otp_bugs.md`, report 1; decided 2026-10-01, the log's *A Port Lost While It Starts*). Ernest adds
   nothing around it, and the gap stands until a release of OTP that Ernest requires has it.
 - **OTP 29's compiler refuses a recursive call through `rem`** (found 2026-10-05 by `make
   test-typed`, seed 74183997, program 220): a well-typed program whose emitted Erlang is valid
@@ -505,7 +506,7 @@ the terminal). The rest is MVP 3.3's.
   _Acc) -> h(Rest, X rem (X - 3)).` OTP's type pass gives the accumulator the list's range,
   -79 to 1000, where `rem`'s is -996 to 996, a divisor whose range holds 0; compiled with
   `+no_type_opt` it builds and answers -79. Met in OTP 29's compiler 10.0.5. Its fix is OTP's,
-  which the user takes to OTP's maintainers. Meanwhile, decided with the user on 2026-10-05
+  which the user takes to OTP's maintainers (`docs/otp_bugs.md`, report 3). Meanwhile, decided with the user on 2026-10-05
   (the log's *OTP's Compiler, Worked Around*), the emitter compiles a module the validator
   refuses again with that pass off, that module alone, `ern_emitter`'s
   `compiled_without_type_pass`, whose comment says so. Its test holds that the host still
