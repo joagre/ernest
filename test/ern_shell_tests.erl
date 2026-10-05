@@ -534,6 +534,32 @@ line_mode_continues() ->
                  <<"input 5:1:4: expected an expression instead of end of input">>,
                  <<"startup:6:4: expected an expression instead of end of input">>]].
 
+%% report §11.2, Appendix E.16: with standard output a pipe the shell is in
+%% line mode, though standard input is a terminal: it paints no region. A
+%% regression test: the host answered the terminal's size, and the shell
+%% painted its region into the pipe
+piped_output_is_line_mode_test_() ->
+    {timeout, 60, fun piped_output_is_line_mode/0}.
+
+piped_output_is_line_mode() ->
+    Screen = raw(alone("../bin/ern shell | cat"),
+                 [{expect, "> "}, {send, hex("1\r")}, {expect, "1 : Int"}, {send, "04"}], 30),
+    ?assertEqual(nomatch, binary:match(Screen, <<"\e[">>)).
+
+%% report §11.2: a command is one line, which `Enter` runs whatever its
+%% argument. A regression test: an unfinished block comment in a command's
+%% argument made the shell take the next line into the command
+command_is_one_line_test_() ->
+    {timeout, 60, fun command_is_one_line/0}.
+
+command_is_one_line() ->
+    Dir = fresh_home(),
+    InputFile = filename:join(Dir, "session.in"),
+    ok = file:write_file(InputFile, ":help /*\n1\n"),
+    {0, Output} = ern_pty:sh("HOME=" ++ Dir ++ " ../bin/ern shell < " ++ InputFile),
+    ?assertMatch({_, _}, binary:match(Output, <<":help takes no argument">>)),
+    ?assertMatch({_, _}, binary:match(Output, <<"1 : Int">>)).
+
 %% report §11.2: in line mode the shell exits with status 0 when its input
 %% ends, whatever its inputs did, and what programs write to standard error
 %% goes to standard output with the rest; one that cannot start exits with
@@ -702,6 +728,66 @@ live_region() ->
     %% the shell's own is there too, and the region is left as one prompt
     ?assertMatch({_, _}, binary:match(Text, <<"2 : Int">>)),
     ?assertEqual(<<">">>, lists:last(Lines)).
+
+%% report §11.2: a fault reported while a line is typed stands above the
+%% region, and the line goes on under its prompt. A regression test: the
+%% fault line was glued onto the prompt, and the line went on with none
+fault_while_typing_test_() ->
+    {timeout, 60, fun fault_while_typing/0}.
+
+fault_while_typing() ->
+    Late = "spawn(fn() : Unit with Never = receive { after 1000 -> { let _ = 1 / 0; Unit } })\r",
+    Screen = screen(alone("../bin/ern shell"),
+                    [{expect, "> "},
+                     {send, hex(Late)},
+                     {expect, "Address(Never)"},
+                     {expect, "> "},
+                     {send, hex("abc")},
+                     {expect, "division by zero"},
+                     {send, hex("\r")},
+                     {expect, "unknown name abc"},
+                     {send, "04"}],
+                    20, "30x80"),
+    Lines = binary:split(Screen, <<"\n">>, [global]),
+    ?assert(lists:member(<<"> abc">>, Lines)),
+    [Fault] = [Line || Line <- Lines, binary:match(Line, <<"division by zero">>) =/= nomatch],
+    ?assertNotMatch(<<">", _/binary>>, Fault).
+
+%% report §11.2: the reader's end while an input runs kills the input and
+%% ends the session, since no key can interrupt it any more; the screen's
+%% end faults the session, a failure of the shell's own (§11.8). Each is
+%% ended by a host function a session declares. Regression tests: the
+%% session waited for the input, and wrote to a screen that had ended
+reader_and_screen_ends_test_() ->
+    {timeout, 60, fun reader_and_screen_ends/0}.
+
+reader_and_screen_ends() ->
+    Stop = "foreign fn stop(process : Process, reason : Foreign.Term) : Bool with m ="
+           " \"erlang:exit/2\"\r",
+    Ending = fun(Site) ->
+                 "{ let found = List.filter(Process.live(), fn(p) = match Process.info(p) {"
+                 " Some(info) -> String.startsWith(info.site, \"" ++ Site ++ "\")"
+                 " | None -> false });"
+                 " let _ = spawn(fn() = receive { after 300 -> List.foreach(found,"
+                 " fn(p) = { let _ = stop(p, Erl.atom(\"kill\")); Unit }) });"
+                 " receive { after 20000 -> 1 } }\r"
+             end,
+    {0, ReaderEnded} = ern_pty:run(alone("../bin/ern shell"),
+                                   [{expect, "> "},
+                                    {send, hex(Stop)},
+                                    {expect, "stop : "},
+                                    {send, hex(Ending("Shell.readKeys"))},
+                                    {expect, "stopped reading the keyboard"}],
+                                   10, " --size 30x120"),
+    ?assertMatch({_, _}, binary:match(ReaderEnded, <<"Shell.readKeys">>)),
+    {70, ScreenEnded} = ern_pty:run(alone("../bin/ern shell"),
+                                    [{expect, "> "},
+                                     {send, hex(Stop)},
+                                     {expect, "stop : "},
+                                     {send, hex(Ending("Shell.main:"))},
+                                     {expect, "screen ended"}],
+                                    10, " --size 30x120"),
+    ?assertMatch({_, _}, binary:match(ScreenEnded, <<"fault: the shell's screen ended">>)).
 
 %% report §11.2, §9.3: the pure parts of the shell test themselves, the
 %% editor's function from a line and an event to what the reader must do,
@@ -924,11 +1010,13 @@ multiline() ->
                      %% waiting out the harness's timeout
                      {send, "03"},
                      {send, "04"}],
-                    30, "30x46"),
+                    %% wide enough for the hint, which the harness's screen
+                    %% clips at its edge where a terminal would wrap it
+                    30, "30x60"),
     Lines = [Line || Line <- binary:split(Screen, <<"\n">>, [global]), Line =/= <<>>],
     Text = iolist_to_binary(Lines),
     %% the hint is above the region and the prompt it was typed under stays
-    ?assertEqual(1, ern_pty:count(Text, <<"M-Enter adds a line, Enter runs.">>)),
+    ?assertEqual(1, ern_pty:count(Text, <<"Enter runs a finished input, M-Enter adds a line.">>)),
     ?assertMatch({_, _}, binary:match(Text, <<"> 1 +">>)),
     ?assertMatch({_, _}, binary:match(Text, <<"...     2">>)),
     %% `M-Enter` took a line the parser would have run
@@ -1195,6 +1283,26 @@ shift_tab() ->
     ?assertMatch({_, _}, binary:match(Bytes, <<"> :browse">>)),
     ?assertMatch({_, _}, binary:match(Bytes, <<"\r\n:faults         the faults reported since"
                                                " the session began\r\n">>)).
+
+%% report §11.2, §11.1: `:load` completes a namespace of two words by its
+%% directory, `KvParser.` from `kv_parser/`. A regression test: the
+%% shell lowered the segment to `kvparser/` and listed nothing
+load_completion_of_two_words_test_() ->
+    {timeout, 60, fun load_completion_of_two_words/0}.
+
+load_completion_of_two_words() ->
+    SourceRoot = scratch("ern_root_"),
+    ok = filelib:ensure_path(filename:join(SourceRoot, "kv_parser")),
+    ok = file:write_file(filename:join([SourceRoot, "kv_parser", "lexer.ern"]),
+                         "export let one = 1\n"),
+    Bytes = pty(alone("../bin/ern shell --source-root " ++ SourceRoot),
+                [{expect, "> "},
+                 {send, hex(":load KvParser.") ++ "09"},
+                 {expect, "KvParser.Lexer"},
+                 {send, "03"},
+                 {send, "04"}],
+                30, " --size 30x80"),
+    ?assertMatch({_, _}, binary:match(Bytes, <<"> :load KvParser.Lexer">>)).
 
 %% report §11.2: a command that takes an argument, completed whole, is
 %% followed by a space, and what completes after it is what it takes: a

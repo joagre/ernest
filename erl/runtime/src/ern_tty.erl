@@ -219,17 +219,18 @@ running({unstarted, _}) -> false;
 running(closed) -> false;
 running(_) -> true.
 
-%% Report Appendix E.16: Size(rows, columns), or None where standard output
-%% is not a terminal. It is the host's terminal's, `user`, whatever device
-%% the job writes to.
+%% Report §8.2, Appendix E.16: Size(rows, columns), or none where standard
+%% output is not a terminal or the terminal has no rows or no columns. The
+%% host answers the size of `user`'s terminal where standard input alone
+%% is one, so standard output is asked first.
 size_now() ->
-    case {io:rows(user), io:columns(user)} of
-        {{ok, Rows}, {ok, Columns}} -> {'Size', Rows, Columns};
+    case is_terminal(stdout) andalso {io:rows(user), io:columns(user)} of
+        {{ok, Rows}, {ok, Columns}} when Rows > 0, Columns > 0 -> {'Size', Rows, Columns};
         _ -> none
     end.
 
 %% Report Appendix E.16: the host has no size for a device that is not a
-%% terminal, and that is the one cause.
+%% terminal, nor for a terminal with no rows or no columns.
 measured(none) -> {'Left', 'NotATerminal'};
 measured(Size) -> {'Right', Size}.
 

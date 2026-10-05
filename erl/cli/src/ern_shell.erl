@@ -7,17 +7,19 @@
 %% input declares is the module's declarations.
 -module(ern_shell).
 
--export([loaded/1, start/0, program/0, startup_files/0, needs_more/1, check/3,
-         is_unit/1, type_text/1, run/4, show/3, bindings/1, slot/1, names/0,
-         session_names/0, session_texts/0, source_root/0, segment/1, forget/2, browse/2, doc/2,
+-export([loaded/1, start/0, spawn_program/0, config_startup/0, is_same_file/2, needs_more/1,
+         check/3, is_unit/1, type_text/1, run/4, show/3, bindings/1, slot/1, names/0,
+         session_names/0, session_texts/0, source_root/0, segment/1, component/1, forget/2,
+         browse/2, doc/2,
          documentation/1, fields/1, signature/1, declared_type/2, load/2,
          reload/1, version/0, write/1, screen/1, to_screen/1,
-         is_unbound/1, collect/1, input_site/2, is_expression/1, declared/1]).
+         leaves_it_unchanged/1, collect/1, input_site/2, is_expression/1, declared/1]).
 
 -include_lib("parser/include/ern_ast.hrl").
 -include_lib("typer/include/ern_types.hrl").
 -include_lib("utils/include/ern_diagnostic.hrl").
 -include_lib("cli/include/ern_build.hrl").
+-include_lib("kernel/include/file.hrl").
 
 -define(UNIT, {tcon, ['Unit'], []}).
 
@@ -125,8 +127,8 @@ kept_session() ->
 %% not entered, and nothing where the shell was started with no file. A
 %% fault in it reaches the session through Process.faults, to which the
 %% session subscribed before (E.21).
--spec program() -> 'Unit'.
-program() ->
+-spec spawn_program() -> 'Unit'.
+spawn_program() ->
     case persistent_term:get({?MODULE, loaded}, #loaded{}) of
         #loaded{entry = #entry_point{erlang_module = ErlangModule, function = Function,
                                      site = Site}} ->
@@ -137,15 +139,28 @@ program() ->
             'Unit'
     end.
 
-%% Report §11.2, §8.1: where the startup files are, the person's first
-%% and then the node's, each named from the working directory as §11.5
-%% names a file. The shell reads them itself, in Ernest, whether they are
-%% there and whose they are among it: only where they are is the host's to
-%% say.
--spec startup_files() -> [binary()].
-startup_files() ->
-    #loaded{startups = Startups} = persistent_term:get({?MODULE, loaded}, #loaded{}),
-    [unicode:characters_to_binary(ern_build:shown(File)) || File <- Startups].
+%% Report §11.2: the startup file of the configuration directory
+%% `--config-dir` names, named from the working directory as §11.5 names a
+%% file, or none. The person's the shell finds itself, in Ernest, from the
+%% environment, and it reads both, whether they are there and whose they
+%% are among it.
+-spec config_startup() -> {'Some', binary()} | 'None'.
+config_startup() ->
+    case persistent_term:get({?MODULE, loaded}, #loaded{}) of
+        #loaded{config_startup = none} -> 'None';
+        #loaded{config_startup = File} ->
+            {'Some', unicode:characters_to_binary(ern_build:shown(File))}
+    end.
+
+%% Report §11.2: whether two paths name one file, both there, on one device,
+%% with one node, which a file's entry in Ernest does not hold.
+-spec is_same_file(binary(), binary()) -> boolean().
+is_same_file(First, Second) ->
+    case {file:read_file_info(First), file:read_file_info(Second)} of
+        {{ok, #file_info{major_device = Device, inode = Inode}},
+         {ok, #file_info{major_device = Device, inode = Inode}}} -> true;
+        _ -> false
+    end.
 
 %% Report §11.2: at a terminal the shell takes another line where the
 %% parser cannot finish the input. Every reading is tried, the expression,
@@ -886,6 +901,16 @@ source_root() ->
 segment(Name) ->
     case ern_build:segment(unicode:characters_to_list(Name)) of
         {ok, Segment} -> {'Some', unicode:characters_to_binary(Segment)};
+        error -> 'None'
+    end.
+
+%% Report §11.1, §4.2: the path component a namespace segment names, where
+%% it is one, `kv_parser` for `KvParser`; the inverse of segment/1, asked of
+%% the same owner.
+-spec component(binary()) -> {'Some', binary()} | 'None'.
+component(Segment) ->
+    case ern_namespace:component(unicode:characters_to_list(Segment)) of
+        {ok, Component} -> {'Some', unicode:characters_to_binary(Component)};
         error -> 'None'
     end.
 
@@ -2394,11 +2419,11 @@ components(Names, Value, Type, Env) ->
     {ttuple, Types} = ern_types:substitute(Type, ern_typecheck:type_state(Env)),
     lists:zip3(Names, tuple_to_list(Value), Types).
 
-%% Report §11.2: whether the input's value was left unbound, its type
+%% Report §11.2: whether the input leaves `it` as it was, its value's type
 %% not being determined by the input itself.
--spec is_unbound(#checked{}) -> boolean().
-is_unbound(#checked{binds = it, type = Type, env = Env}) -> is_open(Type, Env);
-is_unbound(#checked{}) -> false.
+-spec leaves_it_unchanged(#checked{}) -> boolean().
+leaves_it_unchanged(#checked{binds = it, type = Type, env = Env}) -> is_open(Type, Env);
+leaves_it_unchanged(#checked{}) -> false.
 
 %% Report §11.2: a value whose type its own input did not settle is
 %% printed but not bound, since a scheme with a variable of that input's

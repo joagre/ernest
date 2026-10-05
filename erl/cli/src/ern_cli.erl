@@ -714,7 +714,7 @@ shell(Options, Rest, ErrorDevice) ->
                    host_path(ern_build:load_path(Options)),
                    ern_shell:loaded(#loaded{load_path = ern_build:load_path(Options),
                                             source_root = ern_build:source_root(Options, ".", "."),
-                                            startups = startups(Options)}),
+                                            config_startup = config_startup(Options)}),
                    init_fun([ErlangModule]);
                [File] ->
                    {Namespace, LoadPath, Loaded} = program(File, Options),
@@ -723,7 +723,7 @@ shell(Options, Rest, ErrorDevice) ->
                                             source_root = ern_build:source_root(Options, File,
                                                                                 "."),
                                             interfaces = interfaces(Loaded1), entry = Entry,
-                                            startups = startups(Options)}),
+                                            config_startup = config_startup(Options)}),
                    init_fun(Loaded1 ++ [ErlangModule]);
                _ ->
                    usage_fail("at most one .erc file argument")
@@ -846,37 +846,14 @@ interfaces(Loaded) ->
                           {ok, #{interface := Interface, source_hash := Hash}}
                               <- [ern_interface:read(Beam)]].
 
-%% Report §11.2: where the startup files are, the person's first and then
-%% the node's; the shell reads them and finds out whether they are there.
-%% The node's is in the configuration directory of §11.3, and is run only
-%% where `--config-dir` names that directory, never for the default, which
-%% is wherever the shell was started. A file both paths name is run once.
-%% A HOME that is no absolute path names no person's file, since it would
-%% name one under wherever the shell was started.
-startups(Options) ->
-    Home = case os:getenv("HOME") of
-               false -> [];
-               Dir ->
-                   case filename:pathtype(Dir) of
-                       absolute -> [filename:join([Dir, ".ernest", "startup"])];
-                       _ -> []
-                   end
-           end,
-    Node = case proplists:get_value(config_dir, Options) of
-               undefined -> [];
-               ConfigDir -> [filename:join(ConfigDir, "startup")]
-           end,
-    case {Home, Node} of
-        {[HomeFile], [NodeFile]} -> [HomeFile | [NodeFile || not is_same_file(HomeFile, NodeFile)]];
-        _ -> Home ++ Node
-    end.
-
-%% Two paths to one file: both there, on one device, with one inode.
-is_same_file(First, Second) ->
-    case {file:read_file_info(First), file:read_file_info(Second)} of
-        {{ok, #file_info{major_device = Device, inode = Inode}},
-         {ok, #file_info{major_device = Device, inode = Inode}}} -> true;
-        _ -> false
+%% Report §11.2: the startup file of the configuration directory of §11.3,
+%% run only where `--config-dir` names that directory, never for the
+%% default, which is wherever the shell was started; none otherwise. The
+%% person's the shell finds itself.
+config_startup(Options) ->
+    case proplists:get_value(config_dir, Options) of
+        undefined -> none;
+        ConfigDir -> filename:join(ConfigDir, "startup")
     end.
 
 %% Report §8.6: the host's termination and hangup end the program as the

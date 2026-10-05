@@ -102,8 +102,9 @@ export fn subscribe(wrap : (Event) -> m) : Either(Io.Error, Unit) with m = {
 }
 
 /// The terminal's size now, or `Left(Io.NotATerminal)` where standard
-/// output is not a terminal. A program that draws asks at each redraw and
-/// hears of a change as `Resized`.
+/// output is not a terminal or the terminal has no rows or no columns. A
+/// program that draws asks at each redraw and hears of a change as
+/// `Resized`.
 ///
 /// ### Examples
 ///

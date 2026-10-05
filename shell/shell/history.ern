@@ -27,6 +27,9 @@ export let directory : Optional(Path) =
 /// The history's file in the person's directory.
 export let file : Optional(Path) = Optional.map(directory, fn(path) = path <> Path("history"))
 
+/// The person's startup file in the person's directory (report §11.2).
+export let startup : Optional(Path) = Optional.map(directory, fn(path) = path <> Path("startup"))
+
 /// Report §11.2: the person's directory made its owner's alone to read,
 /// write and enter, where it is there, once its startup file has been
 /// checked as it was found, so that no one else can change what a later

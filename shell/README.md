@@ -25,7 +25,7 @@ The comments on the three mailbox types, `ShellMsg`, `ReaderMsg` and `ScreenMsg`
 
 What each process holds, and how the session orders and queues its work, is the design note's *Processes*.
 
-`Typing`, `Clear` and `Leave` are constructors of `Shell.Editor.Edit` and of types in `Shell`, and `State` is a type of both modules. In `shell.ern`, `Shell.Editor.Typing` is the editor's answer and a bare `Typing` is the screen's message, and `Terminal.Resized` is the terminal's event and a bare `Resized` the screen's message.
+`Terminal.Resized` is the terminal's event and a bare `Resized` in `shell.ern` the screen's message, which the reader sends on taking the event.
 
 ## Start and end
 
@@ -69,7 +69,7 @@ In line mode `lineLoop` takes the place of steps 1 to 3. It says the fault repor
 
 `Shell` uses all the others but `Ansi`, which `Shell.Region`, `Shell.Style` and `Markdown` write with. Of the others, two use another: `Shell.Editor` reads the history's length, `Shell.History.kept`, and `Shell.Complete` reads from `Shell.Command` what each command takes and where a command's word ends.
 
-Every module but `Shell`, `Shell.History` and `Shell.Complete` is pure, and `Shell.Complete`'s matching is. `Shell.Editor.State` and `Shell.Region.Region` are abstract (§4.4), so the shell reads them through their modules' functions, such as `Shell.Editor.text`. Each module but `Shell` is tested by its `Test` values (Appendix E.24, §11.2), the impure ones' tests reaching their pure parts. `make test-shell` runs them with the tests of the session and the terminal (the design note's *Testing*).
+Every module but `Shell`, `Shell.History` and `Shell.Complete` is pure, and `Shell.Complete`'s matching is. `Shell.Editor.Editing` and `Shell.Region.Region` are abstract (§4.4), so the shell reads them through their modules' functions, such as `Shell.Editor.text`. Each module but `Shell` is tested by its `Test` values (Appendix E.24, §11.2), the impure ones' tests reaching their pure parts. `make test-shell` runs them with the tests of the session and the terminal (the design note's *Testing*).
 
 ## The front end
 

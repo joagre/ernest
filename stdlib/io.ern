@@ -30,15 +30,15 @@
 /// and `Closed`, the connection was refused or has closed; `Timeout`, the
 /// time ran out; `NotATerminal`, the standard stream an operation needs is
 /// not a terminal, standard input for `Terminal.subscribe` and standard
-/// output for `Terminal.size`; `NotAFile`, a path names something other
-/// than a regular file; `Exists`, a path names something where nothing may
-/// stand; `NotUtf8(bytes)`, text that is not UTF-8, a name or a link's
-/// target among them, its bytes carried; `Invalid`, an argument the host
-/// cannot take whole, one that holds U+0000, a port out of range, a mode
-/// with bits the host does not write, or a time it cannot hold; and
-/// `Other(text)`, another reason as the host describes it, `"address
-/// already in use"`, or as the host writes it where it has no description
-/// (report Appendix E.1).
+/// output, or a terminal with no rows or no columns, for `Terminal.size`;
+/// `NotAFile`, a path names something other than a regular file; `Exists`,
+/// a path names something where nothing may stand; `NotUtf8(bytes)`, text
+/// that is not UTF-8, a name or a link's target among them, its bytes
+/// carried; `Invalid`, an argument the host cannot take whole, one that
+/// holds U+0000, a port out of range, a mode with bits the host does not
+/// write, or a time it cannot hold; and `Other(text)`, another reason as
+/// the host describes it, `"address already in use"`, or as the host writes
+/// it where it has no description (report Appendix E.1).
 ///
 /// ### Examples
 ///

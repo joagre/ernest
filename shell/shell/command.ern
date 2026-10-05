@@ -73,7 +73,7 @@ export let commands =
              action = Forget,
              placeholder = "name",
              takes = Needs(what = "a name, or * for all of them", completes = SessionNames),
-             about = "forget a name the session declared, or * for all of them"),
+             about = "a name the session declared, forgotten, or every one for *"),
      Command(name = "help", action = Help, placeholder = "", takes = Nothing, about = "this text"),
      Command(name = "load",
              action = Load,
@@ -84,7 +84,7 @@ export let commands =
              action = Output,
              placeholder = "path",
              takes = Allows(Paths),
-             about = "append what programs write to path, or - back to the live region"),
+             about = "what programs write, appended to path, or back in the region for -"),
      Command(name = "processes",
              action = Processes,
              placeholder = "",
@@ -94,7 +94,7 @@ export let commands =
              action = Quit,
              placeholder = "",
              takes = Nothing,
-             about = "leave, as C-d on an empty line does"),
+             about = "the session ended, as C-d on an empty line ends it"),
      Command(name = "reload",
              action = Reload,
              placeholder = "",
@@ -112,10 +112,14 @@ export let commands =
              about = "the type of e, which is not run")]
 
 /// Report §11.2: a command line, the action its name selects and the
-/// argument after it, or the refusal that says why it selects none.
+/// argument after it, or the refusal that says why it selects none. A
+/// command is one line, and one `M-Enter` or a paste has given a second
+/// is refused.
 export fn parse(line : String) : Either(String, #(Action, String)) = {
     let #(word, argument) = split(line);
-    match pick(String.slice(word, 1, String.size(word) - 1)) {
+    if String.contains(line, "\n") then
+        Left("a command is one line")
+    else match pick(String.slice(word, 1, String.size(word) - 1)) {
         Unknown -> Left("no command " <> word <> "; :help lists them")
       | Ambiguous(names) -> Left(word <> " is " <> alternatives(names))
       | Picked(Command(name = name, action = action, takes = takes)) -> match takes {
@@ -169,8 +173,8 @@ fn split(line : String) : #(String, String) = {
 export fn wordEnd(line : String) : Int =
     Optional.withDefault(String.indexOf(line, " "), String.size(line))
 
-/// Report §11.2: what completes after a command's word, where it takes
-/// anything after it.
+/// Report §11.2: what completes after a command's word, written with its
+/// `:`, `":load"`, where the command takes anything after it.
 export fn completes(word : String) : Optional(Completes) =
     match pick(String.slice(word, 1, String.size(word) - 1)) {
         Picked(Command(takes = Needs(completes = completes))) -> Some(completes)
@@ -266,7 +270,8 @@ let lines =
               })
 
 let refusals = Test.Case(name = "a command line that selects nothing says why", run = fn() = {
-    let said = List.map([":zz", ":f", ":b", ":type", ":help me"], fn(line) = match parse(line) {
+    let lines = [":zz", ":f", ":b", ":type", ":help me", ":type 1 +\n2"];
+    let said = List.map(lines, fn(line) = match parse(line) {
         Left(text) -> text
       | Right(_) -> "accepted"
     });
@@ -275,7 +280,8 @@ let refusals = Test.Case(name = "a command line that selects nothing says why", 
             ":f is :faults or :forget",
             ":b is :bindings or :browse",
             ":type takes an expression",
-            ":help takes no argument"] then
+            ":help takes no argument",
+            "a command is one line"] then
         Test.Passed
     else
         Test.Failed(String.join(said, " | "))

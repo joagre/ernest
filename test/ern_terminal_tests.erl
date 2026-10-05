@@ -80,6 +80,23 @@ not_a_terminal() ->
     ?assertEqual({0, <<"no terminal, no size\n">>},
                  ern_pty:sh("echo x | ../bin/ern run build/terminal/probe.erc")).
 
+%% report §8.2, Appendix E.16: with standard input a terminal, the size is
+%% `Left(NotATerminal)` where standard output is a pipe, and where the
+%% terminal has no rows or no columns, though keys are read in both. A
+%% regression test: the host answered the terminal's size through a pipe,
+%% so the shell painted its region into it
+no_size_test_() ->
+    {timeout, 60, fun no_size/0}.
+
+no_size() ->
+    ok = build("terminal/probe.ern", "terminal"),
+    Steps = [{expect, "ready"}, {send, "1b"}, {expect, "escape"}],
+    {0, Piped} = pty("../bin/ern run build/terminal/probe.erc | cat", Steps, 30),
+    ?assertEqual([<<"ready no size">>, <<"escape">>], lines(Piped)),
+    {0, Sizeless} = ern_pty:run("../bin/ern run build/terminal/probe.erc", Steps, 30,
+                                " --size 0x0"),
+    ?assertEqual([<<"ready no size">>, <<"escape">>], lines(Sizeless)).
+
 %% report §11.2: at a terminal a fault line is as the reader watches it
 %% happen, without the time it begins with in a file. Written with the code.
 unstamped_at_a_terminal_test_() ->

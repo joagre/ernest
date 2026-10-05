@@ -1,25 +1,26 @@
-/// The shell's colours (report §11.2): colour where it carries meaning, at a
-/// terminal only, and where the environment's `NO_COLOR` is unset or empty.
-/// Each function takes whether the shell colours, `Markdown.Styled` or
-/// `Markdown.Plain` as documentation is rendered, and gives the text
-/// unchanged when it is `Plain`, so what the shell says reads the same
-/// without colour; the parameter a signature marks is the one mark that
-/// must show, and has asterisks then.
+/// The shell's colours (report §11.2): colour where it carries meaning, at
+/// a terminal only, and where the environment's `NO_COLOR` is unset or
+/// empty. Each function takes the text and then whether the shell colours,
+/// `Markdown.Styled` or `Markdown.Plain` as documentation is rendered, as
+/// `Markdown.render` takes them (report Appendix E.0 shape rule 1), and
+/// gives the text unchanged when it is `Plain`, so what the shell says
+/// reads the same without colour; the parameter a signature marks is the
+/// one mark that must show, and has asterisks then.
 
 /// A fault, or the first line of a diagnostic: what needs the eye.
-export fn fault(colour : Markdown.Output, text : String) : String =
+export fn fault(text : String, colour : Markdown.Output) : String =
     paint(colour, Ansi.Foreground(Ansi.Red), text)
 
 /// A diagnostic, its first line coloured as a fault, the source under it
 /// plain.
-export fn diagnostic(colour : Markdown.Output, text : String) : String =
+export fn diagnostic(text : String, colour : Markdown.Output) : String =
     match String.split(text, "\n") {
         [] -> text
-      | first :: rest -> String.join(fault(colour, first) :: rest, "\n")
+      | first :: rest -> String.join(fault(first, colour) :: rest, "\n")
     }
 
 /// The type after a printed value, dimmed so that the value stands out.
-export fn quiet(colour : Markdown.Output, text : String) : String =
+export fn quiet(text : String, colour : Markdown.Output) : String =
     paint(colour, Ansi.Dim, text)
 
 /// A name in a listing or a brief, the name bold: `name : type`, a
@@ -27,7 +28,7 @@ export fn quiet(colour : Markdown.Output, text : String) : String =
 /// type's `type Down = ...`. The name is the last word before the first
 /// `(`, ` : ` or ` = `, or before a type declaration's end; any other line,
 /// a command's, has no name.
-export fn named(colour : Markdown.Output, text : String) : String = {
+export fn named(text : String, colour : Markdown.Output) : String = {
     let found = List.filterMap(["(", " : ", " = "], fn(mark) = String.indexOf(text, mark));
     let declared =
         List.any(["type ", "abstract type ", "foreign type "],
@@ -50,7 +51,7 @@ export fn named(colour : Markdown.Output, text : String) : String = {
 /// its theme chooses, so that it reads on a dark screen and a light one.
 /// Report §11.2: without colour it is between asterisks, since the mark
 /// carries meaning where the other colours only help the eye.
-export fn emphasis(colour : Markdown.Output, text : String) : String =
+export fn emphasis(text : String, colour : Markdown.Output) : String =
     match colour {
         Markdown.Plain -> if String.isEmpty(text) then text else "*" <> text <> "*"
       | Markdown.Styled -> paint(colour, Ansi.Foreground(Ansi.Cyan), text)
@@ -69,47 +70,47 @@ fn paint(colour : Markdown.Output, style : Ansi.Style, text : String) : String =
 let off =
     Test.Case(name = "without colour the text is unchanged",
               run = fn() =
-                  if fault(Markdown.Plain, "f faulted") == "f faulted"
-                      && named(Markdown.Plain, "a : Int") == "a : Int" then
+                  if fault("f faulted", Markdown.Plain) == "f faulted"
+                      && named("a : Int", Markdown.Plain) == "a : Int" then
                       Test.Passed
                   else
                       Test.Failed("coloured when off"))
 
 let faults =
     Test.Case(name = "a fault is red",
-              run = fn() = if fault(Markdown.Styled, "x") == "\u{1b}[31mx\u{1b}[39m" then
+              run = fn() = if fault("x", Markdown.Styled) == "\u{1b}[31mx\u{1b}[39m" then
                   Test.Passed
               else
-                  Test.Failed(fault(Markdown.Styled, "x")))
+                  Test.Failed(fault("x", Markdown.Styled)))
 
 let diagnostics =
     Test.Case(name = "a diagnostic's first line is red, its source plain",
               run = fn() =
-                  if diagnostic(Markdown.Styled, "a:1:1: bad\n1 | a")
+                  if diagnostic("a:1:1: bad\n1 | a", Markdown.Styled)
                       == "\u{1b}[31ma:1:1: bad\u{1b}[39m\n1 | a" then
                       Test.Passed
                   else
-                      Test.Failed(diagnostic(Markdown.Styled, "a:1:1: bad\n1 | a")))
+                      Test.Failed(diagnostic("a:1:1: bad\n1 | a", Markdown.Styled)))
 
 let names =
     Test.Case(name = "a name before its type is bold",
               run = fn() =
-                  if named(Markdown.Styled, "List.map : (a) -> b")
+                  if named("List.map : (a) -> b", Markdown.Styled)
                       == "\u{1b}[1mList.map\u{1b}[22m : (a) -> b" then
                       Test.Passed
                   else
-                      Test.Failed(named(Markdown.Styled, "List.map : (a) -> b")))
+                      Test.Failed(named("List.map : (a) -> b", Markdown.Styled)))
 
 let marksWithout =
     Test.Case(name = "without colour the marked parameter is between asterisks",
-              run = fn() = if emphasis(Markdown.Plain, "f : Int") == "*f : Int*" then
+              run = fn() = if emphasis("f : Int", Markdown.Plain) == "*f : Int*" then
                   Test.Passed
               else
-                  Test.Failed(emphasis(Markdown.Plain, "f : Int")))
+                  Test.Failed(emphasis("f : Int", Markdown.Plain)))
 
 let empties =
     Test.Case(name = "an empty text takes no colour",
-              run = fn() = if emphasis(Markdown.Styled, "") == "" then
+              run = fn() = if emphasis("", Markdown.Styled) == "" then
                   Test.Passed
               else
                   Test.Failed("coloured nothing"))

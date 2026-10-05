@@ -119,12 +119,12 @@ zero : () -> Int
   :browse Module  the exports of Module with their types
   :doc Name       the documentation of Name
   :faults         the faults reported since the session began
-  :forget name    forget a name the session declared, or * for all of them
+  :forget name    a name the session declared, forgotten, or every one for *
   :help           this text
   :load Module    the module by its namespace, compiled from its source
-  :output path    append what programs write to path, or - back to the live region
+  :output path    what programs write, appended to path, or back in the region for -
   :processes      the live processes of the session, by spawn site
-  :quit           leave, as C-d on an empty line does
+  :quit           the session ended, as C-d on an empty line ends it
   :reload         every loaded module whose source has changed
   :set            depth n, length n, output n, timing on or off; :set alone shows them
   :type e         the type of e, which is not run
