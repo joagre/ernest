@@ -123,9 +123,9 @@ foreign fn rawLookup(table : Table(k, v), key : k) : List(#(k, v)) with m =
 /// ### Errors
 ///
 /// Faults on a table that has ended. The cause names the host's function:
-/// `foreign function ets:lookup/2 raised error:badarg`.
-export fn contains(table : Table(k, v), key : k) : Bool with m =
-    Optional.isSome(get(table, key))
+/// `foreign function ets:member/2 raised error:badarg`.
+export foreign fn contains(table : Table(k, v), key : k) : Bool with m =
+    "ets:member/2"
 
 /// Removes the entry at that key. Removing a key the table does not hold
 /// does nothing.

@@ -219,7 +219,15 @@ and its measurement does not hold the release.
     and Set Stand on the Host*). The machine's last measurement draws predicates that keep
     about half. The value modules stay as they are: an operation Ernest writes as the
     host's operators applied once is no shim (E.0 rule 1; the log's *The Host's Operators
-    Are No Shim's*). Next: the system modules and the libraries.
+    Are No Shim's*). The system modules' functions reach their processes by design, and
+    of the libraries `Ets.contains` stands on `ets:member/2` (the log's *The System Modules
+    and the Libraries, Read*). Last: the machine's draws, and the measurement again.
+13. **Whether `Clock.now` reads the host's clock without a message**, a decision with the
+    user before this milestone closes (found 2026-10-06 by item 12; the log's *The System
+    Modules and the Libraries, Read*). E.15 has `now` reach the clock's process, 1.8 us
+    where the host's read takes 50 ns; the process gives it only the time source a test of
+    `alarmAt` replaces, and `Clock.monotonic` already reads the host. The recommendation is
+    to read the host's clock, E.15 saying so and the process keeping the alarms.
 
 ---
 
