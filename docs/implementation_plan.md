@@ -213,7 +213,8 @@ and its measurement does not hold the release.
     is read by code points, as the runtime reads it, which it was not (2026-10-06; E.14;
     the log's *Path Read as the Runtime Reads It*), over two primitives of the path syntax,
     since the `filename` pages state none of E.14's edge cases: `name` 0.3 to 0.7 times
-    `filename`'s, `extension` and `parent` 1.1 to 1.6. Next: `Bytes`, `Map`, and the rest,
+    `filename`'s, `extension` and `parent` 1.1 to 1.6. `Bytes` stands on the `binary`
+    module (2026-10-06; the log's *Bytes Stands on the Host*). Next: `Map`, and the rest,
     module by module.
 
 ---

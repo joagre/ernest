@@ -88,15 +88,8 @@ export fn slice(bytes : Bytes, index : Int, count : Int) : Bytes = {
 }
 
 /// The bytes in order, each an `Int` from 0 to 255.
-export fn toList(bytes : Bytes) : List(Int) =
-    List.reverse(octets(bytes, []))
-
-// The octets before the rest of `bytes`, the last first.
-fn octets(bytes : Bytes, acc : List(Int)) : List(Int) =
-    match bytes {
-        <<octet, rest:bytes>> -> octets(rest, octet :: acc)
-      | _ -> acc
-    }
+export foreign fn toList(bytes : Bytes) : List(Int) =
+    "erlang:binary_to_list/1"
 
 /// The `Bytes` of those numbers, or `None` where one is outside 0 to 255.
 ///
@@ -108,9 +101,13 @@ fn octets(bytes : Bytes, acc : List(Int)) : List(Int) =
 /// ```
 export fn fromList(octets : List(Int)) : Optional(Bytes) =
     if List.all(octets, fn(octet) = octet >= 0 && octet <= 255) then
-        Some(List.foldLeft(octets, <<>>, fn(acc, octet) = <<acc:bytes, octet>>))
+        Some(fromOctets(octets))
     else
         None
+
+// Raises on a value outside 0 to 255, which `fromList` answers itself.
+foreign fn fromOctets(octets : List(Int)) : Bytes =
+    "erlang:list_to_binary/1"
 
 /// `true` when `part` occurs somewhere in `bytes`. An empty `part` always does.
 ///
@@ -133,16 +130,18 @@ export fn contains(bytes : Bytes, part : Bytes) : Bool =
 /// // => #(Some(0), None)
 /// ```
 export fn indexOf(bytes : Bytes, part : Bytes) : Optional(Int) =
-    indexFrom(bytes, part, 0)
+    if isEmpty(part) then
+        Some(0)
+    else match firstSplit(bytes, part) {
+        [before, _] -> Some(size(before))
+      | _ -> None
+    }
 
-// The first place from the index where the part begins.
-fn indexFrom(bytes : Bytes, part : Bytes, index : Int) : Optional(Int) =
-    if index + size(part) > size(bytes) then
-        None
-    else if slice(bytes, index, size(part)) == part then
-        Some(index)
-    else
-        indexFrom(bytes, part, index + 1)
+// The octets before the part's first occurrence and those after it, or
+// the octets alone; raises on an empty part, which `indexOf` answers
+// itself.
+foreign fn firstSplit(bytes : Bytes, part : Bytes) : List(Bytes) =
+    "binary:split/2"
 
 /// The index at which `part` last begins in `bytes`, or `None` where it is not
 /// there. An empty `part` is at the end, the size of `bytes`.
@@ -174,7 +173,10 @@ fn lastIndexFrom(bytes : Bytes, part : Bytes, index : Int) : Optional(Int) =
 /// // => #(true, false)
 /// ```
 export fn startsWith(bytes : Bytes, prefix : Bytes) : Bool =
-    slice(bytes, 0, size(prefix)) == prefix
+    commonPrefix([bytes, prefix]) == size(prefix)
+
+foreign fn commonPrefix(list : List(Bytes)) : Int =
+    "binary:longest_common_prefix/1"
 
 /// `true` when `bytes` ends with `suffix`, and always for an empty `suffix`.
 ///
@@ -184,10 +186,11 @@ export fn startsWith(bytes : Bytes, prefix : Bytes) : Bool =
 /// Bytes.endsWith(<<1, 2, 3>>, <<3>>)
 /// // => true
 /// ```
-export fn endsWith(bytes : Bytes, suffix : Bytes) : Bool = {
-    let count = size(suffix);
-    size(bytes) >= count && slice(bytes, size(bytes) - count, count) == suffix
-}
+export fn endsWith(bytes : Bytes, suffix : Bytes) : Bool =
+    commonSuffix([bytes, suffix]) == size(suffix)
+
+foreign fn commonSuffix(list : List(Bytes)) : Int =
+    "binary:longest_common_suffix/1"
 
 /// The parts of `bytes` between the occurrences of `separator`, empty parts
 /// included. An empty `separator` gives `[bytes]`.
@@ -199,19 +202,11 @@ export fn endsWith(bytes : Bytes, suffix : Bytes) : Bool = {
 /// // => [<<1>>, <<>>, <<2>>]
 /// ```
 export fn split(bytes : Bytes, separator : Bytes) : List(Bytes) =
-    if isEmpty(separator) then [bytes] else List.reverse(parts(bytes, separator, []))
+    if isEmpty(separator) then [bytes] else parts(bytes, separator)
 
-// The parts found so far, the last first, and the rest of the octets.
-fn parts(bytes : Bytes, separator : Bytes, acc : List(Bytes)) : List(Bytes) =
-    match indexOf(bytes, separator) {
-        None -> bytes :: acc
-      | Some(index) -> {
-            let beyond = index + size(separator);
-            parts(slice(bytes, beyond, size(bytes) - beyond),
-                  separator,
-                  slice(bytes, 0, index) :: acc)
-        }
-    }
+// Raises on an empty separator, which `split` answers itself.
+foreign fn parts(bytes : Bytes, separator : Bytes) : List(Bytes) =
+    "ern_bytes:split/2"
 
 /// `bytes` with each occurrence of `old` replaced by `new`, found from the left
 /// without overlaps. An empty `old` changes nothing.
@@ -223,7 +218,11 @@ fn parts(bytes : Bytes, separator : Bytes, acc : List(Bytes)) : List(Bytes) =
 /// // => <<1, 9, 9, 2, 9, 9>>
 /// ```
 export fn replace(bytes : Bytes, old : Bytes, new : Bytes) : Bytes =
-    if isEmpty(old) then bytes else join(split(bytes, old), new)
+    if isEmpty(old) then bytes else replaced(bytes, old, new)
+
+// Raises on an empty old part, which `replace` answers itself.
+foreign fn replaced(bytes : Bytes, old : Bytes, new : Bytes) : Bytes =
+    "ern_bytes:replace/3"
 
 /// The parts joined, with `separator` between each two.
 ///
@@ -234,10 +233,13 @@ export fn replace(bytes : Bytes, old : Bytes, new : Bytes) : Bytes =
 /// // => <<1, 0, 2>>
 /// ```
 export fn join(parts : List(Bytes), separator : Bytes) : Bytes =
-    match parts {
-        [] -> <<>>
-      | first :: rest -> List.foldLeft(rest, first, fn(acc, part) = acc <> separator <> part)
-    }
+    concatenated(interleaved(separator, parts))
+
+foreign fn interleaved(separator : Bytes, parts : List(Bytes)) : List(Bytes) =
+    "lists:join/2"
+
+foreign fn concatenated(parts : List(Bytes)) : Bytes =
+    "erlang:iolist_to_binary/1"
 
 /// `bytes` repeated `count` times. A `count` below 1 gives the empty `Bytes`.
 ///
@@ -248,10 +250,11 @@ export fn join(parts : List(Bytes), separator : Bytes) : Bytes =
 /// // => <<1, 2, 1, 2>>
 /// ```
 export fn repeat(bytes : Bytes, count : Int) : Bytes =
-    copies(bytes, count, <<>>)
+    copied(bytes, Int.max(count, 0))
 
-fn copies(bytes : Bytes, count : Int, acc : Bytes) : Bytes =
-    if count <= 0 then acc else copies(bytes, count - 1, acc <> bytes)
+// Raises on a count below 0, which `repeat` makes 0.
+foreign fn copied(bytes : Bytes, count : Int) : Bytes =
+    "binary:copy/2"
 
 /// Each byte as two hexadecimal digits, letters in upper case: `<<255, 1>>` is
 /// `"FF01"`.
@@ -262,11 +265,8 @@ fn copies(bytes : Bytes, count : Int, acc : Bytes) : Bytes =
 /// Bytes.toHex(<<0, 171, 255>>)
 /// // => "00ABFF"
 /// ```
-export fn toHex(bytes : Bytes) : String =
-    String.join(List.map(toList(bytes), fn(octet) = digit(octet / 16) <> digit(octet % 16)), "")
-
-fn digit(value : Int) : String =
-    String.slice("0123456789ABCDEF", value, 1)
+export foreign fn toHex(bytes : Bytes) : String =
+    "binary:encode_hex/1"
 
 /// The bytes that `text` writes two hexadecimal digits each, letters in either
 /// case, or `None` for an odd number of digits or a character that is no digit.
@@ -277,17 +277,5 @@ fn digit(value : Int) : String =
 /// #(Bytes.fromHex("00abFF"), Bytes.fromHex("0"), Bytes.fromHex("zz"))
 /// // => #(Some(<<0, 171, 255>>), None, None)
 /// ```
-export fn fromHex(text : String) : Optional(Bytes) =
-    octetsOf(String.toList(text), <<>>)
-
-// The octets the digits write, after those already read.
-fn octetsOf(digits : List(Char), acc : Bytes) : Optional(Bytes) =
-    match digits {
-        [] -> Some(acc)
-      | high :: low :: rest -> match #(Char.digitValue(high, 16), Char.digitValue(low, 16)) {
-            #(Some(highValue), Some(lowValue)) ->
-                octetsOf(rest, <<acc:bytes, (highValue * 16 + lowValue)>>)
-          | _ -> None
-        }
-      | [_] -> None
-    }
+export foreign fn fromHex(text : String) : Optional(Bytes) =
+    "ern_bytes:from_hex/1"
