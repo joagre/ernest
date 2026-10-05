@@ -1,7 +1,13 @@
-/// A value that may be absent. `Optional(a)` is `Some(a)` or `None`, a
-/// prelude type (report §9.3); this module holds the operations over it. A
-/// function that may find nothing returns an `Optional`, and `<-` in a block
-/// unwraps one (report §5.5).
+/// Operations on a value that may be absent, `Optional(a)`: `Some(a)` or
+/// `None`.
+///
+/// A function that may find nothing answers an `Optional`: `List.get` past the
+/// end of a list, or `Map.get` for a key the map does not hold. Where the
+/// absence has a cause the caller should know, an `Either` says it instead.
+///
+/// A `match` takes an `Optional` apart. In a block, `let x <- e` unwraps a
+/// `Some` and goes on, and ends the block with `None` where `e` is `None`
+/// (report §5.5).
 ///
 /// ## Examples
 ///
@@ -26,7 +32,7 @@
 ///
 /// since 0.1.0
 
-/// `true` for `Some`.
+/// `true` for a `Some`.
 ///
 /// ### Examples
 ///
@@ -54,23 +60,22 @@ export fn isNone(optional : Optional(a)) : Bool =
       | None -> true
     }
 
-/// The value in `Some`, or the default for `None`.
+/// The value in a `Some`, or `default` for `None`.
 export fn withDefault(optional : Optional(a), default : a) : a =
     match optional {
         Some(value) -> value
       | None -> default
     }
 
-/// `Some` of the function applied to the value, or `None`; the function is
-/// not called on `None`.
+/// `Some(f(x))` for `Some(x)`, or `None` for `None`, where `f` is not called.
 export fn map(optional : Optional(a), f : (a) -> b with e) : Optional(b) with e =
     match optional {
         Some(value) -> Some(f(value))
       | None -> None
     }
 
-/// The function's result for `Some`, or `None` without calling it: one step
-/// of a chain in which any step may find nothing.
+/// `f(x)` for `Some(x)`, or `None` for `None`, where `f` is not called. It
+/// chains steps each of which may find nothing, as `<-` does in a block.
 export fn andThen(optional : Optional(a), f : (a) -> Optional(b) with e) : Optional(b) with e =
     match optional {
         Some(value) -> f(value)

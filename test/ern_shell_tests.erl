@@ -429,7 +429,7 @@ prelude_shown() ->
     {0, Output} = ern_pty:sh(alone("../bin/ern shell") ++ " < " ++ InputFile),
     [?assertMatch({_, _}, binary:match(Output, Text))
      || Text <- [<<"type Reason\n">>, <<"spawn : (() -> Unit with n) -> Address(n) with m+">>,
-                 <<"Ernest prelude">>, <<"Starts a process on this node that runs">>,
+                 <<"Ernest prelude">>, <<"Starts a process that runs">>,
                  <<"List.size(list : List(a!)) : Int">>,
                  %% report §9.4, §9.6: every prelude function, `Io.show`,
                  %% `Io.debug` and `String.compare` among them; a regression
@@ -1271,7 +1271,7 @@ shift_tab() ->
     Bytes = pty(alone("../bin/ern shell"),
                 [{expect, "> "},
                  {send, hex("List.map") ++ ShiftTab},
-                 {expect, "The function applied to each element, in order."},
+                 {expect, "for each element x, in order."},
                  {send, ShiftTab},                        % again: the page
                  {expect, "    List.map(list : List(a)"},
                  {send, "03"},
@@ -1280,7 +1280,7 @@ shift_tab() ->
                  {send, "03"},
                  %% the whole name the cursor stands in, two to its left
                  {send, hex("List.map") ++ "1b5b441b5b44" ++ ShiftTab},
-                 {expect, "The function applied"},
+                 {expect, "for each element x"},
                  {send, "03"},
                  {send, hex(":br") ++ "09"},              % a command completes
                  {expect, ":browse"},
@@ -1293,7 +1293,7 @@ shift_tab() ->
     %% the brief under the line: the declaration, the sentence, the version
     ?assertMatch({_, _}, binary:match(Bytes, <<"> List.map\r\nList.map(list : List(a),"
                                                " f : (a) -> b with e) : List(b) with e\r\n"
-                                               "The function applied to each element, in order.\r\n"
+                                               "The list of f(x) for each element x, in order.\r\n"
                                                "Since 0.1.0.">>)),
     %% then the page, under the line in its place, rendered: the heading as
     %% its text and the declaration's code block without its fences

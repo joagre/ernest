@@ -1,7 +1,12 @@
-/// A value or the cause of its absence. `Either(e, a)` is `Left(e)`, the
-/// cause, or `Right(a)`, the value, a prelude type (report §9.3); this module
-/// holds the operations over it. A function that can fail with a cause
-/// returns an `Either` (Appendix E.0 shape rule 4), and `<-` in a block unwraps one
+/// Operations on a value or the cause of its absence, `Either(e, a)`:
+/// `Right(a)`, the value, or `Left(e)`, the cause.
+///
+/// A function that can fail for a cause the caller can act on answers an
+/// `Either`: `Fs.read` answers `Left(Io.NotFound)` for a file that is not
+/// there. Where there is no cause to tell, an `Optional` serves.
+///
+/// A `match` takes an `Either` apart. In a block, `let x <- e` unwraps a
+/// `Right` and goes on, and ends the block with the `Left` where `e` is one
 /// (report §5.5).
 ///
 /// ## Examples
@@ -28,7 +33,7 @@
 ///
 /// since 0.1.0
 
-/// `true` for `Left`.
+/// `true` for a `Left`.
 ///
 /// ### Examples
 ///
@@ -42,7 +47,7 @@ export fn isLeft(either : Either(e, a)) : Bool =
       | Right(_) -> false
     }
 
-/// `true` for `Right`.
+/// `true` for a `Right`.
 ///
 /// ### Examples
 ///
@@ -56,22 +61,23 @@ export fn isRight(either : Either(e, a)) : Bool =
       | Right(_) -> true
     }
 
-/// The value in `Right`, or the default for `Left`.
+/// The value in a `Right`, or `default` for a `Left`, whose cause is dropped.
 export fn withDefault(either : Either(e, a), default : a) : a =
     match either {
         Right(value) -> value
       | Left(_) -> default
     }
 
-/// `Right` of the function applied to the value, or the `Left` unchanged;
-/// the function is not called on `Left`.
+/// `Right(f(x))` for `Right(x)`, or the `Left` as it is, where `f` is not
+/// called.
 export fn map(either : Either(e, a), f : (a) -> b with x) : Either(e, b) with x =
     match either {
         Right(value) -> Right(f(value))
       | Left(cause) -> Left(cause)
     }
 
-/// `Left` of the function applied to the cause, or the `Right` unchanged.
+/// `Left(f(cause))` for `Left(cause)`, or the `Right` as it is, where `f` is
+/// not called. It turns one module's error into another's.
 ///
 /// ### Examples
 ///
@@ -86,15 +92,15 @@ export fn mapLeft(either : Either(e, a), f : (e) -> b with x) : Either(b, a) wit
       | Right(value) -> Right(value)
     }
 
-/// The function's result for `Right`, or the `Left` unchanged without
-/// calling it: one step of a chain in which any step may fail.
+/// `f(x)` for `Right(x)`, or the `Left` as it is, where `f` is not called. It
+/// chains steps each of which may fail, as `<-` does in a block.
 export fn andThen(either : Either(e, a), f : (a) -> Either(e, b) with x) : Either(e, b) with x =
     match either {
         Right(value) -> f(value)
       | Left(cause) -> Left(cause)
     }
 
-/// `Some` of the value in `Right`, or `None`; the cause is dropped.
+/// `Some(x)` for `Right(x)`, or `None` for a `Left`, whose cause is dropped.
 ///
 /// ### Examples
 ///
@@ -108,7 +114,8 @@ export fn toOptional(either : Either(e, a)) : Optional(a) =
       | Left(_) -> None
     }
 
-/// `Right` of the value in `Some`, or `Left` of the given cause for `None`.
+/// `Right(x)` for `Some(x)`, or `Left(cause)` for `None`: the cause an
+/// `Optional` did not carry.
 ///
 /// ### Examples
 ///

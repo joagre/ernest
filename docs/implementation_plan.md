@@ -135,8 +135,10 @@ and its measurement does not hold the release.
    - **What stops the work**: a doc block that cannot be written truly because the
      report's contract is unclear goes to the report first, as a question.
    - **Its end**: a cold reader, briefed as a newcomer, over a sample of the pages; then
-     whether the pages are published as Ernest 0.3.1 is decided with the user, recommended,
-     since `man/` holds a release's pages and shows the old ones until one is made.
+     `make pages` writes every page under `man/` anew, which the repository shows until the
+     next release writes them again. Whether that is Ernest 0.3.1 is decided with the user,
+     recommended, since each page names the release that wrote it, which a test holds to
+     `VERSION`.
 
 ---
 

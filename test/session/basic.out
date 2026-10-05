@@ -80,9 +80,9 @@ Optional.withDefault : (Optional(a!), a!) -> a!
 
     String.trim(text : String) : String
 
-Without leading and trailing whitespace: the graphemes whose first code point is
-White_Space, as `Char.isSpace` says. It is `trimStart` then `trimEnd`, a pair
-the library keeps named (report Appendix E.0 rule 4).
+`text` without whitespace at its start and its end. Whitespace is the graphemes
+whose first code point is Unicode White_Space, as `Char.isSpace` says: spaces,
+tabs, line ends and the like.
 
 Examples
 

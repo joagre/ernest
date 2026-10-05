@@ -1,21 +1,40 @@
-/// Operations on `List(a)`, the singly linked list of the language (report
-/// §3.3). `[]` is the empty list and `::` puts an element in front, so
-/// neither is a function here, and `toList` and `fromList` would be the
-/// identity, so the module has neither. `contains`, `remove`, and
-/// `unique` compare elements, so their element type needs equality
-/// (report §3.10).
+/// Lists: values in order, the same type throughout.
+///
+/// Use a list for values in an order, read from the front. For a value
+/// looked up by its key use a `Map`, for membership a `Set`, and for text a
+/// `String`. A list is a value: every function here answers a new list and
+/// leaves the one it was given as it was.
+///
+/// `[]` is the empty list, and `x :: rest` the list with `x` in front of
+/// `rest`; both are the language's, so neither is a function here.
+///
+/// **Cost.** A list is walked from its front. Putting an element in front
+/// with `::` costs nothing, whatever the list's length. `size`, `get`,
+/// `last` and `<>` walk the list, and take time in proportion to its
+/// length. A list built one element at a time is built in front, and
+/// `reverse`d once at the end.
+///
+/// **Equality.** `contains`, `remove` and `unique` compare elements with
+/// `==`, so the element type needs equality: a list of functions has none
+/// of the three.
 ///
 /// ## Examples
+///
+/// Each element doubled, and a list appended:
 ///
 /// ```ernest
 /// List.map([1, 2, 3], fn(n) = n * 2) <> [0]
 /// // => [2, 4, 6, 0]
 /// ```
 ///
+/// The even numbers from 1 to 10, summed:
+///
 /// ```ernest
 /// List.foldLeft(List.filter(List.range(1, 10), fn(n) = n % 2 == 0), 0, Int.+)
 /// // => 30
 /// ```
+///
+/// Words sorted by the order of `String`:
 ///
 /// ```ernest
 /// List.sort(["pear", "fig", "apple"], String.compare)
@@ -29,7 +48,8 @@
 ///
 /// since 0.1.0
 
-/// The elements of the first list, then those of the second.
+/// The elements of the first list, then those of the second. The first list
+/// is copied, so the cost grows with its length, and not with the second's.
 ///
 /// ### Examples
 ///
@@ -43,7 +63,7 @@ export fn List.<>(list : List(a), other : List(a)) : List(a) =
       | head :: rest -> head :: (rest <> other)
     }
 
-/// The number of elements.
+/// The number of elements. The whole list is walked to count them.
 ///
 /// ### Examples
 ///
@@ -67,7 +87,7 @@ export fn isEmpty(list : List(a)) : Bool =
       | _ -> false
     }
 
-/// `true` when some element of the list equals `element`.
+/// `true` when some element of the list is `==` to `element`.
 ///
 /// ### Examples
 ///
@@ -81,7 +101,9 @@ export fn contains(list : List(a), element : a) : Bool =
       | head :: rest -> if head == element then true else contains(rest, element)
     }
 
-/// The element at `index`, counting from 0, or `None` beyond either end.
+/// The element at `index`, counting from 0, or `None` where the list has
+/// no element there: past its end, or at an index below 0. The list is
+/// walked to the index.
 ///
 /// ### Examples
 ///
@@ -97,8 +119,9 @@ export fn get(list : List(a), index : Int) : Optional(a) =
       | head :: rest -> if index == 0 then Some(head) else get(rest, index - 1)
     }
 
-/// The list without the first of its elements that equals `element`, or
-/// the list itself when none does.
+/// The list without the first element that is `==` to `element`. Later
+/// elements equal to it stay. A list without such an element is answered as
+/// it is.
 ///
 /// ### Examples
 ///
@@ -112,14 +135,15 @@ export fn remove(list : List(a), element : a) : List(a) =
       | head :: rest -> if head == element then rest else head :: remove(rest, element)
     }
 
-/// The function applied to each element, in order.
+/// The list of `f(x)` for each element `x`, in order. `f` is called for the
+/// elements from the first.
 export fn map(list : List(a), f : (a) -> b with e) : List(b) with e =
     match list {
         [] -> []
       | head :: rest -> f(head) :: map(rest, f)
     }
 
-/// The elements the predicate holds for, in order.
+/// The elements `keep` answers `true` for, in their order.
 ///
 /// ### Examples
 ///
@@ -133,8 +157,8 @@ export fn filter(list : List(a), keep : (a) -> Bool with e) : List(a) with e =
       | head :: rest -> if keep(head) then head :: filter(rest, keep) else filter(rest, keep)
     }
 
-/// The values of the `Some` results, in order: mapping and filtering in one
-/// pass.
+/// The values `f` answers `Some` for, in order. An element `f` answers
+/// `None` for is left out, so it maps and filters in one pass.
 ///
 /// ### Examples
 ///
@@ -151,16 +175,20 @@ export fn filterMap(list : List(a), f : (a) -> Optional(b) with e) : List(b) wit
         }
     }
 
-/// The accumulator after the function has seen each element from the left,
-/// the accumulator first.
+/// The elements folded into one value, from the first. `step(acc, x)` is
+/// called with the given `acc` for the first element, and with what `step`
+/// answered for the one before it for the rest. The empty list answers
+/// `acc`.
 export fn foldLeft(list : List(a), acc : b, step : (b, a) -> b with e) : b with e =
     match list {
         [] -> acc
       | head :: rest -> foldLeft(rest, step(acc, head), step)
     }
 
-/// The accumulator after the function has seen each element from the
-/// right, the element first.
+/// The elements folded into one value, from the last. `step(x, acc)` is
+/// called with the given `acc` for the last element, and with what `step`
+/// answered for the one after it for the rest. The empty list answers
+/// `acc`.
 ///
 /// ### Examples
 ///
@@ -174,7 +202,7 @@ export fn foldRight(list : List(a), acc : b, step : (a, b) -> b with e) : b with
       | head :: rest -> step(head, foldRight(rest, acc, step))
     }
 
-/// The function applied to each element for its effect.
+/// Calls `f` for each element, in order, for its effect.
 ///
 /// ### Examples
 ///
@@ -191,8 +219,8 @@ export fn foreach(list : List(a), f : (a) -> Unit with e) : Unit with e =
         }
     }
 
-/// `true` when the predicate holds for some element; it is not called after
-/// the first that satisfies it.
+/// `true` when `test` holds for at least one element, and `false` for the
+/// empty list. `test` is not called after the first element it holds for.
 ///
 /// ### Examples
 ///
@@ -206,15 +234,15 @@ export fn any(list : List(a), test : (a) -> Bool with e) : Bool with e =
       | head :: rest -> if test(head) then true else any(rest, test)
     }
 
-/// `true` when the predicate holds for every element, and for the empty
-/// list; it is not called after the first that fails.
+/// `true` when `test` holds for every element, and for the empty list.
+/// `test` is not called after the first element it fails for.
 export fn all(list : List(a), test : (a) -> Bool with e) : Bool with e =
     match list {
         [] -> true
       | head :: rest -> if test(head) then all(rest, test) else false
     }
 
-/// The first element the predicate holds for.
+/// The first element `test` holds for, or `None` where there is none.
 ///
 /// ### Examples
 ///
@@ -228,7 +256,8 @@ export fn find(list : List(a), test : (a) -> Bool with e) : Optional(a) with e =
       | head :: rest -> if test(head) then Some(head) else find(rest, test)
     }
 
-/// The last element.
+/// The last element, or `None` for the empty list. The whole list is walked
+/// to reach it.
 ///
 /// ### Examples
 ///
@@ -244,7 +273,7 @@ export fn last(list : List(a)) : Optional(a) =
       | _ :: rest -> last(rest)
     }
 
-/// The first `count` elements, or all of them when there are fewer;
+/// The first `count` elements, or all of them where there are fewer. A
 /// `count` below 0 takes none.
 ///
 /// ### Examples
@@ -261,7 +290,8 @@ export fn take(list : List(a), count : Int) : List(a) =
       | head :: rest -> head :: take(rest, count - 1)
     }
 
-/// All but the first `count` elements; `count` below 0 drops none.
+/// The list without its first `count` elements, or empty where there are
+/// fewer. A `count` below 0 drops none.
 export fn drop(list : List(a), count : Int) : List(a) =
     if count <= 0 then
         list
@@ -270,7 +300,8 @@ export fn drop(list : List(a), count : Int) : List(a) =
       | _ :: rest -> drop(rest, count - 1)
     }
 
-/// All but the last `count` elements; `count` below 0 drops none.
+/// The list without its last `count` elements, or empty where there are
+/// fewer. A `count` below 0 drops none.
 ///
 /// ### Examples
 ///
@@ -281,7 +312,8 @@ export fn drop(list : List(a), count : Int) : List(a) =
 export fn dropLast(list : List(a), count : Int) : List(a) =
     if count <= 0 then list else take(list, size(list) - count)
 
-/// The longest prefix the predicate holds for, and the rest.
+/// The list split where `test` first fails: the elements before that one,
+/// all of which `test` holds for, and the rest, from that one on.
 ///
 /// ### Examples
 ///
@@ -299,7 +331,7 @@ export fn span(list : List(a), test : (a) -> Bool with e) : #(List(a), List(a)) 
             #([], list)
     }
 
-/// The elements the predicate holds for and those it does not, each in
+/// The elements `test` holds for, and those it does not, each in their
 /// order.
 ///
 /// ### Examples
@@ -319,7 +351,10 @@ export fn partition(list : List(a), test : (a) -> Bool with e) : #(List(a), List
         }
     }
 
-/// The first occurrence of each element, in order.
+/// The list without repeats: the first occurrence of each element is kept,
+/// in order. Each element is compared with every later one, so the cost
+/// grows with the square of the length; for a long list, `Set.fromList`
+/// or `OrderedSet.fromList` is quicker where the order may change.
 ///
 /// ### Examples
 ///
@@ -333,7 +368,7 @@ export fn unique(list : List(a)) : List(a) =
       | head :: rest -> head :: unique(filter(rest, fn(other) = other != head))
     }
 
-/// Each element with its index, counting from 0.
+/// Each element paired with its index, counting from 0.
 ///
 /// ### Examples
 ///
@@ -350,7 +385,8 @@ fn indexedFrom(list : List(a), index : Int) : List(#(Int, a)) =
       | head :: rest -> #(index, head) :: indexedFrom(rest, index + 1)
     }
 
-/// `count` copies of the value; `count` below 0 gives none.
+/// A list of `count` copies of `element`. A `count` below 0 gives the empty
+/// list.
 ///
 /// ### Examples
 ///
@@ -372,8 +408,10 @@ export fn repeat(element : a, count : Int) : List(a) =
 export fn reverse(list : List(a)) : List(a) =
     foldLeft(list, [], fn(acc, element) = element :: acc)
 
-/// The elements in the order `compare` gives, stable: two elements it calls
-/// `Equal` keep the order they had.
+/// The elements sorted by `compare`, smallest first. The sort is stable:
+/// two elements `compare` calls `Equal` keep the order they had, so a list
+/// sorted by one key and then by another is in order of both. `compare` is
+/// an order (report §3.10), `Int.compare` or one of the program's.
 ///
 /// ### Examples
 ///
@@ -409,8 +447,8 @@ fn merge(left : List(a), right : List(a), compare : (a, a) -> Ordering with e) :
         }
     }
 
-/// The pairs of elements at the same index, to the length of the shorter
-/// list.
+/// The pairs of the elements at each index of both lists. The longer list's
+/// extra elements are left out.
 ///
 /// ### Examples
 ///
@@ -424,7 +462,8 @@ export fn zip(list : List(a), other : List(b)) : List(#(a, b)) =
       | _ -> []
     }
 
-/// The first components and the second components, each in order.
+/// The pairs taken apart: the list of their first components and the list
+/// of their second, each in order.
 ///
 /// ### Examples
 ///
@@ -441,7 +480,7 @@ export fn unzip(pairs : List(#(a, b))) : #(List(a), List(b)) =
         }
     }
 
-/// The lists the function gives, one after another.
+/// The lists `f` answers for the elements, joined in order.
 ///
 /// ### Examples
 ///
@@ -455,8 +494,8 @@ export fn flatMap(list : List(a), f : (a) -> List(b) with e) : List(b) with e =
       | head :: rest -> f(head) <> flatMap(rest, f)
     }
 
-/// The integers from the first to the second, both included; empty when the
-/// first is greater.
+/// The integers from `first` to `last`, both included, counting up. Where
+/// `first` is greater than `last` the list is empty.
 ///
 /// ### Examples
 ///
@@ -467,8 +506,8 @@ export fn flatMap(list : List(a), f : (a) -> List(b) with e) : List(b) with e =
 export fn range(first : Int, last : Int) : List(Int) =
     if first > last then [] else first :: range(first + 1, last)
 
-/// The mapped elements, or the first `Left` the function gives, which ends
-/// the walk.
+/// The list of what `step` answers for each element in a `Right`, as `map`
+/// does, or the first `Left` it answers, after which it is called no more.
 ///
 /// ### Examples
 ///
@@ -486,8 +525,9 @@ export fn tryMap(list : List(a), step : (a) -> Either(e, b) with x) : Either(e, 
         }
     }
 
-/// The accumulator after the function has seen each element, or the first
-/// `Left` it gives, which ends the walk.
+/// The elements folded into one value as `foldLeft` does, `step` answering
+/// a `Right` with the next value, or the first `Left` it answers, after
+/// which it is called no more.
 ///
 /// ### Examples
 ///
