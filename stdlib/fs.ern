@@ -368,6 +368,10 @@ export fn makeFile(path : Path, bytes : Bytes, ms : Int) : Either(Io.Error, Unit
 /// the removal runs. It waits the milliseconds given once, for the whole
 /// removal.
 ///
+/// A path that names the root directory, however it is written, `/` or
+/// `/usr/..`, answers `Left(Invalid)`, and nothing is removed. A link to the
+/// root is removed where it stands.
+///
 /// ### Errors
 ///
 /// Where the runtime's helper fails, the caller faults with `Fault("the

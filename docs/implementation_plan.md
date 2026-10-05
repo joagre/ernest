@@ -128,15 +128,14 @@ and its measurement does not hold the release.
    the ordered set's source closes it, against MVP 2.99b's choice of that module as the
    section's example. Chapters 4 to 7 gain exercises on Ernest's own distinctions. The
    backbone, the programs, the word counter and the rejected programs, is kept.
-6. **`Fs.removeAll` refuses the root**: `Fs.removeAll(Path("/"))` walks the root as any
-   directory and removes what the program may, and E.17 is silent on it (found 2026-10-05,
-   as the walk was rewritten for the full review's S10). A path that names the root,
-   however written, `/`, `//`, `/tmp/..`, or `.` where the root is the working directory,
-   answers `Left(Invalid)` before anything is removed. A comparison of spellings would
-   miss some, so the check is by the directory's identity, its device and inode against
-   the root's, as GNU `rm` refuses `/` by default. A sentence of E.17, the check, and a
-   test that can remove nothing where the check fails: it runs with a helper that removes
-   nothing, and holds that the helper was never asked.
+6. **`Fs.removeAll` refuses the root**, done 2026-10-05: a path that names the root
+   directory, however written, `/`, `//`, `/usr/..`, or `.` where the root is the working
+   directory, answers `Left(Invalid)` before anything is removed, and a link to the root
+   is removed where it stands (E.17). The check is the directory's identity, its device
+   and inode against the root's, as GNU `rm` refuses `/` by default, since a comparison of
+   spellings would miss some (the log's *MVP 2.99d's Measurements, Sized*). Its test gives
+   the file system process a remover that removes nothing, `run_main`'s `remove_tree`, and
+   holds that a scratch tree reaches it before any spelling of the root is sent.
 7. **The manual pages made to teach**, done 2026-10-05 and shipped as Ernest 0.3.1 (Appendix
    E.0 shape rule 6; the log's *The Manual Pages Teach*): the pages `ern doc` writes, the
    standard library's, the prelude's and the libraries', each rewritten to the form

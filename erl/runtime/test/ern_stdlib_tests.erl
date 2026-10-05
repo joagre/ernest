@@ -1031,6 +1031,60 @@ fs_remove_all_by_directories_test() ->
     ok = file:change_mode(filename:join([Dir, "locked", "inner"]), 8#755),
     file:del_dir_r(Dir).
 
+%% report Appendix E.17: `removeAll` refuses a path that names the root,
+%% however written, with Left(Invalid), and a link to the root names none.
+%% Written with the check (MVP 2.99d's item 6). No helper that removes is
+%% ever given a root: Fs runs with a remover that removes nothing and tells
+%% the test what it was asked, and the first run holds that a scratch tree
+%% reaches that remover and stays, before any spelling of the root is sent.
+%% A root another process's link swaps in between the check and the walk is
+%% not covered, since the check reads the path as the walk will
+fs_remove_all_refuses_the_root_test() ->
+    Self = self(),
+    Dir = scratch("ern_fs_root_"),
+    Tree = filename:join(Dir, "tree"),
+    ok = filelib:ensure_path(Tree),
+    ok = file:make_symlink("/", filename:join(Dir, "to_root")),
+    RemovesNothing = fun(Text) -> Self ! {asked, Text}, {'Right', 'Unit'} end,
+    Options = #{remove_tree => RemovesNothing},
+    Fs = 'ern@fs',
+    Removed = fun(Text) -> Fs:removeAll({'Path', Text}, 5000) end,
+    ?assertEqual(ok, ern_rt:run_main(fun() -> Self ! {fs, Removed(list_to_binary(Tree))} end,
+                                     <<"fs_remove_all_refuses_the_root_test">>, Options)),
+    ?assertEqual([{'Right', 'Unit'}], collect(fs, [])),
+    ?assertEqual([list_to_binary(Tree)], asked([])),
+    ?assert(filelib:is_dir(Tree)),
+    %% only now a root: as written, with `.` and `..`, from the scratch
+    %% directory up past the root, and `.` with the root as the working
+    %% directory
+    Up = iolist_to_binary(lists:join("/", [Dir | lists:duplicate(length(filename:split(Dir)) + 2,
+                                                                 "..")])),
+    Roots = [<<"/">>, <<"//">>, <<"/.">>, <<"/usr/..">>, <<"/../..">>, Up],
+    ToRoot = list_to_binary(filename:join(Dir, "to_root")),
+    {ok, Working} = file:get_cwd(),
+    try
+        ok = file:set_cwd("/"),
+        ?assertEqual(ok, ern_rt:run_main(
+                           fun() ->
+                               [Self ! {fs, Removed(Root)} || Root <- Roots ++ [<<".">>]],
+                               Self ! {fs, Removed(ToRoot)}
+                           end, <<"fs_remove_all_refuses_the_root_test">>, Options))
+    after
+        ok = file:set_cwd(Working)
+    end,
+    Answers = collect(fs, []),
+    ?assertEqual(lists:duplicate(length(Roots) + 1, {'Left', 'Invalid'}),
+                 lists:droplast(Answers)),
+    %% the link reached the remover, which would remove it where it stands,
+    %% and no root did
+    ?assertEqual({'Right', 'Unit'}, lists:last(Answers)),
+    ?assertEqual([ToRoot], asked([])),
+    file:del_dir_r(Dir).
+
+%% What the remover that removes nothing was asked, in order.
+asked(Acc) ->
+    receive {asked, Text} -> asked([Text | Acc]) after 0 -> lists:reverse(Acc) end.
+
 %% report Appendix E.17: `removeAll` holds a bounded number of descriptors
 %% however deep the tree, so a chain of directories deeper than the
 %% helper's limit on descriptors is removed whole. A regression test: the

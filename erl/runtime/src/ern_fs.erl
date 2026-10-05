@@ -7,28 +7,63 @@
 %% user, as entry/2 builds them.
 -module(ern_fs).
 
--export([loop/0, is_utf8/1, name_bytes/1]).
+-export([loop/1, is_utf8/1, name_bytes/1, removed_by_helper/1]).
 
 -include_lib("kernel/include/file.hrl").
 
--spec loop() -> no_return().
-loop() ->
+%% RemoveTree removes a tree whose path names no root, removed_by_helper/1
+%% where a test gives none (ern_rt:run_main/3's remove_tree).
+-spec loop(fun((binary()) -> term())) -> no_return().
+loop(RemoveTree) ->
     receive
         Message ->
-            erlang:spawn(fun() -> serve(Message) end),
-            loop()
+            erlang:spawn(fun() -> serve(Message, RemoveTree) end),
+            loop(RemoveTree)
     end.
 
 %% Report Appendix E.17: a path that holds U+0000 names no file, and the
 %% request is answered so before any work.
-serve(Message) ->
+serve(Message, RemoveTree) ->
     Fields = tuple_to_list(Message),
     case [Bytes || {'Path', Bytes} <- Fields, binary:match(Bytes, <<0>>) =/= nomatch] of
         [] ->
-            handle(Message);
+            handle(Message, RemoveTree);
         _ ->
             [Reply] = [Field || Field <- Fields, is_reference(Field)],
             ern_rt:answer(Reply, {'Left', 'Invalid'})
+    end.
+
+%% Report Appendix E.17: a tree removed by RemoveTree, the runtime's helper
+%% but in a test, which walks a directory by the directories it has opened
+%% and never by a path, so that a directory replaced by a link while it runs
+%% leads it nowhere else; Erlang's file module has no operation relative to
+%% an open directory. A path that names the root is refused first, and
+%% reaches no remover.
+handle({'RemoveAll', Path, Reply}, RemoveTree) ->
+    Text = text(Path),
+    case names_root(Text) of
+        true ->
+            ern_rt:answer(Reply, {'Left', 'Invalid'});
+        false ->
+            case RemoveTree(Text) of
+                {fault, Cause} -> ern_rt:refuse(Reply, Cause);
+                Answer -> ern_rt:answer(Reply, Answer)
+            end
+    end;
+handle(Message, _RemoveTree) ->
+    handle(Message).
+
+%% Report Appendix E.17: whether the path names the root directory, however
+%% it is written: its own entry, no link followed, has the root's device and
+%% inode, the host resolving each `.` and `..` in it as the helper's walk
+%% would. A link to the root is an entry of its own, and names no root.
+names_root(Text) ->
+    case {file:read_link_info(Text, [raw]), file:read_file_info(<<"/">>, [raw])} of
+        {{ok, #file_info{type = directory, major_device = Device, inode = Inode}},
+         {ok, #file_info{major_device = Device, inode = Inode}}} ->
+            true;
+        _ ->
+            false
     end.
 
 handle({'Read', Path, Reply}) ->
@@ -71,15 +106,6 @@ handle({'Remove', Path, Reply}) ->
                            {ok, #file_info{type = directory}} -> file:del_dir(Text);
                            _ -> file:delete(Text, [raw])
                        end));
-%% Report Appendix E.17: a tree removed by the runtime's helper, which walks
-%% a directory by the directories it has opened and never by a path, so
-%% that a directory replaced by a link while it runs leads it nowhere else;
-%% Erlang's file module has no operation relative to an open directory.
-handle({'RemoveAll', Path, Reply}) ->
-    case removed_by_helper(text(Path)) of
-        {fault, Cause} -> ern_rt:refuse(Reply, Cause);
-        Answer -> ern_rt:answer(Reply, Answer)
-    end;
 handle({'Rename', Source, Destination, Reply}) ->
     answer(Reply, unit(file:rename(text(Source), text(Destination))));
 %% Report Appendix E.17: the link at the path, holding the target as it is
@@ -299,7 +325,9 @@ floor_div(Dividend, Divisor) -> -((-Dividend + Divisor - 1) div Divisor).
 
 %% The helper's job `remove` run on the path: Right(Unit) once it is gone,
 %% and the runtime's own failure, which faults the caller, where the helper
-%% fails (report §7.4, Appendix E.17).
+%% fails (report §7.4, Appendix E.17). A path that names the root never
+%% reaches it (handle/2).
+-spec removed_by_helper(binary()) -> term().
 removed_by_helper(Text) ->
     try erlang:open_port({spawn_executable, ern_os:helper()},
                          [{args, ["remove"]}, {packet, 4}, binary, exit_status]) of
